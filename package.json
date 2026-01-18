@@ -1,0 +1,26 @@
+{
+  "name": "salmon-loop",
+  "version": "0.1.0",
+  "description": "A minimal viable execution loop for automated code patching",
+  "type": "module",
+  "bin": {
+    "salmon-loop": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/cli.ts",
+    "test": "vitest run"
+  },
+  "keywords": ["code", "automation", "patch", "llm"],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "tsx": "^4.0.0",
+    "vitest": "^1.0.0"
+  },
+  "dependencies": {
+    "commander": "^11.0.0"
+  }
+}
