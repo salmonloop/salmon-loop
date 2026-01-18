@@ -1,7 +1,8 @@
 export interface Plan {
-  reasoning: string;
-  steps: PlanStep[];
-  filesToChange: string[];
+  goal: string;
+  files: string[];
+  changes: string[];
+  verify: string;
 }
 
 export interface PlanStep {
@@ -19,7 +20,7 @@ export interface LoopResult {
 }
 
 export interface StepLog {
-  step: 'plan' | 'patch' | 'apply' | 'verify';
+  step: 'plan' | 'patch' | 'validate' | 'apply' | 'verify' | 'error';
   success: boolean;
   error?: string;
   output?: string;

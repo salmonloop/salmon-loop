@@ -1,21 +1,21 @@
 import { LIMITS } from './limits.js';
 
-// 检查是否为合法的 unified diff 格式
+// Check if it is a valid unified diff format
 export function isUnifiedDiff(text: string): boolean {
   return text.startsWith('diff --git');
 }
 
-// 统计 diff 中修改的文件数量
+// Count the number of files changed in the diff
 export function countFilesChanged(diff: string): number {
   return (diff.match(/^diff --git/gm) || []).length;
 }
 
-// 统计 diff 中的变更行数
+// Count the number of changed lines in the diff
 export function countDiffLines(diff: string): number {
   return (diff.match(/^[+-]/gm) || []).length;
 }
 
-// 综合校验 diff 的合法性
+// Comprehensive validation of diff validity
 export function validateDiff(diff: string, limits = LIMITS): void {
   if (!isUnifiedDiff(diff)) {
     throw new Error('Invalid diff format: must be unified diff starting with "diff --git"');

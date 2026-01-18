@@ -36,7 +36,7 @@ export class ContextBuilder {
 
   private static async runRipgrep(query: string, cwd: string): Promise<RipgrepResult[]> {
     return new Promise((resolve) => {
-      const child = spawn('rg', ['-n', query], {
+      const child = spawn('rg', ['-n', '--', query], {
         stdio: ['pipe', 'pipe', 'pipe'],
         cwd
       });
@@ -84,11 +84,11 @@ export class ContextBuilder {
       return [];
     }
 
-    // 并行执行所有关键词搜索
+    // Execute all keyword searches in parallel
     const searchPromises = keywords.map(keyword => this.runRipgrep(keyword, cwd));
     const resultsArrays = await Promise.all(searchPromises);
 
-    // 合并结果并去重
+    // Merge results and deduplicate
     const seen = new Set<string>();
     const mergedResults: RipgrepResult[] = [];
 
@@ -102,10 +102,10 @@ export class ContextBuilder {
       }
     }
 
-    // 限制结果数量（Top 50）
+    // Limit number of results (Top 50)
     const limitedResults = mergedResults.slice(0, 50);
 
-    // 按文件路径和行号排序
+    // Sort by file path and line number
     return limitedResults.sort((a, b) => {
       if (a.file !== b.file) {
         return a.file.localeCompare(b.file);
@@ -145,7 +145,7 @@ export class ContextBuilder {
       return context;
     }
     
-    // 优先保留 primaryText，按比例截断 rgSnippets
+    // Prioritize primaryText, truncate rgSnippets proportionally
     const remainingChars = LIMITS.maxContextChars - (context.primaryText?.length || 0);
     const snippetsChars = context.rgSnippets.reduce((sum, snippet) => sum + snippet.content.length, 0);
     

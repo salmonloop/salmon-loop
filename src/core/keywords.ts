@@ -1,4 +1,4 @@
-// 硬编码停用词表（精简版）
+// Hardcoded stopwords list (simplified)
 const STOPWORDS = new Set([
   "the", "is", "a", "an", "to", "of", "and", "in", "on", "at", "for", "with",
   "fix", "add", "remove", "update", "delete", "create", "make", "implement",
@@ -6,18 +6,18 @@ const STOPWORDS = new Set([
 ]);
 
 export function extractKeywords(instruction: string): string[] {
-  // 1. 归一化 & 拆词 (非字母数字分隔)
+  // 1. Normalize & Tokenize (split by non-alphanumeric)
   const tokens = instruction.toLowerCase().split(/[^a-z0-9_-]+/).filter(Boolean);
   
-  // 2. 过滤 & 筛选
+  // 2. Filter & Select
   const keywords = tokens
-    .filter(t => t.length >= 3)       // 长度 >= 3
-    .filter(t => !STOPWORDS.has(t));  // 排除停用词
+    .filter(t => t.length >= 3)       // Length >= 3
+    .filter(t => !STOPWORDS.has(t));  // Exclude stopwords
     
-  // 3. 取前 3 个
+  // 3. Take top 3
   const selected = keywords.slice(0, 3);
   
-  // 4. 兜底：如果没提取到，尝试取原始 tokens 中长度够的
+  // 4. Fallback: if no keywords extracted, try to take tokens with sufficient length
   if (selected.length === 0) {
     const fallback = tokens.find(t => t.length >= 3);
     if (fallback) selected.push(fallback);

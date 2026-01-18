@@ -1,9 +1,9 @@
-import fs from 'fs/promises';
+import { writeFile, unlink } from 'fs/promises';
 import { spawn } from 'child_process';
 
 export async function applyPatch(repoPath: string, diffText: string): Promise<void> {
   const tempFile = `${repoPath}/.salmon_temp.patch`;
-  await fs.writeFile(tempFile, diffText);
+  await writeFile(tempFile, diffText);
   
   return new Promise((resolve, reject) => {
     const child = spawn('git', ['apply', '--3way', tempFile], { cwd: repoPath });
@@ -13,9 +13,9 @@ export async function applyPatch(repoPath: string, diffText: string): Promise<vo
     
     child.on('close', async (code) => {
       try {
-        await fs.unlink(tempFile);
+        await unlink(tempFile);
       } catch {
-        // 忽略删除错误
+        // Ignore deletion errors
       }
       
       if (code === 0) {
