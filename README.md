@@ -86,6 +86,11 @@ The core loop consists of the following steps:
 6. **Verification**: Runs the user-provided verification command.
 7. **Intelligent Convergence**: If verification fails, analyzes the error output to identify failed files, rolls back changes, shrinks context to those files, and retries (up to limit).
 
+## Project Structure
+
+-   `src/core`: Contains the execution loop and must not depend on CLI, UI, or editor integrations.
+-   `src/cli.ts`: The command-line interface entry point.
+
 ## Safety Limits
 
 To prevent accidental damage, Salmon-Loop enforces strict limits:
@@ -95,6 +100,7 @@ To prevent accidental damage, Salmon-Loop enforces strict limits:
 -   **Max Retries**: 2 attempts to fix verification failures.
 -   **Context Size**: Limited token window to ensure focused LLM attention.
 -   **Unified Diff**: Only accepts valid unified diff format.
+-   **No File Operations**: Prohibits file creation, deletion, or renaming to ensure reliable rollbacks.
 
 ## License
 

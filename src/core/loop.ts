@@ -42,11 +42,21 @@ export function extractFailedFiles(verifyOutput: string): string[] {
 }
 
 export function shrinkContext(context: Context, failedFiles: string[]): Context {
+  // If no failed files identified, do not shrink context to avoid clearing everything
+  if (failedFiles.length === 0) {
+    return context;
+  }
+
   // Shrink context, keeping only content related to failed files
   return {
     ...context,
     rgSnippets: context.rgSnippets.filter(snippet =>
-      failedFiles.some(file => snippet.file.includes(file))
+      // Normalize paths for comparison (simple replacement of \ to /)
+      failedFiles.some(file => {
+        const normalizedSnippetFile = snippet.file.replace(/\\/g, '/');
+        const normalizedFailedFile = file.replace(/\\/g, '/');
+        return normalizedSnippetFile.endsWith(normalizedFailedFile);
+      })
     )
   };
 }
@@ -80,86 +90,107 @@ export class SalmonLoop {
     let currentDiff: string | null = null;
     let retries = 0;
     let lastError: string | undefined;
+    let changedFilesThisAttempt: string[] = [];
 
     while (retries <= LIMITS.maxRetries) {
-    try {
-      // PLAN phase
-      currentPlan = await options.llm.createPlan(context, options.instruction);
-      logs.push(this.createLog('plan', currentPlan));
+      changedFilesThisAttempt = []; // Reset for this attempt
+      try {
+        // PLAN phase
+        currentPlan = await options.llm.createPlan(context, options.instruction);
+        logs.push(this.createLog('plan', currentPlan));
 
-      // PATCH phase
-      currentDiff = await options.llm.createPatch(context, currentPlan, lastError);
-      logs.push(this.createLog('patch', currentDiff));
+        // PATCH phase
+        currentDiff = await options.llm.createPatch(context, currentPlan, lastError);
+        logs.push(this.createLog('patch', currentDiff));
 
-      // VALIDATE phase
-      validateDiff(currentDiff);
-      logs.push(this.createLog('validate', text.loop.diffValidationPassed));
+        // VALIDATE phase
+        const diffMeta = validateDiff(currentDiff);
+        changedFilesThisAttempt = diffMeta.changedFiles;
+        logs.push(this.createLog('validate', text.loop.diffValidationPassed));
 
-      // APPLY phase
-      if (!options.dryRun) {
-        await applyPatch(options.repo, currentDiff);
-        logs.push(this.createLog('apply', text.loop.patchApplied));
-      } else {
-        logs.push(this.createLog('apply', text.loop.dryRunPatchNotApplied));
-      }
+        // APPLY phase
+        if (!options.dryRun) {
+          await applyPatch(options.repo, currentDiff);
+          logs.push(this.createLog('apply', text.loop.patchApplied));
+        } else {
+          logs.push(this.createLog('apply', text.loop.dryRunPatchNotApplied));
+        }
 
-      // VERIFY phase
-      const verifyResult = await runVerify(options.repo, options.verify);
-      logs.push(this.createLog('verify', verifyResult.output, verifyResult.ok));
+        // VERIFY phase
+        const verifyResult = await runVerify(options.repo, options.verify);
+        logs.push(this.createLog('verify', verifyResult.output, verifyResult.ok));
 
-      if (verifyResult.ok) {
+        if (verifyResult.ok) {
+          return {
+            success: true,
+            reason: text.loop.operationCompleted,
+            attempts: retries + 1,
+            logs,
+            finalPatch: currentDiff || undefined
+          };
+        }
+
+        // Verification failed, preparing to retry
+        lastError = verifyResult.output;
+        retries++;
+
+        // Rollback files (using changedFilesThisAttempt)
+        if (!options.dryRun && changedFilesThisAttempt.length > 0) {
+          const rb = await rollbackFiles(options.repo, changedFilesThisAttempt);
+          if (!rb.ok) {
+            logs.push(this.createLog('apply', text.loop.rollbackFailed(rb.stderr), false));
+            return {
+              success: false,
+              reason: text.loop.rollbackFailedDirty,
+              attempts: retries,
+              logs,
+              finalPatch: currentDiff || undefined
+            };
+          }
+        }
+
+        if (retries > LIMITS.maxRetries) {
+          return {
+            success: false,
+            reason: text.loop.exceededMaxRetriesSimple,
+            attempts: retries,
+            logs,
+            finalPatch: currentDiff || undefined
+          };
+        }
+
+        // Shrink context
+        const failedFiles = extractFailedFiles(verifyResult.output);
+        context = shrinkContext(context, failedFiles);
+
+      } catch (error) {
+        // Rollback on error
+        if (!options.dryRun && changedFilesThisAttempt.length > 0) {
+          const rb = await rollbackFiles(options.repo, changedFilesThisAttempt);
+          if (!rb.ok) {
+            logs.push(this.createLog('error', text.loop.rollbackFailed(rb.stderr), false));
+          }
+        }
+
+        logs.push(this.createLog('error', error instanceof Error ? error.message : String(error), false));
+        
         return {
-          success: true,
-          reason: text.loop.operationCompleted,
+          success: false,
+          reason: text.loop.loopExecutionFailed,
           attempts: retries + 1,
           logs,
           finalPatch: currentDiff || undefined
         };
       }
-
-      // Verification failed, preparing to retry
-      lastError = verifyResult.output;
-      retries++;
-
-      if (retries > LIMITS.maxRetries) {
-        return {
-          success: false,
-          reason: text.loop.exceededMaxRetriesSimple,
-          attempts: retries,
-          logs,
-          finalPatch: currentDiff || undefined
-        };
-      }
-
-      // Shrink context
-      const failedFiles = extractFailedFiles(verifyResult.output);
-      context = shrinkContext(context, failedFiles);
-
-      // Rollback files
-      if (!options.dryRun && failedFiles.length > 0) {
-        await rollbackFiles(options.repo, failedFiles);
-      }
-
-    } catch (error) {
-      logs.push(this.createLog('error', error instanceof Error ? error.message : String(error), false));
-      
-      return {
-        success: false,
-        reason: text.loop.loopExecutionFailed,
-        attempts: retries + 1,
-        logs,
-        finalPatch: currentDiff || undefined
-      };
     }
-  }
 
-  return {
-    success: false,
-    reason: text.loop.unexpectedTermination,
-    attempts: retries,
-    logs,
-    finalPatch: currentDiff || undefined
-  };
+    return {
+      success: false,
+      reason: text.loop.unexpectedTermination,
+      attempts: retries,
+      logs,
+      finalPatch: currentDiff || undefined
+    };
   }
 
   private createLog(step: 'plan' | 'patch' | 'validate' | 'apply' | 'verify' | 'error', output: any, success = true): StepLog {

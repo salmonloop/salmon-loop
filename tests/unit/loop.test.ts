@@ -19,6 +19,15 @@ describe('SalmonLoop', () => {
     loop = new SalmonLoop();
     mockLLM = new StubLLM();
     vi.clearAllMocks();
+    
+    // Default mock for rollbackFiles
+    vi.mocked(git.rollbackFiles).mockResolvedValue({
+      ok: true,
+      attempted: [],
+      exitCode: 0,
+      stdout: '',
+      stderr: ''
+    });
   });
 
   it('should run successfully when verify passes', async () => {
@@ -121,6 +130,49 @@ index 123..456 100644
     expect(result.success).toBe(true);
     expect(result.attempts).toBe(2);
     expect(git.rollbackFiles).toHaveBeenCalledWith('/tmp/repo', expect.arrayContaining(['test.txt']));
+  });
+
+  it('should rollback all changed files on failure, not just failed ones', async () => {
+    vi.mocked(ContextBuilder.build).mockResolvedValue({
+      repoPath: '/tmp/repo',
+      primaryText: 'content',
+      rgSnippets: [],
+    } as any);
+
+    mockLLM.createPlan = vi.fn().mockResolvedValue({ goal: 'test', files: ['a.ts', 'b.ts'], changes: [], verify: '' });
+    
+    // Diff changes a.ts and b.ts
+    mockLLM.createPatch = vi.fn().mockResolvedValue(`diff --git a/a.ts b/a.ts
+index 123..456 100644
+--- a/a.ts
++++ b/a.ts
+@@ -1 +1 @@
+-old
++new
+diff --git a/b.ts b/b.ts
+index 123..456 100644
+--- a/b.ts
++++ b/b.ts
+@@ -1 +1 @@
+-old
++new`);
+
+    // Verify fails only on a.ts
+    vi.mocked(verify.runVerify)
+      .mockResolvedValueOnce({ ok: false, output: 'Error in a.ts', exitCode: 1 })
+      .mockResolvedValueOnce({ ok: true, output: 'Success', exitCode: 0 });
+
+    const result = await loop.run({
+      instruction: 'fix bug',
+      verify: 'npm test',
+      repo: '/tmp/repo',
+      llm: mockLLM,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.attempts).toBe(2);
+    // Should rollback BOTH a.ts and b.ts
+    expect(git.rollbackFiles).toHaveBeenCalledWith('/tmp/repo', expect.arrayContaining(['a.ts', 'b.ts']));
   });
 
   it('should fail when max retries exceeded', async () => {

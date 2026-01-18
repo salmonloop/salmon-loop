@@ -44,6 +44,21 @@ ${lastError ? `\n# Last Error\nThe previous attempt failed with the following er
 
 Please return the patch in pure unified diff format:`,
   },
+  git: {
+    applyFailed: (error: string) => `git apply failed: ${error}`,
+    applySpawnFailed: (error: string) => `git apply spawn failed: ${error}`,
+  },
+
+  diff: {
+    notUnifiedFormat: 'Patch is not in unified diff format',
+    tooManyFiles: (count: number, max: number) =>
+      `Patch affects ${count} files, but you can only modify up to ${max} files.`,
+    tooManyLines: (count: number, max: number) =>
+      `Patch has ${count} diff lines, but the maximum allowed is ${max} lines.`,
+    fileCreationNotAllowed: 'File creation is not allowed in this mode',
+    fileDeletionNotAllowed: 'File deletion is not allowed in this mode',
+    fileRenameNotAllowed: 'File renaming is not allowed in this mode',
+  },
 
   loop: {
     starting: '🚀 Starting salmon-loop...',
@@ -62,6 +77,8 @@ Please return the patch in pure unified diff format:`,
     exceededMaxRetriesSimple: 'Exceeded maximum retry attempts',
     loopExecutionFailed: 'Loop execution failed',
     unexpectedTermination: 'Unexpected loop termination',
+    rollbackFailed: (error: string) => `Rollback failed: ${error}`,
+    rollbackFailedDirty: "Rollback failed; workspace may be dirty. Please run `git status` and manually reset using `git reset --hard`.",
   },
 
   verify: {
@@ -124,13 +141,5 @@ Please return the patch in pure unified diff format:`,
     // Errors
     error: (error: string) => `❌ Error: ${error}`,
     unexpectedError: (error: string) => `Unexpected error: ${error}`,
-  },
-
-  diff: {
-    notUnifiedFormat: 'Patch is not in unified diff format',
-    tooManyFiles: (count: number, max: number) =>
-      `Patch affects ${count} files, maximum allowed is ${max}`,
-    tooManyLines: (count: number, max: number) =>
-      `Patch has ${count} diff lines, maximum allowed is ${max}`,
   },
 };

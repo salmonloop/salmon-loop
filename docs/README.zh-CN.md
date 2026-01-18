@@ -87,6 +87,11 @@ salmon-loop --instruction "Update email validation regex" --verify "jest tests/e
 6.  **验证 (Verification)**：运行用户提供的验证命令。
 7.  **智能收敛 (Intelligent Convergence)**：如果验证失败，分析错误输出以识别失败的文件，回滚更改，将上下文收缩到这些文件，并重试（达到限制为止）。
 
+## 项目结构 (Project Structure)
+
+-   `src/core`: 包含执行循环，不得依赖 CLI、UI 或编辑器集成。
+-   `src/cli.ts`: 命令行界面入口点。
+
 ## 安全限制 (Safety Limits)
 
 为了防止意外损坏，Salmon-Loop 强制执行严格的限制：
@@ -96,6 +101,7 @@ salmon-loop --instruction "Update email validation regex" --verify "jest tests/e
 -   **最大重试次数**：2 次尝试修复验证失败。
 -   **上下文大小**：限制 token 窗口以确保 LLM 专注。
 -   **Unified Diff**：仅接受有效的 unified diff 格式。
+-   **禁止文件操作**：禁止创建、删除或重命名文件，以确保回滚的可靠性。
 
 ## 许可证
 

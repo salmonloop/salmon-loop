@@ -2,10 +2,7 @@
 import 'dotenv/config';
 import { Command } from 'commander';
 import { resolve } from 'path';
-import { ContextBuilder } from './core/context.js';
-import { SalmonLoop } from './core/loop.js';
-import { OpenAILLM, StubLLM } from './core/llm.js';
-import type { RunOptions } from './core/types.js';
+import { ContextBuilder, SalmonLoop, OpenAILLM, StubLLM, type RunOptions } from './core/index.js';
 import { text } from './locales/index.js';
 
 const program = new Command();
