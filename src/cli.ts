@@ -15,7 +15,7 @@ program
   .version('0.1.0');
 
 program
-  .command('run')
+  .command('run', { isDefault: true })
   .description(text.cli.runDescription)
   .requiredOption('-i, --instruction <instruction>', text.cli.instructionOption)
   .requiredOption('-v, --verify <command>', text.cli.verifyOption)
