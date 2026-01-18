@@ -1,4 +1,11 @@
 export const en = {
+  llm: {
+    planEmpty: 'LLM returned empty response for plan',
+    planInvalid: 'Invalid Plan structure: missing required fields',
+    planParseFailed: (content: string, error: string) => `Failed to parse LLM response as JSON: ${content}. Error: ${error}`,
+    patchEmpty: 'LLM returned empty response for patch',
+  },
+
   prompts: {
     plan: (context: string, instruction: string, maxFilesChanged: number) => `You are a code modification assistant. Please generate a detailed modification plan based on the following context and instruction.
 
@@ -9,22 +16,24 @@ ${context}
 ${instruction}
 
 # Requirements
-- The plan must be in JSON format, containing the fields reasoning, steps, and filesToChange.
-- Each step in the steps array must include description, file, and changeType.
-- changeType can only be 'modify', 'add', or 'delete'.
+- The plan must be in JSON format, containing the fields: goal, files, changes, verify.
+- 'goal': A brief description of the goal.
+- 'files': An array of file paths to be modified.
+- 'changes': An array of strings describing the specific changes.
+- 'verify': A verification command or description.
 - You cannot modify more than ${maxFilesChanged} files.
 - Do not generate code, only describe the modification plan.
 
 Please return the plan in pure JSON format:`,
 
-    patch: (plan: string, context: string, maxFilesChanged: number, maxDiffLines: number) => `You are a code modification assistant. Please generate a unified diff format patch based on the following plan and context.
+    patch: (plan: string, context: string, maxFilesChanged: number, maxDiffLines: number, lastError?: string) => `You are a code modification assistant. Please generate a unified diff format patch based on the following plan and context.
 
 # Plan
 ${plan}
 
 # Context
 ${context}
-
+${lastError ? `\n# Last Error\nThe previous attempt failed with the following error. Please fix the issue described:\n${lastError}\n` : ''}
 # Requirements
 - Must generate standard unified diff format.
 - The patch must precisely match the modifications in the plan.
@@ -77,6 +86,7 @@ Please return the patch in pure unified diff format:`,
     fileSelectionConflict: '--file and --selection are mutually exclusive',
     instructionRequired: '--instruction is required',
     verifyRequired: '--verify is required',
+    apiKeyMissing: '⚠️  SALMON_API_KEY not found, using StubLLM. Set it in .env file to use real LLM.',
 
     // Startup information
     starting: '🚀 Starting salmon-loop...',

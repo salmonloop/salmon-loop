@@ -85,7 +85,7 @@ salmon-loop --instruction "Update email validation regex" --verify "jest tests/e
 4.  **验证 (Validation)**：检查 diff 是否有效且在限制范围内。
 5.  **应用 (Application)**：使用 `git apply --3way` 应用补丁。
 6.  **验证 (Verification)**：运行用户提供的验证命令。
-7.  **重试/回滚 (Retry/Rollback)**：如果验证失败，回滚更改，收缩上下文并重试（达到限制为止）。
+7.  **智能收敛 (Intelligent Convergence)**：如果验证失败，分析错误输出以识别失败的文件，回滚更改，将上下文收缩到这些文件，并重试（达到限制为止）。
 
 ## 安全限制 (Safety Limits)
 

@@ -1,8 +1,95 @@
+import OpenAI from 'openai';
 import type { Context, Plan } from './types.js';
+import { getPlanPrompt, getPatchPrompt } from './prompts.js';
+import { LIMITS } from './limits.js';
 
 export interface LLM {
   createPlan(context: Context, instruction: string): Promise<Plan>;
   createPatch(context: Context, plan: Plan, lastError?: string): Promise<string>;
+}
+
+export class OpenAILLM implements LLM {
+  private client: OpenAI;
+  private model: string;
+
+  constructor() {
+    this.client = new OpenAI({
+      apiKey: process.env.SALMON_API_KEY,
+      baseURL: process.env.SALMON_BASE_URL,
+    });
+    this.model = process.env.SALMON_MODEL || 'gpt-4o';
+  }
+
+  async createPlan(context: Context, instruction: string): Promise<Plan> {
+    const prompt = getPlanPrompt(this.formatContext(context), instruction, LIMITS.maxFilesChanged);
+    
+    const response = await this.client.chat.completions.create({
+      model: this.model,
+      messages: [{ role: 'user', content: prompt }],
+      response_format: { type: 'json_object' },
+    });
+
+    const content = response.choices[0].message.content;
+    if (!content) {
+      throw new Error('LLM returned empty response for plan');
+    }
+
+    try {
+      const plan = JSON.parse(content) as Plan;
+      // Validate plan structure
+      if (!plan.goal || !Array.isArray(plan.files) || !Array.isArray(plan.changes) || !plan.verify) {
+        throw new Error('Invalid Plan structure: missing required fields');
+      }
+      return plan;
+    } catch (e) {
+      throw new Error(`Failed to parse LLM response as JSON: ${content}. Error: ${e}`);
+    }
+  }
+
+  async createPatch(context: Context, plan: Plan, lastError?: string): Promise<string> {
+    const planStr = JSON.stringify(plan, null, 2);
+    const prompt = getPatchPrompt(planStr, this.formatContext(context), LIMITS.maxFilesChanged, LIMITS.maxDiffLines, lastError);
+
+    const response = await this.client.chat.completions.create({
+      model: this.model,
+      messages: [{ role: 'user', content: prompt }],
+    });
+
+    const content = response.choices[0].message.content;
+    if (!content) {
+      throw new Error('LLM returned empty response for patch');
+    }
+
+    // Clean up markdown code blocks if present
+    let cleanContent = content;
+    // Remove ```diff or ``` at start
+    cleanContent = cleanContent.replace(/^```(?:diff)?\s*\n/, '');
+    // Remove ``` at end
+    cleanContent = cleanContent.replace(/\n```\s*$/, '');
+    
+    return cleanContent.trim();
+  }
+
+  private formatContext(context: Context): string {
+    let result = `Repository Path: ${context.repoPath}\n\n`;
+    
+    if (context.primaryText) {
+      result += `Primary Text:\n${context.primaryText}\n\n`;
+    }
+    
+    if (context.rgSnippets && context.rgSnippets.length > 0) {
+      result += `Code Snippets:\n`;
+      for (const snippet of context.rgSnippets) {
+        result += `File: ${snippet.file}:${snippet.line}\n${snippet.content}\n---\n`;
+      }
+    }
+    
+    if (context.gitDiff) {
+      result += `Git Diff:\n${context.gitDiff}\n\n`;
+    }
+
+    return result;
+  }
 }
 
 export class StubLLM implements LLM {

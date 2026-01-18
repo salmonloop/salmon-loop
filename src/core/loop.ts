@@ -1,6 +1,6 @@
 import type { Context, Plan, LoopResult, StepLog, RunOptions } from './types.js';
 import { ContextBuilder } from './context.js';
-import { StubLLM } from './llm.js';
+import { LLM } from './llm.js';
 import { validateDiff } from './diff.js';
 import { applyPatch, rollbackFiles } from './git.js';
 import { runVerify } from './verify.js';
@@ -11,8 +11,44 @@ interface LoopOptions {
   instruction: string;
   verify: string;
   repo: string;
-  llm: StubLLM;
+  llm: LLM;
   dryRun?: boolean;
+}
+
+export function extractFailedFiles(verifyOutput: string): string[] {
+  const uniqueFiles = new Set<string>();
+
+  // Strategy 1: Look for file paths followed by line numbers (common in stack traces and compiler output)
+  // e.g., src/core/loop.ts:10:5 or src/core/loop.ts(10,5)
+  const tracePattern = /([\w-]+\/[\w-./]+\.(?:ts|js|json|md|txt|css|html|jsx|tsx|vue|py|rs|go|java|c|cpp|h))[:\(]\d+/g;
+  let match;
+  while ((match = tracePattern.exec(verifyOutput)) !== null) {
+    uniqueFiles.add(match[1]);
+  }
+
+  // Strategy 2: If no specific traces found, fall back to general file path matching,
+  // but be more strict about boundaries to avoid matching random words.
+  if (uniqueFiles.size === 0) {
+    const pathPattern = /(?:^|\s)((?:[\w-]+\/)*[\w-]+\.(?:ts|js|json|md|txt|css|html|jsx|tsx|vue|py|rs|go|java|c|cpp|h))\b/g;
+    while ((match = pathPattern.exec(verifyOutput)) !== null) {
+      uniqueFiles.add(match[1]);
+    }
+  }
+
+  // Filter out node_modules and .git
+  return Array.from(uniqueFiles).filter(file =>
+    !file.includes('node_modules') && !file.startsWith('.git')
+  );
+}
+
+export function shrinkContext(context: Context, failedFiles: string[]): Context {
+  // Shrink context, keeping only content related to failed files
+  return {
+    ...context,
+    rgSnippets: context.rgSnippets.filter(snippet =>
+      failedFiles.some(file => snippet.file.includes(file))
+    )
+  };
 }
 
 export class SalmonLoop {
@@ -96,8 +132,8 @@ export class SalmonLoop {
       }
 
       // Shrink context
-      const failedFiles = this.extractFailedFiles(verifyResult.output);
-      context = this.shrinkContext(context, failedFiles);
+      const failedFiles = extractFailedFiles(verifyResult.output);
+      context = shrinkContext(context, failedFiles);
 
       // Rollback files
       if (!options.dryRun && failedFiles.length > 0) {
@@ -132,34 +168,6 @@ export class SalmonLoop {
       success,
       output: typeof output === 'string' ? output : JSON.stringify(output),
       timestamp: new Date()
-    };
-  }
-
-  private extractFailedFiles(verifyOutput: string): string[] {
-    // Match relative path format (supports multi-level directories and common extensions)
-    // Exclude node_modules, .git, etc.
-    const pathPattern = /(?:\b[\w-]+\/)*[\w-]+\.(?:ts|js|json|md|txt|css|html|jsx|tsx|vue|py|rs|go|java|c|cpp|h)\b/g;
-    const matches = verifyOutput.match(pathPattern) || [];
-
-    const uniqueFiles = new Set<string>();
-    
-    for (const file of matches) {
-      if (!file.includes('node_modules') && !file.startsWith('.git')) {
-        uniqueFiles.add(file);
-      }
-    }
-
-    // Return empty array if no files found
-    return Array.from(uniqueFiles);
-  }
-
-  private shrinkContext(context: Context, failedFiles: string[]): Context {
-    // Shrink context, keeping only content related to failed files
-    return {
-      ...context,
-      rgSnippets: context.rgSnippets.filter(snippet =>
-        failedFiles.some(file => snippet.file.includes(file))
-      )
     };
   }
 }

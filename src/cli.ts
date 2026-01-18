@@ -1,9 +1,10 @@
 #!/usr/bin/env node
+import 'dotenv/config';
 import { Command } from 'commander';
 import { resolve } from 'path';
 import { ContextBuilder } from './core/context.js';
 import { SalmonLoop } from './core/loop.js';
-import { StubLLM } from './core/llm.js';
+import { OpenAILLM, StubLLM } from './core/llm.js';
 import type { RunOptions } from './core/types.js';
 import { text } from './locales/index.js';
 
@@ -53,7 +54,11 @@ program
       }
 
       const loop = new SalmonLoop();
-      const llm = new StubLLM();
+      const llm = process.env.SALMON_API_KEY ? new OpenAILLM() : new StubLLM();
+
+      if (!process.env.SALMON_API_KEY) {
+        console.warn(text.cli.apiKeyMissing);
+      }
 
       const result = await loop.run({
         instruction: options.instruction,

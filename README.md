@@ -84,7 +84,7 @@ The core loop consists of the following steps:
 4. **Validation**: Checks if the diff is valid and within limits.
 5. **Application**: Applies the patch using `git apply --3way`.
 6. **Verification**: Runs the user-provided verification command.
-7. **Retry/Rollback**: If verification fails, rolls back changes, shrinks context, and retries (up to limit).
+7. **Intelligent Convergence**: If verification fails, analyzes the error output to identify failed files, rolls back changes, shrinks context to those files, and retries (up to limit).
 
 ## Safety Limits
 
