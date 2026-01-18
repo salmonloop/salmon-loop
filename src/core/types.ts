@@ -1,3 +1,11 @@
+export enum ErrorType {
+  COMPILATION = 'compilation',
+  LINT = 'lint',
+  TEST = 'test',
+  LOGIC = 'logic',
+  UNKNOWN = 'unknown'
+}
+
 export interface Plan {
   goal: string;
   files: string[];
@@ -16,7 +24,16 @@ export interface LoopResult {
   reason: string;
   attempts: number;
   logs: StepLog[];
+  history?: LoopIteration[];
   finalPatch?: string;
+}
+
+export interface LoopIteration {
+  attempt: number;
+  plan: Plan | null;
+  patch: string | null;
+  error?: string;
+  contextSummary: string;
 }
 
 export interface StepLog {

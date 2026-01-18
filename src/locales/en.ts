@@ -7,14 +7,14 @@ export const en = {
   },
 
   prompts: {
-    plan: (context: string, instruction: string, maxFilesChanged: number) => `You are a code modification assistant. Please generate a detailed modification plan based on the following context and instruction.
+    plan: (context: string, instruction: string, maxFilesChanged: number, lastError?: string) => `You are a code modification assistant. Please generate a detailed modification plan based on the following context and instruction.
 
 # Context
 ${context}
 
 # Instruction
 ${instruction}
-
+${lastError ? `\n# Last Error\nThe previous attempt failed with the following error. Please adjust the plan to fix this issue:\n${lastError}\n` : ''}
 # Requirements
 - The plan must be in JSON format, containing the fields: goal, files, changes, verify.
 - 'goal': A brief description of the goal.
@@ -78,7 +78,9 @@ Please return the patch in pure unified diff format:`,
     loopExecutionFailed: 'Loop execution failed',
     unexpectedTermination: 'Unexpected loop termination',
     rollbackFailed: (error: string) => `Rollback failed: ${error}`,
-    rollbackFailedDirty: "Rollback failed; workspace may be dirty. Please run `git status` and manually reset using `git reset --hard`.",
+    rollbackFailedDirty: "Rollback failed; workspace may be dirty. Please run `git status` and manually reset using `git reset --hard`. If you are in a retry loop, you might need to manually clean up before the next attempt.",
+    rollbackSuccess: (files: string[]) => `Successfully rolled back: ${files.join(', ')}`,
+    rollbackAllSuccess: 'Successfully rolled back all changes using hard reset',
   },
 
   verify: {
@@ -98,6 +100,7 @@ Please return the patch in pure unified diff format:`,
     selectionOption: 'Direct text selection (mutually exclusive with --file)',
     dryRunOption: 'Generate patch without applying',
     verboseOption: 'Print step logs',
+    forceResetOption: 'Force hard reset on failure (use with caution)',
 
     // Error messages
     fileSelectionConflict: '--file and --selection are mutually exclusive',

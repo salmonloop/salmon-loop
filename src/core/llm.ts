@@ -2,9 +2,10 @@ import OpenAI from 'openai';
 import type { Context, Plan } from './types.js';
 import { getPlanPrompt, getPatchPrompt } from './prompts.js';
 import { LIMITS } from './limits.js';
+import { text } from '../locales/index.js';
 
 export interface LLM {
-  createPlan(context: Context, instruction: string): Promise<Plan>;
+  createPlan(context: Context, instruction: string, lastError?: string): Promise<Plan>;
   createPatch(context: Context, plan: Plan, lastError?: string): Promise<string>;
 }
 
@@ -20,8 +21,8 @@ export class OpenAILLM implements LLM {
     this.model = process.env.SALMON_MODEL || 'gpt-4o';
   }
 
-  async createPlan(context: Context, instruction: string): Promise<Plan> {
-    const prompt = getPlanPrompt(this.formatContext(context), instruction, LIMITS.maxFilesChanged);
+  async createPlan(context: Context, instruction: string, lastError?: string): Promise<Plan> {
+    const prompt = getPlanPrompt(this.formatContext(context), instruction, LIMITS.maxFilesChanged, lastError);
     
     const response = await this.client.chat.completions.create({
       model: this.model,
@@ -31,18 +32,18 @@ export class OpenAILLM implements LLM {
 
     const content = response.choices[0].message.content;
     if (!content) {
-      throw new Error('LLM returned empty response for plan');
+      throw new Error(text.llm.planEmpty);
     }
 
     try {
       const plan = JSON.parse(content) as Plan;
       // Validate plan structure
       if (!plan.goal || !Array.isArray(plan.files) || !Array.isArray(plan.changes) || !plan.verify) {
-        throw new Error('Invalid Plan structure: missing required fields');
+        throw new Error(text.llm.planInvalid);
       }
       return plan;
     } catch (e) {
-      throw new Error(`Failed to parse LLM response as JSON: ${content}. Error: ${e}`);
+      throw new Error(text.llm.planParseFailed(content, String(e)));
     }
   }
 
@@ -57,7 +58,7 @@ export class OpenAILLM implements LLM {
 
     const content = response.choices[0].message.content;
     if (!content) {
-      throw new Error('LLM returned empty response for patch');
+      throw new Error(text.llm.patchEmpty);
     }
 
     // Clean up markdown code blocks if present
@@ -93,7 +94,7 @@ export class OpenAILLM implements LLM {
 }
 
 export class StubLLM implements LLM {
-  async createPlan(context: Context, instruction: string): Promise<Plan> {
+  async createPlan(context: Context, instruction: string, lastError?: string): Promise<Plan> {
     // Return fixed Plan structure
     return {
       goal: `Implement functionality based on instruction "${instruction}"`,

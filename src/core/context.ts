@@ -3,6 +3,8 @@ import { readFile } from 'fs/promises';
 import { LIMITS } from './limits.js';
 import { extractKeywords } from './keywords.js';
 import type { Context, FileContext, RipgrepResult, RunOptions } from './types.js';
+import { ErrorType } from './types.js';
+import { findFileDependencies } from './dependency.js';
 
 export class ContextBuilder {
   static async build(options: RunOptions): Promise<Context> {
@@ -168,5 +170,104 @@ export class ContextBuilder {
       rgSnippets: truncatedSnippets,
       gitDiff: undefined
     };
+  }
+
+  /**
+   * Extract potential failed file paths from verification output
+   */
+  static extractFailedFiles(verifyOutput: string): string[] {
+    const uniqueFiles = new Set<string>();
+
+    // Strategy 1: Look for file paths followed by line numbers (common in stack traces and compiler output)
+    // e.g., src/core/loop.ts:10:5 or src/core/loop.ts(10,5)
+    const tracePattern = /([\w-]+\/[\w-./]+\.(?:ts|js|json|md|txt|css|html|jsx|tsx|vue|py|rs|go|java|c|cpp|h))[:\(]\d+/g;
+    let match;
+    while ((match = tracePattern.exec(verifyOutput)) !== null) {
+      uniqueFiles.add(match[1]);
+    }
+
+    // Strategy 2: If no specific traces found, fall back to general file path matching
+    if (uniqueFiles.size === 0) {
+      const pathPattern = /(?:^|\s)((?:[\w-]+\/)*[\w-]+\.(?:ts|js|json|md|txt|css|html|jsx|tsx|vue|py|rs|go|java|c|cpp|h))\b/g;
+      while ((match = pathPattern.exec(verifyOutput)) !== null) {
+        uniqueFiles.add(match[1]);
+      }
+    }
+
+    // Filter out node_modules and .git
+    return Array.from(uniqueFiles).filter(file =>
+      !file.includes('node_modules') && !file.startsWith('.git')
+    );
+  }
+
+  /**
+   * Shrink context based on failed files, error type and token limits
+   */
+  static async shrinkContext(context: Context, failedFiles: string[], errorType?: ErrorType): Promise<Context> {
+    // If no failed files and context is within limits, do not shrink
+    const currentTotal = this.calculateTotalChars(context);
+    if (failedFiles.length === 0 && currentTotal <= LIMITS.maxContextChars) {
+      return context;
+    }
+
+    // Normalize failed file paths
+    const normalizedFailed = failedFiles.map(f => f.replace(/\\/g, '/'));
+
+    // Adjust shrinking strategy based on error type
+    // Compilation/Lint errors: strictly shrink to failed files
+    // Test/Logic errors: keep more context for analysis
+    const isStrict = errorType === ErrorType.COMPILATION || errorType === ErrorType.LINT;
+
+    // Find dependencies for failed files to include in context
+    const dependencyPromises = normalizedFailed.map(f => findFileDependencies(f, context.repoPath));
+    const dependenciesArrays = await Promise.all(dependencyPromises);
+    const allRelatedFiles = new Set([...normalizedFailed, ...dependenciesArrays.flat()]);
+    
+    let newSnippets = context.rgSnippets.filter(snippet => {
+      const normalizedSnippetFile = snippet.file.replace(/\\/g, '/');
+      const isRelatedFile = Array.from(allRelatedFiles).some(related => normalizedSnippetFile.endsWith(related));
+      
+      if (isStrict) {
+        return isRelatedFile;
+      }
+      
+      // In non-strict mode, keep related files and their "neighbors" (same directory)
+      if (isRelatedFile) return true;
+      
+      const snippetDir = normalizedSnippetFile.split('/').slice(0, -1).join('/');
+      return Array.from(allRelatedFiles).some(related => {
+        const relatedDir = related.split('/').slice(0, -1).join('/');
+        return snippetDir === relatedDir && relatedDir.length > 0;
+      });
+    });
+
+    // Threshold protection: ensure context is not shrunk too much
+    // Only apply if original context was large enough
+    const originalTotal = this.calculateTotalChars(context);
+    if (originalTotal >= LIMITS.minContextChars && this.calculateTotalChars({ ...context, rgSnippets: newSnippets }) < LIMITS.minContextChars) {
+      // If shrunk context is too small, restore original snippets until minimum is reached
+      for (const s of context.rgSnippets) {
+        if (!newSnippets.includes(s)) {
+          newSnippets.push(s);
+          if (this.calculateTotalChars({ ...context, rgSnippets: newSnippets }) >= LIMITS.minContextChars) break;
+        }
+      }
+    }
+
+    // Final length check
+    if (this.calculateTotalChars({ ...context, rgSnippets: newSnippets }) > LIMITS.maxContextChars) {
+      newSnippets = newSnippets.slice(0, Math.floor(newSnippets.length * 0.8));
+    }
+
+    return {
+      ...context,
+      rgSnippets: newSnippets
+    };
+  }
+
+  private static calculateTotalChars(context: Context): number {
+    return (context.primaryText?.length || 0) +
+           context.rgSnippets.reduce((sum, snippet) => sum + snippet.content.length, 0) +
+           (context.gitDiff?.length || 0);
   }
 }

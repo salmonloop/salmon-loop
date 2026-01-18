@@ -48,16 +48,19 @@ export async function applyPatch(repoPath: string, diffText: string): Promise<vo
   }
 }
 
-export async function rollbackFiles(repoPath: string, files: string[]): Promise<RollbackResult> {
+export async function rollbackFiles(repoPath: string, files: string[], forceReset = false): Promise<RollbackResult> {
   // Deduplicate and filter empty strings
   const attempted = Array.from(new Set(files)).filter(Boolean);
   
-  if (attempted.length === 0) {
+  if (attempted.length === 0 && !forceReset) {
     return { ok: true, attempted: [], exitCode: 0, stdout: "", stderr: "" };
   }
 
   return new Promise((resolve) => {
-    const child = spawn('git', ['checkout', '--', ...attempted], { cwd: repoPath });
+    // If forceReset is true, execute git reset --hard
+    // Otherwise, try to checkout specified files
+    const args = forceReset ? ['reset', '--hard'] : ['checkout', '--', ...attempted];
+    const child = spawn('git', args, { cwd: repoPath });
     
     let stdout = "";
     let stderr = "";

@@ -1,9 +1,9 @@
-import type { Context, Plan, LoopResult, StepLog, RunOptions } from './types.js';
+import type { Context, Plan, LoopResult, StepLog, RunOptions, LoopIteration } from './types.js';
 import { ContextBuilder } from './context.js';
 import { LLM } from './llm.js';
 import { validateDiff } from './diff.js';
 import { applyPatch, rollbackFiles } from './git.js';
-import { runVerify } from './verify.js';
+import { runVerify, classifyError } from './verify.js';
 import { LIMITS } from './limits.js';
 import { text } from '../locales/index.js';
 
@@ -13,57 +13,14 @@ interface LoopOptions {
   repo: string;
   llm: LLM;
   dryRun?: boolean;
+  forceReset?: boolean;
 }
 
-export function extractFailedFiles(verifyOutput: string): string[] {
-  const uniqueFiles = new Set<string>();
-
-  // Strategy 1: Look for file paths followed by line numbers (common in stack traces and compiler output)
-  // e.g., src/core/loop.ts:10:5 or src/core/loop.ts(10,5)
-  const tracePattern = /([\w-]+\/[\w-./]+\.(?:ts|js|json|md|txt|css|html|jsx|tsx|vue|py|rs|go|java|c|cpp|h))[:\(]\d+/g;
-  let match;
-  while ((match = tracePattern.exec(verifyOutput)) !== null) {
-    uniqueFiles.add(match[1]);
-  }
-
-  // Strategy 2: If no specific traces found, fall back to general file path matching,
-  // but be more strict about boundaries to avoid matching random words.
-  if (uniqueFiles.size === 0) {
-    const pathPattern = /(?:^|\s)((?:[\w-]+\/)*[\w-]+\.(?:ts|js|json|md|txt|css|html|jsx|tsx|vue|py|rs|go|java|c|cpp|h))\b/g;
-    while ((match = pathPattern.exec(verifyOutput)) !== null) {
-      uniqueFiles.add(match[1]);
-    }
-  }
-
-  // Filter out node_modules and .git
-  return Array.from(uniqueFiles).filter(file =>
-    !file.includes('node_modules') && !file.startsWith('.git')
-  );
-}
-
-export function shrinkContext(context: Context, failedFiles: string[]): Context {
-  // If no failed files identified, do not shrink context to avoid clearing everything
-  if (failedFiles.length === 0) {
-    return context;
-  }
-
-  // Shrink context, keeping only content related to failed files
-  return {
-    ...context,
-    rgSnippets: context.rgSnippets.filter(snippet =>
-      // Normalize paths for comparison (simple replacement of \ to /)
-      failedFiles.some(file => {
-        const normalizedSnippetFile = snippet.file.replace(/\\/g, '/');
-        const normalizedFailedFile = file.replace(/\\/g, '/');
-        return normalizedSnippetFile.endsWith(normalizedFailedFile);
-      })
-    )
-  };
-}
 
 export class SalmonLoop {
   async run(options: LoopOptions): Promise<LoopResult> {
     const logs: StepLog[] = [];
+    const history: LoopIteration[] = [];
     let context: Context;
 
     try {
@@ -96,7 +53,7 @@ export class SalmonLoop {
       changedFilesThisAttempt = []; // Reset for this attempt
       try {
         // PLAN phase
-        currentPlan = await options.llm.createPlan(context, options.instruction);
+        currentPlan = await options.llm.createPlan(context, options.instruction, lastError);
         logs.push(this.createLog('plan', currentPlan));
 
         // PATCH phase
@@ -126,17 +83,28 @@ export class SalmonLoop {
             reason: text.loop.operationCompleted,
             attempts: retries + 1,
             logs,
+            history,
             finalPatch: currentDiff || undefined
           };
         }
 
         // Verification failed, preparing to retry
         lastError = verifyResult.output;
+
+        // Record history
+        history.push({
+          attempt: retries + 1,
+          plan: currentPlan,
+          patch: currentDiff,
+          error: lastError,
+          contextSummary: `Snippets: ${context.rgSnippets.length}, Diff: ${!!context.gitDiff}`
+        });
+
         retries++;
 
         // Rollback files (using changedFilesThisAttempt)
-        if (!options.dryRun && changedFilesThisAttempt.length > 0) {
-          const rb = await rollbackFiles(options.repo, changedFilesThisAttempt);
+        if (!options.dryRun && (changedFilesThisAttempt.length > 0 || options.forceReset)) {
+          const rb = await rollbackFiles(options.repo, changedFilesThisAttempt, options.forceReset);
           if (!rb.ok) {
             logs.push(this.createLog('apply', text.loop.rollbackFailed(rb.stderr), false));
             return {
@@ -144,8 +112,12 @@ export class SalmonLoop {
               reason: text.loop.rollbackFailedDirty,
               attempts: retries,
               logs,
+              history,
               finalPatch: currentDiff || undefined
             };
+          } else {
+            const msg = options.forceReset ? text.loop.rollbackAllSuccess : text.loop.rollbackSuccess(changedFilesThisAttempt);
+            logs.push(this.createLog('apply', msg));
           }
         }
 
@@ -155,20 +127,25 @@ export class SalmonLoop {
             reason: text.loop.exceededMaxRetriesSimple,
             attempts: retries,
             logs,
+            history,
             finalPatch: currentDiff || undefined
           };
         }
 
         // Shrink context
-        const failedFiles = extractFailedFiles(verifyResult.output);
-        context = shrinkContext(context, failedFiles);
+        const errorType = classifyError(verifyResult.output);
+        const failedFiles = ContextBuilder.extractFailedFiles(verifyResult.output);
+        context = await ContextBuilder.shrinkContext(context, failedFiles, errorType);
 
       } catch (error) {
         // Rollback on error
-        if (!options.dryRun && changedFilesThisAttempt.length > 0) {
-          const rb = await rollbackFiles(options.repo, changedFilesThisAttempt);
+        if (!options.dryRun && (changedFilesThisAttempt.length > 0 || options.forceReset)) {
+          const rb = await rollbackFiles(options.repo, changedFilesThisAttempt, options.forceReset);
           if (!rb.ok) {
             logs.push(this.createLog('error', text.loop.rollbackFailed(rb.stderr), false));
+          } else {
+            const msg = options.forceReset ? text.loop.rollbackAllSuccess : text.loop.rollbackSuccess(changedFilesThisAttempt);
+            logs.push(this.createLog('apply', msg));
           }
         }
 
@@ -179,6 +156,7 @@ export class SalmonLoop {
           reason: text.loop.loopExecutionFailed,
           attempts: retries + 1,
           logs,
+          history,
           finalPatch: currentDiff || undefined
         };
       }
@@ -189,6 +167,7 @@ export class SalmonLoop {
       reason: text.loop.unexpectedTermination,
       attempts: retries,
       logs,
+      history,
       finalPatch: currentDiff || undefined
     };
   }

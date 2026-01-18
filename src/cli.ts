@@ -22,6 +22,7 @@ program
   .option('-s, --selection <text>', text.cli.selectionOption)
   .option('--dry-run', text.cli.dryRunOption)
   .option('--verbose', text.cli.verboseOption)
+  .option('--force-reset', text.cli.forceResetOption)
   .action(async (options) => {
     const runPath = resolve(options.repo);
     
@@ -34,16 +35,6 @@ program
       if (options.selection) console.log(text.cli.contextSelection(options.selection.length));
       if (options.dryRun) console.log(text.cli.dryRunEnabled);
     }
-
-    const runOptions: RunOptions = {
-      instruction: options.instruction,
-      verify: options.verify,
-      repo: runPath,
-      file: options.file,
-      selection: options.selection,
-      dryRun: options.dryRun,
-      verbose: options.verbose
-    };
 
     try {
       if (options.verbose) {
@@ -62,7 +53,8 @@ program
         verify: options.verify,
         repo: runPath,
         llm: llm,
-        dryRun: options.dryRun
+        dryRun: options.dryRun,
+        forceReset: options.forceReset
       });
 
       if (result.success) {

@@ -27,11 +27,24 @@ pnpm install
 pnpm build
 ```
 
+### 配置
+
+复制示例环境文件并添加您的 API 密钥：
+
+```bash
+cp .env.example .env
+```
+
+编辑 `.env` 并设置您的 `SALMON_API_KEY`。您还可以自定义 `SALMON_BASE_URL` 和 `SALMON_MODEL`。
+
 ### 运行 CLI
 
 您可以直接运行 CLI（`run` 命令是默认的）：
 
 ```bash
+# 使用 pnpm (推荐开发使用)
+pnpm dev --instruction "fix bug" --verify "npm test"
+
 # 使用 npx (无需构建)
 npx tsx src/cli.ts --instruction "fix bug" --verify "npm test"
 
@@ -48,6 +61,7 @@ node dist/cli.js --instruction "fix bug" --verify "npm test"
 -   `-s, --selection <text>`: 用户选择的文本作为上下文。
 -   `--dry-run`: 仅生成补丁而不应用它们。
 -   `--verbose`: 在执行期间打印详细的步骤日志。
+-   `--force-reset`: 失败时强制执行硬回滚 (`git reset --hard`)。请谨慎使用，因为它会丢弃所有未提交的更改。
 
 ### 示例
 
@@ -85,7 +99,8 @@ salmon-loop --instruction "Update email validation regex" --verify "jest tests/e
 4.  **验证 (Validation)**：检查 diff 是否有效且在限制范围内。
 5.  **应用 (Application)**：使用 `git apply --3way` 应用补丁。
 6.  **验证 (Verification)**：运行用户提供的验证命令。
-7.  **智能收敛 (Intelligent Convergence)**：如果验证失败，分析错误输出以识别失败的文件，回滚更改，将上下文收缩到这些文件，并重试（达到限制为止）。
+7. **智能收敛 (Intelligent Convergence)**：如果验证失败，分析错误输出以识别失败的文件和错误类型（编译、测试等），回滚更改，将上下文收缩到相关文件及其依赖项，并重试（达到限制为止）。
+8.  **动态反馈 (Dynamic Feedback)**：在下一次迭代中将上一次的错误信息传递回 LLM，帮助其改进计划和补丁。
 
 ## 项目结构 (Project Structure)
 

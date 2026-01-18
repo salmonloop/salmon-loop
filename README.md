@@ -27,11 +27,24 @@ pnpm install
 pnpm build
 ```
 
+### Configuration
+
+Copy the example environment file and add your API key:
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` and set your `SALMON_API_KEY`. You can also customize `SALMON_BASE_URL` and `SALMON_MODEL`.
+
 ### Running the CLI
 
 You can run the CLI directly (the `run` command is default):
 
 ```bash
+# Using pnpm (recommended for development)
+pnpm dev --instruction "fix bug" --verify "npm test"
+
 # Using npx (no build required)
 npx tsx src/cli.ts --instruction "fix bug" --verify "npm test"
 
@@ -48,6 +61,7 @@ node dist/cli.js --instruction "fix bug" --verify "npm test"
 -   `-s, --selection <text>`: User selected text for context.
 -   `--dry-run`: Generate patches only without applying them.
 -   `--verbose`: Print detailed step logs during execution.
+-   `--force-reset`: Force a hard reset (`git reset --hard`) on failure. Use with caution as it will discard all uncommitted changes.
 
 ### Examples
 
@@ -84,7 +98,8 @@ The core loop consists of the following steps:
 4. **Validation**: Checks if the diff is valid and within limits.
 5. **Application**: Applies the patch using `git apply --3way`.
 6. **Verification**: Runs the user-provided verification command.
-7. **Intelligent Convergence**: If verification fails, analyzes the error output to identify failed files, rolls back changes, shrinks context to those files, and retries (up to limit).
+7. **Intelligent Convergence**: If verification fails, analyzes the error output to identify failed files and error types (compilation, test, etc.), rolls back changes, shrinks context to relevant files and their dependencies, and retries (up to limit).
+8. **Dynamic Feedback**: Passes the previous error message back to the LLM in the next iteration to help it refine the plan and patch.
 
 ## Project Structure
 
