@@ -1,78 +1,64 @@
+import fs from 'fs/promises';
 import { spawn } from 'child_process';
 
-export class GitOperations {
-  static async applyPatch(patch: string): Promise<{ success: boolean; error?: string }> {
-    return new Promise((resolve) => {
-      const child = spawn('git', ['apply', '--3way'], {
-        stdio: ['pipe', 'pipe', 'pipe']
-      });
-
-      child.stdin.write(patch);
-      child.stdin.end();
-
-      let stdout = '';
-      let stderr = '';
-
-      child.stdout.on('data', (data) => {
-        stdout += data.toString();
-      });
-
-      child.stderr.on('data', (data) => {
-        stderr += data.toString();
-      });
-
-      child.on('close', (code) => {
-        if (code === 0) {
-          resolve({ success: true });
-        } else {
-          resolve({ 
-            success: false, 
-            error: `git apply failed with code ${code}: ${stderr || stdout}` 
-          });
-        }
-      });
+export async function applyPatch(repoPath: string, diffText: string): Promise<void> {
+  const tempFile = `${repoPath}/.salmon_temp.patch`;
+  await fs.writeFile(tempFile, diffText);
+  
+  return new Promise((resolve, reject) => {
+    const child = spawn('git', ['apply', '--3way', tempFile], { cwd: repoPath });
+    
+    let stderr = '';
+    child.stderr.on('data', (data) => stderr += data.toString());
+    
+    child.on('close', async (code) => {
+      try {
+        await fs.unlink(tempFile);
+      } catch {
+        // 忽略删除错误
+      }
+      
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`git apply failed: ${stderr.trim()}`));
+      }
     });
-  }
+  });
+}
 
-  static async rollbackFiles(files: string[]): Promise<void> {
-    for (const file of files) {
-      await this.rollbackFile(file);
-    }
-  }
-
-  private static async rollbackFile(file: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const child = spawn('git', ['checkout', '--', file]);
-
-      child.on('close', (code) => {
-        if (code === 0) {
-          resolve();
-        } else {
-          reject(new Error(`Failed to rollback file ${file}`));
-        }
-      });
+export async function rollbackFiles(repoPath: string, files: string[]): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn('git', ['checkout', '--', ...files], { cwd: repoPath });
+    
+    child.on('close', (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`Rollback failed for files: ${files.join(', ')}`));
+      }
     });
-  }
+  });
+}
 
-  static async getModifiedFiles(): Promise<string[]> {
-    return new Promise((resolve, reject) => {
-      const child = spawn('git', ['diff', '--name-only'], {
-        stdio: ['pipe', 'pipe', 'pipe']
-      });
-
-      let output = '';
-      child.stdout.on('data', (data) => {
-        output += data.toString();
-      });
-
-      child.on('close', (code) => {
-        if (code === 0) {
-          const files = output.trim().split('\n').filter(f => f.trim());
-          resolve(files);
-        } else {
-          reject(new Error('Failed to get modified files'));
-        }
-      });
+export async function getGitDiff(repoPath: string): Promise<string | undefined> {
+  return new Promise((resolve) => {
+    const child = spawn('git', ['diff'], {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      cwd: repoPath
     });
-  }
+
+    let output = '';
+    child.stdout.on('data', (data) => {
+      output += data.toString();
+    });
+
+    child.on('close', (code) => {
+      if (code === 0 && output.trim()) {
+        resolve(output);
+      } else {
+        resolve(undefined);
+      }
+    });
+  });
 }
