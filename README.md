@@ -4,15 +4,19 @@
 
 A minimal viable execution loop for automated code patching.
 
-## Design Philosophy
+## Philosophy
 
-Salmon-Loop is a CLI tool that implements a minimal viable execution loop for automated code patching. It follows the "Plan -> Patch -> Verify" cycle with fail-fast and rollback mechanisms.
+Salmon-Loop is built on three core principles:
 
-Key principles:
-- **Patch-only**: Only modifies files via unified diffs.
-- **Verify-first**: Requires a verification command to ensure correctness.
-- **Fail-fast**: Stops immediately upon unrecoverable errors or verification failures (after retries).
-- **Safety**: Limits file changes, diff lines, and context size.
+1.  **Patch-First**: All changes are applied via standard unified diffs (`git apply`). This ensures changes are precise, reversible, and reviewable.
+2.  **Verify-First**: No change is considered successful without passing a user-provided verification command (e.g., `npm test`).
+3.  **Fail-Fast**: If verification fails, the system immediately rolls back changes and reports the error. It does not attempt to "guess" its way out of a broken state without a clear plan.
+
+## Non-Goals
+
+-   **Not an Agent**: Salmon-Loop is a tool for executing specific instructions, not an autonomous agent that explores the codebase indefinitely.
+-   **No Refactors**: It is designed for targeted fixes and features, not large-scale architectural refactoring.
+-   **No Whole-File Rewrite**: It modifies existing files via patches; it does not rewrite entire files from scratch.
 
 ## Usage
 
@@ -25,30 +29,50 @@ pnpm build
 
 ### Running the CLI
 
+You can run the CLI directly (the `run` command is default):
+
 ```bash
-node dist/cli.js run --instruction "fix bug" --verify "npm test" [options]
+# Using npx (no build required)
+npx tsx src/cli.ts --instruction "fix bug" --verify "npm test"
+
+# Or after building
+node dist/cli.js --instruction "fix bug" --verify "npm test"
 ```
 
 ### Options
 
-- `-i, --instruction <string>`: (Required) Instruction for the changes to be made.
-- `-v, --verify <command>`: (Required) Command to verify the changes (e.g., `npm test`).
-- `-r, --repo <path>`: Path to the repository (default: current directory).
-- `-f, --file <path>`: Path to a specific file to provide as primary context.
-- `-s, --selection <text>`: User selected text for context.
-- `--dry-run`: Generate patches only without applying them.
-- `--verbose`: Print detailed step logs during execution.
+-   `-i, --instruction <string>`: (Required) Instruction for the changes to be made.
+-   `-v, --verify <command>`: (Required) Command to verify the changes (e.g., `npm test`).
+-   `-r, --repo <path>`: Path to the repository (default: current directory).
+-   `-f, --file <path>`: Path to a specific file to provide as primary context.
+-   `-s, --selection <text>`: User selected text for context.
+-   `--dry-run`: Generate patches only without applying them.
+-   `--verbose`: Print detailed step logs during execution.
 
-### Example
+### Examples
+
+**1. Basic Usage**
+
+Fix a bug and verify with `npm test`:
 
 ```bash
-# Dry run to see what would happen
-node dist/cli.js run \
-  --instruction "Update the welcome message to 'Hello Universe'" \
-  --verify "npm test" \
-  --file "src/app.ts" \
-  --dry-run \
-  --verbose
+salmon-loop --instruction "Fix the null pointer exception in user.ts" --verify "npm test"
+```
+
+**2. Dry Run**
+
+Generate a patch without applying it, useful for previewing changes:
+
+```bash
+salmon-loop --instruction "Add logging to auth service" --verify "npm run build" --dry-run --verbose
+```
+
+**3. Targeted Context**
+
+Provide a specific file as context to reduce noise:
+
+```bash
+salmon-loop --instruction "Update email validation regex" --verify "jest tests/email.test.ts" --file "src/utils/validation.ts"
 ```
 
 ## Architecture
@@ -62,13 +86,15 @@ The core loop consists of the following steps:
 6. **Verification**: Runs the user-provided verification command.
 7. **Retry/Rollback**: If verification fails, rolls back changes, shrinks context, and retries (up to limit).
 
-## Limitations
+## Safety Limits
 
-- Only supports unified diff format patches.
-- Max 2 files changed per patch.
-- Max 200 lines of diff per patch.
-- Max 2 retries.
-- Requires `git` and `rg` (ripgrep) installed.
+To prevent accidental damage, Salmon-Loop enforces strict limits:
+
+-   **Max Files Changed**: 2 files per patch.
+-   **Max Diff Lines**: 200 lines per patch.
+-   **Max Retries**: 2 attempts to fix verification failures.
+-   **Context Size**: Limited token window to ensure focused LLM attention.
+-   **Unified Diff**: Only accepts valid unified diff format.
 
 ## License
 

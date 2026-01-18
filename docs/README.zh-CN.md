@@ -4,36 +4,99 @@
 
 一个用于自动化代码补丁的最小可行执行循环。
 
-## 设计理念
+## 设计理念 (Philosophy)
 
-Salmon-Loop 是一个 CLI 工具，实现了自动化代码补丁的最小可行执行循环。它的设计目标是可扩展和灵活，允许用户根据特定需求定制循环流程。
+Salmon-Loop 建立在三个核心原则之上：
+
+1.  **补丁优先 (Patch-First)**：所有更改都通过标准的 unified diff (`git apply`) 应用。这确保了更改是精确的、可逆的和可审查的。
+2.  **验证优先 (Verify-First)**：如果没有通过用户提供的验证命令（例如 `npm test`），任何更改都不会被视为成功。
+3.  **快速失败 (Fail-Fast)**：如果验证失败，系统会立即回滚更改并报告错误。它不会试图在没有明确计划的情况下“猜测”如何修复破坏的状态。
+
+## 非目标 (Non-Goals)
+
+-   **不是代理 (Not an Agent)**：Salmon-Loop 是一个执行特定指令的工具，而不是一个无限探索代码库的自主代理。
+-   **不进行重构 (No Refactors)**：它专为针对性的修复和功能开发而设计，而不是大规模的架构重构。
+-   **不重写整个文件 (No Whole-File Rewrite)**：它通过补丁修改现有文件；它不会从头开始重写整个文件。
 
 ## 使用方法
 
-使用 Salmon-Loop，只需运行 `salmon-loop run` 命令并附带所需选项。例如：
+### 安装
 
 ```bash
-salmon-loop run --verify "npm test" --scope "current-file" --instruction "fix bug" --target-path "src/buggy-file.ts"
+pnpm install
+pnpm build
 ```
 
-这将运行带有以下选项的循环：
+### 运行 CLI
 
-* `--verify "npm test"`：运行 `npm test` 命令验证更改
-* `--scope "current-file"`：仅考虑当前文件中的更改
-* `--instruction "fix bug"`：使用 "fix bug" 指令生成补丁
-* `--target-path "src/buggy-file.ts"`：将补丁应用到 `src/buggy-file.ts` 文件
+您可以直接运行 CLI（`run` 命令是默认的）：
 
-## 限制
+```bash
+# 使用 npx (无需构建)
+npx tsx src/cli.ts --instruction "fix bug" --verify "npm test"
 
-* 仅支持 unified diff 格式的补丁
-* 仅支持有限数量的文件和行数
-* 不支持重构或格式化更改
-* 不支持添加或删除文件
+# 或者在构建后
+node dist/cli.js --instruction "fix bug" --verify "npm test"
+```
 
-## 贡献
+### 选项
 
-如需为 Salmon-Loop 做出贡献，请 fork 此仓库并提交包含您更改的 pull request。请务必包含清晰的更改描述和必要性说明。
+-   `-i, --instruction <string>`: (必填) 要执行的更改指令。
+-   `-v, --verify <command>`: (必填) 用于验证更改的命令（例如 `npm test`）。
+-   `-r, --repo <path>`: 仓库路径（默认：当前目录）。
+-   `-f, --file <path>`: 提供作为主要上下文的特定文件路径。
+-   `-s, --selection <text>`: 用户选择的文本作为上下文。
+-   `--dry-run`: 仅生成补丁而不应用它们。
+-   `--verbose`: 在执行期间打印详细的步骤日志。
+
+### 示例
+
+**1. 基本用法**
+
+修复 bug 并使用 `npm test` 验证：
+
+```bash
+salmon-loop --instruction "Fix the null pointer exception in user.ts" --verify "npm test"
+```
+
+**2. 空运行 (Dry Run)**
+
+生成补丁但不应用，用于预览更改：
+
+```bash
+salmon-loop --instruction "Add logging to auth service" --verify "npm run build" --dry-run --verbose
+```
+
+**3. 指定上下文**
+
+提供特定文件作为上下文以减少干扰：
+
+```bash
+salmon-loop --instruction "Update email validation regex" --verify "jest tests/email.test.ts" --file "src/utils/validation.ts"
+```
+
+## 架构
+
+核心循环包含以下步骤：
+
+1.  **构建上下文 (Context Building)**：收集文件内容、ripgrep 搜索结果和 git diff。
+2.  **规划 (Planning)**：根据指令和上下文生成结构化计划 (JSON)。
+3.  **生成补丁 (Patching)**：根据计划生成 unified diff。
+4.  **验证 (Validation)**：检查 diff 是否有效且在限制范围内。
+5.  **应用 (Application)**：使用 `git apply --3way` 应用补丁。
+6.  **验证 (Verification)**：运行用户提供的验证命令。
+7.  **重试/回滚 (Retry/Rollback)**：如果验证失败，回滚更改，收缩上下文并重试（达到限制为止）。
+
+## 安全限制 (Safety Limits)
+
+为了防止意外损坏，Salmon-Loop 强制执行严格的限制：
+
+-   **最大文件更改数**：每个补丁 2 个文件。
+-   **最大 Diff 行数**：每个补丁 200 行。
+-   **最大重试次数**：2 次尝试修复验证失败。
+-   **上下文大小**：限制 token 窗口以确保 LLM 专注。
+-   **Unified Diff**：仅接受有效的 unified diff 格式。
 
 ## 许可证
 
-Salmon-Loop 使用 MIT 许可证。
+MIT
