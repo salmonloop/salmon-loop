@@ -1,3 +1,13 @@
+export enum ExecutionPhase {
+  PLAN = 'plan',
+  PATCH = 'patch',
+  VALIDATE = 'validate',
+  APPLY = 'apply',
+  VERIFY = 'verify',
+  ROLLBACK = 'rollback',
+  SHRINK = 'shrink'
+}
+
 export enum ErrorType {
   COMPILATION = 'compilation',
   LINT = 'lint',
@@ -26,6 +36,7 @@ export interface LoopResult {
   logs: StepLog[];
   history?: LoopIteration[];
   finalPatch?: string;
+  failurePhase?: ExecutionPhase;
 }
 
 export interface LoopIteration {
@@ -37,7 +48,7 @@ export interface LoopIteration {
 }
 
 export interface StepLog {
-  step: 'plan' | 'patch' | 'validate' | 'apply' | 'verify' | 'error';
+  step: ExecutionPhase | 'error';
   success: boolean;
   error?: string;
   output?: string;

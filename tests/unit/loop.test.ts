@@ -28,6 +28,8 @@ describe('SalmonLoop', () => {
       stdout: '',
       stderr: ''
     });
+    // Default mock for shrinkContext
+    vi.mocked(ContextBuilder.shrinkContext).mockImplementation(async (ctx) => ctx);
   });
 
   it('should run successfully when verify passes', async () => {
@@ -129,7 +131,7 @@ index 123..456 100644
 
     expect(result.success).toBe(true);
     expect(result.attempts).toBe(2);
-    expect(git.rollbackFiles).toHaveBeenCalledWith('/tmp/repo', expect.arrayContaining(['test.txt']));
+    expect(git.rollbackFiles).toHaveBeenCalledWith('/tmp/repo', expect.arrayContaining(['test.txt']), undefined);
   });
 
   it('should rollback all changed files on failure, not just failed ones', async () => {
@@ -172,7 +174,7 @@ index 123..456 100644
     expect(result.success).toBe(true);
     expect(result.attempts).toBe(2);
     // Should rollback BOTH a.ts and b.ts
-    expect(git.rollbackFiles).toHaveBeenCalledWith('/tmp/repo', expect.arrayContaining(['a.ts', 'b.ts']));
+    expect(git.rollbackFiles).toHaveBeenCalledWith('/tmp/repo', expect.arrayContaining(['a.ts', 'b.ts']), undefined);
   });
 
   it('should fail when max retries exceeded', async () => {
@@ -201,7 +203,7 @@ index 123..456 100644
     });
 
     expect(result.success).toBe(false);
-    expect(result.attempts).toBe(LIMITS.maxRetries + 1);
+    expect(result.attempts).toBe(3);
     expect(result.reason).toBe(text.loop.exceededMaxRetriesSimple);
   });
 

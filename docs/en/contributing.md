@@ -1,0 +1,23 @@
+# Contributing to SalmonLoop
+
+We welcome contributions to SalmonLoop! As a design-driven project, we prioritize stability, determinism, and clear engineering contracts.
+
+## Development Principles
+
+1. **Safety First**: Any change that affects the execution loop must maintain or enhance safety guarantees (e.g., no unintended file mutations).
+2. **Deterministic Logic**: Avoid heuristic "guessing" or AI-driven decision making for core execution logic. Prefer rule-based engineering.
+3. **Bilingual Documentation**: All documentation must be maintained in both English and Chinese, following the mirrored directory structure.
+4. **Test-Driven**: New features or bug fixes should be accompanied by unit tests.
+
+## Project Structure
+
+- `src/core`: The execution kernel. Must remain editor-agnostic and self-contained.
+- `src/locales`: Internationalization strings. No hardcoded user-facing text in core logic.
+- `tests/unit`: Vitest unit tests.
+
+## Getting Started
+
+1. Fork the repository.
+2. Install dependencies: `pnpm install`.
+3. Run tests: `pnpm test`.
+4. Create a feature branch and submit a pull request.

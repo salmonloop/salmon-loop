@@ -1,5 +1,3 @@
-export * from './loop.js';
-export * from './types.js';
-export * from './limits.js';
-export * from './context.js';
-export * from './llm.js';
+export { SalmonLoop, type LoopOptions } from './loop.js';
+export { type LoopResult, type StepLog, ExecutionPhase } from './types.js';
+export { LLM } from './llm.js';

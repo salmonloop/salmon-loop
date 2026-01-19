@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { extractFailedFiles, shrinkContext } from '../../src/core/loop';
+import { ContextBuilder } from '../../src/core/context';
 import { Context } from '../../src/core/types';
 
 describe('extractFailedFiles', () => {
@@ -8,7 +8,7 @@ describe('extractFailedFiles', () => {
       Error in src/core/loop.ts:10:5
       at Object.<anonymous> (tests/unit/loop.test.ts:20:10)
     `;
-    const files = extractFailedFiles(output);
+    const files = ContextBuilder.extractFailedFiles(output);
     expect(files).toContain('src/core/loop.ts');
     expect(files).toContain('tests/unit/loop.test.ts');
   });
@@ -18,7 +18,7 @@ describe('extractFailedFiles', () => {
       Failed to compile src/core/loop.ts
       Error in README.md
     `;
-    const files = extractFailedFiles(output);
+    const files = ContextBuilder.extractFailedFiles(output);
     expect(files).toContain('src/core/loop.ts');
     expect(files).toContain('README.md');
   });
@@ -28,21 +28,23 @@ describe('extractFailedFiles', () => {
       Error in node_modules/package/index.js
       Error in .git/config
     `;
-    const files = extractFailedFiles(output);
+    const files = ContextBuilder.extractFailedFiles(output);
     expect(files).toHaveLength(0);
   });
 
   it('should handle root files', () => {
     const output = 'Error in package.json';
-    const files = extractFailedFiles(output);
+    const files = ContextBuilder.extractFailedFiles(output);
     expect(files).toContain('package.json');
   });
 });
 
 describe('shrinkContext', () => {
-  it('should filter rgSnippets based on failed files', () => {
+  it('should filter rgSnippets based on failed files', async () => {
     const context: Context = {
       repoPath: '.',
+      // Make primaryText large enough to exceed minContextChars protection
+      primaryText: 'A'.repeat(6000),
       rgSnippets: [
         { file: 'src/a.ts', line: 1, content: 'a' },
         { file: 'src/b.ts', line: 1, content: 'b' },
@@ -50,7 +52,7 @@ describe('shrinkContext', () => {
     } as any;
 
     const failedFiles = ['src/a.ts'];
-    const newContext = shrinkContext(context, failedFiles);
+    const newContext = await ContextBuilder.shrinkContext(context, failedFiles);
 
     expect(newContext.rgSnippets).toHaveLength(1);
     expect(newContext.rgSnippets[0].file).toBe('src/a.ts');
