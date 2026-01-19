@@ -278,21 +278,33 @@ export class ContextBuilder {
     const uniqueFiles = new Set<string>();
 
     // Strategy 1: Look for file paths followed by line numbers (common in stack traces and compiler output)
-    // e.g., src/core/loop.ts:10:5 or loop.ts:10:5
-    const tracePattern =
-      /((?:[\w-]+\/)*[\w-./]+\.(?:ts|js|json|md|txt|css|html|jsx|tsx|vue|py|rs|go|java|c|cpp|h))[:\(]\d+/g;
-    let match;
-    while ((match = tracePattern.exec(verifyOutput)) !== null) {
-      uniqueFiles.add(match[1]);
+    // We handle both quoted and unquoted paths.
+    const patterns = [
+      // Quoted paths (can contain spaces)
+      /"([^"\n]+\.(?:ts|js|json|md|txt|css|html|jsx|tsx|vue|py|rs|go|java|c|cpp|h))"[:\(]\d+/gu,
+      // Unquoted paths (no spaces allowed to avoid over-matching)
+      /((?:[a-zA-Z]:)?[^\s:()"]+\.(?:ts|js|json|md|txt|css|html|jsx|tsx|vue|py|rs|go|java|c|cpp|h))[:\(]\d+/gu,
+    ];
+
+    for (const pattern of patterns) {
+      let match;
+      while ((match = pattern.exec(verifyOutput)) !== null) {
+        let p = match[1].trim().replace(/\\/g, '/');
+        p = p.replace(/^(\.\/|\/)/, '');
+        p = p.replace(/^[a-zA-Z]:\//, '');
+        uniqueFiles.add(p);
+      }
     }
 
-    // Strategy 2: If no specific traces found, fall back to general file path matching
-    if (uniqueFiles.size === 0) {
-      const pathPattern =
-        /(?:^|\s)((?:[\w-]+\/)*[\w-]+\.(?:ts|js|json|md|txt|css|html|jsx|tsx|vue|py|rs|go|java|c|cpp|h))\b/g;
-      while ((match = pathPattern.exec(verifyOutput)) !== null) {
-        uniqueFiles.add(match[1]);
-      }
+    // Strategy 2: Fall back to general file path matching for paths without line numbers
+    const pathPattern =
+      /(?:^|\s)((?:[a-zA-Z]:)?[^\s:()"]+\.(?:ts|js|json|md|txt|css|html|jsx|tsx|vue|py|rs|go|java|c|cpp|h))\b/gu;
+    let match2;
+    while ((match2 = pathPattern.exec(verifyOutput)) !== null) {
+      let p = match2[1].trim().replace(/\\/g, '/');
+      p = p.replace(/^(\.\/|\/)/, '');
+      p = p.replace(/^[a-zA-Z]:\//, '');
+      uniqueFiles.add(p);
     }
 
     // Filter out node_modules and .git

@@ -75,4 +75,24 @@ describe('ContextBuilder', () => {
 
     expect(context.gitDiff).toContain('+modified');
   });
+
+  describe('shrinkContext', () => {
+    it('should filter rgSnippets based on failed files', async () => {
+      const context = {
+        repoPath: '.',
+        // Make primaryText large enough to exceed minContextChars protection
+        primaryText: 'A'.repeat(6000),
+        rgSnippets: [
+          { file: 'src/a.ts', line: 1, content: 'a' },
+          { file: 'src/b.ts', line: 1, content: 'b' },
+        ],
+      } as any;
+
+      const failedFiles = ['src/a.ts'];
+      const newContext = await ContextBuilder.shrinkContext(context, failedFiles);
+
+      expect(newContext.rgSnippets).toHaveLength(1);
+      expect(newContext.rgSnippets[0].file).toBe('src/a.ts');
+    });
+  });
 });

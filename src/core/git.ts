@@ -75,8 +75,16 @@ export async function rollbackFiles(
 ): Promise<RollbackResult> {
   // Path safety: filter out absolute paths or parent directory references
   const safeFiles = files
-    .map((f) => f.replace(/\\/g, '/'))
-    .filter((f) => f && !f.startsWith('/') && !f.includes('..'));
+    .map((f) => f.trim().replace(/\\/g, '/'))
+    .filter((f) => {
+      if (!f) return false;
+      // No absolute paths (Unix or Windows)
+      if (f.startsWith('/') || /^[a-zA-Z]:\//.test(f)) return false;
+      // No path traversal
+      if (f.includes('..')) return false;
+      // No empty or whitespace-only paths (already handled by trim and !f)
+      return true;
+    });
 
   // Deduplicate
   const attempted = Array.from(new Set(safeFiles));

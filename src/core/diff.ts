@@ -16,25 +16,64 @@ export interface DiffMeta {
  * It tries to find the first code block that looks like a diff or the raw diff itself.
  */
 const cleanPath = (path: string) => {
-  let normalized = path.replace(/\\/g, '/').replace(/^[a-zA-Z]:\//, '');
+  // 1. Detect if it was an absolute path before normalization
+  const isAbsolute = path.startsWith('/') || path.startsWith('\\') || /^[a-zA-Z]:/.test(path);
 
-  // Only remove first dir if it has no file extension (likely repo name)
-  // AND if it's not the only directory (to avoid breaking paths like src/index.js)
-  const parts = normalized.split('/');
-  if (parts.length > 1) {
-    const firstDir = parts[0];
-    const hasExtension = /\.(js|ts|json|md|txt|css|html|jsx|tsx|vue|py|rs|go|java|c|cpp|h)$/i.test(firstDir);
+  // 2. Normalize slashes and remove Windows drive letters
+  // Collapse multiple slashes and convert backslashes
+  let normalized = path.replace(/\\/g, '/').replace(/\/+/g, '/');
 
-    // If the first part is a directory (no extension) and there are more parts,
-    // it might be a repo name prefix added by LLM.
-    // However, we should be careful not to strip legitimate source directories.
-    // A better heuristic: if it's 'a/repo-name/path', we want 'path'.
-    // But if it's 'a/src/index.js', we want 'src/index.js'.
-    if (!hasExtension && parts.length > 1) {
-      // Common source directories that we should NOT strip if they are at the top level
-      const commonSrcDirs = ['src', 'lib', 'app', 'tests', 'test', 'packages'];
-      if (!commonSrcDirs.includes(firstDir)) {
-        normalized = parts.slice(1).join('/');
+  // Remove Windows drive letter (e.g., C:/)
+  normalized = normalized.replace(/^[a-zA-Z]:\//, '');
+
+  // Remove leading slash if any (should be relative to repo)
+  if (normalized.startsWith('/')) {
+    normalized = normalized.substring(1);
+  }
+
+  // 3. Heuristic to strip repository name prefix if LLM included it
+  // We ONLY do this for relative-looking paths to avoid breaking absolute paths.
+  // We also try to be conservative to avoid stripping legitimate top-level directories.
+  if (!isAbsolute) {
+    const parts = normalized.split('/');
+    if (parts.length > 1) {
+      const firstDir = parts[0];
+      const hasExtension = /\.(js|ts|json|md|txt|css|html|jsx|tsx|vue|py|rs|go|java|c|cpp|h)$/i.test(
+        firstDir,
+      );
+
+      if (!hasExtension) {
+        const commonSrcDirs = [
+          'src',
+          'lib',
+          'app',
+          'tests',
+          'test',
+          'packages',
+          'include',
+          'bin',
+          'docs',
+          'components',
+          'utils',
+          'core',
+        ];
+        const firstDirLower = firstDir.toLowerCase();
+        const isCommonDir = commonSrcDirs.includes(firstDirLower);
+
+        if (!isCommonDir) {
+          // If the first dir is NOT a common source dir, it MIGHT be a repo name.
+          // We strip it if:
+          // 1. There are more than 2 parts (e.g., repo/src/file.ts -> src/file.ts)
+          // 2. OR if the second part IS a common source dir (e.g., repo/src -> src)
+          // 3. OR if it looks like a repo name (e.g., ends with -repo, -master, etc.)
+          const secondDir = parts[1] ? parts[1].toLowerCase() : '';
+          const isSecondCommonDir = commonSrcDirs.includes(secondDir);
+          const looksLikeRepo = /-(repo|master|main|branch|project)$/i.test(firstDir);
+
+          if (isSecondCommonDir || looksLikeRepo) {
+            normalized = parts.slice(1).join('/');
+          }
+        }
       }
     }
   }
