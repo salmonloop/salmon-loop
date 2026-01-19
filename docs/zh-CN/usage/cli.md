@@ -19,7 +19,8 @@ salmon-loop [选项]
 - `-s, --selection <text>`: 直接提供文本选择作为上下文。
 - `--dry-run`: 生成补丁并运行验证，但不应用到磁盘。
 - `--verbose`: 打印详细的步骤日志，包括 LLM 计划和验证输出。
-- `--force-reset`: 失败时强制执行硬重置 (`git reset --hard`)。**请谨慎使用**，因为它会丢弃所有未提交的更改。
+- `--force-reset`: 失败时强制执行硬重置 (`git reset --hard`)。**请谨慎使用**，因为它会丢弃所有未提交的更改。不能与 `--allow-dirty` 同时使用。
+- `--allow-dirty`: 允许在工作区有未提交更改的情况下运行 SalmonLoop。不能与 `--force-reset` 同时使用。
 
 ## 环境变量
 

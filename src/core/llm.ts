@@ -1,3 +1,7 @@
+/**
+ * LLM implementations are swappable.
+ * Core loop must NOT depend on provider-specific behavior.
+ */
 import OpenAI from 'openai';
 import type { Context, Plan } from './types.js';
 import { getPlanPrompt, getPatchPrompt } from './prompts.js';
@@ -116,5 +120,26 @@ index 1234567..abcdefg 100644
  Test
 -End
 +End Test`;
+  }
+}
+
+/**
+ * A fake LLM for deterministic testing.
+ */
+export class FakeLLM implements LLM {
+  constructor(
+    private plans: Plan[],
+    private patches: string[]
+  ) {}
+
+  private planIndex = 0;
+  private patchIndex = 0;
+
+  async createPlan(): Promise<Plan> {
+    return this.plans[this.planIndex++] || this.plans[this.plans.length - 1];
+  }
+
+  async createPatch(): Promise<string> {
+    return this.patches[this.patchIndex++] || this.patches[this.patches.length - 1];
   }
 }

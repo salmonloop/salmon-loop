@@ -19,7 +19,8 @@ salmon-loop [options]
 - `-s, --selection <text>`: Direct text selection to provide as context.
 - `--dry-run`: Generate the patch and run validation, but do not apply it to the disk.
 - `--verbose`: Print detailed step logs, including LLM plans and verification output.
-- `--force-reset`: Force a hard reset (`git reset --hard`) on failure. **Use with caution** as it discards all uncommitted changes.
+- `--force-reset`: Force a hard reset (`git reset --hard`) on failure. **Use with caution** as it discards all uncommitted changes. Cannot be used with `--allow-dirty`.
+- `--allow-dirty`: Allow running SalmonLoop even if the workspace has uncommitted changes. Cannot be used with `--force-reset`.
 
 ## Environment Variables
 

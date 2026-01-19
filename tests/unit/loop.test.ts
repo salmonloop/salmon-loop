@@ -30,6 +30,8 @@ describe('SalmonLoop', () => {
     });
     // Default mock for shrinkContext
     vi.mocked(ContextBuilder.shrinkContext).mockImplementation(async (ctx) => ctx);
+    // Default mock for preflight
+    vi.mocked(verify.preflight).mockResolvedValue({ ok: true });
   });
 
   it('should run successfully when verify passes', async () => {
@@ -62,7 +64,7 @@ index 123..456 100644
     const result = await loop.run({
       instruction: 'fix bug',
       verify: 'npm test',
-      repo: '/tmp/repo',
+      repoPath: '/tmp/repo',
       llm: mockLLM,
     });
 
@@ -93,7 +95,7 @@ index 123..456 100644
     const result = await loop.run({
       instruction: 'fix bug',
       verify: 'npm test',
-      repo: '/tmp/repo',
+      repoPath: '/tmp/repo',
       llm: mockLLM,
       dryRun: true
     });
@@ -125,7 +127,7 @@ index 123..456 100644
     const result = await loop.run({
       instruction: 'fix bug',
       verify: 'npm test',
-      repo: '/tmp/repo',
+      repoPath: '/tmp/repo',
       llm: mockLLM,
     });
 
@@ -167,7 +169,7 @@ index 123..456 100644
     const result = await loop.run({
       instruction: 'fix bug',
       verify: 'npm test',
-      repo: '/tmp/repo',
+      repoPath: '/tmp/repo',
       llm: mockLLM,
     });
 
@@ -198,7 +200,7 @@ index 123..456 100644
     const result = await loop.run({
       instruction: 'fix bug',
       verify: 'npm test',
-      repo: '/tmp/repo',
+      repoPath: '/tmp/repo',
       llm: mockLLM,
     });
 
@@ -213,7 +215,7 @@ index 123..456 100644
     const result = await loop.run({
       instruction: 'fix bug',
       verify: 'npm test',
-      repo: '/tmp/repo',
+      repoPath: '/tmp/repo',
       llm: mockLLM,
     });
 

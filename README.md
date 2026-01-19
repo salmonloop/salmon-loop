@@ -60,6 +60,27 @@ Fix a bug and verify with `npm test`:
 salmon-loop --instruction "Fix the null pointer exception in user.ts" --verify "npm test"
 ```
 
+### Library Usage
+
+SalmonLoop can be embedded into your own tools:
+
+```typescript
+import { runSalmonLoop, OpenAILLM } from 'salmon-loop';
+
+const result = await runSalmonLoop({
+  instruction: 'Fix typo',
+  verify: 'npm test',
+  repoPath: process.cwd(),
+  llm: new OpenAILLM()
+});
+```
+
+## Safety & Constraints
+
+- **Dirty Workspace**: By default, SalmonLoop will refuse to run if the git workspace has uncommitted changes. Use `allowDirty: true` to override.
+- **Fail-Fast**: The loop terminates immediately if a patch cannot be applied or if verification fails after maximum retries.
+- **Limits**: Execution is bound by strict limits on file count, diff size, and context budget.
+
 ## Documentation
 
 For more details, please refer to [docs/README.md](docs/README.md):

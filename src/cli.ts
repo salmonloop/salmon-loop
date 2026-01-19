@@ -2,7 +2,7 @@
 import 'dotenv/config';
 import { Command } from 'commander';
 import { resolve } from 'path';
-import { ContextBuilder, SalmonLoop, OpenAILLM, StubLLM, type RunOptions } from './core/index.js';
+import { runSalmonLoop, OpenAILLM, StubLLM } from './index.js';
 import { text } from './locales/index.js';
 
 const program = new Command();
@@ -23,6 +23,7 @@ program
   .option('--dry-run', text.cli.dryRunOption)
   .option('--verbose', text.cli.verboseOption)
   .option('--force-reset', text.cli.forceResetOption)
+  .option('--allow-dirty', text.cli.allowDirtyOption)
   .action(async (options) => {
     const runPath = resolve(options.repo);
     
@@ -41,20 +42,20 @@ program
         console.log(text.cli.starting);
       }
 
-      const loop = new SalmonLoop();
       const llm = process.env.SALMON_API_KEY ? new OpenAILLM() : new StubLLM();
 
       if (!process.env.SALMON_API_KEY) {
         console.warn(text.cli.apiKeyMissing);
       }
 
-      const result = await loop.run({
+      const result = await runSalmonLoop({
         instruction: options.instruction,
         verify: options.verify,
-        repo: runPath,
+        repoPath: runPath,
         llm: llm,
         dryRun: options.dryRun,
-        forceReset: options.forceReset
+        forceReset: options.forceReset,
+        allowDirty: options.allowDirty
       });
 
       if (result.success) {

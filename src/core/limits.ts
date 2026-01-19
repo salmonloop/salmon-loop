@@ -17,4 +17,7 @@ export const LIMITS = {
 
   // Verify
   verifyOutputMaxLines: 300,
+
+  // Logging
+  maxLogLength: 10000,
 } as const;

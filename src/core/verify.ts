@@ -76,3 +76,28 @@ export async function runVerify(repoPath: string, verifyCommand: string): Promis
     });
   });
 }
+
+export async function preflight(repoPath: string): Promise<{ ok: boolean; reason?: string }> {
+  return new Promise((resolve) => {
+    // 1. Check if it's a git repo
+    const gitCheck = spawn('git', ['rev-parse', '--is-inside-work-tree'], { cwd: repoPath });
+    gitCheck.on('close', (code) => {
+      if (code !== 0) {
+        resolve({ ok: false, reason: 'NOT_A_GIT_REPO' });
+        return;
+      }
+
+      // 2. Check if workspace is dirty
+      const statusCheck = spawn('git', ['status', '--porcelain'], { cwd: repoPath });
+      let output = '';
+      statusCheck.stdout.on('data', (data) => output += data.toString());
+      statusCheck.on('close', (code) => {
+        if (code === 0 && output.trim().length > 0) {
+          resolve({ ok: false, reason: 'DIRTY_WORKSPACE' });
+        } else {
+          resolve({ ok: true });
+        }
+      });
+    });
+  });
+}

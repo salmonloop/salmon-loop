@@ -60,6 +60,27 @@ node dist/cli.js --instruction "fix bug" --verify "npm test"
 salmon-loop --instruction "Fix the null pointer exception in user.ts" --verify "npm test"
 ```
 
+### 库使用方式
+
+SalmonLoop 可以嵌入到您自己的工具中：
+
+```typescript
+import { runSalmonLoop, OpenAILLM } from 'salmon-loop';
+
+const result = await runSalmonLoop({
+  instruction: '修复拼写错误',
+  verify: 'npm test',
+  repoPath: process.cwd(),
+  llm: new OpenAILLM()
+});
+```
+
+## 安全与约束
+
+- **脏工作区检查**：默认情况下，如果 git 工作区有未提交的更改，SalmonLoop 将拒绝运行。使用 `allowDirty: true` 可以覆盖此行为。
+- **快速失败**：如果补丁无法应用或在达到最大重试次数后验证仍失败，循环将立即终止。
+- **执行限制**：执行过程受到文件数量、Diff 大小和上下文预算的严格限制。
+
 ## 文档 (Documentation)
 
 更多详细信息请参阅 [docs/README.md](docs/README.md)：

@@ -1,59 +1,165 @@
-import type { Context, Plan, LoopResult, StepLog, RunOptions, LoopIteration } from './types.js';
+import type { Context, Plan, LoopResult, StepLog, LoopIteration, LoopEvent } from './types.js';
 import { ExecutionPhase } from './types.js';
 import { ContextBuilder } from './context.js';
 import { LLM } from './llm.js';
 import { validateDiff } from './diff.js';
 import { applyPatch, rollbackFiles } from './git.js';
-import { runVerify, classifyError } from './verify.js';
+import { runVerify, classifyError, preflight } from './verify.js';
 import { LIMITS } from './limits.js';
 import { text } from '../locales/index.js';
 
 export interface LoopOptions {
+  /**
+   * The instruction for the LLM to follow.
+   */
   instruction: string;
+  /**
+   * The verification command to run after applying the patch.
+   */
   verify: string;
-  repo: string;
+  /**
+   * The absolute path to the git repository.
+   */
+  repoPath: string;
+  /**
+   * The LLM instance to use for planning and patching.
+   */
   llm: LLM;
+  /**
+   * If true, the patch will not be applied to the filesystem.
+   */
   dryRun?: boolean;
+  /**
+   * If true, the repository will be reset to HEAD on failure.
+   */
   forceReset?: boolean;
+  /**
+   * Callback for events emitted during the loop.
+   */
+  onEvent?: (event: LoopEvent) => void;
+  /**
+   * If true, the loop will run even if the workspace has uncommitted changes.
+   */
+  allowDirty?: boolean;
 }
 
+/**
+ * Main entry point for running the SalmonLoop.
+ *
+ * @param options - The options for the loop.
+ * @returns The result of the loop execution.
+ */
+export async function runSalmonLoop(options: LoopOptions): Promise<LoopResult> {
+  const loop = new SalmonLoop();
+  return loop.run(options);
+}
 
 /**
  * SalmonLoop Execution Kernel
  *
  * Phase Guarantees:
- * 1. PLAN: Read-only. Never mutates filesystem.
- * 2. PATCH: Read-only. Generates changes in memory.
- * 3. VALIDATE: Read-only. Enforces limits and safety rules.
- * 4. APPLY: Mutating. The ONLY phase that writes to disk.
- * 5. VERIFY: Read-only. Runs checks without modifying code.
- * 6. ROLLBACK: Mutating. Restores state on failure.
- * 7. SHRINK: Read-only. Reduces context for next attempt.
+ * 1. PREFLIGHT: Read-only. Checks environment safety.
+ * 2. CONTEXT: Read-only. Gathers codebase context.
+ * 3. PLAN: Read-only. Never mutates filesystem.
+ * 4. PATCH: Read-only. Generates changes in memory.
+ * 5. VALIDATE: Read-only. Enforces limits and safety rules.
+ * 6. APPLY: Mutating. The ONLY phase that writes to disk.
+ * 7. VERIFY: Read-only. Runs checks without modifying code.
+ * 8. ROLLBACK: Mutating. Restores state on failure.
+ * 9. SHRINK: Read-only. Reduces context for next attempt.
  */
 export class SalmonLoop {
   async run(options: LoopOptions): Promise<LoopResult> {
+    const emit = (event: LoopEvent) => options.onEvent?.(event);
+    const now = () => new Date();
+
     const logs: StepLog[] = [];
     const history: LoopIteration[] = [];
     let context: Context;
+    let currentPhase: ExecutionPhase = ExecutionPhase.PREFLIGHT;
+    let phaseEnded = true;
+
+    const startPhase = (phase: ExecutionPhase) => {
+      // Ensure previous phase is closed
+      if (!phaseEnded) {
+        endPhase(false);
+      }
+      currentPhase = phase;
+      phaseEnded = false;
+      emit({ type: 'phase.start', phase, timestamp: now() });
+    };
+
+    const endPhase = (success: boolean) => {
+      if (!phaseEnded) {
+        emit({ type: 'phase.end', phase: currentPhase, success, timestamp: now() });
+        phaseEnded = true;
+      }
+    };
+
+    // Safety Guard: Prevent accidental loss of uncommitted changes
+    if (options.allowDirty && options.forceReset) {
+      const reason = text.loop.forceResetNotAllowedWithDirty;
+      logs.push(this.createLog('error', reason, false));
+      emit({ type: 'log', level: 'error', message: reason, timestamp: now() });
+      return {
+        success: false,
+        reason,
+        reasonCode: 'PREFLIGHT_DIRTY',
+        attempts: 0,
+        logs,
+        failurePhase: ExecutionPhase.PREFLIGHT
+      };
+    }
+
+    // Preflight checks
+    if (!options.allowDirty) {
+      startPhase(ExecutionPhase.PREFLIGHT);
+      const pf = await preflight(options.repoPath);
+      if (!pf.ok) {
+        const reason = pf.reason === 'NOT_A_GIT_REPO' 
+          ? text.loop.preflightFailedNotGit 
+          : text.loop.preflightFailedDirty;
+        
+        logs.push(this.createLog('error', reason, false));
+        endPhase(false);
+        emit({ type: 'log', level: 'error', message: reason, timestamp: now() });
+        
+        return {
+          success: false,
+          reason,
+          reasonCode: pf.reason === 'NOT_A_GIT_REPO' ? 'PREFLIGHT_NOT_GIT' : 'PREFLIGHT_DIRTY',
+          attempts: 0,
+          logs,
+          failurePhase: ExecutionPhase.PREFLIGHT
+        };
+      }
+      endPhase(true);
+    }
 
     try {
+      startPhase(ExecutionPhase.CONTEXT);
       context = await ContextBuilder.build({
         instruction: options.instruction,
         verify: options.verify,
-        repo: options.repo,
+        repoPath: options.repoPath,
         file: undefined,
         selection: undefined,
         dryRun: options.dryRun,
         verbose: false
       });
+      endPhase(true);
     } catch (error) {
-      logs.push(this.createLog('error', error instanceof Error ? error.message : String(error), false));
+      const msg = error instanceof Error ? error.message : String(error);
+      logs.push(this.createLog('error', msg, false));
+      endPhase(false);
+      emit({ type: 'log', level: 'error', message: msg, timestamp: now() });
       return {
         success: false,
         reason: text.loop.loopExecutionFailed,
+        reasonCode: 'LOOP_FAILED',
         attempts: 0,
         logs,
-        failurePhase: ExecutionPhase.PLAN
+        failurePhase: ExecutionPhase.CONTEXT
       };
     }
     
@@ -64,50 +170,97 @@ export class SalmonLoop {
     let changedFilesThisAttempt: string[] = [];
 
     while (retries <= LIMITS.maxRetries) {
+      const attempt = retries + 1;
       changedFilesThisAttempt = []; // Reset for this attempt
       try {
         // PLAN phase
+        startPhase(ExecutionPhase.PLAN);
         currentPlan = await options.llm.createPlan(context, options.instruction, lastError);
         logs.push(this.createLog(ExecutionPhase.PLAN, currentPlan));
+        endPhase(true);
 
         // PATCH phase
+        startPhase(ExecutionPhase.PATCH);
         currentDiff = await options.llm.createPatch(context, currentPlan, lastError);
         logs.push(this.createLog(ExecutionPhase.PATCH, currentDiff));
+        endPhase(true);
 
         // VALIDATE phase
+        startPhase(ExecutionPhase.VALIDATE);
         const diffMeta = validateDiff(currentDiff);
         changedFilesThisAttempt = diffMeta.changedFiles;
         logs.push(this.createLog(ExecutionPhase.VALIDATE, text.loop.diffValidationPassed));
+        emit({
+          type: 'diff.meta',
+          changedFiles: changedFilesThisAttempt,
+          fileCount: diffMeta.fileCount,
+          lineCount: diffMeta.lineCount,
+          timestamp: now()
+        });
+        endPhase(true);
+
+        // DRY RUN: stop after validation (preview mode)
+        if (options.dryRun) {
+          logs.push(this.createLog(ExecutionPhase.APPLY, text.loop.dryRunPatchNotApplied));
+          return {
+            success: true,
+            reason: text.loop.dryRunCompleted,
+            reasonCode: 'DRY_RUN',
+            attempts: attempt,
+            logs,
+            history,
+            finalPatch: currentDiff || undefined,
+            changedFiles: changedFilesThisAttempt
+          };
+        }
 
         // APPLY phase
-        if (!options.dryRun) {
-          await applyPatch(options.repo, currentDiff);
+        startPhase(ExecutionPhase.APPLY);
+        try {
+          await applyPatch(options.repoPath, currentDiff);
           logs.push(this.createLog(ExecutionPhase.APPLY, text.loop.patchApplied));
-        } else {
-          logs.push(this.createLog(ExecutionPhase.APPLY, text.loop.dryRunPatchNotApplied));
+          endPhase(true);
+        } catch (e) {
+          endPhase(false);
+          throw e;
         }
 
         // VERIFY phase
-        const verifyResult = await runVerify(options.repo, options.verify);
+        startPhase(ExecutionPhase.VERIFY);
+        const verifyResult = await runVerify(options.repoPath, options.verify);
         logs.push(this.createLog(ExecutionPhase.VERIFY, verifyResult.output, verifyResult.ok));
+        emit({ type: 'verify.result', ok: verifyResult.ok, output: verifyResult.output, timestamp: now() });
+        endPhase(verifyResult.ok);
 
         if (verifyResult.ok) {
           return {
             success: true,
             reason: text.loop.operationCompleted,
-            attempts: retries + 1,
+            reasonCode: 'SUCCESS',
+            attempts: attempt,
             logs,
             history,
-            finalPatch: currentDiff || undefined
+            finalPatch: currentDiff || undefined,
+            changedFiles: changedFilesThisAttempt
           };
         }
 
         // Verification failed, preparing to retry
         lastError = verifyResult.output;
+        const failedFiles = ContextBuilder.extractFailedFiles(verifyResult.output);
+        emit({
+          type: 'retry',
+          fromAttempt: attempt,
+          toAttempt: attempt + 1,
+          // Truncate reason to avoid bloating event stream
+          reason: lastError.length > 2000 ? lastError.substring(0, 2000) + '...' : lastError,
+          failedFiles,
+          timestamp: now()
+        });
 
         // Record history
         history.push({
-          attempt: retries + 1,
+          attempt,
           plan: currentPlan,
           patch: currentDiff,
           error: lastError,
@@ -117,14 +270,18 @@ export class SalmonLoop {
         retries++;
 
         // Rollback files (using changedFilesThisAttempt)
+        // Safety: Never rollback in dryRun mode
         if (!options.dryRun && (changedFilesThisAttempt.length > 0 || options.forceReset)) {
-          const rb = await rollbackFiles(options.repo, changedFilesThisAttempt, options.forceReset);
+          startPhase(ExecutionPhase.ROLLBACK);
+          const rb = await rollbackFiles(options.repoPath, changedFilesThisAttempt, options.forceReset);
           if (!rb.ok) {
+            endPhase(false);
             logs.push(this.createLog(ExecutionPhase.ROLLBACK, text.loop.rollbackFailed(rb.stderr), false));
             return {
               success: false,
               reason: text.loop.rollbackFailedDirty,
-              attempts: retries,
+              reasonCode: 'ROLLBACK_FAILED',
+              attempts: attempt, // Current attempt failed during rollback
               logs,
               history,
               finalPatch: currentDiff || undefined,
@@ -133,6 +290,7 @@ export class SalmonLoop {
           } else {
             const msg = options.forceReset ? text.loop.rollbackAllSuccess : text.loop.rollbackSuccess(changedFilesThisAttempt);
             logs.push(this.createLog(ExecutionPhase.ROLLBACK, msg));
+            endPhase(true);
           }
         }
 
@@ -140,7 +298,8 @@ export class SalmonLoop {
           return {
             success: false,
             reason: text.loop.exceededMaxRetriesSimple,
-            attempts: retries,
+            reasonCode: 'MAX_RETRIES',
+            attempts: attempt, // Total attempts made (last one failed)
             logs,
             history,
             finalPatch: currentDiff || undefined,
@@ -149,34 +308,41 @@ export class SalmonLoop {
         }
 
         // Shrink context
+        startPhase(ExecutionPhase.SHRINK);
         const errorType = classifyError(verifyResult.output);
-        const failedFiles = ContextBuilder.extractFailedFiles(verifyResult.output);
         context = await ContextBuilder.shrinkContext(context, failedFiles, errorType);
         logs.push(this.createLog(ExecutionPhase.SHRINK, text.loop.contextShrunk));
+        endPhase(true);
 
       } catch (error) {
         // Rollback on error
-        let failurePhase = ExecutionPhase.PLAN;
-        if (currentDiff) failurePhase = ExecutionPhase.APPLY;
-        else if (currentPlan) failurePhase = ExecutionPhase.PATCH;
+        let failurePhase: ExecutionPhase = currentPhase;
+        endPhase(false);
 
+        // Safety: Never rollback in dryRun mode
         if (!options.dryRun && (changedFilesThisAttempt.length > 0 || options.forceReset)) {
-          const rb = await rollbackFiles(options.repo, changedFilesThisAttempt, options.forceReset);
+          startPhase(ExecutionPhase.ROLLBACK);
+          const rb = await rollbackFiles(options.repoPath, changedFilesThisAttempt, options.forceReset);
           if (!rb.ok) {
             logs.push(this.createLog(ExecutionPhase.ROLLBACK, text.loop.rollbackFailed(rb.stderr), false));
             failurePhase = ExecutionPhase.ROLLBACK;
+            endPhase(false);
           } else {
             const msg = options.forceReset ? text.loop.rollbackAllSuccess : text.loop.rollbackSuccess(changedFilesThisAttempt);
             logs.push(this.createLog(ExecutionPhase.ROLLBACK, msg));
+            endPhase(true);
           }
         }
 
-        logs.push(this.createLog('error', error instanceof Error ? error.message : String(error), false));
+        const msg = error instanceof Error ? error.message : String(error);
+        logs.push(this.createLog('error', msg, false));
+        emit({ type: 'log', level: 'error', message: msg, timestamp: now() });
         
         return {
           success: false,
           reason: text.loop.loopExecutionFailed,
-          attempts: retries + 1,
+          reasonCode: 'LOOP_FAILED',
+          attempts: attempt, // Current attempt failed
           logs,
           history,
           finalPatch: currentDiff || undefined,
@@ -188,7 +354,8 @@ export class SalmonLoop {
     return {
       success: false,
       reason: text.loop.unexpectedTermination,
-      attempts: retries,
+      reasonCode: 'LOOP_FAILED',
+      attempts: retries, // No new attempt started after the loop
       logs,
       history,
       finalPatch: currentDiff || undefined
@@ -196,10 +363,26 @@ export class SalmonLoop {
   }
 
   private createLog(step: ExecutionPhase | 'error', output: any, success = true): StepLog {
+    let outputStr = typeof output === 'string' ? output : (() => {
+      try {
+        return JSON.stringify(output);
+      } catch {
+        try {
+          return String(output);
+        } catch {
+          return '[Unserializable]';
+        }
+      }
+    })();
+
+    if (outputStr.length > LIMITS.maxLogLength) {
+      outputStr = outputStr.substring(0, LIMITS.maxLogLength) + '\n...[Truncated due to length]...';
+    }
+
     return {
       step,
       success,
-      output: typeof output === 'string' ? output : JSON.stringify(output),
+      output: outputStr,
       timestamp: new Date()
     };
   }

@@ -1,4 +1,6 @@
 export enum ExecutionPhase {
+  PREFLIGHT = 'preflight',
+  CONTEXT = 'context',
   PLAN = 'plan',
   PATCH = 'patch',
   VALIDATE = 'validate',
@@ -26,17 +28,28 @@ export interface Plan {
 export interface PlanStep {
   description: string;
   file: string;
-  changeType: 'modify' | 'add' | 'delete';
 }
+
+export type LoopReasonCode =
+  | 'PREFLIGHT_DIRTY'
+  | 'PREFLIGHT_NOT_GIT'
+  | 'DRY_RUN'
+  | 'VERIFY_FAILED'
+  | 'ROLLBACK_FAILED'
+  | 'LOOP_FAILED'
+  | 'MAX_RETRIES'
+  | 'SUCCESS';
 
 export interface LoopResult {
   success: boolean;
   reason: string;
+  reasonCode: LoopReasonCode;
   attempts: number;
   logs: StepLog[];
   history?: LoopIteration[];
   finalPatch?: string;
   failurePhase?: ExecutionPhase;
+  changedFiles?: string[];
 }
 
 export interface LoopIteration {
@@ -50,10 +63,20 @@ export interface LoopIteration {
 export interface StepLog {
   step: ExecutionPhase | 'error';
   success: boolean;
-  error?: string;
-  output?: string;
+  output: string;
   timestamp: Date;
 }
+
+/**
+ * Events emitted during the SalmonLoop execution.
+ */
+export type LoopEvent =
+  | { type: 'phase.start'; phase: ExecutionPhase; timestamp: Date }
+  | { type: 'phase.end'; phase: ExecutionPhase; success: boolean; timestamp: Date }
+  | { type: 'log'; message: string; level: 'info' | 'warn' | 'error'; timestamp: Date }
+  | { type: 'diff.meta'; changedFiles: string[]; fileCount: number; lineCount: number; timestamp: Date }
+  | { type: 'verify.result'; ok: boolean; output: string; timestamp: Date }
+  | { type: 'retry'; fromAttempt: number; toAttempt: number; reason: string; failedFiles: string[]; timestamp: Date };
 
 export interface Context {
   repoPath: string;
@@ -77,7 +100,7 @@ export interface RipgrepResult {
 export interface RunOptions {
   instruction: string;
   verify: string;
-  repo: string;
+  repoPath: string;
   file?: string;
   selection?: string;
   dryRun?: boolean;

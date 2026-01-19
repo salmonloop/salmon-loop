@@ -13,9 +13,9 @@ export class ContextBuilder {
 
     // Handle primary text from file or selection
     if (options.file) {
-      const filePath = path.isAbsolute(options.file) 
-        ? options.file 
-        : path.join(options.repo, options.file);
+      const filePath = path.isAbsolute(options.file)
+        ? options.file
+        : path.join(options.repoPath, options.file);
       primaryText = await readFile(filePath, 'utf-8');
     } else if (options.selection) {
       primaryText = options.selection;
@@ -28,14 +28,14 @@ export class ContextBuilder {
 
     // Extract keywords and execute ripgrep search
     const keywords = extractKeywords(options.instruction);
-    const rgSnippets = await this.searchMultipleKeywords(keywords, options.repo);
+    const rgSnippets = await this.searchMultipleKeywords(keywords, options.repoPath);
 
     // Get git diff
-    const gitDiff = await this.getGitDiff(options.repo);
+    const gitDiff = await this.getGitDiff(options.repoPath);
 
     // Truncate context
     const context: Context = {
-      repoPath: options.repo,
+      repoPath: options.repoPath,
       primaryText,
       rgSnippets,
       gitDiff
