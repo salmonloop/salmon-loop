@@ -1,9 +1,11 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { normalizeDiff } from '../../src/core/diff.js';
-import { rollbackFiles } from '../../src/core/git.js';
-import { ContextBuilder } from '../../src/core/context.js';
 import { spawn } from 'child_process';
 import { EventEmitter } from 'events';
+
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+import { ContextBuilder } from '../../src/core/context.js';
+import { normalizeDiff } from '../../src/core/diff.js';
+import { rollbackFiles } from '../../src/core/git.js';
 
 // Mock spawn for rollbackFiles tests
 vi.mock('child_process');
@@ -79,12 +81,30 @@ diff --git a/my-repo/src/index.ts b/my-repo/src/index.ts
 
     it('should handle various edge case paths without crashing', () => {
       const edgeCases = [
-        "...", "....", " . ", ".config", "-", "-rf", "--help", "~",
-        "foo\nbar", "foo\rbar", "foo\tbar", "CON", "PRN", "AUX", "NUL",
-        "folder.", "folder ", "😂", "🚀_project", "folder\u200bname", "@"
+        '...',
+        '....',
+        ' . ',
+        '.config',
+        '-',
+        '-rf',
+        '--help',
+        '~',
+        'foo\nbar',
+        'foo\rbar',
+        'foo\tbar',
+        'CON',
+        'PRN',
+        'AUX',
+        'NUL',
+        'folder.',
+        'folder ',
+        '😂',
+        '🚀_project',
+        'folder\u200bname',
+        '@',
       ];
-      
-      edgeCases.forEach(path => {
+
+      edgeCases.forEach((path) => {
         const diff = `
 diff --git a/${path} b/${path}
 --- a/${path}
@@ -103,6 +123,7 @@ diff --git a/${path} b/${path}
     const repoPath = '/fake/repo';
 
     beforeEach(() => {
+      vi.useFakeTimers();
       vi.mocked(spawn).mockImplementation(() => {
         const emitter = new EventEmitter() as any;
         emitter.stdout = new EventEmitter();
@@ -112,24 +133,36 @@ diff --git a/${path} b/${path}
       });
     });
 
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
     it('should filter out absolute paths', async () => {
-      const result = await rollbackFiles(repoPath, ['/etc/passwd', 'src/safe.ts']);
+      const promise = rollbackFiles(repoPath, ['/etc/passwd', 'src/safe.ts']);
+      await vi.runAllTimersAsync();
+      const result = await promise;
       expect(result.attempted).toEqual(['src/safe.ts']);
     });
 
     it('should filter out path traversal attempts', async () => {
-      const result = await rollbackFiles(repoPath, ['../../outside.ts', 'src/../safe.ts', 'safe.ts']);
+      const promise = rollbackFiles(repoPath, ['../../outside.ts', 'src/../safe.ts', 'safe.ts']);
+      await vi.runAllTimersAsync();
+      const result = await promise;
       expect(result.attempted).toEqual(['safe.ts']);
     });
 
     it('should handle Windows style absolute paths', async () => {
-      const result = await rollbackFiles(repoPath, ['C:\\Windows\\system32\\cmd.exe', 'src\\file.ts']);
+      const promise = rollbackFiles(repoPath, ['C:\\Windows\\system32\\cmd.exe', 'src\\file.ts']);
+      await vi.runAllTimersAsync();
+      const result = await promise;
       expect(result.attempted).not.toContain('C:/Windows/system32/cmd.exe');
       expect(result.attempted).toContain('src/file.ts');
     });
 
     it('should handle empty or whitespace paths', async () => {
-      const result = await rollbackFiles(repoPath, ['', '   ', 'src/file.ts']);
+      const promise = rollbackFiles(repoPath, ['', '   ', 'src/file.ts']);
+      await vi.runAllTimersAsync();
+      const result = await promise;
       expect(result.attempted).toEqual(['src/file.ts']);
     });
   });

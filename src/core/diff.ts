@@ -1,5 +1,6 @@
-import { LIMITS } from './limits.js';
 import { text } from '../locales/index.js';
+
+import { LIMITS } from './limits.js';
 import { DiffValidationError } from './types.js';
 
 /**
@@ -38,9 +39,8 @@ const cleanPath = (path: string) => {
     const parts = normalized.split('/');
     if (parts.length > 1) {
       const firstDir = parts[0];
-      const hasExtension = /\.(js|ts|json|md|txt|css|html|jsx|tsx|vue|py|rs|go|java|c|cpp|h)$/i.test(
-        firstDir,
-      );
+      const hasExtension =
+        /\.(js|ts|json|md|txt|css|html|jsx|tsx|vue|py|rs|go|java|c|cpp|h)$/i.test(firstDir);
 
       if (!hasExtension) {
         const commonSrcDirs = [
@@ -100,18 +100,19 @@ export function normalizeDiff(raw: string): string {
   // 3. Aggressively clean paths in the extracted content
   // This handles cases where LLM includes repo name like 'a/test-repo/index.js'
   // We use non-greedy matching and ensure we don't break the format
-  const cleaned = content
-    .replace(/^diff --git a\/(.+) b\/(.+)$/gm, (match, p1, p2) => {
-      // Handle Windows paths by replacing backslashes and removing drive letters
-      return `diff --git a/${cleanPath(p1)} b/${cleanPath(p2)}`;
-    })
-    .replace(/^--- a\/(.+)$/gm, (match, p1) => {
-      return `--- a/${cleanPath(p1)}`;
-    })
-    .replace(/^\+\+\+ b\/(.+)$/gm, (match, p1) => {
-      return `+++ b/${cleanPath(p1)}`;
-    })
-    .trimEnd() + '\n';
+  const cleaned =
+    content
+      .replace(/^diff --git a\/(.+) b\/(.+)$/gm, (match, p1, p2) => {
+        // Handle Windows paths by replacing backslashes and removing drive letters
+        return `diff --git a/${cleanPath(p1)} b/${cleanPath(p2)}`;
+      })
+      .replace(/^--- a\/(.+)$/gm, (match, p1) => {
+        return `--- a/${cleanPath(p1)}`;
+      })
+      .replace(/^\+\+\+ b\/(.+)$/gm, (match, p1) => {
+        return `+++ b/${cleanPath(p1)}`;
+      })
+      .trimEnd() + '\n';
 
   return cleaned;
 }
@@ -162,9 +163,12 @@ export function validateDiff(rawDiff: string, limits = LIMITS): DiffMeta {
         const bPath = match[2].replace(/\\/g, '/');
 
         // Safety Check: No file creation, deletion, or renaming allowed
-        if (aPath === 'dev/null') throw new DiffValidationError(text.diff.fileCreationNotAllowed(bPath));
-        if (bPath === 'dev/null') throw new DiffValidationError(text.diff.fileDeletionNotAllowed(aPath));
-        if (aPath !== bPath) throw new DiffValidationError(text.diff.fileRenameNotAllowed(aPath, bPath));
+        if (aPath === 'dev/null')
+          throw new DiffValidationError(text.diff.fileCreationNotAllowed(bPath));
+        if (bPath === 'dev/null')
+          throw new DiffValidationError(text.diff.fileDeletionNotAllowed(aPath));
+        if (aPath !== bPath)
+          throw new DiffValidationError(text.diff.fileRenameNotAllowed(aPath, bPath));
 
         currentFile = bPath;
         changedFiles.add(bPath);
@@ -212,7 +216,9 @@ export function validateDiff(rawDiff: string, limits = LIMITS): DiffMeta {
   }
 
   if (fileCount > limits.maxFilesChanged) {
-    throw new DiffValidationError(text.diff.tooManyFiles(fileCount, limits.maxFilesChanged, fileList));
+    throw new DiffValidationError(
+      text.diff.tooManyFiles(fileCount, limits.maxFilesChanged, fileList),
+    );
   }
 
   if (lineCount === 0) {

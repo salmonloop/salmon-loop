@@ -4,7 +4,8 @@ export const en = {
     planInvalid: 'Invalid Plan structure: missing required fields',
     planParseFailed: (content: string, error: string) =>
       `Failed to parse LLM response as JSON: ${content}. Error: ${error}`,
-    patchEmpty: (reason?: string) => `LLM returned empty response for patch${reason ? ` (${reason})` : ''}`,
+    patchEmpty: (reason?: string) =>
+      `LLM returned empty response for patch${reason ? ` (${reason})` : ''}`,
   },
 
   prompts: {
@@ -45,7 +46,7 @@ Please return the plan in pure JSON format:`,
         if (parsedPlan.files && Array.isArray(parsedPlan.files)) {
           targetFiles = parsedPlan.files.join(', ');
         }
-      } catch (e) {
+      } catch (__e) {
         // Fallback if plan is not valid JSON
       }
 
@@ -71,7 +72,7 @@ ${lastError ? `\n# Last Error\nThe previous attempt failed with the following er
 Please return the patch in pure unified diff format:`;
     },
   },
- git: {
+  git: {
     applyFailed: (error: string) => `git apply failed: ${error}`,
     applySpawnFailed: (error: string) => `git apply spawn failed: ${error}`,
   },
@@ -226,5 +227,6 @@ Please return the patch in pure unified diff format:`;
     notGit: 'Initialize a git repository in the target directory.',
     rollbackFailed: 'Manual cleanup required. Run `git reset --hard HEAD`.',
     unknown: 'Check the logs above for more details.',
+    gitError: 'Git operation failed. Run `git status` and resolve any conflicts.',
   },
 };

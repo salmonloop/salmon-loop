@@ -1,7 +1,8 @@
-import { getGitDiff, getGitStatus, applyPatch, rollbackFiles } from '../../src/core/git.js';
-import * as fs from 'fs/promises';
 import { spawn } from 'child_process';
 import { EventEmitter } from 'events';
+import * as fs from 'fs/promises';
+
+import { getGitDiff, getGitStatus, applyPatch, rollbackFiles } from '../../src/core/git.js';
 
 vi.mock('fs/promises');
 vi.mock('child_process');
@@ -10,7 +11,12 @@ describe('Git Utils', () => {
   const tempDir = '/fake/temp/dir';
 
   beforeEach(() => {
+    vi.useFakeTimers();
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('should get git diff for unstaged changes', async () => {
@@ -18,7 +24,7 @@ describe('Git Utils', () => {
       const emitter = new EventEmitter() as any;
       emitter.stdout = new EventEmitter();
       emitter.stderr = new EventEmitter();
-      
+
       setTimeout(() => {
         if (command === 'git' && args[0] === 'diff' && !args.includes('--cached')) {
           emitter.stdout.emit('data', Buffer.from('+modified\n-initial'));
@@ -27,11 +33,13 @@ describe('Git Utils', () => {
           emitter.emit('close', 0);
         }
       }, 0);
-      
+
       return emitter;
     });
 
-    const diff = await getGitDiff(tempDir);
+    const promise = getGitDiff(tempDir);
+    await vi.runAllTimersAsync();
+    const diff = await promise;
     expect(diff).toContain('+modified');
     expect(diff).toContain('-initial');
   });
@@ -41,7 +49,7 @@ describe('Git Utils', () => {
       const emitter = new EventEmitter() as any;
       emitter.stdout = new EventEmitter();
       emitter.stderr = new EventEmitter();
-      
+
       setTimeout(() => {
         if (command === 'git' && args[0] === 'diff' && args.includes('--cached')) {
           emitter.stdout.emit('data', Buffer.from('+staged'));
@@ -50,11 +58,13 @@ describe('Git Utils', () => {
           emitter.emit('close', 0);
         }
       }, 0);
-      
+
       return emitter;
     });
 
-    const diff = await getGitDiff(tempDir, true);
+    const promise = getGitDiff(tempDir, true);
+    await vi.runAllTimersAsync();
+    const diff = await promise;
     expect(diff).toContain('+staged');
   });
 
@@ -63,7 +73,7 @@ describe('Git Utils', () => {
       const emitter = new EventEmitter() as any;
       emitter.stdout = new EventEmitter();
       emitter.stderr = new EventEmitter();
-      
+
       setTimeout(() => {
         if (command === 'git' && args[0] === 'status') {
           emitter.stdout.emit('data', Buffer.from('?? new.txt'));
@@ -72,11 +82,13 @@ describe('Git Utils', () => {
           emitter.emit('close', 0);
         }
       }, 0);
-      
+
       return emitter;
     });
 
-    const status = await getGitStatus(tempDir);
+    const promise = getGitStatus(tempDir);
+    await vi.runAllTimersAsync();
+    const status = await promise;
     expect(status).toContain('?? new.txt');
   });
 
@@ -88,7 +100,7 @@ describe('Git Utils', () => {
       const emitter = new EventEmitter() as any;
       emitter.stdout = new EventEmitter();
       emitter.stderr = new EventEmitter();
-      
+
       setTimeout(() => {
         if (command === 'git' && args[0] === 'apply') {
           emitter.emit('close', 0);
@@ -96,7 +108,7 @@ describe('Git Utils', () => {
           emitter.emit('close', 0);
         }
       }, 0);
-      
+
       return emitter;
     });
 
@@ -108,7 +120,9 @@ index abc1234..def5678 100644
 -line1
 +line2
 `;
-    await expect(applyPatch(tempDir, patch)).resolves.toBeUndefined();
+    const promise = applyPatch(tempDir, patch);
+    await vi.runAllTimersAsync();
+    await expect(promise).resolves.toBeUndefined();
     expect(fs.writeFile).toHaveBeenCalledWith(
       expect.any(String),
       expect.not.stringContaining('index abc1234..def5678'),
@@ -133,7 +147,7 @@ index abc1234..def5678 100644
       const emitter = new EventEmitter() as any;
       emitter.stdout = new EventEmitter();
       emitter.stderr = new EventEmitter();
-      
+
       setTimeout(() => {
         if (command === 'git' && args[0] === 'checkout') {
           emitter.emit('close', 0);
@@ -141,12 +155,18 @@ index abc1234..def5678 100644
           emitter.emit('close', 0);
         }
       }, 0);
-      
+
       return emitter;
     });
 
-    const result = await rollbackFiles(tempDir, ['test.txt']);
+    const promise = rollbackFiles(tempDir, ['test.txt']);
+    await vi.runAllTimersAsync();
+    const result = await promise;
     expect(result.ok).toBe(true);
-    expect(spawn).toHaveBeenCalledWith('git', expect.arrayContaining(['checkout', '--', 'test.txt']), expect.any(Object));
+    expect(spawn).toHaveBeenCalledWith(
+      'git',
+      expect.arrayContaining(['checkout', '--', 'test.txt']),
+      expect.any(Object),
+    );
   });
 });

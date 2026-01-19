@@ -75,6 +75,32 @@ const result = await runSalmonLoop({
 });
 ```
 
+## 开发 (Development)
+
+### 运行测试与代码检查
+
+您可以在本地运行与 CI 相同的检查：
+
+```bash
+# 运行所有测试
+pnpm test
+
+# 运行代码风格检查 (Lint)
+pnpm lint
+
+# 运行代码格式化
+pnpm format
+```
+
+### 本地 CI 模拟
+
+为了在本地模拟 GitHub Actions 环境，我们建议使用 [act](https://github.com/nektos/act)：
+
+```bash
+# 在本地运行 CI 工作流
+act
+```
+
 ## 安全与约束
 
 - **脏工作区检查**：默认情况下，如果 git 工作区有未提交的更改，SalmonLoop 将拒绝运行。使用 `allowDirty: true` 可以覆盖此行为。

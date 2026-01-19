@@ -20,9 +20,13 @@ describe('OpenAILLM', () => {
   const mockContext: Context = { repoPath: '.', rgSnippets: [] } as any;
 
   beforeEach(() => {
-    process.env.SALMON_API_KEY = 'test-key';
+    vi.stubEnv('SALMON_API_KEY', 'test-key');
     llm = new OpenAILLM();
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   describe('createPlan', () => {

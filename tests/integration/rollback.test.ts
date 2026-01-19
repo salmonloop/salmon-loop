@@ -1,6 +1,7 @@
-import { rollbackFiles } from '../../src/core/git.js';
 import { spawn } from 'child_process';
 import { EventEmitter } from 'events';
+
+import { rollbackFiles } from '../../src/core/git.js';
 
 vi.mock('child_process', () => ({
   spawn: vi.fn(),
@@ -17,7 +18,7 @@ describe('Rollback Integration Tests', () => {
     const child = new EventEmitter() as any;
     child.stdout = new EventEmitter();
     child.stderr = new EventEmitter();
-    
+
     vi.mocked(spawn).mockReturnValue(child);
 
     setTimeout(() => {

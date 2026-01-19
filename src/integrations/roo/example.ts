@@ -1,7 +1,8 @@
-import { RooSalmonAdapter } from './adapter.js';
 import { FakeLLM } from '../../core/llm.js';
 
-const _example = async () => {
+import { RooSalmonAdapter } from './adapter.js';
+
+export const example = async () => {
   const adapter = new RooSalmonAdapter();
 
   const fakeLLM = new FakeLLM(

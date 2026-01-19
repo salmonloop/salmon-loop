@@ -7,10 +7,29 @@ describe('normalizeDiff', () => {
     const raw = '```diff\ndiff --git a/a b/a\n```';
     expect(normalizeDiff(raw)).toBe('diff --git a/a b/a\n');
   });
- 
+
   it('should trim whitespace', () => {
     const raw = '  \ndiff --git a/a b/a\n  ';
     expect(normalizeDiff(raw)).toBe('diff --git a/a b/a\n');
+  });
+
+  it('should handle Windows paths and drive letters', () => {
+    const raw = 'diff --git a/C:\\Users\\test\\file.ts b/C:\\Users\\test\\file.ts';
+    // Should strip drive letter and normalize slashes
+    expect(normalizeDiff(raw)).toBe('diff --git a/Users/test/file.ts b/Users/test/file.ts\n');
+  });
+
+  it('should strip repo name but keep common src dirs', () => {
+    const raw = 'diff --git a/my-project-repo/src/index.ts b/my-project-repo/src/index.ts';
+    expect(normalizeDiff(raw)).toBe('diff --git a/src/index.ts b/src/index.ts\n');
+  });
+
+  it('should handle conversational text before diff', () => {
+    const raw =
+      'Here is the patch:\n\ndiff --git a/file.ts b/file.ts\n--- a/file.ts\n+++ b/file.ts\n@@ -1,1 +1,1 @@\n-old\n+new';
+    expect(normalizeDiff(raw)).toBe(
+      'diff --git a/file.ts b/file.ts\n--- a/file.ts\n+++ b/file.ts\n@@ -1,1 +1,1 @@\n-old\n+new\n',
+    );
   });
 });
 

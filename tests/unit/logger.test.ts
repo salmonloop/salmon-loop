@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+
 import { Logger } from '../../src/core/logger.js';
 
 describe('Logger', () => {
@@ -7,9 +8,15 @@ describe('Logger', () => {
 
   beforeEach(() => {
     logger = new Logger();
-    consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
-    vi.spyOn(console, 'error').mockImplementation(() => {});
+    consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {
+      /* ignore */
+    });
+    vi.spyOn(console, 'warn').mockImplementation(() => {
+      /* ignore */
+    });
+    vi.spyOn(console, 'error').mockImplementation(() => {
+      /* ignore */
+    });
   });
 
   it('should not log debug/trace by default', () => {

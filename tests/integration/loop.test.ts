@@ -1,12 +1,13 @@
-import { runSalmonLoop } from '../../src/core/loop.js';
-import { LLM } from '../../src/core/llm.js';
-import { ExecutionPhase } from '../../src/core/types.js';
-import * as git from '../../src/core/git.js';
-import * as verify from '../../src/core/verify.js';
 import { spawn } from 'child_process';
 import { EventEmitter } from 'events';
+
 import mockFs from 'mock-fs';
-import { join } from 'path';
+
+import * as git from '../../src/core/git.js';
+import { LLM } from '../../src/core/llm.js';
+import { runSalmonLoop } from '../../src/core/loop.js';
+import { ExecutionPhase } from '../../src/core/types.js';
+import * as verify from '../../src/core/verify.js';
 
 vi.mock('child_process', () => ({
   spawn: vi.fn(),
@@ -43,9 +44,10 @@ describe('SalmonLoop Integration Tests', () => {
   const repoPath = '/fake-repo';
 
   beforeEach(() => {
+    vi.useFakeTimers();
     mockFs({
       [repoPath]: {
-        'src': {
+        src: {
           'index.ts': 'console.log("hello");',
         },
         '.git': {}, // Simulate git repo
@@ -58,12 +60,13 @@ describe('SalmonLoop Integration Tests', () => {
       const child = new EventEmitter() as any;
       child.stdout = new EventEmitter();
       child.stderr = new EventEmitter();
-      setTimeout(() => child.emit('close', 0), 10);
+      setTimeout(() => child.emit('close', 0), 0);
       return child;
     });
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     mockFs.restore();
   });
 
@@ -78,11 +81,11 @@ describe('SalmonLoop Integration Tests', () => {
     });
     vi.mocked(mockLlm.createPatch).mockResolvedValue(
       'diff --git a/src/index.ts b/src/index.ts\n' +
-      '--- a/src/index.ts\n' +
-      '+++ b/src/index.ts\n' +
-      '@@ -1,1 +1,1 @@\n' +
-      '-console.log("hello");\n' +
-      '+console.log("world");'
+        '--- a/src/index.ts\n' +
+        '+++ b/src/index.ts\n' +
+        '@@ -1,1 +1,1 @@\n' +
+        '-console.log("hello");\n' +
+        '+console.log("world");',
     );
     vi.mocked(git.applyPatch).mockResolvedValue(undefined);
     vi.mocked(verify.runVerify).mockResolvedValue({
@@ -91,12 +94,15 @@ describe('SalmonLoop Integration Tests', () => {
       exitCode: 0,
     });
 
-    const result = await runSalmonLoop({
+    const promise = runSalmonLoop({
       instruction: 'Change hello to world',
       verify: 'npm test',
       repoPath: repoPath,
       llm: mockLlm,
     });
+
+    await vi.runAllTimersAsync();
+    const result = await promise;
 
     expect(result.success).toBe(true);
     expect(result.attempts).toBe(1);
@@ -115,13 +121,13 @@ describe('SalmonLoop Integration Tests', () => {
     });
     vi.mocked(mockLlm.createPatch).mockResolvedValue(
       'diff --git a/src/index.ts b/src/index.ts\n' +
-      '--- a/src/index.ts\n' +
-      '+++ b/src/index.ts\n' +
-      '@@ -1,1 +1,1 @@\n' +
-      '-console.log("hello");\n' +
-      '+console.log("world");'
+        '--- a/src/index.ts\n' +
+        '+++ b/src/index.ts\n' +
+        '@@ -1,1 +1,1 @@\n' +
+        '-console.log("hello");\n' +
+        '+console.log("world");',
     );
-    
+
     // First attempt fails verification
     vi.mocked(verify.runVerify)
       .mockResolvedValueOnce({
@@ -144,12 +150,15 @@ describe('SalmonLoop Integration Tests', () => {
       stderr: '',
     });
 
-    const result = await runSalmonLoop({
+    const promise = runSalmonLoop({
       instruction: 'Fix it',
       verify: 'npm test',
       repoPath: repoPath,
       llm: mockLlm,
     });
+
+    await vi.runAllTimersAsync();
+    const result = await promise;
 
     expect(result.success).toBe(true);
     expect(result.attempts).toBe(2);
@@ -166,13 +175,13 @@ describe('SalmonLoop Integration Tests', () => {
     });
     vi.mocked(mockLlm.createPatch).mockResolvedValue(
       'diff --git a/src/index.ts b/src/index.ts\n' +
-      '--- a/src/index.ts\n' +
-      '+++ b/src/index.ts\n' +
-      '@@ -1,1 +1,1 @@\n' +
-      '-console.log("hello");\n' +
-      '+console.log("world");'
+        '--- a/src/index.ts\n' +
+        '+++ b/src/index.ts\n' +
+        '@@ -1,1 +1,1 @@\n' +
+        '-console.log("hello");\n' +
+        '+console.log("world");',
     );
-    
+
     vi.mocked(verify.runVerify).mockResolvedValue({
       ok: false,
       output: 'Still failing',
@@ -187,12 +196,15 @@ describe('SalmonLoop Integration Tests', () => {
       stderr: '',
     });
 
-    const result = await runSalmonLoop({
+    const promise = runSalmonLoop({
       instruction: 'Fix it',
       verify: 'npm test',
       repoPath: repoPath,
       llm: mockLlm,
     });
+
+    await vi.runAllTimersAsync();
+    const result = await promise;
 
     expect(result.success).toBe(false);
     if (result.reasonCode !== 'MAX_RETRIES') {
@@ -208,12 +220,15 @@ describe('SalmonLoop Integration Tests', () => {
       reason: 'Workspace is dirty',
     });
 
-    const result = await runSalmonLoop({
+    const promise = runSalmonLoop({
       instruction: 'Fix it',
       verify: 'npm test',
       repoPath: repoPath,
       llm: mockLlm,
     });
+
+    await vi.runAllTimersAsync();
+    const result = await promise;
 
     expect(result.success).toBe(false);
     expect(result.failurePhase).toBe(ExecutionPhase.PREFLIGHT);

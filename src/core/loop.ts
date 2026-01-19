@@ -1,3 +1,10 @@
+import { text } from '../locales/index.js';
+
+import { ContextBuilder } from './context.js';
+import { validateDiff, normalizeDiff } from './diff.js';
+import { applyPatch, rollbackFiles, getGitStatus } from './git.js';
+import { LIMITS } from './limits.js';
+import { LLM } from './llm.js';
 import type {
   Context,
   Plan,
@@ -7,14 +14,8 @@ import type {
   LoopEvent,
   VerboseLevel,
 } from './types.js';
-import { ExecutionPhase, ErrorType } from './types.js';
-import { ContextBuilder } from './context.js';
-import { LLM } from './llm.js';
-import { validateDiff, normalizeDiff } from './diff.js';
-import { applyPatch, rollbackFiles, getGitStatus } from './git.js';
+import { ExecutionPhase, ErrorType, GitError } from './types.js';
 import { runVerify, classifyError, preflight } from './verify.js';
-import { LIMITS } from './limits.js';
-import { text } from '../locales/index.js';
 
 export interface LoopOptions {
   /**
@@ -418,7 +419,10 @@ export class SalmonLoop {
           }
         }
 
-        const msg = error instanceof Error ? error.message : String(error);
+        let msg = error instanceof Error ? error.message : String(error);
+        if (error instanceof GitError) {
+          msg = `${msg}\n💡 Suggestion: ${text.suggestions.gitError}`;
+        }
         logs.push(this.createLog('error', msg, false));
         emit({ type: 'log', level: 'error', message: msg, timestamp: now() });
 

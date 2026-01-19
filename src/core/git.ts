@@ -1,8 +1,17 @@
-import { writeFile, unlink } from 'fs/promises';
 import { spawn } from 'child_process';
+import { writeFile, unlink } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
+
 import { text } from '../locales/index.js';
+
+import { GitError } from './types.js';
+
+const diffCache: Map<string, string | undefined> = new Map();
+
+export function clearGitCache() {
+  diffCache.clear();
+}
 
 export type RollbackResult = {
   ok: boolean;
@@ -13,6 +22,7 @@ export type RollbackResult = {
 };
 
 export async function applyPatch(repoPath: string, diffText: string): Promise<void> {
+  clearGitCache();
   // Preprocess diffText to remove index lines that might contain hallucinated hashes
   // We use a more robust filtering that handles potential leading/trailing whitespace
   const cleanedDiff = diffText
@@ -33,9 +43,9 @@ export async function applyPatch(repoPath: string, diffText: string): Promise<vo
         'git',
         [
           'apply',
-          '-3',                         // the short option for --3way
+          '-3', // the short option for --3way
           '--recount',
-          '-C0',                        // allow zero context for fuzzing
+          '-C0', // allow zero context for fuzzing
           '--ignore-space-change',
           '--ignore-whitespace',
           tempFile,
@@ -48,14 +58,14 @@ export async function applyPatch(repoPath: string, diffText: string): Promise<vo
       child.stderr?.on('data', (data) => (output += data.toString()));
 
       child.on('error', (err) => {
-        reject(new Error(text.git.applySpawnFailed(String(err))));
+        reject(new GitError(text.git.applySpawnFailed(String(err)), 'git apply', String(err)));
       });
 
       child.on('close', (code) => {
         if (code === 0) {
           resolve();
         } else {
-          reject(new Error(text.git.applyFailed(output.trim())));
+          reject(new GitError(text.git.applyFailed(output.trim()), 'git apply', output.trim()));
         }
       });
     });
@@ -73,6 +83,7 @@ export async function rollbackFiles(
   files: string[],
   forceReset = false,
 ): Promise<RollbackResult> {
+  clearGitCache();
   // Path safety: filter out absolute paths or parent directory references
   const safeFiles = files
     .map((f) => f.trim().replace(/\\/g, '/'))
@@ -146,6 +157,11 @@ export async function getGitDiff(
   cached = false,
   file?: string,
 ): Promise<string | undefined> {
+  const cacheKey = `${repoPath}:${cached}:${file || ''}`;
+  if (diffCache.has(cacheKey)) {
+    return diffCache.get(cacheKey);
+  }
+
   return new Promise((resolve) => {
     const args = ['diff'];
     if (cached) args.push('--cached');
@@ -162,11 +178,9 @@ export async function getGitDiff(
     });
 
     child.on('close', (code) => {
-      if (code === 0 && output.trim()) {
-        resolve(output);
-      } else {
-        resolve(undefined);
-      }
+      const result = code === 0 && output.trim() ? output : undefined;
+      diffCache.set(cacheKey, result);
+      resolve(result);
     });
 
     child.on('error', () => {

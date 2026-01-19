@@ -1,8 +1,10 @@
 import { spawn } from 'child_process';
-import { LIMITS } from './limits.js';
-import { ErrorType } from './types.js';
+
 import { text } from '../locales/index.js';
+
+import { LIMITS } from './limits.js';
 import { logger } from './logger.js';
+import { ErrorType } from './types.js';
 
 export function classifyError(output: string): ErrorType {
   const lowerOutput = output.toLowerCase();
@@ -86,7 +88,7 @@ export async function runVerify(
       setTimeout(() => {
         try {
           child.kill('SIGKILL');
-        } catch (_e) {
+        } catch (__e) {
           // Ignore
         }
       }, 2000);

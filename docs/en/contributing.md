@@ -20,7 +20,8 @@ We welcome contributions to SalmonLoop! As a design-driven project, we prioritiz
 1. Fork the repository.
 2. Install dependencies: `pnpm install`.
 3. Run tests: `pnpm test`.
-4. Create a feature branch and submit a pull request.
+4. Run linting: `pnpm lint`.
+5. Create a feature branch and submit a pull request.
 
 ### Debugging with `--verbose`
 To debug issues, you can use the `--verbose` flag to get more detailed logs.

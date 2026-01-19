@@ -1,14 +1,17 @@
 #!/usr/bin/env node
 import 'dotenv/config';
-import { Command } from 'commander';
-import { resolve } from 'path';
-import chalk from 'chalk';
-import ProgressBar from 'progress';
 import { execSync } from 'child_process';
-import { runSalmonLoop, OpenAILLM, StubLLM } from './index.js';
-import { text } from './locales/index.js';
-import { ExecutionPhase, ErrorType, VerboseLevel } from './core/types.js';
+import { resolve } from 'path';
+
+import chalk from 'chalk';
+import { Command } from 'commander';
+import ProgressBar from 'progress';
+
 import { logger } from './core/logger.js';
+import { ExecutionPhase, ErrorType, VerboseLevel } from './core/types.js';
+import { text } from './locales/index.js';
+
+import { runSalmonLoop, OpenAILLM, StubLLM } from './index.js';
 
 const program = new Command();
 
@@ -37,11 +40,11 @@ program
         logger.debug('  Running Tests...');
         try {
           execSync('npm test', { stdio: 'inherit', cwd: process.cwd() });
-        } catch (_e) {
+        } catch (__e) {
           logger.warn('  ⚠️ Tests failed, but continuing validation...');
         }
         logger.success('✅ Validation completed!');
-      } catch (_e) {
+      } catch (__e) {
         logger.error('❌ Validation failed.', true);
       }
       if (!options.instruction) {

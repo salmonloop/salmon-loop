@@ -139,6 +139,16 @@ export class SalmonError extends Error {
   }
 }
 
+export class GitError extends SalmonError {
+  constructor(
+    message: string,
+    public readonly command?: string,
+    public readonly stderr?: string,
+  ) {
+    super(message, 'GIT_ERROR');
+  }
+}
+
 export class DiffValidationError extends SalmonError {
   constructor(message: string) {
     super(message, 'DIFF_VALIDATION_FAILED');

@@ -1,8 +1,9 @@
 import { vi } from 'vitest';
-import { SalmonLoop } from '../../src/core/loop.js';
+
 import { ContextBuilder } from '../../src/core/context.js';
-import { StubLLM } from '../../src/core/llm.js';
 import * as git from '../../src/core/git.js';
+import { StubLLM } from '../../src/core/llm.js';
+import { SalmonLoop } from '../../src/core/loop.js';
 import * as verify from '../../src/core/verify.js';
 import { text } from '../../src/locales/index.js';
 
@@ -80,7 +81,9 @@ index 123..456 100644
       rgSnippets: [],
     } as any);
 
-    mockLLM.createPlan = vi.fn().mockResolvedValue({ goal: 'test', files: [], changes: [], verify: '' });
+    mockLLM.createPlan = vi
+      .fn()
+      .mockResolvedValue({ goal: 'test', files: [], changes: [], verify: '' });
     mockLLM.createPatch = vi.fn().mockResolvedValue(`diff --git a/test.txt b/test.txt
 index 123..456 100644
 --- a/test.txt
@@ -111,7 +114,9 @@ index 123..456 100644
       rgSnippets: [{ file: 'test.txt', content: '...', line: 1 }],
     } as any);
 
-    mockLLM.createPlan = vi.fn().mockResolvedValue({ goal: 'test', files: ['test.txt'], changes: [], verify: '' });
+    mockLLM.createPlan = vi
+      .fn()
+      .mockResolvedValue({ goal: 'test', files: ['test.txt'], changes: [], verify: '' });
     mockLLM.createPatch = vi.fn().mockResolvedValue(`diff --git a/test.txt b/test.txt
 index 123..456 100644
 --- a/test.txt
@@ -147,7 +152,9 @@ index 123..456 100644
       rgSnippets: [],
     } as any);
 
-    mockLLM.createPlan = vi.fn().mockResolvedValue({ goal: 'test', files: ['a.ts', 'b.ts'], changes: [], verify: '' });
+    mockLLM.createPlan = vi
+      .fn()
+      .mockResolvedValue({ goal: 'test', files: ['a.ts', 'b.ts'], changes: [], verify: '' });
 
     // Diff changes a.ts and b.ts
     mockLLM.createPatch = vi.fn().mockResolvedValue(`diff --git a/a.ts b/a.ts
@@ -194,7 +201,9 @@ index 123..456 100644
       rgSnippets: [],
     } as any);
 
-    mockLLM.createPlan = vi.fn().mockResolvedValue({ goal: 'test', files: [], changes: [], verify: '' });
+    mockLLM.createPlan = vi
+      .fn()
+      .mockResolvedValue({ goal: 'test', files: [], changes: [], verify: '' });
     mockLLM.createPatch = vi.fn().mockResolvedValue(`diff --git a/test.txt b/test.txt
 index 123..456 100644
 --- a/test.txt

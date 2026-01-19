@@ -1,21 +1,43 @@
-import { runSalmonLoop } from '../../src/index.js';
-import { FakeLLM } from '../../src/core/llm.js';
-import { ExecutionPhase } from '../../src/core/types.js';
 import { ContextBuilder } from '../../src/core/context.js';
 import * as git from '../../src/core/git.js';
+import { FakeLLM } from '../../src/core/llm.js';
+import { ExecutionPhase } from '../../src/core/types.js';
 import * as verify from '../../src/core/verify.js';
+import { runSalmonLoop } from '../../src/index.js';
 
 vi.mock('fs/promises');
-vi.mock('../../src/core/context.js');
-vi.mock('../../src/core/git.js');
-vi.mock('../../src/core/verify.js');
+vi.mock('../../src/core/context.js', () => ({
+  ContextBuilder: {
+    build: vi.fn(),
+    shrinkContext: vi.fn(),
+    extractFailedFiles: vi.fn(),
+  },
+}));
+vi.mock('../../src/core/git.js', async () => {
+  const actual = await vi.importActual('../../src/core/git.js');
+  return {
+    ...actual,
+    applyPatch: vi.fn(),
+    rollbackFiles: vi.fn(),
+    getGitStatus: vi.fn(),
+    getGitDiff: vi.fn(),
+  };
+});
+vi.mock('../../src/core/verify.js', async () => {
+  const actual = await vi.importActual('../../src/core/verify.js');
+  return {
+    ...actual,
+    runVerify: vi.fn(),
+    preflight: vi.fn(),
+  };
+});
 
 describe('Deterministic Baseline Tests', () => {
   const tempDir = '/fake/temp/dir';
 
   beforeEach(() => {
     vi.clearAllMocks();
-    
+
     // Default mocks
     vi.mocked(verify.preflight).mockResolvedValue({ ok: true });
     vi.mocked(ContextBuilder.build).mockResolvedValue({
@@ -80,7 +102,10 @@ ${Array(1000).fill('+new line').join('\n')}`;
   });
 
   it('should reject dirty workspace by default', async () => {
-    vi.mocked(verify.preflight).mockResolvedValue({ ok: false, reason: 'Workspace has uncommitted changes\nM dirty.ts' });
+    vi.mocked(verify.preflight).mockResolvedValue({
+      ok: false,
+      reason: 'Workspace has uncommitted changes\nM dirty.ts',
+    });
 
     const fakeLLM = new FakeLLM([], []);
 

@@ -20,7 +20,8 @@
 1. Fork 本仓库。
 2. 安装依赖：`pnpm install`。
 3. 运行测试：`pnpm test`。
-4. 创建功能分支并提交 Pull Request。
+4. 运行代码检查：`pnpm lint`。
+5. 创建功能分支并提交 Pull Request。
 
 ### 使用 `--verbose` 进行调试
 要调试问题，可以使用 `--verbose` 标志获取更详细的日志。

@@ -1,5 +1,5 @@
-import { runSalmonLoop, type LoopOptions, type LoopEvent } from '../../index.js';
 import { Logger } from '../../core/logger.js';
+import { runSalmonLoop, type LoopOptions, type LoopEvent } from '../../index.js';
 
 /**
  * Roo Code Adapter for SalmonLoop.

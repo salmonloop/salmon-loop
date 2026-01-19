@@ -11,7 +11,9 @@
     "dev": "tsx src/cli.ts",
     "test": "vitest run",
     "test:integration": "vitest run tests/integration/",
-    "test:report": "vitest run --reporter=default --reporter=json --outputFile=test-report.json"
+    "test:report": "vitest run --reporter=default --reporter=json --outputFile=test-report.json",
+    "lint": "eslint .",
+    "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\""
   },
   "keywords": [
     "code",
@@ -26,17 +28,21 @@
     "@types/node": "^20.0.0",
     "@types/progress": "^2.0.7",
     "@types/sinon": "^21.0.0",
-    "@typescript-eslint/eslint-plugin": "^5.62.0",
-    "@typescript-eslint/parser": "^5.62.0",
-    "eslint": "^8.57.1",
-    "eslint-config-prettier": "^9.1.0",
-    "eslint-plugin-prettier": "^5.2.3",
+    "@typescript-eslint/eslint-plugin": "^8.53.0",
+    "@typescript-eslint/parser": "^8.53.0",
+    "@vitest/coverage-v8": "^1.6.1",
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-import-resolver-typescript": "^4.4.4",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-prettier": "^5.5.5",
     "mock-fs": "^5.5.0",
     "prettier": "^3.4.2",
     "simple-git": "^3.30.0",
     "sinon": "^21.0.1",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",
+    "typescript-eslint": "^8.53.0",
     "vitest": "^1.6.1"
   },
   "dependencies": {

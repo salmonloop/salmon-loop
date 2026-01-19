@@ -3,14 +3,14 @@ import { LIMITS } from '../../src/core/limits.js';
 
 describe('Patch Integration Tests', () => {
   it('should validate a correct diff', () => {
-    const diff = 
+    const diff =
       'diff --git a/file1.ts b/file1.ts\n' +
       '--- a/file1.ts\n' +
       '+++ b/file1.ts\n' +
       '@@ -1,1 +1,1 @@\n' +
       '-old\n' +
       '+new';
-    
+
     const meta = validateDiff(diff);
     expect(meta.fileCount).toBe(1);
     expect(meta.changedFiles).toContain('file1.ts');
@@ -26,7 +26,8 @@ describe('Patch Integration Tests', () => {
   });
 
   it('should normalize diff by removing markdown markers', () => {
-    const diffWithMarkdown = '```diff\n' +
+    const diffWithMarkdown =
+      '```diff\n' +
       'diff --git a/file1.ts b/file1.ts\n' +
       '--- a/file1.ts\n' +
       '+++ b/file1.ts\n' +
@@ -34,7 +35,7 @@ describe('Patch Integration Tests', () => {
       '-old\n' +
       '+new\n' +
       '```';
-    
+
     const normalized = normalizeDiff(diffWithMarkdown);
     expect(normalized).not.toContain('```diff');
     expect(normalized).not.toContain('```');

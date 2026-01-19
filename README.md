@@ -75,6 +75,32 @@ const result = await runSalmonLoop({
 });
 ```
 
+## Development
+
+### Running Tests & Linting
+
+You can run the same checks that the CI performs locally:
+
+```bash
+# Run all tests
+pnpm test
+
+# Run linting
+pnpm lint
+
+# Run formatting
+pnpm format
+```
+
+### Local CI Simulation
+
+To simulate the GitHub Actions environment locally, we recommend using [act](https://github.com/nektos/act):
+
+```bash
+# Run the CI workflow locally
+act
+```
+
 ## Safety & Constraints
 
 - **Dirty Workspace**: By default, SalmonLoop will refuse to run if the git workspace has uncommitted changes. Use `allowDirty: true` to override.

@@ -1,13 +1,15 @@
 import { spawn } from 'child_process';
 import { readFile } from 'fs/promises';
 import path from 'node:path';
-import { LIMITS } from './limits.js';
+
+import { text } from '../locales/index.js';
+
+import { findFileDependencies } from './dependency.js';
 import { extractKeywords } from './keywords.js';
+import { LIMITS } from './limits.js';
+import { logger } from './logger.js';
 import type { Context, RipgrepResult, RunOptions } from './types.js';
 import { ErrorType } from './types.js';
-import { findFileDependencies } from './dependency.js';
-import { text } from '../locales/index.js';
-import { logger } from './logger.js';
 
 export class ContextBuilder {
   static async build(options: RunOptions): Promise<Context> {
@@ -29,17 +31,12 @@ export class ContextBuilder {
     // Truncate primary text if it exceeds limits to prevent prompt overflow
     if (primaryText && primaryText.length > LIMITS.maxPrimaryChars) {
       primaryText =
-        primaryText.substring(0, LIMITS.maxPrimaryChars) +
-        `\n${text.context.contentTruncated}`;
+        primaryText.substring(0, LIMITS.maxPrimaryChars) + `\n${text.context.contentTruncated}`;
     }
 
     // Extract keywords and execute ripgrep search
     const keywords = extractKeywords(options.instruction);
-    const rgSnippets = await this.searchMultipleKeywords(
-      keywords,
-      options.repoPath,
-      options.verbose,
-    );
+    const rgSnippets = await this.searchMultipleKeywords(keywords, options.repoPath);
 
     // Get git diff (prioritize cached, then unstaged, limited to target file if specified)
     const stagedDiff = await this.getGitDiff(options.repoPath, true, options.file);
@@ -58,11 +55,7 @@ export class ContextBuilder {
     return this.truncateContext(context);
   }
 
-  private static async runRipgrep(
-    query: string,
-    cwd: string,
-    verbose?: string,
-  ): Promise<RipgrepResult[]> {
+  private static async runRipgrep(query: string, cwd: string): Promise<RipgrepResult[]> {
     logger.trace(`  [RG] Searching for: "${query}" in ${cwd}`);
 
     return new Promise((resolve) => {
@@ -114,7 +107,7 @@ export class ContextBuilder {
                   content: data.data.lines.text.replace(/\n$/, ''),
                 });
               }
-            } catch (_e) {
+            } catch (__e) {
               // Ignore malformed JSON
             }
           }
@@ -128,7 +121,9 @@ export class ContextBuilder {
       child.on('error', (err: any) => {
         // Process error (e.g. spawn failed)
         if (err.code === 'ENOENT') {
-          logger.error('Error: ripgrep (rg) not found in PATH. Context gathering may be incomplete.');
+          logger.error(
+            'Error: ripgrep (rg) not found in PATH. Context gathering may be incomplete.',
+          );
         } else {
           logger.error(`Error running ripgrep: ${err.message}`);
         }
@@ -140,7 +135,6 @@ export class ContextBuilder {
   private static async searchMultipleKeywords(
     keywords: string[],
     cwd: string,
-    verbose?: string,
   ): Promise<RipgrepResult[]> {
     if (keywords.length === 0) {
       return [];
@@ -153,7 +147,7 @@ export class ContextBuilder {
     logger.trace(`  [CONTEXT] Searching keywords: ${cappedKeywords.join(', ')}`);
 
     // Execute all keyword searches in parallel
-    const searchPromises = cappedKeywords.map((keyword) => this.runRipgrep(keyword, cwd, verbose));
+    const searchPromises = cappedKeywords.map((keyword) => this.runRipgrep(keyword, cwd));
     const resultsArrays = await Promise.all(searchPromises);
 
     // Merge results and deduplicate
@@ -275,9 +269,9 @@ export class ContextBuilder {
     // We handle both quoted and unquoted paths.
     const patterns = [
       // Quoted paths (can contain spaces)
-      /"([^"\n]+\.(?:ts|js|json|md|txt|css|html|jsx|tsx|vue|py|rs|go|java|c|cpp|h))"[:\(]\d+/gu,
+      /"([^"\n]+\.(?:ts|js|json|md|txt|css|html|jsx|tsx|vue|py|rs|go|java|c|cpp|h))"[:(]\d+/gu,
       // Unquoted paths (no spaces allowed to avoid over-matching)
-      /((?:[a-zA-Z]:)?[^\s:()"]+\.(?:ts|js|json|md|txt|css|html|jsx|tsx|vue|py|rs|go|java|c|cpp|h))[:\(]\d+/gu,
+      /((?:[a-zA-Z]:)?[^\s:()"]+\.(?:ts|js|json|md|txt|css|html|jsx|tsx|vue|py|rs|go|java|c|cpp|h))[:(]\d+/gu,
     ];
 
     for (const pattern of patterns) {

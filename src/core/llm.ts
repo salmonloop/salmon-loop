@@ -3,10 +3,12 @@
  * Core loop must NOT depend on provider-specific behavior.
  */
 import OpenAI from 'openai';
-import type { Context, Plan } from './types.js';
-import { getPlanPrompt, getPatchPrompt } from './prompts.js';
-import { LIMITS } from './limits.js';
+
 import { text } from '../locales/index.js';
+
+import { LIMITS } from './limits.js';
+import { getPlanPrompt, getPatchPrompt } from './prompts.js';
+import type { Context, Plan } from './types.js';
 
 export interface LLM {
   createPlan(context: Context, instruction: string, lastError?: string): Promise<Plan>;

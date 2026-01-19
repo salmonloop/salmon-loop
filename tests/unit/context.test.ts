@@ -1,7 +1,8 @@
-import { ContextBuilder } from '../../src/core/context.js';
-import * as fs from 'fs/promises';
 import { spawn } from 'child_process';
 import { EventEmitter } from 'events';
+import * as fs from 'fs/promises';
+
+import { ContextBuilder } from '../../src/core/context.js';
 
 vi.mock('fs/promises');
 vi.mock('child_process');
@@ -10,7 +11,12 @@ describe('ContextBuilder', () => {
   const tempDir = '/fake/temp/dir';
 
   beforeEach(() => {
+    vi.useFakeTimers();
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('should build context with primary file', async () => {
@@ -21,7 +27,7 @@ describe('ContextBuilder', () => {
       const emitter = new EventEmitter() as any;
       emitter.stdout = new EventEmitter();
       emitter.stderr = new EventEmitter();
-      
+
       setTimeout(() => {
         if (command === 'git') {
           // Return empty diff for this test
@@ -31,16 +37,19 @@ describe('ContextBuilder', () => {
           emitter.emit('close', 0);
         }
       }, 0);
-      
+
       return emitter;
     });
 
-    const context = await ContextBuilder.build({
+    const promise = ContextBuilder.build({
       instruction: 'fix something',
       verify: 'npm test',
       repoPath: tempDir,
       file: 'test.ts',
     });
+
+    await vi.runAllTimersAsync();
+    const context = await promise;
 
     expect(context.primaryText).toContain('console.log("hello");');
     expect(context.repoPath).toBe(tempDir);
@@ -54,7 +63,7 @@ describe('ContextBuilder', () => {
       const emitter = new EventEmitter() as any;
       emitter.stdout = new EventEmitter();
       emitter.stderr = new EventEmitter();
-      
+
       setTimeout(() => {
         if (command === 'git' && args.includes('diff')) {
           emitter.stdout.emit('data', Buffer.from('+modified\n-initial'));
@@ -63,15 +72,18 @@ describe('ContextBuilder', () => {
           emitter.emit('close', 0);
         }
       }, 0);
-      
+
       return emitter;
     });
 
-    const context = await ContextBuilder.build({
+    const promise = ContextBuilder.build({
       instruction: 'fix something',
       verify: 'npm test',
       repoPath: tempDir,
     });
+
+    await vi.runAllTimersAsync();
+    const context = await promise;
 
     expect(context.gitDiff).toContain('+modified');
   });

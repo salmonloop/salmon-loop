@@ -1,7 +1,8 @@
-import { runVerify, classifyError, preflight } from '../../src/core/verify.js';
 import { spawn } from 'child_process';
 import { EventEmitter } from 'events';
+
 import { ErrorType } from '../../src/core/types.js';
+import { runVerify, classifyError, preflight } from '../../src/core/verify.js';
 
 vi.mock('child_process', () => ({
   spawn: vi.fn(),
@@ -11,7 +12,12 @@ describe('Verify Integration Tests', () => {
   const repoPath = '/fake-repo';
 
   beforeEach(() => {
+    vi.useFakeTimers();
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   function mockSpawn(exitCode: number, stdout = '', stderr = '') {
@@ -19,14 +25,14 @@ describe('Verify Integration Tests', () => {
     child.stdout = new EventEmitter();
     child.stderr = new EventEmitter();
     child.kill = vi.fn();
-    
+
     vi.mocked(spawn).mockReturnValue(child);
 
     setTimeout(() => {
       if (stdout) child.stdout.emit('data', Buffer.from(stdout));
       if (stderr) child.stderr.emit('data', Buffer.from(stderr));
       child.emit('close', exitCode);
-    }, 10);
+    }, 0);
 
     return child;
   }
@@ -34,20 +40,24 @@ describe('Verify Integration Tests', () => {
   it('should run verify command successfully', async () => {
     mockSpawn(0, 'All tests passed');
 
-    const result = await runVerify(repoPath, 'npm test');
+    const promise = runVerify(repoPath, 'npm test');
+    await vi.runAllTimersAsync();
+    const result = await promise;
 
     expect(result.ok).toBe(true);
     expect(result.output).toContain('All tests passed');
     expect(spawn).toHaveBeenCalledWith(
       'npm test',
-      expect.objectContaining({ shell: true, cwd: repoPath })
+      expect.objectContaining({ shell: true, cwd: repoPath }),
     );
   });
 
   it('should fail when verify command returns non-zero exit code', async () => {
     mockSpawn(1, 'Tests failed');
 
-    const result = await runVerify(repoPath, 'npm test');
+    const promise = runVerify(repoPath, 'npm test');
+    await vi.runAllTimersAsync();
+    const result = await promise;
 
     expect(result.ok).toBe(false);
     expect(result.exitCode).toBe(1);
@@ -55,7 +65,9 @@ describe('Verify Integration Tests', () => {
   });
 
   it('should classify errors correctly', () => {
-    expect(classifyError('TS2322: Type string is not assignable to type number')).toBe(ErrorType.COMPILATION);
+    expect(classifyError('TS2322: Type string is not assignable to type number')).toBe(
+      ErrorType.COMPILATION,
+    );
     expect(classifyError('failed to compile')).toBe(ErrorType.COMPILATION);
     expect(classifyError('ESLint found 5 errors')).toBe(ErrorType.LINT);
     expect(classifyError('Test suites: 1 failed, 1 total')).toBe(ErrorType.TEST);
@@ -89,11 +101,13 @@ describe('Verify Integration Tests', () => {
         statusCheck.emit('close', 0);
         setTimeout(() => {
           rgCheck.emit('close', 0);
-        }, 5);
-      }, 5);
-    }, 5);
+        }, 0);
+      }, 0);
+    }, 0);
 
-    const result = await preflight(repoPath);
+    const promise = preflight(repoPath);
+    await vi.runAllTimersAsync();
+    const result = await promise;
     expect(result.ok).toBe(true);
   });
 
@@ -103,9 +117,11 @@ describe('Verify Integration Tests', () => {
 
     setTimeout(() => {
       gitCheck.emit('close', 128);
-    }, 5);
+    }, 0);
 
-    const result = await preflight(repoPath);
+    const promise = preflight(repoPath);
+    await vi.runAllTimersAsync();
+    const result = await promise;
     expect(result.ok).toBe(false);
     expect(result.reason).toContain('Not a git repository');
   });

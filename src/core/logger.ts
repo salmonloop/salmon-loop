@@ -1,4 +1,5 @@
 import chalk from 'chalk';
+
 import { VerboseLevel } from './types.js';
 
 export type LogLevel = 'none' | 'basic' | 'extended';
@@ -31,17 +32,17 @@ export class Logger {
     this.prefix = prefix;
   }
 
- get isBasic() {
-   return this.verboseLevel === 'basic' || this.verboseLevel === 'extended';
- }
+  get isBasic() {
+    return this.verboseLevel === 'basic' || this.verboseLevel === 'extended';
+  }
 
- get isExtended() {
-   return this.verboseLevel === 'extended';
- }
+  get isExtended() {
+    return this.verboseLevel === 'extended';
+  }
 
- private formatMessage(message: string): string {
-   return this.prefix ? `${this.prefix} ${message}` : message;
- }
+  private formatMessage(message: string): string {
+    return this.prefix ? `${this.prefix} ${message}` : message;
+  }
 
   info(message: string): void {
     console.log(this.formatMessage(message));
@@ -55,7 +56,7 @@ export class Logger {
     console.warn(chalk.yellow(this.formatMessage(message)));
   }
 
-  error(message: string, exit: boolean = false): void {
+  error(message: string, exit = false): void {
     console.error(chalk.red(this.formatMessage(message)));
     if (exit) {
       process.exit(1);
