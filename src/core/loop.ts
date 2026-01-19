@@ -1,7 +1,7 @@
 import { text } from '../locales/index.js';
 
 import { ContextBuilder } from './context.js';
-import { validateDiff, normalizeDiff } from './diff.js';
+import { validateDiff, normalizeDiff, validatePatchContent } from './diff.js';
 import { applyPatch, rollbackFiles, getGitStatus } from './git.js';
 import { LIMITS } from './limits.js';
 import { LLM } from './llm.js';
@@ -15,7 +15,11 @@ import type {
   VerboseLevel,
 } from './types.js';
 import { ExecutionPhase, ErrorType, GitError } from './types.js';
-import { runVerify, classifyError, preflight } from './verify.js';
+import { runVerify, classifyError, preflight, verifyFileContent } from './verify.js';
+import { AstParser, checkSyntaxErrors, validateScopeIntegrity, getTopLevelNodes, getNodeName } from './ast/index.js';
+import { refineFeedback } from './feedback/index.js';
+import { readFile } from 'fs/promises';
+import path from 'path';
 
 export interface LoopOptions {
   /**
@@ -62,6 +66,18 @@ export interface LoopOptions {
    * The direct text selection.
    */
   selection?: string;
+  /**
+   * Expected content changes that must be present in the patch.
+   */
+  expectedChanges?: string[];
+  /**
+   * Expected content that must be present in specific files after patching.
+   */
+  expectedFileContent?: { path: string; content: string }[];
+  /**
+   * The name of the node (e.g., function name) that is allowed to be modified.
+   */
+  targetNodeName?: string;
 }
 
 /**
@@ -178,6 +194,54 @@ export class SalmonLoop {
         message: `Context built: ${context.rgSnippets.length} snippets, diff: ${!!context.gitDiff}`,
         timestamp: now(),
       });
+
+      if (options.verbose === 'extended' && options.file && context.primaryText) {
+        try {
+          const ext = path.extname(options.file).slice(1);
+          let lang = ext;
+          if (ext === 'js') lang = 'javascript';
+          if (ext === 'ts') lang = 'typescript';
+          if (ext === 'py') lang = 'python';
+
+          const supportedLangs = ['javascript', 'typescript', 'python'];
+          if (supportedLangs.includes(lang)) {
+            const tree = await AstParser.parse(context.primaryText, lang);
+            try {
+              const topLevelNodes = getTopLevelNodes(tree);
+              const nodeNames = topLevelNodes.map((n) => getNodeName(n)).filter(Boolean);
+              emit({
+                type: 'log',
+                level: 'debug',
+                message: `[AST] Initial File: ${options.file}, Top-level nodes: ${nodeNames.join(', ')}`,
+                timestamp: now(),
+              });
+
+              if (options.targetNodeName) {
+                const isAtTopLevel = topLevelNodes.some(
+                  (n) => getNodeName(n) === options.targetNodeName,
+                );
+                emit({
+                  type: 'log',
+                  level: 'debug',
+                  message: `[AST] Target node '${options.targetNodeName}' at top-level: ${isAtTopLevel}`,
+                  timestamp: now(),
+                });
+              }
+            } finally {
+              if (tree && typeof tree.delete === 'function') {
+                tree.delete();
+              }
+            }
+          }
+        } catch (e) {
+          emit({
+            type: 'log',
+            level: 'debug',
+            message: `[AST] Initial AST analysis failed: ${e instanceof Error ? e.message : String(e)}`,
+            timestamp: now(),
+          });
+        }
+      }
       if (!context.primaryText && context.rgSnippets.length === 0 && !context.gitDiff) {
         const warnMsg =
           'Warning: No context gathered. The LLM may not have enough information to generate a correct patch. Consider using --file or installing ripgrep.';
@@ -244,6 +308,18 @@ export class SalmonLoop {
         // VALIDATE phase
         startPhase(ExecutionPhase.VALIDATE);
         const diffMeta = validateDiff(currentDiff);
+
+        if (options.expectedChanges && options.expectedChanges.length > 0) {
+          if (!validatePatchContent(currentDiff, options.expectedChanges)) {
+            // Treat this as a validation failure
+            const msg = text.diff.diffValidationFailed(
+              'Expected content changes are missing from the patch',
+            );
+            logs.push(this.createLog(ExecutionPhase.VALIDATE, msg, false));
+            throw new Error(msg);
+          }
+        }
+
         // Use normalized diff for application to remove markdown markers or conversational text
         currentDiff = normalizeDiff(currentDiff);
         changedFilesThisAttempt = diffMeta.changedFiles;
@@ -276,7 +352,167 @@ export class SalmonLoop {
         startPhase(ExecutionPhase.APPLY);
         try {
           if (!currentDiff) throw new Error(text.llm.patchEmpty());
+
+          // Capture original ASTs for scope integrity check
+          const originalTrees: Map<string, any> = new Map();
+          if (options.targetNodeName) {
+            for (const file of changedFilesThisAttempt) {
+              const ext = path.extname(file).slice(1);
+              let lang = ext;
+              if (ext === 'js') lang = 'javascript';
+              if (ext === 'ts') lang = 'typescript';
+              if (ext === 'py') lang = 'python';
+
+              const supportedLangs = ['javascript', 'typescript', 'python'];
+              if (supportedLangs.includes(lang)) {
+                try {
+                  const filePath = path.join(options.repoPath, file);
+                  const content = await readFile(filePath, 'utf8');
+                  const tree = await AstParser.parse(content, lang);
+                  originalTrees.set(file, tree);
+                } catch (e) {
+                  // Ignore errors reading original file
+                }
+              }
+            }
+          }
+
           await applyPatch(options.repoPath, currentDiff);
+
+          // AST Validation
+          let astError: string | null = null;
+          for (const file of changedFilesThisAttempt) {
+            const ext = path.extname(file).slice(1);
+            const supportedLangs = ['javascript', 'typescript', 'python', 'go', 'java', 'rust'];
+            let lang = ext;
+            if (ext === 'js') lang = 'javascript';
+            if (ext === 'ts') lang = 'typescript';
+            if (ext === 'py') lang = 'python';
+
+            if (supportedLangs.includes(lang)) {
+              try {
+                const filePath = path.join(options.repoPath, file);
+                const content = await readFile(filePath, 'utf8');
+                const tree = await AstParser.parse(content, lang);
+
+                try {
+                  if (options.verbose === 'extended') {
+                    const topLevelNodes = getTopLevelNodes(tree);
+                    const nodeNames = topLevelNodes.map((n) => getNodeName(n)).filter(Boolean);
+                    emit({
+                      type: 'log',
+                      level: 'debug',
+                      message: `[AST] File: ${file}, Top-level nodes: ${nodeNames.join(', ')}`,
+                      timestamp: now(),
+                    });
+                  }
+
+                  const errors = checkSyntaxErrors(tree);
+
+                  if (errors.length > 0) {
+                    astError = `AST Syntax Error in ${file}:\n${errors.map((e) => `Line ${e.line}: ${e.type}`).join('\n')}`;
+                    emit({ type: 'log', level: 'warn', message: astError, timestamp: now() });
+                    break;
+                  }
+
+                  if (options.targetNodeName && originalTrees.has(file)) {
+                    const originalTree = originalTrees.get(file);
+                    const integrity = validateScopeIntegrity(originalTree, tree, options.targetNodeName);
+
+                    if (options.verbose === 'extended') {
+                      const topLevelNodes = getTopLevelNodes(tree);
+                      const isAtTopLevel = topLevelNodes.some(
+                        (n) => getNodeName(n) === options.targetNodeName,
+                      );
+                      emit({
+                        type: 'log',
+                        level: 'debug',
+                        message: `[AST] Target node '${options.targetNodeName}' at top-level: ${isAtTopLevel}`,
+                        timestamp: now(),
+                      });
+                    }
+
+                    if (!integrity.ok) {
+                      astError = `AST Scope Integrity Error in ${file}: ${integrity.reason}`;
+                      emit({ type: 'log', level: 'warn', message: astError, timestamp: now() });
+                      break;
+                    }
+
+                    if (options.verbose === 'extended') {
+                      emit({
+                        type: 'log',
+                        level: 'debug',
+                        message: `[AST] Scope integrity check passed for ${file}`,
+                        timestamp: now(),
+                      });
+                    }
+                  }
+                } finally {
+                  if (tree && typeof tree.delete === 'function') {
+                    tree.delete();
+                  }
+                }
+              } catch (e) {
+                const errorMsg = `AST validation failed for ${file}: ${e instanceof Error ? e.message : String(e)}`;
+                emit({
+                  type: 'log',
+                  level: options.verbose === 'extended' ? 'warn' : 'debug',
+                  message: errorMsg,
+                  timestamp: now(),
+                });
+              }
+            }
+          }
+
+          // Cleanup original trees
+          for (const tree of originalTrees.values()) {
+            if (tree && typeof tree.delete === 'function') {
+              tree.delete();
+            }
+          }
+
+          if (astError) {
+            // Treat AST error as a verification failure to trigger retry
+            const verifyResult = { ok: false, output: astError, exitCode: 1 };
+            logs.push(this.createLog(ExecutionPhase.VERIFY, verifyResult.output, verifyResult.ok));
+            emit({
+              type: 'verify.result',
+              ok: verifyResult.ok,
+              output: verifyResult.output,
+              timestamp: now(),
+            });
+            endPhase(false);
+
+            // Trigger retry logic
+            lastError = refineFeedback(verifyResult.output);
+            const errorType = ErrorType.COMPILATION;
+            const failedFiles = ContextBuilder.extractFailedFiles(verifyResult.output);
+            emit({
+              type: 'retry',
+              fromAttempt: attempt,
+              toAttempt: attempt + 1,
+              reason: lastError,
+              failedFiles,
+              timestamp: now(),
+            });
+
+            history.push({
+              attempt,
+              plan: currentPlan,
+              patch: currentDiff,
+              error: lastError,
+              contextSummary: `Snippets: ${context.rgSnippets.length}, Diff: ${!!context.gitDiff}`,
+            });
+
+            retries++;
+            if (!options.dryRun && (changedFilesThisAttempt.length > 0 || options.forceReset)) {
+              startPhase(ExecutionPhase.ROLLBACK);
+              await rollbackFiles(options.repoPath, changedFilesThisAttempt, options.forceReset);
+              endPhase(true);
+            }
+            continue;
+          }
+
           logs.push(this.createLog(ExecutionPhase.APPLY, text.loop.patchApplied));
           endPhase(true);
         } catch (e) {
@@ -287,6 +523,22 @@ export class SalmonLoop {
         // VERIFY phase
         startPhase(ExecutionPhase.VERIFY);
         const verifyResult = await runVerify(options.repoPath, options.verify);
+
+        // Extra Content Verification
+        if (
+          verifyResult.ok &&
+          options.expectedFileContent &&
+          options.expectedFileContent.length > 0
+        ) {
+          for (const check of options.expectedFileContent) {
+            const hasContent = await verifyFileContent(options.repoPath, check.path, check.content);
+            if (!hasContent) {
+              verifyResult.ok = false;
+              verifyResult.output += `\n[Verification Error] Expected content '${check.content}' not found in file: ${check.path}`;
+            }
+          }
+        }
+
         logs.push(this.createLog(ExecutionPhase.VERIFY, verifyResult.output, verifyResult.ok));
         emit({
           type: 'verify.result',
@@ -310,7 +562,7 @@ export class SalmonLoop {
         }
 
         // Verification failed, preparing to retry
-        lastError = verifyResult.output;
+        lastError = refineFeedback(verifyResult.output);
         const errorType = classifyError(verifyResult.output);
         const failedFiles = ContextBuilder.extractFailedFiles(verifyResult.output);
         emit({

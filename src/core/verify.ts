@@ -1,4 +1,6 @@
 import { spawn } from 'child_process';
+import { readFile } from 'fs/promises';
+import { join } from 'path';
 
 import { text } from '../locales/index.js';
 
@@ -132,6 +134,38 @@ export async function runVerify(
       });
     });
   });
+}
+
+/**
+ * Verify if a file contains the expected content (string or regex).
+ *
+ * @param repoPath - The root path of the repository
+ * @param filePath - The relative path of the file to check
+ * @param expected - The content string or regex to look for
+ * @returns true if the content is found, false otherwise (including if file is missing)
+ */
+export async function verifyFileContent(
+  repoPath: string,
+  filePath: string,
+  expected: string | RegExp,
+): Promise<boolean> {
+  try {
+    const fullPath = join(repoPath, filePath);
+    const content = await readFile(fullPath, 'utf-8');
+
+    if (typeof expected === 'string') {
+      return content.includes(expected);
+    } else {
+      return expected.test(content);
+    }
+  } catch (err: any) {
+    if (err.code === 'ENOENT') {
+      return false;
+    }
+    // Log unexpected errors for transparency, but return false as verification failed
+    logger.warn(`verifyFileContent error for ${filePath}: ${err.message}`);
+    return false;
+  }
 }
 
 export async function preflight(repoPath: string): Promise<{ ok: boolean; reason?: string }> {

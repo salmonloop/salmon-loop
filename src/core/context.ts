@@ -62,7 +62,7 @@ export class ContextBuilder {
       // Use --json for robust machine-readable output
       const child = spawn(
         'rg',
-        ['-n', '--json', '--max-count', '100', '--glob', '!node_modules', '--', query],
+        ['-n', '--json', '-i', '--max-count', '100', '--glob', '!.git', '--glob', '!node_modules', '--', query, '.'],
         {
           stdio: ['pipe', 'pipe', 'pipe'],
           cwd,

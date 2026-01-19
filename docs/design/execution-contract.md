@@ -9,10 +9,10 @@ SalmonLoop follows a strict execution contract to ensure safety and determinism.
 3. **PLAN**: Read-only. The LLM analyzes the context and instruction to generate a JSON plan. No filesystem mutation occurs.
 4. **PATCH**: Read-only. The LLM generates a unified diff based on the plan. No filesystem mutation occurs.
 5. **VALIDATE**: Read-only. The system validates the diff against security and size limits.
-6. **APPLY**: Mutating. The system applies the patch using `git apply --3way`. This is the only phase that modifies the filesystem.
+6. **APPLY**: Mutating. The system applies the patch using `git apply --3way`. After application, it performs **AST Verification** (if supported) to ensure syntax correctness.
 7. **VERIFY**: Read-only. The system runs the user-provided verification command.
 8. **ROLLBACK**: Mutating. If verification fails, the system restores the modified files to their original state using `git checkout`.
-9. **SHRINK**: Read-only. If verification fails, the system reduces the context for the next attempt based on the error output.
+9. **SHRINK**: Read-only. If verification fails, the system performs **Smart Feedback** analysis to extract precise error diagnostics and reduces the context for the next attempt.
 
 ## Safety Rules
 
@@ -21,6 +21,7 @@ SalmonLoop follows a strict execution contract to ensure safety and determinism.
 - **Atomic Attempts**: Each attempt is isolated. If an attempt fails, the workspace is rolled back before the next attempt starts.
 - **Force Reset & Clean**: When `forceReset` is enabled, SalmonLoop performs both `git reset --hard HEAD` and `git clean -fd` to ensure a completely clean workspace for the next attempt.
 - **No File Operations**: SalmonLoop currently forbids creating, deleting, or renaming files to prevent accidental structural damage to the repository.
+- **No Comment Translation**: The LLM is strictly forbidden from translating or modifying existing comments unless explicitly instructed, to preserve code integrity and context matching.
 
 ## Error Handling
 

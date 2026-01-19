@@ -29,6 +29,7 @@ program
   .option('--force-reset', text.cli.forceResetOption)
   .option('--allow-dirty', text.cli.allowDirtyOption)
   .option('--validate', text.cli.validateOption)
+  .option('--target-node <name>', 'The name of the node (e.g., function name) that is allowed to be modified')
   .action(async (options) => {
     const runPath = resolve(options.repo);
 

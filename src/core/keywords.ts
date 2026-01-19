@@ -34,7 +34,7 @@ export function extractKeywords(instruction: string): string[] {
   // 1. Normalize & Tokenize (split by non-alphanumeric)
   const tokens = instruction
     .toLowerCase()
-    .split(/[^a-z0-9_-]+/)
+    .split(/[^\p{L}\p{N}_-]+/u)
     .filter(Boolean);
 
   // 2. Filter & Select

@@ -62,12 +62,22 @@ ${lastError ? `\n# Last Error\nThe previous attempt failed with the following er
 
 # Requirements
 - Must generate standard **git unified diff format** (starting with \`diff --git a/path b/path\`).
-- **CRITICAL**: Use relative paths from the repository root in the diff headers (e.g., \`--- a/file.js\`, \`+++ b/file.js\`). Do NOT use absolute paths.
+- **Output ONLY the final diff. Do NOT include multiple versions, explanations, corrections, or commentary.**
+- **If you need to fix an error, regenerate the ENTIRE diff correctly in one block, do NOT append corrections.**
+- **CRITICAL**: Use EXACT relative paths from the repository root in diff headers.
+  - Example: If modifying \`src/index.js\`, use \`--- a/src/index.js\` and \`+++ b/src/index.js\`
+  - Use the EXACT file paths shown in the "Primary File" or "Target Files" sections above.
+- **Context Matching**: Provide sufficient context (8-12 lines) around changes to ensure accurate matching.
+  - Copy the EXACT surrounding code from the file content provided above.
+  - Pay attention to indentation, whitespace, and comments - they must match EXACTLY.
+  - If unsure about line numbers, include MORE context rather than less.
 - The patch must precisely match the modifications in the plan.
-- You cannot modify more than ${maxFilesChanged} files.
-- The diff must not exceed ${maxDiffLines} lines.
-- You cannot add new files or delete files.
-- You cannot perform refactoring or formatting changes.
+- Constraints:
+  - Maximum ${maxFilesChanged} files can be modified.
+  - Maximum ${maxDiffLines} total diff lines.
+  - No file creation, deletion, or renaming allowed.
+  - No refactoring or formatting changes unrelated to the instruction.
+  - **DO NOT translate comments or modify existing comments unless explicitly instructed.**
 
 Please return the patch in pure unified diff format:`;
     },
@@ -89,6 +99,7 @@ Please return the patch in pure unified diff format:`;
       `File deletion is not allowed in this mode${file ? `: ${file}` : ''}`,
     fileRenameNotAllowed: (from?: string, to?: string) =>
       `File renaming is not allowed in this mode${from && to ? `: ${from} -> ${to}` : ''}`,
+    diffValidationFailed: (reason: string) => `Diff validation failed: ${reason}`,
   },
 
   loop: {

@@ -235,3 +235,30 @@ export function validateDiff(rawDiff: string, limits = LIMITS): DiffMeta {
     lineCount,
   };
 }
+
+/**
+ * Validates if the patch contains expected content changes.
+ *
+ * @param diffText - The raw diff text
+ * @param expectedChanges - Array of strings that MUST be present in the added lines of the diff
+ * @returns true if all expected changes are found
+ */
+export function validatePatchContent(diffText: string, expectedChanges: string[]): boolean {
+  if (!expectedChanges || expectedChanges.length === 0) {
+    return true;
+  }
+
+  const normalized = normalizeDiff(diffText);
+  // Extract added lines (starting with + but not +++ or headers)
+  const addedLines: string[] = [];
+  const lines = normalized.split('\n');
+
+  for (const line of lines) {
+    if (line.startsWith('+') && !line.startsWith('+++')) {
+      addedLines.push(line.substring(1));
+    }
+  }
+
+  const addedContent = addedLines.join('\n');
+  return expectedChanges.every((change) => addedContent.includes(change));
+}

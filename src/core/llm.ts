@@ -47,7 +47,7 @@ export class OpenAILLM implements LLM {
     }
 
     try {
-      const plan = JSON.parse(content) as Plan;
+      const plan = this.extractJson(content) as Plan;
       // Validate plan structure
       if (
         !plan.goal ||
@@ -83,6 +83,21 @@ export class OpenAILLM implements LLM {
       throw new Error(text.llm.patchEmpty());
     }
 
+    // Extract ONLY the last diff block (LLM may generate multiple attempts)
+    const diffBlocks = content.match(/```(?:diff)?\s*\n(diff --git[\s\S]*?)\n```/g);
+    if (diffBlocks && diffBlocks.length > 0) {
+      // Take the LAST diff block (most recent version)
+      const lastBlock = diffBlocks[diffBlocks.length - 1];
+      return lastBlock.replace(/```(?:diff)?\s*\n/, '').replace(/\n```\s*$/, '').trim();
+    }
+
+    // Fallback: extract raw diff without markdown
+    const rawDiffMatch = content.match(/(diff --git[\s\S]*?)(?:\n\n[A-Z]|$)/);
+    if (rawDiffMatch) {
+      return rawDiffMatch[1].trim();
+    }
+
+    // Final fallback: original simple cleanup
     // Clean up markdown code blocks if present
     let cleanContent = content;
     // Remove ```diff or ``` at start
@@ -91,6 +106,31 @@ export class OpenAILLM implements LLM {
     cleanContent = cleanContent.replace(/\n```\s*$/, '');
 
     return cleanContent.trim();
+  }
+
+  private extractJson(content: string): any {
+    // 1. Try to find JSON block
+    const jsonBlockMatch = content.match(/```json\s*\n([\s\S]*?)\n```/);
+    if (jsonBlockMatch) {
+      try {
+        return JSON.parse(jsonBlockMatch[1]);
+      } catch (__e) {
+        // Fallback to raw content if block is invalid
+      }
+    }
+
+    // 2. Try to find anything that looks like a JSON object
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        return JSON.parse(jsonMatch[0]);
+      } catch (__e) {
+        // Fallback
+      }
+    }
+
+    // 3. Final fallback: try parsing the whole content
+    return JSON.parse(content);
   }
 
   private formatContext(context: Context): string {
