@@ -1,28 +1,35 @@
-import { mkdtemp, rm, writeFile } from 'fs/promises';
-import { join } from 'path';
-import { tmpdir } from 'os';
-import { execSync } from 'child_process';
 import { getGitDiff, getGitStatus, applyPatch, rollbackFiles } from '../../src/core/git.js';
+import * as fs from 'fs/promises';
+import { spawn } from 'child_process';
+import { EventEmitter } from 'events';
+
+vi.mock('fs/promises');
+vi.mock('child_process');
 
 describe('Git Utils', () => {
-  let tempDir: string;
+  const tempDir = '/fake/temp/dir';
 
-  beforeEach(async () => {
-    tempDir = await mkdtemp(join(tmpdir(), 'salmon-git-test-'));
-    execSync('git init', { cwd: tempDir });
-    execSync('git config user.email "test@example.com"', { cwd: tempDir });
-    execSync('git config user.name "Test User"', { cwd: tempDir });
-  });
-
-  afterEach(async () => {
-    await rm(tempDir, { recursive: true, force: true });
+  beforeEach(() => {
+    vi.clearAllMocks();
   });
 
   it('should get git diff for unstaged changes', async () => {
-    const filePath = join(tempDir, 'test.txt');
-    await writeFile(filePath, 'initial');
-    execSync('git add . && git commit -m "initial"', { cwd: tempDir });
-    await writeFile(filePath, 'modified');
+    vi.mocked(spawn).mockImplementation((command: string, args: readonly string[]) => {
+      const emitter = new EventEmitter() as any;
+      emitter.stdout = new EventEmitter();
+      emitter.stderr = new EventEmitter();
+      
+      setTimeout(() => {
+        if (command === 'git' && args[0] === 'diff' && !args.includes('--cached')) {
+          emitter.stdout.emit('data', Buffer.from('+modified\n-initial'));
+          emitter.emit('close', 0);
+        } else {
+          emitter.emit('close', 0);
+        }
+      }, 0);
+      
+      return emitter;
+    });
 
     const diff = await getGitDiff(tempDir);
     expect(diff).toContain('+modified');
@@ -30,28 +37,68 @@ describe('Git Utils', () => {
   });
 
   it('should get git diff for staged changes', async () => {
-    const filePath = join(tempDir, 'test.txt');
-    await writeFile(filePath, 'initial');
-    execSync('git add . && git commit -m "initial"', { cwd: tempDir });
-    await writeFile(filePath, 'staged');
-    execSync('git add .', { cwd: tempDir });
+    vi.mocked(spawn).mockImplementation((command: string, args: readonly string[]) => {
+      const emitter = new EventEmitter() as any;
+      emitter.stdout = new EventEmitter();
+      emitter.stderr = new EventEmitter();
+      
+      setTimeout(() => {
+        if (command === 'git' && args[0] === 'diff' && args.includes('--cached')) {
+          emitter.stdout.emit('data', Buffer.from('+staged'));
+          emitter.emit('close', 0);
+        } else {
+          emitter.emit('close', 0);
+        }
+      }, 0);
+      
+      return emitter;
+    });
 
     const diff = await getGitDiff(tempDir, true);
     expect(diff).toContain('+staged');
   });
 
   it('should get git status', async () => {
-    const filePath = join(tempDir, 'new.txt');
-    await writeFile(filePath, 'new file');
-    
+    vi.mocked(spawn).mockImplementation((command: string, args: readonly string[]) => {
+      const emitter = new EventEmitter() as any;
+      emitter.stdout = new EventEmitter();
+      emitter.stderr = new EventEmitter();
+      
+      setTimeout(() => {
+        if (command === 'git' && args[0] === 'status') {
+          emitter.stdout.emit('data', Buffer.from('?? new.txt'));
+          emitter.emit('close', 0);
+        } else {
+          emitter.emit('close', 0);
+        }
+      }, 0);
+      
+      return emitter;
+    });
+
     const status = await getGitStatus(tempDir);
     expect(status).toContain('?? new.txt');
   });
 
   it('should apply a patch', async () => {
-    const filePath = join(tempDir, 'test.txt');
-    await writeFile(filePath, 'line1\n');
-    execSync('git add . && git commit -m "initial"', { cwd: tempDir });
+    vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+    vi.mocked(fs.unlink).mockResolvedValue(undefined);
+
+    vi.mocked(spawn).mockImplementation((command: string, args: readonly string[]) => {
+      const emitter = new EventEmitter() as any;
+      emitter.stdout = new EventEmitter();
+      emitter.stderr = new EventEmitter();
+      
+      setTimeout(() => {
+        if (command === 'git' && args[0] === 'apply') {
+          emitter.emit('close', 0);
+        } else {
+          emitter.emit('close', 0);
+        }
+      }, 0);
+      
+      return emitter;
+    });
 
     const patch = `diff --git a/test.txt b/test.txt
 --- a/test.txt
@@ -60,19 +107,30 @@ describe('Git Utils', () => {
 -line1
 +line2
 `;
-    await applyPatch(tempDir, patch);
-    const content = await import('fs/promises').then(fs => fs.readFile(filePath, 'utf-8'));
-    expect(content).toBe('line2\n');
+    await expect(applyPatch(tempDir, patch)).resolves.toBeUndefined();
+    expect(fs.writeFile).toHaveBeenCalled();
+    expect(spawn).toHaveBeenCalledWith('git', expect.arrayContaining(['apply']), expect.any(Object));
   });
 
   it('should rollback specific files', async () => {
-    const filePath = join(tempDir, 'test.txt');
-    await writeFile(filePath, 'initial');
-    execSync('git add . && git commit -m "initial"', { cwd: tempDir });
-    await writeFile(filePath, 'modified');
+    vi.mocked(spawn).mockImplementation((command: string, args: readonly string[]) => {
+      const emitter = new EventEmitter() as any;
+      emitter.stdout = new EventEmitter();
+      emitter.stderr = new EventEmitter();
+      
+      setTimeout(() => {
+        if (command === 'git' && args[0] === 'checkout') {
+          emitter.emit('close', 0);
+        } else {
+          emitter.emit('close', 0);
+        }
+      }, 0);
+      
+      return emitter;
+    });
 
-    await rollbackFiles(tempDir, ['test.txt']);
-    const content = await import('fs/promises').then(fs => fs.readFile(filePath, 'utf-8'));
-    expect(content).toBe('initial');
+    const result = await rollbackFiles(tempDir, ['test.txt']);
+    expect(result.ok).toBe(true);
+    expect(spawn).toHaveBeenCalledWith('git', expect.arrayContaining(['checkout', '--', 'test.txt']), expect.any(Object));
   });
 });

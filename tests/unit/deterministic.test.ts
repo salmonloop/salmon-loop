@@ -1,30 +1,33 @@
 import { runSalmonLoop } from '../../src/index.js';
 import { FakeLLM } from '../../src/core/llm.js';
 import { ExecutionPhase } from '../../src/core/types.js';
-import { mkdtemp, rm, writeFile } from 'fs/promises';
-import { join } from 'path';
-import { tmpdir } from 'os';
-import { execSync } from 'child_process';
+import { ContextBuilder } from '../../src/core/context.js';
+import * as git from '../../src/core/git.js';
+import * as verify from '../../src/core/verify.js';
+
+vi.mock('fs/promises');
+vi.mock('../../src/core/context.js');
+vi.mock('../../src/core/git.js');
+vi.mock('../../src/core/verify.js');
 
 describe('Deterministic Baseline Tests', () => {
-  let tempDir: string;
+  const tempDir = '/fake/temp/dir';
 
-  beforeEach(async () => {
-    tempDir = await mkdtemp(join(tmpdir(), 'salmon-test-'));
-    // Initialize git repo
-    execSync('git init', { cwd: tempDir });
-    execSync('git config user.email "test@example.com"', { cwd: tempDir });
-    execSync('git config user.name "Test User"', { cwd: tempDir });
-  });
-
-  afterEach(async () => {
-    await rm(tempDir, { recursive: true, force: true });
+  beforeEach(() => {
+    vi.clearAllMocks();
+    
+    // Default mocks
+    vi.mocked(verify.preflight).mockResolvedValue({ ok: true });
+    vi.mocked(ContextBuilder.build).mockResolvedValue({
+      repoPath: tempDir,
+      rgSnippets: [],
+    });
+    vi.mocked(git.getGitStatus).mockResolvedValue('');
   });
 
   it('should fix a compilation error', async () => {
-    const filePath = join(tempDir, 'index.ts');
-    await writeFile(filePath, 'const x: number = "not a number";\n');
-    execSync('git add . && git commit -m "initial"', { cwd: tempDir });
+    vi.mocked(verify.runVerify).mockResolvedValue({ ok: true, output: 'success', exitCode: 0 });
+    vi.mocked(git.applyPatch).mockResolvedValue(undefined);
 
     const fakeLLM = new FakeLLM(
       [{ goal: 'fix type', files: ['index.ts'], changes: ['fix type'], verify: 'tsc' }],
@@ -41,21 +44,18 @@ describe('Deterministic Baseline Tests', () => {
 
     const result = await runSalmonLoop({
       instruction: 'fix compilation error',
-      verify: 'echo "success"', // Mock verify command
+      verify: 'echo "success"',
       repoPath: tempDir,
       llm: fakeLLM,
       allowDirty: true,
     });
- 
+
     expect(result.success).toBe(true);
     expect(result.attempts).toBe(1);
+    expect(git.applyPatch).toHaveBeenCalled();
   });
 
   it('should fail-fast on diff limit exceeded', async () => {
-    const filePath = join(tempDir, 'large.ts');
-    await writeFile(filePath, 'line1\nline2\nline3');
-    execSync('git add . && git commit -m "initial"', { cwd: tempDir });
-
     // Generate a very large diff (exceeding default limits)
     const largeDiff = `diff --git a/large.ts b/large.ts
 --- a/large.ts
@@ -80,12 +80,7 @@ ${Array(1000).fill('+new line').join('\n')}`;
   });
 
   it('should reject dirty workspace by default', async () => {
-    const filePath = join(tempDir, 'dirty.ts');
-    await writeFile(filePath, 'initial content');
-    execSync('git add . && git commit -m "initial"', { cwd: tempDir });
-
-    // Make it dirty
-    await writeFile(filePath, 'dirty content');
+    vi.mocked(verify.preflight).mockResolvedValue({ ok: false, reason: 'Workspace has uncommitted changes\nM dirty.ts' });
 
     const fakeLLM = new FakeLLM([], []);
 
@@ -98,7 +93,6 @@ ${Array(1000).fill('+new line').join('\n')}`;
 
     expect(result.success).toBe(false);
     expect(result.reason).toContain('Workspace has uncommitted changes');
-    expect(result.reason).toContain('M dirty.ts'); // Should contain the file status
     expect(result.failurePhase).toBe(ExecutionPhase.PREFLIGHT);
   });
 

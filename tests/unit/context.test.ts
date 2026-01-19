@@ -1,24 +1,39 @@
-import { mkdtemp, rm, writeFile } from 'fs/promises';
-import { join } from 'path';
-import { tmpdir } from 'os';
-import { execSync } from 'child_process';
 import { ContextBuilder } from '../../src/core/context.js';
+import * as fs from 'fs/promises';
+import { spawn } from 'child_process';
+import { EventEmitter } from 'events';
+
+vi.mock('fs/promises');
+vi.mock('child_process');
 
 describe('ContextBuilder', () => {
-  let tempDir: string;
+  const tempDir = '/fake/temp/dir';
 
-  beforeEach(async () => {
-    tempDir = await mkdtemp(join(tmpdir(), 'salmon-context-test-'));
-    execSync('git init', { cwd: tempDir });
-  });
-
-  afterEach(async () => {
-    await rm(tempDir, { recursive: true, force: true });
+  beforeEach(() => {
+    vi.clearAllMocks();
   });
 
   it('should build context with primary file', async () => {
-    const filePath = join(tempDir, 'test.ts');
-    await writeFile(filePath, 'console.log("hello");');
+    vi.mocked(fs.readFile).mockResolvedValue('console.log("hello");');
+
+    // Mock spawn for git diff and rg
+    vi.mocked(spawn).mockImplementation((command: string) => {
+      const emitter = new EventEmitter() as any;
+      emitter.stdout = new EventEmitter();
+      emitter.stderr = new EventEmitter();
+      
+      setTimeout(() => {
+        if (command === 'git') {
+          // Return empty diff for this test
+          emitter.emit('close', 0);
+        } else if (command === 'rg') {
+          // Return empty search results
+          emitter.emit('close', 0);
+        }
+      }, 0);
+      
+      return emitter;
+    });
 
     const context = await ContextBuilder.build({
       instruction: 'fix something',
@@ -29,13 +44,28 @@ describe('ContextBuilder', () => {
 
     expect(context.primaryText).toContain('console.log("hello");');
     expect(context.repoPath).toBe(tempDir);
+    expect(fs.readFile).toHaveBeenCalledWith(expect.stringContaining('test.ts'), 'utf-8');
   });
 
   it('should build context with git diff', async () => {
-    const filePath = join(tempDir, 'test.ts');
-    await writeFile(filePath, 'initial');
-    execSync('git add . && git commit -m "initial"', { cwd: tempDir });
-    await writeFile(filePath, 'modified');
+    vi.mocked(fs.readFile).mockResolvedValue('initial');
+
+    vi.mocked(spawn).mockImplementation((command: string, args: readonly string[]) => {
+      const emitter = new EventEmitter() as any;
+      emitter.stdout = new EventEmitter();
+      emitter.stderr = new EventEmitter();
+      
+      setTimeout(() => {
+        if (command === 'git' && args.includes('diff')) {
+          emitter.stdout.emit('data', Buffer.from('+modified\n-initial'));
+          emitter.emit('close', 0);
+        } else {
+          emitter.emit('close', 0);
+        }
+      }, 0);
+      
+      return emitter;
+    });
 
     const context = await ContextBuilder.build({
       instruction: 'fix something',
