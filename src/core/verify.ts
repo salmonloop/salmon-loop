@@ -167,5 +167,15 @@ export async function preflight(repoPath: string): Promise<{ ok: boolean; reason
         }
       });
     });
+
+    // 3. Check if ripgrep is installed (optional but recommended)
+    const rgCheck = spawn('rg', ['--version']);
+    rgCheck.on('error', (err: any) => {
+      if (err.code === 'ENOENT') {
+        console.warn(
+          'Warning: ripgrep (rg) not found in PATH. Automatic context gathering will be disabled. Please use --file to specify target files or install ripgrep.',
+        );
+      }
+    });
   });
 }

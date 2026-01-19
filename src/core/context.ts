@@ -95,8 +95,13 @@ export class ContextBuilder {
         }
       });
 
-      child.on('error', () => {
+      child.on('error', (err: any) => {
         // Process error (e.g. spawn failed)
+        if (err.code === 'ENOENT') {
+          console.error('Error: ripgrep (rg) not found in PATH. Context gathering may be incomplete.');
+        } else {
+          console.error(`Error running ripgrep: ${err.message}`);
+        }
         resolve([]);
       });
     });

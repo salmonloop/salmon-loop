@@ -169,6 +169,12 @@ export class SalmonLoop {
         message: `Context built: ${context.rgSnippets.length} snippets, diff: ${!!context.gitDiff}`,
         timestamp: now(),
       });
+      if (!context.primaryText && context.rgSnippets.length === 0 && !context.gitDiff) {
+        const warnMsg =
+          'Warning: No context gathered. The LLM may not have enough information to generate a correct patch. Consider using --file or installing ripgrep.';
+        logs.push(this.createLog(ExecutionPhase.CONTEXT, warnMsg, true));
+        emit({ type: 'log', level: 'warn', message: warnMsg, timestamp: now() });
+      }
       endPhase(true);
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
