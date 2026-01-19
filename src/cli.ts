@@ -7,7 +7,7 @@ import ProgressBar from 'progress';
 import { execSync } from 'child_process';
 import { runSalmonLoop, OpenAILLM, StubLLM } from './index.js';
 import { text } from './locales/index.js';
-import { ExecutionPhase, ErrorType } from './core/types.js';
+import { ExecutionPhase, ErrorType, VerboseLevel } from './core/types.js';
 
 const program = new Command();
 
@@ -21,7 +21,7 @@ program
   .option('-f, --file <path>', text.cli.fileOption)
   .option('-s, --selection <text>', text.cli.selectionOption)
   .option('--dry-run', text.cli.dryRunOption)
-  .option('--verbose', text.cli.verboseOption)
+  .option('--verbose [level]', text.cli.verboseOption)
   .option('--force-reset', text.cli.forceResetOption)
   .option('--allow-dirty', text.cli.allowDirtyOption)
   .option('--validate', text.cli.validateOption)
@@ -60,7 +60,10 @@ program
       return;
     }
 
-    if (options.verbose) {
+    const verboseLevel =
+      options.verbose === true ? 'basic' : (options.verbose as VerboseLevel | undefined);
+
+    if (verboseLevel) {
       console.log(chalk.cyan(text.cli.runningWith));
       console.log(text.cli.instruction(options.instruction));
       console.log(text.cli.verify(options.verify));

@@ -18,7 +18,9 @@ salmon-loop [options]
 - `-f, --file <path>`: Path to a specific file to provide as primary context (repo-relative or absolute).
 - `-s, --selection <text>`: Direct text selection to provide as context.
 - `--dry-run`: Generate the patch and run validation, but do not apply it to the disk.
-- `--verbose`: Print detailed step logs, including LLM plans and verification output.
+- `--verbose [level]`: Enable verbose logging with different levels:
+  - `basic`: Outputs basic logs and execution steps (default when flag is present).
+  - `extended`: Outputs detailed logs, including internal states and debug information.
 - `--force-reset`: Force a hard reset (`git reset --hard`) on failure. **Use with caution** as it discards all uncommitted changes. Cannot be used with `--allow-dirty`.
 - `--allow-dirty`: Allow running SalmonLoop even if the workspace has uncommitted changes. Cannot be used with `--force-reset`.
 

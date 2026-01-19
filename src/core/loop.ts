@@ -1,4 +1,12 @@
-import type { Context, Plan, LoopResult, StepLog, LoopIteration, LoopEvent } from './types.js';
+import type {
+  Context,
+  Plan,
+  LoopResult,
+  StepLog,
+  LoopIteration,
+  LoopEvent,
+  VerboseLevel,
+} from './types.js';
 import { ExecutionPhase, ErrorType } from './types.js';
 import { ContextBuilder } from './context.js';
 import { LLM } from './llm.js';
@@ -41,6 +49,10 @@ export interface LoopOptions {
    * If true, the loop will run even if the workspace has uncommitted changes.
    */
   allowDirty?: boolean;
+  /**
+   * The verbose level for logging.
+   */
+  verbose?: VerboseLevel;
 }
 
 /**
@@ -149,7 +161,13 @@ export class SalmonLoop {
         file: undefined,
         selection: undefined,
         dryRun: options.dryRun,
-        verbose: false,
+        verbose: options.verbose,
+      });
+      emit({
+        type: 'log',
+        level: 'debug',
+        message: `Context built: ${context.rgSnippets.length} snippets, diff: ${!!context.gitDiff}`,
+        timestamp: now(),
       });
       endPhase(true);
     } catch (error) {
@@ -181,12 +199,24 @@ export class SalmonLoop {
         // PLAN phase
         startPhase(ExecutionPhase.PLAN);
         currentPlan = await options.llm.createPlan(context, options.instruction, lastError);
+        emit({
+          type: 'log',
+          level: 'debug',
+          message: `Plan generated: ${currentPlan.goal}`,
+          timestamp: now(),
+        });
         logs.push(this.createLog(ExecutionPhase.PLAN, currentPlan));
         endPhase(true);
 
         // PATCH phase
         startPhase(ExecutionPhase.PATCH);
         currentDiff = await options.llm.createPatch(context, currentPlan, lastError);
+        emit({
+          type: 'log',
+          level: 'debug',
+          message: `Patch generated, length: ${currentDiff.length}`,
+          timestamp: now(),
+        });
         logs.push(this.createLog(ExecutionPhase.PATCH, currentDiff));
         endPhase(true);
 

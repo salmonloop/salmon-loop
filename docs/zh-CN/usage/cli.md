@@ -18,7 +18,9 @@ salmon-loop [options]
 - `-f, --file <path>`: 提供作为主要上下文的特定文件路径（相对于仓库或绝对路径）。
 - `-s, --selection <text>`: 直接提供作为上下文的文本选择。
 - `--dry-run`: 生成补丁并运行验证，但不应用到磁盘。
-- `--verbose`: 打印详细的步骤日志，包括 LLM 计划和验证输出。
+- `--verbose [level]`: 启用不同级别的详细日志输出：
+  - `basic`: 输出基本的日志和执行步骤（提供此标志时的默认值）。
+  - `extended`: 输出详细日志，包括内部状态和调试信息。
 - `--force-reset`: 失败时强制执行硬重置 (`git reset --hard`)。**请谨慎使用**，因为它会丢弃所有未提交的更改。不能与 `--allow-dirty` 同时使用。
 - `--allow-dirty`: 即使工作区有未提交的更改，也允许运行 SalmonLoop。不能与 `--force-reset` 同时使用。
 

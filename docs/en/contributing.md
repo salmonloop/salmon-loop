@@ -21,3 +21,12 @@ We welcome contributions to SalmonLoop! As a design-driven project, we prioritiz
 2. Install dependencies: `pnpm install`.
 3. Run tests: `pnpm test`.
 4. Create a feature branch and submit a pull request.
+
+### Debugging with `--verbose`
+To debug issues, you can use the `--verbose` flag to get more detailed logs.
+Use `--verbose` for basic execution steps, or `--verbose=extended` for detailed internal states and debug information.
+
+Example:
+```bash
+salmon-loop --verbose=extended --instruction "Fix bug" --verify "npm test"
+```

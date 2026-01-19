@@ -21,3 +21,12 @@
 2. 安装依赖：`pnpm install`。
 3. 运行测试：`pnpm test`。
 4. 创建功能分支并提交 Pull Request。
+
+### 使用 `--verbose` 进行调试
+要调试问题，可以使用 `--verbose` 标志获取更详细的日志。
+使用 `--verbose` 获取基本的执行步骤，或使用 `--verbose=extended` 获取详细的内部状态和调试信息。
+
+示例：
+```bash
+salmon-loop --verbose=extended --instruction "修复 bug" --verify "npm test"
+```

@@ -1,3 +1,5 @@
+export type VerboseLevel = 'basic' | 'extended';
+
 export enum ExecutionPhase {
   PREFLIGHT = 'preflight',
   CONTEXT = 'context',
@@ -74,7 +76,12 @@ export interface StepLog {
 export type LoopEvent =
   | { type: 'phase.start'; phase: ExecutionPhase; timestamp: Date }
   | { type: 'phase.end'; phase: ExecutionPhase; success: boolean; timestamp: Date }
-  | { type: 'log'; message: string; level: 'info' | 'warn' | 'error'; timestamp: Date }
+  | {
+      type: 'log';
+      message: string;
+      level: 'info' | 'warn' | 'error' | 'debug';
+      timestamp: Date;
+    }
   | {
       type: 'diff.meta';
       changedFiles: string[];
@@ -118,7 +125,7 @@ export interface RunOptions {
   file?: string;
   selection?: string;
   dryRun?: boolean;
-  verbose?: boolean;
+  verbose?: VerboseLevel;
 }
 
 export class SalmonError extends Error {
