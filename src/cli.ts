@@ -8,6 +8,7 @@ import { execSync } from 'child_process';
 import { runSalmonLoop, OpenAILLM, StubLLM } from './index.js';
 import { text } from './locales/index.js';
 import { ExecutionPhase, ErrorType, VerboseLevel } from './core/types.js';
+import { logger } from './core/logger.js';
 
 const program = new Command();
 
@@ -29,20 +30,19 @@ program
     const runPath = resolve(options.repo);
 
     if (options.validate) {
-      console.log(chalk.blue('🔍 Running validation checks...'));
+      logger.log(chalk.blue('🔍 Running validation checks...'));
       try {
-        console.log(chalk.gray('  Running ESLint...'));
+        logger.debug('  Running ESLint...');
         execSync('npx eslint src --ext .ts', { stdio: 'inherit', cwd: process.cwd() });
-        console.log(chalk.gray('  Running Tests...'));
+        logger.debug('  Running Tests...');
         try {
           execSync('npm test', { stdio: 'inherit', cwd: process.cwd() });
         } catch (_e) {
-          console.warn(chalk.yellow('  ⚠️ Tests failed, but continuing validation...'));
+          logger.warn('  ⚠️ Tests failed, but continuing validation...');
         }
-        console.log(chalk.green('✅ Validation completed!'));
+        logger.success('✅ Validation completed!');
       } catch (_e) {
-        console.error(chalk.red('❌ Validation failed.'));
-        process.exit(1);
+        logger.error('❌ Validation failed.', true);
       }
       if (!options.instruction) {
         return;
@@ -51,9 +51,7 @@ program
 
     if (!options.instruction || !options.verify) {
       if (!options.validate) {
-        console.error(
-          chalk.red('Error: --instruction and --verify are required unless --validate is used.'),
-        );
+        logger.error('Error: --instruction and --verify are required unless --validate is used.');
         program.help(); // Show help if required options are missing
         process.exit(1);
       }
@@ -64,20 +62,21 @@ program
       options.verbose === true ? 'basic' : (options.verbose as VerboseLevel | undefined);
 
     if (verboseLevel) {
-      console.log(chalk.cyan(text.cli.runningWith));
-      console.log(text.cli.instruction(options.instruction));
-      console.log(text.cli.verify(options.verify));
-      console.log(text.cli.repoPath(runPath));
-      if (options.file) console.log(text.cli.contextFile(options.file));
-      if (options.selection) console.log(text.cli.contextSelection(options.selection.length));
-      if (options.dryRun) console.log(chalk.yellow(text.cli.dryRunEnabled));
+      logger.setVerbose(verboseLevel);
+      logger.cyan(text.cli.runningWith);
+      logger.log(text.cli.instruction(options.instruction));
+      logger.log(text.cli.verify(options.verify));
+      logger.log(text.cli.repoPath(runPath));
+      if (options.file) logger.log(text.cli.contextFile(options.file));
+      if (options.selection) logger.log(text.cli.contextSelection(options.selection.length));
+      if (options.dryRun) logger.warn(text.cli.dryRunEnabled);
     }
 
     try {
       const llm = process.env.SALMON_API_KEY ? new OpenAILLM() : new StubLLM();
 
       if (!process.env.SALMON_API_KEY) {
-        console.warn(chalk.yellow(text.cli.apiKeyMissing));
+        logger.warn(text.cli.apiKeyMissing);
       }
 
       // Progress bar setup
@@ -108,34 +107,30 @@ program
               text.progress[event.phase as keyof typeof text.progress] || event.phase;
             bar.tick(currentPhaseIndex === 0 ? 0 : 1, { phase: phaseName });
             currentPhaseIndex++;
-            if (options.verbose) {
-              console.log(chalk.blue(`\n[${event.phase.toUpperCase()}] `) + phaseName);
-            }
+            logger.step(event.phase, phaseName);
           } else if (event.type === 'log') {
             if (event.level === 'error') {
-              console.error(chalk.red(`  ${event.message}`));
+              logger.error(`  ${event.message}`);
             } else if (event.level === 'warn') {
-              console.warn(chalk.yellow(`  ${event.message}`));
-            } else if (options.verbose) {
-              console.log(chalk.gray(`  ${event.message}`));
+              logger.warn(`  ${event.message}`);
+            } else if (event.level === 'trace') {
+              logger.trace(`  ${event.message}`);
+            } else {
+              logger.debug(`  ${event.message}`);
             }
           } else if (event.type === 'verify.result') {
             if (!event.ok) {
-              console.error(chalk.red('\n' + text.cli.operationFailed));
-              console.error(chalk.gray(event.output));
+              logger.error('\n' + text.cli.operationFailed);
+              logger.debug(event.output);
             }
           } else if (event.type === 'diff.meta') {
-            if (options.verbose) {
-              console.log(chalk.green(`  Files: ${event.fileCount}, Lines: ${event.lineCount}`));
-            }
+            logger.success(`  Files: ${event.fileCount}, Lines: ${event.lineCount}`);
           } else if (event.type === 'retry') {
-            console.log(
-              chalk.yellow(
-                `\n🔄 Retry ${event.fromAttempt} -> ${event.toAttempt}: ${event.reason.substring(
-                  0,
-                  100,
-                )}...`,
-              ),
+            logger.warn(
+              `\n🔄 Retry ${event.fromAttempt} -> ${event.toAttempt}: ${event.reason.substring(
+                0,
+                100,
+              )}...`,
             );
             currentPhaseIndex = 0; // Reset progress for retry
           }
@@ -144,46 +139,45 @@ program
 
       if (result.success) {
         bar.terminate();
-        console.log(chalk.green(text.cli.operationSuccess));
-        console.log(text.cli.attempts(result.attempts));
+        logger.success(text.cli.operationSuccess);
+        logger.log(text.cli.attempts(result.attempts));
       } else {
         bar.terminate();
-        console.error(chalk.red(text.cli.operationFailed));
-        console.error(chalk.bold(text.cli.reason(result.reason)));
+        logger.error(text.cli.operationFailed);
+        logger.bold(text.cli.reason(result.reason));
 
         // Provide suggestions based on failure
         if (result.failurePhase === ExecutionPhase.PREFLIGHT) {
           if (result.reasonCode === 'PREFLIGHT_DIRTY') {
-            console.log(chalk.cyan(`💡 Suggestion: ${text.suggestions.dirty}`));
+            logger.cyan(`💡 Suggestion: ${text.suggestions.dirty}`);
           } else if (result.reasonCode === 'PREFLIGHT_NOT_GIT') {
-            console.log(chalk.cyan(`💡 Suggestion: ${text.suggestions.notGit}`));
+            logger.cyan(`💡 Suggestion: ${text.suggestions.notGit}`);
           }
         } else if (result.failurePhase === ExecutionPhase.VERIFY) {
           if (result.errorType === ErrorType.COMPILATION) {
-            console.log(chalk.cyan(`💡 Suggestion: ${text.suggestions.compilation}`));
+            logger.cyan(`💡 Suggestion: ${text.suggestions.compilation}`);
           } else if (result.errorType === ErrorType.LINT) {
-            console.log(chalk.cyan(`💡 Suggestion: ${text.suggestions.lint}`));
+            logger.cyan(`💡 Suggestion: ${text.suggestions.lint}`);
           } else {
-            console.log(chalk.cyan(`💡 Suggestion: ${text.suggestions.test}`));
+            logger.cyan(`💡 Suggestion: ${text.suggestions.test}`);
           }
         } else if (result.failurePhase === ExecutionPhase.ROLLBACK) {
-          console.log(chalk.cyan(`💡 Suggestion: ${text.suggestions.rollbackFailed}`));
+          logger.cyan(`💡 Suggestion: ${text.suggestions.rollbackFailed}`);
         }
 
-        console.log(text.cli.attempts(result.attempts));
+        logger.log(text.cli.attempts(result.attempts));
         process.exit(1);
       }
 
       if (options.verbose) {
-        console.log('\n' + chalk.bold(text.cli.stepLogs));
+        logger.log('\n' + chalk.bold(text.cli.stepLogs));
         result.logs.forEach((log) => {
           const symbol = log.success ? chalk.green('✓') : chalk.red('✗');
-          console.log(`${symbol} [${chalk.blue(log.step.toUpperCase())}] ${log.output}`);
+          logger.log(`${symbol} [${chalk.blue(log.step.toUpperCase())}] ${log.output}`);
         });
       }
     } catch (err: any) {
-      console.error(chalk.red(text.cli.unexpectedError(err.message)));
-      process.exit(1);
+      logger.error(text.cli.unexpectedError(err.message), true);
     }
   });
 

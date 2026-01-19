@@ -79,7 +79,7 @@ export type LoopEvent =
   | {
       type: 'log';
       message: string;
-      level: 'info' | 'warn' | 'error' | 'debug';
+      level: 'info' | 'warn' | 'error' | 'debug' | 'trace';
       timestamp: Date;
     }
   | {

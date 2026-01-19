@@ -231,14 +231,12 @@ export class SalmonLoop {
           message: `Patch generated, length: ${currentDiff.length}`,
           timestamp: now(),
         });
-        if (options.verbose === 'extended') {
-          emit({
-            type: 'log',
-            level: 'debug',
-            message: text.cli.rawPatch(currentDiff),
-            timestamp: now(),
-          });
-        }
+        emit({
+          type: 'log',
+          level: 'trace',
+          message: text.cli.rawPatch(currentDiff),
+          timestamp: now(),
+        });
         logs.push(this.createLog(ExecutionPhase.PATCH, currentDiff));
         endPhase(true);
 

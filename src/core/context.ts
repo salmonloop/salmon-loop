@@ -7,13 +7,13 @@ import type { Context, RipgrepResult, RunOptions } from './types.js';
 import { ErrorType } from './types.js';
 import { findFileDependencies } from './dependency.js';
 import { text } from '../locales/index.js';
+import { logger } from './logger.js';
 
 export class ContextBuilder {
   static async build(options: RunOptions): Promise<Context> {
-    if (options.verbose) {
-      console.error(`  [CONTEXT] Building context for repo: ${options.repoPath}`);
-      console.error(`  [CONTEXT] File: ${options.file}, Instruction: ${options.instruction}`);
-    }
+    logger.trace(`  [CONTEXT] Building context for repo: ${options.repoPath}`);
+    logger.trace(`  [CONTEXT] File: ${options.file}, Instruction: ${options.instruction}`);
+
     let primaryText: string | undefined;
 
     // Handle primary text from file or selection
@@ -63,9 +63,8 @@ export class ContextBuilder {
     cwd: string,
     verbose?: string,
   ): Promise<RipgrepResult[]> {
-    if (verbose) {
-      console.error(`  [RG] Searching for: "${query}" in ${cwd}`);
-    }
+    logger.trace(`  [RG] Searching for: "${query}" in ${cwd}`);
+
     return new Promise((resolve) => {
       // Use --json for robust machine-readable output
       const child = spawn(
@@ -80,9 +79,7 @@ export class ContextBuilder {
       child.stdin?.end();
 
       const timeout = setTimeout(() => {
-        if (verbose) {
-          console.error(`  [RG] Timeout reached for query: "${query}". Killing process.`);
-        }
+        logger.trace(`  [RG] Timeout reached for query: "${query}". Killing process.`);
         child.kill();
       }, 30000); // 30 seconds timeout for each search
 
@@ -97,9 +94,8 @@ export class ContextBuilder {
 
       child.on('close', (code) => {
         clearTimeout(timeout);
-        if (verbose) {
-          console.error(`  [RG] Process closed with code ${code}. Output length: ${output.length}`);
-        }
+        logger.trace(`  [RG] Process closed with code ${code}. Output length: ${output.length}`);
+
         if (code === 0 || code === 1) {
           // 0=match found, 1=no match
           const results: RipgrepResult[] = [];
@@ -132,9 +128,9 @@ export class ContextBuilder {
       child.on('error', (err: any) => {
         // Process error (e.g. spawn failed)
         if (err.code === 'ENOENT') {
-          console.error('Error: ripgrep (rg) not found in PATH. Context gathering may be incomplete.');
+          logger.error('Error: ripgrep (rg) not found in PATH. Context gathering may be incomplete.');
         } else {
-          console.error(`Error running ripgrep: ${err.message}`);
+          logger.error(`Error running ripgrep: ${err.message}`);
         }
         resolve([]);
       });
@@ -154,9 +150,7 @@ export class ContextBuilder {
     // NOTE: maxKeywords should be kept small (<= 5) to avoid hitting OS process limits
     const cappedKeywords = keywords.slice(0, LIMITS.maxKeywords);
 
-    if (verbose) {
-      console.log(`  [CONTEXT] Searching keywords: ${cappedKeywords.join(', ')}`);
-    }
+    logger.trace(`  [CONTEXT] Searching keywords: ${cappedKeywords.join(', ')}`);
 
     // Execute all keyword searches in parallel
     const searchPromises = cappedKeywords.map((keyword) => this.runRipgrep(keyword, cwd, verbose));

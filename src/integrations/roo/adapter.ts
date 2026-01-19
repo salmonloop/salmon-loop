@@ -1,4 +1,5 @@
 import { runSalmonLoop, type LoopOptions, type LoopEvent } from '../../index.js';
+import { Logger } from '../../core/logger.js';
 
 /**
  * Roo Code Adapter for SalmonLoop.
@@ -7,6 +8,12 @@ import { runSalmonLoop, type LoopOptions, type LoopEvent } from '../../index.js'
  * It translates SalmonLoop events into a format that can be easily consumed by the host.
  */
 export class RooSalmonAdapter {
+  private logger: Logger;
+
+  constructor() {
+    this.logger = new Logger({ prefix: '[SalmonLoop]' });
+  }
+
   /**
    * Runs the SalmonLoop with the given options and pipes events to the provided handler.
    *
@@ -14,6 +21,10 @@ export class RooSalmonAdapter {
    * @param onEvent - Optional event handler for the host to update UI.
    */
   async execute(options: Omit<LoopOptions, 'onEvent'>, onEvent?: (event: LoopEvent) => void) {
+    if (options.verbose) {
+      this.logger.setVerbose(options.verbose);
+    }
+
     return runSalmonLoop({
       ...options,
       onEvent: (event) => {
@@ -31,24 +42,30 @@ export class RooSalmonAdapter {
   private logEvent(event: LoopEvent) {
     switch (event.type) {
       case 'phase.start':
-        console.log(`[SalmonLoop] Starting phase: ${event.phase}`);
+        this.logger.info(`Starting phase: ${event.phase}`);
         break;
       case 'phase.end':
-        console.log(`[SalmonLoop] Finished phase: ${event.phase} (Success: ${event.success})`);
+        this.logger.info(`Finished phase: ${event.phase} (Success: ${event.success})`);
         break;
       case 'diff.meta':
-        console.log(`[SalmonLoop] Files to change: ${event.changedFiles.join(', ')}`);
+        this.logger.info(`Files to change: ${event.changedFiles.join(', ')}`);
         break;
       case 'retry':
-        console.log(
-          `[SalmonLoop] Retrying (From Attempt ${event.fromAttempt} to ${event.toAttempt}). Reason: ${event.reason}`,
+        this.logger.warn(
+          `Retrying (From Attempt ${event.fromAttempt} to ${event.toAttempt}). Reason: ${event.reason}`,
         );
         break;
       case 'log':
         if (event.level === 'error') {
-          console.error(`[SalmonLoop] ${event.message}`);
+          this.logger.error(event.message);
+        } else if (event.level === 'warn') {
+          this.logger.warn(event.message);
+        } else if (event.level === 'trace') {
+          this.logger.trace(event.message);
+        } else if (event.level === 'debug') {
+          this.logger.debug(event.message);
         } else {
-          console.log(`[SalmonLoop] ${event.message}`);
+          this.logger.info(event.message);
         }
         break;
     }

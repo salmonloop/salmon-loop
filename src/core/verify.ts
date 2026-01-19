@@ -2,6 +2,7 @@ import { spawn } from 'child_process';
 import { LIMITS } from './limits.js';
 import { ErrorType } from './types.js';
 import { text } from '../locales/index.js';
+import { logger } from './logger.js';
 
 export function classifyError(output: string): ErrorType {
   const lowerOutput = output.toLowerCase();
@@ -172,7 +173,7 @@ export async function preflight(repoPath: string): Promise<{ ok: boolean; reason
     const rgCheck = spawn('rg', ['--version']);
     rgCheck.on('error', (err: any) => {
       if (err.code === 'ENOENT') {
-        console.warn(
+        logger.warn(
           'Warning: ripgrep (rg) not found in PATH. Automatic context gathering will be disabled. Please use --file to specify target files or install ripgrep.',
         );
       }
