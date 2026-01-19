@@ -9,7 +9,9 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/cli.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:integration": "vitest run tests/integration/",
+    "test:report": "vitest run --reporter=default --reporter=json --outputFile=test-report.json"
   },
   "keywords": [
     "code",
@@ -20,14 +22,19 @@
   "author": "",
   "license": "MIT",
   "devDependencies": {
+    "@types/mock-fs": "^4.13.4",
     "@types/node": "^20.0.0",
     "@types/progress": "^2.0.7",
+    "@types/sinon": "^21.0.0",
     "@typescript-eslint/eslint-plugin": "^5.62.0",
     "@typescript-eslint/parser": "^5.62.0",
     "eslint": "^8.57.1",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-prettier": "^5.2.3",
+    "mock-fs": "^5.5.0",
     "prettier": "^3.4.2",
+    "simple-git": "^3.30.0",
+    "sinon": "^21.0.1",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",
     "vitest": "^1.6.1"
