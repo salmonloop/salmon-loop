@@ -18,6 +18,7 @@ To ensure stability and prevent runaway costs or resource exhaustion, SalmonLoop
 ## Verification Limits
 
 - **Max Verify Output Lines**: 300. Only the first 300 lines of the verification command output are processed and sent back to the LLM.
+- **Verify Timeout**: 5 minutes (300,000 ms). Verification commands are terminated if they exceed this limit to prevent hanging.
 
 ## Logging Limits
 

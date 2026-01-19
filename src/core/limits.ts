@@ -17,6 +17,7 @@ export const LIMITS = {
 
   // Verify
   verifyOutputMaxLines: 300,
+  verifyTimeoutMs: 300000, // 5 minutes
 
   // Logging
   maxLogLength: 10000,

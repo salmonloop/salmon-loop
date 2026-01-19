@@ -31,20 +31,31 @@ export function assertNoFileOps(diff: string): void {
   if (/^new file mode/m.test(d)) throw new Error(text.diff.fileCreationNotAllowed);
   if (/^deleted file mode/m.test(d)) throw new Error(text.diff.fileDeletionNotAllowed);
   if (/^rename (from|to) /m.test(d)) throw new Error(text.diff.fileRenameNotAllowed);
+  if (/^copy (from|to) /m.test(d)) throw new Error(text.diff.fileRenameNotAllowed); // Treat copy as unsafe file op
 }
 
 // Extract changed files from diff
 export function extractChangedFiles(diff: string): string[] {
+  const d = normalizeDiff(diff);
   const files = new Set<string>();
   const diffGitPattern = /^diff --git a\/(.+?) b\/(.+)$/gm;
 
   let match;
-  while ((match = diffGitPattern.exec(diff)) !== null) {
-    // a/foo.ts b/foo.ts → foo.ts
-    const b = match[2];
-    if (b !== 'dev/null') {
-      files.add(b.replace(/\\/g, '/'));
+  while ((match = diffGitPattern.exec(d)) !== null) {
+    const aPath = match[1].replace(/\\/g, '/');
+    const bPath = match[2].replace(/\\/g, '/');
+
+    // Check for file creation/deletion via dev/null
+    if (aPath === 'dev/null' || bPath === 'dev/null') {
+      throw new Error(aPath === 'dev/null' ? text.diff.fileCreationNotAllowed : text.diff.fileDeletionNotAllowed);
     }
+
+    // Check for rename/move via path mismatch
+    if (aPath !== bPath) {
+      throw new Error(text.diff.fileRenameNotAllowed);
+    }
+
+    files.add(bPath);
   }
 
   return Array.from(files);
@@ -60,8 +71,10 @@ export function countDiffLines(diff: string): number {
   const lines = diff.split('\n');
   let count = 0;
   for (const line of lines) {
-    if ((line.startsWith('+') || line.startsWith('-')) && 
-        !line.startsWith('+++') && !line.startsWith('---')) {
+    // Only count actual additions/deletions, ignore headers and "No newline" markers
+    if ((line.startsWith('+') || line.startsWith('-')) &&
+        !line.startsWith('+++') && !line.startsWith('---') &&
+        !line.includes('\\ No newline at end of file')) {
       count++;
     }
   }
@@ -80,12 +93,20 @@ export function validateDiff(rawDiff: string, limits = LIMITS): DiffMeta {
   
   const changedFiles = extractChangedFiles(diff);
   const fileCount = changedFiles.length;
+
+  if (fileCount === 0) {
+    throw new Error(text.llm.patchEmpty);
+  }
   
   if (fileCount > limits.maxFilesChanged) {
     throw new Error(text.diff.tooManyFiles(fileCount, limits.maxFilesChanged));
   }
   
   const lineCount = countDiffLines(diff);
+  if (lineCount === 0) {
+    throw new Error(text.llm.patchEmpty);
+  }
+
   if (lineCount > limits.maxDiffLines) {
     throw new Error(text.diff.tooManyLines(lineCount, limits.maxDiffLines));
   }

@@ -22,10 +22,11 @@ export async function applyPatch(repoPath: string, diffText: string): Promise<vo
   
   try {
     await new Promise<void>((resolve, reject) => {
-      const child = spawn('git', ['apply', '--3way', '--whitespace=nowarn', tempFile], { cwd: repoPath });
+      const child = spawn('git', ['apply', '--3way', '--recount', '--whitespace=nowarn', tempFile], { cwd: repoPath });
       
-      let stderr = '';
-      child.stderr?.on('data', (data) => stderr += data.toString());
+      let output = '';
+      child.stdout?.on('data', (data) => output += data.toString());
+      child.stderr?.on('data', (data) => output += data.toString());
       
       child.on('error', (err) => {
         reject(new Error(text.git.applySpawnFailed(String(err))));
@@ -35,7 +36,7 @@ export async function applyPatch(repoPath: string, diffText: string): Promise<vo
         if (code === 0) {
           resolve();
         } else {
-          reject(new Error(text.git.applyFailed(stderr.trim())));
+          reject(new Error(text.git.applyFailed(output.trim())));
         }
       });
     });
@@ -49,17 +50,22 @@ export async function applyPatch(repoPath: string, diffText: string): Promise<vo
 }
 
 export async function rollbackFiles(repoPath: string, files: string[], forceReset = false): Promise<RollbackResult> {
-  // Deduplicate and filter empty strings
-  const attempted = Array.from(new Set(files)).filter(Boolean);
+  // Path safety: filter out absolute paths or parent directory references
+  const safeFiles = files
+    .map(f => f.replace(/\\/g, '/'))
+    .filter(f => f && !f.startsWith('/') && !f.includes('..'));
+
+  // Deduplicate
+  const attempted = Array.from(new Set(safeFiles));
   
   if (attempted.length === 0 && !forceReset) {
     return { ok: true, attempted: [], exitCode: 0, stdout: "", stderr: "" };
   }
 
   return new Promise((resolve) => {
-    // If forceReset is true, execute git reset --hard
+    // If forceReset is true, execute git reset --hard HEAD
     // Otherwise, try to checkout specified files
-    const args = forceReset ? ['reset', '--hard'] : ['checkout', '--', ...attempted];
+    const args = forceReset ? ['reset', '--hard', 'HEAD'] : ['checkout', '--', ...attempted];
     const child = spawn('git', args, { cwd: repoPath });
     
     let stdout = "";
@@ -78,7 +84,21 @@ export async function rollbackFiles(repoPath: string, files: string[], forceRese
       });
     });
 
-    child.on("close", (code) => {
+    child.on("close", async (code) => {
+      if (code === 0 && forceReset) {
+        // If reset succeeded and forceReset is true, also perform git clean -fd
+        try {
+          await new Promise<void>((res, rej) => {
+            const cleanChild = spawn('git', ['clean', '-fd'], { cwd: repoPath });
+            cleanChild.on('close', (cleanCode) => cleanCode === 0 ? res() : rej());
+            cleanChild.on('error', rej);
+          });
+        } catch (e) {
+          // Log clean failure but don't necessarily fail the whole rollback
+          stderr += `\nWarning: git clean -fd failed: ${String(e)}`;
+        }
+      }
+
       resolve({
         ok: code === 0,
         attempted,
@@ -108,6 +128,10 @@ export async function getGitDiff(repoPath: string): Promise<string | undefined> 
       } else {
         resolve(undefined);
       }
+    });
+
+    child.on('error', () => {
+      resolve(undefined);
     });
   });
 }

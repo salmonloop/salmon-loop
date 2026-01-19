@@ -9,7 +9,7 @@ describe('classifyError', () => {
   });
 
   it('should classify ESLint errors as LINT', () => {
-    const output = '  1:1  error  "foo" is defined but never used  no-unused-vars';
+    const output = '  1:1  error  "foo" is defined but never used  no-unused-vars  eslint';
     expect(classifyError(output)).toBe(ErrorType.LINT);
   });
 

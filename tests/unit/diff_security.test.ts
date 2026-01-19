@@ -42,4 +42,21 @@ index e69de29..e69de29 100644`;
 +new`).join('\n');
     expect(() => validateDiff(manyFilesDiff)).toThrow();
   });
+
+  it('should throw error when path mismatch is detected (implicit rename)', () => {
+    const diff = `diff --git a/old.ts b/new.ts
+--- a/old.ts
++++ b/new.ts
+@@ -1 +1 @@
+-old
++new`;
+    expect(() => validateDiff(diff)).toThrow();
+  });
+
+  it('should throw error for empty patch', () => {
+    const diff = `diff --git a/file.ts b/file.ts
+--- a/file.ts
++++ b/file.ts`;
+    expect(() => validateDiff(diff)).toThrow();
+  });
 });

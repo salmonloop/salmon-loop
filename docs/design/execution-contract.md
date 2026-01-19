@@ -19,6 +19,7 @@ SalmonLoop follows a strict execution contract to ensure safety and determinism.
 - **No Dirty Workspace**: SalmonLoop will not start if there are uncommitted changes in the repository (unless `allowDirty` is true).
 - **Safety Guard**: The combination of `allowDirty: true` and `forceReset: true` is strictly forbidden to prevent accidental loss of uncommitted user changes.
 - **Atomic Attempts**: Each attempt is isolated. If an attempt fails, the workspace is rolled back before the next attempt starts.
+- **Force Reset & Clean**: When `forceReset` is enabled, SalmonLoop performs both `git reset --hard HEAD` and `git clean -fd` to ensure a completely clean workspace for the next attempt.
 - **No File Operations**: SalmonLoop currently forbids creating, deleting, or renaming files to prevent accidental structural damage to the repository.
 
 ## Error Handling
