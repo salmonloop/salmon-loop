@@ -1,6 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { OpenAILLM } from '../../src/core/llm';
-import { Context } from '../../src/core/types';
+import { OpenAILLM } from '../../src/core/llm.js';
+import { Context } from '../../src/core/types.js';
 
 // Mock OpenAI
 const mockCreate = vi.fn();
@@ -9,10 +8,10 @@ vi.mock('openai', () => {
     default: class {
       chat = {
         completions: {
-          create: mockCreate
-        }
-      }
-    }
+          create: mockCreate,
+        },
+      };
+    },
   };
 });
 
@@ -30,7 +29,7 @@ describe('OpenAILLM', () => {
     it('should parse valid JSON response', async () => {
       const plan = { goal: 'test', files: [], changes: [], verify: 'test' };
       mockCreate.mockResolvedValue({
-        choices: [{ message: { content: JSON.stringify(plan) } }]
+        choices: [{ message: { content: JSON.stringify(plan) } }],
       });
 
       const result = await llm.createPlan(mockContext, 'instruction');
@@ -39,18 +38,22 @@ describe('OpenAILLM', () => {
 
     it('should throw error for invalid JSON', async () => {
       mockCreate.mockResolvedValue({
-        choices: [{ message: { content: 'invalid json' } }]
+        choices: [{ message: { content: 'invalid json' } }],
       });
 
-      await expect(llm.createPlan(mockContext, 'instruction')).rejects.toThrow('Failed to parse LLM response');
+      await expect(llm.createPlan(mockContext, 'instruction')).rejects.toThrow(
+        'Failed to parse LLM response',
+      );
     });
 
     it('should throw error for missing fields', async () => {
       mockCreate.mockResolvedValue({
-        choices: [{ message: { content: JSON.stringify({ goal: 'test' }) } }]
+        choices: [{ message: { content: JSON.stringify({ goal: 'test' }) } }],
       });
 
-      await expect(llm.createPlan(mockContext, 'instruction')).rejects.toThrow('Invalid Plan structure');
+      await expect(llm.createPlan(mockContext, 'instruction')).rejects.toThrow(
+        'Invalid Plan structure',
+      );
     });
   });
 
@@ -58,7 +61,7 @@ describe('OpenAILLM', () => {
     it('should clean up markdown code blocks', async () => {
       const diff = 'diff --git a/file b/file\n...';
       mockCreate.mockResolvedValue({
-        choices: [{ message: { content: `\`\`\`diff\n${diff}\n\`\`\`` } }]
+        choices: [{ message: { content: `\`\`\`diff\n${diff}\n\`\`\`` } }],
       });
 
       const result = await llm.createPatch(mockContext, {} as any);
@@ -68,7 +71,7 @@ describe('OpenAILLM', () => {
     it('should handle plain text diff', async () => {
       const diff = 'diff --git a/file b/file\n...';
       mockCreate.mockResolvedValue({
-        choices: [{ message: { content: diff } }]
+        choices: [{ message: { content: diff } }],
       });
 
       const result = await llm.createPatch(mockContext, {} as any);

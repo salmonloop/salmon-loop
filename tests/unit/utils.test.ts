@@ -1,6 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { ContextBuilder } from '../../src/core/context';
-import { Context } from '../../src/core/types';
+import { ContextBuilder } from '../../src/core/context.js';
+import { Context } from '../../src/core/types.js';
 
 describe('extractFailedFiles', () => {
   it('should extract files with line numbers', () => {

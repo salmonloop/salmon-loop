@@ -1,4 +1,3 @@
-import { describe, it, expect } from 'vitest';
 import { ErrorType } from '../../src/core/types.js';
 import { classifyError } from '../../src/core/verify.js';
 
@@ -8,14 +7,31 @@ describe('classifyError', () => {
     expect(classifyError(output)).toBe(ErrorType.COMPILATION);
   });
 
+  it('should classify "failed to compile" as COMPILATION', () => {
+    expect(classifyError('Failed to compile: src/index.ts')).toBe(ErrorType.COMPILATION);
+  });
+
   it('should classify ESLint errors as LINT', () => {
     const output = '  1:1  error  "foo" is defined but never used  no-unused-vars  eslint';
     expect(classifyError(output)).toBe(ErrorType.LINT);
   });
 
+  it('should classify Prettier errors as LINT', () => {
+    expect(classifyError('prettier/prettier: Insert ;')).toBe(ErrorType.LINT);
+  });
+
   it('should classify test failures as TEST', () => {
-    const output = 'FAIL tests/unit/llm.test.ts\n  ● LLM › should create a plan\n    expect(received).toBe(expected)';
+    const output =
+      'FAIL tests/unit/llm.test.ts\n  ● LLM › should create a plan\n    expect(received).toBe(expected)';
     expect(classifyError(output)).toBe(ErrorType.TEST);
+  });
+
+  it('should classify Vitest "test files" failure as TEST', () => {
+    expect(classifyError('Test Files 1 failed')).toBe(ErrorType.TEST);
+  });
+
+  it('should classify Pytest failure as TEST', () => {
+    expect(classifyError('E       AssertionError: assert 1 == 2')).toBe(ErrorType.TEST);
   });
 
   it('should classify unknown output as LOGIC', () => {

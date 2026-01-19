@@ -1,7 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { validateDiff, normalizeDiff } from '../../src/core/diff';
-import { LIMITS } from '../../src/core/limits';
-import { text } from '../../src/locales/index';
+import { validateDiff, normalizeDiff } from '../../src/core/diff.js';
+import { LIMITS } from '../../src/core/limits.js';
+import { text } from '../../src/locales/index.js';
 
 describe('normalizeDiff', () => {
   it('should unwrap markdown code blocks', () => {
@@ -63,14 +62,18 @@ index 123..456 100644
 
   it('should throw if too many lines changed', () => {
     // Create a diff with many lines
-    const lines = Array(LIMITS.maxDiffLines + 10).fill('+line').join('\n');
+    const lines = Array(LIMITS.maxDiffLines + 10)
+      .fill('+line')
+      .join('\n');
     const diff = `diff --git a/file b/file
 index 123..456 100644
 --- a/file
 +++ b/file
 @@ -0,0 +1,${LIMITS.maxDiffLines + 10} @@
 ${lines}`;
-    expect(() => validateDiff(diff)).toThrow(text.diff.tooManyLines(LIMITS.maxDiffLines + 10, LIMITS.maxDiffLines));
+    expect(() => validateDiff(diff)).toThrow(
+      text.diff.tooManyLines(LIMITS.maxDiffLines + 10, LIMITS.maxDiffLines),
+    );
   });
 
   it('should throw for file creation', () => {

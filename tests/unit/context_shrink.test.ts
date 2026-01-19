@@ -1,4 +1,3 @@
-import { describe, it, expect } from 'vitest';
 import { ContextBuilder } from '../../src/core/context.js';
 import { ErrorType, Context } from '../../src/core/types.js';
 
@@ -10,15 +9,19 @@ describe('ContextBuilder.shrinkContext', () => {
     rgSnippets: [
       { file: 'src/a.ts', line: 1, content: 'content a' },
       { file: 'src/b.ts', line: 1, content: 'content b' },
-      { file: 'tests/a.test.ts', line: 1, content: 'test content a' }
+      { file: 'tests/a.test.ts', line: 1, content: 'test content a' },
     ],
-    gitDiff: 'some diff'
+    gitDiff: 'some diff',
   };
 
   it('should shrink to failed files regardless of error type', async () => {
     const failedFiles = ['src/a.ts'];
-    const result = await ContextBuilder.shrinkContext(mockContext, failedFiles, ErrorType.COMPILATION);
-    
+    const result = await ContextBuilder.shrinkContext(
+      mockContext,
+      failedFiles,
+      ErrorType.COMPILATION,
+    );
+
     expect(result.rgSnippets).toHaveLength(1);
     expect(result.rgSnippets[0].file).toBe('src/a.ts');
 

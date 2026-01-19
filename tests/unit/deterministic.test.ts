@@ -1,8 +1,7 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { runSalmonLoop } from '../../src/index.js';
 import { FakeLLM } from '../../src/core/llm.js';
 import { ExecutionPhase } from '../../src/core/types.js';
-import { mkdtemp, rm, writeFile, mkdir } from 'fs/promises';
+import { mkdtemp, rm, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { execSync } from 'child_process';
@@ -29,13 +28,15 @@ describe('Deterministic Baseline Tests', () => {
 
     const fakeLLM = new FakeLLM(
       [{ goal: 'fix type', files: ['index.ts'], changes: ['fix type'], verify: 'tsc' }],
-      [`diff --git a/index.ts b/index.ts
+      [
+        `diff --git a/index.ts b/index.ts
 --- a/index.ts
 +++ b/index.ts
 @@ -1 +1 @@
 -const x: number = "not a number";
 +const x: number = 123;
-`]
+`,
+      ],
     );
 
     const result = await runSalmonLoop({
@@ -43,7 +44,7 @@ describe('Deterministic Baseline Tests', () => {
       verify: 'echo "success"', // Mock verify command
       repoPath: tempDir,
       llm: fakeLLM,
-      allowDirty: true
+      allowDirty: true,
     });
 
     expect(result.success).toBe(true);
@@ -63,7 +64,7 @@ ${Array(1000).fill('+new line').join('\n')}`;
 
     const fakeLLM = new FakeLLM(
       [{ goal: 'too big', files: ['large.ts'], changes: ['too big'], verify: 'test' }],
-      [largeDiff]
+      [largeDiff],
     );
 
     const result = await runSalmonLoop({
@@ -71,7 +72,7 @@ ${Array(1000).fill('+new line').join('\n')}`;
       verify: 'echo "success"',
       repoPath: tempDir,
       llm: fakeLLM,
-      allowDirty: true
+      allowDirty: true,
     });
 
     expect(result.success).toBe(false);
@@ -82,7 +83,7 @@ ${Array(1000).fill('+new line').join('\n')}`;
     const filePath = join(tempDir, 'dirty.ts');
     await writeFile(filePath, 'initial content');
     execSync('git add . && git commit -m "initial"', { cwd: tempDir });
-    
+
     // Make it dirty
     await writeFile(filePath, 'dirty content');
 
@@ -92,11 +93,12 @@ ${Array(1000).fill('+new line').join('\n')}`;
       instruction: 'any',
       verify: 'any',
       repoPath: tempDir,
-      llm: fakeLLM
+      llm: fakeLLM,
     });
 
     expect(result.success).toBe(false);
     expect(result.reason).toContain('Workspace has uncommitted changes');
+    expect(result.reason).toContain('M dirty.ts'); // Should contain the file status
     expect(result.failurePhase).toBe(ExecutionPhase.PREFLIGHT);
   });
 
@@ -109,7 +111,7 @@ ${Array(1000).fill('+new line').join('\n')}`;
       repoPath: tempDir,
       llm: fakeLLM,
       allowDirty: true,
-      forceReset: true
+      forceReset: true,
     });
 
     expect(result.success).toBe(false);

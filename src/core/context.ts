@@ -23,22 +23,26 @@ export class ContextBuilder {
 
     // Truncate primary text if it exceeds limits to prevent prompt overflow
     if (primaryText && primaryText.length > LIMITS.maxPrimaryChars) {
-      primaryText = primaryText.substring(0, LIMITS.maxPrimaryChars) + '\n...[Content truncated for context budget]...';
+      primaryText =
+        primaryText.substring(0, LIMITS.maxPrimaryChars) +
+        '\n...[Content truncated for context budget]...';
     }
 
     // Extract keywords and execute ripgrep search
     const keywords = extractKeywords(options.instruction);
     const rgSnippets = await this.searchMultipleKeywords(keywords, options.repoPath);
 
-    // Get git diff
-    const gitDiff = await this.getGitDiff(options.repoPath);
+    // Get git diff (prioritize cached, then unstaged, limited to target file if specified)
+    const stagedDiff = await this.getGitDiff(options.repoPath, true, options.file);
+    const unstagedDiff = await this.getGitDiff(options.repoPath, false, options.file);
+    const gitDiff = [stagedDiff, unstagedDiff].filter(Boolean).join('\n').trim() || undefined;
 
     // Truncate context
     const context: Context = {
       repoPath: options.repoPath,
       primaryText,
       rgSnippets,
-      gitDiff
+      gitDiff,
     };
 
     return this.truncateContext(context);
@@ -49,21 +53,21 @@ export class ContextBuilder {
       // Use --json for robust machine-readable output
       const child = spawn('rg', ['-n', '--json', '--', query], {
         stdio: ['pipe', 'pipe', 'pipe'],
-        cwd
+        cwd,
       });
 
       let output = '';
-      let stderr = '';
       child.stdout.on('data', (data) => {
         output += data.toString();
       });
 
-      child.stderr.on('data', (data) => {
-        stderr += data.toString();
+      child.stderr.on('data', (_data) => {
+        // stderr is collected but currently just resolved to empty results for stability
       });
 
       child.on('close', (code) => {
-        if (code === 0 || code === 1) { // 0=match found, 1=no match
+        if (code === 0 || code === 1) {
+          // 0=match found, 1=no match
           const results: RipgrepResult[] = [];
           const lines = output.trim().split('\n');
 
@@ -77,17 +81,16 @@ export class ContextBuilder {
                   file: String(data.data.path.text).replace(/\\/g, '/'),
                   line: data.data.line_number,
                   // Preserve indentation by only removing trailing newline
-                  content: data.data.lines.text.replace(/\n$/, '')
+                  content: data.data.lines.text.replace(/\n$/, ''),
                 });
               }
-            } catch (e) {
+            } catch (_e) {
               // Ignore malformed JSON
             }
           }
           resolve(results);
         } else {
           // ripgrep error (e.g. not installed, invalid regex)
-          // stderr is collected but currently just resolved to empty results for stability
           resolve([]);
         }
       });
@@ -99,7 +102,10 @@ export class ContextBuilder {
     });
   }
 
-  private static async searchMultipleKeywords(keywords: string[], cwd: string): Promise<RipgrepResult[]> {
+  private static async searchMultipleKeywords(
+    keywords: string[],
+    cwd: string,
+  ): Promise<RipgrepResult[]> {
     if (keywords.length === 0) {
       return [];
     }
@@ -109,7 +115,7 @@ export class ContextBuilder {
     const cappedKeywords = keywords.slice(0, LIMITS.maxKeywords);
 
     // Execute all keyword searches in parallel
-    const searchPromises = cappedKeywords.map(keyword => this.runRipgrep(keyword, cwd));
+    const searchPromises = cappedKeywords.map((keyword) => this.runRipgrep(keyword, cwd));
     const resultsArrays = await Promise.all(searchPromises);
 
     // Merge results and deduplicate
@@ -138,11 +144,19 @@ export class ContextBuilder {
     });
   }
 
-  private static async getGitDiff(cwd: string): Promise<string | undefined> {
+  private static async getGitDiff(
+    cwd: string,
+    cached = false,
+    file?: string,
+  ): Promise<string | undefined> {
     return new Promise((resolve) => {
-      const child = spawn('git', ['diff'], {
+      const args = ['diff'];
+      if (cached) args.push('--cached');
+      if (file) args.push('--', file);
+
+      const child = spawn('git', args, {
         stdio: ['pipe', 'pipe', 'pipe'],
-        cwd
+        cwd,
       });
 
       let output = '';
@@ -172,22 +186,22 @@ export class ContextBuilder {
    */
   private static truncateContext(context: Context): Context {
     const totalChars = this.calculateTotalChars(context);
-    
+
     if (totalChars <= LIMITS.maxContextChars) {
       return context;
     }
-    
+
     // Prioritize primaryText, then pack snippets until budget is reached
     let remainingChars = LIMITS.maxContextChars - (context.primaryText?.length || 0);
-    
+
     if (remainingChars <= 0) {
       return {
         ...context,
         rgSnippets: [],
-        gitDiff: undefined
+        gitDiff: undefined,
       };
     }
-    
+
     const truncatedSnippets: RipgrepResult[] = [];
     for (const snippet of context.rgSnippets) {
       const snippetLen = snippet.content?.length ?? 0;
@@ -199,17 +213,17 @@ export class ContextBuilder {
         if (remainingChars >= LIMITS.minSnippetChars) {
           truncatedSnippets.push({
             ...snippet,
-            content: snippet.content.substring(0, remainingChars)
+            content: snippet.content.substring(0, remainingChars),
           });
         }
         break;
       }
     }
-    
+
     return {
       ...context,
       rgSnippets: truncatedSnippets,
-      gitDiff: undefined
+      gitDiff: undefined,
     };
   }
 
@@ -221,7 +235,8 @@ export class ContextBuilder {
 
     // Strategy 1: Look for file paths followed by line numbers (common in stack traces and compiler output)
     // e.g., src/core/loop.ts:10:5 or loop.ts:10:5
-    const tracePattern = /((?:[\w-]+\/)*[\w-./]+\.(?:ts|js|json|md|txt|css|html|jsx|tsx|vue|py|rs|go|java|c|cpp|h))[:\(]\d+/g;
+    const tracePattern =
+      /((?:[\w-]+\/)*[\w-./]+\.(?:ts|js|json|md|txt|css|html|jsx|tsx|vue|py|rs|go|java|c|cpp|h))[:\(]\d+/g;
     let match;
     while ((match = tracePattern.exec(verifyOutput)) !== null) {
       uniqueFiles.add(match[1]);
@@ -229,15 +244,16 @@ export class ContextBuilder {
 
     // Strategy 2: If no specific traces found, fall back to general file path matching
     if (uniqueFiles.size === 0) {
-      const pathPattern = /(?:^|\s)((?:[\w-]+\/)*[\w-]+\.(?:ts|js|json|md|txt|css|html|jsx|tsx|vue|py|rs|go|java|c|cpp|h))\b/g;
+      const pathPattern =
+        /(?:^|\s)((?:[\w-]+\/)*[\w-]+\.(?:ts|js|json|md|txt|css|html|jsx|tsx|vue|py|rs|go|java|c|cpp|h))\b/g;
       while ((match = pathPattern.exec(verifyOutput)) !== null) {
         uniqueFiles.add(match[1]);
       }
     }
 
     // Filter out node_modules and .git
-    return Array.from(uniqueFiles).filter(file =>
-      !file.includes('node_modules') && !file.startsWith('.git')
+    return Array.from(uniqueFiles).filter(
+      (file) => !file.includes('node_modules') && !file.startsWith('.git'),
     );
   }
 
@@ -246,26 +262,32 @@ export class ContextBuilder {
    * Uses deterministic rules: failed files + limited static dependencies.
    * Protects against over-shrinking by falling back to original context if budget allows.
    */
-  static async shrinkContext(context: Context, failedFiles: string[], errorType?: ErrorType): Promise<Context> {
+  static async shrinkContext(
+    context: Context,
+    failedFiles: string[],
+    _errorType?: ErrorType,
+  ): Promise<Context> {
     // Normalize failed file paths
-    const normalizedFailed = failedFiles.map(f => f.replace(/\\/g, '/'));
+    const normalizedFailed = failedFiles.map((f) => f.replace(/\\/g, '/'));
 
     if (normalizedFailed.length > 0) {
       // Find dependencies for failed files to include in context
-      const dependencyPromises = normalizedFailed.map(f => 
-        findFileDependencies(f, context.repoPath).catch(() => [])
+      const dependencyPromises = normalizedFailed.map((f) =>
+        findFileDependencies(f, context.repoPath).catch(() => []),
       );
       const dependenciesArrays = await Promise.all(dependencyPromises);
-      
+
       // Cap related files to ensure determinism and performance
       const allRelatedFiles = new Set([
-        ...normalizedFailed, 
-        ...dependenciesArrays.flat().slice(0, LIMITS.maxRelatedFiles)
+        ...normalizedFailed,
+        ...dependenciesArrays.flat().slice(0, LIMITS.maxRelatedFiles),
       ]);
-      
-      let newSnippets = context.rgSnippets.filter(snippet => {
+
+      let newSnippets = context.rgSnippets.filter((snippet) => {
         const normalizedSnippetFile = snippet.file.replace(/\\/g, '/');
-        return Array.from(allRelatedFiles).some(related => normalizedSnippetFile.endsWith(related));
+        return Array.from(allRelatedFiles).some((related) =>
+          normalizedSnippetFile.endsWith(related),
+        );
       });
 
       // Cap snippets after shrink to keep context focused
@@ -273,10 +295,10 @@ export class ContextBuilder {
 
       const shrunkContext = {
         ...context,
-        rgSnippets: newSnippets
+        rgSnippets: newSnippets,
       };
 
-      // Protection against over-shrinking: if shrunk context is too small, 
+      // Protection against over-shrinking: if shrunk context is too small,
       // fallback to original context (but still truncated to max budget)
       if (this.calculateTotalChars(shrunkContext) < LIMITS.minContextChars) {
         return this.truncateContext(context);
@@ -297,7 +319,7 @@ export class ContextBuilder {
     const primary = context.primaryText?.length ?? 0;
     const snippets = context.rgSnippets.reduce(
       (sum, snippet) => sum + (snippet.content?.length ?? 0),
-      0
+      0,
     );
     const diff = context.gitDiff?.length ?? 0;
 

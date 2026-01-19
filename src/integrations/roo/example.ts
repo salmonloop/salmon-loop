@@ -1,25 +1,28 @@
 import { RooSalmonAdapter } from './adapter.js';
-import { OpenAILLM } from '../../index.js';
+import { FakeLLM } from '../../core/llm.js';
 
-async function example() {
+const _example = async () => {
   const adapter = new RooSalmonAdapter();
-  
+
+  const fakeLLM = new FakeLLM(
+    [
+      {
+        goal: 'Fix bug',
+        files: ['src/index.ts'],
+        changes: ['Update version'],
+        verify: 'npm test',
+      },
+    ],
+    ['diff --git a/src/index.ts b/src/index.ts\n...'],
+  );
+
   const result = await adapter.execute({
-    instruction: 'Fix the typo in README.md',
+    instruction: 'Fix the bug in index.ts',
     verify: 'npm test',
     repoPath: process.cwd(),
-    llm: new OpenAILLM(),
-    allowDirty: false
-  }, (event) => {
-    // Update UI based on event
-    if (event.type === 'phase.start') {
-      console.log(`UI: Now entering ${event.phase}...`);
-    }
+    llm: fakeLLM,
+    allowDirty: false,
   });
 
-  if (result.success) {
-    console.log('UI: Success!');
-  } else {
-    console.error(`UI: Failed. Reason: ${result.reason}`);
-  }
-}
+  console.log('Result:', result.success);
+};

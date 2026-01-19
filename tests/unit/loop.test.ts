@@ -1,15 +1,14 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { SalmonLoop } from '../../src/core/loop';
-import { ContextBuilder } from '../../src/core/context';
-import { StubLLM } from '../../src/core/llm';
-import * as git from '../../src/core/git';
-import * as verify from '../../src/core/verify';
-import { text } from '../../src/locales/index';
-import { LIMITS } from '../../src/core/limits';
+import { vi } from 'vitest';
+import { SalmonLoop } from '../../src/core/loop.js';
+import { ContextBuilder } from '../../src/core/context.js';
+import { StubLLM } from '../../src/core/llm.js';
+import * as git from '../../src/core/git.js';
+import * as verify from '../../src/core/verify.js';
+import { text } from '../../src/locales/index.js';
 
-vi.mock('../../src/core/context');
-vi.mock('../../src/core/git');
-vi.mock('../../src/core/verify');
+vi.mock('../../src/core/context.js');
+vi.mock('../../src/core/git.js');
+vi.mock('../../src/core/verify.js');
 
 describe('SalmonLoop', () => {
   let loop: SalmonLoop;
@@ -19,14 +18,14 @@ describe('SalmonLoop', () => {
     loop = new SalmonLoop();
     mockLLM = new StubLLM();
     vi.clearAllMocks();
-    
+
     // Default mock for rollbackFiles
     vi.mocked(git.rollbackFiles).mockResolvedValue({
       ok: true,
       attempted: [],
       exitCode: 0,
       stdout: '',
-      stderr: ''
+      stderr: '',
     });
     // Default mock for shrinkContext
     vi.mocked(ContextBuilder.shrinkContext).mockImplementation(async (ctx) => ctx);
@@ -45,7 +44,7 @@ describe('SalmonLoop', () => {
       goal: 'test',
       files: ['test.txt'],
       changes: ['change'],
-      verify: 'verify'
+      verify: 'verify',
     });
     mockLLM.createPatch = vi.fn().mockResolvedValue(`diff --git a/test.txt b/test.txt
 index 123..456 100644
@@ -58,7 +57,7 @@ index 123..456 100644
     vi.mocked(verify.runVerify).mockResolvedValue({
       ok: true,
       output: 'Success',
-      exitCode: 0
+      exitCode: 0,
     });
 
     const result = await loop.run({
@@ -97,10 +96,11 @@ index 123..456 100644
       verify: 'npm test',
       repoPath: '/tmp/repo',
       llm: mockLLM,
-      dryRun: true
+      dryRun: true,
     });
 
     expect(result.success).toBe(true);
+    expect(result.reasonCode).toBe('DRY_RUN');
     expect(git.applyPatch).not.toHaveBeenCalled();
   });
 
@@ -133,7 +133,11 @@ index 123..456 100644
 
     expect(result.success).toBe(true);
     expect(result.attempts).toBe(2);
-    expect(git.rollbackFiles).toHaveBeenCalledWith('/tmp/repo', expect.arrayContaining(['test.txt']), undefined);
+    expect(git.rollbackFiles).toHaveBeenCalledWith(
+      '/tmp/repo',
+      expect.arrayContaining(['test.txt']),
+      undefined,
+    );
   });
 
   it('should rollback all changed files on failure, not just failed ones', async () => {
@@ -144,7 +148,7 @@ index 123..456 100644
     } as any);
 
     mockLLM.createPlan = vi.fn().mockResolvedValue({ goal: 'test', files: ['a.ts', 'b.ts'], changes: [], verify: '' });
-    
+
     // Diff changes a.ts and b.ts
     mockLLM.createPatch = vi.fn().mockResolvedValue(`diff --git a/a.ts b/a.ts
 index 123..456 100644
@@ -176,7 +180,11 @@ index 123..456 100644
     expect(result.success).toBe(true);
     expect(result.attempts).toBe(2);
     // Should rollback BOTH a.ts and b.ts
-    expect(git.rollbackFiles).toHaveBeenCalledWith('/tmp/repo', expect.arrayContaining(['a.ts', 'b.ts']), undefined);
+    expect(git.rollbackFiles).toHaveBeenCalledWith(
+      '/tmp/repo',
+      expect.arrayContaining(['a.ts', 'b.ts']),
+      undefined,
+    );
   });
 
   it('should fail when max retries exceeded', async () => {

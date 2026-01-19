@@ -22,6 +22,26 @@ salmon-loop [options]
 - `--force-reset`: Force a hard reset (`git reset --hard`) on failure. **Use with caution** as it discards all uncommitted changes. Cannot be used with `--allow-dirty`.
 - `--allow-dirty`: Allow running SalmonLoop even if the workspace has uncommitted changes. Cannot be used with `--force-reset`.
 
+## User Experience
+
+### Progress Feedback
+SalmonLoop features a visual progress bar that tracks the execution through various phases:
+- **Preflight**: Safety checks.
+- **Context**: Gathering codebase context.
+- **Plan**: Creating the modification plan.
+- **Patch**: Generating the unified diff.
+- **Validate**: Enforcing safety limits.
+- **Apply**: Writing changes to disk.
+- **Verify**: Running the verification command.
+- **Rollback**: Restoring state on failure.
+
+### Interactive Suggestions
+When a loop fails, SalmonLoop provides actionable suggestions based on the failure type:
+- **Compilation Errors**: Suggestions to check syntax or imports.
+- **Linting Errors**: Suggestions to run local linters.
+- **Test Failures**: Guidance to inspect test output.
+- **Workspace Safety**: Reminders to commit or stash changes.
+
 ## Environment Variables
 
 - `SALMON_API_KEY`: Your LLM provider API key.

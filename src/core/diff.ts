@@ -47,7 +47,9 @@ export function extractChangedFiles(diff: string): string[] {
 
     // Check for file creation/deletion via dev/null
     if (aPath === 'dev/null' || bPath === 'dev/null') {
-      throw new Error(aPath === 'dev/null' ? text.diff.fileCreationNotAllowed : text.diff.fileDeletionNotAllowed);
+      throw new Error(
+        aPath === 'dev/null' ? text.diff.fileCreationNotAllowed : text.diff.fileDeletionNotAllowed,
+      );
     }
 
     // Check for rename/move via path mismatch
@@ -72,9 +74,12 @@ export function countDiffLines(diff: string): number {
   let count = 0;
   for (const line of lines) {
     // Only count actual additions/deletions, ignore headers and "No newline" markers
-    if ((line.startsWith('+') || line.startsWith('-')) &&
-        !line.startsWith('+++') && !line.startsWith('---') &&
-        !line.includes('\\ No newline at end of file')) {
+    if (
+      (line.startsWith('+') || line.startsWith('-')) &&
+      !line.startsWith('+++') &&
+      !line.startsWith('---') &&
+      !line.includes('\\ No newline at end of file')
+    ) {
       count++;
     }
   }
@@ -90,18 +95,18 @@ export function validateDiff(rawDiff: string, limits = LIMITS): DiffMeta {
   }
 
   assertNoFileOps(diff);
-  
+
   const changedFiles = extractChangedFiles(diff);
   const fileCount = changedFiles.length;
 
   if (fileCount === 0) {
     throw new Error(text.llm.patchEmpty);
   }
-  
+
   if (fileCount > limits.maxFilesChanged) {
     throw new Error(text.diff.tooManyFiles(fileCount, limits.maxFilesChanged));
   }
-  
+
   const lineCount = countDiffLines(diff);
   if (lineCount === 0) {
     throw new Error(text.llm.patchEmpty);
@@ -114,6 +119,6 @@ export function validateDiff(rawDiff: string, limits = LIMITS): DiffMeta {
   return {
     changedFiles,
     fileCount,
-    lineCount
+    lineCount,
   };
 }

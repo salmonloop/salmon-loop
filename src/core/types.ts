@@ -7,7 +7,7 @@ export enum ExecutionPhase {
   APPLY = 'apply',
   VERIFY = 'verify',
   ROLLBACK = 'rollback',
-  SHRINK = 'shrink'
+  SHRINK = 'shrink',
 }
 
 export enum ErrorType {
@@ -15,7 +15,7 @@ export enum ErrorType {
   LINT = 'lint',
   TEST = 'test',
   LOGIC = 'logic',
-  UNKNOWN = 'unknown'
+  UNKNOWN = 'unknown',
 }
 
 export interface Plan {
@@ -50,6 +50,7 @@ export interface LoopResult {
   finalPatch?: string;
   failurePhase?: ExecutionPhase;
   changedFiles?: string[];
+  errorType?: ErrorType;
 }
 
 export interface LoopIteration {
@@ -74,9 +75,22 @@ export type LoopEvent =
   | { type: 'phase.start'; phase: ExecutionPhase; timestamp: Date }
   | { type: 'phase.end'; phase: ExecutionPhase; success: boolean; timestamp: Date }
   | { type: 'log'; message: string; level: 'info' | 'warn' | 'error'; timestamp: Date }
-  | { type: 'diff.meta'; changedFiles: string[]; fileCount: number; lineCount: number; timestamp: Date }
+  | {
+      type: 'diff.meta';
+      changedFiles: string[];
+      fileCount: number;
+      lineCount: number;
+      timestamp: Date;
+    }
   | { type: 'verify.result'; ok: boolean; output: string; timestamp: Date }
-  | { type: 'retry'; fromAttempt: number; toAttempt: number; reason: string; failedFiles: string[]; timestamp: Date };
+  | {
+      type: 'retry';
+      fromAttempt: number;
+      toAttempt: number;
+      reason: string;
+      failedFiles: string[];
+      timestamp: Date;
+    };
 
 export interface Context {
   repoPath: string;

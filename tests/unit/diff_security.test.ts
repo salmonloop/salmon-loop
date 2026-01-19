@@ -1,4 +1,3 @@
-import { describe, it, expect } from 'vitest';
 import { validateDiff } from '../../src/core/diff.js';
 import { LIMITS } from '../../src/core/limits.js';
 
@@ -34,12 +33,15 @@ index e69de29..e69de29 100644`;
   });
 
   it('should respect LIMITS', () => {
-    const manyFilesDiff = Array.from({ length: LIMITS.maxFilesChanged + 1 }, (_, i) => `diff --git a/file${i}.ts b/file${i}.ts
+    const manyFilesDiff = Array.from(
+      { length: LIMITS.maxFilesChanged + 1 },
+      (_, i) => `diff --git a/file${i}.ts b/file${i}.ts
 --- a/file${i}.ts
 +++ b/file${i}.ts
 @@ -1 +1 @@
 -old
-+new`).join('\n');
++new`,
+    ).join('\n');
     expect(() => validateDiff(manyFilesDiff)).toThrow();
   });
 

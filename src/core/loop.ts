@@ -1,9 +1,9 @@
 import type { Context, Plan, LoopResult, StepLog, LoopIteration, LoopEvent } from './types.js';
-import { ExecutionPhase } from './types.js';
+import { ExecutionPhase, ErrorType } from './types.js';
 import { ContextBuilder } from './context.js';
 import { LLM } from './llm.js';
 import { validateDiff } from './diff.js';
-import { applyPatch, rollbackFiles } from './git.js';
+import { applyPatch, rollbackFiles, getGitStatus } from './git.js';
 import { runVerify, classifyError, preflight } from './verify.js';
 import { LIMITS } from './limits.js';
 import { text } from '../locales/index.js';
@@ -107,7 +107,8 @@ export class SalmonLoop {
         reasonCode: 'PREFLIGHT_DIRTY',
         attempts: 0,
         logs,
-        failurePhase: ExecutionPhase.PREFLIGHT
+        failurePhase: ExecutionPhase.PREFLIGHT,
+        errorType: ErrorType.UNKNOWN,
       };
     }
 
@@ -116,21 +117,24 @@ export class SalmonLoop {
       startPhase(ExecutionPhase.PREFLIGHT);
       const pf = await preflight(options.repoPath);
       if (!pf.ok) {
-        const reason = pf.reason === 'NOT_A_GIT_REPO' 
-          ? text.loop.preflightFailedNotGit 
-          : text.loop.preflightFailedDirty;
-        
+        const reason = pf.reason || text.loop.preflightFailedNotGit;
+
         logs.push(this.createLog('error', reason, false));
         endPhase(false);
         emit({ type: 'log', level: 'error', message: reason, timestamp: now() });
-        
+
         return {
           success: false,
           reason,
-          reasonCode: pf.reason === 'NOT_A_GIT_REPO' ? 'PREFLIGHT_NOT_GIT' : 'PREFLIGHT_DIRTY',
+          reasonCode: pf.reason?.includes('git command not found')
+            ? 'LOOP_FAILED'
+            : pf.reason?.includes('Not a git repository')
+              ? 'PREFLIGHT_NOT_GIT'
+              : 'PREFLIGHT_DIRTY',
           attempts: 0,
           logs,
-          failurePhase: ExecutionPhase.PREFLIGHT
+          failurePhase: ExecutionPhase.PREFLIGHT,
+          errorType: ErrorType.UNKNOWN,
         };
       }
       endPhase(true);
@@ -145,7 +149,7 @@ export class SalmonLoop {
         file: undefined,
         selection: undefined,
         dryRun: options.dryRun,
-        verbose: false
+        verbose: false,
       });
       endPhase(true);
     } catch (error) {
@@ -159,10 +163,11 @@ export class SalmonLoop {
         reasonCode: 'LOOP_FAILED',
         attempts: 0,
         logs,
-        failurePhase: ExecutionPhase.CONTEXT
+        failurePhase: ExecutionPhase.CONTEXT,
+        errorType: ErrorType.UNKNOWN,
       };
     }
-    
+
     let currentPlan: Plan | null = null;
     let currentDiff: string | null = null;
     let retries = 0;
@@ -195,7 +200,7 @@ export class SalmonLoop {
           changedFiles: changedFilesThisAttempt,
           fileCount: diffMeta.fileCount,
           lineCount: diffMeta.lineCount,
-          timestamp: now()
+          timestamp: now(),
         });
         endPhase(true);
 
@@ -210,7 +215,7 @@ export class SalmonLoop {
             logs,
             history,
             finalPatch: currentDiff || undefined,
-            changedFiles: changedFilesThisAttempt
+            changedFiles: changedFilesThisAttempt,
           };
         }
 
@@ -229,7 +234,12 @@ export class SalmonLoop {
         startPhase(ExecutionPhase.VERIFY);
         const verifyResult = await runVerify(options.repoPath, options.verify);
         logs.push(this.createLog(ExecutionPhase.VERIFY, verifyResult.output, verifyResult.ok));
-        emit({ type: 'verify.result', ok: verifyResult.ok, output: verifyResult.output, timestamp: now() });
+        emit({
+          type: 'verify.result',
+          ok: verifyResult.ok,
+          output: verifyResult.output,
+          timestamp: now(),
+        });
         endPhase(verifyResult.ok);
 
         if (verifyResult.ok) {
@@ -241,12 +251,13 @@ export class SalmonLoop {
             logs,
             history,
             finalPatch: currentDiff || undefined,
-            changedFiles: changedFilesThisAttempt
+            changedFiles: changedFilesThisAttempt,
           };
         }
 
         // Verification failed, preparing to retry
         lastError = verifyResult.output;
+        const errorType = classifyError(verifyResult.output);
         const failedFiles = ContextBuilder.extractFailedFiles(verifyResult.output);
         emit({
           type: 'retry',
@@ -255,7 +266,7 @@ export class SalmonLoop {
           // Truncate reason to avoid bloating event stream
           reason: lastError.length > 2000 ? lastError.substring(0, 2000) + '...' : lastError,
           failedFiles,
-          timestamp: now()
+          timestamp: now(),
         });
 
         // Record history
@@ -264,7 +275,7 @@ export class SalmonLoop {
           plan: currentPlan,
           patch: currentDiff,
           error: lastError,
-          contextSummary: `Snippets: ${context.rgSnippets.length}, Diff: ${!!context.gitDiff}`
+          contextSummary: `Snippets: ${context.rgSnippets.length}, Diff: ${!!context.gitDiff}`,
         });
 
         retries++;
@@ -273,10 +284,18 @@ export class SalmonLoop {
         // Safety: Never rollback in dryRun mode
         if (!options.dryRun && (changedFilesThisAttempt.length > 0 || options.forceReset)) {
           startPhase(ExecutionPhase.ROLLBACK);
-          const rb = await rollbackFiles(options.repoPath, changedFilesThisAttempt, options.forceReset);
+          const rb = await rollbackFiles(
+            options.repoPath,
+            changedFilesThisAttempt,
+            options.forceReset,
+          );
           if (!rb.ok) {
             endPhase(false);
-            logs.push(this.createLog(ExecutionPhase.ROLLBACK, text.loop.rollbackFailed(rb.stderr), false));
+            const status = await getGitStatus(options.repoPath);
+            const errorMsg = status ? `${rb.stderr}\n\nGit Status:\n${status}` : rb.stderr;
+            logs.push(
+              this.createLog(ExecutionPhase.ROLLBACK, text.loop.rollbackFailed(errorMsg), false),
+            );
             return {
               success: false,
               reason: text.loop.rollbackFailedDirty,
@@ -285,10 +304,13 @@ export class SalmonLoop {
               logs,
               history,
               finalPatch: currentDiff || undefined,
-              failurePhase: ExecutionPhase.ROLLBACK
+              failurePhase: ExecutionPhase.ROLLBACK,
+              errorType,
             };
           } else {
-            const msg = options.forceReset ? text.loop.rollbackAllSuccess : text.loop.rollbackSuccess(changedFilesThisAttempt);
+            const msg = options.forceReset
+              ? text.loop.rollbackAllSuccess
+              : text.loop.rollbackSuccess(changedFilesThisAttempt);
             logs.push(this.createLog(ExecutionPhase.ROLLBACK, msg));
             endPhase(true);
           }
@@ -303,17 +325,16 @@ export class SalmonLoop {
             logs,
             history,
             finalPatch: currentDiff || undefined,
-            failurePhase: ExecutionPhase.VERIFY
+            failurePhase: ExecutionPhase.VERIFY,
+            errorType,
           };
         }
 
         // Shrink context
         startPhase(ExecutionPhase.SHRINK);
-        const errorType = classifyError(verifyResult.output);
         context = await ContextBuilder.shrinkContext(context, failedFiles, errorType);
         logs.push(this.createLog(ExecutionPhase.SHRINK, text.loop.contextShrunk));
         endPhase(true);
-
       } catch (error) {
         // Rollback on error
         let failurePhase: ExecutionPhase = currentPhase;
@@ -322,13 +343,23 @@ export class SalmonLoop {
         // Safety: Never rollback in dryRun mode
         if (!options.dryRun && (changedFilesThisAttempt.length > 0 || options.forceReset)) {
           startPhase(ExecutionPhase.ROLLBACK);
-          const rb = await rollbackFiles(options.repoPath, changedFilesThisAttempt, options.forceReset);
+          const rb = await rollbackFiles(
+            options.repoPath,
+            changedFilesThisAttempt,
+            options.forceReset,
+          );
           if (!rb.ok) {
-            logs.push(this.createLog(ExecutionPhase.ROLLBACK, text.loop.rollbackFailed(rb.stderr), false));
+            const status = await getGitStatus(options.repoPath);
+            const errorMsg = status ? `${rb.stderr}\n\nGit Status:\n${status}` : rb.stderr;
+            logs.push(
+              this.createLog(ExecutionPhase.ROLLBACK, text.loop.rollbackFailed(errorMsg), false),
+            );
             failurePhase = ExecutionPhase.ROLLBACK;
             endPhase(false);
           } else {
-            const msg = options.forceReset ? text.loop.rollbackAllSuccess : text.loop.rollbackSuccess(changedFilesThisAttempt);
+            const msg = options.forceReset
+              ? text.loop.rollbackAllSuccess
+              : text.loop.rollbackSuccess(changedFilesThisAttempt);
             logs.push(this.createLog(ExecutionPhase.ROLLBACK, msg));
             endPhase(true);
           }
@@ -337,7 +368,7 @@ export class SalmonLoop {
         const msg = error instanceof Error ? error.message : String(error);
         logs.push(this.createLog('error', msg, false));
         emit({ type: 'log', level: 'error', message: msg, timestamp: now() });
-        
+
         return {
           success: false,
           reason: text.loop.loopExecutionFailed,
@@ -346,7 +377,8 @@ export class SalmonLoop {
           logs,
           history,
           finalPatch: currentDiff || undefined,
-          failurePhase
+          failurePhase,
+          errorType: ErrorType.UNKNOWN,
         };
       }
     }
@@ -358,22 +390,26 @@ export class SalmonLoop {
       attempts: retries, // No new attempt started after the loop
       logs,
       history,
-      finalPatch: currentDiff || undefined
+      finalPatch: currentDiff || undefined,
+      errorType: ErrorType.UNKNOWN,
     };
   }
 
   private createLog(step: ExecutionPhase | 'error', output: any, success = true): StepLog {
-    let outputStr = typeof output === 'string' ? output : (() => {
-      try {
-        return JSON.stringify(output);
-      } catch {
-        try {
-          return String(output);
-        } catch {
-          return '[Unserializable]';
-        }
-      }
-    })();
+    let outputStr =
+      typeof output === 'string'
+        ? output
+        : (() => {
+            try {
+              return JSON.stringify(output);
+            } catch {
+              try {
+                return String(output);
+              } catch {
+                return '[Unserializable]';
+              }
+            }
+          })();
 
     if (outputStr.length > LIMITS.maxLogLength) {
       outputStr = outputStr.substring(0, LIMITS.maxLogLength) + '\n...[Truncated due to length]...';
@@ -383,7 +419,7 @@ export class SalmonLoop {
       step,
       success,
       output: outputStr,
-      timestamp: new Date()
+      timestamp: new Date(),
     };
   }
 }
