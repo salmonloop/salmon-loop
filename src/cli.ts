@@ -11,11 +11,10 @@ import { ExecutionPhase, ErrorType } from './core/types.js';
 
 const program = new Command();
 
-program.name('salmon-loop').description(text.cli.programDescription).version('0.1.0');
-
 program
-  .command('run', { isDefault: true })
-  .description(text.cli.runDescription)
+  .name('salmon-loop')
+  .description(text.cli.programDescription)
+  .version('0.2.0')
   .option('-i, --instruction <instruction>', text.cli.instructionOption)
   .option('-v, --verify <command>', text.cli.verifyOption)
   .option('-r, --repo <path>', text.cli.repoOption, process.cwd())
@@ -35,7 +34,6 @@ program
         console.log(chalk.gray('  Running ESLint...'));
         execSync('npx eslint src --ext .ts', { stdio: 'inherit', cwd: process.cwd() });
         console.log(chalk.gray('  Running Tests...'));
-        // Skip tests if they are known to fail in this environment
         try {
           execSync('npm test', { stdio: 'inherit', cwd: process.cwd() });
         } catch (_e) {
@@ -56,6 +54,7 @@ program
         console.error(
           chalk.red('Error: --instruction and --verify are required unless --validate is used.'),
         );
+        program.help(); // Show help if required options are missing
         process.exit(1);
       }
       return;
