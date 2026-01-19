@@ -13,7 +13,7 @@ We welcome contributions to SalmonLoop! As a design-driven project, we prioritiz
 
 - `src/core`: The execution kernel. Must remain editor-agnostic and self-contained.
 - `src/locales`: Internationalization strings. No hardcoded user-facing text in core logic.
-- `tests/unit`: Vitest unit tests.
+- `tests/unit`: Vitest unit tests. These are mocked to ensure they are fast, deterministic, and don't require a real Git environment or Ripgrep.
 
 ## Getting Started
 

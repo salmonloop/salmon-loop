@@ -13,7 +13,7 @@
 
 - `src/core`：执行内核。必须保持编辑器无关且自包含。
 - `src/locales`：国际化字符串。核心逻辑中严禁硬编码面向用户的文本。
-- `tests/unit`：Vitest 单元测试。
+- `tests/unit`：Vitest 单元测试。这些测试经过 Mock 处理，以确保其运行快速、确定，且不需要真实的 Git 环境或 Ripgrep。
 
 ## 开始贡献
 
