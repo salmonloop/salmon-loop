@@ -46,7 +46,7 @@ describe('Deterministic Baseline Tests', () => {
       llm: fakeLLM,
       allowDirty: true,
     });
-
+ 
     expect(result.success).toBe(true);
     expect(result.attempts).toBe(1);
   });

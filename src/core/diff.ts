@@ -16,12 +16,12 @@ export interface DiffMeta {
  * It tries to find the first code block that looks like a diff or the raw diff itself.
  */
 export function normalizeDiff(raw: string): string {
-  const t = raw.trim();
-
   // Optimization: If it already starts with 'diff --git', no need for complex matching
-  if (t.startsWith('diff --git ')) {
-    return t;
+  if (raw.startsWith('diff --git ')) {
+    return raw.trimEnd() + '\n';
   }
+
+  const t = raw.trim();
 
   // Combined regex to find a diff block or the start of a git diff
   // 1. Match ```diff ... ``` or ``` ... ``` containing diff --git
@@ -29,13 +29,14 @@ export function normalizeDiff(raw: string): string {
   const match = t.match(/```(?:diff)?\s*\n([\s\S]*?)\n```/i) || t.match(/(diff --git [\s\S]*)$/i);
 
   if (match) {
-    const content = match[1].trim();
+    const content = match[1];
     // If we matched a code block, it might still have conversational text before 'diff --git'
     const diffStart = content.indexOf('diff --git ');
-    return diffStart !== -1 ? content.substring(diffStart).trim() : content;
+    const result = diffStart !== -1 ? content.substring(diffStart) : content;
+    return result.trimEnd() + '\n';
   }
 
-  return t;
+  return t.trimEnd() + '\n';
 }
 
 /**

@@ -5,12 +5,12 @@ import { text } from '../../src/locales/index.js';
 describe('normalizeDiff', () => {
   it('should unwrap markdown code blocks', () => {
     const raw = '```diff\ndiff --git a/a b/a\n```';
-    expect(normalizeDiff(raw)).toBe('diff --git a/a b/a');
+    expect(normalizeDiff(raw)).toBe('diff --git a/a b/a\n');
   });
-
+ 
   it('should trim whitespace', () => {
     const raw = '  \ndiff --git a/a b/a\n  ';
-    expect(normalizeDiff(raw)).toBe('diff --git a/a b/a');
+    expect(normalizeDiff(raw)).toBe('diff --git a/a b/a\n');
   });
 });
 

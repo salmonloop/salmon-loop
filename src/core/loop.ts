@@ -2,7 +2,7 @@ import type { Context, Plan, LoopResult, StepLog, LoopIteration, LoopEvent } fro
 import { ExecutionPhase, ErrorType } from './types.js';
 import { ContextBuilder } from './context.js';
 import { LLM } from './llm.js';
-import { validateDiff } from './diff.js';
+import { validateDiff, normalizeDiff } from './diff.js';
 import { applyPatch, rollbackFiles, getGitStatus } from './git.js';
 import { runVerify, classifyError, preflight } from './verify.js';
 import { LIMITS } from './limits.js';
@@ -193,6 +193,8 @@ export class SalmonLoop {
         // VALIDATE phase
         startPhase(ExecutionPhase.VALIDATE);
         const diffMeta = validateDiff(currentDiff);
+        // Use normalized diff for application to remove markdown markers or conversational text
+        currentDiff = normalizeDiff(currentDiff);
         changedFilesThisAttempt = diffMeta.changedFiles;
         logs.push(this.createLog(ExecutionPhase.VALIDATE, text.loop.diffValidationPassed));
         emit({
@@ -222,6 +224,7 @@ export class SalmonLoop {
         // APPLY phase
         startPhase(ExecutionPhase.APPLY);
         try {
+          if (!currentDiff) throw new Error(text.llm.patchEmpty());
           await applyPatch(options.repoPath, currentDiff);
           logs.push(this.createLog(ExecutionPhase.APPLY, text.loop.patchApplied));
           endPhase(true);
