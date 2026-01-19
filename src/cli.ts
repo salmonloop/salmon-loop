@@ -99,6 +99,9 @@ program
         dryRun: options.dryRun,
         forceReset: options.forceReset,
         allowDirty: options.allowDirty,
+        file: options.file,
+        selection: options.selection,
+        verbose: verboseLevel,
         onEvent: (event) => {
           if (event.type === 'phase.start') {
             const phaseName =

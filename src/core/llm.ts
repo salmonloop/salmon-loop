@@ -92,21 +92,22 @@ export class OpenAILLM implements LLM {
   }
 
   private formatContext(context: Context): string {
-    let result = `Repository Path: ${context.repoPath}\n\n`;
+    let result = `${text.context.workingDirectory}\n\n`;
 
     if (context.primaryText) {
-      result += `Primary Text:\n${context.primaryText}\n\n`;
+      result += `${text.context.primaryFile(context.primaryFile || 'Selection')}\n`;
+      result += `${text.context.primaryText}\n${context.primaryText}\n\n`;
     }
 
     if (context.rgSnippets && context.rgSnippets.length > 0) {
-      result += `Code Snippets:\n`;
+      result += `${text.context.codeSnippets}\n`;
       for (const snippet of context.rgSnippets) {
-        result += `File: ${snippet.file}:${snippet.line}\n${snippet.content}\n---\n`;
+        result += `${text.context.snippetLocation(snippet.file, snippet.line)}\n${snippet.content}\n---\n`;
       }
     }
 
     if (context.gitDiff) {
-      result += `Git Diff:\n${context.gitDiff}\n\n`;
+      result += `${text.context.gitDiff}\n${context.gitDiff}\n\n`;
     }
 
     return result;

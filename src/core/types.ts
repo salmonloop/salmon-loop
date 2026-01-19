@@ -101,6 +101,7 @@ export type LoopEvent =
 
 export interface Context {
   repoPath: string;
+  primaryFile?: string;
   primaryText?: string;
   rgSnippets: RipgrepResult[];
   gitDiff?: string;

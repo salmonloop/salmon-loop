@@ -13,18 +13,33 @@ export type RollbackResult = {
 };
 
 export async function applyPatch(repoPath: string, diffText: string): Promise<void> {
+  // Preprocess diffText to remove index lines that might contain hallucinated hashes
+  // We use a more robust filtering that handles potential leading/trailing whitespace
+  const cleanedDiff = diffText
+    .split(/\r?\n/)
+    .filter((line) => !line.trim().startsWith('index '))
+    .join('\n');
+
   const tempFile = join(
     tmpdir(),
     `salmon-loop-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}.patch`,
   );
 
-  await writeFile(tempFile, diffText, 'utf8');
+  await writeFile(tempFile, cleanedDiff, 'utf8');
 
   try {
     await new Promise<void>((resolve, reject) => {
       const child = spawn(
         'git',
-        ['apply', '--3way', '--recount', '--whitespace=nowarn', tempFile],
+        [
+          'apply',
+          '-3',                         // the short option for --3way
+          '--recount',
+          '-C0',                        // allow zero context for fuzzing
+          '--ignore-space-change',
+          '--ignore-whitespace',
+          tempFile,
+        ],
         { cwd: repoPath },
       );
 

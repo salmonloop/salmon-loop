@@ -53,6 +53,14 @@ export interface LoopOptions {
    * The verbose level for logging.
    */
   verbose?: VerboseLevel;
+  /**
+   * The target file path.
+   */
+  file?: string;
+  /**
+   * The direct text selection.
+   */
+  selection?: string;
 }
 
 /**
@@ -158,8 +166,8 @@ export class SalmonLoop {
         instruction: options.instruction,
         verify: options.verify,
         repoPath: options.repoPath,
-        file: undefined,
-        selection: undefined,
+        file: options.file,
+        selection: options.selection,
         dryRun: options.dryRun,
         verbose: options.verbose,
       });
@@ -223,6 +231,14 @@ export class SalmonLoop {
           message: `Patch generated, length: ${currentDiff.length}`,
           timestamp: now(),
         });
+        if (options.verbose === 'extended') {
+          emit({
+            type: 'log',
+            level: 'debug',
+            message: text.cli.rawPatch(currentDiff),
+            timestamp: now(),
+          });
+        }
         logs.push(this.createLog(ExecutionPhase.PATCH, currentDiff));
         endPhase(true);
 

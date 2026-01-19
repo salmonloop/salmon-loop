@@ -15,42 +15,80 @@ export interface DiffMeta {
  * Normalizes a raw diff string by trimming and unwrapping markdown code blocks.
  * It tries to find the first code block that looks like a diff or the raw diff itself.
  */
-export function normalizeDiff(raw: string): string {
-  // Optimization: If it already starts with 'diff --git', no need for complex matching
-  if (raw.startsWith('diff --git ')) {
-    return raw.trimEnd() + '\n';
+const cleanPath = (path: string) => {
+  let normalized = path.replace(/\\/g, '/').replace(/^[a-zA-Z]:\//, '');
+
+  // Only remove first dir if it has no file extension (likely repo name)
+  // AND if it's not the only directory (to avoid breaking paths like src/index.js)
+  const parts = normalized.split('/');
+  if (parts.length > 1) {
+    const firstDir = parts[0];
+    const hasExtension = /\.(js|ts|json|md|txt|css|html|jsx|tsx|vue|py|rs|go|java|c|cpp|h)$/i.test(firstDir);
+
+    // If the first part is a directory (no extension) and there are more parts,
+    // it might be a repo name prefix added by LLM.
+    // However, we should be careful not to strip legitimate source directories.
+    // A better heuristic: if it's 'a/repo-name/path', we want 'path'.
+    // But if it's 'a/src/index.js', we want 'src/index.js'.
+    if (!hasExtension && parts.length > 1) {
+      // Common source directories that we should NOT strip if they are at the top level
+      const commonSrcDirs = ['src', 'lib', 'app', 'tests', 'test', 'packages'];
+      if (!commonSrcDirs.includes(firstDir)) {
+        normalized = parts.slice(1).join('/');
+      }
+    }
   }
 
+  return normalized;
+};
+
+export function normalizeDiff(raw: string): string {
   const t = raw.trim();
 
-  // Combined regex to find a diff block or the start of a git diff
-  // 1. Match ```diff ... ``` or ``` ... ``` containing diff --git
-  // 2. Or match from the first 'diff --git ' to the end
+  // 1. Extract the actual diff content from markdown or conversational text
+  let content = t;
   const match = t.match(/```(?:diff)?\s*\n([\s\S]*?)\n```/i) || t.match(/(diff --git [\s\S]*)$/i);
-
   if (match) {
-    const content = match[1];
-    // If we matched a code block, it might still have conversational text before 'diff --git'
-    const diffStart = content.indexOf('diff --git ');
-    const result = diffStart !== -1 ? content.substring(diffStart) : content;
-    return result.trimEnd() + '\n';
+    content = match[1] || match[0];
   }
 
-  return t.trimEnd() + '\n';
+  // 2. Find where the actual diff starts (either 'diff --git' or '--- a/')
+  const diffStart = content.search(/^(diff --git |--- a\/)/m);
+  if (diffStart !== -1) {
+    content = content.substring(diffStart);
+  }
+
+  // 3. Aggressively clean paths in the extracted content
+  // This handles cases where LLM includes repo name like 'a/test-repo/index.js'
+  // We use non-greedy matching and ensure we don't break the format
+  const cleaned = content
+    .replace(/^diff --git a\/(.+) b\/(.+)$/gm, (match, p1, p2) => {
+      // Handle Windows paths by replacing backslashes and removing drive letters
+      return `diff --git a/${cleanPath(p1)} b/${cleanPath(p2)}`;
+    })
+    .replace(/^--- a\/(.+)$/gm, (match, p1) => {
+      return `--- a/${cleanPath(p1)}`;
+    })
+    .replace(/^\+\+\+ b\/(.+)$/gm, (match, p1) => {
+      return `+++ b/${cleanPath(p1)}`;
+    })
+    .trimEnd() + '\n';
+
+  return cleaned;
 }
 
 /**
- * Check if the text is a valid unified diff format starting with 'diff --git'.
+ * Check if the text is a valid unified diff format.
  */
 export function isUnifiedDiff(text: string): boolean {
   const d = normalizeDiff(text);
-  return d.startsWith('diff --git ');
+  return d.startsWith('diff --git ') || d.startsWith('--- a/');
 }
 
 /**
  * Comprehensive validation of diff validity.
  * Performs a single pass over the lines to extract metadata and enforce safety rules.
- * 
+ *
  * @param rawDiff - The raw diff string from LLM.
  * @param limits - The limits to enforce (max files, max lines).
  * @returns Metadata about the validated diff.
@@ -59,8 +97,8 @@ export function isUnifiedDiff(text: string): boolean {
 export function validateDiff(rawDiff: string, limits = LIMITS): DiffMeta {
   const diff = normalizeDiff(rawDiff);
 
-  // We strictly require 'diff --git' because our parser depends on it for file identification
-  if (!diff.startsWith('diff --git ')) {
+  // We prefer 'diff --git' but can fallback to '--- a/' if needed
+  if (!diff.startsWith('diff --git ') && !diff.startsWith('--- a/')) {
     throw new DiffValidationError(text.diff.notUnifiedFormat);
   }
 
@@ -92,7 +130,14 @@ export function validateDiff(rawDiff: string, limits = LIMITS): DiffMeta {
         currentFile = bPath;
         changedFiles.add(bPath);
       }
-    } 
+    } else if (line.startsWith('--- a/')) {
+      const match = line.match(/^--- a\/(.+)$/);
+      if (match) {
+        const path = cleanPath(match[1]);
+        currentFile = path;
+        changedFiles.add(path);
+      }
+    }
     // 2. Safety Check: Forbidden operation markers (extra layer of protection)
     else if (line.startsWith('new file mode ')) {
       throw new DiffValidationError(text.diff.fileCreationNotAllowed(currentFile || undefined));

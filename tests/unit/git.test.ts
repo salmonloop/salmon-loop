@@ -80,7 +80,7 @@ describe('Git Utils', () => {
     expect(status).toContain('?? new.txt');
   });
 
-  it('should apply a patch', async () => {
+  it('should apply a patch and filter index lines', async () => {
     vi.mocked(fs.writeFile).mockResolvedValue(undefined);
     vi.mocked(fs.unlink).mockResolvedValue(undefined);
 
@@ -101,6 +101,7 @@ describe('Git Utils', () => {
     });
 
     const patch = `diff --git a/test.txt b/test.txt
+index abc1234..def5678 100644
 --- a/test.txt
 +++ b/test.txt
 @@ -1 +1 @@
@@ -108,8 +109,23 @@ describe('Git Utils', () => {
 +line2
 `;
     await expect(applyPatch(tempDir, patch)).resolves.toBeUndefined();
-    expect(fs.writeFile).toHaveBeenCalled();
-    expect(spawn).toHaveBeenCalledWith('git', expect.arrayContaining(['apply']), expect.any(Object));
+    expect(fs.writeFile).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.not.stringContaining('index abc1234..def5678'),
+      'utf8',
+    );
+    expect(spawn).toHaveBeenCalledWith(
+      'git',
+      expect.arrayContaining([
+        'apply',
+        '-3',
+        '--recount',
+        '-C0',
+        '--ignore-space-change',
+        '--ignore-whitespace',
+      ]),
+      expect.any(Object),
+    );
   });
 
   it('should rollback specific files', async () => {

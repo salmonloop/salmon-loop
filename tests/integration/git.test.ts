@@ -49,7 +49,7 @@ describe('Git Integration Tests', () => {
 
     expect(spawn).toHaveBeenCalledWith(
       'git',
-      expect.arrayContaining(['apply', '--3way']),
+      expect.arrayContaining(['apply', '-3']),
       expect.objectContaining({ cwd: repoPath })
     );
   });

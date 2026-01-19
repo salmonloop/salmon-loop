@@ -21,8 +21,8 @@ index 123..456 100644
 --- a/file
 +++ b/file
 @@ -1 +1 @@
--old
-+new`;
+-old1
++new1`;
     const meta = validateDiff(diff);
     expect(meta.changedFiles).toEqual(['file']);
     expect(meta.fileCount).toBe(1);
@@ -105,5 +105,50 @@ index 1234567..0000000
 rename from old
 rename to new`;
     expect(() => validateDiff(diff)).toThrow(text.diff.fileRenameNotAllowed());
+  });
+
+  it('should support multi-file patches without diff --git headers', () => {
+    const diff = `--- a/file1
++++ b/file1
+@@ -1 +1 @@
+-old1
++new1
+--- a/file2
++++ b/file2
+@@ -1 +1 @@
+-old2
++new2`;
+    const meta = validateDiff(diff);
+    expect(meta.changedFiles).toEqual(['file1', 'file2']);
+    expect(meta.fileCount).toBe(2);
+    expect(meta.lineCount).toBe(4);
+  });
+
+  it('should strip repository name from paths if LLM includes it', () => {
+    const rawDiff = `
+diff --git a/test-repo/index.js b/test-repo/index.js
+--- a/test-repo/index.js
++++ b/test-repo/index.js
+@@ -1,1 +1,2 @@
++/* Hello */
+    `.trim();
+
+    const meta = validateDiff(rawDiff);
+    // We want it to be index.js, not test-repo/index.js
+    expect(meta.changedFiles).toEqual(['index.js']);
+  });
+
+  it('should NOT strip legitimate source directories like src/', () => {
+    const rawDiff = `
+diff --git a/src/index.js b/src/index.js
+--- a/src/index.js
++++ b/src/index.js
+@@ -1,1 +1,2 @@
++/* Hello */
+    `.trim();
+
+    const meta = validateDiff(rawDiff);
+    // We want it to be src/index.js, not index.js
+    expect(meta.changedFiles).toEqual(['src/index.js']);
   });
 });

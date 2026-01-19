@@ -6,9 +6,14 @@ import { extractKeywords } from './keywords.js';
 import type { Context, RipgrepResult, RunOptions } from './types.js';
 import { ErrorType } from './types.js';
 import { findFileDependencies } from './dependency.js';
+import { text } from '../locales/index.js';
 
 export class ContextBuilder {
   static async build(options: RunOptions): Promise<Context> {
+    if (options.verbose) {
+      console.error(`  [CONTEXT] Building context for repo: ${options.repoPath}`);
+      console.error(`  [CONTEXT] File: ${options.file}, Instruction: ${options.instruction}`);
+    }
     let primaryText: string | undefined;
 
     // Handle primary text from file or selection
@@ -25,12 +30,16 @@ export class ContextBuilder {
     if (primaryText && primaryText.length > LIMITS.maxPrimaryChars) {
       primaryText =
         primaryText.substring(0, LIMITS.maxPrimaryChars) +
-        '\n...[Content truncated for context budget]...';
+        `\n${text.context.contentTruncated}`;
     }
 
     // Extract keywords and execute ripgrep search
     const keywords = extractKeywords(options.instruction);
-    const rgSnippets = await this.searchMultipleKeywords(keywords, options.repoPath);
+    const rgSnippets = await this.searchMultipleKeywords(
+      keywords,
+      options.repoPath,
+      options.verbose,
+    );
 
     // Get git diff (prioritize cached, then unstaged, limited to target file if specified)
     const stagedDiff = await this.getGitDiff(options.repoPath, true, options.file);
@@ -40,6 +49,7 @@ export class ContextBuilder {
     // Truncate context
     const context: Context = {
       repoPath: options.repoPath,
+      primaryFile: options.file,
       primaryText,
       rgSnippets,
       gitDiff,
@@ -48,13 +58,33 @@ export class ContextBuilder {
     return this.truncateContext(context);
   }
 
-  private static async runRipgrep(query: string, cwd: string): Promise<RipgrepResult[]> {
+  private static async runRipgrep(
+    query: string,
+    cwd: string,
+    verbose?: string,
+  ): Promise<RipgrepResult[]> {
+    if (verbose) {
+      console.error(`  [RG] Searching for: "${query}" in ${cwd}`);
+    }
     return new Promise((resolve) => {
       // Use --json for robust machine-readable output
-      const child = spawn('rg', ['-n', '--json', '--', query], {
-        stdio: ['pipe', 'pipe', 'pipe'],
-        cwd,
-      });
+      const child = spawn(
+        'rg',
+        ['-n', '--json', '--max-count', '100', '--glob', '!node_modules', '--', query],
+        {
+          stdio: ['pipe', 'pipe', 'pipe'],
+          cwd,
+        },
+      );
+
+      child.stdin?.end();
+
+      const timeout = setTimeout(() => {
+        if (verbose) {
+          console.error(`  [RG] Timeout reached for query: "${query}". Killing process.`);
+        }
+        child.kill();
+      }, 30000); // 30 seconds timeout for each search
 
       let output = '';
       child.stdout.on('data', (data) => {
@@ -66,6 +96,10 @@ export class ContextBuilder {
       });
 
       child.on('close', (code) => {
+        clearTimeout(timeout);
+        if (verbose) {
+          console.error(`  [RG] Process closed with code ${code}. Output length: ${output.length}`);
+        }
         if (code === 0 || code === 1) {
           // 0=match found, 1=no match
           const results: RipgrepResult[] = [];
@@ -110,6 +144,7 @@ export class ContextBuilder {
   private static async searchMultipleKeywords(
     keywords: string[],
     cwd: string,
+    verbose?: string,
   ): Promise<RipgrepResult[]> {
     if (keywords.length === 0) {
       return [];
@@ -119,8 +154,12 @@ export class ContextBuilder {
     // NOTE: maxKeywords should be kept small (<= 5) to avoid hitting OS process limits
     const cappedKeywords = keywords.slice(0, LIMITS.maxKeywords);
 
+    if (verbose) {
+      console.log(`  [CONTEXT] Searching keywords: ${cappedKeywords.join(', ')}`);
+    }
+
     // Execute all keyword searches in parallel
-    const searchPromises = cappedKeywords.map((keyword) => this.runRipgrep(keyword, cwd));
+    const searchPromises = cappedKeywords.map((keyword) => this.runRipgrep(keyword, cwd, verbose));
     const resultsArrays = await Promise.all(searchPromises);
 
     // Merge results and deduplicate

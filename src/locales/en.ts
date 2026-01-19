@@ -38,25 +38,40 @@ Please return the plan in pure JSON format:`,
       maxFilesChanged: number,
       maxDiffLines: number,
       lastError?: string,
-    ) => `You are a code modification assistant. Please generate a unified diff format patch based on the following plan and context.
+    ) => {
+      let targetFiles = '';
+      try {
+        const parsedPlan = JSON.parse(plan);
+        if (parsedPlan.files && Array.isArray(parsedPlan.files)) {
+          targetFiles = parsedPlan.files.join(', ');
+        }
+      } catch (e) {
+        // Fallback if plan is not valid JSON
+      }
+
+      return `You are a code modification assistant. Please generate a unified diff format patch based on the following plan and context.
 
 # Plan
 ${plan}
 
 # Context
 ${context}
+${targetFiles ? `\n# Target Files\n${targetFiles}\n` : ''}
 ${lastError ? `\n# Last Error\nThe previous attempt failed with the following error. Please fix the issue described:\n${lastError}\n` : ''}
+
 # Requirements
-- Must generate standard unified diff format.
+- Must generate standard **git unified diff format** (starting with \`diff --git a/path b/path\`).
+- **CRITICAL**: Use relative paths from the repository root in the diff headers (e.g., \`--- a/file.js\`, \`+++ b/file.js\`). Do NOT use absolute paths.
 - The patch must precisely match the modifications in the plan.
 - You cannot modify more than ${maxFilesChanged} files.
 - The diff must not exceed ${maxDiffLines} lines.
 - You cannot add new files or delete files.
 - You cannot perform refactoring or formatting changes.
 
-Please return the patch in pure unified diff format:`,
+Please return the patch in pure unified diff format:`;
+    },
   },
-  git: {
+ git: {
     applyFailed: (error: string) => `git apply failed: ${error}`,
     applySpawnFailed: (error: string) => `git apply spawn failed: ${error}`,
   },
@@ -113,6 +128,18 @@ Please return the patch in pure unified diff format:`,
     truncated: (maxLines: number) => `...[Output truncated, exceeds ${maxLines} lines]`,
   },
 
+  context: {
+    contentTruncated: '...[Content truncated for context budget]...',
+    ripgrepNotFound: 'Error: ripgrep (rg) not found in PATH. Context gathering may be incomplete.',
+    ripgrepError: (error: string) => `Error running ripgrep: ${error}`,
+    workingDirectory: 'Working Directory: . (Root of the repository)',
+    primaryFile: (file: string) => `Primary File: ${file}`,
+    primaryText: 'Primary Text:',
+    codeSnippets: 'Code Snippets:',
+    snippetLocation: (file: string, line: number) => `File: ${file}:${line}`,
+    gitDiff: 'Git Diff:',
+  },
+
   cli: {
     // Program description
     programDescription: 'A minimal viable loop for automated code patching',
@@ -166,6 +193,8 @@ Please return the patch in pure unified diff format:`,
       const truncated = output.length > maxLen;
       return `     Output: ${output.substring(0, maxLen)}${truncated ? '...' : ''}`;
     },
+
+    rawPatch: (patch: string) => `  [DEBUG] Raw Patch:\n${patch}`,
 
     // Patch output
     finalPatch: '📄 Final Patch:',
