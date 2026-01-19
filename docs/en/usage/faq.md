@@ -16,3 +16,6 @@ Use `--force-reset` if you want SalmonLoop to perform a `git reset --hard` on ev
 
 ### 5. The patch failed to apply. Why?
 This usually happens if the LLM generates a patch that doesn't match the current state of the file (e.g., line numbers are off or the surrounding context has changed). SalmonLoop uses 3-way merging to mitigate this, but complex changes may still fail. The next iteration will include the error message, helping the model fix the patch.
+
+### 6. What does "Patch is not in unified diff format" mean?
+SalmonLoop requires the LLM to output patches in the standard `diff --git` format. If the model includes conversational text around the diff or uses a non-standard format, the validation phase will fail. We have optimized the parser to be robust against common LLM formatting issues, but the core diff must still follow the unified format.

@@ -4,7 +4,7 @@ export const en = {
     planInvalid: 'Invalid Plan structure: missing required fields',
     planParseFailed: (content: string, error: string) =>
       `Failed to parse LLM response as JSON: ${content}. Error: ${error}`,
-    patchEmpty: 'LLM returned empty response for patch',
+    patchEmpty: (reason?: string) => `LLM returned empty response for patch${reason ? ` (${reason})` : ''}`,
   },
 
   prompts: {
@@ -63,13 +63,16 @@ Please return the patch in pure unified diff format:`,
 
   diff: {
     notUnifiedFormat: 'Patch is not in unified diff format',
-    tooManyFiles: (count: number, max: number) =>
-      `Patch affects ${count} files, but you can only modify up to ${max} files.`,
+    tooManyFiles: (count: number, max: number, files?: string[]) =>
+      `Patch affects ${count} files, but you can only modify up to ${max} files.${files ? ` (Files: ${files.join(', ')})` : ''}`,
     tooManyLines: (count: number, max: number) =>
       `Patch has ${count} diff lines, but the maximum allowed is ${max} lines.`,
-    fileCreationNotAllowed: 'File creation is not allowed in this mode',
-    fileDeletionNotAllowed: 'File deletion is not allowed in this mode',
-    fileRenameNotAllowed: 'File renaming is not allowed in this mode',
+    fileCreationNotAllowed: (file?: string) =>
+      `File creation is not allowed in this mode${file ? `: ${file}` : ''}`,
+    fileDeletionNotAllowed: (file?: string) =>
+      `File deletion is not allowed in this mode${file ? `: ${file}` : ''}`,
+    fileRenameNotAllowed: (from?: string, to?: string) =>
+      `File renaming is not allowed in this mode${from && to ? `: ${from} -> ${to}` : ''}`,
   },
 
   loop: {

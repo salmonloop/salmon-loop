@@ -57,7 +57,9 @@ index 123..456 100644
 -a
 +b`;
     // Assuming default limit is 2
-    expect(() => validateDiff(diff)).toThrow(text.diff.tooManyFiles(3, LIMITS.maxFilesChanged));
+    expect(() => validateDiff(diff)).toThrow(
+      text.diff.tooManyFiles(3, LIMITS.maxFilesChanged, ['1', '2', '3']),
+    );
   });
 
   it('should throw if too many lines changed', () => {
@@ -84,7 +86,7 @@ index 0000000..1234567
 +++ b/new
 @@ -0,0 +1 @@
 +new file`;
-    expect(() => validateDiff(diff)).toThrow(text.diff.fileCreationNotAllowed);
+    expect(() => validateDiff(diff)).toThrow(text.diff.fileCreationNotAllowed());
   });
 
   it('should throw for file deletion', () => {
@@ -94,14 +96,14 @@ index 1234567..0000000
 --- a/old
 +++ /dev/null
 @@ -1 +0,0 @@
--old file`;
-    expect(() => validateDiff(diff)).toThrow(text.diff.fileDeletionNotAllowed);
+ -old file`;
+    expect(() => validateDiff(diff)).toThrow(text.diff.fileDeletionNotAllowed());
   });
 
   it('should throw for file rename', () => {
     const diff = `diff --git a/old b/new
 rename from old
 rename to new`;
-    expect(() => validateDiff(diff)).toThrow(text.diff.fileRenameNotAllowed);
+    expect(() => validateDiff(diff)).toThrow(text.diff.fileRenameNotAllowed());
   });
 });

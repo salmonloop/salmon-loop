@@ -17,7 +17,7 @@ The loop follows a strict seven-step process:
 
 - **Atomic Changes**: Changes are applied via `git apply`. If any part of the patch fails, nothing is applied.
 - **Reliable Rollbacks**: Rollbacks are targeted and based on the specific files changed in the current attempt, preventing accidental loss of unrelated work.
-- **No File Operations**: Prohibiting file creation, deletion, and renaming ensures that the execution environment remains stable and reversible.
+- **No File Operations**: Prohibiting file creation, deletion, and renaming ensures that the execution environment remains stable and reversible. The validation phase provides detailed feedback if these rules are violated.
 
 ## 3. Observability
 

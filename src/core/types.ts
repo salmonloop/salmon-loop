@@ -120,3 +120,19 @@ export interface RunOptions {
   dryRun?: boolean;
   verbose?: boolean;
 }
+
+export class SalmonError extends Error {
+  constructor(
+    message: string,
+    public readonly code?: string,
+  ) {
+    super(message);
+    this.name = this.constructor.name;
+  }
+}
+
+export class DiffValidationError extends SalmonError {
+  constructor(message: string) {
+    super(message, 'DIFF_VALIDATION_FAILED');
+  }
+}

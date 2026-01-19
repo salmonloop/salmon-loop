@@ -78,7 +78,7 @@ export class OpenAILLM implements LLM {
 
     const content = response.choices[0].message.content;
     if (!content) {
-      throw new Error(text.llm.patchEmpty);
+      throw new Error(text.llm.patchEmpty());
     }
 
     // Clean up markdown code blocks if present
