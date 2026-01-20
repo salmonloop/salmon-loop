@@ -6,7 +6,7 @@
 SalmonLoop has a safety limit of 2 retries (3 attempts total). If the model cannot converge on a working solution within these attempts, it stops to prevent excessive API costs and potential "hallucination loops". You can try refining your instruction or providing more specific context using the `--file` option.
 
 ### 2. What does "Rollback failed; workspace may be dirty" mean?
-This happens if `git checkout -- <files>` fails, usually because of a conflict that Git couldn't resolve automatically during a 3-way merge. You should manually check `git status` and run `git reset --hard` if you want to clear all changes.
+This usually happens when Git is in a conflicted state. SalmonLoop has now enhanced its rollback mechanism; if a standard `git checkout` fails, it will automatically attempt a more thorough reset (`git stash`, `git reset --hard`, and `git clean`) to restore the workspace. If you still see this error, please manually check `git status`.
 
 ### 3. How does context shrinking work?
 When a verification command fails, SalmonLoop parses the output for file paths. If it finds specific files that failed (e.g., in a test trace), it removes all other code snippets from the LLM's context in the next round, forcing the model to focus only on the problematic files.

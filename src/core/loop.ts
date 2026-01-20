@@ -517,8 +517,33 @@ export class SalmonLoop {
             retries++;
             if (!options.dryRun && (changedFilesThisAttempt.length > 0 || options.forceReset)) {
               startPhase(ExecutionPhase.ROLLBACK);
-              await rollbackFiles(options.repoPath, changedFilesThisAttempt, options.forceReset);
-              endPhase(true);
+              const rb = await rollbackFiles(options.repoPath, changedFilesThisAttempt, options.forceReset);
+              if (!rb.ok) {
+                const status = await getGitStatus(options.repoPath);
+                const errorMsg = status ? `${rb.stderr}\n\nGit Status:\n${status}` : rb.stderr;
+                const msg = text.loop.rollbackFailed(errorMsg);
+                logs.push(this.createLog(ExecutionPhase.ROLLBACK, msg, false));
+                emit({ type: 'log', level: 'error', message: msg, timestamp: now() });
+                endPhase(false);
+                return {
+                  success: false,
+                  reason: text.loop.rollbackFailedDirty,
+                  reasonCode: 'ROLLBACK_FAILED',
+                  attempts: attempt,
+                  logs,
+                  history,
+                  finalPatch: currentDiff || undefined,
+                  failurePhase: ExecutionPhase.ROLLBACK,
+                  errorType: ErrorType.COMPILATION,
+                };
+              } else {
+                const msg = options.forceReset
+                  ? text.loop.rollbackAllSuccess
+                  : text.loop.rollbackSuccess(changedFilesThisAttempt);
+                logs.push(this.createLog(ExecutionPhase.ROLLBACK, msg));
+                emit({ type: 'log', level: 'info', message: msg, timestamp: now() });
+                endPhase(true);
+              }
             }
             continue;
           }
@@ -609,9 +634,9 @@ export class SalmonLoop {
             endPhase(false);
             const status = await getGitStatus(options.repoPath);
             const errorMsg = status ? `${rb.stderr}\n\nGit Status:\n${status}` : rb.stderr;
-            logs.push(
-              this.createLog(ExecutionPhase.ROLLBACK, text.loop.rollbackFailed(errorMsg), false),
-            );
+            const msg = text.loop.rollbackFailed(errorMsg);
+            logs.push(this.createLog(ExecutionPhase.ROLLBACK, msg, false));
+            emit({ type: 'log', level: 'error', message: msg, timestamp: now() });
             return {
               success: false,
               reason: text.loop.rollbackFailedDirty,
@@ -628,6 +653,7 @@ export class SalmonLoop {
               ? text.loop.rollbackAllSuccess
               : text.loop.rollbackSuccess(changedFilesThisAttempt);
             logs.push(this.createLog(ExecutionPhase.ROLLBACK, msg));
+            emit({ type: 'log', level: 'info', message: msg, timestamp: now() });
             endPhase(true);
           }
         }
@@ -667,9 +693,9 @@ export class SalmonLoop {
           if (!rb.ok) {
             const status = await getGitStatus(options.repoPath);
             const errorMsg = status ? `${rb.stderr}\n\nGit Status:\n${status}` : rb.stderr;
-            logs.push(
-              this.createLog(ExecutionPhase.ROLLBACK, text.loop.rollbackFailed(errorMsg), false),
-            );
+            const msg = text.loop.rollbackFailed(errorMsg);
+            logs.push(this.createLog(ExecutionPhase.ROLLBACK, msg, false));
+            emit({ type: 'log', level: 'error', message: msg, timestamp: now() });
             failurePhase = ExecutionPhase.ROLLBACK;
             endPhase(false);
           } else {
@@ -677,6 +703,7 @@ export class SalmonLoop {
               ? text.loop.rollbackAllSuccess
               : text.loop.rollbackSuccess(changedFilesThisAttempt);
             logs.push(this.createLog(ExecutionPhase.ROLLBACK, msg));
+            emit({ type: 'log', level: 'info', message: msg, timestamp: now() });
             endPhase(true);
           }
         }

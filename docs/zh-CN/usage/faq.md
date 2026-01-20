@@ -6,7 +6,7 @@
 SalmonLoop 有 2 次重试（共 3 次尝试）的安全限制。如果模型在这些尝试内无法收敛到有效的解决方案，它将停止以防止过高的 API 成本和潜在的“幻觉循环”。您可以尝试完善您的指令，或使用 `--file` 选项提供更具体的上下文。
 
 ### 2. “回滚失败；工作区可能已脏 (Rollback failed; workspace may be dirty)”是什么意思？
-这发生在 `git checkout -- <files>` 失败时，通常是因为在 3-way 合并期间 Git 无法自动解决的冲突。您应该手动检查 `git status`，如果您想清除所有更改，请运行 `git reset --hard`。
+这通常发生在 Git 处于冲突状态时。SalmonLoop 现在已经增强了回滚机制，如果标准的 `git checkout` 失败，它会自动尝试执行更彻底的重置（`git stash`、`git reset --hard` 和 `git clean`）来恢复工作区。如果您仍然看到此错误，请手动检查 `git status`。
 
 ### 3. 上下文收缩 (Context Shrinking) 是如何工作的？
 当验证命令失败时，SalmonLoop 会解析输出中的文件路径。如果它找到了失败的具体文件（例如在测试追踪中），它将在下一轮中从 LLM 的上下文中移除所有其他代码片段，迫使模型仅关注有问题的文件。

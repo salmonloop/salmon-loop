@@ -29,29 +29,24 @@ describe('Git Integration Tests', () => {
     vi.useRealTimers();
   });
 
-  function mockSpawn(exitCode: number, stdout = '', stderr = '') {
-    const child = new EventEmitter() as any;
-    child.stdout = new EventEmitter();
-    child.stderr = new EventEmitter();
-
-    vi.mocked(spawn).mockReturnValue(child);
-
-    setTimeout(() => {
-      if (stdout) child.stdout.emit('data', Buffer.from(stdout));
-      if (stderr) child.stderr.emit('data', Buffer.from(stderr));
-      child.emit('close', exitCode);
-    }, 0);
-
-    return child;
-  }
-
   it('should call git apply with correct arguments', async () => {
-    mockSpawn(0);
+    const mockChild = new EventEmitter() as any;
+    mockChild.stdout = new EventEmitter();
+    mockChild.stderr = new EventEmitter();
+
+    vi.mocked(spawn).mockReturnValue(mockChild);
     vi.mocked(writeFile).mockResolvedValue(undefined);
     vi.mocked(unlink).mockResolvedValue(undefined);
 
+    // Call applyPatch first to set up event listeners
     const promise = applyPatch(repoPath, 'fake diff');
+
+    // Advance timers to allow process.nextTick to execute
     await vi.runAllTimersAsync();
+
+    // Now emit the close event
+    mockChild.emit('close', 0);
+
     await promise;
 
     expect(spawn).toHaveBeenCalledWith(
@@ -62,10 +57,28 @@ describe('Git Integration Tests', () => {
   });
 
   it('should rollback specific files', async () => {
-    mockSpawn(0);
+    // Mock checkout child
+    const checkoutChild = new EventEmitter() as any;
+    checkoutChild.stdout = new EventEmitter();
+    checkoutChild.stderr = new EventEmitter();
+
+    // Mock status child
+    const statusChild = new EventEmitter() as any;
+    statusChild.stdout = new EventEmitter();
+    statusChild.stderr = new EventEmitter();
+
+    vi.mocked(spawn).mockReturnValueOnce(checkoutChild).mockReturnValueOnce(statusChild);
 
     const promise = rollbackFiles(repoPath, ['file1.ts', 'file2.ts']);
+
+    // Advance timers and emit events in sequence
     await vi.runAllTimersAsync();
+    checkoutChild.emit('close', 0);
+
+    await vi.runAllTimersAsync();
+    statusChild.stdout.emit('data', Buffer.from('')); // Empty = clean
+    statusChild.emit('close', 0);
+
     const result = await promise;
 
     expect(result.ok).toBe(true);
@@ -77,27 +90,37 @@ describe('Git Integration Tests', () => {
   });
 
   it('should perform hard reset when forceReset is true', async () => {
-    // First call for reset --hard
+    // Create mock children for the main spawn calls:
     const resetChild = new EventEmitter() as any;
     resetChild.stdout = new EventEmitter();
     resetChild.stderr = new EventEmitter();
 
-    // Second call for clean -fd
     const cleanChild = new EventEmitter() as any;
     cleanChild.stdout = new EventEmitter();
     cleanChild.stderr = new EventEmitter();
 
-    vi.mocked(spawn).mockReturnValueOnce(resetChild).mockReturnValueOnce(cleanChild);
+    const statusChild = new EventEmitter() as any;
+    statusChild.stdout = new EventEmitter();
+    statusChild.stderr = new EventEmitter();
 
-    setTimeout(() => {
-      resetChild.emit('close', 0);
-      setTimeout(() => {
-        cleanChild.emit('close', 0);
-      }, 0);
-    }, 0);
+    vi.mocked(spawn)
+      .mockReturnValueOnce(resetChild) // rollbackFiles reset --hard
+      .mockReturnValueOnce(cleanChild) // rollbackFiles clean -fd
+      .mockReturnValueOnce(statusChild); // rollbackFiles status check
 
     const promise = rollbackFiles(repoPath, [], true);
+
+    // Emit events in sequence with timer advances
     await vi.runAllTimersAsync();
+    resetChild.emit('close', 0);
+
+    await vi.runAllTimersAsync();
+    cleanChild.emit('close', 0);
+
+    await vi.runAllTimersAsync();
+    statusChild.stdout.emit('data', Buffer.from('')); // Empty = clean
+    statusChild.emit('close', 0);
+
     const result = await promise;
 
     expect(result.ok).toBe(true);
@@ -114,10 +137,21 @@ describe('Git Integration Tests', () => {
   });
 
   it('should get git diff', async () => {
-    mockSpawn(0, 'diff content');
+    const mockChild = new EventEmitter() as any;
+    mockChild.stdout = new EventEmitter();
+    mockChild.stderr = new EventEmitter();
+
+    vi.mocked(spawn).mockReturnValue(mockChild);
 
     const promise = getGitDiff(repoPath);
+
+    // Allow event listeners to be set up
     await vi.runAllTimersAsync();
+
+    // Emit events
+    mockChild.stdout.emit('data', Buffer.from('diff content'));
+    mockChild.emit('close', 0);
+
     const diff = await promise;
 
     expect(diff).toBe('diff content');
@@ -125,10 +159,21 @@ describe('Git Integration Tests', () => {
   });
 
   it('should get git status', async () => {
-    mockSpawn(0, 'M file1.ts');
+    const mockChild = new EventEmitter() as any;
+    mockChild.stdout = new EventEmitter();
+    mockChild.stderr = new EventEmitter();
+
+    vi.mocked(spawn).mockReturnValue(mockChild);
 
     const promise = getGitStatus(repoPath);
+
+    // Allow event listeners to be set up
     await vi.runAllTimersAsync();
+
+    // Emit events
+    mockChild.stdout.emit('data', Buffer.from('M file1.ts'));
+    mockChild.emit('close', 0);
+
     const status = await promise;
 
     expect(status).toBe('M file1.ts');

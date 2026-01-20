@@ -169,4 +169,11 @@ index abc1234..def5678 100644
       expect.any(Object),
     );
   });
+
+  it('should filter out Unix absolute paths', async () => {
+    const promise = rollbackFiles(tempDir, ['/absolute/path.ts']);
+    await vi.runAllTimersAsync();
+    const result = await promise;
+    expect(result.attempted).not.toContain('/absolute/path.ts');
+  });
 });

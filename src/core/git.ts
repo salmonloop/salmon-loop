@@ -78,6 +78,83 @@ export async function applyPatch(repoPath: string, diffText: string): Promise<vo
   }
 }
 
+async function resolveConflicts(repoPath: string): Promise<{ ok: boolean; error?: string }> {
+  let lastError: string | undefined;
+
+  // 1. git stash to clear index (may fail if nothing to stash, that's ok)
+  await new Promise<void>((resolve) => {
+    const child = spawn('git', ['stash'], { cwd: repoPath });
+    child.on('close', () => resolve());
+    child.on('error', () => resolve());
+  });
+
+  // 2. git reset --hard HEAD - this MUST succeed
+  const resetResult = await new Promise<{ ok: boolean; error?: string }>((resolve) => {
+    const child = spawn('git', ['reset', '--hard', 'HEAD'], { cwd: repoPath });
+    let stderr = '';
+    child.stderr?.on('data', (d) => (stderr += d.toString()));
+    child.on('close', (code) => {
+      if (code === 0) {
+        resolve({ ok: true });
+      } else {
+        resolve({ ok: false, error: `git reset --hard HEAD failed: ${stderr}` });
+      }
+    });
+    child.on('error', (err) => {
+      resolve({ ok: false, error: `git reset --hard HEAD spawn error: ${err}` });
+    });
+  });
+
+  if (!resetResult.ok) {
+    lastError = resetResult.error;
+  }
+
+  // 3. git clean -fd to remove untracked files (like .rej) - this MUST succeed
+  const cleanResult = await new Promise<{ ok: boolean; error?: string }>((resolve) => {
+    const child = spawn('git', ['clean', '-fd'], { cwd: repoPath });
+    let stderr = '';
+    child.stderr?.on('data', (d) => (stderr += d.toString()));
+    child.on('close', (code) => {
+      if (code === 0) {
+        resolve({ ok: true });
+      } else {
+        resolve({ ok: false, error: `git clean -fd failed: ${stderr}` });
+      }
+    });
+    child.on('error', (err) => {
+      resolve({ ok: false, error: `git clean -fd spawn error: ${err}` });
+    });
+  });
+
+  if (!cleanResult.ok) {
+    lastError = lastError ? `${lastError}; ${cleanResult.error}` : cleanResult.error;
+  }
+
+  // 4. Verify workspace is clean
+  const statusResult = await new Promise<string>((resolve) => {
+    const child = spawn('git', ['status', '--porcelain'], {
+      cwd: repoPath,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    let output = '';
+    child.stdout.on('data', (d) => (output += d.toString()));
+    child.on('close', () => resolve(output.trim()));
+    child.on('error', () => resolve(''));
+  });
+
+  if (statusResult) {
+    // Workspace still has changes - this is a real failure
+    return {
+      ok: false,
+      error: lastError
+        ? `${lastError}; Workspace still dirty: ${statusResult}`
+        : `Workspace still dirty after cleanup: ${statusResult}`,
+    };
+  }
+
+  return { ok: true };
+}
+
 export async function rollbackFiles(
   repoPath: string,
   files: string[],
@@ -127,6 +204,31 @@ export async function rollbackFiles(
     });
 
     child.on('close', async (code) => {
+      if (code !== 0) {
+        // If checkout failed, we must ensure the repo is clean.
+        // We try resolveConflicts as a fallback to handle any git error or conflict state.
+        const conflictResult = await resolveConflicts(repoPath);
+        if (!conflictResult.ok) {
+          // resolveConflicts failed - this is a real rollback failure
+          resolve({
+            ok: false,
+            attempted,
+            exitCode: code,
+            stdout,
+            stderr: stderr + '\n' + (conflictResult.error || 'resolveConflicts failed'),
+          });
+          return;
+        }
+        resolve({
+          ok: true,
+          attempted,
+          exitCode: 0,
+          stdout,
+          stderr: stderr + '\nForced rollback via resolveConflicts due to git error',
+        });
+        return;
+      }
+
       if (code === 0 && forceReset) {
         // If reset succeeded and forceReset is true, also perform git clean -fd
         try {
@@ -141,8 +243,35 @@ export async function rollbackFiles(
         }
       }
 
+      // Final verification: ensure workspace is actually clean
+      const finalStatus = await new Promise<string>((res) => {
+        const statusChild = spawn('git', ['status', '--porcelain'], {
+          cwd: repoPath,
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
+        let output = '';
+        statusChild.stdout.on('data', (d) => (output += d.toString()));
+        statusChild.on('close', () => res(output.trim()));
+        statusChild.on('error', () => res(''));
+      });
+
+      if (finalStatus) {
+        // Workspace still dirty after rollback - try one more time with resolveConflicts
+        const conflictResult = await resolveConflicts(repoPath);
+        if (!conflictResult.ok) {
+          resolve({
+            ok: false,
+            attempted,
+            exitCode: code,
+            stdout,
+            stderr: stderr + `\nWorkspace still dirty after rollback: ${finalStatus}\n${conflictResult.error || ''}`,
+          });
+          return;
+        }
+      }
+
       resolve({
-        ok: code === 0,
+        ok: true,
         attempted,
         exitCode: code,
         stdout,

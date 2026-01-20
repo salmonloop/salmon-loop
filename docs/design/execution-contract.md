@@ -11,14 +11,14 @@ SalmonLoop follows a strict execution contract to ensure safety and determinism.
 5. **VALIDATE**: Read-only. The system validates the diff against security and size limits.
 6. **APPLY**: Mutating. The system applies the patch using `git apply --3way`. After application, it performs **AST Verification** (if supported) to ensure syntax correctness.
 7. **VERIFY**: Read-only. The system runs the user-provided verification command.
-8. **ROLLBACK**: Mutating. If verification fails, the system restores the modified files to their original state using `git checkout`.
+8. **ROLLBACK**: Mutating. If verification fails, the system restores the modified files to their original state using `git checkout`. If Git conflicts or abnormal states are detected, it performs a robust reset (`git stash`, `git reset --hard`, `git clean`).
 9. **SHRINK**: Read-only. If verification fails, the system performs **Smart Feedback** analysis to extract precise error diagnostics and reduces the context for the next attempt.
 
 ## Safety Rules
 
 - **No Dirty Workspace**: SalmonLoop will not start if there are uncommitted changes in the repository (unless `allowDirty` is true).
 - **Safety Guard**: The combination of `allowDirty: true` and `forceReset: true` is strictly forbidden to prevent accidental loss of uncommitted user changes.
-- **Atomic Attempts**: Each attempt is isolated. If an attempt fails, the workspace is rolled back before the next attempt starts.
+- **Atomic Attempts**: Each attempt is isolated. If an attempt fails, the workspace is rolled back before the next attempt starts. The rollback mechanism is robust against Git conflict states.
 - **Force Reset & Clean**: When `forceReset` is enabled, SalmonLoop performs both `git reset --hard HEAD` and `git clean -fd` to ensure a completely clean workspace for the next attempt.
 - **No File Operations**: SalmonLoop currently forbids creating, deleting, or renaming files to prevent accidental structural damage to the repository.
 - **No Comment Translation**: The LLM is strictly forbidden from translating or modifying existing comments unless explicitly instructed, to preserve code integrity and context matching.
