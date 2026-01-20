@@ -33,3 +33,11 @@ salmon-loop --instruction "Update email validation regex" --verify "jest tests/e
 ```bash
 salmon-loop --instruction "Refactor the database connection pool to use a singleton" --verify "npm run integration-tests"
 ```
+
+## 5. 深度 AST 校验
+
+确保仅修改特定函数且未引入语法错误：
+
+```bash
+salmon-loop --instruction "Optimize the calculateTotal function" --verify "npm test" --file "src/utils/math.ts" --target-node "calculateTotal"
+```

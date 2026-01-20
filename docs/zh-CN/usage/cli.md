@@ -23,6 +23,8 @@ salmon-loop [options]
   - `extended`: 输出详细日志，包括内部状态和调试信息。
 - `--force-reset`: 失败时强制执行硬重置 (`git reset --hard`)。**请谨慎使用**，因为它会丢弃所有未提交的更改。不能与 `--allow-dirty` 同时使用。
 - `--allow-dirty`: 即使工作区有未提交的更改，也允许运行 SalmonLoop。不能与 `--force-reset` 同时使用。
+- `--validate`: 在启动循环前运行代码质量检查（lint 和测试）。
+- `--target-node <name>`: 允许修改的节点名称（例如函数名）。启用深度 AST 作用域完整性验证。
 
 ## 用户体验
 

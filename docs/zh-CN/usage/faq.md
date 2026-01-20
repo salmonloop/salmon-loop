@@ -19,3 +19,9 @@ SalmonLoop 有 2 次重试（共 3 次尝试）的安全限制。如果模型在
 
 ### 6. “补丁不是统一 diff 格式 (Patch is not in unified diff format)”是什么意思？
 SalmonLoop 要求 LLM 以标准的 `diff --git` 格式输出补丁。如果模型在 diff 周围包含了对话文本或使用了非标准格式，验证阶段将失败。我们已经优化了解析器，使其对常见的 LLM 格式问题具有鲁棒性，但核心 diff 仍必须遵循统一格式。
+
+### 7. 遇到“依赖版本不匹配 (Dependency version mismatch)”怎么办？
+SalmonLoop 对 `web-tree-sitter` 等核心依赖有严格的版本要求。如果您的环境版本不一致，可能会导致 AST 解析失败。请运行 `pnpm install` 确保依赖版本与 `package.json` 锁定版本一致。
+
+### 8. 遇到“文件锁超时 (Timeout acquiring lock)”怎么办？
+为了防止并发操作破坏代码库，SalmonLoop 在执行修改时会创建 `.salmon.lock` 文件。如果上一次运行异常中断导致锁未释放，您可以手动删除仓库根目录下的 `.salmon.lock` 文件。

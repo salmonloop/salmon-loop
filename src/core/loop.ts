@@ -16,7 +16,7 @@ import type {
 } from './types.js';
 import { ExecutionPhase, ErrorType, GitError } from './types.js';
 import { runVerify, classifyError, preflight, verifyFileContent } from './verify.js';
-import { AstParser, checkSyntaxErrors, validateScopeIntegrity, getTopLevelNodes, getNodeName } from './ast/index.js';
+import { AstParser, checkSyntaxErrors, validateScopeIntegrity, getTopLevelNodes, getNodeName, validateNodeStructure } from './ast/index.js';
 import { refineFeedback } from './feedback/index.js';
 import { readFile } from 'fs/promises';
 import path from 'path';
@@ -417,14 +417,14 @@ export class SalmonLoop {
                     });
                   }
 
-                  const errors = checkSyntaxErrors(tree);
-
-                  if (errors.length > 0) {
-                    astError = `AST Syntax Error in ${file}:\n${errors.map((e) => `Line ${e.line}: ${e.type}`).join('\n')}`;
+                  // Deep validation of AST structure (checking for ERROR nodes)
+                  if (!validateNodeStructure(tree.rootNode)) {
+                    astError = `AST Structure Error in ${file}: ${text.ast.invalidStructure}`;
                     emit({ type: 'log', level: 'warn', message: astError, timestamp: now() });
                     break;
                   }
 
+                  // Scope integrity check
                   if (options.targetNodeName && originalTrees.has(file)) {
                     const originalTree = originalTrees.get(file);
                     const integrity = validateScopeIntegrity(originalTree, tree, options.targetNodeName);
@@ -763,11 +763,13 @@ export class SalmonLoop {
       }
     }
 
+    // This code should never be reached because the loop should always return
+    // from within the try block when retries exceed the limit
     return {
       success: false,
-      reason: text.loop.unexpectedTermination,
-      reasonCode: 'LOOP_FAILED',
-      attempts: retries, // No new attempt started after the loop
+      reason: text.loop.exceededMaxRetriesSimple,
+      reasonCode: 'MAX_RETRIES',
+      attempts: retries,
       logs,
       history,
       finalPatch: currentDiff || undefined,

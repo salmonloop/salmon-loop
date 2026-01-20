@@ -23,6 +23,8 @@ salmon-loop [options]
   - `extended`: Outputs detailed logs, including internal states and debug information.
 - `--force-reset`: Force a hard reset (`git reset --hard`) on failure. **Use with caution** as it discards all uncommitted changes. Cannot be used with `--allow-dirty`.
 - `--allow-dirty`: Allow running SalmonLoop even if the workspace has uncommitted changes. Cannot be used with `--force-reset`.
+- `--validate`: Run code quality checks (lint and tests) before starting the loop.
+- `--target-node <name>`: The name of the node (e.g., function name) that is allowed to be modified. Enables deep AST scope integrity verification.
 
 ## User Experience
 

@@ -33,3 +33,11 @@ SalmonLoop will automatically retry and shrink context if the first attempt fail
 ```bash
 salmon-loop --instruction "Refactor the database connection pool to use a singleton" --verify "npm run integration-tests"
 ```
+
+## 5. Deep AST Verification
+
+Ensure only a specific function is modified and no syntax errors are introduced:
+
+```bash
+salmon-loop --instruction "Optimize the calculateTotal function" --verify "npm test" --file "src/utils/math.ts" --target-node "calculateTotal"
+```

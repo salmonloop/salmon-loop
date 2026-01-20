@@ -4,14 +4,16 @@ The core of SalmonLoop is a formalized execution loop designed to be "predictabl
 
 ## 1. Formalized Execution Phases
 
-The loop follows a strict seven-step process:
-1. **PLAN**: Read-only. LLM generates a structured modification plan.
-2. **PATCH**: Read-only. LLM generates a unified diff based on the plan.
-3. **VALIDATE**: Read-only. Enforces safety limits, performs fuzzy context matching, and ensures the diff is valid.
-4. **APPLY**: Mutating. The **only** phase that writes changes to the disk.
-5. **VERIFY**: Read-only. Runs user-provided checks (e.g., tests).
-6. **ROLLBACK**: Mutating. Restores the filesystem state if verification fails.
-7. **SHRINK**: Read-only. Reduces context for the next attempt based on failure signals.
+The loop follows a strict nine-phase process:
+1. **PREFLIGHT**: Read-only. Checks environment safety (git repo, dirty workspace).
+2. **CONTEXT**: Read-only. Gathers codebase context and target file content.
+3. **PLAN**: Read-only. LLM generates a structured modification plan.
+4. **PATCH**: Read-only. LLM generates a unified diff based on the plan.
+5. **VALIDATE**: Read-only. Enforces safety limits, performs fuzzy context matching, and ensures the diff is valid.
+6. **APPLY**: Mutating. The **only** phase that writes changes to the disk. After application, it performs **Deep AST Verification**.
+7. **VERIFY**: Read-only. Runs user-provided checks (e.g., tests).
+8. **ROLLBACK**: Mutating. Restores the filesystem state if verification fails.
+9. **SHRINK**: Read-only. Reduces context for the next attempt based on failure signals.
 
 ## 2. Safety Guarantees
 

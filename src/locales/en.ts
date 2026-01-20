@@ -227,6 +227,14 @@ Please return the patch in PURE unified diff format:`;
     // Errors
     error: (error: string) => `❌ Error: ${error}`,
     unexpectedError: (error: string) => `Unexpected error: ${error}`,
+    targetNodeOption: 'The name of the node (e.g., function name) that is allowed to be modified',
+    runningValidation: '🔍 Running validation checks...',
+    runningEslint: '  Running ESLint...',
+    runningTests: '  Running Tests...',
+    testsFailedContinuing: '  ⚠️ Tests failed, but continuing validation...',
+    validationCompleted: '✅ Validation completed!',
+    validationFailed: '❌ Validation failed.',
+    optionsRequired: 'Error: --instruction and --verify are required unless --validate is used.',
   },
 
   // Progress bar and interactive feedback
@@ -252,5 +260,36 @@ Please return the patch in PURE unified diff format:`;
     rollbackFailed: 'Manual cleanup required. Run `git reset --hard HEAD`.',
     unknown: 'Check the logs above for more details.',
     gitError: 'Git operation failed. Run `git status` and resolve any conflicts.',
+  },
+
+  dependency: {
+    versionMismatch: (dependency: string, expected: string, actual: string) =>
+      `Dependency version mismatch: ${dependency} expected ${expected}, but got ${actual}`,
+    versionMismatchHint: 'This may cause compatibility issues. Please update your dependencies.',
+    checkFailed: 'Failed to check dependency versions',
+    checkCompleted: 'Dependency version check completed',
+  },
+
+  ast: {
+    degradedApi: 'Using legacy tree-sitter API. Some features might be limited. Please consider upgrading web-tree-sitter.',
+    initFailed: (error: string) => `Failed to initialize AST parser: ${error}`,
+    loadLanguageFailed: (lang: string, error: string) => `Failed to load language ${lang}: ${error}`,
+    invalidStructure: 'AST structure validation failed: tree contains error nodes',
+    scopeRemoved: (name: string) => `Top-level node '${name}' was removed.`,
+    scopeModified: (name: string) => `Top-level node '${name}' was modified but it was not the target.`,
+    invalidTree: 'Invalid AST tree provided for validation',
+  },
+
+  monitor: {
+    reportTitle: 'SalmonLoop Exception Analysis Report',
+    totalErrors: (count: number) => `Total Errors Tracked: ${count}`,
+    recentErrors: 'Recent Error History:',
+    errorEntry: (timestamp: string, type: string, message: string) => `[${timestamp}] ${type}: ${message}`,
+    noErrors: 'No errors recorded.',
+  },
+
+  resource: {
+    lockAcquireTimeout: (file: string) => `Timeout acquiring lock for file: ${file}`,
+    lockReleaseFailed: (file: string) => `Failed to release lock for file: ${file}`,
   },
 };

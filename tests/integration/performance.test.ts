@@ -1,5 +1,6 @@
 import { spawn } from 'child_process';
 import { EventEmitter } from 'events';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 import mockFs from 'mock-fs';
 
@@ -17,8 +18,8 @@ const mockLlm = {
   createPatch: vi.fn(),
 } as unknown as LLM;
 
-vi.mock('../../src/core/git.js', async () => {
-  const actual = await vi.importActual('../../src/core/git.js');
+vi.mock('../../src/core/git.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/core/git.js')>();
   return {
     ...actual,
     applyPatch: vi.fn(),
@@ -48,16 +49,18 @@ vi.mock('../../src/core/ast/index.js', () => ({
   },
   checkSyntaxErrors: vi.fn().mockReturnValue([]),
   validateScopeIntegrity: vi.fn().mockReturnValue({ ok: true }),
+  validateNodeStructure: vi.fn().mockReturnValue(true),
   getTopLevelNodes: vi.fn().mockReturnValue([]),
   getNodeName: vi.fn(),
 }));
 
-vi.mock('../../src/core/verify.js', async () => {
-  const actual = await vi.importActual('../../src/core/verify.js');
+vi.mock('../../src/core/verify.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/core/verify.js')>();
   return {
     ...actual,
     runVerify: vi.fn(),
     preflight: vi.fn(),
+    classifyError: vi.fn().mockReturnValue('logic'),
   };
 });
 
@@ -65,12 +68,16 @@ describe('Performance Integration Tests', () => {
   const repoPath = '/large-repo';
 
   beforeEach(() => {
-    // Mock spawn for rg and git
+    // We use real timers for performance tests to measure actual time,
+    // but we mock the spawn to be fast.
+    vi.useRealTimers();
+    
     vi.mocked(spawn).mockImplementation(() => {
       const child = new EventEmitter() as any;
       child.stdout = new EventEmitter();
       child.stderr = new EventEmitter();
-      setTimeout(() => child.emit('close', 0), 0);
+      // Use process.nextTick to simulate async completion without real delay
+      process.nextTick(() => child.emit('close', 0));
       return child;
     });
 
@@ -89,6 +96,7 @@ describe('Performance Integration Tests', () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     mockFs.restore();
   });
 
@@ -106,7 +114,6 @@ describe('Performance Integration Tests', () => {
     vi.mocked(git.applyPatch).mockResolvedValue(undefined);
     vi.mocked(verify.runVerify).mockResolvedValue({ ok: true, output: '', exitCode: 0 });
 
-    console.time('SalmonLoop performance');
     const start = Date.now();
     const result = await runSalmonLoop({
       instruction: 'Fix file0',
@@ -115,10 +122,10 @@ describe('Performance Integration Tests', () => {
       llm: mockLlm,
     });
     const end = Date.now();
-    console.timeEnd('SalmonLoop performance');
+    
     console.log(`File count: 1000, Total time: ${end - start}ms`);
 
     expect(result.success).toBe(true);
-    expect(end - start).toBeLessThan(5000); // Should complete within 5 seconds in mock environment
+    expect(end - start).toBeLessThan(5000); 
   });
 });

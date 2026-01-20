@@ -1,6 +1,7 @@
 import { spawn } from 'child_process';
 import { readFile } from 'fs/promises';
-import path from 'node:path';
+import { safeJoin, normalizePath } from './path.js';
+import path from 'path';
 
 import { text } from '../locales/index.js';
 
@@ -23,7 +24,7 @@ export class ContextBuilder {
     if (options.file) {
       const filePath = path.isAbsolute(options.file)
         ? options.file
-        : path.join(options.repoPath, options.file);
+        : safeJoin(options.repoPath, options.file);
       primaryText = await readFile(filePath, 'utf-8');
     } else if (options.selection) {
       primaryText = options.selection;
@@ -147,7 +148,7 @@ export class ContextBuilder {
               if (data.type === 'match') {
                 results.push({
                   // Normalize path to use forward slashes
-                  file: String(data.data.path.text).replace(/\\/g, '/'),
+                  file: normalizePath(String(data.data.path.text)),
                   line: data.data.line_number,
                   // Preserve indentation by only removing trailing newline
                   content: data.data.lines.text.replace(/\n$/, ''),
@@ -323,7 +324,7 @@ export class ContextBuilder {
     for (const pattern of patterns) {
       let match;
       while ((match = pattern.exec(verifyOutput)) !== null) {
-        let p = match[1].trim().replace(/\\/g, '/');
+        let p = normalizePath(match[1].trim());
         p = p.replace(/^(\.\/|\/)/, '');
         p = p.replace(/^[a-zA-Z]:\//, '');
         uniqueFiles.add(p);
@@ -335,7 +336,7 @@ export class ContextBuilder {
       /(?:^|\s)((?:[a-zA-Z]:)?[^\s:()"]+\.(?:ts|js|json|md|txt|css|html|jsx|tsx|vue|py|rs|go|java|c|cpp|h))\b/gu;
     let match2;
     while ((match2 = pathPattern.exec(verifyOutput)) !== null) {
-      let p = match2[1].trim().replace(/\\/g, '/');
+      let p = normalizePath(match2[1].trim());
       p = p.replace(/^(\.\/|\/)/, '');
       p = p.replace(/^[a-zA-Z]:\//, '');
       uniqueFiles.add(p);
@@ -358,7 +359,7 @@ export class ContextBuilder {
     _errorType?: ErrorType,
   ): Promise<Context> {
     // Normalize failed file paths
-    const normalizedFailed = failedFiles.map((f) => f.replace(/\\/g, '/'));
+    const normalizedFailed = failedFiles.map((f) => normalizePath(f));
 
     if (normalizedFailed.length > 0) {
       // Find dependencies for failed files to include in context
@@ -374,7 +375,7 @@ export class ContextBuilder {
       ]);
 
       let newSnippets = context.rgSnippets.filter((snippet) => {
-        const normalizedSnippetFile = snippet.file.replace(/\\/g, '/');
+        const normalizedSnippetFile = normalizePath(snippet.file);
         return Array.from(allRelatedFiles).some((related) =>
           normalizedSnippetFile.endsWith(related),
         );

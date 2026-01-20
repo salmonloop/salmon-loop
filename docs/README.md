@@ -8,6 +8,7 @@ Welcome to the SalmonLoop documentation.
 - **Execution Limits**: [English](en/design/execution-limits.md) | [简体中文](zh-CN/design/execution-limits.md)
 - **Context Builder**: [English](en/design/context-builder.md) | [简体中文](zh-CN/design/context-builder.md)
 - **Patch Loop**: [English](en/design/patch-loop.md) | [简体中文](zh-CN/design/patch-loop.md)
+- **Defensive Mechanisms**: [English](design/defensive-mechanisms.md) | [简体中文](zh-CN/design/defensive-mechanisms.md)
 
 ## Usage
 - **CLI Reference**: [English](en/usage/cli.md) | [简体中文](zh-CN/usage/cli.md)

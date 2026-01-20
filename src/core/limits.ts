@@ -21,4 +21,7 @@ export const LIMITS = {
 
   // Logging
   maxLogLength: 10000,
+
+  // Monitoring
+  maxErrorHistory: 10,
 } as const;

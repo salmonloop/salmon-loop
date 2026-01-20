@@ -25,5 +25,17 @@ SalmonLoop follows a strict execution contract to ensure safety and determinism.
 
 ## Error Handling
 
-- **Fail-Fast**: Any unexpected error (e.g., git command failure, LLM timeout) results in an immediate rollback and termination.
-- **Structured Results**: The loop returns a `LoopResult` object containing the success status, failure phase, and detailed logs.
+- **Error Classification**: SalmonLoop classifies errors into several types:
+    - `COMPILATION`: Syntax or type errors (Retryable).
+    - `LINT`: Code style violations (Retryable).
+    - `TEST`: Functional test failures (Retryable).
+    - `LOGIC`: Verification failed without specific framework errors (Retryable).
+    - `AST_VALIDATION_ERROR`: Deep AST structure or scope integrity check failed (Retryable).
+    - `DEPENDENCY_ERROR`: Missing or mismatched dependencies (Non-retryable).
+    - `RESOURCE_LOCK_ERROR`: Concurrent access or file lock conflicts (Non-retryable).
+    - `UNKNOWN`: Uncategorized errors (Non-retryable).
+
+- **Retry Strategy**: Only errors classified as retryable will trigger a new attempt with reduced context and refined feedback. Non-retryable errors result in immediate termination to prevent infinite loops or resource damage.
+
+- **Fail-Fast**: Any unexpected system error results in an immediate rollback and termination.
+- **Structured Results**: The loop returns a `LoopResult` object containing the success status, failure phase, error type, and detailed logs.

@@ -31,6 +31,7 @@ vi.mock('../../src/core/ast/index.js', () => ({
   },
   checkSyntaxErrors: vi.fn().mockReturnValue([]),
   validateScopeIntegrity: vi.fn().mockReturnValue({ ok: true }),
+  validateNodeStructure: vi.fn().mockReturnValue(true),
   getTopLevelNodes: vi.fn().mockReturnValue([]),
   getNodeName: vi.fn(),
 }));

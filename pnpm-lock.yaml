@@ -27,7 +27,7 @@ importers:
         specifier: ^0.25.0
         version: 0.25.0
       web-tree-sitter:
-        specifier: ^0.26.3
+        specifier: 0.26.3
         version: 0.26.3
     devDependencies:
       '@types/mock-fs':

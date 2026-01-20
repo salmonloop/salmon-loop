@@ -17,6 +17,9 @@ export enum ErrorType {
   LINT = 'lint',
   TEST = 'test',
   LOGIC = 'logic',
+  DEPENDENCY_ERROR = 'dependency_error',
+  RESOURCE_LOCK_ERROR = 'resource_lock_error',
+  AST_VALIDATION_ERROR = 'ast_validation_error',
   UNKNOWN = 'unknown',
 }
 

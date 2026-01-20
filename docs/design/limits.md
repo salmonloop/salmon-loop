@@ -24,6 +24,10 @@ To ensure stability and prevent runaway costs or resource exhaustion, SalmonLoop
 
 - **Max Log Length**: 10,000 chars. Individual log entries are truncated to this length to prevent memory issues.
 
+## Monitoring Limits
+
+- **Max Error History**: 10. The number of recent errors stored in the ring buffer for analysis reports.
+
 ## Why these limits?
 
 These limits are designed to keep the LLM focused on small, manageable tasks. Large changes are more likely to introduce bugs and are harder for the LLM to reason about correctly. If your task exceeds these limits, consider breaking it down into smaller sub-tasks.

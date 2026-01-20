@@ -29,24 +29,24 @@ program
   .option('--force-reset', text.cli.forceResetOption)
   .option('--allow-dirty', text.cli.allowDirtyOption)
   .option('--validate', text.cli.validateOption)
-  .option('--target-node <name>', 'The name of the node (e.g., function name) that is allowed to be modified')
+  .option('--target-node <name>', text.cli.targetNodeOption)
   .action(async (options) => {
     const runPath = resolve(options.repo);
 
     if (options.validate) {
-      logger.log(chalk.blue('🔍 Running validation checks...'));
+      logger.log(chalk.blue(text.cli.runningValidation));
       try {
-        logger.debug('  Running ESLint...');
+        logger.debug(text.cli.runningEslint);
         execSync('npx eslint src --ext .ts', { stdio: 'inherit', cwd: process.cwd() });
-        logger.debug('  Running Tests...');
+        logger.debug(text.cli.runningTests);
         try {
           execSync('npm test', { stdio: 'inherit', cwd: process.cwd() });
         } catch (__e) {
-          logger.warn('  ⚠️ Tests failed, but continuing validation...');
+          logger.warn(text.cli.testsFailedContinuing);
         }
-        logger.success('✅ Validation completed!');
+        logger.success(text.cli.validationCompleted);
       } catch (__e) {
-        logger.error('❌ Validation failed.', true);
+        logger.error(text.cli.validationFailed, true);
       }
       if (!options.instruction) {
         return;
@@ -55,7 +55,7 @@ program
 
     if (!options.instruction || !options.verify) {
       if (!options.validate) {
-        logger.error('Error: --instruction and --verify are required unless --validate is used.');
+        logger.error(text.cli.optionsRequired);
         program.help(); // Show help if required options are missing
         process.exit(1);
       }

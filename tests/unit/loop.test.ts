@@ -1,13 +1,18 @@
 import { readFile } from 'fs/promises';
-import { vi } from 'vitest';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 import { ContextBuilder } from '../../src/core/context.js';
 import * as git from '../../src/core/git.js';
 import { StubLLM } from '../../src/core/llm.js';
 import { SalmonLoop } from '../../src/core/loop.js';
 import * as verify from '../../src/core/verify.js';
-import { checkSyntaxErrors } from '../../src/core/ast/index.js';
+import {
+  checkSyntaxErrors,
+  validateNodeStructure,
+  validateScopeIntegrity,
+} from '../../src/core/ast/index.js';
 import { text } from '../../src/locales/index.js';
+import { ErrorType } from '../../src/core/types.js';
 
 vi.mock('../../src/core/context.js');
 vi.mock('../../src/core/git.js', async () => {
@@ -30,15 +35,16 @@ vi.mock('../../src/core/verify.js', async () => {
   };
 });
 vi.mock('../../src/core/ast/index.js', () => {
-  console.log('Mocking AstParser via index.js');
   return {
     AstParser: {
-      parse: vi.fn().mockResolvedValue({
+      parse: vi.fn().mockImplementation(async () => ({
         delete: vi.fn(),
-      }),
+        rootNode: {},
+      })),
     },
     checkSyntaxErrors: vi.fn().mockReturnValue([]),
     validateScopeIntegrity: vi.fn().mockReturnValue({ ok: true }),
+    validateNodeStructure: vi.fn().mockReturnValue(true),
     getTopLevelNodes: vi.fn().mockReturnValue([]),
     getNodeName: vi.fn(),
   };
@@ -55,7 +61,7 @@ describe('SalmonLoop', () => {
   let mockLLM: StubLLM;
 
   beforeEach(() => {
-    vi.useFakeTimers();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     loop = new SalmonLoop();
     mockLLM = new StubLLM();
     vi.clearAllMocks();
@@ -76,10 +82,16 @@ describe('SalmonLoop', () => {
     vi.mocked(ContextBuilder.shrinkContext).mockImplementation(async (ctx) => ctx);
     // Default mock for preflight
     vi.mocked(verify.preflight).mockResolvedValue({ ok: true });
+    // Default mock for classifyError
+    vi.mocked(verify.classifyError).mockReturnValue(ErrorType.LOGIC);
     // Default mock for readFile
     vi.mocked(readFile).mockResolvedValue(' ');
     // Default mock for checkSyntaxErrors
     vi.mocked(checkSyntaxErrors).mockReturnValue([]);
+    // Default mock for validateNodeStructure
+    vi.mocked(validateNodeStructure).mockReturnValue(true);
+    // Default mock for validateScopeIntegrity
+    vi.mocked(validateScopeIntegrity).mockReturnValue({ ok: true });
   });
 
   afterEach(() => {
@@ -230,8 +242,7 @@ index 123..456 100644
 
     // Verify fails only on a.ts
     vi.mocked(verify.runVerify)
-      .mockResolvedValueOnce({ ok: false, output: 'Error in a.ts', exitCode: 1 })
-      .mockResolvedValueOnce({ ok: true, output: 'Success', exitCode: 0 });
+      .mockResolvedValue({ ok: false, output: 'Error in a.ts', exitCode: 1 });
 
     // Run any pending timers to ensure async operations complete properly
     vi.runAllTimers();
@@ -246,9 +257,11 @@ index 123..456 100644
     // Ensure all timers are processed after loop completes
     vi.runAllTimers();
 
-    expect(result.success).toBe(true);
-    expect(result.attempts).toBe(2);
+    expect(result.success).toBe(false);
+    expect(result.attempts).toBe(3);
+
     // Should rollback BOTH a.ts and b.ts
+    expect(git.rollbackFiles).toHaveBeenCalledTimes(3);
     expect(git.rollbackFiles).toHaveBeenCalledWith(
       '/tmp/repo',
       expect.arrayContaining(['a.ts', 'b.ts']),

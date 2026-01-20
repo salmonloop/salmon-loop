@@ -8,12 +8,46 @@ import { LIMITS } from './limits.js';
 import { logger } from './logger.js';
 import { ErrorType } from './types.js';
 
+/**
+ * Classify the error type based on the output of the verification command
+ */
 export function classifyError(output: string): ErrorType {
   const lowerOutput = output.toLowerCase();
 
+  // Dependency error keywords
+  if (
+    lowerOutput.includes('dependency version mismatch') ||
+    lowerOutput.includes('module not found') ||
+    lowerOutput.includes('cannot find module') ||
+    lowerOutput.includes('npm install') ||
+    lowerOutput.includes('pnpm install')
+  ) {
+    return ErrorType.DEPENDENCY_ERROR;
+  }
+
+  // Resource lock error keywords
+  if (
+    lowerOutput.includes('resource lock error') ||
+    lowerOutput.includes('file lock') ||
+    lowerOutput.includes('already exists') && lowerOutput.includes('.lock') ||
+    lowerOutput.includes('ebusy') ||
+    lowerOutput.includes('eperm')
+  ) {
+    return ErrorType.RESOURCE_LOCK_ERROR;
+  }
+
+  // AST validation error keywords
+  if (
+    lowerOutput.includes('ast syntax error') ||
+    lowerOutput.includes('ast structure error') ||
+    lowerOutput.includes('ast scope integrity error') ||
+    lowerOutput.includes('ast validation failed')
+  ) {
+    return ErrorType.AST_VALIDATION_ERROR;
+  }
+
   // Compilation error keywords (Strong signals)
   if (
-    /\bTS\d{3,5}\b/.test(output) || // TypeScript error codes
     lowerOutput.includes('compilation error') ||
     lowerOutput.includes('failed to compile') ||
     lowerOutput.includes('syntaxerror') ||
@@ -21,7 +55,8 @@ export function classifyError(output: string): ErrorType {
     lowerOutput.includes('cannot find module') ||
     lowerOutput.includes('module not found') ||
     /error:.*is not a member of/i.test(output) || // C++/Java style
-    /undefined reference to/i.test(output) // Linker error
+    /undefined reference to/i.test(output) || // Linker error
+    /TS\d{3,5}/.test(output) // TypeScript error codes (simplified regex for long strings)
   ) {
     return ErrorType.COMPILATION;
   }
@@ -60,6 +95,25 @@ export function classifyError(output: string): ErrorType {
   }
 
   return ErrorType.UNKNOWN;
+}
+
+/**
+ * Determine if an error type is retryable
+ */
+export function isRetryable(error: ErrorType): boolean {
+  switch (error) {
+    case ErrorType.COMPILATION:
+    case ErrorType.LINT:
+    case ErrorType.TEST:
+    case ErrorType.LOGIC:
+    case ErrorType.AST_VALIDATION_ERROR:
+      return true;
+    case ErrorType.DEPENDENCY_ERROR:
+    case ErrorType.RESOURCE_LOCK_ERROR:
+    case ErrorType.UNKNOWN:
+    default:
+      return false;
+  }
 }
 
 export async function runVerify(

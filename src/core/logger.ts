@@ -96,6 +96,13 @@ export class Logger {
   log(message: string): void {
     console.log(this.formatMessage(message));
   }
+
+  /**
+   * Log a degradation warning when falling back to older APIs or behaviors
+   */
+  degrade(message: string): void {
+    console.warn(chalk.magenta(`[DEGRADED] ${this.formatMessage(message)}`));
+  }
 }
 
 export const logger = new Logger();
