@@ -25,15 +25,17 @@ ${context}
 ${instruction}
 ${lastError ? `\n# Last Error\nThe previous attempt failed with the following error. Please adjust the plan to fix this issue:\n${lastError}\n` : ''}
 # Requirements
-- The plan must be in JSON format, containing the fields: goal, files, changes, verify.
-- 'goal': A brief description of the goal.
-- 'files': An array of file paths to be modified.
-- 'changes': An array of strings describing the specific changes.
-- 'verify': A verification command or description.
-- You cannot modify more than ${maxFilesChanged} files.
-- Do not generate code, only describe the modification plan.
+- The plan must be in JSON format, containing exactly these fields: goal, files, changes, verify.
+- 'goal': A brief, one-sentence description of the modification goal.
+- 'files': An array of EXACT relative file paths that MUST be modified.
+- 'changes': An array of strings, each clearly describing a specific logical change.
+- 'verify': A verification command (e.g., \`npm test\`) or a concise description of how to verify.
+- **Constraints**:
+  - Maximum ${maxFilesChanged} files can be modified.
+  - Do NOT generate any code blocks or implementation details here.
+  - DO NOT include files that do not need changes.
 
-Please return the plan in pure JSON format:`,
+Please return the plan in PURE JSON format without any additional text:`,
 
     patch: (
       plan: string,
@@ -62,26 +64,35 @@ ${context}
 ${targetFiles ? `\n# Target Files\n${targetFiles}\n` : ''}
 ${lastError ? `\n# Last Error\nThe previous attempt failed with the following error. Please fix the issue described:\n${lastError}\n` : ''}
 
-# Requirements
-- Must generate standard **git unified diff format** (starting with \`diff --git a/path b/path\`).
-- **Output ONLY the final diff. Do NOT include multiple versions, explanations, corrections, or commentary.**
-- **If you need to fix an error, regenerate the ENTIRE diff correctly in one block, do NOT append corrections.**
-- **CRITICAL**: Use EXACT relative paths from the repository root in diff headers.
-  - Example: If modifying \`src/index.js\`, use \`--- a/src/index.js\` and \`+++ b/src/index.js\`
-  - Use the EXACT file paths shown in the "Primary File" or "Target Files" sections above.
-- **Context Matching**: Provide sufficient context (8-12 lines) around changes to ensure accurate matching.
-  - Copy the EXACT surrounding code from the file content provided above.
-  - Pay attention to indentation, whitespace, and comments - they must match EXACTLY.
-  - If unsure about line numbers, include MORE context rather than less.
-- The patch must precisely match the modifications in the plan.
-- Constraints:
-  - Maximum ${maxFilesChanged} files can be modified.
-  - Maximum ${maxDiffLines} total diff lines.
-  - No file creation, deletion, or renaming allowed.
-  - No refactoring or formatting changes unrelated to the instruction.
-  - **DO NOT translate comments or modify existing comments unless explicitly instructed.**
+# Bad Examples (REJECTED OUTPUT)
+- **Adding explanations**: "Here is the diff you requested..."
+- **Markdown blocks**: \`\`\`diff ... \`\`\`
+- **Multiple versions**: Providing both the old and new file contents separately.
+- **Partial fixes**: "I will fix the rest in the next step."
 
-Please return the patch in pure unified diff format:`;
+# Validation Checklist (BEFORE OUTPUT)
+1. **Format**: Is it standard git unified diff (starting with \`diff --git\`)?
+2. **Paths**: Do \`--- a/path\` and \`+++ b/path\` exactly match target files?
+3. **Scope**: Does it only modify what's requested in the instruction?
+4. **Context**: Are there 8-12 lines of EXACT surrounding context for each hunk?
+5. **Cleanliness**: Is there ANY text other than the diff itself? (If yes, remove it).
+
+# Requirements
+- Must generate standard **git unified diff format**.
+- **Output ONLY the final diff. Do NOT include any explanations, Markdown blocks, or commentary.**
+- **If you need to fix an error, regenerate the ENTIRE diff correctly in one block.**
+- **CRITICAL**: Use EXACT relative paths from the repository root in diff headers.
+  - Example: \`--- a/src/index.js\` and \`+++ b/src/index.js\`
+- **Context Matching**: Provide 8-12 lines of surrounding code.
+  - Indentation and whitespace must match EXACTLY.
+- Constraints:
+  - Maximum ${maxFilesChanged} files.
+  - Maximum ${maxDiffLines} total diff lines.
+  - No file creation, deletion, or renaming.
+  - No unrelated refactoring or formatting.
+  - **DO NOT translate or modify comments unless explicitly instructed.**
+
+Please return the patch in PURE unified diff format:`;
     },
   },
   git: {
