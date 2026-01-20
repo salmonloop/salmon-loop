@@ -9,7 +9,7 @@ vi.mock('fs/promises');
 vi.mock('../../src/core/context.js', () => ({
   ContextBuilder: {
     build: vi.fn(),
-    shrinkContext: vi.fn(),
+    shrinkContext: vi.fn().mockImplementation((ctx) => Promise.resolve(ctx)),
     extractFailedFiles: vi.fn(),
   },
 }));
@@ -18,11 +18,22 @@ vi.mock('../../src/core/git.js', async () => {
   return {
     ...actual,
     applyPatch: vi.fn(),
-    rollbackFiles: vi.fn(),
+    rollbackFiles: vi.fn().mockResolvedValue({ ok: true }),
     getGitStatus: vi.fn(),
     getGitDiff: vi.fn(),
   };
 });
+vi.mock('../../src/core/ast/index.js', () => ({
+  AstParser: {
+    parse: vi.fn().mockResolvedValue({
+      delete: vi.fn(),
+    }),
+  },
+  checkSyntaxErrors: vi.fn().mockReturnValue([]),
+  validateScopeIntegrity: vi.fn().mockReturnValue({ ok: true }),
+  getTopLevelNodes: vi.fn().mockReturnValue([]),
+  getNodeName: vi.fn(),
+}));
 vi.mock('../../src/core/verify.js', async () => {
   const actual = await vi.importActual('../../src/core/verify.js');
   return {

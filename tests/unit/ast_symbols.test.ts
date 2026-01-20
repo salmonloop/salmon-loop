@@ -1,17 +1,49 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+// Force mock BEFORE importing AstParser
+vi.mock('web-tree-sitter', () => {
+  return {
+    default: {
+      init: vi.fn().mockResolvedValue(undefined),
+      Parser: vi.fn().mockImplementation(() => ({
+        setLanguage: vi.fn(),
+        parse: vi.fn()
+      })),
+      Language: {
+        load: vi.fn().mockResolvedValue({})
+      },
+      Query: vi.fn().mockImplementation(() => ({
+        captures: vi.fn().mockReturnValue([])
+      }))
+    },
+    Parser: vi.fn().mockImplementation(() => ({
+      init: vi.fn().mockResolvedValue(undefined),
+      setLanguage: vi.fn(),
+      parse: vi.fn()
+    })),
+    Language: {
+      load: vi.fn().mockResolvedValue({})
+    },
+    Query: vi.fn().mockImplementation(() => ({
+      captures: vi.fn().mockReturnValue([])
+    }))
+  };
+});
+
 import { AstParser } from '../../src/core/ast/parser.js';
 
 describe('AstParser Symbols', () => {
   beforeEach(() => {
+    vi.useFakeTimers();
     vi.clearAllMocks();
+    
     // Default mock for getLanguage to avoid loading wasm files
-    vi.spyOn(AstParser, 'getLanguage').mockResolvedValue({
-      query: vi.fn().mockReturnValue({ captures: vi.fn().mockReturnValue([]) }),
-    } as any);
+    vi.spyOn(AstParser, 'getLanguage').mockResolvedValue({});
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    vi.runAllTimers();
+    vi.useRealTimers();
   });
 
   describe('identifyDefinitions', () => {
@@ -23,14 +55,18 @@ describe('AstParser Symbols', () => {
         childForFieldName: vi.fn().mockReturnThis(),
       };
       const mockCapture = { name: 'def', node: mockNode };
-      const mockQuery = { captures: vi.fn().mockReturnValue([mockCapture]) };
-      const mockLanguage = { query: vi.fn().mockReturnValue(mockQuery) };
+      const mockQueryInstance = { 
+        captures: vi.fn().mockReturnValue([mockCapture]) 
+      };
       
-      vi.spyOn(AstParser, 'getLanguage').mockResolvedValue(mockLanguage);
+      // Import mocked Query class to verify its usage
+      const TreeSitter = await import('web-tree-sitter');
+      (TreeSitter.Query as any).mockImplementationOnce(() => mockQueryInstance);
       
       const tree = { rootNode: {} };
       const defs = await AstParser.identifyDefinitions(tree, 'javascript');
       
+      expect(TreeSitter.Query).toHaveBeenCalled();
       expect(defs).toHaveLength(1);
       expect(defs[0]).toEqual({
         name: 'hello',
@@ -57,14 +93,17 @@ describe('AstParser Symbols', () => {
         childForFieldName: vi.fn().mockReturnThis(),
       };
       const mockCapture = { name: 'ref', node: mockNode };
-      const mockQuery = { captures: vi.fn().mockReturnValue([mockCapture]) };
-      const mockLanguage = { query: vi.fn().mockReturnValue(mockQuery) };
+      const mockQueryInstance = { 
+        captures: vi.fn().mockReturnValue([mockCapture]) 
+      };
       
-      vi.spyOn(AstParser, 'getLanguage').mockResolvedValue(mockLanguage);
+      const TreeSitter = await import('web-tree-sitter');
+      (TreeSitter.Query as any).mockImplementationOnce(() => mockQueryInstance);
       
       const tree = { rootNode: {} };
       const refs = await AstParser.identifyReferences(tree, 'javascript');
       
+      expect(TreeSitter.Query).toHaveBeenCalled();
       expect(refs).toHaveLength(1);
       expect(refs[0]).toEqual({
         name: 'world',

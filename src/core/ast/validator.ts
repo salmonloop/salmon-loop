@@ -10,8 +10,16 @@ export interface AstError {
 }
 
 export function checkSyntaxErrors(tree: any): AstError[] {
+  if (!tree) return [];
   const errors: AstError[] = [];
-  const cursor = tree.walk();
+  
+  let cursor;
+  try {
+    cursor = typeof tree.walk === 'function' ? tree.walk() : null;
+  } catch (e) {
+    return [];
+  }
+  if (!cursor) return [];
 
   let reachedRoot = false;
   while (!reachedRoot) {

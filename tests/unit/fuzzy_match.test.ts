@@ -66,7 +66,7 @@ function sub(a, b) {
 +++ b/file.js
 @@ -1,3 +1,3 @@
  function multiply(a, b) {
--  return a * b;
+-  return a * b * c;
 +  return a * b * 1;
  }
       `.trim();

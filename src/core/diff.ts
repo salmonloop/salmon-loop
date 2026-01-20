@@ -149,29 +149,55 @@ export function calculateSimilarity(a: string, b: string): number {
  * Fuzzy context match for patch application.
  */
 export function fuzzyContextMatch(patch: string, originalContent: string, threshold = 0.85): boolean {
-  // Extract context lines from patch (lines starting with ' ')
-  const contextLines = patch
-    .split('\n')
+  const lines = patch.split('\n');
+  const originalLines = originalContent.split('\n').map((l) => l.trim());
+
+  // 1. Try context lines first (lines starting with ' ')
+  const contextLines = lines
     .filter((line) => line.startsWith(' '))
     .map((line) => line.substring(1).trim());
 
-  if (contextLines.length === 0) return true;
-
-  const originalLines = originalContent.split('\n').map((line) => line.trim());
-
-  // Check if each context line has a reasonably similar line in the original content
-  for (const ctxLine of contextLines) {
-    if (!ctxLine) continue;
-    let found = false;
-    for (const orgLine of originalLines) {
-      if (calculateSimilarity(ctxLine, orgLine) >= threshold) {
-        found = true;
+  if (contextLines.length > 0) {
+    let allContextMatched = true;
+    for (const ctxLine of contextLines) {
+      if (!ctxLine) continue;
+      let found = false;
+      for (const orgLine of originalLines) {
+        if (calculateSimilarity(ctxLine, orgLine) >= threshold) {
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        allContextMatched = false;
         break;
       }
     }
-    if (!found) return false;
+    if (allContextMatched) return true;
   }
 
+  // 2. If context lines failed or were empty, try removed lines (lines starting with '-')
+  const removedLines = lines
+    .filter((line) => line.startsWith('-') && !line.startsWith('---'))
+    .map((line) => line.substring(1).trim());
+
+  if (removedLines.length > 0) {
+    for (const remLine of removedLines) {
+      if (!remLine) continue;
+      let found = false;
+      for (const orgLine of originalLines) {
+        if (calculateSimilarity(remLine, orgLine) >= threshold) {
+          found = true;
+          break;
+        }
+      }
+      if (!found) return false;
+    }
+    return true;
+  }
+
+  // If no context or removed lines, we assume it's a raw insertion or invalid patch
+  // which will be caught by applyPatch later.
   return true;
 }
 

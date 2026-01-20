@@ -1,5 +1,4 @@
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
-import mockFs from 'mock-fs';
 import { runSalmonLoop } from '../../src/index.js';
 import { StubLLM } from '../../src/core/llm.js';
 import * as git from '../../src/core/git.js';
@@ -7,24 +6,38 @@ import * as verify from '../../src/core/verify.js';
 import { AstParser } from '../../src/core/ast/parser.js';
 import { ContextBuilder } from '../../src/core/context.js';
 import { injectSmokeTest } from '../../src/core/testgen.js';
-import { existsSync, readFileSync } from 'fs';
-import { join } from 'path';
+import { existsSync } from 'fs';
+import { readFile, writeFile } from 'fs/promises';
+import { join, resolve } from 'path';
 
 vi.mock('../../src/core/git.js');
 vi.mock('../../src/core/verify.js');
 vi.mock('../../src/core/ast/parser.js');
-vi.mock('../../src/core/context.js');
+vi.mock('../../src/core/context.js', () => ({
+  ContextBuilder: {
+    build: vi.fn(),
+    shrinkContext: vi.fn().mockImplementation((ctx) => Promise.resolve(ctx)),
+    extractFailedFiles: vi.fn(),
+  },
+}));
+
+vi.mock('fs', () => ({
+  existsSync: vi.fn(),
+  readFileSync: vi.fn(),
+}));
+
+vi.mock('fs/promises', () => ({
+  readFile: vi.fn(),
+  writeFile: vi.fn(),
+  unlink: vi.fn(),
+}));
 
 describe('SalmonLoop Scenarios', () => {
-  const repoPath = '/fake-repo';
+  const repoPath = resolve('fake-repo');
   let mockLLM: StubLLM;
 
   beforeEach(() => {
-    mockFs({
-      [repoPath]: {
-        'src/app.ts': 'function main() { console.log("hello"); }',
-      },
-    });
+    vi.clearAllMocks();
     mockLLM = new StubLLM();
     vi.mocked(git.applyPatch).mockResolvedValue(undefined);
     vi.mocked(git.rollbackFiles).mockResolvedValue({ ok: true } as any);
@@ -34,11 +47,13 @@ describe('SalmonLoop Scenarios', () => {
       primaryText: 'content',
       rgSnippets: [],
     } as any);
-  });
-
-  afterEach(() => {
-    mockFs.restore();
-    vi.clearAllMocks();
+    
+    // Default fs mocks
+    vi.mocked(readFile).mockImplementation((path) => {
+        if (path.toString().includes('app.ts')) return Promise.resolve('function main() { console.log("hello"); }');
+        return Promise.resolve('');
+    });
+    vi.mocked(writeFile).mockResolvedValue(undefined);
   });
 
   it('Scenario: AST Error -> Retry -> Success with Smart Feedback', async () => {
@@ -100,7 +115,6 @@ describe('SalmonLoop Scenarios', () => {
     });
 
     expect(result.success).toBe(true);
-    // We expect at least 2 attempts, and the last one should have the feedback
     expect(result.attempts).toBeGreaterThanOrEqual(2);
     
     const lastCall = createPlanSpy.mock.calls[createPlanSpy.mock.calls.length - 1];
@@ -111,15 +125,17 @@ describe('SalmonLoop Scenarios', () => {
 
   it('Scenario: Multilingual Project Detection and Test Injection', async () => {
     const pythonRepo = '/python-repo';
-    mockFs({
-      [pythonRepo]: {
-        'requirements.txt': 'requests',
-      },
+    
+    // Mock existsSync to simulate requirements.txt exists, but smoke test doesn't
+    vi.mocked(existsSync).mockImplementation((path) => {
+        if (path.toString().includes('requirements.txt')) return true;
+        if (path.toString().includes('salmon_smoke_test.py')) return false;
+        return false;
     });
 
     const result = await injectSmokeTest(pythonRepo);
     expect(result.created).toBe(true);
     expect(result.testCommand).toBe('python salmon_smoke_test.py');
-    expect(existsSync(join(pythonRepo, 'salmon_smoke_test.py'))).toBe(true);
+    expect(writeFile).toHaveBeenCalledWith(expect.stringContaining('salmon_smoke_test.py'), expect.any(String), 'utf-8');
   });
 });

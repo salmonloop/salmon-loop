@@ -6,12 +6,20 @@ import { SymbolInfo } from '../types.js';
 
 const require = createRequire(import.meta.url);
 
-// Handle ESM/CJS compatibility for web-tree-sitter
-const Parser = (TreeSitter as any).Parser || TreeSitter;
-const Language = (TreeSitter as any).Language;
-
 export class AstParser {
   private static initPromise: Promise<void> | null = null;
+
+  private static getParserClass() {
+    return (TreeSitter as any).Parser || (TreeSitter as any).default?.Parser || TreeSitter;
+  }
+
+  private static getLanguageClass() {
+    return (TreeSitter as any).Language || (TreeSitter as any).default?.Language;
+  }
+
+  private static getQueryClass() {
+    return (TreeSitter as any).Query || (TreeSitter as any).default?.Query;
+  }
   private static languages: Map<string, any> = new Map();
   private static languagePromises: Map<string, Promise<any>> = new Map();
   private static treeCache: Map<string, { tree: any; timestamp: number }> = new Map();
@@ -19,7 +27,7 @@ export class AstParser {
 
   static async init() {
     if (!this.initPromise) {
-      this.initPromise = Parser.init();
+      this.initPromise = this.getParserClass().init();
     }
     return this.initPromise;
   }
@@ -63,7 +71,7 @@ export class AstParser {
         }
       }
 
-      const langObj = await Language.load(finalWasmPath);
+      const langObj = await this.getLanguageClass().load(finalWasmPath);
       this.languages.set(lang, langObj);
       return langObj;
     })();
@@ -80,7 +88,7 @@ export class AstParser {
     }
 
     await this.init();
-    const parser = new Parser();
+    const parser = new (this.getParserClass())();
     const language = await this.getLanguage(lang, wasmPath);
     parser.setLanguage(language);
     const tree = parser.parse(code);
@@ -105,29 +113,39 @@ export class AstParser {
         (method_definition name: (property_identifier) @name) @def
         (variable_declarator name: (identifier) @name) @def
         (class_declaration name: (identifier) @name) @def
-        (interface_declaration name: (identifier) @name) @def
-        (type_alias_declaration name: (identifier) @name) @def
       `;
+      
+      if (lang !== 'javascript') {
+        queryStr += `
+          (interface_declaration name: (identifier) @name) @def
+          (type_alias_declaration name: (identifier) @name) @def
+        `;
+      }
     }
 
-    if (!queryStr) return [];
+    if (!queryStr || !tree?.rootNode) return [];
 
-    const query = language.query(queryStr);
-    const captures = query.captures(tree.rootNode);
+    try {
+      const query = new (this.getQueryClass())(language, queryStr);
+      const captures = query.captures(tree.rootNode);
 
-    return captures
-      .filter((c: any) => c.name === 'def')
-      .map((c: any) => {
-        const nameNode = c.node.childForFieldName('name') || c.node;
-        return {
-          name: nameNode.text,
-          kind: 'definition' as const,
-          location: {
-            start: { line: nodeToRow(c.node.startPosition), column: c.node.startPosition.column },
-            end: { line: nodeToRow(c.node.endPosition), column: c.node.endPosition.column },
-          },
-        };
-      });
+      return captures
+        .filter((c: any) => c.name === 'def')
+        .map((c: any) => {
+          const nameNode = c.node.childForFieldName('name') || c.node;
+          return {
+            name: nameNode?.text || 'unknown',
+            kind: 'definition' as const,
+            location: {
+              start: { line: nodeToRow(c.node.startPosition), column: c.node.startPosition.column },
+              end: { line: nodeToRow(c.node.endPosition), column: c.node.endPosition.column },
+            },
+          };
+        });
+    } catch (e) {
+      console.error(`AST identifyDefinitions failed: ${e}`);
+      return [];
+    }
   }
 
   static async identifyReferences(tree: any, lang: string): Promise<SymbolInfo[]> {
@@ -138,28 +156,38 @@ export class AstParser {
       queryStr = `
         (call_expression function: (identifier) @name) @ref
         (member_expression property: (property_identifier) @name) @ref
-        (type_reference name: (identifier) @name) @ref
       `;
+      
+      if (lang !== 'javascript') {
+        queryStr += `
+          (type_reference name: (identifier) @name) @ref
+        `;
+      }
     }
 
-    if (!queryStr) return [];
+    if (!queryStr || !tree?.rootNode) return [];
 
-    const query = language.query(queryStr);
-    const captures = query.captures(tree.rootNode);
+    try {
+      const query = new (this.getQueryClass())(language, queryStr);
+      const captures = query.captures(tree.rootNode);
 
-    return captures
-      .filter((c: any) => c.name === 'ref')
-      .map((c: any) => {
-        const nameNode = c.node.childForFieldName('name') || c.node.childForFieldName('property') || c.node;
-        return {
-          name: nameNode.text,
-          kind: 'reference' as const,
-          location: {
-            start: { line: nodeToRow(c.node.startPosition), column: c.node.startPosition.column },
-            end: { line: nodeToRow(c.node.endPosition), column: c.node.endPosition.column },
-          },
-        };
-      });
+      return captures
+        .filter((c: any) => c.name === 'ref')
+        .map((c: any) => {
+          const nameNode = c.node.childForFieldName('name') || c.node.childForFieldName('property') || c.node;
+          return {
+            name: nameNode?.text || 'unknown',
+            kind: 'reference' as const,
+            location: {
+              start: { line: nodeToRow(c.node.startPosition), column: c.node.startPosition.column },
+              end: { line: nodeToRow(c.node.endPosition), column: c.node.endPosition.column },
+            },
+          };
+        });
+    } catch (e) {
+      console.error(`AST identifyReferences failed: ${e}`);
+      return [];
+    }
   }
 }
 

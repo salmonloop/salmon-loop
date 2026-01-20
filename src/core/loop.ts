@@ -466,10 +466,13 @@ export class SalmonLoop {
                 const errorMsg = `AST validation failed for ${file}: ${e instanceof Error ? e.message : String(e)}`;
                 emit({
                   type: 'log',
-                  level: options.verbose === 'extended' ? 'warn' : 'debug',
+                  level: 'warn',
                   message: errorMsg,
                   timestamp: now(),
                 });
+                // If the validator itself crashes, treat it as a syntax error to trigger retry
+                astError = errorMsg;
+                break;
               }
             }
           }
@@ -678,37 +681,68 @@ export class SalmonLoop {
         logs.push(this.createLog(ExecutionPhase.SHRINK, text.loop.contextShrunk));
         endPhase(true);
       } catch (error) {
-        // Rollback on error
+        // Handle unexpected errors within the loop by triggering a retry if possible
         let failurePhase: ExecutionPhase = currentPhase;
         endPhase(false);
+
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        const lastFeedback = refineFeedback(errorMsg);
 
         // Safety: Never rollback in dryRun mode
         if (!options.dryRun && (changedFilesThisAttempt.length > 0 || options.forceReset)) {
           startPhase(ExecutionPhase.ROLLBACK);
-          const rb = await rollbackFiles(
-            options.repoPath,
-            changedFilesThisAttempt,
-            options.forceReset,
-          );
+          const rb = await rollbackFiles(options.repoPath, changedFilesThisAttempt, options.forceReset);
           if (!rb.ok) {
             const status = await getGitStatus(options.repoPath);
-            const errorMsg = status ? `${rb.stderr}\n\nGit Status:\n${status}` : rb.stderr;
-            const msg = text.loop.rollbackFailed(errorMsg);
+            const fullError = status ? `${rb.stderr}\n\nGit Status:\n${status}` : rb.stderr;
+            const msg = text.loop.rollbackFailed(fullError);
             logs.push(this.createLog(ExecutionPhase.ROLLBACK, msg, false));
             emit({ type: 'log', level: 'error', message: msg, timestamp: now() });
-            failurePhase = ExecutionPhase.ROLLBACK;
-            endPhase(false);
-          } else {
-            const msg = options.forceReset
-              ? text.loop.rollbackAllSuccess
-              : text.loop.rollbackSuccess(changedFilesThisAttempt);
-            logs.push(this.createLog(ExecutionPhase.ROLLBACK, msg));
-            emit({ type: 'log', level: 'info', message: msg, timestamp: now() });
-            endPhase(true);
+            return {
+              success: false,
+              reason: text.loop.rollbackFailedDirty,
+              reasonCode: 'ROLLBACK_FAILED',
+              attempts: attempt,
+              logs,
+              history,
+              finalPatch: currentDiff || undefined,
+              failurePhase: ExecutionPhase.ROLLBACK,
+              errorType: ErrorType.UNKNOWN,
+            };
           }
+          endPhase(true);
         }
 
-        let msg = error instanceof Error ? error.message : String(error);
+        if (retries < LIMITS.maxRetries) {
+          lastError = lastFeedback;
+          emit({
+            type: 'retry',
+            fromAttempt: attempt,
+            toAttempt: attempt + 1,
+            reason: lastError,
+            failedFiles: [],
+            timestamp: now(),
+          });
+
+          history.push({
+            attempt,
+            plan: currentPlan,
+            patch: currentDiff,
+            error: lastError,
+            contextSummary: `Snippets: ${context.rgSnippets.length}, Diff: ${!!context.gitDiff}`,
+          });
+
+          retries++;
+
+          // Shrink context before retry
+          startPhase(ExecutionPhase.SHRINK);
+          context = await ContextBuilder.shrinkContext(context, [], ErrorType.UNKNOWN);
+          logs.push(this.createLog(ExecutionPhase.SHRINK, text.loop.contextShrunk));
+          endPhase(true);
+          continue;
+        }
+
+        let msg = errorMsg;
         if (error instanceof GitError) {
           msg = `${msg}\n💡 Suggestion: ${text.suggestions.gitError}`;
         }
@@ -719,7 +753,7 @@ export class SalmonLoop {
           success: false,
           reason: text.loop.loopExecutionFailed,
           reasonCode: 'LOOP_FAILED',
-          attempts: attempt, // Current attempt failed
+          attempts: attempt,
           logs,
           history,
           finalPatch: currentDiff || undefined,
