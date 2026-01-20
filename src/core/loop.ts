@@ -18,8 +18,12 @@ import { ExecutionPhase, ErrorType, GitError } from './types.js';
 import { runVerify, classifyError, preflight, verifyFileContent } from './verify.js';
 import { AstParser, checkSyntaxErrors, validateScopeIntegrity, getTopLevelNodes, getNodeName, validateNodeStructure } from './ast/index.js';
 import { refineFeedback } from './feedback/index.js';
+import { monitor } from './monitor.js';
 import { readFile } from 'fs/promises';
 import path from 'path';
+import { Semaphore } from './concurrency.js';
+
+const globalSemaphore = new Semaphore(LIMITS.maxConcurrentOperations);
 
 export interface LoopOptions {
   /**
@@ -87,8 +91,10 @@ export interface LoopOptions {
  * @returns The result of the loop execution.
  */
 export async function runSalmonLoop(options: LoopOptions): Promise<LoopResult> {
-  const loop = new SalmonLoop();
-  return loop.run(options);
+  return globalSemaphore.run(async () => {
+    const loop = new SalmonLoop();
+    return loop.run(options);
+  });
 }
 
 /**
@@ -272,6 +278,7 @@ export class SalmonLoop {
     let changedFilesThisAttempt: string[] = [];
 
     while (retries <= LIMITS.maxRetries) {
+      monitor.checkMemoryUsage();
       const attempt = retries + 1;
       changedFilesThisAttempt = []; // Reset for this attempt
       try {

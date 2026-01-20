@@ -8,6 +8,7 @@
   },
   "scripts": {
     "preinstall": "node scripts/check-versions.js",
+    "check-deps": "node scripts/check-deps.js",
     "build": "tsc",
     "dev": "tsx src/cli.ts",
     "test": "vitest run",

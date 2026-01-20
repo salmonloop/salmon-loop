@@ -103,6 +103,15 @@ export class Logger {
   degrade(message: string): void {
     console.warn(chalk.magenta(`[DEGRADED] ${this.formatMessage(message)}`));
   }
+
+  /**
+   * Log a security audit message
+   */
+  audit(action: string, details: any): void {
+    const timestamp = new Date().toISOString();
+    const message = `[AUDIT] ${timestamp} - ${action}: ${JSON.stringify(details)}`;
+    console.log(chalk.bgBlue.white(this.formatMessage(message)));
+  }
 }
 
 export const logger = new Logger();

@@ -98,6 +98,25 @@ export class Monitor {
     report += '===========================================\n';
     return report;
   }
+
+  /**
+   * Check memory usage and log warning if it exceeds threshold
+   */
+  checkMemoryUsage(): void {
+    const memoryUsage = process.memoryUsage();
+    const heapUsedMB = memoryUsage.heapUsed / 1024 / 1024;
+    const thresholdMB = 512;
+
+    if (heapUsedMB > thresholdMB) {
+      const msg = `Memory usage warning: Heap used ${heapUsedMB.toFixed(2)}MB exceeds threshold ${thresholdMB}MB.`;
+      this.recordError(ErrorType.UNKNOWN, msg);
+      console.warn(`[Monitor] ${msg}`);
+      if (global.gc) {
+        console.log('[Monitor] Suggesting garbage collection...');
+        global.gc();
+      }
+    }
+  }
 }
 
 export const monitor = Monitor.getInstance();

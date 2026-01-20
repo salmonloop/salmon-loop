@@ -6,6 +6,13 @@ import { join } from 'path';
 import { text } from '../locales/index.js';
 
 import { GitError } from './types.js';
+import { logger } from './logger.js';
+
+interface LockMetadata {
+  pid: number;
+  timestamp: number;
+  owner: string;
+}
 
 /**
  * Manages file locks to prevent concurrent access to the same repository or files.
@@ -14,6 +21,7 @@ class FileHandleManager {
   private static readonly LOCK_TIMEOUT = 30000; // 30 seconds
   private static readonly RETRY_DELAY = 100; // 100ms
   private disabled = false;
+  private currentOwner = `process-${process.pid}`;
 
   /**
    * Disable locking (useful for tests)
@@ -25,31 +33,66 @@ class FileHandleManager {
   /**
    * Acquire a lock for a specific path (usually the repo root)
    */
-  async acquireLock(repoPath: string): Promise<void> {
-    if (this.disabled || process.env.NODE_ENV === 'test') return;
+  async acquireLock(repoPath: string, forceUnlock = false): Promise<void> {
+    if (this.disabled || (process.env.NODE_ENV === 'test' && !process.env.SALMON_ENABLE_LOCK_IN_TEST)) return;
 
     const lockFile = join(repoPath, '.salmon.lock');
     const start = Date.now();
+
+    if (forceUnlock) {
+      try {
+        const fs = await import('fs/promises');
+        await fs.unlink(lockFile);
+      } catch {
+        // Ignore
+      }
+    }
 
     while (Date.now() - start < FileHandleManager.LOCK_TIMEOUT) {
       try {
         // Try to create the lock file with O_EXCL to ensure atomicity
         const handle = await open(lockFile, 'wx');
         if (handle) {
+          const metadata: LockMetadata = {
+            pid: process.pid,
+            timestamp: Date.now(),
+            owner: this.currentOwner,
+          };
+          await handle.writeFile(JSON.stringify(metadata), 'utf8');
           await handle.close();
           return;
         }
       } catch (e: any) {
         if (e.code === 'EEXIST') {
-          // Check if the lock is stale (older than 5 minutes)
+          // Check if the lock is stale or the process is dead
           try {
-            const stats = await import('fs/promises').then(fs => fs.stat(lockFile));
-            if (Date.now() - stats.mtimeMs > 300000) {
-              await unlink(lockFile);
+            const fs = await import('fs/promises');
+            const content = await fs.readFile(lockFile, 'utf8');
+            const metadata: LockMetadata = JSON.parse(content);
+            
+            let isAlive = true;
+            try {
+              process.kill(metadata.pid, 0);
+            } catch {
+              isAlive = false;
+            }
+
+            if (!isAlive || Date.now() - metadata.timestamp > 300000) {
+              await fs.unlink(lockFile);
               continue; // Retry immediately after removing stale lock
             }
           } catch {
-            // Ignore stat errors
+            // Fallback to mtime check if metadata is unreadable
+            try {
+              const fs = await import('fs/promises');
+              const stats = await fs.stat(lockFile);
+              if (Date.now() - stats.mtimeMs > 300000) {
+                await fs.unlink(lockFile);
+                continue;
+              }
+            } catch {
+              // Ignore stat errors
+            }
           }
           
           await new Promise(resolve => setTimeout(resolve, FileHandleManager.RETRY_DELAY));
@@ -75,15 +118,26 @@ class FileHandleManager {
    * Release a lock for a specific path
    */
   async releaseLock(repoPath: string): Promise<void> {
-    if (this.disabled || process.env.NODE_ENV === 'test') return;
+    if (this.disabled || (process.env.NODE_ENV === 'test' && !process.env.SALMON_ENABLE_LOCK_IN_TEST)) return;
 
     const lockFile = join(repoPath, '.salmon.lock');
     try {
+      // Verify ownership before releasing
+      try {
+        const fs = await import('fs/promises');
+        const content = await fs.readFile(lockFile, 'utf8');
+        const metadata: LockMetadata = JSON.parse(content);
+        if (metadata.owner !== this.currentOwner) {
+          return; // Not the owner
+        }
+      } catch {
+        // If we can't read it, proceed to try unlink anyway (it might be missing)
+      }
       await unlink(lockFile);
     } catch (e: any) {
       if (e.code !== 'ENOENT') {
         // We don't throw here to avoid masking other errors, but we log it
-        console.error(text.resource.lockReleaseFailed(repoPath), e);
+        logger.warn(text.resource.lockReleaseFailed(repoPath) + `: ${e.message}`);
       }
     }
   }
@@ -106,6 +160,7 @@ export type RollbackResult = {
 };
 
 export async function applyPatch(repoPath: string, diffText: string): Promise<void> {
+  logger.audit('applyPatch.start', { repoPath });
   await lockManager.acquireLock(repoPath);
   try {
     clearGitCache();
@@ -157,12 +212,13 @@ export async function applyPatch(repoPath: string, diffText: string): Promise<vo
     } finally {
       try {
         await unlink(tempFile);
-      } catch {
-        // Ignore deletion errors
+      } catch (error) {
+        logger.warn('Failed to cleanup temp file: ' + String(error));
       }
     }
   } finally {
     await lockManager.releaseLock(repoPath);
+    logger.audit('applyPatch.end', { repoPath });
   }
 }
 
@@ -248,6 +304,7 @@ export async function rollbackFiles(
   files: string[],
   forceReset = false,
 ): Promise<RollbackResult> {
+  logger.audit('rollbackFiles.start', { repoPath, files, forceReset });
   await lockManager.acquireLock(repoPath);
   try {
     clearGitCache();
@@ -371,6 +428,7 @@ export async function rollbackFiles(
     });
   } finally {
     await lockManager.releaseLock(repoPath);
+    logger.audit('rollbackFiles.end', { repoPath });
   }
 }
 

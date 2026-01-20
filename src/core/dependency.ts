@@ -36,7 +36,7 @@ export async function findFileDependencies(filePath: string, repoPath: string): 
 /**
  * Check dependency versions against expected values
  */
-export function checkDependencyVersions(rootPath: string): void {
+export function verifyDependencyVersion(rootPath: string): void {
   try {
     // Read package.json
     const packageJsonPath = safeJoin(rootPath, 'package.json');

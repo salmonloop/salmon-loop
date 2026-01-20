@@ -17,7 +17,10 @@ export const LIMITS = {
 
   // Verify
   verifyOutputMaxLines: 300,
-  verifyTimeoutMs: 300000, // 5 minutes
+  verifyTimeoutMs: Number(process.env.SALMON_VERIFY_TIMEOUT_MS) || 120000,
+
+  // Concurrency
+  maxConcurrentOperations: Number(process.env.SALMON_MAX_CONCURRENT) || 3,
 
   // Logging
   maxLogLength: 10000,

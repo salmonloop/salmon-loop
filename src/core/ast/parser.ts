@@ -155,9 +155,10 @@ export class AstParser {
     }
 
     await this.init();
+    let parser: any;
     try {
       const Parser = this.getParserClass();
-      const parser = new Parser();
+      parser = new Parser();
       const language = await this.getLanguage(lang, wasmPath);
       parser.setLanguage(language);
       const tree = parser.parse(code);
@@ -165,7 +166,11 @@ export class AstParser {
       // Simple LRU-like cleanup
       if (this.treeCache.size >= this.CACHE_LIMIT) {
         const oldestKey = this.treeCache.keys().next().value;
-        if (oldestKey) this.treeCache.delete(oldestKey);
+        if (oldestKey) {
+          const entry = this.treeCache.get(oldestKey);
+          if (entry?.tree) entry.tree.delete();
+          this.treeCache.delete(oldestKey);
+        }
       }
       this.treeCache.set(cacheKey, { tree, timestamp: Date.now() });
 
@@ -173,6 +178,10 @@ export class AstParser {
     } catch (e) {
       logger.error(`AST parse failed: ${e}`);
       throw e;
+    } finally {
+      if (parser) {
+        parser.delete();
+      }
     }
   }
 
