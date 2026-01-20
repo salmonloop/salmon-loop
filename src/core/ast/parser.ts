@@ -2,6 +2,7 @@ import * as TreeSitter from 'web-tree-sitter';
 import path from 'path';
 import fs from 'fs';
 import { createRequire } from 'module';
+import { SymbolInfo } from '../types.js';
 
 const require = createRequire(import.meta.url);
 
@@ -13,6 +14,8 @@ export class AstParser {
   private static initPromise: Promise<void> | null = null;
   private static languages: Map<string, any> = new Map();
   private static languagePromises: Map<string, Promise<any>> = new Map();
+  private static treeCache: Map<string, { tree: any; timestamp: number }> = new Map();
+  private static readonly CACHE_LIMIT = 50;
 
   static async init() {
     if (!this.initPromise) {
@@ -70,10 +73,96 @@ export class AstParser {
   }
 
   static async parse(code: string, lang: string, wasmPath?: string): Promise<any> {
+    const cacheKey = `${lang}:${code.length}:${code.substring(0, 100)}`;
+    const cached = this.treeCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < 60000) {
+      return cached.tree;
+    }
+
     await this.init();
     const parser = new Parser();
     const language = await this.getLanguage(lang, wasmPath);
     parser.setLanguage(language);
-    return parser.parse(code);
+    const tree = parser.parse(code);
+
+    // Simple LRU-like cleanup
+    if (this.treeCache.size >= this.CACHE_LIMIT) {
+      const oldestKey = this.treeCache.keys().next().value;
+      if (oldestKey) this.treeCache.delete(oldestKey);
+    }
+    this.treeCache.set(cacheKey, { tree, timestamp: Date.now() });
+
+    return tree;
   }
+
+  static async identifyDefinitions(tree: any, lang: string): Promise<SymbolInfo[]> {
+    const language = await this.getLanguage(lang);
+    let queryStr = '';
+
+    if (lang === 'typescript' || lang === 'tsx' || lang === 'javascript') {
+      queryStr = `
+        (function_declaration name: (identifier) @name) @def
+        (method_definition name: (property_identifier) @name) @def
+        (variable_declarator name: (identifier) @name) @def
+        (class_declaration name: (identifier) @name) @def
+        (interface_declaration name: (identifier) @name) @def
+        (type_alias_declaration name: (identifier) @name) @def
+      `;
+    }
+
+    if (!queryStr) return [];
+
+    const query = language.query(queryStr);
+    const captures = query.captures(tree.rootNode);
+
+    return captures
+      .filter((c: any) => c.name === 'def')
+      .map((c: any) => {
+        const nameNode = c.node.childForFieldName('name') || c.node;
+        return {
+          name: nameNode.text,
+          kind: 'definition' as const,
+          location: {
+            start: { line: nodeToRow(c.node.startPosition), column: c.node.startPosition.column },
+            end: { line: nodeToRow(c.node.endPosition), column: c.node.endPosition.column },
+          },
+        };
+      });
+  }
+
+  static async identifyReferences(tree: any, lang: string): Promise<SymbolInfo[]> {
+    const language = await this.getLanguage(lang);
+    let queryStr = '';
+
+    if (lang === 'typescript' || lang === 'tsx' || lang === 'javascript') {
+      queryStr = `
+        (call_expression function: (identifier) @name) @ref
+        (member_expression property: (property_identifier) @name) @ref
+        (type_reference name: (identifier) @name) @ref
+      `;
+    }
+
+    if (!queryStr) return [];
+
+    const query = language.query(queryStr);
+    const captures = query.captures(tree.rootNode);
+
+    return captures
+      .filter((c: any) => c.name === 'ref')
+      .map((c: any) => {
+        const nameNode = c.node.childForFieldName('name') || c.node.childForFieldName('property') || c.node;
+        return {
+          name: nameNode.text,
+          kind: 'reference' as const,
+          location: {
+            start: { line: nodeToRow(c.node.startPosition), column: c.node.startPosition.column },
+            end: { line: nodeToRow(c.node.endPosition), column: c.node.endPosition.column },
+          },
+        };
+      });
+  }
+}
+
+function nodeToRow(pos: { row: number }): number {
+  return pos.row + 1; // Convert 0-based to 1-based
 }

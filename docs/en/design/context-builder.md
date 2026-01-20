@@ -8,9 +8,15 @@ The builder follows a clear pipeline:
 1. **Keyword Extraction**: Simple extraction from user instructions.
 2. **Ripgrep Search**: Uses `rg --json` for robust, machine-readable results.
 3. **Git Diff**: Captures current workspace changes.
-4. **Truncation**: Fits gathered data into the character budget.
+4. **AST Analysis**: Identifies definitions and references in the primary file.
+5. **Truncation**: Fits gathered data into the character budget.
 
-## 2. Truncation Strategy: Pack-Until-Full
+## 2. AST-Enhanced Context
+The builder uses Tree-sitter to perform lightweight AST analysis on the primary file:
+- **Definitions**: Marked with `✨`. These are locations where functions, classes, or variables are defined. LLMs are instructed to modify these with caution.
+- **References**: Marked with `↗️`. These indicate where symbols are used, providing the LLM with usage context without needing to pull in entire files.
+
+## 3. Truncation Strategy: Pack-Until-Full
 
 Instead of proportional truncation, we use a "pack-until-full" strategy:
 - **Priority**: `primaryText` > `rgSnippets` > `gitDiff`.

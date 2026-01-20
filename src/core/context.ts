@@ -9,7 +9,8 @@ import { extractKeywords } from './keywords.js';
 import { LIMITS } from './limits.js';
 import { logger } from './logger.js';
 import type { Context, RipgrepResult, RunOptions } from './types.js';
-import { ErrorType } from './types.js';
+import { ErrorType, CodeLocation, SymbolInfo } from './types.js';
+import { AstParser } from './ast/parser.js';
 
 export class ContextBuilder {
   static async build(options: RunOptions): Promise<Context> {
@@ -43,6 +44,28 @@ export class ContextBuilder {
     const unstagedDiff = await this.getGitDiff(options.repoPath, false, options.file);
     const gitDiff = [stagedDiff, unstagedDiff].filter(Boolean).join('\n').trim() || undefined;
 
+    // AST Analysis for definitions and references
+    let symbols: SymbolInfo[] = [];
+    let definitionMap: Record<string, CodeLocation> = {};
+
+    if (primaryText && options.file) {
+      try {
+        const lang = this.getLanguageFromFile(options.file);
+        if (lang) {
+          const tree = await AstParser.parse(primaryText, lang);
+          const defs = await AstParser.identifyDefinitions(tree, lang);
+          const refs = await AstParser.identifyReferences(tree, lang);
+          
+          symbols = [...defs, ...refs];
+          for (const def of defs) {
+            definitionMap[def.name] = def.location;
+          }
+        }
+      } catch (e) {
+        logger.warn(`  [CONTEXT] AST analysis failed for ${options.file}: ${e}`);
+      }
+    }
+
     // Truncate context
     const context: Context = {
       repoPath: options.repoPath,
@@ -50,9 +73,32 @@ export class ContextBuilder {
       primaryText,
       rgSnippets,
       gitDiff,
+      symbols,
+      definitionMap,
     };
 
     return this.truncateContext(context);
+  }
+
+  private static getLanguageFromFile(filePath: string): string | undefined {
+    const ext = path.extname(filePath).toLowerCase();
+    switch (ext) {
+      case '.ts': return 'typescript';
+      case '.tsx': return 'tsx';
+      case '.js':
+      case '.jsx':
+      case '.mjs':
+      case '.cjs': return 'javascript';
+      case '.py': return 'python';
+      case '.go': return 'go';
+      case '.rs': return 'rust';
+      case '.java': return 'java';
+      case '.cpp':
+      case '.cc':
+      case '.h': return 'cpp';
+      case '.c': return 'c';
+      default: return undefined;
+    }
   }
 
   private static async runRipgrep(query: string, cwd: string): Promise<RipgrepResult[]> {

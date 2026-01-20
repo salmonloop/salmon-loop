@@ -309,6 +309,16 @@ export class SalmonLoop {
         startPhase(ExecutionPhase.VALIDATE);
         const diffMeta = validateDiff(currentDiff);
 
+        // Fuzzy context matching
+        if (options.file && context.primaryText) {
+          const { fuzzyContextMatch } = await import('./diff.js');
+          if (!fuzzyContextMatch(currentDiff, context.primaryText)) {
+            const msg = 'Patch context does not match the file content (fuzzy match failed)';
+            logs.push(this.createLog(ExecutionPhase.VALIDATE, msg, false));
+            throw new Error(msg);
+          }
+        }
+
         if (options.expectedChanges && options.expectedChanges.length > 0) {
           if (!validatePatchContent(currentDiff, options.expectedChanges)) {
             // Treat this as a validation failure

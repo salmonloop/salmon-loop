@@ -138,7 +138,33 @@ export class OpenAILLM implements LLM {
 
     if (context.primaryText) {
       result += `${text.context.primaryFile(context.primaryFile || 'Selection')}\n`;
-      result += `${text.context.primaryText}\n${context.primaryText}\n\n`;
+      
+      let textToDisplay = context.primaryText;
+      if (context.symbols && context.symbols.length > 0) {
+        const lines = textToDisplay.split('\n');
+        // Sort symbols by position descending to avoid offset issues if we were inserting into strings,
+        // but here we are just appending to lines, so we just need to be careful about multiple symbols on same line.
+        const sortedSymbols = [...context.symbols].sort((a, b) => {
+          if (a.location.start.line !== b.location.start.line) {
+            return b.location.start.line - a.location.start.line;
+          }
+          return b.location.start.column - a.location.start.column;
+        });
+
+        for (const symbol of sortedSymbols) {
+          const lineIdx = symbol.location.start.line - 1;
+          if (lineIdx >= 0 && lineIdx < lines.length) {
+            const marker = symbol.kind === 'definition' ? ' ✨' : ' ↗️';
+            // Avoid duplicate markers if multiple symbols on same line (though unlikely for definitions)
+            if (!lines[lineIdx].endsWith(marker)) {
+              lines[lineIdx] += marker;
+            }
+          }
+        }
+        textToDisplay = lines.join('\n');
+      }
+
+      result += `${text.context.primaryText}\n${textToDisplay}\n\n`;
     }
 
     if (context.rgSnippets && context.rgSnippets.length > 0) {

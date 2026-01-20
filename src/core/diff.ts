@@ -118,6 +118,64 @@ export function normalizeDiff(raw: string): string {
 }
 
 /**
+ * Calculates the Levenshtein distance between two strings.
+ */
+function levenshtein(a: string, b: string): number {
+  const matrix = Array.from({ length: a.length + 1 }, (_, i) =>
+    Array.from({ length: b.length + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0)),
+  );
+
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      matrix[i][j] =
+        a[i - 1] === b[j - 1]
+          ? matrix[i - 1][j - 1]
+          : Math.min(matrix[i - 1][j - 1], matrix[i][j - 1], matrix[i - 1][j]) + 1;
+    }
+  }
+  return matrix[a.length][b.length];
+}
+
+/**
+ * Calculates similarity between two strings (0 to 1).
+ */
+export function calculateSimilarity(a: string, b: string): number {
+  const distance = levenshtein(a, b);
+  const maxLength = Math.max(a.length, b.length);
+  return maxLength === 0 ? 1 : 1 - distance / maxLength;
+}
+
+/**
+ * Fuzzy context match for patch application.
+ */
+export function fuzzyContextMatch(patch: string, originalContent: string, threshold = 0.85): boolean {
+  // Extract context lines from patch (lines starting with ' ')
+  const contextLines = patch
+    .split('\n')
+    .filter((line) => line.startsWith(' '))
+    .map((line) => line.substring(1).trim());
+
+  if (contextLines.length === 0) return true;
+
+  const originalLines = originalContent.split('\n').map((line) => line.trim());
+
+  // Check if each context line has a reasonably similar line in the original content
+  for (const ctxLine of contextLines) {
+    if (!ctxLine) continue;
+    let found = false;
+    for (const orgLine of originalLines) {
+      if (calculateSimilarity(ctxLine, orgLine) >= threshold) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) return false;
+  }
+
+  return true;
+}
+
+/**
  * Check if the text is a valid unified diff format.
  */
 export function isUnifiedDiff(text: string): boolean {

@@ -27,6 +27,7 @@ describe('OpenAILLM', () => {
 
   afterEach(() => {
     vi.unstubAllEnvs();
+    vi.restoreAllMocks();
   });
 
   describe('createPlan', () => {
@@ -80,6 +81,33 @@ describe('OpenAILLM', () => {
 
       const result = await llm.createPatch(mockContext, {} as any);
       expect(result).toBe(diff);
+    });
+  });
+
+  describe('formatContext', () => {
+    it('should inject markers for symbols', () => {
+      const context: Context = {
+        repoPath: '.',
+        primaryFile: 'test.ts',
+        primaryText: 'function hello() {\n  world();\n}',
+        symbols: [
+          {
+            name: 'hello',
+            kind: 'definition',
+            location: { start: { line: 1, column: 9 }, end: { line: 1, column: 14 } },
+          },
+          {
+            name: 'world',
+            kind: 'reference',
+            location: { start: { line: 2, column: 2 }, end: { line: 2, column: 7 } },
+          },
+        ],
+        rgSnippets: [],
+      } as any;
+
+      const formatted = (llm as any).formatContext(context);
+      expect(formatted).toContain('function hello() { ✨');
+      expect(formatted).toContain('  world(); ↗️');
     });
   });
 });

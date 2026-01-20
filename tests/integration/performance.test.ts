@@ -41,7 +41,6 @@ describe('Performance Integration Tests', () => {
   const repoPath = '/large-repo';
 
   beforeEach(() => {
-    vi.useFakeTimers();
     // Mock spawn for rg and git
     vi.mocked(spawn).mockImplementation(() => {
       const child = new EventEmitter() as any;
@@ -66,7 +65,6 @@ describe('Performance Integration Tests', () => {
   });
 
   afterEach(() => {
-    vi.useRealTimers();
     mockFs.restore();
   });
 
@@ -84,17 +82,17 @@ describe('Performance Integration Tests', () => {
     vi.mocked(git.applyPatch).mockResolvedValue(undefined);
     vi.mocked(verify.runVerify).mockResolvedValue({ ok: true, output: '', exitCode: 0 });
 
+    console.time('SalmonLoop performance');
     const start = Date.now();
-    const promise = runSalmonLoop({
+    const result = await runSalmonLoop({
       instruction: 'Fix file0',
       verify: 'npm test',
       repoPath: repoPath,
       llm: mockLlm,
     });
-
-    await vi.runAllTimersAsync();
-    const result = await promise;
     const end = Date.now();
+    console.timeEnd('SalmonLoop performance');
+    console.log(`File count: 1000, Total time: ${end - start}ms`);
 
     expect(result.success).toBe(true);
     expect(end - start).toBeLessThan(5000); // Should complete within 5 seconds in mock environment

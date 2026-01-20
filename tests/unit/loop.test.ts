@@ -34,6 +34,10 @@ describe('SalmonLoop', () => {
     vi.mocked(verify.preflight).mockResolvedValue({ ok: true });
   });
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('should run successfully when verify passes', async () => {
     vi.mocked(ContextBuilder.build).mockResolvedValue({
       repoPath: '/tmp/repo',

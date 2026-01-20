@@ -99,12 +99,26 @@ export type LoopEvent =
       timestamp: Date;
     };
 
+export interface CodeLocation {
+  start: { line: number; column: number };
+  end: { line: number; column: number };
+}
+
+export interface SymbolInfo {
+  name: string;
+  kind: 'definition' | 'reference';
+  location: CodeLocation;
+  snippet?: string;
+}
+
 export interface Context {
   repoPath: string;
   primaryFile?: string;
   primaryText?: string;
   rgSnippets: RipgrepResult[];
   gitDiff?: string;
+  definitionMap?: Record<string, CodeLocation>;
+  symbols?: SymbolInfo[];
 }
 
 export interface FileContext {

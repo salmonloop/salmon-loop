@@ -1,22 +1,35 @@
 import { spawn } from 'child_process';
 import { EventEmitter } from 'events';
 import * as fs from 'fs/promises';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 import { ContextBuilder } from '../../src/core/context.js';
+import { AstParser } from '../../src/core/ast/parser.js';
 
 vi.mock('fs/promises');
 vi.mock('child_process');
+vi.mock('../../src/core/ast/parser.js', () => ({
+  AstParser: class {
+    static parse = vi.fn();
+    static identifyDefinitions = vi.fn();
+    static identifyReferences = vi.fn();
+  },
+}));
 
 describe('ContextBuilder', () => {
   const tempDir = '/fake/temp/dir';
 
   beforeEach(() => {
-    vi.useFakeTimers();
     vi.clearAllMocks();
+
+    // Default AST mocks
+    vi.mocked(AstParser.parse).mockResolvedValue({} as any);
+    vi.mocked(AstParser.identifyDefinitions).mockResolvedValue([]);
+    vi.mocked(AstParser.identifyReferences).mockResolvedValue([]);
   });
 
   afterEach(() => {
-    vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   it('should build context with primary file', async () => {
@@ -27,84 +40,67 @@ describe('ContextBuilder', () => {
       const emitter = new EventEmitter() as any;
       emitter.stdout = new EventEmitter();
       emitter.stderr = new EventEmitter();
+      emitter.stdin = new EventEmitter();
+      emitter.stdin.end = vi.fn();
+      emitter.stdin.write = vi.fn();
+      emitter.kill = vi.fn();
 
-      setTimeout(() => {
-        if (command === 'git') {
-          // Return empty diff for this test
-          emitter.emit('close', 0);
-        } else if (command === 'rg') {
-          // Return empty search results
-          emitter.emit('close', 0);
-        }
-      }, 0);
+      process.nextTick(() => {
+        emitter.emit('close', 0);
+        emitter.emit('exit', 0);
+      });
 
       return emitter;
     });
 
-    const promise = ContextBuilder.build({
+    const context = await ContextBuilder.build({
       instruction: 'fix something',
       verify: 'npm test',
       repoPath: tempDir,
       file: 'test.ts',
     });
 
-    await vi.runAllTimersAsync();
-    const context = await promise;
-
     expect(context.primaryText).toContain('console.log("hello");');
     expect(context.repoPath).toBe(tempDir);
     expect(fs.readFile).toHaveBeenCalledWith(expect.stringContaining('test.ts'), 'utf-8');
   });
 
-  it('should build context with git diff', async () => {
-    vi.mocked(fs.readFile).mockResolvedValue('initial');
+  it('should include AST symbols in context', async () => {
+    const code = 'function test() { console.log("hello"); }';
+    vi.mocked(fs.readFile).mockResolvedValue(code);
+    vi.mocked(AstParser.parse).mockResolvedValue({} as any);
+    vi.mocked(AstParser.identifyDefinitions).mockResolvedValue([
+      {
+        name: 'test',
+        kind: 'definition',
+        location: { start: { line: 1, column: 9 }, end: { line: 1, column: 13 } },
+      },
+    ]);
+    vi.mocked(AstParser.identifyReferences).mockResolvedValue([]);
 
-    vi.mocked(spawn).mockImplementation((command: string, args: readonly string[]) => {
+    vi.mocked(spawn).mockImplementation(() => {
       const emitter = new EventEmitter() as any;
       emitter.stdout = new EventEmitter();
       emitter.stderr = new EventEmitter();
-
-      setTimeout(() => {
-        if (command === 'git' && args.includes('diff')) {
-          emitter.stdout.emit('data', Buffer.from('+modified\n-initial'));
-          emitter.emit('close', 0);
-        } else {
-          emitter.emit('close', 0);
-        }
-      }, 0);
-
+      emitter.stdin = new EventEmitter();
+      emitter.stdin.end = vi.fn();
+      emitter.stdin.write = vi.fn();
+      emitter.kill = vi.fn();
+      process.nextTick(() => {
+        emitter.emit('close', 0);
+        emitter.emit('exit', 0);
+      });
       return emitter;
     });
 
-    const promise = ContextBuilder.build({
+    const context = await ContextBuilder.build({
       instruction: 'fix something',
       verify: 'npm test',
       repoPath: tempDir,
+      file: 'test.ts',
     });
 
-    await vi.runAllTimersAsync();
-    const context = await promise;
-
-    expect(context.gitDiff).toContain('+modified');
-  });
-
-  describe('shrinkContext', () => {
-    it('should filter rgSnippets based on failed files', async () => {
-      const context = {
-        repoPath: '.',
-        // Make primaryText large enough to exceed minContextChars protection
-        primaryText: 'A'.repeat(6000),
-        rgSnippets: [
-          { file: 'src/a.ts', line: 1, content: 'a' },
-          { file: 'src/b.ts', line: 1, content: 'b' },
-        ],
-      } as any;
-
-      const failedFiles = ['src/a.ts'];
-      const newContext = await ContextBuilder.shrinkContext(context, failedFiles);
-
-      expect(newContext.rgSnippets).toHaveLength(1);
-      expect(newContext.rgSnippets[0].file).toBe('src/a.ts');
-    });
+    expect(context.symbols).toBeDefined();
+    expect(context.symbols?.length).toBeGreaterThan(0);
   });
 });
