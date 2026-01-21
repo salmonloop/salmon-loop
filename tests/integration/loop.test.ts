@@ -11,6 +11,7 @@ import { ExecutionPhase } from '../../src/core/types.js';
 import * as verify from '../../src/core/verify.js';
 import { AstParser } from '../../src/core/ast/parser.js';
 import { WorkspaceManager } from '../../src/core/workspace.js';
+import * as worktree from '../../src/core/checkpoint/worktree.js';
 
 vi.mock('child_process', () => ({
   spawn: vi.fn(),
@@ -54,23 +55,29 @@ vi.mock('../../src/core/verify.js', async () => {
 vi.mock('../../src/core/workspace.js', () => ({
   WorkspaceManager: {
     setup: vi.fn().mockImplementation(async (options) => {
-      console.log('Mock WorkspaceManager.setup called with:', JSON.stringify(options));
-      const workspace = {
+      // console.log('Mock WorkspaceManager.setup called with:', JSON.stringify(options));
+      return {
         baseRepoPath: options.repoPath,
-        workPath: options.repoPath, // Return same path to work with mockFs
+        workPath: options.repoPath,
         strategy: options.strategy || 'direct',
       };
-      
-      return workspace;
     }),
     teardown: vi.fn().mockResolvedValue(undefined),
   },
+}));
+
+// Implement the fix: Mock checkpoint/worktree.js
+vi.mock('../../src/core/checkpoint/worktree.js', () => ({
+  createWorktreeCheckpoint: vi.fn(),
+  cleanupWorktreeCheckpoint: vi.fn(),
+  runGit: vi.fn(),
 }));
 
 describe('SalmonLoop Integration Tests', () => {
   const repoPath = '/fake-repo';
 
   beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'setInterval', 'Date'] }); // Enable fake timers but preserve nextTick/setImmediate
     mockFs({
       [repoPath]: {
         src: {
@@ -81,7 +88,7 @@ describe('SalmonLoop Integration Tests', () => {
     });
     vi.clearAllMocks();
 
-    // Default spawn mock to avoid errors in ContextBuilder
+    // Default spawn mock
     vi.mocked(spawn).mockImplementation(() => {
       const child = new EventEmitter() as any;
       child.stdout = new EventEmitter();
@@ -90,7 +97,8 @@ describe('SalmonLoop Integration Tests', () => {
       (child.stdin as any).end = vi.fn();
       (child.stdin as any).write = vi.fn();
       child.kill = vi.fn();
-      // Simulate process exit in next tick to allow listeners to be attached
+    
+      // Use nextTick to allow promise to pending
       process.nextTick(() => {
         child.emit('close', 0);
         child.emit('exit', 0);
@@ -103,10 +111,38 @@ describe('SalmonLoop Integration Tests', () => {
     vi.mocked(AstParser.parse).mockResolvedValue({} as any);
     vi.mocked(AstParser.identifyDefinitions).mockResolvedValue([]);
     vi.mocked(AstParser.identifyReferences).mockResolvedValue([]);
+    
+    // Default worktree mocks
+    vi.mocked(worktree.createWorktreeCheckpoint).mockResolvedValue({
+        strategy: 'worktree',
+        repoPath,
+        worktreePath: '/tmp/wt-12345',
+        baseRef: 'HEAD',
+        branchName: 'salmon-loop-bench',
+    });
+
+    // Make sure mockFs covers the worktree path!
+    // mockFs replaces fs, so checks for /tmp/wt-12345 will fail if not in mock structure
+    const fsConfig: any = {
+      [repoPath]: {
+        src: {
+          'index.ts': 'console.log("hello");',
+        },
+        '.git': {}, // Simulate git repo
+      },
+      // Add the mock worktree path
+      '/tmp/wt-12345': {
+         src: {
+          'index.ts': 'console.log("hello");',
+        },
+        '.git': {},
+      }
+    };
+    mockFs(fsConfig);
+    vi.mocked(worktree.cleanupWorktreeCheckpoint).mockResolvedValue(undefined);
 
     // Restore WorkspaceManager mock implementation
     vi.mocked(WorkspaceManager.setup).mockImplementation(async (options) => {
-      // console.log('Mock WorkspaceManager.setup called with:', JSON.stringify(options));
       return {
         baseRepoPath: options.repoPath,
         workPath: options.repoPath,
@@ -118,6 +154,7 @@ describe('SalmonLoop Integration Tests', () => {
   afterEach(() => {
     mockFs.restore();
     vi.clearAllMocks();
+    vi.useRealTimers();
   });
 
   it('should complete a successful loop', async () => {
@@ -242,7 +279,11 @@ describe('SalmonLoop Integration Tests', () => {
     }
 
     expect(result.success).toBe(true);
-    // Since spawn is mocked to return 0, WorkspaceManager should succeed
-    // We can verify that the loop ran successfully
+    // Verify that createWorktreeCheckpoint was called
+    expect(worktree.createWorktreeCheckpoint).toHaveBeenCalledWith(repoPath);
+    // Verify that workspace.workPath was updated to the worktree path (indirectly via args to runVerify)
+    // Note: runVerify calls with activeRepoPath.
+    // We can check if runVerify was called with the mock worktree path
+    expect(verify.runVerify).toHaveBeenCalledWith('/tmp/wt-12345', 'npm test');
   });
 });

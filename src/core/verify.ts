@@ -243,6 +243,7 @@ export async function preflight(workspace: ExecutionWorkspace): Promise<{ ok: bo
       }
 
       // 2. Check if workspace is dirty (only for direct strategy)
+      // Allow dirty workspace by default for worktree strategy
       if (workspace.strategy === 'direct') {
         const statusCheck = spawn('git', ['status', '--porcelain'], { cwd: workspace.baseRepoPath });
         let output = '';

@@ -1,4 +1,5 @@
 import { spawn } from 'child_process';
+import { randomBytes } from 'crypto';
 import { writeFile, unlink, open, mkdir } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -172,7 +173,7 @@ export async function applyPatch(repoPath: string, diffText: string): Promise<vo
 
     const tempFile = join(
       tmpdir(),
-      `salmon-loop-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}.patch`,
+      `salmon-loop-${process.pid}-${Date.now()}-${randomBytes(4).toString('hex')}.patch`,
     );
 
     await writeFile(tempFile, cleanedDiff, 'utf8');

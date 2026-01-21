@@ -12,6 +12,26 @@ interface ErrorEntry {
 }
 
 /**
+ * Checkpoint metrics for monitoring
+ */
+interface CheckpointMetrics {
+  createAttempts: number;
+  createFailures: number;
+  cleanupAttempts: number;
+  cleanupFailures: number;
+}
+
+/**
+ * ApplyBack metrics for monitoring
+ */
+interface ApplyBackMetrics {
+  attempts: number;
+  failures: number;
+  totalDuration: number;
+  durations: number[];
+}
+
+/**
  * RingBuffer implementation to store a fixed number of recent errors
  */
 class RingBuffer<T> {
@@ -51,9 +71,23 @@ class RingBuffer<T> {
 export class Monitor {
   private static instance: Monitor;
   private errorHistory: RingBuffer<ErrorEntry>;
+  private checkpointMetrics: CheckpointMetrics;
+  private applyBackMetrics: ApplyBackMetrics;
 
   private constructor() {
     this.errorHistory = new RingBuffer<ErrorEntry>(LIMITS.maxErrorHistory);
+    this.checkpointMetrics = {
+      createAttempts: 0,
+      createFailures: 0,
+      cleanupAttempts: 0,
+      cleanupFailures: 0,
+    };
+    this.applyBackMetrics = {
+      attempts: 0,
+      failures: 0,
+      totalDuration: 0,
+      durations: [],
+    };
   }
 
   static getInstance(): Monitor {
@@ -116,6 +150,135 @@ export class Monitor {
         global.gc();
       }
     }
+  }
+
+  /**
+   * Record checkpoint creation attempt
+   */
+  recordCheckpointCreate(success: boolean): void {
+    this.checkpointMetrics.createAttempts++;
+    if (!success) {
+      this.checkpointMetrics.createFailures++;
+    }
+  }
+
+  /**
+   * Record checkpoint cleanup attempt
+   */
+  recordCheckpointCleanup(success: boolean): void {
+    this.checkpointMetrics.cleanupAttempts++;
+    if (!success) {
+      this.checkpointMetrics.cleanupFailures++;
+    }
+  }
+
+  /**
+   * Record applyBack operation
+   */
+  recordApplyBack(success: boolean, duration: number): void {
+    this.applyBackMetrics.attempts++;
+    if (!success) {
+      this.applyBackMetrics.failures++;
+    }
+    this.applyBackMetrics.totalDuration += duration;
+    this.applyBackMetrics.durations.push(duration);
+    
+    // Keep only last 100 durations to avoid memory bloat
+    if (this.applyBackMetrics.durations.length > 100) {
+      this.applyBackMetrics.durations.shift();
+    }
+  }
+
+  /**
+   * Get checkpoint creation failure rate (0-1)
+   */
+  getCheckpointCreateFailureRate(): number {
+    if (this.checkpointMetrics.createAttempts === 0) return 0;
+    return this.checkpointMetrics.createFailures / this.checkpointMetrics.createAttempts;
+  }
+
+  /**
+   * Get worktree cleanup failure count
+   */
+  getWorktreeCleanupFailureCount(): number {
+    return this.checkpointMetrics.cleanupFailures;
+  }
+
+  /**
+   * Get average applyBack duration in milliseconds
+   */
+  getApplyBackAvgDuration(): number {
+    if (this.applyBackMetrics.attempts === 0) return 0;
+    return this.applyBackMetrics.totalDuration / this.applyBackMetrics.attempts;
+  }
+
+  /**
+   * Get checkpoint metrics summary
+   */
+  getCheckpointMetrics(): CheckpointMetrics {
+    return { ...this.checkpointMetrics };
+  }
+
+  /**
+   * Get applyBack metrics summary
+   */
+  getApplyBackMetrics(): Readonly<ApplyBackMetrics> {
+    return {
+      attempts: this.applyBackMetrics.attempts,
+      failures: this.applyBackMetrics.failures,
+      totalDuration: this.applyBackMetrics.totalDuration,
+      durations: [...this.applyBackMetrics.durations],
+    };
+  }
+
+  /**
+   * Generate metrics report
+   */
+  getMetricsReport(): string {
+    let report = '\n=== Checkpoint & ApplyBack Metrics ===\n';
+    
+    report += '\n[Checkpoint Creation]\n';
+    report += `  Attempts: ${this.checkpointMetrics.createAttempts}\n`;
+    report += `  Failures: ${this.checkpointMetrics.createFailures}\n`;
+    report += `  Failure Rate: ${(this.getCheckpointCreateFailureRate() * 100).toFixed(2)}%\n`;
+    
+    report += '\n[Worktree Cleanup]\n';
+    report += `  Attempts: ${this.checkpointMetrics.cleanupAttempts}\n`;
+    report += `  Failures: ${this.checkpointMetrics.cleanupFailures}\n`;
+    
+    report += '\n[ApplyBack Operations]\n';
+    report += `  Attempts: ${this.applyBackMetrics.attempts}\n`;
+    report += `  Failures: ${this.applyBackMetrics.failures}\n`;
+    report += `  Avg Duration: ${this.getApplyBackAvgDuration().toFixed(2)}ms\n`;
+    
+    if (this.applyBackMetrics.durations.length > 0) {
+      const sorted = [...this.applyBackMetrics.durations].sort((a, b) => a - b);
+      const p50 = sorted[Math.floor(sorted.length * 0.5)];
+      const p95 = sorted[Math.floor(sorted.length * 0.95)];
+      report += `  P50 Duration: ${p50.toFixed(2)}ms\n`;
+      report += `  P95 Duration: ${p95.toFixed(2)}ms\n`;
+    }
+    
+    report += '======================================\n';
+    return report;
+  }
+
+  /**
+   * Reset all metrics (useful for testing)
+   */
+  resetMetrics(): void {
+    this.checkpointMetrics = {
+      createAttempts: 0,
+      createFailures: 0,
+      cleanupAttempts: 0,
+      cleanupFailures: 0,
+    };
+    this.applyBackMetrics = {
+      attempts: 0,
+      failures: 0,
+      totalDuration: 0,
+      durations: [],
+    };
   }
 }
 

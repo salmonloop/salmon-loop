@@ -1,4 +1,5 @@
 import { text } from '../locales/index.js';
+import { normalize as pathNormalize, isAbsolute as pathIsAbsolute } from 'path';
 
 import { LIMITS } from './limits.js';
 import { DiffValidationError } from './types.js';
@@ -17,6 +18,11 @@ export interface DiffMeta {
  * It tries to find the first code block that looks like a diff or the raw diff itself.
  */
 const cleanPath = (path: string) => {
+  // Special case: /dev/null must be preserved as-is
+  if (path === '/dev/null' || path === 'dev/null') {
+    return path;
+  }
+
   // 1. Detect if it was an absolute path before normalization
   const isAbsolute = path.startsWith('/') || path.startsWith('\\') || /^[a-zA-Z]:/.test(path);
 
@@ -31,6 +37,9 @@ const cleanPath = (path: string) => {
   if (normalized.startsWith('/')) {
     normalized = normalized.substring(1);
   }
+  
+  // Remove leading ./ prefix
+  normalized = normalized.replace(/^\.\/+/, '');
 
   // 3. Heuristic to strip repository name prefix if LLM included it
   // We ONLY do this for relative-looking paths to avoid breaking absolute paths.
@@ -78,7 +87,18 @@ const cleanPath = (path: string) => {
     }
   }
 
-  return normalized;
+  // 4. Security: Path traversal detection using path.normalize
+  const finalNormalized = pathNormalize(normalized).replace(/\\/g, '/');
+  
+  // After normalization, check for path traversal patterns or absolute paths
+  // Split by '/' and check if any segment is exactly '..'
+  // This catches real path traversal like '../' or '/..' but allows filenames like '...'
+  const segments = finalNormalized.split('/');
+  if (segments.some(seg => seg === '..') || pathIsAbsolute(finalNormalized)) {
+    throw new DiffValidationError(`Path traversal detected: ${path}`);
+  }
+
+  return finalNormalized;
 };
 
 export function normalizeDiff(raw: string): string {

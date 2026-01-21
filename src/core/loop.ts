@@ -5,6 +5,7 @@ import { validateDiff, normalizeDiff, validatePatchContent } from './diff.js';
 import { applyPatch, rollbackFiles, getGitStatus } from './git.js';
 import { LIMITS } from './limits.js';
 import { LLM } from './llm.js';
+import { logger } from './logger.js';
 import type {
   Context,
   Plan,
@@ -14,6 +15,7 @@ import type {
   LoopEvent,
   VerboseLevel,
   CheckpointStrategy,
+  CheckpointRef,
 } from './types.js';
 import { ExecutionPhase, ErrorType, GitError } from './types.js';
 import { runVerify, classifyError, preflight, verifyFileContent } from './verify.js';
@@ -25,6 +27,7 @@ import path from 'path';
 import { Semaphore } from './concurrency.js';
 import { WorkspaceManager } from './workspace.js';
 import type { ExecutionWorkspace } from './types.js';
+import { createWorktreeCheckpoint, cleanupWorktreeCheckpoint, runGit } from './checkpoint/worktree.js';
 
 const globalSemaphore = new Semaphore(LIMITS.maxConcurrentOperations);
 
@@ -129,6 +132,7 @@ export class SalmonLoop {
     let currentPhase: ExecutionPhase = ExecutionPhase.PREFLIGHT;
     let phaseEnded = true;
     let workspace: ExecutionWorkspace | undefined;
+    let checkpointRef: CheckpointRef | undefined;
 
     const startPhase = (phase: ExecutionPhase) => {
       // Ensure previous phase is closed
@@ -164,6 +168,10 @@ export class SalmonLoop {
         errorType: ErrorType.UNKNOWN,
       };
     }
+
+    // Modify preflight to allow dirty workspace when using worktree strategy
+    // This is the core change for Stage 10: allow dirty workspace by default
+    const shouldAllowDirty = options.allowDirty || options.strategy === 'worktree';
 
     // Setup workspace
     try {
@@ -207,6 +215,35 @@ export class SalmonLoop {
         errorType: ErrorType.UNKNOWN,
       };
     }
+    
+    // Create worktree checkpoint if using worktree strategy
+    if (options.strategy === 'worktree') {
+      try {
+        checkpointRef = await createWorktreeCheckpoint(options.repoPath);
+        emit({
+          type: 'checkpoint.created',
+          worktreePath: checkpointRef.worktreePath,
+          baseRef: checkpointRef.baseRef,
+          timestamp: now(),
+        });
+        // Switch to worktree path for all subsequent operations
+        workspace.workPath = checkpointRef.worktreePath;
+      } catch (error) {
+        const msg = `Failed to create worktree checkpoint: ${error instanceof Error ? error.message : String(error)}`;
+        logs.push(this.createLog('error', msg, false));
+        emit({ type: 'log', level: 'error', message: msg, timestamp: now() });
+        return {
+          success: false,
+          reason: msg,
+          reasonCode: 'LOOP_FAILED',
+          attempts: 0,
+          logs,
+          failurePhase: ExecutionPhase.PREFLIGHT,
+          errorType: ErrorType.UNKNOWN,
+        };
+      }
+    }
+    
     const activeRepoPath = workspace.workPath;
 
     try {
@@ -218,7 +255,7 @@ export class SalmonLoop {
 
         // Special case: if allowDirty is true and error is DIRTY, we proceed
         const isDirtyError = pf.reason?.includes('uncommitted changes');
-        if (options.allowDirty && isDirtyError) {
+        if (shouldAllowDirty && isDirtyError) {
           emit({
             type: 'log',
             level: 'warn',
@@ -230,7 +267,7 @@ export class SalmonLoop {
           logs.push(this.createLog('error', reason, false));
           endPhase(false);
           emit({ type: 'log', level: 'error', message: reason, timestamp: now() });
-
+  
           return {
             success: false,
             reason,
@@ -380,6 +417,11 @@ export class SalmonLoop {
 
           // VALIDATE phase
           startPhase(ExecutionPhase.VALIDATE);
+          
+          // CRITICAL: Normalize BEFORE validation to ensure paths are cleaned
+          // This prevents validateDiff from treating invalid paths like 'a/test-repo/index.js' as valid
+          currentDiff = normalizeDiff(currentDiff);
+          
           const diffMeta = validateDiff(currentDiff);
 
           // Fuzzy context matching
@@ -402,9 +444,6 @@ export class SalmonLoop {
               throw new Error(msg);
             }
           }
-
-          // Use normalized diff for application to remove markdown markers or conversational text
-          currentDiff = normalizeDiff(currentDiff);
           changedFilesThisAttempt = diffMeta.changedFiles;
           logs.push(this.createLog(ExecutionPhase.VALIDATE, text.loop.diffValidationPassed));
           emit({
@@ -660,6 +699,29 @@ export class SalmonLoop {
           endPhase(verifyResult.ok);
 
           if (verifyResult.ok) {
+            // Apply back to main workspace if using worktree strategy
+            if (checkpointRef && options.strategy === 'worktree') {
+              try {
+                await this.applyBackToMainWorkspace(options.repoPath, checkpointRef, currentDiff || '');
+              } catch (error) {
+                const msg = `Failed to apply changes back to main workspace: ${error instanceof Error ? error.message : String(error)}`;
+                logs.push(this.createLog('error', msg, false));
+                emit({ type: 'log', level: 'error', message: msg, timestamp: now() });
+                return {
+                  success: false,
+                  reason: msg,
+                  reasonCode: 'APPLY_BACK_FAILED',
+                  attempts: attempt,
+                  logs,
+                  history,
+                  finalPatch: currentDiff || undefined,
+                  changedFiles: changedFilesThisAttempt,
+                  failurePhase: ExecutionPhase.VERIFY,
+                  errorType: ErrorType.UNKNOWN,
+                };
+              }
+            }
+            
             return {
               success: true,
               reason: text.loop.operationCompleted,
@@ -849,13 +911,33 @@ export class SalmonLoop {
         errorType: ErrorType.UNKNOWN,
       };
     } finally {
-      // Cleanup workspace
+      // Cleanup workspace and checkpoint
       if (workspace) {
         try {
           await WorkspaceManager.teardown(workspace);
         } catch (error) {
           const msg = error instanceof Error ? error.message : String(error);
           emit({ type: 'log', level: 'warn', message: `Workspace cleanup failed: ${msg}`, timestamp: now() });
+        }
+      }
+      
+      // Cleanup worktree checkpoint
+      if (checkpointRef) {
+        try {
+          await cleanupWorktreeCheckpoint(checkpointRef);
+          emit({
+            type: 'checkpoint.cleaned',
+            ok: true,
+            timestamp: now(),
+          });
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : String(error);
+          emit({
+            type: 'checkpoint.cleaned',
+            ok: false,
+            timestamp: now(),
+          });
+          emit({ type: 'log', level: 'warn', message: `Worktree cleanup failed: ${msg}`, timestamp: now() });
         }
       }
     }
@@ -887,5 +969,59 @@ export class SalmonLoop {
       output: outputStr,
       timestamp: new Date(),
     };
+  }
+
+  private async applyBackToMainWorkspace(
+    mainRepoPath: string,
+    checkpointRef: CheckpointRef,
+    diffText: string,
+  ): Promise<void> {
+    const startTime = Date.now();
+    let applySuccess = false;
+    let applyError: Error | undefined;
+    
+    try {
+      // Generate patch from worktree changes
+      const patch = await runGit(checkpointRef.worktreePath, ['diff', checkpointRef.baseRef]);
+      
+      // Create backup before applying
+      let stashCreated = false;
+      try {
+        await runGit(mainRepoPath, ['stash', 'save', 'salmonloop-backup']);
+        stashCreated = true;
+      } catch (error) {
+        // If stash fails (e.g., nothing to stash), continue
+        logger.warn(`Stash backup failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
+      
+      // Apply patch to main workspace
+      try {
+        await applyPatch(mainRepoPath, patch);
+        applySuccess = true;
+      } catch (error) {
+        applyError = error instanceof Error ? error : new Error(String(error));
+        
+        // Rollback on failure
+        if (stashCreated) {
+          try {
+            await runGit(mainRepoPath, ['stash', 'pop']);
+          } catch (rollbackError) {
+            // If stash pop fails (e.g., conflicts), drop the stash to avoid leaving orphaned stashes
+            logger.warn(`Stash pop failed, attempting to drop stash: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}`);
+            try {
+              await runGit(mainRepoPath, ['stash', 'drop']);
+            } catch (dropError) {
+              logger.error(`Failed to drop stash after pop failure: ${dropError instanceof Error ? dropError.message : String(dropError)}`);
+            }
+          }
+        }
+        throw error;
+      }
+    } finally {
+      // Record monitoring metrics
+      const duration = Date.now() - startTime;
+      monitor.recordApplyBack(applySuccess, duration);
+      logger.info(`applyBack completed in ${duration}ms, success: ${applySuccess}`);
+    }
   }
 }

@@ -43,6 +43,7 @@ export type LoopReasonCode =
   | 'ROLLBACK_FAILED'
   | 'LOOP_FAILED'
   | 'MAX_RETRIES'
+  | 'APPLY_BACK_FAILED'
   | 'SUCCESS';
 
 export interface LoopResult {
@@ -100,6 +101,17 @@ export type LoopEvent =
       reason: string;
       failedFiles: string[];
       timestamp: Date;
+    }
+  | {
+      type: 'checkpoint.created';
+      worktreePath: string;
+      baseRef: string;
+      timestamp: Date;
+    }
+  | {
+      type: 'checkpoint.cleaned';
+      ok: boolean;
+      timestamp: Date;
     };
 
 export interface CodeLocation {
@@ -143,8 +155,19 @@ export interface RunOptions {
   file?: string;
   selection?: string;
   dryRun?: boolean;
+  forceReset?: boolean;
+  onEvent?: (event: LoopEvent) => void;
   verbose?: VerboseLevel;
   strategy?: CheckpointStrategy;
+  allowDirty?: boolean;
+  expectedChanges?: string[];
+  expectedFileContent?: { path: string; content: string }[];
+  targetNodeName?: string;
+  checkpoint?: {
+    strategy?: 'worktree';
+    keepWorktreeOnFailure?: boolean;
+    applyBack?: 'patch' | 'cherry-pick';
+  };
 }
 
 export class SalmonError extends Error {
@@ -173,7 +196,15 @@ export class DiffValidationError extends SalmonError {
   }
 }
 
-export type CheckpointStrategy = 'direct' | 'worktree'
+export type CheckpointStrategy = 'direct' | 'worktree' | 'tempCommit'
+
+export interface CheckpointRef {
+  strategy: 'worktree';
+  repoPath: string;
+  worktreePath: string;
+  baseRef: string;
+  branchName: string;
+}
 
 export interface ExecutionWorkspace {
   baseRepoPath: string
