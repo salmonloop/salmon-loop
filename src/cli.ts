@@ -27,10 +27,9 @@ program
   .option('--dry-run', text.cli.dryRunOption)
   .option('--verbose [level]', text.cli.verboseOption)
   .option('--force-reset', text.cli.forceResetOption)
-  .option('--allow-dirty', text.cli.allowDirtyOption)
   .option('--validate', text.cli.validateOption)
   .option('--target-node <name>', text.cli.targetNodeOption)
-  .option('--checkpoint-strategy <type>', 'Checkpoint strategy (direct|worktree). "worktree" is safer and ignores dirty state.', 'direct')
+  .option('-cs, --checkpoint-strategy <type>', 'Checkpoint strategy (direct|worktree). "worktree" is safer and ignores dirty state.', 'direct')
   .action(async (options) => {
     const runPath = resolve(options.repo);
 
@@ -102,7 +101,6 @@ program
         llm: llm,
         dryRun: options.dryRun,
         forceReset: options.forceReset,
-        allowDirty: options.allowDirty,
         file: options.file,
         selection: options.selection,
         verbose: verboseLevel,

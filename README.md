@@ -103,7 +103,7 @@ act
 
 ## Safety & Constraints
 
-- **Dirty Workspace**: By default, SalmonLoop will refuse to run if the git workspace has uncommitted changes. Use `allowDirty: true` to override.
+- **Dirty Workspace**: By default, SalmonLoop will refuse to run if the git workspace has uncommitted changes. Use `worktree` strategy to run in an isolated environment.
 - **Fail-Fast**: The loop terminates immediately if a patch cannot be applied or if verification fails after maximum retries.
 - **AST Verification**: Performs deep AST structure and scope integrity checks to prevent syntax errors and unintended side effects.
 - **File Locking**: Uses a robust locking protocol to prevent concurrent modifications and repository corruption.

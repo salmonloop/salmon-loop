@@ -4,7 +4,7 @@ SalmonLoop follows a strict execution contract to ensure safety and determinism.
 
 ## Phase Guarantees
 
-1. **PREFLIGHT**: Read-only. Checks environment safety (git repo, dirty workspace).
+1. **PREFLIGHT**: Read-only. Checks environment safety (git repo).
 2. **CONTEXT**: Read-only. Gathers codebase context and target file content.
 3. **PLAN**: Read-only. The LLM analyzes the context and instruction to generate a JSON plan. No filesystem mutation occurs.
 4. **PATCH**: Read-only. The LLM generates a unified diff based on the plan. No filesystem mutation occurs.
@@ -16,8 +16,7 @@ SalmonLoop follows a strict execution contract to ensure safety and determinism.
 
 ## Safety Rules
 
-- **No Dirty Workspace**: SalmonLoop will not start if there are uncommitted changes in the repository (unless `allowDirty` is true).
-- **Safety Guard**: The combination of `allowDirty: true` and `forceReset: true` is strictly forbidden to prevent accidental loss of uncommitted user changes.
+- **No Dirty Workspace**: SalmonLoop will not start if there are uncommitted changes in the repository (unless using `worktree` strategy).
 - **Atomic Attempts**: Each attempt is isolated. If an attempt fails, the workspace is rolled back before the next attempt starts. The rollback mechanism is robust against Git conflict states.
 - **Force Reset & Clean**: When `forceReset` is enabled, SalmonLoop performs both `git reset --hard HEAD` and `git clean -fd` to ensure a completely clean workspace for the next attempt.
 - **No File Operations**: SalmonLoop currently forbids creating, deleting, or renaming files to prevent accidental structural damage to the repository.

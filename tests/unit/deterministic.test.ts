@@ -81,7 +81,6 @@ describe('Deterministic Baseline Tests', () => {
       verify: 'echo "success"',
       repoPath: tempDir,
       llm: fakeLLM,
-      allowDirty: true,
     });
 
     expect(result.success).toBe(true);
@@ -106,7 +105,6 @@ ${Array(1000).fill('+new line').join('\n')}`;
       verify: 'echo "success"',
       repoPath: tempDir,
       llm: fakeLLM,
-      allowDirty: true,
     });
 
     expect(result.success).toBe(false);
@@ -133,20 +131,4 @@ ${Array(1000).fill('+new line').join('\n')}`;
     expect(result.failurePhase).toBe(ExecutionPhase.PREFLIGHT);
   });
 
-  it('should reject allowDirty + forceReset combination', async () => {
-    const fakeLLM = new FakeLLM([], []);
-
-    const result = await runSalmonLoop({
-      instruction: 'any',
-      verify: 'any',
-      repoPath: tempDir,
-      llm: fakeLLM,
-      allowDirty: true,
-      forceReset: true,
-    });
-
-    expect(result.success).toBe(false);
-    expect(result.reason).toContain('Safety Guard');
-    expect(result.failurePhase).toBe(ExecutionPhase.PREFLIGHT);
-  });
 });

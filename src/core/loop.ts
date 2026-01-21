@@ -61,10 +61,6 @@ export interface LoopOptions {
    */
   onEvent?: (event: LoopEvent) => void;
   /**
-   * If true, the loop will run even if the workspace has uncommitted changes.
-   */
-  allowDirty?: boolean;
-  /**
    * The verbose level for logging.
    */
   verbose?: VerboseLevel;
@@ -151,28 +147,6 @@ export class SalmonLoop {
       }
     };
 
-    // Safety Guard: Prevent accidental loss of uncommitted changes
-    // Only applies to direct strategy as worktree handles isolation safely
-    const isDirectStrategy = !options.strategy || options.strategy === 'direct';
-    if (isDirectStrategy && options.allowDirty && options.forceReset) {
-      const reason = text.loop.forceResetNotAllowedWithDirty;
-      logs.push(this.createLog('error', reason, false));
-      emit({ type: 'log', level: 'error', message: reason, timestamp: now() });
-      return {
-        success: false,
-        reason,
-        reasonCode: 'PREFLIGHT_DIRTY',
-        attempts: 0,
-        logs,
-        failurePhase: ExecutionPhase.PREFLIGHT,
-        errorType: ErrorType.UNKNOWN,
-      };
-    }
-
-    // Modify preflight to allow dirty workspace when using worktree strategy
-    // This is the core change for Stage 10: allow dirty workspace by default
-    const shouldAllowDirty = options.allowDirty || options.strategy === 'worktree';
-
     // Setup workspace
     try {
       workspace = await WorkspaceManager.setup({
@@ -255,7 +229,7 @@ export class SalmonLoop {
 
         // Special case: if allowDirty is true and error is DIRTY, we proceed
         const isDirtyError = pf.reason?.includes('uncommitted changes');
-        if (shouldAllowDirty && isDirtyError) {
+        if (isDirtyError) {
           emit({
             type: 'log',
             level: 'warn',

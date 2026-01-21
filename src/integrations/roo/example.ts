@@ -22,7 +22,6 @@ export const example = async () => {
     verify: 'npm test',
     repoPath: process.cwd(),
     llm: fakeLLM,
-    allowDirty: false,
   });
 
   console.log('Result:', result.success);

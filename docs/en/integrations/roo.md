@@ -44,4 +44,4 @@ const result = await adapter.execute({
 
 ## Safety
 
-By default, the adapter will reject running on a dirty workspace unless `allowDirty: true` is specified. This prevents SalmonLoop from accidentally overwriting uncommitted user changes.
+By default, the adapter will reject running on a dirty workspace unless `worktree` strategy is used. This prevents SalmonLoop from accidentally overwriting uncommitted user changes.

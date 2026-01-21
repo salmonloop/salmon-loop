@@ -50,7 +50,6 @@ async function runFuzz(iterations = 10) {
         verify: 'echo verified',
         repoPath: testRepoPath,
         llm: new MockLLM({ apiKey: 'fuzz' }),
-        allowDirty: false,
         verbose: 'basic'
       });
     } catch (e) {

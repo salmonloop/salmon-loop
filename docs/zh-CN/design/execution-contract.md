@@ -4,7 +4,7 @@ SalmonLoop 遵循严格的执行契约，以确保安全性和确定性。
 
 ## 阶段保证 (Phase Guarantees)
 
-1. **PREFLIGHT**: 只读。检查环境安全性（Git 仓库、脏工作区检查）。
+1. **PREFLIGHT**: 只读。检查环境安全性（Git 仓库）。
 2. **CONTEXT**: 只读。收集代码库上下文和目标文件内容。
 3. **PLAN**: 只读。LLM 分析上下文和指令以生成 JSON 计划。不发生文件系统变更。
 4. **PATCH**: 只读。LLM 根据计划生成统一 Diff。不发生文件系统变更。
@@ -16,8 +16,7 @@ SalmonLoop 遵循严格的执行契约，以确保安全性和确定性。
 
 ## 安全规则
 
-- **禁止脏工作区**：除非开启 `allowDirty`，否则 SalmonLoop 不会在有未提交更改的仓库中启动。
-- **安全守卫**：严禁同时使用 `allowDirty: true` 和 `forceReset: true`，以防止意外丢失用户未提交的更改。
+- **禁止脏工作区**：除非使用 `worktree` 策略，否则 SalmonLoop 不会在有未提交更改的仓库中启动。
 - **原子尝试**：每次尝试都是隔离的。如果尝试失败，工作区将在下一次尝试开始前回滚。回滚机制对 Git 冲突状态具有鲁棒性。
 - **强制重置与清理**：开启 `forceReset` 时，SalmonLoop 会执行 `git reset --hard HEAD` 和 `git clean -fd`，以确保下一次尝试拥有完全干净的工作区。
 - **禁止文件操作**：SalmonLoop 目前禁止创建、删除或重命名文件，以防止对仓库造成意外的结构性破坏。

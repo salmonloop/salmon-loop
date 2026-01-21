@@ -159,7 +159,6 @@ export interface RunOptions {
   onEvent?: (event: LoopEvent) => void;
   verbose?: VerboseLevel;
   strategy?: CheckpointStrategy;
-  allowDirty?: boolean;
   expectedChanges?: string[];
   expectedFileContent?: { path: string; content: string }[];
   targetNodeName?: string;

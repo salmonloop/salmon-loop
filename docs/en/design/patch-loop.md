@@ -18,12 +18,13 @@ The loop follows a strict nine-phase process:
 ## 2. Safety Guarantees
 
 - **Atomic Changes**: Changes are applied via `git apply`. If any part of the patch fails, nothing is applied.
-- **Reliable Rollbacks**: Rollbacks are targeted and based on the specific files changed in the current attempt. If Git conflicts or abnormal states are encountered, the system automatically performs a forced reset (`git reset --hard`) and cleanup (`git clean`), ensuring the workspace always returns to a clean initial state.
+- **Reliable Rollbacks**: Rollbacks are targeted and based on the specific files changed in the current attempt. If Git conflicts or abnormal states are encountered, the system automatically performs a forced reset or isolation cleanup, ensuring the workspace returns to a predictable state. Specifically, in the worktree strategy, the isolation ensures that unsuccessful changes never affect the main workspace.
 - **No File Operations**: Prohibiting file creation, deletion, and renaming ensures that the execution environment remains stable and reversible. The validation phase provides detailed feedback if these rules are violated.
 - **Fuzzy Context Matching**: Uses Levenshtein distance to validate patch context against the actual file content, allowing for minor whitespace or comment differences while ensuring structural correctness.
 
-## 3. Observability
+## 3. Observability & Defensive Monitoring
 
 - **Structured Logs**: Every step is logged with its corresponding `ExecutionPhase`.
 - **Failure Attribution**: Errors are explicitly linked to the phase where they occurred (e.g., `failurePhase: VALIDATE`).
-- **History Tracking**: Each iteration is recorded, allowing for detailed analysis of how the system converged on a solution.
+- **Performance Metrics**: The system tracks durations for apply-back operations and success rates using an internal `Monitor`.
+- **Infrastructure Health**: Explicitly monitors for checkpoint creation failures and cleanup errors to identify Git infrastructure issues.

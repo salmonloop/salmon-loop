@@ -12,17 +12,25 @@ salmon-loop [options]
 
 ## 选项
 
-- `-i, --instruction <string>`: **(必填)** 代码修改指令。
-- `-v, --verify <command>`: **(必填)** 用于验证的命令（例如 `npm test`, `pytest`）。
-- `-r, --repo <path>`: 目标仓库路径。默认为当前目录。
-- `-f, --file <path>`: 提供作为主要上下文的特定文件路径（相对于仓库或绝对路径）。
-- `-s, --selection <text>`: 直接提供作为上下文的文本选择。
-- `--dry-run`: 生成补丁并运行验证，但不应用到磁盘。
+### 1. 核心选项
+
+- `-i, --instruction <string>`: **(必填)** LLM 应当遵循的修改指令。
+- `-v, --verify <command>`: **(必填)** 应用补丁后运行的验证命令。
+- `-r, --repo <path>`: git 仓库根目录的路径。
+- `-f, --file <path>`: 将特定文件作为主要上下文（支持相对或绝对路径）。
+- `-s, --selection <text>`: 直接提供文本片段作为上下文。
+
+### 2. 执行与安全选项
+
+- `-cs, --checkpoint-strategy <direct|worktree>`: (默认: `direct`) 设置检查点策略。`worktree` 模式在隔离的临时目录中运行，更安全且会忽略脏工作区状态。
+- `--dry-run`: 生成并验证补丁，但不实际修改任何文件（预览模式）。
+- `--force-reset`: 失败时强制执行硬重置 (`git reset --hard`)。**请谨慎使用**，因为它会丢弃所有未提交的更改。
+
+### 3. 高级选项
+
 - `--verbose [level]`: 启用不同级别的详细日志输出：
   - `basic`: 输出基本的日志和执行步骤（提供此标志时的默认值）。
   - `extended`: 输出详细日志，包括内部状态和调试信息。
-- `--force-reset`: 失败时强制执行硬重置 (`git reset --hard`)。**请谨慎使用**，因为它会丢弃所有未提交的更改。不能与 `--allow-dirty` 同时使用。
-- `--allow-dirty`: 即使工作区有未提交的更改，也允许运行 SalmonLoop。不能与 `--force-reset` 同时使用。
 - `--validate`: 在启动循环前运行代码质量检查（lint 和测试）。
 - `--target-node <name>`: 允许修改的节点名称（例如函数名）。启用深度 AST 作用域完整性验证。
 

@@ -146,7 +146,7 @@ Please return the patch in PURE unified diff format:`;
     gitNotFound:
       'Preflight check failed: git command not found. Please ensure git is installed and in your PATH.',
     forceResetNotAllowedWithDirty:
-      'Safety Guard: --force-reset is not allowed when --allow-dirty is enabled to prevent accidental loss of uncommitted changes.',
+      'Safety Guard: --force-reset is not allowed when the workspace is dirty to prevent accidental loss of uncommitted changes.',
   },
 
   verify: {
@@ -179,7 +179,6 @@ Please return the patch in PURE unified diff format:`;
     dryRunOption: 'Generate patch without applying',
     verboseOption: 'Enable verbose logging (basic, extended)',
     forceResetOption: 'Force hard reset on failure (use with caution)',
-    allowDirtyOption: 'Allow running on a dirty workspace',
     validateOption: 'Run code quality checks (lint and tests)',
 
     // Error messages
