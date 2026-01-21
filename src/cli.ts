@@ -8,7 +8,7 @@ import { Command } from 'commander';
 import ProgressBar from 'progress';
 
 import { logger } from './core/logger.js';
-import { ExecutionPhase, ErrorType, VerboseLevel } from './core/types.js';
+import { ExecutionPhase, ErrorType, VerboseLevel, CheckpointStrategy } from './core/types.js';
 import { text } from './locales/index.js';
 
 import { runSalmonLoop, OpenAILLM, StubLLM } from './index.js';
@@ -30,6 +30,7 @@ program
   .option('--allow-dirty', text.cli.allowDirtyOption)
   .option('--validate', text.cli.validateOption)
   .option('--target-node <name>', text.cli.targetNodeOption)
+  .option('--checkpoint-strategy <type>', 'Checkpoint strategy (direct|worktree). "worktree" is safer and ignores dirty state.', 'direct')
   .action(async (options) => {
     const runPath = resolve(options.repo);
 
@@ -105,6 +106,7 @@ program
         file: options.file,
         selection: options.selection,
         verbose: verboseLevel,
+        strategy: options.checkpointStrategy as CheckpointStrategy,
         onEvent: (event) => {
           if (event.type === 'phase.start') {
             const phaseName =
@@ -134,7 +136,7 @@ program
               `\n🔄 Retry ${event.fromAttempt} -> ${event.toAttempt}: ${event.reason.substring(
                 0,
                 100,
-              )}...`,
+                )}...`,
             );
             currentPhaseIndex = 0; // Reset progress for retry
           }

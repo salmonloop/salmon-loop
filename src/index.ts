@@ -14,6 +14,9 @@ export type {
   LoopIteration,
   Plan,
   PlanStep,
+  CheckpointStrategy,
+  ExecutionWorkspace,
 } from './core/types.js';
 export type { LLM } from './core/llm.js';
 export { OpenAILLM, StubLLM, FakeLLM } from './core/llm.js';
+export { WorkspaceManager } from './core/workspace.js';

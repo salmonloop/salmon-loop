@@ -7,6 +7,7 @@ import { text } from '../locales/index.js';
 import { LIMITS } from './limits.js';
 import { logger } from './logger.js';
 import { ErrorType } from './types.js';
+import type { ExecutionWorkspace } from './types.js';
 
 /**
  * Classify the error type based on the output of the verification command
@@ -222,10 +223,10 @@ export async function verifyFileContent(
   }
 }
 
-export async function preflight(repoPath: string): Promise<{ ok: boolean; reason?: string }> {
+export async function preflight(workspace: ExecutionWorkspace): Promise<{ ok: boolean; reason?: string }> {
   return new Promise((resolve) => {
     // 1. Check if it's a git repo
-    const gitCheck = spawn('git', ['rev-parse', '--is-inside-work-tree'], { cwd: repoPath });
+    const gitCheck = spawn('git', ['rev-parse', '--is-inside-work-tree'], { cwd: workspace.baseRepoPath });
 
     gitCheck.on('error', (err: any) => {
       if (err.code === 'ENOENT') {
@@ -241,22 +242,28 @@ export async function preflight(repoPath: string): Promise<{ ok: boolean; reason
         return;
       }
 
-      // 2. Check if workspace is dirty
-      const statusCheck = spawn('git', ['status', '--porcelain'], { cwd: repoPath });
-      let output = '';
+      // 2. Check if workspace is dirty (only for direct strategy)
+      if (workspace.strategy === 'direct') {
+        const statusCheck = spawn('git', ['status', '--porcelain'], { cwd: workspace.baseRepoPath });
+        let output = '';
 
-      statusCheck.on('error', (err) => {
-        resolve({ ok: false, reason: `Git status check failed: ${err.message}` });
-      });
+        statusCheck.on('error', (err) => {
+          resolve({ ok: false, reason: `Git status check failed: ${err.message}` });
+        });
 
-      statusCheck.stdout.on('data', (data) => (output += data.toString()));
-      statusCheck.on('close', (code) => {
-        if (code === 0 && output.trim().length > 0) {
-          resolve({ ok: false, reason: text.loop.preflightFailedDirty(output.trim()) });
-        } else {
-          resolve({ ok: true });
-        }
-      });
+        statusCheck.stdout.on('data', (data) => (output += data.toString()));
+        statusCheck.on('close', (code) => {
+          if (code === 0 && output.trim().length > 0) {
+            resolve({ ok: false, reason: text.loop.preflightFailedDirty(output.trim()) });
+          } else {
+            resolve({ ok: true });
+          }
+        });
+      } else {
+        // Worktree strategy: ignore dirty state in base repository
+        logger.info('Worktree strategy active: ignoring dirty state in base repository');
+        resolve({ ok: true });
+      }
     });
 
     // 3. Check if ripgrep is installed (optional but recommended)

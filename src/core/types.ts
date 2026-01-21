@@ -144,6 +144,7 @@ export interface RunOptions {
   selection?: string;
   dryRun?: boolean;
   verbose?: VerboseLevel;
+  strategy?: CheckpointStrategy;
 }
 
 export class SalmonError extends Error {
@@ -171,3 +172,12 @@ export class DiffValidationError extends SalmonError {
     super(message, 'DIFF_VALIDATION_FAILED');
   }
 }
+
+export type CheckpointStrategy = 'direct' | 'worktree'
+
+export interface ExecutionWorkspace {
+  baseRepoPath: string
+  workPath: string
+  strategy: CheckpointStrategy
+}
+

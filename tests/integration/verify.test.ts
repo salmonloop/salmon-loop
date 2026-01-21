@@ -105,7 +105,11 @@ describe('Verify Integration Tests', () => {
       }, 0);
     }, 0);
 
-    const promise = preflight(repoPath);
+    const promise = preflight({
+      baseRepoPath: repoPath,
+      workPath: repoPath,
+      strategy: 'direct',
+    });
     await vi.runAllTimersAsync();
     const result = await promise;
     expect(result.ok).toBe(true);
@@ -119,7 +123,11 @@ describe('Verify Integration Tests', () => {
       gitCheck.emit('close', 128);
     }, 0);
 
-    const promise = preflight(repoPath);
+    const promise = preflight({
+      baseRepoPath: repoPath,
+      workPath: repoPath,
+      strategy: 'direct',
+    });
     await vi.runAllTimersAsync();
     const result = await promise;
     expect(result.ok).toBe(false);
