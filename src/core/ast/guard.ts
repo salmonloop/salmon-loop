@@ -42,7 +42,9 @@ export function validateNodeStructure(node: any): boolean {
   if (!node) return true;
   
   // Check if current node is an error
-  if (node.type === 'ERROR' || node.isError?.()) {
+  // @ts-ignore
+  const isError = typeof node.isError === 'function' ? node.isError() : node.isError;
+  if (node.type === 'ERROR' || isError) {
     return false;
   }
 
