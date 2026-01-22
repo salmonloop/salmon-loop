@@ -401,8 +401,8 @@ export class ShadowMergeEngine {
       const result = await this.runGitBuffered(repoPath, [
         'merge-file',
         '-p',
-        basePath,
         userPath,
+        basePath,
         aiPath,
       ]);
       if (result.code === 0) {
