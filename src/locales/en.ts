@@ -178,6 +178,8 @@ Please return the patch in PURE unified diff format:`;
     shadowDiffPreviewFull: (preview: string) => `[applyBack] Shadow diff preview:\n${preview}`,
     appliedLineLocationsEngine: (file: string, locations: string) =>
       `[applyBack] Applied line locations for ${file}: ${locations}`,
+    unionMergeWarning: (file: string) =>
+      `[applyBack] Note: used union merge strategy for ignored file ${file}. Please check for duplicate keys.`,
   },
 
   verify: {

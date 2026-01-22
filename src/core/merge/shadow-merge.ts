@@ -154,6 +154,7 @@ export class ShadowMergeEngine {
                 continue;
               }
               const emptyBase = Buffer.alloc(0);
+              logger.warn(text.loop.unionMergeWarning(op.path));
               const workingMerge = await this.mergeFileContents(
                 mainRepoPath,
                 emptyBase,
@@ -174,8 +175,17 @@ export class ShadowMergeEngine {
         }
 
         const destPath = path.join(mainRepoPath, ...op.path.split('/'));
-        await mkdir(path.dirname(destPath), { recursive: true });
-        await writeFile(destPath, aiContent);
+        try {
+          await mkdir(path.dirname(destPath), { recursive: true });
+          await writeFile(destPath, aiContent);
+        } catch (error) {
+          const err = error as NodeJS.ErrnoException;
+          if (err?.code === 'EISDIR' || err?.code === 'EEXIST' || err?.code === 'ENOTDIR') {
+            conflicts.push(`${op.path} (fs-collision)`);
+            continue;
+          }
+          throw error;
+        }
         continue;
       }
 
@@ -591,6 +601,7 @@ export class ShadowMergeEngine {
       { staged: boolean; unstaged: boolean; untracked: boolean; deleted: boolean }
     >();
     const extractPath = (entry: string): string => {
+      if (entry.length <= 2) return '';
       const maybeSep = entry[2];
       if (maybeSep === ' ' || maybeSep === '\t') {
         return entry.slice(3);
