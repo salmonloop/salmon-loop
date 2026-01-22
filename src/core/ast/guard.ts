@@ -28,8 +28,32 @@ export function getTopLevelNodes(tree: any): any[] {
 export function getNodeName(node: any): string | null {
   if (!node) return null;
   try {
-    const nameNode = node.childForFieldName('name') || node.child(1);
-    return nameNode ? nameNode.text : null;
+    const directName = node.childForFieldName?.('name');
+    if (directName?.text) {
+      return directName.text;
+    }
+
+    const namedChildren: any[] = Array.isArray(node.namedChildren)
+      ? node.namedChildren
+      : Array.isArray(node.children)
+        ? node.children.filter((child: any) => child?.isNamed)
+        : [];
+
+    if (node.type === 'lexical_declaration' || node.type === 'variable_declaration') {
+      const declarator = namedChildren.find((child) => child.type === 'variable_declarator');
+      if (declarator) {
+        const declName = declarator.childForFieldName?.('name') || declarator.child?.(0);
+        return declName?.text ?? null;
+      }
+    }
+
+    if (node.type === 'variable_declarator') {
+      const declName = node.childForFieldName?.('name') || node.child?.(0);
+      return declName?.text ?? null;
+    }
+
+    const fallback = node.child?.(1);
+    return fallback?.text ?? null;
   } catch (e) {
     return null;
   }

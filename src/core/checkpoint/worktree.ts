@@ -1,7 +1,7 @@
 import { spawn } from 'child_process';
 import { tmpdir } from 'os';
-import { join, basename, relative, normalize, isAbsolute } from 'path';
-import { promisify } from 'util';
+import { join, basename, relative, normalize } from 'path';
+import { rm } from 'fs/promises';
 import { randomBytes } from 'crypto';
 
 import { logger } from '../logger.js';
@@ -19,6 +19,7 @@ export type CheckpointRef = {
 
 /**
  * Creates a git worktree checkpoint for isolated execution.
+ * @deprecated Use WorkspaceManager for worktree lifecycle management.
  * @param repoPath - Path to the main git repository
  * @returns CheckpointRef object with worktree details
  */
@@ -78,6 +79,7 @@ export async function createWorktreeCheckpoint(repoPath: string): Promise<Checkp
 
 /**
  * Cleans up a git worktree checkpoint.
+ * @deprecated Use WorkspaceManager for worktree lifecycle management.
  * @param ref - CheckpointRef object to clean up
  */
 export async function cleanupWorktreeCheckpoint(ref: CheckpointRef): Promise<void> {
@@ -114,8 +116,8 @@ export async function cleanupWorktreeCheckpoint(ref: CheckpointRef): Promise<voi
       
       // Use a more robust approach to delete the directory
       // This will handle read-only files and other edge cases
-      await promisify(require('rimraf'))(worktreePath);
-      logger.debug(`Successfully cleaned up worktree directory via rimraf: ${worktreePath}`);
+      await rm(worktreePath, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+      logger.debug(`Successfully cleaned up worktree directory via fs.rm: ${worktreePath}`);
     } catch (rimrafError) {
       logger.error(`Failed to cleanup worktree directory ${worktreePath}: ${rimrafError}`);
       cleanupSuccess = false;
@@ -171,7 +173,8 @@ export async function runGit(repoPath: string, args: string[]): Promise<string> 
 
     child.on('close', (code) => {
       if (code === 0) {
-        resolve(output.trim());
+        // Only trim trailing whitespace to preserve leading spaces in git status output
+        resolve(output.replace(/\s+$/, ''));
       } else {
         reject(new GitError(`git command failed with code ${code}: ${stderr}`, 'git', stderr));
       }

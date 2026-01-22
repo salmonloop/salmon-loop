@@ -101,7 +101,8 @@ export class Logger {
    * Log a degradation warning when falling back to older APIs or behaviors
    */
   degrade(message: string): void {
-    console.warn(chalk.magenta(`[DEGRADED] ${this.formatMessage(message)}`));
+    const formattedMessage = chalk.magenta(`[DEGRADED] ${this.formatMessage(message)}`);
+    console.warn(formattedMessage);
   }
 
   /**
@@ -110,7 +111,8 @@ export class Logger {
   audit(action: string, details: any): void {
     const timestamp = new Date().toISOString();
     const message = `[AUDIT] ${timestamp} - ${action}: ${JSON.stringify(details)}`;
-    console.log(chalk.bgBlue.white(this.formatMessage(message)));
+    const formattedMessage = chalk.bgBlue.white(this.formatMessage(message));
+    console.log(formattedMessage);
   }
 }
 

@@ -23,6 +23,8 @@ salmon-loop [options]
 ### 2. 执行与安全选项
 
 - `-cs, --checkpoint-strategy <direct|worktree>`: (默认: `direct`) 设置检查点策略。`worktree` 模式在隔离的临时目录中运行，更安全且会忽略脏工作区状态。
+- `--apply-back-on-dirty <stash|abort>`: (默认: `stash`) 使用 `worktree` 时，回写到主工作区遇到脏状态的处理方式。
+- `--worktree-prepare <command>`: 在 worktree 内运行的准备命令（例如 `npm ci`）。
 - `--dry-run`: 生成并验证补丁，但不实际修改任何文件（预览模式）。
 - `--force-reset`: 失败时强制执行硬重置 (`git reset --hard`)。**请谨慎使用**，因为它会丢弃所有未提交的更改。
 

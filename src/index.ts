@@ -16,6 +16,7 @@ export type {
   PlanStep,
   CheckpointStrategy,
   ExecutionWorkspace,
+  ApplyBackOnDirty,
 } from './core/types.js';
 export type { LLM } from './core/llm.js';
 export { OpenAILLM, StubLLM, FakeLLM } from './core/llm.js';

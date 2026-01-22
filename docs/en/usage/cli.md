@@ -23,6 +23,8 @@ salmon-loop [options]
 ### Execution & Safety Options
 
 - `-cs, --checkpoint-strategy <direct|worktree>`: (Default: `direct`) Checkpoint strategy. `worktree` is safer and ignores dirty state by running in an isolated temporary directory.
+- `--apply-back-on-dirty <stash|abort>`: (Default: `stash`) When using `worktree`, choose how to handle a dirty main workspace during apply-back.
+- `--worktree-prepare <command>`: Command to run inside the worktree before processing (e.g., `npm ci`).
 - `--dry-run`: Generate and validate the patch, but do not apply it to the disk (preview mode).
 - `--force-reset`: Force a hard reset (`git reset --hard`) on failure. **Use with caution** as it discards all uncommitted changes.
 

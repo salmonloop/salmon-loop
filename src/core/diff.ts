@@ -1,5 +1,5 @@
 import { text } from '../locales/index.js';
-import { normalize as pathNormalize, isAbsolute as pathIsAbsolute } from 'path';
+import { normalize as pathNormalize, isAbsolute as pathIsAbsolute, extname } from 'path';
 
 import { LIMITS } from './limits.js';
 import { DiffValidationError } from './types.js';
@@ -23,6 +23,14 @@ const cleanPath = (path: string) => {
     return path;
   }
 
+  // SECURITY FIRST: Pre-validation before any cleaning
+  // Check for obvious path traversal attempts in the raw input
+  const rawNormalized = pathNormalize(path).replace(/\\/g, '/');
+  const rawSegments = rawNormalized.split('/');
+  if (rawSegments.some(seg => seg === '..') || pathIsAbsolute(rawNormalized)) {
+    throw new DiffValidationError(`Path traversal detected: ${path}`);
+  }
+
   // 1. Detect if it was an absolute path before normalization
   const isAbsolute = path.startsWith('/') || path.startsWith('\\') || /^[a-zA-Z]:/.test(path);
 
@@ -41,61 +49,66 @@ const cleanPath = (path: string) => {
   // Remove leading ./ prefix
   normalized = normalized.replace(/^\.\/+/, '');
 
-  // 3. Heuristic to strip repository name prefix if LLM included it
+  // 3. Strip repository name prefix only when the second segment is in an allowlist.
   // We ONLY do this for relative-looking paths to avoid breaking absolute paths.
-  // We also try to be conservative to avoid stripping legitimate top-level directories.
   if (!isAbsolute) {
     const parts = normalized.split('/');
     if (parts.length > 1) {
-      const firstDir = parts[0];
-      const hasExtension =
-        /\.(js|ts|json|md|txt|css|html|jsx|tsx|vue|py|rs|go|java|c|cpp|h)$/i.test(firstDir);
+      const repoStripAllowList = new Set([
+        'src',
+        'lib',
+        'app',
+        'tests',
+        'test',
+        'packages',
+        'include',
+        'bin',
+        'docs',
+        'components',
+        'utils',
+        'core',
+      ]);
+      const repoStripFileExtAllowList = new Set([
+        '.js',
+        '.ts',
+        '.jsx',
+        '.tsx',
+        '.json',
+        '.md',
+        '.txt',
+        '.css',
+        '.html',
+        '.vue',
+        '.py',
+        '.rs',
+        '.go',
+        '.java',
+        '.c',
+        '.cpp',
+        '.h',
+      ]);
+      const firstDir = parts[0]?.toLowerCase();
+      const secondDir = parts[1]?.toLowerCase();
+      const secondExt = secondDir ? extname(secondDir) : '';
+      const firstIsCommonDir = firstDir ? repoStripAllowList.has(firstDir) : false;
+      const secondIsAllowedDir = secondDir ? repoStripAllowList.has(secondDir) : false;
+      const secondIsAllowedFile = secondExt ? repoStripFileExtAllowList.has(secondExt) : false;
+      const firstLooksLikeRepo =
+        !!firstDir && /^[a-z0-9][a-z0-9._-]*$/i.test(firstDir) && firstDir !== '.' && firstDir !== '..';
 
-      if (!hasExtension) {
-        const commonSrcDirs = [
-          'src',
-          'lib',
-          'app',
-          'tests',
-          'test',
-          'packages',
-          'include',
-          'bin',
-          'docs',
-          'components',
-          'utils',
-          'core',
-        ];
-        const firstDirLower = firstDir.toLowerCase();
-        const isCommonDir = commonSrcDirs.includes(firstDirLower);
-
-        if (!isCommonDir) {
-          // If the first dir is NOT a common source dir, it MIGHT be a repo name.
-          // We strip it if:
-          // 1. There are more than 2 parts (e.g., repo/src/file.ts -> src/file.ts)
-          // 2. OR if the second part IS a common source dir (e.g., repo/src -> src)
-          // 3. OR if it looks like a repo name (e.g., ends with -repo, -master, etc.)
-          const secondDir = parts[1] ? parts[1].toLowerCase() : '';
-          const isSecondCommonDir = commonSrcDirs.includes(secondDir);
-          const looksLikeRepo = /-(repo|master|main|branch|project)$/i.test(firstDir);
-
-          if (isSecondCommonDir || looksLikeRepo) {
-            normalized = parts.slice(1).join('/');
-          }
-        }
+      if (!firstIsCommonDir && firstLooksLikeRepo && (secondIsAllowedDir || secondIsAllowedFile)) {
+        normalized = parts.slice(1).join('/');
       }
     }
   }
 
-  // 4. Security: Path traversal detection using path.normalize
+  // 4. Final normalization and post-validation
   const finalNormalized = pathNormalize(normalized).replace(/\\/g, '/');
   
-  // After normalization, check for path traversal patterns or absolute paths
-  // Split by '/' and check if any segment is exactly '..'
-  // This catches real path traversal like '../' or '/..' but allows filenames like '...'
-  const segments = finalNormalized.split('/');
-  if (segments.some(seg => seg === '..') || pathIsAbsolute(finalNormalized)) {
-    throw new DiffValidationError(`Path traversal detected: ${path}`);
+  // Double-check: After all cleaning, verify no path traversal remains
+  const finalSegments = finalNormalized.split('/');
+  if (finalSegments.some(seg => seg === '..') || pathIsAbsolute(finalNormalized)) {
+    throw new DiffValidationError(`Path traversal detected after normalization: ${path}`);
   }
 
   return finalNormalized;
@@ -137,89 +150,6 @@ export function normalizeDiff(raw: string): string {
   return cleaned;
 }
 
-/**
- * Calculates the Levenshtein distance between two strings.
- */
-function levenshtein(a: string, b: string): number {
-  const matrix = Array.from({ length: a.length + 1 }, (_, i) =>
-    Array.from({ length: b.length + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0)),
-  );
-
-  for (let i = 1; i <= a.length; i++) {
-    for (let j = 1; j <= b.length; j++) {
-      matrix[i][j] =
-        a[i - 1] === b[j - 1]
-          ? matrix[i - 1][j - 1]
-          : Math.min(matrix[i - 1][j - 1], matrix[i][j - 1], matrix[i - 1][j]) + 1;
-    }
-  }
-  return matrix[a.length][b.length];
-}
-
-/**
- * Calculates similarity between two strings (0 to 1).
- */
-export function calculateSimilarity(a: string, b: string): number {
-  const distance = levenshtein(a, b);
-  const maxLength = Math.max(a.length, b.length);
-  return maxLength === 0 ? 1 : 1 - distance / maxLength;
-}
-
-/**
- * Fuzzy context match for patch application.
- */
-export function fuzzyContextMatch(patch: string, originalContent: string, threshold = 0.85): boolean {
-  const lines = patch.split('\n');
-  const originalLines = originalContent.split('\n').map((l) => l.trim());
-
-  // 1. Try context lines first (lines starting with ' ')
-  const contextLines = lines
-    .filter((line) => line.startsWith(' '))
-    .map((line) => line.substring(1).trim());
-
-  if (contextLines.length > 0) {
-    let allContextMatched = true;
-    for (const ctxLine of contextLines) {
-      if (!ctxLine) continue;
-      let found = false;
-      for (const orgLine of originalLines) {
-        if (calculateSimilarity(ctxLine, orgLine) >= threshold) {
-          found = true;
-          break;
-        }
-      }
-      if (!found) {
-        allContextMatched = false;
-        break;
-      }
-    }
-    if (allContextMatched) return true;
-  }
-
-  // 2. If context lines failed or were empty, try removed lines (lines starting with '-')
-  const removedLines = lines
-    .filter((line) => line.startsWith('-') && !line.startsWith('---'))
-    .map((line) => line.substring(1).trim());
-
-  if (removedLines.length > 0) {
-    for (const remLine of removedLines) {
-      if (!remLine) continue;
-      let found = false;
-      for (const orgLine of originalLines) {
-        if (calculateSimilarity(remLine, orgLine) >= threshold) {
-          found = true;
-          break;
-        }
-      }
-      if (!found) return false;
-    }
-    return true;
-  }
-
-  // If no context or removed lines, we assume it's a raw insertion or invalid patch
-  // which will be caught by applyPatch later.
-  return true;
-}
 
 /**
  * Check if the text is a valid unified diff format.

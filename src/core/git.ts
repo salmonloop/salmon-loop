@@ -6,6 +6,7 @@ import { join } from 'path';
 
 import { text } from '../locales/index.js';
 
+import { LIMITS } from './limits.js';
 import { GitError } from './types.js';
 import { logger } from './logger.js';
 
@@ -19,7 +20,7 @@ interface LockMetadata {
  * Manages file locks to prevent concurrent access to the same repository or files.
  */
 class FileHandleManager {
-  private static readonly LOCK_TIMEOUT = 30000; // 30 seconds
+  private static readonly LOCK_TIMEOUT = LIMITS.worktreePrepareTimeoutMs;
   private static readonly RETRY_DELAY = 100; // 100ms
   private disabled = false;
   private currentOwner = `process-${process.pid}`;
@@ -39,6 +40,7 @@ class FileHandleManager {
 
     const lockFile = join(repoPath, '.salmon.lock');
     const start = Date.now();
+    let retryCount = 0;
 
     if (forceUnlock) {
       try {
@@ -96,7 +98,10 @@ class FileHandleManager {
             }
           }
           
-          await new Promise(resolve => setTimeout(resolve, FileHandleManager.RETRY_DELAY));
+          // Exponential backoff: delay increases with retry count, capped at 2000ms
+          retryCount++;
+          const delay = Math.min(FileHandleManager.RETRY_DELAY * Math.pow(1.5, retryCount), 2000);
+          await new Promise(resolve => setTimeout(resolve, delay));
         } else if (e.code === 'ENOENT') {
           // Directory might not exist, try to create it
           try {
@@ -110,6 +115,41 @@ class FileHandleManager {
           throw e;
         }
       }
+    }
+
+    // Timeout reached - attempt force cleanup before failing
+    logger.warn(`Lock acquisition timeout for ${repoPath}, attempting force cleanup...`);
+    try {
+      const fs = await import('fs/promises');
+      const content = await fs.readFile(lockFile, 'utf8');
+      const metadata: LockMetadata = JSON.parse(content);
+      
+      // Log lock holder info for debugging
+      logger.warn(`Lock held by PID ${metadata.pid}, owner: ${metadata.owner}, age: ${Date.now() - metadata.timestamp}ms`);
+      
+      // Force remove the lock file
+      await fs.unlink(lockFile);
+      logger.warn(`Forcefully removed stale lock file: ${lockFile}`);
+      
+      // One final attempt to acquire the lock
+      try {
+        const handle = await open(lockFile, 'wx');
+        if (handle) {
+          const newMetadata: LockMetadata = {
+            pid: process.pid,
+            timestamp: Date.now(),
+            owner: this.currentOwner,
+          };
+          await handle.writeFile(JSON.stringify(newMetadata), 'utf8');
+          await handle.close();
+          logger.info(`Lock acquired after force cleanup: ${lockFile}`);
+          return;
+        }
+      } catch (retryError) {
+        logger.warn(`Final lock acquisition attempt failed: ${retryError instanceof Error ? retryError.message : String(retryError)}`);
+      }
+    } catch (cleanupError) {
+      logger.warn(`Force cleanup failed: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`);
     }
 
     throw new Error(text.resource.lockAcquireTimeout(repoPath));
@@ -160,16 +200,29 @@ export type RollbackResult = {
   stderr: string;
 };
 
-export async function applyPatch(repoPath: string, diffText: string): Promise<void> {
+export async function applyPatch(
+  repoPath: string,
+  diffText: string,
+  options?: {
+    preserveIndexLines?: boolean;
+    contextLines?: number;
+    ignoreWhitespace?: boolean;
+    applyIndex?: boolean;
+    cached?: boolean;
+    threeWay?: boolean;
+  },
+): Promise<void> {
   logger.audit('applyPatch.start', { repoPath });
   await lockManager.acquireLock(repoPath);
   try {
     clearGitCache();
     // Preprocess diffText to remove index lines that might contain hallucinated hashes
-    const cleanedDiff = diffText
-      .split(/\r?\n/)
-      .filter((line) => !line.trim().startsWith('index '))
-      .join('\n');
+    const cleanedDiff = options?.preserveIndexLines
+      ? diffText
+      : diffText
+          .split(/\r?\n/)
+          .filter((line) => !line.trim().startsWith('index '))
+          .join('\n');
 
     const tempFile = join(
       tmpdir(),
@@ -178,21 +231,29 @@ export async function applyPatch(repoPath: string, diffText: string): Promise<vo
 
     await writeFile(tempFile, cleanedDiff, 'utf8');
 
-    try {
-      await new Promise<void>((resolve, reject) => {
-        const child = spawn(
-          'git',
-          [
-            'apply',
-            '-3', // the short option for --3way
-            '--recount',
-            '-C0', // allow zero context for fuzzing
-            '--ignore-space-change',
-            '--ignore-whitespace',
-            tempFile,
-          ],
-          { cwd: repoPath },
-        );
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const args = ['apply', '--recount'];
+          if (typeof options?.contextLines === 'number') {
+            args.push(`-C${options.contextLines}`);
+          }
+          if (options?.threeWay) {
+            args.push('-3');
+          }
+
+          if (options?.ignoreWhitespace !== false) {
+            args.push('--ignore-space-change', '--ignore-whitespace');
+          }
+
+          if (options?.cached) {
+            args.push('--cached');
+          } else if (options?.applyIndex) {
+            args.push('--index');
+          }
+
+          args.push(tempFile);
+
+        const child = spawn('git', args, { cwd: repoPath });
 
         let output = '';
         child.stdout?.on('data', (data) => (output += data.toString()));
@@ -304,6 +365,7 @@ export async function rollbackFiles(
   repoPath: string,
   files: string[],
   forceReset = false,
+  ref?: string,
 ): Promise<RollbackResult> {
   logger.audit('rollbackFiles.start', { repoPath, files, forceReset });
   await lockManager.acquireLock(repoPath);
@@ -330,9 +392,14 @@ export async function rollbackFiles(
     }
 
     return await new Promise((resolve) => {
-      // If forceReset is true, execute git reset --hard HEAD
+      // If forceReset is true, execute git reset --hard <ref>
       // Otherwise, try to checkout specified files
-      const args = forceReset ? ['reset', '--hard', 'HEAD'] : ['checkout', '--', ...attempted];
+      const args = forceReset ? ['reset', '--hard', ref || 'HEAD'] : ['checkout', '--', ...attempted];
+
+      if (forceReset) {
+        logger.trace(`[rollbackFiles] Executing: git ${args.join(' ')} (ref=${ref})`);
+      }
+
       const child = spawn('git', args, { cwd: repoPath });
 
       let stdout = '';

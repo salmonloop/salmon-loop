@@ -56,9 +56,10 @@ vi.mock('../../src/core/workspace.js', () => ({
   WorkspaceManager: {
     setup: vi.fn().mockImplementation(async (options) => {
       // console.log('Mock WorkspaceManager.setup called with:', JSON.stringify(options));
+      const workPath = options.strategy === 'worktree' ? '/tmp/wt-12345' : options.repoPath;
       return {
         baseRepoPath: options.repoPath,
-        workPath: options.repoPath,
+        workPath,
         strategy: options.strategy || 'direct',
       };
     }),
@@ -66,10 +67,8 @@ vi.mock('../../src/core/workspace.js', () => ({
   },
 }));
 
-// Implement the fix: Mock checkpoint/worktree.js
+// Mock checkpoint/worktree.js
 vi.mock('../../src/core/checkpoint/worktree.js', () => ({
-  createWorktreeCheckpoint: vi.fn(),
-  cleanupWorktreeCheckpoint: vi.fn(),
   runGit: vi.fn(),
 }));
 
@@ -112,13 +111,11 @@ describe('SalmonLoop Integration Tests', () => {
     vi.mocked(AstParser.identifyDefinitions).mockResolvedValue([]);
     vi.mocked(AstParser.identifyReferences).mockResolvedValue([]);
     
-    // Default worktree mocks
-    vi.mocked(worktree.createWorktreeCheckpoint).mockResolvedValue({
-        strategy: 'worktree',
-        repoPath,
-        worktreePath: '/tmp/wt-12345',
-        baseRef: 'HEAD',
-        branchName: 'salmon-loop-bench',
+    vi.mocked(worktree.runGit).mockImplementation(async (_repoPath, args) => {
+      if (args[0] === 'rev-parse' && args[1] === 'HEAD') {
+        return 'HEAD';
+      }
+      return '';
     });
 
     // Make sure mockFs covers the worktree path!
@@ -139,13 +136,12 @@ describe('SalmonLoop Integration Tests', () => {
       }
     };
     mockFs(fsConfig);
-    vi.mocked(worktree.cleanupWorktreeCheckpoint).mockResolvedValue(undefined);
-
     // Restore WorkspaceManager mock implementation
     vi.mocked(WorkspaceManager.setup).mockImplementation(async (options) => {
+      const workPath = options.strategy === 'worktree' ? '/tmp/wt-12345' : options.repoPath;
       return {
         baseRepoPath: options.repoPath,
-        workPath: options.repoPath,
+        workPath,
         strategy: options.strategy || 'direct',
       };
     });
@@ -279,8 +275,7 @@ describe('SalmonLoop Integration Tests', () => {
     }
 
     expect(result.success).toBe(true);
-    // Verify that createWorktreeCheckpoint was called
-    expect(worktree.createWorktreeCheckpoint).toHaveBeenCalledWith(repoPath);
+    expect(worktree.runGit).toHaveBeenCalledWith(repoPath, ['rev-parse', 'HEAD']);
     // Verify that workspace.workPath was updated to the worktree path (indirectly via args to runVerify)
     // Note: runVerify calls with activeRepoPath.
     // We can check if runVerify was called with the mock worktree path

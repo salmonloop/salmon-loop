@@ -147,10 +147,49 @@ Please return the patch in PURE unified diff format:`;
       'Preflight check failed: git command not found. Please ensure git is installed and in your PATH.',
     forceResetNotAllowedWithDirty:
       'Safety Guard: --force-reset is not allowed when the workspace is dirty to prevent accidental loss of uncommitted changes.',
+    workspaceInitFailed: 'Failed to initialize workspace',
+    worktreeMetadataFailed: (error: string) => `Failed to capture worktree metadata: ${error}`,
+    ignoringDirtyWorkspaceDebug: (reason: string) =>
+      `Ignoring dirty workspace for worktree strategy: ${reason}`,
+    worktreePrepareDebug: (command: string) => `Running worktree prepare command: ${command}`,
+    worktreePrepareFailed: (output: string) => `Worktree prepare command failed: ${output}`,
+    syncingDirtyWorkspace: 'Syncing dirty workspace changes to worktree...',
+    noContextGathered: 'No relevant context could be gathered for the given instruction.',
+    astStructureError: (file: string, error: string) => `AST structure error in ${file}: ${error}`,
+    astScopeIntegrityError: (file: string, reason: string) =>
+      `AST scope integrity check failed for ${file}: ${reason}`,
+    targetNodePlacementError: (file: string, reason: string) =>
+      `Target node placement validation failed for ${file}: ${reason}`,
+    skipPathDueToPolicy: (reason: string | undefined, file: string) =>
+      `Skipping path ${file} due to policy: ${reason}`,
+    skipFileDueToPolicy: (reason: string | undefined, file: string) =>
+      `Skipping file ${file} due to policy: ${reason}`,
+    skipMissingFileSync: (file: string) => `Skipping missing file during sync: ${file}`,
+    // applyBack specific messages used by shadow-merge.ts
+    skippedFiles: (files: string) => `[applyBack] Skipped files: ${files}`,
+    removeMergeTempFailed: (path: string, error: string) =>
+      `[applyBack] Failed to remove merge temp file ${path}: ${error}`,
+    normalizingCrlf: '[applyBack] Normalizing CRLF line endings to LF for merge-file.',
+    getStatusForPathRaw: (file: string) => `[getStatusForPath] Raw status for ${file}:`,
+    getStatusForPathToken: (idx: number, code: string, hex0: string, hex1: string, full: string) =>
+      `  Token ${idx}: code="${code}" (0x${hex0} 0x${hex1}), full="${full}"`,
+    shadowDiffPreviewEngine: (file: string, lines: number, hunks: string) =>
+      `[applyBack] Shadow diff for ${file}: ${lines} lines, hunks: ${hunks}`,
+    shadowDiffPreviewFull: (preview: string) => `[applyBack] Shadow diff preview:\n${preview}`,
+    appliedLineLocationsEngine: (file: string, locations: string) =>
+      `[applyBack] Applied line locations for ${file}: ${locations}`,
   },
 
   verify: {
     truncated: (maxLines: number) => `...[Output truncated, exceeds ${maxLines} lines]`,
+    terminated: '\n[Process Terminated]',
+    commandError: (command: string, error: string) => `Failed to execute command: ${command}. Error: ${error}`,
+    outputTruncated: (head: number, tail: number) => `\n...[Output truncated, showing first ${head} and last ${tail} lines]...\n`,
+    commandTimeout: 'Command timed out',
+    failedToStartCommand: 'Failed to start command',
+    verifyFileContentError: (file: string, error: string) => `Error verifying file content for ${file}: ${error}`,
+    worktreeStrategyActive: 'Worktree strategy active: ignoring dirty state in base repository.',
+    ripgrepNotFoundWarning: 'ripgrep (rg) not found. Context gathering may be limited.',
   },
 
   context: {
@@ -180,6 +219,9 @@ Please return the patch in PURE unified diff format:`;
     verboseOption: 'Enable verbose logging (basic, extended)',
     forceResetOption: 'Force hard reset on failure (use with caution)',
     validateOption: 'Run code quality checks (lint and tests)',
+    checkpointStrategyOption: 'Checkpoint strategy to use (direct, worktree)',
+    applyBackOnDirtyOption: 'Behavior when apply-back detects a dirty workspace (stash, abort)',
+    worktreePrepareOption: 'Optional setup command to run inside worktree',
 
     // Error messages
     fileSelectionConflict: '--file and --selection are mutually exclusive',
@@ -207,6 +249,9 @@ Please return the patch in PURE unified diff format:`;
     success: (success: boolean) => `  Success: ${success}`,
     reason: (reason: string) => `  Reason: ${reason}`,
     attempts: (attempts: number) => `  Attempts: ${attempts}`,
+    diffMeta: (files: number, lines: number) => `  Diff: ${files} files changed, ${lines} lines.`,
+    retry: (from: number, to: number, reason: string) =>
+      `\nRetrying (${from} -> ${to}). Reason: ${reason}`,
 
     // Step logs
     stepLogs: '📝 Step Logs:',
@@ -270,12 +315,15 @@ Please return the patch in PURE unified diff format:`;
   },
 
   ast: {
-    degradedApi: 'Using legacy tree-sitter API. Some features might be limited. Please consider upgrading web-tree-sitter.',
+    degradedApi:
+      'Using legacy tree-sitter API. Some features might be limited. Please consider upgrading web-tree-sitter.',
     initFailed: (error: string) => `Failed to initialize AST parser: ${error}`,
-    loadLanguageFailed: (lang: string, error: string) => `Failed to load language ${lang}: ${error}`,
+    loadLanguageFailed: (lang: string, error: string) =>
+      `Failed to load language ${lang}: ${error}`,
     invalidStructure: 'AST structure validation failed: tree contains error nodes',
     scopeRemoved: (name: string) => `Top-level node '${name}' was removed.`,
-    scopeModified: (name: string) => `Top-level node '${name}' was modified but it was not the target.`,
+    scopeModified: (name: string) =>
+      `Top-level node '${name}' was modified but it was not the target.`,
     invalidTree: 'Invalid AST tree provided for validation',
   },
 
@@ -283,7 +331,8 @@ Please return the patch in PURE unified diff format:`;
     reportTitle: 'SalmonLoop Exception Analysis Report',
     totalErrors: (count: number) => `Total Errors Tracked: ${count}`,
     recentErrors: 'Recent Error History:',
-    errorEntry: (timestamp: string, type: string, message: string) => `[${timestamp}] ${type}: ${message}`,
+    errorEntry: (timestamp: string, type: string, message: string) =>
+      `[${timestamp}] ${type}: ${message}`,
     noErrors: 'No errors recorded.',
   },
 

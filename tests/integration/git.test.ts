@@ -51,7 +51,7 @@ describe('Git Integration Tests', () => {
 
     expect(spawn).toHaveBeenCalledWith(
       'git',
-      expect.arrayContaining(['apply', '-3']),
+      expect.arrayContaining(['apply', '--recount']),
       expect.objectContaining({ cwd: repoPath }),
     );
   });

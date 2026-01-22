@@ -210,6 +210,7 @@ index 123..456 100644
       '/tmp/repo',
       expect.arrayContaining(['test.txt']),
       undefined,
+      undefined,
     );
   });
 
@@ -265,6 +266,7 @@ index 123..456 100644
     expect(git.rollbackFiles).toHaveBeenCalledWith(
       '/tmp/repo',
       expect.arrayContaining(['a.ts', 'b.ts']),
+      true,
       undefined,
     );
   });

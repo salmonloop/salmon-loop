@@ -117,16 +117,17 @@ export function isRetryable(error: ErrorType): boolean {
   }
 }
 
-export async function runVerify(
+export async function runCommand(
   repoPath: string,
-  verifyCommand: string,
+  command: string,
+  timeoutMs: number,
 ): Promise<{
   ok: boolean;
   output: string;
   exitCode: number | null;
 }> {
   return new Promise((resolve) => {
-    const child = spawn(verifyCommand, {
+    const child = spawn(command, {
       shell: true,
       cwd: repoPath,
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -150,8 +151,8 @@ export async function runVerify(
         }
       }, 2000);
 
-      output += '\n[Error] Verification timed out and was terminated.';
-    }, LIMITS.verifyTimeoutMs);
+      output += text.verify.terminated;
+    }, timeoutMs);
 
     child.stdout?.on('data', (data) => {
       if (output.length < 500000) output += data.toString();
@@ -164,7 +165,7 @@ export async function runVerify(
       clearTimeout(timer);
       resolve({
         ok: false,
-        output: `Failed to start verification command "${verifyCommand}": ${String(err)}. Please check if the command is valid and you have necessary permissions.`,
+        output: text.verify.commandError(command, String(err)),
         exitCode: -1,
       });
     });
@@ -179,7 +180,7 @@ export async function runVerify(
         const half = Math.floor(LIMITS.verifyOutputMaxLines / 2);
         const head = lines.slice(0, half).join('\n');
         const tail = lines.slice(-half).join('\n');
-        truncatedOutput = `${head}\n\n...[Output truncated, showing first and last ${half} lines]...\n\n${tail}`;
+        truncatedOutput = `${head}${text.verify.outputTruncated(half, half)}${tail}`;
       }
 
       resolve({
@@ -189,6 +190,24 @@ export async function runVerify(
       });
     });
   });
+}
+
+export async function runVerify(
+  repoPath: string,
+  verifyCommand: string,
+): Promise<{
+  ok: boolean;
+  output: string;
+  exitCode: number | null;
+}> {
+  const result = await runCommand(repoPath, verifyCommand, LIMITS.verifyTimeoutMs);
+  if (!result.ok && result.output.includes('Command timed out')) {
+    result.output = result.output.replace('Command timed out', text.verify.commandTimeout);
+  }
+  if (!result.ok && result.output.includes('Failed to start command')) {
+    result.output = result.output.replace('Failed to start command', text.verify.failedToStartCommand);
+  }
+  return result;
 }
 
 /**
@@ -218,7 +237,7 @@ export async function verifyFileContent(
       return false;
     }
     // Log unexpected errors for transparency, but return false as verification failed
-    logger.warn(`verifyFileContent error for ${filePath}: ${err.message}`);
+    logger.warn(text.verify.verifyFileContentError(filePath, err.message));
     return false;
   }
 }
@@ -262,7 +281,7 @@ export async function preflight(workspace: ExecutionWorkspace): Promise<{ ok: bo
         });
       } else {
         // Worktree strategy: ignore dirty state in base repository
-        logger.info('Worktree strategy active: ignoring dirty state in base repository');
+        logger.info(text.verify.worktreeStrategyActive);
         resolve({ ok: true });
       }
     });
@@ -271,9 +290,7 @@ export async function preflight(workspace: ExecutionWorkspace): Promise<{ ok: bo
     const rgCheck = spawn('rg', ['--version']);
     rgCheck.on('error', (err: any) => {
       if (err.code === 'ENOENT') {
-        logger.warn(
-          'Warning: ripgrep (rg) not found in PATH. Automatic context gathering will be disabled. Please use --file to specify target files or install ripgrep.',
-        );
+        logger.warn(text.verify.ripgrepNotFoundWarning);
       }
     });
   });

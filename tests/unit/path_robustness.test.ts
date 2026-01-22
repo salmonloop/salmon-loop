@@ -12,7 +12,7 @@ vi.mock('child_process');
 
 describe('Path Robustness', () => {
   describe('normalizeDiff Path Handling', () => {
-    it('should handle Windows style paths with drive letters', () => {
+    it('should throw for absolute Windows paths (security policy)', () => {
       const diff = `
 diff --git a/C:\\Users\\test\\file.ts b/C:\\Users\\test\\file.ts
 --- a/C:\\Users\\test\\file.ts
@@ -21,10 +21,7 @@ diff --git a/C:\\Users\\test\\file.ts b/C:\\Users\\test\\file.ts
 -old
 +new
       `.trim();
-      const normalized = normalizeDiff(diff);
-      expect(normalized).toContain('diff --git a/Users/test/file.ts b/Users/test/file.ts');
-      expect(normalized).toContain('--- a/Users/test/file.ts');
-      expect(normalized).toContain('+++ b/Users/test/file.ts');
+      expect(() => normalizeDiff(diff)).toThrow(/Path traversal detected/);
     });
 
     it('should handle mixed slashes and redundant separators', () => {

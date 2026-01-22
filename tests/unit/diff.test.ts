@@ -13,10 +13,9 @@ describe('normalizeDiff', () => {
     expect(normalizeDiff(raw)).toBe('diff --git a/a b/a\n');
   });
 
-  it('should handle Windows paths and drive letters', () => {
+  it('should throw for absolute Windows paths (security policy)', () => {
     const raw = 'diff --git a/C:\\Users\\test\\file.ts b/C:\\Users\\test\\file.ts';
-    // Should strip drive letter and normalize slashes
-    expect(normalizeDiff(raw)).toBe('diff --git a/Users/test/file.ts b/Users/test/file.ts\n');
+    expect(() => normalizeDiff(raw)).toThrow(/Path traversal detected/);
   });
 
   it('should strip repo name but keep common src dirs', () => {

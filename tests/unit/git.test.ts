@@ -132,9 +132,7 @@ index abc1234..def5678 100644
       'git',
       expect.arrayContaining([
         'apply',
-        '-3',
         '--recount',
-        '-C0',
         '--ignore-space-change',
         '--ignore-whitespace',
       ]),

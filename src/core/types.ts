@@ -1,4 +1,5 @@
 export type VerboseLevel = 'basic' | 'extended';
+export type ApplyBackOnDirty = 'abort' | 'stash';
 
 export enum ExecutionPhase {
   PREFLIGHT = 'preflight',
@@ -159,6 +160,8 @@ export interface RunOptions {
   onEvent?: (event: LoopEvent) => void;
   verbose?: VerboseLevel;
   strategy?: CheckpointStrategy;
+  applyBackOnDirty?: ApplyBackOnDirty;
+  worktreePrepare?: string;
   expectedChanges?: string[];
   expectedFileContent?: { path: string; content: string }[];
   targetNodeName?: string;
@@ -210,4 +213,3 @@ export interface ExecutionWorkspace {
   workPath: string
   strategy: CheckpointStrategy
 }
-

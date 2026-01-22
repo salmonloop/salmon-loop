@@ -29,7 +29,9 @@ program
   .option('--force-reset', text.cli.forceResetOption)
   .option('--validate', text.cli.validateOption)
   .option('--target-node <name>', text.cli.targetNodeOption)
-  .option('-cs, --checkpoint-strategy <type>', 'Checkpoint strategy (direct|worktree). "worktree" is safer and ignores dirty state.', 'direct')
+  .option('-cs, --checkpoint-strategy <type>', text.cli.checkpointStrategyOption, 'direct')
+  .option('--apply-back-on-dirty <mode>', text.cli.applyBackOnDirtyOption, 'stash')
+  .option('--worktree-prepare <command>', text.cli.worktreePrepareOption)
   .action(async (options) => {
     const runPath = resolve(options.repo);
 
@@ -94,6 +96,8 @@ program
 
       let currentPhaseIndex = 0;
 
+      const applyBackOnDirty = options.applyBackOnDirty === 'abort' ? 'abort' : 'stash';
+
       const result = await runSalmonLoop({
         instruction: options.instruction,
         verify: options.verify,
@@ -105,6 +109,8 @@ program
         selection: options.selection,
         verbose: verboseLevel,
         strategy: options.checkpointStrategy as CheckpointStrategy,
+        applyBackOnDirty,
+        worktreePrepare: options.worktreePrepare,
         onEvent: (event) => {
           if (event.type === 'phase.start') {
             const phaseName =
@@ -128,13 +134,14 @@ program
               logger.debug(event.output);
             }
           } else if (event.type === 'diff.meta') {
-            logger.success(`  Files: ${event.fileCount}, Lines: ${event.lineCount}`);
+            logger.success(text.cli.diffMeta(event.fileCount, event.lineCount));
           } else if (event.type === 'retry') {
             logger.warn(
-              `\n🔄 Retry ${event.fromAttempt} -> ${event.toAttempt}: ${event.reason.substring(
-                0,
-                100,
-                )}...`,
+              text.cli.retry(
+                event.fromAttempt,
+                event.toAttempt,
+                event.reason.substring(0, 100) + '...',
+              ),
             );
             currentPhaseIndex = 0; // Reset progress for retry
           }
