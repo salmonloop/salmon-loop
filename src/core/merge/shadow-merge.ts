@@ -6,6 +6,7 @@ import path from 'path';
 
 import { text } from '../../locales/index.js';
 import { runGit } from '../checkpoint/worktree.js';
+import { LIMITS } from '../limits.js';
 import { logger } from '../logger.js';
 import type { VerboseLevel } from '../types.js';
 
@@ -375,15 +376,30 @@ export class ShadowMergeEngine {
       const child = spawn('git', args, { cwd: repoPath, stdio: ['pipe', 'pipe', 'pipe'] });
       const chunks: Buffer[] = [];
       const errors: Buffer[] = [];
+      let settled = false;
+      const timeout = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        if (!child.killed) {
+          child.kill();
+        }
+        reject(new Error(`git command timed out after ${LIMITS.gitTimeoutMs}ms`));
+      }, LIMITS.gitTimeoutMs);
 
       child.stdout.on('data', (data) => chunks.push(Buffer.from(data)));
       child.stderr.on('data', (data) => errors.push(Buffer.from(data)));
 
       child.on('error', (err) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
         reject(err);
       });
 
       child.on('close', (code) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
         if (code === null) {
           reject(new Error('git command failed with unknown exit code'));
           return;

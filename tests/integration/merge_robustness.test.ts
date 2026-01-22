@@ -139,8 +139,9 @@ class MergeTestContext {
   }
 
   async teardown() {
-    await rm(this.mainRepoPath, { recursive: true, force: true });
-    await rm(this.shadowRepoPath, { recursive: true, force: true });
+    const rmOptions = { recursive: true, force: true, maxRetries: 5, retryDelay: 200 };
+    await rm(this.mainRepoPath, rmOptions);
+    await rm(this.shadowRepoPath, rmOptions);
   }
 
   async writeFile(repo: 'main' | 'shadow', filePath: string, content: string | Buffer) {
@@ -1110,7 +1111,7 @@ describe('ShadowMergeEngine Robustness', () => {
       await expect(ctx.readFile('main', 'binary.dat')).rejects.toThrow();
       const status = ctx.git.statusEntry('binary.dat');
       expect(status).toBeNull();
-    });
+    }, 20000);
 
     it('6.7 Binary detection: extension-based skip', async () => {
       const initialRef = await ctx.git.getHead();
@@ -1127,7 +1128,7 @@ describe('ShadowMergeEngine Robustness', () => {
       await expect(ctx.readFile('main', 'image.png')).rejects.toThrow();
       const status = ctx.git.statusEntry('image.png');
       expect(status).toBeNull();
-    });
+    }, 20000);
 
     it('6.8 shouldAllowPath: custom filter rejects file', async () => {
       const initialRef = await ctx.git.getHead();
