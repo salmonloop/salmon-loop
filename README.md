@@ -8,7 +8,7 @@ A minimal viable execution loop for automated code patching.
 
 Salmon-Loop is built on three core principles:
 
-1.  **Patch-First**: All changes are applied via standard unified diffs (`git apply`). This ensures changes are precise, reversible, and reviewable.
+1.  **Patch-First**: All changes are applied via standard unified diffs (`git apply`) and integrated using a robust 3-way merge strategy. This ensures changes are precise, reversible, and reviewable.
 2.  **Verify-First**: No change is considered successful without passing a user-provided verification command (e.g., `npm test`).
 3.  **Fail-Fast**: If verification fails, the system immediately rolls back changes and reports the error. It does not attempt to "guess" its way out of a broken state without a clear plan.
 
@@ -104,6 +104,7 @@ act
 ## Safety & Constraints
 
 - **Dirty Workspace**: By default, SalmonLoop will refuse to run if the git workspace has uncommitted changes. Use `worktree` strategy to run in an isolated environment.
+- **Shadow Merge**: Safely integrates AI changes with user modifications using a 3-way merge strategy in an isolated shadow environment.
 - **Fail-Fast**: The loop terminates immediately if a patch cannot be applied or if verification fails after maximum retries.
 - **AST Verification**: Performs deep AST structure and scope integrity checks to prevent syntax errors and unintended side effects.
 - **File Locking**: Uses a robust locking protocol to prevent concurrent modifications and repository corruption.

@@ -17,8 +17,9 @@ The loop follows a strict nine-phase process:
 
 ## 2. Safety Guarantees
 
-- **Atomic Changes**: Changes are applied via `git apply`. If any part of the patch fails, nothing is applied.
+- **Atomic Changes**: Changes are initially applied via `git apply` (often in an isolated worktree). If any part of the patch fails, nothing is applied.
 - **Reliable Rollbacks**: Rollbacks are targeted and based on the specific files changed in the current attempt. If Git conflicts or abnormal states are encountered, the system automatically performs a forced reset or isolation cleanup, ensuring the workspace returns to a predictable state. Specifically, in the worktree strategy, the isolation ensures that unsuccessful changes never affect the main workspace.
+- **Shadow Merge**: When applying changes back to the workspace, the system uses a "Shadow Merge" engine to perform a 3-way merge. This protects user changes that might have occurred concurrently and handles conflicts safely without corrupting files.
 - **No File Operations**: Prohibiting file creation, deletion, and renaming ensures that the execution environment remains stable and reversible. The validation phase provides detailed feedback if these rules are violated.
 - **Fuzzy Context Matching**: Uses Levenshtein distance to validate patch context against the actual file content, allowing for minor whitespace or comment differences while ensuring structural correctness.
 

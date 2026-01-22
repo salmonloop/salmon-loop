@@ -33,9 +33,19 @@ To ensure cross-platform compatibility (Windows vs. Linux/macOS), SalmonLoop enf
 
 - **Forward Slashes**: All internal path representations and comparisons use forward slashes (`/`).
 - **Safe Utilities**: `src/core/path.ts` provides `safeJoin`, `safeResolve`, and `normalizePath` to wrap Node.js `path` module calls and ensure consistent output.
+- **Security Checks**: Strict validation prevents path traversal attacks and ensures all operations are confined within the repository root.
 
 ## 5. TOCTOU Defense
 
 Time-of-Check to Time-of-Use (TOCTOU) vulnerabilities are mitigated by:
 - **Atomic Git Operations**: Relying on Git's internal locking and index management for file modifications.
 - **Post-Apply Validation**: Re-reading and re-parsing files immediately after modification to verify the actual state on disk.
+
+## 6. Shadow Merge Engine
+
+To safely integrate AI-generated patches with potential user changes, SalmonLoop employs a robust "Shadow Merge" strategy (`src/core/merge/shadow-merge.ts`).
+
+- **Isolation**: Merges are performed in a temporary shadow directory, ensuring the working tree is never left in a broken state.
+- **3-Way Merge**: Uses Git's 3-way merge algorithm (via `git merge-file`) to intelligently combine the base version, user changes, and AI patches.
+- **Conflict Handling**: Automatically detects conflicts. If a clean merge isn't possible, the operation is aborted safely without corrupting user files.
+- **Binary & Large File Protection**: Automatically detects and excludes binary files and strictly enforces size limits to prevent performance degradation.
