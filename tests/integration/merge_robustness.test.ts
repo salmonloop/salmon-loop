@@ -143,7 +143,7 @@ class MergeTestContext {
     await rm(this.shadowRepoPath, { recursive: true, force: true });
   }
 
-  async writeFile(repo: 'main' | 'shadow', filePath: string, content: string) {
+  async writeFile(repo: 'main' | 'shadow', filePath: string, content: string | Buffer) {
     const fullPath = join(repo === 'main' ? this.mainRepoPath : this.shadowRepoPath, filePath);
     await mkdir(join(fullPath, '..'), { recursive: true });
     await writeFile(fullPath, content);
@@ -154,13 +154,18 @@ class MergeTestContext {
     return readFile(fullPath, 'utf-8');
   }
 
-  createEngine(initialRef: string, latestRef: string): ShadowMergeEngine {
+  createEngine(
+    initialRef: string,
+    latestRef: string,
+    overrides: Partial<ConstructorParameters<typeof ShadowMergeEngine>[0]> = {},
+  ): ShadowMergeEngine {
     return new ShadowMergeEngine({
       mainRepoPath: this.mainRepoPath,
       shadowWorktreePath: this.shadowRepoPath,
       initialRef,
       latestRef,
       verbose: 'extended',
+      ...overrides,
     });
   }
 }
@@ -222,13 +227,21 @@ describe('ShadowMergeEngine Robustness', () => {
       // Assertions
       // Assert working tree contains AI changes plus user working changes.
       const finalContent = await ctx.readFile('main', 'file.txt');
-      expect(finalContent).toContain('user working');
-      expect(finalContent).toContain('ai changes');
+      const expectedWorking = baseLines
+        .replace('line 1', 'user staged')
+        .replace('line 5', 'user working')
+        .replace('line 10', 'ai changes');
+      expect(finalContent).toBe(expectedWorking);
 
       // Assert index contains AI changes plus user staged changes.
       const stagedContent = ctx.git.run('show :file.txt');
-      expect(stagedContent).toContain('user staged');
-      expect(stagedContent).toContain('ai changes');
+      const expectedStaged = baseLines
+        .replace('line 1', 'user staged')
+        .replace('line 10', 'ai changes');
+      expect(stagedContent).toBe(expectedStaged);
+
+      const headContent = ctx.git.run('show HEAD:file.txt');
+      expect(headContent).toBe(baseLines);
     });
 
     it('1.2 Full Staged: Modify -> Add -> Modify -> Add', async () => {
@@ -259,14 +272,14 @@ describe('ShadowMergeEngine Robustness', () => {
 
       // Assertions
       const finalContent = await ctx.readFile('main', 'file.txt');
-      expect(finalContent).toContain('user staged 1');
-      expect(finalContent).toContain('user staged 2');
-      expect(finalContent).toContain('ai changes');
+      const expectedWorking = finalStagedLines.replace('line 10', 'ai changes');
+      expect(finalContent).toBe(expectedWorking);
 
       const stagedContent = ctx.git.run('show :file.txt');
-      expect(stagedContent).toContain('user staged 1');
-      expect(stagedContent).toContain('user staged 2');
-      expect(stagedContent).toContain('ai changes');
+      expect(stagedContent).toBe(expectedWorking);
+
+      const headContent = ctx.git.run('show HEAD:file.txt');
+      expect(headContent).toBe(baseLines);
     });
 
     it('1.3 Staged then Reset (Mixed): Modify -> Add -> Reset', async () => {
@@ -358,17 +371,23 @@ describe('ShadowMergeEngine Robustness', () => {
       await engine.apply();
 
       const finalContent = await ctx.readFile('main', 'file.txt');
-      expect(finalContent).toContain('user staged');
-      expect(finalContent).toContain('user working');
-      expect(finalContent).toContain('ai changes');
+      const expectedWorking = baseLines
+        .replace('line 2', 'user staged')
+        .replace('line 9', 'user working')
+        .replace('line 11', 'ai changes');
+      expect(finalContent).toBe(expectedWorking);
 
       const stagedContent = ctx.git.run('show :file.txt');
-      expect(stagedContent).toContain('user staged');
-      expect(stagedContent).toContain('ai changes');
-      expect(stagedContent).not.toContain('user working');
+      const expectedStaged = baseLines
+        .replace('line 2', 'user staged')
+        .replace('line 11', 'ai changes');
+      expect(stagedContent).toBe(expectedStaged);
 
       const status = ctx.git.statusEntry('file.txt');
       expect(status).toMatchObject({ index: 'M', working: 'M', path: 'file.txt' });
+
+      const headContent = ctx.git.run('show HEAD:file.txt');
+      expect(headContent).toBe(baseLines);
     });
 
     it('1.6 Commit during Think: user commits while AI runs', async () => {
@@ -458,7 +477,9 @@ describe('ShadowMergeEngine Robustness', () => {
       const latestRef = await ctx.shadowGit.commit('ai changes');
 
       const engine = ctx.createEngine(initialRef, latestRef);
-      await expect(engine.apply()).rejects.toThrow(/file\.txt/);
+      await expect(engine.apply()).rejects.toThrow(
+        /Apply-back completed with conflicts in 1 file\(s\): file\.txt/,
+      );
 
       const finalMoved = await ctx.readFile('main', 'file-renamed.txt');
       expect(finalMoved).not.toContain('ai changes');
@@ -482,7 +503,9 @@ describe('ShadowMergeEngine Robustness', () => {
       const latestRef = await ctx.shadowGit.commit('ai changes');
 
       const engine = ctx.createEngine(initialRef, latestRef);
-      await expect(engine.apply()).rejects.toThrow(/file\.txt/);
+      await expect(engine.apply()).rejects.toThrow(
+        /Apply-back completed with conflicts in 1 file\(s\): file\.txt/,
+      );
 
       await expect(ctx.readFile('main', 'file.txt')).rejects.toThrow();
     });
@@ -503,7 +526,9 @@ describe('ShadowMergeEngine Robustness', () => {
       const latestRef = await ctx.shadowGit.commit('ai changes');
 
       const engine = ctx.createEngine(initialRef, latestRef);
-      await expect(engine.apply()).rejects.toThrow(/file\.txt/);
+      await expect(engine.apply()).rejects.toThrow(
+        /Apply-back completed with conflicts in 1 file\(s\): file\.txt/,
+      );
 
       const stagedContent = ctx.git.run('show :file.txt');
       expect(stagedContent).toContain('line 1');
@@ -530,7 +555,9 @@ describe('ShadowMergeEngine Robustness', () => {
       const latestRef = await ctx.shadowGit.commit('ai changes');
 
       const engine = ctx.createEngine(initialRef, latestRef);
-      await expect(engine.apply()).rejects.toThrow(/dir\/file\.txt/);
+      await expect(engine.apply()).rejects.toThrow(
+        /Apply-back completed with conflicts in 1 file\(s\): dir\/file\.txt/,
+      );
 
       const finalMoved = await ctx.readFile('main', 'new_dir/file.txt');
       expect(finalMoved).not.toContain('ai changes');
@@ -585,7 +612,9 @@ describe('ShadowMergeEngine Robustness', () => {
       const latestRef = await ctx.shadowGit.commit('ai adds file');
 
       const engine = ctx.createEngine(initialRef, latestRef);
-      await expect(engine.apply()).rejects.toThrow(/new_file\.txt/);
+      await expect(engine.apply()).rejects.toThrow(
+        /Apply-back completed with conflicts in 1 file\(s\): new_file\.txt/,
+      );
 
       const finalContent = await ctx.readFile('main', 'new_file.txt');
       expect(finalContent).toContain('user content');
@@ -610,7 +639,9 @@ describe('ShadowMergeEngine Robustness', () => {
       const latestRef = await ctx.shadowGit.commit('ai changes');
 
       const engine = ctx.createEngine(initialRef, latestRef);
-      await expect(engine.apply()).rejects.toThrow(/file\.txt/);
+      await expect(engine.apply()).rejects.toThrow(
+        /Apply-back completed with conflicts in 1 file\(s\): file\.txt/,
+      );
 
       const finalContent = await ctx.readFile('main', 'file.txt');
       expect(finalContent).toContain('line 1');
@@ -666,6 +697,8 @@ describe('ShadowMergeEngine Robustness', () => {
       const finalContent = await ctx.readFile('main', 'ignored.txt');
       expect(finalContent).toContain('user ignored content');
       expect(finalContent).toContain('ai ignored content');
+      expect(finalContent).not.toContain('<<<<<<<');
+      expect(finalContent).not.toContain('>>>>>>>');
 
       const stagedContent = ctx.git.run('show :ignored.txt');
       expect(stagedContent).toContain('user ignored content');
@@ -882,7 +915,9 @@ describe('ShadowMergeEngine Robustness', () => {
       const latestRef = await ctx.shadowGit.commit('ai adds file');
 
       const engine = ctx.createEngine(initialRef, latestRef);
-      await expect(engine.apply()).rejects.toThrow(/temp\.txt/);
+      await expect(engine.apply()).rejects.toThrow(
+        /Apply-back completed with conflicts in 1 file\(s\): temp\.txt/,
+      );
 
       await expect(ctx.readFile('main', 'temp.txt')).rejects.toThrow();
 
@@ -911,6 +946,210 @@ describe('ShadowMergeEngine Robustness', () => {
 
       const engine = ctx.createEngine(initialRef, latestRef);
       await expect(engine.apply()).rejects.toThrow(/index\.lock/i);
+    });
+  });
+
+  describe('Group 6: Additional Scenarios', () => {
+    it('6.1 Multi-file: AI modifies 3 files, user stages 1', async () => {
+      const baseLines = 'line 1\nline 2\nline 3\n';
+      await ctx.writeFile('main', 'a.txt', baseLines);
+      await ctx.writeFile('main', 'b.txt', baseLines);
+      await ctx.writeFile('main', 'c.txt', baseLines);
+      await ctx.git.add('.');
+      const initialRef = await ctx.git.commit('initial');
+
+      const userStaged = baseLines.replace('line 1', 'user staged');
+      await ctx.writeFile('main', 'a.txt', userStaged);
+      await ctx.git.add('a.txt');
+
+      ctx.shadowGit.run('fetch origin');
+      ctx.shadowGit.run(`reset --hard ${initialRef}`);
+      const aiA = baseLines.replace('line 3', 'ai changes');
+      const aiB = baseLines.replace('line 1', 'ai changes');
+      const aiC = baseLines.replace('line 2', 'ai changes');
+      await ctx.writeFile('shadow', 'a.txt', aiA);
+      await ctx.writeFile('shadow', 'b.txt', aiB);
+      await ctx.writeFile('shadow', 'c.txt', aiC);
+      await ctx.shadowGit.add('.');
+      const latestRef = await ctx.shadowGit.commit('ai changes');
+
+      const engine = ctx.createEngine(initialRef, latestRef);
+      await engine.apply();
+
+      const aContent = await ctx.readFile('main', 'a.txt');
+      expect(aContent).toContain('user staged');
+      expect(aContent).toContain('ai changes');
+      const bContent = await ctx.readFile('main', 'b.txt');
+      expect(bContent).toContain('ai changes');
+      const cContent = await ctx.readFile('main', 'c.txt');
+      expect(cContent).toContain('ai changes');
+
+      const aIndex = ctx.git.run('show :a.txt');
+      const expectedAIndex = baseLines
+        .replace('line 1', 'user staged')
+        .replace('line 3', 'ai changes');
+      expect(aIndex).toBe(expectedAIndex);
+      const bIndex = ctx.git.run('show :b.txt');
+      expect(bIndex).toBe(baseLines);
+      const cIndex = ctx.git.run('show :c.txt');
+      expect(cIndex).toBe(baseLines);
+
+      const aStatus = ctx.git.statusEntry('a.txt');
+      expect(aStatus).toMatchObject({ index: 'M', working: ' ', path: 'a.txt' });
+      const bStatus = ctx.git.statusEntry('b.txt');
+      expect(bStatus).toMatchObject({ index: ' ', working: 'M', path: 'b.txt' });
+      const cStatus = ctx.git.statusEntry('c.txt');
+      expect(cStatus).toMatchObject({ index: ' ', working: 'M', path: 'c.txt' });
+    });
+
+    it('6.2 Real 3-way conflict: both modify same line', async () => {
+      const baseLines = 'line 1\nline 2\nline 3\n';
+      await ctx.writeFile('main', 'file.txt', baseLines);
+      await ctx.git.add('file.txt');
+      const initialRef = await ctx.git.commit('initial');
+
+      const userLines = 'line 1\nuser change\nline 3\n';
+      await ctx.writeFile('main', 'file.txt', userLines);
+
+      ctx.shadowGit.run('fetch origin');
+      ctx.shadowGit.run(`reset --hard ${initialRef}`);
+      const aiLines = 'line 1\nai change\nline 3\n';
+      await ctx.writeFile('shadow', 'file.txt', aiLines);
+      const latestRef = await ctx.shadowGit.commit('ai changes');
+
+      const engine = ctx.createEngine(initialRef, latestRef);
+      await expect(engine.apply()).rejects.toThrow(
+        /Apply-back completed with conflicts in 1 file\(s\): file\.txt/,
+      );
+
+      const content = await ctx.readFile('main', 'file.txt');
+      expect(content).toContain('<<<<<<<');
+      expect(content).toContain('>>>>>>>');
+    });
+
+    it('6.3 Large file: exceeds maxFileBytes limit', async () => {
+      const initialRef = await ctx.git.getHead();
+
+      ctx.shadowGit.run('fetch origin');
+      ctx.shadowGit.run(`reset --hard ${initialRef}`);
+      const largeContent = Buffer.alloc(2048, 'x');
+      await ctx.writeFile('shadow', 'large.txt', largeContent);
+      await ctx.shadowGit.add('large.txt');
+      const latestRef = await ctx.shadowGit.commit('ai large file');
+
+      const engine = ctx.createEngine(initialRef, latestRef, { maxFileBytes: 1024 });
+      await engine.apply();
+
+      await expect(ctx.readFile('main', 'large.txt')).rejects.toThrow();
+      const status = ctx.git.statusEntry('large.txt');
+      expect(status).toBeNull();
+    });
+
+    it('6.4 CRLF handling: preserve user line endings', async () => {
+      const baseLines = 'line 1\r\nline 2\r\nline 3\r\n';
+      await ctx.writeFile('main', 'file.txt', baseLines);
+      await ctx.git.add('file.txt');
+      const initialRef = await ctx.git.commit('initial');
+
+      const userLines = 'user change\r\nline 2\r\nline 3\r\n';
+      await ctx.writeFile('main', 'file.txt', userLines);
+
+      ctx.shadowGit.run('fetch origin');
+      ctx.shadowGit.run(`reset --hard ${initialRef}`);
+      const aiLines = 'line 1\nline 2\nai change\n';
+      await ctx.writeFile('shadow', 'file.txt', aiLines);
+      const latestRef = await ctx.shadowGit.commit('ai changes');
+
+      const engine = ctx.createEngine(initialRef, latestRef);
+      await engine.apply();
+
+      const finalContent = await ctx.readFile('main', 'file.txt');
+      expect(finalContent).toContain('user change');
+      expect(finalContent).toContain('ai change');
+      expect(finalContent).toContain('\r\n');
+      const withoutCrlf = finalContent.replace(/\r\n/g, '');
+      expect(withoutCrlf).not.toContain('\n');
+    });
+
+    it('6.5 No trailing newline: preserve EOF without newline', async () => {
+      const baseLines = 'line 1\nline 2\nline 3';
+      await ctx.writeFile('main', 'file.txt', baseLines);
+      await ctx.git.add('file.txt');
+      const initialRef = await ctx.git.commit('initial');
+
+      const userLines = 'user line 1\nline 2\nline 3';
+      await ctx.writeFile('main', 'file.txt', userLines);
+
+      ctx.shadowGit.run('fetch origin');
+      ctx.shadowGit.run(`reset --hard ${initialRef}`);
+      const aiLines = 'line 1\nline 2\nai line 3';
+      await ctx.writeFile('shadow', 'file.txt', aiLines);
+      const latestRef = await ctx.shadowGit.commit('ai changes');
+
+      const engine = ctx.createEngine(initialRef, latestRef);
+      await engine.apply();
+
+      const finalContent = await ctx.readFile('main', 'file.txt');
+      expect(finalContent).toBe('user line 1\nline 2\nai line 3');
+      expect(finalContent.endsWith('\n')).toBe(false);
+    });
+
+    it('6.6 Binary detection: null byte signature', async () => {
+      const initialRef = await ctx.git.getHead();
+
+      ctx.shadowGit.run('fetch origin');
+      ctx.shadowGit.run(`reset --hard ${initialRef}`);
+      const binaryContent = Buffer.from([0x00, 0x01, 0x02, 0x03, 0x04]);
+      await ctx.writeFile('shadow', 'binary.dat', binaryContent);
+      await ctx.shadowGit.add('binary.dat');
+      const latestRef = await ctx.shadowGit.commit('ai binary');
+
+      const engine = ctx.createEngine(initialRef, latestRef);
+      await engine.apply();
+
+      await expect(ctx.readFile('main', 'binary.dat')).rejects.toThrow();
+      const status = ctx.git.statusEntry('binary.dat');
+      expect(status).toBeNull();
+    });
+
+    it('6.7 Binary detection: extension-based skip', async () => {
+      const initialRef = await ctx.git.getHead();
+
+      ctx.shadowGit.run('fetch origin');
+      ctx.shadowGit.run(`reset --hard ${initialRef}`);
+      await ctx.writeFile('shadow', 'image.png', 'not really png');
+      await ctx.shadowGit.add('image.png');
+      const latestRef = await ctx.shadowGit.commit('ai png');
+
+      const engine = ctx.createEngine(initialRef, latestRef);
+      await engine.apply();
+
+      await expect(ctx.readFile('main', 'image.png')).rejects.toThrow();
+      const status = ctx.git.statusEntry('image.png');
+      expect(status).toBeNull();
+    });
+
+    it('6.8 shouldAllowPath: custom filter rejects file', async () => {
+      const initialRef = await ctx.git.getHead();
+
+      ctx.shadowGit.run('fetch origin');
+      ctx.shadowGit.run(`reset --hard ${initialRef}`);
+      await ctx.writeFile('shadow', 'allowed.txt', 'ai allowed\n');
+      await ctx.writeFile('shadow', 'secret.txt', 'ai secret\n');
+      await ctx.shadowGit.add('.');
+      const latestRef = await ctx.shadowGit.commit('ai adds files');
+
+      const engine = ctx.createEngine(initialRef, latestRef, {
+        shouldAllowPath: async (path) => {
+          if (path === 'secret.txt') return { allowed: false, reason: 'secret' };
+          return { allowed: true };
+        },
+      });
+      await engine.apply();
+
+      const allowed = await ctx.readFile('main', 'allowed.txt');
+      expect(allowed).toContain('ai allowed');
+      await expect(ctx.readFile('main', 'secret.txt')).rejects.toThrow();
     });
   });
 });
