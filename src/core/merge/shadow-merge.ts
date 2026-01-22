@@ -117,10 +117,6 @@ export class ShadowMergeEngine {
       const hasUserChanges = status ? status.staged || status.unstaged || status.untracked : false;
 
       if (op.type === 'A') {
-        if (hasUserChanges) {
-          conflicts.push(op.path);
-          continue;
-        }
         const aiContent = await this.gitShowFile(shadowWorktreePath, latestRef, op.path);
         if (!aiContent) {
           skipped.push(`${op.path} (missing-ai)`);
@@ -139,6 +135,44 @@ export class ShadowMergeEngine {
           skipped.push(`${op.path} (binary)`);
           continue;
         }
+
+        if (hasUserChanges) {
+          if (status?.staged && !status.unstaged && !status.untracked) {
+            const ignored = await this.isIgnoredPath(mainRepoPath, op.path);
+            if (ignored) {
+              const userWorkingPath = path.join(mainRepoPath, ...op.path.split('/'));
+              const userWorkingContent = await this.readFileBufferSafe(userWorkingPath);
+              if (!userWorkingContent) {
+                conflicts.push(op.path);
+                continue;
+              }
+              const isBinary =
+                (await this.isBinaryPath(mainRepoPath, op.path, userWorkingContent)) ||
+                (await this.isBinaryPath(shadowWorktreePath, op.path, aiContent));
+              if (isBinary) {
+                skipped.push(`${op.path} (binary)`);
+                continue;
+              }
+              const emptyBase = Buffer.alloc(0);
+              const workingMerge = await this.mergeFileContents(
+                mainRepoPath,
+                emptyBase,
+                userWorkingContent,
+                aiContent,
+                { union: true },
+              );
+              await writeFile(userWorkingPath, workingMerge.merged);
+              if (workingMerge.conflict) {
+                conflicts.push(op.path);
+              }
+              continue;
+            }
+          }
+
+          conflicts.push(op.path);
+          continue;
+        }
+
         const destPath = path.join(mainRepoPath, ...op.path.split('/'));
         await mkdir(path.dirname(destPath), { recursive: true });
         await writeFile(destPath, aiContent);
@@ -159,6 +193,11 @@ export class ShadowMergeEngine {
             throw error;
           }
         }
+        continue;
+      }
+
+      if (status?.untracked || status?.deleted) {
+        conflicts.push(op.path);
         continue;
       }
 
@@ -308,6 +347,16 @@ export class ShadowMergeEngine {
     }
   }
 
+  private async isIgnoredPath(repoPath: string, relativePath: string): Promise<boolean> {
+    const normalized = this.normalizePath(relativePath);
+    const result = await this.runGitBuffered(
+      repoPath,
+      ['check-ignore', '--no-index', '--stdin'],
+      Buffer.from(`${normalized}\n`, 'utf8'),
+    );
+    return result.code === 0;
+  }
+
   private async runGitBuffered(
     repoPath: string,
     args: string[],
@@ -367,6 +416,7 @@ export class ShadowMergeEngine {
     baseContent: Buffer,
     userContent: Buffer,
     aiContent: Buffer,
+    options: { union?: boolean } = {},
   ): Promise<{ merged: Buffer; conflict: boolean }> {
     // Diagnostic logging for 3-way merge inputs
     if (this.options.verbose === 'extended') {
@@ -398,13 +448,12 @@ export class ShadowMergeEngine {
     await writeFile(aiPath, normalized.ai);
 
     try {
-      const result = await this.runGitBuffered(repoPath, [
-        'merge-file',
-        '-p',
-        userPath,
-        basePath,
-        aiPath,
-      ]);
+      const args = ['merge-file', '-p'];
+      if (options.union) {
+        args.push('--union');
+      }
+      args.push(userPath, basePath, aiPath);
+      const result = await this.runGitBuffered(repoPath, args);
       if (result.code === 0) {
         return {
           merged: this.restoreLineEndings(result.stdout, normalized.preferredLineEnding),
@@ -581,7 +630,18 @@ export class ShadowMergeEngine {
       const unstaged = code[1] !== ' ';
       const untracked = code === '??';
       const deleted = code.includes('D');
-      result.set(this.normalizePath(pathPart), { staged, unstaged, untracked, deleted });
+      const normalizedPath = this.normalizePath(pathPart);
+      const existing = result.get(normalizedPath);
+      if (existing) {
+        result.set(normalizedPath, {
+          staged: existing.staged || staged,
+          unstaged: existing.unstaged || unstaged,
+          untracked: existing.untracked || untracked,
+          deleted: existing.deleted || deleted,
+        });
+      } else {
+        result.set(normalizedPath, { staged, unstaged, untracked, deleted });
+      }
     }
     return result.get(this.normalizePath(relativePath)) || null;
   }
