@@ -1,4 +1,4 @@
-import { normalize as pathNormalize, isAbsolute as pathIsAbsolute, extname } from 'path';
+import { normalize as pathNormalize, extname } from 'path';
 
 import { text } from '../locales/index.js';
 
@@ -18,6 +18,11 @@ export interface DiffMeta {
  * Normalizes a raw diff string by trimming and unwrapping markdown code blocks.
  * It tries to find the first code block that looks like a diff or the raw diff itself.
  */
+const isAbsolutePathLike = (value: string): boolean => {
+  const normalized = value.replace(/\\/g, '/');
+  return normalized.startsWith('/') || /^[a-zA-Z]:/.test(normalized);
+};
+
 const cleanPath = (path: string) => {
   // Special case: /dev/null must be preserved as-is
   if (path === '/dev/null' || path === 'dev/null') {
@@ -28,12 +33,12 @@ const cleanPath = (path: string) => {
   // Check for obvious path traversal attempts in the raw input
   const rawNormalized = pathNormalize(path).replace(/\\/g, '/');
   const rawSegments = rawNormalized.split('/');
-  if (rawSegments.some((seg) => seg === '..') || pathIsAbsolute(rawNormalized)) {
+  if (rawSegments.some((seg) => seg === '..') || isAbsolutePathLike(rawNormalized)) {
     throw new DiffValidationError(`Path traversal detected: ${path}`);
   }
 
   // 1. Detect if it was an absolute path before normalization
-  const isAbsolute = path.startsWith('/') || path.startsWith('\\') || /^[a-zA-Z]:/.test(path);
+  const isAbsolute = isAbsolutePathLike(path);
 
   // 2. Normalize slashes and remove Windows drive letters
   // Collapse multiple slashes and convert backslashes
@@ -111,7 +116,7 @@ const cleanPath = (path: string) => {
 
   // Double-check: After all cleaning, verify no path traversal remains
   const finalSegments = finalNormalized.split('/');
-  if (finalSegments.some((seg) => seg === '..') || pathIsAbsolute(finalNormalized)) {
+  if (finalSegments.some((seg) => seg === '..') || isAbsolutePathLike(finalNormalized)) {
     throw new DiffValidationError(`Path traversal detected after normalization: ${path}`);
   }
 
@@ -139,7 +144,7 @@ export function normalizeDiff(raw: string): string {
   // We use non-greedy matching and ensure we don't break the format
   const cleaned =
     content
-      .replace(/^diff --git a\/(.+) b\/(.+)$/gm, (match, p1, p2) => {
+      .replace(/^diff --git a\/(.+?) b\/(.+)$/gm, (match, p1, p2) => {
         // Handle Windows paths by replacing backslashes and removing drive letters
         return `diff --git a/${cleanPath(p1)} b/${cleanPath(p2)}`;
       })

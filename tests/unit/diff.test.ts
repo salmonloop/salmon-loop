@@ -18,6 +18,44 @@ describe('normalizeDiff', () => {
     expect(() => normalizeDiff(raw)).toThrow(/Path traversal detected/);
   });
 
+  it('should throw for absolute Unix paths (security policy)', () => {
+    const raw = 'diff --git a//etc/passwd b//etc/passwd';
+    expect(() => normalizeDiff(raw)).toThrow(/Path traversal detected/);
+  });
+
+  it('should throw for path traversal with .. (security policy)', () => {
+    const raw = 'diff --git a/../../etc/passwd b/../../etc/passwd';
+    expect(() => normalizeDiff(raw)).toThrow(/Path traversal detected/);
+  });
+
+  it('should handle paths with spaces correctly (non-greedy regex)', () => {
+    const raw = 'diff --git a/folder with spaces/file.ts b/folder with spaces/file.ts';
+    const normalized = normalizeDiff(raw);
+    expect(normalized).toContain(
+      'diff --git a/folder with spaces/file.ts b/folder with spaces/file.ts',
+    );
+  });
+
+  it('should handle paths containing " b/" substring (non-greedy regex)', () => {
+    // This tests the fix for greedy regex matching
+    const raw = 'diff --git a/lib/util.ts b/lib/util.ts';
+    const normalized = normalizeDiff(raw);
+    expect(normalized).toContain('diff --git a/lib/util.ts b/lib/util.ts');
+  });
+
+  it('should correctly process multiple path components with non-greedy matching', () => {
+    const raw = `diff --git a/src/core/diff.ts b/src/core/diff.ts
+--- a/src/core/diff.ts
++++ b/src/core/diff.ts
+@@ -1,1 +1,1 @@
+-old
++new`;
+    const normalized = normalizeDiff(raw);
+    expect(normalized).toContain('diff --git a/src/core/diff.ts b/src/core/diff.ts');
+    expect(normalized).toContain('--- a/src/core/diff.ts');
+    expect(normalized).toContain('+++ b/src/core/diff.ts');
+  });
+
   it('should strip repo name but keep common src dirs', () => {
     const raw = 'diff --git a/my-project-repo/src/index.ts b/my-project-repo/src/index.ts';
     expect(normalizeDiff(raw)).toBe('diff --git a/src/index.ts b/src/index.ts\n');
