@@ -1,10 +1,11 @@
 import { spawn } from 'child_process';
 import { EventEmitter } from 'events';
 import * as fs from 'fs/promises';
+
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-import { ContextBuilder } from '../../src/core/context.js';
 import { AstParser } from '../../src/core/ast/parser.js';
+import { ContextBuilder } from '../../src/core/context.js';
 
 vi.mock('fs/promises');
 vi.mock('child_process');
@@ -36,7 +37,7 @@ describe('ContextBuilder', () => {
     vi.mocked(fs.readFile).mockResolvedValue('console.log("hello");');
 
     // Mock spawn for git diff and rg
-    vi.mocked(spawn).mockImplementation((command: string) => {
+    vi.mocked(spawn).mockImplementation((_command: string) => {
       const emitter = new EventEmitter() as any;
       emitter.stdout = new EventEmitter();
       emitter.stderr = new EventEmitter();

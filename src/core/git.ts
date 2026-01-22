@@ -7,8 +7,8 @@ import { join } from 'path';
 import { text } from '../locales/index.js';
 
 import { LIMITS } from './limits.js';
-import { GitError } from './types.js';
 import { logger } from './logger.js';
+import { GitError } from './types.js';
 
 interface LockMetadata {
   pid: number;
@@ -36,7 +36,11 @@ class FileHandleManager {
    * Acquire a lock for a specific path (usually the repo root)
    */
   async acquireLock(repoPath: string, forceUnlock = false): Promise<void> {
-    if (this.disabled || (process.env.NODE_ENV === 'test' && !process.env.SALMON_ENABLE_LOCK_IN_TEST)) return;
+    if (
+      this.disabled ||
+      (process.env.NODE_ENV === 'test' && !process.env.SALMON_ENABLE_LOCK_IN_TEST)
+    )
+      return;
 
     const lockFile = join(repoPath, '.salmon.lock');
     const start = Date.now();
@@ -72,7 +76,7 @@ class FileHandleManager {
             const fs = await import('fs/promises');
             const content = await fs.readFile(lockFile, 'utf8');
             const metadata: LockMetadata = JSON.parse(content);
-            
+
             let isAlive = true;
             try {
               process.kill(metadata.pid, 0);
@@ -97,11 +101,11 @@ class FileHandleManager {
               // Ignore stat errors
             }
           }
-          
+
           // Exponential backoff: delay increases with retry count, capped at 2000ms
           retryCount++;
           const delay = Math.min(FileHandleManager.RETRY_DELAY * Math.pow(1.5, retryCount), 2000);
-          await new Promise(resolve => setTimeout(resolve, delay));
+          await new Promise((resolve) => setTimeout(resolve, delay));
         } else if (e.code === 'ENOENT') {
           // Directory might not exist, try to create it
           try {
@@ -110,7 +114,7 @@ class FileHandleManager {
           } catch {
             // If mkdir fails, just wait and retry
           }
-          await new Promise(resolve => setTimeout(resolve, FileHandleManager.RETRY_DELAY));
+          await new Promise((resolve) => setTimeout(resolve, FileHandleManager.RETRY_DELAY));
         } else {
           throw e;
         }
@@ -123,14 +127,16 @@ class FileHandleManager {
       const fs = await import('fs/promises');
       const content = await fs.readFile(lockFile, 'utf8');
       const metadata: LockMetadata = JSON.parse(content);
-      
+
       // Log lock holder info for debugging
-      logger.warn(`Lock held by PID ${metadata.pid}, owner: ${metadata.owner}, age: ${Date.now() - metadata.timestamp}ms`);
-      
+      logger.warn(
+        `Lock held by PID ${metadata.pid}, owner: ${metadata.owner}, age: ${Date.now() - metadata.timestamp}ms`,
+      );
+
       // Force remove the lock file
       await fs.unlink(lockFile);
       logger.warn(`Forcefully removed stale lock file: ${lockFile}`);
-      
+
       // One final attempt to acquire the lock
       try {
         const handle = await open(lockFile, 'wx');
@@ -146,10 +152,14 @@ class FileHandleManager {
           return;
         }
       } catch (retryError) {
-        logger.warn(`Final lock acquisition attempt failed: ${retryError instanceof Error ? retryError.message : String(retryError)}`);
+        logger.warn(
+          `Final lock acquisition attempt failed: ${retryError instanceof Error ? retryError.message : String(retryError)}`,
+        );
       }
     } catch (cleanupError) {
-      logger.warn(`Force cleanup failed: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`);
+      logger.warn(
+        `Force cleanup failed: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`,
+      );
     }
 
     throw new Error(text.resource.lockAcquireTimeout(repoPath));
@@ -159,7 +169,11 @@ class FileHandleManager {
    * Release a lock for a specific path
    */
   async releaseLock(repoPath: string): Promise<void> {
-    if (this.disabled || (process.env.NODE_ENV === 'test' && !process.env.SALMON_ENABLE_LOCK_IN_TEST)) return;
+    if (
+      this.disabled ||
+      (process.env.NODE_ENV === 'test' && !process.env.SALMON_ENABLE_LOCK_IN_TEST)
+    )
+      return;
 
     const lockFile = join(repoPath, '.salmon.lock');
     try {
@@ -231,27 +245,27 @@ export async function applyPatch(
 
     await writeFile(tempFile, cleanedDiff, 'utf8');
 
-      try {
-        await new Promise<void>((resolve, reject) => {
-          const args = ['apply', '--recount'];
-          if (typeof options?.contextLines === 'number') {
-            args.push(`-C${options.contextLines}`);
-          }
-          if (options?.threeWay) {
-            args.push('-3');
-          }
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const args = ['apply', '--recount'];
+        if (typeof options?.contextLines === 'number') {
+          args.push(`-C${options.contextLines}`);
+        }
+        if (options?.threeWay) {
+          args.push('-3');
+        }
 
-          if (options?.ignoreWhitespace !== false) {
-            args.push('--ignore-space-change', '--ignore-whitespace');
-          }
+        if (options?.ignoreWhitespace !== false) {
+          args.push('--ignore-space-change', '--ignore-whitespace');
+        }
 
-          if (options?.cached) {
-            args.push('--cached');
-          } else if (options?.applyIndex) {
-            args.push('--index');
-          }
+        if (options?.cached) {
+          args.push('--cached');
+        } else if (options?.applyIndex) {
+          args.push('--index');
+        }
 
-          args.push(tempFile);
+        args.push(tempFile);
 
         const child = spawn('git', args, { cwd: repoPath });
 
@@ -394,7 +408,9 @@ export async function rollbackFiles(
     return await new Promise((resolve) => {
       // If forceReset is true, execute git reset --hard <ref>
       // Otherwise, try to checkout specified files
-      const args = forceReset ? ['reset', '--hard', ref || 'HEAD'] : ['checkout', '--', ...attempted];
+      const args = forceReset
+        ? ['reset', '--hard', ref || 'HEAD']
+        : ['checkout', '--', ...attempted];
 
       if (forceReset) {
         logger.trace(`[rollbackFiles] Executing: git ${args.join(' ')} (ref=${ref})`);
@@ -479,7 +495,9 @@ export async function rollbackFiles(
               attempted,
               exitCode: code,
               stdout,
-              stderr: stderr + `\nWorkspace still dirty after rollback: ${finalStatus}\n${conflictResult.error || ''}`,
+              stderr:
+                stderr +
+                `\nWorkspace still dirty after rollback: ${finalStatus}\n${conflictResult.error || ''}`,
             });
             return;
           }

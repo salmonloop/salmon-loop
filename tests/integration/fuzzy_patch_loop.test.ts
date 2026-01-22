@@ -1,12 +1,14 @@
 import { spawn } from 'child_process';
 import { EventEmitter } from 'events';
+
 import mockFs from 'mock-fs';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+import { AstParser } from '../../src/core/ast/parser.js';
 import * as git from '../../src/core/git.js';
 import { LLM } from '../../src/core/llm.js';
 import { runSalmonLoop } from '../../src/core/loop.js';
 import * as verify from '../../src/core/verify.js';
-import { AstParser } from '../../src/core/ast/parser.js';
 
 vi.mock('child_process', () => ({
   spawn: vi.fn(),
@@ -95,7 +97,7 @@ describe('Fuzzy Patch Loop Integration', () => {
     });
 
     // LLM generates a patch with extra space in context line
-    const fuzzyPatch = 
+    const fuzzyPatch =
       'diff --git a/app.js b/app.js\n' +
       '--- a/app.js\n' +
       '+++ b/app.js\n' +

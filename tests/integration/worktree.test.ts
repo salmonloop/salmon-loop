@@ -1,8 +1,12 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { EventEmitter } from 'events';
 import { spawn } from 'child_process';
+import { EventEmitter } from 'events';
 
-import { createWorktreeCheckpoint, cleanupWorktreeCheckpoint } from '../../src/core/checkpoint/worktree.js';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+
+import {
+  createWorktreeCheckpoint,
+  cleanupWorktreeCheckpoint,
+} from '../../src/core/checkpoint/worktree.js';
 
 // Mock child_process
 vi.mock('child_process', () => ({
@@ -46,8 +50,8 @@ describe('Worktree Checkpoint Integration (Mocked)', () => {
 
   const waitForSpawn = async (n: number) => {
     await vi.waitUntil(() => vi.mocked(spawn).mock.calls.length >= n, {
-        timeout: 1000, 
-        interval: 5 
+      timeout: 1000,
+      interval: 5,
     });
   };
 
@@ -92,68 +96,74 @@ describe('Worktree Checkpoint Integration (Mocked)', () => {
 
   it('should cleanup worktree checkpoint successfully via git', async () => {
     const checkpoint = {
-        strategy: 'worktree' as const,
-        repoPath,
-        worktreePath: '/tmp/salmon-loop-wt/repo/123456',
-        baseRef: 'abc',
-        branchName: 'salmonloop/wt/123456'
-      };
-  
-      const promise = cleanupWorktreeCheckpoint(checkpoint);
-  
-      // 1. git worktree list (new security check)
-      await waitForSpawn(1);
-      const child0 = getChild(0);
-      child0.stdout.emit('data', `worktree /tmp/salmon-loop-wt/repo/123456\nHEAD abc123\nbranch refs/heads/salmonloop/wt/123456\n\n`);
-      child0.emit('close', 0);
-  
-      // 2. worktree remove
-      await waitForSpawn(2);
-      getChild(1).emit('close', 0);
-  
-      // 3. branch delete
-      await waitForSpawn(3);
-      getChild(2).emit('close', 0);
-  
-      await promise;
-  
-      expect(spawn).toHaveBeenCalledWith(
-        'git',
-        expect.arrayContaining(['worktree', 'remove']),
-        expect.anything()
-      );
+      strategy: 'worktree' as const,
+      repoPath,
+      worktreePath: '/tmp/salmon-loop-wt/repo/123456',
+      baseRef: 'abc',
+      branchName: 'salmonloop/wt/123456',
+    };
+
+    const promise = cleanupWorktreeCheckpoint(checkpoint);
+
+    // 1. git worktree list (new security check)
+    await waitForSpawn(1);
+    const child0 = getChild(0);
+    child0.stdout.emit(
+      'data',
+      `worktree /tmp/salmon-loop-wt/repo/123456\nHEAD abc123\nbranch refs/heads/salmonloop/wt/123456\n\n`,
+    );
+    child0.emit('close', 0);
+
+    // 2. worktree remove
+    await waitForSpawn(2);
+    getChild(1).emit('close', 0);
+
+    // 3. branch delete
+    await waitForSpawn(3);
+    getChild(2).emit('close', 0);
+
+    await promise;
+
+    expect(spawn).toHaveBeenCalledWith(
+      'git',
+      expect.arrayContaining(['worktree', 'remove']),
+      expect.anything(),
+    );
   });
 
   it('should fallback to rimraf if git worktree remove fails', async () => {
     const checkpoint = {
-        strategy: 'worktree' as const,
-        repoPath,
-        worktreePath: '/tmp/salmon-loop-wt/repo/123456',
-        baseRef: 'abc',
-        branchName: 'salmonloop/wt/123456'
-      };
-  
-      const promise = cleanupWorktreeCheckpoint(checkpoint);
-  
-      // 1. git worktree list (new security check)
-      await waitForSpawn(1);
-      const child0 = getChild(0);
-      child0.stdout.emit('data', `worktree /tmp/salmon-loop-wt/repo/123456\nHEAD abc123\nbranch refs/heads/salmonloop/wt/123456\n\n`);
-      child0.emit('close', 0);
-  
-      // 2. worktree remove -> FAIL
-      await waitForSpawn(2);
-      getChild(1).emit('close', 1);
-  
-      // Fallback: rimraf (mocked to succeed)
-  
-      // 3. branch delete
-      await waitForSpawn(3);
-      getChild(2).emit('close', 0);
-  
-      await promise;
-      
-      // Success means fallback worked
+      strategy: 'worktree' as const,
+      repoPath,
+      worktreePath: '/tmp/salmon-loop-wt/repo/123456',
+      baseRef: 'abc',
+      branchName: 'salmonloop/wt/123456',
+    };
+
+    const promise = cleanupWorktreeCheckpoint(checkpoint);
+
+    // 1. git worktree list (new security check)
+    await waitForSpawn(1);
+    const child0 = getChild(0);
+    child0.stdout.emit(
+      'data',
+      `worktree /tmp/salmon-loop-wt/repo/123456\nHEAD abc123\nbranch refs/heads/salmonloop/wt/123456\n\n`,
+    );
+    child0.emit('close', 0);
+
+    // 2. worktree remove -> FAIL
+    await waitForSpawn(2);
+    getChild(1).emit('close', 1);
+
+    // Fallback: rimraf (mocked to succeed)
+
+    // 3. branch delete
+    await waitForSpawn(3);
+    getChild(2).emit('close', 0);
+
+    await promise;
+
+    // Success means fallback worked
   });
 
   it('should verify process timeout logic', async () => {

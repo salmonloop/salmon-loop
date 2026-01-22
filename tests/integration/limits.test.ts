@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+
 import { Semaphore } from '../../src/core/concurrency.js';
 import { LIMITS } from '../../src/core/limits.js';
+import { runVerify } from '../../src/core/verify.js';
 
 // Mock the runVerify function to simulate timeout behavior
 vi.mock('../../src/core/verify.js', async (importOriginal) => {
@@ -10,8 +12,6 @@ vi.mock('../../src/core/verify.js', async (importOriginal) => {
     runVerify: vi.fn(),
   };
 });
-
-import { runVerify } from '../../src/core/verify.js';
 
 const mockedRunVerify = vi.mocked(runVerify);
 
@@ -29,7 +29,7 @@ describe('Resource Limits', () => {
     // Mock runVerify to simulate a long-running command that times out
     mockedRunVerify.mockImplementation(async () => {
       // Simulate waiting for the timeout duration
-      await new Promise(resolve => setTimeout(resolve, LIMITS.verifyTimeoutMs + 1000));
+      await new Promise((resolve) => setTimeout(resolve, LIMITS.verifyTimeoutMs + 1000));
       return {
         ok: false,
         output: '[Error] Verification timed out and was terminated.',
@@ -66,13 +66,13 @@ describe('Resource Limits', () => {
 
   it('should handle semaphore concurrency limits', async () => {
     const semaphore = new Semaphore(LIMITS.maxConcurrentOperations);
-    
+
     const runningCount = { current: 0, max: 0 };
-    
+
     const task = async () => {
       runningCount.current++;
       runningCount.max = Math.max(runningCount.max, runningCount.current);
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
       runningCount.current--;
       return true;
     };
@@ -87,8 +87,8 @@ describe('Resource Limits', () => {
     const results = await Promise.all(promises);
 
     // All tasks should complete successfully
-    expect(results.every(r => r === true)).toBe(true);
-    
+    expect(results.every((r) => r === true)).toBe(true);
+
     // Max concurrent should not exceed the limit
     expect(runningCount.max).toBeLessThanOrEqual(LIMITS.maxConcurrentOperations);
   });

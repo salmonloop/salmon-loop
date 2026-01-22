@@ -1,8 +1,9 @@
-import { describe, it, expect, vi } from 'vitest';
-import { classifyError, isRetryable } from '../../src/core/verify.js';
-import { ErrorType } from '../../src/core/types.js';
+import { describe, it, expect } from 'vitest';
+
 import { validateNodeStructure } from '../../src/core/ast/guard.js';
 import { normalizePath, safeJoin } from '../../src/core/path.js';
+import { ErrorType } from '../../src/core/types.js';
+import { classifyError, isRetryable } from '../../src/core/verify.js';
 
 describe('Robustness Edge Cases', () => {
   describe('Error Classification Robustness', () => {
@@ -28,7 +29,7 @@ describe('Robustness Edge Cases', () => {
       expect(isRetryable(ErrorType.TEST)).toBe(true);
       expect(isRetryable(ErrorType.LOGIC)).toBe(true);
       expect(isRetryable(ErrorType.AST_VALIDATION_ERROR)).toBe(true);
-      
+
       expect(isRetryable(ErrorType.DEPENDENCY_ERROR)).toBe(false);
       expect(isRetryable(ErrorType.RESOURCE_LOCK_ERROR)).toBe(false);
       expect(isRetryable(ErrorType.UNKNOWN)).toBe(false);
@@ -46,13 +47,11 @@ describe('Robustness Edge Cases', () => {
         type: 'program',
         children: [
           { type: 'function_declaration', children: [] },
-          { 
-            type: 'expression_statement', 
-            children: [
-              { type: 'ERROR', text: 'syntax error' }
-            ] 
-          }
-        ]
+          {
+            type: 'expression_statement',
+            children: [{ type: 'ERROR', text: 'syntax error' }],
+          },
+        ],
       };
       expect(validateNodeStructure(tree)).toBe(false);
     });
@@ -61,7 +60,7 @@ describe('Robustness Edge Cases', () => {
       // Note: Real tree-sitter nodes are not circular, but we should be careful with mocks
       const node: any = { type: 'normal' };
       node.children = [node];
-      
+
       // This test is more of a reminder to use a Set for visited nodes if we ever expect circularity
       // For now, tree-sitter nodes are a DAG/Tree, so recursion is fine.
     });
@@ -78,7 +77,9 @@ describe('Robustness Edge Cases', () => {
     });
 
     it('should handle paths with mixed slashes', () => {
-      expect(normalizePath('C:\\Users/name\\project/file.ts')).toBe('C:/Users/name/project/file.ts');
+      expect(normalizePath('C:\\Users/name\\project/file.ts')).toBe(
+        'C:/Users/name/project/file.ts',
+      );
     });
 
     it('should handle safeJoin with various inputs', () => {

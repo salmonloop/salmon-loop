@@ -27,7 +27,7 @@ export function parsePythonError(output: string): Diagnostic[] {
   const lines = output.split('\n');
   // Example: File "app.py", line 10, in <module>
   const fileRegex = /File "(.+)", line (\d+)/;
-  
+
   let currentFile: string | null = null;
   let currentLine: number | null = null;
 
@@ -56,9 +56,9 @@ export function parseGenericOutput(output: string): Diagnostic[] {
   // Fallback or combined parser
   const tsc = parseTscOutput(output);
   if (tsc.length > 0) return tsc;
-  
+
   const py = parsePythonError(output);
   if (py.length > 0) return py;
-  
+
   return [];
 }

@@ -1,7 +1,8 @@
+import mockFs from 'mock-fs';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+
 import { detectProjectType } from '../../src/core/testgen/detector.js';
 import { injectSmokeTest } from '../../src/core/testgen.js';
-import mockFs from 'mock-fs';
 
 describe('Multilingual Testgen', () => {
   beforeEach(() => {

@@ -4,14 +4,14 @@ import { EventEmitter } from 'events';
 import mockFs from 'mock-fs';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
+import { AstParser } from '../../src/core/ast/parser.js';
+import * as worktree from '../../src/core/checkpoint/worktree.js';
 import * as git from '../../src/core/git.js';
 import { LLM } from '../../src/core/llm.js';
 import { runSalmonLoop } from '../../src/core/loop.js';
 import { ExecutionPhase } from '../../src/core/types.js';
 import * as verify from '../../src/core/verify.js';
-import { AstParser } from '../../src/core/ast/parser.js';
 import { WorkspaceManager } from '../../src/core/workspace.js';
-import * as worktree from '../../src/core/checkpoint/worktree.js';
 
 vi.mock('child_process', () => ({
   spawn: vi.fn(),
@@ -96,7 +96,7 @@ describe('SalmonLoop Integration Tests', () => {
       (child.stdin as any).end = vi.fn();
       (child.stdin as any).write = vi.fn();
       child.kill = vi.fn();
-    
+
       // Use nextTick to allow promise to pending
       process.nextTick(() => {
         child.emit('close', 0);
@@ -110,7 +110,7 @@ describe('SalmonLoop Integration Tests', () => {
     vi.mocked(AstParser.parse).mockResolvedValue({} as any);
     vi.mocked(AstParser.identifyDefinitions).mockResolvedValue([]);
     vi.mocked(AstParser.identifyReferences).mockResolvedValue([]);
-    
+
     vi.mocked(worktree.runGit).mockImplementation(async (_repoPath, args) => {
       if (args[0] === 'rev-parse' && args[1] === 'HEAD') {
         return 'HEAD';
@@ -129,11 +129,11 @@ describe('SalmonLoop Integration Tests', () => {
       },
       // Add the mock worktree path
       '/tmp/wt-12345': {
-         src: {
+        src: {
           'index.ts': 'console.log("hello");',
         },
         '.git': {},
-      }
+      },
     };
     mockFs(fsConfig);
     // Restore WorkspaceManager mock implementation

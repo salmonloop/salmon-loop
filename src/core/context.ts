@@ -1,17 +1,17 @@
 import { spawn } from 'child_process';
 import { readFile } from 'fs/promises';
-import { safeJoin, normalizePath } from './path.js';
 import path from 'path';
 
 import { text } from '../locales/index.js';
 
+import { AstParser } from './ast/parser.js';
 import { findFileDependencies } from './dependency.js';
 import { extractKeywords } from './keywords.js';
 import { LIMITS } from './limits.js';
 import { logger } from './logger.js';
+import { safeJoin, normalizePath } from './path.js';
 import type { Context, RipgrepResult, RunOptions } from './types.js';
 import { ErrorType, CodeLocation, SymbolInfo } from './types.js';
-import { AstParser } from './ast/parser.js';
 
 export class ContextBuilder {
   static async build(options: RunOptions): Promise<Context> {
@@ -47,7 +47,7 @@ export class ContextBuilder {
 
     // AST Analysis for definitions and references
     let symbols: SymbolInfo[] = [];
-    let definitionMap: Record<string, CodeLocation> = {};
+    const definitionMap: Record<string, CodeLocation> = {};
 
     if (primaryText && options.file) {
       try {
@@ -56,7 +56,7 @@ export class ContextBuilder {
           const tree = await AstParser.parse(primaryText, lang);
           const defs = await AstParser.identifyDefinitions(tree, lang);
           const refs = await AstParser.identifyReferences(tree, lang);
-          
+
           symbols = [...defs, ...refs];
           for (const def of defs) {
             definitionMap[def.name] = def.location;
@@ -84,21 +84,31 @@ export class ContextBuilder {
   private static getLanguageFromFile(filePath: string): string | undefined {
     const ext = path.extname(filePath).toLowerCase();
     switch (ext) {
-      case '.ts': return 'typescript';
-      case '.tsx': return 'tsx';
+      case '.ts':
+        return 'typescript';
+      case '.tsx':
+        return 'tsx';
       case '.js':
       case '.jsx':
       case '.mjs':
-      case '.cjs': return 'javascript';
-      case '.py': return 'python';
-      case '.go': return 'go';
-      case '.rs': return 'rust';
-      case '.java': return 'java';
+      case '.cjs':
+        return 'javascript';
+      case '.py':
+        return 'python';
+      case '.go':
+        return 'go';
+      case '.rs':
+        return 'rust';
+      case '.java':
+        return 'java';
       case '.cpp':
       case '.cc':
-      case '.h': return 'cpp';
-      case '.c': return 'c';
-      default: return undefined;
+      case '.h':
+        return 'cpp';
+      case '.c':
+        return 'c';
+      default:
+        return undefined;
     }
   }
 
@@ -109,7 +119,20 @@ export class ContextBuilder {
       // Use --json for robust machine-readable output
       const child = spawn(
         'rg',
-        ['-n', '--json', '-i', '--max-count', '100', '--glob', '!.git', '--glob', '!node_modules', '--', query, '.'],
+        [
+          '-n',
+          '--json',
+          '-i',
+          '--max-count',
+          '100',
+          '--glob',
+          '!.git',
+          '--glob',
+          '!node_modules',
+          '--',
+          query,
+          '.',
+        ],
         {
           stdio: ['pipe', 'pipe', 'pipe'],
           cwd,

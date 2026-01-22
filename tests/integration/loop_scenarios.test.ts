@@ -1,14 +1,16 @@
-import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { runSalmonLoop } from '../../src/index.js';
-import { StubLLM } from '../../src/core/llm.js';
-import * as git from '../../src/core/git.js';
-import * as verify from '../../src/core/verify.js';
-import { AstParser } from '../../src/core/ast/parser.js';
-import { ContextBuilder } from '../../src/core/context.js';
-import { injectSmokeTest } from '../../src/core/testgen.js';
 import { existsSync } from 'fs';
 import { readFile, writeFile } from 'fs/promises';
-import { join, resolve } from 'path';
+import { resolve } from 'path';
+
+import { vi, describe, it, expect, beforeEach } from 'vitest';
+
+import { AstParser } from '../../src/core/ast/parser.js';
+import { ContextBuilder } from '../../src/core/context.js';
+import * as git from '../../src/core/git.js';
+import { StubLLM } from '../../src/core/llm.js';
+import { injectSmokeTest } from '../../src/core/testgen.js';
+import * as verify from '../../src/core/verify.js';
+import { runSalmonLoop } from '../../src/index.js';
 
 vi.mock('../../src/core/git.js');
 vi.mock('../../src/core/verify.js');
@@ -47,11 +49,12 @@ describe('SalmonLoop Scenarios', () => {
       primaryText: 'content',
       rgSnippets: [],
     } as any);
-    
+
     // Default fs mocks
     vi.mocked(readFile).mockImplementation((path) => {
-        if (path.toString().includes('app.ts')) return Promise.resolve('function main() { console.log("hello"); }');
-        return Promise.resolve('');
+      if (path.toString().includes('app.ts'))
+        return Promise.resolve('function main() { console.log("hello"); }');
+      return Promise.resolve('');
     });
     vi.mocked(writeFile).mockResolvedValue(undefined);
   });
@@ -75,7 +78,12 @@ describe('SalmonLoop Scenarios', () => {
     // 1. First attempt: AST Error
     vi.mocked(AstParser.parse).mockResolvedValueOnce({
       walk: () => ({
-        currentNode: { type: 'ERROR', startPosition: { row: 1, column: 1 }, text: 'error', isMissing: () => false },
+        currentNode: {
+          type: 'ERROR',
+          startPosition: { row: 1, column: 1 },
+          text: 'error',
+          isMissing: () => false,
+        },
         gotoFirstChild: () => false,
         gotoNextSibling: () => false,
         gotoParent: () => false,
@@ -91,7 +99,7 @@ describe('SalmonLoop Scenarios', () => {
         gotoParent: () => false,
       }),
     } as any);
-    
+
     vi.mocked(verify.runVerify).mockResolvedValueOnce({
       ok: false,
       output: 'src/app.ts(10,5): error TS2322: Type "string" is not assignable to type "number".',
@@ -116,7 +124,7 @@ describe('SalmonLoop Scenarios', () => {
 
     expect(result.success).toBe(true);
     expect(result.attempts).toBeGreaterThanOrEqual(2);
-    
+
     const lastCall = createPlanSpy.mock.calls[createPlanSpy.mock.calls.length - 1];
     const lastErrorArg = lastCall[2];
     expect(lastErrorArg).toBeDefined();
@@ -125,17 +133,21 @@ describe('SalmonLoop Scenarios', () => {
 
   it('Scenario: Multilingual Project Detection and Test Injection', async () => {
     const pythonRepo = '/python-repo';
-    
+
     // Mock existsSync to simulate requirements.txt exists, but smoke test doesn't
     vi.mocked(existsSync).mockImplementation((path) => {
-        if (path.toString().includes('requirements.txt')) return true;
-        if (path.toString().includes('salmon_smoke_test.py')) return false;
-        return false;
+      if (path.toString().includes('requirements.txt')) return true;
+      if (path.toString().includes('salmon_smoke_test.py')) return false;
+      return false;
     });
 
     const result = await injectSmokeTest(pythonRepo);
     expect(result.created).toBe(true);
     expect(result.testCommand).toBe('python salmon_smoke_test.py');
-    expect(writeFile).toHaveBeenCalledWith(expect.stringContaining('salmon_smoke_test.py'), expect.any(String), 'utf-8');
+    expect(writeFile).toHaveBeenCalledWith(
+      expect.stringContaining('salmon_smoke_test.py'),
+      expect.any(String),
+      'utf-8',
+    );
   });
 });

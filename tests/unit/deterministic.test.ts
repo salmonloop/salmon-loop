@@ -130,5 +130,4 @@ ${Array(1000).fill('+new line').join('\n')}`;
     expect(result.reason).toContain('Workspace has uncommitted changes');
     expect(result.failurePhase).toBe(ExecutionPhase.PREFLIGHT);
   });
-
 });

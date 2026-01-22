@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { SalmonLoop } from '../../src/core/loop.js';
-import type { CheckpointRef } from '../../src/core/types.js';
-import { monitor } from '../../src/core/monitor.js';
-import * as git from '../../src/core/git.js';
+
 import { runGit } from '../../src/core/checkpoint/worktree.js';
+import * as git from '../../src/core/git.js';
+import { SalmonLoop } from '../../src/core/loop.js';
+import { monitor } from '../../src/core/monitor.js';
+import type { CheckpointRef } from '../../src/core/types.js';
 
 vi.mock('../../src/core/git.js', async () => {
   const actual = await vi.importActual('../../src/core/git.js');
@@ -26,7 +27,7 @@ describe('ApplyBack Flow Integration Tests', () => {
   let loop: SalmonLoop;
   const mainRepoPath = '/fake/main/repo';
   const worktreePath = '/tmp/salmon-loop-wt/repo/12345';
-  
+
   const mockCheckpointRef: CheckpointRef = {
     strategy: 'worktree',
     repoPath: mainRepoPath,
@@ -63,19 +64,19 @@ describe('ApplyBack Flow Integration Tests', () => {
           return '';
         }
         if (args[0] === 'diff') {
-          await new Promise(resolve => setTimeout(resolve, 1));
+          await new Promise((resolve) => setTimeout(resolve, 1));
           return 'diff --git a/test.js b/test.js\n--- a/test.js\n+++ b/test.js\n@@ -1 +1 @@\n-old\n+new';
         }
         return '';
       });
 
       vi.mocked(git.applyPatch).mockImplementation(async () => {
-        await new Promise(resolve => setTimeout(resolve, 1));
+        await new Promise((resolve) => setTimeout(resolve, 1));
       });
 
       // Access private method using type assertion
       const applyBack = (loop as any).applyBackToMainWorkspace.bind(loop);
-      
+
       await applyBack(mainRepoPath, mockCheckpointRef, '');
 
       // Verify monitoring was recorded
@@ -88,9 +89,7 @@ describe('ApplyBack Flow Integration Tests', () => {
 
     it('should rollback on applyPatch failure', async () => {
       let revParseCalls = 0;
-      vi.mocked(git.getGitStatus)
-        .mockResolvedValueOnce(' M other.js')
-        .mockResolvedValue('');
+      vi.mocked(git.getGitStatus).mockResolvedValueOnce(' M other.js').mockResolvedValue('');
       vi.mocked(runGit).mockImplementation(async (repoPath, args) => {
         if (args[0] === 'add') {
           return '';
@@ -129,8 +128,10 @@ describe('ApplyBack Flow Integration Tests', () => {
       vi.mocked(git.applyPatch).mockRejectedValue(new Error('Patch does not apply'));
 
       const applyBack = (loop as any).applyBackToMainWorkspace.bind(loop);
-      
-      await expect(applyBack(mainRepoPath, mockCheckpointRef, '')).rejects.toThrow('Patch does not apply');
+
+      await expect(applyBack(mainRepoPath, mockCheckpointRef, '')).rejects.toThrow(
+        'Patch does not apply',
+      );
 
       // Verify stash apply was called for rollback
       expect(runGit).toHaveBeenCalledWith(mainRepoPath, ['stash', 'apply', '--index', 'stash@{0}']);
@@ -148,7 +149,16 @@ describe('ApplyBack Flow Integration Tests', () => {
 
       vi.mocked(git.getGitStatus).mockResolvedValue(' M dirty.js');
 
-      await applyBack(mainRepoPath, mockCheckpointRef, '', 'stash', undefined, undefined, 'ref-initial', 'ref-latest');
+      await applyBack(
+        mainRepoPath,
+        mockCheckpointRef,
+        '',
+        'stash',
+        undefined,
+        undefined,
+        'ref-initial',
+        'ref-latest',
+      );
 
       expect(dualMerge).toHaveBeenCalledWith(
         mainRepoPath,
@@ -162,9 +172,7 @@ describe('ApplyBack Flow Integration Tests', () => {
 
     it('should handle stash apply failure gracefully', async () => {
       let revParseCalls = 0;
-      vi.mocked(git.getGitStatus)
-        .mockResolvedValueOnce(' M other.js')
-        .mockResolvedValue('');
+      vi.mocked(git.getGitStatus).mockResolvedValueOnce(' M other.js').mockResolvedValue('');
       vi.mocked(runGit).mockImplementation(async (repoPath, args) => {
         if (args[0] === 'add') {
           return '';
@@ -200,7 +208,7 @@ describe('ApplyBack Flow Integration Tests', () => {
       vi.mocked(git.applyPatch).mockRejectedValue(new Error('Apply failed'));
 
       const applyBack = (loop as any).applyBackToMainWorkspace.bind(loop);
-      
+
       await expect(applyBack(mainRepoPath, mockCheckpointRef, '')).rejects.toThrow('Apply failed');
 
       // Verify stash apply was attempted
@@ -234,7 +242,7 @@ describe('ApplyBack Flow Integration Tests', () => {
       vi.mocked(git.applyPatch).mockResolvedValue(undefined);
 
       const applyBack = (loop as any).applyBackToMainWorkspace.bind(loop);
-      
+
       // Should not throw even though no stash is needed
       await expect(applyBack(mainRepoPath, mockCheckpointRef, '')).resolves.toBeUndefined();
 
@@ -259,7 +267,7 @@ describe('ApplyBack Flow Integration Tests', () => {
         }
         if (args[0] === 'diff') {
           // Simulate some delay
-          await new Promise(resolve => setTimeout(resolve, 10));
+          await new Promise((resolve) => setTimeout(resolve, 10));
           return 'diff --git a/test.js b/test.js\n--- a/test.js\n+++ b/test.js\n@@ -1 +1 @@\n-old\n+new';
         }
         if (args[0] === 'stash') {
@@ -269,11 +277,11 @@ describe('ApplyBack Flow Integration Tests', () => {
       });
 
       vi.mocked(git.applyPatch).mockImplementation(async () => {
-        await new Promise(resolve => setTimeout(resolve, 10));
+        await new Promise((resolve) => setTimeout(resolve, 10));
       });
 
       const applyBack = (loop as any).applyBackToMainWorkspace.bind(loop);
-      
+
       await applyBack(mainRepoPath, mockCheckpointRef, '');
 
       const metrics = monitor.getApplyBackMetrics();
@@ -283,9 +291,7 @@ describe('ApplyBack Flow Integration Tests', () => {
     it('should record failure when stash drop also fails', async () => {
       let dropCalled = false;
       let revParseCalls = 0;
-      vi.mocked(git.getGitStatus)
-        .mockResolvedValueOnce(' M other.js')
-        .mockResolvedValue('');
+      vi.mocked(git.getGitStatus).mockResolvedValueOnce(' M other.js').mockResolvedValue('');
       vi.mocked(runGit).mockImplementation(async (repoPath, args) => {
         if (args[0] === 'add') {
           return '';
@@ -325,11 +331,11 @@ describe('ApplyBack Flow Integration Tests', () => {
       vi.mocked(git.applyPatch).mockRejectedValue(new Error('Apply failed'));
 
       const applyBack = (loop as any).applyBackToMainWorkspace.bind(loop);
-      
+
       await expect(applyBack(mainRepoPath, mockCheckpointRef, '')).rejects.toThrow('Apply failed');
 
       expect(dropCalled).toBe(true);
-      
+
       // Verify failure was recorded
       const metrics = monitor.getApplyBackMetrics();
       expect(metrics.failures).toBe(1);
@@ -340,7 +346,7 @@ describe('ApplyBack Flow Integration Tests', () => {
     it('should accumulate multiple applyBack operations', async () => {
       vi.mocked(runGit).mockImplementation(async (repoPath, args) => {
         if (args[0] === 'diff') {
-          await new Promise(resolve => setTimeout(resolve, 1));
+          await new Promise((resolve) => setTimeout(resolve, 1));
           return 'diff --git a/test.js b/test.js\n--- a/test.js\n+++ b/test.js\n@@ -1 +1 @@\n-old\n+new';
         }
         if (args[0] === 'rev-parse') {
@@ -359,11 +365,11 @@ describe('ApplyBack Flow Integration Tests', () => {
       });
 
       vi.mocked(git.applyPatch).mockImplementation(async () => {
-        await new Promise(resolve => setTimeout(resolve, 1));
+        await new Promise((resolve) => setTimeout(resolve, 1));
       });
 
       const applyBack = (loop as any).applyBackToMainWorkspace.bind(loop);
-      
+
       // Execute multiple times
       await applyBack(mainRepoPath, mockCheckpointRef, '');
       await applyBack(mainRepoPath, mockCheckpointRef, '');
@@ -373,7 +379,7 @@ describe('ApplyBack Flow Integration Tests', () => {
       expect(metrics.attempts).toBe(3);
       expect(metrics.failures).toBe(0);
       expect(metrics.durations).toHaveLength(3);
-      
+
       const avgDuration = monitor.getApplyBackAvgDuration();
       expect(avgDuration).toBeGreaterThanOrEqual(0);
     });
@@ -399,7 +405,7 @@ describe('ApplyBack Flow Integration Tests', () => {
       });
 
       const applyBack = (loop as any).applyBackToMainWorkspace.bind(loop);
-      
+
       // 2 successes
       vi.mocked(git.applyPatch).mockResolvedValue(undefined);
       await applyBack(mainRepoPath, mockCheckpointRef, '');
@@ -416,7 +422,7 @@ describe('ApplyBack Flow Integration Tests', () => {
       const metrics = monitor.getApplyBackMetrics();
       expect(metrics.attempts).toBe(3);
       expect(metrics.failures).toBe(1);
-      
+
       const failureRate = metrics.failures / metrics.attempts;
       expect(failureRate).toBeCloseTo(0.333, 2);
     });

@@ -1,6 +1,7 @@
+import { text } from '../locales/index.js';
+
 import { LIMITS } from './limits.js';
 import { ErrorType } from './types.js';
-import { text } from '../locales/index.js';
 
 /**
  * Represents a single error entry in the monitor
@@ -125,7 +126,7 @@ export class Monitor {
       report += `${text.monitor.errorEntry(
         error.timestamp.toISOString(),
         error.type,
-        error.message
+        error.message,
       )}\n`;
     }
 
@@ -182,7 +183,7 @@ export class Monitor {
     }
     this.applyBackMetrics.totalDuration += duration;
     this.applyBackMetrics.durations.push(duration);
-    
+
     // Keep only last 100 durations to avoid memory bloat
     if (this.applyBackMetrics.durations.length > 100) {
       this.applyBackMetrics.durations.shift();
@@ -236,21 +237,21 @@ export class Monitor {
    */
   getMetricsReport(): string {
     let report = '\n=== Checkpoint & ApplyBack Metrics ===\n';
-    
+
     report += '\n[Checkpoint Creation]\n';
     report += `  Attempts: ${this.checkpointMetrics.createAttempts}\n`;
     report += `  Failures: ${this.checkpointMetrics.createFailures}\n`;
     report += `  Failure Rate: ${(this.getCheckpointCreateFailureRate() * 100).toFixed(2)}%\n`;
-    
+
     report += '\n[Worktree Cleanup]\n';
     report += `  Attempts: ${this.checkpointMetrics.cleanupAttempts}\n`;
     report += `  Failures: ${this.checkpointMetrics.cleanupFailures}\n`;
-    
+
     report += '\n[ApplyBack Operations]\n';
     report += `  Attempts: ${this.applyBackMetrics.attempts}\n`;
     report += `  Failures: ${this.applyBackMetrics.failures}\n`;
     report += `  Avg Duration: ${this.getApplyBackAvgDuration().toFixed(2)}ms\n`;
-    
+
     if (this.applyBackMetrics.durations.length > 0) {
       const sorted = [...this.applyBackMetrics.durations].sort((a, b) => a - b);
       const p50 = sorted[Math.floor(sorted.length * 0.5)];
@@ -258,7 +259,7 @@ export class Monitor {
       report += `  P50 Duration: ${p50.toFixed(2)}ms\n`;
       report += `  P95 Duration: ${p95.toFixed(2)}ms\n`;
     }
-    
+
     report += '======================================\n';
     return report;
   }

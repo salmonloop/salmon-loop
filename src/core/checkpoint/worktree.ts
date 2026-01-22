@@ -1,13 +1,13 @@
 import { spawn } from 'child_process';
-import { tmpdir } from 'os';
-import { join, basename, relative, normalize } from 'path';
-import { rm } from 'fs/promises';
 import { randomBytes } from 'crypto';
+import { rm } from 'fs/promises';
+import { tmpdir } from 'os';
+import { basename, join, normalize, relative } from 'path';
 
-import { logger } from '../logger.js';
-import { GitError } from '../types.js';
 import { LIMITS } from '../limits.js';
+import { logger } from '../logger.js';
 import { monitor } from '../monitor.js';
+import { GitError } from '../types.js';
 
 export type CheckpointRef = {
   strategy: 'worktree';
@@ -44,11 +44,11 @@ export async function createWorktreeCheckpoint(repoPath: string): Promise<Checkp
     const tmpDir = normalize(tmpdir());
     const normalizedWorktreePath = normalize(worktreePath);
     if (!normalizedWorktreePath.startsWith(tmpDir)) {
-      throw new Error("Worktree path must be in system temp directory");
+      throw new Error('Worktree path must be in system temp directory');
     }
     // Check if worktree is inside repo (unsafe) - relative path should start with '..' if outside
-    if (!relative(repoPath, worktreePath).startsWith("..")) {
-      throw new Error("Worktree path must not be inside repo path");
+    if (!relative(repoPath, worktreePath).startsWith('..')) {
+      throw new Error('Worktree path must not be inside repo path');
     }
 
     // Generate a unique branch name for the worktree
@@ -59,7 +59,7 @@ export async function createWorktreeCheckpoint(repoPath: string): Promise<Checkp
     await runGit(repoPath, ['worktree', 'add', '--detach', worktreePath, baseRef]);
 
     logger.debug(`Created worktree checkpoint: ${worktreePath} based on ${baseRef}`);
-    
+
     // Record successful checkpoint creation
     monitor.recordCheckpointCreate(true);
 
@@ -70,10 +70,10 @@ export async function createWorktreeCheckpoint(repoPath: string): Promise<Checkp
       baseRef,
       branchName,
     };
-  } catch (error) {
+  } catch (_error) {
     // Record failed checkpoint creation
     monitor.recordCheckpointCreate(false);
-    throw error;
+    throw _error;
   }
 }
 
@@ -91,29 +91,31 @@ export async function cleanupWorktreeCheckpoint(ref: CheckpointRef): Promise<voi
     const worktreeList = await runGit(ref.repoPath, ['worktree', 'list', '--porcelain']);
     if (!worktreeList.includes(worktreePath)) {
       logger.warn(`Worktree not found in git worktree list: ${worktreePath}`);
-      throw new Error("Worktree not found, skipping cleanup");
+      throw new Error('Worktree not found, skipping cleanup');
     }
 
     // Try to remove the worktree using git worktree remove --force
     await runGit(ref.repoPath, ['worktree', 'remove', '--force', worktreePath]);
     logger.debug(`Removed worktree checkpoint: ${worktreePath}`);
-  } catch (error) {
+  } catch (_error) {
     // If git worktree remove fails, fallback to direct filesystem removal
     // This is a safety net to ensure cleanup even if git command fails
-    logger.warn(`git worktree remove failed for ${worktreePath}, falling back to filesystem removal`);
+    logger.warn(
+      `git worktree remove failed for ${worktreePath}, falling back to filesystem removal`,
+    );
     try {
       // Ensure we're not accidentally deleting the main repo
       if (worktreePath === ref.repoPath) {
         throw new Error('Cannot delete main repository path');
       }
-      
+
       // Additional safety check: ensure path is in temp directory
       const tmpDir = normalize(tmpdir());
       const normalizedWorktreePath = normalize(worktreePath);
       if (!normalizedWorktreePath.startsWith(tmpDir)) {
         throw new Error('Worktree path not in temp directory, refusing to delete');
       }
-      
+
       // Use a more robust approach to delete the directory
       // This will handle read-only files and other edge cases
       await rm(worktreePath, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
@@ -131,11 +133,11 @@ export async function cleanupWorktreeCheckpoint(ref: CheckpointRef): Promise<voi
   try {
     await runGit(ref.repoPath, ['branch', '-D', branchName]);
     logger.debug(`Deleted worktree branch: ${branchName}`);
-  } catch (error) {
+  } catch (_error) {
     // Branch might not exist or could be in use - ignore this error
     logger.debug(`Failed to delete branch ${branchName}, it may not exist or is in use`);
   }
-  
+
   // Record cleanup result
   if (cleanupSuccess) {
     monitor.recordCheckpointCleanup(true);

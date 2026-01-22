@@ -1,5 +1,6 @@
-import { text } from '../locales/index.js';
 import { normalize as pathNormalize, isAbsolute as pathIsAbsolute, extname } from 'path';
+
+import { text } from '../locales/index.js';
 
 import { LIMITS } from './limits.js';
 import { DiffValidationError } from './types.js';
@@ -27,7 +28,7 @@ const cleanPath = (path: string) => {
   // Check for obvious path traversal attempts in the raw input
   const rawNormalized = pathNormalize(path).replace(/\\/g, '/');
   const rawSegments = rawNormalized.split('/');
-  if (rawSegments.some(seg => seg === '..') || pathIsAbsolute(rawNormalized)) {
+  if (rawSegments.some((seg) => seg === '..') || pathIsAbsolute(rawNormalized)) {
     throw new DiffValidationError(`Path traversal detected: ${path}`);
   }
 
@@ -45,7 +46,7 @@ const cleanPath = (path: string) => {
   if (normalized.startsWith('/')) {
     normalized = normalized.substring(1);
   }
-  
+
   // Remove leading ./ prefix
   normalized = normalized.replace(/^\.\/+/, '');
 
@@ -94,7 +95,10 @@ const cleanPath = (path: string) => {
       const secondIsAllowedDir = secondDir ? repoStripAllowList.has(secondDir) : false;
       const secondIsAllowedFile = secondExt ? repoStripFileExtAllowList.has(secondExt) : false;
       const firstLooksLikeRepo =
-        !!firstDir && /^[a-z0-9][a-z0-9._-]*$/i.test(firstDir) && firstDir !== '.' && firstDir !== '..';
+        !!firstDir &&
+        /^[a-z0-9][a-z0-9._-]*$/i.test(firstDir) &&
+        firstDir !== '.' &&
+        firstDir !== '..';
 
       if (!firstIsCommonDir && firstLooksLikeRepo && (secondIsAllowedDir || secondIsAllowedFile)) {
         normalized = parts.slice(1).join('/');
@@ -104,10 +108,10 @@ const cleanPath = (path: string) => {
 
   // 4. Final normalization and post-validation
   const finalNormalized = pathNormalize(normalized).replace(/\\/g, '/');
-  
+
   // Double-check: After all cleaning, verify no path traversal remains
   const finalSegments = finalNormalized.split('/');
-  if (finalSegments.some(seg => seg === '..') || pathIsAbsolute(finalNormalized)) {
+  if (finalSegments.some((seg) => seg === '..') || pathIsAbsolute(finalNormalized)) {
     throw new DiffValidationError(`Path traversal detected after normalization: ${path}`);
   }
 
@@ -149,7 +153,6 @@ export function normalizeDiff(raw: string): string {
 
   return cleaned;
 }
-
 
 /**
  * Check if the text is a valid unified diff format.

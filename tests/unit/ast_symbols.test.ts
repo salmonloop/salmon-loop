@@ -7,26 +7,26 @@ vi.mock('web-tree-sitter', () => {
       init: vi.fn().mockResolvedValue(undefined),
       Parser: vi.fn().mockImplementation(() => ({
         setLanguage: vi.fn(),
-        parse: vi.fn()
+        parse: vi.fn(),
       })),
       Language: {
-        load: vi.fn().mockResolvedValue({})
+        load: vi.fn().mockResolvedValue({}),
       },
       Query: vi.fn().mockImplementation(() => ({
-        captures: vi.fn().mockReturnValue([])
-      }))
+        captures: vi.fn().mockReturnValue([]),
+      })),
     },
     Parser: vi.fn().mockImplementation(() => ({
       init: vi.fn().mockResolvedValue(undefined),
       setLanguage: vi.fn(),
-      parse: vi.fn()
+      parse: vi.fn(),
     })),
     Language: {
-      load: vi.fn().mockResolvedValue({})
+      load: vi.fn().mockResolvedValue({}),
     },
     Query: vi.fn().mockImplementation(() => ({
-      captures: vi.fn().mockReturnValue([])
-    }))
+      captures: vi.fn().mockReturnValue([]),
+    })),
   };
 });
 
@@ -36,7 +36,7 @@ describe('AstParser Symbols', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.clearAllMocks();
-    
+
     // Default mock for getLanguage to avoid loading wasm files
     vi.spyOn(AstParser, 'getLanguage').mockResolvedValue({});
   });
@@ -55,17 +55,17 @@ describe('AstParser Symbols', () => {
         childForFieldName: vi.fn().mockReturnThis(),
       };
       const mockCapture = { name: 'def', node: mockNode };
-      const mockQueryInstance = { 
-        captures: vi.fn().mockReturnValue([mockCapture]) 
+      const mockQueryInstance = {
+        captures: vi.fn().mockReturnValue([mockCapture]),
       };
-      
+
       // Import mocked Query class to verify its usage
       const TreeSitter = await import('web-tree-sitter');
       (TreeSitter.Query as any).mockImplementationOnce(() => mockQueryInstance);
-      
+
       const tree = { rootNode: {} };
       const defs = await AstParser.identifyDefinitions(tree, 'javascript');
-      
+
       expect(TreeSitter.Query).toHaveBeenCalled();
       expect(defs).toHaveLength(1);
       expect(defs[0]).toEqual({
@@ -73,8 +73,8 @@ describe('AstParser Symbols', () => {
         kind: 'definition',
         location: {
           start: { line: 1, column: 9 },
-          end: { line: 1, column: 14 }
-        }
+          end: { line: 1, column: 14 },
+        },
       });
     });
 
@@ -93,16 +93,16 @@ describe('AstParser Symbols', () => {
         childForFieldName: vi.fn().mockReturnThis(),
       };
       const mockCapture = { name: 'ref', node: mockNode };
-      const mockQueryInstance = { 
-        captures: vi.fn().mockReturnValue([mockCapture]) 
+      const mockQueryInstance = {
+        captures: vi.fn().mockReturnValue([mockCapture]),
       };
-      
+
       const TreeSitter = await import('web-tree-sitter');
       (TreeSitter.Query as any).mockImplementationOnce(() => mockQueryInstance);
-      
+
       const tree = { rootNode: {} };
       const refs = await AstParser.identifyReferences(tree, 'javascript');
-      
+
       expect(TreeSitter.Query).toHaveBeenCalled();
       expect(refs).toHaveLength(1);
       expect(refs[0]).toEqual({
@@ -110,8 +110,8 @@ describe('AstParser Symbols', () => {
         kind: 'reference',
         location: {
           start: { line: 2, column: 2 },
-          end: { line: 2, column: 7 }
-        }
+          end: { line: 2, column: 7 },
+        },
       });
     });
   });

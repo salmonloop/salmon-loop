@@ -1,13 +1,9 @@
 import { writeFile } from 'fs/promises';
 import { join } from 'path';
+
 import { logger } from './logger.js';
 import { detectProjectType } from './testgen/detector.js';
-import {
-  NODE_TEMPLATE,
-  PYTHON_TEMPLATE,
-  JAVA_TEMPLATE,
-  GO_TEMPLATE,
-} from './testgen/templates.js';
+import { NODE_TEMPLATE, PYTHON_TEMPLATE, JAVA_TEMPLATE, GO_TEMPLATE } from './testgen/templates.js';
 
 /**
  * Generates a basic smoke test file for the target project.

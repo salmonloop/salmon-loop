@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+
 import { monitor } from '../../src/core/monitor.js';
 
 describe('Monitor Metrics', () => {
@@ -10,7 +11,7 @@ describe('Monitor Metrics', () => {
     it('should track successful checkpoint creation', () => {
       monitor.recordCheckpointCreate(true);
       monitor.recordCheckpointCreate(true);
-      
+
       const metrics = monitor.getCheckpointMetrics();
       expect(metrics.createAttempts).toBe(2);
       expect(metrics.createFailures).toBe(0);
@@ -21,7 +22,7 @@ describe('Monitor Metrics', () => {
       monitor.recordCheckpointCreate(true);
       monitor.recordCheckpointCreate(false);
       monitor.recordCheckpointCreate(false);
-      
+
       const metrics = monitor.getCheckpointMetrics();
       expect(metrics.createAttempts).toBe(3);
       expect(metrics.createFailures).toBe(2);
@@ -37,7 +38,7 @@ describe('Monitor Metrics', () => {
     it('should track successful cleanup', () => {
       monitor.recordCheckpointCleanup(true);
       monitor.recordCheckpointCleanup(true);
-      
+
       const metrics = monitor.getCheckpointMetrics();
       expect(metrics.cleanupAttempts).toBe(2);
       expect(metrics.cleanupFailures).toBe(0);
@@ -49,7 +50,7 @@ describe('Monitor Metrics', () => {
       monitor.recordCheckpointCleanup(false);
       monitor.recordCheckpointCleanup(false);
       monitor.recordCheckpointCleanup(false);
-      
+
       const metrics = monitor.getCheckpointMetrics();
       expect(metrics.cleanupAttempts).toBe(4);
       expect(metrics.cleanupFailures).toBe(3);
@@ -62,7 +63,7 @@ describe('Monitor Metrics', () => {
       monitor.recordApplyBack(true, 100);
       monitor.recordApplyBack(true, 200);
       monitor.recordApplyBack(true, 150);
-      
+
       const metrics = monitor.getApplyBackMetrics();
       expect(metrics.attempts).toBe(3);
       expect(metrics.failures).toBe(0);
@@ -74,7 +75,7 @@ describe('Monitor Metrics', () => {
       monitor.recordApplyBack(true, 100);
       monitor.recordApplyBack(false, 200);
       monitor.recordApplyBack(false, 150);
-      
+
       const metrics = monitor.getApplyBackMetrics();
       expect(metrics.attempts).toBe(3);
       expect(metrics.failures).toBe(2);
@@ -85,7 +86,7 @@ describe('Monitor Metrics', () => {
       for (let i = 0; i < 150; i++) {
         monitor.recordApplyBack(true, i * 10);
       }
-      
+
       const metrics = monitor.getApplyBackMetrics();
       expect(metrics.durations.length).toBe(100);
       expect(metrics.attempts).toBe(150);
@@ -97,8 +98,8 @@ describe('Monitor Metrics', () => {
 
     it('should calculate percentiles correctly', () => {
       const durations = [100, 150, 200, 250, 300, 350, 400, 450, 500, 550];
-      durations.forEach(d => monitor.recordApplyBack(true, d));
-      
+      durations.forEach((d) => monitor.recordApplyBack(true, d));
+
       const metrics = monitor.getApplyBackMetrics();
       expect(metrics.durations).toHaveLength(10);
       expect(monitor.getApplyBackAvgDuration()).toBe(325);
@@ -111,27 +112,27 @@ describe('Monitor Metrics', () => {
       monitor.recordCheckpointCreate(true);
       monitor.recordCheckpointCreate(true);
       monitor.recordCheckpointCreate(false);
-      
+
       monitor.recordCheckpointCleanup(true);
       monitor.recordCheckpointCleanup(false);
-      
+
       monitor.recordApplyBack(true, 100);
       monitor.recordApplyBack(true, 200);
       monitor.recordApplyBack(false, 150);
-      
+
       const report = monitor.getMetricsReport();
-      
+
       // Checkpoint Creation section
       expect(report).toContain('Checkpoint Creation');
       expect(report).toContain('Attempts: 3');
       expect(report).toContain('Failures: 1');
       expect(report).toContain('Failure Rate: 33.33%');
-      
+
       // Worktree Cleanup section
       expect(report).toContain('Worktree Cleanup');
       expect(report).toContain('Attempts: 2');
       expect(report).toContain('Failures: 1');
-      
+
       // ApplyBack section
       expect(report).toContain('ApplyBack Operations');
       expect(report).toContain('Attempts: 3');
@@ -145,7 +146,7 @@ describe('Monitor Metrics', () => {
       for (let i = 1; i <= 20; i++) {
         monitor.recordApplyBack(true, i * 10);
       }
-      
+
       const report = monitor.getMetricsReport();
       expect(report).toContain('P50 Duration:');
       expect(report).toContain('P95 Duration:');
@@ -153,7 +154,7 @@ describe('Monitor Metrics', () => {
 
     it('should show all metrics even when zero', () => {
       const report = monitor.getMetricsReport();
-      
+
       expect(report).toContain('Checkpoint Creation');
       expect(report).toContain('Attempts: 0');
       expect(report).toContain('Worktree Cleanup');
@@ -170,17 +171,17 @@ describe('Monitor Metrics', () => {
       monitor.recordCheckpointCleanup(false);
       monitor.recordApplyBack(true, 100);
       monitor.recordApplyBack(false, 200);
-      
+
       // Reset
       monitor.resetMetrics();
-      
+
       // Verify all metrics are reset
       const checkpointMetrics = monitor.getCheckpointMetrics();
       expect(checkpointMetrics.createAttempts).toBe(0);
       expect(checkpointMetrics.createFailures).toBe(0);
       expect(checkpointMetrics.cleanupAttempts).toBe(0);
       expect(checkpointMetrics.cleanupFailures).toBe(0);
-      
+
       const applyBackMetrics = monitor.getApplyBackMetrics();
       expect(applyBackMetrics.attempts).toBe(0);
       expect(applyBackMetrics.failures).toBe(0);
@@ -192,29 +193,29 @@ describe('Monitor Metrics', () => {
   describe('Immutability', () => {
     it('should return independent copies of metrics', () => {
       monitor.recordCheckpointCreate(true);
-      
+
       const metrics1 = monitor.getCheckpointMetrics();
       const metrics2 = monitor.getCheckpointMetrics();
-      
+
       // Modify one copy
       metrics1.createAttempts = 999;
-      
+
       // Other copy should remain unchanged
       expect(metrics2.createAttempts).toBe(1);
-      
+
       // Original should remain unchanged
       expect(monitor.getCheckpointMetrics().createAttempts).toBe(1);
     });
 
     it('should return independent copies of applyBack durations', () => {
       monitor.recordApplyBack(true, 100);
-      
+
       const metrics1 = monitor.getApplyBackMetrics();
       const metrics2 = monitor.getApplyBackMetrics();
-      
+
       // Modify one copy
       metrics1.durations.push(999);
-      
+
       // Other copy should remain unchanged
       expect(metrics2.durations).toHaveLength(1);
       expect(metrics2.durations[0]).toBe(100);

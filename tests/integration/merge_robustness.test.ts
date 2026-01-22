@@ -1,8 +1,10 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { execSync } from 'child_process';
 import { mkdtemp, rm, writeFile, readFile, mkdir, rename, chmod } from 'fs/promises';
-import { join } from 'path';
 import { tmpdir } from 'os';
+import { join } from 'path';
+
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+
 import { ShadowMergeEngine } from '../../src/core/merge/shadow-merge.js';
 
 class GitHelper {
@@ -12,7 +14,9 @@ class GitHelper {
     try {
       return execSync(`git ${command}`, { cwd: this.cwd, stdio: 'pipe' }).toString();
     } catch (error: any) {
-      throw new Error(`Git command failed: git ${command}\n${error.stderr?.toString() || error.message}`);
+      throw new Error(
+        `Git command failed: git ${command}\n${error.stderr?.toString() || error.message}`,
+      );
     }
   }
 
@@ -24,7 +28,9 @@ class GitHelper {
         input,
       }).toString();
     } catch (error: any) {
-      throw new Error(`Git command failed: git ${command}\n${error.stderr?.toString() || error.message}`);
+      throw new Error(
+        `Git command failed: git ${command}\n${error.stderr?.toString() || error.message}`,
+      );
     }
   }
 
@@ -81,7 +87,9 @@ class GitHelper {
     return this.run(`show ${spec}`);
   }
 
-  private parseStatus(output: string): Array<{ path: string; index: string; working: string; raw: string }> {
+  private parseStatus(
+    output: string,
+  ): Array<{ path: string; index: string; working: string; raw: string }> {
     const trimmed = output.trimEnd();
     if (!trimmed) return [];
     return trimmed.split(/\r?\n/).map((line) => ({
@@ -100,7 +108,9 @@ class GitHelper {
     return this.statusEntries().find((entry) => entry.path === path) ?? null;
   }
 
-  statusEntryForPath(path: string): { path: string; index: string; working: string; raw: string } | null {
+  statusEntryForPath(
+    path: string,
+  ): { path: string; index: string; working: string; raw: string } | null {
     const entries = this.parseStatus(this.run(`status --porcelain -- "${path}"`));
     return entries[0] ?? null;
   }
@@ -116,7 +126,7 @@ class MergeTestContext {
     const baseDir = join(tmpdir(), 'salmon-merge-test-');
     this.mainRepoPath = await mkdtemp(baseDir);
     this.shadowRepoPath = await mkdtemp(baseDir + 'shadow-');
-    
+
     this.git = new GitHelper(this.mainRepoPath);
     await this.git.init();
 
@@ -150,7 +160,7 @@ class MergeTestContext {
       shadowWorktreePath: this.shadowRepoPath,
       initialRef,
       latestRef,
-      verbose: 'extended'
+      verbose: 'extended',
     });
   }
 }
@@ -214,7 +224,7 @@ describe('ShadowMergeEngine Robustness', () => {
       const finalContent = await ctx.readFile('main', 'file.txt');
       expect(finalContent).toContain('user working');
       expect(finalContent).toContain('ai changes');
-      
+
       // Assert index contains AI changes plus user staged changes.
       const stagedContent = ctx.git.run('show :file.txt');
       expect(stagedContent).toContain('user staged');
@@ -252,7 +262,7 @@ describe('ShadowMergeEngine Robustness', () => {
       expect(finalContent).toContain('user staged 1');
       expect(finalContent).toContain('user staged 2');
       expect(finalContent).toContain('ai changes');
-      
+
       const stagedContent = ctx.git.run('show :file.txt');
       expect(stagedContent).toContain('user staged 1');
       expect(stagedContent).toContain('user staged 2');

@@ -1,18 +1,19 @@
 import { readFile } from 'fs/promises';
+
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 
-import { ContextBuilder } from '../../src/core/context.js';
-import * as git from '../../src/core/git.js';
-import { StubLLM } from '../../src/core/llm.js';
-import { SalmonLoop } from '../../src/core/loop.js';
-import * as verify from '../../src/core/verify.js';
 import {
   checkSyntaxErrors,
   validateNodeStructure,
   validateScopeIntegrity,
 } from '../../src/core/ast/index.js';
-import { text } from '../../src/locales/index.js';
+import { ContextBuilder } from '../../src/core/context.js';
+import * as git from '../../src/core/git.js';
+import { StubLLM } from '../../src/core/llm.js';
+import { SalmonLoop } from '../../src/core/loop.js';
 import { ErrorType } from '../../src/core/types.js';
+import * as verify from '../../src/core/verify.js';
+import { text } from '../../src/locales/index.js';
 
 vi.mock('../../src/core/context.js');
 vi.mock('../../src/core/git.js', async () => {
@@ -242,8 +243,11 @@ index 123..456 100644
 +new`);
 
     // Verify fails only on a.ts
-    vi.mocked(verify.runVerify)
-      .mockResolvedValue({ ok: false, output: 'Error in a.ts', exitCode: 1 });
+    vi.mocked(verify.runVerify).mockResolvedValue({
+      ok: false,
+      output: 'Error in a.ts',
+      exitCode: 1,
+    });
 
     // Run any pending timers to ensure async operations complete properly
     vi.runAllTimers();

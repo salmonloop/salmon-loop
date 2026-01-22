@@ -1,13 +1,13 @@
 import { spawn } from 'child_process';
-import { readFile, writeFile, mkdir, unlink } from 'fs/promises';
-import path from 'path';
-import { tmpdir } from 'os';
 import { randomBytes } from 'crypto';
+import { readFile, writeFile, mkdir, unlink } from 'fs/promises';
+import { tmpdir } from 'os';
+import path from 'path';
 
+import { text } from '../../locales/index.js';
+import { runGit } from '../checkpoint/worktree.js';
 import { logger } from '../logger.js';
 import type { VerboseLevel } from '../types.js';
-import { runGit } from '../checkpoint/worktree.js';
-import { text } from '../../locales/index.js';
 
 const BINARY_EXTENSIONS = new Set([
   '.png',
@@ -73,7 +73,6 @@ export class ShadowMergeEngine {
     const conflicts: string[] = [];
     const skipped: string[] = [];
     const maxFileBytes = this.options.maxFileBytes ?? 1024 * 1024;
-    const lineCountMismatches: string[] = [];
 
     const logPatchPreview = (filePath: string, patchText: string) => {
       if (this.options.verbose !== 'extended') return;

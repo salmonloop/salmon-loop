@@ -1,15 +1,15 @@
-import { Diagnostic } from './types.js';
 import { parseGenericOutput } from './parsers.js';
 import { applyPatterns } from './patterns.js';
+import { Diagnostic } from './types.js';
 
 export * from './types.js';
 export * from './parsers.js';
 export * from './patterns.js';
 
 export function generateFeedbackPrompt(diagnostics: Diagnostic[]): string {
-  if (diagnostics.length === 0) return "";
+  if (diagnostics.length === 0) return '';
 
-  let prompt = "Critical Errors found during verification:\n";
+  let prompt = 'Critical Errors found during verification:\n';
   diagnostics.forEach((d, i) => {
     const location = d.line ? `${d.file}:${d.line}` : d.file;
     prompt += `${i + 1}. ${location} - [${d.source}] ${d.message}\n`;

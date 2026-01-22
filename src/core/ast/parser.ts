@@ -1,10 +1,12 @@
-import * as TreeSitter from 'web-tree-sitter';
-import path from 'path';
 import fs from 'fs';
 import { createRequire } from 'module';
-import { SymbolInfo } from '../types.js';
-import { logger } from '../logger.js';
+import path from 'path';
+
+import * as TreeSitter from 'web-tree-sitter';
+
 import { text } from '../../locales/index.js';
+import { logger } from '../logger.js';
+import { SymbolInfo } from '../types.js';
 
 const require = createRequire(import.meta.url);
 
@@ -15,7 +17,7 @@ enum InitState {
   Idle,
   Initializing,
   Ready,
-  Error
+  Error,
 }
 
 export class AstParser {
@@ -28,7 +30,7 @@ export class AstParser {
   private static getParserClass() {
     try {
       return (TreeSitter as any).Parser || (TreeSitter as any).default?.Parser || TreeSitter;
-    } catch (e) {
+    } catch (_error) {
       logger.degrade(text.ast.degradedApi);
       return (TreeSitter as any).default || TreeSitter;
     }
@@ -40,7 +42,7 @@ export class AstParser {
   private static getLanguageClass() {
     try {
       return (TreeSitter as any).Language || (TreeSitter as any).default?.Language;
-    } catch (e) {
+    } catch (_error) {
       logger.degrade(text.ast.degradedApi);
       return (TreeSitter as any).default?.Language;
     }
@@ -52,7 +54,7 @@ export class AstParser {
   private static getQueryClass() {
     try {
       return (TreeSitter as any).Query || (TreeSitter as any).default?.Query;
-    } catch (e) {
+    } catch (_error) {
       logger.degrade(text.ast.degradedApi);
       return (TreeSitter as any).default?.Query;
     }
@@ -93,7 +95,7 @@ export class AstParser {
    */
   static async getLanguage(lang: string, wasmPath?: string): Promise<any> {
     await this.init();
-    
+
     if (this.languages.has(lang)) {
       return this.languages.get(lang)!;
     }
@@ -107,9 +109,7 @@ export class AstParser {
         let finalWasmPath = wasmPath;
 
         if (!finalWasmPath) {
-          const searchPaths = [
-            path.join(process.cwd(), 'bin', `tree-sitter-${lang}.wasm`),
-          ];
+          const searchPaths = [path.join(process.cwd(), 'bin', `tree-sitter-${lang}.wasm`)];
 
           // Try to resolve via node_modules
           try {
@@ -136,7 +136,9 @@ export class AstParser {
         this.languages.set(lang, langObj);
         return langObj;
       } catch (e) {
-        throw new Error(text.ast.loadLanguageFailed(lang, e instanceof Error ? e.message : String(e)));
+        throw new Error(
+          text.ast.loadLanguageFailed(lang, e instanceof Error ? e.message : String(e)),
+        );
       }
     })();
 
@@ -200,7 +202,7 @@ export class AstParser {
           (variable_declarator name: (identifier) @name) @def
           (class_declaration name: (identifier) @name) @def
         `;
-        
+
         if (lang !== 'javascript') {
           queryStr += `
             (interface_declaration name: (identifier) @name) @def
@@ -247,7 +249,7 @@ export class AstParser {
           (call_expression function: (identifier) @name) @ref
           (member_expression property: (property_identifier) @name) @ref
         `;
-        
+
         if (lang !== 'javascript') {
           queryStr += `
             (type_reference name: (identifier) @name) @ref
@@ -264,7 +266,8 @@ export class AstParser {
       return captures
         .filter((c: any) => c.name === 'ref')
         .map((c: any) => {
-          const nameNode = c.node.childForFieldName('name') || c.node.childForFieldName('property') || c.node;
+          const nameNode =
+            c.node.childForFieldName('name') || c.node.childForFieldName('property') || c.node;
           return {
             name: nameNode?.text || 'unknown',
             kind: 'reference' as const,

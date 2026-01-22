@@ -1,7 +1,9 @@
-import { readFile } from 'fs/promises';
 import { readFileSync } from 'fs';
-import { safeJoin, safeDirname } from './path.js';
+import { readFile } from 'fs/promises';
+
 import { text } from '../locales/index.js';
+
+import { safeJoin, safeDirname } from './path.js';
 
 /**
  * Simple dependency analyzer to find related files
@@ -41,13 +43,15 @@ export function verifyDependencyVersion(rootPath: string): void {
     // Read package.json
     const packageJsonPath = safeJoin(rootPath, 'package.json');
     const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
-    
+
     // Check web-tree-sitter version
     const expectedVersion = '0.26.3';
     const actualVersion = packageJson.dependencies?.['web-tree-sitter'];
-    
+
     if (actualVersion !== expectedVersion) {
-      console.warn(text.dependency.versionMismatch('web-tree-sitter', expectedVersion, actualVersion));
+      console.warn(
+        text.dependency.versionMismatch('web-tree-sitter', expectedVersion, actualVersion),
+      );
       console.warn(text.dependency.versionMismatchHint);
     }
   } catch (error) {

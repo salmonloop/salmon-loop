@@ -19,22 +19,6 @@ describe('Rollback Integration Tests', () => {
     vi.useRealTimers();
   });
 
-  function mockSpawn(exitCode: number, stdout = '', stderr = '') {
-    const child = new EventEmitter() as any;
-    child.stdout = new EventEmitter();
-    child.stderr = new EventEmitter();
-
-    vi.mocked(spawn).mockReturnValue(child);
-
-    setTimeout(() => {
-      if (stdout) child.stdout.emit('data', Buffer.from(stdout));
-      if (stderr) child.stderr.emit('data', Buffer.from(stderr));
-      child.emit('close', exitCode);
-    }, 10);
-
-    return child;
-  }
-
   it('should return ok: true and trigger resolveConflicts when git checkout fails with pathspec error', async () => {
     // First call fails with pathspec error
     const child1 = new EventEmitter() as any;
@@ -43,7 +27,10 @@ describe('Rollback Integration Tests', () => {
     vi.mocked(spawn).mockReturnValueOnce(child1);
 
     setTimeout(() => {
-      child1.stderr.emit('data', Buffer.from('error: pathspec file1.ts did not match any file(s) known to git'));
+      child1.stderr.emit(
+        'data',
+        Buffer.from('error: pathspec file1.ts did not match any file(s) known to git'),
+      );
       child1.emit('close', 1);
     }, 10);
 

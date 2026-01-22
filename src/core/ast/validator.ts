@@ -1,7 +1,3 @@
-import * as TreeSitter from 'web-tree-sitter';
-
-const Parser = (TreeSitter as any).Parser || TreeSitter;
-
 export interface AstError {
   line: number;
   column: number;
@@ -12,11 +8,11 @@ export interface AstError {
 export function checkSyntaxErrors(tree: any): AstError[] {
   if (!tree) return [];
   const errors: AstError[] = [];
-  
+
   let cursor;
   try {
     cursor = typeof tree.walk === 'function' ? tree.walk() : null;
-  } catch (e) {
+  } catch (_error) {
     return [];
   }
   if (!cursor) return [];
@@ -24,9 +20,9 @@ export function checkSyntaxErrors(tree: any): AstError[] {
   let reachedRoot = false;
   while (!reachedRoot) {
     const node = cursor.currentNode;
-    // @ts-ignore
+    // Tree-sitter nodes may expose isMissing as a function or a property.
     const isMissing = typeof node.isMissing === 'function' ? node.isMissing() : node.isMissing;
-    
+
     if (node.type === 'ERROR' || isMissing) {
       errors.push({
         line: node.startPosition.row,

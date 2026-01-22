@@ -1,8 +1,8 @@
 import { spawn } from 'child_process';
 import { EventEmitter } from 'events';
-import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 import mockFs from 'mock-fs';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 import * as git from '../../src/core/git.js';
 import { LLM } from '../../src/core/llm.js';
@@ -71,7 +71,7 @@ describe('Performance Integration Tests', () => {
     // We use real timers for performance tests to measure actual time,
     // but we mock the spawn to be fast.
     vi.useRealTimers();
-    
+
     vi.mocked(spawn).mockImplementation(() => {
       const child = new EventEmitter() as any;
       child.stdout = new EventEmitter();
@@ -122,10 +122,10 @@ describe('Performance Integration Tests', () => {
       llm: mockLlm,
     });
     const end = Date.now();
-    
+
     console.log(`File count: 1000, Total time: ${end - start}ms`);
 
     expect(result.success).toBe(true);
-    expect(end - start).toBeLessThan(5000); 
+    expect(end - start).toBeLessThan(5000);
   });
 });

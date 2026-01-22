@@ -6,20 +6,21 @@ export interface ErrorPattern {
 
 export const ERROR_PATTERNS: ErrorPattern[] = [
   {
-    id: "module-not-found",
+    id: 'module-not-found',
     regex: /Cannot find module '(.+)'/,
-    suggestion: "Check if the package is installed or if the import path matches the file structure."
+    suggestion:
+      'Check if the package is installed or if the import path matches the file structure.',
   },
   {
-    id: "react-hook-rule",
+    id: 'react-hook-rule',
     regex: /React Hook ".*" is called conditionally/,
-    suggestion: "Move the Hook call to the top level of the component."
+    suggestion: 'Move the Hook call to the top level of the component.',
   },
   {
-    id: "ts-type-mismatch",
+    id: 'ts-type-mismatch',
     regex: /Type '(.+)' is not assignable to type '(.+)'/,
-    suggestion: "Ensure the types match or use a type assertion if appropriate."
-  }
+    suggestion: 'Ensure the types match or use a type assertion if appropriate.',
+  },
 ];
 
 export function applyPatterns(message: string): string | undefined {

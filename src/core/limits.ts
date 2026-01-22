@@ -28,7 +28,7 @@ export const LIMITS = {
 
   // Monitoring
   maxErrorHistory: 10,
-  
+
   // Git timeout
   gitTimeoutMs: 15000,
 } as const;

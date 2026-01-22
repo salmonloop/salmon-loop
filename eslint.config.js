@@ -47,6 +47,18 @@ export default tseslint.config(
     },
   },
   {
+    files: ['scripts/**/*.js'],
+    languageOptions: {
+      parserOptions: {
+        project: null,
+      },
+      globals: {
+        console: 'readonly',
+        process: 'readonly',
+      },
+    },
+  },
+  {
     files: ['eslint.config.js', 'vitest.config.ts'],
     languageOptions: {
       parserOptions: {

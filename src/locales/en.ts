@@ -185,11 +185,14 @@ Please return the patch in PURE unified diff format:`;
   verify: {
     truncated: (maxLines: number) => `...[Output truncated, exceeds ${maxLines} lines]`,
     terminated: '\n[Process Terminated]',
-    commandError: (command: string, error: string) => `Failed to execute command: ${command}. Error: ${error}`,
-    outputTruncated: (head: number, tail: number) => `\n...[Output truncated, showing first ${head} and last ${tail} lines]...\n`,
+    commandError: (command: string, error: string) =>
+      `Failed to execute command: ${command}. Error: ${error}`,
+    outputTruncated: (head: number, tail: number) =>
+      `\n...[Output truncated, showing first ${head} and last ${tail} lines]...\n`,
     commandTimeout: 'Command timed out',
     failedToStartCommand: 'Failed to start command',
-    verifyFileContentError: (file: string, error: string) => `Error verifying file content for ${file}: ${error}`,
+    verifyFileContentError: (file: string, error: string) =>
+      `Error verifying file content for ${file}: ${error}`,
     worktreeStrategyActive: 'Worktree strategy active: ignoring dirty state in base repository.',
     ripgrepNotFoundWarning: 'ripgrep (rg) not found. Context gathering may be limited.',
   },

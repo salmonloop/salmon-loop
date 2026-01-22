@@ -44,7 +44,11 @@ const setupGitMocks = async () => {
 
   vi.doMock('fs/promises', async () => {
     const open = vi.fn(async (filePath: string, flags: string) => {
-      if (typeof filePath === 'string' && filePath.endsWith('.salmon.lock') && flags.includes('x')) { 
+      if (
+        typeof filePath === 'string' &&
+        filePath.endsWith('.salmon.lock') &&
+        flags.includes('x')
+      ) {
         if (mockLocks.has(filePath)) {
           const err: any = new Error('EEXIST');
           err.code = 'EEXIST';
@@ -54,7 +58,11 @@ const setupGitMocks = async () => {
         if (!mockLockContents.has(filePath)) {
           mockLockContents.set(
             filePath,
-            JSON.stringify({ pid: process.pid, timestamp: Date.now(), owner: `process-${process.pid}` }),
+            JSON.stringify({
+              pid: process.pid,
+              timestamp: Date.now(),
+              owner: `process-${process.pid}`,
+            }),
           );
         }
         return {
@@ -82,7 +90,11 @@ const setupGitMocks = async () => {
       if (typeof filePath === 'string' && filePath.endsWith('.salmon.lock')) {
         return (
           mockLockContents.get(filePath) ??
-          JSON.stringify({ pid: process.pid, timestamp: Date.now(), owner: `process-${process.pid}` })
+          JSON.stringify({
+            pid: process.pid,
+            timestamp: Date.now(),
+            owner: `process-${process.pid}`,
+          })
         );
       }
       return actualFs.readFile(filePath, encoding as any);
@@ -161,11 +173,7 @@ describe('Race Conditions & Concurrency', () => {
       vi.resetModules();
       vi.doMock('web-tree-sitter', mockTreeSitter);
       const { AstParser } = await import('../../src/core/ast/parser.js');
-      const results = await Promise.all([
-        AstParser.init(),
-        AstParser.init(),
-        AstParser.init()
-      ]);
+      const results = await Promise.all([AstParser.init(), AstParser.init(), AstParser.init()]);
       expect(results).toHaveLength(3);
     });
   });
@@ -174,7 +182,8 @@ describe('Race Conditions & Concurrency', () => {
     it('should prevent concurrent applyPatch calls on the same repo', async () => {
       vi.resetModules();
       await setupGitMocks();
-      const patch = 'diff --git a/file.txt b/file.txt\n--- a/file.txt\n+++ b/file.txt\n@@ -1 +1 @@\n-old\n+new';
+      const patch =
+        'diff --git a/file.txt b/file.txt\n--- a/file.txt\n+++ b/file.txt\n@@ -1 +1 @@\n-old\n+new';
 
       let activeCount = 0;
       let maxActive = 0;
@@ -183,7 +192,7 @@ describe('Race Conditions & Concurrency', () => {
       const closeDelayMs = 50;
 
       // Override spawn mock to track concurrency with fake timers
-      spawnMock?.mockImplementation((command, args, options) => {
+      spawnMock?.mockImplementation((_command, _args, _options) => {
         const id = executions.length;
         activeCount++;
         maxActive = Math.max(maxActive, activeCount);

@@ -198,7 +198,7 @@ export class DiffValidationError extends SalmonError {
   }
 }
 
-export type CheckpointStrategy = 'direct' | 'worktree' | 'tempCommit'
+export type CheckpointStrategy = 'direct' | 'worktree' | 'tempCommit';
 
 export interface CheckpointRef {
   strategy: 'worktree';
@@ -209,7 +209,7 @@ export interface CheckpointRef {
 }
 
 export interface ExecutionWorkspace {
-  baseRepoPath: string
-  workPath: string
-  strategy: CheckpointStrategy
+  baseRepoPath: string;
+  workPath: string;
+  strategy: CheckpointStrategy;
 }

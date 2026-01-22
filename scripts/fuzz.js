@@ -3,11 +3,12 @@
  * Generates random invalid inputs to test system stability.
  */
 
-import { runSalmonLoop } from '../src/core/loop.js';
-import { LLM } from '../src/core/llm.js';
+import fs from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import fs from 'fs/promises';
+
+import { LLM } from '../src/core/llm.js';
+import { runSalmonLoop } from '../src/core/loop.js';
 
 class MockLLM extends LLM {
   async createPlan() {
@@ -15,7 +16,7 @@ class MockLLM extends LLM {
       goal: 'Fuzzing goal',
       files: ['fuzz.txt'],
       changes: ['Fuzzing change'],
-      verify: 'echo fuzz'
+      verify: 'echo fuzz',
     };
   }
   async createPatch() {
@@ -33,7 +34,7 @@ class MockLLM extends LLM {
 async function runFuzz(iterations = 10) {
   const testRepoPath = join(tmpdir(), `salmon-fuzz-${Date.now()}`);
   await fs.mkdir(testRepoPath, { recursive: true });
-  
+
   // Initialize dummy git repo
   const { execSync } = await import('child_process');
   execSync('git init', { cwd: testRepoPath });
@@ -50,7 +51,7 @@ async function runFuzz(iterations = 10) {
         verify: 'echo verified',
         repoPath: testRepoPath,
         llm: new MockLLM({ apiKey: 'fuzz' }),
-        verbose: 'basic'
+        verbose: 'basic',
       });
     } catch (e) {
       console.error(`❌ Fuzzing iteration ${i + 1} crashed:`, e);

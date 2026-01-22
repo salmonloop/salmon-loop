@@ -1,44 +1,46 @@
+import { createHash, randomBytes } from 'crypto';
+import { copyFile, mkdir, readFile, stat, writeFile } from 'fs/promises';
+import { tmpdir } from 'os';
+import path from 'path';
+
 import { text } from '../locales/index.js';
 
+import {
+  AstParser,
+  getNodeName,
+  getTopLevelNodes,
+  validateNodeStructure,
+  validateScopeIntegrity,
+} from './ast/index.js';
+import { runGit } from './checkpoint/worktree.js';
+import { Semaphore } from './concurrency.js';
 import { ContextBuilder } from './context.js';
-import { validateDiff, normalizeDiff, validatePatchContent } from './diff.js';
-import { applyPatch, rollbackFiles, getGitStatus } from './git.js';
+import { normalizeDiff, validateDiff, validatePatchContent } from './diff.js';
+import { refineFeedback } from './feedback/index.js';
+import { applyPatch, getGitStatus, rollbackFiles } from './git.js';
 import { LIMITS } from './limits.js';
 import { LLM } from './llm.js';
 import { logger } from './logger.js';
-import type {
-  Context,
-  Plan,
-  LoopResult,
-  StepLog,
-  LoopIteration,
-  LoopEvent,
-  VerboseLevel,
-  CheckpointStrategy,
-  CheckpointRef,
-  ApplyBackOnDirty,
-} from './types.js';
-import { ExecutionPhase, ErrorType, GitError } from './types.js';
-import { runVerify, runCommand, classifyError, preflight, verifyFileContent } from './verify.js';
-import {
-  AstParser,
-  checkSyntaxErrors,
-  validateScopeIntegrity,
-  getTopLevelNodes,
-  getNodeName,
-  validateNodeStructure,
-} from './ast/index.js';
-import { refineFeedback } from './feedback/index.js';
-import { monitor } from './monitor.js';
 import { ShadowMergeEngine } from './merge/shadow-merge.js';
-import { readFile, writeFile, mkdir, copyFile, stat, unlink } from 'fs/promises';
-import path from 'path';
-import { tmpdir } from 'os';
-import { randomBytes, createHash } from 'crypto';
-import { Semaphore } from './concurrency.js';
+import { monitor } from './monitor.js';
+import {
+  ExecutionPhase,
+  ErrorType,
+  GitError,
+  type ApplyBackOnDirty,
+  type CheckpointRef,
+  type CheckpointStrategy,
+  type Context,
+  type ExecutionWorkspace,
+  type LoopEvent,
+  type LoopIteration,
+  type LoopResult,
+  type Plan,
+  type StepLog,
+  type VerboseLevel,
+} from './types.js';
+import { classifyError, preflight, runCommand, runVerify, verifyFileContent } from './verify.js';
 import { WorkspaceManager } from './workspace.js';
-import type { ExecutionWorkspace } from './types.js';
-import { runGit } from './checkpoint/worktree.js';
 
 const globalSemaphore = new Semaphore(LIMITS.maxConcurrentOperations);
 
@@ -547,7 +549,8 @@ export class SalmonLoop {
           if (options.expectedChanges && options.expectedChanges.length > 0) {
             if (!validatePatchContent(currentDiff, options.expectedChanges)) {
               // Treat this as a validation failure
-              const msg = 'Diff validation failed: Expected content changes are missing from the patch';
+              const msg =
+                'Diff validation failed: Expected content changes are missing from the patch';
               logs.push(this.createLog(ExecutionPhase.VALIDATE, msg, false));
               throw new Error(msg);
             }
@@ -600,7 +603,7 @@ export class SalmonLoop {
                     const content = await readFile(filePath, 'utf8');
                     const tree = await AstParser.parse(content, lang);
                     originalTrees.set(file, tree);
-                  } catch (e) {
+                  } catch (_error) {
                     // Ignore errors reading original file
                   }
                 }
@@ -741,7 +744,6 @@ export class SalmonLoop {
 
               // Trigger retry logic
               lastError = refineFeedback(verifyResult.output);
-              const errorType = ErrorType.COMPILATION;
               const failedFiles = ContextBuilder.extractFailedFiles(verifyResult.output);
               emit({
                 type: 'retry',
@@ -1023,7 +1025,7 @@ export class SalmonLoop {
           endPhase(true);
         } catch (error) {
           // Handle unexpected errors within the loop by triggering a retry if possible
-          let failurePhase: ExecutionPhase = currentPhase;
+          const failurePhase: ExecutionPhase = currentPhase;
           endPhase(false);
 
           const errorMsg = error instanceof Error ? error.message : String(error);
@@ -1285,7 +1287,7 @@ export class SalmonLoop {
   private parseUnifiedDiffHunks(diffText: string): { newStart: number; newLines: number }[] {
     const hunks: { newStart: number; newLines: number }[] = [];
     const lines = diffText.split(/\r?\n/);
-    const regex = /^@@\s+\-\d+(?:,\d+)?\s+\+(\d+)(?:,(\d+))?\s+@@/;
+    const regex = /^@@\s+-\d+(?:,\d+)?\s+\+(\d+)(?:,(\d+))?\s+@@/;
     for (const line of lines) {
       const match = line.match(regex);
       if (!match) continue;
@@ -1893,23 +1895,6 @@ export class SalmonLoop {
         return status.trim();
       };
 
-      const parseStatusFiles = (status: string): string[] => {
-        if (!status) return [];
-        return status
-          .split('\n')
-          .map((line) => line.trim())
-          .filter(Boolean)
-          .map((line) => {
-            const raw = line.length > 3 ? line.slice(3).trim() : '';
-            if (!raw) return raw;
-            if (raw.includes('->')) {
-              return raw.split('->').pop()?.trim() || raw;
-            }
-            return raw;
-          })
-          .filter(Boolean);
-      };
-
       const initialStatus = await getStatus();
       const wasDirty = initialStatus.length > 0;
       const statusEntries = this.parseStatusEntries(initialStatus);
@@ -2206,7 +2191,7 @@ export class SalmonLoop {
             'salmonloop-backup',
           ]);
           stashCommandSucceeded = true;
-        } catch (error) {
+        } catch (_error) {
           try {
             await runGit(mainRepoPath, ['stash', 'save', '-u', 'salmonloop-backup']);
             stashCommandSucceeded = true;

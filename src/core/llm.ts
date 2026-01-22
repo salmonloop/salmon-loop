@@ -88,7 +88,10 @@ export class OpenAILLM implements LLM {
     if (diffBlocks && diffBlocks.length > 0) {
       // Take the LAST diff block (most recent version)
       const lastBlock = diffBlocks[diffBlocks.length - 1];
-      return lastBlock.replace(/```(?:diff)?\s*\n/, '').replace(/\n```\s*$/, '').trim();
+      return lastBlock
+        .replace(/```(?:diff)?\s*\n/, '')
+        .replace(/\n```\s*$/, '')
+        .trim();
     }
 
     // Fallback: extract raw diff without markdown
@@ -138,7 +141,7 @@ export class OpenAILLM implements LLM {
 
     if (context.primaryText) {
       result += `${text.context.primaryFile(context.primaryFile || 'Selection')}\n`;
-      
+
       let textToDisplay = context.primaryText;
       if (context.symbols && context.symbols.length > 0) {
         const lines = textToDisplay.split('\n');

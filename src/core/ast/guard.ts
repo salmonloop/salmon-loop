@@ -1,4 +1,3 @@
-import * as TreeSitter from 'web-tree-sitter';
 import { text } from '../../locales/index.js';
 
 /**
@@ -16,7 +15,7 @@ export function getTopLevelNodes(tree: any): any[] {
         nodes.push(cursor.currentNode);
       } while (cursor.gotoNextSibling());
     }
-  } catch (e) {
+  } catch (_error) {
     // Ignore traversal errors
   }
   return nodes;
@@ -54,7 +53,7 @@ export function getNodeName(node: any): string | null {
 
     const fallback = node.child?.(1);
     return fallback?.text ?? null;
-  } catch (e) {
+  } catch (_error) {
     return null;
   }
 }
@@ -64,9 +63,9 @@ export function getNodeName(node: any): string | null {
  */
 export function validateNodeStructure(node: any): boolean {
   if (!node) return true;
-  
+
   // Check if current node is an error
-  // @ts-ignore
+  // Tree-sitter nodes may expose isError as a function or a property.
   const isError = typeof node.isError === 'function' ? node.isError() : node.isError;
   if (node.type === 'ERROR' || isError) {
     return false;
@@ -91,7 +90,7 @@ export function validateNodeStructure(node: any): boolean {
 export function validateScopeIntegrity(
   originalTree: any,
   patchedTree: any,
-  targetNodeName: string
+  targetNodeName: string,
 ): { ok: boolean; reason?: string } {
   if (!originalTree || !patchedTree) {
     return { ok: false, reason: text.ast.invalidTree };

@@ -30,7 +30,7 @@ export function classifyError(output: string): ErrorType {
   if (
     lowerOutput.includes('resource lock error') ||
     lowerOutput.includes('file lock') ||
-    lowerOutput.includes('already exists') && lowerOutput.includes('.lock') ||
+    (lowerOutput.includes('already exists') && lowerOutput.includes('.lock')) ||
     lowerOutput.includes('ebusy') ||
     lowerOutput.includes('eperm')
   ) {
@@ -205,7 +205,10 @@ export async function runVerify(
     result.output = result.output.replace('Command timed out', text.verify.commandTimeout);
   }
   if (!result.ok && result.output.includes('Failed to start command')) {
-    result.output = result.output.replace('Failed to start command', text.verify.failedToStartCommand);
+    result.output = result.output.replace(
+      'Failed to start command',
+      text.verify.failedToStartCommand,
+    );
   }
   return result;
 }
@@ -242,10 +245,14 @@ export async function verifyFileContent(
   }
 }
 
-export async function preflight(workspace: ExecutionWorkspace): Promise<{ ok: boolean; reason?: string }> {
+export async function preflight(
+  workspace: ExecutionWorkspace,
+): Promise<{ ok: boolean; reason?: string }> {
   return new Promise((resolve) => {
     // 1. Check if it's a git repo
-    const gitCheck = spawn('git', ['rev-parse', '--is-inside-work-tree'], { cwd: workspace.baseRepoPath });
+    const gitCheck = spawn('git', ['rev-parse', '--is-inside-work-tree'], {
+      cwd: workspace.baseRepoPath,
+    });
 
     gitCheck.on('error', (err: any) => {
       if (err.code === 'ENOENT') {
@@ -264,7 +271,9 @@ export async function preflight(workspace: ExecutionWorkspace): Promise<{ ok: bo
       // 2. Check if workspace is dirty (only for direct strategy)
       // Allow dirty workspace by default for worktree strategy
       if (workspace.strategy === 'direct') {
-        const statusCheck = spawn('git', ['status', '--porcelain'], { cwd: workspace.baseRepoPath });
+        const statusCheck = spawn('git', ['status', '--porcelain'], {
+          cwd: workspace.baseRepoPath,
+        });
         let output = '';
 
         statusCheck.on('error', (err) => {

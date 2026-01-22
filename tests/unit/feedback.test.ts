@@ -1,11 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { parseTscOutput, parsePythonError } from '../../src/core/feedback/parsers.js';
+
 import { generateFeedbackPrompt } from '../../src/core/feedback/index.js';
+import { parseTscOutput, parsePythonError } from '../../src/core/feedback/parsers.js';
 
 describe('Smart Feedback', () => {
   describe('TSC Parser', () => {
     it('should parse tsc error output', () => {
-      const output = 'src/app.ts(10,5): error TS2322: Type "string" is not assignable to type "number".';
+      const output =
+        'src/app.ts(10,5): error TS2322: Type "string" is not assignable to type "number".';
       const diagnostics = parseTscOutput(output);
       expect(diagnostics).toHaveLength(1);
       expect(diagnostics[0]).toMatchObject({
