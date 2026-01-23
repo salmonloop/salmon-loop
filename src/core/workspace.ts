@@ -18,18 +18,19 @@ export class WorkspaceManager {
   /**
    * Setup execution workspace based on strategy
    * @param options RunOptions with optional strategy
+   * @param initialCommit Optional commit hash to base the worktree on (defaults to HEAD)
    * @returns ExecutionWorkspace configuration
    */
-  static async setup(options: RunOptions): Promise<ExecutionWorkspace> {
+  static async setup(options: RunOptions, initialCommit?: string): Promise<ExecutionWorkspace> {
     const strategy = options.strategy || 'direct';
 
     if (strategy === 'worktree') {
       logger.info('Using worktree strategy for isolated execution');
-      const baseRef = await runGit(options.repoPath, ['rev-parse', 'HEAD']);
+      const baseRef = initialCommit || (await runGit(options.repoPath, ['rev-parse', 'HEAD']));
       const repoName = basename(options.repoPath);
       const timestamp = Date.now();
       const random = randomBytes(4).toString('hex');
-      const worktreePath = join(tmpdir(), `salmon-loop-wt/${repoName}/${timestamp}-${random}`);
+      const worktreePath = join(tmpdir(), `s8p-wt/${repoName}/${timestamp}-${random}`);
       const tmpDir = normalize(tmpdir());
       const normalizedWorktreePath = normalize(worktreePath);
       if (!normalizedWorktreePath.startsWith(tmpDir)) {

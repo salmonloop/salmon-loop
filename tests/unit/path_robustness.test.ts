@@ -1,5 +1,4 @@
 import { spawn } from 'child_process';
-import { EventEmitter } from 'events';
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
@@ -8,7 +7,21 @@ import { normalizeDiff } from '../../src/core/diff.js';
 import { rollbackFiles } from '../../src/core/git.js';
 
 // Mock spawn for rollbackFiles tests
-vi.mock('child_process');
+vi.mock('child_process', async () => {
+  const { EventEmitter } = await import('events');
+  const mockSpawn = vi.fn().mockImplementation(() => {
+    const emitter = new EventEmitter();
+    (emitter as any).stdout = new EventEmitter();
+    (emitter as any).stderr = new EventEmitter();
+    // Default success behavior
+    queueMicrotask(() => emitter.emit('close', 0));
+    return emitter;
+  });
+  return {
+    spawn: mockSpawn,
+    // Add other exports if needed
+  };
+});
 
 describe('Path Robustness', () => {
   describe('normalizeDiff Path Handling', () => {
@@ -121,13 +134,8 @@ diff --git a/${path} b/${path}
 
     beforeEach(() => {
       vi.useFakeTimers();
-      vi.mocked(spawn).mockImplementation(() => {
-        const emitter = new EventEmitter() as any;
-        emitter.stdout = new EventEmitter();
-        emitter.stderr = new EventEmitter();
-        setTimeout(() => emitter.emit('close', 0), 0);
-        return emitter;
-      });
+      // Reset the mock before each test if needed, though the factory handles basic behavior
+      vi.mocked(spawn).mockClear();
     });
 
     afterEach(() => {

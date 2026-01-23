@@ -21,10 +21,10 @@ export class OpenAILLM implements LLM {
 
   constructor() {
     this.client = new OpenAI({
-      apiKey: process.env.SALMON_API_KEY,
-      baseURL: process.env.SALMON_BASE_URL,
+      apiKey: process.env.S8P_API_KEY || process.env.SALMON_API_KEY,
+      baseURL: process.env.S8P_BASE_URL || process.env.SALMON_BASE_URL,
     });
-    this.model = process.env.SALMON_MODEL || 'gpt-4o';
+    this.model = process.env.S8P_MODEL || process.env.SALMON_MODEL || 'gpt-4o';
   }
 
   async createPlan(context: Context, instruction: string, lastError?: string): Promise<Plan> {
@@ -65,9 +65,11 @@ export class OpenAILLM implements LLM {
 
   async createPatch(context: Context, plan: Plan, lastError?: string): Promise<string> {
     const planStr = JSON.stringify(plan, null, 2);
+    const formattedContext = this.formatContext(context);
+
     const prompt = getPatchPrompt(
       planStr,
-      this.formatContext(context),
+      formattedContext,
       LIMITS.maxFilesChanged,
       LIMITS.maxDiffLines,
       lastError,
@@ -177,7 +179,20 @@ export class OpenAILLM implements LLM {
       }
     }
 
-    if (context.gitDiff) {
+    if (context.stagedDiff) {
+      result += `${text.context.stagedDiff}\n${context.stagedDiff}\n\n`;
+    }
+
+    if (context.unstagedDiff) {
+      result += `${text.context.unstagedDiff}\n${context.unstagedDiff}\n\n`;
+    }
+
+    if (context.untrackedFiles && context.untrackedFiles.length > 0) {
+      result += `${text.context.untrackedFiles}\n${context.untrackedFiles.join('\n')}\n\n`;
+    }
+
+    // Fallback for legacy support or if only gitDiff is provided
+    if (context.gitDiff && !context.stagedDiff && !context.unstagedDiff) {
       result += `${text.context.gitDiff}\n${context.gitDiff}\n\n`;
     }
 

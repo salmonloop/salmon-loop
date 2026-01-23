@@ -22,10 +22,35 @@ export class ContextBuilder {
 
     // Handle primary text from file or selection
     if (options.file) {
-      const filePath = path.isAbsolute(options.file)
-        ? options.file
-        : safeJoin(options.repoPath, options.file);
-      primaryText = await readFile(filePath, 'utf-8');
+      if (options.snapshotHash && options.checkpointManager) {
+        // ARCHITECTURE OPTIMIZATION: Read from Git object database
+        // This avoids filesystem cache issues entirely, supports untracked files,
+        // and provides better performance than filesystem I/O.
+        logger.trace(
+          `  [CONTEXT] Reading from Git object database: ${options.snapshotHash}:${options.file}`,
+        );
+        const snapshotContent = await options.checkpointManager.readSnapshotFile(
+          options.repoPath,
+          options.snapshotHash,
+          options.file,
+        );
+        // Explicitly handle null to undefined conversion for type safety
+        primaryText = snapshotContent === null ? undefined : snapshotContent;
+
+        if (primaryText === undefined) {
+          throw new Error(
+            `File ${options.file} not found in snapshot ${options.snapshotHash}. This may happen if the file is ignored and not explicitly included.`,
+          );
+        }
+        logger.trace(`  [CONTEXT] Successfully read from Git object (${primaryText.length} bytes)`);
+      } else {
+        // Fallback to filesystem for non-snapshot scenarios or legacy mode
+        const filePath = path.isAbsolute(options.file)
+          ? options.file
+          : safeJoin(options.repoPath, options.file);
+        logger.trace(`  [CONTEXT] Reading from filesystem: ${filePath}`);
+        primaryText = await readFile(filePath, 'utf-8');
+      }
     } else if (options.selection) {
       primaryText = options.selection;
     }
@@ -43,6 +68,8 @@ export class ContextBuilder {
     // Get git diff (prioritize cached, then unstaged, limited to target file if specified)
     const stagedDiff = await this.getGitDiff(options.repoPath, true, options.file);
     const unstagedDiff = await this.getGitDiff(options.repoPath, false, options.file);
+
+    // Legacy support: combine them for gitDiff, but we will prefer separate fields in LLM
     const gitDiff = [stagedDiff, unstagedDiff].filter(Boolean).join('\n').trim() || undefined;
 
     // AST Analysis for definitions and references
@@ -74,6 +101,10 @@ export class ContextBuilder {
       primaryText,
       rgSnippets,
       gitDiff,
+      stagedDiff,
+      unstagedDiff,
+      untrackedDiff: undefined, // Placeholder for future implementation
+      untrackedFiles: [], // Placeholder for future implementation
       symbols,
       definitionMap,
     };
@@ -435,7 +466,11 @@ export class ContextBuilder {
       (sum, snippet) => sum + (snippet.content?.length ?? 0),
       0,
     );
-    const diff = context.gitDiff?.length ?? 0;
+    const diff =
+      (context.gitDiff?.length ?? 0) +
+      (context.stagedDiff?.length ?? 0) +
+      (context.unstagedDiff?.length ?? 0) +
+      (context.untrackedDiff?.length ?? 0);
 
     return primary + snippets + diff;
   }

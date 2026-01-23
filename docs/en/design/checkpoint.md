@@ -2,71 +2,56 @@
 
 ## Overview
 
-SalmonLoop Stage 10 introduces the **Checkpoint Strategy** to enable safe, isolated execution of AI-generated patches without risking the integrity of the user's primary workspace.
+SalmonLoop uses a robust **Checkpoint Strategy** to enable safe, isolated execution of AI-generated patches while strictly adhering to the **"Source is Truth"** principle.
 
-The core implementation uses **Git Worktrees** to create ephemeral, disposable environments for the `PLAN` -> `PATCH` -> `APPLY` -> `VERIFY` loop.
+This means:
+1.  **Isolation**: AI modifications run in a disposable "Shadow Worktree", never polluting the user's primary workspace until verified.
+2.  **Fidelity**: The shadow environment is an *exact* replica of the user's current state, including **staged changes**, **unstaged changes**, and **untracked files**.
+3.  **Stability**: We bypass filesystem race conditions (especially on Windows) by reading directly from the Git Object Database.
 
-## CheckpointRef
+## Core Concepts
 
-The `CheckpointRef` structure defines the contract for an execution environment:
+### 1. Snapshot
+A **Snapshot** is a temporary, dangling Git commit that captures the exact state of the user's workspace at a specific point in time.
+- It captures the **Index** (Staged changes).
+- It captures the **Worktree** (Unstaged changes).
+- It captures **Untracked Files** (by temporarily adding them to a separate index).
 
-```typescript
-export type CheckpointRef = {
-  strategy: 'worktree';
-  repoPath: string;      // The user's primary repository path
-  worktreePath: string;  // The isolated worktree path
-  baseRef: string;       // The git reference (commit/HEAD) the worktree is based on
-  branchName: string;    // The temporary branch associated with the worktree
-};
-```
+### 2. Shadow Worktree
+A **Shadow Worktree** is an ephemeral working directory created from a Snapshot. It serves as the sandbox for the AI Agent.
 
 ## Lifecycle
 
-### 1. Creation (Preflight)
+### 1. Capture (Snapshot Creation)
+When a task starts:
+1.  **Stash Protection**: (Optional) Existing stashes are preserved.
+2.  **Index Capture**: The current index is written to a tree object.
+3.  **Worktree Capture**: Unstaged changes are effectively "committed" into the snapshot (without modifying the user's actual history).
+4.  **Untracked Capture**: Untracked files are added to the snapshot commit.
+5.  **Result**: A `commitHash` is returned, representing the total state.
 
-When SalmonLoop starts with `strategy: 'worktree'` (default in Stage 10):
+### 2. Isolation (Shadow Restoration)
+The `CheckpointManager` restores the snapshot into a new Worktree:
+1.  `git worktree add <path> <snapshotHash>`
+2.  **Filesystem Sync**: Runs `git update-index -q --refresh` to ensure the new worktree's index matches its disk state immediately. This prevents "false dirty" states.
 
-1.  **Validation**: Ensures `repoPath` is a valid git repository.
-2.  **Base Reference**: Captures the current `HEAD` of the primary workspace.
-3.  **Path Generation**: Creates a temporary path in `os.tmpdir()`:
-    `salmon-loop-wt/<repoName>/<timestamp>-<random>`
-4.  **Worktree Creation**:
-    Executes `git worktree add --detach <worktreePath> <baseRef>`.
-    *Refinement*: We usage `--detach` to avoid creating unnecessary local branches that might pollute the namespace, though checking out a specific temp branch is also supported.
-5.  **Context Switching**: The `ExecutionWorkspace` is updated to point to `worktreePath` as the active `workPath`.
+### 3. Execution (Direct Object Reading)
+During the AI's execution loop, reading files relies on the **Git Object Database** instead of the filesystem:
+- **Problem**: On Windows, filesystem caches can return stale data immediately after a checkout.
+- **Solution**: `CheckpointManager.readSnapshotFile()` reads content directly from the snapshot's blob (`git show <hash>:<file>`).
+- **Benefit**: Zero latency, 100% data consistency, immune to OS caching issues.
 
-### 2. Execution (Loop)
-
-All mutating operations occur within the `worktreePath`:
-- `ContextBuilder` reads from the worktree.
-- `applyPatch` writes to the worktree.
-- `runVerify` executes commands (npm test, etc.) inside the worktree.
-
-**Isolation Guarantee**:
-- The primary workspace is strictly Read-Only during this phase.
-- "Dirty" states (uncommitted changes) in the primary workspace are ignored/bypassed, as the worktree is based on the committed `HEAD`.
-
-### 3. Cleanup (Teardown)
-
-Regardless of success or failure, the worktree must be cleaned up to release resources.
-
-1.  **Worktree Removal**:
-    `git worktree remove --force <worktreePath>`
-    - Force is used because we don't care about abandoning uncommitted changes in the temp worktree.
-    - **Fallback**: If git command fails (common on Windows due to file locks), we fall back to `rimraf` (node-based recursive delete) to ensure the directory is removed.
-2.  **Branch Cleanup**:
-    `git branch -D <branchName>` (if a branch was created).
-
-### 4. Apply Back (Success Only)
-
-*To be implemented in Day 3*
-
-Upon successful verification, the changes in the worktree are propagated back to the primary workspace:
-1.  Generate patch: `git diff <baseRef>` inside worktree.
-2.  Apply patch: `git apply` in primary workspace.
+### 4. Apply Back (Merge & Update)
+When the task is complete and verified:
+1.  **Diff Generation**: A patch is generated between the Shadow Worktree's final state and the *original* Snapshot.
+2.  **Application**: The patch is applied to the Main Workspace.
+    - If the user has modified files in the meantime, standard Git merge conflict resolution applies.
+    - Staged/Unstaged distinction is respected where possible.
 
 ## Safety Mechanisms
 
-1.  **Timeouts**: All git operations are wrapped in `runGit` with a strict timeout (default 15s) to prevent hanging processes.
-2.  **Fallback Deletion**: The dual-strategy cleanup (Git -> FS) ensures temporary directories don't accumulate on the user's disk.
-3.  **Path Validation**: Worktree paths are strictly namespaced under `salmon-loop-wt` to prevent accidental deletion of user data.
+1.  **Read-Only Main Workspace**: The main workspace is never touched until the final Apply Back phase.
+2.  **Cleanup**: Shadow worktrees are automatically cleaned up after execution to save disk space.
+    - **Note**: Snapshots (Git commits) persist in `.git/refs/s8p/snapshots/` to allow manual inspection or restoration. Use `s8p snap clear` to remove them.
+3.  **Timeout Protection**: All Git operations have strict timeouts.
+4.  **Ignored Files**: The system respects `.gitignore` but allows explicit inclusion of ignored files if requested by the user.

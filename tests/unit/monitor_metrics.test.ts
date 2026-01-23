@@ -1,10 +1,13 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 
-import { monitor } from '../../src/core/monitor.js';
+import { Monitor } from '../../src/core/monitor.js';
 
 describe('Monitor Metrics', () => {
+  let monitor: Monitor;
+
   beforeEach(() => {
-    monitor.resetMetrics();
+    // ✅ Create a fresh instance for each test (complete isolation)
+    monitor = new Monitor();
   });
 
   describe('Checkpoint Creation Metrics', () => {
@@ -153,6 +156,7 @@ describe('Monitor Metrics', () => {
     });
 
     it('should show all metrics even when zero', () => {
+      // ✅ Fresh instance already has zero metrics
       const report = monitor.getMetricsReport();
 
       expect(report).toContain('Checkpoint Creation');

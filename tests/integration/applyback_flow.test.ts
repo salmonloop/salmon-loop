@@ -88,18 +88,14 @@ describe('ApplyBack Flow Integration Tests', () => {
     });
 
     it('should rollback on applyPatch failure', async () => {
-      let revParseCalls = 0;
-      vi.mocked(git.getGitStatus).mockResolvedValueOnce(' M other.js').mockResolvedValue('');
+      // Mock a clean workspace (no dirty files)
+      vi.mocked(git.getGitStatus).mockResolvedValue('');
       vi.mocked(runGit).mockImplementation(async (repoPath, args) => {
         if (args[0] === 'add') {
           return '';
         }
         if (args[0] === 'diff') {
           return 'diff --git a/test.js b/test.js\n--- a/test.js\n+++ b/test.js\n@@ -1 +1 @@\n-old\n+new';
-        }
-        if (args[0] === 'rev-parse' && args.includes('refs/stash')) {
-          revParseCalls++;
-          return revParseCalls === 1 ? '' : 'abc123';
         }
         if (args[0] === 'rev-parse') {
           return 'head123';
@@ -110,18 +106,6 @@ describe('ApplyBack Flow Integration Tests', () => {
         if (args[0] === 'ls-files') {
           return '';
         }
-        if (args[0] === 'stash' && args[1] === 'push') {
-          return 'Saved working directory';
-        }
-        if (args[0] === 'stash' && args[1] === 'list') {
-          return 'abc123 stash@{0}';
-        }
-        if (args[0] === 'stash' && args[1] === 'apply') {
-          return 'Restored working directory';
-        }
-        if (args[0] === 'stash' && args[1] === 'drop') {
-          return 'Dropped stash';
-        }
         return '';
       });
 
@@ -129,12 +113,10 @@ describe('ApplyBack Flow Integration Tests', () => {
 
       const applyBack = (loop as any).applyBackToMainWorkspace.bind(loop);
 
+      // Should throw the patch error directly (no stash rollback in 3-way mode)
       await expect(applyBack(mainRepoPath, mockCheckpointRef, '')).rejects.toThrow(
         'Patch does not apply',
       );
-
-      // Verify stash apply was called for rollback
-      expect(runGit).toHaveBeenCalledWith(mainRepoPath, ['stash', 'apply', '--index', 'stash@{0}']);
 
       // Verify failure was recorded
       const metrics = monitor.getApplyBackMetrics();
@@ -166,57 +148,38 @@ describe('ApplyBack Flow Integration Tests', () => {
         'ref-initial',
         'ref-latest',
         undefined,
+        [],
+        'stash',
       );
       expect(runGit).not.toHaveBeenCalled();
     });
 
-    it('should handle stash apply failure gracefully', async () => {
-      let revParseCalls = 0;
-      vi.mocked(git.getGitStatus).mockResolvedValueOnce(' M other.js').mockResolvedValue('');
-      vi.mocked(runGit).mockImplementation(async (repoPath, args) => {
-        if (args[0] === 'add') {
-          return '';
-        }
-        if (args[0] === 'diff') {
-          return 'diff --git a/test.js b/test.js\n--- a/test.js\n+++ b/test.js\n@@ -1 +1 @@\n-old\n+new';
-        }
-        if (args[0] === 'rev-parse' && args.includes('refs/stash')) {
-          revParseCalls++;
-          return revParseCalls === 1 ? '' : 'abc123';
-        }
-        if (args[0] === 'rev-parse') {
-          return 'head123';
-        }
-        if (args[0] === 'write-tree') {
-          return 'tree123';
-        }
-        if (args[0] === 'ls-files') {
-          return '';
-        }
-        if (args[0] === 'stash' && args[1] === 'push') {
-          return 'Saved';
-        }
-        if (args[0] === 'stash' && args[1] === 'list') {
-          return 'abc123 stash@{0}';
-        }
-        if (args[0] === 'stash' && args[1] === 'apply') {
-          throw new Error('Stash apply failed - conflicts');
-        }
-        return '';
-      });
-
-      vi.mocked(git.applyPatch).mockRejectedValue(new Error('Apply failed'));
-
+    it('should flag apply-back as not applied when aborting on dirty workspace', async () => {
       const applyBack = (loop as any).applyBackToMainWorkspace.bind(loop);
+      const dualMerge = vi.fn().mockResolvedValue(undefined);
+      (loop as any).applyBackWithDualMerge = dualMerge;
 
-      await expect(applyBack(mainRepoPath, mockCheckpointRef, '')).rejects.toThrow('Apply failed');
+      vi.mocked(git.getGitStatus).mockResolvedValue(' M dirty.js');
 
-      // Verify stash apply was attempted
-      expect(runGit).toHaveBeenCalledWith(mainRepoPath, ['stash', 'apply', '--index', 'stash@{0}']);
+      let error: any;
+      try {
+        await applyBack(
+          mainRepoPath,
+          mockCheckpointRef,
+          '',
+          'abort',
+          undefined,
+          undefined,
+          'ref-initial',
+          'ref-latest',
+        );
+      } catch (err) {
+        error = err;
+      }
 
-      // Verify failure was still recorded
-      const metrics = monitor.getApplyBackMetrics();
-      expect(metrics.failures).toBe(1);
+      expect(error).toBeInstanceOf(Error);
+      expect(error?.appliedToMain).toBe(false);
+      expect(dualMerge).not.toHaveBeenCalled();
     });
 
     it('should apply without stashing when workspace is clean', async () => {
@@ -286,59 +249,6 @@ describe('ApplyBack Flow Integration Tests', () => {
 
       const metrics = monitor.getApplyBackMetrics();
       expect(metrics.durations[0]).toBeGreaterThanOrEqual(10);
-    });
-
-    it('should record failure when stash drop also fails', async () => {
-      let dropCalled = false;
-      let revParseCalls = 0;
-      vi.mocked(git.getGitStatus).mockResolvedValueOnce(' M other.js').mockResolvedValue('');
-      vi.mocked(runGit).mockImplementation(async (repoPath, args) => {
-        if (args[0] === 'add') {
-          return '';
-        }
-        if (args[0] === 'diff') {
-          return 'diff --git a/test.js b/test.js\n--- a/test.js\n+++ b/test.js\n@@ -1 +1 @@\n-old\n+new';
-        }
-        if (args[0] === 'rev-parse' && args.includes('refs/stash')) {
-          revParseCalls++;
-          return revParseCalls === 1 ? '' : 'abc123';
-        }
-        if (args[0] === 'rev-parse') {
-          return 'head123';
-        }
-        if (args[0] === 'write-tree') {
-          return 'tree123';
-        }
-        if (args[0] === 'ls-files') {
-          return '';
-        }
-        if (args[0] === 'stash' && args[1] === 'push') {
-          return 'Saved';
-        }
-        if (args[0] === 'stash' && args[1] === 'list') {
-          return 'abc123 stash@{0}';
-        }
-        if (args[0] === 'stash' && args[1] === 'apply') {
-          return 'Applied';
-        }
-        if (args[0] === 'stash' && args[1] === 'drop') {
-          dropCalled = true;
-          throw new Error('Drop also failed');
-        }
-        return '';
-      });
-
-      vi.mocked(git.applyPatch).mockRejectedValue(new Error('Apply failed'));
-
-      const applyBack = (loop as any).applyBackToMainWorkspace.bind(loop);
-
-      await expect(applyBack(mainRepoPath, mockCheckpointRef, '')).rejects.toThrow('Apply failed');
-
-      expect(dropCalled).toBe(true);
-
-      // Verify failure was recorded
-      const metrics = monitor.getApplyBackMetrics();
-      expect(metrics.failures).toBe(1);
     });
   });
 

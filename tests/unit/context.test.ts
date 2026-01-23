@@ -36,7 +36,7 @@ describe('ContextBuilder', () => {
   it('should build context with primary file', async () => {
     vi.mocked(fs.readFile).mockResolvedValue('console.log("hello");');
 
-    // Mock spawn for git diff and rg
+    // ✅ Mock spawn with synchronous event emission (no process.nextTick)
     vi.mocked(spawn).mockImplementation((_command: string) => {
       const emitter = new EventEmitter() as any;
       emitter.stdout = new EventEmitter();
@@ -46,7 +46,8 @@ describe('ContextBuilder', () => {
       emitter.stdin.write = vi.fn();
       emitter.kill = vi.fn();
 
-      process.nextTick(() => {
+      // ✅ Use queueMicrotask instead of process.nextTick (controlled by test environment)
+      queueMicrotask(() => {
         emitter.emit('close', 0);
         emitter.emit('exit', 0);
       });
@@ -79,6 +80,7 @@ describe('ContextBuilder', () => {
     ]);
     vi.mocked(AstParser.identifyReferences).mockResolvedValue([]);
 
+    // ✅ Mock spawn with queueMicrotask (no process.nextTick)
     vi.mocked(spawn).mockImplementation(() => {
       const emitter = new EventEmitter() as any;
       emitter.stdout = new EventEmitter();
@@ -87,10 +89,13 @@ describe('ContextBuilder', () => {
       emitter.stdin.end = vi.fn();
       emitter.stdin.write = vi.fn();
       emitter.kill = vi.fn();
-      process.nextTick(() => {
+
+      // ✅ Use queueMicrotask for deterministic async behavior
+      queueMicrotask(() => {
         emitter.emit('close', 0);
         emitter.emit('exit', 0);
       });
+
       return emitter;
     });
 

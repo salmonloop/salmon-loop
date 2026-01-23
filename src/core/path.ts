@@ -35,3 +35,14 @@ export function safeDirname(p: string): string {
 export function safeRelative(from: string, to: string): string {
   return normalizePath(path.relative(from, to));
 }
+
+/**
+ * Check whether a path is a safe relative path (no absolute paths or traversal).
+ */
+export function isSafeRelativePath(p: string): boolean {
+  const normalized = normalizePath(p);
+  if (!normalized) return false;
+  if (normalized.startsWith('/')) return false;
+  if (/^[a-zA-Z]:/.test(normalized)) return false;
+  return !normalized.split('/').some((segment) => segment === '..');
+}

@@ -1,6 +1,7 @@
 import { text } from '../locales/index.js';
 
 import { LIMITS } from './limits.js';
+import { logger } from './logger.js';
 import { ErrorType } from './types.js';
 
 /**
@@ -68,6 +69,10 @@ class RingBuffer<T> {
 
 /**
  * Monitor class to track errors and generate reports
+ *
+ * Can be used as:
+ * - Singleton: `import { monitor } from './monitor.js'`
+ * - Instance: `const m = new Monitor()` (useful for testing)
  */
 export class Monitor {
   private static instance: Monitor;
@@ -75,7 +80,7 @@ export class Monitor {
   private checkpointMetrics: CheckpointMetrics;
   private applyBackMetrics: ApplyBackMetrics;
 
-  private constructor() {
+  constructor() {
     this.errorHistory = new RingBuffer<ErrorEntry>(LIMITS.maxErrorHistory);
     this.checkpointMetrics = {
       createAttempts: 0,
@@ -145,9 +150,9 @@ export class Monitor {
     if (heapUsedMB > thresholdMB) {
       const msg = `Memory usage warning: Heap used ${heapUsedMB.toFixed(2)}MB exceeds threshold ${thresholdMB}MB.`;
       this.recordError(ErrorType.UNKNOWN, msg);
-      console.warn(`[Monitor] ${msg}`);
+      logger.warn(`[Monitor] ${msg}`);
       if (global.gc) {
-        console.log('[Monitor] Suggesting garbage collection...');
+        logger.debug('[Monitor] Suggesting garbage collection...');
         global.gc();
       }
     }

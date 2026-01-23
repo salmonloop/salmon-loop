@@ -406,14 +406,21 @@ export async function rollbackFiles(
     }
 
     return await new Promise((resolve) => {
-      // If forceReset is true, execute git reset --hard <ref>
-      // Otherwise, try to checkout specified files
+      // CRITICAL SAFETY: Default to NO ref (undefined) to trigger 'git checkout -- <files>'
+      // This restores files to the Index (Staged) state, NOT HEAD.
+      // We must NEVER default to 'HEAD' here because it would silently destroy
+      // user's staged changes if the agent fails.
+      // Only use 'HEAD' if explicitly requested (e.g. by tests or specific agent logic).
       const args = forceReset
         ? ['reset', '--hard', ref || 'HEAD']
-        : ['checkout', '--', ...attempted];
+        : ref
+          ? ['checkout', ref, '--', ...attempted]
+          : ['checkout', '--', ...attempted];
 
       if (forceReset) {
         logger.trace(`[rollbackFiles] Executing: git ${args.join(' ')} (ref=${ref})`);
+      } else {
+        logger.trace(`[rollbackFiles] Executing: git ${args.join(' ')}`);
       }
 
       const child = spawn('git', args, { cwd: repoPath });
@@ -438,6 +445,7 @@ export async function rollbackFiles(
         if (code !== 0) {
           // If checkout failed, we must ensure the repo is clean.
           // We try resolveConflicts as a fallback to handle any git error or conflict state.
+          logger.warn(`[rollbackFiles] git checkout failed with code ${code}. Stderr: ${stderr}`);
           const conflictResult = await resolveConflicts(repoPath);
           if (!conflictResult.ok) {
             // resolveConflicts failed - this is a real rollback failure
@@ -472,34 +480,34 @@ export async function rollbackFiles(
             // Log clean failure but don't necessarily fail the whole rollback
             stderr += `\nWarning: git clean -fd failed: ${String(e)}`;
           }
-        }
 
-        // Final verification: ensure workspace is actually clean
-        const finalStatus = await new Promise<string>((res) => {
-          const statusChild = spawn('git', ['status', '--porcelain'], {
-            cwd: repoPath,
-            stdio: ['pipe', 'pipe', 'pipe'],
-          });
-          let output = '';
-          statusChild.stdout.on('data', (d) => (output += d.toString()));
-          statusChild.on('close', () => res(output.trim()));
-          statusChild.on('error', () => res(''));
-        });
-
-        if (finalStatus) {
-          // Workspace still dirty after rollback - try one more time with resolveConflicts
-          const conflictResult = await resolveConflicts(repoPath);
-          if (!conflictResult.ok) {
-            resolve({
-              ok: false,
-              attempted,
-              exitCode: code,
-              stdout,
-              stderr:
-                stderr +
-                `\nWorkspace still dirty after rollback: ${finalStatus}\n${conflictResult.error || ''}`,
+          // Final verification: ensure workspace is actually clean
+          const finalStatus = await new Promise<string>((res) => {
+            const statusChild = spawn('git', ['status', '--porcelain'], {
+              cwd: repoPath,
+              stdio: ['pipe', 'pipe', 'pipe'],
             });
-            return;
+            let output = '';
+            statusChild.stdout.on('data', (d) => (output += d.toString()));
+            statusChild.on('close', () => res(output.trim()));
+            statusChild.on('error', () => res(''));
+          });
+
+          if (finalStatus) {
+            // Workspace still dirty after rollback - try one more time with resolveConflicts
+            const conflictResult = await resolveConflicts(repoPath);
+            if (!conflictResult.ok) {
+              resolve({
+                ok: false,
+                attempted,
+                exitCode: code,
+                stdout,
+                stderr:
+                  stderr +
+                  `\nWorkspace still dirty after rollback: ${finalStatus}\n${conflictResult.error || ''}`,
+              });
+              return;
+            }
           }
         }
 
@@ -544,7 +552,7 @@ export async function getGitDiff(
     });
 
     child.on('close', (code) => {
-      const result = code === 0 && output.trim() ? output : undefined;
+      const result = code === 0 ? output : undefined;
       diffCache.set(cacheKey, result);
       resolve(result);
     });

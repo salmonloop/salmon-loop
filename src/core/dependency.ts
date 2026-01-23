@@ -3,6 +3,7 @@ import { readFile } from 'fs/promises';
 
 import { text } from '../locales/index.js';
 
+import { logger } from './logger.js';
 import { safeJoin, safeDirname } from './path.js';
 
 /**
@@ -49,12 +50,12 @@ export function verifyDependencyVersion(rootPath: string): void {
     const actualVersion = packageJson.dependencies?.['web-tree-sitter'];
 
     if (actualVersion !== expectedVersion) {
-      console.warn(
+      logger.warn(
         text.dependency.versionMismatch('web-tree-sitter', expectedVersion, actualVersion),
       );
-      console.warn(text.dependency.versionMismatchHint);
+      logger.warn(text.dependency.versionMismatchHint);
     }
   } catch (error) {
-    console.error(text.dependency.checkFailed + ':', error);
+    logger.error(`${text.dependency.checkFailed}: ${error}`);
   }
 }

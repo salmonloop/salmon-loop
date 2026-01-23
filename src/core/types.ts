@@ -1,5 +1,5 @@
 export type VerboseLevel = 'basic' | 'extended';
-export type ApplyBackOnDirty = 'abort' | 'stash';
+export type ApplyBackOnDirty = 'abort' | '3way';
 
 export enum ExecutionPhase {
   PREFLIGHT = 'preflight',
@@ -132,7 +132,14 @@ export interface Context {
   primaryFile?: string;
   primaryText?: string;
   rgSnippets: RipgrepResult[];
+  /**
+   * @deprecated Use stagedDiff and unstagedDiff instead
+   */
   gitDiff?: string;
+  stagedDiff?: string;
+  unstagedDiff?: string;
+  untrackedDiff?: string;
+  untrackedFiles?: string[];
   definitionMap?: Record<string, CodeLocation>;
   symbols?: SymbolInfo[];
 }
@@ -154,6 +161,7 @@ export interface RunOptions {
   verify: string;
   repoPath: string;
   file?: string;
+  contextFiles?: string[];
   selection?: string;
   dryRun?: boolean;
   forceReset?: boolean;
@@ -165,6 +173,8 @@ export interface RunOptions {
   expectedChanges?: string[];
   expectedFileContent?: { path: string; content: string }[];
   targetNodeName?: string;
+  snapshotHash?: string; // ARCHITECTURE OPTIMIZATION: Pass snapshot hash for Git object reading
+  checkpointManager?: import('./checkpoint/manager.js').CheckpointManager; // ARCHITECTURE OPTIMIZATION: Pass manager instance for Git object reading
   checkpoint?: {
     strategy?: 'worktree';
     keepWorktreeOnFailure?: boolean;

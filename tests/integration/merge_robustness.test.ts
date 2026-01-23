@@ -5,18 +5,39 @@ import { join } from 'path';
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 
+import { CheckpointManager } from '../../src/core/checkpoint/manager.js';
+import { logger } from '../../src/core/logger.js';
 import { ShadowMergeEngine } from '../../src/core/merge/shadow-merge.js';
 
 class GitHelper {
   constructor(public cwd: string) {}
 
   run(command: string): string {
-    try {
-      return execSync(`git ${command}`, { cwd: this.cwd, stdio: 'pipe' }).toString();
-    } catch (error: any) {
-      throw new Error(
-        `Git command failed: git ${command}\n${error.stderr?.toString() || error.message}`,
-      );
+    let retries = 0;
+    const maxRetries = 5;
+
+    while (true) {
+      try {
+        const result = execSync(`git ${command}`, { cwd: this.cwd, stdio: 'pipe' }).toString();
+        return result;
+      } catch (error: any) {
+        // Check for lock file errors
+        const stderr = error.stderr?.toString() || '';
+        if (
+          (stderr.includes('index.lock') || stderr.includes('lock file')) &&
+          retries < maxRetries
+        ) {
+          retries++;
+          // Sync sleep for retry
+          const end = Date.now() + 100 * Math.pow(2, retries);
+          while (Date.now() < end) {
+            /* busy wait */
+          }
+          continue;
+        }
+
+        throw new Error(`Git command failed: git ${command}\n${stderr || error.message}`);
+      }
     }
   }
 
@@ -35,7 +56,32 @@ class GitHelper {
   }
 
   async init() {
-    this.run('init');
+    // Retry git init
+    let retries = 0;
+    let lastError: any;
+    while (retries < 5) {
+      try {
+        this.run('init');
+        // Verify .git exists and is a repo
+        try {
+          const isTree = this.run('rev-parse --is-inside-work-tree').trim();
+          if (isTree === 'true') break; // Success
+        } catch {
+          // Verification failed
+        }
+      } catch (e) {
+        lastError = e;
+        // Init failed
+      }
+      retries++;
+      if (retries === 5) {
+        throw new Error(
+          `Failed to initialize git repository after 5 attempts. Last error: ${lastError?.message || 'unknown'}`,
+        );
+      }
+      await new Promise((r) => setTimeout(r, 200 * Math.pow(2, retries)));
+    }
+
     this.run('config user.email "test@example.com"');
     this.run('config user.name "Test User"');
     this.run('config core.autocrlf false');
@@ -131,23 +177,67 @@ class MergeTestContext {
     await this.git.init();
 
     // The shadow repo is usually a clone or a worktree sharing the object store.
-    // For test simplicity, clone the main repo into the shadow repo.
-    execSync(`git clone "${this.mainRepoPath}" "${this.shadowRepoPath}"`);
+    // Optimization: Use local clone with shared objects to speed up setup
+    // Retry clone
+    let cloneRetries = 0;
+    while (cloneRetries < 5) {
+      try {
+        execSync(`git clone --local --shared "${this.mainRepoPath}" "${this.shadowRepoPath}"`, {
+          stdio: 'ignore',
+        });
+        break;
+      } catch (e) {
+        cloneRetries++;
+        if (cloneRetries === 5) throw new Error(`Failed to clone shadow repo: ${e}`);
+        await new Promise((r) => setTimeout(r, 100));
+        // Try to clean up partial clone
+        try {
+          await rm(this.shadowRepoPath, { recursive: true, force: true });
+        } catch {
+          // ignore
+        }
+      }
+    }
+
     this.shadowGit = new GitHelper(this.shadowRepoPath);
     this.shadowGit.run('config user.email "ai@example.com"');
     this.shadowGit.run('config user.name "AI Assistant"');
   }
 
   async teardown() {
-    const rmOptions = { recursive: true, force: true, maxRetries: 5, retryDelay: 200 };
-    await rm(this.mainRepoPath, rmOptions);
-    await rm(this.shadowRepoPath, rmOptions);
+    const rmOptions = { recursive: true, force: true, maxRetries: 10, retryDelay: 200 };
+    // Small delay before teardown to allow processes to exit
+    await new Promise((r) => setTimeout(r, 100));
+    // Optimization: Parallel teardown
+    try {
+      await Promise.all([rm(this.mainRepoPath, rmOptions), rm(this.shadowRepoPath, rmOptions)]);
+    } catch (e) {
+      // Ignore cleanup errors on Windows to prevent failing the test suite just because of cleanup
+      if (process.platform !== 'win32') throw e;
+      logger.warn(`Cleanup failed (ignored on Windows): ${e}`);
+    }
   }
 
   async writeFile(repo: 'main' | 'shadow', filePath: string, content: string | Buffer) {
     const fullPath = join(repo === 'main' ? this.mainRepoPath : this.shadowRepoPath, filePath);
     await mkdir(join(fullPath, '..'), { recursive: true });
-    await writeFile(fullPath, content);
+
+    // Retry loop for Windows EPERM/EBUSY issues
+    let attempts = 0;
+    while (attempts < 5) {
+      try {
+        await writeFile(fullPath, content);
+        return;
+      } catch (error: any) {
+        if (attempts === 4) throw error;
+        if (error.code === 'EPERM' || error.code === 'EBUSY') {
+          await new Promise((r) => setTimeout(r, 100 * Math.pow(2, attempts)));
+          attempts++;
+        } else {
+          throw error;
+        }
+      }
+    }
   }
 
   async readFile(repo: 'main' | 'shadow', filePath: string): Promise<string> {
@@ -160,14 +250,18 @@ class MergeTestContext {
     latestRef: string,
     overrides: Partial<ConstructorParameters<typeof ShadowMergeEngine>[0]> = {},
   ): ShadowMergeEngine {
-    return new ShadowMergeEngine({
-      mainRepoPath: this.mainRepoPath,
-      shadowWorktreePath: this.shadowRepoPath,
-      initialRef,
-      latestRef,
-      verbose: 'extended',
-      ...overrides,
-    });
+    return new ShadowMergeEngine(
+      {
+        mainRepoPath: this.mainRepoPath,
+        shadowWorktreePath: this.shadowRepoPath,
+        initialRef,
+        latestRef,
+        verbose: 'extended',
+        applyBackOnDirty: '3way',
+        ...overrides,
+      },
+      new CheckpointManager(),
+    );
   }
 }
 
@@ -191,7 +285,7 @@ describe('ShadowMergeEngine Robustness', () => {
   });
 
   describe('Group 1: Staging State Transitions', () => {
-    it('1.1 Partial Staged: Modify -> Add -> Modify', async () => {
+    it('1.1 Partial Staged: Modify -> Add -> Modify', { timeout: 30000 }, async () => {
       // Setup
       const baseLines = Array.from({ length: 10 }, (_, i) => `line ${i + 1}`).join('\n') + '\n';
       await ctx.writeFile('main', 'file.txt', baseLines);
@@ -219,9 +313,9 @@ describe('ShadowMergeEngine Robustness', () => {
         await engine.apply();
       } catch (e: any) {
         const status = ctx.git.run('status');
-        console.log('Git Status on failure:\n', status);
+        logger.error(`Git Status on failure:\n${status}`);
         const fileContent = await ctx.readFile('main', 'file.txt');
-        console.log('File content on failure:\n', fileContent);
+        logger.error(`File content on failure:\n${fileContent}`);
         throw e;
       }
 
@@ -235,11 +329,13 @@ describe('ShadowMergeEngine Robustness', () => {
       expect(finalContent).toBe(expectedWorking);
 
       // Assert index contains AI changes plus user staged changes.
+      // UPDATE: With the "Double Dirty" fix, unstaged changes are promoted to the index
+      // to resolve the context dependency. So the index now matches the working tree.
       const stagedContent = ctx.git.run('show :file.txt');
-      const expectedStaged = baseLines
-        .replace('line 1', 'user staged')
-        .replace('line 10', 'ai changes');
-      expect(stagedContent).toBe(expectedStaged);
+      // const expectedStaged = baseLines
+      //   .replace('line 1', 'user staged')
+      //   .replace('line 10', 'ai changes');
+      expect(stagedContent).toBe(expectedWorking);
 
       const headContent = ctx.git.run('show HEAD:file.txt');
       expect(headContent).toBe(baseLines);
@@ -379,13 +475,17 @@ describe('ShadowMergeEngine Robustness', () => {
       expect(finalContent).toBe(expectedWorking);
 
       const stagedContent = ctx.git.run('show :file.txt');
-      const expectedStaged = baseLines
-        .replace('line 2', 'user staged')
-        .replace('line 11', 'ai changes');
-      expect(stagedContent).toBe(expectedStaged);
+      // UPDATE: With "Double Dirty" fix, partial adds are promoted to full adds in the index
+      // if they are part of a dirty merge context.
+      // const expectedStaged = baseLines
+      //   .replace('line 2', 'user staged')
+      //   .replace('line 11', 'ai changes');
+      expect(stagedContent).toBe(expectedWorking);
 
       const status = ctx.git.statusEntry('file.txt');
-      expect(status).toMatchObject({ index: 'M', working: 'M', path: 'file.txt' });
+      // Status becomes 'M ' because index now matches working (both have all changes)
+      // The 'M' is relative to HEAD.
+      expect(status).toMatchObject({ index: 'M', working: ' ', path: 'file.txt' });
 
       const headContent = ctx.git.run('show HEAD:file.txt');
       expect(headContent).toBe(baseLines);
@@ -454,6 +554,62 @@ describe('ShadowMergeEngine Robustness', () => {
 
       const status = ctx.git.statusEntry('file.txt');
       expect(status).toMatchObject({ index: ' ', working: 'M', path: 'file.txt' });
+    });
+
+    it('1.8 Double Dirty: Staged + Unstaged + AI (MM State)', async () => {
+      // Setup: Initial State
+      const baseLines = 'line 1\nline 2\nline 3\n';
+      await ctx.writeFile('main', 'file.txt', baseLines);
+      await ctx.git.add('file.txt');
+      const headRef = await ctx.git.commit('initial');
+
+      // User Action 1: Modify and Stage (A -> A+B)
+      const stagedLines = baseLines + 'user staged\n';
+      await ctx.writeFile('main', 'file.txt', stagedLines);
+      await ctx.git.add('file.txt');
+
+      // User Action 2: Modify but leave Unstaged (A+B -> A+B+C)
+      // This creates the context "user unstaged" that the AI will see
+      const workingLines = stagedLines + 'user unstaged\n';
+      await ctx.writeFile('main', 'file.txt', workingLines);
+
+      // Verify MM state
+      const statusBefore = ctx.git.statusEntry('file.txt');
+      expect(statusBefore).toMatchObject({ index: 'M', working: 'M', path: 'file.txt' });
+
+      // AI Simulation:
+      // AI sees the full working tree (A+B+C) as its Base.
+      // We simulate this by creating a snapshot commit in shadow repo.
+      ctx.shadowGit.run(`fetch origin`);
+      // Create the "Snapshot" state in shadow (Base)
+      await ctx.writeFile('shadow', 'file.txt', workingLines);
+      await ctx.shadowGit.add('file.txt');
+      const snapshotRef = await ctx.shadowGit.commit('snapshot of dirty state');
+
+      // AI makes changes on top of Snapshot (A+B+C -> A+B+C+D)
+      const aiLines = workingLines + 'ai changes\n';
+      await ctx.writeFile('shadow', 'file.txt', aiLines);
+      const latestRef = await ctx.shadowGit.commit('ai changes');
+
+      // Execute Engine
+      // initialRef = snapshotRef (The state AI started from)
+      // latestRef = AI's new state
+      const engine = ctx.createEngine(snapshotRef, latestRef);
+      await engine.apply();
+
+      // Assertions
+      const finalContent = await ctx.readFile('main', 'file.txt');
+      const expectedContent = baseLines + 'user staged\nuser unstaged\nai changes\n';
+      expect(finalContent).toBe(expectedContent);
+
+      // The key fix: Unstaged changes should be promoted to Index to support the merge
+      const indexContent = ctx.git.run('show :file.txt');
+      expect(indexContent).toBe(expectedContent);
+
+      const statusAfter = ctx.git.statusEntry('file.txt');
+      // Should be 'M ' (Modified in Index, Working matches Index)
+      // The 'M' in index is relative to HEAD (which is still 'initial')
+      expect(statusAfter).toMatchObject({ index: 'M', working: ' ', path: 'file.txt' });
     });
   });
 
@@ -1023,9 +1179,11 @@ describe('ShadowMergeEngine Robustness', () => {
         /Apply-back completed with conflicts in 1 file\(s\): file\.txt/,
       );
 
+      // Zero Trust architecture should preserve user changes and rollback
       const content = await ctx.readFile('main', 'file.txt');
-      expect(content).toContain('<<<<<<<');
-      expect(content).toContain('>>>>>>>');
+      expect(content).toBe('line 1\nuser change\nline 3\n');
+      expect(content).not.toContain('<<<<<<<');
+      expect(content).not.toContain('>>>>>>>');
     });
 
     it('6.3 Large file: exceeds maxFileBytes limit', async () => {
@@ -1151,6 +1309,28 @@ describe('ShadowMergeEngine Robustness', () => {
       const allowed = await ctx.readFile('main', 'allowed.txt');
       expect(allowed).toContain('ai allowed');
       await expect(ctx.readFile('main', 'secret.txt')).rejects.toThrow();
+    });
+
+    it('6.9 Conflict Resolution: should generate .rej files on conflict', async () => {
+      const baseLines = 'line 1\nline 2\nline 3\n';
+      await ctx.writeFile('main', 'conflict.txt', baseLines);
+      await ctx.git.add('conflict.txt');
+      const initialRef = await ctx.git.commit('initial');
+
+      const userLines = 'line 1\nuser change\nline 3\n';
+      await ctx.writeFile('main', 'conflict.txt', userLines);
+
+      ctx.shadowGit.run(`fetch origin`);
+      ctx.shadowGit.run(`reset --hard ${initialRef}`);
+      const aiLines = 'line 1\nai change\nline 3\n';
+      await ctx.writeFile('shadow', 'conflict.txt', aiLines);
+      const latestRef = await ctx.shadowGit.commit('ai changes');
+
+      const engine = ctx.createEngine(initialRef, latestRef);
+      await expect(engine.apply()).rejects.toThrow(/\.rej/);
+
+      const rejContent = await ctx.readFile('main', '.s8p/rejections/conflict.txt.rej');
+      expect(rejContent).toBe(aiLines);
     });
   });
 });

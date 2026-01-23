@@ -14,6 +14,7 @@ dist/
 # IDE
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 *~
@@ -36,5 +37,6 @@ test-report.json
 # Temporary files
 *.tmp
 *.temp
+.s8p/
 
 plans/

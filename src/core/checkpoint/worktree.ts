@@ -150,10 +150,15 @@ export async function cleanupWorktreeCheckpoint(ref: CheckpointRef): Promise<voi
  * @param args - Git command arguments
  * @returns Promise with command output
  */
-export async function runGit(repoPath: string, args: string[]): Promise<string> {
+export async function runGit(
+  repoPath: string,
+  args: string[],
+  options: { env?: NodeJS.ProcessEnv } = {},
+): Promise<string> {
   return new Promise((resolve, reject) => {
     const child = spawn('git', args, {
       cwd: repoPath,
+      env: options.env ? { ...process.env, ...options.env } : process.env,
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true,
     });

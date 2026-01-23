@@ -1,186 +1,271 @@
-import { spawn } from 'child_process';
-import { EventEmitter } from 'events';
-import { writeFile, unlink } from 'fs/promises';
+/**
+ * Git Integration Tests - Using REAL filesystem and Git operations
+ *
+ * This test file follows the "source is truth" principle:
+ * - Uses real Git repositories
+ * - Uses real file system operations
+ * - No mocks for core functionality
+ * - Tests actual behavior, not implementation details
+ */
+
+import { describe, it, expect, afterEach } from 'vitest';
 
 import { applyPatch, getGitDiff, getGitStatus, rollbackFiles } from '../../src/core/git.js';
+import { RealFsTestHelper } from '../helpers/real-fs-helper.js';
 
-vi.mock('child_process', () => ({
-  spawn: vi.fn(),
-}));
+describe('Git Integration Tests (Real Filesystem)', () => {
+  const helper = new RealFsTestHelper();
 
-vi.mock('fs/promises', async () => {
-  const actual = await vi.importActual('fs/promises');
-  return {
-    ...actual,
-    writeFile: vi.fn(),
-    unlink: vi.fn(),
-  };
-});
-
-describe('Git Integration Tests', () => {
-  const repoPath = '/fake-repo';
-
-  beforeEach(() => {
-    vi.useFakeTimers();
-    vi.clearAllMocks();
+  afterEach(async () => {
+    await helper.cleanup();
   });
 
-  afterEach(() => {
-    vi.useRealTimers();
+  it('should apply patch to real repository', async () => {
+    // Create a real Git repository
+    const repo = await helper.createGitRepo({
+      initialFiles: [{ path: 'test.txt', content: 'line1\nline2\nline3\n' }],
+    });
+
+    // Modify the file
+    await helper.writeFile(repo.path, 'test.txt', 'line1\nmodified\nline3\n');
+
+    // Get the real diff
+    const diff = await getGitDiff(repo.path);
+
+    // Verify diff exists and contains expected changes
+    expect(diff).toBeDefined();
+    expect(diff).toContain('-line2');
+    expect(diff).toContain('+modified');
+
+    // Reset the file
+    await helper.git(repo.path, ['checkout', 'test.txt']);
+
+    // Apply the patch (REAL git apply, no mock)
+    if (!diff) throw new Error('Diff should not be undefined');
+    await applyPatch(repo.path, diff);
+
+    // Verify the file was actually modified
+    const content = await helper.readFile(repo.path, 'test.txt');
+    expect(content).toBe('line1\nmodified\nline3\n');
   });
 
-  it('should call git apply with correct arguments', async () => {
-    const mockChild = new EventEmitter() as any;
-    mockChild.stdout = new EventEmitter();
-    mockChild.stderr = new EventEmitter();
+  it('should rollback specific files in real repository', async () => {
+    const repo = await helper.createGitRepo({
+      initialFiles: [
+        { path: 'file1.ts', content: 'original content 1' },
+        { path: 'file2.ts', content: 'original content 2' },
+      ],
+    });
 
-    vi.mocked(spawn).mockReturnValue(mockChild);
-    vi.mocked(writeFile).mockResolvedValue(undefined);
-    vi.mocked(unlink).mockResolvedValue(undefined);
+    // Modify both files
+    await helper.modifyFile(repo.path, 'file1.ts', 'modified content 1');
+    await helper.modifyFile(repo.path, 'file2.ts', 'modified content 2');
 
-    // Call applyPatch first to set up event listeners
-    const promise = applyPatch(repoPath, 'fake diff');
+    // Verify files are modified
+    let status = await getGitStatus(repo.path);
+    expect(status).toContain('file1.ts');
+    expect(status).toContain('file2.ts');
 
-    // Advance timers to allow process.nextTick to execute
-    await vi.runAllTimersAsync();
-
-    // Now emit the close event
-    mockChild.emit('close', 0);
-
-    await promise;
-
-    expect(spawn).toHaveBeenCalledWith(
-      'git',
-      expect.arrayContaining(['apply', '--recount']),
-      expect.objectContaining({ cwd: repoPath }),
-    );
-  });
-
-  it('should rollback specific files', async () => {
-    // Mock checkout child
-    const checkoutChild = new EventEmitter() as any;
-    checkoutChild.stdout = new EventEmitter();
-    checkoutChild.stderr = new EventEmitter();
-
-    // Mock status child
-    const statusChild = new EventEmitter() as any;
-    statusChild.stdout = new EventEmitter();
-    statusChild.stderr = new EventEmitter();
-
-    vi.mocked(spawn).mockReturnValueOnce(checkoutChild).mockReturnValueOnce(statusChild);
-
-    const promise = rollbackFiles(repoPath, ['file1.ts', 'file2.ts']);
-
-    // Advance timers and emit events in sequence
-    await vi.runAllTimersAsync();
-    checkoutChild.emit('close', 0);
-
-    await vi.runAllTimersAsync();
-    statusChild.stdout.emit('data', Buffer.from('')); // Empty = clean
-    statusChild.emit('close', 0);
-
-    const result = await promise;
+    // Rollback specific files (REAL git checkout)
+    const result = await rollbackFiles(repo.path, ['file1.ts', 'file2.ts']);
 
     expect(result.ok).toBe(true);
-    expect(spawn).toHaveBeenCalledWith(
-      'git',
-      ['checkout', '--', 'file1.ts', 'file2.ts'],
-      expect.objectContaining({ cwd: repoPath }),
-    );
+    expect(result.attempted).toContain('file1.ts');
+    expect(result.attempted).toContain('file2.ts');
+
+    // Verify files are actually rolled back
+    const content1 = await helper.readFile(repo.path, 'file1.ts');
+    const content2 = await helper.readFile(repo.path, 'file2.ts');
+
+    expect(content1).toBe('original content 1');
+    expect(content2).toBe('original content 2');
+
+    // Verify git status is clean
+    status = await getGitStatus(repo.path);
+    expect(status.trim()).toBe('');
   });
 
   it('should perform hard reset when forceReset is true', async () => {
-    // Create mock children for the main spawn calls:
-    const resetChild = new EventEmitter() as any;
-    resetChild.stdout = new EventEmitter();
-    resetChild.stderr = new EventEmitter();
+    const repo = await helper.createGitRepo({
+      initialFiles: [{ path: 'tracked.js', content: 'tracked' }],
+    });
 
-    const cleanChild = new EventEmitter() as any;
-    cleanChild.stdout = new EventEmitter();
-    cleanChild.stderr = new EventEmitter();
+    // Create various types of changes
+    await helper.modifyFile(repo.path, 'tracked.js', 'modified tracked');
+    await helper.writeFile(repo.path, 'untracked.js', 'untracked file');
 
-    const statusChild = new EventEmitter() as any;
-    statusChild.stdout = new EventEmitter();
-    statusChild.stderr = new EventEmitter();
+    // Verify dirty state
+    let status = await getGitStatus(repo.path);
+    expect(status).toContain('tracked.js');
+    expect(status).toContain('untracked.js');
 
-    vi.mocked(spawn)
-      .mockReturnValueOnce(resetChild) // rollbackFiles reset --hard
-      .mockReturnValueOnce(cleanChild) // rollbackFiles clean -fd
-      .mockReturnValueOnce(statusChild); // rollbackFiles status check
-
-    const promise = rollbackFiles(repoPath, [], true);
-
-    // Emit events in sequence with timer advances
-    await vi.runAllTimersAsync();
-    resetChild.emit('close', 0);
-
-    await vi.runAllTimersAsync();
-    cleanChild.emit('close', 0);
-
-    await vi.runAllTimersAsync();
-    statusChild.stdout.emit('data', Buffer.from('')); // Empty = clean
-    statusChild.emit('close', 0);
-
-    const result = await promise;
+    // Force reset (REAL git reset --hard && git clean -fd)
+    const result = await rollbackFiles(repo.path, [], true);
 
     expect(result.ok).toBe(true);
-    expect(spawn).toHaveBeenCalledWith(
-      'git',
-      ['reset', '--hard', 'HEAD'],
-      expect.objectContaining({ cwd: repoPath }),
-    );
-    expect(spawn).toHaveBeenCalledWith(
-      'git',
-      ['clean', '-fd'],
-      expect.objectContaining({ cwd: repoPath }),
-    );
+
+    // Verify everything is rolled back
+    const content = await helper.readFile(repo.path, 'tracked.js');
+    expect(content).toBe('tracked');
+
+    // Verify untracked file is removed
+    const untrackedExists = await helper.fileExists(repo.path, 'untracked.js');
+    expect(untrackedExists).toBe(false);
+
+    // Verify git status is clean
+    status = await getGitStatus(repo.path);
+    expect(status.trim()).toBe('');
   });
 
-  it('should get git diff', async () => {
-    const mockChild = new EventEmitter() as any;
-    mockChild.stdout = new EventEmitter();
-    mockChild.stderr = new EventEmitter();
+  it('should get git diff for unstaged changes', async () => {
+    const repo = await helper.createGitRepo({
+      initialFiles: [{ path: 'app.js', content: 'console.log("hello");' }],
+    });
 
-    vi.mocked(spawn).mockReturnValue(mockChild);
+    // Modify file without staging
+    await helper.modifyFile(repo.path, 'app.js', 'console.log("hello world");');
 
-    const promise = getGitDiff(repoPath);
+    // Get real diff
+    const diff = await getGitDiff(repo.path);
 
-    // Allow event listeners to be set up
-    await vi.runAllTimersAsync();
-
-    // Emit events
-    mockChild.stdout.emit('data', Buffer.from('diff content'));
-    mockChild.emit('close', 0);
-
-    const diff = await promise;
-
-    expect(diff).toBe('diff content');
-    expect(spawn).toHaveBeenCalledWith('git', ['diff'], expect.objectContaining({ cwd: repoPath }));
+    expect(diff).toBeDefined();
+    expect(diff).toContain('diff --git a/app.js b/app.js');
+    expect(diff).toContain('-console.log("hello");');
+    expect(diff).toContain('+console.log("hello world");');
   });
 
-  it('should get git status', async () => {
-    const mockChild = new EventEmitter() as any;
-    mockChild.stdout = new EventEmitter();
-    mockChild.stderr = new EventEmitter();
+  it('should get git diff for staged changes', async () => {
+    const repo = await helper.createGitRepo({
+      initialFiles: [{ path: 'app.js', content: 'console.log("hello");' }],
+    });
 
-    vi.mocked(spawn).mockReturnValue(mockChild);
+    // Modify and stage file
+    await helper.modifyFile(repo.path, 'app.js', 'console.log("hello world");', true);
 
-    const promise = getGitStatus(repoPath);
+    // Get staged diff (REAL git diff --cached)
+    const diff = await getGitDiff(repo.path, true);
 
-    // Allow event listeners to be set up
-    await vi.runAllTimersAsync();
+    expect(diff).toBeDefined();
+    expect(diff).toContain('diff --git a/app.js b/app.js');
+    expect(diff).toContain('-console.log("hello");');
+    expect(diff).toContain('+console.log("hello world");');
+  });
 
-    // Emit events
-    mockChild.stdout.emit('data', Buffer.from('M file1.ts'));
-    mockChild.emit('close', 0);
+  it('should get git status with modified files', async () => {
+    const repo = await helper.createGitRepo({
+      initialFiles: [{ path: 'file1.ts', content: 'content1' }],
+    });
 
-    const status = await promise;
+    // Modify file
+    await helper.modifyFile(repo.path, 'file1.ts', 'modified content');
 
-    expect(status).toBe('M file1.ts');
-    expect(spawn).toHaveBeenCalledWith(
-      'git',
-      ['status', '--short'],
-      expect.objectContaining({ cwd: repoPath }),
+    // Get real status
+    const status = await getGitStatus(repo.path);
+
+    expect(status).toBeDefined();
+    expect(status).toContain('M');
+    expect(status).toContain('file1.ts');
+  });
+
+  it('should handle patch with binary files', async () => {
+    const repo = await helper.createGitRepo({
+      initialFiles: [{ path: 'text.txt', content: 'text file' }],
+    });
+
+    // Create a "binary-like" file (we'll use a text file for simplicity)
+    await helper.writeFile(repo.path, 'data.bin', '\x00\x01\x02\x03');
+    await helper.git(repo.path, ['add', 'data.bin']);
+    await helper.git(repo.path, ['commit', '-m', 'Add binary file']);
+
+    // Modify text file
+    await helper.modifyFile(repo.path, 'text.txt', 'modified text file');
+
+    // Get diff with binary
+    const diff = await helper.git(repo.path, ['diff', '--binary']);
+
+    // Apply patch should handle binary files
+    await helper.git(repo.path, ['checkout', 'text.txt']);
+    await applyPatch(repo.path, diff.stdout);
+
+    const content = await helper.readFile(repo.path, 'text.txt');
+    expect(content).toBe('modified text file');
+  });
+
+  it('should filter out absolute paths in rollback', async () => {
+    const repo = await helper.createGitRepo();
+
+    // Attempt to rollback with absolute path (security check)
+    const result = await rollbackFiles(repo.path, [
+      '/absolute/path.ts',
+      'C:\\absolute\\windows.ts',
+    ]);
+
+    // Should not include absolute paths
+    expect(result.attempted).not.toContain('/absolute/path.ts');
+    expect(result.attempted).not.toContain('C:\\absolute\\windows.ts');
+  });
+
+  it('should handle patch application failure gracefully', async () => {
+    const repo = await helper.createGitRepo({
+      initialFiles: [{ path: 'test.txt', content: 'line1\nline2\nline3\n' }],
+    });
+
+    // Create a patch that won't apply
+    const invalidPatch = `diff --git a/test.txt b/test.txt
+index 123..456 100644
+--- a/test.txt
++++ b/test.txt
+@@ -1 +1 @@
+-nonexistent line
++new line`;
+
+    // Should throw error on invalid patch
+    await expect(applyPatch(repo.path, invalidPatch)).rejects.toThrow();
+  });
+
+  it('should handle empty diff gracefully', async () => {
+    const repo = await helper.createGitRepo();
+
+    const diff = await getGitDiff(repo.path);
+
+    expect(diff).toBe('');
+  });
+
+  it('should apply patch with context lines correctly', async () => {
+    const repo = await helper.createGitRepo({
+      initialFiles: [
+        {
+          path: 'code.js',
+          content: `function test() {
+  const a = 1;
+  const b = 2;
+  const c = 3;
+  return a + b + c;
+}`,
+        },
+      ],
+    });
+
+    // Modify middle line
+    await helper.writeFile(
+      repo.path,
+      'code.js',
+      `function test() {
+  const a = 1;
+  const b = 20;
+  const c = 3;
+  return a + b + c;
+}`,
     );
+
+    const diff = await getGitDiff(repo.path);
+
+    // Reset and reapply
+    await helper.git(repo.path, ['checkout', 'code.js']);
+    if (!diff) throw new Error('Diff should not be undefined');
+    await applyPatch(repo.path, diff, { contextLines: 3 });
+
+    const content = await helper.readFile(repo.path, 'code.js');
+    expect(content).toContain('const b = 20;');
   });
 });

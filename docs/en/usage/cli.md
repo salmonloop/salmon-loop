@@ -1,26 +1,102 @@
 # CLI Reference
 
-SalmonLoop provides a command-line interface for automated code patching.
+SalmonLoop provides a command-line interface (`s8p`) for automated code patching.
 
 ## Commands
 
-The `run` command is the default and currently the only command.
+### Default Run
+The main entry point for the Agent Loop.
 
 ```bash
-salmon-loop [options]
+s8p [options]
 ```
 
-## Options
+## Global Options
 
-### Core Options
+- `-r, --repo <path>`: Path to the git repository root. Defaults to the current directory.
+- `--verbose [level]`: Enable verbose logging (`basic` or `extended`).
+
+## Core Options (for Default Run)
 
 - `-i, --instruction <string>`: **(Required)** Instruction for the LLM to follow.
 - `-v, --verify <command>`: **(Required)** Verification command to run after applying the patch (e.g., `npm test`, `pytest`).
-- `-r, --repo <path>`: Path to the git repository root. Defaults to the current directory.
 - `-f, --file <path>`: Path to a specific file to provide as primary context (repo-relative or absolute).
 - `-s, --selection <text>`: Direct text selection to provide as context.
 
-### Execution & Safety Options
+## Snapshot Management
+
+SalmonLoop (s8p) includes a robust snapshot system that captures the exact state of your repository (staged + unstaged changes) before execution.
+
+**Alias**: You can use `s8p snap` instead of `s8p snapshot`.
+
+### Create Snapshot
+Manually create a snapshot of the current workspace state.
+
+```bash
+s8p snap create -m "Backup before refactor"
+```
+
+### List Snapshots
+List all available snapshots. Alias: `ls`.
+
+```bash
+s8p snap ls
+```
+
+### Inspect Snapshot
+View detailed information. Use `--files` to list all files contained in the snapshot.
+
+```bash
+s8p snap show <hash> [--files]
+```
+
+### Compare Snapshots
+Compare changes between a snapshot and the current workspace, or between two snapshots.
+
+```bash
+# Show summary stats
+s8p snap diff <hash>
+
+# Show full code diff
+s8p snap diff <hash> --code
+
+# Compare two snapshots
+s8p snap diff <hash1> <hash2>
+```
+
+### View File Content
+Read the content of a file directly from a snapshot ("Source is Truth").
+
+```bash
+s8p snapshot cat <hash> <file_path>
+```
+
+### Export Snapshot
+Export the entire content of a snapshot to a directory.
+
+```bash
+s8p snapshot export <hash> <target_directory>
+```
+
+### Restore Snapshot
+Manually restore the workspace to a specific snapshot state. Alias: `checkout`.
+
+```bash
+s8p checkout <hash> [--force]
+```
+
+### Delete & Clear
+Manage snapshot lifecycle. Alias: `rm`.
+
+```bash
+# Delete a single snapshot
+s8p snap rm <hash>
+
+# Clear ALL snapshots (requires confirmation)
+s8p snap clear --force
+```
+
+## Execution & Safety Options
 
 - `-cs, --checkpoint-strategy <direct|worktree>`: (Default: `direct`) Checkpoint strategy. `worktree` is safer and ignores dirty state by running in an isolated temporary directory.
 - `--apply-back-on-dirty <stash|abort>`: (Default: `stash`) When using `worktree`, choose how to handle a dirty main workspace during apply-back.
@@ -58,6 +134,7 @@ When a loop fails, SalmonLoop provides actionable suggestions based on the failu
 
 ## Environment Variables
 
-- `SALMON_API_KEY`: Your LLM provider API key.
-- `SALMON_BASE_URL`: (Optional) Custom API base URL.
-- `SALMON_MODEL`: (Optional) LLM model to use.
+- `S8P_API_KEY`: Your LLM provider API key (preferred).
+- `S8P_BASE_URL`: (Optional) Custom API base URL.
+- `S8P_MODEL`: (Optional) LLM model to use.
+- `SALMON_API_KEY`: (Legacy) Fallback for backward compatibility.

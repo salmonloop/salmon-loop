@@ -18,7 +18,13 @@ export const en = {
       lastError?: string,
     ) => `You are a code modification assistant. Please generate a detailed modification plan based on the following context and instruction.
 
-# Context
+# Context Hierarchy
+- **Primary Text**: The ACTUAL content of the files. This is the absolute truth you must modify.
+- **Staged Diff**: Represents committed intentions or baseline changes. Respect these as part of the established direction.
+- **Unstaged Diff**: Shows recent work in progress. Do not revert or overwrite these changes unless explicitly instructed.
+- **Untracked Files**: New files that are not yet tracked by git.
+
+# Context Data
 ${context}
 
 # Instruction
@@ -56,10 +62,16 @@ Please return the plan in PURE JSON format without any additional text:`,
 
       return `You are a code modification assistant. Please generate a unified diff format patch based on the following plan and context.
 
+# Context Hierarchy
+- **Primary Text**: The ACTUAL content of the files. This is the absolute truth you must modify.
+- **Staged Diff**: Represents committed intentions or baseline changes. Respect these as part of the established direction.
+- **Unstaged Diff**: Shows recent work in progress. Do not revert or overwrite these changes unless explicitly instructed.
+- **Untracked Files**: New files that are not yet tracked by git.
+
 # Plan
 ${plan}
 
-# Context
+# Context Data
 ${context}
 ${targetFiles ? `\n# Target Files\n${targetFiles}\n` : ''}
 ${lastError ? `\n# Last Error\nThe previous attempt failed with the following error. Please fix the issue described:\n${lastError}\n` : ''}
@@ -180,6 +192,18 @@ Please return the patch in PURE unified diff format:`;
       `[applyBack] Applied line locations for ${file}: ${locations}`,
     unionMergeWarning: (file: string) =>
       `[applyBack] Note: used union merge strategy for ignored file ${file}. Please check for duplicate keys.`,
+    applyBackCompletedWithConflicts: (count: number, files: string) =>
+      `Apply-back completed with conflicts in ${count} file(s): ${files}. Rejection files (.rej) have been generated.`,
+    conflictGeneratedRejection: (file: string, path: string) =>
+      `Conflict in ${file}, generated rejection file: ${path}`,
+    failedToGenerateRejection: (file: string, error: string) =>
+      `Failed to generate .rej file for ${file}: ${error}`,
+    workspaceDirtyAbort: 'Workspace is dirty and applyBackOnDirty is set to abort',
+    promotingUnstagedChanges: (file: string) =>
+      `[ShadowMergeEngine] File ${file} is in MM (Double Dirty) state. Promoting unstaged changes to index to resolve context dependency.`,
+    skippingIgnoredFileOverwrite: (file: string) => `Skipping overwrite of ignored file: ${file}`,
+    using3WayMergeStrategy:
+      '[ShadowMergeEngine] Using 3-way merge strategy to preserve user changes in dirty workspace.',
   },
 
   verify: {
@@ -193,7 +217,8 @@ Please return the patch in PURE unified diff format:`;
     failedToStartCommand: 'Failed to start command',
     verifyFileContentError: (file: string, error: string) =>
       `Error verifying file content for ${file}: ${error}`,
-    worktreeStrategyActive: 'Worktree strategy active: ignoring dirty state in base repository.',
+    worktreeStrategyActive:
+      'Worktree strategy active: dirty state will be preserved in shadow worktree.',
     ripgrepNotFoundWarning: 'ripgrep (rg) not found. Context gathering may be limited.',
   },
 
@@ -207,6 +232,9 @@ Please return the patch in PURE unified diff format:`;
     codeSnippets: 'Code Snippets:',
     snippetLocation: (file: string, line: number) => `File: ${file}:${line}`,
     gitDiff: 'Git Diff:',
+    stagedDiff: 'Staged Diff (Committed Intentions):',
+    unstagedDiff: 'Unstaged Diff (Work in Progress):',
+    untrackedFiles: 'Untracked Files (New Files):',
   },
 
   cli: {

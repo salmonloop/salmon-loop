@@ -12,6 +12,7 @@ import {
   validateNodeStructure,
   validateScopeIntegrity,
 } from './ast/index.js';
+import { CheckpointManager } from './checkpoint/manager.js';
 import { runGit } from './checkpoint/worktree.js';
 import { Semaphore } from './concurrency.js';
 import { ContextBuilder } from './context.js';
@@ -23,6 +24,7 @@ import { LLM } from './llm.js';
 import { logger } from './logger.js';
 import { ShadowMergeEngine } from './merge/shadow-merge.js';
 import { monitor } from './monitor.js';
+import { SyntheticSidecarLayerImpl } from './strata/layers/sidecar-layer.js';
 import {
   ExecutionPhase,
   ErrorType,
@@ -53,6 +55,8 @@ const SECURITY_BLOCKLIST: RegExp[] = [
 ];
 
 const DEFAULT_MAX_FILE_BYTES = Number(process.env.SALMON_SECURITY_MAX_FILE_BYTES) || 1024 * 1024;
+
+type ApplyBackErrorMeta = Error & { appliedToMain?: boolean };
 
 export interface LoopOptions {
   /**
@@ -91,6 +95,10 @@ export interface LoopOptions {
    * The target file path.
    */
   file?: string;
+  /**
+   * Additional context file paths.
+   */
+  contextFiles?: string[];
   /**
    * The direct text selection.
    */
@@ -134,6 +142,17 @@ export async function runSalmonLoop(options: LoopOptions): Promise<LoopResult> {
   });
 }
 
+function collectSidecarPaths(options: LoopOptions): string[] {
+  if (!options.contextFiles || options.contextFiles.length === 0) {
+    return [];
+  }
+  const paths = new Set<string>();
+  for (const filePath of options.contextFiles) {
+    if (filePath) paths.add(filePath);
+  }
+  return Array.from(paths);
+}
+
 /**
  * SalmonLoop Execution Kernel
  *
@@ -155,6 +174,7 @@ export class SalmonLoop {
 
     const logs: StepLog[] = [];
     const history: LoopIteration[] = [];
+    const checkpointManager = new CheckpointManager();
     let context: Context;
     let currentPhase: ExecutionPhase = ExecutionPhase.PREFLIGHT;
     let phaseEnded = true;
@@ -183,18 +203,73 @@ export class SalmonLoop {
     };
 
     // Setup workspace
+    let initialSnapshotHash: string | undefined;
+
+    // Create safe snapshot if using worktree strategy
+    if (options.strategy === 'worktree') {
+      try {
+        // Collect explicit files to include (specifically for ignored files like .env)
+        const includePaths: string[] = [];
+        if (options.file) {
+          includePaths.push(options.file);
+        }
+
+        const snapshot = await checkpointManager.createSafeSnapshot(options.repoPath, includePaths);
+        initialSnapshotHash = snapshot.commitHash;
+        emit({
+          type: 'log',
+          level: 'debug',
+          message: `Created safe snapshot: ${initialSnapshotHash}`,
+          timestamp: now(),
+        });
+      } catch (error) {
+        const msg = `Failed to create snapshot: ${error instanceof Error ? error.message : String(error)}`;
+        logs.push(this.createLog('error', msg, false));
+        emit({ type: 'log', level: 'error', message: msg, timestamp: now() });
+        return {
+          success: false,
+          reason: msg,
+          reasonCode: 'LOOP_FAILED',
+          attempts: 0,
+          logs,
+          failurePhase: ExecutionPhase.PREFLIGHT,
+          errorType: ErrorType.UNKNOWN,
+        };
+      }
+    }
+
     try {
-      workspace = await WorkspaceManager.setup({
-        instruction: options.instruction,
-        verify: options.verify,
-        repoPath: options.repoPath,
-        file: options.file,
-        selection: options.selection,
-        dryRun: options.dryRun,
-        verbose: options.verbose,
-        strategy: options.strategy,
-      });
+      workspace = await WorkspaceManager.setup(
+        {
+          instruction: options.instruction,
+          verify: options.verify,
+          repoPath: options.repoPath,
+          file: options.file,
+          selection: options.selection,
+          dryRun: options.dryRun,
+          verbose: options.verbose,
+          strategy: options.strategy,
+        },
+        initialSnapshotHash,
+      );
       setupWorkPath = workspace.workPath;
+
+      // Restore staged state in shadow worktree
+      if (workspace.strategy === 'worktree' && initialSnapshotHash) {
+        await checkpointManager.restoreToShadow(
+          options.repoPath,
+          workspace.workPath,
+          initialSnapshotHash,
+        );
+
+        // CRITICAL FIX: Force filesystem sync after restoreToShadow
+        // On Windows, file system writes from Git operations may be buffered/cached.
+        // Running 'git status' forces Git to refresh its internal cache and ensures
+        // subsequent file reads (via fs.readFile in buildContextForRepo) get the
+        // correct working tree content, not stale cached data.
+        // This fixes the issue where LLM reads clean version instead of dirty working tree.
+        await runGit(workspace.workPath, ['status', '--short']);
+      }
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       logs.push(this.createLog('error', msg, false));
@@ -229,7 +304,8 @@ export class SalmonLoop {
     // Capture worktree metadata if using worktree strategy
     if (options.strategy === 'worktree') {
       try {
-        const baseRef = await runGit(options.repoPath, ['rev-parse', 'HEAD']);
+        const baseRef =
+          initialSnapshotHash || (await runGit(options.repoPath, ['rev-parse', 'HEAD']));
         checkpointRef = {
           strategy: 'worktree',
           repoPath: options.repoPath,
@@ -332,75 +408,20 @@ export class SalmonLoop {
         }
 
         if (options.strategy === 'worktree' && checkpointRef) {
-          const mainStatus = await getGitStatus(options.repoPath);
-          if (mainStatus.trim()) {
+          shadowInitialRef = checkpointRef.baseRef;
+          try {
+            await runGit(activeRepoPath, [
+              'update-ref',
+              `refs/ai-agent/checkpoints/${shadowTaskId}/initial`,
+              checkpointRef.baseRef,
+            ]);
+          } catch (error) {
             emit({
               type: 'log',
-              level: 'debug',
-              message: text.loop.syncingDirtyWorkspace,
+              level: 'warn',
+              message: `Failed to record initial checkpoint ref: ${error instanceof Error ? error.message : String(error)}`,
               timestamp: now(),
             });
-            try {
-              const snapshot = await this.captureDirtySnapshot(options.repoPath);
-              await this.applyDirtySnapshotToWorktree(
-                options.repoPath,
-                activeRepoPath,
-                snapshot,
-                options.verbose,
-              );
-              const baselineRef = await this.createDirtyBaselineCommit(
-                activeRepoPath,
-                shadowTaskId,
-              );
-              if (baselineRef) {
-                checkpointRef.baseRef = baselineRef;
-                shadowInitialRef = baselineRef;
-                emit({
-                  type: 'log',
-                  level: 'debug',
-                  message: `Dirty baseline commit created in worktree: ${baselineRef}`,
-                  timestamp: now(),
-                });
-              } else {
-                shadowInitialRef = checkpointRef.baseRef;
-                await runGit(activeRepoPath, [
-                  'update-ref',
-                  `refs/ai-agent/checkpoints/${shadowTaskId}/initial`,
-                  checkpointRef.baseRef,
-                ]);
-              }
-            } catch (error) {
-              const msg = `Failed to sync dirty workspace into worktree: ${
-                error instanceof Error ? error.message : String(error)
-              }`;
-              endPhase(false);
-              emit({ type: 'log', level: 'error', message: msg, timestamp: now() });
-              return {
-                success: false,
-                reason: msg,
-                reasonCode: 'LOOP_FAILED',
-                attempts: 0,
-                logs,
-                failurePhase: ExecutionPhase.PREFLIGHT,
-                errorType: ErrorType.UNKNOWN,
-              };
-            }
-          } else {
-            shadowInitialRef = checkpointRef.baseRef;
-            try {
-              await runGit(activeRepoPath, [
-                'update-ref',
-                `refs/ai-agent/checkpoints/${shadowTaskId}/initial`,
-                checkpointRef.baseRef,
-              ]);
-            } catch (error) {
-              emit({
-                type: 'log',
-                level: 'warn',
-                message: `Failed to record initial checkpoint ref: ${error instanceof Error ? error.message : String(error)}`,
-                timestamp: now(),
-              });
-            }
           }
         }
         endPhase(true);
@@ -416,6 +437,8 @@ export class SalmonLoop {
           selection: options.selection,
           dryRun: options.dryRun,
           verbose: options.verbose,
+          snapshotHash: initialSnapshotHash,
+          checkpointManager,
         });
         emit({
           type: 'log',
@@ -613,7 +636,9 @@ export class SalmonLoop {
             const strictTargetApply = Boolean(options.targetNodeName);
             await applyPatch(activeRepoPath, currentDiff, {
               contextLines: 3,
-              ignoreWhitespace: strictTargetApply ? false : true,
+              // Always ignore whitespace to handle CRLF/LF issues on Windows
+              // Semantic correctness is guaranteed by AST validation later
+              ignoreWhitespace: true,
               threeWay: strictTargetApply,
             });
 
@@ -857,53 +882,65 @@ export class SalmonLoop {
                   options.repoPath,
                   checkpointRef,
                   currentDiff || '',
-                  options.applyBackOnDirty ?? 'stash',
+                  options.applyBackOnDirty ?? '3way',
                   options.verbose,
                   changedFilesThisAttempt,
                   shadowInitialRef,
                   shadowLatestRef,
+                  collectSidecarPaths(options),
                 );
               } catch (error) {
                 const msg = `Failed to apply changes back to main workspace: ${error instanceof Error ? error.message : String(error)}`;
                 logs.push(this.createLog('error', msg, false));
                 emit({ type: 'log', level: 'error', message: msg, timestamp: now() });
 
-                // Rollback main workspace changes on apply-back failure
-                emit({
-                  type: 'log',
-                  level: 'warn',
-                  message: 'Attempting to rollback main workspace changes...',
-                  timestamp: now(),
-                });
-                try {
-                  const mainStatus = await getGitStatus(options.repoPath);
-                  if (mainStatus.trim()) {
-                    const rb = await rollbackFiles(
-                      options.repoPath,
-                      changedFilesThisAttempt,
-                      false,
-                    );
-                    if (rb.ok) {
-                      emit({
-                        type: 'log',
-                        level: 'info',
-                        message: 'Main workspace rollback succeeded',
-                        timestamp: now(),
-                      });
-                    } else {
-                      emit({
-                        type: 'log',
-                        level: 'error',
-                        message: `Main workspace rollback failed: ${rb.stderr}`,
-                        timestamp: now(),
-                      });
-                    }
-                  }
-                } catch (rollbackError) {
+                const appliedToMain = (error as ApplyBackErrorMeta).appliedToMain === true;
+                if (appliedToMain) {
+                  // Rollback main workspace changes on apply-back failure
                   emit({
                     type: 'log',
-                    level: 'error',
-                    message: `Main workspace rollback error: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}`,
+                    level: 'warn',
+                    message: 'Attempting to rollback main workspace changes...',
+                    timestamp: now(),
+                  });
+                  try {
+                    const mainStatus = await getGitStatus(options.repoPath);
+                    if (mainStatus.trim()) {
+                      const rb = await rollbackFiles(
+                        options.repoPath,
+                        changedFilesThisAttempt,
+                        false,
+                      );
+                      if (rb.ok) {
+                        emit({
+                          type: 'log',
+                          level: 'info',
+                          message: 'Main workspace rollback succeeded',
+                          timestamp: now(),
+                        });
+                      } else {
+                        emit({
+                          type: 'log',
+                          level: 'error',
+                          message: `Main workspace rollback failed: ${rb.stderr}`,
+                          timestamp: now(),
+                        });
+                      }
+                    }
+                  } catch (rollbackError) {
+                    emit({
+                      type: 'log',
+                      level: 'error',
+                      message: `Main workspace rollback error: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}`,
+                      timestamp: now(),
+                    });
+                  }
+                } else {
+                  emit({
+                    type: 'log',
+                    level: 'warn',
+                    message:
+                      'Apply-back failed before touching the main workspace. Rollback skipped.',
                     timestamp: now(),
                   });
                 }
@@ -1384,91 +1421,31 @@ export class SalmonLoop {
     initialRef: string,
     latestRef: string,
     verbose?: VerboseLevel,
+    includePaths: string[] = [],
+    applyBackOnDirty: ApplyBackOnDirty = '3way',
   ): Promise<void> {
-    const engine = new ShadowMergeEngine({
-      mainRepoPath,
-      shadowWorktreePath,
-      initialRef,
-      latestRef,
-      verbose,
-      maxFileBytes: DEFAULT_MAX_FILE_BYTES,
-      shouldAllowPath: (filePath, contentSize) =>
-        this.shouldAllowPath(mainRepoPath, filePath, { contentSize }),
-    });
-    await engine.apply();
-  }
-
-  private async captureDirtySnapshot(repoPath: string): Promise<{
-    stagedPatch: string;
-    unstagedPatch: string;
-    untrackedFiles: string[];
-    trackedFiles: string[];
-    deletedFiles: string[];
-    stagedFiles: string[];
-    unstagedFiles: string[];
-  }> {
-    const status = await runGit(repoPath, ['status', '--porcelain']);
-    logger.trace(`[captureDirtySnapshot] git status output:\n${status}`);
-
-    const entries = this.parseStatusEntries(status);
-    const trackedFilesRaw = entries
-      .filter((entry) => entry.code !== '??')
-      .map((entry) => entry.path);
-    const deletedFiles = new Set<string>(
-      entries.filter((entry) => entry.origPath).map((entry) => entry.origPath as string),
-    );
-
-    const trackedFiles: string[] = [];
-    for (const file of trackedFilesRaw) {
-      try {
-        await readFile(path.join(repoPath, ...file.split('/')));
-        trackedFiles.push(file);
-      } catch {
-        deletedFiles.add(file);
-      }
+    // Create and inject sidecar layer
+    const sidecar = new SyntheticSidecarLayerImpl(mainRepoPath);
+    if (includePaths.length > 0) {
+      await sidecar.capture(includePaths);
     }
-    const stagedPatch = await runGit(repoPath, [
-      'diff',
-      '--cached',
-      '--binary',
-      '--no-color',
-      '--no-ext-diff',
-    ]);
-    const unstagedPatch = await runGit(repoPath, [
-      'diff',
-      '--binary',
-      '--no-color',
-      '--no-ext-diff',
-    ]);
-    const stagedFilesOutput = await runGit(repoPath, ['diff', '--name-only', '--cached']);
-    const unstagedFilesOutput = await runGit(repoPath, ['diff', '--name-only']);
 
-    logger.trace(`[captureDirtySnapshot] Staged files output: "${stagedFilesOutput}"`);
-    logger.trace(`[captureDirtySnapshot] Unstaged files output: "${unstagedFilesOutput}"`);
-    logger.trace(`[captureDirtySnapshot] Staged patch length: ${stagedPatch.length} bytes`);
-    logger.trace(`[captureDirtySnapshot] Unstaged patch length: ${unstagedPatch.length} bytes`);
-    const parseList = (output: string): string[] =>
-      output
-        .split('\n')
-        .map((line) => line.trim())
-        .filter((line) => line.length > 0)
-        .map((line) => this.normalizePath(line));
-    const stagedFiles = parseList(stagedFilesOutput);
-    const unstagedFiles = parseList(unstagedFilesOutput);
-    const untrackedOutput = await runGit(repoPath, ['ls-files', '--others', '--exclude-standard']);
-    const untrackedFiles = untrackedOutput
-      .split('\n')
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0);
-    return {
-      stagedPatch,
-      unstagedPatch,
-      untrackedFiles,
-      trackedFiles,
-      deletedFiles: Array.from(deletedFiles),
-      stagedFiles,
-      unstagedFiles,
-    };
+    const engine = new ShadowMergeEngine(
+      {
+        mainRepoPath,
+        shadowWorktreePath,
+        initialRef,
+        latestRef,
+        verbose,
+        applyBackOnDirty,
+        maxFileBytes: DEFAULT_MAX_FILE_BYTES,
+        shouldAllowPath: (filePath, contentSize) =>
+          this.shouldAllowPath(mainRepoPath, filePath, { contentSize }),
+      },
+      new CheckpointManager(),
+      sidecar,
+    );
+    await engine.apply();
   }
 
   private parseStatusEntries(status: string): {
@@ -1493,253 +1470,21 @@ export class SalmonLoop {
       .filter((entry) => entry.path.length > 0);
   }
 
-  private async applyDirtySnapshotToWorktree(
-    sourceRepoPath: string,
-    worktreePath: string,
-    snapshot: {
-      stagedPatch: string;
-      unstagedPatch: string;
-      untrackedFiles: string[];
-      trackedFiles: string[];
-      deletedFiles: string[];
-      stagedFiles: string[];
-      unstagedFiles: string[];
-    },
-    verbose?: VerboseLevel,
-  ): Promise<void> {
-    // Goal: Copy the complete working tree state from main workspace to worktree
-    // This includes staged changes + unstaged changes + untracked files
-    // The worktree working tree should match exactly what the user sees in main workspace
-
-    // Step 1: Copy all tracked files (working tree version with all modifications)
-    if (snapshot.trackedFiles.length > 0) {
-      if (verbose === 'extended') {
-        logger.trace(
-          `[applyDirtySnapshot] Copying ${snapshot.trackedFiles.length} tracked files from main working tree to worktree`,
-        );
-      }
-      await this.copyTrackedFilesWithLineEndingLogging(
-        sourceRepoPath,
-        worktreePath,
-        snapshot.trackedFiles,
-        verbose,
-      );
-    }
-
-    // Step 2: Handle deleted files
-    if (snapshot.deletedFiles.length > 0) {
-      if (verbose === 'extended') {
-        logger.trace(
-          `[applyDirtySnapshot] Removing ${snapshot.deletedFiles.length} deleted files in worktree`,
-        );
-      }
-      for (const file of snapshot.deletedFiles) {
-        try {
-          await runGit(worktreePath, ['rm', '-f', '--', file]);
-        } catch {
-          // Ignore remove failures; file may already be absent
-        }
-      }
-    }
-
-    // Step 3: Copy untracked files
-    if (snapshot.untrackedFiles.length > 0) {
-      if (verbose === 'extended') {
-        logger.trace(
-          `[applyDirtySnapshot] Copying ${snapshot.untrackedFiles.length} untracked files from main to worktree`,
-        );
-      }
-      await this.copyUntrackedFiles(sourceRepoPath, worktreePath, snapshot.untrackedFiles, verbose);
-    }
-
-    // Note: We do NOT apply staged patch or sync index to working tree
-    // Because our goal is: worktree working tree = main workspace working tree (complete state)
-    // The subsequent createDirtyBaselineCommit will commit the working tree content as-is
-    // This ensures Context builder sees exactly what will be committed as baseline
-  }
-
-  private async copyUntrackedFiles(
-    sourceRepoPath: string,
-    targetRepoPath: string,
-    files: string[],
-    verbose?: VerboseLevel,
-  ): Promise<void> {
-    for (const file of files) {
-      const policy = await this.shouldAllowPath(sourceRepoPath, file);
-      if (!policy.allowed) {
-        logger.warn(text.loop.skipFileDueToPolicy(policy.reason, file));
-        continue;
-      }
-      const srcPath = path.join(sourceRepoPath, ...file.split('/'));
-      const destPath = path.join(targetRepoPath, ...file.split('/'));
-      await mkdir(path.dirname(destPath), { recursive: true });
-      try {
-        await copyFile(srcPath, destPath);
-
-        if (verbose === 'extended') {
-          try {
-            const srcContent = await readFile(srcPath, 'utf8');
-            const destContent = await readFile(destPath, 'utf8');
-
-            const srcCrlf = (srcContent.match(/\r\n/g) || []).length;
-            const srcLf = (srcContent.match(/(^|[^\r])\n/g) || []).length;
-            const destCrlf = (destContent.match(/\r\n/g) || []).length;
-            const destLf = (destContent.match(/(^|[^\r])\n/g) || []).length;
-
-            logger.trace(
-              `[applyBack] Copied untracked file ${file}:\n` +
-                `  Source: CRLF=${srcCrlf}, LF=${srcLf}\n` +
-                `  Dest:   CRLF=${destCrlf}, LF=${destLf}`,
-            );
-          } catch {
-            // Ignore errors in logging (e.g., binary files)
-          }
-        }
-      } catch (error) {
-        const err = error as NodeJS.ErrnoException;
-        if (err?.code === 'ENOENT') {
-          logger.warn(text.loop.skipMissingFileSync(file));
-          continue;
-        }
-        throw error;
-      }
-    }
-  }
-
-  private async copyTrackedFilesWithLineEndingLogging(
-    sourceRepoPath: string,
-    targetRepoPath: string,
-    files: string[],
-    verbose?: VerboseLevel,
-  ): Promise<void> {
-    for (const file of files) {
-      const policy = await this.shouldAllowPath(sourceRepoPath, file);
-      if (!policy.allowed) {
-        logger.warn(text.loop.skipFileDueToPolicy(policy.reason, file));
-        continue;
-      }
-      const srcPath = path.join(sourceRepoPath, ...file.split('/'));
-      const destPath = path.join(targetRepoPath, ...file.split('/'));
-      await mkdir(path.dirname(destPath), { recursive: true });
-      try {
-        await copyFile(srcPath, destPath);
-
-        if (verbose === 'extended') {
-          try {
-            const srcContent = await readFile(srcPath, 'utf8');
-            const destContent = await readFile(destPath, 'utf8');
-
-            // Count actual line numbers (split by any newline)
-            const srcLines = srcContent.split(/\r?\n/).length;
-            const destLines = destContent.split(/\r?\n/).length;
-
-            // Count line ending types
-            const srcCrlf = (srcContent.match(/\r\n/g) || []).length;
-            const srcLf = (srcContent.match(/(?<!\r)\n/g) || []).length;
-            const destCrlf = (destContent.match(/\r\n/g) || []).length;
-            const destLf = (destContent.match(/(?<!\r)\n/g) || []).length;
-
-            // File size verification
-            const srcSize = srcContent.length;
-            const destSize = destContent.length;
-            const sizeMatch = srcSize === destSize ? '✓' : '✗ MISMATCH';
-
-            logger.trace(
-              `[applyBack] Copied tracked file ${file}:\n` +
-                `  Source path: ${srcPath}\n` +
-                `  Dest path:   ${destPath}\n` +
-                `  Source: ${srcLines} lines, ${srcSize} bytes (CRLF=${srcCrlf}, LF=${srcLf})\n` +
-                `  Dest:   ${destLines} lines, ${destSize} bytes (CRLF=${destCrlf}, LF=${destLf})\n` +
-                `  Size match: ${sizeMatch}`,
-            );
-          } catch (e) {
-            logger.trace(
-              `[applyBack] Could not log line endings for ${file}: ${e instanceof Error ? e.message : String(e)}`,
-            );
-          }
-        }
-      } catch (error) {
-        const err = error as NodeJS.ErrnoException;
-        if (err?.code === 'ENOENT') {
-          logger.warn(text.loop.skipMissingFileSync(file));
-          continue;
-        }
-        throw error;
-      }
-    }
-  }
-
-  private async fileExists(repoPath: string, relativePath: string): Promise<boolean> {
-    try {
-      const filePath = path.join(repoPath, ...relativePath.split('/'));
-      await stat(filePath);
-      return true;
-    } catch (error) {
-      const err = error as NodeJS.ErrnoException;
-      if (err?.code === 'ENOENT') return false;
-      throw error;
-    }
-  }
-
-  private async createDirtyBaselineCommit(
-    worktreePath: string,
-    taskId: string,
-  ): Promise<string | null> {
-    const status = await runGit(worktreePath, ['status', '--porcelain']);
-    if (!status.trim()) return null;
-    const changedPaths = await this.getChangedPaths(worktreePath);
-    if (changedPaths.length === 0) return null;
-
-    // Goal: Commit the complete working tree state that was copied from main workspace
-    // Do NOT sync index to working tree - we want to preserve the working tree as-is
-    // The working tree already contains the complete state (staged + unstaged changes)
-
-    const existingPaths: string[] = [];
-    const deletedPaths: string[] = [];
-    for (const file of changedPaths) {
-      if (await this.fileExists(worktreePath, file)) {
-        existingPaths.push(file);
-      } else {
-        deletedPaths.push(file);
-      }
-    }
-    if (existingPaths.length > 0) {
-      await runGit(worktreePath, ['add', '--', ...existingPaths]);
-    }
-    if (deletedPaths.length > 0) {
-      await runGit(worktreePath, ['add', '-u', '--', ...deletedPaths]);
-    }
-    await runGit(worktreePath, [
-      '-c',
-      'user.name=salmonloop',
-      '-c',
-      'user.email=salmonloop@local',
-      'commit',
-      '--no-verify',
-      '--no-gpg-sign',
-      '-m',
-      'checkpoint: initial',
-    ]);
-    const head = await runGit(worktreePath, ['rev-parse', 'HEAD']);
-    await runGit(worktreePath, ['update-ref', `refs/ai-agent/checkpoints/${taskId}/initial`, head]);
-    return head;
-  }
-
   private async applyBackToMainWorkspace(
     mainRepoPath: string,
     checkpointRef: CheckpointRef,
     diffText: string,
-    applyBackOnDirty: ApplyBackOnDirty = 'stash',
+    applyBackOnDirty: ApplyBackOnDirty = '3way',
     verbose?: VerboseLevel,
     changedFiles?: string[],
     shadowInitialRef?: string | null,
     shadowLatestRef?: string | null,
+    includePaths: string[] = [],
   ): Promise<void> {
     const startTime = Date.now();
     let applySuccess = false;
     let applyError: Error | undefined;
-    let stashRef: string | null = null;
-    let patchApplied = false;
+    let appliedToMain = false;
     let dirtyBackup: {
       dir: string;
       stagedPatchPath?: string;
@@ -1769,7 +1514,10 @@ export class SalmonLoop {
           shadowInitialRef,
           shadowLatestRef,
           verbose,
+          includePaths,
+          applyBackOnDirty,
         );
+        appliedToMain = true;
         applySuccess = true;
         return;
       }
@@ -1912,48 +1660,6 @@ export class SalmonLoop {
         );
       }
 
-      // Create backup before applying (stash mode)
-      const getStashHead = async (): Promise<string | null> => {
-        try {
-          const head = await runGit(mainRepoPath, ['rev-parse', '-q', '--verify', 'refs/stash']);
-          return head || null;
-        } catch {
-          return null;
-        }
-      };
-
-      const resolveStashRef = async (stashHash: string): Promise<string> => {
-        try {
-          const list = await runGit(mainRepoPath, ['stash', 'list', '--format=%H %gd']);
-          const match = list
-            .split('\n')
-            .map((line) => line.trim())
-            .find((line) => line.startsWith(stashHash));
-          if (!match) return stashHash;
-          const parts = match.split(' ');
-          return parts[1] || stashHash;
-        } catch {
-          return stashHash;
-        }
-      };
-
-      const restoreStash = async (ref: string): Promise<void> => {
-        try {
-          await runGit(mainRepoPath, ['stash', 'apply', '--index', ref]);
-        } catch (error) {
-          throw new Error(
-            `Failed to reapply stash backup (${ref}): ${error instanceof Error ? error.message : String(error)}`,
-          );
-        }
-        try {
-          await runGit(mainRepoPath, ['stash', 'drop', ref]);
-        } catch (dropError) {
-          logger.warn(
-            `Failed to drop stash backup (${ref}): ${dropError instanceof Error ? dropError.message : String(dropError)}`,
-          );
-        }
-      };
-
       const resolveChangedFiles = (): string[] => {
         if (changedFiles && changedFiles.length > 0) return changedFiles;
         try {
@@ -1966,8 +1672,10 @@ export class SalmonLoop {
 
       const filesToApply = resolveChangedFiles().map(normalizeFilePath);
       const hasOverlap = filesToApply.some((file) => dirtyFiles.includes(file));
-      const allowDirtyApply = wasDirty && applyBackOnDirty === 'stash' && hasOverlap;
-      let preparedFingerprint = originalFingerprint;
+      // SAFETY: In '3way' mode, we MUST protect ALL dirty workspace scenarios
+      // Whether there's overlap or not, user's dirty data must be backed up
+      const allowDirtyApply = wasDirty && applyBackOnDirty === '3way';
+      const preparedFingerprint = originalFingerprint;
 
       const assertFingerprintUnchanged = async (
         expected: typeof originalFingerprint,
@@ -2130,7 +1838,7 @@ export class SalmonLoop {
         };
 
         logger.warn(
-          `[applyBack] Dirty changes overlap with patch files (${filesToApply.join(', ')}). Applying patch onto dirty workspace to preserve local changes.`,
+          `[applyBack] Dirty workspace detected. Creating checkpoint for all dirty files. Overlap with patch: ${hasOverlap ? filesToApply.filter((f) => dirtyFiles.includes(f)).join(', ') : 'none'}`,
         );
         dirtyBackup = await createDirtyBackup();
         logger.warn(`[applyBack] Dirty workspace checkpoint created at: ${dirtyBackup.dir}`);
@@ -2153,7 +1861,7 @@ export class SalmonLoop {
           await assertFingerprintUnchanged(preparedFingerprint, 'pre-apply (dirty mode)');
 
           await applyPatch(mainRepoPath, patch, applyBackPatchOptions);
-          patchApplied = true;
+          appliedToMain = true;
           applySuccess = true;
           return;
         } catch (error) {
@@ -2178,159 +1886,18 @@ export class SalmonLoop {
         }
       }
 
-      if (wasDirty && applyBackOnDirty === 'stash') {
-        const previousStashHead = await getStashHead();
-        let stashCommandSucceeded = false;
-
-        try {
-          await runGit(mainRepoPath, [
-            'stash',
-            'push',
-            '--include-untracked',
-            '-m',
-            'salmonloop-backup',
-          ]);
-          stashCommandSucceeded = true;
-        } catch (_error) {
-          try {
-            await runGit(mainRepoPath, ['stash', 'save', '-u', 'salmonloop-backup']);
-            stashCommandSucceeded = true;
-          } catch (fallbackError) {
-            // Both stash commands failed
-            const status = await getStatus();
-            const errorMsg =
-              fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
-            throw new Error(
-              `Failed to stash local changes before apply-back.\nStash error: ${errorMsg}\nWorkspace status:\n${status || '(empty)'}`,
-            );
-          }
-        }
-
-        const newStashHead = await getStashHead();
-        if (newStashHead && newStashHead !== previousStashHead) {
-          stashRef = await resolveStashRef(newStashHead);
-        }
-
-        // Verify stash operation: if we had dirty files but no stash was created,
-        // the stash command may have silently failed
-        if (!stashRef && stashCommandSucceeded) {
-          const status = await getStatus();
-          // Repository was dirty before (wasDirty === true), so if no stash was created
-          // and the repo is now clean, the stash must have worked without updating refs (unlikely but possible)
-          // If the repo is still dirty, stash definitely failed
-          if (status) {
-            throw new Error(
-              `Stash command appeared to succeed but no stash reference was created.\nWorkspace status:\n${status}`,
-            );
-          }
-          // If status is empty and no stash was created, the repo must have been cleaned
-          // by the stash operation even though no ref was updated. Log a warning but continue.
-          logger.warn(
-            '[applyBack] Stash operation cleaned workspace but did not create a stash reference.',
-          );
-        }
-
-        const statusAfterStash = await getStatus();
-        if (statusAfterStash) {
-          const stashNote = stashRef ? `\nStash backup saved as ${stashRef}.` : '';
-          throw new Error(
-            `Apply-back aborted: main workspace still dirty after stashing.${stashNote}\n${statusAfterStash}`,
-          );
-        }
-        preparedFingerprint = await computeFingerprint();
-      }
-
-      try {
-        await assertFingerprintUnchanged(preparedFingerprint, 'preparation');
-      } catch (error) {
-        const msg = error instanceof Error ? error.message : String(error);
-        const stashNote = stashRef ? `\nStash backup saved as ${stashRef}.` : '';
-        throw new Error(`${msg}${stashNote}`);
-      }
-
-      const getStashFiles = async (ref: string): Promise<string[]> => {
-        try {
-          const output = await runGit(mainRepoPath, ['stash', 'show', '--name-only', ref]);
-          return output
-            .split('\n')
-            .map((line) => line.trim())
-            .filter((line) => line.length > 0);
-        } catch {
-          return [];
-        }
-      };
+      // NOTE: For '3way' mode, we allow dirty workspace and rely on 3-way merge
+      // If there's overlap with patch files, allowDirtyApply branch above handles it
+      // If there's no overlap, we proceed with applying the patch to dirty workspace
 
       // Apply patch to main workspace
-      try {
-        if (stashRef) {
-          if (filesToApply.length > 0) {
-            const stashFiles = await getStashFiles(stashRef);
-            const overlap = stashFiles.filter((file) => filesToApply.includes(file));
-            if (overlap.length > 0) {
-              logger.warn(
-                `[applyBack] Stashed changes overlap with patch files: ${overlap.join(', ')}.`,
-              );
-            }
-          }
-        }
-
-        await applyPatch(mainRepoPath, patch, applyBackPatchOptions);
-        patchApplied = true;
-        applySuccess = true;
-      } catch (error) {
-        applyError = error instanceof Error ? error : new Error(String(error));
-
-        // Rollback on failure
-        if (stashRef) {
-          try {
-            await restoreStash(stashRef);
-          } catch (rollbackError) {
-            logger.warn(
-              `Stash restore failed after apply-back error: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}`,
-            );
-          }
-        }
-        throw error;
-      }
-
-      if (stashRef) {
-        try {
-          await restoreStash(stashRef);
-        } catch (restoreError) {
-          applySuccess = false;
-          const restoreMsg =
-            restoreError instanceof Error ? restoreError.message : String(restoreError);
-          const filesToRollback = resolveChangedFiles();
-          let rollbackDetail = '';
-
-          if (patchApplied && filesToRollback.length > 0) {
-            const rb = await rollbackFiles(mainRepoPath, filesToRollback, false);
-            if (rb.ok) {
-              rollbackDetail = `\nRollback succeeded for: ${filesToRollback.join(', ')}`;
-            } else {
-              rollbackDetail = `\nRollback failed: ${rb.stderr}`;
-            }
-          } else if (patchApplied) {
-            rollbackDetail = '\nRollback skipped: no changed files detected.';
-          }
-
-          try {
-            if (patchApplied && rollbackDetail && filesToRollback.length > 0) {
-              await restoreStash(stashRef);
-            }
-          } catch (secondRestoreError) {
-            const secondMsg =
-              secondRestoreError instanceof Error
-                ? secondRestoreError.message
-                : String(secondRestoreError);
-            rollbackDetail += `\nStash restore retry failed: ${secondMsg}`;
-          }
-
-          throw new Error(
-            `${restoreMsg}${rollbackDetail}\nYour stash was left intact for manual recovery.`,
-          );
-        }
-      }
+      await applyPatch(mainRepoPath, patch, applyBackPatchOptions);
+      appliedToMain = true;
+      applySuccess = true;
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      (err as ApplyBackErrorMeta).appliedToMain = appliedToMain;
+      throw err;
     } finally {
       // Record monitoring metrics
       const duration = Date.now() - startTime;
