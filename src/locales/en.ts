@@ -9,7 +9,7 @@ export const en = {
   },
 
   prompts: {
-    definitionHint: 'Definitions marked with ✨ should be modified with extreme caution',
+    definitionHint: 'Definitions should be modified with extreme caution',
     referenceHint: 'References marked with ↗️ indicate usage locations',
     plan: (
       context: string,

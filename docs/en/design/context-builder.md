@@ -13,7 +13,7 @@ The builder follows a clear pipeline:
 
 ## 2. AST-Enhanced Context
 The builder uses Tree-sitter to perform lightweight AST analysis on the primary file:
-- **Definitions**: Marked with `✨`. These are locations where functions, classes, or variables are defined. LLMs are instructed to modify these with caution.
+- **Definitions**: These are locations where functions, classes, or variables are defined. LLMs are instructed to modify these with caution.
 - **References**: Marked with `↗️`. These indicate where symbols are used, providing the LLM with usage context without needing to pull in entire files.
 
 ## 3. Truncation Strategy: Pack-Until-Full

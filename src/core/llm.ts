@@ -159,9 +159,9 @@ export class OpenAILLM implements LLM {
         for (const symbol of sortedSymbols) {
           const lineIdx = symbol.location.start.line - 1;
           if (lineIdx >= 0 && lineIdx < lines.length) {
-            const marker = symbol.kind === 'definition' ? ' ✨' : ' ↗️';
+            const marker = symbol.kind === 'definition' ? '' : ' ↗️';
             // Avoid duplicate markers if multiple symbols on same line (though unlikely for definitions)
-            if (!lines[lineIdx].endsWith(marker)) {
+            if (marker && !lines[lineIdx].endsWith(marker)) {
               lines[lineIdx] += marker;
             }
           }

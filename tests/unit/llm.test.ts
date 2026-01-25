@@ -106,7 +106,7 @@ describe('OpenAILLM', () => {
       } as any;
 
       const formatted = (llm as any).formatContext(context);
-      expect(formatted).toContain('function hello() { ✨');
+      expect(formatted).toContain('function hello() {');
       expect(formatted).toContain('  world(); ↗️');
     });
   });
