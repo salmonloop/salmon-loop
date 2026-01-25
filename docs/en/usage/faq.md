@@ -25,3 +25,9 @@ SalmonLoop has strict version requirements for core dependencies like `web-tree-
 
 ### 8. What should I do if I encounter "Timeout acquiring lock"?
 To prevent concurrent operations from corrupting the codebase, SalmonLoop creates a `.salmon.lock` file during modifications. If a previous run was abnormally interrupted and the lock was not released, you can manually delete the `.salmon.lock` file in the repository root.
+
+### 9. What does "File is in MM (Double Dirty) state" mean?
+This message appears when a file has both **staged** (added to index) and **unstaged** (working tree) changes simultaneously. SalmonLoop automatically detects this and promotes your unstaged changes to the staging area to prevent merge conflicts.
+*   **Old Behavior**: The tool would fail with a conflict error (`.rej` file generated).
+*   **New Behavior**: The tool automatically runs `git add` for the affected file to include your latest changes before applying the AI's patch.
+*   **Action Required**: Be aware that your unstaged changes are now staged. You can review them with `git diff --cached`.
