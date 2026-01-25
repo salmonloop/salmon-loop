@@ -5,6 +5,7 @@ import { tmpdir } from 'os';
 import path from 'path';
 
 import { text } from '../../locales/index.js';
+import { TextNormalizer } from '../../utils/eol.js';
 import { CheckpointManager } from '../checkpoint/manager.js';
 import { runGit } from '../checkpoint/worktree.js';
 import { LIMITS } from '../limits.js';
@@ -610,7 +611,21 @@ export class ShadowMergeEngine {
       );
     }
 
-    const normalized = this.normalizeLineEndingsForMerge(baseContent, userContent, aiContent);
+    // --- EOL Normalization (Best Practice) ---
+    // 1. Decode buffers to strings
+    const baseStr = baseContent.toString('utf8');
+    const userStr = userContent.toString('utf8');
+    const aiStr = aiContent.toString('utf8');
+
+    // 2. Sniff the User's EOL preference from the live file (Ours)
+    // We strictly respect what is currently on the disk.
+    const { eol: targetEOL } = TextNormalizer.read(userStr);
+
+    // 3. Normalize everything to LF for the merge engine
+    const normBase = TextNormalizer.read(baseStr).normalized;
+    const normUser = TextNormalizer.read(userStr).normalized;
+    const normAi = TextNormalizer.read(aiStr).normalized;
+
     const basePath = path.join(
       tmpdir(),
       `salmon-loop-merge-base-${randomBytes(4).toString('hex')}`,
@@ -621,9 +636,9 @@ export class ShadowMergeEngine {
     );
     const aiPath = path.join(tmpdir(), `salmon-loop-merge-ai-${randomBytes(4).toString('hex')}`);
 
-    await writeFile(basePath, normalized.base);
-    await writeFile(userPath, normalized.user);
-    await writeFile(aiPath, normalized.ai);
+    await writeFile(basePath, normBase);
+    await writeFile(userPath, normUser);
+    await writeFile(aiPath, normAi);
 
     try {
       const args = ['merge-file', '-p'];
@@ -632,15 +647,22 @@ export class ShadowMergeEngine {
       }
       args.push(userPath, basePath, aiPath);
       const result = await this.runGitBuffered(repoPath, args);
+
+      // 4. Restore EOL before returning
+      // git merge-file -p output will be consistent with inputs (LF in this case)
+      const mergedStr = result.stdout.toString('utf8');
+      const restoredStr = TextNormalizer.restore(mergedStr, targetEOL);
+      const restoredBuffer = Buffer.from(restoredStr, 'utf8');
+
       if (result.code === 0) {
         return {
-          merged: this.restoreLineEndings(result.stdout, normalized.preferredLineEnding),
+          merged: restoredBuffer,
           conflict: false,
         };
       }
       if (result.code === 1) {
         return {
-          merged: this.restoreLineEndings(result.stdout, normalized.preferredLineEnding),
+          merged: restoredBuffer,
           conflict: true,
         };
       }
@@ -665,43 +687,6 @@ export class ShadowMergeEngine {
         logger.warn(text.loop.removeMergeTempFailed(aiPath, msg));
       }
     }
-  }
-
-  private normalizeLineEndingsForMerge(
-    baseContent: Buffer,
-    userContent: Buffer,
-    aiContent: Buffer,
-  ): {
-    base: Buffer;
-    user: Buffer;
-    ai: Buffer;
-    preferredLineEnding: '\n' | '\r\n' | null;
-  } {
-    const userText = userContent.toString('utf8');
-    const hasCrlf = /\r\n/.test(userText);
-    const hasBareLf = /(^|[^\r])\n/.test(userText);
-    if (!hasCrlf || hasBareLf) {
-      return { base: baseContent, user: userContent, ai: aiContent, preferredLineEnding: null };
-    }
-
-    const toLf = (text: string) => text.replace(/\r\n/g, '\n');
-    if (this.options.verbose === 'extended') {
-      logger.trace(text.loop.normalizingCrlf);
-    }
-    return {
-      base: Buffer.from(toLf(baseContent.toString('utf8')), 'utf8'),
-      user: Buffer.from(toLf(userText), 'utf8'),
-      ai: Buffer.from(toLf(aiContent.toString('utf8')), 'utf8'),
-      preferredLineEnding: '\r\n',
-    };
-  }
-
-  private restoreLineEndings(content: Buffer, lineEnding: '\n' | '\r\n' | null): Buffer {
-    if (!lineEnding || lineEnding === '\n') {
-      return content;
-    }
-    const text = content.toString('utf8').replace(/\r\n/g, '\n');
-    return Buffer.from(text.replace(/\n/g, lineEnding), 'utf8');
   }
 
   private async hashObject(repoPath: string, content: Buffer): Promise<string> {

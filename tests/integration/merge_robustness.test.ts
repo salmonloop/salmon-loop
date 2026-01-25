@@ -1,9 +1,9 @@
 import { execSync } from 'child_process';
-import { mkdtemp, rm, writeFile, readFile, mkdir, rename, chmod } from 'fs/promises';
+import { mkdtemp, rm, writeFile, readFile, mkdir, rename, chmod, cp } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll } from 'vitest';
 
 import { CheckpointManager } from '../../src/core/checkpoint/manager.js';
 import { logger } from '../../src/core/logger.js';
@@ -168,13 +168,43 @@ class MergeTestContext {
   public git!: GitHelper;
   public shadowGit!: GitHelper;
 
+  // Static template repo to speed up tests (created once per test file)
+  private static templatePath: string | null = null;
+
+  static async prepareTemplate() {
+    if (this.templatePath) return;
+
+    const baseDir = join(tmpdir(), 'salmon-merge-template-');
+    this.templatePath = await mkdtemp(baseDir);
+
+    const git = new GitHelper(this.templatePath);
+    // GitHelper.init() already handles retries, config, and the initial commit.
+    await git.init();
+  }
+
+  static async cleanupTemplate() {
+    if (this.templatePath) {
+      await rm(this.templatePath, { recursive: true, force: true });
+      this.templatePath = null;
+    }
+  }
+
   async setup() {
     const baseDir = join(tmpdir(), 'salmon-merge-test-');
     this.mainRepoPath = await mkdtemp(baseDir);
     this.shadowRepoPath = await mkdtemp(baseDir + 'shadow-');
 
+    // Optimization: Copy from pre-warmed template instead of running git init/config
+    if (!MergeTestContext.templatePath) {
+      throw new Error(
+        'Template not initialized. Call MergeTestContext.prepareTemplate() in beforeAll.',
+      );
+    }
+
+    // Copy template to main repo
+    await cp(MergeTestContext.templatePath, this.mainRepoPath, { recursive: true });
+
     this.git = new GitHelper(this.mainRepoPath);
-    await this.git.init();
 
     // The shadow repo is usually a clone or a worktree sharing the object store.
     // Optimization: Use local clone with shared objects to speed up setup
@@ -267,6 +297,14 @@ class MergeTestContext {
 
 describe('ShadowMergeEngine Robustness', () => {
   let ctx: MergeTestContext;
+
+  beforeAll(async () => {
+    await MergeTestContext.prepareTemplate();
+  });
+
+  afterAll(async () => {
+    await MergeTestContext.cleanupTemplate();
+  });
 
   beforeEach(async () => {
     ctx = new MergeTestContext();
@@ -561,7 +599,7 @@ describe('ShadowMergeEngine Robustness', () => {
       const baseLines = 'line 1\nline 2\nline 3\n';
       await ctx.writeFile('main', 'file.txt', baseLines);
       await ctx.git.add('file.txt');
-      const headRef = await ctx.git.commit('initial');
+      await ctx.git.commit('initial');
 
       // User Action 1: Modify and Stage (A -> A+B)
       const stagedLines = baseLines + 'user staged\n';
@@ -1331,6 +1369,59 @@ describe('ShadowMergeEngine Robustness', () => {
 
       const rejContent = await ctx.readFile('main', '.s8p/rejections/conflict.txt.rej');
       expect(rejContent).toBe(aiLines);
+    });
+  });
+
+  describe('Group 7: Advanced EOL Handling', () => {
+    it('7.1 Mixed EOL (CRLF dominant) -> Expect CRLF output', async () => {
+      const filename = 'mixed_crlf.txt';
+      // 3 CRLF, 1 LF -> CRLF dominant
+      const content = 'line1\r\nline2\r\nline3\nline4\r\n';
+      await ctx.writeFile('main', filename, content);
+      await ctx.git.add(filename);
+      await ctx.git.commit('add mixed crlf file');
+      const baseRef = await ctx.git.getHead();
+
+      ctx.shadowGit.run('fetch origin');
+      ctx.shadowGit.run(`reset --hard ${baseRef}`);
+
+      // AI adds a line with LF
+      const shadowContent = 'line1\r\nline2\r\nline3\nline4\r\nline5\n';
+      await ctx.writeFile('shadow', filename, shadowContent);
+      const shadowRef = await ctx.shadowGit.commit('ai update');
+
+      const engine = ctx.createEngine(baseRef, shadowRef);
+      await engine.apply();
+
+      const finalContent = await ctx.readFile('main', filename);
+      // Should normalize the new line to CRLF
+      expect(finalContent).toContain('line5\r\n');
+    });
+
+    it('7.2 Mixed EOL (LF dominant) -> Expect LF output', async () => {
+      const filename = 'mixed_lf.txt';
+      // 3 LF, 1 CRLF -> LF dominant
+      const content = 'line1\nline2\nline3\r\nline4\n';
+      await ctx.writeFile('main', filename, content);
+      await ctx.git.add(filename);
+      await ctx.git.commit('add mixed lf file');
+      const baseRef = await ctx.git.getHead();
+
+      ctx.shadowGit.run('fetch origin');
+      ctx.shadowGit.run(`reset --hard ${baseRef}`);
+
+      // AI adds a line with CRLF
+      const shadowContent = 'line1\nline2\nline3\r\nline4\nline5\r\n';
+      await ctx.writeFile('shadow', filename, shadowContent);
+      const shadowRef = await ctx.shadowGit.commit('ai update');
+
+      const engine = ctx.createEngine(baseRef, shadowRef);
+      await engine.apply();
+
+      const finalContent = await ctx.readFile('main', filename);
+      // Should normalize the new line to LF
+      expect(finalContent).toContain('line5\n');
+      expect(finalContent).not.toContain('line5\r\n');
     });
   });
 });
