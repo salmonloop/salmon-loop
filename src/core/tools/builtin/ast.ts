@@ -1,0 +1,79 @@
+import { readFile } from 'fs/promises';
+import { join, extname } from 'path';
+
+import { z } from 'zod';
+
+import { text } from '../../../locales/index.js';
+import { AstParser } from '../../ast/parser';
+import { Phase } from '../../types';
+import { ToolSpec, ToolRuntimeCtx } from '../types';
+
+export const astDefsRefsSpec: Omit<ToolSpec, 'executor'> = {
+  name: 'code.ast',
+  source: 'builtin',
+  description: text.tools.codeAstDescription,
+  riskLevel: 'low',
+  sideEffects: ['none'],
+  inputSchema: z.object({
+    file: z.string().describe('Relative path to the file to analyze'),
+    symbol: z.string().optional().describe('Filter by specific symbol name'),
+  }),
+  outputSchema: z.object({
+    definitions: z.array(
+      z.object({
+        name: z.string(),
+        location: z.any(),
+      }),
+    ),
+    references: z.array(
+      z.object({
+        name: z.string(),
+        location: z.any(),
+      }),
+    ),
+  }),
+  allowedPhases: [Phase.CONTEXT, Phase.PLAN],
+};
+
+/**
+ * Builtin tool to query AST definitions and references
+ */
+export async function executeAstDefsRefs(
+  input: z.infer<typeof astDefsRefsSpec.inputSchema>,
+  ctx: ToolRuntimeCtx,
+) {
+  const fullPath = join(ctx.worktreeRoot || ctx.repoRoot, input.file);
+  const code = await readFile(fullPath, 'utf-8');
+  const ext = extname(input.file).slice(1);
+
+  // Map extension to tree-sitter language
+  const langMap: Record<string, string> = {
+    ts: 'typescript',
+    tsx: 'tsx',
+    js: 'javascript',
+    jsx: 'javascript',
+  };
+
+  const lang = langMap[ext];
+  if (!lang) {
+    return { definitions: [], references: [] };
+  }
+
+  const tree = await AstParser.parse(code, lang);
+  try {
+    let defs = await AstParser.identifyDefinitions(tree, lang);
+    let refs = await AstParser.identifyReferences(tree, lang);
+
+    if (input.symbol) {
+      defs = defs.filter((d) => d.name === input.symbol);
+      refs = refs.filter((r) => r.name === input.symbol);
+    }
+
+    return {
+      definitions: defs.map((d) => ({ name: d.name, location: d.location })),
+      references: refs.map((r) => ({ name: r.name, location: r.location })),
+    };
+  } finally {
+    // Tree deletion is handled by AstParser's cache cleanup logic or explicit delete if needed
+  }
+}

@@ -363,68 +363,11 @@ export class ShadowMergeEngine {
         userWorkingContent = workingMerge.merged;
         logAppliedLocations(op.path, aiDiffPatch, userWorkingContent);
 
-        // --- MM (Double Dirty) Logic Fix START ---
-        // If the file has both staged and unstaged changes (MM), we must promote the unstaged
-        // changes to the index to support the AI's patch, which depends on the unstaged context.
-        if (status?.staged && status?.unstaged) {
-          if (this.options.verbose === 'extended') {
-            logger.warn(text.loop.promotingUnstagedChanges(op.path));
-          }
-
-          if (workingMerge.conflict) {
-            // If working tree merge failed, we can't safely promote to index.
-            // But we already pushed to conflicts[] above, so we just fall through.
-          } else {
-            // Success! The AI changes were merged into the working tree version.
-            // Now we write this *merged* content directly to the index.
-            // This effectively stages the (previously unstaged) user changes + the AI changes.
-            await this.updateIndexWithContent(mainRepoPath, op.path, workingMerge.merged);
-
-            // Skip the standard staged merge block since we handled it here
-            continue;
-          }
-        }
-        // --- MM Logic Fix END ---
-
-        if (status?.staged) {
-          if (this.options.verbose === 'extended') {
-            logger.trace(
-              `[applyBack] File ${op.path} has staged changes in main workspace.\n` +
-                `  Status: staged=${status.staged}, unstaged=${status.unstaged}, untracked=${status.untracked}`,
-            );
-          }
-
-          const userStagedContent = await this.gitShowIndexFile(mainRepoPath, op.path);
-          if (!userStagedContent) {
-            conflicts.push(op.path);
-            continue;
-          }
-
-          if (this.options.verbose === 'extended') {
-            const stagedLines = userStagedContent.toString('utf8').split(/\r?\n/).length;
-            logger.trace(
-              `[applyBack] Staged version: ${stagedLines} lines, ${userStagedContent.length} bytes`,
-            );
-          }
-
-          const stagedMerge = await this.mergeFileContents(
-            mainRepoPath,
-            baseContent,
-            userStagedContent,
-            aiContent,
-          );
-          if (!stagedMerge.conflict) {
-            await this.updateIndexWithContent(mainRepoPath, op.path, stagedMerge.merged);
-          } else {
-            if (this.options.verbose === 'extended') {
-              logger.trace(
-                `[applyBack] Staged merge failed for ${op.path}. ` +
-                  `This likely indicates the staged version is out of sync with the working tree.`,
-              );
-            }
-            conflicts.push(op.path);
-          }
-        }
+        // --- MM (Double Dirty) Logic Removed ---
+        // We do NOT promote unstaged changes to index.
+        // We do NOT update staged changes.
+        // The policy is: AI patches only affect the working directory (Unstaged).
+        // User's Index (Staged) must remain untouched to prevent state corruption.
       }
 
       if (skipped.length > 0) {

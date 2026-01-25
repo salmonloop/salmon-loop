@@ -318,7 +318,7 @@ index 123..456 100644
     });
 
     expect(result.success).toBe(false);
-    expect(result.reason).toBe(text.loop.loopExecutionFailed);
+    expect(result.reason).toContain(text.loop.loopExecutionFailed);
     expect(result.logs[0].step).toBe('error');
   });
 });

@@ -1,0 +1,146 @@
+# SalmonLoop Tool Calling Executable Specification (v1)
+
+## 1. Core Objective
+Establish a **stable, controllable, replayable, and extensible** tool calling system; thoroughly eliminate the confusion between "descriptive calls" and "actual execution".
+
+> **Guiding Principle**: Tool Calling is a protocol, not a conversational technique. Any ambiguity must converge to "non-executable".
+
+---
+
+## 2. System Prompt Structure (Strict)
+Tool definitions must and can only appear at the very beginning of the **System / Runtime Contract**, serving as immutable "legal text".
+
+```text
+SYSTEM
+├─ Runtime Contract (Protocol/Legal Text)
+│  ├─ Tool Definitions (Capabilities + Simplified Schema)
+│  └─ Tool Calling Rules (Unique Executable Format)
+├─ Task / User Instruction (Dynamic)
+└─ Notes / Examples (Explicitly marked as NOT EXECUTE)
+```
+
+---
+
+## 3. Tool Definition (External API)
+### 3.1 Naming Convention
+*   **Only Legal Format**: `domain.action[.qualifier]` (e.g., `code.search`, `fs.read`)
+*   **Forbidden**: Implementation source prefixes (e.g., `builtin.`, `mcp.`, `plugin.`)
+
+### 3.2 ToolSpec (Strongly Typed)
+```typescript
+interface ToolSpec<I, O> {
+  name: string;
+  source: "builtin" | "mcp" | "plugin"; // Internal use only, invisible to Agent
+  description: string;
+  riskLevel: "low" | "medium" | "high";
+  sideEffects: SideEffect[]; // ["fs_read", "fs_write", "process", ...]
+  allowedPhases: ExecutionPhase[]; // ["CONTEXT", "SHRINK"]
+  inputSchema: ZodType<I>;
+  outputSchema: ZodType<O>;
+  executor: (input: I, ctx: ToolRuntimeCtx) => Promise<O>;
+}
+```
+
+---
+
+## 4. Prompt Display Schema (LLM Friendly)
+To avoid excessive prompt length, do not use raw Zod objects or `zod-to-json-schema`. Instead, extract a **minimal set**:
+
+```typescript
+type PromptParam = {
+  name: string;
+  type: "string" | "number" | "boolean" | "array" | "object";
+  required: boolean;
+  enum?: string[];
+  description?: string;
+};
+```
+*   **Runtime**: Use Zod for strict validation.
+*   **Prompt**: Use simplified Schema for display.
+*   **Future Extension**: Enable full JSON Schema when integrating with OpenAI/Anthropic native Function Calling.
+
+---
+
+## 5. Unique Executable Tool Call Protocol
+Only the following format is supported. **Any character deviation results in non-execution**:
+
+```xml
+<sl_tool_call v="1">
+{"id":"tc_001","toolName":"code.search","args":{"pattern":"BudgetGuard","glob":"src/**/*.ts"}}
+</sl_tool_call>
+```
+
+### Hard Rules
+1.  **Strict Tag Matching**: Must be `<sl_tool_call v="1">`.
+2.  **Content Restriction**: Inside must be **single-line**, **standard JSON**.
+3.  **Context Isolation**: Tags appearing inside Markdown code blocks (```) are treated as text and **will not be executed**.
+4.  **Exclusivity**: Detecting Claude DSL (e.g., `<call:default_api:...>`) or other formats will directly trigger `UNSUPPORTED_TOOL_PROTOCOL`.
+
+---
+
+## 6. Parser Specification (No Tolerance)
+The parser must be extremely strict and refuse to guess:
+1.  **Regex Matching**: Only matches top-level `<sl_tool_call v="1">`.
+2.  **JSON Parsing**: Failure throws `PARSE_ERROR`.
+3.  **Name Validation**: If `toolName` is not in Registry, throw `TOOL_NOT_FOUND`.
+4.  **Protocol Guard**: Detecting `<call:...>` and other illegal protocols throws `UNSUPPORTED_TOOL_PROTOCOL`.
+
+---
+
+## 7. ToolRouter Single Exit (Fixed Execution Chain)
+All tool calls must pass through the following pipeline:
+1.  **Registry Resolve**: Lookup tool definition.
+2.  **Audit Start**: Record call intent.
+3.  **Input Validation**: Validate parameters using Zod Schema.
+4.  **Policy Gate**: Check `ExecutionPhase`, `SideEffects`, and allowlist.
+5.  **Budget Gate**: Check concurrency, timeout settings, and output size limits.
+6.  **Execute**: Execution logic (including Capability/Backend multi-backend fallback).
+7.  **Output Validation**: Validate output structure.
+8.  **Sanitize**: Result sanitization and summary truncation.
+9.  **Audit End**: Record final status (including `backend` source).
+10. **Return**: Return standard `ToolResult`.
+
+---
+
+## 8. Discovery Loop (State Machine)
+Uses a "Tool Turn" system, does not force explicit ReAct (Thought-Action-Observation) text output.
+
+*   **Logic**: Max **1** tool call per turn, or zero (directly produce conclusion).
+*   **Limit**: `maxDiscoveryTurns = 8~12`.
+*   **Early Stop Conditions**:
+    *   Obtained "Position Confirmation Declaration".
+    *   Two consecutive `InsufficientCoverage` or `AmbiguousResult`.
+    *   Reached Budget threshold.
+
+---
+
+## 9. Error Code Standard
+All tool execution errors must map to the following structured codes:
+*   `PARSE_ERROR`: Format error.
+*   `TOOL_NOT_FOUND`: Tool does not exist.
+*   `INVALID_INPUT`: Parameters do not match Schema.
+*   `DENIED_BY_POLICY`: Violation of phase or security policy.
+*   `TIMEOUT`: Execution timed out.
+*   `EXEC_ERROR`: Runtime exception.
+*   `UNSUPPORTED_TOOL_PROTOCOL`: Illegal protocol format used.
+
+---
+
+## 10. Log Specification
+Logs should clearly reflect the call source and status:
+*   `Tool execution [code.search] (source=builtin): ok`
+*   `Tool execution [code.read_file] (source=builtin): denied (phase=APPLY)`
+*   `Tool execution [code.search] (source=builtin): ok (backend=rg→powershell)`
+
+---
+
+## 11. Testing Hard Requirements (Vitest)
+*   **Environment Isolation**: Must use `vi.useFakeTimers()`, Mock `process.nextTick`.
+*   **No Side Effects**: Ban real disk I/O, network requests, and child process spawning (except in integration tests).
+*   **Mandatory Test Scenarios**:
+    *   "Fake calls" in descriptive text are not executed.
+    *   Tags inside code blocks are not executed.
+    *   Illegal protocol formats trigger `UNSUPPORTED_TOOL_PROTOCOL`.
+    *   Phase Deny works effectively.
+    *   Backend Fallback mechanism works effectively.
+    *   Audit logs are recorded completely.

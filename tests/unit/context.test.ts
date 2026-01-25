@@ -8,7 +8,21 @@ import { AstParser } from '../../src/core/ast/parser.js';
 import { ContextBuilder } from '../../src/core/context.js';
 
 vi.mock('fs/promises');
-vi.mock('child_process');
+vi.mock('child_process', async () => {
+  const { EventEmitter } = await import('events');
+  return {
+    spawn: vi.fn().mockImplementation(() => {
+      const child = new EventEmitter() as any;
+      child.stdout = new EventEmitter();
+      child.stderr = new EventEmitter();
+      child.stdin = new EventEmitter();
+      child.stdin.end = vi.fn();
+      child.stdin.write = vi.fn();
+      child.kill = vi.fn();
+      return child;
+    }),
+  };
+});
 vi.mock('../../src/core/ast/parser.js', () => ({
   AstParser: class {
     static parse = vi.fn();

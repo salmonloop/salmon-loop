@@ -9,7 +9,13 @@ import ProgressBar from 'progress';
 
 import { CheckpointManager } from './core/checkpoint/manager.js';
 import { logger } from './core/logger.js';
-import { ExecutionPhase, ErrorType, VerboseLevel, CheckpointStrategy } from './core/types.js';
+import {
+  EXECUTION_PHASES,
+  Phase,
+  ErrorType,
+  VerboseLevel,
+  CheckpointStrategy,
+} from './core/types.js';
 import { text } from './locales/index.js';
 
 import { runSalmonLoop, OpenAILLM, StubLLM } from './index.js';
@@ -89,9 +95,8 @@ program
       }
 
       // Progress bar setup
-      const phases = Object.values(ExecutionPhase);
       const bar = new ProgressBar(`${chalk.blue('[:bar]')} :phase :percent :elapseds`, {
-        total: phases.length,
+        total: EXECUTION_PHASES.length,
         width: 20,
         complete: '=',
         incomplete: ' ',
@@ -161,13 +166,13 @@ program
         logger.bold(text.cli.reason(result.reason));
 
         // Provide suggestions based on failure
-        if (result.failurePhase === ExecutionPhase.PREFLIGHT) {
+        if (result.failurePhase === Phase.PREFLIGHT) {
           if (result.reasonCode === 'PREFLIGHT_DIRTY') {
             logger.cyan(`💡 Suggestion: ${text.suggestions.dirty}`);
           } else if (result.reasonCode === 'PREFLIGHT_NOT_GIT') {
             logger.cyan(`💡 Suggestion: ${text.suggestions.notGit}`);
           }
-        } else if (result.failurePhase === ExecutionPhase.VERIFY) {
+        } else if (result.failurePhase === Phase.VERIFY) {
           if (result.errorType === ErrorType.COMPILATION) {
             logger.cyan(`💡 Suggestion: ${text.suggestions.compilation}`);
           } else if (result.errorType === ErrorType.LINT) {
@@ -175,7 +180,7 @@ program
           } else {
             logger.cyan(`💡 Suggestion: ${text.suggestions.test}`);
           }
-        } else if (result.failurePhase === ExecutionPhase.ROLLBACK) {
+        } else if (result.failurePhase === Phase.ROLLBACK) {
           logger.cyan(`💡 Suggestion: ${text.suggestions.rollbackFailed}`);
         }
 

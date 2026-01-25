@@ -8,23 +8,21 @@ export default defineConfig({
     // Global setup file (runs before each test)
     setupFiles: ['./tests/setup.ts'],
 
+    // Use standard pool for better performance now that mock-fs is removed
+    pool: 'threads',
+
     // Test file patterns
     include: ['tests/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts}'],
+    exclude: ['tests/perf/**'],
 
-    // Special pool configuration for race condition tests
-    poolMatchGlobs: [
-      ['tests/unit/race_conditions.test.ts', 'forks'],
-      // ARCHITECTURE OPTIMIZATION: Use 'forks' for integration tests.
-      // This provides process-level isolation (separate CWD/memory), preventing
-      // "not a git repository" errors caused by thread pollution.
-      ['tests/integration/**/*.test.ts', 'forks'],
-    ],
+    // Run integration tests in isolated forks to avoid git lock contention
+    poolMatchGlobs: [['tests/integration/**', 'forks']],
 
     poolOptions: {
       forks: {
-        singleFork: false, // Allow multiple forks for parallelism
+        singleFork: true, // Integration tests run sequentially in a single fork
         minForks: 1,
-        maxForks: 4, // Limit concurrency to avoid file lock contention
+        maxForks: 1,
       },
       threads: {
         singleThread: false,

@@ -373,4 +373,41 @@ Please return the patch in PURE unified diff format:`;
     lockAcquireTimeout: (file: string) => `Timeout acquiring lock for file: ${file}`,
     lockReleaseFailed: (file: string) => `Failed to release lock for file: ${file}`,
   },
+
+  capability: {
+    noBackends: (capability: string) => `No backends available for capability: ${capability}`,
+    allBackendsFailed: (capability: string) => `All backends failed for capability: ${capability}`,
+    backendError: (backend: string, error: string) => `Backend '${backend}' failed: ${error}`,
+    fallbackTriggered: (from: string, to: string, reason: string) =>
+      `Automatically falling back from '${from}' to '${to}' due to: ${reason}`,
+  },
+
+  tools: {
+    // Tool descriptions
+    codeSearchDescription: 'Fast file pattern matching tool that works with any codebase size',
+    fsReadDescription: 'Read the full content of a file from the repository',
+    gitStatusDescription: 'Show the working tree status',
+    gitCatDescription: 'Read file content from a specific git revision',
+    codeAstDescription: 'Query AST definitions and references for symbols',
+    testRunDescription: 'Run verification command (test/lint/build) and classify errors',
+
+    // Execution logs
+    executing: (name: string) => `Executing tool: ${name}...`,
+    completed: (name: string) => `Tool ${name} completed.`,
+    failed: (name: string, error: string) => `Tool ${name} failed: ${error}`,
+
+    // Errors
+    notFound: (name: string) => `Tool ${name} not found`,
+    policyDeny: (reason: string) => `Tool execution denied: ${reason}`,
+    inputSchema: (reason: string) => `Invalid tool input: ${reason}`,
+    outputSchema: (reason: string) => `Invalid tool output: ${reason}`,
+    timeout: (ms: number) => `Tool execution timed out after ${ms}ms`,
+    outputTooLarge: (size: number, limit: number) =>
+      `Tool output too large (${size} bytes). Limit is ${limit} bytes.`,
+    concurrencyLimit: 'Too many concurrent tool calls',
+    rateLimit: (phase: string) => `Rate limit exceeded for phase ${phase}`,
+    worktreeRequired: 'Tool requires worktree isolation',
+    applyForbidden: 'Tools are strictly forbidden in APPLY phase',
+    networkDenied: 'Network access is denied by default policy',
+  },
 };

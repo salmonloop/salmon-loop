@@ -10,7 +10,36 @@ import { LIMITS } from './limits.js';
 import { getPlanPrompt, getPatchPrompt } from './prompts.js';
 import type { Context, Plan } from './types.js';
 
+// --- New Types for Multi-turn Conversation ---
+
+export type LLMRole = 'system' | 'user' | 'assistant' | 'tool';
+
+export interface LLMMessage {
+  role: LLMRole;
+  content: string;
+  name?: string; // For 'tool' role
+  tool_calls?: any[]; // Raw tool calls from provider
+  tool_call_id?: string; // For 'tool' role response
+}
+
+export interface ChatOptions {
+  temperature?: number;
+  maxTokens?: number;
+  responseFormat?: 'json_object' | 'text';
+  stop?: string[];
+}
+
+// --- Extended LLM Interface ---
+
 export interface LLM {
+  /**
+   * Basic chat completion for multi-turn interaction
+   */
+  chat(messages: LLMMessage[], options?: ChatOptions): Promise<LLMMessage>;
+
+  /**
+   * High-level goal-oriented methods (internally use chat)
+   */
   createPlan(context: Context, instruction: string, lastError?: string): Promise<Plan>;
   createPatch(context: Context, plan: Plan, lastError?: string): Promise<string>;
 }
@@ -27,6 +56,24 @@ export class OpenAILLM implements LLM {
     this.model = process.env.S8P_MODEL || process.env.SALMON_MODEL || 'gpt-4o';
   }
 
+  async chat(messages: LLMMessage[], options: ChatOptions = {}): Promise<LLMMessage> {
+    const response = await this.client.chat.completions.create({
+      model: this.model,
+      messages: messages as any, // OpenAI compatible
+      temperature: options.temperature,
+      max_tokens: options.maxTokens,
+      response_format: options.responseFormat ? { type: options.responseFormat } : undefined,
+      stop: options.stop,
+    });
+
+    const msg = response.choices[0].message;
+    return {
+      role: msg.role as LLMRole,
+      content: msg.content || '',
+      tool_calls: msg.tool_calls,
+    };
+  }
+
   async createPlan(context: Context, instruction: string, lastError?: string): Promise<Plan> {
     const prompt = getPlanPrompt(
       this.formatContext(context),
@@ -35,13 +82,11 @@ export class OpenAILLM implements LLM {
       lastError,
     );
 
-    const response = await this.client.chat.completions.create({
-      model: this.model,
-      messages: [{ role: 'user', content: prompt }],
-      response_format: { type: 'json_object' },
+    const response = await this.chat([{ role: 'user', content: prompt }], {
+      responseFormat: 'json_object',
     });
 
-    const content = response.choices[0].message.content;
+    const content = response.content;
     if (!content) {
       throw new Error(text.llm.planEmpty);
     }
@@ -75,12 +120,9 @@ export class OpenAILLM implements LLM {
       lastError,
     );
 
-    const response = await this.client.chat.completions.create({
-      model: this.model,
-      messages: [{ role: 'user', content: prompt }],
-    });
+    const response = await this.chat([{ role: 'user', content: prompt }]);
 
-    const content = response.choices[0].message.content;
+    const content = response.content;
     if (!content) {
       throw new Error(text.llm.patchEmpty());
     }
@@ -201,6 +243,14 @@ export class OpenAILLM implements LLM {
 }
 
 export class StubLLM implements LLM {
+  async chat(messages: LLMMessage[]): Promise<LLMMessage> {
+    const lastMsg = messages[messages.length - 1];
+    return {
+      role: 'assistant',
+      content: `Stub response for: ${lastMsg.content.substring(0, 50)}...`,
+    };
+  }
+
   async createPlan(_context: Context, instruction: string, _lastError?: string): Promise<Plan> {
     // Return fixed Plan structure
     return {
@@ -237,6 +287,13 @@ export class FakeLLM implements LLM {
 
   private planIndex = 0;
   private patchIndex = 0;
+
+  async chat(_messages: LLMMessage[]): Promise<LLMMessage> {
+    return {
+      role: 'assistant',
+      content: 'Fake chat response',
+    };
+  }
 
   async createPlan(): Promise<Plan> {
     return this.plans[this.planIndex++] || this.plans[this.plans.length - 1];

@@ -366,14 +366,10 @@ describe('ShadowMergeEngine Robustness', () => {
         .replace('line 10', 'ai changes');
       expect(finalContent).toBe(expectedWorking);
 
-      // Assert index contains AI changes plus user staged changes.
-      // UPDATE: With the "Double Dirty" fix, unstaged changes are promoted to the index
-      // to resolve the context dependency. So the index now matches the working tree.
+      // Assert index contains ONLY user staged changes (Zero Index Access policy).
+      // The AI changes are applied to the working tree, but the index is left untouched.
       const stagedContent = ctx.git.run('show :file.txt');
-      // const expectedStaged = baseLines
-      //   .replace('line 1', 'user staged')
-      //   .replace('line 10', 'ai changes');
-      expect(stagedContent).toBe(expectedWorking);
+      expect(stagedContent).toBe(stagedLines);
 
       const headContent = ctx.git.run('show HEAD:file.txt');
       expect(headContent).toBe(baseLines);
@@ -411,7 +407,7 @@ describe('ShadowMergeEngine Robustness', () => {
       expect(finalContent).toBe(expectedWorking);
 
       const stagedContent = ctx.git.run('show :file.txt');
-      expect(stagedContent).toBe(expectedWorking);
+      expect(stagedContent).toBe(finalStagedLines);
 
       const headContent = ctx.git.run('show HEAD:file.txt');
       expect(headContent).toBe(baseLines);
@@ -513,17 +509,13 @@ describe('ShadowMergeEngine Robustness', () => {
       expect(finalContent).toBe(expectedWorking);
 
       const stagedContent = ctx.git.run('show :file.txt');
-      // UPDATE: With "Double Dirty" fix, partial adds are promoted to full adds in the index
-      // if they are part of a dirty merge context.
-      // const expectedStaged = baseLines
-      //   .replace('line 2', 'user staged')
-      //   .replace('line 11', 'ai changes');
-      expect(stagedContent).toBe(expectedWorking);
+      // Index should match user's staged content only
+      expect(stagedContent).toBe(stagedLines);
 
       const status = ctx.git.statusEntry('file.txt');
-      // Status becomes 'M ' because index now matches working (both have all changes)
-      // The 'M' is relative to HEAD.
-      expect(status).toMatchObject({ index: 'M', working: ' ', path: 'file.txt' });
+      // Index is Modified vs HEAD (user staged)
+      // Working is Modified vs Index (user working + ai changes)
+      expect(status).toMatchObject({ index: 'M', working: 'M', path: 'file.txt' });
 
       const headContent = ctx.git.run('show HEAD:file.txt');
       expect(headContent).toBe(baseLines);
@@ -640,14 +632,13 @@ describe('ShadowMergeEngine Robustness', () => {
       const expectedContent = baseLines + 'user staged\nuser unstaged\nai changes\n';
       expect(finalContent).toBe(expectedContent);
 
-      // The key fix: Unstaged changes should be promoted to Index to support the merge
+      // With Zero Index Access policy, the index should remain UNTOUCHED
       const indexContent = ctx.git.run('show :file.txt');
-      expect(indexContent).toBe(expectedContent);
+      expect(indexContent).toBe(stagedLines);
 
       const statusAfter = ctx.git.statusEntry('file.txt');
-      // Should be 'M ' (Modified in Index, Working matches Index)
-      // The 'M' in index is relative to HEAD (which is still 'initial')
-      expect(statusAfter).toMatchObject({ index: 'M', working: ' ', path: 'file.txt' });
+      // M (Index vs HEAD), M (Working vs Index)
+      expect(statusAfter).toMatchObject({ index: 'M', working: 'M', path: 'file.txt' });
     });
   });
 
@@ -785,7 +776,7 @@ describe('ShadowMergeEngine Robustness', () => {
       expect(finalContent).toContain('ai changes');
 
       const stagedAfter = ctx.git.run('show :file.txt');
-      expect(stagedAfter).toContain('ai changes');
+      expect(stagedAfter).not.toContain('ai changes');
       const modeAfter = ctx.git.getIndexMode('file.txt');
       expect(modeAfter).toBe('100755');
     });
@@ -1085,7 +1076,7 @@ describe('ShadowMergeEngine Robustness', () => {
 
       const stagedContent = ctx.git.run('show :file.txt');
       expect(stagedContent).toContain('user change');
-      expect(stagedContent).toContain('ai changes');
+      expect(stagedContent).not.toContain('ai changes');
     });
 
     it('5.3 New -> Modify -> Add -> Delete: strict failure on deleted file', async () => {
@@ -1180,9 +1171,7 @@ describe('ShadowMergeEngine Robustness', () => {
       expect(cContent).toContain('ai changes');
 
       const aIndex = ctx.git.run('show :a.txt');
-      const expectedAIndex = baseLines
-        .replace('line 1', 'user staged')
-        .replace('line 3', 'ai changes');
+      const expectedAIndex = baseLines.replace('line 1', 'user staged');
       expect(aIndex).toBe(expectedAIndex);
       const bIndex = ctx.git.run('show :b.txt');
       expect(bIndex).toBe(baseLines);
@@ -1190,7 +1179,7 @@ describe('ShadowMergeEngine Robustness', () => {
       expect(cIndex).toBe(baseLines);
 
       const aStatus = ctx.git.statusEntry('a.txt');
-      expect(aStatus).toMatchObject({ index: 'M', working: ' ', path: 'a.txt' });
+      expect(aStatus).toMatchObject({ index: 'M', working: 'M', path: 'a.txt' });
       const bStatus = ctx.git.statusEntry('b.txt');
       expect(bStatus).toMatchObject({ index: ' ', working: 'M', path: 'b.txt' });
       const cStatus = ctx.git.statusEntry('c.txt');

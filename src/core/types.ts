@@ -1,17 +1,48 @@
 export type VerboseLevel = 'basic' | 'extended';
 export type ApplyBackOnDirty = 'abort' | '3way';
 
-export enum ExecutionPhase {
-  PREFLIGHT = 'preflight',
-  CONTEXT = 'context',
-  PLAN = 'plan',
-  PATCH = 'patch',
-  VALIDATE = 'validate',
-  APPLY = 'apply',
-  VERIFY = 'verify',
-  ROLLBACK = 'rollback',
-  SHRINK = 'shrink',
-}
+/**
+ * Single Source of Truth (SSOT) for Execution Phases.
+ *
+ * EXECUTION_PHASES (Array):
+ * - Used for runtime iteration (e.g., CLI progress bars, validation loops).
+ * - Ensures order and completeness.
+ */
+export const EXECUTION_PHASES = [
+  'PREFLIGHT',
+  'CONTEXT',
+  'PLAN',
+  'PATCH',
+  'VALIDATE',
+  'APPLY',
+  'VERIFY',
+  'ROLLBACK',
+  'SHRINK',
+] as const;
+
+/**
+ * Phase (Object):
+ * - Used for value access in code logic (e.g., `if (phase === Phase.PLAN)`).
+ * - Eliminates "magic strings" and allows easy refactoring/renaming.
+ */
+export const Phase = {
+  PREFLIGHT: 'PREFLIGHT',
+  CONTEXT: 'CONTEXT',
+  PLAN: 'PLAN',
+  PATCH: 'PATCH',
+  VALIDATE: 'VALIDATE',
+  APPLY: 'APPLY',
+  VERIFY: 'VERIFY',
+  ROLLBACK: 'ROLLBACK',
+  SHRINK: 'SHRINK',
+} as const;
+
+/**
+ * ExecutionPhase (Type):
+ * - Derived automatically from the array.
+ * - Used for TypeScript type checking and function signatures.
+ */
+export type ExecutionPhase = (typeof EXECUTION_PHASES)[number];
 
 export enum ErrorType {
   COMPILATION = 'compilation',

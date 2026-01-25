@@ -1,0 +1,89 @@
+import { ExecutionPhase, Phase } from '../types';
+
+import { PolicyDecision } from './policy';
+import { ToolCallEnvelope, ToolResult, ToolSpec } from './types';
+
+export interface ToolAuditLogEntry {
+  timestamp: string;
+  eventType: 'start' | 'end';
+  callId: string;
+  phase: ExecutionPhase;
+  toolName: string;
+  // Start event fields
+  inputSummary?: string; // stringified and truncated
+  decision?: PolicyDecision;
+  // End event fields
+  status?: string;
+  durationMs?: number;
+  outputSummary?: string;
+  error?: string;
+}
+
+export class ToolAuditLogger {
+  private logs: ToolAuditLogEntry[] = [];
+
+  onStart(call: ToolCallEnvelope, spec: ToolSpec, decision: PolicyDecision) {
+    const entry: ToolAuditLogEntry = {
+      timestamp: new Date().toISOString(),
+      eventType: 'start',
+      callId: call.id,
+      phase: call.phase,
+      toolName: spec.name,
+      inputSummary: this.summarize(call.args),
+      decision,
+    };
+    this.logs.push(entry);
+    // In a real implementation, this would write to a file or emit an event
+    // console.log('[ToolAudit]', JSON.stringify(entry));
+  }
+
+  onEnd(result: ToolResult) {
+    // We need to find the phase from the callId if we weren't passed it,
+    // but for now we'll assume the caller context is sufficient or we log what we have.
+    // Ideally we'd map ID back to call, but to keep it simple/stateless:
+
+    const entry: ToolAuditLogEntry = {
+      timestamp: new Date().toISOString(),
+      eventType: 'end',
+      callId: result.id,
+      phase: result.error?.failurePhase || Phase.CONTEXT, // Fallback/hack, ideally passed in
+      toolName: result.toolName,
+      status: result.status,
+      durationMs: result.durationMs,
+      outputSummary: result.outputSummary,
+      error: result.error?.code,
+    };
+    this.logs.push(entry);
+    // console.log('[ToolAudit]', JSON.stringify(entry));
+  }
+
+  /**
+   * Receives fine-grained backend events (start, ok, fail) for auditing.
+   */
+  onEvent(event: any) {
+    // For now, we just push them into the logs as a generic entry or log to debug
+    // In the future, this can be structured into a separate backend-attempts table
+    this.logs.push({
+      timestamp: new Date().toISOString(),
+      eventType: 'start', // Placeholder
+      callId: 'backend-event',
+      phase: event.phase || Phase.CONTEXT,
+      toolName: event.backendId || 'unknown-backend',
+      error: event.code,
+      outputSummary: `Backend event: ${JSON.stringify(event)}`,
+    });
+  }
+
+  getLogs() {
+    return this.logs;
+  }
+
+  private summarize(data: unknown): string {
+    try {
+      const str = JSON.stringify(data);
+      return str.length > 200 ? str.substring(0, 200) + '...' : str;
+    } catch {
+      return '[Circular/Unserializable]';
+    }
+  }
+}

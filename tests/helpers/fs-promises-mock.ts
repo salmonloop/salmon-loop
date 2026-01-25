@@ -78,10 +78,20 @@ export function setupFsPromisesMock(options: FsPromisesMockOptions = {}) {
     access: vi.fn().mockResolvedValue(undefined),
 
     // File handle operations
-    open: vi.fn().mockResolvedValue({
-      close: vi.fn().mockResolvedValue(undefined),
-      write: vi.fn().mockResolvedValue({ bytesWritten: 0, buffer: Buffer.from('') }),
-      read: vi.fn().mockResolvedValue({ bytesRead: 0, buffer: Buffer.from('') }),
+    open: vi.fn().mockImplementation(async () => {
+      const handle = new (await import('events')).EventEmitter() as any;
+      handle.close = vi.fn().mockResolvedValue(undefined);
+      handle.write = vi.fn().mockResolvedValue({ bytesWritten: 0, buffer: Buffer.from('') });
+      handle.read = vi.fn().mockResolvedValue({ bytesRead: 0, buffer: Buffer.from('') });
+      handle.stat = vi.fn().mockResolvedValue(defaultStats);
+      handle.appendFile = vi.fn().mockResolvedValue(undefined);
+      handle.truncate = vi.fn().mockResolvedValue(undefined);
+      handle.sync = vi.fn().mockResolvedValue(undefined);
+      handle.datasync = vi.fn().mockResolvedValue(undefined);
+      handle.chown = vi.fn().mockResolvedValue(undefined);
+      handle.chmod = vi.fn().mockResolvedValue(undefined);
+      handle.fd = 42;
+      return handle;
     }),
 
     // Symlink operations

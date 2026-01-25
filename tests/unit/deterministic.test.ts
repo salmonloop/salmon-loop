@@ -1,7 +1,6 @@
 import { ContextBuilder } from '../../src/core/context.js';
 import * as git from '../../src/core/git.js';
 import { FakeLLM } from '../../src/core/llm.js';
-import { ExecutionPhase } from '../../src/core/types.js';
 import * as verify from '../../src/core/verify.js';
 import { runSalmonLoop } from '../../src/index.js';
 
@@ -108,7 +107,7 @@ ${Array(1000).fill('+new line').join('\n')}`;
     });
 
     expect(result.success).toBe(false);
-    expect(result.failurePhase).toBe(ExecutionPhase.VALIDATE);
+    expect(result.failurePhase).toBe('VALIDATE');
   });
 
   it('should reject dirty workspace by default', async () => {
@@ -128,6 +127,6 @@ ${Array(1000).fill('+new line').join('\n')}`;
 
     expect(result.success).toBe(false);
     expect(result.reason).toContain('Workspace has uncommitted changes');
-    expect(result.failurePhase).toBe(ExecutionPhase.PREFLIGHT);
+    expect(result.failurePhase).toBe('PREFLIGHT');
   });
 });

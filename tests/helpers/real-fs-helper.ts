@@ -48,7 +48,7 @@ export interface FileEntry {
   /** Relative path from repo root */
   path: string;
   /** File content */
-  content: string;
+  content: string | Buffer;
 }
 
 /**
@@ -145,7 +145,8 @@ export class RealFsTestHelper {
     let initAttempts = 0;
     while (initAttempts < 5) {
       try {
-        const init = await execCommand(repoPath, 'git', ['init']);
+        // Use --initial-branch=main to be consistent and avoid 'master' vs 'main' issues
+        const init = await execCommand(repoPath, 'git', ['init', '--initial-branch=main']);
         if (init.exitCode === 0) {
           // Verify .git exists to be absolutely sure
           if (await this.fileExists(repoPath, '.git')) {
@@ -159,10 +160,7 @@ export class RealFsTestHelper {
             }
           }
         }
-        // If we get here, init failed or verification failed
-        logger.trace(
-          `git init attempt ${initAttempts + 1} failed or unverified. Output: ${init.stderr}`,
-        );
+        logger.trace(`git init attempt ${initAttempts + 1} failed or unverified.`);
       } catch (e) {
         logger.trace(`git init attempt ${initAttempts + 1} threw error: ${e}`);
       }
@@ -171,8 +169,8 @@ export class RealFsTestHelper {
       if (initAttempts === 5) {
         throw new Error(`git init failed after 5 attempts`);
       }
-      // Exponential backoff with higher base
-      await new Promise((r) => setTimeout(r, 500 * Math.pow(2, initAttempts)));
+      // Wait for file system to settle, especially on Windows
+      await new Promise((r) => setTimeout(r, 1000));
     }
 
     // Configure Git
@@ -226,15 +224,19 @@ export class RealFsTestHelper {
    * @param relativePath - Relative path from base
    * @param content - File content
    */
-  async writeFile(basePath: string, relativePath: string, content: string): Promise<void> {
+  async writeFile(basePath: string, relativePath: string, content: string | Buffer): Promise<void> {
     const fullPath = path.join(basePath, relativePath);
     const dir = path.dirname(fullPath);
 
     // Ensure directory exists
     await mkdir(dir, { recursive: true });
 
-    // Write file
-    await writeFile(fullPath, content, 'utf-8');
+    // Write file - use appropriate encoding based on content type
+    if (content instanceof Buffer) {
+      await writeFile(fullPath, content);
+    } else {
+      await writeFile(fullPath, content, 'utf-8');
+    }
   }
 
   /**
@@ -244,9 +246,16 @@ export class RealFsTestHelper {
    * @param relativePath - Relative path from base
    * @returns File content
    */
-  async readFile(basePath: string, relativePath: string): Promise<string> {
+  async readFile(
+    basePath: string,
+    relativePath: string,
+    encoding?: 'utf-8' | null,
+  ): Promise<string | Buffer> {
     const fullPath = path.join(basePath, relativePath);
-    return readFile(fullPath, 'utf-8');
+    if (encoding === null) {
+      return readFile(fullPath);
+    }
+    return readFile(fullPath, encoding || 'utf-8');
   }
 
   /**
@@ -322,7 +331,7 @@ export class RealFsTestHelper {
   async modifyFile(
     repoPath: string,
     relativePath: string,
-    content: string,
+    content: string | Buffer,
     stage = false,
   ): Promise<void> {
     await this.writeFile(repoPath, relativePath, content);

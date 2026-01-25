@@ -383,4 +383,83 @@ describe('ApplyBack Dirty Workspace Safety - CRITICAL SCENARIOS (Real Filesystem
       expect(untrackedContent).toBe('important untracked file');
     });
   });
+
+  describe('CRITICAL: MM (Double Dirty) State Handling', () => {
+    it('should preserve Index integrity even when AI patches an MM file (Clean Merge)', async () => {
+      const mainRepo = await helper.createGitRepo({
+        initialFiles: [{ path: 'target.js', content: 'Header\nPadding1\nBody\nPadding2\nFooter' }],
+      });
+      const worktreePath = await helper.createWorktree(mainRepo.path);
+
+      // User modifies Header (Staged)
+      await helper.modifyFile(
+        mainRepo.path,
+        'target.js',
+        'HeaderModifiedStaged\nPadding1\nBody\nPadding2\nFooter',
+      );
+      await helper.git(mainRepo.path, ['add', 'target.js']);
+
+      // User modifies Footer (Unstaged)
+      await helper.modifyFile(
+        mainRepo.path,
+        'target.js',
+        'HeaderModifiedStaged\nPadding1\nBody\nPadding2\nFooterModifiedUnstaged',
+      );
+
+      // Verify MM
+      const status = await helper.getGitStatus(mainRepo.path);
+      expect(status).toContain('MM target.js');
+
+      // Capture Index Hash
+      const originalIndexHash = await helper.git(mainRepo.path, ['rev-parse', ':target.js']);
+
+      // AI modifies Body (No overlap with Header or Footer)
+      await helper.modifyFile(
+        worktreePath,
+        'target.js',
+        'Header\nPadding1\nBodyAI\nPadding2\nFooter',
+      );
+
+      const baseCommit = await helper.git(mainRepo.path, ['rev-parse', 'HEAD']);
+      const shadowInitialRef = baseCommit.stdout.trim();
+      const checkpointRef: CheckpointRef = {
+        strategy: 'worktree',
+        repoPath: mainRepo.path,
+        worktreePath,
+        baseRef: shadowInitialRef,
+        branchName: 'test-worktree',
+      };
+
+      const diff = await helper.getGitDiff(worktreePath);
+
+      // CRITICAL: Create a commit in shadow to get shadowLatestRef
+      await helper.git(worktreePath, ['add', 'target.js']);
+      await helper.git(worktreePath, ['commit', '-m', 'ai changes']);
+      const shadowLatestRef = (await helper.git(worktreePath, ['rev-parse', 'HEAD'])).stdout.trim();
+
+      const loop = new SalmonLoop();
+
+      await (loop as any).applyBackToMainWorkspace(
+        mainRepo.path,
+        checkpointRef,
+        diff,
+        '3way',
+        'extended',
+        ['target.js'],
+        shadowInitialRef,
+        shadowLatestRef,
+      );
+
+      // Assertions
+      const content = await helper.readFile(mainRepo.path, 'target.js');
+      // Should have: Staged Header, AI Body, Unstaged Footer
+      expect(content).toContain('HeaderModifiedStaged');
+      expect(content).toContain('BodyAI');
+      expect(content).toContain('FooterModifiedUnstaged');
+
+      // CRITICAL: Verify Index has NOT changed
+      const newIndexHash = await helper.git(mainRepo.path, ['rev-parse', ':target.js']);
+      expect(newIndexHash.stdout).toBe(originalIndexHash.stdout);
+    });
+  });
 });

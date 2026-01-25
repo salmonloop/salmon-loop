@@ -6,7 +6,8 @@
 
 export { runSalmonLoop } from './core/loop.js';
 export type { LoopOptions } from './core/loop.js';
-export { ExecutionPhase, ErrorType } from './core/types.js';
+export { Phase, ErrorType } from './core/types.js';
+export type { ExecutionPhase } from './core/types.js';
 export type {
   LoopResult,
   StepLog,
