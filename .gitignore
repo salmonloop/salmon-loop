@@ -40,3 +40,6 @@ test-report.json
 .s8p/
 
 plans/
+
+# Agents
+AGENTS.md

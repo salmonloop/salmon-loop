@@ -3,10 +3,10 @@ import { mkdir, readFile, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { CheckpointManager } from '../../src/core/checkpoint/manager.js';
-import { runGit } from '../../src/core/checkpoint/worktree.js';
+import { GitAdapter } from '../../src/core/adapters/git/git-adapter.js';
+import { CheckpointManager } from '../../src/core/strata/checkpoint/manager.js';
 
 /**
  * Integration Tests for State Management
@@ -32,14 +32,15 @@ describe('State Management Integration Tests', () => {
 
     // Initialize main repository with initial commit
     await mkdir(mainRepo, { recursive: true });
-    await runGit(mainRepo, ['init']);
-    await runGit(mainRepo, ['config', 'user.name', 'Test User']);
-    await runGit(mainRepo, ['config', 'user.email', 'test@example.com']);
+    const git = new GitAdapter(mainRepo);
+    await git.exec(['init']);
+    await git.exec(['config', 'user.name', 'Test User']);
+    await git.exec(['config', 'user.email', 'test@example.com']);
 
     const initialFile = join(mainRepo, 'code.js');
     await writeFile(initialFile, 'function hello() {\n  console.log("Hello");\n}\n');
-    await runGit(mainRepo, ['add', '.']);
-    await runGit(mainRepo, ['commit', '-m', 'Initial commit']);
+    await git.exec(['add', '.']);
+    await git.exec(['commit', '-m', 'Initial commit']);
 
     checkpointManager = new CheckpointManager();
   });
@@ -48,7 +49,8 @@ describe('State Management Integration Tests', () => {
     try {
       // Cleanup worktree first if it exists
       try {
-        await runGit(mainRepo, ['worktree', 'remove', shadowWorktree, '--force']);
+        const git = new GitAdapter(mainRepo);
+        await git.exec(['worktree', 'remove', shadowWorktree, '--force']);
       } catch {
         // Ignore if worktree doesn't exist
       }
@@ -80,7 +82,8 @@ function goodbye() {
       expect(snapshot.commitHash).toBeDefined();
 
       // ACT 2: Create shadow worktree and restore snapshot
-      await runGit(mainRepo, ['worktree', 'add', shadowWorktree, 'HEAD']);
+      const git = new GitAdapter(mainRepo);
+      await git.exec(['worktree', 'add', shadowWorktree, 'HEAD']);
       await checkpointManager.restoreToShadow(mainRepo, shadowWorktree, snapshot.commitHash);
 
       // ASSERT: Verify dirty data is observable in shadow worktree
@@ -91,7 +94,8 @@ function goodbye() {
       expect(shadowContent).toContain('function goodbye()');
 
       // ASSERT: Verify git status shows dirty state
-      const status = await runGit(shadowWorktree, ['status', '--short']);
+      const shadowGit = new GitAdapter(shadowWorktree);
+      const status = await shadowGit.exec(['status', '--short']);
       expect(status).toContain('M code.js');
     },
   );
@@ -114,7 +118,8 @@ const userVar = 42;
       );
 
       const snapshot = await checkpointManager.createSafeSnapshot(mainRepo);
-      await runGit(mainRepo, ['worktree', 'add', shadowWorktree, 'HEAD']);
+      const git = new GitAdapter(mainRepo);
+      await git.exec(['worktree', 'add', shadowWorktree, 'HEAD']);
       await checkpointManager.restoreToShadow(mainRepo, shadowWorktree, snapshot.commitHash);
 
       // ACT: Simulate AI making a change in shadow worktree
@@ -128,8 +133,9 @@ const userVar = 42;
 const userVar = 42;
 `;
       await writeFile(shadowFile, aiModified);
-      await runGit(shadowWorktree, ['add', 'code.js']);
-      await runGit(shadowWorktree, ['commit', '-m', 'AI modifications']);
+      const shadowGit = new GitAdapter(shadowWorktree);
+      await shadowGit.exec(['add', 'code.js']);
+      await shadowGit.exec(['commit', '-m', 'AI modifications']);
 
       // ASSERT: Both user changes and AI changes should coexist
       const finalContent = await readFile(shadowFile, 'utf-8');
@@ -145,10 +151,11 @@ const userVar = 42;
     async () => {
       // ARRANGE: Create staged and unstaged changes
       const codeFile = join(mainRepo, 'code.js');
+      const git = new GitAdapter(mainRepo);
 
       // Stage a change
       await writeFile(codeFile, 'function hello() {\n  console.log("Staged change");\n}\n');
-      await runGit(mainRepo, ['add', 'code.js']);
+      await git.exec(['add', 'code.js']);
 
       // Make unstaged change
       await writeFile(
@@ -158,11 +165,12 @@ const userVar = 42;
 
       // ACT: Snapshot and restore
       const snapshot = await checkpointManager.createSafeSnapshot(mainRepo);
-      await runGit(mainRepo, ['worktree', 'add', shadowWorktree, 'HEAD']);
+      await git.exec(['worktree', 'add', shadowWorktree, 'HEAD']);
       await checkpointManager.restoreToShadow(mainRepo, shadowWorktree, snapshot.commitHash);
 
       // ASSERT: Verify distinction is maintained
-      const status = await runGit(shadowWorktree, ['status', '--short']);
+      const shadowGit = new GitAdapter(shadowWorktree);
+      const status = await shadowGit.exec(['status', '--short']);
       // We expect 'MM' because we have both staged changes (from snapshot index) AND unstaged changes (from snapshot worktree)
       expect(status).toContain('MM code.js');
 
@@ -194,7 +202,8 @@ const userVar = 42;
       const snapshot = await checkpointManager.createSafeSnapshot(mainRepo);
 
       // ACT: Restore to shadow worktree
-      await runGit(mainRepo, ['worktree', 'add', shadowWorktree, 'HEAD']);
+      const git = new GitAdapter(mainRepo);
+      await git.exec(['worktree', 'add', shadowWorktree, 'HEAD']);
       await checkpointManager.restoreToShadow(mainRepo, shadowWorktree, snapshot.commitHash);
 
       // ASSERT: Immediately read file via fs.readFile (simulating LLM context building)
@@ -223,8 +232,9 @@ const userVar = 42;
 }
 `;
       await writeFile(codeFile, baseContent);
-      await runGit(mainRepo, ['add', '.']);
-      await runGit(mainRepo, ['commit', '-m', 'Base state']);
+      const git = new GitAdapter(mainRepo);
+      await git.exec(['add', '.']);
+      await git.exec(['commit', '-m', 'Base state']);
 
       // User makes uncommitted changes (dirty data)
       const userContent = `function original() {
@@ -240,7 +250,7 @@ function userFunction() {
 
       // ACT: Create snapshot, restore, and simulate AI modification
       const snapshot = await checkpointManager.createSafeSnapshot(mainRepo);
-      await runGit(mainRepo, ['worktree', 'add', shadowWorktree, 'HEAD']);
+      await git.exec(['worktree', 'add', shadowWorktree, 'HEAD']);
       await checkpointManager.restoreToShadow(mainRepo, shadowWorktree, snapshot.commitHash);
 
       // AI modifies the original function in shadow worktree
@@ -274,35 +284,36 @@ function userFunction() {
       await writeFile(codeFile, 'function test() { return true; }\n');
 
       const snapshot = await checkpointManager.createSafeSnapshot(mainRepo);
-      await runGit(mainRepo, ['worktree', 'add', shadowWorktree, 'HEAD']);
+      const git = new GitAdapter(mainRepo);
+      await git.exec(['worktree', 'add', shadowWorktree, 'HEAD']);
 
       // SPY: Monitor all git commands executed during restore
-      const worktreeModule = await import('../../src/core/checkpoint/worktree.js');
-      const runGitSpy = vi.spyOn(worktreeModule, 'runGit');
+      // We spy on GitAdapter.prototype.exec instead of runGit
+      const execSpy = vi.spyOn(GitAdapter.prototype, 'exec');
 
       try {
         await checkpointManager.restoreToShadow(mainRepo, shadowWorktree, snapshot.commitHash);
 
         // ASSERT: update-index should be called exactly once (by restoreToShadow)
-        // spy.mock.calls is an array of arguments for each call
-        const updateIndexCalls = runGitSpy.mock.calls.filter(
-          ([_, args]) =>
+        const updateIndexCalls = execSpy.mock.calls.filter(
+          ([args]) =>
             Array.isArray(args) && args.includes('update-index') && args.includes('--refresh'),
         );
         expect(updateIndexCalls.length).toBe(1);
 
         // ASSERT: No redundant status calls without -uno flag
-        const statusCalls = runGitSpy.mock.calls.filter(
-          ([_, args]) => Array.isArray(args) && args.includes('status'),
+        const statusCalls = execSpy.mock.calls.filter(
+          ([args]) => Array.isArray(args) && args.includes('status'),
         );
-        statusCalls.forEach(([_, args]) => {
-          if (!args.includes('--format')) {
-            // If it's a status call for logging, it should use -uno
-            expect(args).toContain('-uno');
+        statusCalls.forEach(([args]) => {
+          const argsArray = args as string[];
+          if (!argsArray.includes('--porcelain=v2')) {
+            // If it's a status call for logging/refresh, it should use -uno
+            expect(argsArray).toContain('-uno');
           }
         });
       } finally {
-        runGitSpy.mockRestore();
+        execSpy.mockRestore();
       }
     },
   );

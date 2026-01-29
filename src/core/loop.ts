@@ -1,135 +1,26 @@
-import { createHash, randomBytes } from 'crypto';
-import { copyFile, mkdir, readFile, stat, writeFile } from 'fs/promises';
-import { tmpdir } from 'os';
-import path from 'path';
+import { randomBytes } from 'crypto';
 
 import { text } from '../locales/index.js';
 
-import {
-  AstParser,
-  getNodeName,
-  getTopLevelNodes,
-  validateNodeStructure,
-  validateScopeIntegrity,
-} from './ast/index.js';
-import { CheckpointManager } from './checkpoint/manager.js';
-import { runGit } from './checkpoint/worktree.js';
+import { GitAdapter } from './adapters/git/git-adapter.js';
 import { Semaphore } from './concurrency.js';
-import { ContextBuilder } from './context.js';
-import { normalizeDiff, validateDiff, validatePatchContent } from './diff.js';
-import { refineFeedback } from './feedback/index.js';
-import { applyPatch, getGitStatus, rollbackFiles } from './git.js';
+import { executeSalmonLoopFlow } from './grizzco/flows/SalmonLoopFlow.js';
 import { LIMITS } from './limits.js';
-import { LLM } from './llm.js';
-import { logger } from './logger.js';
-import { ShadowMergeEngine } from './merge/shadow-merge.js';
-import { monitor } from './monitor.js';
-import { SyntheticSidecarLayerImpl } from './strata/layers/sidecar-layer.js';
-import { createStandardToolstack } from './tools/loader.js';
+import { FileStateResolver } from './strata/layers/file-state-resolver.js';
+import { RuntimeEnvironment } from './strata/runtime/environment.js';
+import { WorkspaceSynchronizer } from './strata/runtime/synchronizer.js';
 import {
   ExecutionPhase,
   Phase,
   ErrorType,
-  GitError,
-  type ApplyBackOnDirty,
-  type CheckpointRef,
-  type CheckpointStrategy,
-  type Context,
-  type ExecutionWorkspace,
   type LoopEvent,
   type LoopIteration,
+  type LoopOptions,
   type LoopResult,
-  type Plan,
   type StepLog,
-  type VerboseLevel,
 } from './types.js';
-import { classifyError, preflight, runCommand, runVerify, verifyFileContent } from './verify.js';
-import { WorkspaceManager } from './workspace.js';
 
 const globalSemaphore = new Semaphore(LIMITS.maxConcurrentOperations);
-
-const SECURITY_BLOCKLIST: RegExp[] = [
-  /^\.git(\/|\\)/i,
-  /^\.env/i,
-  /id_rsa$/i,
-  /\.pem$/i,
-  /\.key$/i,
-];
-
-const DEFAULT_MAX_FILE_BYTES = Number(process.env.SALMON_SECURITY_MAX_FILE_BYTES) || 1024 * 1024;
-
-type ApplyBackErrorMeta = Error & { appliedToMain?: boolean };
-
-export interface LoopOptions {
-  /**
-   * The instruction for the LLM to follow.
-   */
-  instruction: string;
-  /**
-   * The verification command to run after applying the patch.
-   */
-  verify: string;
-  /**
-   * The absolute path to the git repository.
-   */
-  repoPath: string;
-  /**
-   * The LLM instance to use for planning and patching.
-   */
-  llm: LLM;
-  /**
-   * If true, the patch will not be applied to the filesystem.
-   */
-  dryRun?: boolean;
-  /**
-   * If true, the repository will be reset to HEAD on failure.
-   */
-  forceReset?: boolean;
-  /**
-   * Callback for events emitted during the loop.
-   */
-  onEvent?: (event: LoopEvent) => void;
-  /**
-   * The verbose level for logging.
-   */
-  verbose?: VerboseLevel;
-  /**
-   * The target file path.
-   */
-  file?: string;
-  /**
-   * Additional context file paths.
-   */
-  contextFiles?: string[];
-  /**
-   * The direct text selection.
-   */
-  selection?: string;
-  /**
-   * Expected content changes that must be present in the patch.
-   */
-  expectedChanges?: string[];
-  /**
-   * Expected content that must be present in specific files after patching.
-   */
-  expectedFileContent?: { path: string; content: string }[];
-  /**
-   * The name of the node (e.g., function name) that is allowed to be modified.
-   */
-  targetNodeName?: string;
-  /**
-   * The checkpoint strategy to use for execution.
-   */
-  strategy?: CheckpointStrategy;
-  /**
-   * Behavior when apply-back detects a dirty main workspace.
-   */
-  applyBackOnDirty?: ApplyBackOnDirty;
-  /**
-   * Optional setup command to run inside worktree before processing.
-   */
-  worktreePrepare?: string;
-}
 
 /**
  * Main entry point for running the SalmonLoop.
@@ -156,157 +47,35 @@ function collectSidecarPaths(options: LoopOptions): string[] {
 }
 
 /**
- * SalmonLoop Execution Kernel
- *
- * Phase Guarantees:
- * 1. PREFLIGHT: Read-only. Checks environment safety.
- * 2. CONTEXT: Read-only. Gathers codebase context.
- * 3. PLAN: Read-only. Never mutates filesystem.
- * 4. PATCH: Read-only. Generates changes in memory.
- * 5. VALIDATE: Read-only. Enforces limits and safety rules.
- * 6. APPLY: Mutating. The ONLY phase that writes to disk.
- * 7. VERIFY: Read-only. Runs checks without modifying code.
- * 8. ROLLBACK: Mutating. Restores state on failure.
- * 9. SHRINK: Read-only. Reduces context for next attempt.
+ * SalmonLoop Execution Kernel (V3 Powered)
  */
 export class SalmonLoop {
   async run(options: LoopOptions): Promise<LoopResult> {
     const emit = (event: LoopEvent) => options.onEvent?.(event);
     const now = () => new Date();
-
     const logs: StepLog[] = [];
     const history: LoopIteration[] = [];
-    const checkpointManager = new CheckpointManager();
-    let context: Context;
-    let currentPhase: ExecutionPhase = Phase.PREFLIGHT;
-    let phaseEnded = true;
-    let workspace: ExecutionWorkspace | undefined;
-    let checkpointRef: CheckpointRef | undefined;
-    let setupWorkPath: string | null = null;
-    const shadowTaskId = randomBytes(4).toString('hex');
-    let shadowInitialRef: string | null = null;
-    let shadowLatestRef: string | null = null;
-    let retries = 0;
 
-    // Initialize Tool Stack
-    const toolstack = createStandardToolstack({
-      repoRoot: options.repoPath,
-      attemptId: 1,
-      dryRun: !!options.dryRun,
-      model: (options.llm as any).model, // Attempt to get model name if available
-    });
-    const { dispatcher } = toolstack;
-
-    const startPhase = (phase: ExecutionPhase) => {
-      // Ensure previous phase is closed
-      if (!phaseEnded) {
-        endPhase(false);
-      }
-      currentPhase = phase;
-      phaseEnded = false;
-      emit({ type: 'phase.start', phase, timestamp: now() });
-
-      // Update dispatcher if it exists
-      if (dispatcher) {
-        dispatcher.updateOptions({ attemptId: retries + 1 });
-      }
-    };
-
-    const endPhase = (success: boolean) => {
-      if (!phaseEnded) {
-        emit({ type: 'phase.end', phase: currentPhase, success, timestamp: now() });
-        phaseEnded = true;
-      }
-    };
-
-    // Setup workspace
-    let initialSnapshotHash: string | undefined;
-
-    // Create safe snapshot if using worktree strategy
-    if (options.strategy === 'worktree') {
-      try {
-        // Collect explicit files to include (specifically for ignored files like .env)
-        const includePaths: string[] = [];
-        if (options.file) {
-          includePaths.push(options.file);
-        }
-
-        const snapshot = await checkpointManager.createSafeSnapshot(options.repoPath, includePaths);
-        initialSnapshotHash = snapshot.commitHash;
-        emit({
-          type: 'log',
-          level: 'debug',
-          message: `Created safe snapshot: ${initialSnapshotHash}`,
-          timestamp: now(),
+    const wrappedEmit = (event: LoopEvent) => {
+      emit(event);
+      if (event.type === 'log') {
+        logs.push({
+          step: 'PREFLIGHT',
+          success: event.level !== 'error',
+          output: event.message,
+          timestamp: event.timestamp,
         });
-      } catch (error) {
-        const msg = `Failed to create snapshot: ${error instanceof Error ? error.message : String(error)}`;
-        logs.push(this.createLog('error', msg, false));
-        emit({ type: 'log', level: 'error', message: msg, timestamp: now() });
-        return {
-          success: false,
-          reason: msg,
-          reasonCode: 'LOOP_FAILED',
-          attempts: 0,
-          logs,
-          failurePhase: Phase.PREFLIGHT,
-          errorType: ErrorType.UNKNOWN,
-        };
       }
-    }
+    };
+
+    const env = new RuntimeEnvironment(options, wrappedEmit);
 
     try {
-      workspace = await WorkspaceManager.setup(
-        {
-          instruction: options.instruction,
-          verify: options.verify,
-          repoPath: options.repoPath,
-          file: options.file,
-          selection: options.selection,
-          dryRun: options.dryRun,
-          verbose: options.verbose,
-          strategy: options.strategy,
-        },
-        initialSnapshotHash,
-      );
-      setupWorkPath = workspace.workPath;
-
-      // Restore staged state in shadow worktree
-      if (workspace.strategy === 'worktree' && initialSnapshotHash) {
-        await checkpointManager.restoreToShadow(
-          options.repoPath,
-          workspace.workPath,
-          initialSnapshotHash,
-        );
-
-        // CRITICAL FIX: Force filesystem sync after restoreToShadow
-        // On Windows, file system writes from Git operations may be buffered/cached.
-        // Running 'git status' forces Git to refresh its internal cache and ensures
-        // subsequent file reads (via fs.readFile in buildContextForRepo) get the
-        // correct working tree content, not stale cached data.
-        // This fixes the issue where LLM reads clean version instead of dirty working tree.
-        await runGit(workspace.workPath, ['status', '--short']);
-      }
+      await env.setup();
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
-      logs.push(this.createLog('error', msg, false));
+      logs.push(this.createLog(Phase.PREFLIGHT, msg, false));
       emit({ type: 'log', level: 'error', message: msg, timestamp: now() });
-      return {
-        success: false,
-        reason: text.loop.workspaceInitFailed,
-        reasonCode: 'LOOP_FAILED',
-        attempts: 0,
-        logs,
-        failurePhase: Phase.PREFLIGHT,
-        errorType: ErrorType.UNKNOWN,
-      };
-    }
-
-    // Effective repository path - use workspace work path (worktree or direct)
-    // All subsequent operations must use this path instead of options.repoPath
-    if (!workspace) {
-      const msg = text.loop.workspaceInitFailed;
-      logs.push(this.createLog('error', msg, false));
       return {
         success: false,
         reason: msg,
@@ -318,639 +87,103 @@ export class SalmonLoop {
       };
     }
 
-    // Capture worktree metadata if using worktree strategy
-    if (options.strategy === 'worktree') {
-      try {
-        const baseRef =
-          initialSnapshotHash || (await runGit(options.repoPath, ['rev-parse', 'HEAD']));
-        checkpointRef = {
-          strategy: 'worktree',
-          repoPath: options.repoPath,
-          worktreePath: workspace.workPath,
-          baseRef,
-          branchName: 'workspace',
-        };
-        emit({
-          type: 'checkpoint.created',
-          worktreePath: checkpointRef.worktreePath,
-          baseRef: checkpointRef.baseRef,
-          timestamp: now(),
-        });
-      } catch (error) {
-        const msg = text.loop.worktreeMetadataFailed(
-          error instanceof Error ? error.message : String(error),
-        );
-        logs.push(this.createLog('error', msg, false));
-        emit({ type: 'log', level: 'error', message: msg, timestamp: now() });
-        return {
-          success: false,
-          reason: msg,
-          reasonCode: 'LOOP_FAILED',
-          attempts: 0,
-          logs,
-          failurePhase: Phase.PREFLIGHT,
-          errorType: ErrorType.UNKNOWN,
-        };
-      }
-    }
+    const activeRepoPath = env.activeRepoPath;
+    const checkpointManager = env.checkpointManager;
+    const synchronizer = new WorkspaceSynchronizer(checkpointManager);
+    const git = new GitAdapter(activeRepoPath);
+    const resolver = new FileStateResolver(git, activeRepoPath);
 
-    const activeRepoPath = workspace.workPath;
+    let retries = 0;
+    let currentContext: any = undefined;
+    let shadowLatestRef: string | null = null;
+    const shadowTaskId = randomBytes(4).toString('hex');
 
     try {
-      // Preflight checks
-      startPhase(Phase.PREFLIGHT);
-      const pf = await preflight(workspace);
-      if (!pf.ok) {
-        const reason = pf.reason || text.loop.preflightFailedNotGit;
-
-        // Special case: if allowDirty is true and error is DIRTY, we proceed
-        const isDirtyError = pf.reason?.includes('uncommitted changes');
-        if (isDirtyError && options.strategy === 'worktree') {
-          emit({
-            type: 'log',
-            level: 'debug',
-            message: text.loop.ignoringDirtyWorkspaceDebug(reason),
-            timestamp: now(),
+      let currentPhase: string = 'UNKNOWN';
+      const loopEmit = (event: LoopEvent) => {
+        emit(event);
+        if (event.type === 'phase.start') {
+          currentPhase = event.phase;
+        }
+        if (event.type === 'log') {
+          logs.push({
+            step: (currentPhase as ExecutionPhase) || 'UNKNOWN',
+            success: event.level !== 'error',
+            output: event.message,
+            timestamp: event.timestamp,
           });
-          endPhase(true);
-        } else {
-          logs.push(this.createLog('error', reason, false));
-          endPhase(false);
-          emit({ type: 'log', level: 'error', message: reason, timestamp: now() });
-
-          return {
-            success: false,
-            reason,
-            reasonCode: pf.reason?.includes('git command not found')
-              ? 'LOOP_FAILED'
-              : pf.reason?.includes('Not a git repository')
-                ? 'PREFLIGHT_NOT_GIT'
-                : 'PREFLIGHT_DIRTY',
-            attempts: 0,
-            logs,
-            failurePhase: Phase.PREFLIGHT,
-            errorType: ErrorType.UNKNOWN,
-          };
         }
-      } else {
-        if (options.strategy === 'worktree' && options.worktreePrepare) {
-          emit({
-            type: 'log',
-            level: 'debug',
-            message: text.loop.worktreePrepareDebug(options.worktreePrepare),
-            timestamp: now(),
-          });
-          const prepareResult = await runCommand(
-            activeRepoPath,
-            options.worktreePrepare,
-            LIMITS.worktreePrepareTimeoutMs,
-          );
-          logs.push(this.createLog(Phase.PREFLIGHT, prepareResult.output, prepareResult.ok));
-          if (!prepareResult.ok) {
-            const msg = text.loop.worktreePrepareFailed(prepareResult.output);
-            endPhase(false);
-            emit({ type: 'log', level: 'error', message: msg, timestamp: now() });
-            return {
-              success: false,
-              reason: msg,
-              reasonCode: 'LOOP_FAILED',
-              attempts: 0,
-              logs,
-              failurePhase: Phase.PREFLIGHT,
-              errorType: ErrorType.DEPENDENCY_ERROR,
-            };
-          }
-        }
-
-        if (options.strategy === 'worktree' && checkpointRef) {
-          shadowInitialRef = checkpointRef.baseRef;
-          try {
-            await runGit(activeRepoPath, [
-              'update-ref',
-              `refs/ai-agent/checkpoints/${shadowTaskId}/initial`,
-              checkpointRef.baseRef,
-            ]);
-          } catch (error) {
-            emit({
-              type: 'log',
-              level: 'warn',
-              message: `Failed to record initial checkpoint ref: ${error instanceof Error ? error.message : String(error)}`,
-              timestamp: now(),
-            });
-          }
-        }
-        endPhase(true);
-      }
-
-      try {
-        startPhase(Phase.CONTEXT);
-
-        // Discovery Phase: Allow LLM to use tools to gather more context
-        let discoveryTurns = 0;
-        const MAX_DISCOVERY_TURNS = 5;
-        const messages: any[] = [
-          {
-            role: 'system',
-            content: `You are in the CONTEXT DISCOVERY phase. Your goal is to gather information about the codebase to solve the task.
-You can use tools by wrapping them in <sl_tool_call v="1"> tags.
-Example: <sl_tool_call v="1">{"toolName": "code.search", "args": {"pattern": "main"}}</sl_tool_call>
-
-Task: ${options.instruction}
-Verification Command: ${options.verify}
-`,
-          },
-        ];
-
-        while (discoveryTurns < MAX_DISCOVERY_TURNS) {
-          const response = await options.llm.chat(messages);
-          if (!response || !response.content) {
-            emit({
-              type: 'log',
-              level: 'warn',
-              message: 'LLM returned empty response during context discovery',
-              timestamp: now(),
-            });
-            break;
-          }
-          messages.push(response);
-
-          const result = await dispatcher.dispatch(response.content, Phase.CONTEXT);
-          if (!result) {
-            // No more tool calls, exit discovery
-            break;
-          }
-
-          emit({
-            type: 'log',
-            level: 'debug',
-            message: `Tool execution [${result.toolName}]: ${result.status}`,
-            timestamp: now(),
-          });
-
-          const toolMsg = {
-            role: 'tool',
-            name: result.toolName,
-            content: JSON.stringify(result.output || result.error),
-            tool_call_id: result.id,
-          };
-          messages.push(toolMsg);
-          discoveryTurns++;
-        }
-
-        context = await ContextBuilder.build({
-          instruction: options.instruction,
-          verify: options.verify,
-          repoPath: activeRepoPath,
-          file: options.file,
-          selection: options.selection,
-          dryRun: options.dryRun,
-          verbose: options.verbose,
-          snapshotHash: initialSnapshotHash,
-          checkpointManager,
-        });
-        emit({
-          type: 'log',
-          level: 'debug',
-          message: `Context built: ${context.rgSnippets.length} snippets, diff: ${!!context.gitDiff}`,
-          timestamp: now(),
-        });
-
-        if (options.verbose === 'extended' && options.file && context.primaryText) {
-          try {
-            const ext = path.extname(options.file).slice(1);
-            let lang = ext;
-            if (ext === 'js') lang = 'javascript';
-            if (ext === 'ts') lang = 'typescript';
-            if (ext === 'py') lang = 'python';
-
-            const supportedLangs = ['javascript', 'typescript', 'python'];
-            if (supportedLangs.includes(lang)) {
-              const tree = await AstParser.parse(context.primaryText, lang);
-              try {
-                const topLevelNodes = getTopLevelNodes(tree);
-                const nodeNames = topLevelNodes.map((n) => getNodeName(n)).filter(Boolean);
-                emit({
-                  type: 'log',
-                  level: 'debug',
-                  message: `[AST] Initial File: ${options.file}, Top-level nodes: ${nodeNames.join(', ')}`,
-                  timestamp: now(),
-                });
-
-                if (options.targetNodeName) {
-                  const isAtTopLevel = topLevelNodes.some(
-                    (n) => getNodeName(n) === options.targetNodeName,
-                  );
-                  emit({
-                    type: 'log',
-                    level: 'debug',
-                    message: `[AST] Target node '${options.targetNodeName}' at top-level: ${isAtTopLevel}`,
-                    timestamp: now(),
-                  });
-                }
-              } finally {
-                if (tree && typeof tree.delete === 'function') {
-                  tree.delete();
-                }
-              }
-            }
-          } catch (e) {
-            emit({
-              type: 'log',
-              level: 'debug',
-              message: `[AST] Initial AST analysis failed: ${e instanceof Error ? e.message : String(e)}`,
-              timestamp: now(),
-            });
-          }
-        }
-        if (!context.primaryText && context.rgSnippets.length === 0 && !context.gitDiff) {
-          const warnMsg = text.loop.noContextGathered;
-          logs.push(this.createLog(Phase.CONTEXT, warnMsg, true));
-          emit({ type: 'log', level: 'warn', message: warnMsg, timestamp: now() });
-        }
-        endPhase(true);
-      } catch (error) {
-        const msg = error instanceof Error ? error.message : String(error);
-        logs.push(this.createLog('error', msg, false));
-        endPhase(false);
-        emit({ type: 'log', level: 'error', message: msg, timestamp: now() });
-        return {
-          success: false,
-          reason: `${text.loop.loopExecutionFailed}: ${msg}`,
-          reasonCode: 'LOOP_FAILED',
-          attempts: 0,
-          logs,
-          failurePhase: Phase.CONTEXT,
-          errorType: ErrorType.UNKNOWN,
-        };
-      }
-
-      let currentPlan: Plan | null = null;
-      let currentDiff: string | null = null;
-      let lastError: string | undefined;
-      let changedFilesThisAttempt: string[] = [];
+      };
 
       while (retries <= LIMITS.maxRetries) {
-        monitor.checkMemoryUsage();
         const attempt = retries + 1;
-        changedFilesThisAttempt = []; // Reset for this attempt
-        try {
-          // PLAN phase
-          startPhase(Phase.PLAN);
-          currentPlan = await options.llm.createPlan(context, options.instruction, lastError);
-          emit({
-            type: 'log',
-            level: 'debug',
-            message: `Plan generated: ${currentPlan.goal}`,
-            timestamp: now(),
-          });
-          logs.push(this.createLog(Phase.PLAN, currentPlan));
-          endPhase(true);
 
-          // PATCH phase
-          startPhase(Phase.PATCH);
-          currentDiff = await options.llm.createPatch(context, currentPlan, lastError);
-          emit({
-            type: 'log',
-            level: 'debug',
-            message: `Patch generated, length: ${currentDiff.length}`,
-            timestamp: now(),
-          });
-          emit({
-            type: 'log',
-            level: 'trace',
-            message: text.cli.rawPatch(currentDiff),
-            timestamp: now(),
-          });
-          logs.push(this.createLog(Phase.PATCH, currentDiff));
-          endPhase(true);
+        // Execute V3 Flow
+        const result = await executeSalmonLoopFlow({
+          workspace: env.workspace!,
+          options: options,
+          emit: loopEmit,
+          fileStateResolver: resolver,
+          // 🛡️ HANDOVER: Pass the physical snapshot hash to the logical flow layer
+          // to ensure transactional integrity and rollback capability.
+          shadowInitialRef: env.initialSnapshotHash!,
+          attempt,
+          initialContext: currentContext,
+        });
 
-          // VALIDATE phase
-          startPhase(Phase.VALIDATE);
+        // Map V3 Result to LoopIteration
+        const ctx = result.data; // Final context (ShrinkCtx or VerifyCtx)
 
-          // CRITICAL: Normalize BEFORE validation to ensure paths are cleaned
-          // This prevents validateDiff from treating invalid paths like 'a/test-repo/index.js' as valid
-          currentDiff = normalizeDiff(currentDiff);
+        history.push({
+          attempt,
+          plan: ctx?.plan,
+          patch: ctx?.diff,
+          error: result.error?.message || ctx?.lastError,
+          contextSummary: ctx?.context
+            ? `Snippets: ${ctx.context.rgSnippets.length}`
+            : 'No context',
+        });
 
-          const diffMeta = validateDiff(currentDiff);
+        if (result.success) {
+          // Success means Pipeline finished (Verify passed)
+          // Double check verify result just in case
+          const verifyOk = ctx?.verifyResult?.ok !== false;
 
-          // Removed fuzzy context matching - rely on semantic anchor (3-way merge) instead
-          // Fuzzy matching with arbitrary thresholds is unreliable and can mask real conflicts
-
-          if (options.expectedChanges && options.expectedChanges.length > 0) {
-            if (!validatePatchContent(currentDiff, options.expectedChanges)) {
-              // Treat this as a validation failure
-              const msg =
-                'Diff validation failed: Expected content changes are missing from the patch';
-              logs.push(this.createLog(Phase.VALIDATE, msg, false));
-              throw new Error(msg);
-            }
-          }
-          changedFilesThisAttempt = diffMeta.changedFiles;
-          logs.push(this.createLog(Phase.VALIDATE, text.loop.diffValidationPassed));
-          emit({
-            type: 'diff.meta',
-            changedFiles: changedFilesThisAttempt,
-            fileCount: diffMeta.fileCount,
-            lineCount: diffMeta.lineCount,
-            timestamp: now(),
-          });
-          endPhase(true);
-
-          // DRY RUN: stop after validation (preview mode)
-          if (options.dryRun) {
-            logs.push(this.createLog(Phase.APPLY, text.loop.dryRunPatchNotApplied));
-            return {
-              success: true,
-              reason: text.loop.dryRunCompleted,
-              reasonCode: 'DRY_RUN',
-              attempts: attempt,
-              logs,
-              history,
-              finalPatch: currentDiff || undefined,
-              changedFiles: changedFilesThisAttempt,
-            };
-          }
-
-          // APPLY phase
-          startPhase(Phase.APPLY);
-          try {
-            if (!currentDiff) throw new Error(text.llm.patchEmpty());
-
-            // Capture original ASTs for scope integrity check
-            const originalTrees: Map<string, any> = new Map();
-            if (options.targetNodeName) {
-              for (const file of changedFilesThisAttempt) {
-                const ext = path.extname(file).slice(1);
-                let lang = ext;
-                if (ext === 'js') lang = 'javascript';
-                if (ext === 'ts') lang = 'typescript';
-                if (ext === 'py') lang = 'python';
-
-                const supportedLangs = ['javascript', 'typescript', 'python'];
-                if (supportedLangs.includes(lang)) {
-                  try {
-                    const filePath = path.join(activeRepoPath, file);
-                    const content = await readFile(filePath, 'utf8');
-                    const tree = await AstParser.parse(content, lang);
-                    originalTrees.set(file, tree);
-                  } catch (_error) {
-                    // Ignore errors reading original file
-                  }
-                }
-              }
+          if (verifyOk) {
+            if (options.dryRun) {
+              return {
+                success: true,
+                reason: text.loop.operationCompleted,
+                reasonCode: 'DRY_RUN',
+                attempts: attempt,
+                logs,
+                history,
+                finalPatch: ctx?.diff || undefined,
+                changedFiles: ctx?.changedFiles || [],
+              };
             }
 
-            const strictTargetApply = Boolean(options.targetNodeName);
-            await applyPatch(activeRepoPath, currentDiff, {
-              contextLines: 3,
-              // Always ignore whitespace to handle CRLF/LF issues on Windows
-              // Semantic correctness is guaranteed by AST validation later
-              ignoreWhitespace: true,
-              threeWay: strictTargetApply,
-            });
+            const currentDiff = ctx?.diff;
+            const changedFilesThisAttempt = ctx?.changedFiles || [];
 
-            // AST Validation
-            let astError: string | null = null;
-            for (const file of changedFilesThisAttempt) {
-              const ext = path.extname(file).slice(1);
-              const supportedLangs = ['javascript', 'typescript', 'python', 'go', 'java', 'rust'];
-              let lang = ext;
-              if (ext === 'js') lang = 'javascript';
-              if (ext === 'ts') lang = 'typescript';
-              if (ext === 'py') lang = 'python';
-
-              if (supportedLangs.includes(lang)) {
-                try {
-                  const filePath = path.join(activeRepoPath, file);
-                  const content = await readFile(filePath, 'utf8');
-                  const tree = await AstParser.parse(content, lang);
-
-                  try {
-                    if (options.verbose === 'extended') {
-                      const topLevelNodes = getTopLevelNodes(tree);
-                      const nodeNames = topLevelNodes.map((n) => getNodeName(n)).filter(Boolean);
-                      emit({
-                        type: 'log',
-                        level: 'debug',
-                        message: `[AST] File: ${file}, Top-level nodes: ${nodeNames.join(', ')}`,
-                        timestamp: now(),
-                      });
-                    }
-
-                    // Deep validation of AST structure (checking for ERROR nodes)
-                    if (!validateNodeStructure(tree.rootNode)) {
-                      astError = text.loop.astStructureError(file, text.ast.invalidStructure);
-                      emit({ type: 'log', level: 'warn', message: astError, timestamp: now() });
-                      break;
-                    }
-
-                    // Scope integrity check
-                    if (options.targetNodeName && originalTrees.has(file)) {
-                      const originalTree = originalTrees.get(file);
-                      const integrity = validateScopeIntegrity(
-                        originalTree,
-                        tree,
-                        options.targetNodeName,
-                      );
-
-                      if (options.verbose === 'extended') {
-                        const topLevelNodes = getTopLevelNodes(tree);
-                        const isAtTopLevel = topLevelNodes.some(
-                          (n) => getNodeName(n) === options.targetNodeName,
-                        );
-                        emit({
-                          type: 'log',
-                          level: 'debug',
-                          message: `[AST] Target node '${options.targetNodeName}' at top-level: ${isAtTopLevel}`,
-                          timestamp: now(),
-                        });
-                      }
-
-                      if (!integrity.ok) {
-                        astError = text.loop.astScopeIntegrityError(file, integrity.reason || '');
-                        emit({ type: 'log', level: 'warn', message: astError, timestamp: now() });
-                        break;
-                      }
-
-                      if (options.verbose === 'extended') {
-                        emit({
-                          type: 'log',
-                          level: 'debug',
-                          message: `[AST] Scope integrity check passed for ${file}`,
-                          timestamp: now(),
-                        });
-                      }
-                      const placement = await this.validateTargetNodeDiff(
-                        activeRepoPath,
-                        file,
-                        tree,
-                        options.targetNodeName,
-                        options.verbose,
-                      );
-                      if (!placement.ok) {
-                        astError = text.loop.targetNodePlacementError(file, placement.reason || '');
-                        emit({ type: 'log', level: 'warn', message: astError, timestamp: now() });
-                        break;
-                      }
-                    }
-                  } finally {
-                    if (tree && typeof tree.delete === 'function') {
-                      tree.delete();
-                    }
-                  }
-                } catch (e) {
-                  const errorMsg = `AST validation failed for ${file}: ${e instanceof Error ? e.message : String(e)}`;
-                  emit({
-                    type: 'log',
-                    level: 'warn',
-                    message: errorMsg,
-                    timestamp: now(),
-                  });
-                  // If the validator itself crashes, treat it as a syntax error to trigger retry
-                  astError = errorMsg;
-                  break;
-                }
-              }
-            }
-
-            // Cleanup original trees
-            for (const tree of originalTrees.values()) {
-              if (tree && typeof tree.delete === 'function') {
-                tree.delete();
-              }
-            }
-
-            if (astError) {
-              // Treat AST error as a verification failure to trigger retry
-              const verifyResult = { ok: false, output: astError, exitCode: 1 };
-              logs.push(this.createLog(Phase.VERIFY, verifyResult.output, verifyResult.ok));
-              emit({
-                type: 'verify.result',
-                ok: verifyResult.ok,
-                output: verifyResult.output,
-                timestamp: now(),
-              });
-              endPhase(false);
-
-              // Trigger retry logic
-              lastError = refineFeedback(verifyResult.output);
-              const failedFiles = ContextBuilder.extractFailedFiles(verifyResult.output);
-              emit({
-                type: 'retry',
-                fromAttempt: attempt,
-                toAttempt: attempt + 1,
-                reason: lastError,
-                failedFiles,
-                timestamp: now(),
-              });
-
-              history.push({
-                attempt,
-                plan: currentPlan,
-                patch: currentDiff,
-                error: lastError,
-                contextSummary: `Snippets: ${context.rgSnippets.length}, Diff: ${!!context.gitDiff}`,
-              });
-
-              retries++;
-              if (!options.dryRun && (changedFilesThisAttempt.length > 0 || options.forceReset)) {
-                startPhase(Phase.ROLLBACK);
-                emit({
-                  type: 'log',
-                  level: 'trace',
-                  message: `[ROLLBACK] Using shadowInitialRef: ${shadowInitialRef}`,
-                  timestamp: now(),
-                });
-                const rb = await rollbackFiles(
-                  activeRepoPath,
-                  changedFilesThisAttempt,
-                  true,
-                  shadowInitialRef || undefined,
-                );
-                if (!rb.ok) {
-                  const status = await getGitStatus(activeRepoPath);
-                  const errorMsg = status ? `${rb.stderr}\n\nGit Status:\n${status}` : rb.stderr;
-                  const msg = text.loop.rollbackFailed(errorMsg);
-                  logs.push(this.createLog(Phase.ROLLBACK, msg, false));
-                  emit({ type: 'log', level: 'error', message: msg, timestamp: now() });
-                  endPhase(false);
-                  return {
-                    success: false,
-                    reason: text.loop.rollbackFailedDirty,
-                    reasonCode: 'ROLLBACK_FAILED',
-                    attempts: attempt,
-                    logs,
-                    history,
-                    finalPatch: currentDiff || undefined,
-                    failurePhase: Phase.ROLLBACK,
-                    errorType: ErrorType.COMPILATION,
-                  };
-                } else {
-                  const msg = options.forceReset
-                    ? text.loop.rollbackAllSuccess
-                    : text.loop.rollbackSuccess(changedFilesThisAttempt);
-                  logs.push(this.createLog(Phase.ROLLBACK, msg));
-                  emit({ type: 'log', level: 'info', message: msg, timestamp: now() });
-                  endPhase(true);
-                }
-              }
-              continue;
-            }
-
-            logs.push(this.createLog(Phase.APPLY, text.loop.patchApplied));
-            endPhase(true);
-          } catch (e) {
-            endPhase(false);
-            throw e;
-          }
-
-          // VERIFY phase
-          startPhase(Phase.VERIFY);
-          const verifyResult = await runVerify(activeRepoPath, options.verify);
-
-          // Extra Content Verification
-          if (
-            verifyResult.ok &&
-            options.expectedFileContent &&
-            options.expectedFileContent.length > 0
-          ) {
-            for (const check of options.expectedFileContent) {
-              const hasContent = await verifyFileContent(activeRepoPath, check.path, check.content);
-              if (!hasContent) {
-                verifyResult.ok = false;
-                verifyResult.output += `\n[Verification Error] Expected content '${check.content}' not found in file: ${check.path}`;
-              }
-            }
-          }
-
-          logs.push(this.createLog(Phase.VERIFY, verifyResult.output, verifyResult.ok));
-          emit({
-            type: 'verify.result',
-            ok: verifyResult.ok,
-            output: verifyResult.output,
-            timestamp: now(),
-          });
-          endPhase(verifyResult.ok);
-
-          if (verifyResult.ok) {
-            // Apply back to main workspace if using worktree strategy
-            if (checkpointRef && options.strategy === 'worktree') {
+            if (env.checkpointRef && options.strategy === 'worktree') {
               try {
                 const finalRef =
-                  (await this.createCheckpointCommit(
+                  (await synchronizer.createCheckpointCommit(
                     activeRepoPath,
                     shadowTaskId,
                     `final-${attempt}`,
-                  )) || checkpointRef.baseRef;
+                  )) || env.checkpointRef.baseRef;
                 shadowLatestRef = finalRef;
-                await this.applyBackToMainWorkspace(
+
+                await synchronizer.applyBackToMainWorkspace(
                   options.repoPath,
-                  checkpointRef,
+                  env.checkpointRef,
                   currentDiff || '',
                   options.applyBackOnDirty ?? '3way',
                   options.verbose,
                   changedFilesThisAttempt,
-                  shadowInitialRef,
+                  env.initialSnapshotHash,
                   shadowLatestRef,
                   collectSidecarPaths(options),
                 );
@@ -959,57 +192,6 @@ Verification Command: ${options.verify}
                 logs.push(this.createLog('error', msg, false));
                 emit({ type: 'log', level: 'error', message: msg, timestamp: now() });
 
-                const appliedToMain = (error as ApplyBackErrorMeta).appliedToMain === true;
-                if (appliedToMain) {
-                  // Rollback main workspace changes on apply-back failure
-                  emit({
-                    type: 'log',
-                    level: 'warn',
-                    message: 'Attempting to rollback main workspace changes...',
-                    timestamp: now(),
-                  });
-                  try {
-                    const mainStatus = await getGitStatus(options.repoPath);
-                    if (mainStatus.trim()) {
-                      const rb = await rollbackFiles(
-                        options.repoPath,
-                        changedFilesThisAttempt,
-                        false,
-                      );
-                      if (rb.ok) {
-                        emit({
-                          type: 'log',
-                          level: 'info',
-                          message: 'Main workspace rollback succeeded',
-                          timestamp: now(),
-                        });
-                      } else {
-                        emit({
-                          type: 'log',
-                          level: 'error',
-                          message: `Main workspace rollback failed: ${rb.stderr}`,
-                          timestamp: now(),
-                        });
-                      }
-                    }
-                  } catch (rollbackError) {
-                    emit({
-                      type: 'log',
-                      level: 'error',
-                      message: `Main workspace rollback error: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}`,
-                      timestamp: now(),
-                    });
-                  }
-                } else {
-                  emit({
-                    type: 'log',
-                    level: 'warn',
-                    message:
-                      'Apply-back failed before touching the main workspace. Rollback skipped.',
-                    timestamp: now(),
-                  });
-                }
-
                 return {
                   success: false,
                   reason: msg,
@@ -1017,8 +199,6 @@ Verification Command: ${options.verify}
                   attempts: attempt,
                   logs,
                   history,
-                  finalPatch: currentDiff || undefined,
-                  changedFiles: changedFilesThisAttempt,
                   failurePhase: Phase.VERIFY,
                   errorType: ErrorType.UNKNOWN,
                 };
@@ -1036,191 +216,29 @@ Verification Command: ${options.verify}
               changedFiles: changedFilesThisAttempt,
             };
           }
+        }
 
-          // Verification failed, preparing to retry
-          lastError = refineFeedback(verifyResult.output);
-          const errorType = classifyError(verifyResult.output);
-          const failedFiles = ContextBuilder.extractFailedFiles(verifyResult.output);
-          emit({
-            type: 'retry',
-            fromAttempt: attempt,
-            toAttempt: attempt + 1,
-            // Truncate reason to avoid bloating event stream
-            reason: lastError.length > 2000 ? lastError.substring(0, 2000) + '...' : lastError,
-            failedFiles,
-            timestamp: now(),
-          });
+        // Failure or Verify Failed
+        if (ctx?.shrunk && ctx?.context) {
+          currentContext = ctx.context;
+        }
 
-          // Record history
-          history.push({
-            attempt,
-            plan: currentPlan,
-            patch: currentDiff,
-            error: lastError,
-            contextSummary: `Snippets: ${context.rgSnippets.length}, Diff: ${!!context.gitDiff}`,
-          });
+        retries++;
 
-          retries++;
-
-          // Rollback files (using changedFilesThisAttempt)
-          // Safety: Never rollback in dryRun mode
-          if (!options.dryRun && (changedFilesThisAttempt.length > 0 || options.forceReset)) {
-            startPhase(Phase.ROLLBACK);
-            emit({
-              type: 'log',
-              level: 'trace',
-              message: `[ROLLBACK] Using shadowInitialRef: ${shadowInitialRef}`,
-              timestamp: now(),
-            });
-            const rb = await rollbackFiles(
-              activeRepoPath,
-              changedFilesThisAttempt,
-              options.forceReset,
-              shadowInitialRef || undefined,
-            );
-            if (!rb.ok) {
-              endPhase(false);
-              const status = await getGitStatus(activeRepoPath);
-              const errorMsg = status ? `${rb.stderr}\n\nGit Status:\n${status}` : rb.stderr;
-              const msg = text.loop.rollbackFailed(errorMsg);
-              logs.push(this.createLog(Phase.ROLLBACK, msg, false));
-              emit({ type: 'log', level: 'error', message: msg, timestamp: now() });
-              return {
-                success: false,
-                reason: text.loop.rollbackFailedDirty,
-                reasonCode: 'ROLLBACK_FAILED',
-                attempts: attempt, // Current attempt failed during rollback
-                logs,
-                history,
-                finalPatch: currentDiff || undefined,
-                failurePhase: Phase.ROLLBACK,
-                errorType,
-              };
-            } else {
-              const msg = options.forceReset
-                ? text.loop.rollbackAllSuccess
-                : text.loop.rollbackSuccess(changedFilesThisAttempt);
-              logs.push(this.createLog(Phase.ROLLBACK, msg));
-              emit({ type: 'log', level: 'info', message: msg, timestamp: now() });
-              endPhase(true);
-            }
-          }
-
-          if (retries > LIMITS.maxRetries) {
-            return {
-              success: false,
-              reason: text.loop.exceededMaxRetriesSimple,
-              reasonCode: 'MAX_RETRIES',
-              attempts: attempt, // Total attempts made (last one failed)
-              logs,
-              history,
-              finalPatch: currentDiff || undefined,
-              failurePhase: Phase.VERIFY,
-              errorType,
-            };
-          }
-
-          // Shrink context
-          startPhase(Phase.SHRINK);
-          context = await ContextBuilder.shrinkContext(context, failedFiles, errorType);
-          logs.push(this.createLog(Phase.SHRINK, text.loop.contextShrunk));
-          endPhase(true);
-        } catch (error) {
-          // Handle unexpected errors within the loop by triggering a retry if possible
-          const failurePhase: ExecutionPhase = currentPhase;
-          endPhase(false);
-
-          const errorMsg = error instanceof Error ? error.message : String(error);
-          const lastFeedback = refineFeedback(errorMsg);
-
-          // Safety: Never rollback in dryRun mode
-          if (!options.dryRun && (changedFilesThisAttempt.length > 0 || options.forceReset)) {
-            startPhase(Phase.ROLLBACK);
-            emit({
-              type: 'log',
-              level: 'trace',
-              message: `[ROLLBACK] Using shadowInitialRef: ${shadowInitialRef}`,
-              timestamp: now(),
-            });
-            const rb = await rollbackFiles(
-              activeRepoPath,
-              changedFilesThisAttempt,
-              true,
-              shadowInitialRef || undefined,
-            );
-            if (!rb.ok) {
-              const status = await getGitStatus(activeRepoPath);
-              const fullError = status ? `${rb.stderr}\n\nGit Status:\n${status}` : rb.stderr;
-              const msg = text.loop.rollbackFailed(fullError);
-              logs.push(this.createLog(Phase.ROLLBACK, msg, false));
-              emit({ type: 'log', level: 'error', message: msg, timestamp: now() });
-              return {
-                success: false,
-                reason: text.loop.rollbackFailedDirty,
-                reasonCode: 'ROLLBACK_FAILED',
-                attempts: attempt,
-                logs,
-                history,
-                finalPatch: currentDiff || undefined,
-                failurePhase: Phase.ROLLBACK,
-                errorType: ErrorType.UNKNOWN,
-              };
-            }
-            endPhase(true);
-          }
-
-          if (retries < LIMITS.maxRetries) {
-            lastError = lastFeedback;
-            emit({
-              type: 'retry',
-              fromAttempt: attempt,
-              toAttempt: attempt + 1,
-              reason: lastError,
-              failedFiles: [],
-              timestamp: now(),
-            });
-
-            history.push({
-              attempt,
-              plan: currentPlan,
-              patch: currentDiff,
-              error: lastError,
-              contextSummary: `Snippets: ${context.rgSnippets.length}, Diff: ${!!context.gitDiff}`,
-            });
-
-            retries++;
-
-            // Shrink context before retry
-            startPhase(Phase.SHRINK);
-            context = await ContextBuilder.shrinkContext(context, [], ErrorType.UNKNOWN);
-            logs.push(this.createLog(Phase.SHRINK, text.loop.contextShrunk));
-            endPhase(true);
-            continue;
-          }
-
-          let msg = errorMsg;
-          if (error instanceof GitError) {
-            msg = `${msg}\n💡 Suggestion: ${text.suggestions.gitError}`;
-          }
-          logs.push(this.createLog('error', msg, false));
-          emit({ type: 'log', level: 'error', message: msg, timestamp: now() });
-
+        if (retries > LIMITS.maxRetries) {
           return {
             success: false,
-            reason: text.loop.loopExecutionFailed,
-            reasonCode: 'LOOP_FAILED',
-            attempts: attempt,
+            reason: text.loop.exceededMaxRetriesSimple,
+            reasonCode: 'MAX_RETRIES',
+            attempts: retries,
             logs,
             history,
-            finalPatch: currentDiff || undefined,
-            failurePhase,
+            failurePhase: Phase.VERIFY,
             errorType: ErrorType.UNKNOWN,
           };
         }
       }
 
-      // This code should never be reached because the loop should always return
-      // from within the try block when retries exceed the limit
       return {
         success: false,
         reason: text.loop.exceededMaxRetriesSimple,
@@ -1228,56 +246,23 @@ Verification Command: ${options.verify}
         attempts: retries,
         logs,
         history,
-        finalPatch: currentDiff || undefined,
+        errorType: ErrorType.UNKNOWN,
+      };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      logs.push(this.createLog('error', msg, false));
+      emit({ type: 'log', level: 'error', message: msg, timestamp: now() });
+      return {
+        success: false,
+        reason: msg,
+        reasonCode: 'LOOP_CRASH',
+        attempts: retries,
+        logs,
+        history,
         errorType: ErrorType.UNKNOWN,
       };
     } finally {
-      // Cleanup workspace and checkpoint
-      let checkpointCleanupOk = true;
-      if (workspace) {
-        if (
-          workspace.strategy === 'worktree' &&
-          setupWorkPath &&
-          setupWorkPath !== workspace.workPath
-        ) {
-          try {
-            await WorkspaceManager.teardown({
-              baseRepoPath: workspace.baseRepoPath,
-              workPath: setupWorkPath,
-              strategy: 'worktree',
-            });
-          } catch (error) {
-            checkpointCleanupOk = false;
-            const msg = error instanceof Error ? error.message : String(error);
-            emit({
-              type: 'log',
-              level: 'warn',
-              message: `Extra worktree cleanup failed: ${msg}`,
-              timestamp: now(),
-            });
-          }
-        }
-        try {
-          await WorkspaceManager.teardown(workspace);
-        } catch (error) {
-          checkpointCleanupOk = false;
-          const msg = error instanceof Error ? error.message : String(error);
-          emit({
-            type: 'log',
-            level: 'warn',
-            message: `Workspace cleanup failed: ${msg}`,
-            timestamp: now(),
-          });
-        }
-      }
-
-      if (checkpointRef) {
-        emit({
-          type: 'checkpoint.cleaned',
-          ok: checkpointCleanupOk,
-          timestamp: now(),
-        });
-      }
+      await env.teardown();
     }
   }
 
@@ -1307,667 +292,5 @@ Verification Command: ${options.verify}
       output: outputStr,
       timestamp: new Date(),
     };
-  }
-
-  private normalizePath(value: string): string {
-    return value.replace(/\\/g, '/');
-  }
-
-  private isBlockedPath(relativePath: string): boolean {
-    const normalized = this.normalizePath(relativePath);
-    return SECURITY_BLOCKLIST.some((pattern) => pattern.test(normalized));
-  }
-
-  private async shouldAllowPath(
-    repoPath: string,
-    relativePath: string,
-    options?: { allowMissing?: boolean; contentSize?: number },
-  ): Promise<{ allowed: boolean; reason?: string }> {
-    if (this.isBlockedPath(relativePath)) {
-      return { allowed: false, reason: 'blocked-path' };
-    }
-    try {
-      const filePath = path.join(repoPath, ...relativePath.split('/'));
-      const fileStat = await stat(filePath);
-      if (fileStat.size > DEFAULT_MAX_FILE_BYTES) {
-        return { allowed: false, reason: 'size-limit' };
-      }
-    } catch (error) {
-      const err = error as NodeJS.ErrnoException;
-      if (err?.code === 'ENOENT') {
-        if (options?.allowMissing === false) {
-          return { allowed: false, reason: 'missing' };
-        }
-        return { allowed: true };
-      }
-      return { allowed: false, reason: 'stat-failed' };
-    }
-    return { allowed: true };
-  }
-
-  private async getChangedPaths(repoPath: string): Promise<string[]> {
-    const status = await runGit(repoPath, ['status', '--porcelain', '-z']);
-    if (!status) return [];
-    const tokens = status.split('\0').filter((token) => token.length > 0);
-    const paths: string[] = [];
-    const extractPath = (entry: string): string => {
-      const maybeSep = entry[2];
-      if (maybeSep === ' ' || maybeSep === '\t') {
-        return entry.slice(3);
-      }
-      return entry.slice(2);
-    };
-    for (let i = 0; i < tokens.length; i += 1) {
-      const entry = tokens[i];
-      const code = entry.slice(0, 2);
-      const pathPart = extractPath(entry);
-      if (!pathPart) continue;
-      if (code.startsWith('R') || code.startsWith('C')) {
-        const original = pathPart;
-        const renamed = tokens[i + 1];
-        if (original) paths.push(original);
-        if (renamed) paths.push(renamed);
-        i += 1;
-        continue;
-      }
-      paths.push(pathPart);
-    }
-
-    const unique = Array.from(new Set(paths.map((p) => this.normalizePath(p))));
-    const allowed: string[] = [];
-    for (const file of unique) {
-      const policy = await this.shouldAllowPath(repoPath, file);
-      if (!policy.allowed) {
-        logger.warn(text.loop.skipPathDueToPolicy(policy.reason, file));
-        continue;
-      }
-      allowed.push(file);
-    }
-    return allowed;
-  }
-
-  private parseUnifiedDiffHunks(diffText: string): { newStart: number; newLines: number }[] {
-    const hunks: { newStart: number; newLines: number }[] = [];
-    const lines = diffText.split(/\r?\n/);
-    const regex = /^@@\s+-\d+(?:,\d+)?\s+\+(\d+)(?:,(\d+))?\s+@@/;
-    for (const line of lines) {
-      const match = line.match(regex);
-      if (!match) continue;
-      const start = Number(match[1]);
-      const count = match[2] ? Number(match[2]) : 1;
-      hunks.push({ newStart: start, newLines: count });
-    }
-    return hunks;
-  }
-
-  private async validateTargetNodeDiff(
-    repoPath: string,
-    file: string,
-    tree: any,
-    targetNodeName: string,
-    verbose?: VerboseLevel,
-  ): Promise<{ ok: boolean; reason?: string }> {
-    const topLevelNodes = getTopLevelNodes(tree);
-    const targetNode = topLevelNodes.find((node) => getNodeName(node) === targetNodeName);
-    if (!targetNode) {
-      return { ok: false, reason: `Target node '${targetNodeName}' not found` };
-    }
-    const startLine = targetNode.startPosition.row + 1;
-    const endLine = targetNode.endPosition.row + 1;
-
-    const diffText = await runGit(repoPath, [
-      'diff',
-      '-U0',
-      '--no-color',
-      '--no-ext-diff',
-      '--',
-      file,
-    ]);
-    if (!diffText.trim()) {
-      return { ok: true };
-    }
-    const hunks = this.parseUnifiedDiffHunks(diffText);
-    if (verbose === 'extended') {
-      logger.trace(
-        `[AST] Target node '${targetNodeName}' spans lines ${startLine}-${endLine} for ${file}`,
-      );
-      logger.trace(
-        `[AST] Diff hunks for ${file}: ${
-          hunks.map((hunk) => `+${hunk.newStart},${hunk.newLines}`).join(' | ') || 'none'
-        }`,
-      );
-    }
-    for (const hunk of hunks) {
-      const hunkStart = hunk.newStart;
-      const hunkEnd = hunk.newLines > 0 ? hunk.newStart + hunk.newLines - 1 : hunk.newStart;
-      if (hunkEnd < startLine || hunkStart > endLine) {
-        return {
-          ok: false,
-          reason: `Diff hunk +${hunk.newStart},${hunk.newLines} outside target range ${startLine}-${endLine}`,
-        };
-      }
-    }
-    return { ok: true };
-  }
-
-  private async createCheckpointCommit(
-    worktreePath: string,
-    taskId: string,
-    stepId: string,
-  ): Promise<string | null> {
-    const changedPaths = await this.getChangedPaths(worktreePath);
-    if (changedPaths.length === 0) {
-      return null;
-    }
-    await runGit(worktreePath, ['add', '--', ...changedPaths]);
-    await runGit(worktreePath, [
-      '-c',
-      'user.name=salmonloop',
-      '-c',
-      'user.email=salmonloop@local',
-      'commit',
-      '--no-verify',
-      '--no-gpg-sign',
-      '-m',
-      `checkpoint: ${stepId}`,
-    ]);
-    const head = await runGit(worktreePath, ['rev-parse', 'HEAD']);
-    await runGit(worktreePath, [
-      'update-ref',
-      `refs/ai-agent/checkpoints/${taskId}/${stepId}`,
-      head,
-    ]);
-    return head;
-  }
-
-  private async applyBackWithDualMerge(
-    mainRepoPath: string,
-    shadowWorktreePath: string,
-    initialRef: string,
-    latestRef: string,
-    verbose?: VerboseLevel,
-    includePaths: string[] = [],
-    applyBackOnDirty: ApplyBackOnDirty = '3way',
-  ): Promise<void> {
-    // Create and inject sidecar layer
-    const sidecar = new SyntheticSidecarLayerImpl(mainRepoPath);
-    if (includePaths.length > 0) {
-      await sidecar.capture(includePaths);
-    }
-
-    const engine = new ShadowMergeEngine(
-      {
-        mainRepoPath,
-        shadowWorktreePath,
-        initialRef,
-        latestRef,
-        verbose,
-        applyBackOnDirty,
-        maxFileBytes: DEFAULT_MAX_FILE_BYTES,
-        shouldAllowPath: (filePath, contentSize) =>
-          this.shouldAllowPath(mainRepoPath, filePath, { contentSize }),
-      },
-      new CheckpointManager(),
-      sidecar,
-    );
-    await engine.apply();
-  }
-
-  private parseStatusEntries(status: string): {
-    code: string;
-    path: string;
-    origPath?: string;
-  }[] {
-    if (!status) return [];
-    return status
-      .split('\n')
-      .map((line) => line.trimEnd())
-      .filter(Boolean)
-      .map((line) => {
-        const code = line.slice(0, 2).trim() || line.slice(0, 2);
-        const rawPath = line.length > 2 ? line.slice(2).trimStart() : '';
-        if (rawPath.includes('->')) {
-          const [orig, dest] = rawPath.split('->').map((value) => value.trim());
-          return { code, path: dest, origPath: orig };
-        }
-        return { code, path: rawPath };
-      })
-      .filter((entry) => entry.path.length > 0);
-  }
-
-  private async applyBackToMainWorkspace(
-    mainRepoPath: string,
-    checkpointRef: CheckpointRef,
-    diffText: string,
-    applyBackOnDirty: ApplyBackOnDirty = '3way',
-    verbose?: VerboseLevel,
-    changedFiles?: string[],
-    shadowInitialRef?: string | null,
-    shadowLatestRef?: string | null,
-    includePaths: string[] = [],
-  ): Promise<void> {
-    const startTime = Date.now();
-    let applySuccess = false;
-    let applyError: Error | undefined;
-    let appliedToMain = false;
-    let dirtyBackup: {
-      dir: string;
-      stagedPatchPath?: string;
-      unstagedPatchPath?: string;
-      untrackedDir?: string;
-      untrackedFiles: string[];
-      trackedDir?: string;
-      trackedFiles: string[];
-      deletedFiles: string[];
-    } | null = null;
-
-    try {
-      if (shadowInitialRef && shadowLatestRef) {
-        const status = await getGitStatus(mainRepoPath);
-        const isDirty = status.trim().length > 0;
-        if (isDirty && applyBackOnDirty === 'abort') {
-          throw new Error(
-            `Apply-back aborted: main workspace has uncommitted changes.\n${status.trim()}`,
-          );
-        }
-        logger.debug(
-          `[applyBack] Using dual-merge apply-back (shadow refs: ${shadowInitialRef} -> ${shadowLatestRef}).`,
-        );
-        await this.applyBackWithDualMerge(
-          mainRepoPath,
-          checkpointRef.worktreePath,
-          shadowInitialRef,
-          shadowLatestRef,
-          verbose,
-          includePaths,
-          applyBackOnDirty,
-        );
-        appliedToMain = true;
-        applySuccess = true;
-        return;
-      }
-
-      // Stage changes in worktree so new files are included in the diff
-      await runGit(checkpointRef.worktreePath, ['add', '-A']);
-      // Generate patch from staged worktree changes (include binary)
-      const rawPatch = await runGit(checkpointRef.worktreePath, [
-        'diff',
-        '--cached',
-        '--binary',
-        '--no-color',
-        '--no-ext-diff',
-        checkpointRef.baseRef,
-      ]);
-      if (!rawPatch.trim()) {
-        applySuccess = true;
-        return;
-      }
-      const patch = rawPatch.endsWith('\n') ? rawPatch : `${rawPatch}\n`;
-
-      if (verbose === 'extended') {
-        const patchLines = patch.split(/\r?\n/);
-        const previewLimit = 80;
-        const preview = patchLines.slice(0, previewLimit).join('\n');
-        const truncated = patchLines.length > previewLimit;
-        const binaryNotice = patch.includes('GIT binary patch') ? 'yes' : 'no';
-        const endsWithNewline = rawPatch.endsWith('\n');
-        logger.trace(
-          `[applyBack] Patch stats: ${patch.length} chars, ${patchLines.length} lines, binary: ${binaryNotice}`,
-        );
-        logger.trace(`[applyBack] Patch ends with newline: ${endsWithNewline}`);
-        logger.trace(
-          `[applyBack] Patch preview (first ${Math.min(previewLimit, patchLines.length)} lines):\n${preview}${truncated ? '\n...[truncated]...' : ''}`,
-        );
-        try {
-          const debugPath = path.join(
-            tmpdir(),
-            `salmon-loop-applyback-${Date.now()}-${randomBytes(4).toString('hex')}.patch`,
-          );
-          await writeFile(debugPath, patch, 'utf8');
-          logger.trace(`[applyBack] Patch written to: ${debugPath}`);
-        } catch (error) {
-          logger.warn(
-            `[applyBack] Failed to write debug patch file: ${error instanceof Error ? error.message : String(error)}`,
-          );
-        }
-      }
-
-      const hashContent = (value: string | Buffer): string =>
-        createHash('sha256').update(value).digest('hex');
-
-      const normalizeFilePath = (value: string): string => value.replace(/\\/g, '/');
-
-      const computeFingerprint = async (): Promise<{
-        head: string;
-        index: string;
-        working: string;
-        untracked: string;
-      }> => {
-        const head = await runGit(mainRepoPath, ['rev-parse', 'HEAD']);
-        const index = await runGit(mainRepoPath, ['write-tree']);
-        const workingDiff = await runGit(mainRepoPath, [
-          'diff',
-          '--binary',
-          '--no-color',
-          '--no-ext-diff',
-        ]);
-        const working = hashContent(workingDiff);
-        const untrackedOutput = await runGit(mainRepoPath, [
-          'ls-files',
-          '--others',
-          '--exclude-standard',
-        ]);
-        const untrackedFiles = untrackedOutput
-          .split('\n')
-          .map((line) => line.trim())
-          .filter((line) => line.length > 0)
-          .sort();
-        let untracked = '';
-        if (untrackedFiles.length > 0) {
-          const entries: string[] = [];
-          for (const file of untrackedFiles) {
-            try {
-              const content = await readFile(path.join(mainRepoPath, ...file.split('/')));
-              entries.push(`${file}:${hashContent(content)}`);
-            } catch {
-              entries.push(`${file}:missing`);
-            }
-          }
-          untracked = hashContent(entries.join('\n'));
-        } else {
-          untracked = hashContent('');
-        }
-        return { head, index, working, untracked };
-      };
-
-      const fingerprintEquals = (
-        a: { head: string; index: string; working: string; untracked: string },
-        b: { head: string; index: string; working: string; untracked: string },
-      ): boolean =>
-        a.head === b.head &&
-        a.index === b.index &&
-        a.working === b.working &&
-        a.untracked === b.untracked;
-
-      const formatFingerprintDiff = (
-        a: { head: string; index: string; working: string; untracked: string },
-        b: { head: string; index: string; working: string; untracked: string },
-      ): string => {
-        const diffs: string[] = [];
-        if (a.head !== b.head) diffs.push('HEAD');
-        if (a.index !== b.index) diffs.push('INDEX');
-        if (a.working !== b.working) diffs.push('WORKING');
-        if (a.untracked !== b.untracked) diffs.push('UNTRACKED');
-        return diffs.length > 0
-          ? `Fingerprint changed: ${diffs.join(', ')}`
-          : 'Fingerprint unchanged';
-      };
-
-      const getStatus = async (): Promise<string> => {
-        const status = await getGitStatus(mainRepoPath);
-        return status.trim();
-      };
-
-      const initialStatus = await getStatus();
-      const wasDirty = initialStatus.length > 0;
-      const statusEntries = this.parseStatusEntries(initialStatus);
-      const dirtyFiles = statusEntries
-        .filter((entry) => entry.code !== '??')
-        .map((entry) => normalizeFilePath(entry.path));
-      const dirtyDeletedFiles = statusEntries
-        .filter((entry) => entry.origPath)
-        .map((entry) => normalizeFilePath(entry.origPath as string));
-      const originalFingerprint = await computeFingerprint();
-
-      if (wasDirty && applyBackOnDirty === 'abort') {
-        throw new Error(
-          `Apply-back aborted: main workspace has uncommitted changes.\n${initialStatus}`,
-        );
-      }
-
-      const resolveChangedFiles = (): string[] => {
-        if (changedFiles && changedFiles.length > 0) return changedFiles;
-        try {
-          const meta = validateDiff(normalizeDiff(patch));
-          return meta.changedFiles;
-        } catch {
-          return [];
-        }
-      };
-
-      const filesToApply = resolveChangedFiles().map(normalizeFilePath);
-      const hasOverlap = filesToApply.some((file) => dirtyFiles.includes(file));
-      // SAFETY: In '3way' mode, we MUST protect ALL dirty workspace scenarios
-      // Whether there's overlap or not, user's dirty data must be backed up
-      const allowDirtyApply = wasDirty && applyBackOnDirty === '3way';
-      const preparedFingerprint = originalFingerprint;
-
-      const assertFingerprintUnchanged = async (
-        expected: typeof originalFingerprint,
-        stage: string,
-      ) => {
-        const current = await computeFingerprint();
-        if (!fingerprintEquals(expected, current)) {
-          const status = await getStatus();
-          const diff = formatFingerprintDiff(expected, current);
-          const statusBlock = status ? `\nGit status:\n${status}` : '';
-          throw new Error(
-            `Apply-back aborted: main workspace changed after ${stage}.\n${diff}${statusBlock}`,
-          );
-        }
-      };
-
-      const mainHead = await runGit(mainRepoPath, ['rev-parse', 'HEAD']);
-      const preserveIndexLines = checkpointRef.baseRef.trim() === mainHead.trim();
-      const applyBackPatchOptions = {
-        preserveIndexLines,
-        ignoreWhitespace: false,
-        contextLines: 3,
-        threeWay: true,
-      };
-      if (!preserveIndexLines) {
-        logger.warn(
-          `[applyBack] Patch base (${checkpointRef.baseRef}) differs from main HEAD (${mainHead}); dropping index lines to avoid mismatch.`,
-        );
-      }
-
-      if (allowDirtyApply) {
-        const ensureTrailingNewline = (content: string): string =>
-          content.endsWith('\n') ? content : `${content}\n`;
-
-        const createDirtyBackup = async () => {
-          const backupDir = path.join(
-            tmpdir(),
-            `salmon-loop-backup-${Date.now()}-${randomBytes(4).toString('hex')}`,
-          );
-          await mkdir(backupDir, { recursive: true });
-
-          const stagedPatch = await runGit(mainRepoPath, [
-            'diff',
-            '--cached',
-            '--binary',
-            '--no-color',
-            '--no-ext-diff',
-          ]);
-          let stagedPatchPath: string | undefined;
-          if (stagedPatch.trim()) {
-            stagedPatchPath = path.join(backupDir, 'staged.patch');
-            await writeFile(stagedPatchPath, ensureTrailingNewline(stagedPatch), 'utf8');
-          }
-
-          const unstagedPatch = await runGit(mainRepoPath, [
-            'diff',
-            '--binary',
-            '--no-color',
-            '--no-ext-diff',
-          ]);
-          let unstagedPatchPath: string | undefined;
-          if (unstagedPatch.trim()) {
-            unstagedPatchPath = path.join(backupDir, 'unstaged.patch');
-            await writeFile(unstagedPatchPath, ensureTrailingNewline(unstagedPatch), 'utf8');
-          }
-
-          const untrackedOutput = await runGit(mainRepoPath, [
-            'ls-files',
-            '--others',
-            '--exclude-standard',
-          ]);
-          const untrackedFiles = untrackedOutput
-            .split('\n')
-            .map((line) => line.trim())
-            .filter((line) => line.length > 0);
-          let untrackedDir: string | undefined;
-          let trackedDir: string | undefined;
-          const deletedFiles = new Set<string>(dirtyDeletedFiles);
-
-          if (untrackedFiles.length > 0) {
-            untrackedDir = path.join(backupDir, 'untracked');
-            for (const file of untrackedFiles) {
-              const destPath = path.join(untrackedDir, ...file.split('/'));
-              await mkdir(path.dirname(destPath), { recursive: true });
-              await copyFile(path.join(mainRepoPath, ...file.split('/')), destPath);
-            }
-          }
-
-          if (dirtyFiles.length > 0) {
-            trackedDir = path.join(backupDir, 'tracked');
-            for (const file of dirtyFiles) {
-              const destPath = path.join(trackedDir, ...file.split('/'));
-              await mkdir(path.dirname(destPath), { recursive: true });
-              try {
-                await copyFile(path.join(mainRepoPath, ...file.split('/')), destPath);
-              } catch {
-                deletedFiles.add(file);
-              }
-            }
-          }
-
-          await writeFile(path.join(backupDir, 'status.txt'), `${initialStatus}\n`, 'utf8');
-          await writeFile(
-            path.join(backupDir, 'fingerprint.json'),
-            JSON.stringify(
-              {
-                createdAt: new Date().toISOString(),
-                fingerprint: originalFingerprint,
-              },
-              null,
-              2,
-            ),
-            'utf8',
-          );
-
-          return {
-            dir: backupDir,
-            stagedPatchPath,
-            unstagedPatchPath,
-            untrackedDir,
-            untrackedFiles,
-            trackedDir,
-            trackedFiles: dirtyFiles,
-            deletedFiles: Array.from(deletedFiles),
-          };
-        };
-
-        const restoreDirtyBackup = async () => {
-          if (!dirtyBackup) return;
-          await runGit(mainRepoPath, ['reset', '--hard', 'HEAD']);
-          await runGit(mainRepoPath, ['clean', '-fd']);
-          if (dirtyBackup.stagedPatchPath) {
-            await runGit(mainRepoPath, ['apply', '--cached', dirtyBackup.stagedPatchPath]);
-          }
-          if (dirtyBackup.trackedDir && dirtyBackup.trackedFiles.length > 0) {
-            for (const file of dirtyBackup.trackedFiles) {
-              const srcPath = path.join(dirtyBackup.trackedDir, ...file.split('/'));
-              const destPath = path.join(mainRepoPath, ...file.split('/'));
-              await mkdir(path.dirname(destPath), { recursive: true });
-              await copyFile(srcPath, destPath);
-            }
-          }
-          if (dirtyBackup.deletedFiles.length > 0) {
-            for (const file of dirtyBackup.deletedFiles) {
-              try {
-                await runGit(mainRepoPath, ['rm', '-f', '--', file]);
-              } catch {
-                // Ignore delete failures
-              }
-            }
-          }
-          if (dirtyBackup.untrackedDir && dirtyBackup.untrackedFiles.length > 0) {
-            for (const file of dirtyBackup.untrackedFiles) {
-              const srcPath = path.join(dirtyBackup.untrackedDir, ...file.split('/'));
-              const destPath = path.join(mainRepoPath, ...file.split('/'));
-              await mkdir(path.dirname(destPath), { recursive: true });
-              await copyFile(srcPath, destPath);
-            }
-          }
-        };
-
-        logger.warn(
-          `[applyBack] Dirty workspace detected. Creating checkpoint for all dirty files. Overlap with patch: ${hasOverlap ? filesToApply.filter((f) => dirtyFiles.includes(f)).join(', ') : 'none'}`,
-        );
-        dirtyBackup = await createDirtyBackup();
-        logger.warn(`[applyBack] Dirty workspace checkpoint created at: ${dirtyBackup.dir}`);
-        if (dirtyBackup.untrackedFiles.length > 0) {
-          logger.warn(
-            `[applyBack] Checkpoint includes untracked files: ${dirtyBackup.untrackedFiles.join(', ')}`,
-          );
-        }
-
-        try {
-          await assertFingerprintUnchanged(preparedFingerprint, 'dirty preparation');
-        } catch (error) {
-          const msg = error instanceof Error ? error.message : String(error);
-          throw new Error(`${msg}\nCheckpoint location: ${dirtyBackup?.dir || 'unknown'}`);
-        }
-
-        try {
-          // CRITICAL: Re-verify fingerprint immediately before applying patch
-          // This closes the time window between backup creation and patch application
-          await assertFingerprintUnchanged(preparedFingerprint, 'pre-apply (dirty mode)');
-
-          await applyPatch(mainRepoPath, patch, applyBackPatchOptions);
-          appliedToMain = true;
-          applySuccess = true;
-          return;
-        } catch (error) {
-          applyError = error instanceof Error ? error : new Error(String(error));
-          try {
-            await restoreDirtyBackup();
-            const restoredStatus = await getStatus();
-            if (restoredStatus !== initialStatus) {
-              logger.warn(
-                `[applyBack] Dirty workspace restore completed with status diff.\nBefore:\n${initialStatus}\nAfter:\n${restoredStatus}`,
-              );
-            }
-          } catch (restoreError) {
-            const restoreMsg =
-              restoreError instanceof Error ? restoreError.message : String(restoreError);
-            throw new Error(
-              `${applyError.message}\nDirty workspace checkpoint restore failed: ${restoreMsg}\n` +
-                `Checkpoint location: ${dirtyBackup?.dir || 'unknown'}`,
-            );
-          }
-          throw applyError;
-        }
-      }
-
-      // NOTE: For '3way' mode, we allow dirty workspace and rely on 3-way merge
-      // If there's overlap with patch files, allowDirtyApply branch above handles it
-      // If there's no overlap, we proceed with applying the patch to dirty workspace
-
-      // Apply patch to main workspace
-      await applyPatch(mainRepoPath, patch, applyBackPatchOptions);
-      appliedToMain = true;
-      applySuccess = true;
-    } catch (error) {
-      const err = error instanceof Error ? error : new Error(String(error));
-      (err as ApplyBackErrorMeta).appliedToMain = appliedToMain;
-      throw err;
-    } finally {
-      // Record monitoring metrics
-      const duration = Date.now() - startTime;
-      monitor.recordApplyBack(applySuccess, duration);
-      logger.info(`applyBack completed in ${duration}ms, success: ${applySuccess}`);
-    }
   }
 }

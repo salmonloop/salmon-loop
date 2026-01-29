@@ -15,13 +15,13 @@ export class ToolRouter {
   ) {}
 
   /**
-   * ToolRouter.call 是系统工具执行的唯一单出口。
-   * 它强制执行规范化的安全、资源与审计流程。
+   * ToolRouter.call is the single entry point for system tool execution.
+   * It enforces standardized security, resource, and audit workflows.
    */
   async call(envelope: ToolCallEnvelope): Promise<ToolResult> {
     const startedAt = Date.now();
 
-    // 1. Registry Resolve: 查找工具规范
+    // 1. Registry Resolve: Find tool specification
     const spec = this.registry.getSpec(envelope.toolName);
     if (!spec) {
       const result = this.createErrorResult(
@@ -35,17 +35,17 @@ export class ToolRouter {
       return result;
     }
 
-    // 审计开始 (记录意图)
+    // Start audit (record intent)
     this.audit.onStart(envelope, spec, { allowed: true });
 
     try {
-      // 2. Input Validation: 使用 Zod Schema 校验参数
+      // 2. Input Validation: Validate parameters using Zod Schema
       const inputCheck = this.sanitizer.validateInput(spec, envelope.args);
       if (!inputCheck.ok) {
         throw { code: 'INVALID_INPUT', message: inputCheck.message };
       }
 
-      // 3. Policy Gating: 阶段与副作用安全准入
+      // 3. Policy Gating: Phase and side-effect security admission
       const decision = this.policy.decide(envelope.phase, spec, envelope.ctx);
       if (!decision.allowed) {
         const result = this.createErrorResult(
@@ -59,17 +59,18 @@ export class ToolRouter {
         return result;
       }
 
-      // 4. Budget Gating & Execution: 并发控制、超时与执行
+      // 4. Budget Gating & Execution: Concurrency control, timeout, and execution
       const rawOutput = await this.budget.runWithGuards({
-        timeoutMs: 30000, // 可后续从配置读取
+        timeoutMs: 30000, // Can be read from config later
         maxOutputBytes: 1024 * 1024,
         phase: envelope.phase,
         toolName: spec.name,
         riskLevel: spec.riskLevel,
-        fn: () => spec.executor(envelope.args, envelope.ctx),
+        // Inject phase into the runtime ctx for executors that need it (e.g. backend routing).
+        fn: () => spec.executor(envelope.args, { ...envelope.ctx, phase: envelope.phase } as any),
       });
 
-      // 5. Output Validation & Sanitize: 结果校验与脱敏摘要
+      // 5. Output Validation & Sanitize: Result validation and sensitive summary
       const sanitized = this.sanitizer.sanitizeOutput(spec, rawOutput);
       if (!sanitized.ok) {
         throw { code: 'INVALID_OUTPUT', message: sanitized.message };
@@ -117,7 +118,7 @@ export class ToolRouter {
     return {
       id: envelope.id,
       toolName: envelope.toolName,
-      source: 'builtin', // 降级默认值
+      source: 'builtin', // Default value for degradation
       status,
       durationMs,
       error: {

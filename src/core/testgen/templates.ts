@@ -40,9 +40,8 @@ func main() {
 `;
 
 export const NODE_TEMPLATE = `
-console.log("Node.js Environment OK");
+// Note: Use a logger in real code, this is a template smoke test
 if (1 + 1 !== 2) {
-  console.error("Universe is broken");
   process.exit(1);
 }
 process.exit(0);

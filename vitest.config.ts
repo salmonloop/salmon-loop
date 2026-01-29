@@ -4,6 +4,8 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
+    // Keep CI output clean: tests must be self-validating and not rely on console output.
+    silent: true,
 
     // Global setup file (runs before each test)
     setupFiles: ['./tests/setup.ts'],

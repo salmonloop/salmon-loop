@@ -7,8 +7,8 @@ import chalk from 'chalk';
 import { Command } from 'commander';
 import ProgressBar from 'progress';
 
-import { CheckpointManager } from './core/checkpoint/manager.js';
 import { logger } from './core/logger.js';
+import { CheckpointManager } from './core/strata/checkpoint/manager.js';
 import {
   EXECUTION_PHASES,
   Phase,
@@ -47,10 +47,10 @@ program
       logger.log(chalk.blue(text.cli.runningValidation));
       try {
         logger.debug(text.cli.runningEslint);
-        execSync('npx eslint src --ext .ts', { stdio: 'inherit', cwd: process.cwd() });
+        execSync('npx eslint src --ext .ts', { stdio: 'inherit', cwd: runPath });
         logger.debug(text.cli.runningTests);
         try {
-          execSync('npm test', { stdio: 'inherit', cwd: process.cwd() });
+          execSync('npm test', { stdio: 'inherit', cwd: runPath });
         } catch (__e) {
           logger.warn(text.cli.testsFailedContinuing);
         }
@@ -121,8 +121,8 @@ program
         worktreePrepare: options.worktreePrepare,
         onEvent: (event) => {
           if (event.type === 'phase.start') {
-            const phaseName =
-              text.progress[event.phase as keyof typeof text.progress] || event.phase;
+            const phaseKey = event.phase.toLowerCase() as keyof typeof text.progress;
+            const phaseName = text.progress[phaseKey] || event.phase;
             bar.tick(currentPhaseIndex === 0 ? 0 : 1, { phase: phaseName });
             currentPhaseIndex++;
             logger.step(event.phase, phaseName);
@@ -168,20 +168,20 @@ program
         // Provide suggestions based on failure
         if (result.failurePhase === Phase.PREFLIGHT) {
           if (result.reasonCode === 'PREFLIGHT_DIRTY') {
-            logger.cyan(`💡 Suggestion: ${text.suggestions.dirty}`);
+            logger.cyan(`${text.symbols.suggestion} Suggestion: ${text.suggestions.dirty}`);
           } else if (result.reasonCode === 'PREFLIGHT_NOT_GIT') {
-            logger.cyan(`💡 Suggestion: ${text.suggestions.notGit}`);
+            logger.cyan(`${text.symbols.suggestion} Suggestion: ${text.suggestions.notGit}`);
           }
         } else if (result.failurePhase === Phase.VERIFY) {
           if (result.errorType === ErrorType.COMPILATION) {
-            logger.cyan(`💡 Suggestion: ${text.suggestions.compilation}`);
+            logger.cyan(`${text.symbols.suggestion} Suggestion: ${text.suggestions.compilation}`);
           } else if (result.errorType === ErrorType.LINT) {
-            logger.cyan(`💡 Suggestion: ${text.suggestions.lint}`);
+            logger.cyan(`${text.symbols.suggestion} Suggestion: ${text.suggestions.lint}`);
           } else {
-            logger.cyan(`💡 Suggestion: ${text.suggestions.test}`);
+            logger.cyan(`${text.symbols.suggestion} Suggestion: ${text.suggestions.test}`);
           }
         } else if (result.failurePhase === Phase.ROLLBACK) {
-          logger.cyan(`💡 Suggestion: ${text.suggestions.rollbackFailed}`);
+          logger.cyan(`${text.symbols.suggestion} Suggestion: ${text.suggestions.rollbackFailed}`);
         }
 
         logger.log(text.cli.attempts(result.attempts));
@@ -191,7 +191,9 @@ program
       if (options.verbose) {
         logger.log('\n' + chalk.bold(text.cli.stepLogs));
         result.logs.forEach((log) => {
-          const symbol = log.success ? chalk.green('✓') : chalk.red('✗');
+          const symbol = log.success
+            ? chalk.green(text.symbols.success)
+            : chalk.red(text.symbols.error);
           logger.log(`${symbol} [${chalk.blue(log.step.toUpperCase())}] ${log.output}`);
         });
       }
@@ -203,43 +205,46 @@ program
 program
   .command('restore <hash>')
   .alias('checkout')
-  .description('Restore the repository to a specific snapshot state')
-  .option('--force', 'Overwrite uncommitted changes')
+  .description(text.cli.restoreDescription)
+  .option('--force', text.cli.restoreForceOption)
   .action(async (hash, options) => {
     const runPath = resolve(program.opts().repo);
     const manager = new CheckpointManager();
     try {
-      logger.info(`Restoring snapshot ${hash}...`);
+      logger.info(text.cli.restoreStarting(hash));
       await manager.restoreToMain(runPath, hash, options.force);
-      logger.success(`Successfully restored snapshot ${hash}`);
+      logger.success(text.cli.restoreSuccess(hash));
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       if (msg.includes('Workspace is dirty')) {
-        logger.error(`Restore failed: Workspace has uncommitted changes.`);
-        logger.warn('Use --force to overwrite them, or commit/stash your changes first.');
+        logger.error(text.cli.restoreFailedDirty);
+        logger.warn(text.cli.restoreFailedDirtyHint);
       } else {
-        logger.error(`Restore failed: ${msg}`);
+        logger.error(text.cli.restoreFailed(msg));
       }
       process.exit(1);
     }
   });
 
-const snapshot = program.command('snapshot').alias('snap').description('Manage snapshots');
+const snapshot = program
+  .command('snapshot')
+  .alias('snap')
+  .description(text.cli.snapshotManageDescription);
 
 snapshot
   .command('list')
   .alias('ls')
-  .description('List all snapshots')
+  .description(text.cli.listSnapshotsDescription)
   .action(async () => {
     const runPath = resolve(program.opts().repo);
     const manager = new CheckpointManager();
     const snapshots = await manager.listSnapshots(runPath);
     if (snapshots.length === 0) {
-      logger.log('No snapshots found.');
+      logger.log(text.cli.noSnapshots);
       return;
     }
-    logger.log(chalk.bold('Available Snapshots:'));
-    logger.log(chalk.dim('Hash     Timestamp                  Message'));
+    logger.log(chalk.bold(text.cli.availableSnapshots));
+    logger.log(chalk.dim(text.cli.snapshotTableHead));
     snapshots.forEach((s) => {
       // Parse the message to extract the description if available
       let displayMsg = s.message;
@@ -249,7 +254,7 @@ snapshot
           displayMsg = meta.desc;
         } else if (meta.staged) {
           // Fallback for auto-snapshots without explicit description
-          displayMsg = `Auto-snapshot (staged: ${meta.staged.substring(0, 7)})`;
+          displayMsg = text.cli.autoSnapshotMsg(meta.staged.substring(0, 7));
         }
       } catch {
         // Keep original message if parsing fails
@@ -260,9 +265,9 @@ snapshot
 
 snapshot
   .command('create')
-  .description('Create a new snapshot manually')
-  .option('-m, --message <text>', 'Description for the snapshot')
-  .option('--include <files...>', 'Explicitly include ignored files')
+  .description(text.cli.createSnapshotDescription)
+  .option('-m, --message <text>', text.cli.createSnapshotMessageOption)
+  .option('--include <files...>', text.cli.createSnapshotIncludeOption)
   .action(async (options) => {
     const runPath = resolve(program.opts().repo);
     const manager = new CheckpointManager();
@@ -272,13 +277,13 @@ snapshot
         options.include || [],
         options.message,
       );
-      logger.success(`Snapshot created: ${result.commitHash}`);
+      logger.success(text.cli.snapshotCreated(result.commitHash));
       if (options.message) {
-        logger.log(`Message: ${options.message}`);
+        logger.log(text.cli.snapshotMessage(options.message));
       }
     } catch (error) {
       logger.error(
-        `Failed to create snapshot: ${error instanceof Error ? error.message : String(error)}`,
+        text.cli.snapshotCreateFailed(error instanceof Error ? error.message : String(error)),
       );
       process.exit(1);
     }
@@ -286,37 +291,37 @@ snapshot
 
 snapshot
   .command('show <hash>')
-  .description('Show details of a snapshot')
-  .option('--files', 'List all files contained in the snapshot')
+  .description(text.cli.showSnapshotDescription)
+  .option('--files', text.cli.showSnapshotFilesOption)
   .action(async (hash, options) => {
     const runPath = resolve(program.opts().repo);
     const manager = new CheckpointManager();
     try {
       const details = await manager.getSnapshotDetails(runPath, hash);
-      logger.log(chalk.bold(`Snapshot ${hash} Details:`));
+      logger.log(chalk.bold(text.cli.snapshotDetails(hash)));
 
       if (details.stagedFiles.length > 0) {
-        logger.log(chalk.green('\nStaged Files:'));
+        logger.log(chalk.green('\n' + text.cli.stagedFiles));
         details.stagedFiles.forEach((f) => logger.log(`  ${f}`));
       } else {
-        logger.log(chalk.gray('\nNo staged files.'));
+        logger.log(chalk.gray('\n' + text.cli.noStagedFiles));
       }
 
       if (details.unstagedFiles.length > 0) {
-        logger.log(chalk.yellow('\nUnstaged Changes:'));
+        logger.log(chalk.yellow('\n' + text.cli.unstagedChanges));
         details.unstagedFiles.forEach((f) => logger.log(`  ${f}`));
       } else {
-        logger.log(chalk.gray('\nNo unstaged changes.'));
+        logger.log(chalk.gray('\n' + text.cli.noUnstagedChanges));
       }
 
       if (options.files) {
-        logger.log(chalk.blue('\nAll Files in Snapshot:'));
+        logger.log(chalk.blue('\n' + text.cli.allFilesInSnapshot));
         const files = await manager.getSnapshotFiles(runPath, hash);
         files.forEach((f) => logger.log(`  ${f}`));
       }
     } catch (error) {
       logger.error(
-        `Failed to show snapshot: ${error instanceof Error ? error.message : String(error)}`,
+        text.cli.snapshotShowFailed(error instanceof Error ? error.message : String(error)),
       );
       process.exit(1);
     }
@@ -324,27 +329,27 @@ snapshot
 
 snapshot
   .command('diff <hash> [otherHash]')
-  .description('Show diff between snapshots or workspace')
-  .option('--code', 'Show full code diff instead of summary')
+  .description(text.cli.diffSnapshotDescription)
+  .option('--code', text.cli.diffSnapshotCodeOption)
   .action(async (hash, otherHash, options) => {
     const runPath = resolve(program.opts().repo);
     const manager = new CheckpointManager();
     try {
       const diffOutput = await manager.getSnapshotDiff(runPath, hash, otherHash, options.code);
       if (!diffOutput.trim()) {
-        logger.log('No differences found.');
+        logger.log(text.cli.noDifferences);
       } else {
         process.stdout.write(diffOutput + '\n');
       }
     } catch (error) {
-      logger.error(`Failed to get diff: ${error instanceof Error ? error.message : String(error)}`);
+      logger.error(text.cli.getDiffFailed(error instanceof Error ? error.message : String(error)));
       process.exit(1);
     }
   });
 
 snapshot
   .command('cat <hash> <file>')
-  .description('View file content from a snapshot')
+  .description(text.cli.catSnapshotDescription)
   .action(async (hash, file) => {
     const runPath = resolve(program.opts().repo);
     const manager = new CheckpointManager();
@@ -352,28 +357,24 @@ snapshot
       const content = await manager.getSnapshotFileContent(runPath, hash, file);
       process.stdout.write(content);
     } catch (error) {
-      logger.error(
-        `Failed to read file: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      logger.error(text.cli.readFileFailed(error instanceof Error ? error.message : String(error)));
       process.exit(1);
     }
   });
 
 snapshot
   .command('export <hash> <directory>')
-  .description('Export snapshot content to a directory')
+  .description(text.cli.exportSnapshotDescription)
   .action(async (hash, directory) => {
     const runPath = resolve(program.opts().repo);
     const targetDir = resolve(directory);
     const manager = new CheckpointManager();
     try {
-      logger.info(`Exporting snapshot ${hash} to ${targetDir}...`);
+      logger.info(text.cli.exportStarting(hash, targetDir));
       await manager.exportSnapshot(runPath, hash, targetDir);
-      logger.success(`Successfully exported snapshot ${hash}`);
+      logger.success(text.cli.exportSuccess(hash));
     } catch (error) {
-      logger.error(
-        `Failed to export snapshot: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      logger.error(text.cli.exportFailed(error instanceof Error ? error.message : String(error)));
       process.exit(1);
     }
   });
@@ -381,16 +382,16 @@ snapshot
 snapshot
   .command('delete <hash>')
   .alias('rm')
-  .description('Delete a snapshot')
+  .description(text.cli.deleteSnapshotDescription)
   .action(async (hash) => {
     const runPath = resolve(program.opts().repo);
     const manager = new CheckpointManager();
     try {
       await manager.deleteSnapshot(runPath, hash);
-      logger.success(`Snapshot ${hash} deleted.`);
+      logger.success(text.cli.snapshotDeleted(hash));
     } catch (error) {
       logger.error(
-        `Failed to delete snapshot: ${error instanceof Error ? error.message : String(error)}`,
+        text.cli.snapshotDeleteFailed(error instanceof Error ? error.message : String(error)),
       );
       process.exit(1);
     }
@@ -398,23 +399,23 @@ snapshot
 
 snapshot
   .command('clear')
-  .description('Clear all snapshots')
-  .option('--force', 'Force clear without confirmation')
+  .description(text.cli.clearSnapshotsDescription)
+  .option('--force', text.cli.clearSnapshotsForceOption)
   .action(async (options) => {
     const runPath = resolve(program.opts().repo);
     const manager = new CheckpointManager();
 
     if (!options.force) {
-      logger.warn('Please use --force to clear all snapshots.');
+      logger.warn(text.cli.clearForcePrompt);
       return;
     }
 
     try {
       await manager.clearSnapshots(runPath);
-      logger.success('All snapshots cleared.');
+      logger.success(text.cli.allSnapshotsCleared);
     } catch (error) {
       logger.error(
-        `Failed to clear snapshots: ${error instanceof Error ? error.message : String(error)}`,
+        text.cli.clearSnapshotsFailed(error instanceof Error ? error.message : String(error)),
       );
       process.exit(1);
     }

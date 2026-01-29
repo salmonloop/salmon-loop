@@ -6,7 +6,6 @@ import * as path from 'path';
 
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 
-import * as git from '../../src/core/git.js';
 import { LLM } from '../../src/core/llm.js';
 import { runSalmonLoop } from '../../src/core/loop.js';
 import * as verify from '../../src/core/verify.js';
@@ -41,16 +40,15 @@ const mockLlm = {
   chat: vi.fn().mockResolvedValue({ role: 'assistant', content: 'Ready' }),
 } as unknown as LLM;
 
-vi.mock('../../src/core/git.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../src/core/git.js')>();
-  return {
-    ...actual,
-    applyPatch: vi.fn(),
+vi.mock('../../src/core/adapters/git/git-adapter.js', () => ({
+  GitAdapter: vi.fn().mockImplementation(() => ({
+    applyPatch: vi.fn().mockResolvedValue(undefined),
     rollbackFiles: vi.fn().mockResolvedValue({ ok: true }),
-    getGitStatus: vi.fn(),
-    getGitDiff: vi.fn(),
-  };
-});
+    getStatus: vi.fn().mockResolvedValue(''),
+    exec: vi.fn().mockResolvedValue(''),
+    query: vi.fn().mockResolvedValue(''),
+  })),
+}));
 
 vi.mock('../../src/core/context.js', () => ({
   ContextBuilder: {
@@ -138,7 +136,6 @@ describe('Performance Tests', () => {
     vi.mocked(mockLlm.createPatch).mockResolvedValue(
       'diff --git a/file0.ts b/file0.ts\n--- a/file0.ts\n+++ b/file0.ts\n@@ -1,1 +1,1 @@\n-console.log("file 0");\n+console.log("fixed");',
     );
-    vi.mocked(git.applyPatch).mockResolvedValue(undefined);
     vi.mocked(verify.runVerify).mockResolvedValue({ ok: true, output: '', exitCode: 0 });
 
     const start = Date.now();

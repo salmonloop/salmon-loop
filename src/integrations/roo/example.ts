@@ -1,4 +1,5 @@
 import { FakeLLM } from '../../core/llm.js';
+import { logger } from '../../core/logger.js';
 
 import { RooSalmonAdapter } from './adapter.js';
 
@@ -24,5 +25,5 @@ export const example = async () => {
     llm: fakeLLM,
   });
 
-  console.log('Result:', result.success);
+  logger.info(`Result: ${result.success}`);
 };

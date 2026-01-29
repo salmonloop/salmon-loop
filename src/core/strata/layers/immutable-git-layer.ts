@@ -5,7 +5,7 @@
  * for L1 Git snapshot and worktree operations.
  */
 
-import { CheckpointManager } from '../../checkpoint/manager.js';
+import { CheckpointManager } from '../checkpoint/manager.js';
 import type { ImmutableGitLayer } from '../types.js';
 
 /**

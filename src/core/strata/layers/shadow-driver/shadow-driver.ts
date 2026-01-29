@@ -170,46 +170,12 @@ async function runWithDriver(
  * Execute command in shadow environment
  */
 async function executeCommand(command: string, cwd: string, env: NodeJS.ProcessEnv): Promise<void> {
-  const { spawn } = await import('child_process');
+  const { GitAdapter } = await import('../../../adapters/git/git-adapter.js');
+  const adapter = new GitAdapter(cwd);
 
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, {
-      shell: true,
-      cwd,
-      env: { ...process.env, ...env },
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-
-    let stderr = '';
-
-    child.stdout.on('data', () => {
-      // Ignore stdout for now
-    });
-
-    child.stderr.on('data', (data) => {
-      stderr += data.toString();
-    });
-
-    child.on('error', (err) => {
-      reject(new Error(`Command failed: ${err.message}`));
-    });
-
-    child.on('close', (code) => {
-      if (code === 0) {
-        resolve();
-      } else {
-        reject(new Error(`Command failed with code ${code}: ${stderr}`));
-      }
-    });
-
-    // Set timeout
-    setTimeout(() => {
-      if (!child.killed) {
-        child.kill();
-        reject(new Error(`Command timed out`));
-      }
-    }, 300000); // 5 minutes
-  });
+  // Use adapter to execute arbitrary commands while respecting the global lock
+  // We use sh -c to support the shell string command
+  await adapter.exec(['sh', '-c', command], { env: env as any });
 }
 
 /**

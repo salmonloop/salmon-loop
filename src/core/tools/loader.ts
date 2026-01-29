@@ -28,7 +28,7 @@ export function createStandardToolstack(options: ToolstackOptions) {
   const audit = new ToolAuditLogger();
   const sanitize = new ToolSanitizer();
 
-  // 2. Register all builtin tools (rg, git, ast, ast_grep)
+  // 2. Register all builtin tools (rg, git, ast, ast-grep)
   registerAllBuiltins(registry);
 
   // 3. Create Router (The execution pipeline)

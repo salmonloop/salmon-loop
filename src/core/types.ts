@@ -14,6 +14,7 @@ export const EXECUTION_PHASES = [
   'PLAN',
   'PATCH',
   'VALIDATE',
+  'AST_VALIDATE',
   'APPLY',
   'VERIFY',
   'ROLLBACK',
@@ -31,6 +32,7 @@ export const Phase = {
   PLAN: 'PLAN',
   PATCH: 'PATCH',
   VALIDATE: 'VALIDATE',
+  AST_VALIDATE: 'AST_VALIDATE',
   APPLY: 'APPLY',
   VERIFY: 'VERIFY',
   ROLLBACK: 'ROLLBACK',
@@ -76,6 +78,7 @@ export type LoopReasonCode =
   | 'LOOP_FAILED'
   | 'MAX_RETRIES'
   | 'APPLY_BACK_FAILED'
+  | 'LOOP_CRASH'
   | 'SUCCESS';
 
 export interface LoopResult {
@@ -100,7 +103,7 @@ export interface LoopIteration {
 }
 
 export interface StepLog {
-  step: ExecutionPhase | 'error';
+  step: ExecutionPhase | 'error' | 'UNKNOWN';
   success: boolean;
   output: string;
   timestamp: Date;
@@ -205,7 +208,7 @@ export interface RunOptions {
   expectedFileContent?: { path: string; content: string }[];
   targetNodeName?: string;
   snapshotHash?: string; // ARCHITECTURE OPTIMIZATION: Pass snapshot hash for Git object reading
-  checkpointManager?: import('./checkpoint/manager.js').CheckpointManager; // ARCHITECTURE OPTIMIZATION: Pass manager instance for Git object reading
+  checkpointManager?: import('./strata/checkpoint/manager.js').CheckpointManager; // ARCHITECTURE OPTIMIZATION: Pass manager instance for Git object reading
   checkpoint?: {
     strategy?: 'worktree';
     keepWorktreeOnFailure?: boolean;
@@ -229,7 +232,8 @@ export class GitError extends SalmonError {
     public readonly command?: string,
     public readonly stderr?: string,
   ) {
-    super(message, 'GIT_ERROR');
+    const fullMessage = stderr ? `${message}\nStderr: ${stderr}` : message;
+    super(fullMessage, 'GIT_ERROR');
   }
 }
 
@@ -247,6 +251,69 @@ export interface CheckpointRef {
   worktreePath: string;
   baseRef: string;
   branchName: string;
+}
+
+export type LLMRole = 'system' | 'user' | 'assistant' | 'tool';
+
+export interface LLMMessage {
+  role: LLMRole;
+  content: string;
+  name?: string; // For 'tool' role
+  tool_calls?: any[]; // Raw tool calls from provider
+  tool_call_id?: string; // For 'tool' role response
+}
+
+export interface ChatOptions {
+  temperature?: number;
+  maxTokens?: number;
+  responseFormat?: 'json_object' | 'text';
+  stop?: string[];
+  /**
+   * Provider-native tool definitions.
+   *
+   * - For OpenAI: [{ type: 'function', function: { name, description, parameters } }]
+   * - For other providers: ignored unless supported.
+   */
+  tools?: any[];
+  /**
+   * Provider-native tool choice directive.
+   *
+   * - For OpenAI: 'auto' | 'none' | { type: 'function', function: { name } }
+   */
+  toolChoice?: any;
+}
+
+export interface LLM {
+  /**
+   * Basic chat completion for multi-turn interaction
+   */
+  chat(messages: LLMMessage[], options?: ChatOptions): Promise<LLMMessage>;
+
+  /**
+   * High-level goal-oriented methods (internally use chat)
+   */
+  createPlan(context: Context, instruction: string, lastError?: string): Promise<Plan>;
+  createPatch(context: Context, plan: Plan, lastError?: string): Promise<string>;
+}
+
+export interface LoopOptions {
+  instruction: string;
+  verify: string;
+  repoPath: string;
+  llm: LLM;
+  dryRun?: boolean;
+  forceReset?: boolean;
+  onEvent?: (event: LoopEvent) => void;
+  verbose?: VerboseLevel;
+  file?: string;
+  contextFiles?: string[];
+  selection?: string;
+  expectedChanges?: string[];
+  expectedFileContent?: { path: string; content: string }[];
+  targetNodeName?: string;
+  strategy?: CheckpointStrategy;
+  applyBackOnDirty?: ApplyBackOnDirty;
+  worktreePrepare?: string;
 }
 
 export interface ExecutionWorkspace {

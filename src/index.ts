@@ -1,24 +1,3 @@
-/**
- * SalmonLoop - A self-healing loop for code generation and verification.
- *
- * This is the main entry point for the SalmonLoop library.
- */
-
 export { runSalmonLoop } from './core/loop.js';
-export type { LoopOptions } from './core/loop.js';
-export { Phase, ErrorType } from './core/types.js';
-export type { ExecutionPhase } from './core/types.js';
-export type {
-  LoopResult,
-  StepLog,
-  LoopEvent,
-  LoopIteration,
-  Plan,
-  PlanStep,
-  CheckpointStrategy,
-  ExecutionWorkspace,
-  ApplyBackOnDirty,
-} from './core/types.js';
-export type { LLM } from './core/llm.js';
-export { OpenAILLM, StubLLM, FakeLLM } from './core/llm.js';
-export { WorkspaceManager } from './core/workspace.js';
+export { OpenAILLM, StubLLM } from './core/llm.js';
+export * from './core/types.js';

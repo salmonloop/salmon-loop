@@ -1,3 +1,4 @@
+import { formatContextForPrompt } from '../../src/core/llm-utils.js';
 import { OpenAILLM } from '../../src/core/llm.js';
 import { Context } from '../../src/core/types.js';
 
@@ -105,9 +106,9 @@ describe('OpenAILLM', () => {
         rgSnippets: [],
       } as any;
 
-      const formatted = (llm as any).formatContext(context);
+      const formatted = formatContextForPrompt(context);
       expect(formatted).toContain('function hello() {');
-      expect(formatted).toContain('  world(); ↗️');
+      expect(formatted).toContain('  world();ℹ️');
     });
   });
 });

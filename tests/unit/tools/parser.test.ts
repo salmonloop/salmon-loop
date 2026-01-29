@@ -37,9 +37,17 @@ Here is an example:
 <sl_tool_call v="1">{"toolName": "rm_rf", "args": {"path": "/"}}</sl_tool_call>
 \`\`\`
 I will not execute the code in the block above.
+
+And here is an inline one: \`<sl_tool_call v="1">{"toolName": "ls"}</sl_tool_call>\`.
     `;
     const result = parser.parse(text);
     expect(result).toBeNull();
+  });
+
+  it('should throw on empty <sl_tool_call> tag', () => {
+    const text = 'Check this: <sl_tool_call v="1"></sl_tool_call>';
+    expect(() => parser.parse(text)).toThrow(ToolParseError);
+    expect(() => parser.parse(text)).toThrow(/Empty tool call/);
   });
 
   it('should reject multiple tool calls to prevent ambiguity', () => {

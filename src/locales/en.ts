@@ -19,9 +19,9 @@ export const en = {
     ) => `You are a code modification assistant. Please generate a detailed modification plan based on the following context and instruction.
 
 # Context Hierarchy
-- **Primary Text**: The ACTUAL content of the files. This is the absolute truth you must modify.
-- **Staged Diff**: Represents committed intentions or baseline changes. Respect these as part of the established direction.
-- **Unstaged Diff**: Shows recent work in progress. Do not revert or overwrite these changes unless explicitly instructed.
+- **Primary Text**: The ACTUAL content of the files. This is the only authoritative source for what lines exist.
+- **Staged Diff**: Informational only. It may include changes that are NOT present in the working tree text you are patching.
+- **Unstaged Diff**: Informational only. It may not fully reflect the working tree after retries.
 - **Untracked Files**: New files that are not yet tracked by git.
 
 # Context Data
@@ -97,6 +97,7 @@ ${lastError ? `\n# Last Error\nThe previous attempt failed with the following er
   - Example: \`--- a/src/index.js\` and \`+++ b/src/index.js\`
 - **Context Matching**: Provide 8-12 lines of surrounding code.
   - Indentation and whitespace must match EXACTLY.
+- **DO NOT include \`index <old>..<new>\` lines** (the host may strip them for safety).
 - Constraints:
   - Maximum ${maxFilesChanged} files.
   - Maximum ${maxDiffLines} total diff lines.
@@ -110,6 +111,13 @@ Please return the patch in PURE unified diff format:`;
   git: {
     applyFailed: (error: string) => `git apply failed: ${error}`,
     applySpawnFailed: (error: string) => `git apply spawn failed: ${error}`,
+    processError: (error: string) => `Git process error: ${error}`,
+    commandFailed: (code: number | null) => `Git command failed with code ${code}`,
+    timeout: (timeout: number) => `Git command timed out after ${timeout}ms`,
+    securityViolation: (cmd: string) => `Security Violation: Command '${cmd}' is not a query.`,
+    hashObjectFailed: 'hash-object failed',
+    showFailed: (error: string) => `git show failed: ${error}`,
+    mergeFileFailed: (error: string) => `git merge-file failed: ${error}`,
   },
 
   diff: {
@@ -129,16 +137,21 @@ Please return the patch in PURE unified diff format:`;
 
   loop: {
     starting: '🚀 Starting salmon-loop...',
+    preflightPassed: 'Environment safety validation completed',
     planFailed: (error: string) => `Plan failed: ${error}`,
     patchGenerationFailed: (error: string) => `Patch generation failed: ${error}`,
     patchApplyFailed: (error: string) => `Patch application failed: ${error}`,
     verificationFailed: (error: string) => `Verification failed: ${error}`,
+    verificationFailedSummary: 'Verification failed',
+    verificationPassed: 'Verification passed successfully',
+    verificationSkipped: 'Skipped',
     success: 'Successfully completed',
     maxRetriesExceeded: (maxRetries: number, lastError?: string) =>
       `Exceeded maximum retries (${maxRetries}), last error: ${lastError}`,
     contextShrinking: 'Shrinking context and retrying...',
     rollbackAndShrink: 'Rolling back and shrinking context...',
     diffValidationPassed: 'Diff validation passed',
+    patchValidationFailed: 'Patch validation failed',
     contextShrunk: 'Context shrunk for next attempt',
     patchApplied: 'Patch applied successfully',
     dryRunPatchNotApplied: 'Dry run - patch not applied',
@@ -148,6 +161,10 @@ Please return the patch in PURE unified diff format:`;
     loopExecutionFailed: 'Loop execution failed',
     unexpectedTermination: 'Unexpected loop termination',
     rollbackFailed: (error: string) => `Rollback failed: ${error}`,
+    rollbackCompleted: 'Rollback completed successfully',
+    rollbackSkippedNoAnchor: 'Skipping rollback: No shadowInitialRef found',
+    emergencyRollbackTriggered: 'Emergency rollback triggered due to pipeline failure',
+    emergencyRollbackFailed: (error: string) => `Emergency rollback failed: ${error}`,
     rollbackFailedDirty:
       'Rollback failed; workspace may be dirty. Please run `git status` and manually reset using `git reset --hard`. If you are in a retry loop, you might need to manually clean up before the next attempt.',
     rollbackSuccess: (files: string[]) => `Successfully rolled back: ${files.join(', ')}`,
@@ -167,6 +184,8 @@ Please return the patch in PURE unified diff format:`;
     worktreePrepareFailed: (output: string) => `Worktree prepare command failed: ${output}`,
     syncingDirtyWorkspace: 'Syncing dirty workspace changes to worktree...',
     noContextGathered: 'No relevant context could be gathered for the given instruction.',
+    astValidationPassed: 'AST validation passed',
+    astValidationFailed: (error: string) => `AST validation failed: ${error}`,
     astStructureError: (file: string, error: string) => `AST structure error in ${file}: ${error}`,
     astScopeIntegrityError: (file: string, reason: string) =>
       `AST scope integrity check failed for ${file}: ${reason}`,
@@ -199,11 +218,58 @@ Please return the patch in PURE unified diff format:`;
     failedToGenerateRejection: (file: string, error: string) =>
       `Failed to generate .rej file for ${file}: ${error}`,
     workspaceDirtyAbort: 'Workspace is dirty and applyBackOnDirty is set to abort',
+    applyBackAbortedDirty: (status: string) =>
+      `Apply-back aborted: main workspace has uncommitted changes.\n${status}`,
     promotingUnstagedChanges: (file: string) =>
       `[ShadowMergeEngine] File ${file} is in MM (Double Dirty) state. Promoting unstaged changes to index to resolve context dependency.`,
     skippingIgnoredFileOverwrite: (file: string) => `Skipping overwrite of ignored file: ${file}`,
     using3WayMergeStrategy:
       '[ShadowMergeEngine] Using 3-way merge strategy to preserve user changes in dirty workspace.',
+
+    // Internal loop logs
+    createdSafeSnapshot: (hash: string) => `Created safe snapshot: ${hash}`,
+    snapshotCreateError: (error: string) => `Failed to create snapshot: ${error}`,
+    recordInitialRefError: (error: string) => `Failed to record initial checkpoint ref: ${error}`,
+    discoveryPhaseBanner:
+      'You are in the CONTEXT DISCOVERY phase. Your goal is to gather information about the codebase to solve the task.',
+    discoveryPhaseHint: 'You can use tools by wrapping them in <sl_tool_call v="1"> tags.',
+    discoveryPhaseExample:
+      'Example: <sl_tool_call v="1">{"toolName": "code.search", "args": {"pattern": "main"}}</sl_tool_call>',
+    discoveryTask: (task: string) => `Task: ${task}`,
+    discoveryVerify: (cmd: string) => `Verification Command: ${cmd}`,
+    discoveryEmptyResponse: 'LLM returned empty response during context discovery',
+    toolExecutionResult: (name: string, status: string) => `Tool execution [${name}]: ${status}`,
+    astInitialFile: (file: string, nodes: string) =>
+      `[AST] Initial File: ${file}, Top-level nodes: ${nodes}`,
+    astTargetNodePlacement: (name: string, top: boolean) =>
+      `[AST] Target node '${name}' at top-level: ${top}`,
+    applyBackRollbackAttempt: 'Attempting to rollback main workspace changes...',
+    applyBackRollbackSuccess: 'Main workspace rollback succeeded',
+    applyBackRollbackError: (error: string) => `Main workspace rollback error: ${error}`,
+    applyBackRollbackSkipped:
+      'Apply-back failed before touching the main workspace. Rollback skipped.',
+    rollbackShadowRef: (ref: string) => `[ROLLBACK] Using shadowInitialRef: ${ref}`,
+    applyBackDualMerge: (init: string, latest: string) =>
+      `[applyBack] Using dual-merge apply-back (shadow refs: ${init} -> ${latest}).`,
+    applyBackPatchStats: (chars: number, lines: number, binary: string) =>
+      `[applyBack] Patch stats: ${chars} chars, ${lines} lines, binary: ${binary}`,
+    applyBackNewline: (val: boolean) => `[applyBack] Patch ends with newline: ${val}`,
+    applyBackPatchPreview: (lines: number, content: string, truncated: boolean) =>
+      `[applyBack] Patch preview (first ${lines} lines):\n${content}${truncated ? '\n...[truncated]...' : ''}`,
+    applyBackDebugPath: (path: string) => `[applyBack] Patch written to: ${path}`,
+    applyBackDebugWriteError: (error: string) =>
+      `[applyBack] Failed to write debug patch file: ${error}`,
+    applyBackBaseMismatch: (base: string, head: string) =>
+      `[applyBack] Patch base (${base}) differs from main HEAD (${head}); dropping index lines to avoid mismatch.`,
+    applyBackDirtyDetected: (files: string) =>
+      `[applyBack] Dirty workspace detected. Creating checkpoint for all dirty files. Overlap with patch: ${files}`,
+    applyBackCheckpointLocation: (dir: string) =>
+      `[applyBack] Dirty workspace checkpoint created at: ${dir}`,
+    applyBackUntrackedIncluded: (files: string) =>
+      `[applyBack] Checkpoint includes untracked files: ${files}`,
+    checkpointLocation: (dir: string) => `Checkpoint location: ${dir}`,
+    applyBackDirtyRestoreResult: (before: string, after: string) =>
+      `[applyBack] Dirty workspace restore completed with status diff.\nBefore:\n${before}\nAfter:\n${after}`,
   },
 
   verify: {
@@ -253,7 +319,7 @@ Please return the patch in PURE unified diff format:`;
     forceResetOption: 'Force hard reset on failure (use with caution)',
     validateOption: 'Run code quality checks (lint and tests)',
     checkpointStrategyOption: 'Checkpoint strategy to use (direct, worktree)',
-    applyBackOnDirtyOption: 'Behavior when apply-back detects a dirty workspace (stash, abort)',
+    applyBackOnDirtyOption: 'Behavior when apply-back detects a dirty workspace (3way, abort)',
     worktreePrepareOption: 'Optional setup command to run inside worktree',
 
     // Error messages
@@ -312,6 +378,54 @@ Please return the patch in PURE unified diff format:`;
     validationCompleted: '✅ Validation completed!',
     validationFailed: '❌ Validation failed.',
     optionsRequired: 'Error: --instruction and --verify are required unless --validate is used.',
+
+    // Snapshot management
+    snapshotManageDescription: 'Manage snapshots',
+    restoreDescription: 'Restore the workspace to a specific snapshot',
+    restoreForceOption: 'Overwrite uncommitted changes',
+    restoreStarting: (hash: string) => `Restoring snapshot ${hash}...`,
+    restoreSuccess: (hash: string) => `Successfully restored snapshot ${hash}`,
+    restoreFailedDirty: 'Restore failed: Workspace has uncommitted changes.',
+    restoreFailedDirtyHint: 'Use --force to overwrite them, or commit/stash your changes first.',
+    restoreFailed: (error: string) => `Restore failed: ${error}`,
+    listSnapshotsDescription: 'List all available snapshots',
+    createSnapshotDescription: 'Create a new snapshot of the current workspace',
+    createSnapshotMessageOption: 'Description message for the snapshot',
+    createSnapshotIncludeOption: 'Specific files to include in the snapshot',
+    showSnapshotDescription: 'Show details and differences of a specific snapshot',
+    showSnapshotFilesOption: 'List all files included in the snapshot',
+    noSnapshots: 'No snapshots found.',
+    availableSnapshots: 'Available Snapshots:',
+    snapshotTableHead: 'Hash     Timestamp                  Message',
+    autoSnapshotMsg: (hash: string) => `Auto-snapshot (staged: ${hash})`,
+    snapshotCreated: (hash: string) => `Snapshot created: ${hash}`,
+    snapshotMessage: (msg: string) => `Message: ${msg}`,
+    snapshotCreateFailed: (error: string) => `Failed to create snapshot: ${error}`,
+    snapshotDetails: (hash: string) => `Snapshot ${hash} Details:`,
+    stagedFiles: 'Staged Files:',
+    noStagedFiles: 'No staged files.',
+    unstagedChanges: 'Unstaged Changes:',
+    noUnstagedChanges: 'No unstaged changes.',
+    allFilesInSnapshot: 'All Files in Snapshot:',
+    snapshotShowFailed: (error: string) => `Failed to show snapshot: ${error}`,
+    noDifferences: 'No differences found.',
+    getDiffFailed: (error: string) => `Failed to get diff: ${error}`,
+    readFileFailed: (error: string) => `Failed to read file: ${error}`,
+    exportStarting: (hash: string, dir: string) => `Exporting snapshot ${hash} to ${dir}...`,
+    exportSuccess: (hash: string) => `Successfully exported snapshot ${hash}`,
+    exportFailed: (error: string) => `Failed to export snapshot: ${error}`,
+    snapshotDeleted: (hash: string) => `Snapshot ${hash} deleted.`,
+    snapshotDeleteFailed: (error: string) => `Failed to delete snapshot: ${error}`,
+    clearForcePrompt: 'Please use --force to clear all snapshots.',
+    allSnapshotsCleared: 'All snapshots cleared.',
+    clearSnapshotsFailed: (error: string) => `Failed to clear snapshots: ${error}`,
+    diffSnapshotDescription: 'Show diff between snapshots or workspace',
+    diffSnapshotCodeOption: 'Show full code diff instead of summary',
+    catSnapshotDescription: 'View file content from a snapshot',
+    exportSnapshotDescription: 'Export snapshot content to a directory',
+    deleteSnapshotDescription: 'Delete a snapshot',
+    clearSnapshotsDescription: 'Clear all snapshots',
+    clearSnapshotsForceOption: 'Force clear without confirmation',
   },
 
   // Progress bar and interactive feedback
@@ -321,6 +435,7 @@ Please return the patch in PURE unified diff format:`;
     plan: 'Creating plan',
     patch: 'Generating patch',
     validate: 'Validating patch',
+    ast_validate: 'Validating AST',
     apply: 'Applying patch',
     verify: 'Verifying changes',
     rollback: 'Rolling back changes',
@@ -367,6 +482,19 @@ Please return the patch in PURE unified diff format:`;
     errorEntry: (timestamp: string, type: string, message: string) =>
       `[${timestamp}] ${type}: ${message}`,
     noErrors: 'No errors recorded.',
+    memoryWarning: (used: string, threshold: string) =>
+      `Memory usage warning: Heap used ${used}MB exceeds threshold ${threshold}MB.`,
+    suggestingGc: 'Suggesting garbage collection...',
+    metricsTitle: '=== Checkpoint & ApplyBack Metrics ===',
+    checkpointCreation: '[Checkpoint Creation]',
+    worktreeCleanup: '[Worktree Cleanup]',
+    applyBackOps: '[ApplyBack Operations]',
+    attempts: (count: number) => `  Attempts: ${count}`,
+    failures: (count: number) => `  Failures: ${count}`,
+    failureRate: (rate: string) => `  Failure Rate: ${rate}%`,
+    avgDuration: (ms: string) => `  Avg Duration: ${ms}ms`,
+    p50Duration: (ms: string) => `  P50 Duration: ${ms}ms`,
+    p95Duration: (ms: string) => `  P95 Duration: ${ms}ms`,
   },
 
   resource: {
@@ -409,5 +537,62 @@ Please return the patch in PURE unified diff format:`;
     worktreeRequired: 'Tool requires worktree isolation',
     applyForbidden: 'Tools are strictly forbidden in APPLY phase',
     networkDenied: 'Network access is denied by default policy',
+  },
+
+  audit: {
+    event: (type: string, name: string, status: string) => `[Audit] ${type} ${name}: ${status}`,
+  },
+
+  transaction: {
+    log: (phase: string, msg: string) => `[${phase}] ${msg}`,
+  },
+
+  grizzco: {
+    v3: {
+      gitUserConfigMissing: 'Git user.name or user.email is not configured',
+      remoteLocked: 'File is locked remotely (Mock Check)',
+      unknownDataDependency: (key: string) => `Unknown data dependency: ${key}`,
+      microOrchestratorLoopStuck: (path: string) => `MicroOrchestrator stuck in loop for ${path}`,
+      planAborted: (path: string, reason: string) => `Plan aborted for ${path}: ${reason}`,
+      executionFailed: (path: string, error: string) => `Execution failed for ${path}: ${error}`,
+      transactionCompleted: (success: number, total: number) =>
+        `Grizzco V3 transaction completed: ${success}/${total} files processed`,
+      workerNotFound: (id: string) => `Worker "${id}" not found`,
+      noWorkerSelected: 'No worker selected',
+      pipeline: {
+        stepStarted: (name: string) => `[Pipeline] Step started: ${name}`,
+        stepFinished: (name: string, duration: number) =>
+          `[Pipeline] Step finished: ${name} (${duration}ms)`,
+        stepFailed: (name: string, error: string) => `[Pipeline] Step failed: ${name} - ${error}`,
+        recoveryTriggered: (name: string) => `[Pipeline] Triggering recovery for ${name}`,
+        recoveryFailed: (name: string, error: string) =>
+          `[Pipeline] Recovery failed for ${name}: ${error}`,
+      },
+      audit: {
+        saved: (file: string) => `[Audit] Saved structured audit log to ${file}`,
+        failed: (error: string) => `[Audit] Failed to save audit log: ${error}`,
+      },
+      errors: {
+        workerNotFound: (id: string) => `Worker "${id}" not found`,
+        noWorkerSelected: 'No worker selected',
+        aborted: 'Operation aborted by strategy',
+        mergeFailed: (err: string) => `Merge execution failed: ${err}`,
+        unexpectedException: (err: string) => `Unexpected execution exception: ${err}`,
+      },
+    },
+  },
+
+  // Symbols for UI feedback
+  symbols: {
+    suggestion: '💡',
+    success: '✅',
+    error: '❌',
+    info: 'ℹ️',
+    warning: '⚠️',
+    rocket: '🚀',
+    document: '📄',
+    magnifier: '🔍',
+    pen: '📝',
+    chart: '📊',
   },
 };

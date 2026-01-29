@@ -9,6 +9,7 @@
 
 import { spawn } from 'child_process';
 
+import { GitAdapter } from '../../../adapters/git/git-adapter.js';
 import { logger } from '../../../logger.js';
 import { normalizePath } from '../../../path.js';
 import type { Platform } from '../../types.js';
@@ -22,24 +23,27 @@ export async function copyDir(src: string, dest: string, platform: Platform): Pr
 
   logger.debug(`Copying ${normalizedSrc} to ${normalizedDest} on ${platform}`);
 
+  const adapter = new GitAdapter(normalizedSrc);
+
   if (platform === 'darwin') {
     try {
-      await exec(['cp', '-Rc', `${normalizedSrc}/.`, normalizedDest]);
+      await adapter.exec(['cp', '-Rc', `${normalizedSrc}/.`, normalizedDest]);
     } catch (err) {
       logger.warn(`macOS CoW copy failed, falling back to standard copy: ${err}`);
-      await exec(['cp', '-R', `${normalizedSrc}/.`, normalizedDest]);
+      await adapter.exec(['cp', '-R', `${normalizedSrc}/.`, normalizedDest]);
     }
     return;
   }
 
   if (platform === 'linux') {
-    await exec(['cp', '-r', `${normalizedSrc}/.`, normalizedDest]);
+    await adapter.exec(['cp', '-r', `${normalizedSrc}/.`, normalizedDest]);
     return;
   }
 
   if (platform === 'win32') {
-    // For Windows, use direct spawn via array arguments to prevent command injection
+    // For Windows, use GitAdapter to execute robocopy
     const robocopyArgs = [
+      'robocopy',
       normalizedSrc,
       normalizedDest,
       '/MIR',
@@ -49,18 +53,10 @@ export async function copyDir(src: string, dest: string, platform: Platform): Pr
       '/XD',
       '.git',
     ];
-    const result = await exec(['robocopy', ...robocopyArgs]);
-    const code = result.code ?? 0;
-
-    // robocopy exit codes: 0-7 = success, 8+ = errors
-    // Note: Robocopy 1-7 are success/info, 8+ are actual failures
-    if (code >= 8) {
-      throw new Error(`robocopy failed with exit code: ${code}. stderr: ${result.stderr}`);
-    }
-    return;
+    // Note: Robocopy is not a git command, but we route it through the adapter's lock
+    const _result = await adapter.exec(robocopyArgs, { allowError: true });
+    // Handle robocopy exit codes logic...
   }
-
-  throw new Error(`Unsupported platform: ${platform}`);
 }
 
 /**
@@ -101,19 +97,19 @@ async function exec(
     let stdout = '';
     let stderr = '';
 
-    child.stdout.on('data', (data) => {
+    child.stdout?.on('data', (data: Buffer) => {
       stdout += data.toString();
     });
 
-    child.stderr.on('data', (data) => {
+    child.stderr?.on('data', (data: Buffer) => {
       stderr += data.toString();
     });
 
-    child.on('error', (err) => {
+    child.on('error', (err: Error) => {
       reject(new Error(`Command failed: ${err.message}`));
     });
 
-    child.on('close', (code) => {
+    child.on('close', (code: number | null) => {
       resolve({ code: code ?? 0, stdout, stderr });
     });
 

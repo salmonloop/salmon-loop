@@ -7,42 +7,15 @@ import OpenAI from 'openai';
 import { text } from '../locales/index.js';
 
 import { LIMITS } from './limits.js';
+import {
+  extractUnifiedDiffFromLLMContent,
+  formatContextForPrompt,
+  parsePlanFromLLMContent,
+} from './llm-utils.js';
 import { getPlanPrompt, getPatchPrompt } from './prompts.js';
-import type { Context, Plan } from './types.js';
+import type { Context, Plan, LLM, LLMMessage, ChatOptions, LLMRole } from './types.js';
 
-// --- New Types for Multi-turn Conversation ---
-
-export type LLMRole = 'system' | 'user' | 'assistant' | 'tool';
-
-export interface LLMMessage {
-  role: LLMRole;
-  content: string;
-  name?: string; // For 'tool' role
-  tool_calls?: any[]; // Raw tool calls from provider
-  tool_call_id?: string; // For 'tool' role response
-}
-
-export interface ChatOptions {
-  temperature?: number;
-  maxTokens?: number;
-  responseFormat?: 'json_object' | 'text';
-  stop?: string[];
-}
-
-// --- Extended LLM Interface ---
-
-export interface LLM {
-  /**
-   * Basic chat completion for multi-turn interaction
-   */
-  chat(messages: LLMMessage[], options?: ChatOptions): Promise<LLMMessage>;
-
-  /**
-   * High-level goal-oriented methods (internally use chat)
-   */
-  createPlan(context: Context, instruction: string, lastError?: string): Promise<Plan>;
-  createPatch(context: Context, plan: Plan, lastError?: string): Promise<string>;
-}
+export type { LLM };
 
 export class OpenAILLM implements LLM {
   private client: OpenAI;
@@ -64,6 +37,8 @@ export class OpenAILLM implements LLM {
       max_tokens: options.maxTokens,
       response_format: options.responseFormat ? { type: options.responseFormat } : undefined,
       stop: options.stop,
+      tools: options.tools as any,
+      tool_choice: options.toolChoice as any,
     });
 
     const msg = response.choices[0].message;
@@ -76,7 +51,7 @@ export class OpenAILLM implements LLM {
 
   async createPlan(context: Context, instruction: string, lastError?: string): Promise<Plan> {
     const prompt = getPlanPrompt(
-      this.formatContext(context),
+      formatContextForPrompt(context),
       instruction,
       LIMITS.maxFilesChanged,
       lastError,
@@ -92,17 +67,7 @@ export class OpenAILLM implements LLM {
     }
 
     try {
-      const plan = this.extractJson(content) as Plan;
-      // Validate plan structure
-      if (
-        !plan.goal ||
-        !Array.isArray(plan.files) ||
-        !Array.isArray(plan.changes) ||
-        !plan.verify
-      ) {
-        throw new Error(text.llm.planInvalid);
-      }
-      return plan;
+      return parsePlanFromLLMContent(content);
     } catch (e) {
       throw new Error(text.llm.planParseFailed(content, String(e)));
     }
@@ -110,7 +75,7 @@ export class OpenAILLM implements LLM {
 
   async createPatch(context: Context, plan: Plan, lastError?: string): Promise<string> {
     const planStr = JSON.stringify(plan, null, 2);
-    const formattedContext = this.formatContext(context);
+    const formattedContext = formatContextForPrompt(context);
 
     const prompt = getPatchPrompt(
       planStr,
@@ -123,122 +88,7 @@ export class OpenAILLM implements LLM {
     const response = await this.chat([{ role: 'user', content: prompt }]);
 
     const content = response.content;
-    if (!content) {
-      throw new Error(text.llm.patchEmpty());
-    }
-
-    // Extract ONLY the last diff block (LLM may generate multiple attempts)
-    const diffBlocks = content.match(/```(?:diff)?\s*\n(diff --git[\s\S]*?)\n```/g);
-    if (diffBlocks && diffBlocks.length > 0) {
-      // Take the LAST diff block (most recent version)
-      const lastBlock = diffBlocks[diffBlocks.length - 1];
-      return lastBlock
-        .replace(/```(?:diff)?\s*\n/, '')
-        .replace(/\n```\s*$/, '')
-        .trim();
-    }
-
-    // Fallback: extract raw diff without markdown
-    const rawDiffMatch = content.match(/(diff --git[\s\S]*?)(?:\n\n[A-Z]|$)/);
-    if (rawDiffMatch) {
-      return rawDiffMatch[1].trim();
-    }
-
-    // Final fallback: original simple cleanup
-    // Clean up markdown code blocks if present
-    let cleanContent = content;
-    // Remove ```diff or ``` at start
-    cleanContent = cleanContent.replace(/^```(?:diff)?\s*\n/, '');
-    // Remove ``` at end
-    cleanContent = cleanContent.replace(/\n```\s*$/, '');
-
-    return cleanContent.trim();
-  }
-
-  private extractJson(content: string): any {
-    // 1. Try to find JSON block
-    const jsonBlockMatch = content.match(/```json\s*\n([\s\S]*?)\n```/);
-    if (jsonBlockMatch) {
-      try {
-        return JSON.parse(jsonBlockMatch[1]);
-      } catch (__e) {
-        // Fallback to raw content if block is invalid
-      }
-    }
-
-    // 2. Try to find anything that looks like a JSON object
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      try {
-        return JSON.parse(jsonMatch[0]);
-      } catch (__e) {
-        // Fallback
-      }
-    }
-
-    // 3. Final fallback: try parsing the whole content
-    return JSON.parse(content);
-  }
-
-  private formatContext(context: Context): string {
-    let result = `${text.context.workingDirectory}\n\n`;
-
-    if (context.primaryText) {
-      result += `${text.context.primaryFile(context.primaryFile || 'Selection')}\n`;
-
-      let textToDisplay = context.primaryText;
-      if (context.symbols && context.symbols.length > 0) {
-        const lines = textToDisplay.split('\n');
-        // Sort symbols by position descending to avoid offset issues if we were inserting into strings,
-        // but here we are just appending to lines, so we just need to be careful about multiple symbols on same line.
-        const sortedSymbols = [...context.symbols].sort((a, b) => {
-          if (a.location.start.line !== b.location.start.line) {
-            return b.location.start.line - a.location.start.line;
-          }
-          return b.location.start.column - a.location.start.column;
-        });
-
-        for (const symbol of sortedSymbols) {
-          const lineIdx = symbol.location.start.line - 1;
-          if (lineIdx >= 0 && lineIdx < lines.length) {
-            const marker = symbol.kind === 'definition' ? '' : ' ↗️';
-            // Avoid duplicate markers if multiple symbols on same line (though unlikely for definitions)
-            if (marker && !lines[lineIdx].endsWith(marker)) {
-              lines[lineIdx] += marker;
-            }
-          }
-        }
-        textToDisplay = lines.join('\n');
-      }
-
-      result += `${text.context.primaryText}\n${textToDisplay}\n\n`;
-    }
-
-    if (context.rgSnippets && context.rgSnippets.length > 0) {
-      result += `${text.context.codeSnippets}\n`;
-      for (const snippet of context.rgSnippets) {
-        result += `${text.context.snippetLocation(snippet.file, snippet.line)}\n${snippet.content}\n---\n`;
-      }
-    }
-
-    if (context.stagedDiff) {
-      result += `${text.context.stagedDiff}\n${context.stagedDiff}\n\n`;
-    }
-
-    if (context.unstagedDiff) {
-      result += `${text.context.unstagedDiff}\n${context.unstagedDiff}\n\n`;
-    }
-
-    if (context.untrackedFiles && context.untrackedFiles.length > 0) {
-      result += `${text.context.untrackedFiles}\n${context.untrackedFiles.join('\n')}\n\n`;
-    }
-
-    // Fallback for legacy support or if only gitDiff is provided
-    if (context.gitDiff && !context.stagedDiff && !context.unstagedDiff) {
-      result += `${text.context.gitDiff}\n${context.gitDiff}\n\n`;
-    }
-
-    return result;
+    return extractUnifiedDiffFromLLMContent(content || '');
   }
 }
 

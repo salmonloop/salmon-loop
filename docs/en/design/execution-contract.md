@@ -2,14 +2,27 @@
 
 SalmonLoop follows a strict execution contract to ensure safety and determinism.
 
+## Bootstrap (Phase 0)
+
+Before the phase lifecycle begins, SalmonLoop may prepare an isolated execution environment.
+
+This bootstrap step is **required** for the `worktree` strategy and includes operations such as:
+- Creating a safe snapshot (T0) for rollback and deterministic diffing.
+- Creating a temporary shadow worktree under the system temp directory.
+
+Safety guarantees:
+- Bootstrap **MUST NOT** modify the user's main workspace **working tree** or **index**.
+- Bootstrap **MAY** write internal Git metadata (e.g. refs under `refs/s8p/*`, `.git/worktrees/*`) and create temporary directories.
+- If bootstrap fails, SalmonLoop **MUST** terminate without applying any changes to the main workspace.
+
 ## Phase Guarantees
 
 1. **PREFLIGHT**: Read-only. Checks environment safety (git repo).
 2. **CONTEXT**: Read-only. Gathers codebase context and target file content.
 3. **PLAN**: Read-only. The LLM analyzes the context and instruction to generate a JSON plan. No filesystem mutation occurs.
 4. **PATCH**: Read-only. The LLM generates a unified diff based on the plan. No filesystem mutation occurs.
-5. **VALIDATE**: Read-only. The system validates the diff against security and size limits.
-6. **APPLY**: Mutating. The system applies changes using the **Shadow Merge Engine** (based on `git merge-file` 3-way merge). This engine merges Base (T0), User (Current), and AI (Generated) content, ensuring atomicity within dirty workspaces. After application, it performs **AST Verification** (if supported) to ensure syntax correctness.
+5. **VALIDATE**: Read-only. The system validates the diff against security and size limits. It may also perform AST-based validation (syntax and scope integrity) on the proposed changes.
+6. **APPLY**: Mutating. The system applies changes using the **Shadow Merge Engine** (based on `git merge-file` 3-way merge). This engine merges Base (T0), User (Current), and AI (Generated) content, ensuring atomicity within dirty workspaces.
 7. **VERIFY**: Read-only. The system runs the user-provided verification command.
 8. **ROLLBACK**: Mutating. If verification fails, the system restores the modified files to their original state using `git checkout`. If Git conflicts or abnormal states are detected, it performs a robust reset (`git stash`, `git reset --hard`, `git clean`).
 9. **SHRINK**: Read-only. If verification fails, the system performs **Smart Feedback** analysis to extract precise error diagnostics and reduces the context for the next attempt.

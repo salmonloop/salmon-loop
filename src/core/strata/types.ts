@@ -90,11 +90,12 @@ export interface IBaseProvider {
 
 /**
  * ShadowMergeEngine Options
+ * (Removed to avoid duplication with engine/shadow-merge-engine.ts if it exports it)
+ * Actually, shadow-merge-engine.ts defines ShadowMergeEngineOptions.
+ * We should remove it from here if it is duplicate.
  */
-export interface ShadowMergeEngineOptions {
-  worktreePath: string;
-  baseProvider: IBaseProvider;
-}
+// export interface ShadowMergeEngineOptions { ... }
+// Checking if it is here.
 
 /**
  * Default ShadowDriver Configuration
@@ -129,3 +130,67 @@ export const WRITE_OP_BLACKLIST = [
   'pip install',
   'pipenv install',
 ];
+
+/**
+ * Content Guardian Interface
+ * Defines the contract for content safety inspection and normalization.
+ */
+export interface IContentGuardian {
+  inspect(content: Buffer): {
+    normalized: string;
+    eol: '\n' | '\r\n';
+    isBinary: boolean;
+    size: number;
+  };
+  restore(text: string, targetEOL: '\n' | '\r\n'): Buffer;
+}
+
+/**
+ * File System Provider Interface
+ * Defines the contract for safe file reading respecting the "Disk First" strategy.
+ */
+export interface IFileSystemProvider {
+  /**
+   * Reads the "Yours" version of a file for 3-way merge.
+   * STRICTLY reads from physical disk to handle MM (Double Dirty) scenarios correctly.
+   */
+  readYours(repoPath: string, relativePath: string): Promise<Buffer | null>;
+
+  /**
+   * Reads a file as Buffer, handling errors gracefully.
+   * Returns null if file doesn't exist.
+   */
+  readFileBufferSafe(filePath: string, rootContext?: string): Promise<Buffer | null>;
+
+  /**
+   * Writes content to a file.
+   */
+  writeFile(filePath: string, content: Buffer | string, rootContext?: string): Promise<void>;
+
+  /**
+   * Creates a directory recursively.
+   */
+  mkdir(dirPath: string, options?: { recursive?: boolean }, rootContext?: string): Promise<void>;
+
+  /**
+   * Deletes a file.
+   */
+  unlink(filePath: string, rootContext?: string): Promise<void>;
+
+  /**
+   * Checks if a file is binary.
+   */
+  isBinary(filePath: string, rootContext?: string): Promise<boolean>;
+}
+
+/**
+ * Transaction Manager Interface
+ * Defines the contract for atomic Git operations.
+ */
+export interface ITransactionManager {
+  runAtomicOperation<T>(
+    repoPath: string,
+    operation: () => Promise<T>,
+    options?: { message?: string },
+  ): Promise<T>;
+}

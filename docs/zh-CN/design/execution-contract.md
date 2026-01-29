@@ -2,14 +2,27 @@
 
 SalmonLoop 遵循严格的执行契约，以确保安全性和确定性。
 
+## 启动准备 (Bootstrap / Phase 0)
+
+在阶段生命周期开始之前，SalmonLoop 可能会先准备隔离的执行环境。
+
+该启动准备步骤对 `worktree` 策略是**必需**的，通常包括：
+- 创建安全快照 (T0)，用于回滚与确定性差异计算。
+- 在系统临时目录下创建临时 Shadow worktree。
+
+安全保证：
+- 启动准备 **不得 (MUST NOT)** 修改用户主工作区的 **工作树 (working tree)** 与 **暂存区 (index)**。
+- 启动准备 **可以 (MAY)** 写入内部 Git 元数据（例如 `refs/s8p/*`、`.git/worktrees/*`）并创建临时目录。
+- 如果启动准备失败，SalmonLoop **必须 (MUST)** 终止，且不得对主工作区应用任何变更。
+
 ## 阶段保证 (Phase Guarantees)
 
 1. **PREFLIGHT**: 只读。检查环境安全性（Git 仓库）。
 2. **CONTEXT**: 只读。收集代码库上下文和目标文件内容。
 3. **PLAN**: 只读。LLM 分析上下文和指令以生成 JSON 计划。不发生文件系统变更。
 4. **PATCH**: 只读。LLM 根据计划生成统一 Diff。不发生文件系统变更。
-5. **VALIDATE**: 只读。系统根据安全和大小限制验证 Diff。
-6. **APPLY**: 变更。系统使用 **Shadow Merge Engine** (基于 `git merge-file` 的三路合并) 应用变更。该引擎将 Base (T0)、User (Current) 和 AI (Generated) 进行全量内容合并，确保在脏工作区（Dirty Workspace）下的原子性。应用后会进行 **AST 语义验证**（如果支持）以确保语法正确性。
+5. **VALIDATE**: 只读。系统根据安全和大小限制验证 Diff。该阶段也可能对提议变更执行基于 AST 的校验（语法与作用域完整性）。
+6. **APPLY**: 变更。系统使用 **Shadow Merge Engine** (基于 `git merge-file` 的三路合并) 应用变更。该引擎将 Base (T0)、User (Current) 和 AI (Generated) 进行全量内容合并，确保在脏工作区（Dirty Workspace）下的原子性。
 7. **VERIFY**: 只读。系统运行用户提供的验证命令。
 8. **ROLLBACK**: 变更。如果验证失败，系统使用 `git checkout` 恢复修改的文件。如果检测到 Git 冲突或异常状态，则执行鲁棒重置（`git stash`、`git reset --hard`、`git clean`）。
 9. **SHRINK**: 只读。如果验证失败，系统会进行 **智能反馈 (Smart Feedback)** 分析以提取精确的错误诊断，并减少下一次尝试的上下文。

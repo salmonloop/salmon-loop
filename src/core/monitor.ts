@@ -148,11 +148,11 @@ export class Monitor {
     const thresholdMB = 512;
 
     if (heapUsedMB > thresholdMB) {
-      const msg = `Memory usage warning: Heap used ${heapUsedMB.toFixed(2)}MB exceeds threshold ${thresholdMB}MB.`;
+      const msg = text.monitor.memoryWarning(heapUsedMB.toFixed(2), thresholdMB.toString());
       this.recordError(ErrorType.UNKNOWN, msg);
       logger.warn(`[Monitor] ${msg}`);
       if (global.gc) {
-        logger.debug('[Monitor] Suggesting garbage collection...');
+        logger.debug(`[Monitor] ${text.monitor.suggestingGc}`);
         global.gc();
       }
     }
@@ -241,28 +241,28 @@ export class Monitor {
    * Generate metrics report
    */
   getMetricsReport(): string {
-    let report = '\n=== Checkpoint & ApplyBack Metrics ===\n';
+    let report = `\n${text.monitor.metricsTitle}\n`;
 
-    report += '\n[Checkpoint Creation]\n';
-    report += `  Attempts: ${this.checkpointMetrics.createAttempts}\n`;
-    report += `  Failures: ${this.checkpointMetrics.createFailures}\n`;
-    report += `  Failure Rate: ${(this.getCheckpointCreateFailureRate() * 100).toFixed(2)}%\n`;
+    report += `\n${text.monitor.checkpointCreation}\n`;
+    report += `${text.monitor.attempts(this.checkpointMetrics.createAttempts)}\n`;
+    report += `${text.monitor.failures(this.checkpointMetrics.createFailures)}\n`;
+    report += `${text.monitor.failureRate((this.getCheckpointCreateFailureRate() * 100).toFixed(2))}\n`;
 
-    report += '\n[Worktree Cleanup]\n';
-    report += `  Attempts: ${this.checkpointMetrics.cleanupAttempts}\n`;
-    report += `  Failures: ${this.checkpointMetrics.cleanupFailures}\n`;
+    report += `\n${text.monitor.worktreeCleanup}\n`;
+    report += `${text.monitor.attempts(this.checkpointMetrics.cleanupAttempts)}\n`;
+    report += `${text.monitor.failures(this.checkpointMetrics.cleanupFailures)}\n`;
 
-    report += '\n[ApplyBack Operations]\n';
-    report += `  Attempts: ${this.applyBackMetrics.attempts}\n`;
-    report += `  Failures: ${this.applyBackMetrics.failures}\n`;
-    report += `  Avg Duration: ${this.getApplyBackAvgDuration().toFixed(2)}ms\n`;
+    report += `\n${text.monitor.applyBackOps}\n`;
+    report += `${text.monitor.attempts(this.applyBackMetrics.attempts)}\n`;
+    report += `${text.monitor.failures(this.applyBackMetrics.failures)}\n`;
+    report += `${text.monitor.avgDuration(this.getApplyBackAvgDuration().toFixed(2))}\n`;
 
     if (this.applyBackMetrics.durations.length > 0) {
       const sorted = [...this.applyBackMetrics.durations].sort((a, b) => a - b);
       const p50 = sorted[Math.floor(sorted.length * 0.5)];
       const p95 = sorted[Math.floor(sorted.length * 0.95)];
-      report += `  P50 Duration: ${p50.toFixed(2)}ms\n`;
-      report += `  P95 Duration: ${p95.toFixed(2)}ms\n`;
+      report += `${text.monitor.p50Duration(p50.toFixed(2))}\n`;
+      report += `${text.monitor.p95Duration(p95.toFixed(2))}\n`;
     }
 
     report += '======================================\n';

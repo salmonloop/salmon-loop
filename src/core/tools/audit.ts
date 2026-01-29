@@ -1,3 +1,5 @@
+import { text } from '../../locales/index.js';
+import { logger } from '../logger.js';
 import { ExecutionPhase, Phase } from '../types';
 
 import { PolicyDecision } from './policy';
@@ -33,8 +35,7 @@ export class ToolAuditLogger {
       decision,
     };
     this.logs.push(entry);
-    // In a real implementation, this would write to a file or emit an event
-    // console.log('[ToolAudit]', JSON.stringify(entry));
+    logger.debug(text.audit.event('Start', spec.name, decision.allowed ? 'allowed' : 'denied'));
   }
 
   onEnd(result: ToolResult) {
@@ -54,7 +55,7 @@ export class ToolAuditLogger {
       error: result.error?.code,
     };
     this.logs.push(entry);
-    // console.log('[ToolAudit]', JSON.stringify(entry));
+    logger.debug(text.audit.event('End', result.toolName, result.status));
   }
 
   /**

@@ -4,7 +4,7 @@ export class ToolRegistry {
   private specs = new Map<string, ToolSpec>();
 
   /**
-   * 注册标准工具规范（含 executor）
+   * Register standard tool specification (including executor)
    */
   register(spec: ToolSpec) {
     if (this.specs.has(spec.name)) {
@@ -22,7 +22,7 @@ export class ToolRegistry {
   }
 
   /**
-   * 清除所有工具（主要用于测试）
+   * Clear all tools (mainly used for testing)
    */
   clear() {
     this.specs.clear();

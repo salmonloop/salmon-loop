@@ -58,6 +58,7 @@ async function execCommand(
   cwd: string,
   command: string,
   args: string[],
+  options: { trim?: boolean } = {},
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
@@ -87,8 +88,8 @@ async function execCommand(
 
     child.on('close', (code) => {
       resolve({
-        stdout: stdout.trim(),
-        stderr: stderr.trim(),
+        stdout: options.trim === false ? stdout : stdout.trim(),
+        stderr: options.trim === false ? stderr : stderr.trim(),
         exitCode: code ?? 0,
       });
     });
@@ -170,7 +171,7 @@ export class RealFsTestHelper {
         throw new Error(`git init failed after 5 attempts`);
       }
       // Wait for file system to settle, especially on Windows
-      await new Promise((r) => setTimeout(r, 1000));
+      await new Promise((r) => setTimeout(r, 100));
     }
 
     // Configure Git
@@ -377,8 +378,9 @@ export class RealFsTestHelper {
   async git(
     repoPath: string,
     args: string[],
+    options?: { trim?: boolean },
   ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-    return execCommand(repoPath, 'git', args);
+    return execCommand(repoPath, 'git', args, options);
   }
 
   /**
@@ -393,8 +395,9 @@ export class RealFsTestHelper {
     repoPath: string,
     command: string,
     args: string[] = [],
+    options?: { trim?: boolean },
   ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-    return execCommand(repoPath, command, args);
+    return execCommand(repoPath, command, args, options);
   }
 
   /**
@@ -412,7 +415,7 @@ export class RealFsTestHelper {
   ): Promise<string> {
     const wtPath = worktreePath ?? (await this.createTempDir('worktree-'));
 
-    await execCommand(repoPath, 'git', ['worktree', 'add', '-b', branch, wtPath]);
+    await execCommand(repoPath, 'git', ['worktree', 'add', '--quiet', '-b', branch, wtPath]);
 
     return wtPath;
   }
@@ -434,9 +437,6 @@ export class RealFsTestHelper {
    */
   async cleanup(): Promise<void> {
     const errors: Error[] = [];
-
-    // Give any pending file handles a moment to release (especially on Windows)
-    await new Promise((resolve) => setTimeout(resolve, 50));
 
     for (const dirPath of this.createdPaths) {
       let attempts = 0;

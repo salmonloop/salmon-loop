@@ -5,7 +5,13 @@ import path from 'path';
  * This ensures consistency across Windows and Linux/macOS.
  */
 export function normalizePath(p: string): string {
-  return p.replace(/\\/g, '/');
+  const replaced = p.replace(/\\/g, '/');
+  // Collapse duplicate separators for repo-relative paths like "src\\index.js".
+  // Preserve UNC-style prefix ("//server/share") by keeping the leading double slash.
+  if (replaced.startsWith('//')) {
+    return `//${replaced.slice(2).replace(/\/{2,}/g, '/')}`;
+  }
+  return replaced.replace(/\/{2,}/g, '/');
 }
 
 /**
@@ -45,4 +51,24 @@ export function isSafeRelativePath(p: string): boolean {
   if (normalized.startsWith('/')) return false;
   if (/^[a-zA-Z]:/.test(normalized)) return false;
   return !normalized.split('/').some((segment) => segment === '..');
+}
+
+/**
+ * Ensures a path is safely contained within a root directory.
+ * Throws a security violation if the path escapes the sandbox.
+ */
+export function ensureInSandbox(root: string, target: string): string {
+  const resolvedRoot = path.resolve(root);
+  const resolvedTarget = path.resolve(target);
+
+  if (!resolvedTarget.startsWith(resolvedRoot)) {
+    throw new Error(`Security Violation: Path traversal attempt: ${target} is outside of ${root}`);
+  }
+
+  const relativeFromRoot = resolvedTarget.substring(resolvedRoot.length);
+  if (relativeFromRoot.length > 0 && !relativeFromRoot.startsWith(path.sep)) {
+    throw new Error(`Security Violation: Path traversal attempt (Partial Match): ${target}`);
+  }
+
+  return normalizePath(resolvedTarget);
 }

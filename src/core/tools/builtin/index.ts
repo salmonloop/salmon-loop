@@ -1,9 +1,9 @@
 import { ToolRegistry } from '../registry';
 
 import { astDefsRefsSpec, executeAstDefsRefs } from './ast';
-import { astGrepSpec, executeAstGrep } from './ast_grep';
-import { codeSearchExecutor } from './code_search/executor';
-import { CodeSearchSpec } from './code_search/spec';
+import { astGrepSpec, executeAstGrep } from './ast-grep';
+import { codeSearchExecutor } from './code-search/executor';
+import { CodeSearchSpec } from './code-search/spec';
 import { fsReadFileSpec, executeFsReadFile } from './fs';
 import { gitCatSpec, executeGitCat, gitStatusSpec, executeGitStatus } from './git';
 import { verifyRunSpec, executeVerifyRun } from './verify';
