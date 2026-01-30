@@ -142,14 +142,17 @@ program
       }
 
       // Progress bar setup
-      const bar = new ProgressBar(`${chalk.blue('[:bar]')} :phase :percent :elapseds`, {
-        total: EXECUTION_PHASES.length,
-        width: 20,
-        complete: '=',
-        incomplete: ' ',
-      });
+      const createProgressBar = () =>
+        new ProgressBar(`${chalk.blue('[:bar]')} :phase :percent :elapseds`, {
+          total: EXECUTION_PHASES.length,
+          width: 20,
+          complete: '=',
+          incomplete: ' ',
+        });
 
-      let currentPhaseIndex = 0;
+      // Use phase.start to render labels and phase.end to advance progress.
+      // This avoids off-by-one errors and stays aligned with EXECUTION_PHASES (SSOT).
+      let bar = createProgressBar();
 
       const applyBackOnDirty = options.applyBackOnDirty === 'abort' ? 'abort' : '3way';
 
@@ -170,9 +173,12 @@ program
           if (event.type === 'phase.start') {
             const phaseKey = event.phase.toLowerCase() as keyof typeof text.progress;
             const phaseName = text.progress[phaseKey] || event.phase;
-            bar.tick(currentPhaseIndex === 0 ? 0 : 1, { phase: phaseName });
-            currentPhaseIndex++;
+            bar.render({ phase: phaseName });
             logger.step(event.phase, phaseName);
+          } else if (event.type === 'phase.end') {
+            const phaseKey = event.phase.toLowerCase() as keyof typeof text.progress;
+            const phaseName = text.progress[phaseKey] || event.phase;
+            bar.tick(1, { phase: phaseName });
           } else if (event.type === 'log') {
             if (event.level === 'error') {
               logger.error(`  ${event.message}`);
@@ -198,7 +204,10 @@ program
                 event.reason.substring(0, 100) + '...',
               ),
             );
-            currentPhaseIndex = 0; // Reset progress for retry
+
+            // Reset progress for retry (new bar avoids curr bookkeeping drift).
+            bar.terminate();
+            bar = createProgressBar();
           }
         },
       });
