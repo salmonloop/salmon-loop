@@ -263,6 +263,22 @@ export interface LLMMessage {
   tool_call_id?: string; // For 'tool' role response
 }
 
+export interface LLMStreamChunk {
+  role: LLMRole;
+  /**
+   * Text delta emitted by the provider. Consumers are responsible for concatenation.
+   */
+  contentDelta?: string;
+  /**
+   * Provider-native tool call deltas (optional, provider-dependent).
+   */
+  tool_calls?: any[];
+  /**
+   * Indicates the end of the stream.
+   */
+  done?: boolean;
+}
+
 export interface ChatOptions {
   temperature?: number;
   maxTokens?: number;
@@ -288,6 +304,14 @@ export interface LLM {
    * Basic chat completion for multi-turn interaction
    */
   chat(messages: LLMMessage[], options?: ChatOptions): Promise<LLMMessage>;
+
+  /**
+   * Optional streaming chat interface.
+   *
+   * This is a forward-compatible contract only; the Grizzco pipeline does not
+   * depend on streaming yet.
+   */
+  chatStream?(messages: LLMMessage[], options?: ChatOptions): AsyncIterable<LLMStreamChunk>;
 
   /**
    * Optional capabilities for strategy orchestration.

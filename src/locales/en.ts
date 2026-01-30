@@ -8,6 +8,12 @@ export const en = {
       `LLM returned empty response for patch${reason ? ` (${reason})` : ''}`,
   },
 
+  llmErrors: {
+    httpInvalidJson: 'LLM returned a malformed JSON response',
+    httpAborted: 'LLM request was aborted',
+    httpRequestFailed: 'LLM request failed',
+  },
+
   prompts: {
     definitionHint: 'Definitions should be modified with extreme caution',
     referenceHint: 'References marked with ↗️ indicate usage locations',

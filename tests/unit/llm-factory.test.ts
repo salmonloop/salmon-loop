@@ -32,6 +32,7 @@ describe('LLM factory', () => {
     expect(result.backend).toBe('ai-sdk');
     expect(result.warnings).toEqual([]);
     expect(result.llm).toBeInstanceOf(AiSdkLLM);
+    expect(typeof (result.llm as any).chatStream).toBe('undefined');
   });
 
   it('falls back to OpenAILLM when client.package is not set', () => {
@@ -42,6 +43,7 @@ describe('LLM factory', () => {
     expect(result.backend).toBe('openai');
     expect(result.warnings).toEqual([]);
     expect(result.llm).toBeInstanceOf(OpenAILLM);
+    expect(typeof (result.llm as any).chatStream).toBe('undefined');
   });
 
   it('warns and falls back to OpenAILLM when client.package is unsupported', () => {

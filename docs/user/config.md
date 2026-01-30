@@ -8,6 +8,8 @@ By default, SalmonLoop looks for a config file at:
 
 `/.salmonloop/` is intended to be **local-only** and should be gitignored.
 
+This repository also includes a `config.example.json` at the project root as a starting point.
+
 ## Precedence
 
 The precedence order is:
@@ -81,6 +83,15 @@ Safety note:
 
 - `client.package` only affects the LLM transport/adapter layer. It does not change tool governance, file access rules,
   or the execution safety contract.
+
+## `api.timeoutMs`
+
+`llm.providers.<key>.api.timeoutMs` controls the LLM request timeout.
+
+Notes:
+
+- This value is used by the AI SDK transport when `client.package` selects an AI SDK adapter.
+- If `client.package` is omitted and SalmonLoop uses its default client logic, timeout behavior may differ by backend.
 
 ## Environment Variables (Provider)
 

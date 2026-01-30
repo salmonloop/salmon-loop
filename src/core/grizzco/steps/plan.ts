@@ -64,6 +64,13 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
           process.env.SALMON_MODEL,
       },
       toolstack,
+      toolCallingAudit: {
+        event: (entry) => {
+          const list = ((ctx as any).toolCallingAudit as any[]) || [];
+          list.push(entry);
+          (ctx as any).toolCallingAudit = list;
+        },
+      },
       maxRounds: toolPolicy.maxRounds,
       emit: (e) =>
         ctx.emit({

@@ -1,5 +1,7 @@
 import * as crypto from 'crypto';
 
+import type { ToolCallingAuditSink } from '../llm/audit.js';
+import { redactErrorMessage, redactJsonString, redactValue } from '../llm/redact.js';
 import { logger } from '../logger.js';
 import type { ChatOptions, LLM, LLMMessage } from '../types.js';
 import { ExecutionPhase } from '../types.js';
@@ -16,6 +18,7 @@ export interface ToolCallingSessionOptions {
     policy: { decide(phase: ExecutionPhase, spec: any, ctx: { worktreeRoot?: string }): any };
     router: { call(envelope: any): Promise<ToolResult> };
   };
+  toolCallingAudit?: ToolCallingAuditSink;
   emit?: (event: {
     type: 'log';
     level: 'debug' | 'info' | 'warn' | 'error';
@@ -62,6 +65,14 @@ function formatToolResultForModel(result: ToolResult): string {
         retryable: false,
       },
     });
+  }
+}
+
+function safeStringifyForAudit(value: unknown): string {
+  try {
+    return redactJsonString(JSON.stringify(redactValue(value)));
+  } catch {
+    return '[Unserializable]';
   }
 }
 
@@ -123,6 +134,19 @@ export async function chatWithTools(
 
       if (!toolName || typeof toolName !== 'string') {
         logger.warn('Received malformed tool call (missing function.name)');
+        session.toolCallingAudit?.event({
+          timestamp: new Date().toISOString(),
+          phase,
+          round,
+          callId,
+          toolName: 'unknown',
+          rawArgsType: typeof rawArgs,
+          rawArgsPreview: typeof rawArgs === 'string' ? redactJsonString(rawArgs) : undefined,
+          parsedArgsOk: false,
+          parsedArgsError: 'Missing function.name',
+          toolResultStatus: 'error',
+          toolResultErrorCode: 'MALFORMED_TOOL_CALL',
+        });
         messages.push({
           role: 'tool',
           name: 'unknown',
@@ -149,6 +173,19 @@ export async function chatWithTools(
       let result: ToolResult;
 
       if (!parsed.ok) {
+        session.toolCallingAudit?.event({
+          timestamp: new Date().toISOString(),
+          phase,
+          round,
+          callId,
+          toolName,
+          rawArgsType: typeof rawArgs,
+          rawArgsPreview: typeof rawArgs === 'string' ? redactJsonString(rawArgs) : undefined,
+          parsedArgsOk: false,
+          parsedArgsError: redactErrorMessage(parsed.error),
+          toolResultStatus: 'error',
+          toolResultErrorCode: 'INVALID_TOOL_ARGUMENTS_JSON',
+        });
         result = {
           id: callId,
           toolName,
@@ -162,6 +199,17 @@ export async function chatWithTools(
           },
         };
       } else {
+        session.toolCallingAudit?.event({
+          timestamp: new Date().toISOString(),
+          phase,
+          round,
+          callId,
+          toolName,
+          rawArgsType: typeof rawArgs,
+          rawArgsPreview: typeof rawArgs === 'string' ? redactJsonString(rawArgs) : undefined,
+          parsedArgsOk: true,
+          parsedArgsPreview: safeStringifyForAudit(parsed.value),
+        });
         result = await session.toolstack.router.call({
           id: callId,
           phase,
@@ -169,6 +217,19 @@ export async function chatWithTools(
           args: parsed.value,
           ctx: session.runtime,
         });
+        if (result.status !== 'ok') {
+          session.toolCallingAudit?.event({
+            timestamp: new Date().toISOString(),
+            phase,
+            round,
+            callId,
+            toolName,
+            rawArgsType: typeof rawArgs,
+            parsedArgsOk: true,
+            toolResultStatus: result.status,
+            toolResultErrorCode: result.error?.code,
+          });
+        }
       }
 
       messages.push({

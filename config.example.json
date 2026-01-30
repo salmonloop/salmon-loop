@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "cli": {
+    "defaults": {
+      "verbosity": "extended",
+      "strategy": "worktree",
+      "dryRun": true
+    }
+  },
+  "verify": {
+    "command": "node -e \"process.exit(0)\"",
+    "timeoutMs": 600000
+  },
+  "llm": {
+    "active": "openaiMain",
+    "providers": {
+      "openaiMain": {
+        "type": "openai-compatible",
+        "client": {
+          "package": "@ai-sdk/openai-compatible"
+        },
+        "api": {
+          "baseUrl": "https://api.openai.com/v1",
+          "apiKey": null,
+          "timeoutMs": 60000,
+          "headers": {}
+        },
+        "models": {
+          "default": {
+            "id": "gpt-4.1-mini"
+          }
+        }
+      }
+    }
+  }
+}
+

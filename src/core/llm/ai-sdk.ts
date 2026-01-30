@@ -12,6 +12,8 @@ import {
 import { getPatchPrompt, getPlanPrompt } from '../prompts.js';
 import type { ChatOptions, Context, LLM, LLMMessage, LLMRole, Plan } from '../types.js';
 
+import { toLlmError, wrapPlanEmpty } from './errors.js';
+
 export type AiSdkClientPackage = '@ai-sdk/openai' | '@ai-sdk/openai-compatible';
 
 export interface AiSdkLlmConfig {
@@ -21,6 +23,7 @@ export interface AiSdkLlmConfig {
   baseUrl?: string;
   modelId?: string;
   headers?: Record<string, string>;
+  timeoutMs?: number;
 }
 
 function safeParseJsonObject(textValue: string): Record<string, unknown> {
@@ -124,9 +127,11 @@ function toOpenAiToolCalls(toolCalls: any[] | undefined): any[] | undefined {
 export class AiSdkLLM implements LLM {
   private model: any;
   private modelId: string;
+  private timeoutMs?: number;
 
   constructor(private readonly cfg: AiSdkLlmConfig) {
     this.modelId = cfg.modelId || process.env.S8P_MODEL || process.env.SALMON_MODEL || 'gpt-4o';
+    this.timeoutMs = cfg.timeoutMs;
 
     if (cfg.clientPackage === '@ai-sdk/openai') {
       const provider = createOpenAI({
@@ -175,21 +180,36 @@ export class AiSdkLLM implements LLM {
     const aiMessages = toAiSdkMessages(messages);
     const tools = toAiSdkToolSet(options.tools);
 
-    const result = await generateText({
-      model: this.model,
-      messages: aiMessages,
-      tools,
-      temperature: options.temperature,
-      maxOutputTokens: options.maxTokens,
-      stopSequences: options.stop,
-      toolChoice: options.toolChoice === 'none' ? 'none' : tools ? 'auto' : undefined,
-    });
+    const abortController = new AbortController();
+    const timeoutMs = this.timeoutMs;
+    const timeoutHandle =
+      typeof timeoutMs === 'number' && timeoutMs > 0
+        ? setTimeout(() => abortController.abort(), timeoutMs)
+        : undefined;
 
-    return {
-      role: 'assistant' as LLMRole,
-      content: result.text || '',
-      tool_calls: toOpenAiToolCalls((result as any).toolCalls),
-    };
+    try {
+      const result = await generateText({
+        model: this.model,
+        messages: aiMessages,
+        tools,
+        temperature: options.temperature,
+        maxOutputTokens: options.maxTokens,
+        stopSequences: options.stop,
+        toolChoice: options.toolChoice === 'none' ? 'none' : tools ? 'auto' : undefined,
+        abortSignal: abortController.signal,
+        timeout: timeoutMs,
+      });
+
+      return {
+        role: 'assistant' as LLMRole,
+        content: result.text || '',
+        tool_calls: toOpenAiToolCalls((result as any).toolCalls),
+      };
+    } catch (e) {
+      throw toLlmError(e, 'ai-sdk');
+    } finally {
+      if (timeoutHandle) clearTimeout(timeoutHandle);
+    }
   }
 
   async createPlan(context: Context, instruction: string, lastError?: string): Promise<Plan> {
@@ -206,7 +226,7 @@ export class AiSdkLLM implements LLM {
 
     const content = response.content;
     if (!content) {
-      throw new Error(text.llm.planEmpty);
+      throw wrapPlanEmpty();
     }
 
     try {

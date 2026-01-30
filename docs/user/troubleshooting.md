@@ -18,8 +18,13 @@ Actions:
 
 ## "Unexpected end of JSON input" during PATCH
 
-Meaning: a JSON parse error occurred while generating the patch (typically upstream/provider response parsing or tool-calling protocol handling).
+Meaning: the LLM client failed to parse a JSON response (typically a truncated upstream response or a malformed proxy response).
 
 Actions:
-- Inspect the latest `.s8p/audit/audit-*.json` for `errorStack`.
-- Retry with `--verbose=extended` and ensure your provider configuration is correct.
+- Inspect the latest `.s8p/audit/audit-*.json` and check `meta.errorCode`.
+  - Common codes:
+    - `LLM_HTTP_RESPONSE_INVALID_JSON`
+    - `LLM_HTTP_REQUEST_FAILED`
+- If tool calling is enabled, also inspect `context.toolCallingAudit` for argument parsing failures:
+  - `toolResultErrorCode: INVALID_TOOL_ARGUMENTS_JSON`
+- Retry with `--verbose=extended` and ensure your provider config (base URL, headers, timeouts) is correct.

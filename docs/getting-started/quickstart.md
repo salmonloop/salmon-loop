@@ -16,4 +16,5 @@ npm run dev -- -r "C:\path\to\your-repo" -f "src\\index.js" --instruction "Add a
 
 - If `SALMONLOOP_API_KEY` (or legacy `S8P_API_KEY`) is not set, SalmonLoop uses a stub LLM and is not useful for real patching.
 - You can also place repo-local config at `<repoRoot>/.salmonloop/config/config.json` (local-only, gitignored).
+- This repo includes a `config.example.json` at the project root. You can copy it into your target repo and point `--config` at it.
 - Use `--dry-run` to prevent writing to the main workspace.

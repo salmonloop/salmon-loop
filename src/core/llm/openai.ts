@@ -14,6 +14,8 @@ import {
 import { getPatchPrompt, getPlanPrompt } from '../prompts.js';
 import type { ChatOptions, Context, LLM, LLMMessage, LLMRole, Plan } from '../types.js';
 
+import { toLlmError, wrapPlanEmpty } from './errors.js';
+
 export type { LLM };
 
 export interface OpenAiClientConfig {
@@ -51,23 +53,27 @@ export class OpenAILLM implements LLM {
   }
 
   async chat(messages: LLMMessage[], options: ChatOptions = {}): Promise<LLMMessage> {
-    const response = await this.client.chat.completions.create({
-      model: this.model,
-      messages: messages as any, // OpenAI compatible
-      temperature: options.temperature,
-      max_tokens: options.maxTokens,
-      response_format: options.responseFormat ? { type: options.responseFormat } : undefined,
-      stop: options.stop,
-      tools: options.tools as any,
-      tool_choice: options.toolChoice as any,
-    });
+    try {
+      const response = await this.client.chat.completions.create({
+        model: this.model,
+        messages: messages as any, // OpenAI compatible
+        temperature: options.temperature,
+        max_tokens: options.maxTokens,
+        response_format: options.responseFormat ? { type: options.responseFormat } : undefined,
+        stop: options.stop,
+        tools: options.tools as any,
+        tool_choice: options.toolChoice as any,
+      });
 
-    const msg = response.choices[0].message;
-    return {
-      role: msg.role as LLMRole,
-      content: msg.content || '',
-      tool_calls: msg.tool_calls,
-    };
+      const msg = response.choices[0].message;
+      return {
+        role: msg.role as LLMRole,
+        content: msg.content || '',
+        tool_calls: msg.tool_calls,
+      };
+    } catch (e) {
+      throw toLlmError(e, 'openai');
+    }
   }
 
   async createPlan(context: Context, instruction: string, lastError?: string): Promise<Plan> {
@@ -84,7 +90,7 @@ export class OpenAILLM implements LLM {
 
     const content = response.content;
     if (!content) {
-      throw new Error(text.llm.planEmpty);
+      throw wrapPlanEmpty();
     }
 
     try {

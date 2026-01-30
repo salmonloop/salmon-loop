@@ -1,6 +1,7 @@
 import { text } from '../locales/index.js';
 
 import { LIMITS } from './limits.js';
+import { wrapPatchEmpty } from './llm/errors.js';
 import type { Context, Plan } from './types.js';
 
 export function formatContextForPrompt(context: Context): string {
@@ -96,7 +97,7 @@ export function parsePlanFromLLMContent(content: string): Plan {
 
 export function extractUnifiedDiffFromLLMContent(content: string): string {
   if (!content) {
-    throw new Error(text.llm.patchEmpty());
+    throw wrapPatchEmpty();
   }
 
   // Extract ONLY the last diff block (LLM may generate multiple attempts)

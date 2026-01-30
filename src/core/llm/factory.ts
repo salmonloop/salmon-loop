@@ -1,71 +1,35 @@
 import type { ResolvedLlmProvider } from '../config/types.js';
-import type { LLM } from '../types.js';
 
-import { AiSdkLLM } from './ai-sdk.js';
-import { OpenAILLM, StubLLM } from './openai.js';
+import {
+  createDefaultLlmRegistry,
+  createDefaultOpenAiFallback,
+  type CreateRuntimeLlmResult,
+  type LlmBackend,
+  type LlmFactoryWarningCode,
+} from './registry.js';
 
-export type LlmBackend = 'ai-sdk' | 'openai' | 'stub';
-
-export type LlmFactoryWarningCode =
-  | 'API_KEY_MISSING'
-  | 'PROVIDER_NOT_SUPPORTED'
-  | 'CLIENT_PACKAGE_NOT_SUPPORTED';
-
-export interface CreateRuntimeLlmResult {
-  llm: LLM;
-  backend: LlmBackend;
-  warnings: LlmFactoryWarningCode[];
-}
-
-function isOpenAiFamily(type: string): boolean {
-  return type === 'openai' || type === 'openai-compatible';
-}
-
-function isSupportedAiSdkClientPackage(
-  pkg: string | undefined,
-): pkg is '@ai-sdk/openai' | '@ai-sdk/openai-compatible' {
-  return pkg === '@ai-sdk/openai' || pkg === '@ai-sdk/openai-compatible';
-}
+export type { CreateRuntimeLlmResult, LlmBackend, LlmFactoryWarningCode };
 
 export function createRuntimeLlm(resolved: ResolvedLlmProvider): CreateRuntimeLlmResult {
-  const warnings: LlmFactoryWarningCode[] = [];
+  const registry = createDefaultLlmRegistry();
 
-  if (!resolved.api.apiKey) {
-    warnings.push('API_KEY_MISSING');
-    return { llm: new StubLLM(), backend: 'stub', warnings };
-  }
+  if (resolved.clientPackage) {
+    const adapter = registry.resolve({
+      providerType: resolved.type,
+      clientPackage: resolved.clientPackage,
+    });
 
-  if (!isOpenAiFamily(resolved.type)) {
-    warnings.push('PROVIDER_NOT_SUPPORTED');
-    return { llm: new StubLLM(), backend: 'stub', warnings };
-  }
+    if (adapter) {
+      return adapter(resolved);
+    }
 
-  if (resolved.clientPackage && !isSupportedAiSdkClientPackage(resolved.clientPackage)) {
-    warnings.push('CLIENT_PACKAGE_NOT_SUPPORTED');
-  }
-
-  if (isSupportedAiSdkClientPackage(resolved.clientPackage)) {
+    // If the user requested a package explicitly but it's not registered, keep going with a stable warning.
+    const fallback = createDefaultOpenAiFallback(resolved);
     return {
-      llm: new AiSdkLLM({
-        clientPackage: resolved.clientPackage,
-        providerName: resolved.id,
-        apiKey: resolved.api.apiKey,
-        baseUrl: resolved.api.baseUrl,
-        modelId: resolved.models.selectedModelId,
-        headers: resolved.api.headers,
-      }),
-      backend: 'ai-sdk',
-      warnings,
+      ...fallback,
+      warnings: Array.from(new Set([...fallback.warnings, 'CLIENT_PACKAGE_NOT_SUPPORTED'])),
     };
   }
 
-  return {
-    llm: new OpenAILLM({
-      apiKey: resolved.api.apiKey,
-      baseUrl: resolved.api.baseUrl,
-      modelId: resolved.models.selectedModelId,
-    }),
-    backend: 'openai',
-    warnings,
-  };
+  return createDefaultOpenAiFallback(resolved);
 }

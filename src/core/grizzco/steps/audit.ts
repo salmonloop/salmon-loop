@@ -2,6 +2,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 
 import { logger } from '../../logger.js';
+import { SalmonError } from '../../types.js';
 import { FlowReport } from '../pipeline.js';
 
 export async function saveAudit(report: FlowReport, _options: any): Promise<void> {
@@ -21,6 +22,10 @@ export async function saveAudit(report: FlowReport, _options: any): Promise<void
             name: report.error.name,
             message: report.error.message,
             stack: report.error.stack,
+            code:
+              report.error instanceof SalmonError
+                ? report.error.code
+                : (report.error as any)?.code || (report.error as any)?.llmCode,
           }
         : report.error
           ? { name: 'UnknownError', message: String(report.error), stack: undefined }
@@ -35,6 +40,7 @@ export async function saveAudit(report: FlowReport, _options: any): Promise<void
         // Keep a stable, human-friendly message for backwards compatibility.
         error: errorMeta?.message,
         errorName: errorMeta?.name,
+        errorCode: (errorMeta as any)?.code,
         errorStack: errorMeta?.stack,
       },
       traces: report.traces,
@@ -84,6 +90,10 @@ function sanitizeContext(ctx: any): any {
   }
 
   if (ctx.verifyResult) safe.verifyResult = ctx.verifyResult;
+
+  if ((ctx as any).toolCallingAudit && Array.isArray((ctx as any).toolCallingAudit)) {
+    safe.toolCallingAudit = (ctx as any).toolCallingAudit;
+  }
 
   return safe;
 }
