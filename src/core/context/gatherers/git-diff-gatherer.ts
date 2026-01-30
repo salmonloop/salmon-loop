@@ -1,4 +1,6 @@
 import { spawn } from 'child_process';
+import { access } from 'fs/promises';
+import path from 'path';
 
 import { findFileDependencies } from '../../dependency.js';
 import { LIMITS } from '../../limits.js';
@@ -57,7 +59,46 @@ async function resolveDiffFiles(req: ContextRequest, scope: DiffScope): Promise<
 
   const deps = await findFileDependencies(req.primaryFile, req.repoPath).catch(() => []);
   const all = uniqPaths([req.primaryFile, ...deps]).slice(0, LIMITS.maxRelatedFiles);
-  return all;
+  return await resolveSourcePaths(req.repoPath, all);
+}
+
+async function resolveSourcePaths(repoPath: string, files: string[]): Promise<string[]> {
+  const resolved: string[] = [];
+
+  for (const file of files) {
+    const normalized = normalizePath(file);
+    const full = path.join(repoPath, normalized);
+
+    if (await exists(full)) {
+      resolved.push(normalized);
+      continue;
+    }
+
+    const mapped = mapEsmImportPathToSource(normalized);
+    if (mapped !== normalized && (await exists(path.join(repoPath, mapped)))) {
+      resolved.push(mapped);
+      continue;
+    }
+
+    resolved.push(normalized);
+  }
+
+  return uniqPaths(resolved);
+}
+
+function mapEsmImportPathToSource(filePath: string): string {
+  if (filePath.endsWith('.js')) return filePath.replace(/\.js$/, '.ts');
+  if (filePath.endsWith('.jsx')) return filePath.replace(/\.jsx$/, '.tsx');
+  return filePath;
+}
+
+async function exists(p: string): Promise<boolean> {
+  try {
+    await access(p);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export class GitDiffGatherer {

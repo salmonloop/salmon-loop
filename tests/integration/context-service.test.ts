@@ -12,7 +12,7 @@ describe('ContextService Integration', () => {
       initialFiles: [
         {
           path: 'src/a.ts',
-          content: "import { b } from './b';\n\nexport function a() {\n  return b();\n}\n",
+          content: "import { b } from './b.js';\n\nexport function a() {\n  return b();\n}\n",
         },
         {
           path: 'src/b.ts',
