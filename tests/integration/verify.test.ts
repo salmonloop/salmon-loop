@@ -19,7 +19,7 @@ describe('Verify Integration Tests with Real FS', () => {
   });
 
   it('should run verify command successfully with real process', async () => {
-    // 使用真实的 node 执行一个成功的命令
+    // Run a real node process with a successful exit code.
     const result = await runVerify(repoPath, 'node -e "console.log(\'All tests passed\')"');
 
     expect(result.ok).toBe(true);
@@ -28,7 +28,7 @@ describe('Verify Integration Tests with Real FS', () => {
   });
 
   it('should fail when verify command returns non-zero exit code', async () => {
-    // 使用真实的 node 执行一个失败的命令
+    // Run a real node process with a failing exit code.
     const result = await runVerify(repoPath, 'node -e "process.exit(1)"');
 
     expect(result.ok).toBe(false);
@@ -57,7 +57,7 @@ describe('Verify Integration Tests with Real FS', () => {
   });
 
   it('should fail preflight if not a git repo', async () => {
-    // 创建一个非 Git 目录
+    // Create a non-git directory.
     const nonGitDir = await helper.createTempDir('not-a-repo-');
 
     const result = await preflight({

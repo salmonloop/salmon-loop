@@ -90,14 +90,16 @@ describe('Path Robustness', () => {
 
   describe('ContextBuilder.extractFailedFiles Robustness', () => {
     it('should handle various path formats in error output', () => {
+      const unicodeFile = `unicode-path/\u00E9-file.ts`;
+      const emojiFile = `\u{1F602}.ts`;
       const output = `
         Error: some error in "src/space path/file.ts":10:5
         Failed: /absolute/path/to/repo/src/file.ts:20
         Relative: ./src/rel.ts:30
         Windows: C:\\Users\\test\\src\\win.ts(40,10)
         No line: just/a/path.ts
-        Unicode: Error in 中文路径/文件.ts:10:5
-        Emoji: Error in 😂.ts:10:5
+        Unicode: Error in ${unicodeFile}:10:5
+        Emoji: Error in ${emojiFile}:10:5
       `;
       const files = ContextBuilder.extractFailedFiles(output);
       expect(files).toContain('src/space path/file.ts');
@@ -105,8 +107,8 @@ describe('Path Robustness', () => {
       expect(files).toContain('src/rel.ts');
       expect(files).toContain('Users/test/src/win.ts');
       expect(files).toContain('just/a/path.ts');
-      expect(files).toContain('中文路径/文件.ts');
-      expect(files).toContain('😂.ts');
+      expect(files).toContain(unicodeFile);
+      expect(files).toContain(emojiFile);
     });
 
     it('should extract files with line numbers (from utils.test.ts)', () => {

@@ -551,6 +551,9 @@ Please return the patch in PURE unified diff format:`;
     v3: {
       gitUserConfigMissing: 'Git user.name or user.email is not configured',
       remoteLocked: 'File is locked remotely (Mock Check)',
+      stagedFileProtected: 'Staged file detected and protected (use --force)',
+      binaryMmCannotBeMerged: 'Binary MM file cannot be merged',
+      fileHasExistingConflict: 'File has existing conflict',
       unknownDataDependency: (key: string) => `Unknown data dependency: ${key}`,
       microOrchestratorLoopStuck: (path: string) => `MicroOrchestrator stuck in loop for ${path}`,
       planAborted: (path: string, reason: string) => `Plan aborted for ${path}: ${reason}`,

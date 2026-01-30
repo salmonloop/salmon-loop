@@ -80,7 +80,7 @@ describe('Fuzzy Patch Loop Integration', () => {
 
     expect(result.success).toBe(true);
 
-    // 状态断言：验证文件内容是否真的改变了
+    // State assertion: verify the file content actually changed.
     const content = await helper.readFile(repoPath, 'app.js');
     expect(content).toContain('console.log("begin")');
     expect(content).not.toContain('console.log("start")');

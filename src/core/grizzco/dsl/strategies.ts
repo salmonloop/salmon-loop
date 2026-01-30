@@ -60,7 +60,7 @@ export const IndexProtection = (engine: DecisionEngine): DecisionEngine => {
           c.file.status === FileStatus.STAGED_ADDED ||
           c.file.status === FileStatus.STAGED_DELETED) &&
         !c.options.force,
-      (p) => p.abort('Staged file detected and protected (use --force)'),
+      (p) => p.abort(text.grizzco.v3.stagedFileProtected),
     )
     .when(
       (c) =>
@@ -81,7 +81,7 @@ export const MMHandling = (engine: DecisionEngine): DecisionEngine => {
     .phase('Phase 4: MM Handling')
     .when(
       (c) => c.file.status === FileStatus.MM && c.file.isBinary,
-      (p) => p.abort('Binary MM file cannot be merged'),
+      (p) => p.abort(text.grizzco.v3.binaryMmCannotBeMerged),
     )
     .when(
       // PATCH operations must stay on the git-apply track. MM merge workers expect full-file "theirs" content,
@@ -130,7 +130,7 @@ export const StatusValidation = (engine: DecisionEngine): DecisionEngine => {
       )
       .when(
         (c) => c.file.status === FileStatus.CONFLICT,
-        (p) => p.abort('File has existing conflict'),
+        (p) => p.abort(text.grizzco.v3.fileHasExistingConflict),
       )
   );
 };

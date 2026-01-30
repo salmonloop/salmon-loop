@@ -15,13 +15,27 @@ export async function saveAudit(report: FlowReport, _options: any): Promise<void
     // Sanitize context data to be JSON friendly
     const sanitizedData = sanitizeContext(report.data);
 
+    const errorMeta =
+      report.error && report.error instanceof Error
+        ? {
+            name: report.error.name,
+            message: report.error.message,
+            stack: report.error.stack,
+          }
+        : report.error
+          ? { name: 'UnknownError', message: String(report.error), stack: undefined }
+          : undefined;
+
     const auditData = {
       meta: {
         timestamp: new Date().toISOString(),
         duration: report.duration,
         success: report.success,
         lastStep: report.lastStep,
-        error: report.error ? String(report.error) : undefined,
+        // Keep a stable, human-friendly message for backwards compatibility.
+        error: errorMeta?.message,
+        errorName: errorMeta?.name,
+        errorStack: errorMeta?.stack,
       },
       traces: report.traces,
       context: sanitizedData,
