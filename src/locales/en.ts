@@ -327,7 +327,7 @@ Please return the patch in PURE unified diff format:`;
     instructionRequired: '--instruction is required',
     verifyRequired: '--verify is required',
     apiKeyMissing:
-      '⚠️  SALMON_API_KEY not found, using StubLLM. Set it in .env file to use real LLM.',
+      '⚠️  SALMONLOOP_API_KEY not found, using StubLLM. Set SALMONLOOP_API_KEY (or legacy S8P_API_KEY) to use a real LLM.',
 
     // Startup information
     starting: '🚀 Starting salmon-loop...',

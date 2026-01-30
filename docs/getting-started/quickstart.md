@@ -14,6 +14,5 @@ npm run dev -- -r "C:\path\to\your-repo" -f "src\\index.js" --instruction "Add a
 
 ## Notes
 
-- If `S8P_API_KEY` / `SALMON_API_KEY` is not set, SalmonLoop uses a stub LLM and is not useful for real patching.
+- If `SALMONLOOP_API_KEY` (or legacy `S8P_API_KEY`) is not set, SalmonLoop uses a stub LLM and is not useful for real patching.
 - Use `--dry-run` to prevent writing to the main workspace.
-

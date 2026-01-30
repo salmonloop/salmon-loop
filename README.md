@@ -35,7 +35,7 @@ Copy the example environment file and add your API key:
 cp .env.example .env
 ```
 
-Edit `.env` and set your `SALMON_API_KEY`. You can also customize `SALMON_BASE_URL` and `SALMON_MODEL`.
+Edit `.env` and set your `SALMONLOOP_API_KEY` (or legacy `S8P_API_KEY`). You can also customize `SALMON_BASE_URL` and `SALMON_MODEL`.
 
 ### Running the CLI
 

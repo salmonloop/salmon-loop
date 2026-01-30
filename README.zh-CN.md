@@ -35,7 +35,7 @@ pnpm build
 cp .env.example .env
 ```
 
-编辑 `.env` 并设置您的 `SALMON_API_KEY`。您还可以自定义 `SALMON_BASE_URL` 和 `SALMON_MODEL`。
+编辑 `.env` 并设置您的 `SALMONLOOP_API_KEY`（或兼容的旧别名 `S8P_API_KEY`）。您还可以自定义 `SALMON_BASE_URL` 和 `SALMON_MODEL`。
 
 ### 运行 CLI
 

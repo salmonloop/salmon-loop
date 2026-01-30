@@ -23,7 +23,7 @@ export class OpenAILLM implements LLM {
 
   constructor() {
     this.client = new OpenAI({
-      apiKey: process.env.S8P_API_KEY || process.env.SALMON_API_KEY,
+      apiKey: process.env.SALMONLOOP_API_KEY || process.env.S8P_API_KEY,
       baseURL: process.env.S8P_BASE_URL || process.env.SALMON_BASE_URL,
     });
     this.model = process.env.S8P_MODEL || process.env.SALMON_MODEL || 'gpt-4o';

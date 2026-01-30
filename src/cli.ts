@@ -87,7 +87,7 @@ program
     }
 
     try {
-      const apiKey = process.env.S8P_API_KEY || process.env.SALMON_API_KEY;
+      const apiKey = process.env.SALMONLOOP_API_KEY || process.env.S8P_API_KEY;
       const llm = apiKey ? new OpenAILLM() : new StubLLM();
 
       if (!apiKey) {
