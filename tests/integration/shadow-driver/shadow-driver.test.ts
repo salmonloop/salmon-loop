@@ -16,16 +16,18 @@ import type { ShadowDriverConfig, ShadowTask } from '../../../src/core/strata/ty
 
 describe('ShadowDriver Integration', () => {
   let config: ShadowDriverConfig;
+  let repoRoot: string;
   let shadowRoot: string;
 
   beforeEach(async () => {
+    repoRoot = await mkdtemp(join(tmpdir(), 'salmon-loop-shadow-driver-repo-'));
     shadowRoot = await mkdtemp(join(tmpdir(), 'salmon-loop-shadow-driver-'));
     config = {
       whitelist: [],
       dependencyPaths: [],
       readonly: false,
       platform: process.platform as any,
-      repoRoot: process.cwd(),
+      repoRoot,
       shadowRoot,
     };
   });
@@ -33,6 +35,7 @@ describe('ShadowDriver Integration', () => {
   // Ensure tests do not leak locks or directories across runs (important for CI).
   // ShadowDriver.setup acquires a lock; cleanup is part of the public contract and is validated elsewhere.
   afterEach(async () => {
+    await rm(repoRoot, { recursive: true, force: true }).catch(() => null);
     await rm(shadowRoot, { recursive: true, force: true }).catch(() => null);
   });
 
