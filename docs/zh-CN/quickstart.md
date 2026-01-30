@@ -11,4 +11,5 @@ npm run dev -- -r "C:\path\to\your-repo" -f "src\\index.js" --instruction "Add a
 ## 提示
 
 - 需要配置 `SALMONLOOP_API_KEY`（或兼容的旧别名 `S8P_API_KEY`）才能进行真实 LLM 生成。
+- 也可以在仓库内创建本地配置：`<repoRoot>/.salmonloop/config/config.json`（建议 gitignore）。
 - `--dry-run` 可用于验证流程但不回写主仓库。

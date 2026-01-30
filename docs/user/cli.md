@@ -14,6 +14,9 @@ s8p [options]
 ## Global Options
 
 - `-r, --repo <path>`: Path to the git repository root. Defaults to the current directory.
+- `--config <path>`: Path to a SalmonLoop config JSON file (default: `<repoRoot>/.salmonloop/config/config.json`).
+- `--no-config-file`: Disable loading the repo config file.
+- `--print-config`: Print the resolved config (redacted) and exit.
 - `--verbose [level]`: Enable verbose logging (`basic` or `extended`).
 
 ## Core Options (for Default Run)

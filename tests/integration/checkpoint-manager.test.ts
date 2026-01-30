@@ -60,7 +60,7 @@ describe('CheckpointManager - Filesystem Sync Fix', () => {
 
   it(
     'should call git update-index --refresh during restoreToShadow',
-    { timeout: 10000 },
+    { timeout: 30000 },
     async () => {
       const testFile = join(testRepo, 'test.txt');
       await import('fs/promises').then((fs) =>

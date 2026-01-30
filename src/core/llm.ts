@@ -17,16 +17,26 @@ import type { Context, Plan, LLM, LLMMessage, ChatOptions, LLMRole } from './typ
 
 export type { LLM };
 
+export interface OpenAiClientConfig {
+  apiKey?: string;
+  baseUrl?: string;
+  modelId?: string;
+}
+
 export class OpenAILLM implements LLM {
   private client: OpenAI;
   private model: string;
 
-  constructor() {
+  constructor(cfg: OpenAiClientConfig = {}) {
     this.client = new OpenAI({
-      apiKey: process.env.SALMONLOOP_API_KEY || process.env.S8P_API_KEY,
-      baseURL: process.env.S8P_BASE_URL || process.env.SALMON_BASE_URL,
+      apiKey: cfg.apiKey ?? process.env.SALMONLOOP_API_KEY ?? process.env.S8P_API_KEY,
+      baseURL: cfg.baseUrl ?? process.env.S8P_BASE_URL ?? process.env.SALMON_BASE_URL,
     });
-    this.model = process.env.S8P_MODEL || process.env.SALMON_MODEL || 'gpt-4o';
+    this.model = cfg.modelId ?? process.env.S8P_MODEL ?? process.env.SALMON_MODEL ?? 'gpt-4o';
+  }
+
+  getModelId(): string {
+    return this.model;
   }
 
   async chat(messages: LLMMessage[], options: ChatOptions = {}): Promise<LLMMessage> {

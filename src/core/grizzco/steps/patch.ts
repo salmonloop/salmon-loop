@@ -59,7 +59,10 @@ export const generatePatch: Step<PlanCtx, PatchCtx> = async (ctx) => {
         worktreeRoot: ctx.workspace.strategy === 'worktree' ? ctx.workspace.workPath : undefined,
         attemptId: (ctx as any).attempt ?? 1,
         dryRun: Boolean(ctx.options?.dryRun),
-        model: process.env.S8P_MODEL || process.env.SALMON_MODEL,
+        model:
+          (ctx.options.llm as any)?.getModelId?.() ||
+          process.env.S8P_MODEL ||
+          process.env.SALMON_MODEL,
       },
       toolstack,
       emit: (e) =>

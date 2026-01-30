@@ -7,6 +7,8 @@ import chalk from 'chalk';
 import { Command } from 'commander';
 import ProgressBar from 'progress';
 
+import { redactConfigForPrint, resolveConfig } from './core/config/index.js';
+import { ConfigError } from './core/config/index.js';
 import { logger } from './core/logger.js';
 import { CheckpointManager } from './core/strata/checkpoint/manager.js';
 import {
@@ -29,6 +31,9 @@ program
   .version('0.2.0')
   .option('-i, --instruction <instruction>', text.cli.instructionOption)
   .option('-v, --verify <command>', text.cli.verifyOption)
+  .option('--config <path>', text.cli.configOption)
+  .option('--no-config-file', text.cli.noConfigFileOption)
+  .option('--print-config', text.cli.printConfigOption)
   .option('-r, --repo <path>', text.cli.repoOption, process.cwd())
   .option('-f, --file <path>', text.cli.fileOption)
   .option('-s, --selection <text>', text.cli.selectionOption)
@@ -63,7 +68,34 @@ program
       }
     }
 
-    if (!options.instruction || !options.verify) {
+    let resolvedConfig: Awaited<ReturnType<typeof resolveConfig>>;
+    try {
+      resolvedConfig = await resolveConfig({
+        repoRoot: runPath,
+        configFilePath: options.config,
+        enableConfigFile: options.configFile !== false,
+      });
+    } catch (err: any) {
+      if (err instanceof ConfigError) {
+        logger.error(text.config.error(err.code || err.message, err.details), true);
+        return;
+      }
+
+      const msg = err instanceof Error ? err.message : String(err);
+      logger.error(text.config.loadFailed(msg), true);
+      return;
+    }
+
+    if (options.printConfig) {
+      const raw = resolvedConfig.raw || { version: 1 };
+      const redacted = redactConfigForPrint(raw);
+      process.stdout.write(JSON.stringify(redacted, null, 2) + '\n');
+      return;
+    }
+
+    const effectiveVerify = options.verify || resolvedConfig.verify.command;
+
+    if (!options.instruction || !effectiveVerify) {
       if (!options.validate) {
         logger.error(text.cli.optionsRequired);
         program.help(); // Show help if required options are missing
@@ -79,19 +111,34 @@ program
       logger.setVerbose(verboseLevel);
       logger.cyan(text.cli.runningWith);
       logger.log(text.cli.instruction(options.instruction));
-      logger.log(text.cli.verify(options.verify));
+      logger.log(text.cli.verify(effectiveVerify));
       logger.log(text.cli.repoPath(runPath));
       if (options.file) logger.log(text.cli.contextFile(options.file));
       if (options.selection) logger.log(text.cli.contextSelection(options.selection.length));
       if (options.dryRun) logger.warn(text.cli.dryRunEnabled);
+      if (resolvedConfig.source.used) {
+        logger.log(text.cli.configPath(resolvedConfig.source.path || ''));
+      }
     }
 
     try {
-      const apiKey = process.env.SALMONLOOP_API_KEY || process.env.S8P_API_KEY;
-      const llm = apiKey ? new OpenAILLM() : new StubLLM();
+      const llmType = resolvedConfig.llm.type;
+      const isOpenAiCompatible = llmType === 'openai-compatible' || llmType === 'openai';
+      const apiKey = resolvedConfig.llm.api.apiKey;
+
+      const llm =
+        apiKey && isOpenAiCompatible
+          ? new OpenAILLM({
+              apiKey,
+              baseUrl: resolvedConfig.llm.api.baseUrl,
+              modelId: resolvedConfig.llm.models.selectedModelId,
+            })
+          : new StubLLM();
 
       if (!apiKey) {
         logger.warn(text.cli.apiKeyMissing);
+      } else if (!isOpenAiCompatible) {
+        logger.warn(text.cli.providerNotSupported(llmType));
       }
 
       // Progress bar setup
@@ -108,7 +155,7 @@ program
 
       const result = await runSalmonLoop({
         instruction: options.instruction,
-        verify: options.verify,
+        verify: effectiveVerify,
         repoPath: runPath,
         llm: llm,
         dryRun: options.dryRun,

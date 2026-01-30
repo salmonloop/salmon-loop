@@ -38,8 +38,12 @@ test-report.json
 *.tmp
 *.temp
 .s8p/
+.salmonloop/
 
 plans/
 
 # Agents
 AGENTS.md
+
+# Qodo
+.qodo/

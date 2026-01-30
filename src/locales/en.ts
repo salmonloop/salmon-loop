@@ -311,6 +311,9 @@ Please return the patch in PURE unified diff format:`;
     // Option descriptions
     instructionOption: 'Instruction for code modification (required)',
     verifyOption: 'Verification command to run (e.g., "npm test") (required)',
+    configOption: 'Path to SalmonLoop config JSON (default: <repo>/.salmonloop/config/config.json)',
+    noConfigFileOption: 'Disable loading config file from the repository',
+    printConfigOption: 'Print the resolved config (redacted) and exit',
     repoOption: 'Repository path (default: current directory)',
     fileOption: 'Target file path (relative to repo)',
     selectionOption: 'Direct text selection (mutually exclusive with --file)',
@@ -328,6 +331,8 @@ Please return the patch in PURE unified diff format:`;
     verifyRequired: '--verify is required',
     apiKeyMissing:
       '⚠️  SALMONLOOP_API_KEY not found, using StubLLM. Set SALMONLOOP_API_KEY (or legacy S8P_API_KEY) to use a real LLM.',
+    providerNotSupported: (type: string) =>
+      `⚠️  Provider "${type}" is not supported yet. Falling back to StubLLM.`,
 
     // Startup information
     starting: '🚀 Starting salmon-loop...',
@@ -336,6 +341,7 @@ Please return the patch in PURE unified diff format:`;
     verify: (command: string) => `  Verify: ${command}`,
     instruction: (instruction: string) => `  Instruction: ${instruction}`,
     repoPath: (path: string) => `  Repo path: ${path}`,
+    configPath: (path: string) => `  Config file: ${path}`,
     contextFile: (file: string) => `  Context file: ${file}`,
     contextSelection: (length: number) => `  Context selection length: ${length}`,
     dryRunEnabled: '  Dry-run mode enabled',
@@ -377,7 +383,8 @@ Please return the patch in PURE unified diff format:`;
     testsFailedContinuing: '  ⚠️ Tests failed, but continuing validation...',
     validationCompleted: '✅ Validation completed!',
     validationFailed: '❌ Validation failed.',
-    optionsRequired: 'Error: --instruction and --verify are required unless --validate is used.',
+    optionsRequired:
+      'Error: --instruction is required. --verify is required unless provided by config, or --validate is used.',
 
     // Snapshot management
     snapshotManageDescription: 'Manage snapshots',
@@ -426,6 +433,30 @@ Please return the patch in PURE unified diff format:`;
     deleteSnapshotDescription: 'Delete a snapshot',
     clearSnapshotsDescription: 'Clear all snapshots',
     clearSnapshotsForceOption: 'Force clear without confirmation',
+  },
+
+  config: {
+    loadFailed: (error: string) => `Failed to load config: ${error}`,
+    error: (code: string, details?: Record<string, string>) => {
+      const detailStr = details ? ` Details: ${JSON.stringify(details)}` : '';
+
+      switch (code) {
+        case 'CONFIG_FILE_NOT_FOUND':
+          return `Config file not found: ${details?.path || '(unknown path)'}`;
+        case 'CONFIG_PARSE_FAILED':
+          return `Failed to parse config JSON: ${details?.path || '(unknown path)'}`;
+        case 'CONFIG_INVALID_ROOT':
+          return 'Config file must be a JSON object';
+        case 'CONFIG_UNSUPPORTED':
+          return `Unsupported config version: ${details?.version || '(unknown version)'}`;
+        case 'CONFIG_LLM_ACTIVE_PROVIDER_NOT_FOUND':
+          return `Active LLM provider not found: ${details?.provider || '(unknown provider)'}`;
+        case 'CONFIG_LLM_DEFAULT_MODEL_REQUIRED':
+          return `LLM provider must define models.default: ${details?.provider || '(unknown provider)'}`;
+        default:
+          return `Invalid config (${code}).${detailStr}`;
+      }
+    },
   },
 
   // Progress bar and interactive feedback
