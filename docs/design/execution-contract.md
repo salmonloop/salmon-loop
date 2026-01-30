@@ -22,10 +22,12 @@ Safety guarantees:
 3. **PLAN**: Read-only. The LLM analyzes the context and instruction to generate a JSON plan. No filesystem mutation occurs.
 4. **PATCH**: Read-only. The LLM generates a unified diff based on the plan. No filesystem mutation occurs.
 5. **VALIDATE**: Read-only. The system validates the diff against security and size limits. It may also perform AST-based validation (syntax and scope integrity) on the proposed changes.
-6. **APPLY**: Mutating. The system applies changes using the **Shadow Merge Engine** (based on `git merge-file` 3-way merge). This engine merges Base (T0), User (Current), and AI (Generated) content, ensuring atomicity within dirty workspaces.
+6. **APPLY**: Mutating (shadow workspace). The system applies changes using an intent-routed **Shadow Merge Engine**: incremental diffs (PATCH) are applied via the native `git apply` engine (optionally `--3way` when safe), while full-file merges may use 3-way content merge workers (e.g., `git merge-file`). This preserves atomicity and staged/unstaged semantics within dirty workspaces.
 7. **VERIFY**: Read-only. The system runs the user-provided verification command.
 8. **ROLLBACK**: Mutating. If verification fails, the system restores the modified files to their original state using `git checkout`. If Git conflicts or abnormal states are detected, it performs a robust reset (`git stash`, `git reset --hard`, `git clean`).
 9. **SHRINK**: Read-only. If verification fails, the system performs **Smart Feedback** analysis to extract precise error diagnostics and reduces the context for the next attempt.
+
+Note: apply-back (shadow -> main) is described separately in `docs/design/applyback.md`.
 
 ## Safety Rules
 

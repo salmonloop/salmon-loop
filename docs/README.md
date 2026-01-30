@@ -1,20 +1,42 @@
 # Documentation
 
-[English](en/design/execution-limits.md) | [简体中文](zh-CN/design/execution-limits.md)
+English is the Single Source of Truth (SSOT).
+Chinese documentation is provided as a user guide and may lag behind.
 
-Welcome to the SalmonLoop documentation.
+## Users
 
-## Design Rationale
-- **Execution Limits**: [English](en/design/execution-limits.md) | [简体中文](zh-CN/design/execution-limits.md)
-- **Context Builder**: [English](en/design/context-builder.md) | [简体中文](zh-CN/design/context-builder.md)
-- **Patch Loop**: [English](en/design/patch-loop.md) | [简体中文](zh-CN/design/patch-loop.md)
-- **Defensive Mechanisms**: [English](en/design/defensive-mechanisms.md) | [简体中文](zh-CN/design/defensive-mechanisms.md)
-- **Testing & Safety Guidelines**: [English](en/testing-guidelines.md) | [简体中文](zh-CN/testing-guidelines.md)
+- Getting Started: getting-started/overview.md
+- Quickstart: getting-started/quickstart.md
+- CLI: user/cli.md
+- Strategies (direct vs worktree): user/strategies.md
+- Execution safety: user/execution-safety.md
+- Troubleshooting: user/troubleshooting.md
 
-## Usage
-- **CLI Reference**: [English](en/usage/cli.md) | [简体中文](zh-CN/usage/cli.md)
-- **Examples**: [English](en/usage/examples.md) | [简体中文](zh-CN/usage/examples.md)
-- **FAQ**: [English](en/usage/faq.md) | [简体中文](zh-CN/usage/faq.md)
+## Contributors
 
-## Community
-- **Contributing**: [English](en/contributing.md) | [简体中文](zh-CN/contributing.md)
+- Contributing: contributing/contributing.md
+- Testing: contributing/testing.md
+- Coding standards: contributing/coding-standards.md
+- Security: contributing/security.md
+
+## Design (SSOT)
+
+- Execution contract: design/execution-contract.md
+- Execution limits: design/execution-limits.md
+- Execution pipeline: design/execution-pipeline.md
+- Tool governance: design/tool-governance.md
+- Apply-back: design/applyback.md
+- Strata system: design/strata-system.md
+- Patch loop: design/patch-loop.md
+- Context builder: design/context-builder.md
+
+## Reference
+
+- Glossary: reference/glossary.md
+- Audit log spec: reference/audit-log-spec.md
+- Compatibility: reference/compatibility.md
+- Changelog: reference/changelog.md
+
+## Chinese Guide (Non-SSOT)
+
+- docs/zh-CN/README.md

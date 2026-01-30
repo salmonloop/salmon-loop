@@ -1,33 +1,11 @@
-# 贡献指南 (Contributing)
+# 贡献指南（导读）
 
-我们欢迎对 SalmonLoop 的贡献！作为一个设计驱动的项目，我们优先考虑稳定性、确定性和清晰的工程契约。
+> 注意：本文件为中文导读（非 SSOT），仅做导航与说明，可能滞后。
+> 权威内容请以英文文档为准。
+该页面为导读，详细贡献规范请以英文为准：
+- `docs/contributing/contributing.md`
+- `docs/contributing/coding-standards.md`
+- `docs/contributing/testing.md`
 
-## 开发原则
+中文导读入口：`docs/zh-CN/README.md`
 
-1. **安全第一**：任何影响执行循环的更改都必须维持或增强安全保证（例如，严禁意外的文件变更）。
-2. **确定性逻辑**：核心执行逻辑应避免启发式“猜测”或 AI 驱动的决策。倾向于基于规则的工程实现。
-3. **双语文档**：所有文档必须同时维护英文和中文版本，并遵循镜像目录结构。
-4. **测试驱动**：新功能或 bug 修复应伴随单元测试。
-
-## 项目结构
-
-- `src/core`：执行内核。必须保持编辑器无关且自包含。
-- `src/locales`：国际化字符串。核心逻辑中严禁硬编码面向用户的文本。
-- `tests/unit`：Vitest 单元测试。这些测试经过 Mock 处理，以确保其运行快速、确定，且不需要真实的 Git 环境或 Ripgrep。
-
-## 开始贡献
-
-1. Fork 本仓库。
-2. 安装依赖：`pnpm install`。
-3. 运行测试：`pnpm test`。
-4. 运行代码检查：`pnpm lint`。
-5. 创建功能分支并提交 Pull Request。
-
-### 使用 `--verbose` 进行调试
-要调试问题，可以使用 `--verbose` 标志获取更详细的日志。
-使用 `--verbose` 获取基本的执行步骤，或使用 `--verbose=extended` 获取详细的内部状态和调试信息。
-
-示例：
-```bash
-salmon-loop --verbose=extended --instruction "修复 bug" --verify "npm test"
-```
