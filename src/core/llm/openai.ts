@@ -24,6 +24,13 @@ export interface OpenAiClientConfig {
   modelId?: string;
 }
 
+/**
+ * @deprecated Use `AiSdkLLM` (AI SDK providers) instead.
+ *
+ * This legacy adapter is intentionally frozen:
+ * - No new features (e.g., streaming) will be added.
+ * - No new compatibility work will be done beyond critical fixes.
+ */
 export class OpenAILLM implements LLM {
   private client: OpenAI;
   private model: string;

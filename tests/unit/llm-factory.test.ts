@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { ResolvedLlmProvider } from '../../src/core/config/types.js';
 import { createRuntimeLlm } from '../../src/core/llm/factory.js';
-import { AiSdkLLM, OpenAILLM, StubLLM } from '../../src/core/llm.js';
+import { AiSdkLLM, StubLLM } from '../../src/core/llm.js';
 
 function baseResolved(): ResolvedLlmProvider {
   return {
@@ -32,28 +32,28 @@ describe('LLM factory', () => {
     expect(result.backend).toBe('ai-sdk');
     expect(result.warnings).toEqual([]);
     expect(result.llm).toBeInstanceOf(AiSdkLLM);
-    expect(typeof (result.llm as any).chatStream).toBe('undefined');
+    expect(typeof (result.llm as any).chatStream).toBe('function');
   });
 
-  it('falls back to OpenAILLM when client.package is not set', () => {
+  it('falls back to AiSdkLLM when client.package is not set', () => {
     const resolved = baseResolved();
     resolved.clientPackage = undefined;
 
     const result = createRuntimeLlm(resolved);
-    expect(result.backend).toBe('openai');
+    expect(result.backend).toBe('ai-sdk');
     expect(result.warnings).toEqual([]);
-    expect(result.llm).toBeInstanceOf(OpenAILLM);
-    expect(typeof (result.llm as any).chatStream).toBe('undefined');
+    expect(result.llm).toBeInstanceOf(AiSdkLLM);
+    expect(typeof (result.llm as any).chatStream).toBe('function');
   });
 
-  it('warns and falls back to OpenAILLM when client.package is unsupported', () => {
+  it('warns and falls back to AiSdkLLM when client.package is unsupported', () => {
     const resolved = baseResolved();
     resolved.clientPackage = '@unknown/provider';
 
     const result = createRuntimeLlm(resolved);
-    expect(result.backend).toBe('openai');
+    expect(result.backend).toBe('ai-sdk');
     expect(result.warnings).toContain('CLIENT_PACKAGE_NOT_SUPPORTED');
-    expect(result.llm).toBeInstanceOf(OpenAILLM);
+    expect(result.llm).toBeInstanceOf(AiSdkLLM);
   });
 
   it('uses StubLLM when apiKey is missing', () => {

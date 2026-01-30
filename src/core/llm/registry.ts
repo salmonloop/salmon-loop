@@ -2,7 +2,7 @@ import type { ResolvedLlmProvider } from '../config/types.js';
 import type { LLM } from '../types.js';
 
 import { AiSdkLLM, type AiSdkClientPackage } from './ai-sdk.js';
-import { OpenAILLM, StubLLM } from './openai.js';
+import { StubLLM } from './openai.js';
 
 export type LlmBackend = 'ai-sdk' | 'openai' | 'stub';
 
@@ -104,13 +104,21 @@ export function createDefaultOpenAiFallback(resolved: ResolvedLlmProvider): Crea
     return { llm: new StubLLM(), backend: 'stub', warnings };
   }
 
+  // Prefer AI SDK for the default path. The legacy OpenAILLM adapter is deprecated and frozen.
+  const clientPackage: AiSdkClientPackage =
+    resolved.type === 'openai' ? '@ai-sdk/openai' : '@ai-sdk/openai-compatible';
+
   return {
-    llm: new OpenAILLM({
+    llm: new AiSdkLLM({
+      clientPackage,
+      providerName: resolved.id,
       apiKey: resolved.api.apiKey,
       baseUrl: resolved.api.baseUrl,
       modelId: resolved.models.selectedModelId,
+      headers: resolved.api.headers,
+      timeoutMs: resolved.api.timeoutMs,
     }),
-    backend: 'openai',
+    backend: 'ai-sdk',
     warnings,
   };
 }

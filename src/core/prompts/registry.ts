@@ -12,7 +12,7 @@ export class PromptRegistry {
   private templates: Map<string, Handlebars.TemplateDelegate> = new Map();
   private initPromise?: Promise<void>;
 
-  async init(): Promise<void> {
+  init(): Promise<void> {
     if (this.initPromise) return this.initPromise;
 
     this.initPromise = (async () => {

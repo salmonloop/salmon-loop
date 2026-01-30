@@ -1,6 +1,6 @@
 import { createOpenAI } from '@ai-sdk/openai';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
-import { generateText, jsonSchema, tool } from 'ai';
+import { generateText, jsonSchema, streamText, tool } from 'ai';
 
 import { text } from '../../locales/index.js';
 import { LIMITS } from '../limits.js';
@@ -172,7 +172,7 @@ export class AiSdkLLM implements LLM {
     return {
       toolCalling: true,
       responseFormatJsonObject: true,
-      streaming: false,
+      streaming: true,
     };
   }
 
@@ -205,6 +205,47 @@ export class AiSdkLLM implements LLM {
         content: result.text || '',
         tool_calls: toOpenAiToolCalls((result as any).toolCalls),
       };
+    } catch (e) {
+      throw toLlmError(e, 'ai-sdk');
+    } finally {
+      if (timeoutHandle) clearTimeout(timeoutHandle);
+    }
+  }
+
+  async *chatStream(
+    messages: LLMMessage[],
+    options: ChatOptions = {},
+  ): AsyncIterable<{ role: LLMRole; contentDelta?: string; tool_calls?: any[]; done?: boolean }> {
+    const aiMessages = toAiSdkMessages(messages);
+    const tools = toAiSdkToolSet(options.tools);
+
+    const abortController = new AbortController();
+    const timeoutMs = this.timeoutMs;
+    const timeoutHandle =
+      typeof timeoutMs === 'number' && timeoutMs > 0
+        ? setTimeout(() => abortController.abort(), timeoutMs)
+        : undefined;
+
+    try {
+      const result = await streamText({
+        model: this.model,
+        messages: aiMessages,
+        tools,
+        temperature: options.temperature,
+        maxOutputTokens: options.maxTokens,
+        stopSequences: options.stop,
+        toolChoice: options.toolChoice === 'none' ? 'none' : tools ? 'auto' : undefined,
+        abortSignal: abortController.signal,
+        timeout: timeoutMs,
+      });
+
+      for await (const delta of result.textStream) {
+        if (delta) {
+          yield { role: 'assistant', contentDelta: delta };
+        }
+      }
+
+      yield { role: 'assistant', done: true };
     } catch (e) {
       throw toLlmError(e, 'ai-sdk');
     } finally {
