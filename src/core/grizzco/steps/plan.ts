@@ -1,7 +1,7 @@
 import { text } from '../../../locales/index.js';
 import { LIMITS } from '../../limits.js';
 import { formatContextForPrompt, parsePlanFromLLMContent } from '../../llm-utils.js';
-import { getPlanPrompt } from '../../prompts.js';
+import { getPlanPrompt, getPlanSystemPrompt } from '../../prompt.js';
 import { chatWithTools } from '../../tools/session.js';
 import { Phase } from '../../types.js';
 import { resolveLlmToolCallingPolicy } from '../dsl/llm-strategy.js';
@@ -33,19 +33,20 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
     };
   }
 
-  const prompt = getPlanPrompt(
+  const prompt = await getPlanPrompt(
     formatContextForPrompt(ctx.context),
     ctx.options.instruction,
     LIMITS.maxFilesChanged,
     (ctx as any).lastError,
   );
 
+  const systemPrompt = await getPlanSystemPrompt();
+
   const response = await chatWithTools(
     [
       {
         role: 'system',
-        content:
-          'You are SalmonLoop. Use tool calls to inspect the repository when needed. Do not guess file contents. If a tool call is necessary, call a tool and wait for its result.',
+        content: systemPrompt,
       },
       { role: 'user', content: prompt },
     ],

@@ -3,7 +3,7 @@ import { normalizeDiff, validateDiff } from '../../diff.js';
 import { LIMITS } from '../../limits.js';
 import { wrapPatchEmpty, wrapPatchInvalid, wrapPatchNotUnifiedDiff } from '../../llm/errors.js';
 import { extractUnifiedDiffFromLLMContent, formatContextForPrompt } from '../../llm-utils.js';
-import { getPatchPrompt } from '../../prompts.js';
+import { getPatchPrompt, getPatchSystemPrompt } from '../../prompt.js';
 import { chatWithTools } from '../../tools/session.js';
 import { DiffValidationError, Phase } from '../../types.js';
 import { resolveLlmToolCallingPolicy } from '../dsl/llm-strategy.js';
@@ -46,7 +46,7 @@ export const generatePatch: Step<PlanCtx, PatchCtx> = async (ctx) => {
   }
 
   const planStr = JSON.stringify(ctx.plan, null, 2);
-  const prompt = getPatchPrompt(
+  const prompt = await getPatchPrompt(
     planStr,
     formatContextForPrompt(ctx.context),
     LIMITS.maxFilesChanged,
@@ -54,12 +54,13 @@ export const generatePatch: Step<PlanCtx, PatchCtx> = async (ctx) => {
     (ctx as any).lastError,
   );
 
+  const systemPrompt = await getPatchSystemPrompt();
+
   const response = await chatWithTools(
     [
       {
         role: 'system',
-        content:
-          'You are SalmonLoop. Use tool calls to inspect the repository when needed. Output only a valid unified diff when patching.',
+        content: systemPrompt,
       },
       { role: 'user', content: prompt },
     ],

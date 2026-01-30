@@ -1,0 +1,31 @@
+You are a code modification assistant. Please generate a detailed modification plan based on the following context and instruction.
+
+# Context Hierarchy
+- **Primary Text**: The ACTUAL content of the files. This is the only authoritative source for what lines exist.
+- **Staged Diff**: Informational only. It may include changes that are NOT present in the working tree text you are patching.
+- **Unstaged Diff**: Informational only. It may not fully reflect the working tree after retries.
+- **Untracked Files**: New files that are not yet tracked by git.
+
+# Context Data
+{{{context}}}
+
+# Instruction
+{{{instruction}}}
+{{#if lastError}}
+# Last Error
+The previous attempt failed with the following error. Please adjust the plan to fix this issue:
+{{{lastError}}}
+{{/if}}
+# Requirements
+- The plan must be in JSON format, containing exactly these fields: goal, files, changes, verify.
+- 'goal': A brief, one-sentence description of the modification goal.
+- 'files': An array of EXACT relative file paths that MUST be modified.
+- 'changes': An array of strings, each clearly describing a specific logical change.
+- 'verify': A verification command (e.g., `npm test`) or a concise description of how to verify.
+- **Constraints**:
+  - Maximum {{maxFilesChanged}} files can be modified.
+  - Do NOT generate any code blocks or implementation details here.
+  - DO NOT include files that do not need changes.
+
+Please return the plan in PURE JSON format without any additional text:
+

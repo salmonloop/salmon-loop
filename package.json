@@ -9,7 +9,7 @@
   "scripts": {
     "preinstall": "node scripts/check-versions.js",
     "check-deps": "node scripts/check-deps.js",
-    "build": "tsc",
+    "build": "tsc && node scripts/copy-assets.js",
     "dev": "tsx src/cli.ts",
     "test": "eslint . && vitest run",
     "test:unit": "vitest run tests/unit/",
@@ -62,6 +62,7 @@
     "chalk": "^5.4.1",
     "commander": "^11.1.0",
     "dotenv": "^17.2.3",
+    "handlebars": "^4.7.8",
     "openai": "^6.16.0",
     "progress": "^2.0.3",
     "tree-sitter-javascript": "^0.25.0",

@@ -11,7 +11,7 @@ import {
   formatContextForPrompt,
   parsePlanFromLLMContent,
 } from '../llm-utils.js';
-import { getPatchPrompt, getPlanPrompt } from '../prompts.js';
+import { getPatchPrompt, getPlanPrompt } from '../prompt.js';
 import type { ChatOptions, Context, LLM, LLMMessage, LLMRole, Plan } from '../types.js';
 
 import { toLlmError, wrapPlanEmpty } from './errors.js';
@@ -77,7 +77,7 @@ export class OpenAILLM implements LLM {
   }
 
   async createPlan(context: Context, instruction: string, lastError?: string): Promise<Plan> {
-    const prompt = getPlanPrompt(
+    const prompt = await getPlanPrompt(
       formatContextForPrompt(context),
       instruction,
       LIMITS.maxFilesChanged,
@@ -104,7 +104,7 @@ export class OpenAILLM implements LLM {
     const planStr = JSON.stringify(plan, null, 2);
     const formattedContext = formatContextForPrompt(context);
 
-    const prompt = getPatchPrompt(
+    const prompt = await getPatchPrompt(
       planStr,
       formattedContext,
       LIMITS.maxFilesChanged,
