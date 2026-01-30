@@ -27,6 +27,7 @@ export interface FlowReport<T = any> {
   duration: number;
   data?: T;
   traces: Span[];
+  auditPath?: string;
 }
 
 /**

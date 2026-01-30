@@ -92,6 +92,8 @@ export interface LoopResult {
   failurePhase?: ExecutionPhase;
   changedFiles?: string[];
   errorType?: ErrorType;
+  errorCode?: string;
+  auditPath?: string;
 }
 
 export interface LoopIteration {

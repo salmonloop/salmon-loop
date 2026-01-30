@@ -362,6 +362,8 @@ Please return the patch in PURE unified diff format:`;
     success: (success: boolean) => `  Success: ${success}`,
     reason: (reason: string) => `  Reason: ${reason}`,
     attempts: (attempts: number) => `  Attempts: ${attempts}`,
+    errorCode: (code: string) => `  Error code: ${code}`,
+    auditPath: (path: string) => `  Audit log: ${path}`,
     diffMeta: (files: number, lines: number) => `  Diff: ${files} files changed, ${lines} lines.`,
     retry: (from: number, to: number, reason: string) =>
       `\nRetrying (${from} -> ${to}). Reason: ${reason}`,

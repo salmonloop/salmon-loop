@@ -1,5 +1,8 @@
 # Troubleshooting
 
+If a run fails, first check the latest audit log in `.s8p/audit/audit-*.json` and look for `meta.errorCode`.
+Stable codes are documented in `docs/reference/error-codes.md`.
+
 ## "Grizzco transaction completed: 0/0 files processed"
 
 Meaning: the APPLY step received a diff that validated but did not produce any file operations.

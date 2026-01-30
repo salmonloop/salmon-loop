@@ -74,6 +74,7 @@ export class SalmonLoop {
       await env.setup();
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
+      const errorCode = (error as any)?.llmCode || (error as any)?.code || (error as any)?.name;
       logs.push(this.createLog(Phase.PREFLIGHT, msg, false));
       emit({ type: 'log', level: 'error', message: msg, timestamp: now() });
       return {
@@ -84,6 +85,7 @@ export class SalmonLoop {
         logs,
         failurePhase: Phase.PREFLIGHT,
         errorType: ErrorType.UNKNOWN,
+        errorCode,
       };
     }
 
@@ -133,6 +135,10 @@ export class SalmonLoop {
 
         // Map flow result to LoopIteration
         const ctx = result.data; // Final context (ShrinkCtx or VerifyCtx)
+        const errorCode =
+          (result.error as any)?.llmCode ||
+          (result.error as any)?.code ||
+          (result.error as any)?.name;
 
         history.push({
           attempt,
@@ -160,6 +166,7 @@ export class SalmonLoop {
                 history,
                 finalPatch: ctx?.diff || undefined,
                 changedFiles: ctx?.changedFiles || [],
+                auditPath: result.auditPath,
               };
             }
 
@@ -214,6 +221,7 @@ export class SalmonLoop {
               history,
               finalPatch: currentDiff || undefined,
               changedFiles: changedFilesThisAttempt,
+              auditPath: result.auditPath,
             };
           }
         }
@@ -235,6 +243,8 @@ export class SalmonLoop {
             history,
             failurePhase: Phase.VERIFY,
             errorType: ErrorType.UNKNOWN,
+            errorCode,
+            auditPath: result.auditPath,
           };
         }
       }
@@ -250,6 +260,7 @@ export class SalmonLoop {
       };
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
+      const errorCode = (error as any)?.llmCode || (error as any)?.code || (error as any)?.name;
       logs.push(this.createLog('error', msg, false));
       emit({ type: 'log', level: 'error', message: msg, timestamp: now() });
       return {
@@ -260,6 +271,7 @@ export class SalmonLoop {
         logs,
         history,
         errorType: ErrorType.UNKNOWN,
+        errorCode,
       };
     } finally {
       await env.teardown();

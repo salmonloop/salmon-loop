@@ -34,6 +34,7 @@ Chinese documentation is provided as a user guide and may lag behind.
 
 - Glossary: reference/glossary.md
 - Audit log spec: reference/audit-log-spec.md
+- Error codes: reference/error-codes.md
 - Compatibility: reference/compatibility.md
 - Changelog: reference/changelog.md
 

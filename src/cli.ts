@@ -218,6 +218,12 @@ program
         bar.terminate();
         logger.error(text.cli.operationFailed);
         logger.bold(text.cli.reason(result.reason));
+        if (result.errorCode) {
+          logger.error(text.cli.errorCode(result.errorCode));
+        }
+        if (result.auditPath) {
+          logger.log(text.cli.auditPath(result.auditPath));
+        }
 
         // Provide suggestions based on failure
         if (result.failurePhase === Phase.PREFLIGHT) {

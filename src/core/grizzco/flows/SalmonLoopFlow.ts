@@ -29,7 +29,7 @@ export async function executeSalmonLoopFlow(initCtx: InitCtx): Promise<FlowRepor
   const report = await pipeline.execute();
 
   // Save audit log
-  await saveAudit(report, initCtx.options);
+  report.auditPath = await saveAudit(report, initCtx.options);
 
   return report;
 }
