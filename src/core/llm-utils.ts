@@ -1,72 +1,12 @@
 import { text } from '../locales/index.js';
 
+import { formatContextForXmlPrompt } from './context/formatters/xml-context.js';
 import { LIMITS } from './limits.js';
 import { wrapPatchEmpty } from './llm/errors.js';
 import type { Context, Plan } from './types.js';
 
 export function formatContextForPrompt(context: Context): string {
-  let result = `${text.context.workingDirectory}\n\n`;
-
-  if (context.primaryText) {
-    result += `${text.context.primaryFile(context.primaryFile || 'Selection')}\n`;
-
-    let textToDisplay = context.primaryText;
-    if (context.symbols && context.symbols.length > 0) {
-      const lines = textToDisplay.split('\n');
-      const sortedSymbols = [...context.symbols].sort((a, b) => {
-        if (a.location.start.line !== b.location.start.line) {
-          return b.location.start.line - a.location.start.line;
-        }
-        return b.location.start.column - a.location.start.column;
-      });
-
-      for (const symbol of sortedSymbols) {
-        const lineIdx = symbol.location.start.line - 1;
-        if (lineIdx >= 0 && lineIdx < lines.length) {
-          const marker = symbol.kind === 'definition' ? '' : text.symbols.info;
-          if (marker && !lines[lineIdx].endsWith(marker)) {
-            lines[lineIdx] += marker;
-          }
-        }
-      }
-      textToDisplay = lines.join('\n');
-    }
-
-    result += `${text.context.primaryText}\n${textToDisplay}\n\n`;
-  }
-
-  if (context.relatedFiles && context.relatedFiles.length > 0) {
-    result += `${text.context.relatedContext}\n`;
-    for (const file of context.relatedFiles) {
-      result += `${text.context.relatedFile(file.path, file.mode)}\n${file.content}\n---\n`;
-    }
-  }
-
-  if (context.rgSnippets && context.rgSnippets.length > 0) {
-    result += `${text.context.codeSnippets}\n`;
-    for (const snippet of context.rgSnippets) {
-      result += `${text.context.snippetLocation(snippet.file, snippet.line)}\n${snippet.content}\n---\n`;
-    }
-  }
-
-  if (context.stagedDiff) {
-    result += `${text.context.stagedDiff}\n${context.stagedDiff}\n\n`;
-  }
-
-  if (context.unstagedDiff) {
-    result += `${text.context.unstagedDiff}\n${context.unstagedDiff}\n\n`;
-  }
-
-  if (context.untrackedFiles && context.untrackedFiles.length > 0) {
-    result += `${text.context.untrackedFiles}\n${context.untrackedFiles.join('\n')}\n\n`;
-  }
-
-  // Fallback for legacy support or if only gitDiff is provided
-  if (context.gitDiff && !context.stagedDiff && !context.unstagedDiff) {
-    result += `${text.context.gitDiff}\n${context.gitDiff}\n\n`;
-  }
-
-  return result;
+  return formatContextForXmlPrompt(context);
 }
 
 export function extractJson(content: string): any {

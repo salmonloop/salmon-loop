@@ -9,6 +9,7 @@ export interface InitCtx {
   emit: (event: any) => void;
   fileStateResolver: FileStateResolver;
   attempt?: number;
+  lastError?: string;
   /**
    * 🛡️ MANDATORY ROLLBACK ANCHOR:
    * This hash must be provided by the environment layer. Without it,

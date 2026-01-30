@@ -1,9 +1,48 @@
+import { readFile } from 'fs/promises';
+import path from 'path';
+
+import { outlineSource } from './context/ast/source-outline.js';
+import { applySmartCompression } from './context/compression/smart-compress.js';
+import { rankContextForRelevance } from './context/scoring/relevance.js';
 import { ContextService } from './context/service.js';
 import { findFileDependencies } from './dependency.js';
 import { LIMITS } from './limits.js';
-import { normalizePath } from './path.js';
-import type { Context, RipgrepResult, RunOptions } from './types.js';
-import { ErrorType } from './types.js';
+import { ensureInSandbox, normalizePath } from './path.js';
+import { ErrorType, type Context, type RipgrepResult, type RunOptions } from './types.js';
+
+export interface ShrinkContextOptions {
+  errorType?: ErrorType;
+  dependencyDepth?: number;
+}
+
+function toShrinkOptions(value?: ErrorType | ShrinkContextOptions): ShrinkContextOptions {
+  if (!value) return {};
+  if (typeof value === 'object') return value;
+  return { errorType: value };
+}
+
+function uniqNormalizedPaths(paths: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const p of paths) {
+    const normalized = normalizePath(p).replace(/^(\.\/|\/)+/, '');
+    if (!normalized) continue;
+    if (seen.has(normalized)) continue;
+    seen.add(normalized);
+    out.push(normalized);
+  }
+  return out;
+}
+
+async function readRepoFileText(repoPath: string, relativePath: string): Promise<string | null> {
+  try {
+    const normalized = normalizePath(relativePath).replace(/^(\.\/|\/)+/, '');
+    const fullPath = ensureInSandbox(repoPath, path.join(repoPath, normalized));
+    return await readFile(fullPath, 'utf-8');
+  } catch {
+    return null;
+  }
+}
 
 export class ContextBuilder {
   static async build(options: RunOptions): Promise<Context> {
@@ -39,9 +78,43 @@ export class ContextBuilder {
     if (remainingChars <= 0) {
       return {
         ...context,
+        relatedFiles: [],
         rgSnippets: [],
         gitDiff: undefined,
       };
+    }
+
+    const truncatedRelated: any[] = [];
+    for (const file of context.relatedFiles ?? []) {
+      const len = file.content?.length ?? 0;
+      if (len <= remainingChars) {
+        truncatedRelated.push(file);
+        remainingChars -= len;
+        continue;
+      }
+
+      const outline = file.outline;
+      if (outline && outline.length <= remainingChars && outline.length >= LIMITS.minSnippetChars) {
+        truncatedRelated.push({
+          ...file,
+          mode: 'outline',
+          content: outline,
+          outline: undefined,
+        });
+        remainingChars -= outline.length;
+        continue;
+      }
+
+      if (remainingChars >= LIMITS.minSnippetChars) {
+        truncatedRelated.push({
+          ...file,
+          mode: 'outline',
+          content: file.content.substring(0, remainingChars),
+          outline: undefined,
+        });
+        remainingChars = 0;
+      }
+      break;
     }
 
     const truncatedSnippets: RipgrepResult[] = [];
@@ -64,6 +137,7 @@ export class ContextBuilder {
 
     return {
       ...context,
+      relatedFiles: truncatedRelated,
       rgSnippets: truncatedSnippets,
       gitDiff: undefined,
     };
@@ -119,46 +193,85 @@ export class ContextBuilder {
   static async shrinkContext(
     context: Context,
     failedFiles: string[],
-    _errorType?: ErrorType,
+    errorTypeOrOptions?: ErrorType | ShrinkContextOptions,
   ): Promise<Context> {
+    const options = toShrinkOptions(errorTypeOrOptions);
+    const dependencyDepth = Math.max(1, Math.min(3, options.dependencyDepth ?? 1));
+
     // Normalize failed file paths
-    const normalizedFailed = failedFiles.map((f) => normalizePath(f));
+    const normalizedFailed = uniqNormalizedPaths(failedFiles);
 
     if (normalizedFailed.length > 0) {
-      // Find dependencies for failed files to include in context
       const dependencyPromises = normalizedFailed.map((f) =>
-        findFileDependencies(f, context.repoPath).catch(() => []),
+        findFileDependencies(f, context.repoPath, {
+          depth: dependencyDepth,
+          maxFiles: LIMITS.maxRelatedFiles,
+        }).catch(() => []),
       );
       const dependenciesArrays = await Promise.all(dependencyPromises);
+      const dependencyList = uniqNormalizedPaths(dependenciesArrays.flat());
 
-      // Cap related files to ensure determinism and performance
-      const allRelatedFiles = new Set([
+      const selectedPaths = uniqNormalizedPaths([
         ...normalizedFailed,
-        ...dependenciesArrays.flat().slice(0, LIMITS.maxRelatedFiles),
+        ...dependencyList.slice(0, LIMITS.maxRelatedFiles),
       ]);
+
+      const existingByPath = new Map<string, any>();
+      for (const f of context.relatedFiles ?? []) {
+        existingByPath.set(normalizePath(f.path), f);
+      }
+
+      const newRelatedFiles: any[] = [];
+      for (const p of selectedPaths) {
+        if (p === context.primaryFile) continue;
+
+        const existing = existingByPath.get(normalizePath(p));
+        if (existing) {
+          newRelatedFiles.push({
+            ...existing,
+            kind: normalizedFailed.includes(p) ? 'failed' : 'dependency',
+          });
+          continue;
+        }
+
+        const content = await readRepoFileText(context.repoPath, p);
+        if (content === null) continue;
+
+        const isLarge = content.length > 10_240;
+        const outline = outlineSource(content);
+
+        newRelatedFiles.push({
+          path: p,
+          kind: normalizedFailed.includes(p) ? 'failed' : 'dependency',
+          mode: isLarge ? 'outline' : 'full',
+          content: isLarge ? outline : content,
+          outline: isLarge ? undefined : outline || undefined,
+        });
+      }
 
       let newSnippets = context.rgSnippets.filter((snippet) => {
         const normalizedSnippetFile = normalizePath(snippet.file);
-        return Array.from(allRelatedFiles).some((related) =>
-          normalizedSnippetFile.endsWith(related),
-        );
+        return selectedPaths.some((related) => normalizedSnippetFile.endsWith(related));
       });
 
       // Cap snippets after shrink to keep context focused
       newSnippets = newSnippets.slice(0, LIMITS.maxSnippetsAfterShrink);
 
-      const shrunkContext = {
+      const shrunkContext: Context = {
         ...context,
+        relatedFiles: newRelatedFiles,
         rgSnippets: newSnippets,
       };
 
+      const tuned = rankContextForRelevance(applySmartCompression(shrunkContext));
+
       // Protection against over-shrinking: if shrunk context is too small,
       // fallback to original context (but still truncated to max budget)
-      if (this.calculateTotalChars(shrunkContext) < LIMITS.minContextChars) {
+      if (this.calculateTotalChars(tuned) < LIMITS.minContextChars) {
         return this.truncateContext(context);
       }
 
-      return shrunkContext;
+      return tuned;
     }
 
     // If no failed files, keep original keyword matches but ensure they are within limits
@@ -171,6 +284,8 @@ export class ContextBuilder {
    */
   private static calculateTotalChars(context: Context): number {
     const primary = context.primaryText?.length ?? 0;
+    const related =
+      context.relatedFiles?.reduce((sum, file) => sum + (file.content?.length ?? 0), 0) ?? 0;
     const snippets = context.rgSnippets.reduce(
       (sum, snippet) => sum + (snippet.content?.length ?? 0),
       0,
@@ -181,6 +296,6 @@ export class ContextBuilder {
       (context.unstagedDiff?.length ?? 0) +
       (context.untrackedDiff?.length ?? 0);
 
-    return primary + snippets + diff;
+    return primary + related + snippets + diff;
   }
 }

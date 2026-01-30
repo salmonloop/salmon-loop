@@ -23,3 +23,8 @@ The phase order is a contract and must match runtime behavior.
 - APPLY mutates the active execution workspace (e.g., a temporary worktree).
 - ROLLBACK may be a no-op when verification succeeds; the phase is still present for uniform flow reporting.
 
+## Retry Inputs (PLAN/PATCH)
+
+When VERIFY fails, later attempts may be informed by:
+- A refined error summary ("last error") derived from the previous verification output.
+- A shrunk/re-ranked context assembled from the failed files and their dependencies.

@@ -166,7 +166,7 @@ export interface SymbolInfo {
 export interface RelatedFileContext {
   path: string;
   content: string;
-  kind: 'import';
+  kind: 'import' | 'failed' | 'dependency';
   mode: 'full' | 'outline';
   outline?: string;
 }

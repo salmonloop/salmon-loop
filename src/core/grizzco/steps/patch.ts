@@ -16,7 +16,7 @@ export const generatePatch: Step<PlanCtx, PatchCtx> = async (ctx) => {
 
   // Backwards-compatible fallback for non-tool-capable LLMs.
   if (!toolstack || !toolPolicy.enabled) {
-    const patch = await ctx.options.llm.createPatch(ctx.context, ctx.plan, (ctx as any).lastError);
+    const patch = await ctx.options.llm.createPatch(ctx.context, ctx.plan, ctx.lastError);
     const normalizedPatch = normalizeDiff(patch);
     let diffMeta;
     try {
@@ -51,7 +51,7 @@ export const generatePatch: Step<PlanCtx, PatchCtx> = async (ctx) => {
     formatContextForPrompt(ctx.context),
     LIMITS.maxFilesChanged,
     LIMITS.maxDiffLines,
-    (ctx as any).lastError,
+    ctx.lastError,
   );
 
   const systemPrompt = await getPatchSystemPrompt();

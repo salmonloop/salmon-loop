@@ -9,17 +9,54 @@ import { safeJoin, safeDirname } from './path.js';
 /**
  * Simple dependency analyzer to find related files
  */
-export async function findFileDependencies(filePath: string, repoPath: string): Promise<string[]> {
+export async function findFileDependencies(
+  filePath: string,
+  repoPath: string,
+  options?: { depth?: number; maxFiles?: number },
+): Promise<string[]> {
+  const depth = Math.max(1, Math.min(5, options?.depth ?? 1));
+  const maxFiles = Math.max(1, options?.maxFiles ?? 1000);
+
+  const results: string[] = [];
+  const seen = new Set<string>();
+  let frontier: string[] = [filePath];
+
+  for (let d = 0; d < depth; d++) {
+    const nextFrontier: string[] = [];
+
+    for (const current of frontier) {
+      if (results.length >= maxFiles) return results;
+
+      const deps = await findDirectDependencies(current, repoPath);
+      for (const dep of deps) {
+        if (results.length >= maxFiles) break;
+        if (seen.has(dep)) continue;
+        seen.add(dep);
+        results.push(dep);
+        nextFrontier.push(dep);
+      }
+    }
+
+    frontier = nextFrontier;
+    if (frontier.length === 0) break;
+  }
+
+  return results;
+}
+
+async function findDirectDependencies(filePath: string, repoPath: string): Promise<string[]> {
   try {
     const content = await readFile(safeJoin(repoPath, filePath), 'utf-8');
     const dependencies: string[] = [];
 
     // Match relative imports: import ... from './foo' or import ... from '../bar'
-    const importPattern = /from\s+['"](\.\.?\/[^'"]+)['"]/g;
+    const importPattern =
+      /(?:from\s+['"](\.\.?\/[^'"]+)['"]|require\(\s*['"](\.\.?\/[^'"]+)['"]\s*\))/g;
     let match;
 
     while ((match = importPattern.exec(content)) !== null) {
-      let depPath = match[1];
+      let depPath = match[1] || match[2];
+      if (!depPath) continue;
 
       // Add extension if missing (simple heuristic for TS/JS)
       if (!depPath.endsWith('.ts') && !depPath.endsWith('.js')) {

@@ -4,11 +4,13 @@ import type { Context } from '../types.js';
 
 import { DefaultPromptAssembler } from './assembly/default-prompt-assembler.js';
 import type { PromptAssembler } from './assembly/prompt-assembler.js';
+import { applySmartCompression } from './compression/smart-compress.js';
 import { AstGatherer } from './gatherers/ast-gatherer.js';
 import { GitDiffGatherer } from './gatherers/git-diff-gatherer.js';
 import { PrimaryTextGatherer } from './gatherers/primary-text-gatherer.js';
 import { RipgrepGatherer } from './gatherers/ripgrep-gatherer.js';
 import { packUntilFull } from './policies/pack-until-full.js';
+import { rankContextForRelevance } from './scoring/relevance.js';
 import type { ContextRequest, ContextResult, DiffScope } from './types.js';
 
 export interface ContextServiceDeps {
@@ -88,8 +90,11 @@ export class ContextService {
       definitionMap,
     };
 
+    const compressed = applySmartCompression(context, { budgetChars: req.budgetChars });
+    const ranked = rankContextForRelevance(compressed);
+
     const budget = req.budgetChars;
-    const budgeted = packUntilFull(context, budget);
+    const budgeted = packUntilFull(ranked, budget);
 
     const assembled = this.deps.assembler.assemble(budgeted.context, req);
 

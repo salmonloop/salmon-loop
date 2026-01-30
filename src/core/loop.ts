@@ -97,6 +97,7 @@ export class SalmonLoop {
 
     let retries = 0;
     let currentContext: any = undefined;
+    let currentLastError: string | undefined = undefined;
     let shadowLatestRef: string | null = null;
     const shadowTaskId = randomBytes(4).toString('hex');
 
@@ -131,6 +132,7 @@ export class SalmonLoop {
           shadowInitialRef: env.initialSnapshotHash!,
           attempt,
           initialContext: currentContext,
+          lastError: currentLastError,
         });
 
         // Map flow result to LoopIteration
@@ -229,6 +231,7 @@ export class SalmonLoop {
         // Failure or Verify Failed
         if (ctx?.shrunk && ctx?.context) {
           currentContext = ctx.context;
+          currentLastError = ctx.lastError || currentLastError;
         }
 
         retries++;

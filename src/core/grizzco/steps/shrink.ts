@@ -1,13 +1,25 @@
 import { ContextBuilder } from '../../context.js';
 import { refineFeedback } from '../../feedback/index.js';
+import { classifyError } from '../../verify.js';
 import { Step } from '../pipeline.js';
 import { RollbackCtx, ShrinkCtx } from '../types.js';
 
-function classifyError(output: string): string {
-  if (output.includes('compile') || output.includes('syntax')) return 'SYNTAX';
-  if (output.includes('import') || output.includes('require')) return 'IMPORT';
-  if (output.includes('type') || output.includes('interface')) return 'TYPE';
-  return 'LOGIC';
+function inferDependencyDepth(output: string): number {
+  const lower = output.toLowerCase();
+
+  if (
+    lower.includes('cannot find module') ||
+    lower.includes('module not found') ||
+    lower.includes('cannot find name') ||
+    lower.includes('is not defined') ||
+    lower.includes('type') ||
+    lower.includes('interface') ||
+    /ts\d{3,5}/i.test(output)
+  ) {
+    return 2;
+  }
+
+  return 1;
 }
 
 export const runShrink: Step<RollbackCtx, ShrinkCtx> = async (ctx) => {
@@ -15,12 +27,12 @@ export const runShrink: Step<RollbackCtx, ShrinkCtx> = async (ctx) => {
     // Only shrink if verification failed
     const failedFiles = ContextBuilder.extractFailedFiles(ctx.verifyResult.output);
     const errorType = classifyError(ctx.verifyResult.output);
+    const dependencyDepth = inferDependencyDepth(ctx.verifyResult.output);
 
-    const newContext = await ContextBuilder.shrinkContext(
-      ctx.context,
-      failedFiles,
-      errorType as any,
-    );
+    const newContext = await ContextBuilder.shrinkContext(ctx.context, failedFiles, {
+      errorType,
+      dependencyDepth,
+    });
 
     const lastError = refineFeedback(ctx.verifyResult.output);
 

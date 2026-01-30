@@ -17,7 +17,7 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
     const plan = await ctx.options.llm.createPlan(
       ctx.context,
       ctx.options.instruction,
-      (ctx as any).lastError,
+      ctx.lastError,
     );
 
     ctx.emit({
@@ -37,7 +37,7 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
     formatContextForPrompt(ctx.context),
     ctx.options.instruction,
     LIMITS.maxFilesChanged,
-    (ctx as any).lastError,
+    ctx.lastError,
   );
 
   const systemPrompt = await getPlanSystemPrompt();
