@@ -4,16 +4,16 @@ import { formatContextForPrompt, parsePlanFromLLMContent } from '../../llm-utils
 import { getPlanPrompt } from '../../prompts.js';
 import { chatWithTools } from '../../tools/session.js';
 import { Phase } from '../../types.js';
+import { resolveLlmToolCallingPolicy } from '../dsl/llm-strategy.js';
 import { Step } from '../pipeline.js';
 import { ContextCtx, PlanCtx } from '../types.js';
 
 export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
   const toolstack = (ctx as any).toolstack;
-  const llmImplName = (ctx.options.llm as any)?.constructor?.name;
+  const toolPolicy = resolveLlmToolCallingPolicy(Phase.PLAN, ctx.options.llm);
 
-  // Backwards-compatible fallback: keep non-OpenAI LLMs on the legacy createPlan path.
-  // Tool calling is currently implemented for the OpenAI provider via native tool calls.
-  if (!toolstack || llmImplName !== 'OpenAILLM') {
+  // Backwards-compatible fallback: keep non-tool-capable LLMs on the legacy createPlan path.
+  if (!toolstack || !toolPolicy.enabled) {
     const plan = await ctx.options.llm.createPlan(
       ctx.context,
       ctx.options.instruction,
@@ -64,6 +64,7 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
           process.env.SALMON_MODEL,
       },
       toolstack,
+      maxRounds: toolPolicy.maxRounds,
       emit: (e) =>
         ctx.emit({
           type: 'log',

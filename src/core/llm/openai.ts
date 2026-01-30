@@ -38,6 +38,18 @@ export class OpenAILLM implements LLM {
     return this.model;
   }
 
+  getCapabilities(): {
+    toolCalling?: boolean;
+    responseFormatJsonObject?: boolean;
+    streaming?: boolean;
+  } {
+    return {
+      toolCalling: true,
+      responseFormatJsonObject: true,
+      streaming: false,
+    };
+  }
+
   async chat(messages: LLMMessage[], options: ChatOptions = {}): Promise<LLMMessage> {
     const response = await this.client.chat.completions.create({
       model: this.model,
@@ -100,6 +112,18 @@ export class OpenAILLM implements LLM {
 }
 
 export class StubLLM implements LLM {
+  getCapabilities(): {
+    toolCalling?: boolean;
+    responseFormatJsonObject?: boolean;
+    streaming?: boolean;
+  } {
+    return {
+      toolCalling: false,
+      responseFormatJsonObject: false,
+      streaming: false,
+    };
+  }
+
   async chat(messages: LLMMessage[]): Promise<LLMMessage> {
     const lastMsg = messages[messages.length - 1];
     return {
@@ -142,6 +166,18 @@ export class FakeLLM implements LLM {
 
   private planIndex = 0;
   private patchIndex = 0;
+
+  getCapabilities(): {
+    toolCalling?: boolean;
+    responseFormatJsonObject?: boolean;
+    streaming?: boolean;
+  } {
+    return {
+      toolCalling: false,
+      responseFormatJsonObject: false,
+      streaming: false,
+    };
+  }
 
   async chat(_messages: LLMMessage[]): Promise<LLMMessage> {
     return {

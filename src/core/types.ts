@@ -290,6 +290,18 @@ export interface LLM {
   chat(messages: LLMMessage[], options?: ChatOptions): Promise<LLMMessage>;
 
   /**
+   * Optional capabilities for strategy orchestration.
+   *
+   * This keeps the Grizzco pipeline provider-agnostic while allowing deterministic
+   * decisions (e.g., enabling tool calling) without relying on constructor names.
+   */
+  getCapabilities?(): {
+    toolCalling?: boolean;
+    responseFormatJsonObject?: boolean;
+    streaming?: boolean;
+  };
+
+  /**
    * High-level goal-oriented methods (internally use chat)
    */
   createPlan(context: Context, instruction: string, lastError?: string): Promise<Plan>;

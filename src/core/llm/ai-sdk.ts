@@ -159,6 +159,18 @@ export class AiSdkLLM implements LLM {
     return this.modelId;
   }
 
+  getCapabilities(): {
+    toolCalling?: boolean;
+    responseFormatJsonObject?: boolean;
+    streaming?: boolean;
+  } {
+    return {
+      toolCalling: true,
+      responseFormatJsonObject: true,
+      streaming: false,
+    };
+  }
+
   async chat(messages: LLMMessage[], options: ChatOptions = {}): Promise<LLMMessage> {
     const aiMessages = toAiSdkMessages(messages);
     const tools = toAiSdkToolSet(options.tools);

@@ -4,15 +4,16 @@ import { extractUnifiedDiffFromLLMContent, formatContextForPrompt } from '../../
 import { getPatchPrompt } from '../../prompts.js';
 import { chatWithTools } from '../../tools/session.js';
 import { Phase } from '../../types.js';
+import { resolveLlmToolCallingPolicy } from '../dsl/llm-strategy.js';
 import { Step } from '../pipeline.js';
 import { PatchCtx, PlanCtx } from '../types.js';
 
 export const generatePatch: Step<PlanCtx, PatchCtx> = async (ctx) => {
   const toolstack = (ctx as any).toolstack;
-  const llmImplName = (ctx.options.llm as any)?.constructor?.name;
+  const toolPolicy = resolveLlmToolCallingPolicy(Phase.PATCH, ctx.options.llm);
 
-  // Backwards-compatible fallback for non-OpenAI LLMs.
-  if (!toolstack || llmImplName !== 'OpenAILLM') {
+  // Backwards-compatible fallback for non-tool-capable LLMs.
+  if (!toolstack || !toolPolicy.enabled) {
     const patch = await ctx.options.llm.createPatch(ctx.context, ctx.plan, (ctx as any).lastError);
     const normalizedPatch = normalizeDiff(patch);
     const diffMeta = validateDiff(normalizedPatch);
@@ -65,6 +66,7 @@ export const generatePatch: Step<PlanCtx, PatchCtx> = async (ctx) => {
           process.env.SALMON_MODEL,
       },
       toolstack,
+      maxRounds: toolPolicy.maxRounds,
       emit: (e) =>
         ctx.emit({
           type: 'log',
