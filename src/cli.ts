@@ -9,6 +9,7 @@ import ProgressBar from 'progress';
 
 import { redactConfigForPrint, resolveConfig } from './core/config/index.js';
 import { ConfigError } from './core/config/index.js';
+import { createRuntimeLlm } from './core/llm/factory.js';
 import { logger } from './core/logger.js';
 import { CheckpointManager } from './core/strata/checkpoint/manager.js';
 import {
@@ -20,7 +21,7 @@ import {
 } from './core/types.js';
 import { text } from './locales/index.js';
 
-import { runSalmonLoop, OpenAILLM, StubLLM } from './index.js';
+import { runSalmonLoop } from './index.js';
 
 const program = new Command();
 
@@ -123,22 +124,19 @@ program
 
     try {
       const llmType = resolvedConfig.llm.type;
-      const isOpenAiCompatible = llmType === 'openai-compatible' || llmType === 'openai';
-      const apiKey = resolvedConfig.llm.api.apiKey;
+      const clientPackage = resolvedConfig.llm.clientPackage;
 
-      const llm =
-        apiKey && isOpenAiCompatible
-          ? new OpenAILLM({
-              apiKey,
-              baseUrl: resolvedConfig.llm.api.baseUrl,
-              modelId: resolvedConfig.llm.models.selectedModelId,
-            })
-          : new StubLLM();
+      const runtimeLlm = createRuntimeLlm(resolvedConfig.llm);
+      const llm = runtimeLlm.llm;
 
-      if (!apiKey) {
-        logger.warn(text.cli.apiKeyMissing);
-      } else if (!isOpenAiCompatible) {
-        logger.warn(text.cli.providerNotSupported(llmType));
+      for (const w of runtimeLlm.warnings) {
+        if (w === 'API_KEY_MISSING') {
+          logger.warn(text.cli.apiKeyMissing);
+        } else if (w === 'PROVIDER_NOT_SUPPORTED') {
+          logger.warn(text.cli.providerNotSupported(llmType));
+        } else if (w === 'CLIENT_PACKAGE_NOT_SUPPORTED') {
+          logger.warn(text.cli.clientPackageNotSupported(clientPackage || ''));
+        }
       }
 
       // Progress bar setup

@@ -333,6 +333,8 @@ Please return the patch in PURE unified diff format:`;
       '⚠️  SALMONLOOP_API_KEY not found, using StubLLM. Set SALMONLOOP_API_KEY (or legacy S8P_API_KEY) to use a real LLM.',
     providerNotSupported: (type: string) =>
       `⚠️  Provider "${type}" is not supported yet. Falling back to StubLLM.`,
+    clientPackageNotSupported: (pkg: string) =>
+      `⚠️  LLM client.package "${pkg}" is not supported. Falling back to the default client.`,
 
     // Startup information
     starting: '🚀 Starting salmon-loop...',

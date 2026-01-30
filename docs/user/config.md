@@ -62,6 +62,26 @@ Notes:
   - `SALMONLOOP_API_KEY` (preferred)
   - `S8P_API_KEY` (legacy)
 
+## `client.package` (Optional)
+
+`llm.providers.<key>.client.package` selects the LLM client backend used to communicate with the provider.
+If omitted, SalmonLoop uses its default internal client selection logic.
+
+Supported values (current):
+
+- `@ai-sdk/openai`
+- `@ai-sdk/openai-compatible`
+
+Behavior:
+
+- If `client.package` is supported, SalmonLoop uses the corresponding AI SDK provider client.
+- If `client.package` is set but not supported, SalmonLoop prints a warning and falls back to the default client.
+
+Safety note:
+
+- `client.package` only affects the LLM transport/adapter layer. It does not change tool governance, file access rules,
+  or the execution safety contract.
+
 ## Environment Variables (Provider)
 
 - `SALMONLOOP_API_KEY` / `S8P_API_KEY`: API key fallback if not present in config.

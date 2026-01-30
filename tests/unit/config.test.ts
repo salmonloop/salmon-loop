@@ -25,6 +25,7 @@ describe('Config module', () => {
             providers: {
               openaiMain: {
                 type: 'openai-compatible',
+                client: { package: '@ai-sdk/openai-compatible' },
                 api: {
                   baseUrl: 'https://example.com/v1',
                   apiKey: 'inline-key',
@@ -47,6 +48,7 @@ describe('Config module', () => {
     const cfg = await resolveConfig({ repoRoot });
     expect(cfg.source.used).toBe(true);
     expect(cfg.llm.id).toBe('openaiMain');
+    expect(cfg.llm.clientPackage).toBe('@ai-sdk/openai-compatible');
     expect(cfg.llm.api.baseUrl).toBe('https://example.com/v1');
     expect(cfg.llm.api.apiKey).toBe('inline-key');
     expect(cfg.llm.api.apiKeySource).toBe('inline');

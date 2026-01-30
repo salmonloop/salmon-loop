@@ -6,7 +6,7 @@ We welcome contributions to SalmonLoop! As a design-driven project, we prioritiz
 
 1. **Safety First**: Any change that affects the execution loop must maintain or enhance safety guarantees (e.g., no unintended file mutations).
 2. **Deterministic Logic**: Avoid heuristic "guessing" or AI-driven decision making for core execution logic. Prefer rule-based engineering.
-3. **Bilingual Documentation**: All documentation must be maintained in both English and Chinese, following the mirrored directory structure.
+3. **Documentation SSOT**: English documentation is the Single Source of Truth (SSOT). Chinese documentation is a user guide and may lag behind.
 4. **Test-Driven**: New features or bug fixes should be accompanied by unit tests.
 
 ## Project Structure
@@ -22,6 +22,10 @@ We welcome contributions to SalmonLoop! As a design-driven project, we prioritiz
 3. Run tests: `pnpm test`.
 4. Run linting: `pnpm lint`.
 5. Create a feature branch and submit a pull request.
+
+Notes:
+
+- Use `pnpm` for dependency management in this repository. Avoid `npm install`, as it may cause lockfile drift.
 
 ### Debugging with `--verbose`
 To debug issues, you can use the `--verbose` flag to get more detailed logs.

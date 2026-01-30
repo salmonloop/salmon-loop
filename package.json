@@ -56,6 +56,9 @@
     "vitest": "^1.6.1"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^3.0.23",
+    "@ai-sdk/openai-compatible": "^2.0.24",
+    "ai": "^6.0.62",
     "chalk": "^5.4.1",
     "commander": "^11.1.0",
     "dotenv": "^17.2.3",
