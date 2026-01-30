@@ -1,3 +1,4 @@
+import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
 import { ToolAuditLogger } from '../../../src/core/tools/audit';
@@ -100,6 +101,75 @@ describe('chatWithToolsStreaming', () => {
     expect(calls.length).toBe(2);
     expect(calls[0].options?.tools?.length).toBeGreaterThanOrEqual(1);
     expect(calls[1].messages.some((m) => m.role === 'tool' && m.name === 'test.echo')).toBe(true);
+  });
+
+  it('executes tool calls even when the chunk order is text delta then tool call', async () => {
+    const { registry, policy, router } = createToolstack();
+    registerEchoTool(registry);
+
+    const routerSpy = vi.spyOn(router, 'call');
+    const calls: Array<{ messages: LLMMessage[] }> = [];
+
+    const llm: any = {
+      chatStream(messages: LLMMessage[]) {
+        calls.push({ messages });
+        const hasToolResult = messages.some((m) => m.role === 'tool');
+
+        if (!hasToolResult) {
+          return (async function* () {
+            yield { role: 'assistant', contentDelta: 'partial' };
+            yield {
+              role: 'assistant',
+              tool_calls: [
+                {
+                  id: 'call_1',
+                  type: 'function',
+                  function: { name: 'test.echo', arguments: JSON.stringify({ text: 'hi' }) },
+                },
+              ],
+            };
+            yield { role: 'assistant', done: true };
+          })();
+        }
+
+        return (async function* () {
+          yield { role: 'assistant', contentDelta: 'DONE' };
+          yield { role: 'assistant', done: true };
+        })();
+      },
+      async chat() {
+        throw new Error('not used');
+      },
+      async createPlan() {
+        throw new Error('not used');
+      },
+      async createPatch() {
+        throw new Error('not used');
+      },
+    };
+
+    const final = await chatWithToolsStreaming(
+      [{ role: 'user', content: 'prompt' }],
+      {},
+      {
+        phase: Phase.PLAN,
+        llm,
+        runtime: {
+          repoRoot: '/tmp',
+          attemptId: 1,
+          dryRun: true,
+          model: 'test-model',
+          worktreeRoot: '/tmp',
+        },
+        toolstack: { registry, policy, router },
+      },
+    );
+
+    expect(final.content).toBe('DONE');
+    expect(routerSpy).toHaveBeenCalledTimes(1);
+    expect(
+      calls[0].messages.some((m) => m.role === 'assistant' && m.content?.includes('partial')),
+    ).toBe(true);
   });
 
   it('supports multiple streamed tool calls in a single assistant turn', async () => {

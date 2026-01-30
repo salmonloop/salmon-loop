@@ -13,6 +13,7 @@ import { getPatchPrompt, getPlanPrompt } from '../prompt.js';
 import type { ChatOptions, Context, LLM, LLMMessage, LLMRole, Plan } from '../types.js';
 
 import { toLlmError, wrapPlanEmpty } from './errors.js';
+import { mapAiSdkStreamPartToChunk } from './stream-utils.js';
 
 export type AiSdkClientPackage = '@ai-sdk/openai' | '@ai-sdk/openai-compatible';
 
@@ -240,62 +241,30 @@ export class AiSdkLLM implements LLM {
       });
 
       let doneEmitted = false;
-      for await (const part of (result as any).fullStream ?? result.textStream) {
+      const stream = (result as any).fullStream ?? result.textStream;
+      for await (const part of stream) {
         if (!part) continue;
 
-        if (typeof part === 'string') {
-          if (part) yield { role: 'assistant', contentDelta: part };
-          continue;
-        }
-
-        if (part.type === 'text-delta' && typeof part.text === 'string' && part.text) {
-          yield { role: 'assistant', contentDelta: part.text };
-          continue;
-        }
-
-        if (part.type === 'tool-call') {
-          const toolCallId = part?.toolCallId || 'unknown';
-          const toolName = part?.toolName || 'unknown';
-          const input = part?.input ?? {};
-
-          let argsText = '{}';
-          try {
-            argsText = JSON.stringify(input ?? {});
-          } catch {
-            argsText = '{}';
-          }
-
-          yield {
-            role: 'assistant',
-            tool_calls: [
-              {
-                id: toolCallId,
-                type: 'function',
-                function: {
-                  name: toolName,
-                  arguments: argsText,
-                },
-              },
-            ],
-          };
-          continue;
-        }
-
-        if (part.type === 'error') {
+        if (typeof part === 'object' && part.type === 'error') {
           throw part.error;
         }
 
-        if (part.type === 'abort') {
+        if (typeof part === 'object' && part.type === 'abort') {
           throw new Error(part.reason || 'Stream aborted');
         }
 
-        if (part.type === 'finish') {
+        const chunk = mapAiSdkStreamPartToChunk(part);
+        if (!chunk) continue;
+
+        if (chunk.done) {
           if (!doneEmitted) {
             doneEmitted = true;
-            yield { role: 'assistant', done: true };
+            yield chunk;
           }
           break;
         }
+
+        yield chunk;
       }
 
       if (!doneEmitted) {

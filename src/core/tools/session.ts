@@ -7,6 +7,7 @@ import type { ChatOptions, LLM, LLMMessage } from '../types.js';
 import { ExecutionPhase } from '../types.js';
 
 import { toolToOpenAI } from './mapper.js';
+import { ToolCallAccumulator } from './streaming/ToolCallAccumulator.js';
 import type { ToolRuntimeCtx, ToolResult } from './types.js';
 
 export interface ToolCallingSessionOptions {
@@ -293,7 +294,7 @@ export async function chatWithToolsStreaming(
 
   for (let round = 0; round < maxRounds; round++) {
     let content = '';
-    const toolCalls: any[] = [];
+    const toolCalls = new ToolCallAccumulator();
 
     const stream = session.llm.chatStream(messages, {
       ...chatOptions,
@@ -305,16 +306,15 @@ export async function chatWithToolsStreaming(
       if (typeof chunk?.contentDelta === 'string' && chunk.contentDelta) {
         content += chunk.contentDelta;
       }
-      if (Array.isArray(chunk?.tool_calls) && chunk.tool_calls.length > 0) {
-        toolCalls.push(...chunk.tool_calls);
-      }
+      toolCalls.addChunk(chunk);
       if (chunk?.done) break;
     }
 
+    const collectedToolCalls = toolCalls.drain();
     const assistant: LLMMessage = {
       role: 'assistant',
       content,
-      tool_calls: toolCalls.length > 0 ? toolCalls : undefined,
+      tool_calls: collectedToolCalls.length > 0 ? collectedToolCalls : undefined,
     };
 
     messages.push(assistant);
