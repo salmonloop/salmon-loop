@@ -9,6 +9,7 @@ import ProgressBar from 'progress';
 
 import { redactConfigForPrint, resolveConfig } from './core/config/index.js';
 import { ConfigError } from './core/config/index.js';
+import { ContextService } from './core/context/index.js';
 import { createRuntimeLlm } from './core/llm/factory.js';
 import { logger } from './core/logger.js';
 import { CheckpointManager } from './core/strata/checkpoint/manager.js';
@@ -479,6 +480,59 @@ snapshot
       );
       process.exit(1);
     }
+  });
+
+program
+  .command('context')
+  .description(text.cli.contextDescription)
+  .option('-i, --instruction <instruction>', text.cli.instructionOption)
+  .option('-r, --repo <path>', text.cli.repoOption, process.cwd())
+  .option('-f, --file <path>', text.cli.fileOption)
+  .option('-s, --selection <text>', text.cli.selectionOption)
+  .option('--diff-scope <scope>', text.cli.contextDiffScopeOption, 'primary')
+  .option('--budget-chars <n>', text.cli.contextBudgetCharsOption)
+  .action(async (options) => {
+    const repoPath = resolve(options.repo);
+
+    if (options.file && options.selection) {
+      logger.error(text.cli.fileSelectionConflict, true);
+      process.exit(1);
+    }
+
+    if (!options.instruction) {
+      logger.error(text.cli.instructionRequired, true);
+      process.exit(1);
+    }
+
+    const rawDiffScope = String(options.diffScope || 'primary');
+    if (rawDiffScope !== 'primary' && rawDiffScope !== 'ast_related') {
+      logger.error(text.cli.contextInvalidDiffScope(rawDiffScope), true);
+      process.exit(1);
+    }
+    const diffScope = rawDiffScope === 'ast_related' ? 'ast_related' : 'primary';
+
+    let budgetChars: number | undefined;
+    if (options.budgetChars !== undefined) {
+      const parsed = Number(options.budgetChars);
+      if (!Number.isFinite(parsed) || parsed <= 0) {
+        logger.error(text.cli.contextInvalidBudgetChars(String(options.budgetChars)), true);
+        process.exit(1);
+      }
+      budgetChars = parsed;
+    }
+
+    const service = new ContextService();
+    const result = await service.build({
+      instruction: options.instruction,
+      repoPath,
+      primaryFile: options.file,
+      selection: options.selection,
+      diffScope,
+      budgetChars,
+    });
+
+    logger.success(text.cli.contextBuilt(result.meta.usedChars, result.meta.truncated));
+    process.stdout.write(result.prompt.trimEnd() + '\n');
   });
 
 program.parse();

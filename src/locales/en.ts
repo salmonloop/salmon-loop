@@ -313,6 +313,7 @@ Please return the patch in PURE unified diff format:`;
     // Program description
     programDescription: 'A minimal viable loop for automated code patching',
     runDescription: 'Run the salmon-loop',
+    contextDescription: 'Build and print the context prompt (no LLM call)',
 
     // Option descriptions
     instructionOption: 'Instruction for code modification (required)',
@@ -330,11 +331,16 @@ Please return the patch in PURE unified diff format:`;
     checkpointStrategyOption: 'Checkpoint strategy to use (direct, worktree)',
     applyBackOnDirtyOption: 'Behavior when apply-back detects a dirty workspace (3way, abort)',
     worktreePrepareOption: 'Optional setup command to run inside worktree',
+    contextDiffScopeOption: 'Diff scope for context (primary, ast_related)',
+    contextBudgetCharsOption: 'Context budget in characters (e.g., 30000)',
 
     // Error messages
     fileSelectionConflict: '--file and --selection are mutually exclusive',
     instructionRequired: '--instruction is required',
     verifyRequired: '--verify is required',
+    contextInvalidDiffScope: (scope: string) =>
+      `Invalid --diff-scope "${scope}". Expected "primary" or "ast_related".`,
+    contextInvalidBudgetChars: (value: string) => `Invalid --budget-chars "${value}".`,
     apiKeyMissing:
       '⚠️  SALMONLOOP_API_KEY not found, using StubLLM. Set SALMONLOOP_API_KEY (or legacy S8P_API_KEY) to use a real LLM.',
     providerNotSupported: (type: string) =>
@@ -367,6 +373,8 @@ Please return the patch in PURE unified diff format:`;
     diffMeta: (files: number, lines: number) => `  Diff: ${files} files changed, ${lines} lines.`,
     retry: (from: number, to: number, reason: string) =>
       `\nRetrying (${from} -> ${to}). Reason: ${reason}`,
+    contextBuilt: (usedChars: number, truncated: boolean) =>
+      `Context built (${usedChars} chars, truncated=${truncated})`,
 
     // Step logs
     stepLogs: '📝 Step Logs:',
