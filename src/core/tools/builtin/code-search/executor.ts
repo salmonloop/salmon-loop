@@ -25,7 +25,8 @@ export async function codeSearchExecutor(
     phase: ctx.phase,
     attemptId: ctx.attemptId,
     dryRun: ctx.dryRun,
-    platform: process.platform,
+    // Allow tests (and callers) to override platform; default to host platform.
+    platform: (ctx as any).platform ?? process.platform,
     runner: (ctx as any).runner ?? {
       execFile: async (file, args, opts) => {
         const { execFile } = await import('child_process');

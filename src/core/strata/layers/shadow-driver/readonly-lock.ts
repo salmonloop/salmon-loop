@@ -8,7 +8,7 @@
  */
 
 import { spawn } from 'child_process';
-import { writeFile, unlink, readFile } from 'fs/promises';
+import { mkdir, writeFile, unlink, readFile } from 'fs/promises';
 import { join } from 'path';
 
 import { logger } from '../../../logger.js';
@@ -23,6 +23,9 @@ export async function acquireLock(shadowRoot: string): Promise<void> {
   const timestamp = Date.now();
 
   try {
+    // Ensure the shadow root exists before taking a lock inside it.
+    await mkdir(shadowRoot, { recursive: true });
+
     // Check if lock exists
     const existingLock = await readFile(lockPath, 'utf8').catch(() => null);
     if (existingLock) {

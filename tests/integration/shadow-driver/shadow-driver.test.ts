@@ -5,23 +5,35 @@
  * and fallback behavior.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { mkdtemp, rm } from 'fs/promises';
+import { tmpdir } from 'os';
+import { join } from 'path';
+
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 import { ShadowDriver } from '../../../src/core/strata/layers/shadow-driver/shadow-driver.js';
 import type { ShadowDriverConfig, ShadowTask } from '../../../src/core/strata/types.js';
 
 describe('ShadowDriver Integration', () => {
   let config: ShadowDriverConfig;
+  let shadowRoot: string;
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    shadowRoot = await mkdtemp(join(tmpdir(), 'salmon-loop-shadow-driver-'));
     config = {
       whitelist: [],
       dependencyPaths: [],
       readonly: false,
       platform: process.platform as any,
       repoRoot: process.cwd(),
-      shadowRoot: '/tmp/test-shadow',
+      shadowRoot,
     };
+  });
+
+  // Ensure tests do not leak locks or directories across runs (important for CI).
+  // ShadowDriver.setup acquires a lock; cleanup is part of the public contract and is validated elsewhere.
+  afterEach(async () => {
+    await rm(shadowRoot, { recursive: true, force: true }).catch(() => null);
   });
 
   it('creates ShadowDriver instance', () => {

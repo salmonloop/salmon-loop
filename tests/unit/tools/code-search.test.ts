@@ -55,20 +55,25 @@ describe('Code Search Capability', () => {
 
   describe('PowerShell Backend (Fallback)', () => {
     it('should include -SimpleMatch and ForEach-Object array wrapper', async () => {
-      // Mock rg failure to trigger ps fallback
-      vi.spyOn(mockCtx.runner, 'execFile')
-        .mockResolvedValueOnce({
-          stdout: '',
-          stderr: 'rg not found',
-          exitCode: 127,
-          timedOut: false,
-        })
-        .mockResolvedValueOnce({
-          stdout: '[]',
-          stderr: '',
-          exitCode: 0,
-          timedOut: false,
-        });
+      // Mock rg failure to trigger ps fallback. Keep this resilient to call ordering:
+      // - rg --version => exit 127
+      // - powershell version check => exit 0
+      // - powershell search => returns JSON array
+      vi.spyOn(mockCtx.runner, 'execFile').mockImplementation(async (cmd, args) => {
+        if (cmd === 'rg') {
+          return { stdout: '', stderr: 'rg not found', exitCode: 127, timedOut: false };
+        }
+
+        if (cmd === 'powershell' && args?.some((a) => a.includes('$PSVersionTable'))) {
+          return { stdout: '7', stderr: '', exitCode: 0, timedOut: false };
+        }
+
+        if (cmd === 'powershell') {
+          return { stdout: '[]', stderr: '', exitCode: 0, timedOut: false };
+        }
+
+        return { stdout: '', stderr: '', exitCode: 1, timedOut: false };
+      });
 
       await codeSearchExecutor({ pattern: 'foo', maxMatches: 100, isRegex: false }, mockCtx);
 
