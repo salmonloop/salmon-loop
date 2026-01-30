@@ -1,3 +1,5 @@
+import { resolveBaseUrl } from '../llm/base-url.js';
+
 import { ConfigError } from './errors.js';
 import { tryLoadConfigFile } from './load.js';
 import { getDefaultRepoConfigPath } from './paths.js';
@@ -23,17 +25,10 @@ function resolveApiKey(inlineKey: string | null | undefined): {
   return { source: 'missing' };
 }
 
-function resolveBaseUrl(configBaseUrl?: string): string | undefined {
-  return (
-    firstNonEmpty(configBaseUrl) ||
-    firstNonEmpty(process.env.S8P_BASE_URL) ||
-    firstNonEmpty(process.env.SALMON_BASE_URL)
-  );
-}
-
 function resolveModelId(configModelId?: string): string {
   return (
     firstNonEmpty(configModelId) ||
+    firstNonEmpty(process.env.SALMONLOOP_MODEL) ||
     firstNonEmpty(process.env.S8P_MODEL) ||
     firstNonEmpty(process.env.SALMON_MODEL) ||
     'gpt-4o'

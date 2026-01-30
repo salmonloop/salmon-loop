@@ -14,6 +14,7 @@ import {
 import { getPatchPrompt, getPlanPrompt } from '../prompt.js';
 import type { ChatOptions, Context, LLM, LLMMessage, LLMRole, Plan } from '../types.js';
 
+import { resolveBaseUrl } from './base-url.js';
 import { toLlmError, wrapPlanEmpty } from './errors.js';
 
 export type { LLM };
@@ -38,7 +39,7 @@ export class OpenAILLM implements LLM {
   constructor(cfg: OpenAiClientConfig = {}) {
     this.client = new OpenAI({
       apiKey: cfg.apiKey ?? process.env.SALMONLOOP_API_KEY ?? process.env.S8P_API_KEY,
-      baseURL: cfg.baseUrl ?? process.env.S8P_BASE_URL ?? process.env.SALMON_BASE_URL,
+      baseURL: resolveBaseUrl(cfg.baseUrl),
     });
     this.model = cfg.modelId ?? process.env.S8P_MODEL ?? process.env.SALMON_MODEL ?? 'gpt-4o';
   }

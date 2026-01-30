@@ -70,6 +70,28 @@ describe('Config module', () => {
     expect(cfg.llm.models.selectedModelId).toBe('env-model');
   });
 
+  it('prefers SALMONLOOP_MODEL over legacy envs', async () => {
+    const repoRoot = uniqueTmpDir('repo-model');
+
+    vi.stubEnv('SALMONLOOP_API_KEY', 'loop-key');
+    vi.stubEnv('SALMONLOOP_MODEL', 'loop-model');
+    vi.stubEnv('S8P_MODEL', 'legacy-model');
+
+    const cfg = await resolveConfig({ repoRoot });
+    expect(cfg.llm.models.selectedModelId).toBe('loop-model');
+  });
+
+  it('prefers SALMONLOOP_BASE_URL and trims trailing slashes', async () => {
+    const repoRoot = uniqueTmpDir('repo-loop-base');
+
+    vi.stubEnv('SALMONLOOP_API_KEY', 'env-key');
+    vi.stubEnv('SALMONLOOP_BASE_URL', 'https://loop.example/v1/');
+    vi.stubEnv('SALMON_BASE_URL', 'https://legacy.example/v1/');
+
+    const cfg = await resolveConfig({ repoRoot });
+    expect(cfg.llm.api.baseUrl).toBe('https://loop.example/v1');
+  });
+
   it('redacts inline api keys for printing', () => {
     const redacted = redactConfigForPrint({
       version: 1,

@@ -12,6 +12,7 @@ import {
 import { getPatchPrompt, getPlanPrompt } from '../prompt.js';
 import type { ChatOptions, Context, LLM, LLMMessage, LLMRole, Plan } from '../types.js';
 
+import { resolveBaseUrl } from './base-url.js';
 import { toLlmError, wrapPlanEmpty } from './errors.js';
 import { mapAiSdkStreamPartToChunk } from './stream-utils.js';
 
@@ -137,7 +138,7 @@ export class AiSdkLLM implements LLM {
     if (cfg.clientPackage === '@ai-sdk/openai') {
       const provider = createOpenAI({
         apiKey: cfg.apiKey ?? process.env.SALMONLOOP_API_KEY ?? process.env.S8P_API_KEY,
-        baseURL: cfg.baseUrl ?? process.env.S8P_BASE_URL ?? process.env.SALMON_BASE_URL,
+        baseURL: resolveBaseUrl(cfg.baseUrl),
         headers: cfg.headers,
       });
 
@@ -154,7 +155,7 @@ export class AiSdkLLM implements LLM {
 
     const provider = createOpenAICompatible({
       name: cfg.providerName || 'openai-compatible',
-      baseURL: cfg.baseUrl ?? process.env.S8P_BASE_URL ?? process.env.SALMON_BASE_URL ?? '',
+      baseURL: resolveBaseUrl(cfg.baseUrl) ?? '',
       headers,
     });
 
