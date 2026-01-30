@@ -21,7 +21,7 @@ describe('ContextService', () => {
         }),
       } as any,
       astGatherer: {
-        gather: async () => ({ symbols: [], definitionMap: {} }),
+        gather: async () => ({ symbols: [], definitionMap: {}, relatedFiles: [] }),
       } as any,
       assembler: {
         assemble: () => ({ prompt: 'PROMPT' }),
@@ -48,7 +48,9 @@ describe('ContextService', () => {
       primaryTextGatherer: { gather: async () => ({ primaryText: 'PRIMARY' }) } as any,
       ripgrepGatherer: { searchMultipleKeywords: async () => [] } as any,
       gitDiffGatherer: { gather: async () => ({ includedFiles: [] }) } as any,
-      astGatherer: { gather: async () => ({ symbols: [], definitionMap: {} }) } as any,
+      astGatherer: {
+        gather: async () => ({ symbols: [], definitionMap: {}, relatedFiles: [] }),
+      } as any,
       assembler: { assemble: () => ({ prompt: 'PROMPT' }) },
     });
 

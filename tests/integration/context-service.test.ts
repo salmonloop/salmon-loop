@@ -40,5 +40,7 @@ describe('ContextService Integration', () => {
 
     expect(result.context.unstagedDiff || '').toContain('src/b.ts');
     expect(result.meta.diffScope).toBe('ast_related');
+    expect((result.context.relatedFiles || []).some((f) => f.path === 'src/b.ts')).toBe(true);
+    expect(result.prompt).toContain('src/b.ts');
   });
 });

@@ -55,4 +55,19 @@ describe('packUntilFull', () => {
     expect(result.context.rgSnippets[0]?.file).toBe('src/a.ts');
     expect(result.context.gitDiff).toBeUndefined();
   });
+
+  it('prioritizes related files before snippets', () => {
+    const ctx = makeContext({
+      relatedFiles: [
+        { path: 'src/dep.ts', content: 'DEP'.repeat(30), kind: 'import', mode: 'full' },
+      ],
+      rgSnippets: [{ file: 'src/a.ts', line: 1, content: 'SNIP'.repeat(30) }],
+    });
+
+    const result = packUntilFull(ctx, 150);
+    expect(result.truncated).toBe(true);
+    expect(result.context.relatedFiles?.length).toBe(1);
+    // Snippets should be dropped first when budget is tight.
+    expect(result.context.rgSnippets.length).toBe(0);
+  });
 });

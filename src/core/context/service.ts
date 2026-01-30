@@ -31,13 +31,14 @@ function defaultDeps(): ContextServiceDeps {
 
 function calculateUsedChars(context: Context): number {
   const primary = context.primaryText?.length ?? 0;
+  const related = context.relatedFiles?.reduce((sum, f) => sum + (f.content?.length ?? 0), 0) ?? 0;
   const snippets = context.rgSnippets.reduce((sum, s) => sum + (s.content?.length ?? 0), 0);
   const diff =
     (context.gitDiff?.length ?? 0) +
     (context.stagedDiff?.length ?? 0) +
     (context.unstagedDiff?.length ?? 0) +
     (context.untrackedDiff?.length ?? 0);
-  return primary + snippets + diff;
+  return primary + related + snippets + diff;
 }
 
 export class ContextService {
@@ -67,15 +68,16 @@ export class ContextService {
         diffScope,
       });
 
-    const { symbols, definitionMap } = await this.deps.astGatherer.gather(
+    const { symbols, definitionMap, relatedFiles } = await this.deps.astGatherer.gather(
       primaryText,
-      req.primaryFile,
+      req,
     );
 
     const context: Context = {
       repoPath: req.repoPath,
       primaryFile: req.primaryFile,
       primaryText,
+      relatedFiles,
       rgSnippets,
       gitDiff,
       stagedDiff,

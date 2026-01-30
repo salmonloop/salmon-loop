@@ -163,10 +163,19 @@ export interface SymbolInfo {
   snippet?: string;
 }
 
+export interface RelatedFileContext {
+  path: string;
+  content: string;
+  kind: 'import';
+  mode: 'full' | 'outline';
+  outline?: string;
+}
+
 export interface Context {
   repoPath: string;
   primaryFile?: string;
   primaryText?: string;
+  relatedFiles?: RelatedFileContext[];
   rgSnippets: RipgrepResult[];
   /**
    * @deprecated Use stagedDiff and unstagedDiff instead

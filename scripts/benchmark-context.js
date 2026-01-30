@@ -94,6 +94,10 @@ function extractIncludedFilesFromContext(context) {
 
   if (context.primaryFile) included.add(normalizeRepoRelative(context.primaryFile));
 
+  for (const file of context.relatedFiles || []) {
+    included.add(normalizeRepoRelative(file.path));
+  }
+
   for (const snippet of context.rgSnippets || []) {
     included.add(normalizeRepoRelative(snippet.file));
   }

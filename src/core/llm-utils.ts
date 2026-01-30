@@ -35,6 +35,13 @@ export function formatContextForPrompt(context: Context): string {
     result += `${text.context.primaryText}\n${textToDisplay}\n\n`;
   }
 
+  if (context.relatedFiles && context.relatedFiles.length > 0) {
+    result += `${text.context.relatedContext}\n`;
+    for (const file of context.relatedFiles) {
+      result += `${text.context.relatedFile(file.path, file.mode)}\n${file.content}\n---\n`;
+    }
+  }
+
   if (context.rgSnippets && context.rgSnippets.length > 0) {
     result += `${text.context.codeSnippets}\n`;
     for (const snippet of context.rgSnippets) {
