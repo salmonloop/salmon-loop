@@ -19,15 +19,16 @@ vi.mock('@ai-sdk/openai-compatible', () => {
 });
 
 vi.mock('ai', () => {
-  async function* makeStream() {
-    yield 'Hello';
-    yield ' ';
-    yield 'world';
+  async function* makeFullStreamText() {
+    yield { type: 'text-delta', id: 't1', text: 'Hello' };
+    yield { type: 'text-delta', id: 't1', text: ' ' };
+    yield { type: 'text-delta', id: 't1', text: 'world' };
+    yield { type: 'finish', finishReason: 'stop', rawFinishReason: 'stop', totalUsage: {} };
   }
 
   return {
     generateText: vi.fn(async () => ({ text: 'Hello world' })),
-    streamText: vi.fn(async () => ({ textStream: makeStream() })),
+    streamText: vi.fn(async () => ({ fullStream: makeFullStreamText() })),
     jsonSchema: vi.fn(() => ({})),
     tool: vi.fn(() => ({})),
   };
@@ -49,5 +50,37 @@ describe('AiSdkLLM.chatStream', () => {
     const text = chunks.map((c) => c.contentDelta || '').join('');
     expect(text).toBe('Hello world');
     expect(chunks[chunks.length - 1]?.done).toBe(true);
+  });
+
+  it('emits tool_calls chunks when tool-call events are streamed', async () => {
+    const { streamText } = await import('ai');
+    const streamTextMock = streamText as unknown as { mockImplementationOnce: any };
+
+    async function* makeToolStream() {
+      yield {
+        type: 'tool-call',
+        toolCallId: 'call_1',
+        toolName: 'test.echo',
+        input: { text: 'hi' },
+      };
+      yield { type: 'finish', finishReason: 'stop', rawFinishReason: 'stop', totalUsage: {} };
+    }
+
+    streamTextMock.mockImplementationOnce(async () => ({ fullStream: makeToolStream() }));
+
+    const llm = new AiSdkLLM({
+      clientPackage: '@ai-sdk/openai',
+      apiKey: 'test',
+      modelId: 'gpt-mock',
+    });
+
+    const chunks: Array<{ tool_calls?: any[]; done?: boolean }> = [];
+    for await (const chunk of llm.chatStream!([{ role: 'user', content: 'hi' }])) {
+      chunks.push(chunk);
+    }
+
+    const toolChunk = chunks.find((c) => Array.isArray(c.tool_calls) && c.tool_calls.length > 0);
+    expect(toolChunk?.tool_calls?.[0]?.function?.name).toBe('test.echo');
+    expect(toolChunk?.tool_calls?.[0]?.function?.arguments).toBe(JSON.stringify({ text: 'hi' }));
   });
 });

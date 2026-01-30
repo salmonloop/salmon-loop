@@ -24,6 +24,18 @@ vi.mock('../../src/core/tools/session.js', () => {
         }),
       };
     }),
+    chatWithToolsStreaming: vi.fn(async (_messages: any, _chatOptions: any, session: any) => {
+      capturedSession = session;
+      return {
+        role: 'assistant',
+        content: JSON.stringify({
+          goal: 'test-goal',
+          files: ['src/index.js'],
+          changes: ['Add a comment'],
+          verify: 'node -e "process.exit(0)"',
+        }),
+      };
+    }),
   };
 });
 

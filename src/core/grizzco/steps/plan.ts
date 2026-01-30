@@ -2,7 +2,7 @@ import { text } from '../../../locales/index.js';
 import { LIMITS } from '../../limits.js';
 import { formatContextForPrompt, parsePlanFromLLMContent } from '../../llm-utils.js';
 import { getPlanPrompt, getPlanSystemPrompt } from '../../prompt.js';
-import { chatWithTools } from '../../tools/session.js';
+import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
 import { Phase } from '../../types.js';
 import { resolveLlmToolCallingPolicy } from '../dsl/llm-strategy.js';
 import { Step } from '../pipeline.js';
@@ -42,7 +42,9 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
 
   const systemPrompt = await getPlanSystemPrompt();
 
-  const response = await chatWithTools(
+  const supportsStreaming = typeof (ctx.options.llm as any)?.chatStream === 'function';
+
+  const response = await (supportsStreaming ? chatWithToolsStreaming : chatWithTools)(
     [
       {
         role: 'system',

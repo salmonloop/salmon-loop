@@ -251,3 +251,199 @@ export async function chatWithTools(
   const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
   return lastAssistant || { role: 'assistant', content: '' };
 }
+
+/**
+ * Streaming variant of {@link chatWithTools}. It consumes {@link LLM.chatStream} to assemble the
+ * assistant message (content + tool_calls), then executes tool calls the same way as the
+ * non-streaming loop.
+ *
+ * Notes:
+ * - Tool execution is still round-based: tools are executed only after the assistant turn completes.
+ * - This function does not emit text deltas by default to avoid leaking user code into logs.
+ */
+export async function chatWithToolsStreaming(
+  initialMessages: LLMMessage[],
+  chatOptions: ChatOptions,
+  session: ToolCallingSessionOptions,
+): Promise<LLMMessage> {
+  if (!session.llm.chatStream) {
+    return chatWithTools(initialMessages, chatOptions, session);
+  }
+
+  const maxRounds = session.maxRounds ?? 6;
+  const phase = session.phase;
+
+  const allowedSpecs = session.toolstack.registry.listAll().filter((spec) => {
+    return session.toolstack.policy.decide(phase, spec, {
+      worktreeRoot: session.runtime.worktreeRoot,
+    }).allowed;
+  });
+
+  const openAITools = allowedSpecs.map(toolToOpenAI);
+
+  if (openAITools.length > 0) {
+    session.emit?.({
+      type: 'log',
+      level: 'debug',
+      message: `Tool calling enabled (${openAITools.length} tools available)`,
+    });
+  }
+
+  const messages: LLMMessage[] = [...initialMessages];
+
+  for (let round = 0; round < maxRounds; round++) {
+    let content = '';
+    const toolCalls: any[] = [];
+
+    const stream = session.llm.chatStream(messages, {
+      ...chatOptions,
+      tools: openAITools,
+      toolChoice: openAITools.length > 0 ? 'auto' : undefined,
+    });
+
+    for await (const chunk of stream) {
+      if (typeof chunk?.contentDelta === 'string' && chunk.contentDelta) {
+        content += chunk.contentDelta;
+      }
+      if (Array.isArray(chunk?.tool_calls) && chunk.tool_calls.length > 0) {
+        toolCalls.push(...chunk.tool_calls);
+      }
+      if (chunk?.done) break;
+    }
+
+    const assistant: LLMMessage = {
+      role: 'assistant',
+      content,
+      tool_calls: toolCalls.length > 0 ? toolCalls : undefined,
+    };
+
+    messages.push(assistant);
+
+    const calls = assistant.tool_calls || [];
+    if (!Array.isArray(calls) || calls.length === 0) {
+      return assistant;
+    }
+
+    for (const call of calls) {
+      const callId = call?.id || crypto.randomUUID();
+      const toolName = call?.function?.name;
+      const rawArgs = call?.function?.arguments;
+
+      if (!toolName || typeof toolName !== 'string') {
+        logger.warn('Received malformed tool call (missing function.name)');
+        session.toolCallingAudit?.event({
+          timestamp: new Date().toISOString(),
+          phase,
+          round,
+          callId,
+          toolName: 'unknown',
+          rawArgsType: typeof rawArgs,
+          rawArgsPreview: typeof rawArgs === 'string' ? redactJsonString(rawArgs) : undefined,
+          parsedArgsOk: false,
+          parsedArgsError: 'Missing function.name',
+          toolResultStatus: 'error',
+          toolResultErrorCode: 'MALFORMED_TOOL_CALL',
+        });
+        messages.push({
+          role: 'tool',
+          name: 'unknown',
+          tool_call_id: callId,
+          content: JSON.stringify({
+            status: 'error',
+            error: {
+              code: 'MALFORMED_TOOL_CALL',
+              message: 'Missing function.name',
+              retryable: true,
+            },
+          }),
+        });
+        continue;
+      }
+
+      session.emit?.({
+        type: 'log',
+        level: 'debug',
+        message: `Tool call requested: ${toolName}`,
+      });
+
+      const parsed = safeParseJson(rawArgs);
+      let result: ToolResult;
+
+      if (!parsed.ok) {
+        session.toolCallingAudit?.event({
+          timestamp: new Date().toISOString(),
+          phase,
+          round,
+          callId,
+          toolName,
+          rawArgsType: typeof rawArgs,
+          rawArgsPreview: typeof rawArgs === 'string' ? redactJsonString(rawArgs) : undefined,
+          parsedArgsOk: false,
+          parsedArgsError: redactErrorMessage(parsed.error),
+          toolResultStatus: 'error',
+          toolResultErrorCode: 'INVALID_TOOL_ARGUMENTS_JSON',
+        });
+        result = {
+          id: callId,
+          toolName,
+          source: 'builtin',
+          status: 'error',
+          error: {
+            code: 'INVALID_TOOL_ARGUMENTS_JSON',
+            message: parsed.error,
+            retryable: true,
+            failurePhase: phase,
+          },
+        };
+      } else {
+        session.toolCallingAudit?.event({
+          timestamp: new Date().toISOString(),
+          phase,
+          round,
+          callId,
+          toolName,
+          rawArgsType: typeof rawArgs,
+          rawArgsPreview: typeof rawArgs === 'string' ? redactJsonString(rawArgs) : undefined,
+          parsedArgsOk: true,
+          parsedArgsPreview: safeStringifyForAudit(parsed.value),
+        });
+        result = await session.toolstack.router.call({
+          id: callId,
+          phase,
+          toolName,
+          args: parsed.value,
+          ctx: session.runtime,
+        });
+        if (result.status !== 'ok') {
+          session.toolCallingAudit?.event({
+            timestamp: new Date().toISOString(),
+            phase,
+            round,
+            callId,
+            toolName,
+            rawArgsType: typeof rawArgs,
+            parsedArgsOk: true,
+            toolResultStatus: result.status,
+            toolResultErrorCode: result.error?.code,
+          });
+        }
+      }
+
+      messages.push({
+        role: 'tool',
+        name: toolName,
+        tool_call_id: callId,
+        content: formatToolResultForModel(result),
+      });
+    }
+  }
+
+  session.emit?.({
+    type: 'log',
+    level: 'warn',
+    message: `Tool calling exceeded maximum rounds (${maxRounds}); continuing without further tool execution`,
+  });
+
+  const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
+  return lastAssistant || { role: 'assistant', content: '' };
+}

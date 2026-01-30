@@ -239,13 +239,68 @@ export class AiSdkLLM implements LLM {
         timeout: timeoutMs,
       });
 
-      for await (const delta of result.textStream) {
-        if (delta) {
-          yield { role: 'assistant', contentDelta: delta };
+      let doneEmitted = false;
+      for await (const part of (result as any).fullStream ?? result.textStream) {
+        if (!part) continue;
+
+        if (typeof part === 'string') {
+          if (part) yield { role: 'assistant', contentDelta: part };
+          continue;
+        }
+
+        if (part.type === 'text-delta' && typeof part.text === 'string' && part.text) {
+          yield { role: 'assistant', contentDelta: part.text };
+          continue;
+        }
+
+        if (part.type === 'tool-call') {
+          const toolCallId = part?.toolCallId || 'unknown';
+          const toolName = part?.toolName || 'unknown';
+          const input = part?.input ?? {};
+
+          let argsText = '{}';
+          try {
+            argsText = JSON.stringify(input ?? {});
+          } catch {
+            argsText = '{}';
+          }
+
+          yield {
+            role: 'assistant',
+            tool_calls: [
+              {
+                id: toolCallId,
+                type: 'function',
+                function: {
+                  name: toolName,
+                  arguments: argsText,
+                },
+              },
+            ],
+          };
+          continue;
+        }
+
+        if (part.type === 'error') {
+          throw part.error;
+        }
+
+        if (part.type === 'abort') {
+          throw new Error(part.reason || 'Stream aborted');
+        }
+
+        if (part.type === 'finish') {
+          if (!doneEmitted) {
+            doneEmitted = true;
+            yield { role: 'assistant', done: true };
+          }
+          break;
         }
       }
 
-      yield { role: 'assistant', done: true };
+      if (!doneEmitted) {
+        yield { role: 'assistant', done: true };
+      }
     } catch (e) {
       throw toLlmError(e, 'ai-sdk');
     } finally {
