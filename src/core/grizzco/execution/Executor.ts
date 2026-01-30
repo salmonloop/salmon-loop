@@ -32,7 +32,7 @@ export class Executor {
     if (plan.shouldAbort) {
       await this.rejectionMgr.create(
         file.path,
-        plan.abortReason || text.grizzco.v3.errors.aborted,
+        plan.abortReason || text.grizzco.errors.aborted,
         ctx,
       );
       return { success: false, error: plan.abortReason, actionTaken: 'ABORT' };
@@ -42,7 +42,7 @@ export class Executor {
     if (!plan.workerId) {
       return {
         success: false,
-        error: text.grizzco.v3.errors.noWorkerSelected,
+        error: text.grizzco.errors.noWorkerSelected,
         actionTaken: 'ERROR',
       };
     }
@@ -60,7 +60,7 @@ export class Executor {
       if (!result.success) {
         await this.rejectionMgr.create(
           file.path,
-          result.error || text.grizzco.v3.errors.mergeFailed('unknown'),
+          result.error || text.grizzco.errors.mergeFailed('unknown'),
           ctx,
         );
         return { success: false, error: result.error, actionTaken: 'WORKER_FAILURE' };
@@ -76,7 +76,7 @@ export class Executor {
 
       return { success: true, actionTaken: `MERGE(${plan.workerId})` };
     } catch (error: any) {
-      const msg = text.grizzco.v3.errors.unexpectedException(error.message);
+      const msg = text.grizzco.errors.unexpectedException(error.message);
       await this.rejectionMgr.create(file.path, msg, ctx);
       return { success: false, error: msg, actionTaken: 'EXCEPTION' };
     }

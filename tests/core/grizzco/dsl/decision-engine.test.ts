@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest';
 import { DecisionEngine } from '../../../../src/core/grizzco/dsl/DecisionEngine.js';
 import { createMockContext, createMockPlanBuilder } from '../mocks.js';
 
-describe('DecisionEngine (V3)', () => {
+describe('DecisionEngine', () => {
   it('should return PLAN when no data is required', () => {
     const ctx = createMockContext();
     const pb = createMockPlanBuilder();

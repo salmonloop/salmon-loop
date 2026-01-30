@@ -47,7 +47,7 @@ function collectSidecarPaths(options: LoopOptions): string[] {
 }
 
 /**
- * SalmonLoop Execution Kernel (V3 Powered)
+ * SalmonLoop Execution Kernel (Bifrost-powered)
  */
 export class SalmonLoop {
   async run(options: LoopOptions): Promise<LoopResult> {
@@ -118,7 +118,7 @@ export class SalmonLoop {
       while (retries <= LIMITS.maxRetries) {
         const attempt = retries + 1;
 
-        // Execute V3 Flow
+        // Execute Bifrost flow
         const result = await executeSalmonLoopFlow({
           workspace: env.workspace!,
           options: options,
@@ -131,7 +131,7 @@ export class SalmonLoop {
           initialContext: currentContext,
         });
 
-        // Map V3 Result to LoopIteration
+        // Map flow result to LoopIteration
         const ctx = result.data; // Final context (ShrinkCtx or VerifyCtx)
 
         history.push({

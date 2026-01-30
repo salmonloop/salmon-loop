@@ -89,7 +89,7 @@ export const runApply: Step<AstValidateCtx, ApplyCtx> = async (ctx) => {
 
       if (result.type === 'NEED_DATA') {
         const service = registry.get(result.key);
-        if (!service) throw new Error(text.grizzco.v3.unknownDataDependency(result.key));
+        if (!service) throw new Error(text.grizzco.unknownDataDependency(result.key));
         const data = await service.fetch(ctx, op.path);
         if (!dslCtx.data) dslCtx.data = {};
         dslCtx.data[result.key] = data;
@@ -101,15 +101,13 @@ export const runApply: Step<AstValidateCtx, ApplyCtx> = async (ctx) => {
     }
 
     if (plan.shouldAbort) {
-      throw new Error(text.grizzco.v3.planAborted(op.path, plan.abortReason || 'Unknown reason'));
+      throw new Error(text.grizzco.planAborted(op.path, plan.abortReason || 'Unknown reason'));
     }
 
     const execResult = await executor.execute(plan, dslCtx);
     executionResults.push(execResult);
     if (!execResult.success) {
-      throw new Error(
-        text.grizzco.v3.executionFailed(op.path, execResult.error || 'Unknown error'),
-      );
+      throw new Error(text.grizzco.executionFailed(op.path, execResult.error || 'Unknown error'));
     }
     if (execResult.actionTaken.startsWith('MERGE')) successCount++;
   };
@@ -123,7 +121,7 @@ export const runApply: Step<AstValidateCtx, ApplyCtx> = async (ctx) => {
   emit({
     type: 'log',
     level: 'info',
-    message: text.grizzco.v3.transactionCompleted(successCount, operations.length),
+    message: text.grizzco.transactionCompleted(successCount, operations.length),
     timestamp: new Date(),
   });
 

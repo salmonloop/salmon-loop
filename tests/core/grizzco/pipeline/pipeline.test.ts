@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 
 import { Pipeline } from '../../../../src/core/grizzco/pipeline.js';
 
-describe('Pipeline (V3)', () => {
+describe('Pipeline', () => {
   it('should execute linear steps', async () => {
     const init = { val: 0 };
     const step1 = async (ctx: typeof init) => ({ val: ctx.val + 1 });

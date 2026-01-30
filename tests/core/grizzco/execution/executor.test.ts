@@ -17,7 +17,7 @@ vi.mock('../../../../src/core/grizzco/execution/RejectionManager.js', () => ({
   },
 }));
 
-describe('Executor (V3)', () => {
+describe('Executor', () => {
   it('should execute worker and write result', async () => {
     const mockWorker = {
       execute: vi.fn().mockResolvedValue({

@@ -10,7 +10,7 @@ import {
 import { FileStatus, OpType } from '../../../../src/core/shared/types/grizzco-types.js';
 import { createMockContext } from '../mocks.js';
 
-describe('V3 Strategies', () => {
+describe('Strategies', () => {
   describe('SafetyChecks', () => {
     it('should pass for valid file', () => {
       const ctx = createMockContext();

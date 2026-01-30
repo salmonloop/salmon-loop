@@ -1,6 +1,6 @@
 # Troubleshooting
 
-## "Grizzco V3 transaction completed: 0/0 files processed"
+## "Grizzco transaction completed: 0/0 files processed"
 
 Meaning: the APPLY step received a diff that validated but did not produce any file operations.
 
@@ -23,4 +23,3 @@ Meaning: a JSON parse error occurred while generating the patch (typically upstr
 Actions:
 - Inspect the latest `.s8p/audit/audit-*.json` for `errorStack`.
 - Retry with `--verbose=extended` and ensure your provider configuration is correct.
-

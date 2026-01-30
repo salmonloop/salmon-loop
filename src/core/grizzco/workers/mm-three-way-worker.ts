@@ -17,10 +17,10 @@ import { IMergeWorker } from './i-merge-worker.js';
  * Strategy: Optimistic Concurrency Control.
  *
  * Base: Snapshot T0 (The state when AI started thinking)
- * Ours: Current Worktree (V3 - might have changed since T0)
+ * Ours: Current worktree (may have changed since T0)
  * Theirs: AI Content (V2 - based on T0)
  *
- * This allows merging AI changes (T0->V2) with user's latest changes (T0->V3).
+ * This allows merging AI changes (T0 -> AI) with the user's latest changes (T0 -> current).
  */
 export class MMThreeWayWorker implements IMergeWorker {
   readonly id = '3way-mm-advanced';

@@ -548,40 +548,38 @@ Please return the patch in PURE unified diff format:`;
   },
 
   grizzco: {
-    v3: {
-      gitUserConfigMissing: 'Git user.name or user.email is not configured',
-      remoteLocked: 'File is locked remotely (Mock Check)',
-      stagedFileProtected: 'Staged file detected and protected (use --force)',
-      binaryMmCannotBeMerged: 'Binary MM file cannot be merged',
-      fileHasExistingConflict: 'File has existing conflict',
-      unknownDataDependency: (key: string) => `Unknown data dependency: ${key}`,
-      microOrchestratorLoopStuck: (path: string) => `MicroOrchestrator stuck in loop for ${path}`,
-      planAborted: (path: string, reason: string) => `Plan aborted for ${path}: ${reason}`,
-      executionFailed: (path: string, error: string) => `Execution failed for ${path}: ${error}`,
-      transactionCompleted: (success: number, total: number) =>
-        `Grizzco V3 transaction completed: ${success}/${total} files processed`,
+    gitUserConfigMissing: 'Git user.name or user.email is not configured',
+    remoteLocked: 'File is locked remotely (Mock Check)',
+    stagedFileProtected: 'Staged file detected and protected (use --force)',
+    binaryMmCannotBeMerged: 'Binary MM file cannot be merged',
+    fileHasExistingConflict: 'File has existing conflict',
+    unknownDataDependency: (key: string) => `Unknown data dependency: ${key}`,
+    microOrchestratorLoopStuck: (path: string) => `MicroOrchestrator stuck in loop for ${path}`,
+    planAborted: (path: string, reason: string) => `Plan aborted for ${path}: ${reason}`,
+    executionFailed: (path: string, error: string) => `Execution failed for ${path}: ${error}`,
+    transactionCompleted: (success: number, total: number) =>
+      `Grizzco transaction completed: ${success}/${total} files processed`,
+    workerNotFound: (id: string) => `Worker "${id}" not found`,
+    noWorkerSelected: 'No worker selected',
+    pipeline: {
+      stepStarted: (name: string) => `[Pipeline] Step started: ${name}`,
+      stepFinished: (name: string, duration: number) =>
+        `[Pipeline] Step finished: ${name} (${duration}ms)`,
+      stepFailed: (name: string, error: string) => `[Pipeline] Step failed: ${name} - ${error}`,
+      recoveryTriggered: (name: string) => `[Pipeline] Triggering recovery for ${name}`,
+      recoveryFailed: (name: string, error: string) =>
+        `[Pipeline] Recovery failed for ${name}: ${error}`,
+    },
+    audit: {
+      saved: (file: string) => `[Audit] Saved structured audit log to ${file}`,
+      failed: (error: string) => `[Audit] Failed to save audit log: ${error}`,
+    },
+    errors: {
       workerNotFound: (id: string) => `Worker "${id}" not found`,
       noWorkerSelected: 'No worker selected',
-      pipeline: {
-        stepStarted: (name: string) => `[Pipeline] Step started: ${name}`,
-        stepFinished: (name: string, duration: number) =>
-          `[Pipeline] Step finished: ${name} (${duration}ms)`,
-        stepFailed: (name: string, error: string) => `[Pipeline] Step failed: ${name} - ${error}`,
-        recoveryTriggered: (name: string) => `[Pipeline] Triggering recovery for ${name}`,
-        recoveryFailed: (name: string, error: string) =>
-          `[Pipeline] Recovery failed for ${name}: ${error}`,
-      },
-      audit: {
-        saved: (file: string) => `[Audit] Saved structured audit log to ${file}`,
-        failed: (error: string) => `[Audit] Failed to save audit log: ${error}`,
-      },
-      errors: {
-        workerNotFound: (id: string) => `Worker "${id}" not found`,
-        noWorkerSelected: 'No worker selected',
-        aborted: 'Operation aborted by strategy',
-        mergeFailed: (err: string) => `Merge execution failed: ${err}`,
-        unexpectedException: (err: string) => `Unexpected execution exception: ${err}`,
-      },
+      aborted: 'Operation aborted by strategy',
+      mergeFailed: (err: string) => `Merge execution failed: ${err}`,
+      unexpectedException: (err: string) => `Unexpected execution exception: ${err}`,
     },
   },
 

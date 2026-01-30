@@ -33,7 +33,7 @@ export const runVerify: Step<ApplyCtx, VerifyCtx> = async (ctx) => {
     // If we want Rollback/Shrink to handle this, we should NOT throw here, but return a failed context?
     // OR, we throw a specific error that the Pipeline knows how to handle?
 
-    // In V3 pipeline, if a step fails, the pipeline aborts.
+    // If a step fails, the pipeline aborts.
     // BUT we have a linear flow: Verify -> Rollback -> Shrink.
     // If Verify fails, we DO want to continue to Rollback/Shrink.
     // So we should NOT throw Error here. We return the result, and let next steps decide.

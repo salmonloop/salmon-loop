@@ -1,8 +1,8 @@
-# Grizzco V3 "Bifrost" Architecture
+# Grizzco "Bifrost" Architecture
 
 ## Overview
 
-The Grizzco V3 Architecture (codenamed "Bifrost") is the next-generation engine for the SalmonLoop automated coding system. It is designed to solve the complexity of managing asynchronous operations (like LLM calls, Git operations) within a deterministic decision-making process.
+The Grizzco Architecture (codenamed "Bifrost") is the execution engine for the SalmonLoop automated coding system. It is designed to solve the complexity of managing asynchronous operations (like LLM calls, Git operations) within a deterministic decision-making process.
 
 ## Core Design Principles
 
@@ -13,7 +13,7 @@ The Grizzco V3 Architecture (codenamed "Bifrost") is the next-generation engine 
 
 ### 2. The Ping-Pong Protocol (Async Bridge)
 
-To allow the synchronous DSL to make decisions based on asynchronous data (e.g., "Is the remote file locked?"), V3 introduces a suspension mechanism:
+To allow the synchronous DSL to make decisions based on asynchronous data (e.g., "Is the remote file locked?"), Bifrost introduces a suspension mechanism:
 
 1. **Decision Engine** encounters a `requireData('key')` rule.
 2. If data is missing, it returns a `NEED_DATA` signal.
@@ -26,7 +26,7 @@ Type safety is enforced by "Progressive Contexts". Each step in the pipeline rec
 
 ## Key Components
 
-### Pipeline (`src/core/grizzco/v3/pipeline.ts`)
+### Pipeline (`src/core/grizzco/pipeline.ts`)
 
 A typed, async pipeline engine that supports:
 
@@ -34,25 +34,25 @@ A typed, async pipeline engine that supports:
 - **Recovery**: `stepWithRecovery` allows handling failures (e.g., Emergency Rollback).
 - **Telemetry**: Built-in tracing (Spans) for performance monitoring.
 
-### Decision Engine (`src/core/grizzco/v3/dsl/DecisionEngine.ts`)
+### Decision Engine (`src/core/grizzco/dsl/DecisionEngine.ts`)
 
 A pure TypeScript class that executes the DSL strategies. It generates a structured `ExecutionPlan` (JSON) describing what should be done, without doing it.
 
-### Executor (`src/core/grizzco/v3/execution/Executor.ts`)
+### Executor (`src/core/grizzco/execution/Executor.ts`)
 
 The "muscle" of the system. It takes an `ExecutionPlan` and performs the actual side effects (File writes, Git merges) using dedicated Workers.
 
-### Service Registry (`src/core/grizzco/v3/services/registry.ts`)
+### Service Registry (`src/core/grizzco/services/registry.ts`)
 
 A central hub for asynchronous data providers (`GitConfigService`, etc.), enabling the Ping-Pong protocol to fetch data dynamically.
 
 ## Directory Structure
 
 ```
-src/core/grizzco/v3/
+src/core/grizzco/
 ├── dsl/            # Pure Decision Logic
 ├── execution/      # Side-effect Executors & Workers
-├── flows/          # Macro Orchestration (SalmonLoopV3)
+├── flows/          # Macro Orchestration (Loop Flows)
 ├── services/       # Data Fetchers
 ├── steps/          # Pipeline Steps
 ├── pipeline.ts     # Pipeline Engine

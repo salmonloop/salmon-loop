@@ -1,4 +1,4 @@
-// V3 Pipeline
+// Pipeline entrypoint (Bifrost)
 export * from './flows/SalmonLoopFlow.js';
 
 // Adapters (Infrastructure Layer)

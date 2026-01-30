@@ -16,11 +16,11 @@ export const SafetyChecks = (engine: DecisionEngine): DecisionEngine => {
       'Refusing to modify ignored file without --force',
     )
     .requireData('remote_lock')
-    .require((c) => !c.data?.remote_lock?.isLocked, text.grizzco.v3.remoteLocked)
+    .require((c) => !c.data?.remote_lock?.isLocked, text.grizzco.remoteLocked)
     .requireData('git_config')
     .require(
       (c) => !!(c.data?.git_config?.user?.name && c.data?.git_config?.user?.email),
-      text.grizzco.v3.gitUserConfigMissing,
+      text.grizzco.gitUserConfigMissing,
     );
 };
 
@@ -60,7 +60,7 @@ export const IndexProtection = (engine: DecisionEngine): DecisionEngine => {
           c.file.status === FileStatus.STAGED_ADDED ||
           c.file.status === FileStatus.STAGED_DELETED) &&
         !c.options.force,
-      (p) => p.abort(text.grizzco.v3.stagedFileProtected),
+      (p) => p.abort(text.grizzco.stagedFileProtected),
     )
     .when(
       (c) =>
@@ -81,7 +81,7 @@ export const MMHandling = (engine: DecisionEngine): DecisionEngine => {
     .phase('Phase 4: MM Handling')
     .when(
       (c) => c.file.status === FileStatus.MM && c.file.isBinary,
-      (p) => p.abort(text.grizzco.v3.binaryMmCannotBeMerged),
+      (p) => p.abort(text.grizzco.binaryMmCannotBeMerged),
     )
     .when(
       // PATCH operations must stay on the git-apply track. MM merge workers expect full-file "theirs" content,
@@ -130,7 +130,7 @@ export const StatusValidation = (engine: DecisionEngine): DecisionEngine => {
       )
       .when(
         (c) => c.file.status === FileStatus.CONFLICT,
-        (p) => p.abort(text.grizzco.v3.fileHasExistingConflict),
+        (p) => p.abort(text.grizzco.fileHasExistingConflict),
       )
   );
 };

@@ -29,7 +29,7 @@ export class WorkerFactory {
   get(id: string): IMergeWorker {
     const worker = this.workers.get(id);
     if (!worker) {
-      throw new Error(text.grizzco.v3.errors.workerNotFound(id));
+      throw new Error(text.grizzco.errors.workerNotFound(id));
     }
     return worker;
   }

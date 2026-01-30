@@ -1,6 +1,6 @@
 # Grizzco Engine (Internal)
 
-This directory implements the V3 execution pipeline and the rule-based orchestration DSL.
+This directory implements the Grizzco execution pipeline (Bifrost) and the rule-based orchestration DSL.
 
 ## Key Concepts
 
