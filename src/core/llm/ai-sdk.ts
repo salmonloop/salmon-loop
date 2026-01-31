@@ -52,7 +52,7 @@ function toAiSdkMessages(messages: LLMMessage[]): any[] {
     if (m.role === 'tool') {
       const toolCallId = m.tool_call_id || 'unknown';
       const toolName = m.name || 'unknown';
-      const output = safeParseJsonObject(m.content);
+      const result = safeParseJsonObject(m.content);
 
       return {
         role: 'tool',
@@ -61,7 +61,7 @@ function toAiSdkMessages(messages: LLMMessage[]): any[] {
             type: 'tool-result',
             toolCallId,
             toolName,
-            output,
+            result,
           },
         ],
       };
