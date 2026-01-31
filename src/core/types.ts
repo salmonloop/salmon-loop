@@ -288,6 +288,10 @@ export interface LLMStreamChunk {
    * Indicates the end of the stream.
    */
   done?: boolean;
+  /**
+   * Reason why the stream finished.
+   */
+  finishReason?: string;
 }
 
 export interface ChatOptions {

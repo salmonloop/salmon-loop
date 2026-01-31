@@ -3,14 +3,33 @@ import type { LLMStreamChunk } from '../types.js';
 type AiSdkStreamPart =
   | string
   | {
-      type?: string;
-      text?: string;
-      toolCallId?: string;
-      toolName?: string;
-      input?: unknown;
+      type: 'text-delta' | 'reasoning-delta';
+      text: string;
+    }
+  | {
+      type: 'tool-call';
+      toolCallId: string;
+      toolName: string;
+      input: unknown;
+    }
+  | {
+      type: 'error';
+      error: unknown;
+    }
+  | {
+      type: 'abort';
+      reason?: string;
+    }
+  | {
+      type: 'finish';
+      finishReason: string;
+      usage?: {
+        promptTokens: number;
+        completionTokens: number;
+      };
     };
 
-export function mapAiSdkStreamPartToChunk(part: AiSdkStreamPart): LLMStreamChunk | null {
+export function mapAiSdkStreamPartToChunk(part: any): LLMStreamChunk | null {
   if (!part) return null;
 
   if (typeof part === 'string') {
@@ -21,42 +40,48 @@ export function mapAiSdkStreamPartToChunk(part: AiSdkStreamPart): LLMStreamChunk
     return null;
   }
 
-  if (part.type === 'text-delta' || part.type === 'reasoning-delta') {
-    if (typeof part.text === 'string' && part.text) {
-      return { role: 'assistant', contentDelta: part.text };
-    }
-    return null;
-  }
+  switch (part.type) {
+    case 'text-delta':
+    case 'reasoning-delta':
+      if (typeof part.text === 'string' && part.text) {
+        return { role: 'assistant', contentDelta: part.text };
+      }
+      return null;
 
-  if (part.type === 'tool-call') {
-    const toolCallId = part.toolCallId || 'unknown';
-    const toolName = part.toolName || 'unknown';
-
-    let argsText = '{}';
-    try {
-      argsText = JSON.stringify(part.input ?? {});
-    } catch {
-      argsText = '{}';
-    }
-
-    return {
-      role: 'assistant',
-      tool_calls: [
-        {
-          id: toolCallId,
-          type: 'function',
-          function: {
-            name: toolName,
-            arguments: argsText,
+    case 'tool-call':
+      return {
+        role: 'assistant',
+        tool_calls: [
+          {
+            id: part.toolCallId || 'unknown',
+            type: 'function',
+            function: {
+              name: part.toolName || 'unknown',
+              arguments: JSON.stringify(part.input ?? {}),
+            },
           },
-        },
-      ],
-    };
-  }
+        ],
+      };
 
-  if (part.type === 'finish') {
-    return { role: 'assistant', done: true };
-  }
+    case 'finish':
+      return {
+        role: 'assistant',
+        done: true,
+        finishReason: part.finishReason,
+      };
 
-  return null;
+    case 'error':
+      // We don't return a chunk for errors here; we want the generator to throw
+      return null;
+
+    case 'abort':
+      return {
+        role: 'assistant',
+        done: true,
+        finishReason: 'abort',
+      };
+
+    default:
+      return null;
+  }
 }

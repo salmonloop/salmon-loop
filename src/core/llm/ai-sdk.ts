@@ -14,6 +14,7 @@ import type { ChatOptions, Context, LLM, LLMMessage, LLMRole, Plan } from '../ty
 
 import { resolveBaseUrl } from './base-url.js';
 import { toLlmError, wrapPlanEmpty } from './errors.js';
+import { withRetry, withStreamRetry } from './retry-utils.js';
 import { mapAiSdkStreamPartToChunk } from './stream-utils.js';
 
 export type AiSdkClientPackage = '@ai-sdk/openai' | '@ai-sdk/openai-compatible';
@@ -182,100 +183,125 @@ export class AiSdkLLM implements LLM {
     const aiMessages = toAiSdkMessages(messages);
     const tools = toAiSdkToolSet(options.tools);
 
-    const abortController = new AbortController();
     const timeoutMs = this.timeoutMs;
-    const timeoutHandle =
-      typeof timeoutMs === 'number' && timeoutMs > 0
-        ? setTimeout(() => abortController.abort(), timeoutMs)
-        : undefined;
 
-    try {
-      const result = await generateText({
-        model: this.model,
-        messages: aiMessages,
-        tools,
-        temperature: options.temperature,
-        maxOutputTokens: options.maxTokens,
-        stopSequences: options.stop,
-        toolChoice: options.toolChoice === 'none' ? 'none' : tools ? 'auto' : undefined,
-        abortSignal: abortController.signal,
-        timeout: timeoutMs,
-      });
+    return withRetry(
+      async () => {
+        const abortController = new AbortController();
+        const timeoutHandle =
+          typeof timeoutMs === 'number' && timeoutMs > 0
+            ? setTimeout(() => abortController.abort(), timeoutMs)
+            : undefined;
 
-      return {
-        role: 'assistant' as LLMRole,
-        content: result.text || '',
-        tool_calls: toOpenAiToolCalls((result as any).toolCalls),
-      };
-    } catch (e) {
+        try {
+          const result = await generateText({
+            model: this.model,
+            messages: aiMessages,
+            tools,
+            temperature: options.temperature,
+            maxOutputTokens: options.maxTokens,
+            stopSequences: options.stop,
+            toolChoice: options.toolChoice === 'none' ? 'none' : tools ? 'auto' : undefined,
+            abortSignal: abortController.signal,
+          });
+
+          return {
+            role: 'assistant' as LLMRole,
+            content: result.text || '',
+            tool_calls: toOpenAiToolCalls((result as any).toolCalls),
+          };
+        } finally {
+          if (timeoutHandle) clearTimeout(timeoutHandle);
+        }
+      },
+      {
+        maxRetries: 2,
+        retryableErrors: (err) => {
+          const msg = String(err).toLowerCase();
+          return msg.includes('timeout') || msg.includes('rate limit') || msg.includes('overloaded');
+        },
+      },
+    ).catch((e) => {
       throw toLlmError(e, 'ai-sdk');
-    } finally {
-      if (timeoutHandle) clearTimeout(timeoutHandle);
-    }
+    });
   }
 
   async *chatStream(
     messages: LLMMessage[],
     options: ChatOptions = {},
-  ): AsyncIterable<{ role: LLMRole; contentDelta?: string; tool_calls?: any[]; done?: boolean }> {
+  ): AsyncIterable<LLMStreamChunk> {
     const aiMessages = toAiSdkMessages(messages);
     const tools = toAiSdkToolSet(options.tools);
-
-    const abortController = new AbortController();
     const timeoutMs = this.timeoutMs;
-    const timeoutHandle =
-      typeof timeoutMs === 'number' && timeoutMs > 0
-        ? setTimeout(() => abortController.abort(), timeoutMs)
-        : undefined;
+
+    const streamFactory = async function* () {
+      const abortController = new AbortController();
+      const timeoutHandle =
+        typeof timeoutMs === 'number' && timeoutMs > 0
+          ? setTimeout(() => abortController.abort(), timeoutMs)
+          : undefined;
+
+      try {
+        const result = await streamText({
+          model: this.model,
+          messages: aiMessages,
+          tools,
+          temperature: options.temperature,
+          maxOutputTokens: options.maxTokens,
+          stopSequences: options.stop,
+          toolChoice: options.toolChoice === 'none' ? 'none' : tools ? 'auto' : undefined,
+          abortSignal: abortController.signal,
+        });
+
+        let doneEmitted = false;
+        // Use fullStream to get errors and finish reasons explicitly
+        for await (const part of (result as any).fullStream) {
+          if (!part) continue;
+
+          if (part.type === 'error') throw part.error;
+          if (part.type === 'abort') throw new Error('Stream aborted');
+
+          const chunk = mapAiSdkStreamPartToChunk(part);
+          if (!chunk) continue;
+
+          if (chunk.done) {
+            doneEmitted = true;
+          }
+          yield chunk;
+        }
+
+        if (!doneEmitted) {
+          yield { role: 'assistant', done: true, finishReason: 'unknown' };
+        }
+      } finally {
+        if (timeoutHandle) clearTimeout(timeoutHandle);
+      }
+    }.bind(this);
 
     try {
-      const result = await streamText({
-        model: this.model,
-        messages: aiMessages,
-        tools,
-        temperature: options.temperature,
-        maxOutputTokens: options.maxTokens,
-        stopSequences: options.stop,
-        toolChoice: options.toolChoice === 'none' ? 'none' : tools ? 'auto' : undefined,
-        abortSignal: abortController.signal,
-        timeout: timeoutMs,
+      yield* withStreamRetry(streamFactory, {
+        maxRetries: 2,
+        retryableErrors: (err) => {
+          const msg = String(err).toLowerCase();
+          return msg.includes('timeout') || msg.includes('rate limit') || msg.includes('overloaded');
+        },
       });
-
-      let doneEmitted = false;
-      const stream = (result as any).fullStream ?? result.textStream;
-      for await (const part of stream) {
-        if (!part) continue;
-
-        if (typeof part === 'object' && part.type === 'error') {
-          throw part.error;
-        }
-
-        if (typeof part === 'object' && part.type === 'abort') {
-          throw new Error(part.reason || 'Stream aborted');
-        }
-
-        const chunk = mapAiSdkStreamPartToChunk(part);
-        if (!chunk) continue;
-
-        if (chunk.done) {
-          if (!doneEmitted) {
-            doneEmitted = true;
-            yield chunk;
-          }
-          break;
-        }
-
-        yield chunk;
-      }
-
-      if (!doneEmitted) {
-        yield { role: 'assistant', done: true };
-      }
     } catch (e) {
       throw toLlmError(e, 'ai-sdk');
-    } finally {
-      if (timeoutHandle) clearTimeout(timeoutHandle);
     }
+  }
+
+  /**
+   * Explicit tool-aware streaming method for the pipeline.
+   * This surfaces text deltas and tool calls as they arrive.
+   */
+  async *chatWithToolsStreaming(
+    messages: LLMMessage[],
+    options: ChatOptions = {},
+  ): AsyncIterable<LLMStreamChunk> {
+    // Current pipeline implementation expects chatStream to handle basic deltas.
+    // This is a specialized version that ensures tool-call governance can be observed.
+    yield* this.chatStream(messages, options);
   }
 
   async createPlan(context: Context, instruction: string, lastError?: string): Promise<Plan> {

@@ -25,7 +25,11 @@ s8p context -i "..." [-f src/file.ts | -s "..."] [--diff-scope primary|ast_relat
 - `--no-config-file`: Disable loading the repo config file.
 - `--print-config`: Print the resolved config (redacted) and exit.
 - `--verbose [level]`: Enable verbose logging (`basic` or `extended`).
-- `--stream-output`: Stream LLM responses to the CLI as they arrive (best effort; requires provider streaming).
+- `--stream-output`: Stream LLM responses to the CLI as they arrive.
+    - **Behavior**: Real-time display of text deltas during the PLAN phase.
+    - **Tool Status**: Reports when a tool starts and completes (e.g., `[TOOL: code_search] Start... Done`).
+    - **Safety**: Raw tool payloads and results are **never** streamed to the terminal to prevent sensitive data leakage. Only the tool name and execution status are shown.
+    - **Troubleshooting**: If no output appears, ensure your LLM provider supports streaming and that your `SALMONLOOP_API_KEY` is valid.
 
 ## Core Options (for Default Run)
 
