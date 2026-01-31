@@ -3,7 +3,7 @@ import type { LLMStreamChunk } from '../../types.js';
 export class ToolCallAccumulator {
   private pending: any[] = [];
 
-  addChunk(chunk: LLMStreamChunk): void {
+  append(chunk: LLMStreamChunk): void {
     if (!chunk?.tool_calls || !Array.isArray(chunk.tool_calls)) {
       return;
     }

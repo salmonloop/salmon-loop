@@ -128,118 +128,7 @@ export async function chatWithTools(
       return assistant;
     }
 
-    for (const call of toolCalls) {
-      const callId = call?.id || crypto.randomUUID();
-      const toolName = call?.function?.name;
-      const rawArgs = call?.function?.arguments;
-
-      if (!toolName || typeof toolName !== 'string') {
-        logger.warn('Received malformed tool call (missing function.name)');
-        session.toolCallingAudit?.event({
-          timestamp: new Date().toISOString(),
-          phase,
-          round,
-          callId,
-          toolName: 'unknown',
-          rawArgsType: typeof rawArgs,
-          rawArgsPreview: typeof rawArgs === 'string' ? redactJsonString(rawArgs) : undefined,
-          parsedArgsOk: false,
-          parsedArgsError: 'Missing function.name',
-          toolResultStatus: 'error',
-          toolResultErrorCode: 'MALFORMED_TOOL_CALL',
-        });
-        messages.push({
-          role: 'tool',
-          name: 'unknown',
-          tool_call_id: callId,
-          content: JSON.stringify({
-            status: 'error',
-            error: {
-              code: 'MALFORMED_TOOL_CALL',
-              message: 'Missing function.name',
-              retryable: true,
-            },
-          }),
-        });
-        continue;
-      }
-
-      session.emit?.({
-        type: 'log',
-        level: 'debug',
-        message: `Tool call requested: ${toolName}`,
-      });
-
-      const parsed = safeParseJson(rawArgs);
-      let result: ToolResult;
-
-      if (!parsed.ok) {
-        session.toolCallingAudit?.event({
-          timestamp: new Date().toISOString(),
-          phase,
-          round,
-          callId,
-          toolName,
-          rawArgsType: typeof rawArgs,
-          rawArgsPreview: typeof rawArgs === 'string' ? redactJsonString(rawArgs) : undefined,
-          parsedArgsOk: false,
-          parsedArgsError: redactErrorMessage(parsed.error),
-          toolResultStatus: 'error',
-          toolResultErrorCode: 'INVALID_TOOL_ARGUMENTS_JSON',
-        });
-        result = {
-          id: callId,
-          toolName,
-          source: 'builtin',
-          status: 'error',
-          error: {
-            code: 'INVALID_TOOL_ARGUMENTS_JSON',
-            message: parsed.error,
-            retryable: true,
-            failurePhase: phase,
-          },
-        };
-      } else {
-        session.toolCallingAudit?.event({
-          timestamp: new Date().toISOString(),
-          phase,
-          round,
-          callId,
-          toolName,
-          rawArgsType: typeof rawArgs,
-          rawArgsPreview: typeof rawArgs === 'string' ? redactJsonString(rawArgs) : undefined,
-          parsedArgsOk: true,
-          parsedArgsPreview: safeStringifyForAudit(parsed.value),
-        });
-        result = await session.toolstack.router.call({
-          id: callId,
-          phase,
-          toolName,
-          args: parsed.value,
-          ctx: session.runtime,
-        });
-        if (result.status !== 'ok') {
-          session.toolCallingAudit?.event({
-            timestamp: new Date().toISOString(),
-            phase,
-            round,
-            callId,
-            toolName,
-            rawArgsType: typeof rawArgs,
-            parsedArgsOk: true,
-            toolResultStatus: result.status,
-            toolResultErrorCode: result.error?.code,
-          });
-        }
-      }
-
-      messages.push({
-        role: 'tool',
-        name: toolName,
-        tool_call_id: callId,
-        content: formatToolResultForModel(result),
-      });
-    }
+    await executeToolCalls(session, phase, round, toolCalls, messages);
   }
 
   // If we reach here, the model is stuck in tool calling. Return the last assistant content.
@@ -251,6 +140,127 @@ export async function chatWithTools(
 
   const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
   return lastAssistant || { role: 'assistant', content: '' };
+}
+
+async function executeToolCalls(
+  session: ToolCallingSessionOptions,
+  phase: ExecutionPhase,
+  round: number,
+  calls: any[],
+  messages: LLMMessage[],
+): Promise<void> {
+  for (const call of calls) {
+    const callId = call?.id || crypto.randomUUID();
+    const toolName = call?.function?.name;
+    const rawArgs = call?.function?.arguments;
+
+    if (!toolName || typeof toolName !== 'string') {
+      logger.warn('Received malformed tool call (missing function.name)');
+      session.toolCallingAudit?.event({
+        timestamp: new Date().toISOString(),
+        phase,
+        round,
+        callId,
+        toolName: 'unknown',
+        rawArgsType: typeof rawArgs,
+        rawArgsPreview: typeof rawArgs === 'string' ? redactJsonString(rawArgs) : undefined,
+        parsedArgsOk: false,
+        parsedArgsError: 'Missing function.name',
+        toolResultStatus: 'error',
+        toolResultErrorCode: 'MALFORMED_TOOL_CALL',
+      });
+      messages.push({
+        role: 'tool',
+        name: 'unknown',
+        tool_call_id: callId,
+        content: JSON.stringify({
+          status: 'error',
+          error: {
+            code: 'MALFORMED_TOOL_CALL',
+            message: 'Missing function.name',
+            retryable: true,
+          },
+        }),
+      });
+      continue;
+    }
+
+    session.emit?.({
+      type: 'log',
+      level: 'debug',
+      message: `Tool call requested: ${toolName}`,
+    });
+
+    const parsed = safeParseJson(rawArgs);
+    let result: ToolResult;
+
+    if (!parsed.ok) {
+      session.toolCallingAudit?.event({
+        timestamp: new Date().toISOString(),
+        phase,
+        round,
+        callId,
+        toolName,
+        rawArgsType: typeof rawArgs,
+        rawArgsPreview: typeof rawArgs === 'string' ? redactJsonString(rawArgs) : undefined,
+        parsedArgsOk: false,
+        parsedArgsError: redactErrorMessage(parsed.error),
+        toolResultStatus: 'error',
+        toolResultErrorCode: 'INVALID_TOOL_ARGUMENTS_JSON',
+      });
+      result = {
+        id: callId,
+        toolName,
+        source: 'builtin',
+        status: 'error',
+        error: {
+          code: 'INVALID_TOOL_ARGUMENTS_JSON',
+          message: parsed.error,
+          retryable: true,
+          failurePhase: phase,
+        },
+      };
+    } else {
+      session.toolCallingAudit?.event({
+        timestamp: new Date().toISOString(),
+        phase,
+        round,
+        callId,
+        toolName,
+        rawArgsType: typeof rawArgs,
+        rawArgsPreview: typeof rawArgs === 'string' ? redactJsonString(rawArgs) : undefined,
+        parsedArgsOk: true,
+        parsedArgsPreview: safeStringifyForAudit(parsed.value),
+      });
+      result = await session.toolstack.router.call({
+        id: callId,
+        phase,
+        toolName,
+        args: parsed.value,
+        ctx: session.runtime,
+      });
+      if (result.status !== 'ok') {
+        session.toolCallingAudit?.event({
+          timestamp: new Date().toISOString(),
+          phase,
+          round,
+          callId,
+          toolName,
+          rawArgsType: typeof rawArgs,
+          parsedArgsOk: true,
+          toolResultStatus: result.status,
+          toolResultErrorCode: result.error?.code,
+        });
+      }
+    }
+
+    messages.push({
+      role: 'tool',
+      name: toolName,
+      tool_call_id: callId,
+      content: formatToolResultForModel(result),
+    });
+  }
 }
 
 /**
@@ -306,7 +316,7 @@ export async function chatWithToolsStreaming(
       if (typeof chunk?.contentDelta === 'string' && chunk.contentDelta) {
         content += chunk.contentDelta;
       }
-      toolCalls.addChunk(chunk);
+      toolCalls.append(chunk);
       if (chunk?.done) break;
     }
 
@@ -324,118 +334,7 @@ export async function chatWithToolsStreaming(
       return assistant;
     }
 
-    for (const call of calls) {
-      const callId = call?.id || crypto.randomUUID();
-      const toolName = call?.function?.name;
-      const rawArgs = call?.function?.arguments;
-
-      if (!toolName || typeof toolName !== 'string') {
-        logger.warn('Received malformed tool call (missing function.name)');
-        session.toolCallingAudit?.event({
-          timestamp: new Date().toISOString(),
-          phase,
-          round,
-          callId,
-          toolName: 'unknown',
-          rawArgsType: typeof rawArgs,
-          rawArgsPreview: typeof rawArgs === 'string' ? redactJsonString(rawArgs) : undefined,
-          parsedArgsOk: false,
-          parsedArgsError: 'Missing function.name',
-          toolResultStatus: 'error',
-          toolResultErrorCode: 'MALFORMED_TOOL_CALL',
-        });
-        messages.push({
-          role: 'tool',
-          name: 'unknown',
-          tool_call_id: callId,
-          content: JSON.stringify({
-            status: 'error',
-            error: {
-              code: 'MALFORMED_TOOL_CALL',
-              message: 'Missing function.name',
-              retryable: true,
-            },
-          }),
-        });
-        continue;
-      }
-
-      session.emit?.({
-        type: 'log',
-        level: 'debug',
-        message: `Tool call requested: ${toolName}`,
-      });
-
-      const parsed = safeParseJson(rawArgs);
-      let result: ToolResult;
-
-      if (!parsed.ok) {
-        session.toolCallingAudit?.event({
-          timestamp: new Date().toISOString(),
-          phase,
-          round,
-          callId,
-          toolName,
-          rawArgsType: typeof rawArgs,
-          rawArgsPreview: typeof rawArgs === 'string' ? redactJsonString(rawArgs) : undefined,
-          parsedArgsOk: false,
-          parsedArgsError: redactErrorMessage(parsed.error),
-          toolResultStatus: 'error',
-          toolResultErrorCode: 'INVALID_TOOL_ARGUMENTS_JSON',
-        });
-        result = {
-          id: callId,
-          toolName,
-          source: 'builtin',
-          status: 'error',
-          error: {
-            code: 'INVALID_TOOL_ARGUMENTS_JSON',
-            message: parsed.error,
-            retryable: true,
-            failurePhase: phase,
-          },
-        };
-      } else {
-        session.toolCallingAudit?.event({
-          timestamp: new Date().toISOString(),
-          phase,
-          round,
-          callId,
-          toolName,
-          rawArgsType: typeof rawArgs,
-          rawArgsPreview: typeof rawArgs === 'string' ? redactJsonString(rawArgs) : undefined,
-          parsedArgsOk: true,
-          parsedArgsPreview: safeStringifyForAudit(parsed.value),
-        });
-        result = await session.toolstack.router.call({
-          id: callId,
-          phase,
-          toolName,
-          args: parsed.value,
-          ctx: session.runtime,
-        });
-        if (result.status !== 'ok') {
-          session.toolCallingAudit?.event({
-            timestamp: new Date().toISOString(),
-            phase,
-            round,
-            callId,
-            toolName,
-            rawArgsType: typeof rawArgs,
-            parsedArgsOk: true,
-            toolResultStatus: result.status,
-            toolResultErrorCode: result.error?.code,
-          });
-        }
-      }
-
-      messages.push({
-        role: 'tool',
-        name: toolName,
-        tool_call_id: callId,
-        content: formatToolResultForModel(result),
-      });
-    }
+    await executeToolCalls(session, phase, round, calls, messages);
   }
 
   session.emit?.({
