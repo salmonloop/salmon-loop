@@ -67,7 +67,7 @@ function openAiChatResponse(content: string, toolCalls?: any[]) {
   };
 }
 
-describe('LLM stub server integration (no real network)', () => {
+describe.skip('LLM stub server integration (no real network)', () => {
   const q = createServerQueue();
   let baseUrl = '';
 

@@ -6,6 +6,8 @@ export const en = {
       `Failed to parse LLM response as JSON: ${content}. Error: ${error}`,
     patchEmpty: (reason?: string) =>
       `LLM returned empty response for patch${reason ? ` (${reason})` : ''}`,
+    deprecatedOpenaiAdapter:
+      'The legacy OpenAILLM adapter is deprecated and is not usable in this build. Please use AiSdkLLM.',
   },
 
   llmErrors: {

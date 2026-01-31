@@ -106,6 +106,13 @@ export class Logger {
   }
 
   /**
+   * Clear the terminal screen in a single place to keep console usage centralized.
+   */
+  clear(): void {
+    console.clear();
+  }
+
+  /**
    * Log a security audit message
    */
   audit(action: string, details: any): void {

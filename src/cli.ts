@@ -547,4 +547,35 @@ program
     process.stdout.write(result.prompt.trimEnd() + '\n');
   });
 
+program
+  .command('chat')
+  .description('Enter interactive chat mode')
+  .option('--resume', 'Resume last session')
+  .option('-v, --verbose', 'Verbose output')
+  .action(async (options) => {
+    const runPath = resolve(program.opts().repo || process.cwd());
+
+    const resolvedConfig = await resolveConfig({
+      repoRoot: runPath,
+      enableConfigFile: true,
+    });
+
+    const { llm } = createRuntimeLlm(resolvedConfig.llm);
+    const verifyCommand = resolvedConfig.verify.command;
+
+    if (!verifyCommand) {
+      logger.error('Verify command is required for chat mode. Use --verify or configure in .s8prc');
+      process.exit(1);
+    }
+
+    const { startChatMode } = await import('./cli/chat.js');
+    await startChatMode({
+      repoPath: runPath,
+      llm,
+      verifyCommand,
+      resume: options.resume,
+      verbose: options.verbose,
+    });
+  });
+
 program.parse();

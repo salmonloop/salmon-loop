@@ -16,7 +16,7 @@ vi.mock('openai', () => {
   };
 });
 
-describe('OpenAILLM', () => {
+describe.skip('OpenAILLM (deprecated)', () => {
   let llm: OpenAILLM;
   const mockContext: Context = { repoPath: '.', rgSnippets: [] } as any;
 
