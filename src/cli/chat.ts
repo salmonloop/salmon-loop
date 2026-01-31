@@ -5,12 +5,13 @@ import { logger } from '../core/logger.js';
 import { runSalmonLoop } from '../core/loop.js';
 import { ChatSessionManager } from '../core/session/manager.js';
 import type { ChatSession } from '../core/session/types.js';
-import type { LLM } from '../core/types.js';
+import type { CheckpointStrategy, LLM } from '../core/types.js';
 
 export interface ChatModeOptions {
   repoPath: string;
   llm: LLM;
   verifyCommand: string;
+  checkpointStrategy?: CheckpointStrategy;
   resume?: boolean;
   verbose?: boolean;
 }
@@ -93,6 +94,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
         verify: options.verifyCommand,
         repoPath: options.repoPath,
         llm: options.llm,
+        strategy: options.checkpointStrategy || 'worktree',
         verbose: options.verbose ? 'basic' : undefined,
         onEvent: (event) => {
           if (event.type === 'phase.start') {

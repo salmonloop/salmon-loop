@@ -44,7 +44,7 @@ program
   .option('--force-reset', text.cli.forceResetOption)
   .option('--validate', text.cli.validateOption)
   .option('--target-node <name>', text.cli.targetNodeOption)
-  .option('-cs, --checkpoint-strategy <type>', text.cli.checkpointStrategyOption, 'direct')
+  .option('-cs, --checkpoint-strategy <type>', text.cli.checkpointStrategyOption, 'worktree')
   .option('--apply-back-on-dirty <mode>', text.cli.applyBackOnDirtyOption, '3way')
   .option('--worktree-prepare <command>', text.cli.worktreePrepareOption)
   .option('--stream-output', text.cli.streamOutputOption)
@@ -575,6 +575,7 @@ program
       repoPath: runPath,
       llm,
       verifyCommand,
+      checkpointStrategy: globalOptions.checkpointStrategy || 'worktree',
       resume: options.resume,
       verbose: options.verbose,
     });
