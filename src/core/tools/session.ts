@@ -116,6 +116,11 @@ export async function chatWithTools(
   const messages: LLMMessage[] = [...initialMessages];
 
   for (let round = 0; round < maxRounds; round++) {
+    // Check for abort before starting a new round
+    if (chatOptions.signal?.aborted) {
+      throw new Error('Operation aborted');
+    }
+
     const assistant = await session.llm.chat(messages, {
       ...chatOptions,
       tools: openAITools,
@@ -131,6 +136,11 @@ export async function chatWithTools(
     const toolCalls = assistant.tool_calls || [];
     if (!Array.isArray(toolCalls) || toolCalls.length === 0) {
       return assistant;
+    }
+
+    // Check for abort before executing tools
+    if (chatOptions.signal?.aborted) {
+      throw new Error('Operation aborted');
     }
 
     await executeToolCalls(session, phase, round, toolCalls, messages);

@@ -18,6 +18,7 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
       ctx.context,
       ctx.options.instruction,
       ctx.lastError,
+      ctx.options.signal,
     );
 
     ctx.emit({
@@ -52,7 +53,10 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
       },
       { role: 'user', content: prompt },
     ],
-    { responseFormat: 'json_object' },
+    {
+      responseFormat: 'json_object',
+      signal: ctx.options.signal,
+    },
     {
       phase: Phase.PLAN,
       llm: ctx.options.llm,

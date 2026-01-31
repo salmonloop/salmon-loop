@@ -196,10 +196,21 @@ export class AiSdkLLM implements LLM {
     return withRetry(
       async () => {
         const abortController = new AbortController();
+
+        // Handle internal timeout
         const timeoutHandle =
           typeof timeoutMs === 'number' && timeoutMs > 0
             ? setTimeout(() => abortController.abort(), timeoutMs)
             : undefined;
+
+        // Chain with external signal if provided
+        if (options.signal) {
+          if (options.signal.aborted) {
+            abortController.abort();
+          } else {
+            options.signal.addEventListener('abort', () => abortController.abort());
+          }
+        }
 
         try {
           const result = await generateText({
@@ -224,6 +235,7 @@ export class AiSdkLLM implements LLM {
       },
       {
         maxRetries: 2,
+        signal: options.signal, // Pass signal to retry logic
         retryableErrors: (err) => {
           const msg = String(err).toLowerCase();
           return (
@@ -246,10 +258,21 @@ export class AiSdkLLM implements LLM {
 
     const streamFactory = async function* (this: AiSdkLLM) {
       const abortController = new AbortController();
+
+      // Handle internal timeout
       const timeoutHandle =
         typeof timeoutMs === 'number' && timeoutMs > 0
           ? setTimeout(() => abortController.abort(), timeoutMs)
           : undefined;
+
+      // Chain with external signal if provided
+      if (options.signal) {
+        if (options.signal.aborted) {
+          abortController.abort();
+        } else {
+          options.signal.addEventListener('abort', () => abortController.abort());
+        }
+      }
 
       try {
         const result = await streamText({
@@ -291,6 +314,7 @@ export class AiSdkLLM implements LLM {
     try {
       yield* withStreamRetry(streamFactory, {
         maxRetries: 2,
+        signal: options.signal, // Pass signal to retry logic
         retryableErrors: (err) => {
           const msg = String(err).toLowerCase();
           return (
@@ -316,7 +340,12 @@ export class AiSdkLLM implements LLM {
     yield* this.chatStream(messages, options);
   }
 
-  async createPlan(context: Context, instruction: string, lastError?: string): Promise<Plan> {
+  async createPlan(
+    context: Context,
+    instruction: string,
+    lastError?: string,
+    signal?: AbortSignal,
+  ): Promise<Plan> {
     const prompt = await getPlanPrompt(
       formatContextForPrompt(context),
       instruction,
@@ -326,6 +355,7 @@ export class AiSdkLLM implements LLM {
 
     const response = await this.chat([{ role: 'user', content: prompt }], {
       responseFormat: 'json_object',
+      signal,
     });
 
     const content = response.content;
@@ -340,7 +370,12 @@ export class AiSdkLLM implements LLM {
     }
   }
 
-  async createPatch(context: Context, plan: Plan, lastError?: string): Promise<string> {
+  async createPatch(
+    context: Context,
+    plan: Plan,
+    lastError?: string,
+    signal?: AbortSignal,
+  ): Promise<string> {
     const planStr = JSON.stringify(plan, null, 2);
     const formattedContext = formatContextForPrompt(context);
 
@@ -352,7 +387,9 @@ export class AiSdkLLM implements LLM {
       lastError,
     );
 
-    const response = await this.chat([{ role: 'user', content: prompt }]);
+    const response = await this.chat([{ role: 'user', content: prompt }], {
+      signal,
+    });
     return extractUnifiedDiffFromLLMContent(response.content || '');
   }
 }

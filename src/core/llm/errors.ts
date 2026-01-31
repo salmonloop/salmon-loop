@@ -62,7 +62,7 @@ function extractProviderDetails(err: unknown): {
         if (parsed?.error?.message) {
           details.providerMessage = parsed.error.message;
         } else if (parsed?.message) {
-           details.providerMessage = parsed.message;
+          details.providerMessage = parsed.message;
         }
       } catch {
         // ignore

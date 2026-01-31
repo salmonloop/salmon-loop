@@ -313,6 +313,10 @@ export interface ChatOptions {
    * - For OpenAI: 'auto' | 'none' | { type: 'function', function: { name } }
    */
   toolChoice?: any;
+  /**
+   * Signal to abort the request.
+   */
+  signal?: AbortSignal;
 }
 
 export interface LLM {
@@ -344,8 +348,18 @@ export interface LLM {
   /**
    * High-level goal-oriented methods (internally use chat)
    */
-  createPlan(context: Context, instruction: string, lastError?: string): Promise<Plan>;
-  createPatch(context: Context, plan: Plan, lastError?: string): Promise<string>;
+  createPlan(
+    context: Context,
+    instruction: string,
+    lastError?: string,
+    signal?: AbortSignal,
+  ): Promise<Plan>;
+  createPatch(
+    context: Context,
+    plan: Plan,
+    lastError?: string,
+    signal?: AbortSignal,
+  ): Promise<string>;
 }
 
 export interface LoopOptions {

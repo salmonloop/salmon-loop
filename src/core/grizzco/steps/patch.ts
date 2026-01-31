@@ -16,7 +16,12 @@ export const generatePatch: Step<PlanCtx, PatchCtx> = async (ctx) => {
 
   // Backwards-compatible fallback for non-tool-capable LLMs.
   if (!toolstack || !toolPolicy.enabled) {
-    const patch = await ctx.options.llm.createPatch(ctx.context, ctx.plan, ctx.lastError);
+    const patch = await ctx.options.llm.createPatch(
+      ctx.context,
+      ctx.plan,
+      ctx.lastError,
+      ctx.options.signal,
+    );
     const normalizedPatch = normalizeDiff(patch);
     let diffMeta;
     try {
@@ -64,7 +69,9 @@ export const generatePatch: Step<PlanCtx, PatchCtx> = async (ctx) => {
       },
       { role: 'user', content: prompt },
     ],
-    {},
+    {
+      signal: ctx.options.signal,
+    },
     {
       phase: Phase.PATCH,
       llm: ctx.options.llm,

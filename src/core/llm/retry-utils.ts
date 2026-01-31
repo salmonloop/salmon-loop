@@ -7,9 +7,10 @@ export interface RetryOptions {
   maxDelayMs?: number;
   backoffFactor?: number;
   retryableErrors?: (error: any) => boolean;
+  signal?: AbortSignal;
 }
 
-const DEFAULT_OPTIONS: Required<RetryOptions> = {
+const DEFAULT_OPTIONS: Required<Omit<RetryOptions, 'signal'>> = {
   maxRetries: 3,
   initialDelayMs: 500,
   maxDelayMs: 10000,
@@ -24,8 +25,13 @@ export async function withRetry<T>(fn: () => Promise<T>, options: RetryOptions =
   const opts = { ...DEFAULT_OPTIONS, ...options };
   let lastError: any;
   let delay = opts.initialDelayMs;
+  const signal = options.signal;
 
   for (let attempt = 0; attempt <= opts.maxRetries; attempt++) {
+    if (signal?.aborted) {
+      throw new Error('Operation aborted');
+    }
+
     try {
       return await fn();
     } catch (error) {
@@ -35,7 +41,25 @@ export async function withRetry<T>(fn: () => Promise<T>, options: RetryOptions =
         throw error;
       }
 
-      await new Promise((resolve) => setTimeout(resolve, delay));
+      if (signal?.aborted) {
+        throw new Error('Operation aborted');
+      }
+
+      await new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+          resolve(undefined);
+          signal?.removeEventListener('abort', onAbort);
+        }, delay);
+
+        const onAbort = () => {
+          clearTimeout(timer);
+          reject(new Error('Operation aborted'));
+          signal?.removeEventListener('abort', onAbort);
+        };
+
+        signal?.addEventListener('abort', onAbort);
+      });
+
       delay = Math.min(delay * opts.backoffFactor, opts.maxDelayMs);
     }
   }
@@ -54,8 +78,13 @@ export async function* withStreamRetry<T>(
   const opts = { ...DEFAULT_OPTIONS, ...options };
   let lastError: any;
   let delay = opts.initialDelayMs;
+  const signal = options.signal;
 
   for (let attempt = 0; attempt <= opts.maxRetries; attempt++) {
+    if (signal?.aborted) {
+      throw new Error('Operation aborted');
+    }
+
     try {
       yield* streamFactory();
       return; // Success, exit generator
@@ -66,7 +95,25 @@ export async function* withStreamRetry<T>(
         throw error;
       }
 
-      await new Promise((resolve) => setTimeout(resolve, delay));
+      if (signal?.aborted) {
+        throw new Error('Operation aborted');
+      }
+
+      await new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+          resolve(undefined);
+          signal?.removeEventListener('abort', onAbort);
+        }, delay);
+
+        const onAbort = () => {
+          clearTimeout(timer);
+          reject(new Error('Operation aborted'));
+          signal?.removeEventListener('abort', onAbort);
+        };
+
+        signal?.addEventListener('abort', onAbort);
+      });
+
       delay = Math.min(delay * opts.backoffFactor, opts.maxDelayMs);
     }
   }

@@ -55,7 +55,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
 
   let shouldExit = false;
   let lastSigintTime = 0;
-  const doublePressWindow = 500;
+  const doublePressWindow = 1000;
 
   // REPL loop
   while (!shouldExit) {
