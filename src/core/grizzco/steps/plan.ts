@@ -75,6 +75,7 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
         },
       },
       maxRounds: toolPolicy.maxRounds,
+      emitStreamChunk: ctx.options.onStreamChunk,
       emit: (e) =>
         ctx.emit({
           type: 'log',

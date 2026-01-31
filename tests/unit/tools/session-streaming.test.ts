@@ -468,4 +468,52 @@ describe('chatWithToolsStreaming', () => {
 
     expect(routerSpy).not.toHaveBeenCalled();
   });
+
+  it('emits stream chunks to the optional callback before aggregation', async () => {
+    const { registry, policy, router } = createToolstack();
+    const emitStreamChunk = vi.fn();
+
+    const llm: any = {
+      chatStream() {
+        return (async function* () {
+          yield { role: 'assistant', contentDelta: 'hello ' };
+          yield { role: 'assistant', contentDelta: 'world' };
+          yield { role: 'assistant', done: true };
+        })();
+      },
+      async chat() {
+        throw new Error('not used');
+      },
+      async createPlan() {
+        throw new Error('not used');
+      },
+      async createPatch() {
+        throw new Error('not used');
+      },
+    };
+
+    const final = await chatWithToolsStreaming(
+      [{ role: 'user', content: 'prompt' }],
+      {},
+      {
+        phase: Phase.PLAN,
+        llm,
+        runtime: {
+          repoRoot: '/tmp',
+          attemptId: 1,
+          dryRun: true,
+          model: 'test-model',
+          worktreeRoot: '/tmp',
+        },
+        toolstack: { registry, policy, router },
+        emitStreamChunk,
+      },
+    );
+
+    expect(final.content).toBe('hello world');
+    expect(emitStreamChunk).toHaveBeenCalledTimes(3);
+    expect(emitStreamChunk).toHaveBeenCalledWith(
+      expect.objectContaining({ contentDelta: 'hello ' }),
+    );
+  });
 });

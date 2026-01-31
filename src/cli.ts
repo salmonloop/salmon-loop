@@ -47,6 +47,7 @@ program
   .option('-cs, --checkpoint-strategy <type>', text.cli.checkpointStrategyOption, 'direct')
   .option('--apply-back-on-dirty <mode>', text.cli.applyBackOnDirtyOption, '3way')
   .option('--worktree-prepare <command>', text.cli.worktreePrepareOption)
+  .option('--stream-output', text.cli.streamOutputOption)
   .action(async (options) => {
     const runPath = resolve(options.repo);
 
@@ -152,8 +153,18 @@ program
       // Use phase.start to render labels and phase.end to advance progress.
       // This avoids off-by-one errors and stays aligned with EXECUTION_PHASES (SSOT).
       let bar = createProgressBar();
+      const streamOutputEnabled = Boolean(options.streamOutput);
 
       const applyBackOnDirty = options.applyBackOnDirty === 'abort' ? 'abort' : '3way';
+
+      const onStreamChunk = streamOutputEnabled
+        ? (chunk: { contentDelta?: string }) => {
+            if (!chunk?.contentDelta) return;
+            const delta = chunk.contentDelta;
+            if (!delta.trim()) return;
+            bar.interrupt(delta);
+          }
+        : undefined;
 
       const result = await runSalmonLoop({
         instruction: options.instruction,
@@ -168,6 +179,7 @@ program
         strategy: options.checkpointStrategy as CheckpointStrategy,
         applyBackOnDirty,
         worktreePrepare: options.worktreePrepare,
+        onStreamChunk,
         onEvent: (event) => {
           if (event.type === 'phase.start') {
             const phaseKey = event.phase.toLowerCase() as keyof typeof text.progress;

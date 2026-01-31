@@ -11,3 +11,4 @@ This folder holds the adapters and runtime factories for the LLM providers used 
 
 - `toLlmError` now preserves the provider response payload (`statusCode`, `responseBody`, `data.error.message`) and surfaces it via `LlmError.meta`, giving the CLI/audit layers direct access to HTTP/TLS failure messages for faster diagnosis.
 - When the provider exposes `chatStream`, `chatWithToolsStreaming` (via `core/tools/session.ts`) merges the streaming chunks into a single assistant turn before running the helper executor, so the ERROR/PLAN stage behavior stays deterministic while benefiting from streaming tool-call insight.
+- The CLI exposes `--stream-output` to mirror streamed text deltas in real time (best effort); it simply relays `contentDelta` chunks without altering tool-call governance.

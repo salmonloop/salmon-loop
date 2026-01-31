@@ -15,3 +15,4 @@ npm run dev -- -r "C:\path\to\your-repo" -f "src\\index.js" --instruction "Add a
 - 也可以在仓库内创建本地配置：`<repoRoot>/.salmonloop/config/config.json`（建议 gitignore）。
 - 更完整的配置字段（例如 `client.package`）请以英文文档 `docs/user/config.md` 为准。
 - `--dry-run` 可用于验证流程但不回写主仓库。
+- 需要实时看到 LLM 流式回复时，可以追加 `--stream-output`（取决于提供商是否支持流式接口）。

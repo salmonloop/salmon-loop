@@ -361,6 +361,10 @@ export interface LoopOptions {
   strategy?: CheckpointStrategy;
   applyBackOnDirty?: ApplyBackOnDirty;
   worktreePrepare?: string;
+  /**
+   * Streaming callback for UI surfaces (e.g., CLI) when provider supports chatStream.
+   */
+  onStreamChunk?: (chunk: LLMStreamChunk) => void;
 }
 
 export interface ExecutionWorkspace {

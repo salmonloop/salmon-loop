@@ -25,6 +25,7 @@ s8p context -i "..." [-f src/file.ts | -s "..."] [--diff-scope primary|ast_relat
 - `--no-config-file`: Disable loading the repo config file.
 - `--print-config`: Print the resolved config (redacted) and exit.
 - `--verbose [level]`: Enable verbose logging (`basic` or `extended`).
+- `--stream-output`: Stream LLM responses to the CLI as they arrive (best effort; requires provider streaming).
 
 ## Core Options (for Default Run)
 
@@ -113,6 +114,7 @@ s8p snap clear --force
 - `--worktree-prepare <command>`: Command to run inside the worktree before processing (e.g., `npm ci`).
 - `--dry-run`: Generate and validate the patch, but do not apply it to the disk (preview mode).
 - `--force-reset`: Force a hard reset (`git reset --hard`) on failure. **Use with caution** as it discards all uncommitted changes.
+- `--stream-output`: Emit streaming LLM output during phases that support it (currently PLAN).
 
 ### Advanced Options
 

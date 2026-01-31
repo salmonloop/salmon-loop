@@ -334,6 +334,7 @@ Please return the patch in PURE unified diff format:`;
     checkpointStrategyOption: 'Checkpoint strategy to use (direct, worktree)',
     applyBackOnDirtyOption: 'Behavior when apply-back detects a dirty workspace (3way, abort)',
     worktreePrepareOption: 'Optional setup command to run inside worktree',
+    streamOutputOption: 'Stream LLM responses to the CLI as they arrive (best effort)',
     contextDiffScopeOption: 'Diff scope for context (primary, ast_related)',
     contextBudgetCharsOption: 'Context budget in characters (e.g., 30000)',
 

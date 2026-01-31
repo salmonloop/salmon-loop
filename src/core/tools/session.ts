@@ -3,7 +3,7 @@ import * as crypto from 'crypto';
 import type { ToolCallingAuditSink } from '../llm/audit.js';
 import { redactErrorMessage, redactJsonString, redactValue } from '../llm/redact.js';
 import { logger } from '../logger.js';
-import type { ChatOptions, LLM, LLMMessage } from '../types.js';
+import type { ChatOptions, LLM, LLMMessage, LLMStreamChunk } from '../types.js';
 import { ExecutionPhase } from '../types.js';
 
 import { toolToOpenAI } from './mapper.js';
@@ -20,6 +20,11 @@ export interface ToolCallingSessionOptions {
     router: { call(envelope: any): Promise<ToolResult> };
   };
   toolCallingAudit?: ToolCallingAuditSink;
+  /**
+   * Optional streaming callback for surface-level UI (e.g., CLI).
+   * It is invoked for every streamed chunk before aggregation.
+   */
+  emitStreamChunk?: (chunk: LLMStreamChunk) => void;
   emit?: (event: {
     type: 'log';
     level: 'debug' | 'info' | 'warn' | 'error';
@@ -313,6 +318,10 @@ export async function chatWithToolsStreaming(
     });
 
     for await (const chunk of stream) {
+      if (chunk) {
+        session.emitStreamChunk?.(chunk);
+      }
+
       if (typeof chunk?.contentDelta === 'string' && chunk.contentDelta) {
         content += chunk.contentDelta;
       }
