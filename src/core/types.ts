@@ -225,6 +225,7 @@ export interface RunOptions {
     keepWorktreeOnFailure?: boolean;
     applyBack?: 'patch' | 'cherry-pick';
   };
+  signal?: AbortSignal; // Allow task interruption via AbortSignal
 }
 
 export class SalmonError extends Error {
@@ -351,6 +352,7 @@ export interface LoopOptions {
   instruction: string;
   verify: string;
   repoPath: string;
+  signal?: AbortSignal; // Allow task interruption via AbortSignal
   llm: LLM;
   dryRun?: boolean;
   forceReset?: boolean;

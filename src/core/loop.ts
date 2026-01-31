@@ -119,6 +119,19 @@ export class SalmonLoop {
       };
 
       while (retries <= LIMITS.maxRetries) {
+        // Check for cancellation
+        if (options.signal?.aborted) {
+          return {
+            success: false,
+            reason: 'Operation cancelled by user',
+            reasonCode: 'LOOP_CRASH',
+            attempts: retries,
+            logs,
+            history,
+            errorType: ErrorType.UNKNOWN,
+          };
+        }
+
         const attempt = retries + 1;
 
         // Execute Bifrost flow

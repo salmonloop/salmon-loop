@@ -6,6 +6,9 @@ import { runSalmonLoop } from '../core/loop.js';
 import { ChatSessionManager } from '../core/session/manager.js';
 import type { ChatSession } from '../core/session/types.js';
 import type { CheckpointStrategy, LLM } from '../core/types.js';
+import { text } from '../locales/index.js';
+
+import { ChatInterface } from './chat-interface.js';
 
 export interface ChatModeOptions {
   repoPath: string;
@@ -23,44 +26,67 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
   const sessionManager = new ChatSessionManager(options.repoPath);
   await sessionManager.init();
 
+  const chatInterface = new ChatInterface();
+
   // Load or create session
   let session;
   if (options.resume) {
     session = await sessionManager.loadLast();
     if (session) {
-      logger.log(chalk.green(`✨ Resumed: ${session.meta.name}`));
+      logger.log(chalk.green(text.cli.chatResumed(session.meta.name)));
       logger.log(
-        chalk.dim(`   Last updated: ${new Date(session.meta.updatedAt).toLocaleString()}`),
+        chalk.dim(text.cli.chatLastUpdated(new Date(session.meta.updatedAt).toLocaleString())),
       );
-      logger.log(chalk.dim(`   Iterations: ${session.meta.totalIterations}\n`));
+      logger.log(chalk.dim(text.cli.chatIterations(session.meta.totalIterations) + '\n'));
     } else {
-      logger.log(chalk.yellow('No previous session found. Starting new one.\n'));
+      logger.log(chalk.yellow(text.cli.chatNoPreviousSession + '\n'));
       session = await sessionManager.create();
     }
   } else {
     session = await sessionManager.create();
-    logger.log(chalk.blue(`🚀 New session: ${session.meta.id.slice(0, 8)}\n`));
+    logger.log(chalk.blue(text.cli.chatNewSession(session.meta.id.slice(0, 8)) + '\n'));
   }
 
-  logger.log(chalk.cyan('Commands:'));
-  logger.log(chalk.dim('  /exit, /quit  - Exit chat'));
-  logger.log(chalk.dim('  /status       - Show session info'));
-  logger.log(chalk.dim('  /clear        - Clear screen'));
-  logger.log(chalk.dim('  /history      - Show iteration history\n'));
+  logger.log(chalk.cyan(text.cli.chatCommands));
+  logger.log(chalk.dim(text.cli.chatCommandExit));
+  logger.log(chalk.dim(text.cli.chatCommandStatus));
+  logger.log(chalk.dim(text.cli.chatCommandClear));
+  logger.log(chalk.dim(text.cli.chatCommandHistory + '\n'));
+
+  let shouldExit = false;
+  let lastSigintTime = 0;
+  const doublePressWindow = 500;
 
   // REPL loop
-  while (true) {
+  while (!shouldExit) {
     try {
-      const userInput = await input({
-        message: chalk.cyan('s8p>'),
-      });
+      let userInput: string;
+      try {
+        userInput = await input({
+          message: text.cli.chatPrompt,
+        });
+      } catch (error) {
+        if ((error as any)?.message?.includes('User force closed')) {
+          const now = Date.now();
+          if (now - lastSigintTime < doublePressWindow) {
+            shouldExit = true;
+            logger.log(chalk.green(`\n${text.cli.chatSessionSaved}`));
+            break;
+          } else {
+            logger.log(chalk.yellow(`\n${text.cli.chatExitHint}`));
+            lastSigintTime = now;
+            continue;
+          }
+        }
+        throw error;
+      }
 
       const trimmed = userInput.trim();
       if (!trimmed) continue;
 
       // Handle commands
       if (trimmed === '/exit' || trimmed === '/quit') {
-        logger.log(chalk.green('👋 Session saved. Goodbye!'));
+        logger.log(chalk.green(text.cli.chatSessionSaved));
         break;
       }
 
@@ -87,7 +113,19 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
       });
 
       // Execute SalmonLoop
-      logger.log(chalk.dim('Thinking...\n'));
+      logger.log(chalk.dim(text.cli.chatThinking + '\n'));
+
+      // Create AbortController for this task
+      const abortController = new AbortController();
+      chatInterface.setAbortController(abortController);
+
+      let taskInterrupted = false;
+      const handleInterrupt = () => {
+        taskInterrupted = true;
+      };
+
+      // Start listening for Ctrl+C during task execution
+      const stopTaskListener = chatInterface.startTaskListener(handleInterrupt);
 
       const result = await runSalmonLoop({
         instruction: trimmed,
@@ -96,12 +134,22 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
         llm: options.llm,
         strategy: options.checkpointStrategy || 'worktree',
         verbose: options.verbose ? 'basic' : undefined,
+        signal: abortController.signal,
         onEvent: (event) => {
           if (event.type === 'phase.start') {
             logger.log(chalk.dim(`  ${event.phase}...`));
           }
         },
       });
+
+      // Stop task listener
+      stopTaskListener();
+      chatInterface.setAbortController(null);
+
+      // Skip adding to session if task was interrupted
+      if (taskInterrupted) {
+        continue;
+      }
 
       // Add iteration
       if (result.history && result.history.length > 0) {
@@ -115,8 +163,8 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
 
       // Add assistant message
       const responseText = result.success
-        ? `✅ Changes applied successfully!\n\nFiles changed: ${result.changedFiles?.join(', ') || 'none'}`
-        : `❌ Failed: ${result.reason}`;
+        ? text.cli.chatSuccess(result.changedFiles?.join(', ') || 'none')
+        : text.cli.chatFailed(result.reason);
 
       sessionManager.addMessage({
         role: 'assistant',
@@ -130,9 +178,15 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
       // Save session
       await sessionManager.save();
     } catch (error) {
+      // Handle errors gracefully
+      // User force closed is handled in the inner try-catch block
+
       logger.error(chalk.red('Error: ') + (error instanceof Error ? error.message : String(error)));
     }
   }
+
+  // Cleanup
+  chatInterface.cleanup();
 }
 
 function printStatus(session: ChatSession): void {

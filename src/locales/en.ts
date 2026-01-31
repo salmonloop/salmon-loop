@@ -320,6 +320,25 @@ Please return the patch in PURE unified diff format:`;
     runDescription: 'Run the salmon-loop',
     contextDescription: 'Build and print the context prompt (no LLM call)',
 
+    // Chat mode
+    chatResumed: (name: string) => `✨ Resumed: ${name}`,
+    chatLastUpdated: (time: string) => `   Last updated: ${time}`,
+    chatIterations: (count: number) => `   Iterations: ${count}`,
+    chatNoPreviousSession: 'No previous session found. Starting new one.',
+    chatNewSession: (id: string) => `🚀 New session: ${id}`,
+    chatCommands: 'Commands:',
+    chatCommandExit: '  /exit, /quit  - Exit chat (or Ctrl+C twice)',
+    chatCommandStatus: '  /status       - Show session info',
+    chatCommandClear: '  /clear        - Clear screen',
+    chatCommandHistory: '  /history      - Show iteration history',
+    chatSessionSaved: '👋 Session saved. Goodbye!',
+    chatThinking: 'Thinking...',
+    chatSuccess: (files: string) => `✅ Changes applied successfully!\n\nFiles changed: ${files}`,
+    chatFailed: (reason: string) => `❌ Failed: ${reason}`,
+    chatPrompt: 's8p>',
+    chatExitHint: 'Press Ctrl+C again to exit',
+    chatTaskInterrupted: '⚠️  Task interrupted by user (Ctrl+C)',
+
     // Option descriptions
     instructionOption: 'Instruction for code modification (required)',
     verifyOption: 'Verification command to run (e.g., "npm test") (required)',
