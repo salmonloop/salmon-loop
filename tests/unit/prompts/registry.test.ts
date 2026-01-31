@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
+import { z } from 'zod';
 
 import { PromptRegistry } from '../../../src/core/prompts/registry.js';
+import type { ToolSpec } from '../../../src/core/tools/types.js';
 
 // Note: We avoid mocking fs/promises to validate real template loading and path resolution.
 
@@ -127,5 +129,133 @@ describe('PromptRegistry', () => {
     // If path resolution is wrong, init would have failed or render would throw.
     expect(() => registry.renderPlanSystem()).not.toThrow();
     expect(() => registry.renderPatchSystem()).not.toThrow();
+  });
+
+  describe('Tool Injection', () => {
+    it('should inject tool definitions into plan system prompt', async () => {
+      const registry = newRegistry();
+      await registry.init();
+
+      const mockTool: ToolSpec = {
+        name: 'test.search',
+        source: 'builtin',
+        description: 'Search for test patterns',
+        riskLevel: 'low',
+        sideEffects: ['fs_read'],
+        allowedPhases: ['PLAN', 'PATCH'],
+        defaultTimeoutMs: 5000,
+        inputSchema: z.object({ query: z.string() }),
+        outputSchema: z.object({ results: z.array(z.string()) }),
+        executor: async () => ({ results: [] }),
+      };
+
+      registry.setTools([mockTool]);
+      const output = registry.renderPlanSystem();
+
+      // Verify tool appears in output
+      expect(output).toContain('test.search');
+      expect(output).toContain('Search for test patterns');
+      expect(output).toContain('builtin');
+      expect(output).toContain('low');
+      expect(output).toContain('fs_read');
+    });
+
+    it('should inject tool definitions into patch system prompt', async () => {
+      const registry = newRegistry();
+      await registry.init();
+
+      const mockTool: ToolSpec = {
+        name: 'code.read',
+        source: 'builtin',
+        description: 'Read source code files',
+        riskLevel: 'low',
+        sideEffects: ['fs_read'],
+        allowedPhases: ['PLAN', 'PATCH'],
+        inputSchema: z.object({ path: z.string() }),
+        outputSchema: z.object({ content: z.string() }),
+        executor: async () => ({ content: '' }),
+      };
+
+      registry.setTools([mockTool]);
+      const output = registry.renderPatchSystem();
+
+      expect(output).toContain('code.read');
+      expect(output).toContain('Read source code files');
+    });
+
+    it('should render multiple tools correctly', async () => {
+      const registry = newRegistry();
+      await registry.init();
+
+      const tools: ToolSpec[] = [
+        {
+          name: 'tool.one',
+          source: 'builtin',
+          description: 'First tool',
+          riskLevel: 'low',
+          sideEffects: ['none'],
+          allowedPhases: ['PLAN'],
+          inputSchema: z.object({}),
+          outputSchema: z.object({}),
+          executor: async () => ({}),
+        },
+        {
+          name: 'tool.two',
+          source: 'mcp',
+          description: 'Second tool',
+          riskLevel: 'high',
+          sideEffects: ['fs_write', 'git_write'],
+          allowedPhases: ['PATCH'],
+          inputSchema: z.object({}),
+          outputSchema: z.object({}),
+          executor: async () => ({}),
+        },
+      ];
+
+      registry.setTools(tools);
+      const output = registry.renderPlanSystem();
+
+      expect(output).toContain('tool.one');
+      expect(output).toContain('tool.two');
+      expect(output).toContain('First tool');
+      expect(output).toContain('Second tool');
+      expect(output).toContain('mcp');
+    });
+
+    it('should handle empty tool list gracefully', async () => {
+      const registry = newRegistry();
+      await registry.init();
+
+      registry.setTools([]);
+      const output = registry.renderPlanSystem();
+
+      // Should still render the system prompt
+      expect(output).toContain('You are SalmonLoop.');
+      // Should not crash
+      expect(output).toBeDefined();
+    });
+
+    it('should include tool usage guidelines when tools are present', async () => {
+      const registry = newRegistry();
+      await registry.init();
+
+      const mockTool: ToolSpec = {
+        name: 'test.tool',
+        source: 'builtin',
+        description: 'Test tool',
+        riskLevel: 'medium',
+        sideEffects: ['network'],
+        allowedPhases: ['PLAN'],
+        inputSchema: z.object({}),
+        outputSchema: z.object({}),
+        executor: async () => ({}),
+      };
+
+      registry.setTools([mockTool]);
+      const output = registry.renderPlanSystem();
+
+      expect(output).toContain('Available Tools');
+      expect(output).toContain('Tool Usage Guidelines');
+    });
   });
 });

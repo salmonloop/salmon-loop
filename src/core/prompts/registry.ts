@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 
 import Handlebars from 'handlebars';
 
+import type { ToolSpec } from '../tools/types.js';
+
 import type { PatchPromptVars, PlanPromptVars } from './schema.js';
 
 const TEMPLATE_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'templates');
@@ -11,6 +13,7 @@ const TEMPLATE_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'te
 export class PromptRegistry {
   private templates: Map<string, Handlebars.TemplateDelegate> = new Map();
   private initPromise?: Promise<void>;
+  private tools: ToolSpec[] = [];
 
   init(): Promise<void> {
     if (this.initPromise) return this.initPromise;
@@ -53,12 +56,50 @@ export class PromptRegistry {
     return template(data);
   }
 
+  /**
+   * Set the tool definitions to be injected into prompts
+   */
+  setTools(tools: ToolSpec[]): void {
+    this.tools = tools;
+  }
+
+  /**
+   * Get serializable tool definitions for template rendering
+   */
+  private getToolsForTemplate() {
+    return this.tools.map((spec) => ({
+      name: spec.name,
+      source: spec.source,
+      description: spec.description,
+      riskLevel: spec.riskLevel,
+      sideEffects: spec.sideEffects,
+      allowedPhases: spec.allowedPhases,
+      defaultTimeoutMs: spec.defaultTimeoutMs,
+      // Convert Zod schemas to JSON Schema for LLM consumption
+      inputSchema: this.zodToJsonSchema(spec.inputSchema),
+      outputSchema: this.zodToJsonSchema(spec.outputSchema),
+    }));
+  }
+
+  /**
+   * Convert Zod schema to a simplified JSON Schema representation
+   * Note: This is a basic conversion. For production, consider using zod-to-json-schema library.
+   */
+  private zodToJsonSchema(zodSchema: any): any {
+    // For now, return the schema description
+    // In a full implementation, this would convert Zod schemas to JSON Schema
+    if (zodSchema?._def?.description) {
+      return { description: zodSchema._def.description };
+    }
+    return { type: 'object', description: 'Schema details available at runtime' };
+  }
+
   renderPlanSystem(): string {
-    return this.render('plan_system', {});
+    return this.render('plan_system', { tools: this.getToolsForTemplate() });
   }
 
   renderPatchSystem(): string {
-    return this.render('patch_system', {});
+    return this.render('patch_system', { tools: this.getToolsForTemplate() });
   }
 
   renderPlan(vars: PlanPromptVars): string {

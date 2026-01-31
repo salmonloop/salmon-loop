@@ -54,7 +54,7 @@ export const generatePatch: Step<PlanCtx, PatchCtx> = async (ctx) => {
     ctx.lastError,
   );
 
-  const systemPrompt = await getPatchSystemPrompt();
+  const systemPrompt = await getPatchSystemPrompt(toolstack?.registry);
 
   const response = await chatWithTools(
     [

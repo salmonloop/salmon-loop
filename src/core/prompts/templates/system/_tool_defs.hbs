@@ -1,2 +1,36 @@
-{{!-- Reserved for future static tool definitions (protocol / legal text). --}}
+{{!-- Tool definitions for LLM context --}}
+{{#if tools}}
+## Available Tools
 
+You have access to the following tools to help complete your tasks:
+
+{{#each tools}}
+### {{this.name}}
+**Description**: {{this.description}}
+**Source**: {{this.source}}
+**Risk Level**: {{this.riskLevel}}
+**Side Effects**: {{#each this.sideEffects}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}
+**Allowed Phases**: {{#each this.allowedPhases}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}
+{{#if this.defaultTimeoutMs}}**Timeout**: {{this.defaultTimeoutMs}}ms{{/if}}
+
+**Input Schema**:
+```json
+{{{json this.inputSchema}}}
+```
+
+**Output Schema**:
+```json
+{{{json this.outputSchema}}}
+```
+
+{{/each}}
+
+## Tool Usage Guidelines
+- Only call tools that are allowed in the current execution phase
+- Respect side effect declarations and risk levels
+- Tool calls will be validated against input schemas before execution
+- High-risk tools may require additional confirmation
+
+{{else}}
+{{!-- No tools registered - this is expected during initialization or testing --}}
+{{/if}}

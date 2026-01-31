@@ -1,4 +1,5 @@
 import { promptRegistry } from './prompts/registry.js';
+import type { ToolRegistry } from './tools/registry.js';
 
 function extractTargetFiles(plan: string): string | undefined {
   try {
@@ -44,12 +45,18 @@ export async function getPatchPrompt(
   });
 }
 
-export async function getPlanSystemPrompt(): Promise<string> {
+export async function getPlanSystemPrompt(toolRegistry?: ToolRegistry): Promise<string> {
   await promptRegistry.init();
+  if (toolRegistry) {
+    promptRegistry.setTools(toolRegistry.listAll());
+  }
   return promptRegistry.renderPlanSystem();
 }
 
-export async function getPatchSystemPrompt(): Promise<string> {
+export async function getPatchSystemPrompt(toolRegistry?: ToolRegistry): Promise<string> {
   await promptRegistry.init();
+  if (toolRegistry) {
+    promptRegistry.setTools(toolRegistry.listAll());
+  }
   return promptRegistry.renderPatchSystem();
 }

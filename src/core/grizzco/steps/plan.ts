@@ -40,7 +40,7 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
     ctx.lastError,
   );
 
-  const systemPrompt = await getPlanSystemPrompt();
+  const systemPrompt = await getPlanSystemPrompt(toolstack?.registry);
 
   const supportsStreaming = typeof (ctx.options.llm as any)?.chatStream === 'function';
 
