@@ -88,11 +88,18 @@ export const runApply: Step<AstValidateCtx, ApplyCtx> = async (ctx) => {
       }
 
       if (result.type === 'NEED_DATA') {
-        const service = registry.get(result.key);
-        if (!service) throw new Error(text.grizzco.unknownDataDependency(result.key));
-        const data = await service.fetch(ctx, op.path);
+        const fetchPromises = result.keys.map(async (key) => {
+          const service = registry.get(key);
+          if (!service) throw new Error(text.grizzco.unknownDataDependency(key));
+          return { key, data: await service.fetch(ctx, op.path) };
+        });
+
+        const results = await Promise.all(fetchPromises);
+
         if (!dslCtx.data) dslCtx.data = {};
-        dslCtx.data[result.key] = data;
+        results.forEach(({ key, data }) => {
+          dslCtx.data![key] = data;
+        });
       }
     }
 

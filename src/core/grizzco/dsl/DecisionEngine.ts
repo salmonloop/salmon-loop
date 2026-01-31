@@ -59,7 +59,7 @@ export interface DslContext extends TransactionContext {
 export class DecisionEngine {
   private history: DecisionRecord[] = [];
   private currentPhase: string = 'initialization';
-  private missingDataKey?: string;
+  private missingDataKeys: Set<string> = new Set();
 
   constructor(
     private ctx: DslContext,
@@ -71,20 +71,30 @@ export class DecisionEngine {
     return this;
   }
 
-  requireData(key: string, reason?: string): this {
-    if (this.missingDataKey) return this;
+  /**
+   * Declare data dependency. Supports both single key and array of keys.
+   * @param keyOrKeys - Single key string or array of keys
+   * @param reason - Optional reason for logging
+   */
+  requireData(keyOrKeys: string | string[], reason?: string): this {
+    if (this.missingDataKeys.size > 0) return this;
 
-    if (!this.ctx.data || this.ctx.data[key] === undefined) {
-      this.missingDataKey = key;
-      this.recordDecision(false, () => `requireData('${key}')`, { reason });
-    } else {
-      this.recordDecision(true, () => `requireData('${key}')`, { val: this.ctx.data[key] });
+    const keys = Array.isArray(keyOrKeys) ? keyOrKeys : [keyOrKeys];
+
+    for (const key of keys) {
+      if (!this.ctx.data || this.ctx.data[key] === undefined) {
+        this.missingDataKeys.add(key);
+        this.recordDecision(false, () => `requireData('${key}')`, { reason });
+      } else {
+        this.recordDecision(true, () => `requireData('${key}')`, { val: this.ctx.data[key] });
+      }
     }
+
     return this;
   }
 
   require(predicate: (c: DslContext) => boolean, msg: string): this {
-    if (this.missingDataKey) return this;
+    if (this.missingDataKeys.size > 0) return this;
 
     const matched = predicate(this.ctx);
     this.recordDecision(matched, predicate, { type: 'require', msg });
@@ -95,7 +105,7 @@ export class DecisionEngine {
   }
 
   when(predicate: (c: DslContext) => boolean, action: (p: PlanBuilder) => void): this {
-    if (this.missingDataKey) return this;
+    if (this.missingDataKeys.size > 0) return this;
 
     const matched = predicate(this.ctx);
     this.recordDecision(matched, predicate, { type: 'when' });
@@ -110,16 +120,16 @@ export class DecisionEngine {
   }
 
   apply(fragment: (engine: DecisionEngine) => DecisionEngine): this {
-    if (this.missingDataKey) return this;
+    if (this.missingDataKeys.size > 0) return this;
     fragment(this);
     return this;
   }
 
   build(): DecisionResult {
-    if (this.missingDataKey) {
+    if (this.missingDataKeys.size > 0) {
       return {
         type: 'NEED_DATA',
-        key: this.missingDataKey,
+        keys: Array.from(this.missingDataKeys),
       };
     }
 
