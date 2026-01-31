@@ -1,4 +1,6 @@
-import { afterAll, vi } from 'vitest';
+import { afterAll, beforeAll, vi } from 'vitest';
+
+import { PluginLoader } from '../src/core/plugin/loader.js';
 
 // Testing guidelines: keep test runs silent and self-validating.
 // Many production paths use the shared logger, which delegates to console.*.
@@ -8,6 +10,11 @@ vi.spyOn(console, 'log').mockImplementation(() => {});
 vi.spyOn(console, 'info').mockImplementation(() => {});
 vi.spyOn(console, 'warn').mockImplementation(() => {});
 vi.spyOn(console, 'error').mockImplementation(() => {});
+
+beforeAll(async () => {
+  // Ensure plugins are loaded for all tests
+  await PluginLoader.loadPlugins();
+});
 
 afterAll(() => {
   vi.restoreAllMocks();

@@ -8,6 +8,7 @@ import { redactConfigForPrint, resolveConfig, ConfigError } from '../../core/con
 import { createRuntimeLlm } from '../../core/llm/factory.js';
 import { logger } from '../../core/logger.js';
 import { runSalmonLoop } from '../../core/loop.js';
+import { PluginLoader } from '../../core/plugin/loader.js';
 import {
   VerboseLevel,
   CheckpointStrategy,
@@ -24,6 +25,9 @@ import { resolveVerifyOption } from '../utils/verify-resolver.js';
 export async function handleRunCommand(options: any, command: Command) {
   const allOptions = command.optsWithGlobals();
   const runPath = resolve(allOptions.repo || process.cwd());
+
+  // Initialize plugins (including user plugins from .salmonloop/languages)
+  await PluginLoader.loadPlugins(runPath);
 
   if (allOptions.validate) {
     logger.log(chalk.blue(text.cli.runningValidation));

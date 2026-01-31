@@ -5,6 +5,7 @@ import { text } from '../locales/index.js';
 
 import { logger } from './logger.js';
 import { safeJoin, safeDirname } from './path.js';
+import { pluginRegistry } from './plugin/registry.js';
 
 /**
  * Simple dependency analyzer to find related files
@@ -20,6 +21,10 @@ export async function findFileDependencies(
   const results: string[] = [];
   const seen = new Set<string>();
   let frontier: string[] = [filePath];
+
+  // Pre-load plugins if not already loaded (though they should be by preflight)
+  // For safety in unit tests that might skip preflight:
+  // await PluginLoader.loadPlugins(); // Ideally this is done at app start
 
   for (let d = 0; d < depth; d++) {
     const nextFrontier: string[] = [];
@@ -49,22 +54,38 @@ async function findDirectDependencies(filePath: string, repoPath: string): Promi
     const content = await readFile(safeJoin(repoPath, filePath), 'utf-8');
     const dependencies: string[] = [];
 
-    // Match relative imports: import ... from './foo' or import ... from '../bar'
-    const importPattern =
-      /(?:from\s+['"](\.\.?\/[^'"]+)['"]|require\(\s*['"](\.\.?\/[^'"]+)['"]\s*\))/g;
-    let match;
+    // Detect language plugin for this file
+    const plugin = pluginRegistry.getByExtension(filePath);
 
-    while ((match = importPattern.exec(content)) !== null) {
-      let depPath = match[1] || match[2];
-      if (!depPath) continue;
+    if (plugin) {
+      // Use plugin strategy
+      const rawImports = plugin.dependency.extractImports(content);
 
-      // Add extension if missing (simple heuristic for TS/JS)
-      if (!depPath.endsWith('.ts') && !depPath.endsWith('.js')) {
-        depPath += '.ts'; // Default to .ts
+      for (const rawImport of rawImports) {
+        // Resolve path
+        let resolvedDep = rawImport;
+        if (plugin.dependency.resolvePath) {
+          const result = plugin.dependency.resolvePath(safeDirname(filePath), rawImport);
+          if (result) {
+            resolvedDep = result;
+          }
+        } else {
+          // Default fallback resolution if plugin doesn't specify
+          // (This might need improvement for generic support)
+          resolvedDep = rawImport;
+        }
+
+        // Construct absolute path
+        // Assumptions: rawImport is relative.
+        // If plugin handles resolution fully, we might need to adjust.
+        // For now, assuming plugin.resolvePath returns a relative path with extension
+
+        const absoluteDepPath = safeJoin(safeDirname(filePath), resolvedDep);
+        dependencies.push(absoluteDepPath);
       }
-
-      const absoluteDepPath = safeJoin(safeDirname(filePath), depPath);
-      dependencies.push(absoluteDepPath);
+    } else {
+      // Fallback for unknown languages? Or just return empty.
+      // For now, empty.
     }
 
     return dependencies;

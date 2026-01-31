@@ -18,6 +18,16 @@ Salmon-Loop is built on three core principles:
 -   **No Refactors**: It is designed for targeted fixes and features, not large-scale architectural refactoring.
 -   **No Whole-File Rewrite**: It modifies existing files via patches; it does not rewrite entire files from scratch.
 
+## Language Support & Plugins
+
+Salmon-Loop features a pluggable architecture for programming language support.
+
+- **Built-in Support**: TypeScript and JavaScript are supported out of the box.
+- **Extensibility**: You can add support for other languages (Python, Go, Rust, etc.) by adding a plugin.
+- **Zero-Config**: Place your plugin in `.salmonloop/languages/<lang>/index.js` and it will be automatically loaded.
+
+See [Plugin Documentation](docs/user/plugins.md) for details on how to create custom language plugins.
+
 ## Usage
 
 ### Installation

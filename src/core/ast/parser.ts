@@ -6,6 +6,7 @@ import * as TreeSitter from 'web-tree-sitter';
 
 import { text } from '../../locales/index.js';
 import { logger } from '../logger.js';
+import { pluginRegistry } from '../plugin/registry.js';
 import { SymbolInfo } from '../types.js';
 
 const require = createRequire(import.meta.url);
@@ -109,25 +110,38 @@ export class AstParser {
         let finalWasmPath = wasmPath;
 
         if (!finalWasmPath) {
-          const searchPaths = [path.join(process.cwd(), 'bin', `tree-sitter-${lang}.wasm`)];
-
-          // Try to resolve via node_modules
-          try {
-            const pkgPath = path.dirname(require.resolve(`tree-sitter-${lang}/package.json`));
-            searchPaths.push(path.join(pkgPath, `tree-sitter-${lang}.wasm`));
-          } catch (__e) {
-            // Ignore resolution errors
-          }
-
-          for (const p of searchPaths) {
-            if (fs.existsSync(p)) {
-              finalWasmPath = p;
-              break;
+          // 1. Try to get WASM path from plugin registry first (New Architecture)
+          const plugin = pluginRegistry.getById(lang);
+          if (plugin) {
+            const wasmSource = await plugin.parsing.getTreeSitterWasm();
+            if (typeof wasmSource === 'string') {
+              finalWasmPath = wasmSource;
+            } else {
+              // Handle Uint8Array if needed (direct load)
+              // For now, assume path string primarily, or improve handling logic later
             }
           }
 
+          // 2. Fallback to legacy resolution logic if no plugin or plugin returns nothing
           if (!finalWasmPath) {
-            finalWasmPath = searchPaths[0];
+            const searchPaths = [path.join(process.cwd(), 'bin', `tree-sitter-${lang}.wasm`)];
+            try {
+              const pkgPath = path.dirname(require.resolve(`tree-sitter-${lang}/package.json`));
+              searchPaths.push(path.join(pkgPath, `tree-sitter-${lang}.wasm`));
+            } catch (__e) {
+              // Ignore resolution errors
+            }
+
+            for (const p of searchPaths) {
+              if (fs.existsSync(p)) {
+                finalWasmPath = p;
+                break;
+              }
+            }
+
+            if (!finalWasmPath) {
+              finalWasmPath = searchPaths[0];
+            }
           }
         }
 
@@ -195,19 +209,27 @@ export class AstParser {
       const language = await this.getLanguage(lang);
       let queryStr = '';
 
-      if (lang === 'typescript' || lang === 'tsx' || lang === 'javascript') {
-        queryStr = `
-          (function_declaration name: (identifier) @name) @def
-          (method_definition name: (property_identifier) @name) @def
-          (variable_declarator name: (identifier) @name) @def
-          (class_declaration name: (identifier) @name) @def
-        `;
+      // 1. Try to get query from plugin (New Architecture)
+      const plugin = pluginRegistry.getById(lang);
+      if (plugin) {
+        queryStr = plugin.parsing.queries.definitions;
+      }
 
-        if (lang !== 'javascript') {
-          queryStr += `
-            (interface_declaration name: (identifier) @name) @def
-            (type_alias_declaration name: (identifier) @name) @def
+      // 2. Legacy Fallback (keeping for safety during migration, but ideally should rely on plugins)
+      if (!queryStr) {
+        if (lang === 'typescript' || lang === 'tsx' || lang === 'javascript') {
+          queryStr = `
+            (function_declaration name: (identifier) @name) @def
+            (method_definition name: (property_identifier) @name) @def
+            (variable_declarator name: (identifier) @name) @def
+            (class_declaration name: (identifier) @name) @def
           `;
+          if (lang !== 'javascript') {
+            queryStr += `
+              (interface_declaration name: (identifier) @name) @def
+              (type_alias_declaration name: (identifier) @name) @def
+            `;
+          }
         }
       }
 
@@ -244,16 +266,24 @@ export class AstParser {
       const language = await this.getLanguage(lang);
       let queryStr = '';
 
-      if (lang === 'typescript' || lang === 'tsx' || lang === 'javascript') {
-        queryStr = `
-          (call_expression function: (identifier) @name) @ref
-          (member_expression property: (property_identifier) @name) @ref
-        `;
+      // 1. Try to get query from plugin
+      const plugin = pluginRegistry.getById(lang);
+      if (plugin) {
+        queryStr = plugin.parsing.queries.references;
+      }
 
-        if (lang !== 'javascript') {
-          queryStr += `
-            (type_reference name: (identifier) @name) @ref
+      // 2. Legacy Fallback
+      if (!queryStr) {
+        if (lang === 'typescript' || lang === 'tsx' || lang === 'javascript') {
+          queryStr = `
+            (call_expression function: (identifier) @name) @ref
+            (member_expression property: (property_identifier) @name) @ref
           `;
+          if (lang !== 'javascript') {
+            queryStr += `
+              (type_reference name: (identifier) @name) @ref
+            `;
+          }
         }
       }
 

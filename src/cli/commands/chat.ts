@@ -5,12 +5,16 @@ import { Command } from 'commander';
 import { resolveConfig } from '../../core/config/index.js';
 import { createRuntimeLlm } from '../../core/llm/factory.js';
 import { logger } from '../../core/logger.js';
+import { PluginLoader } from '../../core/plugin/loader.js';
 import { text } from '../../locales/index.js';
 import { resolveVerifyOption } from '../utils/verify-resolver.js';
 
 export async function handleChatCommand(options: any, command: Command) {
   const allOptions = command.optsWithGlobals();
   const runPath = resolve(allOptions.repo || process.cwd());
+
+  // Initialize plugins (including user plugins from .salmonloop/languages)
+  await PluginLoader.loadPlugins(runPath);
 
   const resolvedConfig = await resolveConfig({
     repoRoot: runPath,

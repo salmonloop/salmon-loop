@@ -6,6 +6,7 @@ import { text } from '../locales/index.js';
 
 import { LIMITS } from './limits.js';
 import { logger } from './logger.js';
+import { pluginRegistry } from './plugin/registry.js';
 import { ErrorType } from './types.js';
 import type { ExecutionWorkspace } from './types.js';
 
@@ -13,20 +14,9 @@ import type { ExecutionWorkspace } from './types.js';
  * Classify the error type based on the output of the verification command
  */
 export function classifyError(output: string): ErrorType {
+  // 1. Common system errors (Language agnostic)
   const lowerOutput = output.toLowerCase();
 
-  // Dependency error keywords
-  if (
-    lowerOutput.includes('dependency version mismatch') ||
-    lowerOutput.includes('module not found') ||
-    lowerOutput.includes('cannot find module') ||
-    lowerOutput.includes('npm install') ||
-    lowerOutput.includes('pnpm install')
-  ) {
-    return ErrorType.DEPENDENCY_ERROR;
-  }
-
-  // Resource lock error keywords
   if (
     lowerOutput.includes('resource lock error') ||
     lowerOutput.includes('file lock') ||
@@ -37,7 +27,6 @@ export function classifyError(output: string): ErrorType {
     return ErrorType.RESOURCE_LOCK_ERROR;
   }
 
-  // AST validation error keywords
   if (
     lowerOutput.includes('ast syntax error') ||
     lowerOutput.includes('ast structure error') ||
@@ -47,50 +36,15 @@ export function classifyError(output: string): ErrorType {
     return ErrorType.AST_VALIDATION_ERROR;
   }
 
-  // Compilation error keywords (Strong signals)
-  if (
-    lowerOutput.includes('compilation error') ||
-    lowerOutput.includes('failed to compile') ||
-    lowerOutput.includes('syntaxerror') ||
-    lowerOutput.includes('type error') ||
-    lowerOutput.includes('cannot find module') ||
-    lowerOutput.includes('module not found') ||
-    /error:.*is not a member of/i.test(output) || // C++/Java style
-    /undefined reference to/i.test(output) || // Linker error
-    /TS\d{3,5}/.test(output) // TypeScript error codes (simplified regex for long strings)
-  ) {
-    return ErrorType.COMPILATION;
+  // 2. Delegate to plugins
+  for (const plugin of pluginRegistry.getAll()) {
+    const errorType = plugin.diagnostics.classifyError(output);
+    if (errorType) {
+      return errorType;
+    }
   }
 
-  // Lint error keywords (Strong signals)
-  if (
-    lowerOutput.includes('eslint') ||
-    lowerOutput.includes('prettier') ||
-    lowerOutput.includes('stylelint') ||
-    lowerOutput.includes('lint') ||
-    lowerOutput.includes('checkstyle')
-  ) {
-    // If it's a lint tool, and it's not a compilation error, it's likely a lint error
-    return ErrorType.LINT;
-  }
-
-  // Test error keywords (Strong signals)
-  if (
-    ((lowerOutput.includes('fail') || lowerOutput.includes('failed')) &&
-      (lowerOutput.includes('test suites') ||
-        lowerOutput.includes('test files') ||
-        lowerOutput.includes('spec'))) || // Jest/Vitest/Mocha
-    lowerOutput.includes('assertionerror') ||
-    lowerOutput.includes('expect(') ||
-    lowerOutput.includes('should(') ||
-    (lowerOutput.includes('failing') && lowerOutput.includes('mocha')) ||
-    /^E\s+.*$/m.test(output) || // Pytest error marker
-    /FAILED \(failures=\d+\)/.test(output) // Python unittest
-  ) {
-    return ErrorType.TEST;
-  }
-
-  // Logic errors usually manifest as verification failure without obvious compilation/test framework errors
+  // 3. Generic logic fallback
   if (output.trim().length > 0) {
     return ErrorType.LOGIC;
   }
