@@ -4,13 +4,13 @@
   "description": "A minimal viable execution loop for automated code patching",
   "type": "module",
   "bin": {
-    "salmon-loop": "dist/cli.js"
+    "salmon-loop": "dist/cli/index.js"
   },
   "scripts": {
     "preinstall": "node scripts/check-versions.js",
     "check-deps": "node scripts/check-deps.js",
     "build": "tsc && node scripts/copy-assets.js",
-    "dev": "tsx src/cli.ts",
+    "dev": "tsx src/cli/index.ts",
     "test": "eslint . && vitest run",
     "test:unit": "vitest run tests/unit/",
     "test:integration": "vitest run tests/integration/",

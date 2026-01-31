@@ -46,7 +46,7 @@ You can run the CLI directly (the `run` command is default):
 pnpm dev --instruction "fix bug" --verify "npm test"
 
 # Using npx (no build required)
-npx tsx src/cli.ts --instruction "fix bug" --verify "npm test"
+npx tsx src/cli/index.ts --instruction "fix bug" --verify "npm test"
 
 # Or after building
 node dist/cli.js --instruction "fix bug" --verify "npm test"

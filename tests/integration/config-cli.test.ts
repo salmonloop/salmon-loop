@@ -9,7 +9,7 @@ import { RealFsTestHelper } from '../helpers/real-fs-helper.js';
 
 const PROJECT_ROOT = resolve(process.cwd());
 const TSX_CLI = join(PROJECT_ROOT, 'node_modules', 'tsx', 'dist', 'cli.mjs');
-const SALMONLOOP_CLI_ENTRY = join(PROJECT_ROOT, 'src', 'cli.ts');
+const SALMONLOOP_CLI_ENTRY = join(PROJECT_ROOT, 'src', 'cli', 'index.ts');
 
 async function runSalmonLoopCli(args: string[], envOverrides?: Record<string, string>) {
   const dotenvDir = await mkdtemp(join(tmpdir(), 'salmonloop-dotenv-'));

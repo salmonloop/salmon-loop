@@ -49,7 +49,7 @@ export default defineConfig({
       exclude: [
         'src/**/*.d.ts',
         'src/**/types.ts',
-        'src/cli.ts', // CLI entry point
+        'src/cli/index.ts', // CLI entry point
       ],
     },
   },

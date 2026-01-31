@@ -46,7 +46,7 @@ cp .env.example .env
 pnpm dev --instruction "fix bug" --verify "npm test"
 
 # 使用 npx (无需构建)
-npx tsx src/cli.ts --instruction "fix bug" --verify "npm test"
+npx tsx src/cli/index.ts --instruction "fix bug" --verify "npm test"
 
 # 或者在构建后
 node dist/cli.js --instruction "fix bug" --verify "npm test"
