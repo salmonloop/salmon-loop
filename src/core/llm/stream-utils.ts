@@ -1,6 +1,7 @@
 import type { LLMStreamChunk } from '../types.js';
 
-type AiSdkStreamPart =
+// Type definition for AI SDK stream parts (for documentation purposes)
+type _AiSdkStreamPart =
   | string
   | {
       type: 'text-delta' | 'reasoning-delta';

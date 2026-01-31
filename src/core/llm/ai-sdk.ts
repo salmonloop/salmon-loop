@@ -10,7 +10,15 @@ import {
   parsePlanFromLLMContent,
 } from '../llm-utils.js';
 import { getPatchPrompt, getPlanPrompt } from '../prompt.js';
-import type { ChatOptions, Context, LLM, LLMMessage, LLMRole, Plan } from '../types.js';
+import type {
+  ChatOptions,
+  Context,
+  LLM,
+  LLMMessage,
+  LLMRole,
+  LLMStreamChunk,
+  Plan,
+} from '../types.js';
 
 import { resolveBaseUrl } from './base-url.js';
 import { toLlmError, wrapPlanEmpty } from './errors.js';
@@ -218,7 +226,9 @@ export class AiSdkLLM implements LLM {
         maxRetries: 2,
         retryableErrors: (err) => {
           const msg = String(err).toLowerCase();
-          return msg.includes('timeout') || msg.includes('rate limit') || msg.includes('overloaded');
+          return (
+            msg.includes('timeout') || msg.includes('rate limit') || msg.includes('overloaded')
+          );
         },
       },
     ).catch((e) => {
@@ -234,7 +244,7 @@ export class AiSdkLLM implements LLM {
     const tools = toAiSdkToolSet(options.tools);
     const timeoutMs = this.timeoutMs;
 
-    const streamFactory = async function* () {
+    const streamFactory = async function* (this: AiSdkLLM) {
       const abortController = new AbortController();
       const timeoutHandle =
         typeof timeoutMs === 'number' && timeoutMs > 0
@@ -271,7 +281,7 @@ export class AiSdkLLM implements LLM {
         }
 
         if (!doneEmitted) {
-          yield { role: 'assistant', done: true, finishReason: 'unknown' };
+          yield { role: 'assistant' as LLMRole, done: true, finishReason: 'unknown' };
         }
       } finally {
         if (timeoutHandle) clearTimeout(timeoutHandle);
@@ -283,7 +293,9 @@ export class AiSdkLLM implements LLM {
         maxRetries: 2,
         retryableErrors: (err) => {
           const msg = String(err).toLowerCase();
-          return msg.includes('timeout') || msg.includes('rate limit') || msg.includes('overloaded');
+          return (
+            msg.includes('timeout') || msg.includes('rate limit') || msg.includes('overloaded')
+          );
         },
       });
     } catch (e) {

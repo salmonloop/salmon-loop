@@ -561,7 +561,9 @@ program
     });
 
     const { llm } = createRuntimeLlm(resolvedConfig.llm);
-    const verifyCommand = resolvedConfig.verify.command;
+    // Align with default run command: CLI option takes precedence over config
+    const globalOptions = program.opts();
+    const verifyCommand = globalOptions.verify || resolvedConfig.verify.command;
 
     if (!verifyCommand) {
       logger.error('Verify command is required for chat mode. Use --verify or configure in .s8prc');

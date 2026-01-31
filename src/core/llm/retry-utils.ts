@@ -20,10 +20,7 @@ const DEFAULT_OPTIONS: Required<RetryOptions> = {
 /**
  * Retries an async function with exponential backoff.
  */
-export async function withRetry<T>(
-  fn: () => Promise<T>,
-  options: RetryOptions = {}
-): Promise<T> {
+export async function withRetry<T>(fn: () => Promise<T>, options: RetryOptions = {}): Promise<T> {
   const opts = { ...DEFAULT_OPTIONS, ...options };
   let lastError: any;
   let delay = opts.initialDelayMs;
@@ -52,7 +49,7 @@ export async function withRetry<T>(
  */
 export async function* withStreamRetry<T>(
   streamFactory: () => AsyncIterable<T>,
-  options: RetryOptions = {}
+  options: RetryOptions = {},
 ): AsyncIterable<T> {
   const opts = { ...DEFAULT_OPTIONS, ...options };
   let lastError: any;
