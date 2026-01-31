@@ -1,4 +1,3 @@
-import { input } from '@inquirer/prompts';
 import chalk from 'chalk';
 
 import { logger } from '../core/logger.js';
@@ -7,18 +6,6 @@ import { ChatSessionManager } from '../core/session/manager.js';
 import type { ChatSession } from '../core/session/types.js';
 import type { CheckpointStrategy, LLM } from '../core/types.js';
 import { text } from '../locales/index.js';
-
-import { ChatInterface } from './chat-interface.js';
-
-export interface ChatModeOptions {
-  repoPath: string;
-  llm: LLM;
-  verifyCommand: string;
-  checkpointStrategy?: CheckpointStrategy;
-  resume?: boolean;
-  verbose?: boolean;
-}
-
 import { startGUI } from './ui/index.js';
 
 /**
@@ -105,28 +92,4 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
     await sessionManager.save();
     return result;
   });
-}
-
-function printStatus(session: ChatSession): void {
-  logger.log(chalk.bold('\nSession Status:'));
-  logger.log(`  ID: ${session.meta.id}`);
-  logger.log(`  Name: ${session.meta.name}`);
-  logger.log(
-    `  Iterations: ${session.meta.totalIterations} (${session.meta.successfulIterations} successful)`,
-  );
-  logger.log(`  Messages: ${session.messages.length}`);
-  logger.log(`  Snapshots: ${session.meta.snapshots.length}`);
-  logger.log(`  Tokens: ${session.meta.totalTokens.input + session.meta.totalTokens.output}\n`);
-}
-
-function printHistory(session: ChatSession): void {
-  logger.log(chalk.bold('\nIteration History:'));
-  session.iterations.forEach((iter, i) => {
-    const status = iter.error ? chalk.red('✗') : chalk.green('✓');
-    logger.log(`  ${status} #${i + 1} - ${iter.contextSummary || 'No context'}`);
-    if (iter.error) {
-      logger.log(chalk.dim(`      Error: ${iter.error.substring(0, 80)}...`));
-    }
-  });
-  logger.log('');
 }

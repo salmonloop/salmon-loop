@@ -15,7 +15,7 @@ export async function startGUI(
     resolveExit = resolve;
   });
 
-  const { waitUntilExit, unmount, rerender } = render(
+  const { waitUntilExit, unmount } = render(
     <App
       mode={mode}
       onStart={(emit) => {

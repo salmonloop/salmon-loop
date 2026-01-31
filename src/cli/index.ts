@@ -128,7 +128,7 @@ program
   .command('chat')
   .description('Enter interactive chat mode')
   .option('--resume', 'Resume last session')
-  .option('-v, --verbose', 'Verbose output')
+  .option('--verbose', 'Verbose output')
   .action(handleChatCommand);
 
 // Parse arguments

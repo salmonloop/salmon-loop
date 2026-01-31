@@ -1,5 +1,5 @@
 import { renderHook, act } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 
 import { useLoopState } from '../../../../../src/cli/ui/hooks/useLoopState.js';
 import { LoopEvent } from '../../../../../src/core/types.js';
