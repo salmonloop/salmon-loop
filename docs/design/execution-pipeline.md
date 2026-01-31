@@ -28,3 +28,11 @@ The phase order is a contract and must match runtime behavior.
 When VERIFY fails, later attempts may be informed by:
 - A refined error summary ("last error") derived from the previous verification output.
 - A shrunk/re-ranked context assembled from the failed files and their dependencies.
+
+## PLAN Phase Streaming Behavior
+
+When the configured LLM exposes `chatStream`, the PLAN phase automatically routes through the streaming tool loop. The helper accumulates `contentDelta` chunks into a single assistant turn, aggregates native `tool_calls` so side-effect tooling still executes exactly once per turn, and then feeds the resulting message to the existing governance/audit pipeline. This preserves the read-only contract for PLAN while giving downstream tools and auditors better insight into streaming models that emit partial text or tool invocations before the turn completes.
+
+## Config Overrides for Base URL and Model
+
+LLM adapters normalized by `resolveConfig` now accept the preferred environment variables `SALMONLOOP_BASE_URL` and `SALMONLOOP_MODEL` (falling back to `S8P_BASE_URL`/`SALMON_BASE_URL` and `S8P_MODEL`/`SALMON_MODEL` for backward compatibility). The runtime trims trailing slashes from the base URL before handing it to the transport so users can copy providers' publishable URLs (e.g., `https://openrouter.ai/api/v1/`) without worrying about duplicates.
