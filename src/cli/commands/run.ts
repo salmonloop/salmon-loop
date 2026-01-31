@@ -9,9 +9,16 @@ import { createRuntimeLlm } from '../../core/llm/factory.js';
 import { logger } from '../../core/logger.js';
 import { runSalmonLoop } from '../../core/loop.js';
 import { VerboseLevel, CheckpointStrategy, LLMStreamChunk } from '../../core/types.js';
+import {
+  ApplyBackOnDirty,
+  CheckpointStrategy,
+  LLMStreamChunk,
+  LoopResult,
+} from '../../core/types.js';
 import { text } from '../../locales/index.js';
 import { SalmonReporter } from '../reporters/base.js';
 import { StandardReporter } from '../reporters/standard.js';
+import { startGUI } from '../ui/index.js';
 
 export async function handleRunCommand(options: any, command: Command) {
   const allOptions = command.optsWithGlobals();
@@ -122,7 +129,7 @@ export async function handleRunCommand(options: any, command: Command) {
       ? (chunk: LLMStreamChunk) => reporter.onStreamChunk(chunk)
       : undefined;
 
-    const result = await runSalmonLoop({
+    const loopParams = {
       instruction: allOptions.instruction,
       verify: effectiveVerify,
       repoPath: runPath,
@@ -136,8 +143,30 @@ export async function handleRunCommand(options: any, command: Command) {
       applyBackOnDirty,
       worktreePrepare: allOptions.worktreePrepare,
       onStreamChunk,
-      onEvent: (event) => reporter.onEvent(event),
-    });
+    };
+
+    let result: LoopResult;
+    // Default to GUI unless explicitly disabled or not a TTY
+    const useGui = allOptions.gui !== false && process.stdout.isTTY;
+
+    if (useGui) {
+      result = await startGUI('run', async (emit) => {
+        return await runSalmonLoop({
+          ...loopParams,
+          applyBackOnDirty: loopParams.applyBackOnDirty as ApplyBackOnDirty,
+          onEvent: (event) => {
+            reporter.onEvent(event);
+            emit(event);
+          },
+        });
+      });
+    } else {
+      result = await runSalmonLoop({
+        ...loopParams,
+        applyBackOnDirty: loopParams.applyBackOnDirty as ApplyBackOnDirty,
+        onEvent: (event) => reporter.onEvent(event),
+      });
+    }
 
     reporter.onFinish(result);
 
