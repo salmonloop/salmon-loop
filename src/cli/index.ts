@@ -28,6 +28,7 @@ program.name('s8p').alias('salmonloop').description(text.cli.programDescription)
 program
   .option('-r, --repo <path>', text.cli.repoOption, process.cwd())
   .option('-v, --verify <command>', text.cli.verifyOption)
+  .option('--no-verify', 'Disable verification')
   .option('-cs, --checkpoint-strategy <type>', text.cli.checkpointStrategyOption, 'worktree');
 
 // --- Main Command: Run ---

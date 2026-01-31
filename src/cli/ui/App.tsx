@@ -192,7 +192,7 @@ export const App: React.FC<AppProps> = ({ mode, onStart, onChatInput, initialLog
             </Text>
           </Box>
 
-          <Box marginTop="auto" flexDirection="column">
+          <Box marginTop={1} flexDirection="column">
             <Box paddingX={1} backgroundColor="cyan" marginBottom={1}>
               <Text color="black" bold>
                 {' '}

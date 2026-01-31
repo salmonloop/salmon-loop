@@ -8,17 +8,18 @@ import { redactConfigForPrint, resolveConfig, ConfigError } from '../../core/con
 import { createRuntimeLlm } from '../../core/llm/factory.js';
 import { logger } from '../../core/logger.js';
 import { runSalmonLoop } from '../../core/loop.js';
-import { VerboseLevel, CheckpointStrategy, LLMStreamChunk } from '../../core/types.js';
 import {
-  ApplyBackOnDirty,
+  VerboseLevel,
   CheckpointStrategy,
   LLMStreamChunk,
+  ApplyBackOnDirty,
   LoopResult,
 } from '../../core/types.js';
 import { text } from '../../locales/index.js';
 import { SalmonReporter } from '../reporters/base.js';
 import { StandardReporter } from '../reporters/standard.js';
 import { startGUI } from '../ui/index.js';
+import { resolveVerifyOption } from '../utils/verify-resolver.js';
 
 export async function handleRunCommand(options: any, command: Command) {
   const allOptions = command.optsWithGlobals();
@@ -71,15 +72,25 @@ export async function handleRunCommand(options: any, command: Command) {
     return;
   }
 
-  const effectiveVerify = allOptions.verify || resolvedConfig.verify.command;
+  // Smart verification resolution with auto-detection
+  const effectiveVerify = await resolveVerifyOption(
+    runPath,
+    allOptions.verify,
+    resolvedConfig.verify.command,
+  );
 
-  if (!allOptions.instruction || !effectiveVerify) {
+  if (!allOptions.instruction) {
     if (!allOptions.validate) {
       logger.error(text.cli.optionsRequired);
       command.help(); // Show help if required options are missing
       process.exit(1);
     }
     return;
+  }
+
+  // Verification is now optional - warn if not found
+  if (!effectiveVerify) {
+    logger.warn(text.verify.noCommandFound);
   }
 
   const verboseLevel =
@@ -89,7 +100,9 @@ export async function handleRunCommand(options: any, command: Command) {
     logger.setVerbose(verboseLevel);
     logger.cyan(text.cli.runningWith);
     logger.log(text.cli.instruction(allOptions.instruction));
-    logger.log(text.cli.verify(effectiveVerify));
+    if (effectiveVerify) {
+      logger.log(text.cli.verify(effectiveVerify));
+    }
     logger.log(text.cli.repoPath(runPath));
     if (allOptions.file) logger.log(text.cli.contextFile(allOptions.file));
     if (allOptions.selection) logger.log(text.cli.contextSelection(allOptions.selection.length));
@@ -150,7 +163,7 @@ export async function handleRunCommand(options: any, command: Command) {
     const useGui = allOptions.gui !== false && process.stdout.isTTY;
 
     if (useGui) {
-      result = await startGUI('run', async (emit) => {
+      result = (await startGUI('run', async (emit) => {
         return await runSalmonLoop({
           ...loopParams,
           applyBackOnDirty: loopParams.applyBackOnDirty as ApplyBackOnDirty,
@@ -159,7 +172,7 @@ export async function handleRunCommand(options: any, command: Command) {
             emit(event);
           },
         });
-      });
+      })) as LoopResult;
     } else {
       result = await runSalmonLoop({
         ...loopParams,

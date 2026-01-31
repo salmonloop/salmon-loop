@@ -18,7 +18,14 @@ export default defineConfig({
     exclude: ['tests/perf/**'],
 
     // Run integration tests in isolated forks to avoid git lock contention
-    poolMatchGlobs: [['tests/integration/**', 'forks']],
+    // Run UI tests in jsdom environment for React hooks
+    poolMatchGlobs: [
+      ['tests/integration/**', 'forks'],
+      ['tests/unit/cli/ui/**', 'threads'],
+    ],
+
+    // Environment per test file
+    environmentMatchGlobs: [['tests/unit/cli/ui/**', 'jsdom']],
 
     poolOptions: {
       forks: {

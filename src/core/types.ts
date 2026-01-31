@@ -61,7 +61,7 @@ export interface Plan {
   goal: string;
   files: string[];
   changes: string[];
-  verify: string;
+  verify?: string;
 }
 
 export interface PlanStep {
@@ -203,7 +203,7 @@ export interface RipgrepResult {
 
 export interface RunOptions {
   instruction: string;
-  verify: string;
+  verify?: string;
   repoPath: string;
   file?: string;
   contextFiles?: string[];
@@ -364,7 +364,7 @@ export interface LLM {
 
 export interface LoopOptions {
   instruction: string;
-  verify: string;
+  verify?: string;
   repoPath: string;
   signal?: AbortSignal; // Allow task interruption via AbortSignal
   llm: LLM;

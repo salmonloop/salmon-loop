@@ -5,6 +5,8 @@ import { Command } from 'commander';
 import { resolveConfig } from '../../core/config/index.js';
 import { createRuntimeLlm } from '../../core/llm/factory.js';
 import { logger } from '../../core/logger.js';
+import { text } from '../../locales/index.js';
+import { resolveVerifyOption } from '../utils/verify-resolver.js';
 
 export async function handleChatCommand(options: any, command: Command) {
   const allOptions = command.optsWithGlobals();
@@ -16,12 +18,17 @@ export async function handleChatCommand(options: any, command: Command) {
   });
 
   const { llm } = createRuntimeLlm(resolvedConfig.llm);
-  // Align with default run command: CLI option takes precedence over config
-  const verifyCommand = allOptions.verify || resolvedConfig.verify.command;
 
+  // Smart verification resolution with auto-detection
+  const verifyCommand = await resolveVerifyOption(
+    runPath,
+    allOptions.verify,
+    resolvedConfig.verify.command,
+  );
+
+  // Verification is now optional - the loop will skip if undefined
   if (!verifyCommand) {
-    logger.error('Verify command is required for chat mode. Use --verify or configure in .s8prc');
-    process.exit(1);
+    logger.warn(text.verify.noCommandFound);
   }
 
   // Dynamic import to avoid circular dependencies if any, and keep startup fast

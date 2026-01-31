@@ -1,12 +1,18 @@
-import chalk from 'chalk';
-
-import { logger } from '../core/logger.js';
 import { runSalmonLoop } from '../core/loop.js';
 import { ChatSessionManager } from '../core/session/manager.js';
-import type { ChatSession } from '../core/session/types.js';
 import type { CheckpointStrategy, LLM } from '../core/types.js';
 import { text } from '../locales/index.js';
+
 import { startGUI } from './ui/index.js';
+
+export interface ChatModeOptions {
+  repoPath: string;
+  llm: LLM;
+  verifyCommand?: string;
+  checkpointStrategy?: CheckpointStrategy;
+  resume?: boolean;
+  verbose?: boolean;
+}
 
 /**
  * Start interactive chat mode
