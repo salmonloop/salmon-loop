@@ -159,6 +159,14 @@ async function executeToolCalls(
     const toolName = call?.function?.name;
     const rawArgs = call?.function?.arguments;
 
+    if (toolName && typeof toolName === 'string') {
+      session.emit?.({
+        type: 'log',
+        level: 'debug',
+        message: `[tool] start ${toolName}`,
+      });
+    }
+
     if (!toolName || typeof toolName !== 'string') {
       logger.warn('Received malformed tool call (missing function.name)');
       session.toolCallingAudit?.event({
@@ -258,6 +266,12 @@ async function executeToolCalls(
         });
       }
     }
+
+    session.emit?.({
+      type: 'log',
+      level: result.status === 'ok' ? 'info' : 'warn',
+      message: `[tool] done ${toolName || 'unknown'} status=${result.status}`,
+    });
 
     messages.push({
       role: 'tool',

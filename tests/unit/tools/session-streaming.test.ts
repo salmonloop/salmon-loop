@@ -516,4 +516,67 @@ describe('chatWithToolsStreaming', () => {
       expect.objectContaining({ contentDelta: 'hello ' }),
     );
   });
+
+  it('emits start/done tool logs without leaking arguments', async () => {
+    const { registry, policy, router } = createToolstack();
+    registerEchoTool(registry);
+
+    const logs: string[] = [];
+
+    const llm: any = {
+      chatStream(messages: LLMMessage[]) {
+        const hasToolResult = messages.some((m) => m.role === 'tool');
+        if (!hasToolResult) {
+          return (async function* () {
+            yield {
+              role: 'assistant',
+              tool_calls: [
+                {
+                  id: 'call_1',
+                  type: 'function',
+                  function: { name: 'test.echo', arguments: JSON.stringify({ text: 'hi' }) },
+                },
+              ],
+            };
+            yield { role: 'assistant', done: true };
+          })();
+        }
+        return (async function* () {
+          yield { role: 'assistant', contentDelta: 'done' };
+          yield { role: 'assistant', done: true };
+        })();
+      },
+      async chat() {
+        throw new Error('not used');
+      },
+      async createPlan() {
+        throw new Error('not used');
+      },
+      async createPatch() {
+        throw new Error('not used');
+      },
+    };
+
+    await chatWithToolsStreaming(
+      [{ role: 'user', content: 'prompt' }],
+      {},
+      {
+        phase: Phase.PLAN,
+        llm,
+        runtime: {
+          repoRoot: '/tmp',
+          attemptId: 1,
+          dryRun: true,
+          model: 'test-model',
+          worktreeRoot: '/tmp',
+        },
+        toolstack: { registry, policy, router },
+        emit: (e) => logs.push(e.message),
+      },
+    );
+
+    expect(logs.some((m) => m.includes('[tool] start test.echo'))).toBe(true);
+    expect(logs.some((m) => m.includes('[tool] done test.echo status=ok'))).toBe(true);
+    expect(logs.some((m) => m.includes('hi'))).toBe(false); // args not leaked
+  });
 });
