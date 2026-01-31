@@ -36,3 +36,7 @@ When the configured LLM exposes `chatStream`, the PLAN phase automatically route
 ## Config Overrides for Base URL and Model
 
 LLM adapters normalized by `resolveConfig` now accept the preferred environment variables `SALMONLOOP_BASE_URL` and `SALMONLOOP_MODEL` (falling back to `S8P_BASE_URL`/`SALMON_BASE_URL` and `S8P_MODEL`/`SALMON_MODEL` for backward compatibility). The runtime trims trailing slashes from the base URL before handing it to the transport so users can copy providers' publishable URLs (e.g., `https://openrouter.ai/api/v1/`) without worrying about duplicates.
+
+## Error Transparency
+
+`toLlmError` now retains the provider payload—status code, response body, and any nested `data.error.message`—and surfaces this metadata through the emitted `LlmError.meta`. The CLI/Audit output can therefore quote the raw HTTP response when PLAN/PATCH fails, so 403/TLS/other transport failures stay faithful to the original provider message instead of relying on inferred explanations.
