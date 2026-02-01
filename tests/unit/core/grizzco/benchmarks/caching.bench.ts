@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 
-import { CachedService } from '../../../../src/core/grizzco/services/CachedService.js';
-import { IDataService } from '../../../../src/core/grizzco/services/types.js';
+import { CachedService } from '../../../../../src/core/grizzco/services/CachedService.js';
+import { IDataService } from '../../../../../src/core/grizzco/services/types.js';
 
 describe('Performance: Service Caching', () => {
   it('should prevent redundant fetch calls', async () => {

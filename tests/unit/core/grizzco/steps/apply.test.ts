@@ -1,10 +1,10 @@
-import { registry } from '../../../../src/core/grizzco/services/registry.js';
-import { runApply } from '../../../../src/core/grizzco/steps/apply.js';
-import { OpType } from '../../../../src/core/shared/types/grizzco-types.js';
+import { registry } from '../../../../../src/core/grizzco/services/registry.js';
+import { runApply } from '../../../../../src/core/grizzco/steps/apply.js';
+import { OpType } from '../../../../../src/core/shared/types/grizzco-types.js';
 import { createMockContext } from '../mocks.js';
 
 // Mock dependencies to avoid side effects
-vi.mock('../../../../src/core/grizzco/execution/Executor.js', () => ({
+vi.mock('../../../../../src/core/grizzco/execution/Executor.js', () => ({
   Executor: class {
     execute() {
       return Promise.resolve({
@@ -18,7 +18,7 @@ vi.mock('../../../../src/core/grizzco/execution/Executor.js', () => ({
   },
 }));
 
-vi.mock('../../../../src/core/grizzco/execution/WorkerFactory.js', () => ({
+vi.mock('../../../../../src/core/grizzco/execution/WorkerFactory.js', () => ({
   WorkerFactory: class {
     constructor() {}
   },

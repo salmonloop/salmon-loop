@@ -1,15 +1,15 @@
-import { Executor } from '../../../../src/core/grizzco/execution/Executor.js';
-import { WorkerFactory } from '../../../../src/core/grizzco/execution/WorkerFactory.js';
+import { Executor } from '../../../../../src/core/grizzco/execution/Executor.js';
+import { WorkerFactory } from '../../../../../src/core/grizzco/execution/WorkerFactory.js';
 import { createMockContext } from '../mocks.js';
 
 // Mock dependencies
-vi.mock('../../../../src/core/adapters/fs/atomic-file-writer.js', () => ({
+vi.mock('../../../../../src/core/adapters/fs/atomic-file-writer.js', () => ({
   AtomicFileWriter: class {
     writeAtomic = vi.fn();
   },
 }));
 
-vi.mock('../../../../src/core/grizzco/execution/RejectionManager.js', () => ({
+vi.mock('../../../../../src/core/grizzco/execution/RejectionManager.js', () => ({
   RejectionManager: class {
     create = vi.fn();
   },

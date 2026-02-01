@@ -1,4 +1,4 @@
-import { DecisionEngine } from '../../../../src/core/grizzco/dsl/DecisionEngine.js';
+import { DecisionEngine } from '../../../../../src/core/grizzco/dsl/DecisionEngine.js';
 import { createMockContext, createMockPlanBuilder } from '../mocks.js';
 
 describe('DecisionEngine', () => {
