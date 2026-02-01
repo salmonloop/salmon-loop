@@ -4,7 +4,7 @@ import { Command } from 'commander';
 
 import { ContextService } from '../../core/context/index.js';
 import { logger } from '../../core/logger.js';
-import { text } from '../../locales/index.js';
+import { text } from '../locales/index.js';
 
 export async function handleContextCommand(options: any, command: Command) {
   const allOptions = command.optsWithGlobals();

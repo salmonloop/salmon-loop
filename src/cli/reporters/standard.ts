@@ -10,7 +10,7 @@ import {
   ErrorType,
   LLMStreamChunk,
 } from '../../core/types.js';
-import { text } from '../../locales/index.js';
+import { text } from '../locales/index.js';
 
 import { SalmonReporter } from './base.js';
 

@@ -3,7 +3,8 @@ import * as readline from 'readline';
 import chalk from 'chalk';
 
 import { logger } from '../core/logger.js';
-import { text } from '../locales/index.js';
+
+import { text } from './locales/index.js';
 
 /**
  * Handles interruptions (Ctrl+C, ESC) for chat mode.

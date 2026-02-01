@@ -7,6 +7,11 @@ SalmonLoop provides a command-line interface (`s8p`) for automated code patching
 ### Interactive Chat (Default)
 Enter the interactive chat mode to provide instructions and receive patches in real-time.
 
+#### Command Interception
+For security and clarity, SalmonLoop strictly manages inputs starting with `/` in chat mode:
+- **Valid Commands**: Known commands like `/help`, `/exit`, or `/status` are executed immediately.
+- **Unknown Commands**: Any other input starting with `/` (including typos or absolute paths) is **blocked** and an error is shown. This prevents the LLM from misinterpreting system commands or leaking sensitive paths into instructions.
+
 ```bash
 s8p
 # or explicitly

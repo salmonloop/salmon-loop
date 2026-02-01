@@ -4,7 +4,7 @@ import { Command } from 'commander';
 
 import { logger } from '../../core/logger.js';
 import { CheckpointManager } from '../../core/strata/checkpoint/manager.js';
-import { text } from '../../locales/index.js';
+import { text } from '../locales/index.js';
 
 export async function handleRestoreCommand(hash: string, options: any, command: Command) {
   // Use optsWithGlobals() to get merged options if repo is defined globally

@@ -6,7 +6,7 @@ import { resolveConfig } from '../../core/config/index.js';
 import { createRuntimeLlm } from '../../core/llm/factory.js';
 import { logger } from '../../core/logger.js';
 import { PluginLoader } from '../../core/plugin/loader.js';
-import { text } from '../../locales/index.js';
+import { text } from '../locales/index.js';
 import { resolveVerifyOption } from '../utils/verify-resolver.js';
 
 export async function handleChatCommand(options: any, command: Command) {

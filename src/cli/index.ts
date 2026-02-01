@@ -3,8 +3,6 @@ import 'dotenv/config';
 
 import { Command } from 'commander';
 
-import { text } from '../locales/index.js';
-
 import { handleChatCommand } from './commands/chat.js';
 import { handleContextCommand } from './commands/context.js';
 import { handleRestoreCommand } from './commands/restore.js';
@@ -19,6 +17,7 @@ import {
   handleSnapshotDelete,
   handleSnapshotClear,
 } from './commands/snapshot.js';
+import { text } from './locales/index.js';
 
 const program = new Command();
 

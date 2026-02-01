@@ -1,9 +1,9 @@
 import { runSalmonLoop } from '../core/loop.js';
 import { ChatSessionManager } from '../core/session/manager.js';
 import type { CheckpointStrategy, LLM } from '../core/types.js';
-import { text } from '../locales/index.js';
 
-import { findCommand } from './commands/registry.js';
+import { CommandDispatcher } from './commands/dispatcher.js';
+import { text } from './locales/index.js';
 import { startGUI } from './ui/index.js';
 
 export interface ChatModeOptions {
@@ -21,6 +21,7 @@ export interface ChatModeOptions {
 export async function startChatMode(options: ChatModeOptions): Promise<void> {
   const sessionManager = new ChatSessionManager(options.repoPath);
   await sessionManager.init();
+  const dispatcher = new CommandDispatcher();
 
   // Load or create session
   let session = options.resume ? await sessionManager.loadLast() : null;
@@ -30,30 +31,20 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
 
   await startGUI('chat', async (emit, input) => {
     if (input === undefined) return;
-    const trimmed = input.trim();
 
-    // Check for slash commands
-    const command = findCommand(trimmed);
-    if (command) {
-      await command.execute({ emit, sessionManager, input: trimmed });
+    // Dispatch command or get validated input
+    const dispatchResult = await dispatcher.dispatch(input, { emit, sessionManager });
+
+    if (dispatchResult.type === 'executed' || dispatchResult.type === 'blocked') {
       return;
     }
 
-    // Safety fallback: prevent unknown slash commands from leaking to LLM
-    if (trimmed.startsWith('/')) {
-      emit({
-        type: 'log',
-        level: 'error',
-        message: `Unknown command: ${trimmed.split(' ')[0]}. Type /help for available commands.`,
-        timestamp: new Date(),
-      });
-      return;
-    }
+    const trimmed = dispatchResult.trimmedInput;
 
     // Add user message
     sessionManager.addMessage({
       role: 'user',
-      content: input,
+      content: trimmed, // Use the trimmed input
       timestamp: Date.now(),
     });
 

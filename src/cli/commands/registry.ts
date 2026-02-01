@@ -1,4 +1,4 @@
-import { text } from '../../locales/index.js';
+import { text } from '../locales/index.js';
 
 import { Command } from './types.js';
 

@@ -5,7 +5,7 @@ import { Command } from 'commander';
 
 import { logger } from '../../core/logger.js';
 import { CheckpointManager } from '../../core/strata/checkpoint/manager.js';
-import { text } from '../../locales/index.js';
+import { text } from '../locales/index.js';
 
 export async function handleSnapshotList(options: any, command: Command) {
   const allOptions = command.optsWithGlobals();

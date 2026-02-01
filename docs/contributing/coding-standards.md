@@ -10,7 +10,10 @@
 
 ## Localization
 
-- User-facing copy must be sourced from `src/locales/*` (no hardcoded UI text).
+- User-facing copy must be sourced from localization files (no hardcoded UI text).
+- **CLI-specific strings**: Must be placed in `src/cli/locales/`.
+- **Core engine strings**: Must be placed in `src/locales/`.
+- This separation keeps the engine lightweight and avoids leaking CLI-specific terminology into core logic.
 
 ## Testing
 

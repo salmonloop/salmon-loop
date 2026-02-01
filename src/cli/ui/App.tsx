@@ -4,7 +4,7 @@ import Gradient from 'ink-gradient';
 import Spinner from 'ink-spinner';
 import React, { useState, useEffect } from 'react';
 
-import { en as cliText } from '../../locales/en.js';
+import { text as cliText } from '../locales/index.js';
 
 import { AutocompleteInput } from './components/AutocompleteInput.js';
 import { useLoopState } from './hooks/useLoopState.js';

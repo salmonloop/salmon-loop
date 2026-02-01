@@ -16,7 +16,7 @@ import {
   ApplyBackOnDirty,
   LoopResult,
 } from '../../core/types.js';
-import { text } from '../../locales/index.js';
+import { text } from '../locales/index.js';
 import { SalmonReporter } from '../reporters/base.js';
 import { StandardReporter } from '../reporters/standard.js';
 import { startGUI } from '../ui/index.js';
