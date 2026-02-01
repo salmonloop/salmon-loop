@@ -50,13 +50,28 @@ export const commands: Command[] = [
       });
     },
   },
+  {
+    name: '/help',
+    description: 'Show available commands',
+    execute: ({ emit }) => {
+      const helpMsg = commands.map((c) => `${c.name.padEnd(10)} - ${c.description}`).join('\n');
+      emit({
+        type: 'log',
+        level: 'info',
+        message: `Available Commands:\n${helpMsg}`,
+        timestamp: new Date(),
+      });
+    },
+  },
 ];
 
 export function getSuggestions(input: string): Command[] {
   if (!input.startsWith('/')) return [];
-  return commands.filter((c) => c.name.startsWith(input));
+  const search = input.toLowerCase();
+  return commands.filter((c) => c.name.toLowerCase().startsWith(search));
 }
 
 export function findCommand(input: string): Command | undefined {
-  return commands.find((c) => c.name === input.split(' ')[0]);
+  const firstWord = input.trim().split(/\s+/)[0].toLowerCase();
+  return commands.find((c) => c.name.toLowerCase() === firstWord);
 }

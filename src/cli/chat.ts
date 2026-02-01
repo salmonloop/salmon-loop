@@ -39,6 +39,17 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
       return;
     }
 
+    // Safety fallback: prevent unknown slash commands from leaking to LLM
+    if (trimmed.startsWith('/')) {
+      emit({
+        type: 'log',
+        level: 'error',
+        message: `Unknown command: ${trimmed.split(' ')[0]}. Type /help for available commands.`,
+        timestamp: new Date(),
+      });
+      return;
+    }
+
     // Add user message
     sessionManager.addMessage({
       role: 'user',

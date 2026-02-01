@@ -1,7 +1,6 @@
 import { render } from 'ink';
 import React from 'react';
 
-import { logger } from '../../core/logger.js';
 import { LoopEvent } from '../../core/types.js';
 
 import { App } from './App.js';
