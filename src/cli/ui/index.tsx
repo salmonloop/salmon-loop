@@ -28,16 +28,28 @@ export async function startGUI(
               }, 1500);
             })
             .catch((err) => {
-              logger.error(err instanceof Error ? err.message : String(err));
-              unmount();
-              resolveExit({ success: false, reason: err.message });
+              emit({
+                type: 'log',
+                message: err.message,
+                level: 'error',
+                timestamp: new Date(),
+              });
+              setTimeout(() => {
+                unmount();
+                resolveExit({ success: false, reason: err.message });
+              }, 1500);
             });
         }
       }}
-      onChatInput={(input) => {
+      onChatInput={(input, emit) => {
         if (mode === 'chat') {
-          runFn(() => {}, input).catch((err) => {
-            logger.error(`Chat Error: ${err.message}`);
+          runFn(emit, input).catch((err) => {
+            emit({
+              type: 'log',
+              message: `Chat Error: ${err.message}`,
+              level: 'error',
+              timestamp: new Date(),
+            });
           });
         }
       }}

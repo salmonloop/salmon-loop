@@ -12,7 +12,7 @@ import { useLoopState } from './hooks/useLoopState.js';
 interface AppProps {
   mode: 'run' | 'chat';
   onStart: (emit: any, options?: any) => void;
-  onChatInput?: (input: string) => void;
+  onChatInput?: (input: string, emit: any) => void;
   initialLogs?: any[];
 }
 
@@ -35,7 +35,7 @@ export const App: React.FC<AppProps> = ({ mode, onStart, onChatInput, initialLog
 
   const handleSubmit = (value: string) => {
     if (onChatInput && value.trim()) {
-      onChatInput(value);
+      onChatInput(value, handleEvent);
       setQuery('');
     }
   };
