@@ -4,7 +4,6 @@ import type { CheckpointStrategy, LLM } from '../core/types.js';
 
 import { CommandDispatcher } from './commands/dispatcher.js';
 import { text } from './locales/index.js';
-import { startGUI } from './ui/index.js';
 
 export interface ChatModeOptions {
   repoPath: string;
@@ -29,7 +28,10 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
     session = await sessionManager.create();
   }
 
-  await startGUI('chat', async (emit, input) => {
+  // Dynamically import GUI to avoid top-level await issues with yoga-layout
+  const { startGUI } = await import('./ui/index.js');
+
+  await startGUI('chat', async (emit, input, guiOptions) => {
     if (input === undefined) return;
 
     // Dispatch command or get validated input
@@ -56,6 +58,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
       strategy: options.checkpointStrategy || 'worktree',
       verbose: options.verbose ? 'basic' : undefined,
       onEvent: emit,
+      signal: guiOptions?.signal,
     });
 
     // Add assistant message & iteration info

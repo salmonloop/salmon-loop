@@ -1,0 +1,57 @@
+import { useInput } from 'ink';
+import { useState, useCallback, useRef } from 'react';
+
+/**
+ * Custom hook to manage the lifecycle of CLI commands, including
+ * interruption signals (AbortController) and exit logic.
+ */
+export function useCommandLifecycle(
+  status: 'running' | 'success' | 'failed' | 'idle',
+  onExit: () => void,
+) {
+  const [abortController, setAbortController] = useState(new AbortController());
+  const [isExiting, setIsExiting] = useState(false);
+  const exitTimer = useRef<NodeJS.Timeout | null>(null);
+
+  /**
+   * Generates a new AbortController and returns its signal.
+   * Useful when starting a new task after the previous one was aborted.
+   */
+  const renewSignal = useCallback(() => {
+    const newController = new AbortController();
+    setAbortController(newController);
+    return newController.signal;
+  }, []);
+
+  useInput((input, key) => {
+    if (key.ctrl && input === 'c') {
+      if (isExiting) {
+        // Double tap Ctrl+C: Force exit
+        onExit();
+        return;
+      }
+
+      // First tap: Abort current task
+      setIsExiting(true);
+      abortController.abort();
+
+      // If nothing is running, exit immediately on first tap
+      if (status !== 'running') {
+        onExit();
+        return;
+      }
+
+      // Reset exiting state after 2 seconds if not tapped again
+      if (exitTimer.current) clearTimeout(exitTimer.current);
+      exitTimer.current = setTimeout(() => {
+        setIsExiting(false);
+      }, 2000);
+    }
+  });
+
+  return {
+    signal: abortController.signal,
+    isExiting,
+    renewSignal,
+  };
+}

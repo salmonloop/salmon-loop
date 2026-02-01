@@ -12,7 +12,7 @@
  *
  * @example
  * ```typescript
- * import { RealFsTestHelper } from '../helpers/real-fs-helper';
+ * import { RealFsTestHelper } from '../helpers/real-fs-helper.js';
  *
  * describe('Integration Test', () => {
  *   const helper = new RealFsTestHelper();

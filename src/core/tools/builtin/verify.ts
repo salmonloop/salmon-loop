@@ -1,9 +1,9 @@
 import { z } from 'zod';
 
 import { text } from '../../../locales/index.js';
-import { Phase } from '../../types';
-import { runVerify, classifyError } from '../../verify';
-import { ToolSpec, ToolRuntimeCtx } from '../types';
+import { Phase } from '../../types.js';
+import { runVerify, classifyError } from '../../verify.js';
+import { ToolSpec, ToolRuntimeCtx } from '../types.js';
 
 export const verifyRunSpec: Omit<ToolSpec, 'executor'> = {
   name: 'test.run',

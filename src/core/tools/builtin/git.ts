@@ -3,8 +3,8 @@ import { spawn } from 'child_process';
 import { z } from 'zod';
 
 import { text } from '../../../locales/index.js';
-import { Phase } from '../../types';
-import { ToolSpec, ToolRuntimeCtx } from '../types';
+import { Phase } from '../../types.js';
+import { ToolSpec, ToolRuntimeCtx } from '../types.js';
 
 export const gitCatSpec: Omit<ToolSpec, 'executor'> = {
   name: 'git.cat',

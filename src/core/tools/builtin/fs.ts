@@ -4,8 +4,8 @@ import { isAbsolute, relative, resolve } from 'path';
 import { z } from 'zod';
 
 import { text } from '../../../locales/index.js';
-import { Phase } from '../../types';
-import { ToolSpec, ToolRuntimeCtx } from '../types';
+import { Phase } from '../../types.js';
+import { ToolSpec, ToolRuntimeCtx } from '../types.js';
 
 /**
  * Spec for the fs.read tool.

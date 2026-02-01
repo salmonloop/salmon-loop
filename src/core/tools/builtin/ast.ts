@@ -4,9 +4,9 @@ import { join, extname } from 'path';
 import { z } from 'zod';
 
 import { text } from '../../../locales/index.js';
-import { AstParser } from '../../ast/parser';
-import { Phase } from '../../types';
-import { ToolSpec, ToolRuntimeCtx } from '../types';
+import { AstParser } from '../../ast/parser.js';
+import { Phase } from '../../types.js';
+import { ToolSpec, ToolRuntimeCtx } from '../types.js';
 
 export const astDefsRefsSpec: Omit<ToolSpec, 'executor'> = {
   name: 'code.ast',

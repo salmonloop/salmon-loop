@@ -1,9 +1,9 @@
 import { spawn, ChildProcess } from 'child_process';
 import { createInterface, Interface } from 'readline';
 
-import { logger } from '../../logger';
+import { logger } from '../../logger.js';
 
-import { McpServerConfig, McpExecutionResult } from './types';
+import { McpServerConfig, McpExecutionResult } from './types.js';
 
 /**
  * MCP Client handling JSON-RPC communication over stdio with an external server.

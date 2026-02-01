@@ -10,7 +10,7 @@
     "preinstall": "npx only-allow pnpm && node scripts/check-versions.js",
     "check-deps": "node scripts/check-deps.js",
     "build": "tsc && node scripts/copy-assets.js",
-    "dev": "tsx src/cli/index.ts",
+    "dev": "node --import tsx src/cli/index.ts",
     "test": "pnpm test:unit",
     "t": "vitest tests/unit/",
     "test:unit": "vitest run tests/unit/",
@@ -45,6 +45,8 @@
   "devDependencies": {
     "@eslint/js": "^9.39.2",
     "@testing-library/react": "^16.3.2",
+    "@types/marked": "^6.0.0",
+    "@types/marked-terminal": "^6.1.1",
     "@types/mock-fs": "^4.13.4",
     "@types/node": "^20.0.0",
     "@types/progress": "^2.0.7",
@@ -63,10 +65,12 @@
     "prettier": "^3.4.2",
     "simple-git": "^3.30.0",
     "sinon": "^21.0.1",
-    "tsx": "^4.19.2",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.21.0",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.53.0",
-    "vitest": "^1.6.1"
+    "vitest": "^1.6.1",
+    "yoga-layout": "^3.2.1"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.23",
@@ -83,6 +87,8 @@
     "ink-gradient": "^3.0.0",
     "ink-spinner": "^5.0.0",
     "ink-text-input": "^6.0.0",
+    "marked": "^17.0.1",
+    "marked-terminal": "^7.3.0",
     "openai": "^6.16.0",
     "progress": "^2.0.3",
     "react": "^19.2.4",

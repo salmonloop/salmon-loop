@@ -1,6 +1,6 @@
-import { ToolPolicy } from '../../../src/core/tools/policy';
-import { ToolSpec } from '../../../src/core/tools/types';
-import { Phase } from '../../../src/core/types';
+import { ToolPolicy } from '../../../src/core/tools/policy.js';
+import { ToolSpec } from '../../../src/core/tools/types.js';
+import { Phase } from '../../../src/core/types.js';
 
 describe('ToolPolicy', () => {
   let policy: ToolPolicy;

@@ -1,4 +1,4 @@
-import { ToolParser, ToolParseError } from '../../../src/core/tools/parser';
+import { ToolParser, ToolParseError } from '../../../src/core/tools/parser.js';
 
 describe('ToolParser', () => {
   let parser: ToolParser;

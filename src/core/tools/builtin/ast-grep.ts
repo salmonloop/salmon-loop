@@ -3,8 +3,8 @@ import { promisify } from 'util';
 
 import { z } from 'zod';
 
-import { Phase } from '../../types';
-import { ToolSpec, ToolRuntimeCtx } from '../types';
+import { Phase } from '../../types.js';
+import { ToolSpec, ToolRuntimeCtx } from '../types.js';
 
 const execAsync = promisify(child_process.exec);
 

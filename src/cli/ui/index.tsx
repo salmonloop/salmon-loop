@@ -5,9 +5,13 @@ import { LoopEvent } from '../../core/types.js';
 
 import { App } from './App.js';
 
+export interface GUIOptions {
+  signal?: AbortSignal;
+}
+
 export async function startGUI(
   mode: 'run' | 'chat',
-  runFn: (emit: (event: LoopEvent) => void, input?: string) => Promise<any>,
+  runFn: (emit: (event: LoopEvent) => void, input?: string, options?: GUIOptions) => Promise<any>,
 ) {
   let resolveExit: (value: any) => void;
   const exitPromise = new Promise((resolve) => {
@@ -17,9 +21,9 @@ export async function startGUI(
   const { waitUntilExit, unmount } = render(
     <App
       mode={mode}
-      onStart={(emit) => {
+      onStart={(emit, options) => {
         if (mode === 'run') {
-          runFn(emit)
+          runFn(emit, undefined, options)
             .then((result) => {
               setTimeout(() => {
                 unmount();
@@ -40,9 +44,9 @@ export async function startGUI(
             });
         }
       }}
-      onChatInput={(input, emit) => {
+      onChatInput={(input, emit, options) => {
         if (mode === 'chat') {
-          runFn(emit, input).catch((err) => {
+          runFn(emit, input, options).catch((err) => {
             emit({
               type: 'log',
               message: `Chat Error: ${err.message}`,

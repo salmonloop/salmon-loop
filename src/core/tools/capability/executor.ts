@@ -1,6 +1,6 @@
-import { logger } from '../../logger';
+import { logger } from '../../logger.js';
 
-import { Backend, BackendFail, BackendResult, CapabilityCtx } from './types';
+import { Backend, BackendFail, BackendResult, CapabilityCtx } from './types.js';
 
 export interface ExecutorOptions {
   /**

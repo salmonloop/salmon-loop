@@ -1,9 +1,9 @@
-import { ToolAuditLogger } from './audit';
-import { BudgetGuard } from './budget';
-import { ToolPolicy } from './policy';
-import { ToolRegistry } from './registry';
-import { ToolSanitizer } from './sanitize';
-import { ToolCallEnvelope, ToolResult } from './types';
+import { ToolAuditLogger } from './audit.js';
+import { BudgetGuard } from './budget.js';
+import { ToolPolicy } from './policy.js';
+import { ToolRegistry } from './registry.js';
+import { ToolSanitizer } from './sanitize.js';
+import { ToolCallEnvelope, ToolResult } from './types.js';
 
 export class ToolRouter {
   constructor(

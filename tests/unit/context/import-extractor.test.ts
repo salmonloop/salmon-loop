@@ -1,4 +1,4 @@
-import { extractImportSpecifiers } from '../../../src/core/context/ast/import-extractor';
+import { extractImportSpecifiers } from '../../../src/core/context/ast/import-extractor.js';
 
 describe('extractImportSpecifiers', () => {
   it('extracts ESM and CJS specifiers', () => {
@@ -13,7 +13,7 @@ describe('extractImportSpecifiers', () => {
   });
 
   it('deduplicates while preserving order', () => {
-    const code = "import { a } from './a';\nimport { b } from './a';\n";
-    expect(extractImportSpecifiers(code)).toEqual(['./a']);
+    const code = "import { a } from './a.js';\nimport { b } from './a.js';\n";
+    expect(extractImportSpecifiers(code)).toEqual(['./a.js']);
   });
 });

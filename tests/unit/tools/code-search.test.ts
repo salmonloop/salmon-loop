@@ -1,5 +1,5 @@
-import { codeSearchExecutor } from '../../../src/core/tools/builtin/code-search/executor';
-import { CapabilityCtx } from '../../../src/core/tools/capability/types';
+import { codeSearchExecutor } from '../../../src/core/tools/builtin/code-search/executor.js';
+import { CapabilityCtx } from '../../../src/core/tools/capability/types.js';
 
 describe('Code Search Capability', () => {
   const mockCtx: CapabilityCtx = {

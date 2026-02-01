@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
-import { Phase, ExecutionPhase } from '../../../types';
-import { ToolSpec } from '../../types';
+import { Phase, ExecutionPhase } from '../../../types.js';
+import { ToolSpec } from '../../types.js';
 
 export const CodeSearchInput = z.object({
   pattern: z.string().min(1).describe('The regular expression pattern to search for'),

@@ -17,4 +17,9 @@ export interface UIState {
     success: boolean;
     phase: string;
   }>;
+  workspaceInfo?: {
+    path: string;
+    strategy: string;
+    isShadow: boolean;
+  };
 }

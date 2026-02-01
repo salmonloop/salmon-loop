@@ -1,4 +1,4 @@
-import { convertDiffToShadowOperations } from '../../src/core/diff';
+import { convertDiffToShadowOperations } from '../../src/core/diff.js';
 
 describe('convertDiffToShadowOperations', () => {
   it('should support unified diffs without diff --git header (---/+++ only)', async () => {

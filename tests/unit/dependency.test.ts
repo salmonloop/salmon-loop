@@ -30,25 +30,25 @@ vi.mock('../../src/core/plugin/registry.js', () => ({
 describe('findFileDependencies', () => {
   it('should extract relative dependencies', async () => {
     const content = `
-      import { a } from './a';
-      import { b } from '../b';
+      import { a } from './a.js';
+      import { b } from '../b.js';
       import { c } from 'external';
     `;
     vi.mocked(readFile).mockResolvedValue(content);
 
     const deps = await findFileDependencies('src/index.ts', '/repo');
 
-    expect(deps).toContain('src/a.ts');
-    expect(deps).toContain('b.ts');
+    expect(deps).toContain('src/a.js');
+    expect(deps).toContain('b.js');
     expect(deps).not.toContain('external.ts');
   });
 
   it('should handle missing extensions', async () => {
-    const content = `import { a } from './a'`;
+    const content = `import { a } from './a.js';`;
     vi.mocked(readFile).mockResolvedValue(content);
 
     const deps = await findFileDependencies('src/index.ts', '/repo');
-    expect(deps).toContain('src/a.ts');
+    expect(deps).toContain('src/a.js');
   });
 
   it('should return empty array on error', async () => {

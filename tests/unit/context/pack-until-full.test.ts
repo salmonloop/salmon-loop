@@ -1,5 +1,5 @@
-import { packUntilFull } from '../../../src/core/context/policies/pack-until-full';
-import type { Context } from '../../../src/core/types';
+import { packUntilFull } from '../../../src/core/context/policies/pack-until-full.js';
+import type { Context } from '../../../src/core/types.js';
 
 function makeContext(overrides: Partial<Context> = {}): Context {
   return {

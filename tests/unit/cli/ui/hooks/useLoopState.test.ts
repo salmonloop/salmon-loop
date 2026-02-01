@@ -9,7 +9,7 @@ describe('useLoopState', () => {
 
     expect(result.current.state.phase).toBe('IDLE');
     expect(result.current.state.status).toBe('idle');
-    expect(result.current.state.logs).toHaveLength(0);
+    expect(result.current.state.logs).toHaveLength(1);
     expect(result.current.state.progress).toBe(0);
   });
 

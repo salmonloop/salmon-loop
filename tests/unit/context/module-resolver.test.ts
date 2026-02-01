@@ -1,4 +1,4 @@
-import { resolveImportCandidates } from '../../../src/core/context/ast/module-resolver';
+import { resolveImportCandidates } from '../../../src/core/context/ast/module-resolver.js';
 
 describe('resolveImportCandidates', () => {
   it('returns empty candidates for non-relative specifiers', () => {

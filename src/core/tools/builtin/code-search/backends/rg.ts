@@ -1,6 +1,6 @@
-import { Backend } from '../../../capability/types';
-import { parseRgJson } from '../parse/rg-json';
-import { CodeSearchInputT, CodeSearchOutputT } from '../spec';
+import { Backend } from '../../../capability/types.js';
+import { parseRgJson } from '../parse/rg-json.js';
+import { CodeSearchInputT, CodeSearchOutputT } from '../spec.js';
 
 export const rgBackend: Backend<CodeSearchInputT, CodeSearchOutputT> = {
   id: 'rg',

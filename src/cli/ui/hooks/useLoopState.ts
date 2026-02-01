@@ -7,7 +7,14 @@ export function useLoopState() {
   const [state, setState] = useState<UIState>({
     phase: 'IDLE',
     status: 'idle',
-    logs: [],
+    logs: [
+      {
+        id: 'welcome',
+        message: '# 🐟 Salmon Loop v0.2.0\nReady ✓ | Token: 0/10k',
+        level: 'info',
+        timestamp: new Date(),
+      },
+    ],
     progress: 0,
     history: [],
   });
@@ -51,6 +58,15 @@ export function useLoopState() {
                 timestamp: new Date(),
               },
             ],
+          };
+        case 'workspace.ready':
+          return {
+            ...prev,
+            workspaceInfo: {
+              path: event.path,
+              strategy: event.strategy,
+              isShadow: event.strategy === 'worktree',
+            },
           };
         default:
           return prev;

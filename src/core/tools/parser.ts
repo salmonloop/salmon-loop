@@ -1,4 +1,4 @@
-import { SalmonError } from '../types';
+import { SalmonError } from '../types.js';
 
 export interface ParsedToolCall {
   tool: string;

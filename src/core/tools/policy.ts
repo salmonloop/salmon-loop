@@ -1,6 +1,6 @@
-import { Phase } from '../types';
+import { Phase } from '../types.js';
 
-import { ExecutionPhase, ToolSpec } from './types';
+import { ExecutionPhase, ToolSpec } from './types.js';
 
 export interface PolicyDecision {
   allowed: boolean;

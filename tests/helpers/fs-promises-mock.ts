@@ -6,7 +6,7 @@
  *
  * Usage:
  * ```typescript
- * import { setupFsPromisesMock } from '../helpers/fs-promises-mock';
+ * import { setupFsPromisesMock } from '../helpers/fs-promises-mock.js';
  *
  * vi.mock('fs/promises', () => setupFsPromisesMock());
  * ```

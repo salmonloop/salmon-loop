@@ -1,14 +1,14 @@
 import { z } from 'zod';
 
-import { ToolAuditLogger } from '../../../src/core/tools/audit';
-import { BudgetGuard } from '../../../src/core/tools/budget';
-import { ToolPolicy } from '../../../src/core/tools/policy';
-import { ToolRegistry } from '../../../src/core/tools/registry';
-import { ToolRouter } from '../../../src/core/tools/router';
-import { ToolSanitizer } from '../../../src/core/tools/sanitize';
-import { chatWithToolsStreaming } from '../../../src/core/tools/session';
-import type { ToolSpec } from '../../../src/core/tools/types';
-import { Phase, type LLMMessage } from '../../../src/core/types';
+import { ToolAuditLogger } from '../../../src/core/tools/audit.js';
+import { BudgetGuard } from '../../../src/core/tools/budget.js';
+import { ToolPolicy } from '../../../src/core/tools/policy.js';
+import { ToolRegistry } from '../../../src/core/tools/registry.js';
+import { ToolRouter } from '../../../src/core/tools/router.js';
+import { ToolSanitizer } from '../../../src/core/tools/sanitize.js';
+import { chatWithToolsStreaming } from '../../../src/core/tools/session.js';
+import type { ToolSpec } from '../../../src/core/tools/types.js';
+import { Phase, type LLMMessage } from '../../../src/core/types.js';
 
 function createToolstack() {
   const registry = new ToolRegistry();

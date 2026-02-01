@@ -1,4 +1,4 @@
-import { ExecutionPhase } from '../types';
+import { ExecutionPhase } from '../types.js';
 
 /**
  * Backend failure codes for classification and fallback decisions.

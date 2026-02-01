@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { ToolSpec } from '../types';
+import { ToolSpec } from '../types.js';
 
 /**
  * Configuration for an MCP server connection.

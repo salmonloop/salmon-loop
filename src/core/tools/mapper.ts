@@ -1,6 +1,6 @@
 import { zodToJsonSchema } from 'zod-to-json-schema';
 
-import { ToolSpec } from './types';
+import { ToolSpec } from './types.js';
 
 /**
  * Maps a SalmonLoop ToolSpec to the OpenAI tool definition format.

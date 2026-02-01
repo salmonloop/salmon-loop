@@ -1,4 +1,4 @@
-import { ToolSpec } from './types';
+import { ToolSpec } from './types.js';
 
 export class ToolSanitizer {
   /**

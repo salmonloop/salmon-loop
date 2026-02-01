@@ -1,11 +1,11 @@
-import { logger } from '../../../logger';
-import { runWithFallback } from '../../capability/executor';
-import { CapabilityCtx } from '../../capability/types';
-import { ToolRuntimeCtx, ExecutionPhase } from '../../types';
+import { logger } from '../../../logger.js';
+import { runWithFallback } from '../../capability/executor.js';
+import { CapabilityCtx } from '../../capability/types.js';
+import { ToolRuntimeCtx, ExecutionPhase } from '../../types.js';
 
-import { psBackend } from './backends/powershell';
-import { rgBackend } from './backends/rg';
-import { CodeSearchInputT, CodeSearchOutputT } from './spec';
+import { psBackend } from './backends/powershell.js';
+import { rgBackend } from './backends/rg.js';
+import { CodeSearchInputT, CodeSearchOutputT } from './spec.js';
 
 /**
  * The main executor for code.search.

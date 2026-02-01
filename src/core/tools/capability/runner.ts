@@ -1,6 +1,6 @@
 import { execa } from 'execa';
 
-import { ExecOpts, ExecResult } from './types';
+import { ExecOpts, ExecResult } from './types.js';
 
 /**
  * Creates a standard controlled runner for tool execution.

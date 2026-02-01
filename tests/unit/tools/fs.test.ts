@@ -2,7 +2,7 @@ import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 
-import { executeFsReadFile, fsReadFileSpec } from '../../../src/core/tools/builtin/fs';
+import { executeFsReadFile, fsReadFileSpec } from '../../../src/core/tools/builtin/fs.js';
 
 describe('Builtin Tool: fs.read_file', () => {
   let repoRoot: string;

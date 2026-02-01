@@ -149,6 +149,12 @@ export type LoopEvent =
       type: 'checkpoint.cleaned';
       ok: boolean;
       timestamp: Date;
+    }
+  | {
+      type: 'workspace.ready';
+      path: string;
+      strategy: string;
+      timestamp: Date;
     };
 
 export interface CodeLocation {

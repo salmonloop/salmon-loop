@@ -1,10 +1,10 @@
 import * as crypto from 'crypto';
 
-import { ExecutionPhase } from '../types';
+import { ExecutionPhase } from '../types.js';
 
-import { ToolParser, ToolParseError } from './parser';
-import { ToolRouter } from './router';
-import { ToolCallEnvelope, ToolResult } from './types';
+import { ToolParser, ToolParseError } from './parser.js';
+import { ToolRouter } from './router.js';
+import { ToolCallEnvelope, ToolResult } from './types.js';
 
 /**
  * ToolDispatcher acts as the high-level coordinator between the LLM

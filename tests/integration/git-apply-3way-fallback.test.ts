@@ -1,7 +1,7 @@
 import { readFile } from 'fs/promises';
 
-import { GitAdapter } from '../../src/core/adapters/git/git-adapter';
-import { RealFsTestHelper } from '../helpers/real-fs-helper';
+import { GitAdapter } from '../../src/core/adapters/git/git-adapter.js';
+import { RealFsTestHelper } from '../helpers/real-fs-helper.js';
 
 describe('GitAdapter.applyPatch 3-way fallback behavior', () => {
   const helper = new RealFsTestHelper();

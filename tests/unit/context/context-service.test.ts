@@ -1,5 +1,5 @@
-import { ContextService } from '../../../src/core/context/service';
-import type { ContextRequest } from '../../../src/core/context/types';
+import { ContextService } from '../../../src/core/context/service.js';
+import type { ContextRequest } from '../../../src/core/context/types.js';
 
 describe('ContextService', () => {
   it('builds prompt and context with injected deps', async () => {

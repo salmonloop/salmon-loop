@@ -1,11 +1,11 @@
-import { ToolAuditLogger } from './audit';
-import { BudgetGuard, BudgetConfig } from './budget';
-import { registerAllBuiltins } from './builtin/index';
-import { ToolDispatcher } from './dispatcher';
-import { ToolPolicy } from './policy';
-import { ToolRegistry } from './registry';
-import { ToolRouter } from './router';
-import { ToolSanitizer } from './sanitize';
+import { ToolAuditLogger } from './audit.js';
+import { BudgetGuard, BudgetConfig } from './budget.js';
+import { registerAllBuiltins } from './builtin/index.js';
+import { ToolDispatcher } from './dispatcher.js';
+import { ToolPolicy } from './policy.js';
+import { ToolRegistry } from './registry.js';
+import { ToolRouter } from './router.js';
+import { ToolSanitizer } from './sanitize.js';
 
 export interface ToolstackOptions {
   repoRoot: string;

@@ -1,4 +1,4 @@
-import { ExecutionPhase, RiskLevel } from './types';
+import { ExecutionPhase, RiskLevel } from './types.js';
 
 /**
  * Default budget limits to ensure system stability.

@@ -90,6 +90,15 @@ export class SalmonLoop {
     }
 
     const activeRepoPath = env.activeRepoPath;
+
+    // Broadcast workspace information to UI listeners
+    emit({
+      type: 'workspace.ready',
+      path: activeRepoPath,
+      strategy: options.strategy || 'local',
+      timestamp: now(),
+    });
+
     const checkpointManager = env.checkpointManager;
     const synchronizer = new WorkspaceSynchronizer(checkpointManager);
     const git = new GitAdapter(activeRepoPath);

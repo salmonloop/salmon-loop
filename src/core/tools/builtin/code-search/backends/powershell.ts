@@ -1,6 +1,6 @@
-import { Backend } from '../../../capability/types';
-import { parsePlainMatches } from '../parse/plain-grep';
-import { CodeSearchInputT, CodeSearchOutputT } from '../spec';
+import { Backend } from '../../../capability/types.js';
+import { parsePlainMatches } from '../parse/plain-grep.js';
+import { CodeSearchInputT, CodeSearchOutputT } from '../spec.js';
 
 export const psBackend: Backend<CodeSearchInputT, CodeSearchOutputT> = {
   id: 'powershell',

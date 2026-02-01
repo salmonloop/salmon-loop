@@ -1,12 +1,12 @@
-import { ToolRegistry } from '../registry';
+import { ToolRegistry } from '../registry.js';
 
-import { astDefsRefsSpec, executeAstDefsRefs } from './ast';
-import { astGrepSpec, executeAstGrep } from './ast-grep';
-import { codeSearchExecutor } from './code-search/executor';
-import { CodeSearchSpec } from './code-search/spec';
-import { fsReadFileSpec, executeFsReadFile } from './fs';
-import { gitCatSpec, executeGitCat, gitStatusSpec, executeGitStatus } from './git';
-import { verifyRunSpec, executeVerifyRun } from './verify';
+import { astGrepSpec, executeAstGrep } from './ast-grep.js';
+import { astDefsRefsSpec, executeAstDefsRefs } from './ast.js';
+import { codeSearchExecutor } from './code-search/executor.js';
+import { CodeSearchSpec } from './code-search/spec.js';
+import { fsReadFileSpec, executeFsReadFile } from './fs.js';
+import { gitCatSpec, executeGitCat, gitStatusSpec, executeGitStatus } from './git.js';
+import { verifyRunSpec, executeVerifyRun } from './verify.js';
 
 /**
  * Registers all builtin tools into the provided registry

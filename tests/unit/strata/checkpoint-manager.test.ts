@@ -1,5 +1,5 @@
-import { GitAdapter } from '../../../src/core/adapters/git/git-adapter';
-import { CheckpointManager } from '../../../src/core/strata/checkpoint/manager';
+import { GitAdapter } from '../../../src/core/adapters/git/git-adapter.js';
+import { CheckpointManager } from '../../../src/core/strata/checkpoint/manager.js';
 
 // Mock GitAdapter to verify low-level commands and environment isolation
 vi.mock('../../../src/core/adapters/git/git-adapter', () => {

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { ExecutionPhase } from '../types';
+import { ExecutionPhase } from '../types.js';
 export { ExecutionPhase };
 
 export type ToolSource = 'builtin' | 'mcp' | 'plugin';

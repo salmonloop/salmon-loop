@@ -24,6 +24,10 @@ export default defineConfig({
       ['tests/unit/cli/ui/**', 'threads'],
     ],
 
+    alias: {
+      'yoga-layout': 'yoga-layout/load',
+    },
+
     // Environment per test file
     environmentMatchGlobs: [['tests/unit/cli/ui/**', 'jsdom']],
 

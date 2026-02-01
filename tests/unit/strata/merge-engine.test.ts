@@ -1,8 +1,8 @@
 import { promises as fs } from 'fs';
 
-import { GitAdapter } from '../../../src/core/adapters/git/git-adapter';
-import { CheckpointManager } from '../../../src/core/strata/checkpoint/manager';
-import { ShadowMergeEngine } from '../../../src/core/strata/engine/shadow-merge-engine';
+import { GitAdapter } from '../../../src/core/adapters/git/git-adapter.js';
+import { CheckpointManager } from '../../../src/core/strata/checkpoint/manager.js';
+import { ShadowMergeEngine } from '../../../src/core/strata/engine/shadow-merge-engine.js';
 
 // Mock dependencies
 vi.mock('fs', () => ({

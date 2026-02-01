@@ -19,7 +19,6 @@ import {
 import { text } from '../locales/index.js';
 import { SalmonReporter } from '../reporters/base.js';
 import { StandardReporter } from '../reporters/standard.js';
-import { startGUI } from '../ui/index.js';
 import { resolveVerifyOption } from '../utils/verify-resolver.js';
 
 export async function handleRunCommand(options: any, command: Command) {
@@ -167,10 +166,13 @@ export async function handleRunCommand(options: any, command: Command) {
     const useGui = allOptions.gui !== false && process.stdout.isTTY;
 
     if (useGui) {
-      result = (await startGUI('run', async (emit) => {
+      // Dynamically import GUI to avoid top-level await issues with yoga-layout
+      const { startGUI } = await import('../ui/index.js');
+      result = (await startGUI('run', async (emit, _input, guiOptions) => {
         return await runSalmonLoop({
           ...loopParams,
           applyBackOnDirty: loopParams.applyBackOnDirty as ApplyBackOnDirty,
+          signal: guiOptions?.signal,
           onEvent: (event) => {
             reporter.onEvent(event);
             emit(event);

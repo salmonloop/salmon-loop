@@ -1,9 +1,9 @@
 import { text } from '../../locales/index.js';
 import { logger } from '../logger.js';
-import { ExecutionPhase, Phase } from '../types';
+import { ExecutionPhase, Phase } from '../types.js';
 
-import { PolicyDecision } from './policy';
-import { ToolCallEnvelope, ToolResult, ToolSpec } from './types';
+import { PolicyDecision } from './policy.js';
+import { ToolCallEnvelope, ToolResult, ToolSpec } from './types.js';
 
 export interface ToolAuditLogEntry {
   timestamp: string;
