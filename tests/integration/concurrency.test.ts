@@ -1,5 +1,3 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-
 import { Semaphore } from '../../src/core/concurrency.js';
 
 describe('Concurrency and Locking Integration', () => {

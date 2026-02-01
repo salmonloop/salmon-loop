@@ -3,8 +3,6 @@ import { mkdtemp, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join, resolve } from 'path';
 
-import { afterEach, describe, expect, it } from 'vitest';
-
 import { RealFsTestHelper } from '../helpers/real-fs-helper.js';
 
 const PROJECT_ROOT = resolve(process.cwd());

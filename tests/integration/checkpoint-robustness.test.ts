@@ -3,8 +3,6 @@ import { mkdir, writeFile, rm, readFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import * as path from 'path';
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-
 import { CheckpointManager } from '../../src/core/strata/checkpoint/manager.js';
 
 // Oracle: The Source of Truth - using raw git commands

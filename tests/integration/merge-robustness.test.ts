@@ -3,8 +3,6 @@ import { mkdtemp, rm, writeFile, readFile, mkdir, rename, chmod, cp } from 'fs/p
 import { tmpdir } from 'os';
 import { join } from 'path';
 
-import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll } from 'vitest';
-
 import { logger } from '../../src/core/logger.js';
 import { CheckpointManager } from '../../src/core/strata/checkpoint/manager.js';
 import { ShadowMergeEngine } from '../../src/core/strata/engine/shadow-merge-engine.js';

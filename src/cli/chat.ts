@@ -3,6 +3,7 @@ import { ChatSessionManager } from '../core/session/manager.js';
 import type { CheckpointStrategy, LLM } from '../core/types.js';
 import { text } from '../locales/index.js';
 
+import { findCommand } from './commands/registry.js';
 import { startGUI } from './ui/index.js';
 
 export interface ChatModeOptions {
@@ -30,36 +31,11 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
   await startGUI('chat', async (emit, input) => {
     if (input === undefined) return;
     const trimmed = input.trim();
-    if (trimmed === '/exit' || trimmed === '/quit') {
-      process.exit(0);
-    }
 
-    if (trimmed === '/status') {
-      const statusMsg = [
-        `Session: ${session.meta.name}`,
-        `ID: ${session.meta.id.slice(0, 8)}`,
-        `Iterations: ${session.meta.totalIterations} (${session.meta.successfulIterations} ok)`,
-        `Messages: ${session.messages.length}`,
-      ].join(' | ');
-      emit({ type: 'log', level: 'info', message: statusMsg, timestamp: new Date() });
-      return;
-    }
-
-    if (trimmed === '/clear') {
-      emit({ type: 'checkpoint.created', worktreePath: '', baseRef: '', timestamp: new Date() }); // Hack to trigger clear in UI
-      return;
-    }
-
-    if (trimmed === '/history') {
-      session.iterations.forEach((iter, i) => {
-        const status = iter.error ? '✗' : '✓';
-        emit({
-          type: 'log',
-          level: 'info',
-          message: `#${i + 1} ${status} - ${iter.contextSummary || 'No context'}`,
-          timestamp: new Date(),
-        });
-      });
+    // Check for slash commands
+    const command = findCommand(trimmed);
+    if (command) {
+      await command.execute({ emit, sessionManager, input: trimmed });
       return;
     }
 

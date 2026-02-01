@@ -342,6 +342,17 @@ Please return the patch in PURE unified diff format:`;
     chatExitHint: 'Press Ctrl+C again to exit',
     chatTaskInterrupted: '⚠️  Task interrupted by user (Ctrl+C)',
 
+    gui: {
+      recentLogs: 'Recent Logs',
+      phase: 'Phase',
+    },
+
+    // Command descriptions
+    commandExit: 'Exit the application',
+    commandStatus: 'Show current session status',
+    commandClear: 'Clear the screen/context',
+    commandHistory: 'Show session history',
+
     // Option descriptions
     instructionOption: 'Instruction for code modification (required)',
     verifyOption: 'Verification command to run (e.g., "npm test") (required)',

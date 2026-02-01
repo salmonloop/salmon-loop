@@ -1,5 +1,3 @@
-import { describe, it, expect } from 'vitest';
-
 import { resolveImportCandidates } from '../../../src/core/context/ast/module-resolver';
 
 describe('resolveImportCandidates', () => {

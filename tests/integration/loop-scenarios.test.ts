@@ -2,8 +2,6 @@ import { existsSync } from 'fs';
 import { readFile, writeFile } from 'fs/promises';
 import { resolve } from 'path';
 
-import { vi, describe, it, expect, beforeEach } from 'vitest';
-
 import { ContextBuilder } from '../../src/core/context.js';
 import { injectSmokeTest } from '../../src/core/testgen.js';
 import * as verify from '../../src/core/verify.js';

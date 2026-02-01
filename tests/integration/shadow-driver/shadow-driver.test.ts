@@ -9,8 +9,6 @@ import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-
 import { ShadowDriver } from '../../../src/core/strata/layers/shadow-driver/shadow-driver.js';
 import type { ShadowDriverConfig, ShadowTask } from '../../../src/core/strata/types.js';
 

@@ -2,8 +2,6 @@ import { spawn } from 'child_process';
 import { EventEmitter } from 'events';
 import * as fs from 'fs/promises';
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-
 import { AstParser } from '../../src/core/ast/parser.js';
 import { ContextBuilder } from '../../src/core/context.js';
 

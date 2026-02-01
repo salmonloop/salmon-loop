@@ -1,5 +1,3 @@
-import { describe, it, expect } from 'vitest';
-
 import { packUntilFull } from '../../../src/core/context/policies/pack-until-full';
 import type { Context } from '../../../src/core/types';
 

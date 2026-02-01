@@ -1,5 +1,3 @@
-import { describe, it, expect, beforeEach, afterEach, vi, test } from 'vitest';
-
 import { monitor } from '../../src/core/monitor.js';
 import { CheckpointManager } from '../../src/core/strata/checkpoint/manager.js';
 import { WorkspaceSynchronizer } from '../../src/core/strata/runtime/synchronizer.js';

@@ -1,5 +1,3 @@
-import { describe, expect, it, vi } from 'vitest';
-
 let capturedSession: any;
 
 vi.mock('../../src/core/grizzco/dsl/llm-strategy.js', async (importOriginal) => {

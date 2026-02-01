@@ -1,5 +1,3 @@
-import { describe, expect, it } from 'vitest';
-
 import { ToolCallAccumulator } from '../../../../src/core/tools/streaming/ToolCallAccumulator.js';
 
 describe('ToolCallAccumulator', () => {

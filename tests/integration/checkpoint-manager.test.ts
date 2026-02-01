@@ -3,8 +3,6 @@ import { mkdir, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
 import { GitAdapter } from '../../src/core/adapters/git/git-adapter.js';
 import { CheckpointManager } from '../../src/core/strata/checkpoint/manager.js';
 

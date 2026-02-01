@@ -12,8 +12,6 @@
 import { rm } from 'fs/promises';
 import { join } from 'path';
 
-import { afterEach, describe, expect, it } from 'vitest';
-
 import { GitAdapter } from '../../src/core/adapters/git/git-adapter.js';
 import { RealFsTestHelper } from '../helpers/real-fs-helper.js';
 

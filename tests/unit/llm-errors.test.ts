@@ -1,5 +1,3 @@
-import { describe, expect, it } from 'vitest';
-
 import { toLlmError } from '../../src/core/llm/errors.js';
 
 describe('toLlmError', () => {

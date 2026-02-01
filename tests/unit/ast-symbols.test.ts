@@ -1,5 +1,3 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-
 // Force mock BEFORE importing AstParser
 vi.mock('web-tree-sitter', () => {
   return {

@@ -2,8 +2,6 @@ import { mkdir, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
-import { describe, expect, it, vi } from 'vitest';
-
 import { redactConfigForPrint, resolveConfig } from '../../src/core/config/index.js';
 
 function uniqueTmpDir(name: string): string {

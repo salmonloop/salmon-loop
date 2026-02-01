@@ -14,8 +14,6 @@
 
 import type { Stats } from 'fs';
 
-import { vi } from 'vitest';
-
 export interface FsPromisesMockOptions {
   /**
    * Use real fs/promises for unmocked functions

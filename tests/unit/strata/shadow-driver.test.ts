@@ -5,8 +5,6 @@
  * and platform-specific copy implementations.
  */
 
-import { describe, it, expect } from 'vitest';
-
 import { isEnvironmentError } from '../../../src/core/strata/layers/shadow-driver/error-classifier.js';
 import { determineStrategy } from '../../../src/core/strata/layers/shadow-driver/strategy.js';
 import type { ShadowTask } from '../../../src/core/strata/types.js';

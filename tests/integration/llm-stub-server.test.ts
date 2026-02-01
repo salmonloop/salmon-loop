@@ -2,8 +2,6 @@ import * as fs from 'fs/promises';
 import * as http from 'http';
 import * as path from 'path';
 
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-
 import { Pipeline } from '../../src/core/grizzco/pipeline.js';
 import { saveAudit } from '../../src/core/grizzco/steps/audit.js';
 import { generatePatch } from '../../src/core/grizzco/steps/patch.js';

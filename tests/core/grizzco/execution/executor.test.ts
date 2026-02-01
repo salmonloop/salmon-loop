@@ -1,5 +1,3 @@
-import { describe, it, expect, vi } from 'vitest';
-
 import { Executor } from '../../../../src/core/grizzco/execution/Executor.js';
 import { WorkerFactory } from '../../../../src/core/grizzco/execution/WorkerFactory.js';
 import { createMockContext } from '../mocks.js';

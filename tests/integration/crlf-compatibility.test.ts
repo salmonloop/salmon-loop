@@ -2,8 +2,6 @@ import { mkdir, readFile, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-
 import { GitAdapter } from '../../src/core/adapters/git/git-adapter.js';
 
 describe('CRLF Compatibility Tests (Windows Simulation)', () => {

@@ -1,5 +1,3 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-
 import { Monitor } from '../../src/core/monitor.js';
 
 describe('Monitor Metrics', () => {

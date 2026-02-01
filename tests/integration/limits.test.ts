@@ -1,5 +1,3 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-
 import { Semaphore } from '../../src/core/concurrency.js';
 import { LIMITS } from '../../src/core/limits.js';
 import { runVerify } from '../../src/core/verify.js';

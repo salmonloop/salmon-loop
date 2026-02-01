@@ -1,11 +1,14 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-
 import { ContextService } from '../../src/core/context/service.js';
+import { PluginLoader } from '../../src/core/plugin/loader.js';
 import { RealFsTestHelper } from '../helpers/real-fs-helper.js';
 
 describe('ContextService Integration', () => {
   const helper = new RealFsTestHelper();
   let repoPath: string;
+
+  beforeAll(async () => {
+    await PluginLoader.loadPlugins();
+  });
 
   beforeEach(async () => {
     const repo = await helper.createGitRepo({

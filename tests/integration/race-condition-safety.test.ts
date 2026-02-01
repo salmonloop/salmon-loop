@@ -14,8 +14,6 @@
  * Theirs = AI Result (T_ai)
  */
 
-import { describe, it, expect, afterEach } from 'vitest';
-
 import { CheckpointManager } from '../../src/core/strata/checkpoint/manager.js';
 import { WorkspaceSynchronizer } from '../../src/core/strata/runtime/synchronizer.js';
 import type { CheckpointRef } from '../../src/core/types.js';

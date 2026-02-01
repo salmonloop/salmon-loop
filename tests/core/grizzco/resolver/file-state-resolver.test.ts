@@ -1,8 +1,6 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-
 import { GitAdapter } from '../../../../src/core/adapters/git/git-adapter.js';
 import { FileStatus } from '../../../../src/core/shared/types/grizzco-types.js';
 import { FileStateResolver } from '../../../../src/core/strata/layers/file-state-resolver.js';

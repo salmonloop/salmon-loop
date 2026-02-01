@@ -1,11 +1,30 @@
 import { readFile } from 'fs/promises';
 
-import { describe, it, expect, vi } from 'vitest';
-
 import { findFileDependencies } from '../../src/core/dependency.js';
 
 vi.mock('fs/promises', () => ({
   readFile: vi.fn(),
+}));
+
+vi.mock('../../src/core/plugin/registry.js', () => ({
+  pluginRegistry: {
+    getByExtension: vi.fn().mockReturnValue({
+      dependency: {
+        extractImports: (content: string) => {
+          const matches = [
+            ...content.matchAll(/import\s+(?:{[\s\S]*?}|.*?)\s+from\s+['"]([^'"]+)['"]/g),
+          ];
+          return matches.map((m) => m[1]);
+        },
+        resolvePath: (_dir: string, imp: string) => {
+          if (imp.startsWith('.')) {
+            return imp.endsWith('.ts') || imp.endsWith('.js') ? imp : `${imp}.ts`;
+          }
+          return imp;
+        },
+      },
+    }),
+  },
 }));
 
 describe('findFileDependencies', () => {

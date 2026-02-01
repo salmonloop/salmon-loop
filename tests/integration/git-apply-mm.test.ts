@@ -6,8 +6,6 @@
  * - git apply --3way must not fail with "does not match index" due to staged/unstaged divergence.
  */
 
-import { afterEach, describe, expect, it } from 'vitest';
-
 import { GitApplyWorker } from '../../src/core/grizzco/workers/git-apply-worker.js';
 import {
   FileStatus,

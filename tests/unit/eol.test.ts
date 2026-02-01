@@ -1,5 +1,3 @@
-import { describe, it, expect } from 'vitest';
-
 import { TextNormalizer } from '../../src/utils/eol.js';
 
 describe('TextNormalizer', () => {

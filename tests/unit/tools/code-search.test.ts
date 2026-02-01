@@ -1,5 +1,3 @@
-import { describe, it, expect, vi } from 'vitest';
-
 import { codeSearchExecutor } from '../../../src/core/tools/builtin/code-search/executor';
 import { CapabilityCtx } from '../../../src/core/tools/capability/types';
 

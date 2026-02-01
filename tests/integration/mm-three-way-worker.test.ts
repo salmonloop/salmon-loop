@@ -5,8 +5,6 @@
  * A failure in git merge-file must not silently produce empty output that could truncate files.
  */
 
-import { afterEach, describe, expect, it } from 'vitest';
-
 import { GitAdapter } from '../../src/core/adapters/git/git-adapter.js';
 import { MMThreeWayWorker } from '../../src/core/grizzco/workers/mm-three-way-worker.js';
 import {

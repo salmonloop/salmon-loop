@@ -1,7 +1,5 @@
 import { spawn } from 'child_process';
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-
 import { GitAdapter } from '../../src/core/adapters/git/git-adapter.js';
 import { ContextBuilder } from '../../src/core/context.js';
 

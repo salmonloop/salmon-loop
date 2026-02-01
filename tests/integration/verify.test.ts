@@ -1,5 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-
+import { PluginLoader } from '../../src/core/plugin/loader.js';
 import { ErrorType } from '../../src/core/types.js';
 import { runVerify, classifyError, preflight } from '../../src/core/verify.js';
 import { RealFsTestHelper } from '../helpers/real-fs-helper.js';
@@ -7,6 +6,10 @@ import { RealFsTestHelper } from '../helpers/real-fs-helper.js';
 describe('Verify Integration Tests with Real FS', () => {
   const helper = new RealFsTestHelper();
   let repoPath: string;
+
+  beforeAll(async () => {
+    await PluginLoader.loadPlugins();
+  });
 
   beforeEach(async () => {
     const repo = await helper.createGitRepo();

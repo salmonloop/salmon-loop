@@ -1,7 +1,5 @@
 import { join } from 'path';
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-
 import { PluginLoader } from '../../src/core/plugin/loader.js';
 import { pluginRegistry } from '../../src/core/plugin/registry.js';
 import { ErrorType } from '../../src/core/types.js';

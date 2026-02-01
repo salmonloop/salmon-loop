@@ -1,5 +1,3 @@
-import { describe, expect, it, vi } from 'vitest';
-
 import { AiSdkLLM } from '../../src/core/llm/ai-sdk.js';
 
 vi.mock('@ai-sdk/openai', () => {

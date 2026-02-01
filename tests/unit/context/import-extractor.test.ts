@@ -1,5 +1,3 @@
-import { describe, it, expect } from 'vitest';
-
 import { extractImportSpecifiers } from '../../../src/core/context/ast/import-extractor';
 
 describe('extractImportSpecifiers', () => {

@@ -2,11 +2,11 @@ import { Box, Text, useInput } from 'ink';
 import BigText from 'ink-big-text';
 import Gradient from 'ink-gradient';
 import Spinner from 'ink-spinner';
-import TextInput from 'ink-text-input';
 import React, { useState, useEffect } from 'react';
 
-import { en as cliText } from '../locales/en.js';
+import { en as cliText } from '../../locales/en.js';
 
+import { AutocompleteInput } from './components/AutocompleteInput.js';
 import { useLoopState } from './hooks/useLoopState.js';
 
 interface AppProps {
@@ -71,7 +71,7 @@ export const App: React.FC<AppProps> = ({ mode, onStart, onChatInput, initialLog
             <Box marginBottom={1}>
               <Text bold color="cyan">
                 {' '}
-                ❯ {cliText.gui.recentLogs.toUpperCase()}{' '}
+                ❯ {cliText.cli.gui.recentLogs.toUpperCase()}{' '}
               </Text>
             </Box>
             <Box flexDirection="column">
@@ -110,7 +110,7 @@ export const App: React.FC<AppProps> = ({ mode, onStart, onChatInput, initialLog
                   ❯{' '}
                 </Text>
               </Box>
-              <TextInput
+              <AutocompleteInput
                 value={query}
                 onChange={setQuery}
                 onSubmit={handleSubmit}
@@ -134,7 +134,7 @@ export const App: React.FC<AppProps> = ({ mode, onStart, onChatInput, initialLog
         >
           <Box marginBottom={1}>
             <Text bold color="white">
-              {cliText.gui.phase.toUpperCase()}
+              {cliText.cli.gui.phase.toUpperCase()}
             </Text>
           </Box>
           <Box marginBottom={1}>

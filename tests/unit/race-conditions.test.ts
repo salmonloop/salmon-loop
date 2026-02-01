@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach, MockInstance } from 'vitest';
+import type { MockInstance } from 'vitest';
 
 import { LIMITS } from '../../src/core/limits.js';
 

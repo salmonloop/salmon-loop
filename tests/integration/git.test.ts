@@ -8,8 +8,6 @@
  * - Tests actual behavior, not implementation details
  */
 
-import { describe, it, expect, afterEach } from 'vitest';
-
 import { GitAdapter } from '../../src/core/adapters/git/git-adapter.js';
 import { RealFsTestHelper } from '../helpers/real-fs-helper.js';
 

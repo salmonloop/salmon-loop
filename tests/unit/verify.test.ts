@@ -1,6 +1,30 @@
 import { ErrorType } from '../../src/core/types.js';
 import { classifyError } from '../../src/core/verify.js';
 
+// Mock plugin registry to simulate language plugins
+vi.mock('../../src/core/plugin/registry.js', () => ({
+  pluginRegistry: {
+    getAll: () => [
+      {
+        diagnostics: {
+          classifyError: (output: string) => {
+            if (output.includes('TS2322') || output.includes('Failed to compile'))
+              return ErrorType.COMPILATION;
+            if (output.includes('eslint') || output.includes('prettier')) return ErrorType.LINT;
+            if (
+              output.includes('FAIL') ||
+              output.includes('Test Files') ||
+              output.includes('AssertionError')
+            )
+              return ErrorType.TEST;
+            return undefined;
+          },
+        },
+      },
+    ],
+  },
+}));
+
 describe('classifyError', () => {
   it('should classify TypeScript errors as COMPILATION', () => {
     const output = 'error TS2322: Type "string" is not assignable to type "number".';

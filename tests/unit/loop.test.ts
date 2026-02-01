@@ -1,7 +1,5 @@
 import { readFile } from 'fs/promises';
 
-import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
-
 import { GitAdapter } from '../../src/core/adapters/git/git-adapter.js';
 import {
   checkSyntaxErrors,

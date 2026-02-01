@@ -4,8 +4,6 @@ import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 
-import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
-
 import { LLM } from '../../src/core/llm.js';
 import { runSalmonLoop } from '../../src/core/loop.js';
 import * as verify from '../../src/core/verify.js';

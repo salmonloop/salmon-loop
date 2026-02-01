@@ -1,5 +1,3 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-
 import { StrataContentGuardian } from '../../../../src/core/strata/interaction/content-guardian.js';
 
 describe('StrataContentGuardian (Shadow Verification)', () => {

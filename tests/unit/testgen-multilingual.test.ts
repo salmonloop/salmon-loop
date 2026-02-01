@@ -2,8 +2,6 @@ import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-
 import { detectProjectType } from '../../src/core/testgen/detector.js';
 import { injectSmokeTest } from '../../src/core/testgen.js';
 

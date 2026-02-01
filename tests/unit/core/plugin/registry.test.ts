@@ -1,5 +1,3 @@
-import { describe, it, expect, vi } from 'vitest';
-
 import { LanguagePlugin } from '../../../../src/core/plugin/interface.js';
 import { pluginRegistry } from '../../../../src/core/plugin/registry.js';
 

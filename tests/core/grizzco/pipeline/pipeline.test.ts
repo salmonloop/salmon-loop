@@ -1,5 +1,3 @@
-import { describe, it, expect, vi } from 'vitest';
-
 import { Pipeline } from '../../../../src/core/grizzco/pipeline.js';
 
 describe('Pipeline', () => {

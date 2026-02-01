@@ -1,7 +1,5 @@
 import * as fs from 'fs/promises';
 
-import { describe, it, expect, vi } from 'vitest';
-
 import { GitAdapter } from '../../../../src/core/adapters/git/git-adapter.js';
 import { ThreeWayStagedAwareWorker } from '../../../../src/core/grizzco/workers/three-way-staged-worker.js';
 import { UnionMergeWorker } from '../../../../src/core/grizzco/workers/union-merge-worker.js';
