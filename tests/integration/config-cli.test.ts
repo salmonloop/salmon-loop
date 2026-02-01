@@ -89,6 +89,7 @@ describe('Config CLI integration', () => {
     );
 
     const { exitCode, stdout, stderr } = await runSalmonLoopCli([
+      'run',
       '-r',
       repo.path,
       '--print-config',
@@ -106,6 +107,7 @@ describe('Config CLI integration', () => {
     const repo = await helper.createGitRepo();
 
     const { exitCode, stderr } = await runSalmonLoopCli([
+      'run',
       '-r',
       repo.path,
       '--config',
@@ -143,6 +145,7 @@ describe('Config CLI integration', () => {
     );
 
     const { exitCode, stdout, stderr } = await runSalmonLoopCli([
+      'run',
       '-r',
       repo.path,
       '--no-config-file',
@@ -159,7 +162,7 @@ describe('Config CLI integration', () => {
 
     await helper.writeFile(repo.path, '.salmonloop/config/config.json', '{');
 
-    const { exitCode, stderr } = await runSalmonLoopCli(['-r', repo.path, '--print-config']);
+    const { exitCode, stderr } = await runSalmonLoopCli(['run', '-r', repo.path, '--print-config']);
 
     expect(exitCode).toBe(1);
     expect(stderr).toContain('Failed to parse config JSON');
@@ -174,7 +177,7 @@ describe('Config CLI integration', () => {
       JSON.stringify({ version: 2 }, null, 2),
     );
 
-    const { exitCode, stderr } = await runSalmonLoopCli(['-r', repo.path, '--print-config']);
+    const { exitCode, stderr } = await runSalmonLoopCli(['run', '-r', repo.path, '--print-config']);
 
     expect(exitCode).toBe(1);
     expect(stderr).toContain('Unsupported config version');

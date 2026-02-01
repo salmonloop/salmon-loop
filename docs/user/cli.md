@@ -4,11 +4,20 @@ SalmonLoop provides a command-line interface (`s8p`) for automated code patching
 
 ## Commands
 
-### Default Run
-The main entry point for the Agent Loop.
+### Interactive Chat (Default)
+Enter the interactive chat mode to provide instructions and receive patches in real-time.
 
 ```bash
-s8p [options]
+s8p
+# or explicitly
+s8p chat
+```
+
+### Single Run
+Execute a single-turn task and exit.
+
+```bash
+s8p run --instruction "..." --verify "..."
 ```
 
 ### Context (Build Only)

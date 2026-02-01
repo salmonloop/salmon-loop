@@ -49,17 +49,17 @@ Edit `.env` and set your `SALMONLOOP_API_KEY` (or legacy `S8P_API_KEY`). You can
 
 ### Running the CLI
 
-You can run the CLI directly (the `run` command is default):
+By default, Salmon-Loop enters interactive **chat** mode. For single-turn tasks, use the **run** command:
 
 ```bash
 # Using pnpm (recommended for development)
-pnpm dev --instruction "fix bug" --verify "npm test"
+pnpm dev run --instruction "fix bug" --verify "npm test"
 
 # Using npx (no build required)
-npx tsx src/cli/index.ts --instruction "fix bug" --verify "npm test"
+npx tsx src/cli/index.ts run --instruction "fix bug" --verify "npm test"
 
 # Or after building
-node dist/cli.js --instruction "fix bug" --verify "npm test"
+node dist/cli.js run --instruction "fix bug" --verify "npm test"
 ```
 
 ### Quick Example
@@ -67,7 +67,7 @@ node dist/cli.js --instruction "fix bug" --verify "npm test"
 Fix a bug and verify with `npm test`:
 
 ```bash
-salmon-loop --instruction "Fix the null pointer exception in user.ts" --verify "npm test"
+salmon-loop run --instruction "Fix the null pointer exception in user.ts" --verify "npm test"
 ```
 
 ### Library Usage

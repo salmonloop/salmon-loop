@@ -33,8 +33,8 @@ program
 
 // --- Main Command: Run ---
 program
-  .command('run', { isDefault: true })
-  .description('Run the main loop (default)')
+  .command('run')
+  .description('Run a single-turn task')
   .option('-i, --instruction <instruction>', text.cli.instructionOption)
   .option('--config <path>', text.cli.configOption)
   .option('--no-config-file', text.cli.noConfigFileOption)
@@ -126,8 +126,8 @@ program
 
 // --- Command: Chat ---
 program
-  .command('chat')
-  .description('Enter interactive chat mode')
+  .command('chat', { isDefault: true })
+  .description('Enter interactive chat mode (default)')
   .option('--resume', 'Resume last session')
   .option('--verbose', 'Verbose output')
   .action(handleChatCommand);

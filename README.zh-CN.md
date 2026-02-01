@@ -39,17 +39,17 @@ cp .env.example .env
 
 ### 运行 CLI
 
-您可以直接运行 CLI（`run` 命令是默认的）：
+默认情况下，Salmon-Loop 会进入交互式的 **chat** 模式。对于单次执行的任务，请使用 **run** 命令：
 
 ```bash
 # 使用 pnpm (推荐开发使用)
-pnpm dev --instruction "fix bug" --verify "npm test"
+pnpm dev run --instruction "fix bug" --verify "npm test"
 
 # 使用 npx (无需构建)
-npx tsx src/cli/index.ts --instruction "fix bug" --verify "npm test"
+npx tsx src/cli/index.ts run --instruction "fix bug" --verify "npm test"
 
 # 或者在构建后
-node dist/cli.js --instruction "fix bug" --verify "npm test"
+node dist/cli.js run --instruction "fix bug" --verify "npm test"
 ```
 
 ### 快速示例
@@ -57,7 +57,7 @@ node dist/cli.js --instruction "fix bug" --verify "npm test"
 修复 bug 并使用 `npm test` 验证：
 
 ```bash
-salmon-loop --instruction "Fix the null pointer exception in user.ts" --verify "npm test"
+salmon-loop run --instruction "Fix the null pointer exception in user.ts" --verify "npm test"
 ```
 
 ### 库使用方式
