@@ -1,11 +1,14 @@
-import { existsSync } from 'fs';
-import { readFile, writeFile } from 'fs/promises';
-import { resolve } from 'path';
+import * as fs from 'fs/promises';
+import { tmpdir } from 'os';
+import { join } from 'path';
+
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ContextBuilder } from '../../src/core/context.js';
 import { injectSmokeTest } from '../../src/core/testgen.js';
 import * as verify from '../../src/core/verify.js';
 
+// Mock adapters that are not the focus of this test (Git, AST, Context)
 vi.mock('../../src/core/adapters/git/git-adapter.js', () => {
   return {
     GitAdapter: vi.fn().mockImplementation(() => ({
@@ -21,6 +24,7 @@ vi.mock('../../src/core/adapters/git/git-adapter.js', () => {
     })),
   };
 });
+
 vi.mock('../../src/core/verify.js');
 vi.mock('../../src/core/ast/parser.js');
 vi.mock('../../src/core/context.js', () => ({
@@ -31,66 +35,53 @@ vi.mock('../../src/core/context.js', () => ({
   },
 }));
 
-vi.mock('fs', () => ({
-  existsSync: vi.fn(),
-  readFileSync: vi.fn(),
-  promises: {
-    readFile: vi.fn(),
-    writeFile: vi.fn(),
-    unlink: vi.fn(),
-    mkdir: vi.fn().mockResolvedValue(undefined),
-    lstat: vi.fn().mockResolvedValue({ isDirectory: () => false, isSymbolicLink: () => false }),
-    rename: vi.fn().mockResolvedValue(undefined),
-  },
-}));
-
-vi.mock('fs/promises', () => ({
-  readFile: vi.fn(),
-  writeFile: vi.fn(),
-  unlink: vi.fn(),
-  mkdir: vi.fn().mockResolvedValue(undefined),
-  lstat: vi.fn().mockResolvedValue({ isDirectory: () => false, isSymbolicLink: () => false }),
-  rename: vi.fn().mockResolvedValue(undefined),
-}));
+// CRITICAL: NO GLOBAL FS MOCKS. Integration tests must use the real file system.
 
 describe('SalmonLoop Scenarios', () => {
-  const repoPath = resolve('fake-repo');
+  let repoPath: string;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
+
+    // Create a real temporary directory for the test
+    repoPath = await fs.mkdtemp(join(tmpdir(), 'salmon-scenarios-'));
+
     vi.mocked(verify.preflight).mockResolvedValue({ ok: true });
     vi.mocked(ContextBuilder.build).mockResolvedValue({
       repoPath,
       primaryText: 'content',
       rgSnippets: [],
     } as any);
+  });
 
-    // Default fs mocks
-    vi.mocked(readFile).mockImplementation((path) => {
-      if (path.toString().includes('app.ts'))
-        return Promise.resolve('function main() { console.log("hello"); }');
-      return Promise.resolve('');
-    });
-    vi.mocked(writeFile).mockResolvedValue(undefined);
+  afterEach(async () => {
+    // Clean up the temporary directory
+    if (repoPath) {
+      await fs.rm(repoPath, { recursive: true, force: true }).catch(() => {});
+    }
   });
 
   it('Scenario: Multilingual Project Detection and Test Injection', async () => {
-    const pythonRepo = '/python-repo';
+    // Create a dummy requirements.txt to simulate a Python repo
+    await fs.writeFile(join(repoPath, 'requirements.txt'), 'flask');
 
-    // Mock existsSync to simulate requirements.txt exists, but smoke test doesn't
-    vi.mocked(existsSync).mockImplementation((path) => {
-      if (path.toString().includes('requirements.txt')) return true;
-      if (path.toString().includes('salmon_smoke_test.py')) return false;
-      return false;
-    });
+    // Run the injection
+    const result = await injectSmokeTest(repoPath);
 
-    const result = await injectSmokeTest(pythonRepo);
+    // Verify results
     expect(result.created).toBe(true);
     expect(result.testCommand).toBe('python salmon_smoke_test.py');
-    expect(writeFile).toHaveBeenCalledWith(
-      expect.stringContaining('salmon_smoke_test.py'),
-      expect.any(String),
-      'utf-8',
-    );
+
+    // Verify side effect: File should exist on disk
+    const testFilePath = join(repoPath, 'salmon_smoke_test.py');
+    const fileExists = await fs
+      .stat(testFilePath)
+      .then(() => true)
+      .catch(() => false);
+    expect(fileExists).toBe(true);
+
+    const content = await fs.readFile(testFilePath, 'utf-8');
+    // Updated expectation based on actual output
+    expect(content).toContain('Running smoke test on Python');
   });
 });

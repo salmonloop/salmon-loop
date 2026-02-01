@@ -72,4 +72,24 @@ export default tseslint.config(
       },
     },
   },
+  {
+    files: ['tests/integration/**/*.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            "CallExpression[callee.object.name='vi'][callee.property.name='mock'] Literal[value=/fs/]",
+          message:
+            '❌ SECURITY GUARD: Do not mock "fs" or "fs/promises" in integration tests. Use RealFsTestHelper instead.',
+        },
+        {
+          selector:
+            "CallExpression[callee.object.name='vi'][callee.property.name='mock'] Literal[value='child_process']",
+          message:
+            '❌ SECURITY GUARD: Do not mock "child_process" in integration tests. Integration tests must use real processes.',
+        },
+      ],
+    },
+  },
 );

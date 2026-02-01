@@ -1,11 +1,17 @@
 import * as fs from 'fs/promises';
 
+import { describe, expect, it, vi } from 'vitest';
+
 import { GitAdapter } from '../../../../src/core/adapters/git/git-adapter.js';
 import { ThreeWayStagedAwareWorker } from '../../../../src/core/grizzco/workers/three-way-staged-worker.js';
 import { UnionMergeWorker } from '../../../../src/core/grizzco/workers/union-merge-worker.js';
 import { FileState, FileStatus } from '../../../../src/core/shared/types/grizzco-types.js';
 
-vi.mock('fs/promises');
+// Unit tests should mock external dependencies like FS.
+// With process isolation enabled in vitest.config.ts, this mock will not leak.
+vi.mock('fs/promises', () => ({
+  readFile: vi.fn(),
+}));
 
 describe('Grizzco Workers', () => {
   describe('UnionMergeWorker', () => {
@@ -17,6 +23,9 @@ describe('Grizzco Workers', () => {
         absolutePath: '/root/doc.txt',
         status: FileStatus.STAGED_MODIFIED,
         isBinary: false,
+        isSymlink: false,
+        isIgnored: false,
+        size: 100,
       } as FileState;
 
       const op = {
@@ -25,8 +34,8 @@ describe('Grizzco Workers', () => {
         content: Buffer.from('New Line'),
       } as any;
 
-      // Mock fs read
-      (fs.readFile as any).mockResolvedValue(Buffer.from('Existing Line'));
+      // Setup mock return value
+      vi.mocked(fs.readFile).mockResolvedValue(Buffer.from('Existing Line') as any);
 
       const result = await worker.execute(op, state, { repoRoot: '/root' });
 
@@ -41,6 +50,10 @@ describe('Grizzco Workers', () => {
         path: 'code.ts',
         absolutePath: '/root/code.ts',
         status: FileStatus.STAGED_MODIFIED,
+        isBinary: false,
+        isSymlink: false,
+        isIgnored: false,
+        size: 100,
       } as FileState;
 
       const result = await worker.execute({} as any, state);
@@ -55,9 +68,10 @@ describe('Grizzco Workers', () => {
     it('should fetch Index content for Ours', async () => {
       const mockGit = {
         show: vi.fn().mockResolvedValue(Buffer.from('content')),
-        mergeFile: vi
-          .fn()
-          .mockResolvedValue({ content: Buffer.from('merged'), hasConflict: false }),
+        mergeFile: vi.fn().mockResolvedValue({
+          content: Buffer.from('merged'),
+          hasConflict: false,
+        }),
       } as unknown as GitAdapter;
 
       const worker = new ThreeWayStagedAwareWorker(mockGit);
@@ -67,6 +81,10 @@ describe('Grizzco Workers', () => {
         absolutePath: '/root/file.ts',
         status: FileStatus.STAGED_MODIFIED,
         isBinary: false,
+        repoPath: '/root',
+        isSymlink: false,
+        isIgnored: false,
+        size: 100,
       } as FileState;
 
       const op = {
@@ -85,7 +103,13 @@ describe('Grizzco Workers', () => {
 
     it('should reject binary files', async () => {
       const worker = new ThreeWayStagedAwareWorker({} as GitAdapter);
-      const state = { path: 'img.png', isBinary: true } as FileState;
+      const state = {
+        path: 'img.png',
+        isBinary: true,
+        isSymlink: false,
+        isIgnored: false,
+        size: 100,
+      } as FileState;
 
       const result = await worker.execute({} as any, state);
 

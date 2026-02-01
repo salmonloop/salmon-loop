@@ -29,9 +29,9 @@ export default defineConfig({
 
     poolOptions: {
       forks: {
-        singleFork: true, // Integration tests run sequentially in a single fork
+        singleFork: false, // Ensure integration tests run in isolated forks
         minForks: 1,
-        maxForks: 1,
+        maxForks: 4,
       },
       threads: {
         singleThread: false,

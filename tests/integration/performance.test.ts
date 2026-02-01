@@ -1,36 +1,14 @@
-import { spawn } from 'child_process';
-import { EventEmitter } from 'events';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { GitAdapter } from '../../src/core/adapters/git/git-adapter.js';
 import { LLM } from '../../src/core/llm.js';
 import { runSalmonLoop } from '../../src/core/loop.js';
-import * as verify from '../../src/core/verify.js';
 
-vi.mock('child_process', async () => {
-  const { EventEmitter } = await import('events');
-  return {
-    spawn: vi.fn().mockImplementation(() => {
-      const child = new EventEmitter() as any;
-      child.stdout = new EventEmitter();
-      child.stderr = new EventEmitter();
-      child.stdin = new EventEmitter();
-      child.stdin.end = vi.fn();
-      child.stdin.write = vi.fn();
-      child.kill = vi.fn();
-      return child;
-    }),
-    exec: vi.fn().mockImplementation((cmd, opts, cb) => {
-      if (typeof opts === 'function') {
-        cb = opts;
-        opts = {};
-      }
-      if (cb) cb(null, '', '');
-      return { stdout: '', stderr: '' };
-    }),
-  };
-});
+// CRITICAL: NO GLOBAL MOCKS. This is a performance test on the real system.
 
 const mockLlm = {
   createPlan: vi.fn(),
@@ -38,120 +16,86 @@ const mockLlm = {
   chat: vi.fn().mockResolvedValue({ role: 'assistant', content: 'Ready' }),
 } as unknown as LLM;
 
-vi.mock('../../src/core/adapters/git/git-adapter.js', () => ({
-  GitAdapter: vi.fn().mockImplementation(() => ({
-    applyPatch: vi.fn().mockResolvedValue(undefined),
-    rollbackFiles: vi.fn().mockResolvedValue({ ok: true }),
-    getStatus: vi.fn().mockResolvedValue(''),
-    exec: vi.fn().mockImplementation((args) => {
-      if (args[0] === 'config') return Promise.resolve('mock-value');
-      return Promise.resolve('');
-    }),
-    query: vi.fn().mockResolvedValue(''),
-    checkIgnore: vi.fn().mockResolvedValue(false),
-  })),
-}));
-
-vi.mock('../../src/core/context.js', () => ({
-  ContextBuilder: {
-    build: vi.fn().mockResolvedValue({
-      repoPath: '/large-repo',
-      rgSnippets: [],
-      primaryText: '',
-    }),
-    shrinkContext: vi.fn().mockImplementation((ctx) => Promise.resolve(ctx)),
-    extractFailedFiles: vi.fn(),
-  },
-}));
-
-vi.mock('../../src/core/ast/index.js', () => ({
-  AstParser: {
-    parse: vi.fn().mockResolvedValue({
-      delete: vi.fn(),
-    }),
-  },
-  checkSyntaxErrors: vi.fn().mockReturnValue([]),
-  validateScopeIntegrity: vi.fn().mockReturnValue({ ok: true }),
-  validateNodeStructure: vi.fn().mockReturnValue(true),
-  getTopLevelNodes: vi.fn().mockReturnValue([]),
-  getNodeName: vi.fn(),
-}));
-
-vi.mock('../../src/core/verify.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../src/core/verify.js')>();
-  return {
-    ...actual,
-    runVerify: vi.fn(),
-    preflight: vi.fn(),
-    classifyError: vi.fn().mockReturnValue('logic'),
-  };
-});
-
 describe('Performance Integration Tests', () => {
   let repoPath: string;
 
   beforeEach(async () => {
-    // We use real timers for performance tests to measure actual time,
-    // but we mock the spawn to be fast.
-    vi.useRealTimers();
-
-    vi.mocked(spawn).mockImplementation(() => {
-      const child = new EventEmitter() as any;
-      child.stdout = new EventEmitter();
-      child.stderr = new EventEmitter();
-      // Use process.nextTick to simulate async completion without real delay
-      process.nextTick(() => child.emit('close', 0));
-      return child;
-    });
-
     // Create real temp directory
     repoPath = await fs.mkdtemp(path.join(os.tmpdir(), 'salmon-loop-perf-'));
-    await fs.mkdir(path.join(repoPath, '.git'), { recursive: true });
 
-    // Simulate a large repository with 1000 files
+    // Initialize a real git repo
+    await fs.mkdir(path.join(repoPath, '.git'), { recursive: true });
+    // We need a minimal git config for git commands to work
+    const git = new GitAdapter(repoPath);
+    await git.exec(['init']);
+    await git.exec(['config', 'user.email', 'test@test.com']);
+    await git.exec(['config', 'user.name', 'Test']);
+
+    // Simulate a large repository with 100 files (reduced from 1000 to keep test reasonable on real FS)
+    // 1000 real file writes + git adds might be too slow for a quick test, but let's try 100 first.
+    // The original test mocked everything so 1000 was instant.
     const filePromises = [];
-    for (let i = 0; i < 1000; i++) {
+    for (let i = 0; i < 100; i++) {
       filePromises.push(
         fs.writeFile(path.join(repoPath, `file${i}.ts`), `console.log("file ${i}");`),
       );
     }
     await Promise.all(filePromises);
 
+    // Commit them so they are tracked
+    await git.exec(['add', '.']);
+    await git.exec(['commit', '-m', 'Initial commit']);
+
     vi.clearAllMocks();
   });
 
   afterEach(async () => {
-    vi.restoreAllMocks();
+    // vi.restoreAllMocks(); // Handled by setup.ts
     if (repoPath) {
       await fs.rm(repoPath, { recursive: true, force: true }).catch(() => {});
     }
   });
 
-  it('should handle a large repository without significant delay', async () => {
-    vi.mocked(verify.preflight).mockResolvedValue({ ok: true });
+  it('should handle a repository execution without significant overhead', async () => {
+    // We still mock the LLM because we are testing the loop engine performance, not OpenAI.
     vi.mocked(mockLlm.createPlan).mockResolvedValue({
       goal: 'Fix',
-      files: [],
-      changes: [],
-      verify: 'npm test',
+      files: ['file0.ts'],
+      changes: ['Fix log'],
+      verify: 'echo "passed"',
     });
+
+    // Provide a valid patch for file0.ts
     vi.mocked(mockLlm.createPatch).mockResolvedValue(
-      'diff --git a/file0.ts b/file0.ts\n--- a/file0.ts\n+++ b/file0.ts\n@@ -1,1 +1,1 @@\n-console.log("file 0");\n+console.log("fixed");',
+      'diff --git a/file0.ts b/file0.ts\n' +
+        '--- a/file0.ts\n' +
+        '+++ b/file0.ts\n' +
+        '@@ -1,1 +1,1 @@\n' +
+        '-console.log("file 0");\n' +
+        '+console.log("fixed");',
     );
-    vi.mocked(verify.runVerify).mockResolvedValue({ ok: true, output: '', exitCode: 0 });
 
     const start = Date.now();
     const result = await runSalmonLoop({
       instruction: 'Fix file0',
-      verify: 'npm test',
+      verify: 'echo "passed"',
       repoPath: repoPath,
       llm: mockLlm,
+      // Use direct strategy to avoid worktree overhead for this perf test
+      strategy: 'direct',
     });
     const end = Date.now();
 
-    console.log(`File count: 1000, Total time: ${end - start}ms`);
+    console.log(`Total time: ${end - start}ms`);
 
     expect(result.success).toBe(true);
-    expect(end - start).toBeLessThan(5000);
+    // Real FS operations take time, so we relax the timeout check or just check success.
+    // The previous check was < 5000ms for 1000 files with mocks.
+    // Real world: 100 files should be fast enough.
+    expect(end - start).toBeLessThan(10000);
+
+    // Verify side effect
+    const content = await fs.readFile(path.join(repoPath, 'file0.ts'), 'utf-8');
+    expect(content).toContain('console.log("fixed")');
   });
 });
