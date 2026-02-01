@@ -38,6 +38,7 @@ export const en = {
   commandStatus: 'Show current session status',
   commandClear: 'Clear the screen/context',
   commandHistory: 'Show session history',
+  commandSessions: 'List all chat sessions',
 
   // Option descriptions
   instructionOption: 'Instruction for code modification (required)',
@@ -146,6 +147,8 @@ export const en = {
   showSnapshotFilesOption: 'List all files included in the snapshot',
   noSnapshots: 'No snapshots found.',
   availableSnapshots: 'Available Snapshots:',
+  noSessionsFound: 'No saved sessions found.',
+  sessionsHeader: 'Available Sessions:',
   snapshotTableHead: 'Hash     Timestamp                  Message',
   autoSnapshotMsg: (hash: string) => `Auto-snapshot (staged: ${hash})`,
   snapshotCreated: (hash: string) => `Snapshot created: ${hash}`,

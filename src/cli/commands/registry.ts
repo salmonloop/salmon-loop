@@ -63,6 +63,35 @@ export const commands: Command[] = [
       });
     },
   },
+  {
+    name: '/sessions',
+    description: text.cli.commandSessions,
+    execute: async ({ emit, sessionManager }) => {
+      const sessions = await sessionManager.listSessions();
+      if (sessions.length === 0) {
+        emit({
+          type: 'log',
+          level: 'info',
+          message: text.cli.noSessionsFound,
+          timestamp: new Date(),
+        });
+        return;
+      }
+      const header = text.cli.sessionsHeader;
+      const list = sessions
+        .map(
+          (s) =>
+            `${s.id.slice(0, 8)} | ${s.name.padEnd(20)} | ${new Date(s.updatedAt).toLocaleString()}`,
+        )
+        .join('\n');
+      emit({
+        type: 'log',
+        level: 'info',
+        message: `${header}\n${list}`,
+        timestamp: new Date(),
+      });
+    },
+  },
 ];
 
 export function getSuggestions(input: string): Command[] {
