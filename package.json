@@ -7,13 +7,18 @@
     "salmon-loop": "dist/cli/index.js"
   },
   "scripts": {
-    "preinstall": "node scripts/check-versions.js",
+    "preinstall": "npx only-allow pnpm && node scripts/check-versions.js",
     "check-deps": "node scripts/check-deps.js",
     "build": "tsc && node scripts/copy-assets.js",
     "dev": "tsx src/cli/index.ts",
-    "test": "eslint . && vitest run",
+    "test": "pnpm test:unit",
+    "t": "vitest tests/unit/",
     "test:unit": "vitest run tests/unit/",
     "test:integration": "vitest run tests/integration/",
+    "test:full": "vitest run",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "verify": "pnpm lint && pnpm typecheck && pnpm test:full",
     "test:watch": "vitest",
     "test:watch:unit": "vitest tests/unit/",
     "test:watch:integration": "vitest tests/integration/",
@@ -22,7 +27,6 @@
     "test:coverage": "vitest run --coverage",
     "test:report": "vitest run --reporter=default --reporter=json --outputFile=test-report.json",
     "test:ci": "eslint . && vitest run --reporter=verbose --coverage",
-    "lint": "eslint .",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\""
   },
   "keywords": [
@@ -33,7 +37,13 @@
   ],
   "author": "",
   "license": "MIT",
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=9.0.0"
+  },
   "devDependencies": {
+    "@eslint/js": "^9.39.2",
     "@testing-library/react": "^16.3.2",
     "@types/mock-fs": "^4.13.4",
     "@types/node": "^20.0.0",
@@ -66,6 +76,7 @@
     "chalk": "^5.4.1",
     "commander": "^11.1.0",
     "dotenv": "^17.2.3",
+    "execa": "^9.6.1",
     "handlebars": "^4.7.8",
     "ink": "^6.6.0",
     "ink-big-text": "^2.0.0",
