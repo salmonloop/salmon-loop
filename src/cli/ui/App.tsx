@@ -1,10 +1,15 @@
-import { useStdout, Box, Text } from 'ink';
-import React, { useEffect } from 'react';
+import { Box, Text } from 'ink';
+import React from 'react';
+
+import { text } from '../locales/index.js';
 
 import { ThinkingWave } from './components/animations/ThinkingWave.js';
 import { AutocompleteInput } from './components/AutocompleteInput.js';
 import { MessageList } from './components/MessageList.js';
+import { UI_CONFIG } from './config.js';
 import { useCommandLifecycle } from './hooks/useCommandLifecycle.js';
+import { useLoopEvents } from './hooks/useLoopEvents.js';
+import { useTerminalDimensions } from './hooks/useTerminalDimensions.js';
 import { UIStoreProvider, useUIStore } from './store/context.js';
 
 const AppCore: React.FC<{ mode: 'run' | 'chat'; onStart: any; onChatInput?: any }> = ({
@@ -13,90 +18,46 @@ const AppCore: React.FC<{ mode: 'run' | 'chat'; onStart: any; onChatInput?: any 
   onChatInput,
 }) => {
   const { state, dispatch } = useUIStore();
-  const { stdout } = useStdout();
-
-  // Handle terminal resizing
-  useEffect(() => {
-    const handleResize = () => {
-      dispatch({
-        type: 'UPDATE_DIMENSIONS',
-        payload: { width: stdout?.columns || 100, height: stdout?.rows || 30 },
-      });
-    };
-    stdout?.on('resize', handleResize);
-    return () => {
-      stdout?.off('resize', handleResize);
-    };
-  }, [stdout, dispatch]);
 
   const { signal } = useCommandLifecycle(state.currentPhase as any, () => process.exit(0));
 
-  useEffect(() => {
-    if (mode === 'run') {
-      onStart(
-        (event: any) => {
-          switch (event.type) {
-            case 'log':
-              dispatch({
-                type: 'ADD_MESSAGE',
-                payload: {
-                  id: Math.random().toString(),
-                  type: 'system',
-                  content: event.message,
-                  timestamp: new Date(),
-                },
-              });
-              break;
-            case 'phase.start':
-              dispatch({ type: 'UPDATE_PHASE', payload: event.phase, status: 'running' });
-              break;
-            case 'workspace.ready':
-              dispatch({
-                type: 'UPDATE_WORKSPACE',
-                payload: { path: event.path, isShadow: event.strategy === 'worktree' },
-              });
-              break;
-            case 'diff.meta':
-              dispatch({
-                type: 'SET_CHANGED_FILES',
-                payload: event.changedFiles,
-              });
-              break;
-          }
-        },
-        { signal },
-      );
-    }
-  }, [mode, onStart, dispatch, signal]);
+  // Use modular hooks for environment and loop events
+  useTerminalDimensions();
+  const { sanitizeAndDispatch } = useLoopEvents(mode, onStart, signal);
 
   return (
     <Box flexDirection="column">
       {/* Message Display Area */}
-      <Box flexGrow={1} flexDirection="column" paddingX={4}>
+      <Box
+        flexGrow={1}
+        flexDirection="column"
+        paddingX={UI_CONFIG.MESSAGE_AREA_PADDING_X}
+        paddingBottom={UI_CONFIG.MESSAGE_AREA_PADDING_BOTTOM}
+      >
         <MessageList />
       </Box>
 
+      {/* Thinking Status */}
+      {state.isThinking && (
+        <Box paddingX={UI_CONFIG.MESSAGE_AREA_PADDING_X} paddingY={0} flexShrink={0}>
+          <ThinkingWave />
+          <Text color="gray"> {text.cli.gui.processing}</Text>
+        </Box>
+      )}
+
       {/* Input & Status Area */}
-      <Box flexDirection="column" marginTop={0} flexShrink={0}>
-        <Box
-          borderStyle="single"
-          borderTop={true}
-          borderBottom={false}
-          borderLeft={false}
-          borderRight={false}
-          borderColor="gray"
-          width="100%"
-        />
-
-        {/* Thinking Status - Inside active block for stable clearing */}
-        {state.isThinking && (
-          <Box paddingX={4} paddingY={0}>
-            <ThinkingWave />
-            <Text color="gray"> Processing flow...</Text>
-          </Box>
-        )}
-
-        <Box paddingY={1} flexDirection="row" paddingX={1}>
+      <Box
+        flexDirection="column"
+        marginTop={0}
+        flexShrink={0}
+        borderStyle="single"
+        borderTop
+        borderBottom={false}
+        borderLeft={false}
+        borderRight={false}
+        borderColor="gray"
+      >
+        <Box paddingY={1} flexDirection="row" paddingX={UI_CONFIG.INPUT_ROW_PADDING_X}>
           <Box marginRight={1}>
             <Text color="cyan" bold>
               {' '}
@@ -108,25 +69,13 @@ const AppCore: React.FC<{ mode: 'run' | 'chat'; onStart: any; onChatInput?: any 
             onChange={(val) => dispatch({ type: 'SET_INPUT', payload: val })}
             onSubmit={(val) => {
               if (onChatInput && val.trim()) {
-                onChatInput(
-                  val,
-                  (ev: any) =>
-                    dispatch({
-                      type: 'ADD_MESSAGE',
-                      payload: {
-                        ...ev,
-                        id: ev.id || Math.random().toString(36).substring(2, 11),
-                        timestamp: ev.timestamp || new Date(),
-                      },
-                    }),
-                  {
-                    signal: new AbortController().signal,
-                  },
-                );
+                onChatInput(val, (ev: any) => sanitizeAndDispatch(ev), {
+                  signal: new AbortController().signal,
+                });
                 dispatch({ type: 'SET_INPUT', payload: '' });
               }
             }}
-            placeholder="Type your instruction..."
+            placeholder={text.cli.gui.inputPlaceholder}
           />
         </Box>
       </Box>
