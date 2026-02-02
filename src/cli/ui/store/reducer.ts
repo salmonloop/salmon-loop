@@ -58,7 +58,7 @@ export function uiReducer(state: UIState, action: UIAction): UIState {
         missionTasks: [
           ...state.missionTasks,
           {
-            id: `ws-${Date.now()}`,
+            id: `ws-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
             content: `Workspace initialized at ${action.payload.path}`,
             status: 'completed',
           },
@@ -67,7 +67,7 @@ export function uiReducer(state: UIState, action: UIAction): UIState {
     case 'SET_CHANGED_FILES':
       return { ...state, changedFiles: action.payload };
     case 'UPDATE_PROGRESS':
-      return { ...state, terminalHeight: action.payload }; // Borrowing field for brief test
+      return { ...state, terminalHeight: action.payload };
     default:
       return state;
   }

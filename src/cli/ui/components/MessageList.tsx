@@ -43,15 +43,20 @@ export const MessageList: React.FC = () => {
   return (
     <Static items={messages}>
       {(msg: Message) => (
-        <Box key={msg.id} flexDirection="column" marginBottom={1}>
+        <Box key={msg.id} flexDirection="column" marginBottom={msg.type === 'system' ? 0 : 1}>
           {msg.id !== 'welcome' && (
-            <Box justifyContent="flex-start">
+            <Box>
               <Text color="gray" dimColor>
-                [{msg.timestamp.toLocaleTimeString()}] {msg.type.toUpperCase()}:
+                [{msg.timestamp.toLocaleTimeString()}] {msg.type.toUpperCase()}:{' '}
               </Text>
+              {msg.type === 'system' ? (
+                <Text color="white" dimColor>
+                  {msg.content}
+                </Text>
+              ) : null}
             </Box>
           )}
-          <Markdown content={msg.content} />
+          {msg.type !== 'system' && <Markdown content={msg.content} />}
         </Box>
       )}
     </Static>

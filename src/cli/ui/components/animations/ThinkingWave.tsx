@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 
 export const ThinkingWave: React.FC = () => {
   const [frame, setFrame] = useState(0);
-  const waves = ['~', '≈', '≋', '≈'];
+  const waves = ['.', 'o', 'O', 'o'];
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -14,7 +14,9 @@ export const ThinkingWave: React.FC = () => {
 
   return (
     <Text color="cyan" bold>
-      {waves[frame]} {waves[(frame + 1) % waves.length]} {waves[(frame + 2) % waves.length]}
+      {waves[frame]}
+      {waves[(frame + 1) % waves.length]}
+      {waves[(frame + 2) % waves.length]}
     </Text>
   );
 };
