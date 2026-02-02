@@ -5,6 +5,82 @@ import { VerboseLevel } from './types.js';
 
 export type LogLevel = 'none' | 'basic' | 'extended';
 
+/**
+ * Interface for log reporters
+ */
+export interface LogReporter {
+  log(level: string, message: string, metadata?: any): void;
+  clear?(): void;
+}
+
+/**
+ * Standard Console Reporter
+ */
+export class ConsoleReporter implements LogReporter {
+  constructor(private verboseLevel: LogLevel = 'none') {}
+
+  setVerbose(level: LogLevel) {
+    this.verboseLevel = level;
+  }
+
+  get isBasic() {
+    return this.verboseLevel === 'basic' || this.verboseLevel === 'extended';
+  }
+
+  get isExtended() {
+    return this.verboseLevel === 'extended';
+  }
+
+  log(level: string, message: string, metadata?: any): void {
+    switch (level) {
+      case 'info':
+      case 'log':
+      case 'bold':
+        console.log(level === 'bold' ? chalk.bold(message) : message);
+        break;
+      case 'success':
+        console.log(chalk.green(message));
+        break;
+      case 'warn':
+      case 'degraded':
+        console.warn(
+          level === 'degraded' ? chalk.magenta(`[DEGRADED] ${message}`) : chalk.yellow(message),
+        );
+        break;
+      case 'error':
+        console.error(chalk.red(message));
+        break;
+      case 'debug':
+        if (this.isBasic) console.log(chalk.gray(message));
+        break;
+      case 'trace':
+        if (this.isExtended) console.log(chalk.gray(message));
+        break;
+      case 'cyan':
+        console.log(chalk.cyan(message));
+        break;
+      case 'dim':
+        console.log(chalk.dim(message));
+        break;
+      case 'step':
+        if (this.isBasic) {
+          const phase = metadata?.phase || 'STEP';
+          console.log(chalk.blue(`\n[${phase.toUpperCase()}] `) + message);
+        }
+        break;
+      case 'audit': {
+        const timestamp = new Date().toISOString();
+        console.log(chalk.bgBlue.white(`[AUDIT] ${timestamp} - ${message}`));
+        break;
+      }
+    }
+  }
+
+  clear(): void {
+    console.clear();
+  }
+}
+
 export interface LoggerOptions {
   verbose?: VerboseLevel | boolean;
   prefix?: string;
@@ -20,12 +96,18 @@ export class Logger {
   private fileAdapter = new FileAdapter();
   private logQueue: string[] = [];
   private isFlushing = false;
+  private reporter: LogReporter;
 
   constructor(options?: LoggerOptions) {
     this.setVerbose(options?.verbose);
     this.prefix = options?.prefix ?? '';
     this.logFile = options?.logFile;
     this.silent = options?.silent ?? false;
+    this.reporter = new ConsoleReporter(this.verboseLevel);
+  }
+
+  setReporter(reporter: LogReporter) {
+    this.reporter = reporter;
   }
 
   setVerbose(level: VerboseLevel | boolean | undefined) {
@@ -35,6 +117,9 @@ export class Logger {
       this.verboseLevel = 'none';
     } else {
       this.verboseLevel = level;
+    }
+    if (this.reporter instanceof ConsoleReporter) {
+      this.reporter.setVerbose(this.verboseLevel);
     }
   }
 
@@ -81,13 +166,11 @@ export class Logger {
     try {
       const content = this.logQueue.join('');
       this.logQueue = [];
-      // Success: use project-wrapped FileAdapter to append logs
       await this.fileAdapter.appendFile(this.logFile, content);
     } catch {
-      // Fail silently to prevent logging issues from affecting core logic
+      // Fail silently
     } finally {
       this.isFlushing = false;
-      // Handle new logs accumulated during the flush process
       if (this.logQueue.length > 0) {
         this.scheduleFlush();
       }
@@ -97,117 +180,85 @@ export class Logger {
   info(message: string): void {
     const formatted = this.formatMessage(message);
     this.writeToLog('info', formatted);
-    if (!this.silent) {
-      console.log(formatted);
-    }
+    if (!this.silent) this.reporter.log('info', formatted);
   }
 
   success(message: string): void {
     const formatted = this.formatMessage(message);
     this.writeToLog('success', formatted);
-    if (!this.silent) {
-      console.log(chalk.green(formatted));
-    }
+    if (!this.silent) this.reporter.log('success', formatted);
   }
 
   warn(message: string): void {
     const formatted = this.formatMessage(message);
     this.writeToLog('warn', formatted);
-    if (!this.silent) {
-      console.warn(chalk.yellow(formatted));
-    }
+    if (!this.silent) this.reporter.log('warn', formatted);
   }
 
   error(message: string, exit = false): void {
     const formatted = this.formatMessage(message);
     this.writeToLog('error', formatted);
-    if (!this.silent) {
-      console.error(chalk.red(formatted));
-    }
-    if (exit) {
-      process.exit(1);
-    }
+    if (!this.silent) this.reporter.log('error', formatted);
+    if (exit) process.exit(1);
   }
 
   debug(message: string): void {
     const formatted = this.formatMessage(message);
     this.writeToLog('debug', formatted);
-    if (this.isBasic && !this.silent) {
-      console.log(chalk.gray(formatted));
-    }
+    if (!this.silent) this.reporter.log('debug', formatted);
   }
 
   trace(message: string): void {
     const formatted = this.formatMessage(message);
     this.writeToLog('trace', formatted);
-    if (this.isExtended && !this.silent) {
-      console.log(chalk.gray(formatted));
-    }
+    if (!this.silent) this.reporter.log('trace', formatted);
   }
 
   step(phase: string, message: string): void {
     const formatted = this.formatMessage(message);
     this.writeToLog(`step:${phase}`, formatted);
-    if (this.isBasic && !this.silent) {
-      console.log(chalk.blue(`\n[${phase.toUpperCase()}] `) + formatted);
-    }
+    if (!this.silent) this.reporter.log('step', formatted, { phase });
   }
 
   cyan(message: string): void {
     const formatted = this.formatMessage(message);
     this.writeToLog('cyan', formatted);
-    if (!this.silent) {
-      console.log(chalk.cyan(formatted));
-    }
+    if (!this.silent) this.reporter.log('cyan', formatted);
   }
 
   bold(message: string): void {
     const formatted = this.formatMessage(message);
     this.writeToLog('bold', formatted);
-    if (!this.silent) {
-      console.log(chalk.bold(formatted));
-    }
+    if (!this.silent) this.reporter.log('bold', formatted);
   }
 
   dim(message: string): void {
     const formatted = this.formatMessage(message);
     this.writeToLog('dim', formatted);
-    if (!this.silent) {
-      console.log(chalk.dim(formatted));
-    }
+    if (!this.silent) this.reporter.log('dim', formatted);
   }
 
   log(message: string): void {
     const formatted = this.formatMessage(message);
     this.writeToLog('log', formatted);
-    if (!this.silent) {
-      console.log(formatted);
-    }
+    if (!this.silent) this.reporter.log('log', formatted);
   }
 
   degrade(message: string): void {
     const formatted = this.formatMessage(message);
     this.writeToLog('degraded', formatted);
-    if (!this.silent) {
-      console.warn(chalk.magenta(`[DEGRADED] ${formatted}`));
-    }
+    if (!this.silent) this.reporter.log('degraded', formatted);
   }
 
   clear(): void {
-    if (!this.silent) {
-      console.clear();
-    }
+    if (!this.silent && this.reporter.clear) this.reporter.clear();
   }
 
   audit(action: string, details: any): void {
-    const timestamp = new Date().toISOString();
     const rawMessage = `${action}: ${JSON.stringify(details)}`;
     const formatted = this.formatMessage(rawMessage);
     this.writeToLog('audit', formatted);
-    if (!this.silent) {
-      const displayMessage = `[AUDIT] ${timestamp} - ${formatted}`;
-      console.log(chalk.bgBlue.white(displayMessage));
-    }
+    if (!this.silent) this.reporter.log('audit', formatted);
   }
 }
 

@@ -2,7 +2,14 @@ import { UIState, UIAction } from './types.js';
 
 export const initialState: UIState = {
   contextStack: ['base'],
-  messages: [],
+  messages: [
+    {
+      id: 'welcome',
+      type: 'system',
+      content: 'WELCOME_LOGO',
+      timestamp: new Date(),
+    },
+  ],
   inputContent: '',
   isSidebarVisible: process.stdout.columns >= 120,
   terminalWidth: process.stdout.columns || 100,

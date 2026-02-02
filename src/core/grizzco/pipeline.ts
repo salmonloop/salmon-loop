@@ -1,4 +1,3 @@
-import { logger } from '../logger.js';
 import { EXECUTION_PHASES, type ExecutionPhase, type LoopEvent } from '../types.js';
 
 /**
@@ -63,14 +62,12 @@ export class Pipeline<CurrentCtx> {
         (EXECUTION_PHASES as readonly string[]).includes(value);
 
       try {
-        logger.debug(`[Pipeline] Step started: ${name}`);
         this.ctxRef.current = ctx;
         if (emit && isPhase(name)) {
           emit({ type: 'phase.start', phase: name, timestamp: new Date() });
         }
         result = await action(ctx);
         this.ctxRef.current = result;
-        logger.debug(`[Pipeline] Step finished: ${name}`);
         return result;
       } catch (error) {
         errorStr = error instanceof Error ? error.message : String(error);
@@ -79,7 +76,6 @@ export class Pipeline<CurrentCtx> {
           code: (error as any)?.code,
           llmCode: (error as any)?.llmCode,
         };
-        logger.error(`[Pipeline] Step failed: ${name} - ${errorStr}`);
         throw error;
       } finally {
         if (emit && isPhase(name)) {
@@ -123,14 +119,12 @@ export class Pipeline<CurrentCtx> {
         (EXECUTION_PHASES as readonly string[]).includes(value);
 
       try {
-        logger.debug(`[Pipeline] Step started: ${name}`);
         this.ctxRef.current = ctx;
         if (emit && isPhase(name)) {
           emit({ type: 'phase.start', phase: name, timestamp: new Date() });
         }
         result = await action(ctx);
         this.ctxRef.current = result;
-        logger.debug(`[Pipeline] Step finished: ${name}`);
         return result;
       } catch (error) {
         errorStr = error instanceof Error ? error.message : String(error);
@@ -139,10 +133,8 @@ export class Pipeline<CurrentCtx> {
           code: (error as any)?.code,
           llmCode: (error as any)?.llmCode,
         };
-        logger.error(`[Pipeline] Step failed: ${name} - ${errorStr}`);
 
         // Trigger Recovery
-        logger.warn(`[Pipeline] Triggering recovery for ${name}`);
         try {
           const recStart = Date.now();
           await recovery(ctx);
@@ -152,9 +144,8 @@ export class Pipeline<CurrentCtx> {
             end: Date.now(),
             duration: Date.now() - recStart,
           });
-        } catch (recError) {
-          const recMsg = recError instanceof Error ? recError.message : String(recError);
-          logger.error(`[Pipeline] Recovery failed for ${name}: ${recMsg}`);
+        } catch (_recError) {
+          // Recovery failed
         }
 
         throw error; // Propagate original error

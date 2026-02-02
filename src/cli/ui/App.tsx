@@ -1,8 +1,4 @@
 import { useStdout, Box, Text } from 'ink';
-import BigTextOriginal from 'ink-big-text';
-const BigText = BigTextOriginal as any;
-import GradientOriginal from 'ink-gradient';
-const Gradient = GradientOriginal as any;
 import React, { useEffect } from 'react';
 
 import { ThinkingWave } from './components/animations/ThinkingWave.js';
@@ -72,22 +68,11 @@ const AppCore: React.FC<{ mode: 'run' | 'chat'; onStart: any; onChatInput?: any 
     }
   }, [mode, onStart, dispatch, signal]);
 
-  const WelcomeHeader = (
-    <Box flexDirection="column" marginBottom={1}>
-      <Gradient name="retro">
-        <BigText text="Salmon Loop" font="tiny" />
-      </Gradient>
-      <Text dimColor>Liquid Precision CLI v0.2.0</Text>
-    </Box>
-  );
-
   return (
     <Box flexDirection="column" paddingX={1}>
-      {/* 🟢 REMOVED FIXED HEIGHT: This enables native terminal scrollback */}
       <SplitPane
         left={
           <Box flexDirection="column" flexGrow={1}>
-            {WelcomeHeader}
             <MessageList />
 
             {state.isThinking && (
@@ -115,9 +100,21 @@ const AppCore: React.FC<{ mode: 'run' | 'chat'; onStart: any; onChatInput?: any 
                 onChange={(val) => dispatch({ type: 'SET_INPUT', payload: val })}
                 onSubmit={(val) => {
                   if (onChatInput && val.trim()) {
-                    onChatInput(val, (ev: any) => dispatch({ type: 'ADD_MESSAGE', payload: ev }), {
-                      signal: new AbortController().signal,
-                    });
+                    onChatInput(
+                      val,
+                      (ev: any) =>
+                        dispatch({
+                          type: 'ADD_MESSAGE',
+                          payload: {
+                            ...ev,
+                            id: ev.id || Math.random().toString(36).substring(2, 11),
+                            timestamp: ev.timestamp || new Date(),
+                          },
+                        }),
+                      {
+                        signal: new AbortController().signal,
+                      },
+                    );
                     dispatch({ type: 'SET_INPUT', payload: '' });
                   }
                 }}

@@ -1,6 +1,7 @@
 import { render } from 'ink';
 import React from 'react';
 
+import { logger } from '../../core/logger.js';
 import { LoopEvent } from '../../core/types.js';
 
 import { App } from './App.js';
@@ -13,6 +14,9 @@ export async function startGUI(
   mode: 'run' | 'chat',
   runFn: (emit: (event: LoopEvent) => void, input?: string, options?: GUIOptions) => Promise<any>,
 ) {
+  // Silence global logger to prevent output from interfering with Ink
+  logger.setSilent(true);
+
   let resolveExit: (value: any) => void;
   const exitPromise = new Promise((resolve) => {
     resolveExit = resolve;
