@@ -38,23 +38,22 @@ const Markdown: React.FC<{ content: string }> = ({ content }) => {
 
 export const MessageList: React.FC = () => {
   const { state } = useUIStore();
+  const { messages } = state;
 
   return (
-    <Box flexDirection="column">
-      <Static items={state.messages}>
-        {(msg: Message) => (
-          <Box key={msg.id} flexDirection="column" marginBottom={1}>
-            {msg.id !== 'welcome' && (
-              <Box justifyContent="flex-start">
-                <Text color="gray" dimColor>
-                  [{msg.timestamp.toLocaleTimeString()}] {msg.type.toUpperCase()}:
-                </Text>
-              </Box>
-            )}
-            <Markdown content={msg.content} />
-          </Box>
-        )}
-      </Static>
-    </Box>
+    <Static items={messages}>
+      {(msg: Message) => (
+        <Box key={msg.id} flexDirection="column" marginBottom={1}>
+          {msg.id !== 'welcome' && (
+            <Box justifyContent="flex-start">
+              <Text color="gray" dimColor>
+                [{msg.timestamp.toLocaleTimeString()}] {msg.type.toUpperCase()}:
+              </Text>
+            </Box>
+          )}
+          <Markdown content={msg.content} />
+        </Box>
+      )}
+    </Static>
   );
 };

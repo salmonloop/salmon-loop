@@ -10,13 +10,13 @@ interface SplitPaneProps {
 
 export const SplitPane: React.FC<SplitPaneProps> = ({ left, right }) => {
   const { state } = useUIStore();
-  const { terminalWidth, isSidebarVisible } = state;
+  const { isSidebarVisible } = state;
 
-  const isDesktop = terminalWidth >= 120;
+  const isDesktop = true;
   const showSidebar = isSidebarVisible && isDesktop;
 
   return (
-    <Box flexDirection="row" flexGrow={1} width="100%">
+    <Box flexDirection="row" flexGrow={1} width="100%" alignItems="flex-end">
       {/* Main Chat Area */}
       <Box
         flexDirection="column"
@@ -29,15 +29,17 @@ export const SplitPane: React.FC<SplitPaneProps> = ({ left, right }) => {
 
       {/* Sidebar Area */}
       {showSidebar && (
-        <Box flexDirection="column" flexGrow={0.25} flexBasis="25%" paddingLeft={1}>
-          {/* Airy Border: Only a vertical dash or whitespace */}
-          <Box position="absolute" marginLeft={-1}>
+        <>
+          {/* Vertical Divider: No absolute positioning to avoid ghosting */}
+          <Box paddingX={1} flexShrink={0}>
             <Text color="gray" dimColor>
               ┊
             </Text>
           </Box>
-          {right}
-        </Box>
+          <Box flexDirection="column" flexGrow={0.25} flexBasis="25%">
+            {right}
+          </Box>
+        </>
       )}
     </Box>
   );

@@ -9,7 +9,7 @@ export const MissionControl: React.FC = () => {
   return (
     <Box flexDirection="column">
       <Text bold color="white">
-        📝 Mission Control
+        Mission Control
       </Text>
       <Box flexDirection="column" marginTop={1}>
         {state.missionTasks.length === 0 ? (

@@ -17,6 +17,7 @@ export interface UIState {
   missionTasks: Array<{ id: string; content: string; status: 'pending' | 'completed' | 'failed' }>;
   currentPhase: string;
   isThinking: boolean;
+  changedFiles: string[];
 }
 
 export type UIAction =
@@ -30,4 +31,5 @@ export type UIAction =
   | { type: 'UPDATE_PHASE'; payload: string; status: 'idle' | 'running' | 'success' | 'failed' }
   | { type: 'UPDATE_WORKSPACE'; payload: { path: string; isShadow: boolean } }
   | { type: 'UPDATE_PROGRESS'; payload: number }
-  | { type: 'UPDATE_TASK'; payload: { id: string; status: 'completed' | 'failed' } };
+  | { type: 'UPDATE_TASK'; payload: { id: string; status: 'completed' | 'failed' } }
+  | { type: 'SET_CHANGED_FILES'; payload: string[] };

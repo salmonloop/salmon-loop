@@ -8,7 +8,6 @@ import { MessageList } from './components/MessageList.js';
 import { FileContext } from './components/sidebar/FileContext.js';
 import { MissionControl } from './components/sidebar/MissionControl.js';
 import { useCommandLifecycle } from './hooks/useCommandLifecycle.js';
-import { useOnionExit } from './hooks/useOnionExit.js';
 import { UIStoreProvider, useUIStore } from './store/context.js';
 
 const AppCore: React.FC<{ mode: 'run' | 'chat'; onStart: any; onChatInput?: any }> = ({
@@ -18,7 +17,6 @@ const AppCore: React.FC<{ mode: 'run' | 'chat'; onStart: any; onChatInput?: any 
 }) => {
   const { state, dispatch } = useUIStore();
   const { stdout } = useStdout();
-  const { isExitConfirming } = useOnionExit();
 
   // Handle terminal resizing
   useEffect(() => {
@@ -61,6 +59,12 @@ const AppCore: React.FC<{ mode: 'run' | 'chat'; onStart: any; onChatInput?: any 
                 payload: { path: event.path, isShadow: event.strategy === 'worktree' },
               });
               break;
+            case 'diff.meta':
+              dispatch({
+                type: 'SET_CHANGED_FILES',
+                payload: event.changedFiles,
+              });
+              break;
           }
         },
         { signal },
@@ -69,30 +73,37 @@ const AppCore: React.FC<{ mode: 'run' | 'chat'; onStart: any; onChatInput?: any 
   }, [mode, onStart, dispatch, signal]);
 
   return (
-    <Box flexDirection="column" paddingX={1}>
+    <Box flexDirection="column">
       <SplitPane
         left={
-          <Box flexDirection="column" flexGrow={1}>
-            <MessageList />
+          <Box flexDirection="column" flexGrow={1} paddingX={1}>
+            {/* Message Display Area */}
+            <Box flexGrow={1} flexDirection="column">
+              <MessageList />
+              {state.isThinking && (
+                <Box paddingY={0} flexShrink={0}>
+                  <ThinkingWave />
+                  <Text color="gray"> Processing flow...</Text>
+                </Box>
+              )}
+            </Box>
 
-            {state.isThinking && (
-              <Box paddingY={1}>
-                <ThinkingWave />
-                <Text color="gray"> Processing flow...</Text>
-              </Box>
-            )}
-
+            {/* Input Area (Moved to the bottom of the left pane) */}
             <Box
-              marginTop={1}
-              borderStyle="classic"
+              marginTop={0}
+              borderStyle="single"
               borderTop={true}
+              borderBottom={false}
+              borderLeft={false}
+              borderRight={false}
               borderColor="gray"
               paddingY={1}
+              flexShrink={0}
             >
               <Box marginRight={1}>
                 <Text color="cyan" bold>
                   {' '}
-                  🐟 {'>'}{' '}
+                  {'>'}{' '}
                 </Text>
               </Box>
               <AutocompleteInput
@@ -124,28 +135,26 @@ const AppCore: React.FC<{ mode: 'run' | 'chat'; onStart: any; onChatInput?: any 
           </Box>
         }
         right={
-          <Box flexDirection="column">
-            <FileContext />
-            <Box marginY={1} borderStyle="single" borderTop={true} borderColor="dim" />
-            <MissionControl />
+          <Box flexDirection="column" flexGrow={1}>
+            <Box flexShrink={0}>
+              <FileContext />
+            </Box>
+            <Box
+              marginY={1}
+              borderStyle="single"
+              borderTop={true}
+              borderBottom={false}
+              borderLeft={false}
+              borderRight={false}
+              borderColor="dim"
+              flexShrink={0}
+            />
+            <Box flexGrow={1}>
+              <MissionControl />
+            </Box>
           </Box>
         }
       />
-
-      <Box
-        justifyContent="space-between"
-        paddingY={0}
-        borderStyle="classic"
-        borderTop={true}
-        borderColor="dim"
-      >
-        <Text color="gray" dimColor>
-          {isExitConfirming ? 'Exit Salmonloop? (y/N)' : 'Press ESC to back'}
-        </Text>
-        <Text color="gray" dimColor>
-          {state.terminalWidth}x{state.terminalHeight}
-        </Text>
-      </Box>
     </Box>
   );
 };

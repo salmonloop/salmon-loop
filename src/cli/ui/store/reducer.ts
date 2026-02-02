@@ -17,6 +17,7 @@ export const initialState: UIState = {
   missionTasks: [],
   currentPhase: 'idle',
   isThinking: false,
+  changedFiles: [],
 };
 
 export function uiReducer(state: UIState, action: UIAction): UIState {
@@ -41,7 +42,7 @@ export function uiReducer(state: UIState, action: UIAction): UIState {
         terminalWidth: action.payload.width,
         terminalHeight: action.payload.height,
         // Auto-hide sidebar if width is too small
-        isSidebarVisible: action.payload.width >= 120 ? state.isSidebarVisible : false,
+        isSidebarVisible: action.payload.width >= 120 ? state.isSidebarVisible : true,
       };
     case 'SET_THINKING':
       return { ...state, isThinking: action.payload };
@@ -57,12 +58,14 @@ export function uiReducer(state: UIState, action: UIAction): UIState {
         missionTasks: [
           ...state.missionTasks,
           {
-            id: 'ws',
+            id: `ws-${Date.now()}`,
             content: `Workspace initialized at ${action.payload.path}`,
             status: 'completed',
           },
         ],
       };
+    case 'SET_CHANGED_FILES':
+      return { ...state, changedFiles: action.payload };
     case 'UPDATE_PROGRESS':
       return { ...state, terminalHeight: action.payload }; // Borrowing field for brief test
     default:

@@ -4,9 +4,9 @@ import TerminalRenderer from 'marked-terminal';
 import React, { useMemo } from 'react';
 
 export const Markdown = ({ children }: { children: string }) => {
-  // 1. 实例化放到组件内部（Lazy Initialization）
-  // 2. 使用 Marked 类创建隔离实例，避免污染全局
-  // 3. 使用 useMemo 缓存实例，避免重复创建
+  // 1. Place instantiation inside the component (Lazy Initialization)
+  // 2. Use the Marked class to create an isolated instance to avoid polluting the global scope
+  // 3. Use useMemo to cache the instance and avoid redundant creation
   const parser = useMemo(() => {
     const m = new Marked();
     m.use({ renderer: new TerminalRenderer() as any });
@@ -16,7 +16,7 @@ export const Markdown = ({ children }: { children: string }) => {
   const content = useMemo(() => {
     try {
       if (!children) return '';
-      // 使用局部实例进行解析
+      // Use local instance for parsing
       const result = parser.parse(children);
       return typeof result === 'string' ? result.trim() : '';
     } catch (_) {

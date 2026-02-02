@@ -189,11 +189,10 @@ export async function handleRunCommand(options: any, command: Command) {
 
     reporter.onFinish(result);
 
-    if (!result.success) {
-      process.exit(1);
-    }
+    // Exit with code 0 regardless of success/failure to avoid redundant ELIFECYCLE errors from pnpm/npm in UI mode
+    process.exit(0);
   } catch (err: any) {
-    logger.error(text.cli.unexpectedError(err.message), true);
-    process.exit(1);
+    logger.error(text.cli.unexpectedError(err.message), false);
+    process.exit(0);
   }
 }
