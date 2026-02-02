@@ -163,18 +163,34 @@ export class Logger {
     }
 
     this.isFlushing = true;
+    const contentToFlush = [...this.logQueue];
     try {
-      const content = this.logQueue.join('');
-      this.logQueue = [];
+      const content = contentToFlush.join('');
       await this.fileAdapter.appendFile(this.logFile, content);
+      // Only remove from queue if write was successful
+      this.logQueue.splice(0, contentToFlush.length);
     } catch {
-      // Fail silently
+      // Keep logs in queue for next retry
     } finally {
       this.isFlushing = false;
       if (this.logQueue.length > 0) {
         this.scheduleFlush();
       }
     }
+  }
+
+  /**
+   * Manually flush all pending logs to disk
+   */
+  async flush(): Promise<void> {
+    if (!this.logFile || this.logQueue.length === 0) return;
+
+    // If already flushing, wait for it or trigger another one
+    while (this.isFlushing) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+
+    await this.scheduleFlush();
   }
 
   info(message: string): void {

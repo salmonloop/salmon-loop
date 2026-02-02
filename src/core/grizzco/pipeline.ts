@@ -1,3 +1,4 @@
+import { logger } from '../logger.js';
 import { EXECUTION_PHASES, type ExecutionPhase, type LoopEvent } from '../types.js';
 
 /**
@@ -135,17 +136,36 @@ export class Pipeline<CurrentCtx> {
         };
 
         // Trigger Recovery
+        const recStart = Date.now();
         try {
-          const recStart = Date.now();
           await recovery(ctx);
           this.traces.push({
             name: `${name}:recovery`,
             start: recStart,
             end: Date.now(),
             duration: Date.now() - recStart,
+            metadata: { success: true },
           });
-        } catch (_recError) {
-          // Recovery failed
+        } catch (recError) {
+          const recEnd = Date.now();
+          const errorDetail = recError instanceof Error ? recError.message : String(recError);
+
+          // 1. Record recovery failure to internal traces
+          this.traces.push({
+            name: `${name}:recovery`,
+            start: recStart,
+            end: recEnd,
+            duration: recEnd - recStart,
+            error: errorDetail,
+            metadata: { success: false, phase: 'RECOVERY_FAILURE' },
+          });
+
+          // 2. Force audit log to disk (persistent storage)
+          logger.audit('PIPELINE_RECOVERY_FAILED', {
+            step: name,
+            originalError: errorStr,
+            recoveryError: errorDetail,
+          });
         }
 
         throw error; // Propagate original error
