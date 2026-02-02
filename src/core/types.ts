@@ -155,6 +155,27 @@ export type LoopEvent =
       path: string;
       strategy: string;
       timestamp: Date;
+    }
+  | {
+      type: 'action.fallback';
+      tool: string;
+      method: string;
+      reason: string;
+      severity: 'low' | 'medium' | 'high';
+      timestamp: Date;
+    }
+  | {
+      type: 'resource.status';
+      resource: string;
+      status: 'skipped' | 'degraded' | 'recovered' | 'warning';
+      message: string;
+      timestamp: Date;
+    }
+  | {
+      type: 'resource.cleanup';
+      path: string;
+      success: boolean;
+      timestamp: Date;
     };
 
 export interface CodeLocation {

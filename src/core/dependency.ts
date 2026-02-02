@@ -3,6 +3,7 @@ import { readFile } from 'fs/promises';
 
 import { text } from '../locales/index.js';
 
+import { LIMITS } from './limits.js';
 import { logger } from './logger.js';
 import { safeJoin, safeDirname } from './path.js';
 import { pluginRegistry } from './plugin/registry.js';
@@ -15,7 +16,7 @@ export async function findFileDependencies(
   repoPath: string,
   options?: { depth?: number; maxFiles?: number },
 ): Promise<string[]> {
-  const depth = Math.max(1, Math.min(5, options?.depth ?? 1));
+  const depth = Math.max(1, Math.min(LIMITS.maxDependencyDepth, options?.depth ?? 1));
   const maxFiles = Math.max(1, options?.maxFiles ?? 1000);
 
   const results: string[] = [];

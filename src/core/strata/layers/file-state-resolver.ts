@@ -3,6 +3,7 @@ import { Buffer } from 'node:buffer';
 import * as path from 'path';
 
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
+import { LIMITS } from '../../limits.js';
 import { FileState, FileStatus } from '../../shared/types/grizzco-types.js';
 
 /**
@@ -126,10 +127,10 @@ export class FileStateResolver {
    */
   private async detectBinary(filePath: string): Promise<boolean> {
     try {
-      const buffer = Buffer.alloc(8192);
+      const buffer = Buffer.alloc(LIMITS.binaryCheckBufferSize);
       const fd = await fs.open(filePath, 'r');
       try {
-        const { bytesRead } = await fd.read(buffer, 0, 8192, 0);
+        const { bytesRead } = await fd.read(buffer, 0, LIMITS.binaryCheckBufferSize, 0);
         const sample = buffer.subarray(0, bytesRead);
         return sample.includes(0x00);
       } finally {

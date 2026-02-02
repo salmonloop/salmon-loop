@@ -418,11 +418,6 @@ Please return the patch in PURE unified diff format:`;
     p95Duration: (ms: string) => `  P95 Duration: ${ms}ms`,
   },
 
-  resource: {
-    lockAcquireTimeout: (file: string) => `Timeout acquiring lock for file: ${file}`,
-    lockReleaseFailed: (file: string) => `Failed to release lock for file: ${file}`,
-  },
-
   capability: {
     noBackends: (capability: string) => `No backends available for capability: ${capability}`,
     allBackendsFailed: (capability: string) => `All backends failed for capability: ${capability}`,
@@ -516,5 +511,15 @@ Please return the patch in PURE unified diff format:`;
     magnifier: '🔍',
     pen: '📝',
     chart: '📊',
+  },
+
+  resource: {
+    worktreeSkipCleanup: 'workPath equals baseRepoPath; skipping cleanup to avoid data loss',
+    lockTimeoutAttemptForce: (path: string) =>
+      `Lock acquisition timeout for ${path}, attempting force cleanup...`,
+    lockForceRemoved: (file: string) => `Forcefully removed stale lock file: ${file}`,
+    lockAcquiredAfterForce: (file: string) => `Lock acquired after force cleanup: ${file}`,
+    lockAcquireTimeout: (path: string) => `Failed to acquire lock for ${path} within timeout`,
+    lockReleaseFailed: (path: string) => `Failed to release lock for ${path}`,
   },
 };

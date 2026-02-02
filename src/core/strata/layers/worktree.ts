@@ -3,9 +3,10 @@ import { rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { basename, join, normalize, relative } from 'path';
 
+import { text } from '../../../locales/index.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { logger } from '../../logger.js';
-import { RunOptions, ExecutionWorkspace } from '../../types.js';
+import { RunOptions, ExecutionWorkspace, LoopEvent } from '../../types.js';
 
 /**
  * WorkspaceManager - Manages execution workspace for different checkpoint strategies
@@ -19,15 +20,18 @@ export class WorkspaceManager {
    * Setup execution workspace based on strategy
    * @param options RunOptions with optional strategy
    * @param initialCommit Optional commit hash to base the worktree on (defaults to HEAD)
+   * @param onEvent Optional event callback for reporting progress
    * @returns ExecutionWorkspace configuration
    */
-  static async setup(options: RunOptions, initialCommit?: string): Promise<ExecutionWorkspace> {
+  static async setup(
+    options: RunOptions,
+    initialCommit?: string,
+    onEvent?: (event: LoopEvent) => void,
+  ): Promise<ExecutionWorkspace> {
     const strategy = options.strategy || 'direct';
     const git = new GitAdapter(options.repoPath);
 
     if (strategy === 'worktree') {
-      logger.info('Using worktree strategy for isolated execution');
-
       const baseRef = initialCommit || (await git.query(['rev-parse', 'HEAD']));
       const repoName = basename(options.repoPath);
       const timestamp = Date.now();
@@ -47,6 +51,13 @@ export class WorkspaceManager {
       // Use GitAdapter for worktree creation
       await git.query(['worktree', 'add', '--quiet', '--detach', worktreePath, baseRef.trim()]);
 
+      onEvent?.({
+        type: 'workspace.ready',
+        strategy: 'worktree',
+        path: worktreePath,
+        timestamp: new Date(),
+      });
+
       logger.debug(`Created worktree at: ${worktreePath}`);
       return {
         baseRepoPath: options.repoPath,
@@ -56,7 +67,13 @@ export class WorkspaceManager {
     }
 
     // Default direct strategy
-    logger.info('Using direct strategy for repository execution');
+    onEvent?.({
+      type: 'workspace.ready',
+      strategy: 'direct',
+      path: options.repoPath,
+      timestamp: new Date(),
+    });
+
     return {
       baseRepoPath: options.repoPath,
       workPath: options.repoPath,
@@ -67,17 +84,25 @@ export class WorkspaceManager {
   /**
    * Teardown execution workspace and clean up resources
    * @param workspace ExecutionWorkspace to teardown
+   * @param onEvent Optional event callback
    */
-  static async teardown(workspace: ExecutionWorkspace): Promise<void> {
+  static async teardown(
+    workspace: ExecutionWorkspace,
+    onEvent?: (event: LoopEvent) => void,
+  ): Promise<void> {
     if (workspace.strategy !== 'worktree') {
-      logger.info(`Teardown workspace (strategy: ${workspace.strategy}) - no action needed`);
+      logger.debug(`Teardown workspace (strategy: ${workspace.strategy}) - no action needed`);
       return;
     }
 
     if (workspace.workPath === workspace.baseRepoPath) {
-      logger.warn(
-        'Worktree strategy requested but workPath equals baseRepoPath; skipping cleanup to avoid data loss',
-      );
+      onEvent?.({
+        type: 'resource.status',
+        resource: 'worktree',
+        status: 'skipped',
+        message: text.resource.worktreeSkipCleanup,
+        timestamp: new Date(),
+      });
       return;
     }
 
@@ -87,17 +112,29 @@ export class WorkspaceManager {
     try {
       const list = await git.query(['worktree', 'list', '--porcelain']);
       if (list.includes(workspace.workPath)) {
-        await git.query(['worktree', 'remove', '--quiet', '--force', workspace.workPath]);
+        await git.query(['worktree', 'remove', '--force', workspace.workPath]);
         removed = true;
         logger.debug(`Removed worktree: ${workspace.workPath}`);
       } else {
-        logger.warn(`Worktree not found in git worktree list: ${workspace.workPath}`);
+        onEvent?.({
+          type: 'resource.status',
+          resource: 'worktree',
+          status: 'warning',
+          message: `Worktree not found in git worktree list: ${workspace.workPath}`,
+          timestamp: new Date(),
+        });
       }
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
-      logger.warn(
-        `git worktree remove failed for ${workspace.workPath}, falling back to filesystem removal: ${msg}`,
-      );
+      onEvent?.({
+        type: 'action.fallback',
+        tool: 'git',
+        method: 'worktree remove',
+        reason: msg,
+        severity: 'low',
+        timestamp: new Date(),
+      });
+      logger.debug(`git worktree remove failed, falling back to filesystem removal: ${msg}`);
     }
 
     if (!removed) {

@@ -1,4 +1,5 @@
 import { TextNormalizer, type EOL } from '../../../utils/eol.js';
+import { LIMITS } from '../../limits.js';
 import type { IContentGuardian } from '../types.js';
 
 export interface GuardianResult {
@@ -17,7 +18,7 @@ export interface GuardianResult {
  * - Size Guard: Prevents memory exhaustion attacks
  */
 export class StrataContentGuardian implements IContentGuardian {
-  private static readonly BINARY_CHECK_BYTES = 8192;
+  private static readonly BINARY_CHECK_BYTES = LIMITS.binaryCheckBufferSize;
 
   /**
    * Sniff content for binary signatures and normalize text for processing.

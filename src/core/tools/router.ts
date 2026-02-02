@@ -1,3 +1,5 @@
+import { LIMITS } from '../limits.js';
+
 import { ToolAuditLogger } from './audit.js';
 import { BudgetGuard } from './budget.js';
 import { ToolPolicy } from './policy.js';
@@ -61,8 +63,8 @@ export class ToolRouter {
 
       // 4. Budget Gating & Execution: Concurrency control, timeout, and execution
       const rawOutput = await this.budget.runWithGuards({
-        timeoutMs: 30000, // Can be read from config later
-        maxOutputBytes: 1024 * 1024,
+        timeoutMs: LIMITS.defaultToolTimeoutMs,
+        maxOutputBytes: LIMITS.maxToolOutputBytes,
         phase: envelope.phase,
         toolName: spec.name,
         riskLevel: spec.riskLevel,

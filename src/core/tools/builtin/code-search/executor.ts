@@ -1,3 +1,4 @@
+import { LIMITS } from '../../../limits.js';
 import { logger } from '../../../logger.js';
 import { runWithFallback } from '../../capability/executor.js';
 import { CapabilityCtx } from '../../capability/types.js';
@@ -51,8 +52,8 @@ export async function codeSearchExecutor(
       },
     },
     limits: {
-      timeoutMs: 30000,
-      maxOutputBytes: 1024 * 1024,
+      timeoutMs: LIMITS.defaultToolTimeoutMs,
+      maxOutputBytes: LIMITS.maxToolOutputBytes,
     },
     audit: {
       event: (e) => logger.audit('code.search.backend', e),

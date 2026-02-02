@@ -1,3 +1,4 @@
+import { LIMITS } from '../../../../limits.js';
 import { Backend } from '../../../capability/types.js';
 import { parsePlainMatches } from '../parse/plain-grep.js';
 import { CodeSearchInputT, CodeSearchOutputT } from '../spec.js';
@@ -65,7 +66,7 @@ export const psBackend: Backend<CodeSearchInputT, CodeSearchOutputT> = {
     try {
       const { matches, truncated } = parsePlainMatches(res.stdout, {
         format: 'ps-json',
-        maxMatches: input.maxMatches ?? 100,
+        maxMatches: input.maxMatches ?? LIMITS.defaultSearchMatches,
       });
 
       // Normalize paths to be relative to repoRoot

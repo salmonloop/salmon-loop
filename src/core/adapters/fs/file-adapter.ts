@@ -36,6 +36,15 @@ export class FileAdapter {
   }
 
   /**
+   * Append to file (non-atomic, for logs)
+   */
+  async appendFile(filePath: string, content: string): Promise<void> {
+    const dir = path.dirname(filePath);
+    await fs.mkdir(dir, { recursive: true });
+    await fs.appendFile(filePath, content, 'utf-8');
+  }
+
+  /**
    * Check if file exists
    */
   async exists(filePath: string): Promise<boolean> {

@@ -10,10 +10,12 @@ export interface RetryOptions {
   signal?: AbortSignal;
 }
 
+import { LIMITS } from '../limits.js';
+
 const DEFAULT_OPTIONS: Required<Omit<RetryOptions, 'signal'>> = {
-  maxRetries: 3,
-  initialDelayMs: 500,
-  maxDelayMs: 10000,
+  maxRetries: LIMITS.retry.api.maxAttempts,
+  initialDelayMs: LIMITS.retry.api.initialDelayMs,
+  maxDelayMs: LIMITS.retry.api.maxDelayMs,
   backoffFactor: 2,
   retryableErrors: () => true, // By default, retry all errors
 };

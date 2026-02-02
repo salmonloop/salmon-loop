@@ -196,7 +196,10 @@ export class ContextBuilder {
     errorTypeOrOptions?: ErrorType | ShrinkContextOptions,
   ): Promise<Context> {
     const options = toShrinkOptions(errorTypeOrOptions);
-    const dependencyDepth = Math.max(1, Math.min(3, options.dependencyDepth ?? 1));
+    const dependencyDepth = Math.max(
+      1,
+      Math.min(LIMITS.maxDependencyDepth, options.dependencyDepth ?? 1),
+    );
 
     // Normalize failed file paths
     const normalizedFailed = uniqNormalizedPaths(failedFiles);
@@ -237,7 +240,7 @@ export class ContextBuilder {
         const content = await readRepoFileText(context.repoPath, p);
         if (content === null) continue;
 
-        const isLarge = content.length > 10_240;
+        const isLarge = content.length > LIMITS.largeFileThresholdBytes;
         const outline = outlineSource(content);
 
         newRelatedFiles.push({

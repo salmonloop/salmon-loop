@@ -1,3 +1,4 @@
+import { LIMITS } from '../../../../limits.js';
 import { Backend } from '../../../capability/types.js';
 import { parseRgJson } from '../parse/rg-json.js';
 import { CodeSearchInputT, CodeSearchOutputT } from '../spec.js';
@@ -19,7 +20,10 @@ export const rgBackend: Backend<CodeSearchInputT, CodeSearchOutputT> = {
     // Ensure maxMatches is within reasonable limits
     return {
       ...input,
-      maxMatches: Math.min(input.maxMatches ?? 100, 500),
+      maxMatches: Math.min(
+        input.maxMatches ?? LIMITS.defaultSearchMatches,
+        LIMITS.maxSearchMatches,
+      ),
     };
   },
 
@@ -70,7 +74,7 @@ export const rgBackend: Backend<CodeSearchInputT, CodeSearchOutputT> = {
 
     try {
       const { matches, truncated } = parseRgJson(res.stdout, {
-        maxMatches: input.maxMatches ?? 100,
+        maxMatches: input.maxMatches ?? LIMITS.defaultSearchMatches,
       });
       return {
         ok: true,

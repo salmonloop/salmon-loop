@@ -17,7 +17,7 @@ const Markdown: React.FC<{ content: string }> = ({ content }) => {
   if (!content) return null;
   try {
     return <Text>{marked.parse(content) as string}</Text>;
-  } catch (err) {
+  } catch {
     return <Text color="red">Error rendering content</Text>;
   }
 };

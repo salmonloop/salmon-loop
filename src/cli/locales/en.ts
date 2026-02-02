@@ -79,6 +79,17 @@ export const en = {
   clientPackageNotSupported: (pkg: string) =>
     `⚠️  LLM client.package "${pkg}" is not supported. Falling back to the default client.`,
 
+  // Resource and Workspace messages
+  resource: {
+    worktreeSkipCleanup: 'workPath equals baseRepoPath; skipping cleanup to avoid data loss',
+    lockTimeoutAttemptForce: (path: string) =>
+      `Lock acquisition timeout for ${path}, attempting force cleanup...`,
+    lockForceRemoved: (file: string) => `Forcefully removed stale lock file: ${file}`,
+    lockAcquiredAfterForce: (file: string) => `Lock acquired after force cleanup: ${file}`,
+    lockAcquireTimeout: (path: string) => `Failed to acquire lock for ${path} within timeout`,
+    lockReleaseFailed: (path: string) => `Failed to release lock for ${path}`,
+  },
+
   // Startup information
   starting: '🚀 Starting salmon-loop...',
   runningWith: 'Running salmon-loop with:',

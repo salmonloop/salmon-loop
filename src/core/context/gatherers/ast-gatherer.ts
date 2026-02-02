@@ -3,6 +3,7 @@ import path from 'path';
 
 import { text } from '../../../locales/index.js';
 import { AstParser } from '../../ast/parser.js';
+import { LIMITS } from '../../limits.js';
 import { logger } from '../../logger.js';
 import { safeJoin } from '../../path.js';
 import type { CodeLocation, RelatedFileContext, SymbolInfo } from '../../types.js';
@@ -117,7 +118,7 @@ export class AstGatherer {
       if (content === null) continue;
 
       const outline = outlineSource(content);
-      const isLarge = content.length > 10_240;
+      const isLarge = content.length > LIMITS.largeFileThresholdBytes;
 
       related.push({
         path: normalized,

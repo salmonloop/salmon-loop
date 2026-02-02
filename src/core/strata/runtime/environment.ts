@@ -75,6 +75,7 @@ export class RuntimeEnvironment {
           strategy: options.strategy,
         },
         this.initialSnapshotHash,
+        emit,
       );
       this.setupWorkPath = this.workspace.workPath;
 
@@ -136,11 +137,14 @@ export class RuntimeEnvironment {
         this.setupWorkPath !== this.workspace.workPath
       ) {
         try {
-          await WorkspaceManager.teardown({
-            baseRepoPath: this.workspace.baseRepoPath,
-            workPath: this.setupWorkPath,
-            strategy: 'worktree',
-          });
+          await WorkspaceManager.teardown(
+            {
+              baseRepoPath: this.workspace.baseRepoPath,
+              workPath: this.setupWorkPath,
+              strategy: 'worktree',
+            },
+            emit,
+          );
         } catch (error) {
           checkpointCleanupOk = false;
           const msg = error instanceof Error ? error.message : String(error);
@@ -154,7 +158,7 @@ export class RuntimeEnvironment {
       }
 
       try {
-        await WorkspaceManager.teardown(this.workspace);
+        await WorkspaceManager.teardown(this.workspace, emit);
       } catch (error) {
         checkpointCleanupOk = false;
         const msg = error instanceof Error ? error.message : String(error);

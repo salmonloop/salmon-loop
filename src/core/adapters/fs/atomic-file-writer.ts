@@ -2,15 +2,17 @@ import { promises as fs } from 'fs';
 import { Buffer } from 'node:buffer';
 import * as path from 'path';
 
+import { LIMITS } from '../../limits.js';
+
 /**
  * AtomicFileWriter
  * Handles secure, atomic file writes with retries for platform compatibility.
  */
 export class AtomicFileWriter {
   private retryConfig = {
-    maxAttempts: 3,
-    baseDelay: 100, // 100ms
-    maxDelay: 2000, // 2s
+    maxAttempts: LIMITS.retry.io.maxAttempts,
+    baseDelay: LIMITS.retry.io.initialDelayMs,
+    maxDelay: LIMITS.retry.io.maxDelayMs,
     backoffMultiplier: 2,
   };
 

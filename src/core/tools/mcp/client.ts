@@ -1,6 +1,7 @@
 import { spawn, ChildProcess } from 'child_process';
 import { createInterface, Interface } from 'readline';
 
+import { LIMITS } from '../../limits.js';
 import { logger } from '../../logger.js';
 
 import { McpServerConfig, McpExecutionResult } from './types.js';
@@ -96,10 +97,12 @@ export class McpClient {
         if (this.pendingRequests.has(id)) {
           this.pendingRequests.delete(id);
           reject(
-            new Error(`MCP Request ${id} (${method}) to ${this.config.name} timed out after 30s`),
+            new Error(
+              `MCP Request ${id} (${method}) to ${this.config.name} timed out after ${LIMITS.defaultToolTimeoutMs / 1000}s`,
+            ),
           );
         }
-      }, 30000);
+      }, LIMITS.defaultToolTimeoutMs);
     });
   }
 

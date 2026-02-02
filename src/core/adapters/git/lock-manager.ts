@@ -4,6 +4,7 @@ import { join } from 'path';
 import { text } from '../../../locales/index.js';
 import { LIMITS } from '../../limits.js';
 import { logger } from '../../logger.js';
+import { LoopEvent } from '../../types.js';
 
 interface LockMetadata {
   pid: number;
@@ -15,8 +16,9 @@ interface LockMetadata {
  * Manages file locks to prevent concurrent access to the same repository or files.
  */
 export class FileHandleManager {
-  private static readonly LOCK_TIMEOUT = LIMITS.worktreePrepareTimeoutMs;
-  private static readonly RETRY_DELAY = 100; // 100ms
+  private static readonly LOCK_TIMEOUT = LIMITS.lockWaitTimeoutMs;
+  private static readonly STALE_THRESHOLD = LIMITS.lockStaleThresholdMs;
+  private static readonly RETRY_DELAY = LIMITS.retry.io.initialDelayMs;
   private disabled = false;
   private currentOwner = `process-${process.pid}`;
 
@@ -30,7 +32,11 @@ export class FileHandleManager {
   /**
    * Acquire a lock for a specific path (usually the repo root)
    */
-  async acquireLock(repoPath: string, forceUnlock = false): Promise<void> {
+  async acquireLock(
+    repoPath: string,
+    forceUnlock = false,
+    onEvent?: (event: LoopEvent) => void,
+  ): Promise<void> {
     if (
       this.disabled ||
       (process.env.NODE_ENV === 'test' && !process.env.SALMON_ENABLE_LOCK_IN_TEST)
@@ -79,7 +85,7 @@ export class FileHandleManager {
               isAlive = false;
             }
 
-            if (!isAlive || Date.now() - metadata.timestamp > 300000) {
+            if (!isAlive || Date.now() - metadata.timestamp > FileHandleManager.STALE_THRESHOLD) {
               await fs.unlink(lockFile);
               continue; // Retry immediately after removing stale lock
             }
@@ -88,7 +94,7 @@ export class FileHandleManager {
             try {
               const fs = await import('fs/promises');
               const stats = await fs.stat(lockFile);
-              if (Date.now() - stats.mtimeMs > 300000) {
+              if (Date.now() - stats.mtimeMs > FileHandleManager.STALE_THRESHOLD) {
                 await fs.unlink(lockFile);
                 continue;
               }
@@ -99,7 +105,10 @@ export class FileHandleManager {
 
           // Exponential backoff: delay increases with retry count, capped at 2000ms
           retryCount++;
-          const delay = Math.min(FileHandleManager.RETRY_DELAY * Math.pow(1.5, retryCount), 2000);
+          const delay = Math.min(
+            FileHandleManager.RETRY_DELAY * Math.pow(1.5, retryCount),
+            LIMITS.retry.io.maxDelayMs,
+          );
           await new Promise((resolve) => setTimeout(resolve, delay));
         } else if (e.code === 'ENOENT') {
           // Directory might not exist, try to create it
@@ -117,44 +126,64 @@ export class FileHandleManager {
     }
 
     // Timeout reached - attempt force cleanup before failing
-    logger.warn(`Lock acquisition timeout for ${repoPath}, attempting force cleanup...`);
+    onEvent?.({
+      type: 'resource.status',
+      resource: 'lock',
+      status: 'warning',
+      message: text.resource.lockTimeoutAttemptForce(repoPath),
+      timestamp: new Date(),
+    });
+
     try {
       const fs = await import('fs/promises');
       const content = await fs.readFile(lockFile, 'utf8');
       const metadata: LockMetadata = JSON.parse(content);
 
-      // Log lock holder info for debugging
-      logger.warn(
-        `Lock held by PID ${metadata.pid}, owner: ${metadata.owner}, age: ${Date.now() - metadata.timestamp}ms`,
-      );
+      // Log lock holder info to file for debugging
+      const age = Date.now() - metadata.timestamp;
+      logger.debug(`Lock held by PID ${metadata.pid}, owner: ${metadata.owner}, age: ${age}ms`);
 
-      // Force remove the lock file
-      await fs.unlink(lockFile);
-      logger.warn(`Forcefully removed stale lock file: ${lockFile}`);
+      // Only force remove if it's actually stale
+      if (age > FileHandleManager.STALE_THRESHOLD) {
+        await fs.unlink(lockFile);
+        onEvent?.({
+          type: 'resource.status',
+          resource: 'lock',
+          status: 'recovered',
+          message: text.resource.lockForceRemoved(lockFile),
+          timestamp: new Date(),
+        });
 
-      // One final attempt to acquire the lock
-      try {
-        const handle = await open(lockFile, 'wx');
-        if (handle) {
-          const newMetadata: LockMetadata = {
-            pid: process.pid,
-            timestamp: Date.now(),
-            owner: this.currentOwner,
-          };
-          await handle.writeFile(JSON.stringify(newMetadata), 'utf8');
-          await handle.close();
-          logger.info(`Lock acquired after force cleanup: ${lockFile}`);
-          return;
+        // One final attempt to acquire the lock
+        try {
+          const handle = await open(lockFile, 'wx');
+          if (handle) {
+            const newMetadata: LockMetadata = {
+              pid: process.pid,
+              timestamp: Date.now(),
+              owner: this.currentOwner,
+            };
+            await handle.writeFile(JSON.stringify(newMetadata), 'utf8');
+            await handle.close();
+            onEvent?.({
+              type: 'resource.status',
+              resource: 'lock',
+              status: 'recovered',
+              message: text.resource.lockAcquiredAfterForce(lockFile),
+              timestamp: new Date(),
+            });
+            return;
+          }
+        } catch (retryError) {
+          logger.debug(`Final lock acquisition attempt failed: ${retryError}`);
         }
-      } catch (retryError) {
-        logger.warn(
-          `Final lock acquisition attempt failed: ${retryError instanceof Error ? retryError.message : String(retryError)}`,
+      } else {
+        logger.debug(
+          `Lock is not stale (age: ${age}ms < ${FileHandleManager.STALE_THRESHOLD}ms), skipping force removal`,
         );
       }
     } catch (cleanupError) {
-      logger.warn(
-        `Force cleanup failed: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`,
-      );
+      logger.debug(`Force cleanup failed: ${cleanupError}`);
     }
 
     throw new Error(text.resource.lockAcquireTimeout(repoPath));
@@ -163,7 +192,7 @@ export class FileHandleManager {
   /**
    * Release a lock for a specific path
    */
-  async releaseLock(repoPath: string): Promise<void> {
+  async releaseLock(repoPath: string, onEvent?: (event: LoopEvent) => void): Promise<void> {
     if (
       this.disabled ||
       (process.env.NODE_ENV === 'test' && !process.env.SALMON_ENABLE_LOCK_IN_TEST)
@@ -186,8 +215,14 @@ export class FileHandleManager {
       await unlink(lockFile);
     } catch (e: any) {
       if (e.code !== 'ENOENT') {
-        // We don't throw here to avoid masking other errors, but we log it
-        logger.warn(text.resource.lockReleaseFailed(repoPath) + `: ${e.message}`);
+        // We don't throw here to avoid masking other errors, but we report it via event
+        onEvent?.({
+          type: 'resource.status',
+          resource: 'lock',
+          status: 'warning',
+          message: text.resource.lockReleaseFailed(repoPath) + `: ${e.message}`,
+          timestamp: new Date(),
+        });
       }
     }
   }

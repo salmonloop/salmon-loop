@@ -7,7 +7,7 @@ import { text } from '../locales/index.js';
 import { LIMITS } from './limits.js';
 import { logger } from './logger.js';
 import { pluginRegistry } from './plugin/registry.js';
-import { ErrorType } from './types.js';
+import { ErrorType, LoopEvent } from './types.js';
 import type { ExecutionWorkspace } from './types.js';
 
 /**
@@ -179,6 +179,7 @@ export async function verifyFileContent(
   repoPath: string,
   filePath: string,
   expected: string | RegExp,
+  onEvent?: (event: LoopEvent) => void,
 ): Promise<boolean> {
   try {
     const fullPath = join(repoPath, filePath);
@@ -193,16 +194,25 @@ export async function verifyFileContent(
     if (err.code === 'ENOENT') {
       return false;
     }
-    // Log unexpected errors for transparency, but return false as verification failed
-    logger.warn(text.verify.verifyFileContentError(filePath, err.message));
+    // Report unexpected errors via event instead of direct logger.warn
+    onEvent?.({
+      type: 'resource.status',
+      resource: 'file',
+      status: 'warning',
+      message: text.verify.verifyFileContentError(filePath, err.message),
+      timestamp: new Date(),
+    });
+    logger.debug(`verifyFileContent failed for ${filePath}: ${err.message}`);
     return false;
   }
 }
 
 export async function preflight(
   workspace: ExecutionWorkspace,
+  onEvent?: (event: LoopEvent) => void,
 ): Promise<{ ok: boolean; reason?: string }> {
   return new Promise((resolve) => {
+    const now = () => new Date();
     // 1. Check if it's a git repo
     const gitCheck = spawn('git', ['rev-parse', '--is-inside-work-tree'], {
       cwd: workspace.baseRepoPath,
@@ -244,7 +254,13 @@ export async function preflight(
         });
       } else {
         // Worktree strategy: ignore dirty state in base repository
-        logger.info(text.verify.worktreeStrategyActive);
+        onEvent?.({
+          type: 'resource.status',
+          resource: 'git',
+          status: 'skipped',
+          message: text.verify.worktreeStrategyActive,
+          timestamp: now(),
+        });
         resolve({ ok: true });
       }
     });
@@ -253,7 +269,13 @@ export async function preflight(
     const rgCheck = spawn('rg', ['--version']);
     rgCheck.on('error', (err: any) => {
       if (err.code === 'ENOENT') {
-        logger.warn(text.verify.ripgrepNotFoundWarning);
+        onEvent?.({
+          type: 'resource.status',
+          resource: 'ripgrep',
+          status: 'warning',
+          message: text.verify.ripgrepNotFoundWarning,
+          timestamp: now(),
+        });
       }
     });
   });

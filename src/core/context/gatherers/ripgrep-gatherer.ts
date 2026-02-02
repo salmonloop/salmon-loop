@@ -37,7 +37,7 @@ export class RipgrepGatherer {
       const timeout = setTimeout(() => {
         logger.trace(`  [RG] Timeout reached for query: "${query}". Killing process.`);
         child.kill();
-      }, 30000);
+      }, LIMITS.defaultToolTimeoutMs);
 
       let output = '';
       child.stdout.on('data', (data) => {

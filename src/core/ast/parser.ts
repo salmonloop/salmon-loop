@@ -5,6 +5,7 @@ import path from 'path';
 import * as TreeSitter from 'web-tree-sitter';
 
 import { text } from '../../locales/index.js';
+import { LIMITS } from '../limits.js';
 import { logger } from '../logger.js';
 import { pluginRegistry } from '../plugin/registry.js';
 import { SymbolInfo } from '../types.js';
@@ -64,7 +65,7 @@ export class AstParser {
   private static languages: Map<string, any> = new Map();
   private static languagePromises: Map<string, Promise<any>> = new Map();
   private static treeCache: Map<string, { tree: any; timestamp: number }> = new Map();
-  private static readonly CACHE_LIMIT = 50;
+  private static readonly CACHE_LIMIT = LIMITS.astCacheSize;
 
   /**
    * Initialize the tree-sitter WASM environment with a state machine and lock
@@ -166,7 +167,7 @@ export class AstParser {
   static async parse(code: string, lang: string, wasmPath?: string): Promise<any> {
     const cacheKey = `${lang}:${code.length}:${code.substring(0, 100)}`;
     const cached = this.treeCache.get(cacheKey);
-    if (cached && Date.now() - cached.timestamp < 60000) {
+    if (cached && Date.now() - cached.timestamp < LIMITS.astCacheTTLMs) {
       return cached.tree;
     }
 
