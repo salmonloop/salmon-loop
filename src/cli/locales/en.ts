@@ -31,6 +31,11 @@ export const en = {
     status: 'Status',
     initializing: 'Initializing GUI...',
     exitMessage: 'Exiting Salmon Loop...',
+    processing: 'Processing flow...',
+    inputPlaceholder: 'Type your instruction...',
+    backHint: 'Press ESC to back',
+    exitConfirmHint: 'Exit Salmonloop? (y/N)',
+    renderError: 'Error rendering content',
   },
 
   // Command descriptions

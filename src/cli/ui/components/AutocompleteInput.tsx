@@ -70,7 +70,16 @@ export const AutocompleteInput: React.FC<Props> = ({ value, onChange, onSubmit, 
         <TextInput
           value={value}
           onChange={handleChange}
-          onSubmit={onSubmit}
+          onSubmit={(val) => {
+            if (suggestions.length > 0) {
+              // Complete from selected suggestion instead of submitting
+              const selectedCmd = suggestions[selectedIndex];
+              onChange(selectedCmd.name + ' ');
+              setSuggestions([]);
+            } else {
+              onSubmit(val);
+            }
+          }}
           placeholder={placeholder}
         />
       </Box>

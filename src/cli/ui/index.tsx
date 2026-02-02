@@ -21,7 +21,7 @@ export async function startGUI(
   const { waitUntilExit, unmount } = render(
     <App
       mode={mode}
-      onStart={(emit, options) => {
+      onStart={(emit: (event: LoopEvent) => void, options: GUIOptions) => {
         if (mode === 'run') {
           runFn(emit, undefined, options)
             .then((result) => {
@@ -44,7 +44,7 @@ export async function startGUI(
             });
         }
       }}
-      onChatInput={(input, emit, options) => {
+      onChatInput={(input: string, emit: (event: LoopEvent) => void, options: GUIOptions) => {
         if (mode === 'chat') {
           runFn(emit, input, options).catch((err) => {
             emit({
