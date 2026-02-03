@@ -1,84 +1,189 @@
 import { Box, Text, useInput } from 'ink';
 import TextInput from 'ink-text-input';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
-import { getSuggestions } from '../../commands/registry.js';
-import { Command } from '../../commands/types.js';
+import { en } from '../../locales/en.js';
+import { UI_CONFIG } from '../config.js';
 
 interface Props {
   value: string;
   onChange: (value: string) => void;
   onSubmit: (value: string) => void;
   placeholder?: string;
+  getSuggestions: (input: string) => Promise<{ name: string; description: string }[]>;
 }
 
-export const AutocompleteInput: React.FC<Props> = ({ value, onChange, onSubmit, placeholder }) => {
-  const [suggestions, setSuggestions] = useState<Command[]>([]);
-  const [selectedIndex, setSelectedIndex] = useState(0);
-  const [isCompleting, setIsCompleting] = useState(false);
+export const AutocompleteInput: React.FC<Props> = ({
+  value,
+  onChange,
+  onSubmit,
+  placeholder,
+  getSuggestions,
+}) => {
+  const [suggestions, setSuggestions] = useState<{ name: string; description: string }[]>([]);
+  const [selectedIndex, setSelectedIndex] = useState(-1);
+  const [startIndex, setStartIndex] = useState(0);
+  const [inputKey, setInputKey] = useState(0);
+  const [lastManualInput, setLastManualInput] = useState('');
+  const [isNavigating, setIsNavigating] = useState(false);
+  const [isListClosed, setIsListClosed] = useState(false);
+  const justCompletedRef = useRef(false);
 
-  // One-tick remount to force cursor to the end
+  // Declarative suggestion updates: react to value changes regardless of source
   useEffect(() => {
-    if (isCompleting) {
-      setIsCompleting(false);
-    }
-  }, [isCompleting]);
+    // If the change was triggered by arrow key navigation or list is explicitly closed,
+    // don't re-fetch suggestions to avoid flickering or unwanted popups.
+    if (isNavigating || isListClosed) return;
+
+    let isMounted = true;
+    const updateSuggestions = async () => {
+      if (value.startsWith('/')) {
+        const matches = await getSuggestions(value);
+        if (isMounted) {
+          setSuggestions(matches);
+
+          // Logic: Auto-focus if the suggestion matches the current token being typed
+          // We trim to ignore the trailing space added after completion
+          const parts = value.trim().split(/\s+/);
+          const currentToken = parts[parts.length - 1];
+
+          const exactMatchIndex =
+            value.length > 1 && currentToken.length > 0
+              ? matches.findIndex((m) => m.name.toLowerCase().includes(currentToken.toLowerCase()))
+              : -1;
+
+          setSelectedIndex(exactMatchIndex);
+          setStartIndex(0);
+          setLastManualInput(value);
+        }
+      } else {
+        if (isMounted) {
+          setSuggestions([]);
+        }
+      }
+    };
+
+    updateSuggestions();
+    return () => {
+      isMounted = false;
+    };
+  }, [value, getSuggestions, isNavigating, isListClosed]);
 
   const handleChange = (newValue: string) => {
-    if (isCompleting) return;
+    setIsNavigating(false);
+    setIsListClosed(false);
     onChange(newValue);
-    if (newValue.startsWith('/')) {
-      const matches = getSuggestions(newValue);
-      setSuggestions(matches);
-      setSelectedIndex(0);
-    } else {
-      setSuggestions([]);
+  };
+
+  const getCompletedValue = (selectedName: string) => {
+    const parts = lastManualInput.trimStart().split(/\s+/);
+    if (parts.length === 1 && !lastManualInput.includes(' ')) {
+      return selectedName + ' ';
     }
+    return parts[0] + ' ' + selectedName + ' ';
+  };
+
+  const applySelection = (
+    selected: { name: string; description: string },
+    config: { closeList: boolean; navigating: boolean },
+  ) => {
+    const nextValue = getCompletedValue(selected.name);
+
+    if (config.closeList) {
+      setSuggestions([]);
+      setSelectedIndex(-1);
+      setStartIndex(0);
+      setIsListClosed(true);
+      justCompletedRef.current = true;
+    }
+
+    setIsNavigating(config.navigating);
+    // Atomic remount via key change to reset cursor position
+    setInputKey((prev) => prev + 1);
+    onChange(nextValue);
   };
 
   useInput((input, key) => {
-    // Handle Tab or Enter completion
-    if ((key.tab || key.return) && suggestions.length > 0) {
-      const selectedCmd = suggestions[selectedIndex];
-      // 1. Clear suggestions
-      setSuggestions([]);
-      setSelectedIndex(0);
-      // 2. Trigger remount
-      setIsCompleting(true);
-      // 3. Update value with trailing space
-      onChange(selectedCmd.name + ' ');
+    // Completion only works if an item is focused
+    if (
+      (key.tab || key.return) &&
+      suggestions.length > 0 &&
+      !isListClosed &&
+      selectedIndex !== -1
+    ) {
+      applySelection(suggestions[selectedIndex], {
+        closeList: key.return,
+        navigating: false,
+      });
       return;
     }
 
-    // Handle arrow keys for selection with looping
-    if (suggestions.length > 0) {
+    if (suggestions.length > 0 && !isListClosed) {
+      const maxVisible = UI_CONFIG.MAX_SUGGESTIONS;
+      let newIndex = selectedIndex;
+
       if (key.upArrow) {
-        setSelectedIndex(selectedIndex === 0 ? suggestions.length - 1 : selectedIndex - 1);
+        if (selectedIndex === -1) {
+          newIndex = suggestions.length - 1;
+        } else {
+          newIndex = selectedIndex === 0 ? suggestions.length - 1 : selectedIndex - 1;
+        }
       } else if (key.downArrow) {
-        setSelectedIndex(selectedIndex === suggestions.length - 1 ? 0 : selectedIndex + 1);
+        if (selectedIndex === -1) {
+          newIndex = 0;
+        } else {
+          newIndex = selectedIndex === suggestions.length - 1 ? 0 : selectedIndex + 1;
+        }
+      }
+
+      if (newIndex !== selectedIndex) {
+        setSelectedIndex(newIndex);
+        applySelection(suggestions[newIndex], {
+          closeList: false,
+          navigating: true,
+        });
+
+        if (newIndex < startIndex) {
+          setStartIndex(newIndex);
+        } else if (newIndex >= startIndex + maxVisible) {
+          setStartIndex(newIndex - maxVisible + 1);
+        } else if (
+          (selectedIndex === 0 && newIndex === suggestions.length - 1) ||
+          (selectedIndex === suggestions.length - 1 && newIndex === 0)
+        ) {
+          if (newIndex === 0) {
+            setStartIndex(0);
+          } else {
+            setStartIndex(Math.max(0, suggestions.length - maxVisible));
+          }
+        }
       }
     }
   });
 
+  const visibleSuggestions = suggestions.slice(startIndex, startIndex + UI_CONFIG.MAX_SUGGESTIONS);
+
   return (
     <Box flexDirection="column">
-      {/* Input Area - Remounting forces ink-text-input to reset cursor to end */}
       <Box>
-        {!isCompleting && (
-          <TextInput
-            value={value}
-            onChange={handleChange}
-            onSubmit={(val) => {
-              if (suggestions.length === 0) {
-                onSubmit(val);
-              }
-            }}
-            placeholder={placeholder}
-          />
-        )}
+        <TextInput
+          key={inputKey}
+          value={value}
+          onChange={handleChange}
+          onSubmit={(val) => {
+            if (justCompletedRef.current) {
+              justCompletedRef.current = false;
+              return;
+            }
+            // Allow submission if no focus or no suggestions
+            if (selectedIndex === -1 || suggestions.length === 0) {
+              onSubmit(val);
+            }
+          }}
+          placeholder={placeholder}
+        />
       </Box>
 
-      {/* Suggestions Overlay - Moved below input and changed border color to gray */}
       {suggestions.length > 0 && (
         <Box
           flexDirection="column"
@@ -87,11 +192,19 @@ export const AutocompleteInput: React.FC<Props> = ({ value, onChange, onSubmit, 
           paddingX={1}
           marginTop={0}
         >
-          {suggestions.map((cmd, index) => (
-            <Text key={cmd.name} color={index === selectedIndex ? 'green' : 'gray'}>
-              {cmd.name} - {cmd.description}
+          {visibleSuggestions.map((cmd, index) => {
+            const actualIndex = startIndex + index;
+            return (
+              <Text key={cmd.name} color={actualIndex === selectedIndex ? 'green' : 'gray'}>
+                {cmd.name} - {cmd.description}
+              </Text>
+            );
+          })}
+          {suggestions.length > UI_CONFIG.MAX_SUGGESTIONS && (
+            <Text color="gray" dimColor italic>
+              {en.gui.scrollHint(selectedIndex === -1 ? 0 : selectedIndex + 1, suggestions.length)}
             </Text>
-          ))}
+          )}
         </Box>
       )}
     </Box>

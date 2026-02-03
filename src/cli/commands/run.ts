@@ -168,7 +168,7 @@ export async function handleRunCommand(options: any, command: Command) {
     if (useGui) {
       // Dynamically import GUI to avoid top-level await issues with yoga-layout
       const { startGUI } = await import('../ui/index.js');
-      result = (await startGUI('run', async (emit, _input, guiOptions) => {
+      result = (await startGUI('run', undefined, async (emit, _input, guiOptions) => {
         return await runSalmonLoop({
           ...loopParams,
           applyBackOnDirty: loopParams.applyBackOnDirty as ApplyBackOnDirty,

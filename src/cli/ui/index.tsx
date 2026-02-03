@@ -12,6 +12,7 @@ export interface GUIOptions {
 
 export async function startGUI(
   mode: 'run' | 'chat',
+  sessionManager: any,
   runFn: (emit: (event: LoopEvent) => void, input?: string, options?: GUIOptions) => Promise<any>,
 ) {
   // Silence global logger to prevent output from interfering with Ink
@@ -25,6 +26,7 @@ export async function startGUI(
   const { waitUntilExit, unmount } = render(
     <App
       mode={mode}
+      sessionManager={sessionManager}
       onStart={(emit: (event: LoopEvent) => void, options: GUIOptions) => {
         if (mode === 'run') {
           runFn(emit, undefined, options)

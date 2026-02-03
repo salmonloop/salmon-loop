@@ -76,7 +76,6 @@ export const MessageList: React.FC = () => {
   const { state } = useUIStore();
   const { messages } = state;
   const [isAnchored, setIsAnchored] = useState(true);
-  const [hasNewMessages, setHasNewMessages] = useState(false);
 
   // Split history and live message
   const history = messages.slice(0, -1);
@@ -89,14 +88,13 @@ export const MessageList: React.FC = () => {
     }
     if (key.downArrow || key.pageDown || key.return) {
       setIsAnchored(true);
-      setHasNewMessages(false);
     }
   });
 
   // Tracking new messages when not anchored
   useEffect(() => {
     if (!isAnchored && messages.length > 0) {
-      setHasNewMessages(true);
+      // Logic for new message notification could go here
     }
   }, [messages.length, isAnchored]);
 
@@ -107,14 +105,6 @@ export const MessageList: React.FC = () => {
 
       {/* Active message (Ensures live updates like [SPLATTED] are visible) */}
       {activeMessage && <MessageItem msg={activeMessage} />}
-
-      {!isAnchored && hasNewMessages && (
-        <Box marginTop={1}>
-          <Text color="cyan" bold>
-            ↓ New messages below (Press Down or Enter to scroll)
-          </Text>
-        </Box>
-      )}
     </Box>
   );
 };

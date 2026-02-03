@@ -1,6 +1,7 @@
 import { Box, Text } from 'ink';
 import React from 'react';
 
+import { getSuggestions } from '../commands/registry.js';
 import { text } from '../locales/index.js';
 
 import { ThinkingWave } from './components/animations/ThinkingWave.js';
@@ -12,11 +13,12 @@ import { useLoopEvents } from './hooks/useLoopEvents.js';
 import { useTerminalDimensions } from './hooks/useTerminalDimensions.js';
 import { UIStoreProvider, useUIStore } from './store/context.js';
 
-const AppCore: React.FC<{ mode: 'run' | 'chat'; onStart: any; onChatInput?: any }> = ({
-  mode,
-  onStart,
-  onChatInput,
-}) => {
+const AppCore: React.FC<{
+  mode: 'run' | 'chat';
+  onStart: any;
+  onChatInput?: any;
+  sessionManager: any;
+}> = ({ mode, onStart, onChatInput, sessionManager }) => {
   const { state, dispatch } = useUIStore();
 
   const { signal } = useCommandLifecycle(state.currentPhase as any, () => process.exit(0));
@@ -67,6 +69,13 @@ const AppCore: React.FC<{ mode: 'run' | 'chat'; onStart: any; onChatInput?: any 
           <AutocompleteInput
             value={state.inputContent}
             onChange={(val) => dispatch({ type: 'SET_INPUT', payload: val })}
+            getSuggestions={(input) =>
+              getSuggestions(input, {
+                emit: (ev) => sanitizeAndDispatch(ev),
+                sessionManager,
+                input,
+              })
+            }
             onSubmit={(val) => {
               if (onChatInput && val.trim()) {
                 onChatInput(val, (ev: any) => sanitizeAndDispatch(ev), {

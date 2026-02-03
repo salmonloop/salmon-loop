@@ -36,6 +36,7 @@ export const en = {
     backHint: 'Press ESC to back',
     exitConfirmHint: 'Exit Salmonloop? (y/N)',
     renderError: 'Error rendering content',
+    scrollHint: (current: number, total: number) => `(Scroll for more: ${current}/${total})`,
   },
 
   // Command descriptions

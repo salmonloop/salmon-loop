@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
 import { findCommand, getSuggestions } from '../../../../src/cli/commands/registry.js';
-import { Command } from '../../../../src/cli/commands/types.js';
 
 describe('CLI Command Registry', () => {
   describe('findCommand', () => {
@@ -36,19 +35,25 @@ describe('CLI Command Registry', () => {
   });
 
   describe('getSuggestions', () => {
-    it('should return matches for prefix', () => {
-      const matches = getSuggestions('/h');
-      expect(matches.map((m: Command) => m.name)).toContain('/help');
-      expect(matches.map((m: Command) => m.name)).toContain('/history');
+    const mockContext = {
+      emit: () => {},
+      sessionManager: {} as any,
+      input: '',
+    };
+
+    it('should return matches for prefix', async () => {
+      const matches = await getSuggestions('/h', { ...mockContext, input: '/h' });
+      expect(matches.map((m: any) => m.name)).toContain('/help');
+      expect(matches.map((m: any) => m.name)).toContain('/history');
     });
 
-    it('should be case-insensitive for suggestions', () => {
-      const matches = getSuggestions('/H');
-      expect(matches.map((m: Command) => m.name)).toContain('/help');
+    it('should be case-insensitive for suggestions', async () => {
+      const matches = await getSuggestions('/H', { ...mockContext, input: '/H' });
+      expect(matches.map((m: any) => m.name)).toContain('/help');
     });
 
-    it('should return empty array if not starting with /', () => {
-      expect(getSuggestions('help')).toEqual([]);
+    it('should return empty array if not starting with /', async () => {
+      expect(await getSuggestions('help', { ...mockContext, input: 'help' })).toEqual([]);
     });
   });
 });

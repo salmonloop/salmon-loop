@@ -79,10 +79,21 @@ export class ChatSessionManager {
   }
 
   /**
-   * Load session by ID
+   * Load session by ID (supports short ID prefix)
    */
   async load(id: string): Promise<ChatSession | null> {
-    const filePath = join(this.storageDir, `${id}.json`);
+    let targetId = id;
+
+    // Support short ID matching
+    if (id.length < 16) {
+      const files = await this.fileAdapter.readdir(this.storageDir).catch(() => []);
+      const match = files.find((f) => f.startsWith(id) && f.endsWith('.json'));
+      if (match) {
+        targetId = match.replace('.json', '');
+      }
+    }
+
+    const filePath = join(this.storageDir, `${targetId}.json`);
     try {
       const data = await this.fileAdapter.readFile(filePath);
       this.currentSession = JSON.parse(data);
@@ -90,6 +101,17 @@ export class ChatSessionManager {
     } catch {
       return null;
     }
+  }
+
+  /**
+   * Resume a session (alias for load, with explicit name)
+   */
+  async resumeSession(id: string): Promise<ChatSession> {
+    const session = await this.load(id);
+    if (!session) {
+      throw new Error(`Session ${id} not found`);
+    }
+    return session;
   }
 
   /**

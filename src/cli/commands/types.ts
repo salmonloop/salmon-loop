@@ -10,4 +10,7 @@ export interface Command {
   name: string;
   description: string;
   execute: (context: CommandContext) => Promise<void> | void;
+  getSuggestions?: (
+    context: CommandContext,
+  ) => Promise<{ name: string; description: string }[]> | { name: string; description: string }[];
 }

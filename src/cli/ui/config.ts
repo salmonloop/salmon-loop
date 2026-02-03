@@ -48,4 +48,10 @@ export const UI_CONFIG = {
    */
   DEFAULT_WIDTH: 80,
   DEFAULT_HEIGHT: 24,
+
+  /**
+   * Maximum number of autocomplete suggestions to display at once.
+   * If exceeded, the list becomes scrollable.
+   */
+  MAX_SUGGESTIONS: 10,
 };
