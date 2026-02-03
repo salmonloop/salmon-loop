@@ -12,9 +12,9 @@ SalmonLoop provides a clean adapter for integration with Roo Code (or other VSCo
 ## Example
 
 ```typescript
-import { RooSalmonAdapter, OpenAILLM } from 'salmon-loop';
+import { RooSalmonLoopAdapter, OpenAILLM } from 'salmon-loop';
 
-const adapter = new RooSalmonAdapter();
+const adapter = new RooSalmonLoopAdapter();
 
 const result = await adapter.execute({
   instruction: 'Fix compilation error in src/main.ts',

@@ -252,10 +252,6 @@ index 123..456 100644
       llm: mockLLM,
     });
 
-    if (!result.success) {
-      console.log('Loop failed with reason:', result.reason);
-      console.log('Logs:', JSON.stringify(result.logs, null, 2));
-    }
     expect(result.success).toBe(true);
     expect(result.attempts).toBe(2);
   });

@@ -24,7 +24,7 @@ vi.mock('fs/promises', async (importOriginal) => {
     open: vi.fn(async (filePath: string, flags: string) => {
       if (
         typeof filePath === 'string' &&
-        filePath.endsWith('.salmon.lock') &&
+        filePath.endsWith('.salmonloop.lock') &&
         flags.includes('x')
       ) {
         if (mockLocks.has(filePath)) {
@@ -46,7 +46,7 @@ vi.mock('fs/promises', async (importOriginal) => {
       };
     }),
     unlink: vi.fn(async (filePath: string) => {
-      if (typeof filePath === 'string' && filePath.endsWith('.salmon.lock')) {
+      if (typeof filePath === 'string' && filePath.endsWith('.salmonloop.lock')) {
         mockLocks.delete(filePath);
         mockLockContents.delete(filePath);
         return;
@@ -54,7 +54,7 @@ vi.mock('fs/promises', async (importOriginal) => {
       return actual.unlink(filePath);
     }),
     readFile: vi.fn(async (filePath: string, encoding: any) => {
-      if (typeof filePath === 'string' && filePath.endsWith('.salmon.lock')) {
+      if (typeof filePath === 'string' && filePath.endsWith('.salmonloop.lock')) {
         return (
           mockLockContents.get(filePath) ??
           JSON.stringify({
@@ -67,7 +67,7 @@ vi.mock('fs/promises', async (importOriginal) => {
       return actual.readFile(filePath, encoding);
     }),
     stat: vi.fn(async (filePath: string) => {
-      if (typeof filePath === 'string' && filePath.endsWith('.salmon.lock')) {
+      if (typeof filePath === 'string' && filePath.endsWith('.salmonloop.lock')) {
         return { mtimeMs: Date.now() };
       }
       return actual.stat(filePath);
@@ -109,17 +109,20 @@ describe('Race Conditions & Concurrency', () => {
   beforeEach(async () => {
     // We will use REAL timers but short delays to avoid flaky fake timer issues with async loops
     killSpy = vi.spyOn(process, 'kill').mockImplementation(() => true);
-    process.env.SALMON_ENABLE_LOCK_IN_TEST = 'true';
+    process.env.SALMONLOOP_ENABLE_LOCK_IN_TEST = 'true';
     mockLocks.clear();
     mockLockContents.clear();
     spawnMock.mockReset();
 
     // Set a very short timeout for tests to run fast
     (LIMITS as any).worktreePrepareTimeoutMs = 500;
+    (LIMITS as any).lockWaitTimeoutMs = 100;
+    (LIMITS as any).lockStaleThresholdMs = 200;
+    (LIMITS.retry.io as any).initialDelayMs = 10;
   });
 
   afterEach(async () => {
-    delete process.env.SALMON_ENABLE_LOCK_IN_TEST;
+    delete process.env.SALMONLOOP_ENABLE_LOCK_IN_TEST;
     killSpy?.mockRestore();
     nextTickSpy?.mockRestore();
     (LIMITS as any).worktreePrepareTimeoutMs = originalWorktreeTimeout;

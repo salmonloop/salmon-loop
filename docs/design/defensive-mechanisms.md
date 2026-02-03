@@ -14,7 +14,7 @@ To prevent race conditions during the initialization of the `web-tree-sitter` WA
 
 To prevent concurrent SalmonLoop instances or other processes from corrupting the repository during a patch-apply-verify cycle, a file locking protocol is implemented in `src/core/git.ts`.
 
-- **Lock File**: `.salmon.lock` is created at the repository root.
+- **Lock File**: `.salmonloop.lock` is created at the repository root.
 - **Atomicity**: Uses `fs.open` with the `wx` flag (exclusive create) to ensure that only one process can acquire the lock.
 - **Timeout & Retry**: Processes will wait up to 30 seconds, retrying every 100ms, to acquire the lock.
 - **Stale Lock Protection**: Locks older than 5 minutes are automatically considered stale and removed to prevent deadlocks from crashed processes.

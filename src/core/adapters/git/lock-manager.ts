@@ -16,9 +16,6 @@ interface LockMetadata {
  * Manages file locks to prevent concurrent access to the same repository or files.
  */
 export class FileHandleManager {
-  private static readonly LOCK_TIMEOUT = LIMITS.lockWaitTimeoutMs;
-  private static readonly STALE_THRESHOLD = LIMITS.lockStaleThresholdMs;
-  private static readonly RETRY_DELAY = LIMITS.retry.io.initialDelayMs;
   private disabled = false;
   private currentOwner = `process-${process.pid}`;
 
@@ -39,11 +36,11 @@ export class FileHandleManager {
   ): Promise<void> {
     if (
       this.disabled ||
-      (process.env.NODE_ENV === 'test' && !process.env.SALMON_ENABLE_LOCK_IN_TEST)
+      (process.env.NODE_ENV === 'test' && !process.env.SALMONLOOP_ENABLE_LOCK_IN_TEST)
     )
       return;
 
-    const lockFile = join(repoPath, '.salmon.lock');
+    const lockFile = join(repoPath, '.salmonloop.lock');
     const start = Date.now();
     let retryCount = 0;
 
@@ -56,7 +53,7 @@ export class FileHandleManager {
       }
     }
 
-    while (Date.now() - start < FileHandleManager.LOCK_TIMEOUT) {
+    while (Date.now() - start < LIMITS.lockWaitTimeoutMs) {
       try {
         // Try to create the lock file with O_EXCL to ensure atomicity
         const handle = await open(lockFile, 'wx');
@@ -85,7 +82,7 @@ export class FileHandleManager {
               isAlive = false;
             }
 
-            if (!isAlive || Date.now() - metadata.timestamp > FileHandleManager.STALE_THRESHOLD) {
+            if (!isAlive || Date.now() - metadata.timestamp > LIMITS.lockStaleThresholdMs) {
               await fs.unlink(lockFile);
               continue; // Retry immediately after removing stale lock
             }
@@ -94,7 +91,7 @@ export class FileHandleManager {
             try {
               const fs = await import('fs/promises');
               const stats = await fs.stat(lockFile);
-              if (Date.now() - stats.mtimeMs > FileHandleManager.STALE_THRESHOLD) {
+              if (Date.now() - stats.mtimeMs > LIMITS.lockStaleThresholdMs) {
                 await fs.unlink(lockFile);
                 continue;
               }
@@ -106,7 +103,7 @@ export class FileHandleManager {
           // Exponential backoff: delay increases with retry count, capped at 2000ms
           retryCount++;
           const delay = Math.min(
-            FileHandleManager.RETRY_DELAY * Math.pow(1.5, retryCount),
+            LIMITS.retry.io.initialDelayMs * Math.pow(1.5, retryCount),
             LIMITS.retry.io.maxDelayMs,
           );
           await new Promise((resolve) => setTimeout(resolve, delay));
@@ -118,7 +115,7 @@ export class FileHandleManager {
           } catch {
             // If mkdir fails, just wait and retry
           }
-          await new Promise((resolve) => setTimeout(resolve, FileHandleManager.RETRY_DELAY));
+          await new Promise((resolve) => setTimeout(resolve, LIMITS.retry.io.initialDelayMs));
         } else {
           throw e;
         }
@@ -144,7 +141,7 @@ export class FileHandleManager {
       logger.debug(`Lock held by PID ${metadata.pid}, owner: ${metadata.owner}, age: ${age}ms`);
 
       // Only force remove if it's actually stale
-      if (age > FileHandleManager.STALE_THRESHOLD) {
+      if (age > LIMITS.lockStaleThresholdMs) {
         await fs.unlink(lockFile);
         onEvent?.({
           type: 'resource.status',
@@ -179,7 +176,7 @@ export class FileHandleManager {
         }
       } else {
         logger.debug(
-          `Lock is not stale (age: ${age}ms < ${FileHandleManager.STALE_THRESHOLD}ms), skipping force removal`,
+          `Lock is not stale (age: ${age}ms < ${LIMITS.lockStaleThresholdMs}ms), skipping force removal`,
         );
       }
     } catch (cleanupError) {
@@ -195,11 +192,11 @@ export class FileHandleManager {
   async releaseLock(repoPath: string, onEvent?: (event: LoopEvent) => void): Promise<void> {
     if (
       this.disabled ||
-      (process.env.NODE_ENV === 'test' && !process.env.SALMON_ENABLE_LOCK_IN_TEST)
+      (process.env.NODE_ENV === 'test' && !process.env.SALMONLOOP_ENABLE_LOCK_IN_TEST)
     )
       return;
 
-    const lockFile = join(repoPath, '.salmon.lock');
+    const lockFile = join(repoPath, '.salmonloop.lock');
     try {
       // Verify ownership before releasing
       try {

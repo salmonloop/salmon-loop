@@ -42,7 +42,8 @@ export class PluginLoader {
     } catch (error) {
       // In test environment, we want to know why it failed
       if (process.env.NODE_ENV === 'test') {
-        console.error('CRITICAL: Failed to load plugins:', error);
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        logger.error(`CRITICAL: Failed to load plugins: ${errorMsg}`);
         throw error;
       }
       logger.error(
@@ -59,7 +60,11 @@ export class PluginLoader {
     try {
       // Check if directory exists
       const entries = await readdir(userPluginDir, { withFileTypes: true });
-      const pluginDirs = entries.filter((ent) => ent.isDirectory()).map((ent) => ent.name);
+      const pluginDirs = entries
+        .filter((ent): ent is import('fs').Dirent & { isDirectory: () => boolean } =>
+          ent.isDirectory(),
+        )
+        .map((ent) => ent.name);
 
       if (pluginDirs.length === 0) return;
 

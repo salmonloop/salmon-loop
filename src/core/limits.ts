@@ -19,11 +19,11 @@ export const LIMITS = {
 
   // Verify
   verifyOutputMaxLines: 300,
-  verifyTimeoutMs: Number(process.env.SALMON_VERIFY_TIMEOUT_MS) || 120000,
-  worktreePrepareTimeoutMs: Number(process.env.SALMON_WORKTREE_PREPARE_TIMEOUT_MS) || 600000,
+  verifyTimeoutMs: Number(process.env.SALMONLOOP_VERIFY_TIMEOUT_MS) || 120000,
+  worktreePrepareTimeoutMs: Number(process.env.SALMONLOOP_WORKTREE_PREPARE_TIMEOUT_MS) || 600000,
 
   // Concurrency
-  maxConcurrentOperations: Number(process.env.SALMON_MAX_CONCURRENT) || 3,
+  maxConcurrentOperations: Number(process.env.SALMONLOOP_MAX_CONCURRENT) || 3,
 
   // Logging
   maxLogLength: 10000,

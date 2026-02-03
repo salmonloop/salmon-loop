@@ -1,25 +1,36 @@
 import { AstParser } from '../../src/core/ast/parser.js';
 import { monitor } from '../../src/core/monitor.js';
 
-async function testStability() {
+async function testStability(onProgress?: (iteration: number, heapUsed: number) => void) {
   const code = `function hello() { console.log('world'); }`;
-  console.log('Starting stability test (1000 iterations)...');
 
   for (let i = 0; i < 1000; i++) {
     await AstParser.parse(code, 'javascript');
 
     if (i % 100 === 0) {
       const usage = process.memoryUsage();
-      console.log(`Iteration ${i}: Heap Used = ${(usage.heapUsed / 1024 / 1024).toFixed(2)} MB`);
+      const heapUsed = usage.heapUsed / 1024 / 1024;
+      onProgress?.(i, heapUsed);
       monitor.checkMemoryUsage();
     }
   }
-
-  console.log('Stability test completed.');
 }
 
 describe('Memory Stability', () => {
   it('should not leak memory after repeated AST parsing', async () => {
-    await testStability();
+    const progress: { iteration: number; heapUsed: number }[] = [];
+
+    await testStability((iteration, heapUsed) => {
+      progress.push({ iteration, heapUsed });
+    });
+
+    // Verify progress was recorded at expected intervals
+    expect(progress.length).toBe(10);
+    expect(progress[0].iteration).toBe(0);
+    expect(progress[progress.length - 1].iteration).toBe(900);
+
+    // Verify memory stayed within reasonable bounds (not exceeding 500MB)
+    const maxHeap = Math.max(...progress.map((p) => p.heapUsed));
+    expect(maxHeap).toBeLessThan(500);
   });
 });

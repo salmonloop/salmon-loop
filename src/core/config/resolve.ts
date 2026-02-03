@@ -37,7 +37,8 @@ function resolveModelId(configModelId?: string): string {
 
 function resolveLlmFromConfig(raw?: ConfigFileV1): ResolvedLlmProvider {
   const llm = raw?.llm;
-  const providerId = llm?.active || Object.keys(llm?.providers || {})[0] || 'default';
+  const providerKeys = Object.keys(llm?.providers || {});
+  const providerId = llm?.active || (providerKeys.length > 0 ? providerKeys[0] : 'default');
   const provider = llm?.providers?.[providerId];
   if (llm?.active && llm.providers && !provider) {
     throw new ConfigError('CONFIG_LLM_ACTIVE_PROVIDER_NOT_FOUND', { provider: providerId });

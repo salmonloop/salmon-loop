@@ -4,6 +4,7 @@ import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import * as path from 'path';
 
+import { text } from '../../../locales/index.js';
 import { LIMITS } from '../../limits.js';
 import { logger } from '../../logger.js';
 import { normalizePath } from '../../path.js';
@@ -416,6 +417,7 @@ export class GitAdapter {
 
     await this.lockManager.acquireLock(this.repoPath);
     try {
+      // CRITICAL SAFETY: Restores from Index to Worktree to preserve user's staged changes.
       const args = ['checkout'];
       if (ref) args.push(ref);
       args.push('--', ...safePaths);
@@ -443,6 +445,14 @@ export class GitAdapter {
   }
 
   private async resolveConflicts(): Promise<void> {
+    const isShadow = process.env.SALMONLOOP_SHADOW === 'true';
+    if (!isShadow) {
+      throw new GitError(
+        text.git.conflictResolutionDenied,
+        'resolveConflicts',
+        'Safety Check Failed',
+      );
+    }
     try {
       await this.exec(['stash'], { allowError: true });
       await this.exec(['reset', '--hard', 'HEAD']);

@@ -126,6 +126,8 @@ Please return the patch in PURE unified diff format:`;
     hashObjectFailed: 'hash-object failed',
     showFailed: (error: string) => `git show failed: ${error}`,
     mergeFileFailed: (error: string) => `git merge-file failed: ${error}`,
+    conflictResolutionDenied:
+      'Conflict resolution denied: Cannot run destructive reset in non-shadow environment',
   },
 
   diff: {

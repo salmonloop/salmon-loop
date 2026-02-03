@@ -1,3 +1,5 @@
+import { logger } from '../logger.js';
+
 import { LanguagePlugin } from './interface.js';
 
 class PluginRegistry {
@@ -9,7 +11,7 @@ class PluginRegistry {
    */
   register(plugin: LanguagePlugin) {
     if (this.plugins.has(plugin.meta.id)) {
-      console.warn(`Plugin ${plugin.meta.id} is already registered. Overwriting.`);
+      logger.warn(`Plugin ${plugin.meta.id} is already registered. Overwriting.`);
     }
 
     this.plugins.set(plugin.meta.id, plugin);
