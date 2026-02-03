@@ -10,7 +10,7 @@
 2. **微任务 (MicroTask)**: DSL 驱动，使用 `MicroTaskRunner` 实现数据补全。
 3. **子代理 (SubAgent)**: LLM 驱动，处理复杂反思循环。
 
-所有组件必须遵循 `IExecutable` 契约。
+所有组件必须通过 **Omni-Tray (万能托盘)** 遵循 `IExecutable` 契约。
 
 中文导读入口：`docs/zh-CN/README.md`
 

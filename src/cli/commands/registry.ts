@@ -1,6 +1,7 @@
+import { CheckpointManager } from '../../core/strata/checkpoint/manager.js';
 import { text } from '../locales/index.js';
 
-import { Command, CommandContext } from './types.js';
+import { Command, CommandContext, CommandResult } from './types.js';
 
 export const commands: Command[] = [
   {
@@ -98,6 +99,128 @@ export const commands: Command[] = [
       });
     },
   },
+  {
+    name: '/snapshot',
+    description: 'Manage repository snapshots (list, create, delete, restore)',
+    getSuggestions: async ({ sessionManager, input }) => {
+      const trimmed = input.trimStart();
+      const isSpaceTrailing = input.endsWith(' ');
+      const parts = trimmed.split(/\s+/);
+      const subCommands = ['list', 'create', 'delete', 'restore'];
+
+      // Level 1: Sub-command suggestions
+      if (parts.length === 1 || (parts.length === 2 && !isSpaceTrailing)) {
+        const search = parts[1] || '';
+        return subCommands
+          .filter((s) => s.startsWith(search))
+          .map((s) => ({ name: s, description: `Snapshot ${s} command` }));
+      }
+
+      // Level 2: Data suggestions (hashes)
+      if (parts.length >= 2 && isSpaceTrailing) {
+        const subAction = parts[1].toLowerCase();
+        if (['restore', 'delete', 'list'].includes(subAction)) {
+          const manager = new CheckpointManager();
+          const repoPath = sessionManager.getCurrent().meta.repoPath;
+          const snapshots = await manager.listSnapshots(repoPath);
+          const search = parts[2] || '';
+          return snapshots
+            .filter((s) => s.hash.startsWith(search))
+            .map((s) => ({
+              name: s.hash.slice(0, 7),
+              description: s.message,
+            }));
+        }
+      }
+
+      return [];
+    },
+    execute: async ({ emit, sessionManager, input }): Promise<CommandResult | void> => {
+      const args = input.trim().split(/\s+/).slice(1);
+      const subCommand = args[0]?.toLowerCase();
+      const repoPath = sessionManager.getCurrent().meta.repoPath;
+      const manager = new CheckpointManager();
+
+      if (subCommand === 'list') {
+        const hash = args[1];
+        if (!hash) {
+          emit({
+            type: 'log',
+            level: 'info',
+            message: 'Select a snapshot from the suggestions below to view its details.',
+            timestamp: new Date(),
+          });
+          return;
+        }
+
+        const details = await manager.getSnapshotDetails(repoPath, hash);
+        const stagedCount = details.stagedFiles.length;
+        const unstagedCount = details.unstagedFiles.length;
+
+        emit({
+          type: 'log',
+          level: 'info',
+          message: `Snapshot [${hash.slice(0, 7)}] Details:\n- Staged: ${stagedCount} files\n- Unstaged: ${unstagedCount} files\n\nUse "/snapshot restore ${hash.slice(0, 7)}" to revert your workspace.`,
+          timestamp: new Date(),
+        });
+      } else if (subCommand === 'create') {
+        const message = args.slice(1).join(' ') || 'Manual snapshot';
+        const result = await manager.createSafeSnapshot(repoPath, [], message);
+        emit({
+          type: 'log',
+          level: 'info',
+          message: `Snapshot created: ${result.commitHash.slice(0, 7)}`,
+          timestamp: new Date(),
+        });
+      } else if (subCommand === 'delete') {
+        const hash = args[1];
+        if (!hash) {
+          emit({
+            type: 'log',
+            level: 'error',
+            message: 'Usage: /snapshot delete <hash>',
+            timestamp: new Date(),
+          });
+          return;
+        }
+        await manager.deleteSnapshot(repoPath, hash);
+        emit({
+          type: 'log',
+          level: 'info',
+          message: `Snapshot ${hash} deleted.`,
+          timestamp: new Date(),
+        });
+      } else if (subCommand === 'restore') {
+        const hash = args[1];
+        if (!hash) {
+          emit({
+            type: 'log',
+            level: 'error',
+            message: 'Usage: /snapshot restore <hash>',
+            timestamp: new Date(),
+          });
+          return;
+        }
+        // 🔴 触发挑战-响应拦截器
+        return {
+          action: 'NEED_CONFIRMATION',
+          message: `Restore will overwrite your current workspace.`,
+          data: {
+            command: '/snapshot',
+            args: ['restore', hash],
+            challenge: hash.slice(0, 6), // 必须输入 Hash 的前 6 位
+          },
+        };
+      } else {
+        emit({
+          type: 'log',
+          level: 'error',
+          message: 'Unknown subcommand. Use list, create, delete, or restore.',
+          timestamp: new Date(),
+        });
+      }
+    },
+  },
 ];
 
 export async function getSuggestions(
@@ -118,7 +241,11 @@ export async function getSuggestions(
       // parts.length === 1 means we just typed the command (no space yet, but input.endsWith(' ') might be false).
       // parts.length === 2 means we are typing the first argument (possibly empty if just typed a space).
       // If we have a second argument (parts.length > 2), stop suggesting.
-      if (parts.length > 2) {
+      // Only provide suggestions for up to 2 argument levels.
+      // parts.length === 1: command name
+      // parts.length === 2: first argument (e.g. subcommand)
+      // parts.length === 3: second argument (e.g. hash)
+      if (parts.length > 3) {
         return [];
       }
       return await exactMatch.getSuggestions(context);

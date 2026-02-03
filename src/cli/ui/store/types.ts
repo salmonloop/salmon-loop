@@ -18,6 +18,12 @@ export interface UIState {
   currentPhase: string;
   isThinking: boolean;
   changedFiles: string[];
+  pendingConfirmation?: {
+    message: string;
+    challenge: string; // 目标 Hash 的前 6 位
+    command: string;
+    args: any;
+  };
 }
 
 export type UIAction =
@@ -33,4 +39,6 @@ export type UIAction =
   | { type: 'UPDATE_PROGRESS'; payload: number }
   | { type: 'UPDATE_TASK'; payload: { id: string; status: 'completed' | 'failed' } }
   | { type: 'SET_CHANGED_FILES'; payload: string[] }
-  | { type: 'INTERRUPT_STREAM' };
+  | { type: 'INTERRUPT_STREAM' }
+  | { type: 'SET_CONFIRMATION'; payload: UIState['pendingConfirmation'] }
+  | { type: 'CLEAR_CONFIRMATION' };

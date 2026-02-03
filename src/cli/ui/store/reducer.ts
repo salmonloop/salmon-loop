@@ -66,6 +66,10 @@ export function uiReducer(state: UIState, action: UIAction): UIState {
       };
     case 'SET_CHANGED_FILES':
       return { ...state, changedFiles: action.payload };
+    case 'SET_CONFIRMATION':
+      return { ...state, pendingConfirmation: action.payload };
+    case 'CLEAR_CONFIRMATION':
+      return { ...state, pendingConfirmation: undefined };
     case 'INTERRUPT_STREAM': {
       if (state.messages.length === 0) {
         return { ...state, isThinking: false, currentPhase: 'idle' };

@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 
 import { en } from '../../locales/en.js';
 import { UI_CONFIG } from '../config.js';
+import { useUIStore } from '../store/context.js';
 
 interface Props {
   value: string;
@@ -20,6 +21,10 @@ export const AutocompleteInput: React.FC<Props> = ({
   placeholder,
   getSuggestions,
 }) => {
+  const { state, dispatch } = useUIStore();
+  const { pendingConfirmation } = state;
+  const isConfirming = !!pendingConfirmation;
+
   const [suggestions, setSuggestions] = useState<{ name: string; description: string }[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [startIndex, setStartIndex] = useState(0);
@@ -31,9 +36,8 @@ export const AutocompleteInput: React.FC<Props> = ({
 
   // Declarative suggestion updates: react to value changes regardless of source
   useEffect(() => {
-    // If the change was triggered by arrow key navigation or list is explicitly closed,
-    // don't re-fetch suggestions to avoid flickering or unwanted popups.
-    if (isNavigating || isListClosed) return;
+    // If confirming or navigating or list is explicitly closed, don't re-fetch
+    if (isConfirming || isNavigating || isListClosed) return;
 
     let isMounted = true;
     const updateSuggestions = async () => {
@@ -42,10 +46,8 @@ export const AutocompleteInput: React.FC<Props> = ({
         if (isMounted) {
           setSuggestions(matches);
 
-          // Logic: Auto-focus if the suggestion matches the current token being typed
-          // We trim to ignore the trailing space added after completion
-          const parts = value.trim().split(/\s+/);
-          const currentToken = parts[parts.length - 1];
+          const parts = value.split(/\s+/);
+          const currentToken = value.endsWith(' ') ? '' : parts[parts.length - 1];
 
           const exactMatchIndex =
             value.length > 1 && currentToken.length > 0
@@ -67,7 +69,7 @@ export const AutocompleteInput: React.FC<Props> = ({
     return () => {
       isMounted = false;
     };
-  }, [value, getSuggestions, isNavigating, isListClosed]);
+  }, [value, getSuggestions, isNavigating, isListClosed, isConfirming]);
 
   const handleChange = (newValue: string) => {
     setIsNavigating(false);
@@ -76,11 +78,14 @@ export const AutocompleteInput: React.FC<Props> = ({
   };
 
   const getCompletedValue = (selectedName: string) => {
-    const parts = lastManualInput.trimStart().split(/\s+/);
-    if (parts.length === 1 && !lastManualInput.includes(' ')) {
-      return selectedName + ' ';
+    const parts = lastManualInput.split(/\s+/);
+    // Remove the last part being typed and replace it with selection
+    if (lastManualInput.endsWith(' ')) {
+      return lastManualInput + selectedName + ' ';
     }
-    return parts[0] + ' ' + selectedName + ' ';
+    parts.pop();
+    const prefix = parts.join(' ');
+    return (prefix ? prefix + ' ' : '') + selectedName + ' ';
   };
 
   const applySelection = (
@@ -98,13 +103,25 @@ export const AutocompleteInput: React.FC<Props> = ({
     }
 
     setIsNavigating(config.navigating);
-    // Atomic remount via key change to reset cursor position
     setInputKey((prev) => prev + 1);
     onChange(nextValue);
   };
 
   useInput((input, key) => {
-    // Completion only works if an item is focused
+    // 统一逃逸逻辑 (ESC Handling)
+    if (key.escape) {
+      if (isConfirming) {
+        dispatch({ type: 'CLEAR_CONFIRMATION' });
+      } else {
+        setSuggestions([]);
+        setIsListClosed(true);
+      }
+      return;
+    }
+
+    // Completion only works if not in confirmation mode
+    if (isConfirming) return;
+
     if (
       (key.tab || key.return) &&
       suggestions.length > 0 &&
@@ -147,15 +164,6 @@ export const AutocompleteInput: React.FC<Props> = ({
           setStartIndex(newIndex);
         } else if (newIndex >= startIndex + maxVisible) {
           setStartIndex(newIndex - maxVisible + 1);
-        } else if (
-          (selectedIndex === 0 && newIndex === suggestions.length - 1) ||
-          (selectedIndex === suggestions.length - 1 && newIndex === 0)
-        ) {
-          if (newIndex === 0) {
-            setStartIndex(0);
-          } else {
-            setStartIndex(Math.max(0, suggestions.length - maxVisible));
-          }
         }
       }
     }
@@ -171,26 +179,49 @@ export const AutocompleteInput: React.FC<Props> = ({
           value={value}
           onChange={handleChange}
           onSubmit={(val) => {
+            if (isConfirming) {
+              if (val === pendingConfirmation.challenge) {
+                onSubmit(val);
+              }
+              return;
+            }
+
             if (justCompletedRef.current) {
               justCompletedRef.current = false;
               return;
             }
-            // Allow submission if no focus or no suggestions
             if (selectedIndex === -1 || suggestions.length === 0) {
               onSubmit(val);
             }
           }}
-          placeholder={placeholder}
+          placeholder={
+            isConfirming
+              ? `请输入 [${pendingConfirmation.challenge}] 确认执行 (Esc 取消)`
+              : placeholder
+          }
         />
       </Box>
 
-      {suggestions.length > 0 && (
+      {isConfirming && (
+        <Box flexDirection="column" borderStyle="round" borderColor="yellow" paddingX={1}>
+          <Text color="yellow" bold>
+            ⚠️ 需要确认
+          </Text>
+          <Text color="white">{pendingConfirmation.message}</Text>
+          <Text color="gray" dimColor>
+            当前操作涉及物理代码还原，请输入校验码以继续。
+          </Text>
+        </Box>
+      )}
+
+      {!isConfirming && suggestions.length > 0 && !isListClosed && (
         <Box
           flexDirection="column"
           borderStyle="round"
           borderColor="gray"
           paddingX={1}
           marginTop={0}
+          marginBottom={0}
         >
           {visibleSuggestions.map((cmd, index) => {
             const actualIndex = startIndex + index;

@@ -6,10 +6,16 @@ export interface CommandContext {
   input: string;
 }
 
+export interface CommandResult {
+  action?: 'NEED_CONFIRMATION';
+  message?: string;
+  data?: any;
+}
+
 export interface Command {
   name: string;
   description: string;
-  execute: (context: CommandContext) => Promise<void> | void;
+  execute: (context: CommandContext) => Promise<CommandResult | void> | CommandResult | void;
   getSuggestions?: (
     context: CommandContext,
   ) => Promise<{ name: string; description: string }[]> | { name: string; description: string }[];

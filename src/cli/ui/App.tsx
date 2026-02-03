@@ -76,12 +76,20 @@ const AppCore: React.FC<{
                 input,
               })
             }
-            onSubmit={(val) => {
+            onSubmit={async (val) => {
               if (onChatInput && val.trim()) {
-                onChatInput(val, (ev: any) => sanitizeAndDispatch(ev), {
+                const result = await onChatInput(val, (ev: any) => sanitizeAndDispatch(ev), {
                   signal: new AbortController().signal,
                 });
-                dispatch({ type: 'SET_INPUT', payload: '' });
+
+                if (result?.action === 'NEED_CONFIRMATION') {
+                  dispatch({ type: 'SET_CONFIRMATION', payload: result.data });
+                } else {
+                  dispatch({ type: 'SET_INPUT', payload: '' });
+                  if (state.pendingConfirmation) {
+                    dispatch({ type: 'CLEAR_CONFIRMATION' });
+                  }
+                }
               }
             }}
             placeholder={text.cli.gui.inputPlaceholder}
