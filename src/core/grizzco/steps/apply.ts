@@ -74,9 +74,29 @@ export const runApply: Step<AstValidateCtx, ApplyCtx> = async (ctx) => {
     let plan;
     let finalEngine: DecisionEngine | undefined;
 
+    const fetchMissingData = async (keys: string[]) => {
+      const fetchPromises = keys.map(async (key) => {
+        const service = registry.get(key);
+        if (!service) throw new Error(text.grizzco.unknownDataDependency(key));
+        return { key, data: await service.fetch(ctx, op.path) };
+      });
+
+      const results = await Promise.all(fetchPromises);
+      if (!dslCtx.data) dslCtx.data = {};
+      results.forEach(({ key, data }) => {
+        dslCtx.data![key] = data;
+      });
+    };
+
+    const MAX_DSL_RETRIES = 10;
+    let dslRetries = 0;
+
     while (true) {
-      const planBuilder = new PlanBuilder();
-      const engine = new DecisionEngine(dslCtx, planBuilder);
+      if (dslRetries++ > MAX_DSL_RETRIES) {
+        throw new Error(text.grizzco.microOrchestratorLoopStuck(op.path));
+      }
+      const planBuilder = new PlanBuilder<DslContext>();
+      const engine = new DecisionEngine<DslContext>(dslCtx, planBuilder);
       finalEngine = engine;
 
       StandardStrategy(engine);
@@ -88,18 +108,8 @@ export const runApply: Step<AstValidateCtx, ApplyCtx> = async (ctx) => {
       }
 
       if (result.type === 'NEED_DATA') {
-        const fetchPromises = result.keys.map(async (key) => {
-          const service = registry.get(key);
-          if (!service) throw new Error(text.grizzco.unknownDataDependency(key));
-          return { key, data: await service.fetch(ctx, op.path) };
-        });
-
-        const results = await Promise.all(fetchPromises);
-
-        if (!dslCtx.data) dslCtx.data = {};
-        results.forEach(({ key, data }) => {
-          dslCtx.data![key] = data;
-        });
+        await fetchMissingData(result.keys);
+        continue;
       }
     }
 

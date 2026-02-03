@@ -10,12 +10,18 @@ export interface ExecutionPlan {
   decisionTree: string;
 }
 
-export class PlanBuilder {
+export class PlanBuilder<C extends BaseDslContext = DslContext> {
   private plan: ExecutionPlan = {
     shouldAbort: false,
     actions: [],
     decisionTree: '',
   };
+  private _ctx?: C;
+
+  bindContext(ctx: C): this {
+    this._ctx = ctx;
+    return this;
+  }
 
   abort(reason: string): this {
     this.plan.shouldAbort = true;
@@ -40,31 +46,41 @@ export class PlanBuilder {
   _setDecisionTree(tree: string): void {
     this.plan.decisionTree = tree;
   }
+
+  get ctx(): C {
+    if (!this._ctx) throw new Error('PlanBuilder: context not bound');
+    return this._ctx;
+  }
 }
 
 export interface DecisionRecord {
-  id: string;
+  index: number;
   phase: string;
   rule: string;
   matched: boolean;
-  timestamp: number;
   metadata?: any;
 }
 
-// Extended context with dynamic data
-export interface DslContext extends TransactionContext {
+// Base DSL context, containing only dynamic data
+export interface BaseDslContext {
   data?: Record<string, any>;
 }
 
-export class DecisionEngine {
+// Extended context (retained as default type for file transactions)
+export interface DslContext extends BaseDslContext, TransactionContext {}
+
+export class DecisionEngine<C extends BaseDslContext = DslContext> {
   private history: DecisionRecord[] = [];
   private currentPhase: string = 'initialization';
   private missingDataKeys: Set<string> = new Set();
+  private recordCounter: number = 0;
 
   constructor(
-    private ctx: DslContext,
-    private planBuilder: PlanBuilder,
-  ) {}
+    public readonly ctx: C,
+    private planBuilder: PlanBuilder<C>,
+  ) {
+    this.planBuilder.bindContext(ctx);
+  }
 
   phase(name: string): this {
     this.currentPhase = name;
@@ -72,13 +88,10 @@ export class DecisionEngine {
   }
 
   /**
-   * Declare data dependency. Supports both single key and array of keys.
-   * @param keyOrKeys - Single key string or array of keys
-   * @param reason - Optional reason for logging
+   * Declare data dependency. Supports single key or array of keys.
+   * COMPLIANCE: DSL-Spec-V3 - Explicitly tracks missing keys for the Ping-Pong protocol.
    */
   requireData(keyOrKeys: string | string[], reason?: string): this {
-    if (this.missingDataKeys.size > 0) return this;
-
     const keys = Array.isArray(keyOrKeys) ? keyOrKeys : [keyOrKeys];
 
     for (const key of keys) {
@@ -93,7 +106,7 @@ export class DecisionEngine {
     return this;
   }
 
-  require(predicate: (c: DslContext) => boolean, msg: string): this {
+  require(predicate: (c: C) => boolean, msg: string): this {
     if (this.missingDataKeys.size > 0) return this;
 
     const matched = predicate(this.ctx);
@@ -104,7 +117,7 @@ export class DecisionEngine {
     return this;
   }
 
-  when(predicate: (c: DslContext) => boolean, action: (p: PlanBuilder) => void): this {
+  when(predicate: (c: C) => boolean, action: (p: PlanBuilder<C>) => void): this {
     if (this.missingDataKeys.size > 0) return this;
 
     const matched = predicate(this.ctx);
@@ -115,11 +128,11 @@ export class DecisionEngine {
     return this;
   }
 
-  unless(predicate: (c: DslContext) => boolean, action: (p: PlanBuilder) => void): this {
+  unless(predicate: (c: C) => boolean, action: (p: PlanBuilder<C>) => void): this {
     return this.when((c) => !predicate(c), action);
   }
 
-  apply(fragment: (engine: DecisionEngine) => DecisionEngine): this {
+  apply(fragment: (engine: DecisionEngine<C>) => DecisionEngine<C>): this {
     if (this.missingDataKeys.size > 0) return this;
     fragment(this);
     return this;
@@ -150,11 +163,10 @@ export class DecisionEngine {
     metadata?: any,
   ): void {
     this.history.push({
-      id: Math.random().toString(36).substring(7),
+      index: this.recordCounter++,
       phase: this.currentPhase,
       rule: predicate.toString().slice(0, 100),
       matched,
-      timestamp: Date.now(),
       metadata,
     });
   }

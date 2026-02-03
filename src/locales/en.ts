@@ -501,6 +501,11 @@ Please return the patch in PURE unified diff format:`;
     },
   },
 
+  skills: {
+    maxRetriesExceeded: (id: string) =>
+      `Max retries exceeded for skill: ${id}. Possible circular dependency in dynamic data.`,
+  },
+
   // Symbols for UI feedback
   symbols: {
     suggestion: '💡',

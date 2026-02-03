@@ -32,7 +32,7 @@ export const runPreflight: Step<InitCtx, PreflightCtx> = async (ctx) => {
     // Toolstack is created once per attempt when tool calling is enabled. This keeps governance
     // deterministic while avoiding unnecessary setup for non-tool-capable LLMs.
     toolstack: resolveLlmToolCallingPolicy(Phase.PLAN, ctx.options.llm).enabled
-      ? createStandardToolstack({
+      ? await createStandardToolstack({
           repoRoot: ctx.workspace.workPath,
           worktreeRoot: ctx.workspace.strategy === 'worktree' ? ctx.workspace.workPath : undefined,
           attemptId: (ctx as any).attempt ?? 1,

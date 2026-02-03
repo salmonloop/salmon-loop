@@ -144,3 +144,15 @@ Logs should clearly reflect the call source and status:
     *   Phase Deny works effectively.
     *   Backend Fallback mechanism works effectively.
     *   Audit logs are recorded completely.
+
+---
+
+## 12. Three-Layer Execution Model (v1.1)
+
+To manage complexity, all executables are classified into a three-layer triage:
+
+1. **Layer 1: Simple Tools**: Pure functions, synchronous/atomic side effects. Low overhead.
+2. **Layer 2: Micro Tasks**: DSL-driven logic (Grizzco). Uses `MicroTaskRunner` for data resolution.
+3. **Layer 3: Sub-Agents**: LLM-driven autonomous loops. Handles probabilistic outcomes.
+
+*Protocol Requirement*: All layers must implement the `IExecutable` interface defined in `src/core/skills/types.ts`.

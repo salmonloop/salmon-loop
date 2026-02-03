@@ -7,10 +7,6 @@ describe('DecisionEngine', () => {
     const pb = createMockPlanBuilder();
     const engine = new DecisionEngine(ctx, pb);
 
-    // Actions modify PlanBuilder indirectly in real DSL, but here we invoke PB directly
-    // engine.phase('Test').when(c => true, p => p.setWorker('test-worker'));
-    // Wait, action signature is (p: PlanBuilder) => void.
-
     engine.phase('Test').when(
       () => true,
       (p) => p.setWorker('test-worker'),

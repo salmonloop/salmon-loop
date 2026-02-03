@@ -33,7 +33,10 @@ This artifact is intended to be serializable and auditable.
 ## Async Bridge
 
 When the DSL needs data (e.g., remote lock status), it does not fetch it directly.
-Instead it signals a need, and an orchestrator fetches the data and enriches context before re-running the DSL.
+Instead it signals a need, and an orchestrator (specifically `MicroTaskRunner`) fetches the data and enriches context before re-running the DSL.
+
+## Triage Role
+`MicroTaskRunner` serves as the Layer 2 executor in the Three-Layer Triage model, ensuring deterministic data resolution without the overhead of a full Agent loop.
 
 ## Where To Read More
 

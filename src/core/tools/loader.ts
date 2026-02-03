@@ -1,3 +1,6 @@
+import { skillToToolSpec } from '../skills/bridge.js';
+import { SkillLoader } from '../skills/loader.js';
+
 import { ToolAuditLogger } from './audit.js';
 import { BudgetGuard, BudgetConfig } from './budget.js';
 import { registerAllBuiltins } from './builtin/index.js';
@@ -20,7 +23,7 @@ export interface ToolstackOptions {
  * Creates a fully configured tool stack for SalmonLoop.
  * This is the primary entry point for setting up the tool calling system.
  */
-export function createStandardToolstack(options: ToolstackOptions) {
+export async function createStandardToolstack(options: ToolstackOptions) {
   // 1. Initialize core components
   const registry = new ToolRegistry();
   const policy = new ToolPolicy();
@@ -31,7 +34,14 @@ export function createStandardToolstack(options: ToolstackOptions) {
   // 2. Register all builtin tools (rg, git, ast, ast-grep)
   registerAllBuiltins(registry);
 
-  // 3. Create Router (The execution pipeline)
+  // 3. Load and register Skills as tools
+  const skillLoader = new SkillLoader();
+  const skills = await skillLoader.initialize();
+  for (const skill of skills) {
+    registry.register(skillToToolSpec(skill));
+  }
+
+  // 4. Create Router (The execution pipeline)
   const router = new ToolRouter(registry, policy, budget, audit, sanitize);
 
   // 4. Create Dispatcher (The high-level coordinator for LLM text)
