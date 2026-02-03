@@ -4,6 +4,16 @@
 
 A minimal viable execution loop for automated code patching.
 
+## Architecture: Three-Layer Triage
+
+Salmon-Loop employs a unique **Three-Layer Triage** model to handle varying levels of task complexity with maximum efficiency and safety:
+
+1.  **SimpleTool (Deterministic)**: Atomic, high-speed operations (e.g., Git, FS) executed as pure functions. Zero orchestration overhead.
+2.  **MicroTask (Logic Bridge)**: Deterministic tasks requiring micro-decisions or data resolution (e.g., dynamic context assembly). Driven by the **Grizzco DSL** and `MicroTaskRunner`.
+3.  **SubAgent (Probabilistic)**: Complex, multi-step goals requiring reflection and autonomous planning. Managed via full LLM-driven execution loops.
+
+This tiered approach ensures that simple tasks remain blazing fast and predictable, while complex tasks have the cognitive power they need.
+
 ## Philosophy
 
 Salmon-Loop is built on three core principles:
