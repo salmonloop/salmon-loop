@@ -35,22 +35,6 @@ export const commands: Command[] = [
     },
   },
   {
-    name: '/history',
-    description: text.cli.commandHistory,
-    execute: ({ emit, sessionManager }) => {
-      const session = sessionManager.getCurrent();
-      session.iterations.forEach((iter: any, i: number) => {
-        const status = iter.error ? '✗' : '✓';
-        emit({
-          type: 'log',
-          level: 'info',
-          message: `#${i + 1} ${status} - ${iter.contextSummary || 'No context'}`,
-          timestamp: new Date(),
-        });
-      });
-    },
-  },
-  {
     name: '/help',
     description: 'Show available commands',
     execute: ({ emit }) => {
@@ -64,7 +48,7 @@ export const commands: Command[] = [
     },
   },
   {
-    name: '/sessions',
+    name: '/session',
     description: text.cli.commandSessions,
     getSuggestions: async ({ sessionManager }) => {
       const sessions = await sessionManager.listSessions();
@@ -109,7 +93,7 @@ export const commands: Command[] = [
       emit({
         type: 'log',
         level: 'info',
-        message: 'Type "/sessions " (with a space) to select a session from the interactive list.',
+        message: 'Type "/session " (with a space) to select a session from the interactive list.',
         timestamp: new Date(),
       });
     },
@@ -131,10 +115,10 @@ export async function getSuggestions(
   if (parts.length > 1 || input.endsWith(' ')) {
     if (exactMatch?.getSuggestions) {
       // Only provide suggestions for the first argument level.
-      // parts.length === 1 means we just typed the command and a space.
-      // parts.length === 2 means we are typing the first argument.
-      // If we have a second argument (parts.length > 2) or we just finished the first (length 2 + space), stop suggesting.
-      if (parts.length > 2 || (parts.length === 2 && input.endsWith(' '))) {
+      // parts.length === 1 means we just typed the command (no space yet, but input.endsWith(' ') might be false).
+      // parts.length === 2 means we are typing the first argument (possibly empty if just typed a space).
+      // If we have a second argument (parts.length > 2), stop suggesting.
+      if (parts.length > 2) {
         return [];
       }
       return await exactMatch.getSuggestions(context);

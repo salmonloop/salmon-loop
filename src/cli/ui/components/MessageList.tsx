@@ -1,4 +1,4 @@
-import { Box, Text, Static, useInput } from 'ink';
+import { Box, Text, useInput } from 'ink';
 import BigTextOriginal from 'ink-big-text';
 const BigText = BigTextOriginal as any;
 import GradientOriginal from 'ink-gradient';
@@ -20,18 +20,19 @@ marked.setOptions({
 const MessageItem: React.FC<{ msg: Message }> = ({ msg }) => (
   <Box flexDirection="column" marginBottom={msg.type === 'system' ? 0 : 1}>
     {msg.id !== 'welcome' && (
-      <Box>
-        <Text color="gray" dimColor>
-          [{msg.timestamp.toLocaleTimeString()}] {msg.type.toUpperCase()}:{' '}
-        </Text>
-        {msg.type === 'system' ? (
-          <Text color="white" dimColor>
-            {msg.content}
-          </Text>
-        ) : null}
-      </Box>
+      <Text color="gray" dimColor>
+        [{msg.timestamp.toLocaleTimeString()}] {msg.type.toUpperCase()}:
+      </Text>
     )}
-    {msg.type !== 'system' && <Markdown content={msg.content} />}
+    <Box paddingLeft={msg.id === 'welcome' ? 0 : 2}>
+      {msg.type === 'system' ? (
+        <Text color="white" dimColor>
+          {msg.content}
+        </Text>
+      ) : (
+        <Markdown content={msg.content} />
+      )}
+    </Box>
   </Box>
 );
 
@@ -77,9 +78,8 @@ export const MessageList: React.FC = () => {
   const { messages } = state;
   const [isAnchored, setIsAnchored] = useState(true);
 
-  // Split history and live message
-  const history = messages.slice(0, -1);
-  const activeMessage = messages[messages.length - 1];
+  // Limit rendered messages to the last 50 to prevent performance degradation
+  const displayMessages = messages.slice(-50);
 
   // Scroll intent detection
   useInput((_input, key) => {
@@ -100,11 +100,9 @@ export const MessageList: React.FC = () => {
 
   return (
     <Box flexDirection="column" flexGrow={1}>
-      {/* Historical messages (Optimized performance) */}
-      <Static items={history}>{(msg: Message) => <MessageItem key={msg.id} msg={msg} />}</Static>
-
-      {/* Active message (Ensures live updates like [SPLATTED] are visible) */}
-      {activeMessage && <MessageItem msg={activeMessage} />}
+      {displayMessages.map((msg) => (
+        <MessageItem key={msg.id} msg={msg} />
+      ))}
     </Box>
   );
 };

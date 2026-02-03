@@ -44,7 +44,7 @@ describe('CLI Command Registry', () => {
     it('should return matches for prefix', async () => {
       const matches = await getSuggestions('/h', { ...mockContext, input: '/h' });
       expect(matches.map((m: any) => m.name)).toContain('/help');
-      expect(matches.map((m: any) => m.name)).toContain('/history');
+      expect(matches.map((m: any) => m.name)).not.toContain('/history');
     });
 
     it('should be case-insensitive for suggestions', async () => {
