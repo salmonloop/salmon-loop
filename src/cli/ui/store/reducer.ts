@@ -66,6 +66,27 @@ export function uiReducer(state: UIState, action: UIAction): UIState {
       };
     case 'SET_CHANGED_FILES':
       return { ...state, changedFiles: action.payload };
+    case 'INTERRUPT_STREAM': {
+      if (state.messages.length === 0) {
+        return { ...state, isThinking: false, currentPhase: 'idle' };
+      }
+      const newMessages = [...state.messages];
+      const lastIndex = newMessages.length - 1;
+      const lastMsg = newMessages[lastIndex];
+
+      if (lastMsg && lastMsg.type === 'ai') {
+        newMessages[lastIndex] = {
+          ...lastMsg,
+          content: lastMsg.content + '^C [SPLATTED]',
+        };
+      }
+      return {
+        ...state,
+        messages: newMessages,
+        isThinking: false,
+        currentPhase: 'idle',
+      };
+    }
     case 'UPDATE_PROGRESS':
       return { ...state, terminalHeight: action.payload };
     default:

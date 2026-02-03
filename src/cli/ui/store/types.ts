@@ -32,4 +32,5 @@ export type UIAction =
   | { type: 'UPDATE_WORKSPACE'; payload: { path: string; isShadow: boolean } }
   | { type: 'UPDATE_PROGRESS'; payload: number }
   | { type: 'UPDATE_TASK'; payload: { id: string; status: 'completed' | 'failed' } }
-  | { type: 'SET_CHANGED_FILES'; payload: string[] };
+  | { type: 'SET_CHANGED_FILES'; payload: string[] }
+  | { type: 'INTERRUPT_STREAM' };

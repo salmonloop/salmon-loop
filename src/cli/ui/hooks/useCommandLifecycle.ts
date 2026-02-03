@@ -1,6 +1,8 @@
 import { useInput } from 'ink';
 import { useState, useCallback, useRef } from 'react';
 
+import { useUIStore } from '../store/context.js';
+
 /**
  * Custom hook to manage the lifecycle of CLI commands, including
  * interruption signals (AbortController) and exit logic.
@@ -9,6 +11,7 @@ export function useCommandLifecycle(
   status: 'running' | 'success' | 'failed' | 'idle',
   onExit: () => void,
 ) {
+  const { dispatch } = useUIStore();
   const [abortController, setAbortController] = useState(new AbortController());
   const [isExiting, setIsExiting] = useState(false);
   const exitTimer = useRef<NodeJS.Timeout | null>(null);
@@ -25,21 +28,22 @@ export function useCommandLifecycle(
 
   useInput((input, key) => {
     if (key.ctrl && input === 'c') {
+      if (status === 'running') {
+        // First tap while running: Splat interrupt
+        abortController.abort();
+        dispatch({ type: 'INTERRUPT_STREAM' });
+        renewSignal();
+        return;
+      }
+
       if (isExiting) {
         // Double tap Ctrl+C: Force exit
         onExit();
         return;
       }
 
-      // First tap: Abort current task
+      // First tap while idle: Prepare for exit
       setIsExiting(true);
-      abortController.abort();
-
-      // If nothing is running, exit immediately on first tap
-      if (status !== 'running') {
-        onExit();
-        return;
-      }
 
       // Reset exiting state after 2 seconds if not tapped again
       if (exitTimer.current) clearTimeout(exitTimer.current);

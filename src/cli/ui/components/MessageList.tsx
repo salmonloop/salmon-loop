@@ -1,11 +1,11 @@
-import { Box, Text, Static } from 'ink';
+import { Box, Text, Static, useInput } from 'ink';
 import BigTextOriginal from 'ink-big-text';
 const BigText = BigTextOriginal as any;
 import GradientOriginal from 'ink-gradient';
 const Gradient = GradientOriginal as any;
 import { marked } from 'marked';
 import TerminalRendererOriginal from 'marked-terminal';
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 import { useUIStore } from '../store/context.js';
 import { Message } from '../store/types.js';
@@ -16,6 +16,24 @@ const TerminalRenderer = TerminalRendererOriginal as any;
 marked.setOptions({
   renderer: new TerminalRenderer(),
 });
+
+const MessageItem: React.FC<{ msg: Message }> = ({ msg }) => (
+  <Box flexDirection="column" marginBottom={msg.type === 'system' ? 0 : 1}>
+    {msg.id !== 'welcome' && (
+      <Box>
+        <Text color="gray" dimColor>
+          [{msg.timestamp.toLocaleTimeString()}] {msg.type.toUpperCase()}:{' '}
+        </Text>
+        {msg.type === 'system' ? (
+          <Text color="white" dimColor>
+            {msg.content}
+          </Text>
+        ) : null}
+      </Box>
+    )}
+    {msg.type !== 'system' && <Markdown content={msg.content} />}
+  </Box>
+);
 
 const Markdown: React.FC<{ content: string }> = ({ content }) => {
   if (!content) return null;
@@ -29,6 +47,24 @@ const Markdown: React.FC<{ content: string }> = ({ content }) => {
       </Box>
     );
   }
+
+  // Handle the Splat interrupt marker
+  if (content.includes('^C [SPLATTED]')) {
+    const [mainContent] = content.split('^C [SPLATTED]');
+    try {
+      return (
+        <Box flexDirection="column">
+          <Text>{marked.parse(mainContent) as string}</Text>
+          <Text color="red" bold>
+            ^C [SPLATTED]
+          </Text>
+        </Box>
+      );
+    } catch {
+      return <Text color="red">Error rendering content</Text>;
+    }
+  }
+
   try {
     return <Text>{marked.parse(content) as string}</Text>;
   } catch {
@@ -39,26 +75,46 @@ const Markdown: React.FC<{ content: string }> = ({ content }) => {
 export const MessageList: React.FC = () => {
   const { state } = useUIStore();
   const { messages } = state;
+  const [isAnchored, setIsAnchored] = useState(true);
+  const [hasNewMessages, setHasNewMessages] = useState(false);
+
+  // Split history and live message
+  const history = messages.slice(0, -1);
+  const activeMessage = messages[messages.length - 1];
+
+  // Scroll intent detection
+  useInput((_input, key) => {
+    if (key.upArrow || key.pageUp) {
+      setIsAnchored(false);
+    }
+    if (key.downArrow || key.pageDown || key.return) {
+      setIsAnchored(true);
+      setHasNewMessages(false);
+    }
+  });
+
+  // Tracking new messages when not anchored
+  useEffect(() => {
+    if (!isAnchored && messages.length > 0) {
+      setHasNewMessages(true);
+    }
+  }, [messages.length, isAnchored]);
 
   return (
-    <Static items={messages}>
-      {(msg: Message) => (
-        <Box key={msg.id} flexDirection="column" marginBottom={msg.type === 'system' ? 0 : 1}>
-          {msg.id !== 'welcome' && (
-            <Box>
-              <Text color="gray" dimColor>
-                [{msg.timestamp.toLocaleTimeString()}] {msg.type.toUpperCase()}:{' '}
-              </Text>
-              {msg.type === 'system' ? (
-                <Text color="white" dimColor>
-                  {msg.content}
-                </Text>
-              ) : null}
-            </Box>
-          )}
-          {msg.type !== 'system' && <Markdown content={msg.content} />}
+    <Box flexDirection="column" flexGrow={1}>
+      {/* Historical messages (Optimized performance) */}
+      <Static items={history}>{(msg: Message) => <MessageItem key={msg.id} msg={msg} />}</Static>
+
+      {/* Active message (Ensures live updates like [SPLATTED] are visible) */}
+      {activeMessage && <MessageItem msg={activeMessage} />}
+
+      {!isAnchored && hasNewMessages && (
+        <Box marginTop={1}>
+          <Text color="cyan" bold>
+            ↓ New messages below (Press Down or Enter to scroll)
+          </Text>
         </Box>
       )}
-    </Static>
+    </Box>
   );
 };
