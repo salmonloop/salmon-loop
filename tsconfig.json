@@ -4,8 +4,8 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "jsx": "react-jsx",
-    "allowImportingTsExtensions": true,
-    "noEmit": true,
+    "allowImportingTsExtensions": false,
+    "noEmit": false,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "strict": true,
@@ -17,10 +17,11 @@
     "sourceMap": true,
     "types": ["vitest/globals", "node"],
     "baseUrl": ".",
+    "rootDir": "src",
     "paths": {
       "yoga-layout": ["./node_modules/yoga-layout/load.js"]
     }
   },
-  "include": ["src/**/*", "tests/**/*", "*.config.ts"],
+  "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
 }
