@@ -4,6 +4,7 @@ import * as os from 'os';
 import * as path from 'path';
 
 import type { ToolAuthorizationConfig } from '../../core/config/types.js';
+import { LIMITS } from '../../core/limits.js';
 import { logger } from '../../core/logger.js';
 import type { SideEffect } from '../../core/tools/types.js';
 import type { ExecutionPhase } from '../../core/types.js';
@@ -308,6 +309,8 @@ function isAllowed(allowlist: ToolAuthorizationAllowlist, ctx: AllowlistMatchCon
 }
 
 const allowlistLocks = new Map<string, Promise<void>>();
+const allowlistLockOwners = new Map<string, string>();
+const allowlistLockPrefix = `allowlist-${process.pid}-`;
 
 async function withAllowlistLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
   const previous = allowlistLocks.get(key) ?? Promise.resolve();
@@ -327,6 +330,121 @@ async function withAllowlistLock<T>(key: string, fn: () => Promise<T>): Promise<
     if (allowlistLocks.get(key) === next) {
       allowlistLocks.delete(key);
     }
+  }
+}
+
+function getAllowlistLockPath(resolvedPath: string, repoRoot: string): string {
+  const lockName = `allowlist-${hashCacheKey(resolvedPath)}.lock`;
+  if (resolvedPath.includes(path.join(repoRoot, '.salmonloop'))) {
+    return path.resolve(repoRoot, '.salmonloop', 'state', 'locks', lockName);
+  }
+  if (resolvedPath.startsWith(os.homedir())) {
+    return path.join(os.homedir(), '.salmonloop', 'locks', lockName);
+  }
+  return path.resolve(repoRoot, '.salmonloop', 'state', 'locks', lockName);
+}
+
+function createAllowlistLockOwner(): string {
+  const salt = crypto.randomBytes(8).toString('hex');
+  return `${allowlistLockPrefix}${salt}`;
+}
+
+async function acquireAllowlistFileLock(lockPath: string, scope: 'repo' | 'user'): Promise<void> {
+  const start = Date.now();
+  let retryCount = 0;
+  const owner = createAllowlistLockOwner();
+
+  while (Date.now() - start < LIMITS.lockWaitTimeoutMs) {
+    try {
+      const handle = await fs.open(lockPath, 'wx');
+      await handle.writeFile(
+        JSON.stringify({ pid: process.pid, timestamp: Date.now(), owner }),
+        'utf8',
+      );
+      await handle.close();
+      allowlistLockOwners.set(lockPath, owner);
+      return;
+    } catch (error: any) {
+      if (error?.code === 'EEXIST') {
+        try {
+          const raw = await fs.readFile(lockPath, 'utf8');
+          const metadata = JSON.parse(raw) as { pid?: number; timestamp?: number; owner?: string };
+          const age = Date.now() - (metadata.timestamp ?? 0);
+          let isAlive = true;
+          if (metadata.pid) {
+            try {
+              process.kill(metadata.pid, 0);
+            } catch {
+              isAlive = false;
+            }
+          }
+          if (!isAlive || age > LIMITS.lockStaleThresholdMs) {
+            await fs.unlink(lockPath).catch(() => undefined);
+            continue;
+          }
+        } catch {
+          // If lock contents are unreadable, treat it as stale and retry.
+          await fs.unlink(lockPath).catch(() => undefined);
+          continue;
+        }
+
+        retryCount += 1;
+        const delay = Math.min(
+          LIMITS.retry.io.initialDelayMs * Math.pow(1.5, retryCount),
+          LIMITS.retry.io.maxDelayMs,
+        );
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        continue;
+      }
+
+      if (error?.code === 'ENOENT') {
+        await fs.mkdir(path.dirname(lockPath), { recursive: true });
+        continue;
+      }
+
+      throw error;
+    }
+  }
+
+  logger.audit(
+    'ALLOWLIST_LOCK_TIMEOUT',
+    { path: lockPath },
+    { source: 'allowlist', severity: 'high', scope },
+  );
+  throw new Error(text.cli.authLockTimeout(lockPath));
+}
+
+async function releaseAllowlistFileLock(lockPath: string): Promise<void> {
+  const owner = allowlistLockOwners.get(lockPath);
+  if (!owner) return;
+  try {
+    const raw = await fs.readFile(lockPath, 'utf8');
+    const metadata = JSON.parse(raw) as { owner?: string };
+    if (metadata.owner !== owner) return;
+  } catch {
+    // If we cannot read it, still attempt to remove to avoid deadlocks.
+  }
+  try {
+    await fs.unlink(lockPath);
+  } catch (error: any) {
+    if (error?.code !== 'ENOENT') throw error;
+  } finally {
+    allowlistLockOwners.delete(lockPath);
+  }
+}
+
+async function withAllowlistFileLock<T>(
+  resolvedPath: string,
+  repoRoot: string,
+  scope: 'repo' | 'user',
+  fn: () => Promise<T>,
+): Promise<T> {
+  const lockPath = getAllowlistLockPath(resolvedPath, repoRoot);
+  await acquireAllowlistFileLock(lockPath, scope);
+  try {
+    return await fn();
+  } finally {
+    await releaseAllowlistFileLock(lockPath);
   }
 }
 
@@ -399,31 +517,33 @@ export async function persistAllowlistDecision(params: {
   const resolved = resolveAllowlistPathOrLog(targetFile, repoRoot, scope);
   if (!resolved) return;
 
-  await withAllowlistLock(resolved, async () => {
-    const allowlist = await loadAllowlistResolved(resolved, repoRoot, scope);
-    const entry = allowlist.tools[toolName] || { phases: {}, rules: [] };
-    const rules = entry.rules || [];
-    rules.push({
-      mode,
-      phase,
-      sideEffects: sideEffects && sideEffects.length > 0 ? sideEffects : undefined,
-      argsHash,
-    });
-    allowlist.tools[toolName] = { ...entry, rules };
+  await withAllowlistLock(resolved, async () =>
+    withAllowlistFileLock(resolved, repoRoot, scope, async () => {
+      const allowlist = await loadAllowlistResolved(resolved, repoRoot, scope);
+      const entry = allowlist.tools[toolName] || { phases: {}, rules: [] };
+      const rules = entry.rules || [];
+      rules.push({
+        mode,
+        phase,
+        sideEffects: sideEffects && sideEffects.length > 0 ? sideEffects : undefined,
+        argsHash,
+      });
+      allowlist.tools[toolName] = { ...entry, rules };
 
-    await saveAllowlistResolved(resolved, allowlist);
-    const cachePath = getCachePath(resolved, repoRoot);
-    const stat = await fs.stat(resolved);
-    const raw = await fs.readFile(resolved, 'utf8');
-    await saveAllowlistCache(
-      cachePath,
-      resolved,
-      stat.mtimeMs,
-      stat.size,
-      hashAllowlistSource(raw),
-      allowlist,
-    );
-  });
+      await saveAllowlistResolved(resolved, allowlist);
+      const cachePath = getCachePath(resolved, repoRoot);
+      const stat = await fs.stat(resolved);
+      const raw = await fs.readFile(resolved, 'utf8');
+      await saveAllowlistCache(
+        cachePath,
+        resolved,
+        stat.mtimeMs,
+        stat.size,
+        hashAllowlistSource(raw),
+        allowlist,
+      );
+    }),
+  );
 }
 
 export async function listAllowlist(params: {
@@ -453,47 +573,49 @@ export async function removeAllowlistRule(params: {
   const resolved = resolveAllowlistPathOrLog(targetFile, repoRoot, scope);
   if (!resolved) return false;
 
-  return withAllowlistLock(resolved, async () => {
-    const allowlist = await loadAllowlistResolved(resolved, repoRoot, scope);
-    const entry = allowlist.tools[toolName];
-    if (!entry) return false;
+  return withAllowlistLock(resolved, async () =>
+    withAllowlistFileLock(resolved, repoRoot, scope, async () => {
+      const allowlist = await loadAllowlistResolved(resolved, repoRoot, scope);
+      const entry = allowlist.tools[toolName];
+      if (!entry) return false;
 
-    if (!phase && !argsHash && (!sideEffects || sideEffects.length === 0)) {
-      delete allowlist.tools[toolName];
-    } else {
-      const rules = (entry.rules || []).filter((rule) => {
-        if (phase && rule.phase !== phase) return true;
-        if (argsHash && rule.argsHash !== argsHash) return true;
-        if (sideEffects && sideEffects.length > 0) {
-          if (!rule.sideEffects || rule.sideEffects.length === 0) return true;
-          for (const effect of sideEffects) {
-            if (!rule.sideEffects.includes(effect)) return true;
-          }
-        }
-        return false;
-      });
-      const hasPhases = entry.phases && Object.keys(entry.phases).length > 0;
-      if (rules.length === 0 && !entry.mode && !hasPhases) {
+      if (!phase && !argsHash && (!sideEffects || sideEffects.length === 0)) {
         delete allowlist.tools[toolName];
       } else {
-        allowlist.tools[toolName] = { ...entry, rules };
+        const rules = (entry.rules || []).filter((rule) => {
+          if (phase && rule.phase !== phase) return true;
+          if (argsHash && rule.argsHash !== argsHash) return true;
+          if (sideEffects && sideEffects.length > 0) {
+            if (!rule.sideEffects || rule.sideEffects.length === 0) return true;
+            for (const effect of sideEffects) {
+              if (!rule.sideEffects.includes(effect)) return true;
+            }
+          }
+          return false;
+        });
+        const hasPhases = entry.phases && Object.keys(entry.phases).length > 0;
+        if (rules.length === 0 && !entry.mode && !hasPhases) {
+          delete allowlist.tools[toolName];
+        } else {
+          allowlist.tools[toolName] = { ...entry, rules };
+        }
       }
-    }
 
-    await saveAllowlistResolved(resolved, allowlist);
-    const cachePath = getCachePath(resolved, repoRoot);
-    const stat = await fs.stat(resolved);
-    const raw = await fs.readFile(resolved, 'utf8');
-    await saveAllowlistCache(
-      cachePath,
-      resolved,
-      stat.mtimeMs,
-      stat.size,
-      hashAllowlistSource(raw),
-      allowlist,
-    );
-    return true;
-  });
+      await saveAllowlistResolved(resolved, allowlist);
+      const cachePath = getCachePath(resolved, repoRoot);
+      const stat = await fs.stat(resolved);
+      const raw = await fs.readFile(resolved, 'utf8');
+      await saveAllowlistCache(
+        cachePath,
+        resolved,
+        stat.mtimeMs,
+        stat.size,
+        hashAllowlistSource(raw),
+        allowlist,
+      );
+      return true;
+    }),
+  );
 }
 
 export async function clearAllowlist(params: {
@@ -507,22 +629,24 @@ export async function clearAllowlist(params: {
   const resolved = resolveAllowlistPathOrLog(targetFile, repoRoot, scope);
   if (!resolved) return;
 
-  await withAllowlistLock(resolved, async () => {
-    const empty = createEmptyAllowlist();
-    await saveAllowlistResolved(resolved, empty);
-    const stat = await fs.stat(resolved);
-    const raw = await fs.readFile(resolved, 'utf8');
-    await saveAllowlistCache(
-      getCachePath(resolved, repoRoot),
-      resolved,
-      stat.mtimeMs,
-      stat.size,
-      hashAllowlistSource(raw),
-      {
-        ...empty,
-      },
-    );
-  });
+  await withAllowlistLock(resolved, async () =>
+    withAllowlistFileLock(resolved, repoRoot, scope, async () => {
+      const empty = createEmptyAllowlist();
+      await saveAllowlistResolved(resolved, empty);
+      const stat = await fs.stat(resolved);
+      const raw = await fs.readFile(resolved, 'utf8');
+      await saveAllowlistCache(
+        getCachePath(resolved, repoRoot),
+        resolved,
+        stat.mtimeMs,
+        stat.size,
+        hashAllowlistSource(raw),
+        {
+          ...empty,
+        },
+      );
+    }),
+  );
 }
 
 export async function clearAllowlistCache(params: {

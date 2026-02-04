@@ -37,6 +37,23 @@ vi.mock('fs/promises', () => ({
     const content = typeof data === 'string' ? data : data.toString();
     setFile(filePath, content);
   }),
+  open: vi.fn(async (filePath: string, flags?: string) => {
+    if (flags === 'wx' && files.has(filePath)) {
+      const error: any = new Error('EEXIST: file already exists');
+      error.code = 'EEXIST';
+      throw error;
+    }
+    if (!files.has(filePath)) {
+      setFile(filePath, '');
+    }
+    return {
+      writeFile: async (content: string | Buffer) => {
+        const value = typeof content === 'string' ? content : content.toString();
+        setFile(filePath, value);
+      },
+      close: async () => undefined,
+    };
+  }),
   mkdir: vi.fn(async () => undefined),
   stat: vi.fn(async (filePath: string) => {
     if (!files.has(filePath)) {
