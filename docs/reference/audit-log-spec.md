@@ -31,6 +31,15 @@ Audit logs are written to `.salmonloop/runtime/audit/` as JSON.
   - `toolCallingAudit` (optional)
     - A list of tool calling events recorded during `PLAN`/`PATCH`
     - Fields include tool name, argument parse outcome, and redacted previews
+  - `auditTrail` (optional)
+    - `action`
+    - `details`
+    - `timestamp`
+    - `source`
+    - `severity`
+    - `scope`
+    - `phase`
+    - `correlationId`
 - `environment` (host info for debugging)
 
 The audit log is designed for post-mortem debugging without requiring verbose console output.
