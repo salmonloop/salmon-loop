@@ -6,7 +6,7 @@ These codes are designed to be used in troubleshooting, automation, and regressi
 Where to find error codes:
 
 - CLI: printed on failure (when available)
-- Audit log: `.s8p/audit/audit-*.json` under `meta.errorCode` and `traces[].metadata`
+- Audit log: `.salmonloop/runtime/audit/audit-*.json` under `meta.errorCode` and `traces[].metadata`
 
 ## LLM
 
@@ -99,4 +99,3 @@ Actions:
 
 - Inspect `context.toolCallingAudit` entries to see which tool was called and why parsing failed.
 - Consider reducing tool calling rounds or tightening prompts (maintainers).
-

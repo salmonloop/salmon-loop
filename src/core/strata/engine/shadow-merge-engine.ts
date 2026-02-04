@@ -4,6 +4,7 @@ import { text } from '../../../locales/index.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { logger } from '../../logger.js';
 import { normalizePath } from '../../path.js';
+import { getRejectionsDir, getTmpDir } from '../../runtime-paths.js';
 import type { IFileSystemProvider, SyntheticSidecarLayer } from '../../strata/types.js';
 import type { VerboseLevel } from '../../types.js';
 import { CheckpointManager } from '../checkpoint/manager.js';
@@ -254,7 +255,7 @@ export class ShadowMergeEngine {
       }
 
       if (conflicts.length > 0) {
-        const rejectionsDir = path.join(mainRepoPath, '.s8p', 'rejections');
+        const rejectionsDir = getRejectionsDir(mainRepoPath);
         await this.fsp.mkdir(rejectionsDir, { recursive: true }, mainRepoPath);
         for (const conflictPath of conflicts) {
           try {
@@ -374,7 +375,7 @@ export class ShadowMergeEngine {
 
     const finalTargetEOL = detectedEOL;
     const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    const tmpDir = path.join(repoPath, '.s8p', 'tmp');
+    const tmpDir = getTmpDir(repoPath);
     const basePath = path.join(tmpDir, `base-${suffix}`);
     const userPath = path.join(tmpDir, `user-${suffix}`);
     const aiPath = path.join(tmpDir, `ai-${suffix}`);

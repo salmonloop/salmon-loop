@@ -1,6 +1,6 @@
 # Troubleshooting
 
-If a run fails, first check the latest audit log in `.s8p/audit/audit-*.json` and look for `meta.errorCode`.
+If a run fails, first check the latest audit log in `.salmonloop/runtime/audit/audit-*.json` and look for `meta.errorCode`.
 Stable codes are documented in `docs/reference/error-codes.md`.
 
 ## "Grizzco transaction completed: 0/0 files processed"
@@ -24,7 +24,7 @@ Actions:
 Meaning: the LLM client failed to parse a JSON response (typically a truncated upstream response or a malformed proxy response).
 
 Actions:
-- Inspect the latest `.s8p/audit/audit-*.json` and check `meta.errorCode`.
+- Inspect the latest `.salmonloop/runtime/audit/audit-*.json` and check `meta.errorCode`.
   - Common codes:
     - `LLM_HTTP_RESPONSE_INVALID_JSON`
     - `LLM_HTTP_REQUEST_FAILED`

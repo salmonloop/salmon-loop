@@ -1,3 +1,4 @@
+import { setAuditContext } from '../audit-trail.js';
 import { logger } from '../logger.js';
 import { EXECUTION_PHASES, type ExecutionPhase, type LoopEvent } from '../types.js';
 
@@ -64,6 +65,7 @@ export class Pipeline<CurrentCtx> {
 
       try {
         this.ctxRef.current = ctx;
+        setAuditContext({ phase: name });
         if (emit && isPhase(name)) {
           emit({ type: 'phase.start', phase: name, timestamp: new Date() });
         }
@@ -87,6 +89,7 @@ export class Pipeline<CurrentCtx> {
             timestamp: new Date(),
           });
         }
+        setAuditContext({ phase: undefined });
         const end = Date.now();
         this.traces.push({
           name,
@@ -121,6 +124,7 @@ export class Pipeline<CurrentCtx> {
 
       try {
         this.ctxRef.current = ctx;
+        setAuditContext({ phase: name });
         if (emit && isPhase(name)) {
           emit({ type: 'phase.start', phase: name, timestamp: new Date() });
         }
@@ -182,6 +186,7 @@ export class Pipeline<CurrentCtx> {
             timestamp: new Date(),
           });
         }
+        setAuditContext({ phase: undefined });
         const end = Date.now();
         this.traces.push({
           name,

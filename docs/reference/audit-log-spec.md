@@ -1,6 +1,6 @@
 # Audit Log Spec
 
-Audit logs are written to `.s8p/audit/` as JSON.
+Audit logs are written to `.salmonloop/runtime/audit/` as JSON.
 
 ## File Naming
 

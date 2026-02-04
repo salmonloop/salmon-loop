@@ -18,7 +18,7 @@ export const createMockContext = (overrides: Partial<DslContext> = {}): DslConte
     allowMM: false,
     safeMode: true,
     dryRun: false,
-    rejectDir: '.s8p/rejections',
+    rejectDir: '.salmonloop/runtime/rejections',
     maxFileSize: 10 * 1024 * 1024,
   },
   snapshot: { exists: true, id: 'mock-initial-ref', timestamp: 0, path: '' },

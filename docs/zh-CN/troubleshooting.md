@@ -13,6 +13,5 @@
 含义：PATCH 阶段发生了 JSON 解析错误（通常来自 Provider 响应解析或工具调用协议）。
 
 建议：
-- 查看最新的 `.s8p/audit/audit-*.json`，关注 `errorStack` 字段。
+- 查看最新的 `.salmonloop/runtime/audit/audit-*.json`，关注 `errorStack` 字段。
 - 使用 `--verbose=extended` 获取更多运行时线索。
-

@@ -1362,7 +1362,10 @@ describe('ShadowMergeEngine Robustness', () => {
       const engine = ctx.createEngine(initialRef, latestRef);
       await expect(engine.apply()).rejects.toThrow(/\.rej/);
 
-      const rejContent = await ctx.readFile('main', '.s8p/rejections/conflict.txt.rej');
+      const rejContent = await ctx.readFile(
+        'main',
+        '.salmonloop/runtime/rejections/conflict.txt.rej',
+      );
       expect(rejContent).toBe(aiLines);
     });
   });

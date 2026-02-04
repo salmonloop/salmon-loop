@@ -9,22 +9,22 @@
 
 import { spawn } from 'child_process';
 import { mkdir, writeFile, unlink, readFile } from 'fs/promises';
-import { join } from 'path';
+import path from 'path';
 
 import { logger } from '../../../logger.js';
 import { normalizePath } from '../../../path.js';
+import { getShadowLockPath } from '../../../runtime-paths.js';
 
 /**
  * Acquire a file lock for shadowRoot
  */
 export async function acquireLock(shadowRoot: string): Promise<void> {
-  const lockPath = join(shadowRoot, '.s8p.lock');
+  const lockPath = getShadowLockPath(shadowRoot);
   const pid = process.pid;
   const timestamp = Date.now();
 
   try {
-    // Ensure the shadow root exists before taking a lock inside it.
-    await mkdir(shadowRoot, { recursive: true });
+    await mkdir(path.dirname(lockPath), { recursive: true });
 
     // Check if lock exists
     const existingLock = await readFile(lockPath, 'utf8').catch(() => null);
@@ -56,7 +56,7 @@ export async function acquireLock(shadowRoot: string): Promise<void> {
  * Release the file lock
  */
 export async function releaseLock(shadowRoot: string): Promise<void> {
-  const lockPath = join(shadowRoot, '.s8p.lock');
+  const lockPath = getShadowLockPath(shadowRoot);
   try {
     await unlink(lockPath).catch(() => null);
     logger.debug(`Lock released for shadowRoot: ${shadowRoot}`);

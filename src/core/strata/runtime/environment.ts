@@ -1,5 +1,6 @@
 import { text } from '../../../locales/index.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
+import { migrateLegacyRuntime } from '../../runtime-paths.js';
 import { CheckpointRef, ExecutionWorkspace, LoopEvent, LoopOptions } from '../../types.js';
 import { CheckpointManager } from '../checkpoint/manager.js';
 import { WorkspaceManager } from '../layers/worktree.js';
@@ -37,6 +38,7 @@ export class RuntimeEnvironment {
   async setup(): Promise<void> {
     const { options, emit, checkpointManager } = this;
     const now = () => new Date();
+    await migrateLegacyRuntime(options.repoPath);
 
     // 1. Create safe snapshot if using worktree strategy
     if (options.strategy === 'worktree') {

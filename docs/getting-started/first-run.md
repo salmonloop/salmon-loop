@@ -14,5 +14,4 @@ This document walks through a first run where:
 ## Where Files Are Written
 
 - Worktree strategy creates a temporary worktree under the system temp directory.
-- Audit logs are written under `.s8p/audit/` in the SalmonLoop project working directory.
-
+- Audit logs are written under `.salmonloop/runtime/audit/` in the SalmonLoop project working directory.

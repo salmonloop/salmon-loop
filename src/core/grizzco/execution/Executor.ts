@@ -20,7 +20,7 @@ export class Executor {
 
   constructor(
     private workerFactory: WorkerFactory,
-    rejectDir: string = '.s8p/rejections',
+    rejectDir: string = '.salmonloop/runtime/rejections',
   ) {
     this.rejectionMgr = new RejectionManager(rejectDir);
   }

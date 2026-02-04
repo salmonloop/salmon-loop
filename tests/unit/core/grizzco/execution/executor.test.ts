@@ -28,7 +28,7 @@ describe('Executor', () => {
       get: vi.fn().mockReturnValue(mockWorker),
     } as unknown as WorkerFactory;
 
-    const executor = new Executor(workerFactory, '.s8p/rej');
+    const executor = new Executor(workerFactory, '.salmonloop/runtime/rej');
     const ctx = createMockContext();
     const plan = {
       shouldAbort: false,
@@ -56,7 +56,7 @@ describe('Executor', () => {
       get: vi.fn().mockReturnValue(mockWorker),
     } as unknown as WorkerFactory;
 
-    const executor = new Executor(workerFactory, '.s8p/rej');
+    const executor = new Executor(workerFactory, '.salmonloop/runtime/rej');
     const ctx = createMockContext();
     const plan = {
       shouldAbort: false,

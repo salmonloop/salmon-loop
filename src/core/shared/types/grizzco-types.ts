@@ -85,7 +85,7 @@ export interface GrizzcoOptions {
   force: boolean; // applyBackOnDirty === 'dirtySnapshot'
   allowMM: boolean; // applyBackOnDirty === '3way'
   safeMode: boolean; // Always true in production
-  rejectDir: string; // Default .s8p/rejections
+  rejectDir: string; // Default .salmonloop/runtime/rejections
   dryRun: boolean;
 
   maxFileSize: number;

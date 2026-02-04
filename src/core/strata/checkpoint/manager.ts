@@ -335,7 +335,7 @@ export class CheckpointManager {
     await git.exec(['reset', '--soft', parent.trim()]);
 
     // 5. Cleanup AI mess before restoring snapshot
-    await git.exec(['clean', '-fd', '-e', '.s8p']);
+    await git.exec(['clean', '-fd', '-e', '.salmonloop']);
 
     // 6. Restore Working Tree
     // Checkout files from snapshot commit into working directory

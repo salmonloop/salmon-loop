@@ -1,5 +1,6 @@
 import { text } from '../../../locales/index.js';
 import { convertDiffToShadowOperations } from '../../diff.js';
+import { getRejectionsDir } from '../../runtime-paths.js';
 import { FileStatus } from '../../shared/types/grizzco-types.js';
 import { DecisionEngine, DslContext, PlanBuilder } from '../dsl/DecisionEngine.js';
 import { StandardStrategy } from '../dsl/strategies.js';
@@ -27,7 +28,8 @@ export const runApply: Step<AstValidateCtx, ApplyCtx> = async (ctx) => {
 
   bootstrapRegistry();
   const workerFactory = new WorkerFactory(workspace.workPath);
-  const executor = new Executor(workerFactory, '.s8p/rejections');
+  const repoRoot = workspace.baseRepoPath || workspace.workPath;
+  const executor = new Executor(workerFactory, getRejectionsDir(repoRoot));
 
   const operations = await convertDiffToShadowOperations(diff);
   const paths = operations.map((op) => op.path);

@@ -595,7 +595,7 @@ export class WorkspaceSynchronizer {
 
         // Best-effort cleanup: even if git is in a conflicted/unmerged state, we must still restore files.
         await git.exec(['reset', '--hard', 'HEAD'], { allowError: true });
-        await git.exec(['clean', '-fd', '-e', '.s8p'], { allowError: true });
+        await git.exec(['clean', '-fd', '-e', '.salmonloop'], { allowError: true });
 
         // Re-apply deletions from the original dirty state (T1).
         for (const file of dirtyBackup.deletedFiles) {
@@ -654,7 +654,7 @@ export class WorkspaceSynchronizer {
         // Revert to HEAD best-effort.
         const git = new GitAdapter(mainRepoPath);
         await git.exec(['reset', '--hard', 'HEAD'], { allowError: true });
-        await git.exec(['clean', '-fd', '-e', '.s8p'], { allowError: true });
+        await git.exec(['clean', '-fd', '-e', '.salmonloop'], { allowError: true });
         await git.exec(['update-index', '--refresh'], { allowError: true });
       }
 

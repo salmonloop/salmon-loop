@@ -1,14 +1,14 @@
 import * as fs from 'fs/promises';
-import * as path from 'path';
 
 import { getAuditTrail } from '../../audit-trail.js';
 import { logger } from '../../logger.js';
+import { getAuditDir } from '../../runtime-paths.js';
 import { SalmonError } from '../../types.js';
 import { FlowReport } from '../pipeline.js';
 
 export async function saveAudit(report: FlowReport, _options: any): Promise<string | undefined> {
   try {
-    const auditDir = path.join(process.cwd(), '.s8p/audit');
+    const auditDir = getAuditDir(_options?.repoPath || process.cwd());
     await fs.mkdir(auditDir, { recursive: true });
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -72,10 +72,10 @@ export async function saveAudit(report: FlowReport, _options: any): Promise<stri
       },
     };
 
-    await fs.writeFile(path.join(auditDir, filename), JSON.stringify(auditData, null, 2));
+    await fs.writeFile(`${auditDir}/${filename}`, JSON.stringify(auditData, null, 2));
 
     logger.debug(`[Audit] Saved structured audit log to ${filename}`);
-    return path.join(auditDir, filename);
+    return `${auditDir}/${filename}`;
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     logger.error(`[Audit] Failed to save audit log: ${msg}`);

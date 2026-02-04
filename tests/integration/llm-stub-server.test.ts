@@ -160,7 +160,7 @@ describe.skip('LLM stub server integration (no real network)', () => {
   });
 
   it('writes error code and tool calling audit events into structured audit output', async () => {
-    const auditDir = path.join(process.cwd(), '.s8p', 'audit');
+    const auditDir = path.join(process.cwd(), '.salmonloop', 'runtime', 'audit');
     await fs.mkdir(auditDir, { recursive: true });
 
     const before = new Set(await fs.readdir(auditDir));
