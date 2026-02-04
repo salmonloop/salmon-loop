@@ -274,11 +274,24 @@ export class Logger {
 
   audit(action: string, details: any, meta?: string | AuditTrailMeta): void {
     const rawMessage = `${action}: ${JSON.stringify(details)}`;
-    const formatted = this.formatMessage(rawMessage);
+    const formatted = this.formatMessage(this.sanitizeLogMessage(rawMessage));
     const auditMeta = typeof meta === 'string' ? { source: meta } : meta;
     recordAuditEvent(action, details, auditMeta);
     this.writeToLog('audit', formatted);
     if (!this.silent) this.reporter.log('audit', formatted);
+  }
+
+  private sanitizeLogMessage(message: string): string {
+    let result = '';
+    for (let i = 0; i < message.length; i += 1) {
+      const code = message.charCodeAt(i);
+      if (code < 32 || code === 127) {
+        result += ' ';
+      } else {
+        result += message[i];
+      }
+    }
+    return result;
   }
 }
 

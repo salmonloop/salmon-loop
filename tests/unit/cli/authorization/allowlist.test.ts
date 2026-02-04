@@ -1,3 +1,6 @@
+import * as crypto from 'crypto';
+import * as os from 'os';
+
 import {
   clearAllowlistCache,
   loadAllowlistDecision,
@@ -41,7 +44,18 @@ vi.mock('fs/promises', () => ({
       error.code = 'ENOENT';
       throw error;
     }
-    return { mtimeMs: mtimes.get(filePath) ?? 1 } as any;
+    const content = files.get(filePath) ?? '';
+    return { mtimeMs: mtimes.get(filePath) ?? 1, size: content.length } as any;
+  }),
+  rename: vi.fn(async (from: string, to: string) => {
+    if (!files.has(from)) {
+      const error: any = new Error('ENOENT: no such file or directory');
+      error.code = 'ENOENT';
+      throw error;
+    }
+    const content = files.get(from) as string;
+    files.set(to, content);
+    files.delete(from);
   }),
   unlink: vi.fn(async (filePath: string) => {
     if (!files.has(filePath)) {
@@ -55,8 +69,11 @@ vi.mock('fs/promises', () => ({
 
 const repoRoot = '/repo';
 const repoAllowlistPath = '/repo/.salmonloop/config/authorization.json';
-const userAllowlistPath = '/repo/.salmonloop/config/authorization-user.json';
-const cachePath = '/repo/.salmonloop/state/allowlist-cache.json';
+const userAllowlistPath = `${os.homedir()}/.salmonloop/config/authorization-user.json`;
+const cachePath = `/repo/.salmonloop/state/allowlist-cache-${crypto
+  .createHash('sha256')
+  .update(repoAllowlistPath)
+  .digest('hex')}.json`;
 
 const baseConfig: ToolAuthorizationConfig = {
   sessionTtlMs: 1000,
@@ -251,5 +268,35 @@ describe('allowlist', () => {
 
     expect(decision).toBeNull();
     expect(files.has(cachePath)).toBe(false);
+  });
+
+  it('blocks allowlist paths outside allowed roots', async () => {
+    setFile(
+      '/etc/passwd',
+      JSON.stringify({
+        version: 1,
+        tools: {
+          'net.request': {
+            rules: [{ mode: 'allow', phase: 'CONTEXT' }],
+          },
+        },
+      }),
+    );
+
+    const decision = await loadAllowlistDecision({
+      config: {
+        ...baseConfig,
+        allowlist: {
+          repoFile: '/etc/passwd',
+          userFile: baseConfig.allowlist?.userFile,
+        },
+      },
+      repoRoot,
+      toolName: 'net.request',
+      phase: Phase.CONTEXT,
+      sideEffects: ['network'],
+    });
+
+    expect(decision).toBeNull();
   });
 });

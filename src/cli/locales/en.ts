@@ -105,6 +105,8 @@ export const en = {
   authCacheCleared: 'Authorization allowlist cache cleared.',
   authCacheInvalidated: (reason: string, path: string) =>
     `Authorization allowlist cache invalidated: ${reason} (${path})`,
+  authPathBlocked: (path: string, scope: string) =>
+    `Blocked allowlist path outside ${scope} scope: ${path}`,
   authInvalidPhase: (phase: string) => `Invalid phase: ${phase}.`,
   toolAuthorizationPrompt: (tool: string, risk: string, effects: string, summary: string) =>
     `Authorize tool call: ${tool} (risk=${risk}, effects=${effects})\nArgs: ${summary}\nUse code alone to allow once, append "all" for this session, "save" to persist in repo, or "global" to persist for this user.`,
