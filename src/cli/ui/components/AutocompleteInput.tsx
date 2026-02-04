@@ -108,13 +108,14 @@ export const AutocompleteInput: React.FC<Props> = ({
   };
 
   useInput((input, key) => {
-    // 统一逃逸逻辑 (ESC Handling)
+    // 统一逃逸逻辑 (ESC Handling: Layered Escape)
     if (key.escape) {
-      if (isConfirming) {
-        dispatch({ type: 'CLEAR_CONFIRMATION' });
-      } else {
-        setSuggestions([]);
+      if (!isListClosed && suggestions.length > 0) {
+        // First ESC: Close the Tray list if open
         setIsListClosed(true);
+      } else if (isConfirming) {
+        // Second ESC (or if list already closed): Cancel High-Risk challenge
+        dispatch({ type: 'CLEAR_CONFIRMATION' });
       }
       return;
     }

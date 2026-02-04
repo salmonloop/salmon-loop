@@ -17,7 +17,7 @@ marked.setOptions({
   renderer: new TerminalRenderer(),
 });
 
-const MessageItem: React.FC<{ msg: Message }> = ({ msg }) => (
+const MessageItem = React.memo<{ msg: Message }>(({ msg }) => (
   <Box flexDirection="column" marginBottom={msg.type === 'system' ? 0 : 1}>
     {msg.id !== 'welcome' && (
       <Text color="gray" dimColor>
@@ -34,9 +34,9 @@ const MessageItem: React.FC<{ msg: Message }> = ({ msg }) => (
       )}
     </Box>
   </Box>
-);
+));
 
-const Markdown: React.FC<{ content: string }> = ({ content }) => {
+const Markdown = React.memo<{ content: string }>(({ content }) => {
   if (!content) return null;
   if (content === 'WELCOME_LOGO') {
     return (
@@ -71,7 +71,7 @@ const Markdown: React.FC<{ content: string }> = ({ content }) => {
   } catch {
     return <Text color="red">Error rendering content</Text>;
   }
-};
+});
 
 export const MessageList: React.FC = () => {
   const { state } = useUIStore();
