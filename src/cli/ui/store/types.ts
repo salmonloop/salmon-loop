@@ -7,9 +7,16 @@ export interface Message {
   timestamp: Date;
 }
 
+export interface QueueMessage {
+  id: string;
+  content: string;
+  timestamp: Date;
+}
+
 export interface UIState {
   contextStack: UIContext[];
   messages: Message[];
+  queueMessages: QueueMessage[];
   inputContent: string;
   isSidebarVisible: boolean;
   terminalWidth: number;
@@ -29,6 +36,10 @@ export interface UIState {
 export type UIAction =
   | { type: 'SET_INPUT'; payload: string }
   | { type: 'ADD_MESSAGE'; payload: Message }
+  | { type: 'ADD_QUEUE_MESSAGE'; payload: QueueMessage }
+  | { type: 'SHIFT_QUEUE_MESSAGE' }
+  | { type: 'REMOVE_QUEUE_MESSAGE'; payload: { id: string } }
+  | { type: 'CLEAR_QUEUE_MESSAGES' }
   | { type: 'PUSH_CONTEXT'; payload: UIContext }
   | { type: 'POP_CONTEXT' }
   | { type: 'TOGGLE_SIDEBAR' }

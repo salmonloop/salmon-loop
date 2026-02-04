@@ -54,4 +54,9 @@ export const UI_CONFIG = {
    * If exceeded, the list becomes scrollable.
    */
   MAX_SUGGESTIONS: 10,
+
+  /**
+   * Maximum characters for queue preview lines in the message area.
+   */
+  QUEUE_PREVIEW_MAX_CHARS: 80,
 };

@@ -10,6 +10,7 @@ export const initialState: UIState = {
       timestamp: new Date(),
     },
   ],
+  queueMessages: [],
   inputContent: '',
   isSidebarVisible: process.stdout.columns >= 120,
   terminalWidth: process.stdout.columns || 100,
@@ -26,6 +27,17 @@ export function uiReducer(state: UIState, action: UIAction): UIState {
       return { ...state, inputContent: action.payload };
     case 'ADD_MESSAGE':
       return { ...state, messages: [...state.messages, action.payload] };
+    case 'ADD_QUEUE_MESSAGE':
+      return { ...state, queueMessages: [...state.queueMessages, action.payload] };
+    case 'SHIFT_QUEUE_MESSAGE':
+      return { ...state, queueMessages: state.queueMessages.slice(1) };
+    case 'REMOVE_QUEUE_MESSAGE':
+      return {
+        ...state,
+        queueMessages: state.queueMessages.filter((msg) => msg.id !== action.payload.id),
+      };
+    case 'CLEAR_QUEUE_MESSAGES':
+      return { ...state, queueMessages: [] };
     case 'PUSH_CONTEXT':
       return { ...state, contextStack: [...state.contextStack, action.payload] };
     case 'POP_CONTEXT': {
@@ -81,6 +93,7 @@ export function uiReducer(state: UIState, action: UIAction): UIState {
             timestamp: new Date(),
           },
         ],
+        queueMessages: [],
       };
     case 'INTERRUPT_STREAM': {
       if (state.messages.length === 0) {

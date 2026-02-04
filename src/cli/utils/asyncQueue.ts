@@ -1,11 +1,15 @@
 export interface AsyncQueueState {
   pendingCount: number;
   isProcessing: boolean;
+  isPaused: boolean;
 }
 
 export interface AsyncQueueControls<T> {
   enqueue: (task: () => Promise<T>) => Promise<T>;
+  enqueueFront: (task: () => Promise<T>) => Promise<T>;
   clear: () => void;
+  pause: () => void;
+  resume: () => void;
   getState: () => AsyncQueueState;
 }
 
@@ -26,13 +30,18 @@ export function createAsyncQueue<T>(
 ): AsyncQueueControls<T> {
   const queue: Array<QueueEntry<T>> = [];
   let isProcessing = false;
+  let isPaused = false;
   const { maxSize, overflowStrategy = 'reject' } = options;
 
   const emitState = () => {
-    onStateChange?.({ pendingCount: queue.length, isProcessing });
+    onStateChange?.({ pendingCount: queue.length, isProcessing, isPaused });
   };
 
   const processNext = () => {
+    if (isPaused) {
+      emitState();
+      return;
+    }
     if (isProcessing) return;
     const next = queue.shift();
     if (!next) {
@@ -57,21 +66,51 @@ export function createAsyncQueue<T>(
       });
   };
 
+  const canAccept = () => {
+    if (typeof maxSize !== 'number' || maxSize < 0) return true;
+    if (queue.length < maxSize) return true;
+    return false;
+  };
+
+  const enforceCapacity = (onDropNewest: () => void, onDropOldest: () => void) => {
+    if (canAccept()) return true;
+    if (overflowStrategy === 'drop_oldest') {
+      onDropOldest();
+      return true;
+    }
+    if (overflowStrategy === 'drop_newest') {
+      onDropNewest();
+      return false;
+    }
+    onDropNewest();
+    return false;
+  };
+
   const enqueue = (task: () => Promise<T>) => {
     const promise = new Promise<T>((resolve, reject) => {
-      if (typeof maxSize === 'number' && maxSize >= 0 && queue.length >= maxSize) {
-        if (overflowStrategy === 'drop_oldest') {
-          queue.shift();
-        } else if (overflowStrategy === 'drop_newest') {
-          reject(new Error('AsyncQueue overflow: task dropped'));
-          return;
-        } else {
-          reject(new Error('AsyncQueue overflow: queue is full'));
-          return;
-        }
-      }
+      const accepted = enforceCapacity(
+        () => reject(new Error('AsyncQueue overflow: task dropped')),
+        () => queue.shift(),
+      );
+      if (!accepted) return;
 
       queue.push({ task, resolve, reject });
+      emitState();
+      queueMicrotask(processNext);
+    });
+    promise.catch(() => {});
+    return promise;
+  };
+
+  const enqueueFront = (task: () => Promise<T>) => {
+    const promise = new Promise<T>((resolve, reject) => {
+      const accepted = enforceCapacity(
+        () => reject(new Error('AsyncQueue overflow: task dropped')),
+        () => queue.pop(),
+      );
+      if (!accepted) return;
+
+      queue.unshift({ task, resolve, reject });
       emitState();
       queueMicrotask(processNext);
     });
@@ -84,11 +123,26 @@ export function createAsyncQueue<T>(
     emitState();
   };
 
-  const getState = () => ({ pendingCount: queue.length, isProcessing });
+  const pause = () => {
+    isPaused = true;
+    emitState();
+  };
+
+  const resume = () => {
+    if (!isPaused) return;
+    isPaused = false;
+    emitState();
+    queueMicrotask(processNext);
+  };
+
+  const getState = () => ({ pendingCount: queue.length, isProcessing, isPaused });
 
   return {
     enqueue,
+    enqueueFront,
     clear,
+    pause,
+    resume,
     getState,
   };
 }

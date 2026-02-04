@@ -7,8 +7,9 @@ import { marked } from 'marked';
 import TerminalRendererOriginal from 'marked-terminal';
 import React, { useState, useEffect } from 'react';
 
+import { UI_CONFIG } from '../config.js';
 import { useUIStore } from '../store/context.js';
-import { Message } from '../store/types.js';
+import { Message, QueueMessage } from '../store/types.js';
 
 const TerminalRenderer = TerminalRendererOriginal as any;
 
@@ -74,7 +75,7 @@ const Markdown = React.memo<{ content: string }>(({ content }) => {
 
 export const MessageList: React.FC = () => {
   const { state } = useUIStore();
-  const { messages } = state;
+  const { messages, queueMessages } = state;
   const [isAnchored, setIsAnchored] = useState(true);
 
   // Limit rendered messages to the last 50 to prevent performance degradation
@@ -97,10 +98,27 @@ export const MessageList: React.FC = () => {
     }
   }, [messages.length, isAnchored]);
 
+  const truncateQueueContent = (content: string) => {
+    const singleLine = content.replace(/\s+/g, ' ').trim();
+    if (singleLine.length <= UI_CONFIG.QUEUE_PREVIEW_MAX_CHARS) return singleLine;
+    return singleLine.slice(0, UI_CONFIG.QUEUE_PREVIEW_MAX_CHARS - 3) + '...';
+  };
+
+  const orderedQueueMessages: QueueMessage[] = [...queueMessages].sort(
+    (a, b) => a.timestamp.getTime() - b.timestamp.getTime(),
+  );
+
   return (
     <Box flexDirection="column" flexGrow={1}>
       {displayMessages.map((msg) => (
         <MessageItem key={msg.id} msg={msg} />
+      ))}
+      {orderedQueueMessages.map((msg) => (
+        <Box key={msg.id} flexDirection="column" marginBottom={0}>
+          <Text color="gray" dimColor>
+            {truncateQueueContent(msg.content)}
+          </Text>
+        </Box>
       ))}
     </Box>
   );

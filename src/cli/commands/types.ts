@@ -5,6 +5,7 @@ export interface CommandContext {
   sessionManager: ChatSessionManager;
   input: string;
   dispatch: (action: any) => void;
+  queue?: QueueController;
 }
 
 export interface CommandResult {
@@ -20,4 +21,20 @@ export interface Command {
   getSuggestions?: (
     context: CommandContext,
   ) => Promise<{ name: string; description: string }[]> | { name: string; description: string }[];
+}
+
+export interface QueueStatus {
+  pendingCount: number;
+  isProcessing: boolean;
+  isPaused: boolean;
+  hasInterrupted: boolean;
+  interruptedInput?: string;
+}
+
+export interface QueueController {
+  pause: () => void;
+  resume: () => void;
+  clear: () => void;
+  retry: () => boolean;
+  status: () => QueueStatus;
 }

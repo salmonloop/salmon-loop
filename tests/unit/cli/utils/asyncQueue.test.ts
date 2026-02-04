@@ -55,7 +55,7 @@ describe('createAsyncQueue', () => {
   });
 
   it('emits state changes', async () => {
-    const states: Array<{ pendingCount: number; isProcessing: boolean }> = [];
+    const states: Array<{ pendingCount: number; isProcessing: boolean; isPaused: boolean }> = [];
     const queue = createAsyncQueue<string>((state) => {
       states.push(state);
     });
@@ -65,7 +65,11 @@ describe('createAsyncQueue', () => {
     await new Promise<void>((resolve) => queueMicrotask(() => resolve()));
 
     expect(states.length).toBeGreaterThan(0);
-    expect(states[states.length - 1]).toEqual({ pendingCount: 0, isProcessing: false });
+    expect(states[states.length - 1]).toEqual({
+      pendingCount: 0,
+      isProcessing: false,
+      isPaused: false,
+    });
   });
 
   it('rejects when the queue is full by default', async () => {
@@ -79,5 +83,64 @@ describe('createAsyncQueue', () => {
       });
 
     expect(error).toBeInstanceOf(Error);
+  });
+
+  it('pauses processing until resumed', async () => {
+    const queue = createAsyncQueue<string>();
+    const order: string[] = [];
+    let resolveFirst: ((value: string) => void) | undefined;
+
+    queue.pause();
+
+    const first = queue.enqueue(
+      () =>
+        new Promise((resolve) => {
+          order.push('first');
+          resolveFirst = resolve;
+        }),
+    );
+
+    await new Promise<void>((resolve) => queueMicrotask(() => resolve()));
+    expect(order).toEqual([]);
+
+    queue.resume();
+    await new Promise<void>((resolve) => queueMicrotask(() => resolve()));
+    expect(order).toEqual(['first']);
+
+    resolveFirst?.('done');
+    await first;
+  });
+
+  it('supports enqueueFront', async () => {
+    const queue = createAsyncQueue<string>();
+    const order: string[] = [];
+    let resolveFirst: ((value: string) => void) | undefined;
+    let resolveSecond: ((value: string) => void) | undefined;
+
+    const first = queue.enqueue(
+      () =>
+        new Promise((resolve) => {
+          order.push('first');
+          resolveFirst = resolve;
+        }),
+    );
+    const second = queue.enqueueFront(
+      () =>
+        new Promise((resolve) => {
+          order.push('second');
+          resolveSecond = resolve;
+        }),
+    );
+
+    await new Promise<void>((resolve) => queueMicrotask(() => resolve()));
+    expect(order).toEqual(['second']);
+
+    resolveSecond?.('done-2');
+    await second;
+    await new Promise<void>((resolve) => queueMicrotask(() => resolve()));
+
+    expect(order).toEqual(['second', 'first']);
+    resolveFirst?.('done-1');
+    await first;
   });
 });

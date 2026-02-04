@@ -15,6 +15,7 @@ export const en = {
   chatCommandStatus: '  /status       - Show session info',
   chatCommandClear: '  /new          - Start a new session and clear context (clear)',
   chatCommandHistory: '  /history      - Show iteration history',
+  chatCommandQueue: '  /queue        - Manage the chat queue',
   chatSessionSaved: '👋 Session saved. Goodbye!',
   chatThinking: 'Thinking...',
   chatSuccess: (files: string) => `✅ Changes applied successfully!\n\nFiles changed: ${files}`,
@@ -49,6 +50,22 @@ export const en = {
   commandClear: 'Start a new session and clear context (clear)',
   commandHistory: 'Show session history',
   commandSessions: 'List all chat sessions',
+  commandQueue: 'Manage the chat queue',
+  queueUsage: 'Usage: /queue <status|pause|resume|retry|clear>',
+  queueUnavailable: 'Queue controls are not available in this mode.',
+  queuePaused: 'Queue paused. Use /queue resume or /queue retry to continue.',
+  queuePausedAfterInterrupt:
+    'Queue paused after interrupt. Use /queue resume or /queue retry to continue.',
+  queueAlreadyPaused: 'Queue is already paused.',
+  queueNotPaused: 'Queue is not paused.',
+  queueResumed: 'Queue resumed.',
+  queueCleared: 'Queue cleared.',
+  queueRetryQueued: 'Re-queued the interrupted task at the front of the queue.',
+  queueRetryMissing: 'No interrupted task to retry.',
+  queueInterruptedHint: 'Interrupted task detected. Use /queue retry to re-run it.',
+  queueSubcommandHint: (sub: string) => `Queue ${sub} command`,
+  queueStatus: (pending: number, processing: boolean, paused: boolean, interrupted: boolean) =>
+    `Queue status: pending=${pending}, processing=${processing}, paused=${paused}, interrupted=${interrupted}`,
 
   // Option descriptions
   instructionOption: 'Instruction for code modification (required)',

@@ -3,6 +3,7 @@ import { LoopEvent } from '../../core/types.js';
 import { text } from '../locales/index.js';
 
 import { findCommand } from './registry.js';
+import type { QueueController } from './types.js';
 
 export type DispatchResult =
   | { type: 'executed' }
@@ -16,6 +17,7 @@ export class CommandDispatcher {
       emit: (event: LoopEvent) => void;
       sessionManager: ChatSessionManager;
       dispatch: (action: any) => void;
+      queue?: QueueController;
     },
   ): Promise<DispatchResult> {
     if (!input) {
@@ -33,6 +35,7 @@ export class CommandDispatcher {
           sessionManager: context.sessionManager,
           input: trimmed,
           dispatch: context.dispatch,
+          queue: context.queue,
         });
         return { type: 'executed' };
       } catch (_error) {
