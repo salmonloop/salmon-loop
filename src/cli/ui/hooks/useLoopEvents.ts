@@ -23,14 +23,6 @@ export function useLoopEvents(mode: 'run' | 'chat', onStart: any, signal: AbortS
   );
 
   useEffect(() => {
-    // Restore the initial welcome message lost during state refactoring
-    sanitizeAndDispatch({
-      type: 'welcome',
-      content: '# 🐟 Salmon Loop v0.2.0\nReady ✓ | Listening for loop events...',
-    });
-  }, [sanitizeAndDispatch]);
-
-  useEffect(() => {
     if (mode === 'run') {
       onStart(
         (event: any) => {

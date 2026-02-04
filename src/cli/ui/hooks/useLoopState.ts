@@ -10,7 +10,7 @@ export function useLoopState() {
     logs: [
       {
         id: 'welcome',
-        message: '# 🐟 Salmon Loop v0.2.0\nReady ✓ | Token: 0/10k',
+        message: 'WELCOME_LOGO',
         level: 'info',
         timestamp: new Date(),
       },

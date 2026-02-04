@@ -25,7 +25,7 @@ const MessageItem = React.memo<{ msg: Message }>(({ msg }) => (
       </Text>
     )}
     <Box paddingLeft={msg.id === 'welcome' ? 0 : 2}>
-      {msg.type === 'system' ? (
+      {msg.type === 'system' && msg.content !== 'WELCOME_LOGO' ? (
         <Text color="white" dimColor>
           {msg.content}
         </Text>
@@ -44,7 +44,6 @@ const Markdown = React.memo<{ content: string }>(({ content }) => {
         <Gradient name="retro">
           <BigText text="Salmon Loop" font="tiny" />
         </Gradient>
-        <Text dimColor>Liquid Precision CLI v0.2.0</Text>
       </Box>
     );
   }
