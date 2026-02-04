@@ -88,9 +88,13 @@ export function createAsyncQueue<T>(
 
   const enqueue = (task: () => Promise<T>) => {
     const promise = new Promise<T>((resolve, reject) => {
+      const dropEntry = (entry: QueueEntry<T> | undefined) => {
+        if (!entry) return;
+        entry.reject(new Error('AsyncQueue overflow: task dropped'));
+      };
       const accepted = enforceCapacity(
         () => reject(new Error('AsyncQueue overflow: task dropped')),
-        () => queue.shift(),
+        () => dropEntry(queue.shift()),
       );
       if (!accepted) return;
 
@@ -104,9 +108,13 @@ export function createAsyncQueue<T>(
 
   const enqueueFront = (task: () => Promise<T>) => {
     const promise = new Promise<T>((resolve, reject) => {
+      const dropEntry = (entry: QueueEntry<T> | undefined) => {
+        if (!entry) return;
+        entry.reject(new Error('AsyncQueue overflow: task dropped'));
+      };
       const accepted = enforceCapacity(
         () => reject(new Error('AsyncQueue overflow: task dropped')),
-        () => queue.pop(),
+        () => dropEntry(queue.pop()),
       );
       if (!accepted) return;
 

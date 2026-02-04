@@ -44,6 +44,7 @@ Notes:
 - `argsHash` is a SHA-256 hex digest of the tool arguments.
 - `sideEffects` must match all listed effects to qualify.
 - Matching order is: rules (deny first, then allow), then `phases`, then `mode`.
+- Decision precedence across scopes: user deny overrides repo allow; repo deny overrides user allow; otherwise user allow, then repo allow.
 
 ## `/auth` Command
 

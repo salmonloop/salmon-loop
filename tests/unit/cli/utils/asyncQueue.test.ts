@@ -143,4 +143,36 @@ describe('createAsyncQueue', () => {
     resolveFirst?.('done-1');
     await first;
   });
+
+  it('rejects dropped tasks when using drop_oldest', async () => {
+    const queue = createAsyncQueue<string>(undefined, {
+      maxSize: 1,
+      overflowStrategy: 'drop_oldest',
+    });
+    queue.pause();
+
+    let resolveSecond: ((value: string) => void) | undefined;
+    let firstError: unknown;
+
+    const first = queue.enqueue(() => Promise.resolve('first'));
+    const second = queue.enqueue(
+      () =>
+        new Promise((resolve) => {
+          resolveSecond = resolve;
+        }),
+    );
+
+    await first.catch((err) => {
+      firstError = err;
+    });
+
+    queue.resume();
+    await new Promise<void>((resolve) => queueMicrotask(() => resolve()));
+    resolveSecond?.('second');
+
+    const secondResult = await second;
+
+    expect(firstError).toBeInstanceOf(Error);
+    expect(secondResult).toBe('second');
+  });
 });

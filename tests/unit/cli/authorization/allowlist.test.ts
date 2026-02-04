@@ -110,6 +110,42 @@ describe('allowlist', () => {
     expect(decision).toBe('deny');
   });
 
+  it('prefers user deny over repo allow', async () => {
+    setFile(
+      repoAllowlistPath,
+      JSON.stringify({
+        version: 1,
+        tools: {
+          'net.request': {
+            rules: [{ mode: 'allow', phase: 'CONTEXT' }],
+          },
+        },
+      }),
+    );
+
+    setFile(
+      userAllowlistPath,
+      JSON.stringify({
+        version: 1,
+        tools: {
+          'net.request': {
+            rules: [{ mode: 'deny', phase: 'CONTEXT' }],
+          },
+        },
+      }),
+    );
+
+    const decision = await loadAllowlistDecision({
+      config: baseConfig,
+      repoRoot,
+      toolName: 'net.request',
+      phase: Phase.CONTEXT,
+      sideEffects: ['network'],
+    });
+
+    expect(decision).toBe('deny');
+  });
+
   it('falls back to user allow when repo has no match', async () => {
     setFile(
       repoAllowlistPath,
