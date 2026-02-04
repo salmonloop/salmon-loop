@@ -4,6 +4,7 @@ export interface CommandContext {
   emit: (event: any) => void;
   sessionManager: ChatSessionManager;
   input: string;
+  dispatch: (action: any) => void;
 }
 
 export interface CommandResult {

@@ -70,6 +70,18 @@ export function uiReducer(state: UIState, action: UIAction): UIState {
       return { ...state, pendingConfirmation: action.payload };
     case 'CLEAR_CONFIRMATION':
       return { ...state, pendingConfirmation: undefined };
+    case 'RESET_MESSAGES':
+      return {
+        ...state,
+        messages: [
+          {
+            id: 'welcome',
+            type: 'system',
+            content: 'WELCOME_LOGO',
+            timestamp: new Date(),
+          },
+        ],
+      };
     case 'INTERRUPT_STREAM': {
       if (state.messages.length === 0) {
         return { ...state, isThinking: false, currentPhase: 'idle' };

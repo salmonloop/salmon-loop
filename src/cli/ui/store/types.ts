@@ -40,5 +40,6 @@ export type UIAction =
   | { type: 'UPDATE_TASK'; payload: { id: string; status: 'completed' | 'failed' } }
   | { type: 'SET_CHANGED_FILES'; payload: string[] }
   | { type: 'INTERRUPT_STREAM' }
+  | { type: 'RESET_MESSAGES' }
   | { type: 'SET_CONFIRMATION'; payload: UIState['pendingConfirmation'] }
   | { type: 'CLEAR_CONFIRMATION' };

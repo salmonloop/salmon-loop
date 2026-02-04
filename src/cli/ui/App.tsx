@@ -74,13 +74,30 @@ const AppCore: React.FC<{
                 emit: (ev) => sanitizeAndDispatch(ev),
                 sessionManager,
                 input,
+                dispatch,
               })
             }
             onSubmit={async (val) => {
               if (onChatInput && val.trim()) {
-                const result = await onChatInput(val, (ev: any) => sanitizeAndDispatch(ev), {
-                  signal: new AbortController().signal,
+                // Explicitly add user message to history for navigation
+                dispatch({
+                  type: 'ADD_MESSAGE',
+                  payload: {
+                    id: `user-${Date.now()}`,
+                    type: 'user',
+                    content: val,
+                    timestamp: new Date(),
+                  },
                 });
+
+                const result = await onChatInput(
+                  val,
+                  (ev: any) => sanitizeAndDispatch(ev),
+                  {
+                    signal: new AbortController().signal,
+                  },
+                  dispatch,
+                );
 
                 if (result?.action === 'NEED_CONFIRMATION') {
                   dispatch({ type: 'SET_CONFIRMATION', payload: result.data });

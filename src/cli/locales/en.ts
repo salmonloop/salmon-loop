@@ -13,7 +13,7 @@ export const en = {
   chatCommands: 'Commands:',
   chatCommandExit: '  /exit, /quit  - Exit chat (or Ctrl+C twice)',
   chatCommandStatus: '  /status       - Show session info',
-  chatCommandClear: '  /clear        - Clear screen',
+  chatCommandClear: '  /new          - Start a new session and clear context (clear)',
   chatCommandHistory: '  /history      - Show iteration history',
   chatSessionSaved: '👋 Session saved. Goodbye!',
   chatThinking: 'Thinking...',
@@ -46,7 +46,7 @@ export const en = {
   // Command descriptions
   commandExit: 'Exit the application',
   commandStatus: 'Show current session status',
-  commandClear: 'Clear the screen/context',
+  commandClear: 'Start a new session and clear context (clear)',
   commandHistory: 'Show session history',
   commandSessions: 'List all chat sessions',
 

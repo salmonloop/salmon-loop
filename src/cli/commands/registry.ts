@@ -45,10 +45,18 @@ export const commands: Command[] = [
     },
   },
   {
-    name: '/clear',
+    name: '/new',
     description: text.cli.commandClear,
-    execute: ({ emit }) => {
+    execute: async ({ emit, sessionManager, dispatch }) => {
+      const session = await sessionManager.create();
+      dispatch({ type: 'RESET_MESSAGES' });
       emit({ type: 'checkpoint.created', worktreePath: '', baseRef: '', timestamp: new Date() });
+      emit({
+        type: 'log',
+        level: 'info',
+        message: `🚀 ${text.cli.chatNewSession(session.meta.id.slice(0, 8))}`,
+        timestamp: new Date(),
+      });
     },
   },
   {
@@ -86,12 +94,13 @@ export const commands: Command[] = [
 
       return [];
     },
-    execute: async ({ emit, sessionManager, input }) => {
+    execute: async ({ emit, sessionManager, input, dispatch }) => {
       const args = input.trim().split(/\s+/).slice(1);
       if (args.length > 0) {
         const sessionId = args[0];
         try {
           await sessionManager.resumeSession(sessionId);
+          dispatch({ type: 'RESET_MESSAGES' });
           emit({
             type: 'log',
             level: 'info',

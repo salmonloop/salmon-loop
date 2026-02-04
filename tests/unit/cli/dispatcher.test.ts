@@ -25,6 +25,7 @@ describe('CommandDispatcher', () => {
     const result = await dispatcher.dispatch('/help', {
       emit: mockEmit,
       sessionManager: mockSessionManager,
+      dispatch: vi.fn(),
     });
 
     expect(result).toEqual({ type: 'executed' });
@@ -39,6 +40,7 @@ describe('CommandDispatcher', () => {
     const result = await dispatcher.dispatch('/unknown_cmd', {
       emit: mockEmit,
       sessionManager: mockSessionManager,
+      dispatch: vi.fn(),
     });
 
     expect(result).toEqual({
@@ -61,6 +63,7 @@ describe('CommandDispatcher', () => {
     const result = await dispatcher.dispatch('  /verify ', {
       emit: mockEmit,
       sessionManager: mockSessionManager,
+      dispatch: vi.fn(),
     });
 
     // /verify is not in the default registry in the code I read earlier (it had exit, quit, status, clear, history, help)
@@ -78,6 +81,7 @@ describe('CommandDispatcher', () => {
     const result = await dispatcher.dispatch('hello world', {
       emit: mockEmit,
       sessionManager: mockSessionManager,
+      dispatch: vi.fn(),
     });
 
     expect(result).toEqual({
@@ -91,6 +95,7 @@ describe('CommandDispatcher', () => {
     const result = await dispatcher.dispatch('check src/cli/index.ts', {
       emit: mockEmit,
       sessionManager: mockSessionManager,
+      dispatch: vi.fn(),
     });
 
     expect(result).toEqual({
@@ -103,6 +108,7 @@ describe('CommandDispatcher', () => {
     const result = await dispatcher.dispatch('', {
       emit: mockEmit,
       sessionManager: mockSessionManager,
+      dispatch: vi.fn(),
     });
 
     expect(result).toEqual({

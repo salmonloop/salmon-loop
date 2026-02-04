@@ -12,7 +12,11 @@ export type DispatchResult =
 export class CommandDispatcher {
   async dispatch(
     input: string,
-    context: { emit: (event: LoopEvent) => void; sessionManager: ChatSessionManager },
+    context: {
+      emit: (event: LoopEvent) => void;
+      sessionManager: ChatSessionManager;
+      dispatch: (action: any) => void;
+    },
   ): Promise<DispatchResult> {
     if (!input) {
       return { type: 'continue', trimmedInput: '' };
@@ -28,6 +32,7 @@ export class CommandDispatcher {
           emit: context.emit,
           sessionManager: context.sessionManager,
           input: trimmed,
+          dispatch: context.dispatch,
         });
         return { type: 'executed' };
       } catch (_error) {

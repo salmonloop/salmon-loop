@@ -1,9 +1,11 @@
 import { Box, Text, useInput } from 'ink';
 import TextInput from 'ink-text-input';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 
 import { en } from '../../locales/en.js';
 import { UI_CONFIG } from '../config.js';
+import { useAutocomplete } from '../hooks/useAutocomplete.js';
+import { useInputHistory } from '../hooks/useInputHistory.js';
 import { useUIStore } from '../store/context.js';
 
 interface Props {
@@ -25,12 +27,24 @@ export const AutocompleteInput: React.FC<Props> = ({
   const { pendingConfirmation } = state;
   const isConfirming = !!pendingConfirmation;
 
-  const [suggestions, setSuggestions] = useState<{ name: string; description: string }[]>([]);
-  const [selectedIndex, setSelectedIndex] = useState(-1);
-  const [startIndex, setStartIndex] = useState(0);
   const [inputKey, setInputKey] = useState(0);
-  const [isListClosed, setIsListClosed] = useState(false);
-  const justCompletedRef = useRef(false);
+
+  const {
+    suggestions,
+    selectedIndex,
+    startIndex,
+    isListClosed,
+    setIsListClosed,
+    setSuggestions,
+    setSelectedIndex,
+    setStartIndex,
+    navigateSuggestions,
+  } = useAutocomplete(value, getSuggestions, isConfirming);
+
+  const { navigateHistory, resetHistory } = useInputHistory(value, (val) => {
+    setInputKey((prev) => prev + 1);
+    onChange(val);
+  });
 
   // Calculate ghost text for non-intrusive suggestions
   const getGhostText = () => {
@@ -45,51 +59,6 @@ export const AutocompleteInput: React.FC<Props> = ({
     return '';
   };
 
-  // Declarative suggestion updates: react to value changes regardless of source
-  useEffect(() => {
-    // If confirming or list is explicitly closed, don't re-fetch
-    if (isConfirming || isListClosed) return;
-
-    let isMounted = true;
-    const updateSuggestions = async () => {
-      if (value.startsWith('/')) {
-        const matches = await getSuggestions(value);
-        if (isMounted) {
-          setSuggestions(matches);
-
-          const parts = value.split(/\s+/);
-          const currentToken = value.endsWith(' ') ? '' : parts[parts.length - 1];
-
-          // Default to the first matching item
-          const exactMatchIndex =
-            value.length > 1 && currentToken.length > 0
-              ? matches.findIndex((m) =>
-                  m.name.toLowerCase().startsWith(currentToken.toLowerCase()),
-                )
-              : -1;
-
-          setSelectedIndex(exactMatchIndex !== -1 ? exactMatchIndex : matches.length > 0 ? 0 : -1);
-          setStartIndex(0);
-        }
-      } else {
-        if (isMounted) {
-          setSuggestions([]);
-          setSelectedIndex(-1);
-        }
-      }
-    };
-
-    updateSuggestions();
-    return () => {
-      isMounted = false;
-    };
-  }, [value, getSuggestions, isListClosed, isConfirming]);
-
-  const handleChange = (newValue: string) => {
-    setIsListClosed(false);
-    onChange(newValue);
-  };
-
   const getCompletedValue = (selectedName: string) => {
     const parts = value.split(/\s+/);
     if (value.endsWith(' ')) {
@@ -102,7 +71,7 @@ export const AutocompleteInput: React.FC<Props> = ({
 
   const applySelection = (
     selected: { name: string; description: string },
-    config: { closeList: boolean; isEnter?: boolean },
+    config: { closeList: boolean },
   ) => {
     const nextValue = getCompletedValue(selected.name);
 
@@ -112,13 +81,7 @@ export const AutocompleteInput: React.FC<Props> = ({
       setStartIndex(0);
       setIsListClosed(true);
     } else {
-      // Ensure the tray re-opens for the next level of suggestions
       setIsListClosed(false);
-    }
-
-    // Always block immediate submission when picking from a list via Enter
-    if (config.isEnter) {
-      justCompletedRef.current = true;
     }
 
     setInputKey((prev) => prev + 1);
@@ -126,7 +89,6 @@ export const AutocompleteInput: React.FC<Props> = ({
   };
 
   useInput((_, key) => {
-    // Escape handling: Close tray or cancel confirmation
     if (key.escape) {
       if (!isListClosed && suggestions.length > 0) {
         setIsListClosed(true);
@@ -138,41 +100,23 @@ export const AutocompleteInput: React.FC<Props> = ({
 
     if (isConfirming) return;
 
-    // Adopt suggestion: Right Arrow or Tab
     if (
       (key.rightArrow || key.tab) &&
       suggestions.length > 0 &&
       !isListClosed &&
       selectedIndex !== -1
     ) {
-      applySelection(suggestions[selectedIndex], { closeList: false, isEnter: false });
+      applySelection(suggestions[selectedIndex], { closeList: false });
       return;
     }
 
-    // Pick suggestion with Enter: behave like Tab (allow further arguments)
-    if (key.return && suggestions.length > 0 && !isListClosed && selectedIndex !== -1) {
-      applySelection(suggestions[selectedIndex], { closeList: false, isEnter: true });
-      return;
-    }
-
-    // Navigate suggestions: Only update index, don't modify actual value
-    if (suggestions.length > 0 && !isListClosed) {
-      const maxVisible = UI_CONFIG.MAX_SUGGESTIONS;
-      let newIndex = selectedIndex;
-
-      if (key.upArrow) {
-        newIndex = selectedIndex <= 0 ? suggestions.length - 1 : selectedIndex - 1;
-      } else if (key.downArrow) {
-        newIndex = selectedIndex === suggestions.length - 1 ? 0 : selectedIndex + 1;
+    if (key.upArrow) {
+      if (!navigateSuggestions('up')) {
+        navigateHistory('up');
       }
-
-      if (newIndex !== selectedIndex) {
-        setSelectedIndex(newIndex);
-        if (newIndex < startIndex) {
-          setStartIndex(newIndex);
-        } else if (newIndex >= startIndex + maxVisible) {
-          setStartIndex(newIndex - maxVisible + 1);
-        }
+    } else if (key.downArrow) {
+      if (!navigateSuggestions('down')) {
+        navigateHistory('down');
       }
     }
   });
@@ -187,7 +131,11 @@ export const AutocompleteInput: React.FC<Props> = ({
           key={inputKey}
           value={value}
           focus={true}
-          onChange={handleChange}
+          onChange={(val) => {
+            setIsListClosed(false);
+            resetHistory();
+            onChange(val);
+          }}
           onSubmit={(val) => {
             if (isConfirming) {
               if (val === pendingConfirmation.challenge) {
@@ -196,10 +144,12 @@ export const AutocompleteInput: React.FC<Props> = ({
               return;
             }
 
-            if (justCompletedRef.current) {
-              justCompletedRef.current = false;
+            if (suggestions.length > 0 && !isListClosed && selectedIndex !== -1) {
+              applySelection(suggestions[selectedIndex], { closeList: false });
               return;
             }
+
+            resetHistory();
             onSubmit(val);
           }}
           placeholder={

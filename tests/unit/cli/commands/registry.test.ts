@@ -46,6 +46,7 @@ describe('CLI Command Registry: Strict Logic Guard', () => {
       emit: vi.fn(),
       sessionManager: mockSessionManager as any,
       input: '',
+      dispatch: vi.fn(),
     };
 
     describe('Level 0: Command Suggestions', () => {

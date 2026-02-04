@@ -31,11 +31,15 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
   // Dynamically import GUI to avoid top-level await issues with yoga-layout
   const { startGUI } = await import('./ui/index.js');
 
-  await startGUI('chat', sessionManager, async (emit, input, guiOptions) => {
+  await startGUI('chat', sessionManager, async (emit, input, guiOptions, dispatch) => {
     if (input === undefined) return;
 
     // Dispatch command or get validated input
-    const dispatchResult = await dispatcher.dispatch(input, { emit, sessionManager });
+    const dispatchResult = await dispatcher.dispatch(input, {
+      emit,
+      sessionManager,
+      dispatch: dispatch || (() => {}),
+    });
 
     if (dispatchResult.type === 'executed' || dispatchResult.type === 'blocked') {
       return;
