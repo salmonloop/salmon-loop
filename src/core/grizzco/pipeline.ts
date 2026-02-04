@@ -161,11 +161,15 @@ export class Pipeline<CurrentCtx> {
           });
 
           // 2. Force audit log to disk (persistent storage)
-          logger.audit('PIPELINE_RECOVERY_FAILED', {
-            step: name,
-            originalError: errorStr,
-            recoveryError: errorDetail,
-          });
+          logger.audit(
+            'PIPELINE_RECOVERY_FAILED',
+            {
+              step: name,
+              originalError: errorStr,
+              recoveryError: errorDetail,
+            },
+            'system',
+          );
         }
 
         throw error; // Propagate original error

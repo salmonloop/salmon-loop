@@ -56,7 +56,7 @@ export async function codeSearchExecutor(
       maxOutputBytes: LIMITS.maxToolOutputBytes,
     },
     audit: {
-      event: (e) => logger.audit('code.search.backend', e),
+      event: (e) => logger.audit('code.search.backend', e, 'tool'),
     },
   };
 

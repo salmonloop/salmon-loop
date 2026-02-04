@@ -271,10 +271,10 @@ export class Logger {
     if (!this.silent && this.reporter.clear) this.reporter.clear();
   }
 
-  audit(action: string, details: any): void {
+  audit(action: string, details: any, source?: string): void {
     const rawMessage = `${action}: ${JSON.stringify(details)}`;
     const formatted = this.formatMessage(rawMessage);
-    recordAuditEvent(action, details);
+    recordAuditEvent(action, details, source);
     this.writeToLog('audit', formatted);
     if (!this.silent) this.reporter.log('audit', formatted);
   }

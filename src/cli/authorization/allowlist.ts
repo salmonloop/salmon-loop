@@ -126,25 +126,33 @@ async function loadAllowlist(
     if (cached) {
       const reason = getCacheInvalidationReason(cached, resolved, sourceHash);
       if (!reason && cached.data?.tools) {
-        logger.audit('ALLOWLIST_CACHE_HIT', {
-          path: resolved,
-          hash: sourceHash,
-          mtimeMs: stat.mtimeMs,
-        });
+        logger.audit(
+          'ALLOWLIST_CACHE_HIT',
+          {
+            path: resolved,
+            hash: sourceHash,
+            mtimeMs: stat.mtimeMs,
+          },
+          'allowlist',
+        );
         return cached.data;
       }
       if (reason) {
         logger.info(text.cli.authCacheInvalidated(reason, resolved));
-        logger.audit('ALLOWLIST_CACHE_INVALIDATED', {
-          path: resolved,
-          reason,
-          cachedPath: cached.sourcePath,
-          cachedHash: cached.sourceHash,
-          cachedMtimeMs: cached.sourceMtimeMs,
-        });
+        logger.audit(
+          'ALLOWLIST_CACHE_INVALIDATED',
+          {
+            path: resolved,
+            reason,
+            cachedPath: cached.sourcePath,
+            cachedHash: cached.sourceHash,
+            cachedMtimeMs: cached.sourceMtimeMs,
+          },
+          'allowlist',
+        );
       }
     } else {
-      logger.audit('ALLOWLIST_CACHE_MISS', { path: resolved, cachePath });
+      logger.audit('ALLOWLIST_CACHE_MISS', { path: resolved, cachePath }, 'allowlist');
     }
 
     let parsed: any;
@@ -152,7 +160,7 @@ async function loadAllowlist(
       parsed = JSON.parse(raw);
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
-      logger.audit('ALLOWLIST_PARSE_FAILED', { path: resolved, error: msg });
+      logger.audit('ALLOWLIST_PARSE_FAILED', { path: resolved, error: msg }, 'allowlist');
       return createEmptyAllowlist();
     }
     if (parsed && parsed.version === 1 && parsed.tools && typeof parsed.tools === 'object') {

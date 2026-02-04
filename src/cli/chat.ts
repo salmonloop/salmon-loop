@@ -219,18 +219,18 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
   const queueController: QueueController = {
     pause: () => {
       queue.pause();
-      logger.audit('QUEUE_PAUSE', { source: 'chat', status: 'paused' });
+      logger.audit('QUEUE_PAUSE', { status: 'paused' }, 'chat');
     },
     resume: () => {
       queue.resume();
       lastInterruptedInput = null;
-      logger.audit('QUEUE_RESUME', { source: 'chat', status: 'resumed' });
+      logger.audit('QUEUE_RESUME', { status: 'resumed' }, 'chat');
     },
     clear: () => {
       const cleared = queue.clear();
       lastInterruptedInput = null;
       latestDispatch?.({ type: 'CLEAR_QUEUE_MESSAGES' });
-      logger.audit('QUEUE_CLEAR', { source: 'chat', cleared });
+      logger.audit('QUEUE_CLEAR', { cleared }, 'chat');
       return cleared;
     },
     retry: () => {
