@@ -73,16 +73,11 @@ export async function startGUI(
         }
       }}
     />,
+    {
+      exitOnCtrlC: false,
+    },
   );
 
-  // Handle process signals
-  const cleanup = () => {
-    unmount();
-    process.exit(0);
-  };
-  process.on('SIGINT', cleanup);
-
   const result = await Promise.race([waitUntilExit(), exitPromise]);
-  process.off('SIGINT', cleanup);
   return result;
 }

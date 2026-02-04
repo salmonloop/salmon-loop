@@ -10,6 +10,7 @@ import { MessageList } from './components/MessageList.js';
 import { UI_CONFIG } from './config.js';
 import { useCommandLifecycle } from './hooks/useCommandLifecycle.js';
 import { useLoopEvents } from './hooks/useLoopEvents.js';
+import { useMessageQueue } from './hooks/useMessageQueue.js';
 import { useTerminalDimensions } from './hooks/useTerminalDimensions.js';
 import { UIStoreProvider, useUIStore } from './store/context.js';
 
@@ -21,11 +22,51 @@ const AppCore: React.FC<{
 }> = ({ mode, onStart, onChatInput, sessionManager }) => {
   const { state, dispatch } = useUIStore();
 
-  const { signal } = useCommandLifecycle(state.currentPhase as any, () => process.exit(0));
+  const lifecycleStatus = state.isThinking ? 'running' : 'idle';
+  const { signal } = useCommandLifecycle(lifecycleStatus, () => process.exit(0));
 
   // Use modular hooks for environment and loop events
   useTerminalDimensions();
   const { sanitizeAndDispatch } = useLoopEvents(mode, onStart, signal);
+
+  const pendingConfirmationRef = React.useRef(state.pendingConfirmation);
+  React.useEffect(() => {
+    pendingConfirmationRef.current = state.pendingConfirmation;
+  }, [state.pendingConfirmation]);
+
+  const handleChatInput = React.useCallback(
+    async (value: string) => {
+      if (!onChatInput) return;
+
+      const result = await onChatInput(
+        value,
+        (ev: any) => sanitizeAndDispatch(ev),
+        {
+          signal,
+        },
+        dispatch,
+      );
+
+      if (result?.action === 'NEED_CONFIRMATION') {
+        dispatch({ type: 'SET_CONFIRMATION', payload: result.data });
+      } else {
+        dispatch({ type: 'SET_INPUT', payload: '' });
+        if (pendingConfirmationRef.current) {
+          dispatch({ type: 'CLEAR_CONFIRMATION' });
+        }
+      }
+
+      return result;
+    },
+    [dispatch, onChatInput, sanitizeAndDispatch, signal],
+  );
+
+  const { enqueue, isProcessing, pendingCount } = useMessageQueue(handleChatInput);
+
+  React.useEffect(() => {
+    if (mode !== 'chat') return;
+    dispatch({ type: 'SET_THINKING', payload: isProcessing || pendingCount > 0 });
+  }, [dispatch, isProcessing, pendingCount, mode]);
 
   return (
     <Box flexDirection="column">
@@ -90,22 +131,10 @@ const AppCore: React.FC<{
                   },
                 });
 
-                const result = await onChatInput(
-                  val,
-                  (ev: any) => sanitizeAndDispatch(ev),
-                  {
-                    signal: new AbortController().signal,
-                  },
-                  dispatch,
-                );
-
-                if (result?.action === 'NEED_CONFIRMATION') {
-                  dispatch({ type: 'SET_CONFIRMATION', payload: result.data });
-                } else {
-                  dispatch({ type: 'SET_INPUT', payload: '' });
-                  if (state.pendingConfirmation) {
-                    dispatch({ type: 'CLEAR_CONFIRMATION' });
-                  }
+                try {
+                  await enqueue(val);
+                } catch (_error) {
+                  // Swallow to keep UI responsive.
                 }
               }
             }}
