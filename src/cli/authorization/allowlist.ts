@@ -56,6 +56,12 @@ function resolveAllowlistPath(filePath: string, repoRoot: string): string {
   return path.resolve(repoRoot, expanded);
 }
 
+function resolveAllowlistScope(resolvedPath: string, repoRoot: string): 'user' | 'repo' {
+  if (resolvedPath.startsWith(os.homedir())) return 'user';
+  if (resolvedPath.startsWith(repoRoot)) return 'repo';
+  return 'repo';
+}
+
 function getCachePath(filePath: string, repoRoot: string): string {
   const expanded = resolveAllowlistPath(filePath, repoRoot);
   if (expanded.includes(path.join(repoRoot, '.salmonloop'))) {
@@ -122,6 +128,7 @@ async function loadAllowlist(
     const stat = await fs.stat(resolved);
     const raw = await fs.readFile(resolved, 'utf8');
     const sourceHash = hashAllowlistSource(raw);
+    const scope = resolveAllowlistScope(resolved, repoRoot);
     const cached = await readAllowlistCache(cachePath);
     if (cached) {
       const reason = getCacheInvalidationReason(cached, resolved, sourceHash);
@@ -133,7 +140,7 @@ async function loadAllowlist(
             hash: sourceHash,
             mtimeMs: stat.mtimeMs,
           },
-          'allowlist',
+          { source: 'allowlist', severity: 'low', scope },
         );
         return cached.data;
       }
@@ -148,11 +155,15 @@ async function loadAllowlist(
             cachedHash: cached.sourceHash,
             cachedMtimeMs: cached.sourceMtimeMs,
           },
-          'allowlist',
+          { source: 'allowlist', severity: 'low', scope },
         );
       }
     } else {
-      logger.audit('ALLOWLIST_CACHE_MISS', { path: resolved, cachePath }, 'allowlist');
+      logger.audit(
+        'ALLOWLIST_CACHE_MISS',
+        { path: resolved, cachePath },
+        { source: 'allowlist', severity: 'low', scope },
+      );
     }
 
     let parsed: any;
@@ -160,7 +171,11 @@ async function loadAllowlist(
       parsed = JSON.parse(raw);
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
-      logger.audit('ALLOWLIST_PARSE_FAILED', { path: resolved, error: msg }, 'allowlist');
+      logger.audit(
+        'ALLOWLIST_PARSE_FAILED',
+        { path: resolved, error: msg },
+        { source: 'allowlist', severity: 'medium', scope },
+      );
       return createEmptyAllowlist();
     }
     if (parsed && parsed.version === 1 && parsed.tools && typeof parsed.tools === 'object') {

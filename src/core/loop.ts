@@ -3,7 +3,7 @@ import { randomBytes } from 'crypto';
 import { text } from '../locales/index.js';
 
 import { GitAdapter } from './adapters/git/git-adapter.js';
-import { clearAuditTrail } from './audit-trail.js';
+import { clearAuditContext, clearAuditTrail, setAuditContext } from './audit-trail.js';
 import { Semaphore } from './concurrency.js';
 import { executeSalmonLoopFlow } from './grizzco/flows/SalmonLoopFlow.js';
 import { LIMITS } from './limits.js';
@@ -86,6 +86,8 @@ function collectSidecarPaths(options: LoopOptions): string[] {
 export class SalmonLoop {
   async run(options: LoopOptions): Promise<LoopResult> {
     clearAuditTrail();
+    const correlationId = `run-${randomBytes(4).toString('hex')}`;
+    setAuditContext({ correlationId, scope: 'session' });
     const emit = (event: LoopEvent) => options.onEvent?.(event);
     const now = () => new Date();
     const logs: StepLog[] = [];
@@ -344,6 +346,7 @@ export class SalmonLoop {
         authorizationSummary: authorizationSummary || undefined,
       };
     } finally {
+      clearAuditContext();
       await env.teardown();
     }
   }

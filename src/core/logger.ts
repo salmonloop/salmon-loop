@@ -1,6 +1,7 @@
 import chalk from 'chalk';
 
 import { FileAdapter } from './adapters/fs/file-adapter.js';
+import type { AuditTrailMeta } from './audit-trail.js';
 import { recordAuditEvent } from './audit-trail.js';
 import { VerboseLevel } from './types.js';
 
@@ -271,10 +272,11 @@ export class Logger {
     if (!this.silent && this.reporter.clear) this.reporter.clear();
   }
 
-  audit(action: string, details: any, source?: string): void {
+  audit(action: string, details: any, meta?: string | AuditTrailMeta): void {
     const rawMessage = `${action}: ${JSON.stringify(details)}`;
     const formatted = this.formatMessage(rawMessage);
-    recordAuditEvent(action, details, source);
+    const auditMeta = typeof meta === 'string' ? { source: meta } : meta;
+    recordAuditEvent(action, details, auditMeta);
     this.writeToLog('audit', formatted);
     if (!this.silent) this.reporter.log('audit', formatted);
   }

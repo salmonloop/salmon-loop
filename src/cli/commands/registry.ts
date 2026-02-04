@@ -145,7 +145,11 @@ export const commands: Command[] = [
             message: text.cli.queueAlreadyPaused,
             timestamp: new Date(),
           });
-          logger.audit('QUEUE_PAUSE', { status: 'already_paused' }, 'cli');
+          logger.audit(
+            'QUEUE_PAUSE',
+            { status: 'already_paused' },
+            { source: 'cli', severity: 'low', scope: 'session' },
+          );
           return;
         }
         queue.pause();
@@ -155,7 +159,11 @@ export const commands: Command[] = [
           message: text.cli.queuePaused,
           timestamp: new Date(),
         });
-        logger.audit('QUEUE_PAUSE', { status: 'paused' }, 'cli');
+        logger.audit(
+          'QUEUE_PAUSE',
+          { status: 'paused' },
+          { source: 'cli', severity: 'low', scope: 'session' },
+        );
         return;
       }
 
@@ -167,7 +175,11 @@ export const commands: Command[] = [
             message: text.cli.queueNotPaused,
             timestamp: new Date(),
           });
-          logger.audit('QUEUE_RESUME', { status: 'not_paused' }, 'cli');
+          logger.audit(
+            'QUEUE_RESUME',
+            { status: 'not_paused' },
+            { source: 'cli', severity: 'low', scope: 'session' },
+          );
           return;
         }
         queue.resume();
@@ -177,7 +189,11 @@ export const commands: Command[] = [
           message: text.cli.queueResumed,
           timestamp: new Date(),
         });
-        logger.audit('QUEUE_RESUME', { status: 'resumed' }, 'cli');
+        logger.audit(
+          'QUEUE_RESUME',
+          { status: 'resumed' },
+          { source: 'cli', severity: 'low', scope: 'session' },
+        );
         return;
       }
 
@@ -210,7 +226,11 @@ export const commands: Command[] = [
           message: text.cli.queueClearedCount(cleared),
           timestamp: new Date(),
         });
-        logger.audit('QUEUE_CLEAR', { cleared }, 'cli');
+        logger.audit(
+          'QUEUE_CLEAR',
+          { cleared },
+          { source: 'cli', severity: 'low', scope: 'session' },
+        );
         return;
       }
 

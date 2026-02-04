@@ -168,7 +168,7 @@ export class Pipeline<CurrentCtx> {
               originalError: errorStr,
               recoveryError: errorDetail,
             },
-            'system',
+            { source: 'system', severity: 'high', scope: 'session' },
           );
         }
 
