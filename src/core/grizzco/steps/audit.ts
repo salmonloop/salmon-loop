@@ -1,6 +1,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
+import { getAuditTrail } from '../../audit-trail.js';
 import { logger } from '../../logger.js';
 import { SalmonError } from '../../types.js';
 import { FlowReport } from '../pipeline.js';
@@ -60,7 +61,10 @@ export async function saveAudit(report: FlowReport, _options: any): Promise<stri
         errorStack: errorMeta?.stack,
       },
       traces: report.traces,
-      context: sanitizedData,
+      context: {
+        ...sanitizedData,
+        auditTrail: getAuditTrail(),
+      },
       authorizationIndex,
       environment: {
         cwd: process.cwd(),

@@ -1,6 +1,7 @@
 import chalk from 'chalk';
 
 import { FileAdapter } from './adapters/fs/file-adapter.js';
+import { recordAuditEvent } from './audit-trail.js';
 import { VerboseLevel } from './types.js';
 
 export type LogLevel = 'none' | 'basic' | 'extended';
@@ -273,6 +274,7 @@ export class Logger {
   audit(action: string, details: any): void {
     const rawMessage = `${action}: ${JSON.stringify(details)}`;
     const formatted = this.formatMessage(rawMessage);
+    recordAuditEvent(action, details);
     this.writeToLog('audit', formatted);
     if (!this.silent) this.reporter.log('audit', formatted);
   }

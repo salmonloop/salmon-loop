@@ -143,9 +143,18 @@ async function loadAllowlist(
           cachedMtimeMs: cached.sourceMtimeMs,
         });
       }
+    } else {
+      logger.audit('ALLOWLIST_CACHE_MISS', { path: resolved, cachePath });
     }
 
-    const parsed = JSON.parse(raw);
+    let parsed: any;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      logger.audit('ALLOWLIST_PARSE_FAILED', { path: resolved, error: msg });
+      return createEmptyAllowlist();
+    }
     if (parsed && parsed.version === 1 && parsed.tools && typeof parsed.tools === 'object') {
       const allowlist = { version: 1, tools: parsed.tools } as ToolAuthorizationAllowlist;
       await saveAllowlistCache(cachePath, resolved, stat.mtimeMs, sourceHash, allowlist);

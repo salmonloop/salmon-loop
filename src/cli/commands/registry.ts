@@ -145,6 +145,7 @@ export const commands: Command[] = [
             message: text.cli.queueAlreadyPaused,
             timestamp: new Date(),
           });
+          logger.audit('QUEUE_PAUSE', { source: 'command', status: 'already_paused' });
           return;
         }
         queue.pause();
@@ -154,6 +155,7 @@ export const commands: Command[] = [
           message: text.cli.queuePaused,
           timestamp: new Date(),
         });
+        logger.audit('QUEUE_PAUSE', { source: 'command', status: 'paused' });
         return;
       }
 
@@ -165,6 +167,7 @@ export const commands: Command[] = [
             message: text.cli.queueNotPaused,
             timestamp: new Date(),
           });
+          logger.audit('QUEUE_RESUME', { source: 'command', status: 'not_paused' });
           return;
         }
         queue.resume();
@@ -174,6 +177,7 @@ export const commands: Command[] = [
           message: text.cli.queueResumed,
           timestamp: new Date(),
         });
+        logger.audit('QUEUE_RESUME', { source: 'command', status: 'resumed' });
         return;
       }
 
