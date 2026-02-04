@@ -10,7 +10,6 @@ import { MessageList } from './components/MessageList.js';
 import { UI_CONFIG } from './config.js';
 import { useCommandLifecycle } from './hooks/useCommandLifecycle.js';
 import { useLoopEvents } from './hooks/useLoopEvents.js';
-import { useMessageQueue } from './hooks/useMessageQueue.js';
 import { useTerminalDimensions } from './hooks/useTerminalDimensions.js';
 import { UIStoreProvider, useUIStore } from './store/context.js';
 
@@ -60,13 +59,6 @@ const AppCore: React.FC<{
     },
     [dispatch, onChatInput, sanitizeAndDispatch, signal],
   );
-
-  const { enqueue, isProcessing, pendingCount } = useMessageQueue(handleChatInput);
-
-  React.useEffect(() => {
-    if (mode !== 'chat') return;
-    dispatch({ type: 'SET_THINKING', payload: isProcessing || pendingCount > 0 });
-  }, [dispatch, isProcessing, pendingCount, mode]);
 
   return (
     <Box flexDirection="column">
@@ -119,7 +111,6 @@ const AppCore: React.FC<{
             }
             onSubmit={async (val) => {
               if (onChatInput && val.trim()) {
-                dispatch({ type: 'SET_THINKING', payload: true });
                 // Explicitly add user message to history for navigation
                 dispatch({
                   type: 'ADD_MESSAGE',
@@ -132,7 +123,7 @@ const AppCore: React.FC<{
                 });
 
                 try {
-                  await enqueue(val);
+                  await handleChatInput(val);
                 } catch (_error) {
                   // Swallow to keep UI responsive.
                 }
