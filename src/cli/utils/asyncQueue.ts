@@ -7,7 +7,7 @@ export interface AsyncQueueState {
 export interface AsyncQueueControls<T> {
   enqueue: (task: () => Promise<T>) => Promise<T>;
   enqueueFront: (task: () => Promise<T>) => Promise<T>;
-  clear: () => void;
+  clear: () => number;
   pause: () => void;
   resume: () => void;
   getState: () => AsyncQueueState;
@@ -127,8 +127,16 @@ export function createAsyncQueue<T>(
   };
 
   const clear = () => {
-    queue.length = 0;
+    let cleared = 0;
+    while (queue.length > 0) {
+      const entry = queue.shift();
+      if (entry) {
+        entry.reject(new Error('AsyncQueue cleared'));
+        cleared += 1;
+      }
+    }
     emitState();
+    return cleared;
   };
 
   const pause = () => {

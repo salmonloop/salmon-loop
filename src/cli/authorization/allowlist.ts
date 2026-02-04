@@ -4,8 +4,10 @@ import * as os from 'os';
 import * as path from 'path';
 
 import type { ToolAuthorizationConfig } from '../../core/config/types.js';
+import { logger } from '../../core/logger.js';
 import type { SideEffect } from '../../core/tools/types.js';
 import type { ExecutionPhase } from '../../core/types.js';
+import { text } from '../locales/index.js';
 
 export interface ToolAuthorizationAllowlist {
   version: 1;
@@ -65,24 +67,11 @@ function getCachePath(filePath: string, repoRoot: string): string {
   return path.resolve(repoRoot, '.salmonloop', 'state', 'allowlist-cache.json');
 }
 
-async function loadAllowlistCache(
-  cachePath: string,
-  sourcePath: string,
-  sourceHash: string,
-): Promise<ToolAuthorizationAllowlist | null> {
+async function readAllowlistCache(cachePath: string): Promise<AllowlistCacheFile | null> {
   try {
     const raw = await fs.readFile(cachePath, 'utf8');
     const parsed = JSON.parse(raw) as AllowlistCacheFile;
-    if (
-      parsed &&
-      parsed.version === CACHE_VERSION &&
-      parsed.sourcePath === sourcePath &&
-      parsed.sourceHash === sourceHash &&
-      parsed.data?.tools
-    ) {
-      return parsed.data;
-    }
-    return null;
+    return parsed;
   } catch (error: any) {
     if (error?.code === 'ENOENT') return null;
     return null;
@@ -111,6 +100,18 @@ function hashAllowlistSource(raw: string): string {
   return crypto.createHash('sha256').update(raw).digest('hex');
 }
 
+function getCacheInvalidationReason(
+  cached: AllowlistCacheFile,
+  sourcePath: string,
+  sourceHash: string,
+): string | null {
+  if (cached.version !== CACHE_VERSION) return 'version_mismatch';
+  if (cached.sourcePath !== sourcePath) return 'source_path_mismatch';
+  if (cached.sourceHash !== sourceHash) return 'hash_mismatch';
+  if (!cached.data?.tools) return 'missing_tools';
+  return null;
+}
+
 async function loadAllowlist(
   filePath: string,
   repoRoot: string,
@@ -121,8 +122,28 @@ async function loadAllowlist(
     const stat = await fs.stat(resolved);
     const raw = await fs.readFile(resolved, 'utf8');
     const sourceHash = hashAllowlistSource(raw);
-    const cached = await loadAllowlistCache(cachePath, resolved, sourceHash);
-    if (cached) return cached;
+    const cached = await readAllowlistCache(cachePath);
+    if (cached) {
+      const reason = getCacheInvalidationReason(cached, resolved, sourceHash);
+      if (!reason && cached.data?.tools) {
+        logger.audit('ALLOWLIST_CACHE_HIT', {
+          path: resolved,
+          hash: sourceHash,
+          mtimeMs: stat.mtimeMs,
+        });
+        return cached.data;
+      }
+      if (reason) {
+        logger.info(text.cli.authCacheInvalidated(reason, resolved));
+        logger.audit('ALLOWLIST_CACHE_INVALIDATED', {
+          path: resolved,
+          reason,
+          cachedPath: cached.sourcePath,
+          cachedHash: cached.sourceHash,
+          cachedMtimeMs: cached.sourceMtimeMs,
+        });
+      }
+    }
 
     const parsed = JSON.parse(raw);
     if (parsed && parsed.version === 1 && parsed.tools && typeof parsed.tools === 'object') {

@@ -36,7 +36,7 @@ export interface QueueStatus {
 export interface QueueController {
   pause: () => void;
   resume: () => void;
-  clear: () => void;
+  clear: () => number;
   retry: () => boolean;
   status: () => QueueStatus;
 }

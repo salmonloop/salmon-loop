@@ -175,4 +175,21 @@ describe('createAsyncQueue', () => {
     expect(firstError).toBeInstanceOf(Error);
     expect(secondResult).toBe('second');
   });
+
+  it('rejects pending tasks when cleared', async () => {
+    const queue = createAsyncQueue<string>();
+    queue.pause();
+
+    let error: unknown;
+    const task = queue.enqueue(() => Promise.resolve('ok'));
+
+    const cleared = queue.clear();
+
+    await task.catch((err) => {
+      error = err;
+    });
+
+    expect(error).toBeInstanceOf(Error);
+    expect(cleared).toBe(1);
+  });
 });

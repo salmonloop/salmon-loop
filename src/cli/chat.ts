@@ -1,4 +1,5 @@
 import type { ToolAuthorizationConfig } from '../core/config/index.js';
+import { logger } from '../core/logger.js';
 import { runSalmonLoop } from '../core/loop.js';
 import { ChatSessionManager } from '../core/session/manager.js';
 import type { CheckpointStrategy, LLM, LoopEvent } from '../core/types.js';
@@ -224,9 +225,11 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
       lastInterruptedInput = null;
     },
     clear: () => {
-      queue.clear();
+      const cleared = queue.clear();
       lastInterruptedInput = null;
       latestDispatch?.({ type: 'CLEAR_QUEUE_MESSAGES' });
+      logger.audit('QUEUE_CLEAR', { source: 'chat', cleared });
+      return cleared;
     },
     retry: () => {
       if (!lastInterruptedInput) return false;

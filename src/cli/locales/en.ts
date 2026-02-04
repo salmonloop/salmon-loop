@@ -66,6 +66,7 @@ export const en = {
   queueNotPaused: 'Queue is not paused.',
   queueResumed: 'Queue resumed.',
   queueCleared: 'Queue cleared.',
+  queueClearedCount: (count: number) => `Queue cleared. Dropped ${count} pending task(s).`,
   queueRetryQueued: 'Re-queued the interrupted task at the front of the queue.',
   queueRetryMissing: 'No interrupted task to retry.',
   queueInterruptedHint: 'Interrupted task detected. Use /queue retry to re-run it.',
@@ -102,6 +103,8 @@ export const en = {
   authAddUsage: 'Usage: /auth add <scope> <tool> [phase] [args=<hash>] [effects=a,b] [deny]',
   authRemoveUsage: 'Usage: /auth remove <scope> <tool> [phase] [args=<hash>] [effects=a,b]',
   authCacheCleared: 'Authorization allowlist cache cleared.',
+  authCacheInvalidated: (reason: string, path: string) =>
+    `Authorization allowlist cache invalidated: ${reason} (${path})`,
   authInvalidPhase: (phase: string) => `Invalid phase: ${phase}.`,
   toolAuthorizationPrompt: (tool: string, risk: string, effects: string, summary: string) =>
     `Authorize tool call: ${tool} (risk=${risk}, effects=${effects})\nArgs: ${summary}\nUse code alone to allow once, append "all" for this session, "save" to persist in repo, or "global" to persist for this user.`,

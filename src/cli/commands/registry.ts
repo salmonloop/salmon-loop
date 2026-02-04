@@ -1,5 +1,6 @@
 import * as crypto from 'crypto';
 
+import { logger } from '../../core/logger.js';
 import { CheckpointManager } from '../../core/strata/checkpoint/manager.js';
 import type { SideEffect } from '../../core/tools/types.js';
 import { EXECUTION_PHASES } from '../../core/types.js';
@@ -198,13 +199,14 @@ export const commands: Command[] = [
       }
 
       if (subCommand === 'clear') {
-        queue.clear();
+        const cleared = queue.clear();
         emit({
           type: 'log',
           level: 'info',
-          message: text.cli.queueCleared,
+          message: text.cli.queueClearedCount(cleared),
           timestamp: new Date(),
         });
+        logger.audit('QUEUE_CLEAR', { source: 'command', cleared });
         return;
       }
 
