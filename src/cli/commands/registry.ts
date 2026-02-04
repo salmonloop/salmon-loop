@@ -3,6 +3,22 @@ import { text } from '../locales/index.js';
 
 import { Command, CommandContext, CommandResult } from './types.js';
 
+/**
+ * Parses input to provide a structured context for suggestions.
+ */
+function parseSuggestionContext(input: string) {
+  const trimmed = input.trimStart();
+  const parts = trimmed.split(/\s+/);
+
+  // argIndex always points to the current argument slot being filled
+  // e.g., "/session " splits to ["/session", ""], argIndex is 1.
+  const argIndex = parts.length - 1;
+  const currentPrefix = parts[argIndex] || '';
+  const isSpaceTrailing = input.endsWith(' ');
+
+  return { argIndex, currentPrefix, isSpaceTrailing };
+}
+
 export const commands: Command[] = [
   {
     name: '/exit',
@@ -51,12 +67,24 @@ export const commands: Command[] = [
   {
     name: '/session',
     description: text.cli.commandSessions,
-    getSuggestions: async ({ sessionManager }) => {
-      const sessions = await sessionManager.listSessions();
-      return sessions.map((s) => ({
-        name: s.id.slice(0, 8),
-        description: `${s.name} (${new Date(s.updatedAt).toLocaleDateString()})`,
-      }));
+    getSuggestions: async ({ sessionManager, input }) => {
+      const { argIndex, currentPrefix } = parseSuggestionContext(input);
+
+      // Level 1: Suggest sessions
+      if (argIndex === 1) {
+        const sessions = await sessionManager.listSessions();
+        const search = currentPrefix.toLowerCase();
+        return sessions
+          .filter(
+            (s) => s.id.toLowerCase().startsWith(search) || s.name.toLowerCase().includes(search),
+          )
+          .map((s) => ({
+            name: s.id.slice(0, 8),
+            description: `${s.name} (${new Date(s.updatedAt).toLocaleDateString()})`,
+          }));
+      }
+
+      return [];
     },
     execute: async ({ emit, sessionManager, input }) => {
       const args = input.trim().split(/\s+/).slice(1);
@@ -75,7 +103,6 @@ export const commands: Command[] = [
             type: 'log',
             level: 'error',
             message: `Failed to switch session: ${error.message}`,
-            timestamp: new Date(),
           });
         }
         return;
@@ -103,29 +130,28 @@ export const commands: Command[] = [
     name: '/snapshot',
     description: 'Manage repository snapshots (list, create, delete, restore)',
     getSuggestions: async ({ sessionManager, input }) => {
-      const trimmed = input.trimStart();
-      const isSpaceTrailing = input.endsWith(' ');
-      const parts = trimmed.split(/\s+/);
-      const subCommands = ['list', 'create', 'delete', 'restore'];
+      const { argIndex, currentPrefix } = parseSuggestionContext(input);
+      const parts = input.trimStart().split(/\s+/);
 
       // Level 1: Sub-command suggestions
-      if (parts.length === 1 || (parts.length === 2 && !isSpaceTrailing)) {
-        const search = parts[1] || '';
+      if (argIndex === 1) {
+        const subCommands = ['list', 'create', 'delete', 'restore'];
+        const search = currentPrefix.toLowerCase();
         return subCommands
           .filter((s) => s.startsWith(search))
           .map((s) => ({ name: s, description: `Snapshot ${s} command` }));
       }
 
       // Level 2: Data suggestions (hashes)
-      if (parts.length >= 2 && isSpaceTrailing) {
-        const subAction = parts[1].toLowerCase();
+      if (argIndex === 2) {
+        const subAction = parts[1]?.toLowerCase();
         if (['restore', 'delete', 'list'].includes(subAction)) {
           const manager = new CheckpointManager();
           const repoPath = sessionManager.getCurrent().meta.repoPath;
           const snapshots = await manager.listSnapshots(repoPath);
-          const search = parts[2] || '';
+          const search = currentPrefix.toLowerCase();
           return snapshots
-            .filter((s) => s.hash.startsWith(search))
+            .filter((s) => s.hash.toLowerCase().startsWith(search))
             .map((s) => ({
               name: s.hash.slice(0, 7),
               description: s.message,
@@ -201,14 +227,14 @@ export const commands: Command[] = [
           });
           return;
         }
-        // 🔴 触发挑战-响应拦截器
+        // Intercept for high-risk operation
         return {
           action: 'NEED_CONFIRMATION',
           message: `Restore will overwrite your current workspace.`,
           data: {
             command: '/snapshot',
             args: ['restore', hash],
-            challenge: hash.slice(0, 6), // 必须输入 Hash 的前 6 位
+            challenge: hash.slice(0, 6),
           },
         };
       } else {
@@ -227,34 +253,20 @@ export async function getSuggestions(
   input: string,
   context: CommandContext,
 ): Promise<{ name: string; description: string }[]> {
-  const trimmed = input.trimStart();
-  if (!trimmed.startsWith('/')) return [];
+  const { argIndex, currentPrefix } = parseSuggestionContext(input);
 
-  const parts = trimmed.split(/\s+/);
-  const commandName = parts[0].toLowerCase();
+  if (!input.trimStart().startsWith('/')) return [];
+
+  const commandName = input.trimStart().split(/\s+/)[0].toLowerCase();
   const exactMatch = commands.find((c) => c.name.toLowerCase() === commandName);
 
-  // If we have an exact command match, or we're typing arguments, show sub-suggestions
-  if (parts.length > 1 || input.endsWith(' ')) {
-    if (exactMatch?.getSuggestions) {
-      // Only provide suggestions for the first argument level.
-      // parts.length === 1 means we just typed the command (no space yet, but input.endsWith(' ') might be false).
-      // parts.length === 2 means we are typing the first argument (possibly empty if just typed a space).
-      // If we have a second argument (parts.length > 2), stop suggesting.
-      // Only provide suggestions for up to 2 argument levels.
-      // parts.length === 1: command name
-      // parts.length === 2: first argument (e.g. subcommand)
-      // parts.length === 3: second argument (e.g. hash)
-      if (parts.length > 3) {
-        return [];
-      }
-      return await exactMatch.getSuggestions(context);
-    }
-    return [];
+  // If we have an exact command match and we are in the argument area
+  if (exactMatch && argIndex > 0) {
+    return exactMatch.getSuggestions ? await exactMatch.getSuggestions(context) : [];
   }
 
-  // Otherwise, suggest commands
-  const search = commandName;
+  // Otherwise, suggest base commands
+  const search = currentPrefix.toLowerCase();
   return commands
     .filter((c) => c.name.toLowerCase().startsWith(search))
     .map((c) => ({ name: c.name, description: c.description }));

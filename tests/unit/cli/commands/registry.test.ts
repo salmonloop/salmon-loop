@@ -1,59 +1,131 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 import { findCommand, getSuggestions } from '../../../../src/cli/commands/registry.js';
 
-describe('CLI Command Registry', () => {
-  describe('findCommand', () => {
-    it('should find registered commands', () => {
+// Mock external dependencies to ensure isolation
+vi.mock('../../../../src/core/strata/checkpoint/manager.js', () => ({
+  CheckpointManager: vi.fn().mockImplementation(() => ({
+    listSnapshots: vi.fn().mockResolvedValue([
+      { hash: 'abcdef123456', message: 'First Snapshot' },
+      { hash: '789012345678', message: 'Second Snapshot' },
+    ]),
+  })),
+}));
+
+describe('CLI Command Registry: Strict Logic Guard', () => {
+  describe('findCommand (Case & Space Robustness)', () => {
+    it('should find command with exact match', () => {
       const cmd = findCommand('/help');
-      expect(cmd).toBeDefined();
       expect(cmd?.name).toBe('/help');
     });
 
     it('should be case-insensitive', () => {
-      const cmd = findCommand('/HELP');
-      expect(cmd).toBeDefined();
-      expect(cmd?.name).toBe('/help');
+      expect(findCommand('/HELP')?.name).toBe('/help');
+      expect(findCommand('/stAtUs')?.name).toBe('/status');
     });
 
-    it('should handle leading/trailing spaces', () => {
-      const cmd = findCommand('  /status  ');
-      expect(cmd).toBeDefined();
-      expect(cmd?.name).toBe('/status');
+    it('should trim leading/trailing whitespace', () => {
+      expect(findCommand('   /status   ')?.name).toBe('/status');
     });
 
-    it('should return undefined for unknown commands', () => {
-      const cmd = findCommand('/unknown');
-      expect(cmd).toBeUndefined();
-    });
-
-    it('should not match partial words', () => {
-      // /exit should not match /exitter
-      const cmd = findCommand('/exitter');
-      expect(cmd).toBeUndefined();
+    it('should not match partial command names', () => {
+      expect(findCommand('/exitter')).toBeUndefined();
     });
   });
 
-  describe('getSuggestions', () => {
+  describe('getSuggestions (Multi-Level Engine)', () => {
+    const mockSessionManager = {
+      listSessions: vi.fn().mockResolvedValue([
+        { id: 'session-unique-id', name: 'Dev Project', updatedAt: new Date().toISOString() },
+        { id: 'abc-xyz-123', name: 'Test Suite', updatedAt: new Date().toISOString() },
+      ]),
+      getCurrent: vi.fn().mockReturnValue({ meta: { repoPath: '/test-repo' } }),
+    };
+
     const mockContext = {
-      emit: () => {},
-      sessionManager: {} as any,
+      emit: vi.fn(),
+      sessionManager: mockSessionManager as any,
       input: '',
     };
 
-    it('should return matches for prefix', async () => {
-      const matches = await getSuggestions('/h', { ...mockContext, input: '/h' });
-      expect(matches.map((m: any) => m.name)).toContain('/help');
-      expect(matches.map((m: any) => m.name)).not.toContain('/history');
+    describe('Level 0: Command Suggestions', () => {
+      it('should suggest commands based on prefix', async () => {
+        const matches = await getSuggestions('/se', { ...mockContext, input: '/se' });
+        expect(matches.map((m: any) => m.name)).toContain('/session');
+      });
+
+      it('should suggest commands case-insensitively', async () => {
+        const matches = await getSuggestions('/S', { ...mockContext, input: '/S' });
+        const names = matches.map((m: any) => m.name);
+        expect(names).toContain('/session');
+        expect(names).toContain('/status');
+      });
+
+      it('should return empty array if not starting with /', async () => {
+        expect(await getSuggestions('help', { ...mockContext, input: 'help' })).toEqual([]);
+      });
     });
 
-    it('should be case-insensitive for suggestions', async () => {
-      const matches = await getSuggestions('/H', { ...mockContext, input: '/H' });
-      expect(matches.map((m: any) => m.name)).toContain('/help');
+    describe('Level 1: Parameter Suggestions (argIndex=1)', () => {
+      it('should trigger session list immediately after space', async () => {
+        const input = '/session ';
+        const matches = await getSuggestions(input, { ...mockContext, input });
+        expect(matches.length).toBe(2);
+        // ID should be sliced to 8
+        expect(matches.map((m: any) => m.name)).toContain('session-');
+      });
+
+      it('should filter session list by prefix', async () => {
+        const input = '/session a';
+        const matches = await getSuggestions(input, { ...mockContext, input });
+        expect(matches.length).toBe(1);
+        expect(matches[0].name).toBe('abc-xyz-');
+      });
+
+      it('should suggest subcommands for /snapshot', async () => {
+        const input = '/snapshot ';
+        const matches = await getSuggestions(input, { ...mockContext, input });
+        const names = matches.map((m: any) => m.name);
+        expect(names).toEqual(['list', 'create', 'delete', 'restore']);
+      });
     });
 
-    it('should return empty array if not starting with /', async () => {
-      expect(await getSuggestions('help', { ...mockContext, input: 'help' })).toEqual([]);
+    describe('Level 2: Deep Parameter Suggestions (argIndex=2)', () => {
+      it('should suggest snapshot hashes for /snapshot restore', async () => {
+        const input = '/snapshot restore ';
+        const matches = await getSuggestions(input, { ...mockContext, input });
+        expect(matches.length).toBe(2);
+        expect(matches[0].name).toBe('abcdef1'); // .slice(0, 7)
+        expect(matches[1].name).toBe('7890123');
+      });
+
+      it('should filter snapshot hashes by prefix', async () => {
+        const input = '/snapshot delete 7';
+        const matches = await getSuggestions(input, { ...mockContext, input });
+        expect(matches.length).toBe(1);
+        expect(matches[0].name).toBe('7890123');
+      });
+    });
+
+    describe('Strict Stop Conditions (Anti-Bug Guard)', () => {
+      it('should return empty for /session when index > 1', async () => {
+        const input = '/session some-id extra-args ';
+        const matches = await getSuggestions(input, { ...mockContext, input });
+        expect(matches).toEqual([]);
+      });
+
+      it('should return empty for unknown subcommands', async () => {
+        const input = '/snapshot unknown-action ';
+        const matches = await getSuggestions(input, { ...mockContext, input });
+        expect(matches).toEqual([]);
+      });
+
+      it('should handle extreme whitespace scenarios', async () => {
+        const input = '   /snapshot    restore      ';
+        const matches = await getSuggestions(input, { ...mockContext, input });
+        expect(matches.length).toBe(2);
+        expect(matches[0].name).toBe('abcdef1');
+      });
     });
   });
 });

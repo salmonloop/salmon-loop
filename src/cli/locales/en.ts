@@ -37,6 +37,10 @@ export const en = {
     exitConfirmHint: 'Exit Salmonloop? (y/N)',
     renderError: 'Error rendering content',
     scrollHint: (current: number, total: number) => `(Scroll for more: ${current}/${total})`,
+    confirmationTitle: '⚠️  Action Required',
+    confirmationChallenge: (challenge: string) => `Enter [${challenge}] to confirm (Esc to cancel)`,
+    highRiskWarning:
+      'This operation involves physical code restoration. Please enter the validation code to continue.',
   },
 
   // Command descriptions
