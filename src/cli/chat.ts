@@ -1,9 +1,10 @@
 import { runSalmonLoop } from '../core/loop.js';
 import { ChatSessionManager } from '../core/session/manager.js';
-import type { CheckpointStrategy, LLM } from '../core/types.js';
+import type { CheckpointStrategy, LLM, LoopEvent } from '../core/types.js';
 
 import { CommandDispatcher } from './commands/dispatcher.js';
 import { text } from './locales/index.js';
+import type { GUIOptions } from './ui/index.js';
 
 export interface ChatModeOptions {
   repoPath: string;
@@ -31,56 +32,65 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
   // Dynamically import GUI to avoid top-level await issues with yoga-layout
   const { startGUI } = await import('./ui/index.js');
 
-  await startGUI('chat', sessionManager, async (emit, input, guiOptions, dispatch) => {
-    if (input === undefined) return;
+  await startGUI(
+    'chat',
+    sessionManager,
+    async (
+      emit: (ev: LoopEvent) => void,
+      input: string | undefined,
+      guiOptions: GUIOptions | undefined,
+      dispatch: ((action: any) => void) | undefined,
+    ) => {
+      if (input === undefined) return;
 
-    // Dispatch command or get validated input
-    const dispatchResult = await dispatcher.dispatch(input, {
-      emit,
-      sessionManager,
-      dispatch: dispatch || (() => {}),
-    });
+      // Dispatch command or get validated input
+      const dispatchResult = await dispatcher.dispatch(input, {
+        emit,
+        sessionManager,
+        dispatch: dispatch || (() => {}),
+      });
 
-    if (dispatchResult.type === 'executed' || dispatchResult.type === 'blocked') {
-      return;
-    }
+      if (dispatchResult.type === 'executed' || dispatchResult.type === 'blocked') {
+        return;
+      }
 
-    const trimmed = dispatchResult.trimmedInput;
+      const trimmed = dispatchResult.trimmedInput;
 
-    // Add user message
-    sessionManager.addMessage({
-      role: 'user',
-      content: trimmed, // Use the trimmed input
-      timestamp: Date.now(),
-    });
+      // Add user message
+      sessionManager.addMessage({
+        role: 'user',
+        content: trimmed, // Use the trimmed input
+        timestamp: Date.now(),
+      });
 
-    const result = await runSalmonLoop({
-      instruction: input,
-      verify: options.verifyCommand,
-      repoPath: options.repoPath,
-      llm: options.llm,
-      strategy: options.checkpointStrategy || 'worktree',
-      verbose: options.verbose ? 'basic' : undefined,
-      onEvent: emit,
-      signal: guiOptions?.signal,
-    });
+      const result = await runSalmonLoop({
+        instruction: input,
+        verify: options.verifyCommand,
+        repoPath: options.repoPath,
+        llm: options.llm,
+        strategy: options.checkpointStrategy || 'worktree',
+        verbose: options.verbose ? 'basic' : undefined,
+        onEvent: emit,
+        signal: guiOptions?.signal,
+      });
 
-    // Add assistant message & iteration info
-    const responseText = result.success
-      ? text.cli.chatSuccess(result.changedFiles?.join(', ') || 'none')
-      : text.cli.chatFailed(result.reason);
+      // Add assistant message & iteration info
+      const responseText = result.success
+        ? text.cli.chatSuccess(result.changedFiles?.join(', ') || 'none')
+        : text.cli.chatFailed(result.reason);
 
-    sessionManager.addMessage({
-      role: 'assistant',
-      content: responseText,
-      timestamp: Date.now(),
-    });
+      sessionManager.addMessage({
+        role: 'assistant',
+        content: responseText,
+        timestamp: Date.now(),
+      });
 
-    if (result.history && result.history.length > 0) {
-      sessionManager.addIteration(result.history[result.history.length - 1]);
-    }
+      if (result.history && result.history.length > 0) {
+        sessionManager.addIteration(result.history[result.history.length - 1]);
+      }
 
-    await sessionManager.save();
-    return result;
-  });
+      await sessionManager.save();
+      return result;
+    },
+  );
 }

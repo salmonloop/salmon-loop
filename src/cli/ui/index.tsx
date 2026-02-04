@@ -13,7 +13,12 @@ export interface GUIOptions {
 export async function startGUI(
   mode: 'run' | 'chat',
   sessionManager: any,
-  runFn: (emit: (event: LoopEvent) => void, input?: string, options?: GUIOptions) => Promise<any>,
+  runFn: (
+    emit: (event: LoopEvent) => void,
+    input?: string,
+    options?: GUIOptions,
+    dispatch?: (action: any) => void,
+  ) => Promise<any>,
 ) {
   // Silence global logger to prevent output from interfering with Ink
   logger.setSilent(true);
@@ -50,9 +55,14 @@ export async function startGUI(
             });
         }
       }}
-      onChatInput={(input: string, emit: (event: LoopEvent) => void, options: GUIOptions) => {
+      onChatInput={(
+        input: string,
+        emit: (event: LoopEvent) => void,
+        options: GUIOptions,
+        dispatch?: any,
+      ) => {
         if (mode === 'chat') {
-          runFn(emit, input, options).catch((err) => {
+          runFn(emit, input, options, dispatch).catch((err) => {
             emit({
               type: 'log',
               message: `Chat Error: ${err.message}`,

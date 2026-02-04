@@ -11,9 +11,12 @@ export function useLoopEvents(mode: 'run' | 'chat', onStart: any, signal: AbortS
 
   const sanitizeAndDispatch = useCallback(
     (ev: any) => {
+      const payload = prepareMessagePayload(ev);
+      if (!payload.content || payload.content.trim() === '') return;
+
       dispatch({
         type: 'ADD_MESSAGE',
-        payload: prepareMessagePayload(ev),
+        payload,
       });
     },
     [dispatch],
