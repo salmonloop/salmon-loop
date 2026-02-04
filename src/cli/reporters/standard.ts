@@ -16,6 +16,7 @@ import { SalmonReporter } from './base.js';
 
 export class StandardReporter implements SalmonReporter {
   private bar: ProgressBar | null = null;
+  private lastAuthorizationSummary?: string;
 
   constructor(private verbose: boolean = false) {}
 
@@ -46,6 +47,14 @@ export class StandardReporter implements SalmonReporter {
       case 'log':
         this.handleLogEvent(event);
         break;
+      case 'authorization.summary': {
+        const summary = this.formatAuthorizationSummary(event.summary);
+        if (summary !== this.lastAuthorizationSummary) {
+          logger.info(text.cli.authorizationSummaryRealtime(summary));
+          this.lastAuthorizationSummary = summary;
+        }
+        break;
+      }
       case 'verify.result':
         if (!event.ok) {
           logger.error('\n' + text.cli.operationFailed);
@@ -88,6 +97,11 @@ export class StandardReporter implements SalmonReporter {
       this.handleFailure(result);
     }
 
+    if (result.authorizationSummary) {
+      const summary = this.formatAuthorizationSummary(result.authorizationSummary);
+      logger.info(text.cli.authorizationSummary(summary));
+    }
+
     if (this.verbose && result.logs) {
       logger.log('\n' + chalk.bold(text.cli.stepLogs));
       result.logs.forEach((log) => {
@@ -122,6 +136,16 @@ export class StandardReporter implements SalmonReporter {
     } else {
       logger.debug(`  ${event.message}`);
     }
+  }
+
+  private formatAuthorizationSummary(summary: {
+    auto: number;
+    allowlist: number;
+    user: number;
+    cache: number;
+  }) {
+    const { auto, allowlist, user, cache } = summary;
+    return `auto=${auto} allowlist=${allowlist} user=${user} cache=${cache}`;
   }
 
   private handleFailure(result: LoopResult) {

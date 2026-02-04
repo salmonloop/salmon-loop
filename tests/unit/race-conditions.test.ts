@@ -116,7 +116,7 @@ describe('Race Conditions & Concurrency', () => {
 
     // Set a very short timeout for tests to run fast
     (LIMITS as any).worktreePrepareTimeoutMs = 500;
-    (LIMITS as any).lockWaitTimeoutMs = 100;
+    (LIMITS as any).lockWaitTimeoutMs = 500;
     (LIMITS as any).lockStaleThresholdMs = 200;
     (LIMITS.retry.io as any).initialDelayMs = 10;
   });

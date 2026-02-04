@@ -1,5 +1,6 @@
 import { skillToToolSpec } from '../skills/bridge.js';
 import { SkillLoader } from '../skills/loader.js';
+import type { AuthorizationSourceSummary, ExecutionPhase } from '../types.js';
 
 import { ToolAuditLogger } from './audit.js';
 import type { ToolAuthorizationProvider } from './authorization/types.js';
@@ -19,6 +20,20 @@ export interface ToolstackOptions {
   model?: string;
   budget?: Partial<BudgetConfig>;
   authorizationProvider?: ToolAuthorizationProvider;
+  onAuthorizationSummary?: (
+    summary: AuthorizationSourceSummary,
+    event: {
+      callId: string;
+      phase: ExecutionPhase;
+      toolName: string;
+      outcome: string;
+      reason?: string;
+      source?: string;
+      riskLevel?: string;
+      sideEffects?: string[];
+      ttlMs?: number;
+    },
+  ) => void;
 }
 
 /**
@@ -30,7 +45,9 @@ export async function createStandardToolstack(options: ToolstackOptions) {
   const registry = new ToolRegistry();
   const policy = new ToolPolicy();
   const budget = new BudgetGuard(options.budget);
-  const audit = new ToolAuditLogger();
+  const audit = new ToolAuditLogger({
+    onAuthorizationSummary: options.onAuthorizationSummary,
+  });
   const sanitize = new ToolSanitizer();
 
   // 2. Register all builtin tools (rg, git, ast, ast-grep)

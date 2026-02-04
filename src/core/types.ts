@@ -96,6 +96,7 @@ export interface LoopResult {
   errorType?: ErrorType;
   errorCode?: string;
   auditPath?: string;
+  authorizationSummary?: AuthorizationSourceSummary;
 }
 
 export interface LoopIteration {
@@ -111,6 +112,13 @@ export interface StepLog {
   success: boolean;
   output: string;
   timestamp: Date;
+}
+
+export interface AuthorizationSourceSummary {
+  auto: number;
+  allowlist: number;
+  user: number;
+  cache: number;
 }
 
 /**
@@ -177,6 +185,12 @@ export type LoopEvent =
       type: 'resource.cleanup';
       path: string;
       success: boolean;
+      timestamp: Date;
+    }
+  | {
+      type: 'authorization.summary';
+      summary: AuthorizationSourceSummary;
+      stage: 'realtime' | 'final';
       timestamp: Date;
     };
 

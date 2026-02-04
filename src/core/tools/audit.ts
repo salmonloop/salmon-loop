@@ -1,6 +1,6 @@
 import { text } from '../../locales/index.js';
 import { logger } from '../logger.js';
-import { ExecutionPhase, Phase } from '../types.js';
+import { AuthorizationSourceSummary, ExecutionPhase, Phase } from '../types.js';
 
 import { PolicyDecision } from './policy.js';
 import { ToolCallEnvelope, ToolResult, ToolSpec } from './types.js';
@@ -27,8 +27,33 @@ export interface ToolAuditLogEntry {
   authSource?: string;
 }
 
+export interface ToolAuditLoggerOptions {
+  onAuthorizationSummary?: (
+    summary: AuthorizationSourceSummary,
+    event: {
+      callId: string;
+      phase: ExecutionPhase;
+      toolName: string;
+      outcome: string;
+      reason?: string;
+      source?: string;
+      riskLevel?: string;
+      sideEffects?: string[];
+      ttlMs?: number;
+    },
+  ) => void;
+}
+
 export class ToolAuditLogger {
   private logs: ToolAuditLogEntry[] = [];
+  private authorizationSummary: AuthorizationSourceSummary = {
+    auto: 0,
+    allowlist: 0,
+    user: 0,
+    cache: 0,
+  };
+
+  constructor(private options?: ToolAuditLoggerOptions) {}
 
   onStart(call: ToolCallEnvelope, spec: ToolSpec, decision: PolicyDecision) {
     const entry: ToolAuditLogEntry = {
@@ -90,6 +115,11 @@ export class ToolAuditLogger {
     };
     this.logs.push(entry);
     logger.debug(text.audit.event('Authorization', event.toolName, event.outcome));
+
+    const updated = this.updateAuthorizationSummary(event.source);
+    if (updated && this.options?.onAuthorizationSummary) {
+      this.options.onAuthorizationSummary({ ...this.authorizationSummary }, event);
+    }
   }
 
   /**
@@ -113,6 +143,10 @@ export class ToolAuditLogger {
     return this.logs;
   }
 
+  getAuthorizationSummary() {
+    return { ...this.authorizationSummary };
+  }
+
   private summarize(data: unknown): string {
     try {
       const str = JSON.stringify(data);
@@ -120,5 +154,26 @@ export class ToolAuditLogger {
     } catch {
       return '[Circular/Unserializable]';
     }
+  }
+
+  private updateAuthorizationSummary(source?: string): boolean {
+    if (!source) return false;
+    if (source === 'auto') {
+      this.authorizationSummary.auto += 1;
+      return true;
+    }
+    if (source === 'allowlist') {
+      this.authorizationSummary.allowlist += 1;
+      return true;
+    }
+    if (source === 'user') {
+      this.authorizationSummary.user += 1;
+      return true;
+    }
+    if (source === 'cache') {
+      this.authorizationSummary.cache += 1;
+      return true;
+    }
+    return false;
   }
 }

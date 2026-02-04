@@ -182,6 +182,9 @@ export const en = {
   attempts: (attempts: number) => `  Attempts: ${attempts}`,
   errorCode: (code: string) => `  Error code: ${code}`,
   auditPath: (path: string) => `  Audit log: ${path}`,
+  authorizationSummary: (summary: string) => `  Authorization sources: ${summary}`,
+  authorizationSummaryRealtime: (summary: string) =>
+    `  Authorization sources (current): ${summary}`,
   diffMeta: (files: number, lines: number) => `  Diff: ${files} files changed, ${lines} lines.`,
   retry: (from: number, to: number, reason: string) =>
     `\nRetrying (${from} -> ${to}). Reason: ${reason}`,

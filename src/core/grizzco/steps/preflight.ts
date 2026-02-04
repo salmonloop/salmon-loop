@@ -33,6 +33,14 @@ export const runPreflight: Step<InitCtx, PreflightCtx> = async (ctx) => {
         attemptId: (ctx as any).attempt ?? 1,
         dryRun: Boolean(ctx.options?.dryRun),
         authorizationProvider: ctx.options.authorizationProvider,
+        onAuthorizationSummary: (summary) => {
+          ctx.emit({
+            type: 'authorization.summary',
+            summary,
+            stage: 'realtime',
+            timestamp: new Date(),
+          });
+        },
         model:
           (ctx.options.llm as any)?.getModelId?.() ||
           process.env.S8P_MODEL ||

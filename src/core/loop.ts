@@ -18,9 +18,42 @@ import {
   type LoopOptions,
   type LoopResult,
   type StepLog,
+  type AuthorizationSourceSummary,
 } from './types.js';
 
 const globalSemaphore = new Semaphore(LIMITS.maxConcurrentOperations);
+
+function buildAuthorizationSummary(logs: unknown[] | undefined): AuthorizationSourceSummary | null {
+  if (!logs || logs.length === 0) return null;
+
+  const summary: AuthorizationSourceSummary = {
+    auto: 0,
+    allowlist: 0,
+    user: 0,
+    cache: 0,
+  };
+  let hasEntries = false;
+
+  for (const entry of logs) {
+    if (!entry || (entry as any).eventType !== 'authorization') continue;
+    const source = (entry as any).authSource;
+    if (source === 'auto') {
+      summary.auto += 1;
+      hasEntries = true;
+    } else if (source === 'allowlist') {
+      summary.allowlist += 1;
+      hasEntries = true;
+    } else if (source === 'user') {
+      summary.user += 1;
+      hasEntries = true;
+    } else if (source === 'cache') {
+      summary.cache += 1;
+      hasEntries = true;
+    }
+  }
+
+  return hasEntries ? summary : null;
+}
 
 /**
  * Main entry point for running the SalmonLoop.
@@ -109,6 +142,7 @@ export class SalmonLoop {
     let currentLastError: string | undefined = undefined;
     let shadowLatestRef: string | null = null;
     const shadowTaskId = randomBytes(4).toString('hex');
+    let authorizationSummary: AuthorizationSourceSummary | null = null;
 
     try {
       let currentPhase: string = 'UNKNOWN';
@@ -159,6 +193,9 @@ export class SalmonLoop {
 
         // Map flow result to LoopIteration
         const ctx = result.data; // Final context (ShrinkCtx or VerifyCtx)
+        authorizationSummary = buildAuthorizationSummary(
+          ctx?.toolAuditLogger?.getLogs?.() as unknown[],
+        );
         const errorCode =
           (result.error as any)?.llmCode ||
           (result.error as any)?.code ||
@@ -191,6 +228,7 @@ export class SalmonLoop {
                 finalPatch: ctx?.diff || undefined,
                 changedFiles: ctx?.changedFiles || [],
                 auditPath: result.auditPath,
+                authorizationSummary: authorizationSummary || undefined,
               };
             }
 
@@ -232,6 +270,7 @@ export class SalmonLoop {
                   history,
                   failurePhase: Phase.VERIFY,
                   errorType: ErrorType.UNKNOWN,
+                  authorizationSummary: authorizationSummary || undefined,
                 };
               }
             }
@@ -246,6 +285,7 @@ export class SalmonLoop {
               finalPatch: currentDiff || undefined,
               changedFiles: changedFilesThisAttempt,
               auditPath: result.auditPath,
+              authorizationSummary: authorizationSummary || undefined,
             };
           }
         }
@@ -270,6 +310,7 @@ export class SalmonLoop {
             errorType: ErrorType.UNKNOWN,
             errorCode,
             auditPath: result.auditPath,
+            authorizationSummary: authorizationSummary || undefined,
           };
         }
       }
@@ -282,6 +323,7 @@ export class SalmonLoop {
         logs,
         history,
         errorType: ErrorType.UNKNOWN,
+        authorizationSummary: authorizationSummary || undefined,
       };
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
@@ -297,6 +339,7 @@ export class SalmonLoop {
         history,
         errorType: ErrorType.UNKNOWN,
         errorCode,
+        authorizationSummary: authorizationSummary || undefined,
       };
     } finally {
       await env.teardown();
