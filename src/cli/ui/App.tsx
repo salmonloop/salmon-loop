@@ -4,7 +4,7 @@ import React from 'react';
 import { getSuggestions } from '../commands/registry.js';
 import { text } from '../locales/index.js';
 
-import { ThinkingWave } from './components/animations/ThinkingWave.js';
+import { StretchingThinking } from './components/animations/StretchingThinking.js';
 import { AutocompleteInput } from './components/AutocompleteInput.js';
 import { MessageList } from './components/MessageList.js';
 import { UI_CONFIG } from './config.js';
@@ -42,8 +42,7 @@ const AppCore: React.FC<{
       {/* Thinking Status */}
       {state.isThinking && (
         <Box paddingX={UI_CONFIG.MESSAGE_AREA_PADDING_X} paddingY={0} flexShrink={0}>
-          <ThinkingWave />
-          <Text color="gray"> {text.cli.gui.processing}</Text>
+          <StretchingThinking />
         </Box>
       )}
 
@@ -79,6 +78,7 @@ const AppCore: React.FC<{
             }
             onSubmit={async (val) => {
               if (onChatInput && val.trim()) {
+                dispatch({ type: 'SET_THINKING', payload: true });
                 // Explicitly add user message to history for navigation
                 dispatch({
                   type: 'ADD_MESSAGE',

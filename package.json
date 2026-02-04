@@ -9,7 +9,7 @@
   "scripts": {
     "preinstall": "npx only-allow pnpm && node scripts/check-versions.js",
     "check-deps": "node scripts/check-deps.js",
-    "build": "tsc && node scripts/copy-assets.js",
+    "build": "tsc -p tsconfig.build.json && node scripts/copy-assets.js",
     "dev": "node --import tsx src/cli/index.ts",
     "test": "pnpm test:unit",
     "t": "vitest tests/unit/",
