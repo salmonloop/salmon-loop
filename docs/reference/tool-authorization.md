@@ -7,9 +7,18 @@ This reference describes the allowlist JSON schema and the `/auth` command.
 Allowlist file paths are resolved from `toolAuthorization.allowlist`:
 
 - Repo scope: `.salmonloop/config/authorization.json` (relative to the repo root)
-- User scope: `~/.salmonloop/authorization.json`
+- User scope: `~/.salmonloop/config/authorization-user.json`
 
 Both files share the same schema.
+
+## Path Safety
+
+Allowlist paths are constrained to their scopes:
+
+- Repo scope files must live under `<repo>/.salmonloop/`
+- User scope files must live under `~/.salmonloop/`
+
+Any path outside these roots is blocked and the allowlist is treated as empty.
 
 ## JSON Schema (v1)
 
@@ -66,3 +75,30 @@ Examples:
 - `/auth hash {"path":"README.md"}`
 
 `/auth hash` normalizes JSON input before hashing to keep hashes stable.
+
+## Locking and Audit Events
+
+Allowlist writes are serialized using:
+
+- An in-process queue (prevents concurrent writes in a single process)
+- A cross-process file lock (prevents concurrent writes across processes)
+
+The following audit events are emitted for lock lifecycle visibility:
+
+- `ALLOWLIST_LOCK_ACQUIRED`
+- `ALLOWLIST_LOCK_STALE_REMOVED`
+- `ALLOWLIST_LOCK_RELEASED`
+- `ALLOWLIST_LOCK_TIMEOUT`
+
+See `docs/reference/audit-log-spec.md` for event field details.
+
+## Cache Behavior
+
+Allowlist loads use a cache file co-located under the runtime state directories:
+
+- Repo scope: `<repo>/.salmonloop/state/allowlist-cache-<hash>.json`
+- User scope: `~/.salmonloop/allowlist-cache-<hash>.json`
+
+The cache is validated by version, source path, file size, mtime, and content hash.
+If any of these checks fail, the allowlist file is re-read and a new cache entry is written.
+When the allowlist JSON is invalid, the system falls back to an empty allowlist.

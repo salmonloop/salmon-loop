@@ -47,6 +47,95 @@ interface AllowlistCacheFile {
   data: ToolAuthorizationAllowlist;
 }
 
+type AllowlistLoadOutcome = 'success' | 'failure';
+type AllowlistLoadSource = 'cache' | 'file' | 'missing' | 'empty' | 'parse' | 'blocked' | 'read';
+
+interface AllowlistLoadStats {
+  total: number;
+  success: number;
+  failure: number;
+}
+
+interface AllowlistLoadToolStats {
+  total: number;
+  success: number;
+  failure: number;
+}
+
+const allowlistLoadStats: Record<'repo' | 'user', AllowlistLoadStats> = {
+  repo: { total: 0, success: 0, failure: 0 },
+  user: { total: 0, success: 0, failure: 0 },
+};
+const allowlistLoadToolCounts: Record<'repo' | 'user', Record<string, number>> = {
+  repo: {},
+  user: {},
+};
+const allowlistLoadToolStats: Record<'repo' | 'user', Record<string, AllowlistLoadToolStats>> = {
+  repo: {},
+  user: {},
+};
+const allowlistLoadPathCounts: Record<'repo' | 'user', Record<string, number>> = {
+  repo: {},
+  user: {},
+};
+
+function recordAllowlistLoadSummary(params: {
+  scope: 'repo' | 'user';
+  outcome: AllowlistLoadOutcome;
+  source: AllowlistLoadSource;
+  error?: string;
+  toolName?: string;
+  path?: string;
+}): void {
+  const { scope, outcome, source, error, toolName, path } = params;
+  const stats = allowlistLoadStats[scope];
+  stats.total += 1;
+  if (outcome === 'success') {
+    stats.success += 1;
+  } else {
+    stats.failure += 1;
+  }
+  if (toolName) {
+    const toolCounts = allowlistLoadToolCounts[scope];
+    toolCounts[toolName] = (toolCounts[toolName] ?? 0) + 1;
+    const toolStats = allowlistLoadToolStats[scope];
+    const current = toolStats[toolName] ?? { total: 0, success: 0, failure: 0 };
+    current.total += 1;
+    if (outcome === 'success') {
+      current.success += 1;
+    } else {
+      current.failure += 1;
+    }
+    toolStats[toolName] = current;
+  }
+  if (path) {
+    const pathCounts = allowlistLoadPathCounts[scope];
+    pathCounts[path] = (pathCounts[path] ?? 0) + 1;
+  }
+  const toolStats = toolName ? allowlistLoadToolStats[scope][toolName] : undefined;
+  const toolFailureRate = toolStats
+    ? Math.round((toolStats.failure / toolStats.total) * 10000) / 100
+    : undefined;
+  logger.audit(
+    'ALLOWLIST_LOAD_SUMMARY',
+    {
+      scope,
+      total: stats.total,
+      success: stats.success,
+      failure: stats.failure,
+      lastOutcome: outcome,
+      lastSource: source,
+      lastError: error,
+      lastToolName: toolName,
+      lastPath: path,
+      toolCount: toolName ? allowlistLoadToolCounts[scope][toolName] : undefined,
+      pathCount: path ? allowlistLoadPathCounts[scope][path] : undefined,
+      toolFailureRatePct: toolFailureRate,
+    },
+    { source: 'allowlist', severity: 'low', scope },
+  );
+}
+
 function expandHome(filePath: string): string {
   if (!filePath.startsWith('~')) return filePath;
   return path.join(os.homedir(), filePath.slice(1));
@@ -134,6 +223,28 @@ async function saveAllowlistCache(
   await fs.writeFile(cachePath, JSON.stringify(payload, null, 2));
 }
 
+async function saveAllowlistCacheWithAudit(
+  cachePath: string,
+  sourcePath: string,
+  sourceMtimeMs: number,
+  sourceSize: number,
+  sourceHash: string,
+  data: ToolAuthorizationAllowlist,
+  scope: 'repo' | 'user',
+): Promise<void> {
+  try {
+    await saveAllowlistCache(cachePath, sourcePath, sourceMtimeMs, sourceSize, sourceHash, data);
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    logger.audit(
+      'ALLOWLIST_CACHE_WRITE_FAILED',
+      { path: cachePath, sourcePath, error: msg },
+      { source: 'allowlist', severity: 'high', scope },
+    );
+    throw error;
+  }
+}
+
 function hashAllowlistSource(raw: string): string {
   return crypto.createHash('sha256').update(raw).digest('hex');
 }
@@ -170,16 +281,27 @@ async function loadAllowlist(
   filePath: string,
   repoRoot: string,
   scope: 'repo' | 'user',
+  toolName?: string,
 ): Promise<ToolAuthorizationAllowlist> {
   const resolved = resolveAllowlistPathOrLog(filePath, repoRoot, scope);
-  if (!resolved) return createEmptyAllowlist();
-  return loadAllowlistResolved(resolved, repoRoot, scope);
+  if (!resolved) {
+    recordAllowlistLoadSummary({
+      scope,
+      outcome: 'failure',
+      source: 'blocked',
+      toolName,
+      path: filePath,
+    });
+    return createEmptyAllowlist();
+  }
+  return loadAllowlistResolved(resolved, repoRoot, scope, toolName);
 }
 
 async function loadAllowlistResolved(
   resolved: string,
   repoRoot: string,
   scope: 'repo' | 'user',
+  toolName?: string,
 ): Promise<ToolAuthorizationAllowlist> {
   const cachePath = getCachePath(resolved, repoRoot);
 
@@ -199,6 +321,13 @@ async function loadAllowlistResolved(
         undefined,
       );
       if (!reason && cached.data?.tools) {
+        recordAllowlistLoadSummary({
+          scope: scopeResolved,
+          outcome: 'success',
+          source: 'cache',
+          toolName,
+          path: resolved,
+        });
         logger.audit(
           'ALLOWLIST_CACHE_HIT',
           {
@@ -241,6 +370,14 @@ async function loadAllowlistResolved(
       parsed = JSON.parse(raw);
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
+      recordAllowlistLoadSummary({
+        scope: scopeResolved,
+        outcome: 'failure',
+        source: 'parse',
+        error: msg,
+        toolName,
+        path: resolved,
+      });
       logger.audit(
         'ALLOWLIST_PARSE_FAILED',
         { path: resolved, error: msg },
@@ -250,19 +387,52 @@ async function loadAllowlistResolved(
     }
     if (parsed && parsed.version === 1 && parsed.tools && typeof parsed.tools === 'object') {
       const allowlist = { version: 1, tools: parsed.tools } as ToolAuthorizationAllowlist;
-      await saveAllowlistCache(
+      await saveAllowlistCacheWithAudit(
         cachePath,
         resolved,
         sourceMtimeMs,
         sourceSize,
         sourceHash,
         allowlist,
+        scopeResolved,
       );
+      recordAllowlistLoadSummary({
+        scope: scopeResolved,
+        outcome: 'success',
+        source: 'file',
+        toolName,
+        path: resolved,
+      });
       return allowlist;
     }
+    recordAllowlistLoadSummary({
+      scope: scopeResolved,
+      outcome: 'success',
+      source: 'empty',
+      toolName,
+      path: resolved,
+    });
     return createEmptyAllowlist();
   } catch (error: any) {
-    if (error?.code === 'ENOENT') return createEmptyAllowlist();
+    if (error?.code === 'ENOENT') {
+      recordAllowlistLoadSummary({
+        scope,
+        outcome: 'success',
+        source: 'missing',
+        toolName,
+        path: resolved,
+      });
+      return createEmptyAllowlist();
+    }
+    const msg = error instanceof Error ? error.message : String(error);
+    recordAllowlistLoadSummary({
+      scope,
+      outcome: 'failure',
+      source: 'read',
+      error: msg,
+      toolName,
+      path: resolved,
+    });
     return createEmptyAllowlist();
   }
 }
@@ -270,9 +440,20 @@ async function loadAllowlistResolved(
 async function saveAllowlistResolved(
   resolved: string,
   allowlist: ToolAuthorizationAllowlist,
+  scope: 'repo' | 'user',
 ): Promise<void> {
-  await fs.mkdir(path.dirname(resolved), { recursive: true });
-  await writeFileAtomic(resolved, JSON.stringify(allowlist, null, 2));
+  try {
+    await fs.mkdir(path.dirname(resolved), { recursive: true });
+    await writeFileAtomic(resolved, JSON.stringify(allowlist, null, 2));
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    logger.audit(
+      'ALLOWLIST_WRITE_FAILED',
+      { path: resolved, error: msg },
+      { source: 'allowlist', severity: 'high', scope },
+    );
+    throw error;
+  }
 }
 
 function ruleMatches(rule: ToolAuthorizationRule, ctx: AllowlistMatchContext): boolean {
@@ -363,6 +544,11 @@ async function acquireAllowlistFileLock(lockPath: string, scope: 'repo' | 'user'
       );
       await handle.close();
       allowlistLockOwners.set(lockPath, owner);
+      logger.audit(
+        'ALLOWLIST_LOCK_ACQUIRED',
+        { path: lockPath, owner, pid: process.pid, waitedMs: Date.now() - start },
+        { source: 'allowlist', severity: 'low', scope },
+      );
       return;
     } catch (error: any) {
       if (error?.code === 'EEXIST') {
@@ -380,11 +566,21 @@ async function acquireAllowlistFileLock(lockPath: string, scope: 'repo' | 'user'
           }
           if (!isAlive || age > LIMITS.lockStaleThresholdMs) {
             await fs.unlink(lockPath).catch(() => undefined);
+            logger.audit(
+              'ALLOWLIST_LOCK_STALE_REMOVED',
+              { path: lockPath, owner: metadata.owner, pid: metadata.pid, ageMs: age },
+              { source: 'allowlist', severity: 'medium', scope },
+            );
             continue;
           }
         } catch {
           // If lock contents are unreadable, treat it as stale and retry.
           await fs.unlink(lockPath).catch(() => undefined);
+          logger.audit(
+            'ALLOWLIST_LOCK_STALE_REMOVED',
+            { path: lockPath, owner: 'unknown', pid: undefined, ageMs: undefined },
+            { source: 'allowlist', severity: 'medium', scope },
+          );
           continue;
         }
 
@@ -414,7 +610,7 @@ async function acquireAllowlistFileLock(lockPath: string, scope: 'repo' | 'user'
   throw new Error(text.cli.authLockTimeout(lockPath));
 }
 
-async function releaseAllowlistFileLock(lockPath: string): Promise<void> {
+async function releaseAllowlistFileLock(lockPath: string, scope: 'repo' | 'user'): Promise<void> {
   const owner = allowlistLockOwners.get(lockPath);
   if (!owner) return;
   try {
@@ -426,6 +622,11 @@ async function releaseAllowlistFileLock(lockPath: string): Promise<void> {
   }
   try {
     await fs.unlink(lockPath);
+    logger.audit(
+      'ALLOWLIST_LOCK_RELEASED',
+      { path: lockPath, owner, pid: process.pid },
+      { source: 'allowlist', severity: 'low', scope },
+    );
   } catch (error: any) {
     if (error?.code !== 'ENOENT') throw error;
   } finally {
@@ -444,7 +645,7 @@ async function withAllowlistFileLock<T>(
   try {
     return await fn();
   } finally {
-    await releaseAllowlistFileLock(lockPath);
+    await releaseAllowlistFileLock(lockPath, scope);
   }
 }
 
@@ -476,12 +677,12 @@ export async function loadAllowlistDecision(params: {
   const ctx: AllowlistMatchContext = { toolName, phase, sideEffects, argsHash };
 
   const userDecision = userFile
-    ? isAllowed(await loadAllowlist(userFile, repoRoot, 'user'), ctx)
+    ? isAllowed(await loadAllowlist(userFile, repoRoot, 'user', toolName), ctx)
     : null;
   if (userDecision === 'deny') return 'deny';
 
   const repoDecision = repoFile
-    ? isAllowed(await loadAllowlist(repoFile, repoRoot, 'repo'), ctx)
+    ? isAllowed(await loadAllowlist(repoFile, repoRoot, 'repo', toolName), ctx)
     : null;
   if (repoDecision === 'deny') return 'deny';
 
@@ -530,17 +731,23 @@ export async function persistAllowlistDecision(params: {
       });
       allowlist.tools[toolName] = { ...entry, rules };
 
-      await saveAllowlistResolved(resolved, allowlist);
+      await saveAllowlistResolved(resolved, allowlist, scope);
       const cachePath = getCachePath(resolved, repoRoot);
       const stat = await fs.stat(resolved);
       const raw = await fs.readFile(resolved, 'utf8');
-      await saveAllowlistCache(
+      await saveAllowlistCacheWithAudit(
         cachePath,
         resolved,
         stat.mtimeMs,
         stat.size,
         hashAllowlistSource(raw),
         allowlist,
+        scope,
+      );
+      logger.audit(
+        'ALLOWLIST_RULE_PERSISTED',
+        { path: resolved, toolName, scope, mode, phase, sideEffects, argsHash },
+        { source: 'allowlist', severity: 'medium', scope },
       );
     }),
   );
@@ -601,17 +808,24 @@ export async function removeAllowlistRule(params: {
         }
       }
 
-      await saveAllowlistResolved(resolved, allowlist);
+      const removedAll = !phase && !argsHash && (!sideEffects || sideEffects.length === 0);
+      await saveAllowlistResolved(resolved, allowlist, scope);
       const cachePath = getCachePath(resolved, repoRoot);
       const stat = await fs.stat(resolved);
       const raw = await fs.readFile(resolved, 'utf8');
-      await saveAllowlistCache(
+      await saveAllowlistCacheWithAudit(
         cachePath,
         resolved,
         stat.mtimeMs,
         stat.size,
         hashAllowlistSource(raw),
         allowlist,
+        scope,
+      );
+      logger.audit(
+        'ALLOWLIST_RULE_REMOVED',
+        { path: resolved, toolName, scope, phase, sideEffects, argsHash, removedAll },
+        { source: 'allowlist', severity: 'medium', scope },
       );
       return true;
     }),
@@ -632,10 +846,10 @@ export async function clearAllowlist(params: {
   await withAllowlistLock(resolved, async () =>
     withAllowlistFileLock(resolved, repoRoot, scope, async () => {
       const empty = createEmptyAllowlist();
-      await saveAllowlistResolved(resolved, empty);
+      await saveAllowlistResolved(resolved, empty, scope);
       const stat = await fs.stat(resolved);
       const raw = await fs.readFile(resolved, 'utf8');
-      await saveAllowlistCache(
+      await saveAllowlistCacheWithAudit(
         getCachePath(resolved, repoRoot),
         resolved,
         stat.mtimeMs,
@@ -644,6 +858,12 @@ export async function clearAllowlist(params: {
         {
           ...empty,
         },
+        scope,
+      );
+      logger.audit(
+        'ALLOWLIST_CLEARED',
+        { path: resolved, scope },
+        { source: 'allowlist', severity: 'medium', scope },
       );
     }),
   );
