@@ -1,7 +1,9 @@
+import type { ToolAuthorizationConfig } from '../core/config/index.js';
 import { runSalmonLoop } from '../core/loop.js';
 import { ChatSessionManager } from '../core/session/manager.js';
 import type { CheckpointStrategy, LLM, LoopEvent } from '../core/types.js';
 
+import { createUiAuthorizationProvider } from './authorization/provider.js';
 import { CommandDispatcher } from './commands/dispatcher.js';
 import type { QueueController } from './commands/types.js';
 import { CHAT_QUEUE_CONFIG } from './config.js';
@@ -16,6 +18,7 @@ export interface ChatModeOptions {
   checkpointStrategy?: CheckpointStrategy;
   resume?: boolean;
   verbose?: boolean;
+  toolAuthorization?: ToolAuthorizationConfig;
 }
 
 /**
@@ -43,6 +46,13 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
   let hideTimer: NodeJS.Timeout | null = null;
   let currentInstruction: string | null = null;
   let lastInterruptedInput: string | null = null;
+
+  const authorizationProvider = createUiAuthorizationProvider({
+    emit: (event) => {
+      latestEmit?.({ ...event, timestamp: new Date() });
+    },
+    config: options.toolAuthorization,
+  });
 
   const setThinking = (value: boolean) => {
     if (!latestDispatch) return;
@@ -166,6 +176,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
           verbose: options.verbose ? 'basic' : undefined,
           onEvent: latestEmit,
           signal: latestGuiOptions?.signal,
+          authorizationProvider,
         }),
         CHAT_QUEUE_CONFIG.TASK_TIMEOUT_MS,
       );
@@ -273,6 +284,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
         sessionManager,
         dispatch: latestDispatch || (() => {}),
         queue: queueController,
+        toolAuthorization: options.toolAuthorization,
       });
 
       if (dispatchResult.type === 'executed' || dispatchResult.type === 'blocked') {

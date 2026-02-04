@@ -1,3 +1,4 @@
+import type { ToolAuthorizationConfig } from '../../core/config/types.js';
 import { ChatSessionManager } from '../../core/session/manager.js';
 
 export interface CommandContext {
@@ -6,6 +7,7 @@ export interface CommandContext {
   input: string;
   dispatch: (action: any) => void;
   queue?: QueueController;
+  toolAuthorization?: ToolAuthorizationConfig;
 }
 
 export interface CommandResult {

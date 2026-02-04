@@ -26,22 +26,26 @@ export const runPreflight: Step<InitCtx, PreflightCtx> = async (ctx) => {
     timestamp: new Date(),
   });
 
+  const toolstack = resolveLlmToolCallingPolicy(Phase.PLAN, ctx.options.llm).enabled
+    ? await createStandardToolstack({
+        repoRoot: ctx.workspace.workPath,
+        worktreeRoot: ctx.workspace.strategy === 'worktree' ? ctx.workspace.workPath : undefined,
+        attemptId: (ctx as any).attempt ?? 1,
+        dryRun: Boolean(ctx.options?.dryRun),
+        authorizationProvider: ctx.options.authorizationProvider,
+        model:
+          (ctx.options.llm as any)?.getModelId?.() ||
+          process.env.S8P_MODEL ||
+          process.env.SALMON_MODEL,
+      })
+    : undefined;
+
   return {
     ...ctx,
     preflightResult: result,
     // Toolstack is created once per attempt when tool calling is enabled. This keeps governance
     // deterministic while avoiding unnecessary setup for non-tool-capable LLMs.
-    toolstack: resolveLlmToolCallingPolicy(Phase.PLAN, ctx.options.llm).enabled
-      ? await createStandardToolstack({
-          repoRoot: ctx.workspace.workPath,
-          worktreeRoot: ctx.workspace.strategy === 'worktree' ? ctx.workspace.workPath : undefined,
-          attemptId: (ctx as any).attempt ?? 1,
-          dryRun: Boolean(ctx.options?.dryRun),
-          model:
-            (ctx.options.llm as any)?.getModelId?.() ||
-            process.env.S8P_MODEL ||
-            process.env.SALMON_MODEL,
-        })
-      : undefined,
+    toolstack,
+    toolAuditLogger: toolstack?.audit,
   };
 };

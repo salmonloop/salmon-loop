@@ -14,6 +14,7 @@ export async function saveAudit(report: FlowReport, _options: any): Promise<stri
     const filename = `audit-${timestamp}.json`;
 
     // Sanitize context data to be JSON friendly
+    const ctx = report.data as any;
     const sanitizedData = sanitizeContext(report.data);
 
     const errorMeta =
@@ -31,6 +32,21 @@ export async function saveAudit(report: FlowReport, _options: any): Promise<stri
           ? { name: 'UnknownError', message: String(report.error), stack: undefined }
           : undefined;
 
+    const toolAuditLogs = ctx?.toolAuditLogger?.getLogs?.() || [];
+    const authorizationIndex = toolAuditLogs
+      .filter((entry: any) => entry.eventType === 'authorization')
+      .reduce((acc: Record<string, any>, entry: any) => {
+        acc[entry.callId] = {
+          outcome: entry.authOutcome,
+          reason: entry.authReason,
+          source: entry.authSource,
+          riskLevel: entry.authRiskLevel,
+          sideEffects: entry.authSideEffects,
+          ttlMs: entry.authTtlMs,
+        };
+        return acc;
+      }, {});
+
     const auditData = {
       meta: {
         timestamp: new Date().toISOString(),
@@ -45,6 +61,7 @@ export async function saveAudit(report: FlowReport, _options: any): Promise<stri
       },
       traces: report.traces,
       context: sanitizedData,
+      authorizationIndex,
       environment: {
         cwd: process.cwd(),
         nodeVersion: process.version,
@@ -95,6 +112,10 @@ function sanitizeContext(ctx: any): any {
 
   if ((ctx as any).toolCallingAudit && Array.isArray((ctx as any).toolCallingAudit)) {
     safe.toolCallingAudit = (ctx as any).toolCallingAudit;
+  }
+
+  if ((ctx as any).toolAuditLogger?.getLogs) {
+    safe.toolAuditLogs = (ctx as any).toolAuditLogger.getLogs();
   }
 
   return safe;

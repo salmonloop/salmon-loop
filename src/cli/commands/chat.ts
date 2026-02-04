@@ -45,5 +45,6 @@ export async function handleChatCommand(options: any, command: Command) {
     checkpointStrategy: allOptions.checkpointStrategy || 'worktree',
     resume: options.resume,
     verbose: options.verbose,
+    toolAuthorization: resolvedConfig.toolAuthorization,
   });
 }

@@ -16,6 +16,7 @@ export const en = {
   chatCommandClear: '  /new          - Start a new session and clear context (clear)',
   chatCommandHistory: '  /history      - Show iteration history',
   chatCommandQueue: '  /queue        - Manage the chat queue',
+  chatCommandAuth: '  /auth         - Manage tool authorization',
   chatSessionSaved: '👋 Session saved. Goodbye!',
   chatThinking: 'Thinking...',
   chatSuccess: (files: string) => `✅ Changes applied successfully!\n\nFiles changed: ${files}`,
@@ -42,6 +43,10 @@ export const en = {
     confirmationChallenge: (challenge: string) => `Enter [${challenge}] to confirm (Esc to cancel)`,
     highRiskWarning:
       'This operation involves physical code restoration. Please enter the validation code to continue.',
+    authorizationTitle: '⚠️  Authorization Required',
+    authorizationWarning:
+      'This tool call has side effects. Enter the authorization code to allow it once.',
+    authorizationHint: 'Tip: add "all", "save", or "global" after the code.',
   },
 
   // Command descriptions
@@ -51,6 +56,7 @@ export const en = {
   commandHistory: 'Show session history',
   commandSessions: 'List all chat sessions',
   commandQueue: 'Manage the chat queue',
+  commandAuth: 'Manage tool authorization',
   queueUsage: 'Usage: /queue <status|pause|resume|retry|clear>',
   queueUnavailable: 'Queue controls are not available in this mode.',
   queuePaused: 'Queue paused. Use /queue resume or /queue retry to continue.',
@@ -66,6 +72,48 @@ export const en = {
   queueSubcommandHint: (sub: string) => `Queue ${sub} command`,
   queueStatus: (pending: number, processing: boolean, paused: boolean, interrupted: boolean) =>
     `Queue status: pending=${pending}, processing=${processing}, paused=${paused}, interrupted=${interrupted}`,
+  authUsage:
+    'Usage: /auth <list|add|remove|clear|hash|reload> [scope] [tool] [phase] [args=<hash>] [effects=a,b] [deny]',
+  authSubcommandHint: (sub: string) => `Authorization ${sub} command`,
+  authScopeHint: (scope: string) => `Use ${scope} allowlist`,
+  authPhaseHint: (phase: string) => `Phase ${phase.toUpperCase()}`,
+  authConfigMissing: 'Authorization config is unavailable.',
+  authHashUsage: 'Usage: /auth hash <json-or-string>',
+  authHashResult: (hash: string) => `Args hash: ${hash}`,
+  authListEmpty: (scope: string) => `No allowlist entries for ${scope}.`,
+  authListEntry: (
+    tool: string,
+    mode: string,
+    phase?: string,
+    argsHash?: string,
+    effects?: string[],
+  ) => {
+    const phaseText = phase ? ` phase=${phase}` : '';
+    const hashText = argsHash ? ` args=${argsHash}` : '';
+    const effectsText = effects && effects.length > 0 ? ` effects=${effects.join(',')}` : '';
+    return `${tool} mode=${mode}${phaseText}${hashText}${effectsText}`;
+  },
+  authCleared: (scope: string) => `Cleared ${scope} allowlist.`,
+  authAdded: (tool: string, scope: string, mode: string) =>
+    `Added ${tool} to ${scope} allowlist (mode=${mode}).`,
+  authRemoved: (tool: string, scope: string) => `Removed ${tool} from ${scope} allowlist.`,
+  authRemoveMissing: (tool: string, scope: string) =>
+    `No matching allowlist entry for ${tool} in ${scope}.`,
+  authAddUsage: 'Usage: /auth add <scope> <tool> [phase] [args=<hash>] [effects=a,b] [deny]',
+  authRemoveUsage: 'Usage: /auth remove <scope> <tool> [phase] [args=<hash>] [effects=a,b]',
+  authCacheCleared: 'Authorization allowlist cache cleared.',
+  authInvalidPhase: (phase: string) => `Invalid phase: ${phase}.`,
+  toolAuthorizationPrompt: (tool: string, risk: string, effects: string, summary: string) =>
+    `Authorize tool call: ${tool} (risk=${risk}, effects=${effects})\nArgs: ${summary}\nUse code alone to allow once, append "all" for this session, "save" to persist in repo, or "global" to persist for this user.`,
+  toolAuthorizationMissingUi: 'Authorization UI is unavailable. Tool call denied.',
+  toolAuthorizationDenied: 'Tool call denied by user authorization.',
+  toolAuthorizationApproved: 'Tool call authorized by user.',
+  toolAuthorizationTerminalQuestion:
+    'Authorize this tool call? (y=once, a=session, s=save repo, g=save user, n=deny)',
+  toolAuthorizationAutoApproved: (tool: string, risk: string) =>
+    `Auto-approved tool call: ${tool} (risk=${risk}).`,
+  toolAuthorizationAllowlisted: (tool: string) => `Allowlist approved tool call: ${tool}.`,
+  toolAuthorizationDenylisted: (tool: string) => `Denylist blocked tool call: ${tool}.`,
 
   // Option descriptions
   instructionOption: 'Instruction for code modification (required)',

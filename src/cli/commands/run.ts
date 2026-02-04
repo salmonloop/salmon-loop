@@ -16,6 +16,10 @@ import {
   ApplyBackOnDirty,
   LoopResult,
 } from '../../core/types.js';
+import {
+  createTerminalAuthorizationProvider,
+  createUiAuthorizationProvider,
+} from '../authorization/provider.js';
 import { text } from '../locales/index.js';
 import { SalmonReporter } from '../reporters/base.js';
 import { StandardReporter } from '../reporters/standard.js';
@@ -159,6 +163,9 @@ export async function handleRunCommand(options: any, command: Command) {
       applyBackOnDirty,
       worktreePrepare: allOptions.worktreePrepare,
       onStreamChunk,
+      authorizationProvider: createTerminalAuthorizationProvider({
+        config: resolvedConfig.toolAuthorization,
+      }),
     };
 
     let result: LoopResult;
@@ -169,10 +176,15 @@ export async function handleRunCommand(options: any, command: Command) {
       // Dynamically import GUI to avoid top-level await issues with yoga-layout
       const { startGUI } = await import('../ui/index.js');
       result = (await startGUI('run', undefined, async (emit, _input, guiOptions) => {
+        const authorizationProvider = createUiAuthorizationProvider({
+          emit: (event) => emit({ ...event, timestamp: new Date() }),
+          config: resolvedConfig.toolAuthorization,
+        });
         return await runSalmonLoop({
           ...loopParams,
           applyBackOnDirty: loopParams.applyBackOnDirty as ApplyBackOnDirty,
           signal: guiOptions?.signal,
+          authorizationProvider,
           onEvent: (event) => {
             // In GUI mode, we only emit to the UI to prevent StandardReporter from leaking to stderr
             emit(event);

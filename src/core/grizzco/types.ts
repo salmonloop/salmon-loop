@@ -10,6 +10,7 @@ export interface InitCtx {
   fileStateResolver: FileStateResolver;
   attempt?: number;
   lastError?: string;
+  toolAuditLogger?: { getLogs(): unknown[] };
   /**
    * 🛡️ MANDATORY ROLLBACK ANCHOR:
    * This hash must be provided by the environment layer. Without it,

@@ -1,0 +1,235 @@
+import { createInterface } from 'readline/promises';
+
+import type { ToolAuthorizationConfig } from '../../core/config/types.js';
+import { logger } from '../../core/logger.js';
+import type {
+  AuthorizationDecision,
+  ToolAuthorizationProvider,
+  ToolAuthorizationRequest,
+} from '../../core/tools/authorization/types.js';
+import { TOOL_AUTH_CONFIG } from '../config.js';
+import { text } from '../locales/index.js';
+import { requestAuthorization } from '../ui/authorization/bus.js';
+
+import { loadAllowlistDecision, persistAllowlistDecision } from './allowlist.js';
+
+const buildSummary = (request: ToolAuthorizationRequest) => {
+  if (request.argsSummary && request.argsSummary.trim()) return request.argsSummary;
+  return 'none';
+};
+
+const buildEffects = (request: ToolAuthorizationRequest) => {
+  return request.sideEffects.length > 0 ? request.sideEffects.join(', ') : 'none';
+};
+
+const applySessionTtl = (
+  decision: AuthorizationDecision,
+  config: ToolAuthorizationConfig,
+): AuthorizationDecision => {
+  if (decision.outcome !== 'allow_session') return decision;
+  return {
+    ...decision,
+    ttlMs: typeof decision.ttlMs === 'number' ? decision.ttlMs : config.sessionTtlMs,
+  };
+};
+
+const shouldAutoAllow = (request: ToolAuthorizationRequest, config: ToolAuthorizationConfig) => {
+  return Boolean(config.autoAllowRisk?.[request.riskLevel]);
+};
+
+const resolveConfig = (config?: ToolAuthorizationConfig): ToolAuthorizationConfig => {
+  if (config) return config;
+  return {
+    sessionTtlMs: TOOL_AUTH_CONFIG.SESSION_TTL_MS,
+    autoAllowRisk: TOOL_AUTH_CONFIG.AUTO_ALLOW_RISK,
+    allowlist: {
+      repoFile: '.salmonloop/config/authorization.json',
+      userFile: '~/.salmonloop/authorization.json',
+    },
+  };
+};
+
+export function createUiAuthorizationProvider(options?: {
+  emit?: (event: {
+    type: 'log';
+    level: 'debug' | 'info' | 'warn' | 'error';
+    message: string;
+  }) => void;
+  config?: ToolAuthorizationConfig;
+}): ToolAuthorizationProvider {
+  return {
+    async requestAuthorization(request: ToolAuthorizationRequest): Promise<AuthorizationDecision> {
+      const config = resolveConfig(options?.config);
+      const allowlistDecision = await loadAllowlistDecision({
+        config,
+        repoRoot: request.repoRoot,
+        toolName: request.toolName,
+        phase: request.phase,
+        sideEffects: request.sideEffects,
+        argsHash: request.argsHash,
+      });
+
+      if (allowlistDecision === 'allow') {
+        options?.emit?.({
+          type: 'log',
+          level: 'info',
+          message: text.cli.toolAuthorizationAllowlisted(request.toolName),
+        });
+        return { outcome: 'allow', source: 'allowlist' };
+      }
+      if (allowlistDecision === 'deny') {
+        options?.emit?.({
+          type: 'log',
+          level: 'warn',
+          message: text.cli.toolAuthorizationDenylisted(request.toolName),
+        });
+        return {
+          outcome: 'deny',
+          reason: text.cli.toolAuthorizationDenylisted(request.toolName),
+          source: 'allowlist',
+        };
+      }
+
+      if (shouldAutoAllow(request, config)) {
+        options?.emit?.({
+          type: 'log',
+          level: 'info',
+          message: text.cli.toolAuthorizationAutoApproved(request.toolName, request.riskLevel),
+        });
+        return applySessionTtl({ outcome: 'allow_session', source: 'auto' }, config);
+      }
+
+      const summary = buildSummary(request);
+      const effects = buildEffects(request);
+      const message = text.cli.toolAuthorizationPrompt(
+        request.toolName,
+        request.riskLevel,
+        effects,
+        summary,
+      );
+      const challenge = request.id.slice(0, 6);
+
+      const decision = await requestAuthorization({
+        id: request.id,
+        message,
+        challenge,
+      });
+
+      if (decision.outcome === 'deny') {
+        options?.emit?.({
+          type: 'log',
+          level: 'warn',
+          message: text.cli.toolAuthorizationDenied,
+        });
+        return { outcome: 'deny', reason: text.cli.toolAuthorizationDenied, source: 'user' };
+      }
+
+      options?.emit?.({
+        type: 'log',
+        level: 'info',
+        message: text.cli.toolAuthorizationApproved,
+      });
+      if (decision.persist) {
+        await persistAllowlistDecision({
+          config,
+          repoRoot: request.repoRoot,
+          toolName: request.toolName,
+          phase: request.phase,
+          scope: decision.persist,
+          mode: 'allow',
+          sideEffects: request.sideEffects,
+          argsHash: request.argsHash,
+        });
+      }
+      return applySessionTtl({ ...decision, source: decision.source ?? 'user' }, config);
+    },
+  };
+}
+
+export function createTerminalAuthorizationProvider(options?: {
+  config?: ToolAuthorizationConfig;
+}): ToolAuthorizationProvider {
+  return {
+    async requestAuthorization(request: ToolAuthorizationRequest): Promise<AuthorizationDecision> {
+      const config = resolveConfig(options?.config);
+      const allowlistDecision = await loadAllowlistDecision({
+        config,
+        repoRoot: request.repoRoot,
+        toolName: request.toolName,
+        phase: request.phase,
+        sideEffects: request.sideEffects,
+        argsHash: request.argsHash,
+      });
+
+      if (allowlistDecision === 'allow') {
+        logger.info(text.cli.toolAuthorizationAllowlisted(request.toolName));
+        return { outcome: 'allow', source: 'allowlist' };
+      }
+      if (allowlistDecision === 'deny') {
+        logger.warn(text.cli.toolAuthorizationDenylisted(request.toolName));
+        return {
+          outcome: 'deny',
+          reason: text.cli.toolAuthorizationDenylisted(request.toolName),
+          source: 'allowlist',
+        };
+      }
+
+      if (shouldAutoAllow(request, config)) {
+        logger.info(text.cli.toolAuthorizationAutoApproved(request.toolName, request.riskLevel));
+        return applySessionTtl({ outcome: 'allow_session', source: 'auto' }, config);
+      }
+
+      if (!process.stdin.isTTY || !process.stdout.isTTY) {
+        logger.warn(text.cli.toolAuthorizationMissingUi);
+        return { outcome: 'deny', reason: text.cli.toolAuthorizationMissingUi };
+      }
+
+      const summary = buildSummary(request);
+      const effects = buildEffects(request);
+      const prompt = text.cli.toolAuthorizationPrompt(
+        request.toolName,
+        request.riskLevel,
+        effects,
+        summary,
+      );
+
+      const rl = createInterface({ input: process.stdin, output: process.stdout });
+      try {
+        const answer = await rl.question(
+          `${prompt}\n${text.cli.toolAuthorizationTerminalQuestion} `,
+        );
+        const normalized = answer.trim().toLowerCase();
+        const allowSession = normalized.startsWith('a');
+        const allowOnce = normalized.startsWith('y');
+        const allowRepo = normalized.startsWith('s');
+        const allowUser = normalized.startsWith('g');
+        if (!allowSession && !allowOnce && !allowRepo && !allowUser) {
+          logger.warn(text.cli.toolAuthorizationDenied);
+          return { outcome: 'deny', reason: text.cli.toolAuthorizationDenied, source: 'user' };
+        }
+        logger.info(text.cli.toolAuthorizationApproved);
+        const decision: AuthorizationDecision = allowRepo
+          ? { outcome: 'allow', persist: 'repo', source: 'user' }
+          : allowUser
+            ? { outcome: 'allow', persist: 'user', source: 'user' }
+            : { outcome: allowSession ? 'allow_session' : 'allow_once', source: 'user' };
+
+        if (decision.persist) {
+          await persistAllowlistDecision({
+            config,
+            repoRoot: request.repoRoot,
+            toolName: request.toolName,
+            phase: request.phase,
+            scope: decision.persist,
+            mode: 'allow',
+            sideEffects: request.sideEffects,
+            argsHash: request.argsHash,
+          });
+        }
+        return applySessionTtl(decision, config);
+      } finally {
+        rl.close();
+      }
+    },
+  };
+}

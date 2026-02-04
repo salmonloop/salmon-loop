@@ -3,6 +3,7 @@ import TextInput from 'ink-text-input';
 import React, { useState } from 'react';
 
 import { en } from '../../locales/en.js';
+import { rejectAuthorization } from '../authorization/bus.js';
 import { UI_CONFIG } from '../config.js';
 import { useAutocomplete } from '../hooks/useAutocomplete.js';
 import { useInputHistory } from '../hooks/useInputHistory.js';
@@ -25,7 +26,11 @@ export const AutocompleteInput: React.FC<Props> = ({
 }) => {
   const { state, dispatch } = useUIStore();
   const { pendingConfirmation } = state;
+  const { pendingAuthorization } = state;
   const isConfirming = !!pendingConfirmation;
+  const isAuthorizing = !!pendingAuthorization;
+  const isIntercepting = isAuthorizing || isConfirming;
+  const activeChallenge = pendingAuthorization?.challenge || pendingConfirmation?.challenge;
 
   const [inputKey, setInputKey] = useState(0);
 
@@ -39,7 +44,7 @@ export const AutocompleteInput: React.FC<Props> = ({
     setSelectedIndex,
     setStartIndex,
     navigateSuggestions,
-  } = useAutocomplete(value, getSuggestions, isConfirming);
+  } = useAutocomplete(value, getSuggestions, isIntercepting);
 
   const { navigateHistory, resetHistory } = useInputHistory(value, (val) => {
     setInputKey((prev) => prev + 1);
@@ -92,13 +97,15 @@ export const AutocompleteInput: React.FC<Props> = ({
     if (key.escape) {
       if (!isListClosed && suggestions.length > 0) {
         setIsListClosed(true);
+      } else if (isAuthorizing) {
+        rejectAuthorization();
       } else if (isConfirming) {
         dispatch({ type: 'CLEAR_CONFIRMATION' });
       }
       return;
     }
 
-    if (isConfirming) return;
+    if (isIntercepting) return;
 
     if (
       (key.rightArrow || key.tab) &&
@@ -137,8 +144,9 @@ export const AutocompleteInput: React.FC<Props> = ({
             onChange(val);
           }}
           onSubmit={(val) => {
-            if (isConfirming) {
-              if (val === pendingConfirmation.challenge) {
+            if (isIntercepting && activeChallenge) {
+              const trimmed = val.trim();
+              if (trimmed === activeChallenge || trimmed.startsWith(`${activeChallenge} `)) {
                 onSubmit(val);
               }
               return;
@@ -153,7 +161,9 @@ export const AutocompleteInput: React.FC<Props> = ({
             onSubmit(val);
           }}
           placeholder={
-            isConfirming ? en.gui.confirmationChallenge(pendingConfirmation.challenge) : placeholder
+            isIntercepting && activeChallenge
+              ? en.gui.confirmationChallenge(activeChallenge)
+              : placeholder
           }
         />
         {ghostText && (
@@ -163,19 +173,26 @@ export const AutocompleteInput: React.FC<Props> = ({
         )}
       </Box>
 
-      {isConfirming && (
+      {isIntercepting && (
         <Box flexDirection="column" borderStyle="round" borderColor="yellow" paddingX={1}>
           <Text color="yellow" bold>
-            {en.gui.confirmationTitle}
+            {isAuthorizing ? en.gui.authorizationTitle : en.gui.confirmationTitle}
           </Text>
-          <Text color="white">{pendingConfirmation.message}</Text>
+          <Text color="white">
+            {isAuthorizing ? pendingAuthorization?.message : pendingConfirmation?.message}
+          </Text>
           <Text color="gray" dimColor>
-            {en.gui.highRiskWarning}
+            {isAuthorizing ? en.gui.authorizationWarning : en.gui.highRiskWarning}
           </Text>
+          {isAuthorizing && (
+            <Text color="gray" dimColor>
+              {en.gui.authorizationHint}
+            </Text>
+          )}
         </Box>
       )}
 
-      {!isConfirming && suggestions.length > 0 && !isListClosed && (
+      {!isIntercepting && suggestions.length > 0 && !isListClosed && (
         <Box
           flexDirection="column"
           borderStyle="round"

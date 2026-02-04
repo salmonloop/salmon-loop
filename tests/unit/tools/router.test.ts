@@ -19,7 +19,7 @@ describe('ToolRouter', () => {
     registry = { getSpec: vi.fn() } as any;
     policy = { decide: vi.fn() } as any;
     budget = { runWithGuards: vi.fn() } as any;
-    audit = { onStart: vi.fn(), onEnd: vi.fn() } as any;
+    audit = { onStart: vi.fn(), onEnd: vi.fn(), onAuthorization: vi.fn() } as any;
     sanitizer = { validateInput: vi.fn(), sanitizeOutput: vi.fn() } as any;
 
     router = new ToolRouter(registry, policy, budget, audit, sanitizer);
@@ -89,6 +89,88 @@ describe('ToolRouter', () => {
     expect(result.status).toBe('denied');
     expect(result.error?.code).toBe('TOOL_NOT_FOUND');
     expect(audit.onEnd).toHaveBeenCalled();
+  });
+
+  it('should deny when authorization provider rejects the call', async () => {
+    const mockSpec = {
+      name: 'net.request',
+      source: 'builtin',
+      riskLevel: 'high',
+      sideEffects: ['network'],
+      executor: vi.fn().mockResolvedValue('ok'),
+    };
+    const envelope = {
+      id: 'call_6',
+      toolName: 'net.request',
+      args: { url: 'https://example.com' },
+      phase: Phase.CONTEXT,
+      ctx: { repoRoot: '/tmp', attemptId: 1 } as any,
+    };
+
+    const authorization = {
+      requestAuthorization: vi.fn().mockResolvedValue({ outcome: 'deny', reason: 'no' }),
+    };
+
+    (registry.getSpec as any).mockReturnValue(mockSpec);
+    (sanitizer.validateInput as any).mockReturnValue({ ok: true });
+    (policy.decide as any).mockReturnValue({ allowed: true });
+
+    router = new ToolRouter(registry, policy, budget, audit, sanitizer, authorization as any);
+
+    const result = await router.call(envelope);
+
+    expect(authorization.requestAuthorization).toHaveBeenCalled();
+    expect(result.status).toBe('denied');
+    expect(result.error?.code).toBe('AUTH_DENIED');
+    expect(budget.runWithGuards).not.toHaveBeenCalled();
+  });
+
+  it('should cache allow_session decisions and respect ttl', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2024-01-01T00:00:00Z'));
+
+    const mockSpec = {
+      name: 'fs.read',
+      source: 'builtin',
+      riskLevel: 'low',
+      sideEffects: ['fs_read'],
+      executor: vi.fn().mockResolvedValue('ok'),
+    };
+    const envelope = {
+      id: 'call_7',
+      toolName: 'fs.read',
+      args: { path: 'file.txt' },
+      phase: Phase.CONTEXT,
+      ctx: { repoRoot: '/tmp', attemptId: 1 } as any,
+    };
+
+    const authorization = {
+      requestAuthorization: vi.fn().mockResolvedValue({ outcome: 'allow_session', ttlMs: 1000 }),
+    };
+
+    (registry.getSpec as any).mockReturnValue(mockSpec);
+    (sanitizer.validateInput as any).mockReturnValue({ ok: true });
+    (policy.decide as any).mockReturnValue({ allowed: true });
+    (budget.runWithGuards as any).mockImplementation(({ fn }: any) => fn());
+    (sanitizer.sanitizeOutput as any).mockReturnValue({
+      ok: true,
+      output: 'safe output',
+      summary: 'done',
+    });
+
+    router = new ToolRouter(registry, policy, budget, audit, sanitizer, authorization as any);
+
+    await router.call(envelope);
+    await router.call({ ...envelope, id: 'call_8' });
+
+    expect(authorization.requestAuthorization).toHaveBeenCalledTimes(1);
+
+    vi.advanceTimersByTime(1001);
+
+    await router.call({ ...envelope, id: 'call_9' });
+    expect(authorization.requestAuthorization).toHaveBeenCalledTimes(2);
+
+    vi.useRealTimers();
   });
 
   it('should map execution timeout to "timeout" status and TIMEOUT code', async () => {

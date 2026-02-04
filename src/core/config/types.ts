@@ -34,6 +34,8 @@ export interface ConfigFileV1 {
       taskToModel?: Record<string, string>;
     };
   };
+
+  toolAuthorization?: ToolAuthorizationConfig;
 }
 
 export interface LlmProviderV1 {
@@ -92,4 +94,18 @@ export interface ResolvedConfig {
     timeoutMs?: number;
   };
   llm: ResolvedLlmProvider;
+  toolAuthorization: ToolAuthorizationConfig;
+}
+
+export interface ToolAuthorizationConfig {
+  sessionTtlMs?: number;
+  autoAllowRisk?: {
+    low?: boolean;
+    medium?: boolean;
+    high?: boolean;
+  };
+  allowlist?: {
+    repoFile?: string;
+    userFile?: string;
+  };
 }

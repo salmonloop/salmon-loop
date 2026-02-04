@@ -1,3 +1,4 @@
+import type { ToolAuthorizationConfig } from '../../core/config/types.js';
 import { ChatSessionManager } from '../../core/session/manager.js';
 import { LoopEvent } from '../../core/types.js';
 import { text } from '../locales/index.js';
@@ -18,6 +19,7 @@ export class CommandDispatcher {
       sessionManager: ChatSessionManager;
       dispatch: (action: any) => void;
       queue?: QueueController;
+      toolAuthorization?: ToolAuthorizationConfig;
     },
   ): Promise<DispatchResult> {
     if (!input) {
@@ -36,6 +38,7 @@ export class CommandDispatcher {
           input: trimmed,
           dispatch: context.dispatch,
           queue: context.queue,
+          toolAuthorization: context.toolAuthorization,
         });
         return { type: 'executed' };
       } catch (_error) {

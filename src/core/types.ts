@@ -1,3 +1,5 @@
+import type { ToolAuthorizationProvider } from './tools/authorization/types.js';
+
 export type VerboseLevel = 'basic' | 'extended';
 export type ApplyBackOnDirty = 'abort' | '3way';
 
@@ -412,6 +414,7 @@ export interface LoopOptions {
    * Streaming callback for UI surfaces (e.g., CLI) when provider supports chatStream.
    */
   onStreamChunk?: (chunk: LLMStreamChunk) => void;
+  authorizationProvider?: ToolAuthorizationProvider;
 }
 
 export interface ExecutionWorkspace {

@@ -7,7 +7,7 @@ import { ToolCallEnvelope, ToolResult, ToolSpec } from './types.js';
 
 export interface ToolAuditLogEntry {
   timestamp: string;
-  eventType: 'start' | 'end';
+  eventType: 'start' | 'end' | 'authorization';
   callId: string;
   phase: ExecutionPhase;
   toolName: string;
@@ -19,6 +19,12 @@ export interface ToolAuditLogEntry {
   durationMs?: number;
   outputSummary?: string;
   error?: string;
+  authOutcome?: string;
+  authReason?: string;
+  authRiskLevel?: string;
+  authSideEffects?: string[];
+  authTtlMs?: number;
+  authSource?: string;
 }
 
 export class ToolAuditLogger {
@@ -56,6 +62,34 @@ export class ToolAuditLogger {
     };
     this.logs.push(entry);
     logger.debug(text.audit.event('End', result.toolName, result.status));
+  }
+
+  onAuthorization(event: {
+    callId: string;
+    phase: ExecutionPhase;
+    toolName: string;
+    outcome: string;
+    reason?: string;
+    source?: string;
+    riskLevel?: string;
+    sideEffects?: string[];
+    ttlMs?: number;
+  }) {
+    const entry: ToolAuditLogEntry = {
+      timestamp: new Date().toISOString(),
+      eventType: 'authorization',
+      callId: event.callId,
+      phase: event.phase,
+      toolName: event.toolName,
+      authOutcome: event.outcome,
+      authReason: event.reason,
+      authSource: event.source,
+      authRiskLevel: event.riskLevel,
+      authSideEffects: event.sideEffects,
+      authTtlMs: event.ttlMs,
+    };
+    this.logs.push(entry);
+    logger.debug(text.audit.event('Authorization', event.toolName, event.outcome));
   }
 
   /**

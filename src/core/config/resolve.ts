@@ -3,7 +3,13 @@ import { resolveBaseUrl } from '../llm/base-url.js';
 import { ConfigError } from './errors.js';
 import { tryLoadConfigFile } from './load.js';
 import { getDefaultRepoConfigPath } from './paths.js';
-import type { ApiKeySource, ConfigFileV1, ResolvedConfig, ResolvedLlmProvider } from './types.js';
+import type {
+  ApiKeySource,
+  ConfigFileV1,
+  ResolvedConfig,
+  ResolvedLlmProvider,
+  ToolAuthorizationConfig,
+} from './types.js';
 
 function firstNonEmpty(value: string | undefined | null): string | undefined {
   if (!value) return undefined;
@@ -79,6 +85,35 @@ export interface ResolveConfigOptions {
   enableConfigFile?: boolean;
 }
 
+const DEFAULT_TOOL_AUTH: ToolAuthorizationConfig = {
+  sessionTtlMs: 30 * 60 * 1000,
+  autoAllowRisk: {
+    low: true,
+    medium: false,
+    high: false,
+  },
+  allowlist: {
+    repoFile: '.salmonloop/config/authorization.json',
+    userFile: '~/.salmonloop/authorization.json',
+  },
+};
+
+function resolveToolAuthorization(raw?: ConfigFileV1): ToolAuthorizationConfig {
+  const config = raw?.toolAuthorization;
+  return {
+    sessionTtlMs: config?.sessionTtlMs ?? DEFAULT_TOOL_AUTH.sessionTtlMs,
+    autoAllowRisk: {
+      low: config?.autoAllowRisk?.low ?? DEFAULT_TOOL_AUTH.autoAllowRisk?.low,
+      medium: config?.autoAllowRisk?.medium ?? DEFAULT_TOOL_AUTH.autoAllowRisk?.medium,
+      high: config?.autoAllowRisk?.high ?? DEFAULT_TOOL_AUTH.autoAllowRisk?.high,
+    },
+    allowlist: {
+      repoFile: config?.allowlist?.repoFile ?? DEFAULT_TOOL_AUTH.allowlist?.repoFile,
+      userFile: config?.allowlist?.userFile ?? DEFAULT_TOOL_AUTH.allowlist?.userFile,
+    },
+  };
+}
+
 export async function resolveConfig(opts: ResolveConfigOptions): Promise<ResolvedConfig> {
   const enabled = opts.enableConfigFile !== false;
   const path = opts.configFilePath || getDefaultRepoConfigPath(opts.repoRoot);
@@ -104,5 +139,6 @@ export async function resolveConfig(opts: ResolveConfigOptions): Promise<Resolve
       timeoutMs: raw?.verify?.timeoutMs,
     },
     llm: resolveLlmFromConfig(raw),
+    toolAuthorization: resolveToolAuthorization(raw),
   };
 }

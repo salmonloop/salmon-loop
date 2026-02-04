@@ -205,5 +205,56 @@ export function validateConfigFileV1(input: unknown): ConfigFileV1 {
     }
   }
 
+  if (input.toolAuthorization !== undefined) {
+    if (!isRecord(input.toolAuthorization)) {
+      throw new ConfigError('CONFIG_INVALID_TOOL_AUTH', { expected: 'object' });
+    }
+    cfg.toolAuthorization = {};
+    const t = input.toolAuthorization;
+
+    if (t.sessionTtlMs !== undefined && !isNumber(t.sessionTtlMs)) {
+      throw new ConfigError('CONFIG_INVALID_TOOL_AUTH_TTL', { expected: 'number' });
+    }
+    if (t.autoAllowRisk !== undefined) {
+      if (!isRecord(t.autoAllowRisk)) {
+        throw new ConfigError('CONFIG_INVALID_TOOL_AUTH_RISK', { expected: 'object' });
+      }
+      const r = t.autoAllowRisk;
+      if (r.low !== undefined && !isBoolean(r.low)) {
+        throw new ConfigError('CONFIG_INVALID_TOOL_AUTH_RISK_LOW', { expected: 'boolean' });
+      }
+      if (r.medium !== undefined && !isBoolean(r.medium)) {
+        throw new ConfigError('CONFIG_INVALID_TOOL_AUTH_RISK_MEDIUM', { expected: 'boolean' });
+      }
+      if (r.high !== undefined && !isBoolean(r.high)) {
+        throw new ConfigError('CONFIG_INVALID_TOOL_AUTH_RISK_HIGH', { expected: 'boolean' });
+      }
+      cfg.toolAuthorization.autoAllowRisk = {
+        low: r.low as any,
+        medium: r.medium as any,
+        high: r.high as any,
+      };
+    }
+    if (t.allowlist !== undefined) {
+      if (!isRecord(t.allowlist)) {
+        throw new ConfigError('CONFIG_INVALID_TOOL_AUTH_ALLOWLIST', { expected: 'object' });
+      }
+      const a = t.allowlist;
+      if (a.repoFile !== undefined && !isString(a.repoFile)) {
+        throw new ConfigError('CONFIG_INVALID_TOOL_AUTH_REPO_FILE', { expected: 'string' });
+      }
+      if (a.userFile !== undefined && !isString(a.userFile)) {
+        throw new ConfigError('CONFIG_INVALID_TOOL_AUTH_USER_FILE', { expected: 'string' });
+      }
+      cfg.toolAuthorization.allowlist = {
+        repoFile: a.repoFile as any,
+        userFile: a.userFile as any,
+      };
+    }
+    if (t.sessionTtlMs !== undefined) {
+      cfg.toolAuthorization.sessionTtlMs = t.sessionTtlMs as any;
+    }
+  }
+
   return cfg;
 }

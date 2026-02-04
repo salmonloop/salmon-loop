@@ -82,6 +82,10 @@ export function uiReducer(state: UIState, action: UIAction): UIState {
       return { ...state, pendingConfirmation: action.payload };
     case 'CLEAR_CONFIRMATION':
       return { ...state, pendingConfirmation: undefined };
+    case 'SET_AUTHORIZATION':
+      return { ...state, pendingAuthorization: action.payload };
+    case 'CLEAR_AUTHORIZATION':
+      return { ...state, pendingAuthorization: undefined };
     case 'RESET_MESSAGES':
       return {
         ...state,
@@ -94,6 +98,7 @@ export function uiReducer(state: UIState, action: UIAction): UIState {
           },
         ],
         queueMessages: [],
+        pendingAuthorization: undefined,
       };
     case 'INTERRUPT_STREAM': {
       if (state.messages.length === 0) {

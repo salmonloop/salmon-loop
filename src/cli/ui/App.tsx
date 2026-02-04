@@ -4,6 +4,7 @@ import React from 'react';
 import { getSuggestions } from '../commands/registry.js';
 import { text } from '../locales/index.js';
 
+import { bindAuthorizationDispatch, resolveAuthorization } from './authorization/bus.js';
 import { StretchingThinking } from './components/animations/StretchingThinking.js';
 import { AutocompleteInput } from './components/AutocompleteInput.js';
 import { MessageList } from './components/MessageList.js';
@@ -32,6 +33,10 @@ const AppCore: React.FC<{
   React.useEffect(() => {
     pendingConfirmationRef.current = state.pendingConfirmation;
   }, [state.pendingConfirmation]);
+
+  React.useEffect(() => {
+    bindAuthorizationDispatch(dispatch);
+  }, [dispatch]);
 
   const handleChatInput = React.useCallback(
     async (value: string) => {
@@ -110,6 +115,31 @@ const AppCore: React.FC<{
               })
             }
             onSubmit={async (val) => {
+              if (state.pendingAuthorization) {
+                const trimmed = val.trim();
+                const [challenge, mode] = trimmed.split(/\s+/);
+                if (challenge === state.pendingAuthorization.challenge) {
+                  if (mode === 'save' || mode === 'repo') {
+                    resolveAuthorization(state.pendingAuthorization.id, {
+                      outcome: 'allow',
+                      persist: 'repo',
+                    });
+                  } else if (mode === 'global' || mode === 'user') {
+                    resolveAuthorization(state.pendingAuthorization.id, {
+                      outcome: 'allow',
+                      persist: 'user',
+                    });
+                  } else {
+                    const allowSession = mode === 'all' || mode === 'session';
+                    resolveAuthorization(state.pendingAuthorization.id, {
+                      outcome: allowSession ? 'allow_session' : 'allow_once',
+                    });
+                  }
+                }
+                dispatch({ type: 'SET_INPUT', payload: '' });
+                return;
+              }
+
               if (onChatInput && val.trim()) {
                 // Explicitly add user message to history for navigation
                 dispatch({

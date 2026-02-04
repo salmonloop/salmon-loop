@@ -2,6 +2,7 @@ import { skillToToolSpec } from '../skills/bridge.js';
 import { SkillLoader } from '../skills/loader.js';
 
 import { ToolAuditLogger } from './audit.js';
+import type { ToolAuthorizationProvider } from './authorization/types.js';
 import { BudgetGuard, BudgetConfig } from './budget.js';
 import { registerAllBuiltins } from './builtin/index.js';
 import { ToolDispatcher } from './dispatcher.js';
@@ -17,6 +18,7 @@ export interface ToolstackOptions {
   dryRun: boolean;
   model?: string;
   budget?: Partial<BudgetConfig>;
+  authorizationProvider?: ToolAuthorizationProvider;
 }
 
 /**
@@ -42,7 +44,14 @@ export async function createStandardToolstack(options: ToolstackOptions) {
   }
 
   // 4. Create Router (The execution pipeline)
-  const router = new ToolRouter(registry, policy, budget, audit, sanitize);
+  const router = new ToolRouter(
+    registry,
+    policy,
+    budget,
+    audit,
+    sanitize,
+    options.authorizationProvider,
+  );
 
   // 4. Create Dispatcher (The high-level coordinator for LLM text)
   const dispatcher = new ToolDispatcher(router, {

@@ -27,9 +27,14 @@ export interface UIState {
   changedFiles: string[];
   pendingConfirmation?: {
     message: string;
-    challenge: string; // 目标 Hash 的前 6 位
+    challenge: string; // First 6 characters of the target hash.
     command: string;
     args: any;
+  };
+  pendingAuthorization?: {
+    id: string;
+    message: string;
+    challenge: string;
   };
 }
 
@@ -53,4 +58,6 @@ export type UIAction =
   | { type: 'INTERRUPT_STREAM' }
   | { type: 'RESET_MESSAGES' }
   | { type: 'SET_CONFIRMATION'; payload: UIState['pendingConfirmation'] }
-  | { type: 'CLEAR_CONFIRMATION' };
+  | { type: 'CLEAR_CONFIRMATION' }
+  | { type: 'SET_AUTHORIZATION'; payload: UIState['pendingAuthorization'] }
+  | { type: 'CLEAR_AUTHORIZATION' };
