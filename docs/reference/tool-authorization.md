@@ -42,6 +42,25 @@ Allowlist load summaries can be throttled and bounded via config:
 
 Defaults are shown above. Smaller values increase log volume.
 
+## Rule Matching
+
+Allowlist side effect matching can be tuned:
+
+```json
+{
+  "toolAuthorization": {
+    "allowlist": {
+      "matching": {
+        "denySideEffects": "any",
+        "allowSideEffects": "all"
+      }
+    }
+  }
+}
+```
+
+Defaults are shown above. Deny rules are evaluated first and any match blocks the call.
+
 ## JSON Schema (v1)
 
 ```json

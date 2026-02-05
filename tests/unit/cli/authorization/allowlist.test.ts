@@ -33,6 +33,17 @@ vi.mock('fs/promises', () => ({
     }
     return files.get(filePath) as string;
   }),
+  readdir: vi.fn(async () => []),
+  copyFile: vi.fn(async (from: string, to: string) => {
+    if (!files.has(from)) {
+      const error: any = new Error('ENOENT: no such file or directory');
+      error.code = 'ENOENT';
+      throw error;
+    }
+    const content = files.get(from) as string;
+    files.set(to, content);
+    mtimes.set(to, (mtimes.get(from) ?? 1) + 1);
+  }),
   realpath: vi.fn(async (filePath: string) => {
     if (files.has(filePath)) return filePath;
     if (filePath.startsWith('/repo') || filePath.startsWith(os.homedir())) return filePath;

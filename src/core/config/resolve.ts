@@ -102,6 +102,10 @@ const DEFAULT_TOOL_AUTH: ToolAuthorizationConfig = {
       maxToolStats: 1000,
       maxPathStats: 2000,
     },
+    matching: {
+      denySideEffects: 'any',
+      allowSideEffects: 'all',
+    },
   },
 };
 
@@ -131,6 +135,14 @@ function resolveToolAuthorization(raw?: ConfigFileV1): ToolAuthorizationConfig {
         maxPathStats:
           config?.allowlist?.summary?.maxPathStats ??
           DEFAULT_TOOL_AUTH.allowlist?.summary?.maxPathStats,
+      },
+      matching: {
+        denySideEffects:
+          config?.allowlist?.matching?.denySideEffects ??
+          DEFAULT_TOOL_AUTH.allowlist?.matching?.denySideEffects,
+        allowSideEffects:
+          config?.allowlist?.matching?.allowSideEffects ??
+          DEFAULT_TOOL_AUTH.allowlist?.matching?.allowSideEffects,
       },
     },
   };

@@ -43,6 +43,10 @@
         "failureMinIntervalMs": 60000,
         "maxToolStats": 1000,
         "maxPathStats": 2000
+      },
+      "matching": {
+        "denySideEffects": "any",
+        "allowSideEffects": "all"
       }
     }
   }

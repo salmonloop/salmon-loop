@@ -114,5 +114,9 @@ export interface ToolAuthorizationConfig {
       maxToolStats?: number;
       maxPathStats?: number;
     };
+    matching?: {
+      denySideEffects?: 'any' | 'all';
+      allowSideEffects?: 'any' | 'all';
+    };
   };
 }

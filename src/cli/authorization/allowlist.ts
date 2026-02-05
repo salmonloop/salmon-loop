@@ -96,6 +96,23 @@ const DEFAULT_ALLOWLIST_SUMMARY_CONFIG = {
 
 let allowlistSummaryConfig = { ...DEFAULT_ALLOWLIST_SUMMARY_CONFIG };
 const MAX_REALPATH_ASCENT = 20;
+const TEMP_ARTIFACT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+const cleanedAllowlistDirs = new Set<string>();
+
+type AllowlistSideEffectMatch = 'any' | 'all';
+
+const DEFAULT_ALLOWLIST_MATCHING_CONFIG: {
+  denySideEffects: AllowlistSideEffectMatch;
+  allowSideEffects: AllowlistSideEffectMatch;
+} = {
+  denySideEffects: 'any',
+  allowSideEffects: 'all',
+};
+
+let allowlistMatchingConfig: {
+  denySideEffects: AllowlistSideEffectMatch;
+  allowSideEffects: AllowlistSideEffectMatch;
+} = { ...DEFAULT_ALLOWLIST_MATCHING_CONFIG };
 
 function normalizeConfigNumber(value: unknown, fallback: number, min: number): number {
   if (typeof value !== 'number' || Number.isNaN(value) || !Number.isFinite(value)) {
@@ -130,6 +147,62 @@ function applyAllowlistSummaryConfig(config?: ToolAuthorizationConfig): void {
       1,
     ),
   };
+}
+
+function applyAllowlistMatchingConfig(config?: ToolAuthorizationConfig): void {
+  const matching = config?.allowlist?.matching;
+  const denySideEffects =
+    matching?.denySideEffects === 'all' || matching?.denySideEffects === 'any'
+      ? matching.denySideEffects
+      : DEFAULT_ALLOWLIST_MATCHING_CONFIG.denySideEffects;
+  const allowSideEffects =
+    matching?.allowSideEffects === 'all' || matching?.allowSideEffects === 'any'
+      ? matching.allowSideEffects
+      : DEFAULT_ALLOWLIST_MATCHING_CONFIG.allowSideEffects;
+  allowlistMatchingConfig = {
+    denySideEffects,
+    allowSideEffects,
+  };
+}
+
+async function cleanupAllowlistArtifacts(
+  targetPath: string,
+  scope: 'repo' | 'user',
+): Promise<void> {
+  const dir = path.dirname(targetPath);
+  if (cleanedAllowlistDirs.has(dir)) return;
+  cleanedAllowlistDirs.add(dir);
+
+  try {
+    const entries = await fs.readdir(dir);
+    const now = Date.now();
+    const base = path.basename(targetPath);
+    let cleaned = 0;
+
+    for (const entry of entries) {
+      if (!entry.startsWith(`${base}.`)) continue;
+      if (!entry.endsWith('.tmp') && !entry.endsWith('.bak')) continue;
+      const fullPath = path.join(dir, entry);
+      try {
+        const stat = await fs.stat(fullPath);
+        if (now - stat.mtimeMs < TEMP_ARTIFACT_MAX_AGE_MS) continue;
+        await fs.unlink(fullPath);
+        cleaned += 1;
+      } catch {
+        // Best effort cleanup
+      }
+    }
+
+    if (cleaned > 0) {
+      logger.audit(
+        'ALLOWLIST_TEMP_ARTIFACTS_CLEANED',
+        { path: dir, count: cleaned },
+        { source: 'allowlist', severity: 'low', scope },
+      );
+    }
+  } catch {
+    // Best effort cleanup
+  }
 }
 
 function updateCountMap(map: Map<string, number>, key: string, limit: number): number {
@@ -639,10 +712,16 @@ function ruleMatches(
 function matchEntry(entry: ToolAuthorizationAllowlistEntry, ctx: AllowlistMatchContext) {
   if (entry.rules && entry.rules.length > 0) {
     for (const rule of entry.rules) {
-      if (ruleMatches(rule, ctx, 'any') && rule.mode === 'deny') return 'deny';
+      if (ruleMatches(rule, ctx, allowlistMatchingConfig.denySideEffects) && rule.mode === 'deny')
+        return 'deny';
     }
     for (const rule of entry.rules) {
-      if (ruleMatches(rule, ctx, 'all') && rule.mode === 'allow') return 'allow';
+      if (
+        ruleMatches(rule, ctx, allowlistMatchingConfig.allowSideEffects) &&
+        rule.mode === 'allow'
+      ) {
+        return 'allow';
+      }
     }
   }
 
@@ -861,6 +940,7 @@ async function writeFileAtomic(
   content: string,
   scope: 'repo' | 'user',
 ): Promise<void> {
+  await cleanupAllowlistArtifacts(targetPath, scope);
   const tempPath = `${targetPath}.${process.pid}.${Date.now()}.tmp`;
   const backupPath = `${targetPath}.${process.pid}.${Date.now()}.bak`;
   let backupCreated = false;
@@ -893,7 +973,11 @@ async function writeFileAtomic(
         try {
           await fs.copyFile(backupPath, targetPath);
         } catch {
-          // Best effort restore
+          logger.audit(
+            'ALLOWLIST_ATOMIC_RESTORE_FAILED',
+            { path: targetPath },
+            { source: 'allowlist', severity: 'high', scope },
+          );
         }
       }
       throw writeError;
@@ -916,6 +1000,7 @@ export async function loadAllowlistDecision(params: {
 }): Promise<'allow' | 'deny' | null> {
   const { config, repoRoot, toolName, phase, sideEffects, argsHash } = params;
   applyAllowlistSummaryConfig(config);
+  applyAllowlistMatchingConfig(config);
   const repoFile = config.allowlist?.repoFile;
   const userFile = config.allowlist?.userFile;
   const ctx: AllowlistMatchContext = { toolName, phase, sideEffects, argsHash };
