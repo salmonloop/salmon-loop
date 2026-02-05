@@ -599,7 +599,7 @@ async function saveAllowlistResolved(
 ): Promise<void> {
   try {
     await fs.mkdir(path.dirname(resolved), { recursive: true });
-    await writeFileAtomic(resolved, JSON.stringify(allowlist, null, 2));
+    await writeFileAtomic(resolved, JSON.stringify(allowlist, null, 2), scope);
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     logger.audit(
@@ -837,12 +837,22 @@ async function withAllowlistFileLock<T>(
   }
 }
 
-async function writeFileAtomic(targetPath: string, content: string): Promise<void> {
+async function writeFileAtomic(
+  targetPath: string,
+  content: string,
+  scope: 'repo' | 'user',
+): Promise<void> {
   const tempPath = `${targetPath}.${process.pid}.${Date.now()}.tmp`;
   await fs.writeFile(tempPath, content);
   try {
     await fs.rename(tempPath, targetPath);
-  } catch {
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    logger.audit(
+      'ALLOWLIST_ATOMIC_WRITE_FALLBACK',
+      { path: targetPath, error: msg },
+      { source: 'allowlist', severity: 'low', scope },
+    );
     try {
       await fs.writeFile(targetPath, content);
     } finally {

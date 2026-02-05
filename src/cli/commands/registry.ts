@@ -1,7 +1,15 @@
 import * as crypto from 'crypto';
+import fs from 'node:fs';
+import * as os from 'os';
+import * as path from 'path';
 
 import { logger } from '../../core/logger.js';
+import { skillToToolSpec } from '../../core/skills/bridge.js';
+import { SkillParser } from '../../core/skills/parser.js';
+import type { Skill } from '../../core/skills/types.js';
 import { CheckpointManager } from '../../core/strata/checkpoint/manager.js';
+import { registerAllBuiltins } from '../../core/tools/builtin/index.js';
+import { ToolRegistry } from '../../core/tools/registry.js';
 import type { SideEffect } from '../../core/tools/types.js';
 import { EXECUTION_PHASES } from '../../core/types.js';
 import {
@@ -14,6 +22,142 @@ import {
 import { text } from '../locales/index.js';
 
 import { Command, CommandContext, CommandResult } from './types.js';
+
+const VALID_SIDE_EFFECTS = new Set<SideEffect>([
+  'none',
+  'fs_read',
+  'fs_write',
+  'process',
+  'network',
+  'git_read',
+  'git_write',
+]);
+const toolNameCache = new Map<string, Set<string>>();
+
+async function loadSkillsFromPath(root: string): Promise<Skill[]> {
+  if (!fs.existsSync(root)) return [];
+  const entries = await fs.promises.readdir(root, { withFileTypes: true });
+  const skills: Skill[] = [];
+
+  for (const entry of entries) {
+    const skillFile = entry.isDirectory()
+      ? path.join(root, entry.name, 'SKILL.md')
+      : entry.name.endsWith('.md')
+        ? path.join(root, entry.name)
+        : null;
+
+    if (!skillFile || !fs.existsSync(skillFile)) continue;
+
+    try {
+      const content = await fs.promises.readFile(skillFile, 'utf-8');
+      skills.push(SkillParser.parse(content, skillFile));
+    } catch (error) {
+      logger.warn(
+        `Failed to load skill at ${skillFile}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  return skills;
+}
+
+async function getKnownToolNames(repoRoot: string): Promise<Set<string>> {
+  const cached = toolNameCache.get(repoRoot);
+  if (cached) return cached;
+
+  const registry = new ToolRegistry();
+  registerAllBuiltins(registry);
+
+  const searchPaths = [
+    path.join(os.homedir(), '.claude/skills'),
+    path.join(repoRoot, '.salmonloop/skills'),
+    path.join(repoRoot, '.claude/skills'),
+  ];
+
+  for (const searchPath of searchPaths) {
+    const skills = await loadSkillsFromPath(searchPath);
+    for (const skill of skills) {
+      try {
+        registry.register(skillToToolSpec(skill));
+      } catch (error) {
+        const label = skill.metadata?.name || skill.id;
+        logger.warn(
+          `Failed to register skill ${label}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+  }
+
+  const names = new Set(registry.listAll().map((spec) => spec.name));
+  toolNameCache.set(repoRoot, names);
+  return names;
+}
+
+function loadSkillsFromPathSync(root: string): Skill[] {
+  if (!fs.existsSync(root)) return [];
+  const entries = fs.readdirSync(root, { withFileTypes: true });
+  const skills: Skill[] = [];
+
+  for (const entry of entries) {
+    const skillFile = entry.isDirectory()
+      ? path.join(root, entry.name, 'SKILL.md')
+      : entry.name.endsWith('.md')
+        ? path.join(root, entry.name)
+        : null;
+
+    if (!skillFile || !fs.existsSync(skillFile)) continue;
+
+    try {
+      const content = fs.readFileSync(skillFile, 'utf-8');
+      skills.push(SkillParser.parse(content, skillFile));
+    } catch (error) {
+      logger.warn(
+        `Failed to load skill at ${skillFile}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  return skills;
+}
+
+function getKnownToolNamesSync(repoRoot: string): Set<string> {
+  const cached = toolNameCache.get(repoRoot);
+  if (cached) return cached;
+
+  const registry = new ToolRegistry();
+  registerAllBuiltins(registry);
+
+  const searchPaths = [
+    path.join(os.homedir(), '.claude/skills'),
+    path.join(repoRoot, '.salmonloop/skills'),
+    path.join(repoRoot, '.claude/skills'),
+  ];
+
+  for (const searchPath of searchPaths) {
+    const skills = loadSkillsFromPathSync(searchPath);
+    for (const skill of skills) {
+      try {
+        registry.register(skillToToolSpec(skill));
+      } catch (error) {
+        const label = skill.metadata?.name || skill.id;
+        logger.warn(
+          `Failed to register skill ${label}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+  }
+
+  const names = new Set(registry.listAll().map((spec) => spec.name));
+  toolNameCache.set(repoRoot, names);
+  return names;
+}
+
+function validateSideEffects(raw?: string[]): { valid?: SideEffect[]; invalid?: string[] } {
+  if (!raw || raw.length === 0) return {};
+  const invalid = raw.filter((effect) => !VALID_SIDE_EFFECTS.has(effect as SideEffect));
+  if (invalid.length > 0) return { invalid };
+  return { valid: raw as SideEffect[] };
+}
 
 /**
  * Parses input to provide a structured context for suggestions.
@@ -38,14 +182,14 @@ function parseToken(tokens: string[], key: string): string | undefined {
   return token.slice(prefix.length);
 }
 
-function parseTokenList(tokens: string[], key: string): SideEffect[] | undefined {
+function parseTokenList(tokens: string[], key: string): string[] | undefined {
   const raw = parseToken(tokens, key);
   if (!raw) return undefined;
   const values = raw
     .split(',')
     .map((v) => v.trim())
     .filter(Boolean);
-  return values.length > 0 ? (values as SideEffect[]) : undefined;
+  return values.length > 0 ? values : undefined;
 }
 
 function hashArgsInput(raw: string): string {
@@ -267,6 +411,18 @@ export const commands: Command[] = [
       }
 
       if (argIndex === 3 && ['add', 'remove'].includes(sub)) {
+        const repoRoot = process.cwd();
+        const search = currentPrefix.toLowerCase();
+        const tools = Array.from(getKnownToolNamesSync(repoRoot)).filter((name) =>
+          name.toLowerCase().startsWith(search),
+        );
+        return tools.map((tool) => ({
+          name: tool,
+          description: text.cli.authToolNameHint,
+        }));
+      }
+
+      if (argIndex === 4 && ['add', 'remove'].includes(sub)) {
         const phases = EXECUTION_PHASES.map((p) => p.toLowerCase());
         const search = currentPrefix.toLowerCase();
         return phases
@@ -385,6 +541,30 @@ export const commands: Command[] = [
           });
           return;
         }
+        let knownTools: Set<string>;
+        try {
+          knownTools = await getKnownToolNames(repoRoot);
+        } catch (error) {
+          logger.warn(
+            `Failed to load tool registry for validation: ${error instanceof Error ? error.message : String(error)}`,
+          );
+          emit({
+            type: 'log',
+            level: 'error',
+            message: text.cli.authToolRegistryUnavailable,
+            timestamp: new Date(),
+          });
+          return;
+        }
+        if (!knownTools.has(toolName)) {
+          emit({
+            type: 'log',
+            level: 'error',
+            message: text.cli.authInvalidToolName(toolName),
+            timestamp: new Date(),
+          });
+          return;
+        }
         const phase = args[3]?.toUpperCase();
         if (phase && !EXECUTION_PHASES.includes(phase as any)) {
           emit({
@@ -396,7 +576,18 @@ export const commands: Command[] = [
           return;
         }
         const tokens = args.slice(4);
-        const sideEffects = parseTokenList(tokens, 'effects');
+        const sideEffectsRaw = parseTokenList(tokens, 'effects');
+        const sideEffectsValidation = validateSideEffects(sideEffectsRaw);
+        if (sideEffectsValidation.invalid && sideEffectsValidation.invalid.length > 0) {
+          emit({
+            type: 'log',
+            level: 'error',
+            message: text.cli.authInvalidSideEffects(sideEffectsValidation.invalid.join(', ')),
+            timestamp: new Date(),
+          });
+          return;
+        }
+        const sideEffects = sideEffectsValidation.valid;
         const argsHash = parseToken(tokens, 'args');
         const mode = tokens.includes('deny') ? 'deny' : 'allow';
 
@@ -442,7 +633,18 @@ export const commands: Command[] = [
           return;
         }
         const tokens = args.slice(4);
-        const sideEffects = parseTokenList(tokens, 'effects');
+        const sideEffectsRaw = parseTokenList(tokens, 'effects');
+        const sideEffectsValidation = validateSideEffects(sideEffectsRaw);
+        if (sideEffectsValidation.invalid && sideEffectsValidation.invalid.length > 0) {
+          emit({
+            type: 'log',
+            level: 'error',
+            message: text.cli.authInvalidSideEffects(sideEffectsValidation.invalid.join(', ')),
+            timestamp: new Date(),
+          });
+          return;
+        }
+        const sideEffects = sideEffectsValidation.valid;
         const argsHash = parseToken(tokens, 'args');
 
         const removed = await removeAllowlistRule({

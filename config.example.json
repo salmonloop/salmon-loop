@@ -32,6 +32,18 @@
         }
       }
     }
+  },
+  "toolAuthorization": {
+    "allowlist": {
+      "repoFile": ".salmonloop/config/authorization.json",
+      "userFile": "~/.salmonloop/config/authorization-user.json",
+      "summary": {
+        "every": 100,
+        "minIntervalMs": 600000,
+        "failureMinIntervalMs": 60000,
+        "maxToolStats": 1000,
+        "maxPathStats": 2000
+      }
+    }
   }
 }
-

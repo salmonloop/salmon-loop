@@ -78,6 +78,7 @@ export const en = {
   authSubcommandHint: (sub: string) => `Authorization ${sub} command`,
   authScopeHint: (scope: string) => `Use ${scope} allowlist`,
   authPhaseHint: (phase: string) => `Phase ${phase.toUpperCase()}`,
+  authToolNameHint: 'Known tool name',
   authConfigMissing: 'Authorization config is unavailable.',
   authHashUsage: 'Usage: /auth hash <json-or-string>',
   authHashResult: (hash: string) => `Args hash: ${hash}`,
@@ -107,6 +108,9 @@ export const en = {
     `Authorization allowlist cache invalidated: ${reason} (${path})`,
   authPathBlocked: (path: string, scope: string) =>
     `Blocked allowlist path outside ${scope} scope: ${path}`,
+  authToolRegistryUnavailable: 'Tool registry is unavailable. Try again later.',
+  authInvalidToolName: (tool: string) => `Unknown tool name: ${tool}.`,
+  authInvalidSideEffects: (effects: string) => `Invalid side effects: ${effects}.`,
   authLockTimeout: (path: string) => `Authorization allowlist lock timeout: ${path}`,
   authInvalidPhase: (phase: string) => `Invalid phase: ${phase}.`,
   toolAuthorizationPrompt: (tool: string, risk: string, effects: string, summary: string) =>

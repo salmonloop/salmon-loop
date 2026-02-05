@@ -101,6 +101,9 @@ The allowlist subsystem also emits audit events for cache and safety signals:
 - `ALLOWLIST_WRITE_FAILED`
   - `path`
   - `error`
+- `ALLOWLIST_ATOMIC_WRITE_FALLBACK`
+  - `path`
+  - `error`
 - `ALLOWLIST_RULE_PERSISTED`
   - `path`
   - `toolName`
