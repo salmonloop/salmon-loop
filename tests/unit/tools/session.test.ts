@@ -25,6 +25,7 @@ describe('chatWithTools', () => {
       description: 'Echo tool for testing',
       riskLevel: 'low',
       sideEffects: ['none'],
+      concurrency: 'parallel_ok',
       allowedPhases: [Phase.PLAN],
       inputSchema: z.object({ text: z.string() }),
       outputSchema: z.object({ text: z.string() }),

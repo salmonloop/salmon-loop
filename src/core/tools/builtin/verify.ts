@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { text } from '../../../locales/index.js';
 import { Phase } from '../../types.js';
 import { runVerify, classifyError } from '../../verify.js';
+import { processResource, repoResource } from '../parallel/resource-helpers.js';
 import { ToolSpec, ToolRuntimeCtx } from '../types.js';
 
 export const verifyRunSpec: Omit<ToolSpec, 'executor'> = {
@@ -11,6 +12,8 @@ export const verifyRunSpec: Omit<ToolSpec, 'executor'> = {
   description: text.tools.testRunDescription,
   riskLevel: 'medium',
   sideEffects: ['process'],
+  concurrency: 'mutex_by_resource',
+  computeResources: (_input, ctx) => [repoResource(ctx), processResource(ctx)],
   inputSchema: z.object({
     command: z.string().describe('The shell command to run for verification'),
   }),

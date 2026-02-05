@@ -15,6 +15,7 @@ export function skillToToolSpec(skill: Skill): ToolSpec {
     description: skill.metadata.description,
     riskLevel: 'medium',
     sideEffects: ['process', 'fs_read'],
+    concurrency: 'serial_only',
     allowedPhases: ['PLAN', 'APPLY'],
 
     inputSchema: z.object({

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { Phase, ExecutionPhase } from '../../../types.js';
+import { repoResource } from '../../parallel/resource-helpers.js';
 import { ToolSpec } from '../../types.js';
 
 export const CodeSearchInput = z.object({
@@ -57,6 +58,8 @@ export const CodeSearchSpec: Omit<ToolSpec<CodeSearchInputT, CodeSearchOutputT>,
   description: 'Fast file pattern matching tool that works with any codebase size',
   riskLevel: 'low',
   sideEffects: ['fs_read'],
+  concurrency: 'parallel_ok',
+  computeResources: (_input, ctx) => [repoResource(ctx)],
   allowedPhases: [Phase.CONTEXT, Phase.PLAN, Phase.PATCH, Phase.VERIFY],
   inputSchema: CodeSearchInput,
   outputSchema: CodeSearchOutput,

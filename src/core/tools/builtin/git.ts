@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 import { text } from '../../../locales/index.js';
 import { Phase } from '../../types.js';
+import { repoResource } from '../parallel/resource-helpers.js';
 import { ToolSpec, ToolRuntimeCtx } from '../types.js';
 
 export const gitCatSpec: Omit<ToolSpec, 'executor'> = {
@@ -12,6 +13,8 @@ export const gitCatSpec: Omit<ToolSpec, 'executor'> = {
   description: text.tools.gitCatDescription,
   riskLevel: 'low',
   sideEffects: ['git_read'],
+  concurrency: 'parallel_ok',
+  computeResources: (_input, ctx) => [repoResource(ctx)],
   inputSchema: z.object({
     file: z.string().describe('Path to the file relative to repo root'),
     ref: z.string().default('HEAD').describe('Git reference (branch, hash, or HEAD)'),
@@ -79,6 +82,8 @@ export const gitStatusSpec: Omit<ToolSpec, 'executor'> = {
   description: text.tools.gitStatusDescription,
   riskLevel: 'low',
   sideEffects: ['git_read'],
+  concurrency: 'parallel_ok',
+  computeResources: (_input, ctx) => [repoResource(ctx)],
   inputSchema: z.object({
     porcelain: z.boolean().default(true).describe('Give the output in an easy-to-parse format'),
   }),

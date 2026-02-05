@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { text } from '../../../locales/index.js';
 import { AstParser } from '../../ast/parser.js';
 import { Phase } from '../../types.js';
+import { pathPrefixResource } from '../parallel/resource-helpers.js';
 import { ToolSpec, ToolRuntimeCtx } from '../types.js';
 
 export const astDefsRefsSpec: Omit<ToolSpec, 'executor'> = {
@@ -13,7 +14,9 @@ export const astDefsRefsSpec: Omit<ToolSpec, 'executor'> = {
   source: 'builtin',
   description: text.tools.codeAstDescription,
   riskLevel: 'low',
-  sideEffects: ['none'],
+  sideEffects: ['fs_read'],
+  concurrency: 'parallel_ok',
+  computeResources: (input, ctx) => [pathPrefixResource(ctx, input.file)],
   inputSchema: z.object({
     file: z.string().describe('Relative path to the file to analyze'),
     symbol: z.string().optional().describe('Filter by specific symbol name'),

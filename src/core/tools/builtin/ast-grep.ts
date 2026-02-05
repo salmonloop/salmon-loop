@@ -4,6 +4,7 @@ import { promisify } from 'util';
 import { z } from 'zod';
 
 import { Phase } from '../../types.js';
+import { processResource } from '../parallel/resource-helpers.js';
 import { ToolSpec, ToolRuntimeCtx } from '../types.js';
 
 const execAsync = promisify(child_process.exec);
@@ -17,7 +18,9 @@ export const astGrepSpec: Omit<ToolSpec, 'executor'> = {
   description:
     'Structural search using ast-grep (sg). Use $VAR for placeholders (e.g., "console.log($ARGS)").',
   riskLevel: 'low',
-  sideEffects: ['none'],
+  sideEffects: ['process'],
+  concurrency: 'mutex_by_resource',
+  computeResources: (_input, ctx) => [processResource(ctx)],
   inputSchema: z.object({
     pattern: z.string().describe('ast-grep pattern to search for'),
     paths: z.array(z.string()).optional().describe('Scope search to specific files or directories'),

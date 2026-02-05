@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 import { text } from '../../../locales/index.js';
 import { Phase } from '../../types.js';
+import { pathPrefixResource } from '../parallel/resource-helpers.js';
 import { ToolSpec, ToolRuntimeCtx } from '../types.js';
 
 /**
@@ -16,6 +17,8 @@ export const fsReadFileSpec: Omit<ToolSpec, 'executor'> = {
   description: text.tools.fsReadDescription,
   riskLevel: 'low',
   sideEffects: ['fs_read'],
+  concurrency: 'parallel_ok',
+  computeResources: (input, ctx) => [pathPrefixResource(ctx, input.file)],
   inputSchema: z.object({
     file: z.string().describe('Relative path to the file from the repository root'),
   }),

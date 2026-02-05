@@ -1,6 +1,9 @@
 import { z } from 'zod';
 
 import { ExecutionPhase } from '../types.js';
+
+import { ResourceKey } from './parallel/resources.js';
+
 export { ExecutionPhase };
 
 export type ToolSource = 'builtin' | 'mcp' | 'plugin';
@@ -13,7 +16,14 @@ export type SideEffect =
   | 'process'
   | 'network'
   | 'git_read'
-  | 'git_write';
+  | 'git_write'
+  | 'snapshot_mutate';
+
+export type ConcurrencyHint =
+  | 'parallel_ok' // Explicitly parallelizable (usually read-only)
+  | 'serial_only' // Must be serial (write-heavy or non-deterministic)
+  | 'mutex_by_resource' // Controlled by resource locks
+  | 'isolated'; // Requires isolated environment (sandbox/temp dir)
 
 export interface ToolRuntimeCtx {
   repoRoot: string;
@@ -30,12 +40,14 @@ export interface ToolSpec<I = any, O = any> {
 
   riskLevel: RiskLevel;
   sideEffects: SideEffect[];
+  concurrency: ConcurrencyHint;
   allowedPhases: ExecutionPhase[];
   defaultTimeoutMs?: number;
 
   inputSchema: z.ZodType<I>;
   outputSchema: z.ZodType<O>;
 
+  computeResources?: (args: I, ctx: ToolRuntimeCtx) => ResourceKey[];
   executor: (input: I, ctx: ToolRuntimeCtx) => Promise<O>;
 }
 

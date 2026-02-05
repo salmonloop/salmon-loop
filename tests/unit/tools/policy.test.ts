@@ -19,6 +19,7 @@ describe('ToolPolicy', () => {
     description: 'test',
     riskLevel,
     sideEffects,
+    concurrency: 'serial_only',
     allowedPhases: [],
     inputSchema: {} as any,
     outputSchema: {} as any,

@@ -23,6 +23,10 @@ export class ToolRouter {
     private authorization?: ToolAuthorizationProvider,
   ) {}
 
+  getSpec(toolName: string) {
+    return this.registry.getSpec(toolName);
+  }
+
   /**
    * ToolRouter.call is the single entry point for system tool execution.
    * It enforces standardized security, resource, and audit workflows.
