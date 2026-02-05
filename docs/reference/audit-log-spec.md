@@ -58,6 +58,10 @@ The allowlist subsystem emits audit events for cross-process locking:
   - `owner` (may be `unknown`)
   - `pid` (may be `undefined`)
   - `ageMs` (may be `undefined`)
+- `ALLOWLIST_LOCK_VERIFICATION_FAILED`
+  - `path`
+  - `owner`
+  - `pid`
 - `ALLOWLIST_LOCK_RELEASED`
   - `path`
   - `owner`
@@ -129,6 +133,9 @@ The allowlist subsystem also emits audit events for cache and safety signals:
   - `toolCount` (optional)
   - `pathCount` (optional)
   - `toolFailureRatePct` (optional, 0-100 with 2 decimal precision)
+  - Notes:
+    - Summary events are throttled (time/interval-based) to avoid log amplification.
+    - Tool/path counters are best-effort and capped with LRU eviction.
 
 ## Redaction and Safety
 

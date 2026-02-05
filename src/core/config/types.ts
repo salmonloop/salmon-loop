@@ -107,5 +107,12 @@ export interface ToolAuthorizationConfig {
   allowlist?: {
     repoFile?: string;
     userFile?: string;
+    summary?: {
+      every?: number;
+      minIntervalMs?: number;
+      failureMinIntervalMs?: number;
+      maxToolStats?: number;
+      maxPathStats?: number;
+    };
   };
 }

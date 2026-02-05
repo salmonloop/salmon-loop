@@ -20,6 +20,28 @@ Allowlist paths are constrained to their scopes:
 
 Any path outside these roots is blocked and the allowlist is treated as empty.
 
+## Summary Throttling
+
+Allowlist load summaries can be throttled and bounded via config:
+
+```json
+{
+  "toolAuthorization": {
+    "allowlist": {
+      "summary": {
+        "every": 100,
+        "minIntervalMs": 600000,
+        "failureMinIntervalMs": 60000,
+        "maxToolStats": 1000,
+        "maxPathStats": 2000
+      }
+    }
+  }
+}
+```
+
+Defaults are shown above. Smaller values increase log volume.
+
 ## JSON Schema (v1)
 
 ```json
@@ -87,6 +109,7 @@ The following audit events are emitted for lock lifecycle visibility:
 
 - `ALLOWLIST_LOCK_ACQUIRED`
 - `ALLOWLIST_LOCK_STALE_REMOVED`
+- `ALLOWLIST_LOCK_VERIFICATION_FAILED`
 - `ALLOWLIST_LOCK_RELEASED`
 - `ALLOWLIST_LOCK_TIMEOUT`
 

@@ -94,7 +94,14 @@ const DEFAULT_TOOL_AUTH: ToolAuthorizationConfig = {
   },
   allowlist: {
     repoFile: '.salmonloop/config/authorization.json',
-    userFile: '~/.salmonloop/authorization.json',
+    userFile: '~/.salmonloop/config/authorization-user.json',
+    summary: {
+      every: 100,
+      minIntervalMs: 10 * 60 * 1000,
+      failureMinIntervalMs: 60 * 1000,
+      maxToolStats: 1000,
+      maxPathStats: 2000,
+    },
   },
 };
 
@@ -110,6 +117,21 @@ function resolveToolAuthorization(raw?: ConfigFileV1): ToolAuthorizationConfig {
     allowlist: {
       repoFile: config?.allowlist?.repoFile ?? DEFAULT_TOOL_AUTH.allowlist?.repoFile,
       userFile: config?.allowlist?.userFile ?? DEFAULT_TOOL_AUTH.allowlist?.userFile,
+      summary: {
+        every: config?.allowlist?.summary?.every ?? DEFAULT_TOOL_AUTH.allowlist?.summary?.every,
+        minIntervalMs:
+          config?.allowlist?.summary?.minIntervalMs ??
+          DEFAULT_TOOL_AUTH.allowlist?.summary?.minIntervalMs,
+        failureMinIntervalMs:
+          config?.allowlist?.summary?.failureMinIntervalMs ??
+          DEFAULT_TOOL_AUTH.allowlist?.summary?.failureMinIntervalMs,
+        maxToolStats:
+          config?.allowlist?.summary?.maxToolStats ??
+          DEFAULT_TOOL_AUTH.allowlist?.summary?.maxToolStats,
+        maxPathStats:
+          config?.allowlist?.summary?.maxPathStats ??
+          DEFAULT_TOOL_AUTH.allowlist?.summary?.maxPathStats,
+      },
     },
   };
 }

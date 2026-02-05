@@ -44,7 +44,7 @@ const resolveConfig = (config?: ToolAuthorizationConfig): ToolAuthorizationConfi
     autoAllowRisk: TOOL_AUTH_CONFIG.AUTO_ALLOW_RISK,
     allowlist: {
       repoFile: '.salmonloop/config/authorization.json',
-      userFile: '~/.salmonloop/authorization.json',
+      userFile: '~/.salmonloop/config/authorization-user.json',
     },
   };
 };

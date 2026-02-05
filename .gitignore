@@ -15,6 +15,7 @@ dist/
 .vscode/
 .idea/
 .claude/
+C:\\Users\\shang\\.claude\\plugins\\marketplaces\\claude-plugins-official/
 *.swp
 *.swo
 *~

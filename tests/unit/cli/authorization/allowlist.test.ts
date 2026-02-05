@@ -33,6 +33,13 @@ vi.mock('fs/promises', () => ({
     }
     return files.get(filePath) as string;
   }),
+  realpath: vi.fn(async (filePath: string) => {
+    if (files.has(filePath)) return filePath;
+    if (filePath.startsWith('/repo') || filePath.startsWith(os.homedir())) return filePath;
+    const error: any = new Error('ENOENT: no such file or directory');
+    error.code = 'ENOENT';
+    throw error;
+  }),
   writeFile: vi.fn(async (filePath: string, data: string | Buffer) => {
     const content = typeof data === 'string' ? data : data.toString();
     setFile(filePath, content);

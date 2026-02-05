@@ -66,18 +66,127 @@ const allowlistLoadStats: Record<'repo' | 'user', AllowlistLoadStats> = {
   repo: { total: 0, success: 0, failure: 0 },
   user: { total: 0, success: 0, failure: 0 },
 };
-const allowlistLoadToolCounts: Record<'repo' | 'user', Record<string, number>> = {
-  repo: {},
-  user: {},
+const allowlistLoadToolCounts: Record<'repo' | 'user', Map<string, number>> = {
+  repo: new Map(),
+  user: new Map(),
 };
-const allowlistLoadToolStats: Record<'repo' | 'user', Record<string, AllowlistLoadToolStats>> = {
-  repo: {},
-  user: {},
+const allowlistLoadToolStats: Record<'repo' | 'user', Map<string, AllowlistLoadToolStats>> = {
+  repo: new Map(),
+  user: new Map(),
 };
-const allowlistLoadPathCounts: Record<'repo' | 'user', Record<string, number>> = {
-  repo: {},
-  user: {},
+const allowlistLoadPathCounts: Record<'repo' | 'user', Map<string, number>> = {
+  repo: new Map(),
+  user: new Map(),
 };
+const allowlistLoadSummaryState: Record<
+  'repo' | 'user',
+  { lastLoggedAt: number; lastLoggedTotal: number; lastLoggedFailure: number }
+> = {
+  repo: { lastLoggedAt: 0, lastLoggedTotal: 0, lastLoggedFailure: 0 },
+  user: { lastLoggedAt: 0, lastLoggedTotal: 0, lastLoggedFailure: 0 },
+};
+
+const DEFAULT_ALLOWLIST_SUMMARY_CONFIG = {
+  every: 100,
+  minIntervalMs: 10 * 60 * 1000,
+  failureMinIntervalMs: 60 * 1000,
+  maxToolStats: 1000,
+  maxPathStats: 2000,
+};
+
+let allowlistSummaryConfig = { ...DEFAULT_ALLOWLIST_SUMMARY_CONFIG };
+
+function normalizeConfigNumber(value: unknown, fallback: number, min: number): number {
+  if (typeof value !== 'number' || Number.isNaN(value) || !Number.isFinite(value)) {
+    return fallback;
+  }
+  if (value < min) return fallback;
+  return Math.floor(value);
+}
+
+function applyAllowlistSummaryConfig(config?: ToolAuthorizationConfig): void {
+  const summary = config?.allowlist?.summary;
+  allowlistSummaryConfig = {
+    every: normalizeConfigNumber(summary?.every, DEFAULT_ALLOWLIST_SUMMARY_CONFIG.every, 1),
+    minIntervalMs: normalizeConfigNumber(
+      summary?.minIntervalMs,
+      DEFAULT_ALLOWLIST_SUMMARY_CONFIG.minIntervalMs,
+      0,
+    ),
+    failureMinIntervalMs: normalizeConfigNumber(
+      summary?.failureMinIntervalMs,
+      DEFAULT_ALLOWLIST_SUMMARY_CONFIG.failureMinIntervalMs,
+      0,
+    ),
+    maxToolStats: normalizeConfigNumber(
+      summary?.maxToolStats,
+      DEFAULT_ALLOWLIST_SUMMARY_CONFIG.maxToolStats,
+      1,
+    ),
+    maxPathStats: normalizeConfigNumber(
+      summary?.maxPathStats,
+      DEFAULT_ALLOWLIST_SUMMARY_CONFIG.maxPathStats,
+      1,
+    ),
+  };
+}
+
+function updateCountMap(map: Map<string, number>, key: string, limit: number): number {
+  const next = (map.get(key) ?? 0) + 1;
+  map.set(key, next);
+  map.delete(key);
+  map.set(key, next);
+  if (map.size > limit) {
+    const oldest = map.keys().next().value as string | undefined;
+    if (oldest !== undefined) {
+      map.delete(oldest);
+    }
+  }
+  return next;
+}
+
+function updateToolStatsMap(
+  map: Map<string, AllowlistLoadToolStats>,
+  key: string,
+  outcome: AllowlistLoadOutcome,
+): AllowlistLoadToolStats {
+  const current = map.get(key) ?? { total: 0, success: 0, failure: 0 };
+  current.total += 1;
+  if (outcome === 'success') {
+    current.success += 1;
+  } else {
+    current.failure += 1;
+  }
+  map.set(key, current);
+  map.delete(key);
+  map.set(key, current);
+  if (map.size > allowlistSummaryConfig.maxToolStats) {
+    const oldest = map.keys().next().value as string | undefined;
+    if (oldest !== undefined) {
+      map.delete(oldest);
+    }
+  }
+  return current;
+}
+
+function shouldLogAllowlistSummary(scope: 'repo' | 'user', outcome: AllowlistLoadOutcome): boolean {
+  const state = allowlistLoadSummaryState[scope];
+  const stats = allowlistLoadStats[scope];
+  const { every, minIntervalMs, failureMinIntervalMs } = allowlistSummaryConfig;
+  const now = Date.now();
+  const totalDelta = stats.total - state.lastLoggedTotal;
+  const failureDelta = stats.failure - state.lastLoggedFailure;
+  if (totalDelta >= every) return true;
+  if (now - state.lastLoggedAt >= minIntervalMs) return true;
+  if (
+    outcome === 'failure' &&
+    failureDelta > 0 &&
+    now - state.lastLoggedAt >= failureMinIntervalMs
+  ) {
+    return true;
+  }
+  return false;
+}
 
 function recordAllowlistLoadSummary(params: {
   scope: 'repo' | 'user';
@@ -95,27 +204,32 @@ function recordAllowlistLoadSummary(params: {
   } else {
     stats.failure += 1;
   }
-  if (toolName) {
-    const toolCounts = allowlistLoadToolCounts[scope];
-    toolCounts[toolName] = (toolCounts[toolName] ?? 0) + 1;
-    const toolStats = allowlistLoadToolStats[scope];
-    const current = toolStats[toolName] ?? { total: 0, success: 0, failure: 0 };
-    current.total += 1;
-    if (outcome === 'success') {
-      current.success += 1;
-    } else {
-      current.failure += 1;
+  if (!shouldLogAllowlistSummary(scope, outcome)) {
+    if (toolName) {
+      updateCountMap(allowlistLoadToolCounts[scope], toolName, allowlistSummaryConfig.maxToolStats);
+      updateToolStatsMap(allowlistLoadToolStats[scope], toolName, outcome);
     }
-    toolStats[toolName] = current;
+    if (path) {
+      updateCountMap(allowlistLoadPathCounts[scope], path, allowlistSummaryConfig.maxPathStats);
+    }
+    return;
+  }
+  const summaryState = allowlistLoadSummaryState[scope];
+  if (toolName) {
+    updateCountMap(allowlistLoadToolCounts[scope], toolName, allowlistSummaryConfig.maxToolStats);
   }
   if (path) {
-    const pathCounts = allowlistLoadPathCounts[scope];
-    pathCounts[path] = (pathCounts[path] ?? 0) + 1;
+    updateCountMap(allowlistLoadPathCounts[scope], path, allowlistSummaryConfig.maxPathStats);
   }
-  const toolStats = toolName ? allowlistLoadToolStats[scope][toolName] : undefined;
+  const toolStats = toolName
+    ? updateToolStatsMap(allowlistLoadToolStats[scope], toolName, outcome)
+    : undefined;
   const toolFailureRate = toolStats
     ? Math.round((toolStats.failure / toolStats.total) * 10000) / 100
     : undefined;
+  summaryState.lastLoggedAt = Date.now();
+  summaryState.lastLoggedTotal = stats.total;
+  summaryState.lastLoggedFailure = stats.failure;
   logger.audit(
     'ALLOWLIST_LOAD_SUMMARY',
     {
@@ -128,8 +242,8 @@ function recordAllowlistLoadSummary(params: {
       lastError: error,
       lastToolName: toolName,
       lastPath: path,
-      toolCount: toolName ? allowlistLoadToolCounts[scope][toolName] : undefined,
-      pathCount: path ? allowlistLoadPathCounts[scope][path] : undefined,
+      toolCount: toolName ? allowlistLoadToolCounts[scope].get(toolName) : undefined,
+      pathCount: path ? allowlistLoadPathCounts[scope].get(path) : undefined,
       toolFailureRatePct: toolFailureRate,
     },
     { source: 'allowlist', severity: 'low', scope },
@@ -154,6 +268,22 @@ function resolveAllowlistScopeRoot(repoRoot: string, scope: 'repo' | 'user'): st
     : path.join(repoRoot, '.salmonloop');
 }
 
+async function resolveRealTargetForMissingPath(targetPath: string): Promise<string | null> {
+  let current = targetPath;
+  while (true) {
+    try {
+      const realParent = await fs.realpath(current);
+      const relative = path.relative(current, targetPath);
+      return path.join(realParent, relative);
+    } catch (error: any) {
+      if (error?.code !== 'ENOENT') return null;
+    }
+    const next = path.dirname(current);
+    if (next === current) return null;
+    current = next;
+  }
+}
+
 function logBlockedAllowlistPath(filePath: string, scope: 'repo' | 'user'): void {
   logger.warn(text.cli.authPathBlocked(filePath, scope));
   logger.audit(
@@ -163,17 +293,42 @@ function logBlockedAllowlistPath(filePath: string, scope: 'repo' | 'user'): void
   );
 }
 
-function ensureAllowlistPath(
+async function ensureAllowlistPath(
   filePath: string,
   repoRoot: string,
   scope: 'repo' | 'user',
-): string | null {
+): Promise<string | null> {
   const resolved = resolveAllowlistPath(filePath, repoRoot, scope);
   const scopeRoot = resolveAllowlistScopeRoot(repoRoot, scope);
   const normalizedResolved = path.resolve(resolved);
   const normalizedRoot = path.resolve(scopeRoot);
   if (normalizedResolved === normalizedRoot) return null;
   if (!normalizedResolved.startsWith(normalizedRoot + path.sep)) return null;
+
+  let realRoot: string;
+  try {
+    realRoot = await fs.realpath(normalizedRoot);
+  } catch {
+    realRoot = normalizedRoot;
+  }
+
+  let realTarget: string;
+  try {
+    realTarget = await fs.realpath(normalizedResolved);
+  } catch (error: any) {
+    if (error?.code === 'ENOENT') {
+      const resolvedTarget = await resolveRealTargetForMissingPath(normalizedResolved);
+      if (!resolvedTarget) return null;
+      realTarget = resolvedTarget;
+    } else {
+      return null;
+    }
+  }
+
+  const realRootNormalized = path.resolve(realRoot);
+  const realTargetNormalized = path.resolve(realTarget);
+  if (realTargetNormalized === realRootNormalized) return null;
+  if (!realTargetNormalized.startsWith(realRootNormalized + path.sep)) return null;
   return normalizedResolved;
 }
 
@@ -265,12 +420,12 @@ function getCacheInvalidationReason(
   return null;
 }
 
-function resolveAllowlistPathOrLog(
+async function resolveAllowlistPathOrLog(
   filePath: string,
   repoRoot: string,
   scope: 'repo' | 'user',
-): string | null {
-  const resolved = ensureAllowlistPath(filePath, repoRoot, scope);
+): Promise<string | null> {
+  const resolved = await ensureAllowlistPath(filePath, repoRoot, scope);
   if (!resolved) {
     logBlockedAllowlistPath(filePath, scope);
   }
@@ -283,7 +438,7 @@ async function loadAllowlist(
   scope: 'repo' | 'user',
   toolName?: string,
 ): Promise<ToolAuthorizationAllowlist> {
-  const resolved = resolveAllowlistPathOrLog(filePath, repoRoot, scope);
+  const resolved = await resolveAllowlistPathOrLog(filePath, repoRoot, scope);
   if (!resolved) {
     recordAllowlistLoadSummary({
       scope,
@@ -543,6 +698,39 @@ async function acquireAllowlistFileLock(lockPath: string, scope: 'repo' | 'user'
         'utf8',
       );
       await handle.close();
+      try {
+        const raw = await fs.readFile(lockPath, 'utf8');
+        const metadata = JSON.parse(raw) as { owner?: string; pid?: number };
+        if (metadata.owner !== owner) {
+          logger.audit(
+            'ALLOWLIST_LOCK_VERIFICATION_FAILED',
+            { path: lockPath, owner, pid: process.pid },
+            { source: 'allowlist', severity: 'medium', scope },
+          );
+          await fs.unlink(lockPath).catch(() => undefined);
+          retryCount += 1;
+          const delay = Math.min(
+            LIMITS.retry.io.initialDelayMs * Math.pow(1.5, retryCount),
+            LIMITS.retry.io.maxDelayMs,
+          );
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          continue;
+        }
+      } catch {
+        logger.audit(
+          'ALLOWLIST_LOCK_VERIFICATION_FAILED',
+          { path: lockPath, owner, pid: process.pid },
+          { source: 'allowlist', severity: 'medium', scope },
+        );
+        await fs.unlink(lockPath).catch(() => undefined);
+        retryCount += 1;
+        const delay = Math.min(
+          LIMITS.retry.io.initialDelayMs * Math.pow(1.5, retryCount),
+          LIMITS.retry.io.maxDelayMs,
+        );
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        continue;
+      }
       allowlistLockOwners.set(lockPath, owner);
       logger.audit(
         'ALLOWLIST_LOCK_ACQUIRED',
@@ -672,6 +860,7 @@ export async function loadAllowlistDecision(params: {
   argsHash?: string;
 }): Promise<'allow' | 'deny' | null> {
   const { config, repoRoot, toolName, phase, sideEffects, argsHash } = params;
+  applyAllowlistSummaryConfig(config);
   const repoFile = config.allowlist?.repoFile;
   const userFile = config.allowlist?.userFile;
   const ctx: AllowlistMatchContext = { toolName, phase, sideEffects, argsHash };
@@ -715,7 +904,7 @@ export async function persistAllowlistDecision(params: {
   const targetFile = scope === 'repo' ? config.allowlist?.repoFile : config.allowlist?.userFile;
   if (!targetFile) return;
 
-  const resolved = resolveAllowlistPathOrLog(targetFile, repoRoot, scope);
+  const resolved = await resolveAllowlistPathOrLog(targetFile, repoRoot, scope);
   if (!resolved) return;
 
   await withAllowlistLock(resolved, async () =>
@@ -759,6 +948,7 @@ export async function listAllowlist(params: {
   scope: 'repo' | 'user';
 }): Promise<ToolAuthorizationAllowlist> {
   const { config, repoRoot, scope } = params;
+  applyAllowlistSummaryConfig(config);
   const targetFile = scope === 'repo' ? config.allowlist?.repoFile : config.allowlist?.userFile;
   if (!targetFile) return createEmptyAllowlist();
   return loadAllowlist(targetFile, repoRoot, scope);
@@ -777,7 +967,7 @@ export async function removeAllowlistRule(params: {
   const targetFile = scope === 'repo' ? config.allowlist?.repoFile : config.allowlist?.userFile;
   if (!targetFile) return false;
 
-  const resolved = resolveAllowlistPathOrLog(targetFile, repoRoot, scope);
+  const resolved = await resolveAllowlistPathOrLog(targetFile, repoRoot, scope);
   if (!resolved) return false;
 
   return withAllowlistLock(resolved, async () =>
@@ -840,7 +1030,7 @@ export async function clearAllowlist(params: {
   const { config, repoRoot, scope } = params;
   const targetFile = scope === 'repo' ? config.allowlist?.repoFile : config.allowlist?.userFile;
   if (!targetFile) return;
-  const resolved = resolveAllowlistPathOrLog(targetFile, repoRoot, scope);
+  const resolved = await resolveAllowlistPathOrLog(targetFile, repoRoot, scope);
   if (!resolved) return;
 
   await withAllowlistLock(resolved, async () =>
@@ -875,10 +1065,10 @@ export async function clearAllowlistCache(params: {
 }): Promise<void> {
   const { config, repoRoot } = params;
   const repoResolved = config.allowlist?.repoFile
-    ? resolveAllowlistPathOrLog(config.allowlist.repoFile, repoRoot, 'repo')
+    ? await resolveAllowlistPathOrLog(config.allowlist.repoFile, repoRoot, 'repo')
     : null;
   const userResolved = config.allowlist?.userFile
-    ? resolveAllowlistPathOrLog(config.allowlist.userFile, repoRoot, 'user')
+    ? await resolveAllowlistPathOrLog(config.allowlist.userFile, repoRoot, 'user')
     : null;
   const targets = [
     repoResolved ? getCachePath(repoResolved, repoRoot) : undefined,
