@@ -32,7 +32,7 @@ const VALID_SIDE_EFFECTS = new Set<SideEffect>([
   'git_read',
   'git_write',
 ]);
-const toolNameCache = new Map<string, Set<string>>();
+const toolNameCache = new Map<string, { names: Set<string>; signature: string }>();
 
 async function loadSkillsFromPath(root: string): Promise<Skill[]> {
   if (!fs.existsSync(root)) return [];
@@ -61,20 +61,49 @@ async function loadSkillsFromPath(root: string): Promise<Skill[]> {
   return skills;
 }
 
-async function getKnownToolNames(repoRoot: string): Promise<Set<string>> {
-  const cached = toolNameCache.get(repoRoot);
-  if (cached) return cached;
-
-  const registry = new ToolRegistry();
-  registerAllBuiltins(registry);
-
-  const searchPaths = [
+function getSkillSearchPaths(repoRoot: string): string[] {
+  return [
     path.join(os.homedir(), '.claude/skills'),
     path.join(repoRoot, '.salmonloop/skills'),
     path.join(repoRoot, '.claude/skills'),
   ];
+}
 
-  for (const searchPath of searchPaths) {
+async function computeSkillSignature(repoRoot: string): Promise<string> {
+  const parts: string[] = [];
+  for (const searchPath of getSkillSearchPaths(repoRoot)) {
+    try {
+      const stat = await fs.promises.stat(searchPath);
+      parts.push(`${searchPath}:${stat.mtimeMs}`);
+    } catch {
+      parts.push(`${searchPath}:missing`);
+    }
+  }
+  return parts.join('|');
+}
+
+function computeSkillSignatureSync(repoRoot: string): string {
+  const parts: string[] = [];
+  for (const searchPath of getSkillSearchPaths(repoRoot)) {
+    try {
+      const stat = fs.statSync(searchPath);
+      parts.push(`${searchPath}:${stat.mtimeMs}`);
+    } catch {
+      parts.push(`${searchPath}:missing`);
+    }
+  }
+  return parts.join('|');
+}
+
+async function getKnownToolNames(repoRoot: string): Promise<Set<string>> {
+  const signature = await computeSkillSignature(repoRoot);
+  const cached = toolNameCache.get(repoRoot);
+  if (cached && cached.signature === signature) return cached.names;
+
+  const registry = new ToolRegistry();
+  registerAllBuiltins(registry);
+
+  for (const searchPath of getSkillSearchPaths(repoRoot)) {
     const skills = await loadSkillsFromPath(searchPath);
     for (const skill of skills) {
       try {
@@ -89,8 +118,16 @@ async function getKnownToolNames(repoRoot: string): Promise<Set<string>> {
   }
 
   const names = new Set(registry.listAll().map((spec) => spec.name));
-  toolNameCache.set(repoRoot, names);
+  toolNameCache.set(repoRoot, { names, signature });
   return names;
+}
+
+function clearKnownToolNames(repoRoot?: string): void {
+  if (repoRoot) {
+    toolNameCache.delete(repoRoot);
+    return;
+  }
+  toolNameCache.clear();
 }
 
 function loadSkillsFromPathSync(root: string): Skill[] {
@@ -121,19 +158,14 @@ function loadSkillsFromPathSync(root: string): Skill[] {
 }
 
 function getKnownToolNamesSync(repoRoot: string): Set<string> {
+  const signature = computeSkillSignatureSync(repoRoot);
   const cached = toolNameCache.get(repoRoot);
-  if (cached) return cached;
+  if (cached && cached.signature === signature) return cached.names;
 
   const registry = new ToolRegistry();
   registerAllBuiltins(registry);
 
-  const searchPaths = [
-    path.join(os.homedir(), '.claude/skills'),
-    path.join(repoRoot, '.salmonloop/skills'),
-    path.join(repoRoot, '.claude/skills'),
-  ];
-
-  for (const searchPath of searchPaths) {
+  for (const searchPath of getSkillSearchPaths(repoRoot)) {
     const skills = loadSkillsFromPathSync(searchPath);
     for (const skill of skills) {
       try {
@@ -148,7 +180,7 @@ function getKnownToolNamesSync(repoRoot: string): Set<string> {
   }
 
   const names = new Set(registry.listAll().map((spec) => spec.name));
-  toolNameCache.set(repoRoot, names);
+  toolNameCache.set(repoRoot, { names, signature });
   return names;
 }
 
@@ -453,6 +485,7 @@ export const commands: Command[] = [
 
       if (subCommand === 'reload') {
         await clearAllowlistCache({ config, repoRoot });
+        clearKnownToolNames(repoRoot);
         emit({
           type: 'log',
           level: 'info',

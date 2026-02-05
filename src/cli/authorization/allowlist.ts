@@ -95,6 +95,7 @@ const DEFAULT_ALLOWLIST_SUMMARY_CONFIG = {
 };
 
 let allowlistSummaryConfig = { ...DEFAULT_ALLOWLIST_SUMMARY_CONFIG };
+const MAX_REALPATH_ASCENT = 20;
 
 function normalizeConfigNumber(value: unknown, fallback: number, min: number): number {
   if (typeof value !== 'number' || Number.isNaN(value) || !Number.isFinite(value)) {
@@ -270,7 +271,8 @@ function resolveAllowlistScopeRoot(repoRoot: string, scope: 'repo' | 'user'): st
 
 async function resolveRealTargetForMissingPath(targetPath: string): Promise<string | null> {
   let current = targetPath;
-  while (true) {
+  let depth = 0;
+  while (depth < MAX_REALPATH_ASCENT) {
     try {
       const realParent = await fs.realpath(current);
       const relative = path.relative(current, targetPath);
@@ -281,7 +283,9 @@ async function resolveRealTargetForMissingPath(targetPath: string): Promise<stri
     const next = path.dirname(current);
     if (next === current) return null;
     current = next;
+    depth += 1;
   }
+  return null;
 }
 
 function logBlockedAllowlistPath(filePath: string, scope: 'repo' | 'user'): void {
@@ -611,12 +615,21 @@ async function saveAllowlistResolved(
   }
 }
 
-function ruleMatches(rule: ToolAuthorizationRule, ctx: AllowlistMatchContext): boolean {
+function ruleMatches(
+  rule: ToolAuthorizationRule,
+  ctx: AllowlistMatchContext,
+  sideEffectMode: 'all' | 'any',
+): boolean {
   if (rule.phase && rule.phase !== ctx.phase) return false;
   if (rule.sideEffects && rule.sideEffects.length > 0) {
     if (!ctx.sideEffects || ctx.sideEffects.length === 0) return false;
-    for (const effect of rule.sideEffects) {
-      if (!ctx.sideEffects.includes(effect)) return false;
+    if (sideEffectMode === 'any') {
+      const matches = rule.sideEffects.some((effect) => ctx.sideEffects?.includes(effect));
+      if (!matches) return false;
+    } else {
+      for (const effect of rule.sideEffects) {
+        if (!ctx.sideEffects.includes(effect)) return false;
+      }
     }
   }
   if (rule.argsHash && rule.argsHash !== ctx.argsHash) return false;
@@ -626,10 +639,10 @@ function ruleMatches(rule: ToolAuthorizationRule, ctx: AllowlistMatchContext): b
 function matchEntry(entry: ToolAuthorizationAllowlistEntry, ctx: AllowlistMatchContext) {
   if (entry.rules && entry.rules.length > 0) {
     for (const rule of entry.rules) {
-      if (ruleMatches(rule, ctx) && rule.mode === 'deny') return 'deny';
+      if (ruleMatches(rule, ctx, 'any') && rule.mode === 'deny') return 'deny';
     }
     for (const rule of entry.rules) {
-      if (ruleMatches(rule, ctx) && rule.mode === 'allow') return 'allow';
+      if (ruleMatches(rule, ctx, 'all') && rule.mode === 'allow') return 'allow';
     }
   }
 
@@ -851,7 +864,7 @@ async function writeFileAtomic(
     logger.audit(
       'ALLOWLIST_ATOMIC_WRITE_FALLBACK',
       { path: targetPath, error: msg },
-      { source: 'allowlist', severity: 'low', scope },
+      { source: 'allowlist', severity: 'medium', scope },
     );
     try {
       await fs.writeFile(targetPath, content);
