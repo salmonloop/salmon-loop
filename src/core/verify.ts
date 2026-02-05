@@ -4,6 +4,7 @@ import { join } from 'path';
 
 import { text } from '../locales/index.js';
 
+import { GitAdapter } from './adapters/git/git-adapter.js';
 import { LIMITS } from './limits.js';
 import { logger } from './logger.js';
 import { pluginRegistry } from './plugin/registry.js';
@@ -214,72 +215,78 @@ export async function preflight(
   workspace: ExecutionWorkspace,
   onEvent?: (event: LoopEvent) => void,
 ): Promise<{ ok: boolean; reason?: string }> {
-  return new Promise((resolve) => {
-    const now = () => new Date();
-    // 1. Check if it's a git repo
-    const gitCheck = spawn('git', ['rev-parse', '--is-inside-work-tree'], {
-      cwd: workspace.baseRepoPath,
-    });
+  const now = () => new Date();
+  const git = new GitAdapter(workspace.baseRepoPath);
 
-    gitCheck.on('error', (err: any) => {
-      if (err.code === 'ENOENT') {
-        resolve({ ok: false, reason: text.loop.gitNotFound });
-      } else {
-        resolve({ ok: false, reason: `Git check failed: ${err.message}` });
-      }
-    });
-
-    gitCheck.on('close', (code) => {
-      if (code !== 0) {
-        resolve({ ok: false, reason: text.loop.preflightFailedNotGit });
-        return;
-      }
-
-      // 2. Check if workspace is dirty (only for direct strategy)
-      // Allow dirty workspace by default for worktree strategy
-      if (workspace.strategy === 'direct') {
-        const statusCheck = spawn('git', ['status', '--porcelain'], {
-          cwd: workspace.baseRepoPath,
-        });
-        let output = '';
-
-        statusCheck.on('error', (err) => {
-          resolve({ ok: false, reason: `Git status check failed: ${err.message}` });
-        });
-
-        statusCheck.stdout.on('data', (data) => (output += data.toString()));
-        statusCheck.on('close', (code) => {
-          if (code === 0 && output.trim().length > 0) {
-            resolve({ ok: false, reason: text.loop.preflightFailedDirty(output.trim()) });
-          } else {
-            resolve({ ok: true });
-          }
-        });
-      } else {
-        // Worktree strategy: ignore dirty state in base repository
-        onEvent?.({
-          type: 'resource.status',
-          resource: 'git',
-          status: 'skipped',
-          message: text.verify.worktreeStrategyActive,
-          timestamp: now(),
-        });
-        resolve({ ok: true });
-      }
-    });
-
-    // 3. Check if ripgrep is installed (optional but recommended)
-    const rgCheck = spawn('rg', ['--version']);
-    rgCheck.on('error', (err: any) => {
-      if (err.code === 'ENOENT') {
-        onEvent?.({
-          type: 'resource.status',
-          resource: 'ripgrep',
-          status: 'warning',
-          message: text.verify.ripgrepNotFoundWarning,
-          timestamp: now(),
-        });
-      }
-    });
+  // 1. Check if it's a git repo
+  const gitCheck = await git.execMeta(['rev-parse', '--is-inside-work-tree'], {
+    cwd: workspace.baseRepoPath,
+    limits: { maxStdoutBytes: 4_096, maxStderrChars: 4_096 },
+    timeoutMs: LIMITS.gitTimeoutMs,
   });
+
+  if (!gitCheck.ok) {
+    if (gitCheck.error?.code === 'ENOENT') return { ok: false, reason: text.loop.gitNotFound };
+    if (gitCheck.error?.message) {
+      return { ok: false, reason: text.loop.preflightGitCheckFailed(gitCheck.error.message) };
+    }
+    return { ok: false, reason: text.loop.preflightFailedNotGit };
+  }
+  if (gitCheck.stdoutTruncated) {
+    return { ok: false, reason: text.loop.preflightGitCheckFailed(text.git.outputTruncated(4096)) };
+  }
+
+  // 2. Check if workspace is dirty (only for direct strategy)
+  // Allow dirty workspace by default for worktree strategy
+  if (workspace.strategy === 'direct') {
+    const statusCheck = await git.execMeta(['status', '--porcelain'], {
+      cwd: workspace.baseRepoPath,
+      limits: { maxStdoutBytes: 64_000, maxStderrChars: 4_096 },
+      timeoutMs: LIMITS.gitTimeoutMs,
+    });
+
+    if (!statusCheck.ok) {
+      return {
+        ok: false,
+        reason: text.loop.preflightGitStatusFailed(
+          statusCheck.error?.message ?? statusCheck.stderr.trim() ?? 'Unknown error',
+        ),
+      };
+    }
+    if (statusCheck.stdoutTruncated) {
+      return {
+        ok: false,
+        reason: text.loop.preflightGitStatusFailed(text.git.outputTruncated(64_000)),
+      };
+    }
+
+    const output = statusCheck.stdout.toString('utf8').trim();
+    if (output.length > 0) return { ok: false, reason: text.loop.preflightFailedDirty(output) };
+    return { ok: true };
+  }
+
+  // Worktree strategy: ignore dirty state in base repository
+  onEvent?.({
+    type: 'resource.status',
+    resource: 'git',
+    status: 'skipped',
+    message: text.verify.worktreeStrategyActive,
+    timestamp: now(),
+  });
+
+  // 3. Check if ripgrep is installed (optional but recommended)
+  const rgCheck = spawn('rg', ['--version']);
+  rgCheck.on('error', (err: any) => {
+    if (err.code === 'ENOENT') {
+      onEvent?.({
+        type: 'resource.status',
+        resource: 'ripgrep',
+        status: 'warning',
+        message: text.verify.ripgrepNotFoundWarning,
+        timestamp: now(),
+      });
+    }
+  });
+
+  return { ok: true };
 }

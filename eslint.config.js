@@ -53,6 +53,23 @@ export default tseslint.config(
     },
   },
   {
+    files: ['src/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: ['**/adapters/git/git-runner.js'],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/core/adapters/git/git-adapter.ts'],
+    rules: {
+      'no-restricted-imports': 'off',
+    },
+  },
+  {
     files: ['scripts/**/*.js'],
     languageOptions: {
       parserOptions: {

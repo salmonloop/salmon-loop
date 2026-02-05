@@ -1,8 +1,8 @@
-import { spawn } from 'child_process';
-
 import { z } from 'zod';
 
 import { text } from '../../../locales/index.js';
+import { GitAdapter } from '../../adapters/git/git-adapter.js';
+import { LIMITS } from '../../limits.js';
 import { Phase } from '../../types.js';
 import { repoResource } from '../parallel/resource-helpers.js';
 import { ToolSpec, ToolRuntimeCtx } from '../types.js';
@@ -36,45 +36,31 @@ export async function executeGitCat(
 ) {
   const { file, ref } = input;
 
-  return new Promise((resolve, reject) => {
-    // Safety check: ensure file path doesn't try to escape
-    if (file.includes('..') || file.startsWith('/') || /^[a-zA-Z]:/.test(file)) {
-      return reject(new Error('Invalid file path: absolute paths and traversal are forbidden'));
-    }
+  // Safety check: ensure file path doesn't try to escape
+  if (file.includes('..') || file.startsWith('/') || /^[a-zA-Z]:/.test(file)) {
+    throw new Error(text.tools.invalidRelativePath(file));
+  }
 
-    const child = spawn('git', ['show', `${ref}:${file}`], {
-      cwd: ctx.worktreeRoot || ctx.repoRoot,
-      windowsHide: true,
-      env: ctx.env ? { ...process.env, ...ctx.env } : process.env,
-    });
-
-    let stdout = '';
-    let stderr = '';
-
-    child.stdout?.on('data', (data) => {
-      stdout += data.toString();
-    });
-
-    child.stderr?.on('data', (data) => {
-      stderr += data.toString();
-    });
-
-    child.on('error', (err) => {
-      reject(err);
-    });
-
-    child.on('close', (code) => {
-      if (code !== 0) {
-        return reject(new Error(`git show failed with code ${code}: ${stderr.trim()}`));
-      }
-
-      resolve({
-        content: stdout,
-        file,
-        ref,
-      });
-    });
+  const repoRoot = ctx.worktreeRoot || ctx.repoRoot;
+  const git = new GitAdapter(repoRoot);
+  const res = await git.execMeta(['show', `${ref}:${file}`], {
+    cwd: repoRoot,
+    env: ctx.env,
+    limits: { maxStdoutBytes: LIMITS.maxToolOutputBytes, maxStderrChars: 16_384 },
+    timeoutMs: LIMITS.gitTimeoutMs,
   });
+
+  if (!res.ok) {
+    if (res.error?.message) throw new Error(text.git.processError(res.error.message));
+    throw new Error(text.git.showFailed(`code=${res.code ?? 'null'} ${res.stderr.trim()}`.trim()));
+  }
+  if (res.stdoutTruncated) throw new Error(text.git.outputTruncated(LIMITS.maxToolOutputBytes));
+
+  return {
+    content: res.stdout.toString('utf8'),
+    file,
+    ref,
+  };
 }
 
 export const gitStatusSpec: Omit<ToolSpec, 'executor'> = {
@@ -105,36 +91,22 @@ export async function executeGitStatus(
   const args = ['status'];
   if (porcelain) args.push('--porcelain');
 
-  return new Promise((resolve, reject) => {
-    const child = spawn('git', args, {
-      cwd: ctx.worktreeRoot || ctx.repoRoot,
-      windowsHide: true,
-      env: ctx.env ? { ...process.env, ...ctx.env } : process.env,
-    });
-
-    let stdout = '';
-    let stderr = '';
-
-    child.stdout?.on('data', (data) => {
-      stdout += data.toString();
-    });
-
-    child.stderr?.on('data', (data) => {
-      stderr += data.toString();
-    });
-
-    child.on('error', (err) => {
-      reject(err);
-    });
-
-    child.on('close', (code) => {
-      if (code !== 0) {
-        return reject(new Error(`git status failed with code ${code}: ${stderr.trim()}`));
-      }
-
-      resolve({
-        status: stdout,
-      });
-    });
+  const repoRoot = ctx.worktreeRoot || ctx.repoRoot;
+  const git = new GitAdapter(repoRoot);
+  const res = await git.execMeta(args, {
+    cwd: repoRoot,
+    env: ctx.env,
+    limits: { maxStdoutBytes: LIMITS.maxToolOutputBytes, maxStderrChars: 16_384 },
+    timeoutMs: LIMITS.gitTimeoutMs,
   });
+
+  if (!res.ok) {
+    if (res.error?.message) throw new Error(text.git.processError(res.error.message));
+    throw new Error(text.git.commandFailedDetailed(res.code, res.stderr.trim()));
+  }
+  if (res.stdoutTruncated) throw new Error(text.git.outputTruncated(LIMITS.maxToolOutputBytes));
+
+  return {
+    status: res.stdout.toString('utf8'),
+  };
 }

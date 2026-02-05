@@ -1,9 +1,10 @@
-import { spawn } from 'child_process';
 import { access } from 'fs/promises';
 import path from 'path';
 
+import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { findFileDependencies } from '../../dependency.js';
 import { LIMITS } from '../../limits.js';
+import { logger } from '../../logger.js';
 import { normalizePath } from '../../path.js';
 import type { ContextRequest, DiffScope } from '../types.js';
 
@@ -32,25 +33,29 @@ async function runGitDiff(
   cached: boolean,
   files: string[],
 ): Promise<string | undefined> {
-  return new Promise((resolve) => {
-    const args = ['diff'];
-    if (cached) args.push('--cached');
-    if (files.length > 0) args.push('--', ...files);
+  const args = ['diff'];
+  if (cached) args.push('--cached');
+  if (files.length > 0) args.push('--', ...files);
 
-    const child = spawn('git', args, { stdio: ['pipe', 'pipe', 'pipe'], cwd });
-
-    let output = '';
-    child.stdout.on('data', (data) => {
-      output += data.toString();
-    });
-
-    child.on('close', (code) => {
-      if (code === 0 && output.trim()) resolve(output);
-      else resolve(undefined);
-    });
-
-    child.on('error', () => resolve(undefined));
+  const git = new GitAdapter(cwd);
+  const res = await git.execMeta(args, {
+    cwd,
+    limits: { maxStdoutBytes: LIMITS.maxToolOutputBytes, maxStderrChars: 16_384 },
+    timeoutMs: LIMITS.gitTimeoutMs,
   });
+
+  if (!res.ok) return undefined;
+  if (res.stdoutTruncated) {
+    logger.debug(
+      `[GitDiffGatherer] git diff stdout truncated at ${LIMITS.maxToolOutputBytes} bytes (args=${args.join(
+        ' ',
+      )}); dropping diff for safety`,
+    );
+    return undefined;
+  }
+
+  const output = res.stdout.toString('utf8');
+  return output.trim() ? output : undefined;
 }
 
 async function resolveDiffFiles(req: ContextRequest, scope: DiffScope): Promise<string[]> {

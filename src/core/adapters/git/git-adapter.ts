@@ -1,4 +1,3 @@
-import { spawn } from 'child_process';
 import { randomBytes } from 'crypto';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
@@ -10,6 +9,8 @@ import { logger } from '../../logger.js';
 import { normalizePath } from '../../path.js';
 import { GitError } from '../../types.js';
 
+import type { GitRunLimits, GitRunResult } from './git-runner.js';
+import { runGitCommand } from './git-runner.js';
 import { FileHandleManager } from './lock-manager.js';
 
 // Singleton map to ensure one lock manager per repository path
@@ -46,6 +47,32 @@ export class GitAdapter {
   // ==================== Base Execution Layer ====================
 
   /**
+   * Low-level git execution that returns structured output without throwing.
+   * Prefer higher-level helpers (`exec`, `query`) unless the caller must
+   * inspect spawn errors (e.g., ENOENT) or truncation flags.
+   */
+  async execMeta(
+    args: string[],
+    options: {
+      cwd?: string;
+      env?: Record<string, string>;
+      input?: Buffer;
+      timeoutMs?: number;
+      limits?: GitRunLimits;
+    } = {},
+  ): Promise<GitRunResult> {
+    return await runGitCommand({
+      repoRoot: this.repoPath,
+      args,
+      cwd: options.cwd,
+      env: options.env,
+      input: options.input,
+      timeoutMs: options.timeoutMs ?? LIMITS.gitTimeoutMs,
+      limits: options.limits,
+    });
+  }
+
+  /**
    * Primary executor for Git commands.
    * Standardizes environment, timeout, and handles machine-readable output.
    */
@@ -53,8 +80,11 @@ export class GitAdapter {
     args: string[],
     options: {
       allowError?: boolean;
+      cwd?: string;
       env?: Record<string, string>;
       input?: Buffer;
+      limits?: GitRunLimits;
+      timeoutMs?: number;
       trim?: boolean;
     } = {},
   ): Promise<string> {
@@ -69,67 +99,54 @@ export class GitAdapter {
    */
   private async execRaw(
     args: string[],
-    options: { allowError?: boolean; env?: Record<string, string>; input?: Buffer } = {},
+    options: {
+      allowError?: boolean;
+      cwd?: string;
+      env?: Record<string, string>;
+      input?: Buffer;
+      limits?: GitRunLimits;
+      timeoutMs?: number;
+      allowTruncatedStdout?: boolean;
+    } = {},
   ): Promise<{ stdout: Buffer; stderr: string; code: number | null }> {
-    const env = {
-      ...process.env,
-      LC_ALL: 'C',
-      GIT_OPTIONAL_LOCKS: '0',
-      ...(options.env || {}),
-    };
-
-    return new Promise((resolve, reject) => {
-      const child = spawn('git', args, {
-        cwd: this.repoPath,
-        env,
-        stdio: ['pipe', 'pipe', 'pipe'],
-        windowsHide: true,
-      });
-
-      const stdoutChunks: Buffer[] = [];
-      let stderr = '';
-
-      child.stdout?.on('data', (chunk) => stdoutChunks.push(Buffer.from(chunk)));
-      child.stderr?.on('data', (data) => (stderr += data.toString()));
-
-      child.on('error', (err) => {
-        if (options.allowError) {
-          return resolve({ stdout: Buffer.alloc(0), stderr: err.message, code: -1 });
-        }
-        reject(new GitError(`Git process error: ${err.message}`, args.join(' '), stderr));
-      });
-
-      child.on('close', (code) => {
-        const stdout = Buffer.concat(stdoutChunks);
-        if (code === 0 || options.allowError) {
-          resolve({ stdout, stderr, code });
-        } else {
-          // Debugging code 128
-          if (code === 128) {
-            logger.debug(`[GitAdapter] Code 128 Debug: Args: ${args.join(' ')}\nStderr: ${stderr}`);
-          }
-          reject(new GitError(`Git command failed with code ${code}`, args.join(' '), stderr));
-        }
-      });
-
-      if (options.input) {
-        child.stdin?.write(options.input);
-        child.stdin?.end();
-      }
-
-      setTimeout(() => {
-        if (child && !child.killed && typeof child.kill === 'function') {
-          child.kill();
-          reject(
-            new GitError(
-              `Git command timed out after ${LIMITS.gitTimeoutMs}ms`,
-              args.join(' '),
-              stderr,
-            ),
-          );
-        }
-      }, LIMITS.gitTimeoutMs);
+    const res = await this.execMeta(args, {
+      cwd: options.cwd,
+      env: options.env,
+      input: options.input,
+      timeoutMs: options.timeoutMs,
+      limits: options.limits,
     });
+
+    if (res.stdoutTruncated && !options.allowTruncatedStdout) {
+      const maxStdoutBytes = options.limits?.maxStdoutBytes;
+      const safeMaxBytes =
+        typeof maxStdoutBytes === 'number' && Number.isFinite(maxStdoutBytes)
+          ? maxStdoutBytes
+          : LIMITS.maxToolOutputBytes;
+      throw new GitError(text.git.outputTruncated(safeMaxBytes), args.join(' '), res.stderr);
+    }
+
+    if (res.ok || options.allowError) {
+      return { stdout: res.stdout, stderr: res.stderr, code: res.code };
+    }
+
+    if (res.timedOut) {
+      throw new GitError(
+        text.git.timeout(options.timeoutMs ?? LIMITS.gitTimeoutMs),
+        args.join(' '),
+        res.stderr,
+      );
+    }
+
+    if (res.code === 128) {
+      logger.debug(`[GitAdapter] Code 128 Debug: Args: ${args.join(' ')}\nStderr: ${res.stderr}`);
+    }
+
+    if (res.error?.message) {
+      throw new GitError(text.git.processError(res.error.message), args.join(' '), res.stderr);
+    }
+
+    throw new GitError(text.git.commandFailed(res.code), args.join(' '), res.stderr);
   }
 
   /**
@@ -137,7 +154,14 @@ export class GitAdapter {
    */
   async query(
     args: string[],
-    options: { allowError?: boolean; trim?: boolean } = {},
+    options: {
+      allowError?: boolean;
+      cwd?: string;
+      env?: Record<string, string>;
+      limits?: GitRunLimits;
+      timeoutMs?: number;
+      trim?: boolean;
+    } = {},
   ): Promise<string> {
     const forbidden = [
       'add',
@@ -150,9 +174,7 @@ export class GitAdapter {
       'pull',
       'apply',
     ];
-    if (forbidden.includes(args[0])) {
-      throw new Error(`Security Violation: Command '${args[0]}' is not a query.`);
-    }
+    if (forbidden.includes(args[0])) throw new Error(text.git.securityViolation(args[0]));
     return this.exec(args, options);
   }
 

@@ -121,6 +121,8 @@ Please return the patch in PURE unified diff format:`;
     applySpawnFailed: (error: string) => `git apply spawn failed: ${error}`,
     processError: (error: string) => `Git process error: ${error}`,
     commandFailed: (code: number | null) => `Git command failed with code ${code}`,
+    commandFailedDetailed: (code: number | null, stderr: string) =>
+      `Git command failed with code ${code}${stderr ? `: ${stderr}` : ''}`,
     timeout: (timeout: number) => `Git command timed out after ${timeout}ms`,
     securityViolation: (cmd: string) => `Security Violation: Command '${cmd}' is not a query.`,
     hashObjectFailed: 'hash-object failed',
@@ -128,6 +130,7 @@ Please return the patch in PURE unified diff format:`;
     mergeFileFailed: (error: string) => `git merge-file failed: ${error}`,
     conflictResolutionDenied:
       'Conflict resolution denied: Cannot run destructive reset in non-shadow environment',
+    outputTruncated: (maxBytes: number) => `Git output truncated at ${maxBytes} bytes`,
   },
 
   diff: {
@@ -184,6 +187,9 @@ Please return the patch in PURE unified diff format:`;
       `Preflight check failed: Workspace has uncommitted changes. Please commit or stash them before running SalmonLoop.\n\nChanges:\n${status}`,
     gitNotFound:
       'Preflight check failed: git command not found. Please ensure git is installed and in your PATH.',
+    preflightGitCheckFailed: (error: string) => `Preflight check failed: git error: ${error}`,
+    preflightGitStatusFailed: (error: string) =>
+      `Preflight check failed: git status error: ${error}`,
     forceResetNotAllowedWithDirty:
       'Safety Guard: --force-reset is not allowed when the workspace is dirty to prevent accidental loss of uncommitted changes.',
     workspaceInitFailed: 'Failed to initialize workspace',
@@ -455,6 +461,8 @@ Please return the patch in PURE unified diff format:`;
     worktreeRequired: 'Tool requires worktree isolation',
     applyForbidden: 'Tools are strictly forbidden in APPLY phase',
     networkDenied: 'Network access is denied by default policy',
+    invalidRelativePath: (p: string) =>
+      `Invalid file path: ${p}. Absolute paths and traversal are forbidden.`,
   },
 
   audit: {
