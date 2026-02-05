@@ -1,3 +1,4 @@
+import { randomBytes } from 'crypto';
 import { mkdir, open, unlink } from 'fs/promises';
 import { join } from 'path';
 
@@ -17,7 +18,7 @@ interface LockMetadata {
  */
 export class FileHandleManager {
   private disabled = false;
-  private currentOwner = `process-${process.pid}`;
+  private currentOwner = `process-${process.pid}-${randomBytes(8).toString('hex')}`;
   private localLocks = new Map<string, { locked: boolean; waiters: Array<() => void> }>();
 
   private async abortableDelay(ms: number, signal: AbortSignal): Promise<void> {

@@ -1,4 +1,5 @@
 import { randomBytes } from 'crypto';
+import { realpathSync } from 'fs';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import * as path from 'path';
@@ -594,7 +595,7 @@ export class GitAdapter {
 
     if (cmd === 'worktree') {
       const sub = args[1];
-      const shadowRoot = path.join(path.resolve(tmpdir()), 's8p-wt') + path.sep;
+      const shadowRoot = GitAdapter.resolveShadowRoot();
 
       if (sub === 'list') {
         const ok = args.length === 3 && args[2] === '--porcelain';
@@ -644,10 +645,28 @@ export class GitAdapter {
     }
   }
 
+  private static resolveShadowRoot(): string {
+    const tmpResolved = path.resolve(tmpdir());
+    let tmpReal = tmpResolved;
+    try {
+      tmpReal = realpathSync(tmpResolved);
+    } catch {
+      // Fall back to resolved path. If tmp is not realpath-resolvable, prefer denying shadow checks elsewhere.
+      tmpReal = tmpResolved;
+    }
+    return path.join(tmpReal, 's8p-wt') + path.sep;
+  }
+
   private isShadowWorktreePath(): boolean {
-    const expectedRoot = path.join(path.resolve(tmpdir()), 's8p-wt') + path.sep;
-    const repo = path.resolve(this.repoPath) + path.sep;
-    return repo.startsWith(expectedRoot);
+    const expectedRoot = GitAdapter.resolveShadowRoot();
+    const repoResolved = path.resolve(this.repoPath);
+    let repo = repoResolved;
+    try {
+      repo = realpathSync(repoResolved);
+    } catch {
+      repo = repoResolved;
+    }
+    return (repo + path.sep).startsWith(expectedRoot);
   }
 
   private async resolveConflicts(): Promise<void> {

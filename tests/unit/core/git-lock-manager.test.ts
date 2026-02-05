@@ -51,7 +51,7 @@ describe('FileHandleManager releaseLock', () => {
 
   it('unlinks when lock is owned by current process owner', async () => {
     const mgr = new FileHandleManager();
-    const owner = `process-${process.pid}`;
+    const owner = (mgr as any).currentOwner as string;
     fsMocks.readFile.mockResolvedValueOnce(
       JSON.stringify({ pid: process.pid, timestamp: Date.now(), owner }),
     );
