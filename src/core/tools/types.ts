@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { ExecutionPhase } from '../types.js';
+import type { LLM } from '../types.js';
 
 import { ResourceKey } from './parallel/resources.js';
 
@@ -39,6 +40,11 @@ export interface ToolRuntimeCtx {
   model?: string;
   env?: Record<string, string>;
   phase?: ExecutionPhase;
+  /**
+   * Optional runtime LLM reference for internal orchestration tools (e.g., sub-agent dispatch).
+   * This is not exposed to the model; it is a host-only in-process reference.
+   */
+  llm?: LLM;
 }
 
 export interface ToolSpec<I = any, O = any> {

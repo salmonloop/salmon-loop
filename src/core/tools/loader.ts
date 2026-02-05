@@ -19,6 +19,7 @@ export interface ToolstackOptions {
   attemptId: number;
   dryRun: boolean;
   model?: string;
+  allowedToolNames?: string[];
   authorizationMode?: 'blocking' | 'deferred';
   budget?: Partial<BudgetConfig>;
   authorizationProvider?: ToolAuthorizationProvider;
@@ -44,7 +45,7 @@ export interface ToolstackOptions {
  */
 export async function createStandardToolstack(options: ToolstackOptions) {
   // 1. Initialize core components
-  const registry = new ToolRegistry();
+  let registry = new ToolRegistry();
   const policy = new ToolPolicy();
   const budget = new BudgetGuard(options.budget);
   const audit = new ToolAuditLogger({
@@ -60,6 +61,16 @@ export async function createStandardToolstack(options: ToolstackOptions) {
   const skills = await skillLoader.initialize();
   for (const skill of skills) {
     registry.register(skillToToolSpec(skill));
+  }
+
+  if (Array.isArray(options.allowedToolNames) && options.allowedToolNames.length > 0) {
+    const allow = new Set(options.allowedToolNames);
+    const filtered = new ToolRegistry();
+    for (const name of allow) {
+      const spec = registry.getSpec(name);
+      if (spec) filtered.register(spec);
+    }
+    registry = filtered;
   }
 
   // 4. Create Router (The execution pipeline)

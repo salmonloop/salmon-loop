@@ -444,6 +444,7 @@ Please return the patch in PURE unified diff format:`;
     gitCatDescription: 'Read file content from a specific git revision',
     codeAstDescription: 'Query AST definitions and references for symbols',
     testRunDescription: 'Run verification command (test/lint/build) and classify errors',
+    artifactReadDescription: 'Read salmonloop (s8p) artifacts by handle',
 
     // Execution logs
     executing: (name: string) => `Executing tool: ${name}...`,
@@ -465,6 +466,7 @@ Please return the patch in PURE unified diff format:`;
     networkDenied: 'Network access is denied by default policy',
     invalidRelativePath: (p: string) =>
       `Invalid file path: ${p}. Absolute paths and traversal are forbidden.`,
+    artifactNotFound: (handle: string) => `Artifact not found: ${handle}`,
   },
 
   audit: {
@@ -542,5 +544,33 @@ Please return the patch in PURE unified diff format:`;
     lockReleaseOwnershipUnknown: (path: string, error: string) =>
       `Refusing to release lock for ${path} because lock ownership could not be verified: ${error}`,
     lockReleaseFailed: (path: string) => `Failed to release lock for ${path}`,
+  },
+  smallfry: {
+    status: {
+      spawning: 'Spawning a hungry Smallfry to handle the heavy lifting...',
+      thinking: 'Smallfry is flapping around the codebase...',
+      working: 'Smallfry is diligently collecting golden eggs (results)...',
+      submitting: 'Smallfry is jumping back to the basket with a report...',
+      terminated: 'Smallfry has been recalled to Grizzco.',
+    },
+    errors: {
+      budgetExceeded: (used: number, limit: number) =>
+        `Smallfry splatted: Token budget exceeded (Used: ${used}, Limit: ${limit})`,
+      timeout: 'Smallfry ran out of ink and has been dismissed.',
+      capabilityDeny: (tool: string) =>
+        `Access denied: This Smallfry isn't trained to use '${tool}'.`,
+      profileNotFound: (agentRef: string) => `Smallfry profile not found: '${agentRef}'.`,
+      recursionLimitExceeded: (depth: number, limit: number) =>
+        `Smallfry recursion limit exceeded (Depth: ${depth}, Limit: ${limit}).`,
+      dispatchMissingRuntimeLlm:
+        'Smallfry dispatch failed: missing runtime LLM in tool context (host bug).',
+      missionFailed: 'Smallfry mission failed.',
+      missionFailedWithReason: (reason: string) => `Smallfry mission failed: ${reason}`,
+    },
+    ui: {
+      spawnToolDescription:
+        'Deploy a specialized Smallfry (sub-agent) for autonomous task execution.',
+      progressTitle: (id: string) => `[Smallfry: ${id}]`,
+    },
   },
 };

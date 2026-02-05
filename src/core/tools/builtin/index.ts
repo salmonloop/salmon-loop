@@ -1,5 +1,7 @@
+import { subAgentTaskSpec } from '../../sub-agent/tools/task-spawn.js';
 import { ToolRegistry } from '../registry.js';
 
+import { artifactReadSpec, executeArtifactRead } from './artifact.js';
 import { astGrepSpec, executeAstGrep } from './ast-grep.js';
 import { astDefsRefsSpec, executeAstDefsRefs } from './ast.js';
 import { codeSearchExecutor } from './code-search/executor.js';
@@ -12,6 +14,12 @@ import { verifyRunSpec, executeVerifyRun } from './verify.js';
  * Registers all builtin tools into the provided registry
  */
 export function registerAllBuiltins(registry: ToolRegistry): void {
+  // Register sub-agent tool
+  registry.register(subAgentTaskSpec);
+  registry.register({
+    ...artifactReadSpec,
+    executor: executeArtifactRead as any,
+  });
   // Register unified code.search with its specific executor
   registry.register({
     ...CodeSearchSpec,
