@@ -124,12 +124,14 @@ Please return the patch in PURE unified diff format:`;
     commandFailedDetailed: (code: number | null, stderr: string) =>
       `Git command failed with code ${code}${stderr ? `: ${stderr}` : ''}`,
     timeout: (timeout: number) => `Git command timed out after ${timeout}ms`,
-    securityViolation: (cmd: string) => `Security Violation: Command '${cmd}' is not a query.`,
+    securityViolation: (cmd: string) =>
+      `Security Violation: Git command '${cmd}' is not allowed via this gateway.`,
     hashObjectFailed: 'hash-object failed',
     showFailed: (error: string) => `git show failed: ${error}`,
     mergeFileFailed: (error: string) => `git merge-file failed: ${error}`,
     conflictResolutionDenied:
       'Conflict resolution denied: Cannot run destructive reset in non-shadow environment',
+    indexWriteDenied: 'Index write denied: This operation is only allowed in a shadow worktree.',
     outputTruncated: (maxBytes: number) => `Git output truncated at ${maxBytes} bytes`,
   },
 
@@ -535,6 +537,8 @@ Please return the patch in PURE unified diff format:`;
     lockForceRemoved: (file: string) => `Forcefully removed stale lock file: ${file}`,
     lockAcquiredAfterForce: (file: string) => `Lock acquired after force cleanup: ${file}`,
     lockAcquireTimeout: (path: string) => `Failed to acquire lock for ${path} within timeout`,
+    lockAcquireHardTimeout: (path: string) =>
+      `Failed to acquire lock for ${path} within hard timeout; the filesystem may be unresponsive.`,
     lockReleaseFailed: (path: string) => `Failed to release lock for ${path}`,
   },
 };

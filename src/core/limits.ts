@@ -46,9 +46,13 @@ export const LIMITS = {
 
   // Git timeout
   gitTimeoutMs: 15000,
+  gitKillGraceMs: Number(process.env.SALMONLOOP_GIT_KILL_GRACE_MS) || 8000,
+  // Conservative cross-platform command line budget (Windows is ~32k).
+  gitArgMaxChars: Number(process.env.SALMONLOOP_GIT_ARG_MAX_CHARS) || 30000,
 
   // Resource locking
   lockWaitTimeoutMs: 30000, // 30s wait before reporting timeout
+  lockAcquireHardTimeoutMs: Number(process.env.SALMONLOOP_LOCK_ACQUIRE_HARD_TIMEOUT_MS) || 60000, // Includes hung IO protection
   lockStaleThresholdMs: 300000, // 5m stale threshold
 
   // Retry strategies

@@ -287,7 +287,7 @@ export class WorkspaceSynchronizer {
   ): Promise<void> {
     const git = new GitAdapter(shadowWorktreePath);
     const diffText = await git.query(
-      ['diff', '--binary', '--no-color', '--no-ext-diff', initialRef, latestRef],
+      ['diff', '--binary', '--full-index', '--no-color', '--no-ext-diff', initialRef, latestRef],
       { trim: false },
     );
 

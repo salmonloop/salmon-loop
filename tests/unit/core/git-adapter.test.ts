@@ -1,3 +1,6 @@
+import { tmpdir } from 'os';
+import path from 'path';
+
 import { GitAdapter } from '../../../src/core/adapters/git/git-adapter.js';
 import { runGitCommand } from '../../../src/core/adapters/git/git-runner.js';
 
@@ -48,5 +51,89 @@ describe('GitAdapter exec truncation handling', () => {
 
     expect(res.ok).toBe(true);
     expect(res.stdoutTruncated).toBe(true);
+  });
+});
+
+describe('GitAdapter query gateway validation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('allows approved commands', async () => {
+    vi.mocked(runGitCommand).mockResolvedValue({
+      ok: true,
+      code: 0,
+      signal: null,
+      stdout: Buffer.from('', 'utf8'),
+      stderr: '',
+      timedOut: false,
+      stdoutTruncated: false,
+      stderrTruncated: false,
+    });
+
+    const git = new GitAdapter('/repo');
+    await expect(git.query(['status', '--porcelain'])).resolves.toBe('');
+    expect(runGitCommand).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects unapproved commands', async () => {
+    const git = new GitAdapter('/repo');
+    await expect(git.query(['reset', '--hard'])).rejects.toThrow(/Security Violation/i);
+    expect(runGitCommand).not.toHaveBeenCalled();
+  });
+
+  it('rejects diff --no-index', async () => {
+    const git = new GitAdapter('/repo');
+    await expect(git.query(['diff', '--no-index', '/etc/passwd', '/etc/hosts'])).rejects.toThrow(
+      /Security Violation/i,
+    );
+    expect(runGitCommand).not.toHaveBeenCalled();
+  });
+
+  it('rejects update-ref outside refs/s8p', async () => {
+    const git = new GitAdapter('/repo');
+    await expect(
+      git.query(['update-ref', '-m', 'msg', 'refs/heads/main', '0123456789abcdef0']),
+    ).rejects.toThrow(/Security Violation/i);
+    expect(runGitCommand).not.toHaveBeenCalled();
+  });
+
+  it('allows worktree operations only under temp shadow root', async () => {
+    vi.mocked(runGitCommand).mockResolvedValue({
+      ok: true,
+      code: 0,
+      signal: null,
+      stdout: Buffer.from('', 'utf8'),
+      stderr: '',
+      timedOut: false,
+      stdoutTruncated: false,
+      stderrTruncated: false,
+    });
+
+    const shadowRoot = path.join(path.resolve(tmpdir()), 's8p-wt');
+    const worktreePath = path.join(shadowRoot, 'repo', 'test');
+
+    const git = new GitAdapter('/repo');
+    await expect(
+      git.query(['worktree', 'add', '--quiet', '--detach', worktreePath, 'HEAD']),
+    ).resolves.toBe('');
+    expect(runGitCommand).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses destructive rollback recovery outside shadow worktree', async () => {
+    vi.mocked(runGitCommand).mockResolvedValueOnce({
+      ok: false,
+      code: 1,
+      signal: null,
+      stdout: Buffer.from('', 'utf8'),
+      stderr: 'checkout failed',
+      timedOut: false,
+      stdoutTruncated: false,
+      stderrTruncated: false,
+    });
+
+    const git = new GitAdapter('/repo');
+    await expect(git.rollbackFiles(['a.txt'])).rejects.toThrow(/Conflict resolution denied/i);
+    expect(runGitCommand).toHaveBeenCalledTimes(1);
   });
 });

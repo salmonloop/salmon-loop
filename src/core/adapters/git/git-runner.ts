@@ -68,6 +68,8 @@ export async function runGitCommand(input: GitRunInput): Promise<GitRunResult> {
   const maxStdoutBytes = input.limits?.maxStdoutBytes ?? Infinity;
   const maxStderrChars = input.limits?.maxStderrChars ?? Infinity;
   const timeoutMs = input.timeoutMs ?? LIMITS.gitTimeoutMs;
+  const killGraceMs = LIMITS.gitKillGraceMs;
+  const isWin = process.platform === 'win32';
 
   return await new Promise((resolve) => {
     let killTimer: NodeJS.Timeout | undefined;
@@ -82,6 +84,7 @@ export async function runGitCommand(input: GitRunInput): Promise<GitRunResult> {
       },
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true,
+      detached: !isWin,
     });
 
     let settled = false;
@@ -101,6 +104,22 @@ export async function runGitCommand(input: GitRunInput): Promise<GitRunResult> {
     let stderrTruncated = false;
 
     let timedOut = false;
+    const killProcess = (signal: NodeJS.Signals) => {
+      try {
+        if (!isWin && typeof child.pid === 'number') {
+          // Kill the whole process group to avoid leaving helper processes behind.
+          process.kill(-child.pid, signal);
+          return;
+        }
+      } catch {
+        // Ignore, fall back to killing the child only.
+      }
+      try {
+        child.kill(signal);
+      } catch {
+        // Ignore
+      }
+    };
 
     child.stdout?.on('data', (chunk) => {
       if (stdoutTruncated) return;
@@ -168,18 +187,10 @@ export async function runGitCommand(input: GitRunInput): Promise<GitRunResult> {
 
     const timeoutTimer = setTimeout(() => {
       timedOut = true;
-      try {
-        child.kill('SIGTERM');
-      } catch {
-        // Ignore
-      }
+      killProcess('SIGTERM');
       killTimer = setTimeout(() => {
-        try {
-          child.kill('SIGKILL');
-        } catch {
-          // Ignore
-        }
-      }, 2000);
+        killProcess('SIGKILL');
+      }, killGraceMs);
     }, timeoutMs);
   });
 }

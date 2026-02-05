@@ -23,6 +23,37 @@ function getLockManager(repoPath: string): FileHandleManager {
   return lockManagers.get(repoPath)!;
 }
 
+function isShaLike(value: string): boolean {
+  return /^[0-9a-f]{7,40}$/i.test(value);
+}
+
+function splitPathsByCharBudget(baseArgs: string[], paths: string[], maxChars: number): string[][] {
+  const batches: string[][] = [];
+  let current: string[] = [];
+
+  const baseLen = baseArgs.reduce((sum, a) => sum + a.length + 1, 0);
+  let currentLen = baseLen;
+
+  for (const p of paths) {
+    const addLen = p.length + 1;
+    if (current.length > 0 && currentLen + addLen > maxChars) {
+      batches.push(current);
+      current = [];
+      currentLen = baseLen;
+    }
+    current.push(p);
+    currentLen += addLen;
+  }
+
+  if (current.length > 0) batches.push(current);
+  return batches;
+}
+
+function joinNulTerminated(values: string[]): Buffer {
+  // Git pathspec-from-file expects elements separated by NUL when --pathspec-file-nul is set.
+  return Buffer.from(values.join('\0') + '\0', 'utf8');
+}
+
 /**
  * PathStatus: Represents the physical state of a file in the repository.
  */
@@ -150,7 +181,11 @@ export class GitAdapter {
   }
 
   /**
-   * Execute read-only query commands with security validation.
+   * Execute validated Git commands with security validation.
+   *
+   * Note: Despite the historic name, this gateway is not strictly read-only.
+   * It allows a small set of well-scoped plumbing commands used by the
+   * execution model (e.g., worktree management and ref bookkeeping).
    */
   async query(
     args: string[],
@@ -163,18 +198,7 @@ export class GitAdapter {
       trim?: boolean;
     } = {},
   ): Promise<string> {
-    const forbidden = [
-      'add',
-      'commit',
-      'clean',
-      'reset',
-      'checkout',
-      'merge',
-      'push',
-      'pull',
-      'apply',
-    ];
-    if (forbidden.includes(args[0])) throw new Error(text.git.securityViolation(args[0]));
+    this.assertQueryAllowed(args);
     return this.exec(args, options);
   }
 
@@ -194,6 +218,9 @@ export class GitAdapter {
    * Uses plumbing commands (hash-object -w + update-index) to avoid touching the working tree.
    */
   async updateIndex(mode: string, hash: string, relativePath: string): Promise<void> {
+    if (!this.isShadowWorktreePath()) {
+      throw new GitError(text.git.indexWriteDenied, 'updateIndex', 'Index Write Denied');
+    }
     await this.exec(['update-index', '--cacheinfo', mode, hash, relativePath]);
   }
 
@@ -209,9 +236,18 @@ export class GitAdapter {
   }
 
   async getStatus(paths?: string[]): Promise<string> {
-    const args = ['status', '--porcelain=v2'];
-    if (paths && paths.length > 0) args.push('--', ...paths);
-    return this.exec(args);
+    const base = ['status', '--porcelain=v2'];
+    if (!paths || paths.length === 0) return this.exec(base);
+
+    const safePaths = this.sanitizePaths(paths);
+    if (safePaths.length === 0) return this.exec(base);
+
+    const batches = splitPathsByCharBudget([...base, '--'], safePaths, LIMITS.gitArgMaxChars);
+    const outputs: string[] = [];
+    for (const batch of batches) {
+      outputs.push(await this.exec([...base, '--', ...batch]));
+    }
+    return outputs.join('\n').replace(/\n+$/, '');
   }
 
   /**
@@ -358,7 +394,10 @@ export class GitAdapter {
       //   - Otherwise, strip index lines and fall back to non-3-way apply.
       //
       // FIX: Do not strip index lines if patch is binary, as it corrupts the binary payload.
-      const isBinary = diffText.includes('GIT binary patch');
+      const isBinary =
+        /(^|\n)GIT binary patch(\r?\n|$)/.test(diffText) ||
+        /(^|\n)(literal|delta) \d+(\r?\n|$)/.test(diffText) ||
+        /(^|\n)Binary files .* differ(\r?\n|$)/.test(diffText);
 
       const extractOldBlobIds = (text: string): string[] => {
         const ids = new Set<string>();
@@ -440,10 +479,33 @@ export class GitAdapter {
     await this.lockManager.acquireLock(this.repoPath);
     try {
       // CRITICAL SAFETY: Restores from Index to Worktree to preserve user's staged changes.
-      const args = ['checkout'];
-      if (ref) args.push(ref);
-      args.push('--', ...safePaths);
-      await this.exec(args);
+      const base = ['checkout'];
+      if (ref) base.push(ref);
+      const batches = splitPathsByCharBudget([...base, '--'], safePaths, LIMITS.gitArgMaxChars);
+      if (batches.length <= 1) {
+        await this.exec([...base, '--', ...safePaths]);
+        return;
+      }
+
+      // Avoid ARG_MAX and reduce partial-rollback risk by using a single checkout invocation.
+      const tempFile = path.join(
+        tmpdir(),
+        `salmon-pathspec-${Date.now()}-${randomBytes(4).toString('hex')}.txt`,
+      );
+
+      await fs.writeFile(tempFile, joinNulTerminated(safePaths));
+      try {
+        await this.exec([...base, '--pathspec-from-file', tempFile, '--pathspec-file-nul']);
+      } catch (error) {
+        // Fallback for older Git versions without pathspec-from-file support.
+        const msg = error instanceof Error ? error.message : String(error);
+        if (!/pathspec-from-file/i.test(msg)) throw error;
+        for (const batch of batches) {
+          await this.exec([...base, '--', ...batch]);
+        }
+      } finally {
+        await fs.unlink(tempFile).catch(() => {});
+      }
     } catch (_error: any) {
       await this.resolveConflicts();
     } finally {
@@ -466,9 +528,130 @@ export class GitAdapter {
       .filter((p) => p && !p.startsWith('/') && !p.includes('..'));
   }
 
+  private assertQueryAllowed(args: string[]): void {
+    const cmd = args[0];
+    if (!cmd) throw new Error(text.git.securityViolation(String(cmd)));
+
+    const allowed = new Set([
+      'diff',
+      'for-each-ref',
+      'log',
+      'ls-files',
+      'ls-tree',
+      'read-tree',
+      'rev-parse',
+      'show',
+      'status',
+      'update-index',
+      'update-ref',
+      'worktree',
+      'write-tree',
+    ]);
+
+    if (!allowed.has(cmd)) throw new Error(text.git.securityViolation(cmd));
+
+    if (cmd === 'diff') {
+      if (args.includes('--no-index')) throw new Error(text.git.securityViolation(cmd));
+    }
+
+    if (cmd === 'write-tree') {
+      if (args.length !== 1) throw new Error(text.git.securityViolation(cmd));
+    }
+
+    if (cmd === 'read-tree') {
+      if (args.length !== 2 || !isShaLike(args[1])) {
+        throw new Error(text.git.securityViolation(cmd));
+      }
+    }
+
+    if (cmd === 'update-index') {
+      const ok = args.length === 3 && args[1] === '-q' && args[2] === '--refresh';
+      if (!ok) throw new Error(text.git.securityViolation(cmd));
+    }
+
+    if (cmd === 'update-ref') {
+      const hasMessage = args.length === 5 && args[1] === '-m';
+      if (!hasMessage) throw new Error(text.git.securityViolation(cmd));
+      const refName = args[3];
+      const newValue = args[4];
+      if (!refName.startsWith('refs/s8p/')) throw new Error(text.git.securityViolation(cmd));
+      if (!isShaLike(newValue)) throw new Error(text.git.securityViolation(cmd));
+    }
+
+    if (cmd === 'for-each-ref') {
+      const refPrefix = args[args.length - 1];
+      if (!refPrefix || !refPrefix.startsWith('refs/s8p/snapshots/')) {
+        throw new Error(text.git.securityViolation(cmd));
+      }
+
+      const allowedPrefixes = ['--sort=', '--format=', '--count='];
+      for (const token of args.slice(1, -1)) {
+        if (!allowedPrefixes.some((p) => token.startsWith(p))) {
+          throw new Error(text.git.securityViolation(cmd));
+        }
+      }
+    }
+
+    if (cmd === 'worktree') {
+      const sub = args[1];
+      const shadowRoot = path.join(path.resolve(tmpdir()), 's8p-wt') + path.sep;
+
+      if (sub === 'list') {
+        const ok = args.length === 3 && args[2] === '--porcelain';
+        if (!ok) throw new Error(text.git.securityViolation(cmd));
+        return;
+      }
+
+      if (sub === 'add') {
+        const allowedFlags = new Set(['--quiet', '--detach']);
+        const flags = new Set<string>();
+        let i = 2;
+        for (; i < args.length && args[i]?.startsWith('-'); i++) {
+          const token = args[i]!;
+          if (!allowedFlags.has(token)) throw new Error(text.git.securityViolation(cmd));
+          flags.add(token);
+        }
+
+        if (!flags.has('--detach')) throw new Error(text.git.securityViolation(cmd));
+        if (args.length - i !== 2) throw new Error(text.git.securityViolation(cmd));
+
+        const worktreePath = path.resolve(args[i]!);
+        const baseRef = args[i + 1]!;
+        if (!worktreePath.startsWith(shadowRoot)) throw new Error(text.git.securityViolation(cmd));
+        if (!baseRef || baseRef.includes('..')) throw new Error(text.git.securityViolation(cmd));
+        return;
+      }
+
+      if (sub === 'remove') {
+        const allowedFlags = new Set(['--force']);
+        const flags = new Set<string>();
+        let i = 2;
+        for (; i < args.length && args[i]?.startsWith('-'); i++) {
+          const token = args[i]!;
+          if (!allowedFlags.has(token)) throw new Error(text.git.securityViolation(cmd));
+          flags.add(token);
+        }
+
+        if (!flags.has('--force')) throw new Error(text.git.securityViolation(cmd));
+        if (args.length - i !== 1) throw new Error(text.git.securityViolation(cmd));
+
+        const worktreePath = path.resolve(args[i]!);
+        if (!worktreePath.startsWith(shadowRoot)) throw new Error(text.git.securityViolation(cmd));
+        return;
+      }
+
+      throw new Error(text.git.securityViolation(cmd));
+    }
+  }
+
+  private isShadowWorktreePath(): boolean {
+    const expectedRoot = path.join(path.resolve(tmpdir()), 's8p-wt') + path.sep;
+    const repo = path.resolve(this.repoPath) + path.sep;
+    return repo.startsWith(expectedRoot);
+  }
+
   private async resolveConflicts(): Promise<void> {
-    const isShadow = process.env.SALMONLOOP_SHADOW === 'true';
-    if (!isShadow) {
+    if (!this.isShadowWorktreePath()) {
       throw new GitError(
         text.git.conflictResolutionDenied,
         'resolveConflicts',

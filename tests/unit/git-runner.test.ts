@@ -113,7 +113,7 @@ describe('runGitCommand', () => {
     await vi.advanceTimersByTimeAsync(20);
     expect(child.kill).toHaveBeenCalledWith('SIGTERM');
 
-    await vi.advanceTimersByTimeAsync(2500);
+    await vi.advanceTimersByTimeAsync(9000);
     const res = await promise;
 
     expect(res.ok).toBe(false);

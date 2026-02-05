@@ -18,6 +18,30 @@ interface LockMetadata {
 export class FileHandleManager {
   private disabled = false;
   private currentOwner = `process-${process.pid}`;
+  private localLocks = new Map<string, { locked: boolean; waiters: Array<() => void> }>();
+
+  private async acquireLocal(lockFile: string): Promise<void> {
+    const state = this.localLocks.get(lockFile) ?? { locked: false, waiters: [] };
+    this.localLocks.set(lockFile, state);
+    if (!state.locked) {
+      state.locked = true;
+      return;
+    }
+    await new Promise<void>((resolve) => {
+      state.waiters.push(resolve);
+    });
+  }
+
+  private releaseLocal(lockFile: string): void {
+    const state = this.localLocks.get(lockFile);
+    if (!state) return;
+    const next = state.waiters.shift();
+    if (next) {
+      next();
+      return;
+    }
+    state.locked = false;
+  }
 
   /**
    * Disable locking (useful for tests)
@@ -41,23 +65,33 @@ export class FileHandleManager {
       return;
 
     const lockFile = join(repoPath, '.salmonloop.lock');
+    await this.acquireLocal(lockFile);
+
     const start = Date.now();
     let retryCount = 0;
+    const hardTimeoutMs = LIMITS.lockAcquireHardTimeoutMs;
+    const abortState = { aborted: false };
 
-    if (forceUnlock) {
-      try {
-        const fs = await import('fs/promises');
-        await fs.unlink(lockFile);
-      } catch {
-        // Ignore
+    const core = async (): Promise<void> => {
+      if (forceUnlock) {
+        try {
+          const fs = await import('fs/promises');
+          await fs.unlink(lockFile);
+        } catch {
+          // Ignore
+        }
       }
-    }
 
-    while (Date.now() - start < LIMITS.lockWaitTimeoutMs) {
-      try {
-        // Try to create the lock file with O_EXCL to ensure atomicity
-        const handle = await open(lockFile, 'wx');
-        if (handle) {
+      while (Date.now() - start < LIMITS.lockWaitTimeoutMs) {
+        if (abortState.aborted) throw new Error(text.resource.lockAcquireHardTimeout(repoPath));
+        try {
+          // Try to create the lock file with O_EXCL to ensure atomicity
+          const handle = await open(lockFile, 'wx');
+          if (abortState.aborted) {
+            await handle.close().catch(() => {});
+            await unlink(lockFile).catch(() => {});
+            throw new Error(text.resource.lockAcquireHardTimeout(repoPath));
+          }
           const metadata: LockMetadata = {
             pid: process.pid,
             timestamp: Date.now(),
@@ -66,93 +100,93 @@ export class FileHandleManager {
           await handle.writeFile(JSON.stringify(metadata), 'utf8');
           await handle.close();
           return;
-        }
-      } catch (e: any) {
-        if (e.code === 'EEXIST') {
-          // Check if the lock is stale or the process is dead
-          try {
-            const fs = await import('fs/promises');
-            const content = await fs.readFile(lockFile, 'utf8');
-            const metadata: LockMetadata = JSON.parse(content);
-            const isSelfLock = metadata.pid === process.pid && metadata.owner === this.currentOwner;
-
-            let isAlive = true;
+        } catch (e: any) {
+          if (abortState.aborted) throw new Error(text.resource.lockAcquireHardTimeout(repoPath));
+          if (e.code === 'EEXIST') {
+            // Check if the lock is stale or the process is dead
             try {
-              process.kill(metadata.pid, 0);
+              const fs = await import('fs/promises');
+              const content = await fs.readFile(lockFile, 'utf8');
+              const metadata: LockMetadata = JSON.parse(content);
+              const isSelfLock =
+                metadata.pid === process.pid && metadata.owner === this.currentOwner;
+
+              let isAlive = true;
+              try {
+                process.kill(metadata.pid, 0);
+              } catch {
+                isAlive = false;
+              }
+
+              // Never auto-remove a lock owned by the current process.
+              // If we did, concurrent calls within the same process could break mutual exclusion.
+              if (
+                !isAlive ||
+                (!isSelfLock && Date.now() - metadata.timestamp > LIMITS.lockStaleThresholdMs)
+              ) {
+                await fs.unlink(lockFile);
+                continue; // Retry immediately after removing stale lock
+              }
             } catch {
-              isAlive = false;
+              // If the lock file is unreadable, we cannot safely determine ownership.
+              // Do not auto-remove in this path; rely on timeout-based recovery instead.
             }
 
-            // Never auto-remove a lock owned by the current process.
-            // If we did, concurrent calls within the same process could break mutual exclusion.
-            if (
-              !isAlive ||
-              (!isSelfLock && Date.now() - metadata.timestamp > LIMITS.lockStaleThresholdMs)
-            ) {
-              await fs.unlink(lockFile);
-              continue; // Retry immediately after removing stale lock
+            // Exponential backoff: delay increases with retry count, capped at 2000ms
+            retryCount++;
+            const delay = Math.min(
+              LIMITS.retry.io.initialDelayMs * Math.pow(1.5, retryCount),
+              LIMITS.retry.io.maxDelayMs,
+            );
+            await new Promise((resolve) => setTimeout(resolve, delay));
+          } else if (e.code === 'ENOENT') {
+            // Directory might not exist, try to create it
+            try {
+              await mkdir(repoPath, { recursive: true });
+              continue; // Retry immediately
+            } catch {
+              // If mkdir fails, just wait and retry
             }
-          } catch {
-            // If the lock file is unreadable, we cannot safely determine ownership.
-            // Do not auto-remove in this path; rely on timeout-based recovery instead.
+            await new Promise((resolve) => setTimeout(resolve, LIMITS.retry.io.initialDelayMs));
+          } else {
+            throw e;
           }
-
-          // Exponential backoff: delay increases with retry count, capped at 2000ms
-          retryCount++;
-          const delay = Math.min(
-            LIMITS.retry.io.initialDelayMs * Math.pow(1.5, retryCount),
-            LIMITS.retry.io.maxDelayMs,
-          );
-          await new Promise((resolve) => setTimeout(resolve, delay));
-        } else if (e.code === 'ENOENT') {
-          // Directory might not exist, try to create it
-          try {
-            await mkdir(repoPath, { recursive: true });
-            continue; // Retry immediately
-          } catch {
-            // If mkdir fails, just wait and retry
-          }
-          await new Promise((resolve) => setTimeout(resolve, LIMITS.retry.io.initialDelayMs));
-        } else {
-          throw e;
         }
       }
-    }
 
-    // Timeout reached - attempt force cleanup before failing
-    onEvent?.({
-      type: 'resource.status',
-      resource: 'lock',
-      status: 'warning',
-      message: text.resource.lockTimeoutAttemptForce(repoPath),
-      timestamp: new Date(),
-    });
+      // Timeout reached - attempt force cleanup before failing
+      onEvent?.({
+        type: 'resource.status',
+        resource: 'lock',
+        status: 'warning',
+        message: text.resource.lockTimeoutAttemptForce(repoPath),
+        timestamp: new Date(),
+      });
 
-    try {
-      const fs = await import('fs/promises');
-      const content = await fs.readFile(lockFile, 'utf8');
-      const metadata: LockMetadata = JSON.parse(content);
-      const isSelfLock = metadata.pid === process.pid && metadata.owner === this.currentOwner;
+      try {
+        const fs = await import('fs/promises');
+        const content = await fs.readFile(lockFile, 'utf8');
+        const metadata: LockMetadata = JSON.parse(content);
+        const isSelfLock = metadata.pid === process.pid && metadata.owner === this.currentOwner;
 
-      // Log lock holder info to file for debugging
-      const age = Date.now() - metadata.timestamp;
-      logger.debug(`Lock held by PID ${metadata.pid}, owner: ${metadata.owner}, age: ${age}ms`);
+        // Log lock holder info to file for debugging
+        const age = Date.now() - metadata.timestamp;
+        logger.debug(`Lock held by PID ${metadata.pid}, owner: ${metadata.owner}, age: ${age}ms`);
 
-      // Only force remove if it's actually stale
-      if (!isSelfLock && age > LIMITS.lockStaleThresholdMs) {
-        await fs.unlink(lockFile);
-        onEvent?.({
-          type: 'resource.status',
-          resource: 'lock',
-          status: 'recovered',
-          message: text.resource.lockForceRemoved(lockFile),
-          timestamp: new Date(),
-        });
+        // Only force remove if it's actually stale
+        if (!isSelfLock && age > LIMITS.lockStaleThresholdMs) {
+          await fs.unlink(lockFile);
+          onEvent?.({
+            type: 'resource.status',
+            resource: 'lock',
+            status: 'recovered',
+            message: text.resource.lockForceRemoved(lockFile),
+            timestamp: new Date(),
+          });
 
-        // One final attempt to acquire the lock
-        try {
-          const handle = await open(lockFile, 'wx');
-          if (handle) {
+          // One final attempt to acquire the lock
+          try {
+            const handle = await open(lockFile, 'wx');
             const newMetadata: LockMetadata = {
               pid: process.pid,
               timestamp: Date.now(),
@@ -168,20 +202,46 @@ export class FileHandleManager {
               timestamp: new Date(),
             });
             return;
+          } catch (retryError) {
+            logger.debug(`Final lock acquisition attempt failed: ${retryError}`);
           }
-        } catch (retryError) {
-          logger.debug(`Final lock acquisition attempt failed: ${retryError}`);
+        } else {
+          logger.debug(
+            `Lock is not stale (age: ${age}ms < ${LIMITS.lockStaleThresholdMs}ms), skipping force removal`,
+          );
         }
-      } else {
-        logger.debug(
-          `Lock is not stale (age: ${age}ms < ${LIMITS.lockStaleThresholdMs}ms), skipping force removal`,
-        );
+      } catch (cleanupError) {
+        logger.debug(`Force cleanup failed: ${cleanupError}`);
       }
-    } catch (cleanupError) {
-      logger.debug(`Force cleanup failed: ${cleanupError}`);
-    }
 
-    throw new Error(text.resource.lockAcquireTimeout(repoPath));
+      throw new Error(text.resource.lockAcquireTimeout(repoPath));
+    };
+
+    let hardTimer: NodeJS.Timeout | undefined;
+    try {
+      await Promise.race([
+        core(),
+        new Promise<never>((_, reject) => {
+          hardTimer = setTimeout(() => {
+            abortState.aborted = true;
+            onEvent?.({
+              type: 'resource.status',
+              resource: 'lock',
+              status: 'warning',
+              message: text.resource.lockAcquireHardTimeout(repoPath),
+              timestamp: new Date(),
+            });
+            reject(new Error(text.resource.lockAcquireHardTimeout(repoPath)));
+          }, hardTimeoutMs);
+        }),
+      ]);
+    } catch (error) {
+      // Release the in-process lock if we failed to acquire the file lock.
+      this.releaseLocal(lockFile);
+      throw error;
+    } finally {
+      if (hardTimer) clearTimeout(hardTimer);
+    }
   }
 
   /**
@@ -219,6 +279,9 @@ export class FileHandleManager {
           timestamp: new Date(),
         });
       }
+    } finally {
+      // Always release the in-process lock to avoid local deadlocks.
+      this.releaseLocal(lockFile);
     }
   }
 }
