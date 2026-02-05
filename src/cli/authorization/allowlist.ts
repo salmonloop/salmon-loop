@@ -702,6 +702,7 @@ async function acquireAllowlistFileLock(lockPath: string, scope: 'repo' | 'user'
   const start = Date.now();
   let retryCount = 0;
   const owner = createAllowlistLockOwner();
+  const verifyDelayMs = 25;
 
   while (Date.now() - start < LIMITS.lockWaitTimeoutMs) {
     try {
@@ -715,19 +716,24 @@ async function acquireAllowlistFileLock(lockPath: string, scope: 'repo' | 'user'
         const raw = await fs.readFile(lockPath, 'utf8');
         const metadata = JSON.parse(raw) as { owner?: string; pid?: number };
         if (metadata.owner !== owner) {
-          logger.audit(
-            'ALLOWLIST_LOCK_VERIFICATION_FAILED',
-            { path: lockPath, owner, pid: process.pid },
-            { source: 'allowlist', severity: 'medium', scope },
-          );
-          await fs.unlink(lockPath).catch(() => undefined);
-          retryCount += 1;
-          const delay = Math.min(
-            LIMITS.retry.io.initialDelayMs * Math.pow(1.5, retryCount),
-            LIMITS.retry.io.maxDelayMs,
-          );
-          await new Promise((resolve) => setTimeout(resolve, delay));
-          continue;
+          await new Promise((resolve) => setTimeout(resolve, verifyDelayMs));
+          const retryRaw = await fs.readFile(lockPath, 'utf8');
+          const retryMetadata = JSON.parse(retryRaw) as { owner?: string; pid?: number };
+          if (retryMetadata.owner !== owner) {
+            logger.audit(
+              'ALLOWLIST_LOCK_VERIFICATION_FAILED',
+              { path: lockPath, owner, pid: process.pid },
+              { source: 'allowlist', severity: 'medium', scope },
+            );
+            await fs.unlink(lockPath).catch(() => undefined);
+            retryCount += 1;
+            const delay = Math.min(
+              LIMITS.retry.io.initialDelayMs * Math.pow(1.5, retryCount),
+              LIMITS.retry.io.maxDelayMs,
+            );
+            await new Promise((resolve) => setTimeout(resolve, delay));
+            continue;
+          }
         }
       } catch {
         logger.audit(
@@ -856,6 +862,8 @@ async function writeFileAtomic(
   scope: 'repo' | 'user',
 ): Promise<void> {
   const tempPath = `${targetPath}.${process.pid}.${Date.now()}.tmp`;
+  const backupPath = `${targetPath}.${process.pid}.${Date.now()}.bak`;
+  let backupCreated = false;
   await fs.writeFile(tempPath, content);
   try {
     await fs.rename(tempPath, targetPath);
@@ -867,9 +875,33 @@ async function writeFileAtomic(
       { source: 'allowlist', severity: 'medium', scope },
     );
     try {
+      try {
+        await fs.copyFile(targetPath, backupPath);
+        backupCreated = true;
+      } catch (copyError: any) {
+        if (copyError?.code !== 'ENOENT') {
+          logger.audit(
+            'ALLOWLIST_ATOMIC_WRITE_BACKUP_FAILED',
+            { path: targetPath, error: copyError?.message || String(copyError) },
+            { source: 'allowlist', severity: 'medium', scope },
+          );
+        }
+      }
       await fs.writeFile(targetPath, content);
+    } catch (writeError) {
+      if (backupCreated) {
+        try {
+          await fs.copyFile(backupPath, targetPath);
+        } catch {
+          // Best effort restore
+        }
+      }
+      throw writeError;
     } finally {
       await fs.unlink(tempPath).catch(() => undefined);
+      if (backupCreated) {
+        await fs.unlink(backupPath).catch(() => undefined);
+      }
     }
   }
 }

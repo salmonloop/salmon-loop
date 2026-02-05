@@ -76,6 +76,7 @@ Notes:
 - `sideEffects` matching:
   - Deny rules match when any listed side effect is present.
   - Allow rules require all listed side effects to be present.
+  - Deny rules are evaluated first; any match blocks the tool call.
 - Matching order is: rules (deny first, then allow), then `phases`, then `mode`.
 - Decision precedence across scopes: user deny overrides repo allow; repo deny overrides user allow; otherwise user allow, then repo allow.
 

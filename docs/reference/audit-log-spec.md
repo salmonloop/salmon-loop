@@ -106,6 +106,9 @@ The allowlist subsystem also emits audit events for cache and safety signals:
   - `error`
   - Notes:
     - Indicates a non-atomic write fallback after rename failure.
+- `ALLOWLIST_ATOMIC_WRITE_BACKUP_FAILED`
+  - `path`
+  - `error`
 - `ALLOWLIST_RULE_PERSISTED`
   - `path`
   - `toolName`
