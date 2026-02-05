@@ -7,7 +7,7 @@ import { logger } from '../../core/logger.js';
 import { CheckpointManager } from '../../core/strata/checkpoint/manager.js';
 import { text } from '../locales/index.js';
 
-export async function handleSnapshotList(options: any, command: Command) {
+export async function handleSnapshotList(_options: any, command: Command) {
   const allOptions = command.optsWithGlobals();
   const runPath = resolve(allOptions.repo || process.cwd());
   const manager = new CheckpointManager();
@@ -20,19 +20,20 @@ export async function handleSnapshotList(options: any, command: Command) {
 
   logger.log(chalk.bold(text.cli.availableSnapshots));
   logger.log(chalk.dim(text.cli.snapshotTableHead));
+
   snapshots.forEach((s) => {
-    // Parse the message to extract the description if available
+    // Parse the message to extract the description if available.
     let displayMsg = s.message;
     try {
       const meta = JSON.parse(s.message);
       if (meta.desc) {
         displayMsg = meta.desc;
       } else if (meta.staged) {
-        // Fallback for auto-snapshots without explicit description
+        // Fallback for auto-snapshots without explicit description.
         displayMsg = text.cli.autoSnapshotMsg(meta.staged.substring(0, 7));
       }
     } catch {
-      // Keep original message if parsing fails
+      // Keep original message if parsing fails.
     }
     logger.log(`${chalk.cyan(s.hash)}  ${chalk.gray(s.timestamp)}  ${displayMsg}`);
   });
@@ -123,7 +124,7 @@ export async function handleSnapshotDiff(
 export async function handleSnapshotCat(
   hash: string,
   file: string,
-  options: any,
+  _options: any,
   command: Command,
 ) {
   const allOptions = command.optsWithGlobals();
@@ -142,7 +143,7 @@ export async function handleSnapshotCat(
 export async function handleSnapshotExport(
   hash: string,
   directory: string,
-  options: any,
+  _options: any,
   command: Command,
 ) {
   const allOptions = command.optsWithGlobals();
@@ -160,7 +161,7 @@ export async function handleSnapshotExport(
   }
 }
 
-export async function handleSnapshotDelete(hash: string, options: any, command: Command) {
+export async function handleSnapshotDelete(hash: string, _options: any, command: Command) {
   const allOptions = command.optsWithGlobals();
   const runPath = resolve(allOptions.repo || process.cwd());
   const manager = new CheckpointManager();

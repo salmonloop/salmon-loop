@@ -67,7 +67,7 @@ describe('Checkpoint System (Real Git Integration)', () => {
     await mkdir(tempRepoPath, { recursive: true });
 
     // 2. Initialize Git
-    run('git init');
+    run('git init --initial-branch=main');
     run('git config user.name "Test User"');
     run('git config user.email "test@example.com"');
 

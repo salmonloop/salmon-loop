@@ -38,7 +38,7 @@ export async function codeSearchExecutor(
             cwd: opts?.cwd ?? ctx.repoRoot,
             timeout: opts?.timeoutMs,
             maxBuffer: opts?.maxStdoutBytes,
-            env: { ...process.env, ...opts?.env },
+            env: { ...process.env, ...ctx.env, ...opts?.env },
           });
           return { stdout, stderr, exitCode: 0, timedOut: false };
         } catch (err: any) {

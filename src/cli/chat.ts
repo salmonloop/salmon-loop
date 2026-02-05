@@ -178,6 +178,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
           onEvent: latestEmit,
           signal: latestGuiOptions?.signal,
           authorizationProvider,
+          authorizationMode: 'deferred',
         }),
         CHAT_QUEUE_CONFIG.TASK_TIMEOUT_MS,
       );

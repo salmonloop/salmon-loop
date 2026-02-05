@@ -45,6 +45,7 @@ export async function executeGitCat(
     const child = spawn('git', ['show', `${ref}:${file}`], {
       cwd: ctx.worktreeRoot || ctx.repoRoot,
       windowsHide: true,
+      env: ctx.env ? { ...process.env, ...ctx.env } : process.env,
     });
 
     let stdout = '';
@@ -108,6 +109,7 @@ export async function executeGitStatus(
     const child = spawn('git', args, {
       cwd: ctx.worktreeRoot || ctx.repoRoot,
       windowsHide: true,
+      env: ctx.env ? { ...process.env, ...ctx.env } : process.env,
     });
 
     let stdout = '';

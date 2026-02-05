@@ -59,7 +59,7 @@ class GitHelper {
     let lastError: any;
     while (retries < 5) {
       try {
-        this.run('init');
+        this.run('init --initial-branch=main');
         // Verify .git exists and is a repo
         try {
           const isTree = this.run('rev-parse --is-inside-work-tree').trim();

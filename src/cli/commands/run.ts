@@ -185,6 +185,7 @@ export async function handleRunCommand(options: any, command: Command) {
           applyBackOnDirty: loopParams.applyBackOnDirty as ApplyBackOnDirty,
           signal: guiOptions?.signal,
           authorizationProvider,
+          authorizationMode: 'deferred',
           onEvent: (event) => {
             // In GUI mode, we only emit to the UI to prevent StandardReporter from leaking to stderr
             emit(event);

@@ -27,10 +27,18 @@ export type ConcurrencyHint =
 
 export interface ToolRuntimeCtx {
   repoRoot: string;
+  /**
+   * Optional base repository path used for internal persistence (audit logs, plan state, etc.).
+   * When running in worktree strategy, repoRoot/worktreeRoot may point at the shadow worktree,
+   * while persistenceRoot should point at the user's base repository.
+   */
+  persistenceRoot?: string;
   worktreeRoot?: string;
   attemptId: number;
   dryRun: boolean;
   model?: string;
+  env?: Record<string, string>;
+  phase?: ExecutionPhase;
 }
 
 export interface ToolSpec<I = any, O = any> {

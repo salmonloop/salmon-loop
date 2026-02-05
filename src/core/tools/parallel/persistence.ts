@@ -1,14 +1,29 @@
 import fs from 'fs/promises';
 import path from 'path';
 
+import type { ToolRuntimeCtx } from '../types.js';
+
 import { ExecutionPlan, PlanRunResult } from './plan.js';
 
 /**
  * Represents the persisted state of a parallel execution plan.
  */
 export interface PersistedPlanState {
+  /**
+   * Persistence schema version (best-effort).
+   * Older plan files may omit this field.
+   */
+  version?: number;
   plan: ExecutionPlan;
   result: PlanRunResult;
+  /**
+   * Runtime metadata for resuming/debugging outside of the original process.
+   * This is best-effort and should be treated as advisory (paths may no longer exist).
+   */
+  runtime?: Pick<
+    ToolRuntimeCtx,
+    'repoRoot' | 'worktreeRoot' | 'persistenceRoot' | 'phase' | 'model'
+  >;
   updatedAt: string;
 }
 
@@ -27,17 +42,25 @@ export class PlanPersistence {
 
   /**
    * Saves a plan and its current result/state.
-   * @param repoRoot The absolute path to the repository root.
+   * @param repoRoot The absolute path to the persistence root (usually the base repo).
    * @param plan The execution plan to save.
    * @param result The current result/state of the plan.
+   * @param runtime Optional runtime metadata (best-effort, for resuming/debugging).
    */
-  static async save(repoRoot: string, plan: ExecutionPlan, result: PlanRunResult): Promise<void> {
+  static async save(
+    repoRoot: string,
+    plan: ExecutionPlan,
+    result: PlanRunResult,
+    runtime?: PersistedPlanState['runtime'],
+  ): Promise<void> {
     const dir = this.getPersistenceDir(repoRoot);
     await fs.mkdir(dir, { recursive: true });
 
     const state: PersistedPlanState = {
+      version: 1,
       plan,
       result,
+      runtime,
       updatedAt: new Date().toISOString(),
     };
 

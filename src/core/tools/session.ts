@@ -7,6 +7,10 @@ import type { ChatOptions, LLM, LLMMessage, LLMStreamChunk } from '../types.js';
 import { ExecutionPhase } from '../types.js';
 
 import { toolToOpenAI } from './mapper.js';
+import { InMemoryLockManager } from './parallel/lock-manager.js';
+import { PlanPersistence } from './parallel/persistence.js';
+import type { ExecutionPlan, PlanNode } from './parallel/plan.js';
+import { ParallelScheduler } from './parallel/scheduler.js';
 import { ToolCallAccumulator } from './streaming/ToolCallAccumulator.js';
 import type { ToolRuntimeCtx, ToolResult } from './types.js';
 
@@ -17,7 +21,7 @@ export interface ToolCallingSessionOptions {
   toolstack: {
     registry: { listAll(): any[] };
     policy: { decide(phase: ExecutionPhase, spec: any, ctx: { worktreeRoot?: string }): any };
-    router: { call(envelope: any): Promise<ToolResult> };
+    router: { call(envelope: any): Promise<ToolResult>; getSpec?: (name: string) => any };
   };
   toolCallingAudit?: ToolCallingAuditSink;
   /**
@@ -143,7 +147,7 @@ export async function chatWithTools(
       throw new Error('Operation aborted');
     }
 
-    await executeToolCalls(session, phase, round, toolCalls, messages);
+    await executeToolCalls(session, phase, round, toolCalls, messages, chatOptions.signal);
   }
 
   // If we reach here, the model is stuck in tool calling. Return the last assistant content.
@@ -163,19 +167,30 @@ async function executeToolCalls(
   round: number,
   calls: any[],
   messages: LLMMessage[],
+  signal?: AbortSignal,
 ): Promise<void> {
-  for (const call of calls) {
+  const prepared = calls.map((call) => {
     const callId = call?.id || crypto.randomUUID();
     const toolName = call?.function?.name;
     const rawArgs = call?.function?.arguments;
+    return { callId, toolName, rawArgs };
+  });
 
-    if (toolName && typeof toolName === 'string') {
+  for (const item of prepared) {
+    if (item.toolName && typeof item.toolName === 'string') {
       session.emit?.({
         type: 'log',
         level: 'debug',
-        message: `[tool] start ${toolName}`,
+        message: `[tool] start ${item.toolName}`,
       });
     }
+  }
+
+  const toolResults = new Map<string, ToolResult>();
+  const nodes: PlanNode[] = [];
+
+  for (const item of prepared) {
+    const { callId, toolName, rawArgs } = item;
 
     if (!toolName || typeof toolName !== 'string') {
       logger.warn('Received malformed tool call (missing function.name)');
@@ -192,18 +207,17 @@ async function executeToolCalls(
         toolResultStatus: 'error',
         toolResultErrorCode: 'MALFORMED_TOOL_CALL',
       });
-      messages.push({
-        role: 'tool',
-        name: 'unknown',
-        tool_call_id: callId,
-        content: JSON.stringify({
-          status: 'error',
-          error: {
-            code: 'MALFORMED_TOOL_CALL',
-            message: 'Missing function.name',
-            retryable: true,
-          },
-        }),
+      toolResults.set(callId, {
+        id: callId,
+        toolName: 'unknown',
+        source: 'builtin',
+        status: 'error',
+        error: {
+          code: 'MALFORMED_TOOL_CALL',
+          message: 'Missing function.name',
+          retryable: true,
+          failurePhase: phase,
+        },
       });
       continue;
     }
@@ -215,8 +229,6 @@ async function executeToolCalls(
     });
 
     const parsed = safeParseJson(rawArgs);
-    let result: ToolResult;
-
     if (!parsed.ok) {
       session.toolCallingAudit?.event({
         timestamp: new Date().toISOString(),
@@ -231,7 +243,7 @@ async function executeToolCalls(
         toolResultStatus: 'error',
         toolResultErrorCode: 'INVALID_TOOL_ARGUMENTS_JSON',
       });
-      result = {
+      toolResults.set(callId, {
         id: callId,
         toolName,
         source: 'builtin',
@@ -242,40 +254,116 @@ async function executeToolCalls(
           retryable: true,
           failurePhase: phase,
         },
-      };
-    } else {
-      session.toolCallingAudit?.event({
-        timestamp: new Date().toISOString(),
-        phase,
-        round,
-        callId,
-        toolName,
-        rawArgsType: typeof rawArgs,
-        rawArgsPreview: typeof rawArgs === 'string' ? redactJsonString(rawArgs) : undefined,
-        parsedArgsOk: true,
-        parsedArgsPreview: safeStringifyForAudit(parsed.value),
       });
-      result = await session.toolstack.router.call({
-        id: callId,
+      continue;
+    }
+
+    session.toolCallingAudit?.event({
+      timestamp: new Date().toISOString(),
+      phase,
+      round,
+      callId,
+      toolName,
+      rawArgsType: typeof rawArgs,
+      rawArgsPreview: typeof rawArgs === 'string' ? redactJsonString(rawArgs) : undefined,
+      parsedArgsOk: true,
+      parsedArgsPreview: safeStringifyForAudit(parsed.value),
+    });
+
+    nodes.push({ id: callId, toolName, args: parsed.value, deps: [] });
+  }
+
+  if (nodes.length > 0) {
+    const plan: ExecutionPlan = {
+      id: `tool-round-${round}-${crypto.randomUUID()}`,
+      nodes,
+      policy: {
+        maxParallelism: Math.min(nodes.length, 8),
+        readParallelism: Math.min(nodes.length, 8),
+        writeParallelism: 1,
+        failFast: false,
+        deterministic: true,
+      },
+    };
+
+    const scheduler = new ParallelScheduler(
+      session.toolstack.router as any,
+      new InMemoryLockManager(),
+    );
+
+    const runSignal = signal ?? new AbortController().signal;
+    let result = await scheduler.run(plan, { ...session.runtime, phase } as any, runSignal);
+
+    const persistEnabled = process.env.NODE_ENV !== 'test';
+    const persistenceRoot = session.runtime.persistenceRoot || session.runtime.repoRoot;
+    if (persistEnabled) {
+      await PlanPersistence.save(persistenceRoot, plan, result, {
+        repoRoot: session.runtime.repoRoot,
+        worktreeRoot: session.runtime.worktreeRoot,
+        persistenceRoot: session.runtime.persistenceRoot,
         phase,
-        toolName,
-        args: parsed.value,
-        ctx: session.runtime,
+        model: session.runtime.model,
       });
-      if (result.status !== 'ok') {
-        session.toolCallingAudit?.event({
-          timestamp: new Date().toISOString(),
+    }
+
+    const canWaitForAuth =
+      typeof (session.toolstack.router as any).waitForAuthorization === 'function';
+
+    let resumeAttempts = 0;
+    while (result.blockedApprovals.length > 0 && canWaitForAuth && !runSignal.aborted) {
+      resumeAttempts++;
+      if (resumeAttempts > 10) break;
+
+      // Wait for all pending approvals in this plan run, then resume only blocked nodes.
+      await Promise.all(
+        result.blockedApprovals.map(async (a) => {
+          await (session.toolstack.router as any).waitForAuthorization(a.nodeId, runSignal);
+        }),
+      );
+
+      result = await scheduler.run(plan, { ...session.runtime, phase } as any, runSignal, {
+        initialResults: result.nodeResults,
+        resumeBlockedApprovals: true,
+      });
+
+      if (persistEnabled) {
+        await PlanPersistence.save(persistenceRoot, plan, result, {
+          repoRoot: session.runtime.repoRoot,
+          worktreeRoot: session.runtime.worktreeRoot,
+          persistenceRoot: session.runtime.persistenceRoot,
           phase,
-          round,
-          callId,
-          toolName,
-          rawArgsType: typeof rawArgs,
-          parsedArgsOk: true,
-          toolResultStatus: result.status,
-          toolResultErrorCode: result.error?.code,
+          model: session.runtime.model,
         });
       }
     }
+
+    for (const node of nodes) {
+      const r = result.nodeResults[node.id];
+      const toolResult = r?.toolResult as ToolResult | undefined;
+      if (toolResult) {
+        toolResults.set(node.id, toolResult);
+        continue;
+      }
+
+      toolResults.set(node.id, {
+        id: node.id,
+        toolName: node.toolName,
+        source: 'builtin',
+        status: 'error',
+        error: {
+          code: 'PPD_TOOL_RESULT_MISSING',
+          message: 'Parallel scheduler did not return tool result',
+          retryable: true,
+          failurePhase: phase,
+        },
+      });
+    }
+  }
+
+  for (const item of prepared) {
+    const { callId, toolName, rawArgs } = item;
+    const result = toolResults.get(callId);
+    if (!result) continue;
 
     session.emit?.({
       type: 'log',
@@ -283,9 +371,23 @@ async function executeToolCalls(
       message: `[tool] done ${toolName || 'unknown'} status=${result.status}`,
     });
 
+    if (result.status !== 'ok') {
+      session.toolCallingAudit?.event({
+        timestamp: new Date().toISOString(),
+        phase,
+        round,
+        callId,
+        toolName: typeof toolName === 'string' ? toolName : 'unknown',
+        rawArgsType: typeof rawArgs,
+        parsedArgsOk: true,
+        toolResultStatus: result.status,
+        toolResultErrorCode: result.error?.code,
+      });
+    }
+
     messages.push({
       role: 'tool',
-      name: toolName,
+      name: typeof toolName === 'string' ? toolName : 'unknown',
       tool_call_id: callId,
       content: formatToolResultForModel(result),
     });
@@ -367,7 +469,7 @@ export async function chatWithToolsStreaming(
       return assistant;
     }
 
-    await executeToolCalls(session, phase, round, calls, messages);
+    await executeToolCalls(session, phase, round, calls, messages, chatOptions.signal);
   }
 
   session.emit?.({

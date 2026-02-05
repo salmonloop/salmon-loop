@@ -14,10 +14,12 @@ import { ToolSanitizer } from './sanitize.js';
 
 export interface ToolstackOptions {
   repoRoot: string;
+  persistenceRoot?: string;
   worktreeRoot?: string;
   attemptId: number;
   dryRun: boolean;
   model?: string;
+  authorizationMode?: 'blocking' | 'deferred';
   budget?: Partial<BudgetConfig>;
   authorizationProvider?: ToolAuthorizationProvider;
   onAuthorizationSummary?: (
@@ -68,11 +70,13 @@ export async function createStandardToolstack(options: ToolstackOptions) {
     audit,
     sanitize,
     options.authorizationProvider,
+    { authorizationMode: options.authorizationMode },
   );
 
   // 4. Create Dispatcher (The high-level coordinator for LLM text)
   const dispatcher = new ToolDispatcher(router, {
     repoRoot: options.repoRoot,
+    persistenceRoot: options.persistenceRoot,
     worktreeRoot: options.worktreeRoot,
     attemptId: options.attemptId,
     dryRun: options.dryRun,

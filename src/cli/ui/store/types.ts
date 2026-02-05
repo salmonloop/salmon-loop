@@ -36,6 +36,11 @@ export interface UIState {
     message: string;
     challenge: string;
   };
+  pendingSelection?: {
+    id: string;
+    title: string;
+    items: Array<{ id: string; label: string; description?: string }>;
+  };
 }
 
 export type UIAction =
@@ -60,4 +65,6 @@ export type UIAction =
   | { type: 'SET_CONFIRMATION'; payload: UIState['pendingConfirmation'] }
   | { type: 'CLEAR_CONFIRMATION' }
   | { type: 'SET_AUTHORIZATION'; payload: UIState['pendingAuthorization'] }
-  | { type: 'CLEAR_AUTHORIZATION' };
+  | { type: 'CLEAR_AUTHORIZATION' }
+  | { type: 'SET_SELECTION'; payload: UIState['pendingSelection'] }
+  | { type: 'CLEAR_SELECTION' };

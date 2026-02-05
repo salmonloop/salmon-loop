@@ -31,7 +31,7 @@ describe('State Management Integration Tests', () => {
     // Initialize main repository with initial commit
     await mkdir(mainRepo, { recursive: true });
     const git = new GitAdapter(mainRepo);
-    await git.exec(['init']);
+    await git.exec(['init', '--initial-branch=main']);
     await git.exec(['config', 'user.name', 'Test User']);
     await git.exec(['config', 'user.email', 'test@example.com']);
 

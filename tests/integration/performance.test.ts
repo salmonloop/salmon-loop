@@ -27,7 +27,7 @@ describe('Performance Integration Tests', () => {
     await fs.mkdir(path.join(repoPath, '.git'), { recursive: true });
     // We need a minimal git config for git commands to work
     const git = new GitAdapter(repoPath);
-    await git.exec(['init']);
+    await git.exec(['init', '--initial-branch=main']);
     await git.exec(['config', 'user.email', 'test@test.com']);
     await git.exec(['config', 'user.name', 'Test']);
 

@@ -63,6 +63,7 @@ export async function executeAstGrep(
     const { stdout, stderr } = await execAsync(command, {
       cwd: ctx.worktreeRoot || ctx.repoRoot,
       maxBuffer: 1024 * 1024 * 5, // 5MB buffer for large search results
+      env: ctx.env ? { ...process.env, ...ctx.env } : process.env,
     });
 
     if (stderr && !stdout) {

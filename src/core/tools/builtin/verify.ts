@@ -12,7 +12,7 @@ export const verifyRunSpec: Omit<ToolSpec, 'executor'> = {
   description: text.tools.testRunDescription,
   riskLevel: 'medium',
   sideEffects: ['process'],
-  concurrency: 'mutex_by_resource',
+  concurrency: 'isolated',
   computeResources: (_input, ctx) => [repoResource(ctx), processResource(ctx)],
   inputSchema: z.object({
     command: z.string().describe('The shell command to run for verification'),
@@ -36,7 +36,7 @@ export async function executeVerifyRun(
 ) {
   const { command } = input;
   const activePath = ctx.worktreeRoot || ctx.repoRoot;
-  const result = await runVerify(activePath, command);
+  const result = await runVerify(activePath, command, ctx.env);
 
   const errorType = !result.ok ? classifyError(result.output) : undefined;
 

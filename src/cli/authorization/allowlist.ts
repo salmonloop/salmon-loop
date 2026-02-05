@@ -1,5 +1,4 @@
 import * as crypto from 'crypto';
-import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 
@@ -9,6 +8,18 @@ import { logger } from '../../core/logger.js';
 import type { SideEffect } from '../../core/tools/types.js';
 import type { ExecutionPhase } from '../../core/types.js';
 import { text } from '../locales/index.js';
+import {
+  copyFile,
+  mkdirp,
+  openFile,
+  readdir,
+  readFileUtf8,
+  realpath,
+  rename,
+  stat,
+  unlink,
+  writeFileUtf8,
+} from '../utils/safe-fs.js';
 
 export interface ToolAuthorizationAllowlist {
   version: 1;
@@ -167,6 +178,7 @@ function applyAllowlistMatchingConfig(config?: ToolAuthorizationConfig): void {
 
 async function cleanupAllowlistArtifacts(
   targetPath: string,
+  rootContext: string,
   scope: 'repo' | 'user',
 ): Promise<void> {
   const dir = path.dirname(targetPath);
@@ -174,7 +186,7 @@ async function cleanupAllowlistArtifacts(
   cleanedAllowlistDirs.add(dir);
 
   try {
-    const entries = await fs.readdir(dir);
+    const entries = await readdir(dir, rootContext);
     const now = Date.now();
     const base = path.basename(targetPath);
     let cleaned = 0;
@@ -184,9 +196,9 @@ async function cleanupAllowlistArtifacts(
       if (!entry.endsWith('.tmp') && !entry.endsWith('.bak')) continue;
       const fullPath = path.join(dir, entry);
       try {
-        const stat = await fs.stat(fullPath);
-        if (now - stat.mtimeMs < TEMP_ARTIFACT_MAX_AGE_MS) continue;
-        await fs.unlink(fullPath);
+        const fileStat = await stat(fullPath, rootContext);
+        if (now - fileStat.mtimeMs < TEMP_ARTIFACT_MAX_AGE_MS) continue;
+        await unlink(fullPath, rootContext);
         cleaned += 1;
       } catch {
         // Best effort cleanup
@@ -326,7 +338,11 @@ function recordAllowlistLoadSummary(params: {
 
 function expandHome(filePath: string): string {
   if (!filePath.startsWith('~')) return filePath;
-  return path.join(os.homedir(), filePath.slice(1));
+  if (filePath === '~') return os.homedir();
+  if (filePath.startsWith('~/') || filePath.startsWith('~\\')) {
+    return path.join(os.homedir(), filePath.slice(2));
+  }
+  return filePath;
 }
 
 function resolveAllowlistPath(filePath: string, repoRoot: string, scope: 'repo' | 'user'): string {
@@ -347,7 +363,7 @@ async function resolveRealTargetForMissingPath(targetPath: string): Promise<stri
   let depth = 0;
   while (depth < MAX_REALPATH_ASCENT) {
     try {
-      const realParent = await fs.realpath(current);
+      const realParent = await realpath(current);
       const relative = path.relative(current, targetPath);
       return path.join(realParent, relative);
     } catch (error: any) {
@@ -384,14 +400,14 @@ async function ensureAllowlistPath(
 
   let realRoot: string;
   try {
-    realRoot = await fs.realpath(normalizedRoot);
+    realRoot = await realpath(normalizedRoot, normalizedRoot);
   } catch {
     realRoot = normalizedRoot;
   }
 
   let realTarget: string;
   try {
-    realTarget = await fs.realpath(normalizedResolved);
+    realTarget = await realpath(normalizedResolved, normalizedRoot);
   } catch (error: any) {
     if (error?.code === 'ENOENT') {
       const resolvedTarget = await resolveRealTargetForMissingPath(normalizedResolved);
@@ -424,9 +440,12 @@ function getCachePath(resolvedPath: string, repoRoot: string): string {
   return path.resolve(repoRoot, '.salmonloop', 'state', cacheName);
 }
 
-async function readAllowlistCache(cachePath: string): Promise<AllowlistCacheFile | null> {
+async function readAllowlistCache(
+  cachePath: string,
+  rootContext: string,
+): Promise<AllowlistCacheFile | null> {
   try {
-    const raw = await fs.readFile(cachePath, 'utf8');
+    const raw = await readFileUtf8(cachePath, rootContext);
     const parsed = JSON.parse(raw) as AllowlistCacheFile;
     return parsed;
   } catch (error: any) {
@@ -442,6 +461,7 @@ async function saveAllowlistCache(
   sourceSize: number,
   sourceHash: string,
   data: ToolAuthorizationAllowlist,
+  rootContext: string,
 ): Promise<void> {
   const payload: AllowlistCacheFile = {
     version: CACHE_VERSION,
@@ -451,8 +471,8 @@ async function saveAllowlistCache(
     sourceHash,
     data,
   };
-  await fs.mkdir(path.dirname(cachePath), { recursive: true });
-  await fs.writeFile(cachePath, JSON.stringify(payload, null, 2));
+  await mkdirp(path.dirname(cachePath), rootContext);
+  await writeFileUtf8(cachePath, JSON.stringify(payload, null, 2), rootContext);
 }
 
 async function saveAllowlistCacheWithAudit(
@@ -462,10 +482,19 @@ async function saveAllowlistCacheWithAudit(
   sourceSize: number,
   sourceHash: string,
   data: ToolAuthorizationAllowlist,
+  rootContext: string,
   scope: 'repo' | 'user',
 ): Promise<void> {
   try {
-    await saveAllowlistCache(cachePath, sourcePath, sourceMtimeMs, sourceSize, sourceHash, data);
+    await saveAllowlistCache(
+      cachePath,
+      sourcePath,
+      sourceMtimeMs,
+      sourceSize,
+      sourceHash,
+      data,
+      rootContext,
+    );
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     logger.audit(
@@ -535,15 +564,16 @@ async function loadAllowlistResolved(
   scope: 'repo' | 'user',
   toolName?: string,
 ): Promise<ToolAuthorizationAllowlist> {
+  const scopeRoot = resolveAllowlistScopeRoot(repoRoot, scope);
   const cachePath = getCachePath(resolved, repoRoot);
 
   try {
-    const stat = await fs.stat(resolved);
-    const sourceMtimeMs = stat.mtimeMs;
-    const sourceSize = stat.size;
+    const sourceStat = await stat(resolved, scopeRoot);
+    const sourceMtimeMs = sourceStat.mtimeMs;
+    const sourceSize = sourceStat.size;
     const scopeResolved = scope;
 
-    const cached = await readAllowlistCache(cachePath);
+    const cached = await readAllowlistCache(cachePath, scopeRoot);
     if (cached) {
       const reason = getCacheInvalidationReason(
         cached,
@@ -595,7 +625,7 @@ async function loadAllowlistResolved(
       );
     }
 
-    const raw = await fs.readFile(resolved, 'utf8');
+    const raw = await readFileUtf8(resolved, scopeRoot);
     const sourceHash = hashAllowlistSource(raw);
     let parsed: any;
     try {
@@ -626,6 +656,7 @@ async function loadAllowlistResolved(
         sourceSize,
         sourceHash,
         allowlist,
+        scopeRoot,
         scopeResolved,
       );
       recordAllowlistLoadSummary({
@@ -672,11 +703,13 @@ async function loadAllowlistResolved(
 async function saveAllowlistResolved(
   resolved: string,
   allowlist: ToolAuthorizationAllowlist,
+  repoRoot: string,
   scope: 'repo' | 'user',
 ): Promise<void> {
+  const scopeRoot = resolveAllowlistScopeRoot(repoRoot, scope);
   try {
-    await fs.mkdir(path.dirname(resolved), { recursive: true });
-    await writeFileAtomic(resolved, JSON.stringify(allowlist, null, 2), scope);
+    await mkdirp(path.dirname(resolved), scopeRoot);
+    await writeFileAtomic(resolved, JSON.stringify(allowlist, null, 2), scopeRoot, scope);
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     logger.audit(
@@ -777,7 +810,11 @@ function createAllowlistLockOwner(): string {
   return `${allowlistLockPrefix}${salt}`;
 }
 
-async function acquireAllowlistFileLock(lockPath: string, scope: 'repo' | 'user'): Promise<void> {
+async function acquireAllowlistFileLock(
+  lockPath: string,
+  rootContext: string,
+  scope: 'repo' | 'user',
+): Promise<void> {
   const start = Date.now();
   let retryCount = 0;
   const owner = createAllowlistLockOwner();
@@ -785,18 +822,18 @@ async function acquireAllowlistFileLock(lockPath: string, scope: 'repo' | 'user'
 
   while (Date.now() - start < LIMITS.lockWaitTimeoutMs) {
     try {
-      const handle = await fs.open(lockPath, 'wx');
+      const handle = await openFile(lockPath, 'wx', rootContext);
       await handle.writeFile(
         JSON.stringify({ pid: process.pid, timestamp: Date.now(), owner }),
         'utf8',
       );
       await handle.close();
       try {
-        const raw = await fs.readFile(lockPath, 'utf8');
+        const raw = await readFileUtf8(lockPath, rootContext);
         const metadata = JSON.parse(raw) as { owner?: string; pid?: number };
         if (metadata.owner !== owner) {
           await new Promise((resolve) => setTimeout(resolve, verifyDelayMs));
-          const retryRaw = await fs.readFile(lockPath, 'utf8');
+          const retryRaw = await readFileUtf8(lockPath, rootContext);
           const retryMetadata = JSON.parse(retryRaw) as { owner?: string; pid?: number };
           if (retryMetadata.owner !== owner) {
             logger.audit(
@@ -804,7 +841,7 @@ async function acquireAllowlistFileLock(lockPath: string, scope: 'repo' | 'user'
               { path: lockPath, owner, pid: process.pid },
               { source: 'allowlist', severity: 'medium', scope },
             );
-            await fs.unlink(lockPath).catch(() => undefined);
+            await unlink(lockPath, rootContext).catch(() => undefined);
             retryCount += 1;
             const delay = Math.min(
               LIMITS.retry.io.initialDelayMs * Math.pow(1.5, retryCount),
@@ -820,7 +857,7 @@ async function acquireAllowlistFileLock(lockPath: string, scope: 'repo' | 'user'
           { path: lockPath, owner, pid: process.pid },
           { source: 'allowlist', severity: 'medium', scope },
         );
-        await fs.unlink(lockPath).catch(() => undefined);
+        await unlink(lockPath, rootContext).catch(() => undefined);
         retryCount += 1;
         const delay = Math.min(
           LIMITS.retry.io.initialDelayMs * Math.pow(1.5, retryCount),
@@ -839,7 +876,7 @@ async function acquireAllowlistFileLock(lockPath: string, scope: 'repo' | 'user'
     } catch (error: any) {
       if (error?.code === 'EEXIST') {
         try {
-          const raw = await fs.readFile(lockPath, 'utf8');
+          const raw = await readFileUtf8(lockPath, rootContext);
           const metadata = JSON.parse(raw) as { pid?: number; timestamp?: number; owner?: string };
           const age = Date.now() - (metadata.timestamp ?? 0);
           let isAlive = true;
@@ -851,7 +888,7 @@ async function acquireAllowlistFileLock(lockPath: string, scope: 'repo' | 'user'
             }
           }
           if (!isAlive || age > LIMITS.lockStaleThresholdMs) {
-            await fs.unlink(lockPath).catch(() => undefined);
+            await unlink(lockPath, rootContext).catch(() => undefined);
             logger.audit(
               'ALLOWLIST_LOCK_STALE_REMOVED',
               { path: lockPath, owner: metadata.owner, pid: metadata.pid, ageMs: age },
@@ -861,7 +898,7 @@ async function acquireAllowlistFileLock(lockPath: string, scope: 'repo' | 'user'
           }
         } catch {
           // If lock contents are unreadable, treat it as stale and retry.
-          await fs.unlink(lockPath).catch(() => undefined);
+          await unlink(lockPath, rootContext).catch(() => undefined);
           logger.audit(
             'ALLOWLIST_LOCK_STALE_REMOVED',
             { path: lockPath, owner: 'unknown', pid: undefined, ageMs: undefined },
@@ -880,7 +917,7 @@ async function acquireAllowlistFileLock(lockPath: string, scope: 'repo' | 'user'
       }
 
       if (error?.code === 'ENOENT') {
-        await fs.mkdir(path.dirname(lockPath), { recursive: true });
+        await mkdirp(path.dirname(lockPath), rootContext);
         continue;
       }
 
@@ -896,18 +933,22 @@ async function acquireAllowlistFileLock(lockPath: string, scope: 'repo' | 'user'
   throw new Error(text.cli.authLockTimeout(lockPath));
 }
 
-async function releaseAllowlistFileLock(lockPath: string, scope: 'repo' | 'user'): Promise<void> {
+async function releaseAllowlistFileLock(
+  lockPath: string,
+  rootContext: string,
+  scope: 'repo' | 'user',
+): Promise<void> {
   const owner = allowlistLockOwners.get(lockPath);
   if (!owner) return;
   try {
-    const raw = await fs.readFile(lockPath, 'utf8');
+    const raw = await readFileUtf8(lockPath, rootContext);
     const metadata = JSON.parse(raw) as { owner?: string };
     if (metadata.owner !== owner) return;
   } catch {
     // If we cannot read it, still attempt to remove to avoid deadlocks.
   }
   try {
-    await fs.unlink(lockPath);
+    await unlink(lockPath, rootContext);
     logger.audit(
       'ALLOWLIST_LOCK_RELEASED',
       { path: lockPath, owner, pid: process.pid },
@@ -927,26 +968,28 @@ async function withAllowlistFileLock<T>(
   fn: () => Promise<T>,
 ): Promise<T> {
   const lockPath = getAllowlistLockPath(resolvedPath, repoRoot);
-  await acquireAllowlistFileLock(lockPath, scope);
+  const rootContext = resolveAllowlistScopeRoot(repoRoot, scope);
+  await acquireAllowlistFileLock(lockPath, rootContext, scope);
   try {
     return await fn();
   } finally {
-    await releaseAllowlistFileLock(lockPath, scope);
+    await releaseAllowlistFileLock(lockPath, rootContext, scope);
   }
 }
 
 async function writeFileAtomic(
   targetPath: string,
   content: string,
+  rootContext: string,
   scope: 'repo' | 'user',
 ): Promise<void> {
-  await cleanupAllowlistArtifacts(targetPath, scope);
+  await cleanupAllowlistArtifacts(targetPath, rootContext, scope);
   const tempPath = `${targetPath}.${process.pid}.${Date.now()}.tmp`;
   const backupPath = `${targetPath}.${process.pid}.${Date.now()}.bak`;
   let backupCreated = false;
-  await fs.writeFile(tempPath, content);
+  await writeFileUtf8(tempPath, content, rootContext);
   try {
-    await fs.rename(tempPath, targetPath);
+    await rename(tempPath, targetPath, rootContext);
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     logger.audit(
@@ -956,7 +999,7 @@ async function writeFileAtomic(
     );
     try {
       try {
-        await fs.copyFile(targetPath, backupPath);
+        await copyFile(targetPath, backupPath, rootContext);
         backupCreated = true;
       } catch (copyError: any) {
         if (copyError?.code !== 'ENOENT') {
@@ -967,11 +1010,11 @@ async function writeFileAtomic(
           );
         }
       }
-      await fs.writeFile(targetPath, content);
+      await writeFileUtf8(targetPath, content, rootContext);
     } catch (writeError) {
       if (backupCreated) {
         try {
-          await fs.copyFile(backupPath, targetPath);
+          await copyFile(backupPath, targetPath, rootContext);
         } catch {
           logger.audit(
             'ALLOWLIST_ATOMIC_RESTORE_FAILED',
@@ -982,9 +1025,9 @@ async function writeFileAtomic(
       }
       throw writeError;
     } finally {
-      await fs.unlink(tempPath).catch(() => undefined);
+      await unlink(tempPath, rootContext).catch(() => undefined);
       if (backupCreated) {
-        await fs.unlink(backupPath).catch(() => undefined);
+        await unlink(backupPath, rootContext).catch(() => undefined);
       }
     }
   }
@@ -1049,6 +1092,7 @@ export async function persistAllowlistDecision(params: {
 
   await withAllowlistLock(resolved, async () =>
     withAllowlistFileLock(resolved, repoRoot, scope, async () => {
+      const scopeRoot = resolveAllowlistScopeRoot(repoRoot, scope);
       const allowlist = await loadAllowlistResolved(resolved, repoRoot, scope);
       const entry = allowlist.tools[toolName] || { phases: {}, rules: [] };
       const rules = entry.rules || [];
@@ -1060,17 +1104,18 @@ export async function persistAllowlistDecision(params: {
       });
       allowlist.tools[toolName] = { ...entry, rules };
 
-      await saveAllowlistResolved(resolved, allowlist, scope);
+      await saveAllowlistResolved(resolved, allowlist, repoRoot, scope);
       const cachePath = getCachePath(resolved, repoRoot);
-      const stat = await fs.stat(resolved);
-      const raw = await fs.readFile(resolved, 'utf8');
+      const sourceStat = await stat(resolved, scopeRoot);
+      const raw = await readFileUtf8(resolved, scopeRoot);
       await saveAllowlistCacheWithAudit(
         cachePath,
         resolved,
-        stat.mtimeMs,
-        stat.size,
+        sourceStat.mtimeMs,
+        sourceStat.size,
         hashAllowlistSource(raw),
         allowlist,
+        scopeRoot,
         scope,
       );
       logger.audit(
@@ -1112,6 +1157,7 @@ export async function removeAllowlistRule(params: {
 
   return withAllowlistLock(resolved, async () =>
     withAllowlistFileLock(resolved, repoRoot, scope, async () => {
+      const scopeRoot = resolveAllowlistScopeRoot(repoRoot, scope);
       const allowlist = await loadAllowlistResolved(resolved, repoRoot, scope);
       const entry = allowlist.tools[toolName];
       if (!entry) return false;
@@ -1139,17 +1185,18 @@ export async function removeAllowlistRule(params: {
       }
 
       const removedAll = !phase && !argsHash && (!sideEffects || sideEffects.length === 0);
-      await saveAllowlistResolved(resolved, allowlist, scope);
+      await saveAllowlistResolved(resolved, allowlist, repoRoot, scope);
       const cachePath = getCachePath(resolved, repoRoot);
-      const stat = await fs.stat(resolved);
-      const raw = await fs.readFile(resolved, 'utf8');
+      const sourceStat = await stat(resolved, scopeRoot);
+      const raw = await readFileUtf8(resolved, scopeRoot);
       await saveAllowlistCacheWithAudit(
         cachePath,
         resolved,
-        stat.mtimeMs,
-        stat.size,
+        sourceStat.mtimeMs,
+        sourceStat.size,
         hashAllowlistSource(raw),
         allowlist,
+        scopeRoot,
         scope,
       );
       logger.audit(
@@ -1175,19 +1222,21 @@ export async function clearAllowlist(params: {
 
   await withAllowlistLock(resolved, async () =>
     withAllowlistFileLock(resolved, repoRoot, scope, async () => {
+      const scopeRoot = resolveAllowlistScopeRoot(repoRoot, scope);
       const empty = createEmptyAllowlist();
-      await saveAllowlistResolved(resolved, empty, scope);
-      const stat = await fs.stat(resolved);
-      const raw = await fs.readFile(resolved, 'utf8');
+      await saveAllowlistResolved(resolved, empty, repoRoot, scope);
+      const sourceStat = await stat(resolved, scopeRoot);
+      const raw = await readFileUtf8(resolved, scopeRoot);
       await saveAllowlistCacheWithAudit(
         getCachePath(resolved, repoRoot),
         resolved,
-        stat.mtimeMs,
-        stat.size,
+        sourceStat.mtimeMs,
+        sourceStat.size,
         hashAllowlistSource(raw),
         {
           ...empty,
         },
+        scopeRoot,
         scope,
       );
       logger.audit(
@@ -1210,15 +1259,21 @@ export async function clearAllowlistCache(params: {
   const userResolved = config.allowlist?.userFile
     ? await resolveAllowlistPathOrLog(config.allowlist.userFile, repoRoot, 'user')
     : null;
+  const repoRootContext = resolveAllowlistScopeRoot(repoRoot, 'repo');
+  const userRootContext = resolveAllowlistScopeRoot(repoRoot, 'user');
   const targets = [
-    repoResolved ? getCachePath(repoResolved, repoRoot) : undefined,
-    userResolved ? getCachePath(userResolved, repoRoot) : undefined,
-  ].filter(Boolean) as string[];
+    repoResolved
+      ? { path: getCachePath(repoResolved, repoRoot), rootContext: repoRootContext }
+      : null,
+    userResolved
+      ? { path: getCachePath(userResolved, repoRoot), rootContext: userRootContext }
+      : null,
+  ].filter(Boolean) as { path: string; rootContext: string }[];
 
   await Promise.all(
-    targets.map(async (filePath) => {
+    targets.map(async ({ path: filePath, rootContext }) => {
       try {
-        await fs.unlink(filePath);
+        await unlink(filePath, rootContext);
       } catch (error: any) {
         if (error?.code !== 'ENOENT') throw error;
       }

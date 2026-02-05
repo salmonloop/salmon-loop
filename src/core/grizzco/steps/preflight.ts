@@ -29,10 +29,12 @@ export const runPreflight: Step<InitCtx, PreflightCtx> = async (ctx) => {
   const toolstack = resolveLlmToolCallingPolicy(Phase.PLAN, ctx.options.llm).enabled
     ? await createStandardToolstack({
         repoRoot: ctx.workspace.workPath,
+        persistenceRoot: ctx.workspace.baseRepoPath || ctx.workspace.workPath,
         worktreeRoot: ctx.workspace.strategy === 'worktree' ? ctx.workspace.workPath : undefined,
         attemptId: (ctx as any).attempt ?? 1,
         dryRun: Boolean(ctx.options?.dryRun),
         authorizationProvider: ctx.options.authorizationProvider,
+        authorizationMode: ctx.options.authorizationMode,
         onAuthorizationSummary: (summary) => {
           ctx.emit({
             type: 'authorization.summary',

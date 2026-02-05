@@ -12,6 +12,7 @@ import { UI_CONFIG } from './config.js';
 import { useCommandLifecycle } from './hooks/useCommandLifecycle.js';
 import { useLoopEvents } from './hooks/useLoopEvents.js';
 import { useTerminalDimensions } from './hooks/useTerminalDimensions.js';
+import { bindSelectionDispatch } from './selection/bus.js';
 import { UIStoreProvider, useUIStore } from './store/context.js';
 
 const AppCore: React.FC<{
@@ -36,6 +37,10 @@ const AppCore: React.FC<{
 
   React.useEffect(() => {
     bindAuthorizationDispatch(dispatch);
+  }, [dispatch]);
+
+  React.useEffect(() => {
+    bindSelectionDispatch(dispatch);
   }, [dispatch]);
 
   const handleChatInput = React.useCallback(

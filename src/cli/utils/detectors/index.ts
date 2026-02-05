@@ -1,5 +1,4 @@
-import fs from 'fs';
-import path from 'path';
+import { existsSync, readFileUtf8Sync, safePathJoin } from '../safe-fs.js';
 
 export interface ProjectDetector {
   detect(repoPath: string): Promise<string | undefined>;
@@ -7,10 +6,10 @@ export interface ProjectDetector {
 
 export class NodeDetector implements ProjectDetector {
   async detect(repoPath: string): Promise<string | undefined> {
-    const packageJsonPath = path.join(repoPath, 'package.json');
-    if (fs.existsSync(packageJsonPath)) {
+    const packageJsonPath = safePathJoin(repoPath, 'package.json');
+    if (existsSync(packageJsonPath, repoPath)) {
       try {
-        const pkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+        const pkg = JSON.parse(readFileUtf8Sync(packageJsonPath, repoPath));
         if (pkg.scripts && pkg.scripts.test) {
           return 'npm test';
         }

@@ -47,6 +47,8 @@ export const en = {
     authorizationWarning:
       'This tool call has side effects. Enter the authorization code to allow it once.',
     authorizationHint: 'Tip: add "all", "save", or "global" after the code.',
+    selectionPlaceholder: 'Use Up/Down to select, Enter to confirm (Esc to cancel)',
+    selectionHint: 'Use Up/Down to navigate, Enter to select, Esc to cancel.',
   },
 
   // Command descriptions
@@ -57,6 +59,7 @@ export const en = {
   commandSessions: 'List all chat sessions',
   commandQueue: 'Manage the chat queue',
   commandAuth: 'Manage tool authorization',
+  commandParallel: 'Manage parallel plans',
   queueUsage: 'Usage: /queue <status|pause|resume|retry|clear>',
   queueUnavailable: 'Queue controls are not available in this mode.',
   queuePaused: 'Queue paused. Use /queue resume or /queue retry to continue.',
@@ -76,6 +79,7 @@ export const en = {
   authUsage:
     'Usage: /auth <list|add|remove|clear|hash|reload> [scope] [tool] [phase] [args=<hash>] [effects=a,b] [deny]',
   authSubcommandHint: (sub: string) => `Authorization ${sub} command`,
+  parallelSubcommandHint: (sub: string) => `Parallel ${sub} command`,
   authScopeHint: (scope: string) => `Use ${scope} allowlist`,
   authPhaseHint: (phase: string) => `Phase ${phase.toUpperCase()}`,
   authToolNameHint: 'Known tool name',
@@ -113,6 +117,14 @@ export const en = {
   authInvalidSideEffects: (effects: string) => `Invalid side effects: ${effects}.`,
   authLockTimeout: (path: string) => `Authorization allowlist lock timeout: ${path}`,
   authInvalidPhase: (phase: string) => `Invalid phase: ${phase}.`,
+  parallelUsage: 'Usage: /parallel <list|resume|delete> [planId]',
+  parallelListEmpty: 'No pending or blocked parallel plans found.',
+  parallelSelectTitle: 'Select a parallel plan',
+  parallelCanceled: 'Selection canceled.',
+  parallelNotFound: (id: string) => `Parallel plan not found: ${id}.`,
+  parallelResumed: (id: string, blocked: number, failed: boolean) =>
+    `Parallel plan resumed: ${id} (blocked=${blocked}, failed=${failed})`,
+  parallelDeleted: (id: string) => `Parallel plan deleted: ${id}.`,
   toolAuthorizationPrompt: (tool: string, risk: string, effects: string, summary: string) =>
     `Authorize tool call: ${tool} (risk=${risk}, effects=${effects})\nArgs: ${summary}\nUse code alone to allow once, append "all" for this session, "save" to persist in repo, or "global" to persist for this user.`,
   toolAuthorizationMissingUi: 'Authorization UI is unavailable. Tool call denied.',

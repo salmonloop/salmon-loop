@@ -4,7 +4,7 @@ import { LIMITS } from '../limits.js';
 import { logger } from '../logger.js';
 
 import { ToolAuditLogger } from './audit.js';
-import type { ToolAuthorizationProvider } from './authorization/types.js';
+import type { ToolAuthorizationProvider, ToolAuthorizationRequest } from './authorization/types.js';
 import { BudgetGuard } from './budget.js';
 import { ToolPolicy } from './policy.js';
 import { ToolRegistry } from './registry.js';
@@ -13,6 +13,7 @@ import { ToolCallEnvelope, ToolResult } from './types.js';
 
 export class ToolRouter {
   private authorizationCache = new Map<string, { expiresAt?: number }>();
+  private authorizationMode: 'blocking' | 'deferred';
 
   constructor(
     private registry: ToolRegistry,
@@ -21,10 +22,19 @@ export class ToolRouter {
     private audit: ToolAuditLogger,
     private sanitizer: ToolSanitizer,
     private authorization?: ToolAuthorizationProvider,
-  ) {}
+    options?: { authorizationMode?: 'blocking' | 'deferred' },
+  ) {
+    this.authorizationMode = options?.authorizationMode ?? 'blocking';
+  }
 
   getSpec(toolName: string) {
     return this.registry.getSpec(toolName);
+  }
+
+  async waitForAuthorization(requestId: string, signal?: AbortSignal): Promise<boolean> {
+    if (!this.authorization?.waitForAuthorization) return false;
+    const decision = await this.authorization.waitForAuthorization(requestId, signal);
+    return Boolean(decision);
   }
 
   /**
@@ -74,22 +84,42 @@ export class ToolRouter {
 
       // 4. Authorization Gate: User approval for risky tool calls
       if (this.authorization) {
-        const authorized = await this.authorizeToolCall(envelope, spec);
-        if (!authorized.allowed) {
+        const auth = await this.authorizeToolCall(envelope, spec);
+        if (auth.kind === 'deny') {
           const result = this.createErrorResult(
             envelope,
             startedAt,
             'denied',
             'AUTH_DENIED',
-            authorized.reason || 'Authorization denied',
+            auth.reason || 'Authorization denied',
             {
               authorization: {
                 outcome: 'deny',
-                reason: authorized.reason,
-                source: authorized.source,
+                reason: auth.reason,
+                source: auth.source,
               },
             },
           );
+          this.audit.onEnd(result);
+          return result;
+        }
+        if (auth.kind === 'pending') {
+          const result = this.createErrorResult(
+            envelope,
+            startedAt,
+            'denied',
+            'AUTH_REQUIRED',
+            auth.message,
+            {
+              authorization: {
+                outcome: 'pending',
+                challenge: auth.challenge,
+                source: auth.source,
+              },
+            },
+          );
+          // Provide a stable token for challenge-response UIs.
+          (result.error as any).confirmToken = auth.challenge;
           this.audit.onEnd(result);
           return result;
         }
@@ -143,6 +173,140 @@ export class ToolRouter {
     }
   }
 
+  /**
+   * Best-effort deferred authorization preflight.
+   *
+   * This is intended for schedulers that want to avoid holding locks while waiting for user input.
+   * It only runs when:
+   * - authorizationMode === 'deferred'
+   * - authorizationProvider.requestAuthorizationDeferred exists
+   *
+   * For blocking authorization or missing providers, it returns null and the caller should proceed.
+   */
+  async preflightDeferredAuthorization(
+    envelope: ToolCallEnvelope,
+  ): Promise<
+    | null
+    | { kind: 'ready' }
+    | { kind: 'pending'; message: string; challenge: string; toolResult: ToolResult }
+    | { kind: 'denied'; toolResult: ToolResult }
+  > {
+    if (
+      this.authorizationMode !== 'deferred' ||
+      !this.authorization?.requestAuthorizationDeferred
+    ) {
+      return null;
+    }
+
+    const startedAt = Date.now();
+
+    const spec = this.registry.getSpec(envelope.toolName);
+    if (!spec) {
+      const toolResult = this.createErrorResult(
+        envelope,
+        startedAt,
+        'denied',
+        'TOOL_NOT_FOUND',
+        `Tool ${envelope.toolName} not found`,
+      );
+      return { kind: 'denied', toolResult };
+    }
+
+    const inputCheck = this.sanitizer.validateInput(spec, envelope.args);
+    if (!inputCheck.ok) {
+      const toolResult = this.createErrorResult(
+        envelope,
+        startedAt,
+        'error',
+        'INVALID_INPUT',
+        inputCheck.message || 'Invalid input',
+      );
+      return { kind: 'denied', toolResult };
+    }
+
+    const decision = this.policy.decide(envelope.phase, spec, envelope.ctx);
+    if (!decision.allowed) {
+      const toolResult = this.createErrorResult(
+        envelope,
+        startedAt,
+        'denied',
+        'POLICY_DENY',
+        decision.denyReason || 'Policy denied',
+      );
+      return { kind: 'denied', toolResult };
+    }
+
+    const cacheKey = this.buildAuthorizationKey(envelope);
+    if (this.isAuthorizationCached(cacheKey)) {
+      return { kind: 'ready' };
+    }
+
+    const argsSummary = this.summarizeArgs(envelope.args);
+    const argsHash = this.hashArgs(envelope.args);
+    const req: ToolAuthorizationRequest = {
+      id: envelope.id,
+      toolName: spec.name,
+      source: spec.source as any,
+      phase: envelope.phase,
+      riskLevel: spec.riskLevel as any,
+      sideEffects: (spec.sideEffects || []) as any,
+      argsSummary,
+      argsHash,
+      repoRoot: envelope.ctx.repoRoot,
+      worktreeRoot: envelope.ctx.worktreeRoot,
+      attemptId: envelope.ctx.attemptId,
+      model: envelope.ctx.model,
+      timestamp: Date.now(),
+    };
+
+    const deferred = await this.authorization.requestAuthorizationDeferred(req);
+    if (deferred.kind === 'pending') {
+      const toolResult = this.createErrorResult(
+        envelope,
+        startedAt,
+        'denied',
+        'AUTH_REQUIRED',
+        deferred.message,
+        {
+          authorization: {
+            outcome: 'pending',
+            challenge: deferred.challenge,
+            source: 'user',
+          },
+        },
+      );
+      (toolResult.error as any).confirmToken = deferred.challenge;
+
+      return {
+        kind: 'pending',
+        message: deferred.message,
+        challenge: deferred.challenge,
+        toolResult,
+      };
+    }
+
+    const decisionResult = deferred.decision;
+    if (decisionResult.outcome === 'deny') {
+      const toolResult = this.createErrorResult(
+        envelope,
+        startedAt,
+        'denied',
+        'AUTH_DENIED',
+        decisionResult.reason || 'Authorization denied',
+        {
+          authorization: {
+            outcome: 'deny',
+            reason: decisionResult.reason,
+            source: decisionResult.source,
+          },
+        },
+      );
+      return { kind: 'denied', toolResult };
+    }
+
+    return { kind: 'ready' };
+  }
+
   private createErrorResult(
     envelope: ToolCallEnvelope,
     startedAt: number,
@@ -162,7 +326,7 @@ export class ToolRouter {
       error: {
         code,
         message,
-        retryable: code === 'TIMEOUT' || code === 'BUDGET_CONCURRENCY',
+        retryable: code === 'TIMEOUT' || code === 'BUDGET_CONCURRENCY' || code === 'AUTH_REQUIRED',
       },
     };
   }
@@ -205,8 +369,12 @@ export class ToolRouter {
   private async authorizeToolCall(
     envelope: ToolCallEnvelope,
     spec: { name: string; source: string; riskLevel: string; sideEffects?: string[] },
-  ): Promise<{ allowed: boolean; reason?: string; source?: string }> {
-    if (!this.authorization) return { allowed: true };
+  ): Promise<
+    | { kind: 'allow' }
+    | { kind: 'deny'; reason?: string; source?: string }
+    | { kind: 'pending'; message: string; challenge: string; source?: string }
+  > {
+    if (!this.authorization) return { kind: 'allow' };
 
     const cacheKey = this.buildAuthorizationKey(envelope);
     if (this.isAuthorizationCached(cacheKey)) {
@@ -220,12 +388,12 @@ export class ToolRouter {
         riskLevel: spec.riskLevel,
         sideEffects: spec.sideEffects,
       });
-      return { allowed: true };
+      return { kind: 'allow' };
     }
 
     const argsSummary = this.summarizeArgs(envelope.args);
     const argsHash = this.hashArgs(envelope.args);
-    const decision = await this.authorization.requestAuthorization({
+    const req = {
       id: envelope.id,
       toolName: spec.name,
       source: spec.source as any,
@@ -239,8 +407,42 @@ export class ToolRouter {
       attemptId: envelope.ctx.attemptId,
       model: envelope.ctx.model,
       timestamp: Date.now(),
-    });
+    };
 
+    if (this.authorizationMode === 'deferred' && this.authorization.requestAuthorizationDeferred) {
+      const deferred = await this.authorization.requestAuthorizationDeferred(req);
+      if (deferred.kind === 'pending') {
+        this.audit.onAuthorization({
+          callId: envelope.id,
+          phase: envelope.phase,
+          toolName: spec.name,
+          outcome: 'pending',
+          reason: deferred.message,
+          source: 'user',
+          riskLevel: spec.riskLevel,
+          sideEffects: spec.sideEffects,
+        });
+        return {
+          kind: 'pending',
+          message: deferred.message,
+          challenge: deferred.challenge,
+          source: 'user',
+        };
+      }
+
+      const decision = deferred.decision;
+      return this.applyAuthorizationDecision(envelope, spec, decision);
+    }
+
+    const decision = await this.authorization.requestAuthorization(req);
+    return this.applyAuthorizationDecision(envelope, spec, decision);
+  }
+
+  private applyAuthorizationDecision(
+    envelope: ToolCallEnvelope,
+    spec: { name: string; source: string; riskLevel: string; sideEffects?: string[] },
+    decision: { outcome: string; reason?: string; source?: string; ttlMs?: number },
+  ): { kind: 'allow' } | { kind: 'deny'; reason?: string; source?: string } {
     this.audit.onAuthorization({
       callId: envelope.id,
       phase: envelope.phase,
@@ -255,15 +457,16 @@ export class ToolRouter {
 
     if (decision.outcome === 'deny') {
       logger.warn(`Authorization denied for tool ${spec.name}`);
-      return { allowed: false, reason: decision.reason, source: decision.source };
+      return { kind: 'deny', reason: decision.reason, source: decision.source };
     }
 
     if (decision.outcome === 'allow_session' || decision.outcome === 'allow') {
       const expiresAt =
         typeof decision.ttlMs === 'number' ? Date.now() + decision.ttlMs : undefined;
+      const cacheKey = this.buildAuthorizationKey(envelope);
       this.authorizationCache.set(cacheKey, { expiresAt });
     }
 
-    return { allowed: true };
+    return { kind: 'allow' };
   }
 }

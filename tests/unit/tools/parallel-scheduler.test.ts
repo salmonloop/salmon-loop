@@ -6,7 +6,7 @@ import { ParallelScheduler } from '../../../src/core/tools/parallel/scheduler.js
 import type { ToolSpec, ToolRuntimeCtx } from '../../../src/core/tools/types.js';
 import { Phase } from '../../../src/core/types.js';
 
-type CallHandler = (args: any) => Promise<any>;
+type CallHandler = (args: any, ctx: ToolRuntimeCtx) => Promise<any>;
 
 class FakeRouter {
   private handlers = new Map<string, CallHandler>();
@@ -21,10 +21,16 @@ class FakeRouter {
     return this.specs.get(name);
   }
 
-  async call({ toolName, args }: { toolName: string; args: any }) {
+  async call(envelope: { toolName: string; args: any; ctx: ToolRuntimeCtx }) {
+    const { toolName, args, ctx } = envelope;
     const handler = this.handlers.get(toolName);
     if (!handler) throw new Error(`No handler for ${toolName}`);
-    const output = await handler(args);
+    const output = await handler(args, ctx);
+
+    if (output && typeof output === 'object' && typeof (output as any).status === 'string') {
+      return output as any;
+    }
+
     return { status: 'ok', output };
   }
 }
@@ -83,14 +89,14 @@ describe('ParallelScheduler', () => {
     const writeStarted = deferred<void>();
     let writeStartedFlag = false;
 
-    router.register(readSpec, async () => {
+    router.register(readSpec, async (_args, _ctx) => {
       events.push('read:start');
       readStarted.resolve();
       await readGate.promise;
       events.push('read:end');
       return { ok: true };
     });
-    router.register(writeSpec, async () => {
+    router.register(writeSpec, async (_args, _ctx) => {
       events.push('write:start');
       writeStartedFlag = true;
       writeStarted.resolve();
@@ -136,11 +142,11 @@ describe('ParallelScheduler', () => {
     const router = new FakeRouter();
     const events: string[] = [];
 
-    router.register(readSpec, async () => {
+    router.register(readSpec, async (_args, _ctx) => {
       events.push('dep:start');
       throw new Error('boom');
     });
-    router.register(writeSpec, async () => {
+    router.register(writeSpec, async (_args, _ctx) => {
       events.push('downstream:start');
       return { ok: true };
     });
@@ -160,5 +166,78 @@ describe('ParallelScheduler', () => {
     expect(events).toEqual(['dep:start']);
     expect(result.nodeResults['n1'].status).toBe('FAILED');
     expect(result.nodeResults['n2'].status).toBe('CANCELED');
+  });
+
+  it('injects isolated environment variables when tool concurrency is isolated', async () => {
+    const router = new FakeRouter();
+
+    const isolatedSpec: ToolSpec = {
+      ...writeSpec,
+      name: 'test.isolated',
+      concurrency: 'isolated',
+      sideEffects: ['process'],
+      computeResources: (_input, ctx) => [{ kind: 'repo', id: ctx.repoRoot }],
+    };
+
+    router.register(isolatedSpec, async (_args, ctx) => {
+      expect(ctx.env?.TMPDIR).toBeTypeOf('string');
+      expect(ctx.env?.GIT_INDEX_FILE).toBeTypeOf('string');
+      return { ok: true };
+    });
+
+    const scheduler = new ParallelScheduler(router as any, new InMemoryLockManager());
+    const plan: ExecutionPlan = {
+      id: 'plan-3',
+      policy: { maxParallelism: 1, failFast: true, deterministic: true },
+      nodes: [{ id: 'n1', toolName: 'test.isolated', args: {}, deps: [] }],
+    };
+
+    const result = await scheduler.run(plan, baseCtx, new AbortController().signal);
+    expect(result.failed).toBe(false);
+    expect(result.nodeResults.n1.status).toBe('SUCCEEDED');
+  });
+
+  it('can resume blocked approval nodes without re-running succeeded nodes', async () => {
+    const router = new FakeRouter();
+    let authorized = false;
+
+    const guardedSpec: ToolSpec = {
+      ...writeSpec,
+      name: 'test.guarded',
+      riskLevel: 'high',
+      sideEffects: ['process'],
+      concurrency: 'serial_only',
+      computeResources: (_input, ctx) => [{ kind: 'repo', id: ctx.repoRoot }],
+    };
+
+    router.register(guardedSpec, async (_args, _ctx) => {
+      if (!authorized) {
+        return {
+          status: 'denied',
+          error: { code: 'AUTH_REQUIRED', message: 'Approval required', retryable: true },
+        };
+      }
+      return { status: 'ok', output: { ok: true } };
+    });
+
+    const scheduler = new ParallelScheduler(router as any, new InMemoryLockManager());
+    const plan: ExecutionPlan = {
+      id: 'plan-4',
+      policy: { maxParallelism: 2, failFast: false, deterministic: true },
+      nodes: [{ id: 'n1', toolName: 'test.guarded', args: {}, deps: [] }],
+    };
+
+    const first = await scheduler.run(plan, baseCtx, new AbortController().signal);
+    expect(first.blockedApprovals.length).toBe(1);
+    expect(first.nodeResults.n1.status).toBe('BLOCKED_APPROVAL');
+
+    authorized = true;
+    const resumed = await scheduler.run(plan, baseCtx, new AbortController().signal, {
+      initialResults: first.nodeResults,
+      resumeBlockedApprovals: true,
+    });
+    expect(resumed.failed).toBe(false);
+    expect(resumed.blockedApprovals.length).toBe(0);
+    expect(resumed.nodeResults.n1.status).toBe('SUCCEEDED');
   });
 });

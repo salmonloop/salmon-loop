@@ -18,6 +18,7 @@ export class ToolDispatcher {
     private router: ToolRouter,
     private options: {
       repoRoot: string;
+      persistenceRoot?: string;
       worktreeRoot?: string;
       attemptId: number;
       dryRun: boolean;
@@ -52,6 +53,7 @@ export class ToolDispatcher {
         args: parsed.args,
         ctx: {
           repoRoot: this.options.repoRoot,
+          persistenceRoot: this.options.persistenceRoot,
           worktreeRoot: this.options.worktreeRoot,
           attemptId: this.options.attemptId,
           dryRun: this.options.dryRun,

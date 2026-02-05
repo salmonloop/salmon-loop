@@ -1,6 +1,7 @@
 import { ToolRouter } from '../router.js';
 import { ToolRuntimeCtx, ToolSpec } from '../types.js';
 
+import { IsolationManager } from './isolation.js';
 import {
   ApprovalRequest,
   ExecutionPlan,
@@ -19,6 +20,7 @@ export class ParallelScheduler {
   constructor(
     private router: ToolRouter,
     private locks: LockManager,
+    private isolation: IsolationManager = new IsolationManager(),
   ) {}
 
   private resolveSpec(node: { toolName: string; spec?: ToolSpec }): ToolSpec {
@@ -55,7 +57,10 @@ export class ParallelScheduler {
     signal: AbortSignal,
     options?: PlanRunOptions,
   ): Promise<PlanRunResult> {
-    const nodeResults: Record<NodeId, NodeResult> = {};
+    const recordEnabled = Boolean(
+      options?.record ?? (plan.policy.deterministic && !options?.replay),
+    );
+    const nodeResults: Record<NodeId, NodeResult> = { ...(options?.initialResults ?? {}) };
     const running = new Set<Promise<void>>();
     const blockedApprovals: ApprovalRequest[] = [];
     const recording: PlanRecording = { steps: [] };
@@ -64,6 +69,23 @@ export class ParallelScheduler {
     // Internal state tracking
     const nodeStates = new Map<NodeId, NodeStatus>();
     for (const node of plan.nodes) {
+      const seeded = nodeResults[node.id];
+      if (seeded?.status === 'SUCCEEDED') {
+        nodeStates.set(node.id, 'SUCCEEDED');
+        continue;
+      }
+      if (seeded?.status === 'FAILED') {
+        nodeStates.set(node.id, 'FAILED');
+        continue;
+      }
+      if (seeded?.status === 'CANCELED') {
+        nodeStates.set(node.id, 'CANCELED');
+        continue;
+      }
+      if (seeded?.status === 'BLOCKED_APPROVAL') {
+        nodeStates.set(node.id, options?.resumeBlockedApprovals ? 'READY' : 'BLOCKED_APPROVAL');
+        continue;
+      }
       nodeStates.set(node.id, (node.deps?.length ?? 0) > 0 ? 'PENDING' : 'READY');
     }
 
@@ -129,7 +151,7 @@ export class ParallelScheduler {
       if (lane === 'read') readRunning++;
       else writeRunning++;
 
-      if (options?.record) {
+      if (recordEnabled) {
         recording.steps.push({
           t: stepCount++,
           picked: nodeId,
@@ -145,6 +167,47 @@ export class ParallelScheduler {
         // 1. Resolve Arguments
         const resolvedArgs = resolveArgsWithResults(node.args, nodeResults);
 
+        // 1.5 Deferred authorization preflight (avoid holding locks while waiting for user)
+        const preflight =
+          typeof (this.router as any).preflightDeferredAuthorization === 'function'
+            ? await (this.router as any).preflightDeferredAuthorization({
+                id: nodeId,
+                phase: (ctx as any).phase || 'execute',
+                toolName: node.toolName,
+                args: resolvedArgs,
+                ctx,
+              })
+            : null;
+        if (preflight?.kind === 'pending') {
+          nodeStates.set(nodeId, 'BLOCKED_APPROVAL');
+          const approval: ApprovalRequest = {
+            nodeId,
+            toolName: node.toolName,
+            riskLevel: spec.riskLevel,
+            message: preflight.message || 'Approval required',
+            confirmToken: preflight.challenge,
+          };
+          nodeResults[nodeId] = {
+            status: 'BLOCKED_APPROVAL',
+            approval,
+            toolResult: preflight.toolResult,
+            timing: { lockWaitMs: 0, runMs: 0 },
+          };
+          blockedApprovals.push(approval);
+          return;
+        }
+        if (preflight?.kind === 'denied') {
+          nodeStates.set(nodeId, 'FAILED');
+          nodeResults[nodeId] = {
+            status: 'FAILED',
+            error: preflight.toolResult?.error,
+            toolResult: preflight.toolResult,
+            timing: { lockWaitMs: 0, runMs: 0 },
+          };
+          if (plan.policy.failFast) cancelRemaining();
+          return;
+        }
+
         // 2. Compute Resources (JIT)
         const resources =
           node.resources ??
@@ -158,6 +221,8 @@ export class ParallelScheduler {
         const lockHandle = await this.locks.acquire(resources, mode, signal);
         const lockWaitMs = Date.now() - lockStart;
 
+        const isolatedEnv = spec.concurrency === 'isolated' ? await this.isolation.create() : null;
+
         try {
           // 4. Execute via Router
           const runStart = Date.now();
@@ -166,14 +231,19 @@ export class ParallelScheduler {
             phase: (ctx as any).phase || 'execute',
             toolName: node.toolName,
             args: resolvedArgs,
-            ctx,
+            ctx: isolatedEnv ? { ...ctx, env: { ...ctx.env, ...isolatedEnv.env } } : ctx,
           });
           const runMs = Date.now() - runStart;
           const timing = { lockWaitMs, runMs };
 
           if (result.status === 'ok') {
             nodeStates.set(nodeId, 'SUCCEEDED');
-            nodeResults[nodeId] = { status: 'SUCCEEDED', output: result.output, timing };
+            nodeResults[nodeId] = {
+              status: 'SUCCEEDED',
+              output: result.output,
+              toolResult: result,
+              timing,
+            };
           } else if (result.status === 'denied' && result.error?.code === 'AUTH_REQUIRED') {
             nodeStates.set(nodeId, 'BLOCKED_APPROVAL');
             const approval: ApprovalRequest = {
@@ -183,14 +253,27 @@ export class ParallelScheduler {
               message: result.error.message || 'Approval required',
               confirmToken: (result.error as any).confirmToken,
             };
-            nodeResults[nodeId] = { status: 'BLOCKED_APPROVAL', approval, timing };
+            nodeResults[nodeId] = {
+              status: 'BLOCKED_APPROVAL',
+              approval,
+              toolResult: result,
+              timing,
+            };
             blockedApprovals.push(approval);
           } else {
             nodeStates.set(nodeId, 'FAILED');
-            nodeResults[nodeId] = { status: 'FAILED', error: result.error, timing };
+            nodeResults[nodeId] = {
+              status: 'FAILED',
+              error: result.error,
+              toolResult: result,
+              timing,
+            };
             if (plan.policy.failFast) cancelRemaining();
           }
         } finally {
+          if (isolatedEnv) {
+            await isolatedEnv.dispose();
+          }
           lockHandle.release();
         }
       } catch (e) {
@@ -274,7 +357,7 @@ export class ParallelScheduler {
       failed,
       canceled,
       blockedApprovals,
-      recording: options?.record ? recording : undefined,
+      recording: recordEnabled ? recording : undefined,
     };
   }
 }

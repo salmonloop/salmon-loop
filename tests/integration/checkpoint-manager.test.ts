@@ -26,7 +26,7 @@ describe('CheckpointManager - Filesystem Sync Fix', () => {
     let initAttempts = 0;
     while (initAttempts < 5) {
       try {
-        await git.exec(['init']);
+        await git.exec(['init', '--initial-branch=main']);
         // Verify .git exists
         await import('fs/promises').then((fs) => fs.stat(join(testRepo, '.git')));
         break;

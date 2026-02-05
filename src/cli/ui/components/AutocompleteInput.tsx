@@ -7,6 +7,7 @@ import { rejectAuthorization } from '../authorization/bus.js';
 import { UI_CONFIG } from '../config.js';
 import { useAutocomplete } from '../hooks/useAutocomplete.js';
 import { useInputHistory } from '../hooks/useInputHistory.js';
+import { rejectSelection, resolveSelection } from '../selection/bus.js';
 import { useUIStore } from '../store/context.js';
 
 interface Props {
@@ -27,12 +28,19 @@ export const AutocompleteInput: React.FC<Props> = ({
   const { state, dispatch } = useUIStore();
   const { pendingConfirmation } = state;
   const { pendingAuthorization } = state;
+  const { pendingSelection } = state;
   const isConfirming = !!pendingConfirmation;
   const isAuthorizing = !!pendingAuthorization;
-  const isIntercepting = isAuthorizing || isConfirming;
+  const isSelecting = !!pendingSelection;
+  const isIntercepting = isAuthorizing || isConfirming || isSelecting;
   const activeChallenge = pendingAuthorization?.challenge || pendingConfirmation?.challenge;
 
   const [inputKey, setInputKey] = useState(0);
+  const [selectionIndex, setSelectionIndex] = useState(0);
+
+  React.useEffect(() => {
+    if (pendingSelection) setSelectionIndex(0);
+  }, [pendingSelection?.id]);
 
   const {
     suggestions,
@@ -97,10 +105,29 @@ export const AutocompleteInput: React.FC<Props> = ({
     if (key.escape) {
       if (!isListClosed && suggestions.length > 0) {
         setIsListClosed(true);
+      } else if (isSelecting) {
+        rejectSelection();
       } else if (isAuthorizing) {
         rejectAuthorization();
       } else if (isConfirming) {
         dispatch({ type: 'CLEAR_CONFIRMATION' });
+      }
+      return;
+    }
+
+    if (isSelecting) {
+      const items = pendingSelection?.items ?? [];
+      if (key.upArrow) {
+        if (items.length > 0) {
+          setSelectionIndex((prev) => (prev - 1 + items.length) % items.length);
+        }
+        return;
+      }
+      if (key.downArrow) {
+        if (items.length > 0) {
+          setSelectionIndex((prev) => (prev + 1) % items.length);
+        }
+        return;
       }
       return;
     }
@@ -136,14 +163,22 @@ export const AutocompleteInput: React.FC<Props> = ({
       <Box>
         <TextInput
           key={inputKey}
-          value={value}
+          value={isSelecting ? '' : value}
           focus={true}
           onChange={(val) => {
+            if (isSelecting) return;
             setIsListClosed(false);
             resetHistory();
             onChange(val);
           }}
           onSubmit={(val) => {
+            if (isSelecting && pendingSelection) {
+              const items = pendingSelection.items ?? [];
+              const picked = items[selectionIndex]?.id ?? null;
+              resolveSelection(pendingSelection.id, picked);
+              dispatch({ type: 'SET_INPUT', payload: '' });
+              return;
+            }
             if (isIntercepting && activeChallenge) {
               const trimmed = val.trim();
               if (trimmed === activeChallenge || trimmed.startsWith(`${activeChallenge} `)) {
@@ -161,9 +196,11 @@ export const AutocompleteInput: React.FC<Props> = ({
             onSubmit(val);
           }}
           placeholder={
-            isIntercepting && activeChallenge
-              ? en.gui.confirmationChallenge(activeChallenge)
-              : placeholder
+            isSelecting
+              ? en.gui.selectionPlaceholder
+              : isIntercepting && activeChallenge
+                ? en.gui.confirmationChallenge(activeChallenge)
+                : placeholder
           }
         />
         {ghostText && (
@@ -176,18 +213,38 @@ export const AutocompleteInput: React.FC<Props> = ({
       {isIntercepting && (
         <Box flexDirection="column" borderStyle="round" borderColor="yellow" paddingX={1}>
           <Text color="yellow" bold>
-            {isAuthorizing ? en.gui.authorizationTitle : en.gui.confirmationTitle}
+            {isSelecting
+              ? pendingSelection?.title
+              : isAuthorizing
+                ? en.gui.authorizationTitle
+                : en.gui.confirmationTitle}
           </Text>
-          <Text color="white">
-            {isAuthorizing ? pendingAuthorization?.message : pendingConfirmation?.message}
-          </Text>
+          {!isSelecting && (
+            <Text color="white">
+              {isAuthorizing ? pendingAuthorization?.message : pendingConfirmation?.message}
+            </Text>
+          )}
           <Text color="gray" dimColor>
-            {isAuthorizing ? en.gui.authorizationWarning : en.gui.highRiskWarning}
+            {isSelecting
+              ? en.gui.selectionHint
+              : isAuthorizing
+                ? en.gui.authorizationWarning
+                : en.gui.highRiskWarning}
           </Text>
           {isAuthorizing && (
             <Text color="gray" dimColor>
               {en.gui.authorizationHint}
             </Text>
+          )}
+          {isSelecting && pendingSelection && (
+            <Box flexDirection="column" marginTop={1}>
+              {pendingSelection.items.map((item, idx) => (
+                <Text key={item.id} color={idx === selectionIndex ? 'green' : 'gray'}>
+                  {item.label}
+                  {item.description ? ` - ${item.description}` : ''}
+                </Text>
+              ))}
+            </Box>
           )}
         </Box>
       )}

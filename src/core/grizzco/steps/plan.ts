@@ -62,6 +62,7 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
       llm: ctx.options.llm,
       runtime: {
         repoRoot: ctx.workspace.workPath,
+        persistenceRoot: ctx.workspace.baseRepoPath || ctx.workspace.workPath,
         worktreeRoot: ctx.workspace.strategy === 'worktree' ? ctx.workspace.workPath : undefined,
         attemptId: (ctx as any).attempt ?? 1,
         dryRun: Boolean(ctx.options?.dryRun),

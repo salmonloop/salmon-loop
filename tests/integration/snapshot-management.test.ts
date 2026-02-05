@@ -21,7 +21,7 @@ describe('Snapshot Management Integration (CLI V2 Support)', () => {
 
     // Init Git
     const git = new GitAdapter(repoPath);
-    await git.exec(['init']);
+    await git.exec(['init', '--initial-branch=main']);
     await git.exec(['config', 'user.name', 'Test User']);
     await git.exec(['config', 'user.email', 'test@example.com']);
 

@@ -74,6 +74,7 @@ export class FileHandleManager {
             const fs = await import('fs/promises');
             const content = await fs.readFile(lockFile, 'utf8');
             const metadata: LockMetadata = JSON.parse(content);
+            const isSelfLock = metadata.pid === process.pid && metadata.owner === this.currentOwner;
 
             let isAlive = true;
             try {
@@ -82,22 +83,18 @@ export class FileHandleManager {
               isAlive = false;
             }
 
-            if (!isAlive || Date.now() - metadata.timestamp > LIMITS.lockStaleThresholdMs) {
+            // Never auto-remove a lock owned by the current process.
+            // If we did, concurrent calls within the same process could break mutual exclusion.
+            if (
+              !isAlive ||
+              (!isSelfLock && Date.now() - metadata.timestamp > LIMITS.lockStaleThresholdMs)
+            ) {
               await fs.unlink(lockFile);
               continue; // Retry immediately after removing stale lock
             }
           } catch {
-            // Fallback to mtime check if metadata is unreadable
-            try {
-              const fs = await import('fs/promises');
-              const stats = await fs.stat(lockFile);
-              if (Date.now() - stats.mtimeMs > LIMITS.lockStaleThresholdMs) {
-                await fs.unlink(lockFile);
-                continue;
-              }
-            } catch {
-              // Ignore stat errors
-            }
+            // If the lock file is unreadable, we cannot safely determine ownership.
+            // Do not auto-remove in this path; rely on timeout-based recovery instead.
           }
 
           // Exponential backoff: delay increases with retry count, capped at 2000ms
@@ -135,13 +132,14 @@ export class FileHandleManager {
       const fs = await import('fs/promises');
       const content = await fs.readFile(lockFile, 'utf8');
       const metadata: LockMetadata = JSON.parse(content);
+      const isSelfLock = metadata.pid === process.pid && metadata.owner === this.currentOwner;
 
       // Log lock holder info to file for debugging
       const age = Date.now() - metadata.timestamp;
       logger.debug(`Lock held by PID ${metadata.pid}, owner: ${metadata.owner}, age: ${age}ms`);
 
       // Only force remove if it's actually stale
-      if (age > LIMITS.lockStaleThresholdMs) {
+      if (!isSelfLock && age > LIMITS.lockStaleThresholdMs) {
         await fs.unlink(lockFile);
         onEvent?.({
           type: 'resource.status',

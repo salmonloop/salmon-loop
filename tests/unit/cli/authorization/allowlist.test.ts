@@ -55,6 +55,14 @@ vi.mock('fs/promises', () => ({
     const content = typeof data === 'string' ? data : data.toString();
     setFile(filePath, content);
   }),
+  lstat: vi.fn(async (filePath: string) => {
+    if (!files.has(filePath)) {
+      const error: any = new Error('ENOENT: no such file or directory');
+      error.code = 'ENOENT';
+      throw error;
+    }
+    return { isSymbolicLink: () => false } as any;
+  }),
   open: vi.fn(async (filePath: string, flags?: string) => {
     if (flags === 'wx' && files.has(filePath)) {
       const error: any = new Error('EEXIST: file already exists');

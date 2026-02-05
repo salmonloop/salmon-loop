@@ -26,6 +26,7 @@ export interface NodeResult {
   output?: any;
   error?: any;
   approval?: ApprovalRequest;
+  toolResult?: any;
   timing?: {
     lockWaitMs: number;
     runMs: number;
@@ -81,4 +82,6 @@ export interface PlanRecording {
 export interface PlanRunOptions {
   record?: boolean;
   replay?: PlanRecording;
+  initialResults?: Record<NodeId, NodeResult>;
+  resumeBlockedApprovals?: boolean;
 }

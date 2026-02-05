@@ -429,6 +429,7 @@ export interface LoopOptions {
    */
   onStreamChunk?: (chunk: LLMStreamChunk) => void;
   authorizationProvider?: ToolAuthorizationProvider;
+  authorizationMode?: 'blocking' | 'deferred';
 }
 
 export interface ExecutionWorkspace {
