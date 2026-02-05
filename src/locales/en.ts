@@ -539,6 +539,8 @@ Please return the patch in PURE unified diff format:`;
     lockAcquireTimeout: (path: string) => `Failed to acquire lock for ${path} within timeout`,
     lockAcquireHardTimeout: (path: string) =>
       `Failed to acquire lock for ${path} within hard timeout; the filesystem may be unresponsive.`,
+    lockReleaseOwnershipUnknown: (path: string, error: string) =>
+      `Refusing to release lock for ${path} because lock ownership could not be verified: ${error}`,
     lockReleaseFailed: (path: string) => `Failed to release lock for ${path}`,
   },
 };

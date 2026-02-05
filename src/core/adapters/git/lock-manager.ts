@@ -20,6 +20,30 @@ export class FileHandleManager {
   private currentOwner = `process-${process.pid}`;
   private localLocks = new Map<string, { locked: boolean; waiters: Array<() => void> }>();
 
+  private async abortableDelay(ms: number, signal: AbortSignal): Promise<void> {
+    if (ms <= 0) return;
+    if (signal.aborted) return;
+
+    await new Promise<void>((resolve) => {
+      const onAbort = () => {
+        cleanup();
+        resolve();
+      };
+
+      const timer = setTimeout(() => {
+        cleanup();
+        resolve();
+      }, ms);
+
+      const cleanup = () => {
+        clearTimeout(timer);
+        signal.removeEventListener('abort', onAbort);
+      };
+
+      signal.addEventListener('abort', onAbort);
+    });
+  }
+
   private async acquireLocal(lockFile: string): Promise<void> {
     const state = this.localLocks.get(lockFile) ?? { locked: false, waiters: [] };
     this.localLocks.set(lockFile, state);
@@ -71,6 +95,7 @@ export class FileHandleManager {
     let retryCount = 0;
     const hardTimeoutMs = LIMITS.lockAcquireHardTimeoutMs;
     const abortState = { aborted: false };
+    const hardAbort = new AbortController();
 
     const core = async (): Promise<void> => {
       if (forceUnlock) {
@@ -138,7 +163,7 @@ export class FileHandleManager {
               LIMITS.retry.io.initialDelayMs * Math.pow(1.5, retryCount),
               LIMITS.retry.io.maxDelayMs,
             );
-            await new Promise((resolve) => setTimeout(resolve, delay));
+            await this.abortableDelay(delay, hardAbort.signal);
           } else if (e.code === 'ENOENT') {
             // Directory might not exist, try to create it
             try {
@@ -147,7 +172,7 @@ export class FileHandleManager {
             } catch {
               // If mkdir fails, just wait and retry
             }
-            await new Promise((resolve) => setTimeout(resolve, LIMITS.retry.io.initialDelayMs));
+            await this.abortableDelay(LIMITS.retry.io.initialDelayMs, hardAbort.signal);
           } else {
             throw e;
           }
@@ -224,6 +249,7 @@ export class FileHandleManager {
         new Promise<never>((_, reject) => {
           hardTimer = setTimeout(() => {
             abortState.aborted = true;
+            hardAbort.abort();
             onEvent?.({
               type: 'resource.status',
               resource: 'lock',
@@ -256,7 +282,7 @@ export class FileHandleManager {
 
     const lockFile = join(repoPath, '.salmonloop.lock');
     try {
-      // Verify ownership before releasing
+      // Verify ownership before releasing.
       try {
         const fs = await import('fs/promises');
         const content = await fs.readFile(lockFile, 'utf8');
@@ -264,9 +290,22 @@ export class FileHandleManager {
         if (metadata.owner !== this.currentOwner) {
           return; // Not the owner
         }
-      } catch {
-        // If we can't read it, proceed to try unlink anyway (it might be missing)
+      } catch (error) {
+        const err = error as NodeJS.ErrnoException;
+        if (err?.code === 'ENOENT') return;
+        onEvent?.({
+          type: 'resource.status',
+          resource: 'lock',
+          status: 'warning',
+          message: text.resource.lockReleaseOwnershipUnknown(
+            repoPath,
+            err?.message ? String(err.message) : String(error),
+          ),
+          timestamp: new Date(),
+        });
+        return;
       }
+
       await unlink(lockFile);
     } catch (e: any) {
       if (e.code !== 'ENOENT') {
