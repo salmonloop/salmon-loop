@@ -3,6 +3,17 @@ import { EventEmitter } from 'events';
 
 import { runGitCommand } from '../../src/core/adapters/git/git-runner.js';
 
+const fsMocks = vi.hoisted(() => {
+  const realpathSync = vi.fn<[string], string>().mockImplementation((_p: string) => {
+    throw new Error('ENOENT');
+  });
+  return {
+    realpathSync,
+  };
+});
+
+vi.mock('fs', () => fsMocks);
+
 vi.mock('child_process', async () => {
   const { EventEmitter } = await import('events');
   return {
@@ -40,6 +51,23 @@ describe('runGitCommand', () => {
       runGitCommand({
         repoRoot: '/repo',
         cwd: '/tmp',
+        args: ['status'],
+        timeoutMs: 5,
+      }),
+    ).rejects.toThrow(/outside repoRoot/i);
+  });
+
+  it('rejects when realpath escapes repoRoot via symlink', async () => {
+    fsMocks.realpathSync.mockImplementation((p: string) => {
+      if (p === '/repo-link') return '/real/repo';
+      if (p === '/repo-link/sub') return '/real/outside';
+      throw new Error('ENOENT');
+    });
+
+    await expect(
+      runGitCommand({
+        repoRoot: '/repo-link',
+        cwd: '/repo-link/sub',
         args: ['status'],
         timeoutMs: 5,
       }),

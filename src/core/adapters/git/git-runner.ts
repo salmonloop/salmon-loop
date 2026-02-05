@@ -1,4 +1,5 @@
 import { spawn } from 'child_process';
+import { realpathSync } from 'fs';
 import path from 'path';
 
 import { LIMITS } from '../../limits.js';
@@ -45,12 +46,23 @@ export interface GitRunResult {
 function assertCwdSandboxed(repoRoot: string, cwd: string): void {
   const resolvedRoot = path.resolve(repoRoot);
   const resolvedCwd = path.resolve(cwd);
-  const rel = path.relative(resolvedRoot, resolvedCwd);
+  let realRoot = resolvedRoot;
+  let realCwd = resolvedCwd;
+  try {
+    realRoot = realpathSync(resolvedRoot);
+  } catch {
+    realRoot = resolvedRoot;
+  }
+  try {
+    realCwd = realpathSync(resolvedCwd);
+  } catch {
+    realCwd = resolvedCwd;
+  }
+
+  const rel = path.relative(realRoot, realCwd);
   if (rel === '') return;
   if (rel.startsWith('..') || path.isAbsolute(rel)) {
-    throw new Error(
-      `Refusing to run git outside repoRoot (cwd=${resolvedCwd}, repoRoot=${resolvedRoot})`,
-    );
+    throw new Error(`Refusing to run git outside repoRoot (cwd=${realCwd}, repoRoot=${realRoot})`);
   }
 }
 

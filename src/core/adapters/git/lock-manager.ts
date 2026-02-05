@@ -146,10 +146,7 @@ export class FileHandleManager {
 
               // Never auto-remove a lock owned by the current process.
               // If we did, concurrent calls within the same process could break mutual exclusion.
-              if (
-                !isAlive ||
-                (!isSelfLock && Date.now() - metadata.timestamp > LIMITS.lockStaleThresholdMs)
-              ) {
+              if (!isSelfLock && !isAlive) {
                 await fs.unlink(lockFile);
                 continue; // Retry immediately after removing stale lock
               }
@@ -199,8 +196,15 @@ export class FileHandleManager {
         const age = Date.now() - metadata.timestamp;
         logger.debug(`Lock held by PID ${metadata.pid}, owner: ${metadata.owner}, age: ${age}ms`);
 
-        // Only force remove if it's actually stale
-        if (!isSelfLock && age > LIMITS.lockStaleThresholdMs) {
+        let isAlive = true;
+        try {
+          process.kill(metadata.pid, 0);
+        } catch {
+          isAlive = false;
+        }
+
+        // Only force remove if the owning process is not alive.
+        if (!isSelfLock && !isAlive) {
           await fs.unlink(lockFile);
           onEvent?.({
             type: 'resource.status',

@@ -46,7 +46,9 @@ describe('FileHandleManager acquireLock (PID reuse)', () => {
 
   it('treats same-pid different-owner as non-self and cleans up stale lock', async () => {
     vi.spyOn(Date, 'now').mockReturnValue(1000);
-    vi.spyOn(process, 'kill').mockImplementation(() => true as any);
+    vi.spyOn(process, 'kill').mockImplementation(() => {
+      throw Object.assign(new Error('ESRCH'), { code: 'ESRCH' });
+    });
 
     const handle = { writeFile: vi.fn(), close: vi.fn() };
     fsMocks.open

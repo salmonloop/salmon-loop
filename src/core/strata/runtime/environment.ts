@@ -1,5 +1,6 @@
 import { text } from '../../../locales/index.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
+import { logger } from '../../logger.js';
 import { migrateLegacyRuntime } from '../../runtime-paths.js';
 import { CheckpointRef, ExecutionWorkspace, LoopEvent, LoopOptions } from '../../types.js';
 import { CheckpointManager } from '../checkpoint/manager.js';
@@ -129,6 +130,20 @@ export class RuntimeEnvironment {
     const { emit } = this;
     const now = () => new Date();
     let checkpointCleanupOk = true;
+
+    if (this.initialSnapshotHash && this.options.strategy === 'worktree') {
+      try {
+        await this.checkpointManager.deleteSnapshot(
+          this.options.repoPath,
+          this.initialSnapshotHash,
+        );
+      } catch (error) {
+        checkpointCleanupOk = false;
+        logger.debug(
+          `Failed to delete snapshot ref refs/s8p/snapshots/${this.initialSnapshotHash}: ${error}`,
+        );
+      }
+    }
 
     // Cleanup workspace
     if (this.workspace) {
