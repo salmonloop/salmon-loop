@@ -1,1 +1,1 @@
-{{> main_system phaseInstruction="Use tool calls to inspect the repository when needed. Output only a valid unified diff when patching."}}
+{{> main_system phaseInstruction="Use tool calls to inspect the repository when needed. Output only a valid unified diff when patching.\n\nIf you used a sub-agent, prefer referencing its proposal artifacts (s8p handles) in your reasoning rather than copying large diff text. Only read artifacts via 'artifact.read' when necessary for correctness."}}

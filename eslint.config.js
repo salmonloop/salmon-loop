@@ -11,6 +11,8 @@ export default tseslint.config(
       'coverage/**',
       'test-report.json',
       'tests/integration/fixtures/**',
+      // Ignore accidental Windows-path folders copied into the repo root (e.g. "C:\\Users\\...").
+      'C:*/**',
     ],
   },
   eslint.configs.recommended,

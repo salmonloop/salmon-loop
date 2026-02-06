@@ -1,4 +1,4 @@
-import { randomBytes } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
 import * as fs from 'fs/promises';
 
 import { text } from '../../../locales/index.js';
@@ -206,8 +206,13 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
     });
 
     const { finalPatch: _ignored, ...rest } = result as any;
-    const auditPath = await this.persistAuditArtifact(rest.auditPath);
-    return { ...rest, auditPath: auditPath ?? rest.auditPath, patchArtifact: saved };
+    const auditArtifact = await this.persistAuditArtifact(rest.auditPath);
+    return {
+      ...rest,
+      auditPath: auditArtifact?.handle ?? rest.auditPath,
+      auditArtifact: auditArtifact ?? undefined,
+      patchArtifact: saved,
+    };
   }
 
   private filterAllowedTools(allowed: string[]): string[] {
@@ -224,18 +229,28 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
     return allowed.filter((name) => safeReadOnlyTools.has(name));
   }
 
-  private async persistAuditArtifact(auditPath: unknown): Promise<string | undefined> {
+  private async persistAuditArtifact(auditPath: unknown) {
     if (!auditPath || typeof auditPath !== 'string') return undefined;
-    if (auditPath.startsWith('s8p://artifact/')) return auditPath;
+    if (auditPath.startsWith('s8p://artifact/')) {
+      const read = await ArtifactStore.readText(auditPath);
+      if (!read.ok) return undefined;
+
+      const sha256 = createHash('sha256').update(read.content, 'utf8').digest('hex');
+      return {
+        handle: auditPath,
+        mimeType: 'application/json',
+        sha256,
+        size: read.size,
+      };
+    }
 
     try {
       const content = await fs.readFile(auditPath, 'utf8');
-      const saved = await ArtifactStore.saveText({
+      return await ArtifactStore.saveText({
         content,
         mimeType: 'application/json',
         fileExt: 'json',
       });
-      return saved.handle;
     } catch {
       return undefined;
     }

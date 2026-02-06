@@ -1,3 +1,5 @@
+import { createHash } from 'crypto';
+
 import { z } from 'zod';
 
 import { text } from '../../../locales/index.js';
@@ -41,11 +43,38 @@ export const proposalApplySpec: Omit<ToolSpec, 'executor'> = {
   }),
   outputSchema: z.object({
     ok: z.boolean(),
+    handle: z.string(),
+    sha256: z.string(),
     changedFiles: z.array(z.string()),
+    fileCount: z.number(),
+    lineCount: z.number(),
+    snapshotRef: z.string(),
     appliedFiles: z.number(),
     totalFiles: z.number(),
   }),
   allowedPhases: [Phase.VERIFY],
+  summarizeArgsForAuthorization: async (args, _ctx) => {
+    const handle = (args as any)?.handle as string | undefined;
+    if (!handle) return undefined;
+
+    const read = await ArtifactStore.readText(handle);
+    if (!read.ok) return JSON.stringify({ handle, preview: 'artifact_not_found' });
+
+    try {
+      const normalized = normalizeDiff(read.content);
+      const meta = validateDiff(normalized);
+      const changedFiles = meta.changedFiles.slice(0, 20);
+      return JSON.stringify({
+        handle,
+        fileCount: meta.fileCount,
+        lineCount: meta.lineCount,
+        changedFiles,
+        changedFilesTruncated: meta.changedFiles.length > changedFiles.length,
+      });
+    } catch {
+      return JSON.stringify({ handle, preview: 'invalid_diff' });
+    }
+  },
 };
 
 export async function executeProposalApply(
@@ -63,6 +92,11 @@ export async function executeProposalApply(
 
   const normalized = normalizeDiff(read.content);
   const diffMeta = validateDiff(normalized);
+  const sha256 = createHash('sha256').update(normalized, 'utf8').digest('hex');
+
+  if (diffMeta.fileCount <= 0) {
+    throw new Error(text.llm.patchEmpty());
+  }
 
   bootstrapRegistry();
 
@@ -182,7 +216,12 @@ export async function executeProposalApply(
 
   return {
     ok: true,
+    handle: input.handle,
+    sha256,
     changedFiles: diffMeta.changedFiles,
+    fileCount: diffMeta.fileCount,
+    lineCount: diffMeta.lineCount,
+    snapshotRef: input.snapshotRef || 'HEAD',
     appliedFiles,
     totalFiles: operations.length,
   };

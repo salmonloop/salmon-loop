@@ -61,6 +61,13 @@ export interface ToolSpec<I = any, O = any> {
   inputSchema: z.ZodType<I>;
   outputSchema: z.ZodType<O>;
 
+  /**
+   * Optional pre-authorization argument summarizer for high-risk tools.
+   * This hook MUST be read-only and must not depend on network or process execution.
+   * If it throws, the system falls back to the default JSON args summary.
+   */
+  summarizeArgsForAuthorization?: (args: I, ctx: ToolRuntimeCtx) => Promise<string | undefined>;
+
   computeResources?: (args: I, ctx: ToolRuntimeCtx) => ResourceKey[];
   executor: (input: I, ctx: ToolRuntimeCtx) => Promise<O>;
 }

@@ -241,7 +241,7 @@ export class ToolRouter {
       return { kind: 'ready' };
     }
 
-    const argsSummary = this.summarizeArgs(envelope.args);
+    const argsSummary = await this.getAuthorizationArgsSummary(envelope, spec);
     const argsHash = this.hashArgs(envelope.args);
     const req: ToolAuthorizationRequest = {
       id: envelope.id,
@@ -391,7 +391,7 @@ export class ToolRouter {
       return { kind: 'allow' };
     }
 
-    const argsSummary = this.summarizeArgs(envelope.args);
+    const argsSummary = await this.getAuthorizationArgsSummary(envelope, spec as any);
     const argsHash = this.hashArgs(envelope.args);
     const req = {
       id: envelope.id,
@@ -468,5 +468,27 @@ export class ToolRouter {
     }
 
     return { kind: 'allow' };
+  }
+
+  private async getAuthorizationArgsSummary(
+    envelope: ToolCallEnvelope,
+    spec: { name: string; source?: string; summarizeArgsForAuthorization?: any },
+  ): Promise<string | undefined> {
+    const fallback = this.summarizeArgs(envelope.args);
+    const summarize = (spec as any)?.summarizeArgsForAuthorization;
+    if (typeof summarize !== 'function') return fallback;
+
+    // Best-effort only. Avoid hanging authorization prompts on slow IO.
+    const TIMEOUT_MS = 1500;
+    try {
+      const phaseCtx = { ...envelope.ctx, phase: envelope.phase } as any;
+      const result = await Promise.race([
+        Promise.resolve(summarize(envelope.args, phaseCtx)),
+        new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), TIMEOUT_MS)),
+      ]);
+      return typeof result === 'string' && result.trim() ? result : fallback;
+    } catch {
+      return fallback;
+    }
   }
 }

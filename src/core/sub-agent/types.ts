@@ -69,6 +69,17 @@ export interface SubAgentResult extends LoopResult {
     sha256: string;
     size: number;
   };
+
+  /**
+   * Optional audit artifact for replay. For backward compatibility, `auditPath` may contain the
+   * artifact handle when available.
+   */
+  auditArtifact?: {
+    handle: string;
+    mimeType: string;
+    sha256: string;
+    size: number;
+  };
 }
 
 /**
