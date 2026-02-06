@@ -166,6 +166,8 @@ export class SalmonLoop {
         }
       };
 
+      let verifyArtifact: ArtifactHandle | undefined;
+
       while (retries <= LIMITS.maxRetries) {
         // Check for cancellation
         if (options.signal?.aborted) {
@@ -216,12 +218,16 @@ export class SalmonLoop {
             : 'No context',
         });
 
+        const artifactCandidate = (ctx as { verifyArtifact?: ArtifactHandle } | undefined)
+          ?.verifyArtifact;
+        if (artifactCandidate) {
+          verifyArtifact = artifactCandidate;
+        }
+
         if (result.success) {
           // Success means Pipeline finished (Verify passed)
           // Double check verify result just in case
           const verifyOk = ctx?.verifyResult?.ok !== false;
-          const verifyArtifact = (ctx as { verifyArtifact?: ArtifactHandle } | undefined)
-            ?.verifyArtifact;
 
           if (verifyOk) {
             if (options.dryRun) {
@@ -319,8 +325,7 @@ export class SalmonLoop {
             errorType: ErrorType.UNKNOWN,
             errorCode,
             auditPath: result.auditPath,
-            verifyArtifact: (ctx as { verifyArtifact?: ArtifactHandle } | undefined)
-              ?.verifyArtifact,
+            verifyArtifact,
             authorizationSummary: authorizationSummary || undefined,
           };
         }
@@ -334,6 +339,7 @@ export class SalmonLoop {
         logs,
         history,
         errorType: ErrorType.UNKNOWN,
+        verifyArtifact,
         authorizationSummary: authorizationSummary || undefined,
       };
     } catch (error) {

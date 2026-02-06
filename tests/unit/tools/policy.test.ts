@@ -1,3 +1,4 @@
+import { proposalApplySpec } from '../../../src/core/tools/builtin/proposal.js';
 import { ToolPolicy } from '../../../src/core/tools/policy.js';
 import { ToolSpec } from '../../../src/core/tools/types.js';
 import { Phase } from '../../../src/core/types.js';
@@ -72,5 +73,18 @@ describe('ToolPolicy', () => {
     // Normally allowed in CONTEXT, but spec restricts it to PLAN
     const decision = policy.decide(Phase.CONTEXT, spec, { worktreeRoot: '/tmp' } as any);
     expect(decision.allowed).toBe(false);
+  });
+
+  it('should allow proposal.apply only in VERIFY phase', () => {
+    const spec: ToolSpec = {
+      ...(proposalApplySpec as any),
+      executor: async () => ({}),
+    };
+
+    const verifyDecision = policy.decide(Phase.VERIFY, spec, { worktreeRoot: '/tmp' } as any);
+    expect(verifyDecision.allowed).toBe(true);
+
+    const applyDecision = policy.decide(Phase.APPLY, spec, { worktreeRoot: '/tmp' } as any);
+    expect(applyDecision.allowed).toBe(false);
   });
 });

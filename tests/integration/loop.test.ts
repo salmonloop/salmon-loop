@@ -1,6 +1,7 @@
 import { AstParser } from '../../src/core/ast/parser.js';
 import { LLM } from '../../src/core/llm.js';
 import { runSalmonLoop } from '../../src/core/loop.js';
+import { executeArtifactRead } from '../../src/core/tools/builtin/artifact.js';
 import { RealFsTestHelper } from '../helpers/real-fs-helper.js';
 
 vi.mock('../../src/core/ast/parser.js', () => ({
@@ -97,11 +98,12 @@ describe('SalmonLoop Integration Tests', () => {
   });
 
   it('should retry when verification fails', async () => {
+    const failingVerify = 'node -e "console.error(\'fail\'); process.exit(1)"';
     mockLlm.createPlan.mockResolvedValue({
       goal: 'Fix the log message',
       files: ['src/index.ts'],
       changes: ['Change hello to world'],
-      verify: 'node -e "process.exit(1)"', // Always fails
+      verify: failingVerify,
     });
 
     mockLlm.createPatch.mockResolvedValue(
@@ -115,7 +117,7 @@ describe('SalmonLoop Integration Tests', () => {
 
     const result = await runSalmonLoop({
       instruction: 'Fix the log message',
-      verify: 'node -e "process.exit(1)"',
+      verify: failingVerify,
       repoPath: repoPath,
       file: 'src/index.ts',
       llm: mockLlm as unknown as LLM,
@@ -128,6 +130,42 @@ describe('SalmonLoop Integration Tests', () => {
 
     expect(result.success).toBe(false);
     expect(result.attempts).toBeGreaterThanOrEqual(1);
+  });
+
+  it('stores verify output as an artifact when verification fails', async () => {
+    const failingVerify = 'node -e "console.error(\'fail\'); process.exit(1)"';
+    mockLlm.createPlan.mockResolvedValue({
+      goal: 'Log failure',
+      files: ['src/index.ts'],
+      changes: ['Change log content'],
+      verify: failingVerify,
+    });
+
+    mockLlm.createPatch.mockResolvedValue(
+      'diff --git a/src/index.ts b/src/index.ts\n' +
+        '--- a/src/index.ts\n' +
+        '+++ b/src/index.ts\n' +
+        '@@ -1,1 +1,1 @@\n' +
+        '-console.log("hello");\n' +
+        '+console.log("world");',
+    );
+
+    const result = await runSalmonLoop({
+      instruction: 'Log failure',
+      verify: failingVerify,
+      repoPath: repoPath,
+      file: 'src/index.ts',
+      llm: mockLlm as unknown as LLM,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.verifyArtifact).toBeDefined();
+
+    const artifact = await executeArtifactRead(
+      { handle: result.verifyArtifact!.handle },
+      {} as any,
+    );
+    expect(artifact.content).toContain('fail');
   });
 
   it('should use worktree strategy when requested', async () => {
