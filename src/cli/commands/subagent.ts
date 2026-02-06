@@ -23,7 +23,7 @@ const formatAgentRow = (agent: ReturnType<typeof SubAgentController.listAgents>[
 export const subAgentCommand: Command = {
   name: '/smallfry',
   aliases: ['/subagent', '/sub-agent'],
-  order: 45,
+  order: 30,
   description: text.cli.commandSubagent,
   async getSuggestions({ input }) {
     const trimmed = input.trimStart();

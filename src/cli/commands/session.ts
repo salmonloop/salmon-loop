@@ -6,6 +6,7 @@ import { parseSuggestionContext } from './utils.js';
 export const sessionCommand: Command = {
   name: '/session',
   description: text.cli.commandSessions,
+  order: 60,
   getSuggestions: async ({ sessionManager, input }) => {
     const { argIndex, currentPrefix } = parseSuggestionContext(input);
 

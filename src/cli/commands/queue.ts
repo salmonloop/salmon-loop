@@ -7,6 +7,7 @@ import { parseSuggestionContext } from './utils.js';
 export const queueCommand: Command = {
   name: '/queue',
   description: text.cli.commandQueue,
+  order: 50,
   getSuggestions: ({ input }) => {
     const { argIndex, currentPrefix } = parseSuggestionContext(input);
 

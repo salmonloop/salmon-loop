@@ -6,6 +6,6 @@ export const exitCommand: Command = {
   name: '/exit',
   aliases: ['/quit'],
   description: text.cli.commandExit,
-  order: 10,
+  order: 90,
   execute: () => process.exit(0),
 };

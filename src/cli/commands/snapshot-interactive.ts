@@ -6,6 +6,7 @@ import { parseSuggestionContext } from './utils.js';
 export const snapshotInteractiveCommand: Command = {
   name: '/snapshot',
   description: 'Manage repository snapshots (list, create, delete, restore)',
+  order: 40,
   getSuggestions: async ({ sessionManager, input }) => {
     const { argIndex, currentPrefix } = parseSuggestionContext(input);
     const parts = input.trimStart().split(/\s+/);

@@ -21,6 +21,7 @@ import { hashArgsInput, parseSuggestionContext, parseToken, parseTokenList } fro
 export const authCommand: Command = {
   name: '/auth',
   description: text.cli.commandAuth,
+  order: 70,
   getSuggestions: ({ input }) => {
     const { argIndex, currentPrefix } = parseSuggestionContext(input);
     const parts = input.trimStart().split(/\s+/);

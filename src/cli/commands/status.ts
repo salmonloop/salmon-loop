@@ -5,6 +5,7 @@ import type { Command } from './types.js';
 export const statusCommand: Command = {
   name: '/status',
   description: text.cli.commandStatus,
+  order: 20,
   execute: ({ emit, sessionManager }) => {
     const session = sessionManager.getCurrent();
     const statusMsg = [

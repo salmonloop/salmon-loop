@@ -19,12 +19,15 @@ const baseCommands: Command[] = [
   {
     name: '/help',
     description: 'Show available commands',
-    order: 100,
+    order: 80,
     execute: ({ emit }) => {
-      const helpMsg = commands
-        .filter((c) => !c.hidden)
-        .map((c) => `${c.name.padEnd(10)} - ${c.description}`)
-        .join('\n');
+      const visible = commands.filter((c) => !c.hidden);
+      const maxName = Math.max(...visible.map((cmd) => cmd.name.length), 0);
+      const rows = visible.map((cmd) => {
+        const paddedName = `${cmd.name}`.padEnd(maxName + 2);
+        return `${paddedName}${cmd.description}`;
+      });
+      const helpMsg = rows.join('\n');
       emit({
         type: 'log',
         level: 'info',
@@ -66,9 +69,14 @@ export async function getSuggestions(
 
   // Otherwise, suggest base commands
   const search = currentPrefix.toLowerCase();
-  return commands
-    .filter((c) => !c.hidden && getCommandNames(c).some((n) => n.startsWith(search)))
-    .map((c) => ({ name: c.name, description: c.description }));
+  const matches = commands.filter(
+    (c) => !c.hidden && getCommandNames(c).some((n) => n.startsWith(search)),
+  );
+  const maxNameLength = matches.reduce((max, cmdItem) => Math.max(max, cmdItem.name.length), 0);
+  return matches.map((c) => ({
+    name: `${c.name}`.padEnd(maxNameLength + 2),
+    description: c.description,
+  }));
 }
 
 export function findCommand(input: string): Command | undefined {

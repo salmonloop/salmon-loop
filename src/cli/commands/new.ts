@@ -5,6 +5,7 @@ import type { Command } from './types.js';
 export const newCommand: Command = {
   name: '/new',
   description: text.cli.commandClear,
+  order: 10,
   execute: async ({ emit, sessionManager, dispatch }) => {
     const session = await sessionManager.create();
     dispatch({ type: 'RESET_MESSAGES' });
