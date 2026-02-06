@@ -20,18 +20,31 @@ import { InMemoryLockManager } from './parallel/lock-manager.js';
 import { PlanPersistence } from './parallel/persistence.js';
 import type { ExecutionPlan, PlanNode } from './parallel/plan.js';
 import { ParallelScheduler } from './parallel/scheduler.js';
+import type { ToolRouter } from './router.js';
 import { ToolCallAccumulator } from './streaming/ToolCallAccumulator.js';
-import type { ToolRuntimeCtx, ToolResult } from './types.js';
+import type { ToolCallEnvelope, ToolRuntimeCtx, ToolResult, ToolSpec } from './types.js';
+
+interface ToolstackLike {
+  registry: { listAll(): ToolSpec[] };
+  policy: {
+    decide(
+      phase: ExecutionPhase,
+      spec: ToolSpec,
+      ctx: { worktreeRoot?: string },
+    ): { allowed: boolean };
+  };
+  router: {
+    call(envelope: ToolCallEnvelope): Promise<ToolResult>;
+    getSpec?: (name: string) => ToolSpec | undefined;
+    waitForAuthorization?: (requestId: string, signal?: AbortSignal) => Promise<boolean>;
+  };
+}
 
 export interface ToolCallingSessionOptions {
   phase: ExecutionPhase;
   llm: LLM;
   runtime: ToolRuntimeCtx;
-  toolstack: {
-    registry: { listAll(): any[] };
-    policy: { decide(phase: ExecutionPhase, spec: any, ctx: { worktreeRoot?: string }): any };
-    router: { call(envelope: any): Promise<ToolResult>; getSpec?: (name: string) => any };
-  };
+  toolstack: ToolstackLike;
   toolCallingAudit?: ToolCallingAuditSink;
   emit?: (event: LoopEvent) => void;
   llmOutput?: {
@@ -314,12 +327,12 @@ async function executeToolCalls(
     };
 
     const scheduler = new ParallelScheduler(
-      session.toolstack.router as any,
+      session.toolstack.router as ToolRouter,
       new InMemoryLockManager(),
     );
 
     const runSignal = signal ?? new AbortController().signal;
-    let result = await scheduler.run(plan, { ...session.runtime, phase } as any, runSignal);
+    let result = await scheduler.run(plan, { ...session.runtime, phase }, runSignal);
 
     const persistEnabled = process.env.NODE_ENV !== 'test';
     const persistenceRoot = session.runtime.persistenceRoot || session.runtime.repoRoot;
@@ -333,8 +346,8 @@ async function executeToolCalls(
       });
     }
 
-    const canWaitForAuth =
-      typeof (session.toolstack.router as any).waitForAuthorization === 'function';
+    const waitForAuthorization = session.toolstack.router.waitForAuthorization;
+    const canWaitForAuth = typeof waitForAuthorization === 'function';
 
     let resumeAttempts = 0;
     while (result.blockedApprovals.length > 0 && canWaitForAuth && !runSignal.aborted) {
@@ -344,11 +357,11 @@ async function executeToolCalls(
       // Wait for all pending approvals in this plan run, then resume only blocked nodes.
       await Promise.all(
         result.blockedApprovals.map(async (a) => {
-          await (session.toolstack.router as any).waitForAuthorization(a.nodeId, runSignal);
+          await waitForAuthorization?.(a.nodeId, runSignal);
         }),
       );
 
-      result = await scheduler.run(plan, { ...session.runtime, phase } as any, runSignal, {
+      result = await scheduler.run(plan, { ...session.runtime, phase }, runSignal, {
         initialResults: result.nodeResults,
         resumeBlockedApprovals: true,
       });

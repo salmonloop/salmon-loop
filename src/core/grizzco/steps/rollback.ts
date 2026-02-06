@@ -2,7 +2,12 @@ import { text } from '../../../locales/index.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { CheckpointManager } from '../../strata/checkpoint/manager.js';
 import { Step } from '../pipeline.js';
-import { RollbackCtx, VerifyCtx } from '../types.js';
+import type { InitCtx } from '../types.js';
+import { AstValidateCtx, RollbackCtx, VerifyCtx } from '../types.js';
+
+type RollbackTargetCtx = Pick<InitCtx, 'options' | 'workspace' | 'shadowInitialRef' | 'emit'> & {
+  changedFiles?: string[];
+};
 
 /**
  * Normal Rollback (triggered by verification failure or user request)
@@ -24,7 +29,7 @@ export const runRollback: Step<VerifyCtx, RollbackCtx> = async (ctx) => {
  * Emergency Rollback (triggered by pipeline exception)
  * Works with any context that might have changedFiles
  */
-export const runEmergencyRollback: Step<any, any> = async (ctx) => {
+export const runEmergencyRollback: Step<AstValidateCtx, AstValidateCtx> = async (ctx) => {
   if (ctx.options?.dryRun) {
     return ctx;
   }
@@ -53,7 +58,9 @@ export const runEmergencyRollback: Step<any, any> = async (ctx) => {
   return ctx;
 };
 
-async function executeGitRollback(ctx: any): Promise<any> {
+async function executeGitRollback<T extends RollbackTargetCtx>(
+  ctx: T,
+): Promise<T & { rolledBack: boolean }> {
   const shadowInitialRef = ctx.shadowInitialRef || ctx.options?.shadowInitialRef;
 
   if (!shadowInitialRef) {

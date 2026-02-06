@@ -1,6 +1,6 @@
 import type { ToolAuthorizationConfig } from '../../core/config/types.js';
 import { ChatSessionManager } from '../../core/session/manager.js';
-import { LoopEvent } from '../../core/types.js';
+import { LoopEvent, LlmOutputPolicy } from '../../core/types.js';
 import { text } from '../locales/index.js';
 
 import { findCommand } from './registry.js';
@@ -20,6 +20,8 @@ export class CommandDispatcher {
       dispatch: (action: any) => void;
       queue?: QueueController;
       toolAuthorization?: ToolAuthorizationConfig;
+      getLlmOutputPolicy?: () => LlmOutputPolicy | undefined;
+      setLlmOutputPolicy?: (policy: LlmOutputPolicy) => void;
     },
   ): Promise<DispatchResult> {
     if (!input) {
@@ -39,6 +41,8 @@ export class CommandDispatcher {
           dispatch: context.dispatch,
           queue: context.queue,
           toolAuthorization: context.toolAuthorization,
+          getLlmOutputPolicy: context.getLlmOutputPolicy,
+          setLlmOutputPolicy: context.setLlmOutputPolicy,
         });
         return { type: 'executed' };
       } catch (_error) {

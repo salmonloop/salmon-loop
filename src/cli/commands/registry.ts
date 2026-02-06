@@ -1,5 +1,6 @@
 import { authCommand } from './auth.js';
 import { exitCommand } from './exit.js';
+import { llmOutputCommand } from './llm-output.js';
 import { newCommand } from './new.js';
 import { queueCommand } from './queue.js';
 import { sessionCommand } from './session.js';
@@ -16,6 +17,7 @@ const baseCommands: Command[] = [
   authCommand,
   subAgentCommand,
   newCommand,
+  llmOutputCommand,
   {
     name: '/help',
     description: 'Show available commands',

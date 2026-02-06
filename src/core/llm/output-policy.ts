@@ -10,7 +10,7 @@ import {
 const SECRET_LINE_PATTERN = /(api[-_]?key|authorization|token|secret|password|cookie)/i;
 
 export const DEFAULT_LLM_OUTPUT_POLICY: LlmOutputPolicy = {
-  kinds: ['review', 'assistant_message'],
+  kinds: ['review', 'assistant_message', 'plan'],
 };
 
 function normalizeKinds(kinds: LlmOutputKind[]): LlmOutputKind[] {

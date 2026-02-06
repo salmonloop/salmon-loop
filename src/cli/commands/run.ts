@@ -8,6 +8,7 @@ import { redactConfigForPrint, resolveConfig, ConfigError } from '../../core/con
 import { resolveExtensions, ExtensionConfigError } from '../../core/extensions/index.js';
 import type { ExtensionResolution } from '../../core/extensions/index.js';
 import { createRuntimeLlm } from '../../core/llm/factory.js';
+import { emitLlmOutput } from '../../core/llm/output-policy.js';
 import { logger } from '../../core/logger.js';
 import { runSalmonLoop } from '../../core/loop.js';
 import { PluginLoader } from '../../core/plugin/loader.js';
@@ -205,6 +206,11 @@ export async function handleRunCommand(options: any, command: Command) {
       extensions: extensionResolution?.resolved,
     };
 
+    const buildAssistantMessage = (result: LoopResult) =>
+      result.success
+        ? text.cli.chatSuccess(result.changedFiles?.join(', ') || 'none')
+        : text.cli.chatFailed(result.reason);
+
     let result: LoopResult;
     // Default to GUI unless explicitly disabled or not a TTY
     const useGui = allOptions.gui !== false && process.stdout.isTTY;
@@ -217,7 +223,7 @@ export async function handleRunCommand(options: any, command: Command) {
           emit: (event) => emit({ ...event, timestamp: new Date() }),
           config: resolvedConfig.toolAuthorization,
         });
-        return await runSalmonLoop({
+        const runResult = await runSalmonLoop({
           ...loopParams,
           applyBackOnDirty: loopParams.applyBackOnDirty as ApplyBackOnDirty,
           signal: guiOptions?.signal,
@@ -228,12 +234,27 @@ export async function handleRunCommand(options: any, command: Command) {
             emit(event);
           },
         });
+        emitLlmOutput({
+          emit,
+          policy: llmOutput,
+          kind: 'assistant_message',
+          step: 'REPORT',
+          content: buildAssistantMessage(runResult),
+        });
+        return runResult;
       })) as LoopResult;
     } else {
       result = await runSalmonLoop({
         ...loopParams,
         applyBackOnDirty: loopParams.applyBackOnDirty as ApplyBackOnDirty,
         onEvent: (event) => reporter.onEvent(event),
+      });
+      emitLlmOutput({
+        emit: (event) => reporter.onEvent(event),
+        policy: llmOutput,
+        kind: 'assistant_message',
+        step: 'REPORT',
+        content: buildAssistantMessage(result),
       });
     }
 

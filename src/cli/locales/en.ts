@@ -58,6 +58,7 @@ export const en = {
   commandHistory: 'Show session history',
   commandSessions: 'List all chat sessions',
   commandQueue: 'Manage the chat queue',
+  commandLlmOutput: 'Set LLM output visibility and save to config',
   commandAuth: 'Manage tool authorization',
   commandParallel: 'Manage parallel plans',
   commandSubagent: 'Consult or dispatch a Smallfry (sub-agent)',
@@ -83,8 +84,15 @@ export const en = {
   queueRetryMissing: 'No interrupted task to retry.',
   queueInterruptedHint: 'Interrupted task detected. Use /queue retry to re-run it.',
   queueSubcommandHint: (sub: string) => `Queue ${sub} command`,
+  llmOutputSuggestion: (kind: string) => `Set LLM output to ${kind}`,
   queueStatus: (pending: number, processing: boolean, paused: boolean, interrupted: boolean) =>
     `Queue status: pending=${pending}, processing=${processing}, paused=${paused}, interrupted=${interrupted}`,
+  llmOutputUsage: 'Usage: /output <none|all|review,assistant_message,plan,patch>',
+  llmOutputCurrent: (kinds: string) => `Current LLM output kinds: ${kinds}`,
+  llmOutputUpdated: (kinds: string) => `LLM output kinds updated: ${kinds}`,
+  llmOutputUnavailable: 'LLM output configuration is unavailable in this mode.',
+  llmOutputPersisted: (path: string) => `LLM output settings saved to ${path}`,
+  llmOutputPersistFailed: (reason: string) => `Failed to save LLM output settings: ${reason}`,
   authUsage:
     'Usage: /auth <list|add|remove|clear|hash|reload> [scope] [tool] [phase] [args=<hash>] [effects=a,b] [deny]',
   authSubcommandHint: (sub: string) => `Authorization ${sub} command`,

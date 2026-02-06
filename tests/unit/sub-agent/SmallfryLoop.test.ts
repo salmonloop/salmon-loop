@@ -36,9 +36,14 @@ describe('SmallfryLoop', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    const mockLlm = {
+      chat: vi.fn(),
+      createPlan: vi.fn(),
+      createPatch: vi.fn(),
+    };
     mockInitCtx = {
-      workspace: { workPath: '/tmp/repo' },
-      options: { instruction: 'test' },
+      workspace: { workPath: '/tmp/repo', baseRepoPath: '/tmp/repo', strategy: 'direct' },
+      options: { instruction: 'test', repoPath: '/tmp/repo', llm: mockLlm },
       mode: 'patch',
       fs: {
         readFile: vi.fn(),

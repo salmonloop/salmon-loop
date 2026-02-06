@@ -5,7 +5,7 @@ import { buildContext } from '../../grizzco/steps/context.js';
 import { generatePatch } from '../../grizzco/steps/patch.js';
 import { generatePlan } from '../../grizzco/steps/plan.js';
 import { runPreflight } from '../../grizzco/steps/preflight.js';
-import { InitCtx } from '../../grizzco/types.js';
+import type { InitCtx, ShrinkCtx } from '../../grizzco/types.js';
 import { logger } from '../../logger.js';
 import { IExecutable, SubAgentProfile, SubAgentResult } from '../types.js';
 
@@ -41,7 +41,14 @@ export class SmallfryLoop implements IExecutable<InitCtx, SubAgentResult> {
 
     const report = await pipeline.execute();
     report.auditPath = await saveAudit(report, initCtx.options);
-    const finalCtx = report.data;
+    type SubAgentContext = Partial<Pick<ShrinkCtx, 'attempt' | 'diff' | 'changedFiles'>> & {
+      reason?: string;
+      reasonCode?: SubAgentResult['reasonCode'];
+      logs?: SubAgentResult['logs'];
+      errorType?: SubAgentResult['errorType'];
+    };
+
+    const finalCtx = report.data as SubAgentContext | undefined;
 
     // 4. Audit & Resource Tracking (Physical Traceability)
     // We sum up actual token usage from traces if available, otherwise fallback to estimation
@@ -49,9 +56,14 @@ export class SmallfryLoop implements IExecutable<InitCtx, SubAgentResult> {
     let totalOutputTokens = 0;
 
     for (const trace of report.traces) {
-      if (trace.metadata?.usage) {
-        totalInputTokens += trace.metadata.usage.prompt_tokens || 0;
-        totalOutputTokens += trace.metadata.usage.completion_tokens || 0;
+      const usage = (
+        trace.metadata as
+          | { usage?: { prompt_tokens?: number; completion_tokens?: number } }
+          | undefined
+      )?.usage;
+      if (usage) {
+        totalInputTokens += usage.prompt_tokens || 0;
+        totalOutputTokens += usage.completion_tokens || 0;
       }
     }
 
@@ -61,7 +73,9 @@ export class SmallfryLoop implements IExecutable<InitCtx, SubAgentResult> {
     if (this.profile.maxTokens && tokenUsage > this.profile.maxTokens) {
       logger.warn(`[SmallfryLoop] Budget exceeded: ${tokenUsage}/${this.profile.maxTokens}`);
       report.success = false;
-      finalCtx.reason = text.smallfry.errors.budgetExceeded(tokenUsage, this.profile.maxTokens);
+      if (finalCtx) {
+        finalCtx.reason = text.smallfry.errors.budgetExceeded(tokenUsage, this.profile.maxTokens);
+      }
     }
 
     return {

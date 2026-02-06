@@ -1,49 +1,89 @@
+import type { DiffMeta } from '../diff.js';
+import type { ToolCallingAuditEntry } from '../llm/audit.js';
 import { FileStateResolver } from '../strata/layers/file-state-resolver.js';
 import type { ArtifactHandle } from '../sub-agent/artifacts/types.js';
-import type { FileSystem, FlowMode } from '../types.js';
+import type { ToolAuditLogger } from '../tools/audit.js';
+import type { Toolstack } from '../tools/loader.js';
+import type {
+  Context,
+  ExecutionWorkspace,
+  FileSystem,
+  FlowMode,
+  LoopEvent,
+  LoopOptions,
+  Plan,
+} from '../types.js';
 import type { VerifyResult } from '../verify.js';
+
+import type { DecisionRecord } from './dsl/DecisionEngine.js';
+import type { ExecutionResult } from './execution/Executor.js';
+
+export interface PreflightResult {
+  ok: boolean;
+  reason?: string;
+}
+
+export interface ReviewSuggestion {
+  type?: string;
+  content?: string;
+  [key: string]: unknown;
+}
+
+export type ReviewSuggestions = ReviewSuggestion | Array<ReviewSuggestion | string> | string | null;
+
+export interface ApplyDecision {
+  path: string;
+  decisions: DecisionRecord[];
+}
+
+export interface ApplyResult {
+  success: boolean;
+  results: ExecutionResult[];
+  successCount: number;
+  totalFiles: number;
+  decisions?: ApplyDecision[];
+}
 
 /**
  * Stage 0: Initial Context
  */
 export interface InitCtx {
-  workspace: any; // Will be typed properly later
-  options: any; // Will be typed properly later
+  workspace: ExecutionWorkspace;
+  options: LoopOptions;
   mode: FlowMode;
   fs: FileSystem;
-  emit: (event: any) => void;
+  emit: (event: LoopEvent) => void;
   fileStateResolver: FileStateResolver;
   attempt?: number;
   lastError?: string;
-  toolAuditLogger?: { getLogs(): unknown[] };
+  toolstack?: Toolstack;
+  toolAuditLogger?: ToolAuditLogger;
+  toolCallingAudit?: ToolCallingAuditEntry[];
   /**
    * 🛡️ MANDATORY ROLLBACK ANCHOR:
    * This hash must be provided by the environment layer. Without it,
    * the loop cannot safely revert to a clean state upon verification failure.
    */
   shadowInitialRef: string;
-  initialContext?: any; // For retry with shrunk context
+  initialContext?: Context; // For retry with shrunk context
 }
 
 /**
  * Stage 1: After Preflight
  */
 export interface PreflightCtx extends InitCtx {
-  preflightResult: {
-    ok: boolean;
-    reason?: string;
-  };
+  preflightResult: PreflightResult;
 }
 
 /**
  * Stage 2: After Context Discovery
  */
 export interface ContextCtx extends PreflightCtx {
-  context: any; // ContextBuilder result
+  context: Context; // ContextBuilder result
 }
 
 export interface ReviewSummary {
-  suggestions: unknown;
+  suggestions: ReviewSuggestions;
   timestamp: number;
 }
 
@@ -55,7 +95,7 @@ export interface ReviewCtx extends ContextCtx {
  * Stage 3: After Plan Generation
  */
 export interface PlanCtx extends ContextCtx {
-  plan: any; // LLM Plan
+  plan: Plan;
 }
 
 /**
@@ -63,7 +103,7 @@ export interface PlanCtx extends ContextCtx {
  */
 export interface PatchCtx extends PlanCtx {
   diff: string;
-  diffMeta: any;
+  diffMeta: DiffMeta;
   changedFiles: string[];
 }
 
@@ -86,13 +126,7 @@ export interface AstValidateCtx extends ValidateCtx {
  * Stage 6: After Application (Result)
  */
 export interface ApplyCtx extends AstValidateCtx {
-  applyResult: {
-    success: boolean;
-    results: any[];
-    successCount: number;
-    totalFiles: number;
-    decisions?: any[]; // For audit
-  };
+  applyResult: ApplyResult;
 }
 
 /**

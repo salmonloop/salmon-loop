@@ -1,11 +1,15 @@
 import { text } from '../../../locales/index.js';
-import type { ReviewCtx } from '../types.js';
+import type { ReviewCtx, ReviewSuggestion, ReviewSummary } from '../types.js';
 
-function collectIssues(suggestions: unknown): unknown[] {
+function isReviewSuggestion(value: unknown): value is ReviewSuggestion {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function collectIssues(suggestions: ReviewSummary['suggestions']): ReviewSuggestion[] {
   if (!Array.isArray(suggestions)) return [];
-  return suggestions.filter((item) => {
-    if (!item || typeof item !== 'object') return false;
-    const type = String((item as any).type || '').toLowerCase();
+  return suggestions.filter((item): item is ReviewSuggestion => {
+    if (!isReviewSuggestion(item)) return false;
+    const type = typeof item.type === 'string' ? item.type.toLowerCase() : '';
     return type === 'bug' || type === 'security' || type === 'vulnerability';
   });
 }

@@ -15,13 +15,13 @@ export interface Span {
   end: number;
   duration: number;
   error?: string;
-  metadata?: any;
+  metadata?: unknown;
 }
 
 /**
  * Execution Report
  */
-export interface FlowReport<T = any> {
+export interface FlowReport<T = unknown> {
   success: boolean;
   error?: Error;
   lastStep?: string;
@@ -59,9 +59,9 @@ export class Pipeline<CurrentCtx> {
     const nextPromise = this.promise.then(async (ctx) => {
       const start = Date.now();
       let errorStr: string | undefined;
-      let errorMeta: any | undefined;
+      let errorMeta: Record<string, unknown> | undefined;
       let result;
-      const emit = (ctx as any)?.emit as undefined | ((event: LoopEvent) => void);
+      const emit = (ctx as { emit?: (event: LoopEvent) => void }).emit;
       const isPhase = (value: string): value is ExecutionPhase =>
         (EXECUTION_PHASES as readonly string[]).includes(value);
 
@@ -76,11 +76,14 @@ export class Pipeline<CurrentCtx> {
         return result;
       } catch (error) {
         errorStr = error instanceof Error ? error.message : String(error);
-        errorMeta = {
-          name: (error as any)?.name,
-          code: (error as any)?.code,
-          llmCode: (error as any)?.llmCode,
-        };
+        errorMeta =
+          typeof error === 'object' && error !== null
+            ? {
+                name: (error as { name?: string }).name,
+                code: (error as { code?: string }).code,
+                llmCode: (error as { llmCode?: string }).llmCode,
+              }
+            : undefined;
         throw error;
       } finally {
         if (emit && isPhase(name)) {
@@ -113,14 +116,14 @@ export class Pipeline<CurrentCtx> {
   stepWithRecovery<NextCtx>(
     name: string,
     action: Step<CurrentCtx, NextCtx>,
-    recovery: Step<CurrentCtx, any>,
+    recovery: Step<CurrentCtx, unknown>,
   ): Pipeline<NextCtx> {
     const nextPromise = this.promise.then(async (ctx) => {
       const start = Date.now();
       let errorStr: string | undefined;
-      let errorMeta: any | undefined;
+      let errorMeta: Record<string, unknown> | undefined;
       let result;
-      const emit = (ctx as any)?.emit as undefined | ((event: LoopEvent) => void);
+      const emit = (ctx as { emit?: (event: LoopEvent) => void }).emit;
       const isPhase = (value: string): value is ExecutionPhase =>
         (EXECUTION_PHASES as readonly string[]).includes(value);
 
@@ -135,11 +138,14 @@ export class Pipeline<CurrentCtx> {
         return result;
       } catch (error) {
         errorStr = error instanceof Error ? error.message : String(error);
-        errorMeta = {
-          name: (error as any)?.name,
-          code: (error as any)?.code,
-          llmCode: (error as any)?.llmCode,
-        };
+        errorMeta =
+          typeof error === 'object' && error !== null
+            ? {
+                name: (error as { name?: string }).name,
+                code: (error as { code?: string }).code,
+                llmCode: (error as { llmCode?: string }).llmCode,
+              }
+            : undefined;
 
         // Trigger Recovery
         const recStart = Date.now();
@@ -223,7 +229,7 @@ export class Pipeline<CurrentCtx> {
         error: error instanceof Error ? error : new Error(String(error)),
         lastStep: this.lastStepName,
         duration: Date.now() - this.startTime,
-        data: this.ctxRef.current as any,
+        data: this.ctxRef.current as CurrentCtx | undefined,
         traces: this.traces,
       };
     }

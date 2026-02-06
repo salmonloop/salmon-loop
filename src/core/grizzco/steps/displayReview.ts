@@ -1,5 +1,5 @@
 import { text } from '../../../locales/index.js';
-import type { ReviewCtx } from '../types.js';
+import type { ReviewCtx, ReviewSuggestion, ReviewSummary } from '../types.js';
 
 function safeStringify(value: unknown): string {
   try {
@@ -9,17 +9,22 @@ function safeStringify(value: unknown): string {
   }
 }
 
-function normalizeSuggestions(input: unknown): Array<{ type: string; content: string }> {
+function isReviewSuggestion(value: unknown): value is ReviewSuggestion {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function normalizeSuggestions(
+  input: ReviewSummary['suggestions'],
+): Array<{ type: string; content: string }> {
   if (!input) return [];
   if (Array.isArray(input)) {
     return input.map((item) => {
       if (typeof item === 'string') {
         return { type: 'note', content: item };
       }
-      if (item && typeof item === 'object') {
-        const type = typeof (item as any).type === 'string' ? (item as any).type : 'note';
-        const content =
-          typeof (item as any).content === 'string' ? (item as any).content : safeStringify(item);
+      if (isReviewSuggestion(item)) {
+        const type = typeof item.type === 'string' ? item.type : 'note';
+        const content = typeof item.content === 'string' ? item.content : safeStringify(item);
         return { type, content };
       }
       return { type: 'note', content: String(item) };
@@ -30,10 +35,21 @@ function normalizeSuggestions(input: unknown): Array<{ type: string; content: st
     return [{ type: 'note', content: input }];
   }
 
+  if (isReviewSuggestion(input)) {
+    const type = typeof input.type === 'string' ? input.type : 'note';
+    const content = typeof input.content === 'string' ? input.content : safeStringify(input);
+    return [{ type, content }];
+  }
+
   return [{ type: 'note', content: safeStringify(input) }];
 }
 
 export async function displayReview(ctx: ReviewCtx): Promise<ReviewCtx> {
+  const outputKinds = ctx.options?.llmOutput?.kinds ?? [];
+  if (outputKinds.includes('review')) {
+    return ctx;
+  }
+
   ctx.emit({
     type: 'log',
     level: 'info',

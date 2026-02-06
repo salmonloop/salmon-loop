@@ -185,7 +185,17 @@ describe.skip('LLM stub server integration (no real network)', () => {
       })
       .execute();
 
-    await saveAudit(report as any, {});
+    const noopLlm = {
+      chat: async () => ({ role: 'assistant' as const, content: '' }),
+      createPlan: async () => ({ goal: '', files: [], changes: [], verify: '' }),
+      createPatch: async () => '',
+    };
+
+    await saveAudit(report as any, {
+      instruction: 'audit',
+      repoPath: process.cwd(),
+      llm: noopLlm,
+    });
 
     const after = await fs.readdir(auditDir);
     const created = after.find((f) => !before.has(f));

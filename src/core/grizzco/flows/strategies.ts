@@ -20,7 +20,7 @@ import type { FlowStrategy } from './strategy-registry.js';
 export class PatchFlowStrategy implements FlowStrategy {
   readonly name: FlowMode = 'patch';
 
-  buildPipeline(base: Pipeline<ContextCtx>): Pipeline<any> {
+  buildPipeline(base: Pipeline<ContextCtx>): Pipeline<unknown> {
     return base
       .step('PLAN', generatePlan)
       .step('PATCH', generatePatch)
@@ -29,25 +29,27 @@ export class PatchFlowStrategy implements FlowStrategy {
       .stepWithRecovery('APPLY', runApply, runEmergencyRollback)
       .step('VERIFY', runVerify)
       .step('ROLLBACK', runRollback)
-      .step('SHRINK', runShrink);
+      .step('SHRINK', runShrink)
+      .cast<unknown>();
   }
 }
 
 export class ReviewFlowStrategy implements FlowStrategy {
   readonly name: FlowMode = 'review';
 
-  buildPipeline(base: Pipeline<ContextCtx>): Pipeline<any> {
+  buildPipeline(base: Pipeline<ContextCtx>): Pipeline<unknown> {
     return base
       .step('REVIEW', generateReview)
       .step('REPORT', displayReview)
-      .step('SHRINK', runReviewShrink);
+      .step('SHRINK', runReviewShrink)
+      .cast<unknown>();
   }
 }
 
 export class DebugFlowStrategy implements FlowStrategy {
   readonly name: FlowMode = 'debug';
 
-  buildPipeline(base: Pipeline<ContextCtx>): Pipeline<any> {
+  buildPipeline(base: Pipeline<ContextCtx>): Pipeline<unknown> {
     return base
       .step('REVIEW', generateReview)
       .step('ANALYZE_ISSUES', extractIssues)
@@ -58,6 +60,7 @@ export class DebugFlowStrategy implements FlowStrategy {
       .stepWithRecovery('APPLY', runApply, runEmergencyRollback)
       .step('VERIFY', runVerify)
       .step('ROLLBACK', runRollback)
-      .step('SHRINK', runShrink);
+      .step('SHRINK', runShrink)
+      .cast<unknown>();
   }
 }

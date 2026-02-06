@@ -1,5 +1,5 @@
 import { text } from '../../../locales/index.js';
-import { normalizeDiff, validateDiff } from '../../diff.js';
+import { normalizeDiff, validateDiff, type DiffMeta } from '../../diff.js';
 import { LIMITS } from '../../limits.js';
 import { wrapPatchEmpty, wrapPatchInvalid, wrapPatchNotUnifiedDiff } from '../../llm/errors.js';
 import { emitLlmOutput } from '../../llm/output-policy.js';
@@ -12,7 +12,7 @@ import { Step } from '../pipeline.js';
 import { PatchCtx, PlanCtx } from '../types.js';
 
 export const generatePatch: Step<PlanCtx, PatchCtx> = async (ctx) => {
-  const toolstack = (ctx as any).toolstack;
+  const toolstack = ctx.toolstack;
   const toolPolicy = resolveLlmToolCallingPolicy(Phase.PATCH, ctx.options.llm);
 
   // Backwards-compatible fallback for non-tool-capable LLMs.
@@ -31,7 +31,7 @@ export const generatePatch: Step<PlanCtx, PatchCtx> = async (ctx) => {
       content: patch,
     });
     const normalizedPatch = normalizeDiff(patch);
-    let diffMeta;
+    let diffMeta: DiffMeta;
     try {
       diffMeta = validateDiff(normalizedPatch);
     } catch (e) {
@@ -92,20 +92,17 @@ export const generatePatch: Step<PlanCtx, PatchCtx> = async (ctx) => {
         repoRoot: ctx.workspace.workPath,
         persistenceRoot: ctx.workspace.baseRepoPath || ctx.workspace.workPath,
         worktreeRoot: ctx.workspace.strategy === 'worktree' ? ctx.workspace.workPath : undefined,
-        attemptId: (ctx as any).attempt ?? 1,
+        attemptId: ctx.attempt ?? 1,
         dryRun: Boolean(ctx.options?.dryRun),
         llm: ctx.options.llm,
-        model:
-          (ctx.options.llm as any)?.getModelId?.() ||
-          process.env.S8P_MODEL ||
-          process.env.SALMON_MODEL,
+        model: ctx.options.llm.getModelId?.() || process.env.S8P_MODEL || process.env.SALMON_MODEL,
       },
       toolstack,
       toolCallingAudit: {
         event: (entry) => {
-          const list = ((ctx as any).toolCallingAudit as any[]) || [];
+          const list = ctx.toolCallingAudit ?? [];
           list.push(entry);
-          (ctx as any).toolCallingAudit = list;
+          ctx.toolCallingAudit = list;
         },
       },
       maxRounds: toolPolicy.maxRounds,
@@ -116,7 +113,7 @@ export const generatePatch: Step<PlanCtx, PatchCtx> = async (ctx) => {
 
   const patch = extractUnifiedDiffFromLLMContent(response.content || '');
   const normalizedPatch = normalizeDiff(patch);
-  let diffMeta;
+  let diffMeta: DiffMeta;
   try {
     diffMeta = validateDiff(normalizedPatch);
   } catch (e) {

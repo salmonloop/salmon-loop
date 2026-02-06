@@ -426,6 +426,11 @@ export interface LLM {
   };
 
   /**
+   * Optional model identifier for audit and telemetry.
+   */
+  getModelId?(): string;
+
+  /**
    * High-level goal-oriented methods (internally use chat)
    */
   createPlan(
@@ -448,9 +453,13 @@ export interface LoopOptions {
   repoPath: string;
   signal?: AbortSignal; // Allow task interruption via AbortSignal
   llm: LLM;
+  allowedTools?: string[];
+  timeoutMs?: number;
+  recursionDepth?: number;
   mode?: FlowMode;
   dryRun?: boolean;
   forceReset?: boolean;
+  shadowInitialRef?: string;
   onEvent?: (event: LoopEvent) => void;
   verbose?: VerboseLevel;
   file?: string;

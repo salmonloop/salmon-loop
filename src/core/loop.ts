@@ -7,6 +7,7 @@ import { GitAdapter } from './adapters/git/git-adapter.js';
 import { clearAuditContext, clearAuditTrail, setAuditContext } from './audit-trail.js';
 import { Semaphore } from './concurrency.js';
 import { executeSalmonLoopFlow } from './grizzco/flows/SalmonLoopFlow.js';
+import type { ShrinkCtx } from './grizzco/types.js';
 import { LIMITS } from './limits.js';
 import { FileStateResolver } from './strata/layers/file-state-resolver.js';
 import { RuntimeEnvironment } from './strata/runtime/environment.js';
@@ -209,7 +210,7 @@ export class SalmonLoop {
         });
 
         // Map flow result to LoopIteration
-        const ctx = result.data; // Final context (ShrinkCtx or VerifyCtx)
+        const ctx = result.data as Partial<ShrinkCtx> | undefined;
         authorizationSummary = buildAuthorizationSummary(
           ctx?.toolAuditLogger?.getLogs?.() as unknown[],
         );
@@ -220,16 +221,15 @@ export class SalmonLoop {
 
         history.push({
           attempt,
-          plan: ctx?.plan,
-          patch: ctx?.diff,
+          plan: ctx?.plan ?? null,
+          patch: ctx?.diff ?? null,
           error: result.error?.message || ctx?.lastError,
           contextSummary: ctx?.context
             ? `Snippets: ${ctx.context.rgSnippets.length}`
             : 'No context',
         });
 
-        const artifactCandidate = (ctx as { verifyArtifact?: ArtifactHandle } | undefined)
-          ?.verifyArtifact;
+        const artifactCandidate = ctx?.verifyArtifact as ArtifactHandle | undefined;
         if (artifactCandidate) {
           verifyArtifact = artifactCandidate;
         }

@@ -5,7 +5,7 @@ import type { ContextCtx } from '../types.js';
 
 export interface FlowStrategy {
   readonly name: FlowMode;
-  buildPipeline(base: Pipeline<ContextCtx>): Pipeline<any>;
+  buildPipeline(base: Pipeline<ContextCtx>): Pipeline<unknown>;
 }
 
 export class FlowStrategyRegistry {

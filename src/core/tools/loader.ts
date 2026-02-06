@@ -118,3 +118,5 @@ export async function createStandardToolstack(options: ToolstackOptions) {
     sanitize,
   };
 }
+
+export type Toolstack = Awaited<ReturnType<typeof createStandardToolstack>>;

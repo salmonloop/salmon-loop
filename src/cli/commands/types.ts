@@ -1,5 +1,6 @@
 import type { ToolAuthorizationConfig } from '../../core/config/types.js';
 import { ChatSessionManager } from '../../core/session/manager.js';
+import type { LlmOutputPolicy } from '../../core/types.js';
 
 export interface CommandContext {
   emit: (event: any) => void;
@@ -8,6 +9,8 @@ export interface CommandContext {
   dispatch: (action: any) => void;
   queue?: QueueController;
   toolAuthorization?: ToolAuthorizationConfig;
+  getLlmOutputPolicy?: () => LlmOutputPolicy | undefined;
+  setLlmOutputPolicy?: (policy: LlmOutputPolicy) => void;
 }
 
 export interface CommandResult {

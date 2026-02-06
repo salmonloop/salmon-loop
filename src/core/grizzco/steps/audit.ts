@@ -3,10 +3,16 @@ import * as fs from 'fs/promises';
 import { getAuditTrail } from '../../audit-trail.js';
 import { logger } from '../../logger.js';
 import { getAuditDir } from '../../runtime-paths.js';
-import { SalmonError } from '../../types.js';
+import { SalmonError, type LoopOptions } from '../../types.js';
 import { FlowReport } from '../pipeline.js';
+import type { ShrinkCtx } from '../types.js';
 
-export async function saveAudit(report: FlowReport, _options: any): Promise<string | undefined> {
+type AuditContext = Partial<ShrinkCtx>;
+
+export async function saveAudit(
+  report: FlowReport,
+  _options: LoopOptions,
+): Promise<string | undefined> {
   try {
     const auditDir = getAuditDir(_options?.repoPath || process.cwd());
     await fs.mkdir(auditDir, { recursive: true });
@@ -15,9 +21,10 @@ export async function saveAudit(report: FlowReport, _options: any): Promise<stri
     const filename = `audit-${timestamp}.json`;
 
     // Sanitize context data to be JSON friendly
-    const ctx = report.data as any;
+    const ctx = report.data as AuditContext | undefined;
     const sanitizedData = sanitizeContext(report.data);
 
+    const errorInfo = report.error as (Error & { code?: string; llmCode?: string }) | undefined;
     const errorMeta =
       report.error && report.error instanceof Error
         ? {
@@ -27,7 +34,7 @@ export async function saveAudit(report: FlowReport, _options: any): Promise<stri
             code:
               report.error instanceof SalmonError
                 ? report.error.code
-                : (report.error as any)?.code || (report.error as any)?.llmCode,
+                : errorInfo?.code || errorInfo?.llmCode,
           }
         : report.error
           ? { name: 'UnknownError', message: String(report.error), stack: undefined }
@@ -35,8 +42,8 @@ export async function saveAudit(report: FlowReport, _options: any): Promise<stri
 
     const toolAuditLogs = ctx?.toolAuditLogger?.getLogs?.() || [];
     const authorizationIndex = toolAuditLogs
-      .filter((entry: any) => entry.eventType === 'authorization')
-      .reduce((acc: Record<string, any>, entry: any) => {
+      .filter((entry) => entry.eventType === 'authorization')
+      .reduce((acc: Record<string, unknown>, entry) => {
         acc[entry.callId] = {
           outcome: entry.authOutcome,
           reason: entry.authReason,
@@ -83,28 +90,29 @@ export async function saveAudit(report: FlowReport, _options: any): Promise<stri
   }
 }
 
-function sanitizeContext(ctx: any): any {
-  if (!ctx) return null;
+function sanitizeContext(ctx: unknown): Record<string, unknown> | null {
+  if (!ctx || typeof ctx !== 'object') return null;
 
-  const safe: any = {};
+  const safe: Record<string, unknown> = {};
+  const typed = ctx as AuditContext;
 
   // Extract key fields that are serializable
-  if (ctx.preflightResult) safe.preflightResult = ctx.preflightResult;
-  if (ctx.plan) safe.plan = ctx.plan; // plan object usually serializable
-  if (ctx.diffMeta) safe.diffMeta = ctx.diffMeta;
-  if (ctx.isValid !== undefined) safe.isValid = ctx.isValid;
-  if (ctx.astValid !== undefined) safe.astValid = ctx.astValid;
-  if (ctx.astError) safe.astError = ctx.astError;
+  if (typed.preflightResult) safe.preflightResult = typed.preflightResult;
+  if (typed.plan) safe.plan = typed.plan; // plan object usually serializable
+  if (typed.diffMeta) safe.diffMeta = typed.diffMeta;
+  if (typed.isValid !== undefined) safe.isValid = typed.isValid;
+  if (typed.astValid !== undefined) safe.astValid = typed.astValid;
+  if (typed.astError) safe.astError = typed.astError;
 
-  if (ctx.applyResult) {
+  if (typed.applyResult) {
     safe.applyResult = {
-      success: ctx.applyResult.success,
-      successCount: ctx.applyResult.successCount,
-      totalFiles: ctx.applyResult.totalFiles,
+      success: typed.applyResult.success,
+      successCount: typed.applyResult.successCount,
+      totalFiles: typed.applyResult.totalFiles,
       // decisions are already JSON objects
-      decisions: ctx.applyResult.decisions,
+      decisions: typed.applyResult.decisions,
       // results might contain errors
-      results: ctx.applyResult.results?.map((r: any) => ({
+      results: typed.applyResult.results?.map((r) => ({
         success: r.success,
         actionTaken: r.actionTaken,
         error: r.error,
@@ -112,15 +120,15 @@ function sanitizeContext(ctx: any): any {
     };
   }
 
-  if (ctx.verifyResult) safe.verifyResult = ctx.verifyResult;
-  if ((ctx as any).verifyArtifact) safe.verifyArtifact = (ctx as any).verifyArtifact;
+  if (typed.verifyResult) safe.verifyResult = typed.verifyResult;
+  if (typed.verifyArtifact) safe.verifyArtifact = typed.verifyArtifact;
 
-  if ((ctx as any).toolCallingAudit && Array.isArray((ctx as any).toolCallingAudit)) {
-    safe.toolCallingAudit = (ctx as any).toolCallingAudit;
+  if (typed.toolCallingAudit && Array.isArray(typed.toolCallingAudit)) {
+    safe.toolCallingAudit = typed.toolCallingAudit;
   }
 
-  if ((ctx as any).toolAuditLogger?.getLogs) {
-    safe.toolAuditLogs = (ctx as any).toolAuditLogger.getLogs();
+  if (typed.toolAuditLogger?.getLogs) {
+    safe.toolAuditLogs = typed.toolAuditLogger.getLogs();
   }
 
   return safe;

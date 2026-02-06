@@ -1,4 +1,5 @@
 import type { ToolAuthorizationConfig } from '../core/config/index.js';
+import { DEFAULT_LLM_OUTPUT_POLICY, emitLlmOutput } from '../core/llm/output-policy.js';
 import { logger } from '../core/logger.js';
 import { runSalmonLoop } from '../core/loop.js';
 import { ChatSessionManager } from '../core/session/manager.js';
@@ -48,6 +49,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
   let hideTimer: NodeJS.Timeout | null = null;
   let currentInstruction: string | null = null;
   let lastInterruptedInput: string | null = null;
+  let currentLlmOutputPolicy = options.llmOutput ?? DEFAULT_LLM_OUTPUT_POLICY;
 
   const authorizationProvider = createUiAuthorizationProvider({
     emit: (event) => {
@@ -178,7 +180,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
           verbose: options.verbose ? 'basic' : undefined,
           onEvent: latestEmit,
           signal: latestGuiOptions?.signal,
-          llmOutput: options.llmOutput,
+          llmOutput: currentLlmOutputPolicy,
           authorizationProvider,
           authorizationMode: 'deferred',
         }),
@@ -193,6 +195,14 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
       const responseText = result.success
         ? text.cli.chatSuccess(result.changedFiles?.join(', ') || 'none')
         : text.cli.chatFailed(result.reason);
+
+      emitLlmOutput({
+        emit: latestEmit,
+        policy: currentLlmOutputPolicy,
+        kind: 'assistant_message',
+        step: 'REPORT',
+        content: responseText,
+      });
 
       sessionManager.addMessage({
         role: 'assistant',
@@ -305,6 +315,10 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
         dispatch: latestDispatch || (() => {}),
         queue: queueController,
         toolAuthorization: options.toolAuthorization,
+        getLlmOutputPolicy: () => currentLlmOutputPolicy,
+        setLlmOutputPolicy: (policy) => {
+          currentLlmOutputPolicy = policy;
+        },
       });
 
       if (dispatchResult.type === 'executed' || dispatchResult.type === 'blocked') {

@@ -4,13 +4,13 @@ import { emitLlmOutput } from '../../llm/output-policy.js';
 import { formatContextForPrompt, parsePlanFromLLMContent } from '../../llm-utils.js';
 import { getPlanPrompt, getPlanSystemPrompt } from '../../prompt.js';
 import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
-import { Phase } from '../../types.js';
+import { Phase, type Plan } from '../../types.js';
 import { resolveLlmToolCallingPolicy } from '../dsl/llm-strategy.js';
 import { Step } from '../pipeline.js';
 import { ContextCtx, PlanCtx } from '../types.js';
 
 export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
-  const toolstack = (ctx as any).toolstack;
+  const toolstack = ctx.toolstack;
   const toolPolicy = resolveLlmToolCallingPolicy(Phase.PLAN, ctx.options.llm);
 
   // Backwards-compatible fallback: keep non-tool-capable LLMs on the legacy createPlan path.
@@ -52,7 +52,7 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
 
   const systemPrompt = await getPlanSystemPrompt(toolstack?.registry);
 
-  const supportsStreaming = typeof (ctx.options.llm as any)?.chatStream === 'function';
+  const supportsStreaming = typeof ctx.options.llm.chatStream === 'function';
   const llmOutput = {
     policy: ctx.options.llmOutput,
     kind: 'plan' as const,
@@ -78,20 +78,17 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
         repoRoot: ctx.workspace.workPath,
         persistenceRoot: ctx.workspace.baseRepoPath || ctx.workspace.workPath,
         worktreeRoot: ctx.workspace.strategy === 'worktree' ? ctx.workspace.workPath : undefined,
-        attemptId: (ctx as any).attempt ?? 1,
+        attemptId: ctx.attempt ?? 1,
         dryRun: Boolean(ctx.options?.dryRun),
         llm: ctx.options.llm,
-        model:
-          (ctx.options.llm as any)?.getModelId?.() ||
-          process.env.S8P_MODEL ||
-          process.env.SALMON_MODEL,
+        model: ctx.options.llm.getModelId?.() || process.env.S8P_MODEL || process.env.SALMON_MODEL,
       },
       toolstack,
       toolCallingAudit: {
         event: (entry) => {
-          const list = ((ctx as any).toolCallingAudit as any[]) || [];
+          const list = ctx.toolCallingAudit ?? [];
           list.push(entry);
-          (ctx as any).toolCallingAudit = list;
+          ctx.toolCallingAudit = list;
         },
       },
       maxRounds: toolPolicy.maxRounds,
@@ -105,7 +102,7 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
     throw new Error(text.llm.planEmpty);
   }
 
-  let plan: any;
+  let plan: Plan;
   try {
     plan = parsePlanFromLLMContent(content);
   } catch (e) {
