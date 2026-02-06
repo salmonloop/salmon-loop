@@ -60,6 +60,7 @@ export const en = {
   commandQueue: 'Manage the chat queue',
   commandAuth: 'Manage tool authorization',
   commandParallel: 'Manage parallel plans',
+  commandSubagent: 'Consult or dispatch a Smallfry (sub-agent)',
   queueUsage: 'Usage: /queue <status|pause|resume|retry|clear>',
   queueUnavailable: 'Queue controls are not available in this mode.',
   queuePaused: 'Queue paused. Use /queue resume or /queue retry to continue.',
@@ -80,6 +81,8 @@ export const en = {
     'Usage: /auth <list|add|remove|clear|hash|reload> [scope] [tool] [phase] [args=<hash>] [effects=a,b] [deny]',
   authSubcommandHint: (sub: string) => `Authorization ${sub} command`,
   parallelSubcommandHint: (sub: string) => `Parallel ${sub} command`,
+  subagentDescription:
+    'Smallfry (sub-agent) commands are still experimental. Use the agent_dispatch tool or the CLI helpers to spawn a sub-agent from your plan.',
   authScopeHint: (scope: string) => `Use ${scope} allowlist`,
   authPhaseHint: (phase: string) => `Phase ${phase.toUpperCase()}`,
   authToolNameHint: 'Known tool name',

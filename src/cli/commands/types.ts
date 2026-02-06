@@ -23,6 +23,9 @@ export interface Command {
   getSuggestions?: (
     context: CommandContext,
   ) => Promise<{ name: string; description: string }[]> | { name: string; description: string }[];
+  aliases?: string[];
+  hidden?: boolean;
+  order?: number;
 }
 
 export interface QueueStatus {
