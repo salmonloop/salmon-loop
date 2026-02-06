@@ -51,6 +51,7 @@ function parallelSubcommandHint(sub: string) {
 
 export const parallelCommand: Command = {
   name: '/parallel',
+  hidden: true,
   description: text.cli.commandParallel,
   getSuggestions: ({ input }) => {
     const trimmed = input.trimStart();

@@ -11,6 +11,7 @@ import type { ToolRuntimeCtx } from '../../tools/types.js';
 import type { LLM, LoopOptions } from '../../types.js';
 import { ErrorType } from '../../types.js';
 import { ArtifactStore } from '../artifacts/store.js';
+import { SubAgentController } from '../controller.js';
 import { SubAgentRegistry } from '../registry.js';
 import type {
   IExecutable,
@@ -56,6 +57,7 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
     }
 
     this.activeAgents.set(agentId, { profile, status: 'hiring' });
+    SubAgentController.registerAgent(agentId, profile, 'hiring');
 
     logger.info(
       `[SubAgentManager] ${text.smallfry.status.spawning} (ID: ${agentId}, Role: ${profile.role})`,
@@ -70,6 +72,9 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
 
     try {
       this.updateStatus(agentId, 'working');
+      if (SubAgentController.isStopRequested(agentId)) {
+        throw new Error('Stop requested before launching Smallfry');
+      }
 
       const runtimeEnv = await this.setupIsolatedEnvironment(request, llm, agentId);
 
@@ -122,6 +127,7 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
         await runtimeEnv.teardown();
       }
     } catch (error: any) {
+      SubAgentController.appendLog(agentId, `Execution failed: ${error?.message ?? error}`);
       logger.error(`[SubAgentManager] Smallfry ${agentId} crashed: ${error.message}`);
       return {
         agent_ref: profile.id,
@@ -149,6 +155,7 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
     if (entry) {
       entry.status = status;
       logger.debug(`[SubAgentManager] Smallfry ${id} status: ${status}`);
+      SubAgentController.updateStatus(id, status);
     }
   }
 

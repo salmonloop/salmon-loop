@@ -7,6 +7,18 @@ SalmonLoop provides a command-line interface (`s8p`) for automated code patching
 ### Interactive Chat (Default)
 Enter the interactive chat mode to provide instructions and receive patches in real-time.
 
+#### Sub-agent slash command
+While in chat mode you can inspect running Smallfry sub-agents without letting the LLM mutate your main worktree:
+
+- `/smallfry list` lists the registered agents (`id | status | role | summary`).
+- `/smallfry info <agentId>` shows metadata for a specific agent.
+- `/smallfry log <agentId> [tail=<n>]` prints the buffered audit log (max `tail=50`, defaults to 20).
+- `/smallfry stop <agentId>` politely requests cancellation; the `SubAgentController` toggles a flag so the manager can abort the agent safely.
+
+The slug `/smallfry` also accepts `/subagent` and `/sub-agent` aliases; suggestions drop in after you type the verb and begin entering the agent ID. The command relies on `SubAgentController` snapshots updated by `SubAgentManager`, so the list/log output reflects the latest state while the manager keeps each Smallfry in an isolated runtime.
+
+Commands marked `hidden: true` (e.g., `/parallel`) stay executable but do not surface in the Omni-Tray suggestions; the command registry orders slashes by their `order` metadata. `/exit` still honors `/quit` as an alias for convenience.
+
 #### Command Interception
 For security and clarity, SalmonLoop strictly manages inputs starting with `/` in chat mode:
 - **Valid Commands**: Known commands like `/help`, `/exit`, or `/status` are executed immediately.
