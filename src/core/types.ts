@@ -58,6 +58,15 @@ export const Phase = {
  */
 export type ExecutionPhase = (typeof EXECUTION_PHASES)[number];
 
+export const LLM_OUTPUT_KINDS = ['review', 'assistant_message', 'plan', 'patch'] as const;
+export type LlmOutputKind = (typeof LLM_OUTPUT_KINDS)[number];
+
+export interface LlmOutputPolicy {
+  kinds: LlmOutputKind[];
+}
+
+export type ExecutionStep = ExecutionPhase | 'REVIEW' | 'REPORT' | 'ANALYZE_ISSUES';
+
 export enum ErrorType {
   COMPILATION = 'compilation',
   LINT = 'lint',
@@ -204,6 +213,21 @@ export type LoopEvent =
       type: 'authorization.summary';
       summary: AuthorizationSourceSummary;
       stage: 'realtime' | 'final';
+      timestamp: Date;
+    }
+  | {
+      type: 'llm.stream.delta';
+      kind: LlmOutputKind;
+      step: ExecutionStep;
+      streamId: string;
+      content: string;
+      timestamp: Date;
+    }
+  | {
+      type: 'llm.output';
+      kind: LlmOutputKind;
+      step: ExecutionStep;
+      content: string;
       timestamp: Date;
     };
 
@@ -438,10 +462,7 @@ export interface LoopOptions {
   strategy?: CheckpointStrategy;
   applyBackOnDirty?: ApplyBackOnDirty;
   worktreePrepare?: string;
-  /**
-   * Streaming callback for UI surfaces (e.g., CLI) when provider supports chatStream.
-   */
-  onStreamChunk?: (chunk: LLMStreamChunk) => void;
+  llmOutput?: LlmOutputPolicy;
   authorizationProvider?: ToolAuthorizationProvider;
   authorizationMode?: 'blocking' | 'deferred';
   extensions?: ResolvedExtensions;

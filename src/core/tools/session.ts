@@ -1,9 +1,18 @@
 import * as crypto from 'crypto';
 
 import type { ToolCallingAuditSink } from '../llm/audit.js';
+import { emitLlmOutput, emitLlmStreamDelta } from '../llm/output-policy.js';
 import { redactErrorMessage, redactJsonString, redactValue } from '../llm/redact.js';
 import { logger } from '../logger.js';
-import type { ChatOptions, LLM, LLMMessage, LLMStreamChunk } from '../types.js';
+import type {
+  ChatOptions,
+  ExecutionStep,
+  LlmOutputKind,
+  LlmOutputPolicy,
+  LLMMessage,
+  LoopEvent,
+  LLM,
+} from '../types.js';
 import { ExecutionPhase } from '../types.js';
 
 import { toolToOpenAI } from './mapper.js';
@@ -24,16 +33,12 @@ export interface ToolCallingSessionOptions {
     router: { call(envelope: any): Promise<ToolResult>; getSpec?: (name: string) => any };
   };
   toolCallingAudit?: ToolCallingAuditSink;
-  /**
-   * Optional streaming callback for surface-level UI (e.g., CLI).
-   * It is invoked for every streamed chunk before aggregation.
-   */
-  emitStreamChunk?: (chunk: LLMStreamChunk) => void;
-  emit?: (event: {
-    type: 'log';
-    level: 'debug' | 'info' | 'warn' | 'error';
-    message: string;
-  }) => void;
+  emit?: (event: LoopEvent) => void;
+  llmOutput?: {
+    policy?: LlmOutputPolicy;
+    kind: LlmOutputKind;
+    step: ExecutionStep;
+  };
   maxRounds?: number;
 }
 
@@ -114,6 +119,7 @@ export async function chatWithTools(
       type: 'log',
       level: 'debug',
       message: `Tool calling enabled (${openAITools.length} tools available)`,
+      timestamp: new Date(),
     });
   }
 
@@ -139,6 +145,15 @@ export async function chatWithTools(
 
     const toolCalls = assistant.tool_calls || [];
     if (!Array.isArray(toolCalls) || toolCalls.length === 0) {
+      if (session.llmOutput) {
+        emitLlmOutput({
+          emit: session.emit,
+          policy: session.llmOutput.policy,
+          kind: session.llmOutput.kind,
+          step: session.llmOutput.step,
+          content: assistant.content || '',
+        });
+      }
       return assistant;
     }
 
@@ -155,9 +170,19 @@ export async function chatWithTools(
     type: 'log',
     level: 'warn',
     message: `Tool calling exceeded maximum rounds (${maxRounds}); continuing without further tool execution`,
+    timestamp: new Date(),
   });
 
   const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
+  if (session.llmOutput && lastAssistant?.content) {
+    emitLlmOutput({
+      emit: session.emit,
+      policy: session.llmOutput.policy,
+      kind: session.llmOutput.kind,
+      step: session.llmOutput.step,
+      content: lastAssistant.content,
+    });
+  }
   return lastAssistant || { role: 'assistant', content: '' };
 }
 
@@ -182,6 +207,7 @@ async function executeToolCalls(
         type: 'log',
         level: 'debug',
         message: `[tool] start ${item.toolName}`,
+        timestamp: new Date(),
       });
     }
   }
@@ -226,6 +252,7 @@ async function executeToolCalls(
       type: 'log',
       level: 'debug',
       message: `Tool call requested: ${toolName}`,
+      timestamp: new Date(),
     });
 
     const parsed = safeParseJson(rawArgs);
@@ -369,6 +396,7 @@ async function executeToolCalls(
       type: 'log',
       level: result.status === 'ok' ? 'info' : 'warn',
       message: `[tool] done ${toolName || 'unknown'} status=${result.status}`,
+      timestamp: new Date(),
     });
 
     if (result.status !== 'ok') {
@@ -401,7 +429,7 @@ async function executeToolCalls(
  *
  * Notes:
  * - Tool execution is still round-based: tools are executed only after the assistant turn completes.
- * - This function does not emit text deltas by default to avoid leaking user code into logs.
+ * - Text deltas are only emitted when an LLM output policy enables them.
  */
 export async function chatWithToolsStreaming(
   initialMessages: LLMMessage[],
@@ -428,6 +456,7 @@ export async function chatWithToolsStreaming(
       type: 'log',
       level: 'debug',
       message: `Tool calling enabled (${openAITools.length} tools available)`,
+      timestamp: new Date(),
     });
   }
 
@@ -436,6 +465,9 @@ export async function chatWithToolsStreaming(
   for (let round = 0; round < maxRounds; round++) {
     let content = '';
     const toolCalls = new ToolCallAccumulator();
+    const streamId = session.llmOutput
+      ? `llm-${session.llmOutput.kind}-${phase}-${round}-${crypto.randomUUID()}`
+      : '';
 
     const stream = session.llm.chatStream(messages, {
       ...chatOptions,
@@ -444,11 +476,17 @@ export async function chatWithToolsStreaming(
     });
 
     for await (const chunk of stream) {
-      if (chunk) {
-        session.emitStreamChunk?.(chunk);
-      }
-
       if (typeof chunk?.contentDelta === 'string' && chunk.contentDelta) {
+        if (session.llmOutput) {
+          emitLlmStreamDelta({
+            emit: session.emit,
+            policy: session.llmOutput.policy,
+            kind: session.llmOutput.kind,
+            step: session.llmOutput.step,
+            streamId,
+            content: chunk.contentDelta,
+          });
+        }
         content += chunk.contentDelta;
       }
       toolCalls.append(chunk);
@@ -476,6 +514,7 @@ export async function chatWithToolsStreaming(
     type: 'log',
     level: 'warn',
     message: `Tool calling exceeded maximum rounds (${maxRounds}); continuing without further tool execution`,
+    timestamp: new Date(),
   });
 
   const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');

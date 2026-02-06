@@ -2,14 +2,7 @@ import chalk from 'chalk';
 import ProgressBar from 'progress';
 
 import { logger } from '../../core/logger.js';
-import {
-  LoopEvent,
-  LoopResult,
-  EXECUTION_PHASES,
-  Phase,
-  ErrorType,
-  LLMStreamChunk,
-} from '../../core/types.js';
+import { LoopEvent, LoopResult, EXECUTION_PHASES, Phase, ErrorType } from '../../core/types.js';
 import { text } from '../locales/index.js';
 
 import { SalmonReporter } from './base.js';
@@ -76,14 +69,23 @@ export class StandardReporter implements SalmonReporter {
         this.bar?.terminate();
         this.initProgressBar();
         break;
-    }
-  }
-
-  onStreamChunk(chunk: LLMStreamChunk) {
-    if (chunk?.contentDelta) {
-      const delta = chunk.contentDelta;
-      if (delta.trim()) {
-        this.bar?.interrupt(delta);
+      case 'llm.stream.delta': {
+        const delta = event.content;
+        if (delta.trim()) {
+          this.bar?.interrupt(delta);
+        }
+        break;
+      }
+      case 'llm.output': {
+        const header = text.cli.llmOutputHeader(event.kind);
+        if (this.bar) {
+          this.bar.interrupt(header);
+          this.bar.interrupt(event.content);
+        } else {
+          logger.info(header);
+          logger.log(event.content);
+        }
+        break;
       }
     }
   }

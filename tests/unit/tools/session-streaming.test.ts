@@ -8,7 +8,7 @@ import { ToolRouter } from '../../../src/core/tools/router.js';
 import { ToolSanitizer } from '../../../src/core/tools/sanitize.js';
 import { chatWithToolsStreaming } from '../../../src/core/tools/session.js';
 import type { ToolSpec } from '../../../src/core/tools/types.js';
-import { Phase, type LLMMessage } from '../../../src/core/types.js';
+import { Phase, type LLMMessage, type LoopEvent } from '../../../src/core/types.js';
 
 function createToolstack() {
   const registry = new ToolRegistry();
@@ -469,9 +469,9 @@ describe('chatWithToolsStreaming', () => {
     expect(routerSpy).not.toHaveBeenCalled();
   });
 
-  it('emits stream chunks to the optional callback before aggregation', async () => {
+  it('emits stream delta events when output policy allows', async () => {
     const { registry, policy, router } = createToolstack();
-    const emitStreamChunk = vi.fn();
+    const events: LoopEvent[] = [];
 
     const llm: any = {
       chatStream() {
@@ -506,15 +506,19 @@ describe('chatWithToolsStreaming', () => {
           worktreeRoot: '/tmp',
         },
         toolstack: { registry, policy, router },
-        emitStreamChunk,
+        emit: (event) => events.push(event),
+        llmOutput: {
+          policy: { kinds: ['plan'] },
+          kind: 'plan',
+          step: 'PLAN',
+        },
       },
     );
 
     expect(final.content).toBe('hello world');
-    expect(emitStreamChunk).toHaveBeenCalledTimes(3);
-    expect(emitStreamChunk).toHaveBeenCalledWith(
-      expect.objectContaining({ contentDelta: 'hello ' }),
-    );
+    const deltas = events.filter((event) => event.type === 'llm.stream.delta');
+    expect(deltas).toHaveLength(2);
+    expect(deltas[0]).toEqual(expect.objectContaining({ content: 'hello ' }));
   });
 
   it('emits start/done tool logs without leaking arguments', async () => {
@@ -571,7 +575,11 @@ describe('chatWithToolsStreaming', () => {
           worktreeRoot: '/tmp',
         },
         toolstack: { registry, policy, router },
-        emit: (e) => logs.push(e.message),
+        emit: (event) => {
+          if (event.type === 'log') {
+            logs.push(event.message);
+          }
+        },
       },
     );
 

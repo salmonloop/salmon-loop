@@ -1,3 +1,5 @@
+import { LLM_OUTPUT_KINDS } from '../types.js';
+
 import { ConfigError } from './errors.js';
 import type { ConfigFileV1, LlmProviderV1 } from './types.js';
 
@@ -15,6 +17,10 @@ function isNumber(value: unknown): value is number {
 
 function isBoolean(value: unknown): value is boolean {
   return typeof value === 'boolean';
+}
+
+function isValidLlmOutputKind(value: unknown): boolean {
+  return typeof value === 'string' && (LLM_OUTPUT_KINDS as readonly string[]).includes(value);
 }
 
 export function validateConfigFileV1(input: unknown): ConfigFileV1 {
@@ -202,6 +208,32 @@ export function validateConfigFileV1(input: unknown): ConfigFileV1 {
         }
         cfg.llm.routing.taskToModel = r.taskToModel as any;
       }
+    }
+  }
+
+  if (input.output !== undefined) {
+    if (!isRecord(input.output)) {
+      throw new ConfigError('CONFIG_INVALID_OUTPUT', { expected: 'object' });
+    }
+    const output = input.output;
+    cfg.output = {};
+    if (output.llm !== undefined) {
+      if (!isRecord(output.llm)) {
+        throw new ConfigError('CONFIG_INVALID_LLM_OUTPUT', { expected: 'object' });
+      }
+      const llmOutput = output.llm;
+      if (llmOutput.kinds !== undefined) {
+        if (!Array.isArray(llmOutput.kinds) || !llmOutput.kinds.every(isString)) {
+          throw new ConfigError('CONFIG_INVALID_LLM_OUTPUT_KINDS', { expected: 'string_array' });
+        }
+        const invalidKind = llmOutput.kinds.find((kind) => !isValidLlmOutputKind(kind));
+        if (invalidKind) {
+          throw new ConfigError('CONFIG_INVALID_LLM_OUTPUT_KIND', { kind: String(invalidKind) });
+        }
+      }
+      cfg.output.llm = {
+        kinds: llmOutput.kinds as any,
+      };
     }
   }
 

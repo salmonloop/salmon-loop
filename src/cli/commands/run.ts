@@ -14,7 +14,6 @@ import { PluginLoader } from '../../core/plugin/loader.js';
 import {
   VerboseLevel,
   CheckpointStrategy,
-  LLMStreamChunk,
   ApplyBackOnDirty,
   LoopResult,
   type FlowMode,
@@ -26,6 +25,7 @@ import {
 import { text } from '../locales/index.js';
 import { SalmonReporter } from '../reporters/base.js';
 import { StandardReporter } from '../reporters/standard.js';
+import { resolveLlmOutputPolicyFromCli } from '../utils/llm-output.js';
 import { resolveVerifyOption } from '../utils/verify-resolver.js';
 
 export async function handleRunCommand(options: any, command: Command) {
@@ -81,6 +81,20 @@ export async function handleRunCommand(options: any, command: Command) {
     process.stdout.write(JSON.stringify(redacted, null, 2) + '\n');
     return;
   }
+
+  const llmOutputResolution = resolveLlmOutputPolicyFromCli(
+    resolvedConfig.llmOutput,
+    allOptions.llmOutput,
+  );
+  if (!llmOutputResolution.ok) {
+    logger.error(text.cli.invalidLlmOutputKind(llmOutputResolution.invalid), true);
+    process.exitCode = 1;
+    return;
+  }
+  const llmOutput = {
+    ...llmOutputResolution.policy,
+    kinds: [...llmOutputResolution.policy.kinds],
+  };
 
   // Smart verification resolution with auto-detection
   const effectiveVerify = await resolveVerifyOption(
@@ -164,12 +178,11 @@ export async function handleRunCommand(options: any, command: Command) {
 
     reporter.onStart(allOptions.instruction);
 
-    const streamOutputEnabled = Boolean(allOptions.streamOutput);
     const applyBackOnDirty = allOptions.applyBackOnDirty === 'abort' ? 'abort' : '3way';
 
-    const onStreamChunk = streamOutputEnabled
-      ? (chunk: LLMStreamChunk) => reporter.onStreamChunk(chunk)
-      : undefined;
+    if (allOptions.streamOutput && !llmOutput.kinds.includes('plan')) {
+      llmOutput.kinds.push('plan');
+    }
 
     const loopParams = {
       instruction: allOptions.instruction,
@@ -185,7 +198,7 @@ export async function handleRunCommand(options: any, command: Command) {
       strategy: allOptions.checkpointStrategy as CheckpointStrategy,
       applyBackOnDirty,
       worktreePrepare: allOptions.worktreePrepare,
-      onStreamChunk,
+      llmOutput,
       authorizationProvider: createTerminalAuthorizationProvider({
         config: resolvedConfig.toolAuthorization,
       }),

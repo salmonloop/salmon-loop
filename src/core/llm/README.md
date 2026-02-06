@@ -13,4 +13,5 @@ This folder holds the adapters and runtime factories for the LLM providers used 
 - **Retry Mechanism**: Implemented in `retry-utils.ts` with exponential backoff. Both `chat` and `chatStream` now automatically retry on transient failures (timeouts, rate limits, server overloads).
 - **Streaming**: `chatStream` now uses `fullStream` to explicitly handle `error`, `abort`, and `finishReason` events.
 - `chatWithToolsStreaming` (via `core/llm/ai-sdk.ts`) allows the pipeline to surface text deltas and tool execution status in real-time.
-- The CLI exposes `--stream-output` to mirror streamed text deltas. It reports tool execution status (`Start` / `Done`) while ensuring raw payloads are redacted for safety.
+- The CLI exposes `--llm-output` to control which model outputs are shown (`review`, `assistant_message`, `plan`, `patch`). Output is sanitized and truncated before reaching UI/CLI surfaces.
+- `--stream-output` remains as a compatibility flag to enable plan-streaming output when supported by the provider.

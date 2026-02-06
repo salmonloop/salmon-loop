@@ -356,6 +356,16 @@ Please return the patch in PURE unified diff format:`;
           return `Active LLM provider not found: ${details?.provider || '(unknown provider)'}`;
         case 'CONFIG_LLM_DEFAULT_MODEL_REQUIRED':
           return `LLM provider must define models.default: ${details?.provider || '(unknown provider)'}`;
+        case 'CONFIG_INVALID_OUTPUT':
+          return 'Config output section must be a JSON object';
+        case 'CONFIG_INVALID_LLM_OUTPUT':
+          return 'Config output.llm must be a JSON object';
+        case 'CONFIG_INVALID_LLM_OUTPUT_KINDS':
+          return 'Config output.llm.kinds must be an array of strings';
+        case 'CONFIG_INVALID_LLM_OUTPUT_KIND':
+          return `Config output.llm.kinds contains invalid value: ${
+            details?.kind || '(unknown kind)'
+          }`;
         default:
           return `Invalid config (${code}).${detailStr}`;
       }

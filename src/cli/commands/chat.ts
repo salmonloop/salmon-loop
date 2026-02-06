@@ -7,6 +7,7 @@ import { createRuntimeLlm } from '../../core/llm/factory.js';
 import { logger } from '../../core/logger.js';
 import { PluginLoader } from '../../core/plugin/loader.js';
 import { text } from '../locales/index.js';
+import { resolveLlmOutputPolicyFromCli } from '../utils/llm-output.js';
 import { resolveVerifyOption } from '../utils/verify-resolver.js';
 
 export async function handleChatCommand(options: any, command: Command) {
@@ -20,6 +21,17 @@ export async function handleChatCommand(options: any, command: Command) {
     repoRoot: runPath,
     enableConfigFile: true,
   });
+
+  const llmOutputResolution = resolveLlmOutputPolicyFromCli(
+    resolvedConfig.llmOutput,
+    allOptions.llmOutput,
+  );
+  if (!llmOutputResolution.ok) {
+    logger.error(text.cli.invalidLlmOutputKind(llmOutputResolution.invalid), true);
+    process.exitCode = 1;
+    return;
+  }
+  const llmOutput = llmOutputResolution.policy;
 
   const { llm } = createRuntimeLlm(resolvedConfig.llm);
 
@@ -45,6 +57,7 @@ export async function handleChatCommand(options: any, command: Command) {
     checkpointStrategy: allOptions.checkpointStrategy || 'worktree',
     resume: options.resume,
     verbose: options.verbose,
+    llmOutput,
     toolAuthorization: resolvedConfig.toolAuthorization,
   });
 }

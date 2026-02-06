@@ -2,6 +2,7 @@ import { text } from '../../../locales/index.js';
 import { normalizeDiff, validateDiff } from '../../diff.js';
 import { LIMITS } from '../../limits.js';
 import { wrapPatchEmpty, wrapPatchInvalid, wrapPatchNotUnifiedDiff } from '../../llm/errors.js';
+import { emitLlmOutput } from '../../llm/output-policy.js';
 import { extractUnifiedDiffFromLLMContent, formatContextForPrompt } from '../../llm-utils.js';
 import { getPatchPrompt, getPatchSystemPrompt } from '../../prompt.js';
 import { chatWithTools } from '../../tools/session.js';
@@ -22,6 +23,13 @@ export const generatePatch: Step<PlanCtx, PatchCtx> = async (ctx) => {
       ctx.lastError,
       ctx.options.signal,
     );
+    emitLlmOutput({
+      emit: ctx.emit,
+      policy: ctx.options.llmOutput,
+      kind: 'patch',
+      step: 'PATCH',
+      content: patch,
+    });
     const normalizedPatch = normalizeDiff(patch);
     let diffMeta;
     try {
@@ -60,6 +68,11 @@ export const generatePatch: Step<PlanCtx, PatchCtx> = async (ctx) => {
   );
 
   const systemPrompt = await getPatchSystemPrompt(toolstack?.registry);
+  const llmOutput = {
+    policy: ctx.options.llmOutput,
+    kind: 'patch' as const,
+    step: 'PATCH' as const,
+  };
 
   const response = await chatWithTools(
     [
@@ -96,13 +109,8 @@ export const generatePatch: Step<PlanCtx, PatchCtx> = async (ctx) => {
         },
       },
       maxRounds: toolPolicy.maxRounds,
-      emit: (e) =>
-        ctx.emit({
-          type: 'log',
-          level: e.level,
-          message: e.message,
-          timestamp: new Date(),
-        }),
+      llmOutput,
+      emit: (event) => ctx.emit({ ...event, timestamp: event.timestamp ?? new Date() }),
     },
   );
 

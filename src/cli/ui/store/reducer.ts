@@ -27,6 +27,32 @@ export function uiReducer(state: UIState, action: UIAction): UIState {
       return { ...state, inputContent: action.payload };
     case 'ADD_MESSAGE':
       return { ...state, messages: [...state.messages, action.payload] };
+    case 'APPEND_LLM_STREAM': {
+      const { id, delta, timestamp } = action.payload;
+      if (!delta || delta.trim() === '') return state;
+      const existingIndex = state.messages.findIndex((msg) => msg.id === id);
+      if (existingIndex >= 0) {
+        const updated = [...state.messages];
+        const existing = updated[existingIndex];
+        updated[existingIndex] = {
+          ...existing,
+          content: existing.content + delta,
+        };
+        return { ...state, messages: updated };
+      }
+      return {
+        ...state,
+        messages: [
+          ...state.messages,
+          {
+            id,
+            type: 'ai',
+            content: delta,
+            timestamp,
+          },
+        ],
+      };
+    }
     case 'ADD_QUEUE_MESSAGE':
       return { ...state, queueMessages: [...state.queueMessages, action.payload] };
     case 'SHIFT_QUEUE_MESSAGE':

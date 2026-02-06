@@ -1,4 +1,5 @@
 import { text } from '../../../locales/index.js';
+import { emitLlmOutput } from '../../llm/output-policy.js';
 import type { LLM } from '../../types.js';
 import type { ContextCtx, ReviewCtx } from '../types.js';
 
@@ -27,6 +28,14 @@ export async function generateReview(ctx: ContextCtx): Promise<ReviewCtx> {
   if (!response?.content) {
     throw new Error(text.llm.reviewEmpty);
   }
+
+  emitLlmOutput({
+    emit: ctx.emit,
+    policy: ctx.options.llmOutput,
+    kind: 'review',
+    step: 'REVIEW',
+    content: response.content,
+  });
 
   ctx.emit({
     type: 'log',

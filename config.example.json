@@ -7,6 +7,11 @@
       "dryRun": true
     }
   },
+  "output": {
+    "llm": {
+      "kinds": ["review", "assistant_message"]
+    }
+  },
   "verify": {
     "command": "node -e \"process.exit(0)\"",
     "timeoutMs": 600000

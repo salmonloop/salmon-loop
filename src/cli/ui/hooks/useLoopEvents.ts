@@ -1,7 +1,7 @@
 import { useEffect, useCallback } from 'react';
 
 import { useUIStore } from '../store/context.js';
-import { prepareMessagePayload } from '../utils/sanitizer.js';
+import { prepareMessagePayload, sanitizeMessage } from '../utils/sanitizer.js';
 
 /**
  * Hook to manage loop events and state synchronization.
@@ -27,6 +27,23 @@ export function useLoopEvents(mode: 'run' | 'chat', onStart: any, signal: AbortS
       onStart(
         (event: any) => {
           // Route all events through sanitizer to ensure state safety
+          if (event.type === 'llm.stream.delta') {
+            const delta = sanitizeMessage({ content: event.content });
+            if (!delta.trim()) return;
+            dispatch({
+              type: 'APPEND_LLM_STREAM',
+              payload: {
+                id: event.streamId,
+                delta,
+                timestamp: event.timestamp || new Date(),
+              },
+            });
+            return;
+          }
+          if (event.type === 'llm.output') {
+            sanitizeAndDispatch({ type: 'ai', content: event.content, timestamp: event.timestamp });
+            return;
+          }
           if (event.type === 'log') {
             sanitizeAndDispatch({ content: event.message, type: 'system' });
           } else if (event.content || event.message) {

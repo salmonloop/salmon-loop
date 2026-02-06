@@ -46,6 +46,7 @@ export interface UIState {
 export type UIAction =
   | { type: 'SET_INPUT'; payload: string }
   | { type: 'ADD_MESSAGE'; payload: Message }
+  | { type: 'APPEND_LLM_STREAM'; payload: { id: string; delta: string; timestamp: Date } }
   | { type: 'ADD_QUEUE_MESSAGE'; payload: QueueMessage }
   | { type: 'SHIFT_QUEUE_MESSAGE' }
   | { type: 'REMOVE_QUEUE_MESSAGE'; payload: { id: string } }

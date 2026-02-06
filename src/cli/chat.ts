@@ -2,7 +2,7 @@ import type { ToolAuthorizationConfig } from '../core/config/index.js';
 import { logger } from '../core/logger.js';
 import { runSalmonLoop } from '../core/loop.js';
 import { ChatSessionManager } from '../core/session/manager.js';
-import type { CheckpointStrategy, LLM, LoopEvent } from '../core/types.js';
+import type { CheckpointStrategy, LLM, LoopEvent, LlmOutputPolicy } from '../core/types.js';
 
 import { createUiAuthorizationProvider } from './authorization/provider.js';
 import { CommandDispatcher } from './commands/dispatcher.js';
@@ -19,6 +19,7 @@ export interface ChatModeOptions {
   checkpointStrategy?: CheckpointStrategy;
   resume?: boolean;
   verbose?: boolean;
+  llmOutput?: LlmOutputPolicy;
   toolAuthorization?: ToolAuthorizationConfig;
 }
 
@@ -177,6 +178,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
           verbose: options.verbose ? 'basic' : undefined,
           onEvent: latestEmit,
           signal: latestGuiOptions?.signal,
+          llmOutput: options.llmOutput,
           authorizationProvider,
           authorizationMode: 'deferred',
         }),

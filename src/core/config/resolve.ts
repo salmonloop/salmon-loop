@@ -1,4 +1,5 @@
 import { resolveBaseUrl } from '../llm/base-url.js';
+import { resolveLlmOutputPolicy } from '../llm/output-policy.js';
 
 import { ConfigError } from './errors.js';
 import { tryLoadConfigFile } from './load.js';
@@ -173,6 +174,7 @@ export async function resolveConfig(opts: ResolveConfigOptions): Promise<Resolve
       timeoutMs: raw?.verify?.timeoutMs,
     },
     llm: resolveLlmFromConfig(raw),
+    llmOutput: resolveLlmOutputPolicy(raw?.output?.llm),
     toolAuthorization: resolveToolAuthorization(raw),
   };
 }

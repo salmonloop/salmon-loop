@@ -165,6 +165,8 @@ export const en = {
   applyBackOnDirtyOption: 'Behavior when apply-back detects a dirty workspace (3way, abort)',
   worktreePrepareOption: 'Optional setup command to run inside worktree',
   streamOutputOption: 'Stream LLM responses to the CLI as they arrive (best effort)',
+  llmOutputOption:
+    'LLM output visibility (none, all, review, assistant_message, plan, patch; comma-separated)',
   contextDiffScopeOption: 'Diff scope for context (primary, ast_related)',
   contextBudgetCharsOption: 'Context budget in characters (e.g., 30000)',
   modeOption: 'Flow mode to run (patch, review, debug)',
@@ -175,6 +177,8 @@ export const en = {
   verifyRequired: '--verify is required',
   invalidMode: (mode: string) =>
     `Invalid --mode "${mode}". Expected "patch", "review", or "debug".`,
+  invalidLlmOutputKind: (kind?: string) =>
+    `Invalid --llm-output value${kind ? `: "${kind}"` : ''}. Expected "none", "all", or a comma-separated list of: review, assistant_message, plan, patch.`,
   contextInvalidDiffScope: (scope: string) =>
     `Invalid --diff-scope "${scope}". Expected "primary" or "ast_related".`,
   contextInvalidBudgetChars: (value: string) => `Invalid --budget-chars "${value}".`,
@@ -220,6 +224,7 @@ export const en = {
   auditPath: (path: string) => `  Audit log: ${path}`,
   verifyOutputArtifact: (handle: string) =>
     `  Verification output saved as ${handle} (use artifact.read to inspect)`,
+  llmOutputHeader: (kind: string) => `LLM output (${kind}):`,
   authorizationSummary: (summary: string) => `  Authorization sources: ${summary}`,
   authorizationSummaryRealtime: (summary: string) =>
     `  Authorization sources (current): ${summary}`,

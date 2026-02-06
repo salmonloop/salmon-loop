@@ -2,4 +2,9 @@ export { ConfigError } from './errors.js';
 export { getDefaultRepoConfigPath } from './paths.js';
 export { redactConfigForPrint } from './redact.js';
 export { resolveConfig } from './resolve.js';
-export type { ConfigFileV1, ResolvedConfig, ToolAuthorizationConfig } from './types.js';
+export type {
+  ConfigFileV1,
+  LlmOutputConfig,
+  ResolvedConfig,
+  ToolAuthorizationConfig,
+} from './types.js';

@@ -1,5 +1,6 @@
 import { text } from '../../../locales/index.js';
 import { LIMITS } from '../../limits.js';
+import { emitLlmOutput } from '../../llm/output-policy.js';
 import { formatContextForPrompt, parsePlanFromLLMContent } from '../../llm-utils.js';
 import { getPlanPrompt, getPlanSystemPrompt } from '../../prompt.js';
 import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
@@ -20,6 +21,14 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
       ctx.lastError,
       ctx.options.signal,
     );
+
+    emitLlmOutput({
+      emit: ctx.emit,
+      policy: ctx.options.llmOutput,
+      kind: 'plan',
+      step: 'PLAN',
+      content: JSON.stringify(plan, null, 2),
+    });
 
     ctx.emit({
       type: 'log',
@@ -44,6 +53,11 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
   const systemPrompt = await getPlanSystemPrompt(toolstack?.registry);
 
   const supportsStreaming = typeof (ctx.options.llm as any)?.chatStream === 'function';
+  const llmOutput = {
+    policy: ctx.options.llmOutput,
+    kind: 'plan' as const,
+    step: 'PLAN' as const,
+  };
 
   const response = await (supportsStreaming ? chatWithToolsStreaming : chatWithTools)(
     [
@@ -81,14 +95,8 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
         },
       },
       maxRounds: toolPolicy.maxRounds,
-      emitStreamChunk: ctx.options.onStreamChunk,
-      emit: (e) =>
-        ctx.emit({
-          type: 'log',
-          level: e.level,
-          message: e.message,
-          timestamp: new Date(),
-        }),
+      llmOutput,
+      emit: (event) => ctx.emit({ ...event, timestamp: event.timestamp ?? new Date() }),
     },
   );
 

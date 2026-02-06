@@ -1,3 +1,5 @@
+import type { LlmOutputKind, LlmOutputPolicy } from '../types.js';
+
 export type ConfigVersion = 1;
 
 export type Verbosity = 'quiet' | 'basic' | 'verbose' | 'extended';
@@ -21,6 +23,10 @@ export interface ConfigFileV1 {
     };
   };
 
+  output?: {
+    llm?: LlmOutputConfig;
+  };
+
   verify?: {
     command?: string;
     timeoutMs?: number;
@@ -36,6 +42,10 @@ export interface ConfigFileV1 {
   };
 
   toolAuthorization?: ToolAuthorizationConfig;
+}
+
+export interface LlmOutputConfig {
+  kinds?: LlmOutputKind[];
 }
 
 export interface LlmProviderV1 {
@@ -94,6 +104,7 @@ export interface ResolvedConfig {
     timeoutMs?: number;
   };
   llm: ResolvedLlmProvider;
+  llmOutput: LlmOutputPolicy;
   toolAuthorization: ToolAuthorizationConfig;
 }
 

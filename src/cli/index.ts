@@ -31,7 +31,8 @@ program
   .option('-r, --repo <path>', text.cli.repoOption, process.cwd())
   .option('-v, --verify <command>', text.cli.verifyOption)
   .option('--no-verify', 'Disable verification')
-  .option('-cs, --checkpoint-strategy <type>', text.cli.checkpointStrategyOption, 'worktree');
+  .option('-cs, --checkpoint-strategy <type>', text.cli.checkpointStrategyOption, 'worktree')
+  .option('--llm-output <kinds>', text.cli.llmOutputOption);
 
 // --- Main Command: Run ---
 program
