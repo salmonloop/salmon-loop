@@ -8,6 +8,7 @@ import { codeSearchExecutor } from './code-search/executor.js';
 import { CodeSearchSpec } from './code-search/spec.js';
 import { fsReadFileSpec, executeFsReadFile } from './fs.js';
 import { gitCatSpec, executeGitCat, gitStatusSpec, executeGitStatus } from './git.js';
+import { proposalApplySpec, executeProposalApply } from './proposal.js';
 import { verifyRunSpec, executeVerifyRun } from './verify.js';
 
 /**
@@ -19,6 +20,10 @@ export function registerAllBuiltins(registry: ToolRegistry): void {
   registry.register({
     ...artifactReadSpec,
     executor: executeArtifactRead as any,
+  });
+  registry.register({
+    ...proposalApplySpec,
+    executor: executeProposalApply as any,
   });
   // Register unified code.search with its specific executor
   registry.register({

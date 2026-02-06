@@ -445,6 +445,7 @@ Please return the patch in PURE unified diff format:`;
     codeAstDescription: 'Query AST definitions and references for symbols',
     testRunDescription: 'Run verification command (test/lint/build) and classify errors',
     artifactReadDescription: 'Read salmonloop (s8p) artifacts by handle',
+    proposalApplyDescription: 'Apply a patch proposal artifact into the current shadow worktree',
 
     // Execution logs
     executing: (name: string) => `Executing tool: ${name}...`,
