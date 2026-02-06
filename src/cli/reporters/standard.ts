@@ -133,6 +133,8 @@ export class StandardReporter implements SalmonReporter {
       logger.warn(`  ${event.message}`);
     } else if (event.level === 'trace') {
       logger.trace(`  ${event.message}`);
+    } else if (event.level === 'info') {
+      logger.info(`  ${event.message}`);
     } else {
       logger.debug(`  ${event.message}`);
     }

@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 
-import { FileAdapter } from './adapters/fs/file-adapter.js';
+import { FileAdapter } from './adapters/fs/index.js';
 import type { AuditTrailMeta } from './audit-trail.js';
 import { recordAuditEvent } from './audit-trail.js';
 import { VerboseLevel } from './types.js';

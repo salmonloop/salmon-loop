@@ -62,7 +62,7 @@ export const AutocompleteInput: React.FC<Props> = ({
   // Calculate ghost text for non-intrusive suggestions
   const getGhostText = () => {
     if (selectedIndex === -1 || suggestions.length === 0 || isListClosed) return '';
-    const selected = suggestions[selectedIndex].name;
+    const selected = suggestions[selectedIndex].name.trimEnd();
     const parts = value.split(/\s+/);
     const lastToken = parts[parts.length - 1];
 
@@ -74,12 +74,13 @@ export const AutocompleteInput: React.FC<Props> = ({
 
   const getCompletedValue = (selectedName: string) => {
     const parts = value.split(/\s+/);
+    const trimmedName = selectedName.trimEnd();
     if (value.endsWith(' ')) {
-      return value + selectedName + ' ';
+      return value + trimmedName + ' ';
     }
     parts.pop();
     const prefix = parts.join(' ');
-    return (prefix ? prefix + ' ' : '') + selectedName + ' ';
+    return (prefix ? prefix + ' ' : '') + trimmedName + ' ';
   };
 
   const applySelection = (
@@ -156,6 +157,14 @@ export const AutocompleteInput: React.FC<Props> = ({
   });
 
   const visibleSuggestions = suggestions.slice(startIndex, startIndex + UI_CONFIG.MAX_SUGGESTIONS);
+  const maxSuggestionNameLength = suggestions.reduce((max, suggestion) => {
+    const trimmed = suggestion.name.trimEnd();
+    return Math.max(max, trimmed.length);
+  }, 0);
+  const formatSuggestionName = (name: string) => {
+    const trimmed = name.trimEnd();
+    return trimmed.padEnd(maxSuggestionNameLength + 2);
+  };
   const ghostText = getGhostText();
 
   return (
@@ -262,7 +271,7 @@ export const AutocompleteInput: React.FC<Props> = ({
             const actualIndex = startIndex + index;
             return (
               <Text key={cmd.name} color={actualIndex === selectedIndex ? 'green' : 'gray'}>
-                {cmd.name} - {cmd.description}
+                {formatSuggestionName(cmd.name)}- {cmd.description}
               </Text>
             );
           })}

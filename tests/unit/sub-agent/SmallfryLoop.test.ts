@@ -39,6 +39,13 @@ describe('SmallfryLoop', () => {
     mockInitCtx = {
       workspace: { workPath: '/tmp/repo' },
       options: { instruction: 'test' },
+      mode: 'patch',
+      fs: {
+        readFile: vi.fn(),
+        writeFile: vi.fn(),
+        exists: vi.fn(),
+        mkdir: vi.fn(),
+      },
       emit: vi.fn(),
       fileStateResolver: {} as any,
       shadowInitialRef: 'HEAD',

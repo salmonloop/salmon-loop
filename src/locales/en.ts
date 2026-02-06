@@ -6,6 +6,7 @@ export const en = {
       `Failed to parse LLM response as JSON: ${content}. Error: ${error}`,
     patchEmpty: (reason?: string) =>
       `LLM returned empty response for patch${reason ? ` (${reason})` : ''}`,
+    reviewEmpty: 'LLM returned empty response for review',
     deprecatedOpenaiAdapter:
       'The legacy OpenAILLM adapter is deprecated and is not usable in this build. Please use AiSdkLLM.',
   },
@@ -513,6 +514,22 @@ Please return the patch in PURE unified diff format:`;
       aborted: 'Operation aborted by strategy',
       mergeFailed: (err: string) => `Merge execution failed: ${err}`,
       unexpectedException: (err: string) => `Unexpected execution exception: ${err}`,
+      readOnlyFileSystem: (operation: string) =>
+        `Read-only filesystem: ${operation} is not permitted in review mode.`,
+      flowStrategyAlreadyRegistered: (mode: string) =>
+        `Flow strategy "${mode}" is already registered.`,
+      unknownFlowMode: (mode: string, available: string) =>
+        `Unknown flow mode "${mode}". Available: ${available}.`,
+    },
+    review: {
+      generated: 'Review generated.',
+      header: 'Review suggestions:',
+      empty: 'No review suggestions available.',
+      suggestionItem: (index: number, type: string, content: string) =>
+        `Suggestion ${index} (${type}): ${content}`,
+      suggestionRaw: (content: string) => `Review output: ${content}`,
+      issuesExtracted: (count: number) => `Identified ${count} issue(s) from review.`,
+      fixPlanGenerated: 'Generated fix plan based on review feedback.',
     },
   },
 

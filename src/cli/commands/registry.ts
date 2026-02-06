@@ -74,7 +74,7 @@ export async function getSuggestions(
   );
   const maxNameLength = matches.reduce((max, cmdItem) => Math.max(max, cmdItem.name.length), 0);
   return matches.map((c) => ({
-    name: `${c.name}`.padEnd(maxNameLength + 2),
+    name: c.name.padEnd(maxNameLength + 2),
     description: c.description,
   }));
 }

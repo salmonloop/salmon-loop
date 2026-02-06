@@ -1,6 +1,6 @@
 import { setAuditContext } from '../audit-trail.js';
 import { logger } from '../logger.js';
-import { EXECUTION_PHASES, type ExecutionPhase, type LoopEvent } from '../types.js';
+import { EXECUTION_PHASES, type ExecutionPhase, type LoopEvent, type FlowMode } from '../types.js';
 
 /**
  * Pipeline Step Definition
@@ -28,6 +28,8 @@ export interface FlowReport<T = any> {
   duration: number;
   data?: T;
   traces: Span[];
+  strategyName?: string;
+  fsMode?: FlowMode;
   auditPath?: string;
 }
 
@@ -232,5 +234,12 @@ export class Pipeline<CurrentCtx> {
    */
   async getPromise(): Promise<CurrentCtx> {
     return this.promise;
+  }
+
+  /**
+   * Cast the pipeline to a new context type (advanced usage).
+   */
+  cast<NewCtx>(): Pipeline<NewCtx> {
+    return this as unknown as Pipeline<NewCtx>;
   }
 }

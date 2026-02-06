@@ -4,6 +4,14 @@ import type { ToolAuthorizationProvider } from './tools/authorization/types.js';
 
 export type VerboseLevel = 'basic' | 'extended';
 export type ApplyBackOnDirty = 'abort' | '3way';
+export type FlowMode = 'patch' | 'review' | 'debug';
+
+export interface FileSystem {
+  readFile(path: string, encoding?: string): Promise<string>;
+  writeFile(path: string, content: string): Promise<void>;
+  exists(path: string): Promise<boolean>;
+  mkdir(path: string, options?: { recursive?: boolean }): Promise<void>;
+}
 
 /**
  * Single Source of Truth (SSOT) for Execution Phases.
@@ -100,6 +108,8 @@ export interface LoopResult {
   auditPath?: string;
   verifyArtifact?: ArtifactHandle;
   authorizationSummary?: AuthorizationSourceSummary;
+  strategyName?: string;
+  fsMode?: FlowMode;
 }
 
 export interface LoopIteration {
@@ -414,6 +424,7 @@ export interface LoopOptions {
   repoPath: string;
   signal?: AbortSignal; // Allow task interruption via AbortSignal
   llm: LLM;
+  mode?: FlowMode;
   dryRun?: boolean;
   forceReset?: boolean;
   onEvent?: (event: LoopEvent) => void;

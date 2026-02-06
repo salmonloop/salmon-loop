@@ -3,6 +3,8 @@ import 'dotenv/config';
 
 import { Command } from 'commander';
 
+import { initializeFlowStrategies } from '../core/grizzco/flows/registry.js';
+
 import { handleChatCommand } from './commands/chat.js';
 import { handleContextCommand } from './commands/context.js';
 import { handleRestoreCommand } from './commands/restore.js';
@@ -20,6 +22,7 @@ import {
 import { text } from './locales/index.js';
 
 const program = new Command();
+initializeFlowStrategies();
 
 program.name('s8p').alias('salmonloop').description(text.cli.programDescription).version('0.2.0');
 
@@ -45,6 +48,7 @@ program
   .option('--force-reset', text.cli.forceResetOption)
   .option('--validate', text.cli.validateOption)
   .option('--target-node <name>', text.cli.targetNodeOption)
+  .option('--mode <mode>', text.cli.modeOption, 'patch')
   .option('--apply-back-on-dirty <mode>', text.cli.applyBackOnDirtyOption, '3way')
   .option('--worktree-prepare <command>', text.cli.worktreePrepareOption)
   .option('--stream-output', text.cli.streamOutputOption)

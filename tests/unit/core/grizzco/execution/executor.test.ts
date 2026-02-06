@@ -3,7 +3,7 @@ import { WorkerFactory } from '../../../../../src/core/grizzco/execution/WorkerF
 import { createMockContext } from '../mocks.js';
 
 // Mock dependencies
-vi.mock('../../../../../src/core/adapters/fs/atomic-file-writer.js', () => ({
+vi.mock('../../../../../src/core/adapters/fs/index.js', () => ({
   AtomicFileWriter: class {
     writeAtomic = vi.fn();
   },

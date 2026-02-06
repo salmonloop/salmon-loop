@@ -1,6 +1,38 @@
-# Execution Contract
+# Execution Contract - DSL V3.1 (Bifrost Extended)
 
-SalmonLoop follows a strict execution contract to ensure safety and determinism.
+**Version**: 3.1.0  
+**Date**: 2026-02-06  
+**Status**: Adopted
+
+SalmonLoop follows a strict execution contract to ensure safety, determinism, and user data protection.
+Version 3.1 introduces multi-mode workflows via a strategy pattern while preserving the existing safety
+guarantees of the patch pipeline.
+
+## Flow Strategy Architecture (V3.1)
+
+SalmonLoop no longer hardcodes a single linear pipeline. Instead, it uses a `FlowStrategy` abstraction
+to assemble mode-specific pipelines on top of a shared base (PREFLIGHT + CONTEXT).
+
+- **FlowStrategy**: Defines the steps for a specific flow mode.
+- **FlowStrategyRegistry**: Registers and retrieves strategies at runtime.
+- **Initialization**: Strategies are registered once at startup (see `initializeFlowStrategies()`).
+
+## Standard Flow Modes
+
+- **Patch**: Full modification cycle (PLAN → PATCH → VALIDATE → AST_VALIDATE → APPLY → VERIFY → ROLLBACK → SHRINK).
+- **Review**: Analysis-only workflow (REVIEW → REPORT → SHRINK). No filesystem mutation.
+- **Debug**: Combined workflow (REVIEW → ANALYZE_ISSUES → PLAN → PATCH → VALIDATE → AST_VALIDATE → APPLY → VERIFY → ROLLBACK → SHRINK).
+
+## ReadOnlyFileSystem Enforcement
+
+Review mode routes filesystem access through a `ReadOnlyFileSystem` adapter. Any attempt to write
+(e.g., `writeFile`, `mkdirSync`) raises a permission error, providing a defense-in-depth guarantee
+even if a tool call or step tries to mutate the workspace.
+
+## Auditability Enhancements
+
+`FlowReport` now records `strategyName` and `fsMode`, making it explicit which strategy executed and
+whether the filesystem was in read-only or read/write mode.
 
 ## Bootstrap (Phase 0)
 

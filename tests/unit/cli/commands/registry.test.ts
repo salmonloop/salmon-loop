@@ -52,12 +52,12 @@ describe('CLI Command Registry: Strict Logic Guard', () => {
     describe('Level 0: Command Suggestions', () => {
       it('should suggest commands based on prefix', async () => {
         const matches = await getSuggestions('/se', { ...mockContext, input: '/se' });
-        expect(matches.map((m: any) => m.name)).toContain('/session');
+        expect(matches.map((m: any) => m.name.trimEnd())).toContain('/session');
       });
 
       it('should suggest commands case-insensitively', async () => {
         const matches = await getSuggestions('/S', { ...mockContext, input: '/S' });
-        const names = matches.map((m: any) => m.name);
+        const names = matches.map((m: any) => m.name.trimEnd());
         expect(names).toContain('/session');
         expect(names).toContain('/status');
       });

@@ -2,6 +2,7 @@ import { randomBytes } from 'crypto';
 
 import { text } from '../locales/index.js';
 
+import { createFileSystemAdapter } from './adapters/fs/index.js';
 import { GitAdapter } from './adapters/git/git-adapter.js';
 import { clearAuditContext, clearAuditTrail, setAuditContext } from './audit-trail.js';
 import { Semaphore } from './concurrency.js';
@@ -15,6 +16,7 @@ import {
   ExecutionPhase,
   Phase,
   ErrorType,
+  FlowMode,
   type LoopEvent,
   type LoopIteration,
   type LoopOptions,
@@ -93,6 +95,8 @@ export class SalmonLoop {
     const now = () => new Date();
     const logs: StepLog[] = [];
     const history: LoopIteration[] = [];
+    const flowMode: FlowMode = options.mode ?? 'patch';
+    const fsAdapter = createFileSystemAdapter(flowMode);
 
     const wrappedEmit = (event: LoopEvent) => {
       emit(event);
@@ -124,6 +128,8 @@ export class SalmonLoop {
         failurePhase: Phase.PREFLIGHT,
         errorType: ErrorType.UNKNOWN,
         errorCode,
+        strategyName: flowMode,
+        fsMode: flowMode,
       };
     }
 
@@ -179,6 +185,8 @@ export class SalmonLoop {
             logs,
             history,
             errorType: ErrorType.UNKNOWN,
+            strategyName: flowMode,
+            fsMode: flowMode,
           };
         }
 
@@ -188,6 +196,8 @@ export class SalmonLoop {
         const result = await executeSalmonLoopFlow({
           workspace: env.workspace!,
           options: options,
+          mode: flowMode,
+          fs: fsAdapter,
           emit: loopEmit,
           fileStateResolver: resolver,
           // 🛡️ HANDOVER: Pass the physical snapshot hash to the logical flow layer
@@ -227,14 +237,15 @@ export class SalmonLoop {
         if (result.success) {
           // Success means Pipeline finished (Verify passed)
           // Double check verify result just in case
-          const verifyOk = ctx?.verifyResult?.ok !== false;
+          const verifyOk = flowMode === 'review' ? true : ctx?.verifyResult?.ok !== false;
 
           if (verifyOk) {
-            if (options.dryRun) {
+            const skipApplyBack = options.dryRun || flowMode === 'review';
+            if (skipApplyBack) {
               return {
                 success: true,
                 reason: text.loop.operationCompleted,
-                reasonCode: 'DRY_RUN',
+                reasonCode: options.dryRun ? 'DRY_RUN' : 'SUCCESS',
                 attempts: attempt,
                 logs,
                 history,
@@ -243,6 +254,8 @@ export class SalmonLoop {
                 auditPath: result.auditPath,
                 verifyArtifact,
                 authorizationSummary: authorizationSummary || undefined,
+                strategyName: result.strategyName ?? flowMode,
+                fsMode: result.fsMode ?? flowMode,
               };
             }
 
@@ -285,6 +298,8 @@ export class SalmonLoop {
                   failurePhase: Phase.VERIFY,
                   errorType: ErrorType.UNKNOWN,
                   authorizationSummary: authorizationSummary || undefined,
+                  strategyName: result.strategyName ?? flowMode,
+                  fsMode: result.fsMode ?? flowMode,
                 };
               }
             }
@@ -301,6 +316,8 @@ export class SalmonLoop {
               auditPath: result.auditPath,
               verifyArtifact,
               authorizationSummary: authorizationSummary || undefined,
+              strategyName: result.strategyName ?? flowMode,
+              fsMode: result.fsMode ?? flowMode,
             };
           }
         }
@@ -327,6 +344,8 @@ export class SalmonLoop {
             auditPath: result.auditPath,
             verifyArtifact,
             authorizationSummary: authorizationSummary || undefined,
+            strategyName: result.strategyName ?? flowMode,
+            fsMode: result.fsMode ?? flowMode,
           };
         }
       }
@@ -341,6 +360,8 @@ export class SalmonLoop {
         errorType: ErrorType.UNKNOWN,
         verifyArtifact,
         authorizationSummary: authorizationSummary || undefined,
+        strategyName: flowMode,
+        fsMode: flowMode,
       };
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
@@ -357,6 +378,8 @@ export class SalmonLoop {
         errorType: ErrorType.UNKNOWN,
         errorCode,
         authorizationSummary: authorizationSummary || undefined,
+        strategyName: flowMode,
+        fsMode: flowMode,
       };
     } finally {
       clearAuditContext();

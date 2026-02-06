@@ -167,11 +167,14 @@ export const en = {
   streamOutputOption: 'Stream LLM responses to the CLI as they arrive (best effort)',
   contextDiffScopeOption: 'Diff scope for context (primary, ast_related)',
   contextBudgetCharsOption: 'Context budget in characters (e.g., 30000)',
+  modeOption: 'Flow mode to run (patch, review, debug)',
 
   // Error messages
   fileSelectionConflict: '--file and --selection are mutually exclusive',
   instructionRequired: '--instruction is required',
   verifyRequired: '--verify is required',
+  invalidMode: (mode: string) =>
+    `Invalid --mode "${mode}". Expected "patch", "review", or "debug".`,
   contextInvalidDiffScope: (scope: string) =>
     `Invalid --diff-scope "${scope}". Expected "primary" or "ast_related".`,
   contextInvalidBudgetChars: (value: string) => `Invalid --budget-chars "${value}".`,

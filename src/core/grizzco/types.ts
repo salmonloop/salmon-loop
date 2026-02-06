@@ -1,5 +1,6 @@
 import { FileStateResolver } from '../strata/layers/file-state-resolver.js';
 import type { ArtifactHandle } from '../sub-agent/artifacts/types.js';
+import type { FileSystem, FlowMode } from '../types.js';
 import type { VerifyResult } from '../verify.js';
 
 /**
@@ -8,6 +9,8 @@ import type { VerifyResult } from '../verify.js';
 export interface InitCtx {
   workspace: any; // Will be typed properly later
   options: any; // Will be typed properly later
+  mode: FlowMode;
+  fs: FileSystem;
   emit: (event: any) => void;
   fileStateResolver: FileStateResolver;
   attempt?: number;
@@ -37,6 +40,15 @@ export interface PreflightCtx extends InitCtx {
  */
 export interface ContextCtx extends PreflightCtx {
   context: any; // ContextBuilder result
+}
+
+export interface ReviewSummary {
+  suggestions: unknown;
+  timestamp: number;
+}
+
+export interface ReviewCtx extends ContextCtx {
+  review: ReviewSummary;
 }
 
 /**

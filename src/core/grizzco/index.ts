@@ -3,7 +3,7 @@ export * from './flows/SalmonLoopFlow.js';
 
 // Adapters (Infrastructure Layer)
 export * from '../adapters/git/git-adapter.js';
-export * from '../adapters/fs/atomic-file-writer.js';
+export * from '../adapters/fs/index.js';
 
 // Shared Capabilities (Internal Library)
 export * from '../strata/layers/file-state-resolver.js';

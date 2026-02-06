@@ -2,6 +2,7 @@ import { createHash, randomBytes } from 'crypto';
 import * as fs from 'fs/promises';
 
 import { text } from '../../../locales/index.js';
+import { createFileSystemAdapter } from '../../adapters/fs/index.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { InitCtx } from '../../grizzco/types.js';
 import { logger } from '../../logger.js';
@@ -85,6 +86,8 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
 
         const git = new GitAdapter(activePath);
         const resolver = new FileStateResolver(git, activePath);
+        const flowMode = 'patch' as const;
+        const fsAdapter = createFileSystemAdapter(flowMode);
 
         // 2. Construct InitCtx for the smallfry
         const initCtx: InitCtx = {
@@ -103,6 +106,8 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
             allowedTools: this.filterAllowedTools(profile.allowedTools),
             timeoutMs: request.timeout_seconds ? request.timeout_seconds * 1000 : profile.timeoutMs,
           },
+          mode: flowMode,
+          fs: fsAdapter,
           emit: (event) => {
             // Bridge status to parent/UI
             if (event.type === 'phase.start') {

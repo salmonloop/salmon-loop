@@ -1,7 +1,7 @@
 import * as path from 'path';
 
 import { text } from '../../../locales/index.js';
-import { AtomicFileWriter } from '../../adapters/fs/atomic-file-writer.js';
+import { AtomicFileWriter } from '../../adapters/fs/index.js';
 import { logger } from '../../logger.js';
 import { DslContext, ExecutionPlan } from '../dsl/DecisionEngine.js';
 

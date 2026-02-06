@@ -17,6 +17,7 @@ import {
   LLMStreamChunk,
   ApplyBackOnDirty,
   LoopResult,
+  type FlowMode,
 } from '../../core/types.js';
 import {
   createTerminalAuthorizationProvider,
@@ -97,6 +98,13 @@ export async function handleRunCommand(options: any, command: Command) {
     return;
   }
 
+  const rawMode = String(allOptions.mode || 'patch');
+  if (rawMode !== 'patch' && rawMode !== 'review' && rawMode !== 'debug') {
+    logger.error(text.cli.invalidMode(rawMode), true);
+    process.exit(1);
+  }
+  const mode = rawMode as FlowMode;
+
   let extensionResolution: ExtensionResolution | undefined;
   try {
     extensionResolution = await resolveExtensions({ repoRoot: runPath });
@@ -168,6 +176,7 @@ export async function handleRunCommand(options: any, command: Command) {
       verify: effectiveVerify,
       repoPath: runPath,
       llm: llm,
+      mode,
       dryRun: allOptions.dryRun,
       forceReset: allOptions.forceReset,
       file: allOptions.file,
