@@ -204,7 +204,8 @@ export const en = {
   attempts: (attempts: number) => `  Attempts: ${attempts}`,
   errorCode: (code: string) => `  Error code: ${code}`,
   auditPath: (path: string) => `  Audit log: ${path}`,
-  verifyOutputArtifact: (handle: string) => `  Verification output: ${handle}`,
+  verifyOutputArtifact: (handle: string) =>
+    `  Verification output saved as ${handle} (use artifact.read to inspect)`,
   authorizationSummary: (summary: string) => `  Authorization sources: ${summary}`,
   authorizationSummaryRealtime: (summary: string) =>
     `  Authorization sources (current): ${summary}`,

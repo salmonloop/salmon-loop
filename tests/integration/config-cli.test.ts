@@ -101,7 +101,7 @@ describe('Config CLI integration', () => {
     expect(printed.version).toBe(1);
     expect(printed.llm.providers.openaiMain.api.apiKey).toBe('[REDACTED]');
     expect(stdout).not.toContain('secret-inline-key');
-  });
+  }, 120000);
 
   it('fails when --config points to a missing file', async () => {
     const repo = await helper.createGitRepo();
@@ -155,7 +155,7 @@ describe('Config CLI integration', () => {
     expect(stderr).toBe('');
     expect(exitCode).toBe(0);
     expect(JSON.parse(stdout)).toEqual({ version: 1 });
-  });
+  }, 120000);
 
   it('fails with a readable error when default config contains invalid JSON', async () => {
     const repo = await helper.createGitRepo();

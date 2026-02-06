@@ -36,6 +36,7 @@ async function sha256Text(content: string): Promise<string> {
 
 export class ArtifactStore {
   private static lastGcAtMs = 0;
+  private static gcTimer: NodeJS.Timeout | null = null;
 
   static async saveText(params: {
     content: string;
@@ -161,4 +162,14 @@ export class ArtifactStore {
       // Best-effort only; never fail the caller.
     }
   }
+
+  static ensureGcLoop(): void {
+    if (this.gcTimer) return;
+    this.gcTimer = setInterval(() => {
+      this.gc().catch(() => undefined);
+    }, LIMITS.artifactGcIntervalMs);
+    this.gcTimer.unref();
+  }
 }
+
+ArtifactStore.ensureGcLoop();
