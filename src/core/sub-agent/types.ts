@@ -2,6 +2,8 @@ import { z } from 'zod';
 
 import { LoopResult } from '../types.js';
 
+import type { ArtifactHandle } from './artifacts/types.js';
+
 /**
  * The standard execution protocol as per AGENTS.md
  */
@@ -63,23 +65,13 @@ export interface SubAgentResult extends LoopResult {
    * - `handle` is a stable identifier (s8p namespace) for future protocol bridging.
    * - Read content via `artifact.read` to avoid repo writes.
    */
-  patchArtifact?: {
-    handle: string;
-    mimeType: string;
-    sha256: string;
-    size: number;
-  };
+  patchArtifact?: ArtifactHandle;
 
   /**
    * Optional audit artifact for replay. For backward compatibility, `auditPath` may contain the
    * artifact handle when available.
    */
-  auditArtifact?: {
-    handle: string;
-    mimeType: string;
-    sha256: string;
-    size: number;
-  };
+  auditArtifact?: ArtifactHandle;
 }
 
 /**

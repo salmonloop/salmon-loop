@@ -1,5 +1,6 @@
 import { text } from '../../../locales/index.js';
 import { ArtifactStore } from '../../sub-agent/artifacts/store.js';
+import type { ArtifactHandle } from '../../sub-agent/artifacts/types.js';
 import { runVerify as runVerifyCommand } from '../../verify.js';
 import { Step } from '../pipeline.js';
 import { ApplyCtx, VerifyCtx } from '../types.js';
@@ -8,12 +9,12 @@ export const runVerify: Step<ApplyCtx, VerifyCtx> = async (ctx) => {
   if (!ctx.options.verify) {
     return {
       ...ctx,
-      verifyResult: { ok: true, output: text.loop.verificationSkipped },
+      verifyResult: { ok: true, output: text.loop.verificationSkipped, exitCode: null },
     };
   }
 
   const verifyResult = await runVerifyCommand(ctx.workspace.workPath, ctx.options.verify);
-  let verifyArtifact: any | undefined;
+  let verifyArtifact: ArtifactHandle | undefined;
 
   if (!verifyResult.ok) {
     ctx.emit({

@@ -113,6 +113,7 @@ function sanitizeContext(ctx: any): any {
   }
 
   if (ctx.verifyResult) safe.verifyResult = ctx.verifyResult;
+  if ((ctx as any).verifyArtifact) safe.verifyArtifact = (ctx as any).verifyArtifact;
 
   if ((ctx as any).toolCallingAudit && Array.isArray((ctx as any).toolCallingAudit)) {
     safe.toolCallingAudit = (ctx as any).toolCallingAudit;

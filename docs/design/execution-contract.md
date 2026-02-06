@@ -29,6 +29,8 @@ Safety guarantees:
 
 Note: apply-back (shadow -> main) is described separately in `docs/design/applyback.md`.
 
+**Definition (Read-only):** In SalmonLoop, "read-only" means **no mutation of the user's main workspace working tree or index**. Read-only phases **MAY** write to internal runtime storage (e.g., OS temp artifacts, audit logs) as long as those writes do not affect the user's repository state.
+
 ## Safety Rules
 
 ### 1. Dirty Workspace Strategy (Zero Index Access)

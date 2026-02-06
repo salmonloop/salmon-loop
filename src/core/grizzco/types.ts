@@ -1,4 +1,6 @@
 import { FileStateResolver } from '../strata/layers/file-state-resolver.js';
+import type { ArtifactHandle } from '../sub-agent/artifacts/types.js';
+import type { VerifyResult } from '../verify.js';
 
 /**
  * Stage 0: Initial Context
@@ -85,7 +87,8 @@ export interface ApplyCtx extends AstValidateCtx {
  * Stage 7: After Verification
  */
 export interface VerifyCtx extends ApplyCtx {
-  verifyResult: any;
+  verifyResult: VerifyResult;
+  verifyArtifact?: ArtifactHandle;
 }
 
 /**

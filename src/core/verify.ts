@@ -153,11 +153,7 @@ export async function runVerify(
   repoPath: string,
   verifyCommand: string,
   env?: Record<string, string>,
-): Promise<{
-  ok: boolean;
-  output: string;
-  exitCode: number | null;
-}> {
+): Promise<VerifyResult> {
   const result = await runCommand(repoPath, verifyCommand, LIMITS.verifyTimeoutMs, env);
   if (!result.ok && result.output.includes('Command timed out')) {
     result.output = result.output.replace('Command timed out', text.verify.commandTimeout);
@@ -169,6 +165,12 @@ export async function runVerify(
     );
   }
   return result;
+}
+
+export interface VerifyResult {
+  ok: boolean;
+  output: string;
+  exitCode: number | null;
 }
 
 /**

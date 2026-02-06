@@ -35,6 +35,13 @@ export const LIMITS = {
   defaultToolTimeoutMs: 30000,
   maxToolOutputBytes: 1048576,
 
+  // Artifact storage (OS temp)
+  artifactTtlMs: Number(process.env.SALMONLOOP_ARTIFACT_TTL_MS) || 7 * 24 * 60 * 60 * 1000, // 7d
+  artifactMaxFiles: Number(process.env.SALMONLOOP_ARTIFACT_MAX_FILES) || 2000,
+  artifactMaxTotalBytes:
+    Number(process.env.SALMONLOOP_ARTIFACT_MAX_TOTAL_BYTES) || 200 * 1024 * 1024, // 200MB
+  artifactGcIntervalMs: Number(process.env.SALMONLOOP_ARTIFACT_GC_INTERVAL_MS) || 60 * 1000, // 60s
+
   // Heuristics & Size Limits
   largeFileThresholdBytes: 10240,
   binaryCheckBufferSize: 8192,

@@ -52,6 +52,8 @@ export const proposalApplySpec: Omit<ToolSpec, 'executor'> = {
     appliedFiles: z.number(),
     totalFiles: z.number(),
   }),
+  // ToolPolicy forbids tool execution in APPLY. Keep this in VERIFY to allow
+  // challenge-response authorization without violating the execution contract.
   allowedPhases: [Phase.VERIFY],
   summarizeArgsForAuthorization: async (args, _ctx) => {
     const handle = (args as any)?.handle as string | undefined;

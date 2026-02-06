@@ -1,3 +1,4 @@
+import type { ArtifactHandle } from './sub-agent/artifacts/types.js';
 import type { ToolAuthorizationProvider } from './tools/authorization/types.js';
 
 export type VerboseLevel = 'basic' | 'extended';
@@ -96,12 +97,7 @@ export interface LoopResult {
   errorType?: ErrorType;
   errorCode?: string;
   auditPath?: string;
-  verifyArtifact?: {
-    handle: string;
-    mimeType: string;
-    sha256: string;
-    size: number;
-  };
+  verifyArtifact?: ArtifactHandle;
   authorizationSummary?: AuthorizationSourceSummary;
 }
 

@@ -10,6 +10,7 @@ import { LIMITS } from './limits.js';
 import { FileStateResolver } from './strata/layers/file-state-resolver.js';
 import { RuntimeEnvironment } from './strata/runtime/environment.js';
 import { WorkspaceSynchronizer } from './strata/runtime/synchronizer.js';
+import type { ArtifactHandle } from './sub-agent/artifacts/types.js';
 import {
   ExecutionPhase,
   Phase,
@@ -219,6 +220,8 @@ export class SalmonLoop {
           // Success means Pipeline finished (Verify passed)
           // Double check verify result just in case
           const verifyOk = ctx?.verifyResult?.ok !== false;
+          const verifyArtifact = (ctx as { verifyArtifact?: ArtifactHandle } | undefined)
+            ?.verifyArtifact;
 
           if (verifyOk) {
             if (options.dryRun) {
@@ -232,7 +235,7 @@ export class SalmonLoop {
                 finalPatch: ctx?.diff || undefined,
                 changedFiles: ctx?.changedFiles || [],
                 auditPath: result.auditPath,
-                verifyArtifact: (ctx as any)?.verifyArtifact,
+                verifyArtifact,
                 authorizationSummary: authorizationSummary || undefined,
               };
             }
@@ -290,7 +293,7 @@ export class SalmonLoop {
               finalPatch: currentDiff || undefined,
               changedFiles: changedFilesThisAttempt,
               auditPath: result.auditPath,
-              verifyArtifact: (ctx as any)?.verifyArtifact,
+              verifyArtifact,
               authorizationSummary: authorizationSummary || undefined,
             };
           }
@@ -316,7 +319,8 @@ export class SalmonLoop {
             errorType: ErrorType.UNKNOWN,
             errorCode,
             auditPath: result.auditPath,
-            verifyArtifact: (ctx as any)?.verifyArtifact,
+            verifyArtifact: (ctx as { verifyArtifact?: ArtifactHandle } | undefined)
+              ?.verifyArtifact,
             authorizationSummary: authorizationSummary || undefined,
           };
         }
