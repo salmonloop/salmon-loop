@@ -1,4 +1,5 @@
 import { text } from '../../../locales/index.js';
+import { ArtifactStore } from '../../sub-agent/artifacts/store.js';
 import { runVerify as runVerifyCommand } from '../../verify.js';
 import { Step } from '../pipeline.js';
 import { ApplyCtx, VerifyCtx } from '../types.js';
@@ -12,6 +13,7 @@ export const runVerify: Step<ApplyCtx, VerifyCtx> = async (ctx) => {
   }
 
   const verifyResult = await runVerifyCommand(ctx.workspace.workPath, ctx.options.verify);
+  let verifyArtifact: any | undefined;
 
   if (!verifyResult.ok) {
     ctx.emit({
@@ -21,12 +23,21 @@ export const runVerify: Step<ApplyCtx, VerifyCtx> = async (ctx) => {
       timestamp: new Date(),
     });
     if (verifyResult.output) {
-      ctx.emit({
-        type: 'log',
-        level: 'debug',
-        message: verifyResult.output,
-        timestamp: new Date(),
-      });
+      try {
+        verifyArtifact = await ArtifactStore.saveText({
+          content: verifyResult.output,
+          mimeType: 'text/plain',
+          fileExt: 'log',
+        });
+        ctx.emit({
+          type: 'log',
+          level: 'debug',
+          message: text.loop.verificationOutputStored(verifyArtifact.handle),
+          timestamp: new Date(),
+        });
+      } catch {
+        // Best-effort only; keep verifyResult.output in-memory for shrink/error classification.
+      }
     }
     // We don't throw here, because we want to trigger rollback/shrink in the pipeline
     // But wait, the Pipeline abstraction propagates errors immediately.
@@ -49,5 +60,6 @@ export const runVerify: Step<ApplyCtx, VerifyCtx> = async (ctx) => {
   return {
     ...ctx,
     verifyResult,
+    ...(verifyArtifact ? { verifyArtifact } : {}),
   };
 };

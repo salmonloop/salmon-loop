@@ -160,6 +160,8 @@ Please return the patch in PURE unified diff format:`;
     verificationFailedSummary: 'Verification failed',
     verificationPassed: 'Verification passed successfully',
     verificationSkipped: 'Skipped',
+    verificationOutputStored: (handle: string) =>
+      `Verification output saved as artifact: ${handle}`,
     success: 'Successfully completed',
     maxRetriesExceeded: (maxRetries: number, lastError?: string) =>
       `Exceeded maximum retries (${maxRetries}), last error: ${lastError}`,

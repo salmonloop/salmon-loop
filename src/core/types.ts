@@ -96,6 +96,12 @@ export interface LoopResult {
   errorType?: ErrorType;
   errorCode?: string;
   auditPath?: string;
+  verifyArtifact?: {
+    handle: string;
+    mimeType: string;
+    sha256: string;
+    size: number;
+  };
   authorizationSummary?: AuthorizationSourceSummary;
 }
 

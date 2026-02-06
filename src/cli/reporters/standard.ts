@@ -157,6 +157,9 @@ export class StandardReporter implements SalmonReporter {
     if (result.auditPath) {
       logger.log(text.cli.auditPath(result.auditPath));
     }
+    if (result.verifyArtifact?.handle) {
+      logger.log(text.cli.verifyOutputArtifact(result.verifyArtifact.handle));
+    }
 
     // Provide suggestions based on failure
     if (result.failurePhase === Phase.PREFLIGHT) {

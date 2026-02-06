@@ -232,6 +232,7 @@ export class SalmonLoop {
                 finalPatch: ctx?.diff || undefined,
                 changedFiles: ctx?.changedFiles || [],
                 auditPath: result.auditPath,
+                verifyArtifact: (ctx as any)?.verifyArtifact,
                 authorizationSummary: authorizationSummary || undefined,
               };
             }
@@ -289,6 +290,7 @@ export class SalmonLoop {
               finalPatch: currentDiff || undefined,
               changedFiles: changedFilesThisAttempt,
               auditPath: result.auditPath,
+              verifyArtifact: (ctx as any)?.verifyArtifact,
               authorizationSummary: authorizationSummary || undefined,
             };
           }
@@ -314,6 +316,7 @@ export class SalmonLoop {
             errorType: ErrorType.UNKNOWN,
             errorCode,
             auditPath: result.auditPath,
+            verifyArtifact: (ctx as any)?.verifyArtifact,
             authorizationSummary: authorizationSummary || undefined,
           };
         }
