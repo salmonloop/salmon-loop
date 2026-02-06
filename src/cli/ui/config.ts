@@ -16,6 +16,12 @@ export const UI_CONFIG = {
   STRUCTURED_CONTENT_LIMIT: 10000,
 
   /**
+   * Character limit for AI/user conversational content.
+   * This avoids truncating normal model replies that are not markdown code blocks.
+   */
+  CONVERSATION_CONTENT_LIMIT: 10000,
+
+  /**
    * Throttle delay (ms) for terminal resize events.
    * Reducing this value makes the UI more responsive to resizing,
    * while increasing it reduces rendering overhead.

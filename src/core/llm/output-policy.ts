@@ -8,6 +8,8 @@ import {
 } from '../types.js';
 
 const SECRET_LINE_PATTERN = /(api[-_]?key|authorization|token|secret|password|cookie)/i;
+const TOKEN_LIKE_PATTERN = /[A-Za-z0-9_\-/+=]{16,}/;
+const STREAM_SANITIZATION_STATE = new Map<string, { raw: string; emittedLength: number }>();
 
 export const DEFAULT_LLM_OUTPUT_POLICY: LlmOutputPolicy = {
   kinds: ['review', 'assistant_message', 'plan'],
@@ -45,16 +47,7 @@ export function sanitizeLlmOutput(content: string): string {
   let output = String(content ?? '');
   if (!output) return '';
 
-  const redacted = output
-    .split('\n')
-    .map((line) => {
-      if (!SECRET_LINE_PATTERN.test(line)) return line;
-      return line.replace(/[:=].*$/, (match) => {
-        const separator = match.startsWith('=') ? '=' : ':';
-        return `${separator} [REDACTED]`;
-      });
-    })
-    .join('\n');
+  const redacted = output.split('\n').map(redactPotentialSecretLine).join('\n');
 
   output = redacted.split('\u0000').join('');
 
@@ -63,6 +56,40 @@ export function sanitizeLlmOutput(content: string): string {
   }
 
   return output;
+}
+
+function redactPotentialSecretLine(line: string): string {
+  if (!SECRET_LINE_PATTERN.test(line)) return line;
+  const assignment = line.match(/^(.*?)([:=]\s*)(.+)$/);
+  if (assignment) {
+    return `${assignment[1]}${assignment[2]}[REDACTED]`;
+  }
+  if (TOKEN_LIKE_PATTERN.test(line)) {
+    return '[REDACTED]';
+  }
+  return line;
+}
+
+function sanitizeLlmStreamDelta(streamId: string, delta: string): string {
+  if (!delta) return '';
+  if (STREAM_SANITIZATION_STATE.size > 256 && !STREAM_SANITIZATION_STATE.has(streamId)) {
+    STREAM_SANITIZATION_STATE.clear();
+  }
+
+  const state = STREAM_SANITIZATION_STATE.get(streamId) ?? { raw: '', emittedLength: 0 };
+  state.raw = (state.raw + delta).split('\u0000').join('');
+
+  // Keep bounded memory while preserving enough history for cross-chunk redaction.
+  if (state.raw.length > LIMITS.maxLogLength * 4) {
+    state.raw = state.raw.slice(-LIMITS.maxLogLength * 2);
+    state.emittedLength = 0;
+  }
+
+  const sanitized = sanitizeLlmOutput(state.raw);
+  const next = sanitized.slice(state.emittedLength);
+  state.emittedLength = sanitized.length;
+  STREAM_SANITIZATION_STATE.set(streamId, state);
+  return next;
 }
 
 export function emitLlmOutput(params: {
@@ -97,7 +124,7 @@ export function emitLlmStreamDelta(params: {
   const { emit, policy, kind, step, streamId, content } = params;
   if (!emit) return;
   if (!shouldEmitLlmOutput(policy, kind)) return;
-  const sanitized = sanitizeLlmOutput(content);
+  const sanitized = sanitizeLlmStreamDelta(streamId, content);
   if (!sanitized.trim()) return;
   emit({
     type: 'llm.stream.delta',

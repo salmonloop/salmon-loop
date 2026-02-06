@@ -44,7 +44,12 @@ export function sanitizeMessage(ev: UIEvent): string {
 
   // 2. Strict length limit for UI stability
   const hasStructure = safeMessage.includes('```') || safeMessage.includes('`');
-  const limit = hasStructure ? UI_CONFIG.STRUCTURED_CONTENT_LIMIT : UI_CONFIG.LOG_CHAR_LIMIT;
+  const isConversation = ev.type === 'ai' || ev.type === 'user';
+  const limit = isConversation
+    ? UI_CONFIG.CONVERSATION_CONTENT_LIMIT
+    : hasStructure
+      ? UI_CONFIG.STRUCTURED_CONTENT_LIMIT
+      : UI_CONFIG.LOG_CHAR_LIMIT;
 
   if (safeMessage.length > limit) {
     safeMessage = safeMessage.substring(0, limit - 3) + '...';

@@ -111,7 +111,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
 
   const isInterruptError = (error: unknown) => {
     if (!(error instanceof Error)) return false;
-    return /aborted|cancelled|canceled|interrupted/i.test(error.message);
+    return /aborted|cancelled|canceled|interrupted|timed out|timeout/i.test(error.message);
   };
 
   const isInterruptResult = (reason: string | undefined) => {
@@ -162,6 +162,8 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
       started = true;
       latestDispatch?.({ type: 'SHIFT_QUEUE_MESSAGE' });
       currentInstruction = trimmed;
+      const timeoutAbort = new AbortController();
+      const mergedSignal = mergeAbortSignals([latestGuiOptions?.signal, timeoutAbort.signal]);
 
       // Add user message
       sessionManager.addMessage({
@@ -179,13 +181,16 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
           strategy: options.checkpointStrategy || 'worktree',
           verbose: options.verbose ? 'basic' : undefined,
           onEvent: latestEmit,
-          signal: latestGuiOptions?.signal,
+          signal: mergedSignal.signal,
           llmOutput: currentLlmOutputPolicy,
           authorizationProvider,
           authorizationMode: 'deferred',
         }),
         CHAT_QUEUE_CONFIG.TASK_TIMEOUT_MS,
-      );
+        () => timeoutAbort.abort(),
+      ).finally(() => {
+        mergedSignal.cleanup();
+      });
 
       if (!result.success && isInterruptResult(result.reason)) {
         markInterrupted(trimmed);
@@ -262,6 +267,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
       if (!lastInterruptedInput) return false;
       const retryInput = lastInterruptedInput;
       lastInterruptedInput = null;
+      queue.resume();
       enqueueInput(retryInput, { front: true });
       return true;
     },
@@ -277,10 +283,45 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
     },
   };
 
-  const withTimeout = async <T>(promise: Promise<T>, timeoutMs?: number) => {
+  const mergeAbortSignals = (signals: Array<AbortSignal | undefined>) => {
+    const controller = new AbortController();
+    const listeners: Array<{ signal: AbortSignal; handler: () => void }> = [];
+
+    const abort = () => {
+      if (!controller.signal.aborted) {
+        controller.abort();
+      }
+    };
+
+    for (const signal of signals) {
+      if (!signal) continue;
+      if (signal.aborted) {
+        abort();
+        break;
+      }
+      const handler = () => abort();
+      signal.addEventListener('abort', handler, { once: true });
+      listeners.push({ signal, handler });
+    }
+
+    const cleanup = () => {
+      for (const { signal, handler } of listeners) {
+        signal.removeEventListener('abort', handler);
+      }
+    };
+
+    return { signal: controller.signal, cleanup };
+  };
+
+  const withTimeout = async <T>(
+    promise: Promise<T>,
+    timeoutMs?: number,
+    onTimeout?: () => void,
+  ) => {
     if (!timeoutMs) return promise;
     return new Promise<T>((resolve, reject) => {
       const timer = setTimeout(() => {
+        onTimeout?.();
         reject(new Error('Chat task timed out'));
       }, timeoutMs);
       promise
