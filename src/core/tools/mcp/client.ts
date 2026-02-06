@@ -28,6 +28,7 @@ export class McpClient {
 
     this.process = spawn(this.config.command, this.config.args || [], {
       env: { ...process.env, ...(this.config.env as any) },
+      cwd: this.config.cwd,
       stdio: ['pipe', 'pipe', 'inherit'],
     });
 

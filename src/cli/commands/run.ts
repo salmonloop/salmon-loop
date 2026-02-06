@@ -5,6 +5,8 @@ import chalk from 'chalk';
 import { Command } from 'commander';
 
 import { redactConfigForPrint, resolveConfig, ConfigError } from '../../core/config/index.js';
+import { resolveExtensions, ExtensionConfigError } from '../../core/extensions/index.js';
+import type { ExtensionResolution } from '../../core/extensions/index.js';
 import { createRuntimeLlm } from '../../core/llm/factory.js';
 import { logger } from '../../core/logger.js';
 import { runSalmonLoop } from '../../core/loop.js';
@@ -95,6 +97,18 @@ export async function handleRunCommand(options: any, command: Command) {
     return;
   }
 
+  let extensionResolution: ExtensionResolution | undefined;
+  try {
+    extensionResolution = await resolveExtensions({ repoRoot: runPath });
+  } catch (err: any) {
+    if (err instanceof ExtensionConfigError) {
+      logger.error(`Extension configuration invalid: ${err.message}`, true);
+      process.exitCode = 1;
+      return;
+    }
+    throw err;
+  }
+
   // Verification is now optional - warn if not found
   if (!effectiveVerify) {
     logger.warn(text.verify.noCommandFound);
@@ -166,6 +180,7 @@ export async function handleRunCommand(options: any, command: Command) {
       authorizationProvider: createTerminalAuthorizationProvider({
         config: resolvedConfig.toolAuthorization,
       }),
+      extensions: extensionResolution?.resolved,
     };
 
     let result: LoopResult;

@@ -1,21 +1,12 @@
-# Tools (Internal)
+# Tool loading guide
 
-This directory contains the tool-calling subsystem:
-- Tool specifications (ToolSpec)
-- Policy gating (what tools are allowed in which phase)
-- Budget/concurrency guards
-- Audit logging
-- Provider mapping (e.g., OpenAI tools format)
+The `src/core/tools` subtree contains the components that register and execute tools within the SalmonLoop runtime.
 
-## Why This Exists
+Key points for internal contributors:
 
-Tool execution is a high-risk side-effect surface. SalmonLoop routes all tool calls through a single gate
-to enforce security constraints and auditing.
+- `loader.ts` now accepts an optional `extensions?: ResolvedExtensions` payload (see `src/core/extensions`). It boots the skill loader, then wires in `registerMcpTools` and `registerPluginTools` so the tool registry sees the same extensions that were resolved by the CLI and preflight steps.
+- `mcp/loader.ts` lives under `src/core/tools/mcp`. Its job is to start each enabled MCP server, run `tools/list`, and register safe tool specs such as `mcp.<server>.<tool>`. Each tool is restricted to the `VERIFY` phase, tagged with `process`/`network` side effects, and namespaced for audit logging; `allow.tools` is required to avoid accidental exposure.
+- `plugins/loader.ts` lives under `src/core/tools/plugins`. It imports configured plugin modules, calls their `register()` hook, validates the returned `ToolSpec[]`, and renames every tool to `plugin.<pluginId>.<toolName>` to keep names stable for authorization history. Side effects and allowed phases are enforced before registration.
+- `skillToToolSpec` pulls skill metadata from `src/core/skills`. `SkillLoader` now receives explicit discovery paths and repo root so it works in worktree/resolved contexts.
 
-See `docs/design/tool-governance.md` for the public contract.
-
-## Streaming & Shared Helpers
-
-- `chatWithToolsStreaming.ts` (used by `grizzco/steps/plan.ts`) now consumes `LLM.chatStream`, aggregates `contentDelta` chunks into a single assistant message, collects native `tool_calls`, and then delegates to the shared executor below. This keeps PLAN read-only while surfacing streaming events.
-- `chatWithTools` and the streaming version share `executeToolCalls`, which encapsulates audit logging, policy decisions, JSON parsing, and tool result serialization. The helper ensures both code paths remain aligned even as new tool-calling edge cases are introduced.
-- `ToolCallAccumulator` now exposes `append`/`drain`/`hasAccumulated` so consumers can safely accumulate `tool_calls` from any chunk-oriented stream (text deltas, tool-call events, etc.) before handing them to the shared executor.
+If you extend or refactor tool registration, update this README so future maintainers can quickly understand how MCPs, plugins, and skills join the registry.

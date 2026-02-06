@@ -38,6 +38,7 @@ export const runPreflight: Step<InitCtx, PreflightCtx> = async (ctx) => {
           : undefined,
         authorizationProvider: ctx.options.authorizationProvider,
         authorizationMode: ctx.options.authorizationMode,
+        extensions: ctx.options.extensions,
         onAuthorizationSummary: (summary) => {
           ctx.emit({
             type: 'authorization.summary',

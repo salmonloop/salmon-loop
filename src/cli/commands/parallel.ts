@@ -1,3 +1,4 @@
+import { resolveExtensions } from '../../core/extensions/index.js';
 import { CheckpointManager } from '../../core/strata/checkpoint/manager.js';
 import { WorkspaceManager } from '../../core/strata/layers/worktree.js';
 import { createStandardToolstack } from '../../core/tools/loader.js';
@@ -209,6 +210,20 @@ export const parallelCommand: Command = {
           config: toolAuthorization,
         });
 
+        let extensionResolution;
+        try {
+          extensionResolution = await resolveExtensions({ repoRoot: workspace.baseRepoPath });
+        } catch (error: any) {
+          const message = error instanceof Error ? error.message : String(error);
+          emit({
+            type: 'log',
+            level: 'error',
+            message: `Failed to resolve extensions: ${message}`,
+            timestamp: new Date(),
+          });
+          return;
+        }
+
         const toolstack = await createStandardToolstack({
           repoRoot: workspace.workPath,
           persistenceRoot: workspace.baseRepoPath,
@@ -217,6 +232,7 @@ export const parallelCommand: Command = {
           dryRun: false,
           authorizationProvider,
           authorizationMode: 'deferred',
+          extensions: extensionResolution.resolved,
         });
 
         const scheduler = new ParallelScheduler(toolstack.router as any, new InMemoryLockManager());

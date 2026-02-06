@@ -1,3 +1,4 @@
+import type { ResolvedExtensions } from './extensions/types.js';
 import type { ArtifactHandle } from './sub-agent/artifacts/types.js';
 import type { ToolAuthorizationProvider } from './tools/authorization/types.js';
 
@@ -432,6 +433,7 @@ export interface LoopOptions {
   onStreamChunk?: (chunk: LLMStreamChunk) => void;
   authorizationProvider?: ToolAuthorizationProvider;
   authorizationMode?: 'blocking' | 'deferred';
+  extensions?: ResolvedExtensions;
 }
 
 export interface ExecutionWorkspace {

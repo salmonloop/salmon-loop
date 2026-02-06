@@ -98,3 +98,7 @@ Notes:
 - `SALMONLOOP_API_KEY` / `S8P_API_KEY`: API key fallback if not present in config.
 - `SALMONLOOP_BASE_URL` / `S8P_BASE_URL` / `SALMON_BASE_URL`: Base URL fallback if not present in config. Prefer `SALMONLOOP_BASE_URL` and omit the trailing slash (e.g., `https://openrouter.ai/api/v1`); the runtime trims extra slashes and keeps legacy env names for compatibility.
 - `SALMONLOOP_MODEL` / `S8P_MODEL` / `SALMON_MODEL`: Model choice (SALMONLOOP_MODEL preferred).
+
+## Extending with external tools
+
+For guidance on configuring MCP servers, tool plugins, and skill directories, see [Extension configuration](extensions.md). That doc walks through the new `.salmonloop/config/*.json` files, scopes, and the effective `extensions` payload that SalmonLoop resolves before each run.

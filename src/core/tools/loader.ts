@@ -1,3 +1,4 @@
+import type { ResolvedExtensions } from '../extensions/types.js';
 import { skillToToolSpec } from '../skills/bridge.js';
 import { SkillLoader } from '../skills/loader.js';
 import type { AuthorizationSourceSummary, ExecutionPhase } from '../types.js';
@@ -7,6 +8,8 @@ import type { ToolAuthorizationProvider } from './authorization/types.js';
 import { BudgetGuard, BudgetConfig } from './budget.js';
 import { registerAllBuiltins } from './builtin/index.js';
 import { ToolDispatcher } from './dispatcher.js';
+import { registerMcpTools } from './mcp/loader.js';
+import { registerPluginTools } from './plugins/loader.js';
 import { ToolPolicy } from './policy.js';
 import { ToolRegistry } from './registry.js';
 import { ToolRouter } from './router.js';
@@ -37,6 +40,7 @@ export interface ToolstackOptions {
       ttlMs?: number;
     },
   ) => void;
+  extensions?: ResolvedExtensions;
 }
 
 /**
@@ -57,7 +61,12 @@ export async function createStandardToolstack(options: ToolstackOptions) {
   registerAllBuiltins(registry);
 
   // 3. Load and register Skills as tools
-  const skillLoader = new SkillLoader();
+  const extensions = options.extensions;
+  const skillLoader = new SkillLoader({
+    repoRoot: options.repoRoot,
+    useDefaults: extensions?.skillDiscovery.useDefaults,
+    extraPaths: extensions?.skillDiscovery.paths,
+  });
   const skills = await skillLoader.initialize();
   for (const skill of skills) {
     registry.register(skillToToolSpec(skill));
@@ -71,6 +80,11 @@ export async function createStandardToolstack(options: ToolstackOptions) {
       if (spec) filtered.register(spec);
     }
     registry = filtered;
+  }
+
+  if (extensions) {
+    await registerMcpTools(registry, extensions.mcpServers);
+    await registerPluginTools(registry, extensions.toolPlugins);
   }
 
   // 4. Create Router (The execution pipeline)
