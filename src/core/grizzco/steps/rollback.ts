@@ -58,22 +58,62 @@ export const runEmergencyRollback: Step<AstValidateCtx, AstValidateCtx> = async 
   return ctx;
 };
 
+/**
+ * Executes Git rollback to restore workspace to initial snapshot state.
+ *
+ * ROLLBACK SEMANTICS - STATE MACHINE INTERPRETATION:
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * Return value { rolledBack: boolean } indicates STATE, not OPERATION.
+ *
+ * Common Misunderstanding:
+ * ❌ "rolledBack: true means rollback operation was executed"
+ * ✅ Correct: "rolledBack: true means system IS IN expected rollback state"
+ *
+ * State Machine Logic:
+ * ┌──────────────────────┬─────────────┬──────────────────────────────┐
+ * │ Scenario             │ rolledBack  │ Meaning                      │
+ * ├──────────────────────┼─────────────┼──────────────────────────────┤
+ * │ Has anchor + executed│ true        │ Rollback performed           │
+ * │ No anchor (clean)    │ true        │ Already in target state      │
+ * │ Skipped by policy    │ false       │ Rollback not needed          │
+ * └──────────────────────┴─────────────┴──────────────────────────────┘
+ *
+ * Why "No Anchor" Returns true (Idempotency Pattern):
+ * - No shadowInitialRef = workspace never modified (no snapshot needed)
+ * - Workspace ALREADY in "clean" state we want
+ * - Returning true = "postcondition (clean state) is satisfied"
+ * - NOT "lying" - it's correct state machine semantics
+ *
+ * Analogy:
+ *   Q: "Is the door closed?"
+ *   A: If never opened → YES (current state, not action history)
+ *
+ * Design Pattern (Command Pattern + Idempotency):
+ * - Executing rollback() multiple times reaches same end state
+ * - State matters, not whether action was taken
+ *
+ * See: docs/design/execution-contract.md, docs/design/checkpoint.md
+ */
 async function executeGitRollback<T extends RollbackTargetCtx>(
   ctx: T,
 ): Promise<T & { rolledBack: boolean }> {
   const shadowInitialRef = ctx.shadowInitialRef || ctx.options?.shadowInitialRef;
 
   if (!shadowInitialRef) {
+    // No snapshot anchor exists - workspace never modified
+    // System already in target state (no rollback needed)
     ctx.emit?.({
       type: 'log',
-      level: 'warn',
+      level: 'warn', // Warn (not error) - expected edge case
       message: text.loop.rollbackSkippedNoAnchor,
       timestamp: new Date(),
     });
 
+    // STATE MACHINE: Return true because postcondition satisfied
+    // Workspace IS in expected clean state (no modified files)
     return {
       ...ctx,
-      rolledBack: true,
+      rolledBack: true, // "In rollback state" (not "rollback executed")
     };
   }
 

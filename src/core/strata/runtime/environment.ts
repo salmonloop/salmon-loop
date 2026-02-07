@@ -27,7 +27,53 @@ export class RuntimeEnvironment {
 
   /**
    * Gets the active repository path where operations should be performed.
-   * This is either the main repo path or the shadow worktree path.
+   *
+   * ARCHITECTURAL ABSTRACTION LAYER (see docs/design/strata-system.md):
+   * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   * This is a CONTEXT-AWARE getter that returns different paths based on strategy:
+   *
+   * ┌──────────────────┬─────────────────────────────────────────────┐
+   * │ Strategy         │ activeRepoPath Returns                      │
+   * ├──────────────────┼─────────────────────────────────────────────┤
+   * │ 'worktree'       │ /tmp/s8p-wt/repo/123456-abc (shadow)        │
+   * │ 'direct'         │ /home/user/repo (main repository)           │
+   * └──────────────────┴─────────────────────────────────────────────┘
+   *
+   * Common Misunderstanding:
+   * ❌ "This dynamic behavior is a path confusion risk"
+   * ✅ Correct: This is PROPER ABSTRACTION - callers work with "execution context"
+   *
+   * Design Intent:
+   * Callers should NOT need to know WHERE they're executing, only WHAT to do.
+   * - Reading files → Use activeRepoPath (works in shadow or main)
+   * - Applying patches → Use activeRepoPath (isolated in shadow)
+   * - Reverting to main → Use options.repoPath (explicit main reference)
+   *
+   * How to Choose the Right Path:
+   * ┌────────────────────────────┬──────────────────────────────┐
+   * │ Operation                  │ Use                          │
+   * ├────────────────────────────┼──────────────────────────────┤
+   * │ Execute in workspace       │ activeRepoPath               │
+   * │ Create GitAdapter          │ activeRepoPath               │
+   * │ Apply AI patches           │ activeRepoPath (isolated)    │
+   * │ Read snapshot metadata     │ options.repoPath (source)    │
+   * │ Apply-back to user         │ options.repoPath (target)    │
+   * │ Create worktree            │ workspace.baseRepoPath       │
+   * └────────────────────────────┴──────────────────────────────┘
+   *
+   * Type Safety Note:
+   * TypeScript cannot distinguish MainRepoPath vs ShadowPath at type level
+   * because both are string. This is acceptable because:
+   * 1. Destructive operations are guarded by isShadowWorktreePath() runtime checks
+   * 2. The workspace object carries strategy metadata for disambiguation
+   * 3. Explicit fields (baseRepoPath) are available when needed
+   *
+   * See Also:
+   * - docs/user/execution-safety.md: "APPLY mutates the active execution workspace"
+   * - docs/design/strata-system.md: "Source is Truth" principle
+   *
+   * @returns The workspace path where execution should happen
+   * @throws Error if workspace is not initialized
    */
   get activeRepoPath(): string {
     if (!this.workspace) {

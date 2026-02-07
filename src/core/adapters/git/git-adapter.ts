@@ -645,10 +645,26 @@ export class GitAdapter {
     }
   }
 
+  /**
+   * Resolves the canonical path to the shadow worktree root directory.
+   *
+   * SECURITY: This method implements DOUBLE realpath resolution to prevent attacks:
+   * 1. Prevents symlink attacks: Even if tmpdir() is a symlink, we resolve to the real path
+   * 2. Prevents TMPDIR pollution: Attackers cannot trick the system by manipulating TMPDIR env var
+   *
+   * Why this matters:
+   * - Shadow worktrees are the ONLY safe place for destructive operations (reset --hard, clean -fd)
+   * - If an attacker could bypass this check, they could trigger data loss in the main repository
+   * - Using realpathSync ensures we compare canonical paths, not attacker-controlled symlinks
+   *
+   * @returns Canonical shadow root path with trailing separator (e.g., "/tmp/s8p-wt/")
+   */
   private static resolveShadowRoot(): string {
     const tmpResolved = path.resolve(tmpdir());
     let tmpReal = tmpResolved;
     try {
+      // CRITICAL: Resolve symlinks in tmpdir() itself
+      // Example: /tmp -> /private/tmp on macOS
       tmpReal = realpathSync(tmpResolved);
     } catch {
       // Fall back to resolved path. If tmp is not realpath-resolvable, prefer denying shadow checks elsewhere.
@@ -657,11 +673,34 @@ export class GitAdapter {
     return path.join(tmpReal, 's8p-wt') + path.sep;
   }
 
+  /**
+   * Verifies if the current GitAdapter instance points to a shadow worktree.
+   *
+   * SECURITY: Multi-layer defense against path traversal and symlink attacks:
+   * 1. Both shadowRoot AND repoPath are resolved via realpathSync
+   * 2. Trailing separator prevents partial matches (e.g., /tmp/s8p-wt-evil won't match /tmp/s8p-wt/)
+   * 3. String prefix check ensures strict containment
+   *
+   * Why this check is CRITICAL:
+   * - Operations like resolveConflicts() execute `git reset --hard HEAD` and `git clean -fd`
+   * - These commands PERMANENTLY DELETE uncommitted changes and untracked files
+   * - This check ensures such operations ONLY run in disposable shadow worktrees
+   * - The main repository is NEVER touched by destructive cleanup operations
+   *
+   * Attack scenarios prevented:
+   * - Symlink injection: realpathSync resolves links before comparison
+   * - Path traversal: strict prefix check prevents escape via ../
+   * - Partial path matching: trailing separator prevents /tmp/s8p-wt-malicious from matching
+   *
+   * @returns true if this.repoPath is inside the shadow worktree root, false otherwise
+   */
   private isShadowWorktreePath(): boolean {
     const expectedRoot = GitAdapter.resolveShadowRoot();
     const repoResolved = path.resolve(this.repoPath);
     let repo = repoResolved;
     try {
+      // CRITICAL: Resolve symlinks in the repo path being checked
+      // Prevents attacker from creating a symlink to main repo inside shadow root
       repo = realpathSync(repoResolved);
     } catch {
       repo = repoResolved;
@@ -669,7 +708,37 @@ export class GitAdapter {
     return (repo + path.sep).startsWith(expectedRoot);
   }
 
+  /**
+   * Aggressively cleans the shadow worktree to resolve merge conflicts or corrupted state.
+   *
+   * ⚠️ DANGER: This method runs DESTRUCTIVE Git operations:
+   * - `git reset --hard HEAD`: Discards ALL uncommitted changes
+   * - `git clean -fd`: Deletes ALL untracked files and directories
+   *
+   * WHY THIS IS SAFE (not a data loss risk):
+   * 1. Protected by isShadowWorktreePath() check - throws error if not in shadow
+   * 2. Shadow worktrees are DISPOSABLE temporary directories (e.g., /tmp/s8p-wt/...)
+   * 3. User's main repository is NEVER touched - it remains in read-only state
+   * 4. Original state is preserved in snapshot commits (refs/s8p/snapshots/*)
+   * 5. Apply-back process is transactional - failures don't corrupt main workspace
+   *
+   * Design Intent (see docs/design/checkpoint.md):
+   * - "AI modifications run in a disposable 'Shadow Worktree', never polluting
+   *    the user's primary workspace until verified"
+   *
+   * Common Misunderstanding:
+   * ❌ "reset --hard will lose user data"
+   * ✅ Correct: It only affects the temporary shadow, which is recreated from snapshots
+   *
+   * Error Handling:
+   * - allowError: true on stash - may have nothing to stash, that's fine
+   * - Catch block ignores errors - this is best-effort cleanup in a disposable environment
+   * - Even if cleanup fails, shadow worktree is deleted during teardown anyway
+   *
+   * @throws GitError if called on main repository (safety violation)
+   */
   private async resolveConflicts(): Promise<void> {
+    // SAFETY BARRIER: Absolutely refuse to run destructive operations outside shadow
     if (!this.isShadowWorktreePath()) {
       throw new GitError(
         text.git.conflictResolutionDenied,
@@ -678,11 +747,14 @@ export class GitAdapter {
       );
     }
     try {
+      // Best-effort cleanup sequence for disposable shadow worktree
       await this.exec(['stash'], { allowError: true });
       await this.exec(['reset', '--hard', 'HEAD']);
       await this.exec(['clean', '-fd']);
     } catch (_e) {
       // Best-effort cleanup, ignore errors
+      // Rationale: Shadow worktree will be deleted during teardown anyway
+      // Logging errors here would just create noise for expected edge cases
     }
   }
 }

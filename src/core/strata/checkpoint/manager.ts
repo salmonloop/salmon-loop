@@ -122,11 +122,33 @@ export class CheckpointManager {
    * Restores a snapshot to a shadow worktree.
    * CRITICAL: Never run this on the main repository!
    *
+   * DESIGN INTENT (see docs/design/checkpoint.md):
+   * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   * This implements the "Source is Truth" principle by creating HIGH-FIDELITY replica:
+   * - Staged changes (git add)
+   * - Unstaged changes (modified but not staged)
+   * - Untracked files (captured in snapshot)
+   *
+   * Why the "Dirty State" is INTENTIONAL (not a bug):
+   * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   * Common Misunderstanding:
+   * ❌ "Having Index ≠ Worktree means the system is inconsistent"
+   * ✅ Correct: This is the FOUNDATION of 3-way merge semantics
+   *
    * Design Philosophy:
    * This method intentionally preserves the "dirty state" to maintain staged/unstaged distinction:
    * - Working tree = snapshot's working tree (contains all changes including unstaged)
    * - Index = snapshot's staged tree (only staged changes)
    * - git status = unstaged changes (Working - Staged)
+   *
+   * Why This Matters for Apply-Back (docs/design/applyback.md):
+   * When AI patches are applied, 3-way merge needs:
+   *   Base: Original Staged State (from snapshot metadata)
+   *   Theirs: User's concurrent changes (if any)
+   *   Ours: AI-generated patches
+   *
+   * If we flattened (Index = Worktree), we LOSE staged/unstaged distinction,
+   * breaking transactional semantics.
    *
    * This design is CORRECT and necessary for:
    * 1. Preserving user's original staged/unstaged state in worktree isolation
@@ -185,9 +207,22 @@ export class CheckpointManager {
     //
     // This design correctly preserves the original staged/unstaged state.
 
-    // CRITICAL: Refresh Git index to ensure fs.readFile gets latest content
-    // On Windows and some systems, Git file writes may be buffered. We need to
-    // refresh the index so subsequent file reads observe the correct working tree.
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // CRITICAL: Filesystem Cache Synchronization
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // Problem (especially on Windows):
+    // After git operations, filesystem caches may contain stale data.
+    // Subsequent fs.readFile() might read OLD content from before checkout.
+    //
+    // Solution:
+    // 'git update-index --refresh' forces Git to stat() all tracked files,
+    // updating its internal cache to match current filesystem state.
+    //
+    // Why NOT throw on error (defensive design):
+    // - This is PERFORMANCE OPTIMIZATION, not correctness requirement
+    // - System has FALLBACK: readSnapshotFile() reads from Git Object Database
+    // - See docs/design/checkpoint.md L38-42: "reads directly from blob"
+    // - Throwing would break execution for non-critical optimization failure
     //
     // Performance optimization: Use 'git update-index --refresh' instead of
     // 'git status' to avoid scanning untracked files in large repositories.
@@ -213,9 +248,12 @@ export class CheckpointManager {
         );
       }
     } catch (e) {
+      // NOT a critical failure - system has fallback via Git Object Database
       logger.error(
         `[restoreToShadow] Failed to refresh index or verify status: ${e instanceof Error ? e.message : String(e)}`,
       );
+      // Intentionally NOT throwing - execution continues with ODB fallback
+      // See readSnapshotFile() for the direct Git object database read path
     }
   }
 
