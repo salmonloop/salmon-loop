@@ -1,6 +1,10 @@
 #!/usr/bin/env node
-import 'dotenv/config';
+// 1. MUST be the very first lines to force all chalk instances (even in node_modules)
+// to use color support before they complete initialization.
+process.env.FORCE_COLOR = '3';
 
+import 'dotenv/config';
+import chalk from 'chalk';
 import { Command } from 'commander';
 
 import { initializeFlowStrategies } from '../core/grizzco/flows/registry.js';
@@ -20,6 +24,9 @@ import {
   handleSnapshotClear,
 } from './commands/snapshot.js';
 import { text } from './locales/index.js';
+
+// Force global chalk level
+chalk.level = 3;
 
 const program = new Command();
 initializeFlowStrategies();

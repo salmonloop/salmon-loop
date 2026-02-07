@@ -14,9 +14,6 @@ export class StandardReporter implements SalmonReporter {
   constructor(private verbose: boolean = false) {}
 
   onStart(_instruction: string) {
-    // In verbose mode, the caller (command handler) usually logs the instruction/config details
-    // before calling onStart, or we can do it here if passed more context.
-    // For now, we just initialize the progress bar.
     this.initProgressBar();
   }
 
@@ -65,7 +62,6 @@ export class StandardReporter implements SalmonReporter {
             event.reason.substring(0, 100) + '...',
           ),
         );
-        // Reset progress for retry
         this.bar?.terminate();
         this.initProgressBar();
         break;
@@ -120,6 +116,18 @@ export class StandardReporter implements SalmonReporter {
   }
 
   private initProgressBar() {
+    // 🛡️ DCAP 防御：检查 stderr 是否支持 TTY 操作，防止 clearLine 崩溃导致意外终止
+    const stream = process.stderr as any;
+    if (typeof stream.clearLine !== 'function' || typeof stream.cursorTo !== 'function') {
+      this.bar = {
+        render: () => {},
+        tick: () => {},
+        terminate: () => {},
+        interrupt: (msg: string) => logger.info(msg),
+      } as any;
+      return;
+    }
+
     this.bar = new ProgressBar(`${chalk.blue('[:bar]')} :phase :percent :elapseds`, {
       total: EXECUTION_PHASES.length,
       width: 20,
@@ -130,15 +138,15 @@ export class StandardReporter implements SalmonReporter {
 
   private handleLogEvent(event: { level: string; message: string }) {
     if (event.level === 'error') {
-      logger.error(`  ${event.message}`);
+      logger.error(event.message);
     } else if (event.level === 'warn') {
-      logger.warn(`  ${event.message}`);
+      logger.warn(event.message);
     } else if (event.level === 'trace') {
-      logger.trace(`  ${event.message}`);
+      logger.trace(event.message);
     } else if (event.level === 'info') {
-      logger.info(`  ${event.message}`);
+      logger.info(event.message);
     } else {
-      logger.debug(`  ${event.message}`);
+      logger.debug(event.message);
     }
   }
 
@@ -165,7 +173,6 @@ export class StandardReporter implements SalmonReporter {
       logger.log(text.cli.verifyOutputArtifact(result.verifyArtifact.handle));
     }
 
-    // Provide suggestions based on failure
     if (result.failurePhase === Phase.PREFLIGHT) {
       if (result.reasonCode === 'PREFLIGHT_DIRTY') {
         logger.cyan(`${text.symbols.suggestion} Suggestion: ${text.suggestions.dirty}`);

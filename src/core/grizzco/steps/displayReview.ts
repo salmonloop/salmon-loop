@@ -9,6 +9,26 @@ function safeStringify(value: unknown): string {
   }
 }
 
+function removeLeadingSpaces(content: string): string {
+  const lines = content.split('\n');
+
+  // Find minimum indentation (excluding empty lines)
+  const minIndent = lines
+    .filter((line) => line.trim().length > 0)
+    .reduce((min, line) => {
+      const match = line.match(/^(\s*)/);
+      const indent = match ? match[1].length : 0;
+      return Math.min(min, indent);
+    }, Infinity);
+
+  // Remove the common indentation from all lines
+  if (minIndent > 0 && minIndent !== Infinity) {
+    return lines.map((line) => line.substring(minIndent)).join('\n');
+  }
+
+  return content;
+}
+
 function isReviewSuggestion(value: unknown): value is ReviewSuggestion {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
@@ -70,10 +90,11 @@ export async function displayReview(ctx: ReviewCtx): Promise<ReviewCtx> {
   }
 
   suggestions.forEach((suggestion, index) => {
+    const cleanContent = removeLeadingSpaces(suggestion.content);
     ctx.emit({
       type: 'log',
       level: 'info',
-      message: text.grizzco.review.suggestionItem(index + 1, suggestion.type, suggestion.content),
+      message: text.grizzco.review.suggestionItem(index + 1, suggestion.type, cleanContent),
       timestamp: new Date(),
     });
   });

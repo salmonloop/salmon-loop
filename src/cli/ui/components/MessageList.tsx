@@ -1,45 +1,20 @@
 import { Box, Text, useInput } from 'ink';
 import BigTextOriginal from 'ink-big-text';
-const BigText = BigTextOriginal as any;
 import GradientOriginal from 'ink-gradient';
-const Gradient = GradientOriginal as any;
-import { marked } from 'marked';
-import TerminalRendererOriginal from 'marked-terminal';
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 
 import { UI_CONFIG } from '../config.js';
 import { useUIStore } from '../store/context.js';
 import { Message, QueueMessage } from '../store/types.js';
 
-const TerminalRenderer = TerminalRendererOriginal as any;
+import { Markdown } from './Markdown.js';
 
-// Configure marked for terminal output
-marked.setOptions({
-  renderer: new TerminalRenderer(),
-});
+const BigText = BigTextOriginal as any;
+const Gradient = GradientOriginal as any;
 
-const MessageItem = React.memo<{ msg: Message }>(({ msg }) => (
-  <Box flexDirection="column" marginBottom={msg.type === 'system' ? 0 : 1}>
-    {msg.id !== 'welcome' && (
-      <Text color="gray" dimColor>
-        [{msg.timestamp.toLocaleTimeString()}] {msg.type.toUpperCase()}:
-      </Text>
-    )}
-    <Box paddingLeft={msg.id === 'welcome' ? 0 : 2}>
-      {msg.type === 'system' && msg.content !== 'WELCOME_LOGO' ? (
-        <Text color="white" dimColor>
-          {msg.content}
-        </Text>
-      ) : (
-        <Markdown content={msg.content} />
-      )}
-    </Box>
-  </Box>
-));
-
-const Markdown = React.memo<{ content: string }>(({ content }) => {
-  if (!content) return null;
-  if (content === 'WELCOME_LOGO') {
+const MessageItem = React.memo<{ msg: Message }>(({ msg }) => {
+  // Handle Special Logo
+  if (msg.content === 'WELCOME_LOGO') {
     return (
       <Box flexDirection="column" marginBottom={1}>
         <Gradient name="retro">
@@ -49,28 +24,44 @@ const Markdown = React.memo<{ content: string }>(({ content }) => {
     );
   }
 
-  // Handle the Splat interrupt marker
-  if (content.includes('^C [SPLATTED]')) {
-    const [mainContent] = content.split('^C [SPLATTED]');
-    try {
-      return (
-        <Box flexDirection="column">
-          <Text>{marked.parse(mainContent) as string}</Text>
+  // Handle Splatted Interrupt
+  if (msg.content.includes('^C [SPLATTED]')) {
+    const [mainContent] = msg.content.split('^C [SPLATTED]');
+    return (
+      <Box flexDirection="column" marginBottom={1}>
+        {msg.id !== 'welcome' && (
+          <Text color="gray" dimColor>
+            [{msg.timestamp.toLocaleTimeString()}] {msg.type.toUpperCase()}:
+          </Text>
+        )}
+        <Box paddingLeft={msg.id === 'welcome' ? 0 : 2} flexDirection="column">
+          <Markdown>{mainContent}</Markdown>
           <Text color="red" bold>
             ^C [SPLATTED]
           </Text>
         </Box>
-      );
-    } catch {
-      return <Text color="red">Error rendering content</Text>;
-    }
+      </Box>
+    );
   }
 
-  try {
-    return <Text>{marked.parse(content) as string}</Text>;
-  } catch {
-    return <Text color="red">Error rendering content</Text>;
-  }
+  return (
+    <Box flexDirection="column" marginBottom={msg.type === 'system' ? 0 : 1}>
+      {msg.id !== 'welcome' && (
+        <Text color="gray" dimColor>
+          [{msg.timestamp.toLocaleTimeString()}] {msg.type.toUpperCase()}:
+        </Text>
+      )}
+      <Box paddingLeft={msg.id === 'welcome' ? 0 : 2}>
+        {msg.type === 'system' ? (
+          <Text color="white" dimColor>
+            {msg.content}
+          </Text>
+        ) : (
+          <Markdown>{msg.content}</Markdown>
+        )}
+      </Box>
+    </Box>
+  );
 });
 
 export const MessageList: React.FC = () => {
