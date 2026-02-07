@@ -7,10 +7,13 @@ import { getDefaultRepoConfigPath } from './paths.js';
 import type {
   ApiKeySource,
   ConfigFileV1,
+  MarkdownRenderMode,
+  MarkdownTheme,
   ResolvedConfig,
   ResolvedLlmProvider,
   ToolAuthorizationConfig,
 } from './types.js';
+import { DEFAULT_MARKDOWN_RENDER_MODE, DEFAULT_MARKDOWN_THEME } from './types.js';
 
 function firstNonEmpty(value: string | undefined | null): string | undefined {
   if (!value) return undefined;
@@ -149,6 +152,14 @@ function resolveToolAuthorization(raw?: ConfigFileV1): ToolAuthorizationConfig {
   };
 }
 
+function resolveMarkdownTheme(raw?: ConfigFileV1): MarkdownTheme {
+  return raw?.output?.markdown?.theme ?? DEFAULT_MARKDOWN_THEME;
+}
+
+function resolveMarkdownRenderMode(raw?: ConfigFileV1): MarkdownRenderMode {
+  return raw?.output?.markdown?.mode ?? DEFAULT_MARKDOWN_RENDER_MODE;
+}
+
 export async function resolveConfig(opts: ResolveConfigOptions): Promise<ResolvedConfig> {
   const enabled = opts.enableConfigFile !== false;
   const path = opts.configFilePath || getDefaultRepoConfigPath(opts.repoRoot);
@@ -175,6 +186,8 @@ export async function resolveConfig(opts: ResolveConfigOptions): Promise<Resolve
     },
     llm: resolveLlmFromConfig(raw),
     llmOutput: resolveLlmOutputPolicy(raw?.output?.llm),
+    markdownTheme: resolveMarkdownTheme(raw),
+    markdownRenderMode: resolveMarkdownRenderMode(raw),
     toolAuthorization: resolveToolAuthorization(raw),
   };
 }

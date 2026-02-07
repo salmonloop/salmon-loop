@@ -218,31 +218,39 @@ export async function handleRunCommand(options: any, command: Command) {
     if (useGui) {
       // Dynamically import GUI to avoid top-level await issues with yoga-layout
       const { startGUI } = await import('../ui/index.js');
-      result = (await startGUI('run', undefined, async (emit, _input, guiOptions) => {
-        const authorizationProvider = createUiAuthorizationProvider({
-          emit: (event) => emit({ ...event, timestamp: new Date() }),
-          config: resolvedConfig.toolAuthorization,
-        });
-        const runResult = await runSalmonLoop({
-          ...loopParams,
-          applyBackOnDirty: loopParams.applyBackOnDirty as ApplyBackOnDirty,
-          signal: guiOptions?.signal,
-          authorizationProvider,
-          authorizationMode: 'deferred',
-          onEvent: (event) => {
-            // In GUI mode, we only emit to the UI to prevent StandardReporter from leaking to stderr
-            emit(event);
-          },
-        });
-        emitLlmOutput({
-          emit,
-          policy: llmOutput,
-          kind: 'assistant_message',
-          step: 'REPORT',
-          content: buildAssistantMessage(runResult),
-        });
-        return runResult;
-      })) as LoopResult;
+      result = (await startGUI(
+        'run',
+        undefined,
+        async (emit, _input, guiOptions) => {
+          const authorizationProvider = createUiAuthorizationProvider({
+            emit: (event) => emit({ ...event, timestamp: new Date() }),
+            config: resolvedConfig.toolAuthorization,
+          });
+          const runResult = await runSalmonLoop({
+            ...loopParams,
+            applyBackOnDirty: loopParams.applyBackOnDirty as ApplyBackOnDirty,
+            signal: guiOptions?.signal,
+            authorizationProvider,
+            authorizationMode: 'deferred',
+            onEvent: (event) => {
+              // In GUI mode, we only emit to the UI to prevent StandardReporter from leaking to stderr
+              emit(event);
+            },
+          });
+          emitLlmOutput({
+            emit,
+            policy: llmOutput,
+            kind: 'assistant_message',
+            step: 'REPORT',
+            content: buildAssistantMessage(runResult),
+          });
+          return runResult;
+        },
+        {
+          markdownTheme: resolvedConfig.markdownTheme,
+          markdownRenderMode: resolvedConfig.markdownRenderMode,
+        },
+      )) as LoopResult;
     } else {
       result = await runSalmonLoop({
         ...loopParams,

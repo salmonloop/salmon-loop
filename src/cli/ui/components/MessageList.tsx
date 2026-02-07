@@ -3,6 +3,7 @@ import BigTextOriginal from 'ink-big-text';
 import GradientOriginal from 'ink-gradient';
 import React, { useEffect, useState } from 'react';
 
+import type { MarkdownRenderMode, MarkdownTheme } from '../../../core/config/types.js';
 import { UI_CONFIG } from '../config.js';
 import { useUIStore } from '../store/context.js';
 import { Message, QueueMessage } from '../store/types.js';
@@ -12,7 +13,11 @@ import { Markdown } from './Markdown.js';
 const BigText = BigTextOriginal as any;
 const Gradient = GradientOriginal as any;
 
-const MessageItem = React.memo<{ msg: Message }>(({ msg }) => {
+const MessageItem = React.memo<{
+  msg: Message;
+  markdownTheme?: MarkdownTheme;
+  markdownRenderMode?: MarkdownRenderMode;
+}>(({ msg, markdownTheme, markdownRenderMode }) => {
   // Handle Special Logo
   if (msg.content === 'WELCOME_LOGO') {
     return (
@@ -35,7 +40,9 @@ const MessageItem = React.memo<{ msg: Message }>(({ msg }) => {
           </Text>
         )}
         <Box paddingLeft={msg.id === 'welcome' ? 0 : 2} flexDirection="column">
-          <Markdown>{mainContent}</Markdown>
+          <Markdown theme={markdownTheme} mode={markdownRenderMode}>
+            {mainContent}
+          </Markdown>
           <Text color="red" bold>
             ^C [SPLATTED]
           </Text>
@@ -52,19 +59,18 @@ const MessageItem = React.memo<{ msg: Message }>(({ msg }) => {
         </Text>
       )}
       <Box paddingLeft={msg.id === 'welcome' ? 0 : 2}>
-        {msg.type === 'system' ? (
-          <Text color="white" dimColor>
-            {msg.content}
-          </Text>
-        ) : (
-          <Markdown>{msg.content}</Markdown>
-        )}
+        <Markdown theme={markdownTheme} mode={markdownRenderMode}>
+          {msg.content}
+        </Markdown>
       </Box>
     </Box>
   );
 });
 
-export const MessageList: React.FC = () => {
+export const MessageList: React.FC<{
+  markdownTheme?: MarkdownTheme;
+  markdownRenderMode?: MarkdownRenderMode;
+}> = ({ markdownTheme, markdownRenderMode }) => {
   const { state } = useUIStore();
   const { messages, queueMessages } = state;
   const [isAnchored, setIsAnchored] = useState(true);
@@ -102,7 +108,12 @@ export const MessageList: React.FC = () => {
   return (
     <Box flexDirection="column" flexGrow={1}>
       {displayMessages.map((msg) => (
-        <MessageItem key={msg.id} msg={msg} />
+        <MessageItem
+          key={msg.id}
+          msg={msg}
+          markdownTheme={markdownTheme}
+          markdownRenderMode={markdownRenderMode}
+        />
       ))}
       {orderedQueueMessages.map((msg) => (
         <Box key={msg.id} flexDirection="column" marginBottom={0}>

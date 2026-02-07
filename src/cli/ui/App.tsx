@@ -1,6 +1,7 @@
 import { Box, Text } from 'ink';
 import React from 'react';
 
+import type { MarkdownRenderMode, MarkdownTheme } from '../../core/config/types.js';
 import { getSuggestions } from '../commands/registry.js';
 import { text } from '../locales/index.js';
 
@@ -20,7 +21,9 @@ const AppCore: React.FC<{
   onStart: any;
   onChatInput?: any;
   sessionManager: any;
-}> = ({ mode, onStart, onChatInput, sessionManager }) => {
+  markdownTheme?: MarkdownTheme;
+  markdownRenderMode?: MarkdownRenderMode;
+}> = ({ mode, onStart, onChatInput, sessionManager, markdownTheme, markdownRenderMode }) => {
   const { state, dispatch } = useUIStore();
 
   const lifecycleStatus = state.isThinking ? 'running' : 'idle';
@@ -79,7 +82,7 @@ const AppCore: React.FC<{
         paddingX={UI_CONFIG.MESSAGE_AREA_PADDING_X}
         paddingBottom={UI_CONFIG.MESSAGE_AREA_PADDING_BOTTOM}
       >
-        <MessageList />
+        <MessageList markdownTheme={markdownTheme} markdownRenderMode={markdownRenderMode} />
       </Box>
 
       {/* Thinking Status */}

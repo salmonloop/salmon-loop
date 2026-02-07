@@ -1,7 +1,12 @@
 import { LLM_OUTPUT_KINDS } from '../types.js';
 
 import { ConfigError } from './errors.js';
-import type { ConfigFileV1, LlmProviderV1 } from './types.js';
+import {
+  MARKDOWN_RENDER_MODES,
+  MARKDOWN_THEMES,
+  type ConfigFileV1,
+  type LlmProviderV1,
+} from './types.js';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -21,6 +26,14 @@ function isBoolean(value: unknown): value is boolean {
 
 function isValidLlmOutputKind(value: unknown): boolean {
   return typeof value === 'string' && (LLM_OUTPUT_KINDS as readonly string[]).includes(value);
+}
+
+function isValidMarkdownTheme(value: unknown): boolean {
+  return typeof value === 'string' && (MARKDOWN_THEMES as readonly string[]).includes(value);
+}
+
+function isValidMarkdownRenderMode(value: unknown): boolean {
+  return typeof value === 'string' && (MARKDOWN_RENDER_MODES as readonly string[]).includes(value);
 }
 
 export function validateConfigFileV1(input: unknown): ConfigFileV1 {
@@ -233,6 +246,34 @@ export function validateConfigFileV1(input: unknown): ConfigFileV1 {
       }
       cfg.output.llm = {
         kinds: llmOutput.kinds as any,
+      };
+    }
+    if (output.markdown !== undefined) {
+      if (!isRecord(output.markdown)) {
+        throw new ConfigError('CONFIG_INVALID_OUTPUT_MARKDOWN', { expected: 'object' });
+      }
+      const markdown = output.markdown;
+      if (markdown.theme !== undefined) {
+        if (!isString(markdown.theme)) {
+          throw new ConfigError('CONFIG_INVALID_MARKDOWN_THEME', { expected: 'string' });
+        }
+        if (!isValidMarkdownTheme(markdown.theme)) {
+          throw new ConfigError('CONFIG_INVALID_MARKDOWN_THEME', { theme: String(markdown.theme) });
+        }
+      }
+      if (markdown.mode !== undefined) {
+        if (!isString(markdown.mode)) {
+          throw new ConfigError('CONFIG_INVALID_MARKDOWN_RENDER_MODE', { expected: 'string' });
+        }
+        if (!isValidMarkdownRenderMode(markdown.mode)) {
+          throw new ConfigError('CONFIG_INVALID_MARKDOWN_RENDER_MODE', {
+            mode: String(markdown.mode),
+          });
+        }
+      }
+      cfg.output.markdown = {
+        theme: markdown.theme as any,
+        mode: markdown.mode as any,
       };
     }
   }

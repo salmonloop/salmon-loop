@@ -1,6 +1,7 @@
 import { render } from 'ink';
 import React from 'react';
 
+import type { MarkdownRenderMode, MarkdownTheme } from '../../core/config/types.js';
 import { logger } from '../../core/logger.js';
 import { LoopEvent } from '../../core/types.js';
 
@@ -8,6 +9,11 @@ import { App } from './App.js';
 
 export interface GUIOptions {
   signal?: AbortSignal;
+}
+
+export interface UIConfig {
+  markdownTheme?: MarkdownTheme;
+  markdownRenderMode?: MarkdownRenderMode;
 }
 
 export async function startGUI(
@@ -19,6 +25,7 @@ export async function startGUI(
     options?: GUIOptions,
     dispatch?: (action: any) => void,
   ) => Promise<any>,
+  uiConfig?: UIConfig,
 ) {
   // Silence global logger to prevent output from interfering with Ink
   logger.setSilent(true);
@@ -32,6 +39,8 @@ export async function startGUI(
     <App
       mode={mode}
       sessionManager={sessionManager}
+      markdownTheme={uiConfig?.markdownTheme}
+      markdownRenderMode={uiConfig?.markdownRenderMode}
       onStart={(emit: (event: LoopEvent) => void, options: GUIOptions) => {
         if (mode === 'run') {
           runFn(emit, undefined, options)

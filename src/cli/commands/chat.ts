@@ -58,6 +58,8 @@ export async function handleChatCommand(options: any, command: Command) {
     resume: options.resume,
     verbose: options.verbose,
     llmOutput,
+    markdownTheme: resolvedConfig.markdownTheme,
+    markdownRenderMode: resolvedConfig.markdownRenderMode,
     toolAuthorization: resolvedConfig.toolAuthorization,
   });
 }

@@ -12,6 +12,13 @@ export type LlmProviderType =
   | 'gemini'
   | (string & {});
 
+export const MARKDOWN_THEMES = ['default', 'vivid'] as const;
+export type MarkdownTheme = (typeof MARKDOWN_THEMES)[number];
+export const DEFAULT_MARKDOWN_THEME: MarkdownTheme = 'default';
+export const MARKDOWN_RENDER_MODES = ['enhanced', 'native'] as const;
+export type MarkdownRenderMode = (typeof MARKDOWN_RENDER_MODES)[number];
+export const DEFAULT_MARKDOWN_RENDER_MODE: MarkdownRenderMode = 'enhanced';
+
 export interface ConfigFileV1 {
   version?: ConfigVersion;
 
@@ -25,6 +32,10 @@ export interface ConfigFileV1 {
 
   output?: {
     llm?: LlmOutputConfig;
+    markdown?: {
+      theme?: MarkdownTheme;
+      mode?: MarkdownRenderMode;
+    };
   };
 
   verify?: {
@@ -105,6 +116,8 @@ export interface ResolvedConfig {
   };
   llm: ResolvedLlmProvider;
   llmOutput: LlmOutputPolicy;
+  markdownTheme: MarkdownTheme;
+  markdownRenderMode: MarkdownRenderMode;
   toolAuthorization: ToolAuthorizationConfig;
 }
 

@@ -366,6 +366,16 @@ Please return the patch in PURE unified diff format:`;
           return `Config output.llm.kinds contains invalid value: ${
             details?.kind || '(unknown kind)'
           }`;
+        case 'CONFIG_INVALID_OUTPUT_MARKDOWN':
+          return 'Config output.markdown must be a JSON object';
+        case 'CONFIG_INVALID_MARKDOWN_THEME':
+          return `Config output.markdown.theme contains invalid value: ${
+            details?.theme || '(unknown theme)'
+          }`;
+        case 'CONFIG_INVALID_MARKDOWN_RENDER_MODE':
+          return `Config output.markdown.mode contains invalid value: ${
+            details?.mode || '(unknown mode)'
+          }`;
         default:
           return `Invalid config (${code}).${detailStr}`;
       }

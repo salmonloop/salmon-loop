@@ -18,6 +18,12 @@ describe('Config module', () => {
       JSON.stringify(
         {
           version: 1,
+          output: {
+            markdown: {
+              theme: 'vivid',
+              mode: 'native',
+            },
+          },
           llm: {
             active: 'openaiMain',
             providers: {
@@ -51,6 +57,8 @@ describe('Config module', () => {
     expect(cfg.llm.api.apiKey).toBe('inline-key');
     expect(cfg.llm.api.apiKeySource).toBe('inline');
     expect(cfg.llm.models.selectedModelId).toBe('gpt-test');
+    expect(cfg.markdownTheme).toBe('vivid');
+    expect(cfg.markdownRenderMode).toBe('native');
   });
 
   it('falls back to environment variables when config is missing', async () => {
@@ -66,6 +74,8 @@ describe('Config module', () => {
     expect(cfg.llm.api.apiKeySource).toBe('env');
     expect(cfg.llm.api.baseUrl).toBe('https://env.example/v1');
     expect(cfg.llm.models.selectedModelId).toBe('env-model');
+    expect(cfg.markdownTheme).toBe('default');
+    expect(cfg.markdownRenderMode).toBe('enhanced');
   });
 
   it('prefers SALMONLOOP_MODEL over legacy envs', async () => {

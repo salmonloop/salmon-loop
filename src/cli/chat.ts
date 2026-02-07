@@ -1,4 +1,8 @@
-import type { ToolAuthorizationConfig } from '../core/config/index.js';
+import type {
+  MarkdownRenderMode,
+  MarkdownTheme,
+  ToolAuthorizationConfig,
+} from '../core/config/index.js';
 import { DEFAULT_LLM_OUTPUT_POLICY, emitLlmOutput } from '../core/llm/output-policy.js';
 import { logger } from '../core/logger.js';
 import { runSalmonLoop } from '../core/loop.js';
@@ -21,6 +25,8 @@ export interface ChatModeOptions {
   resume?: boolean;
   verbose?: boolean;
   llmOutput?: LlmOutputPolicy;
+  markdownTheme?: MarkdownTheme;
+  markdownRenderMode?: MarkdownRenderMode;
   toolAuthorization?: ToolAuthorizationConfig;
 }
 
@@ -370,6 +376,10 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
       if (!trimmed) return;
 
       return enqueueInput(trimmed);
+    },
+    {
+      markdownTheme: options.markdownTheme,
+      markdownRenderMode: options.markdownRenderMode,
     },
   );
 }
