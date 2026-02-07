@@ -1,7 +1,7 @@
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
 import BigTextOriginal from 'ink-big-text';
 import GradientOriginal from 'ink-gradient';
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 
 import type { MarkdownRenderMode, MarkdownTheme } from '../../../core/config/types.js';
 import { UI_CONFIG } from '../config.js';
@@ -73,27 +73,9 @@ export const MessageList: React.FC<{
 }> = ({ markdownTheme, markdownRenderMode }) => {
   const { state } = useUIStore();
   const { messages, queueMessages } = state;
-  const [isAnchored, setIsAnchored] = useState(true);
 
   // Limit rendered messages to the last 50 to prevent performance degradation
   const displayMessages = messages.slice(-50);
-
-  // Scroll intent detection
-  useInput((_input, key) => {
-    if (key.upArrow || key.pageUp) {
-      setIsAnchored(false);
-    }
-    if (key.downArrow || key.pageDown || key.return) {
-      setIsAnchored(true);
-    }
-  });
-
-  // Tracking new messages when not anchored
-  useEffect(() => {
-    if (!isAnchored && messages.length > 0) {
-      // Logic for new message notification could go here
-    }
-  }, [messages.length, isAnchored]);
 
   const truncateQueueContent = (content: string) => {
     const singleLine = content.replace(/\s+/g, ' ').trim();
