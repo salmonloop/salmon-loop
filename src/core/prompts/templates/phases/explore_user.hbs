@@ -1,0 +1,22 @@
+# Context Data
+{{{context}}}
+
+# Instruction
+{{{instruction}}}
+
+# Last Error
+{{#if lastError}}
+The previous attempt failed with the following error:
+{{{lastError}}}
+{{/if}}
+
+# Task
+Your task is to EXPLORE the codebase to find the relevant files and code needed to address the instruction above.
+- Use `ls` to navigate the file structure.
+- Use `code.search` to find keywords (function names, error messages, variable names).
+- Use `fs.read` to inspect file contents. **Reading a file is MANDATORY for any file you identify as relevant.**
+
+**CRITICAL: DO NOT GUESS.** If you mention a file in your summary, you MUST have read it using `fs.read` first.
+
+**When you have found all necessary context, reply with a summary of the files you found.**
+If you cannot find relevant files after a reasonable search, or if the instruction is clear without further context, simply reply with "Exploration complete".

@@ -13,14 +13,14 @@ import { runRollback, runEmergencyRollback } from '../steps/rollback.js';
 import { runShrink } from '../steps/shrink.js';
 import { validatePatch } from '../steps/validate.js';
 import { runVerify } from '../steps/verify.js';
-import type { ContextCtx } from '../types.js';
+import type { ExploreCtx } from '../types.js';
 
 import type { FlowStrategy } from './strategy-registry.js';
 
 export class PatchFlowStrategy implements FlowStrategy {
   readonly name: FlowMode = 'patch';
 
-  buildPipeline(base: Pipeline<ContextCtx>): Pipeline<unknown> {
+  buildPipeline(base: Pipeline<ExploreCtx>): Pipeline<unknown> {
     return base
       .step('PLAN', generatePlan)
       .step('PATCH', generatePatch)
@@ -37,7 +37,7 @@ export class PatchFlowStrategy implements FlowStrategy {
 export class ReviewFlowStrategy implements FlowStrategy {
   readonly name: FlowMode = 'review';
 
-  buildPipeline(base: Pipeline<ContextCtx>): Pipeline<unknown> {
+  buildPipeline(base: Pipeline<ExploreCtx>): Pipeline<unknown> {
     return base
       .step('REVIEW', generateReview)
       .step('REPORT', displayReview)
@@ -49,7 +49,7 @@ export class ReviewFlowStrategy implements FlowStrategy {
 export class DebugFlowStrategy implements FlowStrategy {
   readonly name: FlowMode = 'debug';
 
-  buildPipeline(base: Pipeline<ContextCtx>): Pipeline<unknown> {
+  buildPipeline(base: Pipeline<ExploreCtx>): Pipeline<unknown> {
     return base
       .step('REVIEW', generateReview)
       .step('ANALYZE_ISSUES', extractIssues)

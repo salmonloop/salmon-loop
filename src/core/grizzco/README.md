@@ -9,8 +9,8 @@ This directory implements the Grizzco execution pipeline (Bifrost) and the rule-
 
 ## Key Modules
 
-- `flows/SalmonLoopFlow.ts`: the canonical phase order.
-- `steps/*`: phase implementations (context, plan, patch, validate, apply, verify, rollback, shrink).
+- `flows/SalmonLoopFlow.ts`: the canonical phase order (EXPLORE -> PLAN -> ...).
+- `steps/*`: phase implementations (explore, context, plan, patch, validate, apply, verify, rollback, shrink).
 - `dsl/*`: rule engine used to select safe workers for a given file/operation.
 - `workers/*`: execution engines (e.g., git-apply, merge workers).
 
@@ -22,6 +22,13 @@ This directory implements the Grizzco execution pipeline (Bifrost) and the rule-
 
 PATCH operations are treated as atomic patch instructions and must not be reconstructed into full file content.
 This is a safety requirement to prevent data loss.
+
+## EXPLORE Phase
+
+- `steps/explore.ts` implements a read-only context gathering loop.
+- Uses a Tool Proxy pattern to intercept `fs.read` calls and populate `ExploreCtx` without requiring explicit LLM submission.
+- Precedes the PLAN phase to resolve ambiguous instructions.
+- Strictly read-only; cannot modify files.
 
 ## PLAN Phase Streaming
 

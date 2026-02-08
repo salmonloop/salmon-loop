@@ -3,6 +3,7 @@ import { runApply } from '../steps/apply.js';
 import { validateAst } from '../steps/ast-validate.js';
 import { saveAudit } from '../steps/audit.js';
 import { buildContext } from '../steps/context.js';
+import { exploreCodebase } from '../steps/explore.js';
 import { generatePatch } from '../steps/patch.js';
 import { generatePlan } from '../steps/plan.js';
 import { runPreflight } from '../steps/preflight.js';
@@ -20,7 +21,8 @@ export async function executeSalmonLoopFlow(initCtx: InitCtx): Promise<FlowRepor
 
   const basePipeline = Pipeline.of(initCtx)
     .step('PREFLIGHT', runPreflight)
-    .step('CONTEXT', buildContext);
+    .step('CONTEXT', buildContext)
+    .step('EXPLORE', exploreCodebase);
 
   const strategy = flowRegistry.get(initCtx.mode);
   const pipeline = strategy.buildPipeline(basePipeline);

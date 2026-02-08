@@ -1,3 +1,9 @@
+export interface ExplorePromptVars {
+  context: string;
+  instruction: string;
+  lastError?: string;
+}
+
 export interface PlanPromptVars {
   context: string;
   instruction: string;

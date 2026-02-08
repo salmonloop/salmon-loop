@@ -1,6 +1,7 @@
 import { createOpenAI } from '@ai-sdk/openai';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { generateText, jsonSchema, streamText, tool } from 'ai';
+import { z } from 'zod';
 
 import { text } from '../../locales/index.js';
 import { LIMITS } from '../limits.js';
@@ -10,6 +11,7 @@ import {
   parsePlanFromLLMContent,
 } from '../llm-utils.js';
 import { getPatchPrompt, getPlanPrompt } from '../prompt.js';
+import type { ToolSpec } from '../tools/types.js';
 import type {
   ChatOptions,
   Context,
@@ -53,7 +55,15 @@ function toAiSdkMessages(messages: LLMMessage[]): any[] {
     if (m.role === 'tool') {
       const toolCallId = m.tool_call_id || 'unknown';
       const toolName = m.name || 'unknown';
-      const result = safeParseJsonObject(m.content);
+
+      // Fix: AI SDK expects 'result' to be the actual return value, not necessarily an object.
+      // If it's a string that looks like JSON, parse it. Otherwise use it as is.
+      let result: any;
+      try {
+        result = JSON.parse(m.content);
+      } catch {
+        result = m.content;
+      }
 
       return {
         role: 'tool',
@@ -63,6 +73,7 @@ function toAiSdkMessages(messages: LLMMessage[]): any[] {
             toolCallId,
             toolName,
             result,
+            isError: result?.status === 'error',
           },
         ],
       };
@@ -113,10 +124,36 @@ function toAiSdkMessages(messages: LLMMessage[]): any[] {
   });
 }
 
-function toAiSdkToolSet(openAiTools: any[] | undefined): Record<string, any> | undefined {
+function toAiSdkToolSet(
+  openAiTools: any[] | undefined,
+  toolSpecs?: ToolSpec[],
+): Record<string, any> | undefined {
+  const tools: Record<string, any> = {};
+
+  // 1. Priority: Direct mapping from ToolSpec (Preserves Zod Schema)
+  if (Array.isArray(toolSpecs) && toolSpecs.length > 0) {
+    for (const spec of toolSpecs) {
+      // Best Practice: Use 'parameters' for input schema as per AI SDK spec.
+      tools[spec.name] = tool({
+        description: spec.description,
+        parameters: spec.inputSchema,
+        execute: async (args: any) => {
+          // In SalmonLoop, execution is handled by the governance layer.
+          // This is a placeholder to satisfy tool definitions if needed.
+          return args;
+        },
+      } as any);
+
+      // Force-inject outputSchema for the SalmonLoop governance layer.
+      // Use z.any() as a safe fallback to ensure validation logic doesn't crash.
+      (tools[spec.name] as any).outputSchema = spec.outputSchema || z.any();
+    }
+    return tools;
+  }
+
+  // 2. Fallback: Legacy OpenAI tool mapping
   if (!Array.isArray(openAiTools) || openAiTools.length === 0) return undefined;
 
-  const tools: Record<string, any> = {};
   for (const t of openAiTools) {
     const fn = t?.function;
     const name = fn?.name;
@@ -124,10 +161,11 @@ function toAiSdkToolSet(openAiTools: any[] | undefined): Record<string, any> | u
 
     tools[name] = tool({
       description: typeof fn?.description === 'string' ? fn.description : undefined,
-      inputSchema: jsonSchema(fn?.parameters || { type: 'object', properties: {} }),
-      // Tool execution is handled by Salmonloop's tool governance layer (policy/audit) separately.
-      outputSchema: jsonSchema({ type: 'object', properties: {} }),
-    });
+      parameters: jsonSchema(fn?.parameters || { type: 'object', properties: {} }),
+    } as any);
+
+    // Legacy tools always downgrade to z.any() output schema.
+    (tools[name] as any).outputSchema = z.any();
   }
 
   return Object.keys(tools).length > 0 ? tools : undefined;
@@ -201,7 +239,7 @@ export class AiSdkLLM implements LLM {
 
   async chat(messages: LLMMessage[], options: ChatOptions = {}): Promise<LLMMessage> {
     const aiMessages = toAiSdkMessages(messages);
-    const tools = toAiSdkToolSet(options.tools);
+    const tools = toAiSdkToolSet(options.tools, options.toolSpecs);
 
     const timeoutMs = this.timeoutMs;
 
@@ -265,7 +303,7 @@ export class AiSdkLLM implements LLM {
     options: ChatOptions = {},
   ): AsyncIterable<LLMStreamChunk> {
     const aiMessages = toAiSdkMessages(messages);
-    const tools = toAiSdkToolSet(options.tools);
+    const tools = toAiSdkToolSet(options.tools, options.toolSpecs);
     const timeoutMs = this.timeoutMs;
 
     const streamFactory = async function* (this: AiSdkLLM) {

@@ -12,6 +12,27 @@ function extractTargetFiles(plan: string): string | undefined {
   }
 }
 
+export async function getExplorePrompt(
+  context: string,
+  instruction: string,
+  lastError?: string,
+): Promise<string> {
+  await promptRegistry.init();
+  return promptRegistry.renderExplore({
+    context,
+    instruction,
+    lastError,
+  });
+}
+
+export async function getExploreSystemPrompt(toolRegistry?: ToolRegistry): Promise<string> {
+  await promptRegistry.init();
+  if (toolRegistry) {
+    promptRegistry.setTools(toolRegistry.listAll());
+  }
+  return promptRegistry.renderExploreSystem();
+}
+
 export async function getPlanPrompt(
   context: string,
   instruction: string,

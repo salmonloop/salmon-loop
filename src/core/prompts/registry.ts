@@ -6,7 +6,7 @@ import Handlebars from 'handlebars';
 
 import type { ToolSpec } from '../tools/types.js';
 
-import type { PatchPromptVars, PlanPromptVars } from './schema.js';
+import type { ExplorePromptVars, PatchPromptVars, PlanPromptVars } from './schema.js';
 
 const TEMPLATE_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'templates');
 
@@ -24,8 +24,10 @@ export class PromptRegistry {
       await this.registerPartial('tool_defs', 'system/_tool_defs.hbs');
       await this.registerPartial('main_system', 'system/main_system.hbs');
 
+      await this.loadTemplate('explore_system', 'system/explore_system.hbs');
       await this.loadTemplate('plan_system', 'system/plan_system.hbs');
       await this.loadTemplate('patch_system', 'system/patch_system.hbs');
+      await this.loadTemplate('explore', 'phases/explore_user.hbs');
       await this.loadTemplate('plan', 'phases/plan_user.hbs');
       await this.loadTemplate('patch', 'phases/patch_user.hbs');
     })();
@@ -100,6 +102,14 @@ export class PromptRegistry {
 
   renderPatchSystem(): string {
     return this.render('patch_system', { tools: this.getToolsForTemplate() });
+  }
+
+  renderExploreSystem(): string {
+    return this.render('explore_system', { tools: this.getToolsForTemplate() });
+  }
+
+  renderExplore(vars: ExplorePromptVars): string {
+    return this.render('explore', vars);
   }
 
   renderPlan(vars: PlanPromptVars): string {

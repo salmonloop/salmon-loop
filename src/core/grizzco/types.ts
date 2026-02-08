@@ -92,9 +92,19 @@ export interface ReviewCtx extends ContextCtx {
 }
 
 /**
+ * Stage 2.5: After Exploration
+ */
+export interface ExploreCtx extends ContextCtx {
+  explorationSummary?: {
+    filesFound: number;
+    toolCallCount?: number;
+  };
+}
+
+/**
  * Stage 3: After Plan Generation
  */
-export interface PlanCtx extends ContextCtx {
+export interface PlanCtx extends ExploreCtx {
   plan: Plan;
 }
 

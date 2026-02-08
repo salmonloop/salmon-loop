@@ -6,6 +6,7 @@ export interface ToolCallingAuditEntry {
   round: number;
   callId: string;
   toolName: string;
+  toolIntent?: string;
   rawArgsType: string;
   rawArgsPreview?: string;
   parsedArgsOk: boolean;

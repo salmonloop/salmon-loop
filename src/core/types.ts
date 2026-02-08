@@ -23,6 +23,7 @@ export interface FileSystem {
 export const EXECUTION_PHASES = [
   'PREFLIGHT',
   'CONTEXT',
+  'EXPLORE',
   'PLAN',
   'PATCH',
   'VALIDATE',
@@ -41,6 +42,7 @@ export const EXECUTION_PHASES = [
 export const Phase = {
   PREFLIGHT: 'PREFLIGHT',
   CONTEXT: 'CONTEXT',
+  EXPLORE: 'EXPLORE',
   PLAN: 'PLAN',
   PATCH: 'PATCH',
   VALIDATE: 'VALIDATE',
@@ -58,7 +60,13 @@ export const Phase = {
  */
 export type ExecutionPhase = (typeof EXECUTION_PHASES)[number];
 
-export const LLM_OUTPUT_KINDS = ['review', 'assistant_message', 'plan', 'patch'] as const;
+export const LLM_OUTPUT_KINDS = [
+  'review',
+  'assistant_message',
+  'explore',
+  'plan',
+  'patch',
+] as const;
 export type LlmOutputKind = (typeof LLM_OUTPUT_KINDS)[number];
 
 export interface LlmOutputPolicy {
@@ -398,6 +406,10 @@ export interface ChatOptions {
    * - For OpenAI: 'auto' | 'none' | { type: 'function', function: { name } }
    */
   toolChoice?: any;
+  /**
+   * Raw SalmonLoop ToolSpec objects for advanced mapping.
+   */
+  toolSpecs?: import('./tools/types.js').ToolSpec[];
   /**
    * Signal to abort the request.
    */

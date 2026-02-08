@@ -55,6 +55,7 @@ export const CodeSearchSpec: Omit<ToolSpec<CodeSearchInputT, CodeSearchOutputT>,
 } = {
   name: 'code.search',
   source: 'builtin',
+  intent: 'SEARCH',
   description: 'Fast file pattern matching tool that works with any codebase size',
   riskLevel: 'low',
   sideEffects: ['fs_read'],

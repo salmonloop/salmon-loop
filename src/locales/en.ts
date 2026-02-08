@@ -524,6 +524,12 @@ Please return the patch in PURE unified diff format:`;
       recoveryFailed: (name: string, error: string) =>
         `[Pipeline] Recovery failed for ${name}: ${error}`,
     },
+    validation: {
+      explorationHallucination:
+        'Exploration found candidate files via search but did not read any content. This usually indicates hallucination.',
+      noFilesRead:
+        'No files were read during the exploration phase. Please ensure you actually read the files you intend to modify.',
+    },
     audit: {
       saved: (file: string) => `[Audit] Saved structured audit log to ${file}`,
       failed: (error: string) => `[Audit] Failed to save audit log: ${error}`,

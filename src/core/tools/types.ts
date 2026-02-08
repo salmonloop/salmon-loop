@@ -47,9 +47,12 @@ export interface ToolRuntimeCtx {
   llm?: LLM;
 }
 
+export type ToolIntent = 'READ' | 'SEARCH' | 'LIST' | 'WRITE' | 'INFRA' | 'AGENT';
+
 export interface ToolSpec<I = any, O = any> {
   name: string; // e.g. "code.search"
   source: ToolSource; // builtin/mcp/plugin
+  intent?: ToolIntent; // Semantic intent of the tool
   description: string;
 
   riskLevel: RiskLevel;

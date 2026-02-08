@@ -6,20 +6,29 @@ This document describes the execution phases and their responsibilities.
 
 1. PREFLIGHT
 2. CONTEXT
-3. PLAN
-4. PATCH
-5. VALIDATE
-6. AST_VALIDATE
-7. APPLY
-8. VERIFY
-9. ROLLBACK
-10. SHRINK
+3. EXPLORE
+4. PLAN
+5. PATCH
+6. VALIDATE
+7. AST_VALIDATE
+8. APPLY
+9. VERIFY
+10. ROLLBACK
+11. SHRINK
 
 The phase order is a contract and must match runtime behavior.
 
+## Phase Responsibilities
+
+### EXPLORE
+- **Goal**: Resolve ambiguous instructions by investigating the codebase.
+- **Tools**: Read-only tools (`ls`, `code.search`, `fs.read`).
+- **Output**: Enriched `Context` with relevant file contents.
+- **Behavior**: Runs a manual tool-calling loop. Files read during this phase are automatically added to the context for the subsequent PLAN phase.
+
 ## Side-Effect Boundaries (Summary)
 
-- PLAN/PATCH are intended to be read-only with tool-calling constrained by policy.
+- EXPLORE/PLAN/PATCH are intended to be read-only with tool-calling constrained by policy.
 - APPLY mutates the active execution workspace (e.g., a temporary worktree).
 - ROLLBACK may be a no-op when verification succeeds; the phase is still present for uniform flow reporting.
 

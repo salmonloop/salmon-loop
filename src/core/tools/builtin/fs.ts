@@ -14,6 +14,7 @@ import { ToolSpec, ToolRuntimeCtx } from '../types.js';
 export const fsReadFileSpec: Omit<ToolSpec, 'executor'> = {
   name: 'fs.read',
   source: 'builtin',
+  intent: 'READ',
   description: text.tools.fsReadDescription,
   riskLevel: 'low',
   sideEffects: ['fs_read'],

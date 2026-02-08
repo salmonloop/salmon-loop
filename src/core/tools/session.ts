@@ -147,6 +147,7 @@ export async function chatWithTools(
     const assistant = await session.llm.chat(messages, {
       ...chatOptions,
       tools: openAITools,
+      toolSpecs: allowedSpecs,
       toolChoice: openAITools.length > 0 ? 'auto' : undefined,
     });
 
@@ -298,12 +299,14 @@ async function executeToolCalls(
       continue;
     }
 
+    const spec = session.toolstack.registry.listAll().find((s) => s.name === toolName);
     session.toolCallingAudit?.event({
       timestamp: new Date().toISOString(),
       phase,
       round,
       callId,
       toolName,
+      toolIntent: spec?.intent,
       rawArgsType: typeof rawArgs,
       rawArgsPreview: typeof rawArgs === 'string' ? redactJsonString(rawArgs) : undefined,
       parsedArgsOk: true,
@@ -485,6 +488,7 @@ export async function chatWithToolsStreaming(
     const stream = session.llm.chatStream(messages, {
       ...chatOptions,
       tools: openAITools,
+      toolSpecs: allowedSpecs,
       toolChoice: openAITools.length > 0 ? 'auto' : undefined,
     });
 

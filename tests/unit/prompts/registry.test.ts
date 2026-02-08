@@ -37,7 +37,8 @@ describe('PromptRegistry', () => {
 
     // From templates/system/main_system.hbs and plan_system.hbs
     expect(out).toContain('You are SalmonLoop.');
-    expect(out).toContain('Use tool calls to inspect the repository when needed.');
+    expect(out).toContain('Use tool calls to inspect the repository.');
+    expect(out).toContain('**DO NOT GUESS file contents.**');
   });
 
   it('should render patch system template with main system and correct phase instruction', async () => {

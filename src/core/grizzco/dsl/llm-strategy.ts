@@ -14,7 +14,8 @@ interface LlmPolicyAction {
 }
 
 function defaultMaxRoundsForPhase(phase: ExecutionPhase): number {
-  // Keep existing behavior (chatWithTools default is 6) but make it explicit and centralized.
+  // Explore needs more rounds to navigate the codebase
+  if (phase === Phase.EXPLORE) return 15;
   if (phase === Phase.PLAN) return 6;
   if (phase === Phase.PATCH) return 6;
   return 6;

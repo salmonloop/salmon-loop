@@ -1,11 +1,11 @@
 import { text } from '../../../locales/index.js';
 import type { FlowMode } from '../../types.js';
 import type { Pipeline } from '../pipeline.js';
-import type { ContextCtx } from '../types.js';
+import type { ExploreCtx } from '../types.js';
 
 export interface FlowStrategy {
   readonly name: FlowMode;
-  buildPipeline(base: Pipeline<ContextCtx>): Pipeline<unknown>;
+  buildPipeline(base: Pipeline<ExploreCtx>): Pipeline<unknown>;
 }
 
 export class FlowStrategyRegistry {
