@@ -101,52 +101,31 @@ function extractProviderDetails(err: unknown): {
   return details;
 }
 
-export function toLlmError(err: unknown, provider?: string): LlmError {
+/**
+ * Sanitizes an error message by removing sensitive data (Zod dumps, JSON, stack traces)
+ * unless they match a known safe pattern.
+ */
+export function sanitizeError(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err);
   const name = err instanceof Error ? err.name : 'UnknownError';
-  let message = err instanceof Error ? err.message : String(err);
 
-  // Unwrap RetryError to get the last error's message if available
-  if (name === 'AI_RetryError' || (err as any)?.lastError) {
-    const lastError = (err as any).lastError;
-    if (lastError instanceof Error) {
-      message = lastError.message;
-    }
-  }
-
-  // Intercept Zod/Validation dumps (Root Cause Fix)
-  // Matches "code": "invalid_union" or ZodError structure, common in AI SDK validation failures
-  if (
+  // 1. Check for Zod/Validation dumps (common in AI SDK)
+  const isValidation =
     name === 'AI_TypeValidationError' ||
     name === 'TypeValidationError' ||
     name === 'ZodError' ||
     (err as any)?.cause?.name === 'ZodError' ||
-    message.includes('"code": "invalid_union"') ||
-    message.includes('ZodError: [') ||
+    msg.includes('"code": "invalid_union"') ||
+    msg.includes('ZodError: [') ||
     /(?:\\?['"])?code(?:\\?['"])?\s*:\s*(?:\\?['"])?invalid_(?:union|type|value|enum|string|date|literal)(?:\\?['"])?/i.test(
-      message,
-    )
-  ) {
-    return new LlmError(
-      'Model validation failed: The provider returned a response that did not match the expected schema.',
-      'LLM_VALIDATION_FAILED',
-      {
-        provider,
-        causeName: name,
-        // Suppress the massive original message from meta to prevent log flooding
-        causeMessage: 'Original error contained massive Zod validation dump (suppressed)',
-      },
+      msg,
     );
+
+  if (isValidation) {
+    return 'Model validation failed: The provider returned a response that did not match the expected schema.';
   }
 
-  const providerDetails = extractProviderDetails(err);
-
-  // Use the extracted provider message as the main message if available
-  // This helps show "License required" instead of "403 Forbidden"
-  if (providerDetails.providerMessage) {
-    message = providerDetails.providerMessage;
-  }
-
-  // --- Sanitization Logic (Allowlist + Heuristics) ---
+  // 2. Allowlist of safe patterns
   const SAFE_ERROR_PATTERNS = [
     /timeout/i,
     /rate.?limit/i,
@@ -169,24 +148,49 @@ export function toLlmError(err: unknown, provider?: string): LlmError {
     /unexpected end of json/i,
   ];
 
-  const isSafe = SAFE_ERROR_PATTERNS.some((p) => p.test(message));
+  const isSafe = SAFE_ERROR_PATTERNS.some((p) => p.test(msg));
   // Heuristic: If it looks like a JSON dump (starts with { or [) or is excessively long
-  const isSuspicious = /^\s*[{[]/.test(message) || message.length > 300;
+  const isSuspicious = /^\s*[{[]/.test(msg) || msg.length > 300;
 
-  // If the error is not explicitly allowed AND looks suspicious, sanitize it
   if (!isSafe && isSuspicious) {
-    message =
-      'Provider request failed. The error message was sanitized for security reasons (see audit logs for details).';
+    return 'Provider request failed. The error message was sanitized for security reasons (see audit logs for details).';
   }
-  // ---------------------------------------------------
+
+  return msg;
+}
+
+export function toLlmError(err: unknown, provider?: string): LlmError {
+  const name = err instanceof Error ? err.name : 'UnknownError';
+  let message = err instanceof Error ? err.message : String(err);
+
+  // Unwrap RetryError to get the last error's message if available
+  if (name === 'AI_RetryError' || (err as any)?.lastError) {
+    const lastError = (err as any).lastError;
+    if (lastError instanceof Error) {
+      message = lastError.message;
+    }
+  }
+
+  // Use provider-specific details if available
+  const providerDetails = extractProviderDetails(err);
+  if (providerDetails.providerMessage) {
+    message = providerDetails.providerMessage;
+  }
+
+  // Apply unified sanitization
+  const sanitizedMessage = sanitizeError(err);
+  const isValidationFailure = sanitizedMessage.includes('Model validation failed');
 
   const meta: LlmErrorMeta = {
     provider,
     causeName: name,
-    // Ensure we log the FULL original message in the audit trail, not the truncated/sanitized one
     causeMessage: truncate(err instanceof Error ? err.message : String(err), 2000),
     ...providerDetails,
   };
+
+  if (isValidationFailure) {
+    return new LlmError(sanitizedMessage, 'LLM_VALIDATION_FAILED', meta);
+  }
 
   if (name === 'AbortError' || /aborted/i.test(message)) {
     return new LlmError(text.llmErrors.httpAborted, 'LLM_HTTP_ABORTED', meta);
@@ -196,7 +200,7 @@ export function toLlmError(err: unknown, provider?: string): LlmError {
     return new LlmError(text.llmErrors.httpInvalidJson, 'LLM_HTTP_RESPONSE_INVALID_JSON', meta);
   }
 
-  return new LlmError(message, 'LLM_HTTP_REQUEST_FAILED', meta);
+  return new LlmError(sanitizedMessage, 'LLM_HTTP_REQUEST_FAILED', meta);
 }
 
 export function wrapPlanEmpty(): LlmError {

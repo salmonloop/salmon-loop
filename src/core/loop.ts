@@ -9,6 +9,7 @@ import { Semaphore } from './concurrency.js';
 import { executeSalmonLoopFlow } from './grizzco/flows/SalmonLoopFlow.js';
 import type { ShrinkCtx } from './grizzco/types.js';
 import { LIMITS } from './limits.js';
+import { sanitizeError } from './llm/errors.js';
 import { FileStateResolver } from './strata/layers/file-state-resolver.js';
 import { RuntimeEnvironment } from './strata/runtime/environment.js';
 import { WorkspaceSynchronizer } from './strata/runtime/synchronizer.js';
@@ -116,7 +117,7 @@ export class SalmonLoop {
     try {
       await env.setup();
     } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
+      const msg = sanitizeError(error);
       const errorCode = (error as any)?.llmCode || (error as any)?.code || (error as any)?.name;
       logs.push(this.createLog(Phase.PREFLIGHT, msg, false));
       emit({ type: 'log', level: 'error', message: msg, timestamp: now() });
