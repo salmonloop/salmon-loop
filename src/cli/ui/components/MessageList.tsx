@@ -23,7 +23,7 @@ const StreamingCursor = () => {
     const interval = setInterval(() => setVisible((v) => !v), 530);
     return () => clearInterval(interval);
   }, []);
-  return <Text color={COLORS.semantic.cyan}>{visible ? '█' : ' '}</Text>;
+  return <Text color={COLORS.semantic.blue}>{visible ? '█' : ' '}</Text>;
 };
 
 /**
@@ -123,19 +123,19 @@ const MessageItem = React.memo<{
                 {' '}
                 {style.label}
               </Text>
-              {msg.type.includes('assistant') && <Text color={COLORS.semantic.cyan}> *</Text>}
               {isStreaming && (
                 <Text>
                   {' '}
                   <StreamIndicator />
                 </Text>
               )}
+              {msg.streamState === 'paused' && <Text color={COLORS.semantic.red}> [||]</Text>}
               <Text> </Text>
             </Text>
           </Box>
 
           {/* Content Row */}
-          <Box marginTop={0} paddingLeft={2}>
+          <Box marginTop={1} marginBottom={0} paddingLeft={2}>
             <Markdown theme={markdownTheme} mode={markdownRenderMode}>
               {msg.content}
             </Markdown>
@@ -152,9 +152,9 @@ const MessageItem = React.memo<{
 
         {/* Optional: Subtle separator for visual grouping if needed */}
         {showSeparator && (
-          <Box marginBottom={1} paddingLeft={2}>
+          <Box marginTop={0} marginBottom={0} paddingLeft={2}>
             <Text color="gray" dimColor>
-              {'· '.repeat(20)}
+              {'─'.repeat(76)}
             </Text>
           </Box>
         )}
@@ -166,9 +166,11 @@ const MessageItem = React.memo<{
   // Layout: Compact header + content. If content is long, align it.
   if (level === 'standard') {
     const isMultiline = msg.content.length > 60 || msg.content.includes('\n');
+    // Only indent User/Tool messages to align with metadata; others (Plan/Think) start flush
+    const contentIndent = msg.type === 'user' || msg.type === 'tool_result' ? 20 : 0;
 
     return (
-      <Box flexDirection="column">
+      <Box flexDirection="column" paddingLeft={3}>
         <Box flexDirection="column" marginBottom={style.marginBottom}>
           {/* Header + Inline Content (if short) */}
           <Box flexDirection="row" gap={1}>
@@ -186,6 +188,13 @@ const MessageItem = React.memo<{
               </Box>
             )}
 
+            {/* Tool Name Metadata */}
+            {msg.metadata?.toolName && (
+              <Box marginRight={1}>
+                <Text color="gray">({msg.metadata.toolName})</Text>
+              </Box>
+            )}
+
             {!isMultiline && (
               <Box flexGrow={1}>
                 <Markdown theme={markdownTheme} mode={markdownRenderMode}>
@@ -197,7 +206,7 @@ const MessageItem = React.memo<{
 
           {/* Multiline Content (Indented) */}
           {isMultiline && (
-            <Box paddingLeft={20}>
+            <Box paddingLeft={contentIndent}>
               <Markdown theme={markdownTheme} mode={markdownRenderMode}>
                 {msg.content}
               </Markdown>
@@ -207,7 +216,7 @@ const MessageItem = React.memo<{
         {showSeparator && (
           <Box marginBottom={1}>
             <Text color="gray" dimColor>
-              {'─'.repeat(40)}
+              {'─'.repeat(76)}
             </Text>
           </Box>
         )}
@@ -218,7 +227,7 @@ const MessageItem = React.memo<{
   // Level 3: Lightweight (System, Queue, Thinking)
   // Layout: Single line, dim color, compact
   return (
-    <Box flexDirection="column" marginBottom={style.marginBottom}>
+    <Box flexDirection="column" marginBottom={style.marginBottom} paddingLeft={3}>
       <Box flexDirection="row" gap={1}>
         <Text color={COLORS.text.muted} dimColor={false}>
           {msg.timestamp.toLocaleTimeString('en-US', { hour12: false })}

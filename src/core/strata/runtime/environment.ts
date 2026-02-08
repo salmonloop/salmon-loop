@@ -99,9 +99,8 @@ export class RuntimeEnvironment {
         this.initialSnapshotHash = snapshot.commitHash;
 
         emit({
-          type: 'log',
-          level: 'debug',
-          message: `Created safe snapshot: ${this.initialSnapshotHash}`,
+          type: 'snapshot.created',
+          commitHash: this.initialSnapshotHash,
           timestamp: now(),
         });
       } catch (error) {

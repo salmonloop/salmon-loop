@@ -14,9 +14,9 @@ import type { MessageType } from '../store/types.js';
 export const COLORS = {
   // Background layers
   bg: {
-    outer: '#0a0e14', // Outer background
-    terminal: '#0d1117', // Terminal main background
-    highlight: '#161b22', // Hover/highlight areas
+    outer: '#0e1117', // Outer background (matched to terminal)
+    terminal: '#0e1117', // Terminal main background
+    highlight: '#171b22', // Hover/highlight areas
     errorBg: '#1a0f0f', // Error background
     warningBg: '#1a1a0f', // Warning background
   },
@@ -75,13 +75,13 @@ export const MESSAGE_STYLES: Record<
   // Level 1 - Emphasis (with border)
   assistant: {
     inkColor: COLORS.semantic.salmon,
-    label: '<>< SALMON',
+    label: '<*>< SALMON',
     hasBorder: true,
     marginBottom: 1,
   },
   assistant_stream: {
     inkColor: COLORS.semantic.salmon,
-    label: '<>< SALMON',
+    label: '<*>< SALMON',
     hasBorder: true,
     marginBottom: 1,
   },
@@ -139,15 +139,15 @@ export const MESSAGE_STYLES: Record<
   },
   thinking: {
     inkColor: COLORS.text.muted,
-    label: null,
+    label: 'THINK',
     hasBorder: false,
-    marginBottom: 0,
+    marginBottom: 1,
   },
   plan_step: {
-    inkColor: COLORS.text.muted,
-    label: null,
+    inkColor: COLORS.semantic.blue,
+    label: 'PLAN',
     hasBorder: false,
-    marginBottom: 0,
+    marginBottom: 1,
   },
   tool_call: {
     inkColor: COLORS.text.muted,

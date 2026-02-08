@@ -75,7 +75,7 @@ const AppCore: React.FC<{
   );
 
   return (
-    <Box flexDirection="column">
+    <Box flexDirection="column" height="100%">
       {/* Message Display Area */}
       <Box
         flexGrow={1}

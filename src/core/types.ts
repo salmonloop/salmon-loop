@@ -178,6 +178,11 @@ export type LoopEvent =
       timestamp: Date;
     }
   | {
+      type: 'snapshot.created';
+      commitHash: string;
+      timestamp: Date;
+    }
+  | {
       type: 'checkpoint.cleaned';
       ok: boolean;
       timestamp: Date;

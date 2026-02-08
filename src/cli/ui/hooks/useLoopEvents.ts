@@ -96,6 +96,19 @@ export function useLoopEvents(mode: 'run' | 'chat', onStart: any, signal: AbortS
   const handleEvent = useCallback(
     (event: any) => {
       if (!event) return;
+
+      // Intercept cancellation errors and treat them as interrupts
+      // This ensures we show the "^C [SPLATTED]" style instead of a generic error
+      const isCancellation =
+        (event.type === 'error' && event.error?.message === 'Operation cancelled by user') ||
+        event.message === 'Operation cancelled by user' ||
+        (typeof event.error === 'string' && event.error.includes('Operation cancelled by user'));
+
+      if (isCancellation) {
+        dispatch({ type: 'INTERRUPT_STREAM' });
+        return;
+      }
+
       if (event.type === 'llm.stream.delta') {
         const delta = sanitizeMessage({ type: 'assistant', content: event.content });
         if (!delta.trim()) return;
@@ -119,7 +132,25 @@ export function useLoopEvents(mode: 'run' | 'chat', onStart: any, signal: AbortS
         return;
       }
       if (event.type === 'log') {
-        dispatchSanitizedMessage({ content: event.message, type: 'system' });
+        const msg = event.message || '';
+        let type = 'system';
+        const content = msg;
+
+        // Auto-detect message types based on content to match new design system
+        if (msg.includes('Patch generated') || msg.includes('Plan generated')) {
+          type = 'plan_step';
+        } else if (msg.startsWith('Analyzing')) {
+          type = 'thinking';
+        }
+
+        dispatchSanitizedMessage({ content, type });
+      } else if (event.type === 'snapshot.created') {
+        // Handle structured snapshot event
+        dispatchSanitizedMessage({
+          type: 'checkpoint',
+          content: event.commitHash.slice(0, 8),
+          timestamp: event.timestamp,
+        });
       } else if (event.content || event.message) {
         dispatchSanitizedMessage(event);
       }

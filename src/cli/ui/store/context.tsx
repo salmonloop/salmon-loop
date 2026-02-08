@@ -14,7 +14,9 @@ const UIStoreContext = createContext<
 export const UIStoreProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(uiReducer, initialState);
 
-  return <UIStoreContext.Provider value={{ state, dispatch }}>{children}</UIStoreContext.Provider>;
+  const store = React.useMemo(() => ({ state, dispatch }), [state, dispatch]);
+
+  return <UIStoreContext.Provider value={store}>{children}</UIStoreContext.Provider>;
 };
 
 export const useUIStore = () => {

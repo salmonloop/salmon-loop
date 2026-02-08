@@ -48,12 +48,12 @@ export function getMessageLevel(type: MessageType): MessageLevel {
     case 'tool_result':
     case 'checkpoint':
     case 'interrupt':
+    case 'thinking':
+    case 'plan_step':
       return 'standard';
 
     case 'system':
     case 'queue':
-    case 'thinking':
-    case 'plan_step':
     case 'tool_call':
     case 'welcome':
     default:
@@ -85,7 +85,23 @@ export type LegacyMessageType = 'user' | 'ai' | 'system' | 'welcome';
  */
 export function normalizeLegacyType(type: string): MessageType {
   if (type === 'ai') return 'assistant';
-  if (type === 'user' || type === 'system' || type === 'welcome') {
+  const validTypes = [
+    'user',
+    'assistant',
+    'assistant_stream',
+    'system',
+    'tool_call',
+    'tool_result',
+    'plan_step',
+    'thinking',
+    'checkpoint',
+    'error',
+    'warning',
+    'queue',
+    'interrupt',
+    'welcome',
+  ];
+  if (validTypes.includes(type)) {
     return type as MessageType;
   }
   return 'system';

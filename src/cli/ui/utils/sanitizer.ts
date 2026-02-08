@@ -19,20 +19,51 @@ export interface UIEvent {
 export function sanitizeMessage(ev: UIEvent): string {
   let safeMessage = String(ev.content || ev.message || '');
 
+  // 0. Block massive Zod/Validation JSON dumps immediately
+  // Matches "code": "invalid_union", "code": "invalid_type", etc., with flexible quoting/spacing
+  // Also catches AI SDK's "Error message: [" prefix for validation errors
+  const zodJsonPattern =
+    /['"]?code['"]?\s*:\s*['"]?invalid_(union|type|value|enum|string|date|literal)['"]?/i;
+  if (
+    safeMessage.includes('ZodError: [') ||
+    safeMessage.startsWith('Error message: [') ||
+    zodJsonPattern.test(safeMessage)
+  ) {
+    return 'Error: Invalid input parameters (Validation failed)';
+  }
+
+  // 0.5. Heuristic Block: Massive non-code-block JSON/Object dumps
+  // This acts as a safety net for any structural error dumps that bypass specific filters
+  const isLong = safeMessage.length > 500;
+  const hasCodeBlock = safeMessage.includes('```');
+
+  if (isLong && !hasCodeBlock) {
+    // Count JSON/Object structural characters: { } [ ] " : ,
+    const structureChars = (safeMessage.match(/[{}[\]":,]/g) || []).length;
+    const density = structureChars / safeMessage.length;
+
+    // Threshold > 10% density is extremely high for natural language
+    if (density > 0.1) {
+      return 'Error: Complex system error (details hidden). See logs.';
+    }
+  }
+
   // 1. Block massive SDK error objects/stacks and 429 details
-  const isAiError = /RetryError|APICallError|statusCode: 429|Rate limit exceeded|ZodError|ValidationError|TypeError.*at\s+/i.test(
-    safeMessage,
-  );
+  const isAiError =
+    /RetryError|APICallError|statusCode: 429|Rate limit exceeded|ZodError|ValidationError|TypeError.*at\s+/i.test(
+      safeMessage,
+    );
 
   // 2. Filter out stack traces (security & UX)
   // Enhanced detection: check for any stack trace indicators
   // Also detect JSON fragments mixed with stack traces (e.g., Zod errors)
-  const hasStackTrace = /^\s*at\s+/m.test(safeMessage) ||
-                        /\s+at\s+\w+.*\(/m.test(safeMessage) ||
-                        safeMessage.includes('node_modules') ||
-                        safeMessage.includes('file:///') ||
-                        /:\d+:\d+\)$/m.test(safeMessage) || // matches line:col) at end of lines
-                        (/^\s*[\]\},]/.test(safeMessage) && /\s+at\s+/.test(safeMessage)); // JSON fragments + stack traces
+  const hasStackTrace =
+    /^\s*at\s+/m.test(safeMessage) ||
+    /\s+at\s+\w+.*\(/m.test(safeMessage) ||
+    safeMessage.includes('node_modules') ||
+    safeMessage.includes('file:///') ||
+    /:\d+:\d+\)$/m.test(safeMessage) || // matches line:col) at end of lines
+    (/^\s*[\]},]/.test(safeMessage) && /\s+at\s+/.test(safeMessage)); // JSON fragments + stack traces
 
   if (isAiError || hasStackTrace) {
     const lastErrorMatch = safeMessage.match(/Last error:\s*([^\n{]+)/i);
@@ -40,7 +71,7 @@ export function sanitizeMessage(ev: UIEvent): string {
     const plainMessageMatch = safeMessage.match(/message:\s*'([^']+)'/i);
 
     // Extract just the error type and message, aggressively filter stack traces
-    const errorLines = safeMessage.split('\n').filter(line => {
+    const errorLines = safeMessage.split('\n').filter((line) => {
       const trimmed = line.trim();
       // Reject empty lines, stack traces, file paths
       if (!trimmed) return false;
@@ -60,18 +91,16 @@ export function sanitizeMessage(ev: UIEvent): string {
       safeMessage = `Error: ${plainMessageMatch[1]}`;
     } else if (errorLines.length > 0) {
       // Use first non-stack-trace line, clean up error type prefix
-      let cleanLine = errorLines[0]
+      const cleanLine = errorLines[0]
         .replace(/^(ZodError|ValidationError|TypeError|Error|APICallError|RetryError):\s*/i, '')
         .trim()
         .substring(0, 150);
 
       // If line is still too technical or empty, use generic message
-      if (!cleanLine || cleanLine.length < 3 || /^[\[\{]/.test(cleanLine)) {
+      if (!cleanLine || cleanLine.length < 3 || /^[[{]/.test(cleanLine)) {
         safeMessage = 'An error occurred. Please try again or rephrase your request.';
       } else {
-        safeMessage = cleanLine.toLowerCase().includes('error')
-          ? cleanLine
-          : `Error: ${cleanLine}`;
+        safeMessage = cleanLine.toLowerCase().includes('error') ? cleanLine : `Error: ${cleanLine}`;
       }
     } else {
       // All lines were stack traces - use generic message

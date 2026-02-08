@@ -12,6 +12,7 @@ import {
   type MarkdownRenderMode,
   type MarkdownTheme,
 } from '../../../core/config/types.js';
+import { COLORS } from '../styles/theme.js';
 
 if (chalk.level < 3) {
   chalk.level = 3;
@@ -29,10 +30,10 @@ const THEME_OVERRIDES: Record<MarkdownTheme, Record<string, unknown>> = {
     code: chalk.yellowBright,
     link: chalk.blueBright,
     href: chalk.blueBright.underline,
-    listitem: chalk.reset,
+    listitem: chalk.hex(COLORS.text.primary),
     blockquote: chalk.gray.italic,
     html: chalk.gray,
-    table: chalk.reset,
+    table: chalk.hex(COLORS.text.primary),
   },
   default: {
     heading: chalk.green.bold,
@@ -43,10 +44,10 @@ const THEME_OVERRIDES: Record<MarkdownTheme, Record<string, unknown>> = {
     code: chalk.yellow,
     link: chalk.blue,
     href: chalk.blue.underline,
-    listitem: chalk.reset,
+    listitem: chalk.hex(COLORS.text.primary),
     blockquote: chalk.gray.italic,
     html: chalk.gray,
-    table: chalk.reset,
+    table: chalk.hex(COLORS.text.primary),
   },
 };
 

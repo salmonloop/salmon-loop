@@ -9,7 +9,8 @@ export type LlmErrorCode =
   | 'LLM_PLAN_INVALID_JSON'
   | 'LLM_PATCH_EMPTY'
   | 'LLM_PATCH_NOT_UNIFIED_DIFF'
-  | 'LLM_PATCH_INVALID';
+  | 'LLM_PATCH_INVALID'
+  | 'LLM_VALIDATION_FAILED';
 
 export interface LlmErrorMeta {
   provider?: string;
@@ -110,6 +111,27 @@ export function toLlmError(err: unknown, provider?: string): LlmError {
     if (lastError instanceof Error) {
       message = lastError.message;
     }
+  }
+
+  // Intercept Zod/Validation dumps (Root Cause Fix)
+  // Matches "code": "invalid_union" or ZodError structure, common in AI SDK validation failures
+  if (
+    message.includes('"code": "invalid_union"') ||
+    message.includes('ZodError: [') ||
+    /['"]?code['"]?\s*:\s*['"]?invalid_(union|type|value|enum|string|date|literal)['"]?/i.test(
+      message,
+    )
+  ) {
+    return new LlmError(
+      'Model validation failed: The provider returned a response that did not match the expected schema.',
+      'LLM_VALIDATION_FAILED',
+      {
+        provider,
+        causeName: name,
+        // Suppress the massive original message from meta to prevent log flooding
+        causeMessage: 'Original error contained massive Zod validation dump (suppressed)',
+      },
+    );
   }
 
   const providerDetails = extractProviderDetails(err);
