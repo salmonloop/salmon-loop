@@ -160,14 +160,6 @@ export const CommandInput: React.FC<Props> = ({
   });
 
   const visibleSuggestions = suggestions.slice(startIndex, startIndex + UI_CONFIG.MAX_SUGGESTIONS);
-  const maxSuggestionNameLength = suggestions.reduce((max, suggestion) => {
-    const trimmed = suggestion.name.trimEnd();
-    return Math.max(max, trimmed.length);
-  }, 0);
-  const formatSuggestionName = (name: string) => {
-    const trimmed = name.trimEnd();
-    return trimmed.padEnd(maxSuggestionNameLength + 2);
-  };
   const ghostText = getGhostText();
 
   return (

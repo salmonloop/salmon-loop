@@ -18,8 +18,8 @@ import {
 import type { Command } from './types.js';
 import { hashArgsInput, parseSuggestionContext, parseToken, parseTokenList } from './utils.js';
 
-export const authCommand: Command = {
-  name: '/auth',
+export const allowlistCommand: Command = {
+  name: '/allowlist',
   description: text.cli.commandAuth,
   order: 70,
   getSuggestions: ({ input }) => {

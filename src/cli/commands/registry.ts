@@ -1,4 +1,4 @@
-import { authCommand } from './auth.js';
+import { allowlistCommand } from './allowlist.js';
 import { exitCommand } from './exit.js';
 import { llmOutputCommand } from './llm-output.js';
 import { newCommand } from './new.js';
@@ -14,7 +14,7 @@ const baseCommands: Command[] = [
   exitCommand,
   statusCommand,
   queueCommand,
-  authCommand,
+  allowlistCommand,
   subAgentCommand,
   newCommand,
   llmOutputCommand,
@@ -66,16 +66,27 @@ export async function getSuggestions(
 
   // If we have an exact command match and we are in the argument area
   if (exactMatch && argIndex > 0) {
-    if (exactMatch.subcommands) {
-         // Subcommand logic
-         const subSearch = currentPrefix.toLowerCase();
-         const subMatches = exactMatch.subcommands.filter(s => s.name.startsWith(subSearch));
-         return subMatches.map(s => ({
-             name: s.name,
-             description: s.description,
-             command: s
-         }));
+    if (argIndex === 1 && exactMatch.subcommands) {
+      // Subcommand logic
+      const subSearch = currentPrefix.toLowerCase();
+      const subMatches = exactMatch.subcommands.filter((s) => s.name.startsWith(subSearch));
+      return subMatches.map((s) => ({
+        name: s.name,
+        description: s.description,
+        command: s,
+      }));
     }
+
+    // If we have an exact subcommand match at argIndex 1, delegate to it for argIndex > 1
+    if (argIndex > 1 && exactMatch.subcommands) {
+      const args = input.trim().split(/\s+/);
+      const subCmdName = args[1].toLowerCase();
+      const subMatch = exactMatch.subcommands.find((s) => s.name === subCmdName);
+      if (subMatch?.getSuggestions) {
+        return subMatch.getSuggestions(context);
+      }
+    }
+
     return exactMatch.getSuggestions ? await exactMatch.getSuggestions(context) : [];
   }
 

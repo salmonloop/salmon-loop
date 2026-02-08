@@ -9,13 +9,13 @@ import { RealFsTestHelper } from '../helpers/real-fs-helper.js';
 
 const helper = new RealFsTestHelper();
 
-describe('CLI /auth dispatcher integration', () => {
+describe('CLI /allowlist dispatcher integration', () => {
   afterEach(async () => {
     vi.clearAllMocks();
     await helper.cleanup();
   });
 
-  it('adds, lists, and removes allowlist entries via /auth', async () => {
+  it('adds, lists, and removes allowlist entries via /allowlist', async () => {
     const repoPath = await helper.createTempDir('auth-dispatch-');
     const dispatcher = new CommandDispatcher();
     const emit = vi.fn();
@@ -43,7 +43,7 @@ describe('CLI /auth dispatcher integration', () => {
       return events.at(-1)?.message || '';
     };
 
-    const addResult = await dispatcher.dispatch('/auth add repo fs.read context', {
+    const addResult = await dispatcher.dispatch('/allowlist add repo fs.read context', {
       emit,
       sessionManager,
       dispatch: vi.fn(),
@@ -63,7 +63,7 @@ describe('CLI /auth dispatcher integration', () => {
     expect(allowlist.tools?.['fs.read']?.rules?.length).toBe(1);
     expect(allowlist.tools?.['fs.read']?.rules?.[0]?.phase).toBe('CONTEXT');
 
-    const listResult = await dispatcher.dispatch('/auth list repo', {
+    const listResult = await dispatcher.dispatch('/allowlist list repo', {
       emit,
       sessionManager,
       dispatch: vi.fn(),
@@ -75,7 +75,7 @@ describe('CLI /auth dispatcher integration', () => {
     expect(listMessage).toContain('fs.read');
     expect(listMessage).toContain('mode=allow');
 
-    const removeResult = await dispatcher.dispatch('/auth remove repo fs.read context', {
+    const removeResult = await dispatcher.dispatch('/allowlist remove repo fs.read context', {
       emit,
       sessionManager,
       dispatch: vi.fn(),
@@ -85,7 +85,7 @@ describe('CLI /auth dispatcher integration', () => {
     expect(removeResult).toEqual({ type: 'executed' });
     expect(getLastLogMessage()).toBe(text.cli.authRemoved('fs.read', 'repo'));
 
-    const listEmptyResult = await dispatcher.dispatch('/auth list repo', {
+    const listEmptyResult = await dispatcher.dispatch('/allowlist list repo', {
       emit,
       sessionManager,
       dispatch: vi.fn(),

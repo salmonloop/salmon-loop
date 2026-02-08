@@ -4,16 +4,16 @@ import type { Command, CommandResult } from './types.js';
 import { parseSuggestionContext } from './utils.js';
 
 const getSnapshotSuggestions = async (sessionManager: any, currentPrefix: string) => {
-    const manager = new CheckpointManager();
-    const repoPath = sessionManager.getCurrent().meta.repoPath;
-    const snapshots = await manager.listSnapshots(repoPath);
-    const search = currentPrefix.toLowerCase();
-    return snapshots
-      .filter((s) => s.hash.toLowerCase().startsWith(search))
-      .map((s) => ({
-        name: s.hash.slice(0, 7),
-        description: s.message,
-      }));
+  const manager = new CheckpointManager();
+  const repoPath = sessionManager.getCurrent().meta.repoPath;
+  const snapshots = await manager.listSnapshots(repoPath);
+  const search = currentPrefix.toLowerCase();
+  return snapshots
+    .filter((s) => s.hash.toLowerCase().startsWith(search))
+    .map((s) => ({
+      name: s.hash.slice(0, 7),
+      description: s.message,
+    }));
 };
 
 const listCommand: Command = {
@@ -29,14 +29,14 @@ const listCommand: Command = {
     const hash = args[1]; // /snapshot list <hash>
 
     if (!hash) {
-        // List all logic could be added here, currently just asks for selection
-        emit({
-          type: 'log',
-          level: 'info',
-          message: 'Select a snapshot from the suggestions to view its details.',
-          timestamp: new Date(),
-        });
-        return;
+      // List all logic could be added here, currently just asks for selection
+      emit({
+        type: 'log',
+        level: 'info',
+        message: 'Select a snapshot from the suggestions to view its details.',
+        timestamp: new Date(),
+      });
+      return;
     }
 
     const manager = new CheckpointManager();
@@ -51,7 +51,7 @@ const listCommand: Command = {
       message: `Snapshot [${hash.slice(0, 7)}] Details:\n- Staged: ${stagedCount} files\n- Unstaged: ${unstagedCount} files\n\nUse "/snapshot restore ${hash.slice(0, 7)}" to revert your workspace.`,
       timestamp: new Date(),
     });
-  }
+  },
 };
 
 const createCommand: Command = {
@@ -71,7 +71,7 @@ const createCommand: Command = {
       message: `Snapshot created: ${result.commitHash.slice(0, 7)}`,
       timestamp: new Date(),
     });
-  }
+  },
 };
 
 const deleteCommand: Command = {
@@ -87,7 +87,12 @@ const deleteCommand: Command = {
     const hash = args[1];
 
     if (!hash) {
-      emit({ type: 'log', level: 'error', message: 'Usage: /snapshot delete <hash>', timestamp: new Date() });
+      emit({
+        type: 'log',
+        level: 'error',
+        message: 'Usage: /snapshot delete <hash>',
+        timestamp: new Date(),
+      });
       return;
     }
 
@@ -101,7 +106,7 @@ const deleteCommand: Command = {
       message: `Snapshot ${hash} deleted.`,
       timestamp: new Date(),
     });
-  }
+  },
 };
 
 const restoreCommand: Command = {
@@ -130,7 +135,7 @@ const restoreCommand: Command = {
         challenge: hash.slice(0, 6),
       },
     };
-  }
+  },
 };
 
 export const snapshotInteractiveCommand: Command = {
@@ -138,25 +143,38 @@ export const snapshotInteractiveCommand: Command = {
   description: 'Manage repository snapshots',
   order: 40,
   subcommands: [listCommand, createCommand, deleteCommand, restoreCommand],
-  execute: async ({ emit, input, context }) => {
-     // If this execute is called, it means the user typed "/snapshot" (and potentially args)
-     // but the UI didn't drill down or the user hit enter on the main command.
-     // In a robust implementation, we might delegate to subcommands here manually
-     // if the input matches a subcommand pattern, to support legacy execution style.
+  execute: async (ctx) => {
+    const { emit, input } = ctx;
+    // If this execute is called, it means the user typed "/snapshot" (and potentially args)
+    // but the UI didn't drill down or the user hit enter on the main command.
+    // In a robust implementation, we might delegate to subcommands here manually
+    // if the input matches a subcommand pattern, to support legacy execution style.
 
-     const args = input.trim().split(/\s+/).slice(1);
-     if (args.length === 0) {
-         emit({ type: 'log', level: 'info', message: 'Available subcommands: list, create, delete, restore', timestamp: new Date() });
-         return;
-     }
+    const args = input.trim().split(/\s+/).slice(1);
+    if (args.length === 0) {
+      emit({
+        type: 'log',
+        level: 'info',
+        message: 'Available subcommands: list, create, delete, restore',
+        timestamp: new Date(),
+      });
+      return;
+    }
 
-     const subCmdName = args[0].toLowerCase();
-     const subCmd = [listCommand, createCommand, deleteCommand, restoreCommand].find(c => c.name === subCmdName);
+    const subCmdName = args[0].toLowerCase();
+    const subCmd = [listCommand, createCommand, deleteCommand, restoreCommand].find(
+      (c) => c.name === subCmdName,
+    );
 
-     if (subCmd) {
-         return subCmd.execute({ ...context, emit, input: `/snapshot ${args.join(' ')}` } as any);
-     }
+    if (subCmd) {
+      return subCmd.execute({ ...ctx, input: `/snapshot ${args.join(' ')}` });
+    }
 
-     emit({ type: 'log', level: 'error', message: `Unknown subcommand: ${subCmdName}`, timestamp: new Date() });
+    emit({
+      type: 'log',
+      level: 'error',
+      message: `Unknown subcommand: ${subCmdName}`,
+      timestamp: new Date(),
+    });
   },
 };
