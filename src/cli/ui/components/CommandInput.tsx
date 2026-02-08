@@ -197,6 +197,9 @@ export const CommandInput: React.FC<Props> = ({
             }
 
             resetHistory();
+            if (val.trim()) {
+              dispatch({ type: 'APPEND_INPUT', payload: val });
+            }
             onSubmit(val);
           }}
           placeholder={

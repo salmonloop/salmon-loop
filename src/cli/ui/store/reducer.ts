@@ -30,6 +30,7 @@ export const initialState: UIState = {
   currentPhase: 'idle',
   isThinking: false,
   changedFiles: [],
+  inputHistory: [],
 };
 
 export function uiReducer(state: UIState, action: UIAction): UIState {
@@ -126,6 +127,23 @@ export function uiReducer(state: UIState, action: UIAction): UIState {
       };
     case 'SET_CHANGED_FILES':
       return { ...state, changedFiles: action.payload };
+    case 'SET_INPUT_HISTORY':
+      return { ...state, inputHistory: action.payload };
+    case 'APPEND_INPUT': {
+      const trimmed = action.payload.trim();
+      if (!trimmed || trimmed.startsWith('/')) return state;
+      // Deduplication logic
+      if (
+        state.inputHistory.length > 0 &&
+        state.inputHistory[state.inputHistory.length - 1] === trimmed
+      ) {
+        return state;
+      }
+      return {
+        ...state,
+        inputHistory: [...state.inputHistory, trimmed].slice(-500),
+      };
+    }
     case 'COMPLETE_STREAM': {
       if (!state.activeStreamingMessage) return state;
 

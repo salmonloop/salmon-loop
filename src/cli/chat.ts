@@ -3,6 +3,7 @@ import type {
   MarkdownTheme,
   ToolAuthorizationConfig,
 } from '../core/config/index.js';
+import { InputHistoryManager } from '../core/history/input-history.js';
 import { DEFAULT_LLM_OUTPUT_POLICY, emitLlmOutput } from '../core/llm/output-policy.js';
 import { logger } from '../core/logger.js';
 import { runSalmonLoop } from '../core/loop.js';
@@ -36,6 +37,8 @@ export interface ChatModeOptions {
 export async function startChatMode(options: ChatModeOptions): Promise<void> {
   const sessionManager = new ChatSessionManager(options.repoPath);
   await sessionManager.init();
+  const historyManager = new InputHistoryManager(options.repoPath);
+  await historyManager.init();
   const dispatcher = new CommandDispatcher();
 
   // Load or create session
@@ -43,6 +46,9 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
   if (!session) {
     session = await sessionManager.create();
   }
+
+  // Load input history for this session
+  const inputHistory = await historyManager.load(session.meta.id);
 
   // Dynamically import GUI to avoid top-level await issues with yoga-layout
   const { startGUI } = await import('./ui/index.js');
@@ -351,7 +357,13 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
       guiOptions: GUIOptions | undefined,
       dispatch: ((action: any) => void) | undefined,
     ) => {
-      if (input === undefined) return;
+      if (input === undefined) {
+        // First run: load history into store
+        if (dispatch && session) {
+          dispatch({ type: 'SET_INPUT_HISTORY', payload: inputHistory });
+        }
+        return;
+      }
       latestDispatch = dispatch || (() => {});
       latestEmit = emit;
       latestGuiOptions = guiOptions;

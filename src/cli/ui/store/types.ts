@@ -128,6 +128,7 @@ export interface UIState {
   currentPhase: string;
   isThinking: boolean;
   changedFiles: string[];
+  inputHistory: string[];
   pendingConfirmation?: {
     message: string;
     challenge: string; // First 6 characters of the target hash.
@@ -165,6 +166,8 @@ export type UIAction =
   | { type: 'UPDATE_PROGRESS'; payload: number }
   | { type: 'UPDATE_TASK'; payload: { id: string; status: 'completed' | 'failed' } }
   | { type: 'SET_CHANGED_FILES'; payload: string[] }
+  | { type: 'SET_INPUT_HISTORY'; payload: string[] }
+  | { type: 'APPEND_INPUT'; payload: string }
   | { type: 'INTERRUPT_STREAM' }
   | { type: 'RESET_MESSAGES' }
   | { type: 'SET_CONFIRMATION'; payload: UIState['pendingConfirmation'] }
