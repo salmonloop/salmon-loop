@@ -116,9 +116,13 @@ export function toLlmError(err: unknown, provider?: string): LlmError {
   // Intercept Zod/Validation dumps (Root Cause Fix)
   // Matches "code": "invalid_union" or ZodError structure, common in AI SDK validation failures
   if (
+    name === 'AI_TypeValidationError' ||
+    name === 'TypeValidationError' ||
+    name === 'ZodError' ||
+    (err as any)?.cause?.name === 'ZodError' ||
     message.includes('"code": "invalid_union"') ||
     message.includes('ZodError: [') ||
-    /['"]?code['"]?\s*:\s*['"]?invalid_(union|type|value|enum|string|date|literal)['"]?/i.test(
+    /(?:\\?['"])?code(?:\\?['"])?\s*:\s*(?:\\?['"])?invalid_(?:union|type|value|enum|string|date|literal)(?:\\?['"])?/i.test(
       message,
     )
   ) {
@@ -142,10 +146,45 @@ export function toLlmError(err: unknown, provider?: string): LlmError {
     message = providerDetails.providerMessage;
   }
 
+  // --- Sanitization Logic (Allowlist + Heuristics) ---
+  const SAFE_ERROR_PATTERNS = [
+    /timeout/i,
+    /rate.?limit/i,
+    /insufficient.?quota/i,
+    /credit/i,
+    /context.?length/i,
+    /token.?limit/i,
+    /unauthorized/i,
+    /authentication/i,
+    /api.?key/i,
+    /not.?found/i,
+    /internal.?server.?error/i,
+    /overloaded/i,
+    /bad.?gateway/i,
+    /service.?unavailable/i,
+    /aborted/i,
+    /connection/i,
+    /license/i,
+    /access.?denied/i,
+    /unexpected end of json/i,
+  ];
+
+  const isSafe = SAFE_ERROR_PATTERNS.some((p) => p.test(message));
+  // Heuristic: If it looks like a JSON dump (starts with { or [) or is excessively long
+  const isSuspicious = /^\s*[{[]/.test(message) || message.length > 300;
+
+  // If the error is not explicitly allowed AND looks suspicious, sanitize it
+  if (!isSafe && isSuspicious) {
+    message =
+      'Provider request failed. The error message was sanitized for security reasons (see audit logs for details).';
+  }
+  // ---------------------------------------------------
+
   const meta: LlmErrorMeta = {
     provider,
     causeName: name,
-    causeMessage: truncate(message),
+    // Ensure we log the FULL original message in the audit trail, not the truncated/sanitized one
+    causeMessage: truncate(err instanceof Error ? err.message : String(err), 2000),
     ...providerDetails,
   };
 
