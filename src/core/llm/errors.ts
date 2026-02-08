@@ -1,5 +1,6 @@
 import { text } from '../../locales/index.js';
 import { SalmonError } from '../types.js';
+import { sanitizeErrorMessage } from '../utils/sanitizer.js';
 
 export type LlmErrorCode =
   | 'LLM_HTTP_RESPONSE_INVALID_JSON'
@@ -102,61 +103,11 @@ function extractProviderDetails(err: unknown): {
 }
 
 /**
- * Sanitizes an error message by removing sensitive data (Zod dumps, JSON, stack traces)
- * unless they match a known safe pattern.
+ * Sanitizes an error message using the shared utility to prevent leakage
+ * of sensitive technical data.
  */
 export function sanitizeError(err: unknown): string {
-  const msg = err instanceof Error ? err.message : String(err);
-  const name = err instanceof Error ? err.name : 'UnknownError';
-
-  // 1. Check for Zod/Validation dumps (common in AI SDK)
-  const isValidation =
-    name === 'AI_TypeValidationError' ||
-    name === 'TypeValidationError' ||
-    name === 'ZodError' ||
-    (err as any)?.cause?.name === 'ZodError' ||
-    msg.includes('"code": "invalid_union"') ||
-    msg.includes('ZodError: [') ||
-    /(?:\\?['"])?code(?:\\?['"])?\s*:\s*(?:\\?['"])?invalid_(?:union|type|value|enum|string|date|literal)(?:\\?['"])?/i.test(
-      msg,
-    );
-
-  if (isValidation) {
-    return 'Model validation failed: The provider returned a response that did not match the expected schema.';
-  }
-
-  // 2. Allowlist of safe patterns
-  const SAFE_ERROR_PATTERNS = [
-    /timeout/i,
-    /rate.?limit/i,
-    /insufficient.?quota/i,
-    /credit/i,
-    /context.?length/i,
-    /token.?limit/i,
-    /unauthorized/i,
-    /authentication/i,
-    /api.?key/i,
-    /not.?found/i,
-    /internal.?server.?error/i,
-    /overloaded/i,
-    /bad.?gateway/i,
-    /service.?unavailable/i,
-    /aborted/i,
-    /connection/i,
-    /license/i,
-    /access.?denied/i,
-    /unexpected end of json/i,
-  ];
-
-  const isSafe = SAFE_ERROR_PATTERNS.some((p) => p.test(msg));
-  // Heuristic: If it looks like a JSON dump (starts with { or [) or is excessively long
-  const isSuspicious = /^\s*[{[]/.test(msg) || msg.length > 300;
-
-  if (!isSafe && isSuspicious) {
-    return 'Provider request failed. The error message was sanitized for security reasons (see audit logs for details).';
-  }
-
-  return msg;
+  return sanitizeErrorMessage(err);
 }
 
 export function toLlmError(err: unknown, provider?: string): LlmError {

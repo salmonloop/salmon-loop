@@ -101,6 +101,10 @@ export class SalmonLoop {
     const fsAdapter = createFileSystemAdapter(flowMode);
 
     const wrappedEmit = (event: LoopEvent) => {
+      // 🛡️ SECURITY GUARD: Sanitize any error messages being emitted
+      if (event.type === 'log' && event.level === 'error') {
+        event.message = sanitizeError(event.message);
+      }
       emit(event);
       if (event.type === 'log') {
         logs.push({
@@ -224,7 +228,7 @@ export class SalmonLoop {
           attempt,
           plan: ctx?.plan ?? null,
           patch: ctx?.diff ?? null,
-          error: result.error?.message || ctx?.lastError,
+          error: sanitizeError(result.error || ctx?.lastError),
           contextSummary: ctx?.context
             ? `Snippets: ${ctx.context.rgSnippets.length}`
             : 'No context',
