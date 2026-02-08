@@ -1,5 +1,6 @@
 import { text } from '../../../locales/index.js';
 import { LIMITS } from '../../limits.js';
+import { sanitizeError } from '../../llm/errors.js';
 import { emitLlmOutput } from '../../llm/output-policy.js';
 import { formatContextForPrompt, parsePlanFromLLMContent } from '../../llm-utils.js';
 import { getPlanPrompt, getPlanSystemPrompt } from '../../prompt.js';
@@ -106,7 +107,7 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
   try {
     plan = parsePlanFromLLMContent(content);
   } catch (e) {
-    throw new Error(text.llm.planParseFailed(content, String(e)));
+    throw new Error(text.llm.planParseFailed(content, sanitizeError(e)));
   }
 
   ctx.emit({

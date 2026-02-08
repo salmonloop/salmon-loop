@@ -21,7 +21,7 @@ import type {
 } from '../types.js';
 
 import { resolveBaseUrl } from './base-url.js';
-import { toLlmError, wrapPlanEmpty } from './errors.js';
+import { toLlmError, wrapPlanEmpty, sanitizeError } from './errors.js';
 import { withRetry, withStreamRetry } from './retry-utils.js';
 import { mapAiSdkStreamPartToChunk } from './stream-utils.js';
 
@@ -49,6 +49,7 @@ function safeParseJsonObject(textValue: string): Record<string, unknown> {
 
 function toAiSdkMessages(messages: LLMMessage[]): any[] {
   return messages.map((m) => {
+    // 1. Handle Tool Results
     if (m.role === 'tool') {
       const toolCallId = m.tool_call_id || 'unknown';
       const toolName = m.name || 'unknown';
@@ -67,9 +68,11 @@ function toAiSdkMessages(messages: LLMMessage[]): any[] {
       };
     }
 
+    // 2. Handle Assistant with Tool Calls
     if (m.role === 'assistant' && Array.isArray(m.tool_calls) && m.tool_calls.length > 0) {
       const parts: any[] = [];
-      if (m.content) {
+      // Fix: Ensure text content is not empty/undefined if provided
+      if (m.content && typeof m.content === 'string') {
         parts.push({ type: 'text', text: m.content });
       }
 
@@ -94,9 +97,18 @@ function toAiSdkMessages(messages: LLMMessage[]): any[] {
       };
     }
 
+    // 3. Handle Standard Text Messages (User, System, simple Assistant)
+    let content = m.content;
+    if (content === undefined || content === null) {
+      content = '';
+    } else if (typeof content !== 'string') {
+      // Ensure we don't pass objects/arrays that Zod might reject for a text field
+      content = JSON.stringify(content);
+    }
+
     return {
       role: m.role,
-      content: m.content,
+      content,
     };
   });
 }
@@ -354,7 +366,6 @@ export class AiSdkLLM implements LLM {
     );
 
     const response = await this.chat([{ role: 'user', content: prompt }], {
-      responseFormat: 'json_object',
       signal,
     });
 
@@ -366,7 +377,7 @@ export class AiSdkLLM implements LLM {
     try {
       return parsePlanFromLLMContent(content);
     } catch (e) {
-      throw new Error(text.llm.planParseFailed(content, String(e)));
+      throw new Error(text.llm.planParseFailed(content, sanitizeError(e)));
     }
   }
 

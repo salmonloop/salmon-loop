@@ -1,5 +1,7 @@
 import { readFile } from 'fs/promises';
 
+import { sanitizeError } from '../llm/errors.js';
+
 import { ConfigError } from './errors.js';
 import { resolveConfigPath } from './paths.js';
 import type { ConfigFileV1 } from './types.js';
@@ -31,7 +33,7 @@ export async function tryLoadConfigFile(opts: LoadConfigOptions): Promise<Loaded
     try {
       parsed = JSON.parse(raw);
     } catch (e) {
-      throw new ConfigError('CONFIG_PARSE_FAILED', { path: absPath, error: String(e) });
+      throw new ConfigError('CONFIG_PARSE_FAILED', { path: absPath, error: sanitizeError(e) });
     }
 
     const config = validateConfigFileV1(parsed);

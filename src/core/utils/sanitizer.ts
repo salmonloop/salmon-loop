@@ -15,7 +15,11 @@ export function sanitizeErrorMessage(err: unknown): string {
 
   // 2. Aggressive heuristic detection
   const isZod =
-    msg.includes('ZodError') || msg.includes('invalid_union') || msg.includes('invalid_type');
+    msg.includes('ZodError') ||
+    msg.includes('invalid_union') ||
+    msg.includes('invalid_type') ||
+    (err instanceof Error && err.name === 'ZodError');
+
   const hasStackTrace = /at\s+.*:\d+:\d+/.test(msg) || msg.includes('    at ');
   const isJsonDump = /^\s*\{.*"/.test(msg) || msg.includes('"path": [');
   const isAiSdkError =

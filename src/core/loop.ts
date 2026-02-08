@@ -289,7 +289,8 @@ export class SalmonLoop {
                   collectSidecarPaths(options),
                 );
               } catch (error) {
-                const msg = `Failed to apply changes back to main workspace: ${error instanceof Error ? error.message : String(error)}`;
+                const sanitizedErr = sanitizeError(error);
+                const msg = `Failed to apply changes back to main workspace: ${sanitizedErr}`;
                 logs.push(this.createLog('error', msg, false));
                 emit({ type: 'log', level: 'error', message: msg, timestamp: now() });
 
@@ -369,7 +370,7 @@ export class SalmonLoop {
         fsMode: flowMode,
       };
     } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
+      const msg = sanitizeError(error);
       const errorCode = (error as any)?.llmCode || (error as any)?.code || (error as any)?.name;
       logs.push(this.createLog('error', msg, false));
       emit({ type: 'log', level: 'error', message: msg, timestamp: now() });

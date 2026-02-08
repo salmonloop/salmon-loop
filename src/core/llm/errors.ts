@@ -111,15 +111,35 @@ export function sanitizeError(err: unknown): string {
 }
 
 export function toLlmError(err: unknown, provider?: string): LlmError {
-  const name = err instanceof Error ? err.name : 'UnknownError';
+  let name = err instanceof Error ? err.name : 'UnknownError';
   let message = err instanceof Error ? err.message : String(err);
 
   // Unwrap RetryError to get the last error's message if available
   if (name === 'AI_RetryError' || (err as any)?.lastError) {
     const lastError = (err as any).lastError;
+    // Update the error reference so subsequent checks work on the actual cause
+    err = lastError;
     if (lastError instanceof Error) {
+      name = lastError.name;
       message = lastError.message;
     }
+  }
+
+  // Handle AI SDK Validation Errors (Zod)
+  if (
+    name === 'AI_TypeValidationError' ||
+    name === 'ZodError' ||
+    (err as any)?.[Symbol.for('vercel.ai.error.AI_TypeValidationError')]
+  ) {
+    return new LlmError(
+      'Model validation failed: Invalid input provided to AI model.',
+      'LLM_VALIDATION_FAILED',
+      {
+        provider,
+        causeName: name,
+        causeMessage: 'Input validation failed',
+      },
+    );
   }
 
   // Use provider-specific details if available
@@ -135,7 +155,7 @@ export function toLlmError(err: unknown, provider?: string): LlmError {
   const meta: LlmErrorMeta = {
     provider,
     causeName: name,
-    causeMessage: truncate(err instanceof Error ? err.message : String(err), 2000),
+    causeMessage: sanitizeError(err),
     ...providerDetails,
   };
 

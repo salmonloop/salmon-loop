@@ -1,5 +1,6 @@
 import { text } from '../../../locales/index.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
+import { sanitizeError } from '../../llm/errors.js';
 import { logger } from '../../logger.js';
 import { migrateLegacyRuntime } from '../../runtime-paths.js';
 import { CheckpointRef, ExecutionWorkspace, LoopEvent, LoopOptions } from '../../types.js';
@@ -104,7 +105,7 @@ export class RuntimeEnvironment {
           timestamp: now(),
         });
       } catch (error) {
-        const msg = `Failed to create snapshot: ${error instanceof Error ? error.message : String(error)}`;
+        const msg = `Failed to create snapshot: ${sanitizeError(error)}`;
         throw new Error(msg);
       }
     }
@@ -140,7 +141,7 @@ export class RuntimeEnvironment {
         await git.query(['status', '--short']);
       }
     } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
+      const msg = sanitizeError(error);
       throw new Error(`${text.loop.workspaceInitFailed}: ${msg}`);
     }
 
@@ -163,9 +164,7 @@ export class RuntimeEnvironment {
           timestamp: now(),
         });
       } catch (error) {
-        const msg = text.loop.worktreeMetadataFailed(
-          error instanceof Error ? error.message : String(error),
-        );
+        const msg = text.loop.worktreeMetadataFailed(sanitizeError(error));
         throw new Error(msg);
       }
     }
@@ -209,7 +208,7 @@ export class RuntimeEnvironment {
           );
         } catch (error) {
           checkpointCleanupOk = false;
-          const msg = error instanceof Error ? error.message : String(error);
+          const msg = sanitizeError(error);
           emit({
             type: 'log',
             level: 'warn',
@@ -223,7 +222,7 @@ export class RuntimeEnvironment {
         await WorkspaceManager.teardown(this.workspace, emit);
       } catch (error) {
         checkpointCleanupOk = false;
-        const msg = error instanceof Error ? error.message : String(error);
+        const msg = sanitizeError(error);
         emit({
           type: 'log',
           level: 'warn',
