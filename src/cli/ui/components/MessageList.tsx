@@ -1,4 +1,4 @@
-import { Box, Text } from 'ink';
+import { Box, Text, Static } from 'ink';
 import BigTextOriginal from 'ink-big-text';
 import GradientOriginal from 'ink-gradient';
 import React, { useState, useEffect } from 'react';
@@ -236,10 +236,7 @@ export const MessageList: React.FC<{
   markdownRenderMode?: MarkdownRenderMode;
 }> = ({ markdownTheme, markdownRenderMode }) => {
   const { state } = useUIStore();
-  const { messages, queueMessages } = state;
-
-  // Limit rendered messages to the last 50 to prevent performance degradation
-  const displayMessages = messages.slice(-50);
+  const { completedMessages, activeStreamingMessage, queueMessages } = state;
 
   const truncateQueueContent = (content: string) => {
     const singleLine = content.replace(/\s+/g, ' ').trim();
@@ -253,15 +250,30 @@ export const MessageList: React.FC<{
 
   return (
     <Box flexDirection="column" flexGrow={1}>
-      {displayMessages.map((msg, index) => (
+      {/* Completed messages - Static rendering for native terminal scroll */}
+      <Static items={completedMessages}>
+        {(msg, index) => (
+          <MessageItem
+            key={msg.id}
+            msg={msg}
+            nextMsg={completedMessages[index + 1]}
+            markdownTheme={markdownTheme}
+            markdownRenderMode={markdownRenderMode}
+          />
+        )}
+      </Static>
+
+      {/* Active streaming message - React real-time rendering */}
+      {activeStreamingMessage && (
         <MessageItem
-          key={msg.id}
-          msg={msg}
-          nextMsg={displayMessages[index + 1]}
+          key={activeStreamingMessage.id}
+          msg={activeStreamingMessage}
           markdownTheme={markdownTheme}
           markdownRenderMode={markdownRenderMode}
         />
-      ))}
+      )}
+
+      {/* Queue messages */}
       {orderedQueueMessages.map((msg) => (
         <Box key={msg.id} flexDirection="column" marginBottom={0}>
           <Text color="gray" dimColor>

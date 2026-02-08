@@ -5,7 +5,7 @@ import { wrapPatchEmpty, wrapPatchInvalid, wrapPatchNotUnifiedDiff } from '../..
 import { emitLlmOutput } from '../../llm/output-policy.js';
 import { extractUnifiedDiffFromLLMContent, formatContextForPrompt } from '../../llm-utils.js';
 import { getPatchPrompt, getPatchSystemPrompt } from '../../prompt.js';
-import { chatWithTools } from '../../tools/session.js';
+import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
 import { DiffValidationError, Phase } from '../../types.js';
 import { resolveLlmToolCallingPolicy } from '../dsl/llm-strategy.js';
 import { Step } from '../pipeline.js';
@@ -68,13 +68,14 @@ export const generatePatch: Step<PlanCtx, PatchCtx> = async (ctx) => {
   );
 
   const systemPrompt = await getPatchSystemPrompt(toolstack?.registry);
+  const supportsStreaming = typeof ctx.options.llm.chatStream === 'function';
   const llmOutput = {
     policy: ctx.options.llmOutput,
     kind: 'patch' as const,
     step: 'PATCH' as const,
   };
 
-  const response = await chatWithTools(
+  const response = await (supportsStreaming ? chatWithToolsStreaming : chatWithTools)(
     [
       {
         role: 'system',

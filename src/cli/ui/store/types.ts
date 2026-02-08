@@ -99,7 +99,10 @@ export interface QueueMessage {
 
 export interface UIState {
   contextStack: UIContext[];
-  messages: Message[];
+  // Static component optimization: separate completed messages from active streaming
+  completedMessages: Message[]; // Rendered via <Static>, native terminal scroll
+  activeStreamingMessage: Message | null; // Currently streaming message (React-managed)
+  messages: Message[]; // DEPRECATED: Kept for backward compatibility
   queueMessages: QueueMessage[];
   inputContent: string;
   isSidebarVisible: boolean;
@@ -131,6 +134,7 @@ export type UIAction =
   | { type: 'SET_INPUT'; payload: string }
   | { type: 'ADD_MESSAGE'; payload: Message }
   | { type: 'APPEND_LLM_STREAM'; payload: { id: string; delta: string; timestamp: Date } }
+  | { type: 'COMPLETE_STREAM'; payload: { id: string } } // Move active streaming message to completed
   | { type: 'ADD_QUEUE_MESSAGE'; payload: QueueMessage }
   | { type: 'SHIFT_QUEUE_MESSAGE' }
   | { type: 'REMOVE_QUEUE_MESSAGE'; payload: { id: string } }

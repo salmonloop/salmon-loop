@@ -2,6 +2,17 @@ import { UIState, UIAction } from './types.js';
 
 export const initialState: UIState = {
   contextStack: ['base'],
+  // Static component optimization: completedMessages rendered via <Static>
+  completedMessages: [
+    {
+      id: 'welcome',
+      type: 'system',
+      content: 'WELCOME_LOGO',
+      timestamp: new Date(),
+    },
+  ],
+  activeStreamingMessage: null,
+  // Legacy field for backward compatibility
   messages: [
     {
       id: 'welcome',
@@ -26,32 +37,42 @@ export function uiReducer(state: UIState, action: UIAction): UIState {
     case 'SET_INPUT':
       return { ...state, inputContent: action.payload };
     case 'ADD_MESSAGE':
-      return { ...state, messages: [...state.messages, action.payload] };
+      return {
+        ...state,
+        completedMessages: [...state.completedMessages, action.payload],
+        messages: [...state.messages, action.payload], // Legacy compatibility
+      };
     case 'APPEND_LLM_STREAM': {
       const { id, delta, timestamp } = action.payload;
       if (!delta || delta.trim() === '') return state;
-      const existingIndex = state.messages.findIndex((msg) => msg.id === id);
-      if (existingIndex >= 0) {
-        const updated = [...state.messages];
-        const existing = updated[existingIndex];
-        updated[existingIndex] = {
-          ...existing,
-          content: existing.content + delta,
+
+      // If active streaming message exists, accumulate delta
+      if (state.activeStreamingMessage?.id === id) {
+        const updatedActive = {
+          ...state.activeStreamingMessage,
+          content: state.activeStreamingMessage.content + delta,
         };
-        return { ...state, messages: updated };
+        return {
+          ...state,
+          activeStreamingMessage: updatedActive,
+          // Sync to legacy messages array for compatibility
+          messages: state.messages.map((msg) => (msg.id === id ? updatedActive : msg)),
+        };
       }
+
+      // Create new active streaming message
+      const newMessage = {
+        id,
+        type: 'assistant' as const,
+        content: delta,
+        timestamp,
+        streamState: 'streaming' as const,
+      };
+
       return {
         ...state,
-        messages: [
-          ...state.messages,
-          {
-            id,
-            type: 'assistant',
-            content: delta,
-            timestamp,
-            streamState: 'streaming',
-          },
-        ],
+        activeStreamingMessage: newMessage,
+        messages: [...state.messages, newMessage], // Legacy compatibility
       };
     }
     case 'ADD_QUEUE_MESSAGE':
@@ -105,6 +126,22 @@ export function uiReducer(state: UIState, action: UIAction): UIState {
       };
     case 'SET_CHANGED_FILES':
       return { ...state, changedFiles: action.payload };
+    case 'COMPLETE_STREAM': {
+      if (!state.activeStreamingMessage) return state;
+
+      const completed = {
+        ...state.activeStreamingMessage,
+        streamState: 'completed' as const,
+      };
+
+      return {
+        ...state,
+        completedMessages: [...state.completedMessages, completed],
+        activeStreamingMessage: null,
+        // Update message in legacy array
+        messages: state.messages.map((msg) => (msg.id === completed.id ? completed : msg)),
+      };
+    }
     case 'SET_CONFIRMATION':
       return { ...state, pendingConfirmation: action.payload };
     case 'CLEAR_CONFIRMATION':
@@ -117,39 +154,39 @@ export function uiReducer(state: UIState, action: UIAction): UIState {
       return { ...state, pendingSelection: action.payload };
     case 'CLEAR_SELECTION':
       return { ...state, pendingSelection: undefined };
-    case 'RESET_MESSAGES':
+    case 'RESET_MESSAGES': {
+      const welcomeMessage = {
+        id: 'welcome',
+        type: 'system' as const,
+        content: 'WELCOME_LOGO',
+        timestamp: new Date(),
+      };
       return {
         ...state,
-        messages: [
-          {
-            id: 'welcome',
-            type: 'system',
-            content: 'WELCOME_LOGO',
-            timestamp: new Date(),
-          },
-        ],
+        completedMessages: [welcomeMessage],
+        activeStreamingMessage: null,
+        messages: [welcomeMessage],
         queueMessages: [],
         pendingAuthorization: undefined,
         pendingSelection: undefined,
       };
+    }
     case 'INTERRUPT_STREAM': {
-      if (state.messages.length === 0) {
+      if (!state.activeStreamingMessage) {
         return { ...state, isThinking: false, currentPhase: 'idle' };
       }
-      const newMessages = [...state.messages];
-      const lastIndex = newMessages.length - 1;
-      const lastMsg = newMessages[lastIndex];
 
-      if (lastMsg && (lastMsg.type === 'assistant' || lastMsg.type === 'assistant_stream')) {
-        newMessages[lastIndex] = {
-          ...lastMsg,
-          content: lastMsg.content + '^C [SPLATTED]',
-          streamState: 'paused',
-        };
-      }
+      const interrupted = {
+        ...state.activeStreamingMessage,
+        content: state.activeStreamingMessage.content + '^C [SPLATTED]',
+        streamState: 'paused' as const,
+      };
+
       return {
         ...state,
-        messages: newMessages,
+        completedMessages: [...state.completedMessages, interrupted],
+        activeStreamingMessage: null,
+        messages: state.messages.map((msg) => (msg.id === interrupted.id ? interrupted : msg)),
         isThinking: false,
         currentPhase: 'idle',
       };

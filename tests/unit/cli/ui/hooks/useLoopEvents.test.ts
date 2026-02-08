@@ -14,6 +14,11 @@ vi.mock('../../../../../src/cli/ui/store/context.js', () => ({
 describe('useLoopEvents', () => {
   beforeEach(() => {
     hoisted.dispatch.mockClear();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('aggregates llm.stream.delta as APPEND_LLM_STREAM in chat mode', () => {
@@ -28,6 +33,11 @@ describe('useLoopEvents', () => {
         content: 'partial token',
         timestamp: new Date('2026-02-06T23:00:00.000Z'),
       });
+    });
+
+    // Advance timers to trigger the 100ms throttle flush
+    act(() => {
+      vi.advanceTimersByTime(100);
     });
 
     expect(hoisted.dispatch).toHaveBeenCalledWith({
@@ -59,6 +69,11 @@ describe('useLoopEvents', () => {
         content: 'hello',
         timestamp: new Date('2026-02-06T23:01:00.000Z'),
       });
+    });
+
+    // Advance timers to trigger the 100ms throttle flush
+    act(() => {
+      vi.advanceTimersByTime(100);
     });
 
     expect(hoisted.dispatch).toHaveBeenCalledWith({
