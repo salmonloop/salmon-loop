@@ -41,7 +41,9 @@ describe('CLI UI streaming integration', () => {
       });
     });
 
-    const aiMessages = result.current.state.messages.filter((message) => message.type === 'ai');
+    const aiMessages = result.current.state.messages.filter(
+      (message) => message.type === 'assistant',
+    );
     expect(aiMessages).toHaveLength(1);
     expect(aiMessages[0]?.content).toBe('Plan generated.');
 

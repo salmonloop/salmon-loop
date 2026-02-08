@@ -46,9 +46,10 @@ export function uiReducer(state: UIState, action: UIAction): UIState {
           ...state.messages,
           {
             id,
-            type: 'ai',
+            type: 'assistant',
             content: delta,
             timestamp,
+            streamState: 'streaming',
           },
         ],
       };
@@ -139,10 +140,11 @@ export function uiReducer(state: UIState, action: UIAction): UIState {
       const lastIndex = newMessages.length - 1;
       const lastMsg = newMessages[lastIndex];
 
-      if (lastMsg && lastMsg.type === 'ai') {
+      if (lastMsg && (lastMsg.type === 'assistant' || lastMsg.type === 'assistant_stream')) {
         newMessages[lastIndex] = {
           ...lastMsg,
           content: lastMsg.content + '^C [SPLATTED]',
+          streamState: 'paused',
         };
       }
       return {

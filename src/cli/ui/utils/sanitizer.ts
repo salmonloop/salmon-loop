@@ -1,7 +1,8 @@
 import { UI_CONFIG } from '../config.js';
+import { normalizeLegacyType } from '../store/types.js';
 
 export interface UIEvent {
-  type?: 'user' | 'ai' | 'system' | 'welcome' | string;
+  type?: string;
   content?: string;
   message?: string;
   id?: string;
@@ -44,7 +45,7 @@ export function sanitizeMessage(ev: UIEvent): string {
 
   // 2. Strict length limit for UI stability
   const hasStructure = safeMessage.includes('```') || safeMessage.includes('`');
-  const isConversation = ev.type === 'ai' || ev.type === 'user';
+  const isConversation = ev.type === 'ai' || ev.type === 'assistant' || ev.type === 'user';
   const limit = isConversation
     ? UI_CONFIG.CONVERSATION_CONTENT_LIMIT
     : hasStructure
@@ -64,15 +65,8 @@ export function sanitizeMessage(ev: UIEvent): string {
 export function prepareMessagePayload(ev: UIEvent) {
   const sanitizedContent = sanitizeMessage(ev);
 
-  // Ensure the type is one of the allowed Message types
-  const typeMap: Record<string, 'user' | 'ai' | 'system' | 'welcome'> = {
-    user: 'user',
-    ai: 'ai',
-    system: 'system',
-    welcome: 'welcome',
-  };
-
-  const safeType = (ev.type && typeMap[ev.type]) || 'system';
+  // Normalize legacy types (e.g. 'ai' -> 'assistant')
+  const safeType = normalizeLegacyType(ev.type || 'system');
 
   return {
     ...ev,

@@ -26,7 +26,7 @@ export function useLoopEvents(mode: 'run' | 'chat', onStart: any, signal: AbortS
     (event: any) => {
       if (!event) return;
       if (event.type === 'llm.stream.delta') {
-        const delta = sanitizeMessage({ type: 'ai', content: event.content });
+        const delta = sanitizeMessage({ type: 'assistant', content: event.content });
         if (!delta.trim()) return;
         dispatch({
           type: 'APPEND_LLM_STREAM',
@@ -40,7 +40,7 @@ export function useLoopEvents(mode: 'run' | 'chat', onStart: any, signal: AbortS
       }
       if (event.type === 'llm.output') {
         dispatchSanitizedMessage({
-          type: 'ai',
+          type: 'assistant',
           content: event.content,
           timestamp: event.timestamp,
         });

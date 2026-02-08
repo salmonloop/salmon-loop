@@ -1,10 +1,94 @@
 export type UIContext = 'base' | 'sidebar' | 'popover' | 'input' | 'exit-confirm';
 
+/**
+ * Message types based on Figma design system
+ * Supports 14 distinct message types with 3-level visual hierarchy
+ */
+export type MessageType =
+  | 'user' // User input
+  | 'assistant' // AI complete reply
+  | 'assistant_stream' // AI streaming output
+  | 'system' // System notification
+  | 'tool_call' // Tool invocation request
+  | 'tool_result' // Tool execution result
+  | 'plan_step' // Planning step
+  | 'thinking' // Thinking process
+  | 'checkpoint' // Checkpoint event
+  | 'error' // Error message
+  | 'warning' // Warning
+  | 'queue' // Queue message
+  | 'interrupt' // Interrupt signal
+  | 'welcome'; // Welcome message (special)
+
+/**
+ * Stream state for AI responses
+ */
+export type StreamState = 'streaming' | 'paused' | 'completed';
+
+/**
+ * Message display level for visual hierarchy
+ * - emphasis: AI replies, errors (with background/border)
+ * - standard: User input, tool results (normal display)
+ * - lightweight: System notices, queue (minimal/gray)
+ */
+export type MessageLevel = 'emphasis' | 'standard' | 'lightweight';
+
+/**
+ * Get display level for a message type
+ */
+export function getMessageLevel(type: MessageType): MessageLevel {
+  switch (type) {
+    case 'assistant':
+    case 'assistant_stream':
+    case 'error':
+    case 'warning':
+      return 'emphasis';
+
+    case 'user':
+    case 'tool_result':
+    case 'checkpoint':
+    case 'interrupt':
+      return 'standard';
+
+    case 'system':
+    case 'queue':
+    case 'thinking':
+    case 'plan_step':
+    case 'tool_call':
+    case 'welcome':
+    default:
+      return 'lightweight';
+  }
+}
+
 export interface Message {
   id: string;
-  type: 'user' | 'ai' | 'system' | 'welcome';
+  type: MessageType;
   content: string;
   timestamp: Date;
+  metadata?: {
+    toolName?: string;
+    fileName?: string;
+    duration?: number;
+    checkpoint?: string;
+    error?: string;
+    [key: string]: unknown;
+  };
+  streamState?: StreamState;
+}
+
+// Legacy type alias for backward compatibility
+export type LegacyMessageType = 'user' | 'ai' | 'system' | 'welcome';
+
+/**
+ * Convert legacy message type to new type
+ */
+export function normalizeLegacyType(type: string): MessageType {
+  if (type === 'ai') return 'assistant';
+  if (type === 'user' || type === 'system' || type === 'welcome') {
+    return type as MessageType;
+  }
+  return 'system';
 }
 
 export interface QueueMessage {

@@ -15,6 +15,7 @@ import { useLoopEvents } from './hooks/useLoopEvents.js';
 import { useTerminalDimensions } from './hooks/useTerminalDimensions.js';
 import { bindSelectionDispatch } from './selection/bus.js';
 import { UIStoreProvider, useUIStore } from './store/context.js';
+import { COLORS } from './styles/theme.js';
 
 const AppCore: React.FC<{
   mode: 'run' | 'chat';
@@ -106,9 +107,9 @@ const AppCore: React.FC<{
       >
         <Box paddingY={1} flexDirection="row" paddingX={UI_CONFIG.INPUT_ROW_PADDING_X}>
           <Box marginRight={1}>
-            <Text color="cyan" bold>
+            <Text color={COLORS.semantic.salmon} bold>
               {' '}
-              {'>'}{' '}
+              {'s8p>'}{' '}
             </Text>
           </Box>
           <AutocompleteInput
