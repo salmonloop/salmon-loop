@@ -5,10 +5,12 @@ import React, { useState } from 'react';
 import { en } from '../../locales/en.js';
 import { rejectAuthorization } from '../authorization/bus.js';
 import { UI_CONFIG } from '../config.js';
-import { useAutocomplete } from '../hooks/useAutocomplete.js';
+import { useCommandSuggestions } from '../hooks/useCommandSuggestions.js';
 import { useInputHistory } from '../hooks/useInputHistory.js';
 import { rejectSelection, resolveSelection } from '../selection/bus.js';
 import { useUIStore } from '../store/context.js';
+
+import { CommandSuggestionList } from './CommandSuggestionList.js';
 
 interface Props {
   value: string;
@@ -18,7 +20,7 @@ interface Props {
   getSuggestions: (input: string) => Promise<{ name: string; description: string }[]>;
 }
 
-export const AutocompleteInput: React.FC<Props> = ({
+export const CommandInput: React.FC<Props> = ({
   value,
   onChange,
   onSubmit,
@@ -52,7 +54,8 @@ export const AutocompleteInput: React.FC<Props> = ({
     setSelectedIndex,
     setStartIndex,
     navigateSuggestions,
-  } = useAutocomplete(value, getSuggestions, isIntercepting);
+    activeCommand,
+  } = useCommandSuggestions(value, getSuggestions, isIntercepting);
 
   const { navigateHistory, resetHistory } = useInputHistory(value, (val) => {
     setInputKey((prev) => prev + 1);
@@ -259,28 +262,11 @@ export const AutocompleteInput: React.FC<Props> = ({
       )}
 
       {!isIntercepting && suggestions.length > 0 && !isListClosed && (
-        <Box
-          flexDirection="column"
-          borderStyle="round"
-          borderColor="gray"
-          paddingX={1}
-          marginTop={0}
-          marginBottom={0}
-        >
-          {visibleSuggestions.map((cmd, index) => {
-            const actualIndex = startIndex + index;
-            return (
-              <Text key={cmd.name} color={actualIndex === selectedIndex ? 'green' : 'gray'}>
-                {formatSuggestionName(cmd.name)}- {cmd.description}
-              </Text>
-            );
-          })}
-          {suggestions.length > UI_CONFIG.MAX_SUGGESTIONS && (
-            <Text color="gray" dimColor italic>
-              {en.gui.scrollHint(selectedIndex === -1 ? 0 : selectedIndex + 1, suggestions.length)}
-            </Text>
-          )}
-        </Box>
+        <CommandSuggestionList
+          suggestions={visibleSuggestions}
+          selectedIndex={selectedIndex - startIndex}
+          parentCommand={activeCommand}
+        />
       )}
     </Box>
   );

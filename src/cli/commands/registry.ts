@@ -56,7 +56,7 @@ function getCommandNames(command: Command): string[] {
 export async function getSuggestions(
   input: string,
   context: CommandContext,
-): Promise<{ name: string; description: string }[]> {
+): Promise<{ name: string; description: string; command?: Command }[]> {
   const { argIndex, currentPrefix } = parseSuggestionContext(input);
 
   if (!input.trimStart().startsWith('/')) return [];
@@ -66,6 +66,16 @@ export async function getSuggestions(
 
   // If we have an exact command match and we are in the argument area
   if (exactMatch && argIndex > 0) {
+    if (exactMatch.subcommands) {
+         // Subcommand logic
+         const subSearch = currentPrefix.toLowerCase();
+         const subMatches = exactMatch.subcommands.filter(s => s.name.startsWith(subSearch));
+         return subMatches.map(s => ({
+             name: s.name,
+             description: s.description,
+             command: s
+         }));
+    }
     return exactMatch.getSuggestions ? await exactMatch.getSuggestions(context) : [];
   }
 
@@ -78,6 +88,7 @@ export async function getSuggestions(
   return matches.map((c) => ({
     name: c.name.padEnd(maxNameLength + 2),
     description: c.description,
+    command: c,
   }));
 }
 

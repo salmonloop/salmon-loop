@@ -7,7 +7,7 @@ import { text } from '../locales/index.js';
 
 import { bindAuthorizationDispatch, resolveAuthorization } from './authorization/bus.js';
 import { StretchingThinking } from './components/animations/StretchingThinking.js';
-import { AutocompleteInput } from './components/AutocompleteInput.js';
+import { CommandInput } from './components/CommandInput.js';
 import { MessageList } from './components/MessageList.js';
 import { UI_CONFIG } from './config.js';
 import { useCommandLifecycle } from './hooks/useCommandLifecycle.js';
@@ -112,7 +112,7 @@ const AppCore: React.FC<{
               {'s8p>'}{' '}
             </Text>
           </Box>
-          <AutocompleteInput
+          <CommandInput
             value={state.inputContent}
             onChange={(val) => dispatch({ type: 'SET_INPUT', payload: val })}
             getSuggestions={(input) =>

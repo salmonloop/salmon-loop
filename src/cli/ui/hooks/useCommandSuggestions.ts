@@ -1,13 +1,16 @@
 import { useState, useEffect, useCallback } from 'react';
 
+import { findCommand } from '../../commands/registry.js';
+import type { Command } from '../../commands/types.js';
 import { UI_CONFIG } from '../config.js';
 
 interface Suggestion {
   name: string;
   description: string;
+  command?: Command;
 }
 
-export function useAutocomplete(
+export function useCommandSuggestions(
   value: string,
   getSuggestions: (input: string) => Promise<Suggestion[]>,
   isConfirming: boolean,
@@ -16,6 +19,23 @@ export function useAutocomplete(
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [startIndex, setStartIndex] = useState(0);
   const [isListClosed, setIsListClosed] = useState(false);
+  const [activeCommand, setActiveCommand] = useState<Command | undefined>(undefined);
+
+  // Determine active command for context
+  useEffect(() => {
+    if (value.trim().startsWith('/')) {
+      const parts = value.trim().split(/\s+/);
+      // If we have at least one space, we might be in a subcommand
+      // e.g. "/snapshot " -> parts=["/snapshot", ""] (length 2)
+      if (parts.length > 1 || (parts.length === 1 && value.endsWith(' '))) {
+        const cmdName = parts[0];
+        const cmd = findCommand(cmdName);
+        setActiveCommand(cmd);
+        return;
+      }
+    }
+    setActiveCommand(undefined);
+  }, [value]);
 
   useEffect(() => {
     if (isConfirming || isListClosed) return;
@@ -87,5 +107,6 @@ export function useAutocomplete(
     setSelectedIndex,
     setStartIndex,
     navigateSuggestions,
+    activeCommand,
   };
 }

@@ -25,10 +25,14 @@ export interface Command {
   execute: (context: CommandContext) => Promise<CommandResult | void> | CommandResult | void;
   getSuggestions?: (
     context: CommandContext,
-  ) => Promise<{ name: string; description: string }[]> | { name: string; description: string }[];
+  ) =>
+    | Promise<{ name: string; description: string; command?: Command }[]>
+    | { name: string; description: string; command?: Command }[];
   aliases?: string[];
   hidden?: boolean;
   order?: number;
+  subcommands?: Command[];
+  usage?: string;
 }
 
 export interface QueueStatus {
