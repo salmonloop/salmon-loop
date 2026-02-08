@@ -1,6 +1,4 @@
 import { Box, Text, Static } from 'ink';
-import BigTextOriginal from 'ink-big-text';
-import GradientOriginal from 'ink-gradient';
 import React, { useState, useEffect } from 'react';
 
 import type { MarkdownRenderMode, MarkdownTheme } from '../../../core/config/types.js';
@@ -10,9 +8,7 @@ import { Message, QueueMessage, getMessageLevel } from '../store/types.js';
 import { COLORS, MESSAGE_STYLES, shouldShowSeparator } from '../styles/theme.js';
 
 import { Markdown } from './Markdown.js';
-
-const BigText = BigTextOriginal as any;
-const Gradient = GradientOriginal as any;
+import { WelcomeMessage } from './WelcomeMessage.js';
 
 /**
  * Animated cursor for streaming messages
@@ -50,13 +46,7 @@ const MessageItem = React.memo<{
 
   // 1. Handle Special Welcome Logo
   if (msg.type === 'welcome' || msg.content === 'WELCOME_LOGO') {
-    return (
-      <Box flexDirection="column" marginBottom={1}>
-        <Gradient name="retro">
-          <BigText text="Salmon Loop" font="tiny" />
-        </Gradient>
-      </Box>
-    );
+    return <WelcomeMessage />;
   }
 
   // 2. Handle Interruptions
