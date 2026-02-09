@@ -133,15 +133,11 @@ export function toLlmError(err: unknown, provider?: string): LlmError {
     message.includes('TypeValidationError') ||
     (err as any)?.[Symbol.for('vercel.ai.error.AI_TypeValidationError')]
   ) {
-    return new LlmError(
-      text.llm.validationFailed,
-      'LLM_VALIDATION_FAILED',
-      {
-        provider,
-        causeName: name,
-        causeMessage: sanitizeError(err),
-      },
-    );
+    return new LlmError(text.llm.validationFailed, 'LLM_VALIDATION_FAILED', {
+      provider,
+      causeName: name,
+      causeMessage: sanitizeError(err),
+    });
   }
 
   // Use provider-specific details if available

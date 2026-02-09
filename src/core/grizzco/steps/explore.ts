@@ -17,7 +17,7 @@ export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
     ctx.emit({
       type: 'log',
       level: 'debug',
-      message: 'Exploration skipped (tools disabled or unavailable)',
+      message: text.grizzco.explorationSkipped,
       timestamp: new Date(),
     });
     return { ...ctx };
@@ -42,30 +42,41 @@ export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
   // We use the tool intent metadata to identify read operations.
   const capturedFiles = new Map<string, string>();
 
-  const proxiedRouter = {
-    ...toolstack.router,
-    call: async (envelope: any) => {
-      const result = await toolstack.router.call(envelope);
+  const proxiedRouter = new Proxy(toolstack.router, {
+    get(target, prop, receiver) {
+      if (prop === 'call') {
+        return async (envelope: any) => {
+          const result = await (target as any).call(envelope);
 
-      // Find the corresponding audit entry to check intent
-      const intent = toolstack.registry.getSpec(result.toolName)?.intent;
+          // Find the corresponding audit entry to check intent
+          const intent = toolstack.registry.getSpec(result.toolName)?.intent;
 
-      // Intercept tools with READ intent
-      if (intent === 'READ' && result.status === 'ok' && typeof result.output === 'string') {
-        try {
-          // Attempt to parse arguments to get the file path
-          // envelope.args should be the parsed arguments object
-          const args = envelope.args;
-          if (args && typeof args.path === 'string') {
-            capturedFiles.set(args.path, result.output);
+          // Intercept tools with READ intent
+          if (intent === 'READ' && result.status === 'ok') {
+            const output = result.output;
+            const content = typeof output === 'string' ? output : (output as any)?.content;
+
+            if (typeof content === 'string') {
+              try {
+                // Attempt to parse arguments to get the file path
+                // Support multiple common parameter names: file, file_path, filePath, path
+                const args = envelope.args;
+                const filePath = args?.file || args?.file_path || args?.filePath || args?.path;
+
+                if (typeof filePath === 'string') {
+                  capturedFiles.set(filePath, content);
+                }
+              } catch {
+                // Ignore parsing errors, just don't capture
+              }
+            }
           }
-        } catch {
-          // Ignore parsing errors, just don't capture
-        }
+          return result;
+        };
       }
-      return result;
+      return Reflect.get(target, prop, receiver);
     },
-  };
+  });
 
   const proxiedToolstack = {
     ...toolstack,
@@ -120,21 +131,30 @@ export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
 
   // Update context with captured files
   const updatedContext = { ...ctx.context };
-  const existingFiles = new Set(updatedContext.relatedFiles?.map((f) => f.path) || []);
-
   const newRelatedFiles: RelatedFileContext[] = updatedContext.relatedFiles
     ? [...updatedContext.relatedFiles]
     : [];
 
+  // Track existing files to update them or add new ones
+  const fileMap = new Map<string, RelatedFileContext>();
+  newRelatedFiles.forEach((f) => fileMap.set(f.path, f));
+
   for (const [path, content] of capturedFiles) {
-    if (!existingFiles.has(path) && path !== updatedContext.primaryFile) {
+    if (path === updatedContext.primaryFile) continue;
+
+    if (fileMap.has(path)) {
+      // Update content for existing file
+      const existing = fileMap.get(path)!;
+      existing.content = content;
+      existing.mode = 'full';
+    } else {
+      // Add as new dependency
       newRelatedFiles.push({
         path,
         content,
-        kind: 'dependency', // Mark explored files as dependencies/context
+        kind: 'dependency',
         mode: 'full',
       });
-      existingFiles.add(path); // Prevent duplicates
     }
   }
 
@@ -143,7 +163,7 @@ export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
   ctx.emit({
     type: 'log',
     level: 'info',
-    message: `Exploration finished. Added ${capturedFiles.size} files to context.`,
+    message: text.grizzco.explorationFinished(capturedFiles.size),
     timestamp: new Date(),
   });
 

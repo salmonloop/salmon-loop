@@ -27,7 +27,14 @@ export const fsReadFileSpec: Omit<ToolSpec, 'executor'> = {
     content: z.string(),
     size: z.number(),
   }),
-  allowedPhases: [Phase.CONTEXT, Phase.PLAN, Phase.PATCH, Phase.VERIFY, Phase.SHRINK],
+  allowedPhases: [
+    Phase.CONTEXT,
+    Phase.EXPLORE,
+    Phase.PLAN,
+    Phase.PATCH,
+    Phase.VERIFY,
+    Phase.SHRINK,
+  ],
 };
 
 /**

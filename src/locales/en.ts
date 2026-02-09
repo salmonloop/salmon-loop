@@ -22,12 +22,8 @@ export const en = {
   prompts: {
     definitionHint: 'Definitions should be modified with extreme caution',
     referenceHint: 'References marked with ↗️ indicate usage locations',
-    plan: (
-      context: string,
-      instruction: string,
-      maxFilesChanged: number,
-      lastError?: string,
-    ) => `You are a code modification assistant. Please generate a detailed modification plan based on the following context and instruction.
+    plan: (context: string, instruction: string, maxFilesChanged: number, lastError?: string) =>
+      `You are a code modification assistant. Please generate a detailed modification plan based on the following context and instruction.
 
 # Context Hierarchy
 - **Primary Text**: The ACTUAL content of the files. This is the only authoritative source for what lines exist.
@@ -531,6 +527,9 @@ Please return the patch in PURE unified diff format:`;
         'Exploration found candidate files via search but did not read any content. This usually indicates hallucination.',
       noFilesRead:
         'No files were read during the exploration phase. Please ensure you actually read the files you intend to modify.',
+      explorationSkipped: 'Exploration skipped (tools disabled or unavailable)',
+      explorationFinished: (count: number) =>
+        `Exploration finished. Added ${count} files to context.`,
     },
     audit: {
       saved: (file: string) => `[Audit] Saved structured audit log to ${file}`,

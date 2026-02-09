@@ -116,7 +116,7 @@ export class StandardReporter implements SalmonReporter {
   }
 
   private initProgressBar() {
-    // 🛡️ DCAP 防御：检查 stderr 是否支持 TTY 操作，防止 clearLine 崩溃导致意外终止
+    // 🛡️ DCAP Defense: Check if stderr supports TTY operations to prevent clearLine crashes and unexpected termination
     const stream = process.stderr as any;
     if (typeof stream.clearLine !== 'function' || typeof stream.cursorTo !== 'function') {
       this.bar = {

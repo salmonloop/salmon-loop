@@ -61,7 +61,7 @@ export const CodeSearchSpec: Omit<ToolSpec<CodeSearchInputT, CodeSearchOutputT>,
   sideEffects: ['fs_read'],
   concurrency: 'parallel_ok',
   computeResources: (_input, ctx) => [repoResource(ctx)],
-  allowedPhases: [Phase.CONTEXT, Phase.PLAN, Phase.PATCH, Phase.VERIFY],
+  allowedPhases: [Phase.CONTEXT, Phase.EXPLORE, Phase.PLAN, Phase.PATCH, Phase.VERIFY],
   inputSchema: CodeSearchInput,
   outputSchema: CodeSearchOutput,
 };
