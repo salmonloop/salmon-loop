@@ -2,6 +2,34 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { generateText, jsonSchema, streamText, tool } from 'ai';
 import { z } from 'zod';
+import { zodToJsonSchema } from 'zod-to-json-schema';
+
+function formatOutputSchema(schema: z.ZodType<any> | undefined): string {
+  if (!schema) return 'any (dynamic)';
+
+  // If it's a simple primitive or has a description, use that
+  const def = schema._def as any;
+  if (def?.description) {
+    return def.description;
+  }
+
+  try {
+    const jsonSchemaObj = zodToJsonSchema(schema as any, {
+      target: 'openApi3',
+      $refStrategy: 'none',
+    });
+
+    // Remove common boilerplate to keep it concise for the LLM
+    if (jsonSchemaObj && typeof jsonSchemaObj === 'object') {
+      const { $schema: _$schema, ...cleanSchema } = jsonSchemaObj as any;
+      return JSON.stringify(cleanSchema);
+    }
+  } catch {
+    // Fallback
+  }
+
+  return 'complex object';
+}
 
 import { text } from '../../locales/index.js';
 import { LIMITS } from '../limits.js';
@@ -130,42 +158,41 @@ function toAiSdkToolSet(
 ): Record<string, any> | undefined {
   const tools: Record<string, any> = {};
 
-  // 1. Priority: Direct mapping from ToolSpec (Preserves Zod Schema)
-  if (Array.isArray(toolSpecs) && toolSpecs.length > 0) {
+  // 1. Process ToolSpecs (Built-in tools with Zod schemas)
+  if (Array.isArray(toolSpecs)) {
     for (const spec of toolSpecs) {
-      // Best Practice: Use 'parameters' for input schema as per AI SDK spec.
+      // Augment description with output schema info
+      const outputDesc = formatOutputSchema(spec.outputSchema);
+      const description = `${spec.description}\n\nReturns: ${outputDesc}`;
+
       tools[spec.name] = tool({
-        description: spec.description,
+        description,
         parameters: spec.inputSchema,
-        execute: async (args: any) => {
-          // In SalmonLoop, execution is handled by the governance layer.
-          // This is a placeholder to satisfy tool definitions if needed.
-          return args;
-        },
       } as any);
 
-      // Force-inject outputSchema for the SalmonLoop governance layer.
-      // Use z.any() as a safe fallback to ensure validation logic doesn't crash.
+      // Attach outputSchema for the SalmonLoop governance layer validation.
       (tools[spec.name] as any).outputSchema = spec.outputSchema || z.any();
     }
-    return tools;
   }
 
-  // 2. Fallback: Legacy OpenAI tool mapping
-  if (!Array.isArray(openAiTools) || openAiTools.length === 0) return undefined;
+  // 2. Process OpenAI Tools (MCP / Dynamic tools)
+  if (Array.isArray(openAiTools)) {
+    for (const t of openAiTools) {
+      const fn = t?.function;
+      const name = fn?.name;
+      if (!name || typeof name !== 'string' || tools[name]) continue;
 
-  for (const t of openAiTools) {
-    const fn = t?.function;
-    const name = fn?.name;
-    if (!name || typeof name !== 'string') continue;
+      const rawDesc = typeof fn?.description === 'string' ? fn.description : '';
+      const description = `${rawDesc}\n\nReturns: any (dynamic)`.trim();
 
-    tools[name] = tool({
-      description: typeof fn?.description === 'string' ? fn.description : undefined,
-      parameters: jsonSchema(fn?.parameters || { type: 'object', properties: {} }),
-    } as any);
+      tools[name] = tool({
+        description,
+        parameters: jsonSchema(fn?.parameters || { type: 'object', properties: {} }),
+      } as any);
 
-    // Legacy tools always downgrade to z.any() output schema.
-    (tools[name] as any).outputSchema = z.any();
+      // Dynamic tools use z.any() for output validation.
+      (tools[name] as any).outputSchema = z.any();
+    }
   }
 
   return Object.keys(tools).length > 0 ? tools : undefined;

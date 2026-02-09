@@ -408,6 +408,33 @@ async function executeToolCalls(
     const result = toolResults.get(callId);
     if (!result) continue;
 
+    // Strict output schema validation
+    if (result.status === 'ok' && typeof toolName === 'string') {
+      const spec =
+        session.toolstack.router.getSpec?.(toolName) ||
+        session.toolstack.registry.listAll().find((s) => s.name === toolName);
+
+      if (spec?.outputSchema) {
+        const parsed = spec.outputSchema.safeParse(result.output);
+        if (parsed.success) {
+          result.output = parsed.data;
+        } else {
+          const validationError = parsed.error.message;
+          logger.error(
+            `[tool] schema violation for ${toolName} (callId: ${callId}): ${validationError}`,
+          );
+
+          result.status = 'error';
+          result.error = {
+            code: 'SCHEMA_VIOLATION',
+            message: `Tool output does not match expected schema: ${validationError}`,
+            retryable: false,
+            failurePhase: phase,
+          };
+        }
+      }
+    }
+
     session.emit?.({
       type: 'log',
       level: result.status === 'ok' ? 'info' : 'warn',
