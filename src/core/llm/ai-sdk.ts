@@ -77,6 +77,62 @@ function safeParseJsonObject(textValue: string): Record<string, unknown> {
   return {};
 }
 
+function deepCloneJson(value: unknown, fallback: unknown): unknown {
+  try {
+    const serialized = JSON.stringify(value);
+    if (serialized === undefined) return fallback;
+    return JSON.parse(serialized);
+  } catch {
+    return fallback;
+  }
+}
+
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isToolApprovalResponse(value: unknown): value is {
+  approvalId: string;
+  approved: boolean;
+  reason?: string;
+} {
+  return (
+    isObjectRecord(value) &&
+    typeof value.approvalId === 'string' &&
+    typeof value.approved === 'boolean'
+  );
+}
+
+function isToolResultOutput(value: unknown): boolean {
+  if (!isObjectRecord(value) || typeof value.type !== 'string') return false;
+  return ['text', 'json', 'execution-denied', 'error-text', 'error-json', 'content'].includes(
+    value.type,
+  );
+}
+
+function toAiSdkToolResultOutput(value: unknown): Record<string, unknown> {
+  if (isToolResultOutput(value)) {
+    return deepCloneJson(value, { type: 'json', value: null }) as Record<string, unknown>;
+  }
+
+  if (typeof value === 'string') {
+    return { type: 'text', value };
+  }
+
+  if (isObjectRecord(value) && typeof value.status === 'string') {
+    const outputType = value.status === 'ok' ? 'json' : 'error-json';
+    return {
+      type: outputType,
+      value: deepCloneJson(value, {}),
+    };
+  }
+
+  return {
+    type: 'json',
+    value: deepCloneJson(value, null),
+  };
+}
+
 function toAiSdkMessages(messages: LLMMessage[]): any[] {
   return messages.map((m) => {
     // 1. Handle Tool Results
@@ -84,23 +140,25 @@ function toAiSdkMessages(messages: LLMMessage[]): any[] {
       const toolCallId = m.tool_call_id || 'unknown';
       const toolName = m.name || 'unknown';
 
-      // Fix: AI SDK expects 'result' to be the actual return value.
-      // SalmonLoop wraps tool results in a ToolResult object { status, output, error }.
-      // We need to unpack it to avoid Zod schema violations in the AI SDK.
-      let result: any;
-      let isError = false;
+      let parsedContent: unknown;
       try {
-        const rawResult = JSON.parse(m.content);
-        if (rawResult && typeof rawResult === 'object' && 'status' in rawResult) {
-          isError = rawResult.status === 'error';
-          result = isError
-            ? rawResult.error || rawResult.stderr || 'Unknown error'
-            : rawResult.output;
-        } else {
-          result = rawResult;
-        }
+        parsedContent = JSON.parse(m.content);
       } catch {
-        result = m.content;
+        parsedContent = m.content;
+      }
+
+      if (isToolApprovalResponse(parsedContent)) {
+        return {
+          role: 'tool',
+          content: [
+            {
+              type: 'tool-approval-response',
+              approvalId: parsedContent.approvalId,
+              approved: parsedContent.approved,
+              ...(typeof parsedContent.reason === 'string' ? { reason: parsedContent.reason } : {}),
+            },
+          ],
+        };
       }
 
       return {
@@ -110,8 +168,7 @@ function toAiSdkMessages(messages: LLMMessage[]): any[] {
             type: 'tool-result',
             toolCallId,
             toolName,
-            result,
-            isError,
+            output: toAiSdkToolResultOutput(parsedContent),
           },
         ],
       };
@@ -120,7 +177,6 @@ function toAiSdkMessages(messages: LLMMessage[]): any[] {
     // 2. Handle Assistant with Tool Calls
     if (m.role === 'assistant' && Array.isArray(m.tool_calls) && m.tool_calls.length > 0) {
       const parts: any[] = [];
-      // Fix: Ensure text content is not empty/undefined if provided
       if (m.content && typeof m.content === 'string') {
         parts.push({ type: 'text', text: m.content });
       }
@@ -130,13 +186,17 @@ function toAiSdkMessages(messages: LLMMessage[]): any[] {
         const toolName = call?.function?.name || call?.name || 'unknown';
         const rawArgs = call?.function?.arguments;
         const input =
-          typeof rawArgs === 'string' && rawArgs.trim() ? safeParseJsonObject(rawArgs) : {};
+          typeof rawArgs === 'string'
+            ? rawArgs.trim()
+              ? safeParseJsonObject(rawArgs)
+              : {}
+            : (call?.input ?? call?.args ?? {});
 
         parts.push({
           type: 'tool-call',
           toolCallId,
           toolName,
-          input,
+          input: deepCloneJson(input, {}),
         });
       }
 
@@ -146,18 +206,18 @@ function toAiSdkMessages(messages: LLMMessage[]): any[] {
       };
     }
 
-    // 3. Handle Standard Text Messages (User, System, simple Assistant)
+    // 3. Handle Standard Text Messages
     let content = m.content;
     if (content === undefined || content === null) {
       content = '';
-    } else if (typeof content !== 'string') {
-      // Ensure we don't pass objects/arrays that Zod might reject for a text field
+    }
+    if (typeof content !== 'string') {
       content = JSON.stringify(content);
     }
 
     return {
-      role: m.role,
-      content,
+      role: m.role as any,
+      content: content as string,
     };
   });
 }

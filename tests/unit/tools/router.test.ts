@@ -64,6 +64,39 @@ describe('ToolRouter', () => {
     expect(result.output).toBe('safe output');
   });
 
+  it('should execute tool with normalized args when sanitizer returns parsed value', async () => {
+    const mockSpec = {
+      name: 'fs.read',
+      source: 'builtin',
+      riskLevel: 'low',
+      executor: vi.fn().mockResolvedValue('raw output'),
+    };
+    const envelope = {
+      id: 'call_normalized',
+      toolName: 'fs.read',
+      args: { path: 'README.md' },
+      phase: Phase.CONTEXT,
+      ctx: { repoRoot: '/tmp' } as any,
+    };
+
+    (registry.getSpec as any).mockReturnValue(mockSpec);
+    (sanitizer.validateInput as any).mockReturnValue({ ok: true, value: { file: 'README.md' } });
+    (policy.decide as any).mockReturnValue({ allowed: true });
+    (budget.runWithGuards as any).mockImplementation(({ fn }: any) => fn());
+    (sanitizer.sanitizeOutput as any).mockReturnValue({
+      ok: true,
+      output: 'safe output',
+      summary: 'done',
+    });
+
+    await router.call(envelope);
+
+    expect(mockSpec.executor).toHaveBeenCalledWith(
+      { file: 'README.md' },
+      expect.objectContaining(envelope.ctx),
+    );
+  });
+
   it('should block execution if Policy denies the call', async () => {
     const mockSpec = { name: 'write.file', source: 'builtin' };
     const envelope = { id: 'call_2', toolName: 'write.file', phase: Phase.PLAN, args: {} } as any;

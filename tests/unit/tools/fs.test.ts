@@ -46,4 +46,10 @@ describe('Builtin Tool: fs.read_file', () => {
     const result = fsReadFileSpec.inputSchema.safeParse(invalidInput);
     expect(result.success).toBe(false);
   });
+
+  it('should accept `path` alias and normalize to `file`', () => {
+    const result = fsReadFileSpec.inputSchema.safeParse({ path: 'test.txt' });
+    expect(result.success).toBe(true);
+    expect(result.success && result.data.file).toBe('test.txt');
+  });
 });

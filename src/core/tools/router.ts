@@ -67,12 +67,15 @@ export class ToolRouter {
       if (!inputCheck.ok) {
         throw { code: 'INVALID_INPUT', message: inputCheck.message };
       }
+      const normalizedArgs = inputCheck.value ?? envelope.args;
+      const normalizedEnvelope =
+        normalizedArgs === envelope.args ? envelope : { ...envelope, args: normalizedArgs };
 
       // 3. Policy Gating: Phase and side-effect security admission
-      const decision = this.policy.decide(envelope.phase, spec, envelope.ctx);
+      const decision = this.policy.decide(normalizedEnvelope.phase, spec, normalizedEnvelope.ctx);
       if (!decision.allowed) {
         const result = this.createErrorResult(
-          envelope,
+          normalizedEnvelope,
           startedAt,
           'denied',
           'POLICY_DENY',
@@ -84,10 +87,10 @@ export class ToolRouter {
 
       // 4. Authorization Gate: User approval for risky tool calls
       if (this.authorization) {
-        const auth = await this.authorizeToolCall(envelope, spec);
+        const auth = await this.authorizeToolCall(normalizedEnvelope, spec);
         if (auth.kind === 'deny') {
           const result = this.createErrorResult(
-            envelope,
+            normalizedEnvelope,
             startedAt,
             'denied',
             'AUTH_DENIED',
@@ -105,7 +108,7 @@ export class ToolRouter {
         }
         if (auth.kind === 'pending') {
           const result = this.createErrorResult(
-            envelope,
+            normalizedEnvelope,
             startedAt,
             'denied',
             'AUTH_REQUIRED',
@@ -129,11 +132,15 @@ export class ToolRouter {
       const rawOutput = await this.budget.runWithGuards({
         timeoutMs: LIMITS.defaultToolTimeoutMs,
         maxOutputBytes: LIMITS.maxToolOutputBytes,
-        phase: envelope.phase,
+        phase: normalizedEnvelope.phase,
         toolName: spec.name,
         riskLevel: spec.riskLevel,
         // Inject phase into the runtime ctx for executors that need it (e.g. backend routing).
-        fn: () => spec.executor(envelope.args, { ...envelope.ctx, phase: envelope.phase } as any),
+        fn: () =>
+          spec.executor(normalizedEnvelope.args, {
+            ...normalizedEnvelope.ctx,
+            phase: normalizedEnvelope.phase,
+          } as any),
       });
 
       // 5. Output Validation & Sanitize: Result validation and sensitive summary
@@ -223,11 +230,14 @@ export class ToolRouter {
       );
       return { kind: 'denied', toolResult };
     }
+    const normalizedArgs = inputCheck.value ?? envelope.args;
+    const normalizedEnvelope =
+      normalizedArgs === envelope.args ? envelope : { ...envelope, args: normalizedArgs };
 
-    const decision = this.policy.decide(envelope.phase, spec, envelope.ctx);
+    const decision = this.policy.decide(normalizedEnvelope.phase, spec, normalizedEnvelope.ctx);
     if (!decision.allowed) {
       const toolResult = this.createErrorResult(
-        envelope,
+        normalizedEnvelope,
         startedAt,
         'denied',
         'POLICY_DENY',
@@ -236,33 +246,33 @@ export class ToolRouter {
       return { kind: 'denied', toolResult };
     }
 
-    const cacheKey = this.buildAuthorizationKey(envelope);
+    const cacheKey = this.buildAuthorizationKey(normalizedEnvelope);
     if (this.isAuthorizationCached(cacheKey)) {
       return { kind: 'ready' };
     }
 
-    const argsSummary = await this.getAuthorizationArgsSummary(envelope, spec);
-    const argsHash = this.hashArgs(envelope.args);
+    const argsSummary = await this.getAuthorizationArgsSummary(normalizedEnvelope, spec);
+    const argsHash = this.hashArgs(normalizedEnvelope.args);
     const req: ToolAuthorizationRequest = {
-      id: envelope.id,
+      id: normalizedEnvelope.id,
       toolName: spec.name,
       source: spec.source as any,
-      phase: envelope.phase,
+      phase: normalizedEnvelope.phase,
       riskLevel: spec.riskLevel as any,
       sideEffects: (spec.sideEffects || []) as any,
       argsSummary,
       argsHash,
-      repoRoot: envelope.ctx.repoRoot,
-      worktreeRoot: envelope.ctx.worktreeRoot,
-      attemptId: envelope.ctx.attemptId,
-      model: envelope.ctx.model,
+      repoRoot: normalizedEnvelope.ctx.repoRoot,
+      worktreeRoot: normalizedEnvelope.ctx.worktreeRoot,
+      attemptId: normalizedEnvelope.ctx.attemptId,
+      model: normalizedEnvelope.ctx.model,
       timestamp: Date.now(),
     };
 
     const deferred = await this.authorization.requestAuthorizationDeferred(req);
     if (deferred.kind === 'pending') {
       const toolResult = this.createErrorResult(
-        envelope,
+        normalizedEnvelope,
         startedAt,
         'denied',
         'AUTH_REQUIRED',
@@ -288,7 +298,7 @@ export class ToolRouter {
     const decisionResult = deferred.decision;
     if (decisionResult.outcome === 'deny') {
       const toolResult = this.createErrorResult(
-        envelope,
+        normalizedEnvelope,
         startedAt,
         'denied',
         'AUTH_DENIED',

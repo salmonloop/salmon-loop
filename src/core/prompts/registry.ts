@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import Handlebars from 'handlebars';
+import { z } from 'zod';
 
 import type { ToolSpec } from '../tools/types.js';
 
@@ -88,11 +89,25 @@ export class PromptRegistry {
    * Note: This is a basic conversion. For production, consider using zod-to-json-schema library.
    */
   private zodToJsonSchema(zodSchema: any): any {
-    // For now, return the schema description
-    // In a full implementation, this would convert Zod schemas to JSON Schema
+    if (!zodSchema) {
+      return { type: 'object', description: 'Schema details unavailable' };
+    }
+
+    try {
+      const schema = z.toJSONSchema(zodSchema) as Record<string, unknown>;
+
+      if (schema && typeof schema === 'object') {
+        const { $schema: _ignored, ...rest } = schema as any;
+        return rest;
+      }
+    } catch {
+      // Fall through to best-effort fallback
+    }
+
     if (zodSchema?._def?.description) {
       return { description: zodSchema._def.description };
     }
+
     return { type: 'object', description: 'Schema details available at runtime' };
   }
 

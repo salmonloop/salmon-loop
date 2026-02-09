@@ -4,7 +4,10 @@ export class ToolSanitizer {
   /**
    * Validate input against the tool's input schema.
    */
-  validateInput(spec: ToolSpec, input: unknown): { ok: boolean; message?: string } {
+  validateInput(
+    spec: ToolSpec,
+    input: unknown,
+  ): { ok: boolean; message?: string; value?: unknown } {
     if (!spec.inputSchema || typeof spec.inputSchema.safeParse !== 'function') {
       return {
         ok: false,
@@ -19,7 +22,7 @@ export class ToolSanitizer {
         message: error.issues.map((e) => `${e.path.join('.')}: ${e.message}`).join(', '),
       };
     }
-    return { ok: true };
+    return { ok: true, value: parseResult.data };
   }
 
   /**

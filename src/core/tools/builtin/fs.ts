@@ -8,6 +8,25 @@ import { Phase } from '../../types.js';
 import { pathPrefixResource } from '../parallel/resource-helpers.js';
 import { ToolSpec, ToolRuntimeCtx } from '../types.js';
 
+const fsReadInputSchema = z.preprocess(
+  (raw) => {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return raw;
+    const input = raw as Record<string, unknown>;
+    if (typeof input.file === 'string') return input;
+
+    const alias = input.path ?? input.file_path ?? input.filePath;
+    if (typeof alias !== 'string') return input;
+
+    return {
+      ...input,
+      file: alias,
+    };
+  },
+  z.object({
+    file: z.string().describe('Relative path to the file from the repository root'),
+  }),
+);
+
 /**
  * Spec for the fs.read tool.
  */
@@ -20,9 +39,7 @@ export const fsReadFileSpec: Omit<ToolSpec, 'executor'> = {
   sideEffects: ['fs_read'],
   concurrency: 'parallel_ok',
   computeResources: (input, ctx) => [pathPrefixResource(ctx, input.file)],
-  inputSchema: z.object({
-    file: z.string().describe('Relative path to the file from the repository root'),
-  }),
+  inputSchema: fsReadInputSchema,
   outputSchema: z.object({
     content: z.string(),
     size: z.number(),

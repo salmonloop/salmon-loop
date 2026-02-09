@@ -15,10 +15,11 @@ describe('ContextValidator', () => {
     expect(result.isValid).toBe(true);
   });
 
-  it('should return valid if no search was performed', () => {
+  it('should return invalid if no files were read during exploration', () => {
     const audit: AuditEntry[] = [];
     const result = ContextValidator.validateExploration(audit, 0);
-    expect(result.isValid).toBe(true);
+    expect(result.isValid).toBe(false);
+    expect(result.errorCode).toBe('noFilesRead');
   });
 
   it('should return invalid (errorCode: explorationHallucination) if search succeeded but no read occurred', () => {
@@ -32,11 +33,12 @@ describe('ContextValidator', () => {
     expect(result.errorCode).toBe('explorationHallucination');
   });
 
-  it('should return valid if search failed', () => {
+  it('should return invalid if search failed and no files were read', () => {
     const audit: AuditEntry[] = [
       { toolName: 'code.search', toolIntent: 'SEARCH', toolResultStatus: 'error' },
     ];
     const result = ContextValidator.validateExploration(audit, 0);
-    expect(result.isValid).toBe(true);
+    expect(result.isValid).toBe(false);
+    expect(result.errorCode).toBe('noFilesRead');
   });
 });

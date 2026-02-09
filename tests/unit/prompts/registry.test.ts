@@ -262,5 +262,31 @@ describe('PromptRegistry', () => {
       expect(output).toContain('Available Tools');
       expect(output).toContain('Tool Usage Guidelines');
     });
+
+    it('should expose input schema properties so models can call tools with correct args', async () => {
+      const registry = newRegistry();
+      await registry.init();
+
+      const mockTool: ToolSpec = {
+        name: 'fs.read',
+        source: 'builtin',
+        description: 'Read source code files',
+        riskLevel: 'low',
+        sideEffects: ['fs_read'],
+        concurrency: 'parallel_ok',
+        allowedPhases: ['PLAN', 'PATCH'],
+        inputSchema: z.object({
+          file: z.string().describe('Relative path to file'),
+        }),
+        outputSchema: z.object({ content: z.string() }),
+        executor: async () => ({ content: '' }),
+      };
+
+      registry.setTools([mockTool]);
+      const output = registry.renderExploreSystem();
+
+      expect(output).toContain('"file"');
+      expect(output).toContain('Relative path to file');
+    });
   });
 });

@@ -17,7 +17,7 @@ export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
     ctx.emit({
       type: 'log',
       level: 'debug',
-      message: text.grizzco.explorationSkipped,
+      message: text.grizzco.validation.explorationSkipped,
       timestamp: new Date(),
     });
     return { ...ctx };
@@ -44,12 +44,16 @@ export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
 
   const proxiedRouter = new Proxy(toolstack.router, {
     get(target, prop, receiver) {
-      if (prop === 'call') {
+      const value = Reflect.get(target, prop, receiver);
+      if (prop === 'call' && typeof value === 'function') {
         return async (envelope: any) => {
-          const result = await (target as any).call(envelope);
+          const result = await value.apply(target, [envelope]);
 
-          // Find the corresponding audit entry to check intent
-          const intent = toolstack.registry.getSpec(result.toolName)?.intent;
+          if (!result || typeof result !== 'object') return result;
+
+          // Find the corresponding spec to check intent
+          const spec = toolstack.registry.listAll().find((s) => s.name === result.toolName);
+          const intent = spec?.intent;
 
           // Intercept tools with READ intent
           if (intent === 'READ' && result.status === 'ok') {
@@ -60,7 +64,7 @@ export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
               try {
                 // Attempt to parse arguments to get the file path
                 // Support multiple common parameter names: file, file_path, filePath, path
-                const args = envelope.args;
+                const args = envelope.args || envelope.input;
                 const filePath = args?.file || args?.file_path || args?.filePath || args?.path;
 
                 if (typeof filePath === 'string') {
@@ -74,7 +78,7 @@ export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
           return result;
         };
       }
-      return Reflect.get(target, prop, receiver);
+      return value;
     },
   });
 
@@ -83,6 +87,7 @@ export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
     router: proxiedRouter,
   };
 
+  const localAudit: any[] = [];
   await (supportsStreaming ? chatWithToolsStreaming : chatWithTools)(
     [
       { role: 'system', content: systemPrompt },
@@ -106,6 +111,7 @@ export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
       toolstack: proxiedToolstack,
       toolCallingAudit: {
         event: (entry) => {
+          localAudit.push(entry);
           const list = ctx.toolCallingAudit ?? [];
           list.push(entry);
           ctx.toolCallingAudit = list;
@@ -117,16 +123,11 @@ export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
     },
   );
 
-  // Validation: Check for exploration consistency using ContextValidator
-  if (ctx.toolCallingAudit) {
-    const validation = ContextValidator.validateExploration(
-      ctx.toolCallingAudit as any,
-      capturedFiles.size,
-    );
-    if (!validation.isValid) {
-      const msg = (text.grizzco.validation as any)[validation.errorCode!] || validation.errorCode;
-      throw new SalmonError(msg, 'EXPLORATION_VALIDATION_FAILED');
-    }
+  // Validation: Check for exploration consistency using ContextValidator on LOCAL audit
+  const validation = ContextValidator.validateExploration(localAudit as any, capturedFiles.size);
+  if (!validation.isValid) {
+    const msg = (text.grizzco.validation as any)[validation.errorCode!] || validation.errorCode;
+    throw new SalmonError(msg, 'EXPLORATION_VALIDATION_FAILED');
   }
 
   // Update context with captured files
@@ -163,7 +164,7 @@ export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
   ctx.emit({
     type: 'log',
     level: 'info',
-    message: text.grizzco.explorationFinished(capturedFiles.size),
+    message: text.grizzco.validation.explorationFinished(capturedFiles.size),
     timestamp: new Date(),
   });
 
@@ -172,7 +173,7 @@ export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
     context: updatedContext,
     explorationSummary: {
       filesFound: capturedFiles.size,
-      toolCallCount: ctx.toolCallingAudit?.length || 0,
+      toolCallCount: localAudit.length,
     },
   };
 };

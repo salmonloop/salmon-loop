@@ -32,11 +32,11 @@ describe('exploreCodebase', () => {
         call: vi.fn().mockResolvedValue({ toolName: 'test', status: 'ok', output: 'ok' }),
       },
       registry: {
-        getSpec: vi.fn().mockImplementation((name) => {
-          if (name === 'fs.read') return { intent: 'READ' };
-          return { intent: 'SEARCH' };
-        }),
-        listAll: vi.fn().mockReturnValue([]),
+        getSpec: vi.fn(),
+        listAll: vi.fn().mockReturnValue([
+          { name: 'fs.read', intent: 'READ' },
+          { name: 'code.search', intent: 'SEARCH' },
+        ]),
       },
     };
 
@@ -169,7 +169,7 @@ describe('exploreCodebase', () => {
     );
   });
 
-  it('does not capture fs.read if it fails', async () => {
+  it('fails validation if fs.read does not produce captured content', async () => {
     vi.mocked(strategy.resolveLlmToolCallingPolicy).mockReturnValue({
       enabled: true,
       maxRounds: 10,
@@ -201,8 +201,7 @@ describe('exploreCodebase', () => {
       return { role: 'assistant', content: 'done' } as any;
     });
 
-    const result = await exploreCodebase(mockCtx);
-    expect(result.context.relatedFiles).toHaveLength(0);
+    await expect(exploreCodebase(mockCtx)).rejects.toThrow();
   });
 
   it('uses chatWithToolsStreaming if LLM supports streaming', async () => {
@@ -211,7 +210,35 @@ describe('exploreCodebase', () => {
       maxRounds: 10,
     });
 
+    const mockRuntimeCtx = {
+      repoRoot: '/tmp/test',
+      attemptId: 1,
+      dryRun: false,
+    };
+
     mockCtx.options.llm.chatStream = vi.fn(); // Enable streaming support
+
+    vi.mocked(session.chatWithToolsStreaming).mockImplementation(
+      async (_messages, _options, runtime) => {
+        const router = runtime.toolstack.router;
+
+        mockToolstack.router.call.mockResolvedValue({
+          toolName: 'fs.read',
+          status: 'ok',
+          output: 'streaming read content',
+        });
+
+        await router.call({
+          id: 'stream-1',
+          phase: Phase.EXPLORE,
+          toolName: 'fs.read',
+          args: { file: '/tmp/test/read.ts' },
+          ctx: mockRuntimeCtx,
+        });
+
+        return { role: 'assistant', content: 'done' } as any;
+      },
+    );
 
     await exploreCodebase(mockCtx);
 
@@ -246,6 +273,20 @@ describe('exploreCodebase', () => {
           ctx: mockRuntimeCtx,
         }),
       ).rejects.toThrow('Tool failed');
+
+      mockToolstack.router.call.mockResolvedValue({
+        toolName: 'fs.read',
+        status: 'ok',
+        output: 'recovered read',
+      });
+
+      await router.call({
+        id: '2',
+        phase: Phase.EXPLORE,
+        toolName: 'fs.read',
+        args: { file: '/tmp/test/read.ts' },
+        ctx: mockRuntimeCtx,
+      });
 
       return { role: 'assistant', content: 'done' } as any;
     });

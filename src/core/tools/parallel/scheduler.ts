@@ -1,5 +1,5 @@
 import { ToolRouter } from '../router.js';
-import { ToolRuntimeCtx, ToolSpec } from '../types.js';
+import { ToolResult, ToolRuntimeCtx, ToolSpec } from '../types.js';
 
 import { IsolationManager } from './isolation.js';
 import {
@@ -25,7 +25,8 @@ export class ParallelScheduler {
 
   private resolveSpec(node: { toolName: string; spec?: ToolSpec }): ToolSpec {
     if (node.spec) return node.spec;
-    const spec = this.router.getSpec(node.toolName);
+    const spec =
+      typeof this.router.getSpec === 'function' ? this.router.getSpec(node.toolName) : undefined;
     if (!spec) {
       throw new Error(`Tool spec not found for ${node.toolName}`);
     }
@@ -144,26 +145,28 @@ export class ParallelScheduler {
 
     const startNode = async (nodeId: string) => {
       const node = plan.nodes.find((n) => n.id === nodeId)!;
-      const spec = this.resolveSpec(node);
-      const lane = getLane(spec);
-
-      nodeStates.set(nodeId, 'RUNNING');
-      if (lane === 'read') readRunning++;
-      else writeRunning++;
-
-      if (recordEnabled) {
-        recording.steps.push({
-          t: stepCount++,
-          picked: nodeId,
-          readySet: Array.from(nodeStates.entries())
-            .filter(([_, s]) => s === 'READY' || s === 'RUNNING') // Include current node which was READY
-            .map(([id]) => id),
-          readRunning,
-          writeRunning,
-        });
-      }
+      let lane: 'read' | 'write' | null = null;
 
       try {
+        const spec = this.resolveSpec(node);
+        lane = getLane(spec);
+
+        nodeStates.set(nodeId, 'RUNNING');
+        if (lane === 'read') readRunning++;
+        else if (lane === 'write') writeRunning++;
+
+        if (recordEnabled) {
+          recording.steps.push({
+            t: stepCount++,
+            picked: nodeId,
+            readySet: Array.from(nodeStates.entries())
+              .filter(([_, s]) => s === 'READY' || s === 'RUNNING') // Include current node which was READY
+              .map(([id]) => id),
+            readRunning,
+            writeRunning: writeRunning || 0,
+          });
+        }
+
         // 1. Resolve Arguments
         const resolvedArgs = resolveArgsWithResults(node.args, nodeResults);
 
@@ -278,11 +281,29 @@ export class ParallelScheduler {
         }
       } catch (e) {
         nodeStates.set(nodeId, 'FAILED');
-        nodeResults[nodeId] = { status: 'FAILED', error: e, timing: { lockWaitMs: 0, runMs: 0 } };
+        const error =
+          e instanceof Error
+            ? { code: 'EXECUTION_ERROR', message: e.message, stack: e.stack }
+            : { code: 'EXECUTION_ERROR', message: String(e) };
+
+        const toolResult: ToolResult = {
+          id: nodeId,
+          toolName: node.toolName,
+          source: 'builtin',
+          status: 'error',
+          error: error as any,
+        };
+
+        nodeResults[nodeId] = {
+          status: 'FAILED',
+          error: error as any,
+          toolResult,
+          timing: { lockWaitMs: 0, runMs: 0 },
+        };
         if (plan.policy.failFast) cancelRemaining();
       } finally {
         if (lane === 'read') readRunning--;
-        else writeRunning--;
+        else if (lane === 'write') writeRunning--;
       }
     };
 
