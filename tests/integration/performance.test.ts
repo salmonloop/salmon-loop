@@ -86,8 +86,6 @@ describe('Performance Integration Tests', () => {
     });
     const end = Date.now();
 
-    console.log(`Total time: ${end - start}ms`);
-
     expect(result.success).toBe(true);
     // Real FS operations take time, so we relax the timeout check or just check success.
     // The previous check was < 5000ms for 1000 files with mocks.

@@ -11,16 +11,13 @@ describe('Performance: Service Caching', () => {
 
     const ctx = { workspace: { workPath: '/repo' } } as any;
 
-    const start = performance.now();
     // Simulate 100 concurrent calls (like parallel Apply)
     await Promise.all(
       Array(100)
         .fill(0)
         .map(() => cachedService.fetch(ctx)),
     );
-    const duration = performance.now() - start;
 
     expect(fetchSpy).toHaveBeenCalledTimes(1); // Crucial assertion
-    console.log(`100 calls took ${duration.toFixed(2)}ms with caching`);
   });
 });

@@ -1,26 +1,22 @@
-import * as fs from 'fs/promises';
-import * as os from 'os';
-import * as path from 'path';
+import { readFile, stat } from 'fs/promises';
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 import { executeFsReadFile, fsReadFileSpec } from '../../../src/core/tools/builtin/fs.js';
 
+vi.mock('fs/promises');
+
 describe('Builtin Tool: fs.read_file', () => {
-  let repoRoot: string;
+  const repoRoot = '/fake/repo';
 
-  beforeEach(async () => {
-    repoRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'salmon-fs-test-'));
-    await fs.writeFile(path.join(repoRoot, 'test.txt'), 'hello salmon');
-    await fs.mkdir(path.join(repoRoot, 'subdir'), { recursive: true });
-    await fs.writeFile(path.join(repoRoot, 'subdir', 'config.json'), '{"key": "value"}');
-  });
-
-  afterEach(async () => {
-    if (repoRoot) {
-      await fs.rm(repoRoot, { recursive: true, force: true }).catch(() => {});
-    }
+  beforeEach(() => {
+    vi.clearAllMocks();
   });
 
   it('should read a file within the repository', async () => {
+    // Setup mocks
+    vi.mocked(stat).mockResolvedValue({ size: 12 } as any);
+    vi.mocked(readFile).mockResolvedValue('hello salmon');
+
     const result = await executeFsReadFile(
       { file: 'test.txt' },
       {
@@ -32,12 +28,14 @@ describe('Builtin Tool: fs.read_file', () => {
 
     expect(result.content).toBe('hello salmon');
     expect(result.size).toBe(12);
+    // Verify it called the right path
+    expect(readFile).toHaveBeenCalledWith(expect.stringContaining('test.txt'), 'utf-8');
   });
 
   it('should block path traversal attempts (CRITICAL SAFETY)', async () => {
     const ctx = { repoRoot, attemptId: 1, dryRun: false };
-    await expect(executeFsReadFile({ file: '../passwd' }, ctx)).rejects.toThrow(/Access denied/);
 
+    await expect(executeFsReadFile({ file: '../passwd' }, ctx)).rejects.toThrow(/Access denied/);
     await expect(executeFsReadFile({ file: '/etc/passwd' }, ctx)).rejects.toThrow(/Access denied/);
   });
 
