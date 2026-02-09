@@ -129,15 +129,17 @@ export function toLlmError(err: unknown, provider?: string): LlmError {
   if (
     name === 'AI_TypeValidationError' ||
     name === 'ZodError' ||
+    name.includes('TypeValidationError') ||
+    message.includes('TypeValidationError') ||
     (err as any)?.[Symbol.for('vercel.ai.error.AI_TypeValidationError')]
   ) {
     return new LlmError(
-      'Model validation failed: Invalid input provided to AI model.',
+      text.llm.validationFailed,
       'LLM_VALIDATION_FAILED',
       {
         provider,
         causeName: name,
-        causeMessage: 'Input validation failed',
+        causeMessage: sanitizeError(err),
       },
     );
   }
