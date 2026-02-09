@@ -84,11 +84,21 @@ function toAiSdkMessages(messages: LLMMessage[]): any[] {
       const toolCallId = m.tool_call_id || 'unknown';
       const toolName = m.name || 'unknown';
 
-      // Fix: AI SDK expects 'result' to be the actual return value, not necessarily an object.
-      // If it's a string that looks like JSON, parse it. Otherwise use it as is.
+      // Fix: AI SDK expects 'result' to be the actual return value.
+      // SalmonLoop wraps tool results in a ToolResult object { status, output, error }.
+      // We need to unpack it to avoid Zod schema violations in the AI SDK.
       let result: any;
+      let isError = false;
       try {
-        result = JSON.parse(m.content);
+        const rawResult = JSON.parse(m.content);
+        if (rawResult && typeof rawResult === 'object' && 'status' in rawResult) {
+          isError = rawResult.status === 'error';
+          result = isError
+            ? rawResult.error || rawResult.stderr || 'Unknown error'
+            : rawResult.output;
+        } else {
+          result = rawResult;
+        }
       } catch {
         result = m.content;
       }
@@ -101,7 +111,7 @@ function toAiSdkMessages(messages: LLMMessage[]): any[] {
             toolCallId,
             toolName,
             result,
-            isError: result?.status === 'error',
+            isError,
           },
         ],
       };
