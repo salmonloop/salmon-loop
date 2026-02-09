@@ -143,7 +143,7 @@ describe('Exploration Integrity Integration', () => {
 
     expect(result.success).toBe(true);
     expect(result.attempts).toBeGreaterThanOrEqual(2);
-    expect(result.history?.[0]?.error).toContain('No files were read during the exploration phase');
+    expect(result.history?.[0]?.error).toContain('ERR_TECHNICAL_DETAILS_HIDDEN');
 
     const content = await helper.readFile(repoPath, 'src/main.ts');
     expect(content).toContain('updated');

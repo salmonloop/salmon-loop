@@ -272,6 +272,6 @@ export async function handleRunCommand(options: any, command: Command) {
     process.exit(0);
   } catch (err: any) {
     logger.error(text.cli.unexpectedError(err.message), false);
-    process.exit(0);
+    process.exit(1);
   }
 }

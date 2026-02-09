@@ -34,6 +34,6 @@ describe('AI SDK Error Leakage', () => {
 
     expect(leakedContent).not.toContain('approved');
     expect(leakedContent).not.toContain('invalid_type');
-    expect(leakedContent).toContain('Details have been hidden');
+    expect(leakedContent).toContain('ERR_TECHNICAL_DETAILS_HIDDEN');
   });
 });

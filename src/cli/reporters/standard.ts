@@ -136,17 +136,46 @@ export class StandardReporter implements SalmonReporter {
     });
   }
 
-  private handleLogEvent(event: { level: string; message: string }) {
+  private handleLogEvent(event: { level: string; message: string; code?: string }) {
+    let displayMessage = event.message;
+
+    // Handle sanitized technical errors from core to ensure no hardcoded text in core
+    if (displayMessage === 'ERR_TECHNICAL_DETAILS_HIDDEN') {
+      displayMessage = text.llmErrors.httpRequestFailed;
+    }
+
+    // Mapping logic: if code is provided, try to find the localized message
+    if (event.code) {
+      const llmErrors = text.llmErrors as Record<string, any>;
+      const llmText = text.llm as Record<string, any>;
+
+      // 尝试匹配 LlmErrorCode 映射
+      if (event.code.startsWith('LLM_')) {
+        // 将 LLM_HTTP_REQUEST_FAILED 转换为 httpRequestFailed
+        const camelCode = event.code
+          .toLowerCase()
+          .replace(/_([a-z])/g, (_, g) => g.toUpperCase())
+          .replace(/^llm/, '');
+        const finalCamel = camelCode.charAt(0).toLowerCase() + camelCode.slice(1);
+
+        if (llmErrors[finalCamel]) {
+          displayMessage = llmErrors[finalCamel];
+        } else if (llmText[finalCamel]) {
+          displayMessage = llmText[finalCamel];
+        }
+      }
+    }
+
     if (event.level === 'error') {
-      logger.error(event.message);
+      logger.error(displayMessage);
     } else if (event.level === 'warn') {
-      logger.warn(event.message);
+      logger.warn(displayMessage);
     } else if (event.level === 'trace') {
-      logger.trace(event.message);
+      logger.trace(displayMessage);
     } else if (event.level === 'info') {
-      logger.info(event.message);
+      logger.info(displayMessage);
     } else {
-      logger.debug(event.message);
+      logger.debug(displayMessage);
     }
   }
 

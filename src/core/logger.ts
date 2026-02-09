@@ -4,6 +4,7 @@ import { FileAdapter } from './adapters/fs/index.js';
 import type { AuditTrailMeta } from './audit-trail.js';
 import { recordAuditEvent } from './audit-trail.js';
 import { VerboseLevel } from './types.js';
+import { sanitizeObject, sanitizeErrorMessage } from './utils/sanitizer.js';
 
 export type LogLevel = 'none' | 'basic' | 'extended';
 
@@ -213,10 +214,36 @@ export class Logger {
     if (!this.silent) this.reporter.log('warn', formatted);
   }
 
-  error(message: string, exit = false): void {
-    const formatted = this.formatMessage(message);
-    this.writeToLog('error', formatted);
-    if (!this.silent) this.reporter.log('error', formatted);
+  error(message: string, errorOrExit?: unknown | boolean, maybeExit?: boolean): void {
+    let error: unknown | undefined;
+    let exit = false;
+
+    // Handle polymorphism for backward compatibility:
+    // Case 1: error(msg, exit)
+    if (typeof errorOrExit === 'boolean' && maybeExit === undefined) {
+      exit = errorOrExit;
+    }
+    // Case 2: error(msg, err, exit)
+    else {
+      error = errorOrExit;
+      exit = maybeExit ?? false;
+    }
+
+    const sanitizedMessage = this.sanitizeLogMessage(
+      this.formatMessage(sanitizeErrorMessage(message)),
+    );
+    const sanitizedError = error ? sanitizeObject(error) : undefined;
+
+    this.writeToLog(
+      'error',
+      sanitizedMessage + (sanitizedError ? ` | ${JSON.stringify(sanitizedError)}` : ''),
+    );
+
+    if (!this.silent) {
+      this.reporter.log('error', sanitizedMessage);
+      // Removed: console.error(sanitizedError) to prevent JSON leakage to UI
+    }
+
     if (exit) process.exit(1);
   }
 
@@ -273,10 +300,11 @@ export class Logger {
   }
 
   audit(action: string, details: any, meta?: string | AuditTrailMeta): void {
-    const rawMessage = `${action}: ${JSON.stringify(details)}`;
+    const sanitizedDetails = sanitizeObject(details);
+    const rawMessage = `${action}: ${JSON.stringify(sanitizedDetails)}`;
     const formatted = this.formatMessage(this.sanitizeLogMessage(rawMessage));
     const auditMeta = typeof meta === 'string' ? { source: meta } : meta;
-    recordAuditEvent(action, details, auditMeta);
+    recordAuditEvent(action, sanitizedDetails, auditMeta);
     this.writeToLog('audit', formatted);
     if (!this.silent) this.reporter.log('audit', formatted);
   }

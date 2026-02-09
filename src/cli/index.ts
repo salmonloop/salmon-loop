@@ -8,6 +8,7 @@ import chalk from 'chalk';
 import { Command } from 'commander';
 
 import { initializeFlowStrategies } from '../core/grizzco/flows/registry.js';
+import { initializeRuntime } from '../core/runtime.js';
 
 import { handleChatCommand } from './commands/chat.js';
 import { handleContextCommand } from './commands/context.js';
@@ -25,11 +26,18 @@ import {
 } from './commands/snapshot.js';
 import { text } from './locales/index.js';
 
+// --- Global Safety Initialization ---
+initializeRuntime();
+
 // Force global chalk level
 chalk.level = 3;
 
 const program = new Command();
 initializeFlowStrategies();
+
+// --- Framework Error Hardening ---
+// Prevent Commander from printing raw errors directly to terminal
+program.exitOverride();
 
 program.name('s8p').alias('salmonloop').description(text.cli.programDescription).version('0.2.0');
 
@@ -143,5 +151,20 @@ program
   .option('--verbose', 'Verbose output')
   .action(handleChatCommand);
 
-// Parse arguments
-program.parse();
+// Parse arguments with manual error handling
+try {
+  program.parse();
+} catch (err: any) {
+  // Commander uses special error names for built-in logic like --help or missing args
+  if (err.name === 'CommanderError') {
+    // Only exit if it's not a help message
+    if (err.code !== 'commander.helpDisplayed' && err.code !== 'commander.version') {
+      process.exit(err.exitCode || 1);
+    }
+  } else {
+    // This is a real application crash - send through our hardened logger
+    import('../core/logger.js').then(({ logger }) => {
+      logger.error('CLI execution crashed', err, true);
+    });
+  }
+}

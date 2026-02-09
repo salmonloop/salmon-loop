@@ -1,4 +1,3 @@
-import { text } from '../../locales/index.js';
 import { SalmonError } from '../types.js';
 import { sanitizeErrorMessage } from '../utils/sanitizer.js';
 
@@ -28,6 +27,7 @@ export class LlmError extends SalmonError {
     public readonly llmCode: LlmErrorCode,
     public readonly meta?: LlmErrorMeta,
   ) {
+    // Ensure SalmonError receives llmCode as its core code
     super(message, llmCode);
   }
 }
@@ -63,9 +63,9 @@ function extractProviderDetails(err: unknown): {
       try {
         const parsed = JSON.parse(candidate.responseBody);
         if (parsed?.error?.message) {
-          details.providerMessage = parsed.error.message;
+          details.providerMessage = sanitizeError(parsed.error.message);
         } else if (parsed?.message) {
-          details.providerMessage = parsed.message;
+          details.providerMessage = sanitizeError(parsed.message);
         }
       } catch {
         // ignore
@@ -79,9 +79,9 @@ function extractProviderDetails(err: unknown): {
     if (data && typeof data.error === 'object' && data.error) {
       const errInfo = data.error as Record<string, unknown>;
       if (typeof errInfo.message === 'string') {
-        details.providerMessage = truncate(errInfo.message);
+        details.providerMessage = sanitizeError(truncate(errInfo.message));
       } else if (typeof errInfo.details === 'string') {
-        details.providerMessage = truncate(errInfo.details);
+        details.providerMessage = sanitizeError(truncate(errInfo.details));
       }
     }
 
@@ -92,7 +92,7 @@ function extractProviderDetails(err: unknown): {
         try {
           const parsed = JSON.parse(jsonMatch[1]);
           if (parsed?.error?.message) {
-            details.providerMessage = parsed.error.message;
+            details.providerMessage = sanitizeError(parsed.error.message);
           }
         } catch {
           // ignore
@@ -134,7 +134,7 @@ export function toLlmError(err: unknown, provider?: string): LlmError {
     message.includes('TypeValidationError') ||
     (err as any)?.[Symbol.for('vercel.ai.error.AI_TypeValidationError')]
   ) {
-    return new LlmError(text.llm.validationFailed, 'LLM_VALIDATION_FAILED', {
+    return new LlmError('LLM validation failed', 'LLM_VALIDATION_FAILED', {
       provider,
       causeName: name,
       causeMessage: sanitizeError(err),
@@ -150,7 +150,7 @@ export function toLlmError(err: unknown, provider?: string): LlmError {
   // Apply unified sanitization
   const sanitizedMessage = sanitizeError(err);
   const isValidationFailure =
-    sanitizedMessage.includes(text.llm.validationFailed) || name === 'AI_TypeValidationError';
+    sanitizedMessage.includes('validation failed') || name === 'AI_TypeValidationError';
 
   const meta: LlmErrorMeta = {
     provider,
@@ -164,32 +164,32 @@ export function toLlmError(err: unknown, provider?: string): LlmError {
   }
 
   if (name === 'AbortError' || /aborted/i.test(message)) {
-    return new LlmError(text.llmErrors.httpAborted, 'LLM_HTTP_ABORTED', meta);
+    return new LlmError('Request aborted', 'LLM_HTTP_ABORTED', meta);
   }
 
   if (/Unexpected end of JSON input/i.test(message)) {
-    return new LlmError(text.llmErrors.httpInvalidJson, 'LLM_HTTP_RESPONSE_INVALID_JSON', meta);
+    return new LlmError('Invalid JSON response from LLM', 'LLM_HTTP_RESPONSE_INVALID_JSON', meta);
   }
 
-  // Use the safe localized message for all other HTTP failures
-  return new LlmError(text.llmErrors.httpRequestFailed, 'LLM_HTTP_REQUEST_FAILED', meta);
+  // Use a generic message for all other HTTP failures
+  return new LlmError('LLM request failed', 'LLM_HTTP_REQUEST_FAILED', meta);
 }
 
 export function wrapPlanEmpty(): LlmError {
-  return new LlmError(text.llm.planEmpty, 'LLM_PLAN_EMPTY');
+  return new LlmError('LLM returned an empty plan', 'LLM_PLAN_EMPTY');
 }
 
 export function wrapPlanInvalidJson(): LlmError {
-  return new LlmError(text.llm.planInvalid, 'LLM_PLAN_INVALID_JSON');
+  return new LlmError('LLM returned invalid JSON for plan', 'LLM_PLAN_INVALID_JSON');
 }
 
 export function wrapPatchEmpty(reason?: string): LlmError {
-  const msg = reason ? text.llm.patchEmpty(reason) : text.llm.patchEmpty();
+  const msg = reason ? `LLM returned an empty patch: ${reason}` : 'LLM returned an empty patch';
   return new LlmError(msg, 'LLM_PATCH_EMPTY');
 }
 
 export function wrapPatchNotUnifiedDiff(): LlmError {
-  return new LlmError(text.diff.notUnifiedFormat, 'LLM_PATCH_NOT_UNIFIED_DIFF');
+  return new LlmError('LLM patch is not in unified diff format', 'LLM_PATCH_NOT_UNIFIED_DIFF');
 }
 
 export function wrapPatchInvalid(message: string): LlmError {

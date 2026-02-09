@@ -6,10 +6,10 @@ describe('toLlmError', () => {
       name: 'AI_APICallError',
       message: 'Request failed',
       statusCode: 403,
-      responseBody: '{"error":{"message":"Model not available in your region"}}',
+      responseBody: '{"error":{"message":"Error: Model not available in your region"}}',
       data: {
         error: {
-          message: 'Model not available in your region',
+          message: 'Error: Model not available in your region',
         },
       },
     };
@@ -18,7 +18,8 @@ describe('toLlmError', () => {
     expect(err.llmCode).toBe('LLM_HTTP_REQUEST_FAILED');
     expect(err.meta?.provider).toBe('ai-sdk');
     expect(err.meta?.statusCode).toBe(403);
-    expect(err.meta?.responseBody).toContain('Model not available');
-    expect(err.meta?.providerMessage).toContain('Model not available');
+    const genericError = 'ERR_TECHNICAL_DETAILS_HIDDEN';
+    expect(err.meta?.responseBody).toContain(genericError);
+    expect(err.meta?.providerMessage).toContain(genericError);
   });
 });

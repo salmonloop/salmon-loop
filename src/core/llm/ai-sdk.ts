@@ -31,7 +31,6 @@ function formatOutputSchema(schema: z.ZodType<any> | undefined): string {
   return 'complex object';
 }
 
-import { text } from '../../locales/index.js';
 import { LIMITS } from '../limits.js';
 import {
   extractUnifiedDiffFromLLMContent,
@@ -51,7 +50,7 @@ import type {
 } from '../types.js';
 
 import { resolveBaseUrl } from './base-url.js';
-import { toLlmError, wrapPlanEmpty, sanitizeError } from './errors.js';
+import { toLlmError, wrapPlanEmpty, sanitizeError, LlmError } from './errors.js';
 import { withRetry, withStreamRetry } from './retry-utils.js';
 import { mapAiSdkStreamPartToChunk } from './stream-utils.js';
 
@@ -512,7 +511,9 @@ export class AiSdkLLM implements LLM {
     try {
       return parsePlanFromLLMContent(content);
     } catch (e) {
-      throw new Error(text.llm.planParseFailed(content, sanitizeError(e)));
+      throw new LlmError('LLM plan parsing failed', 'LLM_PLAN_INVALID_JSON', {
+        causeMessage: sanitizeError(e),
+      });
     }
   }
 

@@ -46,9 +46,12 @@ export class CommandDispatcher {
         });
         return { type: 'executed' };
       } catch (_error) {
-        // If command execution fails, we still consider it executed (handled),
-        // but we might want to log it? The command itself usually handles errors/logging.
-        // For now, assume execute() handles its own output.
+        context.emit({
+          type: 'log',
+          level: 'error',
+          message: String(_error),
+          timestamp: new Date(),
+        });
         return { type: 'executed' };
       }
     }

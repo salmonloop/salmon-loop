@@ -160,6 +160,7 @@ export type LoopEvent =
   | {
       type: 'log';
       message: string;
+      code?: string; // 增加语义化错误码支持
       level: 'info' | 'warn' | 'error' | 'debug' | 'trace';
       timestamp: Date;
     }

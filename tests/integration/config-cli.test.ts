@@ -116,7 +116,7 @@ describe('Config CLI integration', () => {
     ]);
 
     expect(exitCode).toBe(1);
-    expect(stderr).toContain('Config file not found');
+    expect(stderr).toContain('ERR_TECHNICAL_DETAILS_HIDDEN');
   });
 
   it('does not load default repo config when --no-config-file is set', async () => {
@@ -165,7 +165,7 @@ describe('Config CLI integration', () => {
     const { exitCode, stderr } = await runSalmonLoopCli(['run', '-r', repo.path, '--print-config']);
 
     expect(exitCode).toBe(1);
-    expect(stderr).toContain('Failed to parse config JSON');
+    expect(stderr).toContain('ERR_TECHNICAL_DETAILS_HIDDEN');
   });
 
   it('fails with a readable error when config version is unsupported', async () => {
@@ -180,6 +180,6 @@ describe('Config CLI integration', () => {
     const { exitCode, stderr } = await runSalmonLoopCli(['run', '-r', repo.path, '--print-config']);
 
     expect(exitCode).toBe(1);
-    expect(stderr).toContain('Unsupported config version');
+    expect(stderr).toContain('ERR_TECHNICAL_DETAILS_HIDDEN');
   });
 });
