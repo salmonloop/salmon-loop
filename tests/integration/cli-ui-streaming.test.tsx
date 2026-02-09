@@ -41,13 +41,18 @@ describe('CLI UI streaming integration', () => {
       });
     });
 
-    const aiMessages = result.current.state.messages.filter(
-      (message) => message.type === 'assistant',
-    );
+    const messages = [
+      ...result.current.state.completedMessages,
+      ...(result.current.state.activeStreamingMessage
+        ? [result.current.state.activeStreamingMessage]
+        : []),
+    ];
+
+    const aiMessages = messages.filter((message) => message.type === 'assistant');
     expect(aiMessages).toHaveLength(1);
     expect(aiMessages[0]?.content).toBe('Plan generated.');
 
-    const nonWelcomeSystemMessages = result.current.state.messages.filter(
+    const nonWelcomeSystemMessages = messages.filter(
       (message) => message.type === 'system' && message.content !== 'WELCOME_LOGO',
     );
     expect(nonWelcomeSystemMessages).toHaveLength(0);

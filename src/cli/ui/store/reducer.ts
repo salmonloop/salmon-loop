@@ -12,15 +12,6 @@ export const initialState: UIState = {
     },
   ],
   activeStreamingMessage: null,
-  // Legacy field for backward compatibility
-  messages: [
-    {
-      id: 'welcome',
-      type: 'system',
-      content: 'WELCOME_LOGO',
-      timestamp: new Date(),
-    },
-  ],
   queueMessages: [],
   inputContent: '',
   isSidebarVisible: process.stdout.columns >= 120,
@@ -41,7 +32,6 @@ export function uiReducer(state: UIState, action: UIAction): UIState {
       return {
         ...state,
         completedMessages: [...state.completedMessages, action.payload],
-        messages: [...state.messages, action.payload], // Legacy compatibility
       };
     case 'APPEND_LLM_STREAM': {
       const { id, delta, timestamp } = action.payload;
@@ -56,8 +46,6 @@ export function uiReducer(state: UIState, action: UIAction): UIState {
         return {
           ...state,
           activeStreamingMessage: updatedActive,
-          // Sync to legacy messages array for compatibility
-          messages: state.messages.map((msg) => (msg.id === id ? updatedActive : msg)),
         };
       }
 
@@ -73,7 +61,6 @@ export function uiReducer(state: UIState, action: UIAction): UIState {
       return {
         ...state,
         activeStreamingMessage: newMessage,
-        messages: [...state.messages, newMessage], // Legacy compatibility
       };
     }
     case 'ADD_QUEUE_MESSAGE':
@@ -156,8 +143,6 @@ export function uiReducer(state: UIState, action: UIAction): UIState {
         ...state,
         completedMessages: [...state.completedMessages, completed],
         activeStreamingMessage: null,
-        // Update message in legacy array
-        messages: state.messages.map((msg) => (msg.id === completed.id ? completed : msg)),
       };
     }
     case 'SET_CONFIRMATION':
@@ -183,7 +168,6 @@ export function uiReducer(state: UIState, action: UIAction): UIState {
         ...state,
         completedMessages: [welcomeMessage],
         activeStreamingMessage: null,
-        messages: [welcomeMessage],
         queueMessages: [],
         pendingAuthorization: undefined,
         pendingSelection: undefined,
@@ -204,7 +188,6 @@ export function uiReducer(state: UIState, action: UIAction): UIState {
         ...state,
         completedMessages: [...state.completedMessages, interrupted],
         activeStreamingMessage: null,
-        messages: state.messages.map((msg) => (msg.id === interrupted.id ? interrupted : msg)),
         isThinking: false,
         currentPhase: 'idle',
       };

@@ -118,7 +118,6 @@ export interface UIState {
   // Static component optimization: separate completed messages from active streaming
   completedMessages: Message[]; // Rendered via <Static>, native terminal scroll
   activeStreamingMessage: Message | null; // Currently streaming message (React-managed)
-  messages: Message[]; // DEPRECATED: Kept for backward compatibility
   queueMessages: QueueMessage[];
   inputContent: string;
   isSidebarVisible: boolean;
