@@ -56,7 +56,8 @@ function extractProviderDetails(err: unknown): {
     }
 
     if (typeof candidate.responseBody === 'string') {
-      details.responseBody = truncate(candidate.responseBody);
+      // Apply sanitization to responseBody immediately after truncation
+      details.responseBody = sanitizeError(truncate(candidate.responseBody));
 
       // Try to parse JSON from responseBody to get a better message
       try {
@@ -148,7 +149,8 @@ export function toLlmError(err: unknown, provider?: string): LlmError {
 
   // Apply unified sanitization
   const sanitizedMessage = sanitizeError(err);
-  const isValidationFailure = sanitizedMessage.includes('Model validation failed');
+  const isValidationFailure =
+    sanitizedMessage.includes(text.llm.validationFailed) || name === 'AI_TypeValidationError';
 
   const meta: LlmErrorMeta = {
     provider,
@@ -169,7 +171,8 @@ export function toLlmError(err: unknown, provider?: string): LlmError {
     return new LlmError(text.llmErrors.httpInvalidJson, 'LLM_HTTP_RESPONSE_INVALID_JSON', meta);
   }
 
-  return new LlmError(sanitizedMessage, 'LLM_HTTP_REQUEST_FAILED', meta);
+  // Use the safe localized message for all other HTTP failures
+  return new LlmError(text.llmErrors.httpRequestFailed, 'LLM_HTTP_REQUEST_FAILED', meta);
 }
 
 export function wrapPlanEmpty(): LlmError {

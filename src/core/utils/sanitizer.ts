@@ -13,23 +13,27 @@ export function sanitizeErrorMessage(err: unknown): string {
     msg = String(err);
   }
 
-  // 2. Aggressive heuristic detection
-  const isZod =
-    msg.includes('ZodError') ||
-    msg.includes('invalid_union') ||
-    msg.includes('invalid_type') ||
-    (err instanceof Error && err.name === 'ZodError');
+  // 2. Strict Whitelist Detection
+  // Only allow very short, non-technical, localized-style or user-initiated strings
+  const isSafeText =
+    msg.length < 100 &&
+    !msg.includes('error') &&
+    !msg.includes('Error') &&
+    !msg.includes('failed') &&
+    !msg.includes('Exception') &&
+    !msg.includes(':') &&
+    !msg.includes('{') &&
+    !msg.includes('/') &&
+    !/at\s+.*:\d+:\d+/.test(msg);
 
-  const hasStackTrace = /at\s+.*:\d+:\d+/.test(msg) || msg.includes('    at ');
-  const isJsonDump = /^\s*\{.*"/.test(msg) || msg.includes('"path": [');
-  const isAiSdkError =
-    msg.includes('vercel.ai.error') ||
-    (typeof err === 'object' &&
-      err !== null &&
-      Object.getOwnPropertySymbols(err).some((s) => s.toString().includes('ai.error')));
+  const isKnownSafe = [
+    'User aborted the operation',
+    'Operation cancelled',
+    'Request timed out',
+  ].includes(msg);
 
-  // 3. The Block Rule
-  if (isZod || hasStackTrace || isJsonDump || isAiSdkError || msg.length > 800) {
+  // 3. The Strict Block Rule
+  if (!(isSafeText || isKnownSafe) || msg.length > 500) {
     return 'The operation failed due to a technical error. Details have been hidden for security. Please check the audit logs.';
   }
 
