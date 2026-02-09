@@ -27,8 +27,6 @@ describe('ContextValidator', () => {
       { toolName: 'code.search', toolIntent: 'SEARCH', toolResultStatus: 'ok' },
     ];
     const result = ContextValidator.validateExploration(audit, 0);
-
-    // This is expected to FAIL because the current implementation is stubbed to return true
     expect(result.isValid).toBe(false);
     expect(result.errorCode).toBe('explorationHallucination');
   });

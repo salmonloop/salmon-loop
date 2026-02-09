@@ -10,6 +10,7 @@ import { ToolSpec, ToolRuntimeCtx } from '../types.js';
 export const gitCatSpec: Omit<ToolSpec, 'executor'> = {
   name: 'git.cat',
   source: 'builtin',
+  intent: 'READ',
   description: text.tools.gitCatDescription,
   riskLevel: 'low',
   sideEffects: ['git_read'],
@@ -66,6 +67,7 @@ export async function executeGitCat(
 export const gitStatusSpec: Omit<ToolSpec, 'executor'> = {
   name: 'git.status',
   source: 'builtin',
+  intent: 'LIST',
   description: text.tools.gitStatusDescription,
   riskLevel: 'low',
   sideEffects: ['git_read'],

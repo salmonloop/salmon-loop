@@ -22,6 +22,7 @@ describe('chatWithTools', () => {
     const echoSpec: ToolSpec<{ text: string }, { text: string }> = {
       name: 'test.echo',
       source: 'builtin',
+      intent: 'INFRA',
       description: 'Echo tool for testing',
       riskLevel: 'low',
       sideEffects: ['none'],

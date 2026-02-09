@@ -9,6 +9,7 @@ import { ToolSpec, ToolRuntimeCtx } from '../types.js';
 export const verifyRunSpec: Omit<ToolSpec, 'executor'> = {
   name: 'test.run',
   source: 'builtin',
+  intent: 'INFRA',
   description: text.tools.testRunDescription,
   riskLevel: 'medium',
   sideEffects: ['process'],

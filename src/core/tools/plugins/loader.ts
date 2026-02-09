@@ -91,6 +91,10 @@ export async function registerPluginTools(registry: ToolRegistry, plugins: Resol
         logger.warn(`Plugin ${pluginId} tool ${original.name} must declare sideEffects.`);
         continue;
       }
+      if (!original.intent) {
+        logger.warn(`Plugin ${pluginId} tool ${original.name} must declare intent.`);
+        continue;
+      }
       if (!original.allowedPhases || original.allowedPhases.length === 0) {
         logger.warn(`Plugin ${pluginId} tool ${original.name} must declare allowedPhases.`);
         continue;

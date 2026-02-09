@@ -73,6 +73,7 @@ export class PromptRegistry {
     return this.tools.map((spec) => ({
       name: spec.name,
       source: spec.source,
+      intent: spec.intent,
       description: spec.description,
       riskLevel: spec.riskLevel,
       sideEffects: spec.sideEffects,

@@ -17,6 +17,7 @@ describe('ToolPolicy', () => {
   ): ToolSpec => ({
     name,
     source: 'builtin',
+    intent: 'INFRA',
     description: 'test',
     riskLevel,
     sideEffects,

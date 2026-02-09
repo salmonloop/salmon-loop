@@ -1,4 +1,4 @@
-import { ToolSpec } from './types.js';
+import { TOOL_INTENTS, ToolSpec } from './types.js';
 
 export class ToolRegistry {
   private specs = new Map<string, ToolSpec>();
@@ -9,6 +9,9 @@ export class ToolRegistry {
   register(spec: ToolSpec) {
     if (this.specs.has(spec.name)) {
       throw new Error(`Tool ${spec.name} is already registered`);
+    }
+    if (!TOOL_INTENTS.includes(spec.intent)) {
+      throw new Error(`Tool ${spec.name} must declare a valid intent`);
     }
     this.specs.set(spec.name, spec);
   }

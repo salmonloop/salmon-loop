@@ -150,7 +150,7 @@ Please return the patch in PURE unified diff format:`;
   },
 
   loop: {
-    starting: '🚀 Starting salmon-loop...',
+    starting: 'Starting salmon-loop...',
     preflightPassed: 'Environment safety validation completed',
     planFailed: (error: string) => `Plan failed: ${error}`,
     patchGenerationFailed: (error: string) => `Patch generation failed: ${error}`,
@@ -567,16 +567,16 @@ Please return the patch in PURE unified diff format:`;
 
   // Symbols for UI feedback
   symbols: {
-    suggestion: '💡',
-    success: '✅',
-    error: '❌',
-    info: 'ℹ️',
-    warning: '⚠️',
-    rocket: '🚀',
-    document: '📄',
-    magnifier: '🔍',
-    pen: '📝',
-    chart: '📊',
+    suggestion: '[hint]',
+    success: '[ok]',
+    error: '[error]',
+    info: '[info]',
+    warning: '[warn]',
+    rocket: '[run]',
+    document: '[doc]',
+    magnifier: '[search]',
+    pen: '[log]',
+    chart: '[result]',
   },
 
   resource: {

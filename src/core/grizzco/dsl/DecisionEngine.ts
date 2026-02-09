@@ -172,6 +172,8 @@ export class DecisionEngine<C extends BaseDslContext = DslContext> {
   }
 
   private exportDecisionTree(): string {
-    return this.history.map((r) => `${r.matched ? '✅' : '⏭️'} [${r.phase}] ${r.rule}`).join('\n');
+    return this.history
+      .map((r) => `${r.matched ? '[match]' : '[skip]'} [${r.phase}] ${r.rule}`)
+      .join('\n');
   }
 }

@@ -12,6 +12,7 @@ import { ToolSpec, ToolRuntimeCtx } from '../types.js';
 export const astDefsRefsSpec: Omit<ToolSpec, 'executor'> = {
   name: 'code.ast',
   source: 'builtin',
+  intent: 'SEARCH',
   description: text.tools.codeAstDescription,
   riskLevel: 'low',
   sideEffects: ['fs_read'],

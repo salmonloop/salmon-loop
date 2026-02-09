@@ -5,11 +5,11 @@ export const en = {
   contextDescription: 'Build and print the context prompt (no LLM call)',
 
   // Chat mode
-  chatResumed: (name: string) => `✨ Resumed: ${name}`,
+  chatResumed: (name: string) => `Resumed: ${name}`,
   chatLastUpdated: (time: string) => `   Last updated: ${time}`,
   chatIterations: (count: number) => `   Iterations: ${count}`,
   chatNoPreviousSession: 'No previous session found. Starting new one.',
-  chatNewSession: (id: string) => `🚀 New session: ${id}`,
+  chatNewSession: (id: string) => `New session: ${id}`,
   chatCommands: 'Commands:',
   chatCommandExit: '  /exit, /quit  - Exit chat (or Ctrl+C twice)',
   chatCommandStatus: '  /status       - Show session info',
@@ -17,13 +17,13 @@ export const en = {
   chatCommandHistory: '  /history      - Show iteration history',
   chatCommandQueue: '  /queue        - Manage the chat queue',
   chatCommandAuth: '  /allowlist    - Manage tool allowlist',
-  chatSessionSaved: '👋 Session saved. Goodbye!',
+  chatSessionSaved: 'Session saved. Goodbye!',
   chatThinking: 'Thinking...',
-  chatSuccess: (files: string) => `✅ Changes applied successfully!\n\nFiles changed: ${files}`,
-  chatFailed: (reason: string) => `❌ Failed: ${reason}`,
+  chatSuccess: (files: string) => `Changes applied successfully.\n\nFiles changed: ${files}`,
+  chatFailed: (reason: string) => `Failed: ${reason}`,
   chatPrompt: 's8p>',
   chatExitHint: 'Press Ctrl+C again to exit',
-  chatTaskInterrupted: '⚠️  Task interrupted by user (Ctrl+C)',
+  chatTaskInterrupted: '[WARN] Task interrupted by user (Ctrl+C)',
   unknownCommand: (cmd: string) => `Unknown command: ${cmd}. Type /help for available commands.`,
 
   gui: {
@@ -39,11 +39,11 @@ export const en = {
     exitConfirmHint: 'Exit Salmonloop? (y/N)',
     renderError: 'Error rendering content',
     scrollHint: (current: number, total: number) => `(Scroll for more: ${current}/${total})`,
-    confirmationTitle: '⚠️  Action Required',
+    confirmationTitle: '[WARN] Action Required',
     confirmationChallenge: (challenge: string) => `Enter [${challenge}] to confirm (Esc to cancel)`,
     highRiskWarning:
       'This operation involves physical code restoration. Please enter the validation code to continue.',
-    authorizationTitle: '⚠️  Authorization Required',
+    authorizationTitle: '[WARN] Authorization Required',
     authorizationWarning:
       'This tool call has side effects. Enter the authorization code to allow it once.',
     authorizationHint: 'Tip: add "all", "save", or "global" after the code.',
@@ -191,11 +191,11 @@ export const en = {
     `Invalid --diff-scope "${scope}". Expected "primary" or "ast_related".`,
   contextInvalidBudgetChars: (value: string) => `Invalid --budget-chars "${value}".`,
   apiKeyMissing:
-    '⚠️  SALMONLOOP_API_KEY not found, using StubLLM. Set SALMONLOOP_API_KEY (or legacy S8P_API_KEY) to use a real LLM.',
+    '[WARN] SALMONLOOP_API_KEY not found, using StubLLM. Set SALMONLOOP_API_KEY (or legacy S8P_API_KEY) to use a real LLM.',
   providerNotSupported: (type: string) =>
-    `⚠️  Provider "${type}" is not supported yet. Falling back to StubLLM.`,
+    `[WARN] Provider "${type}" is not supported yet. Falling back to StubLLM.`,
   clientPackageNotSupported: (pkg: string) =>
-    `⚠️  LLM client.package "${pkg}" is not supported. Falling back to the default client.`,
+    `[WARN] LLM client.package "${pkg}" is not supported. Falling back to the default client.`,
 
   // Resource and Workspace messages
   resource: {
@@ -209,7 +209,7 @@ export const en = {
   },
 
   // Startup information
-  starting: '🚀 Starting salmon-loop...',
+  starting: 'Starting salmon-loop...',
   runningWith: 'Running salmon-loop with:',
   scope: (scope: string) => `  Scope: ${scope}`,
   verify: (command: string) => `  Verify: ${command}`,
@@ -222,9 +222,9 @@ export const en = {
   target: (path: string) => `  Target: ${path}`,
 
   // Result output
-  result: '📊 Result:',
-  operationSuccess: '\n✅ Operation completed successfully!',
-  operationFailed: '\n❌ Operation failed.',
+  result: 'Result:',
+  operationSuccess: '\nOperation completed successfully.',
+  operationFailed: '\nOperation failed.',
   success: (success: boolean) => `  Success: ${success}`,
   reason: (reason: string) => `  Reason: ${reason}`,
   attempts: (attempts: number) => `  Attempts: ${attempts}`,
@@ -243,9 +243,9 @@ export const en = {
     `Context built (${usedChars} chars, truncated=${truncated})`,
 
   // Step logs
-  stepLogs: '📝 Step Logs:',
+  stepLogs: 'Step Logs:',
   stepEntry: (index: number, step: string, success: boolean) =>
-    `  ${index + 1}. ${step}: ${success ? '✅' : '❌'}`,
+    `  ${index + 1}. ${step}: ${success ? '[ok]' : '[error]'}`,
   stepError: (error: string) => `     Error: ${error}`,
   stepOutput: (output: string, maxLen: number) => {
     const truncated = output.length > maxLen;
@@ -255,18 +255,18 @@ export const en = {
   rawPatch: (patch: string) => `  [DEBUG] Raw Patch:\n${patch}`,
 
   // Patch output
-  finalPatch: '📄 Final Patch:',
+  finalPatch: 'Final Patch:',
 
   // Errors
-  error: (error: string) => `❌ Error: ${error}`,
+  error: (error: string) => `Error: ${error}`,
   unexpectedError: (error: string) => `Unexpected error: ${error}`,
   targetNodeOption: 'The name of the node (e.g., function name) that is allowed to be modified',
-  runningValidation: '🔍 Running validation checks...',
+  runningValidation: 'Running validation checks...',
   runningEslint: '  Running ESLint...',
   runningTests: '  Running Tests...',
-  testsFailedContinuing: '  ⚠️ Tests failed, but continuing validation...',
-  validationCompleted: '✅ Validation completed!',
-  validationFailed: '❌ Validation failed.',
+  testsFailedContinuing: '  [WARN] Tests failed, but continuing validation...',
+  validationCompleted: 'Validation completed.',
+  validationFailed: 'Validation failed.',
   optionsRequired:
     'Error: --instruction is required. --verify is required unless provided by config, or --validate is used.',
 

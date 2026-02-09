@@ -12,6 +12,7 @@ export function skillToToolSpec(skill: Skill): ToolSpec {
   return {
     name: skill.id,
     source: 'plugin',
+    intent: 'AGENT',
     description: skill.metadata.description,
     riskLevel: 'medium',
     sideEffects: ['process', 'fs_read'],

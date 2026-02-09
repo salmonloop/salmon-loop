@@ -8,6 +8,7 @@ import { ToolSpec, ToolRuntimeCtx } from '../types.js';
 export const artifactReadSpec: Omit<ToolSpec, 'executor'> = {
   name: 'artifact.read',
   source: 'builtin',
+  intent: 'READ',
   description: text.tools.artifactReadDescription,
   riskLevel: 'low',
   sideEffects: ['fs_read'],

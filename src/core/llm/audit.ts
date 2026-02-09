@@ -1,3 +1,4 @@
+import type { ToolIntent } from '../tools/types.js';
 import type { ExecutionPhase } from '../types.js';
 
 export interface ToolCallingAuditEntry {
@@ -6,7 +7,7 @@ export interface ToolCallingAuditEntry {
   round: number;
   callId: string;
   toolName: string;
-  toolIntent?: string;
+  toolIntent?: ToolIntent;
   rawArgsType: string;
   rawArgsPreview?: string;
   parsedArgsOk: boolean;

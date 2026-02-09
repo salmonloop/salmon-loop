@@ -13,7 +13,7 @@ export const newCommand: Command = {
     emit({
       type: 'log',
       level: 'info',
-      message: `🚀 ${text.cli.chatNewSession(session.meta.id.slice(0, 8))}`,
+      message: text.cli.chatNewSession(session.meta.id.slice(0, 8)),
       timestamp: new Date(),
     });
   },

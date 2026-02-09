@@ -30,6 +30,7 @@ function bootstrapRegistry(): void {
 export const proposalApplySpec: Omit<ToolSpec, 'executor'> = {
   name: 'proposal.apply',
   source: 'builtin',
+  intent: 'WRITE',
   description: text.tools.proposalApplyDescription,
   riskLevel: 'high',
   sideEffects: ['fs_write', 'git_write'],

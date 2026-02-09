@@ -15,6 +15,7 @@ const execAsync = promisify(child_process.exec);
 export const astGrepSpec: Omit<ToolSpec, 'executor'> = {
   name: 'code.search_ast',
   source: 'builtin',
+  intent: 'SEARCH',
   description:
     'Structural search using ast-grep (sg). Use $VAR for placeholders (e.g., "console.log($ARGS)").',
   riskLevel: 'low',

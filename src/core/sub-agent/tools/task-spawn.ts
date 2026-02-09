@@ -13,6 +13,7 @@ import { SubAgentRequestSchema, SubAgentResult } from '../types.js';
 export const subAgentTaskSpec: ToolSpec = {
   name: 'agent_dispatch',
   source: 'builtin',
+  intent: 'AGENT',
   description: text.smallfry.ui.spawnToolDescription,
 
   riskLevel: 'medium',

@@ -54,6 +54,7 @@ const baseCtx: ToolRuntimeCtx = {
 const readSpec: ToolSpec = {
   name: 'fs.read',
   source: 'builtin',
+  intent: 'READ',
   description: 'read',
   riskLevel: 'low',
   sideEffects: ['fs_read'],
@@ -68,6 +69,7 @@ const readSpec: ToolSpec = {
 const writeSpec: ToolSpec = {
   name: 'fs.write',
   source: 'builtin',
+  intent: 'WRITE',
   description: 'write',
   riskLevel: 'medium',
   sideEffects: ['fs_write'],

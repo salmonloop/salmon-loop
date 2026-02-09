@@ -67,6 +67,7 @@ export async function registerMcpTools(registry: ToolRegistry, servers: Resolved
         const spec: ToolSpec = {
           name: `mcp.${server.name}.${toolName}`,
           source: 'mcp',
+          intent: 'INFRA',
           description: tool.description || `MCP tool ${toolName}`,
           riskLevel: 'medium',
           sideEffects: PROCESS_SIDE_EFFECTS,

@@ -139,6 +139,7 @@ describe('PromptRegistry', () => {
       const mockTool: ToolSpec = {
         name: 'test.search',
         source: 'builtin',
+        intent: 'SEARCH',
         description: 'Search for test patterns',
         riskLevel: 'low',
         sideEffects: ['fs_read'],
@@ -168,6 +169,7 @@ describe('PromptRegistry', () => {
       const mockTool: ToolSpec = {
         name: 'code.read',
         source: 'builtin',
+        intent: 'READ',
         description: 'Read source code files',
         riskLevel: 'low',
         sideEffects: ['fs_read'],
@@ -193,6 +195,7 @@ describe('PromptRegistry', () => {
         {
           name: 'tool.one',
           source: 'builtin',
+          intent: 'INFRA',
           description: 'First tool',
           riskLevel: 'low',
           sideEffects: ['none'],
@@ -205,6 +208,7 @@ describe('PromptRegistry', () => {
         {
           name: 'tool.two',
           source: 'mcp',
+          intent: 'INFRA',
           description: 'Second tool',
           riskLevel: 'high',
           sideEffects: ['fs_write', 'git_write'],
@@ -246,6 +250,7 @@ describe('PromptRegistry', () => {
       const mockTool: ToolSpec = {
         name: 'test.tool',
         source: 'builtin',
+        intent: 'INFRA',
         description: 'Test tool',
         riskLevel: 'medium',
         sideEffects: ['network'],
@@ -270,6 +275,7 @@ describe('PromptRegistry', () => {
       const mockTool: ToolSpec = {
         name: 'fs.read',
         source: 'builtin',
+        intent: 'READ',
         description: 'Read source code files',
         riskLevel: 'low',
         sideEffects: ['fs_read'],

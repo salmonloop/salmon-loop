@@ -2,12 +2,15 @@ import * as fs from 'fs/promises';
 import * as http from 'http';
 import * as path from 'path';
 
+import { z } from 'zod';
+
 import { Pipeline } from '../../src/core/grizzco/pipeline.js';
 import { saveAudit } from '../../src/core/grizzco/steps/audit.js';
 import { generatePatch } from '../../src/core/grizzco/steps/patch.js';
+import { AiSdkLLM } from '../../src/core/llm/ai-sdk.js';
 import { LlmError } from '../../src/core/llm/errors.js';
-import { OpenAILLM } from '../../src/core/llm/openai.js';
 import { chatWithTools } from '../../src/core/tools/session.js';
+import type { ToolSpec } from '../../src/core/tools/types.js';
 import { Phase } from '../../src/core/types.js';
 
 type StubResponse =
@@ -54,7 +57,7 @@ function openAiChatResponse(content: string, toolCalls?: any[]) {
     choices: [
       {
         index: 0,
-        finish_reason: 'stop',
+        finish_reason: toolCalls?.length ? 'tool_calls' : 'stop',
         message: {
           role: 'assistant',
           content,
@@ -65,7 +68,21 @@ function openAiChatResponse(content: string, toolCalls?: any[]) {
   };
 }
 
-describe.skip('LLM stub server integration (no real network)', () => {
+const fsReadToolSpec = {
+  name: 'fs.read',
+  source: 'builtin',
+  intent: 'READ',
+  description: 'Read file content',
+  riskLevel: 'low',
+  sideEffects: ['fs_read'],
+  concurrency: 'parallel_ok',
+  allowedPhases: [Phase.PATCH, Phase.PLAN, Phase.EXPLORE, Phase.CONTEXT, Phase.VERIFY],
+  inputSchema: z.object({ file: z.string() }),
+  outputSchema: z.object({ content: z.string(), size: z.number() }),
+  executor: async () => ({ content: '', size: 0 }),
+} satisfies ToolSpec<{ file: string }, { content: string; size: number }>;
+
+describe('LLM stub server integration (no real network)', () => {
   const q = createServerQueue();
   let baseUrl = '';
 
@@ -85,14 +102,19 @@ describe.skip('LLM stub server integration (no real network)', () => {
   it('wraps truncated JSON response as a stable error code', async () => {
     q.push({ kind: 'raw', body: '{"id":' });
 
-    const llm = new OpenAILLM({ apiKey: 'test', baseUrl, modelId: 'gpt-test' });
+    const llm = new AiSdkLLM({
+      clientPackage: '@ai-sdk/openai',
+      apiKey: 'test',
+      baseUrl,
+      modelId: 'gpt-test',
+    });
 
     await expect(llm.chat([{ role: 'user', content: 'hi' }])).rejects.toMatchObject({
-      code: 'LLM_HTTP_RESPONSE_INVALID_JSON',
+      code: 'LLM_HTTP_REQUEST_FAILED',
     });
   });
 
-  it('records tool call arguments JSON parse failure and does not loop indefinitely', async () => {
+  it('normalizes malformed tool-call arguments from AI SDK and exits the loop', async () => {
     q.requests.length = 0;
 
     q.push({
@@ -106,7 +128,12 @@ describe.skip('LLM stub server integration (no real network)', () => {
       ]),
     });
 
-    const llm = new OpenAILLM({ apiKey: 'test', baseUrl, modelId: 'gpt-test' });
+    const llm = new AiSdkLLM({
+      clientPackage: '@ai-sdk/openai',
+      apiKey: 'test',
+      baseUrl,
+      modelId: 'gpt-test',
+    });
     const toolCallingAudit: any[] = [];
 
     await chatWithTools(
@@ -117,9 +144,12 @@ describe.skip('LLM stub server integration (no real network)', () => {
         llm,
         runtime: { repoRoot: 'C:\\repo', attemptId: 1, dryRun: true },
         toolstack: {
-          registry: { listAll: () => [] },
-          policy: { decide: () => ({ allowed: false }) },
-          router: { call: async () => ({ status: 'error' }) as any },
+          registry: { listAll: () => [fsReadToolSpec] },
+          policy: { decide: () => ({ allowed: true }) },
+          router: {
+            getSpec: (name: string) => (name === 'fs.read' ? fsReadToolSpec : undefined),
+            call: async () => ({ status: 'error' }) as any,
+          },
         },
         toolCallingAudit: { event: (e) => toolCallingAudit.push(e) },
         maxRounds: 1,
@@ -127,14 +157,22 @@ describe.skip('LLM stub server integration (no real network)', () => {
     );
 
     expect(q.requests.length).toBe(1);
-    expect(toolCallingAudit.length).toBe(1);
+    expect(toolCallingAudit.length).toBe(2);
     expect(toolCallingAudit[0].toolName).toBe('fs.read');
-    expect(toolCallingAudit[0].parsedArgsOk).toBe(false);
-    expect(toolCallingAudit[0].toolResultErrorCode).toBe('INVALID_TOOL_ARGUMENTS_JSON');
+    expect(toolCallingAudit[0].parsedArgsOk).toBe(true);
+    expect(toolCallingAudit[0].parsedArgsPreview).toContain('{not-json');
+    expect(toolCallingAudit[1].toolResultStatus).toBe('error');
   });
 
   it('returns stable error codes for empty patch and non-unified diff', async () => {
-    const llm = new OpenAILLM({ apiKey: 'test', baseUrl, modelId: 'gpt-test' });
+    const llm = new AiSdkLLM({
+      clientPackage: '@ai-sdk/openai',
+      apiKey: 'test',
+      baseUrl,
+      modelId: 'gpt-test',
+    });
+    // Force non-streaming path for deterministic prompt/response behavior in this test.
+    (llm as any).chatStream = undefined;
     const baseCtx: any = {
       workspace: { workPath: 'C:\\repo', strategy: 'worktree' },
       options: { llm, instruction: 'test', dryRun: true },
@@ -153,7 +191,10 @@ describe.skip('LLM stub server integration (no real network)', () => {
     await expect(generatePatch(baseCtx)).rejects.toMatchObject({ code: 'LLM_PATCH_EMPTY' });
 
     // Not unified diff
-    q.push({ kind: 'json', body: openAiChatResponse('hello') });
+    q.push({
+      kind: 'json',
+      body: openAiChatResponse('+++ b/src/index.js\n+not-a-valid-diff'),
+    });
     await expect(generatePatch(baseCtx)).rejects.toMatchObject({
       code: 'LLM_PATCH_NOT_UNIFIED_DIFF',
     });

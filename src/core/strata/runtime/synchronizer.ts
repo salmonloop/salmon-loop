@@ -64,6 +64,42 @@ export class WorkspaceSynchronizer {
     return BINARY_EXTENSIONS.has(ext);
   }
 
+  private async stagePathForCheckpoint(
+    git: GitAdapter,
+    relativePath: string,
+  ): Promise<'staged' | 'skipped'> {
+    const directAdd = await git.execMeta(['add', '--', relativePath]);
+    if (directAdd.ok) {
+      return 'staged';
+    }
+
+    // Use check-ignore (exit code) instead of stderr text matching, which is locale-dependent.
+    const pathIsIgnored = await git.checkIgnore(relativePath);
+    if (!pathIsIgnored) {
+      throw new Error(
+        `Failed to stage path "${relativePath}": ${directAdd.stderr || `git add exited with code ${directAdd.code ?? 'unknown'}`}`,
+      );
+    }
+
+    // Tracked files that match ignore rules can fail on explicit path add.
+    // Fallback to `add -u` stages tracked changes without force-adding ignored untracked files.
+    const trackedFallback = await git.execMeta(['add', '-u', '--', relativePath]);
+    if (trackedFallback.ok) {
+      return 'staged';
+    }
+
+    if (pathIsIgnored) {
+      logger.debug(
+        `[checkpoint] Skipping ignored untracked path during checkpoint staging: ${relativePath}`,
+      );
+      return 'skipped';
+    }
+
+    throw new Error(
+      `Failed to stage path "${relativePath}" with tracked fallback: ${trackedFallback.stderr || `git add -u exited with code ${trackedFallback.code ?? 'unknown'}`}`,
+    );
+  }
+
   private async shouldAllowPath(
     repoPath: string,
     relativePath: string,
@@ -93,7 +129,10 @@ export class WorkspaceSynchronizer {
 
   async getChangedPaths(repoPath: string): Promise<string[]> {
     const git = new GitAdapter(repoPath);
-    const status = await git.query(['status', '--porcelain', '-z']);
+    const status = await git.query(
+      ['status', '--porcelain', '--untracked-files=all', '--ignored=no', '-z'],
+      { trim: false },
+    );
     if (!status) return [];
     const tokens = status.split('\0').filter((token: string) => token.length > 0);
     const paths: string[] = [];
@@ -107,6 +146,7 @@ export class WorkspaceSynchronizer {
     for (let i = 0; i < tokens.length; i += 1) {
       const entry = tokens[i];
       const code = entry.slice(0, 2);
+      if (code === '!!') continue;
       const pathPart = extractPath(entry);
       if (!pathPart) continue;
       if (code.startsWith('R') || code.startsWith('C')) {
@@ -143,7 +183,23 @@ export class WorkspaceSynchronizer {
       return null;
     }
     const git = new GitAdapter(worktreePath);
-    await git.exec(['add', '--', ...changedPaths]);
+    let stagedCount = 0;
+    for (const changedPath of changedPaths) {
+      const result = await this.stagePathForCheckpoint(git, changedPath);
+      if (result === 'staged') {
+        stagedCount += 1;
+      }
+    }
+
+    if (stagedCount === 0) {
+      return null;
+    }
+
+    const stagedNames = await git.query(['diff', '--cached', '--name-only']);
+    if (!stagedNames.trim()) {
+      return null;
+    }
+
     await git.exec([
       '-c',
       'user.name=salmonloop',

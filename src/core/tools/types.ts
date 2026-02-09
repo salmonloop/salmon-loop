@@ -1,11 +1,10 @@
 import { z } from 'zod';
 
-import { ExecutionPhase } from '../types.js';
-import type { LLM } from '../types.js';
+import type { ExecutionPhase, LLM } from '../types.js';
 
 import { ResourceKey } from './parallel/resources.js';
 
-export { ExecutionPhase };
+export type { ExecutionPhase };
 
 export type ToolSource = 'builtin' | 'mcp' | 'plugin';
 export type RiskLevel = 'low' | 'medium' | 'high';
@@ -47,12 +46,13 @@ export interface ToolRuntimeCtx {
   llm?: LLM;
 }
 
-export type ToolIntent = 'READ' | 'SEARCH' | 'LIST' | 'WRITE' | 'INFRA' | 'AGENT';
+export const TOOL_INTENTS = ['READ', 'SEARCH', 'LIST', 'WRITE', 'INFRA', 'AGENT'] as const;
+export type ToolIntent = (typeof TOOL_INTENTS)[number];
 
 export interface ToolSpec<I = any, O = any> {
   name: string; // e.g. "code.search"
   source: ToolSource; // builtin/mcp/plugin
-  intent?: ToolIntent; // Semantic intent of the tool
+  intent: ToolIntent; // Semantic intent of the tool
   description: string;
 
   riskLevel: RiskLevel;
