@@ -45,12 +45,16 @@ export function sanitizeErrorMessage(err: unknown): string {
 /**
  * Deeply sanitizes an object to remove sensitive technical data from any nested property.
  * Uses Reflect.ownKeys to catch non-enumerable properties and symbols.
+ * Includes a recursion depth limit to prevent stack overflow on extremely deep objects.
  */
-export function sanitizeObject(obj: any): any {
+const MAX_DEPTH = 5;
+
+export function sanitizeObject(obj: any, maxDepth = MAX_DEPTH, depth = 0): any {
+  if (depth >= maxDepth) return '[DEPTH_EXCEEDED]';
   if (!obj || typeof obj !== 'object' || obj === null) return obj;
 
   if (Array.isArray(obj)) {
-    return obj.map((item) => sanitizeObject(item));
+    return obj.map((item) => sanitizeObject(item, maxDepth, depth + 1));
   }
 
   const result: Record<string | symbol, any> = {};
@@ -69,7 +73,7 @@ export function sanitizeObject(obj: any): any {
       if (typeof value === 'string') {
         result[key] = sanitizeErrorMessage(value);
       } else if (typeof value === 'object' && value !== null) {
-        result[key] = sanitizeObject(value);
+        result[key] = sanitizeObject(value, maxDepth, depth + 1);
       } else {
         result[key] = value;
       }
@@ -95,7 +99,7 @@ export function sanitizeObject(obj: any): any {
     if (typeof value === 'object' && value !== null) {
       // Avoid circular references for safety during deep recursion
       try {
-        result[key] = sanitizeObject(value);
+        result[key] = sanitizeObject(value, maxDepth, depth + 1);
       } catch {
         result[key] = '[CIRCULAR]';
       }
