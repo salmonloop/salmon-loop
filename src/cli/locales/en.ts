@@ -232,7 +232,6 @@ export const en = {
   auditPath: (path: string) => `  Audit log: ${path}`,
   verifyOutputArtifact: (handle: string) =>
     `  Verification output saved as ${handle} (use artifact.read to inspect)`,
-  llmOutputHeader: (kind: string) => `LLM output (${kind}):`,
   authorizationSummary: (summary: string) => `  Authorization sources: ${summary}`,
   authorizationSummaryRealtime: (summary: string) =>
     `  Authorization sources (current): ${summary}`,

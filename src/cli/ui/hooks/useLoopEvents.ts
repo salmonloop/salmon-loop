@@ -1,6 +1,8 @@
 import { useEffect, useCallback, useRef } from 'react';
 
+import { text } from '../../locales/index.js';
 import { useUIStore } from '../store/context.js';
+import { MessageType } from '../store/types.js';
 import { prepareMessagePayload, sanitizeMessage } from '../utils/sanitizer.js';
 
 /**
@@ -137,7 +139,9 @@ export function useLoopEvents(mode: 'run' | 'chat', onStart: any, signal: AbortS
         const content = msg;
 
         // Auto-detect message types based on content to match new design system
-        if (msg.includes('Patch generated') || msg.includes('Plan generated')) {
+        if (msg.includes('Patch generated')) {
+          type = 'patch_step';
+        } else if (msg.includes('Plan generated')) {
           type = 'plan_step';
         } else if (msg.startsWith('Analyzing')) {
           type = 'thinking';
@@ -156,9 +160,43 @@ export function useLoopEvents(mode: 'run' | 'chat', onStart: any, signal: AbortS
       }
 
       switch (event.type) {
-        case 'phase.start':
+        case 'phase.start': {
           dispatch({ type: 'UPDATE_PHASE', payload: event.phase, status: 'running' });
+
+          // Explicit mapping: Add blue label messages to the UI list when key phases start
+          const phaseTypeMap: Record<string, MessageType> = {
+            PREFLIGHT: 'preflight_step',
+            CONTEXT: 'context_step',
+            EXPLORE: 'explore_step',
+            PLAN: 'plan_step',
+            PATCH: 'patch_step',
+            APPLY: 'apply_step',
+            VALIDATE: 'validate_step',
+            AST_VALIDATE: 'ast_validate_step',
+            VERIFY: 'verify_step',
+            ROLLBACK: 'rollback_step',
+            SHRINK: 'shrink_step',
+            REVIEW: 'review_step',
+            REPORT: 'report_step',
+            ANALYZE_ISSUES: 'analyze_issues_step',
+          };
+
+          const guiType = phaseTypeMap[event.phase.toUpperCase()];
+          if (guiType) {
+            const phaseKey = event.phase.toLowerCase();
+            const phaseName = (text.progress as any)[phaseKey] || event.phase;
+            dispatch({
+              type: 'ADD_MESSAGE',
+              payload: {
+                id: `phase-${event.phase}-${Date.now()}`,
+                type: guiType,
+                content: phaseName,
+                timestamp: event.timestamp || new Date(),
+              },
+            });
+          }
           break;
+        }
         case 'workspace.ready':
           dispatch({
             type: 'UPDATE_WORKSPACE',

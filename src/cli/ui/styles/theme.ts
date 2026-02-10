@@ -75,13 +75,13 @@ export const MESSAGE_STYLES: Record<
   // Level 1 - Emphasis (with border)
   assistant: {
     inkColor: COLORS.semantic.salmon,
-    label: '<*>< SALMON',
+    label: '<>< SALMON',
     hasBorder: true,
     marginBottom: 1,
   },
   assistant_stream: {
     inkColor: COLORS.semantic.salmon,
-    label: '<*>< SALMON',
+    label: '<>< SALMON',
     hasBorder: true,
     marginBottom: 1,
   },
@@ -139,13 +139,91 @@ export const MESSAGE_STYLES: Record<
   },
   thinking: {
     inkColor: COLORS.text.muted,
-    label: 'THINK',
+    label: 'THNK',
+    hasBorder: false,
+    marginBottom: 1,
+  },
+  explore_step: {
+    inkColor: COLORS.semantic.blue,
+    label: 'EXPL',
     hasBorder: false,
     marginBottom: 1,
   },
   plan_step: {
     inkColor: COLORS.semantic.blue,
     label: 'PLAN',
+    hasBorder: false,
+    marginBottom: 1,
+  },
+  patch_step: {
+    inkColor: COLORS.semantic.blue,
+    label: 'PATCH',
+    hasBorder: false,
+    marginBottom: 1,
+  },
+  apply_step: {
+    inkColor: COLORS.semantic.blue,
+    label: 'APPLY',
+    hasBorder: false,
+    marginBottom: 1,
+  },
+  validate_step: {
+    inkColor: COLORS.semantic.blue,
+    label: 'VLD',
+    hasBorder: false,
+    marginBottom: 1,
+  },
+  verify_step: {
+    inkColor: COLORS.semantic.blue,
+    label: 'VRF',
+    hasBorder: false,
+    marginBottom: 1,
+  },
+  preflight_step: {
+    inkColor: COLORS.semantic.blue,
+    label: 'PRE',
+    hasBorder: false,
+    marginBottom: 1,
+  },
+  context_step: {
+    inkColor: COLORS.semantic.blue,
+    label: 'CTX',
+    hasBorder: false,
+    marginBottom: 1,
+  },
+  ast_validate_step: {
+    inkColor: COLORS.semantic.blue,
+    label: 'AST',
+    hasBorder: false,
+    marginBottom: 1,
+  },
+  rollback_step: {
+    inkColor: COLORS.semantic.blue,
+    label: 'RLBK',
+    hasBorder: false,
+    marginBottom: 1,
+  },
+  shrink_step: {
+    inkColor: COLORS.semantic.blue,
+    label: 'SHRK',
+    hasBorder: false,
+    marginBottom: 1,
+  },
+  review_step: {
+    inkColor: COLORS.semantic.blue,
+    label: 'REVW',
+    hasBorder: false,
+    marginBottom: 1,
+  },
+  report_step: {
+    inkColor: COLORS.semantic.blue,
+    label: 'REPORT',
+    hasBorder: false,
+    marginBottom: 1,
+  },
+  analyze_issues_step: {
+    inkColor: COLORS.semantic.blue,
+    label: 'ANLZ',
     hasBorder: false,
     marginBottom: 1,
   },
@@ -227,6 +305,10 @@ export function shouldShowSeparator(
   // Get styles for level comparison
   const currentStyle = MESSAGE_STYLES[currentType];
   const nextStyle = MESSAGE_STYLES[nextType];
+
+  if (!currentStyle || !nextStyle) {
+    return true; // Default to showing separator if style is missing
+  }
 
   // Keep lightweight messages compact (no separator between them)
   if (!currentStyle.label && !nextStyle.label) {

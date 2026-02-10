@@ -31,6 +31,13 @@ export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
 
   const systemPrompt = await getExploreSystemPrompt(toolstack.registry);
 
+  // Report missing events for the explore phase
+  ctx.emit({
+    type: 'phase.start',
+    phase: Phase.EXPLORE,
+    timestamp: new Date(),
+  });
+
   const supportsStreaming = typeof ctx.options.llm.chatStream === 'function';
   const llmOutput = {
     policy: ctx.options.llmOutput,
@@ -160,6 +167,14 @@ export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
   }
 
   updatedContext.relatedFiles = newRelatedFiles;
+
+  // Report the end of the explore phase
+  ctx.emit({
+    type: 'phase.end',
+    phase: Phase.EXPLORE,
+    success: true,
+    timestamp: new Date(),
+  });
 
   ctx.emit({
     type: 'log',

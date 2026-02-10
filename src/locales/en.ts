@@ -384,6 +384,7 @@ Please return the patch in PURE unified diff format:`;
   progress: {
     preflight: 'Preflight checks',
     context: 'Gathering context',
+    explore: 'Exploring codebase',
     plan: 'Creating plan',
     patch: 'Generating patch',
     validate: 'Validating patch',
@@ -392,6 +393,9 @@ Please return the patch in PURE unified diff format:`;
     verify: 'Verifying changes',
     rollback: 'Rolling back changes',
     shrink: 'Shrinking context',
+    review: 'Reviewing changes',
+    report: 'Generating report',
+    analyze_issues: 'Analyzing issues',
     waiting: 'Waiting for LLM...',
   },
 

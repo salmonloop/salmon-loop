@@ -60,6 +60,13 @@ export const Phase = {
  */
 export type ExecutionPhase = (typeof EXECUTION_PHASES)[number];
 
+export const ALL_VISIBLE_STEPS = [
+  ...EXECUTION_PHASES,
+  'REVIEW',
+  'REPORT',
+  'ANALYZE_ISSUES',
+] as const;
+
 export const LLM_OUTPUT_KINDS = [
   'review',
   'assistant_message',
@@ -73,7 +80,7 @@ export interface LlmOutputPolicy {
   kinds: LlmOutputKind[];
 }
 
-export type ExecutionStep = ExecutionPhase | 'REVIEW' | 'REPORT' | 'ANALYZE_ISSUES';
+export type ExecutionStep = (typeof ALL_VISIBLE_STEPS)[number];
 
 export enum ErrorType {
   COMPILATION = 'compilation',

@@ -11,7 +11,20 @@ export type MessageType =
   | 'system' // System notification
   | 'tool_call' // Tool invocation request
   | 'tool_result' // Tool execution result
+  | 'explore_step' // Exploration phase
   | 'plan_step' // Planning step
+  | 'patch_step' // Patch generation phase
+  | 'apply_step' // Apply phase
+  | 'validate_step' // Validation phase
+  | 'verify_step' // Verification phase
+  | 'preflight_step' // Preflight phase
+  | 'context_step' // Context phase
+  | 'ast_validate_step' // AST Validation phase
+  | 'rollback_step' // Rollback phase
+  | 'shrink_step' // Shrink phase
+  | 'review_step' // Review phase
+  | 'report_step' // Report phase
+  | 'analyze_issues_step' // Analyze issues phase
   | 'thinking' // Thinking process
   | 'checkpoint' // Checkpoint event
   | 'error' // Error message
@@ -49,7 +62,20 @@ export function getMessageLevel(type: MessageType): MessageLevel {
     case 'checkpoint':
     case 'interrupt':
     case 'thinking':
+    case 'explore_step':
     case 'plan_step':
+    case 'patch_step':
+    case 'apply_step':
+    case 'validate_step':
+    case 'verify_step':
+    case 'preflight_step':
+    case 'context_step':
+    case 'ast_validate_step':
+    case 'rollback_step':
+    case 'shrink_step':
+    case 'review_step':
+    case 'report_step':
+    case 'analyze_issues_step':
       return 'standard';
 
     case 'system':

@@ -2,7 +2,7 @@ import chalk from 'chalk';
 import ProgressBar from 'progress';
 
 import { logger } from '../../core/logger.js';
-import { LoopEvent, LoopResult, EXECUTION_PHASES, Phase, ErrorType } from '../../core/types.js';
+import { LoopEvent, LoopResult, Phase, ErrorType, ALL_VISIBLE_STEPS } from '../../core/types.js';
 import { text } from '../locales/index.js';
 
 import { SalmonReporter } from './base.js';
@@ -10,6 +10,7 @@ import { SalmonReporter } from './base.js';
 export class StandardReporter implements SalmonReporter {
   private bar: ProgressBar | null = null;
   private lastAuthorizationSummary?: string;
+  private lastStreamId?: string;
 
   constructor(private verbose: boolean = false) {}
 
@@ -68,17 +69,31 @@ export class StandardReporter implements SalmonReporter {
       case 'llm.stream.delta': {
         const delta = event.content;
         if (delta.trim()) {
-          this.bar?.interrupt(delta);
+          if (event.streamId !== this.lastStreamId) {
+            this.lastStreamId = event.streamId;
+            const header = this.renderPhaseLabel(event.step);
+
+            if (this.bar) {
+              this.bar.interrupt(header);
+            } else {
+              logger.log(header);
+            }
+          }
+          if (this.bar) {
+            this.bar.interrupt(delta);
+          } else {
+            process.stdout.write(delta);
+          }
         }
         break;
       }
       case 'llm.output': {
-        const header = text.cli.llmOutputHeader(event.kind);
+        const header = this.renderPhaseLabel(event.step);
         if (this.bar) {
           this.bar.interrupt(header);
           this.bar.interrupt(event.content);
         } else {
-          logger.info(header);
+          logger.log(header);
           logger.log(event.content);
         }
         break;
@@ -129,11 +144,17 @@ export class StandardReporter implements SalmonReporter {
     }
 
     this.bar = new ProgressBar(`${chalk.blue('[:bar]')} :phase :percent :elapseds`, {
-      total: EXECUTION_PHASES.length,
+      total: ALL_VISIBLE_STEPS.length,
       width: 20,
       complete: '=',
       incomplete: ' ',
     });
+  }
+
+  private renderPhaseLabel(step: string): string {
+    const phaseKey = step.toLowerCase();
+    const phaseName = (text.progress as any)[phaseKey] || step;
+    return chalk.blue(`\n[${step.toUpperCase()}] `) + phaseName;
   }
 
   private handleLogEvent(event: { level: string; message: string; code?: string }) {
