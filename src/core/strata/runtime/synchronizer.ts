@@ -52,8 +52,7 @@ const BINARY_EXTENSIONS = new Set([
 const DEFAULT_MAX_FILE_BYTES = Number(process.env.SALMON_SECURITY_MAX_FILE_BYTES) || 1024 * 1024;
 const DEFAULT_DEPENDENCY_ROOT_CANDIDATES = ['node_modules'] as const;
 const DIRTY_BACKUP_PREFIX = 'salmon-loop-backup-';
-const DEFAULT_DIRTY_BACKUP_RETENTION_MS =
-  Number(process.env.SALMON_DIRTY_BACKUP_RETENTION_MS) || 24 * 60 * 60 * 1000;
+const DEFAULT_DIRTY_BACKUP_RETENTION_MS = 24 * 60 * 60 * 1000;
 
 type ApplyBackErrorMeta = Error & { appliedToMain?: boolean };
 
@@ -95,7 +94,8 @@ export class WorkspaceSynchronizer {
   }
 
   private async pruneExpiredDirtyBackups(): Promise<void> {
-    if (DEFAULT_DIRTY_BACKUP_RETENTION_MS <= 0) return;
+    const retentionMs = this.getDirtyBackupRetentionMs();
+    if (retentionMs <= 0) return;
 
     const tempRoot = tmpdir();
     let entries: { isDirectory(): boolean; name: string }[];
@@ -108,7 +108,7 @@ export class WorkspaceSynchronizer {
       return;
     }
 
-    const cutoffTs = Date.now() - DEFAULT_DIRTY_BACKUP_RETENTION_MS;
+    const cutoffTs = Date.now() - retentionMs;
     const pruneTargets = entries.filter(
       (entry) => entry.isDirectory() && entry.name.startsWith(DIRTY_BACKUP_PREFIX),
     );
@@ -126,6 +126,17 @@ export class WorkspaceSynchronizer {
         }
       }),
     );
+  }
+
+  private getDirtyBackupRetentionMs(): number {
+    const raw = process.env.SALMON_DIRTY_BACKUP_RETENTION_MS;
+    if (raw === undefined) return DEFAULT_DIRTY_BACKUP_RETENTION_MS;
+
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      return DEFAULT_DIRTY_BACKUP_RETENTION_MS;
+    }
+    return parsed;
   }
 
   private sanitizeRelativePath(value: string): string {

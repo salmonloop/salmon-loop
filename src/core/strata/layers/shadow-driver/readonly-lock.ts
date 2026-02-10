@@ -8,12 +8,15 @@
  */
 
 import { spawn } from 'child_process';
-import { mkdir, writeFile, unlink, readFile } from 'fs/promises';
+import { randomBytes } from 'crypto';
+import { mkdir, writeFile, unlink, readFile, rename } from 'fs/promises';
 import path from 'path';
 
 import { logger } from '../../../logger.js';
 import { normalizePath } from '../../../path.js';
 import { getShadowLockPath } from '../../../runtime-paths.js';
+
+const ownedLockTokens = new Map<string, string>();
 
 /**
  * Acquire a file lock for shadowRoot
@@ -25,10 +28,11 @@ export async function acquireLock(shadowRoot: string): Promise<void> {
 
   try {
     await mkdir(path.dirname(lockPath), { recursive: true });
-    const lockPayload = `${pid}:${timestamp}`;
+    const lockPayload = `${pid}:${timestamp}:${randomBytes(4).toString('hex')}`;
     for (let attempt = 0; attempt < 2; attempt += 1) {
       try {
         await writeFile(lockPath, lockPayload, { flag: 'wx' });
+        ownedLockTokens.set(lockPath, lockPayload);
         logger.debug(`Lock acquired for shadowRoot: ${shadowRoot}`);
         return;
       } catch (error) {
@@ -44,23 +48,23 @@ export async function acquireLock(shadowRoot: string): Promise<void> {
 
         const [oldPid, oldTs] = existingLock.split(':').map(Number);
         if (!Number.isFinite(oldPid) || oldPid <= 0) {
-          await unlink(lockPath).catch(() => null);
+          await removeLockByToken(lockPath, existingLock);
           continue;
         }
 
         const isAlive = await isProcessAlive(oldPid);
         if (isAlive && oldPid !== pid) {
-          throw new Error(
-            `ShadowRoot is locked by process ${oldPid} since ${new Date(oldTs).toISOString()}`,
-          );
+          const lockSince = formatLockTimestamp(oldTs);
+          throw new Error(`ShadowRoot is locked by process ${oldPid} since ${lockSince}`);
         }
         if (isAlive && oldPid === pid) {
+          ownedLockTokens.set(lockPath, existingLock);
           logger.debug(`Lock already held by current process ${pid}`);
           return;
         }
 
         logger.warn(`Stale lock found for process ${oldPid}, removing...`);
-        await unlink(lockPath).catch(() => null);
+        await removeLockByToken(lockPath, existingLock);
       }
     }
 
@@ -76,8 +80,21 @@ export async function acquireLock(shadowRoot: string): Promise<void> {
  */
 export async function releaseLock(shadowRoot: string): Promise<void> {
   const lockPath = getShadowLockPath(shadowRoot);
+  const ownedToken = ownedLockTokens.get(lockPath);
+  if (!ownedToken) {
+    logger.warn(`Skip releasing unowned lock: ${shadowRoot}`);
+    return;
+  }
+
   try {
-    await unlink(lockPath).catch(() => null);
+    const removed = await removeLockByToken(lockPath, ownedToken);
+    if (!removed) {
+      logger.warn(`Skip releasing lock due to ownership mismatch: ${shadowRoot}`);
+      ownedLockTokens.delete(lockPath);
+      return;
+    }
+
+    ownedLockTokens.delete(lockPath);
     logger.debug(`Lock released for shadowRoot: ${shadowRoot}`);
   } catch (error) {
     logger.warn(`Failed to release lock: ${error}`);
@@ -92,6 +109,47 @@ async function isProcessAlive(pid: number): Promise<boolean> {
     process.kill(pid, 0);
     return true;
   } catch {
+    return false;
+  }
+}
+
+function formatLockTimestamp(value: number): string {
+  if (!Number.isFinite(value)) return 'unknown-time';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'unknown-time';
+  return date.toISOString();
+}
+
+async function removeLockByToken(lockPath: string, expectedToken: string): Promise<boolean> {
+  const swapPath = `${lockPath}.swap-${process.pid}-${randomBytes(4).toString('hex')}`;
+
+  try {
+    await rename(lockPath, swapPath);
+  } catch {
+    return false;
+  }
+
+  try {
+    const movedToken = await readFile(swapPath, 'utf8');
+    if (movedToken === expectedToken) {
+      await unlink(swapPath);
+      return true;
+    }
+
+    try {
+      await rename(swapPath, lockPath);
+    } catch {
+      // Best-effort rollback when concurrent updates happen.
+      await unlink(swapPath).catch(() => null);
+    }
+    return false;
+  } catch {
+    try {
+      await rename(swapPath, lockPath);
+    } catch {
+      // Best-effort rollback when concurrent updates happen.
+      await unlink(swapPath).catch(() => null);
+    }
     return false;
   }
 }
