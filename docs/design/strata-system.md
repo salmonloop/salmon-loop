@@ -13,6 +13,11 @@ Note: the repository currently does **not** ship a single `StrataSystem` class. 
 - **L2: ShadowDriver (dependency environment layer)**
   - Goal: hydrate dependency directories (e.g. `node_modules/target/build`) into a shadow/worktree without touching `.git`, so verification commands can run.
   - Code: `src/core/strata/layers/shadow-driver/*`.
+  - **Dependency Linking (L2 Hydration)**:
+    - **Architecture**: Orchestrated by `RuntimeEnvironment`, implemented by `ShadowDriver.hydrate`.
+    - **Mechanism**: Detects and symlinks dependency directories (for example `node_modules`, `venv`, `target`, `vendor`) from the main repo to the worktree.
+    - **Isolation**: Keeps `WorkspaceManager` (L1) focused on Git workspace setup while ensuring the execution environment has required dependencies.
+    - **Compatibility**: Uses cross-platform symlinks (`junction` on Windows).
 
 - **L3: SyntheticSidecarLayer (ignored/private files layer)**
   - Goal: optionally provide a synthetic base and injection for ignored/untracked files to avoid unsafe 2-way overwrite merges.

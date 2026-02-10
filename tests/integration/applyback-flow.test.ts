@@ -1,6 +1,10 @@
+import { lstat, symlink } from 'fs/promises';
+import { join } from 'path';
+
 import { monitor } from '../../src/core/monitor.js';
 import { CheckpointManager } from '../../src/core/strata/checkpoint/manager.js';
 import { WorkspaceSynchronizer } from '../../src/core/strata/runtime/synchronizer.js';
+import type { ApplyBackTelemetry } from '../../src/core/strata/runtime/synchronizer.js';
 import type { CheckpointRef } from '../../src/core/types.js';
 import { RealFsTestHelper } from '../helpers/real-fs-helper.js';
 
@@ -96,6 +100,7 @@ describe('ApplyBack Flow Integration Tests', () => {
 
       // 2. Create a commit to get the latest Ref (for dual-merge path)
       const latestRef = await helper.createCommit(worktreePath, 'worktree change');
+      const telemetry: ApplyBackTelemetry = {};
 
       const applyBack = getApplyBack(synchronizer);
       await applyBack(
@@ -107,11 +112,19 @@ describe('ApplyBack Flow Integration Tests', () => {
         ['app.js'],
         initialRef,
         latestRef,
+        [],
+        telemetry,
       );
 
       // 3. Verify if main repo content is updated
       const content = await helper.readFile(mainRepoPath, 'app.js');
       expect(content).toBe('updated in worktree');
+
+      expect(telemetry.startedAt).toBeTruthy();
+      expect(telemetry.finishedAt).toBeTruthy();
+      expect(telemetry.usedShadowRefs).toBe(true);
+      expect(telemetry.appliedToMain).toBe(true);
+      expect(telemetry.rollbackPath).toBe('none');
 
       // Verify metrics
       const metrics = monitor.getApplyBackMetrics();
@@ -276,6 +289,56 @@ describe('ApplyBack Flow Integration Tests', () => {
 
       // Verify apply-back completed successfully
       expect(result).toBeUndefined();
+    });
+
+    it('should ignore node_modules symlink changes when applying AtomicPatch', async () => {
+      await helper.writeFile(mainRepoPath, 'node_modules/pkg/index.js', 'module.exports = 1;\n');
+
+      await helper.modifyFile(worktreePath, 'app.js', 'updated in worktree');
+      await helper.writeFile(
+        worktreePath,
+        'package.json',
+        '{"name":"applyback-test","version":"1.0.0"}\n',
+      );
+
+      await symlink(
+        join(mainRepoPath, 'node_modules'),
+        join(worktreePath, 'node_modules'),
+        process.platform === 'win32' ? 'junction' : 'dir',
+      );
+
+      const latestRef = await helper.createCommit(
+        worktreePath,
+        'worktree change with dependency link',
+        ['app.js', 'package.json', 'node_modules'],
+      );
+
+      const telemetry: ApplyBackTelemetry = {};
+      const applyBack = getApplyBack(synchronizer);
+
+      await applyBack(
+        mainRepoPath,
+        checkpointRef,
+        '',
+        '3way',
+        undefined,
+        ['app.js', 'package.json'],
+        initialRef,
+        latestRef,
+        [],
+        telemetry,
+      );
+
+      const content = await helper.readFile(mainRepoPath, 'app.js');
+      expect(content).toBe('updated in worktree');
+      expect(await helper.fileExists(mainRepoPath, 'package.json')).toBe(true);
+
+      const nodeModulesStat = await lstat(join(mainRepoPath, 'node_modules'));
+      expect(nodeModulesStat.isSymbolicLink()).toBe(false);
+
+      expect(telemetry.selectedStrategy).toBe('AtomicPatch');
+      expect(telemetry.appliedToMain).toBe(true);
+      expect(telemetry.error).toBeUndefined();
     });
   });
 });

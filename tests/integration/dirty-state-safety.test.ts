@@ -10,6 +10,9 @@
  * - No mocks for core functionality
  */
 
+import { symlink } from 'fs/promises';
+import { join } from 'path';
+
 import { CheckpointManager } from '../../src/core/strata/checkpoint/manager.js';
 import { WorkspaceSynchronizer } from '../../src/core/strata/runtime/synchronizer.js';
 import type { CheckpointRef } from '../../src/core/types.js';
@@ -187,6 +190,72 @@ describe('ApplyBack Dirty Workspace Safety - CRITICAL SCENARIOS (Real Filesystem
 
       const contentA = await helper.readFile(mainRepo.path, 'fileA.js');
       expect(contentA).toBe('user staged A');
+    });
+
+    it('should preserve staged state after rollback from mid-apply failure', async () => {
+      const mainRepo = await helper.createGitRepo({
+        initialFiles: [
+          { path: 'README.md', content: 'base readme\n' },
+          { path: 'staged.txt', content: 'base staged\n' },
+        ],
+      });
+
+      const worktreePath = await helper.createWorktree(mainRepo.path);
+
+      // User intent in main repo: staged content must survive rollback.
+      await helper.modifyFile(mainRepo.path, 'staged.txt', 'user staged content\n', true);
+      const indexBefore = await helper.git(mainRepo.path, ['rev-parse', ':staged.txt']);
+      expect((await helper.getGitStatus(mainRepo.path)).includes('M  staged.txt')).toBe(true);
+
+      // Keep a real directory in main repo so symlink patch fails with "Directory not empty".
+      await helper.writeFile(mainRepo.path, 'temp_link/keep.txt', 'keep');
+
+      // Ensure apply mutates at least one file before failing, so rollback path is exercised.
+      await helper.modifyFile(worktreePath, 'README.md', 'worktree changed readme\n');
+      const symlinkTarget = await helper.createTempDir('symlink-target-');
+      await helper.writeFile(symlinkTarget, 'placeholder.txt', 'placeholder');
+      await symlink(
+        symlinkTarget,
+        join(worktreePath, 'temp_link'),
+        process.platform === 'win32' ? 'junction' : 'dir',
+      );
+
+      await helper.git(worktreePath, ['add', 'README.md', 'temp_link']);
+      await helper.git(worktreePath, ['commit', '-m', 'add symlink conflict']);
+      const shadowLatestRef = (await helper.git(worktreePath, ['rev-parse', 'HEAD'])).stdout.trim();
+      const shadowInitialRef = (
+        await helper.git(worktreePath, ['rev-parse', 'HEAD~1'])
+      ).stdout.trim();
+
+      const checkpointRef: CheckpointRef = {
+        strategy: 'worktree',
+        repoPath: mainRepo.path,
+        worktreePath,
+        baseRef: shadowInitialRef,
+        branchName: 'test-worktree',
+      };
+
+      const synchronizer = new WorkspaceSynchronizer(new CheckpointManager());
+
+      await expect(
+        synchronizer.applyBackToMainWorkspace(
+          mainRepo.path,
+          checkpointRef,
+          '',
+          '3way',
+          'extended',
+          ['README.md', 'temp_link'],
+          shadowInitialRef,
+          shadowLatestRef,
+        ),
+      ).rejects.toThrow();
+
+      // CRITICAL: Index must remain identical to original staged state.
+      const indexAfter = await helper.git(mainRepo.path, ['rev-parse', ':staged.txt']);
+      expect(indexAfter.stdout).toBe(indexBefore.stdout);
+
+      const statusAfter = await helper.getGitStatus(mainRepo.path);
+      expect(statusAfter).toContain('M  staged.txt');
     });
   });
 

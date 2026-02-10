@@ -277,10 +277,20 @@ export class ShadowMergeEngine {
       logger.debug('[ShadowMergeEngine] Transaction completed successfully');
     } catch (error) {
       logger.error(`[ShadowMergeEngine] Transaction failed, rolling back: ${error}`);
+
       if (t1BackupHash) {
+        logger.debug(
+          `[ShadowMergeEngine] T1 backup found (${t1BackupHash}), performing safe rollback.`,
+        );
         await this.checkpoints.restoreDirtyBackup(mainRepoPath, t1BackupHash);
       } else {
-        await this.checkpoints.restoreToMain(mainRepoPath, snapshot.commitHash, true);
+        // If T1 backup is missing, restoring T0 can overwrite user dirty state.
+        // Do not perform automated restore in this branch.
+        logger.error(
+          `[ShadowMergeEngine] CRITICAL: No T1 backup found during rollback. ` +
+            `Skipping automated restore to prevent potential data loss. ` +
+            `Please verify workspace state manually. Snapshot was: ${snapshot.commitHash}`,
+        );
       }
       throw error;
     }

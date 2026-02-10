@@ -5,6 +5,7 @@ import { logger } from '../../logger.js';
 import { migrateLegacyRuntime } from '../../runtime-paths.js';
 import { CheckpointRef, ExecutionWorkspace, LoopEvent, LoopOptions } from '../../types.js';
 import { CheckpointManager } from '../checkpoint/manager.js';
+import { ShadowDriver } from '../layers/shadow-driver/shadow-driver.js';
 import { WorkspaceManager } from '../layers/worktree.js';
 
 /**
@@ -140,12 +141,30 @@ export class RuntimeEnvironment {
         const git = new GitAdapter(this.workspace.workPath);
         await git.query(['status', '--short']);
       }
+
+      // 4. Hydrate Environment (L2): Link dependencies
+      // This MUST happen after workspace setup but before any execution
+      if (this.workspace.strategy === 'worktree' && this.workspace.workPath !== options.repoPath) {
+        try {
+          await ShadowDriver.hydrate(options.repoPath, this.workspace.workPath);
+        } catch (error) {
+          // Log warning but don't fail hard - dependency linking is an optimization/convenience
+          // If strict mode is required, this should be configured to throw
+          const msg = sanitizeError(error);
+          emit({
+            type: 'log',
+            level: 'warn',
+            message: `Dependency linking failed: ${msg}`,
+            timestamp: now(),
+          });
+        }
+      }
     } catch (error) {
       const msg = sanitizeError(error);
       throw new Error(`${text.loop.workspaceInitFailed}: ${msg}`);
     }
 
-    // 4. Capture worktree metadata if using worktree strategy
+    // 5. Capture worktree metadata if using worktree strategy
     if (options.strategy === 'worktree') {
       try {
         const git = new GitAdapter(options.repoPath);

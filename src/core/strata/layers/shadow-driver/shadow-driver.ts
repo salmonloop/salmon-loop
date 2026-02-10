@@ -4,8 +4,8 @@
  * Core implementation of Layer 2 ShadowDriver following v2.0 specification.
  */
 
-import { rm } from 'fs/promises';
-import { mkdir } from 'fs/promises';
+import { existsSync } from 'fs';
+import { rm, mkdir, symlink } from 'fs/promises';
 import { join } from 'path';
 
 import { logger } from '../../../logger.js';
@@ -16,13 +16,52 @@ import { copyDir, linkDirLinux } from './copy-backend.js';
 import { getEnvInjection } from './env.js';
 import { isEnvironmentError } from './error-classifier.js';
 import { enforceReadOnly, restoreWrite, acquireLock, releaseLock } from './readonly-lock.js';
-import { determineStrategy, planDependencyPaths } from './strategy.js';
+import { determineStrategy, planDependencyPaths, detectDependencyPaths } from './strategy.js';
 
 /**
  * ShadowDriver Class
  */
 export class ShadowDriver {
   constructor(private config: ShadowDriverConfig) {}
+
+  /**
+   * Hydrate a target directory with dependencies from a source repository.
+   * This projects the environment (node_modules, venv, etc.) into the target
+   * using cross-platform symlinks (junctions).
+   *
+   * Used by: Worktree Strategy (L1) to prepare the execution environment (L2).
+   */
+  static async hydrate(repoRoot: string, targetRoot: string): Promise<void> {
+    const depPaths = await detectDependencyPaths(repoRoot);
+
+    if (depPaths.length === 0) {
+      logger.debug('No dependencies detected to hydrate.');
+      return;
+    }
+
+    logger.debug(`Hydrating environment: ${depPaths.join(', ')} -> ${targetRoot}`);
+
+    for (const depPath of depPaths) {
+      const sourcePath = join(repoRoot, depPath);
+      const targetDepPath = join(targetRoot, depPath);
+
+      if (!existsSync(sourcePath)) {
+        continue;
+      }
+
+      try {
+        // Use 'junction' for Windows compatibility (no admin rights needed usually)
+        await symlink(sourcePath, targetDepPath, 'junction');
+        logger.debug(`Linked dependency: ${depPath}`);
+      } catch (err: any) {
+        if (err.code !== 'EEXIST') {
+          logger.warn(`Failed to link ${depPath}: ${err.message}`);
+        } else {
+          logger.debug(`Dependency link already exists: ${depPath}`);
+        }
+      }
+    }
+  }
 
   /**
    * Setup dependency environment for task execution

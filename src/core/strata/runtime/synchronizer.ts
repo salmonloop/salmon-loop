@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'crypto';
-import { copyFile, mkdir, readFile, rm, stat, unlink, writeFile } from 'fs/promises';
+import { copyFile, lstat, mkdir, readFile, rm, stat, unlink, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import path from 'path';
 
@@ -10,6 +10,7 @@ import { logger } from '../../logger.js';
 import { monitor } from '../../monitor.js';
 import { ApplyBackOnDirty, CheckpointRef, VerboseLevel } from '../../types.js';
 import { CheckpointManager } from '../checkpoint/manager.js';
+import { detectDependencyPaths } from '../layers/shadow-driver/strategy.js';
 
 const SECURITY_BLOCKLIST: RegExp[] = [
   /^\.git(\/|\\)/i,
@@ -39,6 +40,7 @@ const BINARY_EXTENSIONS = new Set([
 ]);
 
 const DEFAULT_MAX_FILE_BYTES = Number(process.env.SALMON_SECURITY_MAX_FILE_BYTES) || 1024 * 1024;
+const DEFAULT_DEPENDENCY_ROOT_CANDIDATES = ['node_modules'] as const;
 
 type ApplyBackErrorMeta = Error & { appliedToMain?: boolean };
 
@@ -47,11 +49,103 @@ enum ApplyStrategy {
   AtomicPatch = 'AtomicPatch', // git apply --3way (Topology-aware)
 }
 
+export interface ApplyBackTelemetry {
+  startedAt?: string;
+  finishedAt?: string;
+  policy?: ApplyBackOnDirty;
+  usedShadowRefs?: boolean;
+  selectedStrategy?: ApplyStrategy;
+  dirtyAtEntry?: boolean;
+  dirtyBackupCreated?: boolean;
+  dirtyBackupDir?: string;
+  didBeginApply?: boolean;
+  appliedToMain?: boolean;
+  workspaceChangedAfterFailure?: boolean;
+  rollbackPath?: 'none' | 'dirtyBackup' | 'cleanReset' | 'skipped-no-change';
+  stagedRestoreAttempted?: boolean;
+  stagedRestoreSucceeded?: boolean;
+  stagedRestoreError?: string;
+  error?: string;
+}
+
 export class WorkspaceSynchronizer {
   constructor(private checkpointManager: CheckpointManager) {}
 
   private normalizePath(value: string): string {
     return value.replace(/\\/g, '/');
+  }
+
+  private sanitizeRelativePath(value: string): string {
+    return this.normalizePath(value).replace(/^\.\//, '').replace(/\/+$/g, '');
+  }
+
+  private isPathWithinRoots(relativePath: string, roots: Set<string>): boolean {
+    const normalized = this.sanitizeRelativePath(relativePath);
+    if (!normalized) return false;
+    for (const root of roots) {
+      if (normalized === root || normalized.startsWith(`${root}/`)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private async getSymlinkedDependencyRoots(repoPath: string): Promise<Set<string>> {
+    let detectedDependencyPaths: string[] = [];
+    try {
+      detectedDependencyPaths = await detectDependencyPaths(repoPath);
+    } catch (error) {
+      logger.debug(
+        `[checkpoint] Failed to detect dependency paths: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+
+    const candidates = new Set<string>([
+      ...DEFAULT_DEPENDENCY_ROOT_CANDIDATES,
+      ...detectedDependencyPaths,
+    ]);
+
+    const symlinkedRoots = new Set<string>();
+    for (const candidate of candidates) {
+      const normalizedCandidate = this.sanitizeRelativePath(candidate);
+      if (!normalizedCandidate || normalizedCandidate.includes('/')) {
+        continue;
+      }
+
+      const candidatePath = path.join(repoPath, ...normalizedCandidate.split('/'));
+      try {
+        const entryStat = await lstat(candidatePath);
+        if (entryStat.isSymbolicLink()) {
+          symlinkedRoots.add(normalizedCandidate);
+        }
+      } catch {
+        // Ignore non-existent dependency roots.
+      }
+    }
+
+    return symlinkedRoots;
+  }
+
+  private async filterOutSymlinkedDependencyPaths(
+    repoPath: string,
+    relativePaths: string[],
+    logPrefix: 'checkpoint' | 'applyBack',
+  ): Promise<string[]> {
+    const symlinkedRoots = await this.getSymlinkedDependencyRoots(repoPath);
+    if (symlinkedRoots.size === 0) {
+      return relativePaths;
+    }
+
+    const filtered: string[] = [];
+    for (const relativePath of relativePaths) {
+      if (this.isPathWithinRoots(relativePath, symlinkedRoots)) {
+        logger.debug(`[${logPrefix}] Skipping symlinked dependency path: ${relativePath}`);
+        continue;
+      }
+      filtered.push(relativePath);
+    }
+
+    return filtered;
   }
 
   private isBlockedPath(relativePath: string): boolean {
@@ -161,8 +255,13 @@ export class WorkspaceSynchronizer {
     }
 
     const unique = Array.from(new Set(paths.map((p) => this.normalizePath(p))));
+    const filteredPaths = await this.filterOutSymlinkedDependencyPaths(
+      repoPath,
+      unique,
+      'checkpoint',
+    );
     const allowed: string[] = [];
-    for (const file of unique) {
+    for (const file of filteredPaths) {
       const policy = await this.shouldAllowPath(repoPath, file);
       if (!policy.allowed) {
         logger.warn(text.loop.skipPathDueToPolicy(policy.reason, file));
@@ -342,8 +441,42 @@ export class WorkspaceSynchronizer {
     latestRef: string,
   ): Promise<void> {
     const git = new GitAdapter(shadowWorktreePath);
+    const changedPathsOutput = await git.query(
+      ['diff', '--name-only', '-z', initialRef, latestRef],
+      { trim: false },
+    );
+    if (!changedPathsOutput) return;
+
+    const changedPaths = changedPathsOutput
+      .split('\0')
+      .filter((entry) => entry.length > 0)
+      .map((entry) => this.normalizePath(entry));
+    const uniqueChangedPaths = Array.from(new Set(changedPaths));
+    const filteredPaths = await this.filterOutSymlinkedDependencyPaths(
+      shadowWorktreePath,
+      uniqueChangedPaths,
+      'applyBack',
+    );
+
+    if (filteredPaths.length === 0) {
+      logger.info(
+        '[applyBack] Skipping AtomicPatch because only dependency projection paths changed.',
+      );
+      return;
+    }
+
     const diffText = await git.query(
-      ['diff', '--binary', '--full-index', '--no-color', '--no-ext-diff', initialRef, latestRef],
+      [
+        'diff',
+        '--binary',
+        '--full-index',
+        '--no-color',
+        '--no-ext-diff',
+        initialRef,
+        latestRef,
+        '--',
+        ...filteredPaths,
+      ],
       { trim: false },
     );
 
@@ -395,8 +528,20 @@ export class WorkspaceSynchronizer {
     shadowInitialRef?: string | null,
     shadowLatestRef?: string | null,
     _includePaths: string[] = [],
+    telemetry?: ApplyBackTelemetry,
   ): Promise<void> {
     const startTime = Date.now();
+    if (telemetry) {
+      telemetry.startedAt = new Date().toISOString();
+      telemetry.policy = applyBackOnDirty;
+      telemetry.usedShadowRefs = Boolean(shadowInitialRef && shadowLatestRef);
+      telemetry.rollbackPath = 'none';
+      telemetry.dirtyBackupCreated = false;
+      telemetry.stagedRestoreAttempted = false;
+      telemetry.stagedRestoreSucceeded = false;
+      telemetry.stagedRestoreError = undefined;
+      telemetry.appliedToMain = false;
+    }
     let applySuccess = false;
     let applyError: Error | undefined;
     let appliedToMain = false;
@@ -433,6 +578,9 @@ export class WorkspaceSynchronizer {
         );
         logger.info(`[applyBack] Smart Routing selected strategy: ${strategy}`);
       }
+      if (telemetry) {
+        telemetry.selectedStrategy = strategy;
+      }
 
       // Force AtomicPatch if applyBackOnDirty is 'abort' or other strict modes?
       // Actually, ExplicitMerge is SAFER for dirty workspaces because it does 3-way content merge.
@@ -444,6 +592,9 @@ export class WorkspaceSynchronizer {
       const status = await git.query(['status', '--porcelain']);
       const trimmedStatus = status.trim();
       const isDirty = trimmedStatus.length > 0;
+      if (telemetry) {
+        telemetry.dirtyAtEntry = isDirty;
+      }
 
       if (isDirty && applyBackOnDirty === 'abort') {
         throw new Error(text.loop.applyBackAbortedDirty(trimmedStatus));
@@ -504,14 +655,14 @@ export class WorkspaceSynchronizer {
           );
           await mkdir(backupDir, { recursive: true });
 
-          const stagedPatch = await git.query(['diff', '--cached', '--binary']);
+          const stagedPatch = await git.query(['diff', '--cached', '--binary'], { trim: false });
           let stagedPatchPath: string | undefined;
           if (stagedPatch.trim()) {
             stagedPatchPath = path.join(backupDir, 'staged.patch');
             await writeFile(stagedPatchPath, stagedPatch);
           }
 
-          const unstagedPatch = await git.query(['diff', '--binary']);
+          const unstagedPatch = await git.query(['diff', '--binary'], { trim: false });
           if (unstagedPatch.trim()) {
             await writeFile(path.join(backupDir, 'unstaged.patch'), unstagedPatch);
           }
@@ -568,12 +719,19 @@ export class WorkspaceSynchronizer {
 
         dirtyBackup = (await createDirtyBackup()) as any;
         logger.warn(text.loop.applyBackCheckpointLocation(dirtyBackup?.dir || ''));
+        if (telemetry) {
+          telemetry.dirtyBackupCreated = true;
+          telemetry.dirtyBackupDir = dirtyBackup?.dir || undefined;
+        }
       }
 
       // --- EXECUTION PHASE ---
 
       try {
         didBeginApply = true;
+        if (telemetry) {
+          telemetry.didBeginApply = true;
+        }
         if (shadowInitialRef && shadowLatestRef) {
           if (strategy === ApplyStrategy.ExplicitMerge) {
             logger.info('[applyBack] Executing ExplicitMerge (Smart Routing)');
@@ -609,12 +767,19 @@ export class WorkspaceSynchronizer {
 
         appliedToMain = true;
         applySuccess = true;
+        if (telemetry) {
+          telemetry.appliedToMain = true;
+          telemetry.error = undefined;
+        }
       } catch (err) {
         applyError = err as Error;
         throw applyError;
       }
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
+      if (telemetry) {
+        telemetry.error = err.message;
+      }
 
       if (!didBeginApply) {
         (err as ApplyBackErrorMeta).appliedToMain = appliedToMain;
@@ -637,14 +802,23 @@ export class WorkspaceSynchronizer {
           workspaceChanged = true;
         }
       }
+      if (telemetry) {
+        telemetry.workspaceChangedAfterFailure = workspaceChanged;
+      }
 
       if (!workspaceChanged) {
+        if (telemetry) {
+          telemetry.rollbackPath = 'skipped-no-change';
+        }
         (err as ApplyBackErrorMeta).appliedToMain = appliedToMain;
         throw err;
       }
 
       // Rollback Logic
       if (dirtyBackup) {
+        if (telemetry) {
+          telemetry.rollbackPath = 'dirtyBackup';
+        }
         logger.warn(text.loop.applyBackRollbackAttempt);
         logger.warn(text.loop.checkpointLocation(dirtyBackup.dir));
         const git = new GitAdapter(mainRepoPath);
@@ -695,9 +869,20 @@ export class WorkspaceSynchronizer {
 
         // CRITICAL SAFETY: Restore staged/index state to preserve user intent.
         if (dirtyBackup.stagedPatchPath) {
+          if (telemetry) {
+            telemetry.stagedRestoreAttempted = true;
+          }
           try {
             await git.exec(['apply', '--cached', '--binary', dirtyBackup.stagedPatchPath]);
+            if (telemetry) {
+              telemetry.stagedRestoreSucceeded = true;
+              telemetry.stagedRestoreError = undefined;
+            }
           } catch (e) {
+            if (telemetry) {
+              telemetry.stagedRestoreSucceeded = false;
+              telemetry.stagedRestoreError = e instanceof Error ? e.message : String(e);
+            }
             logger.error(
               `[applyBack] CRITICAL: Failed to restore staged state from backup. ${e instanceof Error ? e.message : String(e)}`,
             );
@@ -706,6 +891,9 @@ export class WorkspaceSynchronizer {
 
         await git.exec(['update-index', '--refresh'], { allowError: true });
       } else {
+        if (telemetry) {
+          telemetry.rollbackPath = 'cleanReset';
+        }
         // Workspace was clean at entry, but applyBack still wrote something (e.g. conflict markers).
         // Revert to HEAD best-effort.
         const git = new GitAdapter(mainRepoPath);
@@ -717,6 +905,9 @@ export class WorkspaceSynchronizer {
       (err as ApplyBackErrorMeta).appliedToMain = appliedToMain;
       throw err;
     } finally {
+      if (telemetry) {
+        telemetry.finishedAt = new Date().toISOString();
+      }
       // Record monitoring metrics
       const duration = Date.now() - startTime;
       monitor.recordApplyBack(applySuccess, duration);

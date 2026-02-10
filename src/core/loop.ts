@@ -1,4 +1,5 @@
 import { randomBytes } from 'crypto';
+import { readFile, writeFile } from 'fs/promises';
 
 import { text } from '../locales/index.js';
 
@@ -10,9 +11,11 @@ import { executeSalmonLoopFlow } from './grizzco/flows/SalmonLoopFlow.js';
 import type { ShrinkCtx } from './grizzco/types.js';
 import { LIMITS } from './limits.js';
 import { sanitizeError } from './llm/errors.js';
+import { logger } from './logger.js';
 import { FileStateResolver } from './strata/layers/file-state-resolver.js';
 import { RuntimeEnvironment } from './strata/runtime/environment.js';
 import { WorkspaceSynchronizer } from './strata/runtime/synchronizer.js';
+import type { ApplyBackTelemetry } from './strata/runtime/synchronizer.js';
 import type { ArtifactHandle } from './sub-agent/artifacts/types.js';
 import {
   ExecutionPhase,
@@ -89,6 +92,34 @@ function collectSidecarPaths(options: LoopOptions): string[] {
  * SalmonLoop Execution Kernel (Bifrost-powered)
  */
 export class SalmonLoop {
+  private async appendApplyBackAudit(
+    auditPath: string | undefined,
+    payload: {
+      attempt: number;
+      success: boolean;
+      telemetry: ApplyBackTelemetry;
+      error?: string;
+    },
+  ): Promise<void> {
+    if (!auditPath) return;
+    try {
+      const raw = await readFile(auditPath, 'utf8');
+      const data = JSON.parse(raw) as Record<string, unknown>;
+      const previous = Array.isArray(data.applyBackAudit) ? data.applyBackAudit : [];
+      data.applyBackAudit = [
+        ...previous,
+        {
+          ...payload,
+          timestamp: new Date().toISOString(),
+        },
+      ];
+      await writeFile(auditPath, JSON.stringify(data, null, 2));
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      logger.warn(`[Audit] Failed to append apply-back telemetry: ${msg}`);
+    }
+  }
+
   async run(options: LoopOptions): Promise<LoopResult> {
     clearAuditTrail();
     const correlationId = `run-${randomBytes(4).toString('hex')}`;
@@ -268,6 +299,7 @@ export class SalmonLoop {
             const changedFilesThisAttempt = ctx?.changedFiles || [];
 
             if (env.checkpointRef && options.strategy === 'worktree') {
+              const applyBackTelemetry: ApplyBackTelemetry = {};
               try {
                 const finalRef =
                   (await synchronizer.createCheckpointCommit(
@@ -287,9 +319,21 @@ export class SalmonLoop {
                   env.initialSnapshotHash,
                   shadowLatestRef,
                   collectSidecarPaths(options),
+                  applyBackTelemetry,
                 );
+                await this.appendApplyBackAudit(result.auditPath, {
+                  attempt,
+                  success: true,
+                  telemetry: applyBackTelemetry,
+                });
               } catch (error) {
                 const sanitizedErr = sanitizeError(error);
+                await this.appendApplyBackAudit(result.auditPath, {
+                  attempt,
+                  success: false,
+                  telemetry: applyBackTelemetry,
+                  error: sanitizedErr,
+                });
                 const msg = `Failed to apply changes back to main workspace: ${sanitizedErr}`;
                 logs.push(this.createLog('error', msg, false));
                 emit({ type: 'log', level: 'error', message: msg, timestamp: now() });
@@ -303,6 +347,7 @@ export class SalmonLoop {
                   history,
                   failurePhase: Phase.VERIFY,
                   errorType: ErrorType.UNKNOWN,
+                  auditPath: result.auditPath,
                   authorizationSummary: authorizationSummary || undefined,
                   strategyName: result.strategyName ?? flowMode,
                   fsMode: result.fsMode ?? flowMode,
