@@ -144,6 +144,7 @@ describe('ShadowMergeEngine: 3-Way Merge Safety', () => {
       deleted: false,
     });
     mockGit.query.mockImplementation((args: string[]) => {
+      if (args[0] === 'status') return '';
       if (args.includes('diff') && args.includes('--name-status')) return 'M\0file.ts\0';
       return 'mock content';
     });
@@ -171,6 +172,7 @@ describe('ShadowMergeEngine: 3-Way Merge Safety', () => {
 
     // Simulate merge-file conflict (via adapter return)
     mockGit.query.mockImplementation((args: string[]) => {
+      if (args[0] === 'status') return 'M file.ts';
       if (args.includes('diff') && args.includes('--name-status')) return 'M\0file.ts\0';
       return 'mock content';
     });
@@ -254,5 +256,75 @@ describe('ShadowMergeEngine: 3-Way Merge Safety', () => {
 
     // Verify: merge-file should NOT be called for binary files
     expect(mockGit.mergeFile).not.toHaveBeenCalled();
+  });
+
+  it('should restore T0 snapshot when rollback runs without T1 backup in clean workspace', async () => {
+    const mainRepoPath = '/mock/repo';
+
+    mockCheckpoints.createDirtyBackup.mockResolvedValue(null);
+    mockGit.getStatus.mockResolvedValue(''); // Clean at entry
+    mockGit.getStatusForPath.mockResolvedValue({
+      staged: false,
+      unstaged: false,
+      untracked: false,
+      deleted: false,
+    });
+    mockGit.query.mockImplementation((args: string[]) => {
+      if (args[0] === 'status') return '';
+      if (args.includes('diff') && args.includes('--name-status')) return 'M\0file.ts\0';
+      return 'mock content';
+    });
+    mockGit.mergeFile.mockRejectedValue(new Error('merge failed'));
+
+    engine = new ShadowMergeEngine(
+      {
+        mainRepoPath,
+        shadowWorktreePath: '/mock/shadow',
+        initialRef: 't0_base',
+        latestRef: 'ai_patch',
+        applyBackOnDirty: '3way',
+      },
+      mockCheckpoints,
+    );
+
+    await expect(engine.apply()).rejects.toThrow('merge failed');
+
+    expect(mockCheckpoints.restoreToMain).toHaveBeenCalledWith(mainRepoPath, 't0_hash', true);
+    expect(mockCheckpoints.restoreDirtyBackup).not.toHaveBeenCalled();
+  });
+
+  it('should skip restoreToMain when rollback runs without T1 backup in dirty workspace', async () => {
+    const mainRepoPath = '/mock/repo';
+
+    mockCheckpoints.createDirtyBackup.mockResolvedValue(null);
+    mockGit.getStatus.mockResolvedValue('M file.ts'); // Dirty at entry
+    mockGit.getStatusForPath.mockResolvedValue({
+      staged: false,
+      unstaged: true,
+      untracked: false,
+      deleted: false,
+    });
+    mockGit.query.mockImplementation((args: string[]) => {
+      if (args[0] === 'status') return 'M file.ts';
+      if (args.includes('diff') && args.includes('--name-status')) return 'M\0file.ts\0';
+      return 'mock content';
+    });
+    mockGit.mergeFile.mockRejectedValue(new Error('merge failed'));
+
+    engine = new ShadowMergeEngine(
+      {
+        mainRepoPath,
+        shadowWorktreePath: '/mock/shadow',
+        initialRef: 't0_base',
+        latestRef: 'ai_patch',
+        applyBackOnDirty: '3way',
+      },
+      mockCheckpoints,
+    );
+
+    await expect(engine.apply()).rejects.toThrow('merge failed');
+
+    expect(mockCheckpoints.restoreToMain).not.toHaveBeenCalled();
+    expect(mockCheckpoints.restoreDirtyBackup).not.toHaveBeenCalled();
   });
 });

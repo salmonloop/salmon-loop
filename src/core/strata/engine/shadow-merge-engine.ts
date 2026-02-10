@@ -283,6 +283,11 @@ export class ShadowMergeEngine {
           `[ShadowMergeEngine] T1 backup found (${t1BackupHash}), performing safe rollback.`,
         );
         await this.checkpoints.restoreDirtyBackup(mainRepoPath, t1BackupHash);
+      } else if (!isDirty) {
+        logger.warn(
+          `[ShadowMergeEngine] No T1 backup found in clean workspace rollback. Restoring T0 snapshot: ${snapshot.commitHash}`,
+        );
+        await this.checkpoints.restoreToMain(mainRepoPath, snapshot.commitHash, true);
       } else {
         // If T1 backup is missing, restoring T0 can overwrite user dirty state.
         // Do not perform automated restore in this branch.

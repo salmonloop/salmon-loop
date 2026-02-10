@@ -61,7 +61,7 @@ export interface ApplyBackTelemetry {
   didBeginApply?: boolean;
   appliedToMain?: boolean;
   workspaceChangedAfterFailure?: boolean;
-  rollbackPath?: 'none' | 'dirtyBackup' | 'cleanReset' | 'skipped-no-change';
+  rollbackPath?: 'none' | 'dirtyBackup' | 'cleanSnapshot' | 'cleanReset' | 'skipped-no-change';
   stagedRestoreAttempted?: boolean;
   stagedRestoreSucceeded?: boolean;
   stagedRestoreError?: string;
@@ -550,6 +550,7 @@ export class WorkspaceSynchronizer {
       untrackedFiles: string[];
       trackedFiles: string[];
       deletedFiles: string[];
+      stagedTree: string;
       stagedPatchPath?: string;
     } | null = null;
     let didBeginApply = false;
@@ -655,6 +656,7 @@ export class WorkspaceSynchronizer {
           );
           await mkdir(backupDir, { recursive: true });
 
+          const stagedTree = (await git.query(['write-tree'])).trim();
           const stagedPatch = await git.query(['diff', '--cached', '--binary'], { trim: false });
           let stagedPatchPath: string | undefined;
           if (stagedPatch.trim()) {
@@ -713,6 +715,7 @@ export class WorkspaceSynchronizer {
             trackedFiles: dirtyFiles,
             untrackedFiles,
             deletedFiles,
+            stagedTree,
             stagedPatchPath,
           };
         };
@@ -879,27 +882,63 @@ export class WorkspaceSynchronizer {
               telemetry.stagedRestoreError = undefined;
             }
           } catch (e) {
-            if (telemetry) {
-              telemetry.stagedRestoreSucceeded = false;
-              telemetry.stagedRestoreError = e instanceof Error ? e.message : String(e);
-            }
+            const patchError = e instanceof Error ? e.message : String(e);
             logger.error(
-              `[applyBack] CRITICAL: Failed to restore staged state from backup. ${e instanceof Error ? e.message : String(e)}`,
+              `[applyBack] Failed to restore staged state from patch. ${patchError}. ` +
+                `Falling back to read-tree restore.`,
             );
+            try {
+              await git.exec(['read-tree', dirtyBackup.stagedTree]);
+              if (telemetry) {
+                telemetry.stagedRestoreSucceeded = true;
+                telemetry.stagedRestoreError = undefined;
+              }
+            } catch (fallbackError) {
+              const fallbackMessage =
+                fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
+              if (telemetry) {
+                telemetry.stagedRestoreSucceeded = false;
+                telemetry.stagedRestoreError = `${patchError}; fallback read-tree failed: ${fallbackMessage}`;
+              }
+              logger.error(
+                `[applyBack] CRITICAL: Failed to restore staged state from backup. ` +
+                  `Patch error: ${patchError}; fallback read-tree error: ${fallbackMessage}`,
+              );
+            }
           }
         }
 
         await git.exec(['update-index', '--refresh'], { allowError: true });
       } else {
-        if (telemetry) {
-          telemetry.rollbackPath = 'cleanReset';
-        }
         // Workspace was clean at entry, but applyBack still wrote something (e.g. conflict markers).
-        // Revert to HEAD best-effort.
-        const git = new GitAdapter(mainRepoPath);
-        await git.exec(['reset', '--hard', 'HEAD'], { allowError: true });
-        await git.exec(['clean', '-fd', '-e', '.salmonloop'], { allowError: true });
-        await git.exec(['update-index', '--refresh'], { allowError: true });
+        // Safety-first policy: prefer explicit snapshot restore; only fallback to HEAD reset if snapshot restore fails.
+        let restoredFromSnapshot = false;
+        try {
+          await this.checkpointManager.restoreToMain(mainRepoPath, checkpointRef.baseRef, true);
+          const git = new GitAdapter(mainRepoPath);
+          await git.exec(['update-index', '--refresh'], { allowError: true });
+          restoredFromSnapshot = true;
+          if (telemetry) {
+            telemetry.rollbackPath = 'cleanSnapshot';
+          }
+        } catch (snapshotRestoreError) {
+          logger.error(
+            `[applyBack] Snapshot restore failed during clean rollback. ` +
+              `baseRef=${checkpointRef.baseRef}; ` +
+              `error=${snapshotRestoreError instanceof Error ? snapshotRestoreError.message : String(snapshotRestoreError)}. ` +
+              `Falling back to clean reset.`,
+          );
+        }
+
+        if (!restoredFromSnapshot) {
+          if (telemetry) {
+            telemetry.rollbackPath = 'cleanReset';
+          }
+          const git = new GitAdapter(mainRepoPath);
+          await git.exec(['reset', '--hard', 'HEAD'], { allowError: true });
+          await git.exec(['clean', '-fd', '-e', '.salmonloop'], { allowError: true });
+          await git.exec(['update-index', '--refresh'], { allowError: true });
+        }
       }
 
       (err as ApplyBackErrorMeta).appliedToMain = appliedToMain;
