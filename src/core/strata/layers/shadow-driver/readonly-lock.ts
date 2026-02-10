@@ -25,27 +25,46 @@ export async function acquireLock(shadowRoot: string): Promise<void> {
 
   try {
     await mkdir(path.dirname(lockPath), { recursive: true });
-
-    // Check if lock exists
-    const existingLock = await readFile(lockPath, 'utf8').catch(() => null);
-    if (existingLock) {
-      const [oldPid, oldTs] = existingLock.split(':').map(Number);
-      // Check if process still exists
-      const isAlive = await isProcessAlive(oldPid);
-      if (isAlive && oldPid !== pid) {
-        throw new Error(
-          `ShadowRoot is locked by process ${oldPid} since ${new Date(oldTs).toISOString()}`,
-        );
-      }
-      if (isAlive && oldPid === pid) {
-        logger.debug(`Lock already held by current process ${pid}`);
+    const lockPayload = `${pid}:${timestamp}`;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        await writeFile(lockPath, lockPayload, { flag: 'wx' });
+        logger.debug(`Lock acquired for shadowRoot: ${shadowRoot}`);
         return;
+      } catch (error) {
+        const err = error as NodeJS.ErrnoException;
+        if (err?.code !== 'EEXIST') {
+          throw error;
+        }
+
+        const existingLock = await readFile(lockPath, 'utf8').catch(() => null);
+        if (!existingLock) {
+          continue;
+        }
+
+        const [oldPid, oldTs] = existingLock.split(':').map(Number);
+        if (!Number.isFinite(oldPid) || oldPid <= 0) {
+          await unlink(lockPath).catch(() => null);
+          continue;
+        }
+
+        const isAlive = await isProcessAlive(oldPid);
+        if (isAlive && oldPid !== pid) {
+          throw new Error(
+            `ShadowRoot is locked by process ${oldPid} since ${new Date(oldTs).toISOString()}`,
+          );
+        }
+        if (isAlive && oldPid === pid) {
+          logger.debug(`Lock already held by current process ${pid}`);
+          return;
+        }
+
+        logger.warn(`Stale lock found for process ${oldPid}, removing...`);
+        await unlink(lockPath).catch(() => null);
       }
-      logger.warn(`Stale lock found for process ${oldPid}, removing...`);
     }
 
-    await writeFile(lockPath, `${pid}:${timestamp}`, { flag: 'w' });
-    logger.debug(`Lock acquired for shadowRoot: ${shadowRoot}`);
+    throw new Error('Failed to acquire lock due to concurrent lock updates');
   } catch (error) {
     logger.error(`Failed to acquire lock: ${error}`);
     throw error;
@@ -88,7 +107,7 @@ export async function enforceReadOnly(root: string, depPaths: string[]): Promise
   for (const dep of depPaths) {
     const depPath = normalizePath(`${root}/${dep}`);
     try {
-      await exec(`chmod -R a-w "${depPath}"`);
+      await execChmod('a-w', depPath);
       logger.debug(`Readonly lock applied to ${depPath}`);
     } catch (error) {
       logger.warn(`Failed to apply readonly lock to ${depPath}: ${error}`);
@@ -107,7 +126,7 @@ export async function restoreWrite(root: string, depPaths: string[]): Promise<vo
   for (const dep of depPaths) {
     const depPath = normalizePath(`${root}/${dep}`);
     try {
-      await exec(`chmod -R u+w "${depPath}"`);
+      await execChmod('u+w', depPath);
       logger.debug(`Write permissions restored to ${depPath}`);
     } catch (error) {
       logger.warn(`Failed to restore write permissions to ${depPath}: ${error}`);
@@ -118,37 +137,56 @@ export async function restoreWrite(root: string, depPaths: string[]): Promise<vo
 /**
  * Execute command helper
  */
-async function exec(command: string): Promise<void> {
+async function execChmod(mode: string, targetPath: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, {
-      shell: true,
+    const child = spawn('chmod', ['-R', mode, targetPath], {
       stdio: ['pipe', 'pipe', 'pipe'],
     });
 
     let stderr = '';
+    let settled = false;
+
+    const fail = (message: string) => {
+      if (settled) return;
+      settled = true;
+      reject(new Error(message));
+    };
+
+    const succeed = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
 
     child.stderr.on('data', (data) => {
       stderr += data.toString();
     });
 
     child.on('error', (err) => {
-      reject(new Error(`Command failed: ${err.message}`));
+      fail(`Command failed: ${err.message}`);
     });
 
     child.on('close', (code) => {
       if (code === 0) {
-        resolve();
+        succeed();
       } else {
-        reject(new Error(`Command failed with code ${code}: ${stderr}`));
+        fail(`Command failed with code ${code}: ${stderr}`);
       }
     });
 
     // Set timeout
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       if (!child.killed) {
         child.kill();
-        reject(new Error(`Command timed out`));
+        fail('Command timed out');
       }
     }, 10000); // 10 seconds
+
+    child.on('close', () => {
+      clearTimeout(timer);
+    });
+    child.on('error', () => {
+      clearTimeout(timer);
+    });
   });
 }

@@ -10,7 +10,7 @@
  * - No mocks for core functionality
  */
 
-import { symlink } from 'fs/promises';
+import { stat, symlink } from 'fs/promises';
 import { join } from 'path';
 
 import { CheckpointManager } from '../../src/core/strata/checkpoint/manager.js';
@@ -63,6 +63,7 @@ describe('ApplyBack Dirty Workspace Safety - CRITICAL SCENARIOS (Real Filesystem
       const diff = await helper.getGitDiff(worktreePath);
 
       const synchronizer = new WorkspaceSynchronizer(new CheckpointManager());
+      const telemetry: any = {};
 
       // Apply back to main workspace (REAL applyBack operation)
       // This should create backup even though there's no overlap
@@ -73,6 +74,10 @@ describe('ApplyBack Dirty Workspace Safety - CRITICAL SCENARIOS (Real Filesystem
         '3way',
         'extended',
         ['fileB.js'],
+        undefined,
+        undefined,
+        [],
+        telemetry,
       );
 
       // Verify fileB.js was updated in main repo
@@ -86,6 +91,10 @@ describe('ApplyBack Dirty Workspace Safety - CRITICAL SCENARIOS (Real Filesystem
       // Verify main repo still shows fileA.js as dirty
       const finalStatus = await helper.getGitStatus(mainRepo.path);
       expect(finalStatus).toContain('M fileA.js');
+
+      // Backup dir should be cleaned after successful applyBack.
+      expect(telemetry.dirtyBackupDir).toBeTruthy();
+      await expect(stat(telemetry.dirtyBackupDir)).rejects.toMatchObject({ code: 'ENOENT' });
     });
 
     it('should restore dirty files when patch fails (no overlap case)', async () => {
@@ -502,6 +511,63 @@ describe('ApplyBack Dirty Workspace Safety - CRITICAL SCENARIOS (Real Filesystem
 
       const untrackedContent = await helper.readFile(mainRepo.path, 'untracked.js');
       expect(untrackedContent).toBe('important untracked file');
+    });
+
+    it('should restore nested untracked files when rollback is triggered', async () => {
+      const mainRepo = await helper.createGitRepo({
+        initialFiles: [{ path: 'README.md', content: 'base readme\n' }],
+      });
+      const worktreePath = await helper.createWorktree(mainRepo.path);
+
+      await helper.writeFile(mainRepo.path, 'scratch/deep/file.txt', 'nested untracked content');
+      const statusBefore = await helper.getGitStatus(mainRepo.path);
+      expect(statusBefore).toContain('?? scratch/');
+
+      await helper.writeFile(mainRepo.path, 'temp_link/keep.txt', 'keep');
+      await helper.modifyFile(worktreePath, 'README.md', 'worktree changed readme\n');
+
+      const symlinkTarget = await helper.createTempDir('nested-untracked-target-');
+      await helper.writeFile(symlinkTarget, 'placeholder.txt', 'placeholder');
+      await symlink(
+        symlinkTarget,
+        join(worktreePath, 'temp_link'),
+        process.platform === 'win32' ? 'junction' : 'dir',
+      );
+
+      await helper.git(worktreePath, ['add', 'README.md', 'temp_link']);
+      await helper.git(worktreePath, ['commit', '-m', 'trigger rollback for nested untracked']);
+      const shadowLatestRef = (await helper.git(worktreePath, ['rev-parse', 'HEAD'])).stdout.trim();
+      const shadowInitialRef = (
+        await helper.git(worktreePath, ['rev-parse', 'HEAD~1'])
+      ).stdout.trim();
+
+      const checkpointRef: CheckpointRef = {
+        strategy: 'worktree',
+        repoPath: mainRepo.path,
+        worktreePath,
+        baseRef: shadowInitialRef,
+        branchName: 'test-worktree',
+      };
+
+      const synchronizer = new WorkspaceSynchronizer(new CheckpointManager());
+
+      await expect(
+        synchronizer.applyBackToMainWorkspace(
+          mainRepo.path,
+          checkpointRef,
+          '',
+          '3way',
+          'extended',
+          ['README.md', 'temp_link'],
+          shadowInitialRef,
+          shadowLatestRef,
+        ),
+      ).rejects.toThrow();
+
+      const nestedUntrackedExists = await helper.fileExists(mainRepo.path, 'scratch/deep/file.txt');
+      expect(nestedUntrackedExists).toBe(true);
+      const nestedUntrackedContent = await helper.readFile(mainRepo.path, 'scratch/deep/file.txt');
+      expect(nestedUntrackedContent).toBe('nested untracked content');
     });
   });
 

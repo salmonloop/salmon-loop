@@ -1,5 +1,15 @@
 import { createHash, randomBytes } from 'crypto';
-import { copyFile, lstat, mkdir, readFile, rm, stat, unlink, writeFile } from 'fs/promises';
+import {
+  copyFile,
+  lstat,
+  mkdir,
+  readFile,
+  readdir,
+  rm,
+  stat,
+  unlink,
+  writeFile,
+} from 'fs/promises';
 import { tmpdir } from 'os';
 import path from 'path';
 
@@ -41,6 +51,9 @@ const BINARY_EXTENSIONS = new Set([
 
 const DEFAULT_MAX_FILE_BYTES = Number(process.env.SALMON_SECURITY_MAX_FILE_BYTES) || 1024 * 1024;
 const DEFAULT_DEPENDENCY_ROOT_CANDIDATES = ['node_modules'] as const;
+const DIRTY_BACKUP_PREFIX = 'salmon-loop-backup-';
+const DEFAULT_DIRTY_BACKUP_RETENTION_MS =
+  Number(process.env.SALMON_DIRTY_BACKUP_RETENTION_MS) || 24 * 60 * 60 * 1000;
 
 type ApplyBackErrorMeta = Error & { appliedToMain?: boolean };
 
@@ -73,6 +86,46 @@ export class WorkspaceSynchronizer {
 
   private normalizePath(value: string): string {
     return value.replace(/\\/g, '/');
+  }
+
+  private isRenameOrCopyStatus(xy: string): boolean {
+    const x = xy.charAt(0);
+    const y = xy.charAt(1);
+    return x === 'R' || x === 'C' || y === 'R' || y === 'C';
+  }
+
+  private async pruneExpiredDirtyBackups(): Promise<void> {
+    if (DEFAULT_DIRTY_BACKUP_RETENTION_MS <= 0) return;
+
+    const tempRoot = tmpdir();
+    let entries: { isDirectory(): boolean; name: string }[];
+    try {
+      entries = (await readdir(tempRoot, { withFileTypes: true })) as {
+        isDirectory(): boolean;
+        name: string;
+      }[];
+    } catch {
+      return;
+    }
+
+    const cutoffTs = Date.now() - DEFAULT_DIRTY_BACKUP_RETENTION_MS;
+    const pruneTargets = entries.filter(
+      (entry) => entry.isDirectory() && entry.name.startsWith(DIRTY_BACKUP_PREFIX),
+    );
+
+    await Promise.all(
+      pruneTargets.map(async (entry) => {
+        const backupPath = path.join(tempRoot, entry.name);
+        try {
+          const backupStat = await stat(backupPath);
+          if (backupStat.mtimeMs < cutoffTs) {
+            await rm(backupPath, { recursive: true, force: true });
+          }
+        } catch {
+          // Ignore stale cleanup failures; cleanup is best-effort.
+        }
+      }),
+    );
   }
 
   private sanitizeRelativePath(value: string): string {
@@ -243,7 +296,7 @@ export class WorkspaceSynchronizer {
       if (code === '!!') continue;
       const pathPart = extractPath(entry);
       if (!pathPart) continue;
-      if (code.startsWith('R') || code.startsWith('C')) {
+      if (this.isRenameOrCopyStatus(code)) {
         const original = pathPart;
         const renamed = tokens[i + 1];
         if (original) paths.push(original);
@@ -496,26 +549,38 @@ export class WorkspaceSynchronizer {
     }
   }
 
-  private parseStatusEntries(status: string): {
+  private parseStatusEntries(statusPorcelainZ: string): {
     xy: string;
     path: string;
     origPath?: string;
   }[] {
-    if (!status) return [];
-    return status
-      .split('\n')
-      .map((line) => line.trimEnd())
-      .filter(Boolean)
-      .map((line) => {
-        const xy = line.slice(0, 2);
-        const rawPath = line.length > 2 ? line.slice(2).trimStart() : '';
-        if (rawPath.includes('->')) {
-          const [orig, dest] = rawPath.split('->').map((value) => value.trim());
-          return { xy, path: dest, origPath: orig };
+    if (!statusPorcelainZ) return [];
+
+    const tokens = statusPorcelainZ.split('\0').filter((token) => token.length > 0);
+    const entries: { xy: string; path: string; origPath?: string }[] = [];
+
+    for (let i = 0; i < tokens.length; i += 1) {
+      const entry = tokens[i];
+      const xy = entry.slice(0, 2);
+      if (entry.length < 3) continue;
+
+      const separator = entry[2];
+      const primaryPath = separator === ' ' || separator === '\t' ? entry.slice(3) : entry.slice(2);
+      if (!primaryPath) continue;
+
+      if (this.isRenameOrCopyStatus(xy)) {
+        const renamedPath = tokens[i + 1];
+        if (renamedPath) {
+          entries.push({ xy, path: renamedPath, origPath: primaryPath });
+          i += 1;
+          continue;
         }
-        return { xy, path: rawPath };
-      })
-      .filter((entry) => entry.path.length > 0);
+      }
+
+      entries.push({ xy, path: primaryPath });
+    }
+
+    return entries;
   }
 
   async applyBackToMainWorkspace(
@@ -590,15 +655,16 @@ export class WorkspaceSynchronizer {
       // Pre-flight check for dirty workspace
       const git = new GitAdapter(mainRepoPath);
       // Use standard porcelain (v1) for compatibility
-      const status = await git.query(['status', '--porcelain']);
-      const trimmedStatus = status.trim();
+      const status = await git.query(['status', '--porcelain', '-z'], { trim: false });
+      const trimmedStatus = status.replace(/\0/g, '').trim();
+      const printableStatus = status.replace(/\0/g, '\n').trim();
       const isDirty = trimmedStatus.length > 0;
       if (telemetry) {
         telemetry.dirtyAtEntry = isDirty;
       }
 
       if (isDirty && applyBackOnDirty === 'abort') {
-        throw new Error(text.loop.applyBackAbortedDirty(trimmedStatus));
+        throw new Error(text.loop.applyBackAbortedDirty(printableStatus));
       }
 
       // --- Safety: Backup Dirty State ---
@@ -650,9 +716,11 @@ export class WorkspaceSynchronizer {
       // This protects against partial failures in ExplicitMerge loop AND AtomicPatch
       if (isDirty && applyBackOnDirty === '3way') {
         const createDirtyBackup = async () => {
+          await this.pruneExpiredDirtyBackups();
+
           const backupDir = path.join(
             tmpdir(),
-            `salmon-loop-backup-${Date.now()}-${randomBytes(4).toString('hex')}`,
+            `${DIRTY_BACKUP_PREFIX}${Date.now()}-${randomBytes(4).toString('hex')}`,
           );
           await mkdir(backupDir, { recursive: true });
 
@@ -670,7 +738,7 @@ export class WorkspaceSynchronizer {
           }
 
           // Simple full file backup for dirty tracked files (robustness)
-          const statusEntries = this.parseStatusEntries(trimmedStatus);
+          const statusEntries = this.parseStatusEntries(status);
           const isDeleted = (xy: string): boolean => xy.includes('D');
           const dirtyFiles = statusEntries
             .filter((e) => e.xy !== '??' && !isDeleted(e.xy))
@@ -709,7 +777,7 @@ export class WorkspaceSynchronizer {
           }
 
           // Metadata
-          await writeFile(path.join(backupDir, 'status.txt'), trimmedStatus);
+          await writeFile(path.join(backupDir, 'status.txt'), printableStatus);
           return {
             dir: backupDir,
             trackedFiles: dirtyFiles,
@@ -843,6 +911,9 @@ export class WorkspaceSynchronizer {
           const trackedDir = path.join(dirtyBackup.dir, 'tracked');
           for (const file of dirtyBackup.trackedFiles) {
             try {
+              await mkdir(path.dirname(path.join(mainRepoPath, ...file.split('/'))), {
+                recursive: true,
+              });
               await copyFile(
                 path.join(trackedDir, ...file.split('/')),
                 path.join(mainRepoPath, ...file.split('/')),
@@ -860,6 +931,9 @@ export class WorkspaceSynchronizer {
           const untrackedDir = path.join(dirtyBackup.dir, 'untracked');
           for (const file of dirtyBackup.untrackedFiles) {
             try {
+              await mkdir(path.dirname(path.join(mainRepoPath, ...file.split('/'))), {
+                recursive: true,
+              });
               await copyFile(
                 path.join(untrackedDir, ...file.split('/')),
                 path.join(mainRepoPath, ...file.split('/')),
@@ -944,6 +1018,16 @@ export class WorkspaceSynchronizer {
       (err as ApplyBackErrorMeta).appliedToMain = appliedToMain;
       throw err;
     } finally {
+      if (dirtyBackup?.dir && applySuccess) {
+        try {
+          await rm(dirtyBackup.dir, { recursive: true, force: true });
+        } catch (cleanupError) {
+          logger.debug(
+            `[applyBack] Failed to cleanup dirty backup ${dirtyBackup.dir}: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`,
+          );
+        }
+      }
+
       if (telemetry) {
         telemetry.finishedAt = new Date().toISOString();
       }

@@ -71,4 +71,19 @@ describe('WorkspaceSynchronizer checkpoint staging', () => {
       'src/core/skills/bridge.ts',
     ]);
   });
+
+  it('parses porcelain -z status entries with spaces and rename paths', () => {
+    const synchronizer = new WorkspaceSynchronizer(new CheckpointManager());
+
+    const entries = (synchronizer as any).parseStatusEntries(
+      ' M dir/with space/file.txt\0R  old name.ts\0new name.ts\0 R old-second.ts\0new-second.ts\0?? untracked folder/new file.ts\0',
+    );
+
+    expect(entries).toEqual([
+      { xy: ' M', path: 'dir/with space/file.txt' },
+      { xy: 'R ', path: 'new name.ts', origPath: 'old name.ts' },
+      { xy: ' R', path: 'new-second.ts', origPath: 'old-second.ts' },
+      { xy: '??', path: 'untracked folder/new file.ts' },
+    ]);
+  });
 });
