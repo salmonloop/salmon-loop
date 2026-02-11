@@ -116,4 +116,21 @@ describe('CommandDispatcher', () => {
       trimmedInput: '',
     });
   });
+
+  it('should emit usage error for /snapshot restore without hash', async () => {
+    const result = await dispatcher.dispatch('/snapshot restore', {
+      emit: mockEmit,
+      sessionManager: mockSessionManager,
+      dispatch: vi.fn(),
+    });
+
+    expect(result).toEqual({ type: 'executed' });
+    expect(mockEmit).toHaveBeenCalled();
+
+    const lastCall = mockEmit.mock.lastCall?.[0] as LoopEvent;
+    expect(lastCall?.type).toBe('log');
+    if (lastCall.type !== 'log') throw new Error('Expected log event');
+    expect(lastCall.level).toBe('error');
+    expect(lastCall.message).toContain('Usage: /snapshot restore <hash>');
+  });
 });

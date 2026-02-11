@@ -6,10 +6,19 @@ import { normalizePath } from '../../path.js';
 import type { RipgrepResult } from '../../types.js';
 
 export class RipgrepGatherer {
-  private async runRipgrep(query: string, cwd: string): Promise<RipgrepResult[]> {
+  private async runRipgrep(
+    query: string,
+    cwd: string,
+    signal?: AbortSignal,
+  ): Promise<RipgrepResult[]> {
     logger.trace(`  [RG] Searching for: "${query}" in ${cwd}`);
 
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
+      if (signal?.aborted) {
+        reject(new Error('Operation cancelled by user'));
+        return;
+      }
+
       const child = spawn(
         'rg',
         [
@@ -29,6 +38,7 @@ export class RipgrepGatherer {
         {
           stdio: ['pipe', 'pipe', 'pipe'],
           cwd,
+          signal,
         },
       );
 
@@ -39,14 +49,46 @@ export class RipgrepGatherer {
         child.kill();
       }, LIMITS.defaultToolTimeoutMs);
 
+      let settled = false;
+      const settleResolve = (results: RipgrepResult[]) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        if (onAbort) signal?.removeEventListener('abort', onAbort);
+        resolve(results);
+      };
+      const settleReject = (error: Error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        if (onAbort) signal?.removeEventListener('abort', onAbort);
+        reject(error);
+      };
+
+      const onAbort = signal
+        ? () => {
+            try {
+              child.kill();
+            } catch {
+              // Ignore
+            }
+            settleReject(new Error('Operation cancelled by user'));
+          }
+        : undefined;
+      if (onAbort) signal?.addEventListener('abort', onAbort, { once: true });
+
       let output = '';
       child.stdout.on('data', (data) => {
         output += data.toString();
       });
 
       child.on('close', (code) => {
-        clearTimeout(timeout);
         logger.trace(`  [RG] Process closed with code ${code}. Output length: ${output.length}`);
+
+        if (signal?.aborted) {
+          settleReject(new Error('Operation cancelled by user'));
+          return;
+        }
 
         if (code === 0 || code === 1) {
           const results: RipgrepResult[] = [];
@@ -66,14 +108,18 @@ export class RipgrepGatherer {
               // Ignore malformed JSON.
             }
           }
-          resolve(results);
+          settleResolve(results);
           return;
         }
 
-        resolve([]);
+        settleResolve([]);
       });
 
       child.on('error', (err: any) => {
+        if (signal?.aborted) {
+          settleReject(new Error('Operation cancelled by user'));
+          return;
+        }
         if (err.code === 'ENOENT') {
           logger.error(
             'Error: ripgrep (rg) not found in PATH. Context gathering may be incomplete.',
@@ -81,18 +127,23 @@ export class RipgrepGatherer {
         } else {
           logger.error(`Error running ripgrep: ${err.message}`);
         }
-        resolve([]);
+        settleResolve([]);
       });
     });
   }
 
-  async searchMultipleKeywords(keywords: string[], cwd: string): Promise<RipgrepResult[]> {
+  async searchMultipleKeywords(
+    keywords: string[],
+    cwd: string,
+    signal?: AbortSignal,
+  ): Promise<RipgrepResult[]> {
     if (keywords.length === 0) return [];
+    if (signal?.aborted) throw new Error('Operation cancelled by user');
 
     const cappedKeywords = keywords.slice(0, LIMITS.maxKeywords);
     logger.trace(`  [CONTEXT] Searching keywords: ${cappedKeywords.join(', ')}`);
 
-    const searchPromises = cappedKeywords.map((keyword) => this.runRipgrep(keyword, cwd));
+    const searchPromises = cappedKeywords.map((keyword) => this.runRipgrep(keyword, cwd, signal));
     const resultsArrays = await Promise.all(searchPromises);
 
     const seen = new Set<string>();

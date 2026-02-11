@@ -79,6 +79,40 @@ describe('ContextBuilder', () => {
     expect(fs.readFile).toHaveBeenCalledWith(expect.stringContaining('test.ts'), 'utf-8');
   });
 
+  it('should abort when AbortSignal is already aborted', async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    vi.mocked(fs.readFile).mockResolvedValue('console.log("hello");');
+
+    vi.mocked(spawn).mockImplementation(() => {
+      const emitter = new EventEmitter() as any;
+      emitter.stdout = new EventEmitter();
+      emitter.stderr = new EventEmitter();
+      emitter.stdin = new EventEmitter();
+      emitter.stdin.end = vi.fn();
+      emitter.stdin.write = vi.fn();
+      emitter.kill = vi.fn();
+
+      queueMicrotask(() => {
+        emitter.emit('close', 0);
+        emitter.emit('exit', 0);
+      });
+
+      return emitter;
+    });
+
+    await expect(
+      ContextBuilder.build({
+        instruction: 'fix something',
+        verify: 'npm test',
+        repoPath: tempDir,
+        file: 'test.ts',
+        signal: controller.signal,
+      }),
+    ).rejects.toThrow(/cancelled by user/i);
+  });
+
   it('should include AST symbols in context', async () => {
     const code = 'function test() { console.log("hello"); }';
     vi.mocked(fs.readFile).mockResolvedValue(code);

@@ -41,6 +41,43 @@ describe('ContextService', () => {
     expect(result.meta.usedChars).toBeGreaterThan(0);
   });
 
+  it('aborts build when AbortSignal is already aborted', async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    const service = new ContextService({
+      primaryTextGatherer: {
+        gather: async () => ({ primaryText: 'PRIMARY' }),
+      } as any,
+      ripgrepGatherer: {
+        searchMultipleKeywords: async () => [{ file: 'src/a.ts', line: 1, content: 'SNIP' }],
+      } as any,
+      gitDiffGatherer: {
+        gather: async () => ({
+          stagedDiff: 'STAGED',
+          unstagedDiff: undefined,
+          gitDiff: 'STAGED',
+          includedFiles: ['src/a.ts'],
+        }),
+      } as any,
+      astGatherer: {
+        gather: async () => ({ symbols: [], definitionMap: {}, relatedFiles: [] }),
+      } as any,
+      assembler: {
+        assemble: () => ({ prompt: 'PROMPT' }),
+      },
+    });
+
+    const req = {
+      instruction: 'fix foo',
+      repoPath: '/repo',
+      primaryFile: 'src/a.ts',
+      signal: controller.signal,
+    } as any as ContextRequest;
+
+    await expect(service.build(req)).rejects.toThrow(/cancelled by user/i);
+  });
+
   it('preserves requested diffScope in meta', async () => {
     const service = new ContextService({
       primaryTextGatherer: { gather: async () => ({ primaryText: 'PRIMARY' }) } as any,

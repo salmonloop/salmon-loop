@@ -12,6 +12,7 @@ export interface ContextRequest {
   checkpointManager?: CheckpointManager;
   diffScope?: DiffScope;
   budgetChars?: number;
+  signal?: AbortSignal;
 }
 
 export interface ContextBag {

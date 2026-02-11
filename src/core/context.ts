@@ -54,6 +54,7 @@ export class ContextBuilder {
       selection: options.selection,
       snapshotHash: options.snapshotHash,
       checkpointManager: options.checkpointManager,
+      signal: options.signal,
     });
 
     return result.context;

@@ -117,19 +117,26 @@ const restoreCommand: Command = {
     const { currentPrefix } = parseSuggestionContext(input);
     return getSnapshotSuggestions(sessionManager, currentPrefix);
   },
-  execute: async ({ input }): Promise<CommandResult | void> => {
+  execute: async ({ emit, input }): Promise<CommandResult | void> => {
     const args = input.trim().split(/\s+/).slice(1);
     const hash = args[1];
 
     if (!hash) {
-      // Return void, error handled by caller or we can emit here
-      return { action: 'NEED_CONFIRMATION', message: 'Usage: /snapshot restore <hash>' }; // Abusing confirmation for error flow a bit or just return void
+      emit({
+        type: 'log',
+        level: 'error',
+        message: 'Usage: /snapshot restore <hash>',
+        timestamp: new Date(),
+      });
+      return;
     }
 
+    const message = `Restore will overwrite your current workspace.`;
     return {
       action: 'NEED_CONFIRMATION',
-      message: `Restore will overwrite your current workspace.`,
+      message,
       data: {
+        message,
         command: '/snapshot',
         args: ['restore', hash],
         challenge: hash.slice(0, 6),

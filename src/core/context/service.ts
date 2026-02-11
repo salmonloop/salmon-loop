@@ -43,6 +43,12 @@ function calculateUsedChars(context: Context): number {
   return primary + related + snippets + diff;
 }
 
+function assertNotAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) {
+    throw new Error('Operation cancelled by user');
+  }
+}
+
 export class ContextService {
   private readonly deps: ContextServiceDeps;
 
@@ -51,29 +57,35 @@ export class ContextService {
   }
 
   async build(req: ContextRequest): Promise<ContextResult> {
+    assertNotAborted(req.signal);
     const diffScope: DiffScope = req.diffScope ?? 'primary';
 
     logger.trace(`  [CONTEXT] Building context for repo: ${req.repoPath}`);
     logger.trace(`  [CONTEXT] File: ${req.primaryFile}, Instruction: ${req.instruction}`);
 
     const { primaryText } = await this.deps.primaryTextGatherer.gather(req);
+    assertNotAborted(req.signal);
 
     const keywords = extractKeywords(req.instruction);
     const rgSnippets = await this.deps.ripgrepGatherer.searchMultipleKeywords(
       keywords,
       req.repoPath,
+      req.signal,
     );
+    assertNotAborted(req.signal);
 
     const { stagedDiff, unstagedDiff, gitDiff, includedFiles } =
       await this.deps.gitDiffGatherer.gather({
         ...req,
         diffScope,
       });
+    assertNotAborted(req.signal);
 
     const { symbols, definitionMap, relatedFiles } = await this.deps.astGatherer.gather(
       primaryText,
       req,
     );
+    assertNotAborted(req.signal);
 
     const context: Context = {
       repoPath: req.repoPath,
