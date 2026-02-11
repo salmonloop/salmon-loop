@@ -237,13 +237,15 @@ export async function handleRunCommand(options: any, command: Command) {
               emit(event);
             },
           });
-          emitLlmOutput({
-            emit,
-            policy: llmOutput,
-            kind: 'assistant_message',
-            step: 'REPORT',
-            content: buildAssistantMessage(runResult),
-          });
+          if (runResult.reason !== 'Operation cancelled by user') {
+            emitLlmOutput({
+              emit,
+              policy: llmOutput,
+              kind: 'assistant_message',
+              step: 'REPORT',
+              content: buildAssistantMessage(runResult),
+            });
+          }
           return runResult;
         },
         {

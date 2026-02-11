@@ -58,6 +58,7 @@ export class Pipeline<CurrentCtx> {
   step<NextCtx>(name: string, action: Step<CurrentCtx, NextCtx>): Pipeline<NextCtx> {
     const nextPromise = this.promise.then(async (ctx) => {
       const start = Date.now();
+      let phaseStarted = false;
       let errorStr: string | undefined;
       let errorMeta: Record<string, unknown> | undefined;
       let result;
@@ -67,9 +68,15 @@ export class Pipeline<CurrentCtx> {
 
       try {
         this.ctxRef.current = ctx;
+        const signal = (ctx as any)?.options?.signal as AbortSignal | undefined;
+        const strategy = (ctx as any)?.workspace?.strategy ?? (ctx as any)?.options?.strategy;
+        if (signal?.aborted && strategy === 'worktree') {
+          throw new Error('Operation cancelled by user');
+        }
         setAuditContext({ phase: name });
         if (emit && isPhase(name)) {
           emit({ type: 'phase.start', phase: name, timestamp: new Date() });
+          phaseStarted = true;
         }
         result = await action(ctx);
         this.ctxRef.current = result;
@@ -86,7 +93,7 @@ export class Pipeline<CurrentCtx> {
             : undefined;
         throw error;
       } finally {
-        if (emit && isPhase(name)) {
+        if (emit && isPhase(name) && phaseStarted) {
           emit({
             type: 'phase.end',
             phase: name,
@@ -120,6 +127,8 @@ export class Pipeline<CurrentCtx> {
   ): Pipeline<NextCtx> {
     const nextPromise = this.promise.then(async (ctx) => {
       const start = Date.now();
+      let phaseStarted = false;
+      let abortedBeforeAction = false;
       let errorStr: string | undefined;
       let errorMeta: Record<string, unknown> | undefined;
       let result;
@@ -129,9 +138,16 @@ export class Pipeline<CurrentCtx> {
 
       try {
         this.ctxRef.current = ctx;
+        const signal = (ctx as any)?.options?.signal as AbortSignal | undefined;
+        const strategy = (ctx as any)?.workspace?.strategy ?? (ctx as any)?.options?.strategy;
+        if (signal?.aborted && strategy === 'worktree') {
+          abortedBeforeAction = true;
+          throw new Error('Operation cancelled by user');
+        }
         setAuditContext({ phase: name });
         if (emit && isPhase(name)) {
           emit({ type: 'phase.start', phase: name, timestamp: new Date() });
+          phaseStarted = true;
         }
         result = await action(ctx);
         this.ctxRef.current = result;
@@ -146,6 +162,10 @@ export class Pipeline<CurrentCtx> {
                 llmCode: (error as { llmCode?: string }).llmCode,
               }
             : undefined;
+
+        if (abortedBeforeAction) {
+          throw error;
+        }
 
         // Trigger Recovery
         const recStart = Date.now();
@@ -186,7 +206,7 @@ export class Pipeline<CurrentCtx> {
 
         throw error; // Propagate original error
       } finally {
-        if (emit && isPhase(name)) {
+        if (emit && isPhase(name) && phaseStarted) {
           emit({
             type: 'phase.end',
             phase: name,

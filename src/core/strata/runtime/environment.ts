@@ -1,9 +1,11 @@
 import { text } from '../../../locales/index.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
+import { recordAuditEvent } from '../../audit-trail.js';
 import { sanitizeError } from '../../llm/errors.js';
 import { logger } from '../../logger.js';
 import { migrateLegacyRuntime } from '../../runtime-paths.js';
 import { CheckpointRef, ExecutionWorkspace, LoopEvent, LoopOptions } from '../../types.js';
+import { KAOMOJI } from '../../ui/kaomoji.js';
 import { CheckpointManager } from '../checkpoint/manager.js';
 import { ShadowDriver } from '../layers/shadow-driver/shadow-driver.js';
 import { WorkspaceManager } from '../layers/worktree.js';
@@ -194,69 +196,130 @@ export class RuntimeEnvironment {
     const now = () => new Date();
     let checkpointCleanupOk = true;
 
-    if (this.initialSnapshotHash && this.options.strategy === 'worktree') {
-      try {
-        await this.checkpointManager.deleteSnapshot(
-          this.options.repoPath,
-          this.initialSnapshotHash,
-        );
-      } catch (error) {
-        checkpointCleanupOk = false;
-        logger.debug(
-          `Failed to delete snapshot ref refs/s8p/snapshots/${this.initialSnapshotHash}: ${error}`,
-        );
-      }
+    const shouldReportCleanup =
+      this.options.strategy === 'worktree' &&
+      (this.workspace?.strategy === 'worktree' || Boolean(this.setupWorkPath));
+    const interrupted = Boolean(this.options.signal?.aborted);
+
+    if (shouldReportCleanup) {
+      emit({
+        type: 'ui.status',
+        action: 'set',
+        face: KAOMOJI.cleanupWorking,
+        label: text.ui.status.cleanup,
+        timestamp: now(),
+      });
+      emit({
+        type: 'log',
+        level: 'info',
+        message: text.resource.workspaceCleanupStarting,
+        timestamp: now(),
+      });
+      recordAuditEvent(
+        'workspace.cleanup.start',
+        {
+          strategy: this.options.strategy,
+          workPath: this.workspace?.workPath ?? this.setupWorkPath,
+        },
+        { source: 'runtime', severity: 'low', phase: 'TEARDOWN' },
+      );
     }
 
-    // Cleanup workspace
-    if (this.workspace) {
-      // Handle edge case where setup failed midway and path might differ
-      if (
-        this.workspace.strategy === 'worktree' &&
-        this.setupWorkPath &&
-        this.setupWorkPath !== this.workspace.workPath
-      ) {
+    try {
+      if (this.initialSnapshotHash && this.options.strategy === 'worktree') {
         try {
-          await WorkspaceManager.teardown(
-            {
-              baseRepoPath: this.workspace.baseRepoPath,
-              workPath: this.setupWorkPath,
-              strategy: 'worktree',
-            },
-            emit,
+          await this.checkpointManager.deleteSnapshot(
+            this.options.repoPath,
+            this.initialSnapshotHash,
           );
+        } catch (error) {
+          checkpointCleanupOk = false;
+          logger.debug(
+            `Failed to delete snapshot ref refs/s8p/snapshots/${this.initialSnapshotHash}: ${error}`,
+          );
+        }
+      }
+
+      // Cleanup workspace
+      if (this.workspace) {
+        // Handle edge case where setup failed midway and path might differ
+        if (
+          this.workspace.strategy === 'worktree' &&
+          this.setupWorkPath &&
+          this.setupWorkPath !== this.workspace.workPath
+        ) {
+          try {
+            await WorkspaceManager.teardown(
+              {
+                baseRepoPath: this.workspace.baseRepoPath,
+                workPath: this.setupWorkPath,
+                strategy: 'worktree',
+              },
+              emit,
+            );
+          } catch (error) {
+            checkpointCleanupOk = false;
+            const msg = sanitizeError(error);
+            emit({
+              type: 'log',
+              level: 'warn',
+              message: `Extra worktree cleanup failed: ${msg}`,
+              timestamp: now(),
+            });
+          }
+        }
+
+        try {
+          await WorkspaceManager.teardown(this.workspace, emit);
         } catch (error) {
           checkpointCleanupOk = false;
           const msg = sanitizeError(error);
           emit({
             type: 'log',
             level: 'warn',
-            message: `Extra worktree cleanup failed: ${msg}`,
+            message: `Workspace cleanup failed: ${msg}`,
             timestamp: now(),
           });
         }
       }
-
-      try {
-        await WorkspaceManager.teardown(this.workspace, emit);
-      } catch (error) {
-        checkpointCleanupOk = false;
-        const msg = sanitizeError(error);
+    } finally {
+      if (shouldReportCleanup) {
+        recordAuditEvent(
+          'workspace.cleanup.finish',
+          {
+            ok: checkpointCleanupOk,
+            strategy: this.options.strategy,
+            workPath: this.workspace?.workPath ?? this.setupWorkPath,
+          },
+          {
+            source: 'runtime',
+            severity: checkpointCleanupOk ? 'low' : 'medium',
+            phase: 'TEARDOWN',
+          },
+        );
         emit({
           type: 'log',
-          level: 'warn',
-          message: `Workspace cleanup failed: ${msg}`,
+          level: 'info',
+          message: text.resource.workspaceCleanupFinished,
           timestamp: now(),
         });
+        if (this.checkpointRef) {
+          emit({
+            type: 'checkpoint.cleaned',
+            ok: checkpointCleanupOk,
+            timestamp: now(),
+          });
+        }
+        if (!interrupted) {
+          emit({
+            type: 'ui.status',
+            action: 'set',
+            face: KAOMOJI.cleanupDone,
+            ttlMs: 2000,
+            timestamp: now(),
+          });
+        }
       }
-    }
-
-    if (this.checkpointRef) {
-      emit({
-        type: 'checkpoint.cleaned',
-        ok: checkpointCleanupOk,
-        timestamp: now(),
-      });
     }
   }
 }

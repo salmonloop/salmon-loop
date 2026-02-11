@@ -1,5 +1,5 @@
 import { randomBytes } from 'crypto';
-import { rm } from 'fs/promises';
+import { access, realpath, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { basename, join, normalize, relative } from 'path';
 
@@ -111,16 +111,79 @@ export class WorkspaceManager {
 
     try {
       const list = await git.query(['worktree', 'list', '--porcelain']);
-      if (list.includes(workspace.workPath)) {
-        await git.query(['worktree', 'remove', '--force', workspace.workPath]);
+      const worktreePaths = list
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line.startsWith('worktree '))
+        .map((line) => line.slice('worktree '.length).trim())
+        .filter(Boolean);
+
+      const normalizeForCompare = (value: string) => {
+        const normalized = normalize(value).replace(/\\/g, '/');
+        if (process.platform === 'darwin' && normalized.startsWith('/private/')) {
+          return normalized.slice('/private'.length);
+        }
+        return normalized;
+      };
+
+      const tryRealpath = async (value: string) => {
+        try {
+          return await realpath(value);
+        } catch {
+          return null;
+        }
+      };
+
+      const targetNorm = normalizeForCompare(workspace.workPath);
+      const exactMatch =
+        worktreePaths.find((p) => p === workspace.workPath) ||
+        worktreePaths.find((p) => normalizeForCompare(p) === targetNorm);
+
+      let matchPath: string | null = exactMatch ?? null;
+      if (!matchPath) {
+        const targetReal = await tryRealpath(workspace.workPath);
+        if (targetReal) {
+          for (const p of worktreePaths) {
+            const pReal = await tryRealpath(p);
+            if (pReal && pReal === targetReal) {
+              matchPath = p;
+              break;
+            }
+          }
+        }
+      }
+
+      if (matchPath) {
+        await git.query(['worktree', 'remove', '--force', matchPath]);
         removed = true;
-        logger.debug(`Removed worktree: ${workspace.workPath}`);
+
+        const directoryStillExists = await (async () => {
+          try {
+            await access(workspace.workPath);
+            return true;
+          } catch (error: any) {
+            if (error && typeof error === 'object' && (error as any).code === 'ENOENT') {
+              return false;
+            }
+            // For non-ENOENT errors, assume the path may still exist.
+            return true;
+          }
+        })();
+
+        if (directoryStillExists) {
+          removed = false;
+          logger.debug(
+            `git worktree remove reported success but directory still exists; falling back to fs.rm: ${workspace.workPath}`,
+          );
+        } else {
+          logger.debug(`Removed worktree: ${matchPath}`);
+        }
       } else {
         onEvent?.({
           type: 'resource.status',
           resource: 'worktree',
           status: 'warning',
-          message: `Worktree not found in git worktree list: ${workspace.workPath}`,
+          message: text.resource.worktreeNotFoundInList(workspace.workPath),
           timestamp: new Date(),
         });
       }

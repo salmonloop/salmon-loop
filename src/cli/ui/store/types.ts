@@ -1,5 +1,7 @@
 export type UIContext = 'base' | 'sidebar' | 'popover' | 'input' | 'exit-confirm';
 
+export type StatusBannerSource = 'runtime' | 'lifecycle';
+
 /**
  * Message types based on Figma design system
  * Supports 14 distinct message types with 3-level visual hierarchy
@@ -152,6 +154,15 @@ export interface UIState {
   missionTasks: Array<{ id: string; content: string; status: 'pending' | 'completed' | 'failed' }>;
   currentPhase: string;
   isThinking: boolean;
+  statusBanner?: {
+    face: string;
+    label?: string;
+    source?: StatusBannerSource;
+  };
+  interruptPending?: {
+    content?: string;
+    timestamp: Date;
+  };
   changedFiles: string[];
   inputHistory: string[];
   pendingConfirmation?: {
@@ -186,6 +197,9 @@ export type UIAction =
   | { type: 'TOGGLE_SIDEBAR' }
   | { type: 'UPDATE_DIMENSIONS'; payload: { width: number; height: number } }
   | { type: 'SET_THINKING'; payload: boolean }
+  | { type: 'SET_STATUS_BANNER'; payload: UIState['statusBanner'] }
+  | { type: 'CLEAR_STATUS_BANNER'; payload?: { source?: StatusBannerSource } }
+  | { type: 'FINALIZE_INTERRUPT'; payload?: { timestamp?: Date } }
   | { type: 'UPDATE_PHASE'; payload: string; status: 'idle' | 'running' | 'success' | 'failed' }
   | { type: 'UPDATE_WORKSPACE'; payload: { path: string; isShadow: boolean } }
   | { type: 'UPDATE_PROGRESS'; payload: number }
@@ -193,7 +207,7 @@ export type UIAction =
   | { type: 'SET_CHANGED_FILES'; payload: string[] }
   | { type: 'SET_INPUT_HISTORY'; payload: string[] }
   | { type: 'APPEND_INPUT'; payload: string }
-  | { type: 'INTERRUPT_STREAM' }
+  | { type: 'INTERRUPT_STREAM'; payload?: { content?: string; timestamp?: Date } }
   | { type: 'RESET_MESSAGES' }
   | { type: 'SET_CONFIRMATION'; payload: UIState['pendingConfirmation'] }
   | { type: 'CLEAR_CONFIRMATION' }

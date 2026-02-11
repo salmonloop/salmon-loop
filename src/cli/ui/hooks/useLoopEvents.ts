@@ -1,5 +1,6 @@
 import { useEffect, useCallback, useRef } from 'react';
 
+import { KAOMOJI } from '../../../core/ui/kaomoji.js';
 import { text } from '../../locales/index.js';
 import { useUIStore } from '../store/context.js';
 import { MessageType } from '../store/types.js';
@@ -10,10 +11,12 @@ import { prepareMessagePayload, sanitizeMessage } from '../utils/sanitizer.js';
  */
 export function useLoopEvents(mode: 'run' | 'chat', onStart: any, signal: AbortSignal) {
   const { dispatch } = useUIStore();
+  const runStartedRef = useRef(false);
 
   // Throttle state for streaming deltas to prevent render thrashing
   const streamBufferRef = useRef<Map<string, { delta: string; timestamp: Date }>>(new Map());
   const streamTimerRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
+  const statusBannerTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const dispatchSanitizedMessage = useCallback(
     (ev: any) => {
@@ -99,15 +102,72 @@ export function useLoopEvents(mode: 'run' | 'chat', onStart: any, signal: AbortS
     (event: any) => {
       if (!event) return;
 
+      if (event.type === 'ui.status') {
+        if (event.action === 'clear') {
+          dispatch({ type: 'CLEAR_STATUS_BANNER' });
+          return;
+        }
+
+        if (typeof event.face === 'string' && event.face.trim()) {
+          dispatch({
+            type: 'SET_STATUS_BANNER',
+            payload: {
+              face: event.face,
+              label: typeof event.label === 'string' ? event.label : '',
+              source: 'runtime',
+            },
+          });
+        }
+
+        if (statusBannerTimerRef.current) clearTimeout(statusBannerTimerRef.current);
+        if (typeof event.ttlMs === 'number' && Number.isFinite(event.ttlMs) && event.ttlMs > 0) {
+          statusBannerTimerRef.current = setTimeout(() => {
+            dispatch({ type: 'CLEAR_STATUS_BANNER' });
+          }, event.ttlMs);
+        }
+
+        return;
+      }
+
+      if (event.type === 'checkpoint.cleaned') {
+        dispatch({
+          type: 'FINALIZE_INTERRUPT',
+          payload: { timestamp: event.timestamp || new Date() },
+        });
+
+        dispatch({
+          type: 'SET_STATUS_BANNER',
+          payload: { face: KAOMOJI.cleanupDone, label: '', source: 'runtime' },
+        });
+        if (statusBannerTimerRef.current) clearTimeout(statusBannerTimerRef.current);
+        statusBannerTimerRef.current = setTimeout(() => {
+          dispatch({ type: 'CLEAR_STATUS_BANNER', payload: { source: 'runtime' } });
+        }, 2000);
+        return;
+      }
+
       // Intercept cancellation errors and treat them as interrupts
       // This ensures we show the "^C [SPLATTED]" style instead of a generic error
+      const cancellationToken = 'Operation cancelled by user';
+      const messageText = typeof event.message === 'string' ? event.message : '';
       const isCancellation =
         (event.type === 'error' && event.error?.message === 'Operation cancelled by user') ||
-        event.message === 'Operation cancelled by user' ||
+        messageText.includes(cancellationToken) ||
         (typeof event.error === 'string' && event.error.includes('Operation cancelled by user'));
 
       if (isCancellation) {
-        dispatch({ type: 'INTERRUPT_STREAM' });
+        const trimmed = messageText.trim();
+        const interruptContent =
+          trimmed === cancellationToken || trimmed === `Failed: ${cancellationToken}`
+            ? ''
+            : trimmed;
+        dispatch({
+          type: 'INTERRUPT_STREAM',
+          payload: {
+            content: interruptContent,
+            timestamp: event.timestamp || new Date(),
+          },
+        });
         return;
       }
 
@@ -216,6 +276,8 @@ export function useLoopEvents(mode: 'run' | 'chat', onStart: any, signal: AbortS
 
   useEffect(() => {
     if (mode === 'run') {
+      if (runStartedRef.current) return;
+      runStartedRef.current = true;
       onStart((event: any) => handleEvent(event), { signal });
     }
   }, [mode, onStart, signal, handleEvent]);
@@ -223,6 +285,10 @@ export function useLoopEvents(mode: 'run' | 'chat', onStart: any, signal: AbortS
   // Cleanup timers on unmount
   useEffect(() => {
     return () => {
+      if (statusBannerTimerRef.current) {
+        clearTimeout(statusBannerTimerRef.current);
+        statusBannerTimerRef.current = null;
+      }
       streamTimerRef.current.forEach((timer) => clearTimeout(timer));
       streamTimerRef.current.clear();
       streamBufferRef.current.clear();

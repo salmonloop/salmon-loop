@@ -538,6 +538,7 @@ Please return the patch in PURE unified diff format:`;
     audit: {
       saved: (file: string) => `[Audit] Saved structured audit log to ${file}`,
       failed: (error: string) => `[Audit] Failed to save audit log: ${error}`,
+      appendFailed: (error: string) => `[Audit] Failed to append audit trail delta: ${error}`,
     },
     errors: {
       workerNotFound: (id: string) => `Worker "${id}" not found`,
@@ -583,8 +584,18 @@ Please return the patch in PURE unified diff format:`;
     chart: '[result]',
   },
 
+  ui: {
+    status: {
+      cleanup: 'cleanup',
+      stopping: 'stopping',
+    },
+  },
+
   resource: {
+    workspaceCleanupStarting: 'Cleaning workspace...',
+    workspaceCleanupFinished: 'Workspace cleanup finished.',
     worktreeSkipCleanup: 'workPath equals baseRepoPath; skipping cleanup to avoid data loss',
+    worktreeNotFoundInList: (path: string) => `Worktree not found in git worktree list: ${path}`,
     lockTimeoutAttemptForce: (path: string) =>
       `Lock acquisition timeout for ${path}, attempting force cleanup...`,
     lockForceRemoved: (file: string) => `Forcefully removed stale lock file: ${file}`,

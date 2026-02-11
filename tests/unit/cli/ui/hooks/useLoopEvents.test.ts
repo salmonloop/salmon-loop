@@ -85,4 +85,41 @@ describe('useLoopEvents', () => {
       },
     });
   });
+
+  it('dispatches SET_STATUS_BANNER for ui.status set events', () => {
+    const onStart = vi.fn();
+    const signal = new AbortController().signal;
+    const { result } = renderHook(() => useLoopEvents('chat', onStart, signal));
+
+    act(() => {
+      result.current.sanitizeAndDispatch({
+        type: 'ui.status',
+        action: 'set',
+        face: '(,,-`_●-)',
+        label: 'cleanup',
+        timestamp: new Date('2026-02-06T23:02:00.000Z'),
+      });
+    });
+
+    expect(hoisted.dispatch).toHaveBeenCalledWith({
+      type: 'SET_STATUS_BANNER',
+      payload: { face: '(,,-`_●-)', label: 'cleanup', source: 'runtime' },
+    });
+  });
+
+  it('dispatches CLEAR_STATUS_BANNER for ui.status clear events', () => {
+    const onStart = vi.fn();
+    const signal = new AbortController().signal;
+    const { result } = renderHook(() => useLoopEvents('chat', onStart, signal));
+
+    act(() => {
+      result.current.sanitizeAndDispatch({
+        type: 'ui.status',
+        action: 'clear',
+        timestamp: new Date('2026-02-06T23:03:00.000Z'),
+      });
+    });
+
+    expect(hoisted.dispatch).toHaveBeenCalledWith({ type: 'CLEAR_STATUS_BANNER' });
+  });
 });

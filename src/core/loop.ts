@@ -5,6 +5,7 @@ import { text } from '../locales/index.js';
 
 import { createFileSystemAdapter } from './adapters/fs/index.js';
 import { GitAdapter } from './adapters/git/git-adapter.js';
+import { appendAuditTrailToAuditFile } from './audit-file.js';
 import { clearAuditContext, clearAuditTrail, setAuditContext } from './audit-trail.js';
 import { Semaphore } from './concurrency.js';
 import { executeSalmonLoopFlow } from './grizzco/flows/SalmonLoopFlow.js';
@@ -172,13 +173,14 @@ export class SalmonLoop {
       };
     } finally {
       if (!setupSucceeded) {
-        clearAuditContext();
         try {
           await env.teardown();
         } catch (teardownError) {
           logger.warn(
             `[Runtime] Failed to teardown after setup error: ${sanitizeError(teardownError)}`,
           );
+        } finally {
+          clearAuditContext();
         }
       }
     }
@@ -198,6 +200,7 @@ export class SalmonLoop {
     const git = new GitAdapter(activeRepoPath);
     const resolver = new FileStateResolver(git, activeRepoPath);
 
+    let latestAuditPath: string | undefined = undefined;
     let retries = 0;
     let currentContext: any = undefined;
     let currentLastError: string | undefined = undefined;
@@ -257,6 +260,7 @@ export class SalmonLoop {
           initialContext: currentContext,
           lastError: currentLastError,
         });
+        latestAuditPath = result.auditPath ?? latestAuditPath;
 
         // Map flow result to LoopIteration
         const ctx = result.data as Partial<ShrinkCtx> | undefined;
@@ -446,8 +450,12 @@ export class SalmonLoop {
         fsMode: flowMode,
       };
     } finally {
-      clearAuditContext();
-      await env.teardown();
+      try {
+        await env.teardown();
+      } finally {
+        await appendAuditTrailToAuditFile(latestAuditPath);
+        clearAuditContext();
+      }
     }
   }
 

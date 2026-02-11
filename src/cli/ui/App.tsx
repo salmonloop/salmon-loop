@@ -9,6 +9,7 @@ import { bindAuthorizationDispatch, resolveAuthorization } from './authorization
 import { StretchingThinking } from './components/animations/StretchingThinking.js';
 import { CommandInput } from './components/CommandInput.js';
 import { MessageList } from './components/MessageList.js';
+import { StatusBannerLine } from './components/StatusBannerLine.js';
 import { UI_CONFIG } from './config.js';
 import { useCommandLifecycle } from './hooks/useCommandLifecycle.js';
 import { useLoopEvents } from './hooks/useLoopEvents.js';
@@ -87,9 +88,13 @@ const AppCore: React.FC<{
       </Box>
 
       {/* Thinking Status */}
-      {state.isThinking && (
+      {(state.isThinking || state.statusBanner) && (
         <Box paddingX={UI_CONFIG.MESSAGE_AREA_PADDING_X} paddingY={0} flexShrink={0}>
-          <StretchingThinking />
+          {state.statusBanner ? (
+            <StatusBannerLine face={state.statusBanner.face} label={state.statusBanner.label} />
+          ) : (
+            <StretchingThinking />
+          )}
         </Box>
       )}
 

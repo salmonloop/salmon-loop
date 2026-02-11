@@ -31,4 +31,49 @@ describe('Pipeline', () => {
     const recoveryTrace = result.traces.find((t) => t.name.includes(':recovery'));
     expect(recoveryTrace).toBeDefined();
   });
+
+  it('should short-circuit worktree pipelines when signal is aborted', async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    const emit = vi.fn();
+    const step = vi.fn(async (ctx: any) => ({ ...ctx, val: (ctx.val ?? 0) + 1 }));
+
+    const init = {
+      val: 0,
+      emit,
+      options: { signal: controller.signal, strategy: 'worktree' },
+      workspace: { strategy: 'worktree' },
+    };
+
+    const result = await Pipeline.of(init).step('PREFLIGHT', step).execute();
+
+    expect(result.success).toBe(false);
+    expect(result.error?.message).toBe('Operation cancelled by user');
+    expect(step).not.toHaveBeenCalled();
+    expect(emit).not.toHaveBeenCalled();
+  });
+
+  it('should not run recovery on abort short-circuit', async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    const emit = vi.fn();
+    const action = vi.fn(async () => ({ ok: true }));
+    const recovery = vi.fn(async () => ({ ok: true }));
+
+    const init = {
+      emit,
+      options: { signal: controller.signal, strategy: 'worktree' },
+      workspace: { strategy: 'worktree' },
+    };
+
+    const result = await Pipeline.of(init).stepWithRecovery('APPLY', action, recovery).execute();
+
+    expect(result.success).toBe(false);
+    expect(result.error?.message).toBe('Operation cancelled by user');
+    expect(action).not.toHaveBeenCalled();
+    expect(recovery).not.toHaveBeenCalled();
+    expect(emit).not.toHaveBeenCalled();
+  });
 });

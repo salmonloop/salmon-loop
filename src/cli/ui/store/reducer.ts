@@ -20,6 +20,8 @@ export const initialState: UIState = {
   missionTasks: [],
   currentPhase: 'idle',
   isThinking: false,
+  statusBanner: undefined,
+  interruptPending: undefined,
   changedFiles: [],
   inputHistory: [],
 };
@@ -94,6 +96,29 @@ export function uiReducer(state: UIState, action: UIAction): UIState {
       };
     case 'SET_THINKING':
       return { ...state, isThinking: action.payload };
+    case 'SET_STATUS_BANNER':
+      return { ...state, statusBanner: action.payload ?? undefined };
+    case 'CLEAR_STATUS_BANNER':
+      if (action.payload?.source && state.statusBanner?.source !== action.payload.source) {
+        return state;
+      }
+      return { ...state, statusBanner: undefined };
+    case 'FINALIZE_INTERRUPT': {
+      if (!state.interruptPending) return state;
+
+      const interruptMessage = {
+        id: `interrupt-${Date.now()}`,
+        type: 'interrupt' as const,
+        content: state.interruptPending.content ?? '',
+        timestamp: action.payload?.timestamp ?? state.interruptPending.timestamp,
+      };
+
+      return {
+        ...state,
+        completedMessages: [...state.completedMessages, interruptMessage],
+        interruptPending: undefined,
+      };
+    }
     case 'UPDATE_PHASE':
       return {
         ...state,
@@ -174,18 +199,36 @@ export function uiReducer(state: UIState, action: UIAction): UIState {
       };
     }
     case 'INTERRUPT_STREAM': {
+      if (state.interruptPending) {
+        return {
+          ...state,
+          isThinking: false,
+          currentPhase: 'idle',
+        };
+      }
+
+      const pending = {
+        content: action.payload?.content,
+        timestamp: action.payload?.timestamp ?? new Date(),
+      };
+
       if (!state.activeStreamingMessage) {
-        return { ...state, isThinking: false, currentPhase: 'idle' };
+        return {
+          ...state,
+          interruptPending: pending,
+          isThinking: false,
+          currentPhase: 'idle',
+        };
       }
 
       const interrupted = {
         ...state.activeStreamingMessage,
-        content: state.activeStreamingMessage.content + '^C [SPLATTED]',
         streamState: 'paused' as const,
       };
 
       return {
         ...state,
+        interruptPending: pending,
         completedMessages: [...state.completedMessages, interrupted],
         activeStreamingMessage: null,
         isThinking: false,

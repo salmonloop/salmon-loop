@@ -1,6 +1,8 @@
 import { useInput } from 'ink';
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 
+import { KAOMOJI } from '../../../core/ui/kaomoji.js';
+import { text } from '../../locales/index.js';
 import { useUIStore } from '../store/context.js';
 
 /**
@@ -16,7 +18,18 @@ export function useCommandLifecycle(
   const [isExiting, setIsExiting] = useState(false);
   const exitTimer = useRef<NodeJS.Timeout | null>(null);
   const escTimer = useRef<NodeJS.Timeout | null>(null);
+  const statusBannerTimer = useRef<NodeJS.Timeout | null>(null);
+  const interruptFinalizeTimer = useRef<NodeJS.Timeout | null>(null);
   const escCountRef = useRef(0);
+
+  useEffect(() => {
+    return () => {
+      if (exitTimer.current) clearTimeout(exitTimer.current);
+      if (escTimer.current) clearTimeout(escTimer.current);
+      if (statusBannerTimer.current) clearTimeout(statusBannerTimer.current);
+      if (interruptFinalizeTimer.current) clearTimeout(interruptFinalizeTimer.current);
+    };
+  }, []);
 
   /**
    * Generates a new AbortController and returns its signal.
@@ -30,7 +43,27 @@ export function useCommandLifecycle(
 
   const splatInterrupt = useCallback(() => {
     abortController.abort();
-    dispatch({ type: 'INTERRUPT_STREAM' });
+    dispatch({
+      type: 'INTERRUPT_STREAM',
+      payload: { timestamp: new Date() },
+    });
+    dispatch({
+      type: 'SET_STATUS_BANNER',
+      payload: {
+        face: KAOMOJI.cleanupWorking,
+        label: text.ui.status.stopping,
+        source: 'lifecycle',
+      },
+    });
+    if (statusBannerTimer.current) clearTimeout(statusBannerTimer.current);
+    statusBannerTimer.current = setTimeout(() => {
+      dispatch({ type: 'CLEAR_STATUS_BANNER', payload: { source: 'lifecycle' } });
+    }, 15_000);
+
+    if (interruptFinalizeTimer.current) clearTimeout(interruptFinalizeTimer.current);
+    interruptFinalizeTimer.current = setTimeout(() => {
+      dispatch({ type: 'FINALIZE_INTERRUPT' });
+    }, 30_000);
     renewSignal();
   }, [abortController, dispatch, renewSignal]);
 

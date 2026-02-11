@@ -40,7 +40,12 @@ describe('useCommandLifecycle', () => {
       hoisted.inputHandler?.('c', { ctrl: true });
     });
 
-    expect(hoisted.dispatch).toHaveBeenCalledWith({ type: 'INTERRUPT_STREAM' });
+    expect(hoisted.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'INTERRUPT_STREAM' }),
+    );
+    expect(hoisted.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'SET_STATUS_BANNER' }),
+    );
     expect(onExit).not.toHaveBeenCalled();
   });
 
@@ -68,7 +73,12 @@ describe('useCommandLifecycle', () => {
       hoisted.inputHandler?.('', { escape: true });
     });
 
-    expect(hoisted.dispatch).toHaveBeenCalledWith({ type: 'INTERRUPT_STREAM' });
+    expect(hoisted.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'INTERRUPT_STREAM' }),
+    );
+    expect(hoisted.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'SET_STATUS_BANNER' }),
+    );
     expect(onExit).not.toHaveBeenCalled();
   });
 });

@@ -165,6 +165,14 @@ export type LoopEvent =
   | { type: 'phase.start'; phase: ExecutionPhase; timestamp: Date }
   | { type: 'phase.end'; phase: ExecutionPhase; success: boolean; timestamp: Date }
   | {
+      type: 'ui.status';
+      action: 'set' | 'clear';
+      face?: string;
+      label?: string;
+      ttlMs?: number;
+      timestamp: Date;
+    }
+  | {
       type: 'log';
       message: string;
       code?: string; // 增加语义化错误码支持

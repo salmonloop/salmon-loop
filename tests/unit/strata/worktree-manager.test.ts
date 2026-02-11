@@ -1,6 +1,8 @@
-const { queryMock, rmMock } = vi.hoisted(() => ({
+const { queryMock, rmMock, accessMock, realpathMock } = vi.hoisted(() => ({
   queryMock: vi.fn(),
   rmMock: vi.fn(),
+  accessMock: vi.fn(),
+  realpathMock: vi.fn(),
 }));
 
 vi.mock('../../../src/core/adapters/git/git-adapter.js', () => ({
@@ -11,6 +13,8 @@ vi.mock('../../../src/core/adapters/git/git-adapter.js', () => ({
 
 vi.mock('fs/promises', () => ({
   rm: rmMock,
+  access: accessMock,
+  realpath: realpathMock,
 }));
 
 vi.mock('os', () => ({
@@ -22,7 +26,13 @@ import { WorkspaceManager } from '../../../src/core/strata/layers/worktree.js';
 describe('WorkspaceManager teardown safety behavior', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    queryMock.mockReset();
+    rmMock.mockReset();
+    accessMock.mockReset();
+    realpathMock.mockReset();
+
     rmMock.mockResolvedValue(undefined);
+    accessMock.mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }));
   });
 
   it('emits skipped status when workPath equals base repo', async () => {
@@ -62,6 +72,50 @@ describe('WorkspaceManager teardown safety behavior', () => {
           event?.severity === 'low',
       ),
     ).toBe(true);
+  });
+
+  it('falls back to filesystem cleanup when git reports success but directory still exists', async () => {
+    queryMock
+      .mockResolvedValueOnce('/tmp/s8p-wt/repo/test-worktree\n') // worktree list
+      .mockResolvedValueOnce(''); // worktree remove
+    accessMock.mockResolvedValueOnce(undefined); // directory still exists after git removal
+
+    await WorkspaceManager.teardown({
+      strategy: 'worktree',
+      baseRepoPath: '/repo',
+      workPath: '/tmp/s8p-wt/repo/test-worktree',
+    });
+
+    expect(rmMock).toHaveBeenCalled();
+  });
+
+  it('removes worktree when list path differs but realpath matches', async () => {
+    queryMock
+      .mockResolvedValueOnce('worktree /private/tmp/s8p-wt/repo/test-worktree\n') // worktree list
+      .mockResolvedValueOnce(''); // worktree remove
+
+    realpathMock.mockImplementation(async (p: string) => {
+      if (p === '/tmp/s8p-wt/repo/test-worktree') return '/private/tmp/s8p-wt/repo/test-worktree';
+      return p;
+    });
+
+    accessMock.mockRejectedValueOnce(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }));
+
+    await WorkspaceManager.teardown({
+      strategy: 'worktree',
+      baseRepoPath: '/repo',
+      workPath: '/tmp/s8p-wt/repo/test-worktree',
+    });
+
+    expect(realpathMock).toHaveBeenCalledWith('/tmp/s8p-wt/repo/test-worktree');
+    expect(realpathMock).toHaveBeenCalledWith('/private/tmp/s8p-wt/repo/test-worktree');
+    expect(queryMock).toHaveBeenCalledWith([
+      'worktree',
+      'remove',
+      '--force',
+      '/private/tmp/s8p-wt/repo/test-worktree',
+    ]);
+    expect(rmMock).not.toHaveBeenCalled();
   });
 
   it('cleans up with fs when worktree is missing from git worktree list', async () => {
