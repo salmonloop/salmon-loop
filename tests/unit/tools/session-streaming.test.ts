@@ -104,6 +104,90 @@ describe('chatWithToolsStreaming', () => {
     expect(calls[1].messages.some((m) => m.role === 'tool' && m.name === 'test.echo')).toBe(true);
   });
 
+  it('denies excess tool calls when the session budget is exceeded', async () => {
+    const { registry, policy, router } = createToolstack();
+    registerEchoTool(registry);
+
+    const routerSpy = vi.spyOn(router, 'call');
+    const calls: Array<{ messages: LLMMessage[] }> = [];
+
+    const llm: any = {
+      chatStream(messages: LLMMessage[]) {
+        calls.push({ messages });
+        const hasToolResult = messages.some((m) => m.role === 'tool');
+
+        if (!hasToolResult) {
+          return (async function* () {
+            yield {
+              role: 'assistant',
+              tool_calls: [
+                {
+                  id: 'call_1',
+                  type: 'function',
+                  function: { name: 'test.echo', arguments: JSON.stringify({ text: 'a' }) },
+                },
+                {
+                  id: 'call_2',
+                  type: 'function',
+                  function: { name: 'test.echo', arguments: JSON.stringify({ text: 'b' }) },
+                },
+                {
+                  id: 'call_3',
+                  type: 'function',
+                  function: { name: 'test.echo', arguments: JSON.stringify({ text: 'c' }) },
+                },
+              ],
+            };
+            yield { role: 'assistant', done: true };
+          })();
+        }
+
+        const toolMsgs = messages.filter((m) => m.role === 'tool');
+        expect(toolMsgs).toHaveLength(3);
+        const parsed = toolMsgs.map((m) => JSON.parse(m.content));
+        expect(parsed.filter((p) => p.status === 'ok')).toHaveLength(2);
+        expect(parsed.filter((p) => p.error?.code === 'TOOL_CALL_BUDGET_EXCEEDED')).toHaveLength(1);
+
+        return (async function* () {
+          yield { role: 'assistant', contentDelta: 'DONE' };
+          yield { role: 'assistant', done: true };
+        })();
+      },
+      async chat() {
+        throw new Error('not used');
+      },
+      async createPlan() {
+        throw new Error('not used');
+      },
+      async createPatch() {
+        throw new Error('not used');
+      },
+    };
+
+    const final = await chatWithToolsStreaming(
+      [{ role: 'user', content: 'prompt' }],
+      {},
+      {
+        phase: Phase.PLAN,
+        llm,
+        runtime: {
+          repoRoot: '/tmp',
+          attemptId: 1,
+          dryRun: true,
+          model: 'test-model',
+          worktreeRoot: '/tmp',
+        },
+        toolstack: { registry, policy, router },
+        maxToolCallsPerRound: 2,
+        maxToolCallsTotal: 2,
+      },
+    );
+
+    expect(final.content).toBe('DONE');
+    expect(routerSpy).toHaveBeenCalledTimes(2);
+    expect(calls.length).toBe(2);
+  });
+
   it('executes tool calls even when the chunk order is text delta then tool call', async () => {
     const { registry, policy, router } = createToolstack();
     registerEchoTool(registry);

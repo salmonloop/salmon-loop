@@ -85,6 +85,12 @@ export const MESSAGE_STYLES: Record<
     hasBorder: true,
     marginBottom: 1,
   },
+  todo_card: {
+    inkColor: COLORS.semantic.blue,
+    label: 'TODO',
+    hasBorder: true,
+    marginBottom: 1,
+  },
   error: {
     inkColor: COLORS.semantic.red,
     label: 'ERROR',
@@ -297,7 +303,7 @@ export function shouldShowSeparator(
   if (!nextType) return false;
 
   // Always separate user/assistant messages
-  const emphasisTypes: MessageType[] = ['user', 'assistant', 'assistant_stream'];
+  const emphasisTypes: MessageType[] = ['user', 'assistant', 'assistant_stream', 'todo_card'];
   if (emphasisTypes.includes(currentType) || emphasisTypes.includes(nextType)) {
     return true;
   }

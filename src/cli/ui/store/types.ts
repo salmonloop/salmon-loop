@@ -33,6 +33,7 @@ export type MessageType =
   | 'warning' // Warning
   | 'queue' // Queue message
   | 'interrupt' // Interrupt signal
+  | 'todo_card' // TODO summary card
   | 'welcome'; // Welcome message (special)
 
 /**
@@ -57,6 +58,7 @@ export function getMessageLevel(type: MessageType): MessageLevel {
     case 'assistant_stream':
     case 'error':
     case 'warning':
+    case 'todo_card':
       return 'emphasis';
 
     case 'user':
@@ -127,6 +129,7 @@ export function normalizeLegacyType(type: string): MessageType {
     'warning',
     'queue',
     'interrupt',
+    'todo_card',
     'welcome',
   ];
   if (validTypes.includes(type)) {

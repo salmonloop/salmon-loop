@@ -2,6 +2,9 @@ import { Box, Text } from 'ink';
 import React from 'react';
 
 import type { MarkdownRenderMode, MarkdownTheme } from '../../core/config/types.js';
+import { readPlan } from '../../core/plan/index.js';
+import type { PlanReadResult } from '../../core/plan/types.js';
+import type { LoopEvent } from '../../core/types.js';
 import { getSuggestions } from '../commands/registry.js';
 import { text } from '../locales/index.js';
 
@@ -10,6 +13,8 @@ import { StretchingThinking } from './components/animations/StretchingThinking.j
 import { CommandInput } from './components/CommandInput.js';
 import { MessageList } from './components/MessageList.js';
 import { StatusBannerLine } from './components/StatusBannerLine.js';
+import { TodoDrawer } from './components/TodoDrawer.js';
+import type { TodoItem, TodoPriority, TodoStatus } from './components/TodoDrawer.js';
 import { UI_CONFIG } from './config.js';
 import { useCommandLifecycle } from './hooks/useCommandLifecycle.js';
 import { useLoopEvents } from './hooks/useLoopEvents.js';
@@ -17,6 +22,78 @@ import { useTerminalDimensions } from './hooks/useTerminalDimensions.js';
 import { bindSelectionDispatch } from './selection/bus.js';
 import { UIStoreProvider, useUIStore } from './store/context.js';
 import { COLORS } from './styles/theme.js';
+
+const MemoMessageList = React.memo(MessageList);
+
+function buildTodoSummaryCard(todos: TodoItem[]): string {
+  const total = todos.length;
+  const done = todos.filter((t) => t.status === 'done').length;
+  const inProgress = todos.filter((t) => t.status === 'in_progress').length;
+  const pending = todos.filter((t) => t.status === 'pending').length;
+
+  const width = 56; // total visual width including borders
+  const innerWidth = width - 2;
+  const line = (s: string) => {
+    const truncated = s.length > width - 4 ? s.slice(0, width - 7) + '...' : s;
+    return `│ ${truncated.padEnd(width - 4, ' ')} │`;
+  };
+
+  const headerInside = `─ TODO ${'─'.repeat(Math.max(0, innerWidth - '─ TODO '.length))}`;
+  const header = `┌${headerInside}┐`;
+  const bottom = `└${'─'.repeat(innerWidth)}┘`;
+
+  const body: string[] = [];
+  body.push(line(`Done: ${done}/${total}  In progress: ${inProgress}  Pending: ${pending}`));
+  body.push(line(''));
+
+  const preview = todos.slice(0, 6);
+  for (const t of preview) {
+    const mark = t.status === 'done' ? '[x]' : t.status === 'in_progress' ? '[/]' : '[ ]';
+    body.push(line(`${mark} ${t.text}`));
+  }
+  if (todos.length > preview.length) {
+    body.push(line(`… and ${todos.length - preview.length} more`));
+  }
+
+  return ['```text', header, ...body, bottom, '```'].join('\n');
+}
+
+function parseTodoPriority(text: string): { priority?: TodoPriority; text: string } {
+  const trimmed = text.trimStart();
+  const first = trimmed[0];
+  if (first === '!') return { priority: 'high', text: trimmed.slice(1).trimStart() };
+  if (first === '·') return { priority: 'medium', text: trimmed.slice(1).trimStart() };
+  if (first === '‐') return { priority: 'low', text: trimmed.slice(1).trimStart() };
+  return { priority: undefined, text: text.trim() };
+}
+
+function toTodoStatus(step: { checkbox?: 'checked' | 'unchecked'; status?: string }): TodoStatus {
+  if (step.checkbox === 'checked' || step.status === 'done') return 'done';
+  if (step.status === 'active' || step.status === 'conflict') return 'in_progress';
+  return 'pending';
+}
+
+function toTodoItems(read: Pick<PlanReadResult, 'active' | 'pending' | 'recentDone'>): TodoItem[] {
+  const ordered = [...(read.active ?? []), ...(read.pending ?? []), ...(read.recentDone ?? [])];
+  const seen = new Set<string>();
+  const items: TodoItem[] = [];
+
+  for (const step of ordered) {
+    if (!step?.stepId || seen.has(step.stepId)) continue;
+    seen.add(step.stepId);
+    if (step.stepId === 'work_root') continue;
+
+    const parsed = parseTodoPriority(step.text);
+    items.push({
+      id: step.stepId,
+      status: toTodoStatus(step),
+      text: parsed.text,
+      priority: parsed.priority,
+    });
+  }
+
+  return items;
+}
 
 const AppCore: React.FC<{
   mode: 'run' | 'chat';
@@ -33,7 +110,103 @@ const AppCore: React.FC<{
 
   // Use modular hooks for environment and loop events
   useTerminalDimensions();
-  const { sanitizeAndDispatch } = useLoopEvents(mode, onStart, signal);
+  const [todoExpanded, setTodoExpanded] = React.useState(false);
+  const [todoItems, setTodoItems] = React.useState<TodoItem[]>([]);
+  const [taskRunning, setTaskRunning] = React.useState(false);
+  const repoRootRef = React.useRef<string>(process.cwd());
+  if (repoRootRef.current === process.cwd()) {
+    try {
+      repoRootRef.current = String(sessionManager.getCurrent().meta.repoPath ?? process.cwd());
+    } catch {
+      // ignore
+    }
+  }
+  React.useEffect(() => {
+    try {
+      repoRootRef.current = String(sessionManager.getCurrent().meta.repoPath ?? process.cwd());
+    } catch {
+      repoRootRef.current = process.cwd();
+    }
+  }, [sessionManager]);
+
+  const todoSessionRef = React.useRef<{ sessionId: string; planPathHint: string } | null>(null);
+  const refreshTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+  const prevTaskRunningRef = React.useRef(false);
+
+  const refreshTodos = React.useCallback(async () => {
+    const runtime = todoSessionRef.current;
+    if (!runtime?.sessionId) return;
+    try {
+      const res: PlanReadResult = await readPlan({
+        persistenceRoot: repoRootRef.current,
+        sessionId: runtime.sessionId,
+      });
+      setTodoItems(toTodoItems(res));
+    } catch {
+      // Best-effort; UI should never crash due to plan persistence issues.
+    }
+  }, []);
+
+  const scheduleRefreshTodos = React.useCallback(() => {
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = setTimeout(() => {
+      refreshTodos().catch(() => {});
+    }, 120);
+  }, [refreshTodos]);
+
+  React.useEffect(() => {
+    return () => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    };
+  }, []);
+
+  const interceptEvent = React.useCallback(
+    (event: LoopEvent) => {
+      if (event.type === 'plan.runtime.ready') {
+        todoSessionRef.current = { sessionId: event.sessionId, planPathHint: event.planPathHint };
+        scheduleRefreshTodos();
+      } else if (event.type === 'plan.runtime.unavailable') {
+        todoSessionRef.current = null;
+        setTodoItems([]);
+      } else if (event.type === 'phase.start') {
+        if (!prevTaskRunningRef.current) {
+          setTodoItems([]);
+          setTodoExpanded(false);
+        }
+        setTaskRunning(true);
+      } else if (event.type === 'phase.end') {
+        if (event.phase === 'SHRINK') {
+          setTaskRunning(false);
+        }
+      } else if (event.type === 'tool.call.end') {
+        if (typeof event.toolName === 'string' && event.toolName.startsWith('plan.')) {
+          scheduleRefreshTodos();
+        }
+      }
+    },
+    [scheduleRefreshTodos],
+  );
+
+  const { sanitizeAndDispatch } = useLoopEvents(mode, onStart, signal, {
+    interceptEvent,
+  });
+
+  React.useEffect(() => {
+    if (prevTaskRunningRef.current && !taskRunning && todoItems.length > 0) {
+      const content = buildTodoSummaryCard(todoItems);
+      dispatch({
+        type: 'ADD_MESSAGE',
+        payload: {
+          id: `todo-card-${Date.now()}`,
+          type: 'todo_card',
+          content,
+          timestamp: new Date(),
+        },
+      });
+      setTodoExpanded(false);
+    }
+    prevTaskRunningRef.current = taskRunning;
+  }, [dispatch, taskRunning, todoItems]);
 
   const pendingConfirmationRef = React.useRef(state.pendingConfirmation);
   React.useEffect(() => {
@@ -84,7 +257,7 @@ const AppCore: React.FC<{
         paddingX={UI_CONFIG.MESSAGE_AREA_PADDING_X}
         paddingBottom={UI_CONFIG.MESSAGE_AREA_PADDING_BOTTOM}
       >
-        <MessageList markdownTheme={markdownTheme} markdownRenderMode={markdownRenderMode} />
+        <MemoMessageList markdownTheme={markdownTheme} markdownRenderMode={markdownRenderMode} />
       </Box>
 
       {/* Thinking Status */}
@@ -98,7 +271,15 @@ const AppCore: React.FC<{
         </Box>
       )}
 
-      {/* Input & Status Area */}
+      {taskRunning && todoItems.length > 0 && (
+        <TodoDrawer
+          todos={todoItems}
+          isExpanded={todoExpanded}
+          onToggle={() => setTodoExpanded((v) => !v)}
+        />
+      )}
+
+      {/* Command Prompt */}
       <Box
         flexDirection="column"
         marginTop={0}
@@ -108,7 +289,7 @@ const AppCore: React.FC<{
         borderBottom={false}
         borderLeft={false}
         borderRight={false}
-        borderColor="gray"
+        borderColor={COLORS.border.subtle}
       >
         <Box paddingY={1} flexDirection="row" paddingX={UI_CONFIG.INPUT_ROW_PADDING_X}>
           <Box marginRight={1}>

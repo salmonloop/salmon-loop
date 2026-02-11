@@ -9,7 +9,14 @@ import { prepareMessagePayload, sanitizeMessage } from '../utils/sanitizer.js';
 /**
  * Hook to manage loop events and state synchronization.
  */
-export function useLoopEvents(mode: 'run' | 'chat', onStart: any, signal: AbortSignal) {
+export function useLoopEvents(
+  mode: 'run' | 'chat',
+  onStart: any,
+  signal: AbortSignal,
+  options?: {
+    interceptEvent?: (event: any) => void;
+  },
+) {
   const { dispatch } = useUIStore();
   const runStartedRef = useRef(false);
 
@@ -101,6 +108,8 @@ export function useLoopEvents(mode: 'run' | 'chat', onStart: any, signal: AbortS
   const handleEvent = useCallback(
     (event: any) => {
       if (!event) return;
+
+      options?.interceptEvent?.(event);
 
       if (event.type === 'ui.status') {
         if (event.action === 'clear') {

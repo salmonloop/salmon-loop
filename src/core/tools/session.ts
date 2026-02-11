@@ -13,7 +13,7 @@ import type {
   LoopEvent,
   LLM,
 } from '../types.js';
-import { ExecutionPhase } from '../types.js';
+import { Phase, type ExecutionPhase } from '../types.js';
 
 import { toolToOpenAI } from './mapper.js';
 import { InMemoryLockManager } from './parallel/lock-manager.js';
@@ -53,6 +53,8 @@ export interface ToolCallingSessionOptions {
     step: ExecutionStep;
   };
   maxRounds?: number;
+  maxToolCallsTotal?: number;
+  maxToolCallsPerRound?: number;
 }
 
 function safeParseJson(argsText: unknown): { ok: true; value: any } | { ok: false; error: string } {
@@ -104,6 +106,31 @@ function safeStringifyForAudit(value: unknown): string {
   }
 }
 
+function defaultMaxToolCallsTotalForPhase(phase: ExecutionPhase): number {
+  if (phase === Phase.EXPLORE) return 30;
+  if (phase === Phase.PLAN) return 20;
+  if (phase === Phase.PATCH) return 20;
+  return 20;
+}
+
+function getToolCallBudget(session: ToolCallingSessionOptions): {
+  maxTotal: number;
+  maxPerRound: number;
+} {
+  const maxTotal = session.maxToolCallsTotal ?? defaultMaxToolCallsTotalForPhase(session.phase);
+  const maxPerRound = session.maxToolCallsPerRound ?? 8;
+  return {
+    maxTotal: Math.max(0, Math.floor(maxTotal)),
+    maxPerRound: Math.max(0, Math.floor(maxPerRound)),
+  };
+}
+
+type ToolCallBudgetState = {
+  used: number;
+  maxTotal: number;
+  maxPerRound: number;
+};
+
 /**
  * Runs an OpenAI-style tool calling loop:
  * - Send messages (+ tools)
@@ -118,6 +145,10 @@ export async function chatWithTools(
 ): Promise<LLMMessage> {
   const maxRounds = session.maxRounds ?? 6;
   const phase = session.phase;
+  const budget = getToolCallBudget(session);
+  (
+    session as ToolCallingSessionOptions & { __toolCallBudgetState?: ToolCallBudgetState }
+  ).__toolCallBudgetState = { used: 0, ...budget };
 
   const allowedSpecs = session.toolstack.registry.listAll().filter((spec) => {
     return session.toolstack.policy.decide(phase, spec, {
@@ -215,6 +246,20 @@ async function executeToolCalls(
     return { callId, toolName, rawArgs };
   });
 
+  const budget = getToolCallBudget(session);
+  // Keep budget state on the session object to share between rounds without expanding public API.
+  const anySession = session as ToolCallingSessionOptions & {
+    __toolCallBudgetState?: ToolCallBudgetState;
+  };
+  const budgetState: ToolCallBudgetState = anySession.__toolCallBudgetState || {
+    used: 0,
+    ...budget,
+  };
+  // Ensure runtime updates (if caller overrides budget between invocations) are respected.
+  budgetState.maxTotal = budget.maxTotal;
+  budgetState.maxPerRound = budget.maxPerRound;
+  anySession.__toolCallBudgetState = budgetState;
+
   for (const item of prepared) {
     if (item.toolName && typeof item.toolName === 'string') {
       session.emit?.({
@@ -237,8 +282,46 @@ async function executeToolCalls(
   const toolResults = new Map<string, ToolResult>();
   const nodes: PlanNode[] = [];
 
+  const roundCap = Math.min(
+    budgetState.maxPerRound,
+    Math.max(0, budgetState.maxTotal - budgetState.used),
+  );
+  budgetState.used += prepared.length;
+
+  if (prepared.length > roundCap) {
+    session.emit?.({
+      type: 'log',
+      level: 'warn',
+      message: `Tool call budget exceeded; denying ${prepared.length - roundCap} tool calls (phase=${phase}, round=${round})`,
+      timestamp: new Date(),
+    });
+  }
+
+  let allowedUsed = 0;
   for (const item of prepared) {
     const { callId, toolName, rawArgs } = item;
+
+    // Hard budget: deny tool execution once the session exceeds the configured budget.
+    // We still return a tool result for protocol completeness and observability.
+    if (allowedUsed >= roundCap) {
+      toolResults.set(callId, {
+        id: callId,
+        toolName: typeof toolName === 'string' ? toolName : 'unknown',
+        source: 'builtin',
+        status: 'error',
+        error: {
+          code: 'TOOL_CALL_BUDGET_EXCEEDED',
+          message:
+            'Tool call denied: tool calling budget exceeded for this session. Continue without additional tool calls.',
+          retryable: false,
+          failurePhase: phase,
+        },
+        durationMs: 0,
+      });
+      continue;
+    }
+
+    allowedUsed++;
 
     if (!toolName || typeof toolName !== 'string') {
       logger.warn('Received malformed tool call (missing function.name)');
@@ -504,6 +587,10 @@ export async function chatWithToolsStreaming(
 
   const maxRounds = session.maxRounds ?? 6;
   const phase = session.phase;
+  const budget = getToolCallBudget(session);
+  (
+    session as ToolCallingSessionOptions & { __toolCallBudgetState?: ToolCallBudgetState }
+  ).__toolCallBudgetState = { used: 0, ...budget };
 
   const allowedSpecs = session.toolstack.registry.listAll().filter((spec) => {
     return session.toolstack.policy.decide(phase, spec, {
