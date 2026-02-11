@@ -1,5 +1,6 @@
 import { setAuditContext } from '../audit-trail.js';
 import { logger } from '../logger.js';
+import { appendPlanNote } from '../plan/index.js';
 import { EXECUTION_PHASES, type ExecutionPhase, type LoopEvent, type FlowMode } from '../types.js';
 
 /**
@@ -65,6 +66,26 @@ export class Pipeline<CurrentCtx> {
       const emit = (ctx as { emit?: (event: LoopEvent) => void }).emit;
       const isPhase = (value: string): value is ExecutionPhase =>
         (EXECUTION_PHASES as readonly string[]).includes(value);
+      const planRuntime = (ctx as any)?.planRuntime as
+        | { sessionId: string; planPathHint: string }
+        | undefined;
+      const persistenceRoot =
+        (ctx as any)?.workspace?.baseRepoPath || (ctx as any)?.workspace?.workPath;
+      const attempt = (ctx as any)?.attempt ?? 1;
+
+      const tryAppendPlanNote = async (note: string) => {
+        if (!planRuntime || !persistenceRoot) return;
+        try {
+          await appendPlanNote({
+            persistenceRoot,
+            sessionId: planRuntime.sessionId,
+            note,
+          });
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          logger.debug(`[PlanRuntime] Failed to append note: ${msg}`);
+        }
+      };
 
       try {
         this.ctxRef.current = ctx;
@@ -77,6 +98,7 @@ export class Pipeline<CurrentCtx> {
         if (emit && isPhase(name)) {
           emit({ type: 'phase.start', phase: name, timestamp: new Date() });
           phaseStarted = true;
+          await tryAppendPlanNote(`Attempt ${attempt}: phase.start ${name}`);
         }
         result = await action(ctx);
         this.ctxRef.current = result;
@@ -100,6 +122,9 @@ export class Pipeline<CurrentCtx> {
             success: !errorStr,
             timestamp: new Date(),
           });
+          await tryAppendPlanNote(
+            `Attempt ${attempt}: phase.end ${name} (success=${String(!errorStr)})`,
+          );
         }
         setAuditContext({ phase: undefined });
         const end = Date.now();
@@ -135,6 +160,26 @@ export class Pipeline<CurrentCtx> {
       const emit = (ctx as { emit?: (event: LoopEvent) => void }).emit;
       const isPhase = (value: string): value is ExecutionPhase =>
         (EXECUTION_PHASES as readonly string[]).includes(value);
+      const planRuntime = (ctx as any)?.planRuntime as
+        | { sessionId: string; planPathHint: string }
+        | undefined;
+      const persistenceRoot =
+        (ctx as any)?.workspace?.baseRepoPath || (ctx as any)?.workspace?.workPath;
+      const attempt = (ctx as any)?.attempt ?? 1;
+
+      const tryAppendPlanNote = async (note: string) => {
+        if (!planRuntime || !persistenceRoot) return;
+        try {
+          await appendPlanNote({
+            persistenceRoot,
+            sessionId: planRuntime.sessionId,
+            note,
+          });
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          logger.debug(`[PlanRuntime] Failed to append note: ${msg}`);
+        }
+      };
 
       try {
         this.ctxRef.current = ctx;
@@ -148,6 +193,7 @@ export class Pipeline<CurrentCtx> {
         if (emit && isPhase(name)) {
           emit({ type: 'phase.start', phase: name, timestamp: new Date() });
           phaseStarted = true;
+          await tryAppendPlanNote(`Attempt ${attempt}: phase.start ${name}`);
         }
         result = await action(ctx);
         this.ctxRef.current = result;
@@ -213,6 +259,9 @@ export class Pipeline<CurrentCtx> {
             success: !errorStr,
             timestamp: new Date(),
           });
+          await tryAppendPlanNote(
+            `Attempt ${attempt}: phase.end ${name} (success=${String(!errorStr)})`,
+          );
         }
         setAuditContext({ phase: undefined });
         const end = Date.now();

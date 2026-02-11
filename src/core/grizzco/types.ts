@@ -54,6 +54,14 @@ export interface InitCtx {
   fs: FileSystem;
   emit: (event: LoopEvent) => void;
   fileStateResolver: FileStateResolver;
+  /**
+   * Runtime plan session for this run (local-only, gitignored).
+   * The host initializes this once per task so both the host and LLM tools can update it.
+   */
+  planRuntime?: {
+    sessionId: string;
+    planPathHint: string;
+  };
   attempt?: number;
   lastError?: string;
   toolstack?: Toolstack;

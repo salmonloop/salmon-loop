@@ -116,12 +116,24 @@ export class PromptRegistry {
     return this.render('plan_system', { tools: this.getToolsForTemplate() });
   }
 
+  renderPlanSystemWithRuntime(runtime?: unknown): string {
+    return this.render('plan_system', { tools: this.getToolsForTemplate(), runtime });
+  }
+
   renderPatchSystem(): string {
-    return this.render('patch_system', { tools: this.getToolsForTemplate() });
+    return this.renderPatchSystemWithRuntime(undefined);
+  }
+
+  renderPatchSystemWithRuntime(runtime?: unknown): string {
+    return this.render('patch_system', { tools: this.getToolsForTemplate(), runtime });
   }
 
   renderExploreSystem(): string {
-    return this.render('explore_system', { tools: this.getToolsForTemplate() });
+    return this.renderExploreSystemWithRuntime(undefined);
+  }
+
+  renderExploreSystemWithRuntime(runtime?: unknown): string {
+    return this.render('explore_system', { tools: this.getToolsForTemplate(), runtime });
   }
 
   renderExplore(vars: ExplorePromptVars): string {

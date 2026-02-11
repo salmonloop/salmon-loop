@@ -471,6 +471,9 @@ Please return the patch in PURE unified diff format:`;
     testRunDescription: 'Run verification command (test/lint/build) and classify errors',
     artifactReadDescription: 'Read salmonloop (s8p) artifacts by handle',
     proposalApplyDescription: 'Apply a patch proposal artifact into the current shadow worktree',
+    planInitDescription: 'Initialize a runtime Markdown plan file under .salmonloop/plans/',
+    planReadDescription: 'Read a summarized view of the current runtime Markdown plan',
+    planUpdateDescription: 'Update a plan step by stable sl:id with minimal in-place edits',
 
     // Execution logs
     executing: (name: string) => `Executing tool: ${name}...`,

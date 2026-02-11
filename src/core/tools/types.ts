@@ -13,6 +13,7 @@ export type SideEffect =
   | 'none'
   | 'fs_read'
   | 'fs_write'
+  | 'runtime_write'
   | 'process'
   | 'network'
   | 'git_read'

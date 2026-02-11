@@ -13,6 +13,7 @@ import type { ShrinkCtx } from './grizzco/types.js';
 import { LIMITS } from './limits.js';
 import { sanitizeError } from './llm/errors.js';
 import { logger } from './logger.js';
+import { initPlan } from './plan/index.js';
 import { FileStateResolver } from './strata/layers/file-state-resolver.js';
 import { RuntimeEnvironment } from './strata/runtime/environment.js';
 import { WorkspaceSynchronizer } from './strata/runtime/synchronizer.js';
@@ -207,6 +208,29 @@ export class SalmonLoop {
     let shadowLatestRef: string | null = null;
     const shadowTaskId = randomBytes(4).toString('hex');
     let authorizationSummary: AuthorizationSourceSummary | null = null;
+    let planRuntime: { sessionId: string; planPathHint: string } | undefined;
+    try {
+      const initialized = await initPlan({
+        persistenceRoot: env.workspace!.baseRepoPath || activeRepoPath,
+        mission: options.instruction,
+        objective: 'Track task progress and support resumable execution.',
+        context: `mode=${flowMode}\nverify=${options.verify}\nstrategy=${options.strategy ?? 'local'}`,
+      });
+      planRuntime = { sessionId: initialized.sessionId, planPathHint: initialized.planPathHint };
+      emit({
+        type: 'log',
+        level: 'debug',
+        message: `Runtime plan initialized: sessionId=${initialized.sessionId}`,
+        timestamp: now(),
+      });
+    } catch (error) {
+      emit({
+        type: 'log',
+        level: 'warn',
+        message: `Runtime plan init failed (continuing without plan): ${sanitizeError(error)}`,
+        timestamp: now(),
+      });
+    }
 
     try {
       let currentPhase: string = 'UNKNOWN';
@@ -253,6 +277,7 @@ export class SalmonLoop {
           fs: fsAdapter,
           emit: loopEmit,
           fileStateResolver: resolver,
+          planRuntime,
           // 🛡️ HANDOVER: Pass the physical snapshot hash to the logical flow layer
           // to ensure transactional integrity and rollback capability.
           shadowInitialRef: env.initialSnapshotHash!,

@@ -51,8 +51,8 @@ Safety guarantees:
 
 1. **PREFLIGHT**: Read-only. Checks environment safety (git repo).
 2. **CONTEXT**: Read-only. Gathers codebase context and target file content.
-3. **PLAN**: Read-only. The LLM analyzes the context and instruction to generate a JSON plan. No filesystem mutation occurs.
-4. **PATCH**: Read-only. The LLM generates a unified diff based on the plan. No filesystem mutation occurs.
+3. **PLAN**: Read-only. The LLM analyzes the context and instruction to generate a JSON plan.
+4. **PATCH**: Read-only. The LLM generates a unified diff based on the plan.
 5. **VALIDATE**: Read-only. The system validates the diff against security and size limits. It may also perform AST-based validation (syntax and scope integrity) on the proposed changes.
 6. **APPLY**: Mutating (shadow workspace). The system applies changes using an intent-routed **Shadow Merge Engine**: incremental diffs (PATCH) are applied via the native `git apply` engine (optionally `--3way` when safe), while full-file merges may use 3-way content merge workers (e.g., `git merge-file`). This preserves atomicity and staged/unstaged semantics within dirty workspaces.
 7. **VERIFY**: Read-only. The system runs the user-provided verification command.
@@ -61,7 +61,21 @@ Safety guarantees:
 
 Note: apply-back (shadow -> main) is described separately in `docs/design/applyback.md`.
 
-**Definition (Read-only):** In SalmonLoop, "read-only" means **no mutation of the user's main workspace working tree or index**. Read-only phases **MAY** write to internal runtime storage (e.g., OS temp artifacts, audit logs) as long as those writes do not affect the user's repository state.
+**Definition (Read-only):** In SalmonLoop, "read-only" means:
+- **No mutation of user repository assets** in the user's main workspace working tree (tracked or untracked).
+  - This explicitly includes untracked files such as `.env`, credentials, local config, datasets, etc.
+- **No mutation of the Git index** (Zero Index Access).
+
+Read-only phases **MAY** write a narrow set of **runtime artifacts / metadata** that are explicitly scoped to SalmonLoop:
+- OS temp artifacts owned by the current run.
+- Files under `.salmonloop/**` (intentionally local-only runtime state).
+- A restricted Git metadata exception: writing `.git/info/exclude` **only** to add `.salmonloop/` (local ignore), to prevent runtime artifacts from dirtying the repo.
+
+All allowed runtime writes must remain within these approved roots. Any write outside these roots is a contract violation.
+
+**Tool-calling restriction (PLAN/PATCH):**
+- The only model-visible write capability allowed in read-only phases is updating the runtime plan file under `.salmonloop/plans/**` via `plan.*` tools.
+- No other tool may write to the repository during PLAN/PATCH, even if the target file is untracked.
 
 ## Safety Rules
 

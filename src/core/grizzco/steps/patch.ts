@@ -67,7 +67,7 @@ export const generatePatch: Step<PlanCtx, PatchCtx> = async (ctx) => {
     ctx.lastError,
   );
 
-  const systemPrompt = await getPatchSystemPrompt(toolstack?.registry);
+  const systemPrompt = await getPatchSystemPrompt(toolstack?.registry, { plan: ctx.planRuntime });
   const supportsStreaming = typeof ctx.options.llm.chatStream === 'function';
   const llmOutput = {
     policy: ctx.options.llmOutput,

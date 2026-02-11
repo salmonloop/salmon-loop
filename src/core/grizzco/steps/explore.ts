@@ -29,7 +29,7 @@ export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
     ctx.lastError,
   );
 
-  const systemPrompt = await getExploreSystemPrompt(toolstack.registry);
+  const systemPrompt = await getExploreSystemPrompt(toolstack.registry, { plan: ctx.planRuntime });
 
   const supportsStreaming = typeof ctx.options.llm.chatStream === 'function';
   const llmOutput = {

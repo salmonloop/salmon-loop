@@ -18,8 +18,11 @@ export class ToolPolicy {
     }
 
     // 2. Side Effect Analysis
-    const hasWrite =
-      spec.sideEffects.includes('fs_write') || spec.sideEffects.includes('git_write');
+    const hasRepoWrite =
+      spec.sideEffects.includes('fs_write') ||
+      spec.sideEffects.includes('git_write') ||
+      spec.sideEffects.includes('snapshot_mutate');
+    const hasRuntimeWrite = spec.sideEffects.includes('runtime_write');
     const hasProcess = spec.sideEffects.includes('process');
     const hasNetwork = spec.sideEffects.includes('network');
 
@@ -32,17 +35,30 @@ export class ToolPolicy {
       };
     }
 
-    // 4. Worktree Requirement for Side Effects
-    // Any tool with mutation side effects or process execution MUST have a worktree
-    if ((hasWrite || hasProcess || hasNetwork) && !ctx.worktreeRoot) {
+    // 4. Runtime write is a narrow exemption for local runtime artifacts (e.g. .salmonloop/**).
+    // It must never be used as a backdoor for arbitrary workspace mutation.
+    if (hasRuntimeWrite && !spec.name.startsWith('plan.')) {
+      return {
+        allowed: false,
+        denyReason: `runtime_write is only allowed for plan.* tools (got: ${spec.name})`,
+      };
+    }
+
+    // 5. Worktree Requirement for Side Effects
+    // Any repo-mutating tool or process/network execution MUST have a worktree.
+    if ((hasRepoWrite || hasProcess || hasNetwork) && !ctx.worktreeRoot) {
       return {
         allowed: false,
         denyReason: `Tool ${spec.name} has side effects [${spec.sideEffects.join(',')}] and requires worktree isolation`,
       };
     }
 
-    // 5. PLAN/PATCH phases should remain deterministic
-    if ((phase === Phase.PLAN || phase === Phase.PATCH) && (hasWrite || hasProcess || hasNetwork)) {
+    // 6. PLAN/PATCH phases should remain deterministic for code assets.
+    // runtime_write is permitted for local runtime artifacts in narrow, path-sandboxed tools.
+    if (
+      (phase === Phase.PLAN || phase === Phase.PATCH) &&
+      (hasRepoWrite || hasProcess || hasNetwork)
+    ) {
       return {
         allowed: false,
         denyReason: `Mutating tool ${spec.name} is forbidden in ${phase} phase to maintain determinism`,
