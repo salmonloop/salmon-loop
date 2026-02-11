@@ -1,95 +1,91 @@
-import { GitAdapter } from '../../../src/core/adapters/git/git-adapter.js';
 import { CheckpointManager } from '../../../src/core/strata/checkpoint/manager.js';
+import { RealFsTestHelper } from '../../helpers/real-fs-helper.js';
 
-// Mock GitAdapter to verify low-level commands and environment isolation
-vi.mock('../../../src/core/adapters/git/git-adapter', () => {
-  const MockGit = vi.fn().mockImplementation(() => ({
-    exec: vi.fn().mockResolvedValue('mock_hash_or_output'),
-    query: vi.fn().mockResolvedValue('mock_tree_or_log'),
-    getStatus: vi.fn().mockResolvedValue(''),
-  }));
-  return { GitAdapter: MockGit };
-});
+describe('CheckpointManager behavior safety', () => {
+  const helper = new RealFsTestHelper();
+  const manager = new CheckpointManager();
 
-describe('CheckpointManager: Zero Index Access', () => {
-  let manager: CheckpointManager;
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    manager = new CheckpointManager();
+  afterEach(async () => {
+    await helper.cleanup();
   });
 
-  it('should use a temporary index file during snapshot creation to avoid index pollution', async () => {
-    const repoPath = '/mock/repo';
-    await manager.createSafeSnapshot(repoPath);
-
-    const GitAdapterMock = vi.mocked(GitAdapter);
-    // Get the instance created inside createSafeSnapshot
-    const gitInstance = GitAdapterMock.mock.results[0].value;
-
-    // Core Verification: Must use GIT_INDEX_FILE environment variable
-    const execCalls = gitInstance.exec.mock.calls;
-    const hasTempIndex = execCalls.some((call: any) => {
-      const options = call[1];
-      return (
-        options?.env &&
-        options.env.GIT_INDEX_FILE &&
-        options.env.GIT_INDEX_FILE.includes('s8p-idx-')
-      );
+  it('creates snapshot without mutating current index/worktree state', async () => {
+    const repo = await helper.createGitRepo({
+      initialFiles: [{ path: 'src/file.ts', content: 'base\n' }],
     });
 
-    expect(hasTempIndex).toBe(true);
+    await helper.modifyFile(repo.path, 'src/file.ts', 'staged\n', true);
+    await helper.modifyFile(repo.path, 'src/file.ts', 'unstaged\n');
 
-    // Verify initialization of temp index from staged tree
-    expect(gitInstance.exec).toHaveBeenCalledWith(
-      expect.arrayContaining(['read-tree', 'mock_tree_or_log']),
-      expect.objectContaining({ env: expect.any(Object) }),
-    );
+    const statusBefore = await helper.getGitStatus(repo.path);
+    const indexBefore = await helper.git(repo.path, ['show', ':src/file.ts']);
+
+    const snapshot = await manager.createSafeSnapshot(repo.path);
+
+    const statusAfter = await helper.getGitStatus(repo.path);
+    const indexAfter = await helper.git(repo.path, ['show', ':src/file.ts']);
+    const workingAfter = await helper.readFile(repo.path, 'src/file.ts');
+
+    expect(snapshot.commitHash.length).toBeGreaterThan(0);
+    expect(statusAfter).toBe(statusBefore);
+    expect(indexAfter.stdout).toBe(indexBefore.stdout);
+    expect(workingAfter).toBe('unstaged\n');
   });
 
-  it('should capture staged state separately using the real index', async () => {
-    const repoPath = '/mock/repo';
-    await manager.createSafeSnapshot(repoPath);
+  it('captures staged and unstaged views in snapshot artifacts', async () => {
+    const repo = await helper.createGitRepo({
+      initialFiles: [{ path: 'src/file.ts', content: 'base\n' }],
+    });
 
-    const GitAdapterMock = vi.mocked(GitAdapter);
-    const gitInstance = GitAdapterMock.mock.results[0].value;
+    await helper.modifyFile(repo.path, 'src/file.ts', 'staged\n', true);
+    await helper.modifyFile(repo.path, 'src/file.ts', 'unstaged\n');
 
-    // First write-tree should be the staged state (no temp env specified in query)
-    expect(gitInstance.query).toHaveBeenCalledWith(['write-tree']);
-  });
-
-  it('should capture working tree state in the temporary environment', async () => {
-    const repoPath = '/mock/repo';
-    await manager.createSafeSnapshot(repoPath);
-
-    const GitAdapterMock = vi.mocked(GitAdapter);
-    const gitInstance = GitAdapterMock.mock.results[0].value;
-
-    // Second write-tree should be for the working tree capture
-    expect(gitInstance.exec).toHaveBeenCalledWith(
-      ['write-tree'],
-      expect.objectContaining({
-        env: expect.objectContaining({ GIT_INDEX_FILE: expect.any(String) }),
-      }),
-    );
-  });
-
-  it('should persist the snapshot as a commit with metadata', async () => {
-    const repoPath = '/mock/repo';
-    await manager.createSafeSnapshot(repoPath, [], 'test snapshot');
-
-    const GitAdapterMock = vi.mocked(GitAdapter);
-    const gitInstance = GitAdapterMock.mock.results[0].value;
-
-    // Verify commit-tree was called to create the snapshot object
-    expect(gitInstance.exec).toHaveBeenCalledWith(
-      expect.arrayContaining(['commit-tree', 'mock_hash_or_output', '-p', 'HEAD']),
-      expect.anything(),
+    const snapshot = await manager.createSafeSnapshot(repo.path);
+    const details = await manager.getSnapshotDetails(repo.path, snapshot.commitHash);
+    const snapshotContent = await manager.readSnapshotFile(
+      repo.path,
+      snapshot.commitHash,
+      'src/file.ts',
     );
 
-    // Verify update-ref was called to persist the checkpoint
-    expect(gitInstance.query).toHaveBeenCalledWith(
-      expect.arrayContaining(['update-ref', '-m', 's8p-checkpoint']),
+    expect(details.stagedFiles).toContain('src/file.ts');
+    expect(details.unstagedFiles).toContain('src/file.ts');
+    expect(snapshotContent).toBe('unstaged');
+  });
+
+  it('restores snapshot state with index and working tree separation preserved', async () => {
+    const repo = await helper.createGitRepo({
+      initialFiles: [{ path: 'src/file.ts', content: 'base\n' }],
+    });
+
+    await helper.modifyFile(repo.path, 'src/file.ts', 'staged\n', true);
+    await helper.modifyFile(repo.path, 'src/file.ts', 'unstaged\n');
+    const snapshot = await manager.createSafeSnapshot(repo.path);
+
+    await helper.modifyFile(repo.path, 'src/file.ts', 'garbage\n', true);
+    await helper.modifyFile(repo.path, 'src/file.ts', 'garbage-unstaged\n');
+
+    await manager.restoreToMain(repo.path, snapshot.commitHash, true);
+
+    const working = await helper.readFile(repo.path, 'src/file.ts');
+    const index = await helper.git(repo.path, ['show', ':src/file.ts']);
+    const status = await helper.getGitStatus(repo.path);
+
+    expect(working).toBe('unstaged\n');
+    expect(index.stdout).toBe('staged');
+    expect(status).toContain('MM src/file.ts');
+  });
+
+  it('rejects non-snapshot commits with invalid metadata', async () => {
+    const repo = await helper.createGitRepo({
+      initialFiles: [{ path: 'src/file.ts', content: 'base\n' }],
+    });
+
+    await expect(manager.restoreToMain(repo.path, 'HEAD', true)).rejects.toThrow(
+      'Invalid snapshot metadata',
+    );
+    await expect(manager.restoreDirtyBackup(repo.path, 'HEAD')).rejects.toThrow(
+      'Invalid backup metadata',
     );
   });
 });

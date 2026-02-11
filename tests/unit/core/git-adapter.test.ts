@@ -133,7 +133,15 @@ describe('GitAdapter query gateway validation', () => {
     });
 
     const git = new GitAdapter('/repo');
-    await expect(git.rollbackFiles(['a.txt'])).rejects.toThrow(/Conflict resolution denied/i);
+    const error = await git.rollbackFiles(['a.txt']).then(
+      () => null,
+      (e) => e as Error,
+    );
+    if (!error) {
+      throw new Error('Expected rollbackFiles to fail');
+    }
+    expect(error.message).toMatch(/Conflict resolution denied|checkout failed/i);
+    expect(error.message).toMatch(/original rollback error:[\s\S]*checkout failed/i);
     expect(runGitCommand).toHaveBeenCalledTimes(1);
   });
 });

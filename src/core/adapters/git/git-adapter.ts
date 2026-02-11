@@ -507,8 +507,20 @@ export class GitAdapter {
       } finally {
         await fs.unlink(tempFile).catch(() => {});
       }
-    } catch (_error: any) {
-      await this.resolveConflicts();
+    } catch (error: any) {
+      try {
+        await this.resolveConflicts();
+      } catch (cleanupError: any) {
+        const cleanupMessage =
+          cleanupError instanceof Error ? cleanupError.message : String(cleanupError);
+        const rollbackMessage = error instanceof Error ? error.message : String(error);
+        throw new GitError(
+          `${cleanupMessage}; original rollback error: ${rollbackMessage}`,
+          'rollbackFiles',
+          cleanupMessage,
+        );
+      }
+      throw error;
     } finally {
       await this.lockManager.releaseLock(this.repoPath);
     }

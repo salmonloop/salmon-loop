@@ -62,6 +62,7 @@ describe('ToolRouter', () => {
     // Verify Result
     expect(result.status).toBe('ok');
     expect(result.output).toBe('safe output');
+    expect(result.outputSummary).toBe('done');
   });
 
   it('should execute tool with normalized args when sanitizer returns parsed value', async () => {

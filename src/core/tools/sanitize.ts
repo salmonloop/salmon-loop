@@ -1,6 +1,23 @@
 import { ToolSpec } from './types.js';
 
 export class ToolSanitizer {
+  private redactSummary(value: string): string {
+    const patterns: RegExp[] = [
+      /(authorization\s*:\s*bearer\s+)[^\s'",`]+/gi,
+      /(api[_-]?key\s*[:=]\s*)([^\s'",`]+|"[^"]*"|'[^']*')/gi,
+      /(token\s*[:=]\s*)([^\s'",`]+|"[^"]*"|'[^']*')/gi,
+      /(secret\s*[:=]\s*)([^\s'",`]+|"[^"]*"|'[^']*')/gi,
+      /\bsk-[a-z0-9]{20,}\b/gi,
+    ];
+    let redacted = value;
+    redacted = redacted.replace(patterns[0], '$1[REDACTED]');
+    redacted = redacted.replace(patterns[1], '$1[REDACTED]');
+    redacted = redacted.replace(patterns[2], '$1[REDACTED]');
+    redacted = redacted.replace(patterns[3], '$1[REDACTED]');
+    redacted = redacted.replace(patterns[4], '[REDACTED]');
+    return redacted;
+  }
+
   /**
    * Validate input against the tool's input schema.
    */
@@ -68,9 +85,7 @@ export class ToolSanitizer {
     if (summary.length > MAX_SUMMARY_LEN) {
       summary = summary.substring(0, MAX_SUMMARY_LEN) + '...[TRUNCATED]';
     }
-
-    // 4. Secret Sanitization (Stub for now)
-    // TODO: Implement secret scanning here (regex replace known patterns)
+    summary = this.redactSummary(summary);
 
     return {
       ok: true,

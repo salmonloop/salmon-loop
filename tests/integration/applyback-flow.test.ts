@@ -340,5 +340,49 @@ describe('ApplyBack Flow Integration Tests', () => {
       expect(telemetry.appliedToMain).toBe(true);
       expect(telemetry.error).toBeUndefined();
     });
+
+    it('should no-op safely when only dependency projection paths changed', async () => {
+      const dependencyTarget = await helper.createTempDir('dep-target-');
+      await helper.writeFile(dependencyTarget, 'index.js', 'module.exports = 1;\n');
+
+      await symlink(
+        dependencyTarget,
+        join(worktreePath, 'node_modules'),
+        process.platform === 'win32' ? 'junction' : 'dir',
+      );
+
+      const latestRef = await helper.createCommit(worktreePath, 'dependency projection only', [
+        'node_modules',
+      ]);
+      const telemetry: ApplyBackTelemetry = {};
+      const applyBack = getApplyBack(synchronizer);
+
+      await applyBack(
+        mainRepoPath,
+        checkpointRef,
+        '',
+        '3way',
+        undefined,
+        [],
+        initialRef,
+        latestRef,
+        [],
+        telemetry,
+      );
+
+      const appContent = await helper.readFile(mainRepoPath, 'app.js');
+      expect(appContent).toBe('original content');
+
+      const utilsContent = await helper.readFile(mainRepoPath, 'utils.js');
+      expect(utilsContent).toBe('export const x = 1;');
+
+      const mainStatus = await helper.getGitStatus(mainRepoPath);
+      expect(mainStatus.trim()).toBe('');
+
+      expect(telemetry.selectedStrategy).toBe('AtomicPatch');
+      expect(telemetry.appliedToMain).toBe(true);
+      expect(telemetry.rollbackPath).toBe('none');
+      expect(telemetry.error).toBeUndefined();
+    });
   });
 });

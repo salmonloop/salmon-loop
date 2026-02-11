@@ -108,8 +108,12 @@ async function isProcessAlive(pid: number): Promise<boolean> {
   try {
     process.kill(pid, 0);
     return true;
-  } catch {
-    return false;
+  } catch (error) {
+    const err = error as NodeJS.ErrnoException;
+    const message = err?.message || '';
+    if (err?.code === 'ESRCH' || message.includes('ESRCH')) return false;
+    if (err?.code === 'EPERM' || message.includes('EPERM')) return true;
+    return true;
   }
 }
 

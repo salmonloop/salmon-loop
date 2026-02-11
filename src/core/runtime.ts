@@ -44,15 +44,16 @@ export function initializeRuntime() {
 
   // 1.5 Byte-Stream Interceptor (The Absolute Physical Defense)
   // Hijack raw stdout/stderr to filter out sensitive info even if it escapes as a raw string or Buffer
-  const TOKEN_ERROR_REGEX = /(Token error|api[-_]key|secret)[^ \n\r'"]*/gi;
+  const TOKEN_ERROR_TEST_REGEX = /(Token error|api[-_]key|secret)[^ \n\r'"]*/i;
+  const TOKEN_ERROR_REPLACE_REGEX = /(Token error|api[-_]key|secret)[^ \n\r'"]*/gi;
   const sanitizeStream = (stream: NodeJS.WriteStream) => {
     const originalWrite = stream.write.bind(stream);
     stream.write = (chunk: any, encodingOrCb?: any, cb?: any) => {
       const isBuffer = Buffer.isBuffer(chunk);
       const data = isBuffer ? chunk.toString() : typeof chunk === 'string' ? chunk : '';
 
-      if (TOKEN_ERROR_REGEX.test(data)) {
-        const cleaned = data.replace(TOKEN_ERROR_REGEX, '[REDACTED]');
+      if (TOKEN_ERROR_TEST_REGEX.test(data)) {
+        const cleaned = data.replace(TOKEN_ERROR_REPLACE_REGEX, '[REDACTED]');
         const nextChunk = isBuffer ? Buffer.from(cleaned) : cleaned;
         return originalWrite(nextChunk, encodingOrCb, cb);
       }

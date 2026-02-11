@@ -68,6 +68,19 @@ export class FileHandleManager {
     state.locked = false;
   }
 
+  private isProcessAlive(pid: number): boolean {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch (error) {
+      const err = error as NodeJS.ErrnoException;
+      const message = err?.message || '';
+      if (err?.code === 'ESRCH' || message.includes('ESRCH')) return false;
+      if (err?.code === 'EPERM' || message.includes('EPERM')) return true;
+      return true;
+    }
+  }
+
   /**
    * Disable locking (useful for tests)
    */
@@ -137,12 +150,7 @@ export class FileHandleManager {
               const isSelfLock =
                 metadata.pid === process.pid && metadata.owner === this.currentOwner;
 
-              let isAlive = true;
-              try {
-                process.kill(metadata.pid, 0);
-              } catch {
-                isAlive = false;
-              }
+              const isAlive = this.isProcessAlive(metadata.pid);
 
               // Never auto-remove a lock owned by the current process.
               // If we did, concurrent calls within the same process could break mutual exclusion.
@@ -196,12 +204,7 @@ export class FileHandleManager {
         const age = Date.now() - metadata.timestamp;
         logger.debug(`Lock held by PID ${metadata.pid}, owner: ${metadata.owner}, age: ${age}ms`);
 
-        let isAlive = true;
-        try {
-          process.kill(metadata.pid, 0);
-        } catch {
-          isAlive = false;
-        }
+        const isAlive = this.isProcessAlive(metadata.pid);
 
         // Only force remove if the owning process is not alive.
         if (!isSelfLock && !isAlive) {

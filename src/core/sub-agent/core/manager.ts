@@ -203,8 +203,19 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
       }
     });
 
-    await env.setup();
-    return env;
+    try {
+      await env.setup();
+      return env;
+    } catch (error) {
+      try {
+        await env.teardown();
+      } catch (teardownError) {
+        logger.warn(
+          `[SubAgentManager] Failed to teardown isolated environment after setup error: ${teardownError instanceof Error ? teardownError.message : String(teardownError)}`,
+        );
+      }
+      throw error;
+    }
   }
 
   private async persistArtifacts(agentId: string, result: SubAgentResult): Promise<SubAgentResult> {

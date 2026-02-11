@@ -246,7 +246,8 @@ export class WorkspaceSynchronizer {
       return 'staged';
     }
 
-    if (pathIsIgnored) {
+    const trackedProbe = await git.execMeta(['ls-files', '--error-unmatch', '--', relativePath]);
+    if (pathIsIgnored && !trackedProbe.ok && trackedProbe.code === 1) {
       logger.debug(
         `[checkpoint] Skipping ignored untracked path during checkpoint staging: ${relativePath}`,
       );

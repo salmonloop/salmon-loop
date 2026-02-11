@@ -148,9 +148,11 @@ export class SalmonLoop {
     };
 
     const env = new RuntimeEnvironment(options, wrappedEmit);
+    let setupSucceeded = false;
 
     try {
       await env.setup();
+      setupSucceeded = true;
     } catch (error) {
       const msg = sanitizeError(error);
       const errorCode = (error as any)?.llmCode || (error as any)?.code || (error as any)?.name;
@@ -168,6 +170,17 @@ export class SalmonLoop {
         strategyName: flowMode,
         fsMode: flowMode,
       };
+    } finally {
+      if (!setupSucceeded) {
+        clearAuditContext();
+        try {
+          await env.teardown();
+        } catch (teardownError) {
+          logger.warn(
+            `[Runtime] Failed to teardown after setup error: ${sanitizeError(teardownError)}`,
+          );
+        }
+      }
     }
 
     const activeRepoPath = env.activeRepoPath;

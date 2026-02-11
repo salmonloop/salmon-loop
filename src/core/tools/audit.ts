@@ -82,7 +82,7 @@ export class ToolAuditLogger {
       toolName: result.toolName,
       status: result.status,
       durationMs: result.durationMs,
-      outputSummary: result.outputSummary,
+      outputSummary: result.outputSummary ?? result.summary,
       error: result.error?.code,
     };
     this.logs.push(entry);

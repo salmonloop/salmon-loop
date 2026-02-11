@@ -5,7 +5,7 @@
  * and fallback behavior.
  */
 
-import { mkdtemp, rm } from 'fs/promises';
+import { mkdtemp, readFile, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
@@ -95,6 +95,17 @@ describe('ShadowDriver Integration', () => {
 
     const result = await driver.setup(task);
     expect(result.strategy).toBe('ISOLATED');
+  });
+
+  it('runs shell command in shadow root', async () => {
+    const driver = new ShadowDriver(config);
+    await driver.run({
+      command: 'echo ok > run-check.txt',
+      mode: 'analysis',
+    });
+
+    const content = await readFile(join(shadowRoot, 'run-check.txt'), 'utf8');
+    expect(content).toContain('ok');
   });
 
   describe('Platform-specific behavior', () => {

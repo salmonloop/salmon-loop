@@ -4,6 +4,7 @@
  * Core implementation of Layer 2 ShadowDriver following v2.0 specification.
  */
 
+import { spawn } from 'child_process';
 import { existsSync } from 'fs';
 import { rm, mkdir, symlink } from 'fs/promises';
 import { join } from 'path';
@@ -209,12 +210,35 @@ async function runWithDriver(
  * Execute command in shadow environment
  */
 async function executeCommand(command: string, cwd: string, env: NodeJS.ProcessEnv): Promise<void> {
-  const { GitAdapter } = await import('../../../adapters/git/git-adapter.js');
-  const adapter = new GitAdapter(cwd);
+  const isWindows = process.platform === 'win32';
+  const shell = isWindows ? 'cmd.exe' : 'sh';
+  const shellArgs = isWindows ? ['/d', '/s', '/c', command] : ['-c', command];
 
-  // Use adapter to execute arbitrary commands while respecting the global lock
-  // We use sh -c to support the shell string command
-  await adapter.exec(['sh', '-c', command], { env: env as any });
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn(shell, shellArgs, {
+      cwd,
+      env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    let stderr = '';
+    child.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    child.on('error', (error) => {
+      reject(error);
+    });
+
+    child.on('close', (code) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+      const message = stderr.trim() || `command failed with exit code ${String(code)}`;
+      reject(new Error(message));
+    });
+  });
 }
 
 /**

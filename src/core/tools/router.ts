@@ -158,6 +158,7 @@ export class ToolRouter {
         status: 'ok',
         output: sanitized.output,
         summary: sanitized.summary,
+        outputSummary: sanitized.summary,
         durationMs,
       };
 

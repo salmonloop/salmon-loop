@@ -1,330 +1,285 @@
-import { promises as fs } from 'fs';
+import path from 'path';
 
 import { GitAdapter } from '../../../src/core/adapters/git/git-adapter.js';
-import { CheckpointManager } from '../../../src/core/strata/checkpoint/manager.js';
+import type { CheckpointManager } from '../../../src/core/strata/checkpoint/manager.js';
 import { ShadowMergeEngine } from '../../../src/core/strata/engine/shadow-merge-engine.js';
+import type { IFileSystemProvider } from '../../../src/core/strata/types.js';
 
-// Mock dependencies
-vi.mock('fs', () => ({
-  promises: {
-    readFile: vi.fn(),
-    writeFile: vi.fn(),
-    mkdir: vi.fn(),
-    unlink: vi.fn(),
+const { adaptersByPath } = vi.hoisted(() => ({
+  adaptersByPath: new Map<string, any>(),
+}));
+
+vi.mock('../../../src/core/adapters/git/git-adapter.js', () => ({
+  GitAdapter: vi.fn().mockImplementation((repoPath: string) => {
+    if (!adaptersByPath.has(repoPath)) {
+      adaptersByPath.set(repoPath, {
+        query: vi.fn(),
+        exec: vi.fn(),
+        getStatusForPath: vi.fn(),
+        mergeFile: vi.fn(),
+        show: vi.fn(),
+        checkIgnore: vi.fn().mockResolvedValue(false),
+      });
+    }
+    return adaptersByPath.get(repoPath);
+  }),
+}));
+
+vi.mock('../../../src/core/logger.js', () => ({
+  logger: {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    trace: vi.fn(),
   },
 }));
-vi.mock('../../../src/core/adapters/git/git-adapter');
-vi.mock('../../../src/core/strata/checkpoint/manager');
-vi.mock('../../../src/core/logger');
 
-describe('ShadowMergeEngine: 3-Way Merge Safety', () => {
-  let engine: ShadowMergeEngine;
-  let mockCheckpoints: any;
-  let mockGit: any;
+function adapterFor(repoPath: string): any {
+  const adapter = adaptersByPath.get(repoPath);
+  if (!adapter) throw new Error(`Missing adapter for ${repoPath}`);
+  return adapter;
+}
+
+type CheckpointManagerStub = Pick<
+  CheckpointManager,
+  'createSafeSnapshot' | 'createDirtyBackup' | 'restoreDirtyBackup' | 'restoreToMain'
+>;
+
+function asCheckpointManager(stub: CheckpointManagerStub): CheckpointManager {
+  return stub as unknown as CheckpointManager;
+}
+
+class MemoryFsProvider implements IFileSystemProvider {
+  private files = new Map<string, Buffer>();
+
+  set(filePath: string, content: string | Buffer): void {
+    this.files.set(
+      filePath,
+      Buffer.isBuffer(content) ? Buffer.from(content) : Buffer.from(content, 'utf8'),
+    );
+  }
+
+  getText(filePath: string): string | null {
+    const value = this.files.get(filePath);
+    return value ? value.toString('utf8') : null;
+  }
+
+  async readYours(repoPath: string, relativePath: string): Promise<Buffer | null> {
+    return this.readFileBufferSafe(path.join(repoPath, relativePath));
+  }
+
+  async readFileBufferSafe(filePath: string): Promise<Buffer | null> {
+    const value = this.files.get(filePath);
+    return value ? Buffer.from(value) : null;
+  }
+
+  async writeFile(filePath: string, content: Buffer | string): Promise<void> {
+    this.set(filePath, content);
+  }
+
+  async mkdir(): Promise<void> {}
+
+  async unlink(filePath: string): Promise<void> {
+    this.files.delete(filePath);
+  }
+
+  async isBinary(): Promise<boolean> {
+    return false;
+  }
+}
+
+describe('ShadowMergeEngine behavior safety', () => {
+  const mainRepoPath = '/mock/repo';
+  const shadowRepoPath = '/mock/shadow';
+  const targetPath = path.join(mainRepoPath, 'src/file.ts');
 
   beforeEach(() => {
+    adaptersByPath.clear();
     vi.clearAllMocks();
-    mockCheckpoints = new CheckpointManager();
+    new GitAdapter(mainRepoPath);
+    new GitAdapter(shadowRepoPath);
+  });
 
-    // Create a mock GitAdapter instance
-    mockGit = {
-      query: vi.fn(),
-      exec: vi.fn(),
-      getStatus: vi.fn(),
-      getStatusForPath: vi.fn(),
-      mergeFile: vi.fn(),
-      hashObject: vi.fn(),
-      show: vi.fn(),
-      checkIgnore: vi.fn(),
-      updateIndex: vi.fn(),
+  function setupAdapters(options?: {
+    statusLine?: string;
+    diffNameStatus?: string;
+    userStatus?: { staged: boolean; unstaged: boolean; untracked: boolean; deleted: boolean };
+    mergeResult?: { content: Buffer; hasConflict: boolean };
+    mergeError?: Error;
+    baseContent?: Buffer;
+    aiContent?: Buffer;
+  }) {
+    const mainAdapter = adapterFor(mainRepoPath);
+    const shadowAdapter = adapterFor(shadowRepoPath);
+    const statusLine = options?.statusLine ?? '';
+    const diffNameStatus = options?.diffNameStatus ?? 'M\0src/file.ts\0';
+    const userStatus = options?.userStatus ?? {
+      staged: false,
+      unstaged: true,
+      untracked: false,
+      deleted: false,
+    };
+    const baseContent = options?.baseContent ?? Buffer.from('base-line\n');
+    const aiContent = options?.aiContent ?? Buffer.from('ai-line\n');
+
+    mainAdapter.query.mockImplementation(async (args: string[]) => {
+      if (args[0] === 'status' && args[1] === '--porcelain') return statusLine;
+      return '';
+    });
+    mainAdapter.getStatusForPath.mockResolvedValue(userStatus);
+    if (options?.mergeError) {
+      mainAdapter.mergeFile.mockRejectedValue(options.mergeError);
+    } else {
+      mainAdapter.mergeFile.mockResolvedValue(
+        options?.mergeResult ?? { content: Buffer.from('merged-line\n'), hasConflict: false },
+      );
+    }
+
+    shadowAdapter.query.mockImplementation(async (args: string[]) => {
+      if (args[0] === 'diff' && args[1] === '--name-status') return diffNameStatus;
+      return '';
+    });
+    shadowAdapter.show.mockImplementation(async (ref: string) => {
+      if (ref === 'base-ref') return baseContent;
+      if (ref === 'latest-ref') return aiContent;
+      return Buffer.from('');
+    });
+  }
+
+  it('applies merged file content to main workspace output', async () => {
+    const fsProvider = new MemoryFsProvider();
+    fsProvider.set(targetPath, 'user-line\n');
+    setupAdapters({ statusLine: 'M src/file.ts' });
+
+    const checkpoints = {
+      createSafeSnapshot: vi
+        .fn()
+        .mockResolvedValue({ commitHash: 'snapshot-t0', stagedTree: 'staged-tree' }),
+      createDirtyBackup: vi.fn().mockResolvedValue('backup-t1'),
+      restoreDirtyBackup: vi.fn(),
+      restoreToMain: vi.fn(),
     };
 
-    // Inject the mock instance when GitAdapter is instantiated
-    (GitAdapter as any).mockImplementation(() => mockGit);
-
-    // Setup default mock behaviors
-    mockCheckpoints.createSafeSnapshot.mockResolvedValue({
-      commitHash: 't0_hash',
-      stagedTree: 'staged_tree_hash',
-    });
-    mockCheckpoints.createDirtyBackup.mockResolvedValue('t1_hash');
-    mockGit.getStatus.mockResolvedValue('MM file.ts'); // Double Dirty
-    mockGit.getStatusForPath.mockResolvedValue({
-      staged: true,
-      unstaged: true,
-      untracked: false,
-      deleted: false,
-    });
-    mockGit.query.mockResolvedValue('M\0file.ts\0'); // diff --name-status -z output
-    mockGit.show.mockResolvedValue(Buffer.from('mock content'));
-    mockGit.checkIgnore.mockResolvedValue(false);
-    mockGit.mergeFile.mockResolvedValue({
-      content: Buffer.from('merged content'),
-      hasConflict: false,
-    });
-    mockGit.hashObject.mockResolvedValue('hash');
-
-    // Setup default fs mock behaviors
-    (fs.readFile as any).mockResolvedValue(Buffer.from('mock content'));
-    (fs.writeFile as any).mockResolvedValue(undefined);
-    (fs.mkdir as any).mockResolvedValue(undefined);
-    (fs.unlink as any).mockResolvedValue(undefined);
-  });
-
-  it('should strictly follow the safety protocol: Snapshot -> Merge -> Verify', async () => {
-    const mainRepoPath = '/mock/repo';
-    const shadowRepoPath = '/mock/shadow';
-
-    engine = new ShadowMergeEngine(
+    const engine = new ShadowMergeEngine(
       {
         mainRepoPath,
         shadowWorktreePath: shadowRepoPath,
-        initialRef: 't0_base',
-        latestRef: 'ai_patch',
+        initialRef: 'base-ref',
+        latestRef: 'latest-ref',
         applyBackOnDirty: '3way',
+        fileSystemProvider: fsProvider,
       },
-      mockCheckpoints,
+      asCheckpointManager(checkpoints),
     );
-
-    // Success path
-    mockGit.exec.mockResolvedValue(''); // success for write calls if any left using exec
-    // query is still used for diff --name-status
-    mockGit.query.mockImplementation((args: string[]) => {
-      if (args.includes('diff') && args.includes('--name-status')) return 'M\0file.ts\0';
-      if (args.includes('status')) return 'MM file.ts';
-      return 'mock content';
-    });
-    mockGit.getStatusForPath.mockResolvedValue({
-      staged: true,
-      unstaged: true,
-      untracked: false,
-      deleted: false,
-    });
 
     await engine.apply();
 
-    // 1. Verification: Snapshot must be created BEFORE any write (Pre-flight safety)
-    expect(mockCheckpoints.createSafeSnapshot).toHaveBeenCalledWith(mainRepoPath);
-
-    // 2. Verification: 3-way merge command must be constructed correctly (Scenario D)
-    // Now using gitAdapter.mergeFile instead of exec
-    expect(mockGit.mergeFile).toHaveBeenCalled();
-
-    // 3. Verification: NO calls to stage changes (Zero Index Access)
-    // updateIndex should not be called in this flow or should be checked
-    const updateIndexCalls = mockGit.updateIndex.mock.calls;
-    expect(updateIndexCalls.length).toBe(0);
-
-    // Also verify no 'add' calls via exec
-    const gitAddCalls = mockGit.exec.mock.calls.filter((call: any) => call[0][0] === 'add');
-    expect(gitAddCalls.length).toBe(0);
+    expect(fsProvider.getText(targetPath)).toBe('merged-line\n');
   });
 
-  it('should correctly handle Scenario D (Double Dirty) by merging Disk content, not Index', async () => {
-    const mainRepoPath = '/mock/repo';
-    const shadowRepoPath = '/mock/shadow';
+  it('restores dirty-state content after conflict failure', async () => {
+    const fsProvider = new MemoryFsProvider();
+    fsProvider.set(targetPath, 'user-dirty-content\n');
+    setupAdapters({
+      statusLine: 'M src/file.ts',
+      mergeResult: { content: Buffer.from('conflict-markers\n'), hasConflict: true },
+    });
 
-    engine = new ShadowMergeEngine(
+    const checkpoints = {
+      createSafeSnapshot: vi
+        .fn()
+        .mockResolvedValue({ commitHash: 'snapshot-t0', stagedTree: 'staged-tree' }),
+      createDirtyBackup: vi.fn().mockResolvedValue('backup-t1'),
+      restoreDirtyBackup: vi.fn().mockImplementation(async () => {
+        fsProvider.set(targetPath, 'user-dirty-content\n');
+      }),
+      restoreToMain: vi.fn(),
+    };
+
+    const engine = new ShadowMergeEngine(
       {
         mainRepoPath,
         shadowWorktreePath: shadowRepoPath,
-        initialRef: 't0_base',
-        latestRef: 'ai_patch',
+        initialRef: 'base-ref',
+        latestRef: 'latest-ref',
         applyBackOnDirty: '3way',
+        fileSystemProvider: fsProvider,
       },
-      mockCheckpoints,
+      asCheckpointManager(checkpoints),
     );
 
-    // Setup: file is MM (Staged + Unstaged)
-    mockGit.getStatus.mockResolvedValue('MM file.ts');
-    mockGit.getStatusForPath.mockResolvedValue({
-      staged: true,
-      unstaged: true,
-      untracked: false,
-      deleted: false,
-    });
-    mockGit.query.mockImplementation((args: string[]) => {
-      if (args[0] === 'status') return '';
-      if (args.includes('diff') && args.includes('--name-status')) return 'M\0file.ts\0';
-      return 'mock content';
-    });
-
-    await engine.apply();
-
-    // Verification: 3-way merge should use Disk version as "Ours"
-    // In our implementation, we read the disk file (fs.readFile)
-    // We can't easily spy on fs.readFile here unless we mock fs, but we can verify
-    // that we didn't ask git for the index version.
-
-    expect(mockGit.mergeFile).toHaveBeenCalled();
-
-    // Verify Zero Index Access: no 'git checkout' or 'git show :file' was used to get "Ours"
-    // git show :file via adapter.show
-    const gitShowIndexCalls = mockGit.show.mock.calls.filter(
-      (call: any) => call[1] && call[1].startsWith(':'),
-    );
-    expect(gitShowIndexCalls.length).toBe(0);
+    await expect(engine.apply()).rejects.toThrow('Apply-back completed with');
+    expect(fsProvider.getText(targetPath)).toBe('user-dirty-content\n');
   });
 
-  it('should perform an atomic rollback on merge conflict', async () => {
-    const mainRepoPath = '/mock/repo';
-    const shadowRepoPath = '/mock/shadow';
-
-    // Simulate merge-file conflict (via adapter return)
-    mockGit.query.mockImplementation((args: string[]) => {
-      if (args[0] === 'status') return 'M file.ts';
-      if (args.includes('diff') && args.includes('--name-status')) return 'M\0file.ts\0';
-      return 'mock content';
-    });
-    mockGit.getStatusForPath.mockResolvedValue({
-      staged: false,
-      unstaged: false,
-      untracked: false,
-      deleted: false,
+  it('restores T0 snapshot state on clean-workspace failure when T1 is missing', async () => {
+    const fsProvider = new MemoryFsProvider();
+    fsProvider.set(targetPath, 'user-changed-content\n');
+    setupAdapters({
+      statusLine: '',
+      mergeError: new Error('merge failed'),
     });
 
-    // mergeFile returns conflict
-    mockGit.mergeFile.mockResolvedValue({
-      content: Buffer.from('<<<< conflict'),
-      hasConflict: true,
-    });
+    const checkpoints = {
+      createSafeSnapshot: vi
+        .fn()
+        .mockResolvedValue({ commitHash: 'snapshot-t0', stagedTree: 'staged-tree' }),
+      createDirtyBackup: vi.fn().mockResolvedValue(null),
+      restoreDirtyBackup: vi.fn(),
+      restoreToMain: vi.fn().mockImplementation(async () => {
+        fsProvider.set(targetPath, 'snapshot-t0-content\n');
+      }),
+    };
 
-    engine = new ShadowMergeEngine(
+    const engine = new ShadowMergeEngine(
       {
         mainRepoPath,
         shadowWorktreePath: shadowRepoPath,
-        initialRef: 't0_base',
-        latestRef: 'ai_patch',
+        initialRef: 'base-ref',
+        latestRef: 'latest-ref',
         applyBackOnDirty: '3way',
+        fileSystemProvider: fsProvider,
       },
-      mockCheckpoints,
-    );
-
-    try {
-      await engine.apply();
-    } catch (_e) {
-      expect(mockCheckpoints.restoreDirtyBackup).toHaveBeenCalledWith(mainRepoPath, 't1_hash');
-    }
-  });
-
-  it('should perform a robust reset when a system error occurs during apply', async () => {
-    const mainRepoPath = '/mock/repo';
-    engine = new ShadowMergeEngine(
-      {
-        mainRepoPath,
-        shadowWorktreePath: '/mock/shadow',
-        initialRef: 't0_base',
-        latestRef: 'ai_patch',
-        applyBackOnDirty: '3way',
-      },
-      mockCheckpoints,
-    );
-
-    // Simulate system error in mergeFile (e.g. Git lock error)
-    mockGit.mergeFile.mockRejectedValue(new Error('Git lock failed'));
-
-    await expect(engine.apply()).rejects.toThrow('Git lock failed');
-
-    // Verification: restoreDirtyBackup must be called to ensure atomicity
-    expect(mockCheckpoints.restoreDirtyBackup).toHaveBeenCalledWith(mainRepoPath, 't1_hash');
-  });
-
-  it('should ignore binary files and proceed with text-based 3-way merge', async () => {
-    engine = new ShadowMergeEngine(
-      {
-        mainRepoPath: '/mock/repo',
-        shadowWorktreePath: '/mock/shadow',
-        initialRef: 't0_base',
-        latestRef: 'ai_patch',
-        applyBackOnDirty: '3way',
-      },
-      mockCheckpoints,
-    );
-
-    mockGit.query.mockImplementation((args: string[]) => {
-      if (args.includes('diff')) return 'M\timage.png';
-      return 'mock content';
-    });
-    mockGit.getStatusForPath.mockResolvedValue({
-      staged: false,
-      unstaged: false,
-      untracked: false,
-      deleted: false,
-    });
-
-    await engine.apply();
-
-    // Verify: merge-file should NOT be called for binary files
-    expect(mockGit.mergeFile).not.toHaveBeenCalled();
-  });
-
-  it('should restore T0 snapshot when rollback runs without T1 backup in clean workspace', async () => {
-    const mainRepoPath = '/mock/repo';
-
-    mockCheckpoints.createDirtyBackup.mockResolvedValue(null);
-    mockGit.getStatus.mockResolvedValue(''); // Clean at entry
-    mockGit.getStatusForPath.mockResolvedValue({
-      staged: false,
-      unstaged: false,
-      untracked: false,
-      deleted: false,
-    });
-    mockGit.query.mockImplementation((args: string[]) => {
-      if (args[0] === 'status') return '';
-      if (args.includes('diff') && args.includes('--name-status')) return 'M\0file.ts\0';
-      return 'mock content';
-    });
-    mockGit.mergeFile.mockRejectedValue(new Error('merge failed'));
-
-    engine = new ShadowMergeEngine(
-      {
-        mainRepoPath,
-        shadowWorktreePath: '/mock/shadow',
-        initialRef: 't0_base',
-        latestRef: 'ai_patch',
-        applyBackOnDirty: '3way',
-      },
-      mockCheckpoints,
+      asCheckpointManager(checkpoints),
     );
 
     await expect(engine.apply()).rejects.toThrow('merge failed');
-
-    expect(mockCheckpoints.restoreToMain).toHaveBeenCalledWith(mainRepoPath, 't0_hash', true);
-    expect(mockCheckpoints.restoreDirtyBackup).not.toHaveBeenCalled();
+    expect(fsProvider.getText(targetPath)).toBe('snapshot-t0-content\n');
   });
 
-  it('should skip restoreToMain when rollback runs without T1 backup in dirty workspace', async () => {
-    const mainRepoPath = '/mock/repo';
-
-    mockCheckpoints.createDirtyBackup.mockResolvedValue(null);
-    mockGit.getStatus.mockResolvedValue('M file.ts'); // Dirty at entry
-    mockGit.getStatusForPath.mockResolvedValue({
-      staged: false,
-      unstaged: true,
-      untracked: false,
-      deleted: false,
+  it('keeps dirty workspace untouched when T1 backup is unavailable', async () => {
+    const fsProvider = new MemoryFsProvider();
+    fsProvider.set(targetPath, 'user-dirty-content\n');
+    setupAdapters({
+      statusLine: 'M src/file.ts',
+      mergeError: new Error('merge failed'),
     });
-    mockGit.query.mockImplementation((args: string[]) => {
-      if (args[0] === 'status') return 'M file.ts';
-      if (args.includes('diff') && args.includes('--name-status')) return 'M\0file.ts\0';
-      return 'mock content';
-    });
-    mockGit.mergeFile.mockRejectedValue(new Error('merge failed'));
 
-    engine = new ShadowMergeEngine(
+    const checkpoints = {
+      createSafeSnapshot: vi
+        .fn()
+        .mockResolvedValue({ commitHash: 'snapshot-t0', stagedTree: 'staged-tree' }),
+      createDirtyBackup: vi.fn().mockResolvedValue(null),
+      restoreDirtyBackup: vi.fn(),
+      restoreToMain: vi.fn().mockImplementation(async () => {
+        fsProvider.set(targetPath, 'unexpected-restore\n');
+      }),
+    };
+
+    const engine = new ShadowMergeEngine(
       {
         mainRepoPath,
-        shadowWorktreePath: '/mock/shadow',
-        initialRef: 't0_base',
-        latestRef: 'ai_patch',
+        shadowWorktreePath: shadowRepoPath,
+        initialRef: 'base-ref',
+        latestRef: 'latest-ref',
         applyBackOnDirty: '3way',
+        fileSystemProvider: fsProvider,
       },
-      mockCheckpoints,
+      asCheckpointManager(checkpoints),
     );
 
     await expect(engine.apply()).rejects.toThrow('merge failed');
-
-    expect(mockCheckpoints.restoreToMain).not.toHaveBeenCalled();
-    expect(mockCheckpoints.restoreDirtyBackup).not.toHaveBeenCalled();
+    expect(fsProvider.getText(targetPath)).toBe('user-dirty-content\n');
   });
 });

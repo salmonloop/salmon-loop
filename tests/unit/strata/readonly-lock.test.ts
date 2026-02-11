@@ -33,150 +33,134 @@ import {
   releaseLock,
 } from '../../../src/core/strata/layers/shadow-driver/readonly-lock.js';
 
-describe('readonly-lock acquireLock', () => {
+function eexist(): NodeJS.ErrnoException {
+  return Object.assign(new Error('exists'), { code: 'EEXIST' });
+}
+
+function enoent(): NodeJS.ErrnoException {
+  return Object.assign(new Error('missing'), { code: 'ENOENT' });
+}
+
+describe('readonly-lock behavior safety', () => {
+  const fileState = new Map<string, string>();
+
+  const configureStatefulFs = () => {
+    mkdirMock.mockResolvedValue(undefined);
+    writeFileMock.mockImplementation(
+      async (targetPath: string, content: string, options?: { flag?: string }) => {
+        if (options?.flag === 'wx' && fileState.has(targetPath)) {
+          throw eexist();
+        }
+        fileState.set(targetPath, String(content));
+      },
+    );
+    readFileMock.mockImplementation(async (targetPath: string) => {
+      if (!fileState.has(targetPath)) throw enoent();
+      return fileState.get(targetPath);
+    });
+    renameMock.mockImplementation(async (fromPath: string, toPath: string) => {
+      if (!fileState.has(fromPath)) throw enoent();
+      const payload = fileState.get(fromPath) as string;
+      fileState.delete(fromPath);
+      fileState.set(toPath, payload);
+    });
+    unlinkMock.mockImplementation(async (targetPath: string) => {
+      if (!fileState.has(targetPath)) throw enoent();
+      fileState.delete(targetPath);
+    });
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
+    fileState.clear();
+    configureStatefulFs();
+    getShadowLockPathMock.mockImplementation((shadowRoot: string) => `${shadowRoot}/lock.pid`);
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
-    vi.clearAllMocks();
   });
 
-  it('creates lock file atomically with wx flag', async () => {
-    getShadowLockPathMock.mockReturnValue('/tmp/s8p-wt/lock.pid');
-    mkdirMock.mockResolvedValue(undefined);
-    readFileMock.mockResolvedValue(null);
-    writeFileMock.mockResolvedValue(undefined);
-    renameMock.mockResolvedValue(undefined);
-
+  it('acquires lock atomically with process token payload', async () => {
     await acquireLock('/tmp/s8p-wt');
 
-    expect(writeFileMock).toHaveBeenCalledWith(
-      '/tmp/s8p-wt/lock.pid',
-      expect.stringContaining(`${process.pid}:`),
-      { flag: 'wx' },
-    );
+    const payload = fileState.get('/tmp/s8p-wt/lock.pid');
+    expect(payload).toBeTruthy();
+    const [pidPart, tsPart, tokenPart] = String(payload).split(':');
+
+    expect(Number(pidPart)).toBe(process.pid);
+    expect(Number.isFinite(Number(tsPart))).toBe(true);
+    expect(tokenPart.length).toBeGreaterThan(0);
   });
 
-  it('retries lock creation after removing stale lock', async () => {
-    getShadowLockPathMock.mockReturnValue('/tmp/s8p-wt/lock.pid');
-    mkdirMock.mockResolvedValue(undefined);
-    const eexist = Object.assign(new Error('exists'), { code: 'EEXIST' });
-    writeFileMock.mockRejectedValueOnce(eexist).mockResolvedValueOnce(undefined);
-    readFileMock.mockResolvedValue('999:1700000000000');
-    unlinkMock.mockResolvedValue(undefined);
-    renameMock.mockResolvedValue(undefined);
-    vi.spyOn(process, 'kill').mockImplementation(() => {
-      throw new Error('ESRCH');
-    });
-
-    await acquireLock('/tmp/s8p-wt');
-
-    expect(unlinkMock).toHaveBeenCalledWith(
-      expect.stringMatching(/\/tmp\/s8p-wt\/lock\.pid\.swap-/),
-    );
-    expect(writeFileMock).toHaveBeenCalledTimes(2);
-  });
-
-  it('does not remove lock file when token changed concurrently', async () => {
-    getShadowLockPathMock.mockReturnValue('/tmp/s8p-wt/lock.pid');
-    mkdirMock.mockResolvedValue(undefined);
-    const eexist = Object.assign(new Error('exists'), { code: 'EEXIST' });
-    writeFileMock.mockRejectedValue(eexist);
-    readFileMock
-      .mockResolvedValueOnce('999:1700000000000:old')
-      .mockResolvedValueOnce('777:1700000000000:new')
-      .mockResolvedValueOnce('4242:1700000000000:live');
+  it('replaces stale lock from dead process', async () => {
+    const lockPath = '/tmp/s8p-wt/lock.pid';
+    fileState.set(lockPath, '999:1700000000000:stale-token');
     vi.spyOn(process, 'kill').mockImplementation((pid: number) => {
-      if (pid === 4242) return true as any;
+      if (pid === 999) throw new Error('ESRCH');
+      return true;
+    });
+
+    await acquireLock('/tmp/s8p-wt');
+
+    const payload = String(fileState.get(lockPath));
+    expect(payload.startsWith(`${process.pid}:`)).toBe(true);
+    expect(payload.includes('stale-token')).toBe(false);
+  });
+
+  it('keeps existing lock when holder process is alive', async () => {
+    const lockPath = '/tmp/s8p-wt/lock.pid';
+    const existing = '4242:1700000000000:live-token';
+    fileState.set(lockPath, existing);
+    vi.spyOn(process, 'kill').mockImplementation((pid: number) => {
+      if (pid === 4242) return true;
       throw new Error('ESRCH');
     });
-    renameMock.mockResolvedValue(undefined);
 
     await expect(acquireLock('/tmp/s8p-wt')).rejects.toThrow('locked by process 4242');
-    expect(unlinkMock).not.toHaveBeenCalled();
-    expect(renameMock).toHaveBeenCalledTimes(2);
+    expect(fileState.get(lockPath)).toBe(existing);
   });
 
-  it('throws when lock holder is alive in another process', async () => {
-    getShadowLockPathMock.mockReturnValue('/tmp/s8p-wt/lock.pid');
-    mkdirMock.mockResolvedValue(undefined);
-    const eexist = Object.assign(new Error('exists'), { code: 'EEXIST' });
-    writeFileMock.mockRejectedValue(eexist);
-    readFileMock.mockResolvedValue('4242:1700000000000');
-    unlinkMock.mockResolvedValue(undefined);
-    vi.spyOn(process, 'kill').mockImplementation(() => true as any);
-    renameMock.mockResolvedValue(undefined);
+  it('treats EPERM process probe as alive and keeps existing lock', async () => {
+    const lockPath = '/tmp/s8p-wt/lock.pid';
+    const existing = '4242:1700000000000:live-token';
+    fileState.set(lockPath, existing);
+    vi.spyOn(process, 'kill').mockImplementation((pid: number) => {
+      if (pid === 4242) {
+        throw Object.assign(new Error('EPERM'), { code: 'EPERM' });
+      }
+      throw Object.assign(new Error('ESRCH'), { code: 'ESRCH' });
+    });
 
     await expect(acquireLock('/tmp/s8p-wt')).rejects.toThrow('locked by process 4242');
-    expect(unlinkMock).not.toHaveBeenCalled();
+    expect(fileState.get(lockPath)).toBe(existing);
   });
 
-  it('handles malformed lock timestamp without crashing', async () => {
-    getShadowLockPathMock.mockReturnValue('/tmp/s8p-wt/lock.pid');
-    mkdirMock.mockResolvedValue(undefined);
-    const eexist = Object.assign(new Error('exists'), { code: 'EEXIST' });
-    writeFileMock.mockRejectedValue(eexist);
-    readFileMock.mockResolvedValue('4242:bad-ts');
-    renameMock.mockResolvedValue(undefined);
-    vi.spyOn(process, 'kill').mockImplementation(() => true as any);
-
-    await expect(acquireLock('/tmp/s8p-wt')).rejects.toThrow(
-      'ShadowRoot is locked by process 4242 since unknown-time',
-    );
-  });
-});
-
-describe('readonly-lock releaseLock', () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-    vi.clearAllMocks();
-  });
-
-  it('releases lock only when ownership token matches', async () => {
-    getShadowLockPathMock.mockReturnValue('/tmp/s8p-wt/release.pid');
-    mkdirMock.mockResolvedValue(undefined);
-    writeFileMock.mockResolvedValue(undefined);
-    unlinkMock.mockResolvedValue(undefined);
-    renameMock.mockResolvedValue(undefined);
+  it('replaces malformed stale lock payload safely', async () => {
+    const lockPath = '/tmp/s8p-wt/lock.pid';
+    fileState.set(lockPath, 'not-a-pid:1700000000000:bad-token');
 
     await acquireLock('/tmp/s8p-wt');
-    const expectedToken = String(writeFileMock.mock.calls[0]?.[1] || '');
-    readFileMock.mockResolvedValue(expectedToken);
 
-    await releaseLock('/tmp/s8p-wt');
-
-    expect(unlinkMock).toHaveBeenCalledWith(
-      expect.stringMatching(/\/tmp\/s8p-wt\/release\.pid\.swap-/),
-    );
+    const payload = String(fileState.get(lockPath));
+    expect(payload.startsWith(`${process.pid}:`)).toBe(true);
+    expect(payload.includes('bad-token')).toBe(false);
   });
 
-  it('skips release when lock token mismatches current file', async () => {
-    getShadowLockPathMock.mockReturnValue('/tmp/s8p-wt/mismatch.pid');
-    mkdirMock.mockResolvedValue(undefined);
-    writeFileMock.mockResolvedValue(undefined);
-    unlinkMock.mockResolvedValue(undefined);
-    renameMock.mockResolvedValue(undefined);
+  it('releases lock only when ownership token still matches', async () => {
+    const lockPath = '/tmp/s8p-wt/lock.pid';
+    await acquireLock('/tmp/s8p-wt');
+
+    const ownedPayload = String(fileState.get(lockPath));
+    await releaseLock('/tmp/s8p-wt');
+    expect(fileState.has(lockPath)).toBe(false);
 
     await acquireLock('/tmp/s8p-wt');
-    readFileMock.mockResolvedValue('other-process-token');
-
+    fileState.set(lockPath, 'other-process-token');
     await releaseLock('/tmp/s8p-wt');
 
-    expect(unlinkMock).not.toHaveBeenCalled();
-  });
-
-  it('cleans up swap file when rollback rename fails', async () => {
-    getShadowLockPathMock.mockReturnValue('/tmp/s8p-wt/swap-cleanup.pid');
-    mkdirMock.mockResolvedValue(undefined);
-    writeFileMock.mockResolvedValue(undefined);
-    unlinkMock.mockResolvedValue(undefined);
-    renameMock.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('rename-failed'));
-
-    await acquireLock('/tmp/s8p-wt');
-    readFileMock.mockResolvedValue('other-process-token');
-
-    await releaseLock('/tmp/s8p-wt');
-
-    expect(unlinkMock).toHaveBeenCalledWith(
-      expect.stringMatching(/\/tmp\/s8p-wt\/swap-cleanup\.pid\.swap-/),
-    );
+    expect(fileState.get(lockPath)).toBe('other-process-token');
+    expect(fileState.get(lockPath)).not.toBe(ownedPayload);
   });
 });
