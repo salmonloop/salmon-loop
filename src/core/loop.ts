@@ -6,7 +6,12 @@ import { text } from '../locales/index.js';
 import { createFileSystemAdapter } from './adapters/fs/index.js';
 import { GitAdapter } from './adapters/git/git-adapter.js';
 import { appendAuditTrailToAuditFile } from './audit-file.js';
-import { clearAuditContext, clearAuditTrail, setAuditContext } from './audit-trail.js';
+import {
+  clearAuditContext,
+  clearAuditTrail,
+  recordAuditEvent,
+  setAuditContext,
+} from './audit-trail.js';
 import { Semaphore } from './concurrency.js';
 import { executeSalmonLoopFlow } from './grizzco/flows/SalmonLoopFlow.js';
 import type { ShrinkCtx } from './grizzco/types.js';
@@ -217,6 +222,20 @@ export class SalmonLoop {
         context: `mode=${flowMode}\nverify=${options.verify}\nstrategy=${options.strategy ?? 'local'}`,
       });
       planRuntime = { sessionId: initialized.sessionId, planPathHint: initialized.planPathHint };
+      recordAuditEvent(
+        'plan.runtime.init',
+        {
+          sessionId: initialized.sessionId,
+          planPathHint: initialized.planPathHint,
+        },
+        { source: 'plan', severity: 'low', scope: 'session', phase: 'PREFLIGHT' },
+      );
+      emit({
+        type: 'plan.runtime.ready',
+        sessionId: initialized.sessionId,
+        planPathHint: initialized.planPathHint,
+        timestamp: now(),
+      });
       emit({
         type: 'log',
         level: 'debug',
@@ -224,6 +243,16 @@ export class SalmonLoop {
         timestamp: now(),
       });
     } catch (error) {
+      emit({
+        type: 'plan.runtime.unavailable',
+        reason: sanitizeError(error),
+        timestamp: now(),
+      });
+      recordAuditEvent(
+        'plan.runtime.init.failed',
+        { error: sanitizeError(error) },
+        { source: 'plan', severity: 'medium', scope: 'session', phase: 'PREFLIGHT' },
+      );
       emit({
         type: 'log',
         level: 'warn',

@@ -99,6 +99,7 @@ function sanitizeContext(ctx: unknown): Record<string, unknown> | null {
   // Extract key fields that are serializable
   if (typed.preflightResult) safe.preflightResult = typed.preflightResult;
   if (typed.plan) safe.plan = typed.plan; // plan object usually serializable
+  if (typed.planRuntime) safe.planRuntime = typed.planRuntime;
   if (typed.diffMeta) safe.diffMeta = typed.diffMeta;
   if (typed.isValid !== undefined) safe.isValid = typed.isValid;
   if (typed.astValid !== undefined) safe.astValid = typed.astValid;

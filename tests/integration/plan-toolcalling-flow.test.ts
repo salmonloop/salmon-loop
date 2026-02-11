@@ -1,3 +1,4 @@
+import { readFile } from 'fs/promises';
 import path from 'path';
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -173,16 +174,45 @@ describe('Plan toolcalling flow (integration)', () => {
       },
     );
 
+    const events: any[] = [];
     const result = await runSalmonLoop({
       instruction: 'Test plan toolcalling integration',
       repoPath,
       llm: mockLlm as any,
       dryRun: true,
       forceReset: true,
+      onEvent: (event) => events.push(event),
     });
 
     expect(result.success).toBe(true);
     expect(state.sessionId).toBeTruthy();
+
+    expect(result.auditPath).toBeTruthy();
+    const auditRaw = await readFile(result.auditPath!, 'utf-8');
+    const audit = JSON.parse(auditRaw) as any;
+    const auditTrail = audit?.context?.auditTrail as any[] | undefined;
+    expect(Array.isArray(auditTrail)).toBe(true);
+    expect(auditTrail!.some((e) => e?.action === 'plan.runtime.init')).toBe(true);
+
+    expect(
+      events.some(
+        (e) =>
+          e?.type === 'plan.runtime.ready' &&
+          e?.sessionId === state.sessionId &&
+          typeof e?.planPathHint === 'string',
+      ),
+    ).toBe(true);
+    expect(
+      events.some(
+        (e) => e?.type === 'plan.runtime.journal' && e?.phase === 'PLAN' && e?.ok === true,
+      ),
+    ).toBe(true);
+    expect(events.some((e) => e?.type === 'tool.call.start' && e?.toolName === 'plan.read')).toBe(
+      true,
+    );
+    expect(events.some((e) => e?.type === 'tool.call.end' && e?.toolName === 'plan.update')).toBe(
+      true,
+    );
 
     const planPath = path.join(
       repoPath,

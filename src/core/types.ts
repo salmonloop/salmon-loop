@@ -245,6 +245,45 @@ export type LoopEvent =
       timestamp: Date;
     }
   | {
+      type: 'plan.runtime.ready';
+      sessionId: string;
+      planPathHint: string;
+      timestamp: Date;
+    }
+  | {
+      type: 'plan.runtime.unavailable';
+      reason: string;
+      timestamp: Date;
+    }
+  | {
+      type: 'plan.runtime.journal';
+      sessionId: string;
+      phase: ExecutionPhase;
+      kind: 'start' | 'end';
+      attempt: number;
+      ok: boolean;
+      timestamp: Date;
+    }
+  | {
+      type: 'tool.call.start';
+      callId: string;
+      toolName: string;
+      phase: ExecutionPhase;
+      round: number;
+      timestamp: Date;
+    }
+  | {
+      type: 'tool.call.end';
+      callId: string;
+      toolName: string;
+      phase: ExecutionPhase;
+      round: number;
+      status: 'ok' | 'denied' | 'error' | 'timeout';
+      durationMs?: number;
+      errorCode?: string;
+      timestamp: Date;
+    }
+  | {
       type: 'llm.stream.delta';
       kind: LlmOutputKind;
       step: ExecutionStep;

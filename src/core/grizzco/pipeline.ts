@@ -1,4 +1,4 @@
-import { setAuditContext } from '../audit-trail.js';
+import { recordAuditEvent, setAuditContext } from '../audit-trail.js';
 import { logger } from '../logger.js';
 import { appendPlanNote } from '../plan/index.js';
 import { EXECUTION_PHASES, type ExecutionPhase, type LoopEvent, type FlowMode } from '../types.js';
@@ -81,9 +81,21 @@ export class Pipeline<CurrentCtx> {
             sessionId: planRuntime.sessionId,
             note,
           });
+          recordAuditEvent(
+            'plan.runtime.note.append',
+            { note, ok: true },
+            { source: 'plan', severity: 'low', scope: 'session', phase: name },
+          );
+          return true;
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
+          recordAuditEvent(
+            'plan.runtime.note.append.failed',
+            { note, error: msg },
+            { source: 'plan', severity: 'low', scope: 'session', phase: name },
+          );
           logger.debug(`[PlanRuntime] Failed to append note: ${msg}`);
+          return false;
         }
       };
 
@@ -98,7 +110,18 @@ export class Pipeline<CurrentCtx> {
         if (emit && isPhase(name)) {
           emit({ type: 'phase.start', phase: name, timestamp: new Date() });
           phaseStarted = true;
-          await tryAppendPlanNote(`Attempt ${attempt}: phase.start ${name}`);
+          const ok = await tryAppendPlanNote(`Attempt ${attempt}: phase.start ${name}`);
+          if (planRuntime && ok !== undefined) {
+            emit({
+              type: 'plan.runtime.journal',
+              sessionId: planRuntime.sessionId,
+              phase: name,
+              kind: 'start',
+              attempt,
+              ok,
+              timestamp: new Date(),
+            });
+          }
         }
         result = await action(ctx);
         this.ctxRef.current = result;
@@ -122,9 +145,20 @@ export class Pipeline<CurrentCtx> {
             success: !errorStr,
             timestamp: new Date(),
           });
-          await tryAppendPlanNote(
+          const ok = await tryAppendPlanNote(
             `Attempt ${attempt}: phase.end ${name} (success=${String(!errorStr)})`,
           );
+          if (planRuntime && ok !== undefined) {
+            emit({
+              type: 'plan.runtime.journal',
+              sessionId: planRuntime.sessionId,
+              phase: name,
+              kind: 'end',
+              attempt,
+              ok,
+              timestamp: new Date(),
+            });
+          }
         }
         setAuditContext({ phase: undefined });
         const end = Date.now();
@@ -175,9 +209,21 @@ export class Pipeline<CurrentCtx> {
             sessionId: planRuntime.sessionId,
             note,
           });
+          recordAuditEvent(
+            'plan.runtime.note.append',
+            { note, ok: true },
+            { source: 'plan', severity: 'low', scope: 'session', phase: name },
+          );
+          return true;
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
+          recordAuditEvent(
+            'plan.runtime.note.append.failed',
+            { note, error: msg },
+            { source: 'plan', severity: 'low', scope: 'session', phase: name },
+          );
           logger.debug(`[PlanRuntime] Failed to append note: ${msg}`);
+          return false;
         }
       };
 
@@ -193,7 +239,18 @@ export class Pipeline<CurrentCtx> {
         if (emit && isPhase(name)) {
           emit({ type: 'phase.start', phase: name, timestamp: new Date() });
           phaseStarted = true;
-          await tryAppendPlanNote(`Attempt ${attempt}: phase.start ${name}`);
+          const ok = await tryAppendPlanNote(`Attempt ${attempt}: phase.start ${name}`);
+          if (planRuntime && ok !== undefined) {
+            emit({
+              type: 'plan.runtime.journal',
+              sessionId: planRuntime.sessionId,
+              phase: name,
+              kind: 'start',
+              attempt,
+              ok,
+              timestamp: new Date(),
+            });
+          }
         }
         result = await action(ctx);
         this.ctxRef.current = result;
@@ -259,9 +316,20 @@ export class Pipeline<CurrentCtx> {
             success: !errorStr,
             timestamp: new Date(),
           });
-          await tryAppendPlanNote(
+          const ok = await tryAppendPlanNote(
             `Attempt ${attempt}: phase.end ${name} (success=${String(!errorStr)})`,
           );
+          if (planRuntime && ok !== undefined) {
+            emit({
+              type: 'plan.runtime.journal',
+              sessionId: planRuntime.sessionId,
+              phase: name,
+              kind: 'end',
+              attempt,
+              ok,
+              timestamp: new Date(),
+            });
+          }
         }
         setAuditContext({ phase: undefined });
         const end = Date.now();

@@ -224,6 +224,14 @@ async function executeToolCalls(
         timestamp: new Date(),
       });
     }
+    session.emit?.({
+      type: 'tool.call.start',
+      callId: item.callId,
+      toolName: typeof item.toolName === 'string' ? item.toolName : 'unknown',
+      phase,
+      round,
+      timestamp: new Date(),
+    });
   }
 
   const toolResults = new Map<string, ToolResult>();
@@ -439,6 +447,17 @@ async function executeToolCalls(
       type: 'log',
       level: result.status === 'ok' ? 'info' : 'warn',
       message: `[tool] done ${toolName || 'unknown'} status=${result.status}`,
+      timestamp: new Date(),
+    });
+    session.emit?.({
+      type: 'tool.call.end',
+      callId,
+      toolName: typeof toolName === 'string' ? toolName : 'unknown',
+      phase,
+      round,
+      status: result.status,
+      durationMs: result.durationMs,
+      errorCode: result.error?.code,
       timestamp: new Date(),
     });
 
