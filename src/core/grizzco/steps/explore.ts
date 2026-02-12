@@ -1,12 +1,69 @@
+import path from 'path';
+
 import { text } from '../../../locales/index.js';
 import { formatContextForPrompt } from '../../llm-utils.js';
+import { ensureInSandbox, isSafeRelativePath, normalizePath } from '../../path.js';
 import { getExplorePrompt, getExploreSystemPrompt } from '../../prompt.js';
 import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
-import { Phase, RelatedFileContext, SalmonError } from '../../types.js';
+import { Phase, RelatedFileContext } from '../../types.js';
 import { resolveLlmToolCallingPolicy } from '../dsl/llm-strategy.js';
 import { Step } from '../pipeline.js';
 import { ContextCtx, ExploreCtx } from '../types.js';
 import { ContextValidator } from '../validation/ContextValidator.js';
+
+const SAFE_INFERRED_EXTENSIONS = new Set([
+  '.ts',
+  '.tsx',
+  '.js',
+  '.jsx',
+  '.json',
+  '.md',
+  '.txt',
+  '.css',
+  '.html',
+  '.vue',
+  '.py',
+  '.rs',
+  '.go',
+  '.java',
+  '.c',
+  '.cpp',
+  '.h',
+]);
+
+function inferHighConfidenceFiles(instruction: string): string[] {
+  const candidates: string[] = [];
+  const normalized = instruction || '';
+
+  if (/README\b/i.test(normalized)) {
+    candidates.push('README.md');
+  }
+
+  const pathLike = /(?:^|\s)([a-zA-Z0-9][a-zA-Z0-9._/-]*\.[a-zA-Z0-9]{1,8})(?:\s|$)/g;
+  let match: RegExpExecArray | null = null;
+  while ((match = pathLike.exec(normalized)) !== null) {
+    const raw = match[1];
+    if (!raw) continue;
+
+    const rel = normalizePath(raw).replace(/^(\.\/|\/)+/, '');
+    if (!rel) continue;
+    if (!isSafeRelativePath(rel)) continue;
+
+    const lower = rel.toLowerCase();
+    if (lower.startsWith('.')) continue;
+    if (lower.includes('/.')) continue;
+    if (lower.startsWith('.git/') || lower.startsWith('.salmonloop/')) continue;
+    if (lower.includes('node_modules/')) continue;
+
+    const ext = path.extname(rel).toLowerCase();
+    if (!SAFE_INFERRED_EXTENSIONS.has(ext)) continue;
+
+    candidates.push(rel);
+    if (candidates.length >= 3) break;
+  }
+
+  return Array.from(new Set(candidates));
+}
 
 export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
   const toolstack = ctx.toolstack;
@@ -117,17 +174,43 @@ export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
           ctx.toolCallingAudit = list;
         },
       },
-      maxRounds: toolPolicy.maxRounds ?? 15,
+      maxRounds: toolPolicy.maxRounds,
       llmOutput,
       emit: (event) => ctx.emit({ ...event, timestamp: event.timestamp ?? new Date() }),
     },
   );
 
+  if (capturedFiles.size === 0 && !ctx.context.primaryText) {
+    const inferred = inferHighConfidenceFiles(ctx.options.instruction);
+
+    for (const rel of inferred) {
+      try {
+        const fullPath = ensureInSandbox(
+          ctx.workspace.workPath,
+          path.join(ctx.workspace.workPath, rel),
+        );
+        const content = await ctx.fs.readFile(fullPath, 'utf-8');
+        if (typeof content === 'string' && content.trim()) {
+          capturedFiles.set(rel, content);
+        }
+      } catch {
+        // Best-effort; failure here should not abort exploration.
+      }
+    }
+  }
+
   // Validation: Check for exploration consistency using ContextValidator on LOCAL audit
   const validation = ContextValidator.validateExploration(localAudit as any, capturedFiles.size);
   if (!validation.isValid) {
     const msg = (text.grizzco.validation as any)[validation.errorCode!] || validation.errorCode;
-    throw new SalmonError(msg, 'EXPLORATION_VALIDATION_FAILED');
+    // Hard-failing exploration causes unnecessary retries for simple tasks.
+    // Emit as a warning and continue with the existing context.
+    ctx.emit({
+      type: 'log',
+      level: 'warn',
+      message: msg,
+      timestamp: new Date(),
+    });
   }
 
   // Update context with captured files

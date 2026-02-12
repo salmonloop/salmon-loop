@@ -245,6 +245,17 @@ export type LoopEvent =
       timestamp: Date;
     }
   | {
+      type: 'run.start';
+      mode: 'run' | 'chat';
+      timestamp: Date;
+    }
+  | {
+      type: 'run.end';
+      mode: 'run' | 'chat';
+      success: boolean;
+      timestamp: Date;
+    }
+  | {
       type: 'plan.runtime.ready';
       sessionId: string;
       planPathHint: string;

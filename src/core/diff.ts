@@ -99,11 +99,59 @@ function finalSegments_check(path: string): boolean {
   return finalSegments.some((seg) => seg === '..') || isAbsolutePathLike(path);
 }
 
+function dedentUnifiedDiff(content: string): string {
+  const lines = content.split('\n');
+  const candidates: number[] = [];
+
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    const trimmed = line.trimStart();
+
+    // Only consider lines that are expected to be left-aligned in unified diffs.
+    // Avoid context lines that *legitimately* start with a single space.
+    const isDiffLike =
+      trimmed.startsWith('diff --git ') ||
+      trimmed.startsWith('index ') ||
+      trimmed.startsWith('--- ') ||
+      trimmed.startsWith('+++ ') ||
+      trimmed.startsWith('@@ ') ||
+      trimmed.startsWith('new file mode ') ||
+      trimmed.startsWith('deleted file mode ') ||
+      trimmed.startsWith('similarity index ') ||
+      trimmed.startsWith('rename from ') ||
+      trimmed.startsWith('rename to ') ||
+      trimmed.startsWith('old mode ') ||
+      trimmed.startsWith('new mode ') ||
+      trimmed.startsWith('Binary files ') ||
+      trimmed.startsWith('GIT binary patch') ||
+      trimmed.startsWith('\\ No newline at end of file');
+
+    if (!isDiffLike) continue;
+
+    const indentMatch = line.match(/^\s+/);
+    if (!indentMatch) continue;
+    candidates.push(indentMatch[0].length);
+  }
+
+  const minIndent = candidates.length > 0 ? Math.min(...candidates) : 0;
+  if (minIndent <= 0) return content;
+
+  return lines
+    .map((line) => {
+      if (!line) return line;
+      const indent = line.match(/^\s+/)?.[0]?.length ?? 0;
+      if (indent < minIndent) return line;
+      return line.slice(minIndent);
+    })
+    .join('\n');
+}
+
 export function normalizeDiff(raw: string): string {
   const t = raw.trim();
   let content = t;
   const match = t.match(/```(?:diff)?\s*\n([\s\S]*?)\n```/i) || t.match(/(diff --git [\s\S]*)$/i);
   if (match) content = match[1] || match[0];
+  content = dedentUnifiedDiff(content);
   const diffStart = content.search(/^(diff --git |--- a\/)/m);
   if (diffStart !== -1) content = content.substring(diffStart);
   return (

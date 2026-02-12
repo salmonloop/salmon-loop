@@ -6,7 +6,7 @@ describe('Grizzco LLM strategy', () => {
     const llm = {} as unknown as LLM;
     const policy = resolveLlmToolCallingPolicy(Phase.PLAN, llm);
     expect(policy.enabled).toBe(false);
-    expect(policy.maxRounds).toBe(6);
+    expect(policy.maxRounds).toBe(4);
   });
 
   it('disables tool calling when toolCalling capability is false', () => {
@@ -23,6 +23,6 @@ describe('Grizzco LLM strategy', () => {
     } as unknown as LLM;
     const policy = resolveLlmToolCallingPolicy(Phase.PATCH, llm);
     expect(policy.enabled).toBe(true);
-    expect(policy.maxRounds).toBe(6);
+    expect(policy.maxRounds).toBe(4);
   });
 });

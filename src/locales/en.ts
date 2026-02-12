@@ -164,6 +164,8 @@ Please return the patch in PURE unified diff format:`;
     success: 'Successfully completed',
     maxRetriesExceeded: (maxRetries: number, lastError?: string) =>
       `Exceeded maximum retries (${maxRetries}), last error: ${lastError}`,
+    retryingAttempt: (from: number, to: number, reason: string) =>
+      `Retrying (${from} -> ${to}). Reason: ${reason}`,
     contextShrinking: 'Shrinking context and retrying...',
     rollbackAndShrink: 'Rolling back and shrinking context...',
     diffValidationPassed: 'Diff validation passed',

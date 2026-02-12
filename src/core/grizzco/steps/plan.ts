@@ -3,12 +3,72 @@ import { LIMITS } from '../../limits.js';
 import { sanitizeError } from '../../llm/errors.js';
 import { emitLlmOutput } from '../../llm/output-policy.js';
 import { formatContextForPrompt, parsePlanFromLLMContent } from '../../llm-utils.js';
+import { readPlan, updatePlan } from '../../plan/index.js';
 import { getPlanPrompt, getPlanSystemPrompt } from '../../prompt.js';
 import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
 import { Phase, type Plan } from '../../types.js';
 import { resolveLlmToolCallingPolicy } from '../dsl/llm-strategy.js';
 import { Step } from '../pipeline.js';
 import { ContextCtx, PlanCtx } from '../types.js';
+
+function sanitizeSubtaskText(raw: string): string | null {
+  const oneLine = String(raw ?? '')
+    .replace(/\r?\n/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!oneLine) return null;
+
+  // Prevent metadata injection (our plan format uses HTML comments for stable IDs).
+  const withoutComments = oneLine.replaceAll('<!--', '').replaceAll('-->', '').trim();
+  if (!withoutComments) return null;
+
+  const maxLen = 180;
+  if (withoutComments.length <= maxLen) return withoutComments;
+  return withoutComments.slice(0, maxLen - 1).trimEnd() + '…';
+}
+
+async function hydrateRuntimePlanTodos(ctx: ContextCtx, plan: Plan): Promise<void> {
+  const runtime = ctx.planRuntime;
+  if (!runtime?.sessionId) return;
+
+  const persistenceRoot = ctx.workspace.baseRepoPath || ctx.workspace.workPath;
+  const res = await readPlan({ persistenceRoot, sessionId: runtime.sessionId });
+
+  const existingNonRoot = [...res.active, ...res.pending, ...res.recentDone].some(
+    (s) => s?.stepId && s.stepId !== 'work_root',
+  );
+  if (existingNonRoot) return;
+
+  const candidates =
+    Array.isArray(plan.changes) && plan.changes.length > 0
+      ? plan.changes
+      : Array.isArray(plan.files)
+        ? plan.files.map((f) => `Edit ${f}`)
+        : [];
+
+  const unique: string[] = [];
+  const seen = new Set<string>();
+  for (const c of candidates) {
+    const sanitized = sanitizeSubtaskText(c);
+    if (!sanitized || seen.has(sanitized)) continue;
+    seen.add(sanitized);
+    unique.push(sanitized);
+    if (unique.length >= 32) break;
+  }
+
+  if (unique.length === 0) return;
+
+  await updatePlan({
+    persistenceRoot,
+    sessionId: runtime.sessionId,
+    baseHash: res.baseHash,
+    stepId: 'work_root',
+    patch: {
+      appendSubtasks: unique,
+    },
+  });
+}
 
 export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
   const toolstack = ctx.toolstack;
@@ -37,6 +97,9 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
       message: `Plan generated: ${plan.goal}`,
       timestamp: new Date(),
     });
+
+    // Best-effort: keep runtime plan actionable even if the LLM doesn't call plan.* tools.
+    await hydrateRuntimePlanTodos(ctx, plan).catch(() => {});
 
     return {
       ...ctx,
@@ -116,6 +179,9 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
     message: `Plan generated: ${plan.goal}`,
     timestamp: new Date(),
   });
+
+  // Best-effort: keep runtime plan actionable even if the LLM doesn't call plan.* tools.
+  await hydrateRuntimePlanTodos(ctx, plan).catch(() => {});
 
   return {
     ...ctx,

@@ -131,19 +131,21 @@ const AppCore: React.FC<{
 
   const todoSessionRef = React.useRef<{ sessionId: string; planPathHint: string } | null>(null);
   const refreshTimerRef = React.useRef<NodeJS.Timeout | null>(null);
-  const prevTaskRunningRef = React.useRef(false);
 
-  const refreshTodos = React.useCallback(async () => {
+  const refreshTodos = React.useCallback(async (): Promise<TodoItem[]> => {
     const runtime = todoSessionRef.current;
-    if (!runtime?.sessionId) return;
+    if (!runtime?.sessionId) return [];
     try {
       const res: PlanReadResult = await readPlan({
         persistenceRoot: repoRootRef.current,
         sessionId: runtime.sessionId,
       });
-      setTodoItems(toTodoItems(res));
+      const items = toTodoItems(res);
+      setTodoItems(items);
+      return items;
     } catch {
       // Best-effort; UI should never crash due to plan persistence issues.
+      return [];
     }
   }, []);
 
@@ -168,15 +170,37 @@ const AppCore: React.FC<{
       } else if (event.type === 'plan.runtime.unavailable') {
         todoSessionRef.current = null;
         setTodoItems([]);
-      } else if (event.type === 'phase.start') {
-        if (!prevTaskRunningRef.current) {
-          setTodoItems([]);
-          setTodoExpanded(false);
-        }
+      } else if (event.type === 'run.start') {
+        setTodoItems([]);
+        setTodoExpanded(false);
         setTaskRunning(true);
+        scheduleRefreshTodos();
+      } else if (event.type === 'run.end') {
+        void (async () => {
+          const items = await refreshTodos();
+          if (items.length === 0) return;
+
+          const normalized = event.success
+            ? items.map((t) => ({ ...t, status: 'done' as const }))
+            : items;
+          const content = buildTodoSummaryCard(normalized);
+
+          dispatch({
+            type: 'ADD_MESSAGE',
+            payload: {
+              id: `todo-card-${Date.now()}`,
+              type: 'todo_card',
+              content,
+              timestamp: new Date(),
+            },
+          });
+        })();
+
+        setTodoExpanded(false);
+        setTaskRunning(false);
       } else if (event.type === 'phase.end') {
-        if (event.phase === 'SHRINK') {
-          setTaskRunning(false);
+        if (event.phase === 'PLAN') {
+          scheduleRefreshTodos();
         }
       } else if (event.type === 'tool.call.end') {
         if (typeof event.toolName === 'string' && event.toolName.startsWith('plan.')) {
@@ -184,29 +208,12 @@ const AppCore: React.FC<{
         }
       }
     },
-    [scheduleRefreshTodos],
+    [dispatch, refreshTodos, scheduleRefreshTodos],
   );
 
   const { sanitizeAndDispatch } = useLoopEvents(mode, onStart, signal, {
     interceptEvent,
   });
-
-  React.useEffect(() => {
-    if (prevTaskRunningRef.current && !taskRunning && todoItems.length > 0) {
-      const content = buildTodoSummaryCard(todoItems);
-      dispatch({
-        type: 'ADD_MESSAGE',
-        payload: {
-          id: `todo-card-${Date.now()}`,
-          type: 'todo_card',
-          content,
-          timestamp: new Date(),
-        },
-      });
-      setTodoExpanded(false);
-    }
-    prevTaskRunningRef.current = taskRunning;
-  }, [dispatch, taskRunning, todoItems]);
 
   const pendingConfirmationRef = React.useRef(state.pendingConfirmation);
   React.useEffect(() => {
@@ -271,7 +278,7 @@ const AppCore: React.FC<{
         </Box>
       )}
 
-      {taskRunning && todoItems.length > 0 && (
+      {taskRunning && (
         <TodoDrawer
           todos={todoItems}
           isExpanded={todoExpanded}

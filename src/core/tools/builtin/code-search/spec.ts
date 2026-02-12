@@ -4,10 +4,21 @@ import { Phase, ExecutionPhase } from '../../../types.js';
 import { repoResource } from '../../parallel/resource-helpers.js';
 import { ToolSpec } from '../../types.js';
 
+const CoercedBoolean = z.preprocess((value) => {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'true' || normalized === '1') return true;
+    if (normalized === 'false' || normalized === '0') return false;
+  }
+  return value;
+}, z.boolean());
+
 export const CodeSearchInput = z.object({
   pattern: z.string().min(1).describe('The regular expression pattern to search for'),
   glob: z.string().optional().describe('Optional glob pattern to filter files (e.g. "*.ts")'),
-  maxMatches: z
+  maxMatches: z.coerce
     .number()
     .int()
     .min(1)
@@ -15,10 +26,9 @@ export const CodeSearchInput = z.object({
     .default(100)
     .describe('Maximum number of matches to return'),
   cwd: z.string().optional().describe('Directory to search in (defaults to repo root)'),
-  isRegex: z
-    .boolean()
-    .default(false)
-    .describe('Whether to treat the pattern as a regular expression'),
+  isRegex: CoercedBoolean.default(false).describe(
+    'Whether to treat the pattern as a regular expression',
+  ),
 });
 
 export const CodeSearchMatch = z.object({

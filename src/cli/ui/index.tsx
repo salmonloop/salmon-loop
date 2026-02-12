@@ -43,8 +43,15 @@ export async function startGUI(
       markdownRenderMode={uiConfig?.markdownRenderMode}
       onStart={(emit: (event: LoopEvent) => void, options: GUIOptions) => {
         if (mode === 'run') {
+          emit({ type: 'run.start', mode: 'run', timestamp: new Date() });
           runFn(emit, undefined, options)
             .then((result) => {
+              emit({
+                type: 'run.end',
+                mode: 'run',
+                success: Boolean(result?.success),
+                timestamp: new Date(),
+              });
               setTimeout(() => {
                 unmount();
                 resolveExit(result);
@@ -57,6 +64,7 @@ export async function startGUI(
                 level: 'error',
                 timestamp: new Date(),
               });
+              emit({ type: 'run.end', mode: 'run', success: false, timestamp: new Date() });
               setTimeout(() => {
                 unmount();
                 resolveExit({ success: false, reason: err.message });
@@ -71,14 +79,25 @@ export async function startGUI(
         dispatch?: any,
       ) => {
         if (mode === 'chat') {
-          runFn(emit, input, options, dispatch).catch((err) => {
-            emit({
-              type: 'log',
-              message: `Chat Error: ${err.message}`,
-              level: 'error',
-              timestamp: new Date(),
+          emit({ type: 'run.start', mode: 'chat', timestamp: new Date() });
+          runFn(emit, input, options, dispatch)
+            .then((result) => {
+              emit({
+                type: 'run.end',
+                mode: 'chat',
+                success: Boolean(result?.success),
+                timestamp: new Date(),
+              });
+            })
+            .catch((err) => {
+              emit({
+                type: 'log',
+                message: `Chat Error: ${err.message}`,
+                level: 'error',
+                timestamp: new Date(),
+              });
+              emit({ type: 'run.end', mode: 'chat', success: false, timestamp: new Date() });
             });
-          });
         }
       }}
     />,

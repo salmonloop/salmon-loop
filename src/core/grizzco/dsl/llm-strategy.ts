@@ -15,10 +15,10 @@ interface LlmPolicyAction {
 
 function defaultMaxRoundsForPhase(phase: ExecutionPhase): number {
   // Explore needs more rounds to navigate the codebase
-  if (phase === Phase.EXPLORE) return 15;
-  if (phase === Phase.PLAN) return 6;
-  if (phase === Phase.PATCH) return 6;
-  return 6;
+  if (phase === Phase.EXPLORE) return 8;
+  if (phase === Phase.PLAN) return 4;
+  if (phase === Phase.PATCH) return 4;
+  return 4;
 }
 
 export function resolveLlmToolCallingPolicy(phase: ExecutionPhase, llm: LLM): LlmToolCallingPolicy {

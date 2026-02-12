@@ -107,10 +107,17 @@ function safeStringifyForAudit(value: unknown): string {
 }
 
 function defaultMaxToolCallsTotalForPhase(phase: ExecutionPhase): number {
-  if (phase === Phase.EXPLORE) return 30;
-  if (phase === Phase.PLAN) return 20;
-  if (phase === Phase.PATCH) return 20;
-  return 20;
+  if (phase === Phase.EXPLORE) return 18;
+  if (phase === Phase.PLAN) return 10;
+  if (phase === Phase.PATCH) return 10;
+  return 10;
+}
+
+function defaultMaxToolCallsPerRoundForPhase(phase: ExecutionPhase): number {
+  if (phase === Phase.EXPLORE) return 6;
+  if (phase === Phase.PLAN) return 4;
+  if (phase === Phase.PATCH) return 4;
+  return 4;
 }
 
 function getToolCallBudget(session: ToolCallingSessionOptions): {
@@ -118,7 +125,8 @@ function getToolCallBudget(session: ToolCallingSessionOptions): {
   maxPerRound: number;
 } {
   const maxTotal = session.maxToolCallsTotal ?? defaultMaxToolCallsTotalForPhase(session.phase);
-  const maxPerRound = session.maxToolCallsPerRound ?? 8;
+  const maxPerRound =
+    session.maxToolCallsPerRound ?? defaultMaxToolCallsPerRoundForPhase(session.phase);
   return {
     maxTotal: Math.max(0, Math.floor(maxTotal)),
     maxPerRound: Math.max(0, Math.floor(maxPerRound)),

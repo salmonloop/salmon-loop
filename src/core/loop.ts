@@ -330,7 +330,7 @@ export class SalmonLoop {
           attempt,
           plan: ctx?.plan ?? null,
           patch: ctx?.diff ?? null,
-          error: sanitizeError(result.error || ctx?.lastError),
+          error: sanitizeError(ctx?.lastError || result.error),
           contextSummary: ctx?.context
             ? `Snippets: ${ctx.context.rgSnippets.length}`
             : 'No context',
@@ -445,12 +445,21 @@ export class SalmonLoop {
         }
 
         // Failure or Verify Failed
-        if (ctx?.shrunk && ctx?.context) {
-          currentContext = ctx.context;
-          currentLastError = ctx.lastError || currentLastError;
-        }
+        const failureReason =
+          sanitizeError(ctx?.lastError || result.error) || text.loop.loopExecutionFailed;
+        if (ctx?.context) currentContext = ctx.context;
+        if (failureReason) currentLastError = failureReason;
 
         retries++;
+
+        if (retries <= LIMITS.maxRetries) {
+          emit({
+            type: 'log',
+            level: 'warn',
+            message: text.loop.retryingAttempt(attempt, attempt + 1, failureReason),
+            timestamp: now(),
+          });
+        }
 
         if (retries > LIMITS.maxRetries) {
           return {

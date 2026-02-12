@@ -47,21 +47,30 @@ export function extractUnifiedDiffFromLLMContent(content: string): string {
     throw wrapPatchEmpty();
   }
 
-  // Extract ONLY the last diff block (LLM may generate multiple attempts)
-  const diffBlocks = content.match(/```(?:diff)?\s*\n(diff --git[\s\S]*?)\n```/g);
-  if (diffBlocks && diffBlocks.length > 0) {
-    const lastBlock = diffBlocks[diffBlocks.length - 1];
-    return lastBlock
-      .replace(/```(?:diff)?\s*\n/, '')
-      .replace(/\n```\s*$/, '')
-      .trim();
+  const looksLikeUnifiedDiff = (text: string): boolean => {
+    return /^\s*(diff --git |--- a\/)/m.test(text);
+  };
+
+  // 1) Prefer fenced code blocks and always pick the LAST diff-like block (LLM may generate multiple attempts).
+  // Accept both git-style (`diff --git`) and minimal unified diffs (`--- a/...` + `+++ b/...`).
+  const fencedBlocks: string[] = [];
+  const fenceRegex = /```(?:diff)?\s*\n([\s\S]*?)\n```/gi;
+  let fenceMatch: RegExpExecArray | null = null;
+  while ((fenceMatch = fenceRegex.exec(content)) !== null) {
+    const block = fenceMatch[1];
+    if (typeof block === 'string' && looksLikeUnifiedDiff(block)) {
+      fencedBlocks.push(block);
+    }
+  }
+  if (fencedBlocks.length > 0) {
+    return fencedBlocks[fencedBlocks.length - 1].trim();
   }
 
-  // Fallback: extract raw diff without markdown
-  const rawDiffMatch = content.match(/(diff --git[\s\S]*?)(?:\n\n[A-Z]|$)/);
-  if (rawDiffMatch) {
-    return rawDiffMatch[1].trim();
-  }
+  // 2) Raw diff without markdown: keep the first diff-like section.
+  // In "pure diff" mode, LLMs typically return only the patch, so selecting the first marker
+  // avoids accidentally dropping the leading `diff --git` header.
+  const rawStart = content.search(/^\s*(diff --git |--- a\/)/m);
+  if (rawStart !== -1) return content.slice(rawStart).trim();
 
   // Final fallback: original simple cleanup
   let cleanContent = content;

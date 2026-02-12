@@ -14,6 +14,18 @@ describe('Diff Security & Normalization (Character-Level Parity)', () => {
       expect(normalizeDiff(raw)).toBe('diff --git a/a b/a\n');
     });
 
+    it('should dedent uniformly-indented diffs', () => {
+      const raw = `  diff --git a/a b/a
+  --- a/a
+  +++ b/a
+  @@ -1 +1 @@
+  -old
+  +new`;
+      expect(normalizeDiff(raw)).toBe(
+        'diff --git a/a b/a\n--- a/a\n+++ b/a\n@@ -1 +1 @@\n-old\n+new\n',
+      );
+    });
+
     it('should handle paths with spaces correctly (non-greedy regex)', () => {
       const raw = 'diff --git a/folder with spaces/file.ts b/folder with spaces/file.ts';
       const normalized = normalizeDiff(raw);

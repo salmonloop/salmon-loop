@@ -169,7 +169,7 @@ describe('exploreCodebase', () => {
     );
   });
 
-  it('fails validation if fs.read does not produce captured content', async () => {
+  it('warns if fs.read does not produce captured content', async () => {
     vi.mocked(strategy.resolveLlmToolCallingPolicy).mockReturnValue({
       enabled: true,
       maxRounds: 10,
@@ -201,7 +201,16 @@ describe('exploreCodebase', () => {
       return { role: 'assistant', content: 'done' } as any;
     });
 
-    await expect(exploreCodebase(mockCtx)).rejects.toThrow();
+    const out = await exploreCodebase(mockCtx);
+
+    expect(out).toEqual(expect.objectContaining({ context: mockCtx.context }));
+    expect(mockCtx.emit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'log',
+        level: 'warn',
+        message: expect.stringContaining('No files were read during the exploration phase'),
+      }),
+    );
   });
 
   it('uses chatWithToolsStreaming if LLM supports streaming', async () => {
