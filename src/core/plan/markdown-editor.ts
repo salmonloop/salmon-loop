@@ -7,6 +7,7 @@ const STEP_ID_RE = /^[a-zA-Z0-9_.:-]{3,128}$/;
 export function assertValidStepId(stepId: string): void {
   if (!STEP_ID_RE.test(stepId)) {
     throw new Error('Invalid stepId.');
+    // test
   }
 }
 

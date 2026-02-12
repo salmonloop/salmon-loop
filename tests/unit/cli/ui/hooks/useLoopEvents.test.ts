@@ -150,4 +150,74 @@ describe('useLoopEvents', () => {
       }),
     );
   });
+
+  it('does not complete stream when handling non-stream events', () => {
+    const onStart = vi.fn();
+    const signal = new AbortController().signal;
+    const { result } = renderHook(() => useLoopEvents('chat', onStart, signal));
+
+    act(() => {
+      result.current.sanitizeAndDispatch({
+        type: 'llm.stream.delta',
+        streamId: 'stream-chat-2',
+        content: 'hello',
+        timestamp: new Date('2026-02-06T23:05:00.000Z'),
+      });
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
+
+    hoisted.dispatch.mockClear();
+
+    act(() => {
+      result.current.sanitizeAndDispatch({
+        type: 'log',
+        level: 'debug',
+        message: 'next event after stream delta',
+        timestamp: new Date('2026-02-06T23:05:00.200Z'),
+      });
+    });
+
+    expect(hoisted.dispatch).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'COMPLETE_STREAM' }),
+    );
+  });
+
+  it('flushes and completes stream on llm.stream.end', () => {
+    const onStart = vi.fn();
+    const signal = new AbortController().signal;
+    const { result } = renderHook(() => useLoopEvents('chat', onStart, signal));
+
+    act(() => {
+      result.current.sanitizeAndDispatch({
+        type: 'llm.stream.delta',
+        streamId: 'stream-chat-end-1',
+        content: 'hi',
+        timestamp: new Date('2026-02-06T23:06:00.000Z'),
+      });
+    });
+
+    act(() => {
+      result.current.sanitizeAndDispatch({
+        type: 'llm.stream.end',
+        streamId: 'stream-chat-end-1',
+        timestamp: new Date('2026-02-06T23:06:00.050Z'),
+      });
+    });
+
+    expect(hoisted.dispatch).toHaveBeenCalledWith({
+      type: 'APPEND_LLM_STREAM',
+      payload: {
+        id: 'stream-chat-end-1',
+        delta: 'hi',
+        timestamp: new Date('2026-02-06T23:06:00.000Z'),
+      },
+    });
+    expect(hoisted.dispatch).toHaveBeenCalledWith({
+      type: 'COMPLETE_STREAM',
+      payload: { id: 'stream-chat-end-1' },
+    });
+  });
 });

@@ -103,7 +103,7 @@ export async function startGUI(
     />,
     {
       exitOnCtrlC: false,
-      patchConsole: false,
+      patchConsole: true,
     },
   );
 

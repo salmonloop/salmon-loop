@@ -303,6 +303,14 @@ export type LoopEvent =
       timestamp: Date;
     }
   | {
+      type: 'llm.stream.end';
+      kind: LlmOutputKind;
+      step: ExecutionStep;
+      streamId: string;
+      finishReason?: string;
+      timestamp: Date;
+    }
+  | {
       type: 'llm.output';
       kind: LlmOutputKind;
       step: ExecutionStep;

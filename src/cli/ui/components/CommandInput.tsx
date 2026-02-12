@@ -39,6 +39,7 @@ export const CommandInput: React.FC<Props> = ({
 
   const [inputKey, setInputKey] = useState(0);
   const [selectionIndex, setSelectionIndex] = useState(0);
+  const suppressNextInputChangeRef = React.useRef(false);
 
   React.useEffect(() => {
     if (pendingSelection) setSelectionIndex(0);
@@ -105,7 +106,15 @@ export const CommandInput: React.FC<Props> = ({
     onChange(nextValue);
   };
 
-  useInput((_, key) => {
+  useInput((input, key) => {
+    if (
+      key.ctrl &&
+      (input === 't' || input === 'T' || input === '\u0014' || (key as any).name === 't')
+    ) {
+      suppressNextInputChangeRef.current = true;
+      return;
+    }
+
     if (key.escape) {
       if (!isListClosed && suggestions.length > 0) {
         setIsListClosed(true);
@@ -171,6 +180,12 @@ export const CommandInput: React.FC<Props> = ({
           focus={true}
           onChange={(val) => {
             if (isSelecting) return;
+            if (suppressNextInputChangeRef.current) {
+              suppressNextInputChangeRef.current = false;
+              if (val === `${value}t` || val === `${value}T` || val === `${value}\u0014`) {
+                return;
+              }
+            }
             setIsListClosed(false);
             resetHistory();
             onChange(val);

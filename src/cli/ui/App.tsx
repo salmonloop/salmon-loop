@@ -26,36 +26,21 @@ import { COLORS } from './styles/theme.js';
 const MemoMessageList = React.memo(MessageList);
 
 function buildTodoSummaryCard(todos: TodoItem[]): string {
-  const total = todos.length;
-  const done = todos.filter((t) => t.status === 'done').length;
-  const inProgress = todos.filter((t) => t.status === 'in_progress').length;
-  const pending = todos.filter((t) => t.status === 'pending').length;
+  const maxItems = 12;
+  const preview = todos.slice(0, maxItems);
 
-  const width = 56; // total visual width including borders
-  const innerWidth = width - 2;
-  const line = (s: string) => {
-    const truncated = s.length > width - 4 ? s.slice(0, width - 7) + '...' : s;
-    return `│ ${truncated.padEnd(width - 4, ' ')} │`;
-  };
-
-  const headerInside = `─ TODO ${'─'.repeat(Math.max(0, innerWidth - '─ TODO '.length))}`;
-  const header = `┌${headerInside}┐`;
-  const bottom = `└${'─'.repeat(innerWidth)}┘`;
-
-  const body: string[] = [];
-  body.push(line(`Done: ${done}/${total}  In progress: ${inProgress}  Pending: ${pending}`));
-  body.push(line(''));
-
-  const preview = todos.slice(0, 6);
+  const lines: string[] = [];
   for (const t of preview) {
-    const mark = t.status === 'done' ? '[x]' : t.status === 'in_progress' ? '[/]' : '[ ]';
-    body.push(line(`${mark} ${t.text}`));
-  }
-  if (todos.length > preview.length) {
-    body.push(line(`… and ${todos.length - preview.length} more`));
+    const checked = t.status === 'done';
+    // Keep TODO cards as plain text to avoid markdown list bullets (e.g. "*") injected by terminal renderers.
+    lines.push(`[${checked ? 'x' : ' '}] ${t.text}`);
   }
 
-  return ['```text', header, ...body, bottom, '```'].join('\n');
+  if (todos.length > preview.length) {
+    lines.push(`… and ${todos.length - preview.length} more`);
+  }
+
+  return lines.join('\n');
 }
 
 function parseTodoPriority(text: string): { priority?: TodoPriority; text: string } {
@@ -172,7 +157,7 @@ const AppCore: React.FC<{
         setTodoItems([]);
       } else if (event.type === 'run.start') {
         setTodoItems([]);
-        setTodoExpanded(false);
+        setTodoExpanded(true);
         setTaskRunning(true);
         scheduleRefreshTodos();
       } else if (event.type === 'run.end') {
@@ -278,7 +263,7 @@ const AppCore: React.FC<{
         </Box>
       )}
 
-      {taskRunning && (
+      {taskRunning && todoItems.length > 0 && (
         <TodoDrawer
           todos={todoItems}
           isExpanded={todoExpanded}

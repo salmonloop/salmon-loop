@@ -69,12 +69,6 @@ function priorityColor(priority?: TodoPriority) {
   }
 }
 
-function renderProgressBar(percent: number, width: number) {
-  const clamped = Math.max(0, Math.min(100, percent));
-  const filled = Math.round((clamped / 100) * width);
-  return '█'.repeat(filled) + '░'.repeat(Math.max(0, width - filled));
-}
-
 export function TodoDrawer({
   todos,
   isExpanded,
@@ -83,17 +77,16 @@ export function TodoDrawer({
   maxVisible = 8,
 }: TodoDrawerProps) {
   useInput((input, key) => {
-    if (key.ctrl && input === 't') {
+    if (
+      key.ctrl &&
+      (input === 't' || input === 'T' || input === '\u0014' || (key as any).name === 't')
+    ) {
       onToggle();
     }
   });
 
-  const total = todos.length;
-  const done = todos.filter((t) => t.status === 'done').length;
-  const percent = total === 0 ? 0 : Math.round((done / total) * 100);
-
   const visibleTodos = useMemo(() => todos.slice(0, Math.max(0, maxVisible)), [todos, maxVisible]);
-  const toggleLabel = isExpanded ? '[collapse ▲]' : '[expand ▼]';
+  const toggleLabel = isExpanded ? '▲' : '▼';
 
   return (
     <Box
@@ -110,13 +103,6 @@ export function TodoDrawer({
           <Text color={COLORS.semantic.blue} bold>
             TODO
           </Text>
-          <Text color={COLORS.text.muted} dimColor>
-            {' '}
-            │{' '}
-          </Text>
-          <Text color={COLORS.text.muted} dimColor>
-            {done}/{total} completed
-          </Text>
         </Box>
         <Box>
           <Text color={COLORS.text.muted} dimColor>
@@ -127,55 +113,27 @@ export function TodoDrawer({
 
       {isExpanded && (
         <Box flexDirection="column" paddingX={2} paddingY={0}>
-          <Box
-            flexDirection="column"
-            borderStyle="double"
-            borderColor={COLORS.border.subtle}
-            paddingX={1}
-            paddingY={0}
-          >
-            {visibleTodos.length === 0 ? (
-              <Text color={COLORS.text.muted} dimColor>
-                No tasks yet. Tasks are auto-tracked from SALMON's planning phase.
-              </Text>
-            ) : (
-              visibleTodos.map((t, i) => (
-                <Box key={t.id} flexDirection="row">
-                  <Box width={4}>
-                    <Text color={statusColor(t.status)}>{statusIcon(t.status)}</Text>
-                  </Box>
-                  <Box width={2}>
-                    <Text color={priorityColor(t.priority)}>{priorityIcon(t.priority)}</Text>
-                  </Box>
-                  <Box width={4}>
-                    <Text color={COLORS.text.muted} dimColor>
-                      {String(i + 1).padStart(2, '0')}
-                    </Text>
-                    <Text color={COLORS.text.muted} dimColor>
-                      {' '}
-                      │
-                    </Text>
-                  </Box>
-                  <Box flexGrow={1}>
-                    <Text wrap="truncate" color={COLORS.text.primary}>
-                      {t.text}
-                    </Text>
-                  </Box>
-                </Box>
-              ))
-            )}
-          </Box>
-
-          <Box flexDirection="row" marginTop={0}>
-            <Text color={COLORS.semantic.salmon}>{renderProgressBar(percent, 44)}</Text>
+          {visibleTodos.length === 0 ? (
             <Text color={COLORS.text.muted} dimColor>
-              {' '}
-              {percent}%
+              No tasks yet.
             </Text>
-          </Box>
-          <Text color={COLORS.text.muted} dimColor>
-            Tasks are auto-tracked from SALMON's planning phase.
-          </Text>
+          ) : (
+            visibleTodos.map((t) => (
+              <Box key={t.id} flexDirection="row">
+                <Box width={4}>
+                  <Text color={statusColor(t.status)}>{statusIcon(t.status)}</Text>
+                </Box>
+                <Box width={2}>
+                  <Text color={priorityColor(t.priority)}>{priorityIcon(t.priority)}</Text>
+                </Box>
+                <Box flexGrow={1}>
+                  <Text wrap="truncate" color={COLORS.text.primary}>
+                    {t.text}
+                  </Text>
+                </Box>
+              </Box>
+            ))
+          )}
         </Box>
       )}
     </Box>

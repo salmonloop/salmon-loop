@@ -135,3 +135,25 @@ export function emitLlmStreamDelta(params: {
     timestamp: new Date(),
   });
 }
+
+export function emitLlmStreamEnd(params: {
+  emit?: (event: LoopEvent) => void;
+  policy?: LlmOutputPolicy;
+  kind: LlmOutputKind;
+  step: ExecutionStep;
+  streamId: string;
+  finishReason?: string;
+}) {
+  const { emit, policy, kind, step, streamId, finishReason } = params;
+  if (!emit) return;
+  if (!streamId) return;
+  if (!shouldEmitLlmOutput(policy, kind)) return;
+  emit({
+    type: 'llm.stream.end',
+    kind,
+    step,
+    streamId,
+    finishReason,
+    timestamp: new Date(),
+  });
+}

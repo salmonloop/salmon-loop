@@ -19,6 +19,7 @@ export function useLoopEvents(
 ) {
   const { dispatch } = useUIStore();
   const runStartedRef = useRef(false);
+  const activeStreamIdRef = useRef<string | null>(null);
 
   // Throttle state for streaming deltas to prevent render thrashing
   const streamBufferRef = useRef<Map<string, { delta: string; timestamp: Date }>>(new Map());
@@ -52,13 +53,12 @@ export function useLoopEvents(
         streamBufferRef.current.set(streamId, { delta, timestamp });
       }
 
-      // Clear existing timer if any
       const existingTimer = streamTimerRef.current.get(streamId);
       if (existingTimer) {
-        clearTimeout(existingTimer);
+        return;
       }
 
-      // Set new timer to flush after 100ms
+      // Set new timer to flush after 100ms (true throttle: do not reset per-delta)
       const timer = setTimeout(() => {
         const bufferedData = streamBufferRef.current.get(streamId);
         if (bufferedData) {
@@ -80,11 +80,11 @@ export function useLoopEvents(
     [dispatch],
   );
 
-  // Flush all pending throttled streams AND complete active streaming to prevent message ordering issues
-  const flushAllStreams = useCallback(() => {
-    // 1. Flush all pending throttle buffers first
-    streamTimerRef.current.forEach((timer, streamId) => {
-      clearTimeout(timer);
+  const flushStream = useCallback(
+    (streamId: string) => {
+      const timer = streamTimerRef.current.get(streamId);
+      if (timer) clearTimeout(timer);
+
       const bufferedData = streamBufferRef.current.get(streamId);
       if (bufferedData) {
         dispatch({
@@ -96,14 +96,19 @@ export function useLoopEvents(
           },
         });
       }
-    });
-    streamBufferRef.current.clear();
-    streamTimerRef.current.clear();
 
-    // 2. Complete any active streaming message to move it to completedMessages
-    // This ensures the streaming message appears before subsequent non-streaming messages
-    dispatch({ type: 'COMPLETE_STREAM', payload: { id: 'flush-all' } });
-  }, [dispatch]);
+      streamBufferRef.current.delete(streamId);
+      streamTimerRef.current.delete(streamId);
+    },
+    [dispatch],
+  );
+
+  // Flush pending throttled buffers so stream output stays chronologically correct.
+  // Stream completion is handled by explicit `llm.stream.end` events.
+  const flushAllStreams = useCallback(() => {
+    const ids = new Set([...streamBufferRef.current.keys(), ...streamTimerRef.current.keys()]);
+    for (const streamId of ids) flushStream(streamId);
+  }, [flushStream]);
 
   const handleEvent = useCallback(
     (event: any) => {
@@ -184,8 +189,21 @@ export function useLoopEvents(
         const delta = sanitizeMessage({ type: 'assistant', content: event.content });
         if (!delta.trim()) return;
 
+        if (activeStreamIdRef.current && activeStreamIdRef.current !== event.streamId) {
+          flushStream(activeStreamIdRef.current);
+          dispatch({ type: 'COMPLETE_STREAM', payload: { id: activeStreamIdRef.current } });
+        }
+        activeStreamIdRef.current = event.streamId;
+
         // Use throttled dispatch instead of direct dispatch
         throttledStreamDispatch(event.streamId, delta, event.timestamp || new Date());
+        return;
+      }
+
+      if (event.type === 'llm.stream.end') {
+        flushStream(event.streamId);
+        dispatch({ type: 'COMPLETE_STREAM', payload: { id: event.streamId } });
+        if (activeStreamIdRef.current === event.streamId) activeStreamIdRef.current = null;
         return;
       }
 
@@ -207,7 +225,7 @@ export function useLoopEvents(
       }
 
       if (event.type === 'llm.output') {
-        // Stream already completed by flushAllStreams(), just add the final message
+        // Full output message (non-streaming path).
         dispatchSanitizedMessage({
           type: 'assistant',
           content: event.content,

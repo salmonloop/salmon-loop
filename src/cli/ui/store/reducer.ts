@@ -159,6 +159,14 @@ export function uiReducer(state: UIState, action: UIAction): UIState {
     case 'COMPLETE_STREAM': {
       if (!state.activeStreamingMessage) return state;
 
+      if (
+        action.payload?.id &&
+        action.payload.id !== 'flush-all' &&
+        state.activeStreamingMessage.id !== action.payload.id
+      ) {
+        return state;
+      }
+
       const completed = {
         ...state.activeStreamingMessage,
         streamState: 'completed' as const,

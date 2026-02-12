@@ -41,7 +41,9 @@ const MessageItem = React.memo<{
   nextMsg?: Message;
   markdownTheme?: MarkdownTheme;
   markdownRenderMode?: MarkdownRenderMode;
-}>(({ msg, nextMsg, markdownTheme, markdownRenderMode }) => {
+  containerWidth: number;
+  separatorLine: string;
+}>(({ msg, nextMsg, markdownTheme, markdownRenderMode, containerWidth, separatorLine }) => {
   const timestamp = msg.timestamp.toLocaleTimeString('en-US', { hour12: false });
 
   // 1. Handle Special Welcome Logo
@@ -53,7 +55,7 @@ const MessageItem = React.memo<{
   if (msg.type === 'interrupt' || msg.content.includes('^C [SPLATTED]')) {
     const content = msg.content.replace('^C [SPLATTED]', '').trim();
     return (
-      <Box flexDirection="column" marginBottom={1}>
+      <Box flexDirection="column" marginBottom={1} width={containerWidth}>
         <Text color="gray" dimColor>
           [{msg.timestamp.toLocaleTimeString('en-US', { hour12: false })}]
         </Text>
@@ -90,7 +92,7 @@ const MessageItem = React.memo<{
           : COLORS.bg.highlight;
 
     return (
-      <Box flexDirection="column" marginBottom={1}>
+      <Box flexDirection="column" marginBottom={1} width={containerWidth}>
         <Box
           flexDirection="column"
           borderStyle="single"
@@ -100,7 +102,10 @@ const MessageItem = React.memo<{
           borderBottom={false}
           borderColor={style.inkColor}
           paddingLeft={1}
+          paddingTop={1}
+          paddingBottom={1}
           backgroundColor={bgColor}
+          width={containerWidth}
         >
           {/* Header Row */}
           <Box marginBottom={0}>
@@ -126,10 +131,16 @@ const MessageItem = React.memo<{
 
           {/* Content Row */}
           <Box marginTop={1} marginBottom={0} paddingLeft={2}>
-            <Markdown theme={markdownTheme} mode={markdownRenderMode}>
-              {msg.content}
-            </Markdown>
-            {isStreaming && <StreamingCursor />}
+            {isStreaming ? (
+              <Text>
+                {msg.content}
+                <StreamingCursor />
+              </Text>
+            ) : (
+              <Markdown theme={markdownTheme} mode={markdownRenderMode}>
+                {msg.content}
+              </Markdown>
+            )}
           </Box>
 
           {/* Metadata/Error Info */}
@@ -144,7 +155,7 @@ const MessageItem = React.memo<{
         {showSeparator && (
           <Box marginTop={0} marginBottom={0} paddingLeft={2}>
             <Text color="gray" dimColor>
-              {'─'.repeat(76)}
+              {separatorLine}
             </Text>
           </Box>
         )}
@@ -160,7 +171,7 @@ const MessageItem = React.memo<{
     const contentIndent = msg.type === 'user' || msg.type === 'tool_result' ? 20 : 0;
 
     return (
-      <Box flexDirection="column" paddingLeft={3}>
+      <Box flexDirection="column" paddingLeft={3} width={containerWidth}>
         <Box flexDirection="column" marginBottom={style.marginBottom}>
           {/* Header + Inline Content (if short) */}
           <Box flexDirection="row" gap={1}>
@@ -206,7 +217,7 @@ const MessageItem = React.memo<{
         {showSeparator && (
           <Box marginBottom={1}>
             <Text color="gray" dimColor>
-              {'─'.repeat(76)}
+              {separatorLine}
             </Text>
           </Box>
         )}
@@ -217,7 +228,12 @@ const MessageItem = React.memo<{
   // Level 3: Lightweight (System, Queue, Thinking)
   // Layout: Single line, dim color, compact
   return (
-    <Box flexDirection="column" marginBottom={style.marginBottom} paddingLeft={3}>
+    <Box
+      flexDirection="column"
+      marginBottom={style.marginBottom}
+      paddingLeft={3}
+      width={containerWidth}
+    >
       <Box flexDirection="row" gap={1}>
         <Text color={COLORS.text.muted} dimColor={false}>
           {msg.timestamp.toLocaleTimeString('en-US', { hour12: false })}
@@ -236,6 +252,15 @@ export const MessageList: React.FC<{
 }> = ({ markdownTheme, markdownRenderMode }) => {
   const { state } = useUIStore();
   const { completedMessages, activeStreamingMessage, queueMessages } = state;
+  const containerWidth = React.useMemo(() => {
+    const w = state.terminalWidth || UI_CONFIG.DEFAULT_WIDTH;
+    const padded = Math.max(0, w - UI_CONFIG.MESSAGE_AREA_PADDING_X * 2);
+    return Math.min(w, Math.max(10, padded));
+  }, [state.terminalWidth]);
+  const separatorLine = React.useMemo(
+    () => '─'.repeat(Math.max(10, containerWidth - 2)),
+    [containerWidth],
+  );
 
   const truncateQueueContent = (content: string) => {
     const singleLine = content.replace(/\s+/g, ' ').trim();
@@ -248,7 +273,7 @@ export const MessageList: React.FC<{
   );
 
   return (
-    <Box flexDirection="column" flexGrow={1}>
+    <Box flexDirection="column" flexGrow={1} width={containerWidth}>
       {/* Completed messages - Static rendering for native terminal scroll */}
       <Static items={completedMessages}>
         {(msg, index) => (
@@ -258,6 +283,8 @@ export const MessageList: React.FC<{
             nextMsg={completedMessages[index + 1]}
             markdownTheme={markdownTheme}
             markdownRenderMode={markdownRenderMode}
+            containerWidth={containerWidth}
+            separatorLine={separatorLine}
           />
         )}
       </Static>
@@ -269,6 +296,8 @@ export const MessageList: React.FC<{
           msg={activeStreamingMessage}
           markdownTheme={markdownTheme}
           markdownRenderMode={markdownRenderMode}
+          containerWidth={containerWidth}
+          separatorLine={separatorLine}
         />
       )}
 

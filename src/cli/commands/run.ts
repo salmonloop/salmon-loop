@@ -173,9 +173,19 @@ export async function handleRunCommand(options: any, command: Command) {
       }
     }
 
+    // Default to GUI unless explicitly disabled or not a TTY
+    const useGui = allOptions.gui !== false && process.stdout.isTTY;
+
     // Initialize Reporter (Adapter Pattern)
-    // Future: const reporter = options.gui ? new InkReporter() : new StandardReporter(options.verbose);
-    const reporter: SalmonReporter = new StandardReporter(Boolean(allOptions.verbose));
+    // NOTE: In GUI mode we must avoid writing to stdout/stderr outside Ink.
+    const reporter: SalmonReporter = useGui
+      ? {
+          onStart: () => {},
+          onEvent: () => {},
+          onFinish: () => {},
+          onError: () => {},
+        }
+      : new StandardReporter(Boolean(allOptions.verbose));
 
     reporter.onStart(allOptions.instruction);
 
@@ -212,8 +222,6 @@ export async function handleRunCommand(options: any, command: Command) {
         : text.cli.chatFailed(result.reason);
 
     let result: LoopResult;
-    // Default to GUI unless explicitly disabled or not a TTY
-    const useGui = allOptions.gui !== false && process.stdout.isTTY;
 
     if (useGui) {
       // Dynamically import GUI to avoid top-level await issues with yoga-layout

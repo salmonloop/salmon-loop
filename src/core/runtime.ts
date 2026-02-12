@@ -14,6 +14,8 @@ export function initializeRuntime() {
     return;
   }
 
+  const isGui = process.argv.includes('--gui');
+
   // 1. Terminal Output Interceptor (The Nuclear Option)
   // Monkey-patch console.error to ensure ANY direct console calls are sanitized
   const originalConsoleError = console.error;
@@ -46,14 +48,36 @@ export function initializeRuntime() {
   // Hijack raw stdout/stderr to filter out sensitive info even if it escapes as a raw string or Buffer
   const TOKEN_ERROR_TEST_REGEX = /(Token error|api[-_]key|secret)[^ \n\r'"]*/i;
   const TOKEN_ERROR_REPLACE_REGEX = /(Token error|api[-_]key|secret)[^ \n\r'"]*/gi;
+  const SHOULD_SCAN_HINT_REGEX = /(token|api|key|secret)/i;
+  const bufferHasHint = (buf: Buffer) =>
+    buf.includes('Token') ||
+    buf.includes('token') ||
+    buf.includes('API') ||
+    buf.includes('api') ||
+    buf.includes('KEY') ||
+    buf.includes('key') ||
+    buf.includes('SECRET') ||
+    buf.includes('secret');
   const sanitizeStream = (stream: NodeJS.WriteStream) => {
     const originalWrite = stream.write.bind(stream);
     stream.write = (chunk: any, encodingOrCb?: any, cb?: any) => {
       const isBuffer = Buffer.isBuffer(chunk);
-      const data = isBuffer ? chunk.toString() : typeof chunk === 'string' ? chunk : '';
+      const data = isBuffer ? '' : typeof chunk === 'string' ? chunk : '';
 
-      if (TOKEN_ERROR_TEST_REGEX.test(data)) {
-        const cleaned = data.replace(TOKEN_ERROR_REPLACE_REGEX, '[REDACTED]');
+      // Ink-based GUI renders through high-frequency stdout writes. Avoid expensive
+      // string conversions and regex checks unless the chunk looks like it may contain secrets.
+      if (isGui) {
+        if (isBuffer) {
+          if (!chunk || chunk.length === 0) return originalWrite(chunk, encodingOrCb, cb);
+          if (!bufferHasHint(chunk)) return originalWrite(chunk, encodingOrCb, cb);
+        } else if (!data || !SHOULD_SCAN_HINT_REGEX.test(data)) {
+          return originalWrite(chunk, encodingOrCb, cb);
+        }
+      }
+
+      const resolvedData = isBuffer ? chunk.toString() : data;
+      if (TOKEN_ERROR_TEST_REGEX.test(resolvedData)) {
+        const cleaned = resolvedData.replace(TOKEN_ERROR_REPLACE_REGEX, '[REDACTED]');
         const nextChunk = isBuffer ? Buffer.from(cleaned) : cleaned;
         return originalWrite(nextChunk, encodingOrCb, cb);
       }

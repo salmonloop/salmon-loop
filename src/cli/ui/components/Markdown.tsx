@@ -51,6 +51,19 @@ const THEME_OVERRIDES: Record<MarkdownTheme, Record<string, unknown>> = {
   },
 };
 
+export function __applyMarkedTerminalTaskListCompat(m: Marked) {
+  // marked@17 emits explicit `checkbox` tokens for task lists.
+  // marked-terminal also injects checkboxes for task list items, which can cause duplicates
+  // (e.g. "[x] [x] Task") if we render checkbox tokens as-is.
+  m.use({
+    walkTokens(token: any) {
+      if (!token || token.type !== 'list_item' || token.task !== true) return;
+      if (!Array.isArray(token.tokens) || token.tokens.length === 0) return;
+      token.tokens = token.tokens.filter((t: any) => t?.type !== 'checkbox');
+    },
+  });
+}
+
 export const Markdown = ({
   children,
   theme = DEFAULT_MARKDOWN_THEME,
@@ -71,6 +84,8 @@ export const Markdown = ({
       width: process.stdout.columns || 80,
       ...(THEME_OVERRIDES[theme] ?? THEME_OVERRIDES.default),
     });
+
+    __applyMarkedTerminalTaskListCompat(m);
 
     if (mode === 'native') {
       m.use({ renderer: rendererInstance as any });

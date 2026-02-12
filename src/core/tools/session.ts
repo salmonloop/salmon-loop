@@ -1,7 +1,7 @@
 import * as crypto from 'crypto';
 
 import type { ToolCallingAuditSink } from '../llm/audit.js';
-import { emitLlmOutput, emitLlmStreamDelta } from '../llm/output-policy.js';
+import { emitLlmOutput, emitLlmStreamDelta, emitLlmStreamEnd } from '../llm/output-policy.js';
 import { redactErrorMessage, redactJsonString, redactValue } from '../llm/redact.js';
 import { logger } from '../logger.js';
 import type {
@@ -625,6 +625,7 @@ export async function chatWithToolsStreaming(
     const streamId = session.llmOutput
       ? `llm-${session.llmOutput.kind}-${phase}-${round}-${crypto.randomUUID()}`
       : '';
+    let finishReason: string | undefined;
 
     const stream = session.llm.chatStream(messages, {
       ...chatOptions,
@@ -648,7 +649,21 @@ export async function chatWithToolsStreaming(
         content += chunk.contentDelta;
       }
       toolCalls.append(chunk);
-      if (chunk?.done) break;
+      if (chunk?.done) {
+        finishReason = chunk.finishReason;
+        break;
+      }
+    }
+
+    if (session.llmOutput) {
+      emitLlmStreamEnd({
+        emit: session.emit,
+        policy: session.llmOutput.policy,
+        kind: session.llmOutput.kind,
+        step: session.llmOutput.step,
+        streamId,
+        finishReason,
+      });
     }
 
     const collectedToolCalls = toolCalls.drain();
