@@ -193,6 +193,19 @@ export function useLoopEvents(
       // This prevents throttled stream messages from appearing AFTER events that occurred earlier
       flushAllStreams();
 
+      if (event.type === 'retry') {
+        const fromAttempt = typeof event.fromAttempt === 'number' ? event.fromAttempt : 0;
+        const toAttempt = typeof event.toAttempt === 'number' ? event.toAttempt : fromAttempt + 1;
+        const reason = typeof event.reason === 'string' ? event.reason : '';
+
+        dispatchSanitizedMessage({
+          type: 'warning',
+          content: text.loop.retryingAttempt(fromAttempt, toAttempt, reason),
+          timestamp: event.timestamp,
+        });
+        return;
+      }
+
       if (event.type === 'llm.output') {
         // Stream already completed by flushAllStreams(), just add the final message
         dispatchSanitizedMessage({
@@ -204,7 +217,8 @@ export function useLoopEvents(
       }
       if (event.type === 'log') {
         const msg = event.message || '';
-        let type = 'system';
+        let type =
+          event.level === 'error' ? 'error' : event.level === 'warn' ? 'warning' : 'system';
         const content = msg;
 
         // Auto-detect message types based on content to match new design system
@@ -216,7 +230,7 @@ export function useLoopEvents(
           type = 'thinking';
         }
 
-        dispatchSanitizedMessage({ content, type });
+        dispatchSanitizedMessage({ content, type, timestamp: event.timestamp });
       } else if (event.type === 'snapshot.created') {
         // Handle structured snapshot event
         dispatchSanitizedMessage({

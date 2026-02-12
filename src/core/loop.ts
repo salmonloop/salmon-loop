@@ -454,9 +454,11 @@ export class SalmonLoop {
 
         if (retries <= LIMITS.maxRetries) {
           emit({
-            type: 'log',
-            level: 'warn',
-            message: text.loop.retryingAttempt(attempt, attempt + 1, failureReason),
+            type: 'retry',
+            fromAttempt: attempt,
+            toAttempt: attempt + 1,
+            reason: failureReason,
+            failedFiles: [],
             timestamp: now(),
           });
         }

@@ -122,4 +122,32 @@ describe('useLoopEvents', () => {
 
     expect(hoisted.dispatch).toHaveBeenCalledWith({ type: 'CLEAR_STATUS_BANNER' });
   });
+
+  it('dispatches a warning message for retry events', () => {
+    const onStart = vi.fn();
+    const signal = new AbortController().signal;
+    const { result } = renderHook(() => useLoopEvents('chat', onStart, signal));
+
+    act(() => {
+      result.current.sanitizeAndDispatch({
+        type: 'retry',
+        fromAttempt: 1,
+        toAttempt: 2,
+        reason: 'Patch generation failed',
+        failedFiles: [],
+        timestamp: new Date('2026-02-06T23:04:00.000Z'),
+      });
+    });
+
+    expect(hoisted.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'ADD_MESSAGE',
+        payload: expect.objectContaining({
+          type: 'warning',
+          content: expect.stringContaining('Retrying (1 -> 2)'),
+          timestamp: new Date('2026-02-06T23:04:00.000Z'),
+        }),
+      }),
+    );
+  });
 });
