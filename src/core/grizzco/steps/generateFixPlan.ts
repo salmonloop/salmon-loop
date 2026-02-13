@@ -1,5 +1,5 @@
 import { text } from '../../../locales/index.js';
-import type { PlanCtx, ReviewCtx } from '../types.js';
+import type { PlanCtx, ReviewCtx } from '../engine/pipeline/types.js';
 
 import { generatePlan } from './plan.js';
 

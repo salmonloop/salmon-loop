@@ -1,6 +1,6 @@
-import { Step } from '../pipeline.js';
+import { Step } from '../engine/pipeline/pipeline.js';
+import { ShrinkCtx } from '../engine/pipeline/types.js';
 import { runApplyBackPhase } from '../runtime/apply-back-runtime.js';
-import { ShrinkCtx } from '../types.js';
 
 function buildSkippedResult() {
   return {

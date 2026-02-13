@@ -1,7 +1,7 @@
 import type { ArtifactHandle } from '../../../sub-agent/artifacts/types.js';
 import type { AuthorizationSourceSummary, LoopIteration } from '../../../types.js';
-import type { FlowReport } from '../../pipeline.js';
-import type { ShrinkCtx } from '../../types.js';
+import type { FlowReport } from '../pipeline/pipeline.js';
+import type { ShrinkCtx } from '../pipeline/types.js';
 
 import type { AttemptFailureDetails } from './attempt-failure.js';
 import type { FlowTransactionReport } from './types.js';

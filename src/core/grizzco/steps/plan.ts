@@ -8,8 +8,8 @@ import { getPlanPrompt, getPlanSystemPrompt } from '../../prompt.js';
 import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
 import { Phase, type Plan } from '../../types.js';
 import { resolveLlmToolCallingPolicy } from '../dsl/llm-strategy.js';
-import { Step } from '../pipeline.js';
-import { ContextCtx, PlanCtx } from '../types.js';
+import { Step } from '../engine/pipeline/pipeline.js';
+import { ContextCtx, PlanCtx } from '../engine/pipeline/types.js';
 
 function sanitizeSubtaskText(raw: string): string | null {
   const oneLine = String(raw ?? '')

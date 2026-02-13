@@ -1,7 +1,7 @@
 import { ContextBuilder } from '../../context.js';
 import { CheckpointManager } from '../../strata/checkpoint/manager.js';
-import { Step } from '../pipeline.js';
-import { ContextCtx, PreflightCtx } from '../types.js';
+import { Step } from '../engine/pipeline/pipeline.js';
+import { ContextCtx, PreflightCtx } from '../engine/pipeline/types.js';
 
 export const buildContext: Step<PreflightCtx, ContextCtx> = async (ctx) => {
   if (ctx.initialContext) {

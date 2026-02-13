@@ -1,10 +1,13 @@
-import type { DiffMeta } from '../diff.js';
-import type { ToolCallingAuditEntry } from '../llm/audit.js';
-import { FileStateResolver } from '../strata/layers/file-state-resolver.js';
-import type { ApplyBackTelemetry, WorkspaceSynchronizer } from '../strata/runtime/synchronizer.js';
-import type { ArtifactHandle } from '../sub-agent/artifacts/types.js';
-import type { ToolAuditLogger } from '../tools/audit.js';
-import type { Toolstack } from '../tools/loader.js';
+import type { DiffMeta } from '../../../diff.js';
+import type { ToolCallingAuditEntry } from '../../../llm/audit.js';
+import { FileStateResolver } from '../../../strata/layers/file-state-resolver.js';
+import type {
+  ApplyBackTelemetry,
+  WorkspaceSynchronizer,
+} from '../../../strata/runtime/synchronizer.js';
+import type { ArtifactHandle } from '../../../sub-agent/artifacts/types.js';
+import type { ToolAuditLogger } from '../../../tools/audit.js';
+import type { Toolstack } from '../../../tools/loader.js';
 import type {
   CheckpointRef,
   Context,
@@ -14,11 +17,10 @@ import type {
   LoopEvent,
   LoopOptions,
   Plan,
-} from '../types.js';
-import type { VerifyResult } from '../verify.js';
-
-import type { DecisionRecord } from './dsl/DecisionEngine.js';
-import type { ExecutionResult } from './execution/Executor.js';
+} from '../../../types.js';
+import type { VerifyResult } from '../../../verify.js';
+import type { DecisionRecord } from '../../dsl/DecisionEngine.js';
+import type { ExecutionResult } from '../../execution/Executor.js';
 
 export interface PreflightResult {
   ok: boolean;

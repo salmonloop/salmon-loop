@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-import { Pipeline } from '../../../src/core/grizzco/pipeline.js';
-import { InitCtx } from '../../../src/core/grizzco/types.js';
+import { Pipeline } from '../../../src/core/grizzco/engine/pipeline/pipeline.js';
+import { InitCtx } from '../../../src/core/grizzco/engine/pipeline/types.js';
 import { SmallfryLoop } from '../../../src/core/sub-agent/core/loop.js';
 import { SubAgentProfile } from '../../../src/core/sub-agent/types.js';
 
@@ -9,7 +9,7 @@ vi.mock('../../../src/core/grizzco/steps/audit.js', () => ({
   saveAudit: vi.fn().mockResolvedValue('/tmp/audit.json'),
 }));
 
-vi.mock('../../../src/core/grizzco/pipeline.js', () => ({
+vi.mock('../../../src/core/grizzco/engine/pipeline/pipeline.js', () => ({
   Pipeline: {
     of: vi.fn().mockReturnValue({
       step: vi.fn().mockReturnThis(),

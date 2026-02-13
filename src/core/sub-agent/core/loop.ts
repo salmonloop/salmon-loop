@@ -1,11 +1,11 @@
 import { text } from '../../../locales/index.js';
-import { Pipeline } from '../../grizzco/pipeline.js';
+import { Pipeline } from '../../grizzco/engine/pipeline/pipeline.js';
+import type { InitCtx, ShrinkCtx } from '../../grizzco/engine/pipeline/types.js';
 import { saveAudit } from '../../grizzco/steps/audit.js';
 import { buildContext } from '../../grizzco/steps/context.js';
 import { generatePatch } from '../../grizzco/steps/patch.js';
 import { generatePlan } from '../../grizzco/steps/plan.js';
 import { runPreflight } from '../../grizzco/steps/preflight.js';
-import type { InitCtx, ShrinkCtx } from '../../grizzco/types.js';
 import { logger } from '../../logger.js';
 import { IExecutable, SubAgentProfile, SubAgentResult } from '../types.js';
 

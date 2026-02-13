@@ -1,9 +1,9 @@
 import { text } from '../../../locales/index.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { CheckpointManager } from '../../strata/checkpoint/manager.js';
-import { Step } from '../pipeline.js';
-import type { InitCtx } from '../types.js';
-import { AstValidateCtx, RollbackCtx, VerifyCtx } from '../types.js';
+import { Step } from '../engine/pipeline/pipeline.js';
+import type { InitCtx } from '../engine/pipeline/types.js';
+import { AstValidateCtx, RollbackCtx, VerifyCtx } from '../engine/pipeline/types.js';
 
 type RollbackTargetCtx = Pick<InitCtx, 'options' | 'workspace' | 'shadowInitialRef' | 'emit'> & {
   changedFiles?: string[];

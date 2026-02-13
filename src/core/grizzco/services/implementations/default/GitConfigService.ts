@@ -1,7 +1,7 @@
-import { GitAdapter } from '../../../adapters/git/git-adapter.js';
-import { logger } from '../../../logger.js';
-import { AstValidateCtx } from '../../types.js';
-import { IDataService } from '../types.js';
+import { GitAdapter } from '../../../../adapters/git/git-adapter.js';
+import { logger } from '../../../../logger.js';
+import { AstValidateCtx } from '../../../engine/pipeline/types.js';
+import { IDataService } from '../../types.js';
 
 export class GitConfigService implements IDataService {
   readonly id = 'git_config';

@@ -4,8 +4,8 @@ import { getAuditTrail } from '../../audit-trail.js';
 import { logger } from '../../logger.js';
 import { getAuditDir } from '../../runtime-paths.js';
 import { SalmonError, type LoopOptions } from '../../types.js';
-import { FlowReport } from '../pipeline.js';
-import type { ShrinkCtx } from '../types.js';
+import { FlowReport } from '../engine/pipeline/pipeline.js';
+import type { ShrinkCtx } from '../engine/pipeline/types.js';
 
 type AuditContext = Partial<ShrinkCtx>;
 

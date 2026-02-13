@@ -5,8 +5,8 @@ import type {
   LoopIteration,
   LoopReasonCode,
 } from '../../../types.js';
-import type { FlowReport } from '../../pipeline.js';
-import type { ShrinkCtx } from '../../types.js';
+import type { FlowReport } from '../pipeline/pipeline.js';
+import type { ShrinkCtx } from '../pipeline/types.js';
 
 export interface FlowTransactionReport {
   success: boolean;

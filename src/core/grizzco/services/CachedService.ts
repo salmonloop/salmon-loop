@@ -1,5 +1,5 @@
 import { logger } from '../../logger.js';
-import { AstValidateCtx } from '../types.js';
+import { AstValidateCtx } from '../engine/pipeline/types.js';
 
 import { IDataService } from './types.js';
 

@@ -8,7 +8,7 @@ Implementation details belong in `src/core/grizzco/`.
 ## Scope
 
 - The DSL applies to per-file decision-making in the APPLY phase.
-- The pipeline (PREFLIGHT -> CONTEXT -> PLAN -> PATCH -> VALIDATE -> AST_VALIDATE -> APPLY -> VERIFY -> ROLLBACK -> SHRINK -> APPLY_BACK) is orchestration and is not expressed in the DSL.
+- The pipeline (PREFLIGHT -> CONTEXT -> EXPLORE -> PLAN -> PATCH -> VALIDATE -> AST_VALIDATE -> APPLY -> VERIFY -> ROLLBACK -> SHRINK -> APPLY_BACK) is orchestration and is not expressed in the DSL.
 - Cross-attempt transaction orchestration (retry/terminal outcome) is handled by Grizzco transaction runner (`src/core/grizzco/engine/transaction/transaction-runner.ts`), not by the DSL.
 
 ## Core Principles

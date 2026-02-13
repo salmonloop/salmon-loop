@@ -1,8 +1,8 @@
 import { ContextBuilder } from '../../context.js';
 import { refineFeedback } from '../../feedback/index.js';
 import { classifyError } from '../../verify.js';
-import { Step } from '../pipeline.js';
-import { RollbackCtx, ShrinkCtx } from '../types.js';
+import { Step } from '../engine/pipeline/pipeline.js';
+import { RollbackCtx, ShrinkCtx } from '../engine/pipeline/types.js';
 
 function inferDependencyDepth(output: string): number {
   const lower = output.toLowerCase();

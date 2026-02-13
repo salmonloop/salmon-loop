@@ -1,4 +1,4 @@
-import { AstValidateCtx } from '../types.js';
+import { AstValidateCtx } from '../engine/pipeline/types.js';
 
 /**
  * Generic data service interface

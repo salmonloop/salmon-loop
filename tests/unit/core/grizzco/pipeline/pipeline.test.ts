@@ -1,4 +1,4 @@
-import { Pipeline } from '../../../../../src/core/grizzco/pipeline.js';
+import { Pipeline } from '../../../../../src/core/grizzco/engine/pipeline/pipeline.js';
 
 describe('Pipeline', () => {
   it('should execute linear steps', async () => {

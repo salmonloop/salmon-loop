@@ -2,8 +2,8 @@ import { text } from '../../../locales/index.js';
 import { ArtifactStore } from '../../sub-agent/artifacts/store.js';
 import type { ArtifactHandle } from '../../sub-agent/artifacts/types.js';
 import { runVerify as runVerifyCommand } from '../../verify.js';
-import { Step } from '../pipeline.js';
-import { ApplyCtx, VerifyCtx } from '../types.js';
+import { Step } from '../engine/pipeline/pipeline.js';
+import { ApplyCtx, VerifyCtx } from '../engine/pipeline/types.js';
 
 export const runVerify: Step<ApplyCtx, VerifyCtx> = async (ctx) => {
   if (!ctx.options.verify) {

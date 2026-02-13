@@ -1,7 +1,12 @@
-import { recordAuditEvent, setAuditContext } from '../audit-trail.js';
-import { logger } from '../logger.js';
-import { appendPlanNote } from '../plan/index.js';
-import { EXECUTION_PHASES, type ExecutionPhase, type LoopEvent, type FlowMode } from '../types.js';
+import { recordAuditEvent, setAuditContext } from '../../../audit-trail.js';
+import { logger } from '../../../logger.js';
+import { appendPlanNote } from '../../../plan/index.js';
+import {
+  EXECUTION_PHASES,
+  type ExecutionPhase,
+  type LoopEvent,
+  type FlowMode,
+} from '../../../types.js';
 
 /**
  * Pipeline Step Definition

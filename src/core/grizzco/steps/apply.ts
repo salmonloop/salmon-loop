@@ -11,15 +11,15 @@ import {
 import type { DslContext, ExecutionPlan } from '../dsl/DecisionEngine.js';
 import { MicroTaskRunner } from '../dsl/MicroTaskRunner.js';
 import { StandardStrategy } from '../dsl/strategies.js';
+import { Step } from '../engine/pipeline/pipeline.js';
+import { ApplyCtx, type ApplyDecision, AstValidateCtx } from '../engine/pipeline/types.js';
 import { Executor, type ExecutionResult } from '../execution/Executor.js';
 import { WorkerFactory } from '../execution/WorkerFactory.js';
-import { Step } from '../pipeline.js';
 import { CachedService } from '../services/CachedService.js';
-import { GitConfigService } from '../services/implementations/GitConfigService.js';
-import { MockLockService } from '../services/implementations/MockLockService.js';
-import { MockUserQuotaService } from '../services/implementations/MockUserQuotaService.js';
+import { GitConfigService } from '../services/implementations/default/GitConfigService.js';
+import { MockLockService } from '../services/implementations/mock/MockLockService.js';
+import { MockUserQuotaService } from '../services/implementations/mock/MockUserQuotaService.js';
 import { registry } from '../services/registry.js';
-import { ApplyCtx, type ApplyDecision, AstValidateCtx } from '../types.js';
 
 /**
  * Bootstraps the service registry with required providers.

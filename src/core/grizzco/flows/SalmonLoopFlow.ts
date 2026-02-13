@@ -1,4 +1,5 @@
-import { Pipeline, FlowReport } from '../pipeline.js';
+import { Pipeline, FlowReport } from '../engine/pipeline/pipeline.js';
+import type { ExploreCtx, InitCtx, ReviewCtx, ShrinkCtx } from '../engine/pipeline/types.js';
 import { runApplyBack } from '../steps/apply-back.js';
 import { runApply } from '../steps/apply.js';
 import { validateAst } from '../steps/ast-validate.js';
@@ -17,7 +18,6 @@ import { runRollback, runEmergencyRollback } from '../steps/rollback.js';
 import { runShrink } from '../steps/shrink.js';
 import { validatePatch } from '../steps/validate.js';
 import { runVerify } from '../steps/verify.js';
-import type { ExploreCtx, InitCtx, ReviewCtx, ShrinkCtx } from '../types.js';
 
 export type FlowTerminalCtx = ReviewCtx | ShrinkCtx;
 
@@ -89,31 +89,6 @@ export async function executeSalmonLoopFlow(
   report.auditPath = await saveAudit(report, initCtx.options);
   report.strategyName = initCtx.mode;
   report.fsMode = initCtx.mode;
-
-  return report;
-}
-
-/** @deprecated Use executeSalmonLoopFlow (mode-aware pipeline assembly) instead. */
-export async function executeSalmonLoopFlowLegacy(
-  initCtx: InitCtx,
-): Promise<FlowReport<ShrinkCtx>> {
-  const pipeline = Pipeline.of(initCtx)
-    .step('PREFLIGHT', runPreflight)
-    .step('CONTEXT', buildContext)
-    .step('PLAN', generatePlan)
-    .step('PATCH', generatePatch)
-    .step('VALIDATE', validatePatch)
-    .step('AST_VALIDATE', validateAst)
-    .stepWithRecovery('APPLY', runApply, runEmergencyRollback)
-    .step('VERIFY', runVerify)
-    .step('ROLLBACK', runRollback)
-    .step('SHRINK', runShrink);
-
-  const report = await pipeline.execute();
-
-  report.auditPath = await saveAudit(report, initCtx.options);
-  report.strategyName = 'legacy-patch';
-  report.fsMode = 'patch';
 
   return report;
 }

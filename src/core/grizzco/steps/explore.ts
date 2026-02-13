@@ -7,8 +7,8 @@ import { getExplorePrompt, getExploreSystemPrompt } from '../../prompt.js';
 import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
 import { Phase, RelatedFileContext } from '../../types.js';
 import { resolveLlmToolCallingPolicy } from '../dsl/llm-strategy.js';
-import { Step } from '../pipeline.js';
-import { ContextCtx, ExploreCtx } from '../types.js';
+import { Step } from '../engine/pipeline/pipeline.js';
+import { ContextCtx, ExploreCtx } from '../engine/pipeline/types.js';
 import { ContextValidator } from '../validation/ContextValidator.js';
 
 const SAFE_INFERRED_EXTENSIONS = new Set([

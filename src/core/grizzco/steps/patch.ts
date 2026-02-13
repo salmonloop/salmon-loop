@@ -8,8 +8,8 @@ import { getPatchPrompt, getPatchSystemPrompt } from '../../prompt.js';
 import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
 import { DiffValidationError, Phase } from '../../types.js';
 import { resolveLlmToolCallingPolicy } from '../dsl/llm-strategy.js';
-import { Step } from '../pipeline.js';
-import { PatchCtx, PlanCtx } from '../types.js';
+import { Step } from '../engine/pipeline/pipeline.js';
+import { PatchCtx, PlanCtx } from '../engine/pipeline/types.js';
 
 export const generatePatch: Step<PlanCtx, PatchCtx> = async (ctx) => {
   const toolstack = ctx.toolstack;

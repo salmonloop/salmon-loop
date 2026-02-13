@@ -1,6 +1,6 @@
-import { logger } from '../../../logger.js';
-import { AstValidateCtx } from '../../types.js';
-import { IDataService } from '../types.js';
+import { logger } from '../../../../logger.js';
+import { AstValidateCtx } from '../../../engine/pipeline/types.js';
+import { IDataService } from '../../types.js';
 
 export class MockLockService implements IDataService {
   readonly id = 'remote_lock';

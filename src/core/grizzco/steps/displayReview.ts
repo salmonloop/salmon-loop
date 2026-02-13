@@ -1,5 +1,5 @@
 import { text } from '../../../locales/index.js';
-import type { ReviewCtx, ReviewSuggestion, ReviewSummary } from '../types.js';
+import type { ReviewCtx, ReviewSuggestion, ReviewSummary } from '../engine/pipeline/types.js';
 
 function safeStringify(value: unknown): string {
   try {

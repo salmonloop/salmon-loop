@@ -4,7 +4,7 @@ import * as path from 'path';
 
 import { z } from 'zod';
 
-import { Pipeline } from '../../src/core/grizzco/pipeline.js';
+import { Pipeline } from '../../src/core/grizzco/engine/pipeline/pipeline.js';
 import { saveAudit } from '../../src/core/grizzco/steps/audit.js';
 import { generatePatch } from '../../src/core/grizzco/steps/patch.js';
 import { AiSdkLLM } from '../../src/core/llm/ai-sdk.js';

@@ -1,7 +1,12 @@
 import { text } from '../../../locales/index.js';
 import { emitLlmOutput } from '../../llm/output-policy.js';
 import type { Context, LLM } from '../../types.js';
-import type { ContextCtx, ReviewCtx, ReviewSummary, ReviewSuggestion } from '../types.js';
+import type {
+  ContextCtx,
+  ReviewCtx,
+  ReviewSummary,
+  ReviewSuggestion,
+} from '../engine/pipeline/types.js';
 
 function buildReviewPrompt(context: Context): string {
   const summary = JSON.stringify(context, null, 2);

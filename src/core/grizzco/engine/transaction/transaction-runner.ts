@@ -15,9 +15,9 @@ import type {
 } from '../../../types.js';
 import { executeSalmonLoopFlow } from '../../flows/SalmonLoopFlow.js';
 import type { FlowTerminalCtx } from '../../flows/SalmonLoopFlow.js';
-import type { FlowReport } from '../../pipeline.js';
-import type { InitCtx, ShrinkCtx } from '../../types.js';
 import { LoopTelemetry } from '../observability/loop-telemetry.js';
+import type { FlowReport } from '../pipeline/pipeline.js';
+import type { InitCtx, ShrinkCtx } from '../pipeline/types.js';
 
 import { resolveAttemptFailure } from './attempt-failure.js';
 import { buildAuthorizationSummary } from './authorization-summary.js';

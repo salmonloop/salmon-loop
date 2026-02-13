@@ -19,9 +19,9 @@ on top of a shared base (PREFLIGHT + CONTEXT + EXPLORE).
 
 ## Standard Flow Modes
 
-- **Patch**: Full modification cycle (PLAN → PATCH → VALIDATE → AST_VALIDATE → APPLY → VERIFY → ROLLBACK → SHRINK → APPLY_BACK).
-- **Review**: Analysis-only workflow (REVIEW → REPORT → SHRINK). No filesystem mutation.
-- **Debug**: Combined workflow (REVIEW → ANALYZE_ISSUES → PLAN → PATCH → VALIDATE → AST_VALIDATE → APPLY → VERIFY → ROLLBACK → SHRINK → APPLY_BACK).
+- **Patch**: Full modification cycle (PREFLIGHT → CONTEXT → EXPLORE → PLAN → PATCH → VALIDATE → AST_VALIDATE → APPLY → VERIFY → ROLLBACK → SHRINK → APPLY_BACK).
+- **Review**: Analysis-only workflow (PREFLIGHT → CONTEXT → EXPLORE → REVIEW → REPORT → SHRINK). No filesystem mutation.
+- **Debug**: Combined workflow (PREFLIGHT → CONTEXT → EXPLORE → REVIEW → ANALYZE_ISSUES → PLAN → PATCH → VALIDATE → AST_VALIDATE → APPLY → VERIFY → ROLLBACK → SHRINK → APPLY_BACK).
 
 ## ReadOnlyFileSystem Enforcement
 
@@ -51,15 +51,15 @@ Safety guarantees:
 
 1. **PREFLIGHT**: Read-only. Checks environment safety (git repo).
 2. **CONTEXT**: Read-only. Gathers codebase context and target file content.
-3. **PLAN**: Read-only. The LLM analyzes the context and instruction to generate a JSON plan.
-4. **PATCH**: Read-only. The LLM generates a unified diff based on the plan.
-5. **VALIDATE**: Read-only. The system validates the diff against security and size limits. It may also perform AST-based validation (syntax and scope integrity) on the proposed changes.
-6. **APPLY**: Mutating (shadow workspace). The system applies changes using an intent-routed **Shadow Merge Engine**: incremental diffs (PATCH) are applied via the native `git apply` engine (optionally `--3way` when safe), while full-file merges may use 3-way content merge workers (e.g., `git merge-file`). This preserves atomicity and staged/unstaged semantics within dirty workspaces.
-7. **VERIFY**: Read-only. The system runs the user-provided verification command.
-8. **ROLLBACK**: Mutating. If verification fails, the system restores the modified files to their original state using `git checkout`. If Git conflicts or abnormal states are detected, it performs a robust reset (`git stash`, `git reset --hard`, `git clean`).
-9. **SHRINK**: Read-only. If verification fails, the system performs **Smart Feedback** analysis to extract precise error diagnostics and reduces the context for the next attempt.
-
-10. **APPLY_BACK**: Mutating (main workspace, worktree mode only). On successful verification, changes are synchronized from shadow workspace to the user's main workspace with dirty-workspace safety policy and audit telemetry.
+3. **EXPLORE**: Read-only. Resolves ambiguity by running constrained read-only tool calls and enriches context before planning.
+4. **PLAN**: Read-only. The LLM analyzes the context and instruction to generate a JSON plan.
+5. **PATCH**: Read-only. The LLM generates a unified diff based on the plan.
+6. **VALIDATE**: Read-only. The system validates the diff against security and size limits. It may also perform AST-based validation (syntax and scope integrity) on the proposed changes.
+7. **APPLY**: Mutating (shadow workspace). The system applies changes using an intent-routed **Shadow Merge Engine**: incremental diffs (PATCH) are applied via the native `git apply` engine (optionally `--3way` when safe), while full-file merges may use 3-way content merge workers (e.g., `git merge-file`). This preserves atomicity and staged/unstaged semantics within dirty workspaces.
+8. **VERIFY**: Read-only. The system runs the user-provided verification command.
+9. **ROLLBACK**: Mutating. If verification fails, the system restores the modified files to their original state using `git checkout`. If Git conflicts or abnormal states are detected, it performs a robust reset (`git stash`, `git reset --hard`, `git clean`).
+10. **SHRINK**: Read-only. If verification fails, the system performs **Smart Feedback** analysis to extract precise error diagnostics and reduces the context for the next attempt.
+11. **APPLY_BACK**: Mutating (main workspace, worktree mode only). On successful verification, changes are synchronized from shadow workspace to the user's main workspace with dirty-workspace safety policy and audit telemetry.
 
 **Definition (Read-only):** In SalmonLoop, "read-only" means:
 - **No mutation of user repository assets** in the user's main workspace working tree (tracked or untracked).
@@ -73,9 +73,9 @@ Read-only phases **MAY** write a narrow set of **runtime artifacts / metadata** 
 
 All allowed runtime writes must remain within these approved roots. Any write outside these roots is a contract violation.
 
-**Tool-calling restriction (PLAN/PATCH):**
+**Tool-calling restriction (EXPLORE/PLAN/PATCH):**
 - The only model-visible write capability allowed in read-only phases is updating the runtime plan file under `.salmonloop/plans/**` via `plan.*` tools.
-- No other tool may write to the repository during PLAN/PATCH, even if the target file is untracked.
+- No other tool may write to the repository during EXPLORE/PLAN/PATCH, even if the target file is untracked.
 
 ## Safety Rules
 

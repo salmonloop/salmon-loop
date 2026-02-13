@@ -1,6 +1,6 @@
 import { text } from '../../../locales/index.js';
-import { Step } from '../pipeline.js';
-import { PatchCtx, ValidateCtx } from '../types.js';
+import { Step } from '../engine/pipeline/pipeline.js';
+import { PatchCtx, ValidateCtx } from '../engine/pipeline/types.js';
 
 export const validatePatch: Step<PatchCtx, ValidateCtx> = async (ctx) => {
   // Validation logic

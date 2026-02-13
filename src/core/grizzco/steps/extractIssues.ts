@@ -1,5 +1,5 @@
 import { text } from '../../../locales/index.js';
-import type { ReviewCtx, ReviewSuggestion, ReviewSummary } from '../types.js';
+import type { ReviewCtx, ReviewSuggestion, ReviewSummary } from '../engine/pipeline/types.js';
 
 function isReviewSuggestion(value: unknown): value is ReviewSuggestion {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);

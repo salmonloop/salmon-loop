@@ -26,7 +26,7 @@ Type safety is enforced by "Progressive Contexts". Each step in the pipeline rec
 
 ## Key Components
 
-### Pipeline (`src/core/grizzco/pipeline.ts`)
+### Pipeline (`src/core/grizzco/engine/pipeline/pipeline.ts`)
 
 A typed, async pipeline engine that supports:
 
@@ -55,17 +55,33 @@ The "muscle" of the system. It takes an `ExecutionPlan` and performs the actual 
 
 A central hub for asynchronous data providers (`GitConfigService`, etc.), enabling the Ping-Pong protocol to fetch data dynamically.
 
+## Current Migration Status
+
+- Grizzco has completed the structural split for:
+  - `engine/transaction` (cross-attempt control),
+  - `engine/outcome` (result mapping),
+  - `engine/observability` (event/log adaptation),
+  - `runtime` (host/apply-back integrations).
+- `flows/` now intentionally contains only single-attempt flow assembly (`SalmonLoopFlow`).
+- `services/implementations` is split into `default/` and `mock/`.
+- Pipeline kernel/types are now consumed directly from `engine/pipeline/*`.
+
 ## Directory Structure
 
 ```
 src/core/grizzco/
 ├── dsl/            # Pure Decision Logic
-├── engine/         # Cross-attempt transaction/outcome/telemetry control plane
+├── engine/         # Pipeline kernel + transaction/outcome/observability control plane
+│   ├── pipeline/   # Pipeline core and progressive context contracts
+│   ├── transaction/# Cross-attempt retries / terminal mapping
+│   ├── outcome/    # LoopResult mapping from execution report
+│   └── observability/ # Event adaptation and telemetry aggregation
 ├── execution/      # Side-effect Executors & Workers
 ├── flows/          # Single-attempt mode flow assembly
 ├── runtime/        # Host and apply-back runtime integrations
-├── services/       # Data Fetchers
-├── steps/          # Pipeline Steps
-├── pipeline.ts     # Pipeline Engine
-└── types.ts        # Progressive Context Definitions
+├── services/       # Async data providers for DSL ping-pong
+│   └── implementations/
+│       ├── default/ # Runtime defaults (e.g. git_config)
+│       └── mock/    # Deterministic stubs (e.g. remote_lock, user_quota)
+└── steps/          # Pipeline Steps
 ```
