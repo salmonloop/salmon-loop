@@ -6,7 +6,7 @@ SalmonLoop lets you add non-builtin capabilities (MCP servers, local tool plugin
 
 | Scope | Path | Purpose |
 | --- | --- | --- |
-| Repository | `.salmonloop/config/mcp.json` | stdio MCP servers (name, command, args, env, allow list). |
+| Repository | `.salmonloop/config/mcp.json` | MCP servers (either stdio via `command` or remote via `url`). |
 | Repository | `.salmonloop/config/tools.json` | Local JS plugin definitions (`path`, `enabled`, `allowUserScope`). |
 | Repository | `.salmonloop/config/skills.json` | Additional skill discovery paths, whether to keep compatibility defaults. |
 | User | `~/.salmonloop/config/mcp-user.json` | Same fields as repo MCP config, default `enabled: false`. |
@@ -15,7 +15,9 @@ SalmonLoop lets you add non-builtin capabilities (MCP servers, local tool plugin
 
 Entries merge with the policy “user first, repo overrides.” Repo files can disable a user entry by setting `enabled: false`.
 
-## MCP sample
+## MCP samples
+
+### Stdio MCP (local process)
 
 ```json
 {
@@ -39,6 +41,29 @@ Entries merge with the policy “user first, repo overrides.” Repo files can d
 - `allow.tools` is mandatory — the MCP loader registers only allow-listed tools. Patterns ending with `*` work (`"read*"`).
 - If you omit `enabled`, repo entries default to `true`, user entries default to `false`.
 - Be cautious with `env`; secrets are redacted whenever the CLI prints the resolved extensions.
+
+### Streamable HTTP MCP (remote)
+
+```json
+{
+  "version": 1,
+  "servers": {
+    "remote": {
+      "enabled": true,
+      "url": "https://example.com/mcp",
+      "headers": {
+        "Authorization": "Bearer $TOKEN"
+      },
+      "allow": {
+        "tools": ["*"]
+      }
+    }
+  }
+}
+```
+
+- Exactly one of `command` or `url` is required per server entry.
+- `headers` are sent with every request (POST/GET/DELETE) for Streamable HTTP connections.
 
 ## Tool plugin sample
 
@@ -84,4 +109,3 @@ Run `s8p run --print-config` (or the upcoming `s8p config print --effective`) to
 - Keep `.salmonloop/` gitignored — it is intentionally local-only.
 - After editing any extension file, rerun the CLI command so the toolstack picks up the latest entries.
 - This system is future-proofed for explicit CLI commands (`config mcp add`, `config tools validate`, etc.) that will edit these JSON files for you; until those land, edit files directly and keep backups.
-

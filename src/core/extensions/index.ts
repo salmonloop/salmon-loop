@@ -62,9 +62,25 @@ function buildResolvedServers(
     const scope = entry.scope;
     const source = entry.entry;
     const enabled = source.enabled ?? defaultEnabled(scope);
+    if (source.url) {
+      return {
+        name: entry.key,
+        enabled,
+        transport: 'http',
+        url: source.url,
+        headers: source.headers ?? {},
+        allowTools: source.allow?.tools ?? [],
+        allowResources: source.allow?.resources ?? [],
+        scope,
+      };
+    }
+    if (!source.command) {
+      throw new Error(`Invalid MCP server entry ${entry.key}: missing "command" or "url"`);
+    }
     return {
       name: entry.key,
       enabled,
+      transport: 'stdio',
       command: source.command,
       args: source.args ?? [],
       env: source.env ?? {},

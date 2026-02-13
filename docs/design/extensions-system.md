@@ -4,7 +4,7 @@ SalmonLoop now treats external capabilities (MCP servers, localized tool plugins
 
 ## Configuration files & precedence
 
-- `.salmonloop/config/mcp.json` and `~/.salmonloop/config/mcp-user.json` describe stdio MCP servers. Each entry can set `command`, `args`, `env`, `cwd`, `allow.tools`, and `enabled`. Unless a repo-level entry overrides, user entries default to `enabled: false`.
+- `.salmonloop/config/mcp.json` and `~/.salmonloop/config/mcp-user.json` describe MCP servers. Each entry must set exactly one of `command` (stdio) or `url` (Streamable HTTP). Stdio entries can set `args`, `env`, and `cwd`; HTTP entries can set `headers`. Both support `allow.tools`, `allow.resources`, and `enabled`. Unless a repo-level entry overrides, user entries default to `enabled: false`.
 - `.salmonloop/config/tools.json` / `tools-user.json` declare plugin manifests. They list the path that exports `register(): ToolSpec[]`, an `allowUserScope` flag, and the `enabled` state.
 - `.salmonloop/config/skills.json` / `skills-user.json` control extra skill discovery paths and whether legacy defaults (`~/.claude/skills`, `repo/.claude/skills`) remain in play.
 - Resolution merges user config first, then repo config (repo overrides) and produces a `ResolvedExtensions` object alongside a redacted variant for printing. Secret values inside `env` are masked using `/key|token|secret|password/i`.
@@ -40,4 +40,3 @@ SalmonLoop now treats external capabilities (MCP servers, localized tool plugins
 
 - MCP/plugin tools are registered with `sideEffects` that trigger the policy guard. Plugin tools are also audited with their plugin ID (`meta` data is constructed in `registerPluginTools`).
 - Extension configuration is not exposed to LLMs directly; only the resolved tools make it into the `ToolRegistry`. The CLI can still print the redacted extension bundle via `s8p run --print-config` or the future `s8p config print --effective`.
-

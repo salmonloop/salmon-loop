@@ -11,7 +11,23 @@ function redactEnv(env: Record<string, string>): Record<string, string> {
   return output;
 }
 
+function redactHeaders(headers: Record<string, string>): Record<string, string> {
+  const output: Record<string, string> = {};
+  for (const [key, value] of Object.entries(headers)) {
+    const normalized = key.toLowerCase();
+    const shouldRedact = normalized === 'authorization' || SECRET_KEY_PATTERN.test(key);
+    output[key] = shouldRedact ? REDACTED : value;
+  }
+  return output;
+}
+
 function redactServer(server: ResolvedMcpServer): ResolvedMcpServer {
+  if (server.transport === 'http') {
+    return {
+      ...server,
+      headers: redactHeaders(server.headers || {}),
+    };
+  }
   return {
     ...server,
     env: redactEnv(server.env || {}),

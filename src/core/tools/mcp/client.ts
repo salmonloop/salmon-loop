@@ -4,7 +4,15 @@ import { createInterface, Interface } from 'readline';
 import { LIMITS } from '../../config/limits.js';
 import { logger } from '../../observability/logger.js';
 
-import { McpServerConfig, McpExecutionResult } from './types.js';
+import {
+  assertOk,
+  createMcpHeaders,
+  decodeSseEvents,
+  delayMs,
+  isEventStreamResponse,
+  safeDrainResponse,
+} from './streamable-http.js';
+import { McpExecutionResult, McpServerConfig } from './types.js';
 
 /**
  * MCP Client handling JSON-RPC communication over stdio with an external server.
@@ -17,16 +25,27 @@ export class McpClient {
     { resolve: (val: any) => void; reject: (err: Error) => void }
   >();
   private rl: Interface | null = null;
+  private sessionId: string | undefined;
 
   constructor(private config: McpServerConfig) {}
+
+  private isHttp(): boolean {
+    return Boolean(this.config.url);
+  }
 
   /**
    * Starts the MCP server process and performs the initialization handshake.
    */
   async start(): Promise<void> {
-    logger.info(`Starting MCP server: ${this.config.name} (command: ${this.config.command})`);
+    if (this.isHttp()) {
+      logger.info(`Connecting to MCP server: ${this.config.name} (url: ${this.config.url})`);
+      await this.initialize();
+      logger.info(`MCP server ${this.config.name} ready.`);
+      return;
+    }
 
-    this.process = spawn(this.config.command, this.config.args || [], {
+    logger.info(`Starting MCP server: ${this.config.name} (command: ${this.config.command})`);
+    this.process = spawn(this.config.command!, this.config.args || [], {
       env: { ...process.env, ...(this.config.env as any) },
       cwd: this.config.cwd,
       stdio: ['pipe', 'pipe', 'inherit'],
@@ -53,15 +72,7 @@ export class McpClient {
 
     this.rl.on('line', (line) => this.handleMessage(line));
 
-    // Step 1: Initialize handshake
-    await this.request('initialize', {
-      protocolVersion: '2024-11-05',
-      capabilities: {},
-      clientInfo: { name: 'salmon-loop', version: '0.2.0' },
-    });
-
-    // Step 2: Signal initialized
-    await this.notification('notifications/initialized', {});
+    await this.initialize();
 
     logger.info(`MCP server ${this.config.name} ready.`);
   }
@@ -81,7 +92,22 @@ export class McpClient {
     return (await this.request('tools/call', { name, arguments: args })) as McpExecutionResult;
   }
 
+  private async initialize(): Promise<void> {
+    // Step 1: Initialize handshake
+    await this.request('initialize', {
+      protocolVersion: '2025-11-25',
+      capabilities: {},
+      clientInfo: { name: 'salmon-loop', version: '0.2.0' },
+    });
+
+    // Step 2: Signal initialized
+    await this.notification('notifications/initialized', {});
+  }
+
   private async request(method: string, params: any): Promise<unknown> {
+    if (this.isHttp()) {
+      return await this.requestHttp(method, params);
+    }
     if (!this.process || !this.process.stdin) {
       throw new Error(`MCP client ${this.config.name} is not started`);
     }
@@ -108,6 +134,10 @@ export class McpClient {
   }
 
   private async notification(method: string, params: any): Promise<void> {
+    if (this.isHttp()) {
+      await this.notificationHttp(method, params);
+      return;
+    }
     if (!this.process || !this.process.stdin) return;
     const message = JSON.stringify({ jsonrpc: '2.0', method, params }) + '\n';
     this.process.stdin.write(message);
@@ -141,9 +171,182 @@ export class McpClient {
   }
 
   async stop() {
+    if (this.isHttp()) {
+      await this.stopHttp();
+      return;
+    }
     this.rl?.close();
     this.process?.kill();
     this.process = null;
     this.pendingRequests.clear();
+  }
+
+  private async requestHttp(method: string, params: any): Promise<unknown> {
+    const url = this.config.url!;
+    const headers = this.config.headers ?? {};
+
+    const id = ++this.requestId;
+    const payload = { jsonrpc: '2.0', id, method, params };
+
+    const timeoutMs = LIMITS.defaultToolTimeoutMs;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: createMcpHeaders({ sessionId: this.sessionId, extra: headers }),
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+
+      const newSessionId = response.headers.get('mcp-session-id');
+      if (newSessionId) this.sessionId = newSessionId;
+
+      assertOk(response, `MCP request ${id} (${method}) to ${this.config.name}`);
+
+      if (!isEventStreamResponse(response)) {
+        const message: any = await response.json();
+        if (message.error) {
+          throw new Error(`MCP Error [${message.error.code}]: ${message.error.message}`);
+        }
+        return message.result;
+      }
+
+      let lastEventId: string | undefined;
+      let retryMs = 1000;
+
+      // Streamable HTTP can require reconnect (via GET + Last-Event-ID) to resume a dropped stream.
+      let streamResponse: Response = response;
+      while (true) {
+        if (!streamResponse.body) {
+          throw new Error(`MCP SSE response missing body (${this.config.name})`);
+        }
+
+        for await (const event of decodeSseEvents(streamResponse.body)) {
+          if (event.id) lastEventId = event.id;
+          if (typeof event.retry === 'number') retryMs = Math.max(0, event.retry);
+          if (!event.data) continue;
+
+          try {
+            const msg: any = JSON.parse(event.data);
+            if (msg.id === id) {
+              if (msg.error) {
+                throw new Error(`MCP Error [${msg.error.code}]: ${msg.error.message}`);
+              }
+              return msg.result;
+            }
+            if (msg.method) {
+              logger.debug(
+                `Received MCP notification/request: ${msg.method} (server: ${this.config.name})`,
+              );
+            }
+          } catch (err) {
+            logger.error(
+              `Failed to parse MCP SSE message from ${this.config.name}: ${String(err)} (data: ${event.data})`,
+            );
+          }
+        }
+
+        // Stream ended without response for this request. Try to resume via GET.
+        if (!lastEventId) {
+          throw new Error(
+            `MCP SSE stream ended before response for request ${id} (${method}) (${this.config.name})`,
+          );
+        }
+
+        await delayMs(retryMs);
+
+        const resumeController = new AbortController();
+        const resumeTimeout = setTimeout(() => resumeController.abort(), timeoutMs);
+        try {
+          streamResponse = await fetch(url, {
+            method: 'GET',
+            headers: {
+              ...createMcpHeaders({ sessionId: this.sessionId, extra: headers }),
+              'Last-Event-ID': lastEventId,
+            },
+            signal: resumeController.signal,
+          });
+          const resumedSessionId = streamResponse.headers.get('mcp-session-id');
+          if (resumedSessionId) this.sessionId = resumedSessionId;
+          assertOk(streamResponse, `MCP SSE resume for ${this.config.name}`);
+          if (!isEventStreamResponse(streamResponse)) {
+            throw new Error(
+              `MCP SSE resume did not return text/event-stream (${this.config.name})`,
+            );
+          }
+        } finally {
+          clearTimeout(resumeTimeout);
+        }
+      }
+    } catch (err: any) {
+      if (err?.name === 'AbortError') {
+        throw new Error(
+          `MCP Request ${id} (${method}) to ${this.config.name} timed out after ${timeoutMs / 1000}s`,
+        );
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  private async notificationHttp(method: string, params: any): Promise<void> {
+    const url = this.config.url!;
+    const headers = this.config.headers ?? {};
+    const payload = { jsonrpc: '2.0', method, params };
+
+    const timeoutMs = LIMITS.defaultToolTimeoutMs;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: createMcpHeaders({ sessionId: this.sessionId, extra: headers }),
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+      const newSessionId = response.headers.get('mcp-session-id');
+      if (newSessionId) this.sessionId = newSessionId;
+      if (!response.ok) {
+        await safeDrainResponse(response);
+        throw new Error(`MCP notification ${method} failed with HTTP ${response.status}`);
+      }
+      await safeDrainResponse(response);
+    } catch (err: any) {
+      if (err?.name === 'AbortError') {
+        throw new Error(
+          `MCP notification ${method} to ${this.config.name} timed out after ${timeoutMs / 1000}s`,
+        );
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  private async stopHttp(): Promise<void> {
+    if (!this.config.url || !this.sessionId) return;
+    const timeoutMs = 3000;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(this.config.url, {
+        method: 'DELETE',
+        headers: createMcpHeaders({
+          sessionId: this.sessionId,
+          extra: this.config.headers ?? {},
+        }),
+        signal: controller.signal,
+      });
+      await safeDrainResponse(response);
+    } catch {
+      // best-effort cleanup
+    } finally {
+      clearTimeout(timeout);
+      this.sessionId = undefined;
+    }
   }
 }

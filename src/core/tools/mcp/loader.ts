@@ -41,13 +41,20 @@ export async function registerMcpTools(registry: ToolRegistry, servers: Resolved
       continue;
     }
 
-    const client = new McpClient({
-      name: server.name,
-      command: server.command,
-      args: server.args,
-      env: server.env,
-      cwd: server.cwd,
-    });
+    const client =
+      server.transport === 'http'
+        ? new McpClient({
+            name: server.name,
+            url: server.url,
+            headers: server.headers,
+          })
+        : new McpClient({
+            name: server.name,
+            command: server.command,
+            args: server.args,
+            env: server.env,
+            cwd: server.cwd,
+          });
 
     try {
       await client.start();
@@ -77,13 +84,20 @@ export async function registerMcpTools(registry: ToolRegistry, servers: Resolved
           outputSchema: OUTPUT_SCHEMA,
           defaultTimeoutMs: LIMITS.defaultToolTimeoutMs,
           executor: async (input) => {
-            const runtimeClient = new McpClient({
-              name: server.name,
-              command: server.command,
-              args: server.args,
-              env: server.env,
-              cwd: server.cwd,
-            });
+            const runtimeClient =
+              server.transport === 'http'
+                ? new McpClient({
+                    name: server.name,
+                    url: server.url,
+                    headers: server.headers,
+                  })
+                : new McpClient({
+                    name: server.name,
+                    command: server.command,
+                    args: server.args,
+                    env: server.env,
+                    cwd: server.cwd,
+                  });
             try {
               await runtimeClient.start();
               const result = await runtimeClient.callTool(toolName, input);

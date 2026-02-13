@@ -1,16 +1,28 @@
 export type ExtensionScope = 'user' | 'repo';
 
-export interface ResolvedMcpServer {
-  name: string;
-  enabled: boolean;
-  command: string;
-  args: string[];
-  env: Record<string, string>;
-  cwd?: string;
-  allowTools: string[];
-  allowResources: string[];
-  scope: ExtensionScope;
-}
+export type ResolvedMcpServer =
+  | {
+      name: string;
+      enabled: boolean;
+      transport: 'stdio';
+      command: string;
+      args: string[];
+      env: Record<string, string>;
+      cwd?: string;
+      allowTools: string[];
+      allowResources: string[];
+      scope: ExtensionScope;
+    }
+  | {
+      name: string;
+      enabled: boolean;
+      transport: 'http';
+      url: string;
+      headers: Record<string, string>;
+      allowTools: string[];
+      allowResources: string[];
+      scope: ExtensionScope;
+    };
 
 export interface ResolvedToolPlugin {
   id: string;
@@ -34,9 +46,11 @@ export interface ResolvedExtensions {
 
 export interface McpServerEntry {
   enabled?: boolean;
-  command: string;
+  command?: string;
+  url?: string;
   args?: string[];
   env?: Record<string, string>;
+  headers?: Record<string, string>;
   cwd?: string;
   allow?: {
     tools?: string[];
