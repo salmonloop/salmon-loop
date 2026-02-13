@@ -1,22 +1,22 @@
 import { randomBytes } from 'crypto';
 
-import { LIMITS } from './config/limits.js';
-import { createFlowEventAdapter } from './grizzco/engine/observability/event-adapter.js';
-import { LoopTelemetry } from './grizzco/engine/observability/loop-telemetry.js';
-import { buildLoopFailureResult } from './grizzco/engine/outcome/loop-result-mapper.js';
-import { buildFlowTransactionRunner } from './grizzco/engine/transaction/runner-builder.js';
-import { runFlowSession } from './grizzco/engine/transaction/session.js';
-import { HostRunner } from './grizzco/runtime/host/host-runner.js';
-import { sanitizeError } from './llm/errors.js';
-import { appendAuditTrailToAuditFile } from './observability/audit-file.js';
+import { LIMITS } from '../config/limits.js';
+import { createFlowEventAdapter } from '../grizzco/engine/observability/event-adapter.js';
+import { LoopTelemetry } from '../grizzco/engine/observability/loop-telemetry.js';
+import { buildLoopFailureResult } from '../grizzco/engine/outcome/loop-result-mapper.js';
+import { buildFlowTransactionRunner } from '../grizzco/engine/transaction/runner-builder.js';
+import { runFlowSession } from '../grizzco/engine/transaction/session.js';
+import { HostRunner } from '../grizzco/runtime/host/host-runner.js';
+import { sanitizeError } from '../llm/errors.js';
+import { appendAuditTrailToAuditFile } from '../observability/audit-file.js';
 import {
   clearAuditContext,
   clearAuditTrail,
   setAuditContext,
-} from './observability/audit-trail.js';
-import { Semaphore } from './runtime/semaphore.js';
-import { Phase } from './types.js';
-import type { FlowMode, LoopOptions, LoopResult } from './types.js';
+} from '../observability/audit-trail.js';
+import { Phase, type FlowMode, type LoopOptions, type LoopResult } from '../types.js';
+
+import { Semaphore } from './semaphore.js';
 
 const globalSemaphore = new Semaphore(LIMITS.maxConcurrentOperations);
 

@@ -63,7 +63,7 @@ vi.mock('../../../../src/core/llm/factory.js', () => ({
   })),
 }));
 
-vi.mock('../../../../src/core/loop.js', () => ({
+vi.mock('../../../../src/core/runtime/loop.js', () => ({
   runSalmonLoop: vi.fn(async () => ({ success: true, attempts: 1, changedFiles: [] })),
 }));
 

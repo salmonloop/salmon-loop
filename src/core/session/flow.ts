@@ -1,6 +1,6 @@
 import { randomBytes } from 'crypto';
 
-import { runSalmonLoop } from '../loop.js';
+import { runSalmonLoop } from '../runtime/loop.js';
 import type { CheckpointManager } from '../strata/checkpoint/manager.js';
 import type { LLM } from '../types.js';
 

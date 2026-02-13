@@ -5,7 +5,7 @@ import * as os from 'os';
 import * as path from 'path';
 
 import { LLM } from '../../src/core/llm/index.js';
-import { runSalmonLoop } from '../../src/core/loop.js';
+import { runSalmonLoop } from '../../src/core/runtime/loop.js';
 import * as verify from '../../src/core/verification/runner.js';
 
 vi.mock('child_process', async () => {

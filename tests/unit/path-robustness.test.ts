@@ -111,21 +111,21 @@ describe('Path Robustness', () => {
 
     it('should extract files with line numbers (from utils.test.ts)', () => {
       const output = `
-        Error in src/core/loop.ts:10:5
+        Error in src/core/runtime/loop.ts:10:5
         at Object.<anonymous> (tests/unit/loop.test.ts:20:10)
       `;
       const files = ContextBuilder.extractFailedFiles(output);
-      expect(files).toContain('src/core/loop.ts');
+      expect(files).toContain('src/core/runtime/loop.ts');
       expect(files).toContain('tests/unit/loop.test.ts');
     });
 
     it('should extract files without line numbers if no traces found (from utils.test.ts)', () => {
       const output = `
-        Failed to compile src/core/loop.ts
+        Failed to compile src/core/runtime/loop.ts
         Error in README.md
       `;
       const files = ContextBuilder.extractFailedFiles(output);
-      expect(files).toContain('src/core/loop.ts');
+      expect(files).toContain('src/core/runtime/loop.ts');
       expect(files).toContain('README.md');
     });
 

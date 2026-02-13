@@ -8,7 +8,7 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 
 import { LLM } from '../src/core/llm.js';
-import { runSalmonLoop } from '../src/core/loop.js';
+import { runSalmonLoop } from '../src/core/runtime/loop.js';
 
 class MockLLM extends LLM {
   async createPlan() {
