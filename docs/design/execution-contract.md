@@ -14,7 +14,7 @@ SalmonLoop no longer hardcodes a single linear pipeline. Instead, it assembles m
 on top of a shared base (PREFLIGHT + CONTEXT + EXPLORE).
 
 - **Single-attempt phase execution**: `executeSalmonLoopFlow` builds and executes the pipeline for the current mode.
-- **Cross-attempt transaction control**: `FlowTransactionRunner` owns retries, terminal failure mapping, and attempt audit events.
+- **Cross-attempt transaction control**: `FlowTransactionRunner` (`src/core/grizzco/engine/transaction/transaction-runner.ts`) owns retries, terminal failure mapping, and attempt audit events.
 - **Single source of truth**: Mode-to-phase mapping lives in `src/core/grizzco/flows/SalmonLoopFlow.ts`.
 
 ## Standard Flow Modes

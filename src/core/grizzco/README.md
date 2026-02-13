@@ -10,8 +10,10 @@ This directory implements the Grizzco execution pipeline (Bifrost) and the rule-
 ## Key Modules
 
 - `flows/SalmonLoopFlow.ts`: the canonical phase order (EXPLORE -> PLAN -> ...).
-- `flows/flow-transaction-runner.ts`: cross-attempt transaction orchestration (retry + terminal outcome).
-- `flows/flow-session.ts`: bridges runner reports to stable `LoopResult` mapping.
+- `engine/transaction/transaction-runner.ts`: cross-attempt transaction orchestration (retry + terminal outcome).
+- `engine/transaction/session.ts`: bridges runner reports to stable `LoopResult` mapping.
+- `engine/observability/*`: flow-event adaptation and loop telemetry aggregation.
+- `runtime/*`: host bootstrap and apply-back runtime integration with core/strata.
 - `steps/*`: phase implementations (explore, context, plan, patch, validate, apply, verify, rollback, shrink).
 - `dsl/*`: rule engine used to select safe workers for a given file/operation.
 - `workers/*`: execution engines (e.g., git-apply, merge workers).

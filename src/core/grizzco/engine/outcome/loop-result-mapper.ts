@@ -1,10 +1,9 @@
-import { text } from '../../../locales/index.js';
-import { ErrorType, Phase } from '../../types.js';
-import type { ExecutionPhase, FlowMode, LoopOptions, LoopResult } from '../../types.js';
-import type { ShrinkCtx } from '../types.js';
-
-import type { LoopTelemetry } from './flow-telemetry.js';
-import type { FlowTransactionReport } from './flow-transaction-runner.js';
+import { text } from '../../../../locales/index.js';
+import { ErrorType, Phase } from '../../../types.js';
+import type { ExecutionPhase, FlowMode, LoopOptions, LoopResult } from '../../../types.js';
+import type { ShrinkCtx } from '../../types.js';
+import type { LoopTelemetry } from '../observability/loop-telemetry.js';
+import type { FlowTransactionReport } from '../transaction/types.js';
 
 interface BuildLoopResultParams {
   executionReport: FlowTransactionReport;

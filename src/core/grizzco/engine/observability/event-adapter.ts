@@ -1,7 +1,7 @@
-import { sanitizeError } from '../../llm/errors.js';
-import type { ExecutionPhase, LoopEvent } from '../../types.js';
+import { sanitizeError } from '../../../llm/errors.js';
+import type { ExecutionPhase, LoopEvent } from '../../../types.js';
 
-import type { LoopTelemetry } from './flow-telemetry.js';
+import type { LoopTelemetry } from './loop-telemetry.js';
 
 function sanitizeLoopEvent(event: LoopEvent): LoopEvent {
   if (event.type === 'log' && event.level === 'error') {

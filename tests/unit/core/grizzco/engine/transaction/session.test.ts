@@ -1,7 +1,7 @@
-import { runFlowSession } from '../../../../../src/core/grizzco/flows/flow-session.js';
-import { LoopTelemetry } from '../../../../../src/core/grizzco/flows/flow-telemetry.js';
+import { LoopTelemetry } from '../../../../../../src/core/grizzco/engine/observability/loop-telemetry.js';
+import { runFlowSession } from '../../../../../../src/core/grizzco/engine/transaction/session.js';
 
-describe('flow-session', () => {
+describe('transaction-session', () => {
   it('maps generic runner throw to LOOP_CRASH with VERIFY phase', async () => {
     const telemetry = new LoopTelemetry(() => new Date('2026-02-13T00:00:00.000Z'));
     const emitSanitized = vi.fn();

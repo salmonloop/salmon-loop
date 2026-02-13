@@ -132,7 +132,7 @@ Macro orchestration has two complementary responsibilities:
 
 In the current implementation this control plane is represented by:
 - `src/core/grizzco/flows/SalmonLoopFlow.ts` (single-attempt phases)
-- `src/core/grizzco/flows/flow-transaction-runner.ts` (cross-attempt orchestration)
+- `src/core/grizzco/engine/transaction/transaction-runner.ts` (cross-attempt orchestration)
 
 This separation preserves the rule that the Pipeline itself remains a typed phase executor, while transaction policy stays explicit and auditable.
 

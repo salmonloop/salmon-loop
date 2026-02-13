@@ -1,29 +1,33 @@
-import { recordAuditEvent } from '../../audit-trail.js';
-import { LIMITS } from '../../limits.js';
-import type { FileStateResolver } from '../../strata/layers/file-state-resolver.js';
-import type { WorkspaceSynchronizer } from '../../strata/runtime/synchronizer.js';
-import type { ArtifactHandle } from '../../sub-agent/artifacts/types.js';
+import { recordAuditEvent } from '../../../audit-trail.js';
+import type { FileStateResolver } from '../../../strata/layers/file-state-resolver.js';
+import type { WorkspaceSynchronizer } from '../../../strata/runtime/synchronizer.js';
+import type { ArtifactHandle } from '../../../sub-agent/artifacts/types.js';
 import type {
   AuthorizationSourceSummary,
   CheckpointRef,
   Context,
-  ExecutionPhase,
   ExecutionWorkspace,
   FileSystem,
   FlowMode,
   LoopEvent,
   LoopIteration,
   LoopOptions,
-  LoopReasonCode,
-} from '../../types.js';
-import type { FlowReport } from '../pipeline.js';
-import type { InitCtx, ShrinkCtx } from '../types.js';
+} from '../../../types.js';
+import { executeSalmonLoopFlow } from '../../flows/SalmonLoopFlow.js';
+import type { FlowTerminalCtx } from '../../flows/SalmonLoopFlow.js';
+import type { FlowReport } from '../../pipeline.js';
+import type { InitCtx, ShrinkCtx } from '../../types.js';
+import { LoopTelemetry } from '../observability/loop-telemetry.js';
 
-import { resolveAttemptFailure } from './flow-attempt-failure.js';
-import { buildAuthorizationSummary } from './flow-authorization-summary.js';
-import { LoopTelemetry } from './flow-telemetry.js';
-import { executeSalmonLoopFlow } from './SalmonLoopFlow.js';
-import type { FlowTerminalCtx } from './SalmonLoopFlow.js';
+import { resolveAttemptFailure } from './attempt-failure.js';
+import { buildAuthorizationSummary } from './authorization-summary.js';
+import {
+  mapRetryExhaustedReport,
+  mapSuccessReport,
+  mapTerminalFailureReport,
+} from './report-mapper.js';
+import { evaluateRetryPolicy } from './retry-policy.js';
+import type { FlowTransactionReport } from './types.js';
 
 export class FlowTransactionCancelledError extends Error {
   constructor() {
@@ -54,21 +58,6 @@ export interface FlowTransactionRunnerParams {
   telemetry: LoopTelemetry;
 }
 
-export interface FlowTransactionReport {
-  success: boolean;
-  attempts: number;
-  flowReport: FlowReport;
-  history: LoopIteration[];
-  authorizationSummary?: AuthorizationSourceSummary | null;
-  lastErrorCode?: string;
-  retryExhausted: boolean;
-  lastContext?: ShrinkCtx | undefined;
-  lastVerifyArtifact?: ArtifactHandle;
-  terminalReason?: string;
-  terminalReasonCode?: LoopReasonCode;
-  terminalFailurePhase?: ExecutionPhase;
-}
-
 export class FlowTransactionRunner {
   private historyEntries: LoopIteration[] = [];
   private currentContext: Context | undefined;
@@ -86,9 +75,8 @@ export class FlowTransactionRunner {
   public async execute(): Promise<FlowTransactionReport> {
     let retries = 0;
     let lastReport: FlowReport | undefined;
-    let retryExhausted = false;
 
-    while (retries <= LIMITS.maxRetries) {
+    while (true) {
       if (this.params.options.signal?.aborted) {
         throw new FlowTransactionCancelledError();
       }
@@ -130,30 +118,11 @@ export class FlowTransactionRunner {
         }
       }
 
-      const verifyOk =
-        this.params.flowMode === 'review' ? true : shrinkCtx?.verifyResult?.ok !== false;
-      const applyBackFailed =
-        this.params.flowMode !== 'review' &&
-        shrinkCtx?.applyBackResult?.success === false &&
-        !shrinkCtx.applyBackResult.skipped;
-      const attemptFailure =
-        verifyOk && applyBackFailed
-          ? {
-              reason:
-                shrinkCtx.applyBackResult?.error ||
-                'Failed to apply changes back to main workspace',
-              reasonCode: 'APPLY_BACK_FAILED' as const,
-              failurePhase: 'APPLY_BACK' as const,
-              retryable: false,
-              errorCode: 'APPLY_BACK_FAILED',
-            }
-          : result.success && verifyOk
-            ? undefined
-            : resolveAttemptFailure({
-                flowReport: result,
-                context: shrinkCtx,
-                flowMode: this.params.flowMode,
-              });
+      const attemptFailure = resolveAttemptFailure({
+        flowReport: result,
+        context: shrinkCtx,
+        flowMode: this.params.flowMode,
+      });
 
       const entry: LoopIteration = {
         attempt,
@@ -178,17 +147,15 @@ export class FlowTransactionRunner {
           { attempt, flowMode: this.params.flowMode },
           { phase: successPhase, severity: 'low', scope: 'session' },
         );
-        return {
-          success: true,
-          attempts: attempt,
+        return mapSuccessReport({
+          attempt,
           flowReport: result,
-          history: [...this.historyEntries],
+          history: this.historyEntries,
           authorizationSummary: this.authorizationSummary,
           lastErrorCode: this.extractErrorCode(result.error),
-          retryExhausted: false,
           lastContext: shrinkCtx,
           lastVerifyArtifact: this.lastVerifyArtifact,
-        };
+        });
       }
 
       recordAuditEvent(
@@ -201,60 +168,54 @@ export class FlowTransactionRunner {
         },
       );
 
-      if (!attemptFailure.retryable) {
-        return {
-          success: false,
-          attempts: attempt,
+      const retryDecision = evaluateRetryPolicy({
+        retries,
+        failure: attemptFailure,
+      });
+      retries = retryDecision.retries;
+
+      if (!retryDecision.shouldRetry) {
+        if (retryDecision.retryExhausted) {
+          break;
+        }
+
+        return mapTerminalFailureReport({
+          attempt,
           flowReport: result,
-          history: [...this.historyEntries],
+          history: this.historyEntries,
           authorizationSummary: this.authorizationSummary,
           lastErrorCode: attemptFailure.errorCode ?? this.extractErrorCode(result.error),
-          retryExhausted: false,
           lastContext: shrinkCtx,
           lastVerifyArtifact: this.lastVerifyArtifact,
-          terminalReason: attemptFailure.reason,
-          terminalReasonCode: attemptFailure.reasonCode,
-          terminalFailurePhase: attemptFailure.failurePhase,
-        };
+          failure: attemptFailure,
+        });
       }
 
       this.currentContext = shrinkCtx?.context;
       this.currentLastError = attemptFailure.reason;
-
-      retries++;
-
-      if (retries <= LIMITS.maxRetries) {
-        this.params.emit({
-          type: 'retry',
-          fromAttempt: attempt,
-          toAttempt: attempt + 1,
-          reason: attemptFailure.reason,
-          failedFiles: [],
-          timestamp: this.params.now(),
-        });
-      }
-
-      if (retries > LIMITS.maxRetries) {
-        retryExhausted = true;
-        break;
-      }
+      this.params.emit({
+        type: 'retry',
+        fromAttempt: attempt,
+        toAttempt: attempt + 1,
+        reason: attemptFailure.reason,
+        failedFiles: [],
+        timestamp: this.params.now(),
+      });
     }
 
     if (!lastReport) {
       throw new Error('SalmonLoop execution terminated without a FlowReport');
     }
 
-    return {
-      success: false,
+    return mapRetryExhaustedReport({
       attempts: retries,
       flowReport: lastReport,
-      history: [...this.historyEntries],
+      history: this.historyEntries,
       authorizationSummary: this.authorizationSummary,
       lastErrorCode: this.extractErrorCode(lastReport.error),
-      retryExhausted,
       lastContext: this.lastContext,
       lastVerifyArtifact: this.lastVerifyArtifact,
-    };
+    });
   }
 
   private extractErrorCode(error: unknown): string | undefined {

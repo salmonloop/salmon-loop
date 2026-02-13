@@ -1,10 +1,13 @@
-import { sanitizeError } from '../../llm/errors.js';
-import { Phase } from '../../types.js';
-import type { FlowMode, LoopEvent, LoopOptions, LoopResult } from '../../types.js';
+import { sanitizeError } from '../../../llm/errors.js';
+import { Phase } from '../../../types.js';
+import type { FlowMode, LoopEvent, LoopOptions, LoopResult } from '../../../types.js';
+import { LoopTelemetry } from '../observability/loop-telemetry.js';
+import {
+  buildLoopFailureResult,
+  buildLoopResultFromTransaction,
+} from '../outcome/loop-result-mapper.js';
 
-import { buildLoopFailureResult, buildLoopResultFromTransaction } from './flow-result-factory.js';
-import { LoopTelemetry } from './flow-telemetry.js';
-import { FlowTransactionCancelledError, FlowTransactionRunner } from './flow-transaction-runner.js';
+import { FlowTransactionCancelledError, FlowTransactionRunner } from './transaction-runner.js';
 
 export interface FlowSessionParams {
   runner: FlowTransactionRunner;

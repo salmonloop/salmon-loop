@@ -1,15 +1,15 @@
+import { LoopTelemetry } from '../../../../../../src/core/grizzco/engine/observability/loop-telemetry.js';
 import {
   buildLoopFailureResult,
   buildLoopResultFromTransaction,
-} from '../../../../../src/core/grizzco/flows/flow-result-factory.js';
-import { LoopTelemetry } from '../../../../../src/core/grizzco/flows/flow-telemetry.js';
-import type { FlowTransactionReport } from '../../../../../src/core/grizzco/flows/flow-transaction-runner.js';
+} from '../../../../../../src/core/grizzco/engine/outcome/loop-result-mapper.js';
+import type { FlowTransactionReport } from '../../../../../../src/core/grizzco/engine/transaction/types.js';
 
 function createTelemetry() {
   return new LoopTelemetry(() => new Date('2026-02-13T00:00:00.000Z'));
 }
 
-describe('flow-result-factory', () => {
+describe('loop-result-mapper', () => {
   it('maps success dry-run result', () => {
     const telemetry = createTelemetry();
     const report: FlowTransactionReport = {

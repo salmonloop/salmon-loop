@@ -34,7 +34,7 @@ A typed, async pipeline engine that supports:
 - **Recovery**: `stepWithRecovery` allows handling failures (e.g., Emergency Rollback).
 - **Telemetry**: Built-in tracing (Spans) for performance monitoring.
 
-### Flow Transaction Runner (`src/core/grizzco/flows/flow-transaction-runner.ts`)
+### Flow Transaction Runner (`src/core/grizzco/engine/transaction/transaction-runner.ts`)
 
 Cross-attempt orchestration for macro flows:
 
@@ -60,8 +60,10 @@ A central hub for asynchronous data providers (`GitConfigService`, etc.), enabli
 ```
 src/core/grizzco/
 ├── dsl/            # Pure Decision Logic
+├── engine/         # Cross-attempt transaction/outcome/telemetry control plane
 ├── execution/      # Side-effect Executors & Workers
-├── flows/          # Macro Orchestration (Loop Flows)
+├── flows/          # Single-attempt mode flow assembly
+├── runtime/        # Host and apply-back runtime integrations
 ├── services/       # Data Fetchers
 ├── steps/          # Pipeline Steps
 ├── pipeline.ts     # Pipeline Engine

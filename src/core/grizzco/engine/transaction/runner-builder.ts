@@ -1,6 +1,6 @@
-import { GitAdapter } from '../../adapters/git/git-adapter.js';
-import { FileStateResolver } from '../../strata/layers/file-state-resolver.js';
-import { WorkspaceSynchronizer } from '../../strata/runtime/synchronizer.js';
+import { GitAdapter } from '../../../adapters/git/git-adapter.js';
+import { FileStateResolver } from '../../../strata/layers/file-state-resolver.js';
+import { WorkspaceSynchronizer } from '../../../strata/runtime/synchronizer.js';
 import type {
   CheckpointRef,
   ExecutionWorkspace,
@@ -8,10 +8,10 @@ import type {
   FlowMode,
   LoopEvent,
   LoopOptions,
-} from '../../types.js';
+} from '../../../types.js';
+import type { LoopTelemetry } from '../observability/loop-telemetry.js';
 
-import type { LoopTelemetry } from './flow-telemetry.js';
-import { FlowTransactionRunner } from './flow-transaction-runner.js';
+import { FlowTransactionRunner } from './transaction-runner.js';
 
 interface BuildFlowRunnerEnvironment {
   workspace?: ExecutionWorkspace;

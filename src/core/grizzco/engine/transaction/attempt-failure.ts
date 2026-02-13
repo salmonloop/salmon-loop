@@ -1,10 +1,10 @@
-import { text } from '../../../locales/index.js';
-import { sanitizeError } from '../../llm/errors.js';
-import { EXECUTION_PHASES } from '../../types.js';
-import type { ExecutionPhase, FlowMode, LoopReasonCode } from '../../types.js';
-import { classifyError, isRetryable } from '../../verify.js';
-import type { FlowReport } from '../pipeline.js';
-import type { ShrinkCtx } from '../types.js';
+import { text } from '../../../../locales/index.js';
+import { sanitizeError } from '../../../llm/errors.js';
+import { EXECUTION_PHASES } from '../../../types.js';
+import type { ExecutionPhase, FlowMode, LoopReasonCode } from '../../../types.js';
+import { classifyError, isRetryable } from '../../../verify.js';
+import type { FlowReport } from '../../pipeline.js';
+import type { ShrinkCtx } from '../../types.js';
 
 export interface AttemptFailureDetails {
   reason: string;
@@ -53,8 +53,28 @@ export function resolveAttemptFailure(params: {
   flowReport: FlowReport;
   context?: ShrinkCtx;
   flowMode: FlowMode;
-}): AttemptFailureDetails {
+}): AttemptFailureDetails | undefined {
   const { flowReport, context, flowMode } = params;
+  const verifyOk = flowMode === 'review' ? true : context?.verifyResult?.ok !== false;
+  const applyBackFailed =
+    flowMode !== 'review' &&
+    context?.applyBackResult?.success === false &&
+    !context.applyBackResult.skipped;
+
+  if (applyBackFailed) {
+    return {
+      reason: context.applyBackResult?.error || 'Failed to apply changes back to main workspace',
+      reasonCode: 'APPLY_BACK_FAILED',
+      failurePhase: 'APPLY_BACK',
+      retryable: false,
+      errorCode: 'APPLY_BACK_FAILED',
+    };
+  }
+
+  if (flowReport.success && verifyOk) {
+    return undefined;
+  }
+
   const errorCode = extractErrorCode(flowReport.error);
 
   if (errorCode === 'PREFLIGHT_NOT_GIT') {

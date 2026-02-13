@@ -1,8 +1,8 @@
-import { LoopTelemetry } from '../../../../../src/core/grizzco/flows/flow-telemetry.js';
-import { FlowTransactionRunner } from '../../../../../src/core/grizzco/flows/flow-transaction-runner.js';
-import { executeSalmonLoopFlow } from '../../../../../src/core/grizzco/flows/SalmonLoopFlow.js';
+import { LoopTelemetry } from '../../../../../../src/core/grizzco/engine/observability/loop-telemetry.js';
+import { FlowTransactionRunner } from '../../../../../../src/core/grizzco/engine/transaction/transaction-runner.js';
+import { executeSalmonLoopFlow } from '../../../../../../src/core/grizzco/flows/SalmonLoopFlow.js';
 
-vi.mock('../../../../../src/core/grizzco/flows/SalmonLoopFlow.js', () => ({
+vi.mock('../../../../../../src/core/grizzco/flows/SalmonLoopFlow.js', () => ({
   executeSalmonLoopFlow: vi.fn(),
 }));
 
@@ -36,7 +36,7 @@ function createRunner(emit = vi.fn()) {
   });
 }
 
-describe('flow-transaction-runner', () => {
+describe('transaction-runner', () => {
   const mockedExecute = vi.mocked(executeSalmonLoopFlow);
 
   beforeEach(() => {

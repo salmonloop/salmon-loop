@@ -1,5 +1,5 @@
-import { runApplyBackPhase } from '../flows/flow-apply-back-runtime.js';
 import { Step } from '../pipeline.js';
+import { runApplyBackPhase } from '../runtime/apply-back-runtime.js';
 import { ShrinkCtx } from '../types.js';
 
 function buildSkippedResult() {

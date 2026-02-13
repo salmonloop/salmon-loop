@@ -1,8 +1,8 @@
-import { createFlowEventAdapter } from '../../../../../src/core/grizzco/flows/flow-event-adapter.js';
-import { LoopTelemetry } from '../../../../../src/core/grizzco/flows/flow-telemetry.js';
-import type { LoopEvent } from '../../../../../src/core/types.js';
+import { createFlowEventAdapter } from '../../../../../../src/core/grizzco/engine/observability/event-adapter.js';
+import { LoopTelemetry } from '../../../../../../src/core/grizzco/engine/observability/loop-telemetry.js';
+import type { LoopEvent } from '../../../../../../src/core/types.js';
 
-describe('flow-event-adapter', () => {
+describe('event-adapter', () => {
   it('records sanitized direct logs as PREFLIGHT', () => {
     const onEvent = vi.fn();
     const telemetry = new LoopTelemetry(() => new Date('2026-02-13T00:00:00.000Z'));

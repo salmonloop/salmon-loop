@@ -1,11 +1,10 @@
-import { readFile, writeFile } from 'fs/promises';
-
 import { recordAuditEvent } from '../../audit-trail.js';
 import { sanitizeError } from '../../llm/errors.js';
-import { logger } from '../../logger.js';
 import { WorkspaceSynchronizer } from '../../strata/runtime/synchronizer.js';
 import type { ApplyBackTelemetry } from '../../strata/runtime/synchronizer.js';
 import type { CheckpointRef, LoopEvent, LoopOptions } from '../../types.js';
+
+import { collectSidecarPaths } from './apply-back-utils.js';
 
 export interface ApplyBackPhaseParams {
   attempt: number;
@@ -16,7 +15,6 @@ export interface ApplyBackPhaseParams {
   activeRepoPath: string;
   shadowTaskId: string;
   emit?: (event: LoopEvent) => void;
-  auditPath?: string;
   diff?: string;
   changedFiles: string[];
 }
@@ -39,7 +37,6 @@ export async function runApplyBackPhase(
     activeRepoPath,
     shadowTaskId,
     attempt,
-    auditPath,
     emit,
   } = params;
   const applyBackTelemetry: ApplyBackTelemetry = {};
@@ -108,12 +105,6 @@ export async function runApplyBackPhase(
       timestamp: new Date(),
     });
 
-    await appendApplyBackAudit(auditPath, {
-      attempt,
-      success: true,
-      telemetry: applyBackTelemetry,
-    });
-
     return { success: true, skipped: false, telemetry: applyBackTelemetry };
   } catch (error) {
     const sanitizedErr = sanitizeError(error);
@@ -133,51 +124,6 @@ export async function runApplyBackPhase(
       message: `Apply-back failed on attempt ${attempt}: ${sanitizedErr}`,
       timestamp: new Date(),
     });
-    await appendApplyBackAudit(auditPath, {
-      attempt,
-      success: false,
-      telemetry: applyBackTelemetry,
-      error: sanitizedErr,
-    });
     return { success: false, skipped: false, telemetry: applyBackTelemetry, error: sanitizedErr };
-  }
-}
-
-function collectSidecarPaths(options: LoopOptions): string[] {
-  if (!options.contextFiles || options.contextFiles.length === 0) {
-    return [];
-  }
-  const paths = new Set<string>();
-  for (const filePath of options.contextFiles) {
-    if (filePath) paths.add(filePath);
-  }
-  return Array.from(paths);
-}
-
-async function appendApplyBackAudit(
-  auditPath: string | undefined,
-  payload: {
-    attempt: number;
-    success: boolean;
-    telemetry: ApplyBackTelemetry;
-    error?: string;
-  },
-) {
-  if (!auditPath) return;
-  try {
-    const raw = await readFile(auditPath, 'utf8');
-    const data = JSON.parse(raw) as Record<string, unknown>;
-    const previous = Array.isArray(data.applyBackAudit) ? data.applyBackAudit : [];
-    data.applyBackAudit = [
-      ...previous,
-      {
-        ...payload,
-        timestamp: new Date().toISOString(),
-      },
-    ];
-    await writeFile(auditPath, JSON.stringify(data, null, 2));
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    logger.warn(`[Audit] Failed to append apply-back telemetry: ${msg}`);
   }
 }

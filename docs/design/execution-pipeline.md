@@ -44,7 +44,7 @@ When VERIFY fails, later attempts may be informed by:
 
 Phase execution is single-attempt and managed by the typed Pipeline.
 Cross-attempt transaction control (retry loops, terminal outcome mapping, attempt-level audit events) is managed by Grizzco flow runner:
-`src/core/grizzco/flows/flow-transaction-runner.ts`.
+`src/core/grizzco/engine/transaction/transaction-runner.ts`.
 
 ## PLAN Phase Streaming Behavior
 
