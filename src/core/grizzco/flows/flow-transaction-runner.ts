@@ -1,50 +1,58 @@
-import { text } from '../../locales/index.js';
-import { recordAuditEvent } from '../audit-trail.js';
-import { executeSalmonLoopFlow } from '../grizzco/flows/SalmonLoopFlow.js';
-import type { FlowReport } from '../grizzco/pipeline.js';
-import type { ShrinkCtx } from '../grizzco/types.js';
-import { LIMITS } from '../limits.js';
-import { sanitizeError } from '../llm/errors.js';
-import type { HostBootContext } from '../orchestration/types.js';
-import type { FileStateResolver } from '../strata/layers/file-state-resolver.js';
-import type { WorkspaceSynchronizer } from '../strata/runtime/synchronizer.js';
-import type { ArtifactHandle } from '../sub-agent/artifacts/types.js';
+import { recordAuditEvent } from '../../audit-trail.js';
+import { LIMITS } from '../../limits.js';
+import type { FileStateResolver } from '../../strata/layers/file-state-resolver.js';
+import type { WorkspaceSynchronizer } from '../../strata/runtime/synchronizer.js';
+import type { ArtifactHandle } from '../../sub-agent/artifacts/types.js';
 import type {
+  AuthorizationSourceSummary,
+  CheckpointRef,
   Context,
+  ExecutionPhase,
+  ExecutionWorkspace,
+  FileSystem,
+  FlowMode,
   LoopEvent,
   LoopIteration,
   LoopOptions,
-  FlowMode,
-  AuthorizationSourceSummary,
-  ExecutionPhase,
   LoopReasonCode,
-} from '../types.js';
+} from '../../types.js';
+import type { FlowReport } from '../pipeline.js';
+import type { InitCtx, ShrinkCtx } from '../types.js';
 
-import { buildAuthorizationSummary } from './authorization-summary.js';
-import { LoopTelemetry } from './loop-telemetry.js';
+import { resolveAttemptFailure } from './flow-attempt-failure.js';
+import { buildAuthorizationSummary } from './flow-authorization-summary.js';
+import { LoopTelemetry } from './flow-telemetry.js';
+import { executeSalmonLoopFlow } from './SalmonLoopFlow.js';
 
-export class OperationCancelledError extends Error {
+export class FlowTransactionCancelledError extends Error {
   constructor() {
     super('Operation cancelled by user');
-    this.name = 'OperationCancelledError';
+    this.name = 'FlowTransactionCancelledError';
   }
 }
 
-export interface LoopExecutionCoordinatorParams {
+interface FlowTransactionEnvironment {
+  workspace?: ExecutionWorkspace;
+  initialSnapshotHash?: string;
+  checkpointRef?: CheckpointRef;
+  activeRepoPath: string;
+}
+
+export interface FlowTransactionRunnerParams {
   options: LoopOptions;
   flowMode: FlowMode;
   emit: (event: LoopEvent) => void;
   now: () => Date;
-  fsAdapter: HostBootContext['fsAdapter'];
-  env: HostBootContext['env'];
+  fsAdapter: FileSystem;
+  env: FlowTransactionEnvironment;
   synchronizer: WorkspaceSynchronizer;
   shadowTaskId: string;
-  planRuntime?: HostBootContext['planRuntime'];
+  planRuntime?: InitCtx['planRuntime'];
   fileStateResolver: FileStateResolver;
   telemetry: LoopTelemetry;
 }
 
-export interface LoopExecutionReport {
+export interface FlowTransactionReport {
   success: boolean;
   attempts: number;
   flowReport: FlowReport;
@@ -59,7 +67,7 @@ export interface LoopExecutionReport {
   terminalFailurePhase?: ExecutionPhase;
 }
 
-export class LoopExecutionCoordinator {
+export class FlowTransactionRunner {
   private historyEntries: LoopIteration[] = [];
   private currentContext: Context | undefined;
   private currentLastError: string | undefined;
@@ -67,16 +75,16 @@ export class LoopExecutionCoordinator {
   private lastContext: ShrinkCtx | undefined;
   private lastVerifyArtifact: ArtifactHandle | undefined;
 
-  constructor(private readonly params: LoopExecutionCoordinatorParams) {}
+  constructor(private readonly params: FlowTransactionRunnerParams) {}
 
-  public async execute(): Promise<LoopExecutionReport> {
+  public async execute(): Promise<FlowTransactionReport> {
     let retries = 0;
     let lastReport: FlowReport | undefined;
     let retryExhausted = false;
 
     while (retries <= LIMITS.maxRetries) {
       if (this.params.options.signal?.aborted) {
-        throw new OperationCancelledError();
+        throw new FlowTransactionCancelledError();
       }
 
       const attempt = retries + 1;
@@ -114,14 +122,35 @@ export class LoopExecutionCoordinator {
           this.lastVerifyArtifact = ctx.verifyArtifact;
         }
       }
-      const failureReason =
-        sanitizeError(ctx?.lastError || result.error) || text.loop.loopExecutionFailed;
+
+      const verifyOk = this.params.flowMode === 'review' ? true : ctx?.verifyResult?.ok !== false;
+      const applyBackFailed =
+        this.params.flowMode !== 'review' &&
+        ctx?.applyBackResult?.success === false &&
+        !ctx.applyBackResult.skipped;
+      const attemptFailure =
+        verifyOk && applyBackFailed
+          ? {
+              reason:
+                ctx.applyBackResult?.error || 'Failed to apply changes back to main workspace',
+              reasonCode: 'APPLY_BACK_FAILED' as const,
+              failurePhase: 'APPLY_BACK' as const,
+              retryable: false,
+              errorCode: 'APPLY_BACK_FAILED',
+            }
+          : result.success && verifyOk
+            ? undefined
+            : resolveAttemptFailure({
+                flowReport: result,
+                context: ctx,
+                flowMode: this.params.flowMode,
+              });
 
       const entry: LoopIteration = {
         attempt,
         plan: ctx?.plan ?? null,
         patch: ctx?.diff ?? null,
-        error: failureReason,
+        error: attemptFailure?.reason,
         contextSummary: ctx?.context ? `Snippets: ${ctx.context.rgSnippets.length}` : 'No context',
       };
       this.historyEntries.push(entry);
@@ -131,67 +160,55 @@ export class LoopExecutionCoordinator {
         ctx?.toolAuditLogger?.getLogs?.() as unknown[],
       );
 
-      if (result.success) {
-        const verifyOk = this.params.flowMode === 'review' ? true : ctx?.verifyResult?.ok !== false;
-        const applyBackFailed =
-          this.params.flowMode !== 'review' &&
-          ctx?.applyBackResult?.success === false &&
-          !ctx.applyBackResult.skipped;
-
-        if (verifyOk && applyBackFailed) {
-          const applyBackMessage =
-            ctx.applyBackResult?.error || 'Failed to apply changes back to main workspace';
-          recordAuditEvent(
-            'loop.attempt.failure',
-            { attempt, flowMode: this.params.flowMode, reason: applyBackMessage },
-            { phase: 'APPLY_BACK', severity: 'high', scope: 'session' },
-          );
-          return {
-            success: false,
-            attempts: attempt,
-            flowReport: result,
-            history: [...this.historyEntries],
-            authorizationSummary: this.authorizationSummary,
-            lastErrorCode: this.extractErrorCode(result.error),
-            retryExhausted: false,
-            lastContext: ctx,
-            lastVerifyArtifact: this.lastVerifyArtifact,
-            terminalReason: applyBackMessage,
-            terminalReasonCode: 'APPLY_BACK_FAILED',
-            terminalFailurePhase: 'APPLY_BACK',
-          };
-        }
-
-        if (verifyOk) {
-          const successPhase = this.params.flowMode === 'review' ? 'SHRINK' : 'APPLY_BACK';
-          recordAuditEvent(
-            'loop.attempt.success',
-            { attempt, flowMode: this.params.flowMode },
-            { phase: successPhase, severity: 'low', scope: 'session' },
-          );
-          return {
-            success: true,
-            attempts: attempt,
-            flowReport: result,
-            history: [...this.historyEntries],
-            authorizationSummary: this.authorizationSummary,
-            lastErrorCode: this.extractErrorCode(result.error),
-            retryExhausted: false,
-            lastContext: ctx,
-            lastVerifyArtifact: this.lastVerifyArtifact,
-          };
-        }
+      if (!attemptFailure) {
+        const successPhase = this.params.flowMode === 'review' ? 'SHRINK' : 'APPLY_BACK';
+        recordAuditEvent(
+          'loop.attempt.success',
+          { attempt, flowMode: this.params.flowMode },
+          { phase: successPhase, severity: 'low', scope: 'session' },
+        );
+        return {
+          success: true,
+          attempts: attempt,
+          flowReport: result,
+          history: [...this.historyEntries],
+          authorizationSummary: this.authorizationSummary,
+          lastErrorCode: this.extractErrorCode(result.error),
+          retryExhausted: false,
+          lastContext: ctx,
+          lastVerifyArtifact: this.lastVerifyArtifact,
+        };
       }
 
       recordAuditEvent(
         'loop.attempt.failure',
-        { attempt, flowMode: this.params.flowMode, reason: failureReason },
-        { phase: 'VERIFY', severity: 'medium', scope: 'session' },
+        { attempt, flowMode: this.params.flowMode, reason: attemptFailure.reason },
+        {
+          phase: attemptFailure.failurePhase,
+          severity: attemptFailure.failurePhase === 'APPLY_BACK' ? 'high' : 'medium',
+          scope: 'session',
+        },
       );
-      this.currentContext = ctx?.context;
-      if (failureReason) {
-        this.currentLastError = failureReason;
+
+      if (!attemptFailure.retryable) {
+        return {
+          success: false,
+          attempts: attempt,
+          flowReport: result,
+          history: [...this.historyEntries],
+          authorizationSummary: this.authorizationSummary,
+          lastErrorCode: attemptFailure.errorCode ?? this.extractErrorCode(result.error),
+          retryExhausted: false,
+          lastContext: ctx,
+          lastVerifyArtifact: this.lastVerifyArtifact,
+          terminalReason: attemptFailure.reason,
+          terminalReasonCode: attemptFailure.reasonCode,
+          terminalFailurePhase: attemptFailure.failurePhase,
+        };
       }
+
+      this.currentContext = ctx?.context;
+      this.currentLastError = attemptFailure.reason;
 
       retries++;
 
@@ -200,7 +217,7 @@ export class LoopExecutionCoordinator {
           type: 'retry',
           fromAttempt: attempt,
           toAttempt: attempt + 1,
-          reason: failureReason,
+          reason: attemptFailure.reason,
           failedFiles: [],
           timestamp: this.params.now(),
         });

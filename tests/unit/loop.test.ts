@@ -285,16 +285,16 @@ index 123..456 100644
 
     vi.mocked(executeSalmonLoopFlow)
       .mockResolvedValueOnce({
-        success: false,
+        success: true,
         duration: 0,
         traces: [],
         data: {
           plan: { changes: [] },
           diff: '',
           changedFiles: [],
+          verifyResult: { ok: false, output: 'Test suites: 1 failed, 1 total', exitCode: 1 },
           lastError: 'Simulated failure',
         } as any,
-        error: new Error('Simulated failure'),
       })
       .mockResolvedValue({
         success: true,
@@ -397,13 +397,18 @@ index 123..456 100644
 +new`);
 
     vi.mocked(executeSalmonLoopFlow).mockResolvedValue({
-      success: false,
+      success: true,
       duration: 0,
       traces: [],
       data: {
         plan: { changes: [] },
         diff: '',
         changedFiles: [],
+        verifyResult: {
+          ok: false,
+          output: 'TS2322: Type string is not assignable to type number',
+          exitCode: 1,
+        },
       } as any,
     });
 
@@ -439,11 +444,8 @@ index 123..456 100644
     });
 
     expect(result.success).toBe(false);
-    // If loop retries, it might fail with max retries.
-    // If executeSalmonLoopFlow returns error, loop.ts increments retries.
-    // So it will retry until max retries.
-    // Result reason will be 'Exceeded maximum retry attempts'.
-    expect(result.reason).toBe(text.loop.exceededMaxRetriesSimple);
+    expect(result.reasonCode).toBe('LOOP_FAILED');
+    expect(result.attempts).toBe(1);
   });
 
   it('should fail when apply-back phase reports failure', async () => {

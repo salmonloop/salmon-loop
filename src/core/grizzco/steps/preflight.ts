@@ -10,13 +10,16 @@ export const runPreflight: Step<InitCtx, PreflightCtx> = async (ctx) => {
   const result = await preflight(ctx.workspace);
 
   if (!result.ok) {
+    const reason = result.reason || text.loop.preflightFailedNotGit;
     ctx.emit({
       type: 'log',
       level: 'error',
-      message: result.reason || text.loop.preflightFailedNotGit,
+      message: reason,
       timestamp: new Date(),
     });
-    throw new Error(result.reason || text.loop.preflightFailedNotGit);
+    const error = new Error(reason) as Error & { code?: string };
+    error.code = result.reasonCode || 'LOOP_FAILED';
+    throw error;
   }
 
   ctx.emit({

@@ -15,6 +15,7 @@ This document describes the execution phases and their responsibilities.
 9. VERIFY
 10. ROLLBACK
 11. SHRINK
+12. APPLY_BACK
 
 The phase order is a contract and must match runtime behavior.
 
@@ -30,6 +31,7 @@ The phase order is a contract and must match runtime behavior.
 
 - EXPLORE/PLAN/PATCH are intended to be read-only with tool-calling constrained by policy.
 - APPLY mutates the active execution workspace (e.g., a temporary worktree).
+- APPLY_BACK mutates the main workspace by synchronizing verified changes from the shadow/worktree run.
 - ROLLBACK may be a no-op when verification succeeds; the phase is still present for uniform flow reporting.
 
 ## Retry Inputs (PLAN/PATCH)
@@ -37,6 +39,12 @@ The phase order is a contract and must match runtime behavior.
 When VERIFY fails, later attempts may be informed by:
 - A refined error summary ("last error") derived from the previous verification output.
 - A shrunk/re-ranked context assembled from the failed files and their dependencies.
+
+## Cross-Attempt Control Plane
+
+Phase execution is single-attempt and managed by the typed Pipeline.
+Cross-attempt transaction control (retry loops, terminal outcome mapping, attempt-level audit events) is managed by Grizzco flow runner:
+`src/core/grizzco/flows/flow-transaction-runner.ts`.
 
 ## PLAN Phase Streaming Behavior
 

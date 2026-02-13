@@ -1,4 +1,5 @@
 import { text } from '../../../locales/index.js';
+import { recordAuditEvent } from '../../audit-trail.js';
 import { convertDiffToShadowOperations } from '../../diff.js';
 import { getRejectionsDir } from '../../runtime-paths.js';
 import {
@@ -7,12 +8,8 @@ import {
   type GrizzcoOptions,
   type ShadowOperation,
 } from '../../shared/types/grizzco-types.js';
-import {
-  DecisionEngine,
-  PlanBuilder,
-  type DslContext,
-  type ExecutionPlan,
-} from '../dsl/DecisionEngine.js';
+import type { DslContext, ExecutionPlan } from '../dsl/DecisionEngine.js';
+import { MicroTaskRunner } from '../dsl/MicroTaskRunner.js';
 import { StandardStrategy } from '../dsl/strategies.js';
 import { Executor, type ExecutionResult } from '../execution/Executor.js';
 import { WorkerFactory } from '../execution/WorkerFactory.js';
@@ -94,58 +91,34 @@ export const runApply: Step<AstValidateCtx, ApplyCtx> = async (ctx) => {
       data: {},
     };
 
-    let plan: ExecutionPlan | undefined;
-    let finalEngine: DecisionEngine<DslContext> | undefined;
-
-    const fetchMissingData = async (keys: string[]) => {
-      const fetchPromises = keys.map(async (key) => {
+    const microTaskRunner = new MicroTaskRunner<DslContext>({
+      strategy: StandardStrategy,
+      debugLabel: op.path,
+      maxRounds: 10,
+      resolveData: async (_microCtx, key) => {
         const service = registry.get(key);
         if (!service) throw new Error(text.grizzco.unknownDataDependency(key));
-        return { key, data: await service.fetch(ctx, op.path) };
-      });
+        return service.fetch(ctx, op.path);
+      },
+    });
+    const microResult = await microTaskRunner.decide(dslCtx);
+    const plan: ExecutionPlan = microResult.plan;
 
-      const results = await Promise.all(fetchPromises);
-      if (!dslCtx.data) dslCtx.data = {};
-      results.forEach(({ key, data }) => {
-        dslCtx.data![key] = data;
-      });
-    };
-
-    const MAX_DSL_RETRIES = 10;
-    let dslRetries = 0;
-
-    while (true) {
-      if (dslRetries++ > MAX_DSL_RETRIES) {
-        throw new Error(text.grizzco.microOrchestratorLoopStuck(op.path));
-      }
-      const planBuilder = new PlanBuilder<DslContext>();
-      const engine = new DecisionEngine<DslContext>(dslCtx, planBuilder);
-      finalEngine = engine;
-
-      StandardStrategy(engine);
-      const result = engine.build();
-
-      if (result.type === 'PLAN') {
-        plan = result.plan;
-        break;
-      }
-
-      if (result.type === 'NEED_DATA') {
-        await fetchMissingData(result.keys);
-        continue;
-      }
-    }
-
-    if (finalEngine) {
-      allDecisions.push({
+    allDecisions.push({
+      path: op.path,
+      decisions: microResult.decisions,
+    });
+    recordAuditEvent(
+      'grizzco.apply.execution_plan',
+      {
         path: op.path,
-        decisions: finalEngine.getStructuredDecisions(),
-      });
-    }
-
-    if (!plan) {
-      throw new Error(text.grizzco.planAborted(op.path, text.grizzco.errors.aborted));
-    }
+        workerId: plan.workerId || null,
+        shouldAbort: plan.shouldAbort,
+        actions: plan.actions,
+        decisionTree: plan.decisionTree,
+      },
+      { source: 'grizzco', severity: 'low', scope: 'session', phase: 'APPLY' },
+    );
 
     if (plan.shouldAbort) {
       throw new Error(text.grizzco.planAborted(op.path, plan.abortReason || 'Unknown reason'));

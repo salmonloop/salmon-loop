@@ -8,7 +8,8 @@ Implementation details belong in `src/core/grizzco/`.
 ## Scope
 
 - The DSL applies to per-file decision-making in the APPLY phase.
-- The pipeline (PREFLIGHT -> CONTEXT -> PLAN -> PATCH -> VALIDATE -> AST_VALIDATE -> APPLY -> VERIFY -> ROLLBACK -> SHRINK) is orchestration and is not expressed in the DSL.
+- The pipeline (PREFLIGHT -> CONTEXT -> PLAN -> PATCH -> VALIDATE -> AST_VALIDATE -> APPLY -> VERIFY -> ROLLBACK -> SHRINK -> APPLY_BACK) is orchestration and is not expressed in the DSL.
+- Cross-attempt transaction orchestration (retry/terminal outcome) is handled by Grizzco flow runner (`src/core/grizzco/flows/flow-transaction-runner.ts`), not by the DSL.
 
 ## Core Principles
 
@@ -44,4 +45,3 @@ Instead it signals a need, and an orchestrator (specifically `MicroTaskRunner`) 
 - Pipeline overview: `docs/design/execution-pipeline.md`
 - Tool governance: `docs/design/tool-governance.md`
 - Internal whitepaper: `src/core/grizzco/DSL-Spec-V3.md`
-

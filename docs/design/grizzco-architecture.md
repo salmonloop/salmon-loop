@@ -34,6 +34,15 @@ A typed, async pipeline engine that supports:
 - **Recovery**: `stepWithRecovery` allows handling failures (e.g., Emergency Rollback).
 - **Telemetry**: Built-in tracing (Spans) for performance monitoring.
 
+### Flow Transaction Runner (`src/core/grizzco/flows/flow-transaction-runner.ts`)
+
+Cross-attempt orchestration for macro flows:
+
+- Runs repeated attempts with bounded retry policy.
+- Carries forward shrunk context and refined last error across attempts.
+- Emits attempt-level audit events (`loop.attempt.*`) and terminal outcome metadata.
+- Delegates single-attempt phase execution to `executeSalmonLoopFlow`.
+
 ### Decision Engine (`src/core/grizzco/dsl/DecisionEngine.ts`)
 
 A pure TypeScript class that executes the DSL strategies. It generates a structured `ExecutionPlan` (JSON) describing what should be done, without doing it.

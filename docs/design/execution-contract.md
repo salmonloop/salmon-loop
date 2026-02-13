@@ -19,9 +19,9 @@ to assemble mode-specific pipelines on top of a shared base (PREFLIGHT + CONTEXT
 
 ## Standard Flow Modes
 
-- **Patch**: Full modification cycle (PLAN → PATCH → VALIDATE → AST_VALIDATE → APPLY → VERIFY → ROLLBACK → SHRINK).
+- **Patch**: Full modification cycle (PLAN → PATCH → VALIDATE → AST_VALIDATE → APPLY → VERIFY → ROLLBACK → SHRINK → APPLY_BACK).
 - **Review**: Analysis-only workflow (REVIEW → REPORT → SHRINK). No filesystem mutation.
-- **Debug**: Combined workflow (REVIEW → ANALYZE_ISSUES → PLAN → PATCH → VALIDATE → AST_VALIDATE → APPLY → VERIFY → ROLLBACK → SHRINK).
+- **Debug**: Combined workflow (REVIEW → ANALYZE_ISSUES → PLAN → PATCH → VALIDATE → AST_VALIDATE → APPLY → VERIFY → ROLLBACK → SHRINK → APPLY_BACK).
 
 ## ReadOnlyFileSystem Enforcement
 
@@ -59,7 +59,7 @@ Safety guarantees:
 8. **ROLLBACK**: Mutating. If verification fails, the system restores the modified files to their original state using `git checkout`. If Git conflicts or abnormal states are detected, it performs a robust reset (`git stash`, `git reset --hard`, `git clean`).
 9. **SHRINK**: Read-only. If verification fails, the system performs **Smart Feedback** analysis to extract precise error diagnostics and reduces the context for the next attempt.
 
-Note: apply-back (shadow -> main) is described separately in `docs/design/applyback.md`.
+10. **APPLY_BACK**: Mutating (main workspace, worktree mode only). On successful verification, changes are synchronized from shadow workspace to the user's main workspace with dirty-workspace safety policy and audit telemetry.
 
 **Definition (Read-only):** In SalmonLoop, "read-only" means:
 - **No mutation of user repository assets** in the user's main workspace working tree (tracked or untracked).

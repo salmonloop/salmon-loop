@@ -216,7 +216,11 @@ export async function verifyFileContent(
 export async function preflight(
   workspace: ExecutionWorkspace,
   onEvent?: (event: LoopEvent) => void,
-): Promise<{ ok: boolean; reason?: string }> {
+): Promise<{
+  ok: boolean;
+  reason?: string;
+  reasonCode?: 'PREFLIGHT_DIRTY' | 'PREFLIGHT_NOT_GIT' | 'LOOP_FAILED';
+}> {
   const now = () => new Date();
   const git = new GitAdapter(workspace.baseRepoPath);
 
@@ -228,14 +232,24 @@ export async function preflight(
   });
 
   if (!gitCheck.ok) {
-    if (gitCheck.error?.code === 'ENOENT') return { ok: false, reason: text.loop.gitNotFound };
-    if (gitCheck.error?.message) {
-      return { ok: false, reason: text.loop.preflightGitCheckFailed(gitCheck.error.message) };
+    if (gitCheck.error?.code === 'ENOENT') {
+      return { ok: false, reason: text.loop.gitNotFound, reasonCode: 'PREFLIGHT_NOT_GIT' };
     }
-    return { ok: false, reason: text.loop.preflightFailedNotGit };
+    if (gitCheck.error?.message) {
+      return {
+        ok: false,
+        reason: text.loop.preflightGitCheckFailed(gitCheck.error.message),
+        reasonCode: 'PREFLIGHT_NOT_GIT',
+      };
+    }
+    return { ok: false, reason: text.loop.preflightFailedNotGit, reasonCode: 'PREFLIGHT_NOT_GIT' };
   }
   if (gitCheck.stdoutTruncated) {
-    return { ok: false, reason: text.loop.preflightGitCheckFailed(text.git.outputTruncated(4096)) };
+    return {
+      ok: false,
+      reason: text.loop.preflightGitCheckFailed(text.git.outputTruncated(4096)),
+      reasonCode: 'LOOP_FAILED',
+    };
   }
 
   // 2. Check if workspace is dirty (only for direct strategy)
@@ -253,17 +267,25 @@ export async function preflight(
         reason: text.loop.preflightGitStatusFailed(
           statusCheck.error?.message ?? statusCheck.stderr.trim() ?? 'Unknown error',
         ),
+        reasonCode: 'LOOP_FAILED',
       };
     }
     if (statusCheck.stdoutTruncated) {
       return {
         ok: false,
         reason: text.loop.preflightGitStatusFailed(text.git.outputTruncated(64_000)),
+        reasonCode: 'LOOP_FAILED',
       };
     }
 
     const output = statusCheck.stdout.toString('utf8').trim();
-    if (output.length > 0) return { ok: false, reason: text.loop.preflightFailedDirty(output) };
+    if (output.length > 0) {
+      return {
+        ok: false,
+        reason: text.loop.preflightFailedDirty(output),
+        reasonCode: 'PREFLIGHT_DIRTY',
+      };
+    }
     return { ok: true };
   }
 

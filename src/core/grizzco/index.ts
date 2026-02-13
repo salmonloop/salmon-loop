@@ -1,5 +1,8 @@
 // Pipeline entrypoint (Bifrost)
 export * from './flows/SalmonLoopFlow.js';
+export * from './flows/flow-transaction-runner.js';
+export * from './flows/flow-result-factory.js';
+export * from './flows/flow-session.js';
 
 // Adapters (Infrastructure Layer)
 export * from '../adapters/git/git-adapter.js';

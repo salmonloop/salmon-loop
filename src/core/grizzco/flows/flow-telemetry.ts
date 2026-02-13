@@ -1,5 +1,5 @@
-import { LIMITS } from '../limits.js';
-import type { ExecutionPhase, LoopIteration, StepLog } from '../types.js';
+import { LIMITS } from '../../limits.js';
+import type { ExecutionPhase, LoopIteration, StepLog } from '../../types.js';
 
 export class LoopTelemetry {
   private readonly logs: StepLog[] = [];

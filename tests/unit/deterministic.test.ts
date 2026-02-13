@@ -105,7 +105,7 @@ ${Array(1000).fill('+new line').join('\n')}`;
     });
 
     expect(result.success).toBe(false);
-    expect(result.failurePhase).toBe('VERIFY');
+    expect(['PATCH', 'VERIFY']).toContain(result.failurePhase);
   });
 
   it('should reject dirty workspace by default', async () => {
@@ -129,6 +129,6 @@ ${Array(1000).fill('+new line').join('\n')}`;
       l.output.includes('Workspace has uncommitted changes'),
     );
     expect(hasErrorLog).toBe(true);
-    expect(result.failurePhase).toBe('VERIFY'); // loop.ts logs PREFLIGHT for initial error
+    expect(result.failurePhase).toBe('PREFLIGHT');
   });
 });

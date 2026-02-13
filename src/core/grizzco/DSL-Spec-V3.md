@@ -123,6 +123,19 @@ class Pipeline<CurrentCtx> {
 
 The Pipeline wraps each step in a global `try/catch`. Any step exception (e.g., `GitDirtyError`, `LLMQuotaExceeded`) aborts the flow and is recorded into a structured report.
 
+#### 3.1.3 Transaction Control Plane (Cross-Attempt)
+
+Macro orchestration has two complementary responsibilities:
+
+1. **Single-attempt phase execution** (Pipeline): run phase steps linearly and return `FlowReport`.
+2. **Cross-attempt transaction control** (Flow Transaction Runner): apply retry policy, carry forward shrunk context/last error, and produce terminal outcome mapping.
+
+In the current implementation this control plane is represented by:
+- `src/core/grizzco/flows/SalmonLoopFlow.ts` (single-attempt phases)
+- `src/core/grizzco/flows/flow-transaction-runner.ts` (cross-attempt orchestration)
+
+This separation preserves the rule that the Pipeline itself remains a typed phase executor, while transaction policy stays explicit and auditable.
+
 ### 3.2 Progressive Context
 
 To address v1's "Context full of optional fields" problem, v3 introduces **context type narrowing**.
