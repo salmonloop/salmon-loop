@@ -132,10 +132,12 @@ const MessageItem = React.memo<{
           {/* Content Row */}
           <Box marginTop={1} marginBottom={0} paddingLeft={2}>
             {isStreaming ? (
-              <Text>
-                {msg.content}
+              <Box flexDirection="column">
+                <Markdown theme={markdownTheme} mode={markdownRenderMode}>
+                  {msg.content}
+                </Markdown>
                 <StreamingCursor />
-              </Text>
+              </Box>
             ) : (
               <Markdown theme={markdownTheme} mode={markdownRenderMode}>
                 {msg.content}
