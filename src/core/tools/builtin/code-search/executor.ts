@@ -1,4 +1,4 @@
-import { LIMITS } from '../../../limits.js';
+import { LIMITS } from '../../../config/limits.js';
 import { logger } from '../../../logger.js';
 import { runWithFallback } from '../../capability/executor.js';
 import { CapabilityCtx } from '../../capability/types.js';

@@ -1,5 +1,5 @@
 import { ErrorType } from '../../../src/core/types.js';
-import { classifyError, isRetryable } from '../../../src/core/verify.js';
+import { classifyError, isRetryable } from '../../../src/core/verification/runner.js';
 
 // Mock plugin registry to simulate language plugins
 vi.mock('../../../src/core/plugin/registry.js', () => ({

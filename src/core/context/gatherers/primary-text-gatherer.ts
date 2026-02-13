@@ -2,8 +2,8 @@ import { readFile } from 'fs/promises';
 import path from 'path';
 
 import { text } from '../../../locales/index.js';
-import { LIMITS } from '../../limits.js';
-import { safeJoin } from '../../path.js';
+import { LIMITS } from '../../config/limits.js';
+import { safeJoin } from '../../utils/path.js';
 import type { ContextRequest } from '../types.js';
 
 export interface PrimaryTextResult {

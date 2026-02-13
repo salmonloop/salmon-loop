@@ -1,4 +1,3 @@
-import { extractKeywords } from '../keywords.js';
 import { logger } from '../logger.js';
 import type { Context } from '../types.js';
 
@@ -9,6 +8,7 @@ import { AstGatherer } from './gatherers/ast-gatherer.js';
 import { GitDiffGatherer } from './gatherers/git-diff-gatherer.js';
 import { PrimaryTextGatherer } from './gatherers/primary-text-gatherer.js';
 import { RipgrepGatherer } from './gatherers/ripgrep-gatherer.js';
+import { extractKeywords } from './keywords.js';
 import { packUntilFull } from './policies/pack-until-full.js';
 import { rankContextForRelevance } from './scoring/relevance.js';
 import type { ContextRequest, ContextResult, DiffScope } from './types.js';

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
+import { LIMITS } from '../../config/limits.js';
 import type { ResolvedMcpServer } from '../../extensions/types.js';
-import { LIMITS } from '../../limits.js';
 import { logger } from '../../logger.js';
 import { ExecutionPhase, Phase } from '../../types.js';
 import { ToolRegistry } from '../registry.js';

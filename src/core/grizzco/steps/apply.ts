@@ -1,7 +1,7 @@
 import { text } from '../../../locales/index.js';
-import { recordAuditEvent } from '../../audit-trail.js';
-import { convertDiffToShadowOperations } from '../../diff.js';
-import { getRejectionsDir } from '../../runtime-paths.js';
+import { recordAuditEvent } from '../../observability/audit-trail.js';
+import { convertDiffToShadowOperations } from '../../patch/diff.js';
+import { getRejectionsDir } from '../../runtime/paths.js';
 import {
   FileStatus,
   type FileState,

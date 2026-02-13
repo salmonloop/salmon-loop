@@ -1,8 +1,7 @@
-import { text } from '../locales/index.js';
-
-import { LIMITS } from './limits.js';
-import { logger } from './logger.js';
-import { ErrorType } from './types.js';
+import { text } from '../../locales/index.js';
+import { LIMITS } from '../config/limits.js';
+import { logger } from '../logger.js';
+import { ErrorType } from '../types.js';
 
 /**
  * Represents a single error entry in the monitor

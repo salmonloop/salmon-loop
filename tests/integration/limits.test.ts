@@ -1,10 +1,10 @@
-import { Semaphore } from '../../src/core/concurrency.js';
-import { LIMITS } from '../../src/core/limits.js';
-import { runVerify } from '../../src/core/verify.js';
+import { LIMITS } from '../../src/core/config/limits.js';
+import { Semaphore } from '../../src/core/runtime/semaphore.js';
+import { runVerify } from '../../src/core/verification/runner.js';
 
 // Mock the runVerify function to simulate timeout behavior
-vi.mock('../../src/core/verify.js', async (importOriginal) => {
-  const original = await importOriginal<typeof import('../../src/core/verify.js')>();
+vi.mock('../../src/core/verification/runner.js', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../../src/core/verification/runner.js')>();
   return {
     ...original,
     runVerify: vi.fn(),

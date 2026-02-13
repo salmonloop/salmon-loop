@@ -18,7 +18,7 @@ const {
   gitQueryMock: vi.fn(),
 }));
 
-vi.mock('../../../src/core/runtime-paths.js', () => ({
+vi.mock('../../../src/core/runtime/paths.js', () => ({
   migrateLegacyRuntime: migrateLegacyRuntimeMock,
 }));
 

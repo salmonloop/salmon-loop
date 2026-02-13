@@ -1,4 +1,4 @@
-import { extractUnifiedDiffFromLLMContent } from '../../src/core/llm-utils.js';
+import { extractUnifiedDiffFromLLMContent } from '../../src/core/llm/utils.js';
 
 describe('extractUnifiedDiffFromLLMContent', () => {
   it('extracts the last fenced diff block even when it starts with --- a/', () => {

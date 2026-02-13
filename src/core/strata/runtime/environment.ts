@@ -1,9 +1,9 @@
 import { text } from '../../../locales/index.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
-import { recordAuditEvent } from '../../audit-trail.js';
 import { sanitizeError } from '../../llm/errors.js';
 import { logger } from '../../logger.js';
-import { migrateLegacyRuntime } from '../../runtime-paths.js';
+import { recordAuditEvent } from '../../observability/audit-trail.js';
+import { migrateLegacyRuntime } from '../../runtime/paths.js';
 import { CheckpointRef, ExecutionWorkspace, LoopEvent, LoopOptions } from '../../types.js';
 import { KAOMOJI } from '../../ui/kaomoji.js';
 import { CheckpointManager } from '../checkpoint/manager.js';

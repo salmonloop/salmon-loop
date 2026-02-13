@@ -1,6 +1,6 @@
 import path from 'path';
 
-import { normalizePath } from '../../path.js';
+import { normalizePath } from '../../utils/path.js';
 
 export interface ResolveImportOptions {
   currentFile: string; // repo-relative

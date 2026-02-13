@@ -1,5 +1,5 @@
 import { AstParser } from '../../src/core/ast/parser.js';
-import { monitor } from '../../src/core/monitor.js';
+import { monitor } from '../../src/core/observability/monitor.js';
 
 async function testStability(onProgress?: (iteration: number, heapUsed: number) => void) {
   const code = `function hello() { console.log('world'); }`;

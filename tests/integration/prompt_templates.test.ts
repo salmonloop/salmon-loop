@@ -3,7 +3,7 @@ import {
   getPatchSystemPrompt,
   getPlanPrompt,
   getPlanSystemPrompt,
-} from '../../src/core/prompt.js';
+} from '../../src/core/prompts/runtime.js';
 
 describe('Prompt templates', () => {
   it('renders system prompts from templates', async () => {

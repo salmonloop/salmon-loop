@@ -3,10 +3,10 @@ import path from 'path';
 
 import { text } from '../../../locales/index.js';
 import { AstParser } from '../../ast/parser.js';
-import { LIMITS } from '../../limits.js';
+import { LIMITS } from '../../config/limits.js';
 import { logger } from '../../logger.js';
-import { safeJoin } from '../../path.js';
 import type { CodeLocation, RelatedFileContext, SymbolInfo } from '../../types.js';
+import { safeJoin } from '../../utils/path.js';
 import { extractImportSpecifiers } from '../ast/import-extractor.js';
 import { resolveImportCandidates } from '../ast/module-resolver.js';
 import { outlineSource } from '../ast/source-outline.js';

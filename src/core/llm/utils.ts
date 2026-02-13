@@ -1,9 +1,9 @@
-import { text } from '../locales/index.js';
+import { text } from '../../locales/index.js';
+import { LIMITS } from '../config/limits.js';
+import { formatContextForXmlPrompt } from '../context/formatters/xml-context.js';
+import type { Context, Plan } from '../types.js';
 
-import { formatContextForXmlPrompt } from './context/formatters/xml-context.js';
-import { LIMITS } from './limits.js';
-import { wrapPatchEmpty } from './llm/errors.js';
-import type { Context, Plan } from './types.js';
+import { wrapPatchEmpty } from './errors.js';
 
 export function formatContextForPrompt(context: Context): string {
   return formatContextForXmlPrompt(context);

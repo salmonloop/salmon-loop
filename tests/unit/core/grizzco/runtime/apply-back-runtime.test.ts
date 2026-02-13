@@ -5,7 +5,7 @@ const { recordAuditEventMock, sanitizeErrorMock } = vi.hoisted(() => ({
   ),
 }));
 
-vi.mock('../../../../../src/core/audit-trail.js', () => ({
+vi.mock('../../../../../src/core/observability/audit-trail.js', () => ({
   recordAuditEvent: recordAuditEventMock,
 }));
 

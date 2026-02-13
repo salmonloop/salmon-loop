@@ -9,7 +9,7 @@ const fsMocks = vi.hoisted(() => {
 
 vi.mock('fs/promises', () => fsMocks);
 
-vi.mock('../../../src/core/limits.js', () => ({
+vi.mock('../../../src/core/config/limits.js', () => ({
   LIMITS: {
     lockAcquireHardTimeoutMs: 20,
     lockWaitTimeoutMs: 200,

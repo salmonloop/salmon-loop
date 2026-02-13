@@ -1,4 +1,4 @@
-import { recordAuditEvent } from '../../../audit-trail.js';
+import { recordAuditEvent } from '../../../observability/audit-trail.js';
 import type { FileStateResolver } from '../../../strata/layers/file-state-resolver.js';
 import type { WorkspaceSynchronizer } from '../../../strata/runtime/synchronizer.js';
 import type { ArtifactHandle } from '../../../sub-agent/artifacts/types.js';

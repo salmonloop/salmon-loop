@@ -1,10 +1,10 @@
 import { text } from '../../../locales/index.js';
-import { normalizeDiff, validateDiff, type DiffMeta } from '../../diff.js';
-import { LIMITS } from '../../limits.js';
+import { LIMITS } from '../../config/limits.js';
 import { wrapPatchEmpty, wrapPatchInvalid, wrapPatchNotUnifiedDiff } from '../../llm/errors.js';
 import { emitLlmOutput } from '../../llm/output-policy.js';
-import { extractUnifiedDiffFromLLMContent, formatContextForPrompt } from '../../llm-utils.js';
-import { getPatchPrompt, getPatchSystemPrompt } from '../../prompt.js';
+import { extractUnifiedDiffFromLLMContent, formatContextForPrompt } from '../../llm/utils.js';
+import { normalizeDiff, validateDiff, type DiffMeta } from '../../patch/diff.js';
+import { getPatchPrompt, getPatchSystemPrompt } from '../../prompts/runtime.js';
 import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
 import { DiffValidationError, Phase } from '../../types.js';
 import { resolveLlmToolCallingPolicy } from '../dsl/llm-strategy.js';

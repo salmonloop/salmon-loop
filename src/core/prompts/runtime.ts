@@ -1,5 +1,6 @@
-import { promptRegistry } from './prompts/registry.js';
-import type { ToolRegistry } from './tools/registry.js';
+import type { ToolRegistry } from '../tools/registry.js';
+
+import { promptRegistry } from './registry.js';
 
 export type PromptRuntime = {
   plan?: { sessionId: string; planPathHint: string };

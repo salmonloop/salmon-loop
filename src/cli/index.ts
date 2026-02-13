@@ -7,7 +7,7 @@ import 'dotenv/config';
 import chalk from 'chalk';
 import { Command } from 'commander';
 
-import { initializeRuntime } from '../core/runtime.js';
+import { initializeRuntime } from '../core/runtime/initialize.js';
 
 import { handleChatCommand } from './commands/chat.js';
 import { handleContextCommand } from './commands/context.js';

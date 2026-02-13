@@ -10,7 +10,7 @@ export interface RetryOptions {
   signal?: AbortSignal;
 }
 
-import { LIMITS } from '../limits.js';
+import { LIMITS } from '../config/limits.js';
 
 const DEFAULT_OPTIONS: Required<Omit<RetryOptions, 'signal'>> = {
   maxRetries: LIMITS.retry.api.maxAttempts,

@@ -4,9 +4,9 @@ import { join } from 'path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ContextBuilder } from '../../src/core/context.js';
-import { injectSmokeTest } from '../../src/core/testgen.js';
-import * as verify from '../../src/core/verify.js';
+import { ContextBuilder } from '../../src/core/context/builder.js';
+import { injectSmokeTest } from '../../src/core/testgen/index.js';
+import * as verify from '../../src/core/verification/runner.js';
 
 // Mock adapters that are not the focus of this test (Git, AST, Context)
 vi.mock('../../src/core/adapters/git/git-adapter.js', () => {
@@ -25,9 +25,9 @@ vi.mock('../../src/core/adapters/git/git-adapter.js', () => {
   };
 });
 
-vi.mock('../../src/core/verify.js');
+vi.mock('../../src/core/verification/runner.js');
 vi.mock('../../src/core/ast/parser.js');
-vi.mock('../../src/core/context.js', () => ({
+vi.mock('../../src/core/context/builder.js', () => ({
   ContextBuilder: {
     build: vi.fn(),
     shrinkContext: vi.fn().mockImplementation((ctx) => Promise.resolve(ctx)),

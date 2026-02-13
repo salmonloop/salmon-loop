@@ -1,4 +1,4 @@
-import { formatContextForPrompt } from '../../llm-utils.js';
+import { formatContextForPrompt } from '../../llm/utils.js';
 import type { Context } from '../../types.js';
 import type { ContextRequest } from '../types.js';
 

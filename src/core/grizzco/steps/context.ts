@@ -1,4 +1,4 @@
-import { ContextBuilder } from '../../context.js';
+import { ContextBuilder } from '../../context/builder.js';
 import { CheckpointManager } from '../../strata/checkpoint/manager.js';
 import { Step } from '../engine/pipeline/pipeline.js';
 import { ContextCtx, PreflightCtx } from '../engine/pipeline/types.js';

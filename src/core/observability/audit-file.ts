@@ -1,9 +1,9 @@
 import { readFile, writeFile } from 'fs/promises';
 
-import { text } from '../locales/index.js';
+import { text } from '../../locales/index.js';
+import { logger } from '../logger.js';
 
 import { getAuditTrail } from './audit-trail.js';
-import { logger } from './logger.js';
 
 export async function appendAuditTrailToAuditFile(auditPath: string | undefined): Promise<void> {
   if (!auditPath) return;

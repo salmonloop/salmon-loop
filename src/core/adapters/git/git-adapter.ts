@@ -5,10 +5,10 @@ import { tmpdir } from 'os';
 import * as path from 'path';
 
 import { text } from '../../../locales/index.js';
-import { LIMITS } from '../../limits.js';
+import { LIMITS } from '../../config/limits.js';
 import { logger } from '../../logger.js';
-import { normalizePath } from '../../path.js';
 import { GitError } from '../../types.js';
+import { normalizePath } from '../../utils/path.js';
 
 import type { GitRunLimits, GitRunResult } from './git-runner.js';
 import { runGitCommand } from './git-runner.js';

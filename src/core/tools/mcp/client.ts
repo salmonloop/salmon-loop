@@ -1,7 +1,7 @@
 import { spawn, ChildProcess } from 'child_process';
 import { createInterface, Interface } from 'readline';
 
-import { LIMITS } from '../../limits.js';
+import { LIMITS } from '../../config/limits.js';
 import { logger } from '../../logger.js';
 
 import { McpServerConfig, McpExecutionResult } from './types.js';

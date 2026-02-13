@@ -1,5 +1,5 @@
-import { normalizePath } from '../../path.js';
 import type { Context, RelatedFileContext, RipgrepResult } from '../../types.js';
+import { normalizePath } from '../../utils/path.js';
 
 function extractChangedFilesFromDiffText(diffText: string | undefined): Set<string> {
   const out = new Set<string>();

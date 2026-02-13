@@ -5,7 +5,7 @@ import path from 'path';
 import * as TreeSitter from 'web-tree-sitter';
 
 import { text } from '../../locales/index.js';
-import { LIMITS } from '../limits.js';
+import { LIMITS } from '../config/limits.js';
 import { logger } from '../logger.js';
 import { pluginRegistry } from '../plugin/registry.js';
 import { SymbolInfo } from '../types.js';

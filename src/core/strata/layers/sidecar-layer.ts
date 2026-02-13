@@ -9,7 +9,7 @@ import { existsSync } from 'fs';
 import { readFile } from 'fs/promises';
 
 import { logger } from '../../logger.js';
-import { isSafeRelativePath, normalizePath, safeJoin } from '../../path.js';
+import { isSafeRelativePath, normalizePath, safeJoin } from '../../utils/path.js';
 import type { SyntheticSidecarLayer } from '../types.js';
 
 /**

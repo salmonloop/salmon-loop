@@ -1,7 +1,7 @@
 import { lstat, symlink } from 'fs/promises';
 import { join } from 'path';
 
-import { monitor } from '../../src/core/monitor.js';
+import { monitor } from '../../src/core/observability/monitor.js';
 import { CheckpointManager } from '../../src/core/strata/checkpoint/manager.js';
 import { WorkspaceSynchronizer } from '../../src/core/strata/runtime/synchronizer.js';
 import type { ApplyBackTelemetry } from '../../src/core/strata/runtime/synchronizer.js';

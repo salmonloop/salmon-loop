@@ -1,4 +1,4 @@
-import { LIMITS } from '../../../../limits.js';
+import { LIMITS } from '../../../../config/limits.js';
 import { Backend } from '../../../capability/types.js';
 import { parseRgJson } from '../parse/rg-json.js';
 import { CodeSearchInputT, CodeSearchOutputT } from '../spec.js';

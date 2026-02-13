@@ -1,14 +1,15 @@
 import { readFile } from 'fs/promises';
 import path from 'path';
 
-import { outlineSource } from './context/ast/source-outline.js';
-import { applySmartCompression } from './context/compression/smart-compress.js';
-import { rankContextForRelevance } from './context/scoring/relevance.js';
-import { ContextService } from './context/service.js';
-import { findFileDependencies } from './dependency.js';
-import { LIMITS } from './limits.js';
-import { ensureInSandbox, normalizePath } from './path.js';
-import { ErrorType, type Context, type RipgrepResult, type RunOptions } from './types.js';
+import { LIMITS } from '../config/limits.js';
+import { ErrorType, type Context, type RipgrepResult, type RunOptions } from '../types.js';
+import { ensureInSandbox, normalizePath } from '../utils/path.js';
+
+import { outlineSource } from './ast/source-outline.js';
+import { applySmartCompression } from './compression/smart-compress.js';
+import { findFileDependencies } from './dependencies.js';
+import { rankContextForRelevance } from './scoring/relevance.js';
+import { ContextService } from './service.js';
 
 export interface ShrinkContextOptions {
   errorType?: ErrorType;

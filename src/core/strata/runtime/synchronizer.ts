@@ -17,7 +17,7 @@ import { text } from '../../../locales/index.js';
 import { TextNormalizer } from '../../../utils/eol.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { logger } from '../../logger.js';
-import { monitor } from '../../monitor.js';
+import { monitor } from '../../observability/monitor.js';
 import { ApplyBackOnDirty, CheckpointRef, VerboseLevel } from '../../types.js';
 import { CheckpointManager } from '../checkpoint/manager.js';
 import { detectDependencyPaths } from '../layers/shadow-driver/strategy.js';

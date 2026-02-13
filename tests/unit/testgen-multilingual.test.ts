@@ -3,7 +3,7 @@ import * as os from 'os';
 import * as path from 'path';
 
 import { detectProjectType } from '../../src/core/testgen/detector.js';
-import { injectSmokeTest } from '../../src/core/testgen.js';
+import { injectSmokeTest } from '../../src/core/testgen/index.js';
 
 describe('Multilingual Testgen', () => {
   let tempRepo: string;

@@ -1,6 +1,6 @@
 import * as crypto from 'crypto';
 
-import { LIMITS } from '../limits.js';
+import { LIMITS } from '../config/limits.js';
 import { logger } from '../logger.js';
 
 import { ToolAuditLogger } from './audit.js';

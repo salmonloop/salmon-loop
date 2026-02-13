@@ -15,7 +15,7 @@ vi.mock('../../../../../src/core/grizzco/dsl/llm-strategy.js', () => ({
   resolveLlmToolCallingPolicy: vi.fn(),
 }));
 
-vi.mock('../../../../../src/core/prompt.js', () => ({
+vi.mock('../../../../../src/core/prompts/runtime.js', () => ({
   getExplorePrompt: vi.fn().mockResolvedValue('Mock Prompt'),
   getExploreSystemPrompt: vi.fn().mockResolvedValue('Mock System Prompt'),
 }));

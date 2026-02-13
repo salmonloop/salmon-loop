@@ -2,10 +2,10 @@ import { access } from 'fs/promises';
 import path from 'path';
 
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
-import { findFileDependencies } from '../../dependency.js';
-import { LIMITS } from '../../limits.js';
+import { LIMITS } from '../../config/limits.js';
 import { logger } from '../../logger.js';
-import { normalizePath } from '../../path.js';
+import { normalizePath } from '../../utils/path.js';
+import { findFileDependencies } from '../dependencies.js';
 import type { ContextRequest, DiffScope } from '../types.js';
 
 export interface GitDiffResult {

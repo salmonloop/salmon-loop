@@ -1,7 +1,7 @@
 import { text } from '../../../locales/index.js';
 import { ArtifactStore } from '../../sub-agent/artifacts/store.js';
 import type { ArtifactHandle } from '../../sub-agent/artifacts/types.js';
-import { runVerify as runVerifyCommand } from '../../verify.js';
+import { runVerify as runVerifyCommand } from '../../verification/runner.js';
 import { Step } from '../engine/pipeline/pipeline.js';
 import { ApplyCtx, VerifyCtx } from '../engine/pipeline/types.js';
 

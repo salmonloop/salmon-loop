@@ -1,7 +1,7 @@
 import { text } from '../../../locales/index.js';
 import { createStandardToolstack } from '../../tools/loader.js';
 import { Phase } from '../../types.js';
-import { preflight } from '../../verify.js';
+import { preflight } from '../../verification/runner.js';
 import { resolveLlmToolCallingPolicy } from '../dsl/llm-strategy.js';
 import { Step } from '../engine/pipeline/pipeline.js';
 import { InitCtx, PreflightCtx } from '../engine/pipeline/types.js';

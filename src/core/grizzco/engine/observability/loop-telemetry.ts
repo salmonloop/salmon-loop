@@ -1,4 +1,4 @@
-import { LIMITS } from '../../../limits.js';
+import { LIMITS } from '../../../config/limits.js';
 import type { ExecutionPhase, LoopIteration, StepLog } from '../../../types.js';
 
 export class LoopTelemetry {

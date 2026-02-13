@@ -1,6 +1,6 @@
 import type { MockInstance } from 'vitest';
 
-import { LIMITS } from '../../src/core/limits.js';
+import { LIMITS } from '../../src/core/config/limits.js';
 
 // Mock storage
 const mockLocks = new Set<string>();

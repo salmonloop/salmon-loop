@@ -1,6 +1,6 @@
 import { PluginLoader } from '../../src/core/plugin/loader.js';
 import { ErrorType } from '../../src/core/types.js';
-import { runVerify, classifyError, preflight } from '../../src/core/verify.js';
+import { runVerify, classifyError, preflight } from '../../src/core/verification/runner.js';
 import { RealFsTestHelper } from '../helpers/real-fs-helper.js';
 
 describe('Verify Integration Tests with Real FS', () => {

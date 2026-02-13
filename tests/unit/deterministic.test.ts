@@ -1,9 +1,9 @@
-import { ContextBuilder } from '../../src/core/context.js';
+import { ContextBuilder } from '../../src/core/context/builder.js';
 import { FakeLLM } from '../../src/core/llm.js';
-import * as verify from '../../src/core/verify.js';
+import * as verify from '../../src/core/verification/runner.js';
 import { runSalmonLoop } from '../../src/index.js';
 
-vi.mock('../../src/core/context.js', () => ({
+vi.mock('../../src/core/context/builder.js', () => ({
   ContextBuilder: {
     build: vi.fn(),
     extractFailedFiles: vi.fn().mockReturnValue([]),
@@ -35,8 +35,8 @@ vi.mock('../../src/core/ast/index.js', () => ({
   getTopLevelNodes: vi.fn().mockReturnValue([]),
   getNodeName: vi.fn(),
 }));
-vi.mock('../../src/core/verify.js', async () => {
-  const actual = await vi.importActual('../../src/core/verify.js');
+vi.mock('../../src/core/verification/runner.js', async () => {
+  const actual = await vi.importActual('../../src/core/verification/runner.js');
   return {
     ...actual,
     runVerify: vi.fn(),

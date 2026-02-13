@@ -9,6 +9,7 @@ export default tseslint.config(
       'dist/**',
       'node_modules/**',
       'coverage/**',
+      '.worktrees/**',
       'test-report.json',
       'tests/integration/fixtures/**',
       // Ignore accidental Windows-path folders copied into the repo root (e.g. "C:\\Users\\...").

@@ -10,7 +10,7 @@
 import { spawn } from 'child_process';
 
 import { logger } from '../../../logger.js';
-import { normalizePath } from '../../../path.js';
+import { normalizePath } from '../../../utils/path.js';
 import type { Platform } from '../../types.js';
 
 /**

@@ -3,7 +3,7 @@ import { EventEmitter } from 'events';
 import * as fs from 'fs/promises';
 
 import { AstParser } from '../../src/core/ast/parser.js';
-import { ContextBuilder } from '../../src/core/context.js';
+import { ContextBuilder } from '../../src/core/context/builder.js';
 
 vi.mock('fs/promises');
 vi.mock('child_process', async () => {

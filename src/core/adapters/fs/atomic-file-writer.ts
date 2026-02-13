@@ -2,7 +2,7 @@ import { promises as fs } from 'fs';
 import { Buffer } from 'node:buffer';
 import * as path from 'path';
 
-import { LIMITS } from '../../limits.js';
+import { LIMITS } from '../../config/limits.js';
 
 /**
  * AtomicFileWriter

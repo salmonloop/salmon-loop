@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { text } from '../../../locales/index.js';
 import { Phase } from '../../types.js';
-import { runVerify, classifyError } from '../../verify.js';
+import { runVerify, classifyError } from '../../verification/runner.js';
 import { processResource, repoResource } from '../parallel/resource-helpers.js';
 import { ToolSpec, ToolRuntimeCtx } from '../types.js';
 

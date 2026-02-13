@@ -16,7 +16,7 @@ vi.mock('fs/promises', () => ({
   rename: renameMock,
 }));
 
-vi.mock('../../../src/core/runtime-paths.js', () => ({
+vi.mock('../../../src/core/runtime/paths.js', () => ({
   getShadowLockPath: getShadowLockPathMock,
 }));
 

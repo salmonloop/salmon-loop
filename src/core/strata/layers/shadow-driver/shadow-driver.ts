@@ -10,7 +10,7 @@ import { rm, mkdir, symlink } from 'fs/promises';
 import { join } from 'path';
 
 import { logger } from '../../../logger.js';
-import { normalizePath } from '../../../path.js';
+import { normalizePath } from '../../../utils/path.js';
 import type { ShadowDriverConfig, ShadowEnvResult, ShadowTask } from '../../types.js';
 
 import { copyDir, linkDirLinux } from './copy-backend.js';

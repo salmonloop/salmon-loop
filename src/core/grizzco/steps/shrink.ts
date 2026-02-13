@@ -1,6 +1,6 @@
-import { ContextBuilder } from '../../context.js';
+import { ContextBuilder } from '../../context/builder.js';
 import { refineFeedback } from '../../feedback/index.js';
-import { classifyError } from '../../verify.js';
+import { classifyError } from '../../verification/runner.js';
 import { Step } from '../engine/pipeline/pipeline.js';
 import { RollbackCtx, ShrinkCtx } from '../engine/pipeline/types.js';
 

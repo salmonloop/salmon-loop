@@ -1,4 +1,4 @@
-import { Monitor } from '../../src/core/monitor.js';
+import { Monitor } from '../../src/core/observability/monitor.js';
 
 describe('Monitor Metrics', () => {
   let monitor: Monitor;

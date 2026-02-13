@@ -1,6 +1,6 @@
 import { readFile } from 'fs/promises';
 
-import { findFileDependencies } from '../../src/core/dependency.js';
+import { findFileDependencies } from '../../src/core/context/dependencies.js';
 
 vi.mock('fs/promises', () => ({
   readFile: vi.fn(),

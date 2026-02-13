@@ -1,5 +1,5 @@
-import type { DiffMeta } from '../../../diff.js';
 import type { ToolCallingAuditEntry } from '../../../llm/audit.js';
+import type { DiffMeta } from '../../../patch/diff.js';
 import { FileStateResolver } from '../../../strata/layers/file-state-resolver.js';
 import type {
   ApplyBackTelemetry,
@@ -18,7 +18,7 @@ import type {
   LoopOptions,
   Plan,
 } from '../../../types.js';
-import type { VerifyResult } from '../../../verify.js';
+import type { VerifyResult } from '../../../verification/runner.js';
 import type { DecisionRecord } from '../../dsl/DecisionEngine.js';
 import type { ExecutionResult } from '../../execution/Executor.js';
 

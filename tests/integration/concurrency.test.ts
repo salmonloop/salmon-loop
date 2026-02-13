@@ -1,4 +1,4 @@
-import { Semaphore } from '../../src/core/concurrency.js';
+import { Semaphore } from '../../src/core/runtime/semaphore.js';
 
 describe('Concurrency and Locking Integration', () => {
   beforeEach(() => {

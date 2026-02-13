@@ -4,7 +4,6 @@ import { z } from 'zod';
 
 import { text } from '../../../locales/index.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
-import { normalizeDiff, validateDiff, convertDiffToShadowOperations } from '../../diff.js';
 import { FileStatus } from '../../grizzco/domain/grizzco-types.js';
 import { DecisionEngine, DslContext, PlanBuilder } from '../../grizzco/dsl/DecisionEngine.js';
 import { StandardStrategy } from '../../grizzco/dsl/strategies.js';
@@ -15,7 +14,8 @@ import { GitConfigService } from '../../grizzco/services/implementations/default
 import { MockLockService } from '../../grizzco/services/implementations/mock/MockLockService.js';
 import { MockUserQuotaService } from '../../grizzco/services/implementations/mock/MockUserQuotaService.js';
 import { registry } from '../../grizzco/services/registry.js';
-import { getRejectionsDir } from '../../runtime-paths.js';
+import { normalizeDiff, validateDiff, convertDiffToShadowOperations } from '../../patch/diff.js';
+import { getRejectionsDir } from '../../runtime/paths.js';
 import { FileStateResolver } from '../../strata/layers/file-state-resolver.js';
 import { ArtifactStore } from '../../sub-agent/artifacts/store.js';
 import { Phase } from '../../types.js';

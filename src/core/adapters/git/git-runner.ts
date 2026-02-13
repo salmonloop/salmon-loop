@@ -2,7 +2,7 @@ import { spawn } from 'child_process';
 import { realpathSync } from 'fs';
 import path from 'path';
 
-import { LIMITS } from '../../limits.js';
+import { LIMITS } from '../../config/limits.js';
 
 export interface GitRunLimits {
   /**

@@ -1,9 +1,9 @@
 import { spawn } from 'child_process';
 
-import { LIMITS } from '../../limits.js';
+import { LIMITS } from '../../config/limits.js';
 import { logger } from '../../logger.js';
-import { normalizePath } from '../../path.js';
 import type { RipgrepResult } from '../../types.js';
+import { normalizePath } from '../../utils/path.js';
 
 export class RipgrepGatherer {
   private async runRipgrep(

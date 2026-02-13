@@ -1,4 +1,4 @@
-import { LIMITS } from '../../../limits.js';
+import { LIMITS } from '../../../config/limits.js';
 
 import type { AttemptFailureDetails } from './attempt-failure.js';
 

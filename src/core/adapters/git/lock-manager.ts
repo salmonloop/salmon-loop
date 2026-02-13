@@ -3,7 +3,7 @@ import { mkdir, open, unlink } from 'fs/promises';
 import { join } from 'path';
 
 import { text } from '../../../locales/index.js';
-import { LIMITS } from '../../limits.js';
+import { LIMITS } from '../../config/limits.js';
 import { logger } from '../../logger.js';
 import { LoopEvent } from '../../types.js';
 

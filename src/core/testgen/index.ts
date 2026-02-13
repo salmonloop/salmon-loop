@@ -1,8 +1,8 @@
 import { writeFile } from 'fs/promises';
 import { join } from 'path';
 
-import { detectProjectType } from './testgen/detector.js';
-import { NODE_TEMPLATE, PYTHON_TEMPLATE, JAVA_TEMPLATE, GO_TEMPLATE } from './testgen/templates.js';
+import { detectProjectType } from './detector.js';
+import { NODE_TEMPLATE, PYTHON_TEMPLATE, JAVA_TEMPLATE, GO_TEMPLATE } from './templates.js';
 
 export async function injectSmokeTest(
   repoPath: string,

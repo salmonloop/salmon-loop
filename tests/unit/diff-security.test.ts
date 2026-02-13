@@ -1,5 +1,5 @@
-import { validateDiff, normalizeDiff } from '../../src/core/diff.js';
-import { LIMITS } from '../../src/core/limits.js';
+import { LIMITS } from '../../src/core/config/limits.js';
+import { validateDiff, normalizeDiff } from '../../src/core/patch/diff.js';
 import { text } from '../../src/locales/index.js';
 
 describe('Diff Security & Normalization (Character-Level Parity)', () => {

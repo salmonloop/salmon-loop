@@ -1,7 +1,7 @@
 import { spawn } from 'child_process';
 
 import { GitAdapter } from '../../src/core/adapters/git/git-adapter.js';
-import { ContextBuilder } from '../../src/core/context.js';
+import { ContextBuilder } from '../../src/core/context/builder.js';
 
 // Mock spawn for rollbackFiles tests
 vi.mock('child_process', async () => {

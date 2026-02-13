@@ -1,10 +1,10 @@
 import { text } from '../../../locales/index.js';
-import { LIMITS } from '../../limits.js';
+import { LIMITS } from '../../config/limits.js';
 import { sanitizeError } from '../../llm/errors.js';
 import { emitLlmOutput } from '../../llm/output-policy.js';
-import { formatContextForPrompt, parsePlanFromLLMContent } from '../../llm-utils.js';
+import { formatContextForPrompt, parsePlanFromLLMContent } from '../../llm/utils.js';
 import { readPlan, updatePlan } from '../../plan/index.js';
-import { getPlanPrompt, getPlanSystemPrompt } from '../../prompt.js';
+import { getPlanPrompt, getPlanSystemPrompt } from '../../prompts/runtime.js';
 import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
 import { Phase, type Plan } from '../../types.js';
 import { resolveLlmToolCallingPolicy } from '../dsl/llm-strategy.js';

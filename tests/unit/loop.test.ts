@@ -69,19 +69,19 @@ import {
   validateNodeStructure,
   validateScopeIntegrity,
 } from '../../src/core/ast/index.js';
-import { ContextBuilder } from '../../src/core/context.js';
+import { ContextBuilder } from '../../src/core/context/builder.js';
 import { executeSalmonLoopFlow } from '../../src/core/grizzco/flows/SalmonLoopFlow.js';
 import { StubLLM } from '../../src/core/llm.js';
 import { SalmonLoop } from '../../src/core/loop.js';
 import { ErrorType, Phase } from '../../src/core/types.js';
-import * as verify from '../../src/core/verify.js';
+import * as verify from '../../src/core/verification/runner.js';
 import { text } from '../../src/locales/index.js';
 
-vi.mock('../../src/core/context.js');
+vi.mock('../../src/core/context/builder.js');
 vi.mock('../../src/core/grizzco/flows/SalmonLoopFlow.js');
 vi.mock('../../src/core/adapters/git/git-adapter.js');
-vi.mock('../../src/core/verify.js', async () => {
-  const actual = await vi.importActual('../../src/core/verify.js');
+vi.mock('../../src/core/verification/runner.js', async () => {
+  const actual = await vi.importActual('../../src/core/verification/runner.js');
   return {
     ...actual,
     runVerify: vi.fn(),

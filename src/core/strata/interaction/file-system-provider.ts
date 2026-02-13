@@ -3,7 +3,7 @@ import * as path from 'path';
 
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { logger } from '../../logger.js';
-import { ensureInSandbox } from '../../path.js';
+import { ensureInSandbox } from '../../utils/path.js';
 import type { IFileSystemProvider } from '../types.js';
 
 import { StrataContentGuardian } from './content-guardian.js';

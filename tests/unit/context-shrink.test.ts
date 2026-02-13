@@ -1,4 +1,4 @@
-import { ContextBuilder } from '../../src/core/context.js';
+import { ContextBuilder } from '../../src/core/context/builder.js';
 import { ErrorType, Context } from '../../src/core/types.js';
 
 describe('ContextBuilder.shrinkContext', () => {

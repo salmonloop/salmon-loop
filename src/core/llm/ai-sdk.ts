@@ -31,13 +31,8 @@ function formatOutputSchema(schema: z.ZodType<any> | undefined): string {
   return 'complex object';
 }
 
-import { LIMITS } from '../limits.js';
-import {
-  extractUnifiedDiffFromLLMContent,
-  formatContextForPrompt,
-  parsePlanFromLLMContent,
-} from '../llm-utils.js';
-import { getPatchPrompt, getPlanPrompt } from '../prompt.js';
+import { LIMITS } from '../config/limits.js';
+import { getPatchPrompt, getPlanPrompt } from '../prompts/runtime.js';
 import type { ToolSpec } from '../tools/types.js';
 import type {
   ChatOptions,
@@ -53,6 +48,11 @@ import { resolveBaseUrl } from './base-url.js';
 import { toLlmError, wrapPlanEmpty, sanitizeError, LlmError } from './errors.js';
 import { withRetry, withStreamRetry } from './retry-utils.js';
 import { mapAiSdkStreamPartToChunk } from './stream-utils.js';
+import {
+  extractUnifiedDiffFromLLMContent,
+  formatContextForPrompt,
+  parsePlanFromLLMContent,
+} from './utils.js';
 
 export type AiSdkClientPackage = '@ai-sdk/openai' | '@ai-sdk/openai-compatible';
 

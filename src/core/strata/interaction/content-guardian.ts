@@ -1,5 +1,5 @@
 import { TextNormalizer, type EOL } from '../../../utils/eol.js';
-import { LIMITS } from '../../limits.js';
+import { LIMITS } from '../../config/limits.js';
 import type { IContentGuardian } from '../types.js';
 
 export interface GuardianResult {

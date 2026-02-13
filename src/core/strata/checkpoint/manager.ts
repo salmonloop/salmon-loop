@@ -5,7 +5,7 @@ import { join } from 'path';
 
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { logger } from '../../logger.js';
-import { normalizePath } from '../../path.js';
+import { normalizePath } from '../../utils/path.js';
 
 export interface SnapshotResult {
   commitHash: string;

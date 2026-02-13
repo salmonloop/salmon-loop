@@ -11,7 +11,7 @@ vi.mock('../../src/core/strata/runtime/environment.js', () => ({
   })),
 }));
 
-vi.mock('../../src/core/audit-trail.js', () => ({
+vi.mock('../../src/core/observability/audit-trail.js', () => ({
   clearAuditTrail: vi.fn(),
   setAuditContext: vi.fn(),
   clearAuditContext: clearAuditContextMock,

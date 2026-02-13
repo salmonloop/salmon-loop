@@ -1,5 +1,5 @@
 import { text } from '../../../locales/index.js';
-import { LIMITS } from '../../limits.js';
+import { LIMITS } from '../../config/limits.js';
 import type { Context, RelatedFileContext, RipgrepResult } from '../../types.js';
 
 export interface BudgetResult {

@@ -6,7 +6,7 @@ import * as path from 'path';
 
 import { LLM } from '../../src/core/llm.js';
 import { runSalmonLoop } from '../../src/core/loop.js';
-import * as verify from '../../src/core/verify.js';
+import * as verify from '../../src/core/verification/runner.js';
 
 vi.mock('child_process', async () => {
   const { EventEmitter } = await import('events');
@@ -48,7 +48,7 @@ vi.mock('../../src/core/adapters/git/git-adapter.js', () => ({
   })),
 }));
 
-vi.mock('../../src/core/context.js', () => ({
+vi.mock('../../src/core/context/builder.js', () => ({
   ContextBuilder: {
     build: vi.fn().mockResolvedValue({
       repoPath: '/large-repo',
@@ -73,8 +73,8 @@ vi.mock('../../src/core/ast/index.js', () => ({
   getNodeName: vi.fn(),
 }));
 
-vi.mock('../../src/core/verify.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../src/core/verify.js')>();
+vi.mock('../../src/core/verification/runner.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/core/verification/runner.js')>();
   return {
     ...actual,
     runVerify: vi.fn(),

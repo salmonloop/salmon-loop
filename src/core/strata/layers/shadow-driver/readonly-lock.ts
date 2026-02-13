@@ -13,8 +13,8 @@ import { mkdir, writeFile, unlink, readFile, rename } from 'fs/promises';
 import path from 'path';
 
 import { logger } from '../../../logger.js';
-import { normalizePath } from '../../../path.js';
-import { getShadowLockPath } from '../../../runtime-paths.js';
+import { getShadowLockPath } from '../../../runtime/paths.js';
+import { normalizePath } from '../../../utils/path.js';
 
 const ownedLockTokens = new Map<string, string>();
 

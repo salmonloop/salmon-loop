@@ -15,8 +15,12 @@ vi.mock('../../src/core/logger.js', () => ({
   },
 }));
 
-import { appendAuditTrailToAuditFile } from '../../src/core/audit-file.js';
-import { clearAuditTrail, getAuditTrail, recordAuditEvent } from '../../src/core/audit-trail.js';
+import { appendAuditTrailToAuditFile } from '../../src/core/observability/audit-file.js';
+import {
+  clearAuditTrail,
+  getAuditTrail,
+  recordAuditEvent,
+} from '../../src/core/observability/audit-trail.js';
 
 describe('appendAuditTrailToAuditFile', () => {
   beforeEach(() => {
