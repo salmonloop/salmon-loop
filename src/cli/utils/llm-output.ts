@@ -1,5 +1,9 @@
 import { resolveLlmOutputPolicy } from '../../core/llm/output-policy.js';
-import { LLM_OUTPUT_KINDS, type LlmOutputKind, type LlmOutputPolicy } from '../../core/types.js';
+import {
+  LLM_OUTPUT_KINDS,
+  type LlmOutputKind,
+  type LlmOutputPolicy,
+} from '../../core/types/index.js';
 
 const ALL_KINDS = [...LLM_OUTPUT_KINDS];
 

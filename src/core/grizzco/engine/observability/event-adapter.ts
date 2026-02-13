@@ -1,5 +1,5 @@
 import { sanitizeError } from '../../../llm/errors.js';
-import type { ExecutionPhase, LoopEvent } from '../../../types.js';
+import type { ExecutionPhase, LoopEvent } from '../../../types/index.js';
 
 import type { LoopTelemetry } from './loop-telemetry.js';
 

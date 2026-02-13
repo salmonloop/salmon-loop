@@ -1,6 +1,6 @@
 import { text } from '../../../locales/index.js';
 import { LIMITS } from '../../config/limits.js';
-import type { Context, RelatedFileContext, RipgrepResult } from '../../types.js';
+import type { Context, RelatedFileContext, RipgrepResult } from '../../types/index.js';
 
 export interface BudgetResult {
   context: Context;

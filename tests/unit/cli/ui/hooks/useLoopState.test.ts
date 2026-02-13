@@ -1,7 +1,7 @@
 import { renderHook, act } from '@testing-library/react';
 
 import { useLoopState } from '../../../../../src/cli/ui/hooks/useLoopState.js';
-import { LoopEvent } from '../../../../../src/core/types.js';
+import { LoopEvent } from '../../../../../src/core/types/index.js';
 
 describe('useLoopState', () => {
   it('should initialize with IDLE state', () => {

@@ -1,4 +1,4 @@
-import type { Context, RelatedFileContext } from '../../types.js';
+import type { Context, RelatedFileContext } from '../../types/index.js';
 import { outlineSource } from '../ast/source-outline.js';
 
 import { stripJsLikeComments } from './js-like-comments.js';

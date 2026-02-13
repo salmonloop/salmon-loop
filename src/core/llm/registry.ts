@@ -1,5 +1,5 @@
 import type { ResolvedLlmProvider } from '../config/types.js';
-import type { LLM } from '../types.js';
+import type { LLM } from '../types/index.js';
 
 import { AiSdkLLM, type AiSdkClientPackage } from './ai-sdk.js';
 import { StubLLM } from './openai.js';

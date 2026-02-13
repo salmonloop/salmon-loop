@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 
 import { CommandDispatcher } from '../../../src/cli/commands/dispatcher.js';
 import { ChatSessionManager } from '../../../src/core/session/manager.js';
-import { LoopEvent } from '../../../src/core/types.js';
+import { LoopEvent } from '../../../src/core/types/index.js';
 
 // Mock dependencies
 const mockEmit = vi.fn();

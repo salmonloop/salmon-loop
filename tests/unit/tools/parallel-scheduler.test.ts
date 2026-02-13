@@ -4,7 +4,7 @@ import { InMemoryLockManager } from '../../../src/core/tools/parallel/lock-manag
 import type { ExecutionPlan } from '../../../src/core/tools/parallel/plan.js';
 import { ParallelScheduler } from '../../../src/core/tools/parallel/scheduler.js';
 import type { ToolSpec, ToolRuntimeCtx } from '../../../src/core/tools/types.js';
-import { Phase } from '../../../src/core/types.js';
+import { Phase } from '../../../src/core/types/index.js';
 
 type CallHandler = (args: any, ctx: ToolRuntimeCtx) => Promise<any>;
 

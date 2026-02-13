@@ -7,7 +7,7 @@ import * as path from 'path';
 import { text } from '../../../locales/index.js';
 import { LIMITS } from '../../config/limits.js';
 import { logger } from '../../observability/logger.js';
-import { GitError } from '../../types.js';
+import { GitError } from '../../types/index.js';
 import { normalizePath } from '../../utils/path.js';
 
 import type { GitRunLimits, GitRunResult } from './git-runner.js';

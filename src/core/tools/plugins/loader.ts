@@ -4,8 +4,8 @@ import { pathToFileURL } from 'node:url';
 
 import type { ResolvedToolPlugin } from '../../extensions/types.js';
 import { logger } from '../../observability/logger.js';
-import { Phase } from '../../types.js';
-import type { ExecutionPhase } from '../../types.js';
+import { Phase } from '../../types/index.js';
+import type { ExecutionPhase } from '../../types/index.js';
 import { ToolRegistry } from '../registry.js';
 import type { ToolSpec } from '../types.js';
 

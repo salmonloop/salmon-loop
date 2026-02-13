@@ -6,7 +6,7 @@ import {
   type ExecutionPhase,
   type LoopEvent,
   type FlowMode,
-} from '../../../types.js';
+} from '../../../types/index.js';
 
 /**
  * Pipeline Step Definition

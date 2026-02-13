@@ -7,8 +7,8 @@ import { GitAdapter } from '../adapters/git/git-adapter.js';
 import { LIMITS } from '../config/limits.js';
 import { logger } from '../observability/logger.js';
 import { pluginRegistry } from '../plugin/registry.js';
-import { ErrorType, LoopEvent } from '../types.js';
-import type { ExecutionWorkspace } from '../types.js';
+import { ErrorType, LoopEvent } from '../types/index.js';
+import type { ExecutionWorkspace } from '../types/index.js';
 
 /**
  * Classify the error type based on the output of the verification command

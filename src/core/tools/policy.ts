@@ -1,4 +1,4 @@
-import { Phase } from '../types.js';
+import { Phase } from '../types/index.js';
 
 import { ExecutionPhase, ToolSpec } from './types.js';
 

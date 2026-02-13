@@ -3,7 +3,7 @@
  * Core loop must NOT depend on provider-specific behavior.
  */
 import { text } from '../../locales/index.js';
-import type { ChatOptions, Context, LLM, LLMMessage, Plan } from '../types.js';
+import type { ChatOptions, Context, LLM, LLMMessage, Plan } from '../types/index.js';
 
 export type { LLM };
 

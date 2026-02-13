@@ -4,7 +4,7 @@ import type {
   ExecutionPhase,
   LoopIteration,
   LoopReasonCode,
-} from '../../../types.js';
+} from '../../../types/index.js';
 import type { FlowReport } from '../pipeline/pipeline.js';
 import type { ShrinkCtx } from '../pipeline/types.js';
 

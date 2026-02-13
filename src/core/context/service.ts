@@ -1,5 +1,5 @@
 import { logger } from '../observability/logger.js';
-import type { Context } from '../types.js';
+import type { Context } from '../types/index.js';
 
 import { DefaultPromptAssembler } from './assembly/default-prompt-assembler.js';
 import type { PromptAssembler } from './assembly/prompt-assembler.js';

@@ -1,5 +1,5 @@
 import { ToolAuditLogger } from '../../../src/core/tools/audit.js';
-import { Phase } from '../../../src/core/types.js';
+import { Phase } from '../../../src/core/types/index.js';
 
 describe('ToolAuditLogger', () => {
   it('uses summary as fallback when outputSummary is missing', () => {

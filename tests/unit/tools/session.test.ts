@@ -8,7 +8,7 @@ import { ToolRouter } from '../../../src/core/tools/router.js';
 import { ToolSanitizer } from '../../../src/core/tools/sanitize.js';
 import { chatWithTools } from '../../../src/core/tools/session.js';
 import type { ToolSpec } from '../../../src/core/tools/types.js';
-import { Phase, type LLM, type LLMMessage } from '../../../src/core/types.js';
+import { Phase, type LLM, type LLMMessage } from '../../../src/core/types/index.js';
 
 describe('chatWithTools', () => {
   it('executes OpenAI-style tool calls and feeds results back to the model', async () => {

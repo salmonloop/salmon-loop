@@ -1,6 +1,6 @@
 import { emitLlmStreamDelta, sanitizeLlmOutput } from '../../../src/core/llm/output-policy.js';
-import type { LoopEvent } from '../../../src/core/types.js';
-import type { LlmOutputPolicy } from '../../../src/core/types.js';
+import type { LoopEvent } from '../../../src/core/types/index.js';
+import type { LlmOutputPolicy } from '../../../src/core/types/index.js';
 
 describe('llm output policy', () => {
   it('redacts assignment-style secret lines', () => {

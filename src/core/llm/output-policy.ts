@@ -5,7 +5,7 @@ import {
   type LlmOutputKind,
   type LlmOutputPolicy,
   type LoopEvent,
-} from '../types.js';
+} from '../types/index.js';
 
 const SECRET_LINE_PATTERN = /(api[-_]?key|authorization|token|secret|password|cookie)/i;
 const TOKEN_LIKE_PATTERN = /[A-Za-z0-9_\-/+=]{16,}/;

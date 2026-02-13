@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { ToolPolicy } from '../../../src/core/tools/policy.js';
-import { Phase } from '../../../src/core/types.js';
+import { Phase } from '../../../src/core/types/index.js';
 
 describe('ToolPolicy runtime_write exemption', () => {
   it('allows plan.* runtime_write in PLAN without worktree', () => {

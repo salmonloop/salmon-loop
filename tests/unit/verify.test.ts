@@ -1,4 +1,4 @@
-import { ErrorType } from '../../src/core/types.js';
+import { ErrorType } from '../../src/core/types/index.js';
 import { classifyError } from '../../src/core/verification/runner.js';
 
 // Mock plugin registry to simulate language plugins

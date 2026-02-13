@@ -1,4 +1,4 @@
-import type { LoopResult } from '../types.js';
+import type { LoopResult } from '../types/index.js';
 
 import type { ChatSession } from './types.js';
 

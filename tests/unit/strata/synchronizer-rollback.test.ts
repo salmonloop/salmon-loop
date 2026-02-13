@@ -4,7 +4,7 @@ import path from 'path';
 
 import { CheckpointManager } from '../../../src/core/strata/checkpoint/manager.js';
 import { WorkspaceSynchronizer } from '../../../src/core/strata/runtime/synchronizer.js';
-import type { CheckpointRef } from '../../../src/core/types.js';
+import type { CheckpointRef } from '../../../src/core/types/index.js';
 
 const { queryMock, execMock, execMetaMock, checkIgnoreMock, applyPatchMock, stagedTreeHash } =
   vi.hoisted(() => ({

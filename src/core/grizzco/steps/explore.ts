@@ -4,7 +4,7 @@ import { text } from '../../../locales/index.js';
 import { formatContextForPrompt } from '../../llm/utils.js';
 import { getExplorePrompt, getExploreSystemPrompt } from '../../prompts/runtime.js';
 import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
-import { Phase, RelatedFileContext } from '../../types.js';
+import { Phase, RelatedFileContext } from '../../types/index.js';
 import { ensureInSandbox, isSafeRelativePath, normalizePath } from '../../utils/path.js';
 import { resolveLlmToolCallingPolicy } from '../dsl/llm-strategy.js';
 import { Step } from '../engine/pipeline/pipeline.js';

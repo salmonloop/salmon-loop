@@ -2,7 +2,7 @@ import { randomBytes } from 'crypto';
 import { join } from 'path';
 
 import { FileAdapter } from '../adapters/fs/index.js';
-import type { LoopIteration } from '../types.js';
+import type { LoopIteration } from '../types/index.js';
 
 import type { ChatSession, ChatMessage } from './types.js';
 

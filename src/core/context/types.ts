@@ -1,5 +1,5 @@
 import type { CheckpointManager } from '../strata/checkpoint/manager.js';
-import type { Context, RipgrepResult, CodeLocation, SymbolInfo } from '../types.js';
+import type { Context, RipgrepResult, CodeLocation, SymbolInfo } from '../types/index.js';
 
 export type DiffScope = 'primary' | 'ast_related';
 

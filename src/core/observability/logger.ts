@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 
 import { FileAdapter } from '../adapters/fs/index.js';
-import { VerboseLevel } from '../types.js';
+import { VerboseLevel } from '../types/index.js';
 import { sanitizeObject, sanitizeErrorMessage } from '../utils/sanitizer.js';
 
 import type { AuditTrailMeta } from './audit-trail.js';

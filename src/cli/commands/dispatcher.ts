@@ -1,6 +1,6 @@
 import type { ToolAuthorizationConfig } from '../../core/config/types.js';
 import { ChatSessionManager } from '../../core/session/manager.js';
-import { LoopEvent, LlmOutputPolicy } from '../../core/types.js';
+import { LoopEvent, LlmOutputPolicy } from '../../core/types/index.js';
 import { text } from '../locales/index.js';
 
 import { findCommand } from './registry.js';

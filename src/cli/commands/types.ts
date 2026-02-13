@@ -1,6 +1,6 @@
 import type { ToolAuthorizationConfig } from '../../core/config/types.js';
 import { ChatSessionManager } from '../../core/session/manager.js';
-import type { LlmOutputPolicy } from '../../core/types.js';
+import type { LlmOutputPolicy } from '../../core/types/index.js';
 
 export interface CommandContext {
   emit: (event: any) => void;

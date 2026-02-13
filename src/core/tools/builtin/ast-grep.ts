@@ -3,7 +3,7 @@ import { promisify } from 'util';
 
 import { z } from 'zod';
 
-import { Phase } from '../../types.js';
+import { Phase } from '../../types/index.js';
 import { processResource } from '../parallel/resource-helpers.js';
 import { ToolSpec, ToolRuntimeCtx } from '../types.js';
 

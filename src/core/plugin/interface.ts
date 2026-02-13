@@ -1,4 +1,4 @@
-import { ErrorType } from '../types.js';
+import { ErrorType } from '../types/index.js';
 
 /**
  * The standard contract that all language plugins must implement.

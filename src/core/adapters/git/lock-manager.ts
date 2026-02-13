@@ -5,7 +5,7 @@ import { join } from 'path';
 import { text } from '../../../locales/index.js';
 import { LIMITS } from '../../config/limits.js';
 import { logger } from '../../observability/logger.js';
-import { LoopEvent } from '../../types.js';
+import { LoopEvent } from '../../types/index.js';
 
 interface LockMetadata {
   pid: number;

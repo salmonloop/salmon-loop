@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { text } from '../../../locales/index.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { LIMITS } from '../../config/limits.js';
-import { Phase } from '../../types.js';
+import { Phase } from '../../types/index.js';
 import { repoResource } from '../parallel/resource-helpers.js';
 import { ToolSpec, ToolRuntimeCtx } from '../types.js';
 

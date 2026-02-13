@@ -1,6 +1,6 @@
-import type { ResolvedExtensions } from './extensions/types.js';
-import type { ArtifactHandle } from './sub-agent/artifacts/types.js';
-import type { ToolAuthorizationProvider } from './tools/authorization/types.js';
+import type { ResolvedExtensions } from '../extensions/types.js';
+import type { ArtifactHandle } from '../sub-agent/artifacts/types.js';
+import type { ToolAuthorizationProvider } from '../tools/authorization/types.js';
 
 export type VerboseLevel = 'basic' | 'extended';
 export type ApplyBackOnDirty = 'abort' | '3way';
@@ -388,7 +388,7 @@ export interface RunOptions {
   expectedFileContent?: { path: string; content: string }[];
   targetNodeName?: string;
   snapshotHash?: string; // ARCHITECTURE OPTIMIZATION: Pass snapshot hash for Git object reading
-  checkpointManager?: import('./strata/checkpoint/manager.js').CheckpointManager; // ARCHITECTURE OPTIMIZATION: Pass manager instance for Git object reading
+  checkpointManager?: import('../strata/checkpoint/manager.js').CheckpointManager; // ARCHITECTURE OPTIMIZATION: Pass manager instance for Git object reading
   checkpoint?: {
     strategy?: 'worktree';
     keepWorktreeOnFailure?: boolean;
@@ -485,7 +485,7 @@ export interface ChatOptions {
   /**
    * Raw SalmonLoop ToolSpec objects for advanced mapping.
    */
-  toolSpecs?: import('./tools/types.js').ToolSpec[];
+  toolSpecs?: import('../tools/types.js').ToolSpec[];
   /**
    * Signal to abort the request.
    */

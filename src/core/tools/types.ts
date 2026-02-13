@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import type { ExecutionPhase, LLM } from '../types.js';
+import type { ExecutionPhase, LLM } from '../types/index.js';
 
 import { ResourceKey } from './parallel/resources.js';
 

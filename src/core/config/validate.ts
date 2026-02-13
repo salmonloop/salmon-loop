@@ -1,4 +1,4 @@
-import { LLM_OUTPUT_KINDS } from '../types.js';
+import { LLM_OUTPUT_KINDS } from '../types/index.js';
 
 import { ConfigError } from './errors.js';
 import {

@@ -1,4 +1,4 @@
-import type { LLMStreamChunk } from '../../types.js';
+import type { LLMStreamChunk } from '../../types/index.js';
 
 export class ToolCallAccumulator {
   private pending: any[] = [];

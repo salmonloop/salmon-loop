@@ -3,7 +3,7 @@ import { normalize as pathNormalize, extname } from 'path';
 import { text } from '../../locales/index.js';
 import { LIMITS } from '../config/limits.js';
 import { OpType, ShadowOperation } from '../grizzco/domain/grizzco-types.js';
-import { DiffValidationError } from '../types.js';
+import { DiffValidationError } from '../types/index.js';
 
 /**
  * Metadata about a validated diff.

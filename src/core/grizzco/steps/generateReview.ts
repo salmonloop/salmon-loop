@@ -1,6 +1,6 @@
 import { text } from '../../../locales/index.js';
 import { emitLlmOutput } from '../../llm/output-policy.js';
-import type { Context, LLM } from '../../types.js';
+import type { Context, LLM } from '../../types/index.js';
 import type {
   ContextCtx,
   ReviewCtx,

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { LoopResult } from '../types.js';
+import { LoopResult } from '../types/index.js';
 
 import type { ArtifactHandle } from './artifacts/types.js';
 

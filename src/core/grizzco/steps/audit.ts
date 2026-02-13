@@ -3,7 +3,7 @@ import * as fs from 'fs/promises';
 import { getAuditTrail } from '../../observability/audit-trail.js';
 import { logger } from '../../observability/logger.js';
 import { getAuditDir } from '../../runtime/paths.js';
-import { SalmonError, type LoopOptions } from '../../types.js';
+import { SalmonError, type LoopOptions } from '../../types/index.js';
 import { FlowReport } from '../engine/pipeline/pipeline.js';
 import type { ShrinkCtx } from '../engine/pipeline/types.js';
 

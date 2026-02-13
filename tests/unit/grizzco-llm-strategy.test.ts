@@ -1,5 +1,5 @@
 import { resolveLlmToolCallingPolicy } from '../../src/core/grizzco/dsl/llm-strategy.js';
-import { Phase, type LLM } from '../../src/core/types.js';
+import { Phase, type LLM } from '../../src/core/types/index.js';
 
 describe('Grizzco LLM strategy', () => {
   it('disables tool calling when the LLM does not expose capabilities', () => {

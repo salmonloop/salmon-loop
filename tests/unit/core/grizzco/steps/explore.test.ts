@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as strategy from '../../../../../src/core/grizzco/dsl/llm-strategy.js';
 import { exploreCodebase } from '../../../../../src/core/grizzco/steps/explore.js';
 import * as session from '../../../../../src/core/tools/session.js';
-import { Phase } from '../../../../../src/core/types.js';
+import { Phase } from '../../../../../src/core/types/index.js';
 
 // Mock dependencies
 vi.mock('../../../../../src/core/tools/session.js', () => ({

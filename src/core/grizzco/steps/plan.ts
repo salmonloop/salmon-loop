@@ -6,7 +6,7 @@ import { formatContextForPrompt, parsePlanFromLLMContent } from '../../llm/utils
 import { readPlan, updatePlan } from '../../plan/index.js';
 import { getPlanPrompt, getPlanSystemPrompt } from '../../prompts/runtime.js';
 import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
-import { Phase, type Plan } from '../../types.js';
+import { Phase, type Plan } from '../../types/index.js';
 import { resolveLlmToolCallingPolicy } from '../dsl/llm-strategy.js';
 import { Step } from '../engine/pipeline/pipeline.js';
 import { ContextCtx, PlanCtx } from '../engine/pipeline/types.js';

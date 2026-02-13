@@ -4,7 +4,7 @@ import React from 'react';
 import type { MarkdownRenderMode, MarkdownTheme } from '../../core/config/types.js';
 import { readPlan } from '../../core/plan/index.js';
 import type { PlanReadResult } from '../../core/plan/types.js';
-import type { LoopEvent } from '../../core/types.js';
+import type { LoopEvent } from '../../core/types/index.js';
 import { getSuggestions } from '../commands/registry.js';
 import { text } from '../locales/index.js';
 

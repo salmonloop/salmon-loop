@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { text } from '../../../locales/index.js';
 import { ArtifactStore } from '../../sub-agent/artifacts/store.js';
-import { Phase } from '../../types.js';
+import { Phase } from '../../types/index.js';
 import { ToolSpec, ToolRuntimeCtx } from '../types.js';
 
 export const artifactReadSpec: Omit<ToolSpec, 'executor'> = {

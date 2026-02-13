@@ -1,7 +1,7 @@
 import { proposalApplySpec } from '../../../src/core/tools/builtin/proposal.js';
 import { ToolPolicy } from '../../../src/core/tools/policy.js';
 import { ToolSpec } from '../../../src/core/tools/types.js';
-import { Phase } from '../../../src/core/types.js';
+import { Phase } from '../../../src/core/types/index.js';
 
 describe('ToolPolicy', () => {
   let policy: ToolPolicy;

@@ -1,5 +1,5 @@
 import { text } from '../../../locales/index.js';
-import type { Context, RelatedFileContext, RipgrepResult } from '../../types.js';
+import type { Context, RelatedFileContext, RipgrepResult } from '../../types/index.js';
 import { normalizePath } from '../../utils/path.js';
 
 function escapeXmlAttr(value: string): string {

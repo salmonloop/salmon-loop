@@ -8,7 +8,7 @@ import { DEFAULT_LLM_OUTPUT_POLICY, emitLlmOutput } from '../core/llm/output-pol
 import { logger } from '../core/observability/logger.js';
 import { runSalmonLoop } from '../core/runtime/loop.js';
 import { ChatSessionManager } from '../core/session/manager.js';
-import type { CheckpointStrategy, LLM, LoopEvent, LlmOutputPolicy } from '../core/types.js';
+import type { CheckpointStrategy, LLM, LoopEvent, LlmOutputPolicy } from '../core/types/index.js';
 
 import { createUiAuthorizationProvider } from './authorization/provider.js';
 import { CommandDispatcher } from './commands/dispatcher.js';

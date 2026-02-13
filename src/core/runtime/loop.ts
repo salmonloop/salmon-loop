@@ -14,7 +14,7 @@ import {
   clearAuditTrail,
   setAuditContext,
 } from '../observability/audit-trail.js';
-import { Phase, type FlowMode, type LoopOptions, type LoopResult } from '../types.js';
+import { Phase, type FlowMode, type LoopOptions, type LoopResult } from '../types/index.js';
 
 import { Semaphore } from './semaphore.js';
 

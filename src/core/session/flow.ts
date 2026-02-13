@@ -2,7 +2,7 @@ import { randomBytes } from 'crypto';
 
 import { runSalmonLoop } from '../runtime/loop.js';
 import type { CheckpointManager } from '../strata/checkpoint/manager.js';
-import type { LLM } from '../types.js';
+import type { LLM } from '../types/index.js';
 
 import type { BaseSessionCtx, InstructionCtx, ExecutedCtx, SnapshotCtx } from './types.js';
 

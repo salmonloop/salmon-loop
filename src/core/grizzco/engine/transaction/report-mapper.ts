@@ -1,5 +1,5 @@
 import type { ArtifactHandle } from '../../../sub-agent/artifacts/types.js';
-import type { AuthorizationSourceSummary, LoopIteration } from '../../../types.js';
+import type { AuthorizationSourceSummary, LoopIteration } from '../../../types/index.js';
 import type { FlowReport } from '../pipeline/pipeline.js';
 import type { ShrinkCtx } from '../pipeline/types.js';
 

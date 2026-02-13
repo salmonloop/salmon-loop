@@ -8,7 +8,7 @@ import { ToolRouter } from '../../../src/core/tools/router.js';
 import { ToolSanitizer } from '../../../src/core/tools/sanitize.js';
 import { chatWithToolsStreaming } from '../../../src/core/tools/session.js';
 import type { ToolSpec } from '../../../src/core/tools/types.js';
-import { Phase, type LLMMessage, type LoopEvent } from '../../../src/core/types.js';
+import { Phase, type LLMMessage, type LoopEvent } from '../../../src/core/types/index.js';
 
 function createToolstack() {
   const registry = new ToolRegistry();

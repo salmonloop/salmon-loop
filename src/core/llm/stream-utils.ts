@@ -1,4 +1,4 @@
-import type { LLMStreamChunk } from '../types.js';
+import type { LLMStreamChunk } from '../types/index.js';
 
 // Type definition for AI SDK stream parts (for documentation purposes)
 type _AiSdkStreamPart =

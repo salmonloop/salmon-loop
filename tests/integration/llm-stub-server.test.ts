@@ -11,7 +11,7 @@ import { AiSdkLLM } from '../../src/core/llm/ai-sdk.js';
 import { LlmError } from '../../src/core/llm/errors.js';
 import { chatWithTools } from '../../src/core/tools/session.js';
 import type { ToolSpec } from '../../src/core/tools/types.js';
-import { Phase } from '../../src/core/types.js';
+import { Phase } from '../../src/core/types/index.js';
 
 type StubResponse =
   | { kind: 'json'; status?: number; body: any }

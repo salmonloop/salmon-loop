@@ -1,5 +1,5 @@
 import { ContextBuilder } from '../../src/core/context/builder.js';
-import { ErrorType, Context } from '../../src/core/types.js';
+import { ErrorType, Context } from '../../src/core/types/index.js';
 
 describe('ContextBuilder.shrinkContext', () => {
   const mockContext: Context = {

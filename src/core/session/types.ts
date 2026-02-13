@@ -1,5 +1,5 @@
-import type { LLMMessage } from '../types.js';
-import type { LoopIteration, LoopResult } from '../types.js';
+import type { LLMMessage } from '../types/index.js';
+import type { LoopIteration, LoopResult } from '../types/index.js';
 
 /**
  * Single message in chat history

@@ -1,4 +1,4 @@
-import type { LoopOptions } from '../../types.js';
+import type { LoopOptions } from '../../types/index.js';
 
 export function collectSidecarPaths(options: LoopOptions): string[] {
   if (!options.contextFiles || options.contextFiles.length === 0) {

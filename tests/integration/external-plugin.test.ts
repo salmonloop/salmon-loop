@@ -4,7 +4,7 @@ import { join } from 'path';
 
 import { PluginLoader } from '../../src/core/plugin/loader.js';
 import { pluginRegistry } from '../../src/core/plugin/registry.js';
-import { ErrorType } from '../../src/core/types.js';
+import { ErrorType } from '../../src/core/types/index.js';
 
 describe('External User Plugin Integration', () => {
   let fixturePath = '';

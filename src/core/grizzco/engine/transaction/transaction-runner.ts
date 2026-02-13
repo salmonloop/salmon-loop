@@ -12,7 +12,7 @@ import type {
   LoopEvent,
   LoopIteration,
   LoopOptions,
-} from '../../../types.js';
+} from '../../../types/index.js';
 import { executeSalmonLoopFlow } from '../../flows/SalmonLoopFlow.js';
 import type { FlowTerminalCtx } from '../../flows/SalmonLoopFlow.js';
 import { LoopTelemetry } from '../observability/loop-telemetry.js';

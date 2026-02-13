@@ -6,7 +6,7 @@ import { basename, join, normalize, relative } from 'path';
 import { text } from '../../../locales/index.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { logger } from '../../observability/logger.js';
-import { RunOptions, ExecutionWorkspace, LoopEvent } from '../../types.js';
+import { RunOptions, ExecutionWorkspace, LoopEvent } from '../../types/index.js';
 
 /**
  * WorkspaceManager - Manages execution workspace for different checkpoint strategies

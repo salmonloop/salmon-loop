@@ -8,7 +8,7 @@ import type {
   FlowMode,
   LoopEvent,
   LoopOptions,
-} from '../../../types.js';
+} from '../../../types/index.js';
 import type { LoopTelemetry } from '../observability/loop-telemetry.js';
 
 import { FlowTransactionRunner } from './transaction-runner.js';

@@ -5,7 +5,7 @@ import { text } from '../../../locales/index.js';
 import { AstParser } from '../../ast/parser.js';
 import { LIMITS } from '../../config/limits.js';
 import { logger } from '../../observability/logger.js';
-import type { CodeLocation, RelatedFileContext, SymbolInfo } from '../../types.js';
+import type { CodeLocation, RelatedFileContext, SymbolInfo } from '../../types/index.js';
 import { safeJoin } from '../../utils/path.js';
 import { extractImportSpecifiers } from '../ast/import-extractor.js';
 import { resolveImportCandidates } from '../ast/module-resolver.js';

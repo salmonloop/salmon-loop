@@ -4,7 +4,7 @@ import { ToolPolicy } from '../../../src/core/tools/policy.js';
 import { ToolRegistry } from '../../../src/core/tools/registry.js';
 import { ToolRouter } from '../../../src/core/tools/router.js';
 import { ToolSanitizer } from '../../../src/core/tools/sanitize.js';
-import { Phase } from '../../../src/core/types.js';
+import { Phase } from '../../../src/core/types/index.js';
 
 describe('ToolRouter', () => {
   let router: ToolRouter;

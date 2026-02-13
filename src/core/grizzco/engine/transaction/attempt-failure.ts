@@ -1,7 +1,7 @@
 import { text } from '../../../../locales/index.js';
 import { sanitizeError } from '../../../llm/errors.js';
-import { EXECUTION_PHASES } from '../../../types.js';
-import type { ExecutionPhase, FlowMode, LoopReasonCode } from '../../../types.js';
+import { EXECUTION_PHASES } from '../../../types/index.js';
+import type { ExecutionPhase, FlowMode, LoopReasonCode } from '../../../types/index.js';
 import { classifyError, isRetryable } from '../../../verification/runner.js';
 import type { FlowReport } from '../pipeline/pipeline.js';
 import type { ShrinkCtx } from '../pipeline/types.js';

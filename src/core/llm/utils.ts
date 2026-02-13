@@ -1,7 +1,7 @@
 import { text } from '../../locales/index.js';
 import { LIMITS } from '../config/limits.js';
 import { formatContextForXmlPrompt } from '../context/formatters/xml-context.js';
-import type { Context, Plan } from '../types.js';
+import type { Context, Plan } from '../types/index.js';
 
 import { wrapPatchEmpty } from './errors.js';
 

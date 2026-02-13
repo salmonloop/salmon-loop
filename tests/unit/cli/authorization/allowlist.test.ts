@@ -8,7 +8,7 @@ import {
   removeAllowlistRule,
 } from '../../../../src/cli/authorization/allowlist.js';
 import type { ToolAuthorizationConfig } from '../../../../src/core/config/types.js';
-import { Phase } from '../../../../src/core/types.js';
+import { Phase } from '../../../../src/core/types/index.js';
 
 const files = new Map<string, string>();
 const mtimes = new Map<string, number>();

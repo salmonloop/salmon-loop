@@ -15,7 +15,7 @@ import { join } from 'path';
 
 import { CheckpointManager } from '../../src/core/strata/checkpoint/manager.js';
 import { WorkspaceSynchronizer } from '../../src/core/strata/runtime/synchronizer.js';
-import type { CheckpointRef } from '../../src/core/types.js';
+import type { CheckpointRef } from '../../src/core/types/index.js';
 import { RealFsTestHelper } from '../helpers/real-fs-helper.js';
 
 describe('ApplyBack Dirty Workspace Safety - CRITICAL SCENARIOS (Real Filesystem)', () => {

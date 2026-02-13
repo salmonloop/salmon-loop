@@ -3,7 +3,7 @@ import { createRequire } from 'module';
 import path from 'path';
 
 import { LanguagePlugin } from '../../core/plugin/interface.js';
-import { ErrorType } from '../../core/types.js';
+import { ErrorType } from '../../core/types/index.js';
 
 const require = createRequire(import.meta.url);
 

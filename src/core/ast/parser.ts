@@ -8,7 +8,7 @@ import { text } from '../../locales/index.js';
 import { LIMITS } from '../config/limits.js';
 import { logger } from '../observability/logger.js';
 import { pluginRegistry } from '../plugin/registry.js';
-import { SymbolInfo } from '../types.js';
+import { SymbolInfo } from '../types/index.js';
 
 const require = createRequire(import.meta.url);
 

@@ -1,4 +1,4 @@
-import type { LlmOutputKind, LlmOutputPolicy } from '../types.js';
+import type { LlmOutputKind, LlmOutputPolicy } from '../types/index.js';
 
 export type ConfigVersion = 1;
 

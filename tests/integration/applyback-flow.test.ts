@@ -5,7 +5,7 @@ import { monitor } from '../../src/core/observability/monitor.js';
 import { CheckpointManager } from '../../src/core/strata/checkpoint/manager.js';
 import { WorkspaceSynchronizer } from '../../src/core/strata/runtime/synchronizer.js';
 import type { ApplyBackTelemetry } from '../../src/core/strata/runtime/synchronizer.js';
-import type { CheckpointRef } from '../../src/core/types.js';
+import type { CheckpointRef } from '../../src/core/types/index.js';
 import { RealFsTestHelper } from '../helpers/real-fs-helper.js';
 
 describe('ApplyBack Flow Integration Tests', () => {

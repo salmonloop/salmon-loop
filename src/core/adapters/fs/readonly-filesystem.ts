@@ -1,5 +1,5 @@
 import { text } from '../../../locales/index.js';
-import type { FileSystem } from '../../types.js';
+import type { FileSystem } from '../../types/index.js';
 
 /**
  * FileSystem adapter that blocks write operations.

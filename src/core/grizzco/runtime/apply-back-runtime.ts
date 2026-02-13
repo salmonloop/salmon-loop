@@ -2,7 +2,7 @@ import { sanitizeError } from '../../llm/errors.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
 import { WorkspaceSynchronizer } from '../../strata/runtime/synchronizer.js';
 import type { ApplyBackTelemetry } from '../../strata/runtime/synchronizer.js';
-import type { CheckpointRef, LoopEvent, LoopOptions } from '../../types.js';
+import type { CheckpointRef, LoopEvent, LoopOptions } from '../../types/index.js';
 
 import { collectSidecarPaths } from './apply-back-utils.js';
 

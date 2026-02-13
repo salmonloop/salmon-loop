@@ -2,7 +2,7 @@ import { readFile } from 'fs/promises';
 import path from 'path';
 
 import { LIMITS } from '../config/limits.js';
-import { ErrorType, type Context, type RipgrepResult, type RunOptions } from '../types.js';
+import { ErrorType, type Context, type RipgrepResult, type RunOptions } from '../types/index.js';
 import { ensureInSandbox, normalizePath } from '../utils/path.js';
 
 import { outlineSource } from './ast/source-outline.js';

@@ -12,8 +12,8 @@ import type {
   LLMMessage,
   LoopEvent,
   LLM,
-} from '../types.js';
-import { Phase, type ExecutionPhase } from '../types.js';
+} from '../types/index.js';
+import { Phase, type ExecutionPhase } from '../types/index.js';
 
 import { toolToOpenAI } from './mapper.js';
 import { InMemoryLockManager } from './parallel/lock-manager.js';

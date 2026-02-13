@@ -1,6 +1,6 @@
 import { text } from '../../locales/index.js';
 import { LIMITS } from '../config/limits.js';
-import { ErrorType } from '../types.js';
+import { ErrorType } from '../types/index.js';
 
 import { logger } from './logger.js';
 

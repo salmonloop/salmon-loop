@@ -18,7 +18,7 @@ import { normalizeDiff, validateDiff, convertDiffToShadowOperations } from '../.
 import { getRejectionsDir } from '../../runtime/paths.js';
 import { FileStateResolver } from '../../strata/layers/file-state-resolver.js';
 import { ArtifactStore } from '../../sub-agent/artifacts/store.js';
-import { Phase } from '../../types.js';
+import { Phase } from '../../types/index.js';
 import { ToolSpec, ToolRuntimeCtx } from '../types.js';
 
 function bootstrapRegistry(): void {

@@ -1,6 +1,6 @@
 import { generatePatch } from '../../../../../src/core/grizzco/steps/patch.js';
 import { generatePlan } from '../../../../../src/core/grizzco/steps/plan.js';
-import type { LLM } from '../../../../../src/core/types.js';
+import type { LLM } from '../../../../../src/core/types/index.js';
 
 function createEmptyToolstack(): any {
   return {

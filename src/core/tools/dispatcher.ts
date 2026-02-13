@@ -1,6 +1,6 @@
 import * as crypto from 'crypto';
 
-import { ExecutionPhase } from '../types.js';
+import { ExecutionPhase } from '../types/index.js';
 
 import { ToolParser, ToolParseError } from './parser.js';
 import { ToolRouter } from './router.js';

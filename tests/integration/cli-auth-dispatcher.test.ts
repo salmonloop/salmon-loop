@@ -4,7 +4,7 @@ import { CommandDispatcher } from '../../src/cli/commands/dispatcher.js';
 import { text } from '../../src/cli/locales/index.js';
 import type { ToolAuthorizationConfig } from '../../src/core/config/types.js';
 import type { ChatSessionManager } from '../../src/core/session/manager.js';
-import type { LoopEvent } from '../../src/core/types.js';
+import type { LoopEvent } from '../../src/core/types/index.js';
 import { RealFsTestHelper } from '../helpers/real-fs-helper.js';
 
 const helper = new RealFsTestHelper();

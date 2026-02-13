@@ -4,7 +4,7 @@ import {
   createFileSystemAdapter,
   ReadOnlyFileSystem,
 } from '../../../../src/core/adapters/fs/index.js';
-import type { FileSystem, FlowMode } from '../../../../src/core/types.js';
+import type { FileSystem, FlowMode } from '../../../../src/core/types/index.js';
 
 describe('createFileSystemAdapter', () => {
   let mockRealFs: FileSystem;

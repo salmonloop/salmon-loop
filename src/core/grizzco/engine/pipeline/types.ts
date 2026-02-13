@@ -17,7 +17,7 @@ import type {
   LoopEvent,
   LoopOptions,
   Plan,
-} from '../../../types.js';
+} from '../../../types/index.js';
 import type { VerifyResult } from '../../../verification/runner.js';
 import type { DecisionRecord } from '../../dsl/DecisionEngine.js';
 import type { ExecutionResult } from '../../execution/Executor.js';

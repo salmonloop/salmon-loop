@@ -42,7 +42,7 @@ import type {
   LLMRole,
   LLMStreamChunk,
   Plan,
-} from '../types.js';
+} from '../types/index.js';
 
 import { resolveBaseUrl } from './base-url.js';
 import { toLlmError, wrapPlanEmpty, sanitizeError, LlmError } from './errors.js';

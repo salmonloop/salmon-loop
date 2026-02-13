@@ -18,7 +18,7 @@ import {
   ApplyBackOnDirty,
   LoopResult,
   type FlowMode,
-} from '../../core/types.js';
+} from '../../core/types/index.js';
 import {
   createTerminalAuthorizationProvider,
   createUiAuthorizationProvider,

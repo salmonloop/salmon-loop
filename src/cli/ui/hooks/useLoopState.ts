@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 
-import { LoopEvent } from '../../../core/types.js';
+import { LoopEvent } from '../../../core/types/index.js';
 import { UIState } from '../types.js';
 
 export function useLoopState() {

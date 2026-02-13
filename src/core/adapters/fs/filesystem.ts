@@ -1,4 +1,4 @@
-import type { FileSystem, FlowMode } from '../../types.js';
+import type { FileSystem, FlowMode } from '../../types/index.js';
 
 import { FileAdapter } from './file-adapter.js';
 import { ReadOnlyFileSystem } from './readonly-filesystem.js';

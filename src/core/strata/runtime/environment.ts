@@ -4,7 +4,7 @@ import { sanitizeError } from '../../llm/errors.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
 import { logger } from '../../observability/logger.js';
 import { migrateLegacyRuntime } from '../../runtime/paths.js';
-import { CheckpointRef, ExecutionWorkspace, LoopEvent, LoopOptions } from '../../types.js';
+import { CheckpointRef, ExecutionWorkspace, LoopEvent, LoopOptions } from '../../types/index.js';
 import { KAOMOJI } from '../../ui/kaomoji.js';
 import { CheckpointManager } from '../checkpoint/manager.js';
 import { ShadowDriver } from '../layers/shadow-driver/shadow-driver.js';

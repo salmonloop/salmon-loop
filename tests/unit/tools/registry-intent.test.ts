@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { registerAllBuiltins } from '../../../src/core/tools/builtin/index.js';
 import { ToolRegistry } from '../../../src/core/tools/registry.js';
 import type { ToolSpec } from '../../../src/core/tools/types.js';
-import { Phase } from '../../../src/core/types.js';
+import { Phase } from '../../../src/core/types/index.js';
 
 describe('ToolRegistry intent contract', () => {
   it('rejects tool specs without a declared intent', () => {

@@ -1,4 +1,4 @@
-import { SalmonError } from '../types.js';
+import { SalmonError } from '../types/index.js';
 
 export class ConfigError extends SalmonError {
   constructor(

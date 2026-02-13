@@ -4,7 +4,7 @@ import { isAbsolute, relative, resolve } from 'path';
 import { z } from 'zod';
 
 import { text } from '../../../locales/index.js';
-import { Phase } from '../../types.js';
+import { Phase } from '../../types/index.js';
 import { pathPrefixResource } from '../parallel/resource-helpers.js';
 import { ToolSpec, ToolRuntimeCtx } from '../types.js';
 
