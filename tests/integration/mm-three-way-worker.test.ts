@@ -6,13 +6,13 @@
  */
 
 import { GitAdapter } from '../../src/core/adapters/git/git-adapter.js';
-import { MMThreeWayWorker } from '../../src/core/grizzco/workers/mm-three-way-worker.js';
 import {
   FileStatus,
   OpType,
   type FileState,
   type ShadowOperation,
-} from '../../src/core/shared/types/grizzco-types.js';
+} from '../../src/core/grizzco/domain/grizzco-types.js';
+import { MMThreeWayWorker } from '../../src/core/grizzco/workers/mm-three-way-worker.js';
 import { RealFsTestHelper } from '../helpers/real-fs-helper.js';
 
 describe('MMThreeWayWorker (Real Filesystem)', () => {

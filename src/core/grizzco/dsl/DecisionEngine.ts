@@ -1,4 +1,4 @@
-import { TransactionContext } from '../../shared/types/grizzco-types.js';
+import { TransactionContext } from '../domain/grizzco-types.js';
 
 import { DecisionResult } from './types.js';
 

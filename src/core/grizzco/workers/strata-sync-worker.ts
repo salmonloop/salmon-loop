@@ -1,9 +1,9 @@
 import { promises as fs } from 'fs';
 
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
-import { FileState, MergeResult, ShadowOperation } from '../../shared/types/grizzco-types.js';
 import { CheckpointManager } from '../../strata/checkpoint/manager.js';
 import { ShadowMergeEngine } from '../../strata/engine/shadow-merge-engine.js';
+import { FileState, MergeResult, ShadowOperation } from '../domain/grizzco-types.js';
 
 import { IMergeWorker } from './i-merge-worker.js';
 

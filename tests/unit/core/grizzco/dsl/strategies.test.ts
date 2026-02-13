@@ -1,3 +1,4 @@
+import { FileStatus, OpType } from '../../../../../src/core/grizzco/domain/grizzco-types.js';
 import { DecisionEngine, PlanBuilder } from '../../../../../src/core/grizzco/dsl/DecisionEngine.js';
 import {
   SafetyChecks,
@@ -5,7 +6,6 @@ import {
   MMHandling,
   IntentRouting,
 } from '../../../../../src/core/grizzco/dsl/strategies.js';
-import { FileStatus, OpType } from '../../../../../src/core/shared/types/grizzco-types.js';
 import { createMockContext } from '../mocks.js';
 
 describe('Strategies', () => {

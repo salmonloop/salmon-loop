@@ -7,7 +7,7 @@ import {
   type FileState,
   type GrizzcoOptions,
   type ShadowOperation,
-} from '../../shared/types/grizzco-types.js';
+} from '../domain/grizzco-types.js';
 import type { DslContext, ExecutionPlan } from '../dsl/DecisionEngine.js';
 import { MicroTaskRunner } from '../dsl/MicroTaskRunner.js';
 import { StandardStrategy } from '../dsl/strategies.js';

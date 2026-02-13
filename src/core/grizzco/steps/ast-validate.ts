@@ -2,7 +2,7 @@ import { text } from '../../../locales/index.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { AstParser, validateScopeIntegrity } from '../../ast/index.js';
 import { convertDiffToShadowOperations } from '../../diff.js';
-import { OpType } from '../../shared/types/grizzco-types.js';
+import { OpType } from '../domain/grizzco-types.js';
 import { Step } from '../engine/pipeline/pipeline.js';
 import { AstValidateCtx, ValidateCtx } from '../engine/pipeline/types.js';
 

@@ -1,6 +1,6 @@
+import { OpType } from '../../../../../src/core/grizzco/domain/grizzco-types.js';
 import { registry } from '../../../../../src/core/grizzco/services/registry.js';
 import { runApply } from '../../../../../src/core/grizzco/steps/apply.js';
-import { OpType } from '../../../../../src/core/shared/types/grizzco-types.js';
 import { createMockContext } from '../mocks.js';
 
 // Mock dependencies to avoid side effects

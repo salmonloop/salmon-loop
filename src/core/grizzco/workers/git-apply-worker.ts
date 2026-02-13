@@ -4,12 +4,7 @@ import { tmpdir } from 'os';
 import * as path from 'path';
 
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
-import {
-  FileState,
-  FileStatus,
-  MergeResult,
-  ShadowOperation,
-} from '../../shared/types/grizzco-types.js';
+import { FileState, FileStatus, MergeResult, ShadowOperation } from '../domain/grizzco-types.js';
 
 import { IMergeWorker } from './i-merge-worker.js';
 

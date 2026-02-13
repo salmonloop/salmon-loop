@@ -6,13 +6,13 @@
  * - git apply --3way must not fail with "does not match index" due to staged/unstaged divergence.
  */
 
-import { GitApplyWorker } from '../../src/core/grizzco/workers/git-apply-worker.js';
 import {
   FileStatus,
   OpType,
   type FileState,
   type ShadowOperation,
-} from '../../src/core/shared/types/grizzco-types.js';
+} from '../../src/core/grizzco/domain/grizzco-types.js';
+import { GitApplyWorker } from '../../src/core/grizzco/workers/git-apply-worker.js';
 import { RealFsTestHelper } from '../helpers/real-fs-helper.js';
 
 describe('GitApplyWorker (Real Filesystem) - MM', () => {

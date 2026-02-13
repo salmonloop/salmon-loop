@@ -1,7 +1,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
-import { TransactionContext } from '../../shared/types/grizzco-types.js';
+import { TransactionContext } from '../domain/grizzco-types.js';
 
 export interface Rejection {
   filePath: string;

@@ -1,5 +1,5 @@
 import { text } from '../../../locales/index.js';
-import { FileStatus, OpType } from '../../shared/types/grizzco-types.js';
+import { FileStatus, OpType } from '../domain/grizzco-types.js';
 
 import { DecisionEngine } from './DecisionEngine.js';
 

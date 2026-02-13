@@ -2,7 +2,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 
 import { GitAdapter } from '../../../../../src/core/adapters/git/git-adapter.js';
-import { FileStatus } from '../../../../../src/core/shared/types/grizzco-types.js';
+import { FileStatus } from '../../../../../src/core/grizzco/domain/grizzco-types.js';
 import { FileStateResolver } from '../../../../../src/core/strata/layers/file-state-resolver.js';
 
 // Mock dependencies

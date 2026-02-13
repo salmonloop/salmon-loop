@@ -1,9 +1,4 @@
-import {
-  FileState,
-  MergeResult,
-  OpType,
-  ShadowOperation,
-} from '../../shared/types/grizzco-types.js';
+import { FileState, MergeResult, OpType, ShadowOperation } from '../domain/grizzco-types.js';
 
 import { IMergeWorker } from './i-merge-worker.js';
 

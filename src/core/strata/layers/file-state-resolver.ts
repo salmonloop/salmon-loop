@@ -3,8 +3,8 @@ import { Buffer } from 'node:buffer';
 import * as path from 'path';
 
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
+import { FileState, FileStatus } from '../../grizzco/domain/grizzco-types.js';
 import { LIMITS } from '../../limits.js';
-import { FileState, FileStatus } from '../../shared/types/grizzco-types.js';
 
 /**
  * FileStateResolver

@@ -1,5 +1,5 @@
+import { FileStatus, OpType } from '../../../../src/core/grizzco/domain/grizzco-types.js';
 import { DslContext, PlanBuilder } from '../../../../src/core/grizzco/dsl/DecisionEngine.js';
-import { FileStatus, OpType } from '../../../../src/core/shared/types/grizzco-types.js';
 
 export const createMockContext = (overrides: Partial<DslContext> = {}): DslContext => ({
   repoRoot: '/mock/repo',

@@ -2,8 +2,8 @@ import { normalize as pathNormalize, extname } from 'path';
 
 import { text } from '../locales/index.js';
 
+import { OpType, ShadowOperation } from './grizzco/domain/grizzco-types.js';
 import { LIMITS } from './limits.js';
-import { OpType, ShadowOperation } from './shared/types/grizzco-types.js';
 import { DiffValidationError } from './types.js';
 
 /**
