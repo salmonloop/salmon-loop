@@ -29,7 +29,8 @@ describe('DecisionEngine', () => {
     const result = engine.build();
     expect(result.type).toBe('NEED_DATA');
     if (result.type === 'NEED_DATA') {
-      expect(result.keys).toEqual(['remote_lock']);
+      expect(result.key).toBe('remote_lock');
+      expect(result.keys ?? [result.key]).toEqual(['remote_lock']);
     }
   });
 

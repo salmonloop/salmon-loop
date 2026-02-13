@@ -1,11 +1,11 @@
 import { readFile, writeFile } from 'fs/promises';
 
-import { recordAuditEvent } from '../audit-trail.js';
-import { sanitizeError } from '../llm/errors.js';
-import { logger } from '../logger.js';
-import { WorkspaceSynchronizer } from '../strata/runtime/synchronizer.js';
-import type { ApplyBackTelemetry } from '../strata/runtime/synchronizer.js';
-import type { CheckpointRef, LoopEvent, LoopOptions } from '../types.js';
+import { recordAuditEvent } from '../../audit-trail.js';
+import { sanitizeError } from '../../llm/errors.js';
+import { logger } from '../../logger.js';
+import { WorkspaceSynchronizer } from '../../strata/runtime/synchronizer.js';
+import type { ApplyBackTelemetry } from '../../strata/runtime/synchronizer.js';
+import type { CheckpointRef, LoopEvent, LoopOptions } from '../../types.js';
 
 export interface ApplyBackPhaseParams {
   attempt: number;

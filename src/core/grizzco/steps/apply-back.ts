@@ -1,4 +1,4 @@
-import { runApplyBackPhase } from '../../loop/apply-back.js';
+import { runApplyBackPhase } from '../flows/flow-apply-back-runtime.js';
 import { Step } from '../pipeline.js';
 import { ShrinkCtx } from '../types.js';
 

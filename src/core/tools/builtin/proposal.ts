@@ -200,7 +200,7 @@ export async function executeProposalApply(
       }
 
       if (built.type === 'NEED_DATA') {
-        await fetchMissingData(built.keys);
+        await fetchMissingData(built.keys ?? [built.key]);
         continue;
       }
     }

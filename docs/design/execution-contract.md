@@ -5,17 +5,17 @@
 **Status**: Adopted
 
 SalmonLoop follows a strict execution contract to ensure safety, determinism, and user data protection.
-Version 3.1 introduces multi-mode workflows via a strategy pattern while preserving the existing safety
-guarantees of the patch pipeline.
+Version 3.1 introduces multi-mode workflows via mode-aware pipeline assembly while preserving the existing
+safety guarantees of the patch pipeline.
 
-## Flow Strategy Architecture (V3.1)
+## Flow Pipeline Architecture (V3.1)
 
-SalmonLoop no longer hardcodes a single linear pipeline. Instead, it uses a `FlowStrategy` abstraction
-to assemble mode-specific pipelines on top of a shared base (PREFLIGHT + CONTEXT).
+SalmonLoop no longer hardcodes a single linear pipeline. Instead, it assembles mode-specific pipelines
+on top of a shared base (PREFLIGHT + CONTEXT + EXPLORE).
 
-- **FlowStrategy**: Defines the steps for a specific flow mode.
-- **FlowStrategyRegistry**: Registers and retrieves strategies at runtime.
-- **Initialization**: Strategies are registered once at startup (see `initializeFlowStrategies()`).
+- **Single-attempt phase execution**: `executeSalmonLoopFlow` builds and executes the pipeline for the current mode.
+- **Cross-attempt transaction control**: `FlowTransactionRunner` owns retries, terminal failure mapping, and attempt audit events.
+- **Single source of truth**: Mode-to-phase mapping lives in `src/core/grizzco/flows/SalmonLoopFlow.ts`.
 
 ## Standard Flow Modes
 

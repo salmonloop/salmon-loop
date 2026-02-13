@@ -60,7 +60,7 @@ export class MicroTaskRunner implements IExecutable<Record<string, any>, SkillEx
 
       if (result.type === 'NEED_DATA') {
         // COMPLIANCE: DSL-Spec-V3 Ping-Pong
-        await this.handleMissingData(result.keys, data, ctx);
+        await this.handleMissingData(result.keys ?? [result.key], data, ctx);
         continue;
       }
 

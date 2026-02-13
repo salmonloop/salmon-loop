@@ -174,7 +174,7 @@ export interface TransactionResult {
     success: boolean;
     workerId?: string;
     error?: string;
-    decisionTree?: string;
+    decisionTree?: string[] | string;
   }>;
 
   snapshot: {

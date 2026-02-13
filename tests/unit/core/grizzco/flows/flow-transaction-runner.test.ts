@@ -25,6 +25,7 @@ function createRunner(emit = vi.fn()) {
         workPath: '/repo',
         strategy: 'worktree',
       } as any,
+      shadowInitialRef: 'snapshot-ref',
       initialSnapshotHash: 'snapshot-ref',
       activeRepoPath: '/repo',
     },

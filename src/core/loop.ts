@@ -8,9 +8,9 @@ import { buildLoopFailureResult } from './grizzco/flows/flow-result-factory.js';
 import { buildFlowTransactionRunner } from './grizzco/flows/flow-runner-builder.js';
 import { runFlowSession } from './grizzco/flows/flow-session.js';
 import { LoopTelemetry } from './grizzco/flows/flow-telemetry.js';
+import { HostRunner } from './grizzco/host/host-runner.js';
 import { LIMITS } from './limits.js';
 import { sanitizeError } from './llm/errors.js';
-import { HostRunner } from './orchestration/host-runner.js';
 import { Phase } from './types.js';
 import type { FlowMode, LoopOptions, LoopResult } from './types.js';
 

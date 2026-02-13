@@ -7,7 +7,6 @@ import 'dotenv/config';
 import chalk from 'chalk';
 import { Command } from 'commander';
 
-import { initializeFlowStrategies } from '../core/grizzco/flows/registry.js';
 import { initializeRuntime } from '../core/runtime.js';
 
 import { handleChatCommand } from './commands/chat.js';
@@ -33,7 +32,6 @@ initializeRuntime();
 chalk.level = 3;
 
 const program = new Command();
-initializeFlowStrategies();
 
 // --- Framework Error Hardening ---
 // Prevent Commander from printing raw errors directly to terminal

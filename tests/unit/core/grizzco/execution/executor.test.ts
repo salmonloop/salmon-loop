@@ -34,7 +34,7 @@ describe('Executor', () => {
       shouldAbort: false,
       workerId: 'mock-worker',
       actions: [],
-      decisionTree: '',
+      decisionTree: [],
     };
 
     const result = await executor.execute(plan, ctx);
@@ -62,7 +62,7 @@ describe('Executor', () => {
       shouldAbort: false,
       workerId: 'mock-worker',
       actions: [],
-      decisionTree: '',
+      decisionTree: [],
     };
 
     const result = await executor.execute(plan, ctx);

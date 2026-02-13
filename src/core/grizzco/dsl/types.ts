@@ -9,6 +9,7 @@ export interface PlanResult {
 
 export interface NeedDataResult {
   type: 'NEED_DATA';
-  keys: string[];
+  key: string;
+  keys?: string[];
   reason?: string;
 }

@@ -23,6 +23,7 @@ import { resolveAttemptFailure } from './flow-attempt-failure.js';
 import { buildAuthorizationSummary } from './flow-authorization-summary.js';
 import { LoopTelemetry } from './flow-telemetry.js';
 import { executeSalmonLoopFlow } from './SalmonLoopFlow.js';
+import type { FlowTerminalCtx } from './SalmonLoopFlow.js';
 
 export class FlowTransactionCancelledError extends Error {
   constructor() {
@@ -32,7 +33,8 @@ export class FlowTransactionCancelledError extends Error {
 }
 
 interface FlowTransactionEnvironment {
-  workspace?: ExecutionWorkspace;
+  workspace: ExecutionWorkspace;
+  shadowInitialRef: string;
   initialSnapshotHash?: string;
   checkpointRef?: CheckpointRef;
   activeRepoPath: string;
@@ -77,6 +79,10 @@ export class FlowTransactionRunner {
 
   constructor(private readonly params: FlowTransactionRunnerParams) {}
 
+  private isShrinkCtx(ctx: FlowTerminalCtx | undefined): ctx is ShrinkCtx {
+    return Boolean(ctx && 'verifyResult' in ctx);
+  }
+
   public async execute(): Promise<FlowTransactionReport> {
     let retries = 0;
     let lastReport: FlowReport | undefined;
@@ -94,14 +100,14 @@ export class FlowTransactionRunner {
         { phase: 'PREFLIGHT', scope: 'session' },
       );
       const result = await executeSalmonLoopFlow({
-        workspace: this.params.env.workspace!,
+        workspace: this.params.env.workspace,
         options: this.params.options,
         mode: this.params.flowMode,
         fs: this.params.fsAdapter,
         emit: this.params.emit,
         fileStateResolver: this.params.fileStateResolver,
         planRuntime: this.params.planRuntime,
-        shadowInitialRef: this.params.env.initialSnapshotHash!,
+        shadowInitialRef: this.params.env.shadowInitialRef,
         attempt,
         initialContext: this.currentContext,
         lastError: this.currentLastError,
@@ -115,24 +121,27 @@ export class FlowTransactionRunner {
       });
 
       lastReport = result;
-      const ctx = result.data as ShrinkCtx | undefined;
-      if (ctx) {
-        this.lastContext = ctx;
-        if (ctx.verifyArtifact) {
-          this.lastVerifyArtifact = ctx.verifyArtifact;
+      const terminalCtx = result.data;
+      const shrinkCtx = this.isShrinkCtx(terminalCtx) ? terminalCtx : undefined;
+      if (shrinkCtx) {
+        this.lastContext = shrinkCtx;
+        if (shrinkCtx.verifyArtifact) {
+          this.lastVerifyArtifact = shrinkCtx.verifyArtifact;
         }
       }
 
-      const verifyOk = this.params.flowMode === 'review' ? true : ctx?.verifyResult?.ok !== false;
+      const verifyOk =
+        this.params.flowMode === 'review' ? true : shrinkCtx?.verifyResult?.ok !== false;
       const applyBackFailed =
         this.params.flowMode !== 'review' &&
-        ctx?.applyBackResult?.success === false &&
-        !ctx.applyBackResult.skipped;
+        shrinkCtx?.applyBackResult?.success === false &&
+        !shrinkCtx.applyBackResult.skipped;
       const attemptFailure =
         verifyOk && applyBackFailed
           ? {
               reason:
-                ctx.applyBackResult?.error || 'Failed to apply changes back to main workspace',
+                shrinkCtx.applyBackResult?.error ||
+                'Failed to apply changes back to main workspace',
               reasonCode: 'APPLY_BACK_FAILED' as const,
               failurePhase: 'APPLY_BACK' as const,
               retryable: false,
@@ -142,22 +151,24 @@ export class FlowTransactionRunner {
             ? undefined
             : resolveAttemptFailure({
                 flowReport: result,
-                context: ctx,
+                context: shrinkCtx,
                 flowMode: this.params.flowMode,
               });
 
       const entry: LoopIteration = {
         attempt,
-        plan: ctx?.plan ?? null,
-        patch: ctx?.diff ?? null,
+        plan: shrinkCtx?.plan ?? null,
+        patch: shrinkCtx?.diff ?? null,
         error: attemptFailure?.reason,
-        contextSummary: ctx?.context ? `Snippets: ${ctx.context.rgSnippets.length}` : 'No context',
+        contextSummary: shrinkCtx?.context
+          ? `Snippets: ${shrinkCtx.context.rgSnippets.length}`
+          : 'No context',
       };
       this.historyEntries.push(entry);
       this.params.telemetry.addHistory(entry);
 
       this.authorizationSummary = buildAuthorizationSummary(
-        ctx?.toolAuditLogger?.getLogs?.() as unknown[],
+        shrinkCtx?.toolAuditLogger?.getLogs?.() as unknown[],
       );
 
       if (!attemptFailure) {
@@ -175,7 +186,7 @@ export class FlowTransactionRunner {
           authorizationSummary: this.authorizationSummary,
           lastErrorCode: this.extractErrorCode(result.error),
           retryExhausted: false,
-          lastContext: ctx,
+          lastContext: shrinkCtx,
           lastVerifyArtifact: this.lastVerifyArtifact,
         };
       }
@@ -199,7 +210,7 @@ export class FlowTransactionRunner {
           authorizationSummary: this.authorizationSummary,
           lastErrorCode: attemptFailure.errorCode ?? this.extractErrorCode(result.error),
           retryExhausted: false,
-          lastContext: ctx,
+          lastContext: shrinkCtx,
           lastVerifyArtifact: this.lastVerifyArtifact,
           terminalReason: attemptFailure.reason,
           terminalReasonCode: attemptFailure.reasonCode,
@@ -207,7 +218,7 @@ export class FlowTransactionRunner {
         };
       }
 
-      this.currentContext = ctx?.context;
+      this.currentContext = shrinkCtx?.context;
       this.currentLastError = attemptFailure.reason;
 
       retries++;

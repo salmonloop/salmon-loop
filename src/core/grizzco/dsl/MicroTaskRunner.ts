@@ -63,8 +63,9 @@ export class MicroTaskRunner<C extends BaseDslContext> {
       if (!context.data) {
         context.data = {};
       }
+      const requiredKeys = result.keys ?? [result.key];
       await Promise.all(
-        result.keys.map(async (key) => {
+        requiredKeys.map(async (key) => {
           context.data![key] = await this.params.resolveData(context, key);
         }),
       );

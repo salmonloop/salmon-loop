@@ -7,14 +7,14 @@ export interface ExecutionPlan {
   abortReason?: string;
   workerId?: string;
   actions: Array<{ type: string; params?: any }>;
-  decisionTree: string;
+  decisionTree: string[];
 }
 
 export class PlanBuilder<C extends BaseDslContext = DslContext> {
   private plan: ExecutionPlan = {
     shouldAbort: false,
     actions: [],
-    decisionTree: '',
+    decisionTree: [],
   };
   private _ctx?: C;
 
@@ -29,9 +29,17 @@ export class PlanBuilder<C extends BaseDslContext = DslContext> {
     return this;
   }
 
+  reject(reason: string): this {
+    return this.abort(reason);
+  }
+
   setWorker(workerId: string): this {
     this.plan.workerId = workerId;
     return this;
+  }
+
+  hasWorker(): boolean {
+    return Boolean(this.plan.workerId);
   }
 
   addAction(type: string, params?: any): this {
@@ -43,7 +51,7 @@ export class PlanBuilder<C extends BaseDslContext = DslContext> {
     return this.plan;
   }
 
-  _setDecisionTree(tree: string): void {
+  _setDecisionTree(tree: string[]): void {
     this.plan.decisionTree = tree;
   }
 
@@ -132,6 +140,14 @@ export class DecisionEngine<C extends BaseDslContext = DslContext> {
     return this.when((c) => !predicate(c), action);
   }
 
+  setWorker(workerId: string): this {
+    if (this.missingDataKeys.size > 0) return this;
+    if (!this.planBuilder.hasWorker()) {
+      this.planBuilder.setWorker(workerId);
+    }
+    return this;
+  }
+
   apply(fragment: (engine: DecisionEngine<C>) => DecisionEngine<C>): this {
     if (this.missingDataKeys.size > 0) return this;
     fragment(this);
@@ -140,9 +156,11 @@ export class DecisionEngine<C extends BaseDslContext = DslContext> {
 
   build(): DecisionResult {
     if (this.missingDataKeys.size > 0) {
+      const keys = Array.from(this.missingDataKeys);
       return {
         type: 'NEED_DATA',
-        keys: Array.from(this.missingDataKeys),
+        key: keys[0] || 'unknown',
+        keys,
       };
     }
 
@@ -171,9 +189,9 @@ export class DecisionEngine<C extends BaseDslContext = DslContext> {
     });
   }
 
-  private exportDecisionTree(): string {
+  private exportDecisionTree(): string[] {
     return this.history
       .map((r) => `${r.matched ? '[match]' : '[skip]'} [${r.phase}] ${r.rule}`)
-      .join('\n');
+      .filter(Boolean);
   }
 }

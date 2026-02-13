@@ -5,9 +5,9 @@ This note captures the existing `runSalmonLoop` behavior for each `FlowMode` so 
 ## Shared responsibilities
 
 - `runSalmonLoop` handles setup/teardown (`RuntimeEnvironment`), event sanitization, event/log aggregation, and final `LoopResult` assembly.
-- Retry orchestration, history accumulation, and terminal failure classification are delegated to `LoopExecutionCoordinator`.
-- `executeSalmonLoopFlow` uses the Grizzco `Pipeline` plus a `FlowStrategy` to drive the macro phases documented in `docs/design/execution-contract.md`.
-- `apply-back` is now a first-class pipeline phase (`APPLY_BACK`) in mutating strategies (`patch`/`debug`).
+- Retry orchestration, history accumulation, and terminal failure classification are delegated to `FlowTransactionRunner`.
+- `executeSalmonLoopFlow` uses Grizzco `Pipeline` mode assembly to drive the macro phases documented in `docs/design/execution-contract.md`.
+- `apply-back` is now a first-class pipeline phase (`APPLY_BACK`) in mutating modes (`patch`/`debug`).
 
 ## Patch flow (`FlowMode = 'patch'`)
 
@@ -21,9 +21,9 @@ This note captures the existing `runSalmonLoop` behavior for each `FlowMode` so 
 ## Review flow (`FlowMode = 'review'`)
 
 - Phases: `PREFLIGHT → CONTEXT → EXPLORE → REVIEW → REPORT → SHRINK`
-- `executeSalmonLoopFlow` returns success after `SHRINK`; review strategy does not include `APPLY_BACK`.
+- `executeSalmonLoopFlow` returns success after `SHRINK`; review mode does not include `APPLY_BACK`.
 - A dry-run still skips mutation and keeps `verifyArtifact`/`authorizationSummary` propagation in host result mapping.
-- No retries because `FlowStrategy` neither throws nor sets `verifyResult.ok`.
+- No retries because review mode has no mutating tail and no verify gate.
 
 ## Debug flow (`FlowMode = 'debug'`)
 
