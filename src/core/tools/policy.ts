@@ -99,6 +99,7 @@ export class ToolPolicy {
       case Phase.PLAN:
       case Phase.PATCH:
       case Phase.APPLY:
+      case Phase.APPLY_BACK:
         // Default deny for mutation phases (controlled by host logic)
         return false;
 

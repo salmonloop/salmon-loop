@@ -1,10 +1,12 @@
 import type { DiffMeta } from '../diff.js';
 import type { ToolCallingAuditEntry } from '../llm/audit.js';
 import { FileStateResolver } from '../strata/layers/file-state-resolver.js';
+import type { ApplyBackTelemetry, WorkspaceSynchronizer } from '../strata/runtime/synchronizer.js';
 import type { ArtifactHandle } from '../sub-agent/artifacts/types.js';
 import type { ToolAuditLogger } from '../tools/audit.js';
 import type { Toolstack } from '../tools/loader.js';
 import type {
+  CheckpointRef,
   Context,
   ExecutionWorkspace,
   FileSystem,
@@ -44,6 +46,21 @@ export interface ApplyResult {
   decisions?: ApplyDecision[];
 }
 
+export interface ApplyBackRuntime {
+  activeRepoPath: string;
+  shadowTaskId: string;
+  checkpointRef?: CheckpointRef;
+  initialSnapshotHash?: string;
+  synchronizer: WorkspaceSynchronizer;
+}
+
+export interface ApplyBackResult {
+  success: boolean;
+  skipped: boolean;
+  telemetry: ApplyBackTelemetry;
+  error?: string;
+}
+
 /**
  * Stage 0: Initial Context
  */
@@ -73,6 +90,7 @@ export interface InitCtx {
    * the loop cannot safely revert to a clean state upon verification failure.
    */
   shadowInitialRef: string;
+  applyBackRuntime?: ApplyBackRuntime;
   initialContext?: Context; // For retry with shrunk context
 }
 
@@ -168,4 +186,5 @@ export interface RollbackCtx extends VerifyCtx {
 export interface ShrinkCtx extends RollbackCtx {
   shrunk: boolean;
   lastError?: string;
+  applyBackResult?: ApplyBackResult;
 }

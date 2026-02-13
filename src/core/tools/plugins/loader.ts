@@ -9,7 +9,12 @@ import type { ExecutionPhase } from '../../types.js';
 import { ToolRegistry } from '../registry.js';
 import type { ToolSpec } from '../types.js';
 
-const FORBIDDEN_PHASES: Set<ExecutionPhase> = new Set([Phase.PLAN, Phase.PATCH, Phase.APPLY]);
+const FORBIDDEN_PHASES: Set<ExecutionPhase> = new Set([
+  Phase.PLAN,
+  Phase.PATCH,
+  Phase.APPLY,
+  Phase.APPLY_BACK,
+]);
 
 export async function registerPluginTools(registry: ToolRegistry, plugins: ResolvedToolPlugin[]) {
   for (const plugin of plugins) {

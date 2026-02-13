@@ -1,82 +1,35 @@
 import { randomBytes } from 'crypto';
-import { readFile, writeFile } from 'fs/promises';
 
 import { text } from '../locales/index.js';
 
-import { createFileSystemAdapter } from './adapters/fs/index.js';
 import { GitAdapter } from './adapters/git/git-adapter.js';
 import { appendAuditTrailToAuditFile } from './audit-file.js';
-import {
-  clearAuditContext,
-  clearAuditTrail,
-  recordAuditEvent,
-  setAuditContext,
-} from './audit-trail.js';
+import { clearAuditContext, clearAuditTrail, setAuditContext } from './audit-trail.js';
 import { Semaphore } from './concurrency.js';
-import { executeSalmonLoopFlow } from './grizzco/flows/SalmonLoopFlow.js';
 import type { ShrinkCtx } from './grizzco/types.js';
 import { LIMITS } from './limits.js';
 import { sanitizeError } from './llm/errors.js';
-import { logger } from './logger.js';
-import { initPlan } from './plan/index.js';
-import { FileStateResolver } from './strata/layers/file-state-resolver.js';
-import { RuntimeEnvironment } from './strata/runtime/environment.js';
-import { WorkspaceSynchronizer } from './strata/runtime/synchronizer.js';
-import type { ApplyBackTelemetry } from './strata/runtime/synchronizer.js';
-import type { ArtifactHandle } from './sub-agent/artifacts/types.js';
 import {
-  ExecutionPhase,
-  Phase,
-  ErrorType,
-  FlowMode,
-  type LoopEvent,
-  type LoopIteration,
-  type LoopOptions,
-  type LoopResult,
-  type StepLog,
-  type AuthorizationSourceSummary,
-} from './types.js';
+  LoopExecutionCoordinator,
+  OperationCancelledError,
+} from './loop/loop-execution-coordinator.js';
+import { LoopTelemetry } from './loop/loop-telemetry.js';
+import { HostRunner } from './orchestration/host-runner.js';
+import type { HostBootContext } from './orchestration/types.js';
+import { FileStateResolver } from './strata/layers/file-state-resolver.js';
+import { WorkspaceSynchronizer } from './strata/runtime/synchronizer.js';
+import { ErrorType, Phase } from './types.js';
+import type { ExecutionPhase, LoopEvent, LoopOptions, LoopResult } from './types.js';
 
 const globalSemaphore = new Semaphore(LIMITS.maxConcurrentOperations);
 
-function buildAuthorizationSummary(logs: unknown[] | undefined): AuthorizationSourceSummary | null {
-  if (!logs || logs.length === 0) return null;
-
-  const summary: AuthorizationSourceSummary = {
-    auto: 0,
-    allowlist: 0,
-    user: 0,
-    cache: 0,
-  };
-  let hasEntries = false;
-
-  for (const entry of logs) {
-    if (!entry || (entry as any).eventType !== 'authorization') continue;
-    const source = (entry as any).authSource;
-    if (source === 'auto') {
-      summary.auto += 1;
-      hasEntries = true;
-    } else if (source === 'allowlist') {
-      summary.allowlist += 1;
-      hasEntries = true;
-    } else if (source === 'user') {
-      summary.user += 1;
-      hasEntries = true;
-    } else if (source === 'cache') {
-      summary.cache += 1;
-      hasEntries = true;
-    }
+function sanitizeLogEvent(event: LoopEvent): LoopEvent {
+  if (event.type === 'log' && event.level === 'error') {
+    return { ...event, message: sanitizeError(event.message) };
   }
-
-  return hasEntries ? summary : null;
+  return event;
 }
 
-/**
- * Main entry point for running the SalmonLoop.
- *
- * @param options - The options for the loop.
- * @returns The result of the loop execution.
- */
 export async function runSalmonLoop(options: LoopOptions): Promise<LoopResult> {
   return globalSemaphore.run(async () => {
     const loop = new SalmonLoop();
@@ -84,471 +37,201 @@ export async function runSalmonLoop(options: LoopOptions): Promise<LoopResult> {
   });
 }
 
-function collectSidecarPaths(options: LoopOptions): string[] {
-  if (!options.contextFiles || options.contextFiles.length === 0) {
-    return [];
-  }
-  const paths = new Set<string>();
-  for (const filePath of options.contextFiles) {
-    if (filePath) paths.add(filePath);
-  }
-  return Array.from(paths);
-}
-
-/**
- * SalmonLoop Execution Kernel (Bifrost-powered)
- */
 export class SalmonLoop {
-  private async appendApplyBackAudit(
-    auditPath: string | undefined,
-    payload: {
-      attempt: number;
-      success: boolean;
-      telemetry: ApplyBackTelemetry;
-      error?: string;
-    },
-  ): Promise<void> {
-    if (!auditPath) return;
-    try {
-      const raw = await readFile(auditPath, 'utf8');
-      const data = JSON.parse(raw) as Record<string, unknown>;
-      const previous = Array.isArray(data.applyBackAudit) ? data.applyBackAudit : [];
-      data.applyBackAudit = [
-        ...previous,
-        {
-          ...payload,
-          timestamp: new Date().toISOString(),
-        },
-      ];
-      await writeFile(auditPath, JSON.stringify(data, null, 2));
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      logger.warn(`[Audit] Failed to append apply-back telemetry: ${msg}`);
-    }
-  }
-
   async run(options: LoopOptions): Promise<LoopResult> {
     clearAuditTrail();
     const correlationId = `run-${randomBytes(4).toString('hex')}`;
     setAuditContext({ correlationId, scope: 'session' });
-    const emit = (event: LoopEvent) => options.onEvent?.(event);
-    const now = () => new Date();
-    const logs: StepLog[] = [];
-    const history: LoopIteration[] = [];
-    const flowMode: FlowMode = options.mode ?? 'patch';
-    const fsAdapter = createFileSystemAdapter(flowMode);
 
-    const wrappedEmit = (event: LoopEvent) => {
-      // 🛡️ SECURITY GUARD: Sanitize any error messages being emitted
-      if (event.type === 'log' && event.level === 'error') {
-        event.message = sanitizeError(event.message);
-      }
-      emit(event);
-      if (event.type === 'log') {
-        logs.push({
-          step: 'PREFLIGHT',
-          success: event.level !== 'error',
-          output: event.message,
-          timestamp: event.timestamp,
-        });
+    const now = () => new Date();
+    const telemetry = new LoopTelemetry(now);
+    let currentPhase: ExecutionPhase | 'UNKNOWN' = 'UNKNOWN';
+
+    const emitToClient = (event: LoopEvent) => options.onEvent?.(event);
+
+    const emitSanitized = (event: LoopEvent) => {
+      const sanitizedEvent = sanitizeLogEvent(event);
+      emitToClient(sanitizedEvent);
+      if (sanitizedEvent.type === 'log') {
+        telemetry.recordLog('PREFLIGHT', sanitizedEvent.message, sanitizedEvent.level !== 'error');
       }
     };
 
-    const env = new RuntimeEnvironment(options, wrappedEmit);
-    let setupSucceeded = false;
-
-    try {
-      await env.setup();
-      setupSucceeded = true;
-    } catch (error) {
-      const msg = sanitizeError(error);
-      const errorCode = (error as any)?.llmCode || (error as any)?.code || (error as any)?.name;
-      logs.push(this.createLog(Phase.PREFLIGHT, msg, false));
-      emit({ type: 'log', level: 'error', message: msg, timestamp: now() });
-      return {
-        success: false,
-        reason: msg,
-        reasonCode: 'LOOP_FAILED',
-        attempts: 0,
-        logs,
-        failurePhase: Phase.PREFLIGHT,
-        errorType: ErrorType.UNKNOWN,
-        errorCode,
-        strategyName: flowMode,
-        fsMode: flowMode,
-      };
-    } finally {
-      if (!setupSucceeded) {
-        try {
-          await env.teardown();
-        } catch (teardownError) {
-          logger.warn(
-            `[Runtime] Failed to teardown after setup error: ${sanitizeError(teardownError)}`,
-          );
-        } finally {
-          clearAuditContext();
-        }
+    const emitLoop = (event: LoopEvent) => {
+      const sanitizedEvent = sanitizeLogEvent(event);
+      if (sanitizedEvent.type === 'phase.start') {
+        currentPhase = sanitizedEvent.phase;
+      } else if (sanitizedEvent.type === 'phase.end') {
+        currentPhase = 'UNKNOWN';
       }
-    }
+      if (sanitizedEvent.type === 'log') {
+        telemetry.recordLog(currentPhase, sanitizedEvent.message, sanitizedEvent.level !== 'error');
+      }
+      emitSanitized(sanitizedEvent);
+    };
 
-    const activeRepoPath = env.activeRepoPath;
-
-    // Broadcast workspace information to UI listeners
-    emit({
-      type: 'workspace.ready',
-      path: activeRepoPath,
-      strategy: options.strategy || 'local',
-      timestamp: now(),
-    });
-
-    const checkpointManager = env.checkpointManager;
-    const synchronizer = new WorkspaceSynchronizer(checkpointManager);
-    const git = new GitAdapter(activeRepoPath);
-    const resolver = new FileStateResolver(git, activeRepoPath);
-
-    let latestAuditPath: string | undefined = undefined;
-    let retries = 0;
-    let currentContext: any = undefined;
-    let currentLastError: string | undefined = undefined;
-    let shadowLatestRef: string | null = null;
+    const hostRunner = new HostRunner(options, emitSanitized, now);
+    let hostContext: HostBootContext | undefined;
+    let latestAuditPath: string | undefined;
     const shadowTaskId = randomBytes(4).toString('hex');
-    let authorizationSummary: AuthorizationSourceSummary | null = null;
-    let planRuntime: { sessionId: string; planPathHint: string } | undefined;
-    try {
-      const initialized = await initPlan({
-        persistenceRoot: env.workspace!.baseRepoPath || activeRepoPath,
-        mission: options.instruction,
-        objective: 'Track task progress and support resumable execution.',
-        context: `mode=${flowMode}\nverify=${options.verify}\nstrategy=${options.strategy ?? 'local'}`,
-      });
-      planRuntime = { sessionId: initialized.sessionId, planPathHint: initialized.planPathHint };
-      recordAuditEvent(
-        'plan.runtime.init',
-        {
-          sessionId: initialized.sessionId,
-          planPathHint: initialized.planPathHint,
-        },
-        { source: 'plan', severity: 'low', scope: 'session', phase: 'PREFLIGHT' },
-      );
-      emit({
-        type: 'plan.runtime.ready',
-        sessionId: initialized.sessionId,
-        planPathHint: initialized.planPathHint,
-        timestamp: now(),
-      });
-      emit({
-        type: 'log',
-        level: 'debug',
-        message: `Runtime plan initialized: sessionId=${initialized.sessionId}`,
-        timestamp: now(),
-      });
-    } catch (error) {
-      emit({
-        type: 'plan.runtime.unavailable',
-        reason: sanitizeError(error),
-        timestamp: now(),
-      });
-      recordAuditEvent(
-        'plan.runtime.init.failed',
-        { error: sanitizeError(error) },
-        { source: 'plan', severity: 'medium', scope: 'session', phase: 'PREFLIGHT' },
-      );
-      emit({
-        type: 'log',
-        level: 'warn',
-        message: `Runtime plan init failed (continuing without plan): ${sanitizeError(error)}`,
-        timestamp: now(),
-      });
-    }
 
     try {
-      let currentPhase: string = 'UNKNOWN';
-      const loopEmit = (event: LoopEvent) => {
-        emit(event);
-        if (event.type === 'phase.start') {
-          currentPhase = event.phase;
-        }
-        if (event.type === 'log') {
-          logs.push({
-            step: (currentPhase as ExecutionPhase) || 'UNKNOWN',
-            success: event.level !== 'error',
-            output: event.message,
-            timestamp: event.timestamp,
-          });
-        }
-      };
+      hostContext = await hostRunner.boot();
 
-      let verifyArtifact: ArtifactHandle | undefined;
+      const { env, flowMode, fsAdapter, activeRepoPath, planRuntime } = hostContext;
+      const checkpointManager = env.checkpointManager;
+      const synchronizer = new WorkspaceSynchronizer(checkpointManager);
+      const git = new GitAdapter(activeRepoPath);
+      const resolver = new FileStateResolver(git, activeRepoPath);
+      const coordinator = new LoopExecutionCoordinator({
+        options,
+        flowMode,
+        emit: emitLoop,
+        now,
+        fsAdapter,
+        env,
+        synchronizer,
+        shadowTaskId,
+        planRuntime,
+        fileStateResolver: resolver,
+        telemetry,
+      });
 
-      while (retries <= LIMITS.maxRetries) {
-        // Check for cancellation
-        if (options.signal?.aborted) {
+      try {
+        const executionReport = await coordinator.execute();
+        latestAuditPath = executionReport.flowReport.auditPath ?? latestAuditPath;
+        const ctx =
+          executionReport.lastContext ??
+          (executionReport.flowReport.data as Partial<ShrinkCtx> | undefined);
+        const verifyArtifact = ctx?.verifyArtifact ?? executionReport.lastVerifyArtifact;
+
+        if (executionReport.success) {
+          const attempts = executionReport.attempts;
+          if (options.dryRun || flowMode === 'review') {
+            return {
+              success: true,
+              reason: text.loop.operationCompleted,
+              reasonCode: options.dryRun ? 'DRY_RUN' : 'SUCCESS',
+              attempts,
+              logs: telemetry.getLogs(),
+              history: telemetry.getHistory(),
+              finalPatch: ctx?.diff,
+              changedFiles: ctx?.changedFiles,
+              auditPath: latestAuditPath,
+              verifyArtifact,
+              authorizationSummary: executionReport.authorizationSummary || undefined,
+              strategyName: executionReport.flowReport.strategyName ?? flowMode,
+              fsMode: executionReport.flowReport.fsMode ?? flowMode,
+            };
+          }
+
+          return {
+            success: true,
+            reason: text.loop.operationCompleted,
+            reasonCode: 'SUCCESS',
+            attempts,
+            logs: telemetry.getLogs(),
+            history: telemetry.getHistory(),
+            finalPatch: ctx?.diff,
+            changedFiles: ctx?.changedFiles,
+            auditPath: latestAuditPath,
+            verifyArtifact,
+            authorizationSummary: executionReport.authorizationSummary || undefined,
+            strategyName: executionReport.flowReport.strategyName ?? flowMode,
+            fsMode: executionReport.flowReport.fsMode ?? flowMode,
+          };
+        }
+
+        const retryFailureReason =
+          executionReport.history.at(-1)?.error ?? text.loop.loopExecutionFailed;
+        const failureReason =
+          executionReport.terminalReason ||
+          (executionReport.retryExhausted
+            ? text.loop.exceededMaxRetriesSimple
+            : retryFailureReason);
+        const reasonCode =
+          executionReport.terminalReasonCode ||
+          (executionReport.retryExhausted ? 'MAX_RETRIES' : 'LOOP_CRASH');
+        const failurePhase =
+          executionReport.terminalFailurePhase ||
+          (executionReport.retryExhausted ? Phase.VERIFY : undefined);
+
+        return {
+          success: false,
+          reason: failureReason,
+          reasonCode,
+          attempts: executionReport.attempts,
+          logs: telemetry.getLogs(),
+          history: telemetry.getHistory(),
+          failurePhase,
+          errorType: ErrorType.UNKNOWN,
+          errorCode: executionReport.lastErrorCode,
+          auditPath: latestAuditPath,
+          verifyArtifact,
+          authorizationSummary: executionReport.authorizationSummary || undefined,
+          strategyName: executionReport.flowReport.strategyName ?? flowMode,
+          fsMode: executionReport.flowReport.fsMode ?? flowMode,
+        };
+      } catch (error) {
+        if (error instanceof OperationCancelledError) {
+          const message = error.message;
+          telemetry.recordLog('error', message, false);
+          emitSanitized({ type: 'log', level: 'error', message, timestamp: now() });
           return {
             success: false,
-            reason: 'Operation cancelled by user',
+            reason: message,
             reasonCode: 'LOOP_CRASH',
-            attempts: retries,
-            logs,
-            history,
+            attempts: 0,
+            logs: telemetry.getLogs(),
+            history: telemetry.getHistory(),
             errorType: ErrorType.UNKNOWN,
+            auditPath: latestAuditPath,
             strategyName: flowMode,
             fsMode: flowMode,
           };
         }
 
-        const attempt = retries + 1;
-
-        // Execute Bifrost flow
-        const result = await executeSalmonLoopFlow({
-          workspace: env.workspace!,
-          options: options,
-          mode: flowMode,
-          fs: fsAdapter,
-          emit: loopEmit,
-          fileStateResolver: resolver,
-          planRuntime,
-          // 🛡️ HANDOVER: Pass the physical snapshot hash to the logical flow layer
-          // to ensure transactional integrity and rollback capability.
-          shadowInitialRef: env.initialSnapshotHash!,
-          attempt,
-          initialContext: currentContext,
-          lastError: currentLastError,
-        });
-        latestAuditPath = result.auditPath ?? latestAuditPath;
-
-        // Map flow result to LoopIteration
-        const ctx = result.data as Partial<ShrinkCtx> | undefined;
-        authorizationSummary = buildAuthorizationSummary(
-          ctx?.toolAuditLogger?.getLogs?.() as unknown[],
-        );
-        const errorCode =
-          (result.error as any)?.llmCode ||
-          (result.error as any)?.code ||
-          (result.error as any)?.name;
-
-        history.push({
-          attempt,
-          plan: ctx?.plan ?? null,
-          patch: ctx?.diff ?? null,
-          error: sanitizeError(ctx?.lastError || result.error),
-          contextSummary: ctx?.context
-            ? `Snippets: ${ctx.context.rgSnippets.length}`
-            : 'No context',
-        });
-
-        const artifactCandidate = ctx?.verifyArtifact as ArtifactHandle | undefined;
-        if (artifactCandidate) {
-          verifyArtifact = artifactCandidate;
-        }
-
-        if (result.success) {
-          // Success means Pipeline finished (Verify passed)
-          // Double check verify result just in case
-          const verifyOk = flowMode === 'review' ? true : ctx?.verifyResult?.ok !== false;
-
-          if (verifyOk) {
-            const skipApplyBack = options.dryRun || flowMode === 'review';
-            if (skipApplyBack) {
-              return {
-                success: true,
-                reason: text.loop.operationCompleted,
-                reasonCode: options.dryRun ? 'DRY_RUN' : 'SUCCESS',
-                attempts: attempt,
-                logs,
-                history,
-                finalPatch: ctx?.diff || undefined,
-                changedFiles: ctx?.changedFiles || [],
-                auditPath: result.auditPath,
-                verifyArtifact,
-                authorizationSummary: authorizationSummary || undefined,
-                strategyName: result.strategyName ?? flowMode,
-                fsMode: result.fsMode ?? flowMode,
-              };
-            }
-
-            const currentDiff = ctx?.diff;
-            const changedFilesThisAttempt = ctx?.changedFiles || [];
-
-            if (env.checkpointRef && options.strategy === 'worktree') {
-              const applyBackTelemetry: ApplyBackTelemetry = {};
-              try {
-                const finalRef =
-                  (await synchronizer.createCheckpointCommit(
-                    activeRepoPath,
-                    shadowTaskId,
-                    `final-${attempt}`,
-                  )) || env.checkpointRef.baseRef;
-                shadowLatestRef = finalRef;
-
-                await synchronizer.applyBackToMainWorkspace(
-                  options.repoPath,
-                  env.checkpointRef,
-                  currentDiff || '',
-                  options.applyBackOnDirty ?? '3way',
-                  options.verbose,
-                  changedFilesThisAttempt,
-                  env.initialSnapshotHash,
-                  shadowLatestRef,
-                  collectSidecarPaths(options),
-                  applyBackTelemetry,
-                );
-                await this.appendApplyBackAudit(result.auditPath, {
-                  attempt,
-                  success: true,
-                  telemetry: applyBackTelemetry,
-                });
-              } catch (error) {
-                const sanitizedErr = sanitizeError(error);
-                await this.appendApplyBackAudit(result.auditPath, {
-                  attempt,
-                  success: false,
-                  telemetry: applyBackTelemetry,
-                  error: sanitizedErr,
-                });
-                const msg = `Failed to apply changes back to main workspace: ${sanitizedErr}`;
-                logs.push(this.createLog('error', msg, false));
-                emit({ type: 'log', level: 'error', message: msg, timestamp: now() });
-
-                return {
-                  success: false,
-                  reason: msg,
-                  reasonCode: 'APPLY_BACK_FAILED',
-                  attempts: attempt,
-                  logs,
-                  history,
-                  failurePhase: Phase.VERIFY,
-                  errorType: ErrorType.UNKNOWN,
-                  auditPath: result.auditPath,
-                  authorizationSummary: authorizationSummary || undefined,
-                  strategyName: result.strategyName ?? flowMode,
-                  fsMode: result.fsMode ?? flowMode,
-                };
-              }
-            }
-
-            return {
-              success: true,
-              reason: text.loop.operationCompleted,
-              reasonCode: 'SUCCESS',
-              attempts: attempt,
-              logs,
-              history,
-              finalPatch: currentDiff || undefined,
-              changedFiles: changedFilesThisAttempt,
-              auditPath: result.auditPath,
-              verifyArtifact,
-              authorizationSummary: authorizationSummary || undefined,
-              strategyName: result.strategyName ?? flowMode,
-              fsMode: result.fsMode ?? flowMode,
-            };
-          }
-        }
-
-        // Failure or Verify Failed
-        const failureReason =
-          sanitizeError(ctx?.lastError || result.error) || text.loop.loopExecutionFailed;
-        if (ctx?.context) currentContext = ctx.context;
-        if (failureReason) currentLastError = failureReason;
-
-        retries++;
-
-        if (retries <= LIMITS.maxRetries) {
-          emit({
-            type: 'retry',
-            fromAttempt: attempt,
-            toAttempt: attempt + 1,
-            reason: failureReason,
-            failedFiles: [],
-            timestamp: now(),
-          });
-        }
-
-        if (retries > LIMITS.maxRetries) {
-          return {
-            success: false,
-            reason: text.loop.exceededMaxRetriesSimple,
-            reasonCode: 'MAX_RETRIES',
-            attempts: retries,
-            logs,
-            history,
-            failurePhase: Phase.VERIFY,
-            errorType: ErrorType.UNKNOWN,
-            errorCode,
-            auditPath: result.auditPath,
-            verifyArtifact,
-            authorizationSummary: authorizationSummary || undefined,
-            strategyName: result.strategyName ?? flowMode,
-            fsMode: result.fsMode ?? flowMode,
-          };
-        }
+        const message = sanitizeError(error);
+        telemetry.recordLog('error', message, false);
+        emitSanitized({ type: 'log', level: 'error', message, timestamp: now() });
+        return {
+          success: false,
+          reason: message,
+          reasonCode: 'LOOP_CRASH',
+          attempts: 0,
+          logs: telemetry.getLogs(),
+          history: telemetry.getHistory(),
+          failurePhase: Phase.VERIFY,
+          errorType: ErrorType.UNKNOWN,
+          auditPath: latestAuditPath,
+          strategyName: flowMode,
+          fsMode: flowMode,
+        };
       }
-
-      return {
-        success: false,
-        reason: text.loop.exceededMaxRetriesSimple,
-        reasonCode: 'MAX_RETRIES',
-        attempts: retries,
-        logs,
-        history,
-        errorType: ErrorType.UNKNOWN,
-        verifyArtifact,
-        authorizationSummary: authorizationSummary || undefined,
-        strategyName: flowMode,
-        fsMode: flowMode,
-      };
     } catch (error) {
-      const msg = sanitizeError(error);
-      const errorCode = (error as any)?.llmCode || (error as any)?.code || (error as any)?.name;
-      logs.push(this.createLog('error', msg, false));
-      emit({ type: 'log', level: 'error', message: msg, timestamp: now() });
+      const message = sanitizeError(error);
+      telemetry.recordLog(Phase.PREFLIGHT, message, false);
+      emitSanitized({ type: 'log', level: 'error', message, timestamp: now() });
       return {
         success: false,
-        reason: msg,
-        reasonCode: 'LOOP_CRASH',
-        attempts: retries,
-        logs,
-        history,
+        reason: message,
+        reasonCode: 'LOOP_FAILED',
+        attempts: 0,
+        logs: telemetry.getLogs(),
+        history: telemetry.getHistory(),
+        failurePhase: Phase.PREFLIGHT,
         errorType: ErrorType.UNKNOWN,
-        errorCode,
-        authorizationSummary: authorizationSummary || undefined,
-        strategyName: flowMode,
-        fsMode: flowMode,
+        auditPath: latestAuditPath,
+        strategyName: options.mode ?? 'patch',
+        fsMode: options.mode ?? 'patch',
       };
     } finally {
       try {
-        await env.teardown();
+        await hostRunner.teardown();
       } finally {
         await appendAuditTrailToAuditFile(latestAuditPath);
         clearAuditContext();
       }
     }
-  }
-
-  private createLog(step: ExecutionPhase | 'error', output: any, success = true): StepLog {
-    let outputStr =
-      typeof output === 'string'
-        ? output
-        : (() => {
-            try {
-              return JSON.stringify(output);
-            } catch {
-              try {
-                return String(output);
-              } catch {
-                return '[Unserializable]';
-              }
-            }
-          })();
-
-    if (outputStr.length > LIMITS.maxLogLength) {
-      outputStr = outputStr.substring(0, LIMITS.maxLogLength) + '\n...[Truncated due to length]...';
-    }
-
-    return {
-      step,
-      success,
-      output: outputStr,
-      timestamp: new Date(),
-    };
   }
 }

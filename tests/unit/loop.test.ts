@@ -1,3 +1,66 @@
+const runtimeEnvSetupMock = vi.fn();
+const runtimeEnvTeardownMock = vi.fn();
+const createCheckpointCommitMock = vi.fn();
+const applyBackToMainWorkspaceMock = vi.fn();
+
+vi.mock('../../src/core/strata/runtime/environment.js', () => {
+  return {
+    RuntimeEnvironment: class {
+      public workspace?: { baseRepoPath: string; workPath: string; strategy: string };
+      public checkpointManager: Record<string, unknown> = {};
+      public checkpointRef?: {
+        strategy: 'worktree';
+        repoPath: string;
+        worktreePath: string;
+        baseRef: string;
+        branchName: string;
+      };
+      public initialSnapshotHash?: string;
+
+      constructor(
+        private options: any,
+        private emit: (...args: unknown[]) => void,
+      ) {}
+
+      get activeRepoPath(): string {
+        return this.workspace?.workPath || this.options.repoPath;
+      }
+
+      async setup(): Promise<void> {
+        runtimeEnvSetupMock(this.options);
+        const strategy = this.options.strategy || 'direct';
+        this.workspace = {
+          baseRepoPath: this.options.repoPath,
+          workPath: this.options.repoPath,
+          strategy,
+        };
+        if (strategy === 'worktree') {
+          this.initialSnapshotHash = 'mock-snapshot';
+          this.checkpointRef = {
+            strategy: 'worktree',
+            repoPath: this.options.repoPath,
+            worktreePath: this.workspace.workPath,
+            baseRef: this.initialSnapshotHash,
+            branchName: 'workspace',
+          };
+        }
+      }
+
+      async teardown(): Promise<void> {
+        runtimeEnvTeardownMock();
+      }
+    },
+  };
+});
+
+vi.mock('../../src/core/strata/runtime/synchronizer.js', () => ({
+  WorkspaceSynchronizer: class {
+    constructor(_: unknown) {}
+    createCheckpointCommit = createCheckpointCommitMock;
+    applyBackToMainWorkspace = applyBackToMainWorkspaceMock;
+  },
+}));
+
 import { readFile } from 'fs/promises';
 
 import { GitAdapter } from '../../src/core/adapters/git/git-adapter.js';
@@ -10,7 +73,7 @@ import { ContextBuilder } from '../../src/core/context.js';
 import { executeSalmonLoopFlow } from '../../src/core/grizzco/flows/SalmonLoopFlow.js';
 import { StubLLM } from '../../src/core/llm.js';
 import { SalmonLoop } from '../../src/core/loop.js';
-import { ErrorType } from '../../src/core/types.js';
+import { ErrorType, Phase } from '../../src/core/types.js';
 import * as verify from '../../src/core/verify.js';
 import { text } from '../../src/locales/index.js';
 
@@ -57,6 +120,8 @@ describe('SalmonLoop', () => {
     loop = new SalmonLoop();
     mockLLM = new StubLLM();
     vi.clearAllMocks();
+    createCheckpointCommitMock.mockResolvedValue('final-ref');
+    applyBackToMainWorkspaceMock.mockResolvedValue(undefined);
 
     // Default mock for LLM
     mockLLM.createPlan = vi.fn().mockResolvedValue({
@@ -379,5 +444,51 @@ index 123..456 100644
     // So it will retry until max retries.
     // Result reason will be 'Exceeded maximum retry attempts'.
     expect(result.reason).toBe(text.loop.exceededMaxRetriesSimple);
+  });
+
+  it('should fail when apply-back phase reports failure', async () => {
+    vi.mocked(executeSalmonLoopFlow).mockResolvedValueOnce({
+      success: true,
+      duration: 0,
+      traces: [],
+      data: {
+        plan: { changes: [] },
+        diff: 'diff',
+        changedFiles: ['test.txt'],
+        verifyResult: { ok: true },
+        applyBackResult: {
+          success: false,
+          skipped: false,
+          error: 'apply-back failure',
+          telemetry: {},
+        },
+      } as any,
+    });
+
+    const result = await loop.run({
+      instruction: 'apply patch',
+      verify: 'npm test',
+      repoPath: '/tmp/repo',
+      strategy: 'worktree',
+      llm: mockLLM,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.reasonCode).toBe('APPLY_BACK_FAILED');
+    expect(result.failurePhase).toBe(Phase.APPLY_BACK);
+    expect(result.attempts).toBe(1);
+  });
+
+  it('should skip apply-back when using review flow', async () => {
+    const result = await loop.run({
+      instruction: 'review',
+      verify: 'npm test',
+      repoPath: '/tmp/repo',
+      llm: mockLLM,
+      mode: 'review',
+    });
+
+    expect(result.success).toBe(true);
+    expect(applyBackToMainWorkspaceMock).not.toHaveBeenCalled();
   });
 });

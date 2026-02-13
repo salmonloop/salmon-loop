@@ -32,6 +32,7 @@ export const EXECUTION_PHASES = [
   'VERIFY',
   'ROLLBACK',
   'SHRINK',
+  'APPLY_BACK',
 ] as const;
 
 /**
@@ -51,6 +52,7 @@ export const Phase = {
   VERIFY: 'VERIFY',
   ROLLBACK: 'ROLLBACK',
   SHRINK: 'SHRINK',
+  APPLY_BACK: 'APPLY_BACK',
 } as const;
 
 /**

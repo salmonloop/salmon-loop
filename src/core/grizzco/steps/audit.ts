@@ -123,6 +123,7 @@ function sanitizeContext(ctx: unknown): Record<string, unknown> | null {
 
   if (typed.verifyResult) safe.verifyResult = typed.verifyResult;
   if (typed.verifyArtifact) safe.verifyArtifact = typed.verifyArtifact;
+  if (typed.applyBackResult) safe.applyBackResult = typed.applyBackResult;
 
   if (typed.toolCallingAudit && Array.isArray(typed.toolCallingAudit)) {
     safe.toolCallingAudit = typed.toolCallingAudit;

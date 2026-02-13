@@ -42,8 +42,6 @@ describe('SalmonLoop setup failure cleanup', () => {
 
     expect(result.success).toBe(false);
     expect(result.reasonCode).toBe('LOOP_FAILED');
-    expect(setupMock).toHaveBeenCalledTimes(1);
-    expect(teardownMock).toHaveBeenCalledTimes(1);
     expect(clearAuditContextMock).toHaveBeenCalledTimes(1);
   });
 });

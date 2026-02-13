@@ -1,5 +1,6 @@
 import type { FlowMode } from '../../types.js';
 import type { Pipeline } from '../pipeline.js';
+import { runApplyBack } from '../steps/apply-back.js';
 import { runApply } from '../steps/apply.js';
 import { validateAst } from '../steps/ast-validate.js';
 import { displayReview } from '../steps/displayReview.js';
@@ -30,6 +31,7 @@ export class PatchFlowStrategy implements FlowStrategy {
       .step('VERIFY', runVerify)
       .step('ROLLBACK', runRollback)
       .step('SHRINK', runShrink)
+      .step('APPLY_BACK', runApplyBack)
       .cast<unknown>();
   }
 }
@@ -61,6 +63,7 @@ export class DebugFlowStrategy implements FlowStrategy {
       .step('VERIFY', runVerify)
       .step('ROLLBACK', runRollback)
       .step('SHRINK', runShrink)
+      .step('APPLY_BACK', runApplyBack)
       .cast<unknown>();
   }
 }
