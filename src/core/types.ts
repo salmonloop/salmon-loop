@@ -177,7 +177,7 @@ export type LoopEvent =
   | {
       type: 'log';
       message: string;
-      code?: string; // 增加语义化错误码支持
+      code?: string; // Supports semantic error code mapping.
       level: 'info' | 'warn' | 'error' | 'debug' | 'trace';
       timestamp: Date;
     }

@@ -170,9 +170,9 @@ export class StandardReporter implements SalmonReporter {
       const llmErrors = text.llmErrors as Record<string, any>;
       const llmText = text.llm as Record<string, any>;
 
-      // 尝试匹配 LlmErrorCode 映射
+      // Try to map LlmErrorCode to localized message keys.
       if (event.code.startsWith('LLM_')) {
-        // 将 LLM_HTTP_REQUEST_FAILED 转换为 httpRequestFailed
+        // Convert LLM_HTTP_REQUEST_FAILED to httpRequestFailed.
         const camelCode = event.code
           .toLowerCase()
           .replace(/_([a-z])/g, (_, g) => g.toUpperCase())
