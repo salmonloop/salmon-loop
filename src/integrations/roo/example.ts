@@ -1,4 +1,4 @@
-import { FakeLLM } from '../../core/llm.js';
+import { FakeLLM } from '../../core/llm/index.js';
 import { logger } from '../../core/observability/logger.js';
 
 import { RooSalmonAdapter } from './adapter.js';

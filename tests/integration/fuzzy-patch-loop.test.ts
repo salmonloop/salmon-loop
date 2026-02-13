@@ -1,5 +1,5 @@
 import { AstParser } from '../../src/core/ast/parser.js';
-import { LLM } from '../../src/core/llm.js';
+import { LLM } from '../../src/core/llm/index.js';
 import { runSalmonLoop } from '../../src/core/loop.js';
 import { RealFsTestHelper } from '../helpers/real-fs-helper.js';
 

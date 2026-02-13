@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { OpenAILLM as DomainOpenAILLM } from '../../src/core/llm/index.js';
-import { OpenAILLM as RootOpenAILLM } from '../../src/core/llm.js';
+import { OpenAILLM, StubLLM, AiSdkLLM } from '../../src/core/llm/index.js';
 
-describe('core root facade migration', () => {
-  it('keeps llm root facade pointing to the domain module', () => {
-    expect(RootOpenAILLM).toBe(DomainOpenAILLM);
+describe('core llm exports', () => {
+  it('exposes all expected llm implementations from domain index', () => {
+    expect(typeof OpenAILLM).toBe('function');
+    expect(typeof StubLLM).toBe('function');
+    expect(typeof AiSdkLLM).toBe('function');
   });
 });

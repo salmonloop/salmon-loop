@@ -21,7 +21,6 @@ Disallowed in root:
 
 Allowed in root during migration (temporary facades):
 - `src/core/loop.ts`
-- `src/core/llm.ts`
 - `src/core/types.ts`
 
 All other root files should be moved to domain directories or deleted if unused.

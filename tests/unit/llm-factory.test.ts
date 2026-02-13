@@ -1,6 +1,6 @@
 import type { ResolvedLlmProvider } from '../../src/core/config/types.js';
 import { createRuntimeLlm } from '../../src/core/llm/factory.js';
-import { AiSdkLLM, StubLLM } from '../../src/core/llm.js';
+import { AiSdkLLM, StubLLM } from '../../src/core/llm/index.js';
 
 function baseResolved(): ResolvedLlmProvider {
   return {

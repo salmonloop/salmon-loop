@@ -71,7 +71,7 @@ import {
 } from '../../src/core/ast/index.js';
 import { ContextBuilder } from '../../src/core/context/builder.js';
 import { executeSalmonLoopFlow } from '../../src/core/grizzco/flows/SalmonLoopFlow.js';
-import { StubLLM } from '../../src/core/llm.js';
+import { StubLLM } from '../../src/core/llm/index.js';
 import { SalmonLoop } from '../../src/core/loop.js';
 import { ErrorType, Phase } from '../../src/core/types.js';
 import * as verify from '../../src/core/verification/runner.js';

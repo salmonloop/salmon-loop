@@ -4,7 +4,7 @@ import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 
-import { LLM } from '../../src/core/llm.js';
+import { LLM } from '../../src/core/llm/index.js';
 import { runSalmonLoop } from '../../src/core/loop.js';
 import * as verify from '../../src/core/verification/runner.js';
 

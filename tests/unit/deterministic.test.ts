@@ -1,5 +1,5 @@
 import { ContextBuilder } from '../../src/core/context/builder.js';
-import { FakeLLM } from '../../src/core/llm.js';
+import { FakeLLM } from '../../src/core/llm/index.js';
 import * as verify from '../../src/core/verification/runner.js';
 import { runSalmonLoop } from '../../src/index.js';
 
