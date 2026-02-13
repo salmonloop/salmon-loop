@@ -20,7 +20,7 @@ vi.mock('../../../src/core/runtime/paths.js', () => ({
   getShadowLockPath: getShadowLockPathMock,
 }));
 
-vi.mock('../../../src/core/logger.js', () => ({
+vi.mock('../../../src/core/observability/logger.js', () => ({
   logger: {
     debug: vi.fn(),
     warn: vi.fn(),

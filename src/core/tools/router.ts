@@ -1,7 +1,7 @@
 import * as crypto from 'crypto';
 
 import { LIMITS } from '../config/limits.js';
-import { logger } from '../logger.js';
+import { logger } from '../observability/logger.js';
 
 import { ToolAuditLogger } from './audit.js';
 import type { ToolAuthorizationProvider, ToolAuthorizationRequest } from './authorization/types.js';

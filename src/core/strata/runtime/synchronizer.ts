@@ -16,7 +16,7 @@ import path from 'path';
 import { text } from '../../../locales/index.js';
 import { TextNormalizer } from '../../../utils/eol.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
-import { logger } from '../../logger.js';
+import { logger } from '../../observability/logger.js';
 import { monitor } from '../../observability/monitor.js';
 import { ApplyBackOnDirty, CheckpointRef, VerboseLevel } from '../../types.js';
 import { CheckpointManager } from '../checkpoint/manager.js';

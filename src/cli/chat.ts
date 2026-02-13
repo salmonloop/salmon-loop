@@ -5,8 +5,8 @@ import type {
 } from '../core/config/index.js';
 import { InputHistoryManager } from '../core/history/input-history.js';
 import { DEFAULT_LLM_OUTPUT_POLICY, emitLlmOutput } from '../core/llm/output-policy.js';
-import { logger } from '../core/logger.js';
 import { runSalmonLoop } from '../core/loop.js';
+import { logger } from '../core/observability/logger.js';
 import { ChatSessionManager } from '../core/session/manager.js';
 import type { CheckpointStrategy, LLM, LoopEvent, LlmOutputPolicy } from '../core/types.js';
 

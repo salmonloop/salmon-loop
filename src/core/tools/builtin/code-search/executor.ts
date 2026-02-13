@@ -1,5 +1,5 @@
 import { LIMITS } from '../../../config/limits.js';
-import { logger } from '../../../logger.js';
+import { logger } from '../../../observability/logger.js';
 import { runWithFallback } from '../../capability/executor.js';
 import { CapabilityCtx } from '../../capability/types.js';
 import { ToolRuntimeCtx, ExecutionPhase } from '../../types.js';

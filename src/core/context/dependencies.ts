@@ -3,7 +3,7 @@ import { readFile } from 'fs/promises';
 
 import { text } from '../../locales/index.js';
 import { LIMITS } from '../config/limits.js';
-import { logger } from '../logger.js';
+import { logger } from '../observability/logger.js';
 import { pluginRegistry } from '../plugin/registry.js';
 import { safeJoin, safeDirname } from '../utils/path.js';
 

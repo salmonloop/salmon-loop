@@ -1,7 +1,7 @@
 import * as fs from 'fs/promises';
 
-import { logger } from '../../logger.js';
 import { getAuditTrail } from '../../observability/audit-trail.js';
+import { logger } from '../../observability/logger.js';
 import { getAuditDir } from '../../runtime/paths.js';
 import { SalmonError, type LoopOptions } from '../../types.js';
 import { FlowReport } from '../engine/pipeline/pipeline.js';

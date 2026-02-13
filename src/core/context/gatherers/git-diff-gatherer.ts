@@ -3,7 +3,7 @@ import path from 'path';
 
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { LIMITS } from '../../config/limits.js';
-import { logger } from '../../logger.js';
+import { logger } from '../../observability/logger.js';
 import { normalizePath } from '../../utils/path.js';
 import { findFileDependencies } from '../dependencies.js';
 import type { ContextRequest, DiffScope } from '../types.js';

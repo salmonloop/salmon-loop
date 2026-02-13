@@ -5,7 +5,7 @@ import { join } from 'path';
 import { text } from '../../locales/index.js';
 import { GitAdapter } from '../adapters/git/git-adapter.js';
 import { LIMITS } from '../config/limits.js';
-import { logger } from '../logger.js';
+import { logger } from '../observability/logger.js';
 import { pluginRegistry } from '../plugin/registry.js';
 import { ErrorType, LoopEvent } from '../types.js';
 import type { ExecutionWorkspace } from '../types.js';

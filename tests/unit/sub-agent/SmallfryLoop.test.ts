@@ -23,7 +23,7 @@ vi.mock('../../../src/core/grizzco/engine/pipeline/pipeline.js', () => ({
   },
 }));
 
-vi.mock('../../../src/core/logger.js', () => ({
+vi.mock('../../../src/core/observability/logger.js', () => ({
   logger: {
     info: vi.fn(),
     warn: vi.fn(),

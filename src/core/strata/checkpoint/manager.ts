@@ -4,7 +4,7 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
-import { logger } from '../../logger.js';
+import { logger } from '../../observability/logger.js';
 import { normalizePath } from '../../utils/path.js';
 
 export interface SnapshotResult {

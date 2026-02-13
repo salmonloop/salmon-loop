@@ -2,7 +2,7 @@ import path from 'path';
 
 import { text } from '../../../locales/index.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
-import { logger } from '../../logger.js';
+import { logger } from '../../observability/logger.js';
 import { getRejectionsDir, getTmpDir } from '../../runtime/paths.js';
 import type { IFileSystemProvider, SyntheticSidecarLayer } from '../../strata/types.js';
 import type { VerboseLevel } from '../../types.js';

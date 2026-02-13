@@ -1,7 +1,7 @@
 import { spawn } from 'child_process';
 
 import { LIMITS } from '../../config/limits.js';
-import { logger } from '../../logger.js';
+import { logger } from '../../observability/logger.js';
 import type { RipgrepResult } from '../../types.js';
 import { normalizePath } from '../../utils/path.js';
 

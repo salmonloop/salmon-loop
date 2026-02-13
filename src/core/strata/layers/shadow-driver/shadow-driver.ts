@@ -9,7 +9,7 @@ import { existsSync } from 'fs';
 import { rm, mkdir, symlink } from 'fs/promises';
 import { join } from 'path';
 
-import { logger } from '../../../logger.js';
+import { logger } from '../../../observability/logger.js';
 import { normalizePath } from '../../../utils/path.js';
 import type { ShadowDriverConfig, ShadowEnvResult, ShadowTask } from '../../types.js';
 

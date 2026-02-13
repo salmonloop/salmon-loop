@@ -3,7 +3,7 @@ import { resolve } from 'path';
 import { Command } from 'commander';
 
 import { ContextService } from '../../core/context/index.js';
-import { logger } from '../../core/logger.js';
+import { logger } from '../../core/observability/logger.js';
 import { text } from '../locales/index.js';
 
 export async function handleContextCommand(options: any, command: Command) {

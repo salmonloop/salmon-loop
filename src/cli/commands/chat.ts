@@ -4,7 +4,7 @@ import { Command } from 'commander';
 
 import { resolveConfig } from '../../core/config/index.js';
 import { createRuntimeLlm } from '../../core/llm/factory.js';
-import { logger } from '../../core/logger.js';
+import { logger } from '../../core/observability/logger.js';
 import { PluginLoader } from '../../core/plugin/loader.js';
 import { text } from '../locales/index.js';
 import { resolveLlmOutputPolicyFromCli } from '../utils/llm-output.js';

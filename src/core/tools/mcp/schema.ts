@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { logger } from '../../logger.js';
+import { logger } from '../../observability/logger.js';
 
 /**
  * Converts a JSON Schema (commonly used in MCP) to a Zod schema.

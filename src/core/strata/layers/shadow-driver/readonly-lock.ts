@@ -12,7 +12,7 @@ import { randomBytes } from 'crypto';
 import { mkdir, writeFile, unlink, readFile, rename } from 'fs/promises';
 import path from 'path';
 
-import { logger } from '../../../logger.js';
+import { logger } from '../../../observability/logger.js';
 import { getShadowLockPath } from '../../../runtime/paths.js';
 import { normalizePath } from '../../../utils/path.js';
 

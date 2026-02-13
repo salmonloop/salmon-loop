@@ -161,7 +161,7 @@ try {
     }
   } else {
     // This is a real application crash - send through our hardened logger
-    import('../core/logger.js').then(({ logger }) => {
+    import('../core/observability/logger.js').then(({ logger }) => {
       logger.error('CLI execution crashed', err, true);
     });
   }

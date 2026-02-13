@@ -35,7 +35,7 @@ import { mkdtemp, mkdir, writeFile, readFile, rm, stat } from 'fs/promises';
 import { tmpdir } from 'os';
 import path from 'path';
 
-import { logger } from '../../src/core/logger.js';
+import { logger } from '../../src/core/observability/logger.js';
 
 export interface GitRepoInfo {
   /** Absolute path to the repository */

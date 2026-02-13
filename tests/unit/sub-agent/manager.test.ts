@@ -27,7 +27,7 @@ vi.mock('../../../src/core/sub-agent/controller.js', () => ({
   },
 }));
 
-vi.mock('../../../src/core/logger.js', () => ({
+vi.mock('../../../src/core/observability/logger.js', () => ({
   logger: {
     info: vi.fn(),
     debug: vi.fn(),

@@ -2,7 +2,7 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
-import { logger } from '../../logger.js';
+import { logger } from '../../observability/logger.js';
 import { ensureInSandbox } from '../../utils/path.js';
 import type { IFileSystemProvider } from '../types.js';
 

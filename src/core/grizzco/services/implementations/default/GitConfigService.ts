@@ -1,5 +1,5 @@
 import { GitAdapter } from '../../../../adapters/git/git-adapter.js';
-import { logger } from '../../../../logger.js';
+import { logger } from '../../../../observability/logger.js';
 import { AstValidateCtx } from '../../../engine/pipeline/types.js';
 import { IDataService } from '../../types.js';
 

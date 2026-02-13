@@ -1,7 +1,7 @@
 import * as os from 'os';
 import * as path from 'path';
 
-import { logger } from '../../core/logger.js';
+import { logger } from '../../core/observability/logger.js';
 import { skillToToolSpec } from '../../core/skills/bridge.js';
 import { SkillParser } from '../../core/skills/parser.js';
 import type { Skill } from '../../core/skills/types.js';

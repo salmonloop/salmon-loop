@@ -5,7 +5,7 @@ import { text } from '../../../locales/index.js';
 import { createFileSystemAdapter } from '../../adapters/fs/index.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { InitCtx } from '../../grizzco/engine/pipeline/types.js';
-import { logger } from '../../logger.js';
+import { logger } from '../../observability/logger.js';
 import { FileStateResolver } from '../../strata/layers/file-state-resolver.js';
 import { RuntimeEnvironment } from '../../strata/runtime/environment.js';
 import type { ToolRuntimeCtx } from '../../tools/types.js';

@@ -1,5 +1,5 @@
-import { logger } from '../../../logger.js';
 import { recordAuditEvent, setAuditContext } from '../../../observability/audit-trail.js';
+import { logger } from '../../../observability/logger.js';
 import { appendPlanNote } from '../../../plan/index.js';
 import {
   EXECUTION_PHASES,

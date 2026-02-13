@@ -2,7 +2,7 @@ import { render } from 'ink';
 import React from 'react';
 
 import type { MarkdownRenderMode, MarkdownTheme } from '../../core/config/types.js';
-import { logger } from '../../core/logger.js';
+import { logger } from '../../core/observability/logger.js';
 import { LoopEvent } from '../../core/types.js';
 
 import { App } from './App.js';

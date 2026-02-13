@@ -4,7 +4,7 @@ import { tmpdir } from 'os';
 import path from 'path';
 
 import { LIMITS } from '../../config/limits.js';
-import { logger } from '../../logger.js';
+import { logger } from '../../observability/logger.js';
 
 import { ARTIFACT_HANDLE_PREFIX, ArtifactHandle } from './types.js';
 

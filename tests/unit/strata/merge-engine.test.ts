@@ -25,7 +25,7 @@ vi.mock('../../../src/core/adapters/git/git-adapter.js', () => ({
   }),
 }));
 
-vi.mock('../../../src/core/logger.js', () => ({
+vi.mock('../../../src/core/observability/logger.js', () => ({
   logger: {
     debug: vi.fn(),
     info: vi.fn(),

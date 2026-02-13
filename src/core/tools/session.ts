@@ -3,7 +3,7 @@ import * as crypto from 'crypto';
 import type { ToolCallingAuditSink } from '../llm/audit.js';
 import { emitLlmOutput, emitLlmStreamDelta, emitLlmStreamEnd } from '../llm/output-policy.js';
 import { redactErrorMessage, redactJsonString, redactValue } from '../llm/redact.js';
-import { logger } from '../logger.js';
+import { logger } from '../observability/logger.js';
 import type {
   ChatOptions,
   ExecutionStep,

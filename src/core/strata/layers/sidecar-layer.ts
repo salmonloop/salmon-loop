@@ -8,7 +8,7 @@
 import { existsSync } from 'fs';
 import { readFile } from 'fs/promises';
 
-import { logger } from '../../logger.js';
+import { logger } from '../../observability/logger.js';
 import { isSafeRelativePath, normalizePath, safeJoin } from '../../utils/path.js';
 import type { SyntheticSidecarLayer } from '../types.js';
 

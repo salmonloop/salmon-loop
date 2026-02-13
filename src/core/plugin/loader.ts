@@ -2,7 +2,7 @@ import { readdir } from 'fs/promises';
 import { join } from 'path';
 
 import { typescriptPlugin, tsxPlugin, javascriptPlugin } from '../../languages/typescript/index.js';
-import { logger } from '../logger.js';
+import { logger } from '../observability/logger.js';
 
 import { LanguagePlugin } from './interface.js';
 import { pluginRegistry } from './registry.js';

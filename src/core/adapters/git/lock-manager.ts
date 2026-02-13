@@ -4,7 +4,7 @@ import { join } from 'path';
 
 import { text } from '../../../locales/index.js';
 import { LIMITS } from '../../config/limits.js';
-import { logger } from '../../logger.js';
+import { logger } from '../../observability/logger.js';
 import { LoopEvent } from '../../types.js';
 
 interface LockMetadata {

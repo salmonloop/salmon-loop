@@ -9,7 +9,7 @@ vi.mock('fs/promises', () => ({
   writeFile: writeFileMock,
 }));
 
-vi.mock('../../src/core/logger.js', () => ({
+vi.mock('../../src/core/observability/logger.js', () => ({
   logger: {
     warn: warnMock,
   },

@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import ProgressBar from 'progress';
 
-import { logger } from '../../core/logger.js';
+import { logger } from '../../core/observability/logger.js';
 import { LoopEvent, LoopResult, Phase, ErrorType, ALL_VISIBLE_STEPS } from '../../core/types.js';
 import { text } from '../locales/index.js';
 

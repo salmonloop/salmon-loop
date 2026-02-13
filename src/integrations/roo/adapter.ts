@@ -1,4 +1,4 @@
-import { Logger } from '../../core/logger.js';
+import { Logger } from '../../core/observability/logger.js';
 import { runSalmonLoop, type LoopOptions, type LoopEvent } from '../../index.js';
 
 /**

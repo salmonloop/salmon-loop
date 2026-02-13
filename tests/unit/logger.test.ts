@@ -1,4 +1,4 @@
-import { Logger } from '../../src/core/logger.js';
+import { Logger } from '../../src/core/observability/logger.js';
 
 describe('Logger', () => {
   let logger: Logger;

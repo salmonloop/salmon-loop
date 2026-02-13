@@ -1,7 +1,7 @@
 import { createInterface } from 'readline/promises';
 
 import type { ToolAuthorizationConfig } from '../../core/config/types.js';
-import { logger } from '../../core/logger.js';
+import { logger } from '../../core/observability/logger.js';
 import type {
   AuthorizationDecision,
   ToolAuthorizationProvider,

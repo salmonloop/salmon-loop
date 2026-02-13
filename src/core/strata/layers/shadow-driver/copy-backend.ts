@@ -9,7 +9,7 @@
 
 import { spawn } from 'child_process';
 
-import { logger } from '../../../logger.js';
+import { logger } from '../../../observability/logger.js';
 import { normalizePath } from '../../../utils/path.js';
 import type { Platform } from '../../types.js';
 

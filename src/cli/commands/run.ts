@@ -9,8 +9,8 @@ import { resolveExtensions, ExtensionConfigError } from '../../core/extensions/i
 import type { ExtensionResolution } from '../../core/extensions/index.js';
 import { createRuntimeLlm } from '../../core/llm/factory.js';
 import { emitLlmOutput } from '../../core/llm/output-policy.js';
-import { logger } from '../../core/logger.js';
 import { runSalmonLoop } from '../../core/loop.js';
+import { logger } from '../../core/observability/logger.js';
 import { PluginLoader } from '../../core/plugin/loader.js';
 import {
   VerboseLevel,

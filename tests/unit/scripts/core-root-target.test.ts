@@ -13,6 +13,7 @@ describe('core root migration target', () => {
       'src/core/context.ts',
       'src/core/path.ts',
       'src/core/limits.ts',
+      'src/core/logger.ts',
       'src/core/diff.ts',
       'src/core/llm-utils.ts',
       'src/core/monitor.ts',

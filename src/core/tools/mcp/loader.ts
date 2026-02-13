@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { LIMITS } from '../../config/limits.js';
 import type { ResolvedMcpServer } from '../../extensions/types.js';
-import { logger } from '../../logger.js';
+import { logger } from '../../observability/logger.js';
 import { ExecutionPhase, Phase } from '../../types.js';
 import { ToolRegistry } from '../registry.js';
 import type { ToolSpec } from '../types.js';

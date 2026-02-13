@@ -5,7 +5,7 @@ vi.mock('../../src/index.js', () => ({
   runSalmonLoop: vi.fn(),
 }));
 
-vi.mock('../../src/core/logger.js', () => ({
+vi.mock('../../src/core/observability/logger.js', () => ({
   Logger: class {
     setVerbose = vi.fn();
     info = vi.fn();

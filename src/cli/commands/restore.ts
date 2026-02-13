@@ -2,7 +2,7 @@ import { resolve } from 'path';
 
 import { Command } from 'commander';
 
-import { logger } from '../../core/logger.js';
+import { logger } from '../../core/observability/logger.js';
 import { CheckpointManager } from '../../core/strata/checkpoint/manager.js';
 import { text } from '../locales/index.js';
 

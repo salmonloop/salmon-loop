@@ -6,7 +6,7 @@ import { buildContext } from '../../grizzco/steps/context.js';
 import { generatePatch } from '../../grizzco/steps/patch.js';
 import { generatePlan } from '../../grizzco/steps/plan.js';
 import { runPreflight } from '../../grizzco/steps/preflight.js';
-import { logger } from '../../logger.js';
+import { logger } from '../../observability/logger.js';
 import { IExecutable, SubAgentProfile, SubAgentResult } from '../types.js';
 
 /**
