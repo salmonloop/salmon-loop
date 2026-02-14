@@ -61,6 +61,12 @@ export async function startGUI(
   // Silence global logger to prevent output from interfering with Ink
   logger.setSilent(true);
 
+  const preConsole = {
+    error: console.error,
+    log: console.log,
+    warn: console.warn,
+  };
+
   let resolveExit: (value: any) => void;
   const exitPromise = new Promise((resolve) => {
     resolveExit = resolve;
@@ -156,6 +162,12 @@ export async function startGUI(
     inkConsoleWarn(...sanitizeConsoleArgs(args));
   };
 
-  const result = await Promise.race([waitUntilExit(), exitPromise]);
-  return result;
+  try {
+    const result = await Promise.race([waitUntilExit(), exitPromise]);
+    return result;
+  } finally {
+    console.error = preConsole.error;
+    console.log = preConsole.log;
+    console.warn = preConsole.warn;
+  }
 }
