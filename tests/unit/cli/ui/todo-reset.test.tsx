@@ -116,4 +116,56 @@ describe('AppCore TODO reset', () => {
 
     expect(readPlanMock).toHaveBeenCalledTimes(0);
   });
+
+  it('reloads TODOs after a new plan.runtime.ready following run.start', () => {
+    render(
+      React.createElement(
+        UIStoreProvider,
+        null,
+        React.createElement(AppCore as any, {
+          mode: 'chat',
+          onStart: vi.fn(),
+          onChatInput: vi.fn(),
+          sessionManager: { getCurrent: () => ({ meta: { repoPath: process.cwd() } }) },
+        }),
+      ),
+    );
+
+    act(() => {
+      interceptEvent?.({
+        type: 'plan.runtime.ready',
+        sessionId: 'old-session',
+        planPathHint: '.salmonloop/plans/old-session/SALMONLOOP_PLAN.md',
+        timestamp: new Date('2026-02-14T00:00:00.000Z'),
+      });
+      vi.advanceTimersByTime(200);
+    });
+
+    expect(readPlanMock).toHaveBeenCalledTimes(1);
+    expect(readPlanMock.mock.calls[0]?.[0]?.sessionId).toBe('old-session');
+
+    act(() => {
+      interceptEvent?.({
+        type: 'run.start',
+        mode: 'chat',
+        timestamp: new Date('2026-02-14T00:00:01.000Z'),
+      });
+      vi.advanceTimersByTime(200);
+    });
+
+    expect(readPlanMock).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      interceptEvent?.({
+        type: 'plan.runtime.ready',
+        sessionId: 'new-session',
+        planPathHint: '.salmonloop/plans/new-session/SALMONLOOP_PLAN.md',
+        timestamp: new Date('2026-02-14T00:00:02.000Z'),
+      });
+      vi.advanceTimersByTime(200);
+    });
+
+    expect(readPlanMock).toHaveBeenCalledTimes(2);
+    expect(readPlanMock.mock.calls[1]?.[0]?.sessionId).toBe('new-session');
+  });
 });

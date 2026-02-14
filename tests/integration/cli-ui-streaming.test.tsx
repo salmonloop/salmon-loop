@@ -10,6 +10,14 @@ function wrapper({ children }: { children: React.ReactNode }) {
 }
 
 describe('CLI UI streaming integration', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('aggregates llm.stream.delta into one AI message in chat mode', () => {
     const onStart = vi.fn();
     const signal = new AbortController().signal;
@@ -39,6 +47,10 @@ describe('CLI UI streaming integration', () => {
         content: 'generated.',
         timestamp: new Date('2026-02-06T23:30:00.100Z'),
       });
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(250);
     });
 
     const messages = [

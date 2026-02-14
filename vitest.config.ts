@@ -14,7 +14,7 @@ export default defineConfig({
     pool: 'threads',
 
     // Test file patterns
-    include: ['tests/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts}'],
+    include: ['tests/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
     exclude: ['tests/perf/**'],
 
     // Run integration tests in isolated forks to avoid git lock contention
@@ -29,7 +29,10 @@ export default defineConfig({
     },
 
     // Environment per test file
-    environmentMatchGlobs: [['tests/unit/cli/ui/**', 'jsdom']],
+    environmentMatchGlobs: [
+      ['tests/unit/cli/ui/**', 'jsdom'],
+      ['tests/integration/cli-ui-*.test.tsx', 'jsdom'],
+    ],
 
     poolOptions: {
       forks: {
