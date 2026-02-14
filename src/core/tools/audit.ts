@@ -46,6 +46,7 @@ export interface ToolAuditLoggerOptions {
 
 export class ToolAuditLogger {
   private logs: ToolAuditLogEntry[] = [];
+  private callPhaseIndex = new Map<string, ExecutionPhase>();
   private authorizationSummary: AuthorizationSourceSummary = {
     auto: 0,
     allowlist: 0,
@@ -56,6 +57,7 @@ export class ToolAuditLogger {
   constructor(private options?: ToolAuditLoggerOptions) {}
 
   onStart(call: ToolCallEnvelope, spec: ToolSpec, decision: PolicyDecision) {
+    this.callPhaseIndex.set(call.id, call.phase);
     const entry: ToolAuditLogEntry = {
       timestamp: new Date().toISOString(),
       eventType: 'start',
@@ -70,15 +72,16 @@ export class ToolAuditLogger {
   }
 
   onEnd(result: ToolResult) {
-    // We need to find the phase from the callId if we weren't passed it,
-    // but for now we'll assume the caller context is sufficient or we log what we have.
-    // Ideally we'd map ID back to call, but to keep it simple/stateless:
+    const phase =
+      (result.id && this.callPhaseIndex.get(result.id)) ||
+      result.error?.failurePhase ||
+      Phase.CONTEXT;
 
     const entry: ToolAuditLogEntry = {
       timestamp: new Date().toISOString(),
       eventType: 'end',
       callId: result.id,
-      phase: result.error?.failurePhase || Phase.CONTEXT, // Fallback/hack, ideally passed in
+      phase,
       toolName: result.toolName,
       status: result.status,
       durationMs: result.durationMs,
@@ -87,6 +90,10 @@ export class ToolAuditLogger {
     };
     this.logs.push(entry);
     logger.debug(text.audit.event('End', result.toolName, result.status));
+
+    if (result.id) {
+      this.callPhaseIndex.delete(result.id);
+    }
   }
 
   onAuthorization(event: {
