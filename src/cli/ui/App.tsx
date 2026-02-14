@@ -174,6 +174,9 @@ export const AppCore: React.FC<{
         todoSessionRef.current = null;
         setTodoItems([]);
       } else if (event.type === 'run.start') {
+        // Prevent stale TODOs from a previous interrupted run from re-hydrating
+        // before the new runtime plan is initialized.
+        todoSessionRef.current = null;
         setTodoItems([]);
         setTodoExpanded(true);
         setTaskRunning(true);
