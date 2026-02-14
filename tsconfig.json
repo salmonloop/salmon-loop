@@ -21,6 +21,6 @@
       "yoga-layout": ["./node_modules/yoga-layout/load.js"]
     }
   },
-  "include": ["src/**/*", "tests/**/*", "*.config.ts"],
+  "include": ["src/**/*", "tests/**/*", "scripts/**/*", "*.config.ts"],
   "exclude": ["node_modules", "dist"]
 }

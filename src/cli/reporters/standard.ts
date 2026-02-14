@@ -74,7 +74,8 @@ export class StandardReporter implements SalmonReporter {
         break;
       case 'llm.stream.delta': {
         const delta = event.content;
-        if (delta.trim()) {
+        const shouldPrint = delta.length > 0 && (delta.trim().length > 0 || delta.includes('\n'));
+        if (shouldPrint) {
           if (event.streamId !== this.lastStreamId) {
             this.lastStreamId = event.streamId;
             const header = this.renderPhaseLabel(event.step);

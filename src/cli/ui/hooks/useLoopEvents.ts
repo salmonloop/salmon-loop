@@ -187,7 +187,7 @@ export function useLoopEvents(
 
       if (event.type === 'llm.stream.delta') {
         const delta = sanitizeMessage({ type: 'assistant', content: event.content });
-        if (!delta.trim()) return;
+        if (!delta) return;
 
         if (activeStreamIdRef.current && activeStreamIdRef.current !== event.streamId) {
           flushStream(activeStreamIdRef.current);

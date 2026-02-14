@@ -125,7 +125,7 @@ export function emitLlmStreamDelta(params: {
   if (!emit) return;
   if (!shouldEmitLlmOutput(policy, kind)) return;
   const sanitized = sanitizeLlmStreamDelta(streamId, content);
-  if (!sanitized.trim()) return;
+  if (!sanitized) return;
   emit({
     type: 'llm.stream.delta',
     kind,

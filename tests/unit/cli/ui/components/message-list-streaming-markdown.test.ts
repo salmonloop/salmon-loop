@@ -45,6 +45,7 @@ vi.mock('../../../../../src/cli/ui/store/context.js', () => ({
       },
       queueMessages: [],
       terminalWidth: 120,
+      terminalHeight: 30,
     },
   }),
 }));
@@ -54,14 +55,15 @@ describe('MessageList streaming rendering', () => {
     hoisted.markdownSpy.mockClear();
   });
 
-  it('uses Markdown component for active streaming assistant content', () => {
-    render(
+  it('does not parse streaming content as Markdown', () => {
+    const result = render(
       React.createElement(MessageList, {
         markdownTheme: 'default',
         markdownRenderMode: 'enhanced',
       }),
     );
 
-    expect(hoisted.markdownSpy).toHaveBeenCalledWith('- **streaming markdown**');
+    expect(hoisted.markdownSpy).not.toHaveBeenCalled();
+    expect(result.container.textContent).toContain('- **streaming markdown**');
   });
 });

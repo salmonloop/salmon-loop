@@ -37,7 +37,7 @@ export function uiReducer(state: UIState, action: UIAction): UIState {
       };
     case 'APPEND_LLM_STREAM': {
       const { id, delta, timestamp } = action.payload;
-      if (!delta || delta.trim() === '') return state;
+      if (!delta) return state;
 
       // If active streaming message exists, accumulate delta
       if (state.activeStreamingMessage?.id === id) {
@@ -50,6 +50,10 @@ export function uiReducer(state: UIState, action: UIAction): UIState {
           activeStreamingMessage: updatedActive,
         };
       }
+
+      // Avoid creating an empty streaming message from whitespace-only prelude chunks.
+      // Once a stream exists, we preserve all deltas (including newlines) for correct formatting.
+      if (delta.trim().length === 0) return state;
 
       // Create new active streaming message
       const newMessage = {

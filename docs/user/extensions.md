@@ -104,6 +104,36 @@ Entries merge with the policy “user first, repo overrides.” Repo files can d
 
 Run `s8p run --print-config` (or the upcoming `s8p config print --effective`) to see what SalmonLoop has loaded. The `extensions` section shows `mcpServers`, `toolPlugins`, and `skillDiscovery`; secrets in `env` are redacted (`<redacted>`).
 
+## Supported MCP Protocols
+
+SalmonLoop supports two MCP transport types for connecting to external servers:
+
+### Stdio (local process)
+
+- **Transport**: Spawns a child process using the `command` field.
+- **Configuration**: Optional `args` (array of arguments), `env` (environment variables), and `cwd` (working directory).
+- **Communication**: JSON-RPC over stdin/stdout with newline-delimited messages.
+- **Features**: Full JSON-RPC support including `initialize`, `notifications/initialized`, `tools/list`, and `tools/call`.
+- **Use case**: Local MCP servers running as Node.js, Python, or other executables.
+
+### Streamable HTTP (remote)
+
+- **Transport**: HTTP/HTTPS connection using the `url` field.
+- **Configuration**: Optional `headers` dictionary sent with every request.
+- **Communication**: JSON-RPC over HTTP POST, with server-sent events (SSE) support for streaming responses.
+- **Session management**: Automatic session ID handling via `MCP-Session-Id` header; GET requests with `Last-Event-ID` for reconnect/resume.
+- **Features**: Same JSON-RPC operations as stdio, plus SSE streaming and automatic reconnection logic.
+- **Use case**: Remote MCP servers, cloud-hosted tools, or services requiring HTTP transport.
+
+### Capabilities and constraints
+
+- Both transports implement MCP protocol version `2025-11-25`.
+- Tool discovery via `tools/list` is performed once per server during startup.
+- Tool execution via `tools/call` creates a new client instance per invocation (for HTTP) to ensure clean session handling.
+- MCP tools are always restricted to the `VERIFY` phase and tagged with `process` and `network` side effects.
+- Tool names are namespaced as `mcp.<server>.<tool>` for consistent governance and audit logging.
+- An explicit `allow.tools` list is required for each server; tools not on the list are not registered.
+
 ## Tips
 
 - Keep `.salmonloop/` gitignored — it is intentionally local-only.
