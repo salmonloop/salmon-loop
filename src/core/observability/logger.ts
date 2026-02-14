@@ -114,6 +114,10 @@ export class Logger {
     this.reporter = reporter;
   }
 
+  getReporter(): LogReporter {
+    return this.reporter;
+  }
+
   setVerbose(level: VerboseLevel | boolean | undefined) {
     if (level === true) {
       this.verboseLevel = 'basic';
@@ -133,6 +137,10 @@ export class Logger {
 
   setSilent(silent: boolean) {
     this.silent = silent;
+  }
+
+  getSilent(): boolean {
+    return this.silent;
   }
 
   setLogFile(path: string) {

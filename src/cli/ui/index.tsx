@@ -3,6 +3,7 @@ import React from 'react';
 
 import type { MarkdownRenderMode, MarkdownTheme } from '../../core/config/types.js';
 import { logger } from '../../core/observability/logger.js';
+import { LoopEventReporter } from '../../core/observability/loop-event-reporter.js';
 import { LoopEvent } from '../../core/types/index.js';
 
 import { App } from './App.js';
@@ -59,6 +60,8 @@ export async function startGUI(
   uiConfig?: UIConfig,
 ) {
   // Silence global logger to prevent output from interfering with Ink
+  const preReporter = logger.getReporter();
+  const preSilent = logger.getSilent();
   logger.setSilent(true);
 
   const preConsole = {
@@ -80,6 +83,10 @@ export async function startGUI(
       markdownRenderMode={uiConfig?.markdownRenderMode}
       onStart={(emit: (event: LoopEvent) => void, options: GUIOptions) => {
         if (mode === 'run') {
+          // Route core logs through structured LoopEvents (GUI-safe; no stdout/stderr writes).
+          logger.setReporter(new LoopEventReporter(emit, { source: 'core.logger' }));
+          logger.setSilent(false);
+
           emit({ type: 'run.start', mode: 'run', timestamp: new Date() });
           runFn(emit, undefined, options)
             .then((result) => {
@@ -99,6 +106,7 @@ export async function startGUI(
                 type: 'log',
                 message: err.message,
                 level: 'error',
+                source: 'ui.startGUI',
                 timestamp: new Date(),
               });
               emit({ type: 'run.end', mode: 'run', success: false, timestamp: new Date() });
@@ -116,6 +124,10 @@ export async function startGUI(
         dispatch?: any,
       ) => {
         if (mode === 'chat') {
+          // Route core logs through structured LoopEvents (GUI-safe; no stdout/stderr writes).
+          logger.setReporter(new LoopEventReporter(emit, { source: 'core.logger' }));
+          logger.setSilent(false);
+
           emit({ type: 'run.start', mode: 'chat', timestamp: new Date() });
           runFn(emit, input, options, dispatch)
             .then((result) => {
@@ -131,6 +143,7 @@ export async function startGUI(
                 type: 'log',
                 message: `Chat Error: ${err.message}`,
                 level: 'error',
+                source: 'ui.startGUI',
                 timestamp: new Date(),
               });
               emit({ type: 'run.end', mode: 'chat', success: false, timestamp: new Date() });
@@ -166,6 +179,9 @@ export async function startGUI(
     const result = await Promise.race([waitUntilExit(), exitPromise]);
     return result;
   } finally {
+    logger.setReporter(preReporter);
+    logger.setSilent(preSilent);
+
     console.error = preConsole.error;
     console.log = preConsole.log;
     console.warn = preConsole.warn;

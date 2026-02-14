@@ -1,11 +1,16 @@
-import { sanitizeError } from '../../../llm/errors.js';
+import { sanitizeUiLogMessage } from '../../../observability/ui-log-sanitize.js';
 import type { ExecutionPhase, LoopEvent } from '../../../types/index.js';
 
 import type { LoopTelemetry } from './loop-telemetry.js';
 
 function sanitizeLoopEvent(event: LoopEvent): LoopEvent {
-  if (event.type === 'log' && event.level === 'error') {
-    return { ...event, message: sanitizeError(event.message) };
+  if (event.type === 'log') {
+    return {
+      ...event,
+      // Default attribution when not provided by the caller.
+      source: event.source ?? 'core',
+      message: sanitizeUiLogMessage(event.message, event.level),
+    };
   }
   return event;
 }

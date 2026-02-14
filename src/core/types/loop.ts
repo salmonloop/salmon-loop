@@ -84,6 +84,11 @@ export type LoopEvent =
       type: 'log';
       message: string;
       code?: string;
+      /**
+       * Optional origin for the log line. Used by GUI to attribute messages
+       * without relying on raw stdout/stderr.
+       */
+      source?: string;
       level: 'info' | 'warn' | 'error' | 'debug' | 'trace';
       timestamp: Date;
     }
