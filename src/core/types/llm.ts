@@ -42,6 +42,13 @@ export interface LLMStreamChunk {
    * Reason why the stream finished.
    */
   finishReason?: string;
+  /**
+   * Optional token usage surfaced by the provider on stream completion.
+   */
+  usage?: {
+    promptTokens: number;
+    completionTokens: number;
+  };
 }
 
 export interface ChatOptions {

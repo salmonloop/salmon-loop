@@ -4,6 +4,7 @@ import { tmpdir } from 'os';
 import * as path from 'path';
 
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
+import { logIgnoredError } from '../../observability/ignored-error.js';
 import { FileState, FileStatus, MergeResult, ShadowOperation } from '../domain/grizzco-types.js';
 
 import { IMergeWorker } from './i-merge-worker.js';
@@ -70,7 +71,9 @@ export class GitApplyWorker implements IMergeWorker {
         executionTime: Date.now() - startTime,
       };
     } finally {
-      await rm(tmpIndex, { force: true }).catch(() => {});
+      await rm(tmpIndex, { force: true }).catch((error) =>
+        logIgnoredError(`[GitApplyWorker] cleanup ${tmpIndex}`, error),
+      );
     }
   }
 }

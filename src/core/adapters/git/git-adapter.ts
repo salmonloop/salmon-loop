@@ -6,6 +6,7 @@ import * as path from 'path';
 
 import { text } from '../../../locales/index.js';
 import { LIMITS } from '../../config/limits.js';
+import { logIgnoredError } from '../../observability/ignored-error.js';
 import { logger } from '../../observability/logger.js';
 import { GitError } from '../../types/index.js';
 import { normalizePath } from '../../utils/path.js';
@@ -463,7 +464,9 @@ export class GitAdapter {
         args.push(tempFile);
         await this.exec(args, { env: options.env });
       } finally {
-        await fs.unlink(tempFile).catch(() => {});
+        await fs
+          .unlink(tempFile)
+          .catch((error) => logIgnoredError(`[GitAdapter] cleanup ${tempFile}`, error));
       }
     } finally {
       await this.lockManager.releaseLock(this.repoPath);
@@ -505,7 +508,9 @@ export class GitAdapter {
           await this.exec([...base, '--', ...batch]);
         }
       } finally {
-        await fs.unlink(tempFile).catch(() => {});
+        await fs
+          .unlink(tempFile)
+          .catch((error) => logIgnoredError(`[GitAdapter] cleanup ${tempFile}`, error));
       }
     } catch (error: any) {
       try {

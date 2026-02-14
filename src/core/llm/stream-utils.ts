@@ -69,6 +69,16 @@ export function mapAiSdkStreamPartToChunk(part: any): LLMStreamChunk | null {
         role: 'assistant',
         done: true,
         finishReason: part.finishReason,
+        usage:
+          part.usage &&
+          typeof part.usage === 'object' &&
+          typeof part.usage.promptTokens === 'number' &&
+          typeof part.usage.completionTokens === 'number'
+            ? {
+                promptTokens: part.usage.promptTokens,
+                completionTokens: part.usage.completionTokens,
+              }
+            : undefined,
       };
 
     case 'error':

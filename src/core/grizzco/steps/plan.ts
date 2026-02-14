@@ -3,6 +3,7 @@ import { LIMITS } from '../../config/limits.js';
 import { sanitizeError } from '../../llm/errors.js';
 import { emitLlmOutput } from '../../llm/output-policy.js';
 import { formatContextForPrompt, parsePlanFromLLMContent } from '../../llm/utils.js';
+import { logIgnoredError } from '../../observability/ignored-error.js';
 import { readPlan, updatePlan } from '../../plan/index.js';
 import { getPlanPrompt, getPlanSystemPrompt } from '../../prompts/runtime.js';
 import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
@@ -99,7 +100,9 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
     });
 
     // Best-effort: keep runtime plan actionable even if the LLM doesn't call plan.* tools.
-    await hydrateRuntimePlanTodos(ctx, plan).catch(() => {});
+    await hydrateRuntimePlanTodos(ctx, plan).catch((error) =>
+      logIgnoredError('[Plan] hydrate runtime plan todos (legacy)', error),
+    );
 
     return {
       ...ctx,
@@ -181,7 +184,9 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
   });
 
   // Best-effort: keep runtime plan actionable even if the LLM doesn't call plan.* tools.
-  await hydrateRuntimePlanTodos(ctx, plan).catch(() => {});
+  await hydrateRuntimePlanTodos(ctx, plan).catch((error) =>
+    logIgnoredError('[Plan] hydrate runtime plan todos (tools)', error),
+  );
 
   return {
     ...ctx,

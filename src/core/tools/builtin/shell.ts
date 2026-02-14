@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import { text } from '../../../locales/index.js';
 import { Phase } from '../../types/index.js';
+import { getPlatformShellInvocation } from '../../utils/platform-shell.js';
 import { processResource, repoResource } from '../parallel/resource-helpers.js';
 import type { ToolSpec, ToolRuntimeCtx } from '../types.js';
 
@@ -46,8 +47,8 @@ export async function executeShellExec(
   }
 
   try {
-    const res = await execa(input.command, {
-      shell: true,
+    const shell = getPlatformShellInvocation(input.command);
+    const res = await execa(shell.file, shell.args, {
       cwd,
       env: {
         ...process.env,

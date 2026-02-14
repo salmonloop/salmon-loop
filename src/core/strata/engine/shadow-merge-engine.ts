@@ -2,6 +2,7 @@ import path from 'path';
 
 import { text } from '../../../locales/index.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
+import { logIgnoredError } from '../../observability/ignored-error.js';
 import { logger } from '../../observability/logger.js';
 import { getRejectionsDir, getTmpDir } from '../../runtime/paths.js';
 import type { IFileSystemProvider, SyntheticSidecarLayer } from '../../strata/types.js';
@@ -420,9 +421,15 @@ export class ShadowMergeEngine {
       const msg = error instanceof Error ? error.message : String(error);
       throw new Error(`git merge-file failed: ${msg}`);
     } finally {
-      await this.fsp.unlink(basePath, repoPath).catch(() => {});
-      await this.fsp.unlink(userPath, repoPath).catch(() => {});
-      await this.fsp.unlink(aiPath, repoPath).catch(() => {});
+      await this.fsp
+        .unlink(basePath, repoPath)
+        .catch((error) => logIgnoredError(`[ShadowMerge] cleanup ${basePath}`, error));
+      await this.fsp
+        .unlink(userPath, repoPath)
+        .catch((error) => logIgnoredError(`[ShadowMerge] cleanup ${userPath}`, error));
+      await this.fsp
+        .unlink(aiPath, repoPath)
+        .catch((error) => logIgnoredError(`[ShadowMerge] cleanup ${aiPath}`, error));
     }
   }
 

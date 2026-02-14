@@ -1,3 +1,6 @@
+import { readFile } from 'fs/promises';
+
+import { logIgnoredError } from '../observability/ignored-error.js';
 import type { LoopResult } from '../types/index.js';
 
 import type { ChatSession } from './types.js';
@@ -19,15 +22,45 @@ export class TokenTracker {
    * 1. Parse from result metadata (if available)
    * 2. Estimate based on content length (fallback)
    */
-  static extractFromResult(_result: LoopResult): TokenUsage | null {
-    // Strategy 1: Check if result has token metadata
-    // Note: This depends on LLM implementation returning token info
-    // For now, we return null as placeholder for future implementation
+  static async extractFromResult(result: LoopResult): Promise<TokenUsage | null> {
+    if (!result.auditPath) return null;
 
-    // TODO: Implement actual token extraction when LLM returns usage data
-    // Example from OpenAI: result.usage = { prompt_tokens, completion_tokens }
+    try {
+      const auditRaw = await readFile(result.auditPath, 'utf8');
+      const audit = JSON.parse(auditRaw) as any;
+      const auditTrail = audit?.context?.auditTrail;
+      if (!Array.isArray(auditTrail)) return null;
 
-    return null;
+      let inputTokens = 0;
+      let outputTokens = 0;
+
+      for (const event of auditTrail) {
+        if (!event || typeof event !== 'object') continue;
+        if ((event as any).action !== 'llm.usage') continue;
+        const details = (event as any).details;
+        if (!details || typeof details !== 'object') continue;
+
+        const promptTokens = (details as any).promptTokens;
+        const completionTokens = (details as any).completionTokens;
+        if (typeof promptTokens === 'number' && Number.isFinite(promptTokens)) {
+          inputTokens += promptTokens;
+        }
+        if (typeof completionTokens === 'number' && Number.isFinite(completionTokens)) {
+          outputTokens += completionTokens;
+        }
+      }
+
+      if (inputTokens === 0 && outputTokens === 0) return null;
+
+      return {
+        inputTokens,
+        outputTokens,
+        totalTokens: inputTokens + outputTokens,
+      };
+    } catch (error) {
+      logIgnoredError(`[TokenTracker] Failed to extract usage from ${result.auditPath}`, error);
+      return null;
+    }
   }
 
   /**

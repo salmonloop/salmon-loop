@@ -9,6 +9,7 @@ import { logger } from '../observability/logger.js';
 import { pluginRegistry } from '../plugin/registry.js';
 import { ErrorType, LoopEvent } from '../types/index.js';
 import type { ExecutionWorkspace } from '../types/index.js';
+import { getPlatformShellInvocation } from '../utils/platform-shell.js';
 
 /**
  * Classify the error type based on the output of the verification command
@@ -82,8 +83,8 @@ export async function runCommand(
   exitCode: number | null;
 }> {
   return new Promise((resolve) => {
-    const child = spawn(command, {
-      shell: true,
+    const shell = getPlatformShellInvocation(command);
+    const child = spawn(shell.file, shell.args, {
       cwd: repoPath,
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,

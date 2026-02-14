@@ -16,6 +16,7 @@ import path from 'path';
 import { text } from '../../../locales/index.js';
 import { TextNormalizer } from '../../../utils/eol.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
+import { logIgnoredError } from '../../observability/ignored-error.js';
 import { logger } from '../../observability/logger.js';
 import { monitor } from '../../observability/monitor.js';
 import { ApplyBackOnDirty, CheckpointRef, VerboseLevel } from '../../types/index.js';
@@ -489,9 +490,15 @@ export class WorkspaceSynchronizer {
       } finally {
         // Cleanup temps
         await Promise.all([
-          unlink(tempBase).catch(() => {}),
-          unlink(tempTheirs).catch(() => {}),
-          unlink(tempOurs).catch(() => {}),
+          unlink(tempBase).catch((error) =>
+            logIgnoredError(`[ExplicitMerge] cleanup ${tempBase}`, error),
+          ),
+          unlink(tempTheirs).catch((error) =>
+            logIgnoredError(`[ExplicitMerge] cleanup ${tempTheirs}`, error),
+          ),
+          unlink(tempOurs).catch((error) =>
+            logIgnoredError(`[ExplicitMerge] cleanup ${tempOurs}`, error),
+          ),
         ]);
       }
     }
@@ -915,7 +922,7 @@ export class WorkspaceSynchronizer {
           await rm(path.join(mainRepoPath, ...file.split('/')), {
             recursive: true,
             force: true,
-          }).catch(() => {});
+          }).catch((error) => logIgnoredError(`[applyBack] cleanup ${file}`, error));
         }
 
         // Restore tracked files from the backup snapshot (authoritative for dirty preservation).

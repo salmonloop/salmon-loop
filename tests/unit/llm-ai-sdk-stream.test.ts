@@ -21,7 +21,12 @@ vi.mock('ai', () => {
     yield { type: 'text-delta', id: 't1', text: 'Hello' };
     yield { type: 'text-delta', id: 't1', text: ' ' };
     yield { type: 'text-delta', id: 't1', text: 'world' };
-    yield { type: 'finish', finishReason: 'stop', rawFinishReason: 'stop', totalUsage: {} };
+    yield {
+      type: 'finish',
+      finishReason: 'stop',
+      rawFinishReason: 'stop',
+      usage: { promptTokens: 3, completionTokens: 7 },
+    };
   }
 
   return {
@@ -48,6 +53,10 @@ describe('AiSdkLLM.chatStream', () => {
     const text = chunks.map((c) => c.contentDelta || '').join('');
     expect(text).toBe('Hello world');
     expect(chunks[chunks.length - 1]?.done).toBe(true);
+    expect((chunks[chunks.length - 1] as any)?.usage).toEqual({
+      promptTokens: 3,
+      completionTokens: 7,
+    });
   });
 
   it('emits tool_calls chunks when tool-call events are streamed', async () => {
@@ -61,7 +70,12 @@ describe('AiSdkLLM.chatStream', () => {
         toolName: 'test.echo',
         input: { text: 'hi' },
       };
-      yield { type: 'finish', finishReason: 'stop', rawFinishReason: 'stop', totalUsage: {} };
+      yield {
+        type: 'finish',
+        finishReason: 'stop',
+        rawFinishReason: 'stop',
+        usage: { promptTokens: 1, completionTokens: 2 },
+      };
     }
 
     streamTextMock.mockImplementationOnce(async () => ({ fullStream: makeToolStream() }));

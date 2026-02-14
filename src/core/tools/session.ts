@@ -3,6 +3,7 @@ import * as crypto from 'crypto';
 import type { ToolCallingAuditSink } from '../llm/audit.js';
 import { emitLlmOutput, emitLlmStreamDelta, emitLlmStreamEnd } from '../llm/output-policy.js';
 import { redactErrorMessage, redactJsonString, redactValue } from '../llm/redact.js';
+import { recordAuditEvent } from '../observability/audit-trail.js';
 import { logger } from '../observability/logger.js';
 import type {
   ChatOptions,
@@ -626,6 +627,7 @@ export async function chatWithToolsStreaming(
       ? `llm-${session.llmOutput.kind}-${phase}-${round}-${crypto.randomUUID()}`
       : '';
     let finishReason: string | undefined;
+    let finishUsage: { promptTokens: number; completionTokens: number } | undefined;
 
     const stream = session.llm.chatStream(messages, {
       ...chatOptions,
@@ -651,6 +653,13 @@ export async function chatWithToolsStreaming(
       toolCalls.append(chunk);
       if (chunk?.done) {
         finishReason = chunk.finishReason;
+        if (
+          chunk.usage &&
+          typeof chunk.usage.promptTokens === 'number' &&
+          typeof chunk.usage.completionTokens === 'number'
+        ) {
+          finishUsage = chunk.usage;
+        }
         break;
       }
     }
@@ -664,6 +673,17 @@ export async function chatWithToolsStreaming(
         streamId,
         finishReason,
       });
+    }
+
+    if (finishUsage) {
+      recordAuditEvent(
+        'llm.usage',
+        {
+          promptTokens: finishUsage.promptTokens,
+          completionTokens: finishUsage.completionTokens,
+        },
+        { source: 'llm', severity: 'low', scope: 'session', phase },
+      );
     }
 
     const collectedToolCalls = toolCalls.drain();

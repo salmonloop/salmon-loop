@@ -6,6 +6,7 @@ import * as path from 'path';
 
 import { TextNormalizer } from '../../../utils/eol.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
+import { logIgnoredError } from '../../observability/ignored-error.js';
 import { FileState, MergeResult, ShadowOperation } from '../domain/grizzco-types.js';
 
 import { IMergeWorker } from './i-merge-worker.js';
@@ -95,9 +96,21 @@ export class ThreeWayStagedAwareWorker implements IMergeWorker {
       return await this.git.mergeFile(tempBase, tempOurs, tempTheirs);
     } finally {
       await Promise.all([
-        fs.unlink(tempBase).catch(() => {}),
-        fs.unlink(tempTheirs).catch(() => {}),
-        fs.unlink(tempOurs).catch(() => {}),
+        fs
+          .unlink(tempBase)
+          .catch((error) =>
+            logIgnoredError(`[ThreeWayStagedAwareWorker] cleanup ${tempBase}`, error),
+          ),
+        fs
+          .unlink(tempTheirs)
+          .catch((error) =>
+            logIgnoredError(`[ThreeWayStagedAwareWorker] cleanup ${tempTheirs}`, error),
+          ),
+        fs
+          .unlink(tempOurs)
+          .catch((error) =>
+            logIgnoredError(`[ThreeWayStagedAwareWorker] cleanup ${tempOurs}`, error),
+          ),
       ]);
     }
   }

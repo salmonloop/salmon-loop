@@ -4,6 +4,7 @@ import { join } from 'path';
 
 import { text } from '../../../locales/index.js';
 import { LIMITS } from '../../config/limits.js';
+import { logIgnoredError } from '../../observability/ignored-error.js';
 import { logger } from '../../observability/logger.js';
 import { LoopEvent } from '../../types/index.js';
 
@@ -127,8 +128,12 @@ export class FileHandleManager {
           // Try to create the lock file with O_EXCL to ensure atomicity
           const handle = await open(lockFile, 'wx');
           if (abortState.aborted) {
-            await handle.close().catch(() => {});
-            await unlink(lockFile).catch(() => {});
+            await handle
+              .close()
+              .catch((error) => logIgnoredError(`[LockManager] close handle ${lockFile}`, error));
+            await unlink(lockFile).catch((error) =>
+              logIgnoredError(`[LockManager] cleanup lock file ${lockFile}`, error),
+            );
             throw new Error(text.resource.lockAcquireHardTimeout(repoPath));
           }
           const metadata: LockMetadata = {

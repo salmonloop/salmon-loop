@@ -1,3 +1,4 @@
+import { logIgnoredError } from '../../core/observability/ignored-error.js';
 import { logger } from '../../core/observability/logger.js';
 import { SkillLoader } from '../../core/skills/loader.js';
 import { executeSkill } from '../../core/skills/runtime/SkillRunner.js';
@@ -230,7 +231,9 @@ export async function createCliSlashRuntime(
 
               return { kind: 'rewrite', input: res.injectedPrompt };
             } finally {
-              await env.teardown().catch(() => {});
+              await env
+                .teardown()
+                .catch((error) => logIgnoredError('[SlashRuntime] env teardown failed', error));
             }
           },
         };

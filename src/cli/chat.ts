@@ -6,9 +6,11 @@ import type {
 import type { ResolvedExtensions } from '../core/extensions/types.js';
 import { InputHistoryManager } from '../core/history/input-history.js';
 import { DEFAULT_LLM_OUTPUT_POLICY, emitLlmOutput } from '../core/llm/output-policy.js';
+import { logIgnoredError } from '../core/observability/ignored-error.js';
 import { logger } from '../core/observability/logger.js';
 import { runSalmonLoop } from '../core/runtime/loop.js';
 import { ChatSessionManager } from '../core/session/manager.js';
+import { TokenTracker } from '../core/session/token-tracker.js';
 import type { CheckpointStrategy, LLM, LoopEvent, LlmOutputPolicy } from '../core/types/index.js';
 
 import { createUiAuthorizationProvider } from './authorization/provider.js';
@@ -161,7 +163,9 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
 
     try {
       const currentSessionId = sessionManager.getCurrent().meta.id;
-      historyManager.append(currentSessionId, trimmed).catch(() => {});
+      historyManager
+        .append(currentSessionId, trimmed)
+        .catch((error) => logIgnoredError('[History] append failed', error));
     } catch {
       // Best-effort: persistence should never block interactive input.
     }
@@ -248,6 +252,11 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
 
       if (result.history && result.history.length > 0) {
         sessionManager.addIteration(result.history[result.history.length - 1]);
+      }
+
+      const usage = await TokenTracker.extractFromResult(result);
+      if (usage) {
+        TokenTracker.accumulate(sessionManager.getCurrent(), usage);
       }
 
       await sessionManager.save();

@@ -3,6 +3,7 @@ import { execa } from 'execa';
 import { text } from '../../../locales/index.js';
 import { DecisionEngine, PlanBuilder } from '../../grizzco/dsl/DecisionEngine.js';
 import { ToolRuntimeCtx } from '../../tools/types.js';
+import { getPlatformShellInvocation } from '../../utils/platform-shell.js';
 import { SkillParser } from '../parser.js';
 import { SkillDslContext, SkillStrategyDSL } from '../strategy.js';
 import { ExecutionContext, IExecutable, Skill, SkillData, SkillExecutionResult } from '../types.js';
@@ -102,8 +103,8 @@ export class MicroTaskRunner implements IExecutable<Record<string, any>, SkillEx
   private async executeCommand(command: string, ctx: ToolRuntimeCtx): Promise<string> {
     if (ctx.dryRun) return `[DRY_RUN] Executing: ${command}`;
     try {
-      const { stdout } = await execa(command, {
-        shell: true,
+      const shell = getPlatformShellInvocation(command);
+      const { stdout } = await execa(shell.file, shell.args, {
         cwd: ctx.repoRoot,
         env: {
           ...process.env,

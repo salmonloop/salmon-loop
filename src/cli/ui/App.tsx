@@ -2,6 +2,7 @@ import { Box, Text } from 'ink';
 import React from 'react';
 
 import type { MarkdownRenderMode, MarkdownTheme } from '../../core/config/types.js';
+import { logIgnoredError } from '../../core/observability/ignored-error.js';
 import { readPlan } from '../../core/plan/index.js';
 import type { PlanReadResult } from '../../core/plan/types.js';
 import type { LoopEvent } from '../../core/types/index.js';
@@ -155,7 +156,7 @@ export const AppCore: React.FC<{
   const scheduleRefreshTodos = React.useCallback(() => {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
     refreshTimerRef.current = setTimeout(() => {
-      refreshTodos().catch(() => {});
+      refreshTodos().catch((error) => logIgnoredError('[UI] refreshTodos failed', error));
     }, 120);
   }, [refreshTodos]);
 

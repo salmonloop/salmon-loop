@@ -1,3 +1,5 @@
+import { logIgnoredError } from '../../core/observability/ignored-error.js';
+
 export interface AsyncQueueState {
   pendingCount: number;
   isProcessing: boolean;
@@ -102,7 +104,7 @@ export function createAsyncQueue<T>(
       emitState();
       queueMicrotask(processNext);
     });
-    promise.catch(() => {});
+    promise.catch((error) => logIgnoredError('[AsyncQueue] task rejected (enqueue)', error));
     return promise;
   };
 
@@ -122,7 +124,7 @@ export function createAsyncQueue<T>(
       emitState();
       queueMicrotask(processNext);
     });
-    promise.catch(() => {});
+    promise.catch((error) => logIgnoredError('[AsyncQueue] task rejected (enqueueFront)', error));
     return promise;
   };
 

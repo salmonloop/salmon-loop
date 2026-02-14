@@ -32,6 +32,7 @@ function formatOutputSchema(schema: z.ZodType<any> | undefined): string {
 }
 
 import { LIMITS } from '../config/limits.js';
+import { recordAuditEvent } from '../observability/audit-trail.js';
 import { getPatchPrompt, getPlanPrompt } from '../prompts/runtime.js';
 import type { ToolSpec } from '../tools/types.js';
 import type {
@@ -88,6 +89,23 @@ function deepCloneJson(value: unknown, fallback: unknown): unknown {
 
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function extractUsageFromAiSdkResult(
+  result: unknown,
+): { promptTokens: number; completionTokens: number } | null {
+  if (!isObjectRecord(result)) return null;
+
+  const usage = (result as any).usage;
+  if (!isObjectRecord(usage)) return null;
+
+  const promptTokens = (usage as any).promptTokens ?? (usage as any).prompt_tokens;
+  const completionTokens = (usage as any).completionTokens ?? (usage as any).completion_tokens;
+
+  if (typeof promptTokens !== 'number' || typeof completionTokens !== 'number') return null;
+  if (!Number.isFinite(promptTokens) || !Number.isFinite(completionTokens)) return null;
+
+  return { promptTokens, completionTokens };
 }
 
 function isToolApprovalResponse(value: unknown): value is {
@@ -369,6 +387,15 @@ export class AiSdkLLM implements LLM {
             toolChoice: options.toolChoice === 'none' ? 'none' : tools ? 'auto' : undefined,
             abortSignal: abortController.signal,
           });
+
+          const usage = extractUsageFromAiSdkResult(result);
+          if (usage) {
+            recordAuditEvent('llm.usage', usage, {
+              source: 'llm',
+              severity: 'low',
+              scope: 'session',
+            });
+          }
 
           return {
             role: 'assistant' as LLMRole,

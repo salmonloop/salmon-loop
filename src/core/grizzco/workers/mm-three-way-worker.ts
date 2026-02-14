@@ -4,6 +4,7 @@ import { tmpdir } from 'os';
 import * as path from 'path';
 
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
+import { logIgnoredError } from '../../observability/ignored-error.js';
 import { StrataContentGuardian } from '../../strata/interaction/content-guardian.js';
 import { StrataFileSystemProvider } from '../../strata/interaction/file-system-provider.js';
 import { FileState, MergeResult, ShadowOperation } from '../domain/grizzco-types.js';
@@ -51,9 +52,15 @@ export class MMThreeWayWorker implements IMergeWorker {
       return await this.git.mergeFile(tempBase, tempOurs, tempTheirs);
     } finally {
       await Promise.all([
-        fs.unlink(tempBase).catch(() => {}),
-        fs.unlink(tempOurs).catch(() => {}),
-        fs.unlink(tempTheirs).catch(() => {}),
+        fs
+          .unlink(tempBase)
+          .catch((error) => logIgnoredError(`[MMThreeWayWorker] cleanup ${tempBase}`, error)),
+        fs
+          .unlink(tempOurs)
+          .catch((error) => logIgnoredError(`[MMThreeWayWorker] cleanup ${tempOurs}`, error)),
+        fs
+          .unlink(tempTheirs)
+          .catch((error) => logIgnoredError(`[MMThreeWayWorker] cleanup ${tempTheirs}`, error)),
       ]);
     }
   }
