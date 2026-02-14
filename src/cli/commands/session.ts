@@ -1,3 +1,4 @@
+import { InputHistoryManager } from '../../core/history/input-history.js';
 import { text } from '../locales/index.js';
 
 import type { Command } from './types.js';
@@ -33,6 +34,19 @@ export const sessionCommand: Command = {
       try {
         await sessionManager.resumeSession(sessionId);
         dispatch({ type: 'RESET_MESSAGES' });
+        dispatch({ type: 'SET_INPUT', payload: '' });
+
+        const current = sessionManager.getCurrent();
+        const repoPath =
+          typeof current?.meta?.repoPath === 'string' && current.meta.repoPath.trim()
+            ? current.meta.repoPath
+            : process.cwd();
+
+        const historyManager = new InputHistoryManager(repoPath);
+        await historyManager.init();
+        const inputHistory = await historyManager.load(current.meta.id);
+        dispatch({ type: 'SET_INPUT_HISTORY', payload: inputHistory });
+
         emit({
           type: 'log',
           level: 'info',

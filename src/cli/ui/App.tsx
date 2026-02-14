@@ -80,14 +80,27 @@ function toTodoItems(read: Pick<PlanReadResult, 'active' | 'pending' | 'recentDo
   return items;
 }
 
-const AppCore: React.FC<{
+export const AppCore: React.FC<{
   mode: 'run' | 'chat';
   onStart: any;
   onChatInput?: any;
+  onInit?: (
+    emit: (event: LoopEvent) => void,
+    options: { signal: AbortSignal },
+    dispatch: any,
+  ) => void | Promise<void>;
   sessionManager: any;
   markdownTheme?: MarkdownTheme;
   markdownRenderMode?: MarkdownRenderMode;
-}> = ({ mode, onStart, onChatInput, sessionManager, markdownTheme, markdownRenderMode }) => {
+}> = ({
+  mode,
+  onStart,
+  onChatInput,
+  onInit,
+  sessionManager,
+  markdownTheme,
+  markdownRenderMode,
+}) => {
   const { state, dispatch } = useUIStore();
 
   const lifecycleStatus = state.isThinking ? 'running' : 'idle';
@@ -199,6 +212,15 @@ const AppCore: React.FC<{
   const { sanitizeAndDispatch } = useLoopEvents(mode, onStart, signal, {
     interceptEvent,
   });
+
+  const initCalledRef = React.useRef(false);
+  React.useEffect(() => {
+    if (mode !== 'chat') return;
+    if (!onInit) return;
+    if (initCalledRef.current) return;
+    initCalledRef.current = true;
+    onInit((event: LoopEvent) => sanitizeAndDispatch(event), { signal }, dispatch);
+  }, [mode, onInit, signal, dispatch, sanitizeAndDispatch]);
 
   const pendingConfirmationRef = React.useRef(state.pendingConfirmation);
   React.useEffect(() => {

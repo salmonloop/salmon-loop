@@ -81,6 +81,18 @@ export async function startGUI(
       sessionManager={sessionManager}
       markdownTheme={uiConfig?.markdownTheme}
       markdownRenderMode={uiConfig?.markdownRenderMode}
+      onInit={(emit: (event: LoopEvent) => void, options: GUIOptions, dispatch?: any) => {
+        if (mode !== 'chat') return;
+        runFn(emit, undefined, options, dispatch).catch((err) => {
+          emit({
+            type: 'log',
+            message: `Chat Init Error: ${err.message}`,
+            level: 'error',
+            source: 'ui.startGUI',
+            timestamp: new Date(),
+          });
+        });
+      }}
       onStart={(emit: (event: LoopEvent) => void, options: GUIOptions) => {
         if (mode === 'run') {
           // Route core logs through structured LoopEvents (GUI-safe; no stdout/stderr writes).

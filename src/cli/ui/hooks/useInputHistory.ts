@@ -14,6 +14,13 @@ export function useInputHistory(currentValue: string, onChange: (val: string) =>
     historyIndexRef.current = historyIndex;
   }, [historyIndex]);
 
+  // When the store replaces history (e.g. switching sessions), reset navigation state.
+  useEffect(() => {
+    historyIndexRef.current = -1;
+    setHistoryIndex(-1);
+    setOriginalInput('');
+  }, [state.inputHistory]);
+
   const navigateHistory = useCallback(
     (direction: 'up' | 'down') => {
       const history = [...state.inputHistory].reverse();

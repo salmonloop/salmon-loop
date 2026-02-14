@@ -147,6 +147,13 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
     if (!trimmed) return;
     if (!latestDispatch) return;
 
+    try {
+      const currentSessionId = sessionManager.getCurrent().meta.id;
+      historyManager.append(currentSessionId, trimmed).catch(() => {});
+    } catch {
+      // Best-effort: persistence should never block interactive input.
+    }
+
     const queueMessageId = `queue-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const queueState = queue.getState();
     if (
@@ -358,6 +365,9 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
       dispatch: ((action: any) => void) | undefined,
     ) => {
       if (input === undefined) {
+        latestDispatch = dispatch || (() => {});
+        latestEmit = emit;
+        latestGuiOptions = guiOptions;
         // First run: load history into store
         if (dispatch && session) {
           dispatch({ type: 'SET_INPUT_HISTORY', payload: inputHistory });
