@@ -48,7 +48,8 @@ export class McpClient {
     this.process = spawn(this.config.command!, this.config.args || [], {
       env: { ...process.env, ...(this.config.env as any) },
       cwd: this.config.cwd,
-      stdio: ['pipe', 'pipe', 'inherit'],
+      // Never inherit stderr into the parent TTY: it bypasses UI sanitization and can leak raw errors.
+      stdio: ['pipe', 'pipe', 'pipe'],
     });
 
     if (!this.process) {
@@ -71,6 +72,8 @@ export class McpClient {
     });
 
     this.rl.on('line', (line) => this.handleMessage(line));
+    // Drain stderr to avoid backpressure deadlocks, but do not surface raw output to UI.
+    this.process.stderr?.on('data', () => {});
 
     await this.initialize();
 

@@ -48,7 +48,11 @@ export function initializeRuntime() {
   // Hijack raw stdout/stderr to filter out sensitive info even if it escapes as a raw string or Buffer
   const TOKEN_ERROR_TEST_REGEX = /(Token error|api[-_]key|secret)[^ \n\r'"]*/i;
   const TOKEN_ERROR_REPLACE_REGEX = /(Token error|api[-_]key|secret)[^ \n\r'"]*/gi;
-  const SHOULD_SCAN_HINT_REGEX = /(token|api|key|secret)/i;
+  const ERROR_DUMP_HINT_REGEX =
+    /(token|api|key|secret|apicallerror|retryerror|requestbodyvalues|responsebody|vercel\.ai\.error)/i;
+  const ERROR_DUMP_PAYLOAD_REGEX =
+    /(requestBodyValues|responseHeaders|responseBody|\[Symbol\(vercel\.ai\.error)/i;
+  const ERROR_DUMP_LINE_REGEX = /\[AI_RetryError\]\s+Failed after \d+ attempts\./i;
   const bufferHasHint = (buf: Buffer) =>
     buf.includes('Token') ||
     buf.includes('token') ||
@@ -57,7 +61,12 @@ export function initializeRuntime() {
     buf.includes('KEY') ||
     buf.includes('key') ||
     buf.includes('SECRET') ||
-    buf.includes('secret');
+    buf.includes('secret') ||
+    buf.includes('APICallError') ||
+    buf.includes('RetryError') ||
+    buf.includes('requestBodyValues') ||
+    buf.includes('responseBody') ||
+    buf.includes('vercel.ai.error');
   const sanitizeStream = (stream: NodeJS.WriteStream) => {
     const originalWrite = stream.write.bind(stream);
     stream.write = (chunk: any, encodingOrCb?: any, cb?: any) => {
@@ -70,12 +79,22 @@ export function initializeRuntime() {
         if (isBuffer) {
           if (!chunk || chunk.length === 0) return originalWrite(chunk, encodingOrCb, cb);
           if (!bufferHasHint(chunk)) return originalWrite(chunk, encodingOrCb, cb);
-        } else if (!data || !SHOULD_SCAN_HINT_REGEX.test(data)) {
+        } else if (!data || !ERROR_DUMP_HINT_REGEX.test(data)) {
           return originalWrite(chunk, encodingOrCb, cb);
         }
       }
 
       const resolvedData = isBuffer ? chunk.toString() : data;
+      if (isGui && ERROR_DUMP_LINE_REGEX.test(resolvedData)) {
+        // Drop known noisy retry summaries; the UI already renders a structured retry event.
+        const nextChunk = isBuffer ? Buffer.from('') : '';
+        return originalWrite(nextChunk, encodingOrCb, cb);
+      }
+      if (isGui && ERROR_DUMP_PAYLOAD_REGEX.test(resolvedData)) {
+        const redacted = 'ERR_TECHNICAL_DETAILS_HIDDEN\n';
+        const nextChunk = isBuffer ? Buffer.from(redacted) : redacted;
+        return originalWrite(nextChunk, encodingOrCb, cb);
+      }
       if (TOKEN_ERROR_TEST_REGEX.test(resolvedData)) {
         const cleaned = resolvedData.replace(TOKEN_ERROR_REPLACE_REGEX, '[REDACTED]');
         const nextChunk = isBuffer ? Buffer.from(cleaned) : cleaned;

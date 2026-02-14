@@ -7,6 +7,37 @@ import { LoopEvent } from '../../core/types/index.js';
 
 import { App } from './App.js';
 
+const TECHNICAL_CONSOLE_PATTERN =
+  /(AI_RetryError|APICallError|RetryError|Last error:|requestBodyValues|responseBody|statusCode:\s*\d+)/i;
+
+function shouldSuppressConsole(args: any[]): boolean {
+  for (const arg of args) {
+    if (arg instanceof Error) return true;
+    if (typeof arg === 'object' && arg !== null) return true;
+    if (typeof arg === 'string' && TECHNICAL_CONSOLE_PATTERN.test(arg)) return true;
+  }
+  return false;
+}
+
+function sanitizeConsoleArgs(args: any[]): any[] {
+  return args.map((arg) => {
+    if (typeof arg === 'string') {
+      const looksLikeDump =
+        arg.length > 200 &&
+        /(APICallError|RetryError|\[Symbol\(vercel\.ai\.error|requestBodyValues|responseBody)\b/i.test(
+          arg,
+        );
+      return looksLikeDump ? 'ERR_TECHNICAL_DETAILS_HIDDEN' : arg;
+    }
+    if (typeof arg === 'object' && arg !== null) {
+      const code = (arg as any).code || (arg as any).llmCode || (arg as any).name || 'Object';
+      const msg = (arg as any).message || '';
+      return msg ? `[${code}] ${msg}` : `[${code}]`;
+    }
+    return arg;
+  });
+}
+
 export interface GUIOptions {
   signal?: AbortSignal;
 }
@@ -106,6 +137,24 @@ export async function startGUI(
       patchConsole: true,
     },
   );
+
+  // Ink's patchConsole replaces console methods; re-wrap them to prevent object dumps from leaking
+  // into the UI render stream.
+  const inkConsoleError = console.error.bind(console);
+  const inkConsoleLog = console.log.bind(console);
+  const inkConsoleWarn = console.warn.bind(console);
+  console.error = (...args: any[]) => {
+    if (shouldSuppressConsole(args)) return;
+    inkConsoleError(...sanitizeConsoleArgs(args));
+  };
+  console.log = (...args: any[]) => {
+    if (shouldSuppressConsole(args)) return;
+    inkConsoleLog(...sanitizeConsoleArgs(args));
+  };
+  console.warn = (...args: any[]) => {
+    if (shouldSuppressConsole(args)) return;
+    inkConsoleWarn(...sanitizeConsoleArgs(args));
+  };
 
   const result = await Promise.race([waitUntilExit(), exitPromise]);
   return result;

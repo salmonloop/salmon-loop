@@ -1,4 +1,4 @@
-import { execSync } from 'child_process';
+import { spawnSync } from 'child_process';
 import { resolve } from 'path';
 
 import chalk from 'chalk';
@@ -32,6 +32,34 @@ import { resolveVerifyOption } from '../utils/verify-resolver.js';
 export async function handleRunCommand(options: any, command: Command) {
   const allOptions = command.optsWithGlobals();
   const runPath = resolve(allOptions.repo || process.cwd());
+  const useGui = allOptions.gui !== false && process.stdout.isTTY;
+
+  const runValidateCommand = (cmd: string, args: string[]) => {
+    const result = spawnSync(cmd, args, {
+      cwd: runPath,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      encoding: 'utf-8',
+      maxBuffer: 500_000,
+    });
+
+    const stdout = (result.stdout || '').trim();
+    const stderr = (result.stderr || '').trim();
+    const combined = [stdout, stderr].filter(Boolean).join('\n').trim();
+
+    if (combined) {
+      // Avoid dumping huge output in GUI sessions (even before Ink starts).
+      const output = useGui ? combined.slice(0, 2_000) : combined;
+      logger.log(output);
+    }
+
+    if (result.error) {
+      throw result.error;
+    }
+
+    if (typeof result.status === 'number' && result.status !== 0) {
+      throw new Error(`Command failed with exit code ${result.status}`);
+    }
+  };
 
   // Initialize plugins (including user plugins from .salmonloop/languages)
   await PluginLoader.loadPlugins(runPath);
@@ -40,10 +68,10 @@ export async function handleRunCommand(options: any, command: Command) {
     logger.log(chalk.blue(text.cli.runningValidation));
     try {
       logger.debug(text.cli.runningEslint);
-      execSync('npx eslint src --ext .ts', { stdio: 'inherit', cwd: runPath });
+      runValidateCommand('npx', ['eslint', 'src', '--ext', '.ts']);
       logger.debug(text.cli.runningTests);
       try {
-        execSync('npm test', { stdio: 'inherit', cwd: runPath });
+        runValidateCommand('npm', ['test']);
       } catch (__e) {
         logger.warn(text.cli.testsFailedContinuing);
       }
@@ -172,9 +200,6 @@ export async function handleRunCommand(options: any, command: Command) {
         logger.warn(text.cli.clientPackageNotSupported(clientPackage || ''));
       }
     }
-
-    // Default to GUI unless explicitly disabled or not a TTY
-    const useGui = allOptions.gui !== false && process.stdout.isTTY;
 
     // Initialize Reporter (Adapter Pattern)
     // NOTE: In GUI mode we must avoid writing to stdout/stderr outside Ink.
