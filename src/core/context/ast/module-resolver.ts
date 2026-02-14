@@ -1,5 +1,6 @@
 import path from 'path';
 
+import { pluginRegistry } from '../../plugin/registry.js';
 import { normalizePath } from '../../utils/path.js';
 
 export interface ResolveImportOptions {
@@ -7,15 +8,33 @@ export interface ResolveImportOptions {
   specifier: string;
 }
 
-const EXT_CANDIDATES = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.json'] as const;
-const INDEX_CANDIDATES = [
-  '/index.ts',
-  '/index.tsx',
-  '/index.js',
-  '/index.jsx',
-  '/index.mjs',
-  '/index.cjs',
-] as const;
+// Dynamic extension candidates from registered plugins
+function getExtensionCandidates(): string[] {
+  const allPlugins = pluginRegistry.getAll();
+  const extensions = new Set<string>();
+  for (const plugin of allPlugins) {
+    for (const ext of plugin.meta.extensions) {
+      const normalized = ext.startsWith('.') ? ext : `.${ext}`;
+      extensions.add(normalized);
+    }
+  }
+  // Always include .json for config files
+  extensions.add('.json');
+  return Array.from(extensions);
+}
+
+// Dynamic index candidates from registered plugins
+function getIndexCandidates(): string[] {
+  const allPlugins = pluginRegistry.getAll();
+  const indices = new Set<string>();
+  for (const plugin of allPlugins) {
+    for (const ext of plugin.meta.extensions) {
+      const normalized = ext.startsWith('.') ? ext : `.${ext}`;
+      indices.add(`/index${normalized}`);
+    }
+  }
+  return Array.from(indices);
+}
 
 export function resolveImportCandidates(opts: ResolveImportOptions): string[] {
   const spec = opts.specifier.trim();
@@ -39,10 +58,13 @@ export function resolveImportCandidates(opts: ResolveImportOptions): string[] {
   }
 
   const out: string[] = [];
-  for (const ext of EXT_CANDIDATES) {
+  const extCandidates = getExtensionCandidates();
+  const idxCandidates = getIndexCandidates();
+
+  for (const ext of extCandidates) {
     out.push(`${normalizedJoined}${ext}`);
   }
-  for (const idx of INDEX_CANDIDATES) {
+  for (const idx of idxCandidates) {
     out.push(`${normalizedJoined}${idx}`);
   }
 

@@ -6,6 +6,7 @@ import * as TreeSitter from 'web-tree-sitter';
 
 import { text } from '../../locales/index.js';
 import { LIMITS } from '../config/limits.js';
+import { langOrchestrator } from '../language-support/orchestrator.js';
 import { logger } from '../observability/logger.js';
 import { pluginRegistry } from '../plugin/registry.js';
 import { SymbolInfo } from '../types/index.js';
@@ -208,31 +209,9 @@ export class AstParser {
   static async identifyDefinitions(tree: any, lang: string): Promise<SymbolInfo[]> {
     try {
       const language = await this.getLanguage(lang);
-      let queryStr = '';
 
-      // 1. Try to get query from plugin (New Architecture)
-      const plugin = pluginRegistry.getById(lang);
-      if (plugin) {
-        queryStr = plugin.parsing.queries.definitions;
-      }
-
-      // 2. Legacy Fallback (keeping for safety during migration, but ideally should rely on plugins)
-      if (!queryStr) {
-        if (lang === 'typescript' || lang === 'tsx' || lang === 'javascript') {
-          queryStr = `
-            (function_declaration name: (identifier) @name) @def
-            (method_definition name: (property_identifier) @name) @def
-            (variable_declarator name: (identifier) @name) @def
-            (class_declaration name: (identifier) @name) @def
-          `;
-          if (lang !== 'javascript') {
-            queryStr += `
-              (interface_declaration name: (identifier) @name) @def
-              (type_alias_declaration name: (identifier) @name) @def
-            `;
-          }
-        }
-      }
+      // Get query from plugin via DSL orchestrator (zero hardcoded fallback)
+      const queryStr = await langOrchestrator.getASTQuery(lang, 'definitions');
 
       if (!queryStr || !tree?.rootNode) return [];
 
@@ -265,28 +244,9 @@ export class AstParser {
   static async identifyReferences(tree: any, lang: string): Promise<SymbolInfo[]> {
     try {
       const language = await this.getLanguage(lang);
-      let queryStr = '';
 
-      // 1. Try to get query from plugin
-      const plugin = pluginRegistry.getById(lang);
-      if (plugin) {
-        queryStr = plugin.parsing.queries.references;
-      }
-
-      // 2. Legacy Fallback
-      if (!queryStr) {
-        if (lang === 'typescript' || lang === 'tsx' || lang === 'javascript') {
-          queryStr = `
-            (call_expression function: (identifier) @name) @ref
-            (member_expression property: (property_identifier) @name) @ref
-          `;
-          if (lang !== 'javascript') {
-            queryStr += `
-              (type_reference name: (identifier) @name) @ref
-            `;
-          }
-        }
-      }
+      // Get query from plugin via DSL orchestrator (zero hardcoded fallback)
+      const queryStr = await langOrchestrator.getASTQuery(lang, 'references');
 
       if (!queryStr || !tree?.rootNode) return [];
 
