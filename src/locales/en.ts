@@ -471,6 +471,7 @@ Please return the patch in PURE unified diff format:`;
     gitCatDescription: 'Read file content from a specific git revision',
     codeAstDescription: 'Query AST definitions and references for symbols',
     testRunDescription: 'Run verification command (test/lint/build) and classify errors',
+    shellExecDescription: 'Execute a shell command in an isolated workspace (slash-only)',
     artifactReadDescription: 'Read salmonloop (s8p) artifacts by handle',
     proposalApplyDescription: 'Apply a patch proposal artifact into the current shadow worktree',
     planInitDescription: 'Initialize a runtime Markdown plan file under .salmonloop/plans/',

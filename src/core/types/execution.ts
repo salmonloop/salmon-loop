@@ -37,6 +37,9 @@ export const EXECUTION_PHASES = [
  * - Eliminates "magic strings" and allows easy refactoring/renaming.
  */
 export const Phase = {
+  // SLASH is an out-of-band interactive phase used for adapter-level slash routing and skill expansion.
+  // It is intentionally excluded from EXECUTION_PHASES to avoid impacting the main SalmonLoop flow.
+  SLASH: 'SLASH',
   PREFLIGHT: 'PREFLIGHT',
   CONTEXT: 'CONTEXT',
   EXPLORE: 'EXPLORE',
@@ -56,7 +59,7 @@ export const Phase = {
  * - Derived automatically from the array.
  * - Used for TypeScript type checking and function signatures.
  */
-export type ExecutionPhase = (typeof EXECUTION_PHASES)[number];
+export type ExecutionPhase = (typeof EXECUTION_PHASES)[number] | typeof Phase.SLASH;
 
 export const ALL_VISIBLE_STEPS = [
   ...EXECUTION_PHASES,

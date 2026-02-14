@@ -2,6 +2,7 @@ import { Box, Text, useInput } from 'ink';
 import TextInput from 'ink-text-input';
 import React, { useState } from 'react';
 
+import type { Command } from '../../commands/types.js';
 import { en } from '../../locales/en.js';
 import { rejectAuthorization } from '../authorization/bus.js';
 import { UI_CONFIG } from '../config.js';
@@ -17,7 +18,10 @@ interface Props {
   onChange: (value: string) => void;
   onSubmit: (value: string) => void;
   placeholder?: string;
-  getSuggestions: (input: string) => Promise<{ name: string; description: string }[]>;
+  getSuggestions: (
+    input: string,
+  ) => Promise<{ name: string; description: string; command?: Command }[]>;
+  findCommand?: (name: string) => Command | undefined;
 }
 
 export const CommandInput: React.FC<Props> = ({
@@ -26,6 +30,7 @@ export const CommandInput: React.FC<Props> = ({
   onSubmit,
   placeholder,
   getSuggestions,
+  findCommand,
 }) => {
   const { state, dispatch } = useUIStore();
   const { pendingConfirmation } = state;
@@ -56,7 +61,7 @@ export const CommandInput: React.FC<Props> = ({
     setStartIndex,
     navigateSuggestions,
     activeCommand,
-  } = useCommandSuggestions(value, getSuggestions, isIntercepting);
+  } = useCommandSuggestions(value, getSuggestions as any, isIntercepting, findCommand);
 
   const { navigateHistory, resetHistory } = useInputHistory(value, (val) => {
     setInputKey((prev) => prev + 1);

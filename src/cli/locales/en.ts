@@ -25,6 +25,10 @@ export const en = {
   chatExitHint: 'Press Ctrl+C again to exit',
   chatTaskInterrupted: '[WARN] Task interrupted by user (Ctrl+C)',
   unknownCommand: (cmd: string) => `Unknown command: ${cmd}. Type /help for available commands.`,
+  helpAvailableCommands: (rows: string) => `Available Commands:\n${rows}`,
+  slashHandlerUnavailable: 'Command handler unavailable',
+  slashInternalError: 'Internal error',
+  skillNoPrompt: (id: string) => `Skill ${id} did not produce a prompt`,
 
   gui: {
     title: 'Salmon Loop',

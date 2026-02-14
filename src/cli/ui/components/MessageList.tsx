@@ -241,7 +241,6 @@ const MessageItem = React.memo<{
           {msg.timestamp.toLocaleTimeString('en-US', { hour12: false })}
         </Text>
         <Text color={COLORS.text.muted} dimColor={false}>
-          {' '}
           {msg.content}
         </Text>
       </Box>

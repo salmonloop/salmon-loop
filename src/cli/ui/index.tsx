@@ -46,6 +46,10 @@ export interface GUIOptions {
 export interface UIConfig {
   markdownTheme?: MarkdownTheme;
   markdownRenderMode?: MarkdownRenderMode;
+  getSuggestions?: (
+    input: string,
+  ) => Promise<{ name: string; description: string; command?: any }[]>;
+  findCommand?: (name: string) => any;
 }
 
 export async function startGUI(
@@ -81,6 +85,8 @@ export async function startGUI(
       sessionManager={sessionManager}
       markdownTheme={uiConfig?.markdownTheme}
       markdownRenderMode={uiConfig?.markdownRenderMode}
+      getSuggestions={uiConfig?.getSuggestions}
+      findCommand={uiConfig?.findCommand}
       onInit={(emit: (event: LoopEvent) => void, options: GUIOptions, dispatch?: any) => {
         if (mode !== 'chat') return;
         runFn(emit, undefined, options, dispatch).catch((err) => {

@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
 
-import { findCommand } from '../../commands/registry.js';
 import type { Command } from '../../commands/types.js';
 import { UI_CONFIG } from '../config.js';
 
@@ -14,6 +13,7 @@ export function useCommandSuggestions(
   value: string,
   getSuggestions: (input: string) => Promise<Suggestion[]>,
   isConfirming: boolean,
+  findCommand?: (name: string) => Command | undefined,
 ) {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(-1);
@@ -29,28 +29,28 @@ export function useCommandSuggestions(
       // e.g. "/snapshot " -> parts=["/snapshot", ""] (length 2)
       if (parts.length > 1 || (parts.length === 1 && value.endsWith(' '))) {
         const cmdName = parts[0];
-        const cmd = findCommand(cmdName);
-        setActiveCommand(cmd);
+        setActiveCommand(findCommand ? findCommand(cmdName) : undefined);
         return;
       }
     }
     setActiveCommand(undefined);
-  }, [value]);
+  }, [findCommand, value]);
 
   useEffect(() => {
     if (isConfirming || isListClosed) return;
 
     let isMounted = true;
     const updateSuggestions = async () => {
-      if (value.startsWith('/')) {
-        const matches = await getSuggestions(value);
+      const trimmedStart = value.trimStart();
+      if (trimmedStart.startsWith('/')) {
+        const matches = await getSuggestions(trimmedStart);
         if (isMounted) {
           setSuggestions(matches);
-          const parts = value.split(/\s+/);
-          const currentToken = value.endsWith(' ') ? '' : parts[parts.length - 1];
+          const parts = trimmedStart.split(/\s+/);
+          const currentToken = trimmedStart.endsWith(' ') ? '' : parts[parts.length - 1];
 
           const exactMatchIndex =
-            value.length > 1 && currentToken.length > 0
+            trimmedStart.length > 1 && currentToken.length > 0
               ? matches.findIndex((m) =>
                   m.name.toLowerCase().startsWith(currentToken.toLowerCase()),
                 )

@@ -11,6 +11,7 @@ export interface CommandContext {
   toolAuthorization?: ToolAuthorizationConfig;
   getLlmOutputPolicy?: () => LlmOutputPolicy | undefined;
   setLlmOutputPolicy?: (policy: LlmOutputPolicy) => void;
+  signal?: AbortSignal;
 }
 
 export interface CommandResult {

@@ -10,6 +10,7 @@ import { fsReadFileSpec, executeFsReadFile } from './fs.js';
 import { gitCatSpec, executeGitCat, gitStatusSpec, executeGitStatus } from './git.js';
 import { planInitSpec, planReadSpec, planUpdateSpec } from './plan.js';
 import { proposalApplySpec, executeProposalApply } from './proposal.js';
+import { shellExecSpec, executeShellExec } from './shell.js';
 import { verifyRunSpec, executeVerifyRun } from './verify.js';
 
 /**
@@ -60,6 +61,11 @@ export function registerAllBuiltins(registry: ToolRegistry): void {
   registry.register({
     ...verifyRunSpec,
     executor: executeVerifyRun as any,
+  });
+
+  registry.register({
+    ...shellExecSpec,
+    executor: executeShellExec as any,
   });
 
   registry.register(planInitSpec);

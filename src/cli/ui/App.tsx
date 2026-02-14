@@ -5,7 +5,6 @@ import type { MarkdownRenderMode, MarkdownTheme } from '../../core/config/types.
 import { readPlan } from '../../core/plan/index.js';
 import type { PlanReadResult } from '../../core/plan/types.js';
 import type { LoopEvent } from '../../core/types/index.js';
-import { getSuggestions } from '../commands/registry.js';
 import { text } from '../locales/index.js';
 
 import { bindAuthorizationDispatch, resolveAuthorization } from './authorization/bus.js';
@@ -84,6 +83,10 @@ export const AppCore: React.FC<{
   mode: 'run' | 'chat';
   onStart: any;
   onChatInput?: any;
+  getSuggestions?: (
+    input: string,
+  ) => Promise<{ name: string; description: string; command?: any }[]>;
+  findCommand?: (name: string) => any;
   onInit?: (
     emit: (event: LoopEvent) => void,
     options: { signal: AbortSignal },
@@ -96,6 +99,8 @@ export const AppCore: React.FC<{
   mode,
   onStart,
   onChatInput,
+  getSuggestions: getSuggestionsProp,
+  findCommand,
   onInit,
   sessionManager,
   markdownTheme,
@@ -316,13 +321,9 @@ export const AppCore: React.FC<{
             value={state.inputContent}
             onChange={(val) => dispatch({ type: 'SET_INPUT', payload: val })}
             getSuggestions={(input) =>
-              getSuggestions(input, {
-                emit: (ev) => sanitizeAndDispatch(ev),
-                sessionManager,
-                input,
-                dispatch,
-              })
+              getSuggestionsProp ? getSuggestionsProp(input) : Promise.resolve([])
             }
+            findCommand={findCommand}
             onSubmit={async (val) => {
               if (state.pendingAuthorization) {
                 const trimmed = val.trim();

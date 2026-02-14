@@ -76,6 +76,13 @@ export class ToolPolicy {
 
     // Default Phase Policy (Best Practices)
     switch (phase) {
+      case Phase.SLASH:
+        // Slash routing is an interactive adapter concern. Default to read-only tool usage;
+        // any higher-risk tools must explicitly declare allowedPhases including SLASH.
+        return spec.sideEffects.every(
+          (se) => se === 'none' || se === 'fs_read' || se === 'git_read',
+        );
+
       case Phase.CONTEXT:
       case Phase.SHRINK:
         // Allow read-only operations

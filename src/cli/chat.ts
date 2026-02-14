@@ -3,6 +3,7 @@ import type {
   MarkdownTheme,
   ToolAuthorizationConfig,
 } from '../core/config/index.js';
+import type { ResolvedExtensions } from '../core/extensions/types.js';
 import { InputHistoryManager } from '../core/history/input-history.js';
 import { DEFAULT_LLM_OUTPUT_POLICY, emitLlmOutput } from '../core/llm/output-policy.js';
 import { logger } from '../core/observability/logger.js';
@@ -11,10 +12,11 @@ import { ChatSessionManager } from '../core/session/manager.js';
 import type { CheckpointStrategy, LLM, LoopEvent, LlmOutputPolicy } from '../core/types/index.js';
 
 import { createUiAuthorizationProvider } from './authorization/provider.js';
-import { CommandDispatcher } from './commands/dispatcher.js';
+import { commands } from './commands/registry.js';
 import type { QueueController } from './commands/types.js';
 import { CHAT_QUEUE_CONFIG } from './config.js';
 import { text } from './locales/index.js';
+import { createCliSlashRuntime } from './slash/runtime.js';
 import type { GUIOptions } from './ui/index.js';
 import { createAsyncQueue } from './utils/asyncQueue.js';
 
@@ -29,6 +31,7 @@ export interface ChatModeOptions {
   markdownTheme?: MarkdownTheme;
   markdownRenderMode?: MarkdownRenderMode;
   toolAuthorization?: ToolAuthorizationConfig;
+  extensions?: ResolvedExtensions;
 }
 
 /**
@@ -39,7 +42,6 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
   await sessionManager.init();
   const historyManager = new InputHistoryManager(options.repoPath);
   await historyManager.init();
-  const dispatcher = new CommandDispatcher();
 
   // Load or create session
   let session = options.resume ? await sessionManager.loadLast() : null;
@@ -68,6 +70,16 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
       latestEmit?.({ ...event, timestamp: new Date() });
     },
     config: options.toolAuthorization,
+  });
+
+  const slashRuntime = await createCliSlashRuntime({
+    repoRoot: options.repoPath,
+    baseCommands: commands,
+    emit: (event) => {
+      latestEmit?.({ ...event, timestamp: new Date() });
+    },
+    authorizationProvider,
+    skillDiscovery: options.extensions?.skillDiscovery,
   });
 
   const setThinking = (value: boolean) => {
@@ -378,9 +390,10 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
       latestEmit = emit;
       latestGuiOptions = guiOptions;
 
-      const dispatchResult = await dispatcher.dispatch(input, {
+      const dispatchResult = await slashRuntime.dispatch(input, {
         emit,
         sessionManager,
+        input,
         dispatch: latestDispatch || (() => {}),
         queue: queueController,
         toolAuthorization: options.toolAuthorization,
@@ -388,6 +401,8 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
         setLlmOutputPolicy: (policy) => {
           currentLlmOutputPolicy = policy;
         },
+        // Expose UI abort signal to slash handlers (e.g. tool authorization waits).
+        signal: latestGuiOptions?.signal,
       });
 
       if (dispatchResult.type === 'executed' || dispatchResult.type === 'blocked') {
@@ -402,6 +417,23 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
     {
       markdownTheme: options.markdownTheme,
       markdownRenderMode: options.markdownRenderMode,
+      findCommand: (name: string) => slashRuntime.findCommand(name),
+      getSuggestions: async (input: string) => {
+        if (!latestEmit || !latestDispatch) return [];
+        return slashRuntime.getSuggestions(input, {
+          emit: latestEmit,
+          sessionManager,
+          input,
+          dispatch: latestDispatch,
+          queue: queueController,
+          toolAuthorization: options.toolAuthorization,
+          getLlmOutputPolicy: () => currentLlmOutputPolicy,
+          setLlmOutputPolicy: (policy) => {
+            currentLlmOutputPolicy = policy;
+          },
+          signal: latestGuiOptions?.signal,
+        });
+      },
     },
   );
 }
