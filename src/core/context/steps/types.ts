@@ -1,7 +1,27 @@
 import type { Context } from '../../types/index.js';
-import type { AstResult } from '../gatherers/ast-gatherer.js';
-import type { GitDiffResult } from '../gatherers/git-diff-gatherer.js';
+import type {
+  AstSyntaxError,
+  CodeLocation,
+  RelatedFileContext,
+  SymbolInfo,
+} from '../../types/index.js';
 import type { ContextRequest, DiffScope } from '../types.js';
+
+export interface ContextDiffBundle {
+  includedFiles: string[];
+  stagedDiff?: string;
+  unstagedDiff?: string;
+  gitDiff?: string;
+}
+
+export interface ContextAstBundle {
+  symbols: SymbolInfo[];
+  definitionMap: Record<string, CodeLocation>;
+  relatedFiles: RelatedFileContext[];
+  languageId?: string;
+  syntaxErrors?: AstSyntaxError[];
+  parseError?: string;
+}
 
 export interface ContextPipelineInitCtx {
   req: ContextRequest;
@@ -14,8 +34,8 @@ export interface ContextPrimaryCtx extends ContextPipelineInitCtx {
 
 export interface ContextGatherCtx extends ContextPrimaryCtx {
   rgSnippets: Context['rgSnippets'];
-  diffRes: GitDiffResult;
-  astRes: AstResult;
+  diff: ContextDiffBundle;
+  ast: ContextAstBundle;
 }
 
 export interface ContextTargetsCtx extends ContextPipelineInitCtx {

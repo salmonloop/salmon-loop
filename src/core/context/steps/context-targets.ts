@@ -10,11 +10,11 @@ export function buildContextTargetsStep(deps: ContextServiceDeps) {
     diffScope,
     primaryText,
     rgSnippets,
-    diffRes,
-    astRes,
+    diff,
+    ast,
   }: ContextGatherCtx): Promise<ContextTargetsCtx> => {
     assertNotAborted(req.signal);
-    const importRelatedFiles = (astRes.relatedFiles ?? []).map((f) => f.path);
+    const importRelatedFiles = (ast.relatedFiles ?? []).map((f) => f.path);
     const rgHitFiles = Array.from(new Set((rgSnippets ?? []).map((s) => s.file)));
 
     const symbolCandidates = req.instruction.match(/\b[A-Za-z_][A-Za-z0-9_]{2,}\b/g) ?? [];
@@ -29,10 +29,10 @@ export function buildContextTargetsStep(deps: ContextServiceDeps) {
 
     const { targets } = await deps.targetResolver.resolve({
       req,
-      includedFiles: diffRes.includedFiles,
+      includedFiles: diff.includedFiles,
       importRelatedFiles,
       rgHitFiles,
-      definitionMap: astRes.definitionMap,
+      definitionMap: ast.definitionMap,
     });
     assertNotAborted(req.signal);
 
@@ -54,18 +54,18 @@ export function buildContextTargetsStep(deps: ContextServiceDeps) {
       primaryText,
       rgSnippets,
       targets,
-      includedFiles: diffRes.includedFiles,
-      stagedDiff: diffRes.stagedDiff,
-      unstagedDiff: diffRes.unstagedDiff,
-      gitDiff: diffRes.gitDiff,
-      relatedFiles: astRes.relatedFiles,
-      symbols: astRes.symbols,
-      definitionMap: astRes.definitionMap,
+      includedFiles: diff.includedFiles,
+      stagedDiff: diff.stagedDiff,
+      unstagedDiff: diff.unstagedDiff,
+      gitDiff: diff.gitDiff,
+      relatedFiles: ast.relatedFiles,
+      symbols: ast.symbols,
+      definitionMap: ast.definitionMap,
       analysis: {
         ast: {
-          languageId: astRes.languageId,
-          syntaxErrors: astRes.syntaxErrors,
-          parseError: astRes.parseError,
+          languageId: ast.languageId,
+          syntaxErrors: ast.syntaxErrors,
+          parseError: ast.parseError,
           notes: [
             'Type mismatch, dead code, and potential bug detection are not available in this analysis layer.',
           ],

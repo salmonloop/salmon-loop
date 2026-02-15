@@ -34,6 +34,25 @@ export function buildContextGatherStep(deps: ContextServiceDeps) {
       { source: 'context', severity: 'low', scope: 'session', phase: 'CONTEXT_GATHER' },
     );
 
-    return { req, diffScope, primaryText, rgSnippets, diffRes, astRes };
+    return {
+      req,
+      diffScope,
+      primaryText,
+      rgSnippets,
+      diff: {
+        includedFiles: diffRes.includedFiles,
+        stagedDiff: diffRes.stagedDiff,
+        unstagedDiff: diffRes.unstagedDiff,
+        gitDiff: diffRes.gitDiff,
+      },
+      ast: {
+        relatedFiles: astRes.relatedFiles,
+        symbols: astRes.symbols,
+        definitionMap: astRes.definitionMap,
+        languageId: astRes.languageId,
+        syntaxErrors: astRes.syntaxErrors,
+        parseError: astRes.parseError,
+      },
+    };
   };
 }
