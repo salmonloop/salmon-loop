@@ -236,6 +236,20 @@ export class ContextService {
         const compressed = applySmartCompression(context, { budgetChars: req.budgetChars });
         const ranked = rankContextForRelevance(compressed);
         const preBudgetSectionChars = calculateSectionChars(ranked);
+        recordAuditEvent(
+          'context.relevance.ranking',
+          {
+            topRelatedFiles: (ranked.relatedFiles ?? []).slice(0, 10).map((f) => ({
+              path: f.path,
+              kind: f.kind,
+              mode: f.mode,
+            })),
+            snippetFiles: Array.from(
+              new Set((ranked.rgSnippets ?? []).slice(0, 20).map((s) => s.file)),
+            ),
+          },
+          { source: 'context', severity: 'low', scope: 'session', phase: 'CONTEXT_BUDGET' },
+        );
 
         const budget = req.budgetChars;
         const budgeted = packUntilFull(ranked, budget);
@@ -255,6 +269,18 @@ export class ContextService {
                   budgeted.context.untrackedDiff === undefined,
               }
             : undefined;
+
+        recordAuditEvent(
+          'context.pack.summary',
+          {
+            requestedBudgetChars: budget,
+            preBudgetSectionChars,
+            sectionChars,
+            truncated: budgeted.truncated,
+            droppedSections,
+          },
+          { source: 'context', severity: 'low', scope: 'session', phase: 'CONTEXT_BUDGET' },
+        );
 
         return {
           context: budgeted.context,
