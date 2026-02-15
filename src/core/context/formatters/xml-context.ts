@@ -56,6 +56,25 @@ function renderPrimaryFile(context: Context): string[] {
   return out;
 }
 
+function renderManifest(context: Context): string[] {
+  const out: string[] = [];
+  const targets = context.targets;
+  if (!targets || targets.length === 0) return out;
+
+  out.push('  <manifest>');
+  out.push('    <targets>');
+  for (const t of targets) {
+    const evidenceAttr = t.evidence ? ` evidence="${escapeXmlAttr(t.evidence)}"` : '';
+    out.push(
+      `      <target path="${escapeXmlAttr(normalizePath(t.path))}" reason="${escapeXmlAttr(t.reason)}" confidence="${escapeXmlAttr(t.confidence)}"${evidenceAttr} />`,
+    );
+  }
+  out.push('    </targets>');
+  out.push('  </manifest>');
+
+  return out;
+}
+
 function renderRelatedFiles(relatedFiles: RelatedFileContext[] | undefined): string[] {
   const out: string[] = [];
   if (!relatedFiles || relatedFiles.length === 0) return out;
@@ -135,6 +154,7 @@ export function formatContextForXmlPrompt(context: Context): string {
   const out: string[] = [];
   out.push('<context>');
 
+  out.push(...renderManifest(context));
   out.push(...renderPrimaryFile(context));
   out.push(...renderRelatedFiles(context.relatedFiles));
   out.push(...renderSnippets(context.rgSnippets));

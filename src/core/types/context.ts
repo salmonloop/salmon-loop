@@ -18,6 +18,23 @@ export interface RelatedFileContext {
   outline?: string;
 }
 
+export type ContextTargetReason =
+  | 'primary'
+  | 'explicit_path'
+  | 'diff_included'
+  | 'import_neighbor'
+  | 'rg_hit'
+  | 'fallback';
+
+export type ContextTargetConfidence = 'high' | 'medium' | 'low';
+
+export interface ContextTarget {
+  path: string;
+  reason: ContextTargetReason;
+  confidence: ContextTargetConfidence;
+  evidence?: string;
+}
+
 export interface Context {
   repoPath: string;
   primaryFile?: string;
@@ -34,6 +51,7 @@ export interface Context {
   untrackedFiles?: string[];
   definitionMap?: Record<string, CodeLocation>;
   symbols?: SymbolInfo[];
+  targets?: ContextTarget[];
 }
 
 export interface FileContext {

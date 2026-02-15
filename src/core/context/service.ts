@@ -11,6 +11,7 @@ import { RipgrepGatherer } from './gatherers/ripgrep-gatherer.js';
 import { extractKeywords } from './keywords.js';
 import { packUntilFull } from './policies/pack-until-full.js';
 import { rankContextForRelevance } from './scoring/relevance.js';
+import { TargetResolver } from './targeting/target-resolver.js';
 import type { ContextRequest, ContextResult, DiffScope } from './types.js';
 
 export interface ContextServiceDeps {
@@ -18,6 +19,7 @@ export interface ContextServiceDeps {
   ripgrepGatherer: RipgrepGatherer;
   gitDiffGatherer: GitDiffGatherer;
   astGatherer: AstGatherer;
+  targetResolver: TargetResolver;
   assembler: PromptAssembler;
 }
 
@@ -27,6 +29,7 @@ function defaultDeps(): ContextServiceDeps {
     ripgrepGatherer: new RipgrepGatherer(),
     gitDiffGatherer: new GitDiffGatherer(),
     astGatherer: new AstGatherer(),
+    targetResolver: new TargetResolver(),
     assembler: new DefaultPromptAssembler(),
   };
 }
@@ -106,6 +109,16 @@ export class ContextService {
     );
     assertNotAborted(req.signal);
 
+    const importRelatedFiles = (relatedFiles ?? []).map((f) => f.path);
+    const rgHitFiles = Array.from(new Set((rgSnippets ?? []).map((s) => s.file)));
+    const { targets } = await this.deps.targetResolver.resolve({
+      req,
+      includedFiles,
+      importRelatedFiles,
+      rgHitFiles,
+    });
+    assertNotAborted(req.signal);
+
     const context: Context = {
       repoPath: req.repoPath,
       primaryFile: req.primaryFile,
@@ -119,6 +132,7 @@ export class ContextService {
       untrackedFiles: [],
       symbols,
       definitionMap,
+      targets,
     };
 
     const compressed = applySmartCompression(context, { budgetChars: req.budgetChars });
