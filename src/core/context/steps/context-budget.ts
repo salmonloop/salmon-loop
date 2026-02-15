@@ -1,6 +1,7 @@
 import { LIMITS } from '../../config/limits.js';
 import type { Context } from '../../types/index.js';
 import { DefaultPromptAssembler } from '../assembly/default-prompt-assembler.js';
+import { CONTEXT_AUDIT_ACTION, CONTEXT_AUDIT_PHASE } from '../audit-constants.js';
 import { recordContextAuditEvent } from '../audit.js';
 import { applySmartCompression } from '../compression/smart-compress.js';
 import {
@@ -60,17 +61,17 @@ export function buildContextBudgetStep(deps: ContextServiceDeps) {
       targetCount: (ranked.targets ?? []).length,
     });
     recordContextAuditEvent(
-      'context.budget.policy.plan',
+      CONTEXT_AUDIT_ACTION.budgetPolicyPlan,
       {
         workerId: budgetPolicyPlan.workerId,
         actions: budgetPolicyPlan.actions.map((a) => a.type),
         decisionTree: budgetPolicyPlan.decisionTree,
       },
-      { source: 'context', severity: 'low', scope: 'session', phase: 'CONTEXT_BUDGET' },
+      { source: 'context', severity: 'low', scope: 'session', phase: CONTEXT_AUDIT_PHASE.budget },
     );
 
     recordContextAuditEvent(
-      'context.relevance.ranking',
+      CONTEXT_AUDIT_ACTION.relevanceRanking,
       {
         topRelatedFiles: (ranked.relatedFiles ?? []).slice(0, 10).map((f) => ({
           path: f.path,
@@ -81,7 +82,7 @@ export function buildContextBudgetStep(deps: ContextServiceDeps) {
           new Set((ranked.rgSnippets ?? []).slice(0, 20).map((s) => s.file)),
         ),
       },
-      { source: 'context', severity: 'low', scope: 'session', phase: 'CONTEXT_BUDGET' },
+      { source: 'context', severity: 'low', scope: 'session', phase: CONTEXT_AUDIT_PHASE.budget },
     );
 
     const budget = req.budgetChars;
@@ -108,7 +109,7 @@ export function buildContextBudgetStep(deps: ContextServiceDeps) {
         : undefined;
 
     recordContextAuditEvent(
-      'context.pack.summary',
+      CONTEXT_AUDIT_ACTION.packSummary,
       {
         requestedBudgetChars: budget,
         preBudgetSectionChars,
@@ -116,7 +117,7 @@ export function buildContextBudgetStep(deps: ContextServiceDeps) {
         truncated: budgeted.truncated,
         droppedSections,
       },
-      { source: 'context', severity: 'low', scope: 'session', phase: 'CONTEXT_BUDGET' },
+      { source: 'context', severity: 'low', scope: 'session', phase: CONTEXT_AUDIT_PHASE.budget },
     );
 
     return {

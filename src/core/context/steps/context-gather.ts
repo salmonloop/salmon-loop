@@ -1,3 +1,4 @@
+import { CONTEXT_AUDIT_ACTION, CONTEXT_AUDIT_PHASE } from '../audit-constants.js';
 import { recordContextAuditEvent } from '../audit.js';
 import { extractKeywords } from '../keywords.js';
 import type { ContextServiceDeps } from '../service-deps.js';
@@ -10,9 +11,9 @@ export function buildContextGatherStep(deps: ContextServiceDeps) {
     assertNotAborted(req.signal);
     const keywords = extractKeywords(req.instruction);
     recordContextAuditEvent(
-      'context.keywords.extracted',
+      CONTEXT_AUDIT_ACTION.keywordsExtracted,
       { count: keywords.length, keywords: keywords.slice(0, 5) },
-      { source: 'context', severity: 'low', scope: 'session', phase: 'CONTEXT_GATHER' },
+      { source: 'context', severity: 'low', scope: 'session', phase: CONTEXT_AUDIT_PHASE.gather },
     );
 
     const [rgSnippets, diffRes, astRes] = await Promise.all([
@@ -23,7 +24,7 @@ export function buildContextGatherStep(deps: ContextServiceDeps) {
     assertNotAborted(req.signal);
 
     recordContextAuditEvent(
-      'context.gather.completed',
+      CONTEXT_AUDIT_ACTION.gatherCompleted,
       {
         rgSnippets: rgSnippets.length,
         includedFiles: diffRes.includedFiles.length,
@@ -31,7 +32,7 @@ export function buildContextGatherStep(deps: ContextServiceDeps) {
         syntaxErrors: astRes.syntaxErrors?.length ?? 0,
         hasParseError: Boolean(astRes.parseError),
       },
-      { source: 'context', severity: 'low', scope: 'session', phase: 'CONTEXT_GATHER' },
+      { source: 'context', severity: 'low', scope: 'session', phase: CONTEXT_AUDIT_PHASE.gather },
     );
 
     return {

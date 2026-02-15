@@ -1,3 +1,4 @@
+import { CONTEXT_AUDIT_ACTION, CONTEXT_AUDIT_PHASE } from '../../context/audit-constants.js';
 import { recordContextAuditEvent } from '../../context/audit.js';
 import { ContextBuilder } from '../../context/builder.js';
 import { refineFeedback } from '../../feedback/index.js';
@@ -38,7 +39,7 @@ export const runShrink: Step<RollbackCtx, ShrinkCtx> = async (ctx) => {
     const lastError = refineFeedback(ctx.verifyResult.output);
 
     recordContextAuditEvent(
-      'context.shrink.summary',
+      CONTEXT_AUDIT_ACTION.shrinkSummary,
       {
         shrunk: true,
         failedFiles: failedFiles.slice(0, 20),
@@ -47,7 +48,12 @@ export const runShrink: Step<RollbackCtx, ShrinkCtx> = async (ctx) => {
         dependencyDepth,
         verifyExitCode: ctx.verifyResult.exitCode,
       },
-      { source: 'context', severity: 'medium', scope: 'session', phase: 'SHRINK' },
+      {
+        source: 'context',
+        severity: 'medium',
+        scope: 'session',
+        phase: CONTEXT_AUDIT_PHASE.shrink,
+      },
     );
 
     ctx.emit({
@@ -66,9 +72,9 @@ export const runShrink: Step<RollbackCtx, ShrinkCtx> = async (ctx) => {
   }
 
   recordContextAuditEvent(
-    'context.shrink.summary',
+    CONTEXT_AUDIT_ACTION.shrinkSummary,
     { shrunk: false },
-    { source: 'context', severity: 'low', scope: 'session', phase: 'SHRINK' },
+    { source: 'context', severity: 'low', scope: 'session', phase: CONTEXT_AUDIT_PHASE.shrink },
   );
   return {
     ...ctx,

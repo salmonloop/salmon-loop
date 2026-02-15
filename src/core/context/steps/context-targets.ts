@@ -1,3 +1,4 @@
+import { CONTEXT_AUDIT_ACTION, CONTEXT_AUDIT_PHASE } from '../audit-constants.js';
 import { recordContextAuditEvent } from '../audit.js';
 import type { ContextServiceDeps } from '../service-deps.js';
 import { assertNotAborted } from '../service-helpers.js';
@@ -19,12 +20,12 @@ export function buildContextTargetsStep(deps: ContextServiceDeps) {
 
     const symbolCandidates = req.instruction.match(/\b[A-Za-z_][A-Za-z0-9_]{2,}\b/g) ?? [];
     recordContextAuditEvent(
-      'context.targeting.candidates',
+      CONTEXT_AUDIT_ACTION.targetingCandidates,
       {
         explicitPathCandidates: (req.instruction.match(/\.\w{1,5}\b/g) || []).length,
         symbolCandidates: symbolCandidates.slice(0, 20),
       },
-      { source: 'context', severity: 'low', scope: 'session', phase: 'CONTEXT_TARGETS' },
+      { source: 'context', severity: 'low', scope: 'session', phase: CONTEXT_AUDIT_PHASE.targets },
     );
 
     const { targets } = await deps.targetResolver.resolve({
@@ -37,7 +38,7 @@ export function buildContextTargetsStep(deps: ContextServiceDeps) {
     assertNotAborted(req.signal);
 
     recordContextAuditEvent(
-      'context.targets.resolved',
+      CONTEXT_AUDIT_ACTION.targetsResolved,
       {
         strategyTargets: targets.map((t) => ({
           path: t.path,
@@ -45,7 +46,7 @@ export function buildContextTargetsStep(deps: ContextServiceDeps) {
           confidence: t.confidence,
         })),
       },
-      { source: 'context', severity: 'low', scope: 'session', phase: 'CONTEXT_TARGETS' },
+      { source: 'context', severity: 'low', scope: 'session', phase: CONTEXT_AUDIT_PHASE.targets },
     );
 
     return {
