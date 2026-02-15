@@ -1,10 +1,10 @@
 import { Pipeline } from '../grizzco/engine/pipeline/pipeline.js';
-import { logger } from '../observability/logger.js';
 import {
   clearAuditContext,
   recordAuditEvent,
   setAuditContext,
 } from '../observability/audit-trail.js';
+import { logger } from '../observability/logger.js';
 import type { Context } from '../types/index.js';
 
 import { DefaultPromptAssembler } from './assembly/default-prompt-assembler.js';
