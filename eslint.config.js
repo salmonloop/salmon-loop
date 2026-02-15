@@ -3,6 +3,8 @@ import importPlugin from 'eslint-plugin-import';
 import prettier from 'eslint-plugin-prettier/recommended';
 import tseslint from 'typescript-eslint';
 
+import noLanguageHardcoding from './eslint-rules/no-language-hardcoding.js';
+
 export default tseslint.config(
   {
     ignores: [
@@ -22,6 +24,11 @@ export default tseslint.config(
   {
     plugins: {
       import: importPlugin,
+      'salmon-loop': {
+        rules: {
+          'no-language-hardcoding': noLanguageHardcoding,
+        },
+      },
     },
     languageOptions: {
       parserOptions: {
@@ -45,6 +52,17 @@ export default tseslint.config(
           groups: ['builtin', 'external', 'internal', 'parent', 'sibling', 'index'],
           'newlines-between': 'always',
           alphabetize: { order: 'asc', caseInsensitive: true },
+        },
+      ],
+      // Architecture guard: prevent hardcoded language logic
+      'salmon-loop/no-language-hardcoding': [
+        'error',
+        {
+          whitelist: [
+            'src/languages/', // Plugin implementations are allowed
+            'src/core/plugin/loader.ts', // Plugin registration
+            'tests/', // Test files
+          ],
         },
       ],
     },
@@ -85,7 +103,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['eslint.config.js', 'vitest.config.ts'],
+    files: ['eslint-rules/**/*.js', 'eslint.config.js', 'vitest.config.ts'],
     languageOptions: {
       parserOptions: {
         project: null,
