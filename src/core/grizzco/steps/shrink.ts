@@ -1,5 +1,6 @@
 import { ContextBuilder } from '../../context/builder.js';
 import { refineFeedback } from '../../feedback/index.js';
+import { recordAuditEvent } from '../../observability/audit-trail.js';
 import { classifyError } from '../../verification/runner.js';
 import { Step } from '../engine/pipeline/pipeline.js';
 import { RollbackCtx, ShrinkCtx } from '../engine/pipeline/types.js';
@@ -36,6 +37,18 @@ export const runShrink: Step<RollbackCtx, ShrinkCtx> = async (ctx) => {
 
     const lastError = refineFeedback(ctx.verifyResult.output);
 
+    recordAuditEvent(
+      'context.shrink.summary',
+      {
+        shrunk: true,
+        failedFilesCount: failedFiles.length,
+        errorType,
+        dependencyDepth,
+        verifyExitCode: ctx.verifyResult.exitCode,
+      },
+      { source: 'context', severity: 'medium', scope: 'session', phase: 'SHRINK' },
+    );
+
     ctx.emit({
       type: 'log',
       level: 'debug',
@@ -51,6 +64,11 @@ export const runShrink: Step<RollbackCtx, ShrinkCtx> = async (ctx) => {
     };
   }
 
+  recordAuditEvent(
+    'context.shrink.summary',
+    { shrunk: false },
+    { source: 'context', severity: 'low', scope: 'session', phase: 'SHRINK' },
+  );
   return {
     ...ctx,
     shrunk: false,

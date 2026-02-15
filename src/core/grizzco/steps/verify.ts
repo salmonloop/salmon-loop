@@ -1,9 +1,16 @@
 import { text } from '../../../locales/index.js';
+import { recordAuditEvent } from '../../observability/audit-trail.js';
 import { ArtifactStore } from '../../sub-agent/artifacts/store.js';
 import type { ArtifactHandle } from '../../sub-agent/artifacts/types.js';
 import { runVerify as runVerifyCommand } from '../../verification/runner.js';
 import { Step } from '../engine/pipeline/pipeline.js';
 import { ApplyCtx, VerifyCtx } from '../engine/pipeline/types.js';
+
+function extractCommandProgram(command: string): string {
+  const trimmed = command.trim();
+  if (!trimmed) return '';
+  return trimmed.split(/\s+/)[0] ?? '';
+}
 
 export const runVerify: Step<ApplyCtx, VerifyCtx> = async (ctx) => {
   if (!ctx.options.verify) {
@@ -15,6 +22,23 @@ export const runVerify: Step<ApplyCtx, VerifyCtx> = async (ctx) => {
 
   const verifyResult = await runVerifyCommand(ctx.workspace.workPath, ctx.options.verify);
   let verifyArtifact: ArtifactHandle | undefined;
+
+  recordAuditEvent(
+    'verify.summary',
+    {
+      ok: verifyResult.ok,
+      exitCode: verifyResult.exitCode,
+      outputChars: verifyResult.output?.length ?? 0,
+      commandProgram: extractCommandProgram(ctx.options.verify),
+      commandLength: ctx.options.verify.length,
+    },
+    {
+      source: 'verification',
+      severity: verifyResult.ok ? 'low' : 'medium',
+      scope: 'session',
+      phase: 'VERIFY',
+    },
+  );
 
   if (!verifyResult.ok) {
     ctx.emit({

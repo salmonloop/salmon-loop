@@ -1,5 +1,6 @@
 import { text } from '../../../locales/index.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
+import { recordAuditEvent } from '../../observability/audit-trail.js';
 import { CheckpointManager } from '../../strata/checkpoint/manager.js';
 import { Step } from '../engine/pipeline/pipeline.js';
 import type { InitCtx } from '../engine/pipeline/types.js';
@@ -16,13 +17,34 @@ export const runRollback: Step<VerifyCtx, RollbackCtx> = async (ctx) => {
   const shouldRollback = !ctx.verifyResult.ok || ctx.options.forceReset;
 
   if (!shouldRollback || ctx.options.dryRun) {
+    recordAuditEvent(
+      'rollback.summary',
+      {
+        shouldRollback,
+        rolledBack: false,
+        dryRun: ctx.options.dryRun,
+        changedFilesCount: ctx.changedFiles?.length ?? 0,
+      },
+      { source: 'grizzco', severity: 'low', scope: 'session', phase: 'ROLLBACK' },
+    );
     return {
       ...ctx,
       rolledBack: false,
     };
   }
 
-  return executeGitRollback(ctx);
+  const rolled = await executeGitRollback(ctx);
+  recordAuditEvent(
+    'rollback.summary',
+    {
+      shouldRollback,
+      rolledBack: rolled.rolledBack,
+      hasRollbackAnchor: Boolean(ctx.shadowInitialRef || ctx.options?.shadowInitialRef),
+      changedFilesCount: ctx.changedFiles?.length ?? 0,
+    },
+    { source: 'grizzco', severity: 'medium', scope: 'session', phase: 'ROLLBACK' },
+  );
+  return rolled;
 };
 
 /**

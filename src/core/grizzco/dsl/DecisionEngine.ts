@@ -105,9 +105,9 @@ export class DecisionEngine<C extends BaseDslContext = DslContext> {
     for (const key of keys) {
       if (!this.ctx.data || this.ctx.data[key] === undefined) {
         this.missingDataKeys.add(key);
-        this.recordDecision(false, () => `requireData('${key}')`, { reason });
+        this.recordDecision(false, `requireData('${key}')`, { reason });
       } else {
-        this.recordDecision(true, () => `requireData('${key}')`, { val: this.ctx.data[key] });
+        this.recordDecision(true, `requireData('${key}')`, { val: this.ctx.data[key] });
       }
     }
 
@@ -177,13 +177,17 @@ export class DecisionEngine<C extends BaseDslContext = DslContext> {
 
   private recordDecision(
     matched: boolean,
-    predicate: (...args: any[]) => any,
+    predicateOrRule: ((...args: any[]) => any) | string,
     metadata?: any,
   ): void {
+    const rule =
+      typeof predicateOrRule === 'string'
+        ? predicateOrRule
+        : predicateOrRule.toString().slice(0, 100);
     this.history.push({
       index: this.recordCounter++,
       phase: this.currentPhase,
-      rule: predicate.toString().slice(0, 100),
+      rule,
       matched,
       metadata,
     });
