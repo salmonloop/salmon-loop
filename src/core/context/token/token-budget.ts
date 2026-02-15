@@ -3,9 +3,17 @@
  *
  * Provides token-based budget calculation as a replacement for character-based estimation.
  * Designed for gradual migration from character-based to token-based budgeting.
+ *
+ * Supports model-adaptive budget via AdaptiveBudgetCalculator integration.
  */
 
 import type { Context, RelatedFileContext, RipgrepResult } from '../../types/index.js';
+
+import {
+  getAdaptiveBudgetCalculator,
+  type ModelContextConfig,
+  type UserBudgetConfig,
+} from './adaptive-budget.js';
 
 import { TokenCounter } from './index.js';
 
@@ -52,10 +60,13 @@ export interface ContextSectionTokens {
  * Token budget calculator.
  *
  * Provides methods for calculating token counts of context components.
+ * Supports model-adaptive budget via setModel().
  */
 export class TokenBudgetCalculator {
   private tokenCounter: TokenCounter | null = null;
   private initialized = false;
+  private modelId: string | null = null;
+  private modelConfig: ModelContextConfig | null = null;
 
   constructor(private config: TokenBudgetConfig = DEFAULT_TOKEN_BUDGET_CONFIG) {}
 
@@ -82,6 +93,42 @@ export class TokenBudgetCalculator {
       this.tokenCounter = null;
     }
     this.initialized = false;
+    this.modelId = null;
+    this.modelConfig = null;
+  }
+
+  /**
+   * Set model for adaptive budget calculation.
+   * This updates budget limits based on model capabilities.
+   */
+  setModel(modelId: string): void {
+    this.modelId = modelId;
+    this.modelConfig = getAdaptiveBudgetCalculator().resolveConfig(modelId);
+  }
+
+  /**
+   * Get current model ID.
+   */
+  getModel(): string | null {
+    return this.modelId;
+  }
+
+  /**
+   * Get current model context config.
+   */
+  getModelConfig(): ModelContextConfig | null {
+    return this.modelConfig;
+  }
+
+  /**
+   * Set user budget configuration override.
+   */
+  setUserConfig(config: UserBudgetConfig | null): void {
+    getAdaptiveBudgetCalculator().setUserConfig(config);
+    // Refresh model config if model is set
+    if (this.modelId) {
+      this.modelConfig = getAdaptiveBudgetCalculator().resolveConfig(this.modelId);
+    }
   }
 
   /**
@@ -178,16 +225,45 @@ export class TokenBudgetCalculator {
 
   /**
    * Get default budget for current mode.
+   * If model is set, returns model-specific recommended budget.
    */
   getDefaultBudget(): number {
+    if (this.modelConfig) {
+      return this.modelConfig.recommendedBudget;
+    }
     return this.config.defaultTokenBudget;
   }
 
   /**
    * Get minimum budget for current mode.
+   * If model is set, returns model-specific minimum budget.
    */
   getMinBudget(): number {
+    if (this.modelConfig) {
+      return this.modelConfig.minBudget;
+    }
     return this.config.minTokenBudget;
+  }
+
+  /**
+   * Get maximum primary tokens.
+   * If model is set, returns model-specific max primary tokens.
+   */
+  getMaxPrimaryTokens(): number {
+    if (this.modelConfig) {
+      return this.modelConfig.maxPrimaryTokens;
+    }
+    return this.config.defaultTokenBudget;
+  }
+
+  /**
+   * Get output buffer for current model.
+   */
+  getOutputBuffer(): number {
+    if (this.modelConfig) {
+      return this.modelConfig.outputBuffer;
+    }
+    return 4096; // Default output buffer
   }
 
   /**

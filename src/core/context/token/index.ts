@@ -2,10 +2,11 @@
  * Token counting module.
  *
  * Provides accurate token counting with caching for performance optimization.
+ * Includes model-adaptive budget calculation.
  *
  * @example
  * ```typescript
- * import { TokenCounter } from './token/index.js';
+ * import { TokenCounter, TokenBudgetCalculator } from './token/index.js';
  *
  * const counter = new TokenCounter();
  * await counter.initialize();
@@ -15,6 +16,11 @@
  *
  * // Count for a model
  * const tokens = counter.countByModel('Hello', 'openai-gpt4');
+ *
+ * // Model-adaptive budget
+ * const budget = new TokenBudgetCalculator();
+ * budget.setModel('gpt-4o');
+ * const defaultBudget = budget.getDefaultBudget();
  * ```
  */
 
@@ -22,6 +28,15 @@ export { TokenCounter } from './counter.js';
 export { TokenCache } from './cache.js';
 export { EncodingRegistry } from './encoding-registry.js';
 export { TokenBudgetCalculator, DEFAULT_TOKEN_BUDGET_CONFIG } from './token-budget.js';
+export {
+  AdaptiveBudgetCalculator,
+  MODEL_CONTEXT_CONFIG,
+  getAdaptiveBudgetCalculator,
+  resetAdaptiveBudgetCalculator,
+  getModelRecommendedBudget,
+  getModelMinBudget,
+  getModelMaxPrimaryTokens,
+} from './adaptive-budget.js';
 
 export type {
   EncodingType,
@@ -35,3 +50,4 @@ export type {
 } from './types.js';
 
 export type { BudgetMode, TokenBudgetConfig, ContextSectionTokens } from './token-budget.js';
+export type { ModelContextConfig, UserBudgetConfig } from './adaptive-budget.js';
