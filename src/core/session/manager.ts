@@ -4,7 +4,7 @@ import { join } from 'path';
 import { FileAdapter } from '../adapters/fs/index.js';
 import type { LoopIteration } from '../types/index.js';
 
-import type { ChatSession, ChatMessage } from './types.js';
+import type { ChatSession, ChatMessage, SummaryState } from './types.js';
 
 /**
  * Manages chat session persistence and lifecycle.
@@ -162,11 +162,46 @@ export class ChatSessionManager {
   }
 
   /**
+   * Get messages with IDs for summarization.
+   * Ensures all messages have IDs.
+   */
+  getMessagesWithIds(): Array<ChatMessage & { id: string }> {
+    const messages = this.currentSession?.messages || [];
+    return messages.map((m, i) => ({
+      ...m,
+      id: (m as any).id || `msg-${i}-${m.timestamp}`,
+    }));
+  }
+
+  /**
    * Get current session (throws if none)
    */
   getCurrent(): ChatSession {
     if (!this.currentSession) throw new Error('No active session');
     return this.currentSession;
+  }
+
+  /**
+   * Get summary state for summarization.
+   */
+  getSummaryState(): SummaryState | undefined {
+    return this.currentSession?.meta.summaryState;
+  }
+
+  /**
+   * Update summary state after summarization.
+   */
+  updateSummaryState(state: SummaryState): void {
+    if (!this.currentSession) throw new Error('No active session');
+    this.currentSession.meta.summaryState = state;
+  }
+
+  /**
+   * Clear summary state (e.g., on session reset).
+   */
+  clearSummaryState(): void {
+    if (!this.currentSession) return;
+    this.currentSession.meta.summaryState = undefined;
   }
 
   /**

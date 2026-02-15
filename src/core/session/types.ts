@@ -11,6 +11,21 @@ export interface ChatMessage extends LLMMessage {
 }
 
 /**
+ * Summary state for conversation summarization.
+ * Persisted across sessions.
+ */
+export interface SummaryState {
+  /** Current cumulative summary */
+  summary: string;
+  /** Token count of current summary */
+  summaryTokens: number;
+  /** Message IDs already summarized */
+  summarizedMessageIds: string[];
+  /** Last summary timestamp */
+  lastSummarizedAt: number;
+}
+
+/**
  * Session metadata (stored in JSON)
  */
 export interface SessionMetadata {
@@ -36,6 +51,9 @@ export interface SessionMetadata {
     iterationId: string; // Which iteration created it
     timestamp: number;
   }>;
+
+  // Conversation summary state
+  summaryState?: SummaryState;
 }
 
 /**

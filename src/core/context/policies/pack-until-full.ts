@@ -1,55 +1,162 @@
+/**
+ * Pack-Until-Full budget policy.
+ *
+ * Packs context items by priority until budget is exhausted.
+ * Supports both character-based (legacy) and token-based (accurate) budgeting.
+ */
+
 import { text } from '../../../locales/index.js';
 import { LIMITS } from '../../config/limits.js';
 import type { Context, RelatedFileContext, RipgrepResult } from '../../types/index.js';
 import { normalizePath } from '../../utils/path.js';
+import type { TokenBudgetCalculator } from '../token/token-budget.js';
 
 export interface BudgetResult {
   context: Context;
   truncated: boolean;
 }
 
-function calculateTotalChars(context: Context): number {
-  const primary = context.primaryText?.length ?? 0;
-  const related =
-    context.relatedFiles?.reduce((sum, file) => sum + (file.content?.length ?? 0), 0) ?? 0;
-  const snippets = context.rgSnippets.reduce(
-    (sum, snippet) => sum + (snippet.content?.length ?? 0),
-    0,
-  );
-  const diff =
-    (context.gitDiff?.length ?? 0) +
-    (context.stagedDiff?.length ?? 0) +
-    (context.unstagedDiff?.length ?? 0) +
-    (context.untrackedDiff?.length ?? 0);
-  return primary + related + snippets + diff;
+/**
+ * Budget calculator interface for dependency injection.
+ * Allows using either char-based or token-based calculation.
+ */
+export interface IBudgetCalculator {
+  count(text: string): number;
+  calculateTotalTokens(context: Context): number;
+  calculateDiffTokens(context: Context): number;
+  calculateFileTokens(file: RelatedFileContext): number;
+  calculateSnippetTokens(snippet: RipgrepResult): number;
+  getDefaultBudget(): number;
+  getMinBudget(): number;
 }
 
-function calculateDiffChars(context: Context): number {
-  return (
-    (context.gitDiff?.length ?? 0) +
-    (context.stagedDiff?.length ?? 0) +
-    (context.unstagedDiff?.length ?? 0) +
-    (context.untrackedDiff?.length ?? 0)
-  );
+/**
+ * Character-based budget calculator (legacy).
+ */
+class CharBudgetCalculator implements IBudgetCalculator {
+  count(text: string): number {
+    return text.length;
+  }
+
+  calculateTotalTokens(context: Context): number {
+    const primary = context.primaryText?.length ?? 0;
+    const related =
+      context.relatedFiles?.reduce((sum, file) => sum + (file.content?.length ?? 0), 0) ?? 0;
+    const snippets = context.rgSnippets.reduce(
+      (sum, snippet) => sum + (snippet.content?.length ?? 0),
+      0,
+    );
+    const diff =
+      (context.gitDiff?.length ?? 0) +
+      (context.stagedDiff?.length ?? 0) +
+      (context.unstagedDiff?.length ?? 0) +
+      (context.untrackedDiff?.length ?? 0);
+    return primary + related + snippets + diff;
+  }
+
+  calculateDiffTokens(context: Context): number {
+    return (
+      (context.gitDiff?.length ?? 0) +
+      (context.stagedDiff?.length ?? 0) +
+      (context.unstagedDiff?.length ?? 0) +
+      (context.untrackedDiff?.length ?? 0)
+    );
+  }
+
+  calculateFileTokens(file: RelatedFileContext): number {
+    return file.content?.length ?? 0;
+  }
+
+  calculateSnippetTokens(snippet: RipgrepResult): number {
+    return snippet.content?.length ?? 0;
+  }
+
+  getDefaultBudget(): number {
+    return LIMITS.maxContextChars;
+  }
+
+  getMinBudget(): number {
+    return LIMITS.minContextChars;
+  }
 }
 
-function reserveDiffBudget(totalBudgetChars: number): number {
-  const quarter = Math.floor(totalBudgetChars * 0.25);
-  const half = Math.floor(totalBudgetChars * 0.5);
-  return Math.min(Math.max(quarter, 200), Math.min(half, 10_000));
+/**
+ * Adapter for TokenBudgetCalculator.
+ */
+class TokenBudgetAdapter implements IBudgetCalculator {
+  constructor(private calculator: TokenBudgetCalculator) {}
+
+  count(text: string): number {
+    return this.calculator.count(text);
+  }
+
+  calculateTotalTokens(context: Context): number {
+    return this.calculator.calculateTotalTokens(context);
+  }
+
+  calculateDiffTokens(context: Context): number {
+    return this.calculator.calculateDiffTokens(context);
+  }
+
+  calculateFileTokens(file: RelatedFileContext): number {
+    return this.calculator.calculateFileTokens(file);
+  }
+
+  calculateSnippetTokens(snippet: RipgrepResult): number {
+    return this.calculator.calculateSnippetTokens(snippet);
+  }
+
+  getDefaultBudget(): number {
+    return this.calculator.getDefaultBudget();
+  }
+
+  getMinBudget(): number {
+    return this.calculator.getMinBudget();
+  }
+}
+
+/**
+ * Create budget calculator based on mode.
+ */
+export function createBudgetCalculator(tokenCalculator?: TokenBudgetCalculator): IBudgetCalculator {
+  if (tokenCalculator) {
+    return new TokenBudgetAdapter(tokenCalculator);
+  }
+  return new CharBudgetCalculator();
+}
+
+function reserveDiffBudget(totalBudget: number, calculator: IBudgetCalculator): number {
+  // Reserve 25-50% for diffs, with min/max bounds
+  const quarter = Math.floor(totalBudget * 0.25);
+  const half = Math.floor(totalBudget * 0.5);
+  const minReserve = calculator.count('x'.repeat(200)); // Minimum 200 chars worth
+  const maxReserve = calculator.count('x'.repeat(10000)); // Maximum 10k chars worth
+  return Math.min(Math.max(quarter, minReserve), Math.min(half, maxReserve));
 }
 
 function truncateWithMarker(
   content: string,
-  maxChars: number,
-  minChars: number,
+  maxUnits: number,
+  minUnits: number,
+  calculator: IBudgetCalculator,
 ): string | undefined {
-  if (maxChars < minChars) return undefined;
-  if (content.length <= maxChars) return content;
+  if (maxUnits < minUnits) return undefined;
+  const contentUnits = calculator.count(content);
+  if (contentUnits <= maxUnits) return content;
 
   const marker = `\n${text.context.contentTruncated}\n`;
-  const sliceLen = Math.max(0, maxChars - marker.length);
-  if (sliceLen < minChars) return content.substring(0, maxChars);
+  const markerUnits = calculator.count(marker);
+  const maxSliceUnits = Math.max(0, maxUnits - markerUnits);
+
+  if (maxSliceUnits < minUnits) {
+    // Simple truncation without marker
+    const ratio = maxUnits / contentUnits;
+    const sliceLen = Math.floor(content.length * ratio);
+    return content.substring(0, sliceLen);
+  }
+
+  const ratio = maxSliceUnits / contentUnits;
+  const sliceLen = Math.floor(content.length * ratio);
   return `${content.substring(0, sliceLen)}${marker}`;
 }
 
@@ -66,21 +173,32 @@ function buildTargetSet(context: Context): Set<string> {
   return set;
 }
 
+/**
+ * Pack context items until budget is exhausted.
+ *
+ * @param context - Context to pack
+ * @param budget - Budget in tokens/chars (defaults to calculator's default)
+ * @param calculator - Budget calculator (defaults to char-based)
+ */
 export function packUntilFull(
   context: Context,
-  budgetChars: number = LIMITS.maxContextChars,
+  budget?: number,
+  calculator?: IBudgetCalculator,
 ): BudgetResult {
-  const totalChars = calculateTotalChars(context);
-  if (totalChars <= budgetChars) {
+  const calc = calculator ?? new CharBudgetCalculator();
+  const budgetUnits = budget ?? calc.getDefaultBudget();
+
+  const totalUnits = calc.calculateTotalTokens(context);
+  if (totalUnits <= budgetUnits) {
     return { context, truncated: false };
   }
 
-  const primaryLen = context.primaryText?.length || 0;
-  const diffChars = calculateDiffChars(context);
-  const reservedForDiff = diffChars > 0 ? reserveDiffBudget(budgetChars) : 0;
+  const primaryUnits = calc.count(context.primaryText ?? '');
+  const diffUnits = calc.calculateDiffTokens(context);
+  const reservedForDiff = diffUnits > 0 ? reserveDiffBudget(budgetUnits, calc) : 0;
 
-  const remainingChars = budgetChars - primaryLen;
-  if (remainingChars <= 0) {
+  const remainingUnits = budgetUnits - primaryUnits;
+  if (remainingUnits <= 0) {
     return {
       context: {
         ...context,
@@ -95,7 +213,7 @@ export function packUntilFull(
     };
   }
 
-  let remainingNonDiffChars = Math.max(0, remainingChars - reservedForDiff);
+  let remainingNonDiffUnits = Math.max(0, remainingUnits - reservedForDiff);
 
   const targetSet = buildTargetSet(context);
   const relatedFiles = [...(context.relatedFiles ?? [])].sort((a, b) => {
@@ -107,19 +225,19 @@ export function packUntilFull(
 
   const truncatedRelated: RelatedFileContext[] = [];
   for (const file of relatedFiles) {
-    const len = file.content?.length ?? 0;
-    if (len <= remainingNonDiffChars) {
+    const fileUnits = calc.calculateFileTokens(file);
+
+    if (fileUnits <= remainingNonDiffUnits) {
       truncatedRelated.push(file);
-      remainingNonDiffChars -= len;
+      remainingNonDiffUnits -= fileUnits;
       continue;
     }
 
     const outline = file.outline;
-    if (
-      outline &&
-      outline.length <= remainingNonDiffChars &&
-      outline.length >= LIMITS.minSnippetChars
-    ) {
+    const outlineUnits = outline ? calc.count(outline) : 0;
+    const minSnippetUnits = calc.count('x'.repeat(LIMITS.minSnippetChars));
+
+    if (outline && outlineUnits <= remainingNonDiffUnits && outlineUnits >= minSnippetUnits) {
       const outlineContent = `${outline}\n\n${text.context.relatedContentTruncated}`;
       truncatedRelated.push({
         ...file,
@@ -127,18 +245,21 @@ export function packUntilFull(
         content: outlineContent,
         outline: undefined,
       });
-      remainingNonDiffChars -= outlineContent.length;
+      remainingNonDiffUnits -= calc.count(outlineContent);
       continue;
     }
 
-    if (remainingNonDiffChars >= LIMITS.minSnippetChars) {
+    if (remainingNonDiffUnits >= minSnippetUnits) {
+      // Truncate content proportionally
+      const ratio = remainingNonDiffUnits / fileUnits;
+      const sliceLen = Math.floor((file.content?.length ?? 0) * ratio);
       truncatedRelated.push({
         ...file,
         mode: 'outline',
-        content: file.content.substring(0, remainingNonDiffChars),
+        content: file.content?.substring(0, sliceLen) ?? '',
         outline: undefined,
       });
-      remainingNonDiffChars = 0;
+      remainingNonDiffUnits = 0;
     }
     break;
   }
@@ -152,46 +273,50 @@ export function packUntilFull(
 
   const truncatedSnippets: RipgrepResult[] = [];
   for (const snippet of snippets) {
-    const snippetLen = snippet.content?.length ?? 0;
-    if (snippetLen <= remainingNonDiffChars) {
+    const snippetUnits = calc.calculateSnippetTokens(snippet);
+
+    if (snippetUnits <= remainingNonDiffUnits) {
       truncatedSnippets.push(snippet);
-      remainingNonDiffChars -= snippetLen;
+      remainingNonDiffUnits -= snippetUnits;
       continue;
     }
 
-    if (remainingNonDiffChars >= LIMITS.minSnippetChars) {
+    const minSnippetUnits = calc.count('x'.repeat(LIMITS.minSnippetChars));
+    if (remainingNonDiffUnits >= minSnippetUnits) {
+      const ratio = remainingNonDiffUnits / snippetUnits;
+      const sliceLen = Math.floor((snippet.content?.length ?? 0) * ratio);
       truncatedSnippets.push({
         ...snippet,
-        content: snippet.content.substring(0, remainingNonDiffChars),
+        content: snippet.content?.substring(0, sliceLen) ?? '',
       });
     }
     break;
   }
 
-  const usedNonDiffChars =
-    truncatedRelated.reduce((sum, f) => sum + (f.content?.length ?? 0), 0) +
-    truncatedSnippets.reduce((sum, s) => sum + (s.content?.length ?? 0), 0);
-  let remainingDiffChars = Math.max(0, remainingChars - usedNonDiffChars);
+  const usedNonDiffUnits =
+    truncatedRelated.reduce((sum, f) => sum + calc.calculateFileTokens(f), 0) +
+    truncatedSnippets.reduce((sum, s) => sum + calc.calculateSnippetTokens(s), 0);
+  let remainingDiffUnits = Math.max(0, remainingUnits - usedNonDiffUnits);
 
-  const minDiffChars = 32;
+  const minDiffUnits = calc.count('x'.repeat(32));
   const stagedDiff = context.stagedDiff
-    ? truncateWithMarker(context.stagedDiff, remainingDiffChars, minDiffChars)
+    ? truncateWithMarker(context.stagedDiff, remainingDiffUnits, minDiffUnits, calc)
     : undefined;
-  if (stagedDiff) remainingDiffChars -= stagedDiff.length;
+  if (stagedDiff) remainingDiffUnits -= calc.count(stagedDiff);
 
   const unstagedDiff = context.unstagedDiff
-    ? truncateWithMarker(context.unstagedDiff, remainingDiffChars, minDiffChars)
+    ? truncateWithMarker(context.unstagedDiff, remainingDiffUnits, minDiffUnits, calc)
     : undefined;
-  if (unstagedDiff) remainingDiffChars -= unstagedDiff.length;
+  if (unstagedDiff) remainingDiffUnits -= calc.count(unstagedDiff);
 
   const gitDiff =
     !stagedDiff && !unstagedDiff && context.gitDiff
-      ? truncateWithMarker(context.gitDiff, remainingDiffChars, minDiffChars)
+      ? truncateWithMarker(context.gitDiff, remainingDiffUnits, minDiffUnits, calc)
       : undefined;
-  if (gitDiff) remainingDiffChars -= gitDiff.length;
+  if (gitDiff) remainingDiffUnits -= calc.count(gitDiff);
 
   const untrackedDiff = context.untrackedDiff
-    ? truncateWithMarker(context.untrackedDiff, remainingDiffChars, minDiffChars)
+    ? truncateWithMarker(context.untrackedDiff, remainingDiffUnits, minDiffUnits, calc)
     : undefined;
 
   return {
