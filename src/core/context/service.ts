@@ -1,3 +1,4 @@
+import { LIMITS } from '../config/limits.js';
 import { Pipeline } from '../grizzco/engine/pipeline/pipeline.js';
 import { recordAuditEvent } from '../observability/audit-trail.js';
 import { logger } from '../observability/logger.js';
@@ -11,6 +12,10 @@ import { GitDiffGatherer } from './gatherers/git-diff-gatherer.js';
 import { PrimaryTextGatherer } from './gatherers/primary-text-gatherer.js';
 import { RipgrepGatherer } from './gatherers/ripgrep-gatherer.js';
 import { extractKeywords } from './keywords.js';
+import {
+  buildContextBudgetPolicyPlan,
+  executeContextBudgetPolicyPlan,
+} from './policies/budget-policy.js';
 import { packUntilFull } from './policies/pack-until-full.js';
 import { rankContextForRelevance } from './scoring/relevance.js';
 import { TargetResolver } from './targeting/target-resolver.js';
@@ -223,6 +228,22 @@ export class ContextService {
     const compressed = applySmartCompression(context, { budgetChars: req.budgetChars });
     const ranked = rankContextForRelevance(compressed);
     const preBudgetSectionChars = calculateSectionChars(ranked);
+
+    const budgetPolicyPlan = buildContextBudgetPolicyPlan({
+      requestedBudgetChars: req.budgetChars,
+      preBudgetSectionChars,
+      targetCount: (ranked.targets ?? []).length,
+    });
+    recordAuditEvent(
+      'context.budget.policy.plan',
+      {
+        workerId: budgetPolicyPlan.workerId,
+        actions: budgetPolicyPlan.actions.map((a) => a.type),
+        decisionTree: budgetPolicyPlan.decisionTree,
+      },
+      { source: 'context', severity: 'low', scope: 'session', phase: 'CONTEXT_BUDGET' },
+    );
+
     recordAuditEvent(
       'context.relevance.ranking',
       {
@@ -239,7 +260,12 @@ export class ContextService {
     );
 
     const budget = req.budgetChars;
-    const budgeted = packUntilFull(ranked, budget);
+    const budgeted = executeContextBudgetPolicyPlan({
+      plan: budgetPolicyPlan,
+      context: ranked,
+      fallbackBudgetChars: budget ?? LIMITS.maxContextChars,
+      pack: packUntilFull,
+    });
 
     const assembled = this.deps.assembler.assemble(budgeted.context, req);
     const sectionChars = calculateSectionChars(budgeted.context);
