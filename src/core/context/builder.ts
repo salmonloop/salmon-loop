@@ -2,7 +2,6 @@ import { readFile } from 'fs/promises';
 import path from 'path';
 
 import { LIMITS } from '../config/limits.js';
-import { recordAuditEvent } from '../observability/audit-trail.js';
 import { pluginRegistry } from '../plugin/registry.js';
 import { ErrorType, type Context, type RunOptions } from '../types/index.js';
 import { ensureInSandbox, normalizePath } from '../utils/path.js';
@@ -46,6 +45,7 @@ function getCachedExtensionsPattern(): string {
 }
 
 import { outlineSource } from './ast/source-outline.js';
+import { recordContextAuditEvent } from './audit.js';
 import { applySmartCompression } from './compression/smart-compress.js';
 import { findFileDependencies } from './dependencies.js';
 import {
@@ -224,7 +224,7 @@ export class ContextBuilder {
     const normalizedFailed = uniqNormalizedPaths(failedFiles);
 
     if (normalizedFailed.length > 0) {
-      recordAuditEvent(
+      recordContextAuditEvent(
         'context.shrink.failed_files',
         { count: normalizedFailed.length, files: normalizedFailed.slice(0, 20) },
         { source: 'context', severity: 'low', scope: 'session', phase: 'SHRINK' },

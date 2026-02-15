@@ -1,4 +1,4 @@
-import { recordAuditEvent } from '../../observability/audit-trail.js';
+import { recordContextAuditEvent } from '../audit.js';
 import { extractKeywords } from '../keywords.js';
 import type { ContextServiceDeps } from '../service-deps.js';
 import { assertNotAborted } from '../service-helpers.js';
@@ -9,7 +9,7 @@ export function buildContextGatherStep(deps: ContextServiceDeps) {
   return async ({ req, diffScope, primaryText }: ContextPrimaryCtx): Promise<ContextGatherCtx> => {
     assertNotAborted(req.signal);
     const keywords = extractKeywords(req.instruction);
-    recordAuditEvent(
+    recordContextAuditEvent(
       'context.keywords.extracted',
       { count: keywords.length, keywords: keywords.slice(0, 5) },
       { source: 'context', severity: 'low', scope: 'session', phase: 'CONTEXT_GATHER' },
@@ -22,7 +22,7 @@ export function buildContextGatherStep(deps: ContextServiceDeps) {
     ]);
     assertNotAborted(req.signal);
 
-    recordAuditEvent(
+    recordContextAuditEvent(
       'context.gather.completed',
       {
         rgSnippets: rgSnippets.length,

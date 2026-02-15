@@ -1,7 +1,7 @@
 import { LIMITS } from '../../config/limits.js';
-import { recordAuditEvent } from '../../observability/audit-trail.js';
 import type { Context } from '../../types/index.js';
 import { DefaultPromptAssembler } from '../assembly/default-prompt-assembler.js';
+import { recordContextAuditEvent } from '../audit.js';
 import { applySmartCompression } from '../compression/smart-compress.js';
 import {
   buildContextBudgetPolicyPlan,
@@ -59,7 +59,7 @@ export function buildContextBudgetStep(deps: ContextServiceDeps) {
       preBudgetSectionChars,
       targetCount: (ranked.targets ?? []).length,
     });
-    recordAuditEvent(
+    recordContextAuditEvent(
       'context.budget.policy.plan',
       {
         workerId: budgetPolicyPlan.workerId,
@@ -69,7 +69,7 @@ export function buildContextBudgetStep(deps: ContextServiceDeps) {
       { source: 'context', severity: 'low', scope: 'session', phase: 'CONTEXT_BUDGET' },
     );
 
-    recordAuditEvent(
+    recordContextAuditEvent(
       'context.relevance.ranking',
       {
         topRelatedFiles: (ranked.relatedFiles ?? []).slice(0, 10).map((f) => ({
@@ -107,7 +107,7 @@ export function buildContextBudgetStep(deps: ContextServiceDeps) {
           }
         : undefined;
 
-    recordAuditEvent(
+    recordContextAuditEvent(
       'context.pack.summary',
       {
         requestedBudgetChars: budget,

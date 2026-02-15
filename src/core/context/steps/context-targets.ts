@@ -1,4 +1,4 @@
-import { recordAuditEvent } from '../../observability/audit-trail.js';
+import { recordContextAuditEvent } from '../audit.js';
 import type { ContextServiceDeps } from '../service-deps.js';
 import { assertNotAborted } from '../service-helpers.js';
 
@@ -18,7 +18,7 @@ export function buildContextTargetsStep(deps: ContextServiceDeps) {
     const rgHitFiles = Array.from(new Set((rgSnippets ?? []).map((s) => s.file)));
 
     const symbolCandidates = req.instruction.match(/\b[A-Za-z_][A-Za-z0-9_]{2,}\b/g) ?? [];
-    recordAuditEvent(
+    recordContextAuditEvent(
       'context.targeting.candidates',
       {
         explicitPathCandidates: (req.instruction.match(/\.\w{1,5}\b/g) || []).length,
@@ -36,7 +36,7 @@ export function buildContextTargetsStep(deps: ContextServiceDeps) {
     });
     assertNotAborted(req.signal);
 
-    recordAuditEvent(
+    recordContextAuditEvent(
       'context.targets.resolved',
       {
         strategyTargets: targets.map((t) => ({
