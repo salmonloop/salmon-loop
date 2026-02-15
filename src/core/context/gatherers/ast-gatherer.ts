@@ -1,10 +1,10 @@
 import { readFile } from 'fs/promises';
-import path from 'path';
 
 import { text } from '../../../locales/index.js';
 import { AstParser } from '../../ast/parser.js';
 import { LIMITS } from '../../config/limits.js';
 import { logger } from '../../observability/logger.js';
+import { pluginRegistry } from '../../plugin/registry.js';
 import type { CodeLocation, RelatedFileContext, SymbolInfo } from '../../types/index.js';
 import { safeJoin } from '../../utils/path.js';
 import { extractImportSpecifiers } from '../ast/import-extractor.js';
@@ -18,35 +18,13 @@ export interface AstResult {
   relatedFiles: RelatedFileContext[];
 }
 
+/**
+ * Resolve language ID from file path using plugin registry.
+ * Zero hardcoded language mappings - fully dynamic via registered plugins.
+ */
 function getLanguageFromFile(filePath: string): string | undefined {
-  const ext = path.extname(filePath).toLowerCase();
-  switch (ext) {
-    case '.ts':
-      return 'typescript';
-    case '.tsx':
-      return 'tsx';
-    case '.js':
-    case '.jsx':
-    case '.mjs':
-    case '.cjs':
-      return 'javascript';
-    case '.py':
-      return 'python';
-    case '.go':
-      return 'go';
-    case '.rs':
-      return 'rust';
-    case '.java':
-      return 'java';
-    case '.cpp':
-    case '.cc':
-    case '.h':
-      return 'cpp';
-    case '.c':
-      return 'c';
-    default:
-      return undefined;
-  }
+  const plugin = pluginRegistry.getByExtension(filePath);
+  return plugin?.meta.id;
 }
 
 export class AstGatherer {

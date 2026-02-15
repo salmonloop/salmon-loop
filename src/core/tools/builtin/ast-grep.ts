@@ -3,11 +3,22 @@ import { promisify } from 'util';
 
 import { z } from 'zod';
 
+import { pluginRegistry } from '../../plugin/registry.js';
 import { Phase } from '../../types/index.js';
 import { processResource } from '../parallel/resource-helpers.js';
 import { ToolSpec, ToolRuntimeCtx } from '../types.js';
 
 const execAsync = promisify(child_process.exec);
+
+/**
+ * Get description for language parameter based on registered plugins.
+ */
+function getLanguageDescription(): string {
+  const plugins = pluginRegistry.getAll();
+  const langIds = plugins.map((p) => p.meta.id);
+  const examples = langIds.slice(0, 5).join(', ');
+  return `Source language. Supported: ${examples}${langIds.length > 5 ? ' (and more)' : ''}`;
+}
 
 /**
  * Spec for the ast-grep structural search tool.
@@ -25,10 +36,7 @@ export const astGrepSpec: Omit<ToolSpec, 'executor'> = {
   inputSchema: z.object({
     pattern: z.string().describe('ast-grep pattern to search for'),
     paths: z.array(z.string()).optional().describe('Scope search to specific files or directories'),
-    language: z
-      .enum(['typescript', 'tsx', 'javascript', 'jsx', 'python', 'go', 'rust'])
-      .optional()
-      .describe('Source language'),
+    language: z.string().optional().describe(getLanguageDescription()),
   }),
   outputSchema: z.object({
     matches: z.array(

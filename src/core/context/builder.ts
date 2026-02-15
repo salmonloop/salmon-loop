@@ -2,8 +2,47 @@ import { readFile } from 'fs/promises';
 import path from 'path';
 
 import { LIMITS } from '../config/limits.js';
+import { pluginRegistry } from '../plugin/registry.js';
 import { ErrorType, type Context, type RipgrepResult, type RunOptions } from '../types/index.js';
 import { ensureInSandbox, normalizePath } from '../utils/path.js';
+
+/**
+ * Base extensions that should always be recognized for error file extraction.
+ * These are common config and documentation files that may appear in any project.
+ */
+const BASE_EXTENSIONS = ['json', 'md', 'txt', 'yaml', 'yml', 'toml', 'lock', 'log'];
+
+/**
+ * Build dynamic file extension pattern for regex matching.
+ * Combines plugin-registered extensions with base extensions for robustness.
+ * Returns extensions without leading dots for regex alternation: (?:ts|js|tsx|...)
+ */
+function getExtensionsPattern(): string {
+  const extensions = new Set<string>(BASE_EXTENSIONS);
+  const plugins = pluginRegistry.getAll();
+
+  for (const plugin of plugins) {
+    for (const ext of plugin.meta.extensions) {
+      // Strip leading dot for regex alternation
+      extensions.add(ext.startsWith('.') ? ext.slice(1) : ext);
+    }
+  }
+
+  return Array.from(extensions).join('|');
+}
+
+/**
+ * Cached extension pattern for extractFailedFiles regex construction.
+ * Cache on module load to avoid repeated plugin iteration.
+ */
+let cachedExtensionPattern: string | null = null;
+
+function getCachedExtensionsPattern(): string {
+  if (cachedExtensionPattern === null) {
+    cachedExtensionPattern = getExtensionsPattern();
+  }
+  return cachedExtensionPattern;
+}
 
 import { outlineSource } from './ast/source-outline.js';
 import { applySmartCompression } from './compression/smart-compress.js';
@@ -146,18 +185,22 @@ export class ContextBuilder {
   }
 
   /**
-   * Extract potential failed file paths from verification output
+   * Extract potential failed file paths from verification output.
+   * Uses dynamically registered extensions from plugin registry.
    */
   static extractFailedFiles(verifyOutput: string): string[] {
     const uniqueFiles = new Set<string>();
+
+    // Build extension pattern dynamically from registered plugins
+    const extPattern = getCachedExtensionsPattern();
 
     // Strategy 1: Look for file paths followed by line numbers (common in stack traces and compiler output)
     // We handle both quoted and unquoted paths.
     const patterns = [
       // Quoted paths (can contain spaces)
-      /"([^"\n]+\.(?:ts|js|json|md|txt|css|html|jsx|tsx|vue|py|rs|go|java|c|cpp|h))"[:(]\d+/gu,
+      new RegExp(`"([^"\\n]+\\.(?:${extPattern}))"[:(]\\d+`, 'gu'),
       // Unquoted paths (no spaces allowed to avoid over-matching)
-      /((?:[a-zA-Z]:)?[^\s:()"]+\.(?:ts|js|json|md|txt|css|html|jsx|tsx|vue|py|rs|go|java|c|cpp|h))[:(]\d+/gu,
+      new RegExp(`((?:[a-zA-Z]:)?[^\\s:()"]+\\.(?:${extPattern}))[:(]\\d+`, 'gu'),
     ];
 
     for (const pattern of patterns) {
@@ -171,8 +214,10 @@ export class ContextBuilder {
     }
 
     // Strategy 2: Fall back to general file path matching for paths without line numbers
-    const pathPattern =
-      /(?:^|\s)((?:[a-zA-Z]:)?[^\s:()"]+\.(?:ts|js|json|md|txt|css|html|jsx|tsx|vue|py|rs|go|java|c|cpp|h))\b/gu;
+    const pathPattern = new RegExp(
+      `(?:^|\\s)((?:[a-zA-Z]:)?[^\\s:()"]+\\.(?:${extPattern}))\\b`,
+      'gu',
+    );
     let match2;
     while ((match2 = pathPattern.exec(verifyOutput)) !== null) {
       let p = normalizePath(match2[1].trim());
