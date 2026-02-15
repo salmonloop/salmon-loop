@@ -30,6 +30,25 @@ export interface ContextBuildMeta {
   truncated: boolean;
   diffScope: DiffScope;
   includedFiles: string[];
+  requestedBudgetChars?: number;
+  preBudgetSectionChars?: ContextSectionChars;
+  sectionChars: ContextSectionChars;
+  droppedSections?: DroppedContextSections;
+}
+
+export interface ContextSectionChars {
+  primary: number;
+  relatedFiles: number;
+  rgSnippets: number;
+  diffs: number;
+  total: number;
+}
+
+export interface DroppedContextSections {
+  stagedDiff: boolean;
+  unstagedDiff: boolean;
+  gitDiff: boolean;
+  untrackedDiff: boolean;
 }
 
 export interface ContextResult {

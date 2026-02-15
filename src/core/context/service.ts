@@ -43,6 +43,25 @@ function calculateUsedChars(context: Context): number {
   return primary + related + snippets + diff;
 }
 
+function calculateSectionChars(context: Context) {
+  const primary = context.primaryText?.length ?? 0;
+  const relatedFiles =
+    context.relatedFiles?.reduce((sum, f) => sum + (f.content?.length ?? 0), 0) ?? 0;
+  const rgSnippets = context.rgSnippets.reduce((sum, s) => sum + (s.content?.length ?? 0), 0);
+  const diffs =
+    (context.gitDiff?.length ?? 0) +
+    (context.stagedDiff?.length ?? 0) +
+    (context.unstagedDiff?.length ?? 0) +
+    (context.untrackedDiff?.length ?? 0);
+  return {
+    primary,
+    relatedFiles,
+    rgSnippets,
+    diffs,
+    total: primary + relatedFiles + rgSnippets + diffs,
+  };
+}
+
 function assertNotAborted(signal?: AbortSignal): void {
   if (signal?.aborted) {
     throw new Error('Operation cancelled by user');
@@ -104,11 +123,22 @@ export class ContextService {
 
     const compressed = applySmartCompression(context, { budgetChars: req.budgetChars });
     const ranked = rankContextForRelevance(compressed);
+    const preBudgetSectionChars = calculateSectionChars(ranked);
 
     const budget = req.budgetChars;
     const budgeted = packUntilFull(ranked, budget);
 
     const assembled = this.deps.assembler.assemble(budgeted.context, req);
+    const sectionChars = calculateSectionChars(budgeted.context);
+    const droppedSections =
+      budgeted.truncated && preBudgetSectionChars.diffs > 0
+        ? {
+            stagedDiff: Boolean(ranked.stagedDiff) && !Boolean(budgeted.context.stagedDiff),
+            unstagedDiff: Boolean(ranked.unstagedDiff) && !Boolean(budgeted.context.unstagedDiff),
+            gitDiff: Boolean(ranked.gitDiff) && !Boolean(budgeted.context.gitDiff),
+            untrackedDiff: Boolean(ranked.untrackedDiff) && !Boolean(budgeted.context.untrackedDiff),
+          }
+        : undefined;
 
     return {
       context: budgeted.context,
@@ -118,6 +148,10 @@ export class ContextService {
         truncated: budgeted.truncated,
         diffScope,
         includedFiles,
+        requestedBudgetChars: budget,
+        preBudgetSectionChars,
+        sectionChars,
+        droppedSections,
         ...(assembled.meta || {}),
       },
     };
