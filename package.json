@@ -93,6 +93,7 @@
     "openai": "^6.16.0",
     "progress": "^2.0.3",
     "react": "^19.2.4",
+    "tiktoken": "^1.0.22",
     "tree-sitter-javascript": "^0.25.0",
     "web-tree-sitter": "0.26.3",
     "zod": "^4.3.6",

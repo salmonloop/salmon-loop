@@ -4,7 +4,12 @@ export const LIMITS = {
   maxDiffLines: 200,
   maxRetries: 2,
 
-  // Context budget (heuristic, char-based)
+  // Context budget (token-based, with char fallback)
+  maxContextTokens: 7500, // ~30k chars equivalent
+  minContextTokens: 1250, // ~5k chars equivalent
+  maxPrimaryTokens: 3000, // ~12k chars equivalent
+
+  // Legacy char-based limits (for backwards compatibility)
   maxContextChars: 30000,
   minContextChars: 5000, // Protect against over-shrinking
   maxPrimaryChars: 12000, // Cap primary file to prevent context explosion
