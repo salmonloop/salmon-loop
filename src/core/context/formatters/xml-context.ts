@@ -2,6 +2,13 @@ import { text } from '../../../locales/index.js';
 import type { Context, RelatedFileContext, RipgrepResult } from '../../types/index.js';
 import { normalizePath } from '../../utils/path.js';
 
+const ANALYSIS_LIMITS = {
+  maxParseErrorChars: 4000,
+  maxSyntaxErrors: 50,
+  maxNotes: 10,
+  maxNoteChars: 500,
+} as const;
+
 function escapeXmlAttr(value: string): string {
   return value
     .replace(/&/g, '&amp;')
@@ -17,6 +24,12 @@ function escapeCdata(text: string): string {
 function cdataBlock(content: string, indent: string): string {
   const safe = escapeCdata(content);
   return `${indent}<![CDATA[\n${safe}\n${indent}]]>`;
+}
+
+function truncateText(value: string, maxChars: number): string {
+  if (maxChars <= 0) return '';
+  if (value.length <= maxChars) return value;
+  return value.slice(0, maxChars);
 }
 
 function markSymbolsInText(context: Context): string | undefined {
@@ -89,13 +102,15 @@ function renderAnalysis(context: Context): string[] {
 
   if (ast.parseError) {
     out.push('      <parse_error>');
-    out.push(cdataBlock(ast.parseError, '        '));
+    out.push(
+      cdataBlock(truncateText(ast.parseError, ANALYSIS_LIMITS.maxParseErrorChars), '        '),
+    );
     out.push('      </parse_error>');
   }
 
   if (Array.isArray(ast.syntaxErrors) && ast.syntaxErrors.length > 0) {
     out.push('      <syntax_errors>');
-    for (const e of ast.syntaxErrors) {
+    for (const e of ast.syntaxErrors.slice(0, ANALYSIS_LIMITS.maxSyntaxErrors)) {
       out.push(
         `        <error line="${e.line}" column="${e.column}" type="${escapeXmlAttr(e.type)}">`,
       );
@@ -107,9 +122,9 @@ function renderAnalysis(context: Context): string[] {
 
   if (Array.isArray(ast.notes) && ast.notes.length > 0) {
     out.push('      <notes>');
-    for (const note of ast.notes) {
+    for (const note of ast.notes.slice(0, ANALYSIS_LIMITS.maxNotes)) {
       out.push('        <note>');
-      out.push(cdataBlock(note, '          '));
+      out.push(cdataBlock(truncateText(note, ANALYSIS_LIMITS.maxNoteChars), '          '));
       out.push('        </note>');
     }
     out.push('      </notes>');
