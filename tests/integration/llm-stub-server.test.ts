@@ -300,4 +300,66 @@ describe('LLM stub server integration (no real network)', () => {
     await fs.rm(auditPath, { force: true });
     await fs.rm(blobPath, { force: true });
   });
+
+  it('externalizes long tool outputSummary to a blob and keeps a preview in audit JSON', async () => {
+    const auditDir = path.join(process.cwd(), '.salmonloop', 'runtime', 'audit');
+    await fs.mkdir(auditDir, { recursive: true });
+
+    const before = new Set(await fs.readdir(auditDir));
+
+    const report = await Pipeline.of({
+      toolAuditLogger: {
+        getLogs: () => [
+          {
+            timestamp: new Date().toISOString(),
+            eventType: 'end',
+            callId: 'call-1',
+            phase: Phase.CONTEXT,
+            toolName: 'fs.read',
+            status: 'ok',
+            durationMs: 1,
+            outputSummary: 'y'.repeat(10_000),
+          },
+        ],
+      },
+    } as any)
+      .step('PATCH', async (ctx) => ctx)
+      .execute();
+
+    const noopLlm = {
+      chat: async () => ({ role: 'assistant' as const, content: '' }),
+      createPlan: async () => ({ goal: '', files: [], changes: [], verify: '' }),
+      createPatch: async () => '',
+    };
+
+    await saveAudit(report as any, {
+      instruction: 'audit',
+      repoPath: process.cwd(),
+      llm: noopLlm,
+    });
+
+    const after = await fs.readdir(auditDir);
+    const created = after.find(
+      (f) => !before.has(f) && f.startsWith('audit-') && f.endsWith('.json'),
+    );
+    expect(created).toBeTruthy();
+
+    const auditPath = path.join(auditDir, created as string);
+    const content = JSON.parse(await fs.readFile(auditPath, 'utf8'));
+
+    expect(content.context.toolAuditLogs).toHaveLength(1);
+    expect(content.context.toolAuditLogs[0].outputSummaryTruncated).toBe(true);
+    expect(typeof content.context.toolAuditLogs[0].outputSummary).toBe('string');
+    expect(content.context.toolAuditLogs[0].outputSummary.length).toBeLessThan(5000);
+    expect(content.context.toolAuditLogs[0].outputSummaryBlob.path).toMatch(/^blobs\//);
+    expect(content.context.toolAuditLogs[0].outputSummaryBlob.sha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(content.context.toolAuditLogs[0].outputSummaryBlob.chars).toBe(10_000);
+
+    const blobPath = path.join(auditDir, content.context.toolAuditLogs[0].outputSummaryBlob.path);
+    const blobText = await fs.readFile(blobPath, 'utf8');
+    expect(blobText.length).toBe(10_000);
+
+    await fs.rm(auditPath, { force: true });
+    await fs.rm(blobPath, { force: true });
+  });
 });

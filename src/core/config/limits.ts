@@ -21,6 +21,12 @@ export const LIMITS = {
   verifyOutputMaxLines: 300,
   verifyTimeoutMs: Number(process.env.SALMONLOOP_VERIFY_TIMEOUT_MS) || 120000,
   worktreePrepareTimeoutMs: Number(process.env.SALMONLOOP_WORKTREE_PREPARE_TIMEOUT_MS) || 600000,
+  auditVerifyOutputMaxInlineChars: 4000,
+  auditVerifyOutputPreviewHeadChars: 2000,
+  auditVerifyOutputPreviewTailChars: 2000,
+  auditToolSummaryMaxInlineChars: 4000,
+  auditToolSummaryPreviewHeadChars: 2000,
+  auditToolSummaryPreviewTailChars: 2000,
 
   // Concurrency
   maxConcurrentOperations: Number(process.env.SALMONLOOP_MAX_CONCURRENT) || 3,

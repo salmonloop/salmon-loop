@@ -2,6 +2,7 @@ import { createHash } from 'crypto';
 import * as fs from 'fs/promises';
 import path from 'path';
 
+import { LIMITS } from '../../config/limits.js';
 import { getAuditTrail } from '../../observability/audit-trail.js';
 import { logger } from '../../observability/logger.js';
 import { getAuditDir } from '../../runtime/paths.js';
@@ -10,12 +11,6 @@ import { FlowReport } from '../engine/pipeline/pipeline.js';
 import type { ShrinkCtx } from '../engine/pipeline/types.js';
 
 type AuditContext = Partial<ShrinkCtx>;
-
-const VERIFY_OUTPUT = {
-  maxInlineChars: 4000,
-  previewHeadChars: 2000,
-  previewTailChars: 2000,
-} as const;
 
 export async function saveAudit(
   report: FlowReport,
@@ -32,6 +27,11 @@ export async function saveAudit(
     const ctx = report.data as AuditContext | undefined;
     const sanitizedData = sanitizeContext(report.data);
     await externalizeVerifyOutput({
+      auditDir,
+      timestamp,
+      sanitizedContext: sanitizedData,
+    });
+    await externalizeToolAuditSummaries({
       auditDir,
       timestamp,
       sanitizedContext: sanitizedData,
@@ -104,9 +104,16 @@ export async function saveAudit(
 }
 
 function buildVerifyOutputPreview(output: string): string {
-  if (output.length <= VERIFY_OUTPUT.maxInlineChars) return output;
-  const head = output.slice(0, VERIFY_OUTPUT.previewHeadChars);
-  const tail = output.slice(Math.max(0, output.length - VERIFY_OUTPUT.previewTailChars));
+  if (output.length <= LIMITS.auditVerifyOutputMaxInlineChars) return output;
+  const head = output.slice(0, LIMITS.auditVerifyOutputPreviewHeadChars);
+  const tail = output.slice(Math.max(0, output.length - LIMITS.auditVerifyOutputPreviewTailChars));
+  return `${head}\n\n[...truncated...]\n\n${tail}`;
+}
+
+function buildToolSummaryPreview(output: string): string {
+  if (output.length <= LIMITS.auditToolSummaryMaxInlineChars) return output;
+  const head = output.slice(0, LIMITS.auditToolSummaryPreviewHeadChars);
+  const tail = output.slice(Math.max(0, output.length - LIMITS.auditToolSummaryPreviewTailChars));
   return `${head}\n\n[...truncated...]\n\n${tail}`;
 }
 
@@ -123,7 +130,7 @@ async function externalizeVerifyOutput(args: {
 
   const output = verifyResult.output;
   if (typeof output !== 'string') return;
-  if (output.length <= VERIFY_OUTPUT.maxInlineChars) return;
+  if (output.length <= LIMITS.auditVerifyOutputMaxInlineChars) return;
 
   const blobDir = path.join(auditDir, 'blobs');
   await fs.mkdir(blobDir, { recursive: true });
@@ -140,6 +147,48 @@ async function externalizeVerifyOutput(args: {
     sha256,
     chars: output.length,
   };
+}
+
+async function externalizeToolAuditSummaries(args: {
+  auditDir: string;
+  timestamp: string;
+  sanitizedContext: Record<string, unknown> | null;
+}): Promise<void> {
+  const { auditDir, timestamp, sanitizedContext } = args;
+  if (!sanitizedContext) return;
+
+  const toolAuditLogs = sanitizedContext.toolAuditLogs as any;
+  if (!Array.isArray(toolAuditLogs) || toolAuditLogs.length === 0) return;
+
+  const blobDir = path.join(auditDir, 'blobs');
+  let ensuredBlobDir = false;
+
+  for (const entry of toolAuditLogs) {
+    if (!entry || typeof entry !== 'object') continue;
+    const outputSummary = (entry as any).outputSummary;
+    if (
+      typeof outputSummary === 'string' &&
+      outputSummary.length > LIMITS.auditToolSummaryMaxInlineChars
+    ) {
+      if (!ensuredBlobDir) {
+        await fs.mkdir(blobDir, { recursive: true });
+        ensuredBlobDir = true;
+      }
+
+      const sha256 = createHash('sha256').update(outputSummary, 'utf8').digest('hex');
+      const blobName = `tool-outputSummary-${timestamp}-${sha256.slice(0, 8)}.log`;
+      const blobPath = path.join(blobDir, blobName);
+      await fs.writeFile(blobPath, outputSummary, 'utf8');
+
+      (entry as any).outputSummary = buildToolSummaryPreview(outputSummary);
+      (entry as any).outputSummaryTruncated = true;
+      (entry as any).outputSummaryBlob = {
+        path: path.join('blobs', blobName),
+        sha256,
+        chars: outputSummary.length,
+      };
+    }
+  }
 }
 
 function sanitizeContext(ctx: unknown): Record<string, unknown> | null {
