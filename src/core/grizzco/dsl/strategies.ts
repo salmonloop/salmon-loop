@@ -102,8 +102,16 @@ export const StatusValidation = (engine: DecisionEngine): DecisionEngine => {
     );
 };
 
+/**
+ * StandardStrategy uses pipeline pattern for readable, auditable decision chain.
+ * Each step is applied in sequence, building up the execution plan.
+ */
 export const StandardStrategy = (engine: DecisionEngine): DecisionEngine => {
-  return StatusValidation(
-    MMHandling(IndexProtection(IntentRouting(SafetyChecks(engine)))),
-  ).setWorker('direct-write');
+  return engine
+    .apply(SafetyChecks)
+    .apply(IntentRouting)
+    .apply(IndexProtection)
+    .apply(MMHandling)
+    .apply(StatusValidation)
+    .setWorker('direct-write');
 };
