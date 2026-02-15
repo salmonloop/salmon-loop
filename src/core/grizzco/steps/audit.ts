@@ -3,7 +3,7 @@ import * as fs from 'fs/promises';
 import path from 'path';
 
 import { LIMITS } from '../../config/limits.js';
-import { getAuditTrail } from '../../observability/audit-trail.js';
+import { getAuditTrail, recordAuditEvent } from '../../observability/audit-trail.js';
 import { logger } from '../../observability/logger.js';
 import { getAuditDir } from '../../runtime/paths.js';
 import { SalmonError, type LoopOptions } from '../../types/index.js';
@@ -26,16 +26,36 @@ export async function saveAudit(
     // Sanitize context data to be JSON friendly
     const ctx = report.data as AuditContext | undefined;
     const sanitizedData = sanitizeContext(report.data);
-    await externalizeVerifyOutput({
-      auditDir,
-      timestamp,
-      sanitizedContext: sanitizedData,
-    });
-    await externalizeToolAuditSummaries({
-      auditDir,
-      timestamp,
-      sanitizedContext: sanitizedData,
-    });
+    try {
+      await externalizeVerifyOutput({
+        auditDir,
+        timestamp,
+        sanitizedContext: sanitizedData,
+      });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      logger.warn(`[Audit] Failed to externalize verify output: ${msg}`);
+      recordAuditEvent(
+        'audit.blob.externalize.failed',
+        { target: 'verifyResult.output', error: msg.slice(0, 500) },
+        { source: 'saveAudit', severity: 'low', scope: 'session', phase: 'AUDIT' },
+      );
+    }
+    try {
+      await externalizeToolAuditTextFields({
+        auditDir,
+        timestamp,
+        sanitizedContext: sanitizedData,
+      });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      logger.warn(`[Audit] Failed to externalize tool audit summaries: ${msg}`);
+      recordAuditEvent(
+        'audit.blob.externalize.failed',
+        { target: 'toolAuditLogs.*', error: msg.slice(0, 500) },
+        { source: 'saveAudit', severity: 'low', scope: 'session', phase: 'AUDIT' },
+      );
+    }
 
     const errorInfo = report.error as (Error & { code?: string; llmCode?: string }) | undefined;
     const errorMeta =
@@ -117,6 +137,49 @@ function buildToolSummaryPreview(output: string): string {
   return `${head}\n\n[...truncated...]\n\n${tail}`;
 }
 
+function sha256Hex(text: string): string {
+  return createHash('sha256').update(text, 'utf8').digest('hex');
+}
+
+async function writeBlobBestEffort(args: {
+  blobDir: string;
+  blobName: string;
+  content: string;
+  auditTarget: string;
+}): Promise<
+  | {
+      path: string;
+      sha256: string;
+      chars: number;
+    }
+  | undefined
+> {
+  const { blobDir, blobName, content, auditTarget } = args;
+  const sha256 = sha256Hex(content);
+  const blobPath = path.join(blobDir, blobName);
+
+  try {
+    await fs.mkdir(blobDir, { recursive: true });
+    await fs.writeFile(blobPath, content, 'utf8');
+    return { path: path.join('blobs', blobName), sha256, chars: content.length };
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    logger.warn(`[Audit] Failed to write blob ${blobName}: ${msg}`);
+    recordAuditEvent(
+      'audit.blob.write.failed',
+      {
+        target: auditTarget,
+        blobName,
+        sha256,
+        chars: content.length,
+        error: msg.slice(0, 500),
+      },
+      { source: 'saveAudit', severity: 'low', scope: 'session', phase: 'AUDIT' },
+    );
+    return undefined;
+  }
+}
+
 async function externalizeVerifyOutput(args: {
   auditDir: string;
   timestamp: string;
@@ -133,23 +196,24 @@ async function externalizeVerifyOutput(args: {
   if (output.length <= LIMITS.auditVerifyOutputMaxInlineChars) return;
 
   const blobDir = path.join(auditDir, 'blobs');
-  await fs.mkdir(blobDir, { recursive: true });
-
-  const sha256 = createHash('sha256').update(output, 'utf8').digest('hex');
-  const blobName = `verify-output-${timestamp}-${sha256.slice(0, 8)}.log`;
-  const blobPath = path.join(blobDir, blobName);
-  await fs.writeFile(blobPath, output, 'utf8');
 
   verifyResult.output = buildVerifyOutputPreview(output);
   verifyResult.outputTruncated = true;
-  verifyResult.outputBlob = {
-    path: path.join('blobs', blobName),
-    sha256,
-    chars: output.length,
-  };
+
+  const sha256 = sha256Hex(output);
+  const blobName = `verify-output-${timestamp}-${sha256.slice(0, 8)}.log`;
+  const blob = await writeBlobBestEffort({
+    blobDir,
+    blobName,
+    content: output,
+    auditTarget: 'verifyResult.output',
+  });
+  if (blob) {
+    verifyResult.outputBlob = blob;
+  }
 }
 
-async function externalizeToolAuditSummaries(args: {
+async function externalizeToolAuditTextFields(args: {
   auditDir: string;
   timestamp: string;
   sanitizedContext: Record<string, unknown> | null;
@@ -161,33 +225,49 @@ async function externalizeToolAuditSummaries(args: {
   if (!Array.isArray(toolAuditLogs) || toolAuditLogs.length === 0) return;
 
   const blobDir = path.join(auditDir, 'blobs');
-  let ensuredBlobDir = false;
 
   for (const entry of toolAuditLogs) {
     if (!entry || typeof entry !== 'object') continue;
-    const outputSummary = (entry as any).outputSummary;
-    if (
-      typeof outputSummary === 'string' &&
-      outputSummary.length > LIMITS.auditToolSummaryMaxInlineChars
-    ) {
-      if (!ensuredBlobDir) {
-        await fs.mkdir(blobDir, { recursive: true });
-        ensuredBlobDir = true;
-      }
+    await externalizeToolAuditTextField({
+      blobDir,
+      timestamp,
+      entry,
+      field: 'inputSummary',
+      blobPrefix: 'tool-inputSummary',
+      auditTarget: 'toolAuditLogs.inputSummary',
+    });
+    await externalizeToolAuditTextField({
+      blobDir,
+      timestamp,
+      entry,
+      field: 'outputSummary',
+      blobPrefix: 'tool-outputSummary',
+      auditTarget: 'toolAuditLogs.outputSummary',
+    });
+  }
+}
 
-      const sha256 = createHash('sha256').update(outputSummary, 'utf8').digest('hex');
-      const blobName = `tool-outputSummary-${timestamp}-${sha256.slice(0, 8)}.log`;
-      const blobPath = path.join(blobDir, blobName);
-      await fs.writeFile(blobPath, outputSummary, 'utf8');
+async function externalizeToolAuditTextField(args: {
+  blobDir: string;
+  timestamp: string;
+  entry: Record<string, unknown>;
+  field: 'inputSummary' | 'outputSummary';
+  blobPrefix: string;
+  auditTarget: string;
+}): Promise<void> {
+  const { blobDir, timestamp, entry, field, blobPrefix, auditTarget } = args;
+  const raw = entry[field];
+  if (typeof raw !== 'string') return;
+  if (raw.length <= LIMITS.auditToolSummaryMaxInlineChars) return;
 
-      (entry as any).outputSummary = buildToolSummaryPreview(outputSummary);
-      (entry as any).outputSummaryTruncated = true;
-      (entry as any).outputSummaryBlob = {
-        path: path.join('blobs', blobName),
-        sha256,
-        chars: outputSummary.length,
-      };
-    }
+  entry[field] = buildToolSummaryPreview(raw);
+  entry[`${field}Truncated`] = true;
+
+  const sha256 = sha256Hex(raw);
+  const blobName = `${blobPrefix}-${timestamp}-${sha256.slice(0, 8)}.log`;
+  const blob = await writeBlobBestEffort({ blobDir, blobName, content: raw, auditTarget });
+  if (blob) {
+    entry[`${field}Blob`] = blob;
   }
 }
 
