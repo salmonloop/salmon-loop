@@ -21,6 +21,7 @@ export interface RelatedFileContext {
 export type ContextTargetReason =
   | 'primary'
   | 'explicit_path'
+  | 'symbol_definition'
   | 'diff_included'
   | 'import_neighbor'
   | 'rg_hit'

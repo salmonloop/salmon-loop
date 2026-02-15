@@ -141,11 +141,22 @@ export class ContextService {
           const importRelatedFiles = (astRes.relatedFiles ?? []).map((f) => f.path);
           const rgHitFiles = Array.from(new Set((rgSnippets ?? []).map((s) => s.file)));
 
+          const symbolCandidates = req.instruction.match(/\b[A-Za-z_][A-Za-z0-9_]{2,}\b/g) ?? [];
+          recordAuditEvent(
+            'context.targeting.candidates',
+            {
+              explicitPathCandidates: (req.instruction.match(/\.\w{1,5}\b/g) || []).length,
+              symbolCandidates: symbolCandidates.slice(0, 20),
+            },
+            { source: 'context', severity: 'low', scope: 'session', phase: 'CONTEXT_TARGETS' },
+          );
+
           const { targets } = await this.deps.targetResolver.resolve({
             req,
             includedFiles: diffRes.includedFiles,
             importRelatedFiles,
             rgHitFiles,
+            definitionMap: astRes.definitionMap,
           });
           assertNotAborted(req.signal);
 
