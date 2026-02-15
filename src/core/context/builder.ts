@@ -4,7 +4,7 @@ import path from 'path';
 import { LIMITS } from '../config/limits.js';
 import { recordAuditEvent } from '../observability/audit-trail.js';
 import { pluginRegistry } from '../plugin/registry.js';
-import { ErrorType, type Context, type RipgrepResult, type RunOptions } from '../types/index.js';
+import { ErrorType, type Context, type RunOptions } from '../types/index.js';
 import { ensureInSandbox, normalizePath } from '../utils/path.js';
 
 /**
@@ -48,7 +48,13 @@ function getCachedExtensionsPattern(): string {
 import { outlineSource } from './ast/source-outline.js';
 import { applySmartCompression } from './compression/smart-compress.js';
 import { findFileDependencies } from './dependencies.js';
+import {
+  buildContextBudgetPolicyPlan,
+  executeContextBudgetPolicyPlan,
+} from './policies/budget-policy.js';
+import { packUntilFull } from './policies/pack-until-full.js';
 import { rankContextForRelevance } from './scoring/relevance.js';
+import { calculateSectionChars } from './service-helpers.js';
 import { ContextService } from './service.js';
 
 export interface ShrinkContextOptions {
@@ -124,88 +130,29 @@ export class ContextBuilder {
     return result.context;
   }
 
-  /**
-   * Truncates context to fit within character limits.
-   * Priority: primaryText > rgSnippets > gitDiff
-   * NOTE: gitDiff is currently dropped if context exceeds limits to reduce noise.
-   * Truncation strategy: Pack-until-full (keep complete snippets until budget is reached).
-   */
-  private static truncateContext(context: Context): Context {
-    const totalChars = this.calculateTotalChars(context);
+  private static tuneContext(context: Context, budgetChars: number): Context {
+    return rankContextForRelevance(applySmartCompression(context, { budgetChars }));
+  }
 
-    if (totalChars <= LIMITS.maxContextChars) {
-      return context;
-    }
+  private static packRankedContext(context: Context, budgetChars: number): Context {
+    const preBudgetSectionChars = calculateSectionChars(context);
+    const plan = buildContextBudgetPolicyPlan({
+      requestedBudgetChars: budgetChars,
+      preBudgetSectionChars,
+      targetCount: (context.targets ?? []).length,
+    });
+    const packed = executeContextBudgetPolicyPlan({
+      plan,
+      context,
+      fallbackBudgetChars: budgetChars,
+      pack: packUntilFull,
+    });
+    return packed.context;
+  }
 
-    // Prioritize primaryText, then pack snippets until budget is reached
-    let remainingChars = LIMITS.maxContextChars - (context.primaryText?.length || 0);
-
-    if (remainingChars <= 0) {
-      return {
-        ...context,
-        relatedFiles: [],
-        rgSnippets: [],
-        gitDiff: undefined,
-      };
-    }
-
-    const truncatedRelated: any[] = [];
-    for (const file of context.relatedFiles ?? []) {
-      const len = file.content?.length ?? 0;
-      if (len <= remainingChars) {
-        truncatedRelated.push(file);
-        remainingChars -= len;
-        continue;
-      }
-
-      const outline = file.outline;
-      if (outline && outline.length <= remainingChars && outline.length >= LIMITS.minSnippetChars) {
-        truncatedRelated.push({
-          ...file,
-          mode: 'outline',
-          content: outline,
-          outline: undefined,
-        });
-        remainingChars -= outline.length;
-        continue;
-      }
-
-      if (remainingChars >= LIMITS.minSnippetChars) {
-        truncatedRelated.push({
-          ...file,
-          mode: 'outline',
-          content: file.content.substring(0, remainingChars),
-          outline: undefined,
-        });
-        remainingChars = 0;
-      }
-      break;
-    }
-
-    const truncatedSnippets: RipgrepResult[] = [];
-    for (const snippet of context.rgSnippets) {
-      const snippetLen = snippet.content?.length ?? 0;
-      if (snippetLen <= remainingChars) {
-        truncatedSnippets.push(snippet);
-        remainingChars -= snippetLen;
-      } else {
-        // Only truncate the last one if it provides meaningful content
-        if (remainingChars >= LIMITS.minSnippetChars) {
-          truncatedSnippets.push({
-            ...snippet,
-            content: snippet.content.substring(0, remainingChars),
-          });
-        }
-        break;
-      }
-    }
-
-    return {
-      ...context,
-      relatedFiles: truncatedRelated,
-      rgSnippets: truncatedSnippets,
-      gitDiff: undefined,
-    };
+  private static tuneAndPackContext(context: Context, budgetChars: number): Context {
+    const tuned = this.tuneContext(context, budgetChars);
+    return this.packRankedContext(tuned, budgetChars);
   }
 
   /**
@@ -266,6 +213,7 @@ export class ContextBuilder {
     failedFiles: string[],
     errorTypeOrOptions?: ErrorType | ShrinkContextOptions,
   ): Promise<Context> {
+    const budgetChars = LIMITS.maxContextChars;
     const options = toShrinkOptions(errorTypeOrOptions);
     const dependencyDepth = Math.max(
       1,
@@ -343,19 +291,19 @@ export class ContextBuilder {
         targets: mergeTargets(context.targets, normalizedFailed),
       };
 
-      const tuned = rankContextForRelevance(applySmartCompression(shrunkContext));
+      const tuned = this.tuneContext(shrunkContext, budgetChars);
 
       // Protection against over-shrinking: if shrunk context is too small,
       // fallback to original context (but still truncated to max budget)
       if (this.calculateTotalChars(tuned) < LIMITS.minContextChars) {
-        return this.truncateContext(context);
+        return this.tuneAndPackContext(context, budgetChars);
       }
 
-      return tuned;
+      return this.packRankedContext(tuned, budgetChars);
     }
 
     // If no failed files, keep original keyword matches but ensure they are within limits
-    return this.truncateContext(context);
+    return this.tuneAndPackContext(context, budgetChars);
   }
 
   /**
