@@ -1,4 +1,5 @@
 export const CONTEXT_AUDIT_ACTION = {
+  inputSummary: 'context.input.summary',
   keywordsExtracted: 'context.keywords.extracted',
   gatherCompleted: 'context.gather.completed',
   targetingCandidates: 'context.targeting.candidates',
@@ -10,6 +11,7 @@ export const CONTEXT_AUDIT_ACTION = {
 } as const;
 
 export const CONTEXT_AUDIT_PHASE = {
+  primary: 'CONTEXT_PRIMARY',
   gather: 'CONTEXT_GATHER',
   targets: 'CONTEXT_TARGETS',
   budget: 'CONTEXT_BUDGET',

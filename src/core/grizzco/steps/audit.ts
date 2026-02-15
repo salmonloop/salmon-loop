@@ -1,4 +1,6 @@
+import { createHash } from 'crypto';
 import * as fs from 'fs/promises';
+import path from 'path';
 
 import { getAuditTrail } from '../../observability/audit-trail.js';
 import { logger } from '../../observability/logger.js';
@@ -8,6 +10,12 @@ import { FlowReport } from '../engine/pipeline/pipeline.js';
 import type { ShrinkCtx } from '../engine/pipeline/types.js';
 
 type AuditContext = Partial<ShrinkCtx>;
+
+const VERIFY_OUTPUT = {
+  maxInlineChars: 4000,
+  previewHeadChars: 2000,
+  previewTailChars: 2000,
+} as const;
 
 export async function saveAudit(
   report: FlowReport,
@@ -23,6 +31,11 @@ export async function saveAudit(
     // Sanitize context data to be JSON friendly
     const ctx = report.data as AuditContext | undefined;
     const sanitizedData = sanitizeContext(report.data);
+    await externalizeVerifyOutput({
+      auditDir,
+      timestamp,
+      sanitizedContext: sanitizedData,
+    });
 
     const errorInfo = report.error as (Error & { code?: string; llmCode?: string }) | undefined;
     const errorMeta =
@@ -88,6 +101,45 @@ export async function saveAudit(
     logger.error(`[Audit] Failed to save audit log: ${msg}`);
     return undefined;
   }
+}
+
+function buildVerifyOutputPreview(output: string): string {
+  if (output.length <= VERIFY_OUTPUT.maxInlineChars) return output;
+  const head = output.slice(0, VERIFY_OUTPUT.previewHeadChars);
+  const tail = output.slice(Math.max(0, output.length - VERIFY_OUTPUT.previewTailChars));
+  return `${head}\n\n[...truncated...]\n\n${tail}`;
+}
+
+async function externalizeVerifyOutput(args: {
+  auditDir: string;
+  timestamp: string;
+  sanitizedContext: Record<string, unknown> | null;
+}): Promise<void> {
+  const { auditDir, timestamp, sanitizedContext } = args;
+  if (!sanitizedContext) return;
+
+  const verifyResult = sanitizedContext.verifyResult as any;
+  if (!verifyResult || typeof verifyResult !== 'object') return;
+
+  const output = verifyResult.output;
+  if (typeof output !== 'string') return;
+  if (output.length <= VERIFY_OUTPUT.maxInlineChars) return;
+
+  const blobDir = path.join(auditDir, 'blobs');
+  await fs.mkdir(blobDir, { recursive: true });
+
+  const sha256 = createHash('sha256').update(output, 'utf8').digest('hex');
+  const blobName = `verify-output-${timestamp}-${sha256.slice(0, 8)}.log`;
+  const blobPath = path.join(blobDir, blobName);
+  await fs.writeFile(blobPath, output, 'utf8');
+
+  verifyResult.output = buildVerifyOutputPreview(output);
+  verifyResult.outputTruncated = true;
+  verifyResult.outputBlob = {
+    path: path.join('blobs', blobName),
+    sha256,
+    chars: output.length,
+  };
 }
 
 function sanitizeContext(ctx: unknown): Record<string, unknown> | null {

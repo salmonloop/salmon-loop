@@ -248,4 +248,56 @@ describe('LLM stub server integration (no real network)', () => {
 
     await fs.rm(path.join(auditDir, created as string), { force: true });
   });
+
+  it('externalizes long verify output to a blob and keeps a preview in audit JSON', async () => {
+    const auditDir = path.join(process.cwd(), '.salmonloop', 'runtime', 'audit');
+    await fs.mkdir(auditDir, { recursive: true });
+
+    const before = new Set(await fs.readdir(auditDir));
+
+    const report = await Pipeline.of({
+      verifyResult: {
+        ok: true,
+        exitCode: 0,
+        output: 'x'.repeat(10_000),
+      },
+    } as any)
+      .step('VERIFY', async (ctx) => ctx)
+      .execute();
+
+    const noopLlm = {
+      chat: async () => ({ role: 'assistant' as const, content: '' }),
+      createPlan: async () => ({ goal: '', files: [], changes: [], verify: '' }),
+      createPatch: async () => '',
+    };
+
+    await saveAudit(report as any, {
+      instruction: 'audit',
+      repoPath: process.cwd(),
+      llm: noopLlm,
+    });
+
+    const after = await fs.readdir(auditDir);
+    const created = after.find(
+      (f) => !before.has(f) && f.startsWith('audit-') && f.endsWith('.json'),
+    );
+    expect(created).toBeTruthy();
+
+    const auditPath = path.join(auditDir, created as string);
+    const content = JSON.parse(await fs.readFile(auditPath, 'utf8'));
+
+    expect(content.context.verifyResult.outputTruncated).toBe(true);
+    expect(typeof content.context.verifyResult.output).toBe('string');
+    expect(content.context.verifyResult.output.length).toBeLessThan(5000);
+    expect(content.context.verifyResult.outputBlob.path).toMatch(/^blobs\//);
+    expect(content.context.verifyResult.outputBlob.sha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(content.context.verifyResult.outputBlob.chars).toBe(10_000);
+
+    const blobPath = path.join(auditDir, content.context.verifyResult.outputBlob.path);
+    const blobText = await fs.readFile(blobPath, 'utf8');
+    expect(blobText.length).toBe(10_000);
+
+    await fs.rm(auditPath, { force: true });
+    await fs.rm(blobPath, { force: true });
+  });
 });
