@@ -1,9 +1,5 @@
 import { Pipeline } from '../grizzco/engine/pipeline/pipeline.js';
-import {
-  clearAuditContext,
-  recordAuditEvent,
-  setAuditContext,
-} from '../observability/audit-trail.js';
+import { recordAuditEvent } from '../observability/audit-trail.js';
 import { logger } from '../observability/logger.js';
 import type { Context } from '../types/index.js';
 
@@ -299,15 +295,10 @@ export class ContextService {
         } satisfies ContextResult;
       });
 
-    setAuditContext({ source: 'context', severity: 'low', scope: 'session' });
-    try {
-      const report = await pipeline.execute();
-      if (!report.success) {
-        throw report.error ?? new Error('Context pipeline failed');
-      }
-      return report.data as ContextResult;
-    } finally {
-      clearAuditContext();
+    const report = await pipeline.execute();
+    if (!report.success) {
+      throw report.error ?? new Error('Context pipeline failed');
     }
+    return report.data as ContextResult;
   }
 }
