@@ -45,7 +45,6 @@ function getCachedExtensionsPattern(): string {
 }
 
 import { outlineSource } from './ast/source-outline.js';
-import { recordContextAuditEvent } from './audit.js';
 import { applySmartCompression } from './compression/smart-compress.js';
 import { findFileDependencies } from './dependencies.js';
 import {
@@ -224,11 +223,6 @@ export class ContextBuilder {
     const normalizedFailed = uniqNormalizedPaths(failedFiles);
 
     if (normalizedFailed.length > 0) {
-      recordContextAuditEvent(
-        'context.shrink.failed_files',
-        { count: normalizedFailed.length, files: normalizedFailed.slice(0, 20) },
-        { source: 'context', severity: 'low', scope: 'session', phase: 'SHRINK' },
-      );
       const dependencyPromises = normalizedFailed.map((f) =>
         findFileDependencies(f, context.repoPath, {
           depth: dependencyDepth,
