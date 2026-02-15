@@ -1,6 +1,7 @@
 import { text } from '../../../locales/index.js';
 import { LIMITS } from '../../config/limits.js';
 import type { Context, RelatedFileContext, RipgrepResult } from '../../types/index.js';
+import { normalizePath } from '../../utils/path.js';
 
 export interface BudgetResult {
   context: Context;
@@ -52,6 +53,19 @@ function truncateWithMarker(
   return `${content.substring(0, sliceLen)}${marker}`;
 }
 
+function buildTargetSet(context: Context): Set<string> {
+  const set = new Set<string>();
+  for (const t of context.targets ?? []) {
+    const key = normalizePath(t.path).replace(/^(\.\/|\/)+/, '');
+    if (key) set.add(key);
+  }
+  if (context.primaryFile) {
+    const key = normalizePath(context.primaryFile).replace(/^(\.\/|\/)+/, '');
+    if (key) set.add(key);
+  }
+  return set;
+}
+
 export function packUntilFull(
   context: Context,
   budgetChars: number = LIMITS.maxContextChars,
@@ -83,8 +97,16 @@ export function packUntilFull(
 
   let remainingNonDiffChars = Math.max(0, remainingChars - reservedForDiff);
 
+  const targetSet = buildTargetSet(context);
+  const relatedFiles = [...(context.relatedFiles ?? [])].sort((a, b) => {
+    const aIsTarget = targetSet.has(normalizePath(a.path).replace(/^(\.\/|\/)+/, ''));
+    const bIsTarget = targetSet.has(normalizePath(b.path).replace(/^(\.\/|\/)+/, ''));
+    if (aIsTarget !== bIsTarget) return aIsTarget ? -1 : 1;
+    return 0;
+  });
+
   const truncatedRelated: RelatedFileContext[] = [];
-  for (const file of context.relatedFiles ?? []) {
+  for (const file of relatedFiles) {
     const len = file.content?.length ?? 0;
     if (len <= remainingNonDiffChars) {
       truncatedRelated.push(file);
@@ -121,8 +143,15 @@ export function packUntilFull(
     break;
   }
 
+  const snippets = [...context.rgSnippets].sort((a, b) => {
+    const aIsTarget = targetSet.has(normalizePath(a.file).replace(/^(\.\/|\/)+/, ''));
+    const bIsTarget = targetSet.has(normalizePath(b.file).replace(/^(\.\/|\/)+/, ''));
+    if (aIsTarget !== bIsTarget) return aIsTarget ? -1 : 1;
+    return 0;
+  });
+
   const truncatedSnippets: RipgrepResult[] = [];
-  for (const snippet of context.rgSnippets) {
+  for (const snippet of snippets) {
     const snippetLen = snippet.content?.length ?? 0;
     if (snippetLen <= remainingNonDiffChars) {
       truncatedSnippets.push(snippet);
