@@ -80,6 +80,211 @@ export class ContextService {
     this.deps = { ...defaultDeps(), ...deps };
   }
 
+  private async gatherPrimaryText(req: ContextRequest): Promise<string | undefined> {
+    assertNotAborted(req.signal);
+    const { primaryText } = await this.deps.primaryTextGatherer.gather(req);
+    assertNotAborted(req.signal);
+    return primaryText;
+  }
+
+  private async gatherBundle(
+    req: ContextRequest,
+    diffScope: DiffScope,
+    primaryText: string | undefined,
+  ): Promise<{
+    rgSnippets: Awaited<ReturnType<RipgrepGatherer['searchMultipleKeywords']>>;
+    diffRes: Awaited<ReturnType<GitDiffGatherer['gather']>>;
+    astRes: Awaited<ReturnType<AstGatherer['gather']>>;
+  }> {
+    assertNotAborted(req.signal);
+    const keywords = extractKeywords(req.instruction);
+    recordAuditEvent(
+      'context.keywords.extracted',
+      { count: keywords.length, keywords: keywords.slice(0, 5) },
+      { source: 'context', severity: 'low', scope: 'session', phase: 'CONTEXT_GATHER' },
+    );
+
+    const [rgSnippets, diffRes, astRes] = await Promise.all([
+      this.deps.ripgrepGatherer.searchMultipleKeywords(keywords, req.repoPath, req.signal),
+      this.deps.gitDiffGatherer.gather({ ...req, diffScope }),
+      this.deps.astGatherer.gather(primaryText, req),
+    ]);
+    assertNotAborted(req.signal);
+
+    recordAuditEvent(
+      'context.gather.completed',
+      {
+        rgSnippets: rgSnippets.length,
+        includedFiles: diffRes.includedFiles.length,
+        importedFiles: astRes.relatedFiles.length,
+        syntaxErrors: astRes.syntaxErrors?.length ?? 0,
+        hasParseError: Boolean(astRes.parseError),
+      },
+      { source: 'context', severity: 'low', scope: 'session', phase: 'CONTEXT_GATHER' },
+    );
+
+    return { rgSnippets, diffRes, astRes };
+  }
+
+  private async resolveTargets(args: {
+    req: ContextRequest;
+    rgSnippets: Awaited<ReturnType<RipgrepGatherer['searchMultipleKeywords']>>;
+    includedFiles: string[];
+    importRelatedFiles: string[];
+    definitionMap: Awaited<ReturnType<AstGatherer['gather']>>['definitionMap'] | undefined;
+  }): Promise<{ targets: Awaited<ReturnType<TargetResolver['resolve']>>['targets'] }> {
+    const { req, rgSnippets, includedFiles, importRelatedFiles, definitionMap } = args;
+    assertNotAborted(req.signal);
+
+    const rgHitFiles = Array.from(new Set((rgSnippets ?? []).map((s) => s.file)));
+    const symbolCandidates = req.instruction.match(/\b[A-Za-z_][A-Za-z0-9_]{2,}\b/g) ?? [];
+    recordAuditEvent(
+      'context.targeting.candidates',
+      {
+        explicitPathCandidates: (req.instruction.match(/\.\w{1,5}\b/g) || []).length,
+        symbolCandidates: symbolCandidates.slice(0, 20),
+      },
+      { source: 'context', severity: 'low', scope: 'session', phase: 'CONTEXT_TARGETS' },
+    );
+
+    const { targets } = await this.deps.targetResolver.resolve({
+      req,
+      includedFiles,
+      importRelatedFiles,
+      rgHitFiles,
+      definitionMap,
+    });
+    assertNotAborted(req.signal);
+
+    recordAuditEvent(
+      'context.targets.resolved',
+      {
+        strategyTargets: targets.map((t) => ({
+          path: t.path,
+          reason: t.reason,
+          confidence: t.confidence,
+        })),
+      },
+      { source: 'context', severity: 'low', scope: 'session', phase: 'CONTEXT_TARGETS' },
+    );
+
+    return { targets };
+  }
+
+  private buildResult(args: {
+    req: ContextRequest;
+    diffScope: DiffScope;
+    primaryText: string | undefined;
+    rgSnippets: Awaited<ReturnType<RipgrepGatherer['searchMultipleKeywords']>>;
+    includedFiles: string[];
+    stagedDiff: string | undefined;
+    unstagedDiff: string | undefined;
+    gitDiff: string | undefined;
+    relatedFiles: Awaited<ReturnType<AstGatherer['gather']>>['relatedFiles'];
+    symbols: Awaited<ReturnType<AstGatherer['gather']>>['symbols'];
+    definitionMap: Awaited<ReturnType<AstGatherer['gather']>>['definitionMap'];
+    analysis: Context['analysis'];
+    targets: Awaited<ReturnType<TargetResolver['resolve']>>['targets'];
+  }): ContextResult {
+    const {
+      req,
+      diffScope,
+      primaryText,
+      rgSnippets,
+      includedFiles,
+      stagedDiff,
+      unstagedDiff,
+      gitDiff,
+      relatedFiles,
+      symbols,
+      definitionMap,
+      analysis,
+      targets,
+    } = args;
+
+    assertNotAborted(req.signal);
+    const context: Context = {
+      repoPath: req.repoPath,
+      primaryFile: req.primaryFile,
+      primaryText,
+      relatedFiles,
+      rgSnippets,
+      gitDiff,
+      stagedDiff,
+      unstagedDiff,
+      untrackedDiff: undefined,
+      untrackedFiles: [],
+      symbols,
+      definitionMap,
+      targets,
+      analysis,
+    };
+
+    const compressed = applySmartCompression(context, { budgetChars: req.budgetChars });
+    const ranked = rankContextForRelevance(compressed);
+    const preBudgetSectionChars = calculateSectionChars(ranked);
+    recordAuditEvent(
+      'context.relevance.ranking',
+      {
+        topRelatedFiles: (ranked.relatedFiles ?? []).slice(0, 10).map((f) => ({
+          path: f.path,
+          kind: f.kind,
+          mode: f.mode,
+        })),
+        snippetFiles: Array.from(
+          new Set((ranked.rgSnippets ?? []).slice(0, 20).map((s) => s.file)),
+        ),
+      },
+      { source: 'context', severity: 'low', scope: 'session', phase: 'CONTEXT_BUDGET' },
+    );
+
+    const budget = req.budgetChars;
+    const budgeted = packUntilFull(ranked, budget);
+
+    const assembled = this.deps.assembler.assemble(budgeted.context, req);
+    const sectionChars = calculateSectionChars(budgeted.context);
+    const droppedSections =
+      budgeted.truncated && preBudgetSectionChars.diffs > 0
+        ? {
+            stagedDiff:
+              ranked.stagedDiff !== undefined && budgeted.context.stagedDiff === undefined,
+            unstagedDiff:
+              ranked.unstagedDiff !== undefined && budgeted.context.unstagedDiff === undefined,
+            gitDiff: ranked.gitDiff !== undefined && budgeted.context.gitDiff === undefined,
+            untrackedDiff:
+              ranked.untrackedDiff !== undefined && budgeted.context.untrackedDiff === undefined,
+          }
+        : undefined;
+
+    recordAuditEvent(
+      'context.pack.summary',
+      {
+        requestedBudgetChars: budget,
+        preBudgetSectionChars,
+        sectionChars,
+        truncated: budgeted.truncated,
+        droppedSections,
+      },
+      { source: 'context', severity: 'low', scope: 'session', phase: 'CONTEXT_BUDGET' },
+    );
+
+    return {
+      context: budgeted.context,
+      prompt: assembled.prompt,
+      meta: {
+        usedChars: calculateUsedChars(budgeted.context),
+        truncated: budgeted.truncated,
+        diffScope,
+        includedFiles,
+        requestedBudgetChars: budget,
+        preBudgetSectionChars,
+        sectionChars,
+        droppedSections,
+        ...(assembled.meta || {}),
+      },
+    } satisfies ContextResult;
+  }
+
   async build(req: ContextRequest): Promise<ContextResult> {
     const diffScope: DiffScope = req.diffScope ?? 'primary';
 
@@ -88,85 +293,28 @@ export class ContextService {
 
     const pipeline = Pipeline.of({ req, diffScope })
       .step('CONTEXT_PRIMARY', async ({ req, diffScope }) => {
-        assertNotAborted(req.signal);
-        const { primaryText } = await this.deps.primaryTextGatherer.gather(req);
-        assertNotAborted(req.signal);
+        const primaryText = await this.gatherPrimaryText(req);
         return { req, diffScope, primaryText };
       })
       .step('CONTEXT_GATHER', async ({ req, diffScope, primaryText }) => {
-        assertNotAborted(req.signal);
-        const keywords = extractKeywords(req.instruction);
-        recordAuditEvent(
-          'context.keywords.extracted',
-          { count: keywords.length, keywords: keywords.slice(0, 5) },
-          { source: 'context', severity: 'low', scope: 'session', phase: 'CONTEXT_GATHER' },
-        );
-
-        const [rgSnippets, diffRes, astRes] = await Promise.all([
-          this.deps.ripgrepGatherer.searchMultipleKeywords(keywords, req.repoPath, req.signal),
-          this.deps.gitDiffGatherer.gather({ ...req, diffScope }),
-          this.deps.astGatherer.gather(primaryText, req),
-        ]);
-        assertNotAborted(req.signal);
-
-        recordAuditEvent(
-          'context.gather.completed',
-          {
-            rgSnippets: rgSnippets.length,
-            includedFiles: diffRes.includedFiles.length,
-            importedFiles: astRes.relatedFiles.length,
-            syntaxErrors: astRes.syntaxErrors?.length ?? 0,
-            hasParseError: Boolean(astRes.parseError),
-          },
-          { source: 'context', severity: 'low', scope: 'session', phase: 'CONTEXT_GATHER' },
-        );
-
-        return {
+        const { rgSnippets, diffRes, astRes } = await this.gatherBundle(
           req,
           diffScope,
           primaryText,
-          rgSnippets,
-          diffRes,
-          astRes,
-        };
+        );
+        return { req, diffScope, primaryText, rgSnippets, diffRes, astRes };
       })
       .step(
         'CONTEXT_TARGETS',
         async ({ req, diffScope, primaryText, rgSnippets, diffRes, astRes }) => {
-          assertNotAborted(req.signal);
           const importRelatedFiles = (astRes.relatedFiles ?? []).map((f) => f.path);
-          const rgHitFiles = Array.from(new Set((rgSnippets ?? []).map((s) => s.file)));
-
-          const symbolCandidates = req.instruction.match(/\b[A-Za-z_][A-Za-z0-9_]{2,}\b/g) ?? [];
-          recordAuditEvent(
-            'context.targeting.candidates',
-            {
-              explicitPathCandidates: (req.instruction.match(/\.\w{1,5}\b/g) || []).length,
-              symbolCandidates: symbolCandidates.slice(0, 20),
-            },
-            { source: 'context', severity: 'low', scope: 'session', phase: 'CONTEXT_TARGETS' },
-          );
-
-          const { targets } = await this.deps.targetResolver.resolve({
+          const { targets } = await this.resolveTargets({
             req,
+            rgSnippets,
             includedFiles: diffRes.includedFiles,
             importRelatedFiles,
-            rgHitFiles,
             definitionMap: astRes.definitionMap,
           });
-          assertNotAborted(req.signal);
-
-          recordAuditEvent(
-            'context.targets.resolved',
-            {
-              strategyTargets: targets.map((t) => ({
-                path: t.path,
-                reason: t.reason,
-                confidence: t.confidence,
-              })),
-            },
-            { source: 'context', severity: 'low', scope: 'session', phase: 'CONTEXT_TARGETS' },
-          );
 
           return {
             req,
@@ -195,104 +343,7 @@ export class ContextService {
         },
       )
       .step('CONTEXT_BUDGET', async (ctx) => {
-        const {
-          req,
-          diffScope,
-          primaryText,
-          rgSnippets,
-          targets,
-          includedFiles,
-          stagedDiff,
-          unstagedDiff,
-          gitDiff,
-          relatedFiles,
-          symbols,
-          definitionMap,
-          analysis,
-        } = ctx;
-
-        assertNotAborted(req.signal);
-        const context: Context = {
-          repoPath: req.repoPath,
-          primaryFile: req.primaryFile,
-          primaryText,
-          relatedFiles,
-          rgSnippets,
-          gitDiff,
-          stagedDiff,
-          unstagedDiff,
-          untrackedDiff: undefined,
-          untrackedFiles: [],
-          symbols,
-          definitionMap,
-          targets,
-          analysis,
-        };
-
-        const compressed = applySmartCompression(context, { budgetChars: req.budgetChars });
-        const ranked = rankContextForRelevance(compressed);
-        const preBudgetSectionChars = calculateSectionChars(ranked);
-        recordAuditEvent(
-          'context.relevance.ranking',
-          {
-            topRelatedFiles: (ranked.relatedFiles ?? []).slice(0, 10).map((f) => ({
-              path: f.path,
-              kind: f.kind,
-              mode: f.mode,
-            })),
-            snippetFiles: Array.from(
-              new Set((ranked.rgSnippets ?? []).slice(0, 20).map((s) => s.file)),
-            ),
-          },
-          { source: 'context', severity: 'low', scope: 'session', phase: 'CONTEXT_BUDGET' },
-        );
-
-        const budget = req.budgetChars;
-        const budgeted = packUntilFull(ranked, budget);
-
-        const assembled = this.deps.assembler.assemble(budgeted.context, req);
-        const sectionChars = calculateSectionChars(budgeted.context);
-        const droppedSections =
-          budgeted.truncated && preBudgetSectionChars.diffs > 0
-            ? {
-                stagedDiff:
-                  ranked.stagedDiff !== undefined && budgeted.context.stagedDiff === undefined,
-                unstagedDiff:
-                  ranked.unstagedDiff !== undefined && budgeted.context.unstagedDiff === undefined,
-                gitDiff: ranked.gitDiff !== undefined && budgeted.context.gitDiff === undefined,
-                untrackedDiff:
-                  ranked.untrackedDiff !== undefined &&
-                  budgeted.context.untrackedDiff === undefined,
-              }
-            : undefined;
-
-        recordAuditEvent(
-          'context.pack.summary',
-          {
-            requestedBudgetChars: budget,
-            preBudgetSectionChars,
-            sectionChars,
-            truncated: budgeted.truncated,
-            droppedSections,
-          },
-          { source: 'context', severity: 'low', scope: 'session', phase: 'CONTEXT_BUDGET' },
-        );
-
-        return {
-          context: budgeted.context,
-          prompt: assembled.prompt,
-          meta: {
-            usedChars: calculateUsedChars(budgeted.context),
-            truncated: budgeted.truncated,
-            diffScope,
-            includedFiles,
-            requestedBudgetChars: budget,
-            preBudgetSectionChars,
-            sectionChars,
-            droppedSections,
-            ...(assembled.meta || {}),
-          },
-        } satisfies ContextResult;
+        return this.buildResult(ctx);
       });
 
     const report = await pipeline.execute();
