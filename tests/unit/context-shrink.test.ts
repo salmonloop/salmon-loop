@@ -24,10 +24,16 @@ describe('ContextBuilder.shrinkContext', () => {
 
     expect(result.rgSnippets).toHaveLength(1);
     expect(result.rgSnippets[0].file).toBe('src/a.ts');
+    expect(result.targets?.some((t) => t.path === 'src/a.ts' && t.reason === 'failed_file')).toBe(
+      true,
+    );
 
     const result2 = await ContextBuilder.shrinkContext(mockContext, failedFiles, ErrorType.LOGIC);
     expect(result2.rgSnippets).toHaveLength(1);
     expect(result2.rgSnippets[0].file).toBe('src/a.ts');
+    expect(result2.targets?.some((t) => t.path === 'src/a.ts' && t.reason === 'failed_file')).toBe(
+      true,
+    );
   });
 
   it('should return original context if no failed files', async () => {

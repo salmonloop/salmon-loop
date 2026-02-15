@@ -2,6 +2,7 @@ import { readFile } from 'fs/promises';
 import path from 'path';
 
 import { LIMITS } from '../config/limits.js';
+import { recordAuditEvent } from '../observability/audit-trail.js';
 import { pluginRegistry } from '../plugin/registry.js';
 import { ErrorType, type Context, type RipgrepResult, type RunOptions } from '../types/index.js';
 import { ensureInSandbox, normalizePath } from '../utils/path.js';
@@ -71,6 +72,29 @@ function uniqNormalizedPaths(paths: string[]): string[] {
     seen.add(normalized);
     out.push(normalized);
   }
+  return out;
+}
+
+function mergeTargets(
+  existing: Context['targets'] | undefined,
+  failedFiles: string[],
+): NonNullable<Context['targets']> {
+  const out = [...(existing ?? [])];
+  const seen = new Set(out.map((t) => normalizePath(t.path).replace(/^(\.\/|\/)+/, '')));
+
+  for (const file of failedFiles) {
+    const normalized = normalizePath(file).replace(/^(\.\/|\/)+/, '');
+    if (!normalized) continue;
+    if (seen.has(normalized)) continue;
+    seen.add(normalized);
+    out.push({
+      path: normalized,
+      reason: 'failed_file',
+      confidence: 'high',
+      evidence: 'verify_output',
+    });
+  }
+
   return out;
 }
 
@@ -252,6 +276,11 @@ export class ContextBuilder {
     const normalizedFailed = uniqNormalizedPaths(failedFiles);
 
     if (normalizedFailed.length > 0) {
+      recordAuditEvent(
+        'context.shrink.failed_files',
+        { count: normalizedFailed.length, files: normalizedFailed.slice(0, 20) },
+        { source: 'context', severity: 'low', scope: 'session', phase: 'SHRINK' },
+      );
       const dependencyPromises = normalizedFailed.map((f) =>
         findFileDependencies(f, context.repoPath, {
           depth: dependencyDepth,
@@ -311,6 +340,7 @@ export class ContextBuilder {
         ...context,
         relatedFiles: newRelatedFiles,
         rgSnippets: newSnippets,
+        targets: mergeTargets(context.targets, normalizedFailed),
       };
 
       const tuned = rankContextForRelevance(applySmartCompression(shrunkContext));

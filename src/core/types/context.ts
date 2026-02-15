@@ -23,6 +23,7 @@ export type ContextTargetReason =
   | 'explicit_path'
   | 'symbol_definition'
   | 'diff_included'
+  | 'failed_file'
   | 'import_neighbor'
   | 'rg_hit'
   | 'fallback';
