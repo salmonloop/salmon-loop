@@ -51,7 +51,7 @@ describe('packUntilFull', () => {
     expect(result.truncated).toBe(true);
     expect(result.context.rgSnippets.length).toBe(1);
     expect(result.context.rgSnippets[0]?.file).toBe('src/a.ts');
-    expect(result.context.gitDiff).toBeUndefined();
+    expect(result.context.gitDiff).toBeDefined();
   });
 
   it('prioritizes related files before snippets', () => {

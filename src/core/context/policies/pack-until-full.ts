@@ -23,6 +23,31 @@ function calculateTotalChars(context: Context): number {
   return primary + related + snippets + diff;
 }
 
+function calculateDiffChars(context: Context): number {
+  return (
+    (context.gitDiff?.length ?? 0) +
+    (context.stagedDiff?.length ?? 0) +
+    (context.unstagedDiff?.length ?? 0) +
+    (context.untrackedDiff?.length ?? 0)
+  );
+}
+
+function reserveDiffBudget(totalBudgetChars: number): number {
+  const quarter = Math.floor(totalBudgetChars * 0.25);
+  const half = Math.floor(totalBudgetChars * 0.5);
+  return Math.min(Math.max(quarter, 200), Math.min(half, 10_000));
+}
+
+function truncateWithMarker(content: string, maxChars: number, minChars: number): string | undefined {
+  if (maxChars < minChars) return undefined;
+  if (content.length <= maxChars) return content;
+
+  const marker = `\n${text.context.contentTruncated}\n`;
+  const sliceLen = Math.max(0, maxChars - marker.length);
+  if (sliceLen < minChars) return content.substring(0, maxChars);
+  return `${content.substring(0, sliceLen)}${marker}`;
+}
+
 export function packUntilFull(
   context: Context,
   budgetChars: number = LIMITS.maxContextChars,
@@ -32,7 +57,11 @@ export function packUntilFull(
     return { context, truncated: false };
   }
 
-  let remainingChars = budgetChars - (context.primaryText?.length || 0);
+  const primaryLen = context.primaryText?.length || 0;
+  const diffChars = calculateDiffChars(context);
+  const reservedForDiff = diffChars > 0 ? reserveDiffBudget(budgetChars) : 0;
+
+  const remainingChars = budgetChars - primaryLen;
   if (remainingChars <= 0) {
     return {
       context: {
@@ -48,17 +77,23 @@ export function packUntilFull(
     };
   }
 
+  let remainingNonDiffChars = Math.max(0, remainingChars - reservedForDiff);
+
   const truncatedRelated: RelatedFileContext[] = [];
   for (const file of context.relatedFiles ?? []) {
     const len = file.content?.length ?? 0;
-    if (len <= remainingChars) {
+    if (len <= remainingNonDiffChars) {
       truncatedRelated.push(file);
-      remainingChars -= len;
+      remainingNonDiffChars -= len;
       continue;
     }
 
     const outline = file.outline;
-    if (outline && outline.length <= remainingChars && outline.length >= LIMITS.minSnippetChars) {
+    if (
+      outline &&
+      outline.length <= remainingNonDiffChars &&
+      outline.length >= LIMITS.minSnippetChars
+    ) {
       const outlineContent = `${outline}\n\n${text.context.relatedContentTruncated}`;
       truncatedRelated.push({
         ...file,
@@ -66,18 +101,18 @@ export function packUntilFull(
         content: outlineContent,
         outline: undefined,
       });
-      remainingChars -= outlineContent.length;
+      remainingNonDiffChars -= outlineContent.length;
       continue;
     }
 
-    if (remainingChars >= LIMITS.minSnippetChars) {
+    if (remainingNonDiffChars >= LIMITS.minSnippetChars) {
       truncatedRelated.push({
         ...file,
         mode: 'outline',
-        content: file.content.substring(0, remainingChars),
+        content: file.content.substring(0, remainingNonDiffChars),
         outline: undefined,
       });
-      remainingChars = 0;
+      remainingNonDiffChars = 0;
     }
     break;
   }
@@ -85,30 +120,56 @@ export function packUntilFull(
   const truncatedSnippets: RipgrepResult[] = [];
   for (const snippet of context.rgSnippets) {
     const snippetLen = snippet.content?.length ?? 0;
-    if (snippetLen <= remainingChars) {
+    if (snippetLen <= remainingNonDiffChars) {
       truncatedSnippets.push(snippet);
-      remainingChars -= snippetLen;
+      remainingNonDiffChars -= snippetLen;
       continue;
     }
 
-    if (remainingChars >= LIMITS.minSnippetChars) {
+    if (remainingNonDiffChars >= LIMITS.minSnippetChars) {
       truncatedSnippets.push({
         ...snippet,
-        content: snippet.content.substring(0, remainingChars),
+        content: snippet.content.substring(0, remainingNonDiffChars),
       });
     }
     break;
   }
+
+  const usedNonDiffChars =
+    truncatedRelated.reduce((sum, f) => sum + (f.content?.length ?? 0), 0) +
+    truncatedSnippets.reduce((sum, s) => sum + (s.content?.length ?? 0), 0);
+  let remainingDiffChars = Math.max(0, remainingChars - usedNonDiffChars);
+
+  const minDiffChars = 32;
+  const stagedDiff = context.stagedDiff
+    ? truncateWithMarker(context.stagedDiff, remainingDiffChars, minDiffChars)
+    : undefined;
+  if (stagedDiff) remainingDiffChars -= stagedDiff.length;
+
+  const unstagedDiff = context.unstagedDiff
+    ? truncateWithMarker(context.unstagedDiff, remainingDiffChars, minDiffChars)
+    : undefined;
+  if (unstagedDiff) remainingDiffChars -= unstagedDiff.length;
+
+  const gitDiff =
+    !stagedDiff && !unstagedDiff && context.gitDiff
+      ? truncateWithMarker(context.gitDiff, remainingDiffChars, minDiffChars)
+      : undefined;
+  if (gitDiff) remainingDiffChars -= gitDiff.length;
+
+  const untrackedDiff = context.untrackedDiff
+    ? truncateWithMarker(context.untrackedDiff, remainingDiffChars, minDiffChars)
+    : undefined;
 
   return {
     context: {
       ...context,
       relatedFiles: truncatedRelated,
       rgSnippets: truncatedSnippets,
-      gitDiff: undefined,
-      stagedDiff: undefined,
-      unstagedDiff: undefined,
-      untrackedDiff: undefined,
+      stagedDiff,
+      unstagedDiff,
+      gitDiff,
+      untrackedDiff,
     },
     truncated: true,
   };
