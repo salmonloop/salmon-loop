@@ -2,10 +2,16 @@ import { readFile } from 'fs/promises';
 
 import { text } from '../../../locales/index.js';
 import { AstParser } from '../../ast/parser.js';
+import { checkSyntaxErrors } from '../../ast/validator.js';
 import { LIMITS } from '../../config/limits.js';
 import { logger } from '../../observability/logger.js';
 import { pluginRegistry } from '../../plugin/registry.js';
-import type { CodeLocation, RelatedFileContext, SymbolInfo } from '../../types/index.js';
+import type {
+  AstSyntaxError,
+  CodeLocation,
+  RelatedFileContext,
+  SymbolInfo,
+} from '../../types/index.js';
 import { safeJoin } from '../../utils/path.js';
 import { extractImportSpecifiers } from '../ast/import-extractor.js';
 import { resolveImportCandidates } from '../ast/module-resolver.js';
@@ -16,6 +22,9 @@ export interface AstResult {
   symbols: SymbolInfo[];
   definitionMap: Record<string, CodeLocation>;
   relatedFiles: RelatedFileContext[];
+  languageId?: string;
+  syntaxErrors?: AstSyntaxError[];
+  parseError?: string;
 }
 
 /**
@@ -33,25 +42,30 @@ export class AstGatherer {
       return { symbols: [], definitionMap: {}, relatedFiles: [] };
     }
 
-    const symbolsResult = await this.gatherSymbols(primaryText, req.primaryFile);
+    const diagnostics = await this.gatherDiagnostics(primaryText, req.primaryFile);
+    const symbolsResult = await this.gatherSymbols(primaryText, req.primaryFile, diagnostics.tree);
     const relatedFiles = await this.gatherImportedFiles(primaryText, req);
 
     return {
       symbols: symbolsResult.symbols,
       definitionMap: symbolsResult.definitionMap,
       relatedFiles,
+      languageId: diagnostics.languageId,
+      syntaxErrors: diagnostics.syntaxErrors,
+      parseError: diagnostics.parseError,
     };
   }
 
   private async gatherSymbols(
     primaryText: string,
     primaryFile: string,
+    parsedTree?: any,
   ): Promise<Pick<AstResult, 'symbols' | 'definitionMap'>> {
     try {
       const lang = getLanguageFromFile(primaryFile);
       if (!lang) return { symbols: [], definitionMap: {} };
 
-      const tree = await AstParser.parse(primaryText, lang);
+      const tree = parsedTree ?? (await AstParser.parse(primaryText, lang));
       const defs = await AstParser.identifyDefinitions(tree, lang);
       const refs = await AstParser.identifyReferences(tree, lang);
 
@@ -64,6 +78,44 @@ export class AstGatherer {
     } catch (e) {
       logger.debug(`  [CONTEXT] Symbol extraction unavailable for ${primaryFile}: ${e}`);
       return { symbols: [], definitionMap: {} };
+    }
+  }
+
+  private async gatherDiagnostics(
+    primaryText: string,
+    primaryFile: string,
+  ): Promise<{
+    languageId?: string;
+    syntaxErrors?: AstSyntaxError[];
+    parseError?: string;
+    tree?: any;
+  }> {
+    const languageId = getLanguageFromFile(primaryFile);
+    if (!languageId)
+      return { languageId: undefined, syntaxErrors: undefined, parseError: undefined };
+
+    try {
+      const tree = await AstParser.parse(primaryText, languageId);
+      const rawErrors = checkSyntaxErrors(tree);
+      const syntaxErrors: AstSyntaxError[] =
+        rawErrors.length > 0
+          ? rawErrors.slice(0, 50).map((e) => ({
+              line: e.line + 1,
+              column: e.column + 1,
+              type: e.type,
+              text: String(e.text || '').slice(0, 200),
+            }))
+          : [];
+
+      return {
+        languageId,
+        syntaxErrors,
+        tree,
+      };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      logger.debug(`  [CONTEXT] AST diagnostics unavailable for ${primaryFile}: ${msg}`);
+      return { languageId, syntaxErrors: undefined, parseError: msg };
     }
   }
 

@@ -35,6 +35,22 @@ export interface ContextTarget {
   evidence?: string;
 }
 
+export interface AstSyntaxError {
+  line: number;
+  column: number;
+  type: 'ERROR' | 'MISSING';
+  text: string;
+}
+
+export interface ContextAnalysis {
+  ast?: {
+    languageId?: string;
+    syntaxErrors?: AstSyntaxError[];
+    parseError?: string;
+    notes?: string[];
+  };
+}
+
 export interface Context {
   repoPath: string;
   primaryFile?: string;
@@ -52,6 +68,7 @@ export interface Context {
   definitionMap?: Record<string, CodeLocation>;
   symbols?: SymbolInfo[];
   targets?: ContextTarget[];
+  analysis?: ContextAnalysis;
 }
 
 export interface FileContext {

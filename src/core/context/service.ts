@@ -1,5 +1,10 @@
 import { Pipeline } from '../grizzco/engine/pipeline/pipeline.js';
 import { logger } from '../observability/logger.js';
+import {
+  clearAuditContext,
+  recordAuditEvent,
+  setAuditContext,
+} from '../observability/audit-trail.js';
 import type { Context } from '../types/index.js';
 
 import { DefaultPromptAssembler } from './assembly/default-prompt-assembler.js';
@@ -95,6 +100,11 @@ export class ContextService {
       .step('CONTEXT_GATHER', async ({ req, diffScope, primaryText }) => {
         assertNotAborted(req.signal);
         const keywords = extractKeywords(req.instruction);
+        recordAuditEvent(
+          'context.keywords.extracted',
+          { count: keywords.length, keywords: keywords.slice(0, 5) },
+          { source: 'context', severity: 'low', scope: 'session', phase: 'CONTEXT_GATHER' },
+        );
 
         const [rgSnippets, diffRes, astRes] = await Promise.all([
           this.deps.ripgrepGatherer.searchMultipleKeywords(keywords, req.repoPath, req.signal),
@@ -102,6 +112,18 @@ export class ContextService {
           this.deps.astGatherer.gather(primaryText, req),
         ]);
         assertNotAborted(req.signal);
+
+        recordAuditEvent(
+          'context.gather.completed',
+          {
+            rgSnippets: rgSnippets.length,
+            includedFiles: diffRes.includedFiles.length,
+            importedFiles: astRes.relatedFiles.length,
+            syntaxErrors: astRes.syntaxErrors?.length ?? 0,
+            hasParseError: Boolean(astRes.parseError),
+          },
+          { source: 'context', severity: 'low', scope: 'session', phase: 'CONTEXT_GATHER' },
+        );
 
         return {
           req,
@@ -127,6 +149,18 @@ export class ContextService {
           });
           assertNotAborted(req.signal);
 
+          recordAuditEvent(
+            'context.targets.resolved',
+            {
+              strategyTargets: targets.map((t) => ({
+                path: t.path,
+                reason: t.reason,
+                confidence: t.confidence,
+              })),
+            },
+            { source: 'context', severity: 'low', scope: 'session', phase: 'CONTEXT_TARGETS' },
+          );
+
           return {
             req,
             diffScope,
@@ -140,6 +174,16 @@ export class ContextService {
             relatedFiles: astRes.relatedFiles,
             symbols: astRes.symbols,
             definitionMap: astRes.definitionMap,
+            analysis: {
+              ast: {
+                languageId: astRes.languageId,
+                syntaxErrors: astRes.syntaxErrors,
+                parseError: astRes.parseError,
+                notes: [
+                  'Type mismatch, dead code, and potential bug detection are not available in this analysis layer.',
+                ],
+              },
+            },
           };
         },
       )
@@ -157,6 +201,7 @@ export class ContextService {
           relatedFiles,
           symbols,
           definitionMap,
+          analysis,
         } = ctx;
 
         assertNotAborted(req.signal);
@@ -174,6 +219,7 @@ export class ContextService {
           symbols,
           definitionMap,
           targets,
+          analysis,
         };
 
         const compressed = applySmartCompression(context, { budgetChars: req.budgetChars });
@@ -216,10 +262,15 @@ export class ContextService {
         } satisfies ContextResult;
       });
 
-    const report = await pipeline.execute();
-    if (!report.success) {
-      throw report.error ?? new Error('Context pipeline failed');
+    setAuditContext({ source: 'context', severity: 'low', scope: 'session' });
+    try {
+      const report = await pipeline.execute();
+      if (!report.success) {
+        throw report.error ?? new Error('Context pipeline failed');
+      }
+      return report.data as ContextResult;
+    } finally {
+      clearAuditContext();
     }
-    return report.data as ContextResult;
   }
 }

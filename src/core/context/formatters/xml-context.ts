@@ -75,6 +75,52 @@ function renderManifest(context: Context): string[] {
   return out;
 }
 
+function renderAnalysis(context: Context): string[] {
+  const out: string[] = [];
+  const ast = context.analysis?.ast;
+  if (!ast) return out;
+
+  out.push('  <analysis>');
+  out.push('    <ast>');
+
+  if (ast.languageId) {
+    out.push(`      <language id="${escapeXmlAttr(ast.languageId)}" />`);
+  }
+
+  if (ast.parseError) {
+    out.push('      <parse_error>');
+    out.push(cdataBlock(ast.parseError, '        '));
+    out.push('      </parse_error>');
+  }
+
+  if (Array.isArray(ast.syntaxErrors) && ast.syntaxErrors.length > 0) {
+    out.push('      <syntax_errors>');
+    for (const e of ast.syntaxErrors) {
+      out.push(
+        `        <error line="${e.line}" column="${e.column}" type="${escapeXmlAttr(e.type)}">`,
+      );
+      out.push(cdataBlock(e.text, '          '));
+      out.push('        </error>');
+    }
+    out.push('      </syntax_errors>');
+  }
+
+  if (Array.isArray(ast.notes) && ast.notes.length > 0) {
+    out.push('      <notes>');
+    for (const note of ast.notes) {
+      out.push('        <note>');
+      out.push(cdataBlock(note, '          '));
+      out.push('        </note>');
+    }
+    out.push('      </notes>');
+  }
+
+  out.push('    </ast>');
+  out.push('  </analysis>');
+
+  return out;
+}
+
 function renderRelatedFiles(relatedFiles: RelatedFileContext[] | undefined): string[] {
   const out: string[] = [];
   if (!relatedFiles || relatedFiles.length === 0) return out;
@@ -155,6 +201,7 @@ export function formatContextForXmlPrompt(context: Context): string {
   out.push('<context>');
 
   out.push(...renderManifest(context));
+  out.push(...renderAnalysis(context));
   out.push(...renderPrimaryFile(context));
   out.push(...renderRelatedFiles(context.relatedFiles));
   out.push(...renderSnippets(context.rgSnippets));
