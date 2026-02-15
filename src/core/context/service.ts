@@ -1,7 +1,6 @@
+import { Pipeline } from '../grizzco/engine/pipeline/pipeline.js';
 import { logger } from '../observability/logger.js';
 import type { Context } from '../types/index.js';
-
-import { Pipeline } from '../grizzco/engine/pipeline/pipeline.js';
 
 import { DefaultPromptAssembler } from './assembly/default-prompt-assembler.js';
 import type { PromptAssembler } from './assembly/prompt-assembler.js';
@@ -113,34 +112,37 @@ export class ContextService {
           astRes,
         };
       })
-      .step('CONTEXT_TARGETS', async ({ req, diffScope, primaryText, rgSnippets, diffRes, astRes }) => {
-        assertNotAborted(req.signal);
-        const importRelatedFiles = (astRes.relatedFiles ?? []).map((f) => f.path);
-        const rgHitFiles = Array.from(new Set((rgSnippets ?? []).map((s) => s.file)));
+      .step(
+        'CONTEXT_TARGETS',
+        async ({ req, diffScope, primaryText, rgSnippets, diffRes, astRes }) => {
+          assertNotAborted(req.signal);
+          const importRelatedFiles = (astRes.relatedFiles ?? []).map((f) => f.path);
+          const rgHitFiles = Array.from(new Set((rgSnippets ?? []).map((s) => s.file)));
 
-        const { targets } = await this.deps.targetResolver.resolve({
-          req,
-          includedFiles: diffRes.includedFiles,
-          importRelatedFiles,
-          rgHitFiles,
-        });
-        assertNotAborted(req.signal);
+          const { targets } = await this.deps.targetResolver.resolve({
+            req,
+            includedFiles: diffRes.includedFiles,
+            importRelatedFiles,
+            rgHitFiles,
+          });
+          assertNotAborted(req.signal);
 
-        return {
-          req,
-          diffScope,
-          primaryText,
-          rgSnippets,
-          targets,
-          includedFiles: diffRes.includedFiles,
-          stagedDiff: diffRes.stagedDiff,
-          unstagedDiff: diffRes.unstagedDiff,
-          gitDiff: diffRes.gitDiff,
-          relatedFiles: astRes.relatedFiles,
-          symbols: astRes.symbols,
-          definitionMap: astRes.definitionMap,
-        };
-      })
+          return {
+            req,
+            diffScope,
+            primaryText,
+            rgSnippets,
+            targets,
+            includedFiles: diffRes.includedFiles,
+            stagedDiff: diffRes.stagedDiff,
+            unstagedDiff: diffRes.unstagedDiff,
+            gitDiff: diffRes.gitDiff,
+            relatedFiles: astRes.relatedFiles,
+            symbols: astRes.symbols,
+            definitionMap: astRes.definitionMap,
+          };
+        },
+      )
       .step('CONTEXT_BUDGET', async (ctx) => {
         const {
           req,
@@ -186,11 +188,14 @@ export class ContextService {
         const droppedSections =
           budgeted.truncated && preBudgetSectionChars.diffs > 0
             ? {
-                stagedDiff: Boolean(ranked.stagedDiff) && !Boolean(budgeted.context.stagedDiff),
-                unstagedDiff: Boolean(ranked.unstagedDiff) && !Boolean(budgeted.context.unstagedDiff),
-                gitDiff: Boolean(ranked.gitDiff) && !Boolean(budgeted.context.gitDiff),
+                stagedDiff:
+                  ranked.stagedDiff !== undefined && budgeted.context.stagedDiff === undefined,
+                unstagedDiff:
+                  ranked.unstagedDiff !== undefined && budgeted.context.unstagedDiff === undefined,
+                gitDiff: ranked.gitDiff !== undefined && budgeted.context.gitDiff === undefined,
                 untrackedDiff:
-                  Boolean(ranked.untrackedDiff) && !Boolean(budgeted.context.untrackedDiff),
+                  ranked.untrackedDiff !== undefined &&
+                  budgeted.context.untrackedDiff === undefined,
               }
             : undefined;
 

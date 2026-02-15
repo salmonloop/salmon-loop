@@ -1,9 +1,8 @@
-import { normalizePath } from '../../utils/path.js';
-import type { ContextTarget } from '../../types/index.js';
-import { MicroTaskRunner } from '../../grizzco/dsl/MicroTaskRunner.js';
 import type { BaseDslContext, DecisionEngine } from '../../grizzco/dsl/DecisionEngine.js';
+import { MicroTaskRunner } from '../../grizzco/dsl/MicroTaskRunner.js';
 import { logger } from '../../observability/logger.js';
-
+import type { ContextTarget } from '../../types/index.js';
+import { normalizePath } from '../../utils/path.js';
 import type { ContextRequest } from '../types.js';
 
 interface TargetingDslContext extends BaseDslContext {
@@ -138,54 +137,53 @@ export class TargetResolver {
         return [];
       },
       strategy: (engine: DecisionEngine<TargetingDslContext>) => {
-        return (
-          engine
-            .phase('Dependencies')
-            .require((c) => Boolean(c.primaryFile), 'No primary file provided')
-            .requireData(['explicitTargets', 'diffTargets', 'defaultTargets'])
-            .phase('Selection')
-            .when(
-              (c) =>
-                ((c.data?.explicitTargets as ContextTarget[] | undefined) || []).some(
-                  (t) => t.reason === 'explicit_path',
-                ),
-              (p) => {
-                p.addAction('SET_TARGETS', {
-                  strategy: 'explicit',
-                  targets: engine.ctx.data!.explicitTargets,
-                });
-              },
-            )
-            .when(
-              (c) =>
-                !(
-                  ((c.data?.explicitTargets as ContextTarget[] | undefined) || []).some(
-                    (t) => t.reason === 'explicit_path',
-                  )
-                ) &&
-                (((c.data?.diffTargets as ContextTarget[] | undefined) || []).some(
-                  (t) => t.reason === 'diff_included',
-                )),
-              (p) => {
-                p.addAction('SET_TARGETS', { strategy: 'diff', targets: engine.ctx.data!.diffTargets });
-              },
-            )
-            .unless(
-              (c) =>
-                ((c.data?.explicitTargets as ContextTarget[] | undefined) || []).some(
-                  (t) => t.reason === 'explicit_path',
-                ) ||
-                ((c.data?.diffTargets as ContextTarget[] | undefined) || []).some(
-                  (t) => t.reason === 'diff_included',
-                ),
-              (p) => {
-                p.addAction('SET_TARGETS', {
-                  strategy: 'default',
-                  targets: engine.ctx.data!.defaultTargets,
-                });
-              },
-            )
-        );
+        return engine
+          .phase('Dependencies')
+          .require((c) => Boolean(c.primaryFile), 'No primary file provided')
+          .requireData(['explicitTargets', 'diffTargets', 'defaultTargets'])
+          .phase('Selection')
+          .when(
+            (c) =>
+              ((c.data?.explicitTargets as ContextTarget[] | undefined) || []).some(
+                (t) => t.reason === 'explicit_path',
+              ),
+            (p) => {
+              p.addAction('SET_TARGETS', {
+                strategy: 'explicit',
+                targets: engine.ctx.data!.explicitTargets,
+              });
+            },
+          )
+          .when(
+            (c) =>
+              !((c.data?.explicitTargets as ContextTarget[] | undefined) || []).some(
+                (t) => t.reason === 'explicit_path',
+              ) &&
+              ((c.data?.diffTargets as ContextTarget[] | undefined) || []).some(
+                (t) => t.reason === 'diff_included',
+              ),
+            (p) => {
+              p.addAction('SET_TARGETS', {
+                strategy: 'diff',
+                targets: engine.ctx.data!.diffTargets,
+              });
+            },
+          )
+          .unless(
+            (c) =>
+              ((c.data?.explicitTargets as ContextTarget[] | undefined) || []).some(
+                (t) => t.reason === 'explicit_path',
+              ) ||
+              ((c.data?.diffTargets as ContextTarget[] | undefined) || []).some(
+                (t) => t.reason === 'diff_included',
+              ),
+            (p) => {
+              p.addAction('SET_TARGETS', {
+                strategy: 'default',
+                targets: engine.ctx.data!.defaultTargets,
+              });
+            },
+          );
       },
     });
 

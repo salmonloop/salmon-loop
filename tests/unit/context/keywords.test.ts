@@ -4,7 +4,9 @@ import { extractKeywords } from '../../../src/core/context/keywords.js';
 
 describe('extractKeywords', () => {
   it('prioritizes path-like tokens', () => {
-    const keywords = extractKeywords('Please update src/core/context/service.ts to include targets');
+    const keywords = extractKeywords(
+      'Please update src/core/context/service.ts to include targets',
+    );
     expect(keywords[0]).toBe('src/core/context/service.ts');
   });
 
@@ -20,4 +22,3 @@ describe('extractKeywords', () => {
     expect(keywords[0]!.length).toBeGreaterThanOrEqual(2);
   });
 });
-

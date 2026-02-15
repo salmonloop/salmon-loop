@@ -38,7 +38,11 @@ function reserveDiffBudget(totalBudgetChars: number): number {
   return Math.min(Math.max(quarter, 200), Math.min(half, 10_000));
 }
 
-function truncateWithMarker(content: string, maxChars: number, minChars: number): string | undefined {
+function truncateWithMarker(
+  content: string,
+  maxChars: number,
+  minChars: number,
+): string | undefined {
   if (maxChars < minChars) return undefined;
   if (content.length <= maxChars) return content;
 
