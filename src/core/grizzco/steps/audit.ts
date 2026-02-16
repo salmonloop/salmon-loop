@@ -3,6 +3,7 @@ import * as fs from 'fs/promises';
 import path from 'path';
 
 import { LIMITS } from '../../config/limits.js';
+import { truncateOutput } from '../../context/truncation/index.js';
 import { getAuditTrail, recordAuditEvent } from '../../observability/audit-trail.js';
 import { logger } from '../../observability/logger.js';
 import { getAuditDir } from '../../runtime/paths.js';
@@ -123,18 +124,22 @@ export async function saveAudit(
   }
 }
 
-function buildVerifyOutputPreview(output: string): string {
+function buildVerifyOutputPreview(output: string, typeHint?: string): string {
   if (output.length <= LIMITS.auditVerifyOutputMaxInlineChars) return output;
-  const head = output.slice(0, LIMITS.auditVerifyOutputPreviewHeadChars);
-  const tail = output.slice(Math.max(0, output.length - LIMITS.auditVerifyOutputPreviewTailChars));
-  return `${head}\n\n[...truncated...]\n\n${tail}`;
+
+  // Use semantic truncation for better output preservation
+  const result = truncateOutput(output, LIMITS.auditVerifyOutputMaxInlineChars, typeHint);
+
+  return result.content;
 }
 
-function buildToolSummaryPreview(output: string): string {
+function buildToolSummaryPreview(output: string, typeHint?: string): string {
   if (output.length <= LIMITS.auditToolSummaryMaxInlineChars) return output;
-  const head = output.slice(0, LIMITS.auditToolSummaryPreviewHeadChars);
-  const tail = output.slice(Math.max(0, output.length - LIMITS.auditToolSummaryPreviewTailChars));
-  return `${head}\n\n[...truncated...]\n\n${tail}`;
+
+  // Use semantic truncation for better output preservation
+  const result = truncateOutput(output, LIMITS.auditToolSummaryMaxInlineChars, typeHint);
+
+  return result.content;
 }
 
 function sha256Hex(text: string): string {
