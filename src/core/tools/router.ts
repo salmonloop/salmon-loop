@@ -1,5 +1,7 @@
 import * as crypto from 'crypto';
 
+import { z } from 'zod';
+
 import { LIMITS } from '../config/limits.js';
 import { logger } from '../observability/logger.js';
 
@@ -9,11 +11,70 @@ import { BudgetGuard } from './budget.js';
 import { ToolPolicy } from './policy.js';
 import { ToolRegistry } from './registry.js';
 import { ToolSanitizer } from './sanitize.js';
-import { ToolCallEnvelope, ToolResult } from './types.js';
+import { ToolCallEnvelope, ToolResult, ToolSpec } from './types.js';
 
 export class ToolRouter {
   private authorizationCache = new Map<string, { expiresAt?: number }>();
   private authorizationMode: 'blocking' | 'deferred';
+
+  private unwrapForHint(schema: z.ZodTypeAny): z.ZodTypeAny {
+    let current: z.ZodTypeAny = schema;
+    for (let depth = 0; depth < 20; depth++) {
+      const ZodEffects: any = (z as any).ZodEffects;
+      if (typeof ZodEffects === 'function' && current instanceof ZodEffects) {
+        current = (current as any)._def.schema;
+        continue;
+      }
+      if (current instanceof z.ZodPipe) {
+        current = (current as any)._def.out;
+        continue;
+      }
+      if (current instanceof z.ZodOptional) {
+        current = (current as any)._def.innerType;
+        continue;
+      }
+      if (current instanceof z.ZodNullable) {
+        current = (current as any)._def.innerType;
+        continue;
+      }
+      if (current instanceof z.ZodDefault) {
+        current = (current as any)._def.innerType;
+        continue;
+      }
+      break;
+    }
+    return current;
+  }
+
+  private buildInputHint(spec: ToolSpec): string | undefined {
+    if (!spec.inputSchema) return undefined;
+    const base = this.unwrapForHint(spec.inputSchema as any);
+    if (!(base instanceof z.ZodObject)) return undefined;
+
+    const shape = (base as any).shape as Record<string, z.ZodTypeAny>;
+    const required: string[] = [];
+    const parts: string[] = [];
+
+    for (const [key, value] of Object.entries(shape)) {
+      const isOptional = value.isOptional();
+      if (!isOptional) required.push(key);
+
+      const unwrapped = this.unwrapForHint(value);
+      let typeName = 'unknown';
+      if (unwrapped instanceof z.ZodString) typeName = 'string';
+      else if (unwrapped instanceof z.ZodNumber) typeName = 'number';
+      else if (unwrapped instanceof z.ZodBoolean) typeName = 'boolean';
+      else if (unwrapped instanceof z.ZodArray) typeName = 'array';
+      else if (unwrapped instanceof z.ZodObject) typeName = 'object';
+
+      parts.push(`${key}: ${typeName}${isOptional ? ' (optional)' : ''}`);
+    }
+
+    if (parts.length === 0) return undefined;
+
+    const requiredText = required.length > 0 ? ` Required keys: ${required.join(', ')}.` : '';
+    return `Expected JSON object. Keys: ${parts.join(', ')}.${requiredText}`;
+  }
 
   constructor(
     private registry: ToolRegistry,
@@ -65,7 +126,11 @@ export class ToolRouter {
       // 2. Input Validation: Validate parameters using Zod Schema
       const inputCheck = this.sanitizer.validateInput(spec, envelope.args);
       if (!inputCheck.ok) {
-        throw { code: 'INVALID_INPUT', message: inputCheck.message };
+        const hint = this.buildInputHint(spec);
+        const message = hint
+          ? `${inputCheck.message} (${hint})`
+          : inputCheck.message || 'Invalid input';
+        throw { code: 'INVALID_INPUT', message };
       }
       const normalizedArgs = inputCheck.value ?? envelope.args;
       const normalizedEnvelope =

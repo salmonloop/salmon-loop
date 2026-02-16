@@ -94,8 +94,37 @@ export class PromptRegistry {
       return { type: 'object', description: 'Schema details unavailable' };
     }
 
+    const unwrapForJsonSchema = (schema: z.ZodTypeAny): z.ZodTypeAny => {
+      let current: z.ZodTypeAny = schema;
+      for (let depth = 0; depth < 20; depth++) {
+        const ZodEffects: any = (z as any).ZodEffects;
+        if (typeof ZodEffects === 'function' && current instanceof ZodEffects) {
+          current = (current as any)._def.schema;
+          continue;
+        }
+        if (current instanceof z.ZodPipe) {
+          current = (current as any)._def.out;
+          continue;
+        }
+        if (current instanceof z.ZodOptional) {
+          current = (current as any)._def.innerType;
+          continue;
+        }
+        if (current instanceof z.ZodNullable) {
+          current = (current as any)._def.innerType;
+          continue;
+        }
+        if (current instanceof z.ZodDefault) {
+          current = (current as any)._def.innerType;
+          continue;
+        }
+        break;
+      }
+      return current;
+    };
+
     try {
-      const schema = z.toJSONSchema(zodSchema) as Record<string, unknown>;
+      const schema = z.toJSONSchema(unwrapForJsonSchema(zodSchema)) as Record<string, unknown>;
 
       if (schema && typeof schema === 'object') {
         const { $schema: _ignored, ...rest } = schema as any;

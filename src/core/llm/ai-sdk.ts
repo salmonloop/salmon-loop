@@ -34,6 +34,7 @@ function formatOutputSchema(schema: z.ZodType<any> | undefined): string {
 import { LIMITS } from '../config/limits.js';
 import { recordAuditEvent } from '../observability/audit-trail.js';
 import { getPatchPrompt, getPlanPrompt } from '../prompts/runtime.js';
+import { toolToOpenAI } from '../tools/mapper.js';
 import type { ToolSpec } from '../tools/types.js';
 import type {
   ChatOptions,
@@ -252,9 +253,14 @@ function toAiSdkToolSet(
       const outputDesc = formatOutputSchema(spec.outputSchema);
       const description = `${spec.description}\n\nReturns: ${outputDesc}`;
 
+      const openAiDef = toolToOpenAI(spec as any);
+      const parameters = jsonSchema((openAiDef as any).function?.parameters || {});
+
       tools[spec.name] = tool({
         description,
-        parameters: spec.inputSchema,
+        // Use JSON schema for maximum compatibility across OpenAI-compatible providers (LiteLLM).
+        // Runtime validation still uses the original Zod schema in ToolRouter.
+        parameters,
       } as any);
 
       // Attach outputSchema for the SalmonLoop governance layer validation.
@@ -288,13 +294,38 @@ function toAiSdkToolSet(
 function toOpenAiToolCalls(toolCalls: any[] | undefined): any[] | undefined {
   if (!Array.isArray(toolCalls) || toolCalls.length === 0) return undefined;
 
+  const normalizeToolInput = (raw: unknown): unknown => {
+    if (typeof raw !== 'string') return raw;
+
+    const trimmed = raw.trim();
+    if (!trimmed) return {};
+
+    try {
+      let parsed: unknown = JSON.parse(trimmed);
+      if (typeof parsed === 'string') {
+        const nested = parsed.trim();
+        if (nested.startsWith('{') || nested.startsWith('[')) {
+          try {
+            parsed = JSON.parse(nested);
+          } catch {
+            // ignored
+          }
+        }
+      }
+      return parsed;
+    } catch {
+      // If the input isn't valid JSON, keep it as-is for observability.
+      return raw;
+    }
+  };
+
   // AI SDK tool calls: { type: 'tool-call', toolCallId, toolName, input }
   return toolCalls.map((c) => ({
     id: c?.toolCallId || c?.id || 'unknown',
     type: 'function',
     function: {
       name: c?.toolName || c?.name || 'unknown',
-      arguments: JSON.stringify(c?.input ?? c?.args ?? {}),
+      arguments: JSON.stringify(normalizeToolInput(c?.input ?? c?.args ?? {})),
     },
   }));
 }

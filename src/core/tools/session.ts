@@ -1,4 +1,5 @@
 import * as crypto from 'crypto';
+import path from 'path';
 
 import type { ToolCallingAuditSink } from '../llm/audit.js';
 import { emitLlmOutput, emitLlmStreamDelta, emitLlmStreamEnd } from '../llm/output-policy.js';
@@ -15,6 +16,7 @@ import type {
   LLM,
 } from '../types/index.js';
 import { Phase, type ExecutionPhase } from '../types/index.js';
+import { isSafeRelativePath, normalizePath } from '../utils/path.js';
 
 import { toolToOpenAI } from './mapper.js';
 import { InMemoryLockManager } from './parallel/lock-manager.js';
@@ -62,11 +64,30 @@ function safeParseJson(argsText: unknown): { ok: true; value: any } | { ok: fals
   if (typeof argsText !== 'string') {
     return { ok: true, value: argsText };
   }
-  if (!argsText.trim()) {
+  const trimmed = argsText.trim();
+  if (!trimmed) {
     return { ok: true, value: {} };
   }
   try {
-    return { ok: true, value: JSON.parse(argsText) };
+    let value: unknown = JSON.parse(trimmed);
+
+    // Some models will JSON-encode the arguments object as a string (double-encoded JSON).
+    // Example raw args: "\"{\\\"pattern\\\":\\\"README\\\"}\"" -> first parse returns string.
+    if (typeof value === 'string') {
+      const nested = value.trim();
+      const looksJsonObject =
+        (nested.startsWith('{') && nested.endsWith('}')) ||
+        (nested.startsWith('[') && nested.endsWith(']'));
+      if (looksJsonObject) {
+        try {
+          value = JSON.parse(nested);
+        } catch {
+          // Ignore: fall back to the first parse result to preserve observability.
+        }
+      }
+    }
+
+    return { ok: true, value };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
@@ -240,6 +261,74 @@ export async function chatWithTools(
   return lastAssistant || { role: 'assistant', content: '' };
 }
 
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+const SAFE_INFERRED_EXTENSIONS = new Set([
+  '.ts',
+  '.tsx',
+  '.js',
+  '.jsx',
+  '.json',
+  '.md',
+  '.txt',
+  '.css',
+  '.html',
+  '.vue',
+  '.py',
+  '.rs',
+  '.go',
+  '.java',
+  '.c',
+  '.cpp',
+  '.h',
+]);
+
+function inferHighConfidenceFiles(instruction: string): string[] {
+  const candidates: string[] = [];
+  const normalized = instruction || '';
+
+  if (/README\b/i.test(normalized)) {
+    candidates.push('README.md');
+  }
+
+  const pathLike = /(?:^|\s)([a-zA-Z0-9][a-zA-Z0-9._/-]*\.[a-zA-Z0-9]{1,8})(?:\s|$)/g;
+  let match: RegExpExecArray | null = null;
+  while ((match = pathLike.exec(normalized)) !== null) {
+    const raw = match[1];
+    if (!raw) continue;
+
+    const rel = normalizePath(raw).replace(/^(\.\/|\/)+/, '');
+    if (!rel) continue;
+    if (!isSafeRelativePath(rel)) continue;
+
+    const lower = rel.toLowerCase();
+    if (lower.startsWith('.')) continue;
+    if (lower.includes('/.')) continue;
+    if (lower.startsWith('.git/') || lower.startsWith('.salmonloop/')) continue;
+    if (lower.includes('node_modules/')) continue;
+
+    const ext = path.extname(rel).toLowerCase();
+    if (!SAFE_INFERRED_EXTENSIONS.has(ext)) continue;
+
+    candidates.push(rel);
+    if (candidates.length >= 3) break;
+  }
+
+  return Array.from(new Set(candidates));
+}
+
+function extractInstructionText(messages: LLMMessage[]): string {
+  const lastUser = [...messages].reverse().find((m) => m.role === 'user');
+  const text = typeof lastUser?.content === 'string' ? lastUser.content : '';
+  if (!text) return '';
+
+  const match = text.match(/(^|\n)# Instruction\s*\n([\s\S]*?)(\n# |$)/);
+  if (!match) return text;
+  return match[2]?.trim() || '';
+}
+
 async function executeToolCalls(
   session: ToolCallingSessionOptions,
   phase: ExecutionPhase,
@@ -400,6 +489,18 @@ async function executeToolCalls(
     }
 
     const spec = session.toolstack.registry.listAll().find((s) => s.name === toolName);
+    let argsValue = parsed.value;
+
+    // Repair common missing-args tool calls for weak tool-call models:
+    // - fs.read called with `{}` is almost always a missing `file` parameter.
+    // We only apply a conservative inference based on the explicit instruction block.
+    if (toolName === 'fs.read' && isObjectRecord(argsValue) && typeof argsValue.file !== 'string') {
+      const instruction = extractInstructionText(messages);
+      const inferred = inferHighConfidenceFiles(instruction);
+      if (inferred.length > 0) {
+        argsValue = { ...argsValue, file: inferred[0] };
+      }
+    }
     session.toolCallingAudit?.event({
       timestamp: new Date().toISOString(),
       phase,
@@ -410,10 +511,10 @@ async function executeToolCalls(
       rawArgsType: typeof rawArgs,
       rawArgsPreview: typeof rawArgs === 'string' ? redactJsonString(rawArgs) : undefined,
       parsedArgsOk: true,
-      parsedArgsPreview: safeStringifyForAudit(parsed.value),
+      parsedArgsPreview: safeStringifyForAudit(argsValue),
     });
 
-    nodes.push({ id: callId, toolName, args: parsed.value, deps: [] });
+    nodes.push({ id: callId, toolName, args: argsValue, deps: [] });
   }
 
   if (nodes.length > 0) {

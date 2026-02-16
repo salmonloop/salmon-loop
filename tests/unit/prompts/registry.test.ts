@@ -294,5 +294,35 @@ describe('PromptRegistry', () => {
       expect(output).toContain('"file"');
       expect(output).toContain('Relative path to file');
     });
+
+    it('should unwrap preprocess schemas so models can see required tool args', async () => {
+      const registry = newRegistry();
+      await registry.init();
+
+      const mockTool: ToolSpec = {
+        name: 'fs.read',
+        source: 'builtin',
+        intent: 'READ',
+        description: 'Read source code files',
+        riskLevel: 'low',
+        sideEffects: ['fs_read'],
+        concurrency: 'parallel_ok',
+        allowedPhases: ['PLAN', 'PATCH'],
+        inputSchema: z.preprocess(
+          (raw) => raw,
+          z.object({
+            file: z.string().describe('Relative path to file'),
+          }),
+        ),
+        outputSchema: z.object({ content: z.string() }),
+        executor: async () => ({ content: '' }),
+      };
+
+      registry.setTools([mockTool]);
+      const output = registry.renderExploreSystem();
+
+      expect(output).toContain('"file"');
+      expect(output).toContain('Relative path to file');
+    });
   });
 });

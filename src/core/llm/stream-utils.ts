@@ -1,5 +1,29 @@
 import type { LLMStreamChunk } from '../types/index.js';
 
+function normalizeToolInput(raw: unknown): unknown {
+  if (typeof raw !== 'string') return raw;
+
+  const trimmed = raw.trim();
+  if (!trimmed) return {};
+
+  try {
+    let parsed: unknown = JSON.parse(trimmed);
+    if (typeof parsed === 'string') {
+      const nested = parsed.trim();
+      if (nested.startsWith('{') || nested.startsWith('[')) {
+        try {
+          parsed = JSON.parse(nested);
+        } catch {
+          // ignored
+        }
+      }
+    }
+    return parsed;
+  } catch {
+    return raw;
+  }
+}
+
 // Type definition for AI SDK stream parts (for documentation purposes)
 type _AiSdkStreamPart =
   | string
@@ -58,7 +82,7 @@ export function mapAiSdkStreamPartToChunk(part: any): LLMStreamChunk | null {
             type: 'function',
             function: {
               name: part.toolName || 'unknown',
-              arguments: JSON.stringify(part.input ?? {}),
+              arguments: JSON.stringify(normalizeToolInput(part.input ?? {})),
             },
           },
         ],

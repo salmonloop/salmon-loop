@@ -15,6 +15,9 @@
 - **MANDATORY: YOU MUST READ THE FILES.** Any exploration that concludes without at least one successful `fs.read` call for the relevant files is a violation of the execution contract and will be rejected.
 - **DO NOT GUESS file contents.** You must always use `fs.read` to see the actual content of a file before claiming it is relevant.
 - If you find a file that looks relevant, **YOU MUST READ IT**. The content will be automatically added to the context for the next phase.
+- Tool calls must use valid JSON arguments that match the tool input schema.
+  - `fs.read` requires `{\"file\":\"relative/path/from/repo/root\"}` (example: `{\"file\":\"README.md\"}`).
+  - `code.search` requires `{\"pattern\":\"...\"}`; optionally add `glob`, `cwd`, `maxMatches`, `isRegex`.
 - Be efficient. Do not read the entire codebase.
 - If the user provides specific file paths, read them first.
 "}}
