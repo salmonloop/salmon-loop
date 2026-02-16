@@ -265,6 +265,10 @@ function isObjectRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+const ENABLE_TOOL_ARG_REPAIR =
+  process.env.SALMONLOOP_ENABLE_TOOL_ARG_REPAIR === '1' ||
+  process.env.SALMONLOOP_ENABLE_TOOL_ARG_REPAIR === 'true';
+
 const SAFE_INFERRED_EXTENSIONS = new Set([
   '.ts',
   '.tsx',
@@ -494,7 +498,13 @@ async function executeToolCalls(
     // Repair common missing-args tool calls for weak tool-call models:
     // - fs.read called with `{}` is almost always a missing `file` parameter.
     // We only apply a conservative inference based on the explicit instruction block.
-    if (toolName === 'fs.read' && isObjectRecord(argsValue) && typeof argsValue.file !== 'string') {
+    if (
+      ENABLE_TOOL_ARG_REPAIR &&
+      phase === Phase.EXPLORE &&
+      toolName === 'fs.read' &&
+      isObjectRecord(argsValue) &&
+      typeof argsValue.file !== 'string'
+    ) {
       const instruction = extractInstructionText(messages);
       const inferred = inferHighConfidenceFiles(instruction);
       if (inferred.length > 0) {
