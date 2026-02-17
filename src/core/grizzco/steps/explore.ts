@@ -203,14 +203,13 @@ export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
   const validation = ContextValidator.validateExploration(localAudit as any, capturedFiles.size);
   if (!validation.isValid) {
     const msg = (text.grizzco.validation as any)[validation.errorCode!] || validation.errorCode;
-    // Hard-failing exploration causes unnecessary retries for simple tasks.
-    // Emit as a warning and continue with the existing context.
     ctx.emit({
       type: 'log',
-      level: 'warn',
+      level: 'error',
       message: msg,
       timestamp: new Date(),
     });
+    throw new Error(msg);
   }
 
   // Update context with captured files

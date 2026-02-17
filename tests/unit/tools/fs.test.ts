@@ -54,6 +54,12 @@ describe('Builtin Tool: fs.read_file', () => {
     expect(result.success && result.data.file).toBe('test.txt');
   });
 
+  it('should accept string input as a file shorthand', () => {
+    const result = fsReadFileSpec.inputSchema.safeParse('test.txt');
+    expect(result.success).toBe(true);
+    expect(result.success && result.data.file).toBe('test.txt');
+  });
+
   it('registers code.read as a safe alias of fs.read', async () => {
     const registry = new ToolRegistry();
     registerAllBuiltins(registry);

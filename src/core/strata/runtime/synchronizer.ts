@@ -808,7 +808,8 @@ export class WorkspaceSynchronizer {
         };
 
         dirtyBackup = (await createDirtyBackup()) as any;
-        logger.warn(text.loop.applyBackCheckpointLocation(dirtyBackup?.dir || ''));
+        logger.info(text.loop.applyBackCheckpointCreated());
+        logger.info(text.loop.applyBackCheckpointLocation(dirtyBackup?.dir || ''));
         if (telemetry) {
           telemetry.dirtyBackupCreated = true;
           telemetry.dirtyBackupDir = dirtyBackup?.dir || undefined;

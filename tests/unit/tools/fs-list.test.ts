@@ -74,4 +74,14 @@ describe('Builtin Tool: fs.list', () => {
       } as any),
     ).rejects.toThrow(/Access denied/);
   });
+
+  it('accepts string input as a path shorthand', () => {
+    const spec = getFsListSpec();
+    expect(spec).toBeDefined();
+    if (!spec) throw new Error('fs.list spec missing');
+
+    const parsed = spec.inputSchema.safeParse('.');
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data).toMatchObject({ path: '.' });
+  });
 });

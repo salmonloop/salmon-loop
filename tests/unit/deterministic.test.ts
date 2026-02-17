@@ -12,6 +12,7 @@ vi.mock('../../src/core/context/builder.js', () => ({
 }));
 vi.mock('../../src/core/adapters/git/git-adapter.js', () => ({
   GitAdapter: vi.fn().mockImplementation(() => ({
+    execMeta: vi.fn().mockResolvedValue({ ok: true, stderr: '' }),
     applyPatch: vi.fn().mockResolvedValue(undefined),
     rollbackFiles: vi.fn().mockResolvedValue({ ok: true }),
     getStatus: vi.fn().mockResolvedValue(''),

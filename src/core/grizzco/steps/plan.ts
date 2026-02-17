@@ -1,5 +1,6 @@
 import { text } from '../../../locales/index.js';
 import { LIMITS } from '../../config/limits.js';
+import { repairToJsonObject } from '../../llm/contracts/repair.js';
 import { sanitizeError } from '../../llm/errors.js';
 import { emitLlmOutput } from '../../llm/output-policy.js';
 import { formatContextForPrompt, parsePlanFromLLMContent } from '../../llm/utils.js';
@@ -118,6 +119,10 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
   );
 
   const systemPrompt = await getPlanSystemPrompt(toolstack?.registry, { plan: ctx.planRuntime });
+  const baseMessages = [
+    { role: 'system' as const, content: systemPrompt },
+    { role: 'user' as const, content: prompt },
+  ];
 
   const supportsStreaming = typeof ctx.options.llm.chatStream === 'function';
   const llmOutput = {
@@ -127,13 +132,7 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
   };
 
   const response = await (supportsStreaming ? chatWithToolsStreaming : chatWithTools)(
-    [
-      {
-        role: 'system',
-        content: systemPrompt,
-      },
-      { role: 'user', content: prompt },
-    ],
+    baseMessages,
     {
       responseFormat: 'json_object',
       signal: ctx.options.signal,
@@ -165,15 +164,43 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
   );
 
   const content = response.content;
-  if (!content) {
-    throw new Error(text.llm.planEmpty);
-  }
+  let finalContent = content || '';
 
   let plan: Plan;
   try {
-    plan = parsePlanFromLLMContent(content);
+    if (!finalContent) {
+      throw new Error(text.llm.planEmpty);
+    }
+    plan = parsePlanFromLLMContent(finalContent);
   } catch (e) {
-    throw new Error(text.llm.planParseFailed(content, sanitizeError(e)));
+    let repaired: { content?: string };
+    try {
+      repaired = await repairToJsonObject({
+        llm: ctx.options.llm,
+        baseMessages,
+        chatOptions: { signal: ctx.options.signal },
+        badContent: finalContent,
+        reason: sanitizeError(e),
+      });
+    } catch (repairError) {
+      throw new Error(text.llm.planParseFailed(finalContent, sanitizeError(repairError)));
+    }
+    finalContent = repaired.content || '';
+
+    emitLlmOutput({
+      emit: ctx.emit,
+      policy: ctx.options.llmOutput,
+      kind: 'plan',
+      step: 'PLAN',
+      content: finalContent,
+    });
+
+    try {
+      if (!finalContent) throw new Error(text.llm.planEmpty);
+      plan = parsePlanFromLLMContent(finalContent);
+    } catch (e2) {
+      throw new Error(text.llm.planParseFailed(finalContent, sanitizeError(e2)));
+    }
   }
 
   ctx.emit({

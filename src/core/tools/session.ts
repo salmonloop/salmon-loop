@@ -383,6 +383,9 @@ async function executeToolCalls(
 
   const toolResults = new Map<string, ToolResult>();
   const nodes: PlanNode[] = [];
+  const toolArgsPreviewByCallId = new Map<string, string>();
+  const rawArgsPreviewByCallId = new Map<string, string | undefined>();
+  const rawArgsTypeByCallId = new Map<string, string>();
 
   const roundCap = Math.min(
     budgetState.maxPerRound,
@@ -523,6 +526,12 @@ async function executeToolCalls(
       parsedArgsOk: true,
       parsedArgsPreview: safeStringifyForAudit(argsValue),
     });
+    toolArgsPreviewByCallId.set(callId, safeStringifyForAudit(argsValue));
+    rawArgsPreviewByCallId.set(
+      callId,
+      typeof rawArgs === 'string' ? redactJsonString(rawArgs) : undefined,
+    );
+    rawArgsTypeByCallId.set(callId, typeof rawArgs);
 
     nodes.push({ id: callId, toolName, args: argsValue, deps: [] });
   }
@@ -665,16 +674,24 @@ async function executeToolCalls(
     });
 
     if (result.status !== 'ok') {
+      const errorCode = result.error?.code;
+      const attachArgsPreview = errorCode === 'INVALID_INPUT';
       session.toolCallingAudit?.event({
         timestamp: new Date().toISOString(),
         phase,
         round,
         callId,
         toolName: typeof toolName === 'string' ? toolName : 'unknown',
-        rawArgsType: typeof rawArgs,
+        rawArgsType: rawArgsTypeByCallId.get(callId) ?? typeof rawArgs,
         parsedArgsOk: true,
         toolResultStatus: result.status,
-        toolResultErrorCode: result.error?.code,
+        toolResultErrorCode: errorCode,
+        toolResultErrorMessage:
+          attachArgsPreview && result.error?.message
+            ? redactErrorMessage(result.error.message)
+            : undefined,
+        rawArgsPreview: attachArgsPreview ? rawArgsPreviewByCallId.get(callId) : undefined,
+        parsedArgsPreview: attachArgsPreview ? toolArgsPreviewByCallId.get(callId) : undefined,
       });
     }
 
@@ -797,10 +814,43 @@ export async function chatWithToolsStreaming(
       );
     }
 
-    const collectedToolCalls = toolCalls.drain();
+    let collectedToolCalls = toolCalls.drain();
+    let finalContent = content;
+
+    // Some providers/models occasionally end a stream without emitting any deltas. When this happens,
+    // fall back to a single non-streaming call so downstream steps don't see an empty response.
+    if (finalContent.trim() === '' && collectedToolCalls.length === 0) {
+      recordAuditEvent(
+        'llm.stream.empty_fallback',
+        { phase, round },
+        { source: 'llm', severity: 'low', scope: 'session', phase },
+      );
+
+      const fallback = await session.llm.chat(messages, {
+        ...chatOptions,
+        tools: openAITools,
+        toolSpecs: allowedSpecs,
+        toolChoice: openAITools.length > 0 ? 'auto' : undefined,
+      });
+
+      finalContent = fallback.content || '';
+      const fallbackCalls = Array.isArray(fallback.tool_calls) ? fallback.tool_calls : [];
+      collectedToolCalls = fallbackCalls;
+
+      if (session.llmOutput && finalContent) {
+        emitLlmOutput({
+          emit: session.emit,
+          policy: session.llmOutput.policy,
+          kind: session.llmOutput.kind,
+          step: session.llmOutput.step,
+          content: finalContent,
+        });
+      }
+    }
+
     const assistant: LLMMessage = {
       role: 'assistant',
-      content,
+      content: finalContent,
       tool_calls: collectedToolCalls.length > 0 ? collectedToolCalls : undefined,
     };
 

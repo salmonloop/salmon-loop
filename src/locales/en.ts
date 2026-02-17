@@ -2,8 +2,12 @@ export const en = {
   llm: {
     planEmpty: 'LLM returned empty response for plan',
     planInvalid: 'Invalid Plan structure: missing required fields',
-    planParseFailed: (content: string, error: string) =>
-      `Failed to parse LLM response as JSON: ${content}. Error: ${error}`,
+    planParseFailed: (content: string, error: string) => {
+      const raw = String(content ?? '');
+      const max = 800;
+      const preview = raw.length <= max ? raw : `${raw.slice(0, max)}…[truncated]…`;
+      return `Failed to parse LLM response as JSON: ${preview}. Error: ${error}`;
+    },
     patchEmpty: (reason?: string) =>
       `LLM returned empty response for patch${reason ? ` (${reason})` : ''}`,
     reviewEmpty: 'LLM returned empty response for review',
@@ -136,6 +140,8 @@ Please return the patch in PURE unified diff format:`;
 
   diff: {
     notUnifiedFormat: 'Patch is not in unified diff format',
+    patchDoesNotApply: (details?: string) =>
+      `Patch does not apply cleanly to the current workspace${details ? `:\n${details}` : ''}`,
     tooManyFiles: (count: number, max: number, files?: string[]) =>
       `Patch affects ${count} files, but you can only modify up to ${max} files.${files ? ` (Files: ${files.join(', ')})` : ''}`,
     tooManyLines: (count: number, max: number) =>
@@ -284,6 +290,8 @@ Please return the patch in PURE unified diff format:`;
       `[applyBack] Patch base (${base}) differs from main HEAD (${head}); dropping index lines to avoid mismatch.`,
     applyBackDirtyDetected: (files: string) =>
       `[applyBack] Dirty workspace detected. Creating checkpoint for all dirty files. Overlap with patch: ${files}`,
+    applyBackCheckpointCreated: () =>
+      '[applyBack] Dirty workspace checkpoint created. See logs for location.',
     applyBackCheckpointLocation: (dir: string) =>
       `[applyBack] Dirty workspace checkpoint created at: ${dir}`,
     applyBackUntrackedIncluded: (files: string) =>

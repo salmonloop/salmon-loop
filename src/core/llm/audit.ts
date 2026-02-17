@@ -15,6 +15,7 @@ export interface ToolCallingAuditEntry {
   parsedArgsError?: string;
   toolResultStatus?: string;
   toolResultErrorCode?: string;
+  toolResultErrorMessage?: string;
 }
 
 export interface ToolCallingAuditSink {

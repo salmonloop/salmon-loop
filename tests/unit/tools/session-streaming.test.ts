@@ -38,6 +38,49 @@ function registerEchoTool(registry: ToolRegistry) {
 }
 
 describe('chatWithToolsStreaming', () => {
+  it('falls back to non-streaming chat when the stream ends without deltas', async () => {
+    const { registry, policy, router } = createToolstack();
+
+    const llm: any = {
+      chatStream() {
+        return (async function* () {
+          yield { role: 'assistant', done: true };
+        })();
+      },
+      chat: vi.fn(async () => ({
+        role: 'assistant' as const,
+        content: 'FALLBACK',
+        tool_calls: [],
+      })),
+      async createPlan() {
+        throw new Error('not used');
+      },
+      async createPatch() {
+        throw new Error('not used');
+      },
+    };
+
+    const final = await chatWithToolsStreaming(
+      [{ role: 'user', content: 'prompt' }],
+      {},
+      {
+        phase: Phase.PLAN,
+        llm,
+        runtime: {
+          repoRoot: '/tmp',
+          attemptId: 1,
+          dryRun: true,
+          model: 'test-model',
+          worktreeRoot: '/tmp',
+        },
+        toolstack: { registry, policy, router },
+      },
+    );
+
+    expect(final.content).toBe('FALLBACK');
+    expect(llm.chat).toHaveBeenCalledTimes(1);
+  });
+
   it('executes streamed tool calls and feeds results back to the model', async () => {
     const { registry, policy, router } = createToolstack();
     registerEchoTool(registry);

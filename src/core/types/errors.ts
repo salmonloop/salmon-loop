@@ -24,3 +24,9 @@ export class DiffValidationError extends SalmonError {
     super(message, 'DIFF_VALIDATION_FAILED');
   }
 }
+
+export class PatchNotApplicableError extends SalmonError {
+  constructor(message: string) {
+    super(message, 'PATCH_NOT_APPLICABLE');
+  }
+}

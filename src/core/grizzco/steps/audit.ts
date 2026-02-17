@@ -314,7 +314,20 @@ function sanitizeContext(ctx: unknown): Record<string, unknown> | null {
   if (typed.applyBackResult) safe.applyBackResult = typed.applyBackResult;
 
   if (typed.toolCallingAudit && Array.isArray(typed.toolCallingAudit)) {
-    safe.toolCallingAudit = typed.toolCallingAudit;
+    safe.toolCallingAudit = typed.toolCallingAudit.map((entry) => {
+      if (!entry || typeof entry !== 'object') return entry as any;
+      const typedEntry = entry as unknown as Record<string, unknown>;
+      const keepArgsPreview = typedEntry.toolResultErrorCode === 'INVALID_INPUT';
+      if (keepArgsPreview) return entry;
+
+      const {
+        rawArgsPreview: _rawArgsPreview,
+        parsedArgsPreview: _parsedArgsPreview,
+        toolResultErrorMessage: _toolResultErrorMessage,
+        ...rest
+      } = typedEntry as Record<string, unknown>;
+      return rest;
+    });
   }
 
   if (typed.toolAuditLogger?.getLogs) {

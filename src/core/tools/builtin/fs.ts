@@ -12,6 +12,9 @@ const FsListEntryType = z.enum(['file', 'dir', 'symlink', 'other']);
 
 const fsListInputSchema = z.preprocess(
   (raw) => {
+    if (typeof raw === 'string') {
+      return { path: raw };
+    }
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return raw;
     const input = raw as Record<string, unknown>;
     if (typeof input.path === 'string') return input;
@@ -45,6 +48,9 @@ const fsListInputSchema = z.preprocess(
 
 const fsReadInputSchema = z.preprocess(
   (raw) => {
+    if (typeof raw === 'string') {
+      return { file: raw };
+    }
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return raw;
     const input = raw as Record<string, unknown>;
     if (typeof input.file === 'string') return input;
