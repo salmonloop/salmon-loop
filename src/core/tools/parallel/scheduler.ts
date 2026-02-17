@@ -23,13 +23,11 @@ export class ParallelScheduler {
     private isolation: IsolationManager = new IsolationManager(),
   ) {}
 
-  private resolveSpec(node: { toolName: string; spec?: ToolSpec }): ToolSpec {
+  private tryResolveSpec(node: { toolName: string; spec?: ToolSpec }): ToolSpec | undefined {
     if (node.spec) return node.spec;
-    const spec =
-      typeof this.router.getSpec === 'function' ? this.router.getSpec(node.toolName) : undefined;
-    if (!spec) {
-      throw new Error(`Tool spec not found for ${node.toolName}`);
-    }
+    const router: any = this.router as any;
+    const spec = typeof router.getSpec === 'function' ? router.getSpec(node.toolName) : undefined;
+    if (!spec) return undefined;
     node.spec = spec;
     return spec;
   }
@@ -136,7 +134,8 @@ export class ParallelScheduler {
       }
     };
 
-    const getLane = (spec: ToolSpec): 'read' | 'write' => {
+    const getLane = (spec: ToolSpec | undefined): 'read' | 'write' => {
+      if (!spec) return 'write';
       if (spec.concurrency === 'serial_only' || spec.concurrency === 'isolated') return 'write';
       const writeEffects = new Set(['fs_write', 'git_write', 'snapshot_mutate', 'process']);
       if (spec.sideEffects.some((effect) => writeEffects.has(effect))) return 'write';
@@ -148,7 +147,33 @@ export class ParallelScheduler {
       let lane: 'read' | 'write' | null = null;
 
       try {
-        const spec = this.resolveSpec(node);
+        const spec = this.tryResolveSpec(node);
+        if (!spec) {
+          const phase = typeof (ctx as any).phase === 'string' ? (ctx as any).phase : undefined;
+          const toolResult: ToolResult = {
+            id: nodeId,
+            toolName: node.toolName,
+            source: 'builtin',
+            status: 'denied',
+            durationMs: 0,
+            error: {
+              code: 'TOOL_NOT_FOUND',
+              message: `Tool ${node.toolName} not found`,
+              retryable: false,
+              ...(phase ? { failurePhase: phase } : {}),
+            },
+          };
+
+          nodeStates.set(nodeId, 'FAILED');
+          nodeResults[nodeId] = {
+            status: 'FAILED',
+            error: toolResult.error,
+            toolResult,
+            timing: { lockWaitMs: 0, runMs: 0 },
+          };
+          if (plan.policy.failFast) cancelRemaining();
+          return;
+        }
         lane = getLane(spec);
 
         nodeStates.set(nodeId, 'RUNNING');
@@ -319,7 +344,7 @@ export class ParallelScheduler {
           const nodeState = nodeStates.get(nextStep.picked);
           if (nodeState === 'READY') {
             const node = plan.nodes.find((n) => n.id === nextStep.picked)!;
-            const lane = getLane(this.resolveSpec(node));
+            const lane = getLane(this.tryResolveSpec(node));
             if (
               readRunning + writeRunning < plan.policy.maxParallelism &&
               ((lane === 'read' && readRunning < readLimit) ||
@@ -336,7 +361,7 @@ export class ParallelScheduler {
         for (const node of plan.nodes) {
           if (nodeStates.get(node.id) !== 'READY') continue;
 
-          const spec = this.resolveSpec(node);
+          const spec = this.tryResolveSpec(node);
           const lane = getLane(spec);
 
           if (readRunning + writeRunning >= plan.policy.maxParallelism) {

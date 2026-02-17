@@ -467,6 +467,8 @@ Please return the patch in PURE unified diff format:`;
     // Tool descriptions
     codeSearchDescription: 'Fast file pattern matching tool that works with any codebase size',
     fsReadDescription: 'Read the full content of a file from the repository',
+    codeReadDescription: 'Read the full content of a source file from the repository',
+    fsListDescription: 'List files and directories under a repository path',
     gitStatusDescription: 'Show the working tree status',
     gitCatDescription: 'Read file content from a specific git revision',
     codeAstDescription: 'Query AST definitions and references for symbols',

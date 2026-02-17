@@ -242,4 +242,30 @@ describe('ParallelScheduler', () => {
     expect(resumed.blockedApprovals.length).toBe(0);
     expect(resumed.nodeResults.n1.status).toBe('SUCCEEDED');
   });
+
+  it('does not throw when tool spec is missing (returns TOOL_NOT_FOUND)', async () => {
+    const router = new FakeRouter();
+
+    const scheduler = new ParallelScheduler(router as any, new InMemoryLockManager());
+    const plan: ExecutionPlan = {
+      id: 'plan-missing-spec',
+      policy: { maxParallelism: 1, failFast: false, deterministic: true },
+      nodes: [{ id: 'n1', toolName: 'missing.tool', args: {}, deps: [] }],
+    };
+
+    await expect(scheduler.run(plan, baseCtx, new AbortController().signal)).resolves.toMatchObject(
+      {
+        failed: true,
+        nodeResults: {
+          n1: {
+            status: 'FAILED',
+            toolResult: {
+              status: 'denied',
+              error: { code: 'TOOL_NOT_FOUND' },
+            },
+          },
+        },
+      },
+    );
+  });
 });

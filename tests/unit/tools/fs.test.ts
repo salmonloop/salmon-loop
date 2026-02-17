@@ -3,6 +3,8 @@ import { readFile, stat } from 'fs/promises';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 import { executeFsReadFile, fsReadFileSpec } from '../../../src/core/tools/builtin/fs.js';
+import { registerAllBuiltins } from '../../../src/core/tools/builtin/index.js';
+import { ToolRegistry } from '../../../src/core/tools/registry.js';
 
 vi.mock('fs/promises');
 
@@ -50,5 +52,26 @@ describe('Builtin Tool: fs.read_file', () => {
     const result = fsReadFileSpec.inputSchema.safeParse({ path: 'test.txt' });
     expect(result.success).toBe(true);
     expect(result.success && result.data.file).toBe('test.txt');
+  });
+
+  it('registers code.read as a safe alias of fs.read', async () => {
+    const registry = new ToolRegistry();
+    registerAllBuiltins(registry);
+
+    const spec = registry.getSpec('code.read');
+    expect(spec).toBeDefined();
+    if (!spec) throw new Error('code.read spec missing');
+
+    vi.mocked(stat).mockResolvedValue({ size: 3 } as any);
+    vi.mocked(readFile).mockResolvedValue('abc');
+
+    const args = spec.inputSchema.parse({ path: 'test.txt' });
+    const result = await spec.executor(args as any, {
+      repoRoot,
+      attemptId: 1,
+      dryRun: false,
+    });
+
+    expect(result).toMatchObject({ content: 'abc', size: 3 });
   });
 });

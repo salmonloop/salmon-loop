@@ -6,7 +6,13 @@ import { astGrepSpec, executeAstGrep } from './ast-grep.js';
 import { astDefsRefsSpec, executeAstDefsRefs } from './ast.js';
 import { codeSearchExecutor } from './code-search/executor.js';
 import { CodeSearchSpec } from './code-search/spec.js';
-import { fsReadFileSpec, executeFsReadFile } from './fs.js';
+import {
+  codeReadSpec,
+  executeFsList,
+  executeFsReadFile,
+  fsListSpec,
+  fsReadFileSpec,
+} from './fs.js';
 import { gitCatSpec, executeGitCat, gitStatusSpec, executeGitStatus } from './git.js';
 import { planInitSpec, planReadSpec, planUpdateSpec } from './plan.js';
 import { proposalApplySpec, executeProposalApply } from './proposal.js';
@@ -54,6 +60,16 @@ export function registerAllBuiltins(registry: ToolRegistry): void {
   });
 
   registry.register({
+    ...codeReadSpec,
+    executor: executeFsReadFile as any,
+  });
+
+  registry.register({
+    ...fsListSpec,
+    executor: executeFsList as any,
+  });
+
+  registry.register({
     ...astGrepSpec,
     executor: executeAstGrep as any,
   });
@@ -82,6 +98,9 @@ export {
   executeGitCat,
   gitStatusSpec,
   executeGitStatus,
+  codeReadSpec,
+  fsListSpec,
+  executeFsList,
   fsReadFileSpec as fsReadSpec,
   executeFsReadFile as executeFsRead,
   astGrepSpec as codeSearchAstSpec,
