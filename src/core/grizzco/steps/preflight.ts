@@ -7,7 +7,9 @@ import { Step } from '../engine/pipeline/pipeline.js';
 import { InitCtx, PreflightCtx } from '../engine/pipeline/types.js';
 
 export const runPreflight: Step<InitCtx, PreflightCtx> = async (ctx) => {
-  const result = await preflight(ctx.workspace);
+  const result = await preflight(ctx.workspace, ctx.emit, {
+    ignoreDirty: ctx.mode === 'review',
+  });
 
   if (!result.ok) {
     const reason = result.reason || text.loop.preflightFailedNotGit;

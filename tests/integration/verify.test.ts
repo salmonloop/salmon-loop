@@ -59,6 +59,23 @@ describe('Verify Integration Tests with Real FS', () => {
     expect(result.ok).toBe(true);
   });
 
+  it('should allow dirty preflight when ignoreDirty is enabled', async () => {
+    // Make repo dirty by adding an uncommitted file.
+    await helper.writeFile(repoPath, 'dirty.txt', 'dirty');
+
+    const result = await preflight(
+      {
+        baseRepoPath: repoPath,
+        workPath: repoPath,
+        strategy: 'direct',
+      },
+      undefined,
+      { ignoreDirty: true },
+    );
+
+    expect(result.ok).toBe(true);
+  });
+
   it('should fail preflight if not a git repo', async () => {
     // Create a non-git directory.
     const nonGitDir = await helper.createTempDir('not-a-repo-');

@@ -20,6 +20,8 @@ export const en = {
   chatSessionSaved: 'Session saved. Goodbye!',
   chatThinking: 'Thinking...',
   chatSuccess: (files: string) => `Changes applied successfully.\n\nFiles changed: ${files}`,
+  chatNoChanges: 'Completed successfully. No files were changed.',
+  chatReviewCompleted: 'Review completed successfully.',
   chatFailed: (reason: string) => `Failed: ${reason}`,
   chatPrompt: 's8p>',
   chatExitHint: 'Press Ctrl+C again to exit',

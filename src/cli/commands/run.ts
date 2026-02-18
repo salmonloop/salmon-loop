@@ -241,10 +241,16 @@ export async function handleRunCommand(options: any, command: Command) {
       extensions: extensionResolution?.resolved,
     };
 
-    const buildAssistantMessage = (result: LoopResult) =>
-      result.success
-        ? text.cli.chatSuccess(result.changedFiles?.join(', ') || 'none')
-        : text.cli.chatFailed(result.reason);
+    const buildAssistantMessage = (result: LoopResult) => {
+      if (!result.success) return text.cli.chatFailed(result.reason);
+
+      if (mode === 'review') return text.cli.chatReviewCompleted;
+
+      const changedFiles = result.changedFiles ?? [];
+      if (changedFiles.length === 0) return text.cli.chatNoChanges;
+
+      return text.cli.chatSuccess(changedFiles.join(', '));
+    };
 
     let result: LoopResult;
 

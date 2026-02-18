@@ -251,13 +251,18 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
             return { kind: 'answer' as const };
           }
 
+          const strategy =
+            intentDecision.intent === 'review'
+              ? 'direct'
+              : options.checkpointStrategy || 'worktree';
+
           const result = await runSalmonLoop({
             instruction: trimmed,
             verify: options.verifyCommand,
             repoPath: options.repoPath,
             llm: options.llm,
             mode: intentDecision.intent,
-            strategy: options.checkpointStrategy || 'worktree',
+            strategy,
             verbose: options.verbose ? 'basic' : undefined,
             onEvent: latestEmit,
             signal: mergedSignal.signal,
@@ -266,7 +271,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
             authorizationMode: 'deferred',
           });
 
-          return { kind: 'flow' as const, result };
+          return { kind: 'flow' as const, mode: intentDecision.intent, result };
         })(),
         CHAT_QUEUE_CONFIG.TASK_TIMEOUT_MS,
         () => timeoutAbort.abort(),
@@ -280,14 +285,20 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
       }
 
       const result = execution.result;
+      const mode = execution.mode;
 
       if (!result.success && isInterruptResult(result.reason)) {
         markInterrupted(trimmed);
       }
 
       // Add assistant message & iteration info
+      const changedFiles = result.changedFiles ?? [];
       const responseText = result.success
-        ? text.cli.chatSuccess(result.changedFiles?.join(', ') || 'none')
+        ? mode === 'review'
+          ? text.cli.chatReviewCompleted
+          : changedFiles.length === 0
+            ? text.cli.chatNoChanges
+            : text.cli.chatSuccess(changedFiles.join(', '))
         : text.cli.chatFailed(result.reason);
 
       emitLlmOutput({

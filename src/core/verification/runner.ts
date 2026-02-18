@@ -216,6 +216,7 @@ export async function verifyFileContent(
 export async function preflight(
   workspace: ExecutionWorkspace,
   onEvent?: (event: LoopEvent) => void,
+  options?: { ignoreDirty?: boolean },
 ): Promise<{
   ok: boolean;
   reason?: string;
@@ -254,7 +255,7 @@ export async function preflight(
 
   // 2. Check if workspace is dirty (only for direct strategy)
   // Allow dirty workspace by default for worktree strategy
-  if (workspace.strategy === 'direct') {
+  if (workspace.strategy === 'direct' && !options?.ignoreDirty) {
     const statusCheck = await git.execMeta(['status', '--porcelain'], {
       cwd: workspace.baseRepoPath,
       limits: { maxStdoutBytes: 64_000, maxStderrChars: 4_096 },
