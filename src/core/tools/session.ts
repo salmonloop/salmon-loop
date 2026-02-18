@@ -205,12 +205,45 @@ export async function chatWithTools(
       throw new Error('Operation aborted');
     }
 
-    const assistant = await session.llm.chat(messages, {
-      ...chatOptions,
-      tools: openAITools,
-      toolSpecs: allowedSpecs,
-      toolChoice: openAITools.length > 0 ? 'auto' : undefined,
-    });
+    const roundStartedAt = Date.now();
+    let assistant: LLMMessage;
+    try {
+      assistant = await session.llm.chat(messages, {
+        ...chatOptions,
+        tools: openAITools,
+        toolSpecs: allowedSpecs,
+        toolChoice: openAITools.length > 0 ? 'auto' : undefined,
+      });
+    } catch (e) {
+      recordAuditEvent(
+        'llm.round',
+        {
+          status: 'error',
+          streamed: false,
+          phase,
+          round,
+          model: session.runtime.model,
+          durationMs: Date.now() - roundStartedAt,
+        },
+        { source: 'llm', severity: 'low', scope: 'session', phase },
+      );
+      throw e;
+    }
+
+    recordAuditEvent(
+      'llm.round',
+      {
+        status: 'ok',
+        streamed: false,
+        phase,
+        round,
+        model: session.runtime.model,
+        durationMs: Date.now() - roundStartedAt,
+        contentChars: typeof assistant.content === 'string' ? assistant.content.length : 0,
+        toolCallCount: Array.isArray(assistant.tool_calls) ? assistant.tool_calls.length : 0,
+      },
+      { source: 'llm', severity: 'low', scope: 'session', phase },
+    );
 
     messages.push({
       role: 'assistant',
@@ -749,6 +782,7 @@ export async function chatWithToolsStreaming(
   const messages: LLMMessage[] = [...initialMessages];
 
   for (let round = 0; round < maxRounds; round++) {
+    const roundStartedAt = Date.now();
     let content = '';
     const toolCalls = new ToolCallAccumulator();
     const streamId = session.llmOutput
@@ -756,6 +790,7 @@ export async function chatWithToolsStreaming(
       : '';
     let finishReason: string | undefined;
     let finishUsage: { promptTokens: number; completionTokens: number } | undefined;
+    let usedFallback = false;
 
     const stream = session.llm.chatStream(messages, {
       ...chatOptions,
@@ -826,6 +861,7 @@ export async function chatWithToolsStreaming(
         { source: 'llm', severity: 'low', scope: 'session', phase },
       );
 
+      usedFallback = true;
       const fallback = await session.llm.chat(messages, {
         ...chatOptions,
         tools: openAITools,
@@ -853,6 +889,23 @@ export async function chatWithToolsStreaming(
       content: finalContent,
       tool_calls: collectedToolCalls.length > 0 ? collectedToolCalls : undefined,
     };
+
+    recordAuditEvent(
+      'llm.round',
+      {
+        status: 'ok',
+        streamed: true,
+        usedFallback,
+        phase,
+        round,
+        model: session.runtime.model,
+        durationMs: Date.now() - roundStartedAt,
+        finishReason,
+        contentChars: finalContent.length,
+        toolCallCount: collectedToolCalls.length,
+      },
+      { source: 'llm', severity: 'low', scope: 'session', phase },
+    );
 
     messages.push(assistant);
 

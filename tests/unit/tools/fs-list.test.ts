@@ -84,4 +84,26 @@ describe('Builtin Tool: fs.list', () => {
     expect(parsed.success).toBe(true);
     expect(parsed.success && parsed.data).toMatchObject({ path: '.' });
   });
+
+  it('coerces includeHidden when provided as a string', () => {
+    const spec = getFsListSpec();
+    expect(spec).toBeDefined();
+    if (!spec) throw new Error('fs.list spec missing');
+
+    const parsedFalse = spec.inputSchema.safeParse({
+      path: '.',
+      includeHidden: 'false',
+      maxEntries: '50',
+    });
+    expect(parsedFalse.success).toBe(true);
+    expect(parsedFalse.success && parsedFalse.data).toMatchObject({
+      path: '.',
+      includeHidden: false,
+      maxEntries: 50,
+    });
+
+    const parsedTrue = spec.inputSchema.safeParse({ path: '.', includeHidden: 'true' });
+    expect(parsedTrue.success).toBe(true);
+    expect(parsedTrue.success && parsedTrue.data).toMatchObject({ includeHidden: true });
+  });
 });

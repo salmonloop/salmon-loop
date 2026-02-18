@@ -17,6 +17,19 @@ const fsListInputSchema = z.preprocess(
     }
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return raw;
     const input = raw as Record<string, unknown>;
+    const includeHidden = input.includeHidden;
+    if (typeof includeHidden === 'string') {
+      const normalized = includeHidden.trim().toLowerCase();
+      if (normalized === 'true') input.includeHidden = true;
+      if (normalized === 'false') input.includeHidden = false;
+      if (normalized === '1') input.includeHidden = true;
+      if (normalized === '0') input.includeHidden = false;
+    }
+    if (typeof includeHidden === 'number') {
+      if (includeHidden === 1) input.includeHidden = true;
+      if (includeHidden === 0) input.includeHidden = false;
+    }
+
     if (typeof input.path === 'string') return input;
 
     const alias = input.dir ?? input.directory ?? input.folder ?? input.cwd;
