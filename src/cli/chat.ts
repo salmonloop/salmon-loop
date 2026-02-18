@@ -1,3 +1,4 @@
+import { runAnswerExecutor } from '../core/answer/answer-executor.js';
 import type {
   MarkdownRenderMode,
   MarkdownTheme,
@@ -5,6 +6,7 @@ import type {
 } from '../core/config/index.js';
 import type { ResolvedExtensions } from '../core/extensions/types.js';
 import { InputHistoryManager } from '../core/history/input-history.js';
+import { routeChatIntent } from '../core/intent/chat-intent.js';
 import { DEFAULT_LLM_OUTPUT_POLICY, emitLlmOutput } from '../core/llm/output-policy.js';
 import { logIgnoredError } from '../core/observability/ignored-error.js';
 import { logger } from '../core/observability/logger.js';
@@ -207,25 +209,77 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
         timestamp: Date.now(),
       });
 
-      const result = await withTimeout(
-        runSalmonLoop({
-          instruction: trimmed,
-          verify: options.verifyCommand,
-          repoPath: options.repoPath,
-          llm: options.llm,
-          strategy: options.checkpointStrategy || 'worktree',
-          verbose: options.verbose ? 'basic' : undefined,
-          onEvent: latestEmit,
-          signal: mergedSignal.signal,
-          llmOutput: currentLlmOutputPolicy,
-          authorizationProvider,
-          authorizationMode: 'deferred',
-        }),
+      const execution = await withTimeout(
+        (async () => {
+          const intentDecision = await routeChatIntent(trimmed, {
+            llm: options.llm,
+            signal: mergedSignal.signal,
+          });
+
+          latestEmit?.({
+            type: 'log',
+            level: 'info',
+            message: text.cli.chatIntentRouted(
+              intentDecision.intent,
+              intentDecision.confidence,
+              intentDecision.reason,
+            ),
+            timestamp: new Date(),
+          });
+
+          if (intentDecision.intent === 'answer') {
+            const answer = await runAnswerExecutor({
+              repoPath: options.repoPath,
+              llm: options.llm,
+              instruction: trimmed,
+              emit: latestEmit,
+              signal: mergedSignal.signal,
+              llmOutputPolicy: currentLlmOutputPolicy,
+              authorizationProvider,
+              authorizationMode: 'deferred',
+            });
+
+            const responseText = answer.content?.trim() ? answer.content : text.cli.chatAnswerEmpty;
+
+            sessionManager.addMessage({
+              role: 'assistant',
+              content: responseText,
+              timestamp: Date.now(),
+            });
+
+            await sessionManager.save();
+            return { kind: 'answer' as const };
+          }
+
+          const result = await runSalmonLoop({
+            instruction: trimmed,
+            verify: options.verifyCommand,
+            repoPath: options.repoPath,
+            llm: options.llm,
+            mode: intentDecision.intent,
+            strategy: options.checkpointStrategy || 'worktree',
+            verbose: options.verbose ? 'basic' : undefined,
+            onEvent: latestEmit,
+            signal: mergedSignal.signal,
+            llmOutput: currentLlmOutputPolicy,
+            authorizationProvider,
+            authorizationMode: 'deferred',
+          });
+
+          return { kind: 'flow' as const, result };
+        })(),
         CHAT_QUEUE_CONFIG.TASK_TIMEOUT_MS,
         () => timeoutAbort.abort(),
       ).finally(() => {
         mergedSignal.cleanup();
       });
+
+      if (execution.kind === 'answer') {
+        currentInstruction = null;
+        return { ok: true, kind: 'answer' as const };
+      }
+
+      const result = execution.result;
 
       if (!result.success && isInterruptResult(result.reason)) {
         markInterrupted(trimmed);

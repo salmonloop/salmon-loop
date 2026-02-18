@@ -99,6 +99,7 @@ export const fsReadFileSpec: Omit<ToolSpec, 'executor'> = {
     size: z.number(),
   }),
   allowedPhases: [
+    Phase.SLASH,
     Phase.CONTEXT,
     Phase.EXPLORE,
     Phase.PLAN,
@@ -146,6 +147,7 @@ export const fsListSpec: Omit<ToolSpec, 'executor'> = {
     totalEntries: z.number().int(),
   }),
   allowedPhases: [
+    Phase.SLASH,
     Phase.CONTEXT,
     Phase.EXPLORE,
     Phase.PLAN,

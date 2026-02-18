@@ -24,6 +24,9 @@ export const en = {
   chatPrompt: 's8p>',
   chatExitHint: 'Press Ctrl+C again to exit',
   chatTaskInterrupted: '[WARN] Task interrupted by user (Ctrl+C)',
+  chatIntentRouted: (intent: string, confidence: number, reason: string) =>
+    `Intent routed: ${intent} (confidence=${confidence.toFixed(2)}) reason=${reason}`,
+  chatAnswerEmpty: 'No answer produced.',
   unknownCommand: (cmd: string) => `Unknown command: ${cmd}. Type /help for available commands.`,
   helpAvailableCommands: (rows: string) => `Available Commands:\n${rows}`,
   slashHandlerUnavailable: 'Command handler unavailable',
