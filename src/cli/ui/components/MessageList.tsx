@@ -70,6 +70,13 @@ const StreamingText = React.memo<{ content: string; maxLines: number }>(({ conte
   );
 });
 
+function formatTime(timestamp: Date): string {
+  const hours = String(timestamp.getHours()).padStart(2, '0');
+  const minutes = String(timestamp.getMinutes()).padStart(2, '0');
+  const seconds = String(timestamp.getSeconds()).padStart(2, '0');
+  return `${hours}:${minutes}:${seconds}`;
+}
+
 const MessageItem = React.memo<{
   msg: Message;
   nextMsg?: Message;
@@ -88,7 +95,7 @@ const MessageItem = React.memo<{
     separatorLine,
     streamingMaxLines,
   }) => {
-    const timestamp = msg.timestamp.toLocaleTimeString('en-US', { hour12: false });
+    const timestamp = formatTime(msg.timestamp);
 
     // 1. Handle Special Welcome Logo
     if (msg.type === 'welcome' || msg.content === 'WELCOME_LOGO') {
@@ -101,7 +108,7 @@ const MessageItem = React.memo<{
       return (
         <Box flexDirection="column" marginBottom={1} width={containerWidth}>
           <Text color="gray" dimColor>
-            [{msg.timestamp.toLocaleTimeString('en-US', { hour12: false })}]
+            [{formatTime(msg.timestamp)}]
           </Text>
           {content && (
             <Box paddingLeft={2}>
@@ -221,7 +228,7 @@ const MessageItem = React.memo<{
             <Box flexDirection="row" gap={1}>
               <Box width={9}>
                 <Text color={COLORS.text.muted} dimColor={false}>
-                  {msg.timestamp.toLocaleTimeString('en-US', { hour12: false })}
+                  {formatTime(msg.timestamp)}
                 </Text>
               </Box>
 
@@ -278,13 +285,17 @@ const MessageItem = React.memo<{
         paddingLeft={3}
         width={containerWidth}
       >
-        <Box flexDirection="row" gap={1}>
-          <Text color={COLORS.text.muted} dimColor={false}>
-            {msg.timestamp.toLocaleTimeString('en-US', { hour12: false })}
-          </Text>
-          <Text color={COLORS.text.muted} dimColor={false}>
-            {msg.content}
-          </Text>
+        <Box flexDirection="row">
+          <Box width={9} flexShrink={0}>
+            <Text color={COLORS.text.muted} dimColor={false}>
+              {formatTime(msg.timestamp)}
+            </Text>
+          </Box>
+          <Box paddingLeft={1} flexGrow={1}>
+            <Text color={COLORS.text.muted} dimColor={false}>
+              {msg.content}
+            </Text>
+          </Box>
         </Box>
       </Box>
     );
