@@ -6,7 +6,9 @@ export interface RetryOptions {
   initialDelayMs?: number;
   maxDelayMs?: number;
   backoffFactor?: number;
+  jitterRatio?: number;
   retryableErrors?: (error: any) => boolean;
+  onRetry?: (info: { attempt: number; delayMs: number; error: unknown }) => void | Promise<void>;
   signal?: AbortSignal;
 }
 
@@ -17,8 +19,17 @@ const DEFAULT_OPTIONS: Required<Omit<RetryOptions, 'signal'>> = {
   initialDelayMs: LIMITS.retry.api.initialDelayMs,
   maxDelayMs: LIMITS.retry.api.maxDelayMs,
   backoffFactor: 2,
+  jitterRatio: 0,
   retryableErrors: () => true, // By default, retry all errors
+  onRetry: async () => {},
 };
+
+function withJitter(delayMs: number, jitterRatio: number): number {
+  const ratio = Number.isFinite(jitterRatio) ? Math.max(0, Math.min(1, jitterRatio)) : 0;
+  if (ratio <= 0) return delayMs;
+  const delta = (Math.random() * 2 - 1) * ratio;
+  return Math.max(0, Math.floor(delayMs * (1 + delta)));
+}
 
 /**
  * Retries an async function with exponential backoff.
@@ -47,11 +58,18 @@ export async function withRetry<T>(fn: () => Promise<T>, options: RetryOptions =
         throw new Error('Operation aborted');
       }
 
+      const effectiveDelay = withJitter(delay, opts.jitterRatio);
+      try {
+        await opts.onRetry({ attempt: attempt + 1, delayMs: effectiveDelay, error });
+      } catch {
+        // Ignore onRetry handler failures.
+      }
+
       await new Promise((resolve, reject) => {
         const timer = setTimeout(() => {
           resolve(undefined);
           signal?.removeEventListener('abort', onAbort);
-        }, delay);
+        }, effectiveDelay);
 
         const onAbort = () => {
           clearTimeout(timer);
@@ -101,11 +119,18 @@ export async function* withStreamRetry<T>(
         throw new Error('Operation aborted');
       }
 
+      const effectiveDelay = withJitter(delay, opts.jitterRatio);
+      try {
+        await opts.onRetry({ attempt: attempt + 1, delayMs: effectiveDelay, error });
+      } catch {
+        // Ignore onRetry handler failures.
+      }
+
       await new Promise((resolve, reject) => {
         const timer = setTimeout(() => {
           resolve(undefined);
           signal?.removeEventListener('abort', onAbort);
-        }, delay);
+        }, effectiveDelay);
 
         const onAbort = () => {
           clearTimeout(timer);

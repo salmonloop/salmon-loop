@@ -792,39 +792,63 @@ export async function chatWithToolsStreaming(
     let finishUsage: { promptTokens: number; completionTokens: number } | undefined;
     let usedFallback = false;
 
-    const stream = session.llm.chatStream(messages, {
-      ...chatOptions,
-      tools: openAITools,
-      toolSpecs: allowedSpecs,
-      toolChoice: openAITools.length > 0 ? 'auto' : undefined,
-    });
+    try {
+      const stream = session.llm.chatStream(messages, {
+        ...chatOptions,
+        tools: openAITools,
+        toolSpecs: allowedSpecs,
+        toolChoice: openAITools.length > 0 ? 'auto' : undefined,
+      });
 
-    for await (const chunk of stream) {
-      if (typeof chunk?.contentDelta === 'string' && chunk.contentDelta) {
-        if (session.llmOutput) {
-          emitLlmStreamDelta({
-            emit: session.emit,
-            policy: session.llmOutput.policy,
-            kind: session.llmOutput.kind,
-            step: session.llmOutput.step,
-            streamId,
-            content: chunk.contentDelta,
-          });
+      for await (const chunk of stream) {
+        if (typeof chunk?.contentDelta === 'string' && chunk.contentDelta) {
+          if (session.llmOutput) {
+            emitLlmStreamDelta({
+              emit: session.emit,
+              policy: session.llmOutput.policy,
+              kind: session.llmOutput.kind,
+              step: session.llmOutput.step,
+              streamId,
+              content: chunk.contentDelta,
+            });
+          }
+          content += chunk.contentDelta;
         }
-        content += chunk.contentDelta;
-      }
-      toolCalls.append(chunk);
-      if (chunk?.done) {
-        finishReason = chunk.finishReason;
-        if (
-          chunk.usage &&
-          typeof chunk.usage.promptTokens === 'number' &&
-          typeof chunk.usage.completionTokens === 'number'
-        ) {
-          finishUsage = chunk.usage;
+        toolCalls.append(chunk);
+        if (chunk?.done) {
+          finishReason = chunk.finishReason;
+          if (
+            chunk.usage &&
+            typeof chunk.usage.promptTokens === 'number' &&
+            typeof chunk.usage.completionTokens === 'number'
+          ) {
+            finishUsage = chunk.usage;
+          }
+          break;
         }
-        break;
       }
+    } catch (e) {
+      recordAuditEvent(
+        'llm.round',
+        {
+          status: 'error',
+          streamed: true,
+          usedFallback: false,
+          phase,
+          round,
+          model: session.runtime.model,
+          durationMs: Date.now() - roundStartedAt,
+          errorName: e instanceof Error ? e.name : 'UnknownError',
+          errorCode:
+            typeof (e as any)?.llmCode === 'string'
+              ? (e as any).llmCode
+              : typeof (e as any)?.code === 'string'
+                ? (e as any).code
+                : undefined,
+        },
+        { source: 'llm', severity: 'low', scope: 'session', phase },
+      );
+      throw e;
     }
 
     if (session.llmOutput) {
