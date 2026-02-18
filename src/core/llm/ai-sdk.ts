@@ -1,3 +1,5 @@
+import { randomUUID } from 'crypto';
+
 import { createOpenAI } from '@ai-sdk/openai';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { generateText, jsonSchema, streamText, tool } from 'ai';
@@ -480,9 +482,13 @@ export class AiSdkLLM implements LLM {
     const tools = toAiSdkToolSet(options.tools, options.toolSpecs);
 
     const timeoutMs = this.timeoutMs;
+    const requestId = randomUUID();
+    let attempt = 0;
 
     return withRetry(
       async () => {
+        attempt += 1;
+        const startedAt = Date.now();
         const abortController = new AbortController();
 
         // Handle internal timeout
@@ -512,6 +518,21 @@ export class AiSdkLLM implements LLM {
             abortSignal: abortController.signal,
           });
 
+          recordAuditEvent(
+            'llm.request',
+            {
+              requestId,
+              provider: 'ai-sdk',
+              streamed: false,
+              modelId: this.modelId,
+              attempt,
+              durationMs: Date.now() - startedAt,
+              toolCount: tools ? Object.keys(tools).length : 0,
+              status: 'ok',
+            },
+            { source: 'llm', severity: 'low', scope: 'session' },
+          );
+
           const usage = extractUsageFromAiSdkResult(result);
           if (usage) {
             recordAuditEvent('llm.usage', usage, {
@@ -526,6 +547,27 @@ export class AiSdkLLM implements LLM {
             content: result.text || '',
             tool_calls: toOpenAiToolCalls((result as any).toolCalls),
           };
+        } catch (e) {
+          const cls = classifyRetryableApiError(e);
+          recordAuditEvent(
+            'llm.request',
+            {
+              requestId,
+              provider: 'ai-sdk',
+              streamed: false,
+              modelId: this.modelId,
+              attempt,
+              durationMs: Date.now() - startedAt,
+              toolCount: tools ? Object.keys(tools).length : 0,
+              status: 'error',
+              statusCode: cls.statusCode,
+              networkCode: cls.networkCode,
+              retryable: cls.retryable,
+              retryReason: cls.reason,
+            },
+            { source: 'llm', severity: 'low', scope: 'session' },
+          );
+          throw e;
         } finally {
           if (timeoutHandle) clearTimeout(timeoutHandle);
         }
@@ -543,6 +585,8 @@ export class AiSdkLLM implements LLM {
             'llm.retry',
             {
               provider: 'ai-sdk',
+              modelId: this.modelId,
+              streamed: false,
               attempt,
               delayMs,
               reason: cls.reason,
@@ -565,8 +609,12 @@ export class AiSdkLLM implements LLM {
     const aiMessages = toAiSdkMessages(messages);
     const tools = toAiSdkToolSet(options.tools, options.toolSpecs);
     const timeoutMs = this.timeoutMs;
+    const requestId = randomUUID();
+    let attempt = 0;
 
     const streamFactory = async function* (this: AiSdkLLM) {
+      attempt += 1;
+      const startedAt = Date.now();
       const abortController = new AbortController();
 
       // Handle internal timeout
@@ -616,6 +664,42 @@ export class AiSdkLLM implements LLM {
         if (!doneEmitted) {
           yield { role: 'assistant' as LLMRole, done: true, finishReason: 'unknown' };
         }
+
+        recordAuditEvent(
+          'llm.request',
+          {
+            requestId,
+            provider: 'ai-sdk',
+            streamed: true,
+            modelId: this.modelId,
+            attempt,
+            durationMs: Date.now() - startedAt,
+            toolCount: tools ? Object.keys(tools).length : 0,
+            status: 'ok',
+          },
+          { source: 'llm', severity: 'low', scope: 'session' },
+        );
+      } catch (e) {
+        const cls = classifyRetryableApiError(e);
+        recordAuditEvent(
+          'llm.request',
+          {
+            requestId,
+            provider: 'ai-sdk',
+            streamed: true,
+            modelId: this.modelId,
+            attempt,
+            durationMs: Date.now() - startedAt,
+            toolCount: tools ? Object.keys(tools).length : 0,
+            status: 'error',
+            statusCode: cls.statusCode,
+            networkCode: cls.networkCode,
+            retryable: cls.retryable,
+            retryReason: cls.reason,
+          },
+          { source: 'llm', severity: 'low', scope: 'session' },
+        );
+        throw e;
       } finally {
         if (timeoutHandle) clearTimeout(timeoutHandle);
       }
@@ -633,6 +717,8 @@ export class AiSdkLLM implements LLM {
             'llm.retry',
             {
               provider: 'ai-sdk',
+              modelId: this.modelId,
+              streamed: true,
               attempt,
               delayMs,
               reason: cls.reason,

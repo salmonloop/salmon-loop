@@ -1,6 +1,7 @@
 import { text } from '../../locales/index.js';
 import { logger } from '../observability/logger.js';
 import { AuthorizationSourceSummary, ExecutionPhase, Phase } from '../types/index.js';
+import { sanitizeErrorMessage } from '../utils/sanitizer.js';
 
 import { PolicyDecision } from './policy.js';
 import { ToolCallEnvelope, ToolResult, ToolSpec } from './types.js';
@@ -19,6 +20,7 @@ export interface ToolAuditLogEntry {
   durationMs?: number;
   outputSummary?: string;
   error?: string;
+  errorMessage?: string;
   authOutcome?: string;
   authReason?: string;
   authRiskLevel?: string;
@@ -87,6 +89,7 @@ export class ToolAuditLogger {
       durationMs: result.durationMs,
       outputSummary: result.outputSummary ?? result.summary,
       error: result.error?.code,
+      errorMessage: result.error?.message ? sanitizeErrorMessage(result.error.message) : undefined,
     };
     this.logs.push(entry);
     logger.debug(text.audit.event('End', result.toolName, result.status));

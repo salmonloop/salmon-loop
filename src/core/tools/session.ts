@@ -298,6 +298,67 @@ function isObjectRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function unwrapRetryError(err: unknown): unknown {
+  if (!err || typeof err !== 'object') return err;
+  const candidate = err as Record<string, unknown>;
+  if (candidate.lastError) return candidate.lastError;
+  return err;
+}
+
+function extractStatusCode(err: unknown): number | undefined {
+  const unwrapped = unwrapRetryError(err);
+  if (!unwrapped || typeof unwrapped !== 'object') return undefined;
+
+  const meta = (unwrapped as any)?.meta;
+  if (meta && typeof meta === 'object' && typeof (meta as any).statusCode === 'number') {
+    return (meta as any).statusCode;
+  }
+
+  const statusCode = (unwrapped as any)?.statusCode;
+  if (typeof statusCode === 'number') return statusCode;
+
+  const response = (unwrapped as any)?.response;
+  if (response && typeof response === 'object' && typeof (response as any).status === 'number') {
+    return (response as any).status;
+  }
+
+  return undefined;
+}
+
+function extractNetworkCode(err: unknown): string | undefined {
+  const unwrapped = unwrapRetryError(err);
+  if (!unwrapped || typeof unwrapped !== 'object') return undefined;
+  const code = (unwrapped as any)?.code;
+  if (typeof code === 'string') return code;
+
+  const cause = (unwrapped as any)?.cause;
+  if (cause && typeof cause === 'object' && typeof (cause as any).code === 'string') {
+    return (cause as any).code;
+  }
+
+  const meta = (unwrapped as any)?.meta;
+  if (meta && typeof meta === 'object' && typeof (meta as any).causeName === 'string') {
+    return (meta as any).causeName;
+  }
+
+  return undefined;
+}
+
+function extractProvider(err: unknown): string | undefined {
+  const unwrapped = unwrapRetryError(err);
+  if (!unwrapped || typeof unwrapped !== 'object') return undefined;
+
+  const meta = (unwrapped as any)?.meta;
+  if (meta && typeof meta === 'object' && typeof (meta as any).provider === 'string') {
+    return (meta as any).provider;
+  }
+
+  const provider = (unwrapped as any)?.provider;
+  if (typeof provider === 'string') return provider;
+
+  return undefined;
+}
+
 const ENABLE_TOOL_ARG_REPAIR =
   process.env.SALMONLOOP_ENABLE_TOOL_ARG_REPAIR === '1' ||
   process.env.SALMONLOOP_ENABLE_TOOL_ARG_REPAIR === 'true';
@@ -838,6 +899,9 @@ export async function chatWithToolsStreaming(
           round,
           model: session.runtime.model,
           durationMs: Date.now() - roundStartedAt,
+          provider: extractProvider(e),
+          statusCode: extractStatusCode(e),
+          networkCode: extractNetworkCode(e),
           errorName: e instanceof Error ? e.name : 'UnknownError',
           errorCode:
             typeof (e as any)?.llmCode === 'string'

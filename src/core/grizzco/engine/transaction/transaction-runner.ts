@@ -160,7 +160,16 @@ export class FlowTransactionRunner {
 
       recordAuditEvent(
         'loop.attempt.failure',
-        { attempt, flowMode: this.params.flowMode, reason: attemptFailure.reason },
+        {
+          attempt,
+          flowMode: this.params.flowMode,
+          reason: attemptFailure.reason,
+          reasonCode: attemptFailure.reasonCode,
+          failurePhase: attemptFailure.failurePhase,
+          retryable: attemptFailure.retryable,
+          errorCode: attemptFailure.errorCode,
+          lastStep: result.lastStep,
+        },
         {
           phase: attemptFailure.failurePhase,
           severity: attemptFailure.failurePhase === 'APPLY_BACK' ? 'high' : 'medium',
