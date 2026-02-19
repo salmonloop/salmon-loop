@@ -12,7 +12,8 @@ import { text } from '../../locales/index.js';
 type LangfuseIngestionEvent =
   | {
       id: string;
-      type: 'trace-update' | 'trace-create';
+      // Langfuse ingestion API uses upsert semantics on trace-create (no separate trace-update event).
+      type: 'trace-create';
       timestamp: string;
       body: Record<string, unknown>;
     }
@@ -23,12 +24,23 @@ type LangfuseIngestionEvent =
       body: Record<string, unknown>;
     };
 
+type LangfuseIngestionResult = {
+  successes: { id: string; status: number }[];
+  errors: { id: string; status: number; message?: string; error?: string }[];
+};
+
 function nowIso(): string {
   return new Date().toISOString();
 }
 
 function trimTrailingSlashes(value: string): string {
   return value.replace(/\/+$/, '');
+}
+
+function buildBasicAuthHeader(username: string, password: string): string {
+  // LiteLLM's built-in /langfuse proxy route expects Basic auth in the form "any:<key>".
+  const token = Buffer.from(`${username}:${password}`, 'utf8').toString('base64');
+  return `Basic ${token}`;
 }
 
 function buildStableId(parts: string[]): string {
@@ -72,15 +84,24 @@ export interface LiteLlmLangfuseOutcomeReporterOptions {
    * Example: http://localhost:4000
    */
   proxyBaseUrl: string;
+  /**
+   * Optional LiteLLM Virtual Key used to authenticate calls to the proxy.
+   *
+   * NOTE: Some LiteLLM versions require Basic auth for /langfuse/* routes.
+   * Passing this key lets the reporter work without any client-side Langfuse keys.
+   */
+  litellmApiKey?: string;
   timeoutMs?: number;
 }
 
 export class LiteLlmLangfuseOutcomeReporter implements RunOutcomeReporter {
   private readonly proxyBaseUrl: string;
   private readonly timeoutMs: number;
+  private readonly litellmApiKey?: string;
 
   constructor(options: LiteLlmLangfuseOutcomeReporterOptions) {
     this.proxyBaseUrl = trimTrailingSlashes(options.proxyBaseUrl);
+    this.litellmApiKey = options.litellmApiKey;
     this.timeoutMs = options.timeoutMs ?? 2500;
   }
 
@@ -124,9 +145,9 @@ export class LiteLlmLangfuseOutcomeReporter implements RunOutcomeReporter {
 
     const timestamp = nowIso();
 
-    const traceUpdate: LangfuseIngestionEvent = {
-      id: buildStableId([traceId, 'trace-update', timestamp]),
-      type: 'trace-update',
+    const traceUpsert: LangfuseIngestionEvent = {
+      id: buildStableId([traceId, 'trace-create', timestamp]),
+      type: 'trace-create',
       timestamp,
       body: {
         id: traceId,
@@ -149,31 +170,13 @@ export class LiteLlmLangfuseOutcomeReporter implements RunOutcomeReporter {
       },
     }));
 
-    const ok = await this.postIngestion([traceUpdate, ...scoreEvents]);
+    const ok = await this.postIngestion([traceUpsert, ...scoreEvents]);
     if (ok) {
       recordAuditEvent(
         'langfuse.outcome.reported',
         { traceId, ok: true, scores: scores.map((s) => s.name) },
         { source: 'observability', severity: 'low', scope: 'session' },
       );
-      logger.debug(text.grizzco.langfuse.outcomeReported(traceId));
-      return;
-    }
-
-    // Fallback: try trace-create (some Langfuse versions do not support trace-update).
-    const traceCreate: LangfuseIngestionEvent = {
-      ...traceUpdate,
-      id: buildStableId([traceId, 'trace-create', timestamp]),
-      type: 'trace-create',
-    };
-
-    const okFallback = await this.postIngestion([traceCreate, ...scoreEvents]);
-    recordAuditEvent(
-      'langfuse.outcome.reported',
-      { traceId, ok: okFallback, fallback: true, scores: scores.map((s) => s.name) },
-      { source: 'observability', severity: 'low', scope: 'session' },
-    );
-    if (okFallback) {
       logger.debug(text.grizzco.langfuse.outcomeReported(traceId));
       return;
     }
@@ -187,9 +190,15 @@ export class LiteLlmLangfuseOutcomeReporter implements RunOutcomeReporter {
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
 
     try {
+      const headers: Record<string, string> = { 'content-type': 'application/json' };
+      if (this.litellmApiKey) {
+        headers.Authorization = buildBasicAuthHeader('any', this.litellmApiKey);
+        // Also send the canonical LiteLLM auth header for deployments that rely on it.
+        headers['x-litellm-api-key'] = this.litellmApiKey;
+      }
       const resp = await fetch(url, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers,
         body: JSON.stringify({ batch: events }),
         signal: controller.signal,
       });
@@ -197,6 +206,27 @@ export class LiteLlmLangfuseOutcomeReporter implements RunOutcomeReporter {
       if (!resp.ok) {
         return false;
       }
+
+      // Langfuse returns 207 with per-event errors; treat any event error as failure.
+      try {
+        const result = (await resp.json()) as LangfuseIngestionResult;
+        if (Array.isArray(result?.errors) && result.errors.length > 0) {
+          recordAuditEvent(
+            'langfuse.outcome.ingestion_failed',
+            { errors: result.errors },
+            { source: 'observability', severity: 'low', scope: 'session' },
+          );
+          logger.debug(
+            `[Langfuse] Ingestion returned errors for ids: ${result.errors
+              .map((e) => e.id)
+              .join(',')}`,
+          );
+          return false;
+        }
+      } catch {
+        // If the proxy returns a non-JSON body, fall back to "ok".
+      }
+
       return true;
     } catch {
       return false;

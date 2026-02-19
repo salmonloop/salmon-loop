@@ -227,7 +227,13 @@ export async function handleRunCommand(options: any, command: Command) {
         llmBaseUrl: resolvedConfig.llm.api.baseUrl,
       });
       if (!resolved.enabled || !resolved.proxyBaseUrl) return undefined;
-      return new LiteLlmLangfuseOutcomeReporter({ proxyBaseUrl: resolved.proxyBaseUrl });
+      const proxyApiKey =
+        (process.env.SALMONLOOP_LANGFUSE_PROXY_API_KEY || '').trim() ||
+        resolvedConfig.llm.api.apiKey;
+      return new LiteLlmLangfuseOutcomeReporter({
+        proxyBaseUrl: resolved.proxyBaseUrl,
+        litellmApiKey: proxyApiKey,
+      });
     })();
 
     const loopParams = {
