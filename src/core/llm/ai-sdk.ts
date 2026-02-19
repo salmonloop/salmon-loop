@@ -34,7 +34,11 @@ function formatOutputSchema(schema: z.ZodType<any> | undefined): string {
 }
 
 import { LIMITS } from '../config/limits.js';
-import { getAuditContext, recordAuditEvent } from '../observability/audit-trail.js';
+import {
+  getAuditContext,
+  recordAuditEvent,
+  setAuditContext,
+} from '../observability/audit-trail.js';
 import { getPatchPrompt, getPlanPrompt } from '../prompts/runtime.js';
 import { toolToOpenAI } from '../tools/mapper.js';
 import type { ToolSpec } from '../tools/types.js';
@@ -76,6 +80,7 @@ function buildLangfuseHeaders(
   input: {
     runId?: string;
     phase?: string;
+    observationName?: string;
     observationId?: string;
     sessionId?: string;
     userId?: string;
@@ -98,9 +103,8 @@ function buildLangfuseHeaders(
     headers.langfuse_trace_user_id = input.userId;
   }
 
-  if (input.phase) {
-    headers.langfuse_observation_name = input.phase;
-  }
+  const obsName = (input.observationName || input.phase || '').trim();
+  if (obsName) headers.langfuse_observation_name = obsName;
 
   if (input.observationId) {
     headers.langfuse_observation_id = input.observationId;
@@ -538,6 +542,7 @@ export class AiSdkLLM implements LLM {
         const langfuseHeaders = buildLangfuseHeaders(Boolean(this.cfg.langfuseEnabled), {
           runId: auditCtx.correlationId,
           phase: auditCtx.phase,
+          observationName: auditCtx.observationName,
           observationId: `${requestId}-a${attempt}`,
           sessionId: auditCtx.sessionId,
           userId: auditCtx.userId,
@@ -677,6 +682,7 @@ export class AiSdkLLM implements LLM {
       const langfuseHeaders = buildLangfuseHeaders(Boolean(this.cfg.langfuseEnabled), {
         runId: auditCtx.correlationId,
         phase: auditCtx.phase,
+        observationName: auditCtx.observationName,
         observationId: `${requestId}-a${attempt}`,
         sessionId: auditCtx.sessionId,
         userId: auditCtx.userId,
@@ -830,9 +836,13 @@ export class AiSdkLLM implements LLM {
       lastError,
     );
 
-    const response = await this.chat([{ role: 'user', content: prompt }], {
-      signal,
-    });
+    const prevObsName = getAuditContext().observationName;
+    setAuditContext({ observationName: 'PLAN:plan-json' });
+    const response = await this.chat([{ role: 'user', content: prompt }], { signal }).finally(
+      () => {
+        setAuditContext({ observationName: prevObsName });
+      },
+    );
 
     const content = response.content;
     if (!content) {
@@ -865,9 +875,13 @@ export class AiSdkLLM implements LLM {
       lastError,
     );
 
-    const response = await this.chat([{ role: 'user', content: prompt }], {
-      signal,
-    });
+    const prevObsName = getAuditContext().observationName;
+    setAuditContext({ observationName: 'PATCH:unified-diff' });
+    const response = await this.chat([{ role: 'user', content: prompt }], { signal }).finally(
+      () => {
+        setAuditContext({ observationName: prevObsName });
+      },
+    );
     return extractUnifiedDiffFromLLMContent(response.content || '');
   }
 }

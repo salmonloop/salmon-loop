@@ -63,6 +63,12 @@ function truncateForAudit(value: string, max: number): string {
   return `${value.slice(0, max)}…[truncated]…`;
 }
 
+function truncateForLangfuse(value: string | undefined, max: number): string | undefined {
+  const raw = (value || '').trim();
+  if (!raw) return undefined;
+  return raw.length <= max ? raw : `${raw.slice(0, max)}…[truncated]…`;
+}
+
 function buildPhaseDurations(traces: unknown): Record<string, number> | undefined {
   if (!Array.isArray(traces)) return undefined;
   const out: Record<string, number> = {};
@@ -161,6 +167,7 @@ export class LiteLlmLangfuseOutcomeReporter implements RunOutcomeReporter {
 
     const tags: string[] = [];
     tags.push('salmonloop');
+    tags.push(report.success ? 'status:success' : 'status:failure');
     if (ctx.mode) tags.push(`mode:${ctx.mode}`);
     if (report.failurePhase) tags.push(`failurePhase:${report.failurePhase}`);
     if (report.errorCode) tags.push(`errorCode:${report.errorCode}`);
@@ -176,6 +183,23 @@ export class LiteLlmLangfuseOutcomeReporter implements RunOutcomeReporter {
         name: 'salmonloop.run',
         sessionId: ctx.sessionId,
         userId: ctx.userId,
+        input: {
+          instruction: truncateForLangfuse(ctx.instruction, 2000),
+          verify: truncateForLangfuse(ctx.verify, 500),
+          mode: ctx.mode,
+          repoPath: ctx.repoPath,
+        },
+        output: {
+          success: report.success,
+          reason: truncateForLangfuse(report.reason, 2000),
+          reasonCode: report.reasonCode,
+          attempts: report.attempts,
+          failurePhase: report.failurePhase,
+          errorCode: report.errorCode,
+          changedFiles: report.changedFiles,
+          lastStep,
+          durationMs,
+        },
         metadata: traceMetadata,
         tags,
       },

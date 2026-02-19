@@ -26,6 +26,11 @@ export interface AuditTrailMeta {
    * Optional Langfuse userId for trace attribution.
    */
   userId?: string;
+  /**
+   * Optional Langfuse observation name override for a specific LLM request.
+   * If set, AiSdkLLM will prefer this over `phase` when populating Langfuse headers.
+   */
+  observationName?: string;
 }
 
 const auditTrail: AuditTrailEvent[] = [];

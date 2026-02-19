@@ -108,6 +108,8 @@ export class SalmonLoop {
               repoPath: options.repoPath,
               sessionId: options.langfuseSessionId,
               userId: options.langfuseUserId,
+              instruction: options.instruction,
+              verify: options.verify,
             });
           } catch (error) {
             const msg = error instanceof Error ? error.message : String(error);

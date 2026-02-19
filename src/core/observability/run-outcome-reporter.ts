@@ -7,6 +7,8 @@ export interface RunOutcomeContext {
   repoPath?: string;
   sessionId?: string;
   userId?: string;
+  instruction?: string;
+  verify?: string;
 }
 
 export interface RunOutcomeReport {
@@ -16,6 +18,7 @@ export interface RunOutcomeReport {
   attempts: number;
   failurePhase?: ExecutionPhase;
   errorCode?: string;
+  changedFiles?: string[];
 }
 
 export interface RunOutcomeReporter {
@@ -30,5 +33,6 @@ export function buildRunOutcomeReport(result: LoopResult): RunOutcomeReport {
     attempts: result.attempts,
     failurePhase: result.failurePhase,
     errorCode: result.errorCode,
+    changedFiles: result.changedFiles,
   };
 }
