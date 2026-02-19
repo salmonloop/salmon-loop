@@ -27,6 +27,10 @@ export function setAuditContext(meta: AuditTrailMeta) {
   Object.assign(auditContext, meta);
 }
 
+export function getAuditContext(): AuditTrailMeta {
+  return { ...auditContext };
+}
+
 export function clearAuditContext() {
   for (const key of Object.keys(auditContext)) {
     delete (auditContext as any)[key];

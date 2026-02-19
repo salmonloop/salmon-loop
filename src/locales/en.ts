@@ -556,6 +556,15 @@ Please return the patch in PURE unified diff format:`;
       failed: (error: string) => `[Audit] Failed to save audit log: ${error}`,
       appendFailed: (error: string) => `[Audit] Failed to append audit trail delta: ${error}`,
     },
+    observability: {
+      outcomeReporterFailed: (error: string) =>
+        `[Observability] Outcome reporter failed (ignored): ${error}`,
+    },
+    langfuse: {
+      outcomeReported: (traceId: string) => `[Langfuse] Outcome reported for trace ${traceId}`,
+      outcomeReportFailed: (traceId: string) =>
+        `[Langfuse] Failed to report outcome for trace ${traceId}`,
+    },
     errors: {
       workerNotFound: (id: string) => `Worker "${id}" not found`,
       noWorkerSelected: 'No worker selected',

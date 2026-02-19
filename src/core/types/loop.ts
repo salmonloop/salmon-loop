@@ -1,4 +1,5 @@
 import type { ResolvedExtensions } from '../extensions/types.js';
+import type { RunOutcomeReporter } from '../observability/run-outcome-reporter.js';
 import type { ArtifactHandle } from '../sub-agent/artifacts/types.js';
 import type { ToolAuthorizationProvider } from '../tools/authorization/types.js';
 
@@ -296,6 +297,7 @@ export interface LoopOptions {
   authorizationProvider?: ToolAuthorizationProvider;
   authorizationMode?: 'blocking' | 'deferred';
   extensions?: ResolvedExtensions;
+  outcomeReporter?: RunOutcomeReporter;
 }
 
 export interface ExecutionWorkspace {

@@ -34,7 +34,7 @@ function formatOutputSchema(schema: z.ZodType<any> | undefined): string {
 }
 
 import { LIMITS } from '../config/limits.js';
-import { recordAuditEvent } from '../observability/audit-trail.js';
+import { getAuditContext, recordAuditEvent } from '../observability/audit-trail.js';
 import { getPatchPrompt, getPlanPrompt } from '../prompts/runtime.js';
 import { toolToOpenAI } from '../tools/mapper.js';
 import type { ToolSpec } from '../tools/types.js';
@@ -68,6 +68,40 @@ export interface AiSdkLlmConfig {
   modelId?: string;
   headers?: Record<string, string>;
   timeoutMs?: number;
+}
+
+function isLangfuseEnabled(): boolean {
+  const raw = (process.env.SALMONLOOP_LANGFUSE || '').trim().toLowerCase();
+  return raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on';
+}
+
+function buildLangfuseHeaders(input: {
+  runId?: string;
+  phase?: string;
+  observationId?: string;
+}): Record<string, string> {
+  if (!isLangfuseEnabled()) return {};
+  if (!input.runId) return {};
+
+  const headers: Record<string, string> = {
+    langfuse_trace_id: input.runId,
+    langfuse_trace_name: 'salmonloop.run',
+  };
+
+  if (input.phase) {
+    headers.langfuse_observation_name = input.phase;
+  }
+
+  if (input.observationId) {
+    headers.langfuse_observation_id = input.observationId;
+  }
+
+  const release = (process.env.SALMONLOOP_LANGFUSE_RELEASE || '').trim();
+  if (release) {
+    headers.langfuse_release = release;
+  }
+
+  return headers;
 }
 
 function unwrapRetryError(err: unknown): unknown {
@@ -490,6 +524,12 @@ export class AiSdkLLM implements LLM {
         attempt += 1;
         const startedAt = Date.now();
         const abortController = new AbortController();
+        const auditCtx = getAuditContext();
+        const langfuseHeaders = buildLangfuseHeaders({
+          runId: auditCtx.correlationId,
+          phase: auditCtx.phase,
+          observationId: `${requestId}-a${attempt}`,
+        });
 
         // Handle internal timeout
         const timeoutHandle =
@@ -515,6 +555,7 @@ export class AiSdkLLM implements LLM {
             maxOutputTokens: options.maxTokens,
             stopSequences: options.stop,
             toolChoice: options.toolChoice === 'none' ? 'none' : tools ? 'auto' : undefined,
+            headers: langfuseHeaders,
             abortSignal: abortController.signal,
           });
 
@@ -522,6 +563,8 @@ export class AiSdkLLM implements LLM {
             'llm.request',
             {
               requestId,
+              runId: auditCtx.correlationId,
+              phase: auditCtx.phase,
               provider: 'ai-sdk',
               streamed: false,
               modelId: this.modelId,
@@ -553,6 +596,8 @@ export class AiSdkLLM implements LLM {
             'llm.request',
             {
               requestId,
+              runId: auditCtx.correlationId,
+              phase: auditCtx.phase,
               provider: 'ai-sdk',
               streamed: false,
               modelId: this.modelId,
@@ -616,6 +661,12 @@ export class AiSdkLLM implements LLM {
       attempt += 1;
       const startedAt = Date.now();
       const abortController = new AbortController();
+      const auditCtx = getAuditContext();
+      const langfuseHeaders = buildLangfuseHeaders({
+        runId: auditCtx.correlationId,
+        phase: auditCtx.phase,
+        observationId: `${requestId}-a${attempt}`,
+      });
 
       // Handle internal timeout
       const timeoutHandle =
@@ -641,6 +692,7 @@ export class AiSdkLLM implements LLM {
           maxOutputTokens: options.maxTokens,
           stopSequences: options.stop,
           toolChoice: options.toolChoice === 'none' ? 'none' : tools ? 'auto' : undefined,
+          headers: langfuseHeaders,
           abortSignal: abortController.signal,
         });
 
@@ -669,6 +721,8 @@ export class AiSdkLLM implements LLM {
           'llm.request',
           {
             requestId,
+            runId: auditCtx.correlationId,
+            phase: auditCtx.phase,
             provider: 'ai-sdk',
             streamed: true,
             modelId: this.modelId,
@@ -685,6 +739,8 @@ export class AiSdkLLM implements LLM {
           'llm.request',
           {
             requestId,
+            runId: auditCtx.correlationId,
+            phase: auditCtx.phase,
             provider: 'ai-sdk',
             streamed: true,
             modelId: this.modelId,

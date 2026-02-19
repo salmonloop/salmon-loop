@@ -19,6 +19,8 @@ import {
   LoopResult,
   type FlowMode,
 } from '../../core/types/index.js';
+import { LiteLlmLangfuseOutcomeReporter } from '../../integrations/langfuse/litellm-langfuse-outcome-reporter.js';
+import { resolveLangfuseOutcomeProxyBaseUrl } from '../../integrations/langfuse/outcome-proxy.js';
 import {
   createTerminalAuthorizationProvider,
   createUiAuthorizationProvider,
@@ -220,6 +222,14 @@ export async function handleRunCommand(options: any, command: Command) {
       llmOutput.kinds.push('plan');
     }
 
+    const outcomeReporter = (() => {
+      const resolved = resolveLangfuseOutcomeProxyBaseUrl({
+        llmBaseUrl: resolvedConfig.llm.api.baseUrl,
+      });
+      if (!resolved.enabled || !resolved.proxyBaseUrl) return undefined;
+      return new LiteLlmLangfuseOutcomeReporter({ proxyBaseUrl: resolved.proxyBaseUrl });
+    })();
+
     const loopParams = {
       instruction: allOptions.instruction,
       verify: effectiveVerify,
@@ -235,6 +245,7 @@ export async function handleRunCommand(options: any, command: Command) {
       applyBackOnDirty,
       worktreePrepare: allOptions.worktreePrepare,
       llmOutput,
+      outcomeReporter,
       authorizationProvider: createTerminalAuthorizationProvider({
         config: resolvedConfig.toolAuthorization,
       }),

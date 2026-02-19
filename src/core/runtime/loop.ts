@@ -1,5 +1,6 @@
 import { randomBytes } from 'crypto';
 
+import { text } from '../../locales/index.js';
 import { LIMITS } from '../config/limits.js';
 import { createFlowEventAdapter } from '../grizzco/engine/observability/event-adapter.js';
 import { LoopTelemetry } from '../grizzco/engine/observability/loop-telemetry.js';
@@ -14,6 +15,8 @@ import {
   clearAuditTrail,
   setAuditContext,
 } from '../observability/audit-trail.js';
+import { logger } from '../observability/logger.js';
+import { buildRunOutcomeReport } from '../observability/run-outcome-reporter.js';
 import { Phase, type FlowMode, type LoopOptions, type LoopResult } from '../types/index.js';
 
 import { Semaphore } from './semaphore.js';
@@ -43,6 +46,7 @@ export class SalmonLoop {
     const hostRunner = new HostRunner(options, emitSanitized, now);
     let latestAuditPath: string | undefined;
     const shadowTaskId = randomBytes(4).toString('hex');
+    let finalResult: LoopResult | undefined;
 
     try {
       const hostContext = await hostRunner.boot();
@@ -70,13 +74,14 @@ export class SalmonLoop {
         auditPath: latestAuditPath,
       });
       latestAuditPath = sessionResult.auditPath;
-      return sessionResult.result;
+      finalResult = sessionResult.result;
+      return finalResult;
     } catch (error) {
       const message = sanitizeError(error);
       telemetry.recordLog(Phase.PREFLIGHT, message, false);
       emitSanitized({ type: 'log', level: 'error', message, timestamp: now() });
       const fallbackFlowMode: FlowMode = options.mode ?? 'patch';
-      return buildLoopFailureResult({
+      finalResult = buildLoopFailureResult({
         message,
         flowMode: fallbackFlowMode,
         telemetry,
@@ -84,11 +89,25 @@ export class SalmonLoop {
         reasonCode: 'LOOP_FAILED',
         failurePhase: Phase.PREFLIGHT,
       });
+      return finalResult;
     } finally {
       try {
         await hostRunner.teardown();
       } finally {
         await appendAuditTrailToAuditFile(latestAuditPath);
+        if (options.outcomeReporter && finalResult) {
+          try {
+            await options.outcomeReporter.report(buildRunOutcomeReport(finalResult), {
+              runId: correlationId,
+              auditPath: latestAuditPath,
+              mode: options.mode,
+              repoPath: options.repoPath,
+            });
+          } catch (error) {
+            const msg = error instanceof Error ? error.message : String(error);
+            logger.warn(text.grizzco.observability.outcomeReporterFailed(msg));
+          }
+        }
         clearAuditContext();
       }
     }

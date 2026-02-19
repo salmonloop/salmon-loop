@@ -10,6 +10,7 @@ import { routeChatIntent } from '../core/intent/chat-intent.js';
 import { DEFAULT_LLM_OUTPUT_POLICY, emitLlmOutput } from '../core/llm/output-policy.js';
 import { logIgnoredError } from '../core/observability/ignored-error.js';
 import { logger } from '../core/observability/logger.js';
+import type { RunOutcomeReporter } from '../core/observability/run-outcome-reporter.js';
 import { runSalmonLoop } from '../core/runtime/loop.js';
 import { ChatSessionManager } from '../core/session/manager.js';
 import { TokenTracker } from '../core/session/token-tracker.js';
@@ -36,6 +37,7 @@ export interface ChatModeOptions {
   markdownRenderMode?: MarkdownRenderMode;
   toolAuthorization?: ToolAuthorizationConfig;
   extensions?: ResolvedExtensions;
+  outcomeReporter?: RunOutcomeReporter;
 }
 
 /**
@@ -267,6 +269,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
             onEvent: latestEmit,
             signal: mergedSignal.signal,
             llmOutput: currentLlmOutputPolicy,
+            outcomeReporter: options.outcomeReporter,
             authorizationProvider,
             authorizationMode: 'deferred',
           });
