@@ -58,6 +58,11 @@ function buildStableId(parts: string[]): string {
     .slice(0, 128);
 }
 
+function truncateForAudit(value: string, max: number): string {
+  if (value.length <= max) return value;
+  return `${value.slice(0, max)}…[truncated]…`;
+}
+
 function buildPhaseDurations(traces: unknown): Record<string, number> | undefined {
   if (!Array.isArray(traces)) return undefined;
   const out: Record<string, number> = {};
@@ -221,6 +226,23 @@ export class LiteLlmLangfuseOutcomeReporter implements RunOutcomeReporter {
       });
 
       if (!resp.ok) {
+        // Capture a small response preview for debugging in audit logs (no secrets).
+        let bodyPreview: string | undefined;
+        try {
+          bodyPreview = truncateForAudit(await resp.text(), 800);
+        } catch {
+          // ignore
+        }
+        recordAuditEvent(
+          'langfuse.outcome.http_failed',
+          {
+            url,
+            status: resp.status,
+            statusText: resp.statusText,
+            bodyPreview,
+          },
+          { source: 'observability', severity: 'low', scope: 'session' },
+        );
         return false;
       }
 
@@ -246,6 +268,11 @@ export class LiteLlmLangfuseOutcomeReporter implements RunOutcomeReporter {
 
       return true;
     } catch {
+      recordAuditEvent(
+        'langfuse.outcome.request_failed',
+        { url, timeoutMs: this.timeoutMs },
+        { source: 'observability', severity: 'low', scope: 'session' },
+      );
       return false;
     } finally {
       clearTimeout(timeout);

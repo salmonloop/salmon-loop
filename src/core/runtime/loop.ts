@@ -99,7 +99,6 @@ export class SalmonLoop {
       try {
         await hostRunner.teardown();
       } finally {
-        await appendAuditTrailToAuditFile(latestAuditPath);
         if (options.outcomeReporter && finalResult) {
           try {
             await options.outcomeReporter.report(buildRunOutcomeReport(finalResult), {
@@ -115,6 +114,8 @@ export class SalmonLoop {
             logger.warn(text.grizzco.observability.outcomeReporterFailed(msg));
           }
         }
+        // Append at the end so any audit events emitted by the outcomeReporter are persisted too.
+        await appendAuditTrailToAuditFile(latestAuditPath);
         clearAuditContext();
       }
     }
