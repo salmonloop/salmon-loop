@@ -36,6 +36,7 @@ vi.mock('../../../../src/core/config/index.js', () => ({
   resolveConfig: vi.fn(async () => ({
     raw: { version: 1 },
     source: { used: false, path: undefined },
+    observability: { langfuse: { enabled: false, outcome: false, endpoint: undefined } },
     llmOutput: { kinds: [] },
     markdownTheme: 'default',
     markdownRenderMode: 'enhanced',

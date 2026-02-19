@@ -36,10 +36,14 @@ export async function handleChatCommand(options: any, command: Command) {
   }
   const llmOutput = llmOutputResolution.policy;
 
-  const { llm } = createRuntimeLlm(resolvedConfig.llm);
+  const { llm } = createRuntimeLlm(resolvedConfig.llm, {
+    langfuseEnabled: resolvedConfig.observability.langfuse.enabled,
+  });
 
   const outcomeReporter = (() => {
     const resolved = resolveLangfuseOutcomeProxyBaseUrl({
+      enabled: resolvedConfig.observability.langfuse.outcome,
+      endpoint: resolvedConfig.observability.langfuse.endpoint,
       llmBaseUrl: resolvedConfig.llm.api.baseUrl,
     });
     if (!resolved.enabled || !resolved.proxyBaseUrl) return undefined;
@@ -47,6 +51,7 @@ export async function handleChatCommand(options: any, command: Command) {
       (process.env.SALMONLOOP_LANGFUSE_PROXY_API_KEY || '').trim() || resolvedConfig.llm.api.apiKey;
     return new LiteLlmLangfuseOutcomeReporter({
       proxyBaseUrl: resolved.proxyBaseUrl,
+      proxyPathPrefix: resolved.proxyPathPrefix,
       litellmApiKey: proxyApiKey,
     });
   })();

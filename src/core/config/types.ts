@@ -30,6 +30,8 @@ export interface ConfigFileV1 {
     };
   };
 
+  observability?: ObservabilityConfigV1;
+
   output?: {
     llm?: LlmOutputConfig;
     markdown?: {
@@ -57,6 +59,25 @@ export interface ConfigFileV1 {
 
 export interface LlmOutputConfig {
   kinds?: LlmOutputKind[];
+}
+
+export interface ObservabilityConfigV1 {
+  langfuse?: LangfuseObservabilityConfigV1;
+}
+
+export interface LangfuseObservabilityConfigV1 {
+  /**
+   * Enables Langfuse correlation headers on LLM calls (via LiteLLM pass-through).
+   */
+  enabled?: boolean;
+  /**
+   * Enables run outcome reporting (trace metadata + scores) via LiteLLM's Langfuse proxy endpoint.
+   */
+  outcome?: boolean;
+  /**
+   * Langfuse proxy endpoint base (may include a path prefix, e.g. "https://api.s8p.io/langfuse/").
+   */
+  endpoint?: string;
 }
 
 export interface LlmProviderV1 {
@@ -110,6 +131,13 @@ export interface ResolvedConfig {
     used: boolean;
   };
   raw?: ConfigFileV1;
+  observability: {
+    langfuse: {
+      enabled: boolean;
+      outcome: boolean;
+      endpoint?: string;
+    };
+  };
   verify: {
     command?: string;
     timeoutMs?: number;

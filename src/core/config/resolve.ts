@@ -7,6 +7,7 @@ import { getDefaultRepoConfigPath } from './paths.js';
 import type {
   ApiKeySource,
   ConfigFileV1,
+  LangfuseObservabilityConfigV1,
   MarkdownRenderMode,
   MarkdownTheme,
   ResolvedConfig,
@@ -19,6 +20,13 @@ function firstNonEmpty(value: string | undefined | null): string | undefined {
   if (!value) return undefined;
   const v = value.trim();
   return v ? v : undefined;
+}
+
+function parseBoolEnv(value: string | undefined): boolean | undefined {
+  if (value === undefined) return undefined;
+  const raw = value.trim().toLowerCase();
+  if (!raw) return undefined;
+  return raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on';
 }
 
 function resolveApiKey(inlineKey: string | null | undefined): {
@@ -160,6 +168,25 @@ function resolveMarkdownRenderMode(raw?: ConfigFileV1): MarkdownRenderMode {
   return raw?.output?.markdown?.mode ?? DEFAULT_MARKDOWN_RENDER_MODE;
 }
 
+function resolveLangfuseObservability(raw?: ConfigFileV1): {
+  enabled: boolean;
+  outcome: boolean;
+  endpoint?: string;
+} {
+  const cfg: LangfuseObservabilityConfigV1 | undefined = raw?.observability?.langfuse;
+
+  const enabled = parseBoolEnv(process.env.SALMONLOOP_LANGFUSE) ?? cfg?.enabled ?? false;
+  const outcome = parseBoolEnv(process.env.SALMONLOOP_LANGFUSE_OUTCOME) ?? cfg?.outcome ?? false;
+
+  // Prefer explicit proxy base URL env override (backwards-compatible). This may be either:
+  // - a root proxy URL (e.g. "https://api.s8p.io"), or
+  // - a full /langfuse endpoint (e.g. "https://api.s8p.io/langfuse/").
+  const endpoint =
+    firstNonEmpty(process.env.SALMONLOOP_LANGFUSE_PROXY_URL) ?? firstNonEmpty(cfg?.endpoint);
+
+  return { enabled, outcome, endpoint };
+}
+
 export async function resolveConfig(opts: ResolveConfigOptions): Promise<ResolvedConfig> {
   const enabled = opts.enableConfigFile !== false;
   const path = opts.configFilePath || getDefaultRepoConfigPath(opts.repoRoot);
@@ -180,6 +207,9 @@ export async function resolveConfig(opts: ResolveConfigOptions): Promise<Resolve
       used: Boolean(loaded),
     },
     raw,
+    observability: {
+      langfuse: resolveLangfuseObservability(raw),
+    },
     verify: {
       command: raw?.verify?.command,
       timeoutMs: raw?.verify?.timeoutMs,

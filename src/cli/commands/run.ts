@@ -190,7 +190,9 @@ export async function handleRunCommand(options: any, command: Command) {
     const llmType = resolvedConfig.llm.type;
     const clientPackage = resolvedConfig.llm.clientPackage;
 
-    const runtimeLlm = createRuntimeLlm(resolvedConfig.llm);
+    const runtimeLlm = createRuntimeLlm(resolvedConfig.llm, {
+      langfuseEnabled: resolvedConfig.observability.langfuse.enabled,
+    });
     const llm = runtimeLlm.llm;
 
     for (const w of runtimeLlm.warnings) {
@@ -224,6 +226,8 @@ export async function handleRunCommand(options: any, command: Command) {
 
     const outcomeReporter = (() => {
       const resolved = resolveLangfuseOutcomeProxyBaseUrl({
+        enabled: resolvedConfig.observability.langfuse.outcome,
+        endpoint: resolvedConfig.observability.langfuse.endpoint,
         llmBaseUrl: resolvedConfig.llm.api.baseUrl,
       });
       if (!resolved.enabled || !resolved.proxyBaseUrl) return undefined;
@@ -232,6 +236,7 @@ export async function handleRunCommand(options: any, command: Command) {
         resolvedConfig.llm.api.apiKey;
       return new LiteLlmLangfuseOutcomeReporter({
         proxyBaseUrl: resolved.proxyBaseUrl,
+        proxyPathPrefix: resolved.proxyPathPrefix,
         litellmApiKey: proxyApiKey,
       });
     })();

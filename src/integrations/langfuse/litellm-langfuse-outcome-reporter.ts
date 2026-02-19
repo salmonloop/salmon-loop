@@ -37,6 +37,14 @@ function trimTrailingSlashes(value: string): string {
   return value.replace(/\/+$/, '');
 }
 
+function normalizePathPrefix(value: string | undefined): string {
+  const raw = (value || '').trim();
+  if (!raw) return '/langfuse';
+  const withSlash = raw.startsWith('/') ? raw : `/${raw}`;
+  const trimmed = withSlash.replace(/\/+$/, '');
+  return trimmed || '/langfuse';
+}
+
 function buildBasicAuthHeader(username: string, password: string): string {
   // LiteLLM's built-in /langfuse proxy route expects Basic auth in the form "any:<key>".
   const token = Buffer.from(`${username}:${password}`, 'utf8').toString('base64');
@@ -85,6 +93,11 @@ export interface LiteLlmLangfuseOutcomeReporterOptions {
    */
   proxyBaseUrl: string;
   /**
+   * Path prefix of the Langfuse proxy route on the LiteLLM host.
+   * Defaults to "/langfuse".
+   */
+  proxyPathPrefix?: string;
+  /**
    * Optional LiteLLM Virtual Key used to authenticate calls to the proxy.
    *
    * NOTE: Some LiteLLM versions require Basic auth for /langfuse/* routes.
@@ -96,11 +109,13 @@ export interface LiteLlmLangfuseOutcomeReporterOptions {
 
 export class LiteLlmLangfuseOutcomeReporter implements RunOutcomeReporter {
   private readonly proxyBaseUrl: string;
+  private readonly proxyPathPrefix: string;
   private readonly timeoutMs: number;
   private readonly litellmApiKey?: string;
 
   constructor(options: LiteLlmLangfuseOutcomeReporterOptions) {
     this.proxyBaseUrl = trimTrailingSlashes(options.proxyBaseUrl);
+    this.proxyPathPrefix = normalizePathPrefix(options.proxyPathPrefix);
     this.litellmApiKey = options.litellmApiKey;
     this.timeoutMs = options.timeoutMs ?? 2500;
   }
@@ -185,7 +200,7 @@ export class LiteLlmLangfuseOutcomeReporter implements RunOutcomeReporter {
   }
 
   private async postIngestion(events: LangfuseIngestionEvent[]): Promise<boolean> {
-    const url = `${this.proxyBaseUrl}/langfuse/api/public/ingestion`;
+    const url = `${this.proxyBaseUrl}${this.proxyPathPrefix}/api/public/ingestion`;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
 

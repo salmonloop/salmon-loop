@@ -64,6 +64,39 @@ Notes:
   - `SALMONLOOP_API_KEY` (preferred)
   - `S8P_API_KEY` (legacy)
 
+## Observability: Langfuse (via LiteLLM)
+
+SalmonLoop can:
+
+- correlate LLM calls into a single Langfuse trace (`run-xxxx`) via Langfuse headers
+- report run outcome (`metadata.salmonloop.*` + numeric scores) for success-rate tracking
+
+Config example:
+
+```json
+{
+  "observability": {
+    "langfuse": {
+      "enabled": true,
+      "outcome": true,
+      "endpoint": "https://your-litellm-host/langfuse/"
+    }
+  }
+}
+```
+
+Notes:
+
+- `observability.langfuse.endpoint` is the LiteLLM Langfuse proxy endpoint (not the Langfuse Cloud host).
+- If `endpoint` is omitted, SalmonLoop derives the LiteLLM root from `llm.providers.*.api.baseUrl` by stripping `/v1`.
+
+Environment variable overrides:
+
+- `SALMONLOOP_LANGFUSE`: override `observability.langfuse.enabled`
+- `SALMONLOOP_LANGFUSE_OUTCOME`: override `observability.langfuse.outcome`
+- `SALMONLOOP_LANGFUSE_PROXY_URL`: override `observability.langfuse.endpoint` (can be either a root URL or a full `/langfuse/` endpoint)
+- `SALMONLOOP_LANGFUSE_PROXY_API_KEY`: optional auth key for outcome reporting (defaults to the active LLM apiKey)
+
 ## `client.package` (Optional)
 
 `llm.providers.<key>.client.package` selects the LLM client backend used to communicate with the provider.

@@ -11,6 +11,10 @@ export type LlmFactoryWarningCode =
   | 'PROVIDER_NOT_SUPPORTED'
   | 'CLIENT_PACKAGE_NOT_SUPPORTED';
 
+export interface CreateRuntimeLlmOptions {
+  langfuseEnabled?: boolean;
+}
+
 export interface CreateRuntimeLlmResult {
   llm: LLM;
   backend: LlmBackend;
@@ -22,7 +26,10 @@ export interface LlmAdapterKey {
   clientPackage?: string;
 }
 
-export type LlmAdapterFactory = (resolved: ResolvedLlmProvider) => CreateRuntimeLlmResult;
+export type LlmAdapterFactory = (
+  resolved: ResolvedLlmProvider,
+  options?: CreateRuntimeLlmOptions,
+) => CreateRuntimeLlmResult;
 
 function keyToString(key: LlmAdapterKey): string {
   return `${key.providerType}::${key.clientPackage || ''}`;
@@ -52,7 +59,7 @@ export function createDefaultLlmRegistry(): LlmAdapterRegistry {
   const reg = new LlmAdapterRegistry();
 
   const buildAiSdk = (clientPackage: AiSdkClientPackage): LlmAdapterFactory => {
-    return (resolved) => {
+    return (resolved, options) => {
       const warnings: LlmFactoryWarningCode[] = [];
 
       if (!resolved.api.apiKey) {
@@ -69,6 +76,7 @@ export function createDefaultLlmRegistry(): LlmAdapterRegistry {
           modelId: resolved.models.selectedModelId,
           headers: resolved.api.headers,
           timeoutMs: resolved.api.timeoutMs,
+          langfuseEnabled: options?.langfuseEnabled,
         }),
         backend: 'ai-sdk',
         warnings,
@@ -91,7 +99,10 @@ export function createDefaultLlmRegistry(): LlmAdapterRegistry {
   return reg;
 }
 
-export function createDefaultOpenAiFallback(resolved: ResolvedLlmProvider): CreateRuntimeLlmResult {
+export function createDefaultOpenAiFallback(
+  resolved: ResolvedLlmProvider,
+  options?: CreateRuntimeLlmOptions,
+): CreateRuntimeLlmResult {
   const warnings: LlmFactoryWarningCode[] = [];
 
   if (!resolved.api.apiKey) {
@@ -117,6 +128,7 @@ export function createDefaultOpenAiFallback(resolved: ResolvedLlmProvider): Crea
       modelId: resolved.models.selectedModelId,
       headers: resolved.api.headers,
       timeoutMs: resolved.api.timeoutMs,
+      langfuseEnabled: options?.langfuseEnabled,
     }),
     backend: 'ai-sdk',
     warnings,

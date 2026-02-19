@@ -68,19 +68,18 @@ export interface AiSdkLlmConfig {
   modelId?: string;
   headers?: Record<string, string>;
   timeoutMs?: number;
+  langfuseEnabled?: boolean;
 }
 
-function isLangfuseEnabled(): boolean {
-  const raw = (process.env.SALMONLOOP_LANGFUSE || '').trim().toLowerCase();
-  return raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on';
-}
-
-function buildLangfuseHeaders(input: {
-  runId?: string;
-  phase?: string;
-  observationId?: string;
-}): Record<string, string> {
-  if (!isLangfuseEnabled()) return {};
+function buildLangfuseHeaders(
+  enabled: boolean,
+  input: {
+    runId?: string;
+    phase?: string;
+    observationId?: string;
+  },
+): Record<string, string> {
+  if (!enabled) return {};
   if (!input.runId) return {};
 
   const headers: Record<string, string> = {
@@ -525,7 +524,7 @@ export class AiSdkLLM implements LLM {
         const startedAt = Date.now();
         const abortController = new AbortController();
         const auditCtx = getAuditContext();
-        const langfuseHeaders = buildLangfuseHeaders({
+        const langfuseHeaders = buildLangfuseHeaders(Boolean(this.cfg.langfuseEnabled), {
           runId: auditCtx.correlationId,
           phase: auditCtx.phase,
           observationId: `${requestId}-a${attempt}`,
@@ -662,7 +661,7 @@ export class AiSdkLLM implements LLM {
       const startedAt = Date.now();
       const abortController = new AbortController();
       const auditCtx = getAuditContext();
-      const langfuseHeaders = buildLangfuseHeaders({
+      const langfuseHeaders = buildLangfuseHeaders(Boolean(this.cfg.langfuseEnabled), {
         runId: auditCtx.correlationId,
         phase: auditCtx.phase,
         observationId: `${requestId}-a${attempt}`,

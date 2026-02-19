@@ -7,6 +7,13 @@
       "dryRun": true
     }
   },
+  "observability": {
+    "langfuse": {
+      "enabled": false,
+      "outcome": false,
+      "endpoint": "https://your-litellm-host/langfuse/"
+    }
+  },
   "output": {
     "llm": {
       "kinds": ["review", "assistant_message"]

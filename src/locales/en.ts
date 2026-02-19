@@ -366,6 +366,16 @@ Please return the patch in PURE unified diff format:`;
           return `LLM provider must define models.default: ${details?.provider || '(unknown provider)'}`;
         case 'CONFIG_INVALID_OUTPUT':
           return 'Config output section must be a JSON object';
+        case 'CONFIG_INVALID_OBSERVABILITY':
+          return 'Config observability section must be a JSON object';
+        case 'CONFIG_INVALID_OBSERVABILITY_LANGFUSE':
+          return 'Config observability.langfuse must be a JSON object';
+        case 'CONFIG_INVALID_LANGFUSE_ENABLED':
+          return 'Config observability.langfuse.enabled must be a boolean';
+        case 'CONFIG_INVALID_LANGFUSE_OUTCOME':
+          return 'Config observability.langfuse.outcome must be a boolean';
+        case 'CONFIG_INVALID_LANGFUSE_ENDPOINT':
+          return 'Config observability.langfuse.endpoint must be a string';
         case 'CONFIG_INVALID_LLM_OUTPUT':
           return 'Config output.llm must be a JSON object';
         case 'CONFIG_INVALID_LLM_OUTPUT_KINDS':

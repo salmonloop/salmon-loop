@@ -5,6 +5,7 @@ import {
   MARKDOWN_RENDER_MODES,
   MARKDOWN_THEMES,
   type ConfigFileV1,
+  type LangfuseObservabilityConfigV1,
   type LlmProviderV1,
 } from './types.js';
 
@@ -47,6 +48,35 @@ export function validateConfigFileV1(input: unknown): ConfigFileV1 {
   }
 
   const cfg: ConfigFileV1 = { version: 1 };
+
+  if (input.observability !== undefined) {
+    if (!isRecord(input.observability)) {
+      throw new ConfigError('CONFIG_INVALID_OBSERVABILITY', { expected: 'object' });
+    }
+    const obs = input.observability;
+    cfg.observability = {};
+
+    if (obs.langfuse !== undefined) {
+      if (!isRecord(obs.langfuse)) {
+        throw new ConfigError('CONFIG_INVALID_OBSERVABILITY_LANGFUSE', { expected: 'object' });
+      }
+      const lf = obs.langfuse as Record<string, unknown>;
+      const out: LangfuseObservabilityConfigV1 = {};
+      if (lf.enabled !== undefined && !isBoolean(lf.enabled)) {
+        throw new ConfigError('CONFIG_INVALID_LANGFUSE_ENABLED', { expected: 'boolean' });
+      }
+      if (lf.outcome !== undefined && !isBoolean(lf.outcome)) {
+        throw new ConfigError('CONFIG_INVALID_LANGFUSE_OUTCOME', { expected: 'boolean' });
+      }
+      if (lf.endpoint !== undefined && !isString(lf.endpoint)) {
+        throw new ConfigError('CONFIG_INVALID_LANGFUSE_ENDPOINT', { expected: 'string' });
+      }
+      out.enabled = lf.enabled as any;
+      out.outcome = lf.outcome as any;
+      out.endpoint = lf.endpoint as any;
+      cfg.observability.langfuse = out;
+    }
+  }
 
   if (input.cli !== undefined) {
     if (!isRecord(input.cli)) {
