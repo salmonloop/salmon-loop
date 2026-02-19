@@ -45,7 +45,7 @@ pnpm build
 cp .env.example .env
 ```
 
-编辑 `.env` 并设置您的 `SALMONLOOP_API_KEY`（或兼容的旧别名 `S8P_API_KEY`）。您还可以自定义 `SALMON_BASE_URL` 和 `SALMON_MODEL`。
+编辑 `.env` 并设置您的 `SALMONLOOP_API_KEY`（或兼容的旧别名 `S8P_API_KEY`）。您还可以自定义 `SALMONLOOP_BASE_URL`（优先）或旧名 `SALMON_BASE_URL`/`S8P_BASE_URL`，以及 `SALMONLOOP_MODEL`（优先）或旧名 `S8P_MODEL`/`SALMON_MODEL`。
 
 ### 运行 CLI
 
@@ -59,7 +59,7 @@ pnpm dev run --instruction "fix bug" --verify "npm test"
 npx tsx src/cli/index.ts run --instruction "fix bug" --verify "npm test"
 
 # 或者在构建后
-node dist/cli.js run --instruction "fix bug" --verify "npm test"
+node dist/cli/index.js run --instruction "fix bug" --verify "npm test"
 ```
 
 ### 快速示例
@@ -75,13 +75,20 @@ salmon-loop run --instruction "Fix the null pointer exception in user.ts" --veri
 SalmonLoop 可以嵌入到您自己的工具中：
 
 ```typescript
-import { runSalmonLoop, OpenAILLM } from 'salmon-loop';
+import { runSalmonLoop, AiSdkLLM } from 'salmon-loop';
+
+const llm = new AiSdkLLM({
+  clientPackage: '@ai-sdk/openai-compatible',
+  baseUrl: 'https://api.openai.com/v1',
+  apiKey: process.env.SALMONLOOP_API_KEY,
+  modelId: process.env.SALMONLOOP_MODEL || 'gpt-4o'
+});
 
 const result = await runSalmonLoop({
   instruction: '修复拼写错误',
   verify: 'npm test',
   repoPath: process.cwd(),
-  llm: new OpenAILLM()
+  llm
 });
 ```
 

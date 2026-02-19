@@ -5,22 +5,29 @@ SalmonLoop provides a clean adapter for integration with Roo Code (or other VSCo
 ## Integration Flow
 
 1. **Import the Adapter**: Use the `RooSalmonAdapter` from the library.
-2. **Configure LLM**: Provide an LLM instance (e.g., `OpenAILLM`).
+2. **Configure LLM**: Provide an LLM instance (prefer `AiSdkLLM`).
 3. **Handle Events**: Subscribe to `LoopEvent` to update the editor UI in real-time.
 4. **Execute**: Call the `execute` method with instructions and verification commands.
 
 ## Example
 
 ```typescript
-import { RooSalmonLoopAdapter, OpenAILLM } from 'salmon-loop';
+import { AiSdkLLM, RooSalmonAdapter } from 'salmon-loop';
 
-const adapter = new RooSalmonLoopAdapter();
+const llm = new AiSdkLLM({
+  clientPackage: '@ai-sdk/openai-compatible',
+  baseUrl: 'https://api.openai.com/v1',
+  apiKey: process.env.SALMONLOOP_API_KEY,
+  modelId: process.env.SALMONLOOP_MODEL || 'gpt-4o'
+});
+
+const adapter = new RooSalmonAdapter();
 
 const result = await adapter.execute({
   instruction: 'Fix compilation error in src/main.ts',
   verify: 'npm run build',
   repoPath: '/path/to/repo',
-  llm: new OpenAILLM()
+  llm
 }, (event) => {
   // Update VSCode status bar or output channel
   switch (event.type) {
@@ -28,7 +35,7 @@ const result = await adapter.execute({
       updateStatus(`SalmonLoop: ${event.phase}...`);
       break;
     case 'retry':
-      showWarning(`Retrying... Attempt ${event.attempt}`);
+      showWarning(`Retrying... Attempt ${event.toAttempt}`);
       break;
   }
 });

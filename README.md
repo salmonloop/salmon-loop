@@ -55,7 +55,7 @@ Copy the example environment file and add your API key:
 cp .env.example .env
 ```
 
-Edit `.env` and set your `SALMONLOOP_API_KEY` (or legacy `S8P_API_KEY`). You can also customize `SALMONLOOP_BASE_URL` (preferred) or legacy `SALMON_BASE_URL`/`S8P_BASE_URL`, plus `SALMON_MODEL`.
+Edit `.env` and set your `SALMONLOOP_API_KEY` (or legacy `S8P_API_KEY`). You can also customize `SALMONLOOP_BASE_URL` (preferred) or legacy `SALMON_BASE_URL`/`S8P_BASE_URL`, plus `SALMONLOOP_MODEL` (preferred) or legacy `S8P_MODEL`/`SALMON_MODEL`.
 
 ### Running the CLI
 
@@ -69,7 +69,7 @@ pnpm dev run --instruction "fix bug" --verify "npm test"
 npx tsx src/cli/index.ts run --instruction "fix bug" --verify "npm test"
 
 # Or after building
-node dist/cli.js run --instruction "fix bug" --verify "npm test"
+node dist/cli/index.js run --instruction "fix bug" --verify "npm test"
 ```
 
 ### Quick Example
@@ -85,13 +85,20 @@ salmon-loop run --instruction "Fix the null pointer exception in user.ts" --veri
 SalmonLoop can be embedded into your own tools:
 
 ```typescript
-import { runSalmonLoop, OpenAILLM } from 'salmon-loop';
+import { runSalmonLoop, AiSdkLLM } from 'salmon-loop';
+
+const llm = new AiSdkLLM({
+  clientPackage: '@ai-sdk/openai-compatible',
+  baseUrl: 'https://api.openai.com/v1',
+  apiKey: process.env.SALMONLOOP_API_KEY,
+  modelId: process.env.SALMONLOOP_MODEL || 'gpt-4o'
+});
 
 const result = await runSalmonLoop({
   instruction: 'Fix typo',
   verify: 'npm test',
   repoPath: process.cwd(),
-  llm: new OpenAILLM()
+  llm
 });
 ```
 
@@ -134,9 +141,9 @@ act
 
 For more details, please refer to [docs/README.md](docs/README.md):
 
-- [Design & Limits](docs/en/design/execution-limits.md)
-- [CLI Usage](docs/en/usage/cli.md)
-- [Examples](docs/en/usage/examples.md)
+- [Design & Limits](docs/design/execution-limits.md)
+- [CLI Usage](docs/user/cli.md)
+- [Examples](docs/user/examples.md)
 
 ## License
 

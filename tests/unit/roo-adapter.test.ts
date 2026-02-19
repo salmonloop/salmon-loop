@@ -1,7 +1,7 @@
-import { runSalmonLoop } from '../../src/index.js';
+import { runSalmonLoop } from '../../src/core/runtime/loop.js';
 import { RooSalmonAdapter } from '../../src/integrations/roo/adapter.js';
 
-vi.mock('../../src/index.js', () => ({
+vi.mock('../../src/core/runtime/loop.js', () => ({
   runSalmonLoop: vi.fn(),
 }));
 

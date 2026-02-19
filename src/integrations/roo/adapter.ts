@@ -1,5 +1,6 @@
 import { Logger } from '../../core/observability/logger.js';
-import { runSalmonLoop, type LoopOptions, type LoopEvent } from '../../index.js';
+import { runSalmonLoop } from '../../core/runtime/loop.js';
+import type { LoopEvent, LoopOptions } from '../../core/types/index.js';
 
 /**
  * Roo Code Adapter for SalmonLoop.

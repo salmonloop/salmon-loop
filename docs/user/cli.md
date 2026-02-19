@@ -178,5 +178,7 @@ When a loop fails, SalmonLoop provides actionable suggestions based on the failu
 
 - `SALMONLOOP_API_KEY`: Your LLM provider API key (preferred).
 - `S8P_API_KEY`: (Legacy) Fallback for backward compatibility.
-- `S8P_BASE_URL`: (Optional) Custom API base URL.
-- `S8P_MODEL`: (Optional) LLM model to use.
+- `SALMONLOOP_BASE_URL`: (Optional) Provider base URL (preferred).
+- `S8P_BASE_URL` / `SALMON_BASE_URL`: (Legacy) Base URL aliases.
+- `SALMONLOOP_MODEL`: (Optional) LLM model to use (preferred).
+- `S8P_MODEL` / `SALMON_MODEL`: (Legacy) Model aliases.
