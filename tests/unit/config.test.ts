@@ -2,8 +2,8 @@ import { mkdir, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
-import { redactConfigForPrint, resolveConfig } from '../../src/core/config/index.js';
 import { ConfigError } from '../../src/core/config/errors.js';
+import { redactConfigForPrint, resolveConfig } from '../../src/core/config/index.js';
 
 function uniqueTmpDir(name: string): string {
   return join(tmpdir(), `salmonloop-config-test-${name}-${Date.now()}-${Math.random()}`);

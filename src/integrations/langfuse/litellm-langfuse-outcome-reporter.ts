@@ -141,6 +141,8 @@ export class LiteLlmLangfuseOutcomeReporter implements RunOutcomeReporter {
     const traceMetadata = {
       salmonloop: {
         runId: traceId,
+        sessionId: ctx.sessionId,
+        userId: ctx.userId,
         success: report.success,
         reasonCode: report.reasonCode,
         attempts: report.attempts,

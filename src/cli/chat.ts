@@ -63,8 +63,6 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
   // Load input history for this session
   const inputHistory = await historyManager.load(session.meta.id);
 
-  const langfuseSessionId = options.langfuseSessionId || session.meta.id;
-
   // Dynamically import GUI to avoid top-level await issues with yoga-layout
   const { startGUI } = await import('./ui/index.js');
 
@@ -277,7 +275,8 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
             signal: mergedSignal.signal,
             llmOutput: currentLlmOutputPolicy,
             outcomeReporter: options.outcomeReporter,
-            langfuseSessionId,
+            // Resolve sessionId at call time to support `/session` switching.
+            langfuseSessionId: options.langfuseSessionId || sessionManager.getCurrent().meta.id,
             langfuseUserId: options.langfuseUserId,
             authorizationProvider,
             authorizationMode: 'deferred',

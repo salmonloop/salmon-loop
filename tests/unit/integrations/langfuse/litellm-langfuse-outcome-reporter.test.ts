@@ -1,10 +1,10 @@
-import { LiteLlmLangfuseOutcomeReporter } from '../../../../src/integrations/langfuse/litellm-langfuse-outcome-reporter.js';
 import {
   clearAuditContext,
   clearAuditTrail,
   getAuditTrail,
   setAuditContext,
 } from '../../../../src/core/observability/audit-trail.js';
+import { LiteLlmLangfuseOutcomeReporter } from '../../../../src/integrations/langfuse/litellm-langfuse-outcome-reporter.js';
 
 function lastAuditAction(prefix: string): string | undefined {
   const events = getAuditTrail().filter((e) => String(e.action || '').startsWith(prefix));
@@ -25,14 +25,17 @@ describe('LiteLlmLangfuseOutcomeReporter', () => {
   });
 
   it('records http_failed when ingestion responds non-2xx', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => {
-      return {
-        ok: false,
-        status: 401,
-        statusText: 'Unauthorized',
-        text: async () => 'nope',
-      } as any;
-    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        return {
+          ok: false,
+          status: 401,
+          statusText: 'Unauthorized',
+          text: async () => 'nope',
+        } as any;
+      }),
+    );
 
     const reporter = new LiteLlmLangfuseOutcomeReporter({
       proxyBaseUrl: 'https://litellm.example',
@@ -52,9 +55,12 @@ describe('LiteLlmLangfuseOutcomeReporter', () => {
   });
 
   it('records request_failed when fetch throws', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => {
-      throw new Error('boom');
-    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new Error('boom');
+      }),
+    );
 
     const reporter = new LiteLlmLangfuseOutcomeReporter({
       proxyBaseUrl: 'https://litellm.example',
@@ -72,15 +78,18 @@ describe('LiteLlmLangfuseOutcomeReporter', () => {
   });
 
   it('records ingestion_failed when response includes per-event errors', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => {
-      return {
-        ok: true,
-        json: async () => ({
-          successes: [{ id: 'x', status: 200 }],
-          errors: [{ id: 'y', status: 400, message: 'bad' }],
-        }),
-      } as any;
-    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        return {
+          ok: true,
+          json: async () => ({
+            successes: [{ id: 'x', status: 200 }],
+            errors: [{ id: 'y', status: 400, message: 'bad' }],
+          }),
+        } as any;
+      }),
+    );
 
     const reporter = new LiteLlmLangfuseOutcomeReporter({
       proxyBaseUrl: 'https://litellm.example',
@@ -98,7 +107,7 @@ describe('LiteLlmLangfuseOutcomeReporter', () => {
   });
 
   it('sends Basic auth + x-litellm-api-key when litellmApiKey is provided', async () => {
-    const fetchMock = vi.fn(async () => {
+    const fetchMock = vi.fn(async (..._args: any[]) => {
       return { ok: true, json: async () => ({ successes: [], errors: [] }) } as any;
     });
     vi.stubGlobal('fetch', fetchMock);
@@ -115,9 +124,10 @@ describe('LiteLlmLangfuseOutcomeReporter', () => {
       { runId: 'run-test' },
     );
 
-    const [_url, init] = fetchMock.mock.calls[0] || [];
+    const firstCall = fetchMock.mock.calls[0];
+    expect(Array.isArray(firstCall)).toBe(true);
+    const init = (firstCall?.[1] ?? undefined) as any;
     expect(init?.headers?.Authorization).toMatch(/^Basic\s+/);
     expect(init?.headers?.['x-litellm-api-key']).toBe('vk-test');
   });
 });
-
