@@ -34,7 +34,12 @@ export class SalmonLoop {
   async run(options: LoopOptions): Promise<LoopResult> {
     clearAuditTrail();
     const correlationId = `run-${randomBytes(4).toString('hex')}`;
-    setAuditContext({ correlationId, scope: 'session' });
+    setAuditContext({
+      correlationId,
+      scope: 'session',
+      sessionId: options.langfuseSessionId,
+      userId: options.langfuseUserId,
+    });
 
     const now = () => new Date();
     const telemetry = new LoopTelemetry(now);
@@ -102,6 +107,8 @@ export class SalmonLoop {
               auditPath: latestAuditPath,
               mode: options.mode,
               repoPath: options.repoPath,
+              sessionId: options.langfuseSessionId,
+              userId: options.langfuseUserId,
             });
           } catch (error) {
             const msg = error instanceof Error ? error.message : String(error);

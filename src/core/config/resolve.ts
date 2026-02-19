@@ -172,6 +172,8 @@ function resolveLangfuseObservability(raw?: ConfigFileV1): {
   enabled: boolean;
   outcome: boolean;
   endpoint?: string;
+  sessionId?: string;
+  userId?: string;
 } {
   const cfg: LangfuseObservabilityConfigV1 | undefined = raw?.observability?.langfuse;
 
@@ -184,7 +186,13 @@ function resolveLangfuseObservability(raw?: ConfigFileV1): {
   const endpoint =
     firstNonEmpty(process.env.SALMONLOOP_LANGFUSE_PROXY_URL) ?? firstNonEmpty(cfg?.endpoint);
 
-  return { enabled, outcome, endpoint };
+  const sessionId =
+    firstNonEmpty(process.env.SALMONLOOP_LANGFUSE_SESSION_ID) ?? firstNonEmpty(cfg?.sessionId);
+
+  const userId =
+    firstNonEmpty(process.env.SALMONLOOP_LANGFUSE_USER_ID) ?? firstNonEmpty(cfg?.userId);
+
+  return { enabled, outcome, endpoint, sessionId, userId };
 }
 
 export async function resolveConfig(opts: ResolveConfigOptions): Promise<ResolvedConfig> {

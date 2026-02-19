@@ -38,6 +38,11 @@ export interface ChatModeOptions {
   toolAuthorization?: ToolAuthorizationConfig;
   extensions?: ResolvedExtensions;
   outcomeReporter?: RunOutcomeReporter;
+  /**
+   * Optional override. If unset, chat mode will use the local chat session id.
+   */
+  langfuseSessionId?: string;
+  langfuseUserId?: string;
 }
 
 /**
@@ -57,6 +62,8 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
 
   // Load input history for this session
   const inputHistory = await historyManager.load(session.meta.id);
+
+  const langfuseSessionId = options.langfuseSessionId || session.meta.id;
 
   // Dynamically import GUI to avoid top-level await issues with yoga-layout
   const { startGUI } = await import('./ui/index.js');
@@ -270,6 +277,8 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
             signal: mergedSignal.signal,
             llmOutput: currentLlmOutputPolicy,
             outcomeReporter: options.outcomeReporter,
+            langfuseSessionId,
+            langfuseUserId: options.langfuseUserId,
             authorizationProvider,
             authorizationMode: 'deferred',
           });

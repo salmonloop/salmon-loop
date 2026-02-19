@@ -77,6 +77,8 @@ function buildLangfuseHeaders(
     runId?: string;
     phase?: string;
     observationId?: string;
+    sessionId?: string;
+    userId?: string;
   },
 ): Record<string, string> {
   if (!enabled) return {};
@@ -86,6 +88,15 @@ function buildLangfuseHeaders(
     langfuse_trace_id: input.runId,
     langfuse_trace_name: 'salmonloop.run',
   };
+
+  if (input.sessionId) {
+    headers.langfuse_session_id = input.sessionId;
+  }
+
+  if (input.userId) {
+    // Langfuse uses "trace userId" for attribution (works via LiteLLM pass-through).
+    headers.langfuse_trace_user_id = input.userId;
+  }
 
   if (input.phase) {
     headers.langfuse_observation_name = input.phase;
@@ -528,6 +539,8 @@ export class AiSdkLLM implements LLM {
           runId: auditCtx.correlationId,
           phase: auditCtx.phase,
           observationId: `${requestId}-a${attempt}`,
+          sessionId: auditCtx.sessionId,
+          userId: auditCtx.userId,
         });
 
         // Handle internal timeout
@@ -665,6 +678,8 @@ export class AiSdkLLM implements LLM {
         runId: auditCtx.correlationId,
         phase: auditCtx.phase,
         observationId: `${requestId}-a${attempt}`,
+        sessionId: auditCtx.sessionId,
+        userId: auditCtx.userId,
       });
 
       // Handle internal timeout

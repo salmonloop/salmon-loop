@@ -11,7 +11,8 @@
     "langfuse": {
       "enabled": false,
       "outcome": false,
-      "endpoint": "https://your-litellm-host/langfuse/"
+      "endpoint": "https://your-litellm-host/langfuse/",
+      "userId": "user-123"
     }
   },
   "output": {

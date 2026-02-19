@@ -79,7 +79,8 @@ Config example:
     "langfuse": {
       "enabled": true,
       "outcome": true,
-      "endpoint": "https://your-litellm-host/langfuse/"
+      "endpoint": "https://your-litellm-host/langfuse/",
+      "userId": "user-123"
     }
   }
 }
@@ -89,12 +90,17 @@ Notes:
 
 - `observability.langfuse.endpoint` is the LiteLLM Langfuse proxy endpoint (not the Langfuse Cloud host).
 - If `endpoint` is omitted, SalmonLoop derives the LiteLLM root from `llm.providers.*.api.baseUrl` by stripping `/v1`.
+- If `sessionId` is omitted, chat mode auto-uses the local chat session ID; run mode leaves it unset.
+- `sessionId` is mainly an **override** for special cases (e.g. CI batch runs / eval suites where you want many runs grouped);
+  in normal interactive chat you should not set it manually.
 
 Environment variable overrides:
 
 - `SALMONLOOP_LANGFUSE`: override `observability.langfuse.enabled`
 - `SALMONLOOP_LANGFUSE_OUTCOME`: override `observability.langfuse.outcome`
 - `SALMONLOOP_LANGFUSE_PROXY_URL`: override `observability.langfuse.endpoint` (can be either a root URL or a full `/langfuse/` endpoint)
+- `SALMONLOOP_LANGFUSE_SESSION_ID`: override `observability.langfuse.sessionId`
+- `SALMONLOOP_LANGFUSE_USER_ID`: override `observability.langfuse.userId`
 - `SALMONLOOP_LANGFUSE_PROXY_API_KEY`: optional auth key for outcome reporting (defaults to the active LLM apiKey)
 
 ## `client.package` (Optional)

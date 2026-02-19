@@ -167,6 +167,8 @@ export class LiteLlmLangfuseOutcomeReporter implements RunOutcomeReporter {
       body: {
         id: traceId,
         name: 'salmonloop.run',
+        sessionId: ctx.sessionId,
+        userId: ctx.userId,
         metadata: traceMetadata,
         tags,
       },

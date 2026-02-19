@@ -5,6 +5,8 @@ export interface RunOutcomeContext {
   auditPath?: string;
   mode?: string;
   repoPath?: string;
+  sessionId?: string;
+  userId?: string;
 }
 
 export interface RunOutcomeReport {

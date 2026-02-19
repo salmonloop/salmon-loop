@@ -71,9 +71,17 @@ export function validateConfigFileV1(input: unknown): ConfigFileV1 {
       if (lf.endpoint !== undefined && !isString(lf.endpoint)) {
         throw new ConfigError('CONFIG_INVALID_LANGFUSE_ENDPOINT', { expected: 'string' });
       }
+      if (lf.sessionId !== undefined && !isString(lf.sessionId)) {
+        throw new ConfigError('CONFIG_INVALID_LANGFUSE_SESSION_ID', { expected: 'string' });
+      }
+      if (lf.userId !== undefined && !isString(lf.userId)) {
+        throw new ConfigError('CONFIG_INVALID_LANGFUSE_USER_ID', { expected: 'string' });
+      }
       out.enabled = lf.enabled as any;
       out.outcome = lf.outcome as any;
       out.endpoint = lf.endpoint as any;
+      out.sessionId = lf.sessionId as any;
+      out.userId = lf.userId as any;
       cfg.observability.langfuse = out;
     }
   }

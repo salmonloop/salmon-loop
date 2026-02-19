@@ -85,5 +85,7 @@ export async function handleChatCommand(options: any, command: Command) {
     toolAuthorization: resolvedConfig.toolAuthorization,
     extensions: extensionResolution.resolved,
     outcomeReporter,
+    langfuseSessionId: resolvedConfig.observability.langfuse.sessionId,
+    langfuseUserId: resolvedConfig.observability.langfuse.userId,
   });
 }

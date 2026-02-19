@@ -18,6 +18,14 @@ export interface AuditTrailMeta {
   scope?: AuditScope;
   phase?: string;
   correlationId?: string;
+  /**
+   * Optional Langfuse sessionId for cross-run aggregation (e.g. chat sessions).
+   */
+  sessionId?: string;
+  /**
+   * Optional Langfuse userId for trace attribution.
+   */
+  userId?: string;
 }
 
 const auditTrail: AuditTrailEvent[] = [];

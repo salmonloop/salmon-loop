@@ -275,6 +275,15 @@ export interface LoopOptions {
   repoPath: string;
   signal?: AbortSignal;
   llm: LLM;
+  /**
+   * Optional Langfuse sessionId. If set, multiple runs will be grouped under a single Langfuse Session.
+   * Chat mode will typically pass the local chat session ID.
+   */
+  langfuseSessionId?: string;
+  /**
+   * Optional Langfuse userId. Intended for SaaS / multi-user deployments.
+   */
+  langfuseUserId?: string;
   allowedTools?: string[];
   timeoutMs?: number;
   recursionDepth?: number;

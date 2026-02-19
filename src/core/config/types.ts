@@ -78,6 +78,14 @@ export interface LangfuseObservabilityConfigV1 {
    * Langfuse proxy endpoint base (may include a path prefix, e.g. "https://api.s8p.io/langfuse/").
    */
   endpoint?: string;
+  /**
+   * Optional Langfuse sessionId. If set, multiple SalmonLoop runs can be grouped into a single Langfuse Session.
+   */
+  sessionId?: string;
+  /**
+   * Optional Langfuse userId. Useful for multi-user deployments / attribution.
+   */
+  userId?: string;
 }
 
 export interface LlmProviderV1 {
@@ -136,6 +144,8 @@ export interface ResolvedConfig {
       enabled: boolean;
       outcome: boolean;
       endpoint?: string;
+      sessionId?: string;
+      userId?: string;
     };
   };
   verify: {

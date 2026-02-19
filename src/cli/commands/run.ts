@@ -257,6 +257,8 @@ export async function handleRunCommand(options: any, command: Command) {
       worktreePrepare: allOptions.worktreePrepare,
       llmOutput,
       outcomeReporter,
+      langfuseSessionId: resolvedConfig.observability.langfuse.sessionId,
+      langfuseUserId: resolvedConfig.observability.langfuse.userId,
       authorizationProvider: createTerminalAuthorizationProvider({
         config: resolvedConfig.toolAuthorization,
       }),
