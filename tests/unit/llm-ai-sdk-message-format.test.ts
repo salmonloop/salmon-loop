@@ -1,4 +1,5 @@
 import { AiSdkLLM } from '../../src/core/llm/ai-sdk.js';
+import { clearAuditContext, setAuditContext } from '../../src/core/observability/audit-trail.js';
 
 vi.mock('@ai-sdk/openai', () => {
   return {
@@ -26,6 +27,16 @@ vi.mock('ai', () => {
 });
 
 describe('AiSdkLLM message mapping', () => {
+  afterEach(() => {
+    clearAuditContext();
+  });
+
+  async function getGenerateTextCallArgs(): Promise<any> {
+    const { generateText } = await import('ai');
+    const calls = (generateText as unknown as { mock: { calls: any[][] } }).mock.calls;
+    return calls[calls.length - 1][0];
+  }
+
   async function getGenerateTextMessages(): Promise<any[]> {
     const { generateText } = await import('ai');
     const calls = (generateText as unknown as { mock: { calls: any[][] } }).mock.calls;
@@ -71,6 +82,49 @@ describe('AiSdkLLM message mapping', () => {
         },
       ],
     });
+  });
+
+  it('attaches langfuse headers when enabled and audit context is present', async () => {
+    setAuditContext({
+      correlationId: 'run-test',
+      phase: 'PLAN',
+      sessionId: 'sess-1',
+      userId: 'user-1',
+    });
+
+    const llm = new AiSdkLLM({
+      clientPackage: '@ai-sdk/openai',
+      apiKey: 'test',
+      modelId: 'gpt-mock',
+      langfuseEnabled: true,
+    });
+
+    await llm.chat([{ role: 'user', content: 'hi' }]);
+
+    const args = await getGenerateTextCallArgs();
+    expect(args.headers).toMatchObject({
+      langfuse_trace_id: 'run-test',
+      langfuse_trace_name: 'salmonloop.run',
+      langfuse_observation_name: 'PLAN',
+      langfuse_session_id: 'sess-1',
+      langfuse_trace_user_id: 'user-1',
+    });
+  });
+
+  it('does not attach langfuse headers when disabled', async () => {
+    setAuditContext({ correlationId: 'run-test', phase: 'PLAN' });
+
+    const llm = new AiSdkLLM({
+      clientPackage: '@ai-sdk/openai',
+      apiKey: 'test',
+      modelId: 'gpt-mock',
+      langfuseEnabled: false,
+    });
+
+    await llm.chat([{ role: 'user', content: 'hi' }]);
+
+    const args = await getGenerateTextCallArgs();
+    expect(args.headers).toEqual({});
   });
 
   it('maps tool role payloads to AI SDK `tool-result` output format', async () => {

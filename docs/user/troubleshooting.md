@@ -3,6 +3,27 @@
 If a run fails, first check the latest audit log in `.salmonloop/runtime/audit/audit-*.json` and look for `meta.errorCode`.
 Stable codes are documented in `docs/reference/error-codes.md`.
 
+## Langfuse outcome reporting failed
+
+Symptom:
+
+- The CLI prints: `[Langfuse] Failed to report outcome for trace run-xxxx`
+- Langfuse may still show LLM spans/tokens because that path is independent (LiteLLM pass-through headers).
+
+How to debug:
+
+1. Find the audit file for the run id:
+   - `rg -l 'run-<id>' .salmonloop/runtime/audit/audit-*.json`
+2. Inspect Langfuse-related audit events:
+   - `jq '.context.auditTrail[] | select(.action|startswith(\"langfuse.outcome.\"))' <audit-file>`
+
+Common causes:
+
+- `langfuse.outcome.http_failed`: LiteLLM `/langfuse/*` route rejected the request (401/403) or proxy returned 500.
+  - Some LiteLLM deployments require Basic auth (`any:<litellm_key>`) for `/langfuse/*` routes.
+- `langfuse.outcome.request_failed`: network failure or timeout while calling the ingestion endpoint.
+- `langfuse.outcome.ingestion_failed`: Langfuse returned per-event ingestion errors (207 multi-status).
+
 ## "Grizzco transaction completed: 0/0 files processed"
 
 Meaning: the APPLY step received a diff that validated but did not produce any file operations.

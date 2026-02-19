@@ -90,6 +90,10 @@ Notes:
 
 - `observability.langfuse.endpoint` is the LiteLLM Langfuse proxy endpoint (not the Langfuse Cloud host).
 - If `endpoint` is omitted, SalmonLoop derives the LiteLLM root from `llm.providers.*.api.baseUrl` by stripping `/v1`.
+- If the derived root host is a known public LLM provider host (OpenAI/Anthropic/Gemini), outcome reporting is disabled unless
+  you explicitly set `observability.langfuse.endpoint`.
+- `enabled` controls Langfuse correlation headers on *LLM* calls (spans/tokens). `outcome` controls the end-of-run ingestion
+  request (scores + `metadata.salmonloop.*`). You can enable either independently.
 - If `sessionId` is omitted, chat mode auto-uses the local chat session ID; run mode leaves it unset.
 - `sessionId` is mainly an **override** for special cases (e.g. CI batch runs / eval suites where you want many runs grouped);
   in normal interactive chat you should not set it manually.
@@ -102,6 +106,7 @@ Environment variable overrides:
 - `SALMONLOOP_LANGFUSE_SESSION_ID`: override `observability.langfuse.sessionId`
 - `SALMONLOOP_LANGFUSE_USER_ID`: override `observability.langfuse.userId`
 - `SALMONLOOP_LANGFUSE_PROXY_API_KEY`: optional auth key for outcome reporting (defaults to the active LLM apiKey)
+- `SALMONLOOP_LANGFUSE_RELEASE`: optional release string attached to traces (useful for regressions)
 
 ## `client.package` (Optional)
 

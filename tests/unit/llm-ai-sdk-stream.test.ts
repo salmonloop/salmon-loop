@@ -1,4 +1,5 @@
 import { AiSdkLLM } from '../../src/core/llm/ai-sdk.js';
+import { clearAuditContext, setAuditContext } from '../../src/core/observability/audit-trail.js';
 
 vi.mock('@ai-sdk/openai', () => {
   return {
@@ -38,6 +39,16 @@ vi.mock('ai', () => {
 });
 
 describe('AiSdkLLM.chatStream', () => {
+  afterEach(() => {
+    clearAuditContext();
+  });
+
+  async function getStreamTextCallArgs(): Promise<any> {
+    const { streamText } = await import('ai');
+    const calls = (streamText as unknown as { mock: { calls: any[][] } }).mock.calls;
+    return calls[calls.length - 1][0];
+  }
+
   it('yields text deltas and ends with done=true', async () => {
     const llm = new AiSdkLLM({
       clientPackage: '@ai-sdk/openai',
@@ -56,6 +67,36 @@ describe('AiSdkLLM.chatStream', () => {
     expect((chunks[chunks.length - 1] as any)?.usage).toEqual({
       promptTokens: 3,
       completionTokens: 7,
+    });
+  });
+
+  it('attaches langfuse headers on streamText when enabled and audit context is present', async () => {
+    setAuditContext({
+      correlationId: 'run-test',
+      phase: 'PATCH',
+      sessionId: 'sess-1',
+      userId: 'user-1',
+    });
+
+    const llm = new AiSdkLLM({
+      clientPackage: '@ai-sdk/openai',
+      apiKey: 'test',
+      modelId: 'gpt-mock',
+      langfuseEnabled: true,
+    });
+
+    // Consume stream
+    for await (const _chunk of llm.chatStream!([{ role: 'user', content: 'hi' }])) {
+      // no-op
+    }
+
+    const args = await getStreamTextCallArgs();
+    expect(args.headers).toMatchObject({
+      langfuse_trace_id: 'run-test',
+      langfuse_trace_name: 'salmonloop.run',
+      langfuse_observation_name: 'PATCH',
+      langfuse_session_id: 'sess-1',
+      langfuse_trace_user_id: 'user-1',
     });
   });
 

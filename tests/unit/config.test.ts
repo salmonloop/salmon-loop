@@ -3,6 +3,7 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 
 import { redactConfigForPrint, resolveConfig } from '../../src/core/config/index.js';
+import { ConfigError } from '../../src/core/config/errors.js';
 
 function uniqueTmpDir(name: string): string {
   return join(tmpdir(), `salmonloop-config-test-${name}-${Date.now()}-${Math.random()}`);
@@ -98,6 +99,124 @@ describe('Config module', () => {
 
     const cfg = await resolveConfig({ repoRoot });
     expect(cfg.llm.api.baseUrl).toBe('https://loop.example/v1');
+  });
+
+  it('resolves observability.langfuse sessionId/userId from config', async () => {
+    const repoRoot = uniqueTmpDir('repo-langfuse-ids');
+    await mkdir(join(repoRoot, '.salmonloop', 'config'), { recursive: true });
+
+    await writeFile(
+      join(repoRoot, '.salmonloop', 'config', 'config.json'),
+      JSON.stringify(
+        {
+          version: 1,
+          observability: {
+            langfuse: {
+              enabled: true,
+              outcome: true,
+              endpoint: 'https://litellm.example/langfuse/',
+              sessionId: 'sess-1',
+              userId: 'user-1',
+            },
+          },
+          llm: {
+            active: 'openaiMain',
+            providers: {
+              openaiMain: {
+                type: 'openai-compatible',
+                api: { baseUrl: 'https://example.com/v1', apiKey: 'inline-key' },
+                models: { default: { id: 'gpt-test' } },
+              },
+            },
+          },
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    );
+
+    const cfg = await resolveConfig({ repoRoot });
+    expect(cfg.observability.langfuse.enabled).toBe(true);
+    expect(cfg.observability.langfuse.outcome).toBe(true);
+    expect(cfg.observability.langfuse.endpoint).toBe('https://litellm.example/langfuse/');
+    expect(cfg.observability.langfuse.sessionId).toBe('sess-1');
+    expect(cfg.observability.langfuse.userId).toBe('user-1');
+  });
+
+  it('prefers env overrides for observability.langfuse sessionId/userId', async () => {
+    const repoRoot = uniqueTmpDir('repo-langfuse-ids-env');
+    await mkdir(join(repoRoot, '.salmonloop', 'config'), { recursive: true });
+
+    await writeFile(
+      join(repoRoot, '.salmonloop', 'config', 'config.json'),
+      JSON.stringify(
+        {
+          version: 1,
+          observability: {
+            langfuse: {
+              sessionId: 'sess-config',
+              userId: 'user-config',
+            },
+          },
+          llm: {
+            active: 'openaiMain',
+            providers: {
+              openaiMain: {
+                type: 'openai-compatible',
+                api: { baseUrl: 'https://example.com/v1', apiKey: 'inline-key' },
+                models: { default: { id: 'gpt-test' } },
+              },
+            },
+          },
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    );
+
+    vi.stubEnv('SALMONLOOP_LANGFUSE_SESSION_ID', 'sess-env');
+    vi.stubEnv('SALMONLOOP_LANGFUSE_USER_ID', 'user-env');
+
+    const cfg = await resolveConfig({ repoRoot });
+    expect(cfg.observability.langfuse.sessionId).toBe('sess-env');
+    expect(cfg.observability.langfuse.userId).toBe('user-env');
+  });
+
+  it('rejects invalid observability.langfuse sessionId/userId types', async () => {
+    const repoRoot = uniqueTmpDir('repo-langfuse-ids-invalid');
+    await mkdir(join(repoRoot, '.salmonloop', 'config'), { recursive: true });
+
+    await writeFile(
+      join(repoRoot, '.salmonloop', 'config', 'config.json'),
+      JSON.stringify(
+        {
+          version: 1,
+          observability: {
+            langfuse: {
+              sessionId: 123,
+              userId: false,
+            },
+          },
+          llm: {
+            active: 'openaiMain',
+            providers: {
+              openaiMain: {
+                type: 'openai-compatible',
+                api: { baseUrl: 'https://example.com/v1', apiKey: 'inline-key' },
+                models: { default: { id: 'gpt-test' } },
+              },
+            },
+          },
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    );
+
+    await expect(resolveConfig({ repoRoot })).rejects.toBeInstanceOf(ConfigError);
   });
 
   it('redacts inline api keys for printing', () => {
