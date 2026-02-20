@@ -36,6 +36,11 @@ export async function handleRunCommand(options: any, command: Command) {
   const runPath = resolve(allOptions.repo || process.cwd());
   const useGui = allOptions.gui !== false && process.stdout.isTTY;
 
+  const resolveExitCode = (result: LoopResult): number => {
+    if (result.reason === 'Operation cancelled by user') return 130;
+    return result.success ? 0 : 1;
+  };
+
   const splitToolRules = (raw: unknown): string[] => {
     const parts: string[] = [];
     const push = (s: unknown) => {
@@ -365,8 +370,8 @@ export async function handleRunCommand(options: any, command: Command) {
 
     reporter.onFinish(result);
 
-    // Exit with code 0 regardless of success/failure to avoid redundant ELIFECYCLE errors from pnpm/npm in UI mode
-    process.exit(0);
+    process.exitCode = resolveExitCode(result);
+    return;
   } catch (err: any) {
     logger.error(text.cli.unexpectedError(err.message), false);
     process.exit(1);
