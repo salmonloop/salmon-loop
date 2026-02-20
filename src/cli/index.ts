@@ -42,6 +42,8 @@ program.name('s8p').alias('salmonloop').description(text.cli.programDescription)
 // --- Global Options ---
 program
   .option('-r, --repo <path>', text.cli.repoOption, process.cwd())
+  .option('--continue', text.cli.continueOption)
+  .option('--resume <sessionId>', text.cli.resumeOption)
   .option('-v, --verify <command>', text.cli.verifyOption)
   .option('--no-verify', 'Disable verification')
   .option('-cs, --checkpoint-strategy <type>', text.cli.checkpointStrategyOption, 'worktree')
@@ -50,7 +52,7 @@ program
 // --- Main Command: Run ---
 program
   .command('run')
-  .description('Run a single-turn task')
+  .description(text.cli.runDescription)
   .option('-i, --instruction <instruction>', text.cli.instructionOption)
   .option('--config <path>', text.cli.configOption)
   .option('--no-config-file', text.cli.noConfigFileOption)
@@ -158,8 +160,7 @@ program
 program
   .command('chat', { isDefault: true })
   .description('Enter interactive chat mode (default)')
-  .option('--resume', 'Resume last session')
-  .option('--verbose', 'Verbose output')
+  .option('--verbose [level]', text.cli.verboseOption)
   .action(handleChatCommand);
 
 // Parse arguments with manual error handling

@@ -53,6 +53,85 @@ vi.mock('../../../../src/core/extensions/index.js', () => ({
   resolveExtensions: vi.fn(async () => ({ resolved: [] })),
 }));
 
+vi.mock('../../../../src/core/session/manager.js', () => ({
+  ChatSessionManager: class ChatSessionManager {
+    private current: any;
+    constructor(private repoPath: string) {}
+    async init() {}
+    async loadLast() {
+      return null;
+    }
+    async resumeSession(_id: string) {
+      throw new Error('Session not found');
+    }
+    async create() {
+      this.current = {
+        meta: {
+          id: 'sess-1',
+          name: 'Test',
+          repoPath: this.repoPath,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          totalIterations: 0,
+          successfulIterations: 0,
+          totalTokens: { input: 0, output: 0 },
+          snapshots: [],
+        },
+        messages: [],
+        iterations: [],
+      };
+      return this.current;
+    }
+    addMessage() {}
+    addIteration() {
+      return 'iter-1';
+    }
+    getCurrent() {
+      return this.current;
+    }
+    async save() {}
+  },
+}));
+vi.mock('../../../../src/core/session/manager.ts', () => ({
+  ChatSessionManager: class ChatSessionManager {
+    private current: any;
+    constructor(private repoPath: string) {}
+    async init() {}
+    async loadLast() {
+      return null;
+    }
+    async resumeSession(_id: string) {
+      throw new Error('Session not found');
+    }
+    async create() {
+      this.current = {
+        meta: {
+          id: 'sess-1',
+          name: 'Test',
+          repoPath: this.repoPath,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          totalIterations: 0,
+          successfulIterations: 0,
+          totalTokens: { input: 0, output: 0 },
+          snapshots: [],
+        },
+        messages: [],
+        iterations: [],
+      };
+      return this.current;
+    }
+    addMessage() {}
+    addIteration() {
+      return 'iter-1';
+    }
+    getCurrent() {
+      return this.current;
+    }
+    async save() {}
+  },
+}));
+
 vi.mock('../../../../src/core/llm/factory.js', () => ({
   createRuntimeLlm: vi.fn(() => ({
     llm: {

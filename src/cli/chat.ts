@@ -15,7 +15,13 @@ import type { RunOutcomeReporter } from '../core/observability/run-outcome-repor
 import { runSalmonLoop } from '../core/runtime/loop.js';
 import { ChatSessionManager } from '../core/session/manager.js';
 import { TokenTracker } from '../core/session/token-tracker.js';
-import type { CheckpointStrategy, LLM, LoopEvent, LlmOutputPolicy } from '../core/types/index.js';
+import type {
+  CheckpointStrategy,
+  LLM,
+  LoopEvent,
+  LlmOutputPolicy,
+  VerboseLevel,
+} from '../core/types/index.js';
 
 import { createUiAuthorizationProvider } from './authorization/provider.js';
 import { commands } from './commands/registry.js';
@@ -31,8 +37,9 @@ export interface ChatModeOptions {
   llm: LLM;
   verifyCommand?: string;
   checkpointStrategy?: CheckpointStrategy;
-  resume?: boolean;
-  verbose?: boolean;
+  continue?: boolean;
+  resumeSessionId?: string;
+  verbose?: VerboseLevel | boolean;
   llmOutput?: LlmOutputPolicy;
   markdownTheme?: MarkdownTheme;
   markdownRenderMode?: MarkdownRenderMode;
@@ -58,9 +65,25 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
   await historyManager.init();
 
   // Load or create session
-  let session = options.resume ? await sessionManager.loadLast() : null;
+  let session = null as Awaited<ReturnType<ChatSessionManager['loadLast']>> | null;
+  let sessionMode: 'new' | 'continue' | 'resume' = 'new';
+
+  if (options.resumeSessionId) {
+    session = await sessionManager.load(options.resumeSessionId);
+    if (!session) {
+      throw new Error(text.cli.resumeNotFound(options.resumeSessionId));
+    }
+    sessionMode = 'resume';
+  } else if (options.continue) {
+    session = await sessionManager.loadLast();
+    if (session) {
+      sessionMode = 'continue';
+    }
+  }
+
   if (!session) {
     session = await sessionManager.create();
+    sessionMode = 'new';
   }
 
   // Load input history for this session
@@ -266,6 +289,9 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
               ? 'direct'
               : options.checkpointStrategy || 'worktree';
 
+          const verboseLevel =
+            options.verbose === true ? 'basic' : (options.verbose as VerboseLevel | undefined);
+
           const result = await runSalmonLoop({
             instruction: trimmed,
             verify: options.verifyCommand,
@@ -273,7 +299,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
             llm: options.llm,
             mode: intentDecision.intent,
             strategy,
-            verbose: options.verbose ? 'basic' : undefined,
+            verbose: verboseLevel,
             onEvent: latestEmit,
             signal: mergedSignal.signal,
             llmOutput: currentLlmOutputPolicy,
@@ -472,6 +498,16 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
         if (dispatch && session) {
           dispatch({ type: 'SET_INPUT_HISTORY', payload: inputHistory });
         }
+        const idShort = session.meta.id.slice(0, 8);
+        latestEmit?.({
+          type: 'log',
+          level: 'info',
+          message:
+            sessionMode === 'new'
+              ? text.cli.chatNewSession(idShort)
+              : text.cli.chatResumed(idShort),
+          timestamp: new Date(),
+        });
         return;
       }
       latestDispatch = dispatch || (() => {});

@@ -16,6 +16,16 @@ import { resolveVerifyOption } from '../utils/verify-resolver.js';
 export async function handleChatCommand(options: any, command: Command) {
   const allOptions = command.optsWithGlobals();
   const runPath = resolve(allOptions.repo || process.cwd());
+  const continueSession = Boolean((allOptions as any).continue);
+  const resumeSessionId =
+    typeof (allOptions as any).resume === 'string'
+      ? ((allOptions as any).resume as string)
+      : undefined;
+
+  if (continueSession && resumeSessionId) {
+    logger.error(text.cli.continueResumeConflict, true);
+    process.exit(1);
+  }
 
   // Initialize plugins (including user plugins from .salmonloop/languages)
   await PluginLoader.loadPlugins(runPath);
@@ -72,22 +82,29 @@ export async function handleChatCommand(options: any, command: Command) {
   const { startChatMode } = await import('../chat.js');
   const extensionResolution = await resolveExtensions({ repoRoot: runPath });
 
-  await startChatMode({
-    repoPath: runPath,
-    llm,
-    verifyCommand,
-    checkpointStrategy: allOptions.checkpointStrategy || 'worktree',
-    resume: options.resume,
-    verbose: options.verbose,
-    llmOutput,
-    markdownTheme: resolvedConfig.markdownTheme,
-    markdownRenderMode: resolvedConfig.markdownRenderMode,
-    uiLogView: resolvedConfig.ui.logView,
-    uiLogMode: resolvedConfig.ui.logMode,
-    toolAuthorization: resolvedConfig.toolAuthorization,
-    extensions: extensionResolution.resolved,
-    outcomeReporter,
-    langfuseSessionId: resolvedConfig.observability.langfuse.sessionId,
-    langfuseUserId: resolvedConfig.observability.langfuse.userId,
-  });
+  try {
+    await startChatMode({
+      repoPath: runPath,
+      llm,
+      verifyCommand,
+      checkpointStrategy: allOptions.checkpointStrategy || 'worktree',
+      continue: continueSession,
+      resumeSessionId,
+      verbose: allOptions.verbose,
+      llmOutput,
+      markdownTheme: resolvedConfig.markdownTheme,
+      markdownRenderMode: resolvedConfig.markdownRenderMode,
+      uiLogView: resolvedConfig.ui.logView,
+      uiLogMode: resolvedConfig.ui.logMode,
+      toolAuthorization: resolvedConfig.toolAuthorization,
+      extensions: extensionResolution.resolved,
+      outcomeReporter,
+      langfuseSessionId: resolvedConfig.observability.langfuse.sessionId,
+      langfuseUserId: resolvedConfig.observability.langfuse.userId,
+    });
+  } catch (err: any) {
+    const msg = err instanceof Error ? err.message : String(err);
+    logger.error(msg, true);
+    process.exit(1);
+  }
 }

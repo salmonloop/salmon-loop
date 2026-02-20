@@ -13,6 +13,7 @@ import { emitLlmOutput } from '../../core/llm/output-policy.js';
 import { logger } from '../../core/observability/logger.js';
 import { PluginLoader } from '../../core/plugin/loader.js';
 import { runSalmonLoop } from '../../core/runtime/loop.js';
+import { ChatSessionManager } from '../../core/session/manager.js';
 import {
   VerboseLevel,
   CheckpointStrategy,
@@ -38,6 +39,11 @@ import { resolveVerifyOption } from '../utils/verify-resolver.js';
 export async function handleRunCommand(options: any, command: Command) {
   const allOptions = command.optsWithGlobals();
   const runPath = resolve(allOptions.repo || process.cwd());
+  const continueSession = Boolean((allOptions as any).continue);
+  const resumeSessionId =
+    typeof (allOptions as any).resume === 'string'
+      ? ((allOptions as any).resume as string)
+      : undefined;
 
   const rawOutputFormat = String(allOptions.outputFormat || 'text');
   if (
@@ -50,12 +56,93 @@ export async function handleRunCommand(options: any, command: Command) {
   }
   const outputFormat = rawOutputFormat as 'text' | 'stream-json' | 'json';
   const headlessOutput = outputFormat !== 'text';
-  const outputSessionId = headlessOutput ? randomUUID() : undefined;
   const useGui = !headlessOutput && allOptions.gui !== false && process.stdout.isTTY;
 
   if (headlessOutput) {
     // Ensure stdout is reserved for machine-readable output.
     logger.setReporter(new StderrLogReporter());
+  }
+
+  if (continueSession && resumeSessionId) {
+    logger.error(text.cli.continueResumeConflict, true);
+    process.exit(1);
+  }
+
+  const wantSessionPersistence =
+    !allOptions.printConfig &&
+    (headlessOutput ||
+      continueSession ||
+      Boolean(resumeSessionId) ||
+      typeof allOptions.instruction === 'string');
+
+  const sessionManager = wantSessionPersistence ? new ChatSessionManager(runPath) : undefined;
+  let sessionIdForOutput: string | undefined;
+
+  const writeStreamJsonEarlyError = (params: {
+    sessionId: string;
+    message: string;
+    exitCode?: number;
+  }) => {
+    const now = new Date().toISOString();
+    process.stdout.write(
+      JSON.stringify({
+        type: 'error',
+        session_id: params.sessionId,
+        timestamp: now,
+        error: { message: params.message },
+      }) + '\n',
+    );
+    process.stdout.write(
+      JSON.stringify({
+        type: 'end',
+        session_id: params.sessionId,
+        timestamp: now,
+        success: false,
+        exit_code: params.exitCode ?? 1,
+      }) + '\n',
+    );
+  };
+
+  if (sessionManager) {
+    await sessionManager.init();
+    try {
+      if (resumeSessionId) {
+        await sessionManager.resumeSession(resumeSessionId);
+      } else if (continueSession) {
+        const resumed = await sessionManager.loadLast();
+        if (!resumed) {
+          await sessionManager.create();
+        }
+      } else {
+        await sessionManager.create();
+      }
+    } catch (err: any) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (resumeSessionId && outputFormat === 'json') {
+        process.stdout.write(
+          JSON.stringify({
+            result: '',
+            structured_output: null,
+            session_id: resumeSessionId,
+            metadata: {
+              command: 'run',
+              repo_path: runPath,
+              success: false,
+              exit_code: 1,
+              reason: msg,
+              timestamps: { ended_at: new Date().toISOString() },
+            },
+          }) + '\n',
+        );
+      } else if (resumeSessionId && outputFormat === 'stream-json') {
+        writeStreamJsonEarlyError({ sessionId: resumeSessionId, message: msg });
+      } else {
+        logger.error(msg, true);
+      }
+      process.exit(1);
+    }
+
+    sessionIdForOutput = sessionManager.getCurrent().meta.id;
   }
 
   const writeJsonOutput = (payload: unknown) => {
@@ -73,7 +160,7 @@ export async function handleRunCommand(options: any, command: Command) {
     writeJsonOutput({
       result: '',
       structured_output: null,
-      session_id: outputSessionId ?? randomUUID(),
+      session_id: sessionIdForOutput ?? randomUUID(),
       metadata: {
         command: 'run',
         repo_path: params.repoPath ?? runPath,
@@ -332,9 +419,9 @@ export async function handleRunCommand(options: any, command: Command) {
           onError: () => {},
         }
       : outputFormat === 'stream-json'
-        ? new StreamJsonReporter({ mode: 'run', repoPath: runPath, sessionId: outputSessionId })
+        ? new StreamJsonReporter({ mode: 'run', repoPath: runPath, sessionId: sessionIdForOutput })
         : outputFormat === 'json'
-          ? new JsonReporter({ mode: 'run', repoPath: runPath, sessionId: outputSessionId })
+          ? new JsonReporter({ mode: 'run', repoPath: runPath, sessionId: sessionIdForOutput })
           : new StandardReporter(Boolean(allOptions.verbose));
 
     reporter.onStart(allOptions.instruction);
@@ -378,7 +465,7 @@ export async function handleRunCommand(options: any, command: Command) {
       worktreePrepare: allOptions.worktreePrepare,
       llmOutput,
       outcomeReporter,
-      langfuseSessionId: resolvedConfig.observability.langfuse.sessionId,
+      langfuseSessionId: resolvedConfig.observability.langfuse.sessionId || sessionIdForOutput,
       langfuseUserId: resolvedConfig.observability.langfuse.userId,
       authorizationProvider: createTerminalAuthorizationProvider({
         config: resolvedConfig.toolAuthorization,
@@ -461,15 +548,49 @@ export async function handleRunCommand(options: any, command: Command) {
 
     reporter.onFinish(result);
 
+    if (sessionManager && typeof allOptions.instruction === 'string') {
+      try {
+        sessionManager.addMessage({
+          role: 'user',
+          content: allOptions.instruction,
+          timestamp: Date.now(),
+        });
+
+        let iterationId: string | undefined;
+        if (Array.isArray(result.history) && result.history.length > 0) {
+          iterationId = sessionManager.addIteration(result.history[result.history.length - 1]);
+        }
+
+        if (result.reason !== 'Operation cancelled by user') {
+          sessionManager.addMessage({
+            role: 'assistant',
+            content: buildAssistantMessage(result),
+            timestamp: Date.now(),
+            iterationId,
+          });
+        }
+
+        await sessionManager.save();
+      } catch (_error) {
+        // Best-effort persistence: never block the CLI exit path.
+      }
+    }
+
     process.exitCode = resolveExitCode(result);
     return;
   } catch (err: any) {
-    logger.error(text.cli.unexpectedError(err.message), false);
+    const msg = err instanceof Error ? err.message : String(err);
+    logger.error(text.cli.unexpectedError(msg), false);
     if (outputFormat === 'json') {
       writeJsonFailure({
-        message: text.cli.unexpectedError(err.message),
+        message: text.cli.unexpectedError(msg),
         repoPath: runPath,
         instruction: allOptions.instruction,
+      });
+    } else if (outputFormat === 'stream-json') {
+      writeStreamJsonEarlyError({
+        sessionId: sessionIdForOutput ?? randomUUID(),
+        message: text.cli.unexpectedError(msg),
       });
     }
     process.exit(1);

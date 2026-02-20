@@ -216,6 +216,8 @@ export const en = {
   noConfigFileOption: 'Disable loading config file from the repository',
   printConfigOption: 'Print the resolved config (redacted) and exit',
   repoOption: 'Repository path (default: current directory)',
+  continueOption: 'Continue the most recent session in this repository',
+  resumeOption: 'Resume a session by ID (supports short prefix)',
   fileOption: 'Target file path (relative to repo)',
   selectionOption: 'Direct text selection (mutually exclusive with --file)',
   allowedToolsOption:
@@ -245,6 +247,8 @@ export const en = {
     `Invalid --mode "${mode}". Expected "patch", "review", or "debug".`,
   invalidOutputFormat: (format: string) =>
     `Invalid --output-format "${format}". Expected "text", "stream-json", or "json".`,
+  continueResumeConflict: '--continue and --resume are mutually exclusive.',
+  resumeNotFound: (id: string) => `Session not found: ${id}.`,
   invalidLlmOutputKind: (kind?: string) =>
     `Invalid --llm-output value${kind ? `: "${kind}"` : ''}. Expected "none", "all", or a comma-separated list of: review, assistant_message, explore, plan, patch.`,
   contextInvalidDiffScope: (scope: string) =>

@@ -85,6 +85,8 @@ s8p context -i "..." [-f src/file.ts | -s "..."] [--diff-scope primary|ast_relat
 ## Global Options
 
 - `-r, --repo <path>`: Path to the git repository root. Defaults to the current directory.
+- `--continue`: Continue the most recent session in this repository (applies to `chat` and `run`).
+- `--resume <sessionId>`: Resume a specific session by ID (applies to `chat` and `run`).
 - `--config <path>`: Path to a SalmonLoop config JSON file (default: `<repoRoot>/.salmonloop/config/config.json`).
 - `--no-config-file`: Disable loading the repo config file.
 - `--print-config`: Print the resolved config (redacted) and exit.
