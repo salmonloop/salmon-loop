@@ -245,8 +245,6 @@ export const en = {
     `Invalid --mode "${mode}". Expected "patch", "review", or "debug".`,
   invalidOutputFormat: (format: string) =>
     `Invalid --output-format "${format}". Expected "text", "stream-json", or "json".`,
-  outputFormatJsonNotImplemented:
-    'JSON output format is not implemented yet. Use --output-format stream-json.',
   invalidLlmOutputKind: (kind?: string) =>
     `Invalid --llm-output value${kind ? `: "${kind}"` : ''}. Expected "none", "all", or a comma-separated list of: review, assistant_message, explore, plan, patch.`,
   contextInvalidDiffScope: (scope: string) =>

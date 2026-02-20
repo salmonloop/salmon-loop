@@ -1,4 +1,5 @@
 import { spawnSync } from 'child_process';
+import { randomUUID } from 'crypto';
 import { resolve } from 'path';
 
 import chalk from 'chalk';
@@ -27,6 +28,7 @@ import {
 } from '../authorization/provider.js';
 import { text } from '../locales/index.js';
 import { SalmonReporter } from '../reporters/base.js';
+import { JsonReporter } from '../reporters/json.js';
 import { StandardReporter } from '../reporters/standard.js';
 import { StderrLogReporter } from '../reporters/stderr-log-reporter.js';
 import { StreamJsonReporter } from '../reporters/stream-json.js';
@@ -46,18 +48,46 @@ export async function handleRunCommand(options: any, command: Command) {
     logger.error(text.cli.invalidOutputFormat(rawOutputFormat), true);
     process.exit(1);
   }
-  if (rawOutputFormat === 'json') {
-    logger.error(text.cli.outputFormatJsonNotImplemented, true);
-    process.exit(1);
-  }
-  const outputFormat = rawOutputFormat as 'text' | 'stream-json';
+  const outputFormat = rawOutputFormat as 'text' | 'stream-json' | 'json';
   const headlessOutput = outputFormat !== 'text';
+  const outputSessionId = headlessOutput ? randomUUID() : undefined;
   const useGui = !headlessOutput && allOptions.gui !== false && process.stdout.isTTY;
 
   if (headlessOutput) {
     // Ensure stdout is reserved for machine-readable output.
     logger.setReporter(new StderrLogReporter());
   }
+
+  const writeJsonOutput = (payload: unknown) => {
+    process.stdout.write(JSON.stringify(payload) + '\n');
+  };
+
+  const writeJsonFailure = (params: {
+    exitCode?: number;
+    message: string;
+    errorCode?: string;
+    repoPath?: string;
+    instruction?: string;
+  }) => {
+    const exitCode = params.exitCode ?? 1;
+    writeJsonOutput({
+      result: '',
+      structured_output: null,
+      session_id: outputSessionId ?? randomUUID(),
+      metadata: {
+        command: 'run',
+        repo_path: params.repoPath ?? runPath,
+        instruction: params.instruction,
+        success: false,
+        exit_code: exitCode,
+        reason: params.message,
+        error_code: params.errorCode,
+        timestamps: {
+          ended_at: new Date().toISOString(),
+        },
+      },
+    });
+  };
 
   const resolveExitCode = (result: LoopResult): number => {
     if (result.reason === 'Operation cancelled by user') return 130;
@@ -143,13 +173,24 @@ export async function handleRunCommand(options: any, command: Command) {
     });
   } catch (err: any) {
     if (err instanceof ConfigError) {
-      logger.error(text.config.error(err.code || err.message, err.details), true);
+      const msg = text.config.error(err.code || err.message, err.details);
+      logger.error(msg, true);
+      if (outputFormat === 'json') {
+        writeJsonFailure({ message: msg, errorCode: err.code, repoPath: runPath });
+        process.exitCode = 1;
+        return;
+      }
       process.exitCode = 1;
       return;
     }
 
     const msg = err instanceof Error ? err.message : String(err);
     logger.error(text.config.loadFailed(msg), true);
+    if (outputFormat === 'json') {
+      writeJsonFailure({ message: text.config.loadFailed(msg), repoPath: runPath });
+      process.exitCode = 1;
+      return;
+    }
     process.exitCode = 1;
     return;
   }
@@ -167,6 +208,14 @@ export async function handleRunCommand(options: any, command: Command) {
   );
   if (!llmOutputResolution.ok) {
     logger.error(text.cli.invalidLlmOutputKind(llmOutputResolution.invalid), true);
+    if (outputFormat === 'json') {
+      writeJsonFailure({
+        message: text.cli.invalidLlmOutputKind(llmOutputResolution.invalid),
+        repoPath: runPath,
+      });
+      process.exitCode = 1;
+      return;
+    }
     process.exitCode = 1;
     return;
   }
@@ -185,7 +234,12 @@ export async function handleRunCommand(options: any, command: Command) {
   if (!allOptions.instruction) {
     if (!allOptions.validate) {
       logger.error(text.cli.optionsRequired);
-      command.help(); // Show help if required options are missing
+      if (outputFormat === 'text') {
+        command.help(); // Show help if required options are missing
+      }
+      if (outputFormat === 'json') {
+        writeJsonFailure({ message: text.cli.optionsRequired, repoPath: runPath });
+      }
       process.exit(1);
     }
     return;
@@ -194,6 +248,9 @@ export async function handleRunCommand(options: any, command: Command) {
   const rawMode = String(allOptions.mode || 'patch');
   if (rawMode !== 'patch' && rawMode !== 'review' && rawMode !== 'debug') {
     logger.error(text.cli.invalidMode(rawMode), true);
+    if (outputFormat === 'json') {
+      writeJsonFailure({ message: text.cli.invalidMode(rawMode), repoPath: runPath });
+    }
     process.exit(1);
   }
   const mode = rawMode as FlowMode;
@@ -204,6 +261,12 @@ export async function handleRunCommand(options: any, command: Command) {
   } catch (err: any) {
     if (err instanceof ExtensionConfigError) {
       logger.error(`Extension configuration invalid: ${err.message}`, true);
+      if (outputFormat === 'json') {
+        writeJsonFailure({
+          message: `Extension configuration invalid: ${err.message}`,
+          repoPath: runPath,
+        });
+      }
       process.exitCode = 1;
       return;
     }
@@ -269,8 +332,10 @@ export async function handleRunCommand(options: any, command: Command) {
           onError: () => {},
         }
       : outputFormat === 'stream-json'
-        ? new StreamJsonReporter({ mode: 'run', repoPath: runPath })
-        : new StandardReporter(Boolean(allOptions.verbose));
+        ? new StreamJsonReporter({ mode: 'run', repoPath: runPath, sessionId: outputSessionId })
+        : outputFormat === 'json'
+          ? new JsonReporter({ mode: 'run', repoPath: runPath, sessionId: outputSessionId })
+          : new StandardReporter(Boolean(allOptions.verbose));
 
     reporter.onStart(allOptions.instruction);
 
@@ -400,6 +465,13 @@ export async function handleRunCommand(options: any, command: Command) {
     return;
   } catch (err: any) {
     logger.error(text.cli.unexpectedError(err.message), false);
+    if (outputFormat === 'json') {
+      writeJsonFailure({
+        message: text.cli.unexpectedError(err.message),
+        repoPath: runPath,
+        instruction: allOptions.instruction,
+      });
+    }
     process.exit(1);
   }
 }
