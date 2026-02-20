@@ -59,7 +59,9 @@ export const MessageList: React.FC<{
       {/* Completed messages - Static rendering for native terminal scroll */}
       <Static items={completedMessages}>
         {(msg, index) => (
-          <MessageItem key={msg.id} msg={msg} nextMsg={completedMessages[index + 1]} ctx={ctx} />
+          <Box key={msg.id} paddingLeft={UI_CONFIG.MESSAGE_AREA_PADDING_X}>
+            <MessageItem msg={msg} nextMsg={completedMessages[index + 1]} ctx={ctx} />
+          </Box>
         )}
       </Static>
 
