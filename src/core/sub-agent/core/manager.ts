@@ -103,7 +103,7 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
             contextFiles: request.contextFiles || [],
             llm,
             recursionDepth: currentDepth + 1, // Increment depth for child
-            allowedTools: this.filterAllowedTools(profile.allowedTools),
+            allowedToolNames: this.filterAllowedTools(profile.allowedTools),
             timeoutMs: request.timeout_seconds ? request.timeout_seconds * 1000 : profile.timeoutMs,
           },
           mode: flowMode,

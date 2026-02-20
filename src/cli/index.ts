@@ -57,6 +57,18 @@ program
   .option('--print-config', text.cli.printConfigOption)
   .option('-f, --file <path>', text.cli.fileOption)
   .option('-s, --selection <text>', text.cli.selectionOption)
+  .option(
+    '--allowedTools <rules>',
+    text.cli.allowedToolsOption,
+    (value, previous: string[]) => previous.concat([value]),
+    [] as string[],
+  )
+  .option(
+    '--disallowedTools <rules>',
+    text.cli.disallowedToolsOption,
+    (value, previous: string[]) => previous.concat([value]),
+    [] as string[],
+  )
   .option('--dry-run', text.cli.dryRunOption)
   .option('--verbose [level]', text.cli.verboseOption)
   .option('--force-reset', text.cli.forceResetOption)

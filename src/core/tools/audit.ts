@@ -54,6 +54,7 @@ export class ToolAuditLogger {
     allowlist: 0,
     user: 0,
     cache: 0,
+    cli: 0,
   };
 
   constructor(private options?: ToolAuditLoggerOptions) {}
@@ -182,6 +183,10 @@ export class ToolAuditLogger {
     }
     if (source === 'cache') {
       this.authorizationSummary.cache += 1;
+      return true;
+    }
+    if (source === 'cli') {
+      this.authorizationSummary.cli += 1;
       return true;
     }
     return false;

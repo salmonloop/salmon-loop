@@ -1,3 +1,4 @@
+import { text } from '../../locales/index.js';
 import type { ResolvedExtensions } from '../extensions/types.js';
 import { skillToToolSpec } from '../skills/bridge.js';
 import { SkillLoader } from '../skills/loader.js';
@@ -9,6 +10,11 @@ import { BudgetGuard, BudgetConfig } from './budget.js';
 import { registerAllBuiltins } from './builtin/index.js';
 import { ToolDispatcher } from './dispatcher.js';
 import { registerMcpTools } from './mcp/loader.js';
+import {
+  compilePermissionRules,
+  getVisibleToolNamesFromAllowRules,
+  shouldFilterRegistryByAllowRules,
+} from './permissions/permission-rules.js';
 import { registerPluginTools } from './plugins/loader.js';
 import { ToolPolicy } from './policy.js';
 import { ToolRegistry } from './registry.js';
@@ -23,6 +29,7 @@ export interface ToolstackOptions {
   dryRun: boolean;
   model?: string;
   allowedToolNames?: string[];
+  permissionRules?: import('./permissions/permission-rules.js').RawPermissionRulesInput;
   authorizationMode?: 'blocking' | 'deferred';
   budget?: Partial<BudgetConfig>;
   authorizationProvider?: ToolAuthorizationProvider;
@@ -72,19 +79,43 @@ export async function createStandardToolstack(options: ToolstackOptions) {
     registry.register(skillToToolSpec(skill));
   }
 
+  if (extensions) {
+    await registerMcpTools(registry, extensions.mcpServers);
+    await registerPluginTools(registry, extensions.toolPlugins);
+  }
+
+  const compiledPermissionRules = (() => {
+    if (!options.permissionRules) return undefined;
+    const compiled = compilePermissionRules(options.permissionRules);
+    if (!compiled.ok) {
+      const summary = (compiled.errors ?? []).map((e) => `${e.raw}: ${e.message}`).slice(0, 5);
+      throw new Error(text.tools.permissionRulesParseFailed(summary.join('; ')));
+    }
+    return compiled.compiled;
+  })();
+
+  const allowSets: Array<Set<string>> = [];
   if (Array.isArray(options.allowedToolNames) && options.allowedToolNames.length > 0) {
-    const allow = new Set(options.allowedToolNames);
+    allowSets.push(new Set(options.allowedToolNames));
+  }
+  if (shouldFilterRegistryByAllowRules(compiledPermissionRules)) {
+    allowSets.push(getVisibleToolNamesFromAllowRules(compiledPermissionRules));
+  }
+
+  if (allowSets.length > 0) {
+    const intersect = new Set<string>(allowSets[0]);
+    for (const next of allowSets.slice(1)) {
+      for (const name of Array.from(intersect)) {
+        if (!next.has(name)) intersect.delete(name);
+      }
+    }
+
     const filtered = new ToolRegistry();
-    for (const name of allow) {
+    for (const name of intersect) {
       const spec = registry.getSpec(name);
       if (spec) filtered.register(spec);
     }
     registry = filtered;
-  }
-
-  if (extensions) {
-    await registerMcpTools(registry, extensions.mcpServers);
-    await registerPluginTools(registry, extensions.toolPlugins);
   }
 
   // 4. Create Router (The execution pipeline)
@@ -95,7 +126,7 @@ export async function createStandardToolstack(options: ToolstackOptions) {
     audit,
     sanitize,
     options.authorizationProvider,
-    { authorizationMode: options.authorizationMode },
+    { authorizationMode: options.authorizationMode, permissionRules: compiledPermissionRules },
   );
 
   // 4. Create Dispatcher (The high-level coordinator for LLM text)

@@ -36,6 +36,26 @@ export async function handleRunCommand(options: any, command: Command) {
   const runPath = resolve(allOptions.repo || process.cwd());
   const useGui = allOptions.gui !== false && process.stdout.isTTY;
 
+  const splitToolRules = (raw: unknown): string[] => {
+    const parts: string[] = [];
+    const push = (s: unknown) => {
+      if (typeof s !== 'string') return;
+      for (const piece of s.split(',')) {
+        const trimmed = piece.trim();
+        if (trimmed) parts.push(trimmed);
+      }
+    };
+    if (Array.isArray(raw)) {
+      for (const v of raw) push(v);
+      return parts;
+    }
+    push(raw);
+    return parts;
+  };
+
+  const allowedToolRules = splitToolRules(allOptions.allowedTools);
+  const disallowedToolRules = splitToolRules(allOptions.disallowedTools);
+
   const runValidateCommand = (cmd: string, args: string[]) => {
     const result = spawnSync(cmd, args, {
       cwd: runPath,
@@ -180,6 +200,12 @@ export async function handleRunCommand(options: any, command: Command) {
     logger.log(text.cli.repoPath(runPath));
     if (allOptions.file) logger.log(text.cli.contextFile(allOptions.file));
     if (allOptions.selection) logger.log(text.cli.contextSelection(allOptions.selection.length));
+    if (allowedToolRules.length > 0) {
+      logger.log(text.cli.allowedTools(allowedToolRules.join(', ')));
+    }
+    if (disallowedToolRules.length > 0) {
+      logger.log(text.cli.disallowedTools(disallowedToolRules.join(', ')));
+    }
     if (allOptions.dryRun) logger.warn(text.cli.dryRunEnabled);
     if (resolvedConfig.source.used) {
       logger.log(text.cli.configPath(resolvedConfig.source.path || ''));
@@ -263,6 +289,10 @@ export async function handleRunCommand(options: any, command: Command) {
         config: resolvedConfig.toolAuthorization,
       }),
       extensions: extensionResolution?.resolved,
+      permissionRules:
+        allowedToolRules.length > 0 || disallowedToolRules.length > 0
+          ? { allow: allowedToolRules, deny: disallowedToolRules }
+          : undefined,
     };
 
     const buildAssistantMessage = (result: LoopResult) => {

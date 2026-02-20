@@ -46,6 +46,7 @@ export interface AuthorizationSourceSummary {
   allowlist: number;
   user: number;
   cache: number;
+  cli: number;
 }
 
 export interface LoopResult {
@@ -284,7 +285,8 @@ export interface LoopOptions {
    * Optional Langfuse userId. Intended for SaaS / multi-user deployments.
    */
   langfuseUserId?: string;
-  allowedTools?: string[];
+  allowedToolNames?: string[];
+  permissionRules?: import('../tools/permissions/permission-rules.js').RawPermissionRulesInput;
   timeoutMs?: number;
   recursionDepth?: number;
   mode?: FlowMode;

@@ -38,9 +38,10 @@ export const runPreflight: Step<InitCtx, PreflightCtx> = async (ctx) => {
         worktreeRoot: ctx.workspace.strategy === 'worktree' ? ctx.workspace.workPath : undefined,
         attemptId: ctx.attempt ?? 1,
         dryRun: Boolean(ctx.options?.dryRun),
-        allowedToolNames: Array.isArray(ctx.options.allowedTools)
-          ? ctx.options.allowedTools
+        allowedToolNames: Array.isArray(ctx.options.allowedToolNames)
+          ? ctx.options.allowedToolNames
           : undefined,
+        permissionRules: ctx.options.permissionRules,
         authorizationProvider: ctx.options.authorizationProvider,
         authorizationMode: ctx.options.authorizationMode,
         extensions: ctx.options.extensions,

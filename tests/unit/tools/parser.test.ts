@@ -25,7 +25,7 @@ describe('ToolParser', () => {
   });
 
   it('should THROW on <call:...> format (Protocol Violation)', () => {
-    const text = 'Use Claude format: <call:ls>{"path": "."}</call:ls>';
+    const text = 'Use call-tag format: <call:ls>{"path": "."}</call:ls>';
     expect(() => parser.parse(text)).toThrow(ToolParseError);
     expect(() => parser.parse(text)).toThrow(/Protocol Violation/);
   });

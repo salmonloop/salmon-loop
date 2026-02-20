@@ -8,6 +8,8 @@ import { logger } from '../observability/logger.js';
 import { ToolAuditLogger } from './audit.js';
 import type { ToolAuthorizationProvider, ToolAuthorizationRequest } from './authorization/types.js';
 import { BudgetGuard } from './budget.js';
+import type { CompiledPermissionRules } from './permissions/permission-rules.js';
+import { decidePermissionForToolCall } from './permissions/permission-rules.js';
 import { ToolPolicy } from './policy.js';
 import { ToolRegistry } from './registry.js';
 import { ToolSanitizer } from './sanitize.js';
@@ -16,6 +18,7 @@ import { ToolCallEnvelope, ToolResult, ToolSpec } from './types.js';
 export class ToolRouter {
   private authorizationCache = new Map<string, { expiresAt?: number }>();
   private authorizationMode: 'blocking' | 'deferred';
+  private permissionRules?: CompiledPermissionRules;
 
   private unwrapForHint(schema: z.ZodTypeAny): z.ZodTypeAny {
     let current: z.ZodTypeAny = schema;
@@ -83,9 +86,13 @@ export class ToolRouter {
     private audit: ToolAuditLogger,
     private sanitizer: ToolSanitizer,
     private authorization?: ToolAuthorizationProvider,
-    options?: { authorizationMode?: 'blocking' | 'deferred' },
+    options?: {
+      authorizationMode?: 'blocking' | 'deferred';
+      permissionRules?: CompiledPermissionRules;
+    },
   ) {
     this.authorizationMode = options?.authorizationMode ?? 'blocking';
+    this.permissionRules = options?.permissionRules;
   }
 
   getSpec(toolName: string) {
@@ -150,8 +157,45 @@ export class ToolRouter {
         return result;
       }
 
+      const permissionDecision = await decidePermissionForToolCall({
+        rules: this.permissionRules,
+        toolName: spec.name,
+        args: normalizedEnvelope.args,
+        ctx: normalizedEnvelope.ctx,
+      });
+      if (permissionDecision.kind === 'deny') {
+        const result = this.createErrorResult(
+          normalizedEnvelope,
+          startedAt,
+          'denied',
+          'PERMISSION_RULE_DENY',
+          permissionDecision.reason,
+          {
+            authorization: {
+              outcome: 'deny',
+              reason: permissionDecision.reason,
+              source: 'cli',
+            },
+          },
+        );
+        this.audit.onEnd(result);
+        return result;
+      }
+      if (permissionDecision.kind === 'allow') {
+        this.audit.onAuthorization({
+          callId: normalizedEnvelope.id,
+          phase: normalizedEnvelope.phase,
+          toolName: spec.name,
+          outcome: 'allow',
+          reason: permissionDecision.reason,
+          source: 'cli',
+          riskLevel: spec.riskLevel,
+          sideEffects: spec.sideEffects,
+        });
+      }
+
       // 4. Authorization Gate: User approval for risky tool calls
-      if (this.authorization) {
+      if (this.authorization && permissionDecision.kind !== 'allow') {
         const auth = await this.authorizeToolCall(normalizedEnvelope, spec);
         if (auth.kind === 'deny') {
           const result = this.createErrorResult(
@@ -310,6 +354,33 @@ export class ToolRouter {
         decision.denyReason || 'Policy denied',
       );
       return { kind: 'denied', toolResult };
+    }
+
+    const permissionDecision = await decidePermissionForToolCall({
+      rules: this.permissionRules,
+      toolName: spec.name,
+      args: normalizedEnvelope.args,
+      ctx: normalizedEnvelope.ctx,
+    });
+    if (permissionDecision.kind === 'deny') {
+      const toolResult = this.createErrorResult(
+        normalizedEnvelope,
+        startedAt,
+        'denied',
+        'PERMISSION_RULE_DENY',
+        permissionDecision.reason,
+        {
+          authorization: {
+            outcome: 'deny',
+            reason: permissionDecision.reason,
+            source: 'cli',
+          },
+        },
+      );
+      return { kind: 'denied', toolResult };
+    }
+    if (permissionDecision.kind === 'allow') {
+      return { kind: 'ready' };
     }
 
     const cacheKey = this.buildAuthorizationKey(normalizedEnvelope);

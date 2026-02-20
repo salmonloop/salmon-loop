@@ -212,6 +212,10 @@ export const en = {
   repoOption: 'Repository path (default: current directory)',
   fileOption: 'Target file path (relative to repo)',
   selectionOption: 'Direct text selection (mutually exclusive with --file)',
+  allowedToolsOption:
+    'Allow tool calls by permission rules (comma-separated, repeatable). Example: Bash(npm run test *)',
+  disallowedToolsOption:
+    'Deny tool calls by permission rules (comma-separated, repeatable). Example: Bash(rm *)',
   dryRunOption: 'Generate patch without applying',
   verboseOption: 'Enable verbose logging (basic, extended)',
   forceResetOption: 'Force hard reset on failure (use with caution)',
@@ -262,6 +266,8 @@ export const en = {
   verify: (command: string) => `  Verify: ${command}`,
   instruction: (instruction: string) => `  Instruction: ${instruction}`,
   repoPath: (path: string) => `  Repo path: ${path}`,
+  allowedTools: (rules: string) => `  Allowed tools: ${rules}`,
+  disallowedTools: (rules: string) => `  Disallowed tools: ${rules}`,
   configPath: (path: string) => `  Config file: ${path}`,
   contextFile: (file: string) => `  Context file: ${file}`,
   contextSelection: (length: number) => `  Context selection length: ${length}`,

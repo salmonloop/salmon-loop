@@ -542,6 +542,11 @@ Please return the patch in PURE unified diff format:`;
     invalidRelativePath: (p: string) =>
       `Invalid file path: ${p}. Absolute paths and traversal are forbidden.`,
     artifactNotFound: (handle: string) => `Artifact not found: ${handle}`,
+    permissionRuleDenied: (rule: string) => `Tool execution denied by permission rule: ${rule}`,
+    permissionRulesRequired: () =>
+      'Tool execution denied: no matching --allowedTools permission rule',
+    permissionRulesParseFailed: (details: string) =>
+      `Invalid permission rules: ${details || 'unknown error'}`,
   },
 
   audit: {

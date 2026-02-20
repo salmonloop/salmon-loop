@@ -199,6 +199,21 @@ s8p snap clear --force
   - `extended`: Outputs detailed logs, including internal states and debug information.
 - `--validate`: Run code quality checks (lint and tests) before starting the loop.
 - `--target-node <name>`: The name of the node (e.g., function name) that is allowed to be modified. Enables deep AST scope integrity verification.
+- `--allowedTools <rules>`: Allow tool calls by permission rules (comma-separated; repeatable).
+- `--disallowedTools <rules>`: Deny tool calls by permission rules (comma-separated; repeatable).
+
+#### Tool permission rule syntax
+
+Rules use the form `Tool(specifier)`:
+
+- `Bash(*)` or `Bash`: allow all shell commands (highly permissive).
+- `Bash(npm run test *)`: allow shell commands that start with `npm run test`.
+- `Read(src/**)`: allow reading files under `src/` recursively.
+
+Notes:
+
+- For Bash patterns, a space before `*` enforces a word boundary: `Bash(ls *)` matches `ls -la` but not `lsof`.
+- Wildcard Bash rules do not allow shell operator chaining (e.g. `&&`, `||`, `;`, `|`, `>`, `<`). Use an exact match rule if you truly intend to allow an operator sequence.
 
 ## User Experience
 
