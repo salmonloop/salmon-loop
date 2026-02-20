@@ -210,6 +210,8 @@ export const en = {
   toolAuthorizationDenylisted: (tool: string) => `Denylist blocked tool call: ${tool}.`,
 
   // Option descriptions
+  printOption:
+    'Run non-interactively with the given instruction (shorthand for "run --instruction")',
   instructionOption: 'Instruction for code modification (required)',
   verifyOption: 'Verification command to run (e.g., "npm test") (required)',
   configOption: 'Path to SalmonLoop config JSON (default: <repo>/.salmonloop/config/config.json)',
@@ -243,6 +245,9 @@ export const en = {
   fileSelectionConflict: '--file and --selection are mutually exclusive',
   instructionRequired: '--instruction is required',
   verifyRequired: '--verify is required',
+  printInstructionConflict: '--print and --instruction are mutually exclusive.',
+  printCommandConflict: (cmd: string) =>
+    `--print can only be used with the "run" command (got: ${cmd}).`,
   invalidMode: (mode: string) =>
     `Invalid --mode "${mode}". Expected "patch", "review", or "debug".`,
   invalidOutputFormat: (format: string) =>

@@ -206,6 +206,7 @@ describe('handleRunCommand GUI mode', () => {
     const command: any = {
       optsWithGlobals: () => ({
         repo: process.cwd(),
+        print: undefined,
         instruction: 'test',
         mode: 'patch',
         configFile: true,
@@ -244,6 +245,7 @@ describe('handleRunCommand GUI mode', () => {
     const command: any = {
       optsWithGlobals: () => ({
         repo: process.cwd(),
+        print: undefined,
         instruction: 'test',
         mode: 'patch',
         configFile: true,
@@ -285,6 +287,7 @@ describe('handleRunCommand GUI mode', () => {
     const command: any = {
       optsWithGlobals: () => ({
         repo: process.cwd(),
+        print: undefined,
         instruction: 'test',
         mode: 'patch',
         configFile: true,
@@ -314,5 +317,45 @@ describe('handleRunCommand GUI mode', () => {
 
     stdoutWrite.mockRestore();
     stderrWrite.mockRestore();
+  });
+
+  it('disables GUI when print mode is set', async () => {
+    Object.defineProperty(process.stdout, 'isTTY', {
+      value: true,
+      configurable: true,
+    });
+
+    const { handleRunCommand } = await import('../../../../src/cli/commands/run.js');
+
+    const command: any = {
+      optsWithGlobals: () => ({
+        repo: process.cwd(),
+        print: 'test',
+        instruction: undefined,
+        mode: 'patch',
+        configFile: true,
+        config: undefined,
+        printConfig: false,
+        validate: false,
+        llmOutput: undefined,
+        verify: 'node -e "process.exit(0)"',
+        dryRun: true,
+        forceReset: false,
+        verbose: false,
+        checkpointStrategy: 'worktree',
+        applyBackOnDirty: '3way',
+        worktreePrepare: undefined,
+        streamOutput: false,
+        outputFormat: 'text',
+        gui: true,
+        file: undefined,
+        selection: undefined,
+      }),
+      help: () => {},
+    };
+
+    await handleRunCommand({}, command).catch(() => {});
+    expect(hoisted.startGuiCalled).not.toHaveBeenCalled();
+    expect(hoisted.standardReporterCtor).toHaveBeenCalledTimes(1);
   });
 });

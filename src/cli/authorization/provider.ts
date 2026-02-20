@@ -320,7 +320,9 @@ export function createUiAuthorizationProvider(options?: {
 export function createTerminalAuthorizationProvider(options?: {
   config?: ToolAuthorizationConfig;
   extensions?: ResolvedExtensions;
+  forceNonInteractive?: boolean;
 }): ToolAuthorizationProvider {
+  const forceNonInteractive = Boolean(options?.forceNonInteractive);
   return {
     async waitForAuthorization(_requestId: string) {
       return null;
@@ -360,7 +362,7 @@ export function createTerminalAuthorizationProvider(options?: {
         return applySessionTtl({ outcome: 'allow_session', source: 'auto' }, config);
       }
 
-      if (!process.stdin.isTTY || !process.stdout.isTTY) {
+      if (forceNonInteractive || !process.stdin.isTTY || !process.stdout.isTTY) {
         const nonInteractive = await requestNonInteractiveAuthorizationDecision({
           request,
           config,

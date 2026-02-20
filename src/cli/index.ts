@@ -42,6 +42,7 @@ program.name('s8p').alias('salmonloop').description(text.cli.programDescription)
 // --- Global Options ---
 program
   .option('-r, --repo <path>', text.cli.repoOption, process.cwd())
+  .option('-p, --print <instruction>', text.cli.printOption)
   .option('--continue', text.cli.continueOption)
   .option('--resume <sessionId>', text.cli.resumeOption)
   .option('-v, --verify <command>', text.cli.verifyOption)
@@ -165,7 +166,7 @@ program
 
 // Parse arguments with manual error handling
 try {
-  program.parse();
+  program.parse(rewriteArgvForPrintMode(process.argv));
 } catch (err: any) {
   // Commander uses special error names for built-in logic like --help or missing args
   if (err.name === 'CommanderError') {
@@ -179,4 +180,68 @@ try {
       logger.error('CLI execution crashed', err, true);
     });
   }
+}
+
+function rewriteArgvForPrintMode(argv: string[]): string[] {
+  const tokens = argv.slice(2);
+  const hasPrint = tokens.some((t) => t === '-p' || t === '--print' || t.startsWith('--print='));
+  if (!hasPrint) return argv;
+
+  const knownCommands = new Set([
+    'run',
+    'chat',
+    'context',
+    'restore',
+    'checkout',
+    'snapshot',
+    'snap',
+  ]);
+
+  const flagsWithValues = new Set([
+    '-p',
+    '--print',
+    '-r',
+    '--repo',
+    '--resume',
+    '-v',
+    '--verify',
+    '-cs',
+    '--checkpoint-strategy',
+    '--llm-output',
+  ]);
+
+  const startsWithAny = (value: string, prefixes: string[]) => {
+    for (const prefix of prefixes) {
+      if (value.startsWith(prefix)) return true;
+    }
+    return false;
+  };
+
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+    if (token === '--') break;
+
+    if (flagsWithValues.has(token)) {
+      i += 1; // skip value token
+      continue;
+    }
+
+    if (
+      startsWithAny(token, [
+        '--print=',
+        '--repo=',
+        '--resume=',
+        '--verify=',
+        '--checkpoint-strategy=',
+        '--llm-output=',
+      ])
+    ) {
+      continue;
+    }
+
+    if (token.startsWith('-')) continue;
+    if (knownCommands.has(token)) return argv;
+  }
+
+  return [...argv.slice(0, 2), 'run', ...tokens];
 }

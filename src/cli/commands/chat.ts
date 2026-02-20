@@ -16,11 +16,20 @@ import { resolveVerifyOption } from '../utils/verify-resolver.js';
 export async function handleChatCommand(options: any, command: Command) {
   const allOptions = command.optsWithGlobals();
   const runPath = resolve(allOptions.repo || process.cwd());
+  const printInstruction =
+    typeof (allOptions as any).print === 'string'
+      ? ((allOptions as any).print as string)
+      : undefined;
   const continueSession = Boolean((allOptions as any).continue);
   const resumeSessionId =
     typeof (allOptions as any).resume === 'string'
       ? ((allOptions as any).resume as string)
       : undefined;
+
+  if (printInstruction) {
+    logger.error(text.cli.printCommandConflict('chat'), true);
+    process.exit(1);
+  }
 
   if (continueSession && resumeSessionId) {
     logger.error(text.cli.continueResumeConflict, true);

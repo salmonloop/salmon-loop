@@ -44,6 +44,20 @@ export async function handleRunCommand(options: any, command: Command) {
     typeof (allOptions as any).resume === 'string'
       ? ((allOptions as any).resume as string)
       : undefined;
+  const printInstruction =
+    typeof (allOptions as any).print === 'string'
+      ? ((allOptions as any).print as string)
+      : undefined;
+  const explicitInstruction =
+    typeof allOptions.instruction === 'string' ? (allOptions.instruction as string) : undefined;
+
+  if (explicitInstruction && printInstruction) {
+    logger.error(text.cli.printInstructionConflict, true);
+    process.exit(1);
+  }
+
+  const instruction = explicitInstruction ?? printInstruction;
+  const printMode = Boolean(printInstruction);
 
   const rawOutputFormat = String(allOptions.outputFormat || 'text');
   if (
@@ -56,7 +70,7 @@ export async function handleRunCommand(options: any, command: Command) {
   }
   const outputFormat = rawOutputFormat as 'text' | 'stream-json' | 'json';
   const headlessOutput = outputFormat !== 'text';
-  const useGui = !headlessOutput && allOptions.gui !== false && process.stdout.isTTY;
+  const useGui = !headlessOutput && !printMode && allOptions.gui !== false && process.stdout.isTTY;
 
   if (headlessOutput) {
     // Ensure stdout is reserved for machine-readable output.
@@ -73,7 +87,7 @@ export async function handleRunCommand(options: any, command: Command) {
     (headlessOutput ||
       continueSession ||
       Boolean(resumeSessionId) ||
-      typeof allOptions.instruction === 'string');
+      typeof instruction === 'string');
 
   const sessionManager = wantSessionPersistence ? new ChatSessionManager(runPath) : undefined;
   let sessionIdForOutput: string | undefined;
@@ -246,7 +260,7 @@ export async function handleRunCommand(options: any, command: Command) {
     } catch (__e) {
       logger.error(text.cli.validationFailed, true);
     }
-    if (!options.instruction) {
+    if (!instruction) {
       return;
     }
   }
@@ -318,7 +332,7 @@ export async function handleRunCommand(options: any, command: Command) {
     resolvedConfig.verify.command,
   );
 
-  if (!allOptions.instruction) {
+  if (!instruction) {
     if (!allOptions.validate) {
       logger.error(text.cli.optionsRequired);
       if (outputFormat === 'text') {
@@ -371,7 +385,7 @@ export async function handleRunCommand(options: any, command: Command) {
   if (verboseLevel) {
     logger.setVerbose(verboseLevel);
     logger.cyan(text.cli.runningWith);
-    logger.log(text.cli.instruction(allOptions.instruction));
+    logger.log(text.cli.instruction(instruction));
     if (effectiveVerify) {
       logger.log(text.cli.verify(effectiveVerify));
     }
@@ -424,7 +438,7 @@ export async function handleRunCommand(options: any, command: Command) {
           ? new JsonReporter({ mode: 'run', repoPath: runPath, sessionId: sessionIdForOutput })
           : new StandardReporter(Boolean(allOptions.verbose));
 
-    reporter.onStart(allOptions.instruction);
+    reporter.onStart(instruction);
 
     const applyBackOnDirty = allOptions.applyBackOnDirty === 'abort' ? 'abort' : '3way';
 
@@ -450,7 +464,7 @@ export async function handleRunCommand(options: any, command: Command) {
     })();
 
     const loopParams = {
-      instruction: allOptions.instruction,
+      instruction,
       verify: effectiveVerify,
       repoPath: runPath,
       llm: llm,
@@ -470,6 +484,7 @@ export async function handleRunCommand(options: any, command: Command) {
       authorizationProvider: createTerminalAuthorizationProvider({
         config: resolvedConfig.toolAuthorization,
         extensions: extensionResolution?.resolved,
+        forceNonInteractive: headlessOutput || printMode,
       }),
       extensions: extensionResolution?.resolved,
       permissionRules:
@@ -548,11 +563,11 @@ export async function handleRunCommand(options: any, command: Command) {
 
     reporter.onFinish(result);
 
-    if (sessionManager && typeof allOptions.instruction === 'string') {
+    if (sessionManager && typeof instruction === 'string') {
       try {
         sessionManager.addMessage({
           role: 'user',
-          content: allOptions.instruction,
+          content: instruction,
           timestamp: Date.now(),
         });
 
@@ -585,7 +600,7 @@ export async function handleRunCommand(options: any, command: Command) {
       writeJsonFailure({
         message: text.cli.unexpectedError(msg),
         repoPath: runPath,
-        instruction: allOptions.instruction,
+        instruction,
       });
     } else if (outputFormat === 'stream-json') {
       writeStreamJsonEarlyError({
