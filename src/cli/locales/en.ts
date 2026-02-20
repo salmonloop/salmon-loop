@@ -196,6 +196,12 @@ export const en = {
   toolAuthorizationMissingUi: 'Authorization UI is unavailable. Tool call denied.',
   toolAuthorizationDenied: 'Tool call denied by user authorization.',
   toolAuthorizationApproved: 'Tool call authorized by user.',
+  toolAuthorizationNonInteractiveMisconfigured: (strategy: string) =>
+    `Non-interactive authorization is misconfigured (${strategy}). Tool call denied.`,
+  toolAuthorizationNonInteractiveFailed: (code: string) =>
+    `Non-interactive authorization failed (${code}). Tool call denied.`,
+  toolAuthorizationNonInteractiveUnsupported: (strategy: string) =>
+    `Non-interactive authorization strategy is unsupported (${strategy}). Tool call denied.`,
   toolAuthorizationTerminalQuestion:
     'Authorize this tool call? (y=once, a=session, s=save repo, g=save user, n=deny)',
   toolAuthorizationAutoApproved: (tool: string, risk: string) =>

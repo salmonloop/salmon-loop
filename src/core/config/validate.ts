@@ -370,6 +370,72 @@ export function validateConfigFileV1(input: unknown): ConfigFileV1 {
     if (t.sessionTtlMs !== undefined && !isNumber(t.sessionTtlMs)) {
       throw new ConfigError('CONFIG_INVALID_TOOL_AUTH_TTL', { expected: 'number' });
     }
+    if (t.nonInteractive !== undefined) {
+      if (!isRecord(t.nonInteractive)) {
+        throw new ConfigError('CONFIG_INVALID_TOOL_AUTH_NON_INTERACTIVE', { expected: 'object' });
+      }
+      const ni = t.nonInteractive;
+      if (ni.strategy !== undefined && !isString(ni.strategy)) {
+        throw new ConfigError('CONFIG_INVALID_TOOL_AUTH_NON_INTERACTIVE_STRATEGY', {
+          expected: 'string',
+        });
+      }
+      const strategy = (ni.strategy as any) ?? undefined;
+      if (
+        strategy !== undefined &&
+        strategy !== 'deny' &&
+        strategy !== 'command' &&
+        strategy !== 'mcp'
+      ) {
+        throw new ConfigError('CONFIG_INVALID_TOOL_AUTH_NON_INTERACTIVE_STRATEGY', {
+          strategy: String(strategy),
+        });
+      }
+      if (ni.command !== undefined) {
+        if (!isRecord(ni.command)) {
+          throw new ConfigError('CONFIG_INVALID_TOOL_AUTH_NON_INTERACTIVE_COMMAND', {
+            expected: 'object',
+          });
+        }
+        if (!isString(ni.command.cmd)) {
+          throw new ConfigError('CONFIG_INVALID_TOOL_AUTH_NON_INTERACTIVE_COMMAND_CMD', {
+            expected: 'string',
+          });
+        }
+        if (ni.command.timeoutMs !== undefined && !isNumber(ni.command.timeoutMs)) {
+          throw new ConfigError('CONFIG_INVALID_TOOL_AUTH_NON_INTERACTIVE_COMMAND_TIMEOUT', {
+            expected: 'number',
+          });
+        }
+      }
+      if (ni.mcp !== undefined) {
+        if (!isRecord(ni.mcp)) {
+          throw new ConfigError('CONFIG_INVALID_TOOL_AUTH_NON_INTERACTIVE_MCP', {
+            expected: 'object',
+          });
+        }
+        if (!isString(ni.mcp.server)) {
+          throw new ConfigError('CONFIG_INVALID_TOOL_AUTH_NON_INTERACTIVE_MCP_SERVER', {
+            expected: 'string',
+          });
+        }
+        if (!isString(ni.mcp.tool)) {
+          throw new ConfigError('CONFIG_INVALID_TOOL_AUTH_NON_INTERACTIVE_MCP_TOOL', {
+            expected: 'string',
+          });
+        }
+        if (ni.mcp.timeoutMs !== undefined && !isNumber(ni.mcp.timeoutMs)) {
+          throw new ConfigError('CONFIG_INVALID_TOOL_AUTH_NON_INTERACTIVE_MCP_TIMEOUT', {
+            expected: 'number',
+          });
+        }
+      }
+      cfg.toolAuthorization.nonInteractive = {
+        strategy: strategy as any,
+        command: ni.command as any,
+        mcp: ni.mcp as any,
+      };
+    }
     if (t.autoAllowRisk !== undefined) {
       if (!isRecord(t.autoAllowRisk)) {
         throw new ConfigError('CONFIG_INVALID_TOOL_AUTH_RISK', { expected: 'object' });

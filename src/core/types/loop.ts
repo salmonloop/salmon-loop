@@ -47,6 +47,7 @@ export interface AuthorizationSourceSummary {
   user: number;
   cache: number;
   cli: number;
+  hook: number;
 }
 
 export interface LoopResult {

@@ -112,6 +112,9 @@ const DEFAULT_TOOL_AUTH: ToolAuthorizationConfig = {
     medium: false,
     high: false,
   },
+  nonInteractive: {
+    strategy: 'deny',
+  },
   allowlist: {
     repoFile: '.salmonloop/config/authorization.json',
     userFile: '~/.salmonloop/config/authorization-user.json',
@@ -137,6 +140,12 @@ function resolveToolAuthorization(raw?: ConfigFileV1): ToolAuthorizationConfig {
       low: config?.autoAllowRisk?.low ?? DEFAULT_TOOL_AUTH.autoAllowRisk?.low,
       medium: config?.autoAllowRisk?.medium ?? DEFAULT_TOOL_AUTH.autoAllowRisk?.medium,
       high: config?.autoAllowRisk?.high ?? DEFAULT_TOOL_AUTH.autoAllowRisk?.high,
+    },
+    nonInteractive: {
+      strategy:
+        config?.nonInteractive?.strategy ?? DEFAULT_TOOL_AUTH.nonInteractive?.strategy ?? 'deny',
+      command: config?.nonInteractive?.command,
+      mcp: config?.nonInteractive?.mcp,
     },
     allowlist: {
       repoFile: config?.allowlist?.repoFile ?? DEFAULT_TOOL_AUTH.allowlist?.repoFile,

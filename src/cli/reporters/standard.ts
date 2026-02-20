@@ -213,9 +213,10 @@ export class StandardReporter implements SalmonReporter {
     user: number;
     cache: number;
     cli: number;
+    hook: number;
   }) {
-    const { auto, allowlist, user, cache, cli } = summary;
-    return `auto=${auto} allowlist=${allowlist} user=${user} cache=${cache} cli=${cli}`;
+    const { auto, allowlist, user, cache, cli, hook } = summary;
+    return `auto=${auto} allowlist=${allowlist} user=${user} cache=${cache} cli=${cli} hook=${hook}`;
   }
 
   private handleFailure(result: LoopResult) {

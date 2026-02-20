@@ -11,6 +11,7 @@ export function buildAuthorizationSummary(
     user: 0,
     cache: 0,
     cli: 0,
+    hook: 0,
   };
   let hasEntries = false;
 
@@ -31,6 +32,9 @@ export function buildAuthorizationSummary(
       hasEntries = true;
     } else if (source === 'cli') {
       summary.cli += 1;
+      hasEntries = true;
+    } else if (source === 'hook') {
+      summary.hook += 1;
       hasEntries = true;
     }
   }

@@ -205,6 +205,40 @@ export interface ToolAuthorizationConfig {
     medium?: boolean;
     high?: boolean;
   };
+  /**
+   * Non-interactive authorization handler for headless/CI environments.
+   *
+   * This is only used when the CLI cannot prompt the user (no TTY).
+   * If not configured, tool calls requiring authorization will be denied.
+   */
+  nonInteractive?: {
+    /**
+     * Strategy for non-interactive authorization.
+     * - deny: always deny when a prompt would be required
+     * - command: execute an external command that returns a decision JSON
+     * - mcp: call an MCP tool to obtain a decision
+     */
+    strategy?: 'deny' | 'command' | 'mcp';
+    command?: {
+      /**
+       * Command to execute. The ToolAuthorizationRequest is provided as JSON on stdin.
+       * The command must print an AuthorizationDecision-like JSON to stdout.
+       */
+      cmd: string;
+      timeoutMs?: number;
+    };
+    mcp?: {
+      /**
+       * MCP server name (as configured in extensions).
+       */
+      server: string;
+      /**
+       * MCP tool name on that server (not prefixed).
+       */
+      tool: string;
+      timeoutMs?: number;
+    };
+  };
   allowlist?: {
     repoFile?: string;
     userFile?: string;

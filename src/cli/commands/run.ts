@@ -292,6 +292,7 @@ export async function handleRunCommand(options: any, command: Command) {
       langfuseUserId: resolvedConfig.observability.langfuse.userId,
       authorizationProvider: createTerminalAuthorizationProvider({
         config: resolvedConfig.toolAuthorization,
+        extensions: extensionResolution?.resolved,
       }),
       extensions: extensionResolution?.resolved,
       permissionRules:

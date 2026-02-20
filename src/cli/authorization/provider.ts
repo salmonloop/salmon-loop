@@ -1,6 +1,7 @@
 import { createInterface } from 'readline/promises';
 
 import type { ToolAuthorizationConfig } from '../../core/config/types.js';
+import type { ResolvedExtensions } from '../../core/extensions/types.js';
 import { logger } from '../../core/observability/logger.js';
 import type {
   AuthorizationDecision,
@@ -12,6 +13,7 @@ import { text } from '../locales/index.js';
 import { getPendingAuthorization, requestAuthorization } from '../ui/authorization/bus.js';
 
 import { loadAllowlistDecision, persistAllowlistDecision } from './allowlist.js';
+import { requestNonInteractiveAuthorizationDecision } from './non-interactive.js';
 
 const buildSummary = (request: ToolAuthorizationRequest) => {
   if (request.argsSummary && request.argsSummary.trim()) return request.argsSummary;
@@ -317,6 +319,7 @@ export function createUiAuthorizationProvider(options?: {
 
 export function createTerminalAuthorizationProvider(options?: {
   config?: ToolAuthorizationConfig;
+  extensions?: ResolvedExtensions;
 }): ToolAuthorizationProvider {
   return {
     async waitForAuthorization(_requestId: string) {
@@ -358,6 +361,27 @@ export function createTerminalAuthorizationProvider(options?: {
       }
 
       if (!process.stdin.isTTY || !process.stdout.isTTY) {
+        const nonInteractive = await requestNonInteractiveAuthorizationDecision({
+          request,
+          config,
+          extensions: options?.extensions,
+        });
+        if (nonInteractive) {
+          if (nonInteractive.persist) {
+            await persistAllowlistDecision({
+              config,
+              repoRoot: request.repoRoot,
+              toolName: request.toolName,
+              phase: request.phase,
+              scope: nonInteractive.persist,
+              mode: nonInteractive.outcome === 'deny' ? 'deny' : 'allow',
+              sideEffects: request.sideEffects,
+              argsHash: request.argsHash,
+            });
+          }
+          return applySessionTtl(nonInteractive, config);
+        }
+
         logger.warn(text.cli.toolAuthorizationMissingUi);
         return { outcome: 'deny', reason: text.cli.toolAuthorizationMissingUi };
       }

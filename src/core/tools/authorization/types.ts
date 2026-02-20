@@ -22,7 +22,7 @@ export interface AuthorizationDecision {
   reason?: string;
   ttlMs?: number;
   persist?: 'repo' | 'user';
-  source?: 'auto' | 'allowlist' | 'user' | 'cache';
+  source?: 'auto' | 'allowlist' | 'user' | 'cache' | 'cli' | 'hook';
 }
 
 export interface ToolAuthorizationProvider {

@@ -55,6 +55,7 @@ export class ToolAuditLogger {
     user: 0,
     cache: 0,
     cli: 0,
+    hook: 0,
   };
 
   constructor(private options?: ToolAuditLoggerOptions) {}
@@ -187,6 +188,10 @@ export class ToolAuditLogger {
     }
     if (source === 'cli') {
       this.authorizationSummary.cli += 1;
+      return true;
+    }
+    if (source === 'hook') {
+      this.authorizationSummary.hook += 1;
       return true;
     }
     return false;
