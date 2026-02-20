@@ -6,10 +6,22 @@ import { validateConfigFileV1 } from '../../core/config/validate.js';
 import { sanitizeError } from '../../core/llm/errors.js';
 import { text } from '../locales/index.js';
 
+import { allowlistCommand } from './allowlist.js';
+import { llmOutputCommand } from './llm-output.js';
+import { modeCommand } from './mode.js';
 import type { Command } from './types.js';
 import { parseSuggestionContext } from './utils.js';
 
 const LOG_VIEW_SUGGESTIONS: UiLogView[] = ['full', 'standard', 'compact'];
+
+function delegateInputToCommand(originalInput: string, targetCommand: string): string {
+  const trimmed = originalInput.trimStart();
+  const tokens = trimmed.split(/\s+/);
+  const rest = tokens.slice(2).join(' ');
+  const isSpaceTrailing = originalInput.endsWith(' ');
+  const base = rest ? `${targetCommand} ${rest}` : targetCommand;
+  return isSpaceTrailing ? `${base} ` : base;
+}
 
 async function readUiLogViewFromConfig(repoRoot: string): Promise<UiLogView | undefined> {
   const fileAdapter = new FileAdapter();
@@ -67,17 +79,18 @@ async function persistUiLogView(repoRoot: string, view: UiLogView) {
   return configPath;
 }
 
-const logSubcommand: Command = {
-  name: 'log',
-  description: text.cli.configLogDescription,
-  usage: text.cli.configLogUsage,
+const viewSubcommand: Command = {
+  name: 'view',
+  aliases: ['log'],
+  description: text.cli.configViewDescription,
+  usage: text.cli.configViewUsage,
   getSuggestions: ({ input }) => {
     const { argIndex, currentPrefix } = parseSuggestionContext(input);
     if (argIndex !== 2) return [];
     const search = currentPrefix.toLowerCase();
     return LOG_VIEW_SUGGESTIONS.filter((v) => v.startsWith(search)).map((v) => ({
       name: v,
-      description: text.cli.configLogSuggestion(v),
+      description: text.cli.configViewSuggestion(v),
     }));
   },
   execute: async ({ emit, input, sessionManager, dispatch }) => {
@@ -92,13 +105,13 @@ const logSubcommand: Command = {
         emit({
           type: 'log',
           level: 'info',
-          message: text.cli.configLogCurrent(current),
+          message: text.cli.configViewCurrent(current),
           timestamp: new Date(),
         });
         emit({
           type: 'log',
           level: 'info',
-          message: text.cli.configLogUsage,
+          message: text.cli.configViewUsage,
           timestamp: new Date(),
         });
         return;
@@ -110,7 +123,7 @@ const logSubcommand: Command = {
         emit({
           type: 'log',
           level: 'error',
-          message: text.cli.configLogPersistFailed(message),
+          message: text.cli.configViewPersistFailed(message),
           timestamp: new Date(),
         });
         return;
@@ -122,13 +135,13 @@ const logSubcommand: Command = {
       emit({
         type: 'log',
         level: 'error',
-        message: text.cli.configLogInvalid(rawValue),
+        message: text.cli.configViewInvalid(rawValue),
         timestamp: new Date(),
       });
       emit({
         type: 'log',
         level: 'info',
-        message: text.cli.configLogUsage,
+        message: text.cli.configViewUsage,
         timestamp: new Date(),
       });
       return;
@@ -140,13 +153,13 @@ const logSubcommand: Command = {
       emit({
         type: 'log',
         level: 'info',
-        message: text.cli.configLogUpdated(normalized),
+        message: text.cli.configViewUpdated(normalized),
         timestamp: new Date(),
       });
       emit({
         type: 'log',
         level: 'info',
-        message: text.cli.configLogPersisted(configPath),
+        message: text.cli.configViewPersisted(configPath),
         timestamp: new Date(),
       });
     } catch (error) {
@@ -157,18 +170,72 @@ const logSubcommand: Command = {
       emit({
         type: 'log',
         level: 'error',
-        message: text.cli.configLogPersistFailed(message),
+        message: text.cli.configViewPersistFailed(message),
         timestamp: new Date(),
       });
     }
   },
 };
 
+const modeSubcommand: Command = {
+  name: 'mode',
+  description: text.cli.configModeDescription,
+  usage: text.cli.configModeUsage,
+  getSuggestions: (ctx) =>
+    modeCommand.getSuggestions?.({ ...ctx, input: delegateInputToCommand(ctx.input, '/mode') }) ??
+    [],
+  execute: async (ctx) =>
+    modeCommand.execute({ ...ctx, input: delegateInputToCommand(ctx.input, '/mode') }),
+};
+
+const outputSubcommand: Command = {
+  name: 'output',
+  description: text.cli.configOutputDescription,
+  usage: text.cli.configOutputUsage,
+  getSuggestions: (ctx) =>
+    llmOutputCommand.getSuggestions?.({
+      ...ctx,
+      input: delegateInputToCommand(ctx.input, '/output'),
+    }) ?? [],
+  execute: async (ctx) =>
+    llmOutputCommand.execute({ ...ctx, input: delegateInputToCommand(ctx.input, '/output') }),
+};
+
+const allowlistSubcommand: Command = {
+  name: 'allowlist',
+  aliases: ['auth'],
+  description: text.cli.configAllowlistDescription,
+  usage: text.cli.configAllowlistUsage,
+  getSuggestions: (ctx) =>
+    allowlistCommand.getSuggestions?.({
+      ...ctx,
+      input: delegateInputToCommand(ctx.input, '/allowlist'),
+    }) ?? [],
+  execute: async (ctx) =>
+    allowlistCommand.execute({ ...ctx, input: delegateInputToCommand(ctx.input, '/allowlist') }),
+};
+
+function findSubcommand(root: Command, name: string): Command | undefined {
+  const needle = name.trim().toLowerCase();
+  if (!needle) return undefined;
+  return (root.subcommands ?? []).find((c) => {
+    if (c.name.toLowerCase() === needle) return true;
+    return (c.aliases ?? []).some((a) => a.toLowerCase() === needle);
+  });
+}
+
+const configSubcommands: Command[] = [
+  modeSubcommand,
+  viewSubcommand,
+  outputSubcommand,
+  allowlistSubcommand,
+];
+
 export const configCommand: Command = {
   name: '/config',
   description: text.cli.commandConfig,
   order: 55,
-  subcommands: [logSubcommand],
+  subcommands: configSubcommands,
   execute: async (ctx) => {
     const { emit, input } = ctx;
     const args = input.trim().split(/\s+/).slice(1);
@@ -183,7 +250,7 @@ export const configCommand: Command = {
     }
 
     const subCmdName = args[0].toLowerCase();
-    const subCmd = [logSubcommand].find((c) => c.name === subCmdName);
+    const subCmd = findSubcommand(configCommand, subCmdName);
     if (subCmd) {
       return subCmd.execute({ ...ctx, input: `/config ${args.join(' ')}` });
     }

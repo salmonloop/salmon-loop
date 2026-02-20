@@ -12,17 +12,27 @@ Enter the interactive chat mode to provide instructions and receive patches in r
 
 In chat mode, SalmonLoop exposes two UI controls:
 
-- `/mode <quiet|normal|debug>`: controls **how much** output the TUI shows (recommended for new users: `normal`).
-- `/config log <full|standard|compact>`: controls **how dense** the TUI renders the output.
+- `/config mode <quiet|normal|debug>`: controls **how much** output the TUI shows (recommended for new users: `normal`).
+- `/config view <full|standard|compact>`: controls **how dense** the TUI renders the output.
+
+Aliases:
+
+- `/mode` is an alias of `/config mode`.
+- `/config log` is an alias of `/config view`.
 
 Both settings are persisted to the repo config at `<repoRoot>/.salmonloop/config/config.json`.
+
+Advanced settings:
+
+- `/config output <...>`: controls which LLM sections are shown in the UI (useful for debugging; does not affect the patch result).
+- `/config allowlist ...`: manages persistent tool authorization rules (repo/user scope).
 
 #### Omni-Tray completion (slash suggestions)
 
 When you type a slash command, the Omni-Tray shows context-aware suggestions.
 
 - **Command names**: Typing `/` (or a prefix like `/se`) suggests matching commands.
-- **Subcommands**: Commands that define `subcommands` will suggest them after a space (e.g., `/config ` -> `log`).
+- **Subcommands**: Commands that define `subcommands` will suggest them after a space (e.g., `/config ` -> `view`).
 - **Deep suggestions**: Some subcommands provide their own suggestions (e.g., `/snapshot restore ` suggests snapshot hashes).
 
 Notes:
@@ -41,7 +51,7 @@ While in chat mode you can inspect running Smallfry sub-agents without letting t
 
 The slug `/smallfry` also accepts `/subagent` and `/sub-agent` aliases; suggestions drop in after you type the verb and begin entering the agent ID. The command relies on `SubAgentController` snapshots updated by `SubAgentManager`, so the list/log output reflects the latest state while the manager keeps each Smallfry in an isolated runtime.
 
-Commands marked `hidden: true` (e.g., `/parallel`) stay executable but do not surface in the Omni-Tray suggestions; the command registry orders slashes by their `order` metadata. `/exit` still honors `/quit` as an alias for convenience.
+Commands marked `hidden: true` (e.g., `/mode`, `/output`, `/allowlist`, `/smallfry`, `/parallel`) stay executable but do not surface in the Omni-Tray suggestions; the command registry orders slashes by their `order` metadata. `/exit` still honors `/quit` as an alias for convenience.
 
 #### Command Interception
 

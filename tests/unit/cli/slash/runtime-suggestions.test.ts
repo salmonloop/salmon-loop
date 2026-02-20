@@ -27,7 +27,16 @@ describe('CliSlashRuntime suggestions', () => {
       dispatch: () => {},
     });
 
-    expect(suggestions.map((s) => s.name.trim())).toContain('log');
+    const names = suggestions.map((s) => s.name.trim());
+    expect(names).toContain('view');
+
+    const aliasSuggestions = await runtime.getSuggestions('/config l', {
+      emit: () => {},
+      sessionManager: {} as any,
+      input: '/config l',
+      dispatch: () => {},
+    });
+    expect(aliasSuggestions.map((s) => s.name.trim())).toContain('log');
   });
 
   it('suggests subcommands for /snapshot', async () => {

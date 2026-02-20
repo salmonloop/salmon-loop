@@ -60,6 +60,7 @@ export const llmOutputCommand: Command = {
   description: text.cli.commandLlmOutput,
   aliases: ['/llm-output'],
   order: 60,
+  hidden: true,
   getSuggestions: ({ input }) => {
     const { argIndex, currentPrefix } = parseSuggestionContext(input);
     if (argIndex !== 1) return [];

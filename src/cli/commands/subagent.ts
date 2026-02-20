@@ -25,6 +25,7 @@ export const subAgentCommand: Command = {
   aliases: ['/subagent', '/sub-agent'],
   order: 30,
   description: text.cli.commandSubagent,
+  hidden: true,
   async getSuggestions({ input }) {
     const trimmed = input.trimStart();
     if (!trimmed.startsWith('/')) return [];

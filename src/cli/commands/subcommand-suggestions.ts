@@ -28,9 +28,30 @@ export async function suggestSubcommands(
   // "/config l" -> ["log", ...]
   if (argIndex === 1) {
     const search = currentPrefix.toLowerCase();
-    return subcommands
-      .filter((c) => c.name.toLowerCase().startsWith(search))
-      .map((c) => ({ name: c.name, description: c.description, command: c }));
+    const seen = new Set<string>();
+    const out: Array<{ name: string; description: string; command?: Command }> = [];
+
+    for (const cmd of subcommands) {
+      const nameLower = cmd.name.toLowerCase();
+      if (nameLower.startsWith(search)) {
+        if (!seen.has(cmd.name)) {
+          out.push({ name: cmd.name, description: cmd.description, command: cmd });
+          seen.add(cmd.name);
+        }
+      }
+
+      // Avoid noisy alias suggestions when there's no active search.
+      if (!search) continue;
+      for (const alias of cmd.aliases ?? []) {
+        const aliasLower = alias.toLowerCase();
+        if (!aliasLower.startsWith(search)) continue;
+        if (seen.has(alias)) continue;
+        out.push({ name: alias, description: `${cmd.description} (alias)`, command: cmd });
+        seen.add(alias);
+      }
+    }
+
+    return out;
   }
 
   // Delegate to the subcommand for deeper suggestions:

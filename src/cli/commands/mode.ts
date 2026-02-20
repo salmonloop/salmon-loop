@@ -71,6 +71,7 @@ export const modeCommand: Command = {
   name: '/mode',
   description: text.cli.commandMode,
   order: 54,
+  hidden: true,
   getSuggestions: ({ input }) => {
     const { argIndex, currentPrefix } = parseSuggestionContext(input);
     if (argIndex !== 1) return [];

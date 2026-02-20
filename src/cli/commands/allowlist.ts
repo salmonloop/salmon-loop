@@ -22,6 +22,7 @@ export const allowlistCommand: Command = {
   name: '/allowlist',
   description: text.cli.commandAuth,
   order: 70,
+  hidden: true,
   getSuggestions: ({ input }) => {
     const { argIndex, currentPrefix } = parseSuggestionContext(input);
     const parts = input.trimStart().split(/\s+/);
