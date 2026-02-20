@@ -132,8 +132,9 @@ export class Logger {
     } else {
       this.verboseLevel = level;
     }
-    if (this.reporter instanceof ConsoleReporter) {
-      this.reporter.setVerbose(this.verboseLevel);
+    const maybeVerbose = this.reporter as any;
+    if (typeof maybeVerbose?.setVerbose === 'function') {
+      maybeVerbose.setVerbose(this.verboseLevel);
     }
   }
 

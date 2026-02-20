@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const hoisted = vi.hoisted(() => ({
   standardReporterCtor: vi.fn(),
+  startGuiCalled: vi.fn(),
 }));
 
 vi.mock('../../../../src/cli/reporters/standard.js', () => ({
@@ -70,11 +71,13 @@ vi.mock('../../../../src/core/runtime/loop.js', () => ({
 
 vi.mock('../../../../src/cli/ui/index.js', () => ({
   startGUI: vi.fn(async (_mode: any, _sessionManager: any, runFn: any) => {
+    hoisted.startGuiCalled();
     return runFn(() => {}, undefined, { signal: new AbortController().signal });
   }),
 }));
 vi.mock('../../../../src/cli/ui/index.tsx', () => ({
   startGUI: vi.fn(async (_mode: any, _sessionManager: any, runFn: any) => {
+    hoisted.startGuiCalled();
     return runFn(() => {}, undefined, { signal: new AbortController().signal });
   }),
 }));
@@ -100,6 +103,7 @@ describe('handleRunCommand GUI mode', () => {
 
   beforeEach(() => {
     hoisted.standardReporterCtor.mockClear();
+    hoisted.startGuiCalled.mockClear();
     exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
       throw new Error(`process.exit:${code ?? 0}`);
     }) as any);
@@ -138,6 +142,7 @@ describe('handleRunCommand GUI mode', () => {
         applyBackOnDirty: '3way',
         worktreePrepare: undefined,
         streamOutput: false,
+        outputFormat: 'text',
         gui: true,
         file: undefined,
         selection: undefined,
@@ -175,6 +180,7 @@ describe('handleRunCommand GUI mode', () => {
         applyBackOnDirty: '3way',
         worktreePrepare: undefined,
         streamOutput: false,
+        outputFormat: 'text',
         gui: false,
         file: undefined,
         selection: undefined,
@@ -184,5 +190,50 @@ describe('handleRunCommand GUI mode', () => {
 
     await handleRunCommand({}, command).catch(() => {});
     expect(hoisted.standardReporterCtor).toHaveBeenCalledTimes(1);
+  });
+
+  it('disables GUI when output format is stream-json', async () => {
+    Object.defineProperty(process.stdout, 'isTTY', {
+      value: true,
+      configurable: true,
+    });
+
+    const stdoutWrite = vi.spyOn(process.stdout, 'write').mockImplementation(() => true as any);
+    const stderrWrite = vi.spyOn(process.stderr, 'write').mockImplementation(() => true as any);
+
+    const { handleRunCommand } = await import('../../../../src/cli/commands/run.js');
+
+    const command: any = {
+      optsWithGlobals: () => ({
+        repo: process.cwd(),
+        instruction: 'test',
+        mode: 'patch',
+        configFile: true,
+        config: undefined,
+        printConfig: false,
+        validate: false,
+        llmOutput: undefined,
+        verify: 'node -e "process.exit(0)"',
+        dryRun: true,
+        forceReset: false,
+        verbose: false,
+        checkpointStrategy: 'worktree',
+        applyBackOnDirty: '3way',
+        worktreePrepare: undefined,
+        streamOutput: false,
+        outputFormat: 'stream-json',
+        gui: true,
+        file: undefined,
+        selection: undefined,
+      }),
+      help: () => {},
+    };
+
+    await handleRunCommand({}, command).catch(() => {});
+    expect(hoisted.startGuiCalled).not.toHaveBeenCalled();
+    expect(hoisted.standardReporterCtor).not.toHaveBeenCalled();
+
+    stdoutWrite.mockRestore();
+    stderrWrite.mockRestore();
   });
 });

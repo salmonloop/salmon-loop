@@ -28,13 +28,36 @@ import {
 import { text } from '../locales/index.js';
 import { SalmonReporter } from '../reporters/base.js';
 import { StandardReporter } from '../reporters/standard.js';
+import { StderrLogReporter } from '../reporters/stderr-log-reporter.js';
+import { StreamJsonReporter } from '../reporters/stream-json.js';
 import { resolveLlmOutputPolicyFromCli } from '../utils/llm-output.js';
 import { resolveVerifyOption } from '../utils/verify-resolver.js';
 
 export async function handleRunCommand(options: any, command: Command) {
   const allOptions = command.optsWithGlobals();
   const runPath = resolve(allOptions.repo || process.cwd());
-  const useGui = allOptions.gui !== false && process.stdout.isTTY;
+
+  const rawOutputFormat = String(allOptions.outputFormat || 'text');
+  if (
+    rawOutputFormat !== 'text' &&
+    rawOutputFormat !== 'stream-json' &&
+    rawOutputFormat !== 'json'
+  ) {
+    logger.error(text.cli.invalidOutputFormat(rawOutputFormat), true);
+    process.exit(1);
+  }
+  if (rawOutputFormat === 'json') {
+    logger.error(text.cli.outputFormatJsonNotImplemented, true);
+    process.exit(1);
+  }
+  const outputFormat = rawOutputFormat as 'text' | 'stream-json';
+  const headlessOutput = outputFormat !== 'text';
+  const useGui = !headlessOutput && allOptions.gui !== false && process.stdout.isTTY;
+
+  if (headlessOutput) {
+    // Ensure stdout is reserved for machine-readable output.
+    logger.setReporter(new StderrLogReporter());
+  }
 
   const resolveExitCode = (result: LoopResult): number => {
     if (result.reason === 'Operation cancelled by user') return 130;
@@ -245,7 +268,9 @@ export async function handleRunCommand(options: any, command: Command) {
           onFinish: () => {},
           onError: () => {},
         }
-      : new StandardReporter(Boolean(allOptions.verbose));
+      : outputFormat === 'stream-json'
+        ? new StreamJsonReporter({ mode: 'run', repoPath: runPath })
+        : new StandardReporter(Boolean(allOptions.verbose));
 
     reporter.onStart(allOptions.instruction);
 

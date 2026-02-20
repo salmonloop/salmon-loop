@@ -230,6 +230,7 @@ export const en = {
   applyBackOnDirtyOption: 'Behavior when apply-back detects a dirty workspace (3way, abort)',
   worktreePrepareOption: 'Optional setup command to run inside worktree',
   streamOutputOption: 'Stream LLM responses to the CLI as they arrive (best effort)',
+  outputFormatOption: 'Output format (text, json, stream-json)',
   llmOutputOption:
     'LLM output visibility (none, all, review, assistant_message, explore, plan, patch; comma-separated)',
   contextDiffScopeOption: 'Diff scope for context (primary, ast_related)',
@@ -242,6 +243,10 @@ export const en = {
   verifyRequired: '--verify is required',
   invalidMode: (mode: string) =>
     `Invalid --mode "${mode}". Expected "patch", "review", or "debug".`,
+  invalidOutputFormat: (format: string) =>
+    `Invalid --output-format "${format}". Expected "text", "stream-json", or "json".`,
+  outputFormatJsonNotImplemented:
+    'JSON output format is not implemented yet. Use --output-format stream-json.',
   invalidLlmOutputKind: (kind?: string) =>
     `Invalid --llm-output value${kind ? `: "${kind}"` : ''}. Expected "none", "all", or a comma-separated list of: review, assistant_message, explore, plan, patch.`,
   contextInvalidDiffScope: (scope: string) =>

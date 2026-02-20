@@ -78,6 +78,7 @@ program
   .option('--apply-back-on-dirty <mode>', text.cli.applyBackOnDirtyOption, '3way')
   .option('--worktree-prepare <command>', text.cli.worktreePrepareOption)
   .option('--stream-output', text.cli.streamOutputOption)
+  .option('--output-format <format>', text.cli.outputFormatOption, 'text')
   .option('--gui', 'Enable experimental TUI mode (Ink)')
   .action(handleRunCommand);
 

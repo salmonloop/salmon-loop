@@ -94,6 +94,9 @@ s8p context -i "..." [-f src/file.ts | -s "..."] [--diff-scope primary|ast_relat
   - **Tool Status**: Reports when a tool starts and completes (e.g., `[TOOL: code_search] Start... Done`).
   - **Safety**: Raw tool payloads and results are **never** streamed to the terminal to prevent sensitive data leakage. Only the tool name and execution status are shown.
   - **Troubleshooting**: If no output appears, ensure your LLM provider supports streaming and that your `SALMONLOOP_API_KEY` is valid.
+- `--output-format <format>`: Control CLI output format for headless usage.
+  - `text` (default): Human-readable output.
+  - `stream-json`: Newline-delimited JSON (JSONL) on **stdout**. All human logs are routed to **stderr** to keep stdout machine-readable.
 
 ## Core Options (for Default Run)
 
