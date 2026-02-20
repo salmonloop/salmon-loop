@@ -11,21 +11,25 @@ export const LightweightMessageItem = React.memo<{
   ctx: MessageRenderContext;
 }>(({ msg, ctx }) => {
   const style = MESSAGE_STYLES[msg.type] || MESSAGE_STYLES.system;
+  const showTimestamp = ctx.density === 'verbose';
+  const leftPad = ctx.density === 'dense' ? 1 : ctx.density === 'normal' ? 2 : 3;
 
   return (
     <Box
       flexDirection="column"
       marginBottom={style.marginBottom}
-      paddingLeft={3}
+      paddingLeft={leftPad}
       width={ctx.containerWidth}
     >
       <Box flexDirection="row">
-        <Box width={9} flexShrink={0}>
-          <Text color={COLORS.text.muted} dimColor={false}>
-            {formatTime(msg.timestamp)}
-          </Text>
-        </Box>
-        <Box paddingLeft={1} flexGrow={1}>
+        {showTimestamp && (
+          <Box width={9} flexShrink={0}>
+            <Text color={COLORS.text.muted} dimColor={false}>
+              {formatTime(msg.timestamp)}
+            </Text>
+          </Box>
+        )}
+        <Box paddingLeft={showTimestamp ? 1 : 0} flexGrow={1}>
           <Text color={COLORS.text.muted} dimColor={false}>
             {msg.content}
           </Text>
