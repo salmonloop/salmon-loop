@@ -32,7 +32,7 @@ export const MessageItem = React.memo<{
 
   const level = getMessageLevel(msg.type);
   const showSeparator =
-    ctx.density === 'dense' ? false : shouldShowSeparator(msg.type, nextMsg?.type);
+    ctx.logView === 'compact' ? false : shouldShowSeparator(msg.type, nextMsg?.type);
 
   if (level === 'emphasis') {
     return <EmphasisMessageItem msg={msg} ctx={ctx} showSeparator={showSeparator} />;

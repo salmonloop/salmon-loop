@@ -1,6 +1,8 @@
-import type { MarkdownRenderMode, MarkdownTheme } from '../../../../core/config/types.js';
-
-import type { MessageDensity } from './density.js';
+import type {
+  MarkdownRenderMode,
+  MarkdownTheme,
+  UiLogView,
+} from '../../../../core/config/types.js';
 
 export interface MessageRenderContext {
   markdownTheme?: MarkdownTheme;
@@ -8,5 +10,5 @@ export interface MessageRenderContext {
   containerWidth: number;
   separatorLine: string;
   streamingMaxLines: number;
-  density: MessageDensity;
+  logView: UiLogView;
 }

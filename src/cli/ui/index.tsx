@@ -1,7 +1,7 @@
 import { render } from 'ink';
 import React from 'react';
 
-import type { MarkdownRenderMode, MarkdownTheme } from '../../core/config/types.js';
+import type { MarkdownRenderMode, MarkdownTheme, UiLogView } from '../../core/config/types.js';
 import { logger } from '../../core/observability/logger.js';
 import { LoopEventReporter } from '../../core/observability/loop-event-reporter.js';
 import { LoopEvent } from '../../core/types/index.js';
@@ -46,6 +46,7 @@ export interface GUIOptions {
 export interface UIConfig {
   markdownTheme?: MarkdownTheme;
   markdownRenderMode?: MarkdownRenderMode;
+  logView?: UiLogView;
   getSuggestions?: (
     input: string,
   ) => Promise<{ name: string; description: string; command?: any }[]>;
@@ -85,6 +86,7 @@ export async function startGUI(
       sessionManager={sessionManager}
       markdownTheme={uiConfig?.markdownTheme}
       markdownRenderMode={uiConfig?.markdownRenderMode}
+      logView={uiConfig?.logView}
       getSuggestions={uiConfig?.getSuggestions}
       findCommand={uiConfig?.findCommand}
       onInit={(emit: (event: LoopEvent) => void, options: GUIOptions, dispatch?: any) => {

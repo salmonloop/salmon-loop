@@ -15,18 +15,18 @@ export const StandardMessageItem = React.memo<{
   const style = MESSAGE_STYLES[msg.type] || MESSAGE_STYLES.system;
   const isMultiline = msg.content.length > 60 || msg.content.includes('\n');
   const isStep = msg.type.endsWith('_step');
-  const showTimestamp = ctx.density === 'verbose' || (!isStep && ctx.density !== 'dense');
+  const showTimestamp = ctx.logView === 'full' || (!isStep && ctx.logView !== 'compact');
   const showLabel =
-    ctx.density === 'verbose' || !(msg.type === 'tool_result' && msg.metadata?.toolName);
+    ctx.logView === 'full' || !(msg.type === 'tool_result' && msg.metadata?.toolName);
   const multilineIndent =
-    ctx.density === 'verbose'
+    ctx.logView === 'full'
       ? msg.type === 'user' || msg.type === 'tool_result'
         ? 20
         : 0
-      : ctx.density === 'normal'
+      : ctx.logView === 'standard'
         ? 2
         : 0;
-  const leftPad = ctx.density === 'dense' ? 1 : ctx.density === 'normal' ? 2 : 3;
+  const leftPad = ctx.logView === 'compact' ? 1 : ctx.logView === 'standard' ? 2 : 3;
 
   return (
     <Box flexDirection="column" paddingLeft={leftPad} width={ctx.containerWidth}>

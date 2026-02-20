@@ -24,6 +24,11 @@
       "mode": "enhanced"
     }
   },
+  "ui": {
+    "log": {
+      "view": "standard"
+    }
+  },
   "verify": {
     "command": "node -e \"process.exit(0)\"",
     "timeoutMs": 600000

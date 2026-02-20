@@ -1,3 +1,5 @@
+import type { UiLogView } from '../../../core/config/types.js';
+
 export type UIContext = 'base' | 'sidebar' | 'popover' | 'input' | 'exit-confirm';
 
 export type StatusBannerSource = 'runtime' | 'lifecycle';
@@ -150,6 +152,7 @@ export interface UIState {
   completedMessages: Message[]; // Rendered via <Static>, native terminal scroll
   activeStreamingMessage: Message | null; // Currently streaming message (React-managed)
   queueMessages: QueueMessage[];
+  logView: UiLogView;
   inputContent: string;
   isSidebarVisible: boolean;
   terminalWidth: number;
@@ -195,6 +198,7 @@ export type UIAction =
   | { type: 'SHIFT_QUEUE_MESSAGE' }
   | { type: 'REMOVE_QUEUE_MESSAGE'; payload: { id: string } }
   | { type: 'CLEAR_QUEUE_MESSAGES' }
+  | { type: 'SET_LOG_VIEW'; payload: UiLogView }
   | { type: 'PUSH_CONTEXT'; payload: UIContext }
   | { type: 'POP_CONTEXT' }
   | { type: 'TOGGLE_SIDEBAR' }

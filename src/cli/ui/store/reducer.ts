@@ -13,6 +13,7 @@ export const initialState: UIState = {
   ],
   activeStreamingMessage: null,
   queueMessages: [],
+  logView: 'standard',
   inputContent: '',
   isSidebarVisible: process.stdout.columns >= 120,
   terminalWidth: process.stdout.columns || 100,
@@ -30,6 +31,8 @@ export function uiReducer(state: UIState, action: UIAction): UIState {
   switch (action.type) {
     case 'SET_INPUT':
       return { ...state, inputContent: action.payload };
+    case 'SET_LOG_VIEW':
+      return { ...state, logView: action.payload };
     case 'ADD_MESSAGE':
       return {
         ...state,

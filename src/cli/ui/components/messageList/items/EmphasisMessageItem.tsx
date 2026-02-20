@@ -16,7 +16,7 @@ export const EmphasisMessageItem = React.memo<{
   const style = MESSAGE_STYLES[msg.type] || MESSAGE_STYLES.system;
   const isStreaming = msg.streamState === 'streaming';
   const timestamp = formatTime(msg.timestamp);
-  const showStreamIndicator = ctx.density === 'verbose';
+  const showStreamIndicator = ctx.logView === 'full';
 
   const bgColor =
     msg.type === 'error'

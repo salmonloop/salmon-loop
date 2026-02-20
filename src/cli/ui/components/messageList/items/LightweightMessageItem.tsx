@@ -11,8 +11,8 @@ export const LightweightMessageItem = React.memo<{
   ctx: MessageRenderContext;
 }>(({ msg, ctx }) => {
   const style = MESSAGE_STYLES[msg.type] || MESSAGE_STYLES.system;
-  const showTimestamp = ctx.density === 'verbose';
-  const leftPad = ctx.density === 'dense' ? 1 : ctx.density === 'normal' ? 2 : 3;
+  const showTimestamp = ctx.logView === 'full';
+  const leftPad = ctx.logView === 'compact' ? 1 : ctx.logView === 'standard' ? 2 : 3;
 
   return (
     <Box

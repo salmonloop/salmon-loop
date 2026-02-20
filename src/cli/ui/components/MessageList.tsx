@@ -6,7 +6,6 @@ import { UI_CONFIG } from '../config.js';
 import { useUIStore } from '../store/context.js';
 import type { QueueMessage } from '../store/types.js';
 
-import { resolveMessageDensity } from './messageList/density.js';
 import { MessageItem } from './messageList/MessageItem.js';
 import type { MessageRenderContext } from './messageList/types.js';
 
@@ -51,9 +50,16 @@ export const MessageList: React.FC<{
       containerWidth,
       separatorLine,
       streamingMaxLines,
-      density: resolveMessageDensity(process.env.SALMONLOOP_UI_DENSITY),
+      logView: state.logView,
     }),
-    [markdownTheme, markdownRenderMode, containerWidth, separatorLine, streamingMaxLines],
+    [
+      markdownTheme,
+      markdownRenderMode,
+      containerWidth,
+      separatorLine,
+      streamingMaxLines,
+      state.logView,
+    ],
   );
 
   return (

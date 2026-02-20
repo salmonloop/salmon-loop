@@ -19,6 +19,20 @@ export const MARKDOWN_RENDER_MODES = ['enhanced', 'native'] as const;
 export type MarkdownRenderMode = (typeof MARKDOWN_RENDER_MODES)[number];
 export const DEFAULT_MARKDOWN_RENDER_MODE: MarkdownRenderMode = 'enhanced';
 
+export const UI_LOG_VIEWS = ['full', 'standard', 'compact'] as const;
+export type UiLogView = (typeof UI_LOG_VIEWS)[number];
+export const DEFAULT_UI_LOG_VIEW: UiLogView = 'standard';
+
+export function normalizeUiLogView(raw: unknown): UiLogView | undefined {
+  const value = String(raw ?? '')
+    .trim()
+    .toLowerCase();
+  if (value === 'full' || value === 'verbose') return 'full';
+  if (value === 'standard' || value === 'normal') return 'standard';
+  if (value === 'compact' || value === 'dense') return 'compact';
+  return undefined;
+}
+
 export interface ConfigFileV1 {
   version?: ConfigVersion;
 
@@ -37,6 +51,12 @@ export interface ConfigFileV1 {
     markdown?: {
       theme?: MarkdownTheme;
       mode?: MarkdownRenderMode;
+    };
+  };
+
+  ui?: {
+    log?: {
+      view?: UiLogView;
     };
   };
 
@@ -147,6 +167,9 @@ export interface ResolvedConfig {
       sessionId?: string;
       userId?: string;
     };
+  };
+  ui: {
+    logView: UiLogView;
   };
   verify: {
     command?: string;

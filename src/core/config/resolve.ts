@@ -13,8 +13,14 @@ import type {
   ResolvedConfig,
   ResolvedLlmProvider,
   ToolAuthorizationConfig,
+  UiLogView,
 } from './types.js';
-import { DEFAULT_MARKDOWN_RENDER_MODE, DEFAULT_MARKDOWN_THEME } from './types.js';
+import {
+  DEFAULT_MARKDOWN_RENDER_MODE,
+  DEFAULT_MARKDOWN_THEME,
+  DEFAULT_UI_LOG_VIEW,
+  normalizeUiLogView,
+} from './types.js';
 
 function firstNonEmpty(value: string | undefined | null): string | undefined {
   if (!value) return undefined;
@@ -168,6 +174,17 @@ function resolveMarkdownRenderMode(raw?: ConfigFileV1): MarkdownRenderMode {
   return raw?.output?.markdown?.mode ?? DEFAULT_MARKDOWN_RENDER_MODE;
 }
 
+function resolveUiLogView(raw?: ConfigFileV1): UiLogView {
+  const env =
+    normalizeUiLogView(process.env.SALMON_UI_LOG_VIEW) ??
+    normalizeUiLogView(process.env.SALMON_UI_LOG) ??
+    normalizeUiLogView(process.env.SALMON_UI_DENSITY);
+  if (env) return env;
+
+  const cfg = normalizeUiLogView(raw?.ui?.log?.view);
+  return cfg ?? DEFAULT_UI_LOG_VIEW;
+}
+
 function resolveLangfuseObservability(raw?: ConfigFileV1): {
   enabled: boolean;
   outcome: boolean;
@@ -217,6 +234,9 @@ export async function resolveConfig(opts: ResolveConfigOptions): Promise<Resolve
     raw,
     observability: {
       langfuse: resolveLangfuseObservability(raw),
+    },
+    ui: {
+      logView: resolveUiLogView(raw),
     },
     verify: {
       command: raw?.verify?.command,

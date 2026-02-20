@@ -36,6 +36,7 @@ vi.mock('../../../../../src/cli/ui/store/context.js', () => ({
   useUIStore: () => ({
     state: {
       completedMessages: [],
+      logView: 'standard',
       activeStreamingMessage: {
         id: 'stream-1',
         type: 'assistant',

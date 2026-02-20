@@ -314,6 +314,7 @@ export async function handleRunCommand(options: any, command: Command) {
         {
           markdownTheme: resolvedConfig.markdownTheme,
           markdownRenderMode: resolvedConfig.markdownRenderMode,
+          logView: resolvedConfig.ui.logView,
         },
       )) as LoopResult;
     } else {

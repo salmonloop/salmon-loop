@@ -1,4 +1,5 @@
 import { allowlistCommand } from './allowlist.js';
+import { configCommand } from './config.js';
 import { exitCommand } from './exit.js';
 import { llmOutputCommand } from './llm-output.js';
 import { newCommand } from './new.js';
@@ -15,6 +16,7 @@ const baseCommands: Command[] = [
   statusCommand,
   queueCommand,
   allowlistCommand,
+  configCommand,
   subAgentCommand,
   newCommand,
   llmOutputCommand,

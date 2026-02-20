@@ -398,6 +398,12 @@ Please return the patch in PURE unified diff format:`;
           return `Config output.markdown.mode contains invalid value: ${
             details?.mode || '(unknown mode)'
           }`;
+        case 'CONFIG_INVALID_UI':
+          return 'Config ui section must be a JSON object';
+        case 'CONFIG_INVALID_UI_LOG':
+          return 'Config ui.log section must be a JSON object';
+        case 'CONFIG_INVALID_UI_LOG_VIEW':
+          return `Config ui.log.view contains invalid value: ${details?.view || '(unknown view)'}`;
         default:
           return `Invalid config (${code}).${detailStr}`;
       }
