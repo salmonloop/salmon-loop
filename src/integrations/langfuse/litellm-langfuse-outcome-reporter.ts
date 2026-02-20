@@ -29,6 +29,8 @@ type LangfuseIngestionResult = {
   errors: { id: string; status: number; message?: string; error?: string }[];
 };
 
+type LangfuseOutcomeFailureKind = 'timeout' | 'network' | 'unknown';
+
 function nowIso(): string {
   return new Date().toISOString();
 }
@@ -95,6 +97,31 @@ async function tryReadAuditJson(
   } catch {
     return null;
   }
+}
+
+function extractNetworkErrorCode(error: unknown): string | undefined {
+  const allow = (value: unknown) =>
+    typeof value === 'string' && /^[A-Z0-9_]{2,32}$/.test(value) ? value : undefined;
+
+  if (error && typeof error === 'object') {
+    const e = error as any;
+    return (
+      allow(e.code) ||
+      allow(e.cause?.code) ||
+      allow(e.cause?.errno) ||
+      allow(e.errno) ||
+      allow(e.cause?.name)
+    );
+  }
+  return undefined;
+}
+
+function classifyFailureKind(error: unknown, aborted: boolean): LangfuseOutcomeFailureKind {
+  if (aborted) return 'timeout';
+  if (error instanceof Error && error.name === 'AbortError') return 'timeout';
+  if (extractNetworkErrorCode(error)) return 'network';
+  if (error instanceof Error) return 'network';
+  return 'unknown';
 }
 
 export interface LiteLlmLangfuseOutcomeReporterOptions {
@@ -218,7 +245,7 @@ export class LiteLlmLangfuseOutcomeReporter implements RunOutcomeReporter {
       },
     }));
 
-    const ok = await this.postIngestion([traceUpsert, ...scoreEvents]);
+    const ok = await this.postIngestion([traceUpsert, ...scoreEvents], traceId);
     if (ok) {
       recordAuditEvent(
         'langfuse.outcome.reported',
@@ -232,7 +259,7 @@ export class LiteLlmLangfuseOutcomeReporter implements RunOutcomeReporter {
     logger.warn(text.grizzco.langfuse.outcomeReportFailed(traceId));
   }
 
-  private async postIngestion(events: LangfuseIngestionEvent[]): Promise<boolean> {
+  private async postIngestion(events: LangfuseIngestionEvent[], traceId: string): Promise<boolean> {
     const url = `${this.proxyBaseUrl}${this.proxyPathPrefix}/api/public/ingestion`;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
@@ -262,6 +289,7 @@ export class LiteLlmLangfuseOutcomeReporter implements RunOutcomeReporter {
         recordAuditEvent(
           'langfuse.outcome.http_failed',
           {
+            traceId,
             url,
             status: resp.status,
             statusText: resp.statusText,
@@ -278,7 +306,13 @@ export class LiteLlmLangfuseOutcomeReporter implements RunOutcomeReporter {
         if (Array.isArray(result?.errors) && result.errors.length > 0) {
           recordAuditEvent(
             'langfuse.outcome.ingestion_failed',
-            { errors: result.errors },
+            {
+              traceId,
+              errors: result.errors.map((e) => ({
+                id: e.id,
+                status: e.status,
+              })),
+            },
             { source: 'observability', severity: 'low', scope: 'session' },
           );
           logger.debug(
@@ -293,10 +327,22 @@ export class LiteLlmLangfuseOutcomeReporter implements RunOutcomeReporter {
       }
 
       return true;
-    } catch {
+    } catch (error) {
+      const aborted = controller.signal.aborted;
+      const kind = classifyFailureKind(error, aborted);
+      const errorName = error instanceof Error ? error.name : undefined;
+      const errorCode = extractNetworkErrorCode(error);
       recordAuditEvent(
         'langfuse.outcome.request_failed',
-        { url, timeoutMs: this.timeoutMs },
+        {
+          traceId,
+          url,
+          timeoutMs: this.timeoutMs,
+          aborted,
+          kind,
+          errorName,
+          errorCode,
+        },
         { source: 'observability', severity: 'low', scope: 'session' },
       );
       return false;

@@ -11,6 +11,11 @@ function lastAuditAction(prefix: string): string | undefined {
   return events.length > 0 ? events[events.length - 1]!.action : undefined;
 }
 
+function lastAuditEvent(prefix: string) {
+  const events = getAuditTrail().filter((e) => String(e.action || '').startsWith(prefix));
+  return events.length > 0 ? events[events.length - 1]! : undefined;
+}
+
 describe('LiteLlmLangfuseOutcomeReporter', () => {
   beforeEach(() => {
     clearAuditTrail();
@@ -52,6 +57,13 @@ describe('LiteLlmLangfuseOutcomeReporter', () => {
     );
 
     expect(lastAuditAction('langfuse.outcome.')).toBe('langfuse.outcome.http_failed');
+    const event = lastAuditEvent('langfuse.outcome.');
+    expect(event?.details).toEqual(
+      expect.objectContaining({
+        traceId: 'run-test',
+        status: 401,
+      }),
+    );
   });
 
   it('records request_failed when fetch throws', async () => {
@@ -75,6 +87,56 @@ describe('LiteLlmLangfuseOutcomeReporter', () => {
     );
 
     expect(lastAuditAction('langfuse.outcome.')).toBe('langfuse.outcome.request_failed');
+    const event = lastAuditEvent('langfuse.outcome.');
+    expect(event?.details).toEqual(
+      expect.objectContaining({
+        traceId: 'run-test',
+        kind: 'network',
+        errorName: 'Error',
+      }),
+    );
+  });
+
+  it('records timeout kind when ingestion request is aborted', async () => {
+    vi.useFakeTimers();
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init: any) => {
+        return await new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => {
+            const err = new Error('aborted');
+            (err as any).name = 'AbortError';
+            reject(err);
+          });
+        });
+      }),
+    );
+
+    const reporter = new LiteLlmLangfuseOutcomeReporter({
+      proxyBaseUrl: 'https://litellm.example',
+      proxyPathPrefix: '/langfuse',
+      litellmApiKey: 'vk-test',
+      timeoutMs: 10,
+    });
+
+    const promise = reporter.report(
+      { success: false, reason: 'fail', reasonCode: 'LOOP_FAILED', attempts: 1 },
+      { runId: 'run-test' },
+    );
+
+    await vi.advanceTimersByTimeAsync(20);
+    await promise;
+
+    expect(lastAuditAction('langfuse.outcome.')).toBe('langfuse.outcome.request_failed');
+    const event = lastAuditEvent('langfuse.outcome.');
+    expect(event?.details).toEqual(
+      expect.objectContaining({
+        traceId: 'run-test',
+        kind: 'timeout',
+        aborted: true,
+      }),
+    );
   });
 
   it('records ingestion_failed when response includes per-event errors', async () => {
@@ -104,6 +166,13 @@ describe('LiteLlmLangfuseOutcomeReporter', () => {
     );
 
     expect(lastAuditAction('langfuse.outcome.')).toBe('langfuse.outcome.ingestion_failed');
+    const event = lastAuditEvent('langfuse.outcome.');
+    expect(event?.details).toEqual(
+      expect.objectContaining({
+        traceId: 'run-test',
+        errors: [{ id: 'y', status: 400 }],
+      }),
+    );
   });
 
   it('sends Basic auth + x-litellm-api-key when litellmApiKey is provided', async () => {
