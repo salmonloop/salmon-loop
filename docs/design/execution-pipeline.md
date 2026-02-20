@@ -22,6 +22,7 @@ The phase order is a contract and must match runtime behavior.
 ## Phase Responsibilities
 
 ### EXPLORE
+
 - **Goal**: Resolve ambiguous instructions by investigating the codebase.
 - **Tools**: Read-only tools (`ls`, `code.search`, `fs.read`).
 - **Output**: Enriched `Context` with relevant file contents.
@@ -37,6 +38,7 @@ The phase order is a contract and must match runtime behavior.
 ## Retry Inputs (PLAN/PATCH)
 
 When VERIFY fails, later attempts may be informed by:
+
 - A refined error summary ("last error") derived from the previous verification output.
 - A shrunk/re-ranked context assembled from the failed files and their dependencies.
 
@@ -52,7 +54,7 @@ When the configured LLM exposes `chatStream`, the PLAN phase automatically route
 
 ## Config Overrides for Base URL and Model
 
-LLM adapters normalized by `resolveConfig` now accept the preferred environment variables `SALMONLOOP_BASE_URL` and `SALMONLOOP_MODEL` (falling back to `S8P_BASE_URL`/`SALMON_BASE_URL` and `S8P_MODEL`/`SALMON_MODEL` for backward compatibility). The runtime trims trailing slashes from the base URL before handing it to the transport so users can copy providers' publishable URLs (e.g., `https://openrouter.ai/api/v1/`) without worrying about duplicates.
+LLM adapters normalized by `resolveConfig` now accept the preferred environment variables `SALMONLOOP_BASE_URL` and `SALMONLOOP_MODEL` (falling back to `S8P_BASE_URL` and `S8P_MODEL` for backward compatibility). The runtime trims trailing slashes from the base URL before handing it to the transport so users can copy providers' publishable URLs (e.g., `https://openrouter.ai/api/v1/`) without worrying about duplicates.
 
 ## Error Transparency
 

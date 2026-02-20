@@ -17,6 +17,7 @@ export const en = {
   chatCommandHistory: '  /history      - Show iteration history',
   chatCommandQueue: '  /queue        - Manage the chat queue',
   chatCommandAuth: '  /allowlist    - Manage tool allowlist',
+  chatCommandMode: '  /mode         - Set UI log mode (quiet/normal/debug)',
   chatCommandConfig: '  /config       - Configure UI log view',
   chatSessionSaved: 'Session saved. Goodbye!',
   chatThinking: 'Thinking...',
@@ -69,6 +70,7 @@ export const en = {
   commandSessions: 'List all chat sessions',
   commandQueue: 'Manage the chat queue',
   commandLlmOutput: 'Set LLM output visibility and save to config',
+  commandMode: 'Set UI log mode and save to config',
   commandConfig: 'Configure settings and save to config',
   commandAuth: 'Manage tool allowlist',
   commandParallel: 'Manage parallel plans',
@@ -104,6 +106,14 @@ export const en = {
   llmOutputUnavailable: 'LLM output configuration is unavailable in this mode.',
   llmOutputPersisted: (path: string) => `LLM output settings saved to ${path}`,
   llmOutputPersistFailed: (reason: string) => `Failed to save LLM output settings: ${reason}`,
+  modeUsage: 'Usage: /mode <quiet|normal|debug>',
+  modeSuggestion: (mode: string) => `Set log mode to ${mode}`,
+  modeCurrent: (mode: string) => `Current UI log mode: ${mode}`,
+  modeInvalid: (mode: string) =>
+    `Invalid log mode: ${mode}. Expected one of: quiet, normal, debug.`,
+  modeUpdated: (mode: string) => `UI log mode updated: ${mode}`,
+  modePersisted: (path: string) => `UI log mode saved to ${path}`,
+  modePersistFailed: (error: string) => `Failed to save UI log mode: ${error}`,
   configUsage: 'Usage: /config <log>\nSubcommands: log',
   configUnknownSubcommand: (name: string) => `Unknown subcommand: ${name}`,
   configLogDescription: 'Set UI log view and save to config',
@@ -258,6 +268,10 @@ export const en = {
   authorizationSummaryRealtime: (summary: string) =>
     `  Authorization sources (current): ${summary}`,
   diffMeta: (files: number, lines: number) => `  Diff: ${files} files changed, ${lines} lines.`,
+  uiDiffMeta: (files: number, lines: number) => `Diff: ${files} file(s), ${lines} line(s) changed.`,
+  uiVerifyPassed: 'Verify passed.',
+  uiVerifyFailed: 'Verify failed.',
+  uiToolFailed: (tool: string, status: string) => `Tool failed: ${tool} (${status}).`,
   retry: (from: number, to: number, reason: string) =>
     `\nRetrying (${from} -> ${to}). Reason: ${reason}`,
   contextBuilt: (usedChars: number, truncated: boolean) =>

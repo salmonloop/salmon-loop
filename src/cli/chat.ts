@@ -4,7 +4,7 @@ import type {
   MarkdownTheme,
   ToolAuthorizationConfig,
 } from '../core/config/index.js';
-import type { UiLogView } from '../core/config/types.js';
+import type { UiLogMode, UiLogView } from '../core/config/types.js';
 import type { ResolvedExtensions } from '../core/extensions/types.js';
 import { InputHistoryManager } from '../core/history/input-history.js';
 import { routeChatIntent } from '../core/intent/chat-intent.js';
@@ -37,6 +37,7 @@ export interface ChatModeOptions {
   markdownTheme?: MarkdownTheme;
   markdownRenderMode?: MarkdownRenderMode;
   uiLogView?: UiLogView;
+  uiLogMode?: UiLogMode;
   toolAuthorization?: ToolAuthorizationConfig;
   extensions?: ResolvedExtensions;
   outcomeReporter?: RunOutcomeReporter;
@@ -505,6 +506,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
       markdownTheme: options.markdownTheme,
       markdownRenderMode: options.markdownRenderMode,
       logView: options.uiLogView,
+      logMode: options.uiLogMode,
       findCommand: (name: string) => slashRuntime.findCommand(name),
       getSuggestions: async (input: string) => {
         if (!latestEmit || !latestDispatch) return [];

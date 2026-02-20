@@ -415,6 +415,8 @@ Please return the patch in PURE unified diff format:`;
           return 'Config ui.log section must be a JSON object';
         case 'CONFIG_INVALID_UI_LOG_VIEW':
           return `Config ui.log.view contains invalid value: ${details?.view || '(unknown view)'}`;
+        case 'CONFIG_INVALID_UI_LOG_MODE':
+          return `Config ui.log.mode contains invalid value: ${details?.mode || '(unknown mode)'}`;
         default:
           return `Invalid config (${code}).${detailStr}`;
       }

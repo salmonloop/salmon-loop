@@ -1,4 +1,4 @@
-import type { UiLogView } from '../../../core/config/types.js';
+import type { UiLogMode, UiLogView } from '../../../core/config/types.js';
 
 export type UIContext = 'base' | 'sidebar' | 'popover' | 'input' | 'exit-confirm';
 
@@ -124,7 +124,20 @@ export function normalizeLegacyType(type: string): MessageType {
     'system',
     'tool_call',
     'tool_result',
+    'explore_step',
     'plan_step',
+    'patch_step',
+    'apply_step',
+    'validate_step',
+    'verify_step',
+    'preflight_step',
+    'context_step',
+    'ast_validate_step',
+    'rollback_step',
+    'shrink_step',
+    'review_step',
+    'report_step',
+    'analyze_issues_step',
     'thinking',
     'checkpoint',
     'error',
@@ -153,6 +166,7 @@ export interface UIState {
   activeStreamingMessage: Message | null; // Currently streaming message (React-managed)
   queueMessages: QueueMessage[];
   logView: UiLogView;
+  logMode: UiLogMode;
   inputContent: string;
   isSidebarVisible: boolean;
   terminalWidth: number;
@@ -199,6 +213,7 @@ export type UIAction =
   | { type: 'REMOVE_QUEUE_MESSAGE'; payload: { id: string } }
   | { type: 'CLEAR_QUEUE_MESSAGES' }
   | { type: 'SET_LOG_VIEW'; payload: UiLogView }
+  | { type: 'SET_LOG_MODE'; payload: UiLogMode }
   | { type: 'PUSH_CONTEXT'; payload: UIContext }
   | { type: 'POP_CONTEXT' }
   | { type: 'TOGGLE_SIDEBAR' }

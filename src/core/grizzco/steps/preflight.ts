@@ -52,7 +52,8 @@ export const runPreflight: Step<InitCtx, PreflightCtx> = async (ctx) => {
             timestamp: new Date(),
           });
         },
-        model: ctx.options.llm.getModelId?.() || process.env.S8P_MODEL || process.env.SALMON_MODEL,
+        model:
+          ctx.options.llm.getModelId?.() || process.env.SALMONLOOP_MODEL || process.env.S8P_MODEL,
       })
     : undefined;
 

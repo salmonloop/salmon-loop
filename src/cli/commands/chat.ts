@@ -83,6 +83,7 @@ export async function handleChatCommand(options: any, command: Command) {
     markdownTheme: resolvedConfig.markdownTheme,
     markdownRenderMode: resolvedConfig.markdownRenderMode,
     uiLogView: resolvedConfig.ui.logView,
+    uiLogMode: resolvedConfig.ui.logMode,
     toolAuthorization: resolvedConfig.toolAuthorization,
     extensions: extensionResolution.resolved,
     outcomeReporter,

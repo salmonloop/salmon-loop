@@ -6,6 +6,8 @@ import { useUIStore } from '../store/context.js';
 import { MessageType } from '../store/types.js';
 import { prepareMessagePayload, sanitizeMessage } from '../utils/sanitizer.js';
 
+type UiLogMode = import('../../../core/config/types.js').UiLogMode;
+
 /**
  * Hook to manage loop events and state synchronization.
  */
@@ -17,14 +19,21 @@ export function useLoopEvents(
     interceptEvent?: (event: any) => void;
   },
 ) {
-  const { dispatch } = useUIStore();
+  const store = useUIStore() as any;
+  const dispatch = store.dispatch as any;
   const runStartedRef = useRef(false);
   const activeStreamIdRef = useRef<string | null>(null);
+  const logModeRef = useRef<UiLogMode>('normal');
 
   // Throttle state for streaming deltas to prevent render thrashing
   const streamBufferRef = useRef<Map<string, { delta: string; timestamp: Date }>>(new Map());
   const streamTimerRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
   const statusBannerTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const logModeValue: UiLogMode = store.state?.logMode ?? 'normal';
+  useEffect(() => {
+    logModeRef.current = logModeValue;
+  }, [logModeValue]);
 
   const dispatchSanitizedMessage = useCallback(
     (ev: any) => {
@@ -115,6 +124,7 @@ export function useLoopEvents(
       if (!event) return;
 
       options?.interceptEvent?.(event);
+      const logMode = logModeRef.current;
 
       if (event.type === 'ui.status') {
         if (event.action === 'clear') {
@@ -235,29 +245,29 @@ export function useLoopEvents(
       }
       if (event.type === 'log') {
         const msg = event.message || '';
-        let type =
+        const level = String(event.level || 'info');
+        if (logMode === 'quiet' || logMode === 'normal') {
+          if (level !== 'warn' && level !== 'error') {
+            return;
+          }
+        }
+        const type =
           event.level === 'error' ? 'error' : event.level === 'warn' ? 'warning' : 'system';
         const content = msg;
-
-        // Auto-detect message types based on content to match new design system
-        if (msg.includes('Patch generated')) {
-          type = 'patch_step';
-        } else if (msg.includes('Plan generated')) {
-          type = 'plan_step';
-        } else if (msg.startsWith('Analyzing')) {
-          type = 'thinking';
-        }
 
         dispatchSanitizedMessage({ content, type, timestamp: event.timestamp });
       } else if (event.type === 'snapshot.created') {
         // Handle structured snapshot event
+        if (logMode === 'quiet') return;
         dispatchSanitizedMessage({
           type: 'checkpoint',
           content: event.commitHash.slice(0, 8),
           timestamp: event.timestamp,
         });
       } else if (event.content || event.message) {
-        dispatchSanitizedMessage(event);
+        if (logMode === 'debug') {
+          dispatchSanitizedMessage(event);
+        }
       }
 
       switch (event.type) {
@@ -286,6 +296,7 @@ export function useLoopEvents(
           if (guiType) {
             const phaseKey = event.phase.toLowerCase();
             const phaseName = (text.progress as any)[phaseKey] || event.phase;
+            if (logMode !== 'quiet' && logMode !== 'normal' && logMode !== 'debug') break;
             dispatch({
               type: 'ADD_MESSAGE',
               payload: {
@@ -296,6 +307,14 @@ export function useLoopEvents(
               },
             });
           }
+          break;
+        }
+        case 'phase.end': {
+          dispatch({
+            type: 'UPDATE_PHASE',
+            payload: event.phase,
+            status: event.success ? 'success' : 'failed',
+          });
           break;
         }
         case 'workspace.ready':
@@ -309,7 +328,77 @@ export function useLoopEvents(
             type: 'SET_CHANGED_FILES',
             payload: event.changedFiles,
           });
+          if (logMode !== 'quiet' && logMode !== 'normal' && logMode !== 'debug') break;
+          dispatchSanitizedMessage({
+            type: 'report_step',
+            content: text.cli.uiDiffMeta(event.fileCount, event.lineCount),
+            timestamp: event.timestamp || new Date(),
+          });
           break;
+        case 'verify.result':
+          if (event.ok) {
+            if (logMode !== 'quiet') {
+              dispatchSanitizedMessage({
+                type: 'verify_step',
+                content: text.cli.uiVerifyPassed,
+                timestamp: event.timestamp || new Date(),
+              });
+            }
+            break;
+          }
+          dispatchSanitizedMessage({
+            type: 'verify_step',
+            content: text.cli.uiVerifyFailed,
+            timestamp: event.timestamp || new Date(),
+          });
+          if (typeof event.output === 'string' && event.output.trim()) {
+            dispatchSanitizedMessage({
+              type: 'error',
+              content: event.output,
+              timestamp: event.timestamp || new Date(),
+            });
+          }
+          break;
+        case 'tool.call.start':
+          if (logMode !== 'debug') break;
+          dispatchSanitizedMessage({
+            type: 'tool_call',
+            content: `${event.toolName}`,
+            timestamp: event.timestamp || new Date(),
+            metadata: { toolName: event.toolName, phase: event.phase, callId: event.callId },
+          });
+          break;
+        case 'tool.call.end': {
+          const status = String(event.status || 'unknown');
+          const isFailure = status !== 'ok';
+          if (logMode !== 'debug') {
+            if (isFailure) {
+              dispatchSanitizedMessage({
+                type: 'warning',
+                content: text.cli.uiToolFailed(String(event.toolName || 'tool'), status),
+                timestamp: event.timestamp || new Date(),
+              });
+            }
+            break;
+          }
+          const durationText =
+            typeof event.durationMs === 'number' ? ` (${Math.round(event.durationMs)}ms)` : '';
+          const errorText = event.errorCode ? ` code=${event.errorCode}` : '';
+          dispatchSanitizedMessage({
+            type: 'tool_result',
+            content: `${event.toolName}: ${status}${durationText}${errorText}`,
+            timestamp: event.timestamp || new Date(),
+            metadata: {
+              toolName: event.toolName,
+              phase: event.phase,
+              callId: event.callId,
+              status,
+              errorCode: event.errorCode,
+              durationMs: event.durationMs,
+            },
+          });
+          break;
+        }
       }
     },
     [dispatch, dispatchSanitizedMessage, throttledStreamDispatch, flushAllStreams],

@@ -25,6 +25,69 @@ The precedence order is:
 - `--no-config-file`: Disable loading the repo config file.
 - `--print-config`: Print the resolved config (redacted) and exit.
 
+## UI Logging (TUI)
+
+SalmonLoop separates **what** the TUI shows (mode) from **how dense** it renders (view).
+
+### `ui.log.mode`
+
+Controls log visibility and summarization in the TUI:
+
+- `quiet`: Minimal output. Keep warnings/errors and essential phase milestones.
+- `normal`: Default. Balanced output for new users.
+- `debug`: Maximum detail, including debug-level messages and tool call details.
+
+Example:
+
+```json
+{
+  "ui": {
+    "log": {
+      "mode": "normal"
+    }
+  }
+}
+```
+
+Environment variable overrides (preferred):
+
+- `SALMONLOOP_UI_LOG_MODE`: `quiet|normal|debug`
+- `SALMONLOOP_UI_MODE`: alias
+
+### `ui.log.view`
+
+Controls rendering density:
+
+- `compact`: Most compact layout.
+- `standard`: Default layout.
+- `full`: Most verbose layout (more labels/timestamps/spacing).
+
+Example:
+
+```json
+{
+  "ui": {
+    "log": {
+      "view": "standard"
+    }
+  }
+}
+```
+
+Environment variable overrides:
+
+- `SALMONLOOP_UI_LOG_VIEW`
+- `SALMONLOOP_UI_LOG`
+- `SALMONLOOP_UI_DENSITY`
+
+Notes:
+
+- If `ui.log.view` is not set, SalmonLoop derives a default from `ui.log.mode`:
+  - `quiet` -> `compact`
+  - `normal` -> `standard`
+  - `debug` -> `full`
+- Setting `ui.log.view` explicitly always wins over the derived default.
+
 ## LLM Configuration (v1)
 
 Minimal example:
@@ -92,7 +155,7 @@ Notes:
 - If `endpoint` is omitted, SalmonLoop derives the LiteLLM root from `llm.providers.*.api.baseUrl` by stripping `/v1`.
 - If the derived root host is a known public LLM provider host (OpenAI/Anthropic/Gemini), outcome reporting is disabled unless
   you explicitly set `observability.langfuse.endpoint`.
-- `enabled` controls Langfuse correlation headers on *LLM* calls (spans/tokens). `outcome` controls the end-of-run ingestion
+- `enabled` controls Langfuse correlation headers on _LLM_ calls (spans/tokens). `outcome` controls the end-of-run ingestion
   request (scores + `metadata.salmonloop.*`). You can enable either independently.
 - If `sessionId` is omitted, chat mode auto-uses the local chat session ID; run mode leaves it unset.
 - `sessionId` is mainly an **override** for special cases (e.g. CI batch runs / eval suites where you want many runs grouped);
@@ -140,8 +203,8 @@ Notes:
 ## Environment Variables (Provider)
 
 - `SALMONLOOP_API_KEY` / `S8P_API_KEY`: API key fallback if not present in config.
-- `SALMONLOOP_BASE_URL` / `S8P_BASE_URL` / `SALMON_BASE_URL`: Base URL fallback if not present in config. Prefer `SALMONLOOP_BASE_URL` and omit the trailing slash (e.g., `https://openrouter.ai/api/v1`); the runtime trims extra slashes and keeps legacy env names for compatibility.
-- `SALMONLOOP_MODEL` / `S8P_MODEL` / `SALMON_MODEL`: Model choice (SALMONLOOP_MODEL preferred).
+- `SALMONLOOP_BASE_URL` / `S8P_BASE_URL`: Base URL fallback if not present in config. Prefer `SALMONLOOP_BASE_URL` and omit the trailing slash (e.g., `https://openrouter.ai/api/v1`); the runtime trims extra slashes.
+- `SALMONLOOP_MODEL` / `S8P_MODEL`: Model choice (SALMONLOOP_MODEL preferred).
 
 ## Markdown Output Theme (CLI UI)
 

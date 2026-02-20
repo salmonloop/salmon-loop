@@ -1,7 +1,12 @@
 import { Box, Text } from 'ink';
 import React from 'react';
 
-import type { MarkdownRenderMode, MarkdownTheme, UiLogView } from '../../core/config/types.js';
+import type {
+  MarkdownRenderMode,
+  MarkdownTheme,
+  UiLogMode,
+  UiLogView,
+} from '../../core/config/types.js';
 import { logIgnoredError } from '../../core/observability/ignored-error.js';
 import { readPlan } from '../../core/plan/index.js';
 import type { PlanReadResult } from '../../core/plan/types.js';
@@ -97,6 +102,7 @@ export const AppCore: React.FC<{
   markdownTheme?: MarkdownTheme;
   markdownRenderMode?: MarkdownRenderMode;
   logView?: UiLogView;
+  logMode?: UiLogMode;
 }> = ({
   mode,
   onStart,
@@ -108,6 +114,7 @@ export const AppCore: React.FC<{
   markdownTheme,
   markdownRenderMode,
   logView,
+  logMode,
 }) => {
   const { state, dispatch } = useUIStore();
 
@@ -115,6 +122,11 @@ export const AppCore: React.FC<{
     if (!logView) return;
     dispatch({ type: 'SET_LOG_VIEW', payload: logView });
   }, [dispatch, logView]);
+
+  React.useEffect(() => {
+    if (!logMode) return;
+    dispatch({ type: 'SET_LOG_MODE', payload: logMode });
+  }, [dispatch, logMode]);
 
   const lifecycleStatus = state.isThinking ? 'running' : 'idle';
   const { signal } = useCommandLifecycle(lifecycleStatus, () => process.exit(0));

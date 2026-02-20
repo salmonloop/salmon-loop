@@ -14,6 +14,7 @@ export const initialState: UIState = {
   activeStreamingMessage: null,
   queueMessages: [],
   logView: 'standard',
+  logMode: 'normal',
   inputContent: '',
   isSidebarVisible: process.stdout.columns >= 120,
   terminalWidth: process.stdout.columns || 100,
@@ -33,6 +34,8 @@ export function uiReducer(state: UIState, action: UIAction): UIState {
       return { ...state, inputContent: action.payload };
     case 'SET_LOG_VIEW':
       return { ...state, logView: action.payload };
+    case 'SET_LOG_MODE':
+      return { ...state, logMode: action.payload };
     case 'ADD_MESSAGE':
       return {
         ...state,

@@ -479,7 +479,7 @@ export class AiSdkLLM implements LLM {
   private timeoutMs?: number;
 
   constructor(private readonly cfg: AiSdkLlmConfig) {
-    this.modelId = cfg.modelId || process.env.S8P_MODEL || process.env.SALMON_MODEL || 'gpt-4o';
+    this.modelId = cfg.modelId || process.env.SALMONLOOP_MODEL || process.env.S8P_MODEL || 'gpt-4o';
     this.timeoutMs = cfg.timeoutMs;
 
     if (cfg.clientPackage === '@ai-sdk/openai') {

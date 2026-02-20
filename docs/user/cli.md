@@ -5,9 +5,20 @@ SalmonLoop provides a command-line interface (`s8p`) for automated code patching
 ## Commands
 
 ### Interactive Chat (Default)
+
 Enter the interactive chat mode to provide instructions and receive patches in real-time.
 
+#### UI log mode and density
+
+In chat mode, SalmonLoop exposes two UI controls:
+
+- `/mode <quiet|normal|debug>`: controls **how much** output the TUI shows (recommended for new users: `normal`).
+- `/config log <full|standard|compact>`: controls **how dense** the TUI renders the output.
+
+Both settings are persisted to the repo config at `<repoRoot>/.salmonloop/config/config.json`.
+
 #### Sub-agent slash command
+
 While in chat mode you can inspect running Smallfry sub-agents without letting the LLM mutate your main worktree:
 
 - `/smallfry list` lists the registered agents (`id | status | role | summary`).
@@ -20,7 +31,9 @@ The slug `/smallfry` also accepts `/subagent` and `/sub-agent` aliases; suggesti
 Commands marked `hidden: true` (e.g., `/parallel`) stay executable but do not surface in the Omni-Tray suggestions; the command registry orders slashes by their `order` metadata. `/exit` still honors `/quit` as an alias for convenience.
 
 #### Command Interception
+
 For security and clarity, SalmonLoop strictly manages inputs starting with `/` in chat mode:
+
 - **Valid Commands**: Known commands like `/help`, `/exit`, or `/status` are executed immediately.
 - **Unknown Commands**: Any other input starting with `/` (including typos or absolute paths) is **blocked** and an error is shown. This prevents the LLM from misinterpreting system commands or leaking sensitive paths into instructions.
 
@@ -31,6 +44,7 @@ s8p chat
 ```
 
 ### Single Run
+
 Execute a single-turn task and exit.
 
 ```bash
@@ -38,6 +52,7 @@ s8p run --instruction "..." --verify "..."
 ```
 
 ### Context (Build Only)
+
 Builds and prints the assembled context prompt without calling the LLM.
 
 ```bash
@@ -52,10 +67,10 @@ s8p context -i "..." [-f src/file.ts | -s "..."] [--diff-scope primary|ast_relat
 - `--print-config`: Print the resolved config (redacted) and exit.
 - `--verbose [level]`: Enable verbose logging (`basic` or `extended`).
 - `--stream-output`: Stream LLM responses to the CLI as they arrive.
-    - **Behavior**: Real-time display of text deltas during the PLAN phase.
-    - **Tool Status**: Reports when a tool starts and completes (e.g., `[TOOL: code_search] Start... Done`).
-    - **Safety**: Raw tool payloads and results are **never** streamed to the terminal to prevent sensitive data leakage. Only the tool name and execution status are shown.
-    - **Troubleshooting**: If no output appears, ensure your LLM provider supports streaming and that your `SALMONLOOP_API_KEY` is valid.
+  - **Behavior**: Real-time display of text deltas during the PLAN phase.
+  - **Tool Status**: Reports when a tool starts and completes (e.g., `[TOOL: code_search] Start... Done`).
+  - **Safety**: Raw tool payloads and results are **never** streamed to the terminal to prevent sensitive data leakage. Only the tool name and execution status are shown.
+  - **Troubleshooting**: If no output appears, ensure your LLM provider supports streaming and that your `SALMONLOOP_API_KEY` is valid.
 
 ## Core Options (for Default Run)
 
@@ -71,6 +86,7 @@ SalmonLoop (s8p) includes a robust snapshot system that captures the exact state
 **Alias**: You can use `s8p snap` instead of `s8p snapshot`.
 
 ### Create Snapshot
+
 Manually create a snapshot of the current workspace state.
 
 ```bash
@@ -78,6 +94,7 @@ s8p snap create -m "Backup before refactor"
 ```
 
 ### List Snapshots
+
 List all available snapshots. Alias: `ls`.
 
 ```bash
@@ -85,6 +102,7 @@ s8p snap ls
 ```
 
 ### Inspect Snapshot
+
 View detailed information. Use `--files` to list all files contained in the snapshot.
 
 ```bash
@@ -92,6 +110,7 @@ s8p snap show <hash> [--files]
 ```
 
 ### Compare Snapshots
+
 Compare changes between a snapshot and the current workspace, or between two snapshots.
 
 ```bash
@@ -106,6 +125,7 @@ s8p snap diff <hash1> <hash2>
 ```
 
 ### View File Content
+
 Read the content of a file directly from a snapshot ("Source is Truth").
 
 ```bash
@@ -113,6 +133,7 @@ s8p snapshot cat <hash> <file_path>
 ```
 
 ### Export Snapshot
+
 Export the entire content of a snapshot to a directory.
 
 ```bash
@@ -120,6 +141,7 @@ s8p snapshot export <hash> <target_directory>
 ```
 
 ### Restore Snapshot
+
 Manually restore the workspace to a specific snapshot state. Alias: `checkout`.
 
 ```bash
@@ -127,6 +149,7 @@ s8p checkout <hash> [--force]
 ```
 
 ### Delete & Clear
+
 Manage snapshot lifecycle. Alias: `rm`.
 
 ```bash
@@ -157,7 +180,9 @@ s8p snap clear --force
 ## User Experience
 
 ### Progress Feedback
+
 SalmonLoop features a visual progress bar that tracks the execution through various phases:
+
 - **Preflight**: Safety checks.
 - **Context**: Gathering codebase context.
 - **Plan**: Creating the modification plan.
@@ -168,7 +193,9 @@ SalmonLoop features a visual progress bar that tracks the execution through vari
 - **Rollback**: Restoring state on failure.
 
 ### Interactive Suggestions
+
 When a loop fails, SalmonLoop provides actionable suggestions based on the failure type:
+
 - **Compilation Errors**: Suggestions to check syntax or imports.
 - **Linting Errors**: Suggestions to run local linters.
 - **Test Failures**: Guidance to inspect test output.
@@ -179,6 +206,11 @@ When a loop fails, SalmonLoop provides actionable suggestions based on the failu
 - `SALMONLOOP_API_KEY`: Your LLM provider API key (preferred).
 - `S8P_API_KEY`: (Legacy) Fallback for backward compatibility.
 - `SALMONLOOP_BASE_URL`: (Optional) Provider base URL (preferred).
-- `S8P_BASE_URL` / `SALMON_BASE_URL`: (Legacy) Base URL aliases.
+- `S8P_BASE_URL`: (Legacy) Base URL alias.
 - `SALMONLOOP_MODEL`: (Optional) LLM model to use (preferred).
-- `S8P_MODEL` / `SALMON_MODEL`: (Legacy) Model aliases.
+- `S8P_MODEL`: (Legacy) Model alias.
+
+### UI Environment Variables
+
+- `SALMONLOOP_UI_LOG_MODE`: `quiet|normal|debug` (preferred).
+- `SALMONLOOP_UI_MODE`: alias.

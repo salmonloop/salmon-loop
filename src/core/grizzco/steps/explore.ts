@@ -163,7 +163,8 @@ export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
         attemptId: ctx.attempt ?? 1,
         dryRun: Boolean(ctx.options?.dryRun),
         llm: ctx.options.llm,
-        model: ctx.options.llm.getModelId?.() || process.env.S8P_MODEL || process.env.SALMON_MODEL,
+        model:
+          ctx.options.llm.getModelId?.() || process.env.SALMONLOOP_MODEL || process.env.S8P_MODEL,
       },
       toolstack: proxiedToolstack,
       toolCallingAudit: {

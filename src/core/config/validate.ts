@@ -5,6 +5,7 @@ import {
   MARKDOWN_RENDER_MODES,
   MARKDOWN_THEMES,
   type ConfigFileV1,
+  normalizeUiLogMode,
   normalizeUiLogView,
   type LangfuseObservabilityConfigV1,
   type LlmProviderV1,
@@ -127,6 +128,7 @@ export function validateConfigFileV1(input: unknown): ConfigFileV1 {
         throw new ConfigError('CONFIG_INVALID_UI_LOG', { expected: 'object' });
       }
       const viewRaw = (logRaw as any).view;
+      const modeRaw = (logRaw as any).mode;
       if (viewRaw !== undefined) {
         if (!isString(viewRaw)) {
           throw new ConfigError('CONFIG_INVALID_UI_LOG_VIEW', { expected: 'string' });
@@ -135,9 +137,20 @@ export function validateConfigFileV1(input: unknown): ConfigFileV1 {
         if (!normalized) {
           throw new ConfigError('CONFIG_INVALID_UI_LOG_VIEW', { view: String(viewRaw) });
         }
-        ui.log = { view: normalized };
+        ui.log = { ...(ui.log ?? {}), view: normalized };
       } else {
         ui.log = {};
+      }
+
+      if (modeRaw !== undefined) {
+        if (!isString(modeRaw)) {
+          throw new ConfigError('CONFIG_INVALID_UI_LOG_MODE', { expected: 'string' });
+        }
+        const normalized = normalizeUiLogMode(modeRaw);
+        if (!normalized) {
+          throw new ConfigError('CONFIG_INVALID_UI_LOG_MODE', { mode: String(modeRaw) });
+        }
+        ui.log = { ...(ui.log ?? {}), mode: normalized };
       }
     }
 

@@ -13,12 +13,15 @@ import type {
   ResolvedConfig,
   ResolvedLlmProvider,
   ToolAuthorizationConfig,
+  UiLogMode,
   UiLogView,
 } from './types.js';
 import {
   DEFAULT_MARKDOWN_RENDER_MODE,
   DEFAULT_MARKDOWN_THEME,
+  DEFAULT_UI_LOG_MODE,
   DEFAULT_UI_LOG_VIEW,
+  normalizeUiLogMode,
   normalizeUiLogView,
 } from './types.js';
 
@@ -54,7 +57,6 @@ function resolveModelId(configModelId?: string): string {
     firstNonEmpty(configModelId) ||
     firstNonEmpty(process.env.SALMONLOOP_MODEL) ||
     firstNonEmpty(process.env.S8P_MODEL) ||
-    firstNonEmpty(process.env.SALMON_MODEL) ||
     'gpt-4o'
   );
 }
@@ -174,15 +176,29 @@ function resolveMarkdownRenderMode(raw?: ConfigFileV1): MarkdownRenderMode {
   return raw?.output?.markdown?.mode ?? DEFAULT_MARKDOWN_RENDER_MODE;
 }
 
-function resolveUiLogView(raw?: ConfigFileV1): UiLogView {
+function resolveUiLogView(raw: ConfigFileV1 | undefined, mode: UiLogMode): UiLogView {
   const env =
-    normalizeUiLogView(process.env.SALMON_UI_LOG_VIEW) ??
-    normalizeUiLogView(process.env.SALMON_UI_LOG) ??
-    normalizeUiLogView(process.env.SALMON_UI_DENSITY);
+    normalizeUiLogView(process.env.SALMONLOOP_UI_LOG_VIEW) ??
+    normalizeUiLogView(process.env.SALMONLOOP_UI_LOG) ??
+    normalizeUiLogView(process.env.SALMONLOOP_UI_DENSITY);
   if (env) return env;
 
   const cfg = normalizeUiLogView(raw?.ui?.log?.view);
-  return cfg ?? DEFAULT_UI_LOG_VIEW;
+  if (cfg) return cfg;
+
+  if (mode === 'quiet') return 'compact';
+  if (mode === 'debug') return 'full';
+  return DEFAULT_UI_LOG_VIEW;
+}
+
+function resolveUiLogMode(raw?: ConfigFileV1): UiLogMode {
+  const env =
+    normalizeUiLogMode(process.env.SALMONLOOP_UI_LOG_MODE) ??
+    normalizeUiLogMode(process.env.SALMONLOOP_UI_MODE);
+  if (env) return env;
+
+  const cfg = normalizeUiLogMode(raw?.ui?.log?.mode);
+  return cfg ?? DEFAULT_UI_LOG_MODE;
 }
 
 function resolveLangfuseObservability(raw?: ConfigFileV1): {
@@ -224,6 +240,7 @@ export async function resolveConfig(opts: ResolveConfigOptions): Promise<Resolve
     required,
   });
   const raw = loaded?.config;
+  const uiLogMode = resolveUiLogMode(raw);
 
   return {
     source: {
@@ -236,7 +253,8 @@ export async function resolveConfig(opts: ResolveConfigOptions): Promise<Resolve
       langfuse: resolveLangfuseObservability(raw),
     },
     ui: {
-      logView: resolveUiLogView(raw),
+      logMode: uiLogMode,
+      logView: resolveUiLogView(raw, uiLogMode),
     },
     verify: {
       command: raw?.verify?.command,

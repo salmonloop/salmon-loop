@@ -24,9 +24,9 @@ Salmon-Loop is built on three core principles:
 
 ## Non-Goals
 
--   **Not an Agent**: Salmon-Loop is a tool for executing specific instructions, not an autonomous agent that explores the codebase indefinitely.
--   **No Refactors**: It is designed for targeted fixes and features, not large-scale architectural refactoring.
--   **No Whole-File Rewrite**: It modifies existing files via patches; it does not rewrite entire files from scratch.
+- **Not an Agent**: Salmon-Loop is a tool for executing specific instructions, not an autonomous agent that explores the codebase indefinitely.
+- **No Refactors**: It is designed for targeted fixes and features, not large-scale architectural refactoring.
+- **No Whole-File Rewrite**: It modifies existing files via patches; it does not rewrite entire files from scratch.
 
 ## Language Support & Plugins
 
@@ -55,7 +55,7 @@ Copy the example environment file and add your API key:
 cp .env.example .env
 ```
 
-Edit `.env` and set your `SALMONLOOP_API_KEY` (or legacy `S8P_API_KEY`). You can also customize `SALMONLOOP_BASE_URL` (preferred) or legacy `SALMON_BASE_URL`/`S8P_BASE_URL`, plus `SALMONLOOP_MODEL` (preferred) or legacy `S8P_MODEL`/`SALMON_MODEL`.
+Edit `.env` and set your `SALMONLOOP_API_KEY` (or legacy `S8P_API_KEY`). You can also customize `SALMONLOOP_BASE_URL` (preferred) or legacy `S8P_BASE_URL`, plus `SALMONLOOP_MODEL` (preferred) or legacy `S8P_MODEL`.
 
 ### Running the CLI
 
@@ -91,14 +91,14 @@ const llm = new AiSdkLLM({
   clientPackage: '@ai-sdk/openai-compatible',
   baseUrl: 'https://api.openai.com/v1',
   apiKey: process.env.SALMONLOOP_API_KEY,
-  modelId: process.env.SALMONLOOP_MODEL || 'gpt-4o'
+  modelId: process.env.SALMONLOOP_MODEL || 'gpt-4o',
 });
 
 const result = await runSalmonLoop({
   instruction: 'Fix typo',
   verify: 'npm test',
   repoPath: process.cwd(),
-  llm
+  llm,
 });
 ```
 

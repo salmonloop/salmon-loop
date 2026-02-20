@@ -50,7 +50,8 @@ const BINARY_EXTENSIONS = new Set([
   '.bin',
 ]);
 
-const DEFAULT_MAX_FILE_BYTES = Number(process.env.SALMON_SECURITY_MAX_FILE_BYTES) || 1024 * 1024;
+const DEFAULT_MAX_FILE_BYTES =
+  Number(process.env.SALMONLOOP_SECURITY_MAX_FILE_BYTES) || 1024 * 1024;
 const DEFAULT_DEPENDENCY_ROOT_CANDIDATES = ['node_modules'] as const;
 const DIRTY_BACKUP_PREFIX = 'salmon-loop-backup-';
 const DEFAULT_DIRTY_BACKUP_RETENTION_MS = 24 * 60 * 60 * 1000;
@@ -130,7 +131,7 @@ export class WorkspaceSynchronizer {
   }
 
   private getDirtyBackupRetentionMs(): number {
-    const raw = process.env.SALMON_DIRTY_BACKUP_RETENTION_MS;
+    const raw = process.env.SALMONLOOP_DIRTY_BACKUP_RETENTION_MS;
     if (raw === undefined) return DEFAULT_DIRTY_BACKUP_RETENTION_MS;
 
     const parsed = Number(raw);

@@ -24,9 +24,9 @@ Salmon-Loop 建立在三个核心原则之上：
 
 ## 非目标 (Non-Goals)
 
--   **不是代理 (Not an Agent)**：Salmon-Loop 是一个执行特定指令的工具，而不是一个无限探索代码库的自主代理。
--   **不进行重构 (No Refactors)**：它专为针对性的修复和功能开发而设计，而不是大规模的架构重构。
--   **不重写整个文件 (No Whole-File Rewrite)**：它通过补丁修改现有文件；它不会从头开始重写整个文件。
+- **不是代理 (Not an Agent)**：Salmon-Loop 是一个执行特定指令的工具，而不是一个无限探索代码库的自主代理。
+- **不进行重构 (No Refactors)**：它专为针对性的修复和功能开发而设计，而不是大规模的架构重构。
+- **不重写整个文件 (No Whole-File Rewrite)**：它通过补丁修改现有文件；它不会从头开始重写整个文件。
 
 ## 使用方法
 
@@ -45,7 +45,7 @@ pnpm build
 cp .env.example .env
 ```
 
-编辑 `.env` 并设置您的 `SALMONLOOP_API_KEY`（或兼容的旧别名 `S8P_API_KEY`）。您还可以自定义 `SALMONLOOP_BASE_URL`（优先）或旧名 `SALMON_BASE_URL`/`S8P_BASE_URL`，以及 `SALMONLOOP_MODEL`（优先）或旧名 `S8P_MODEL`/`SALMON_MODEL`。
+编辑 `.env` 并设置您的 `SALMONLOOP_API_KEY`（或兼容的旧别名 `S8P_API_KEY`）。您还可以自定义 `SALMONLOOP_BASE_URL`（优先）或旧名 `S8P_BASE_URL`，以及 `SALMONLOOP_MODEL`（优先）或旧名 `S8P_MODEL`。
 
 ### 运行 CLI
 
@@ -81,14 +81,14 @@ const llm = new AiSdkLLM({
   clientPackage: '@ai-sdk/openai-compatible',
   baseUrl: 'https://api.openai.com/v1',
   apiKey: process.env.SALMONLOOP_API_KEY,
-  modelId: process.env.SALMONLOOP_MODEL || 'gpt-4o'
+  modelId: process.env.SALMONLOOP_MODEL || 'gpt-4o',
 });
 
 const result = await runSalmonLoop({
   instruction: '修复拼写错误',
   verify: 'npm test',
   repoPath: process.cwd(),
-  llm
+  llm,
 });
 ```
 

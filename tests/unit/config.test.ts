@@ -95,7 +95,7 @@ describe('Config module', () => {
 
     vi.stubEnv('SALMONLOOP_API_KEY', 'env-key');
     vi.stubEnv('SALMONLOOP_BASE_URL', 'https://loop.example/v1/');
-    vi.stubEnv('SALMON_BASE_URL', 'https://legacy.example/v1/');
+    vi.stubEnv('S8P_BASE_URL', 'https://legacy.example/v1/');
 
     const cfg = await resolveConfig({ repoRoot });
     expect(cfg.llm.api.baseUrl).toBe('https://loop.example/v1');

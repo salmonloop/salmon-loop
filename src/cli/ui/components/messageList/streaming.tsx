@@ -20,7 +20,7 @@ function tailByLines(input: string, maxLines: number): { tail: string; truncated
 }
 
 export const StreamingCursor = () => {
-  const enableBlink = process.env.SALMON_UI_BLINK_STREAMING === '1';
+  const enableBlink = process.env.SALMONLOOP_UI_BLINK_STREAMING === '1';
   const [visible, setVisible] = useState(true);
   useEffect(() => {
     if (!enableBlink) return;
@@ -31,7 +31,7 @@ export const StreamingCursor = () => {
 };
 
 export const StreamIndicator = () => {
-  const enableBlink = process.env.SALMON_UI_BLINK_STREAMING === '1';
+  const enableBlink = process.env.SALMONLOOP_UI_BLINK_STREAMING === '1';
   const [visible, setVisible] = useState(true);
   useEffect(() => {
     if (!enableBlink) return;

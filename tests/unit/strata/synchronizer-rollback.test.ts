@@ -31,7 +31,7 @@ vi.mock('../../../src/core/adapters/git/git-adapter', () => {
 describe('WorkspaceSynchronizer rollback staged restore fallback', () => {
   let repoPath: string;
   let extraCleanupPaths: string[] = [];
-  const originalRetention = process.env.SALMON_DIRTY_BACKUP_RETENTION_MS;
+  const originalRetention = process.env.SALMONLOOP_DIRTY_BACKUP_RETENTION_MS;
 
   const pathExists = async (targetPath: string): Promise<boolean> => {
     try {
@@ -102,9 +102,9 @@ describe('WorkspaceSynchronizer rollback staged restore fallback', () => {
 
   afterEach(async () => {
     if (originalRetention === undefined) {
-      delete process.env.SALMON_DIRTY_BACKUP_RETENTION_MS;
+      delete process.env.SALMONLOOP_DIRTY_BACKUP_RETENTION_MS;
     } else {
-      process.env.SALMON_DIRTY_BACKUP_RETENTION_MS = originalRetention;
+      process.env.SALMONLOOP_DIRTY_BACKUP_RETENTION_MS = originalRetention;
     }
     for (const cleanupPath of extraCleanupPaths) {
       await rm(cleanupPath, { recursive: true, force: true });
@@ -237,7 +237,7 @@ describe('WorkspaceSynchronizer rollback staged restore fallback', () => {
   });
 
   it('keeps expired backups when retention is disabled', async () => {
-    process.env.SALMON_DIRTY_BACKUP_RETENTION_MS = '0';
+    process.env.SALMONLOOP_DIRTY_BACKUP_RETENTION_MS = '0';
     const expiredBackupDir = await mkdtemp(path.join(tmpdir(), 'salmon-loop-backup-expired-'));
     extraCleanupPaths.push(expiredBackupDir);
     const oldTime = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
@@ -272,7 +272,7 @@ describe('WorkspaceSynchronizer rollback staged restore fallback', () => {
   });
 
   it('prunes expired backups when retention is enabled', async () => {
-    process.env.SALMON_DIRTY_BACKUP_RETENTION_MS = '1';
+    process.env.SALMONLOOP_DIRTY_BACKUP_RETENTION_MS = '1';
     const expiredBackupDir = await mkdtemp(path.join(tmpdir(), 'salmon-loop-backup-expired-'));
     extraCleanupPaths.push(expiredBackupDir);
     const oldTime = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);

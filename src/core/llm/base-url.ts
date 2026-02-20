@@ -1,6 +1,6 @@
 type BaseUrlInput = string | undefined | null;
 
-const ENV_ORDER = ['SALMONLOOP_BASE_URL', 'S8P_BASE_URL', 'SALMON_BASE_URL'] as const;
+const ENV_ORDER = ['SALMONLOOP_BASE_URL', 'S8P_BASE_URL'] as const;
 
 function trimValue(value: BaseUrlInput): string | undefined {
   if (!value) return undefined;
