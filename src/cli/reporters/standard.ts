@@ -169,7 +169,7 @@ export class StandardReporter implements SalmonReporter {
 
     // Handle sanitized technical errors from core to ensure no hardcoded text in core
     if (displayMessage === 'ERR_TECHNICAL_DETAILS_HIDDEN') {
-      displayMessage = text.llmErrors.httpRequestFailed;
+      displayMessage = text.errors.technicalDetailsHidden;
     }
 
     // Mapping logic: if code is provided, try to find the localized message

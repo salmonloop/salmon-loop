@@ -1,5 +1,6 @@
 import { text } from '../../../../locales/index.js';
 import { sanitizeError } from '../../../llm/errors.js';
+import { REDACTED_ERROR_TOKEN } from '../../../observability/error-envelope.js';
 import { EXECUTION_PHASES } from '../../../types/index.js';
 import type { ExecutionPhase, FlowMode, LoopReasonCode } from '../../../types/index.js';
 import { classifyError, isRetryable } from '../../../verification/runner.js';
@@ -46,7 +47,11 @@ function extractErrorCode(error: unknown): string | undefined {
 }
 
 function sanitizeReason(value: unknown): string {
-  return sanitizeError(value) || text.loop.loopExecutionFailed;
+  const sanitized = sanitizeError(value) || text.loop.loopExecutionFailed;
+  if (sanitized === REDACTED_ERROR_TOKEN) {
+    return text.errors.technicalDetailsHidden;
+  }
+  return sanitized;
 }
 
 export function resolveAttemptFailure(params: {
@@ -63,11 +68,14 @@ export function resolveAttemptFailure(params: {
 
   if (applyBackFailed) {
     return {
-      reason: context.applyBackResult?.error || 'Failed to apply changes back to main workspace',
+      reason:
+        context.applyBackResult?.safeMessage ||
+        context.applyBackResult?.error ||
+        text.loop.applyBackFailed,
       reasonCode: 'APPLY_BACK_FAILED',
       failurePhase: 'APPLY_BACK',
       retryable: false,
-      errorCode: 'APPLY_BACK_FAILED',
+      errorCode: context.applyBackResult?.errorCode || 'APPLY_BACK_FAILED',
     };
   }
 

@@ -23,6 +23,11 @@ export const en = {
     httpRequestFailed: 'LLM request failed',
   },
 
+  errors: {
+    technicalDetailsHidden:
+      'Technical details were hidden for safety. See the audit log for more information.',
+  },
+
   prompts: {
     definitionHint: 'Definitions should be modified with extreme caution',
     referenceHint: 'References marked with ↗️ indicate usage locations',
@@ -275,6 +280,12 @@ Please return the patch in PURE unified diff format:`;
     applyBackRollbackError: (error: string) => `Main workspace rollback error: ${error}`,
     applyBackRollbackSkipped:
       'Apply-back failed before touching the main workspace. Rollback skipped.',
+    applyBackStarted: (attempt: number) => `Apply-back started (attempt ${attempt})`,
+    applyBackSucceeded: (attempt: number) =>
+      `Apply-back completed successfully (attempt ${attempt})`,
+    applyBackFailed: 'Failed to apply changes back to the main workspace.',
+    applyBackFailedPrepare: 'Failed to prepare apply-back checkpoint in the shadow workspace.',
+    applyBackFailedSync: 'Failed to sync verified changes back to the main workspace.',
     rollbackShadowRef: (ref: string) => `[ROLLBACK] Using shadowInitialRef: ${ref}`,
     applyBackDualMerge: (init: string, latest: string) =>
       `[applyBack] Using dual-merge apply-back (shadow refs: ${init} -> ${latest}).`,

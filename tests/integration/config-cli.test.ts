@@ -3,6 +3,7 @@ import { mkdtemp, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join, resolve } from 'path';
 
+import { text } from '../../src/locales/index.js';
 import { RealFsTestHelper } from '../helpers/real-fs-helper.js';
 
 const PROJECT_ROOT = resolve(process.cwd());
@@ -116,7 +117,7 @@ describe('Config CLI integration', () => {
     ]);
 
     expect(exitCode).toBe(1);
-    expect(stderr).toContain('ERR_TECHNICAL_DETAILS_HIDDEN');
+    expect(stderr).toContain(text.errors.technicalDetailsHidden);
   });
 
   it('does not load default repo config when --no-config-file is set', async () => {
@@ -165,7 +166,7 @@ describe('Config CLI integration', () => {
     const { exitCode, stderr } = await runSalmonLoopCli(['run', '-r', repo.path, '--print-config']);
 
     expect(exitCode).toBe(1);
-    expect(stderr).toContain('ERR_TECHNICAL_DETAILS_HIDDEN');
+    expect(stderr).toContain(text.errors.technicalDetailsHidden);
   });
 
   it('fails with a readable error when config version is unsupported', async () => {
@@ -180,6 +181,6 @@ describe('Config CLI integration', () => {
     const { exitCode, stderr } = await runSalmonLoopCli(['run', '-r', repo.path, '--print-config']);
 
     expect(exitCode).toBe(1);
-    expect(stderr).toContain('ERR_TECHNICAL_DETAILS_HIDDEN');
+    expect(stderr).toContain(text.errors.technicalDetailsHidden);
   });
 });

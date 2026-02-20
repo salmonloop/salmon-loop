@@ -1,3 +1,4 @@
+import { text } from '../../../locales/index.js';
 import { Step } from '../engine/pipeline/pipeline.js';
 import { ShrinkCtx } from '../engine/pipeline/types.js';
 import { runApplyBackPhase } from '../runtime/apply-back-runtime.js';
@@ -42,6 +43,11 @@ export const runApplyBack: Step<ShrinkCtx, ShrinkCtx> = async (ctx) => {
   return {
     ...ctx,
     applyBackResult,
-    ...(applyBackResult.success ? {} : { lastError: applyBackResult.error || 'Apply-back failed' }),
+    ...(applyBackResult.success
+      ? {}
+      : {
+          lastError:
+            applyBackResult.safeMessage || applyBackResult.error || text.loop.applyBackFailed,
+        }),
   };
 };

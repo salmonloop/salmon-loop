@@ -1,5 +1,7 @@
-import { sanitizeError } from '../../llm/errors.js';
+import { text } from '../../../locales/index.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
+import { writeDebugArtifact } from '../../observability/debug-artifacts.js';
+import { buildErrorEnvelope, toSafeErrorSummary } from '../../observability/error-envelope.js';
 import { WorkspaceSynchronizer } from '../../strata/runtime/synchronizer.js';
 import type { ApplyBackTelemetry } from '../../strata/runtime/synchronizer.js';
 import type { CheckpointRef, LoopEvent, LoopOptions } from '../../types/index.js';
@@ -24,6 +26,10 @@ export interface ApplyBackPhaseResult {
   skipped: boolean;
   telemetry: ApplyBackTelemetry;
   error?: string;
+  errorCode?: string;
+  safeMessage?: string;
+  safeMeta?: Record<string, unknown>;
+  debugArtifact?: { path: string; sha256: string; chars: number };
 }
 
 export async function runApplyBackPhase(
@@ -40,6 +46,25 @@ export async function runApplyBackPhase(
     emit,
   } = params;
   const applyBackTelemetry: ApplyBackTelemetry = {};
+  const nowIso = () => new Date().toISOString();
+  type ApplyBackFailureStage = 'checkpointCommit' | 'applyBackToMain' | 'unknown';
+  let failureStage: ApplyBackFailureStage = 'unknown';
+
+  const toSafeTelemetry = (telemetry: ApplyBackTelemetry): Record<string, unknown> => ({
+    startedAt: telemetry.startedAt,
+    finishedAt: telemetry.finishedAt,
+    policy: telemetry.policy,
+    usedShadowRefs: telemetry.usedShadowRefs,
+    selectedStrategy: telemetry.selectedStrategy,
+    dirtyAtEntry: telemetry.dirtyAtEntry,
+    dirtyBackupCreated: telemetry.dirtyBackupCreated,
+    didBeginApply: telemetry.didBeginApply,
+    appliedToMain: telemetry.appliedToMain,
+    workspaceChangedAfterFailure: telemetry.workspaceChangedAfterFailure,
+    rollbackPath: telemetry.rollbackPath,
+    stagedRestoreAttempted: telemetry.stagedRestoreAttempted,
+    stagedRestoreSucceeded: telemetry.stagedRestoreSucceeded,
+  });
 
   if (!checkpointRef || options.strategy !== 'worktree') {
     recordAuditEvent(
@@ -63,11 +88,12 @@ export async function runApplyBackPhase(
   emit?.({
     type: 'log',
     level: 'info',
-    message: `Apply-back started for attempt ${attempt}`,
+    message: text.loop.applyBackStarted(attempt),
     timestamp: new Date(),
   });
 
   try {
+    failureStage = 'checkpointCommit';
     const finalRef =
       (await synchronizer.createCheckpointCommit(
         activeRepoPath,
@@ -75,6 +101,7 @@ export async function runApplyBackPhase(
         `final-${attempt}`,
       )) || checkpointRef.baseRef;
 
+    failureStage = 'applyBackToMain';
     await synchronizer.applyBackToMainWorkspace(
       options.repoPath,
       checkpointRef,
@@ -101,29 +128,93 @@ export async function runApplyBackPhase(
     emit?.({
       type: 'log',
       level: 'info',
-      message: `Apply-back completed successfully for attempt ${attempt}`,
+      message: text.loop.applyBackSucceeded(attempt),
       timestamp: new Date(),
     });
 
     return { success: true, skipped: false, telemetry: applyBackTelemetry };
   } catch (error) {
-    const sanitizedErr = sanitizeError(error);
+    const errorCode = 'APPLY_BACK_FAILED';
+    const safeMeta: Record<string, unknown> = {
+      stage: failureStage,
+      attempt,
+      changedFiles: params.changedFiles.length,
+      strategy: options.strategy ?? 'direct',
+      applyBackOnDirty: options.applyBackOnDirty ?? '3way',
+      errorSummary: toSafeErrorSummary(error),
+      timestamp: nowIso(),
+    };
+
+    const safeMessage =
+      failureStage === 'checkpointCommit'
+        ? text.loop.applyBackFailedPrepare
+        : failureStage === 'applyBackToMain'
+          ? text.loop.applyBackFailedSync
+          : text.loop.applyBackFailed;
+
+    let debugArtifact: { path: string; sha256: string; chars: number } | null = null;
+    try {
+      debugArtifact = await writeDebugArtifact({
+        repoRoot: options.repoPath,
+        prefix: 'apply-back-error',
+        content: [
+          `applyBack failure`,
+          `attempt=${attempt}`,
+          `stage=${failureStage}`,
+          `changedFiles=${params.changedFiles.length}`,
+          `strategy=${options.strategy ?? 'direct'}`,
+          `applyBackOnDirty=${options.applyBackOnDirty ?? '3way'}`,
+          '',
+          `safeTelemetry=${JSON.stringify(toSafeTelemetry(applyBackTelemetry), null, 2)}`,
+          '',
+          `errorType=${error instanceof Error ? error.name : typeof error}`,
+          `errorCode=${(error as any)?.code ?? (error as any)?.llmCode ?? ''}`,
+          `errorMessage=${error instanceof Error ? error.message : String(error)}`,
+        ].join('\n'),
+      });
+    } catch {
+      // Best-effort: do not mask the primary failure if artifact writing fails.
+    }
+
+    const envelope = buildErrorEnvelope({
+      domain: 'applyBack',
+      code: errorCode,
+      phase: 'APPLY_BACK',
+      safeMessage,
+      safeMeta,
+      debugArtifact: debugArtifact ?? undefined,
+    });
+
     recordAuditEvent(
       'apply_back.failure',
       {
         attempt,
         changedFiles: params.changedFiles.length,
-        telemetry: applyBackTelemetry,
-        error: sanitizedErr,
+        telemetry: toSafeTelemetry(applyBackTelemetry),
+        errorCode,
+        safeMessage,
+        safeMeta,
+        debugArtifact: debugArtifact ?? undefined,
       },
       { phase: 'APPLY_BACK', severity: 'high', scope: 'session' },
     );
     emit?.({
       type: 'log',
       level: 'error',
-      message: `Apply-back failed on attempt ${attempt}: ${sanitizedErr}`,
+      message: envelope.safeMessage,
+      code: envelope.code,
       timestamp: new Date(),
     });
-    return { success: false, skipped: false, telemetry: applyBackTelemetry, error: sanitizedErr };
+
+    return {
+      success: false,
+      skipped: false,
+      telemetry: applyBackTelemetry,
+      error: envelope.safeMessage,
+      errorCode: envelope.code,
+      safeMessage: envelope.safeMessage,
+      safeMeta: envelope.safeMeta,
+      debugArtifact: envelope.debugArtifact,
+    };
   }
 }

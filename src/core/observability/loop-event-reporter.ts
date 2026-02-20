@@ -1,5 +1,7 @@
+import { text } from '../../locales/index.js';
 import type { LoopEvent } from '../types/index.js';
 
+import { REDACTED_ERROR_TOKEN } from './error-envelope.js';
 import type { LogReporter } from './logger.js';
 import { sanitizeUiLogMessage } from './ui-log-sanitize.js';
 
@@ -40,11 +42,14 @@ export class LoopEventReporter implements LogReporter {
 
   log(level: string, message: string): void {
     const mapped = mapLevel(level);
+    const sanitized = sanitizeUiLogMessage(message, mapped);
+    const finalMessage =
+      sanitized === REDACTED_ERROR_TOKEN ? text.errors.technicalDetailsHidden : sanitized;
     this.emit({
       type: 'log',
       level: mapped,
       source: this.source,
-      message: sanitizeUiLogMessage(message, mapped),
+      message: finalMessage,
       timestamp: new Date(),
     });
   }

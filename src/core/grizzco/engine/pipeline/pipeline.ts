@@ -130,6 +130,31 @@ export class Pipeline<CurrentCtx> {
         }
         result = await action(ctx);
         this.ctxRef.current = result;
+
+        // APPLY_BACK failure is represented as a structured result (not an exception) to preserve context.
+        // The pipeline must still treat it as a phase failure for progress reporting and plan journaling.
+        if (
+          name === 'APPLY_BACK' &&
+          result &&
+          typeof result === 'object' &&
+          (result as any).applyBackResult &&
+          typeof (result as any).applyBackResult === 'object'
+        ) {
+          const applyBackResult = (result as any).applyBackResult as {
+            success?: boolean;
+            skipped?: boolean;
+            safeMessage?: string;
+            error?: string;
+            errorCode?: string;
+          };
+          if (applyBackResult.success === false && !applyBackResult.skipped) {
+            errorStr = applyBackResult.safeMessage || applyBackResult.error || 'Apply-back failed';
+            errorMeta = {
+              name: 'ApplyBackFailure',
+              code: applyBackResult.errorCode || 'APPLY_BACK_FAILED',
+            };
+          }
+        }
         return result;
       } catch (error) {
         errorStr = error instanceof Error ? error.message : String(error);

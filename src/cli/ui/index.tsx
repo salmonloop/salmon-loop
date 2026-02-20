@@ -5,6 +5,7 @@ import type { MarkdownRenderMode, MarkdownTheme, UiLogView } from '../../core/co
 import { logger } from '../../core/observability/logger.js';
 import { LoopEventReporter } from '../../core/observability/loop-event-reporter.js';
 import { LoopEvent } from '../../core/types/index.js';
+import { text } from '../locales/index.js';
 
 import { App } from './App.js';
 
@@ -28,7 +29,7 @@ function sanitizeConsoleArgs(args: any[]): any[] {
         /(APICallError|RetryError|\[Symbol\(vercel\.ai\.error|requestBodyValues|responseBody)\b/i.test(
           arg,
         );
-      return looksLikeDump ? 'ERR_TECHNICAL_DETAILS_HIDDEN' : arg;
+      return looksLikeDump ? text.errors.technicalDetailsHidden : arg;
     }
     if (typeof arg === 'object' && arg !== null) {
       const code = (arg as any).code || (arg as any).llmCode || (arg as any).name || 'Object';

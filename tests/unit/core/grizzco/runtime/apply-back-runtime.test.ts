@@ -1,20 +1,23 @@
-const { recordAuditEventMock, sanitizeErrorMock } = vi.hoisted(() => ({
+const { recordAuditEventMock, writeDebugArtifactMock } = vi.hoisted(() => ({
   recordAuditEventMock: vi.fn(),
-  sanitizeErrorMock: vi.fn((error: unknown) =>
-    error instanceof Error ? `sanitized:${error.message}` : String(error),
-  ),
+  writeDebugArtifactMock: vi.fn().mockResolvedValue({
+    path: 'blobs/apply-back-error-test.log',
+    sha256: 'sha256-test',
+    chars: 12,
+  }),
 }));
 
 vi.mock('../../../../../src/core/observability/audit-trail.js', () => ({
   recordAuditEvent: recordAuditEventMock,
 }));
 
-vi.mock('../../../../../src/core/llm/errors.js', () => ({
-  sanitizeError: sanitizeErrorMock,
+vi.mock('../../../../../src/core/observability/debug-artifacts.js', () => ({
+  writeDebugArtifact: writeDebugArtifactMock,
 }));
 
 import { runApplyBackPhase } from '../../../../../src/core/grizzco/runtime/apply-back-runtime.js';
 import { collectSidecarPaths } from '../../../../../src/core/grizzco/runtime/apply-back-utils.js';
+import { text } from '../../../../../src/locales/index.js';
 
 function createSynchronizer(overrides: Record<string, unknown> = {}) {
   return {
@@ -158,11 +161,10 @@ describe('apply-back-runtime', () => {
     expect(applyCall?.[7]).toBe('base-ref');
   });
 
-  it('returns sanitized error details when apply-back fails', async () => {
+  it('returns safe error details when apply-back fails', async () => {
     const synchronizer = createSynchronizer({
       applyBackToMainWorkspace: vi.fn().mockRejectedValue(new Error('merge conflict')),
     });
-    sanitizeErrorMock.mockReturnValueOnce('sanitized:merge conflict');
     const emit = vi.fn();
 
     const result = await runApplyBackPhase(
@@ -176,14 +178,27 @@ describe('apply-back-runtime', () => {
       success: false,
       skipped: false,
       telemetry: {},
-      error: 'sanitized:merge conflict',
+      error: text.loop.applyBackFailedSync,
+      errorCode: 'APPLY_BACK_FAILED',
+      safeMessage: text.loop.applyBackFailedSync,
+      safeMeta: expect.objectContaining({
+        stage: 'applyBackToMain',
+        attempt: 1,
+        changedFiles: 1,
+        applyBackOnDirty: '3way',
+      }),
+      debugArtifact: {
+        path: 'blobs/apply-back-error-test.log',
+        sha256: 'sha256-test',
+        chars: 12,
+      },
     });
-    expect(sanitizeErrorMock).toHaveBeenCalledTimes(1);
     expect(recordAuditEventMock).toHaveBeenCalledWith(
       'apply_back.failure',
       expect.objectContaining({
         attempt: 1,
-        error: 'sanitized:merge conflict',
+        errorCode: 'APPLY_BACK_FAILED',
+        safeMessage: text.loop.applyBackFailedSync,
       }),
       expect.objectContaining({ phase: 'APPLY_BACK' }),
     );
@@ -191,7 +206,8 @@ describe('apply-back-runtime', () => {
       expect.objectContaining({
         type: 'log',
         level: 'error',
-        message: expect.stringContaining('sanitized:merge conflict'),
+        message: text.loop.applyBackFailedSync,
+        code: 'APPLY_BACK_FAILED',
       }),
     );
   });

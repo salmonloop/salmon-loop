@@ -11,6 +11,7 @@ import type { Toolstack } from '../../../tools/loader.js';
 import type {
   CheckpointRef,
   Context,
+  DebugArtifactRef,
   ExecutionWorkspace,
   FileSystem,
   FlowMode,
@@ -61,6 +62,10 @@ export interface ApplyBackResult {
   skipped: boolean;
   telemetry: ApplyBackTelemetry;
   error?: string;
+  errorCode?: string;
+  safeMessage?: string;
+  safeMeta?: Record<string, unknown>;
+  debugArtifact?: DebugArtifactRef;
 }
 
 /**

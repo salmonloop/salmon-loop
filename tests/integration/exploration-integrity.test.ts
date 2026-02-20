@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 import { runSalmonLoop } from '../../src/core/runtime/loop.js';
+import { text } from '../../src/locales/index.js';
 import { RealFsTestHelper } from '../helpers/real-fs-helper.js';
 
 type TestLlmPhase = 'explore_no_read' | 'explore_with_read' | 'plan' | 'patch' | 'done';
@@ -143,7 +144,7 @@ describe('Exploration Integrity Integration', () => {
 
     expect(result.success).toBe(true);
     expect(result.attempts).toBeGreaterThanOrEqual(2);
-    expect(result.history?.[0]?.error).toContain('ERR_TECHNICAL_DETAILS_HIDDEN');
+    expect(result.history?.[0]?.error).toContain(text.errors.technicalDetailsHidden);
 
     const content = await helper.readFile(repoPath, 'src/main.ts');
     expect(content).toContain('updated');

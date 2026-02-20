@@ -1,11 +1,13 @@
 import chalk from 'chalk';
 
+import { text } from '../../locales/index.js';
 import { FileAdapter } from '../adapters/fs/index.js';
 import { VerboseLevel } from '../types/index.js';
 import { sanitizeObject, sanitizeErrorMessage } from '../utils/sanitizer.js';
 
 import type { AuditTrailMeta } from './audit-trail.js';
 import { recordAuditEvent } from './audit-trail.js';
+import { REDACTED_ERROR_TOKEN } from './error-envelope.js';
 
 export type LogLevel = 'none' | 'basic' | 'extended';
 
@@ -36,45 +38,49 @@ export class ConsoleReporter implements LogReporter {
   }
 
   log(level: string, message: string, metadata?: any): void {
+    const safeMessage =
+      message === REDACTED_ERROR_TOKEN ? text.errors.technicalDetailsHidden : message;
     switch (level) {
       case 'info':
       case 'log':
       case 'bold':
-        console.log(level === 'bold' ? chalk.bold(message) : message);
+        console.log(level === 'bold' ? chalk.bold(safeMessage) : safeMessage);
         break;
       case 'success':
-        console.log(chalk.green(message));
+        console.log(chalk.green(safeMessage));
         break;
       case 'warn':
       case 'degraded':
         console.warn(
-          level === 'degraded' ? chalk.magenta(`[DEGRADED] ${message}`) : chalk.yellow(message),
+          level === 'degraded'
+            ? chalk.magenta(`[DEGRADED] ${safeMessage}`)
+            : chalk.yellow(safeMessage),
         );
         break;
       case 'error':
-        console.error(chalk.red(message));
+        console.error(chalk.red(safeMessage));
         break;
       case 'debug':
-        if (this.isBasic) console.log(chalk.gray(message));
+        if (this.isBasic) console.log(chalk.gray(safeMessage));
         break;
       case 'trace':
-        if (this.isExtended) console.log(chalk.gray(message));
+        if (this.isExtended) console.log(chalk.gray(safeMessage));
         break;
       case 'cyan':
-        console.log(chalk.cyan(message));
+        console.log(chalk.cyan(safeMessage));
         break;
       case 'dim':
-        console.log(chalk.dim(message));
+        console.log(chalk.dim(safeMessage));
         break;
       case 'step':
         if (this.isBasic) {
           const phase = metadata?.phase || 'STEP';
-          console.log(chalk.blue(`\n[${phase.toUpperCase()}] `) + message);
+          console.log(chalk.blue(`\n[${phase.toUpperCase()}] `) + safeMessage);
         }
         break;
       case 'audit': {
         const timestamp = new Date().toISOString();
-        console.log(chalk.bgBlue.white(`[AUDIT] ${timestamp} - ${message}`));
+        console.log(chalk.bgBlue.white(`[AUDIT] ${timestamp} - ${safeMessage}`));
         break;
       }
     }
