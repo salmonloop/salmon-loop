@@ -9,6 +9,7 @@ import { sessionCommand } from './session.js';
 import { snapshotInteractiveCommand } from './snapshot-interactive.js';
 import { statusCommand } from './status.js';
 import { subAgentCommand } from './subagent.js';
+import { suggestSubcommands } from './subcommand-suggestions.js';
 import type { Command, CommandContext } from './types.js';
 import { parseSuggestionContext } from './utils.js';
 
@@ -70,28 +71,11 @@ export async function getSuggestions(
 
   // If we have an exact command match and we are in the argument area
   if (exactMatch && argIndex > 0) {
-    if (argIndex === 1 && exactMatch.subcommands) {
-      // Subcommand logic
-      const subSearch = currentPrefix.toLowerCase();
-      const subMatches = exactMatch.subcommands.filter((s) => s.name.startsWith(subSearch));
-      return subMatches.map((s) => ({
-        name: s.name,
-        description: s.description,
-        command: s,
-      }));
+    if (exactMatch.getSuggestions) return await exactMatch.getSuggestions(context);
+    if (exactMatch.subcommands && exactMatch.subcommands.length > 0) {
+      return await suggestSubcommands(exactMatch, context);
     }
-
-    // If we have an exact subcommand match at argIndex 1, delegate to it for argIndex > 1
-    if (argIndex > 1 && exactMatch.subcommands) {
-      const args = input.trim().split(/\s+/);
-      const subCmdName = args[1].toLowerCase();
-      const subMatch = exactMatch.subcommands.find((s) => s.name === subCmdName);
-      if (subMatch?.getSuggestions) {
-        return subMatch.getSuggestions(context);
-      }
-    }
-
-    return exactMatch.getSuggestions ? await exactMatch.getSuggestions(context) : [];
+    return [];
   }
 
   // Otherwise, suggest base commands

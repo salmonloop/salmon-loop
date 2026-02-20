@@ -14,6 +14,7 @@ import type {
 import { RuntimeEnvironment } from '../../core/strata/runtime/environment.js';
 import type { ToolAuthorizationProvider } from '../../core/tools/authorization/types.js';
 import { createStandardToolstack } from '../../core/tools/loader.js';
+import { suggestSubcommands } from '../commands/subcommand-suggestions.js';
 import type { Command, CommandContext } from '../commands/types.js';
 import { text } from '../locales/index.js';
 
@@ -130,7 +131,11 @@ export async function createCliSlashRuntime(
 
       const base = commandTokenIndex.get(normalized);
       if (base) {
-        const baseGetSuggestions = base.getSuggestions;
+        const baseGetSuggestions =
+          base.getSuggestions ??
+          (base.subcommands && base.subcommands.length > 0
+            ? async (ctx: CommandContext) => suggestSubcommands(base, ctx)
+            : undefined);
         return {
           execute: async (req) => {
             const meta = (req.meta ?? {}) as CommandContext;

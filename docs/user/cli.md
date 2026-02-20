@@ -17,6 +17,19 @@ In chat mode, SalmonLoop exposes two UI controls:
 
 Both settings are persisted to the repo config at `<repoRoot>/.salmonloop/config/config.json`.
 
+#### Omni-Tray completion (slash suggestions)
+
+When you type a slash command, the Omni-Tray shows context-aware suggestions.
+
+- **Command names**: Typing `/` (or a prefix like `/se`) suggests matching commands.
+- **Subcommands**: Commands that define `subcommands` will suggest them after a space (e.g., `/config ` -> `log`).
+- **Deep suggestions**: Some subcommands provide their own suggestions (e.g., `/snapshot restore ` suggests snapshot hashes).
+
+Notes:
+
+- Unknown slash commands are blocked (see Command Interception below).
+- Suggestions are best-effort and may be empty for commands that do not define suggestions.
+
 #### Sub-agent slash command
 
 While in chat mode you can inspect running Smallfry sub-agents without letting the LLM mutate your main worktree:
