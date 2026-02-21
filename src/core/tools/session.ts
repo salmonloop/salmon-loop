@@ -7,6 +7,8 @@ import { redactErrorMessage, redactJsonString, redactValue } from '../llm/redact
 import { recordAuditEvent } from '../observability/audit-trail.js';
 import { logger } from '../observability/logger.js';
 import {
+  createResponseFunctionCallArgumentsDeltaEvent,
+  createResponseFunctionCallArgumentsDoneEvent,
   createResponseOutputItemAddedFunctionCallEvent,
   createResponseOutputItemDoneFunctionCallEvent,
 } from '../streaming/canonical/responses-event-emitter.js';
@@ -911,6 +913,7 @@ export async function chatWithToolsStreaming(
             if (emittedModelToolCallIds.has(callId)) continue;
             emittedModelToolCallIds.add(callId);
 
+            const at = new Date();
             session.emit({
               type: 'llm.responses.event',
               kind: session.llmOutput.kind,
@@ -924,7 +927,38 @@ export async function chatWithToolsStreaming(
                 name: toolName,
                 argumentsText: '{}',
               }),
-              timestamp: new Date(),
+              timestamp: at,
+            });
+
+            session.emit({
+              type: 'llm.responses.event',
+              kind: session.llmOutput.kind,
+              step: session.llmOutput.step,
+              streamId,
+              phase,
+              round,
+              source: 'synthesized',
+              event: createResponseFunctionCallArgumentsDeltaEvent({
+                itemId: callId,
+                delta: '{}',
+              }),
+              timestamp: at,
+            });
+
+            session.emit({
+              type: 'llm.responses.event',
+              kind: session.llmOutput.kind,
+              step: session.llmOutput.step,
+              streamId,
+              phase,
+              round,
+              source: 'synthesized',
+              event: createResponseFunctionCallArgumentsDoneEvent({
+                itemId: callId,
+                name: toolName,
+                argumentsText: '{}',
+              }),
+              timestamp: at,
             });
           }
         }
@@ -1040,6 +1074,7 @@ export async function chatWithToolsStreaming(
 
         if (!emittedModelToolCallIds.has(callId)) {
           emittedModelToolCallIds.add(callId);
+          const at = new Date();
           session.emit({
             type: 'llm.responses.event',
             kind: session.llmOutput.kind,
@@ -1053,10 +1088,42 @@ export async function chatWithToolsStreaming(
               name: toolName,
               argumentsText: '{}',
             }),
-            timestamp: new Date(),
+            timestamp: at,
+          });
+
+          session.emit({
+            type: 'llm.responses.event',
+            kind: session.llmOutput.kind,
+            step: session.llmOutput.step,
+            streamId,
+            phase,
+            round,
+            source: 'synthesized',
+            event: createResponseFunctionCallArgumentsDeltaEvent({
+              itemId: callId,
+              delta: '{}',
+            }),
+            timestamp: at,
+          });
+
+          session.emit({
+            type: 'llm.responses.event',
+            kind: session.llmOutput.kind,
+            step: session.llmOutput.step,
+            streamId,
+            phase,
+            round,
+            source: 'synthesized',
+            event: createResponseFunctionCallArgumentsDoneEvent({
+              itemId: callId,
+              name: toolName,
+              argumentsText: '{}',
+            }),
+            timestamp: at,
           });
         }
 
+        const doneAt = new Date();
         session.emit({
           type: 'llm.responses.event',
           kind: session.llmOutput.kind,
@@ -1070,7 +1137,7 @@ export async function chatWithToolsStreaming(
             name: toolName,
             argumentsText: '{}',
           }),
-          timestamp: new Date(),
+          timestamp: doneAt,
         });
       }
     }

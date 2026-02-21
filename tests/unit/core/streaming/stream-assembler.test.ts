@@ -90,6 +90,77 @@ describe('StreamAssembler', () => {
     ]);
   });
 
+  it('starts a text stream on response output_item.added(message) and does not duplicate prelude on subsequent deltas', () => {
+    const assembler = new StreamAssembler();
+    const at = new Date('2026-02-20T00:00:02.000Z');
+
+    const start = assembler.push({
+      type: 'llm.responses.event',
+      kind: 'plan',
+      step: 'PLAN',
+      streamId: 'stream-1',
+      source: 'provider',
+      event: {
+        type: 'response.output_item.added',
+        output_index: 0,
+        item: {
+          id: 'stream-1',
+          type: 'message',
+          role: 'assistant',
+          status: 'in_progress',
+          content: [],
+        },
+      },
+      timestamp: at,
+    } satisfies LoopEvent);
+
+    expect(start).toEqual([
+      {
+        type: 'normalized.message_start',
+        messageId: 'stream-1',
+        role: 'assistant',
+        source: 'llm',
+        timestamp: at,
+      },
+      {
+        type: 'normalized.content_block_start',
+        messageId: 'stream-1',
+        blockId: 'stream-1:text:0',
+        blockType: 'text',
+        index: 0,
+        timestamp: at,
+      },
+    ]);
+
+    const delta = assembler.push({
+      type: 'llm.responses.event',
+      kind: 'plan',
+      step: 'PLAN',
+      streamId: 'stream-1',
+      source: 'provider',
+      event: {
+        type: 'response.output_text.delta',
+        delta: 'Hello',
+        output_index: 0,
+        item_id: 'stream-1',
+        content_index: 0,
+      },
+      timestamp: at,
+    } satisfies LoopEvent);
+
+    expect(delta).toEqual([
+      {
+        type: 'normalized.content_block_delta',
+        messageId: 'stream-1',
+        blockId: 'stream-1:text:0',
+        index: 0,
+        deltaType: 'text',
+        text: 'Hello',
+        timestamp: at,
+      },
+    ]);
+  });
+
   it('ignores legacy text deltas when canonical text deltas are present', () => {
     const assembler = new StreamAssembler();
     const at = new Date('2026-02-20T00:00:02.000Z');

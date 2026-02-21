@@ -649,8 +649,12 @@ describe('chatWithToolsStreaming', () => {
     expect(deltas[0]).toEqual(expect.objectContaining({ content: 'hello ' }));
 
     const canonical = events.filter((event) => event.type === 'llm.responses.event');
-    expect(canonical).toHaveLength(3);
-    expect(canonical[0]).toEqual(
+    const firstTextDelta = canonical.find(
+      (event) =>
+        event.type === 'llm.responses.event' &&
+        (event as any).event?.type === 'response.output_text.delta',
+    );
+    expect(firstTextDelta).toEqual(
       expect.objectContaining({
         kind: 'plan',
         step: 'PLAN',
@@ -662,7 +666,12 @@ describe('chatWithToolsStreaming', () => {
       }),
     );
 
-    expect(canonical[2]).toEqual(
+    const textDone = canonical.find(
+      (event) =>
+        event.type === 'llm.responses.event' &&
+        (event as any).event?.type === 'response.output_text.done',
+    );
+    expect(textDone).toEqual(
       expect.objectContaining({
         kind: 'plan',
         step: 'PLAN',
@@ -821,7 +830,8 @@ describe('chatWithToolsStreaming', () => {
     const added = events.find(
       (event) =>
         event.type === 'llm.responses.event' &&
-        (event as any).event?.type === 'response.output_item.added',
+        (event as any).event?.type === 'response.output_item.added' &&
+        (event as any).event?.item?.type === 'function_call',
     );
     expect(added).toBeTruthy();
     expect(added).toEqual(expect.objectContaining({ phase: Phase.PLAN, round: 0 }));
@@ -829,7 +839,8 @@ describe('chatWithToolsStreaming', () => {
     const done = events.find(
       (event) =>
         event.type === 'llm.responses.event' &&
-        (event as any).event?.type === 'response.output_item.done',
+        (event as any).event?.type === 'response.output_item.done' &&
+        (event as any).event?.item?.type === 'function_call',
     );
     expect(done).toBeTruthy();
     expect(done).toEqual(expect.objectContaining({ phase: Phase.PLAN, round: 0 }));
@@ -841,12 +852,14 @@ describe('chatWithToolsStreaming', () => {
     const addedIndex = events.findIndex(
       (event) =>
         event.type === 'llm.responses.event' &&
-        (event as any).event?.type === 'response.output_item.added',
+        (event as any).event?.type === 'response.output_item.added' &&
+        (event as any).event?.item?.type === 'function_call',
     );
     const doneIndex = events.findIndex(
       (event) =>
         event.type === 'llm.responses.event' &&
-        (event as any).event?.type === 'response.output_item.done',
+        (event as any).event?.type === 'response.output_item.done' &&
+        (event as any).event?.item?.type === 'function_call',
     );
     const toolStartIndex = events.findIndex((event) => event.type === 'tool.call.start');
     expect(addedIndex).toBeGreaterThanOrEqual(0);

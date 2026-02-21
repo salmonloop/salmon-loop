@@ -1,7 +1,12 @@
 import { getExitCode } from '../runtime/exit-codes.js';
 import type { LoopEvent, LoopResult } from '../types/index.js';
 
-import type { CanonicalResponsesEvent } from './canonical/responses-events.js';
+import type {
+  CanonicalResponseFunctionCallItem,
+  CanonicalResponseOutputItemAddedEvent,
+  CanonicalResponseOutputItemDoneEvent,
+  CanonicalResponsesEvent,
+} from './canonical/responses-events.js';
 import { normalizeStopReason, type NormalizedStreamEvent } from './normalized-events.js';
 
 type TextStreamState = {
@@ -257,6 +262,24 @@ export class StreamAssembler {
     }
 
     if (isOutputTextDoneEvent(event.event)) {
+      if (this.canonicalClosedTextStreams.has(event.streamId)) return [];
+      this.canonicalClosedTextStreams.add(event.streamId);
+      this.canonicalTextStreams.delete(event.streamId);
+      return this.handleTextEnd(event.streamId, event.timestamp, undefined);
+    }
+
+    if (
+      isOutputItemAddedMessageEvent(event.event) ||
+      isContentPartAddedOutputTextEvent(event.event)
+    ) {
+      return this.ensureTextStreamStarted(event.streamId, event.timestamp);
+    }
+
+    if (
+      isOutputItemDoneMessageEvent(event.event) ||
+      isContentPartDoneOutputTextEvent(event.event)
+    ) {
+      if (this.canonicalClosedTextStreams.has(event.streamId)) return [];
       this.canonicalClosedTextStreams.add(event.streamId);
       this.canonicalTextStreams.delete(event.streamId);
       return this.handleTextEnd(event.streamId, event.timestamp, undefined);
@@ -334,7 +357,7 @@ function isOutputTextDoneEvent(
 
 function isOutputItemAddedFunctionCallEvent(
   event: CanonicalResponsesEvent,
-): event is Extract<CanonicalResponsesEvent, { type: 'response.output_item.added' }> {
+): event is CanonicalResponseOutputItemAddedEvent & { item: CanonicalResponseFunctionCallItem } {
   if (event.type !== 'response.output_item.added') return false;
   const candidate = event as { item?: unknown };
   if (!candidate.item || typeof candidate.item !== 'object') return false;
@@ -348,7 +371,7 @@ function isOutputItemAddedFunctionCallEvent(
 
 function isOutputItemDoneFunctionCallEvent(
   event: CanonicalResponsesEvent,
-): event is Extract<CanonicalResponsesEvent, { type: 'response.output_item.done' }> {
+): event is CanonicalResponseOutputItemDoneEvent & { item: CanonicalResponseFunctionCallItem } {
   if (event.type !== 'response.output_item.done') return false;
   const candidate = event as { item?: unknown };
   if (!candidate.item || typeof candidate.item !== 'object') return false;
@@ -358,4 +381,44 @@ function isOutputItemDoneFunctionCallEvent(
     typeof item.call_id === 'string' &&
     typeof item.name === 'string'
   );
+}
+
+function isOutputItemAddedMessageEvent(
+  event: CanonicalResponsesEvent,
+): event is Extract<CanonicalResponsesEvent, { type: 'response.output_item.added' }> {
+  if (event.type !== 'response.output_item.added') return false;
+  const candidate = event as { item?: unknown };
+  if (!candidate.item || typeof candidate.item !== 'object') return false;
+  const item = candidate.item as { type?: unknown; role?: unknown };
+  return item.type === 'message' && typeof item.role === 'string';
+}
+
+function isOutputItemDoneMessageEvent(
+  event: CanonicalResponsesEvent,
+): event is Extract<CanonicalResponsesEvent, { type: 'response.output_item.done' }> {
+  if (event.type !== 'response.output_item.done') return false;
+  const candidate = event as { item?: unknown };
+  if (!candidate.item || typeof candidate.item !== 'object') return false;
+  const item = candidate.item as { type?: unknown; role?: unknown };
+  return item.type === 'message' && typeof item.role === 'string';
+}
+
+function isContentPartAddedOutputTextEvent(
+  event: CanonicalResponsesEvent,
+): event is Extract<CanonicalResponsesEvent, { type: 'response.content_part.added' }> {
+  if (event.type !== 'response.content_part.added') return false;
+  const candidate = event as { part?: unknown };
+  if (!candidate.part || typeof candidate.part !== 'object') return false;
+  const part = candidate.part as { type?: unknown };
+  return part.type === 'output_text';
+}
+
+function isContentPartDoneOutputTextEvent(
+  event: CanonicalResponsesEvent,
+): event is Extract<CanonicalResponsesEvent, { type: 'response.content_part.done' }> {
+  if (event.type !== 'response.content_part.done') return false;
+  const candidate = event as { part?: unknown };
+  if (!candidate.part || typeof candidate.part !== 'object') return false;
+  const part = candidate.part as { type?: unknown };
+  return part.type === 'output_text';
 }

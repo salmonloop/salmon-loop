@@ -1,5 +1,9 @@
 import { LIMITS } from '../config/limits.js';
 import {
+  createResponseContentPartAddedOutputTextEvent,
+  createResponseContentPartDoneOutputTextEvent,
+  createResponseOutputItemAddedMessageEvent,
+  createResponseOutputItemDoneMessageEvent,
   createResponseOutputTextDeltaEvent,
   createResponseOutputTextDoneEvent,
 } from '../streaming/canonical/responses-event-emitter.js';
@@ -14,6 +18,7 @@ import {
 const SECRET_LINE_PATTERN = /(api[-_]?key|authorization|token|secret|password|cookie)/i;
 const TOKEN_LIKE_PATTERN = /[A-Za-z0-9_\-/+=]{16,}/;
 const STREAM_SANITIZATION_STATE = new Map<string, { raw: string; emittedLength: number }>();
+const STREAM_CANONICAL_MESSAGE_STATE = new Map<string, { started: boolean }>();
 
 export const DEFAULT_LLM_OUTPUT_POLICY: LlmOutputPolicy = {
   kinds: ['review', 'assistant_message', 'plan'],
@@ -96,6 +101,22 @@ function sanitizeLlmStreamDelta(streamId: string, delta: string): string {
   return next;
 }
 
+function ensureCanonicalMessagePrelude(streamId: string): boolean {
+  if (STREAM_CANONICAL_MESSAGE_STATE.size > 256 && !STREAM_CANONICAL_MESSAGE_STATE.has(streamId)) {
+    STREAM_CANONICAL_MESSAGE_STATE.clear();
+  }
+  const existing = STREAM_CANONICAL_MESSAGE_STATE.get(streamId);
+  if (existing?.started) return false;
+  STREAM_CANONICAL_MESSAGE_STATE.set(streamId, { started: true });
+  return true;
+}
+
+function getSanitizedStreamText(streamId: string): string {
+  const st = STREAM_SANITIZATION_STATE.get(streamId);
+  if (!st) return '';
+  return sanitizeLlmOutput(st.raw);
+}
+
 export function emitLlmOutput(params: {
   emit?: (event: LoopEvent) => void;
   policy?: LlmOutputPolicy;
@@ -131,6 +152,36 @@ export function emitLlmStreamDelta(params: {
   const sanitized = sanitizeLlmStreamDelta(streamId, content);
   if (!sanitized) return;
   const timestamp = new Date();
+
+  if (ensureCanonicalMessagePrelude(streamId)) {
+    emit({
+      type: 'llm.responses.event',
+      kind,
+      step,
+      streamId,
+      source: 'synthesized',
+      event: createResponseOutputItemAddedMessageEvent({
+        itemId: streamId,
+        role: 'assistant',
+        outputIndex: 0,
+      }),
+      timestamp,
+    });
+    emit({
+      type: 'llm.responses.event',
+      kind,
+      step,
+      streamId,
+      source: 'synthesized',
+      event: createResponseContentPartAddedOutputTextEvent({
+        itemId: streamId,
+        outputIndex: 0,
+        contentIndex: 0,
+      }),
+      timestamp,
+    });
+  }
+
   emit({
     type: 'llm.responses.event',
     kind,
@@ -163,6 +214,39 @@ export function emitLlmStreamEnd(params: {
   if (!streamId) return;
   if (!shouldEmitLlmOutput(policy, kind)) return;
   const timestamp = new Date();
+
+  const hadPrelude = STREAM_CANONICAL_MESSAGE_STATE.get(streamId)?.started === true;
+  if (!hadPrelude) {
+    ensureCanonicalMessagePrelude(streamId);
+    emit({
+      type: 'llm.responses.event',
+      kind,
+      step,
+      streamId,
+      source: 'synthesized',
+      event: createResponseOutputItemAddedMessageEvent({
+        itemId: streamId,
+        role: 'assistant',
+        outputIndex: 0,
+      }),
+      timestamp,
+    });
+    emit({
+      type: 'llm.responses.event',
+      kind,
+      step,
+      streamId,
+      source: 'synthesized',
+      event: createResponseContentPartAddedOutputTextEvent({
+        itemId: streamId,
+        outputIndex: 0,
+        contentIndex: 0,
+      }),
+      timestamp,
+    });
+  }
+
+  const finalText = getSanitizedStreamText(streamId);
   emit({
     type: 'llm.responses.event',
     kind,
@@ -172,6 +256,43 @@ export function emitLlmStreamEnd(params: {
     event: createResponseOutputTextDoneEvent(),
     timestamp,
   });
+
+  emit({
+    type: 'llm.responses.event',
+    kind,
+    step,
+    streamId,
+    source: 'synthesized',
+    event: createResponseContentPartDoneOutputTextEvent({
+      itemId: streamId,
+      outputIndex: 0,
+      contentIndex: 0,
+      text: finalText,
+    }),
+    timestamp,
+  });
+
+  emit({
+    type: 'llm.responses.event',
+    kind,
+    step,
+    streamId,
+    source: 'synthesized',
+    event: createResponseOutputItemDoneMessageEvent({
+      itemId: streamId,
+      role: 'assistant',
+      outputIndex: 0,
+      content: [
+        {
+          type: 'output_text',
+          text: finalText,
+          annotations: [],
+        },
+      ],
+    }),
+    timestamp,
+  });
+
   emit({
     type: 'llm.stream.end',
     kind,
@@ -180,4 +301,7 @@ export function emitLlmStreamEnd(params: {
     finishReason,
     timestamp,
   });
+
+  STREAM_CANONICAL_MESSAGE_STATE.delete(streamId);
+  STREAM_SANITIZATION_STATE.delete(streamId);
 }
