@@ -1,6 +1,7 @@
 import type {
   CanonicalResponseFunctionCallItem,
   CanonicalResponseOutputItemAddedEvent,
+  CanonicalResponseOutputItemDoneEvent,
   CanonicalResponseOutputTextDeltaEvent,
   CanonicalResponseOutputTextDoneEvent,
 } from './responses-events.js';
@@ -29,6 +30,25 @@ export function createResponseOutputItemAddedFunctionCallEvent(params: {
   };
   return {
     type: 'response.output_item.added',
+    output_index: params.outputIndex,
+    item,
+  };
+}
+
+export function createResponseOutputItemDoneFunctionCallEvent(params: {
+  callId: string;
+  name: string;
+  argumentsText: string;
+  outputIndex?: number;
+}): CanonicalResponseOutputItemDoneEvent {
+  const item: CanonicalResponseFunctionCallItem = {
+    type: 'function_call',
+    call_id: params.callId,
+    name: params.name,
+    arguments: params.argumentsText,
+  };
+  return {
+    type: 'response.output_item.done',
     output_index: params.outputIndex,
     item,
   };

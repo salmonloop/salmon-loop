@@ -6,7 +6,10 @@ import { emitLlmOutput, emitLlmStreamDelta, emitLlmStreamEnd } from '../llm/outp
 import { redactErrorMessage, redactJsonString, redactValue } from '../llm/redact.js';
 import { recordAuditEvent } from '../observability/audit-trail.js';
 import { logger } from '../observability/logger.js';
-import { createResponseOutputItemAddedFunctionCallEvent } from '../streaming/canonical/responses-event-emitter.js';
+import {
+  createResponseOutputItemAddedFunctionCallEvent,
+  createResponseOutputItemDoneFunctionCallEvent,
+} from '../streaming/canonical/responses-event-emitter.js';
 import type {
   ChatOptions,
   ExecutionStep,
@@ -979,17 +982,6 @@ export async function chatWithToolsStreaming(
       throw e;
     }
 
-    if (session.llmOutput) {
-      emitLlmStreamEnd({
-        emit: session.emit,
-        policy: session.llmOutput.policy,
-        kind: session.llmOutput.kind,
-        step: session.llmOutput.step,
-        streamId,
-        finishReason,
-      });
-    }
-
     if (finishUsage) {
       recordAuditEvent(
         'llm.usage',
@@ -1034,6 +1026,64 @@ export async function chatWithToolsStreaming(
           content: finalContent,
         });
       }
+    }
+
+    if (session.emit && session.llmOutput && collectedToolCalls.length > 0) {
+      const seenDoneIds = new Set<string>();
+      for (const call of collectedToolCalls) {
+        const callId = call?.id;
+        const toolName = call?.function?.name;
+        if (typeof callId !== 'string' || !callId) continue;
+        if (typeof toolName !== 'string' || !toolName) continue;
+        if (seenDoneIds.has(callId)) continue;
+        seenDoneIds.add(callId);
+
+        if (!emittedModelToolCallIds.has(callId)) {
+          emittedModelToolCallIds.add(callId);
+          session.emit({
+            type: 'llm.responses.event',
+            kind: session.llmOutput.kind,
+            step: session.llmOutput.step,
+            streamId,
+            phase,
+            round,
+            source: 'synthesized',
+            event: createResponseOutputItemAddedFunctionCallEvent({
+              callId,
+              name: toolName,
+              argumentsText: '{}',
+            }),
+            timestamp: new Date(),
+          });
+        }
+
+        session.emit({
+          type: 'llm.responses.event',
+          kind: session.llmOutput.kind,
+          step: session.llmOutput.step,
+          streamId,
+          phase,
+          round,
+          source: 'synthesized',
+          event: createResponseOutputItemDoneFunctionCallEvent({
+            callId,
+            name: toolName,
+            argumentsText: '{}',
+          }),
+          timestamp: new Date(),
+        });
+      }
+    }
+
+    if (session.llmOutput) {
+      emitLlmStreamEnd({
+        emit: session.emit,
+        policy: session.llmOutput.policy,
+        kind: session.llmOutput.kind,
+        step: session.llmOutput.step,
+        streamId,
+        finishReason,
+      });
     }
 
     const assistant: LLMMessage = {

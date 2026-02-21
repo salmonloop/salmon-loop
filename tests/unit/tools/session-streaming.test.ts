@@ -826,6 +826,14 @@ describe('chatWithToolsStreaming', () => {
     expect(added).toBeTruthy();
     expect(added).toEqual(expect.objectContaining({ phase: Phase.PLAN, round: 0 }));
 
+    const done = events.find(
+      (event) =>
+        event.type === 'llm.responses.event' &&
+        (event as any).event?.type === 'response.output_item.done',
+    );
+    expect(done).toBeTruthy();
+    expect(done).toEqual(expect.objectContaining({ phase: Phase.PLAN, round: 0 }));
+
     const serialized = JSON.stringify(added);
     expect(serialized).toContain('response.output_item.added');
     expect(serialized).not.toContain('hi');
@@ -835,9 +843,16 @@ describe('chatWithToolsStreaming', () => {
         event.type === 'llm.responses.event' &&
         (event as any).event?.type === 'response.output_item.added',
     );
+    const doneIndex = events.findIndex(
+      (event) =>
+        event.type === 'llm.responses.event' &&
+        (event as any).event?.type === 'response.output_item.done',
+    );
     const toolStartIndex = events.findIndex((event) => event.type === 'tool.call.start');
     expect(addedIndex).toBeGreaterThanOrEqual(0);
+    expect(doneIndex).toBeGreaterThanOrEqual(0);
+    expect(addedIndex).toBeLessThan(doneIndex);
     expect(toolStartIndex).toBeGreaterThanOrEqual(0);
-    expect(addedIndex).toBeLessThan(toolStartIndex);
+    expect(doneIndex).toBeLessThan(toolStartIndex);
   });
 });

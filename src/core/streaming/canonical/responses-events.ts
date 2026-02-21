@@ -4,6 +4,7 @@ export type CanonicalResponsesEvent =
   | CanonicalResponseOutputTextDeltaEvent
   | CanonicalResponseOutputTextDoneEvent
   | CanonicalResponseOutputItemAddedEvent
+  | CanonicalResponseOutputItemDoneEvent
   | CanonicalResponsesEventUnknown;
 
 export interface CanonicalResponseOutputTextDeltaEvent {
@@ -26,6 +27,12 @@ export interface CanonicalResponseFunctionCallItem {
 
 export interface CanonicalResponseOutputItemAddedEvent {
   type: 'response.output_item.added';
+  output_index?: number;
+  item: CanonicalResponseOutputItem;
+}
+
+export interface CanonicalResponseOutputItemDoneEvent {
+  type: 'response.output_item.done';
   output_index?: number;
   item: CanonicalResponseOutputItem;
 }
