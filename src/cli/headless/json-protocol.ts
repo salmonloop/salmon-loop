@@ -48,6 +48,18 @@ function toExitCode(result: Partial<LoopResult>): number {
   return result.success ? 0 : 1;
 }
 
+function toUsage(
+  result: LoopResult,
+): { input_tokens: number; output_tokens: number; total_tokens: number } | undefined {
+  const usage = result.usage;
+  if (!usage) return undefined;
+  return {
+    input_tokens: usage.inputTokens,
+    output_tokens: usage.outputTokens,
+    total_tokens: usage.totalTokens,
+  };
+}
+
 export function encodeJsonResult(params: EncodeJsonResultParams): unknown {
   const overrides = params.overrides;
   const exitCode = overrides?.exitCode ?? toExitCode(params.loopResult);
@@ -73,6 +85,7 @@ export function encodeJsonResult(params: EncodeJsonResultParams): unknown {
       audit_path: params.loopResult.auditPath,
       error_code: errorCode,
       authorization_summary: params.loopResult.authorizationSummary,
+      usage: toUsage(params.loopResult),
       structured_output_error: overrides?.structuredOutputError,
       timestamps: {
         started_at: params.startedAt.toISOString(),

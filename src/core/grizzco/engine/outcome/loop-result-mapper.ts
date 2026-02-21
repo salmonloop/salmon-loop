@@ -1,4 +1,5 @@
 import { text } from '../../../../locales/index.js';
+import { getTokenUsageFromAuditTrail } from '../../../observability/token-usage.js';
 import { ErrorType, Phase } from '../../../types/index.js';
 import type { ExecutionPhase, FlowMode, LoopOptions, LoopResult } from '../../../types/index.js';
 import type { LoopTelemetry } from '../observability/loop-telemetry.js';
@@ -36,6 +37,7 @@ export function buildLoopResultFromTransaction({
 
   if (executionReport.success) {
     const attempts = executionReport.attempts;
+    const usage = getTokenUsageFromAuditTrail() ?? undefined;
     if (options.dryRun || flowMode === 'review') {
       return {
         success: true,
@@ -43,6 +45,7 @@ export function buildLoopResultFromTransaction({
         reasonCode: options.dryRun ? 'DRY_RUN' : 'SUCCESS',
         attempts,
         logs: telemetry.getLogs(),
+        usage,
         history: telemetry.getHistory(),
         finalPatch: ctx?.diff,
         changedFiles: ctx?.changedFiles,
@@ -60,6 +63,7 @@ export function buildLoopResultFromTransaction({
       reasonCode: 'SUCCESS',
       attempts,
       logs: telemetry.getLogs(),
+      usage,
       history: telemetry.getHistory(),
       finalPatch: ctx?.diff,
       changedFiles: ctx?.changedFiles,
@@ -82,12 +86,14 @@ export function buildLoopResultFromTransaction({
     executionReport.terminalFailurePhase ||
     (executionReport.retryExhausted ? Phase.VERIFY : undefined);
 
+  const usage = getTokenUsageFromAuditTrail() ?? undefined;
   return {
     success: false,
     reason: failureReason,
     reasonCode,
     attempts: executionReport.attempts,
     logs: telemetry.getLogs(),
+    usage,
     history: telemetry.getHistory(),
     failurePhase,
     errorType: ErrorType.UNKNOWN,
@@ -108,12 +114,14 @@ export function buildLoopFailureResult({
   reasonCode,
   failurePhase,
 }: BuildLoopCrashParams): LoopResult {
+  const usage = getTokenUsageFromAuditTrail() ?? undefined;
   return {
     success: false,
     reason: message,
     reasonCode,
     attempts: 0,
     logs: telemetry.getLogs(),
+    usage,
     history: telemetry.getHistory(),
     failurePhase,
     errorType: ErrorType.UNKNOWN,

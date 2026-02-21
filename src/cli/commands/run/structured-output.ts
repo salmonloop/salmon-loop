@@ -80,6 +80,13 @@ export async function buildStructuredOutputState(params: {
       audit_path: params.result.auditPath,
       error_code: params.result.errorCode,
       authorization_summary: params.result.authorizationSummary,
+      usage: params.result.usage
+        ? {
+            input_tokens: params.result.usage.inputTokens,
+            output_tokens: params.result.usage.outputTokens,
+            total_tokens: params.result.usage.totalTokens,
+          }
+        : undefined,
     };
 
     const validation = validator.validate({ schema, data: candidate });

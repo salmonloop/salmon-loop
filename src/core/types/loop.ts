@@ -13,6 +13,7 @@ import type {
 } from './execution.js';
 import type { LLM, LlmOutputKind, LlmOutputPolicy } from './llm.js';
 import type { Plan } from './planning.js';
+import type { TokenUsage } from './usage.js';
 
 export type LoopReasonCode =
   | 'PREFLIGHT_DIRTY'
@@ -56,6 +57,7 @@ export interface LoopResult {
   reasonCode: LoopReasonCode;
   attempts: number;
   logs: StepLog[];
+  usage?: TokenUsage;
   history?: LoopIteration[];
   finalPatch?: string;
   failurePhase?: ExecutionPhase;

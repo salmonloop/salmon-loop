@@ -2,14 +2,9 @@ import { readFile } from 'fs/promises';
 
 import { logIgnoredError } from '../observability/ignored-error.js';
 import type { LoopResult } from '../types/index.js';
+import type { TokenUsage } from '../types/usage.js';
 
 import type { ChatSession } from './types.js';
-
-export interface TokenUsage {
-  inputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
-}
 
 /**
  * Token usage tracker for chat sessions.
@@ -23,6 +18,7 @@ export class TokenTracker {
    * 2. Estimate based on content length (fallback)
    */
   static async extractFromResult(result: LoopResult): Promise<TokenUsage | null> {
+    if (result.usage) return result.usage;
     if (!result.auditPath) return null;
 
     try {

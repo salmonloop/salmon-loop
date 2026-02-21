@@ -41,6 +41,7 @@ describe('JsonReporter', () => {
       attempts: 1,
       logs: [],
       changedFiles: ['src/a.ts'],
+      usage: { inputTokens: 12, outputTokens: 34, totalTokens: 46 },
     };
     reporter.onFinish(result);
 
@@ -60,6 +61,7 @@ describe('JsonReporter', () => {
       reason_code: 'SUCCESS',
       attempts: 1,
       changed_files: ['src/a.ts'],
+      usage: { input_tokens: 12, output_tokens: 34, total_tokens: 46 },
     });
 
     vi.useRealTimers();

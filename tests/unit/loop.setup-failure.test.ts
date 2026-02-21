@@ -15,6 +15,7 @@ vi.mock('../../src/core/observability/audit-trail.js', () => ({
   clearAuditTrail: vi.fn(),
   setAuditContext: vi.fn(),
   clearAuditContext: clearAuditContextMock,
+  getAuditTrail: vi.fn(() => []),
 }));
 
 import { SalmonLoop } from '../../src/core/runtime/loop.js';

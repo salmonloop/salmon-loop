@@ -4,12 +4,24 @@ import {
   buildLoopResultFromTransaction,
 } from '../../../../../../src/core/grizzco/engine/outcome/loop-result-mapper.js';
 import type { FlowTransactionReport } from '../../../../../../src/core/grizzco/engine/transaction/types.js';
+import {
+  clearAuditTrail,
+  recordAuditEvent,
+} from '../../../../../../src/core/observability/audit-trail.js';
 
 function createTelemetry() {
   return new LoopTelemetry(() => new Date('2026-02-13T00:00:00.000Z'));
 }
 
 describe('loop-result-mapper', () => {
+  beforeEach(() => {
+    clearAuditTrail();
+  });
+
+  afterEach(() => {
+    clearAuditTrail();
+  });
+
   it('maps success dry-run result', () => {
     const telemetry = createTelemetry();
     const report: FlowTransactionReport = {
@@ -41,6 +53,37 @@ describe('loop-result-mapper', () => {
     expect(result.success).toBe(true);
     expect(result.reasonCode).toBe('DRY_RUN');
     expect(result.auditPath).toBe('/tmp/audit.json');
+  });
+
+  it('surfaces token usage aggregated from audit trail', () => {
+    recordAuditEvent('llm.usage', { promptTokens: 10, completionTokens: 20 });
+    recordAuditEvent('llm.usage', { promptTokens: 5, completionTokens: 1 });
+    recordAuditEvent('other.event', { promptTokens: 999, completionTokens: 999 });
+
+    const telemetry = createTelemetry();
+    const report: FlowTransactionReport = {
+      success: true,
+      attempts: 1,
+      flowReport: {
+        success: true,
+        duration: 1,
+        traces: [],
+        strategyName: 'patch',
+        fsMode: 'patch',
+      },
+      history: [],
+      retryExhausted: false,
+      lastContext: { diff: 'diff', changedFiles: [] } as any,
+    };
+
+    const result = buildLoopResultFromTransaction({
+      executionReport: report,
+      flowMode: 'patch',
+      options: {} as any,
+      telemetry,
+    });
+
+    expect(result.usage).toEqual({ inputTokens: 15, outputTokens: 21, totalTokens: 36 });
   });
 
   it('maps retry exhaustion as MAX_RETRIES', () => {
