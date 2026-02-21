@@ -154,6 +154,133 @@ describe('Headless protocol integration', () => {
     });
   }, 120000);
 
+  it('prints machine-readable usage errors for --continue/--resume conflict when --output-format stream-json', async () => {
+    const repo = await helper.createGitRepo();
+
+    const { exitCode, stdout } = await runCli([
+      'run',
+      '-r',
+      repo.path,
+      '--continue',
+      '--resume',
+      'sess-conflict',
+      '-i',
+      'x',
+      '--output-format',
+      'stream-json',
+      '--mode',
+      'review',
+      '--no-config-file',
+    ]);
+
+    expect(exitCode).toBe(1);
+    const lines = stdout
+      .split('\n')
+      .filter(Boolean)
+      .map((l) => JSON.parse(l) as any);
+
+    expect(lines).toHaveLength(3);
+    expect(lines[0]).toMatchObject({ session_id: 'sess-conflict', event: { type: 'start' } });
+    expect(lines[1]).toMatchObject({
+      session_id: 'sess-conflict',
+      event: {
+        type: 'error',
+        error: { message: expect.stringContaining('continue') },
+      },
+    });
+    expect(lines[2]).toMatchObject({
+      session_id: 'sess-conflict',
+      event: { type: 'end', success: false, exit_code: 1 },
+    });
+  }, 120000);
+
+  it('prints machine-readable usage errors for -p/-i conflict when --output-profile anthropic', async () => {
+    const repo = await helper.createGitRepo();
+
+    const { exitCode, stdout } = await runCli([
+      'run',
+      '-r',
+      repo.path,
+      '--resume',
+      'sess-print-conflict',
+      '-p',
+      'hello',
+      '-i',
+      'x',
+      '--output-format',
+      'stream-json',
+      '--output-profile',
+      'anthropic',
+      '--mode',
+      'review',
+      '--no-config-file',
+    ]);
+
+    expect(exitCode).toBe(1);
+    const lines = stdout
+      .split('\n')
+      .filter(Boolean)
+      .map((l) => JSON.parse(l) as any);
+
+    expect(lines).toHaveLength(3);
+    expect(lines[0]).toMatchObject({
+      type: 'start',
+      session_id: 'sess-print-conflict',
+      command: 'run',
+      repo_path: repo.path,
+      instruction: 'hello',
+    });
+    expect(lines[1]).toMatchObject({
+      type: 'error',
+      session_id: 'sess-print-conflict',
+      error: { message: expect.stringContaining('--print') },
+    });
+    expect(lines[2]).toMatchObject({
+      type: 'end',
+      session_id: 'sess-print-conflict',
+      success: false,
+      exit_code: 1,
+    });
+  }, 120000);
+
+  it('prints machine-readable errors when --output-profile openai is not supported', async () => {
+    const repo = await helper.createGitRepo();
+
+    const { exitCode, stdout } = await runCli([
+      'run',
+      '-r',
+      repo.path,
+      '--resume',
+      'sess-openai',
+      '-i',
+      'x',
+      '--output-format',
+      'stream-json',
+      '--output-profile',
+      'openai',
+      '--mode',
+      'review',
+      '--no-config-file',
+    ]);
+
+    expect(exitCode).toBe(1);
+    const lines = stdout
+      .split('\n')
+      .filter(Boolean)
+      .map((l) => JSON.parse(l) as any);
+
+    expect(lines).toHaveLength(3);
+    expect(lines[0]).toMatchObject({ session_id: 'sess-openai', event: { type: 'start' } });
+    expect(lines[1]).toMatchObject({
+      session_id: 'sess-openai',
+      event: { type: 'error', error: { message: expect.stringContaining('openai') } },
+    });
+    expect(lines[2]).toMatchObject({
+      session_id: 'sess-openai',
+      event: { type: 'end', success: false, exit_code: 1 },
+    });
+  }, 120000);
+
   it('prints machine-readable usage errors when --output-format stream-json', async () => {
     const repo = await helper.createGitRepo();
 

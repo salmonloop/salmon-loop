@@ -83,14 +83,6 @@ export async function handleRunCommand(options: any, command: Command) {
       ? ((allOptions as any).jsonSchema as string)
       : undefined;
 
-  if (explicitInstruction && printInstruction) {
-    logger.error(text.cli.printInstructionConflict, true);
-    process.exit(1);
-  }
-
-  const instruction = explicitInstruction ?? printInstruction;
-  const printMode = Boolean(printInstruction);
-
   const rawOutputFormat = String(allOptions.outputFormat || 'text');
   if (
     rawOutputFormat !== 'text' &&
@@ -102,17 +94,20 @@ export async function handleRunCommand(options: any, command: Command) {
   }
   const outputFormat = rawOutputFormat as 'text' | 'stream-json' | 'json';
   const headlessOutput = outputFormat !== 'text';
-  const useGui = !headlessOutput && !printMode && allOptions.gui !== false && process.stdout.isTTY;
+  const rawOutputProfile =
+    typeof (allOptions as any).outputProfile === 'string'
+      ? String((allOptions as any).outputProfile)
+      : undefined;
+  const outputProfileForStreamJson = rawOutputProfile ?? 'native';
   const stdoutWriter = createStdoutWriter();
+
+  const instruction = explicitInstruction ?? printInstruction;
+  const printMode = Boolean(printInstruction);
+  const useGui = !headlessOutput && !printMode && allOptions.gui !== false && process.stdout.isTTY;
 
   if (headlessOutput) {
     // Ensure stdout is reserved for machine-readable output.
     logger.setReporter(new StderrLogReporter());
-  }
-
-  if (continueSession && resumeSessionId) {
-    logger.error(text.cli.continueResumeConflict, true);
-    process.exit(1);
   }
 
   const wantSessionPersistence =
@@ -124,11 +119,6 @@ export async function handleRunCommand(options: any, command: Command) {
 
   const sessionManager = wantSessionPersistence ? new ChatSessionManager(runPath) : undefined;
   let sessionIdForOutput: string | undefined;
-
-  const rawOutputProfile =
-    typeof (allOptions as any).outputProfile === 'string'
-      ? String((allOptions as any).outputProfile)
-      : undefined;
 
   const writeStreamJsonEarlyFailure = (params: {
     sessionId: string;
@@ -198,6 +188,77 @@ export async function handleRunCommand(options: any, command: Command) {
     );
   };
 
+  const writeHeadlessUsageError = (params: {
+    message: string;
+    sessionId?: string;
+    instruction?: string;
+    exitCode?: number;
+  }) => {
+    const sessionId = params.sessionId ?? resumeSessionId ?? sessionIdForOutput ?? randomUUID();
+    const exitCode = params.exitCode ?? 1;
+
+    if (outputFormat === 'json') {
+      stdoutWriter.writeJsonLine(
+        encodeJsonFailure({
+          mode: 'run',
+          repoPath: runPath,
+          sessionId,
+          instruction: params.instruction,
+          message: params.message,
+          exitCode,
+          errorCode: 'USAGE_ERROR',
+        }),
+      );
+      return;
+    }
+
+    if (outputFormat === 'stream-json') {
+      if (outputProfileForStreamJson === 'anthropic') {
+        writeAnthropicEarlyFailure({
+          sessionId,
+          message: params.message,
+          exitCode,
+          instruction: params.instruction,
+        });
+      } else {
+        writeStreamJsonEarlyFailure({
+          sessionId,
+          message: params.message,
+          exitCode,
+          instruction: params.instruction,
+        });
+      }
+      return;
+    }
+  };
+
+  if (explicitInstruction && printInstruction) {
+    if (headlessOutput) {
+      logger.error(text.cli.printInstructionConflict);
+      writeHeadlessUsageError({
+        message: text.cli.printInstructionConflict,
+        instruction: printInstruction,
+      });
+      process.exitCode = 1;
+      return;
+    }
+    logger.error(text.cli.printInstructionConflict, true);
+  }
+
+  if (continueSession && resumeSessionId) {
+    if (headlessOutput) {
+      logger.error(text.cli.continueResumeConflict);
+      writeHeadlessUsageError({
+        message: text.cli.continueResumeConflict,
+        sessionId: resumeSessionId,
+        instruction,
+      });
+      process.exitCode = 1;
+      return;
+    }
+    logger.error(text.cli.continueResumeConflict, true);
+  }
+
   if (rawOutputProfile && outputFormat !== 'stream-json') {
     logger.error(text.cli.outputProfileRequiresStreamJson);
     if (outputFormat === 'json') {
@@ -217,11 +278,11 @@ export async function handleRunCommand(options: any, command: Command) {
   }
 
   if (outputFormat === 'stream-json') {
-    const outputProfile = rawOutputProfile ?? 'native';
+    const outputProfile = outputProfileForStreamJson;
     if (outputProfile !== 'native' && outputProfile !== 'anthropic' && outputProfile !== 'openai') {
       logger.error(text.cli.invalidOutputProfile(outputProfile));
       writeStreamJsonEarlyFailure({
-        sessionId: sessionIdForOutput ?? randomUUID(),
+        sessionId: sessionIdForOutput ?? resumeSessionId ?? randomUUID(),
         message: text.cli.invalidOutputProfile(outputProfile),
       });
       process.exitCode = 1;
@@ -231,7 +292,7 @@ export async function handleRunCommand(options: any, command: Command) {
     if (outputProfile === 'openai') {
       logger.error(text.cli.outputProfileNotSupportedYet(outputProfile));
       writeStreamJsonEarlyFailure({
-        sessionId: sessionIdForOutput ?? randomUUID(),
+        sessionId: sessionIdForOutput ?? resumeSessionId ?? randomUUID(),
         message: text.cli.outputProfileNotSupportedYet(outputProfile),
       });
       process.exitCode = 1;
@@ -831,10 +892,17 @@ export async function handleRunCommand(options: any, command: Command) {
         instruction,
       });
     } else if (outputFormat === 'stream-json') {
-      writeStreamJsonEarlyFailure({
-        sessionId: sessionIdForOutput ?? randomUUID(),
-        message: text.cli.unexpectedError(msg),
-      });
+      if (outputProfileForStreamJson === 'anthropic') {
+        writeAnthropicEarlyFailure({
+          sessionId: sessionIdForOutput ?? resumeSessionId ?? randomUUID(),
+          message: text.cli.unexpectedError(msg),
+        });
+      } else {
+        writeStreamJsonEarlyFailure({
+          sessionId: sessionIdForOutput ?? resumeSessionId ?? randomUUID(),
+          message: text.cli.unexpectedError(msg),
+        });
+      }
     }
     process.exitCode = 1;
     return;
