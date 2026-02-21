@@ -9,8 +9,6 @@ import { CheckpointStrategy, ApplyBackOnDirty, LoopResult } from '../../core/typ
 import { createStdoutWriter } from '../headless/stdout-writer.js';
 import { text } from '../locales/index.js';
 import { StderrLogReporter } from '../reporters/stderr-log-reporter.js';
-import { resolveLlmOutputPolicyFromCli } from '../utils/llm-output.js';
-import { resolveVerifyOption } from '../utils/verify-resolver.js';
 
 import { buildRunAssistantMessage } from './run/assistant-message.js';
 import { resolveRunConfig } from './run/config-resolution.js';
@@ -18,6 +16,7 @@ import { handleEarlyRunCommandErrors } from './run/early-errors.js';
 import { executeRunLoop } from './run/execute.js';
 import { resolveRunExtensions } from './run/extensions-resolution.js';
 import { createHeadlessErrorWriter } from './run/headless-error-writer.js';
+import { ensureInstructionOrExit } from './run/instruction-guard.js';
 import { buildRunLoopParams } from './run/loop-params.js';
 import { resolveRunMode } from './run/mode.js';
 import { createOutcomeReporter } from './run/outcome-reporter.js';
@@ -26,6 +25,7 @@ import { persistRunSession } from './run/persist-session.js';
 import { runPreflight } from './run/preflight.js';
 import { createRunReporter } from './run/reporter-factory.js';
 import { createRuntimeLlmAndWarn } from './run/runtime-llm.js';
+import { resolveRunRuntimeOptions } from './run/runtime-options.js';
 import { initializeSession } from './run/session.js';
 import { buildStructuredOutputState, type StructuredOutputState } from './run/structured-output.js';
 import { logRunVerboseSummary, resolveVerboseLevel } from './run/verbose.js';
@@ -163,54 +163,37 @@ export async function handleRunCommand(options: any, command: Command) {
   if ('printedConfig' in configResult) return;
   const resolvedConfig = configResult.resolvedConfig;
 
-  const llmOutputResolution = resolveLlmOutputPolicyFromCli(
-    resolvedConfig.llmOutput,
-    allOptions.llmOutput,
-  );
-  if (!llmOutputResolution.ok) {
-    logger.error(text.cli.invalidLlmOutputKind(llmOutputResolution.invalid));
-    if (outputFormat === 'json') {
-      writeJsonFailure({
-        message: text.cli.invalidLlmOutputKind(llmOutputResolution.invalid),
-        repoPath: runPath,
-      });
-      process.exitCode = 1;
-      return;
-    }
-    process.exitCode = 1;
+  const runtimeOptions = await resolveRunRuntimeOptions({
+    repoPath: runPath,
+    resolvedConfig,
+    cliOptions: allOptions,
+    outputFormat,
+    writeJsonFailure: ({ message, repoPath }) => writeJsonFailure({ message, repoPath }),
+  });
+  if (!runtimeOptions.ok) {
+    process.exitCode = runtimeOptions.exitCode;
     return;
   }
-  const llmOutput = {
-    ...llmOutputResolution.policy,
-    kinds: [...llmOutputResolution.policy.kinds],
-  };
 
-  // Smart verification resolution with auto-detection
-  const effectiveVerify = await resolveVerifyOption(
-    runPath,
-    allOptions.verify,
-    resolvedConfig.verify.command,
-  );
+  const llmOutput = runtimeOptions.llmOutput;
+  const effectiveVerify = runtimeOptions.effectiveVerify;
 
-  if (!instruction) {
-    if (!allOptions.validate) {
-      logger.error(text.cli.optionsRequired);
-      if (outputFormat === 'text') {
-        command.help(); // Show help if required options are missing
-      }
-      if (outputFormat === 'json') {
-        writeJsonFailure({ message: text.cli.optionsRequired, repoPath: runPath });
-      } else if (outputFormat === 'stream-json') {
-        headlessErrorWriter.writeUnexpectedError({
-          sessionId: sessionIdForOutput ?? randomUUID(),
-          message: text.cli.optionsRequired,
-        });
-      }
-      process.exitCode = 1;
-      return;
-    }
+  const instructionGuard = ensureInstructionOrExit({
+    command,
+    instruction,
+    validate: Boolean(allOptions.validate),
+    outputFormat,
+    sessionIdForOutput,
+    writeJsonFailure: ({ message, repoPath }) => writeJsonFailure({ message, repoPath }),
+    repoPath: runPath,
+    headlessErrorWriter,
+  });
+  if (!instructionGuard.ok) {
+    process.exitCode = instructionGuard.exitCode;
     return;
   }
+
+  const instructionText = instruction as string;
 
   const rawMode = String(allOptions.mode || 'patch');
   const mode = resolveRunMode(rawMode);
@@ -247,7 +230,7 @@ export async function handleRunCommand(options: any, command: Command) {
   const verboseLevel = resolveVerboseLevel(allOptions.verbose);
   logRunVerboseSummary({
     verboseLevel,
-    instruction,
+    instruction: instructionText,
     verify: effectiveVerify,
     repoPath: runPath,
     file: allOptions.file,
@@ -293,7 +276,7 @@ export async function handleRunCommand(options: any, command: Command) {
       },
     });
 
-    reporter.onStart(instruction);
+    reporter.onStart(instructionText);
 
     const applyBackOnDirty = allOptions.applyBackOnDirty === 'abort' ? 'abort' : '3way';
 
@@ -313,7 +296,7 @@ export async function handleRunCommand(options: any, command: Command) {
     });
 
     const loopParams = buildRunLoopParams({
-      instruction,
+      instruction: instructionText,
       verify: effectiveVerify,
       repoPath: runPath,
       llm,
@@ -364,7 +347,7 @@ export async function handleRunCommand(options: any, command: Command) {
       jsonSchemaSpec,
       result,
       repoPath: runPath,
-      instruction,
+      instruction: instructionText,
       sessionIdForOutput,
       exitCode: getExitCode(result),
       reasonCode: result.reasonCode,
@@ -381,7 +364,12 @@ export async function handleRunCommand(options: any, command: Command) {
 
     reporter.onFinish(result);
 
-    await persistRunSession({ sessionManager, instruction, result, buildAssistantMessage });
+    await persistRunSession({
+      sessionManager,
+      instruction: instructionText,
+      result,
+      buildAssistantMessage,
+    });
 
     process.exitCode = headlessErrorWriter.writeResultExitCode(result, structuredOutputState.ok);
     return;
