@@ -206,6 +206,7 @@ export interface UIState {
 export type UIAction =
   | { type: 'SET_INPUT'; payload: string }
   | { type: 'ADD_MESSAGE'; payload: Message }
+  | { type: 'HYDRATE_TRANSCRIPT'; payload: Message[] }
   | { type: 'APPEND_LLM_STREAM'; payload: { id: string; delta: string; timestamp: Date } }
   | { type: 'COMPLETE_STREAM'; payload: { id: string } } // Move active streaming message to completed
   | { type: 'ADD_QUEUE_MESSAGE'; payload: QueueMessage }

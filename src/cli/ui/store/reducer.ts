@@ -41,6 +41,23 @@ export function uiReducer(state: UIState, action: UIAction): UIState {
         ...state,
         completedMessages: [...state.completedMessages, action.payload],
       };
+    case 'HYDRATE_TRANSCRIPT': {
+      const welcomeMessage = {
+        id: 'welcome',
+        type: 'system' as const,
+        content: 'WELCOME_LOGO',
+        timestamp: new Date(),
+      };
+
+      return {
+        ...state,
+        completedMessages: [welcomeMessage, ...action.payload],
+        activeStreamingMessage: null,
+        queueMessages: [],
+        pendingAuthorization: undefined,
+        pendingSelection: undefined,
+      };
+    }
     case 'APPEND_LLM_STREAM': {
       const { id, delta, timestamp } = action.payload;
       if (!delta) return state;

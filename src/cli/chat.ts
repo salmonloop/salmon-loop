@@ -14,6 +14,10 @@ import { logger } from '../core/observability/logger.js';
 import type { RunOutcomeReporter } from '../core/observability/run-outcome-reporter.js';
 import { runSalmonLoop } from '../core/runtime/loop.js';
 import { ChatSessionManager } from '../core/session/manager.js';
+import {
+  buildSessionConversationContext,
+  getDefaultSessionContextBudgetTokens,
+} from '../core/session/session-context-builder.js';
 import { TokenTracker } from '../core/session/token-tracker.js';
 import type {
   CheckpointStrategy,
@@ -30,6 +34,7 @@ import { CHAT_QUEUE_CONFIG } from './config.js';
 import { text } from './locales/index.js';
 import { createCliSlashRuntime } from './slash/runtime.js';
 import type { GUIOptions } from './ui/index.js';
+import { buildTranscriptMessages } from './ui/utils/transcript.js';
 import { createAsyncQueue } from './utils/asyncQueue.js';
 
 export interface ChatModeOptions {
@@ -235,6 +240,22 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
       const timeoutAbort = new AbortController();
       const mergedSignal = mergeAbortSignals([latestGuiOptions?.signal, timeoutAbort.signal]);
 
+      const modelIdForBudget =
+        options.llm.getModelId?.() || process.env.SALMONLOOP_MODEL || process.env.S8P_MODEL;
+      const conversationContext = buildSessionConversationContext(sessionManager.getMessages(), {
+        budgetTokens: getDefaultSessionContextBudgetTokens({ modelId: modelIdForBudget }),
+      });
+
+      latestDispatch?.({
+        type: 'ADD_MESSAGE',
+        payload: {
+          id: `user-${Date.now()}`,
+          type: 'user',
+          content: trimmed,
+          timestamp: new Date(),
+        },
+      });
+
       // Add user message
       sessionManager.addMessage({
         role: 'user',
@@ -265,6 +286,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
               repoPath: options.repoPath,
               llm: options.llm,
               instruction: trimmed,
+              conversationContext: conversationContext.length > 0 ? conversationContext : undefined,
               emit: latestEmit,
               signal: mergedSignal.signal,
               llmOutputPolicy: currentLlmOutputPolicy,
@@ -304,6 +326,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
             signal: mergedSignal.signal,
             llmOutput: currentLlmOutputPolicy,
             outcomeReporter: options.outcomeReporter,
+            conversationContext: conversationContext.length > 0 ? conversationContext : undefined,
             // Resolve sessionId at call time to support `/session` switching.
             langfuseSessionId: options.langfuseSessionId || sessionManager.getCurrent().meta.id,
             langfuseUserId: options.langfuseUserId,
@@ -497,6 +520,10 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
         // First run: load history into store
         if (dispatch && session) {
           dispatch({ type: 'SET_INPUT_HISTORY', payload: inputHistory });
+          dispatch({
+            type: 'HYDRATE_TRANSCRIPT',
+            payload: buildTranscriptMessages(sessionManager.getMessages(), { limit: 200 }),
+          });
         }
         const idShort = session.meta.id.slice(0, 8);
         latestEmit?.({

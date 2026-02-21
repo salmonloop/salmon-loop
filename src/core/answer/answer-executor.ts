@@ -1,5 +1,6 @@
 import { randomBytes } from 'crypto';
 
+import { composeChatMessages } from '../llm/message-composition.js';
 import {
   clearAuditContext,
   clearAuditTrail,
@@ -20,6 +21,7 @@ export interface AnswerExecutorOptions {
   repoPath: string;
   llm: LLM;
   instruction: string;
+  conversationContext?: LLMMessage[];
   emit?: (event: LoopEvent) => void;
   signal?: AbortSignal;
   llmOutputPolicy?: LlmOutputPolicy;
@@ -68,10 +70,11 @@ export async function runAnswerExecutor(options: AnswerExecutorOptions): Promise
       authorizationMode: options.authorizationMode ?? 'deferred',
     });
 
-    const messages: LLMMessage[] = [
-      { role: 'system', content: buildSystemPrompt() },
-      { role: 'user', content: options.instruction },
-    ];
+    const messages = composeChatMessages({
+      system: buildSystemPrompt(),
+      user: options.instruction,
+      conversationContext: options.conversationContext,
+    });
 
     const assistant = await chatWithTools(
       messages,

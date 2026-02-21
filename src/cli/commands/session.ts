@@ -1,5 +1,6 @@
 import { InputHistoryManager } from '../../core/history/input-history.js';
 import { text } from '../locales/index.js';
+import { buildTranscriptMessages } from '../ui/utils/transcript.js';
 
 import type { Command } from './types.js';
 import { parseSuggestionContext } from './utils.js';
@@ -33,7 +34,10 @@ export const sessionCommand: Command = {
       const sessionId = args[0];
       try {
         await sessionManager.resumeSession(sessionId);
-        dispatch({ type: 'RESET_MESSAGES' });
+        dispatch({
+          type: 'HYDRATE_TRANSCRIPT',
+          payload: buildTranscriptMessages(sessionManager.getMessages(), { limit: 200 }),
+        });
         dispatch({ type: 'SET_INPUT', payload: '' });
 
         const current = sessionManager.getCurrent();
