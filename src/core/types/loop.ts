@@ -1,5 +1,9 @@
 import type { ResolvedExtensions } from '../extensions/types.js';
 import type { RunOutcomeReporter } from '../observability/run-outcome-reporter.js';
+import type {
+  CanonicalResponsesEvent,
+  CanonicalResponsesEventSource,
+} from '../streaming/canonical/responses-events.js';
 import type { ArtifactHandle } from '../sub-agent/artifacts/types.js';
 import type { ToolAuthorizationProvider } from '../tools/authorization/types.js';
 
@@ -244,6 +248,15 @@ export type LoopEvent =
       step: ExecutionStep;
       streamId: string;
       finishReason?: string;
+      timestamp: Date;
+    }
+  | {
+      type: 'llm.responses.event';
+      kind: LlmOutputKind;
+      step: ExecutionStep;
+      streamId: string;
+      source?: CanonicalResponsesEventSource;
+      event: CanonicalResponsesEvent;
       timestamp: Date;
     }
   | {

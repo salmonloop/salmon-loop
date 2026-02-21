@@ -45,6 +45,51 @@ describe('StreamAssembler', () => {
     ]);
   });
 
+  it('emits a text prelude on response output_text delta, then delta', () => {
+    const assembler = new StreamAssembler();
+    const at = new Date('2026-02-20T00:00:02.000Z');
+
+    const out = assembler.push({
+      type: 'llm.responses.event',
+      kind: 'plan',
+      step: 'PLAN',
+      streamId: 'stream-1',
+      source: 'provider',
+      event: {
+        type: 'response.output_text.delta',
+        delta: 'Hello',
+      },
+      timestamp: at,
+    } as unknown as LoopEvent);
+
+    expect(out).toEqual([
+      {
+        type: 'normalized.message_start',
+        messageId: 'stream-1',
+        role: 'assistant',
+        source: 'llm',
+        timestamp: at,
+      },
+      {
+        type: 'normalized.content_block_start',
+        messageId: 'stream-1',
+        blockId: 'stream-1:text:0',
+        blockType: 'text',
+        index: 0,
+        timestamp: at,
+      },
+      {
+        type: 'normalized.content_block_delta',
+        messageId: 'stream-1',
+        blockId: 'stream-1:text:0',
+        index: 0,
+        deltaType: 'text',
+        text: 'Hello',
+        timestamp: at,
+      },
+    ]);
+  });
+
   it('emits only delta for subsequent deltas on the same stream', () => {
     const assembler = new StreamAssembler();
     const at1 = new Date('2026-02-20T00:00:02.000Z');
@@ -76,6 +121,54 @@ describe('StreamAssembler', () => {
         index: 0,
         deltaType: 'text',
         text: 'B',
+        timestamp: at2,
+      },
+    ]);
+  });
+
+  it('emits block end and message end on response output_text done (defaults to end_turn)', () => {
+    const assembler = new StreamAssembler();
+    const at1 = new Date('2026-02-20T00:00:02.000Z');
+    const at2 = new Date('2026-02-20T00:00:04.000Z');
+
+    assembler.push({
+      type: 'llm.responses.event',
+      kind: 'plan',
+      step: 'PLAN',
+      streamId: 'stream-1',
+      source: 'provider',
+      event: {
+        type: 'response.output_text.delta',
+        delta: 'Hello',
+      },
+      timestamp: at1,
+    } as unknown as LoopEvent);
+
+    const out = assembler.push({
+      type: 'llm.responses.event',
+      kind: 'plan',
+      step: 'PLAN',
+      streamId: 'stream-1',
+      source: 'provider',
+      event: {
+        type: 'response.output_text.done',
+      },
+      timestamp: at2,
+    } as unknown as LoopEvent);
+
+    expect(out).toEqual([
+      {
+        type: 'normalized.content_block_end',
+        messageId: 'stream-1',
+        blockId: 'stream-1:text:0',
+        index: 0,
+        timestamp: at2,
+      },
+      {
+        type: 'normalized.message_end',
+        messageId: 'stream-1',
+        stopReason: 'end_turn',
+        finishReason: undefined,
         timestamp: at2,
       },
     ]);

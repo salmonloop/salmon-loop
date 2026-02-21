@@ -1,6 +1,7 @@
 import { getExitCode } from '../runtime/exit-codes.js';
 import type { LoopEvent, LoopResult } from '../types/index.js';
 
+import type { CanonicalResponsesEvent } from './canonical/responses-events.js';
 import { normalizeStopReason, type NormalizedStreamEvent } from './normalized-events.js';
 
 type TextStreamState = {
@@ -29,6 +30,10 @@ export class StreamAssembler {
 
     if (event.type === 'llm.stream.end') {
       return this.handleTextEnd(event.streamId, event.timestamp, event.finishReason);
+    }
+
+    if (event.type === 'llm.responses.event') {
+      return this.handleResponsesEvent(event.streamId, event.timestamp, event.event);
     }
 
     if (event.type === 'tool.call.start') {
@@ -160,4 +165,35 @@ export class StreamAssembler {
     this.streams.delete(streamId);
     return out;
   }
+
+  private handleResponsesEvent(
+    streamId: string,
+    at: Date,
+    event: CanonicalResponsesEvent,
+  ): NormalizedStreamEvent[] {
+    if (isOutputTextDeltaEvent(event)) {
+      return this.handleTextDelta(streamId, at, event.delta);
+    }
+
+    if (isOutputTextDoneEvent(event)) {
+      return this.handleTextEnd(streamId, at, undefined);
+    }
+
+    return [];
+  }
+}
+
+function isOutputTextDeltaEvent(
+  event: CanonicalResponsesEvent,
+): event is Extract<CanonicalResponsesEvent, { type: 'response.output_text.delta' }> {
+  return (
+    event.type === 'response.output_text.delta' &&
+    typeof (event as { delta?: unknown }).delta === 'string'
+  );
+}
+
+function isOutputTextDoneEvent(
+  event: CanonicalResponsesEvent,
+): event is Extract<CanonicalResponsesEvent, { type: 'response.output_text.done' }> {
+  return event.type === 'response.output_text.done';
 }
