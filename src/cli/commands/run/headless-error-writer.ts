@@ -1,0 +1,221 @@
+import { randomUUID } from 'crypto';
+
+import { getExitCode } from '../../../core/runtime/exit-codes.js';
+import type { LoopResult } from '../../../core/types/index.js';
+import {
+  encodeAnthropicEnd,
+  encodeAnthropicError,
+  encodeAnthropicStart,
+} from '../../headless/anthropic-stream-protocol.js';
+import { encodeJsonFailure } from '../../headless/json-protocol.js';
+import type { StdoutWriter } from '../../headless/stdout-writer.js';
+import {
+  encodeStreamEnd,
+  encodeStreamFailure,
+  encodeStreamStart,
+} from '../../headless/stream-json-protocol.js';
+
+import type { OutputFormat } from './types.js';
+
+export interface HeadlessErrorWriterContext {
+  repoPath: string;
+  outputFormat: OutputFormat;
+  outputProfileForStreamJson: string;
+  writer: StdoutWriter;
+  getSessionId: () => string | undefined;
+  getResumeSessionId: () => string | undefined;
+}
+
+function writeStreamJsonEarlyFailure(params: {
+  writer: StdoutWriter;
+  repoPath: string;
+  sessionId: string;
+  message: string;
+  exitCode?: number;
+  instruction?: string;
+}) {
+  const at = new Date();
+  params.writer.writeJsonLine(
+    encodeStreamStart({
+      uuid: randomUUID(),
+      mode: 'run',
+      repoPath: params.repoPath,
+      sessionId: params.sessionId,
+      instruction: params.instruction,
+      at,
+    }),
+  );
+  params.writer.writeJsonLine(
+    encodeStreamFailure({
+      uuid: randomUUID(),
+      sessionId: params.sessionId,
+      at,
+      message: params.message,
+    }),
+  );
+  params.writer.writeJsonLine(
+    encodeStreamEnd({
+      uuid: randomUUID(),
+      sessionId: params.sessionId,
+      at,
+      success: false,
+      exitCode: params.exitCode ?? 1,
+    }),
+  );
+}
+
+function writeAnthropicEarlyFailure(params: {
+  writer: StdoutWriter;
+  repoPath: string;
+  sessionId: string;
+  message: string;
+  exitCode?: number;
+  instruction?: string;
+}) {
+  params.writer.writeJsonLine(
+    encodeAnthropicStart({
+      sessionId: params.sessionId,
+      mode: 'run',
+      repoPath: params.repoPath,
+      instruction: params.instruction,
+    }),
+  );
+  params.writer.writeJsonLine(
+    encodeAnthropicError({
+      sessionId: params.sessionId,
+      message: params.message,
+    }),
+  );
+  params.writer.writeJsonLine(
+    encodeAnthropicEnd({
+      sessionId: params.sessionId,
+      loopResult: {
+        success: false,
+        reason: params.message,
+        errorCode: 'USAGE_ERROR',
+      } as any,
+    }),
+  );
+}
+
+function resolveSessionId(ctx: HeadlessErrorWriterContext, override?: string): string {
+  return override ?? ctx.getResumeSessionId() ?? ctx.getSessionId() ?? randomUUID();
+}
+
+export function createHeadlessErrorWriter(ctx: HeadlessErrorWriterContext) {
+  const writeJsonFailure = (params: {
+    message: string;
+    instruction?: string;
+    exitCode?: number;
+    errorCode?: string;
+    repoPath?: string;
+    sessionId?: string;
+  }) => {
+    const sessionId = resolveSessionId(ctx, params.sessionId);
+    ctx.writer.writeJsonLine(
+      encodeJsonFailure({
+        mode: 'run',
+        repoPath: params.repoPath ?? ctx.repoPath,
+        sessionId,
+        instruction: params.instruction,
+        message: params.message,
+        errorCode: params.errorCode,
+        exitCode: params.exitCode ?? 1,
+      }),
+    );
+  };
+
+  const writeUsageError = (params: {
+    message: string;
+    instruction?: string;
+    exitCode?: number;
+    sessionId?: string;
+  }) => {
+    const sessionId = resolveSessionId(ctx, params.sessionId);
+    const exitCode = params.exitCode ?? 1;
+
+    if (ctx.outputFormat === 'json') {
+      writeJsonFailure({
+        message: params.message,
+        instruction: params.instruction,
+        exitCode,
+        errorCode: 'USAGE_ERROR',
+        sessionId,
+      });
+      return;
+    }
+
+    if (ctx.outputFormat === 'stream-json') {
+      if (ctx.outputProfileForStreamJson === 'anthropic') {
+        writeAnthropicEarlyFailure({
+          writer: ctx.writer,
+          repoPath: ctx.repoPath,
+          sessionId,
+          message: params.message,
+          exitCode,
+          instruction: params.instruction,
+        });
+      } else {
+        writeStreamJsonEarlyFailure({
+          writer: ctx.writer,
+          repoPath: ctx.repoPath,
+          sessionId,
+          message: params.message,
+          exitCode,
+          instruction: params.instruction,
+        });
+      }
+    }
+  };
+
+  const writeUnexpectedError = (params: {
+    message: string;
+    instruction?: string;
+    sessionId?: string;
+  }) => {
+    const sessionId = resolveSessionId(ctx, params.sessionId);
+
+    if (ctx.outputFormat === 'json') {
+      writeJsonFailure({
+        message: params.message,
+        repoPath: ctx.repoPath,
+        instruction: params.instruction,
+        sessionId,
+      });
+      return;
+    }
+
+    if (ctx.outputFormat === 'stream-json') {
+      if (ctx.outputProfileForStreamJson === 'anthropic') {
+        writeAnthropicEarlyFailure({
+          writer: ctx.writer,
+          repoPath: ctx.repoPath,
+          sessionId,
+          message: params.message,
+          instruction: params.instruction,
+        });
+      } else {
+        writeStreamJsonEarlyFailure({
+          writer: ctx.writer,
+          repoPath: ctx.repoPath,
+          sessionId,
+          message: params.message,
+          instruction: params.instruction,
+        });
+      }
+    }
+  };
+
+  const resolveExitCode = (result: LoopResult): number => getExitCode(result);
+
+  const writeResultExitCode = (result: LoopResult, structuredOk: boolean): number => {
+    return result.success && !structuredOk ? 1 : resolveExitCode(result);
+  };
+
+  return {
+    writeJsonFailure,
+    writeUsageError,
+    writeUnexpectedError,
+    writeResultExitCode,
+  };
+}
