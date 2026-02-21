@@ -659,10 +659,10 @@ describe('chatWithToolsStreaming', () => {
         kind: 'plan',
         step: 'PLAN',
         source: 'synthesized',
-        event: {
+        event: expect.objectContaining({
           type: 'response.output_text.delta',
           delta: 'hello ',
-        },
+        }),
       }),
     );
 
@@ -676,7 +676,7 @@ describe('chatWithToolsStreaming', () => {
         kind: 'plan',
         step: 'PLAN',
         source: 'synthesized',
-        event: { type: 'response.output_text.done' },
+        event: expect.objectContaining({ type: 'response.output_text.done' }),
       }),
     );
 

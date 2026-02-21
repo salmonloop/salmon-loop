@@ -34,6 +34,7 @@ export type CanonicalResponseOutputItem =
   | CanonicalResponseMessageItem;
 
 export interface CanonicalResponseFunctionCallItem {
+  id?: string;
   type: 'function_call';
   call_id: string;
   name: string;

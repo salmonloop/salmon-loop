@@ -188,7 +188,13 @@ export function emitLlmStreamDelta(params: {
     step,
     streamId,
     source: 'synthesized',
-    event: createResponseOutputTextDeltaEvent(sanitized),
+    event: createResponseOutputTextDeltaEvent({
+      delta: sanitized,
+      outputIndex: 0,
+      itemId: streamId,
+      contentIndex: 0,
+      logprobs: [],
+    }),
     timestamp,
   });
   emit({
@@ -253,7 +259,13 @@ export function emitLlmStreamEnd(params: {
     step,
     streamId,
     source: 'synthesized',
-    event: createResponseOutputTextDoneEvent(),
+    event: createResponseOutputTextDoneEvent({
+      outputIndex: 0,
+      itemId: streamId,
+      contentIndex: 0,
+      text: finalText,
+      logprobs: [],
+    }),
     timestamp,
   });
 

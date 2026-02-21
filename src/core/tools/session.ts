@@ -913,6 +913,7 @@ export async function chatWithToolsStreaming(
             if (emittedModelToolCallIds.has(callId)) continue;
             emittedModelToolCallIds.add(callId);
 
+            const itemId = `function_call:${callId}`;
             const at = new Date();
             session.emit({
               type: 'llm.responses.event',
@@ -923,6 +924,7 @@ export async function chatWithToolsStreaming(
               round,
               source: 'synthesized',
               event: createResponseOutputItemAddedFunctionCallEvent({
+                itemId,
                 callId,
                 name: toolName,
                 argumentsText: '{}',
@@ -939,7 +941,7 @@ export async function chatWithToolsStreaming(
               round,
               source: 'synthesized',
               event: createResponseFunctionCallArgumentsDeltaEvent({
-                itemId: callId,
+                itemId,
                 delta: '{}',
               }),
               timestamp: at,
@@ -954,7 +956,7 @@ export async function chatWithToolsStreaming(
               round,
               source: 'synthesized',
               event: createResponseFunctionCallArgumentsDoneEvent({
-                itemId: callId,
+                itemId,
                 name: toolName,
                 argumentsText: '{}',
               }),
@@ -1074,6 +1076,7 @@ export async function chatWithToolsStreaming(
 
         if (!emittedModelToolCallIds.has(callId)) {
           emittedModelToolCallIds.add(callId);
+          const itemId = `function_call:${callId}`;
           const at = new Date();
           session.emit({
             type: 'llm.responses.event',
@@ -1084,6 +1087,7 @@ export async function chatWithToolsStreaming(
             round,
             source: 'synthesized',
             event: createResponseOutputItemAddedFunctionCallEvent({
+              itemId,
               callId,
               name: toolName,
               argumentsText: '{}',
@@ -1100,7 +1104,7 @@ export async function chatWithToolsStreaming(
             round,
             source: 'synthesized',
             event: createResponseFunctionCallArgumentsDeltaEvent({
-              itemId: callId,
+              itemId,
               delta: '{}',
             }),
             timestamp: at,
@@ -1115,7 +1119,7 @@ export async function chatWithToolsStreaming(
             round,
             source: 'synthesized',
             event: createResponseFunctionCallArgumentsDoneEvent({
-              itemId: callId,
+              itemId,
               name: toolName,
               argumentsText: '{}',
             }),
@@ -1123,6 +1127,7 @@ export async function chatWithToolsStreaming(
           });
         }
 
+        const itemId = `function_call:${callId}`;
         const doneAt = new Date();
         session.emit({
           type: 'llm.responses.event',
@@ -1133,6 +1138,7 @@ export async function chatWithToolsStreaming(
           round,
           source: 'synthesized',
           event: createResponseOutputItemDoneFunctionCallEvent({
+            itemId,
             callId,
             name: toolName,
             argumentsText: '{}',

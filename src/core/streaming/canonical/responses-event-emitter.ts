@@ -13,13 +13,44 @@ import type {
 } from './responses-events.js';
 
 export function createResponseOutputTextDeltaEvent(
-  delta: string,
+  params:
+    | string
+    | {
+        delta: string;
+        outputIndex?: number;
+        itemId?: string;
+        contentIndex?: number;
+        logprobs?: unknown[];
+      },
 ): CanonicalResponseOutputTextDeltaEvent {
-  return { type: 'response.output_text.delta', delta };
+  if (typeof params === 'string') {
+    return { type: 'response.output_text.delta', delta: params };
+  }
+  return {
+    type: 'response.output_text.delta',
+    delta: params.delta,
+    output_index: params.outputIndex,
+    item_id: params.itemId,
+    content_index: params.contentIndex,
+    logprobs: params.logprobs,
+  };
 }
 
-export function createResponseOutputTextDoneEvent(): CanonicalResponseOutputTextDoneEvent {
-  return { type: 'response.output_text.done' };
+export function createResponseOutputTextDoneEvent(params?: {
+  outputIndex?: number;
+  itemId?: string;
+  contentIndex?: number;
+  text?: string;
+  logprobs?: unknown[];
+}): CanonicalResponseOutputTextDoneEvent {
+  return {
+    type: 'response.output_text.done',
+    output_index: params?.outputIndex,
+    item_id: params?.itemId,
+    content_index: params?.contentIndex,
+    text: params?.text,
+    logprobs: params?.logprobs,
+  };
 }
 
 export function createResponseOutputItemAddedMessageEvent(params: {
@@ -129,12 +160,14 @@ export function createResponseFunctionCallArgumentsDoneEvent(params: {
 }
 
 export function createResponseOutputItemAddedFunctionCallEvent(params: {
+  itemId?: string;
   callId: string;
   name: string;
   argumentsText: string;
   outputIndex?: number;
 }): CanonicalResponseOutputItemAddedEvent {
   const item: CanonicalResponseFunctionCallItem = {
+    id: params.itemId,
     type: 'function_call',
     call_id: params.callId,
     name: params.name,
@@ -149,12 +182,14 @@ export function createResponseOutputItemAddedFunctionCallEvent(params: {
 }
 
 export function createResponseOutputItemDoneFunctionCallEvent(params: {
+  itemId?: string;
   callId: string;
   name: string;
   argumentsText: string;
   outputIndex?: number;
 }): CanonicalResponseOutputItemDoneEvent {
   const item: CanonicalResponseFunctionCallItem = {
+    id: params.itemId,
     type: 'function_call',
     call_id: params.callId,
     name: params.name,
