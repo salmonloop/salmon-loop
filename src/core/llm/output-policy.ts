@@ -1,5 +1,8 @@
 import { LIMITS } from '../config/limits.js';
-import { createResponseOutputTextDeltaEvent } from '../streaming/canonical/responses-event-emitter.js';
+import {
+  createResponseOutputTextDeltaEvent,
+  createResponseOutputTextDoneEvent,
+} from '../streaming/canonical/responses-event-emitter.js';
 import {
   LLM_OUTPUT_KINDS,
   type ExecutionStep,
@@ -159,12 +162,22 @@ export function emitLlmStreamEnd(params: {
   if (!emit) return;
   if (!streamId) return;
   if (!shouldEmitLlmOutput(policy, kind)) return;
+  const timestamp = new Date();
+  emit({
+    type: 'llm.responses.event',
+    kind,
+    step,
+    streamId,
+    source: 'synthesized',
+    event: createResponseOutputTextDoneEvent(),
+    timestamp,
+  });
   emit({
     type: 'llm.stream.end',
     kind,
     step,
     streamId,
     finishReason,
-    timestamp: new Date(),
+    timestamp,
   });
 }

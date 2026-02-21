@@ -19,6 +19,7 @@ export class StreamAssembler {
   private readonly clock: () => Date;
   private readonly streams = new Map<string, TextStreamState>();
   private readonly canonicalTextStreams = new Set<string>();
+  private readonly canonicalClosedTextStreams = new Set<string>();
   private readonly startedToolCallIds = new Set<string>();
 
   constructor(options: StreamAssemblerOptions = {}) {
@@ -39,6 +40,12 @@ export class StreamAssembler {
     }
 
     if (event.type === 'llm.stream.end') {
+      if (this.canonicalClosedTextStreams.has(event.streamId)) {
+        this.canonicalClosedTextStreams.delete(event.streamId);
+        this.canonicalTextStreams.delete(event.streamId);
+        this.streams.delete(event.streamId);
+        return [];
+      }
       this.canonicalTextStreams.delete(event.streamId);
       return this.handleTextEnd(event.streamId, event.timestamp, event.finishReason);
     }
@@ -187,6 +194,8 @@ export class StreamAssembler {
     }
 
     if (isOutputTextDoneEvent(event.event)) {
+      this.canonicalClosedTextStreams.add(event.streamId);
+      this.canonicalTextStreams.delete(event.streamId);
       return this.handleTextEnd(event.streamId, event.timestamp, undefined);
     }
 

@@ -649,7 +649,7 @@ describe('chatWithToolsStreaming', () => {
     expect(deltas[0]).toEqual(expect.objectContaining({ content: 'hello ' }));
 
     const canonical = events.filter((event) => event.type === 'llm.responses.event');
-    expect(canonical).toHaveLength(2);
+    expect(canonical).toHaveLength(3);
     expect(canonical[0]).toEqual(
       expect.objectContaining({
         kind: 'plan',
@@ -662,11 +662,30 @@ describe('chatWithToolsStreaming', () => {
       }),
     );
 
+    expect(canonical[2]).toEqual(
+      expect.objectContaining({
+        kind: 'plan',
+        step: 'PLAN',
+        source: 'synthesized',
+        event: { type: 'response.output_text.done' },
+      }),
+    );
+
     const firstCanonicalIndex = events.findIndex((event) => event.type === 'llm.responses.event');
     const firstLegacyIndex = events.findIndex((event) => event.type === 'llm.stream.delta');
     expect(firstCanonicalIndex).toBeGreaterThanOrEqual(0);
     expect(firstLegacyIndex).toBeGreaterThanOrEqual(0);
     expect(firstCanonicalIndex).toBeLessThan(firstLegacyIndex);
+
+    const canonicalDoneIndex = events.findIndex(
+      (event) =>
+        event.type === 'llm.responses.event' &&
+        (event as any).event?.type === 'response.output_text.done',
+    );
+    const legacyEndIndex = events.findIndex((event) => event.type === 'llm.stream.end');
+    expect(canonicalDoneIndex).toBeGreaterThanOrEqual(0);
+    expect(legacyEndIndex).toBeGreaterThanOrEqual(0);
+    expect(canonicalDoneIndex).toBeLessThan(legacyEndIndex);
   });
 
   it('emits start/done tool logs without leaking arguments', async () => {
