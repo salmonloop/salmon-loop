@@ -2,116 +2,61 @@ import { randomUUID } from 'crypto';
 
 import type { NormalizedStreamEvent } from '../../core/streaming/normalized-events.js';
 
-type OpenAiStreamEvent = Record<string, unknown>;
+type ResponseStatus = 'completed' | 'failed' | 'in_progress';
 
-type OpenAiErrorObject = {
+type ResponseError = {
+  code: 'server_error' | 'invalid_prompt';
   message: string;
-  type: string;
-  param: string | null;
-  code: string | null;
 };
 
-type OpenAiResponseError = {
-  message: string;
-  type: string;
-  param: string | null;
-  code: string | null;
-};
-
-type OpenAiResponseTextPart = {
+type ResponseOutputText = {
   type: 'output_text';
   text: string;
   annotations: unknown[];
 };
 
-type OpenAiFunctionCallOutputItem = {
+type ResponseOutputMessage = {
+  id: string;
+  type: 'message';
+  role: 'assistant';
+  status: 'in_progress' | 'completed';
+  content: Array<ResponseOutputText>;
+};
+
+type ResponseFunctionToolCall = {
   id: string;
   type: 'function_call';
   call_id: string;
   name: string;
   arguments: string;
-  status: 'in_progress' | 'completed';
+  status?: 'in_progress' | 'completed';
 };
 
-type OpenAiMessageOutputItem = {
-  id: string;
-  type: 'message';
-  status: 'in_progress' | 'completed';
-  role: 'assistant';
-  content: OpenAiResponseTextPart[];
-};
+type ResponseOutputItem = ResponseOutputMessage | ResponseFunctionToolCall;
 
-type OpenAiOutputItem = OpenAiMessageOutputItem | OpenAiFunctionCallOutputItem;
-
-type OpenAiResponseObject = {
+type ResponseObject = {
   id: string;
   object: 'response';
   created_at: number;
-  user: string | null;
-  status: 'in_progress' | 'completed' | 'failed';
-  error: OpenAiResponseError | null;
+  output_text: string;
+  error: ResponseError | null;
   incomplete_details: null;
-  instructions: string | null;
-  max_output_tokens: number | null;
+  instructions: null;
+  metadata: Record<string, string> | null;
   model: string;
-  output: OpenAiOutputItem[];
+  output: ResponseOutputItem[];
   parallel_tool_calls: boolean;
-  previous_response_id: string | null;
-  reasoning: { effort: string | null; summary: string | null };
-  store: boolean;
-  temperature: number;
-  text: { format: { type: 'text' } };
+  temperature: number | null;
   tool_choice: 'auto';
   tools: unknown[];
-  top_p: number;
-  truncation: 'disabled';
-  usage: null;
-  metadata: Record<string, string>;
+  top_p: number | null;
   completed_at?: number | null;
 };
 
+type ResponseStreamEvent = Record<string, unknown>;
+
 function toEpochSeconds(date: Date): number {
   return Math.floor(date.getTime() / 1000);
-}
-
-function createResponseObject(params: {
-  id: string;
-  createdAt: number;
-  status: OpenAiResponseObject['status'];
-  model: string;
-  output: OpenAiOutputItem[];
-  error: OpenAiResponseError | null;
-  metadata?: Record<string, string>;
-  completedAt?: number;
-}): OpenAiResponseObject {
-  const response: OpenAiResponseObject = {
-    id: params.id,
-    object: 'response',
-    created_at: params.createdAt,
-    user: null,
-    status: params.status,
-    error: params.error,
-    incomplete_details: null,
-    instructions: null,
-    max_output_tokens: null,
-    model: params.model,
-    output: params.output,
-    parallel_tool_calls: true,
-    previous_response_id: null,
-    reasoning: { effort: null, summary: null },
-    store: true,
-    temperature: 1,
-    text: { format: { type: 'text' } },
-    tool_choice: 'auto',
-    tools: [],
-    top_p: 1,
-    truncation: 'disabled',
-    usage: null,
-    metadata: params.metadata ?? {},
-  };
-
-  if (typeof params.completedAt === 'number') response.completed_at = params.completedAt;
-  return response;
 }
 
 function defaultResponseId(): string {
@@ -119,37 +64,47 @@ function defaultResponseId(): string {
 }
 
 function defaultItemId(): string {
-  return `msg_${randomUUID().replace(/-/g, '')}`;
+  return `item_${randomUUID().replace(/-/g, '')}`;
 }
 
-function defaultFunctionCallId(): string {
-  return `fc_${randomUUID().replace(/-/g, '')}`;
-}
-
-function createErrorObject(params: {
-  message: string;
-  type: string;
-  code?: string | null;
-}): OpenAiErrorObject {
-  return {
-    message: params.message,
-    type: params.type,
-    param: null,
-    code: params.code ?? null,
+function createResponseObject(params: {
+  id: string;
+  createdAt: number;
+  status: ResponseStatus;
+  model: string;
+  outputText: string;
+  output: ResponseOutputItem[];
+  error: ResponseError | null;
+  metadata: Record<string, string> | null;
+  completedAt?: number;
+}): ResponseObject {
+  const response: ResponseObject = {
+    id: params.id,
+    object: 'response',
+    created_at: params.createdAt,
+    output_text: params.outputText,
+    error: params.error,
+    incomplete_details: null,
+    instructions: null,
+    metadata: params.metadata,
+    model: params.model,
+    output: params.output,
+    parallel_tool_calls: true,
+    temperature: null,
+    tool_choice: 'auto',
+    tools: [],
+    top_p: null,
   };
+
+  if (typeof params.completedAt === 'number') response.completed_at = params.completedAt;
+  return response;
 }
 
 function createResponseError(params: {
   message: string;
-  type: string;
-  code?: string | null;
-}): OpenAiResponseError {
-  return {
-    message: params.message,
-    type: params.type,
-    param: null,
-    code: params.code ?? null,
-  };
+  code: ResponseError['code'];
+}): ResponseError {
+  return { code: params.code, message: params.message };
 }
 
 export interface OpenAiStreamEncoderOptions {
@@ -157,37 +112,50 @@ export interface OpenAiStreamEncoderOptions {
   model?: string;
   responseId?: () => string;
   itemId?: () => string;
-  functionCallId?: () => string;
-  metadata?: Record<string, string>;
+  metadata?: Record<string, string> | null;
 }
+
+type TextItemState = {
+  outputIndex: number;
+  itemId: string;
+  contentIndex: number;
+  text: string;
+  contentStarted: boolean;
+  done: boolean;
+};
+
+type FunctionCallState = {
+  outputIndex: number;
+  itemId: string;
+  name: string;
+  args: string;
+  done: boolean;
+};
 
 export class OpenAiStreamEncoder {
   private readonly now: () => Date;
   private readonly model: string;
   private readonly responseIdFn: () => string;
   private readonly itemIdFn: () => string;
-  private readonly functionCallIdFn: () => string;
-  private readonly metadata: Record<string, string>;
+  private readonly metadata: Record<string, string> | null;
 
+  private sequenceNumber = 0;
   private responseId: string | null = null;
   private createdAt: number | null = null;
-  private readonly output: OpenAiOutputItem[] = [];
-  private readonly byMessageId = new Map<
-    string,
-    { outputIndex: number; itemId: string; text: string; contentStarted: boolean }
-  >();
-  private readonly byCallId = new Map<string, { outputIndex: number; itemId: string }>();
+
+  private readonly output: ResponseOutputItem[] = [];
+  private readonly textItems = new Map<string, TextItemState>();
+  private readonly functionCalls = new Map<string, FunctionCallState>();
 
   constructor(options: OpenAiStreamEncoderOptions = {}) {
     this.now = options.now ?? (() => new Date());
     this.model = options.model ?? 'unknown';
     this.responseIdFn = options.responseId ?? defaultResponseId;
     this.itemIdFn = options.itemId ?? defaultItemId;
-    this.functionCallIdFn = options.functionCallId ?? defaultFunctionCallId;
-    this.metadata = options.metadata ?? {};
+    this.metadata = options.metadata ?? null;
   }
 
-  start(): OpenAiStreamEvent[] {
+  start(): ResponseStreamEvent[] {
     if (this.responseId) return [];
 
     const at = this.now();
@@ -199,7 +167,8 @@ export class OpenAiStreamEncoder {
       createdAt: this.createdAt,
       status: 'in_progress',
       model: this.model,
-      output: this.output,
+      outputText: '',
+      output: [],
       error: null,
       metadata: this.metadata,
     });
@@ -207,16 +176,18 @@ export class OpenAiStreamEncoder {
     return [
       {
         type: 'response.created',
+        sequence_number: this.nextSequenceNumber(),
         response,
       },
       {
         type: 'response.in_progress',
+        sequence_number: this.nextSequenceNumber(),
         response,
       },
     ];
   }
 
-  push(event: NormalizedStreamEvent): OpenAiStreamEvent[] {
+  push(event: NormalizedStreamEvent): ResponseStreamEvent[] {
     if (!this.responseId || this.createdAt === null) return [];
 
     if (event.type === 'normalized.message_start') {
@@ -224,24 +195,28 @@ export class OpenAiStreamEncoder {
 
       const outputIndex = this.output.length;
       const itemId = this.itemIdFn();
-      const item: OpenAiMessageOutputItem = {
+      const item: ResponseOutputMessage = {
         id: itemId,
         type: 'message',
-        status: 'in_progress',
         role: 'assistant',
+        status: 'in_progress',
         content: [],
       };
+
       this.output.push(item);
-      this.byMessageId.set(event.messageId, {
+      this.textItems.set(event.messageId, {
         outputIndex,
         itemId,
+        contentIndex: 0,
         text: '',
         contentStarted: false,
+        done: false,
       });
 
       return [
         {
           type: 'response.output_item.added',
+          sequence_number: this.nextSequenceNumber(),
           output_index: outputIndex,
           item,
         },
@@ -251,22 +226,24 @@ export class OpenAiStreamEncoder {
     if (event.type === 'normalized.content_block_start') {
       if (event.blockType !== 'text') return [];
 
-      const st = this.byMessageId.get(event.messageId);
-      if (!st) return [];
+      const st = this.textItems.get(event.messageId);
+      if (!st || st.done) return [];
       if (st.contentStarted) return [];
       st.contentStarted = true;
 
       const item = this.output[st.outputIndex];
       if (!item || item.type !== 'message') return [];
-      const part: OpenAiResponseTextPart = { type: 'output_text', text: '', annotations: [] };
+
+      const part: ResponseOutputText = { type: 'output_text', text: '', annotations: [] };
       item.content.push(part);
 
       return [
         {
           type: 'response.content_part.added',
+          sequence_number: this.nextSequenceNumber(),
           output_index: st.outputIndex,
           item_id: st.itemId,
-          content_index: 0,
+          content_index: st.contentIndex,
           part,
         },
       ];
@@ -275,64 +252,73 @@ export class OpenAiStreamEncoder {
     if (event.type === 'normalized.content_block_delta') {
       if (event.deltaType !== 'text') return [];
 
-      const st = this.byMessageId.get(event.messageId);
-      if (!st) return [];
-
+      const st = this.textItems.get(event.messageId);
+      if (!st || st.done) return [];
       st.text += event.text;
 
       return [
         {
           type: 'response.output_text.delta',
+          sequence_number: this.nextSequenceNumber(),
           output_index: st.outputIndex,
           item_id: st.itemId,
-          content_index: 0,
+          content_index: st.contentIndex,
           delta: event.text,
+          logprobs: [],
         },
       ];
     }
 
     if (event.type === 'normalized.content_block_end') {
-      const st = this.byMessageId.get(event.messageId);
-      if (!st) return [];
+      const st = this.textItems.get(event.messageId);
+      if (!st || st.done) return [];
 
       const item = this.output[st.outputIndex];
       if (!item || item.type !== 'message') return [];
-      const part: OpenAiResponseTextPart = {
+
+      const part: ResponseOutputText = {
         type: 'output_text',
         text: st.text,
         annotations: [],
       };
+
       if (item.content.length === 0) item.content.push(part);
       else item.content[0] = part;
 
       return [
         {
           type: 'response.output_text.done',
+          sequence_number: this.nextSequenceNumber(),
           output_index: st.outputIndex,
           item_id: st.itemId,
-          content_index: 0,
+          content_index: st.contentIndex,
           text: st.text,
+          logprobs: [],
         },
         {
           type: 'response.content_part.done',
+          sequence_number: this.nextSequenceNumber(),
           output_index: st.outputIndex,
           item_id: st.itemId,
-          content_index: 0,
+          content_index: st.contentIndex,
           part,
         },
       ];
     }
 
     if (event.type === 'normalized.message_end') {
-      const st = this.byMessageId.get(event.messageId);
-      if (!st) return [];
+      const st = this.textItems.get(event.messageId);
+      if (!st || st.done) return [];
+      st.done = true;
 
       const item = this.output[st.outputIndex];
+      if (!item || item.type !== 'message') return [];
       item.status = 'completed';
 
       return [
         {
           type: 'response.output_item.done',
+          sequence_number: this.nextSequenceNumber(),
           output_index: st.outputIndex,
           item,
         },
@@ -340,52 +326,69 @@ export class OpenAiStreamEncoder {
     }
 
     if (event.type === 'normalized.tool_call_start') {
-      if (this.byCallId.has(event.callId)) return [];
+      if (this.functionCalls.has(event.callId)) return [];
 
       const outputIndex = this.output.length;
-      const itemId = this.functionCallIdFn();
-      const item: OpenAiFunctionCallOutputItem = {
+      const itemId = this.itemIdFn();
+
+      const item: ResponseFunctionToolCall = {
         id: itemId,
         type: 'function_call',
         call_id: event.callId,
         name: event.toolName,
-        arguments: '{}',
+        arguments: '',
         status: 'in_progress',
       };
 
       this.output.push(item);
-      this.byCallId.set(event.callId, { outputIndex, itemId });
+      this.functionCalls.set(event.callId, {
+        outputIndex,
+        itemId,
+        name: event.toolName,
+        args: '{}',
+        done: false,
+      });
 
       return [
         {
           type: 'response.output_item.added',
+          sequence_number: this.nextSequenceNumber(),
           output_index: outputIndex,
           item,
+        },
+        {
+          type: 'response.function_call_arguments.delta',
+          sequence_number: this.nextSequenceNumber(),
+          output_index: outputIndex,
+          item_id: itemId,
+          delta: '{}',
+        },
+        {
+          type: 'response.function_call_arguments.done',
+          sequence_number: this.nextSequenceNumber(),
+          output_index: outputIndex,
+          item_id: itemId,
+          name: event.toolName,
+          arguments: '{}',
         },
       ];
     }
 
     if (event.type === 'normalized.tool_call_end') {
-      const existing = this.byCallId.get(event.callId);
-      if (!existing) {
-        const startLines = this.push({
-          type: 'normalized.tool_call_start',
-          callId: event.callId,
-          toolName: event.toolName,
-          phase: event.phase,
-          round: event.round,
-          timestamp: event.timestamp,
-        } as any);
-        return [...startLines, ...this.push(event)];
-      }
+      const st = this.functionCalls.get(event.callId);
+      if (!st || st.done) return [];
+      st.done = true;
 
-      const item = this.output[existing.outputIndex] as OpenAiFunctionCallOutputItem;
+      const item = this.output[st.outputIndex];
+      if (!item || item.type !== 'function_call') return [];
+      item.arguments = st.args;
       item.status = 'completed';
 
       return [
         {
           type: 'response.output_item.done',
-          output_index: existing.outputIndex,
+          sequence_number: this.nextSequenceNumber(),
+          output_index: st.outputIndex,
           item,
         },
       ];
@@ -394,18 +397,17 @@ export class OpenAiStreamEncoder {
     return [];
   }
 
-  complete(params: { ok: boolean; message?: string; code?: string | null }): OpenAiStreamEvent[] {
+  complete(params: { ok: boolean; message?: string; code?: string | null }): ResponseStreamEvent[] {
     if (!this.responseId || this.createdAt === null) return [];
 
-    for (const item of this.output) item.status = 'completed';
-
+    const outputText = this.collectOutputText();
     const completedAt = toEpochSeconds(this.now());
+
     const error = params.ok
       ? null
       : createResponseError({
           message: params.message ?? 'Unknown error',
-          type: 'server_error',
-          code: params.code ?? null,
+          code: params.code === 'usage_error' ? 'invalid_prompt' : 'server_error',
         });
 
     const response = createResponseObject({
@@ -413,55 +415,64 @@ export class OpenAiStreamEncoder {
       createdAt: this.createdAt,
       status: params.ok ? 'completed' : 'failed',
       model: this.model,
+      outputText,
       output: this.output,
       error,
       metadata: this.metadata,
-      completedAt,
+      completedAt: params.ok ? completedAt : undefined,
     });
 
     return [
       {
         type: params.ok ? 'response.completed' : 'response.failed',
+        sequence_number: this.nextSequenceNumber(),
         response,
       },
     ];
   }
 
-  crash(error: Error): OpenAiStreamEvent[] {
-    if (!this.responseId || this.createdAt === null) {
-      const message = error.message || 'Unexpected error';
-      return [
-        {
-          type: 'error',
-          error: createErrorObject({ message, type: 'server_error' }),
-        },
-      ];
-    }
-
+  crash(error: Error): ResponseStreamEvent[] {
     const message = error.message || 'Unexpected error';
     return [
+      ...this.start(),
       {
         type: 'error',
-        error: createErrorObject({ message, type: 'server_error' }),
+        sequence_number: this.nextSequenceNumber(),
+        code: 'server_error',
+        message,
+        param: null,
       },
       ...this.complete({ ok: false, message, code: null }),
     ];
   }
 
-  usageError(params: { message: string; code?: string | null }): OpenAiStreamEvent[] {
-    const events: OpenAiStreamEvent[] = [];
-    events.push(...this.start());
-    events.push({
-      type: 'error',
-      error: createErrorObject({
+  usageError(params: { message: string; code?: string | null }): ResponseStreamEvent[] {
+    const code = params.code ?? 'usage_error';
+    return [
+      ...this.start(),
+      {
+        type: 'error',
+        sequence_number: this.nextSequenceNumber(),
+        code,
         message: params.message,
-        type: 'invalid_request_error',
-        code: params.code ?? 'usage_error',
-      }),
-    });
-    events.push(
-      ...this.complete({ ok: false, message: params.message, code: params.code ?? null }),
-    );
-    return events;
+        param: null,
+      },
+      ...this.complete({ ok: false, message: params.message, code }),
+    ];
+  }
+
+  private nextSequenceNumber(): number {
+    return this.sequenceNumber++;
+  }
+
+  private collectOutputText(): string {
+    const parts: string[] = [];
+    for (const item of this.output) {
+      if (item.type !== 'message') continue;
+      for (const part of item.content) {
+        if (part.type === 'output_text' && part.text) parts.push(part.text);
+      }
+    }
+    return parts.join('');
   }
 }

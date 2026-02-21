@@ -38,8 +38,10 @@ describe('OpenAiStreamReporter', () => {
       model: 'gpt-test',
       now,
       responseId: () => 'resp_1',
-      itemId: () => 'msg_1',
-      functionCallId: () => 'fc_1',
+      itemId: (() => {
+        let i = 0;
+        return () => `item-${++i}`;
+      })(),
       writer: createStdoutWriter({ write }),
     });
 
@@ -112,8 +114,10 @@ describe('OpenAiStreamReporter', () => {
       model: 'gpt-test',
       now,
       responseId: () => 'resp_1',
-      itemId: () => 'msg_1',
-      functionCallId: () => 'fc_1',
+      itemId: (() => {
+        let i = 0;
+        return () => `item-${++i}`;
+      })(),
       writer: createStdoutWriter({ write }),
     });
 
