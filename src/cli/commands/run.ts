@@ -159,6 +159,54 @@ export async function handleRunCommand(options: any, command: Command) {
     );
   };
 
+  const rawOutputProfile =
+    typeof (allOptions as any).outputProfile === 'string'
+      ? String((allOptions as any).outputProfile)
+      : undefined;
+
+  if (rawOutputProfile && outputFormat !== 'stream-json') {
+    logger.error(text.cli.outputProfileRequiresStreamJson);
+    if (outputFormat === 'json') {
+      process.stdout.write(
+        JSON.stringify(
+          encodeJsonFailure({
+            mode: 'run',
+            repoPath: runPath,
+            sessionId: sessionIdForOutput ?? randomUUID(),
+            instruction,
+            message: text.cli.outputProfileRequiresStreamJson,
+            exitCode: 1,
+          }),
+        ) + '\n',
+      );
+    }
+    process.exitCode = 1;
+    return;
+  }
+
+  if (outputFormat === 'stream-json') {
+    const outputProfile = rawOutputProfile ?? 'native';
+    if (outputProfile !== 'native' && outputProfile !== 'anthropic' && outputProfile !== 'openai') {
+      logger.error(text.cli.invalidOutputProfile(outputProfile));
+      writeStreamJsonEarlyFailure({
+        sessionId: sessionIdForOutput ?? randomUUID(),
+        message: text.cli.invalidOutputProfile(outputProfile),
+      });
+      process.exitCode = 1;
+      return;
+    }
+
+    if (outputProfile !== 'native') {
+      logger.error(text.cli.outputProfileNotSupportedYet(outputProfile));
+      writeStreamJsonEarlyFailure({
+        sessionId: sessionIdForOutput ?? randomUUID(),
+        message: text.cli.outputProfileNotSupportedYet(outputProfile),
+      });
+      process.exitCode = 1;
+      return;
+    }
+  }
+
   if (jsonSchemaSpec && outputFormat !== 'json') {
     logger.error(text.cli.jsonSchemaRequiresJsonOutput);
     if (outputFormat === 'stream-json') {

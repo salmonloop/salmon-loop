@@ -83,6 +83,7 @@ program
   .option('--stream-output', text.cli.streamOutputOption)
   .option('--include-partial-messages', text.cli.includePartialMessagesOption)
   .option('--output-format <format>', text.cli.outputFormatOption, 'text')
+  .option('--output-profile <profile>', text.cli.outputProfileOption)
   .option('--json-schema <schema>', text.cli.jsonSchemaOption)
   .option('--gui', 'Enable experimental TUI mode (Ink)')
   .action(handleRunCommand);

@@ -237,6 +237,8 @@ export const en = {
   includePartialMessagesOption:
     'Include partial message streaming events in stream-json output (alias for --stream-output).',
   outputFormatOption: 'Output format (text, json, stream-json)',
+  outputProfileOption:
+    'Output profile for stream-json (native, anthropic, openai). Only valid with --output-format stream-json.',
   jsonSchemaOption:
     'JSON Schema for structured_output (file path or JSON string). Only valid with --output-format json.',
   llmOutputOption:
@@ -260,6 +262,12 @@ export const en = {
     `Invalid --mode "${mode}". Expected "patch", "review", or "debug".`,
   invalidOutputFormat: (format: string) =>
     `Invalid --output-format "${format}". Expected "text", "stream-json", or "json".`,
+  invalidOutputProfile: (profile: string) =>
+    `Invalid --output-profile "${profile}". Expected "native", "anthropic", or "openai".`,
+  outputProfileRequiresStreamJson:
+    '--output-profile is only valid when --output-format is set to "stream-json".',
+  outputProfileNotSupportedYet: (profile: string) =>
+    `--output-profile "${profile}" is not supported yet. Use --output-profile native.`,
   continueResumeConflict: '--continue and --resume are mutually exclusive.',
   resumeNotFound: (id: string) => `Session not found: ${id}.`,
   invalidLlmOutputKind: (kind?: string) =>

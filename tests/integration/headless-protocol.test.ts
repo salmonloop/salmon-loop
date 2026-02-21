@@ -107,6 +107,36 @@ describe('Headless protocol integration', () => {
     });
   }, 120000);
 
+  it('rejects --output-profile when --output-format is json', async () => {
+    const repo = await helper.createGitRepo();
+
+    const { exitCode, stdout } = await runCli([
+      'run',
+      '-r',
+      repo.path,
+      '-i',
+      'x',
+      '--output-format',
+      'json',
+      '--output-profile',
+      'native',
+      '--mode',
+      'review',
+      '--no-config-file',
+    ]);
+
+    expect(exitCode).toBe(1);
+    const payload = JSON.parse(stdout) as any;
+    expect(payload.structured_output).toBe(null);
+    expect(payload.metadata).toMatchObject({
+      command: 'run',
+      repo_path: repo.path,
+      success: false,
+      exit_code: 1,
+    });
+    expect(String(payload.metadata.reason)).toContain('--output-profile');
+  }, 120000);
+
   it('emits structured_output when schema validation succeeds', async () => {
     const repo = await helper.createGitRepo();
     const schema = JSON.stringify({
