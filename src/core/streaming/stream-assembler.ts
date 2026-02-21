@@ -11,6 +11,12 @@ type TextStreamState = {
   textBlockOpen: boolean;
 };
 
+type ToolCallState = {
+  requestStarted: boolean;
+  requestEnded: boolean;
+  executionStarted: boolean;
+};
+
 export interface StreamAssemblerOptions {
   clock?: () => Date;
 }
@@ -20,9 +26,7 @@ export class StreamAssembler {
   private readonly streams = new Map<string, TextStreamState>();
   private readonly canonicalTextStreams = new Set<string>();
   private readonly canonicalClosedTextStreams = new Set<string>();
-  private readonly startedToolCallIds = new Set<string>();
-  private readonly requestedToolCallIds = new Set<string>();
-  private readonly endedToolRequestIds = new Set<string>();
+  private readonly toolCallStates = new Map<string, ToolCallState>();
 
   constructor(options: StreamAssemblerOptions = {}) {
     this.clock = options.clock ?? (() => new Date());
@@ -54,9 +58,10 @@ export class StreamAssembler {
 
     if (event.type === 'tool.call.start') {
       const out: NormalizedStreamEvent[] = [];
+      const st = this.getToolCallState(event.callId);
 
-      if (!this.requestedToolCallIds.has(event.callId)) {
-        this.requestedToolCallIds.add(event.callId);
+      if (!st.requestStarted) {
+        st.requestStarted = true;
         out.push({
           type: 'normalized.tool_request_start',
           callId: event.callId,
@@ -67,8 +72,20 @@ export class StreamAssembler {
         });
       }
 
-      if (this.startedToolCallIds.has(event.callId)) return out;
-      this.startedToolCallIds.add(event.callId);
+      if (!st.requestEnded) {
+        st.requestEnded = true;
+        out.push({
+          type: 'normalized.tool_request_end',
+          callId: event.callId,
+          toolName: event.toolName,
+          phase: event.phase,
+          round: event.round,
+          timestamp: event.timestamp,
+        });
+      }
+
+      if (st.executionStarted) return out;
+      st.executionStarted = true;
 
       out.push({
         type: 'normalized.tool_call_start',
@@ -85,9 +102,22 @@ export class StreamAssembler {
 
     if (event.type === 'tool.call.end') {
       const out: NormalizedStreamEvent[] = [];
+      const st = this.getToolCallState(event.callId);
 
-      if (!this.endedToolRequestIds.has(event.callId)) {
-        this.endedToolRequestIds.add(event.callId);
+      if (!st.requestStarted) {
+        st.requestStarted = true;
+        out.push({
+          type: 'normalized.tool_request_start',
+          callId: event.callId,
+          toolName: event.toolName,
+          phase: event.phase,
+          round: event.round,
+          timestamp: event.timestamp,
+        });
+      }
+
+      if (!st.requestEnded) {
+        st.requestEnded = true;
         out.push({
           type: 'normalized.tool_request_end',
           callId: event.callId,
@@ -98,7 +128,6 @@ export class StreamAssembler {
         });
       }
 
-      this.startedToolCallIds.delete(event.callId);
       out.push({
         type: 'normalized.tool_call_end',
         callId: event.callId,
@@ -112,6 +141,7 @@ export class StreamAssembler {
         timestamp: event.timestamp,
       });
 
+      this.toolCallStates.delete(event.callId);
       return out;
     }
 
@@ -119,6 +149,10 @@ export class StreamAssembler {
   }
 
   finish(result: LoopResult): NormalizedStreamEvent[] {
+    this.streams.clear();
+    this.canonicalTextStreams.clear();
+    this.canonicalClosedTextStreams.clear();
+    this.toolCallStates.clear();
     return [
       {
         type: 'normalized.run_end',
@@ -233,8 +267,9 @@ export class StreamAssembler {
 
       const callId = event.event.item.call_id;
       const toolName = event.event.item.name;
-      if (this.requestedToolCallIds.has(callId)) return [];
-      this.requestedToolCallIds.add(callId);
+      const st = this.getToolCallState(callId);
+      if (st.requestStarted) return [];
+      st.requestStarted = true;
 
       return [
         {
@@ -251,8 +286,9 @@ export class StreamAssembler {
     if (isOutputItemDoneFunctionCallEvent(event.event)) {
       if (!event.phase || typeof event.round !== 'number') return [];
       const callId = event.event.item.call_id;
-      if (this.endedToolRequestIds.has(callId)) return [];
-      this.endedToolRequestIds.add(callId);
+      const st = this.getToolCallState(callId);
+      if (st.requestEnded) return [];
+      st.requestEnded = true;
       return [
         {
           type: 'normalized.tool_request_end',
@@ -266,6 +302,18 @@ export class StreamAssembler {
     }
 
     return [];
+  }
+
+  private getToolCallState(callId: string): ToolCallState {
+    const existing = this.toolCallStates.get(callId);
+    if (existing) return existing;
+    const created: ToolCallState = {
+      requestStarted: false,
+      requestEnded: false,
+      executionStarted: false,
+    };
+    this.toolCallStates.set(callId, created);
+    return created;
   }
 }
 

@@ -315,6 +315,14 @@ describe('StreamAssembler', () => {
         timestamp: at1,
       },
       {
+        type: 'normalized.tool_request_end',
+        callId: 'call-1',
+        toolName: 'fs.readFile',
+        phase: 'PATCH',
+        round: 1,
+        timestamp: at1,
+      },
+      {
         type: 'normalized.tool_call_start',
         callId: 'call-1',
         toolName: 'fs.readFile',
@@ -336,14 +344,6 @@ describe('StreamAssembler', () => {
     } satisfies LoopEvent);
 
     expect(end).toEqual([
-      {
-        type: 'normalized.tool_request_end',
-        callId: 'call-1',
-        toolName: 'fs.readFile',
-        phase: 'PATCH',
-        round: 1,
-        timestamp: at2,
-      },
       {
         type: 'normalized.tool_call_end',
         callId: 'call-1',
@@ -497,6 +497,14 @@ describe('StreamAssembler', () => {
         timestamp: at1,
       },
       {
+        type: 'normalized.tool_request_end',
+        callId: 'call-1',
+        toolName: 'fs.readFile',
+        phase: 'PATCH',
+        round: 1,
+        timestamp: at1,
+      },
+      {
         type: 'normalized.tool_call_start',
         callId: 'call-1',
         toolName: 'fs.readFile',
@@ -519,14 +527,6 @@ describe('StreamAssembler', () => {
     } satisfies LoopEvent);
 
     expect(end).toEqual([
-      {
-        type: 'normalized.tool_request_end',
-        callId: 'call-1',
-        toolName: 'fs.readFile',
-        phase: 'PATCH',
-        round: 1,
-        timestamp: at2,
-      },
       {
         type: 'normalized.tool_call_end',
         callId: 'call-1',
