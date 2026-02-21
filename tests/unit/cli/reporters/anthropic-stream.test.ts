@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import { AnthropicStreamReporter } from '../../../../src/cli/reporters/anthropic-stream.js';
@@ -174,5 +176,77 @@ describe('AnthropicStreamReporter', () => {
         content_block: { type: 'tool_result', tool_use_id: 'call-1', is_error: false },
       },
     });
+  });
+
+  it('matches golden fixture', () => {
+    const fixtureUrl = new URL('../../../fixtures/headless/anthropic/basic.jsonl', import.meta.url);
+    const expected = readFileSync(fixtureUrl, 'utf8')
+      .trimEnd()
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => JSON.parse(line));
+
+    const { lines, write } = collectLines();
+    const reporter = new AnthropicStreamReporter({
+      mode: 'run',
+      repoPath: '/repo',
+      sessionId: 'sess-golden',
+      write,
+    });
+
+    reporter.onStart('do the thing');
+    reporter.onEvent({
+      type: 'tool.call.start',
+      callId: 'call-1',
+      toolName: 'fs.readFile',
+      phase: 'PATCH',
+      round: 1,
+      timestamp: new Date('2026-02-20T00:00:01.000Z'),
+    });
+    reporter.onEvent({
+      type: 'tool.call.end',
+      callId: 'call-1',
+      toolName: 'fs.readFile',
+      phase: 'PATCH',
+      round: 1,
+      status: 'ok',
+      durationMs: 12,
+      timestamp: new Date('2026-02-20T00:00:02.000Z'),
+    });
+    reporter.onEvent({
+      type: 'llm.stream.delta',
+      kind: 'plan',
+      step: 'PLAN',
+      streamId: 'stream-1',
+      content: 'Hello',
+      timestamp: new Date('2026-02-20T00:00:03.000Z'),
+    });
+    reporter.onEvent({
+      type: 'llm.stream.end',
+      kind: 'plan',
+      step: 'PLAN',
+      streamId: 'stream-1',
+      finishReason: undefined,
+      timestamp: new Date('2026-02-20T00:00:04.000Z'),
+    });
+    reporter.onEvent({
+      type: 'llm.output',
+      kind: 'assistant_message',
+      step: 'REPORT',
+      content: 'Done',
+      timestamp: new Date('2026-02-20T00:00:05.000Z'),
+    });
+
+    const result: LoopResult = {
+      success: true,
+      reason: 'SUCCESS',
+      reasonCode: 'SUCCESS',
+      attempts: 1,
+      logs: [],
+      changedFiles: [],
+    };
+    reporter.onFinish(result);
+
+    expect(lines).toEqual(expected);
   });
 });
