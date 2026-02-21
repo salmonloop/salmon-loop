@@ -18,17 +18,23 @@ export interface StreamAssemblerOptions {
 export class StreamAssembler {
   private readonly clock: () => Date;
   private readonly streams = new Map<string, TextStreamState>();
+  private readonly canonicalTextStreams = new Set<string>();
 
   constructor(options: StreamAssemblerOptions = {}) {
     this.clock = options.clock ?? (() => new Date());
   }
 
   push(event: LoopEvent): NormalizedStreamEvent[] {
+    if (event.type === 'llm.stream.delta' && this.canonicalTextStreams.has(event.streamId)) {
+      return [];
+    }
+
     if (event.type === 'llm.stream.delta') {
       return this.handleTextDelta(event.streamId, event.timestamp, event.content);
     }
 
     if (event.type === 'llm.stream.end') {
+      this.canonicalTextStreams.delete(event.streamId);
       return this.handleTextEnd(event.streamId, event.timestamp, event.finishReason);
     }
 
@@ -172,6 +178,7 @@ export class StreamAssembler {
     event: CanonicalResponsesEvent,
   ): NormalizedStreamEvent[] {
     if (isOutputTextDeltaEvent(event)) {
+      this.canonicalTextStreams.add(streamId);
       return this.handleTextDelta(streamId, at, event.delta);
     }
 

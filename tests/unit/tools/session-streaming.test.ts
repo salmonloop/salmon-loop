@@ -647,6 +647,26 @@ describe('chatWithToolsStreaming', () => {
     const deltas = events.filter((event) => event.type === 'llm.stream.delta');
     expect(deltas).toHaveLength(2);
     expect(deltas[0]).toEqual(expect.objectContaining({ content: 'hello ' }));
+
+    const canonical = events.filter((event) => event.type === 'llm.responses.event');
+    expect(canonical).toHaveLength(2);
+    expect(canonical[0]).toEqual(
+      expect.objectContaining({
+        kind: 'plan',
+        step: 'PLAN',
+        source: 'synthesized',
+        event: {
+          type: 'response.output_text.delta',
+          delta: 'hello ',
+        },
+      }),
+    );
+
+    const firstCanonicalIndex = events.findIndex((event) => event.type === 'llm.responses.event');
+    const firstLegacyIndex = events.findIndex((event) => event.type === 'llm.stream.delta');
+    expect(firstCanonicalIndex).toBeGreaterThanOrEqual(0);
+    expect(firstLegacyIndex).toBeGreaterThanOrEqual(0);
+    expect(firstCanonicalIndex).toBeLessThan(firstLegacyIndex);
   });
 
   it('emits start/done tool logs without leaking arguments', async () => {
@@ -714,5 +734,90 @@ describe('chatWithToolsStreaming', () => {
     expect(logs.some((m) => m.includes('[tool] start test.echo'))).toBe(true);
     expect(logs.some((m) => m.includes('[tool] done test.echo status=ok'))).toBe(true);
     expect(logs.some((m) => m.includes('hi'))).toBe(false); // args not leaked
+  });
+
+  it('emits canonical model tool-call request events without leaking arguments', async () => {
+    const { registry, policy, router } = createToolstack();
+    registerEchoTool(registry);
+
+    const events: LoopEvent[] = [];
+
+    const llm: any = {
+      chatStream(messages: LLMMessage[]) {
+        const hasToolResult = messages.some((m) => m.role === 'tool');
+        if (!hasToolResult) {
+          return (async function* () {
+            yield {
+              role: 'assistant',
+              tool_calls: [
+                {
+                  id: 'call_1',
+                  type: 'function',
+                  function: { name: 'test.echo', arguments: JSON.stringify({ text: 'hi' }) },
+                },
+              ],
+            };
+            yield { role: 'assistant', done: true };
+          })();
+        }
+        return (async function* () {
+          yield { role: 'assistant', contentDelta: 'done' };
+          yield { role: 'assistant', done: true };
+        })();
+      },
+      async chat() {
+        throw new Error('not used');
+      },
+      async createPlan() {
+        throw new Error('not used');
+      },
+      async createPatch() {
+        throw new Error('not used');
+      },
+    };
+
+    await chatWithToolsStreaming(
+      [{ role: 'user', content: 'prompt' }],
+      {},
+      {
+        phase: Phase.PLAN,
+        llm,
+        runtime: {
+          repoRoot: '/tmp',
+          attemptId: 1,
+          dryRun: true,
+          model: 'test-model',
+          worktreeRoot: '/tmp',
+        },
+        toolstack: { registry, policy, router },
+        emit: (event) => events.push(event),
+        llmOutput: {
+          policy: { kinds: ['plan'] },
+          kind: 'plan',
+          step: 'PLAN',
+        },
+      },
+    );
+
+    const added = events.find(
+      (event) =>
+        event.type === 'llm.responses.event' &&
+        (event as any).event?.type === 'response.output_item.added',
+    );
+    expect(added).toBeTruthy();
+
+    const serialized = JSON.stringify(added);
+    expect(serialized).toContain('response.output_item.added');
+    expect(serialized).not.toContain('hi');
+
+    const addedIndex = events.findIndex(
+      (event) =>
+        event.type === 'llm.responses.event' &&
+        (event as any).event?.type === 'response.output_item.added',
+    );
+    const toolStartIndex = events.findIndex((event) => event.type === 'tool.call.start');
+    expect(addedIndex).toBeGreaterThanOrEqual(0);
+    expect(toolStartIndex).toBeGreaterThanOrEqual(0);
+    expect(addedIndex).toBeLessThan(toolStartIndex);
   });
 });

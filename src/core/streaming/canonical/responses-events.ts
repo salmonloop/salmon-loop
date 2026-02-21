@@ -3,6 +3,7 @@ export type CanonicalResponsesEventSource = 'provider' | 'synthesized';
 export type CanonicalResponsesEvent =
   | CanonicalResponseOutputTextDeltaEvent
   | CanonicalResponseOutputTextDoneEvent
+  | CanonicalResponseOutputItemAddedEvent
   | CanonicalResponsesEventUnknown;
 
 export interface CanonicalResponseOutputTextDeltaEvent {
@@ -12,6 +13,21 @@ export interface CanonicalResponseOutputTextDeltaEvent {
 
 export interface CanonicalResponseOutputTextDoneEvent {
   type: 'response.output_text.done';
+}
+
+export type CanonicalResponseOutputItem = CanonicalResponseFunctionCallItem;
+
+export interface CanonicalResponseFunctionCallItem {
+  type: 'function_call';
+  call_id: string;
+  name: string;
+  arguments: string;
+}
+
+export interface CanonicalResponseOutputItemAddedEvent {
+  type: 'response.output_item.added';
+  output_index?: number;
+  item: CanonicalResponseOutputItem;
 }
 
 export type CanonicalResponsesEventUnknown = {

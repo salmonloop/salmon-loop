@@ -1,4 +1,5 @@
 import { LIMITS } from '../config/limits.js';
+import { createResponseOutputTextDeltaEvent } from '../streaming/canonical/responses-event-emitter.js';
 import {
   LLM_OUTPUT_KINDS,
   type ExecutionStep,
@@ -126,13 +127,23 @@ export function emitLlmStreamDelta(params: {
   if (!shouldEmitLlmOutput(policy, kind)) return;
   const sanitized = sanitizeLlmStreamDelta(streamId, content);
   if (!sanitized) return;
+  const timestamp = new Date();
+  emit({
+    type: 'llm.responses.event',
+    kind,
+    step,
+    streamId,
+    source: 'synthesized',
+    event: createResponseOutputTextDeltaEvent(sanitized),
+    timestamp,
+  });
   emit({
     type: 'llm.stream.delta',
     kind,
     step,
     streamId,
     content: sanitized,
-    timestamp: new Date(),
+    timestamp,
   });
 }
 

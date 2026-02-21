@@ -6,6 +6,7 @@ import { emitLlmOutput, emitLlmStreamDelta, emitLlmStreamEnd } from '../llm/outp
 import { redactErrorMessage, redactJsonString, redactValue } from '../llm/redact.js';
 import { recordAuditEvent } from '../observability/audit-trail.js';
 import { logger } from '../observability/logger.js';
+import { createResponseOutputItemAddedFunctionCallEvent } from '../streaming/canonical/responses-event-emitter.js';
 import type {
   ChatOptions,
   ExecutionStep,
@@ -881,6 +882,7 @@ export async function chatWithToolsStreaming(
     const roundStartedAt = Date.now();
     let content = '';
     const toolCalls = new ToolCallAccumulator();
+    const emittedModelToolCallIds = new Set<string>();
     const streamId = session.llmOutput
       ? `llm-${session.llmOutput.kind}-${phase}-${round}-${crypto.randomUUID()}`
       : '';
@@ -897,6 +899,31 @@ export async function chatWithToolsStreaming(
       });
 
       for await (const chunk of stream) {
+        if (session.emit && session.llmOutput && Array.isArray(chunk?.tool_calls)) {
+          for (const call of chunk.tool_calls) {
+            const callId = call?.id;
+            const toolName = call?.function?.name;
+            if (typeof callId !== 'string' || !callId) continue;
+            if (typeof toolName !== 'string' || !toolName) continue;
+            if (emittedModelToolCallIds.has(callId)) continue;
+            emittedModelToolCallIds.add(callId);
+
+            session.emit({
+              type: 'llm.responses.event',
+              kind: session.llmOutput.kind,
+              step: session.llmOutput.step,
+              streamId,
+              source: 'synthesized',
+              event: createResponseOutputItemAddedFunctionCallEvent({
+                callId,
+                name: toolName,
+                argumentsText: '{}',
+              }),
+              timestamp: new Date(),
+            });
+          }
+        }
+
         if (typeof chunk?.contentDelta === 'string' && chunk.contentDelta) {
           if (session.llmOutput) {
             emitLlmStreamDelta({

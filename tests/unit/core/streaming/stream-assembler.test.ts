@@ -90,6 +90,36 @@ describe('StreamAssembler', () => {
     ]);
   });
 
+  it('ignores legacy text deltas when canonical text deltas are present', () => {
+    const assembler = new StreamAssembler();
+    const at = new Date('2026-02-20T00:00:02.000Z');
+
+    const canonical = assembler.push({
+      type: 'llm.responses.event',
+      kind: 'plan',
+      step: 'PLAN',
+      streamId: 'stream-1',
+      source: 'synthesized',
+      event: {
+        type: 'response.output_text.delta',
+        delta: 'Hello',
+      },
+      timestamp: at,
+    } satisfies LoopEvent);
+
+    const legacy = assembler.push({
+      type: 'llm.stream.delta',
+      kind: 'plan',
+      step: 'PLAN',
+      streamId: 'stream-1',
+      content: 'Hello',
+      timestamp: at,
+    } satisfies LoopEvent);
+
+    expect(canonical).toHaveLength(3);
+    expect(legacy).toEqual([]);
+  });
+
   it('emits only delta for subsequent deltas on the same stream', () => {
     const assembler = new StreamAssembler();
     const at1 = new Date('2026-02-20T00:00:02.000Z');
