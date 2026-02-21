@@ -28,6 +28,12 @@ import {
   createTerminalAuthorizationProvider,
   createUiAuthorizationProvider,
 } from '../authorization/provider.js';
+import { encodeJsonFailure } from '../headless/json-protocol.js';
+import {
+  encodeStreamEnd,
+  encodeStreamFailure,
+  encodeStreamStart,
+} from '../headless/stream-json-protocol.js';
 import { text } from '../locales/index.js';
 import { SalmonReporter } from '../reporters/base.js';
 import { JsonReporter } from '../reporters/json.js';
@@ -111,40 +117,55 @@ export async function handleRunCommand(options: any, command: Command) {
   const sessionManager = wantSessionPersistence ? new ChatSessionManager(runPath) : undefined;
   let sessionIdForOutput: string | undefined;
 
-  const writeStreamJsonEarlyError = (params: {
+  const writeStreamJsonEarlyFailure = (params: {
     sessionId: string;
     message: string;
     exitCode?: number;
+    instruction?: string;
   }) => {
-    const now = new Date().toISOString();
+    const at = new Date();
     process.stdout.write(
-      JSON.stringify({
-        type: 'error',
-        session_id: params.sessionId,
-        timestamp: now,
-        error: { message: params.message },
-      }) + '\n',
+      JSON.stringify(
+        encodeStreamStart({
+          mode: 'run',
+          repoPath: runPath,
+          sessionId: params.sessionId,
+          instruction: params.instruction,
+          at,
+        }),
+      ) + '\n',
     );
     process.stdout.write(
-      JSON.stringify({
-        type: 'end',
-        session_id: params.sessionId,
-        timestamp: now,
-        success: false,
-        exit_code: params.exitCode ?? 1,
-      }) + '\n',
+      JSON.stringify(
+        encodeStreamFailure({
+          sessionId: params.sessionId,
+          at,
+          message: params.message,
+        }),
+      ) + '\n',
+    );
+    process.stdout.write(
+      JSON.stringify(
+        encodeStreamEnd({
+          sessionId: params.sessionId,
+          at,
+          success: false,
+          exitCode: params.exitCode ?? 1,
+        }),
+      ) + '\n',
     );
   };
 
   if (jsonSchemaSpec && outputFormat !== 'json') {
-    logger.error(text.cli.jsonSchemaRequiresJsonOutput, true);
+    logger.error(text.cli.jsonSchemaRequiresJsonOutput);
     if (outputFormat === 'stream-json') {
-      writeStreamJsonEarlyError({
+      writeStreamJsonEarlyFailure({
         sessionId: sessionIdForOutput ?? randomUUID(),
         message: text.cli.jsonSchemaRequiresJsonOutput,
       });
     }
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
 
   if (sessionManager) {
@@ -164,26 +185,23 @@ export async function handleRunCommand(options: any, command: Command) {
       const msg = err instanceof Error ? err.message : String(err);
       if (resumeSessionId && outputFormat === 'json') {
         process.stdout.write(
-          JSON.stringify({
-            result: '',
-            structured_output: null,
-            session_id: resumeSessionId,
-            metadata: {
-              command: 'run',
-              repo_path: runPath,
-              success: false,
-              exit_code: 1,
-              reason: msg,
-              timestamps: { ended_at: new Date().toISOString() },
-            },
-          }) + '\n',
+          JSON.stringify(
+            encodeJsonFailure({
+              mode: 'run',
+              repoPath: runPath,
+              sessionId: resumeSessionId,
+              message: msg,
+              exitCode: 1,
+            }),
+          ) + '\n',
         );
       } else if (resumeSessionId && outputFormat === 'stream-json') {
-        writeStreamJsonEarlyError({ sessionId: resumeSessionId, message: msg });
+        writeStreamJsonEarlyFailure({ sessionId: resumeSessionId, message: msg });
       } else {
-        logger.error(msg, true);
+        logger.error(msg);
       }
-      process.exit(1);
+      process.exitCode = 1;
+      return;
     }
 
     sessionIdForOutput = sessionManager.getCurrent().meta.id;
@@ -200,24 +218,17 @@ export async function handleRunCommand(options: any, command: Command) {
     repoPath?: string;
     instruction?: string;
   }) => {
-    const exitCode = params.exitCode ?? 1;
-    writeJsonOutput({
-      result: '',
-      structured_output: null,
-      session_id: sessionIdForOutput ?? randomUUID(),
-      metadata: {
-        command: 'run',
-        repo_path: params.repoPath ?? runPath,
+    writeJsonOutput(
+      encodeJsonFailure({
+        mode: 'run',
+        repoPath: params.repoPath ?? runPath,
+        sessionId: sessionIdForOutput ?? randomUUID(),
         instruction: params.instruction,
-        success: false,
-        exit_code: exitCode,
-        reason: params.message,
-        error_code: params.errorCode,
-        timestamps: {
-          ended_at: new Date().toISOString(),
-        },
-      },
-    });
+        message: params.message,
+        errorCode: params.errorCode,
+        exitCode: params.exitCode ?? 1,
+      }),
+    );
   };
 
   const resolveExitCode = (result: LoopResult): number => {
@@ -305,7 +316,7 @@ export async function handleRunCommand(options: any, command: Command) {
   } catch (err: any) {
     if (err instanceof ConfigError) {
       const msg = text.config.error(err.code || err.message, err.details);
-      logger.error(msg, true);
+      logger.error(msg);
       if (outputFormat === 'json') {
         writeJsonFailure({ message: msg, errorCode: err.code, repoPath: runPath });
         process.exitCode = 1;
@@ -316,7 +327,7 @@ export async function handleRunCommand(options: any, command: Command) {
     }
 
     const msg = err instanceof Error ? err.message : String(err);
-    logger.error(text.config.loadFailed(msg), true);
+    logger.error(text.config.loadFailed(msg));
     if (outputFormat === 'json') {
       writeJsonFailure({ message: text.config.loadFailed(msg), repoPath: runPath });
       process.exitCode = 1;
@@ -338,7 +349,7 @@ export async function handleRunCommand(options: any, command: Command) {
     allOptions.llmOutput,
   );
   if (!llmOutputResolution.ok) {
-    logger.error(text.cli.invalidLlmOutputKind(llmOutputResolution.invalid), true);
+    logger.error(text.cli.invalidLlmOutputKind(llmOutputResolution.invalid));
     if (outputFormat === 'json') {
       writeJsonFailure({
         message: text.cli.invalidLlmOutputKind(llmOutputResolution.invalid),
@@ -370,19 +381,31 @@ export async function handleRunCommand(options: any, command: Command) {
       }
       if (outputFormat === 'json') {
         writeJsonFailure({ message: text.cli.optionsRequired, repoPath: runPath });
+      } else if (outputFormat === 'stream-json') {
+        writeStreamJsonEarlyFailure({
+          sessionId: sessionIdForOutput ?? randomUUID(),
+          message: text.cli.optionsRequired,
+        });
       }
-      process.exit(1);
+      process.exitCode = 1;
+      return;
     }
     return;
   }
 
   const rawMode = String(allOptions.mode || 'patch');
   if (rawMode !== 'patch' && rawMode !== 'review' && rawMode !== 'debug') {
-    logger.error(text.cli.invalidMode(rawMode), true);
+    logger.error(text.cli.invalidMode(rawMode));
     if (outputFormat === 'json') {
       writeJsonFailure({ message: text.cli.invalidMode(rawMode), repoPath: runPath });
+    } else if (outputFormat === 'stream-json') {
+      writeStreamJsonEarlyFailure({
+        sessionId: sessionIdForOutput ?? randomUUID(),
+        message: text.cli.invalidMode(rawMode),
+      });
     }
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
   const mode = rawMode as FlowMode;
 
@@ -391,7 +414,7 @@ export async function handleRunCommand(options: any, command: Command) {
     extensionResolution = await resolveExtensions({ repoRoot: runPath });
   } catch (err: any) {
     if (err instanceof ExtensionConfigError) {
-      logger.error(`Extension configuration invalid: ${err.message}`, true);
+      logger.error(`Extension configuration invalid: ${err.message}`);
       if (outputFormat === 'json') {
         writeJsonFailure({
           message: `Extension configuration invalid: ${err.message}`,
@@ -695,11 +718,12 @@ export async function handleRunCommand(options: any, command: Command) {
         instruction,
       });
     } else if (outputFormat === 'stream-json') {
-      writeStreamJsonEarlyError({
+      writeStreamJsonEarlyFailure({
         sessionId: sessionIdForOutput ?? randomUUID(),
         message: text.cli.unexpectedError(msg),
       });
     }
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
 }

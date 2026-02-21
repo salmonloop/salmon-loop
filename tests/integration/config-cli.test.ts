@@ -1,52 +1,6 @@
-import { spawn } from 'child_process';
-import { mkdtemp, writeFile } from 'fs/promises';
-import { tmpdir } from 'os';
-import { join, resolve } from 'path';
-
 import { text } from '../../src/locales/index.js';
+import { runCli } from '../helpers/cli-runner.js';
 import { RealFsTestHelper } from '../helpers/real-fs-helper.js';
-
-const PROJECT_ROOT = resolve(process.cwd());
-const TSX_CLI = join(PROJECT_ROOT, 'node_modules', 'tsx', 'dist', 'cli.mjs');
-const SALMONLOOP_CLI_ENTRY = join(PROJECT_ROOT, 'src', 'cli', 'index.ts');
-
-async function runSalmonLoopCli(args: string[], envOverrides?: Record<string, string>) {
-  const dotenvDir = await mkdtemp(join(tmpdir(), 'salmonloop-dotenv-'));
-  const dotenvPath = join(dotenvDir, '.env');
-  await writeFile(dotenvPath, '', 'utf8');
-
-  const env: NodeJS.ProcessEnv = {
-    ...process.env,
-    // Prevent accidental loading of developer/user keys from a real .env in the repo root.
-    DOTENV_CONFIG_PATH: dotenvPath,
-    SALMONLOOP_API_KEY: '',
-    S8P_API_KEY: '',
-    ...envOverrides,
-  };
-
-  return new Promise<{ exitCode: number; stdout: string; stderr: string }>((resolvePromise) => {
-    const child = spawn(process.execPath, [TSX_CLI, SALMONLOOP_CLI_ENTRY, ...args], {
-      cwd: PROJECT_ROOT,
-      env,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      windowsHide: true,
-    });
-
-    let stdout = '';
-    let stderr = '';
-
-    child.stdout?.on('data', (d) => (stdout += d.toString()));
-    child.stderr?.on('data', (d) => (stderr += d.toString()));
-
-    child.on('close', (code) => {
-      resolvePromise({
-        exitCode: code ?? 0,
-        stdout: stdout.trim(),
-        stderr: stderr.trim(),
-      });
-    });
-  });
-}
 
 describe('Config CLI integration', () => {
   const helper = new RealFsTestHelper();
@@ -89,12 +43,7 @@ describe('Config CLI integration', () => {
       ),
     );
 
-    const { exitCode, stdout, stderr } = await runSalmonLoopCli([
-      'run',
-      '-r',
-      repo.path,
-      '--print-config',
-    ]);
+    const { exitCode, stdout, stderr } = await runCli(['run', '-r', repo.path, '--print-config']);
     expect(stderr).toBe('');
     expect(exitCode).toBe(0);
 
@@ -107,7 +56,7 @@ describe('Config CLI integration', () => {
   it('fails when --config points to a missing file', async () => {
     const repo = await helper.createGitRepo();
 
-    const { exitCode, stderr } = await runSalmonLoopCli([
+    const { exitCode, stderr } = await runCli([
       'run',
       '-r',
       repo.path,
@@ -145,7 +94,7 @@ describe('Config CLI integration', () => {
       ),
     );
 
-    const { exitCode, stdout, stderr } = await runSalmonLoopCli([
+    const { exitCode, stdout, stderr } = await runCli([
       'run',
       '-r',
       repo.path,
@@ -163,7 +112,7 @@ describe('Config CLI integration', () => {
 
     await helper.writeFile(repo.path, '.salmonloop/config/config.json', '{');
 
-    const { exitCode, stderr } = await runSalmonLoopCli(['run', '-r', repo.path, '--print-config']);
+    const { exitCode, stderr } = await runCli(['run', '-r', repo.path, '--print-config']);
 
     expect(exitCode).toBe(1);
     expect(stderr).toContain(text.errors.technicalDetailsHidden);
@@ -178,7 +127,7 @@ describe('Config CLI integration', () => {
       JSON.stringify({ version: 2 }, null, 2),
     );
 
-    const { exitCode, stderr } = await runSalmonLoopCli(['run', '-r', repo.path, '--print-config']);
+    const { exitCode, stderr } = await runCli(['run', '-r', repo.path, '--print-config']);
 
     expect(exitCode).toBe(1);
     expect(stderr).toContain(text.errors.technicalDetailsHidden);
