@@ -10,6 +10,32 @@ describe('Headless protocol integration', () => {
     await helper.cleanup();
   });
 
+  async function seedChatSession(repoPath: string, sessionId: string) {
+    await helper.writeFile(
+      repoPath,
+      `.salmonloop/chat-sessions/${sessionId}.json`,
+      JSON.stringify(
+        {
+          meta: {
+            id: sessionId,
+            name: 'Test Session',
+            repoPath,
+            createdAt: 0,
+            updatedAt: 0,
+            totalIterations: 0,
+            successfulIterations: 0,
+            totalTokens: { input: 0, output: 0 },
+            snapshots: [],
+          },
+          messages: [],
+          iterations: [],
+        },
+        null,
+        2,
+      ),
+    );
+  }
+
   it('supports global -p print mode with --output-format json (implicit run command)', async () => {
     const repo = await helper.createGitRepo();
 
@@ -33,6 +59,96 @@ describe('Headless protocol integration', () => {
       command: 'run',
       repo_path: repo.path,
       instruction: 'hello',
+      success: true,
+      exit_code: 0,
+    });
+  }, 120000);
+
+  it('supports global -p print mode with --output-format stream-json (implicit run command)', async () => {
+    const repo = await helper.createGitRepo();
+    await seedChatSession(repo.path, 'sess-print');
+
+    const { exitCode, stdout } = await runCli([
+      '-r',
+      repo.path,
+      '--resume',
+      'sess-print',
+      '-p',
+      'hello',
+      '--output-format',
+      'stream-json',
+      '--mode',
+      'review',
+      '--no-config-file',
+    ]);
+
+    expect(exitCode).toBe(0);
+    const lines = stdout
+      .split('\n')
+      .filter(Boolean)
+      .map((l) => JSON.parse(l) as any);
+
+    expect(lines.length).toBeGreaterThanOrEqual(3);
+    expect(lines[0]).toMatchObject({
+      session_id: 'sess-print',
+      event: { type: 'start', command: 'run', repo_path: repo.path, instruction: 'hello' },
+    });
+
+    const resultLine = lines.find((l) => l.event?.type === 'result');
+    const endLine = lines[lines.length - 1];
+    expect(resultLine).toMatchObject({
+      session_id: 'sess-print',
+      event: { type: 'result', success: true, exit_code: 0 },
+    });
+    expect(endLine).toMatchObject({
+      session_id: 'sess-print',
+      event: { type: 'end', success: true, exit_code: 0 },
+    });
+  }, 120000);
+
+  it('supports global -p print mode with --output-format stream-json --output-profile anthropic', async () => {
+    const repo = await helper.createGitRepo();
+    await seedChatSession(repo.path, 'sess-print-anthropic');
+
+    const { exitCode, stdout } = await runCli([
+      '-r',
+      repo.path,
+      '--resume',
+      'sess-print-anthropic',
+      '-p',
+      'hello',
+      '--output-format',
+      'stream-json',
+      '--output-profile',
+      'anthropic',
+      '--mode',
+      'review',
+      '--no-config-file',
+    ]);
+
+    expect(exitCode).toBe(0);
+    const lines = stdout
+      .split('\n')
+      .filter(Boolean)
+      .map((l) => JSON.parse(l) as any);
+
+    expect(lines).toHaveLength(3);
+    expect(lines[0]).toMatchObject({
+      type: 'start',
+      session_id: 'sess-print-anthropic',
+      command: 'run',
+      repo_path: repo.path,
+      instruction: 'hello',
+    });
+    expect(lines[1]).toMatchObject({
+      type: 'result',
+      session_id: 'sess-print-anthropic',
+      success: true,
+      exit_code: 0,
+    });
+    expect(lines[2]).toMatchObject({
+      type: 'end',
+      session_id: 'sess-print-anthropic',
       success: true,
       exit_code: 0,
     });
