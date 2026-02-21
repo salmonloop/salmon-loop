@@ -18,6 +18,7 @@ import type {
 import { Phase, type ExecutionPhase } from '../types/index.js';
 import { isSafeRelativePath, normalizePath } from '../utils/path.js';
 
+import { buildHeadlessToolInputPayload } from './headless-payload.js';
 import { toolToOpenAI } from './mapper.js';
 import { InMemoryLockManager } from './parallel/lock-manager.js';
 import { PlanPersistence } from './parallel/persistence.js';
@@ -530,7 +531,9 @@ async function executeToolCalls(
     }
 
     const input =
-      session.eventPayload?.includeToolInput && parsedArgsOk ? redactValue(argsValue) : undefined;
+      session.eventPayload?.includeToolInput && parsedArgsOk
+        ? buildHeadlessToolInputPayload(argsValue)
+        : undefined;
 
     if (typeof toolName === 'string') {
       session.emit?.({

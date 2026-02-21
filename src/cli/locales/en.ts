@@ -275,7 +275,7 @@ export const en = {
   outputProfileRequiresStreamJson:
     '--output-profile is only valid when --output-format is set to "stream-json".',
   outputProfileNotSupportedYet: (profile: string) =>
-    `--output-profile "${profile}" is not supported yet. Use --output-profile native or anthropic.`,
+    `--output-profile "${profile}" is not supported. Expected "native", "anthropic", or "openai".`,
   continueResumeConflict: '--continue and --resume are mutually exclusive.',
   resumeNotFound: (id: string) => `Session not found: ${id}.`,
   invalidLlmOutputKind: (kind?: string) =>
