@@ -2,12 +2,10 @@ import { randomUUID } from 'crypto';
 
 import { Command } from 'commander';
 
-import { createRuntimeLlm } from '../../core/llm/factory.js';
 import { logger } from '../../core/observability/logger.js';
 import { getExitCode } from '../../core/runtime/exit-codes.js';
 import type { ChatSessionManager } from '../../core/session/manager.js';
 import { CheckpointStrategy, ApplyBackOnDirty, LoopResult } from '../../core/types/index.js';
-import { createTerminalAuthorizationProvider } from '../authorization/provider.js';
 import { createStdoutWriter } from '../headless/stdout-writer.js';
 import { text } from '../locales/index.js';
 import { StderrLogReporter } from '../reporters/stderr-log-reporter.js';
@@ -16,15 +14,18 @@ import { resolveVerifyOption } from '../utils/verify-resolver.js';
 
 import { buildRunAssistantMessage } from './run/assistant-message.js';
 import { resolveRunConfig } from './run/config-resolution.js';
+import { handleEarlyRunCommandErrors } from './run/early-errors.js';
 import { executeRunLoop } from './run/execute.js';
 import { resolveRunExtensions } from './run/extensions-resolution.js';
 import { createHeadlessErrorWriter } from './run/headless-error-writer.js';
+import { buildRunLoopParams } from './run/loop-params.js';
 import { resolveRunMode } from './run/mode.js';
 import { createOutcomeReporter } from './run/outcome-reporter.js';
 import { parseRunCommandOptions } from './run/parse-options.js';
 import { persistRunSession } from './run/persist-session.js';
 import { runPreflight } from './run/preflight.js';
 import { createRunReporter } from './run/reporter-factory.js';
+import { createRuntimeLlmAndWarn } from './run/runtime-llm.js';
 import { initializeSession } from './run/session.js';
 import { buildStructuredOutputState, type StructuredOutputState } from './run/structured-output.js';
 import { logRunVerboseSummary, resolveVerboseLevel } from './run/verbose.js';
@@ -83,81 +84,22 @@ export async function handleRunCommand(options: any, command: Command) {
     getResumeSessionId: () => resumeSessionId,
   });
 
-  if (explicitInstruction && printInstruction) {
-    if (headlessOutput) {
-      logger.error(text.cli.printInstructionConflict);
-      headlessErrorWriter.writeUsageError({
-        message: text.cli.printInstructionConflict,
-        instruction: printInstruction,
-      });
-      process.exitCode = 1;
-      return;
-    }
-    logger.error(text.cli.printInstructionConflict, true);
-  }
-
-  if (continueSession && resumeSessionId) {
-    if (headlessOutput) {
-      logger.error(text.cli.continueResumeConflict);
-      headlessErrorWriter.writeUsageError({
-        message: text.cli.continueResumeConflict,
-        sessionId: resumeSessionId,
-        instruction,
-      });
-      process.exitCode = 1;
-      return;
-    }
-    logger.error(text.cli.continueResumeConflict, true);
-  }
-
-  if (rawOutputProfile && outputFormat !== 'stream-json') {
-    logger.error(text.cli.outputProfileRequiresStreamJson);
-    if (outputFormat === 'json') {
-      headlessErrorWriter.writeJsonFailure({
-        repoPath: runPath,
-        sessionId: sessionIdForOutput ?? randomUUID(),
-        instruction,
-        message: text.cli.outputProfileRequiresStreamJson,
-        exitCode: 1,
-      });
-    }
-    process.exitCode = 1;
-    return;
-  }
-
-  if (outputFormat === 'stream-json') {
-    const outputProfile = outputProfileForStreamJson;
-    if (outputProfile !== 'native' && outputProfile !== 'anthropic' && outputProfile !== 'openai') {
-      logger.error(text.cli.invalidOutputProfile(outputProfile));
-      headlessErrorWriter.writeUnexpectedError({
-        sessionId: sessionIdForOutput ?? resumeSessionId ?? randomUUID(),
-        message: text.cli.invalidOutputProfile(outputProfile),
-      });
-      process.exitCode = 1;
-      return;
-    }
-
-    if (outputProfile === 'openai') {
-      logger.error(text.cli.outputProfileNotSupportedYet(outputProfile));
-      headlessErrorWriter.writeUnexpectedError({
-        sessionId: sessionIdForOutput ?? resumeSessionId ?? randomUUID(),
-        message: text.cli.outputProfileNotSupportedYet(outputProfile),
-      });
-      process.exitCode = 1;
-      return;
-    }
-  }
-
-  if (jsonSchemaSpec && outputFormat !== 'json') {
-    logger.error(text.cli.jsonSchemaRequiresJsonOutput);
-    if (outputFormat === 'stream-json') {
-      headlessErrorWriter.writeUnexpectedError({
-        sessionId: sessionIdForOutput ?? randomUUID(),
-        message: text.cli.jsonSchemaRequiresJsonOutput,
-        instruction,
-      });
-    }
-    process.exitCode = 1;
+  const earlyError = handleEarlyRunCommandErrors({
+    headlessOutput,
+    outputFormat,
+    rawOutputProfile,
+    outputProfileForStreamJson,
+    instruction,
+    printInstruction,
+    explicitInstruction,
+    continueSession,
+    resumeSessionId,
+    jsonSchemaSpec,
+    sessionIdForOutput,
+    headlessErrorWriter,
+  });
+  if (!earlyError.ok) {
+    process.exitCode = earlyError.exitCode;
     return;
   }
 
@@ -317,23 +259,10 @@ export async function handleRunCommand(options: any, command: Command) {
   });
 
   try {
-    const llmType = resolvedConfig.llm.type;
-    const clientPackage = resolvedConfig.llm.clientPackage;
-
-    const runtimeLlm = createRuntimeLlm(resolvedConfig.llm, {
+    const { llm } = createRuntimeLlmAndWarn({
+      llmConfig: resolvedConfig.llm,
       langfuseEnabled: resolvedConfig.observability.langfuse.enabled,
     });
-    const llm = runtimeLlm.llm;
-
-    for (const w of runtimeLlm.warnings) {
-      if (w === 'API_KEY_MISSING') {
-        logger.warn(text.cli.apiKeyMissing);
-      } else if (w === 'PROVIDER_NOT_SUPPORTED') {
-        logger.warn(text.cli.providerNotSupported(llmType));
-      } else if (w === 'CLIENT_PACKAGE_NOT_SUPPORTED') {
-        logger.warn(text.cli.clientPackageNotSupported(clientPackage || ''));
-      }
-    }
 
     let structuredOutputState: StructuredOutputState = { ok: true, candidate: null };
 
@@ -383,35 +312,33 @@ export async function handleRunCommand(options: any, command: Command) {
       proxyApiKeyEnv: process.env.SALMONLOOP_LANGFUSE_PROXY_API_KEY,
     });
 
-    const loopParams = {
+    const loopParams = buildRunLoopParams({
       instruction,
       verify: effectiveVerify,
       repoPath: runPath,
-      llm: llm,
+      llm,
       mode,
       dryRun: allOptions.dryRun,
       forceReset: allOptions.forceReset,
       file: allOptions.file,
       selection: allOptions.selection,
       verbose: verboseLevel,
-      strategy: allOptions.checkpointStrategy as CheckpointStrategy,
+      checkpointStrategy: allOptions.checkpointStrategy as CheckpointStrategy,
       applyBackOnDirty,
       worktreePrepare: allOptions.worktreePrepare,
       llmOutput,
       outcomeReporter,
       langfuseSessionId: resolvedConfig.observability.langfuse.sessionId || sessionIdForOutput,
       langfuseUserId: resolvedConfig.observability.langfuse.userId,
-      authorizationProvider: createTerminalAuthorizationProvider({
-        config: resolvedConfig.toolAuthorization,
-        extensions: extensionResolution?.resolved,
-        forceNonInteractive: headlessOutput || printMode,
-      }),
+      toolAuthorization: resolvedConfig.toolAuthorization,
       extensions: extensionResolution?.resolved,
+      headlessOutput,
+      printMode,
       permissionRules:
         allowedToolRules.length > 0 || disallowedToolRules.length > 0
           ? { allow: allowedToolRules, deny: disallowedToolRules }
           : undefined,
-    };
+    });
 
     const buildAssistantMessage = (result: LoopResult) =>
       buildRunAssistantMessage({ mode, result });
