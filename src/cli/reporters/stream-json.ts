@@ -67,6 +67,143 @@ export class StreamJsonReporter implements SalmonReporter {
       this.lastTextResult = event.content;
     }
 
+    if (event.type === 'tool.call.start') {
+      const at = event.timestamp;
+      const parentToolUseId = event.callId;
+
+      this.emit(
+        encodeStreamEvent({
+          uuid: randomUUID(),
+          sessionId: this.sessionId,
+          at,
+          parentToolUseId,
+          event: {
+            type: 'message_start',
+            message: {
+              id: `tool_use:${event.callId}`,
+              type: 'message',
+              role: 'assistant',
+              content: [],
+            },
+          },
+        }),
+      );
+      this.emit(
+        encodeStreamEvent({
+          uuid: randomUUID(),
+          sessionId: this.sessionId,
+          at,
+          parentToolUseId,
+          event: {
+            type: 'content_block_start',
+            index: 0,
+            content_block: {
+              type: 'tool_use',
+              id: event.callId,
+              name: event.toolName,
+              input: {},
+              meta: {
+                phase: event.phase,
+                round: event.round,
+              },
+            },
+          },
+        }),
+      );
+      this.emit(
+        encodeStreamEvent({
+          uuid: randomUUID(),
+          sessionId: this.sessionId,
+          at,
+          parentToolUseId,
+          event: { type: 'content_block_stop', index: 0 },
+        }),
+      );
+      this.emit(
+        encodeStreamEvent({
+          uuid: randomUUID(),
+          sessionId: this.sessionId,
+          at,
+          parentToolUseId,
+          event: { type: 'message_stop', stop_reason: 'tool_use' },
+        }),
+      );
+      return;
+    }
+
+    if (event.type === 'tool.call.end') {
+      const at = event.timestamp;
+      const parentToolUseId = event.callId;
+      const isError = event.status !== 'ok';
+
+      const summaryParts: string[] = [];
+      summaryParts.push(`tool=${event.toolName}`);
+      summaryParts.push(`status=${event.status}`);
+      if (typeof event.durationMs === 'number') {
+        summaryParts.push(`duration_ms=${event.durationMs}`);
+      }
+      if (event.errorCode) summaryParts.push(`error_code=${event.errorCode}`);
+
+      this.emit(
+        encodeStreamEvent({
+          uuid: randomUUID(),
+          sessionId: this.sessionId,
+          at,
+          parentToolUseId,
+          event: {
+            type: 'message_start',
+            message: {
+              id: `tool_result:${event.callId}`,
+              type: 'message',
+              role: 'user',
+              content: [],
+            },
+          },
+        }),
+      );
+      this.emit(
+        encodeStreamEvent({
+          uuid: randomUUID(),
+          sessionId: this.sessionId,
+          at,
+          parentToolUseId,
+          event: {
+            type: 'content_block_start',
+            index: 0,
+            content_block: {
+              type: 'tool_result',
+              tool_use_id: event.callId,
+              is_error: isError,
+              content: summaryParts.join(' '),
+              meta: {
+                phase: event.phase,
+                round: event.round,
+              },
+            },
+          },
+        }),
+      );
+      this.emit(
+        encodeStreamEvent({
+          uuid: randomUUID(),
+          sessionId: this.sessionId,
+          at,
+          parentToolUseId,
+          event: { type: 'content_block_stop', index: 0 },
+        }),
+      );
+      this.emit(
+        encodeStreamEvent({
+          uuid: randomUUID(),
+          sessionId: this.sessionId,
+          at,
+          parentToolUseId,
+          event: { type: 'message_stop', stop_reason: 'end_turn' },
+        }),
+      );
+      return;
+    }
+
     if (event.type === 'llm.stream.delta') {
       this.emitStreamPreludeIfNeeded(event.streamId, event.timestamp);
       this.emit(

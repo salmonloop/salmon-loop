@@ -147,6 +147,80 @@ describe('StreamJsonReporter', () => {
     vi.useRealTimers();
   });
 
+  it('emits tool_use and tool_result blocks for tool calls', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-02-20T00:00:00.000Z'));
+
+    const { lines, write } = collectLines();
+
+    const reporter = new StreamJsonReporter({
+      mode: 'run',
+      repoPath: '/repo',
+      sessionId: 'sess-tool',
+      now: () => new Date(),
+      write,
+    });
+
+    reporter.onStart('x');
+
+    reporter.onEvent({
+      type: 'tool.call.start',
+      callId: 'call-1',
+      toolName: 'fs.readFile',
+      phase: 'PATCH',
+      round: 1,
+      timestamp: new Date('2026-02-20T00:00:01.000Z'),
+    });
+
+    reporter.onEvent({
+      type: 'tool.call.end',
+      callId: 'call-1',
+      toolName: 'fs.readFile',
+      phase: 'PATCH',
+      round: 1,
+      status: 'ok',
+      durationMs: 12,
+      timestamp: new Date('2026-02-20T00:00:02.000Z'),
+    });
+
+    const toolUseStart = lines.find((l) => l.event?.type === 'content_block_start') as any;
+    expect(toolUseStart).toMatchObject({
+      session_id: 'sess-tool',
+      parent_tool_use_id: 'call-1',
+      event: {
+        type: 'content_block_start',
+        content_block: {
+          type: 'tool_use',
+          id: 'call-1',
+          name: 'fs.readFile',
+          input: {},
+        },
+      },
+    });
+
+    const toolResultStart = lines.find(
+      (l) =>
+        l.parent_tool_use_id === 'call-1' &&
+        l.event?.type === 'content_block_start' &&
+        l.event?.content_block?.type === 'tool_result',
+    ) as any;
+
+    expect(toolResultStart).toMatchObject({
+      session_id: 'sess-tool',
+      parent_tool_use_id: 'call-1',
+      event: {
+        type: 'content_block_start',
+        content_block: {
+          type: 'tool_result',
+          tool_use_id: 'call-1',
+          is_error: false,
+        },
+      },
+    });
+
+    vi.useRealTimers();
+  });
+
   it('uses exit code 130 for user cancellation', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-02-20T00:00:00.000Z'));
