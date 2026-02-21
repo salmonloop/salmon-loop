@@ -1,59 +1,18 @@
 import { randomUUID } from 'crypto';
 
+import type {
+  Response,
+  ResponseError,
+  ResponseFunctionToolCall,
+  ResponseOutputItem,
+  ResponseOutputMessage,
+  ResponseOutputText,
+  ResponseStatus,
+  ResponseStreamEvent,
+  ToolChoiceOptions,
+} from 'openai/resources/responses/responses';
+
 import type { NormalizedStreamEvent } from '../../core/streaming/normalized-events.js';
-
-type ResponseStatus = 'completed' | 'failed' | 'in_progress';
-
-type ResponseError = {
-  code: 'server_error' | 'invalid_prompt';
-  message: string;
-};
-
-type ResponseOutputText = {
-  type: 'output_text';
-  text: string;
-  annotations: unknown[];
-};
-
-type ResponseOutputMessage = {
-  id: string;
-  type: 'message';
-  role: 'assistant';
-  status: 'in_progress' | 'completed';
-  content: Array<ResponseOutputText>;
-};
-
-type ResponseFunctionToolCall = {
-  id: string;
-  type: 'function_call';
-  call_id: string;
-  name: string;
-  arguments: string;
-  status?: 'in_progress' | 'completed';
-};
-
-type ResponseOutputItem = ResponseOutputMessage | ResponseFunctionToolCall;
-
-type ResponseObject = {
-  id: string;
-  object: 'response';
-  created_at: number;
-  output_text: string;
-  error: ResponseError | null;
-  incomplete_details: null;
-  instructions: null;
-  metadata: Record<string, string> | null;
-  model: string;
-  output: ResponseOutputItem[];
-  parallel_tool_calls: boolean;
-  temperature: number | null;
-  tool_choice: 'auto';
-  tools: unknown[];
-  top_p: number | null;
-  completed_at?: number | null;
-};
-
-type ResponseStreamEvent = Record<string, unknown>;
 
 function toEpochSeconds(date: Date): number {
   return Math.floor(date.getTime() / 1000);
@@ -77,8 +36,8 @@ function createResponseObject(params: {
   error: ResponseError | null;
   metadata: Record<string, string> | null;
   completedAt?: number;
-}): ResponseObject {
-  const response: ResponseObject = {
+}): Response {
+  const response: Response = {
     id: params.id,
     object: 'response',
     created_at: params.createdAt,
@@ -91,9 +50,10 @@ function createResponseObject(params: {
     output: params.output,
     parallel_tool_calls: true,
     temperature: null,
-    tool_choice: 'auto',
+    tool_choice: 'auto' satisfies ToolChoiceOptions,
     tools: [],
     top_p: null,
+    status: params.status,
   };
 
   if (typeof params.completedAt === 'number') response.completed_at = params.completedAt;
