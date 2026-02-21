@@ -12,6 +12,7 @@ import { createRuntimeLlm } from '../../core/llm/factory.js';
 import { emitLlmOutput } from '../../core/llm/output-policy.js';
 import { logger } from '../../core/observability/logger.js';
 import { PluginLoader } from '../../core/plugin/loader.js';
+import { getExitCode } from '../../core/runtime/exit-codes.js';
 import { runSalmonLoop } from '../../core/runtime/loop.js';
 import { ChatSessionManager } from '../../core/session/manager.js';
 import { JsonSchemaValidator } from '../../core/structured-output/index.js';
@@ -390,8 +391,7 @@ export async function handleRunCommand(options: any, command: Command) {
   };
 
   const resolveExitCode = (result: LoopResult): number => {
-    if (result.reason === 'Operation cancelled by user') return 130;
-    return result.success ? 0 : 1;
+    return getExitCode(result);
   };
 
   const splitToolRules = (raw: unknown): string[] => {

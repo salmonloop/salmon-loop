@@ -1,3 +1,4 @@
+import { getExitCode } from '../../core/runtime/exit-codes.js';
 import type { LoopEvent, LoopResult } from '../../core/types/index.js';
 
 type OutputTimestamp = string;
@@ -28,8 +29,7 @@ function mapLoopEventToJson(event: LoopEvent): Record<string, unknown> {
 }
 
 export function getStreamExitCode(result: Partial<LoopResult>): number {
-  if (result.reason === 'Operation cancelled by user') return 130;
-  return result.success ? 0 : 1;
+  return getExitCode(result);
 }
 
 function extractParentToolUseId(event: LoopEvent): string | undefined {
