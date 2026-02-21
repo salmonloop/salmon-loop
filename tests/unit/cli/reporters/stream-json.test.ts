@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import { createStdoutWriter } from '../../../../src/cli/headless/stdout-writer.js';
@@ -220,6 +222,133 @@ describe('StreamJsonReporter', () => {
     });
 
     vi.useRealTimers();
+  });
+
+  it('matches golden fixture (basic)', () => {
+    const fixtureUrl = new URL('../../../fixtures/headless/native/basic.jsonl', import.meta.url);
+    const expected = readFileSync(fixtureUrl, 'utf8')
+      .trimEnd()
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => JSON.parse(line));
+
+    const { lines, write } = collectLines();
+
+    let uuidCounter = 0;
+    const nowQueue = [
+      new Date('2026-02-20T00:00:00.000Z'),
+      new Date('2026-02-20T00:00:06.000Z'),
+      new Date('2026-02-20T00:00:07.000Z'),
+    ];
+    const now = () => {
+      const next = nowQueue.shift();
+      if (!next) throw new Error('now() called too many times');
+      return next;
+    };
+
+    const reporter = new StreamJsonReporter({
+      mode: 'run',
+      repoPath: '/repo',
+      sessionId: 'sess-golden',
+      now,
+      uuid: () => `uuid-${++uuidCounter}`,
+      writer: createStdoutWriter({ write }),
+    });
+
+    reporter.onStart('do the thing');
+    reporter.onEvent({
+      type: 'tool.call.start',
+      callId: 'call-1',
+      toolName: 'fs.readFile',
+      phase: 'PATCH',
+      round: 1,
+      timestamp: new Date('2026-02-20T00:00:01.000Z'),
+    });
+    reporter.onEvent({
+      type: 'tool.call.end',
+      callId: 'call-1',
+      toolName: 'fs.readFile',
+      phase: 'PATCH',
+      round: 1,
+      status: 'ok',
+      durationMs: 12,
+      timestamp: new Date('2026-02-20T00:00:02.000Z'),
+    });
+    reporter.onEvent({
+      type: 'llm.stream.delta',
+      kind: 'plan',
+      step: 'PLAN',
+      streamId: 'stream-1',
+      content: 'Hello',
+      timestamp: new Date('2026-02-20T00:00:03.000Z'),
+    });
+    reporter.onEvent({
+      type: 'llm.stream.end',
+      kind: 'plan',
+      step: 'PLAN',
+      streamId: 'stream-1',
+      finishReason: undefined,
+      timestamp: new Date('2026-02-20T00:00:04.000Z'),
+    });
+    reporter.onEvent({
+      type: 'llm.output',
+      kind: 'assistant_message',
+      step: 'REPORT',
+      content: 'Done',
+      timestamp: new Date('2026-02-20T00:00:05.000Z'),
+    });
+
+    const result: LoopResult = {
+      success: true,
+      reason: 'SUCCESS',
+      reasonCode: 'SUCCESS',
+      attempts: 1,
+      logs: [],
+      changedFiles: ['src/a.ts'],
+    };
+    reporter.onFinish(result);
+
+    expect(lines).toEqual(expected);
+  });
+
+  it('matches golden fixture (error)', () => {
+    const fixtureUrl = new URL('../../../fixtures/headless/native/error.jsonl', import.meta.url);
+    const expected = readFileSync(fixtureUrl, 'utf8')
+      .trimEnd()
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => JSON.parse(line));
+
+    const { lines, write } = collectLines();
+
+    let uuidCounter = 0;
+    const nowQueue = [
+      new Date('2026-02-20T00:00:00.000Z'),
+      new Date('2026-02-20T00:00:01.000Z'),
+      new Date('2026-02-20T00:00:02.000Z'),
+    ];
+    const now = () => {
+      const next = nowQueue.shift();
+      if (!next) throw new Error('now() called too many times');
+      return next;
+    };
+
+    const reporter = new StreamJsonReporter({
+      mode: 'run',
+      repoPath: '/repo',
+      sessionId: 'sess-error',
+      now,
+      uuid: () => `uuid-${++uuidCounter}`,
+      writer: createStdoutWriter({ write }),
+    });
+
+    reporter.onStart('do the thing');
+
+    const err = new Error('Boom');
+    err.stack = 'STACK';
+    reporter.onError(err);
+
+    expect(lines).toEqual(expected);
   });
 
   it('uses exit code 130 for user cancellation', () => {

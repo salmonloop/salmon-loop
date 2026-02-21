@@ -1,0 +1,3 @@
+{"uuid":"uuid-1","session_id":"sess-error","event":{"type":"start","timestamp":"2026-02-20T00:00:00.000Z","command":"run","repo_path":"/repo","instruction":"do the thing"}}
+{"uuid":"uuid-2","session_id":"sess-error","event":{"type":"error","timestamp":"2026-02-20T00:00:01.000Z","error":{"name":"Error","message":"Boom","stack":"STACK"}}}
+{"uuid":"uuid-3","session_id":"sess-error","event":{"type":"end","timestamp":"2026-02-20T00:00:02.000Z","success":false,"exit_code":1}}

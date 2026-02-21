@@ -22,6 +22,7 @@ export interface StreamJsonReporterOptions {
   repoPath?: string;
   sessionId?: string;
   now?: () => Date;
+  uuid?: () => string;
   writer?: StdoutWriter;
 }
 
@@ -30,6 +31,7 @@ export class StreamJsonReporter implements SalmonReporter {
   private readonly repoPath?: string;
   private readonly sessionId: string;
   private readonly now: () => Date;
+  private readonly uuid: () => string;
   private readonly writer: StdoutWriter;
   private lastTextResult: string | undefined;
   private readonly assembler = new StreamAssembler();
@@ -39,13 +41,14 @@ export class StreamJsonReporter implements SalmonReporter {
     this.repoPath = options.repoPath;
     this.sessionId = options.sessionId ?? randomUUID();
     this.now = options.now ?? (() => new Date());
+    this.uuid = options.uuid ?? randomUUID;
     this.writer = options.writer ?? createStdoutWriter();
   }
 
   onStart(instruction: string): void {
     this.emit(
       encodeStreamStart({
-        uuid: randomUUID(),
+        uuid: this.uuid(),
         mode: this.mode,
         repoPath: this.repoPath,
         sessionId: this.sessionId,
@@ -74,7 +77,7 @@ export class StreamJsonReporter implements SalmonReporter {
       for (const normalizedEvent of normalized) {
         const lines = encodeNormalizedToNativeStreamLines({
           sessionId: this.sessionId,
-          uuid: randomUUID,
+          uuid: this.uuid,
           event: normalizedEvent,
         });
         for (const line of lines) this.emit(line);
@@ -82,7 +85,7 @@ export class StreamJsonReporter implements SalmonReporter {
       return;
     }
 
-    this.emit(encodeStreamLoopEvent({ uuid: randomUUID(), sessionId: this.sessionId, event }));
+    this.emit(encodeStreamLoopEvent({ uuid: this.uuid(), sessionId: this.sessionId, event }));
   }
 
   onFinish(result: LoopResult): void {
@@ -90,7 +93,7 @@ export class StreamJsonReporter implements SalmonReporter {
       const at = this.now();
       this.emit(
         encodeStreamLoopEvent({
-          uuid: randomUUID(),
+          uuid: this.uuid(),
           sessionId: this.sessionId,
           event: {
             type: 'authorization.summary',
@@ -104,7 +107,7 @@ export class StreamJsonReporter implements SalmonReporter {
 
     const at = this.now();
     const resultLine = encodeStreamResult({
-      uuid: randomUUID(),
+      uuid: this.uuid(),
       sessionId: this.sessionId,
       loopResult: result,
       at,
@@ -115,7 +118,7 @@ export class StreamJsonReporter implements SalmonReporter {
     const exitCode = getStreamExitCode(result);
     this.emit(
       encodeStreamEnd({
-        uuid: randomUUID(),
+        uuid: this.uuid(),
         sessionId: this.sessionId,
         at: this.now(),
         success: Boolean(result.success),
@@ -127,12 +130,21 @@ export class StreamJsonReporter implements SalmonReporter {
   onError(error: Error): void {
     this.emit(
       encodeStreamFailure({
-        uuid: randomUUID(),
+        uuid: this.uuid(),
         sessionId: this.sessionId,
         at: this.now(),
         message: error.message,
         name: error.name,
         stack: error.stack,
+      }),
+    );
+    this.emit(
+      encodeStreamEnd({
+        uuid: this.uuid(),
+        sessionId: this.sessionId,
+        at: this.now(),
+        success: false,
+        exitCode: 1,
       }),
     );
   }
