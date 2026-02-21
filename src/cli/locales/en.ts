@@ -239,6 +239,10 @@ export const en = {
   outputFormatOption: 'Output format (text, json, stream-json)',
   outputProfileOption:
     'Output profile for stream-json (native, anthropic, openai). Only valid with --output-format stream-json.',
+  headlessIncludeToolInputOption:
+    'Headless only: include (redacted) tool input in stream-json output. Only valid with --output-format stream-json.',
+  headlessIncludeToolOutputOption:
+    'Headless only: include tool output summary in stream-json output. Only valid with --output-format stream-json.',
   jsonSchemaOption:
     'JSON Schema for structured_output (file path or JSON string). Only valid with --output-format json.',
   llmOutputOption:
@@ -264,6 +268,10 @@ export const en = {
     `Invalid --output-format "${format}". Expected "text", "stream-json", or "json".`,
   invalidOutputProfile: (profile: string) =>
     `Invalid --output-profile "${profile}". Expected "native", "anthropic", or "openai".`,
+  headlessToolPayloadRequiresStreamJson:
+    '--headless-include-tool-input/--headless-include-tool-output are only valid when --output-format is set to "stream-json".',
+  headlessToolPayloadNotSupportedWithOpenAiProfile:
+    '--headless-include-tool-input/--headless-include-tool-output are not supported with --output-profile "openai".',
   outputProfileRequiresStreamJson:
     '--output-profile is only valid when --output-format is set to "stream-json".',
   outputProfileNotSupportedYet: (profile: string) =>

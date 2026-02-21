@@ -151,6 +151,7 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
           ctx.options.llm.getModelId?.() || process.env.SALMONLOOP_MODEL || process.env.S8P_MODEL,
       },
       toolstack,
+      eventPayload: ctx.options.eventPayload,
       toolCallingAudit: {
         event: (entry) => {
           const list = ctx.toolCallingAudit ?? [];

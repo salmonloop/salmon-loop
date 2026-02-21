@@ -218,4 +218,58 @@ describe('StreamAssembler', () => {
       },
     ]);
   });
+
+  it('passes through optional tool payload fields', () => {
+    const assembler = new StreamAssembler();
+    const at1 = new Date('2026-02-20T00:00:01.000Z');
+    const at2 = new Date('2026-02-20T00:00:02.000Z');
+
+    const start = assembler.push({
+      type: 'tool.call.start',
+      callId: 'call-1',
+      toolName: 'fs.readFile',
+      phase: 'PATCH',
+      round: 1,
+      input: { file: 'README.md' },
+      timestamp: at1,
+    } satisfies LoopEvent);
+
+    expect(start).toEqual([
+      {
+        type: 'normalized.tool_call_start',
+        callId: 'call-1',
+        toolName: 'fs.readFile',
+        phase: 'PATCH',
+        round: 1,
+        input: { file: 'README.md' },
+        timestamp: at1,
+      },
+    ]);
+
+    const end = assembler.push({
+      type: 'tool.call.end',
+      callId: 'call-1',
+      toolName: 'fs.readFile',
+      phase: 'PATCH',
+      round: 1,
+      status: 'ok',
+      outputSummary: '{"ok":true}',
+      timestamp: at2,
+    } satisfies LoopEvent);
+
+    expect(end).toEqual([
+      {
+        type: 'normalized.tool_call_end',
+        callId: 'call-1',
+        toolName: 'fs.readFile',
+        phase: 'PATCH',
+        round: 1,
+        status: 'ok',
+        durationMs: undefined,
+        errorCode: undefined,
+        outputSummary: '{"ok":true}',
+        timestamp: at2,
+      },
+    ]);
+  });
 });

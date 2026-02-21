@@ -50,6 +50,10 @@ export interface ToolCallingSessionOptions {
   toolstack: ToolstackLike;
   toolCallingAudit?: ToolCallingAuditSink;
   emit?: (event: LoopEvent) => void;
+  eventPayload?: {
+    includeToolInput?: boolean;
+    includeToolOutput?: boolean;
+  };
   llmOutput?: {
     policy?: LlmOutputPolicy;
     kind: LlmOutputKind;
@@ -456,25 +460,6 @@ async function executeToolCalls(
   budgetState.maxPerRound = budget.maxPerRound;
   anySession.__toolCallBudgetState = budgetState;
 
-  for (const item of prepared) {
-    if (item.toolName && typeof item.toolName === 'string') {
-      session.emit?.({
-        type: 'log',
-        level: 'debug',
-        message: `[tool] start ${item.toolName}`,
-        timestamp: new Date(),
-      });
-    }
-    session.emit?.({
-      type: 'tool.call.start',
-      callId: item.callId,
-      toolName: typeof item.toolName === 'string' ? item.toolName : 'unknown',
-      phase,
-      round,
-      timestamp: new Date(),
-    });
-  }
-
   const toolResults = new Map<string, ToolResult>();
   const nodes: PlanNode[] = [];
   const toolArgsPreviewByCallId = new Map<string, string>();
@@ -499,6 +484,72 @@ async function executeToolCalls(
   let allowedUsed = 0;
   for (const item of prepared) {
     const { callId, toolName, rawArgs } = item;
+    const normalizedToolName = typeof toolName === 'string' ? toolName : 'unknown';
+
+    let parsedArgsOk = true;
+    let argsValue: unknown = undefined;
+    let parsedArgsError: string | undefined;
+    const parsed = safeParseJson(rawArgs);
+    if (parsed.ok) {
+      argsValue = parsed.value;
+      rawArgsPreviewByCallId.set(
+        callId,
+        typeof rawArgs === 'string' ? redactJsonString(rawArgs) : undefined,
+      );
+      rawArgsTypeByCallId.set(callId, typeof rawArgs);
+    } else {
+      parsedArgsOk = false;
+      parsedArgsError = parsed.error;
+      rawArgsPreviewByCallId.set(
+        callId,
+        typeof rawArgs === 'string' ? redactJsonString(rawArgs) : undefined,
+      );
+      rawArgsTypeByCallId.set(callId, typeof rawArgs);
+    }
+
+    // Repair common missing-args tool calls for weak tool-call models:
+    // - fs.read called with `{}` is almost always a missing `file` parameter.
+    // We only apply a conservative inference based on the explicit instruction block.
+    if (
+      parsedArgsOk &&
+      ENABLE_TOOL_ARG_REPAIR &&
+      phase === Phase.EXPLORE &&
+      normalizedToolName === 'fs.read' &&
+      isObjectRecord(argsValue) &&
+      typeof (argsValue as any).file !== 'string'
+    ) {
+      const instruction = extractInstructionText(messages);
+      const inferred = inferHighConfidenceFiles(instruction);
+      if (inferred.length > 0) {
+        argsValue = { ...(argsValue as any), file: inferred[0] };
+      }
+    }
+
+    if (parsedArgsOk) {
+      toolArgsPreviewByCallId.set(callId, safeStringifyForAudit(argsValue));
+    }
+
+    const input =
+      session.eventPayload?.includeToolInput && parsedArgsOk ? redactValue(argsValue) : undefined;
+
+    if (typeof toolName === 'string') {
+      session.emit?.({
+        type: 'log',
+        level: 'debug',
+        message: `[tool] start ${toolName}`,
+        timestamp: new Date(),
+      });
+    }
+
+    session.emit?.({
+      type: 'tool.call.start',
+      callId,
+      toolName: normalizedToolName,
+      phase,
+      round,
+      input,
+      timestamp: new Date(),
+    });
 
     // Hard budget: deny tool execution once the session exceeds the configured budget.
     // We still return a tool result for protocol completeness and observability.
@@ -529,7 +580,7 @@ async function executeToolCalls(
         phase,
         round,
         callId,
-        toolName: 'unknown',
+        toolName: normalizedToolName,
         rawArgsType: typeof rawArgs,
         rawArgsPreview: typeof rawArgs === 'string' ? redactJsonString(rawArgs) : undefined,
         parsedArgsOk: false,
@@ -539,7 +590,7 @@ async function executeToolCalls(
       });
       toolResults.set(callId, {
         id: callId,
-        toolName: 'unknown',
+        toolName: normalizedToolName,
         source: 'builtin',
         status: 'error',
         error: {
@@ -559,8 +610,8 @@ async function executeToolCalls(
       timestamp: new Date(),
     });
 
-    const parsed = safeParseJson(rawArgs);
-    if (!parsed.ok) {
+    if (!parsedArgsOk) {
+      const error = parsedArgsError ?? 'Invalid tool arguments';
       session.toolCallingAudit?.event({
         timestamp: new Date().toISOString(),
         phase,
@@ -570,7 +621,7 @@ async function executeToolCalls(
         rawArgsType: typeof rawArgs,
         rawArgsPreview: typeof rawArgs === 'string' ? redactJsonString(rawArgs) : undefined,
         parsedArgsOk: false,
-        parsedArgsError: redactErrorMessage(parsed.error),
+        parsedArgsError: redactErrorMessage(error),
         toolResultStatus: 'error',
         toolResultErrorCode: 'INVALID_TOOL_ARGUMENTS_JSON',
       });
@@ -581,7 +632,7 @@ async function executeToolCalls(
         status: 'error',
         error: {
           code: 'INVALID_TOOL_ARGUMENTS_JSON',
-          message: parsed.error,
+          message: error,
           retryable: true,
           failurePhase: phase,
         },
@@ -590,24 +641,6 @@ async function executeToolCalls(
     }
 
     const spec = session.toolstack.registry.listAll().find((s) => s.name === toolName);
-    let argsValue = parsed.value;
-
-    // Repair common missing-args tool calls for weak tool-call models:
-    // - fs.read called with `{}` is almost always a missing `file` parameter.
-    // We only apply a conservative inference based on the explicit instruction block.
-    if (
-      ENABLE_TOOL_ARG_REPAIR &&
-      phase === Phase.EXPLORE &&
-      toolName === 'fs.read' &&
-      isObjectRecord(argsValue) &&
-      typeof argsValue.file !== 'string'
-    ) {
-      const instruction = extractInstructionText(messages);
-      const inferred = inferHighConfidenceFiles(instruction);
-      if (inferred.length > 0) {
-        argsValue = { ...argsValue, file: inferred[0] };
-      }
-    }
     session.toolCallingAudit?.event({
       timestamp: new Date().toISOString(),
       phase,
@@ -620,12 +653,6 @@ async function executeToolCalls(
       parsedArgsOk: true,
       parsedArgsPreview: safeStringifyForAudit(argsValue),
     });
-    toolArgsPreviewByCallId.set(callId, safeStringifyForAudit(argsValue));
-    rawArgsPreviewByCallId.set(
-      callId,
-      typeof rawArgs === 'string' ? redactJsonString(rawArgs) : undefined,
-    );
-    rawArgsTypeByCallId.set(callId, typeof rawArgs);
 
     nodes.push({ id: callId, toolName, args: argsValue, deps: [] });
   }
@@ -764,6 +791,11 @@ async function executeToolCalls(
       status: result.status,
       durationMs: result.durationMs,
       errorCode: result.error?.code,
+      outputSummary:
+        session.eventPayload?.includeToolOutput &&
+        (typeof result.outputSummary === 'string' || typeof result.summary === 'string')
+          ? ((result.outputSummary ?? result.summary) as string)
+          : undefined,
       timestamp: new Date(),
     });
 

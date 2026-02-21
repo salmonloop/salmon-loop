@@ -78,6 +78,12 @@ export function encodeNormalizedToAnthropicStreamLines(params: {
 
   if (params.event.type === 'normalized.tool_call_start') {
     const parentToolUseId = params.event.callId;
+    const input =
+      params.event.input &&
+      typeof params.event.input === 'object' &&
+      !Array.isArray(params.event.input)
+        ? (params.event.input as Record<string, unknown>)
+        : {};
 
     return [
       encodeAnthropicStreamEvent({
@@ -103,7 +109,7 @@ export function encodeNormalizedToAnthropicStreamLines(params: {
             type: 'tool_use',
             id: parentToolUseId,
             name: params.event.toolName,
-            input: {},
+            input,
           },
         },
       }),
@@ -131,6 +137,8 @@ export function encodeNormalizedToAnthropicStreamLines(params: {
       summaryParts.push(`duration_ms=${params.event.durationMs}`);
     }
     if (params.event.errorCode) summaryParts.push(`error_code=${params.event.errorCode}`);
+    let content = summaryParts.join(' ');
+    if (params.event.outputSummary) content += `\noutput_summary=${params.event.outputSummary}`;
 
     return [
       encodeAnthropicStreamEvent({
@@ -156,7 +164,7 @@ export function encodeNormalizedToAnthropicStreamLines(params: {
             type: 'tool_result',
             tool_use_id: parentToolUseId,
             is_error: isError,
-            content: summaryParts.join(' '),
+            content,
           },
         },
       }),

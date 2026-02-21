@@ -52,6 +52,9 @@ export function parseRunCommandOptions(command: Command): RunCommandParsedOption
       : undefined;
   const outputProfileForStreamJson = rawOutputProfile ?? 'native';
 
+  const headlessIncludeToolInput = Boolean((allOptions as any).headlessIncludeToolInput);
+  const headlessIncludeToolOutput = Boolean((allOptions as any).headlessIncludeToolOutput);
+
   const instruction = explicitInstruction ?? printInstruction;
 
   const allowedToolRules = splitToolRules(allOptions.allowedTools);
@@ -69,6 +72,8 @@ export function parseRunCommandOptions(command: Command): RunCommandParsedOption
     rawOutputFormat,
     rawOutputProfile,
     outputProfileForStreamJson,
+    headlessIncludeToolInput,
+    headlessIncludeToolOutput,
     allowedToolRules,
     disallowedToolRules,
   };

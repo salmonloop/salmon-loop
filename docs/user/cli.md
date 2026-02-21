@@ -103,7 +103,19 @@ s8p context -i "..." [-f src/file.ts | -s "..."] [--diff-scope primary|ast_relat
 - `--output-profile <profile>`: Select the event protocol profile for `--output-format stream-json`.
   - `native` (default): SalmonLoop native protocol (Claude-inspired, but versioned and extensible).
   - `anthropic`: Strict Anthropic/Claude Code headless-compatible JSONL protocol.
-  - `openai`: Reserved for strict OpenAI compatibility (not yet implemented).
+  - `openai`: Strict OpenAI Responses API streaming event protocol (1:1 schema alignment).
+
+### Headless payload flags (stream-json only)
+
+These flags are intended for CI/headless environments. They are **off by default**.
+
+- `--headless-include-tool-input`: Include redacted tool input in `tool_use` blocks.
+- `--headless-include-tool-output`: Include tool output summary in `tool_result` blocks.
+
+Notes:
+
+- Only valid with `--output-format stream-json`.
+- Not supported with `--output-profile openai` (strict OpenAI profile rejects protocol extensions).
 
 ## Core Options (for Default Run)
 

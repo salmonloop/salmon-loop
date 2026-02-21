@@ -39,6 +39,7 @@ export class StreamAssembler {
           toolName: event.toolName,
           phase: event.phase,
           round: event.round,
+          input: event.input,
           timestamp: event.timestamp,
         },
       ];
@@ -55,6 +56,7 @@ export class StreamAssembler {
           status: event.status,
           durationMs: event.durationMs,
           errorCode: event.errorCode,
+          outputSummary: event.outputSummary,
           timestamp: event.timestamp,
         },
       ];

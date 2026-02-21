@@ -6,6 +6,8 @@ export function handleEarlyRunCommandErrors(params: {
   outputFormat: 'text' | 'json' | 'stream-json';
   rawOutputProfile?: string;
   outputProfileForStreamJson: string;
+  headlessIncludeToolInput: boolean;
+  headlessIncludeToolOutput: boolean;
   instruction?: string;
   printInstruction?: string;
   explicitInstruction?: string;
@@ -35,6 +37,21 @@ export function handleEarlyRunCommandErrors(params: {
     }) => void;
   };
 }): { ok: true } | { ok: false; exitCode: 1 } {
+  if (
+    (params.headlessIncludeToolInput || params.headlessIncludeToolOutput) &&
+    params.outputFormat !== 'stream-json'
+  ) {
+    logger.error(text.cli.headlessToolPayloadRequiresStreamJson);
+    if (params.headlessOutput) {
+      params.headlessErrorWriter.writeUsageError({
+        sessionId: params.sessionIdForOutput ?? params.resumeSessionId,
+        message: text.cli.headlessToolPayloadRequiresStreamJson,
+        instruction: params.instruction,
+      });
+    }
+    return { ok: false, exitCode: 1 };
+  }
+
   if (params.explicitInstruction && params.printInstruction) {
     if (params.headlessOutput) {
       logger.error(text.cli.printInstructionConflict);
@@ -82,6 +99,19 @@ export function handleEarlyRunCommandErrors(params: {
       params.headlessErrorWriter.writeUsageError({
         sessionId: params.sessionIdForOutput ?? params.resumeSessionId,
         message: text.cli.invalidOutputProfile(outputProfile),
+      });
+      return { ok: false, exitCode: 1 };
+    }
+
+    if (
+      outputProfile === 'openai' &&
+      (params.headlessIncludeToolInput || params.headlessIncludeToolOutput)
+    ) {
+      logger.error(text.cli.headlessToolPayloadNotSupportedWithOpenAiProfile);
+      params.headlessErrorWriter.writeUsageError({
+        sessionId: params.sessionIdForOutput ?? params.resumeSessionId,
+        message: text.cli.headlessToolPayloadNotSupportedWithOpenAiProfile,
+        instruction: params.instruction,
       });
       return { ok: false, exitCode: 1 };
     }

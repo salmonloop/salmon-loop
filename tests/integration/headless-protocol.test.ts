@@ -349,6 +349,38 @@ describe('Headless protocol integration', () => {
     expect(lines[3]).toMatchObject({ type: 'response.failed' });
   }, 120000);
 
+  it('rejects tool payload flags when --output-profile openai', async () => {
+    const repo = await helper.createGitRepo();
+
+    const { exitCode, stdout } = await runCli([
+      'run',
+      '-r',
+      repo.path,
+      '-i',
+      'x',
+      '--output-format',
+      'stream-json',
+      '--output-profile',
+      'openai',
+      '--headless-include-tool-input',
+      '--mode',
+      'review',
+      '--no-config-file',
+    ]);
+
+    expect(exitCode).toBe(1);
+    const lines = stdout
+      .split('\n')
+      .filter(Boolean)
+      .map((l) => JSON.parse(l) as any);
+
+    expect(lines).toHaveLength(4);
+    expect(lines[0]).toMatchObject({ type: 'response.created' });
+    expect(lines[1]).toMatchObject({ type: 'response.in_progress' });
+    expect(lines[2]).toMatchObject({ type: 'error' });
+    expect(lines[3]).toMatchObject({ type: 'response.failed' });
+  }, 120000);
+
   it('prints machine-readable usage errors when --output-format stream-json', async () => {
     const repo = await helper.createGitRepo();
 

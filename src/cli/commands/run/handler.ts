@@ -54,6 +54,8 @@ export async function handleRunCommand(options: any, command: Command) {
   const headlessOutput = outputFormat !== 'text';
   const rawOutputProfile = parsed.rawOutputProfile;
   const outputProfileForStreamJson = parsed.outputProfileForStreamJson;
+  const headlessIncludeToolInput = parsed.headlessIncludeToolInput;
+  const headlessIncludeToolOutput = parsed.headlessIncludeToolOutput;
   const stdoutWriter = createStdoutWriter();
 
   const instruction = parsed.instruction;
@@ -88,6 +90,8 @@ export async function handleRunCommand(options: any, command: Command) {
     outputFormat,
     rawOutputProfile,
     outputProfileForStreamJson,
+    headlessIncludeToolInput,
+    headlessIncludeToolOutput,
     instruction,
     printInstruction,
     explicitInstruction,
@@ -309,6 +313,8 @@ export async function handleRunCommand(options: any, command: Command) {
       extensions: extensionResolution?.resolved,
       headlessOutput,
       printMode,
+      headlessIncludeToolInput,
+      headlessIncludeToolOutput,
       permissionRules:
         allowedToolRules.length > 0 || disallowedToolRules.length > 0
           ? { allow: allowedToolRules, deny: disallowedToolRules }

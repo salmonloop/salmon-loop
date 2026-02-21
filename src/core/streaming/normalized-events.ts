@@ -62,6 +62,7 @@ export type NormalizedStreamEvent =
       toolName: string;
       phase: ExecutionPhase;
       round: number;
+      input?: unknown;
     } & NormalizedBaseEvent)
   | ({
       type: 'normalized.tool_call_end';
@@ -72,6 +73,7 @@ export type NormalizedStreamEvent =
       status: Extract<LoopEvent, { type: 'tool.call.end' }>['status'];
       durationMs?: number;
       errorCode?: string;
+      outputSummary?: string;
     } & NormalizedBaseEvent)
   | ({
       type: 'normalized.error';

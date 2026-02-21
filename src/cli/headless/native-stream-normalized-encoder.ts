@@ -93,6 +93,12 @@ export function encodeNormalizedToNativeStreamLines(params: {
     const parentToolUseId = params.event.callId;
     const phase = params.event.phase;
     const round = params.event.round;
+    const input =
+      params.event.input &&
+      typeof params.event.input === 'object' &&
+      !Array.isArray(params.event.input)
+        ? (params.event.input as Record<string, unknown>)
+        : {};
 
     return [
       encodeStreamEvent({
@@ -122,7 +128,7 @@ export function encodeNormalizedToNativeStreamLines(params: {
             type: 'tool_use',
             id: parentToolUseId,
             name: params.event.toolName,
-            input: {},
+            input,
             meta: { phase, round },
           },
         },
@@ -157,6 +163,8 @@ export function encodeNormalizedToNativeStreamLines(params: {
       summaryParts.push(`duration_ms=${params.event.durationMs}`);
     }
     if (params.event.errorCode) summaryParts.push(`error_code=${params.event.errorCode}`);
+    let content = summaryParts.join(' ');
+    if (params.event.outputSummary) content += `\noutput_summary=${params.event.outputSummary}`;
 
     return [
       encodeStreamEvent({
@@ -186,7 +194,7 @@ export function encodeNormalizedToNativeStreamLines(params: {
             type: 'tool_result',
             tool_use_id: parentToolUseId,
             is_error: isError,
-            content: summaryParts.join(' '),
+            content,
             meta: { phase, round },
           },
         },

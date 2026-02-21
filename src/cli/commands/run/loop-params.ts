@@ -23,6 +23,8 @@ export function buildRunLoopParams(params: {
   extensions?: any;
   headlessOutput: boolean;
   printMode: boolean;
+  headlessIncludeToolInput: boolean;
+  headlessIncludeToolOutput: boolean;
   permissionRules?: { allow: string[]; deny: string[] };
 }) {
   return {
@@ -50,5 +52,12 @@ export function buildRunLoopParams(params: {
     }),
     extensions: params.extensions,
     permissionRules: params.permissionRules,
+    eventPayload:
+      params.headlessIncludeToolInput || params.headlessIncludeToolOutput
+        ? {
+            includeToolInput: params.headlessIncludeToolInput,
+            includeToolOutput: params.headlessIncludeToolOutput,
+          }
+        : undefined,
   };
 }

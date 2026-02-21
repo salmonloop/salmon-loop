@@ -197,6 +197,7 @@ export type LoopEvent =
       toolName: string;
       phase: ExecutionPhase;
       round: number;
+      input?: unknown;
       timestamp: Date;
     }
   | {
@@ -208,6 +209,7 @@ export type LoopEvent =
       status: 'ok' | 'denied' | 'error' | 'timeout';
       durationMs?: number;
       errorCode?: string;
+      outputSummary?: string;
       timestamp: Date;
     }
   | {
@@ -310,6 +312,10 @@ export interface LoopOptions {
   authorizationMode?: 'blocking' | 'deferred';
   extensions?: ResolvedExtensions;
   outcomeReporter?: RunOutcomeReporter;
+  eventPayload?: {
+    includeToolInput?: boolean;
+    includeToolOutput?: boolean;
+  };
 }
 
 export interface ExecutionWorkspace {

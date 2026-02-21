@@ -167,6 +167,7 @@ export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
           ctx.options.llm.getModelId?.() || process.env.SALMONLOOP_MODEL || process.env.S8P_MODEL,
       },
       toolstack: proxiedToolstack,
+      eventPayload: ctx.options.eventPayload,
       toolCallingAudit: {
         event: (entry) => {
           localAudit.push(entry);
