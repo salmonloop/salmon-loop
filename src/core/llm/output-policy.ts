@@ -190,10 +190,8 @@ export function emitLlmStreamDelta(params: {
     source: 'synthesized',
     event: createResponseOutputTextDeltaEvent({
       delta: sanitized,
-      outputIndex: 0,
       itemId: streamId,
       contentIndex: 0,
-      logprobs: [],
     }),
     timestamp,
   });
@@ -260,11 +258,9 @@ export function emitLlmStreamEnd(params: {
     streamId,
     source: 'synthesized',
     event: createResponseOutputTextDoneEvent({
-      outputIndex: 0,
       itemId: streamId,
       contentIndex: 0,
       text: finalText,
-      logprobs: [],
     }),
     timestamp,
   });

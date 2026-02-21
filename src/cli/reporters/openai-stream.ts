@@ -19,6 +19,7 @@ export class OpenAiStreamReporter implements SalmonReporter {
   private readonly assembler = new StreamAssembler();
   private readonly encoder: OpenAiStreamEncoder;
   private sawTextStreamDelta = false;
+  private sawResponsesEvent = false;
   private reportText: { text: string; timestamp: Date } | null = null;
 
   constructor(options: OpenAiStreamReporterOptions = {}) {
@@ -40,13 +41,27 @@ export class OpenAiStreamReporter implements SalmonReporter {
       return;
     }
 
+    if (event.type === 'llm.responses.event') {
+      this.sawResponsesEvent = true;
+      const lines = this.encoder.pushResponsesEvent({
+        streamId: event.streamId,
+        event: event.event,
+      });
+      for (const line of lines) this.emit(line);
+      return;
+    }
+
     if (
       event.type !== 'tool.call.start' &&
       event.type !== 'tool.call.end' &&
-      event.type !== 'llm.responses.event' &&
       event.type !== 'llm.stream.delta' &&
       event.type !== 'llm.stream.end'
     ) {
+      return;
+    }
+
+    if (this.sawResponsesEvent) {
+      // Once canonical responses events are present, ignore legacy events to avoid duplicates.
       return;
     }
 
