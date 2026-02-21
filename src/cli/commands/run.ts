@@ -127,6 +127,7 @@ export async function handleRunCommand(options: any, command: Command) {
     process.stdout.write(
       JSON.stringify(
         encodeStreamStart({
+          uuid: randomUUID(),
           mode: 'run',
           repoPath: runPath,
           sessionId: params.sessionId,
@@ -138,6 +139,7 @@ export async function handleRunCommand(options: any, command: Command) {
     process.stdout.write(
       JSON.stringify(
         encodeStreamFailure({
+          uuid: randomUUID(),
           sessionId: params.sessionId,
           at,
           message: params.message,
@@ -147,6 +149,7 @@ export async function handleRunCommand(options: any, command: Command) {
     process.stdout.write(
       JSON.stringify(
         encodeStreamEnd({
+          uuid: randomUUID(),
           sessionId: params.sessionId,
           at,
           success: false,

@@ -62,12 +62,14 @@ describe('Headless protocol integration', () => {
       .filter(Boolean)
       .map((l) => JSON.parse(l) as any);
 
-    expect(lines[0]).toMatchObject({ type: 'start' });
+    expect(lines[0]).toMatchObject({ event: { type: 'start' } });
     expect(lines[1]).toMatchObject({
-      type: 'error',
-      error: { message: expect.stringContaining('--json-schema') },
+      event: {
+        type: 'error',
+        error: { message: expect.stringContaining('--json-schema') },
+      },
     });
-    expect(lines[2]).toMatchObject({ type: 'end', success: false, exit_code: 1 });
+    expect(lines[2]).toMatchObject({ event: { type: 'end', success: false, exit_code: 1 } });
   }, 120000);
 
   it('fails the run if schema validation fails (strict mode)', async () => {

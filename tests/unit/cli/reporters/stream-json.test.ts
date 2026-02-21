@@ -70,65 +70,78 @@ describe('StreamJsonReporter', () => {
     reporter.onFinish(result);
 
     expect(lines[0]).toMatchObject({
-      type: 'start',
+      uuid: expect.any(String),
       session_id: 'sess-1',
-      command: 'run',
-      repo_path: '/repo',
-      instruction: 'do the thing',
-      timestamp: '2026-02-20T00:00:00.000Z',
+      event: {
+        type: 'start',
+        command: 'run',
+        repo_path: '/repo',
+        instruction: 'do the thing',
+        timestamp: '2026-02-20T00:00:00.000Z',
+      },
     });
 
     expect(lines[1]).toMatchObject({
-      type: 'loop_event',
+      uuid: expect.any(String),
       session_id: 'sess-1',
-      timestamp: '2026-02-20T00:00:01.000Z',
-      event: { type: 'phase.start', phase: 'PLAN' },
+      event: { type: 'phase.start', phase: 'PLAN', timestamp: '2026-02-20T00:00:01.000Z' },
     });
 
     expect(lines[2]).toMatchObject({
-      type: 'stream_event',
+      uuid: expect.any(String),
       session_id: 'sess-1',
-      timestamp: '2026-02-20T00:00:02.000Z',
+      event: { type: 'message_start', timestamp: '2026-02-20T00:00:02.000Z' },
     });
-    expect(lines[2].event?.type).toBe('message_start');
 
     expect(lines[3]).toMatchObject({
-      type: 'stream_event',
+      uuid: expect.any(String),
       session_id: 'sess-1',
-      timestamp: '2026-02-20T00:00:02.000Z',
+      event: { type: 'content_block_start', timestamp: '2026-02-20T00:00:02.000Z' },
     });
-    expect(lines[3].event?.type).toBe('content_block_start');
 
     expect(lines[4]).toMatchObject({
-      type: 'stream_event',
+      uuid: expect.any(String),
       session_id: 'sess-1',
-      timestamp: '2026-02-20T00:00:02.000Z',
+      event: {
+        type: 'content_block_delta',
+        timestamp: '2026-02-20T00:00:02.000Z',
+        delta: { type: 'text_delta', text: 'Hello' },
+      },
     });
-    expect(lines[4].event?.type).toBe('content_block_delta');
-    expect(lines[4].event?.delta).toEqual({ type: 'text_delta', text: 'Hello' });
 
     expect(lines[5]).toMatchObject({
-      type: 'loop_event',
+      uuid: expect.any(String),
       session_id: 'sess-1',
-      timestamp: '2026-02-20T00:00:03.000Z',
-      event: { type: 'llm.output', kind: 'assistant_message', step: 'REPORT', content: 'Done' },
+      event: {
+        type: 'llm.output',
+        kind: 'assistant_message',
+        step: 'REPORT',
+        content: 'Done',
+        timestamp: '2026-02-20T00:00:03.000Z',
+      },
     });
 
     expect(lines[6]).toMatchObject({
-      type: 'result',
+      uuid: expect.any(String),
       session_id: 'sess-1',
-      success: true,
-      exit_code: 0,
-      attempts: 1,
-      changed_files: ['src/a.ts'],
-      result: 'Done',
+      event: {
+        type: 'result',
+        success: true,
+        exit_code: 0,
+        attempts: 1,
+        changed_files: ['src/a.ts'],
+        result: 'Done',
+      },
     });
 
     expect(lines[7]).toMatchObject({
-      type: 'end',
+      uuid: expect.any(String),
       session_id: 'sess-1',
-      success: true,
-      exit_code: 0,
+      event: {
+        type: 'end',
+        success: true,
+        exit_code: 0,
+      },
     });
 
     vi.useRealTimers();
@@ -150,10 +163,10 @@ describe('StreamJsonReporter', () => {
       logs: [],
     } as any);
 
-    const resultLine = lines.find((l) => l.type === 'result');
-    const endLine = lines.find((l) => l.type === 'end');
-    expect(resultLine.exit_code).toBe(130);
-    expect(endLine.exit_code).toBe(130);
+    const resultLine = lines.find((l) => l.event?.type === 'result');
+    const endLine = lines.find((l) => l.event?.type === 'end');
+    expect(resultLine.event.exit_code).toBe(130);
+    expect(endLine.event.exit_code).toBe(130);
 
     vi.useRealTimers();
   });
