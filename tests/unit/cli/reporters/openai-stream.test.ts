@@ -126,4 +126,56 @@ describe('OpenAiStreamReporter', () => {
 
     expect(lines).toEqual(expected);
   });
+
+  it('matches golden fixture (report-only)', () => {
+    const fixtureUrl = new URL(
+      '../../../fixtures/headless/openai/report-only.jsonl',
+      import.meta.url,
+    );
+    const expected = readFileSync(fixtureUrl, 'utf8')
+      .trimEnd()
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => JSON.parse(line));
+
+    const { lines, write } = collectLines();
+    const nowQueue = [new Date('2026-02-20T00:00:00.000Z'), new Date('2026-02-20T00:00:05.000Z')];
+    const now = () => {
+      const next = nowQueue.shift();
+      if (!next) throw new Error('now() called too many times');
+      return next;
+    };
+
+    const reporter = new OpenAiStreamReporter({
+      model: 'gpt-test',
+      now,
+      responseId: () => 'resp_1',
+      itemId: (() => {
+        let i = 0;
+        return () => `item-${++i}`;
+      })(),
+      writer: createStdoutWriter({ write }),
+    });
+
+    reporter.onStart('do the thing');
+    reporter.onEvent({
+      type: 'llm.output',
+      kind: 'assistant_message',
+      step: 'REPORT',
+      content: 'Hello world',
+      timestamp: new Date('2026-02-20T00:00:03.000Z'),
+    });
+
+    const result: LoopResult = {
+      success: true,
+      reason: 'SUCCESS',
+      reasonCode: 'SUCCESS',
+      attempts: 1,
+      logs: [],
+      changedFiles: [],
+    };
+    reporter.onFinish(result);
+
+    expect(lines).toEqual(expected);
+  });
 });
