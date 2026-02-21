@@ -43,6 +43,7 @@ export class OpenAiStreamReporter implements SalmonReporter {
     if (
       event.type !== 'tool.call.start' &&
       event.type !== 'tool.call.end' &&
+      event.type !== 'llm.responses.event' &&
       event.type !== 'llm.stream.delta' &&
       event.type !== 'llm.stream.end'
     ) {

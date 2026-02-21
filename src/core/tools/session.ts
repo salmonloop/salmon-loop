@@ -913,6 +913,8 @@ export async function chatWithToolsStreaming(
               kind: session.llmOutput.kind,
               step: session.llmOutput.step,
               streamId,
+              phase,
+              round,
               source: 'synthesized',
               event: createResponseOutputItemAddedFunctionCallEvent({
                 callId,

@@ -342,6 +342,81 @@ describe('StreamAssembler', () => {
     ]);
   });
 
+  it('emits model tool call start from canonical output_item.added and suppresses host start', () => {
+    const assembler = new StreamAssembler();
+    const at1 = new Date('2026-02-20T00:00:01.000Z');
+    const at2 = new Date('2026-02-20T00:00:02.000Z');
+    const at3 = new Date('2026-02-20T00:00:03.000Z');
+
+    const modelStart = assembler.push({
+      type: 'llm.responses.event',
+      kind: 'plan',
+      step: 'PLAN',
+      streamId: 'stream-1',
+      source: 'provider',
+      phase: 'PATCH',
+      round: 1,
+      event: {
+        type: 'response.output_item.added',
+        item: {
+          type: 'function_call',
+          call_id: 'call-1',
+          name: 'fs.readFile',
+          arguments: '{}',
+        },
+      },
+      timestamp: at1,
+    } satisfies LoopEvent);
+
+    expect(modelStart).toEqual([
+      {
+        type: 'normalized.tool_call_start',
+        callId: 'call-1',
+        toolName: 'fs.readFile',
+        phase: 'PATCH',
+        round: 1,
+        input: undefined,
+        timestamp: at1,
+      },
+    ]);
+
+    const hostStart = assembler.push({
+      type: 'tool.call.start',
+      callId: 'call-1',
+      toolName: 'fs.readFile',
+      phase: 'PATCH',
+      round: 1,
+      timestamp: at2,
+    } satisfies LoopEvent);
+
+    expect(hostStart).toEqual([]);
+
+    const hostEnd = assembler.push({
+      type: 'tool.call.end',
+      callId: 'call-1',
+      toolName: 'fs.readFile',
+      phase: 'PATCH',
+      round: 1,
+      status: 'ok',
+      durationMs: 12,
+      timestamp: at3,
+    } satisfies LoopEvent);
+
+    expect(hostEnd).toEqual([
+      {
+        type: 'normalized.tool_call_end',
+        callId: 'call-1',
+        toolName: 'fs.readFile',
+        phase: 'PATCH',
+        round: 1,
+        status: 'ok',
+        durationMs: 12,
+        errorCode: undefined,
+        timestamp: at3,
+      },
+    ]);
+  });
+
   it('passes through optional tool payload fields', () => {
     const assembler = new StreamAssembler();
     const at1 = new Date('2026-02-20T00:00:01.000Z');

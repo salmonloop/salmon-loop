@@ -19,12 +19,17 @@ export class StreamAssembler {
   private readonly clock: () => Date;
   private readonly streams = new Map<string, TextStreamState>();
   private readonly canonicalTextStreams = new Set<string>();
+  private readonly startedToolCallIds = new Set<string>();
 
   constructor(options: StreamAssemblerOptions = {}) {
     this.clock = options.clock ?? (() => new Date());
   }
 
   push(event: LoopEvent): NormalizedStreamEvent[] {
+    if (event.type === 'llm.responses.event') {
+      return this.handleResponsesLoopEvent(event);
+    }
+
     if (event.type === 'llm.stream.delta' && this.canonicalTextStreams.has(event.streamId)) {
       return [];
     }
@@ -38,11 +43,11 @@ export class StreamAssembler {
       return this.handleTextEnd(event.streamId, event.timestamp, event.finishReason);
     }
 
-    if (event.type === 'llm.responses.event') {
-      return this.handleResponsesEvent(event.streamId, event.timestamp, event.event);
-    }
-
     if (event.type === 'tool.call.start') {
+      if (this.startedToolCallIds.has(event.callId)) {
+        return [];
+      }
+      this.startedToolCallIds.add(event.callId);
       return [
         {
           type: 'normalized.tool_call_start',
@@ -57,6 +62,7 @@ export class StreamAssembler {
     }
 
     if (event.type === 'tool.call.end') {
+      this.startedToolCallIds.delete(event.callId);
       return [
         {
           type: 'normalized.tool_call_end',
@@ -172,18 +178,36 @@ export class StreamAssembler {
     return out;
   }
 
-  private handleResponsesEvent(
-    streamId: string,
-    at: Date,
-    event: CanonicalResponsesEvent,
+  private handleResponsesLoopEvent(
+    event: Extract<LoopEvent, { type: 'llm.responses.event' }>,
   ): NormalizedStreamEvent[] {
-    if (isOutputTextDeltaEvent(event)) {
-      this.canonicalTextStreams.add(streamId);
-      return this.handleTextDelta(streamId, at, event.delta);
+    if (isOutputTextDeltaEvent(event.event)) {
+      this.canonicalTextStreams.add(event.streamId);
+      return this.handleTextDelta(event.streamId, event.timestamp, event.event.delta);
     }
 
-    if (isOutputTextDoneEvent(event)) {
-      return this.handleTextEnd(streamId, at, undefined);
+    if (isOutputTextDoneEvent(event.event)) {
+      return this.handleTextEnd(event.streamId, event.timestamp, undefined);
+    }
+
+    if (isOutputItemAddedFunctionCallEvent(event.event)) {
+      if (!event.phase || typeof event.round !== 'number') return [];
+
+      const callId = event.event.item.call_id;
+      const toolName = event.event.item.name;
+      if (this.startedToolCallIds.has(callId)) return [];
+      this.startedToolCallIds.add(callId);
+
+      return [
+        {
+          type: 'normalized.tool_call_start',
+          callId,
+          toolName,
+          phase: event.phase,
+          round: event.round,
+          timestamp: event.timestamp,
+        },
+      ];
     }
 
     return [];
@@ -203,4 +227,18 @@ function isOutputTextDoneEvent(
   event: CanonicalResponsesEvent,
 ): event is Extract<CanonicalResponsesEvent, { type: 'response.output_text.done' }> {
   return event.type === 'response.output_text.done';
+}
+
+function isOutputItemAddedFunctionCallEvent(
+  event: CanonicalResponsesEvent,
+): event is Extract<CanonicalResponsesEvent, { type: 'response.output_item.added' }> {
+  if (event.type !== 'response.output_item.added') return false;
+  const candidate = event as { item?: unknown };
+  if (!candidate.item || typeof candidate.item !== 'object') return false;
+  const item = candidate.item as { type?: unknown; call_id?: unknown; name?: unknown };
+  return (
+    item.type === 'function_call' &&
+    typeof item.call_id === 'string' &&
+    typeof item.name === 'string'
+  );
 }

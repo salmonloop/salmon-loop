@@ -270,6 +270,83 @@ describe('StreamJsonReporter', () => {
     vi.useRealTimers();
   });
 
+  it('emits tool_use from canonical model tool-call request and suppresses host start duplication', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-02-20T00:00:00.000Z'));
+
+    const { lines, write } = collectLines();
+
+    const reporter = new StreamJsonReporter({
+      mode: 'run',
+      repoPath: '/repo',
+      sessionId: 'sess-tool-canonical',
+      now: () => new Date(),
+      writer: createStdoutWriter({ write }),
+    });
+
+    reporter.onStart('x');
+
+    reporter.onEvent({
+      type: 'llm.responses.event',
+      kind: 'plan',
+      step: 'PLAN',
+      streamId: 'stream-1',
+      phase: 'PATCH',
+      round: 1,
+      source: 'provider',
+      event: {
+        type: 'response.output_item.added',
+        item: {
+          type: 'function_call',
+          call_id: 'call-1',
+          name: 'fs.readFile',
+          arguments: '{}',
+        },
+      },
+      timestamp: new Date('2026-02-20T00:00:01.000Z'),
+    });
+
+    reporter.onEvent({
+      type: 'tool.call.start',
+      callId: 'call-1',
+      toolName: 'fs.readFile',
+      phase: 'PATCH',
+      round: 1,
+      timestamp: new Date('2026-02-20T00:00:02.000Z'),
+    });
+
+    reporter.onEvent({
+      type: 'tool.call.end',
+      callId: 'call-1',
+      toolName: 'fs.readFile',
+      phase: 'PATCH',
+      round: 1,
+      status: 'ok',
+      durationMs: 12,
+      timestamp: new Date('2026-02-20T00:00:03.000Z'),
+    });
+
+    const toolUseStarts = lines.filter(
+      (l) =>
+        l.parent_tool_use_id === 'call-1' &&
+        l.event?.type === 'content_block_start' &&
+        l.event?.content_block?.type === 'tool_use',
+    );
+    expect(toolUseStarts).toHaveLength(1);
+    expect(toolUseStarts[0]?.event?.timestamp).toBe('2026-02-20T00:00:01.000Z');
+
+    const toolResultStarts = lines.filter(
+      (l) =>
+        l.parent_tool_use_id === 'call-1' &&
+        l.event?.type === 'content_block_start' &&
+        l.event?.content_block?.type === 'tool_result',
+    );
+    expect(toolResultStarts).toHaveLength(1);
+    expect(toolResultStarts[0]?.event?.timestamp).toBe('2026-02-20T00:00:03.000Z');
+
+    vi.useRealTimers();
+  });
+
   it('matches golden fixture (basic)', () => {
     const fixtureUrl = new URL('../../../fixtures/headless/native/basic.jsonl', import.meta.url);
     const expected = readFileSync(fixtureUrl, 'utf8')

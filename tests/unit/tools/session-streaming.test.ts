@@ -805,6 +805,7 @@ describe('chatWithToolsStreaming', () => {
         (event as any).event?.type === 'response.output_item.added',
     );
     expect(added).toBeTruthy();
+    expect(added).toEqual(expect.objectContaining({ phase: Phase.PLAN, round: 0 }));
 
     const serialized = JSON.stringify(added);
     expect(serialized).toContain('response.output_item.added');

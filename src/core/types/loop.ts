@@ -255,6 +255,8 @@ export type LoopEvent =
       kind: LlmOutputKind;
       step: ExecutionStep;
       streamId: string;
+      phase?: ExecutionPhase;
+      round?: number;
       source?: CanonicalResponsesEventSource;
       event: CanonicalResponsesEvent;
       timestamp: Date;
