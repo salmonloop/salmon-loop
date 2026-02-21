@@ -34,6 +34,7 @@ import {
   encodeAnthropicStart,
 } from '../headless/anthropic-stream-protocol.js';
 import { encodeJsonFailure } from '../headless/json-protocol.js';
+import { createStdoutWriter } from '../headless/stdout-writer.js';
 import {
   encodeStreamEnd,
   encodeStreamFailure,
@@ -102,6 +103,7 @@ export async function handleRunCommand(options: any, command: Command) {
   const outputFormat = rawOutputFormat as 'text' | 'stream-json' | 'json';
   const headlessOutput = outputFormat !== 'text';
   const useGui = !headlessOutput && !printMode && allOptions.gui !== false && process.stdout.isTTY;
+  const stdoutWriter = createStdoutWriter();
 
   if (headlessOutput) {
     // Ensure stdout is reserved for machine-readable output.
@@ -135,38 +137,32 @@ export async function handleRunCommand(options: any, command: Command) {
     instruction?: string;
   }) => {
     const at = new Date();
-    process.stdout.write(
-      JSON.stringify(
-        encodeStreamStart({
-          uuid: randomUUID(),
-          mode: 'run',
-          repoPath: runPath,
-          sessionId: params.sessionId,
-          instruction: params.instruction,
-          at,
-        }),
-      ) + '\n',
+    stdoutWriter.writeJsonLine(
+      encodeStreamStart({
+        uuid: randomUUID(),
+        mode: 'run',
+        repoPath: runPath,
+        sessionId: params.sessionId,
+        instruction: params.instruction,
+        at,
+      }),
     );
-    process.stdout.write(
-      JSON.stringify(
-        encodeStreamFailure({
-          uuid: randomUUID(),
-          sessionId: params.sessionId,
-          at,
-          message: params.message,
-        }),
-      ) + '\n',
+    stdoutWriter.writeJsonLine(
+      encodeStreamFailure({
+        uuid: randomUUID(),
+        sessionId: params.sessionId,
+        at,
+        message: params.message,
+      }),
     );
-    process.stdout.write(
-      JSON.stringify(
-        encodeStreamEnd({
-          uuid: randomUUID(),
-          sessionId: params.sessionId,
-          at,
-          success: false,
-          exitCode: params.exitCode ?? 1,
-        }),
-      ) + '\n',
+    stdoutWriter.writeJsonLine(
+      encodeStreamEnd({
+        uuid: randomUUID(),
+        sessionId: params.sessionId,
+        at,
+        success: false,
+        exitCode: params.exitCode ?? 1,
+      }),
     );
   };
 
@@ -176,52 +172,44 @@ export async function handleRunCommand(options: any, command: Command) {
     exitCode?: number;
     instruction?: string;
   }) => {
-    process.stdout.write(
-      JSON.stringify(
-        encodeAnthropicStart({
-          sessionId: params.sessionId,
-          mode: 'run',
-          repoPath: runPath,
-          instruction: params.instruction,
-        }),
-      ) + '\n',
+    stdoutWriter.writeJsonLine(
+      encodeAnthropicStart({
+        sessionId: params.sessionId,
+        mode: 'run',
+        repoPath: runPath,
+        instruction: params.instruction,
+      }),
     );
-    process.stdout.write(
-      JSON.stringify(
-        encodeAnthropicError({
-          sessionId: params.sessionId,
-          message: params.message,
-        }),
-      ) + '\n',
+    stdoutWriter.writeJsonLine(
+      encodeAnthropicError({
+        sessionId: params.sessionId,
+        message: params.message,
+      }),
     );
-    process.stdout.write(
-      JSON.stringify(
-        encodeAnthropicEnd({
-          sessionId: params.sessionId,
-          loopResult: {
-            success: false,
-            reason: params.message,
-            errorCode: 'USAGE_ERROR',
-          } as any,
-        }),
-      ) + '\n',
+    stdoutWriter.writeJsonLine(
+      encodeAnthropicEnd({
+        sessionId: params.sessionId,
+        loopResult: {
+          success: false,
+          reason: params.message,
+          errorCode: 'USAGE_ERROR',
+        } as any,
+      }),
     );
   };
 
   if (rawOutputProfile && outputFormat !== 'stream-json') {
     logger.error(text.cli.outputProfileRequiresStreamJson);
     if (outputFormat === 'json') {
-      process.stdout.write(
-        JSON.stringify(
-          encodeJsonFailure({
-            mode: 'run',
-            repoPath: runPath,
-            sessionId: sessionIdForOutput ?? randomUUID(),
-            instruction,
-            message: text.cli.outputProfileRequiresStreamJson,
-            exitCode: 1,
-          }),
-        ) + '\n',
+      stdoutWriter.writeJsonLine(
+        encodeJsonFailure({
+          mode: 'run',
+          repoPath: runPath,
+          sessionId: sessionIdForOutput ?? randomUUID(),
+          instruction,
+          message: text.cli.outputProfileRequiresStreamJson,
+          exitCode: 1,
+        }),
       );
     }
     process.exitCode = 1;
@@ -290,16 +278,14 @@ export async function handleRunCommand(options: any, command: Command) {
     } catch (err: any) {
       const msg = err instanceof Error ? err.message : String(err);
       if (resumeSessionId && outputFormat === 'json') {
-        process.stdout.write(
-          JSON.stringify(
-            encodeJsonFailure({
-              mode: 'run',
-              repoPath: runPath,
-              sessionId: resumeSessionId,
-              message: msg,
-              exitCode: 1,
-            }),
-          ) + '\n',
+        stdoutWriter.writeJsonLine(
+          encodeJsonFailure({
+            mode: 'run',
+            repoPath: runPath,
+            sessionId: resumeSessionId,
+            message: msg,
+            exitCode: 1,
+          }),
         );
       } else if (resumeSessionId && outputFormat === 'stream-json') {
         const outputProfile = rawOutputProfile ?? 'native';
@@ -319,7 +305,7 @@ export async function handleRunCommand(options: any, command: Command) {
   }
 
   const writeJsonOutput = (payload: unknown) => {
-    process.stdout.write(JSON.stringify(payload) + '\n');
+    stdoutWriter.writeJsonLine(payload);
   };
 
   const writeJsonFailure = (params: {
@@ -607,17 +593,20 @@ export async function handleRunCommand(options: any, command: Command) {
               mode: 'run',
               repoPath: runPath,
               sessionId: sessionIdForOutput,
+              writer: stdoutWriter,
             })
           : new StreamJsonReporter({
               mode: 'run',
               repoPath: runPath,
               sessionId: sessionIdForOutput,
+              writer: stdoutWriter,
             })
         : outputFormat === 'json'
           ? new JsonReporter({
               mode: 'run',
               repoPath: runPath,
               sessionId: sessionIdForOutput,
+              writer: stdoutWriter,
               getStructuredOutput: () => (structuredOutputOk ? structuredOutputCandidate : null),
               getPayloadOverrides: () =>
                 structuredOutputOk

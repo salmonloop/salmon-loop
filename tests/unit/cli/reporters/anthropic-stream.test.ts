@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 
 import { describe, expect, it, vi } from 'vitest';
 
+import { createStdoutWriter } from '../../../../src/cli/headless/stdout-writer.js';
 import { AnthropicStreamReporter } from '../../../../src/cli/reporters/anthropic-stream.js';
 import type { LoopEvent, LoopResult } from '../../../../src/core/types/index.js';
 
@@ -29,7 +30,7 @@ describe('AnthropicStreamReporter', () => {
       mode: 'run',
       repoPath: '/repo',
       sessionId: 'sess-1',
-      write,
+      writer: createStdoutWriter({ write }),
     });
 
     reporter.onStart('do the thing');
@@ -118,7 +119,7 @@ describe('AnthropicStreamReporter', () => {
       mode: 'run',
       repoPath: '/repo',
       sessionId: 'sess-tool',
-      write,
+      writer: createStdoutWriter({ write }),
     });
 
     reporter.onStart('x');
@@ -191,7 +192,7 @@ describe('AnthropicStreamReporter', () => {
       mode: 'run',
       repoPath: '/repo',
       sessionId: 'sess-golden',
-      write,
+      writer: createStdoutWriter({ write }),
     });
 
     reporter.onStart('do the thing');

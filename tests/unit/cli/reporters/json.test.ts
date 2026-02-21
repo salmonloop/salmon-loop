@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { createStdoutWriter } from '../../../../src/cli/headless/stdout-writer.js';
 import { JsonReporter } from '../../../../src/cli/reporters/json.js';
 import type { LoopEvent, LoopResult } from '../../../../src/core/types/index.js';
 
@@ -19,7 +20,7 @@ describe('JsonReporter', () => {
       repoPath: '/repo',
       sessionId: 'sess-1',
       now: () => new Date(),
-      write,
+      writer: createStdoutWriter({ write }),
     });
 
     reporter.onStart('do the thing');
@@ -74,7 +75,11 @@ describe('JsonReporter', () => {
       return true;
     };
 
-    const reporter = new JsonReporter({ sessionId: 'sess-2', now: () => new Date(), write });
+    const reporter = new JsonReporter({
+      sessionId: 'sess-2',
+      now: () => new Date(),
+      writer: createStdoutWriter({ write }),
+    });
     reporter.onStart('x');
     reporter.onFinish({
       success: false,
@@ -105,7 +110,7 @@ describe('JsonReporter', () => {
       repoPath: '/repo',
       sessionId: 'sess-3',
       now: () => new Date(),
-      write,
+      writer: createStdoutWriter({ write }),
       getStructuredOutput: () => ({ files: ['a.ts'] }),
       getPayloadOverrides: () => ({
         success: false,

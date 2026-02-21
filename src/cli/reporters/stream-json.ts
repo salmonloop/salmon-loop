@@ -1,6 +1,8 @@
 import { randomUUID } from 'crypto';
 
 import type { LoopEvent, LoopResult } from '../../core/types/index.js';
+import type { StdoutWriter } from '../headless/stdout-writer.js';
+import { createStdoutWriter } from '../headless/stdout-writer.js';
 import {
   encodeStreamEnd,
   encodeStreamEvent,
@@ -19,7 +21,7 @@ export interface StreamJsonReporterOptions {
   repoPath?: string;
   sessionId?: string;
   now?: () => Date;
-  write?: (chunk: string) => boolean;
+  writer?: StdoutWriter;
 }
 
 type StreamState = {
@@ -33,7 +35,7 @@ export class StreamJsonReporter implements SalmonReporter {
   private readonly repoPath?: string;
   private readonly sessionId: string;
   private readonly now: () => Date;
-  private readonly write: (chunk: string) => boolean;
+  private readonly writer: StdoutWriter;
   private lastTextResult: string | undefined;
   private readonly streamStates = new Map<string, StreamState>();
 
@@ -42,7 +44,7 @@ export class StreamJsonReporter implements SalmonReporter {
     this.repoPath = options.repoPath;
     this.sessionId = options.sessionId ?? randomUUID();
     this.now = options.now ?? (() => new Date());
-    this.write = options.write ?? ((chunk) => process.stdout.write(chunk));
+    this.writer = options.writer ?? createStdoutWriter();
   }
 
   onStart(instruction: string): void {
@@ -309,7 +311,7 @@ export class StreamJsonReporter implements SalmonReporter {
   }
 
   private emit(line: StreamJsonEnvelope): void {
-    this.write(JSON.stringify(line) + '\n');
+    this.writer.writeJsonLine(line);
   }
 
   private emitStreamPreludeIfNeeded(streamId: string, at: Date): void {

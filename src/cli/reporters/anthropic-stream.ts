@@ -9,6 +9,8 @@ import {
   encodeAnthropicStreamEvent,
   type AnthropicStreamLine,
 } from '../headless/anthropic-stream-protocol.js';
+import type { StdoutWriter } from '../headless/stdout-writer.js';
+import { createStdoutWriter } from '../headless/stdout-writer.js';
 
 import type { SalmonReporter } from './base.js';
 
@@ -16,7 +18,7 @@ export interface AnthropicStreamReporterOptions {
   mode?: 'run' | 'chat';
   repoPath?: string;
   sessionId?: string;
-  write?: (chunk: string) => boolean;
+  writer?: StdoutWriter;
 }
 
 type StreamState = {
@@ -29,7 +31,7 @@ export class AnthropicStreamReporter implements SalmonReporter {
   private readonly mode: 'run' | 'chat';
   private readonly repoPath?: string;
   private readonly sessionId: string;
-  private readonly write: (chunk: string) => boolean;
+  private readonly writer: StdoutWriter;
 
   private lastTextResult: string | undefined;
   private readonly streamStates = new Map<string, StreamState>();
@@ -38,7 +40,7 @@ export class AnthropicStreamReporter implements SalmonReporter {
     this.mode = options.mode ?? 'run';
     this.repoPath = options.repoPath;
     this.sessionId = options.sessionId ?? randomUUID();
-    this.write = options.write ?? ((chunk) => process.stdout.write(chunk));
+    this.writer = options.writer ?? createStdoutWriter();
   }
 
   onStart(instruction: string): void {
@@ -149,7 +151,7 @@ export class AnthropicStreamReporter implements SalmonReporter {
   }
 
   private emit(line: AnthropicStreamLine): void {
-    this.write(JSON.stringify(line) + '\n');
+    this.writer.writeJsonLine(line);
   }
 
   private emitStreamPreludeIfNeeded(streamId: string): void {
