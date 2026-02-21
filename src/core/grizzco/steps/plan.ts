@@ -2,6 +2,7 @@ import { text } from '../../../locales/index.js';
 import { LIMITS } from '../../config/limits.js';
 import { repairToJsonObject } from '../../llm/contracts/repair.js';
 import { sanitizeError } from '../../llm/errors.js';
+import { composeChatMessages } from '../../llm/message-composition.js';
 import { emitLlmOutput } from '../../llm/output-policy.js';
 import { formatContextForPrompt, parsePlanFromLLMContent } from '../../llm/utils.js';
 import { logIgnoredError } from '../../observability/ignored-error.js';
@@ -119,10 +120,11 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
   );
 
   const systemPrompt = await getPlanSystemPrompt(toolstack?.registry, { plan: ctx.planRuntime });
-  const baseMessages = [
-    { role: 'system' as const, content: systemPrompt },
-    { role: 'user' as const, content: prompt },
-  ];
+  const baseMessages = composeChatMessages({
+    system: systemPrompt,
+    user: prompt,
+    conversationContext: ctx.options.conversationContext,
+  });
 
   const supportsStreaming = typeof ctx.options.llm.chatStream === 'function';
   const llmOutput = {

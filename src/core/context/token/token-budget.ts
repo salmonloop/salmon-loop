@@ -7,6 +7,7 @@
  * Supports model-adaptive budget via AdaptiveBudgetCalculator integration.
  */
 
+import { LIMITS } from '../../config/limits.js';
 import type { Context, RelatedFileContext, RipgrepResult } from '../../types/index.js';
 
 import {
@@ -41,8 +42,8 @@ export interface TokenBudgetConfig {
  */
 export const DEFAULT_TOKEN_BUDGET_CONFIG: TokenBudgetConfig = {
   mode: 'token',
-  defaultTokenBudget: 7500, // ~30k chars equivalent
-  minTokenBudget: 1250, // ~5k chars equivalent
+  defaultTokenBudget: LIMITS.maxContextTokens,
+  minTokenBudget: LIMITS.minContextTokens,
 };
 
 /**

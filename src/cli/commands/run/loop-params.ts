@@ -1,4 +1,4 @@
-import type { CheckpointStrategy } from '../../../core/types/index.js';
+import type { CheckpointStrategy, LLMMessage } from '../../../core/types/index.js';
 import { createTerminalAuthorizationProvider } from '../../authorization/provider.js';
 
 export function buildRunLoopParams(params: {
@@ -6,6 +6,7 @@ export function buildRunLoopParams(params: {
   verify?: string;
   repoPath: string;
   llm: any;
+  conversationContext?: LLMMessage[];
   mode: any;
   dryRun?: boolean;
   forceReset?: boolean;
@@ -33,6 +34,7 @@ export function buildRunLoopParams(params: {
     verify: params.verify,
     repoPath: params.repoPath,
     llm: params.llm,
+    conversationContext: params.conversationContext,
     mode: params.mode,
     dryRun: params.dryRun,
     forceReset: params.forceReset,

@@ -3,6 +3,7 @@ import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { LIMITS } from '../../config/limits.js';
 import { repairToUnifiedDiff } from '../../llm/contracts/repair.js';
 import { wrapPatchEmpty, wrapPatchInvalid, wrapPatchNotUnifiedDiff } from '../../llm/errors.js';
+import { composeChatMessages } from '../../llm/message-composition.js';
 import { emitLlmOutput } from '../../llm/output-policy.js';
 import { extractUnifiedDiffFromLLMContent, formatContextForPrompt } from '../../llm/utils.js';
 import { normalizeDiff, validateDiff, type DiffMeta } from '../../patch/diff.js';
@@ -82,10 +83,11 @@ export const generatePatch: Step<PlanCtx, PatchCtx> = async (ctx) => {
   );
 
   const systemPrompt = await getPatchSystemPrompt(toolstack?.registry, { plan: ctx.planRuntime });
-  const baseMessages = [
-    { role: 'system' as const, content: systemPrompt },
-    { role: 'user' as const, content: prompt },
-  ];
+  const baseMessages = composeChatMessages({
+    system: systemPrompt,
+    user: prompt,
+    conversationContext: ctx.options.conversationContext,
+  });
   const supportsStreaming = typeof ctx.options.llm.chatStream === 'function';
   const llmOutput = {
     policy: ctx.options.llmOutput,

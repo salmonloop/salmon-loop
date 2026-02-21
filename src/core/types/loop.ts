@@ -12,7 +12,7 @@ import type {
   FlowMode,
   VerboseLevel,
 } from './execution.js';
-import type { LLM, LlmOutputKind, LlmOutputPolicy } from './llm.js';
+import type { LLM, LLMMessage, LlmOutputKind, LlmOutputPolicy } from './llm.js';
 import type { Plan } from './planning.js';
 import type { TokenUsage } from './usage.js';
 
@@ -297,6 +297,17 @@ export interface LoopOptions {
   repoPath: string;
   signal?: AbortSignal;
   llm: LLM;
+  /**
+   * Optional conversation history injected into LLM message-based prompts.
+   *
+   * This is adapter- and protocol-neutral: it only carries basic LLM messages and
+   * does not expose any provider-specific fields.
+   *
+   * Typical usage:
+   * - CLI: build from a persisted chat session when `--continue/--resume` is used.
+   * - GUI/TUI: hydrate from local state for seamless multi-turn experiences.
+   */
+  conversationContext?: LLMMessage[];
   /**
    * Optional Langfuse sessionId. If set, multiple runs will be grouped under a single Langfuse Session.
    * Chat mode will typically pass the local chat session ID.

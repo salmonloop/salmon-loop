@@ -5,6 +5,10 @@ import type { Command } from 'commander';
 import { logger } from '../../../core/observability/logger.js';
 import { getExitCode } from '../../../core/runtime/exit-codes.js';
 import type { ChatSessionManager } from '../../../core/session/manager.js';
+import {
+  buildSessionConversationContext,
+  getDefaultSessionContextBudgetTokens,
+} from '../../../core/session/session-context-builder.js';
 import { ApplyBackOnDirty, CheckpointStrategy, LoopResult } from '../../../core/types/index.js';
 import { createStdoutWriter } from '../../headless/stdout-writer.js';
 import { text } from '../../locales/index.js';
@@ -293,11 +297,26 @@ export async function handleRunCommand(options: any, command: Command) {
       proxyApiKeyEnv: process.env.SALMONLOOP_LANGFUSE_PROXY_API_KEY,
     });
 
+    const modelIdForBudget =
+      llm.getModelId?.() ||
+      resolvedConfig.llm.models?.selectedModelId ||
+      process.env.SALMONLOOP_MODEL ||
+      process.env.S8P_MODEL;
+
+    const shouldInjectSessionContext = Boolean(continueSession || resumeSessionId);
+    const conversationContext =
+      shouldInjectSessionContext && sessionManager
+        ? buildSessionConversationContext(sessionManager.getMessages(), {
+            budgetTokens: getDefaultSessionContextBudgetTokens({ modelId: modelIdForBudget }),
+          })
+        : [];
+
     const loopParams = buildRunLoopParams({
       instruction: instructionText,
       verify: effectiveVerify,
       repoPath: runPath,
       llm,
+      conversationContext: conversationContext.length > 0 ? conversationContext : undefined,
       mode,
       dryRun: allOptions.dryRun,
       forceReset: allOptions.forceReset,

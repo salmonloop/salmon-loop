@@ -59,6 +59,53 @@ describe('Grizzco steps: PLAN/PATCH tool calling path', () => {
     expect(createPlan).not.toHaveBeenCalled();
   });
 
+  it('PLAN injects conversationContext into message-based prompts when provided', async () => {
+    const captured: any[][] = [];
+    const llm: LLM = {
+      getCapabilities: () => ({ toolCalling: true }),
+      createPlan: vi.fn(async () => {
+        throw new Error('createPlan should not be called when tool calling is enabled');
+      }),
+      createPatch: vi.fn(async () => ''),
+      chat: vi.fn(async (messages) => {
+        captured.push(messages.map((m) => ({ role: m.role, content: m.content })));
+        return {
+          role: 'assistant' as const,
+          content: JSON.stringify({
+            goal: 'test-goal',
+            files: ['src/index.js'],
+            changes: ['Add a comment'],
+            verify: 'node -e "process.exit(0)"',
+          }),
+        };
+      }),
+    };
+
+    const ctx: any = {
+      workspace: { workPath: 'C:\\repo', strategy: 'worktree' },
+      options: {
+        llm,
+        instruction: 'test',
+        dryRun: true,
+        conversationContext: [
+          { role: 'user', content: 'previous question' },
+          { role: 'assistant', content: 'previous answer' },
+        ],
+      },
+      context: { primaryFile: 'src/index.js', primaryText: 'const x = 1;' },
+      emit: () => {},
+      toolstack: createEmptyToolstack(),
+    };
+
+    await generatePlan(ctx);
+
+    const firstCallMessages = captured[0];
+    expect(firstCallMessages[0].role).toBe('system');
+    expect(firstCallMessages[1]).toEqual({ role: 'user', content: 'previous question' });
+    expect(firstCallMessages[2]).toEqual({ role: 'assistant', content: 'previous answer' });
+    expect(firstCallMessages[firstCallMessages.length - 1].role).toBe('user');
+  });
+
   it('PLAN repairs non-JSON responses with a second pass (contract enforcement)', async () => {
     const llm: LLM = {
       getCapabilities: () => ({ toolCalling: true }),

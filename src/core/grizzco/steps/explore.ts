@@ -1,6 +1,7 @@
 import path from 'path';
 
 import { text } from '../../../locales/index.js';
+import { composeChatMessages } from '../../llm/message-composition.js';
 import { formatContextForPrompt } from '../../llm/utils.js';
 import { getExplorePrompt, getExploreSystemPrompt } from '../../prompts/runtime.js';
 import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
@@ -145,11 +146,14 @@ export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
   };
 
   const localAudit: any[] = [];
+  const baseMessages = composeChatMessages({
+    system: systemPrompt,
+    user: prompt,
+    conversationContext: ctx.options.conversationContext,
+  });
+
   await (supportsStreaming ? chatWithToolsStreaming : chatWithTools)(
-    [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: prompt },
-    ],
+    baseMessages,
     {
       signal: ctx.options.signal,
     },
