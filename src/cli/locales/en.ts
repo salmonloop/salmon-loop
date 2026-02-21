@@ -234,6 +234,8 @@ export const en = {
   applyBackOnDirtyOption: 'Behavior when apply-back detects a dirty workspace (3way, abort)',
   worktreePrepareOption: 'Optional setup command to run inside worktree',
   streamOutputOption: 'Stream LLM responses to the CLI as they arrive (best effort)',
+  includePartialMessagesOption:
+    'Include partial message streaming events in stream-json output (alias for --stream-output).',
   outputFormatOption: 'Output format (text, json, stream-json)',
   jsonSchemaOption:
     'JSON Schema for structured_output (file path or JSON string). Only valid with --output-format json.',

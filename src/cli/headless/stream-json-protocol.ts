@@ -92,48 +92,28 @@ export function encodeStreamStart(params: {
   }) as any;
 }
 
-export function encodeStreamLineFromLoopEvent(params: {
+export function encodeStreamEvent(params: {
+  sessionId: string;
+  at: Date;
+  event: Record<string, unknown>;
+}): StreamJsonLine {
+  return {
+    type: 'stream_event',
+    session_id: params.sessionId,
+    timestamp: toIso(params.at),
+    event: params.event,
+  };
+}
+
+export function encodeStreamLoopEvent(params: {
   sessionId: string;
   event: LoopEvent;
 }): StreamJsonLine {
-  const event = params.event;
-
-  if (event.type === 'llm.stream.delta') {
-    return {
-      type: 'stream_event',
-      session_id: params.sessionId,
-      timestamp: toIso(event.timestamp),
-      event: dropUndefined({
-        kind: event.kind,
-        step: event.step,
-        stream_id: event.streamId,
-        delta: {
-          type: 'text_delta',
-          text: event.content,
-        },
-      }),
-    };
-  }
-
-  if (event.type === 'llm.stream.end') {
-    return {
-      type: 'stream_event',
-      session_id: params.sessionId,
-      timestamp: toIso(event.timestamp),
-      event: dropUndefined({
-        kind: event.kind,
-        step: event.step,
-        stream_id: event.streamId,
-        finish_reason: event.finishReason,
-      }),
-    };
-  }
-
   return {
     type: 'loop_event',
     session_id: params.sessionId,
-    timestamp: toIso(event.timestamp),
-    event: mapLoopEventToJson(event),
+    timestamp: toIso(params.event.timestamp),
+    event: mapLoopEventToJson(params.event),
   };
 }
 

@@ -90,16 +90,31 @@ describe('StreamJsonReporter', () => {
       session_id: 'sess-1',
       timestamp: '2026-02-20T00:00:02.000Z',
     });
-    expect(lines[2].event?.delta).toEqual({ type: 'text_delta', text: 'Hello' });
+    expect(lines[2].event?.type).toBe('message_start');
 
     expect(lines[3]).toMatchObject({
+      type: 'stream_event',
+      session_id: 'sess-1',
+      timestamp: '2026-02-20T00:00:02.000Z',
+    });
+    expect(lines[3].event?.type).toBe('content_block_start');
+
+    expect(lines[4]).toMatchObject({
+      type: 'stream_event',
+      session_id: 'sess-1',
+      timestamp: '2026-02-20T00:00:02.000Z',
+    });
+    expect(lines[4].event?.type).toBe('content_block_delta');
+    expect(lines[4].event?.delta).toEqual({ type: 'text_delta', text: 'Hello' });
+
+    expect(lines[5]).toMatchObject({
       type: 'loop_event',
       session_id: 'sess-1',
       timestamp: '2026-02-20T00:00:03.000Z',
       event: { type: 'llm.output', kind: 'assistant_message', step: 'REPORT', content: 'Done' },
     });
 
-    expect(lines[4]).toMatchObject({
+    expect(lines[6]).toMatchObject({
       type: 'result',
       session_id: 'sess-1',
       success: true,
@@ -109,7 +124,7 @@ describe('StreamJsonReporter', () => {
       result: 'Done',
     });
 
-    expect(lines[5]).toMatchObject({
+    expect(lines[7]).toMatchObject({
       type: 'end',
       session_id: 'sess-1',
       success: true,

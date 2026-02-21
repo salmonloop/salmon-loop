@@ -3,8 +3,9 @@ import { randomUUID } from 'crypto';
 import type { LoopEvent, LoopResult } from '../../core/types/index.js';
 import {
   encodeStreamEnd,
+  encodeStreamEvent,
   encodeStreamFailure,
-  encodeStreamLineFromLoopEvent,
+  encodeStreamLoopEvent,
   encodeStreamResult,
   encodeStreamStart,
   getStreamExitCode,
@@ -21,6 +22,12 @@ export interface StreamJsonReporterOptions {
   write?: (chunk: string) => boolean;
 }
 
+type StreamState = {
+  messageId: string;
+  started: boolean;
+  contentBlockOpen: boolean;
+};
+
 export class StreamJsonReporter implements SalmonReporter {
   private readonly mode: 'run' | 'chat';
   private readonly repoPath?: string;
@@ -28,6 +35,7 @@ export class StreamJsonReporter implements SalmonReporter {
   private readonly now: () => Date;
   private readonly write: (chunk: string) => boolean;
   private lastTextResult: string | undefined;
+  private readonly streamStates = new Map<string, StreamState>();
 
   constructor(options: StreamJsonReporterOptions = {}) {
     this.mode = options.mode ?? 'run';
@@ -57,14 +65,61 @@ export class StreamJsonReporter implements SalmonReporter {
     ) {
       this.lastTextResult = event.content;
     }
-    this.emit(encodeStreamLineFromLoopEvent({ sessionId: this.sessionId, event }));
+
+    if (event.type === 'llm.stream.delta') {
+      this.emitStreamPreludeIfNeeded(event.streamId, event.timestamp);
+      this.emit(
+        encodeStreamEvent({
+          sessionId: this.sessionId,
+          at: event.timestamp,
+          event: {
+            type: 'content_block_delta',
+            index: 0,
+            delta: { type: 'text_delta', text: event.content },
+          },
+        }),
+      );
+      return;
+    }
+
+    if (event.type === 'llm.stream.end') {
+      this.emitStreamPreludeIfNeeded(event.streamId, event.timestamp);
+
+      const state = this.streamStates.get(event.streamId);
+      if (state?.contentBlockOpen) {
+        this.emit(
+          encodeStreamEvent({
+            sessionId: this.sessionId,
+            at: event.timestamp,
+            event: { type: 'content_block_stop', index: 0 },
+          }),
+        );
+        state.contentBlockOpen = false;
+      }
+
+      this.emit(
+        encodeStreamEvent({
+          sessionId: this.sessionId,
+          at: event.timestamp,
+          event: {
+            type: 'message_stop',
+            stop_reason: event.finishReason ?? 'end_turn',
+          },
+        }),
+      );
+
+      this.streamStates.delete(event.streamId);
+      return;
+    }
+
+    this.emit(encodeStreamLoopEvent({ sessionId: this.sessionId, event }));
   }
 
   onFinish(result: LoopResult): void {
     if (result.authorizationSummary) {
       const at = this.now();
       this.emit(
-        encodeStreamLineFromLoopEvent({
+        encodeStreamLoopEvent({
           sessionId: this.sessionId,
           event: {
             type: 'authorization.summary',
@@ -110,5 +165,47 @@ export class StreamJsonReporter implements SalmonReporter {
 
   private emit(line: StreamJsonLine): void {
     this.write(JSON.stringify(line) + '\n');
+  }
+
+  private emitStreamPreludeIfNeeded(streamId: string, at: Date): void {
+    const existing = this.streamStates.get(streamId);
+    if (existing?.started) return;
+
+    const state: StreamState = existing ?? {
+      messageId: streamId,
+      started: false,
+      contentBlockOpen: false,
+    };
+    state.started = true;
+    state.contentBlockOpen = true;
+    this.streamStates.set(streamId, state);
+
+    this.emit(
+      encodeStreamEvent({
+        sessionId: this.sessionId,
+        at,
+        event: {
+          type: 'message_start',
+          message: {
+            id: state.messageId,
+            type: 'message',
+            role: 'assistant',
+            content: [],
+          },
+        },
+      }),
+    );
+
+    this.emit(
+      encodeStreamEvent({
+        sessionId: this.sessionId,
+        at,
+        event: {
+          type: 'content_block_start',
+          index: 0,
+          content_block: { type: 'text', text: '' },
+        },
+      }),
+    );
   }
 }

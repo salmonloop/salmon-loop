@@ -519,7 +519,10 @@ export async function handleRunCommand(options: any, command: Command) {
 
     const applyBackOnDirty = allOptions.applyBackOnDirty === 'abort' ? 'abort' : '3way';
 
-    if (allOptions.streamOutput && !llmOutput.kinds.includes('plan')) {
+    const wantPartialMessages = Boolean(
+      allOptions.streamOutput || allOptions.includePartialMessages,
+    );
+    if (wantPartialMessages && !llmOutput.kinds.includes('plan')) {
       llmOutput.kinds.push('plan');
     }
 
