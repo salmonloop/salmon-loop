@@ -192,6 +192,102 @@ describe('Headless protocol integration', () => {
     expect(sequenceNumbers).toEqual([...sequenceNumbers.keys()]);
   }, 120000);
 
+  it('emits machine-readable usage errors for Commander parse errors in headless json', async () => {
+    const repo = await helper.createGitRepo();
+
+    const { exitCode, stdout } = await runCli([
+      '-r',
+      repo.path,
+      '-p',
+      'hello',
+      '--output-format',
+      'json',
+      '--unknown-flag',
+      '--mode',
+      'review',
+      '--no-config-file',
+    ]);
+
+    expect(exitCode).toBe(1);
+    const payload = JSON.parse(stdout) as any;
+    expect(payload.structured_output).toBe(null);
+    expect(payload.metadata).toMatchObject({
+      command: 'run',
+      repo_path: repo.path,
+      instruction: 'hello',
+      success: false,
+      exit_code: 1,
+      error_code: 'USAGE_ERROR',
+    });
+    expect(String(payload.metadata.reason)).toContain('unknown option');
+  }, 120000);
+
+  it('emits machine-readable usage errors for Commander parse errors in headless stream-json (native)', async () => {
+    const repo = await helper.createGitRepo();
+    await seedChatSession(repo.path, 'sess-usage-native');
+
+    const { exitCode, stdout } = await runCli([
+      '-r',
+      repo.path,
+      '--resume',
+      'sess-usage-native',
+      '-p',
+      'hello',
+      '--output-format',
+      'stream-json',
+      '--unknown-flag',
+      '--mode',
+      'review',
+      '--no-config-file',
+    ]);
+
+    expect(exitCode).toBe(1);
+    const lines = stdout
+      .split('\n')
+      .filter(Boolean)
+      .map((l) => JSON.parse(l) as any);
+
+    expect(lines[0]).toMatchObject({
+      session_id: 'sess-usage-native',
+      event: { type: 'start', command: 'run', repo_path: repo.path, instruction: 'hello' },
+    });
+    expect(lines.some((l) => l.event?.type === 'error')).toBe(true);
+    expect(lines[lines.length - 1]).toMatchObject({
+      session_id: 'sess-usage-native',
+      event: { type: 'end', success: false, exit_code: 1 },
+    });
+  }, 120000);
+
+  it('emits OpenAI-compatible usage errors for Commander parse errors in headless stream-json --output-profile openai', async () => {
+    const repo = await helper.createGitRepo();
+
+    const { exitCode, stdout } = await runCli([
+      '-r',
+      repo.path,
+      '-p',
+      'hello',
+      '--output-format',
+      'stream-json',
+      '--output-profile',
+      'openai',
+      '--unknown-flag',
+      '--mode',
+      'review',
+      '--no-config-file',
+    ]);
+
+    expect(exitCode).toBe(1);
+    const lines = stdout
+      .split('\n')
+      .filter(Boolean)
+      .map((l) => JSON.parse(l) as any);
+
+    expect(
+      lines.every((l) => typeof l.type === 'string' && typeof l.sequence_number === 'number'),
+    ).toBe(true);
+    expect(lines.some((l) => l.type === 'error')).toBe(true);
+  }, 120000);
+
   it('prints machine-readable usage errors for --continue/--resume conflict when --output-format stream-json', async () => {
     const repo = await helper.createGitRepo();
 
@@ -553,5 +649,77 @@ describe('Headless protocol integration', () => {
       success: true,
       exit_code: 0,
     });
+  }, 120000);
+
+  it('fails strictly when structured output schema validation fails (loop success -> headless failure)', async () => {
+    const repo = await helper.createGitRepo();
+    const schema = JSON.stringify({
+      type: 'object',
+      required: ['command'],
+      properties: {
+        command: { const: 'chat' },
+      },
+      additionalProperties: true,
+    });
+
+    const { exitCode, stdout } = await runCli([
+      '-r',
+      repo.path,
+      '-p',
+      'hello',
+      '--output-format',
+      'json',
+      '--json-schema',
+      schema,
+      '--mode',
+      'review',
+      '--no-config-file',
+    ]);
+
+    expect(exitCode).toBe(1);
+    const payload = JSON.parse(stdout) as any;
+    expect(payload.structured_output).toBe(null);
+    expect(payload.metadata).toMatchObject({
+      command: 'run',
+      repo_path: repo.path,
+      instruction: 'hello',
+      success: false,
+      exit_code: 1,
+      reason_code: 'SCHEMA_VALIDATION_FAILED',
+      error_code: 'SCHEMA_VALIDATION_FAILED',
+    });
+    expect(String(payload.metadata.structured_output_error)).toContain('schema validation');
+  }, 120000);
+
+  it('fails strictly when the JSON schema input is invalid', async () => {
+    const repo = await helper.createGitRepo();
+
+    const { exitCode, stdout } = await runCli([
+      '-r',
+      repo.path,
+      '-p',
+      'hello',
+      '--output-format',
+      'json',
+      '--json-schema',
+      '{',
+      '--mode',
+      'review',
+      '--no-config-file',
+    ]);
+
+    expect(exitCode).toBe(1);
+    const payload = JSON.parse(stdout) as any;
+    expect(payload.structured_output).toBe(null);
+    expect(payload.metadata).toMatchObject({
+      command: 'run',
+      repo_path: repo.path,
+      instruction: 'hello',
+      success: false,
+      exit_code: 1,
+      reason_code: 'SCHEMA_VALIDATION_FAILED',
+      error_code: 'SCHEMA_INVALID',
+    });
+    expect(String(payload.metadata.reason)).toContain('Failed to load JSON schema');
   }, 120000);
 });

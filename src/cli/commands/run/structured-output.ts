@@ -1,5 +1,6 @@
 import { resolve } from 'path';
 
+import { LIMITS } from '../../../core/config/limits.js';
 import { JsonSchemaValidator } from '../../../core/structured-output/index.js';
 import type { LoopResult } from '../../../core/types/index.js';
 
@@ -20,12 +21,26 @@ export async function loadJsonSchema(params: {
   const value = params.schema.trim();
   if (!value) throw new Error('Empty schema');
 
+  const maxBytes = LIMITS.maxJsonSchemaBytes;
+  const inputBytes = Buffer.byteLength(value, 'utf8');
+  if (inputBytes > maxBytes) {
+    throw new Error(
+      `Schema input exceeds maximum size: ${inputBytes} bytes (max ${maxBytes} bytes).`,
+    );
+  }
+
   if (value.startsWith('{') || value.startsWith('[')) {
     return JSON.parse(value);
   }
 
   const fs = await import('fs/promises');
   const schemaPath = resolve(params.repoPath, value);
+  const stats = await fs.stat(schemaPath);
+  if (typeof stats?.size === 'number' && stats.size > maxBytes) {
+    throw new Error(
+      `Schema input exceeds maximum size: ${stats.size} bytes (max ${maxBytes} bytes).`,
+    );
+  }
   const raw = await fs.readFile(schemaPath, 'utf8');
   return JSON.parse(raw);
 }

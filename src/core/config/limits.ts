@@ -46,6 +46,9 @@ export const LIMITS = {
   defaultToolTimeoutMs: 30000,
   maxToolOutputBytes: 1048576,
 
+  // Structured output
+  maxJsonSchemaBytes: 256 * 1024,
+
   // Artifact storage (OS temp)
   artifactTtlMs: Number(process.env.SALMONLOOP_ARTIFACT_TTL_MS) || 7 * 24 * 60 * 60 * 1000, // 7d
   artifactMaxFiles: Number(process.env.SALMONLOOP_ARTIFACT_MAX_FILES) || 2000,

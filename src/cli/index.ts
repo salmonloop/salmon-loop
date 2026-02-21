@@ -9,9 +9,11 @@ import { Command } from 'commander';
 
 import { initializeRuntime } from '../core/runtime/initialize.js';
 
+import { detectHeadlessOutputFromArgv } from './argv/headless-detection.js';
 import { handleChatCommand } from './commands/chat.js';
 import { handleContextCommand } from './commands/context.js';
 import { handleRestoreCommand } from './commands/restore.js';
+import { createHeadlessErrorWriter } from './commands/run/headless-error-writer.js';
 import { handleRunCommand } from './commands/run.js';
 import {
   handleSnapshotList,
@@ -23,6 +25,7 @@ import {
   handleSnapshotDelete,
   handleSnapshotClear,
 } from './commands/snapshot.js';
+import { createStdoutWriter } from './headless/stdout-writer.js';
 import { text } from './locales/index.js';
 
 // --- Global Safety Initialization ---
@@ -170,11 +173,46 @@ program
   .action(handleChatCommand);
 
 // Parse arguments with manual error handling
+const rewrittenArgv = rewriteArgvForPrintMode(process.argv);
+const headlessDetection = detectHeadlessOutputFromArgv(rewrittenArgv);
+
+if (headlessDetection.outputFormat) {
+  program.configureOutput({
+    writeOut: () => {},
+    writeErr: () => {},
+  });
+  program.showHelpAfterError(false);
+  program.showSuggestionAfterError(false);
+}
+
 try {
-  program.parse(rewriteArgvForPrintMode(process.argv));
+  program.parse(rewrittenArgv);
 } catch (err: any) {
   // Commander uses special error names for built-in logic like --help or missing args
   if (err.name === 'CommanderError') {
+    if (
+      headlessDetection.outputFormat &&
+      err.code !== 'commander.helpDisplayed' &&
+      err.code !== 'commander.version'
+    ) {
+      const writer = createStdoutWriter();
+      const headlessErrorWriter = createHeadlessErrorWriter({
+        repoPath: headlessDetection.repoPath ?? process.cwd(),
+        outputFormat: headlessDetection.outputFormat,
+        outputProfileForStreamJson: headlessDetection.outputProfile ?? 'native',
+        writer,
+        getSessionId: () => undefined,
+        getResumeSessionId: () => headlessDetection.resumeSessionId,
+      });
+
+      headlessErrorWriter.writeUsageError({
+        message: err.message,
+        instruction: headlessDetection.instruction,
+      });
+
+      process.exit(1);
+    }
+
     // Only exit if it's not a help message
     if (err.code !== 'commander.helpDisplayed' && err.code !== 'commander.version') {
       process.exit(err.exitCode || 1);
