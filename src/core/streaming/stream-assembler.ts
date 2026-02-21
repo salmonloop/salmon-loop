@@ -209,9 +209,31 @@ export class StreamAssembler {
 
       return [
         {
+          type: 'normalized.tool_request_start',
+          callId,
+          toolName,
+          phase: event.phase,
+          round: event.round,
+          timestamp: event.timestamp,
+        },
+        {
           type: 'normalized.tool_call_start',
           callId,
           toolName,
+          phase: event.phase,
+          round: event.round,
+          timestamp: event.timestamp,
+        },
+      ];
+    }
+
+    if (isOutputItemDoneFunctionCallEvent(event.event)) {
+      if (!event.phase || typeof event.round !== 'number') return [];
+      return [
+        {
+          type: 'normalized.tool_request_end',
+          callId: event.event.item.call_id,
+          toolName: event.event.item.name,
           phase: event.phase,
           round: event.round,
           timestamp: event.timestamp,
@@ -242,6 +264,20 @@ function isOutputItemAddedFunctionCallEvent(
   event: CanonicalResponsesEvent,
 ): event is Extract<CanonicalResponsesEvent, { type: 'response.output_item.added' }> {
   if (event.type !== 'response.output_item.added') return false;
+  const candidate = event as { item?: unknown };
+  if (!candidate.item || typeof candidate.item !== 'object') return false;
+  const item = candidate.item as { type?: unknown; call_id?: unknown; name?: unknown };
+  return (
+    item.type === 'function_call' &&
+    typeof item.call_id === 'string' &&
+    typeof item.name === 'string'
+  );
+}
+
+function isOutputItemDoneFunctionCallEvent(
+  event: CanonicalResponsesEvent,
+): event is Extract<CanonicalResponsesEvent, { type: 'response.output_item.done' }> {
+  if (event.type !== 'response.output_item.done') return false;
   const candidate = event as { item?: unknown };
   if (!candidate.item || typeof candidate.item !== 'object') return false;
   const item = candidate.item as { type?: unknown; call_id?: unknown; name?: unknown };

@@ -76,6 +76,27 @@ export type NormalizedStreamEvent =
       outputSummary?: string;
     } & NormalizedBaseEvent)
   | ({
+      /**
+       * Model-side tool call request lifecycle.
+       *
+       * This is distinct from the host-side execution timeline:
+       * - `normalized.tool_request_*`: model asked for a tool call in its output stream.
+       * - `normalized.tool_call_*`: host began/ended executing the requested tool.
+       */
+      type: 'normalized.tool_request_start';
+      callId: string;
+      toolName: string;
+      phase: ExecutionPhase;
+      round: number;
+    } & NormalizedBaseEvent)
+  | ({
+      type: 'normalized.tool_request_end';
+      callId: string;
+      toolName: string;
+      phase: ExecutionPhase;
+      round: number;
+    } & NormalizedBaseEvent)
+  | ({
       type: 'normalized.error';
       code: string;
       message: string;

@@ -370,6 +370,14 @@ describe('StreamAssembler', () => {
 
     expect(modelStart).toEqual([
       {
+        type: 'normalized.tool_request_start',
+        callId: 'call-1',
+        toolName: 'fs.readFile',
+        phase: 'PATCH',
+        round: 1,
+        timestamp: at1,
+      },
+      {
         type: 'normalized.tool_call_start',
         callId: 'call-1',
         toolName: 'fs.readFile',
@@ -380,13 +388,44 @@ describe('StreamAssembler', () => {
       },
     ]);
 
+    const modelDone = assembler.push({
+      type: 'llm.responses.event',
+      kind: 'plan',
+      step: 'PLAN',
+      streamId: 'stream-1',
+      source: 'provider',
+      phase: 'PATCH',
+      round: 1,
+      event: {
+        type: 'response.output_item.done',
+        item: {
+          type: 'function_call',
+          call_id: 'call-1',
+          name: 'fs.readFile',
+          arguments: '{}',
+        },
+      },
+      timestamp: at2,
+    } satisfies LoopEvent);
+
+    expect(modelDone).toEqual([
+      {
+        type: 'normalized.tool_request_end',
+        callId: 'call-1',
+        toolName: 'fs.readFile',
+        phase: 'PATCH',
+        round: 1,
+        timestamp: at2,
+      },
+    ]);
+
     const hostStart = assembler.push({
       type: 'tool.call.start',
       callId: 'call-1',
       toolName: 'fs.readFile',
       phase: 'PATCH',
       round: 1,
-      timestamp: at2,
+      timestamp: at3,
     } satisfies LoopEvent);
 
     expect(hostStart).toEqual([]);
@@ -399,7 +438,7 @@ describe('StreamAssembler', () => {
       round: 1,
       status: 'ok',
       durationMs: 12,
-      timestamp: at3,
+      timestamp: new Date('2026-02-20T00:00:04.000Z'),
     } satisfies LoopEvent);
 
     expect(hostEnd).toEqual([
@@ -412,7 +451,7 @@ describe('StreamAssembler', () => {
         status: 'ok',
         durationMs: 12,
         errorCode: undefined,
-        timestamp: at3,
+        timestamp: new Date('2026-02-20T00:00:04.000Z'),
       },
     ]);
   });
