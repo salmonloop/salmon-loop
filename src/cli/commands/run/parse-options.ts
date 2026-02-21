@@ -54,6 +54,9 @@ export function parseRunCommandOptions(command: Command): RunCommandParsedOption
 
   const headlessIncludeToolInput = Boolean((allOptions as any).headlessIncludeToolInput);
   const headlessIncludeToolOutput = Boolean((allOptions as any).headlessIncludeToolOutput);
+  const headlessIncludeAuthorizationDecisions = Boolean(
+    (allOptions as any).headlessIncludeAuthorizationDecisions,
+  );
 
   const instruction = explicitInstruction ?? printInstruction;
 
@@ -74,6 +77,7 @@ export function parseRunCommandOptions(command: Command): RunCommandParsedOption
     outputProfileForStreamJson,
     headlessIncludeToolInput,
     headlessIncludeToolOutput,
+    headlessIncludeAuthorizationDecisions,
     allowedToolRules,
     disallowedToolRules,
   };

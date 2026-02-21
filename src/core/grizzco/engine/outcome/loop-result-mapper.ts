@@ -1,4 +1,5 @@
 import { text } from '../../../../locales/index.js';
+import { getAuthorizationDecisionsFromAuditTrail } from '../../../observability/authorization-decisions.js';
 import { getTokenUsageFromAuditTrail } from '../../../observability/token-usage.js';
 import { ErrorType, Phase } from '../../../types/index.js';
 import type { ExecutionPhase, FlowMode, LoopOptions, LoopResult } from '../../../types/index.js';
@@ -35,6 +36,12 @@ export function buildLoopResultFromTransaction({
     (executionReport.flowReport.data as Partial<ShrinkCtx> | undefined);
   const verifyArtifact = ctx?.verifyArtifact ?? executionReport.lastVerifyArtifact;
 
+  const authorizationDecisions = (() => {
+    if (!options.eventPayload?.includeAuthorizationDecisions) return undefined;
+    const decisions = getAuthorizationDecisionsFromAuditTrail();
+    return decisions.length > 0 ? decisions : undefined;
+  })();
+
   if (executionReport.success) {
     const attempts = executionReport.attempts;
     const usage = getTokenUsageFromAuditTrail() ?? undefined;
@@ -46,6 +53,7 @@ export function buildLoopResultFromTransaction({
         attempts,
         logs: telemetry.getLogs(),
         usage,
+        authorizationDecisions,
         history: telemetry.getHistory(),
         finalPatch: ctx?.diff,
         changedFiles: ctx?.changedFiles,
@@ -64,6 +72,7 @@ export function buildLoopResultFromTransaction({
       attempts,
       logs: telemetry.getLogs(),
       usage,
+      authorizationDecisions,
       history: telemetry.getHistory(),
       finalPatch: ctx?.diff,
       changedFiles: ctx?.changedFiles,
@@ -94,6 +103,7 @@ export function buildLoopResultFromTransaction({
     attempts: executionReport.attempts,
     logs: telemetry.getLogs(),
     usage,
+    authorizationDecisions,
     history: telemetry.getHistory(),
     failurePhase,
     errorType: ErrorType.UNKNOWN,
@@ -115,6 +125,10 @@ export function buildLoopFailureResult({
   failurePhase,
 }: BuildLoopCrashParams): LoopResult {
   const usage = getTokenUsageFromAuditTrail() ?? undefined;
+  const authorizationDecisions = (() => {
+    const decisions = getAuthorizationDecisionsFromAuditTrail();
+    return decisions.length > 0 ? decisions : undefined;
+  })();
   return {
     success: false,
     reason: message,
@@ -122,6 +136,7 @@ export function buildLoopFailureResult({
     attempts: 0,
     logs: telemetry.getLogs(),
     usage,
+    authorizationDecisions,
     history: telemetry.getHistory(),
     failurePhase,
     errorType: ErrorType.UNKNOWN,

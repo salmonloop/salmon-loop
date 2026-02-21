@@ -27,6 +27,7 @@ export interface RunCommandParsedOptions {
   outputProfileForStreamJson: string;
   headlessIncludeToolInput: boolean;
   headlessIncludeToolOutput: boolean;
+  headlessIncludeAuthorizationDecisions: boolean;
 }
 
 export interface RunCommandValidatedOptions extends RunCommandParsedOptions {

@@ -3,6 +3,7 @@ import type { RunOutcomeReporter } from '../observability/run-outcome-reporter.j
 import type { ArtifactHandle } from '../sub-agent/artifacts/types.js';
 import type { ToolAuthorizationProvider } from '../tools/authorization/types.js';
 
+import type { AuthorizationDecisionRecord } from './authorization.js';
 import type {
   ApplyBackOnDirty,
   ErrorType,
@@ -58,6 +59,7 @@ export interface LoopResult {
   attempts: number;
   logs: StepLog[];
   usage?: TokenUsage;
+  authorizationDecisions?: AuthorizationDecisionRecord[];
   history?: LoopIteration[];
   finalPatch?: string;
   failurePhase?: ExecutionPhase;
@@ -160,6 +162,20 @@ export type LoopEvent =
       type: 'authorization.summary';
       summary: AuthorizationSourceSummary;
       stage: 'realtime' | 'final';
+      timestamp: Date;
+    }
+  | {
+      type: 'authorization.decision';
+      callId: string;
+      toolName: string;
+      phase: ExecutionPhase;
+      outcome: string;
+      reason?: string;
+      ttlMs?: number;
+      persist?: 'repo' | 'user';
+      source?: string;
+      riskLevel?: string;
+      sideEffects?: string[];
       timestamp: Date;
     }
   | {
@@ -317,6 +333,7 @@ export interface LoopOptions {
   eventPayload?: {
     includeToolInput?: boolean;
     includeToolOutput?: boolean;
+    includeAuthorizationDecisions?: boolean;
   };
 }
 

@@ -117,6 +117,15 @@ Notes:
 - Only valid with `--output-format stream-json`.
 - Not supported with `--output-profile openai` (strict OpenAI profile rejects protocol extensions).
 
+### Headless observability flags
+
+- `--headless-include-authorization-decisions`: Include tool authorization decisions (source/outcome/reason/ttl/persist/toolName/callId).
+
+Notes:
+
+- Only valid with `--output-format json` or `--output-format stream-json`.
+- For `--output-format stream-json`, only supported with `--output-profile native` (strict profiles do not emit extension events).
+
 ## Core Options (for Default Run)
 
 - `-i, --instruction <string>`: **(Required)** Instruction for the LLM to follow.

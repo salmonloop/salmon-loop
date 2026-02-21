@@ -8,6 +8,7 @@ export function handleEarlyRunCommandErrors(params: {
   outputProfileForStreamJson: string;
   headlessIncludeToolInput: boolean;
   headlessIncludeToolOutput: boolean;
+  headlessIncludeAuthorizationDecisions: boolean;
   instruction?: string;
   printInstruction?: string;
   explicitInstruction?: string;
@@ -46,6 +47,18 @@ export function handleEarlyRunCommandErrors(params: {
       params.headlessErrorWriter.writeUsageError({
         sessionId: params.sessionIdForOutput ?? params.resumeSessionId,
         message: text.cli.headlessToolPayloadRequiresStreamJson,
+        instruction: params.instruction,
+      });
+    }
+    return { ok: false, exitCode: 1 };
+  }
+
+  if (params.headlessIncludeAuthorizationDecisions && params.outputFormat === 'text') {
+    logger.error(text.cli.headlessAuthorizationDecisionsRequireHeadlessOutput);
+    if (params.headlessOutput) {
+      params.headlessErrorWriter.writeUsageError({
+        sessionId: params.sessionIdForOutput ?? params.resumeSessionId,
+        message: text.cli.headlessAuthorizationDecisionsRequireHeadlessOutput,
         instruction: params.instruction,
       });
     }
@@ -111,6 +124,19 @@ export function handleEarlyRunCommandErrors(params: {
       params.headlessErrorWriter.writeUsageError({
         sessionId: params.sessionIdForOutput ?? params.resumeSessionId,
         message: text.cli.headlessToolPayloadNotSupportedWithOpenAiProfile,
+        instruction: params.instruction,
+      });
+      return { ok: false, exitCode: 1 };
+    }
+
+    if (
+      params.headlessIncludeAuthorizationDecisions &&
+      (outputProfile === 'anthropic' || outputProfile === 'openai')
+    ) {
+      logger.error(text.cli.headlessAuthorizationDecisionsNotSupportedWithStrictProfiles);
+      params.headlessErrorWriter.writeUsageError({
+        sessionId: params.sessionIdForOutput ?? params.resumeSessionId,
+        message: text.cli.headlessAuthorizationDecisionsNotSupportedWithStrictProfiles,
         instruction: params.instruction,
       });
       return { ok: false, exitCode: 1 };

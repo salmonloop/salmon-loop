@@ -26,6 +26,7 @@ export interface ToolAuditLogEntry {
   authRiskLevel?: string;
   authSideEffects?: string[];
   authTtlMs?: number;
+  authPersist?: string;
   authSource?: string;
 }
 
@@ -42,8 +43,21 @@ export interface ToolAuditLoggerOptions {
       riskLevel?: string;
       sideEffects?: string[];
       ttlMs?: number;
+      persist?: 'repo' | 'user';
     },
   ) => void;
+  onAuthorizationDecision?: (event: {
+    callId: string;
+    phase: ExecutionPhase;
+    toolName: string;
+    outcome: string;
+    reason?: string;
+    source?: string;
+    riskLevel?: string;
+    sideEffects?: string[];
+    ttlMs?: number;
+    persist?: 'repo' | 'user';
+  }) => void;
 }
 
 export class ToolAuditLogger {
@@ -111,6 +125,7 @@ export class ToolAuditLogger {
     riskLevel?: string;
     sideEffects?: string[];
     ttlMs?: number;
+    persist?: 'repo' | 'user';
   }) {
     const entry: ToolAuditLogEntry = {
       timestamp: new Date().toISOString(),
@@ -124,9 +139,12 @@ export class ToolAuditLogger {
       authRiskLevel: event.riskLevel,
       authSideEffects: event.sideEffects,
       authTtlMs: event.ttlMs,
+      authPersist: event.persist,
     };
     this.logs.push(entry);
     logger.debug(text.audit.event('Authorization', event.toolName, event.outcome));
+
+    this.options?.onAuthorizationDecision?.(event);
 
     const updated = this.updateAuthorizationSummary(event.source);
     if (updated && this.options?.onAuthorizationSummary) {

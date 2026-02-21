@@ -80,6 +80,21 @@ export async function buildStructuredOutputState(params: {
       audit_path: params.result.auditPath,
       error_code: params.result.errorCode,
       authorization_summary: params.result.authorizationSummary,
+      authorization_decisions: Array.isArray(params.result.authorizationDecisions)
+        ? params.result.authorizationDecisions.map((d) => ({
+            call_id: d.callId,
+            tool_name: d.toolName,
+            phase: d.phase,
+            outcome: d.outcome,
+            source: d.source,
+            reason: d.reason,
+            ttl_ms: d.ttlMs,
+            persist: d.persist,
+            risk_level: d.riskLevel,
+            side_effects: d.sideEffects,
+            timestamp: d.timestamp,
+          }))
+        : undefined,
       usage: params.result.usage
         ? {
             input_tokens: params.result.usage.inputTokens,

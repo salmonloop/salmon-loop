@@ -1,4 +1,5 @@
 import { text } from '../../../locales/index.js';
+import { recordAuditEvent } from '../../observability/audit-trail.js';
 import { createStandardToolstack } from '../../tools/loader.js';
 import { Phase } from '../../types/index.js';
 import { preflight } from '../../verification/runner.js';
@@ -52,6 +53,41 @@ export const runPreflight: Step<InitCtx, PreflightCtx> = async (ctx) => {
             stage: 'realtime',
             timestamp: new Date(),
           });
+        },
+        onAuthorizationDecision: (event) => {
+          if (!ctx.options.eventPayload?.includeAuthorizationDecisions) return;
+
+          ctx.emit({
+            type: 'authorization.decision',
+            callId: event.callId,
+            toolName: event.toolName,
+            phase: event.phase,
+            outcome: event.outcome,
+            source: event.source,
+            reason: event.reason,
+            ttlMs: event.ttlMs,
+            persist: event.persist,
+            riskLevel: event.riskLevel,
+            sideEffects: event.sideEffects,
+            timestamp: new Date(),
+          });
+
+          recordAuditEvent(
+            'authorization.decision',
+            {
+              callId: event.callId,
+              toolName: event.toolName,
+              phase: event.phase,
+              outcome: event.outcome,
+              source: event.source,
+              reason: event.reason,
+              ttlMs: event.ttlMs,
+              persist: event.persist,
+              riskLevel: event.riskLevel,
+              sideEffects: event.sideEffects,
+            },
+            { source: 'tool', severity: 'low', scope: 'session', phase: event.phase },
+          );
         },
         model:
           ctx.options.llm.getModelId?.() || process.env.SALMONLOOP_MODEL || process.env.S8P_MODEL,

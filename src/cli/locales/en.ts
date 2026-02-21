@@ -243,6 +243,8 @@ export const en = {
     'Headless only: include (redacted) tool input in stream-json output. Only valid with --output-format stream-json.',
   headlessIncludeToolOutputOption:
     'Headless only: include tool output summary in stream-json output. Only valid with --output-format stream-json.',
+  headlessIncludeAuthorizationDecisionsOption:
+    'Headless only: include tool authorization decisions in headless output. Only valid with --output-format json or stream-json.',
   jsonSchemaOption:
     'JSON Schema for structured_output (file path or JSON string). Only valid with --output-format json.',
   llmOutputOption:
@@ -272,6 +274,10 @@ export const en = {
     '--headless-include-tool-input/--headless-include-tool-output are only valid when --output-format is set to "stream-json".',
   headlessToolPayloadNotSupportedWithOpenAiProfile:
     '--headless-include-tool-input/--headless-include-tool-output are not supported with --output-profile "openai".',
+  headlessAuthorizationDecisionsRequireHeadlessOutput:
+    '--headless-include-authorization-decisions is only valid when --output-format is set to "json" or "stream-json".',
+  headlessAuthorizationDecisionsNotSupportedWithStrictProfiles:
+    '--headless-include-authorization-decisions is not supported with --output-profile "anthropic" or "openai".',
   outputProfileRequiresStreamJson:
     '--output-profile is only valid when --output-format is set to "stream-json".',
   outputProfileNotSupportedYet: (profile: string) =>

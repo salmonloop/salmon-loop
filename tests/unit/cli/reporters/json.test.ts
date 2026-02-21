@@ -42,6 +42,21 @@ describe('JsonReporter', () => {
       logs: [],
       changedFiles: ['src/a.ts'],
       usage: { inputTokens: 12, outputTokens: 34, totalTokens: 46 },
+      authorizationDecisions: [
+        {
+          callId: 'call-1',
+          toolName: 'fs.readFile',
+          phase: 'PATCH',
+          outcome: 'allow_once',
+          source: 'user',
+          reason: 'ok',
+          ttlMs: 123,
+          persist: 'repo',
+          riskLevel: 'low',
+          sideEffects: ['read'],
+          timestamp: '2026-02-20T00:00:00.000Z',
+        },
+      ],
     };
     reporter.onFinish(result);
 
@@ -62,6 +77,21 @@ describe('JsonReporter', () => {
       attempts: 1,
       changed_files: ['src/a.ts'],
       usage: { input_tokens: 12, output_tokens: 34, total_tokens: 46 },
+      authorization_decisions: [
+        {
+          call_id: 'call-1',
+          tool_name: 'fs.readFile',
+          phase: 'PATCH',
+          outcome: 'allow_once',
+          source: 'user',
+          reason: 'ok',
+          ttl_ms: 123,
+          persist: 'repo',
+          risk_level: 'low',
+          side_effects: ['read'],
+          timestamp: '2026-02-20T00:00:00.000Z',
+        },
+      ],
     });
 
     vi.useRealTimers();

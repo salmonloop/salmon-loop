@@ -6,7 +6,11 @@ import { LIMITS } from '../config/limits.js';
 import { logger } from '../observability/logger.js';
 
 import { ToolAuditLogger } from './audit.js';
-import type { ToolAuthorizationProvider, ToolAuthorizationRequest } from './authorization/types.js';
+import type {
+  AuthorizationDecision,
+  ToolAuthorizationProvider,
+  ToolAuthorizationRequest,
+} from './authorization/types.js';
 import { BudgetGuard } from './budget.js';
 import type { CompiledPermissionRules } from './permissions/permission-rules.js';
 import { decidePermissionForToolCall } from './permissions/permission-rules.js';
@@ -588,7 +592,7 @@ export class ToolRouter {
   private applyAuthorizationDecision(
     envelope: ToolCallEnvelope,
     spec: { name: string; source: string; riskLevel: string; sideEffects?: string[] },
-    decision: { outcome: string; reason?: string; source?: string; ttlMs?: number },
+    decision: AuthorizationDecision,
   ): { kind: 'allow' } | { kind: 'deny'; reason?: string; source?: string } {
     this.audit.onAuthorization({
       callId: envelope.id,
@@ -600,6 +604,7 @@ export class ToolRouter {
       riskLevel: spec.riskLevel,
       sideEffects: spec.sideEffects,
       ttlMs: decision.ttlMs,
+      persist: decision.persist,
     });
 
     if (decision.outcome === 'deny') {

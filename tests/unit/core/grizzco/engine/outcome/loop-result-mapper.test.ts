@@ -86,6 +86,59 @@ describe('loop-result-mapper', () => {
     expect(result.usage).toEqual({ inputTokens: 15, outputTokens: 21, totalTokens: 36 });
   });
 
+  it('surfaces authorization decisions when explicitly enabled', () => {
+    recordAuditEvent('authorization.decision', {
+      callId: 'call-1',
+      toolName: 'fs.readFile',
+      phase: 'PATCH',
+      outcome: 'allow_once',
+      reason: 'ok',
+      source: 'user',
+      ttlMs: 123,
+      persist: 'repo',
+      riskLevel: 'low',
+      sideEffects: ['read'],
+    });
+
+    const telemetry = createTelemetry();
+    const report: FlowTransactionReport = {
+      success: true,
+      attempts: 1,
+      flowReport: {
+        success: true,
+        duration: 1,
+        traces: [],
+        strategyName: 'patch',
+        fsMode: 'patch',
+      },
+      history: [],
+      retryExhausted: false,
+      lastContext: { diff: 'diff', changedFiles: [] } as any,
+    };
+
+    const result = buildLoopResultFromTransaction({
+      executionReport: report,
+      flowMode: 'patch',
+      options: { eventPayload: { includeAuthorizationDecisions: true } } as any,
+      telemetry,
+    });
+
+    expect(result.authorizationDecisions).toEqual([
+      expect.objectContaining({
+        callId: 'call-1',
+        toolName: 'fs.readFile',
+        phase: 'PATCH',
+        outcome: 'allow_once',
+        reason: 'ok',
+        source: 'user',
+        ttlMs: 123,
+        persist: 'repo',
+        riskLevel: 'low',
+        sideEffects: ['read'],
+      }),
+    ]);
+  });
+
   it('maps retry exhaustion as MAX_RETRIES', () => {
     const telemetry = createTelemetry();
     const report: FlowTransactionReport = {

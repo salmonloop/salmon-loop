@@ -20,6 +20,52 @@ function collectLines() {
 }
 
 describe('StreamJsonReporter', () => {
+  it('emits authorization decision events as loop events', () => {
+    const { lines, write } = collectLines();
+
+    const reporter = new StreamJsonReporter({
+      mode: 'run',
+      repoPath: '/repo',
+      sessionId: 'sess-authz',
+      now: () => new Date('2026-02-20T00:00:00.000Z'),
+      writer: createStdoutWriter({ write }),
+    });
+
+    reporter.onStart('x');
+    reporter.onEvent({
+      type: 'authorization.decision',
+      callId: 'call-1',
+      toolName: 'fs.readFile',
+      phase: 'PATCH',
+      outcome: 'allow_once',
+      source: 'user',
+      reason: 'ok',
+      ttlMs: 123,
+      persist: 'repo',
+      riskLevel: 'low',
+      sideEffects: ['read'],
+      timestamp: new Date('2026-02-20T00:00:01.000Z'),
+    });
+
+    const decisionLine = lines.find((l) => l.event?.type === 'authorization.decision');
+    expect(decisionLine).toMatchObject({
+      session_id: 'sess-authz',
+      event: {
+        type: 'authorization.decision',
+        callId: 'call-1',
+        toolName: 'fs.readFile',
+        phase: 'PATCH',
+        outcome: 'allow_once',
+        source: 'user',
+        reason: 'ok',
+        ttlMs: 123,
+        persist: 'repo',
+        riskLevel: 'low',
+        sideEffects: ['read'],
+      },
+    });
+  });
+
   it('emits JSONL with start, events, result, and end', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-02-20T00:00:00.000Z'));

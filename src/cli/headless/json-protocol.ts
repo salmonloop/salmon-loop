@@ -60,6 +60,24 @@ function toUsage(
   };
 }
 
+function toAuthorizationDecisions(result: LoopResult): unknown[] | undefined {
+  const decisions = result.authorizationDecisions;
+  if (!Array.isArray(decisions) || decisions.length === 0) return undefined;
+  return decisions.map((d) => ({
+    call_id: d.callId,
+    tool_name: d.toolName,
+    phase: d.phase,
+    outcome: d.outcome,
+    source: d.source,
+    reason: d.reason,
+    ttl_ms: d.ttlMs,
+    persist: d.persist,
+    risk_level: d.riskLevel,
+    side_effects: d.sideEffects,
+    timestamp: d.timestamp,
+  }));
+}
+
 export function encodeJsonResult(params: EncodeJsonResultParams): unknown {
   const overrides = params.overrides;
   const exitCode = overrides?.exitCode ?? toExitCode(params.loopResult);
@@ -86,6 +104,7 @@ export function encodeJsonResult(params: EncodeJsonResultParams): unknown {
       error_code: errorCode,
       authorization_summary: params.loopResult.authorizationSummary,
       usage: toUsage(params.loopResult),
+      authorization_decisions: toAuthorizationDecisions(params.loopResult),
       structured_output_error: overrides?.structuredOutputError,
       timestamps: {
         started_at: params.startedAt.toISOString(),

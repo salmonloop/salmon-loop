@@ -45,8 +45,21 @@ export interface ToolstackOptions {
       riskLevel?: string;
       sideEffects?: string[];
       ttlMs?: number;
+      persist?: 'repo' | 'user';
     },
   ) => void;
+  onAuthorizationDecision?: (event: {
+    callId: string;
+    phase: ExecutionPhase;
+    toolName: string;
+    outcome: string;
+    reason?: string;
+    source?: string;
+    riskLevel?: string;
+    sideEffects?: string[];
+    ttlMs?: number;
+    persist?: 'repo' | 'user';
+  }) => void;
   extensions?: ResolvedExtensions;
 }
 
@@ -61,6 +74,7 @@ export async function createStandardToolstack(options: ToolstackOptions) {
   const budget = new BudgetGuard(options.budget);
   const audit = new ToolAuditLogger({
     onAuthorizationSummary: options.onAuthorizationSummary,
+    onAuthorizationDecision: options.onAuthorizationDecision,
   });
   const sanitize = new ToolSanitizer();
 

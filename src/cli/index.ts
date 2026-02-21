@@ -89,6 +89,10 @@ program
   .option('--output-profile <profile>', text.cli.outputProfileOption)
   .option('--headless-include-tool-input', text.cli.headlessIncludeToolInputOption)
   .option('--headless-include-tool-output', text.cli.headlessIncludeToolOutputOption)
+  .option(
+    '--headless-include-authorization-decisions',
+    text.cli.headlessIncludeAuthorizationDecisionsOption,
+  )
   .option('--json-schema <schema>', text.cli.jsonSchemaOption)
   .option('--gui', 'Enable experimental TUI mode (Ink)')
   .action(handleRunCommand);
