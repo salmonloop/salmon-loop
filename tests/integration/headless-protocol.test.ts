@@ -154,6 +154,44 @@ describe('Headless protocol integration', () => {
     });
   }, 120000);
 
+  it('supports global -p print mode with --output-format stream-json --output-profile openai', async () => {
+    const repo = await helper.createGitRepo();
+
+    const { exitCode, stdout } = await runCli([
+      '-r',
+      repo.path,
+      '-p',
+      'hello',
+      '--output-format',
+      'stream-json',
+      '--output-profile',
+      'openai',
+      '--mode',
+      'review',
+      '--no-config-file',
+    ]);
+
+    expect(exitCode).toBe(0);
+    const lines = stdout
+      .split('\n')
+      .filter(Boolean)
+      .map((l) => JSON.parse(l) as any);
+
+    expect(lines.length).toBeGreaterThanOrEqual(3);
+    expect(lines[0]).toMatchObject({ type: 'response.created', sequence_number: 0 });
+    expect(lines[1]).toMatchObject({ type: 'response.in_progress', sequence_number: 1 });
+
+    const last = lines[lines.length - 1];
+    expect(last).toMatchObject({
+      type: 'response.completed',
+      response: { object: 'response', output_text: expect.any(String) },
+    });
+    expect(String(last.response.output_text).length).toBeGreaterThan(0);
+
+    const sequenceNumbers = lines.map((l) => l.sequence_number);
+    expect(sequenceNumbers).toEqual([...sequenceNumbers.keys()]);
+  }, 120000);
+
   it('prints machine-readable usage errors for --continue/--resume conflict when --output-format stream-json', async () => {
     const repo = await helper.createGitRepo();
 
@@ -260,6 +298,39 @@ describe('Headless protocol integration', () => {
       'stream-json',
       '--output-profile',
       'openai',
+      '--mode',
+      'review',
+      '--no-config-file',
+    ]);
+
+    expect(exitCode).toBe(1);
+    const lines = stdout
+      .split('\n')
+      .filter(Boolean)
+      .map((l) => JSON.parse(l) as any);
+
+    expect(lines).toHaveLength(4);
+    expect(lines[0]).toMatchObject({ type: 'response.created' });
+    expect(lines[1]).toMatchObject({ type: 'response.in_progress' });
+    expect(lines[2]).toMatchObject({ type: 'error' });
+    expect(lines[3]).toMatchObject({ type: 'response.failed' });
+  }, 120000);
+
+  it('prints OpenAI-compatible usage errors for --json-schema when --output-profile openai', async () => {
+    const repo = await helper.createGitRepo();
+
+    const { exitCode, stdout } = await runCli([
+      'run',
+      '-r',
+      repo.path,
+      '-i',
+      'x',
+      '--output-format',
+      'stream-json',
+      '--output-profile',
+      'openai',
+      '--json-schema',
+      '{}',
       '--mode',
       'review',
       '--no-config-file',
