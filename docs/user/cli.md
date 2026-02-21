@@ -102,7 +102,7 @@ s8p context -i "..." [-f src/file.ts | -s "..."] [--diff-scope primary|ast_relat
   - `stream-json`: Newline-delimited JSON (JSONL) on **stdout**. All human logs are routed to **stderr** to keep stdout machine-readable.
 - `--output-profile <profile>`: Select the event protocol profile for `--output-format stream-json`.
   - `native` (default): SalmonLoop native protocol (Claude-inspired, but versioned and extensible).
-  - `anthropic`: Reserved for strict Anthropic/Claude Code compatibility (not yet implemented).
+  - `anthropic`: Strict Anthropic/Claude Code headless-compatible JSONL protocol.
   - `openai`: Reserved for strict OpenAI compatibility (not yet implemented).
 
 ## Core Options (for Default Run)

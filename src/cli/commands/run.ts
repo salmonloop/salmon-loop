@@ -28,6 +28,11 @@ import {
   createTerminalAuthorizationProvider,
   createUiAuthorizationProvider,
 } from '../authorization/provider.js';
+import {
+  encodeAnthropicEnd,
+  encodeAnthropicError,
+  encodeAnthropicStart,
+} from '../headless/anthropic-stream-protocol.js';
 import { encodeJsonFailure } from '../headless/json-protocol.js';
 import {
   encodeStreamEnd,
@@ -35,6 +40,7 @@ import {
   encodeStreamStart,
 } from '../headless/stream-json-protocol.js';
 import { text } from '../locales/index.js';
+import { AnthropicStreamReporter } from '../reporters/anthropic-stream.js';
 import { SalmonReporter } from '../reporters/base.js';
 import { JsonReporter } from '../reporters/json.js';
 import { StandardReporter } from '../reporters/standard.js';
@@ -117,6 +123,11 @@ export async function handleRunCommand(options: any, command: Command) {
   const sessionManager = wantSessionPersistence ? new ChatSessionManager(runPath) : undefined;
   let sessionIdForOutput: string | undefined;
 
+  const rawOutputProfile =
+    typeof (allOptions as any).outputProfile === 'string'
+      ? String((allOptions as any).outputProfile)
+      : undefined;
+
   const writeStreamJsonEarlyFailure = (params: {
     sessionId: string;
     message: string;
@@ -159,10 +170,43 @@ export async function handleRunCommand(options: any, command: Command) {
     );
   };
 
-  const rawOutputProfile =
-    typeof (allOptions as any).outputProfile === 'string'
-      ? String((allOptions as any).outputProfile)
-      : undefined;
+  const writeAnthropicEarlyFailure = (params: {
+    sessionId: string;
+    message: string;
+    exitCode?: number;
+    instruction?: string;
+  }) => {
+    process.stdout.write(
+      JSON.stringify(
+        encodeAnthropicStart({
+          sessionId: params.sessionId,
+          mode: 'run',
+          repoPath: runPath,
+          instruction: params.instruction,
+        }),
+      ) + '\n',
+    );
+    process.stdout.write(
+      JSON.stringify(
+        encodeAnthropicError({
+          sessionId: params.sessionId,
+          message: params.message,
+        }),
+      ) + '\n',
+    );
+    process.stdout.write(
+      JSON.stringify(
+        encodeAnthropicEnd({
+          sessionId: params.sessionId,
+          loopResult: {
+            success: false,
+            reason: params.message,
+            errorCode: 'USAGE_ERROR',
+          } as any,
+        }),
+      ) + '\n',
+    );
+  };
 
   if (rawOutputProfile && outputFormat !== 'stream-json') {
     logger.error(text.cli.outputProfileRequiresStreamJson);
@@ -196,7 +240,7 @@ export async function handleRunCommand(options: any, command: Command) {
       return;
     }
 
-    if (outputProfile !== 'native') {
+    if (outputProfile === 'openai') {
       logger.error(text.cli.outputProfileNotSupportedYet(outputProfile));
       writeStreamJsonEarlyFailure({
         sessionId: sessionIdForOutput ?? randomUUID(),
@@ -210,10 +254,21 @@ export async function handleRunCommand(options: any, command: Command) {
   if (jsonSchemaSpec && outputFormat !== 'json') {
     logger.error(text.cli.jsonSchemaRequiresJsonOutput);
     if (outputFormat === 'stream-json') {
-      writeStreamJsonEarlyFailure({
-        sessionId: sessionIdForOutput ?? randomUUID(),
-        message: text.cli.jsonSchemaRequiresJsonOutput,
-      });
+      const sessionId = sessionIdForOutput ?? randomUUID();
+      const outputProfile = rawOutputProfile ?? 'native';
+      if (outputProfile === 'anthropic') {
+        writeAnthropicEarlyFailure({
+          sessionId,
+          message: text.cli.jsonSchemaRequiresJsonOutput,
+          instruction,
+        });
+      } else {
+        writeStreamJsonEarlyFailure({
+          sessionId,
+          message: text.cli.jsonSchemaRequiresJsonOutput,
+          instruction,
+        });
+      }
     }
     process.exitCode = 1;
     return;
@@ -247,7 +302,12 @@ export async function handleRunCommand(options: any, command: Command) {
           ) + '\n',
         );
       } else if (resumeSessionId && outputFormat === 'stream-json') {
-        writeStreamJsonEarlyFailure({ sessionId: resumeSessionId, message: msg });
+        const outputProfile = rawOutputProfile ?? 'native';
+        if (outputProfile === 'anthropic') {
+          writeAnthropicEarlyFailure({ sessionId: resumeSessionId, message: msg });
+        } else {
+          writeStreamJsonEarlyFailure({ sessionId: resumeSessionId, message: msg });
+        }
       } else {
         logger.error(msg);
       }
@@ -542,7 +602,17 @@ export async function handleRunCommand(options: any, command: Command) {
           onError: () => {},
         }
       : outputFormat === 'stream-json'
-        ? new StreamJsonReporter({ mode: 'run', repoPath: runPath, sessionId: sessionIdForOutput })
+        ? (rawOutputProfile ?? 'native') === 'anthropic'
+          ? new AnthropicStreamReporter({
+              mode: 'run',
+              repoPath: runPath,
+              sessionId: sessionIdForOutput,
+            })
+          : new StreamJsonReporter({
+              mode: 'run',
+              repoPath: runPath,
+              sessionId: sessionIdForOutput,
+            })
         : outputFormat === 'json'
           ? new JsonReporter({
               mode: 'run',

@@ -72,6 +72,40 @@ describe('Headless protocol integration', () => {
     expect(lines[2]).toMatchObject({ event: { type: 'end', success: false, exit_code: 1 } });
   }, 120000);
 
+  it('prints machine-readable usage errors when --output-profile anthropic', async () => {
+    const repo = await helper.createGitRepo();
+
+    const { exitCode, stdout } = await runCli([
+      'run',
+      '-r',
+      repo.path,
+      '-i',
+      'x',
+      '--output-format',
+      'stream-json',
+      '--output-profile',
+      'anthropic',
+      '--json-schema',
+      '{}',
+      '--mode',
+      'review',
+      '--no-config-file',
+    ]);
+
+    expect(exitCode).toBe(1);
+    const lines = stdout
+      .split('\n')
+      .filter(Boolean)
+      .map((l) => JSON.parse(l) as any);
+
+    expect(lines[0]).toMatchObject({ type: 'start', command: 'run' });
+    expect(lines[1]).toMatchObject({
+      type: 'error',
+      error: { message: expect.stringContaining('--json-schema') },
+    });
+    expect(lines[2]).toMatchObject({ type: 'end', success: false, exit_code: 1 });
+  }, 120000);
+
   it('fails the run if schema validation fails (strict mode)', async () => {
     const repo = await helper.createGitRepo();
     const schema = JSON.stringify({
