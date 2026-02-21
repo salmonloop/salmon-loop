@@ -307,6 +307,14 @@ describe('StreamAssembler', () => {
 
     expect(start).toEqual([
       {
+        type: 'normalized.tool_request_start',
+        callId: 'call-1',
+        toolName: 'fs.readFile',
+        phase: 'PATCH',
+        round: 1,
+        timestamp: at1,
+      },
+      {
         type: 'normalized.tool_call_start',
         callId: 'call-1',
         toolName: 'fs.readFile',
@@ -329,6 +337,14 @@ describe('StreamAssembler', () => {
 
     expect(end).toEqual([
       {
+        type: 'normalized.tool_request_end',
+        callId: 'call-1',
+        toolName: 'fs.readFile',
+        phase: 'PATCH',
+        round: 1,
+        timestamp: at2,
+      },
+      {
         type: 'normalized.tool_call_end',
         callId: 'call-1',
         toolName: 'fs.readFile',
@@ -342,7 +358,7 @@ describe('StreamAssembler', () => {
     ]);
   });
 
-  it('emits model tool call start from canonical output_item.added and suppresses host start', () => {
+  it('emits model tool request events from canonical output_item.added/done, while still emitting host execution events', () => {
     const assembler = new StreamAssembler();
     const at1 = new Date('2026-02-20T00:00:01.000Z');
     const at2 = new Date('2026-02-20T00:00:02.000Z');
@@ -375,15 +391,6 @@ describe('StreamAssembler', () => {
         toolName: 'fs.readFile',
         phase: 'PATCH',
         round: 1,
-        timestamp: at1,
-      },
-      {
-        type: 'normalized.tool_call_start',
-        callId: 'call-1',
-        toolName: 'fs.readFile',
-        phase: 'PATCH',
-        round: 1,
-        input: undefined,
         timestamp: at1,
       },
     ]);
@@ -428,7 +435,16 @@ describe('StreamAssembler', () => {
       timestamp: at3,
     } satisfies LoopEvent);
 
-    expect(hostStart).toEqual([]);
+    expect(hostStart).toEqual([
+      {
+        type: 'normalized.tool_call_start',
+        callId: 'call-1',
+        toolName: 'fs.readFile',
+        phase: 'PATCH',
+        round: 1,
+        timestamp: at3,
+      },
+    ]);
 
     const hostEnd = assembler.push({
       type: 'tool.call.end',
@@ -473,6 +489,14 @@ describe('StreamAssembler', () => {
 
     expect(start).toEqual([
       {
+        type: 'normalized.tool_request_start',
+        callId: 'call-1',
+        toolName: 'fs.readFile',
+        phase: 'PATCH',
+        round: 1,
+        timestamp: at1,
+      },
+      {
         type: 'normalized.tool_call_start',
         callId: 'call-1',
         toolName: 'fs.readFile',
@@ -495,6 +519,14 @@ describe('StreamAssembler', () => {
     } satisfies LoopEvent);
 
     expect(end).toEqual([
+      {
+        type: 'normalized.tool_request_end',
+        callId: 'call-1',
+        toolName: 'fs.readFile',
+        phase: 'PATCH',
+        round: 1,
+        timestamp: at2,
+      },
       {
         type: 'normalized.tool_call_end',
         callId: 'call-1',

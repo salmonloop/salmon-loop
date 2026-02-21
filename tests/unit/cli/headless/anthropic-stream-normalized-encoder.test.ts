@@ -4,16 +4,15 @@ import { encodeNormalizedToAnthropicStreamLines } from '../../../../src/cli/head
 import type { NormalizedStreamEvent } from '../../../../src/core/streaming/normalized-events.js';
 
 describe('encodeNormalizedToAnthropicStreamLines', () => {
-  it('includes tool input when present', () => {
+  it('redacts tool input by default', () => {
     const lines = encodeNormalizedToAnthropicStreamLines({
       sessionId: 'sess-1',
       event: {
-        type: 'normalized.tool_call_start',
+        type: 'normalized.tool_request_start',
         callId: 'call-1',
         toolName: 'fs.readFile',
         phase: 'PATCH',
         round: 1,
-        input: { file: 'README.md' },
         timestamp: new Date('2026-02-20T00:00:01.000Z'),
       } satisfies NormalizedStreamEvent,
     });
@@ -26,7 +25,7 @@ describe('encodeNormalizedToAnthropicStreamLines', () => {
           type: 'tool_use',
           id: 'call-1',
           name: 'fs.readFile',
-          input: { file: 'README.md' },
+          input: {},
         },
       },
     });

@@ -4,7 +4,7 @@ import { encodeNormalizedToNativeStreamLines } from '../../../../src/cli/headles
 import type { NormalizedStreamEvent } from '../../../../src/core/streaming/normalized-events.js';
 
 describe('encodeNormalizedToNativeStreamLines', () => {
-  it('includes tool input when present', () => {
+  it('redacts tool input by default', () => {
     const uuid = (() => {
       let i = 0;
       return () => `u-${++i}`;
@@ -14,12 +14,11 @@ describe('encodeNormalizedToNativeStreamLines', () => {
       sessionId: 'sess-1',
       uuid,
       event: {
-        type: 'normalized.tool_call_start',
+        type: 'normalized.tool_request_start',
         callId: 'call-1',
         toolName: 'fs.readFile',
         phase: 'PATCH',
         round: 1,
-        input: { file: 'README.md' },
         timestamp: new Date('2026-02-20T00:00:01.000Z'),
       } satisfies NormalizedStreamEvent,
     });
@@ -30,7 +29,7 @@ describe('encodeNormalizedToNativeStreamLines', () => {
         type: 'tool_use',
         id: 'call-1',
         name: 'fs.readFile',
-        input: { file: 'README.md' },
+        input: {},
       },
     });
   });

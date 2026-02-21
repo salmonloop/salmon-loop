@@ -285,7 +285,7 @@ export class OpenAiStreamEncoder {
       ];
     }
 
-    if (event.type === 'normalized.tool_call_start') {
+    if (event.type === 'normalized.tool_request_start') {
       if (this.functionCalls.has(event.callId)) return [];
 
       const outputIndex = this.output.length;
@@ -334,7 +334,7 @@ export class OpenAiStreamEncoder {
       ];
     }
 
-    if (event.type === 'normalized.tool_call_end') {
+    if (event.type === 'normalized.tool_request_end') {
       const st = this.functionCalls.get(event.callId);
       if (!st || st.done) return [];
       st.done = true;

@@ -76,14 +76,9 @@ export function encodeNormalizedToAnthropicStreamLines(params: {
     ];
   }
 
-  if (params.event.type === 'normalized.tool_call_start') {
+  if (params.event.type === 'normalized.tool_request_start') {
     const parentToolUseId = params.event.callId;
-    const input =
-      params.event.input &&
-      typeof params.event.input === 'object' &&
-      !Array.isArray(params.event.input)
-        ? (params.event.input as Record<string, unknown>)
-        : {};
+    const input: Record<string, unknown> = {};
 
     return [
       encodeAnthropicStreamEvent({

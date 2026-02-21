@@ -48,7 +48,7 @@ export function encodeNormalizedToNativeStreamLines(params: {
       ];
     }
 
-    // Tool blocks are derived from normalized.tool_call_* events (not emitted by the assembler).
+    // Tool blocks are derived from normalized.tool_request_* and normalized.tool_call_end events.
     return [];
   }
 
@@ -89,16 +89,11 @@ export function encodeNormalizedToNativeStreamLines(params: {
     ];
   }
 
-  if (params.event.type === 'normalized.tool_call_start') {
+  if (params.event.type === 'normalized.tool_request_start') {
     const parentToolUseId = params.event.callId;
     const phase = params.event.phase;
     const round = params.event.round;
-    const input =
-      params.event.input &&
-      typeof params.event.input === 'object' &&
-      !Array.isArray(params.event.input)
-        ? (params.event.input as Record<string, unknown>)
-        : {};
+    const input: Record<string, unknown> = {};
 
     return [
       encodeStreamEvent({

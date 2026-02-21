@@ -21,6 +21,8 @@ export class StreamAssembler {
   private readonly canonicalTextStreams = new Set<string>();
   private readonly canonicalClosedTextStreams = new Set<string>();
   private readonly startedToolCallIds = new Set<string>();
+  private readonly requestedToolCallIds = new Set<string>();
+  private readonly endedToolRequestIds = new Set<string>();
 
   constructor(options: StreamAssemblerOptions = {}) {
     this.clock = options.clock ?? (() => new Date());
@@ -51,39 +53,66 @@ export class StreamAssembler {
     }
 
     if (event.type === 'tool.call.start') {
-      if (this.startedToolCallIds.has(event.callId)) {
-        return [];
-      }
-      this.startedToolCallIds.add(event.callId);
-      return [
-        {
-          type: 'normalized.tool_call_start',
+      const out: NormalizedStreamEvent[] = [];
+
+      if (!this.requestedToolCallIds.has(event.callId)) {
+        this.requestedToolCallIds.add(event.callId);
+        out.push({
+          type: 'normalized.tool_request_start',
           callId: event.callId,
           toolName: event.toolName,
           phase: event.phase,
           round: event.round,
-          input: event.input,
           timestamp: event.timestamp,
-        },
-      ];
+        });
+      }
+
+      if (this.startedToolCallIds.has(event.callId)) return out;
+      this.startedToolCallIds.add(event.callId);
+
+      out.push({
+        type: 'normalized.tool_call_start',
+        callId: event.callId,
+        toolName: event.toolName,
+        phase: event.phase,
+        round: event.round,
+        ...(event.input === undefined ? {} : { input: event.input }),
+        timestamp: event.timestamp,
+      });
+
+      return out;
     }
 
     if (event.type === 'tool.call.end') {
-      this.startedToolCallIds.delete(event.callId);
-      return [
-        {
-          type: 'normalized.tool_call_end',
+      const out: NormalizedStreamEvent[] = [];
+
+      if (!this.endedToolRequestIds.has(event.callId)) {
+        this.endedToolRequestIds.add(event.callId);
+        out.push({
+          type: 'normalized.tool_request_end',
           callId: event.callId,
           toolName: event.toolName,
           phase: event.phase,
           round: event.round,
-          status: event.status,
-          durationMs: event.durationMs,
-          errorCode: event.errorCode,
-          outputSummary: event.outputSummary,
           timestamp: event.timestamp,
-        },
-      ];
+        });
+      }
+
+      this.startedToolCallIds.delete(event.callId);
+      out.push({
+        type: 'normalized.tool_call_end',
+        callId: event.callId,
+        toolName: event.toolName,
+        phase: event.phase,
+        round: event.round,
+        status: event.status,
+        durationMs: event.durationMs,
+        errorCode: event.errorCode,
+        outputSummary: event.outputSummary,
+        timestamp: event.timestamp,
+      });
+
+      return out;
     }
 
     return [];
@@ -204,20 +233,12 @@ export class StreamAssembler {
 
       const callId = event.event.item.call_id;
       const toolName = event.event.item.name;
-      if (this.startedToolCallIds.has(callId)) return [];
-      this.startedToolCallIds.add(callId);
+      if (this.requestedToolCallIds.has(callId)) return [];
+      this.requestedToolCallIds.add(callId);
 
       return [
         {
           type: 'normalized.tool_request_start',
-          callId,
-          toolName,
-          phase: event.phase,
-          round: event.round,
-          timestamp: event.timestamp,
-        },
-        {
-          type: 'normalized.tool_call_start',
           callId,
           toolName,
           phase: event.phase,
@@ -229,10 +250,13 @@ export class StreamAssembler {
 
     if (isOutputItemDoneFunctionCallEvent(event.event)) {
       if (!event.phase || typeof event.round !== 'number') return [];
+      const callId = event.event.item.call_id;
+      if (this.endedToolRequestIds.has(callId)) return [];
+      this.endedToolRequestIds.add(callId);
       return [
         {
           type: 'normalized.tool_request_end',
-          callId: event.event.item.call_id,
+          callId,
           toolName: event.event.item.name,
           phase: event.phase,
           round: event.round,
