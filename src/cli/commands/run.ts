@@ -14,6 +14,7 @@ import { logger } from '../../core/observability/logger.js';
 import { PluginLoader } from '../../core/plugin/loader.js';
 import { runSalmonLoop } from '../../core/runtime/loop.js';
 import { ChatSessionManager } from '../../core/session/manager.js';
+import { JsonSchemaValidator } from '../../core/structured-output/index.js';
 import {
   VerboseLevel,
   CheckpointStrategy,
@@ -36,6 +37,20 @@ import { StreamJsonReporter } from '../reporters/stream-json.js';
 import { resolveLlmOutputPolicyFromCli } from '../utils/llm-output.js';
 import { resolveVerifyOption } from '../utils/verify-resolver.js';
 
+async function loadJsonSchema(params: { schema: string; repoPath: string }): Promise<unknown> {
+  const value = params.schema.trim();
+  if (!value) throw new Error('Empty schema');
+
+  if (value.startsWith('{') || value.startsWith('[')) {
+    return JSON.parse(value);
+  }
+
+  const fs = await import('fs/promises');
+  const schemaPath = resolve(params.repoPath, value);
+  const raw = await fs.readFile(schemaPath, 'utf8');
+  return JSON.parse(raw);
+}
+
 export async function handleRunCommand(options: any, command: Command) {
   const allOptions = command.optsWithGlobals();
   const runPath = resolve(allOptions.repo || process.cwd());
@@ -50,6 +65,10 @@ export async function handleRunCommand(options: any, command: Command) {
       : undefined;
   const explicitInstruction =
     typeof allOptions.instruction === 'string' ? (allOptions.instruction as string) : undefined;
+  const jsonSchemaSpec =
+    typeof (allOptions as any).jsonSchema === 'string'
+      ? ((allOptions as any).jsonSchema as string)
+      : undefined;
 
   if (explicitInstruction && printInstruction) {
     logger.error(text.cli.printInstructionConflict, true);
@@ -116,6 +135,17 @@ export async function handleRunCommand(options: any, command: Command) {
       }) + '\n',
     );
   };
+
+  if (jsonSchemaSpec && outputFormat !== 'json') {
+    logger.error(text.cli.jsonSchemaRequiresJsonOutput, true);
+    if (outputFormat === 'stream-json') {
+      writeStreamJsonEarlyError({
+        sessionId: sessionIdForOutput ?? randomUUID(),
+        message: text.cli.jsonSchemaRequiresJsonOutput,
+      });
+    }
+    process.exit(1);
+  }
 
   if (sessionManager) {
     await sessionManager.init();
@@ -425,6 +455,11 @@ export async function handleRunCommand(options: any, command: Command) {
 
     // Initialize Reporter (Adapter Pattern)
     // NOTE: In GUI mode we must avoid writing to stdout/stderr outside Ink.
+    let structuredOutputCandidate: unknown | null = null;
+    let structuredOutputOk = true;
+    let structuredOutputErrorCode: string | undefined;
+    let structuredOutputErrorReason: string | undefined;
+
     const reporter: SalmonReporter = useGui
       ? {
           onStart: () => {},
@@ -435,7 +470,26 @@ export async function handleRunCommand(options: any, command: Command) {
       : outputFormat === 'stream-json'
         ? new StreamJsonReporter({ mode: 'run', repoPath: runPath, sessionId: sessionIdForOutput })
         : outputFormat === 'json'
-          ? new JsonReporter({ mode: 'run', repoPath: runPath, sessionId: sessionIdForOutput })
+          ? new JsonReporter({
+              mode: 'run',
+              repoPath: runPath,
+              sessionId: sessionIdForOutput,
+              getStructuredOutput: () => (structuredOutputOk ? structuredOutputCandidate : null),
+              getPayloadOverrides: () =>
+                structuredOutputOk
+                  ? undefined
+                  : {
+                      success: false,
+                      exitCode: 1,
+                      reason:
+                        structuredOutputErrorCode === 'SCHEMA_INVALID'
+                          ? (structuredOutputErrorReason ?? text.cli.structuredOutputSchemaFailed)
+                          : text.cli.structuredOutputSchemaFailed,
+                      reasonCode: 'SCHEMA_VALIDATION_FAILED',
+                      errorCode: structuredOutputErrorCode ?? 'SCHEMA_VALIDATION_FAILED',
+                      structuredOutputError: structuredOutputErrorReason,
+                    },
+            })
           : new StandardReporter(Boolean(allOptions.verbose));
 
     reporter.onStart(instruction);
@@ -561,6 +615,44 @@ export async function handleRunCommand(options: any, command: Command) {
       });
     }
 
+    if (outputFormat === 'json' && jsonSchemaSpec && result.success) {
+      try {
+        const schema = await loadJsonSchema({ schema: jsonSchemaSpec, repoPath: runPath });
+        const validator = new JsonSchemaValidator();
+
+        structuredOutputCandidate = {
+          command: 'run',
+          repo_path: runPath,
+          instruction,
+          session_id: sessionIdForOutput,
+          success: Boolean(result.success),
+          exit_code: resolveExitCode(result),
+          reason: result.reason,
+          reason_code: result.reasonCode,
+          attempts: result.attempts,
+          changed_files: result.changedFiles ?? [],
+          audit_path: result.auditPath,
+          error_code: result.errorCode,
+          authorization_summary: result.authorizationSummary,
+        };
+
+        const validation = validator.validate({
+          schema,
+          data: structuredOutputCandidate,
+        });
+        if (!validation.ok) {
+          structuredOutputOk = false;
+          structuredOutputErrorCode = validation.error?.code;
+          structuredOutputErrorReason = validation.error?.message;
+        }
+      } catch (err: any) {
+        structuredOutputOk = false;
+        structuredOutputErrorCode = 'SCHEMA_INVALID';
+        const msg = err instanceof Error ? err.message : String(err);
+        structuredOutputErrorReason = text.cli.jsonSchemaLoadFailed(msg);
+      }
+    }
+
     reporter.onFinish(result);
 
     if (sessionManager && typeof instruction === 'string') {
@@ -591,7 +683,7 @@ export async function handleRunCommand(options: any, command: Command) {
       }
     }
 
-    process.exitCode = resolveExitCode(result);
+    process.exitCode = result.success && !structuredOutputOk ? 1 : resolveExitCode(result);
     return;
   } catch (err: any) {
     const msg = err instanceof Error ? err.message : String(err);

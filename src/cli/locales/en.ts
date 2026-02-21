@@ -235,6 +235,8 @@ export const en = {
   worktreePrepareOption: 'Optional setup command to run inside worktree',
   streamOutputOption: 'Stream LLM responses to the CLI as they arrive (best effort)',
   outputFormatOption: 'Output format (text, json, stream-json)',
+  jsonSchemaOption:
+    'JSON Schema for structured_output (file path or JSON string). Only valid with --output-format json.',
   llmOutputOption:
     'LLM output visibility (none, all, review, assistant_message, explore, plan, patch; comma-separated)',
   contextDiffScopeOption: 'Diff scope for context (primary, ast_related)',
@@ -248,6 +250,10 @@ export const en = {
   printInstructionConflict: '--print and --instruction are mutually exclusive.',
   printCommandConflict: (cmd: string) =>
     `--print can only be used with the "run" command (got: ${cmd}).`,
+  jsonSchemaRequiresJsonOutput:
+    '--json-schema is only valid when --output-format is set to "json".',
+  jsonSchemaLoadFailed: (msg: string) => `Failed to load JSON schema: ${msg}.`,
+  structuredOutputSchemaFailed: 'Structured output failed schema validation.',
   invalidMode: (mode: string) =>
     `Invalid --mode "${mode}". Expected "patch", "review", or "debug".`,
   invalidOutputFormat: (format: string) =>

@@ -4,10 +4,21 @@ import type { LoopEvent, LoopResult } from '../../core/types/index.js';
 
 import type { SalmonReporter } from './base.js';
 
+export interface JsonPayloadOverrides {
+  success?: boolean;
+  exitCode?: number;
+  reason?: string;
+  reasonCode?: string;
+  errorCode?: string;
+  structuredOutputError?: string;
+}
+
 export interface JsonReporterOptions {
   mode?: 'run' | 'chat';
   repoPath?: string;
   sessionId?: string;
+  getStructuredOutput?: () => unknown | null;
+  getPayloadOverrides?: () => JsonPayloadOverrides | undefined;
   now?: () => Date;
   write?: (chunk: string) => boolean;
 }
@@ -21,6 +32,8 @@ export class JsonReporter implements SalmonReporter {
   private readonly mode: 'run' | 'chat';
   private readonly repoPath?: string;
   private readonly sessionId: string;
+  private readonly getStructuredOutput?: () => unknown | null;
+  private readonly getPayloadOverrides?: () => JsonPayloadOverrides | undefined;
   private readonly now: () => Date;
   private readonly write: (chunk: string) => boolean;
   private startedAt: Date | null = null;
@@ -31,6 +44,8 @@ export class JsonReporter implements SalmonReporter {
     this.mode = options.mode ?? 'run';
     this.repoPath = options.repoPath;
     this.sessionId = options.sessionId ?? randomUUID();
+    this.getStructuredOutput = options.getStructuredOutput;
+    this.getPayloadOverrides = options.getPayloadOverrides;
     this.now = options.now ?? (() => new Date());
     this.write = options.write ?? ((chunk) => process.stdout.write(chunk));
   }
@@ -53,25 +68,32 @@ export class JsonReporter implements SalmonReporter {
   onFinish(result: LoopResult): void {
     const endedAt = this.now();
     const startedAt = this.startedAt ?? endedAt;
-    const exitCode = toExitCode(result);
+    const overrides = this.getPayloadOverrides?.();
+    const exitCode = overrides?.exitCode ?? toExitCode(result);
+    const success = overrides?.success ?? Boolean(result.success);
+    const reason = overrides?.reason ?? result.reason;
+    const reasonCode = overrides?.reasonCode ?? result.reasonCode;
+    const errorCode = overrides?.errorCode ?? result.errorCode;
 
+    const structuredOutput = this.getStructuredOutput?.() ?? null;
     const payload = {
       result: this.lastTextResult ?? '',
-      structured_output: null as null,
+      structured_output: structuredOutput,
       session_id: this.sessionId,
       metadata: {
         command: this.mode,
         repo_path: this.repoPath,
         instruction: this.instruction,
-        success: Boolean(result.success),
+        success,
         exit_code: exitCode,
-        reason: result.reason,
-        reason_code: result.reasonCode,
+        reason,
+        reason_code: reasonCode,
         attempts: result.attempts,
         changed_files: result.changedFiles ?? [],
         audit_path: result.auditPath,
-        error_code: result.errorCode,
+        error_code: errorCode,
         authorization_summary: result.authorizationSummary,
+        structured_output_error: overrides?.structuredOutputError,
         timestamps: {
           started_at: startedAt.toISOString(),
           ended_at: endedAt.toISOString(),

@@ -82,6 +82,7 @@ program
   .option('--worktree-prepare <command>', text.cli.worktreePrepareOption)
   .option('--stream-output', text.cli.streamOutputOption)
   .option('--output-format <format>', text.cli.outputFormatOption, 'text')
+  .option('--json-schema <schema>', text.cli.jsonSchemaOption)
   .option('--gui', 'Enable experimental TUI mode (Ink)')
   .action(handleRunCommand);
 

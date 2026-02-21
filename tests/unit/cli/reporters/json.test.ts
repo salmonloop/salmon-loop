@@ -89,4 +89,57 @@ describe('JsonReporter', () => {
 
     vi.useRealTimers();
   });
+
+  it('supports structured_output and payload overrides', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-02-20T00:00:00.000Z'));
+
+    let out = '';
+    const write = (chunk: string) => {
+      out += chunk;
+      return true;
+    };
+
+    const reporter = new JsonReporter({
+      mode: 'run',
+      repoPath: '/repo',
+      sessionId: 'sess-3',
+      now: () => new Date(),
+      write,
+      getStructuredOutput: () => ({ files: ['a.ts'] }),
+      getPayloadOverrides: () => ({
+        success: false,
+        exitCode: 1,
+        reason: 'Structured output failed schema validation.',
+        reasonCode: 'SCHEMA_VALIDATION_FAILED',
+        errorCode: 'SCHEMA_VALIDATION_FAILED',
+        structuredOutputError: 'Structured output failed schema validation.',
+      }),
+    });
+
+    reporter.onStart('x');
+    reporter.onFinish({
+      success: true,
+      reason: 'SUCCESS',
+      reasonCode: 'SUCCESS',
+      attempts: 1,
+      logs: [],
+      changedFiles: [],
+    } as any);
+
+    const obj = JSON.parse(out.trim());
+    expect(obj).toMatchObject({
+      structured_output: { files: ['a.ts'] },
+    });
+    expect(obj.metadata).toMatchObject({
+      success: false,
+      exit_code: 1,
+      reason: 'Structured output failed schema validation.',
+      reason_code: 'SCHEMA_VALIDATION_FAILED',
+      error_code: 'SCHEMA_VALIDATION_FAILED',
+      structured_output_error: 'Structured output failed schema validation.',
+    });
+
+    vi.useRealTimers();
+  });
 });
