@@ -8,6 +8,7 @@ import {
   encodeAnthropicStart,
 } from '../../headless/anthropic-stream-protocol.js';
 import { encodeJsonFailure } from '../../headless/json-protocol.js';
+import { OpenAiStreamEncoder } from '../../headless/openai-stream-encoder.js';
 import type { StdoutWriter } from '../../headless/stdout-writer.js';
 import {
   encodeStreamEnd,
@@ -98,6 +99,25 @@ function writeAnthropicEarlyFailure(params: {
   );
 }
 
+function writeOpenAiEarlyFailure(params: {
+  writer: StdoutWriter;
+  message: string;
+  exitCode?: number;
+}) {
+  const encoder = new OpenAiStreamEncoder({
+    now: () => new Date(),
+    model: 'unknown',
+    responseId: () => `resp_${randomUUID().replace(/-/g, '')}`,
+    itemId: () => `msg_${randomUUID().replace(/-/g, '')}`,
+    sequenceNumberStart: 0,
+  });
+
+  const code = params.exitCode === 1 ? 'usage_error' : null;
+  for (const event of encoder.usageError({ message: params.message, code })) {
+    params.writer.writeJsonLine(event);
+  }
+}
+
 function resolveSessionId(ctx: HeadlessErrorWriterContext, override?: string): string {
   return override ?? ctx.getResumeSessionId() ?? ctx.getSessionId() ?? randomUUID();
 }
@@ -155,6 +175,12 @@ export function createHeadlessErrorWriter(ctx: HeadlessErrorWriterContext) {
           exitCode,
           instruction: params.instruction,
         });
+      } else if (ctx.outputProfileForStreamJson === 'openai') {
+        writeOpenAiEarlyFailure({
+          writer: ctx.writer,
+          message: params.message,
+          exitCode,
+        });
       } else {
         writeStreamJsonEarlyFailure({
           writer: ctx.writer,
@@ -193,6 +219,11 @@ export function createHeadlessErrorWriter(ctx: HeadlessErrorWriterContext) {
           sessionId,
           message: params.message,
           instruction: params.instruction,
+        });
+      } else if (ctx.outputProfileForStreamJson === 'openai') {
+        writeOpenAiEarlyFailure({
+          writer: ctx.writer,
+          message: params.message,
         });
       } else {
         writeStreamJsonEarlyFailure({

@@ -243,7 +243,7 @@ describe('Headless protocol integration', () => {
     });
   }, 120000);
 
-  it('prints machine-readable errors when --output-profile openai is not supported', async () => {
+  it('prints OpenAI-compatible usage errors when --output-profile openai', async () => {
     const repo = await helper.createGitRepo();
 
     const { exitCode, stdout } = await runCli([
@@ -252,6 +252,8 @@ describe('Headless protocol integration', () => {
       repo.path,
       '--resume',
       'sess-openai',
+      '-p',
+      'hello',
       '-i',
       'x',
       '--output-format',
@@ -269,16 +271,11 @@ describe('Headless protocol integration', () => {
       .filter(Boolean)
       .map((l) => JSON.parse(l) as any);
 
-    expect(lines).toHaveLength(3);
-    expect(lines[0]).toMatchObject({ session_id: 'sess-openai', event: { type: 'start' } });
-    expect(lines[1]).toMatchObject({
-      session_id: 'sess-openai',
-      event: { type: 'error', error: { message: expect.stringContaining('openai') } },
-    });
-    expect(lines[2]).toMatchObject({
-      session_id: 'sess-openai',
-      event: { type: 'end', success: false, exit_code: 1 },
-    });
+    expect(lines).toHaveLength(4);
+    expect(lines[0]).toMatchObject({ type: 'response.created' });
+    expect(lines[1]).toMatchObject({ type: 'response.in_progress' });
+    expect(lines[2]).toMatchObject({ type: 'error' });
+    expect(lines[3]).toMatchObject({ type: 'response.failed' });
   }, 120000);
 
   it('prints machine-readable usage errors when --output-format stream-json', async () => {

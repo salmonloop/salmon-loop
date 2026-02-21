@@ -2,6 +2,7 @@ import type { StdoutWriter } from '../../headless/stdout-writer.js';
 import { AnthropicStreamReporter } from '../../reporters/anthropic-stream.js';
 import type { SalmonReporter } from '../../reporters/base.js';
 import { JsonReporter } from '../../reporters/json.js';
+import { OpenAiStreamReporter } from '../../reporters/openai-stream.js';
 import { StandardReporter } from '../../reporters/standard.js';
 import { StreamJsonReporter } from '../../reporters/stream-json.js';
 
@@ -17,6 +18,7 @@ export interface ReporterFactoryParams {
   verbose: boolean;
   getStructuredOutput: () => unknown | null;
   getPayloadOverrides: () => Record<string, unknown> | undefined;
+  model?: string;
 }
 
 function createNoopReporter(): SalmonReporter {
@@ -32,11 +34,19 @@ export function createRunReporter(params: ReporterFactoryParams): SalmonReporter
   if (params.useGui) return createNoopReporter();
 
   if (params.outputFormat === 'stream-json') {
-    if ((params.rawOutputProfile ?? 'native') === 'anthropic') {
+    const profile = params.rawOutputProfile ?? 'native';
+    if (profile === 'anthropic') {
       return new AnthropicStreamReporter({
         mode: 'run',
         repoPath: params.repoPath,
         sessionId: params.sessionIdForOutput,
+        writer: params.writer,
+      });
+    }
+
+    if (profile === 'openai') {
+      return new OpenAiStreamReporter({
+        model: params.model,
         writer: params.writer,
       });
     }

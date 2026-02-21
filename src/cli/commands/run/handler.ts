@@ -255,6 +255,7 @@ export async function handleRunCommand(options: any, command: Command) {
       sessionIdForOutput,
       writer: stdoutWriter,
       verbose: Boolean(allOptions.verbose),
+      model: resolvedConfig.llm.models?.selectedModelId,
       getStructuredOutput: () =>
         structuredOutputState.ok ? structuredOutputState.candidate : null,
       getPayloadOverrides: () => {

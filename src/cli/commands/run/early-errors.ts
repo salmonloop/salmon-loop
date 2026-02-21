@@ -85,15 +85,6 @@ export function handleEarlyRunCommandErrors(params: {
       });
       return { ok: false, exitCode: 1 };
     }
-
-    if (outputProfile === 'openai') {
-      logger.error(text.cli.outputProfileNotSupportedYet(outputProfile));
-      params.headlessErrorWriter.writeUnexpectedError({
-        sessionId: params.sessionIdForOutput ?? params.resumeSessionId,
-        message: text.cli.outputProfileNotSupportedYet(outputProfile),
-      });
-      return { ok: false, exitCode: 1 };
-    }
   }
 
   if (params.jsonSchemaSpec && params.outputFormat !== 'json') {
