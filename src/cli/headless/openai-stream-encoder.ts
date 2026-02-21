@@ -24,6 +24,15 @@ type OpenAiResponseTextPart = {
   annotations: unknown[];
 };
 
+type OpenAiFunctionCallOutputItem = {
+  id: string;
+  type: 'function_call';
+  call_id: string;
+  name: string;
+  arguments: string;
+  status: 'in_progress' | 'completed';
+};
+
 type OpenAiMessageOutputItem = {
   id: string;
   type: 'message';
@@ -32,17 +41,20 @@ type OpenAiMessageOutputItem = {
   content: OpenAiResponseTextPart[];
 };
 
+type OpenAiOutputItem = OpenAiMessageOutputItem | OpenAiFunctionCallOutputItem;
+
 type OpenAiResponseObject = {
   id: string;
   object: 'response';
   created_at: number;
+  user: string | null;
   status: 'in_progress' | 'completed' | 'failed';
   error: OpenAiResponseError | null;
   incomplete_details: null;
   instructions: string | null;
   max_output_tokens: number | null;
   model: string;
-  output: OpenAiMessageOutputItem[];
+  output: OpenAiOutputItem[];
   parallel_tool_calls: boolean;
   previous_response_id: string | null;
   reasoning: { effort: string | null; summary: string | null };
@@ -67,15 +79,16 @@ function createResponseObject(params: {
   createdAt: number;
   status: OpenAiResponseObject['status'];
   model: string;
-  output: OpenAiMessageOutputItem[];
+  output: OpenAiOutputItem[];
   error: OpenAiResponseError | null;
   metadata?: Record<string, string>;
-  completedAt?: number | null;
+  completedAt?: number;
 }): OpenAiResponseObject {
   const response: OpenAiResponseObject = {
     id: params.id,
     object: 'response',
     created_at: params.createdAt,
+    user: null,
     status: params.status,
     error: params.error,
     incomplete_details: null,
@@ -97,7 +110,7 @@ function createResponseObject(params: {
     metadata: params.metadata ?? {},
   };
 
-  if (params.completedAt !== undefined) response.completed_at = params.completedAt;
+  if (typeof params.completedAt === 'number') response.completed_at = params.completedAt;
   return response;
 }
 
@@ -107,6 +120,10 @@ function defaultResponseId(): string {
 
 function defaultItemId(): string {
   return `msg_${randomUUID().replace(/-/g, '')}`;
+}
+
+function defaultFunctionCallId(): string {
+  return `fc_${randomUUID().replace(/-/g, '')}`;
 }
 
 function createErrorObject(params: {
@@ -140,8 +157,8 @@ export interface OpenAiStreamEncoderOptions {
   model?: string;
   responseId?: () => string;
   itemId?: () => string;
+  functionCallId?: () => string;
   metadata?: Record<string, string>;
-  sequenceNumberStart?: number;
 }
 
 export class OpenAiStreamEncoder {
@@ -149,24 +166,25 @@ export class OpenAiStreamEncoder {
   private readonly model: string;
   private readonly responseIdFn: () => string;
   private readonly itemIdFn: () => string;
+  private readonly functionCallIdFn: () => string;
   private readonly metadata: Record<string, string>;
-  private sequenceNumber: number;
 
   private responseId: string | null = null;
   private createdAt: number | null = null;
-  private readonly output: OpenAiMessageOutputItem[] = [];
+  private readonly output: OpenAiOutputItem[] = [];
   private readonly byMessageId = new Map<
     string,
     { outputIndex: number; itemId: string; text: string; contentStarted: boolean }
   >();
+  private readonly byCallId = new Map<string, { outputIndex: number; itemId: string }>();
 
   constructor(options: OpenAiStreamEncoderOptions = {}) {
     this.now = options.now ?? (() => new Date());
     this.model = options.model ?? 'unknown';
     this.responseIdFn = options.responseId ?? defaultResponseId;
     this.itemIdFn = options.itemId ?? defaultItemId;
+    this.functionCallIdFn = options.functionCallId ?? defaultFunctionCallId;
     this.metadata = options.metadata ?? {};
-    this.sequenceNumber = options.sequenceNumberStart ?? 0;
   }
 
   start(): OpenAiStreamEvent[] {
@@ -184,18 +202,15 @@ export class OpenAiStreamEncoder {
       output: this.output,
       error: null,
       metadata: this.metadata,
-      completedAt: null,
     });
 
     return [
       {
         type: 'response.created',
-        sequence_number: this.nextSequenceNumber(),
         response,
       },
       {
         type: 'response.in_progress',
-        sequence_number: this.nextSequenceNumber(),
         response,
       },
     ];
@@ -227,7 +242,6 @@ export class OpenAiStreamEncoder {
       return [
         {
           type: 'response.output_item.added',
-          sequence_number: this.nextSequenceNumber(),
           output_index: outputIndex,
           item,
         },
@@ -243,13 +257,13 @@ export class OpenAiStreamEncoder {
       st.contentStarted = true;
 
       const item = this.output[st.outputIndex];
+      if (!item || item.type !== 'message') return [];
       const part: OpenAiResponseTextPart = { type: 'output_text', text: '', annotations: [] };
       item.content.push(part);
 
       return [
         {
           type: 'response.content_part.added',
-          sequence_number: this.nextSequenceNumber(),
           output_index: st.outputIndex,
           item_id: st.itemId,
           content_index: 0,
@@ -269,7 +283,6 @@ export class OpenAiStreamEncoder {
       return [
         {
           type: 'response.output_text.delta',
-          sequence_number: this.nextSequenceNumber(),
           output_index: st.outputIndex,
           item_id: st.itemId,
           content_index: 0,
@@ -283,6 +296,7 @@ export class OpenAiStreamEncoder {
       if (!st) return [];
 
       const item = this.output[st.outputIndex];
+      if (!item || item.type !== 'message') return [];
       const part: OpenAiResponseTextPart = {
         type: 'output_text',
         text: st.text,
@@ -294,7 +308,6 @@ export class OpenAiStreamEncoder {
       return [
         {
           type: 'response.output_text.done',
-          sequence_number: this.nextSequenceNumber(),
           output_index: st.outputIndex,
           item_id: st.itemId,
           content_index: 0,
@@ -302,7 +315,6 @@ export class OpenAiStreamEncoder {
         },
         {
           type: 'response.content_part.done',
-          sequence_number: this.nextSequenceNumber(),
           output_index: st.outputIndex,
           item_id: st.itemId,
           content_index: 0,
@@ -321,8 +333,59 @@ export class OpenAiStreamEncoder {
       return [
         {
           type: 'response.output_item.done',
-          sequence_number: this.nextSequenceNumber(),
           output_index: st.outputIndex,
+          item,
+        },
+      ];
+    }
+
+    if (event.type === 'normalized.tool_call_start') {
+      if (this.byCallId.has(event.callId)) return [];
+
+      const outputIndex = this.output.length;
+      const itemId = this.functionCallIdFn();
+      const item: OpenAiFunctionCallOutputItem = {
+        id: itemId,
+        type: 'function_call',
+        call_id: event.callId,
+        name: event.toolName,
+        arguments: '{}',
+        status: 'in_progress',
+      };
+
+      this.output.push(item);
+      this.byCallId.set(event.callId, { outputIndex, itemId });
+
+      return [
+        {
+          type: 'response.output_item.added',
+          output_index: outputIndex,
+          item,
+        },
+      ];
+    }
+
+    if (event.type === 'normalized.tool_call_end') {
+      const existing = this.byCallId.get(event.callId);
+      if (!existing) {
+        const startLines = this.push({
+          type: 'normalized.tool_call_start',
+          callId: event.callId,
+          toolName: event.toolName,
+          phase: event.phase,
+          round: event.round,
+          timestamp: event.timestamp,
+        } as any);
+        return [...startLines, ...this.push(event)];
+      }
+
+      const item = this.output[existing.outputIndex] as OpenAiFunctionCallOutputItem;
+      item.status = 'completed';
+
+      return [
+        {
+          type: 'response.output_item.done',
+          output_index: existing.outputIndex,
           item,
         },
       ];
@@ -359,7 +422,6 @@ export class OpenAiStreamEncoder {
     return [
       {
         type: params.ok ? 'response.completed' : 'response.failed',
-        sequence_number: this.nextSequenceNumber(),
         response,
       },
     ];
@@ -371,7 +433,6 @@ export class OpenAiStreamEncoder {
       return [
         {
           type: 'error',
-          sequence_number: this.nextSequenceNumber(),
           error: createErrorObject({ message, type: 'server_error' }),
         },
       ];
@@ -381,7 +442,6 @@ export class OpenAiStreamEncoder {
     return [
       {
         type: 'error',
-        sequence_number: this.nextSequenceNumber(),
         error: createErrorObject({ message, type: 'server_error' }),
       },
       ...this.complete({ ok: false, message, code: null }),
@@ -393,7 +453,6 @@ export class OpenAiStreamEncoder {
     events.push(...this.start());
     events.push({
       type: 'error',
-      sequence_number: this.nextSequenceNumber(),
       error: createErrorObject({
         message: params.message,
         type: 'invalid_request_error',
@@ -404,9 +463,5 @@ export class OpenAiStreamEncoder {
       ...this.complete({ ok: false, message: params.message, code: params.code ?? null }),
     );
     return events;
-  }
-
-  private nextSequenceNumber(): number {
-    return this.sequenceNumber++;
   }
 }

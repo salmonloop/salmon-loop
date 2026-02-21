@@ -39,6 +39,7 @@ describe('OpenAiStreamReporter', () => {
       now,
       responseId: () => 'resp_1',
       itemId: () => 'msg_1',
+      functionCallId: () => 'fc_1',
       writer: createStdoutWriter({ write }),
     });
 
@@ -112,6 +113,7 @@ describe('OpenAiStreamReporter', () => {
       now,
       responseId: () => 'resp_1',
       itemId: () => 'msg_1',
+      functionCallId: () => 'fc_1',
       writer: createStdoutWriter({ write }),
     });
 

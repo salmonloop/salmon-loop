@@ -109,7 +109,6 @@ function writeOpenAiEarlyFailure(params: {
     model: 'unknown',
     responseId: () => `resp_${randomUUID().replace(/-/g, '')}`,
     itemId: () => `msg_${randomUUID().replace(/-/g, '')}`,
-    sequenceNumberStart: 0,
   });
 
   const code = params.exitCode === 1 ? 'usage_error' : null;
