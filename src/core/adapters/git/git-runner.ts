@@ -1,8 +1,8 @@
-import { spawn } from 'child_process';
 import { realpathSync } from 'fs';
 import path from 'path';
 
 import { LIMITS } from '../../config/limits.js';
+import { spawnCommand } from '../../runtime/process-runner.js';
 
 export interface GitRunLimits {
   /**
@@ -83,57 +83,29 @@ export async function runGitCommand(input: GitRunInput): Promise<GitRunResult> {
   const killGraceMs = LIMITS.gitKillGraceMs;
   const isWin = process.platform === 'win32';
 
-  return await new Promise((resolve) => {
-    let killTimer: NodeJS.Timeout | undefined;
+  const stdoutChunks: Buffer[] = [];
+  let stdoutBytes = 0;
+  let stdoutTruncated = false;
 
-    const child = spawn('git', input.args, {
-      cwd,
-      env: {
-        ...process.env,
-        LC_ALL: 'C',
-        GIT_OPTIONAL_LOCKS: '0',
-        ...(input.env || {}),
-      },
-      stdio: ['pipe', 'pipe', 'pipe'],
-      windowsHide: true,
-      detached: !isWin,
-    });
+  let stderr = '';
+  let stderrTruncated = false;
 
-    let settled = false;
-    const settle = (res: GitRunResult) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timeoutTimer);
-      if (killTimer) clearTimeout(killTimer);
-      resolve(res);
-    };
-
-    const stdoutChunks: Buffer[] = [];
-    let stdoutBytes = 0;
-    let stdoutTruncated = false;
-
-    let stderr = '';
-    let stderrTruncated = false;
-
-    let timedOut = false;
-    const killProcess = (signal: NodeJS.Signals) => {
-      try {
-        if (!isWin && typeof child.pid === 'number') {
-          // Kill the whole process group to avoid leaving helper processes behind.
-          process.kill(-child.pid, signal);
-          return;
-        }
-      } catch {
-        // Ignore, fall back to killing the child only.
-      }
-      try {
-        child.kill(signal);
-      } catch {
-        // Ignore
-      }
-    };
-
-    child.stdout?.on('data', (chunk) => {
+  const result = await spawnCommand({
+    command: 'git',
+    args: input.args,
+    cwd,
+    env: {
+      ...process.env,
+      LC_ALL: 'C',
+      GIT_OPTIONAL_LOCKS: '0',
+      ...(input.env || {}),
+    },
+    stdin: input.input,
+    timeoutMs,
+    killGraceMs,
+    windowsHide: true,
+    detached: !isWin,
+    onStdoutChunk: (chunk) => {
       if (stdoutTruncated) return;
       const buf = Buffer.from(chunk);
       const nextBytes = stdoutBytes + buf.length;
@@ -149,11 +121,10 @@ export async function runGitCommand(input: GitRunInput): Promise<GitRunResult> {
         stdoutBytes += remaining;
       }
       stdoutTruncated = true;
-    });
-
-    child.stderr?.on('data', (chunk) => {
+    },
+    onStderrChunk: (chunk) => {
       if (stderrTruncated) return;
-      const s = chunk.toString('utf8');
+      const s = Buffer.from(chunk).toString('utf8');
       if (stderr.length + s.length <= maxStderrChars) {
         stderr += s;
         return;
@@ -161,48 +132,31 @@ export async function runGitCommand(input: GitRunInput): Promise<GitRunResult> {
       const remaining = Math.max(0, maxStderrChars - stderr.length);
       if (remaining > 0) stderr += s.slice(0, remaining);
       stderrTruncated = true;
-    });
-
-    child.on('error', (err: any) => {
-      settle({
-        ok: false,
-        code: -1,
-        signal: null,
-        stdout: Buffer.concat(stdoutChunks),
-        stderr: stderr || String(err?.message ?? err),
-        timedOut: false,
-        stdoutTruncated,
-        stderrTruncated,
-        error: { code: err?.code, message: String(err?.message ?? err) },
-      });
-    });
-
-    child.on('close', (code, signal) => {
-      settle({
-        ok: !timedOut && code === 0,
-        code,
-        signal: (signal as NodeJS.Signals | null) ?? null,
-        stdout: Buffer.concat(stdoutChunks),
-        stderr,
-        timedOut,
-        stdoutTruncated,
-        stderrTruncated,
-      });
-    });
-
-    if (input.input) {
-      child.stdin?.write(input.input);
-      child.stdin?.end();
-    } else {
-      child.stdin?.end();
-    }
-
-    const timeoutTimer = setTimeout(() => {
-      timedOut = true;
-      killProcess('SIGTERM');
-      killTimer = setTimeout(() => {
-        killProcess('SIGKILL');
-      }, killGraceMs);
-    }, timeoutMs);
+    },
   });
+
+  if (result.error) {
+    return {
+      ok: false,
+      code: -1,
+      signal: null,
+      stdout: Buffer.concat(stdoutChunks),
+      stderr: stderr || result.error.message,
+      timedOut: false,
+      stdoutTruncated,
+      stderrTruncated,
+      error: result.error,
+    };
+  }
+
+  return {
+    ok: !result.timedOut && result.code === 0,
+    code: result.code,
+    signal: result.signal,
+    stdout: Buffer.concat(stdoutChunks),
+    stderr,
+    timedOut: result.timedOut,
+    stdoutTruncated,
+    stderrTruncated,
+  };
 }

@@ -4,13 +4,14 @@
  * Core implementation of Layer 2 ShadowDriver following v2.0 specification.
  */
 
-import { spawn } from 'child_process';
 import { existsSync } from 'fs';
 import { rm, mkdir, symlink } from 'fs/promises';
 import { join } from 'path';
 
 import { logger } from '../../../observability/logger.js';
+import { spawnCommand } from '../../../runtime/process-runner.js';
 import { normalizePath } from '../../../utils/path.js';
+import { getPlatformShellInvocation } from '../../../utils/platform-shell.js';
 import type { ShadowDriverConfig, ShadowEnvResult, ShadowTask } from '../../types.js';
 
 import { copyDir, linkDirLinux } from './copy-backend.js';
@@ -209,35 +210,32 @@ async function runWithDriver(
  * Execute command in shadow environment
  */
 async function executeCommand(command: string, cwd: string, env: NodeJS.ProcessEnv): Promise<void> {
-  const isWindows = process.platform === 'win32';
-  const shell = isWindows ? 'cmd.exe' : 'sh';
-  const shellArgs = isWindows ? ['/d', '/s', '/c', command] : ['-c', command];
-
-  await new Promise<void>((resolve, reject) => {
-    const child = spawn(shell, shellArgs, {
-      cwd,
-      env,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-
-    let stderr = '';
-    child.stderr.on('data', (data) => {
-      stderr += data.toString();
-    });
-
-    child.on('error', (error) => {
-      reject(error);
-    });
-
-    child.on('close', (code) => {
-      if (code === 0) {
-        resolve();
-        return;
-      }
-      const message = stderr.trim() || `command failed with exit code ${String(code)}`;
-      reject(new Error(message));
-    });
+  const shell = getPlatformShellInvocation(command);
+  let stderr = '';
+  const result = await spawnCommand({
+    command: shell.file,
+    args: shell.args,
+    cwd,
+    env,
+    onStderrChunk: (chunk) => {
+      stderr += Buffer.from(chunk).toString();
+    },
   });
+
+  if (result.error) {
+    throw new Error(result.error.message);
+  }
+
+  if (!result.timedOut && result.code === 0) {
+    return;
+  }
+
+  if (result.timedOut) {
+    throw new Error('command timed out');
+  }
+
+  const message = stderr.trim() || `command failed with exit code ${String(result.code)}`;
+  throw new Error(message);
 }
 
 /**

@@ -1,7 +1,5 @@
-import { spawn } from 'child_process';
-import { EventEmitter } from 'events';
-
 import { runGitCommand } from '../../src/core/adapters/git/git-runner.js';
+import { spawnCommand } from '../../src/core/runtime/process-runner.js';
 
 const fsMocks = vi.hoisted(() => {
   const realpathSync = vi.fn<[string], string>().mockImplementation((_p: string) => {
@@ -14,36 +12,18 @@ const fsMocks = vi.hoisted(() => {
 
 vi.mock('fs', () => fsMocks);
 
-vi.mock('child_process', async () => {
-  const { EventEmitter } = await import('events');
-  return {
-    spawn: vi.fn().mockImplementation(() => {
-      const child = new EventEmitter() as any;
-      child.stdout = new EventEmitter();
-      child.stderr = new EventEmitter();
-      child.stdin = new EventEmitter();
-      child.stdin.end = vi.fn();
-      child.stdin.write = vi.fn();
-      child.kill = vi.fn();
-      return child;
-    }),
-  };
-});
-
-function makeChild() {
-  const child = new EventEmitter() as any;
-  child.stdout = new EventEmitter();
-  child.stderr = new EventEmitter();
-  child.stdin = new EventEmitter();
-  child.stdin.end = vi.fn();
-  child.stdin.write = vi.fn();
-  child.kill = vi.fn();
-  return child;
-}
+vi.mock('../../src/core/runtime/process-runner.js', () => ({
+  spawnCommand: vi.fn(),
+}));
 
 describe('runGitCommand', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(spawnCommand).mockResolvedValue({
+      code: 0,
+      signal: null,
+      timedOut: false,
+    });
   });
 
   it('rejects when cwd escapes repoRoot', async () => {
@@ -75,20 +55,21 @@ describe('runGitCommand', () => {
   });
 
   it('captures stdout/stderr and returns ok=true on exit 0', async () => {
-    const child = makeChild();
-    vi.mocked(spawn).mockReturnValue(child);
+    vi.mocked(spawnCommand).mockImplementation(async (input) => {
+      input.onStdoutChunk?.(Buffer.from('A\n'));
+      input.onStderrChunk?.(Buffer.from('warning\n'));
+      return {
+        code: 0,
+        signal: null,
+        timedOut: false,
+      };
+    });
 
     const promise = runGitCommand({
       repoRoot: '/repo',
       cwd: '/repo',
       args: ['status', '--porcelain'],
       timeoutMs: 1000,
-    });
-
-    queueMicrotask(() => {
-      child.stdout.emit('data', Buffer.from('A\n'));
-      child.stderr.emit('data', Buffer.from('warning\n'));
-      child.emit('close', 0, null);
     });
 
     const res = await promise;
@@ -98,8 +79,14 @@ describe('runGitCommand', () => {
   });
 
   it('truncates stdout when maxStdoutBytes is reached', async () => {
-    const child = makeChild();
-    vi.mocked(spawn).mockReturnValue(child);
+    vi.mocked(spawnCommand).mockImplementation(async (input) => {
+      input.onStdoutChunk?.(Buffer.from('abcdef'));
+      return {
+        code: 0,
+        signal: null,
+        timedOut: false,
+      };
+    });
 
     const promise = runGitCommand({
       repoRoot: '/repo',
@@ -109,45 +96,29 @@ describe('runGitCommand', () => {
       limits: { maxStdoutBytes: 3 },
     });
 
-    queueMicrotask(() => {
-      child.stdout.emit('data', Buffer.from('abcdef'));
-      child.emit('close', 0, null);
-    });
-
     const res = await promise;
     expect(res.stdout.toString('utf8')).toBe('abc');
     expect(res.stdoutTruncated).toBe(true);
   });
 
-  it('marks timedOut and attempts to kill the process', async () => {
-    vi.useFakeTimers();
-
-    const child = makeChild();
-    child.kill = vi.fn((signal?: string) => {
-      if (signal === 'SIGKILL') {
-        queueMicrotask(() => child.emit('close', null, signal ?? null));
-      }
-      return true;
+  it('marks timedOut when runtime reports timeout', async () => {
+    vi.mocked(spawnCommand).mockImplementation(async (input) => {
+      input.onStderrChunk?.(Buffer.from('timeout'));
+      return {
+        code: null,
+        signal: 'SIGKILL',
+        timedOut: true,
+      };
     });
-    vi.mocked(spawn).mockReturnValue(child);
 
-    const promise = runGitCommand({
+    const res = await runGitCommand({
       repoRoot: '/repo',
       cwd: '/repo',
       args: ['rev-parse', '--is-inside-work-tree'],
       timeoutMs: 10,
     });
 
-    await vi.advanceTimersByTimeAsync(20);
-    expect(child.kill).toHaveBeenCalledWith('SIGTERM');
-
-    await vi.advanceTimersByTimeAsync(9000);
-    const res = await promise;
-
     expect(res.ok).toBe(false);
     expect(res.timedOut).toBe(true);
-    expect(child.kill).toHaveBeenCalledWith('SIGKILL');
-
-    vi.useRealTimers();
   });
 });

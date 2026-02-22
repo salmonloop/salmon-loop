@@ -1,4 +1,3 @@
-import { spawn } from 'child_process';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 
@@ -7,6 +6,7 @@ import { GitAdapter } from '../adapters/git/git-adapter.js';
 import { LIMITS } from '../config/limits.js';
 import { logger } from '../observability/logger.js';
 import { pluginRegistry } from '../plugin/registry.js';
+import { isCommandAvailable, spawnCommand } from '../runtime/process-runner.js';
 import { ErrorType, LoopEvent } from '../types/index.js';
 import type { ExecutionWorkspace } from '../types/index.js';
 import { getPlatformShellInvocation } from '../utils/platform-shell.js';
@@ -82,71 +82,55 @@ export async function runCommand(
   output: string;
   exitCode: number | null;
 }> {
-  return new Promise((resolve) => {
-    const shell = getPlatformShellInvocation(command);
-    const child = spawn(shell.file, shell.args, {
-      cwd: repoPath,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      windowsHide: true,
-      env: env ? { ...process.env, ...env } : process.env,
-    });
+  const shell = getPlatformShellInvocation(command);
+  let output = '';
+  const appendOutput = (chunk: Uint8Array) => {
+    if (output.length >= 500000) return;
+    const textChunk = Buffer.from(chunk).toString();
+    const remaining = 500000 - output.length;
+    output += textChunk.slice(0, remaining);
+  };
 
-    let output = '';
-    let isTerminated = false;
-
-    const timer = setTimeout(() => {
-      isTerminated = true;
-      // Try graceful termination first
-      child.kill('SIGTERM');
-
-      // Force kill after a short delay if still running
-      setTimeout(() => {
-        try {
-          child.kill('SIGKILL');
-        } catch (__e) {
-          // Ignore
-        }
-      }, 2000);
-
-      output += text.verify.terminated;
-    }, timeoutMs);
-
-    child.stdout?.on('data', (data) => {
-      if (output.length < 500000) output += data.toString();
-    });
-    child.stderr?.on('data', (data) => {
-      if (output.length < 500000) output += data.toString();
-    });
-
-    child.on('error', (err) => {
-      clearTimeout(timer);
-      resolve({
-        ok: false,
-        output: text.verify.commandError(command, String(err)),
-        exitCode: -1,
-      });
-    });
-
-    child.on('close', (exitCode) => {
-      clearTimeout(timer);
-      const fullOutput = output.trim();
-      const lines = fullOutput.split('\n');
-
-      let truncatedOutput = fullOutput;
-      if (lines.length > LIMITS.verifyOutputMaxLines) {
-        const half = Math.floor(LIMITS.verifyOutputMaxLines / 2);
-        const head = lines.slice(0, half).join('\n');
-        const tail = lines.slice(-half).join('\n');
-        truncatedOutput = `${head}${text.verify.outputTruncated(half, half)}${tail}`;
-      }
-
-      resolve({
-        ok: !isTerminated && exitCode === 0,
-        output: truncatedOutput,
-        exitCode: exitCode,
-      });
-    });
+  const result = await spawnCommand({
+    command: shell.file,
+    args: shell.args,
+    cwd: repoPath,
+    windowsHide: true,
+    env: env ? { ...process.env, ...env } : process.env,
+    timeoutMs,
+    killGraceMs: 2000,
+    onStdoutChunk: appendOutput,
+    onStderrChunk: appendOutput,
   });
+
+  if (result.error) {
+    return {
+      ok: false,
+      output: text.verify.commandError(command, result.error.message),
+      exitCode: -1,
+    };
+  }
+
+  if (result.timedOut) {
+    output += text.verify.terminated;
+  }
+
+  const fullOutput = output.trim();
+  const lines = fullOutput.split('\n');
+
+  let truncatedOutput = fullOutput;
+  if (lines.length > LIMITS.verifyOutputMaxLines) {
+    const half = Math.floor(LIMITS.verifyOutputMaxLines / 2);
+    const head = lines.slice(0, half).join('\n');
+    const tail = lines.slice(-half).join('\n');
+    truncatedOutput = `${head}${text.verify.outputTruncated(half, half)}${tail}`;
+  }
+
+  return {
+    ok: !result.timedOut && result.code === 0,
+    output: truncatedOutput,
+    exitCode: result.code,
+  };
 }
 
 export async function runVerify(
@@ -300,18 +284,15 @@ export async function preflight(
   });
 
   // 3. Check if ripgrep is installed (optional but recommended)
-  const rgCheck = spawn('rg', ['--version']);
-  rgCheck.on('error', (err: any) => {
-    if (err.code === 'ENOENT') {
-      onEvent?.({
-        type: 'resource.status',
-        resource: 'ripgrep',
-        status: 'warning',
-        message: text.verify.ripgrepNotFoundWarning,
-        timestamp: now(),
-      });
-    }
-  });
+  if (!(await isCommandAvailable('rg'))) {
+    onEvent?.({
+      type: 'resource.status',
+      resource: 'ripgrep',
+      status: 'warning',
+      message: text.verify.ripgrepNotFoundWarning,
+      timestamp: now(),
+    });
+  }
 
   return { ok: true };
 }
