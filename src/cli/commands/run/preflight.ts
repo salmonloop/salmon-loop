@@ -1,31 +1,58 @@
-import { spawnSync } from 'child_process';
-
 import chalk from 'chalk';
 
 import { logger } from '../../../core/observability/logger.js';
 import { PluginLoader } from '../../../core/plugin/loader.js';
+import { spawnCommand } from '../../../core/runtime/process-runner.js';
 import {
   detectNodeRuntimeProfile,
   resolveScriptCommand,
 } from '../../../core/target-runtime/index.js';
 import { text } from '../../locales/index.js';
 
-function runValidateCommand(params: {
+async function runValidateCommand(params: {
   repoPath: string;
   cmd: string;
   args: string[];
   useGui: boolean;
 }) {
-  const result = spawnSync(params.cmd, params.args, {
+  const maxBytesPerStream = 500_000;
+  let stdout = '';
+  let stderr = '';
+  let stdoutBytes = 0;
+  let stderrBytes = 0;
+
+  const result = await spawnCommand({
+    command: params.cmd,
+    args: params.args,
     cwd: params.repoPath,
-    stdio: ['ignore', 'pipe', 'pipe'],
-    encoding: 'utf-8',
-    maxBuffer: 500_000,
+    windowsHide: true,
+    onStdoutChunk: (chunk) => {
+      if (stdoutBytes >= maxBytesPerStream) return;
+      const buffer = Buffer.from(chunk);
+      const remaining = maxBytesPerStream - stdoutBytes;
+      if (buffer.length <= remaining) {
+        stdout += buffer.toString('utf-8');
+        stdoutBytes += buffer.length;
+        return;
+      }
+      stdout += buffer.subarray(0, remaining).toString('utf-8');
+      stdoutBytes += remaining;
+    },
+    onStderrChunk: (chunk) => {
+      if (stderrBytes >= maxBytesPerStream) return;
+      const buffer = Buffer.from(chunk);
+      const remaining = maxBytesPerStream - stderrBytes;
+      if (buffer.length <= remaining) {
+        stderr += buffer.toString('utf-8');
+        stderrBytes += buffer.length;
+        return;
+      }
+      stderr += buffer.subarray(0, remaining).toString('utf-8');
+      stderrBytes += remaining;
+    },
   });
 
-  const stdout = (result.stdout || '').trim();
-  const stderr = (result.stderr || '').trim();
-  const combined = [stdout, stderr].filter(Boolean).join('\n').trim();
+  const combined = [stdout.trim(), stderr.trim()].filter(Boolean).join('\n').trim();
 
   if (combined) {
     const output = params.useGui ? combined.slice(0, 2_000) : combined;
@@ -33,12 +60,17 @@ function runValidateCommand(params: {
   }
 
   if (result.error) {
-    throw result.error;
+    throw new Error(result.error.message);
   }
 
-  if (typeof result.status === 'number' && result.status !== 0) {
+  if (result.timedOut) {
     const printable = [params.cmd, ...params.args].join(' ');
-    throw new Error(`Command failed (${printable}) with exit code ${result.status}`);
+    throw new Error(`Command failed (${printable}) due to timeout`);
+  }
+
+  if (result.code !== 0) {
+    const printable = [params.cmd, ...params.args].join(' ');
+    throw new Error(`Command failed (${printable}) with exit code ${String(result.code)}`);
   }
 }
 
@@ -70,7 +102,7 @@ export async function runPreflight(params: {
   try {
     if (lintCommand) {
       logger.debug(text.cli.runningScript('lint', lintCommand.shellCommand));
-      runValidateCommand({
+      await runValidateCommand({
         repoPath: params.repoPath,
         cmd: lintCommand.command,
         args: lintCommand.args,
@@ -83,7 +115,7 @@ export async function runPreflight(params: {
     if (testCommand) {
       logger.debug(text.cli.runningScript('test', testCommand.shellCommand));
       try {
-        runValidateCommand({
+        await runValidateCommand({
           repoPath: params.repoPath,
           cmd: testCommand.command,
           args: testCommand.args,

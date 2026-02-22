@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const hoisted = vi.hoisted(() => ({
-  spawnSync: vi.fn(),
+  spawnCommand: vi.fn(),
   loadPlugins: vi.fn(async () => {}),
   detectNodeRuntimeProfile: vi.fn(),
   resolveScriptCommand: vi.fn(),
@@ -14,8 +14,8 @@ const hoisted = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('child_process', () => ({
-  spawnSync: hoisted.spawnSync,
+vi.mock('../../../../../src/core/runtime/process-runner.js', () => ({
+  spawnCommand: hoisted.spawnCommand,
 }));
 
 vi.mock('../../../../../src/core/plugin/loader.js', () => ({
@@ -34,10 +34,10 @@ vi.mock('../../../../../src/core/observability/logger.js', () => ({
 describe('runPreflight', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    hoisted.spawnSync.mockReturnValue({
-      stdout: '',
-      stderr: '',
-      status: 0,
+    hoisted.spawnCommand.mockResolvedValue({
+      code: 0,
+      signal: null,
+      timedOut: false,
       error: undefined,
     });
   });
@@ -49,7 +49,7 @@ describe('runPreflight', () => {
     await runPreflight({ repoPath: '/tmp/repo', validate: true, useGui: false });
 
     expect(hoisted.loadPlugins).toHaveBeenCalledWith('/tmp/repo');
-    expect(hoisted.spawnSync).not.toHaveBeenCalled();
+    expect(hoisted.spawnCommand).not.toHaveBeenCalled();
     expect(hoisted.logger.warn).toHaveBeenCalledTimes(1);
   });
 
@@ -84,18 +84,22 @@ describe('runPreflight', () => {
     const { runPreflight } = await import('../../../../../src/cli/commands/run/preflight.js');
     await runPreflight({ repoPath: '/tmp/repo', validate: true, useGui: false });
 
-    expect(hoisted.spawnSync).toHaveBeenCalledTimes(2);
-    expect(hoisted.spawnSync).toHaveBeenNthCalledWith(
+    expect(hoisted.spawnCommand).toHaveBeenCalledTimes(2);
+    expect(hoisted.spawnCommand).toHaveBeenNthCalledWith(
       1,
-      'pnpm',
-      ['run', 'lint'],
-      expect.objectContaining({ cwd: '/tmp/repo' }),
+      expect.objectContaining({
+        command: 'pnpm',
+        args: ['run', 'lint'],
+        cwd: '/tmp/repo',
+      }),
     );
-    expect(hoisted.spawnSync).toHaveBeenNthCalledWith(
+    expect(hoisted.spawnCommand).toHaveBeenNthCalledWith(
       2,
-      'pnpm',
-      ['run', 'test'],
-      expect.objectContaining({ cwd: '/tmp/repo' }),
+      expect.objectContaining({
+        command: 'pnpm',
+        args: ['run', 'test'],
+        cwd: '/tmp/repo',
+      }),
     );
     expect(hoisted.logger.success).toHaveBeenCalledTimes(1);
   });
@@ -128,17 +132,17 @@ describe('runPreflight', () => {
       return undefined;
     });
 
-    hoisted.spawnSync
-      .mockReturnValueOnce({
-        stdout: '',
-        stderr: '',
-        status: 0,
+    hoisted.spawnCommand
+      .mockResolvedValueOnce({
+        code: 0,
+        signal: null,
+        timedOut: false,
         error: undefined,
       })
-      .mockReturnValueOnce({
-        stdout: '',
-        stderr: 'tests failed',
-        status: 1,
+      .mockResolvedValueOnce({
+        code: 1,
+        signal: null,
+        timedOut: false,
         error: undefined,
       });
 
