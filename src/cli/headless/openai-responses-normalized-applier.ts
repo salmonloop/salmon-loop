@@ -24,7 +24,7 @@ export class OpenAiResponsesNormalizedApplier {
         return this.state.finishText(event.messageId);
       }
 
-      case 'normalized.tool_call_start': {
+      case 'normalized.tool_request_start': {
         return [
           ...this.state.startFunctionCall(event.callId, event.toolName),
           ...this.state.appendFunctionCallArgs(event.callId, REDACTED_TOOL_ARGS),
