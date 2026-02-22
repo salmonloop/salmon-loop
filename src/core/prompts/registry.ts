@@ -1,5 +1,4 @@
 import { readFile } from 'fs/promises';
-import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import Handlebars from 'handlebars';
@@ -9,7 +8,16 @@ import type { ToolSpec } from '../tools/types.js';
 
 import type { ExplorePromptVars, PatchPromptVars, PlanPromptVars } from './schema.js';
 
-const TEMPLATE_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'templates');
+const TEMPLATE_URLS: Record<string, URL> = {
+  'system/_tool_defs.hbs': new URL('./templates/system/_tool_defs.hbs', import.meta.url),
+  'system/main_system.hbs': new URL('./templates/system/main_system.hbs', import.meta.url),
+  'system/explore_system.hbs': new URL('./templates/system/explore_system.hbs', import.meta.url),
+  'system/plan_system.hbs': new URL('./templates/system/plan_system.hbs', import.meta.url),
+  'system/patch_system.hbs': new URL('./templates/system/patch_system.hbs', import.meta.url),
+  'phases/explore_user.hbs': new URL('./templates/phases/explore_user.hbs', import.meta.url),
+  'phases/plan_user.hbs': new URL('./templates/phases/plan_user.hbs', import.meta.url),
+  'phases/patch_user.hbs': new URL('./templates/phases/patch_user.hbs', import.meta.url),
+};
 
 export class PromptRegistry {
   private templates: Map<string, Handlebars.TemplateDelegate> = new Map();
@@ -47,8 +55,18 @@ export class PromptRegistry {
   }
 
   private async readTemplate(relativePath: string): Promise<string> {
-    const filePath = path.join(TEMPLATE_DIR, relativePath);
-    return readFile(filePath, 'utf-8');
+    const url = TEMPLATE_URLS[relativePath];
+    if (!url) {
+      throw new Error(`Unknown prompt template path: ${relativePath}`);
+    }
+
+    const bunAny = globalThis as any;
+    const bun: any = bunAny.Bun;
+    if (bun?.file) {
+      return bun.file(url).text();
+    }
+
+    return readFile(fileURLToPath(url), 'utf-8');
   }
 
   private render(name: string, data: unknown): string {

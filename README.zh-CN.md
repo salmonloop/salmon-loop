@@ -33,8 +33,22 @@ Salmon-Loop 建立在三个核心原则之上：
 ### 安装
 
 ```bash
-pnpm install
-pnpm build
+bun install
+bun run build
+```
+
+### 安装二进制（无需 Bun）
+
+macOS / Linux：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/salmonloop/salmon-loop/main/scripts/install/install.sh | bash
+```
+
+Windows（PowerShell）：
+
+```powershell
+irm https://raw.githubusercontent.com/salmonloop/salmon-loop/main/scripts/install/install.ps1 | iex
 ```
 
 ### 配置
@@ -52,14 +66,14 @@ cp .env.example .env
 默认情况下，Salmon-Loop 会进入交互式的 **chat** 模式。对于单次执行的任务，请使用 **run** 命令：
 
 ```bash
-# 使用 pnpm (推荐开发使用)
-pnpm dev run --instruction "fix bug" --verify "npm test"
+# 开发模式（无需构建）
+bun run dev run --instruction "fix bug" --verify "bun run test"
 
-# 使用 npx (无需构建)
-npx tsx src/cli/index.ts run --instruction "fix bug" --verify "npm test"
+# 或直接运行 TypeScript 入口
+bun src/cli/index.ts run --instruction "fix bug" --verify "bun run test"
 
 # 或者在构建后
-node dist/cli/index.js run --instruction "fix bug" --verify "npm test"
+bun dist/cli/index.js run --instruction "fix bug" --verify "bun run test"
 ```
 
 ### 快速示例
@@ -67,7 +81,7 @@ node dist/cli/index.js run --instruction "fix bug" --verify "npm test"
 修复 bug 并使用 `npm test` 验证：
 
 ```bash
-salmon-loop run --instruction "Fix the null pointer exception in user.ts" --verify "npm test"
+salmon-loop run --instruction "Fix the null pointer exception in user.ts" --verify "bun run test"
 ```
 
 ### 库使用方式
@@ -100,13 +114,13 @@ const result = await runSalmonLoop({
 
 ```bash
 # 运行所有测试
-pnpm test
+bun run test:full
 
 # 运行代码风格检查 (Lint)
-pnpm lint
+bun run lint
 
 # 运行代码格式化
-pnpm format
+bun run format
 ```
 
 ### 本地 CI 模拟

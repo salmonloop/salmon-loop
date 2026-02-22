@@ -16,7 +16,15 @@ export function isEnvironmentError(error: any): boolean {
 
   // File not found errors for critical dependency paths
   if (msg.includes('ENOENT') || msg.includes('no such file or directory')) {
-    const critical = ['node_modules', '.pnpm', 'target/', 'build/', '.cache', 'toolchain'];
+    const critical = [
+      'node_modules',
+      'bun.lock',
+      'bun.lockb',
+      'target/',
+      'build/',
+      '.cache',
+      'toolchain',
+    ];
     return critical.some((p) => msg.includes(p));
   }
 

@@ -33,7 +33,8 @@ const commonDiagnostics = {
       lowerOutput.includes('module not found') ||
       lowerOutput.includes('cannot find module') ||
       lowerOutput.includes('npm install') ||
-      lowerOutput.includes('pnpm install')
+      lowerOutput.includes('pnpm install') ||
+      lowerOutput.includes('bun install')
     ) {
       return ErrorType.DEPENDENCY_ERROR;
     }
@@ -128,7 +129,14 @@ function createPlugin(
           try {
             const pkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
             if (pkg.scripts && pkg.scripts.test) {
-              return 'npm test';
+              const packageManager =
+                typeof pkg.packageManager === 'string' ? pkg.packageManager : '';
+              const isBun =
+                packageManager.startsWith('bun@') ||
+                fs.existsSync(path.join(repoPath, 'bun.lock')) ||
+                fs.existsSync(path.join(repoPath, 'bun.lockb'));
+
+              return isBun ? 'bun run test' : 'npm test';
             }
           } catch (_error) {
             // Ignore parse errors

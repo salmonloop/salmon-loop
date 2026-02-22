@@ -11,6 +11,18 @@ export class NodeDetector implements ProjectDetector {
       try {
         const pkg = JSON.parse(readFileUtf8Sync(packageJsonPath, repoPath));
         if (pkg.scripts && pkg.scripts.test) {
+          const bunLockPath = safePathJoin(repoPath, 'bun.lock');
+          const bunLockbPath = safePathJoin(repoPath, 'bun.lockb');
+          const packageManager = typeof pkg.packageManager === 'string' ? pkg.packageManager : '';
+
+          if (
+            packageManager.startsWith('bun@') ||
+            existsSync(bunLockPath, repoPath) ||
+            existsSync(bunLockbPath, repoPath)
+          ) {
+            return 'bun run test';
+          }
+
           return 'npm test';
         }
       } catch (_error) {

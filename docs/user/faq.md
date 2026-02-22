@@ -21,7 +21,7 @@ This usually happens if the LLM generates a patch that doesn't match the current
 SalmonLoop requires the LLM to output patches in the standard `diff --git` format. If the model includes conversational text around the diff or uses a non-standard format, the validation phase will fail. We have optimized the parser to be robust against common LLM formatting issues, but the core diff must still follow the unified format.
 
 ### 7. What should I do if I encounter "Dependency version mismatch"?
-SalmonLoop has strict version requirements for core dependencies like `web-tree-sitter`. If your environment version is inconsistent, it may cause AST parsing failures. Please run `pnpm install` to ensure dependency versions match the locked versions in `package.json`.
+SalmonLoop has strict version requirements for core dependencies like `web-tree-sitter`. If your environment version is inconsistent, it may cause AST parsing failures. Please run `bun install` to ensure dependency versions match the lockfile.
 
 ### 8. What should I do if I encounter "Timeout acquiring lock"?
 To prevent concurrent operations from corrupting the codebase, SalmonLoop creates a `.salmonloop.lock` file during modifications. If a previous run was abnormally interrupted and the lock was not released, you can manually delete the `.salmonloop.lock` file in the repository root.

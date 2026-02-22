@@ -59,8 +59,8 @@ Avoid:
 Use the audit script to track progress:
 
 ```bash
-node --import tsx scripts/audit-core-root.ts
-node --import tsx scripts/audit-core-root.ts --json
+bun scripts/audit-core-root.ts
+bun scripts/audit-core-root.ts --json
 ```
 
 Minimum migration gate:

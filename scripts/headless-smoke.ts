@@ -30,7 +30,7 @@ function assertJsonl(stdout: string): void {
 }
 
 async function runCli(args: string[], env?: NodeJS.ProcessEnv): Promise<RunResult> {
-  const result = await execa('node', ['--import', 'tsx', 'src/cli/index.ts', ...args], {
+  const result = await execa('bun', ['src/cli/index.ts', ...args], {
     reject: false,
     env: { ...process.env, ...(env ?? {}) },
   });

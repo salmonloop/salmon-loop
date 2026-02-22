@@ -6,10 +6,9 @@ import { ShadowDriver } from '../src/core/strata/layers/shadow-driver/shadow-dri
 import { WorkspaceManager } from '../src/core/strata/layers/worktree.js';
 
 function getDefaultCommand() {
-  const pnpm = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
   return {
-    command: pnpm,
-    args: ['-s', 'vitest', 'run', 'tests/integration/external-plugin.test.ts'],
+    command: 'bun',
+    args: ['run', 'vitest', 'run', 'tests/integration/external-plugin.test.ts'],
   };
 }
 

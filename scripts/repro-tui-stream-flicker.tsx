@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 process.env.FORCE_COLOR = '3';
 
 import { Box, Text, render } from 'ink';

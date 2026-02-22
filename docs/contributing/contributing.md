@@ -18,14 +18,14 @@ We welcome contributions to SalmonLoop! As a design-driven project, we prioritiz
 ## Getting Started
 
 1. Fork the repository.
-2. Install dependencies: `pnpm install`.
-3. Run tests: `pnpm test`.
-4. Run linting: `pnpm lint`.
+2. Install dependencies: `bun install`.
+3. Run tests: `bun run test:full`.
+4. Run linting: `bun run lint`.
 5. Create a feature branch and submit a pull request.
 
 Notes:
 
-- Use `pnpm` for dependency management in this repository. Avoid `npm install`, as it may cause lockfile drift.
+- Use `bun` for dependency management in this repository.
 
 ### Debugging with `--verbose`
 To debug issues, you can use the `--verbose` flag to get more detailed logs.

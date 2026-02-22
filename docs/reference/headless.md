@@ -69,7 +69,7 @@ s8p run -p "Say hello" --output-format stream-json --output-profile native | jq 
 You can also run the repo smoke script:
 
 ```bash
-pnpm test:headless-smoke
+bun run test:headless-smoke
 ```
 
 Repeat for each profile:

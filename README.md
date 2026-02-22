@@ -43,8 +43,22 @@ See [Plugin Documentation](docs/user/plugins.md) for details on how to create cu
 ### Installation
 
 ```bash
-pnpm install
-pnpm build
+bun install
+bun run build
+```
+
+### Binary install (no Bun required)
+
+macOS / Linux:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/salmonloop/salmon-loop/main/scripts/install/install.sh | bash
+```
+
+Windows (PowerShell):
+
+```powershell
+irm https://raw.githubusercontent.com/salmonloop/salmon-loop/main/scripts/install/install.ps1 | iex
 ```
 
 ### Configuration
@@ -62,14 +76,14 @@ Edit `.env` and set your `SALMONLOOP_API_KEY` (or legacy `S8P_API_KEY`). You can
 By default, Salmon-Loop enters interactive **chat** mode. For single-turn tasks, use the **run** command:
 
 ```bash
-# Using pnpm (recommended for development)
-pnpm dev run --instruction "fix bug" --verify "npm test"
+# Development (no build required)
+bun run dev run --instruction "fix bug" --verify "bun run test"
 
-# Using npx (no build required)
-npx tsx src/cli/index.ts run --instruction "fix bug" --verify "npm test"
+# Or run the TypeScript entry directly
+bun src/cli/index.ts run --instruction "fix bug" --verify "bun run test"
 
 # Or after building
-node dist/cli/index.js run --instruction "fix bug" --verify "npm test"
+bun dist/cli/index.js run --instruction "fix bug" --verify "bun run test"
 ```
 
 ### Quick Example
@@ -77,7 +91,7 @@ node dist/cli/index.js run --instruction "fix bug" --verify "npm test"
 Fix a bug and verify with `npm test`:
 
 ```bash
-salmon-loop run --instruction "Fix the null pointer exception in user.ts" --verify "npm test"
+salmon-loop run --instruction "Fix the null pointer exception in user.ts" --verify "bun run test"
 ```
 
 ### Library Usage
@@ -110,13 +124,13 @@ You can run the same checks that the CI performs locally:
 
 ```bash
 # Run all tests
-pnpm test
+bun run test:full
 
 # Run linting
-pnpm lint
+bun run lint
 
 # Run formatting
-pnpm format
+bun run format
 ```
 
 ### Local CI Simulation

@@ -80,12 +80,11 @@ export class ShadowDriver {
     await this.prepareDependencyDirs(depPaths);
 
     if (strategy === 'ISOLATED') {
-      // pnpm optimization: if pnpm-lock.yaml exists, we can use pnpm's store
-      const { existsSync } = await import('fs');
-      if (existsSync(join(this.config.repoRoot, 'pnpm-lock.yaml'))) {
-        logger.debug('pnpm project detected, using pnpm optimization');
-        // In a real implementation, we might set PNPM_HOME or use --offline
-        // For now, we proceed with standard copy but mark the intent
+      if (
+        existsSync(join(this.config.repoRoot, 'bun.lock')) ||
+        existsSync(join(this.config.repoRoot, 'bun.lockb'))
+      ) {
+        logger.debug('bun project detected');
       }
       await this.copyDependencies(depPaths);
     } else if (strategy === 'AGGRESSIVE') {
