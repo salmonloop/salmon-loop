@@ -7,9 +7,8 @@
  * - Windows: robocopy /MIR
  */
 
-import { spawn } from 'child_process';
-
 import { logger } from '../../../observability/logger.js';
+import { spawnCommand } from '../../../runtime/process-runner.js';
 import { normalizePath } from '../../../utils/path.js';
 import type { Platform } from '../../types.js';
 
@@ -93,54 +92,41 @@ export async function linkDirLinux(src: string, dest: string): Promise<void> {
 async function exec(
   command: string | string[],
   options: {
-    shell?: string | boolean;
     timeout?: number;
     cwd?: string;
     allowExitCodes?: Set<number>;
   } = {},
 ): Promise<{ code: number; stdout: string; stderr: string }> {
-  return new Promise((resolve, reject) => {
-    const commandArray = Array.isArray(command) ? command : [command];
-    const shellOption = options.shell !== undefined ? options.shell : false;
-    const allowExitCodes = options.allowExitCodes ?? new Set([0]);
+  const commandArray = Array.isArray(command) ? command : [command];
+  const allowExitCodes = options.allowExitCodes ?? new Set([0]);
+  const timeout = options.timeout || 300000;
 
-    const child = spawn(commandArray[0], commandArray.slice(1), {
-      shell: shellOption,
-      cwd: options.cwd,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-
-    let stdout = '';
-    let stderr = '';
-
-    child.stdout?.on('data', (data: Buffer) => {
-      stdout += data.toString();
-    });
-
-    child.stderr?.on('data', (data: Buffer) => {
-      stderr += data.toString();
-    });
-
-    child.on('error', (err: Error) => {
-      reject(new Error(`Command failed: ${err.message}`));
-    });
-
-    child.on('close', (code: number | null) => {
-      const exitCode = code ?? 0;
-      if (allowExitCodes.has(exitCode)) {
-        resolve({ code: exitCode, stdout, stderr });
-        return;
-      }
-      reject(new Error(`Command failed with code ${exitCode}: ${stderr}`));
-    });
-
-    // Set timeout
-    const timeout = options.timeout || 300000; // 5 minutes default for large dependencies
-    setTimeout(() => {
-      if (!child.killed) {
-        child.kill();
-        reject(new Error(`Command timed out after ${timeout}ms`));
-      }
-    }, timeout);
+  let stdout = '';
+  let stderr = '';
+  const result = await spawnCommand({
+    command: commandArray[0],
+    args: commandArray.slice(1),
+    cwd: options.cwd,
+    timeoutMs: timeout,
+    onStdoutChunk: (data) => {
+      stdout += Buffer.from(data).toString();
+    },
+    onStderrChunk: (data) => {
+      stderr += Buffer.from(data).toString();
+    },
   });
+
+  if (result.error) {
+    throw new Error(`Command failed: ${result.error.message}`);
+  }
+  if (result.timedOut) {
+    throw new Error(`Command timed out after ${timeout}ms`);
+  }
+
+  const exitCode = result.code ?? 0;
+  if (allowExitCodes.has(exitCode)) {
+    return { code: exitCode, stdout, stderr };
+  }
+
+  throw new Error(`Command failed with code ${exitCode}: ${stderr}`);
 }

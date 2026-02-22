@@ -1,26 +1,13 @@
-import { spawn } from 'child_process';
-import { EventEmitter } from 'events';
 import * as fs from 'fs/promises';
 
 import { AstParser } from '../../src/core/ast/parser.js';
 import { ContextBuilder } from '../../src/core/context/builder.js';
+import { spawnCommand } from '../../src/core/runtime/process-runner.js';
 
 vi.mock('fs/promises');
-vi.mock('child_process', async () => {
-  const { EventEmitter } = await import('events');
-  return {
-    spawn: vi.fn().mockImplementation(() => {
-      const child = new EventEmitter() as any;
-      child.stdout = new EventEmitter();
-      child.stderr = new EventEmitter();
-      child.stdin = new EventEmitter();
-      child.stdin.end = vi.fn();
-      child.stdin.write = vi.fn();
-      child.kill = vi.fn();
-      return child;
-    }),
-  };
-});
+vi.mock('../../src/core/runtime/process-runner.js', () => ({
+  spawnCommand: vi.fn(),
+}));
 vi.mock('../../src/core/ast/parser.js', () => ({
   AstParser: class {
     static parse = vi.fn();
@@ -39,6 +26,11 @@ describe('ContextBuilder', () => {
     vi.mocked(AstParser.parse).mockResolvedValue({} as any);
     vi.mocked(AstParser.identifyDefinitions).mockResolvedValue([]);
     vi.mocked(AstParser.identifyReferences).mockResolvedValue([]);
+    vi.mocked(spawnCommand).mockResolvedValue({
+      code: 1,
+      signal: null,
+      timedOut: false,
+    });
   });
 
   afterEach(() => {
@@ -47,25 +39,6 @@ describe('ContextBuilder', () => {
 
   it('should build context with primary file', async () => {
     vi.mocked(fs.readFile).mockResolvedValue('console.log("hello");');
-
-    // ✅ Mock spawn with synchronous event emission (no process.nextTick)
-    vi.mocked(spawn).mockImplementation((_command: string) => {
-      const emitter = new EventEmitter() as any;
-      emitter.stdout = new EventEmitter();
-      emitter.stderr = new EventEmitter();
-      emitter.stdin = new EventEmitter();
-      emitter.stdin.end = vi.fn();
-      emitter.stdin.write = vi.fn();
-      emitter.kill = vi.fn();
-
-      // ✅ Use queueMicrotask instead of process.nextTick (controlled by test environment)
-      queueMicrotask(() => {
-        emitter.emit('close', 0);
-        emitter.emit('exit', 0);
-      });
-
-      return emitter;
-    });
 
     const context = await ContextBuilder.build({
       instruction: 'fix something',
@@ -84,23 +57,6 @@ describe('ContextBuilder', () => {
     controller.abort();
 
     vi.mocked(fs.readFile).mockResolvedValue('console.log("hello");');
-
-    vi.mocked(spawn).mockImplementation(() => {
-      const emitter = new EventEmitter() as any;
-      emitter.stdout = new EventEmitter();
-      emitter.stderr = new EventEmitter();
-      emitter.stdin = new EventEmitter();
-      emitter.stdin.end = vi.fn();
-      emitter.stdin.write = vi.fn();
-      emitter.kill = vi.fn();
-
-      queueMicrotask(() => {
-        emitter.emit('close', 0);
-        emitter.emit('exit', 0);
-      });
-
-      return emitter;
-    });
 
     await expect(
       ContextBuilder.build({
@@ -125,25 +81,6 @@ describe('ContextBuilder', () => {
       },
     ]);
     vi.mocked(AstParser.identifyReferences).mockResolvedValue([]);
-
-    // ✅ Mock spawn with queueMicrotask (no process.nextTick)
-    vi.mocked(spawn).mockImplementation(() => {
-      const emitter = new EventEmitter() as any;
-      emitter.stdout = new EventEmitter();
-      emitter.stderr = new EventEmitter();
-      emitter.stdin = new EventEmitter();
-      emitter.stdin.end = vi.fn();
-      emitter.stdin.write = vi.fn();
-      emitter.kill = vi.fn();
-
-      // ✅ Use queueMicrotask for deterministic async behavior
-      queueMicrotask(() => {
-        emitter.emit('close', 0);
-        emitter.emit('exit', 0);
-      });
-
-      return emitter;
-    });
 
     const context = await ContextBuilder.build({
       instruction: 'fix something',

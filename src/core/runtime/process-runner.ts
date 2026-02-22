@@ -10,6 +10,7 @@ export interface SpawnCommandInput {
   killGraceMs?: number;
   detached?: boolean;
   windowsHide?: boolean;
+  signal?: AbortSignal;
   onStdoutChunk?: (chunk: Uint8Array) => void;
   onStderrChunk?: (chunk: Uint8Array) => void;
 }
@@ -18,6 +19,7 @@ export interface SpawnCommandResult {
   code: number | null;
   signal: NodeJS.Signals | null;
   timedOut: boolean;
+  aborted?: boolean;
   error?: { code?: string; message: string };
 }
 
@@ -107,6 +109,15 @@ async function spawnWithBun(
   input: SpawnCommandInput,
   bun: BunRuntime,
 ): Promise<SpawnCommandResult> {
+  if (input.signal?.aborted) {
+    return {
+      code: null,
+      signal: null,
+      timedOut: false,
+      aborted: true,
+    };
+  }
+
   let subprocess: any;
   try {
     subprocess = bun.spawn([input.command, ...(input.args ?? [])], {
@@ -130,6 +141,7 @@ async function spawnWithBun(
   writeInput(subprocess.stdin ?? {}, input.stdin);
 
   let timedOut = false;
+  let aborted = false;
   let killTimer: NodeJS.Timeout | undefined;
   const killProcess = createKillProcess(subprocess, input.detached);
   const timeoutMs = input.timeoutMs;
@@ -147,6 +159,16 @@ async function spawnWithBun(
     }, timeoutMs);
   }
 
+  let onAbort: (() => void) | undefined;
+  if (input.signal) {
+    onAbort = () => {
+      aborted = true;
+      killProcess('SIGTERM');
+      killTimer = setTimeout(() => killProcess('SIGKILL'), killGraceMs);
+    };
+    input.signal.addEventListener('abort', onAbort, { once: true });
+  }
+
   let code: number | null = null;
   let error: { code?: string; message: string } | undefined;
   try {
@@ -157,6 +179,9 @@ async function spawnWithBun(
   } finally {
     if (timeoutTimer) clearTimeout(timeoutTimer);
     if (killTimer) clearTimeout(killTimer);
+    if (input.signal && onAbort) {
+      input.signal.removeEventListener('abort', onAbort);
+    }
   }
 
   await Promise.all([stdoutPump, stderrPump]);
@@ -165,16 +190,28 @@ async function spawnWithBun(
     code,
     signal: normalizeSignal(subprocess.signalCode),
     timedOut,
+    aborted,
     error,
   };
 }
 
 async function spawnWithNode(input: SpawnCommandInput): Promise<SpawnCommandResult> {
+  if (input.signal?.aborted) {
+    return {
+      code: null,
+      signal: null,
+      timedOut: false,
+      aborted: true,
+    };
+  }
+
   return await new Promise((resolve) => {
     let settled = false;
     let killTimer: NodeJS.Timeout | undefined;
     let timeoutTimer: NodeJS.Timeout | undefined;
     let timedOut = false;
+    let aborted = false;
+    let onAbort: (() => void) | undefined;
 
     const child = spawn(input.command, input.args ?? [], {
       cwd: input.cwd,
@@ -189,6 +226,9 @@ async function spawnWithNode(input: SpawnCommandInput): Promise<SpawnCommandResu
       settled = true;
       if (timeoutTimer) clearTimeout(timeoutTimer);
       if (killTimer) clearTimeout(killTimer);
+      if (input.signal && onAbort) {
+        input.signal.removeEventListener('abort', onAbort);
+      }
       resolve(result);
     };
 
@@ -208,10 +248,20 @@ async function spawnWithNode(input: SpawnCommandInput): Promise<SpawnCommandResu
     });
 
     child.on('error', (error: any) => {
+      if (aborted) {
+        settle({
+          code: null,
+          signal: null,
+          timedOut: false,
+          aborted: true,
+        });
+        return;
+      }
       settle({
         code: -1,
         signal: null,
         timedOut: false,
+        aborted: false,
         error: { code: error?.code, message: String(error?.message ?? error) },
       });
     });
@@ -221,6 +271,7 @@ async function spawnWithNode(input: SpawnCommandInput): Promise<SpawnCommandResu
         code,
         signal: normalizeSignal(signal),
         timedOut,
+        aborted,
       });
     });
 
@@ -234,6 +285,15 @@ async function spawnWithNode(input: SpawnCommandInput): Promise<SpawnCommandResu
         killProcess('SIGTERM');
         killTimer = setTimeout(() => killProcess('SIGKILL'), killGraceMs);
       }, timeoutMs);
+    }
+
+    if (input.signal) {
+      onAbort = () => {
+        aborted = true;
+        killProcess('SIGTERM');
+        killTimer = setTimeout(() => killProcess('SIGKILL'), input.killGraceMs ?? 2000);
+      };
+      input.signal.addEventListener('abort', onAbort, { once: true });
     }
   });
 }

@@ -7,13 +7,13 @@
  * Also implements concurrent file lock mechanism for shadowRoot.
  */
 
-import { spawn } from 'child_process';
 import { randomBytes } from 'crypto';
 import { mkdir, writeFile, unlink, readFile, rename } from 'fs/promises';
 import path from 'path';
 
 import { logger } from '../../../observability/logger.js';
 import { getShadowLockPath } from '../../../runtime/paths.js';
+import { spawnCommand } from '../../../runtime/process-runner.js';
 import { normalizePath } from '../../../utils/path.js';
 
 const ownedLockTokens = new Map<string, string>();
@@ -200,55 +200,25 @@ export async function restoreWrite(root: string, depPaths: string[]): Promise<vo
  * Execute command helper
  */
 async function execChmod(mode: string, targetPath: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const child = spawn('chmod', ['-R', mode, targetPath], {
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-
-    let stderr = '';
-    let settled = false;
-
-    const fail = (message: string) => {
-      if (settled) return;
-      settled = true;
-      reject(new Error(message));
-    };
-
-    const succeed = () => {
-      if (settled) return;
-      settled = true;
-      resolve();
-    };
-
-    child.stderr.on('data', (data) => {
-      stderr += data.toString();
-    });
-
-    child.on('error', (err) => {
-      fail(`Command failed: ${err.message}`);
-    });
-
-    child.on('close', (code) => {
-      if (code === 0) {
-        succeed();
-      } else {
-        fail(`Command failed with code ${code}: ${stderr}`);
-      }
-    });
-
-    // Set timeout
-    const timer = setTimeout(() => {
-      if (!child.killed) {
-        child.kill();
-        fail('Command timed out');
-      }
-    }, 10000); // 10 seconds
-
-    child.on('close', () => {
-      clearTimeout(timer);
-    });
-    child.on('error', () => {
-      clearTimeout(timer);
-    });
+  let stderr = '';
+  const result = await spawnCommand({
+    command: 'chmod',
+    args: ['-R', mode, targetPath],
+    timeoutMs: 10000,
+    onStderrChunk: (chunk) => {
+      stderr += Buffer.from(chunk).toString();
+    },
   });
+
+  if (result.error) {
+    throw new Error(`Command failed: ${result.error.message}`);
+  }
+  if (result.timedOut) {
+    throw new Error('Command timed out');
+  }
+  if (result.code === 0) {
+    return;
+  }
+
+  throw new Error(`Command failed with code ${result.code}: ${stderr}`);
 }

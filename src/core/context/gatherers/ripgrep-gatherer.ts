@@ -1,7 +1,6 @@
-import { spawn } from 'child_process';
-
 import { LIMITS } from '../../config/limits.js';
 import { logger } from '../../observability/logger.js';
+import { spawnCommand } from '../../runtime/process-runner.js';
 import type { RipgrepResult } from '../../types/index.js';
 import { normalizePath } from '../../utils/path.js';
 
@@ -13,123 +12,77 @@ export class RipgrepGatherer {
   ): Promise<RipgrepResult[]> {
     logger.trace(`  [RG] Searching for: "${query}" in ${cwd}`);
 
-    return new Promise((resolve, reject) => {
-      if (signal?.aborted) {
-        reject(new Error('Operation cancelled by user'));
-        return;
-      }
+    if (signal?.aborted) {
+      throw new Error('Operation cancelled by user');
+    }
 
-      const child = spawn(
-        'rg',
-        [
-          '-n',
-          '--json',
-          '-i',
-          '--max-count',
-          '100',
-          '--glob',
-          '!.git',
-          '--glob',
-          '!node_modules',
-          '--',
-          query,
-          '.',
-        ],
-        {
-          stdio: ['pipe', 'pipe', 'pipe'],
-          cwd,
-          signal,
-        },
-      );
-
-      child.stdin?.end();
-
-      const timeout = setTimeout(() => {
-        logger.trace(`  [RG] Timeout reached for query: "${query}". Killing process.`);
-        child.kill();
-      }, LIMITS.defaultToolTimeoutMs);
-
-      let settled = false;
-      const settleResolve = (results: RipgrepResult[]) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timeout);
-        if (onAbort) signal?.removeEventListener('abort', onAbort);
-        resolve(results);
-      };
-      const settleReject = (error: Error) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timeout);
-        if (onAbort) signal?.removeEventListener('abort', onAbort);
-        reject(error);
-      };
-
-      const onAbort = signal
-        ? () => {
-            try {
-              child.kill();
-            } catch {
-              // Ignore
-            }
-            settleReject(new Error('Operation cancelled by user'));
-          }
-        : undefined;
-      if (onAbort) signal?.addEventListener('abort', onAbort, { once: true });
-
-      let output = '';
-      child.stdout.on('data', (data) => {
-        output += data.toString();
-      });
-
-      child.on('close', (code) => {
-        logger.trace(`  [RG] Process closed with code ${code}. Output length: ${output.length}`);
-
-        if (signal?.aborted) {
-          settleReject(new Error('Operation cancelled by user'));
-          return;
-        }
-
-        if (code === 0 || code === 1) {
-          const results: RipgrepResult[] = [];
-          const lines = output.trim().split('\n');
-          for (const line of lines) {
-            if (!line.trim()) continue;
-            try {
-              const data = JSON.parse(line);
-              if (data.type === 'match') {
-                results.push({
-                  file: normalizePath(String(data.data.path.text)),
-                  line: data.data.line_number,
-                  content: data.data.lines.text.replace(/\n$/, ''),
-                });
-              }
-            } catch {
-              // Ignore malformed JSON.
-            }
-          }
-          settleResolve(results);
-          return;
-        }
-
-        settleResolve([]);
-      });
-
-      child.on('error', (err: any) => {
-        if (signal?.aborted) {
-          settleReject(new Error('Operation cancelled by user'));
-          return;
-        }
-        if (err.code === 'ENOENT') {
-          logger.error(
-            'Error: ripgrep (rg) not found in PATH. Context gathering may be incomplete.',
-          );
-        } else {
-          logger.error(`Error running ripgrep: ${err.message}`);
-        }
-        settleResolve([]);
-      });
+    let output = '';
+    const result = await spawnCommand({
+      command: 'rg',
+      args: [
+        '-n',
+        '--json',
+        '-i',
+        '--max-count',
+        '100',
+        '--glob',
+        '!.git',
+        '--glob',
+        '!node_modules',
+        '--',
+        query,
+        '.',
+      ],
+      cwd,
+      signal,
+      timeoutMs: LIMITS.defaultToolTimeoutMs,
+      onStdoutChunk: (data) => {
+        output += Buffer.from(data).toString();
+      },
     });
+
+    if (signal?.aborted || result.aborted) {
+      throw new Error('Operation cancelled by user');
+    }
+
+    logger.trace(`  [RG] Process closed with code ${result.code}. Output length: ${output.length}`);
+
+    if (result.error) {
+      if (result.error.code === 'ENOENT') {
+        logger.error('Error: ripgrep (rg) not found in PATH. Context gathering may be incomplete.');
+      } else {
+        logger.error(`Error running ripgrep: ${result.error.message}`);
+      }
+      return [];
+    }
+
+    if (result.timedOut) {
+      logger.trace(`  [RG] Timeout reached for query: "${query}".`);
+      return [];
+    }
+
+    if (result.code !== 0 && result.code !== 1) {
+      return [];
+    }
+
+    const results: RipgrepResult[] = [];
+    const lines = output.trim().split('\n');
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      try {
+        const data = JSON.parse(line);
+        if (data.type === 'match') {
+          results.push({
+            file: normalizePath(String(data.data.path.text)),
+            line: data.data.line_number,
+            content: data.data.lines.text.replace(/\n$/, ''),
+          });
+        }
+      } catch {
+        // Ignore malformed JSON.
+      }
+    }
+    return results;
   }
 
   async searchMultipleKeywords(
