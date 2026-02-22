@@ -391,6 +391,8 @@ export const en = {
     `  ${scriptName} failed (${code}): ${command}`,
   validationCommandSpawnError: (scriptName: string, command: string, reason: string) =>
     `  ${scriptName} failed to start (${command}): ${reason}`,
+  validationCommandOutputExceeded: (scriptName: string, command: string) =>
+    `  ${scriptName} output exceeded capture limit: ${command}`,
   validationCommandAborted: (scriptName: string, command: string) =>
     `  ${scriptName} aborted: ${command}`,
   invalidPreflightPolicy: (policy: string) =>

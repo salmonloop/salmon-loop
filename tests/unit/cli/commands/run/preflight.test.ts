@@ -292,4 +292,42 @@ describe('runPreflight', () => {
     expect(hoisted.logger.error).toHaveBeenCalled();
     expect(hoisted.logger.success).toHaveBeenCalledTimes(0);
   });
+
+  it('logs output truncation classification for lint', async () => {
+    hoisted.detectNodeRuntimeProfile.mockResolvedValue({
+      packageManager: 'npm',
+      source: 'default',
+      scripts: { lint: 'eslint .' },
+    });
+    hoisted.resolveScriptCommand.mockImplementation((_profile: unknown, scriptName: string) => {
+      if (scriptName === 'lint') {
+        return {
+          packageManager: 'npm',
+          scriptName: 'lint',
+          command: 'npm',
+          args: ['run', 'lint'],
+          shellCommand: 'npm run lint',
+        };
+      }
+      return undefined;
+    });
+    hoisted.spawnCommand.mockResolvedValueOnce({
+      code: 0,
+      signal: null,
+      timedOut: false,
+      error: undefined,
+      failure: undefined,
+      stdout: 'x'.repeat(16),
+      stderr: '',
+      stdoutTruncated: true,
+      stderrTruncated: false,
+    });
+
+    const { runPreflight } = await import('../../../../../src/cli/commands/run/preflight.js');
+    await runPreflight({ repoPath: '/tmp/repo', validate: true, useGui: false });
+
+    expect(hoisted.logger.audit).toHaveBeenCalledTimes(1);
+    expect(hoisted.logger.error).toHaveBeenCalled();
+    expect(hoisted.logger.success).toHaveBeenCalledTimes(0);
+  });
 });

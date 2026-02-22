@@ -34,7 +34,7 @@
     "test:watch:perf": "vitest --config vitest.perf.config.ts",
     "test:coverage": "vitest run --coverage",
     "test:report": "vitest run --reporter=default --reporter=json --outputFile=test-report.json",
-    "test:ci": "bun run check:bun-purity && bun run check:target-runtime-boundary && eslint . && vitest run --reporter=verbose --coverage",
+    "test:ci": "bun run check:bun-purity && bun run check:target-runtime-boundary && bun run lint && bun run test:full",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\""
   },
   "keywords": [

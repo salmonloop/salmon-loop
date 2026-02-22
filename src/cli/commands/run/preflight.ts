@@ -59,6 +59,9 @@ function buildFailureMessage(details: PreflightFailureDetails): string {
       if (details.code === 'ENOENT') {
         return text.cli.validationCommandNotFound(details.scriptName, printable);
       }
+      if (details.code === 'OUTPUT_TRUNCATED') {
+        return text.cli.validationCommandOutputExceeded(details.scriptName, printable);
+      }
       return text.cli.validationCommandSpawnError(details.scriptName, printable, details.message);
     case 'nonzero_exit':
       return text.cli.validationCommandExitCode(
@@ -81,10 +84,6 @@ async function runValidateCommand(params: {
   useGui: boolean;
 }) {
   const maxBytesPerStream = 500_000;
-  let stdout = '';
-  let stderr = '';
-  let stdoutBytes = 0;
-  let stderrBytes = 0;
 
   const result = await spawnCommand({
     command: params.cmd,
@@ -95,12 +94,7 @@ async function runValidateCommand(params: {
     maxStderrBytes: maxBytesPerStream,
   });
 
-  stdout = result.stdout;
-  stderr = result.stderr;
-  stdoutBytes = Buffer.byteLength(stdout);
-  stderrBytes = Buffer.byteLength(stderr);
-
-  const combined = [stdout.trim(), stderr.trim()].filter(Boolean).join('\n').trim();
+  const combined = [result.stdout.trim(), result.stderr.trim()].filter(Boolean).join('\n').trim();
 
   if (combined) {
     const output = params.useGui ? combined.slice(0, 2_000) : combined;
@@ -113,13 +107,14 @@ async function runValidateCommand(params: {
     );
   }
 
-  if (stdoutBytes > maxBytesPerStream || stderrBytes > maxBytesPerStream) {
+  if (result.stdoutTruncated || result.stderrTruncated) {
     throw new PreflightCommandError({
       scriptName: params.scriptName,
       command: params.cmd,
       args: params.args,
       reason: 'spawn_error',
       message: 'Validation output exceeded allowed size',
+      code: 'OUTPUT_TRUNCATED',
     });
   }
 }
