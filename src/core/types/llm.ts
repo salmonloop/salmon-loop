@@ -27,6 +27,13 @@ export interface LLMMessage {
 export interface LLMStreamChunk {
   role: LLMRole;
   /**
+   * Where this chunk came from.
+   *
+   * - 'provider': surfaced from a provider stream (or a thin adapter)
+   * - 'synthesized': generated locally (e.g., fallbacks)
+   */
+  source?: 'provider' | 'synthesized';
+  /**
    * Text delta emitted by the provider. Consumers are responsible for concatenation.
    */
   contentDelta?: string;

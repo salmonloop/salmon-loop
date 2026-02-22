@@ -58,7 +58,7 @@ export function mapAiSdkStreamPartToChunk(part: any): LLMStreamChunk | null {
   if (!part) return null;
 
   if (typeof part === 'string') {
-    return { role: 'assistant', contentDelta: part };
+    return { role: 'assistant', source: 'provider', contentDelta: part };
   }
 
   if (typeof part !== 'object' || Array.isArray(part)) {
@@ -69,13 +69,14 @@ export function mapAiSdkStreamPartToChunk(part: any): LLMStreamChunk | null {
     case 'text-delta':
     case 'reasoning-delta':
       if (typeof part.text === 'string' && part.text) {
-        return { role: 'assistant', contentDelta: part.text };
+        return { role: 'assistant', source: 'provider', contentDelta: part.text };
       }
       return null;
 
     case 'tool-call':
       return {
         role: 'assistant',
+        source: 'provider',
         tool_calls: [
           {
             id: part.toolCallId || 'unknown',
@@ -91,6 +92,7 @@ export function mapAiSdkStreamPartToChunk(part: any): LLMStreamChunk | null {
     case 'finish':
       return {
         role: 'assistant',
+        source: 'provider',
         done: true,
         finishReason: part.finishReason,
         usage:
@@ -112,6 +114,7 @@ export function mapAiSdkStreamPartToChunk(part: any): LLMStreamChunk | null {
     case 'abort':
       return {
         role: 'assistant',
+        source: 'synthesized',
         done: true,
         finishReason: 'abort',
       };

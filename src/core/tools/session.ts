@@ -905,6 +905,7 @@ export async function chatWithToolsStreaming(
         if (canonicalEmitter && session.emit && session.llmOutput) {
           const parts = mapLlmStreamChunkToCanonicalStreamParts({ streamId, chunk });
           const at = new Date();
+          const source = chunk.source ?? 'provider';
           const toolPartsByCallId = new Map<string, typeof parts>();
           for (const part of parts) {
             if (!part.type.startsWith('function_call')) continue;
@@ -927,7 +928,7 @@ export async function chatWithToolsStreaming(
                   streamId,
                   phase,
                   round,
-                  source: 'synthesized',
+                  source,
                   event,
                   timestamp: at,
                 });
