@@ -62,4 +62,37 @@ describe('target runtime boundary guard', () => {
     const violations = await findRuntimeCommandHardcoding(repoRoot);
     expect(violations).toEqual([]);
   });
+
+  it('checks only selected files when includePaths is provided', async () => {
+    const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'runtime-boundary-'));
+    tempDirs.push(repoRoot);
+
+    await write(
+      repoRoot,
+      'src/cli/commands/run/preflight.ts',
+      "export const first = 'npm run test';\n",
+    );
+    await write(repoRoot, 'src/cli/utils/detectors.ts', "export const second = 'pnpm run test';\n");
+
+    const violations = await findRuntimeCommandHardcoding(repoRoot, {
+      includePaths: ['src/cli/commands/run/preflight.ts'],
+    });
+
+    expect(violations).toHaveLength(1);
+    expect(violations[0].filePath).toBe(path.join('src', 'cli', 'commands', 'run', 'preflight.ts'));
+    expect(violations[0].snippet).toBe('npm run');
+  });
+
+  it('ignores includePaths entries outside src/', async () => {
+    const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'runtime-boundary-'));
+    tempDirs.push(repoRoot);
+
+    await write(repoRoot, 'docs/readme.md', 'npm run test\n');
+
+    const violations = await findRuntimeCommandHardcoding(repoRoot, {
+      includePaths: ['docs/readme.md'],
+    });
+
+    expect(violations).toEqual([]);
+  });
 });
