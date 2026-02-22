@@ -1,0 +1,21 @@
+[
+  {
+    "type": "start",
+    "session_id": "<session>",
+    "command": "run",
+    "repo_path": "<repo>",
+    "instruction": "hello"
+  },
+  {
+    "type": "error",
+    "session_id": "<session>",
+    "error": { "message": "<msg>" }
+  },
+  {
+    "type": "end",
+    "session_id": "<session>",
+    "success": false,
+    "exit_code": 1
+  }
+]
+

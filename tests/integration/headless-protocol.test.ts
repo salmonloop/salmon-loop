@@ -1,3 +1,5 @@
+import path from 'path';
+
 import { describe, expect, it } from 'vitest';
 
 import { runCli } from '../helpers/cli-runner.js';
@@ -293,8 +295,84 @@ describe('Headless protocol integration', () => {
     expect(normalized).toEqual(expected);
   }, 120000);
 
+  it('emits machine-readable errors when --resume session is corrupted in headless stream-json (native)', async () => {
+    const repo = await helper.createGitRepo();
+    await helper.writeFile(repo.path, '.salmonloop/chat-sessions/sess-missing.json', '{');
+
+    const { exitCode, stdout } = await runCli([
+      '-r',
+      repo.path,
+      '--resume',
+      'sess-missing',
+      '-p',
+      'hello',
+      '--output-format',
+      'stream-json',
+      '--mode',
+      'review',
+      '--no-config-file',
+    ]);
+
+    expect(exitCode).toBe(1);
+    const lines = stdout
+      .split('\n')
+      .filter(Boolean)
+      .map((l) => JSON.parse(l) as any);
+
+    const normalized = normalizeHeadlessIntegrationLines({
+      lines: pickNativeLifecycleLines(lines),
+      repoPath: repo.path,
+    });
+    const expected = readJsonFixture<any[]>(
+      new URL(
+        '../fixtures/headless/integration/resume-missing-stream-json-native.json',
+        import.meta.url,
+      ),
+    );
+    expect(normalized).toEqual(expected);
+  }, 120000);
+
   it('emits machine-readable errors when --resume session is missing in headless stream-json --output-profile anthropic', async () => {
     const repo = await helper.createGitRepo();
+
+    const { exitCode, stdout } = await runCli([
+      '-r',
+      repo.path,
+      '--resume',
+      'sess-missing-anthropic',
+      '-p',
+      'hello',
+      '--output-format',
+      'stream-json',
+      '--output-profile',
+      'anthropic',
+      '--mode',
+      'review',
+      '--no-config-file',
+    ]);
+
+    expect(exitCode).toBe(1);
+    const lines = stdout
+      .split('\n')
+      .filter(Boolean)
+      .map((l) => JSON.parse(l) as any);
+
+    const normalized = normalizeHeadlessIntegrationLines({
+      lines: pickAnthropicLifecycleLines(lines),
+      repoPath: repo.path,
+    });
+    const expected = readJsonFixture<any[]>(
+      new URL(
+        '../fixtures/headless/integration/resume-missing-stream-json-anthropic.json',
+        import.meta.url,
+      ),
+    );
+    expect(normalized).toEqual(expected);
+  }, 120000);
+
+  it('emits machine-readable errors when --resume session is corrupted in headless stream-json --output-profile anthropic', async () => {
+    const repo = await helper.createGitRepo();
+    await helper.writeFile(repo.path, '.salmonloop/chat-sessions/sess-missing-anthropic.json', '{');
 
     const { exitCode, stdout } = await runCli([
       '-r',
@@ -363,6 +441,167 @@ describe('Headless protocol integration', () => {
     const expected = readJsonFixture<any[]>(
       new URL(
         '../fixtures/headless/integration/resume-missing-stream-json-openai.json',
+        import.meta.url,
+      ),
+    );
+    expect(normalized).toEqual(expected);
+  }, 120000);
+
+  it('emits OpenAI-compatible errors when --resume session is corrupted in headless stream-json --output-profile openai', async () => {
+    const repo = await helper.createGitRepo();
+    await helper.writeFile(repo.path, '.salmonloop/chat-sessions/sess-missing-openai.json', '{');
+
+    const { exitCode, stdout } = await runCli([
+      '-r',
+      repo.path,
+      '--resume',
+      'sess-missing-openai',
+      '-p',
+      'hello',
+      '--output-format',
+      'stream-json',
+      '--output-profile',
+      'openai',
+      '--mode',
+      'review',
+      '--no-config-file',
+    ]);
+
+    expect(exitCode).toBe(1);
+    const lines = stdout
+      .split('\n')
+      .filter(Boolean)
+      .map((l) => JSON.parse(l) as any);
+
+    const normalized = normalizeHeadlessIntegrationLines({
+      lines: pickOpenAiLifecycleLines(lines),
+      repoPath: repo.path,
+    });
+    const expected = readJsonFixture<any[]>(
+      new URL(
+        '../fixtures/headless/integration/resume-missing-stream-json-openai.json',
+        import.meta.url,
+      ),
+    );
+    expect(normalized).toEqual(expected);
+  }, 120000);
+
+  it('emits machine-readable unexpected errors when repo path is not a directory in headless stream-json (native)', async () => {
+    const dir = await helper.createTempDir('not-a-repo-');
+    const repoPath = path.join(dir, 'repo.txt');
+    await helper.writeFile(dir, 'repo.txt', 'x');
+
+    const { exitCode, stdout } = await runCli([
+      '-r',
+      repoPath,
+      '-p',
+      'hello',
+      '--output-format',
+      'stream-json',
+      '--mode',
+      'review',
+      '--no-config-file',
+    ]);
+
+    expect(exitCode).toBe(1);
+    const lines = stdout
+      .split('\n')
+      .filter(Boolean)
+      .map((l) => JSON.parse(l) as any);
+
+    const simplified = pickNativeLifecycleLines(lines).map((l) => ({
+      ...l,
+      session_id: '<session>',
+    }));
+    const normalized = normalizeHeadlessIntegrationLines({
+      lines: simplified,
+      repoPath,
+    });
+
+    const expected = readJsonFixture<any[]>(
+      new URL(
+        '../fixtures/headless/integration/unexpected-error-stream-json-native.json',
+        import.meta.url,
+      ),
+    );
+    expect(normalized).toEqual(expected);
+  }, 120000);
+
+  it('emits machine-readable unexpected errors when repo path is not a directory in headless stream-json --output-profile anthropic', async () => {
+    const dir = await helper.createTempDir('not-a-repo-');
+    const repoPath = path.join(dir, 'repo.txt');
+    await helper.writeFile(dir, 'repo.txt', 'x');
+
+    const { exitCode, stdout } = await runCli([
+      '-r',
+      repoPath,
+      '-p',
+      'hello',
+      '--output-format',
+      'stream-json',
+      '--output-profile',
+      'anthropic',
+      '--mode',
+      'review',
+      '--no-config-file',
+    ]);
+
+    expect(exitCode).toBe(1);
+    const lines = stdout
+      .split('\n')
+      .filter(Boolean)
+      .map((l) => JSON.parse(l) as any);
+
+    const simplified = pickAnthropicLifecycleLines(lines).map((l) => ({
+      ...l,
+      session_id: '<session>',
+    }));
+    const normalized = normalizeHeadlessIntegrationLines({
+      lines: simplified,
+      repoPath,
+    });
+
+    const expected = readJsonFixture<any[]>(
+      new URL(
+        '../fixtures/headless/integration/unexpected-error-stream-json-anthropic.json',
+        import.meta.url,
+      ),
+    );
+    expect(normalized).toEqual(expected);
+  }, 120000);
+
+  it('emits OpenAI-compatible unexpected errors when repo path is not a directory in headless stream-json --output-profile openai', async () => {
+    const dir = await helper.createTempDir('not-a-repo-');
+    const repoPath = path.join(dir, 'repo.txt');
+    await helper.writeFile(dir, 'repo.txt', 'x');
+
+    const { exitCode, stdout } = await runCli([
+      '-r',
+      repoPath,
+      '-p',
+      'hello',
+      '--output-format',
+      'stream-json',
+      '--output-profile',
+      'openai',
+      '--mode',
+      'review',
+      '--no-config-file',
+    ]);
+
+    expect(exitCode).toBe(1);
+    const lines = stdout
+      .split('\n')
+      .filter(Boolean)
+      .map((l) => JSON.parse(l) as any);
+
+    const normalized = normalizeHeadlessIntegrationLines({
+      lines: pickOpenAiLifecycleLines(lines),
+      repoPath,
+    });
+    const expected = readJsonFixture<any[]>(
+      new URL(
+        '../fixtures/headless/integration/unexpected-error-stream-json-openai.json',
         import.meta.url,
       ),
     );
