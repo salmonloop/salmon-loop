@@ -6,11 +6,7 @@ import type {
   ResponseStreamEvent,
 } from 'openai/resources/responses/responses';
 
-import type { CanonicalResponsesEvent } from '../../core/streaming/canonical/responses-events.js';
-import type { NormalizedStreamEvent } from '../../core/streaming/normalized-events.js';
-
 type WithoutSequenceNumber<T> = T extends any ? Omit<T, 'sequence_number'> : never;
-
 export type UnsequencedResponseStreamEvent = WithoutSequenceNumber<ResponseStreamEvent>;
 
 type TextItemState = {
@@ -19,7 +15,9 @@ type TextItemState = {
   contentIndex: number;
   text: string;
   contentStarted: boolean;
-  done: boolean;
+  outputTextDone: boolean;
+  contentPartDone: boolean;
+  outputItemDone: boolean;
 };
 
 type FunctionCallState = {
@@ -29,6 +27,32 @@ type FunctionCallState = {
   args: string;
   done: boolean;
 };
+
+function cloneOutputTextPart(part: ResponseOutputText): ResponseOutputText {
+  return {
+    ...part,
+    annotations: Array.isArray(part.annotations) ? [...part.annotations] : [],
+  };
+}
+
+function cloneOutputItem(item: ResponseOutputItem): ResponseOutputItem {
+  if (item.type === 'message') {
+    const message = item as ResponseOutputMessage;
+    return {
+      ...message,
+      content: message.content.map((part) => {
+        if (part.type === 'output_text') return cloneOutputTextPart(part as ResponseOutputText);
+        return part;
+      }),
+    };
+  }
+
+  if (item.type === 'function_call') {
+    return { ...(item as ResponseFunctionToolCall) };
+  }
+
+  return item;
+}
 
 export class OpenAiResponsesState {
   private readonly output: ResponseOutputItem[] = [];
@@ -52,290 +76,22 @@ export class OpenAiResponsesState {
     return parts.join('');
   }
 
-  applyCanonical(params: {
-    streamId: string;
-    event: CanonicalResponsesEvent;
-  }): UnsequencedResponseStreamEvent[] {
-    const { streamId, event } = params;
-
-    if (event.type === 'response.output_item.added') {
-      if (isMessageItem(event.item)) return this.handleCanonicalMessageAdded(streamId, event.item);
-      if (isFunctionCallItem(event.item)) {
-        return this.handleCanonicalFunctionCallAdded(
-          event.item.call_id,
-          event.item.name,
-          event.item.id,
-        );
-      }
-      return [];
-    }
-
-    if (event.type === 'response.content_part.added') {
-      if (!isOutputTextPart(event.part)) return [];
-      return this.handleCanonicalContentPartAdded(streamId);
-    }
-
-    if (event.type === 'response.output_text.delta') {
-      const delta = typeof (event as any).delta === 'string' ? (event as any).delta : '';
-      if (!delta) return [];
-      return this.handleCanonicalTextDelta(streamId, delta);
-    }
-
-    if (event.type === 'response.output_text.done') {
-      const text = typeof (event as any).text === 'string' ? (event as any).text : undefined;
-      return this.handleCanonicalTextDone(streamId, text);
-    }
-
-    if (event.type === 'response.content_part.done') {
-      if (!isOutputTextPart(event.part)) return [];
-      return this.handleCanonicalTextDone(streamId, event.part.text);
-    }
-
-    if (event.type === 'response.output_item.done') {
-      if (isMessageItem(event.item)) return this.handleCanonicalTextDone(streamId, undefined);
-      if (isFunctionCallItem(event.item)) {
-        return this.handleCanonicalFunctionCallDone(
-          event.item.call_id,
-          event.item.arguments ?? '{}',
-        );
-      }
-      return [];
-    }
-
-    if (event.type === 'response.function_call_arguments.delta') {
-      const callId = parseFunctionCallCallIdFromCanonicalItemId((event as any).item_id);
-      if (!callId) return [];
-      const delta = typeof (event as any).delta === 'string' ? (event as any).delta : '';
-      if (!delta) return [];
-      return this.handleCanonicalFunctionCallArgsDelta(callId, delta);
-    }
-
-    if (event.type === 'response.function_call_arguments.done') {
-      const callId = parseFunctionCallCallIdFromCanonicalItemId((event as any).item_id);
-      if (!callId) return [];
-      const args = typeof (event as any).arguments === 'string' ? (event as any).arguments : '{}';
-      const name =
-        typeof (event as any).name === 'string'
-          ? (event as any).name
-          : this.functionCalls.get(callId)?.name;
-      if (!name) return [];
-      return this.handleCanonicalFunctionCallArgsDone(callId, name, args);
-    }
-
-    return [];
+  hasTextStream(streamId: string): boolean {
+    return this.textItems.has(streamId);
   }
 
-  applyNormalized(event: NormalizedStreamEvent): UnsequencedResponseStreamEvent[] {
-    if (event.type === 'normalized.message_start') {
-      if (event.role !== 'assistant' || event.source !== 'llm') return [];
-
-      const outputIndex = this.output.length;
-      const itemId = this.itemIdFn();
-      const item: ResponseOutputMessage = {
-        id: itemId,
-        type: 'message',
-        role: 'assistant',
-        status: 'in_progress',
-        content: [],
-      };
-
-      this.output.push(item);
-      this.textItems.set(event.messageId, {
-        outputIndex,
-        itemId,
-        contentIndex: 0,
-        text: '',
-        contentStarted: false,
-        done: false,
-      });
-
-      return [
-        {
-          type: 'response.output_item.added',
-          output_index: outputIndex,
-          item,
-        },
-      ];
-    }
-
-    if (event.type === 'normalized.content_block_start') {
-      if (event.blockType !== 'text') return [];
-
-      const st = this.textItems.get(event.messageId);
-      if (!st || st.done) return [];
-      if (st.contentStarted) return [];
-      st.contentStarted = true;
-
-      const item = this.output[st.outputIndex];
-      if (!item || item.type !== 'message') return [];
-
-      const part: ResponseOutputText = { type: 'output_text', text: '', annotations: [] };
-      item.content.push(part);
-
-      return [
-        {
-          type: 'response.content_part.added',
-          output_index: st.outputIndex,
-          item_id: st.itemId,
-          content_index: st.contentIndex,
-          part,
-        },
-      ];
-    }
-
-    if (event.type === 'normalized.content_block_delta') {
-      if (event.deltaType !== 'text') return [];
-
-      const st = this.textItems.get(event.messageId);
-      if (!st || st.done) return [];
-      st.text += event.text;
-
-      return [
-        {
-          type: 'response.output_text.delta',
-          output_index: st.outputIndex,
-          item_id: st.itemId,
-          content_index: st.contentIndex,
-          delta: event.text,
-          logprobs: [],
-        },
-      ];
-    }
-
-    if (event.type === 'normalized.content_block_end') {
-      const st = this.textItems.get(event.messageId);
-      if (!st || st.done) return [];
-
-      const item = this.output[st.outputIndex];
-      if (!item || item.type !== 'message') return [];
-
-      const part: ResponseOutputText = {
-        type: 'output_text',
-        text: st.text,
-        annotations: [],
-      };
-
-      if (item.content.length === 0) item.content.push(part);
-      else item.content[0] = part;
-
-      return [
-        {
-          type: 'response.output_text.done',
-          output_index: st.outputIndex,
-          item_id: st.itemId,
-          content_index: st.contentIndex,
-          text: st.text,
-          logprobs: [],
-        },
-        {
-          type: 'response.content_part.done',
-          output_index: st.outputIndex,
-          item_id: st.itemId,
-          content_index: st.contentIndex,
-          part,
-        },
-      ];
-    }
-
-    if (event.type === 'normalized.message_end') {
-      const st = this.textItems.get(event.messageId);
-      if (!st || st.done) return [];
-      st.done = true;
-
-      const item = this.output[st.outputIndex];
-      if (!item || item.type !== 'message') return [];
-      item.status = 'completed';
-
-      return [
-        {
-          type: 'response.output_item.done',
-          output_index: st.outputIndex,
-          item,
-        },
-      ];
-    }
-
-    if (event.type === 'normalized.tool_request_start') {
-      if (this.functionCalls.has(event.callId)) return [];
-
-      const outputIndex = this.output.length;
-      const itemId = this.itemIdFn();
-
-      const item: ResponseFunctionToolCall = {
-        id: itemId,
-        type: 'function_call',
-        call_id: event.callId,
-        name: event.toolName,
-        arguments: '',
-        status: 'in_progress',
-      };
-
-      this.output.push(item);
-      this.functionCalls.set(event.callId, {
-        outputIndex,
-        itemId,
-        name: event.toolName,
-        args: '{}',
-        done: false,
-      });
-
-      return [
-        {
-          type: 'response.output_item.added',
-          output_index: outputIndex,
-          item,
-        },
-        {
-          type: 'response.function_call_arguments.delta',
-          output_index: outputIndex,
-          item_id: itemId,
-          delta: '{}',
-        },
-        {
-          type: 'response.function_call_arguments.done',
-          output_index: outputIndex,
-          item_id: itemId,
-          name: event.toolName,
-          arguments: '{}',
-        },
-      ];
-    }
-
-    if (event.type === 'normalized.tool_request_end') {
-      const st = this.functionCalls.get(event.callId);
-      if (!st || st.done) return [];
-      st.done = true;
-
-      const item = this.output[st.outputIndex];
-      if (!item || item.type !== 'function_call') return [];
-      item.arguments = st.args;
-      item.status = 'completed';
-
-      return [
-        {
-          type: 'response.output_item.done',
-          output_index: st.outputIndex,
-          item,
-        },
-      ];
-    }
-
-    return [];
-  }
-
-  private handleCanonicalMessageAdded(
+  ensureMessage(
     streamId: string,
-    item: { role: string; id?: string },
+    params: { role: ResponseOutputMessage['role']; itemId?: string },
   ): UnsequencedResponseStreamEvent[] {
     if (this.textItems.has(streamId)) return [];
-    if (item.role !== 'assistant') return [];
 
     const outputIndex = this.output.length;
-    const itemId = item.id ?? this.itemIdFn();
+    const resolvedItemId = params.itemId ?? this.itemIdFn();
     const message: ResponseOutputMessage = {
-      id: itemId,
+      id: resolvedItemId,
       type: 'message',
-      role: 'assistant',
+      role: params.role,
       status: 'in_progress',
       content: [],
     };
@@ -343,30 +99,34 @@ export class OpenAiResponsesState {
     this.output.push(message);
     this.textItems.set(streamId, {
       outputIndex,
-      itemId,
+      itemId: resolvedItemId,
       contentIndex: 0,
       text: '',
       contentStarted: false,
-      done: false,
+      outputTextDone: false,
+      contentPartDone: false,
+      outputItemDone: false,
     });
 
     return [
       {
         type: 'response.output_item.added',
         output_index: outputIndex,
-        item: message,
+        item: cloneOutputItem(message),
       },
     ];
   }
 
-  private handleCanonicalContentPartAdded(streamId: string): UnsequencedResponseStreamEvent[] {
+  ensureAssistantMessage(streamId: string, itemId?: string): UnsequencedResponseStreamEvent[] {
+    return this.ensureMessage(streamId, { role: 'assistant', itemId });
+  }
+
+  ensureTextPart(streamId: string): UnsequencedResponseStreamEvent[] {
     const out: UnsequencedResponseStreamEvent[] = [];
-    if (!this.textItems.has(streamId)) {
-      out.push(...this.handleCanonicalMessageAdded(streamId, { role: 'assistant' }));
-    }
+    if (!this.textItems.has(streamId)) out.push(...this.ensureAssistantMessage(streamId));
 
     const st = this.textItems.get(streamId);
-    if (!st || st.done) return out;
+    if (!st || st.outputItemDone) return out;
     if (st.contentStarted) return out;
     st.contentStarted = true;
 
@@ -381,21 +141,18 @@ export class OpenAiResponsesState {
       output_index: st.outputIndex,
       item_id: st.itemId,
       content_index: st.contentIndex,
-      part,
+      part: cloneOutputTextPart(part),
     });
 
     return out;
   }
 
-  private handleCanonicalTextDelta(
-    streamId: string,
-    delta: string,
-  ): UnsequencedResponseStreamEvent[] {
+  appendTextDelta(streamId: string, delta: string): UnsequencedResponseStreamEvent[] {
     const out: UnsequencedResponseStreamEvent[] = [];
-    out.push(...this.handleCanonicalContentPartAdded(streamId));
+    out.push(...this.ensureTextPart(streamId));
 
     const st = this.textItems.get(streamId);
-    if (!st || st.done) return out;
+    if (!st || st.outputItemDone) return out;
     st.text += delta;
 
     out.push({
@@ -410,58 +167,103 @@ export class OpenAiResponsesState {
     return out;
   }
 
-  private handleCanonicalTextDone(
-    streamId: string,
-    text?: string,
-  ): UnsequencedResponseStreamEvent[] {
+  doneOutputText(streamId: string, text?: string): UnsequencedResponseStreamEvent[] {
     const out: UnsequencedResponseStreamEvent[] = [];
-    out.push(...this.handleCanonicalContentPartAdded(streamId));
+    out.push(...this.ensureTextPart(streamId));
 
     const st = this.textItems.get(streamId);
-    if (!st || st.done) return out;
+    if (!st || st.outputItemDone) return out;
+    if (st.outputTextDone) return out;
     if (typeof text === 'string') st.text = text;
 
     const item = this.output[st.outputIndex];
     if (!item || item.type !== 'message') return out;
 
-    const part: ResponseOutputText = {
-      type: 'output_text',
-      text: st.text,
-      annotations: [],
-    };
+    const part: ResponseOutputText = { type: 'output_text', text: st.text, annotations: [] };
     if (item.content.length === 0) item.content.push(part);
     else item.content[0] = part;
 
-    st.done = true;
-    item.status = 'completed';
+    st.outputTextDone = true;
 
-    out.push(
-      {
-        type: 'response.output_text.done',
-        output_index: st.outputIndex,
-        item_id: st.itemId,
-        content_index: st.contentIndex,
-        text: st.text,
-        logprobs: [],
-      },
-      {
-        type: 'response.content_part.done',
-        output_index: st.outputIndex,
-        item_id: st.itemId,
-        content_index: st.contentIndex,
-        part,
-      },
-      {
-        type: 'response.output_item.done',
-        output_index: st.outputIndex,
-        item,
-      },
-    );
+    out.push({
+      type: 'response.output_text.done',
+      output_index: st.outputIndex,
+      item_id: st.itemId,
+      content_index: st.contentIndex,
+      text: st.text,
+      logprobs: [],
+    });
 
     return out;
   }
 
-  private handleCanonicalFunctionCallAdded(
+  doneContentPart(streamId: string): UnsequencedResponseStreamEvent[] {
+    const out: UnsequencedResponseStreamEvent[] = [];
+    out.push(...this.ensureTextPart(streamId));
+
+    const st = this.textItems.get(streamId);
+    if (!st || st.outputItemDone) return out;
+    if (st.contentPartDone) return out;
+
+    const item = this.output[st.outputIndex];
+    if (!item || item.type !== 'message') return out;
+
+    const part: ResponseOutputText = { type: 'output_text', text: st.text, annotations: [] };
+    if (item.content.length === 0) item.content.push(part);
+    else item.content[0] = part;
+
+    st.contentPartDone = true;
+
+    out.push({
+      type: 'response.content_part.done',
+      output_index: st.outputIndex,
+      item_id: st.itemId,
+      content_index: st.contentIndex,
+      part: cloneOutputTextPart(part),
+    });
+
+    return out;
+  }
+
+  doneMessageItem(streamId: string): UnsequencedResponseStreamEvent[] {
+    const out: UnsequencedResponseStreamEvent[] = [];
+    out.push(...this.ensureTextPart(streamId));
+
+    const st = this.textItems.get(streamId);
+    if (!st || st.outputItemDone) return out;
+
+    const item = this.output[st.outputIndex];
+    if (!item || item.type !== 'message') return out;
+
+    const part: ResponseOutputText = { type: 'output_text', text: st.text, annotations: [] };
+    if (item.content.length === 0) item.content.push(part);
+    else item.content[0] = part;
+
+    st.outputItemDone = true;
+    item.status = 'completed';
+
+    out.push({
+      type: 'response.output_item.done',
+      output_index: st.outputIndex,
+      item: cloneOutputItem(item),
+    });
+
+    return out;
+  }
+
+  finishText(streamId: string, text?: string): UnsequencedResponseStreamEvent[] {
+    const out: UnsequencedResponseStreamEvent[] = [];
+    out.push(...this.doneOutputText(streamId, text));
+    out.push(...this.doneContentPart(streamId));
+    out.push(...this.doneMessageItem(streamId));
+    return out;
+  }
+
+  hasFunctionCall(callId: string): boolean {
+    return this.functionCalls.has(callId);
+  }
+
+  startFunctionCall(
     callId: string,
     toolName: string,
     itemId?: string,
@@ -470,7 +272,6 @@ export class OpenAiResponsesState {
 
     const outputIndex = this.output.length;
     const resolvedItemId = itemId ?? this.itemIdFn();
-
     const item: ResponseFunctionToolCall = {
       id: resolvedItemId,
       type: 'function_call',
@@ -493,15 +294,12 @@ export class OpenAiResponsesState {
       {
         type: 'response.output_item.added',
         output_index: outputIndex,
-        item,
+        item: cloneOutputItem(item),
       },
     ];
   }
 
-  private handleCanonicalFunctionCallArgsDelta(
-    callId: string,
-    delta: string,
-  ): UnsequencedResponseStreamEvent[] {
+  appendFunctionCallArgs(callId: string, delta: string): UnsequencedResponseStreamEvent[] {
     const st = this.functionCalls.get(callId);
     if (!st || st.done) return [];
     st.args += delta;
@@ -515,29 +313,29 @@ export class OpenAiResponsesState {
     ];
   }
 
-  private handleCanonicalFunctionCallArgsDone(
+  finishFunctionCallArgs(
     callId: string,
-    toolName: string,
     args: string,
+    toolName?: string,
   ): UnsequencedResponseStreamEvent[] {
     const st = this.functionCalls.get(callId);
     if (!st || st.done) return [];
     st.args = args;
+
+    const item = this.output[st.outputIndex];
+    if (item && item.type === 'function_call') item.arguments = args;
     return [
       {
         type: 'response.function_call_arguments.done',
         output_index: st.outputIndex,
         item_id: st.itemId,
-        name: toolName,
+        name: toolName ?? st.name,
         arguments: args,
       },
     ];
   }
 
-  private handleCanonicalFunctionCallDone(
-    callId: string,
-    args: string,
-  ): UnsequencedResponseStreamEvent[] {
+  finishFunctionCall(callId: string, args: string): UnsequencedResponseStreamEvent[] {
     const st = this.functionCalls.get(callId);
     if (!st || st.done) return [];
     st.done = true;
@@ -552,42 +350,8 @@ export class OpenAiResponsesState {
       {
         type: 'response.output_item.done',
         output_index: st.outputIndex,
-        item,
+        item: cloneOutputItem(item),
       },
     ];
   }
-}
-
-function isMessageItem(item: unknown): item is { type: 'message'; role: string; id?: string } {
-  if (!item || typeof item !== 'object') return false;
-  return (item as any).type === 'message' && typeof (item as any).role === 'string';
-}
-
-function isFunctionCallItem(item: unknown): item is {
-  type: 'function_call';
-  id?: string;
-  call_id: string;
-  name: string;
-  arguments?: string;
-} {
-  if (!item || typeof item !== 'object') return false;
-  return (
-    (item as any).type === 'function_call' &&
-    typeof (item as any).call_id === 'string' &&
-    typeof (item as any).name === 'string'
-  );
-}
-
-function isOutputTextPart(part: unknown): part is { type: 'output_text'; text: string } {
-  if (!part || typeof part !== 'object') return false;
-  return (part as any).type === 'output_text' && typeof (part as any).text === 'string';
-}
-
-function parseFunctionCallCallIdFromCanonicalItemId(itemId: unknown): string | null {
-  if (typeof itemId !== 'string') return null;
-  const prefix = 'function_call:';
-  if (!itemId.startsWith(prefix)) return null;
-  const callId = itemId.slice(prefix.length);
-  if (!callId) return null;
-  return callId;
 }
