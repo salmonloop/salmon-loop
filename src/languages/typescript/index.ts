@@ -32,8 +32,6 @@ const commonDiagnostics = {
       lowerOutput.includes('dependency version mismatch') ||
       lowerOutput.includes('module not found') ||
       lowerOutput.includes('cannot find module') ||
-      lowerOutput.includes('npm install') ||
-      lowerOutput.includes('pnpm install') ||
       lowerOutput.includes('bun install')
     ) {
       return ErrorType.DEPENDENCY_ERROR;

@@ -122,8 +122,6 @@ export const WRITE_OP_BLACKLIST = [
   'compile',
   'bun install',
   'bun add',
-  'npm i',
-  'yarn add',
   'cargo build',
   'cargo run',
   'go mod',

@@ -51,16 +51,16 @@ export async function runPreflight(params: {
     logger.debug(text.cli.runningEslint);
     runValidateCommand({
       repoPath: params.repoPath,
-      cmd: 'npx',
-      args: ['eslint', 'src', '--ext', '.ts'],
+      cmd: 'bun',
+      args: ['run', 'lint'],
       useGui: params.useGui,
     });
     logger.debug(text.cli.runningTests);
     try {
       runValidateCommand({
         repoPath: params.repoPath,
-        cmd: 'npm',
-        args: ['test'],
+        cmd: 'bun',
+        args: ['run', 'test'],
         useGui: params.useGui,
       });
     } catch {
