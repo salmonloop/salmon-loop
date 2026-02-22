@@ -257,6 +257,118 @@ describe('Headless protocol integration', () => {
     });
   }, 120000);
 
+  it('emits machine-readable errors when --resume session is missing in headless stream-json (native)', async () => {
+    const repo = await helper.createGitRepo();
+
+    const { exitCode, stdout } = await runCli([
+      '-r',
+      repo.path,
+      '--resume',
+      'sess-missing',
+      '-p',
+      'hello',
+      '--output-format',
+      'stream-json',
+      '--mode',
+      'review',
+      '--no-config-file',
+    ]);
+
+    expect(exitCode).toBe(1);
+    const lines = stdout
+      .split('\n')
+      .filter(Boolean)
+      .map((l) => JSON.parse(l) as any);
+
+    const normalized = normalizeHeadlessIntegrationLines({
+      lines: pickNativeLifecycleLines(lines),
+      repoPath: repo.path,
+    });
+    const expected = readJsonFixture<any[]>(
+      new URL(
+        '../fixtures/headless/integration/resume-missing-stream-json-native.json',
+        import.meta.url,
+      ),
+    );
+    expect(normalized).toEqual(expected);
+  }, 120000);
+
+  it('emits machine-readable errors when --resume session is missing in headless stream-json --output-profile anthropic', async () => {
+    const repo = await helper.createGitRepo();
+
+    const { exitCode, stdout } = await runCli([
+      '-r',
+      repo.path,
+      '--resume',
+      'sess-missing-anthropic',
+      '-p',
+      'hello',
+      '--output-format',
+      'stream-json',
+      '--output-profile',
+      'anthropic',
+      '--mode',
+      'review',
+      '--no-config-file',
+    ]);
+
+    expect(exitCode).toBe(1);
+    const lines = stdout
+      .split('\n')
+      .filter(Boolean)
+      .map((l) => JSON.parse(l) as any);
+
+    const normalized = normalizeHeadlessIntegrationLines({
+      lines: pickAnthropicLifecycleLines(lines),
+      repoPath: repo.path,
+    });
+    const expected = readJsonFixture<any[]>(
+      new URL(
+        '../fixtures/headless/integration/resume-missing-stream-json-anthropic.json',
+        import.meta.url,
+      ),
+    );
+    expect(normalized).toEqual(expected);
+  }, 120000);
+
+  it('emits OpenAI-compatible errors when --resume session is missing in headless stream-json --output-profile openai', async () => {
+    const repo = await helper.createGitRepo();
+
+    const { exitCode, stdout } = await runCli([
+      '-r',
+      repo.path,
+      '--resume',
+      'sess-missing-openai',
+      '-p',
+      'hello',
+      '--output-format',
+      'stream-json',
+      '--output-profile',
+      'openai',
+      '--mode',
+      'review',
+      '--no-config-file',
+    ]);
+
+    expect(exitCode).toBe(1);
+    const lines = stdout
+      .split('\n')
+      .filter(Boolean)
+      .map((l) => JSON.parse(l) as any);
+
+    const normalized = normalizeHeadlessIntegrationLines({
+      lines: pickOpenAiLifecycleLines(lines),
+      repoPath: repo.path,
+    });
+    const expected = readJsonFixture<any[]>(
+      new URL(
+        '../fixtures/headless/integration/resume-missing-stream-json-openai.json',
+        import.meta.url,
+      ),
+    );
+    expect(normalized).toEqual(expected);
+  }, 120000);
+
   it('emits machine-readable usage errors for Commander parse errors in headless json', async () => {
     const repo = await helper.createGitRepo();
 

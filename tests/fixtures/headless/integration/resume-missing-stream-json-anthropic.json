@@ -1,0 +1,21 @@
+[
+  {
+    "type": "start",
+    "session_id": "sess-missing-anthropic",
+    "command": "run",
+    "repo_path": "<repo>",
+    "instruction": "hello"
+  },
+  {
+    "type": "error",
+    "session_id": "sess-missing-anthropic",
+    "error": { "message": "<msg>" }
+  },
+  {
+    "type": "end",
+    "session_id": "sess-missing-anthropic",
+    "success": false,
+    "exit_code": 1
+  }
+]
+

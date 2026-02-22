@@ -12,3 +12,4 @@
   { "type": "error", "sequence_number": 2, "code": "usage_error" },
   { "type": "response.failed", "sequence_number": 3, "response": { "object": "response", "status": "failed" } }
 ]
+

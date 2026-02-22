@@ -1,0 +1,33 @@
+[
+  {
+    "uuid": "<uuid>",
+    "session_id": "sess-missing",
+    "event": {
+      "type": "start",
+      "timestamp": "<ts>",
+      "command": "run",
+      "repo_path": "<repo>",
+      "instruction": "hello"
+    }
+  },
+  {
+    "uuid": "<uuid>",
+    "session_id": "sess-missing",
+    "event": {
+      "type": "error",
+      "timestamp": "<ts>",
+      "error": { "message": "<msg>" }
+    }
+  },
+  {
+    "uuid": "<uuid>",
+    "session_id": "sess-missing",
+    "event": {
+      "type": "end",
+      "timestamp": "<ts>",
+      "success": false,
+      "exit_code": 1
+    }
+  }
+]
+
