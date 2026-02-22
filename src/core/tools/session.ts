@@ -6,13 +6,8 @@ import { emitLlmOutput, emitLlmStreamDelta, emitLlmStreamEnd } from '../llm/outp
 import { redactErrorMessage, redactJsonString, redactValue } from '../llm/redact.js';
 import { recordAuditEvent } from '../observability/audit-trail.js';
 import { logger } from '../observability/logger.js';
-import { formatCanonicalFunctionCallItemId } from '../streaming/canonical/function-call-item-id.js';
-import {
-  createResponseFunctionCallArgumentsDeltaEvent,
-  createResponseFunctionCallArgumentsDoneEvent,
-  createResponseOutputItemAddedFunctionCallEvent,
-  createResponseOutputItemDoneFunctionCallEvent,
-} from '../streaming/canonical/responses-event-emitter.js';
+import { CanonicalResponsesEventEmitter } from '../streaming/canonical/canonical-responses-event-emitter.js';
+import { mapLlmStreamChunkToCanonicalStreamParts } from '../streaming/canonical/parts-from-llm-stream-chunk.js';
 import type {
   ChatOptions,
   ExecutionStep,
@@ -895,6 +890,8 @@ export async function chatWithToolsStreaming(
     let finishReason: string | undefined;
     let finishUsage: { promptTokens: number; completionTokens: number } | undefined;
     let usedFallback = false;
+    const canonicalEmitter =
+      session.emit && session.llmOutput ? new CanonicalResponsesEventEmitter() : null;
 
     try {
       const stream = session.llm.chatStream(messages, {
@@ -905,64 +902,38 @@ export async function chatWithToolsStreaming(
       });
 
       for await (const chunk of stream) {
-        if (session.emit && session.llmOutput && Array.isArray(chunk?.tool_calls)) {
-          for (const call of chunk.tool_calls) {
-            const callId = call?.id;
-            const toolName = call?.function?.name;
+        if (canonicalEmitter && session.emit && session.llmOutput) {
+          const parts = mapLlmStreamChunkToCanonicalStreamParts({ streamId, chunk });
+          const at = new Date();
+          const toolPartsByCallId = new Map<string, typeof parts>();
+          for (const part of parts) {
+            if (!part.type.startsWith('function_call')) continue;
+            const callId = (part as { callId?: unknown }).callId;
             if (typeof callId !== 'string' || !callId) continue;
-            if (typeof toolName !== 'string' || !toolName) continue;
             if (emittedModelToolCallIds.has(callId)) continue;
+            const existing = toolPartsByCallId.get(callId);
+            if (existing) existing.push(part);
+            else toolPartsByCallId.set(callId, [part]);
+          }
+
+          for (const [callId, callParts] of toolPartsByCallId) {
+            for (const part of callParts) {
+              const events = canonicalEmitter.push(part);
+              for (const event of events) {
+                session.emit({
+                  type: 'llm.responses.event',
+                  kind: session.llmOutput.kind,
+                  step: session.llmOutput.step,
+                  streamId,
+                  phase,
+                  round,
+                  source: 'synthesized',
+                  event,
+                  timestamp: at,
+                });
+              }
+            }
             emittedModelToolCallIds.add(callId);
-
-            const itemId = formatCanonicalFunctionCallItemId(callId);
-            const at = new Date();
-            session.emit({
-              type: 'llm.responses.event',
-              kind: session.llmOutput.kind,
-              step: session.llmOutput.step,
-              streamId,
-              phase,
-              round,
-              source: 'synthesized',
-              event: createResponseOutputItemAddedFunctionCallEvent({
-                itemId,
-                callId,
-                name: toolName,
-                argumentsText: '{}',
-              }),
-              timestamp: at,
-            });
-
-            session.emit({
-              type: 'llm.responses.event',
-              kind: session.llmOutput.kind,
-              step: session.llmOutput.step,
-              streamId,
-              phase,
-              round,
-              source: 'synthesized',
-              event: createResponseFunctionCallArgumentsDeltaEvent({
-                itemId,
-                delta: '{}',
-              }),
-              timestamp: at,
-            });
-
-            session.emit({
-              type: 'llm.responses.event',
-              kind: session.llmOutput.kind,
-              step: session.llmOutput.step,
-              streamId,
-              phase,
-              round,
-              source: 'synthesized',
-              event: createResponseFunctionCallArgumentsDoneEvent({
-                itemId,
-                name: toolName,
-                argumentsText: '{}',
-              }),
-              timestamp: at,
-            });
           }
         }
 
@@ -1070,6 +1041,7 @@ export async function chatWithToolsStreaming(
       for (const call of collectedToolCalls) {
         const callId = call?.id;
         const toolName = call?.function?.name;
+        const argsText = call?.function?.arguments;
         if (typeof callId !== 'string' || !callId) continue;
         if (typeof toolName !== 'string' || !toolName) continue;
         if (seenDoneIds.has(callId)) continue;
@@ -1077,75 +1049,58 @@ export async function chatWithToolsStreaming(
 
         if (!emittedModelToolCallIds.has(callId)) {
           emittedModelToolCallIds.add(callId);
-          const itemId = formatCanonicalFunctionCallItemId(callId);
           const at = new Date();
-          session.emit({
-            type: 'llm.responses.event',
-            kind: session.llmOutput.kind,
-            step: session.llmOutput.step,
+          const startEvents = canonicalEmitter?.push({
+            type: 'function_call.start',
             streamId,
-            phase,
-            round,
-            source: 'synthesized',
-            event: createResponseOutputItemAddedFunctionCallEvent({
-              itemId,
-              callId,
-              name: toolName,
-              argumentsText: '{}',
-            }),
-            timestamp: at,
-          });
-
-          session.emit({
-            type: 'llm.responses.event',
-            kind: session.llmOutput.kind,
-            step: session.llmOutput.step,
-            streamId,
-            phase,
-            round,
-            source: 'synthesized',
-            event: createResponseFunctionCallArgumentsDeltaEvent({
-              itemId,
-              delta: '{}',
-            }),
-            timestamp: at,
-          });
-
-          session.emit({
-            type: 'llm.responses.event',
-            kind: session.llmOutput.kind,
-            step: session.llmOutput.step,
-            streamId,
-            phase,
-            round,
-            source: 'synthesized',
-            event: createResponseFunctionCallArgumentsDoneEvent({
-              itemId,
-              name: toolName,
-              argumentsText: '{}',
-            }),
-            timestamp: at,
-          });
-        }
-
-        const itemId = formatCanonicalFunctionCallItemId(callId);
-        const doneAt = new Date();
-        session.emit({
-          type: 'llm.responses.event',
-          kind: session.llmOutput.kind,
-          step: session.llmOutput.step,
-          streamId,
-          phase,
-          round,
-          source: 'synthesized',
-          event: createResponseOutputItemDoneFunctionCallEvent({
-            itemId,
             callId,
             name: toolName,
-            argumentsText: '{}',
-          }),
-          timestamp: doneAt,
+          });
+          const argEvents = canonicalEmitter?.push({
+            type: 'function_call_arguments.done',
+            streamId,
+            callId,
+            name: toolName,
+            arguments: typeof argsText === 'string' ? argsText : '{}',
+          });
+
+          const all = [...(startEvents ?? []), ...(argEvents ?? [])];
+          for (const event of all) {
+            session.emit({
+              type: 'llm.responses.event',
+              kind: session.llmOutput.kind,
+              step: session.llmOutput.step,
+              streamId,
+              phase,
+              round,
+              source: 'synthesized',
+              event,
+              timestamp: at,
+            });
+          }
+        }
+
+        const doneAt = new Date();
+        const doneEvents = canonicalEmitter?.push({
+          type: 'function_call.done',
+          streamId,
+          callId,
+          name: toolName,
+          arguments: typeof argsText === 'string' ? argsText : '{}',
         });
+        for (const event of doneEvents ?? []) {
+          session.emit({
+            type: 'llm.responses.event',
+            kind: session.llmOutput.kind,
+            step: session.llmOutput.step,
+            streamId,
+            phase,
+            round,
+            source: 'synthesized',
+            event,
+            timestamp: doneAt,
+          });
+        }
       }
     }
 

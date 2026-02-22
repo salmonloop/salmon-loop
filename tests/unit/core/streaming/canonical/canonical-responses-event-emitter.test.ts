@@ -4,20 +4,13 @@ import { CanonicalResponsesEventEmitter } from '../../../../../src/core/streamin
 
 describe('CanonicalResponsesEventEmitter', () => {
   it('emits implicit message + text part on first delta', () => {
-    const emitter = new CanonicalResponsesEventEmitter({
-      itemId: (() => {
-        let i = 0;
-        return () => `item-${++i}`;
-      })(),
-    });
+    const emitter = new CanonicalResponsesEventEmitter();
 
     const events = emitter.push({ type: 'output_text.delta', streamId: 's1', delta: 'Hi' });
     expect(events).toEqual([
       {
         type: 'response.output_item.added',
-        output_index: 0,
         item: {
-          id: 'item-1',
           type: 'message',
           role: 'assistant',
           status: 'in_progress',
@@ -26,26 +19,21 @@ describe('CanonicalResponsesEventEmitter', () => {
       },
       {
         type: 'response.content_part.added',
-        output_index: 0,
-        item_id: 'item-1',
-        content_index: 0,
         part: { type: 'output_text', text: '', annotations: [] },
       },
       {
         type: 'response.output_text.delta',
         delta: 'Hi',
-        output_index: 0,
-        item_id: 'item-1',
-        content_index: 0,
+        output_index: undefined,
+        item_id: undefined,
+        content_index: undefined,
         logprobs: undefined,
       },
     ]);
   });
 
   it('finish() closes open text streams', () => {
-    const emitter = new CanonicalResponsesEventEmitter({
-      itemId: () => 'item-1',
-    });
+    const emitter = new CanonicalResponsesEventEmitter();
 
     emitter.push({ type: 'output_text.delta', streamId: 's1', delta: 'Hello' });
     const events = emitter.finish('s1');
@@ -53,24 +41,19 @@ describe('CanonicalResponsesEventEmitter', () => {
     expect(events).toEqual([
       {
         type: 'response.output_text.done',
-        output_index: 0,
-        item_id: 'item-1',
-        content_index: 0,
+        output_index: undefined,
+        item_id: undefined,
+        content_index: undefined,
         text: 'Hello',
         logprobs: [],
       },
       {
         type: 'response.content_part.done',
-        output_index: 0,
-        item_id: 'item-1',
-        content_index: 0,
         part: { type: 'output_text', text: 'Hello', annotations: [] },
       },
       {
         type: 'response.output_item.done',
-        output_index: 0,
         item: {
-          id: 'item-1',
           type: 'message',
           role: 'assistant',
           status: 'completed',
@@ -100,9 +83,7 @@ describe('CanonicalResponsesEventEmitter', () => {
     expect(e2).toEqual([
       {
         type: 'response.output_item.added',
-        output_index: 0,
         item: {
-          id: 'function_call:call-1',
           type: 'function_call',
           call_id: 'call-1',
           name: 'fs.readFile',
@@ -112,7 +93,7 @@ describe('CanonicalResponsesEventEmitter', () => {
       },
       {
         type: 'response.function_call_arguments.delta',
-        output_index: 0,
+        output_index: undefined,
         item_id: 'function_call:call-1',
         delta: '{}',
       },
@@ -140,9 +121,7 @@ describe('CanonicalResponsesEventEmitter', () => {
     expect([...e1, ...e2, ...e3]).toEqual([
       {
         type: 'response.output_item.added',
-        output_index: 0,
         item: {
-          id: 'function_call:call-1',
           type: 'function_call',
           call_id: 'call-1',
           name: 'fs.readFile',
@@ -152,22 +131,20 @@ describe('CanonicalResponsesEventEmitter', () => {
       },
       {
         type: 'response.function_call_arguments.delta',
-        output_index: 0,
+        output_index: undefined,
         item_id: 'function_call:call-1',
         delta: '{}',
       },
       {
         type: 'response.function_call_arguments.done',
-        output_index: 0,
+        output_index: undefined,
         item_id: 'function_call:call-1',
         name: 'fs.readFile',
         arguments: '{}',
       },
       {
         type: 'response.output_item.done',
-        output_index: 0,
         item: {
-          id: 'function_call:call-1',
           type: 'function_call',
           call_id: 'call-1',
           name: 'fs.readFile',

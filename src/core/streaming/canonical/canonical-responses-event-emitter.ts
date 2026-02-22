@@ -1,13 +1,7 @@
 import { formatCanonicalFunctionCallItemId } from './function-call-item-id.js';
 import {
-  createResponseContentPartAddedOutputTextEvent,
-  createResponseContentPartDoneOutputTextEvent,
   createResponseFunctionCallArgumentsDeltaEvent,
   createResponseFunctionCallArgumentsDoneEvent,
-  createResponseOutputItemAddedFunctionCallEvent,
-  createResponseOutputItemAddedMessageEvent,
-  createResponseOutputItemDoneFunctionCallEvent,
-  createResponseOutputItemDoneMessageEvent,
   createResponseOutputTextDeltaEvent,
   createResponseOutputTextDoneEvent,
 } from './responses-event-emitter.js';
@@ -55,13 +49,9 @@ export type CanonicalStreamPart =
 
 export type CanonicalResponsesEventEmitterOptions = {
   toolArgs?: 'redact' | 'allow';
-  itemId?: () => string;
 };
 
 type TextStreamState = {
-  outputIndex: number;
-  itemId: string;
-  contentIndex: number;
   contentPartAdded: boolean;
   outputTextDone: boolean;
   contentPartDone: boolean;
@@ -72,8 +62,7 @@ type TextStreamState = {
 type FunctionCallState = {
   streamId: string;
   callId: string;
-  outputIndex: number;
-  itemId: string;
+  argsItemId: string;
   toolName: string;
   args: string;
   addedEmitted: boolean;
@@ -94,17 +83,12 @@ const REDACTED_TOOL_ARGS = '{}';
  */
 export class CanonicalResponsesEventEmitter {
   private readonly toolArgsMode: 'redact' | 'allow';
-  private readonly itemIdFn: () => string;
-
-  private nextOutputIndex = 0;
-  private nextItemId = 0;
 
   private readonly textStreams = new Map<string, TextStreamState>();
   private readonly functionCalls = new Map<string, FunctionCallState>();
 
   constructor(options: CanonicalResponsesEventEmitterOptions = {}) {
     this.toolArgsMode = options.toolArgs ?? 'redact';
-    this.itemIdFn = options.itemId ?? (() => `item_${++this.nextItemId}`);
   }
 
   push(part: CanonicalStreamPart): CanonicalResponsesEvent[] {
@@ -168,9 +152,6 @@ export class CanonicalResponsesEventEmitter {
     out.push(
       createResponseOutputTextDeltaEvent({
         delta,
-        outputIndex: st.outputIndex,
-        itemId: st.itemId,
-        contentIndex: st.contentIndex,
         logprobs,
       }),
     );
@@ -194,9 +175,6 @@ export class CanonicalResponsesEventEmitter {
     st.outputTextDone = true;
     out.push(
       createResponseOutputTextDoneEvent({
-        outputIndex: st.outputIndex,
-        itemId: st.itemId,
-        contentIndex: st.contentIndex,
         text: st.text,
         logprobs,
       }),
@@ -209,12 +187,7 @@ export class CanonicalResponsesEventEmitter {
     const existing = this.textStreams.get(streamId);
     if (existing) return existing;
 
-    const outputIndex = this.nextOutputIndex++;
-    const itemId = this.itemIdFn();
     const st: TextStreamState = {
-      outputIndex,
-      itemId,
-      contentIndex: 0,
       contentPartAdded: false,
       outputTextDone: false,
       contentPartDone: false,
@@ -231,16 +204,19 @@ export class CanonicalResponsesEventEmitter {
     st.contentPartAdded = true;
 
     return [
-      createResponseOutputItemAddedMessageEvent({
-        itemId: st.itemId,
-        role: 'assistant',
-        outputIndex: st.outputIndex,
-      }),
-      createResponseContentPartAddedOutputTextEvent({
-        itemId: st.itemId,
-        outputIndex: st.outputIndex,
-        contentIndex: st.contentIndex,
-      }),
+      {
+        type: 'response.output_item.added',
+        item: {
+          type: 'message',
+          role: 'assistant',
+          status: 'in_progress',
+          content: [],
+        },
+      },
+      {
+        type: 'response.content_part.added',
+        part: { type: 'output_text', text: '', annotations: [] },
+      },
     ];
   }
 
@@ -253,9 +229,6 @@ export class CanonicalResponsesEventEmitter {
       st.outputTextDone = true;
       out.push(
         createResponseOutputTextDoneEvent({
-          outputIndex: st.outputIndex,
-          itemId: st.itemId,
-          contentIndex: st.contentIndex,
           text: st.text,
           logprobs: [],
         }),
@@ -264,32 +237,23 @@ export class CanonicalResponsesEventEmitter {
 
     if (!st.contentPartDone && !st.messageItemDone) {
       st.contentPartDone = true;
-      out.push(
-        createResponseContentPartDoneOutputTextEvent({
-          outputIndex: st.outputIndex,
-          itemId: st.itemId,
-          contentIndex: st.contentIndex,
-          text: st.text,
-        }),
-      );
+      out.push({
+        type: 'response.content_part.done',
+        part: { type: 'output_text', text: st.text, annotations: [] },
+      });
     }
 
     if (!st.messageItemDone) {
       st.messageItemDone = true;
-      out.push(
-        createResponseOutputItemDoneMessageEvent({
-          outputIndex: st.outputIndex,
-          itemId: st.itemId,
+      out.push({
+        type: 'response.output_item.done',
+        item: {
+          type: 'message',
           role: 'assistant',
-          content: [
-            {
-              type: 'output_text',
-              text: st.text,
-              annotations: [],
-            },
-          ],
-        }),
-      );
+          status: 'completed',
+          content: [{ type: 'output_text', text: st.text, annotations: [] }],
+        },
+      });
     }
 
     return out;
@@ -303,14 +267,12 @@ export class CanonicalResponsesEventEmitter {
     const existing = this.functionCalls.get(callId);
     if (existing) return [];
 
-    const outputIndex = this.nextOutputIndex++;
-    const itemId = formatCanonicalFunctionCallItemId(callId);
+    const argsItemId = formatCanonicalFunctionCallItemId(callId);
 
     const st: FunctionCallState = {
       streamId,
       callId,
-      outputIndex,
-      itemId,
+      argsItemId,
       toolName: name,
       args: '',
       addedEmitted: false,
@@ -348,13 +310,16 @@ export class CanonicalResponsesEventEmitter {
     if (st.toolName === 'unknown') return [];
     st.addedEmitted = true;
     return [
-      createResponseOutputItemAddedFunctionCallEvent({
-        outputIndex: st.outputIndex,
-        itemId: st.itemId,
-        callId: st.callId,
-        name: st.toolName,
-        argumentsText: '',
-      }),
+      {
+        type: 'response.output_item.added',
+        item: {
+          type: 'function_call',
+          call_id: st.callId,
+          name: st.toolName,
+          arguments: '',
+          status: 'in_progress',
+        },
+      },
     ];
   }
 
@@ -380,8 +345,7 @@ export class CanonicalResponsesEventEmitter {
       st.argsDeltaEmitted = true;
       out.push(
         createResponseFunctionCallArgumentsDeltaEvent({
-          outputIndex: st.outputIndex,
-          itemId: st.itemId,
+          itemId: st.argsItemId,
           delta: REDACTED_TOOL_ARGS,
         }),
       );
@@ -391,8 +355,7 @@ export class CanonicalResponsesEventEmitter {
     st.args += delta;
     out.push(
       createResponseFunctionCallArgumentsDeltaEvent({
-        outputIndex: st.outputIndex,
-        itemId: st.itemId,
+        itemId: st.argsItemId,
         delta,
       }),
     );
@@ -426,8 +389,7 @@ export class CanonicalResponsesEventEmitter {
         st.argsDeltaEmitted = true;
         out.push(
           createResponseFunctionCallArgumentsDeltaEvent({
-            outputIndex: st.outputIndex,
-            itemId: st.itemId,
+            itemId: st.argsItemId,
             delta: REDACTED_TOOL_ARGS,
           }),
         );
@@ -437,8 +399,7 @@ export class CanonicalResponsesEventEmitter {
       st.args = REDACTED_TOOL_ARGS;
       out.push(
         createResponseFunctionCallArgumentsDoneEvent({
-          outputIndex: st.outputIndex,
-          itemId: st.itemId,
+          itemId: st.argsItemId,
           name: name ?? st.toolName,
           argumentsText: REDACTED_TOOL_ARGS,
         }),
@@ -450,8 +411,7 @@ export class CanonicalResponsesEventEmitter {
     st.args = argumentsText;
     out.push(
       createResponseFunctionCallArgumentsDoneEvent({
-        outputIndex: st.outputIndex,
-        itemId: st.itemId,
+        itemId: st.argsItemId,
         name: name ?? st.toolName,
         argumentsText,
       }),
@@ -488,15 +448,16 @@ export class CanonicalResponsesEventEmitter {
     }
 
     st.itemDoneEmitted = true;
-    out.push(
-      createResponseOutputItemDoneFunctionCallEvent({
-        outputIndex: st.outputIndex,
-        itemId: st.itemId,
-        callId: st.callId,
+    out.push({
+      type: 'response.output_item.done',
+      item: {
+        type: 'function_call',
+        call_id: st.callId,
         name: st.toolName,
-        argumentsText: st.args,
-      }),
-    );
+        arguments: st.args,
+        status: 'completed',
+      },
+    });
     return out;
   }
 
