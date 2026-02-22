@@ -107,6 +107,22 @@ s8p context -i "..." [-f src/file.ts | -s "..."] [--diff-scope primary|ast_relat
   - `anthropic`: Strict Anthropic/Claude Code headless-compatible JSONL protocol.
   - `openai`: Strict OpenAI Responses API streaming event protocol (1:1 schema alignment).
 
+### Tool timeline semantics (headless)
+
+SalmonLoop distinguishes two related but different tool timelines:
+
+- **Model tool request**: the model indicates it wants to call a tool (e.g. tool name + call id). This is exposed as `normalized.tool_request_start/end`.
+- **Host tool execution**: the CLI/runtime actually executes the tool and returns a status/result summary. This is exposed as `normalized.tool_call_start/end`.
+
+Headless protocol profiles map these timelines as follows:
+
+- `native` / `anthropic`:
+  - `tool_use` blocks are derived from `normalized.tool_request_start`.
+  - `tool_result` blocks are derived from `normalized.tool_call_end`.
+- `openai` (strict Responses streaming):
+  - `function_call` output items are derived from `normalized.tool_request_start` (default redacted arguments: `{}`).
+  - There is no protocol extension for host execution payloads; execution status remains CLI-internal.
+
 ### Headless payload flags (stream-json only)
 
 These flags are intended for CI/headless environments. They are **off by default**.
