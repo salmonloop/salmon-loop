@@ -6,6 +6,7 @@ import { emitLlmOutput, emitLlmStreamDelta, emitLlmStreamEnd } from '../llm/outp
 import { redactErrorMessage, redactJsonString, redactValue } from '../llm/redact.js';
 import { recordAuditEvent } from '../observability/audit-trail.js';
 import { logger } from '../observability/logger.js';
+import { formatCanonicalFunctionCallItemId } from '../streaming/canonical/function-call-item-id.js';
 import {
   createResponseFunctionCallArgumentsDeltaEvent,
   createResponseFunctionCallArgumentsDoneEvent,
@@ -913,7 +914,7 @@ export async function chatWithToolsStreaming(
             if (emittedModelToolCallIds.has(callId)) continue;
             emittedModelToolCallIds.add(callId);
 
-            const itemId = `function_call:${callId}`;
+            const itemId = formatCanonicalFunctionCallItemId(callId);
             const at = new Date();
             session.emit({
               type: 'llm.responses.event',
@@ -1076,7 +1077,7 @@ export async function chatWithToolsStreaming(
 
         if (!emittedModelToolCallIds.has(callId)) {
           emittedModelToolCallIds.add(callId);
-          const itemId = `function_call:${callId}`;
+          const itemId = formatCanonicalFunctionCallItemId(callId);
           const at = new Date();
           session.emit({
             type: 'llm.responses.event',
@@ -1127,7 +1128,7 @@ export async function chatWithToolsStreaming(
           });
         }
 
-        const itemId = `function_call:${callId}`;
+        const itemId = formatCanonicalFunctionCallItemId(callId);
         const doneAt = new Date();
         session.emit({
           type: 'llm.responses.event',

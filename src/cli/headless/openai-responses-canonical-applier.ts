@@ -1,15 +1,8 @@
+import { parseCanonicalFunctionCallItemId } from '../../core/streaming/canonical/function-call-item-id.js';
 import type { CanonicalResponsesEvent } from '../../core/streaming/canonical/responses-events.js';
 
 import type { UnsequencedResponseStreamEvent } from './openai-responses-state.js';
 import { OpenAiResponsesState } from './openai-responses-state.js';
-
-function parseFunctionCallId(itemId?: string): string | null {
-  if (!itemId) return null;
-  const prefix = 'function_call:';
-  if (!itemId.startsWith(prefix)) return null;
-  const callId = itemId.slice(prefix.length);
-  return callId ? callId : null;
-}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object';
@@ -53,7 +46,7 @@ export class OpenAiResponsesCanonicalApplier {
       }
 
       case 'response.function_call_arguments.delta': {
-        const callId = parseFunctionCallId(
+        const callId = parseCanonicalFunctionCallItemId(
           (
             event as Extract<
               CanonicalResponsesEvent,
@@ -67,7 +60,7 @@ export class OpenAiResponsesCanonicalApplier {
       }
 
       case 'response.function_call_arguments.done': {
-        const callId = parseFunctionCallId(
+        const callId = parseCanonicalFunctionCallItemId(
           (
             event as Extract<
               CanonicalResponsesEvent,
