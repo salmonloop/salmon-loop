@@ -37,16 +37,12 @@ export default {
     extensions: ['.py']
   },
 
-  // 1. Detection & Verification
+  // 1. Detection
   detection: {
     // Return true if this repository is a Python project
     matches: async (repoPath) => {
       // e.g. check for requirements.txt
       return fs.existsSync(path.join(repoPath, 'requirements.txt'));
-    },
-    // Return the default verification command
-    getVerifyCommand: async (repoPath) => {
-      return 'pytest';
     }
   },
 
@@ -97,7 +93,7 @@ export default {
 
 A language plugin provides four key capabilities:
 
-1.  **Detection**: Helps Salmon-Loop identify the project type and suggest default verification commands (e.g., `bun run test` or `pytest`).
+1.  **Detection**: Helps Salmon-Loop identify the project type quickly.
 2.  **Parsing**: Provides Tree-sitter queries to understand code structure (definitions and references). This is crucial for the "Context Shrinking" feature to work effectively.
 3.  **Dependency**: Enables the system to trace imports and fetch related context automatically.
 4.  **Diagnostics**: Classifies command output (stdout/stderr) into standard error types (Compilation, Lint, Test, etc.), helping the AI understand *why* a verification failed.

@@ -49,7 +49,7 @@ ${lastError ? `\n# Last Error\nThe previous attempt failed with the following er
 - 'goal': A brief, one-sentence description of the modification goal.
 - 'files': An array of EXACT relative file paths that MUST be modified.
 - 'changes': An array of strings, each clearly describing a specific logical change.
-- 'verify': A verification command (e.g., \`bun run test\`) or a concise description of how to verify.
+- 'verify': A verification command (e.g., \`pytest\`, \`go test ./...\`, or your project test command) or a concise description of how to verify.
 - **Constraints**:
   - Maximum ${maxFilesChanged} files can be modified.
   - Do NOT generate any code blocks or implementation details here.

@@ -1,0 +1,50 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const hoisted = vi.hoisted(() => ({
+  execa: vi.fn(),
+}));
+
+vi.mock('execa', () => ({
+  execa: hoisted.execa,
+}));
+
+describe('executeShellExec environment injection', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    hoisted.execa.mockResolvedValue({
+      exitCode: 0,
+      stdout: 'ok',
+      stderr: '',
+    });
+  });
+
+  it('injects SALMONLOOP_* runtime variables', async () => {
+    const { executeShellExec } = await import('../../../../src/core/tools/builtin/shell.js');
+
+    await executeShellExec(
+      { command: 'echo hi' },
+      {
+        repoRoot: '/repo',
+        worktreeRoot: '/repo/.shadow',
+        attemptId: 7,
+        dryRun: false,
+        env: { CUSTOM_ENV: '1' },
+      },
+    );
+
+    expect(hoisted.execa).toHaveBeenCalledTimes(1);
+    expect(hoisted.execa).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(Array),
+      expect.objectContaining({
+        cwd: '/repo/.shadow',
+        env: expect.objectContaining({
+          CUSTOM_ENV: '1',
+          SALMONLOOP_REPO_ROOT: '/repo',
+          SALMONLOOP_WORKTREE_ROOT: '/repo/.shadow',
+          SALMONLOOP_ATTEMPT_ID: '7',
+        }),
+      }),
+    );
+  });
+});

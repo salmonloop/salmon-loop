@@ -108,8 +108,8 @@ export class MicroTaskRunner implements IExecutable<Record<string, any>, SkillEx
         cwd: ctx.repoRoot,
         env: {
           ...process.env,
-          SALMON_REPO_ROOT: ctx.repoRoot,
-          SALMON_ATTEMPT_ID: String(ctx.attemptId),
+          SALMONLOOP_REPO_ROOT: ctx.repoRoot,
+          SALMONLOOP_ATTEMPT_ID: String(ctx.attemptId),
         },
       });
       return stdout.trim();

@@ -1,11 +1,13 @@
 import fs from 'fs';
 import { createRequire } from 'module';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
 import { LanguagePlugin } from '../../core/plugin/interface.js';
 import { ErrorType } from '../../core/types/index.js';
 
 const require = createRequire(import.meta.url);
+const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 
 const commonQueries = {
   definitions: `
@@ -121,31 +123,12 @@ function createPlugin(
         const packageJsonPath = path.join(repoPath, 'package.json');
         return fs.existsSync(packageJsonPath);
       },
-      getVerifyCommand: async (repoPath: string) => {
-        const packageJsonPath = path.join(repoPath, 'package.json');
-        if (fs.existsSync(packageJsonPath)) {
-          try {
-            const pkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
-            if (pkg.scripts && pkg.scripts.test) {
-              const packageManager =
-                typeof pkg.packageManager === 'string' ? pkg.packageManager : '';
-              const isBun =
-                packageManager.startsWith('bun@') ||
-                fs.existsSync(path.join(repoPath, 'bun.lock')) ||
-                fs.existsSync(path.join(repoPath, 'bun.lockb'));
-
-              return isBun ? 'bun run test' : 'bun run test';
-            }
-          } catch (_error) {
-            // Ignore parse errors
-          }
-        }
-        return undefined;
-      },
     },
     parsing: {
       getTreeSitterWasm: async () => {
-        const searchPaths = [path.join(process.cwd(), 'bin', `tree-sitter-${wasmLang}.wasm`)];
+        const searchPaths = [
+          path.resolve(moduleDir, '../../../bin', `tree-sitter-${wasmLang}.wasm`),
+        ];
 
         try {
           const pkgPath = path.dirname(require.resolve(`tree-sitter-${wasmLang}/package.json`));

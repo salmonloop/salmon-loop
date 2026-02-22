@@ -11,10 +11,14 @@ export interface LanguagePlugin {
     extensions: string[]; // e.g., ['.ts', '.tsx', '.js']
   };
 
-  // Capability 1: Detection & Verification
+  // Capability 1: Detection
   detection: {
     matches: (repoPath: string) => Promise<boolean>;
-    getVerifyCommand: (repoPath: string) => Promise<string | undefined>;
+    /**
+     * Deprecated: verification command resolution is now handled by runtime detectors
+     * that inspect the target repository environment (package manager, scripts, etc.).
+     */
+    getVerifyCommand?: (repoPath: string) => Promise<string | undefined>;
   };
 
   // Capability 2: AST Parsing

@@ -73,7 +73,7 @@ const write = pb.addNode("fs.write", {
 pb.depends(gen, write);
 
 // 4. Isolated Verify
-const test = pb.addNode("test.run", { command: "bun run test" });
+const test = pb.addNode("test.run", { command: "project-test-command" });
 pb.depends(write, test);
 
 return pb.build({ maxParallelism: 8 });

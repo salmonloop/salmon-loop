@@ -4,6 +4,10 @@ import chalk from 'chalk';
 
 import { logger } from '../../../core/observability/logger.js';
 import { PluginLoader } from '../../../core/plugin/loader.js';
+import {
+  detectNodeRuntimeProfile,
+  resolveScriptCommand,
+} from '../../../core/target-runtime/index.js';
 import { text } from '../../locales/index.js';
 
 function runValidateCommand(params: {
@@ -33,7 +37,8 @@ function runValidateCommand(params: {
   }
 
   if (typeof result.status === 'number' && result.status !== 0) {
-    throw new Error(`Command failed with exit code ${result.status}`);
+    const printable = [params.cmd, ...params.args].join(' ');
+    throw new Error(`Command failed (${printable}) with exit code ${result.status}`);
   }
 }
 
@@ -47,25 +52,50 @@ export async function runPreflight(params: {
   if (!params.validate) return;
 
   logger.log(chalk.blue(text.cli.runningValidation));
+
+  const profile = await detectNodeRuntimeProfile(params.repoPath);
+  if (!profile) {
+    logger.warn(text.cli.validationSkippedNoPackageJson);
+    return;
+  }
+
+  const lintCommand = resolveScriptCommand(profile, 'lint');
+  const testCommand = resolveScriptCommand(profile, 'test');
+  if (!lintCommand && !testCommand) {
+    logger.warn(text.cli.validationSkippedNoScripts);
+    return;
+  }
+
+  logger.debug(text.cli.validationUsingPackageManager(profile.packageManager));
   try {
-    logger.debug(text.cli.runningEslint);
-    runValidateCommand({
-      repoPath: params.repoPath,
-      cmd: 'bun',
-      args: ['run', 'lint'],
-      useGui: params.useGui,
-    });
-    logger.debug(text.cli.runningTests);
-    try {
+    if (lintCommand) {
+      logger.debug(text.cli.runningScript('lint', lintCommand.shellCommand));
       runValidateCommand({
         repoPath: params.repoPath,
-        cmd: 'bun',
-        args: ['run', 'test'],
+        cmd: lintCommand.command,
+        args: lintCommand.args,
         useGui: params.useGui,
       });
-    } catch {
-      logger.warn(text.cli.testsFailedContinuing);
+    } else {
+      logger.debug(text.cli.scriptMissing('lint'));
     }
+
+    if (testCommand) {
+      logger.debug(text.cli.runningScript('test', testCommand.shellCommand));
+      try {
+        runValidateCommand({
+          repoPath: params.repoPath,
+          cmd: testCommand.command,
+          args: testCommand.args,
+          useGui: params.useGui,
+        });
+      } catch {
+        logger.warn(text.cli.testsFailedContinuing);
+      }
+    } else {
+      logger.debug(text.cli.scriptMissing('test'));
+    }
+
     logger.success(text.cli.validationCompleted);
   } catch {
     logger.error(text.cli.validationFailed, true);

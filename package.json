@@ -18,9 +18,10 @@
     "test:full": "vitest run",
     "test:worktree-smoke": "bun scripts/worktree-smoke.js",
     "test:headless-smoke": "bun scripts/headless-smoke.ts",
+    "check:target-runtime-boundary": "bun scripts/check-target-runtime-hardcoding.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "verify": "bun run lint && bun run typecheck && bun run test:full",
+    "verify": "bun run check:target-runtime-boundary && bun run lint && bun run typecheck && bun run test:full",
     "test:watch": "vitest",
     "test:watch:unit": "vitest tests/unit/",
     "test:watch:integration": "vitest tests/integration/",
@@ -28,7 +29,7 @@
     "test:watch:perf": "vitest --config vitest.perf.config.ts",
     "test:coverage": "vitest run --coverage",
     "test:report": "vitest run --reporter=default --reporter=json --outputFile=test-report.json",
-    "test:ci": "eslint . && vitest run --reporter=verbose --coverage",
+    "test:ci": "bun run check:target-runtime-boundary && eslint . && vitest run --reporter=verbose --coverage",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\""
   },
   "keywords": [

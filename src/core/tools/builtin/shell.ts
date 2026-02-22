@@ -53,9 +53,9 @@ export async function executeShellExec(
       env: {
         ...process.env,
         ...(ctx.env ?? {}),
-        SALMON_REPO_ROOT: ctx.repoRoot,
-        SALMON_WORKTREE_ROOT: ctx.worktreeRoot ?? '',
-        SALMON_ATTEMPT_ID: String(ctx.attemptId),
+        SALMONLOOP_REPO_ROOT: ctx.repoRoot,
+        SALMONLOOP_WORKTREE_ROOT: ctx.worktreeRoot ?? '',
+        SALMONLOOP_ATTEMPT_ID: String(ctx.attemptId),
       },
       reject: false,
     });

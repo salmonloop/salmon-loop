@@ -1,6 +1,7 @@
 import fs from 'fs';
 import { createRequire } from 'module';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
 import * as TreeSitter from 'web-tree-sitter';
 
@@ -12,6 +13,7 @@ import { pluginRegistry } from '../plugin/registry.js';
 import { SymbolInfo } from '../types/index.js';
 
 const require = createRequire(import.meta.url);
+const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 
 /**
  * Initialization states for the AST parser
@@ -126,7 +128,9 @@ export class AstParser {
 
           // 2. Fallback to legacy resolution logic if no plugin or plugin returns nothing
           if (!finalWasmPath) {
-            const searchPaths = [path.join(process.cwd(), 'bin', `tree-sitter-${lang}.wasm`)];
+            const searchPaths = [
+              path.resolve(moduleDir, '../../../bin', `tree-sitter-${lang}.wasm`),
+            ];
             try {
               const pkgPath = path.dirname(require.resolve(`tree-sitter-${lang}/package.json`));
               searchPaths.push(path.join(pkgPath, `tree-sitter-${lang}.wasm`));

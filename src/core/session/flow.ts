@@ -13,7 +13,7 @@ import type { BaseSessionCtx, InstructionCtx, ExecutedCtx, SnapshotCtx } from '.
  * Usage:
  * ```typescript
  * const ctx = await ChatFlow.of(baseSession)
- *   .withInstruction('Fix bug', 'bun run test')
+ *   .withInstruction('Fix bug', 'your-test-command')
  *   .execute(llm, options)
  *   .snapshot(checkpointManager)  // optional
  *   .finalize();

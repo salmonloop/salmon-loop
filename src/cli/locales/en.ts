@@ -213,7 +213,8 @@ export const en = {
   printOption:
     'Run non-interactively with the given instruction (shorthand for "run --instruction")',
   instructionOption: 'Instruction for code modification (required)',
-  verifyOption: 'Verification command to run (e.g., "bun run test") (required)',
+  verifyOption:
+    'Verification command to run (e.g., "pytest", "go test ./...", or your project test command) (required)',
   configOption: 'Path to SalmonLoop config JSON (default: <repo>/.salmonloop/config/config.json)',
   noConfigFileOption: 'Disable loading config file from the repository',
   printConfigOption: 'Print the resolved config (redacted) and exit',
@@ -223,7 +224,7 @@ export const en = {
   fileOption: 'Target file path (relative to repo)',
   selectionOption: 'Direct text selection (mutually exclusive with --file)',
   allowedToolsOption:
-    'Allow tool calls by permission rules (comma-separated, repeatable). Example: Bash(bun run  *)',
+    'Allow tool calls by permission rules (comma-separated, repeatable). Example: Bash(pytest *)',
   disallowedToolsOption:
     'Deny tool calls by permission rules (comma-separated, repeatable). Example: Bash(rm *)',
   dryRunOption: 'Generate patch without applying',
@@ -366,6 +367,15 @@ export const en = {
   unexpectedError: (error: string) => `Unexpected error: ${error}`,
   targetNodeOption: 'The name of the node (e.g., function name) that is allowed to be modified',
   runningValidation: 'Running validation checks...',
+  validationUsingPackageManager: (packageManager: string) =>
+    `  Using detected package manager: ${packageManager}`,
+  runningScript: (scriptName: string, command: string) =>
+    `  Running "${scriptName}" script via: ${command}`,
+  scriptMissing: (scriptName: string) =>
+    `  Skipping "${scriptName}" because package.json has no "${scriptName}" script.`,
+  validationSkippedNoPackageJson: 'Validation skipped: no package.json found in target repository.',
+  validationSkippedNoScripts:
+    'Validation skipped: neither "lint" nor "test" script exists in package.json.',
   runningEslint: '  Running ESLint...',
   runningTests: '  Running Tests...',
   testsFailedContinuing: '  [WARN] Tests failed, but continuing validation...',

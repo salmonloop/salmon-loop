@@ -18,6 +18,8 @@ jobs:
         uses: ./.github/actions/setup
         with:
           bun-version: ${{ inputs.bun-version }}
+      - name: Check target-runtime boundary
+        run: bun run check:target-runtime-boundary
       - name: Lint
         run: bun run lint
       - name: Test
