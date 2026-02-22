@@ -246,6 +246,8 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
         budgetTokens: getDefaultSessionContextBudgetTokens({ modelId: modelIdForBudget }),
       });
 
+      // Single source of truth: chat runtime owns when a user message is appended to the UI list.
+      // The UI layer must not also append user messages (to avoid duplicates).
       latestDispatch?.({
         type: 'ADD_MESSAGE',
         payload: {

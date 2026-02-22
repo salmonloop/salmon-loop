@@ -107,6 +107,8 @@ s8p context -i "..." [-f src/file.ts | -s "..."] [--diff-scope primary|ast_relat
   - `anthropic`: Strict Anthropic/Claude Code headless-compatible JSONL protocol.
   - `openai`: Strict OpenAI Responses API streaming event protocol (1:1 schema alignment).
 
+See `docs/reference/headless.md` for a short headless overview.
+
 ### Tool timeline semantics (headless)
 
 SalmonLoop distinguishes two related but different tool timelines:

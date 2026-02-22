@@ -140,6 +140,8 @@ function shouldCallLlmHeuristic(decision: ChatIntentDecision, input: string): bo
     }
     return false;
   })();
+  // Note: this improves classification quality for multilingual inputs, but it adds one extra LLM roundtrip
+  // before emitting the first "intent routed" log in chat mode.
   if (hasNonAscii) return true;
   if (decision.intent === 'answer' && decision.confidence < 0.7) return true;
   return false;

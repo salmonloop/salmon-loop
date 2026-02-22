@@ -73,6 +73,8 @@ type FunctionCallState = {
   pendingArgsDone: { argumentsText: string; name?: string } | null;
 };
 
+// CRITICAL SAFETY: tool arguments may include file contents, secrets, or user data.
+// Canonical events are safe-by-default, so arguments must be redacted unless explicitly opted in.
 const REDACTED_TOOL_ARGS = '{}';
 
 /**

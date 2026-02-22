@@ -374,6 +374,8 @@ export const AppCore: React.FC<{
               }
 
               if (onChatInput && val.trim()) {
+                // Chat message ordering is owned by the chat runtime (queue + event pipeline).
+                // Avoid duplicating user messages here; `src/cli/chat.ts` is the single source of truth.
                 try {
                   await handleChatInput(val);
                 } catch (_error) {
