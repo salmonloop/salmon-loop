@@ -1,11 +1,24 @@
 import { spawn } from 'child_process';
+import { existsSync } from 'fs';
 import { mkdtemp, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
-import { join, resolve } from 'path';
+import { delimiter, join, resolve } from 'path';
 
 const PROJECT_ROOT = resolve(process.cwd());
-const TSX_CLI = join(PROJECT_ROOT, 'node_modules', 'tsx', 'dist', 'cli.mjs');
 const CLI_ENTRY = join(PROJECT_ROOT, 'src', 'cli', 'index.ts');
+
+function resolveBunBinary(): string {
+  const explicit = (process.env.BUN_BINARY || '').trim();
+  if (explicit) return explicit;
+
+  const home = process.env.HOME;
+  if (home) {
+    const candidate = join(home, '.bun', 'bin', 'bun');
+    if (existsSync(candidate)) return candidate;
+  }
+
+  return 'bun';
+}
 
 export async function runCli(
   args: string[],
@@ -24,8 +37,16 @@ export async function runCli(
     ...envOverrides,
   };
 
+  const home = process.env.HOME;
+  if (home) {
+    const bunBinDir = join(home, '.bun', 'bin');
+    env.PATH = env.PATH ? `${bunBinDir}${delimiter}${env.PATH}` : bunBinDir;
+  }
+
+  const bunBinary = resolveBunBinary();
+
   return new Promise<{ exitCode: number; stdout: string; stderr: string }>((resolvePromise) => {
-    const child = spawn(process.execPath, [TSX_CLI, CLI_ENTRY, ...args], {
+    const child = spawn(bunBinary, [CLI_ENTRY, ...args], {
       cwd: PROJECT_ROOT,
       env,
       stdio: ['ignore', 'pipe', 'pipe'],

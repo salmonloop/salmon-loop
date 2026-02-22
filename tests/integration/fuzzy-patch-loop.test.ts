@@ -1,6 +1,7 @@
 import { AstParser } from '../../src/core/ast/parser.js';
 import { LLM } from '../../src/core/llm/index.js';
 import { runSalmonLoop } from '../../src/core/runtime/loop.js';
+import { buildBunCommand } from '../helpers/bun.js';
 import { RealFsTestHelper } from '../helpers/real-fs-helper.js';
 
 vi.mock('../../src/core/ast/parser.js', () => ({
@@ -19,6 +20,7 @@ const mockLlm = {
 
 describe('Fuzzy Patch Loop Integration', () => {
   const helper = new RealFsTestHelper();
+  const bunCommand = (args: string) => buildBunCommand(args);
   let repoPath: string;
 
   beforeEach(async () => {
@@ -49,7 +51,7 @@ describe('Fuzzy Patch Loop Integration', () => {
       goal: 'Update log message',
       files: ['app.js'],
       changes: ['Change start to begin'],
-      verify: 'node app.js',
+      verify: bunCommand('app.js'),
     });
 
     // LLM generates a patch with extra space in context line (fuzzy)
@@ -70,7 +72,7 @@ describe('Fuzzy Patch Loop Integration', () => {
 
     const result = await runSalmonLoop({
       instruction: 'Update log message',
-      verify: 'node app.js',
+      verify: bunCommand('app.js'),
       repoPath: repoPath,
       file: 'app.js',
       llm: mockLlm as unknown as LLM,

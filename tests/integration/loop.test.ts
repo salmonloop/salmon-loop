@@ -2,6 +2,7 @@ import { AstParser } from '../../src/core/ast/parser.js';
 import { LLM } from '../../src/core/llm/index.js';
 import { runSalmonLoop } from '../../src/core/runtime/loop.js';
 import { executeArtifactRead } from '../../src/core/tools/builtin/artifact.js';
+import { buildBunCommand } from '../helpers/bun.js';
 import { RealFsTestHelper } from '../helpers/real-fs-helper.js';
 
 vi.mock('../../src/core/ast/parser.js', () => ({
@@ -21,6 +22,7 @@ const mockLlm = {
 
 describe('SalmonLoop Integration Tests', () => {
   const helper = new RealFsTestHelper();
+  const bunCommand = (args: string) => buildBunCommand(args);
   let repoPath: string;
 
   beforeEach(async () => {
@@ -65,7 +67,7 @@ describe('SalmonLoop Integration Tests', () => {
       goal: 'Fix the log message',
       files: ['src/index.ts'],
       changes: ['Change hello to world'],
-      verify: 'node src/index.ts',
+      verify: bunCommand('src/index.ts'),
     });
 
     mockLlm.createPatch.mockResolvedValue(
@@ -79,7 +81,7 @@ describe('SalmonLoop Integration Tests', () => {
 
     const result = await runSalmonLoop({
       instruction: 'Fix the log message',
-      verify: 'node src/index.ts',
+      verify: bunCommand('src/index.ts'),
       repoPath: repoPath,
       file: 'src/index.ts',
       llm: mockLlm as unknown as LLM,
@@ -98,7 +100,7 @@ describe('SalmonLoop Integration Tests', () => {
   });
 
   it('should retry when verification fails', async () => {
-    const failingVerify = 'node -e "console.error(\'fail\'); process.exit(1)"';
+    const failingVerify = bunCommand('-e "console.error(\'fail\'); process.exit(1)"');
     mockLlm.createPlan.mockResolvedValue({
       goal: 'Fix the log message',
       files: ['src/index.ts'],
@@ -133,7 +135,7 @@ describe('SalmonLoop Integration Tests', () => {
   });
 
   it('stores verify output as an artifact when verification fails', async () => {
-    const failingVerify = 'node -e "console.error(\'fail\'); process.exit(1)"';
+    const failingVerify = bunCommand('-e "console.error(\'fail\'); process.exit(1)"');
     mockLlm.createPlan.mockResolvedValue({
       goal: 'Log failure',
       files: ['src/index.ts'],
@@ -173,7 +175,7 @@ describe('SalmonLoop Integration Tests', () => {
       goal: 'Fix the log message',
       files: ['src/index.ts'],
       changes: ['Change hello to world'],
-      verify: 'node src/index.ts',
+      verify: bunCommand('src/index.ts'),
     });
 
     mockLlm.createPatch.mockResolvedValue(
@@ -187,7 +189,7 @@ describe('SalmonLoop Integration Tests', () => {
 
     const result = await runSalmonLoop({
       instruction: 'Fix the log message',
-      verify: 'node src/index.ts',
+      verify: bunCommand('src/index.ts'),
       repoPath: repoPath,
       file: 'src/index.ts',
       llm: mockLlm as unknown as LLM,

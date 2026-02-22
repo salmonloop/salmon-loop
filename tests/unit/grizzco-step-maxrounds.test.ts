@@ -18,7 +18,7 @@ vi.mock('../../src/core/tools/session.js', () => {
           goal: 'test-goal',
           files: ['src/index.js'],
           changes: ['Add a comment'],
-          verify: 'node -e "process.exit(0)"',
+          verify: 'bun -e "process.exit(0)"',
         }),
       };
     }),
@@ -30,7 +30,7 @@ vi.mock('../../src/core/tools/session.js', () => {
           goal: 'test-goal',
           files: ['src/index.js'],
           changes: ['Add a comment'],
-          verify: 'node -e "process.exit(0)"',
+          verify: 'bun -e "process.exit(0)"',
         }),
       };
     }),

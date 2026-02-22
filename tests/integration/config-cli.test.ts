@@ -18,7 +18,7 @@ describe('Config CLI integration', () => {
       JSON.stringify(
         {
           version: 1,
-          verify: { command: 'node -e "process.exit(0)"' },
+          verify: { command: 'bun -e "process.exit(0)"' },
           llm: {
             active: 'openaiMain',
             providers: {

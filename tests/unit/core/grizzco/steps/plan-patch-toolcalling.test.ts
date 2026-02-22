@@ -41,7 +41,7 @@ describe('Grizzco steps: PLAN/PATCH tool calling path', () => {
           goal: 'test-goal',
           files: ['src/index.js'],
           changes: ['Add a comment'],
-          verify: 'node -e "process.exit(0)"',
+          verify: 'bun -e "process.exit(0)"',
         }),
       })),
     };
@@ -75,7 +75,7 @@ describe('Grizzco steps: PLAN/PATCH tool calling path', () => {
             goal: 'test-goal',
             files: ['src/index.js'],
             changes: ['Add a comment'],
-            verify: 'node -e "process.exit(0)"',
+            verify: 'bun -e "process.exit(0)"',
           }),
         };
       }),
@@ -122,7 +122,7 @@ describe('Grizzco steps: PLAN/PATCH tool calling path', () => {
             goal: 'repaired-goal',
             files: ['src/index.js'],
             changes: ['Repair JSON output'],
-            verify: 'node -e "process.exit(0)"',
+            verify: 'bun -e "process.exit(0)"',
           }),
         }),
     };
@@ -155,7 +155,7 @@ describe('Grizzco steps: PLAN/PATCH tool calling path', () => {
         goal: 'test-goal',
         files: ['src/index.js'],
         changes: ['Add a comment'],
-        verify: 'node -e "process.exit(0)"',
+        verify: 'bun -e "process.exit(0)"',
       })),
       createPatch,
       chat: vi.fn(async () => ({
@@ -179,7 +179,7 @@ describe('Grizzco steps: PLAN/PATCH tool calling path', () => {
         goal: 'test-goal',
         files: ['src/index.js'],
         changes: ['Add a comment'],
-        verify: 'node -e "process.exit(0)"',
+        verify: 'bun -e "process.exit(0)"',
       },
       emit: () => {},
       toolstack: createEmptyToolstack(),
@@ -206,7 +206,7 @@ describe('Grizzco steps: PLAN/PATCH tool calling path', () => {
         goal: 'test-goal',
         files: ['src/index.js'],
         changes: ['Add a comment'],
-        verify: 'node -e "process.exit(0)"',
+        verify: 'bun -e "process.exit(0)"',
       })),
       createPatch,
       chat: vi
@@ -233,7 +233,7 @@ describe('Grizzco steps: PLAN/PATCH tool calling path', () => {
         goal: 'test-goal',
         files: ['src/index.js'],
         changes: ['Add a comment'],
-        verify: 'node -e "process.exit(0)"',
+        verify: 'bun -e "process.exit(0)"',
       },
       emit: () => {},
       toolstack: createEmptyToolstack(),

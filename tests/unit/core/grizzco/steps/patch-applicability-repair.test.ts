@@ -45,7 +45,7 @@ describe('PATCH (tool calling path) applicability repair', () => {
         goal: 'test-goal',
         files: ['src/index.js'],
         changes: ['Add a comment'],
-        verify: 'node -e "process.exit(0)"',
+        verify: 'bun -e "process.exit(0)"',
       })),
       createPatch: vi.fn(async () => ''),
       chat: vi
@@ -78,7 +78,7 @@ describe('PATCH (tool calling path) applicability repair', () => {
         goal: 'test-goal',
         files: ['src/index.js'],
         changes: ['Add a comment'],
-        verify: 'node -e "process.exit(0)"',
+        verify: 'bun -e "process.exit(0)"',
       },
       emit: () => {},
       toolstack: createEmptyToolstack(),

@@ -1,10 +1,12 @@
 import { PluginLoader } from '../../src/core/plugin/loader.js';
 import { ErrorType } from '../../src/core/types/index.js';
 import { runVerify, classifyError, preflight } from '../../src/core/verification/runner.js';
+import { buildBunCommand } from '../helpers/bun.js';
 import { RealFsTestHelper } from '../helpers/real-fs-helper.js';
 
 describe('Verify Integration Tests with Real FS', () => {
   const helper = new RealFsTestHelper();
+  const bunCommand = (args: string) => buildBunCommand(args);
   let repoPath: string;
 
   beforeAll(async () => {
@@ -22,8 +24,8 @@ describe('Verify Integration Tests with Real FS', () => {
   });
 
   it('should run verify command successfully with real process', async () => {
-    // Run a real node process with a successful exit code.
-    const result = await runVerify(repoPath, 'node -e "console.log(\'All tests passed\')"');
+    // Run a real bun process with a successful exit code.
+    const result = await runVerify(repoPath, bunCommand('-e "console.log(\'All tests passed\')"'));
 
     expect(result.ok).toBe(true);
     expect(result.output).toContain('All tests passed');
@@ -31,8 +33,8 @@ describe('Verify Integration Tests with Real FS', () => {
   });
 
   it('should fail when verify command returns non-zero exit code', async () => {
-    // Run a real node process with a failing exit code.
-    const result = await runVerify(repoPath, 'node -e "process.exit(1)"');
+    // Run a real bun process with a failing exit code.
+    const result = await runVerify(repoPath, bunCommand('-e "process.exit(1)"'));
 
     expect(result.ok).toBe(false);
     expect(result.exitCode).toBe(1);

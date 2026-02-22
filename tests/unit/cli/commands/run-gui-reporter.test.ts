@@ -41,7 +41,7 @@ vi.mock('../../../../src/core/config/index.js', () => ({
     llmOutput: { kinds: [] },
     markdownTheme: 'default',
     markdownRenderMode: 'enhanced',
-    verify: { command: 'node -e "process.exit(0)"' },
+    verify: { command: 'bun -e "process.exit(0)"' },
     llm: { type: 'stub', clientPackage: undefined },
     toolAuthorization: { allowlist: {} },
   })),
@@ -163,7 +163,7 @@ vi.mock('../../../../src/cli/ui/index.tsx', () => ({
 
 vi.mock('../../../../src/cli/utils/verify-resolver.js', () => ({
   resolveVerifyOption: vi.fn(async (_repoRoot: string, cliVerify?: string, cfgVerify?: string) => {
-    return cliVerify ?? cfgVerify ?? 'node -e "process.exit(0)"';
+    return cliVerify ?? cfgVerify ?? 'bun -e "process.exit(0)"';
   }),
 }));
 
@@ -214,7 +214,7 @@ describe('handleRunCommand GUI mode', () => {
         printConfig: false,
         validate: false,
         llmOutput: undefined,
-        verify: 'node -e "process.exit(0)"',
+        verify: 'bun -e "process.exit(0)"',
         dryRun: true,
         forceReset: false,
         verbose: false,
@@ -253,7 +253,7 @@ describe('handleRunCommand GUI mode', () => {
         printConfig: false,
         validate: false,
         llmOutput: undefined,
-        verify: 'node -e "process.exit(0)"',
+        verify: 'bun -e "process.exit(0)"',
         dryRun: true,
         forceReset: false,
         verbose: false,
@@ -295,7 +295,7 @@ describe('handleRunCommand GUI mode', () => {
         printConfig: false,
         validate: false,
         llmOutput: undefined,
-        verify: 'node -e "process.exit(0)"',
+        verify: 'bun -e "process.exit(0)"',
         dryRun: true,
         forceReset: false,
         verbose: false,
@@ -338,7 +338,7 @@ describe('handleRunCommand GUI mode', () => {
         printConfig: false,
         validate: false,
         llmOutput: undefined,
-        verify: 'node -e "process.exit(0)"',
+        verify: 'bun -e "process.exit(0)"',
         dryRun: true,
         forceReset: false,
         verbose: false,
