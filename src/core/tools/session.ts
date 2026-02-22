@@ -6,7 +6,10 @@ import { emitLlmOutput, emitLlmStreamDelta, emitLlmStreamEnd } from '../llm/outp
 import { redactErrorMessage, redactJsonString, redactValue } from '../llm/redact.js';
 import { recordAuditEvent } from '../observability/audit-trail.js';
 import { logger } from '../observability/logger.js';
-import { CanonicalResponsesEventEmitter } from '../streaming/canonical/canonical-responses-event-emitter.js';
+import {
+  CanonicalResponsesEventEmitter,
+  type CanonicalStreamPart,
+} from '../streaming/canonical/canonical-responses-event-emitter.js';
 import { mapLlmStreamChunkToCanonicalStreamParts } from '../streaming/canonical/parts-from-llm-stream-chunk.js';
 import type {
   ChatOptions,
@@ -167,6 +170,39 @@ type ToolCallBudgetState = {
   maxTotal: number;
   maxPerRound: number;
 };
+
+function isFunctionCallStreamPart(
+  part: CanonicalStreamPart,
+): part is Extract<CanonicalStreamPart, { callId: string }> {
+  switch (part.type) {
+    case 'function_call.start':
+    case 'function_call_arguments.delta':
+    case 'function_call_arguments.done':
+    case 'function_call.done':
+      return typeof (part as { callId?: unknown }).callId === 'string';
+    default:
+      return false;
+  }
+}
+
+function groupNewFunctionCallPartsByCallId(params: {
+  parts: CanonicalStreamPart[];
+  alreadyEmittedCallIds: Set<string>;
+}): Map<string, CanonicalStreamPart[]> {
+  const out = new Map<string, CanonicalStreamPart[]>();
+
+  for (const part of params.parts) {
+    if (!isFunctionCallStreamPart(part)) continue;
+    if (!part.callId) continue;
+    if (params.alreadyEmittedCallIds.has(part.callId)) continue;
+
+    const bucket = out.get(part.callId);
+    if (bucket) bucket.push(part);
+    else out.set(part.callId, [part]);
+  }
+
+  return out;
+}
 
 /**
  * Runs an OpenAI-style tool calling loop:
@@ -906,16 +942,10 @@ export async function chatWithToolsStreaming(
           const parts = mapLlmStreamChunkToCanonicalStreamParts({ streamId, chunk });
           const at = new Date();
           const source = chunk.source ?? 'provider';
-          const toolPartsByCallId = new Map<string, typeof parts>();
-          for (const part of parts) {
-            if (!part.type.startsWith('function_call')) continue;
-            const callId = (part as { callId?: unknown }).callId;
-            if (typeof callId !== 'string' || !callId) continue;
-            if (emittedModelToolCallIds.has(callId)) continue;
-            const existing = toolPartsByCallId.get(callId);
-            if (existing) existing.push(part);
-            else toolPartsByCallId.set(callId, [part]);
-          }
+          const toolPartsByCallId = groupNewFunctionCallPartsByCallId({
+            parts,
+            alreadyEmittedCallIds: emittedModelToolCallIds,
+          });
 
           for (const [callId, callParts] of toolPartsByCallId) {
             for (const part of callParts) {

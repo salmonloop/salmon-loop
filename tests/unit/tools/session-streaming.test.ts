@@ -835,6 +835,7 @@ describe('chatWithToolsStreaming', () => {
     );
     expect(added).toBeTruthy();
     expect(added).toEqual(expect.objectContaining({ phase: Phase.PLAN, round: 0 }));
+    expect(added).toEqual(expect.objectContaining({ source: 'provider' }));
 
     const done = events.find(
       (event) =>
@@ -844,6 +845,7 @@ describe('chatWithToolsStreaming', () => {
     );
     expect(done).toBeTruthy();
     expect(done).toEqual(expect.objectContaining({ phase: Phase.PLAN, round: 0 }));
+    expect(done).toEqual(expect.objectContaining({ source: 'synthesized' }));
 
     const serialized = JSON.stringify(added);
     expect(serialized).toContain('response.output_item.added');
