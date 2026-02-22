@@ -1,0 +1,22 @@
+[
+  {
+    "type": "start",
+    "session_id": "sess-print-anthropic",
+    "command": "run",
+    "repo_path": "<repo>",
+    "instruction": "hello"
+  },
+  {
+    "type": "result",
+    "session_id": "sess-print-anthropic",
+    "success": true,
+    "exit_code": 0
+  },
+  {
+    "type": "end",
+    "session_id": "sess-print-anthropic",
+    "success": true,
+    "exit_code": 0
+  }
+]
+

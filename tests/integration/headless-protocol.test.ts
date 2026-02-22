@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import { runCli } from '../helpers/cli-runner.js';
+import {
+  normalizeHeadlessIntegrationLines,
+  pickAnthropicLifecycleLines,
+  pickNativeLifecycleLines,
+  pickOpenAiLifecycleLines,
+  readJsonFixture,
+} from '../helpers/headless-golden.js';
 import { RealFsTestHelper } from '../helpers/real-fs-helper.js';
 
 describe('Headless protocol integration', () => {
@@ -104,6 +111,15 @@ describe('Headless protocol integration', () => {
       session_id: 'sess-print',
       event: { type: 'end', success: true, exit_code: 0 },
     });
+
+    const normalized = normalizeHeadlessIntegrationLines({
+      lines: pickNativeLifecycleLines(lines),
+      repoPath: repo.path,
+    });
+    const expected = readJsonFixture<any[]>(
+      new URL('../fixtures/headless/integration/print-stream-json-native.json', import.meta.url),
+    );
+    expect(normalized).toEqual(expected);
   }, 120000);
 
   it('supports global -p print mode with --output-format stream-json --output-profile anthropic', async () => {
@@ -152,6 +168,15 @@ describe('Headless protocol integration', () => {
       success: true,
       exit_code: 0,
     });
+
+    const normalized = normalizeHeadlessIntegrationLines({
+      lines: pickAnthropicLifecycleLines(lines),
+      repoPath: repo.path,
+    });
+    const expected = readJsonFixture<any[]>(
+      new URL('../fixtures/headless/integration/print-stream-json-anthropic.json', import.meta.url),
+    );
+    expect(normalized).toEqual(expected);
   }, 120000);
 
   it('supports global -p print mode with --output-format stream-json --output-profile openai', async () => {
@@ -190,6 +215,15 @@ describe('Headless protocol integration', () => {
 
     const sequenceNumbers = lines.map((l) => l.sequence_number);
     expect(sequenceNumbers).toEqual([...sequenceNumbers.keys()]);
+
+    const normalized = normalizeHeadlessIntegrationLines({
+      lines: pickOpenAiLifecycleLines(lines),
+      repoPath: repo.path,
+    });
+    const expected = readJsonFixture<any[]>(
+      new URL('../fixtures/headless/integration/print-stream-json-openai.json', import.meta.url),
+    );
+    expect(normalized).toEqual(expected);
   }, 120000);
 
   it('emits machine-readable usage errors for Commander parse errors in headless json', async () => {

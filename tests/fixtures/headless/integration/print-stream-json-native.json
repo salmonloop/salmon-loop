@@ -1,0 +1,34 @@
+[
+  {
+    "uuid": "<uuid>",
+    "session_id": "sess-print",
+    "event": {
+      "type": "start",
+      "timestamp": "<ts>",
+      "command": "run",
+      "repo_path": "<repo>",
+      "instruction": "hello"
+    }
+  },
+  {
+    "uuid": "<uuid>",
+    "session_id": "sess-print",
+    "event": {
+      "type": "result",
+      "timestamp": "<ts>",
+      "success": true,
+      "exit_code": 0
+    }
+  },
+  {
+    "uuid": "<uuid>",
+    "session_id": "sess-print",
+    "event": {
+      "type": "end",
+      "timestamp": "<ts>",
+      "success": true,
+      "exit_code": 0
+    }
+  }
+]
+
