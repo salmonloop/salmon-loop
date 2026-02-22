@@ -914,6 +914,17 @@ export async function chatWithToolsStreaming(
   }
 
   const messages: LLMMessage[] = [...initialMessages];
+  const canonicalEmitters =
+    session.emit && session.llmOutput ? new Map<string, CanonicalResponsesEventEmitter>() : null;
+  const getCanonicalEmitter = (streamId: string): CanonicalResponsesEventEmitter | null => {
+    if (!canonicalEmitters) return null;
+    if (!streamId) return null;
+    const existing = canonicalEmitters.get(streamId);
+    if (existing) return existing;
+    const created = new CanonicalResponsesEventEmitter();
+    canonicalEmitters.set(streamId, created);
+    return created;
+  };
 
   for (let round = 0; round < maxRounds; round++) {
     const roundStartedAt = Date.now();
@@ -926,8 +937,7 @@ export async function chatWithToolsStreaming(
     let finishReason: string | undefined;
     let finishUsage: { promptTokens: number; completionTokens: number } | undefined;
     let usedFallback = false;
-    const canonicalEmitter =
-      session.emit && session.llmOutput ? new CanonicalResponsesEventEmitter() : null;
+    const canonicalEmitter = getCanonicalEmitter(streamId);
 
     try {
       const stream = session.llm.chatStream(messages, {
