@@ -374,17 +374,6 @@ export const AppCore: React.FC<{
               }
 
               if (onChatInput && val.trim()) {
-                // Explicitly add user message to history for navigation
-                dispatch({
-                  type: 'ADD_MESSAGE',
-                  payload: {
-                    id: `user-${Date.now()}`,
-                    type: 'user',
-                    content: val,
-                    timestamp: new Date(),
-                  },
-                });
-
                 try {
                   await handleChatInput(val);
                 } catch (_error) {
