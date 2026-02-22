@@ -17,6 +17,7 @@
     "test:integration": "vitest run tests/integration/",
     "test:full": "vitest run",
     "test:worktree-smoke": "node --import tsx scripts/worktree-smoke.js",
+    "test:headless-smoke": "node --import tsx scripts/headless-smoke.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "verify": "pnpm lint && pnpm typecheck && pnpm test:full",

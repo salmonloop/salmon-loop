@@ -66,6 +66,12 @@ Example:
 s8p run -p "Say hello" --output-format stream-json --output-profile native | jq -c .
 ```
 
+You can also run the repo smoke script:
+
+```bash
+pnpm test:headless-smoke
+```
+
 Repeat for each profile:
 
 ```bash
