@@ -321,6 +321,18 @@ describe('Headless protocol integration', () => {
       session_id: 'sess-usage-native',
       event: { type: 'end', success: false, exit_code: 1 },
     });
+
+    const normalized = normalizeHeadlessIntegrationLines({
+      lines: pickNativeLifecycleLines(lines),
+      repoPath: repo.path,
+    });
+    const expected = readJsonFixture<any[]>(
+      new URL(
+        '../fixtures/headless/integration/usage-error-stream-json-native.json',
+        import.meta.url,
+      ),
+    );
+    expect(normalized).toEqual(expected);
   }, 120000);
 
   it('emits OpenAI-compatible usage errors for Commander parse errors in headless stream-json --output-profile openai', async () => {
@@ -440,6 +452,18 @@ describe('Headless protocol integration', () => {
       success: false,
       exit_code: 1,
     });
+
+    const normalized = normalizeHeadlessIntegrationLines({
+      lines: pickAnthropicLifecycleLines(lines),
+      repoPath: repo.path,
+    });
+    const expected = readJsonFixture<any[]>(
+      new URL(
+        '../fixtures/headless/integration/usage-error-stream-json-anthropic.json',
+        import.meta.url,
+      ),
+    );
+    expect(normalized).toEqual(expected);
   }, 120000);
 
   it('prints OpenAI-compatible usage errors when --output-profile openai', async () => {
@@ -475,6 +499,18 @@ describe('Headless protocol integration', () => {
     expect(lines[1]).toMatchObject({ type: 'response.in_progress' });
     expect(lines[2]).toMatchObject({ type: 'error' });
     expect(lines[3]).toMatchObject({ type: 'response.failed' });
+
+    const normalized = normalizeHeadlessIntegrationLines({
+      lines: pickOpenAiLifecycleLines(lines),
+      repoPath: repo.path,
+    });
+    const expected = readJsonFixture<any[]>(
+      new URL(
+        '../fixtures/headless/integration/usage-error-stream-json-openai.json',
+        import.meta.url,
+      ),
+    );
+    expect(normalized).toEqual(expected);
   }, 120000);
 
   it('prints OpenAI-compatible usage errors for --json-schema when --output-profile openai', async () => {

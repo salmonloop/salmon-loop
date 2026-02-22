@@ -1,0 +1,15 @@
+[
+  {
+    "type": "response.created",
+    "sequence_number": 0,
+    "response": { "object": "response", "status": "in_progress" }
+  },
+  {
+    "type": "response.in_progress",
+    "sequence_number": 1,
+    "response": { "object": "response", "status": "in_progress" }
+  },
+  { "type": "error", "sequence_number": 2, "code": "<code>" },
+  { "type": "response.failed", "sequence_number": 3, "response": { "object": "response", "status": "failed" } }
+]
+

@@ -1,0 +1,21 @@
+[
+  {
+    "type": "start",
+    "session_id": "sess-print-conflict",
+    "command": "run",
+    "repo_path": "<repo>",
+    "instruction": "hello"
+  },
+  {
+    "type": "error",
+    "session_id": "sess-print-conflict",
+    "error": { "message": "<msg>" }
+  },
+  {
+    "type": "end",
+    "session_id": "sess-print-conflict",
+    "success": false,
+    "exit_code": 1
+  }
+]
+

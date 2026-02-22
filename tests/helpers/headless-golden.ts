@@ -57,6 +57,14 @@ function normalizeUnknown(value: unknown, repoPath: string): unknown {
       out[key] = '<text>';
       continue;
     }
+    if (key === 'message' && typeof raw === 'string') {
+      out[key] = '<msg>';
+      continue;
+    }
+    if (key === 'code' && typeof raw === 'string') {
+      out[key] = '<code>';
+      continue;
+    }
     if (
       key === 'id' &&
       typeof raw === 'string' &&
