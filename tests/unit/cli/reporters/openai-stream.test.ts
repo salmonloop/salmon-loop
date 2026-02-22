@@ -891,6 +891,142 @@ describe('OpenAiStreamReporter', () => {
     expect(lines).toEqual(expected);
   });
 
+  it('matches golden fixture (canonical-tool-args-delta)', () => {
+    const fixtureUrl = new URL(
+      '../../../fixtures/headless/openai/canonical-tool-args-delta.jsonl',
+      import.meta.url,
+    );
+    const expected = readFileSync(fixtureUrl, 'utf8')
+      .trimEnd()
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => JSON.parse(line));
+
+    const { lines, write } = collectLines();
+    const nowQueue = [new Date('2026-02-20T00:00:00.000Z'), new Date('2026-02-20T00:00:07.000Z')];
+    const now = () => {
+      const next = nowQueue.shift();
+      if (!next) throw new Error('now() called too many times');
+      return next;
+    };
+
+    const reporter = new OpenAiStreamReporter({
+      model: 'gpt-test',
+      now,
+      responseId: () => 'resp_1',
+      itemId: (() => {
+        let i = 0;
+        return () => `item-${++i}`;
+      })(),
+      writer: createStdoutWriter({ write }),
+    });
+
+    reporter.onStart('do the thing');
+
+    reporter.onEvent({
+      type: 'llm.responses.event',
+      kind: 'plan',
+      step: 'PLAN',
+      streamId: 'stream-1',
+      source: 'synthesized',
+      event: {
+        type: 'response.output_item.added',
+        item: {
+          type: 'function_call',
+          call_id: 'call-1',
+          name: 'fs.readFile',
+          arguments: '',
+          status: 'in_progress',
+        },
+      },
+      timestamp: new Date('2026-02-20T00:00:01.000Z'),
+    });
+
+    reporter.onEvent({
+      type: 'llm.responses.event',
+      kind: 'plan',
+      step: 'PLAN',
+      streamId: 'stream-1',
+      source: 'synthesized',
+      event: {
+        type: 'response.function_call_arguments.delta',
+        item_id: 'function_call:call-1',
+        delta: '{',
+      },
+      timestamp: new Date('2026-02-20T00:00:02.000Z'),
+    });
+    reporter.onEvent({
+      type: 'llm.responses.event',
+      kind: 'plan',
+      step: 'PLAN',
+      streamId: 'stream-1',
+      source: 'synthesized',
+      event: {
+        type: 'response.function_call_arguments.delta',
+        item_id: 'function_call:call-1',
+        delta: '"a":1',
+      },
+      timestamp: new Date('2026-02-20T00:00:03.000Z'),
+    });
+    reporter.onEvent({
+      type: 'llm.responses.event',
+      kind: 'plan',
+      step: 'PLAN',
+      streamId: 'stream-1',
+      source: 'synthesized',
+      event: {
+        type: 'response.function_call_arguments.delta',
+        item_id: 'function_call:call-1',
+        delta: '}',
+      },
+      timestamp: new Date('2026-02-20T00:00:04.000Z'),
+    });
+    reporter.onEvent({
+      type: 'llm.responses.event',
+      kind: 'plan',
+      step: 'PLAN',
+      streamId: 'stream-1',
+      source: 'synthesized',
+      event: {
+        type: 'response.function_call_arguments.done',
+        item_id: 'function_call:call-1',
+        name: 'fs.readFile',
+        arguments: '{"a":1}',
+      },
+      timestamp: new Date('2026-02-20T00:00:05.000Z'),
+    });
+    reporter.onEvent({
+      type: 'llm.responses.event',
+      kind: 'plan',
+      step: 'PLAN',
+      streamId: 'stream-1',
+      source: 'synthesized',
+      event: {
+        type: 'response.output_item.done',
+        item: {
+          type: 'function_call',
+          call_id: 'call-1',
+          name: 'fs.readFile',
+          arguments: '{"a":1}',
+          status: 'completed',
+        },
+      },
+      timestamp: new Date('2026-02-20T00:00:06.000Z'),
+    });
+
+    const result: LoopResult = {
+      success: true,
+      reason: 'SUCCESS',
+      reasonCode: 'SUCCESS',
+      attempts: 1,
+      logs: [],
+      changedFiles: [],
+    };
+    reporter.onFinish(result);
+
+    expect(lines).toEqual(expected);
+  });
+
   it('matches golden fixture (error)', () => {
     const fixtureUrl = new URL('../../../fixtures/headless/openai/error.jsonl', import.meta.url);
     const expected = readFileSync(fixtureUrl, 'utf8')
