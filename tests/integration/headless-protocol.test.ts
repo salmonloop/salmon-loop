@@ -226,6 +226,37 @@ describe('Headless protocol integration', () => {
     expect(normalized).toEqual(expected);
   }, 120000);
 
+  it('supports --continue selecting the latest session in headless stream-json', async () => {
+    const repo = await helper.createGitRepo();
+    await seedChatSession(repo.path, 'sess-old');
+    await new Promise((r) => setTimeout(r, 10));
+    await seedChatSession(repo.path, 'sess-new');
+
+    const { exitCode, stdout } = await runCli([
+      '-r',
+      repo.path,
+      '--continue',
+      '-p',
+      'hello',
+      '--output-format',
+      'stream-json',
+      '--mode',
+      'review',
+      '--no-config-file',
+    ]);
+
+    expect(exitCode).toBe(0);
+    const lines = stdout
+      .split('\n')
+      .filter(Boolean)
+      .map((l) => JSON.parse(l) as any);
+
+    expect(lines[0]).toMatchObject({
+      session_id: 'sess-new',
+      event: { type: 'start', command: 'run', repo_path: repo.path, instruction: 'hello' },
+    });
+  }, 120000);
+
   it('emits machine-readable usage errors for Commander parse errors in headless json', async () => {
     const repo = await helper.createGitRepo();
 
