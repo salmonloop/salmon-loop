@@ -1,6 +1,5 @@
 [
   "tests/unit/core/target-runtime/command-resolver.test.ts",
-  "tests/unit/core/target-runtime/profile.test.ts",
   "tests/unit/core/runtime/exit-codes.test.ts",
   "tests/unit/core/runtime/initialize-gui-stream-sanitization.test.ts",
   "tests/unit/core/runtime/process-runner.test.ts",
@@ -58,7 +57,6 @@
   "tests/unit/cli/ui/markdown-tasklist-compat.test.ts",
   "tests/unit/cli/ui/store/confirmation.test.ts",
   "tests/unit/cli/ui/transcript.test.ts",
-  "tests/unit/cli/utils/detectors.test.ts",
   "tests/unit/context/keywords.test.ts",
   "tests/unit/context/target-resolver.test.ts",
   "tests/unit/core/extensions/mcp-schema.test.ts",
@@ -136,7 +134,6 @@
   "tests/unit/cli/ui/hooks/useLoopState.test.ts",
   "tests/unit/cli/ui/selection/bus.test.ts",
   "tests/unit/cli/ui/todo-reset.test.tsx",
-  "tests/unit/config.test.ts",
   "tests/unit/context.test.ts",
   "tests/unit/context/ripgrep-gatherer.test.ts",
   "tests/unit/core/git-adapter.test.ts",

@@ -2,6 +2,7 @@ import { readFile } from 'fs/promises';
 import path from 'path';
 
 const DEFAULT_TIMEOUT_MS = 30_000;
+const DEFAULT_ISOLATION_LIST_PATH = path.join('tests', 'bun-isolated-files.json');
 
 async function loadMigratedFiles(repoRoot: string): Promise<string[]> {
   const listPath = path.join(repoRoot, 'tests', 'bun-migrated-files.json');
@@ -19,9 +20,90 @@ async function loadMigratedFiles(repoRoot: string): Promise<string[]> {
   return files;
 }
 
+async function loadIsolatedFiles(repoRoot: string): Promise<Set<string>> {
+  const listPath = path.join(repoRoot, DEFAULT_ISOLATION_LIST_PATH);
+  const raw = await readFile(listPath, 'utf-8');
+  const parsed = JSON.parse(raw) as unknown;
+  if (!Array.isArray(parsed)) {
+    throw new Error(`${DEFAULT_ISOLATION_LIST_PATH} must be a JSON array`);
+  }
+  const files = parsed.filter(
+    (value): value is string => typeof value === 'string' && value.length > 0,
+  );
+  return new Set(files);
+}
+
+async function runSingleTestFile(
+  bunRuntime: { spawn: (cmd: string[], options: any) => any },
+  repoRoot: string,
+  preloadPath: string,
+  file: string,
+  timeoutMs: number,
+): Promise<number> {
+  const subprocess = bunRuntime.spawn([process.execPath, 'test', '--preload', preloadPath, file], {
+    cwd: repoRoot,
+    stdin: 'inherit',
+    stdout: 'inherit',
+    stderr: 'inherit',
+    env: process.env,
+  });
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<number>((resolve) => {
+    timeoutId = setTimeout(() => {
+      try {
+        subprocess.kill();
+      } catch {
+        // No-op: process may have already exited.
+      }
+      resolve(124);
+    }, timeoutMs);
+  });
+  const code = await Promise.race<number>([subprocess.exited, timeoutPromise]);
+  if (timeoutId) {
+    clearTimeout(timeoutId);
+  }
+  return code;
+}
+
+async function runBatch(
+  bunRuntime: { spawn: (cmd: string[], options: any) => any },
+  repoRoot: string,
+  preloadPath: string,
+  files: string[],
+  timeoutMs: number,
+): Promise<number> {
+  const subprocess = bunRuntime.spawn(
+    [process.execPath, 'test', '--preload', preloadPath, ...files],
+    {
+      cwd: repoRoot,
+      stdin: 'inherit',
+      stdout: 'inherit',
+      stderr: 'inherit',
+      env: process.env,
+    },
+  );
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<number>((resolve) => {
+    timeoutId = setTimeout(() => {
+      try {
+        subprocess.kill();
+      } catch {
+        // No-op: process may have already exited.
+      }
+      resolve(124);
+    }, timeoutMs);
+  });
+  const code = await Promise.race<number>([subprocess.exited, timeoutPromise]);
+  if (timeoutId) {
+    clearTimeout(timeoutId);
+  }
+  return code;
+}
+
 async function main() {
   const repoRoot = process.cwd();
   const files = await loadMigratedFiles(repoRoot);
+  const isolatedFiles = await loadIsolatedFiles(repoRoot);
   const preloadPath = path.join(repoRoot, 'tests', 'setup-bun.ts');
   const timeoutMs = Number(process.env.BUN_MIGRATED_TEST_TIMEOUT_MS || DEFAULT_TIMEOUT_MS);
   const bunRuntime = (globalThis as { Bun?: { spawn: (cmd: string[], options: any) => any } }).Bun;
@@ -30,33 +112,37 @@ async function main() {
   }
 
   const failedFiles: string[] = [];
+  const isolated = files.filter((file) => isolatedFiles.has(file));
+  const shared = files.filter((file) => !isolatedFiles.has(file));
 
-  for (const [index, file] of files.entries()) {
-    process.stdout.write(`\n[${index + 1}/${files.length}] ${file}\n`);
-
-    const subprocess = bunRuntime.spawn(
-      [process.execPath, 'test', '--preload', preloadPath, file],
-      {
-        cwd: repoRoot,
-        stdin: 'inherit',
-        stdout: 'inherit',
-        stderr: 'inherit',
-        env: process.env,
-      },
+  if (shared.length > 0) {
+    process.stdout.write(
+      `\nRunning ${shared.length} shared-safe files in one Bun test process...\n`,
     );
-    const code = await Promise.race<number>([
-      subprocess.exited,
-      new Promise<number>((resolve) => {
-        setTimeout(() => {
-          try {
-            subprocess.kill();
-          } catch {
-            // No-op: process may have already exited.
-          }
-          resolve(124);
-        }, timeoutMs);
-      }),
-    ]);
+    const batchCode = await runBatch(bunRuntime, repoRoot, preloadPath, shared, timeoutMs);
+    if (batchCode !== 0) {
+      process.stderr.write(
+        `\nShared batch failed (exit=${batchCode}). Retrying shared files sequentially to isolate flaky cross-file interactions...\n`,
+      );
+      for (const [index, file] of shared.entries()) {
+        process.stdout.write(`\n[shared retry ${index + 1}/${shared.length}] ${file}\n`);
+        const retryCode = await runSingleTestFile(
+          bunRuntime,
+          repoRoot,
+          preloadPath,
+          file,
+          timeoutMs,
+        );
+        if (retryCode !== 0) {
+          failedFiles.push(retryCode === 124 ? `${file} (timeout)` : file);
+        }
+      }
+    }
+  }
+
+  for (const [index, file] of isolated.entries()) {
+    process.stdout.write(`\n[isolated ${index + 1}/${isolated.length}] ${file}\n`);
+    const code = await runSingleTestFile(bunRuntime, repoRoot, preloadPath, file, timeoutMs);
     if (code !== 0) {
       failedFiles.push(code === 124 ? `${file} (timeout)` : file);
     }

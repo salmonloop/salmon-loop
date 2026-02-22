@@ -90,6 +90,9 @@ All critical safety logic is verified by:
 - Run migrated Bun-native tests with `bun run test:bun:migrated`.
 - Migrated files stay in their original locations (in-place migration), then are excluded from `vitest`.
 - This avoids duplicate test files while allowing phased migration from `vitest` to `bun test`.
+- `test:bun:migrated` now runs in two lanes:
+  - shared-safe tests in one parallel `bun test` process,
+  - high-risk tests in isolated subprocesses listed in `tests/bun-isolated-files.json`.
 
 ## 5. Testing Best Practices & Golden Rules
 
@@ -107,6 +110,7 @@ All critical safety logic is verified by:
 *   **Mock Externalities**: Unit tests must **NEVER** make real network calls, access the real file system, or spawn child processes. All external dependencies must be mocked.
 *   **Silence**: Tests should produce no console output (`console.log`) during execution. It clutters reports. Use breakpoints for debugging, or remove logs before committing.
 *   **Isolation**: No test should depend on the state left by a previous test.
+*   **Boundary Guard**: Run `bun run check:unit-boundary` (or `bun run check:unit-boundary:staged`) to block new unit tests from introducing real filesystem/process mutation. Transitional exceptions must be declared in `tests/unit-boundary-allowlist.json`.
 
 ### Integration Test Rules
 *   **Source is Truth**: When testing file operations, verify the actual file on disk. Do not verify that `fs.writeFile` was called; verify that `fs.readFile` returns the expected content.
