@@ -117,6 +117,19 @@ function writeOpenAiEarlyFailure(params: {
   }
 }
 
+function writeOpenAiUnexpectedFailure(params: { writer: StdoutWriter; message: string }) {
+  const encoder = new OpenAiStreamEncoder({
+    now: () => new Date(),
+    model: 'unknown',
+    responseId: () => `resp_${randomUUID().replace(/-/g, '')}`,
+    itemId: () => `msg_${randomUUID().replace(/-/g, '')}`,
+  });
+
+  for (const event of encoder.crash(new Error(params.message))) {
+    params.writer.writeJsonLine(event);
+  }
+}
+
 function resolveSessionId(ctx: HeadlessErrorWriterContext, override?: string): string {
   return override ?? ctx.getResumeSessionId() ?? ctx.getSessionId() ?? randomUUID();
 }
@@ -220,7 +233,7 @@ export function createHeadlessErrorWriter(ctx: HeadlessErrorWriterContext) {
           instruction: params.instruction,
         });
       } else if (ctx.outputProfileForStreamJson === 'openai') {
-        writeOpenAiEarlyFailure({
+        writeOpenAiUnexpectedFailure({
           writer: ctx.writer,
           message: params.message,
         });
