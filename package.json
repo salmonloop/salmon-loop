@@ -27,9 +27,10 @@
     "check:target-runtime-boundary:staged": "bun scripts/check-target-runtime-hardcoding.ts --staged",
     "check:unit-boundary": "bun scripts/check-unit-test-boundary.ts",
     "check:unit-boundary:staged": "bun scripts/check-unit-test-boundary.ts --staged",
+    "check:bun-manifest": "bun scripts/check-bun-migrated-manifest.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "verify": "bun run check:bun-purity && bun run check:target-runtime-boundary && bun run check:unit-boundary && bun run lint && bun run typecheck && bun run test:bun:migrated && bun run test:full",
+    "verify": "bun run check:bun-purity && bun run check:target-runtime-boundary && bun run check:unit-boundary && bun run check:bun-manifest && bun run lint && bun run typecheck && bun run test:bun:migrated && bun run test:full",
     "test:watch": "vitest",
     "test:watch:unit": "vitest tests/unit/",
     "test:watch:integration": "vitest tests/integration/",
@@ -37,7 +38,7 @@
     "test:watch:perf": "vitest --config vitest.perf.config.ts",
     "test:coverage": "vitest run --coverage",
     "test:report": "vitest run --reporter=default --reporter=json --outputFile=test-report.json",
-    "test:ci": "bun run check:bun-purity && bun run check:target-runtime-boundary && bun run check:unit-boundary && bun run lint && bun run test:bun:migrated && bun run test:full",
+    "test:ci": "bun run check:bun-purity && bun run check:target-runtime-boundary && bun run check:unit-boundary && bun run check:bun-manifest && bun run lint && bun run test:bun:migrated && bun run test:full",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\""
   },
   "keywords": [
