@@ -30,6 +30,10 @@ describe('ContextBuilder', () => {
       code: 1,
       signal: null,
       timedOut: false,
+      stdout: '',
+      stderr: '',
+      stdoutTruncated: false,
+      stderrTruncated: false,
     });
   });
 

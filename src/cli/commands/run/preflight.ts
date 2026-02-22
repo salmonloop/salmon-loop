@@ -2,15 +2,80 @@ import chalk from 'chalk';
 
 import { logger } from '../../../core/observability/logger.js';
 import { PluginLoader } from '../../../core/plugin/loader.js';
-import { spawnCommand } from '../../../core/runtime/process-runner.js';
+import {
+  ProcessFailure,
+  ProcessFailureKind,
+  spawnCommand,
+} from '../../../core/runtime/process-runner.js';
 import {
   detectNodeRuntimeProfile,
   resolveScriptCommand,
 } from '../../../core/target-runtime/index.js';
 import { text } from '../../locales/index.js';
 
+export type PreflightPolicy = 'lenient' | 'strict';
+
+interface PreflightFailureDetails {
+  scriptName: 'lint' | 'test';
+  command: string;
+  args: string[];
+  reason: ProcessFailureKind;
+  message: string;
+  exitCode?: number | null;
+  signal?: NodeJS.Signals | null;
+  code?: string;
+}
+
+class PreflightCommandError extends Error {
+  constructor(public readonly details: PreflightFailureDetails) {
+    super(details.message);
+  }
+}
+
+function mapFailureDetails(
+  scriptName: 'lint' | 'test',
+  cmd: string,
+  args: string[],
+  failure: ProcessFailure,
+): PreflightFailureDetails {
+  return {
+    scriptName,
+    command: cmd,
+    args,
+    reason: failure.kind,
+    message: failure.message,
+    exitCode: failure.exitCode,
+    signal: failure.signal,
+    code: failure.code,
+  };
+}
+
+function buildFailureMessage(details: PreflightFailureDetails): string {
+  const printable = [details.command, ...details.args].join(' ');
+  switch (details.reason) {
+    case 'timeout':
+      return text.cli.validationCommandTimeout(details.scriptName, printable);
+    case 'spawn_error':
+      if (details.code === 'ENOENT') {
+        return text.cli.validationCommandNotFound(details.scriptName, printable);
+      }
+      return text.cli.validationCommandSpawnError(details.scriptName, printable, details.message);
+    case 'nonzero_exit':
+      return text.cli.validationCommandExitCode(
+        details.scriptName,
+        printable,
+        details.exitCode ?? -1,
+      );
+    case 'aborted':
+      return text.cli.validationCommandAborted(details.scriptName, printable);
+    default:
+      return text.cli.validationCommandSpawnError(details.scriptName, printable, details.message);
+  }
+}
+
 async function runValidateCommand(params: {
   repoPath: string;
+  scriptName: 'lint' | 'test';
   cmd: string;
   args: string[];
   useGui: boolean;
@@ -26,31 +91,14 @@ async function runValidateCommand(params: {
     args: params.args,
     cwd: params.repoPath,
     windowsHide: true,
-    onStdoutChunk: (chunk) => {
-      if (stdoutBytes >= maxBytesPerStream) return;
-      const buffer = Buffer.from(chunk);
-      const remaining = maxBytesPerStream - stdoutBytes;
-      if (buffer.length <= remaining) {
-        stdout += buffer.toString('utf-8');
-        stdoutBytes += buffer.length;
-        return;
-      }
-      stdout += buffer.subarray(0, remaining).toString('utf-8');
-      stdoutBytes += remaining;
-    },
-    onStderrChunk: (chunk) => {
-      if (stderrBytes >= maxBytesPerStream) return;
-      const buffer = Buffer.from(chunk);
-      const remaining = maxBytesPerStream - stderrBytes;
-      if (buffer.length <= remaining) {
-        stderr += buffer.toString('utf-8');
-        stderrBytes += buffer.length;
-        return;
-      }
-      stderr += buffer.subarray(0, remaining).toString('utf-8');
-      stderrBytes += remaining;
-    },
+    maxStdoutBytes: maxBytesPerStream,
+    maxStderrBytes: maxBytesPerStream,
   });
+
+  stdout = result.stdout;
+  stderr = result.stderr;
+  stdoutBytes = Buffer.byteLength(stdout);
+  stderrBytes = Buffer.byteLength(stderr);
 
   const combined = [stdout.trim(), stderr.trim()].filter(Boolean).join('\n').trim();
 
@@ -59,18 +107,20 @@ async function runValidateCommand(params: {
     logger.log(output);
   }
 
-  if (result.error) {
-    throw new Error(result.error.message);
+  if (result.failure) {
+    throw new PreflightCommandError(
+      mapFailureDetails(params.scriptName, params.cmd, params.args, result.failure),
+    );
   }
 
-  if (result.timedOut) {
-    const printable = [params.cmd, ...params.args].join(' ');
-    throw new Error(`Command failed (${printable}) due to timeout`);
-  }
-
-  if (result.code !== 0) {
-    const printable = [params.cmd, ...params.args].join(' ');
-    throw new Error(`Command failed (${printable}) with exit code ${String(result.code)}`);
+  if (stdoutBytes > maxBytesPerStream || stderrBytes > maxBytesPerStream) {
+    throw new PreflightCommandError({
+      scriptName: params.scriptName,
+      command: params.cmd,
+      args: params.args,
+      reason: 'spawn_error',
+      message: 'Validation output exceeded allowed size',
+    });
   }
 }
 
@@ -78,10 +128,12 @@ export async function runPreflight(params: {
   repoPath: string;
   validate: boolean;
   useGui: boolean;
+  preflightPolicy?: PreflightPolicy;
 }) {
   await PluginLoader.loadPlugins(params.repoPath);
 
   if (!params.validate) return;
+  const preflightPolicy = params.preflightPolicy ?? 'lenient';
 
   logger.log(chalk.blue(text.cli.runningValidation));
 
@@ -102,12 +154,24 @@ export async function runPreflight(params: {
   try {
     if (lintCommand) {
       logger.debug(text.cli.runningScript('lint', lintCommand.shellCommand));
-      await runValidateCommand({
-        repoPath: params.repoPath,
-        cmd: lintCommand.command,
-        args: lintCommand.args,
-        useGui: params.useGui,
-      });
+      try {
+        await runValidateCommand({
+          repoPath: params.repoPath,
+          scriptName: 'lint',
+          cmd: lintCommand.command,
+          args: lintCommand.args,
+          useGui: params.useGui,
+        });
+      } catch (error) {
+        if (error instanceof PreflightCommandError) {
+          logger.audit('cli.preflight.command_failure', error.details, {
+            source: 'cli',
+            severity: 'low',
+          });
+          logger.error(buildFailureMessage(error.details));
+        }
+        throw error;
+      }
     } else {
       logger.debug(text.cli.scriptMissing('lint'));
     }
@@ -117,11 +181,24 @@ export async function runPreflight(params: {
       try {
         await runValidateCommand({
           repoPath: params.repoPath,
+          scriptName: 'test',
           cmd: testCommand.command,
           args: testCommand.args,
           useGui: params.useGui,
         });
-      } catch {
+      } catch (error) {
+        if (error instanceof PreflightCommandError) {
+          logger.audit('cli.preflight.command_failure', error.details, {
+            source: 'cli',
+            severity: 'low',
+          });
+          const detailedMessage = buildFailureMessage(error.details);
+          if (preflightPolicy === 'strict') {
+            logger.error(detailedMessage);
+            throw error;
+          }
+          logger.warn(detailedMessage);
+        }
         logger.warn(text.cli.testsFailedContinuing);
       }
     } else {

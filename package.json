@@ -16,6 +16,7 @@
     "test:unit": "vitest run tests/unit/",
     "test:integration": "vitest run tests/integration/",
     "test:full": "vitest run",
+    "test:runtime-boundary": "vitest run tests/unit/scripts/target-runtime-boundary.test.ts tests/unit/scripts/bun-purity.test.ts",
     "test:worktree-smoke": "bun scripts/worktree-smoke.js",
     "test:headless-smoke": "bun scripts/headless-smoke.ts",
     "setup:hooks": "git config core.hooksPath .githooks",

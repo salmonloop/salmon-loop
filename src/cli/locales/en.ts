@@ -231,6 +231,8 @@ export const en = {
   verboseOption: 'Enable verbose logging (basic, extended)',
   forceResetOption: 'Force hard reset on failure (use with caution)',
   validateOption: 'Run code quality checks (lint and tests)',
+  preflightPolicyOption:
+    'Preflight policy (lenient: continue on test failure, strict: fail on test failure)',
   checkpointStrategyOption: 'Checkpoint strategy to use (direct, worktree)',
   applyBackOnDirtyOption: 'Behavior when apply-back detects a dirty workspace (3way, abort)',
   worktreePrepareOption: 'Optional setup command to run inside worktree',
@@ -381,6 +383,18 @@ export const en = {
   testsFailedContinuing: '  [WARN] Tests failed, but continuing validation...',
   validationCompleted: 'Validation completed.',
   validationFailed: 'Validation failed.',
+  validationCommandTimeout: (scriptName: string, command: string) =>
+    `  ${scriptName} timed out: ${command}`,
+  validationCommandNotFound: (scriptName: string, command: string) =>
+    `  ${scriptName} command not found: ${command}`,
+  validationCommandExitCode: (scriptName: string, command: string, code: number) =>
+    `  ${scriptName} failed (${code}): ${command}`,
+  validationCommandSpawnError: (scriptName: string, command: string, reason: string) =>
+    `  ${scriptName} failed to start (${command}): ${reason}`,
+  validationCommandAborted: (scriptName: string, command: string) =>
+    `  ${scriptName} aborted: ${command}`,
+  invalidPreflightPolicy: (policy: string) =>
+    `Invalid --preflight-policy "${policy}". Expected "lenient" or "strict".`,
   optionsRequired:
     'Error: --instruction is required. --verify is required unless provided by config, or --validate is used.',
 

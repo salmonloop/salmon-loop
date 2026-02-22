@@ -22,6 +22,8 @@ jobs:
         run: bun run check:target-runtime-boundary
       - name: Check bun purity
         run: bun run check:bun-purity
+      - name: Runtime boundary unit tests
+        run: bun run test:runtime-boundary
       - name: Lint
         run: bun run lint
       - name: Test

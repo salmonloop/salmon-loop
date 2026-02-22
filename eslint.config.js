@@ -79,6 +79,29 @@ export default tseslint.config(
       'no-restricted-imports': [
         'error',
         {
+          paths: [
+            {
+              name: 'child_process',
+              message:
+                'Use src/core/runtime process boundary APIs instead of importing child_process directly.',
+            },
+            {
+              name: 'node:child_process',
+              message:
+                'Use src/core/runtime process boundary APIs instead of importing child_process directly.',
+            },
+          ],
+          patterns: ['**/adapters/git/git-runner.js'],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/core/runtime/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
           patterns: ['**/adapters/git/git-runner.js'],
         },
       ],

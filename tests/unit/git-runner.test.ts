@@ -23,6 +23,10 @@ describe('runGitCommand', () => {
       code: 0,
       signal: null,
       timedOut: false,
+      stdout: '',
+      stderr: '',
+      stdoutTruncated: false,
+      stderrTruncated: false,
     });
   });
 
@@ -62,6 +66,10 @@ describe('runGitCommand', () => {
         code: 0,
         signal: null,
         timedOut: false,
+        stdout: '',
+        stderr: '',
+        stdoutTruncated: false,
+        stderrTruncated: false,
       };
     });
 
@@ -85,6 +93,10 @@ describe('runGitCommand', () => {
         code: 0,
         signal: null,
         timedOut: false,
+        stdout: '',
+        stderr: '',
+        stdoutTruncated: false,
+        stderrTruncated: false,
       };
     });
 
@@ -108,6 +120,10 @@ describe('runGitCommand', () => {
         code: null,
         signal: 'SIGKILL',
         timedOut: true,
+        stdout: '',
+        stderr: '',
+        stdoutTruncated: false,
+        stderrTruncated: false,
       };
     });
 

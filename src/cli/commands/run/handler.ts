@@ -26,7 +26,7 @@ import { resolveRunMode } from './mode.js';
 import { createOutcomeReporter } from './outcome-reporter.js';
 import { parseRunCommandOptions } from './parse-options.js';
 import { persistRunSession } from './persist-session.js';
-import { runPreflight } from './preflight.js';
+import { PreflightPolicy, runPreflight } from './preflight.js';
 import { createRunReporter } from './reporter-factory.js';
 import { createRuntimeLlmAndWarn } from './runtime-llm.js';
 import { resolveRunRuntimeOptions } from './runtime-options.js';
@@ -147,7 +147,19 @@ export async function handleRunCommand(options: any, command: Command) {
   const allowedToolRules = parsed.allowedToolRules;
   const disallowedToolRules = parsed.disallowedToolRules;
 
-  await runPreflight({ repoPath: runPath, validate: Boolean(allOptions.validate), useGui });
+  const rawPreflightPolicy = String((allOptions as any).preflightPolicy || 'lenient');
+  if (rawPreflightPolicy !== 'lenient' && rawPreflightPolicy !== 'strict') {
+    logger.error(text.cli.invalidPreflightPolicy(rawPreflightPolicy), true);
+    return;
+  }
+  const preflightPolicy = rawPreflightPolicy as PreflightPolicy;
+
+  await runPreflight({
+    repoPath: runPath,
+    validate: Boolean(allOptions.validate),
+    useGui,
+    preflightPolicy,
+  });
   if (allOptions.validate && !instruction) return;
 
   const writeJsonFailure = (params: {

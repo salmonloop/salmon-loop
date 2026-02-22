@@ -12,6 +12,10 @@ describe('RipgrepGatherer', () => {
       code: 0,
       signal: null,
       timedOut: false,
+      stdout: '',
+      stderr: '',
+      stdoutTruncated: false,
+      stderrTruncated: false,
     });
   });
 
@@ -32,6 +36,10 @@ describe('RipgrepGatherer', () => {
         signal: 'SIGTERM',
         timedOut: false,
         aborted: true,
+        stdout: '',
+        stderr: '',
+        stdoutTruncated: false,
+        stderrTruncated: false,
       };
     });
 
