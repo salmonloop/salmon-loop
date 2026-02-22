@@ -1,4 +1,6 @@
 import { spawn } from 'child_process';
+import { EventEmitter } from 'events';
+import { Readable } from 'stream';
 
 export interface SpawnCommandInput {
   command: string;
@@ -23,6 +25,24 @@ export interface SpawnCommandResult {
   error?: { code?: string; message: string };
 }
 
+export interface SpawnInteractiveInput {
+  command: string;
+  args?: string[];
+  cwd?: string;
+  env?: NodeJS.ProcessEnv;
+  detached?: boolean;
+  windowsHide?: boolean;
+}
+
+export interface InteractiveProcess {
+  pid?: number;
+  stdin?: { write?: (data: Buffer | string) => void; end?: () => void };
+  stdout?: NodeJS.ReadableStream;
+  stderr?: NodeJS.ReadableStream;
+  kill: (signal?: NodeJS.Signals) => void;
+  on: (event: 'error' | 'exit', listener: (...args: unknown[]) => void) => InteractiveProcess;
+}
+
 interface BunRuntime {
   spawn: (cmd: string[], options: Record<string, unknown>) => any;
   which?: (cmd: string) => string | null | undefined;
@@ -41,6 +61,17 @@ function normalizeSignal(value: unknown): NodeJS.Signals | null {
     return value as NodeJS.Signals;
   }
   return null;
+}
+
+function toNodeReadableStream(stream: unknown): NodeJS.ReadableStream | undefined {
+  if (!stream) return undefined;
+  if (typeof (stream as { on?: unknown }).on === 'function') {
+    return stream as NodeJS.ReadableStream;
+  }
+  if (typeof (stream as { getReader?: unknown }).getReader === 'function') {
+    return Readable.fromWeb(stream as any) as unknown as NodeJS.ReadableStream;
+  }
+  return undefined;
 }
 
 function toBuffer(chunk: unknown): Buffer {
@@ -103,6 +134,78 @@ function createKillProcess(
       // Ignore kill errors.
     }
   };
+}
+
+export function spawnInteractiveProcess(input: SpawnInteractiveInput): InteractiveProcess {
+  const bun = getBunRuntime();
+  if (bun) {
+    const subprocess = bun.spawn([input.command, ...(input.args ?? [])], {
+      cwd: input.cwd,
+      env: input.env,
+      stdin: 'pipe',
+      stdout: 'pipe',
+      stderr: 'pipe',
+      detached: input.detached,
+      windowsHide: input.windowsHide,
+    });
+
+    const events = new EventEmitter();
+    void subprocess.exited
+      .then((code: number | null) => {
+        events.emit('exit', code, normalizeSignal(subprocess.signalCode));
+      })
+      .catch((error: unknown) => {
+        events.emit('error', error);
+      });
+
+    const processRef: InteractiveProcess = {
+      pid: subprocess.pid,
+      stdin: subprocess.stdin ?? undefined,
+      stdout: toNodeReadableStream(subprocess.stdout),
+      stderr: toNodeReadableStream(subprocess.stderr),
+      kill: (signal = 'SIGTERM') => {
+        try {
+          subprocess.kill(signal);
+        } catch {
+          // Ignore kill errors.
+        }
+      },
+      on: (event, listener) => {
+        events.on(event, listener);
+        return processRef;
+      },
+    };
+
+    return processRef;
+  }
+
+  const child = spawn(input.command, input.args ?? [], {
+    cwd: input.cwd,
+    env: input.env,
+    stdio: ['pipe', 'pipe', 'pipe'],
+    windowsHide: input.windowsHide,
+    detached: input.detached,
+  });
+
+  const processRef: InteractiveProcess = {
+    pid: child.pid,
+    stdin: child.stdin ?? undefined,
+    stdout: child.stdout ?? undefined,
+    stderr: child.stderr ?? undefined,
+    kill: (signal = 'SIGTERM') => {
+      try {
+        child.kill(signal);
+      } catch {
+        // Ignore kill errors.
+      }
+    },
+    on: (event, listener) => {
+      child.on(event, listener as (...args: any[]) => void);
+      return processRef;
+    },
+  };
+
+  return processRef;
 }
 
 async function spawnWithBun(

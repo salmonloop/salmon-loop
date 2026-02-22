@@ -1,14 +1,10 @@
-import * as child_process from 'child_process';
-import { promisify } from 'util';
-
 import { z } from 'zod';
 
 import { pluginRegistry } from '../../plugin/registry.js';
+import { spawnCommand } from '../../runtime/process-runner.js';
 import { Phase } from '../../types/index.js';
 import { processResource } from '../parallel/resource-helpers.js';
 import { ToolSpec, ToolRuntimeCtx } from '../types.js';
-
-const execAsync = promisify(child_process.exec);
 
 /**
  * Get description for language parameter based on registered plugins.
@@ -60,22 +56,58 @@ export async function executeAstGrep(
   ctx: ToolRuntimeCtx,
 ) {
   try {
-    const args = ['run', '--pattern', `'${input.pattern}'`, '--json'];
+    const args = ['run', '--pattern', input.pattern, '--json'];
 
     if (input.language) {
       args.push('--lang', input.language);
     }
 
-    const targetPaths = input.paths?.length ? input.paths.join(' ') : '.';
-    const command = `sg ${args.join(' ')} ${targetPaths}`;
-
-    const { stdout, stderr } = await execAsync(command, {
+    const targetPaths = input.paths?.length ? input.paths : ['.'];
+    const allArgs = [...args, ...targetPaths];
+    const maxOutputBytes = 1024 * 1024 * 5;
+    let stdout = '';
+    let stderr = '';
+    let stdoutBytes = 0;
+    const result = await spawnCommand({
+      command: 'sg',
+      args: allArgs,
       cwd: ctx.worktreeRoot || ctx.repoRoot,
-      maxBuffer: 1024 * 1024 * 5, // 5MB buffer for large search results
       env: ctx.env ? { ...process.env, ...ctx.env } : process.env,
+      timeoutMs: 30_000,
+      onStdoutChunk: (chunk) => {
+        if (stdoutBytes >= maxOutputBytes) return;
+        const buffer = Buffer.from(chunk);
+        const remaining = maxOutputBytes - stdoutBytes;
+        if (buffer.length <= remaining) {
+          stdout += buffer.toString();
+          stdoutBytes += buffer.length;
+          return;
+        }
+        stdout += buffer.subarray(0, remaining).toString();
+        stdoutBytes += remaining;
+      },
+      onStderrChunk: (chunk) => {
+        stderr += Buffer.from(chunk).toString();
+      },
     });
 
-    if (stderr && !stdout) {
+    if (result.error) {
+      return {
+        matches: [],
+        error: result.error.message.includes('not found')
+          ? 'ast-grep (sg) is not installed in the environment'
+          : result.error.message,
+      };
+    }
+
+    if (result.timedOut) {
+      return {
+        matches: [],
+        error: 'ast-grep execution timed out',
+      };
+    }
+
+    if (stderr && !stdout && result.code !== 1) {
       return { matches: [], error: stderr };
     }
 
@@ -91,26 +123,9 @@ export async function executeAstGrep(
 
     return { matches };
   } catch (e: any) {
-    // ast-grep returns exit code 1 if no matches are found, which promisify(exec) treats as an error
-    if (e.stdout) {
-      try {
-        const rawMatches = JSON.parse(e.stdout);
-        const matches = rawMatches.map((m: any) => ({
-          file: m.file,
-          line: m.range.start.line + 1,
-          content: m.lines,
-        }));
-        return { matches };
-      } catch {
-        // Fall through to generic error
-      }
-    }
-
     return {
       matches: [],
-      error: e.message.includes('not found')
-        ? 'ast-grep (sg) is not installed in the environment'
-        : e.message,
+      error: e.message,
     };
   }
 }

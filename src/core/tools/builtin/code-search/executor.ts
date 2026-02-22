@@ -1,5 +1,6 @@
 import { LIMITS } from '../../../config/limits.js';
 import { logger } from '../../../observability/logger.js';
+import { spawnCommand } from '../../../runtime/process-runner.js';
 import { runWithFallback } from '../../capability/executor.js';
 import { CapabilityCtx } from '../../capability/types.js';
 import { ToolRuntimeCtx, ExecutionPhase } from '../../types.js';
@@ -30,25 +31,49 @@ export async function codeSearchExecutor(
     platform: (ctx as any).platform ?? process.platform,
     runner: (ctx as any).runner ?? {
       execFile: async (file, args, opts) => {
-        const { execFile } = await import('child_process');
-        const { promisify } = await import('util');
-        const execFileAsync = promisify(execFile);
-        try {
-          const { stdout, stderr } = await execFileAsync(file, args, {
-            cwd: opts?.cwd ?? ctx.repoRoot,
-            timeout: opts?.timeoutMs,
-            maxBuffer: opts?.maxStdoutBytes,
-            env: { ...process.env, ...ctx.env, ...opts?.env },
-          });
-          return { stdout, stderr, exitCode: 0, timedOut: false };
-        } catch (err: any) {
+        const maxStdoutBytes = opts?.maxStdoutBytes ?? Number.POSITIVE_INFINITY;
+        let stdout = '';
+        let stderr = '';
+        let stdoutBytes = 0;
+
+        const result = await spawnCommand({
+          command: file,
+          args,
+          cwd: opts?.cwd ?? ctx.repoRoot,
+          timeoutMs: opts?.timeoutMs,
+          env: { ...process.env, ...ctx.env, ...opts?.env },
+          onStdoutChunk: (chunk) => {
+            if (stdoutBytes >= maxStdoutBytes) return;
+            const buffer = Buffer.from(chunk);
+            const remaining = maxStdoutBytes - stdoutBytes;
+            if (buffer.length <= remaining) {
+              stdout += buffer.toString();
+              stdoutBytes += buffer.length;
+              return;
+            }
+            stdout += buffer.subarray(0, remaining).toString();
+            stdoutBytes += remaining;
+          },
+          onStderrChunk: (chunk) => {
+            stderr += Buffer.from(chunk).toString();
+          },
+        });
+
+        if (result.error) {
           return {
-            stdout: err.stdout ?? '',
-            stderr: err.stderr ?? '',
-            exitCode: err.code ?? 1,
-            timedOut: err.killed && err.signal === 'SIGTERM',
+            stdout,
+            stderr: stderr || result.error.message,
+            exitCode: 1,
+            timedOut: false,
           };
         }
+
+        return {
+          stdout,
+          stderr,
+          exitCode: result.code ?? 1,
+          timedOut: result.timedOut,
+        };
       },
     },
     limits: {

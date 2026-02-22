@@ -1,8 +1,8 @@
-import { spawn, ChildProcess } from 'child_process';
 import { createInterface, Interface } from 'readline';
 
 import { LIMITS } from '../../config/limits.js';
 import { logger } from '../../observability/logger.js';
+import { InteractiveProcess, spawnInteractiveProcess } from '../../runtime/process-runner.js';
 
 import {
   assertOk,
@@ -18,7 +18,7 @@ import { McpExecutionResult, McpServerConfig } from './types.js';
  * MCP Client handling JSON-RPC communication over stdio with an external server.
  */
 export class McpClient {
-  private process: ChildProcess | null = null;
+  private process: InteractiveProcess | null = null;
   private requestId = 0;
   private pendingRequests = new Map<
     number,
@@ -45,11 +45,13 @@ export class McpClient {
     }
 
     logger.info(`Starting MCP server: ${this.config.name} (command: ${this.config.command})`);
-    this.process = spawn(this.config.command!, this.config.args || [], {
+    this.process = spawnInteractiveProcess({
+      command: this.config.command!,
+      args: this.config.args || [],
       env: { ...process.env, ...(this.config.env as any) },
       cwd: this.config.cwd,
       // Never inherit stderr into the parent TTY: it bypasses UI sanitization and can leak raw errors.
-      stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true,
     });
 
     if (!this.process) {
@@ -111,7 +113,7 @@ export class McpClient {
     if (this.isHttp()) {
       return await this.requestHttp(method, params);
     }
-    if (!this.process || !this.process.stdin) {
+    if (!this.process?.stdin?.write) {
       throw new Error(`MCP client ${this.config.name} is not started`);
     }
 
@@ -120,7 +122,7 @@ export class McpClient {
 
     return new Promise((resolve, reject) => {
       this.pendingRequests.set(id, { resolve, reject });
-      this.process!.stdin!.write(message);
+      this.process!.stdin!.write!(message);
 
       // Default timeout for MCP requests
       setTimeout(() => {
@@ -141,7 +143,7 @@ export class McpClient {
       await this.notificationHttp(method, params);
       return;
     }
-    if (!this.process || !this.process.stdin) return;
+    if (!this.process?.stdin?.write) return;
     const message = JSON.stringify({ jsonrpc: '2.0', method, params }) + '\n';
     this.process.stdin.write(message);
   }
