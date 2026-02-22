@@ -172,6 +172,57 @@ type ToolCallBudgetState = {
   maxPerRound: number;
 };
 
+function resetToolCallBudgetState(session: ToolCallingSessionOptions): ToolCallBudgetState {
+  const budget = getToolCallBudget(session);
+  const state: ToolCallBudgetState = { used: 0, ...budget };
+  (
+    session as ToolCallingSessionOptions & { __toolCallBudgetState?: ToolCallBudgetState }
+  ).__toolCallBudgetState = state;
+  return state;
+}
+
+function getToolCallBudgetState(session: ToolCallingSessionOptions): ToolCallBudgetState {
+  const budget = getToolCallBudget(session);
+  const anySession = session as ToolCallingSessionOptions & {
+    __toolCallBudgetState?: ToolCallBudgetState;
+  };
+  const existing = anySession.__toolCallBudgetState;
+  if (!existing) {
+    const created: ToolCallBudgetState = { used: 0, ...budget };
+    anySession.__toolCallBudgetState = created;
+    return created;
+  }
+  // Ensure runtime overrides are respected.
+  existing.maxTotal = budget.maxTotal;
+  existing.maxPerRound = budget.maxPerRound;
+  return existing;
+}
+
+function initToolCallRoundBudget(params: {
+  session: ToolCallingSessionOptions;
+  phase: ExecutionPhase;
+  round: number;
+  preparedCount: number;
+}): { roundCap: number; budgetState: ToolCallBudgetState } {
+  const budgetState = getToolCallBudgetState(params.session);
+  const roundCap = Math.min(
+    budgetState.maxPerRound,
+    Math.max(0, budgetState.maxTotal - budgetState.used),
+  );
+  budgetState.used += params.preparedCount;
+
+  if (params.preparedCount > roundCap) {
+    params.session.emit?.({
+      type: 'log',
+      level: 'warn',
+      message: `Tool call budget exceeded; denying ${params.preparedCount - roundCap} tool calls (phase=${params.phase}, round=${params.round})`,
+      timestamp: new Date(),
+    });
+  }
+
+  return { roundCap, budgetState };
+}
+
 function isFunctionCallStreamPart(
   part: CanonicalStreamPart,
 ): part is Extract<CanonicalStreamPart, { callId: string }> {
@@ -230,6 +281,294 @@ function emitCanonicalResponsesEvents(params: {
   }
 }
 
+type StreamTurnConsumption = {
+  content: string;
+  finishReason?: string;
+  finishUsage?: { promptTokens: number; completionTokens: number };
+};
+
+async function consumeAssistantStreamTurn(params: {
+  session: ToolCallingSessionOptions;
+  messages: LLMMessage[];
+  chatOptions: ChatOptions;
+  openAITools: any[];
+  allowedSpecs: ToolSpec[];
+  phase: ExecutionPhase;
+  round: number;
+  streamId: string;
+  canonicalEmitter: CanonicalResponsesEventEmitter | null;
+  emittedModelToolCallIds: Set<string>;
+  toolCalls: ToolCallAccumulator;
+}): Promise<StreamTurnConsumption> {
+  const stream = params.session.llm.chatStream!(params.messages, {
+    ...params.chatOptions,
+    tools: params.openAITools,
+    toolSpecs: params.allowedSpecs,
+    toolChoice: params.openAITools.length > 0 ? 'auto' : undefined,
+  });
+
+  let content = '';
+  let finishReason: string | undefined;
+  let finishUsage: { promptTokens: number; completionTokens: number } | undefined;
+
+  for await (const chunk of stream) {
+    if (params.canonicalEmitter && params.session.emit && params.session.llmOutput) {
+      const parts = mapLlmStreamChunkToCanonicalStreamParts({ streamId: params.streamId, chunk });
+      const at = new Date();
+      const source = chunk.source ?? 'provider';
+      const toolPartsByCallId = groupNewFunctionCallPartsByCallId({
+        parts,
+        alreadyEmittedCallIds: params.emittedModelToolCallIds,
+      });
+
+      for (const [callId, callParts] of toolPartsByCallId) {
+        for (const part of callParts) {
+          const events = params.canonicalEmitter.push(part);
+          emitCanonicalResponsesEvents({
+            emit: params.session.emit,
+            llmOutput: params.session.llmOutput,
+            streamId: params.streamId,
+            phase: params.phase,
+            round: params.round,
+            source,
+            events,
+            timestamp: at,
+          });
+        }
+        params.emittedModelToolCallIds.add(callId);
+      }
+    }
+
+    if (typeof chunk?.contentDelta === 'string' && chunk.contentDelta) {
+      if (params.session.llmOutput) {
+        emitLlmStreamDelta({
+          emit: params.session.emit,
+          policy: params.session.llmOutput.policy,
+          kind: params.session.llmOutput.kind,
+          step: params.session.llmOutput.step,
+          streamId: params.streamId,
+          content: chunk.contentDelta,
+        });
+      }
+      content += chunk.contentDelta;
+    }
+
+    params.toolCalls.append(chunk);
+
+    if (chunk?.done) {
+      finishReason = chunk.finishReason;
+      if (
+        chunk.usage &&
+        typeof chunk.usage.promptTokens === 'number' &&
+        typeof chunk.usage.completionTokens === 'number'
+      ) {
+        finishUsage = chunk.usage;
+      }
+      break;
+    }
+  }
+
+  return { content, finishReason, finishUsage };
+}
+
+async function applyEmptyStreamFallback(params: {
+  session: ToolCallingSessionOptions;
+  messages: LLMMessage[];
+  chatOptions: ChatOptions;
+  openAITools: any[];
+  allowedSpecs: ToolSpec[];
+  phase: ExecutionPhase;
+  round: number;
+  content: string;
+  collectedToolCalls: any[];
+}): Promise<{ usedFallback: boolean; content: string; toolCalls: any[] }> {
+  if (params.content.trim() !== '' || params.collectedToolCalls.length > 0) {
+    return { usedFallback: false, content: params.content, toolCalls: params.collectedToolCalls };
+  }
+
+  recordAuditEvent(
+    'llm.stream.empty_fallback',
+    { phase: params.phase, round: params.round },
+    { source: 'llm', severity: 'low', scope: 'session', phase: params.phase },
+  );
+
+  const fallback = await params.session.llm.chat(params.messages, {
+    ...params.chatOptions,
+    tools: params.openAITools,
+    toolSpecs: params.allowedSpecs,
+    toolChoice: params.openAITools.length > 0 ? 'auto' : undefined,
+  });
+
+  const finalContent = fallback.content || '';
+  const finalCalls = Array.isArray(fallback.tool_calls) ? fallback.tool_calls : [];
+
+  if (params.session.llmOutput && finalContent) {
+    emitLlmOutput({
+      emit: params.session.emit,
+      policy: params.session.llmOutput.policy,
+      kind: params.session.llmOutput.kind,
+      step: params.session.llmOutput.step,
+      content: finalContent,
+    });
+  }
+
+  return { usedFallback: true, content: finalContent, toolCalls: finalCalls };
+}
+
+function emitSynthesizedFunctionCallClosures(params: {
+  emit: (event: LoopEvent) => void;
+  llmOutput: { kind: LlmOutputKind; step: ExecutionStep };
+  canonicalEmitter: CanonicalResponsesEventEmitter | null;
+  streamId: string;
+  phase: ExecutionPhase;
+  round: number;
+  collectedToolCalls: any[];
+  emittedModelToolCallIds: Set<string>;
+}): void {
+  if (!params.canonicalEmitter) return;
+  if (params.collectedToolCalls.length === 0) return;
+
+  const seenDoneIds = new Set<string>();
+  for (const call of params.collectedToolCalls) {
+    const callId = call?.id;
+    const toolName = call?.function?.name;
+    const argsText = call?.function?.arguments;
+    if (typeof callId !== 'string' || !callId) continue;
+    if (typeof toolName !== 'string' || !toolName) continue;
+    if (seenDoneIds.has(callId)) continue;
+    seenDoneIds.add(callId);
+
+    if (!params.emittedModelToolCallIds.has(callId)) {
+      params.emittedModelToolCallIds.add(callId);
+      const at = new Date();
+      const startEvents = params.canonicalEmitter.push({
+        type: 'function_call.start',
+        streamId: params.streamId,
+        callId,
+        name: toolName,
+      });
+      const argEvents = params.canonicalEmitter.push({
+        type: 'function_call_arguments.done',
+        streamId: params.streamId,
+        callId,
+        name: toolName,
+        arguments: typeof argsText === 'string' ? argsText : '{}',
+      });
+
+      emitCanonicalResponsesEvents({
+        emit: params.emit,
+        llmOutput: params.llmOutput,
+        streamId: params.streamId,
+        phase: params.phase,
+        round: params.round,
+        source: 'synthesized',
+        events: [...startEvents, ...argEvents],
+        timestamp: at,
+      });
+    }
+
+    const doneAt = new Date();
+    const doneEvents = params.canonicalEmitter.push({
+      type: 'function_call.done',
+      streamId: params.streamId,
+      callId,
+      name: toolName,
+      arguments: typeof argsText === 'string' ? argsText : '{}',
+    });
+    emitCanonicalResponsesEvents({
+      emit: params.emit,
+      llmOutput: params.llmOutput,
+      streamId: params.streamId,
+      phase: params.phase,
+      round: params.round,
+      source: 'synthesized',
+      events: doneEvents,
+      timestamp: doneAt,
+    });
+  }
+}
+
+type ResolvedToolCalling = {
+  allowedSpecs: ToolSpec[];
+  openAITools: any[];
+};
+
+function resolveToolCallingForSession(
+  session: ToolCallingSessionOptions,
+  phase: ExecutionPhase,
+): ResolvedToolCalling {
+  const allowedSpecs = session.toolstack.registry.listAll().filter((spec) => {
+    return session.toolstack.policy.decide(phase, spec, {
+      worktreeRoot: session.runtime.worktreeRoot,
+    }).allowed;
+  });
+
+  const openAITools = allowedSpecs.map(toolToOpenAI);
+
+  return { allowedSpecs, openAITools };
+}
+
+function emitToolCallingEnabledLogIfNeeded(
+  session: ToolCallingSessionOptions,
+  openAITools: any[],
+): void {
+  if (openAITools.length === 0) return;
+
+  session.emit?.({
+    type: 'log',
+    level: 'debug',
+    message: `Tool calling enabled (${openAITools.length} tools available)`,
+    timestamp: new Date(),
+  });
+}
+
+type CanonicalEmitterRegistry = {
+  get(streamId: string): CanonicalResponsesEventEmitter | null;
+  release(streamId: string): void;
+  clear(): void;
+};
+
+function createCanonicalEmitterRegistry(
+  session: ToolCallingSessionOptions,
+): CanonicalEmitterRegistry {
+  if (!session.emit || !session.llmOutput) {
+    return {
+      get: () => null,
+      release: () => {},
+      clear: () => {},
+    };
+  }
+
+  const emitters = new Map<string, CanonicalResponsesEventEmitter>();
+
+  return {
+    get(streamId: string): CanonicalResponsesEventEmitter | null {
+      if (!streamId) return null;
+      const existing = emitters.get(streamId);
+      if (existing) return existing;
+      const created = new CanonicalResponsesEventEmitter();
+      emitters.set(streamId, created);
+      return created;
+    },
+    release(streamId: string): void {
+      if (!streamId) return;
+      emitters.delete(streamId);
+    },
+    clear(): void {
+      emitters.clear();
+    },
+  };
+}
+
+function createStreamingStreamId(params: {
+  session: ToolCallingSessionOptions;
+  phase: ExecutionPhase;
+  round: number;
+}): string {
+  if (!params.session.llmOutput) return '';
+  return `llm-${params.session.llmOutput.kind}-${params.phase}-${params.round}-${crypto.randomUUID()}`;
+}
+
 /**
  * Runs an OpenAI-style tool calling loop:
  * - Send messages (+ tools)
@@ -244,27 +583,9 @@ export async function chatWithTools(
 ): Promise<LLMMessage> {
   const maxRounds = session.maxRounds ?? 6;
   const phase = session.phase;
-  const budget = getToolCallBudget(session);
-  (
-    session as ToolCallingSessionOptions & { __toolCallBudgetState?: ToolCallBudgetState }
-  ).__toolCallBudgetState = { used: 0, ...budget };
-
-  const allowedSpecs = session.toolstack.registry.listAll().filter((spec) => {
-    return session.toolstack.policy.decide(phase, spec, {
-      worktreeRoot: session.runtime.worktreeRoot,
-    }).allowed;
-  });
-
-  const openAITools = allowedSpecs.map(toolToOpenAI);
-
-  if (openAITools.length > 0) {
-    session.emit?.({
-      type: 'log',
-      level: 'debug',
-      message: `Tool calling enabled (${openAITools.length} tools available)`,
-      timestamp: new Date(),
-    });
-  }
+  resetToolCallBudgetState(session);
+  const { allowedSpecs, openAITools } = resolveToolCallingForSession(session, phase);
+  emitToolCallingEnabledLogIfNeeded(session, openAITools);
 
   const messages: LLMMessage[] = [...initialMessages];
 
@@ -496,6 +817,135 @@ function extractInstructionText(messages: LLMMessage[]): string {
   return match[2]?.trim() || '';
 }
 
+type PreparedToolCallRequest = {
+  callId: string;
+  toolName: unknown;
+  rawArgs: unknown;
+};
+
+function prepareToolCallRequests(calls: any[]): PreparedToolCallRequest[] {
+  return calls.map((call) => {
+    const callId = call?.id || crypto.randomUUID();
+    const toolName = call?.function?.name;
+    const rawArgs = call?.function?.arguments;
+    return { callId, toolName, rawArgs };
+  });
+}
+
+type SchedulerBlockedApproval = { nodeId: string };
+
+type SchedulerNodeResult = {
+  toolResult?: ToolResult;
+};
+
+type SchedulerRunResult = {
+  blockedApprovals: SchedulerBlockedApproval[];
+  nodeResults: Record<string, SchedulerNodeResult | undefined>;
+};
+
+async function runToolExecutionPlan(params: {
+  session: ToolCallingSessionOptions;
+  phase: ExecutionPhase;
+  plan: ExecutionPlan;
+  signal?: AbortSignal;
+}): Promise<SchedulerRunResult> {
+  const scheduler = new ParallelScheduler(
+    params.session.toolstack.router as ToolRouter,
+    new InMemoryLockManager(),
+  );
+
+  const runSignal = params.signal ?? new AbortController().signal;
+  let result = (await scheduler.run(
+    params.plan,
+    { ...params.session.runtime, phase: params.phase },
+    runSignal,
+  )) as SchedulerRunResult;
+
+  const persistEnabled = process.env.NODE_ENV !== 'test';
+  const persistenceRoot = params.session.runtime.persistenceRoot || params.session.runtime.repoRoot;
+  if (persistEnabled) {
+    await PlanPersistence.save(persistenceRoot, params.plan, result as any, {
+      repoRoot: params.session.runtime.repoRoot,
+      worktreeRoot: params.session.runtime.worktreeRoot,
+      persistenceRoot: params.session.runtime.persistenceRoot,
+      phase: params.phase,
+      model: params.session.runtime.model,
+    });
+  }
+
+  const waitForAuthorization = params.session.toolstack.router.waitForAuthorization;
+  const canWaitForAuth = typeof waitForAuthorization === 'function';
+
+  let resumeAttempts = 0;
+  while (result.blockedApprovals.length > 0 && canWaitForAuth && !runSignal.aborted) {
+    resumeAttempts++;
+    if (resumeAttempts > 10) break;
+
+    await Promise.all(
+      result.blockedApprovals.map(async (a) => {
+        await waitForAuthorization?.(a.nodeId, runSignal);
+      }),
+    );
+
+    result = (await scheduler.run(
+      params.plan,
+      { ...params.session.runtime, phase: params.phase },
+      runSignal,
+      {
+        initialResults: result.nodeResults as any,
+        resumeBlockedApprovals: true,
+      },
+    )) as SchedulerRunResult;
+
+    if (persistEnabled) {
+      await PlanPersistence.save(persistenceRoot, params.plan, result as any, {
+        repoRoot: params.session.runtime.repoRoot,
+        worktreeRoot: params.session.runtime.worktreeRoot,
+        persistenceRoot: params.session.runtime.persistenceRoot,
+        phase: params.phase,
+        model: params.session.runtime.model,
+      });
+    }
+  }
+
+  return result;
+}
+
+function applyStrictToolOutputSchemaValidation(params: {
+  session: ToolCallingSessionOptions;
+  phase: ExecutionPhase;
+  callId: string;
+  toolName: string;
+  result: ToolResult;
+}): void {
+  if (params.result.status !== 'ok') return;
+
+  const spec =
+    params.session.toolstack.router.getSpec?.(params.toolName) ||
+    params.session.toolstack.registry.listAll().find((s) => s.name === params.toolName);
+
+  if (!spec?.outputSchema) return;
+
+  const parsed = spec.outputSchema.safeParse(params.result.output);
+  if (parsed.success) {
+    params.result.output = parsed.data;
+    return;
+  }
+
+  const validationError = parsed.error.message;
+  logger.error(
+    `[tool] schema violation for ${params.toolName} (callId: ${params.callId}): ${validationError}`,
+  );
+
+  params.result.status = 'error';
+  params.result.error = {
+    code: 'SCHEMA_VIOLATION',
+    message: `Tool output does not match expected schema: ${validationError}`,
+    retryable: false,
+    failurePhase: params.phase,
+  };
+}
+
 async function executeToolCalls(
   session: ToolCallingSessionOptions,
   phase: ExecutionPhase,
@@ -504,47 +954,19 @@ async function executeToolCalls(
   messages: LLMMessage[],
   signal?: AbortSignal,
 ): Promise<void> {
-  const prepared = calls.map((call) => {
-    const callId = call?.id || crypto.randomUUID();
-    const toolName = call?.function?.name;
-    const rawArgs = call?.function?.arguments;
-    return { callId, toolName, rawArgs };
+  const prepared = prepareToolCallRequests(calls);
+  const { roundCap } = initToolCallRoundBudget({
+    session,
+    phase,
+    round,
+    preparedCount: prepared.length,
   });
-
-  const budget = getToolCallBudget(session);
-  // Keep budget state on the session object to share between rounds without expanding public API.
-  const anySession = session as ToolCallingSessionOptions & {
-    __toolCallBudgetState?: ToolCallBudgetState;
-  };
-  const budgetState: ToolCallBudgetState = anySession.__toolCallBudgetState || {
-    used: 0,
-    ...budget,
-  };
-  // Ensure runtime updates (if caller overrides budget between invocations) are respected.
-  budgetState.maxTotal = budget.maxTotal;
-  budgetState.maxPerRound = budget.maxPerRound;
-  anySession.__toolCallBudgetState = budgetState;
 
   const toolResults = new Map<string, ToolResult>();
   const nodes: PlanNode[] = [];
   const toolArgsPreviewByCallId = new Map<string, string>();
   const rawArgsPreviewByCallId = new Map<string, string | undefined>();
   const rawArgsTypeByCallId = new Map<string, string>();
-
-  const roundCap = Math.min(
-    budgetState.maxPerRound,
-    Math.max(0, budgetState.maxTotal - budgetState.used),
-  );
-  budgetState.used += prepared.length;
-
-  if (prepared.length > roundCap) {
-    session.emit?.({
-      type: 'log',
-      level: 'warn',
-      message: `Tool call budget exceeded; denying ${prepared.length - roundCap} tool calls (phase=${phase}, round=${round})`,
-      timestamp: new Date(),
-    });
-  }
 
   let allowedUsed = 0;
   for (const item of prepared) {
@@ -737,56 +1159,7 @@ async function executeToolCalls(
       },
     };
 
-    const scheduler = new ParallelScheduler(
-      session.toolstack.router as ToolRouter,
-      new InMemoryLockManager(),
-    );
-
-    const runSignal = signal ?? new AbortController().signal;
-    let result = await scheduler.run(plan, { ...session.runtime, phase }, runSignal);
-
-    const persistEnabled = process.env.NODE_ENV !== 'test';
-    const persistenceRoot = session.runtime.persistenceRoot || session.runtime.repoRoot;
-    if (persistEnabled) {
-      await PlanPersistence.save(persistenceRoot, plan, result, {
-        repoRoot: session.runtime.repoRoot,
-        worktreeRoot: session.runtime.worktreeRoot,
-        persistenceRoot: session.runtime.persistenceRoot,
-        phase,
-        model: session.runtime.model,
-      });
-    }
-
-    const waitForAuthorization = session.toolstack.router.waitForAuthorization;
-    const canWaitForAuth = typeof waitForAuthorization === 'function';
-
-    let resumeAttempts = 0;
-    while (result.blockedApprovals.length > 0 && canWaitForAuth && !runSignal.aborted) {
-      resumeAttempts++;
-      if (resumeAttempts > 10) break;
-
-      // Wait for all pending approvals in this plan run, then resume only blocked nodes.
-      await Promise.all(
-        result.blockedApprovals.map(async (a) => {
-          await waitForAuthorization?.(a.nodeId, runSignal);
-        }),
-      );
-
-      result = await scheduler.run(plan, { ...session.runtime, phase }, runSignal, {
-        initialResults: result.nodeResults,
-        resumeBlockedApprovals: true,
-      });
-
-      if (persistEnabled) {
-        await PlanPersistence.save(persistenceRoot, plan, result, {
-          repoRoot: session.runtime.repoRoot,
-          worktreeRoot: session.runtime.worktreeRoot,
-          persistenceRoot: session.runtime.persistenceRoot,
-          phase,
-          model: session.runtime.model,
-        });
-      }
-    }
+    const result = await runToolExecutionPlan({ session, phase, plan, signal });
 
     for (const node of nodes) {
       const r = result.nodeResults[node.id];
@@ -817,30 +1190,8 @@ async function executeToolCalls(
     if (!result) continue;
 
     // Strict output schema validation
-    if (result.status === 'ok' && typeof toolName === 'string') {
-      const spec =
-        session.toolstack.router.getSpec?.(toolName) ||
-        session.toolstack.registry.listAll().find((s) => s.name === toolName);
-
-      if (spec?.outputSchema) {
-        const parsed = spec.outputSchema.safeParse(result.output);
-        if (parsed.success) {
-          result.output = parsed.data;
-        } else {
-          const validationError = parsed.error.message;
-          logger.error(
-            `[tool] schema violation for ${toolName} (callId: ${callId}): ${validationError}`,
-          );
-
-          result.status = 'error';
-          result.error = {
-            code: 'SCHEMA_VIOLATION',
-            message: `Tool output does not match expected schema: ${validationError}`,
-            retryable: false,
-            failurePhase: phase,
-          };
-        }
-      }
+    if (typeof toolName === 'string') {
+      applyStrictToolOutputSchemaValidation({ session, phase, callId, toolName, result });
     }
 
     session.emit?.({
@@ -917,301 +1268,158 @@ export async function chatWithToolsStreaming(
 
   const maxRounds = session.maxRounds ?? 6;
   const phase = session.phase;
-  const budget = getToolCallBudget(session);
-  (
-    session as ToolCallingSessionOptions & { __toolCallBudgetState?: ToolCallBudgetState }
-  ).__toolCallBudgetState = { used: 0, ...budget };
-
-  const allowedSpecs = session.toolstack.registry.listAll().filter((spec) => {
-    return session.toolstack.policy.decide(phase, spec, {
-      worktreeRoot: session.runtime.worktreeRoot,
-    }).allowed;
-  });
-
-  const openAITools = allowedSpecs.map(toolToOpenAI);
-
-  if (openAITools.length > 0) {
-    session.emit?.({
-      type: 'log',
-      level: 'debug',
-      message: `Tool calling enabled (${openAITools.length} tools available)`,
-      timestamp: new Date(),
-    });
-  }
+  resetToolCallBudgetState(session);
+  const { allowedSpecs, openAITools } = resolveToolCallingForSession(session, phase);
+  emitToolCallingEnabledLogIfNeeded(session, openAITools);
 
   const messages: LLMMessage[] = [...initialMessages];
-  const canonicalEmitters =
-    session.emit && session.llmOutput ? new Map<string, CanonicalResponsesEventEmitter>() : null;
-  const getCanonicalEmitter = (streamId: string): CanonicalResponsesEventEmitter | null => {
-    if (!canonicalEmitters) return null;
-    if (!streamId) return null;
-    const existing = canonicalEmitters.get(streamId);
-    if (existing) return existing;
-    const created = new CanonicalResponsesEventEmitter();
-    canonicalEmitters.set(streamId, created);
-    return created;
-  };
+  const canonicalEmitters = createCanonicalEmitterRegistry(session);
 
-  for (let round = 0; round < maxRounds; round++) {
-    const roundStartedAt = Date.now();
-    let content = '';
-    const toolCalls = new ToolCallAccumulator();
-    const emittedModelToolCallIds = new Set<string>();
-    const streamId = session.llmOutput
-      ? `llm-${session.llmOutput.kind}-${phase}-${round}-${crypto.randomUUID()}`
-      : '';
-    let finishReason: string | undefined;
-    let finishUsage: { promptTokens: number; completionTokens: number } | undefined;
-    let usedFallback = false;
-    const canonicalEmitter = getCanonicalEmitter(streamId);
+  try {
+    for (let round = 0; round < maxRounds; round++) {
+      const roundStartedAt = Date.now();
+      const toolCalls = new ToolCallAccumulator();
+      const emittedModelToolCallIds = new Set<string>();
+      const streamId = createStreamingStreamId({ session, phase, round });
+      const canonicalEmitter = canonicalEmitters.get(streamId);
 
-    try {
+      let usedFallback = false;
+      let finishReason: string | undefined;
+
       try {
-        const stream = session.llm.chatStream(messages, {
-          ...chatOptions,
-          tools: openAITools,
-          toolSpecs: allowedSpecs,
-          toolChoice: openAITools.length > 0 ? 'auto' : undefined,
-        });
-
-        for await (const chunk of stream) {
-          if (canonicalEmitter && session.emit && session.llmOutput) {
-            const parts = mapLlmStreamChunkToCanonicalStreamParts({ streamId, chunk });
-            const at = new Date();
-            const source = chunk.source ?? 'provider';
-            const toolPartsByCallId = groupNewFunctionCallPartsByCallId({
-              parts,
-              alreadyEmittedCallIds: emittedModelToolCallIds,
-            });
-
-            for (const [callId, callParts] of toolPartsByCallId) {
-              for (const part of callParts) {
-                const events = canonicalEmitter.push(part);
-                emitCanonicalResponsesEvents({
-                  emit: session.emit,
-                  llmOutput: session.llmOutput,
-                  streamId,
-                  phase,
-                  round,
-                  source,
-                  events,
-                  timestamp: at,
-                });
-              }
-              emittedModelToolCallIds.add(callId);
-            }
-          }
-
-          if (typeof chunk?.contentDelta === 'string' && chunk.contentDelta) {
-            if (session.llmOutput) {
-              emitLlmStreamDelta({
-                emit: session.emit,
-                policy: session.llmOutput.policy,
-                kind: session.llmOutput.kind,
-                step: session.llmOutput.step,
-                streamId,
-                content: chunk.contentDelta,
-              });
-            }
-            content += chunk.contentDelta;
-          }
-          toolCalls.append(chunk);
-          if (chunk?.done) {
-            finishReason = chunk.finishReason;
-            if (
-              chunk.usage &&
-              typeof chunk.usage.promptTokens === 'number' &&
-              typeof chunk.usage.completionTokens === 'number'
-            ) {
-              finishUsage = chunk.usage;
-            }
-            break;
-          }
-        }
-      } catch (e) {
-        recordAuditEvent(
-          'llm.round',
-          {
-            status: 'error',
-            streamed: true,
-            usedFallback: false,
+        let streamContent = '';
+        let finishUsage: { promptTokens: number; completionTokens: number } | undefined;
+        try {
+          const consumed = await consumeAssistantStreamTurn({
+            session,
+            messages,
+            chatOptions,
+            openAITools,
+            allowedSpecs,
             phase,
             round,
-            model: session.runtime.model,
-            durationMs: Date.now() - roundStartedAt,
-            provider: extractProvider(e),
-            statusCode: extractStatusCode(e),
-            networkCode: extractNetworkCode(e),
-            errorName: e instanceof Error ? e.name : 'UnknownError',
-            errorCode:
-              typeof (e as any)?.llmCode === 'string'
-                ? (e as any).llmCode
-                : typeof (e as any)?.code === 'string'
-                  ? (e as any).code
-                  : undefined,
-          },
-          { source: 'llm', severity: 'low', scope: 'session', phase },
-        );
-        throw e;
-      }
+            streamId,
+            canonicalEmitter,
+            emittedModelToolCallIds,
+            toolCalls,
+          });
+          streamContent = consumed.content;
+          finishReason = consumed.finishReason;
+          finishUsage = consumed.finishUsage;
+        } catch (e) {
+          recordAuditEvent(
+            'llm.round',
+            {
+              status: 'error',
+              streamed: true,
+              usedFallback: false,
+              phase,
+              round,
+              model: session.runtime.model,
+              durationMs: Date.now() - roundStartedAt,
+              provider: extractProvider(e),
+              statusCode: extractStatusCode(e),
+              networkCode: extractNetworkCode(e),
+              errorName: e instanceof Error ? e.name : 'UnknownError',
+              errorCode:
+                typeof (e as any)?.llmCode === 'string'
+                  ? (e as any).llmCode
+                  : typeof (e as any)?.code === 'string'
+                    ? (e as any).code
+                    : undefined,
+            },
+            { source: 'llm', severity: 'low', scope: 'session', phase },
+          );
+          throw e;
+        }
 
-      if (finishUsage) {
-        recordAuditEvent(
-          'llm.usage',
-          {
-            promptTokens: finishUsage.promptTokens,
-            completionTokens: finishUsage.completionTokens,
-          },
-          { source: 'llm', severity: 'low', scope: 'session', phase },
-        );
-      }
+        if (finishUsage) {
+          recordAuditEvent(
+            'llm.usage',
+            {
+              promptTokens: finishUsage.promptTokens,
+              completionTokens: finishUsage.completionTokens,
+            },
+            { source: 'llm', severity: 'low', scope: 'session', phase },
+          );
+        }
 
-      let collectedToolCalls = toolCalls.drain();
-      let finalContent = content;
-
-      // Some providers/models occasionally end a stream without emitting any deltas. When this happens,
-      // fall back to a single non-streaming call so downstream steps don't see an empty response.
-      if (finalContent.trim() === '' && collectedToolCalls.length === 0) {
-        recordAuditEvent(
-          'llm.stream.empty_fallback',
-          { phase, round },
-          { source: 'llm', severity: 'low', scope: 'session', phase },
-        );
-
-        usedFallback = true;
-        const fallback = await session.llm.chat(messages, {
-          ...chatOptions,
-          tools: openAITools,
-          toolSpecs: allowedSpecs,
-          toolChoice: openAITools.length > 0 ? 'auto' : undefined,
+        const drainedToolCalls = toolCalls.drain();
+        const fallback = await applyEmptyStreamFallback({
+          session,
+          messages,
+          chatOptions,
+          openAITools,
+          allowedSpecs,
+          phase,
+          round,
+          content: streamContent,
+          collectedToolCalls: drainedToolCalls,
         });
+        usedFallback = fallback.usedFallback;
 
-        finalContent = fallback.content || '';
-        const fallbackCalls = Array.isArray(fallback.tool_calls) ? fallback.tool_calls : [];
-        collectedToolCalls = fallbackCalls;
+        const assistant: LLMMessage = {
+          role: 'assistant',
+          content: fallback.content,
+          tool_calls: fallback.toolCalls.length > 0 ? fallback.toolCalls : undefined,
+        };
 
-        if (session.llmOutput && finalContent) {
-          emitLlmOutput({
+        if (session.emit && session.llmOutput) {
+          emitSynthesizedFunctionCallClosures({
+            emit: session.emit,
+            llmOutput: session.llmOutput,
+            canonicalEmitter,
+            streamId,
+            phase,
+            round,
+            collectedToolCalls: fallback.toolCalls,
+            emittedModelToolCallIds,
+          });
+        }
+
+        if (session.llmOutput) {
+          emitLlmStreamEnd({
             emit: session.emit,
             policy: session.llmOutput.policy,
             kind: session.llmOutput.kind,
             step: session.llmOutput.step,
-            content: finalContent,
+            streamId,
+            finishReason,
           });
         }
-      }
 
-      if (session.emit && session.llmOutput && collectedToolCalls.length > 0) {
-        const seenDoneIds = new Set<string>();
-        for (const call of collectedToolCalls) {
-          const callId = call?.id;
-          const toolName = call?.function?.name;
-          const argsText = call?.function?.arguments;
-          if (typeof callId !== 'string' || !callId) continue;
-          if (typeof toolName !== 'string' || !toolName) continue;
-          if (seenDoneIds.has(callId)) continue;
-          seenDoneIds.add(callId);
-
-          if (!emittedModelToolCallIds.has(callId)) {
-            emittedModelToolCallIds.add(callId);
-            const at = new Date();
-            const startEvents = canonicalEmitter?.push({
-              type: 'function_call.start',
-              streamId,
-              callId,
-              name: toolName,
-            });
-            const argEvents = canonicalEmitter?.push({
-              type: 'function_call_arguments.done',
-              streamId,
-              callId,
-              name: toolName,
-              arguments: typeof argsText === 'string' ? argsText : '{}',
-            });
-
-            const all = [...(startEvents ?? []), ...(argEvents ?? [])];
-            emitCanonicalResponsesEvents({
-              emit: session.emit,
-              llmOutput: session.llmOutput,
-              streamId,
-              phase,
-              round,
-              source: 'synthesized',
-              events: all,
-              timestamp: at,
-            });
-          }
-
-          const doneAt = new Date();
-          const doneEvents = canonicalEmitter?.push({
-            type: 'function_call.done',
-            streamId,
-            callId,
-            name: toolName,
-            arguments: typeof argsText === 'string' ? argsText : '{}',
-          });
-          emitCanonicalResponsesEvents({
-            emit: session.emit,
-            llmOutput: session.llmOutput,
-            streamId,
+        recordAuditEvent(
+          'llm.round',
+          {
+            status: 'ok',
+            streamed: true,
+            usedFallback,
             phase,
             round,
-            source: 'synthesized',
-            events: doneEvents ?? [],
-            timestamp: doneAt,
-          });
+            model: session.runtime.model,
+            durationMs: Date.now() - roundStartedAt,
+            finishReason,
+            contentChars: assistant.content.length,
+            toolCallCount: fallback.toolCalls.length,
+          },
+          { source: 'llm', severity: 'low', scope: 'session', phase },
+        );
+
+        messages.push(assistant);
+
+        const calls = assistant.tool_calls || [];
+        if (!Array.isArray(calls) || calls.length === 0) {
+          return assistant;
         }
+
+        await executeToolCalls(session, phase, round, calls, messages, chatOptions.signal);
+      } finally {
+        canonicalEmitters.release(streamId);
       }
-
-      if (session.llmOutput) {
-        emitLlmStreamEnd({
-          emit: session.emit,
-          policy: session.llmOutput.policy,
-          kind: session.llmOutput.kind,
-          step: session.llmOutput.step,
-          streamId,
-          finishReason,
-        });
-      }
-
-      const assistant: LLMMessage = {
-        role: 'assistant',
-        content: finalContent,
-        tool_calls: collectedToolCalls.length > 0 ? collectedToolCalls : undefined,
-      };
-
-      recordAuditEvent(
-        'llm.round',
-        {
-          status: 'ok',
-          streamed: true,
-          usedFallback,
-          phase,
-          round,
-          model: session.runtime.model,
-          durationMs: Date.now() - roundStartedAt,
-          finishReason,
-          contentChars: finalContent.length,
-          toolCallCount: collectedToolCalls.length,
-        },
-        { source: 'llm', severity: 'low', scope: 'session', phase },
-      );
-
-      messages.push(assistant);
-
-      const calls = assistant.tool_calls || [];
-      if (!Array.isArray(calls) || calls.length === 0) {
-        return assistant;
-      }
-
-      await executeToolCalls(session, phase, round, calls, messages, chatOptions.signal);
-    } finally {
-      canonicalEmitters?.delete(streamId);
     }
+  } finally {
+    canonicalEmitters.clear();
   }
-
-  // Defensive cleanup in case of early returns/throws above.
-  canonicalEmitters?.clear();
 
   session.emit?.({
     type: 'log',
