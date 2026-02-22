@@ -23,7 +23,7 @@ export class NodeDetector implements ProjectDetector {
             return 'bun run test';
           }
 
-          return 'npm test';
+          return 'bun run test';
         }
       } catch (_error) {
         // Ignore JSON parse errors

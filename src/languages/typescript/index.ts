@@ -136,7 +136,7 @@ function createPlugin(
                 fs.existsSync(path.join(repoPath, 'bun.lock')) ||
                 fs.existsSync(path.join(repoPath, 'bun.lockb'));
 
-              return isBun ? 'bun run test' : 'npm test';
+              return isBun ? 'bun run test' : 'bun run test';
             }
           } catch (_error) {
             // Ignore parse errors

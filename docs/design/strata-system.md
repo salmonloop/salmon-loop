@@ -45,7 +45,7 @@ Note: the repository currently does **not** ship a single `StrataSystem` class. 
 In most cases you do not call L1/L2/L3 directly. The CLI orchestrates worktree creation, verification execution, and rollback:
 
 - `-cs worktree`: run in a temporary worktree (safer, tolerates a dirty main workspace).
-- `--worktree-prepare <cmd>`: dependency preparation inside the worktree (e.g. `npm ci`).
+- `--worktree-prepare <cmd>`: dependency preparation inside the worktree (e.g. `bun install --frozen-lockfile`).
 - `--apply-back-on-dirty stash|abort`: policy when applying back to a dirty main workspace.
 
 ### Using ShadowDriver Directly (only if you need external orchestration)
@@ -60,10 +60,10 @@ const driver = new ShadowDriver({
   platform: os.platform() as any,
   readonly: true,
   dependencyPaths: ['node_modules'],
-  whitelist: ['npm test'],
+  whitelist: ['bun run test'],
 });
 
-await driver.run({ command: 'npm test', mode: 'test_readonly' });
+await driver.run({ command: 'bun run test', mode: 'test_readonly' });
 await driver.cleanup();
 ```
 

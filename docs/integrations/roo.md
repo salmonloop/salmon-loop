@@ -25,7 +25,7 @@ const adapter = new RooSalmonAdapter();
 
 const result = await adapter.execute({
   instruction: 'Fix compilation error in src/main.ts',
-  verify: 'npm run build',
+  verify: 'bun run ',
   repoPath: '/path/to/repo',
   llm
 }, (event) => {

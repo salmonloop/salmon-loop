@@ -33,5 +33,5 @@ Use `--verbose` for basic execution steps, or `--verbose=extended` for detailed 
 
 Example:
 ```bash
-salmon-loop --verbose=extended --instruction "Fix bug" --verify "npm test"
+salmon-loop --verbose=extended --instruction "Fix bug" --verify "bun run test"
 ```

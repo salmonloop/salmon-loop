@@ -19,7 +19,7 @@ This tiered approach ensures that simple tasks remain blazing fast and predictab
 Salmon-Loop is built on three core principles:
 
 1.  **Patch-First**: All changes are applied via standard unified diffs (`git apply`) and integrated using a robust 3-way merge strategy. This ensures changes are precise, reversible, and reviewable.
-2.  **Verify-First**: No change is considered successful without passing a user-provided verification command (e.g., `npm test`).
+2.  **Verify-First**: No change is considered successful without passing a user-provided verification command (e.g., `bun run test`).
 3.  **Fail-Fast**: If verification fails, the system immediately rolls back changes and reports the error. It does not attempt to "guess" its way out of a broken state without a clear plan.
 
 ## Non-Goals
@@ -88,7 +88,7 @@ bun dist/cli/index.js run --instruction "fix bug" --verify "bun run test"
 
 ### Quick Example
 
-Fix a bug and verify with `npm test`:
+Fix a bug and verify with `bun run test`:
 
 ```bash
 salmon-loop run --instruction "Fix the null pointer exception in user.ts" --verify "bun run test"
@@ -110,7 +110,7 @@ const llm = new AiSdkLLM({
 
 const result = await runSalmonLoop({
   instruction: 'Fix typo',
-  verify: 'npm test',
+  verify: 'bun run test',
   repoPath: process.cwd(),
   llm,
 });

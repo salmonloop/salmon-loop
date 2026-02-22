@@ -78,7 +78,7 @@ All critical safety logic is verified by:
 
 ## 4. Development Workflow
 
-1.  **Before modifying core git logic**: Run `npm test tests/integration/rollback_safety.test.ts`.
+1.  **Before modifying core git logic**: Run `bun run test tests/integration/rollback_safety.test.ts`.
 2.  **When a test fails**:
     *   Do not blindly change the production code to satisfy the test.
     *   Analyze: *"Is the test asserting a dangerous implementation detail?"*

@@ -5,7 +5,7 @@
 ## 最小可用示例（PowerShell）
 
 ```powershell
-npm run dev -- -r "C:\path\to\your-repo" -f "src\\index.js" --instruction "Add a comment as the first line inside createSafeEnvProxy" --verify "node -e \"process.exit(0)\"" -cs worktree --verbose
+bun run  -- -r "C:\path\to\your-repo" -f "src\\index.js" --instruction "Add a comment as the first line inside createSafeEnvProxy" --verify "bun -e \"process.exit(0)\"" -cs worktree --verbose
 ```
 
 ## 提示

@@ -8,7 +8,7 @@ This document walks through a first run where:
 ## Steps
 
 1. Choose `-cs worktree` for isolation.
-2. Provide `--verify` that reflects your real quality gate (e.g., `npm test`, `npm run lint`, `npm run build -- --noEmit`).
+2. Provide `--verify` that reflects your real quality gate (e.g., `bun run test`, `bun run `, `bun run  -- --noEmit`).
 3. Inspect the final diff and audit output if the run fails.
 
 ## Where Files Are Written

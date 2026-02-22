@@ -12,7 +12,7 @@ export const example = async () => {
         goal: 'Fix bug',
         files: ['src/index.ts'],
         changes: ['Update version'],
-        verify: 'npm test',
+        verify: 'bun run test',
       },
     ],
     ['diff --git a/src/index.ts b/src/index.ts\n...'],
@@ -20,7 +20,7 @@ export const example = async () => {
 
   const result = await adapter.execute({
     instruction: 'Fix the bug in index.ts',
-    verify: 'npm test',
+    verify: 'bun run test',
     repoPath: process.cwd(),
     llm: fakeLLM,
   });

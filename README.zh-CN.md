@@ -19,7 +19,7 @@ Salmon-Loop 采用独特的 **三层分流模型**，以最高效、最安全的
 Salmon-Loop 建立在三个核心原则之上：
 
 1.  **补丁优先 (Patch-First)**：所有更改都通过标准的 unified diff (`git apply`) 应用，并使用鲁棒的三路合并策略进行集成。这确保了更改是精确的、可逆的和可审查的。
-2.  **验证优先 (Verify-First)**：如果没有通过用户提供的验证命令（例如 `npm test`），任何更改都不会被视为成功。
+2.  **验证优先 (Verify-First)**：如果没有通过用户提供的验证命令（例如 `bun run test`），任何更改都不会被视为成功。
 3.  **快速失败 (Fail-Fast)**：如果验证失败，系统会立即回滚更改并报告错误。它不会试图在没有明确计划的情况下“猜测”如何修复破坏的状态。
 
 ## 非目标 (Non-Goals)
@@ -78,7 +78,7 @@ bun dist/cli/index.js run --instruction "fix bug" --verify "bun run test"
 
 ### 快速示例
 
-修复 bug 并使用 `npm test` 验证：
+修复 bug 并使用 `bun run test` 验证：
 
 ```bash
 salmon-loop run --instruction "Fix the null pointer exception in user.ts" --verify "bun run test"
@@ -100,7 +100,7 @@ const llm = new AiSdkLLM({
 
 const result = await runSalmonLoop({
   instruction: '修复拼写错误',
-  verify: 'npm test',
+  verify: 'bun run test',
   repoPath: process.cwd(),
   llm,
 });

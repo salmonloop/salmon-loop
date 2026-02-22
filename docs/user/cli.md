@@ -149,7 +149,7 @@ Notes:
 ## Core Options (for Default Run)
 
 - `-i, --instruction <string>`: **(Required)** Instruction for the LLM to follow.
-- `-v, --verify <command>`: **(Required)** Verification command to run after applying the patch (e.g., `npm test`, `pytest`).
+- `-v, --verify <command>`: **(Required)** Verification command to run after applying the patch (e.g., `bun run test`, `pytest`).
 - `-f, --file <path>`: Path to a specific file to provide as primary context (repo-relative or absolute).
 - `-s, --selection <text>`: Direct text selection to provide as context.
 
@@ -238,7 +238,7 @@ s8p snap clear --force
 
 - `-cs, --checkpoint-strategy <direct|worktree>`: (Default: `direct`) Checkpoint strategy. `worktree` is safer and ignores dirty state by running in an isolated temporary directory.
 - `--apply-back-on-dirty <3way|abort>`: (Default: `3way`) When using `worktree`, choose how to handle a dirty main workspace during apply-back.
-- `--worktree-prepare <command>`: Command to run inside the worktree before processing (e.g., `npm ci`).
+- `--worktree-prepare <command>`: Command to run inside the worktree before processing (e.g., `bun install --frozen-lockfile`).
 - `--dry-run`: Generate and validate the patch, but do not apply it to the disk (preview mode).
 - `--force-reset`: Force a hard reset (`git reset --hard`) on failure. **Use with caution** as it discards all uncommitted changes.
 - `--stream-output`: Emit streaming LLM output during phases that support it (currently PLAN).
@@ -258,7 +258,7 @@ s8p snap clear --force
 Rules use the form `Tool(specifier)`:
 
 - `Bash(*)` or `Bash`: allow all shell commands (highly permissive).
-- `Bash(npm run test *)`: allow shell commands that start with `npm run test`.
+- `Bash(bun run *)`: allow shell commands that start with `bun run `.
 - `Read(src/**)`: allow reading files under `src/` recursively.
 
 Notes:

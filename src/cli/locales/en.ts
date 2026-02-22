@@ -213,7 +213,7 @@ export const en = {
   printOption:
     'Run non-interactively with the given instruction (shorthand for "run --instruction")',
   instructionOption: 'Instruction for code modification (required)',
-  verifyOption: 'Verification command to run (e.g., "npm test") (required)',
+  verifyOption: 'Verification command to run (e.g., "bun run test") (required)',
   configOption: 'Path to SalmonLoop config JSON (default: <repo>/.salmonloop/config/config.json)',
   noConfigFileOption: 'Disable loading config file from the repository',
   printConfigOption: 'Print the resolved config (redacted) and exit',
@@ -223,7 +223,7 @@ export const en = {
   fileOption: 'Target file path (relative to repo)',
   selectionOption: 'Direct text selection (mutually exclusive with --file)',
   allowedToolsOption:
-    'Allow tool calls by permission rules (comma-separated, repeatable). Example: Bash(npm run test *)',
+    'Allow tool calls by permission rules (comma-separated, repeatable). Example: Bash(bun run  *)',
   disallowedToolsOption:
     'Deny tool calls by permission rules (comma-separated, repeatable). Example: Bash(rm *)',
   dryRunOption: 'Generate patch without applying',

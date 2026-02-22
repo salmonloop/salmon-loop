@@ -7,7 +7,7 @@ Here are some common scenarios for using SalmonLoop.
 Fix a null pointer exception and verify with the test suite:
 
 ```bash
-salmon-loop --instruction "Fix the null pointer exception in user.ts" --verify "npm test"
+salmon-loop --instruction "Fix the null pointer exception in user.ts" --verify "bun run test"
 ```
 
 ## 2. Dry Run (Preview Changes)
@@ -15,7 +15,7 @@ salmon-loop --instruction "Fix the null pointer exception in user.ts" --verify "
 Generate a patch without applying it, useful for previewing what the LLM intends to do:
 
 ```bash
-salmon-loop --instruction "Add logging to auth service" --verify "npm run build" --dry-run --verbose
+salmon-loop --instruction "Add logging to auth service" --verify "bun run " --dry-run --verbose
 ```
 
 ## 3. Targeted Context
@@ -31,7 +31,7 @@ salmon-loop --instruction "Update email validation regex" --verify "jest tests/e
 SalmonLoop will automatically retry and shrink context if the first attempt fails:
 
 ```bash
-salmon-loop --instruction "Refactor the database connection pool to use a singleton" --verify "npm run integration-tests"
+salmon-loop --instruction "Refactor the database connection pool to use a singleton" --verify "bun run "
 ```
 
 ## 5. Deep AST Verification
@@ -39,5 +39,5 @@ salmon-loop --instruction "Refactor the database connection pool to use a single
 Ensure only a specific function is modified and no syntax errors are introduced:
 
 ```bash
-salmon-loop --instruction "Optimize the calculateTotal function" --verify "npm test" --file "src/utils/math.ts" --target-node "calculateTotal"
+salmon-loop --instruction "Optimize the calculateTotal function" --verify "bun run test" --file "src/utils/math.ts" --target-node "calculateTotal"
 ```
