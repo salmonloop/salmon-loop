@@ -2,63 +2,9 @@
  * LLM implementations are swappable.
  * Core loop must NOT depend on provider-specific behavior.
  */
-import { text } from '../../locales/index.js';
-import type { ChatOptions, Context, LLM, LLMMessage, Plan } from '../types/index.js';
+import type { Context, LLM, LLMMessage, Plan } from '../types/index.js';
 
 export type { LLM };
-
-export interface OpenAiClientConfig {
-  apiKey?: string;
-  baseUrl?: string;
-  modelId?: string;
-}
-
-/**
- * @deprecated Use `AiSdkLLM` (AI SDK providers) instead.
- *
- * This legacy adapter is intentionally frozen:
- * - No new features (e.g., streaming) will be added.
- * - No new compatibility work will be done beyond critical fixes.
- */
-export class OpenAILLM implements LLM {
-  private reason: string;
-
-  constructor(_cfg?: OpenAiClientConfig) {
-    this.reason = text.llm.deprecatedOpenaiAdapter;
-  }
-
-  getModelId(): string {
-    throw new Error(this.reason);
-  }
-
-  getCapabilities(): {
-    toolCalling?: boolean;
-
-    responseFormatJsonObject?: boolean;
-
-    streaming?: boolean;
-  } {
-    return {
-      toolCalling: true,
-
-      responseFormatJsonObject: true,
-
-      streaming: false,
-    };
-  }
-
-  async chat(_messages: LLMMessage[], _options?: ChatOptions): Promise<LLMMessage> {
-    throw new Error(this.reason);
-  }
-
-  async createPlan(_context: Context, _instruction: string, _lastError?: string): Promise<Plan> {
-    throw new Error(this.reason);
-  }
-
-  async createPatch(_context: Context, _plan: Plan, _lastError?: string): Promise<string> {
-    throw new Error(this.reason);
-  }
-}
 
 export class StubLLM implements LLM {
   getCapabilities(): {

@@ -4,7 +4,7 @@ import type { LLM } from '../types/index.js';
 import { AiSdkLLM, type AiSdkClientPackage } from './ai-sdk.js';
 import { StubLLM } from './openai.js';
 
-export type LlmBackend = 'ai-sdk' | 'openai' | 'stub';
+export type LlmBackend = 'ai-sdk' | 'stub';
 
 export type LlmFactoryWarningCode =
   | 'API_KEY_MISSING'
@@ -94,7 +94,7 @@ export function createDefaultLlmRegistry(): LlmAdapterRegistry {
   );
 
   // Legacy/default client path (no client.package). This is intentionally not expressed as a registry entry.
-  // The factory decides when to fall back to OpenAILLM vs StubLLM based on provider family and apiKey.
+  // The factory decides when to fall back to a stable stub adapter based on provider family and apiKey.
 
   return reg;
 }
@@ -115,7 +115,7 @@ export function createDefaultOpenAiFallback(
     return { llm: new StubLLM(), backend: 'stub', warnings };
   }
 
-  // Prefer AI SDK for the default path. The legacy OpenAILLM adapter is deprecated and frozen.
+  // Prefer AI SDK for the default path.
   const clientPackage: AiSdkClientPackage =
     resolved.type === 'openai' ? '@ai-sdk/openai' : '@ai-sdk/openai-compatible';
 

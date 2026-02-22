@@ -11,8 +11,6 @@ export const en = {
     patchEmpty: (reason?: string) =>
       `LLM returned empty response for patch${reason ? ` (${reason})` : ''}`,
     reviewEmpty: 'LLM returned empty response for review',
-    deprecatedOpenaiAdapter:
-      'The legacy OpenAILLM adapter is deprecated and is not usable in this build. Please use AiSdkLLM.',
     validationFailed:
       'Tool output validation failed. The output does not match the expected schema.',
   },
