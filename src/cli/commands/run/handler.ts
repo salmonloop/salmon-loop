@@ -123,11 +123,20 @@ export async function handleRunCommand(options: any, command: Command) {
       sessionIdForOutput = initialized.sessionId;
     } catch (err: any) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (resumeSessionId && outputFormat !== 'text') {
-        headlessErrorWriter.writeUnexpectedError({
-          sessionId: resumeSessionId,
-          message: msg,
-        });
+      if (outputFormat !== 'text') {
+        if (resumeSessionId) {
+          headlessErrorWriter.writeUsageError({
+            sessionId: resumeSessionId,
+            instruction,
+            message: msg,
+          });
+        } else {
+          headlessErrorWriter.writeUnexpectedError({
+            sessionId: sessionIdForOutput,
+            instruction,
+            message: msg,
+          });
+        }
       } else {
         logger.error(msg);
       }
@@ -211,9 +220,10 @@ export async function handleRunCommand(options: any, command: Command) {
     if (outputFormat === 'json') {
       writeJsonFailure({ message: text.cli.invalidMode(rawMode), repoPath: runPath });
     } else if (outputFormat === 'stream-json') {
-      headlessErrorWriter.writeUnexpectedError({
+      headlessErrorWriter.writeUsageError({
         sessionId: sessionIdForOutput ?? randomUUID(),
         message: text.cli.invalidMode(rawMode),
+        instruction,
       });
     }
     process.exitCode = 1;
