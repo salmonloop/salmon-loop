@@ -1,5 +1,4 @@
-import { createAssistantTextMessageEvents } from '../../core/streaming/normalized-from-text.js';
-import { StreamAssembler } from '../../core/streaming/stream-assembler.js';
+import type { CanonicalResponsesEvent } from '../../core/streaming/canonical/responses-events.js';
 import type { LoopEvent, LoopResult } from '../../core/types/index.js';
 import {
   OpenAiStreamEncoder,
@@ -16,10 +15,8 @@ export interface OpenAiStreamReporterOptions extends OpenAiStreamEncoderOptions 
 
 export class OpenAiStreamReporter implements SalmonReporter {
   private readonly writer: StdoutWriter;
-  private readonly assembler = new StreamAssembler();
   private readonly encoder: OpenAiStreamEncoder;
-  private sawTextStreamDelta = false;
-  private sawResponsesEvent = false;
+  private sawOutputTextDelta = false;
   private reportText: { text: string; timestamp: Date } | null = null;
 
   constructor(options: OpenAiStreamReporterOptions = {}) {
@@ -42,35 +39,13 @@ export class OpenAiStreamReporter implements SalmonReporter {
     }
 
     if (event.type === 'llm.responses.event') {
-      this.sawResponsesEvent = true;
+      if (event.event.type === 'response.output_text.delta') this.sawOutputTextDelta = true;
       const lines = this.encoder.pushResponsesEvent({
         streamId: event.streamId,
         event: event.event,
       });
       for (const line of lines) this.emit(line);
       return;
-    }
-
-    if (
-      event.type !== 'tool.call.start' &&
-      event.type !== 'tool.call.end' &&
-      event.type !== 'llm.stream.delta' &&
-      event.type !== 'llm.stream.end'
-    ) {
-      return;
-    }
-
-    if (this.sawResponsesEvent) {
-      // Once canonical responses events are present, ignore legacy events to avoid duplicates.
-      return;
-    }
-
-    if (event.type === 'llm.stream.delta') this.sawTextStreamDelta = true;
-
-    const normalized = this.assembler.push(event);
-    for (const normalizedEvent of normalized) {
-      const lines = this.encoder.push(normalizedEvent);
-      for (const line of lines) this.emit(line);
     }
   }
 
@@ -79,14 +54,10 @@ export class OpenAiStreamReporter implements SalmonReporter {
     const message = result.reason || (ok ? undefined : 'Unknown error');
     const code = result.errorCode ?? null;
 
-    if (!this.sawTextStreamDelta && this.reportText) {
-      const normalized = createAssistantTextMessageEvents({
-        messageId: 'report',
-        text: this.reportText.text,
-        timestamp: this.reportText.timestamp,
-      });
-      for (const normalizedEvent of normalized) {
-        const lines = this.encoder.push(normalizedEvent);
+    if (!this.sawOutputTextDelta && this.reportText) {
+      const events = createReportOnlyCanonicalEvents(this.reportText.text);
+      for (const event of events) {
+        const lines = this.encoder.pushResponsesEvent({ streamId: 'report', event });
         for (const line of lines) this.emit(line);
       }
     }
@@ -101,4 +72,19 @@ export class OpenAiStreamReporter implements SalmonReporter {
   private emit(value: unknown): void {
     this.writer.writeJsonLine(value);
   }
+}
+
+function createReportOnlyCanonicalEvents(text: string): CanonicalResponsesEvent[] {
+  return [
+    { type: 'response.output_text.delta', delta: text },
+    { type: 'response.output_text.done', text },
+    {
+      type: 'response.content_part.done',
+      part: { type: 'output_text', text, annotations: [] },
+    },
+    {
+      type: 'response.output_item.done',
+      item: { type: 'message', role: 'assistant', content: [] },
+    },
+  ];
 }

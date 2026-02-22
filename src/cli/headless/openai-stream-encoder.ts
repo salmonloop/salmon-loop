@@ -10,10 +10,8 @@ import type {
 } from 'openai/resources/responses/responses';
 
 import type { CanonicalResponsesEvent } from '../../core/streaming/canonical/responses-events.js';
-import type { NormalizedStreamEvent } from '../../core/streaming/normalized-events.js';
 
 import { OpenAiResponsesCanonicalApplier } from './openai-responses-canonical-applier.js';
-import { OpenAiResponsesNormalizedApplier } from './openai-responses-normalized-applier.js';
 import {
   OpenAiResponsesState,
   type UnsequencedResponseStreamEvent,
@@ -92,7 +90,6 @@ export class OpenAiStreamEncoder {
 
   private readonly state: OpenAiResponsesState;
   private readonly canonicalApplier: OpenAiResponsesCanonicalApplier;
-  private readonly normalizedApplier: OpenAiResponsesNormalizedApplier;
 
   constructor(options: OpenAiStreamEncoderOptions = {}) {
     this.now = options.now ?? (() => new Date());
@@ -101,7 +98,6 @@ export class OpenAiStreamEncoder {
     this.metadata = options.metadata ?? null;
     this.state = new OpenAiResponsesState(options.itemId ?? defaultItemId);
     this.canonicalApplier = new OpenAiResponsesCanonicalApplier(this.state);
-    this.normalizedApplier = new OpenAiResponsesNormalizedApplier(this.state);
   }
 
   start(): ResponseStreamEvent[] {
@@ -142,11 +138,6 @@ export class OpenAiStreamEncoder {
   }): ResponseStreamEvent[] {
     if (!this.responseId || this.createdAt === null) return [];
     return this.sequence(this.canonicalApplier.apply(params));
-  }
-
-  push(event: NormalizedStreamEvent): ResponseStreamEvent[] {
-    if (!this.responseId || this.createdAt === null) return [];
-    return this.sequence(this.normalizedApplier.apply(event));
   }
 
   complete(params: { ok: boolean; message?: string; code?: string | null }): ResponseStreamEvent[] {

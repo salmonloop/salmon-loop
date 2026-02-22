@@ -47,38 +47,108 @@ describe('OpenAiStreamReporter', () => {
 
     reporter.onStart('do the thing');
     reporter.onEvent({
-      type: 'tool.call.start',
-      callId: 'call-1',
-      toolName: 'fs.readFile',
-      phase: 'PATCH',
-      round: 1,
+      type: 'llm.responses.event',
+      kind: 'plan',
+      step: 'PLAN',
+      streamId: 'stream-1',
+      source: 'synthesized',
+      event: {
+        type: 'response.output_item.added',
+        item: {
+          type: 'function_call',
+          call_id: 'call-1',
+          name: 'fs.readFile',
+          arguments: '',
+        },
+      },
       timestamp: new Date('2026-02-20T00:00:01.000Z'),
     });
     reporter.onEvent({
-      type: 'tool.call.end',
-      callId: 'call-1',
-      toolName: 'fs.readFile',
-      phase: 'PATCH',
-      round: 1,
-      status: 'ok',
-      durationMs: 12,
+      type: 'llm.responses.event',
+      kind: 'plan',
+      step: 'PLAN',
+      streamId: 'stream-1',
+      source: 'synthesized',
+      event: {
+        type: 'response.function_call_arguments.delta',
+        item_id: 'function_call:call-1',
+        delta: '{}',
+      },
       timestamp: new Date('2026-02-20T00:00:02.000Z'),
     });
     reporter.onEvent({
-      type: 'llm.stream.delta',
+      type: 'llm.responses.event',
       kind: 'plan',
       step: 'PLAN',
       streamId: 'stream-1',
-      content: 'Hello',
+      source: 'synthesized',
+      event: {
+        type: 'response.function_call_arguments.done',
+        item_id: 'function_call:call-1',
+        name: 'fs.readFile',
+        arguments: '{}',
+      },
+      timestamp: new Date('2026-02-20T00:00:02.100Z'),
+    });
+    reporter.onEvent({
+      type: 'llm.responses.event',
+      kind: 'plan',
+      step: 'PLAN',
+      streamId: 'stream-1',
+      source: 'synthesized',
+      event: {
+        type: 'response.output_item.done',
+        item: {
+          type: 'function_call',
+          call_id: 'call-1',
+          name: 'fs.readFile',
+          arguments: '{}',
+          status: 'completed',
+        },
+      },
+      timestamp: new Date('2026-02-20T00:00:02.200Z'),
+    });
+    reporter.onEvent({
+      type: 'llm.responses.event',
+      kind: 'plan',
+      step: 'PLAN',
+      streamId: 'stream-1',
+      source: 'synthesized',
+      event: { type: 'response.output_text.delta', delta: 'Hello' },
       timestamp: new Date('2026-02-20T00:00:03.000Z'),
     });
     reporter.onEvent({
-      type: 'llm.stream.end',
+      type: 'llm.responses.event',
       kind: 'plan',
       step: 'PLAN',
       streamId: 'stream-1',
-      finishReason: undefined,
+      source: 'synthesized',
+      event: { type: 'response.output_text.done', text: 'Hello' },
       timestamp: new Date('2026-02-20T00:00:04.000Z'),
+    });
+    reporter.onEvent({
+      type: 'llm.responses.event',
+      kind: 'plan',
+      step: 'PLAN',
+      streamId: 'stream-1',
+      source: 'synthesized',
+      event: {
+        type: 'response.content_part.done',
+        part: { type: 'output_text', text: 'Hello', annotations: [] },
+      },
+      timestamp: new Date('2026-02-20T00:00:04.100Z'),
+    });
+    reporter.onEvent({
+      type: 'llm.responses.event',
+      kind: 'plan',
+      step: 'PLAN',
+      streamId: 'stream-1',
+      source: 'synthesized',
+      event: {
+        type: 'response.output_item.done',
+        item: { type: 'message', role: 'assistant', content: [] },
+      },
+      timestamp: new Date('2026-02-20T00:00:04.200Z'),
     });
 
     const result: LoopResult = {
