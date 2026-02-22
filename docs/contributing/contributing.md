@@ -26,7 +26,8 @@ We welcome contributions to SalmonLoop! As a design-driven project, we prioritiz
 Notes:
 
 - Use `bun` for dependency management in this repository.
-- Enable shared hooks once per clone: `bun run setup:hooks` (this enforces boundary checks before commit).
+- Enable shared hooks once per clone: `bun run setup:hooks` (this enforces both `check:target-runtime-boundary:staged` and `check:bun-purity:staged` before commit).
+- Before opening a PR, run `bun run verify` to execute Bun purity, target-runtime boundary, lint, typecheck, and full tests.
 
 ### Debugging with `--verbose`
 To debug issues, you can use the `--verbose` flag to get more detailed logs.
