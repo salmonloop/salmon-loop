@@ -158,7 +158,11 @@ export class OpenAiStreamEncoder {
     if (event.type === 'response.output_item.added') {
       if (isMessageItem(event.item)) return this.handleCanonicalMessageAdded(streamId, event.item);
       if (isFunctionCallItem(event.item)) {
-        return this.handleCanonicalFunctionCallAdded(event.item.call_id, event.item.name);
+        return this.handleCanonicalFunctionCallAdded(
+          event.item.call_id,
+          event.item.name,
+          event.item.id,
+        );
       }
       return [];
     }
@@ -494,13 +498,13 @@ export class OpenAiStreamEncoder {
 
   private handleCanonicalMessageAdded(
     streamId: string,
-    item: { role: string },
+    item: { role: string; id?: string },
   ): ResponseStreamEvent[] {
     if (this.textItems.has(streamId)) return [];
     if (item.role !== 'assistant') return [];
 
     const outputIndex = this.output.length;
-    const itemId = this.itemIdFn();
+    const itemId = item.id ?? this.itemIdFn();
     const message: ResponseOutputMessage = {
       id: itemId,
       type: 'message',
@@ -633,14 +637,15 @@ export class OpenAiStreamEncoder {
   private handleCanonicalFunctionCallAdded(
     callId: string,
     toolName: string,
+    itemId?: string,
   ): ResponseStreamEvent[] {
     if (this.functionCalls.has(callId)) return [];
 
     const outputIndex = this.output.length;
-    const itemId = this.itemIdFn();
+    const resolvedItemId = itemId ?? this.itemIdFn();
 
     const item: ResponseFunctionToolCall = {
-      id: itemId,
+      id: resolvedItemId,
       type: 'function_call',
       call_id: callId,
       name: toolName,
@@ -651,7 +656,7 @@ export class OpenAiStreamEncoder {
     this.output.push(item);
     this.functionCalls.set(callId, {
       outputIndex,
-      itemId,
+      itemId: resolvedItemId,
       name: toolName,
       args: '',
       done: false,
@@ -747,9 +752,13 @@ function isMessageItem(item: unknown): item is { type: 'message'; role: string }
   return (item as any).type === 'message' && typeof (item as any).role === 'string';
 }
 
-function isFunctionCallItem(
-  item: unknown,
-): item is { type: 'function_call'; call_id: string; name: string; arguments?: string } {
+function isFunctionCallItem(item: unknown): item is {
+  type: 'function_call';
+  id?: string;
+  call_id: string;
+  name: string;
+  arguments?: string;
+} {
   if (!item || typeof item !== 'object') return false;
   return (
     (item as any).type === 'function_call' &&
