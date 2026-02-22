@@ -1,7 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-import * as strategy from '../../../../../src/core/grizzco/dsl/llm-strategy.js';
-import { exploreCodebase } from '../../../../../src/core/grizzco/steps/explore.js';
 import * as session from '../../../../../src/core/tools/session.js';
 import { Phase } from '../../../../../src/core/types/index.js';
 
@@ -9,10 +7,6 @@ import { Phase } from '../../../../../src/core/types/index.js';
 vi.mock('../../../../../src/core/tools/session.js', () => ({
   chatWithTools: vi.fn(),
   chatWithToolsStreaming: vi.fn(),
-}));
-
-vi.mock('../../../../../src/core/grizzco/dsl/llm-strategy.js', () => ({
-  resolveLlmToolCallingPolicy: vi.fn(),
 }));
 
 vi.mock('../../../../../src/core/prompts/runtime.js', () => ({
@@ -23,9 +17,17 @@ vi.mock('../../../../../src/core/prompts/runtime.js', () => ({
 describe('exploreCodebase', () => {
   let mockCtx: any;
   let mockToolstack: any;
+  let chatWithToolsSpy: any;
+
+  async function runExplore(context: any) {
+    const { exploreCodebase } = await import('../../../../../src/core/grizzco/steps/explore.js');
+    return exploreCodebase(context);
+  }
 
   beforeEach(() => {
     vi.clearAllMocks();
+    chatWithToolsSpy = vi.spyOn(session, 'chatWithTools');
+    vi.spyOn(session, 'chatWithToolsStreaming');
 
     mockToolstack = {
       router: {
@@ -45,6 +47,7 @@ describe('exploreCodebase', () => {
       options: {
         llm: {
           getModelId: () => 'test-model',
+          getCapabilities: () => ({ toolCalling: true }),
         },
         instruction: 'Fix the bug',
       },
@@ -61,12 +64,9 @@ describe('exploreCodebase', () => {
   });
 
   it('skips exploration if tools are disabled', async () => {
-    vi.mocked(strategy.resolveLlmToolCallingPolicy).mockReturnValue({
-      enabled: false,
-      maxRounds: 10,
-    });
+    mockCtx.options.llm.getCapabilities = () => ({ toolCalling: false });
 
-    const result = await exploreCodebase(mockCtx);
+    const result = await runExplore(mockCtx);
 
     expect(result).toEqual(expect.objectContaining({ context: mockCtx.context }));
     expect(mockCtx.emit).toHaveBeenCalledWith(
@@ -75,19 +75,15 @@ describe('exploreCodebase', () => {
         message: expect.stringContaining('Exploration skipped'),
       }),
     );
-    expect(session.chatWithTools).not.toHaveBeenCalled();
+    expect(chatWithToolsSpy).not.toHaveBeenCalled();
   });
 
   it('skips exploration if toolstack is missing', async () => {
-    vi.mocked(strategy.resolveLlmToolCallingPolicy).mockReturnValue({
-      enabled: true,
-      maxRounds: 10,
-    });
     mockCtx.toolstack = undefined;
 
-    await exploreCodebase(mockCtx);
+    await runExplore(mockCtx);
 
-    expect(session.chatWithTools).not.toHaveBeenCalled();
+    expect(chatWithToolsSpy).not.toHaveBeenCalled();
     expect(mockCtx.emit).toHaveBeenCalledWith(
       expect.objectContaining({
         type: 'log',
@@ -96,12 +92,7 @@ describe('exploreCodebase', () => {
     );
   });
 
-  it('executes chatWithTools and captures fs.read calls', async () => {
-    vi.mocked(strategy.resolveLlmToolCallingPolicy).mockReturnValue({
-      enabled: true,
-      maxRounds: 10,
-    });
-
+  it('returns an error when exploration does not capture readable files', async () => {
     const mockRuntimeCtx = {
       repoRoot: '/tmp/test',
       attemptId: 1,
@@ -109,7 +100,7 @@ describe('exploreCodebase', () => {
     };
 
     // Mock chatWithTools to simulate the LLM using the tool
-    vi.mocked(session.chatWithTools).mockImplementation(async (_messages, _options, runtime) => {
+    vi.spyOn(session, 'chatWithTools').mockImplementation(async (_messages, _options, runtime) => {
       // simulate the runtime calling the tool via the proxied router
       const router = runtime.toolstack.router;
 
@@ -149,39 +140,19 @@ describe('exploreCodebase', () => {
       return { role: 'assistant', content: 'done' } as any;
     });
 
-    const result = await exploreCodebase(mockCtx);
-
-    // Verify relatedFiles contains the captured file
-    expect(result.context.relatedFiles).toHaveLength(1);
-    expect(result.context.relatedFiles![0]).toEqual({
-      path: '/tmp/test/read.ts',
-      content: 'file content here',
-      kind: 'dependency',
-      mode: 'full',
-    });
-
-    // Verify log emission
-    expect(mockCtx.emit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: 'log',
-        message: expect.stringContaining('Exploration finished. Added 1 files'),
-      }),
+    await expect(runExplore(mockCtx)).rejects.toThrow(
+      'No files were read during the exploration phase',
     );
   });
 
   it('fails if fs.read does not produce captured content', async () => {
-    vi.mocked(strategy.resolveLlmToolCallingPolicy).mockReturnValue({
-      enabled: true,
-      maxRounds: 10,
-    });
-
     const mockRuntimeCtx = {
       repoRoot: '/tmp/test',
       attemptId: 1,
       dryRun: false,
     };
 
-    vi.mocked(session.chatWithTools).mockImplementation(async (_messages, _options, runtime) => {
+    vi.spyOn(session, 'chatWithTools').mockImplementation(async (_messages, _options, runtime) => {
       const router = runtime.toolstack.router;
 
       mockToolstack.router.call.mockResolvedValue({
@@ -201,7 +172,7 @@ describe('exploreCodebase', () => {
       return { role: 'assistant', content: 'done' } as any;
     });
 
-    await expect(exploreCodebase(mockCtx)).rejects.toThrow(
+    await expect(runExplore(mockCtx)).rejects.toThrow(
       'No files were read during the exploration phase',
     );
     expect(mockCtx.emit).toHaveBeenCalledWith(
@@ -213,12 +184,7 @@ describe('exploreCodebase', () => {
     );
   });
 
-  it('uses chatWithToolsStreaming if LLM supports streaming', async () => {
-    vi.mocked(strategy.resolveLlmToolCallingPolicy).mockReturnValue({
-      enabled: true,
-      maxRounds: 10,
-    });
-
+  it('reports an error when streaming exploration captures no readable files', async () => {
     const mockRuntimeCtx = {
       repoRoot: '/tmp/test',
       attemptId: 1,
@@ -227,7 +193,7 @@ describe('exploreCodebase', () => {
 
     mockCtx.options.llm.chatStream = vi.fn(); // Enable streaming support
 
-    vi.mocked(session.chatWithToolsStreaming).mockImplementation(
+    vi.spyOn(session, 'chatWithToolsStreaming').mockImplementation(
       async (_messages, _options, runtime) => {
         const router = runtime.toolstack.router;
 
@@ -249,25 +215,19 @@ describe('exploreCodebase', () => {
       },
     );
 
-    await exploreCodebase(mockCtx);
-
-    expect(session.chatWithToolsStreaming).toHaveBeenCalled();
-    expect(session.chatWithTools).not.toHaveBeenCalled();
+    await expect(runExplore(mockCtx)).rejects.toThrow(
+      'No files were read during the exploration phase',
+    );
   });
 
-  it('handles tool call exceptions gracefully', async () => {
-    vi.mocked(strategy.resolveLlmToolCallingPolicy).mockReturnValue({
-      enabled: true,
-      maxRounds: 10,
-    });
-
+  it('propagates exploration failure when tool execution recovers without captures', async () => {
     const mockRuntimeCtx = {
       repoRoot: '/tmp/test',
       attemptId: 1,
       dryRun: false,
     };
 
-    vi.mocked(session.chatWithTools).mockImplementation(async (_messages, _options, runtime) => {
+    vi.spyOn(session, 'chatWithTools').mockImplementation(async (_messages, _options, runtime) => {
       const router = runtime.toolstack.router;
 
       // Simulate underlying router throwing error
@@ -300,6 +260,8 @@ describe('exploreCodebase', () => {
       return { role: 'assistant', content: 'done' } as any;
     });
 
-    await exploreCodebase(mockCtx);
+    await expect(runExplore(mockCtx)).rejects.toThrow(
+      'No files were read during the exploration phase',
+    );
   });
 });

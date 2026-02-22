@@ -15,11 +15,6 @@ vi.mock('../../../../../src/core/strata/checkpoint/manager.js', () => ({
   })),
 }));
 
-import {
-  runEmergencyRollback,
-  runRollback,
-} from '../../../../../src/core/grizzco/steps/rollback.js';
-
 function createBaseCtx(overrides: Record<string, unknown> = {}): any {
   const emit = vi.fn();
   return {
@@ -49,6 +44,7 @@ describe('rollback step safety behavior', () => {
   });
 
   it('completes rollback through direct workspace strategy', async () => {
+    const { runRollback } = await import('../../../../../src/core/grizzco/steps/rollback.js');
     safeRollbackMock.mockResolvedValue(undefined);
     const ctx = createBaseCtx();
 
@@ -64,6 +60,7 @@ describe('rollback step safety behavior', () => {
   });
 
   it('completes rollback through worktree strategy', async () => {
+    const { runRollback } = await import('../../../../../src/core/grizzco/steps/rollback.js');
     restoreToShadowMock.mockResolvedValue(undefined);
     const ctx = createBaseCtx({
       workspace: {
@@ -85,6 +82,7 @@ describe('rollback step safety behavior', () => {
   });
 
   it('treats missing rollback anchor as already safe state', async () => {
+    const { runRollback } = await import('../../../../../src/core/grizzco/steps/rollback.js');
     const ctx = createBaseCtx({
       shadowInitialRef: '',
       options: {
@@ -107,6 +105,8 @@ describe('rollback step safety behavior', () => {
   });
 
   it('keeps emergency rollback on worktree strategy safe', async () => {
+    const { runEmergencyRollback } =
+      await import('../../../../../src/core/grizzco/steps/rollback.js');
     restoreToShadowMock.mockResolvedValue(undefined);
     const ctx = createBaseCtx({
       workspace: {

@@ -1,4 +1,11 @@
+import { readFileSync } from 'fs';
+import path from 'path';
+
 import { defineConfig } from 'vitest/config';
+
+const bunMigratedFiles = JSON.parse(
+  readFileSync(path.join(import.meta.dirname, 'tests', 'bun-migrated-files.json'), 'utf-8'),
+) as string[];
 
 export default defineConfig({
   test: {
@@ -15,7 +22,7 @@ export default defineConfig({
 
     // Test file patterns
     include: ['tests/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
-    exclude: ['tests/perf/**'],
+    exclude: ['tests/perf/**', 'tests/bun/**', ...bunMigratedFiles],
 
     // Run integration tests in isolated forks to avoid git lock contention
     // Run UI tests in jsdom environment for React hooks

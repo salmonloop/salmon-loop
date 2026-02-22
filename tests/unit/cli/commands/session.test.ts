@@ -1,7 +1,5 @@
 import { vi } from 'vitest';
 
-import { sessionCommand } from '../../../../src/cli/commands/session.js';
-
 const hoisted = vi.hoisted(() => {
   const init = vi.fn(async () => {});
   const load = vi.fn(async () => ['hello', 'world']);
@@ -21,6 +19,7 @@ describe('/session command', () => {
   });
 
   it('loads input history for the resumed session and updates UI store', async () => {
+    const { sessionCommand } = await import('../../../../src/cli/commands/session.js');
     const dispatch = vi.fn();
     const emit = vi.fn();
 

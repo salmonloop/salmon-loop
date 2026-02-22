@@ -15,8 +15,6 @@ vi.mock('../../../../../src/core/observability/debug-artifacts.js', () => ({
   writeDebugArtifact: writeDebugArtifactMock,
 }));
 
-import { runApplyBackPhase } from '../../../../../src/core/grizzco/runtime/apply-back-runtime.js';
-import { collectSidecarPaths } from '../../../../../src/core/grizzco/runtime/apply-back-utils.js';
 import { text } from '../../../../../src/locales/index.js';
 
 function createSynchronizer(overrides: Record<string, unknown> = {}) {
@@ -58,7 +56,9 @@ describe('apply-back-runtime', () => {
     vi.clearAllMocks();
   });
 
-  it('deduplicates and filters sidecar paths', () => {
+  it('deduplicates and filters sidecar paths', async () => {
+    const { collectSidecarPaths } =
+      await import('../../../../../src/core/grizzco/runtime/apply-back-utils.js');
     expect(collectSidecarPaths({} as any)).toEqual([]);
     expect(collectSidecarPaths({ contextFiles: [] } as any)).toEqual([]);
     expect(
@@ -69,6 +69,8 @@ describe('apply-back-runtime', () => {
   });
 
   it('skips apply-back when checkpoint is missing', async () => {
+    const { runApplyBackPhase } =
+      await import('../../../../../src/core/grizzco/runtime/apply-back-runtime.js');
     const synchronizer = createSynchronizer();
     const result = await runApplyBackPhase(
       createParams({
@@ -92,6 +94,8 @@ describe('apply-back-runtime', () => {
   });
 
   it('skips apply-back when strategy is not worktree', async () => {
+    const { runApplyBackPhase } =
+      await import('../../../../../src/core/grizzco/runtime/apply-back-runtime.js');
     const synchronizer = createSynchronizer();
     const result = await runApplyBackPhase(
       createParams({
@@ -109,6 +113,8 @@ describe('apply-back-runtime', () => {
   });
 
   it('runs apply-back successfully and forwards deduped sidecar paths', async () => {
+    const { runApplyBackPhase } =
+      await import('../../../../../src/core/grizzco/runtime/apply-back-runtime.js');
     const synchronizer = createSynchronizer({
       createCheckpointCommit: vi.fn().mockResolvedValue('final-ref-2'),
     });
@@ -149,6 +155,8 @@ describe('apply-back-runtime', () => {
   });
 
   it('falls back to checkpoint base ref when final checkpoint is unavailable', async () => {
+    const { runApplyBackPhase } =
+      await import('../../../../../src/core/grizzco/runtime/apply-back-runtime.js');
     const synchronizer = createSynchronizer({
       createCheckpointCommit: vi.fn().mockResolvedValue(undefined),
     });
@@ -162,6 +170,8 @@ describe('apply-back-runtime', () => {
   });
 
   it('returns safe error details when apply-back fails', async () => {
+    const { runApplyBackPhase } =
+      await import('../../../../../src/core/grizzco/runtime/apply-back-runtime.js');
     const synchronizer = createSynchronizer({
       applyBackToMainWorkspace: vi.fn().mockRejectedValue(new Error('merge conflict')),
     });

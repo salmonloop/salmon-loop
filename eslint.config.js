@@ -126,6 +126,14 @@ export default tseslint.config(
     },
   },
   {
+    files: ['tests/**/*.js'],
+    languageOptions: {
+      parserOptions: {
+        project: null,
+      },
+    },
+  },
+  {
     files: ['eslint-rules/**/*.js', 'eslint.config.js', 'vitest.config.ts'],
     languageOptions: {
       parserOptions: {

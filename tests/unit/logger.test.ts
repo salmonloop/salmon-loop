@@ -17,6 +17,10 @@ describe('Logger', () => {
     });
   });
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('should not log debug/trace by default', () => {
     logger.debug('debug message');
     logger.trace('trace message');

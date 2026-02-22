@@ -70,7 +70,7 @@ import {
   validateScopeIntegrity,
 } from '../../src/core/ast/index.js';
 import { ContextBuilder } from '../../src/core/context/builder.js';
-import { executeSalmonLoopFlow } from '../../src/core/grizzco/flows/SalmonLoopFlow.js';
+import * as salmonLoopFlow from '../../src/core/grizzco/flows/SalmonLoopFlow.js';
 import { StubLLM } from '../../src/core/llm/index.js';
 import { SalmonLoop } from '../../src/core/runtime/loop.js';
 import { ErrorType, Phase } from '../../src/core/types/index.js';
@@ -80,10 +80,8 @@ import { text } from '../../src/locales/index.js';
 vi.mock('../../src/core/context/builder.js');
 vi.mock('../../src/core/grizzco/flows/SalmonLoopFlow.js');
 vi.mock('../../src/core/adapters/git/git-adapter.js');
-vi.mock('../../src/core/verification/runner.js', async () => {
-  const actual = await vi.importActual('../../src/core/verification/runner.js');
+vi.mock('../../src/core/verification/runner.js', () => {
   return {
-    ...actual,
     runVerify: vi.fn(),
     preflight: vi.fn(),
     classifyError: vi.fn(),
@@ -115,6 +113,7 @@ vi.mock('fs/promises', () => ({
 describe('SalmonLoop', () => {
   let loop: SalmonLoop;
   let mockLLM: StubLLM;
+  let executeFlowSpy: any;
 
   beforeEach(() => {
     loop = new SalmonLoop();
@@ -138,29 +137,65 @@ index 123..456 100644
 -old
 +new`);
 
-    // Mock GitAdapter
-    vi.mocked(GitAdapter).mockImplementation(
-      () =>
-        ({
-          repoPath: '/tmp/repo',
-          applyPatch: vi.fn().mockResolvedValue(undefined),
-          rollbackFiles: vi.fn().mockResolvedValue({ ok: true }),
-          safeRollback: vi.fn().mockResolvedValue({ ok: true }),
-          getStatus: vi.fn().mockResolvedValue(''),
-          exec: vi.fn().mockResolvedValue(''),
-          query: vi.fn().mockResolvedValue(''),
-          checkIgnore: vi.fn().mockResolvedValue(false),
-          show: vi.fn().mockResolvedValue(Buffer.from('')),
-          readFile: vi.fn().mockResolvedValue(Buffer.from('')),
-          hashObject: vi.fn().mockResolvedValue(''),
-          updateIndex: vi.fn().mockResolvedValue(undefined),
-          getStatusForPath: vi.fn().mockResolvedValue(null),
-          mergeFile: vi.fn().mockResolvedValue({ content: Buffer.from(''), hasConflict: false }),
-        }) as any,
-    );
+    const mockedAdapter = {
+      repoPath: '/tmp/repo',
+      applyPatch: vi.fn().mockResolvedValue(undefined),
+      rollbackFiles: vi.fn().mockResolvedValue({ ok: true }),
+      safeRollback: vi.fn().mockResolvedValue({ ok: true }),
+      getStatus: vi.fn().mockResolvedValue(''),
+      exec: vi.fn().mockResolvedValue(''),
+      query: vi.fn().mockResolvedValue(''),
+      checkIgnore: vi.fn().mockResolvedValue(false),
+      show: vi.fn().mockResolvedValue(Buffer.from('')),
+      readFile: vi.fn().mockResolvedValue(Buffer.from('')),
+      hashObject: vi.fn().mockResolvedValue(''),
+      updateIndex: vi.fn().mockResolvedValue(undefined),
+      getStatusForPath: vi.fn().mockResolvedValue(null),
+      mergeFile: vi.fn().mockResolvedValue({ content: Buffer.from(''), hasConflict: false }),
+    };
+    const gitAdapterConstructor = GitAdapter as unknown as {
+      mockImplementation?: (impl: any) => void;
+    };
+    if (typeof gitAdapterConstructor.mockImplementation === 'function') {
+      gitAdapterConstructor.mockImplementation(() => mockedAdapter as any);
+    } else {
+      vi.spyOn(GitAdapter.prototype as any, 'applyPatch').mockImplementation(
+        mockedAdapter.applyPatch as any,
+      );
+      vi.spyOn(GitAdapter.prototype as any, 'rollbackFiles').mockImplementation(
+        mockedAdapter.rollbackFiles as any,
+      );
+      vi.spyOn(GitAdapter.prototype as any, 'safeRollback').mockImplementation(
+        mockedAdapter.safeRollback as any,
+      );
+      vi.spyOn(GitAdapter.prototype as any, 'getStatus').mockImplementation(
+        mockedAdapter.getStatus as any,
+      );
+      vi.spyOn(GitAdapter.prototype as any, 'exec').mockImplementation(mockedAdapter.exec as any);
+      vi.spyOn(GitAdapter.prototype as any, 'query').mockImplementation(mockedAdapter.query as any);
+      vi.spyOn(GitAdapter.prototype as any, 'checkIgnore').mockImplementation(
+        mockedAdapter.checkIgnore as any,
+      );
+      vi.spyOn(GitAdapter.prototype as any, 'show').mockImplementation(mockedAdapter.show as any);
+      vi.spyOn(GitAdapter.prototype as any, 'readFile').mockImplementation(
+        mockedAdapter.readFile as any,
+      );
+      vi.spyOn(GitAdapter.prototype as any, 'hashObject').mockImplementation(
+        mockedAdapter.hashObject as any,
+      );
+      vi.spyOn(GitAdapter.prototype as any, 'updateIndex').mockImplementation(
+        mockedAdapter.updateIndex as any,
+      );
+      vi.spyOn(GitAdapter.prototype as any, 'getStatusForPath').mockImplementation(
+        mockedAdapter.getStatusForPath as any,
+      );
+      vi.spyOn(GitAdapter.prototype as any, 'mergeFile').mockImplementation(
+        mockedAdapter.mergeFile as any,
+      );
+    }
 
     // Default mock for shrinkContext
-    vi.mocked(ContextBuilder.shrinkContext).mockImplementation(async (ctx) => ctx);
+    vi.spyOn(ContextBuilder, 'shrinkContext').mockImplementation(async (ctx) => ctx);
     // Default mock for preflight
     vi.mocked(verify.preflight).mockResolvedValue({ ok: true });
     // Default mock for classifyError
@@ -175,7 +210,7 @@ index 123..456 100644
     vi.mocked(validateScopeIntegrity).mockReturnValue({ ok: true });
 
     // Mock executeSalmonLoopFlow
-    vi.mocked(executeSalmonLoopFlow).mockResolvedValue({
+    executeFlowSpy = vi.spyOn(salmonLoopFlow, 'executeSalmonLoopFlow').mockResolvedValue({
       success: true,
       duration: 0,
       traces: [],
@@ -193,7 +228,7 @@ index 123..456 100644
   });
 
   it('should run successfully when verify passes', async () => {
-    vi.mocked(ContextBuilder.build).mockResolvedValue({
+    vi.spyOn(ContextBuilder, 'build').mockResolvedValue({
       repoPath: '/tmp/repo',
       primaryText: 'content',
       rgSnippets: [],
@@ -234,7 +269,7 @@ index 123..456 100644
   });
 
   it('should not apply patch in dry-run mode', async () => {
-    vi.mocked(ContextBuilder.build).mockResolvedValue({
+    vi.spyOn(ContextBuilder, 'build').mockResolvedValue({
       repoPath: '/tmp/repo',
       primaryText: 'content',
       rgSnippets: [],
@@ -266,7 +301,7 @@ index 123..456 100644
   });
 
   it('should retry and rollback on failure', async () => {
-    vi.mocked(ContextBuilder.build).mockResolvedValue({
+    vi.spyOn(ContextBuilder, 'build').mockResolvedValue({
       repoPath: '/tmp/repo',
       primaryText: 'content',
       rgSnippets: [{ file: 'test.txt', content: '...', line: 1 }],
@@ -283,7 +318,7 @@ index 123..456 100644
 -old
 +new`);
 
-    vi.mocked(executeSalmonLoopFlow)
+    executeFlowSpy
       .mockResolvedValueOnce({
         success: true,
         duration: 0,
@@ -322,7 +357,7 @@ index 123..456 100644
   });
 
   it('should rollback all changed files on failure, not just failed ones', async () => {
-    vi.mocked(ContextBuilder.build).mockResolvedValue({
+    vi.spyOn(ContextBuilder, 'build').mockResolvedValue({
       repoPath: '/tmp/repo',
       primaryText: 'content',
       rgSnippets: [],
@@ -348,7 +383,7 @@ index 123..456 100644
 -old
 +new`);
 
-    vi.mocked(executeSalmonLoopFlow).mockResolvedValue({
+    executeFlowSpy.mockResolvedValue({
       success: false,
       duration: 0,
       traces: [],
@@ -379,7 +414,7 @@ index 123..456 100644
   });
 
   it('should fail when max retries exceeded', async () => {
-    vi.mocked(ContextBuilder.build).mockResolvedValue({
+    vi.spyOn(ContextBuilder, 'build').mockResolvedValue({
       repoPath: '/tmp/repo',
       primaryText: 'content',
       rgSnippets: [],
@@ -396,7 +431,7 @@ index 123..456 100644
 -old
 +new`);
 
-    vi.mocked(executeSalmonLoopFlow).mockResolvedValue({
+    executeFlowSpy.mockResolvedValue({
       success: true,
       duration: 0,
       traces: [],
@@ -428,7 +463,7 @@ index 123..456 100644
 
   it('should handle unexpected errors', async () => {
     // Simulate a crash in the flow that returns error result
-    vi.mocked(executeSalmonLoopFlow).mockResolvedValue({
+    executeFlowSpy.mockResolvedValue({
       success: false,
       duration: 0,
       traces: [],
@@ -449,7 +484,7 @@ index 123..456 100644
   });
 
   it('should fail when apply-back phase reports failure', async () => {
-    vi.mocked(executeSalmonLoopFlow).mockResolvedValueOnce({
+    executeFlowSpy.mockResolvedValueOnce({
       success: true,
       duration: 0,
       traces: [],

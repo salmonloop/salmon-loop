@@ -1,6 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
-import { subAgentCommand } from '../../../../src/cli/commands/subagent.js';
 import { text } from '../../../../src/cli/locales/index.js';
 
 const listAgentsMock = vi.fn();
@@ -29,6 +28,10 @@ function createContext(input: string) {
 }
 
 describe('Sub-agent slash command', () => {
+  async function loadCommand() {
+    return (await import('../../../../src/cli/commands/subagent.js')).subAgentCommand;
+  }
+
   beforeEach(() => {
     emitMock.mockClear();
     listAgentsMock.mockReset();
@@ -38,6 +41,7 @@ describe('Sub-agent slash command', () => {
   });
 
   it('offers the defined verbs as suggestions', async () => {
+    const subAgentCommand = await loadCommand();
     listAgentsMock.mockReturnValue([]);
 
     const suggestions = await subAgentCommand.getSuggestions!({ input: '/smallfry ' } as any);
@@ -48,6 +52,7 @@ describe('Sub-agent slash command', () => {
   });
 
   it('filters agent ids after verb selection', async () => {
+    const subAgentCommand = await loadCommand();
     listAgentsMock.mockReturnValue([
       { id: 'agent-alpha', status: 'running', profile: { role: 'pilot' } },
       { id: 'agent-beta', status: 'idle', profile: { role: 'scout' } },
@@ -61,6 +66,7 @@ describe('Sub-agent slash command', () => {
   });
 
   it('emits usage when no verb is supplied', async () => {
+    const subAgentCommand = await loadCommand();
     await subAgentCommand.execute(createContext('/smallfry'));
 
     expect(emitMock).toHaveBeenCalledTimes(1);
@@ -73,6 +79,7 @@ describe('Sub-agent slash command', () => {
   });
 
   it('warns on unknown verb', async () => {
+    const subAgentCommand = await loadCommand();
     await subAgentCommand.execute(createContext('/smallfry dance'));
 
     expect(emitMock).toHaveBeenCalledWith(
@@ -84,6 +91,7 @@ describe('Sub-agent slash command', () => {
   });
 
   it('lists available agents', async () => {
+    const subAgentCommand = await loadCommand();
     listAgentsMock.mockReturnValue([
       {
         id: 'alpha',
@@ -104,6 +112,7 @@ describe('Sub-agent slash command', () => {
   });
 
   it('reports info for a known agent', async () => {
+    const subAgentCommand = await loadCommand();
     const agent = {
       id: 'alpha',
       status: 'running',
@@ -124,6 +133,7 @@ describe('Sub-agent slash command', () => {
   });
 
   it('warns when requesting info without an id', async () => {
+    const subAgentCommand = await loadCommand();
     await subAgentCommand.execute(createContext('/smallfry info'));
 
     expect(emitMock).toHaveBeenCalledWith(
@@ -135,6 +145,7 @@ describe('Sub-agent slash command', () => {
   });
 
   it('logs fallback text when no entries exist', async () => {
+    const subAgentCommand = await loadCommand();
     const agentId = 'alpha';
     getAgentMock.mockReturnValue({ id: agentId });
     tailLogsMock.mockReturnValue([]);
@@ -151,6 +162,7 @@ describe('Sub-agent slash command', () => {
   });
 
   it('requests stop and notifies user', async () => {
+    const subAgentCommand = await loadCommand();
     const agentId = 'alpha';
     getAgentMock.mockReturnValue({ id: agentId });
 

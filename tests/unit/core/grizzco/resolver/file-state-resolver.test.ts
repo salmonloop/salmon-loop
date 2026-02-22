@@ -1,14 +1,16 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
-import { GitAdapter } from '../../../../../src/core/adapters/git/git-adapter.js';
 import { FileStatus } from '../../../../../src/core/grizzco/domain/grizzco-types.js';
 import { FileStateResolver } from '../../../../../src/core/strata/layers/file-state-resolver.js';
 
 // Mock dependencies
-vi.mock('fs/promises');
-vi.mock('../../../../../src/core/adapters/git/git-adapter.js');
-
+vi.mock('fs/promises', () => ({
+  lstat: vi.fn(),
+  stat: vi.fn(),
+  readFile: vi.fn(),
+  open: vi.fn(),
+}));
 describe('FileStateResolver', () => {
   let resolver: FileStateResolver;
   let mockGit: any;
@@ -16,8 +18,12 @@ describe('FileStateResolver', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGit = new GitAdapter(workspaceRoot);
-    resolver = new FileStateResolver(mockGit, workspaceRoot);
+    mockGit = {
+      getStatus: vi.fn(),
+      show: vi.fn(),
+      checkIgnore: vi.fn().mockResolvedValue(false),
+    };
+    resolver = new FileStateResolver(mockGit as any, workspaceRoot);
 
     // Default fs mocks
     (fs.lstat as any).mockResolvedValue({ isSymbolicLink: () => false });

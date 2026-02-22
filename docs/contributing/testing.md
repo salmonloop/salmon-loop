@@ -85,6 +85,12 @@ All critical safety logic is verified by:
     *   If yes, fix the test, not the code.
 3.  **Add Safety Comments**: Use `// CRITICAL SAFETY:` comments in production code to warn future maintainers about load-bearing logic.
 
+## 4.1 Bun Test In-Place Migration
+
+- Run migrated Bun-native tests with `bun run test:bun:migrated`.
+- Migrated files stay in their original locations (in-place migration), then are excluded from `vitest`.
+- This avoids duplicate test files while allowing phased migration from `vitest` to `bun test`.
+
 ## 5. Testing Best Practices & Golden Rules
 
 ### The Testing Pyramid

@@ -32,7 +32,7 @@ describe('Code Search Capability', () => {
       await codeSearchExecutor({ pattern: 'foo.*bar', maxMatches: 100, isRegex: false }, mockCtx);
 
       // Find the actual search call (not the version check)
-      const searchCall = execSpy.mock.calls.find((call) => !call[1].includes('--version'));
+      const searchCall = execSpy.mock.calls.filter((call) => !call[1].includes('--version')).at(-1);
       expect(searchCall![1]).toContain('--fixed-strings');
     });
 
@@ -46,7 +46,7 @@ describe('Code Search Capability', () => {
 
       await codeSearchExecutor({ pattern: 'foo.*bar', maxMatches: 100, isRegex: true }, mockCtx);
 
-      const searchCall = execSpy.mock.calls.find((call) => !call[1].includes('--version'));
+      const searchCall = execSpy.mock.calls.filter((call) => !call[1].includes('--version')).at(-1);
       expect(searchCall![1]).not.toContain('--fixed-strings');
     });
   });

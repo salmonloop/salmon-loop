@@ -1,13 +1,5 @@
 let capturedSession: any;
 
-vi.mock('../../src/core/grizzco/dsl/llm-strategy.js', async (importOriginal) => {
-  const original = await importOriginal<any>();
-  return {
-    ...original,
-    resolveLlmToolCallingPolicy: () => ({ enabled: true, maxRounds: 1 }),
-  };
-});
-
 vi.mock('../../src/core/tools/session.js', () => {
   return {
     chatWithTools: vi.fn(async (_messages: any, _chatOptions: any, session: any) => {
@@ -48,6 +40,11 @@ function createEmptyToolstack(): any {
 describe('Grizzco step maxRounds wiring', () => {
   it('forwards policy.maxRounds into chatWithTools session options', async () => {
     const { generatePlan } = await import('../../src/core/grizzco/steps/plan.js');
+    const strategy = await import('../../src/core/grizzco/dsl/llm-strategy.js');
+    vi.spyOn(strategy, 'resolveLlmToolCallingPolicy').mockReturnValue({
+      enabled: true,
+      maxRounds: 1,
+    });
 
     const llm: any = {
       getModelId: () => 'test-model',

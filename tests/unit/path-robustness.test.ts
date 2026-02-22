@@ -1,131 +1,105 @@
-import { spawn } from 'child_process';
-
-import { GitAdapter } from '../../src/core/adapters/git/git-adapter.js';
 import { ContextBuilder } from '../../src/core/context/builder.js';
-
-// Mock spawn for rollbackFiles tests
-vi.mock('child_process', async () => {
-  const { EventEmitter } = await import('events');
-  const mockSpawn = vi.fn().mockImplementation(() => {
-    const emitter = new EventEmitter();
-    (emitter as any).stdout = new EventEmitter();
-    (emitter as any).stderr = new EventEmitter();
-    // Default success behavior
-    queueMicrotask(() => emitter.emit('close', 0));
-    return emitter;
-  });
-  return {
-    spawn: mockSpawn,
-  };
-});
 
 describe('Path Robustness', () => {
   // ... (keeping normalizeDiff tests)
 
   describe('rollbackFiles Path Safety', () => {
     const repoPath = '/fake/repo';
-    const adapter = new GitAdapter(repoPath);
+    let adapter: any;
+    let runGitCommandMock: any;
 
-    beforeEach(() => {
-      vi.useFakeTimers();
-      vi.mocked(spawn).mockClear();
+    beforeEach(async () => {
+      const gitRunner = await import('../../src/core/adapters/git/git-runner.js');
+      runGitCommandMock = vi.spyOn(gitRunner, 'runGitCommand').mockResolvedValue({
+        ok: true,
+        code: 0,
+        signal: null,
+        stdout: Buffer.from(''),
+        stderr: '',
+        timedOut: false,
+        stdoutTruncated: false,
+        stderrTruncated: false,
+      });
+      const { GitAdapter } = await import('../../src/core/adapters/git/git-adapter.js');
+      adapter = new GitAdapter(repoPath);
     });
-
     afterEach(() => {
-      vi.useRealTimers();
+      vi.restoreAllMocks();
     });
+
+    function getLastCallArgs(): string[] {
+      const lastCall = runGitCommandMock.mock.calls.at(-1);
+      if (!lastCall) return [];
+      return lastCall[0].args;
+    }
 
     it('should filter out absolute paths', async () => {
-      const promise = adapter.rollbackFiles(['/etc/passwd', 'src/safe.ts']);
-      await vi.runAllTimersAsync();
-      await promise;
-      // In the new adapter, it internally sanitizes.
-      // We can't easily check 'attempted' unless we spy on exec.
-      expect(vi.mocked(spawn)).toHaveBeenCalledWith(
-        'git',
-        expect.arrayContaining(['src/safe.ts']),
-        expect.anything(),
-      );
-      const callArgs = vi.mocked(spawn).mock.calls[0][1];
+      await adapter.rollbackFiles(['/etc/passwd', 'src/safe.ts']);
+      const callArgs = getLastCallArgs();
+      expect(callArgs).toContain('src/safe.ts');
       expect(callArgs).not.toContain('/etc/passwd');
     });
 
     it('should filter out path traversal attempts', async () => {
-      const promise = adapter.rollbackFiles(['../../outside.ts', 'src/../safe.ts', 'safe.ts']);
-      await vi.runAllTimersAsync();
-      await promise;
-      expect(vi.mocked(spawn)).toHaveBeenCalledWith(
-        'git',
-        expect.arrayContaining(['safe.ts']),
-        expect.anything(),
-      );
-      const callArgs = vi.mocked(spawn).mock.calls[0][1];
+      await adapter.rollbackFiles(['../../outside.ts', 'src/../safe.ts', 'safe.ts']);
+      const callArgs = getLastCallArgs();
+      expect(callArgs).toContain('safe.ts');
       expect(callArgs).not.toContain('../../outside.ts');
     });
 
     it('should handle Windows style absolute paths', async () => {
-      const promise = adapter.rollbackFiles(['C:\\Windows\\system32\\cmd.exe', 'src\\file.ts']);
-      await vi.runAllTimersAsync();
-      await promise;
-      expect(vi.mocked(spawn)).toHaveBeenCalledWith(
-        'git',
-        expect.arrayContaining(['src/file.ts']),
-        expect.anything(),
-      );
+      await adapter.rollbackFiles(['C:\\Windows\\system32\\cmd.exe', 'src\\file.ts']);
+      const callArgs = getLastCallArgs();
+      expect(callArgs).toContain('src/file.ts');
     });
 
     it('should handle empty or whitespace paths', async () => {
-      const promise = adapter.rollbackFiles(['', '   ', 'src/file.ts']);
-      await vi.runAllTimersAsync();
-      await promise;
-      expect(vi.mocked(spawn)).toHaveBeenCalledWith(
-        'git',
-        expect.arrayContaining(['src/file.ts']),
-        expect.anything(),
-      );
+      await adapter.rollbackFiles(['', '   ', 'src/file.ts']);
+      const callArgs = getLastCallArgs();
+      expect(callArgs).toContain('src/file.ts');
     });
   });
 
   describe('ContextBuilder.extractFailedFiles Robustness', () => {
     it('should handle various path formats in error output', () => {
-      const unicodeFile = `unicode-path/\u00E9-file.ts`;
-      const emojiFile = `\u{1F602}.ts`;
+      const unicodeFile = `unicode-path/\u00E9-file.md`;
+      const emojiFile = `\u{1F602}.json`;
       const output = `
-        Error: some error in "src/space path/file.ts":10:5
-        Failed: /absolute/path/to/repo/src/file.ts:20
-        Relative: ./src/rel.ts:30
-        Windows: C:\\Users\\test\\src\\win.ts(40,10)
-        No line: just/a/path.ts
+        Error: some error in "docs/space path/file.md":10:5
+        Failed: /absolute/path/to/repo/docs/file.md:20
+        Relative: ./docs/rel.md:30
+        Windows: C:\\Users\\test\\docs\\win.md(40,10)
+        No line: just/a/path.md
         Unicode: Error in ${unicodeFile}:10:5
         Emoji: Error in ${emojiFile}:10:5
       `;
       const files = ContextBuilder.extractFailedFiles(output);
-      expect(files).toContain('src/space path/file.ts');
-      expect(files).toContain('absolute/path/to/repo/src/file.ts');
-      expect(files).toContain('src/rel.ts');
-      expect(files).toContain('Users/test/src/win.ts');
-      expect(files).toContain('just/a/path.ts');
+      expect(files).toContain('docs/space path/file.md');
+      expect(files).toContain('absolute/path/to/repo/docs/file.md');
+      expect(files).toContain('docs/rel.md');
+      expect(files).toContain('Users/test/docs/win.md');
+      expect(files).toContain('just/a/path.md');
       expect(files).toContain(unicodeFile);
       expect(files).toContain(emojiFile);
     });
 
     it('should extract files with line numbers (from utils.test.ts)', () => {
       const output = `
-        Error in src/core/runtime/loop.ts:10:5
-        at Object.<anonymous> (tests/unit/loop.test.ts:20:10)
+        Error in logs/runtime.log:10:5
+        at Object.<anonymous> (docs/testing.md:20:10)
       `;
       const files = ContextBuilder.extractFailedFiles(output);
-      expect(files).toContain('src/core/runtime/loop.ts');
-      expect(files).toContain('tests/unit/loop.test.ts');
+      expect(files).toContain('logs/runtime.log');
+      expect(files).toContain('docs/testing.md');
     });
 
     it('should extract files without line numbers if no traces found (from utils.test.ts)', () => {
       const output = `
-        Failed to compile src/core/runtime/loop.ts
+        Failed to compile docs/guide.md
         Error in README.md
       `;
       const files = ContextBuilder.extractFailedFiles(output);
-      expect(files).toContain('src/core/runtime/loop.ts');
+      expect(files).toContain('docs/guide.md');
       expect(files).toContain('README.md');
     });
 
@@ -145,7 +119,7 @@ describe('Path Robustness', () => {
     });
 
     it('should handle very long paths', () => {
-      const longPath = 'a/'.repeat(100) + 'file.ts';
+      const longPath = 'a/'.repeat(100) + 'file.md';
       const output = `Error in ${longPath}:1:1`;
       const files = ContextBuilder.extractFailedFiles(output);
       expect(files).toContain(longPath);

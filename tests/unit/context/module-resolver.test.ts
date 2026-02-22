@@ -1,6 +1,11 @@
 import { resolveImportCandidates } from '../../../src/core/context/ast/module-resolver.js';
+import { PluginLoader } from '../../../src/core/plugin/loader.js';
 
 describe('resolveImportCandidates', () => {
+  beforeAll(async () => {
+    await PluginLoader.loadPlugins();
+  });
+
   it('returns empty candidates for non-relative specifiers', () => {
     expect(resolveImportCandidates({ currentFile: 'src/a.ts', specifier: 'react' }).length).toBe(0);
   });

@@ -2,25 +2,27 @@ import * as fs from 'fs/promises';
 import * as os from 'os';
 import path from 'path';
 
-import mockFs from 'mock-fs';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 
 import { ArtifactStore } from '../../../../src/core/sub-agent/artifacts/store.js';
 import { executeArtifactRead } from '../../../../src/core/tools/builtin/artifact.js';
 
 describe('ArtifactStore', () => {
-  afterEach(() => {
-    mockFs.restore();
-    vi.useRealTimers();
-    vi.restoreAllMocks();
+  let sandboxTmpDir = '';
+  let originalTmpDir = '';
+
+  beforeEach(async () => {
+    originalTmpDir = process.env.TMPDIR ?? '';
+    sandboxTmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'sl-artifacts-'));
+    process.env.TMPDIR = sandboxTmpDir;
   });
 
-  it('saves and reads text artifacts by handle', async () => {
-    const tmp = os.tmpdir();
-    mockFs({
-      [tmp]: {},
-    });
+  afterEach(async () => {
+    process.env.TMPDIR = originalTmpDir;
+    await fs.rm(sandboxTmpDir, { recursive: true, force: true });
+  });
 
+  test('saves and reads text artifacts by handle', async () => {
     const saved = await ArtifactStore.saveText({
       content: 'diff --git a/a b/b',
       mimeType: 'text/x-diff',
@@ -35,12 +37,7 @@ describe('ArtifactStore', () => {
     }
   });
 
-  it('exposes artifacts through the artifact.read tool', async () => {
-    const tmp = os.tmpdir();
-    mockFs({
-      [tmp]: {},
-    });
-
+  test('exposes artifacts through the artifact.read tool', async () => {
     const saved = await ArtifactStore.saveText({
       content: 'hello',
       mimeType: 'text/plain',
@@ -52,34 +49,26 @@ describe('ArtifactStore', () => {
     expect(out.size).toBeGreaterThan(0);
   });
 
-  it('returns not ok for unknown handles', async () => {
-    const tmp = os.tmpdir();
-    mockFs({
-      [tmp]: {},
-    });
-
+  test('returns not ok for unknown handles', async () => {
     const read = await ArtifactStore.readText('s8p://artifact/does-not-exist');
     expect(read.ok).toBe(false);
   });
 
-  it('garbage collects expired artifacts by TTL', async () => {
+  test('garbage collects expired artifacts by TTL', async () => {
     const now = Date.now();
+    const root = path.join(sandboxTmpDir, 'salmonloop', 'artifacts');
+    const oldFile = path.join(root, 'old.patch');
+    const newFile = path.join(root, 'new.patch');
 
-    const tmp = os.tmpdir();
-    const root = path.join(tmp, 'salmonloop', 'artifacts');
-
-    mockFs({
-      [root]: {
-        'old.patch': mockFs.file({
-          content: 'old',
-          mtime: new Date(now - 8 * 24 * 60 * 60 * 1000),
-        }),
-        'new.patch': mockFs.file({
-          content: 'new',
-          mtime: new Date(now),
-        }),
-      },
-    });
+    await fs.mkdir(root, { recursive: true });
+    await fs.writeFile(oldFile, 'old', 'utf8');
+    await fs.writeFile(newFile, 'new', 'utf8');
+    await fs.utimes(
+      oldFile,
+      new Date(now - 8 * 24 * 60 * 60 * 1000),
+      new Date(now - 8 * 24 * 60 * 60 * 1000),
+    );
+    await fs.utimes(newFile, new Date(now), new Date(now));
 
     const result = await ArtifactStore.gc({ maxAgeMs: 7 * 24 * 60 * 60 * 1000 });
     expect(result.removedFiles).toBe(1);
@@ -88,19 +77,20 @@ describe('ArtifactStore', () => {
     expect(remaining).toEqual(['new.patch']);
   });
 
-  it('garbage collects artifacts to enforce maxFiles', async () => {
+  test('garbage collects artifacts to enforce maxFiles', async () => {
     const now = Date.now();
+    const root = path.join(sandboxTmpDir, 'salmonloop', 'artifacts');
+    const fileA = path.join(root, 'a.patch');
+    const fileB = path.join(root, 'b.patch');
+    const fileC = path.join(root, 'c.patch');
 
-    const tmp = os.tmpdir();
-    const root = path.join(tmp, 'salmonloop', 'artifacts');
-
-    mockFs({
-      [root]: {
-        'a.patch': mockFs.file({ content: 'a', mtime: new Date(now) }),
-        'b.patch': mockFs.file({ content: 'b', mtime: new Date(now - 1) }),
-        'c.patch': mockFs.file({ content: 'c', mtime: new Date(now - 2) }),
-      },
-    });
+    await fs.mkdir(root, { recursive: true });
+    await fs.writeFile(fileA, 'a', 'utf8');
+    await fs.writeFile(fileB, 'b', 'utf8');
+    await fs.writeFile(fileC, 'c', 'utf8');
+    await fs.utimes(fileA, new Date(now), new Date(now));
+    await fs.utimes(fileB, new Date(now - 1), new Date(now - 1));
+    await fs.utimes(fileC, new Date(now - 2), new Date(now - 2));
 
     const result = await ArtifactStore.gc({
       maxAgeMs: 365 * 24 * 60 * 60 * 1000,

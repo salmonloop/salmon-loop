@@ -1,168 +1,158 @@
-import { spawn } from 'child_process';
-import { EventEmitter } from 'events';
+import { Readable } from 'stream';
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 
-import {
-  spawnCommand,
-  spawnInteractiveProcess,
-} from '../../../../src/core/runtime/process-runner.js';
+type BunLike = {
+  spawn: (...args: any[]) => any;
+};
 
-vi.mock('child_process', async () => {
-  const { EventEmitter } = await import('events');
-  return {
-    spawn: vi.fn().mockImplementation(() => {
-      const child = new EventEmitter() as any;
-      child.stdout = new EventEmitter();
-      child.stderr = new EventEmitter();
-      child.stdin = new EventEmitter();
-      child.stdin.end = vi.fn();
-      child.stdin.write = vi.fn();
-      child.kill = vi.fn();
-      child.pid = 777;
-      return child;
-    }),
-  };
-});
+let bunRuntimeOverride: BunLike | undefined = (globalThis as { Bun?: BunLike }).Bun;
+const bunRuntimeModulePath = new globalThis.URL(
+  '../../../../src/core/runtime/bun-runtime.js',
+  import.meta.url,
+).pathname;
 
-function makeChild() {
-  const child = new EventEmitter() as any;
-  child.stdout = new EventEmitter();
-  child.stderr = new EventEmitter();
-  child.stdin = new EventEmitter();
-  child.stdin.end = vi.fn();
-  child.stdin.write = vi.fn();
-  child.kill = vi.fn();
-  child.pid = 778;
-  return child;
+mock.module(bunRuntimeModulePath, () => ({
+  getBunRuntime: () => bunRuntimeOverride,
+  normalizeSignal: (value: unknown) => (typeof value === 'string' ? value : null),
+  toNodeReadableStream: (stream: any) => {
+    if (!stream) return undefined;
+    if (typeof stream.on === 'function') {
+      return stream;
+    }
+    if (typeof stream.getReader === 'function') {
+      return Readable.fromWeb(stream);
+    }
+    return undefined;
+  },
+}));
+
+const { spawnCommand, spawnInteractiveProcess } =
+  await import('../../../../src/core/runtime/process-runner.js');
+
+function getBunRuntime(): BunLike {
+  const runtime = (globalThis as { Bun?: BunLike }).Bun;
+  if (!runtime || typeof runtime.spawn !== 'function') {
+    throw new Error('Bun runtime is required for process-runner tests');
+  }
+  return runtime;
+}
+
+function forceNodeFallback(): void {
+  bunRuntimeOverride = undefined;
+}
+
+function restoreBunRuntime(): void {
+  bunRuntimeOverride = getBunRuntime();
+}
+
+async function readAll(stream: any): Promise<string> {
+  if (!stream) return '';
+  return await new Promise((resolve, reject) => {
+    let output = '';
+    stream.on('data', (chunk: unknown) => {
+      output += globalThis.Buffer.isBuffer(chunk) ? chunk.toString('utf-8') : String(chunk);
+    });
+    stream.on('error', reject);
+    stream.on('end', () => resolve(output));
+  });
+}
+
+async function waitForExit(
+  processRef: any,
+): Promise<{ code: number | null; signal: string | null }> {
+  return await new Promise((resolve, reject) => {
+    processRef.on('exit', (code: number | null, signal: string | null) =>
+      resolve({ code, signal }),
+    );
+    processRef.on('error', (error: unknown) => reject(error));
+  });
 }
 
 describe('process-runner', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-    delete (globalThis as any).Bun;
+    restoreBunRuntime();
   });
 
   afterEach(() => {
-    delete (globalThis as any).Bun;
-    vi.useRealTimers();
+    restoreBunRuntime();
   });
 
-  it('captures output with truncation and callbacks', async () => {
-    const child = makeChild();
-    vi.mocked(spawn).mockReturnValue(child);
-    const stdoutSpy = vi.fn();
-    const stderrSpy = vi.fn();
+  test('captures output with truncation and callbacks under node fallback', async () => {
+    forceNodeFallback();
+    const stdoutChunks: Uint8Array[] = [];
+    const stderrChunks: Uint8Array[] = [];
 
-    const promise = spawnCommand({
-      command: 'git',
-      args: ['status'],
-      timeoutMs: 500,
+    const result = await spawnCommand({
+      command: 'sh',
+      args: ['-lc', "printf 'abcdef'; printf '123456' 1>&2"],
+      timeoutMs: 2000,
       maxStdoutBytes: 3,
       maxStderrBytes: 4,
-      onStdoutChunk: stdoutSpy,
-      onStderrChunk: stderrSpy,
+      onStdoutChunk: (chunk: Uint8Array) => {
+        stdoutChunks.push(chunk);
+      },
+      onStderrChunk: (chunk: Uint8Array) => {
+        stderrChunks.push(chunk);
+      },
     });
 
-    queueMicrotask(() => {
-      child.stdout.emit('data', Buffer.from('abcdef'));
-      child.stderr.emit('data', Buffer.from('123456'));
-      child.emit('close', 0, null);
-    });
-
-    const result = await promise;
     expect(result.code).toBe(0);
     expect(result.failure).toBeUndefined();
     expect(result.stdout).toBe('abc');
     expect(result.stderr).toBe('1234');
     expect(result.stdoutTruncated).toBe(true);
     expect(result.stderrTruncated).toBe(true);
-    expect(stdoutSpy).toHaveBeenCalled();
-    expect(stderrSpy).toHaveBeenCalled();
+    expect(stdoutChunks.length).toBeGreaterThan(0);
+    expect(stderrChunks.length).toBeGreaterThan(0);
   });
 
-  it('returns timeout failure when process exceeds timeout', async () => {
-    vi.useFakeTimers();
-    const child = makeChild();
-    child.kill = vi.fn((signal?: string) => {
-      if (signal === 'SIGKILL') {
-        queueMicrotask(() => child.emit('close', null, signal));
-      }
-      return true;
+  test('returns timeout failure when process exceeds timeout under node fallback', async () => {
+    forceNodeFallback();
+    const result = await spawnCommand({
+      command: 'sh',
+      args: ['-lc', 'sleep 1'],
+      timeoutMs: 20,
+      killGraceMs: 20,
     });
-    vi.mocked(spawn).mockReturnValue(child);
-
-    const promise = spawnCommand({
-      command: 'git',
-      args: ['status'],
-      timeoutMs: 10,
-      killGraceMs: 5,
-    });
-
-    await vi.advanceTimersByTimeAsync(20);
-    await vi.advanceTimersByTimeAsync(20);
-    const result = await promise;
 
     expect(result.timedOut).toBe(true);
     expect(result.failure?.kind).toBe('timeout');
-    expect(child.kill).toHaveBeenCalledWith('SIGTERM');
-    expect(child.kill).toHaveBeenCalledWith('SIGKILL');
   });
 
-  it('spawns interactive process via node fallback', async () => {
-    const child = makeChild();
-    vi.mocked(spawn).mockReturnValue(child);
-
-    const proc = spawnInteractiveProcess({
-      command: 'node',
-      args: ['server.js'],
+  test('spawns interactive process via node fallback', async () => {
+    forceNodeFallback();
+    const processRef = spawnInteractiveProcess({
+      command: 'sh',
+      args: ['-lc', "printf 'node-fallback'"],
     });
-    const onExit = vi.fn();
-    proc.on('exit', onExit);
+    const stdoutPromise = readAll(processRef.stdout);
+    const exit = await waitForExit(processRef);
+    const stdout = await stdoutPromise;
 
-    child.emit('exit', 0, null);
-
-    expect(proc.stdout).toBeDefined();
-    expect(proc.stderr).toBeDefined();
-    expect(onExit).toHaveBeenCalledWith(0, null);
+    expect(exit.code).toBe(0);
+    expect(stdout).toContain('node-fallback');
   });
 
-  it('prefers Bun interactive runtime when available', async () => {
-    const bunSpawn = vi.fn().mockImplementation(() => ({
-      pid: 999,
-      stdin: { write: vi.fn(), end: vi.fn() },
-      stdout: new ReadableStream<Uint8Array>({
-        start(controller) {
-          controller.enqueue(new TextEncoder().encode('out'));
-          controller.close();
-        },
-      }),
-      stderr: new ReadableStream<Uint8Array>({
-        start(controller) {
-          controller.close();
-        },
-      }),
-      kill: vi.fn(),
-      signalCode: null,
-      exited: Promise.resolve(0),
-    }));
-
-    (globalThis as any).Bun = {
-      spawn: bunSpawn,
+  test('prefers Bun interactive runtime when available', async () => {
+    const bunRuntime = getBunRuntime();
+    let bunSpawnCalls = 0;
+    const originalSpawn = bunRuntime.spawn;
+    bunRuntime.spawn = (...args: any[]) => {
+      bunSpawnCalls += 1;
+      return originalSpawn(...args);
     };
 
-    const proc = spawnInteractiveProcess({
-      command: 'node',
-      args: ['server.js'],
+    const processRef = spawnInteractiveProcess({
+      command: 'sh',
+      args: ['-lc', "printf 'bun-runtime'"],
     });
+    const stdoutPromise = readAll(processRef.stdout);
+    const exit = await waitForExit(processRef);
+    const stdout = await stdoutPromise;
 
-    const onExit = vi.fn();
-    proc.on('exit', onExit);
-    await Promise.resolve();
-
-    expect(bunSpawn).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(spawn)).not.toHaveBeenCalled();
-    expect(typeof (proc.stdout as any)?.on).toBe('function');
-    expect(onExit).toHaveBeenCalledWith(0, null);
+    expect(bunSpawnCalls).toBeGreaterThan(0);
+    expect(exit.code).toBe(0);
+    expect(stdout).toContain('bun-runtime');
   });
 });

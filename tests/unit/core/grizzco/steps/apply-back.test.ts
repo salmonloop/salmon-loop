@@ -6,8 +6,6 @@ vi.mock('../../../../../src/core/grizzco/runtime/apply-back-runtime.js', () => (
   runApplyBackPhase: runApplyBackPhaseMock,
 }));
 
-import { runApplyBack } from '../../../../../src/core/grizzco/steps/apply-back.js';
-
 function createCtx(overrides: Record<string, unknown> = {}) {
   return {
     verifyResult: { ok: true },
@@ -40,6 +38,7 @@ describe('apply-back step', () => {
   });
 
   it('skips when verify is not ok', async () => {
+    const { runApplyBack } = await import('../../../../../src/core/grizzco/steps/apply-back.js');
     const result = await runApplyBack(
       createCtx({
         verifyResult: { ok: false },
@@ -55,6 +54,7 @@ describe('apply-back step', () => {
   });
 
   it('skips when dryRun is enabled', async () => {
+    const { runApplyBack } = await import('../../../../../src/core/grizzco/steps/apply-back.js');
     const result = await runApplyBack(
       createCtx({
         options: {
@@ -70,6 +70,7 @@ describe('apply-back step', () => {
   });
 
   it('skips when runtime is missing', async () => {
+    const { runApplyBack } = await import('../../../../../src/core/grizzco/steps/apply-back.js');
     const result = await runApplyBack(
       createCtx({
         applyBackRuntime: undefined,
@@ -81,6 +82,7 @@ describe('apply-back step', () => {
   });
 
   it('skips when strategy is not worktree', async () => {
+    const { runApplyBack } = await import('../../../../../src/core/grizzco/steps/apply-back.js');
     const result = await runApplyBack(
       createCtx({
         options: {
@@ -96,6 +98,7 @@ describe('apply-back step', () => {
   });
 
   it('uses attempt fallback of 1 when attempt is missing', async () => {
+    const { runApplyBack } = await import('../../../../../src/core/grizzco/steps/apply-back.js');
     runApplyBackPhaseMock.mockResolvedValueOnce({
       success: true,
       skipped: false,
@@ -116,6 +119,7 @@ describe('apply-back step', () => {
   });
 
   it('sets lastError when apply-back fails', async () => {
+    const { runApplyBack } = await import('../../../../../src/core/grizzco/steps/apply-back.js');
     runApplyBackPhaseMock.mockResolvedValueOnce({
       success: false,
       skipped: false,

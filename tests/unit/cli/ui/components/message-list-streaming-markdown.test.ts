@@ -2,8 +2,6 @@ import { render } from '@testing-library/react';
 import React from 'react';
 import { vi } from 'vitest';
 
-import { MessageList } from '../../../../../src/cli/ui/components/MessageList.js';
-
 const hoisted = vi.hoisted(() => ({
   markdownSpy: vi.fn(),
 }));
@@ -56,7 +54,8 @@ describe('MessageList streaming rendering', () => {
     hoisted.markdownSpy.mockClear();
   });
 
-  it('does not parse streaming content as Markdown', () => {
+  it('does not parse streaming content as Markdown', async () => {
+    const { MessageList } = await import('../../../../../src/cli/ui/components/MessageList.js');
     const result = render(
       React.createElement(MessageList, {
         markdownTheme: 'default',

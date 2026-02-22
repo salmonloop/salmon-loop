@@ -1,6 +1,6 @@
 import { LoopTelemetry } from '../../../../../../src/core/grizzco/engine/observability/loop-telemetry.js';
 import { FlowTransactionRunner } from '../../../../../../src/core/grizzco/engine/transaction/transaction-runner.js';
-import { executeSalmonLoopFlow } from '../../../../../../src/core/grizzco/flows/SalmonLoopFlow.js';
+import * as salmonFlow from '../../../../../../src/core/grizzco/flows/SalmonLoopFlow.js';
 
 vi.mock('../../../../../../src/core/grizzco/flows/SalmonLoopFlow.js', () => ({
   executeSalmonLoopFlow: vi.fn(),
@@ -37,11 +37,11 @@ function createRunner(emit = vi.fn()) {
 }
 
 describe('transaction-runner', () => {
-  const mockedExecute = vi.mocked(executeSalmonLoopFlow);
+  let mockedExecute: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockedExecute.mockReset();
+    mockedExecute = vi.spyOn(salmonFlow, 'executeSalmonLoopFlow').mockReset();
   });
 
   it('retries only when verify error is retryable and keeps success attempt history clean', async () => {

@@ -1,7 +1,8 @@
+import * as fs from 'fs/promises';
 import * as os from 'os';
+import path from 'path';
 
-import mockFs from 'mock-fs';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 
 import { ArtifactStore } from '../../../src/core/sub-agent/artifacts/store.js';
 import { ToolAuditLogger } from '../../../src/core/tools/audit.js';
@@ -13,16 +14,21 @@ import { ToolRouter } from '../../../src/core/tools/router.js';
 import { ToolSanitizer } from '../../../src/core/tools/sanitize.js';
 
 describe('proposal.apply authorization args summary', () => {
-  afterEach(() => {
-    mockFs.restore();
+  let sandboxTmpDir = '';
+  let originalTmpDir = '';
+
+  beforeEach(async () => {
+    originalTmpDir = process.env.TMPDIR ?? '';
+    sandboxTmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'sl-proposal-apply-'));
+    process.env.TMPDIR = sandboxTmpDir;
   });
 
-  it('includes changedFiles preview for confirmation UX', async () => {
-    const tmp = os.tmpdir();
-    mockFs({
-      [tmp]: {},
-    });
+  afterEach(async () => {
+    process.env.TMPDIR = originalTmpDir;
+    await fs.rm(sandboxTmpDir, { recursive: true, force: true });
+  });
 
+  test('includes changedFiles preview for confirmation UX', async () => {
     const saved = await ArtifactStore.saveText({
       content: `diff --git a/foo.txt b/foo.txt
 index 0000000..1111111 100644
@@ -36,15 +42,15 @@ index 0000000..1111111 100644
       fileExt: 'patch',
     });
 
-    let captured: any;
+    let captured: { argsSummary?: string } | undefined;
 
     const authorizationProvider = {
-      async requestAuthorizationDeferred(request: any) {
+      async requestAuthorizationDeferred(request: { argsSummary?: string }) {
         captured = request;
-        return { kind: 'pending', challenge: 'abc123', message: 'confirm' } as const;
+        return { kind: 'pending', challenge: 'abc123', message: 'confirm' };
       },
       async requestAuthorization() {
-        return { outcome: 'deny', reason: 'not used' } as any;
+        return { outcome: 'deny', reason: 'not used' };
       },
       async waitForAuthorization() {
         return null;
@@ -80,11 +86,8 @@ index 0000000..1111111 100644
     expect(result.status).toBe('denied');
     expect(result.error?.code).toBe('AUTH_REQUIRED');
 
-    expect(captured).not.toBeNull();
-    if (!captured?.argsSummary) {
-      throw new Error('Expected argsSummary to be populated for deferred authorization.');
-    }
-    expect(captured.argsSummary).toContain('changedFiles');
-    expect(captured.argsSummary).toContain('foo.txt');
+    expect(captured).toBeDefined();
+    expect(captured?.argsSummary).toContain('changedFiles');
+    expect(captured?.argsSummary).toContain('foo.txt');
   });
 });

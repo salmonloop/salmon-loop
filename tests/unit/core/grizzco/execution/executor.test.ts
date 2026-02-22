@@ -1,4 +1,3 @@
-import { Executor } from '../../../../../src/core/grizzco/execution/Executor.js';
 import { WorkerFactory } from '../../../../../src/core/grizzco/execution/WorkerFactory.js';
 import { createMockContext } from '../mocks.js';
 
@@ -7,6 +6,7 @@ vi.mock('../../../../../src/core/adapters/fs/index.js', () => ({
   AtomicFileWriter: class {
     writeAtomic = vi.fn();
   },
+  FileAdapter: class {},
 }));
 
 vi.mock('../../../../../src/core/grizzco/execution/RejectionManager.js', () => ({
@@ -17,6 +17,7 @@ vi.mock('../../../../../src/core/grizzco/execution/RejectionManager.js', () => (
 
 describe('Executor', () => {
   it('should execute worker and write result', async () => {
+    const { Executor } = await import('../../../../../src/core/grizzco/execution/Executor.js');
     const mockWorker = {
       execute: vi.fn().mockResolvedValue({
         success: true,
@@ -45,6 +46,7 @@ describe('Executor', () => {
   });
 
   it('should handle worker failure', async () => {
+    const { Executor } = await import('../../../../../src/core/grizzco/execution/Executor.js');
     const mockWorker = {
       execute: vi.fn().mockResolvedValue({
         success: false,

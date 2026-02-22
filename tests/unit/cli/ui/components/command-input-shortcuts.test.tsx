@@ -2,8 +2,6 @@ import { render } from '@testing-library/react';
 import React from 'react';
 import { vi } from 'vitest';
 
-import { CommandInput } from '../../../../../src/cli/ui/components/CommandInput.js';
-
 const hoisted = vi.hoisted(() => ({
   inputHandler: null as ((input: string, key: any) => void) | null,
   textInputProps: null as any,
@@ -68,13 +66,18 @@ vi.mock('../../../../../src/cli/ui/selection/bus.js', () => ({
 }));
 
 describe('CommandInput shortcuts', () => {
+  async function loadCommandInput() {
+    return (await import('../../../../../src/cli/ui/components/CommandInput.js')).CommandInput;
+  }
+
   beforeEach(() => {
     hoisted.inputHandler = null;
     hoisted.textInputProps = null;
     hoisted.dispatch.mockClear();
   });
 
-  it('suppresses Ctrl+T so it does not type into the input', () => {
+  it('suppresses Ctrl+T so it does not type into the input', async () => {
+    const CommandInput = await loadCommandInput();
     const onChange = vi.fn();
     const onSubmit = vi.fn();
 
@@ -96,7 +99,8 @@ describe('CommandInput shortcuts', () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
-  it('allows normal typing', () => {
+  it('allows normal typing', async () => {
+    const CommandInput = await loadCommandInput();
     const onChange = vi.fn();
     const onSubmit = vi.fn();
 

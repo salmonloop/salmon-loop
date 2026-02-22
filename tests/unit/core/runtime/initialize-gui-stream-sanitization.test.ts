@@ -1,18 +1,16 @@
-import { describe, expect, it, vi } from 'vitest';
-
 import { initializeRuntime } from '../../../../src/core/runtime/initialize.js';
 
 describe('initializeRuntime (gui stream sanitization)', () => {
-  it('redacts large AI SDK-style error dumps written directly to stderr in gui mode', () => {
+  test('redacts large AI SDK-style error dumps written directly to stderr in gui mode', () => {
     const originalArgv = process.argv.slice();
     const originalDebug = process.env.SALMONLOOP_DEBUG;
     const originalWrite = process.stderr.write;
 
     const writes: string[] = [];
-    (process.stderr as any).write = vi.fn((chunk: any) => {
+    (process.stderr as any).write = (chunk: any) => {
       writes.push(Buffer.isBuffer(chunk) ? chunk.toString('utf-8') : String(chunk));
       return true;
-    });
+    };
 
     try {
       process.env.SALMONLOOP_DEBUG = 'false';
@@ -39,16 +37,16 @@ describe('initializeRuntime (gui stream sanitization)', () => {
     }
   });
 
-  it('drops AI_RetryError retry summaries in gui mode', () => {
+  test('drops AI_RetryError retry summaries in gui mode', () => {
     const originalArgv = process.argv.slice();
     const originalDebug = process.env.SALMONLOOP_DEBUG;
     const originalWrite = process.stdout.write;
 
     const writes: string[] = [];
-    (process.stdout as any).write = vi.fn((chunk: any) => {
+    (process.stdout as any).write = (chunk: any) => {
       writes.push(Buffer.isBuffer(chunk) ? chunk.toString('utf-8') : String(chunk));
       return true;
-    });
+    };
 
     try {
       process.env.SALMONLOOP_DEBUG = 'false';

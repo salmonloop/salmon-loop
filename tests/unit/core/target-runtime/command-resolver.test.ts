@@ -1,5 +1,3 @@
-import { describe, expect, it } from 'vitest';
-
 import {
   resolveNodeVerifyCommand,
   resolveScriptCommand,
@@ -18,7 +16,7 @@ function makeProfile(
 }
 
 describe('resolveScriptCommand', () => {
-  it('resolves script command for bun', () => {
+  test('resolves script command for bun', () => {
     const profile = makeProfile('bun', { test: 'vitest run' });
     expect(resolveScriptCommand(profile, 'test')).toEqual({
       packageManager: 'bun',
@@ -29,7 +27,7 @@ describe('resolveScriptCommand', () => {
     });
   });
 
-  it('resolves script command for npm', () => {
+  test('resolves script command for npm', () => {
     const profile = makeProfile('npm', { lint: 'eslint .' });
     expect(resolveScriptCommand(profile, 'lint')).toEqual({
       packageManager: 'npm',
@@ -40,7 +38,7 @@ describe('resolveScriptCommand', () => {
     });
   });
 
-  it('resolves script command for pnpm', () => {
+  test('resolves script command for pnpm', () => {
     const profile = makeProfile('pnpm', { test: 'vitest run' });
     expect(resolveScriptCommand(profile, 'test')).toEqual({
       packageManager: 'pnpm',
@@ -51,7 +49,7 @@ describe('resolveScriptCommand', () => {
     });
   });
 
-  it('resolves script command for yarn', () => {
+  test('resolves script command for yarn', () => {
     const profile = makeProfile('yarn', { test: 'vitest run' });
     expect(resolveScriptCommand(profile, 'test')).toEqual({
       packageManager: 'yarn',
@@ -62,19 +60,19 @@ describe('resolveScriptCommand', () => {
     });
   });
 
-  it('returns undefined for missing script', () => {
+  test('returns undefined for missing script', () => {
     const profile = makeProfile('npm', { lint: 'eslint .' });
     expect(resolveScriptCommand(profile, 'test')).toBeUndefined();
   });
 });
 
 describe('resolveNodeVerifyCommand', () => {
-  it('returns test command when test script exists', () => {
+  test('returns test command when test script exists', () => {
     const profile = makeProfile('pnpm', { test: 'vitest run' });
     expect(resolveNodeVerifyCommand(profile)).toBe('pnpm run test');
   });
 
-  it('returns undefined when test script is missing', () => {
+  test('returns undefined when test script is missing', () => {
     const profile = makeProfile('pnpm', { lint: 'eslint .' });
     expect(resolveNodeVerifyCommand(profile)).toBeUndefined();
   });

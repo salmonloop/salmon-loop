@@ -183,13 +183,12 @@ describe('handleRunCommand GUI mode', () => {
   beforeEach(() => {
     hoisted.standardReporterCtor.mockClear();
     hoisted.startGuiCalled.mockClear();
-    exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
-      throw new Error(`process.exit:${code ?? 0}`);
-    }) as any);
+    exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => undefined as never) as any);
   });
 
   afterEach(() => {
     exitSpy?.mockRestore();
+    process.exitCode = 0;
     if (originalIsTTY) {
       Object.defineProperty(process.stdout, 'isTTY', originalIsTTY);
     }

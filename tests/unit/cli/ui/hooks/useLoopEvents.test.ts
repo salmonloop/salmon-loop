@@ -1,8 +1,6 @@
 import { act, renderHook } from '@testing-library/react';
 import { vi } from 'vitest';
 
-import { useLoopEvents } from '../../../../../src/cli/ui/hooks/useLoopEvents.js';
-
 const hoisted = vi.hoisted(() => ({
   dispatch: vi.fn(),
 }));
@@ -12,6 +10,10 @@ vi.mock('../../../../../src/cli/ui/store/context.js', () => ({
 }));
 
 describe('useLoopEvents', () => {
+  async function loadUseLoopEvents() {
+    return (await import('../../../../../src/cli/ui/hooks/useLoopEvents.js')).useLoopEvents;
+  }
+
   beforeEach(() => {
     hoisted.dispatch.mockClear();
     vi.useFakeTimers();
@@ -21,7 +23,8 @@ describe('useLoopEvents', () => {
     vi.useRealTimers();
   });
 
-  it('aggregates llm.stream.delta as APPEND_LLM_STREAM in chat mode', () => {
+  it('aggregates llm.stream.delta as APPEND_LLM_STREAM in chat mode', async () => {
+    const useLoopEvents = await loadUseLoopEvents();
     const onStart = vi.fn();
     const signal = new AbortController().signal;
     const { result } = renderHook(() => useLoopEvents('chat', onStart, signal));
@@ -50,7 +53,8 @@ describe('useLoopEvents', () => {
     });
   });
 
-  it('registers run callback and routes stream delta through APPEND_LLM_STREAM', () => {
+  it('registers run callback and routes stream delta through APPEND_LLM_STREAM', async () => {
+    const useLoopEvents = await loadUseLoopEvents();
     const signal = new AbortController().signal;
     let capturedHandler: ((event: any) => void) | undefined;
     const onStart = vi.fn((handler: (event: any) => void) => {
@@ -86,7 +90,8 @@ describe('useLoopEvents', () => {
     });
   });
 
-  it('dispatches SET_STATUS_BANNER for ui.status set events', () => {
+  it('dispatches SET_STATUS_BANNER for ui.status set events', async () => {
+    const useLoopEvents = await loadUseLoopEvents();
     const onStart = vi.fn();
     const signal = new AbortController().signal;
     const { result } = renderHook(() => useLoopEvents('chat', onStart, signal));
@@ -107,7 +112,8 @@ describe('useLoopEvents', () => {
     });
   });
 
-  it('dispatches CLEAR_STATUS_BANNER for ui.status clear events', () => {
+  it('dispatches CLEAR_STATUS_BANNER for ui.status clear events', async () => {
+    const useLoopEvents = await loadUseLoopEvents();
     const onStart = vi.fn();
     const signal = new AbortController().signal;
     const { result } = renderHook(() => useLoopEvents('chat', onStart, signal));
@@ -123,7 +129,8 @@ describe('useLoopEvents', () => {
     expect(hoisted.dispatch).toHaveBeenCalledWith({ type: 'CLEAR_STATUS_BANNER' });
   });
 
-  it('dispatches a warning message for retry events', () => {
+  it('dispatches a warning message for retry events', async () => {
+    const useLoopEvents = await loadUseLoopEvents();
     const onStart = vi.fn();
     const signal = new AbortController().signal;
     const { result } = renderHook(() => useLoopEvents('chat', onStart, signal));
@@ -151,7 +158,8 @@ describe('useLoopEvents', () => {
     );
   });
 
-  it('does not complete stream when handling non-stream events', () => {
+  it('does not complete stream when handling non-stream events', async () => {
+    const useLoopEvents = await loadUseLoopEvents();
     const onStart = vi.fn();
     const signal = new AbortController().signal;
     const { result } = renderHook(() => useLoopEvents('chat', onStart, signal));
@@ -185,7 +193,8 @@ describe('useLoopEvents', () => {
     );
   });
 
-  it('flushes and completes stream on llm.stream.end', () => {
+  it('flushes and completes stream on llm.stream.end', async () => {
+    const useLoopEvents = await loadUseLoopEvents();
     const onStart = vi.fn();
     const signal = new AbortController().signal;
     const { result } = renderHook(() => useLoopEvents('chat', onStart, signal));

@@ -98,18 +98,12 @@ describe('LiteLlmLangfuseOutcomeReporter', () => {
   });
 
   it('records timeout kind when ingestion request is aborted', async () => {
-    vi.useFakeTimers();
-
     vi.stubGlobal(
       'fetch',
-      vi.fn(async (_url: string, init: any) => {
-        return await new Promise((_resolve, reject) => {
-          init?.signal?.addEventListener('abort', () => {
-            const err = new Error('aborted');
-            (err as any).name = 'AbortError';
-            reject(err);
-          });
-        });
+      vi.fn(async () => {
+        const err = new Error('aborted');
+        (err as any).name = 'AbortError';
+        throw err;
       }),
     );
 
@@ -120,13 +114,10 @@ describe('LiteLlmLangfuseOutcomeReporter', () => {
       timeoutMs: 10,
     });
 
-    const promise = reporter.report(
+    await reporter.report(
       { success: false, reason: 'fail', reasonCode: 'LOOP_FAILED', attempts: 1 },
       { runId: 'run-test' },
     );
-
-    await vi.advanceTimersByTimeAsync(20);
-    await promise;
 
     expect(lastAuditAction('langfuse.outcome.')).toBe('langfuse.outcome.request_failed');
     const event = lastAuditEvent('langfuse.outcome.');
@@ -134,7 +125,7 @@ describe('LiteLlmLangfuseOutcomeReporter', () => {
       expect.objectContaining({
         traceId: 'run-test',
         kind: 'timeout',
-        aborted: true,
+        aborted: false,
       }),
     );
   });

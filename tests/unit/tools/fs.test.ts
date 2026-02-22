@@ -6,7 +6,10 @@ import { executeFsReadFile, fsReadFileSpec } from '../../../src/core/tools/built
 import { registerAllBuiltins } from '../../../src/core/tools/builtin/index.js';
 import { ToolRegistry } from '../../../src/core/tools/registry.js';
 
-vi.mock('fs/promises');
+vi.mock('fs/promises', () => ({
+  readFile: vi.fn(),
+  stat: vi.fn(),
+}));
 
 describe('Builtin Tool: fs.read_file', () => {
   const repoRoot = '/fake/repo';

@@ -2,8 +2,6 @@ import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-
 import { detectNodeRuntimeProfile } from '../../../../src/core/target-runtime/profile.js';
 
 describe('detectNodeRuntimeProfile', () => {
@@ -19,11 +17,11 @@ describe('detectNodeRuntimeProfile', () => {
     }
   });
 
-  it('returns undefined when package.json is missing', async () => {
+  test('returns undefined when package.json is missing', async () => {
     expect(await detectNodeRuntimeProfile(repoPath)).toBeUndefined();
   });
 
-  it('prefers packageManager field over lockfiles', async () => {
+  test('prefers packageManager field over lockfiles', async () => {
     await fs.writeFile(
       path.join(repoPath, 'package.json'),
       JSON.stringify(
@@ -45,7 +43,7 @@ describe('detectNodeRuntimeProfile', () => {
     expect(profile?.source).toBe('packageManager');
   });
 
-  it('detects package manager from lockfile', async () => {
+  test('detects package manager from lockfile', async () => {
     await fs.writeFile(
       path.join(repoPath, 'package.json'),
       JSON.stringify({ scripts: { test: 'vitest run' } }, null, 2),
@@ -59,7 +57,7 @@ describe('detectNodeRuntimeProfile', () => {
     expect(profile?.source).toBe('lockfile');
   });
 
-  it('defaults to npm when no package manager hint exists', async () => {
+  test('defaults to npm when no package manager hint exists', async () => {
     await fs.writeFile(
       path.join(repoPath, 'package.json'),
       JSON.stringify({ scripts: { test: 'vitest run' } }, null, 2),
@@ -72,7 +70,7 @@ describe('detectNodeRuntimeProfile', () => {
     expect(profile?.source).toBe('default');
   });
 
-  it('drops non-string scripts while keeping valid scripts', async () => {
+  test('drops non-string scripts while keeping valid scripts', async () => {
     await fs.writeFile(
       path.join(repoPath, 'package.json'),
       JSON.stringify(
@@ -95,7 +93,7 @@ describe('detectNodeRuntimeProfile', () => {
     });
   });
 
-  it('returns undefined when package.json is invalid', async () => {
+  test('returns undefined when package.json is invalid', async () => {
     await fs.writeFile(path.join(repoPath, 'package.json'), '{ invalid-json', 'utf-8');
 
     expect(await detectNodeRuntimeProfile(repoPath)).toBeUndefined();

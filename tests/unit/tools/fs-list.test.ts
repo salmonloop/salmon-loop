@@ -5,7 +5,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { registerAllBuiltins } from '../../../src/core/tools/builtin/index.js';
 import { ToolRegistry } from '../../../src/core/tools/registry.js';
 
-vi.mock('fs/promises');
+vi.mock('fs/promises', () => ({
+  readdir: vi.fn(),
+}));
 
 describe('Builtin Tool: fs.list', () => {
   const repoRoot = '/fake/repo';

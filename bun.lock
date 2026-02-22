@@ -36,7 +36,6 @@
         "@testing-library/react": "^16.3.2",
         "@types/marked": "^6.0.0",
         "@types/marked-terminal": "^6.1.1",
-        "@types/mock-fs": "^4.13.4",
         "@types/node": "^20.0.0",
         "@types/progress": "^2.0.7",
         "@types/react": "^19.2.10",
@@ -50,7 +49,6 @@
         "eslint-plugin-import": "^2.32.0",
         "eslint-plugin-prettier": "^5.5.5",
         "jsdom": "^27.4.0",
-        "mock-fs": "^5.5.0",
         "prettier": "^3.4.2",
         "react-devtools-core": "^7.0.1",
         "simple-git": "^3.30.0",
@@ -336,8 +334,6 @@
     "@types/marked": ["@types/marked@6.0.0", "https://registry.npmmirror.com/@types/marked/-/marked-6.0.0.tgz", { "dependencies": { "marked": "17.0.1" } }, "sha512-jmjpa4BwUsmhxcfsgUit/7A9KbrC48Q0q8KvnY107ogcjGgTFDlIL3RpihNpx2Mu1hM4mdFQjoVc4O6JoGKHsA=="],
 
     "@types/marked-terminal": ["@types/marked-terminal@6.1.1", "https://registry.npmmirror.com/@types/marked-terminal/-/marked-terminal-6.1.1.tgz", { "dependencies": { "@types/cardinal": "2.1.1", "@types/node": "20.19.30", "chalk": "5.6.2", "marked": "11.2.0" } }, "sha512-DfoUqkmFDCED7eBY9vFUhJ9fW8oZcMAK5EwRDQ9drjTbpQa+DnBTQQCwWhTFVf4WsZ6yYcJTI8D91wxTWXRZZQ=="],
-
-    "@types/mock-fs": ["@types/mock-fs@4.13.4", "https://registry.npmmirror.com/@types/mock-fs/-/mock-fs-4.13.4.tgz", { "dependencies": { "@types/node": "20.19.30" } }, "sha512-mXmM0o6lULPI8z3XNnQCpL0BGxPwx1Ul1wXYEPBGl4efShyxW2Rln0JOPEWGyZaYZMM6OVXM/15zUuFMY52ljg=="],
 
     "@types/node": ["@types/node@20.19.30", "https://registry.npmmirror.com/@types/node/-/node-20.19.30.tgz", { "dependencies": { "undici-types": "6.21.0" } }, "sha512-WJtwWJu7UdlvzEAUm484QNg5eAoq5QR08KDNx7g45Usrs2NtOPiX8ugDqmKdXkyL03rBqU5dYNYVQetEpBHq2g=="],
 
@@ -896,8 +892,6 @@
     "minimist": ["minimist@1.2.8", "https://registry.npmmirror.com/minimist/-/minimist-1.2.8.tgz", {}, "sha512-2yyAR8qBkN3YuheJanUpWC5U3bb5osDywNB8RzDVlDwDHbocAJveqqj1u8+SVD7jkWT4yvsHCpWqqWqAxb0zCA=="],
 
     "mlly": ["mlly@1.8.0", "https://registry.npmmirror.com/mlly/-/mlly-1.8.0.tgz", { "dependencies": { "acorn": "8.15.0", "pathe": "2.0.3", "pkg-types": "1.3.1", "ufo": "1.6.3" } }, "sha512-l8D9ODSRWLe2KHJSifWGwBqpTZXIXTeo8mlKjY+E2HAakaTeNpqAyBZ8GSqLzHgw4XmHmC8whvpjJNMbFZN7/g=="],
-
-    "mock-fs": ["mock-fs@5.5.0", "https://registry.npmmirror.com/mock-fs/-/mock-fs-5.5.0.tgz", {}, "sha512-d/P1M/RacgM3dB0sJ8rjeRNXxtapkPCUnMGmIN0ixJ16F/E4GUZCvWcSGfWGz8eaXYvn1s9baUwNjI4LOPEjiA=="],
 
     "ms": ["ms@2.1.3", "https://registry.npmmirror.com/ms/-/ms-2.1.3.tgz", {}, "sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA=="],
 

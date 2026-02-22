@@ -2,7 +2,6 @@ import { render, waitFor } from '@testing-library/react';
 import React from 'react';
 import { vi } from 'vitest';
 
-import { AppCore } from '../../../../src/cli/ui/App.js';
 import { UIStoreProvider, useUIStore } from '../../../../src/cli/ui/store/context.js';
 
 vi.mock('ink', () => ({
@@ -62,6 +61,7 @@ vi.mock('../../../../src/cli/commands/registry.js', () => ({
 
 describe('chat UI', () => {
   it('does not duplicate the user message (AppCore does not add it)', async () => {
+    const { AppCore } = await import('../../../../src/cli/ui/App.js');
     const onChatInput = vi.fn(async () => ({}));
 
     let observedState: any = null;

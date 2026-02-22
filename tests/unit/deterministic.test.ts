@@ -36,12 +36,11 @@ vi.mock('../../src/core/ast/index.js', () => ({
   getTopLevelNodes: vi.fn().mockReturnValue([]),
   getNodeName: vi.fn(),
 }));
-vi.mock('../../src/core/verification/runner.js', async () => {
-  const actual = await vi.importActual('../../src/core/verification/runner.js');
+vi.mock('../../src/core/verification/runner.js', () => {
   return {
-    ...actual,
     runVerify: vi.fn(),
     preflight: vi.fn(),
+    classifyError: vi.fn(),
   };
 });
 

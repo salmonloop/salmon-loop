@@ -17,10 +17,12 @@ vi.mock('child_process', () => ({
   spawn: vi.fn((...args: any[]) => spawnMock(...args)),
 }));
 
-vi.mock('fs/promises', async (importOriginal) => {
-  const actual: any = await importOriginal();
+vi.mock('../../src/core/adapters/git/git-runner.js', () => ({
+  runGitCommand: vi.fn(),
+}));
+
+vi.mock('fs/promises', () => {
   return {
-    ...actual,
     open: vi.fn(async (filePath: string, flags: string) => {
       if (
         typeof filePath === 'string' &&
@@ -49,11 +51,11 @@ vi.mock('fs/promises', async (importOriginal) => {
       if (typeof filePath === 'string' && filePath.endsWith('.salmonloop.lock')) {
         mockLocks.delete(filePath);
         mockLockContents.delete(filePath);
-        return;
+        return undefined;
       }
-      return actual.unlink(filePath);
+      return undefined;
     }),
-    readFile: vi.fn(async (filePath: string, encoding: any) => {
+    readFile: vi.fn(async (filePath: string, _encoding: any) => {
       if (typeof filePath === 'string' && filePath.endsWith('.salmonloop.lock')) {
         return (
           mockLockContents.get(filePath) ??
@@ -64,16 +66,16 @@ vi.mock('fs/promises', async (importOriginal) => {
           })
         );
       }
-      return actual.readFile(filePath, encoding);
+      return '';
     }),
     stat: vi.fn(async (filePath: string) => {
       if (typeof filePath === 'string' && filePath.endsWith('.salmonloop.lock')) {
         return { mtimeMs: Date.now() };
       }
-      return actual.stat(filePath);
+      return { mtimeMs: Date.now() };
     }),
-    mkdir: vi.fn(async (...args: any[]) => actual.mkdir(...args)),
-    rm: vi.fn(async (...args: any[]) => actual.rm(...args)),
+    mkdir: vi.fn(async () => undefined),
+    rm: vi.fn(async () => undefined),
     writeFile: vi.fn(async () => undefined),
   };
 });
@@ -140,6 +142,7 @@ describe('Race Conditions & Concurrency', () => {
   describe('File Locking Concurrency', () => {
     it('should prevent concurrent applyPatch calls on the same repo', async () => {
       const { GitAdapter } = await import('../../src/core/adapters/git/git-adapter.js');
+      const { runGitCommand } = await import('../../src/core/adapters/git/git-runner.js');
       const adapter = new GitAdapter('virtual-repo');
 
       const patch =
@@ -149,30 +152,29 @@ describe('Race Conditions & Concurrency', () => {
       let maxActive = 0;
       const executions: Array<{ id: number; start: number; end: number }> = [];
 
-      const closeDelayMs = 20;
-
-      spawnMock.mockImplementation((_command, _args, _options) => {
+      const runGit = vi.mocked(runGitCommand);
+      runGit.mockImplementation(async () => {
         const id = executions.length;
         activeCount++;
         maxActive = Math.max(maxActive, activeCount);
         const startTime = Date.now();
         executions.push({ id, start: startTime, end: 0 });
 
+        await new Promise((resolve) => setTimeout(resolve, 20));
+
+        executions[id].end = Date.now();
+        activeCount--;
+
         return {
-          stdout: { on: vi.fn() },
-          stderr: { on: vi.fn() },
-          stdin: { write: vi.fn(), end: vi.fn() },
-          on: (event: string, cb: any) => {
-            if (event === 'close') {
-              setTimeout(() => {
-                executions[id].end = Date.now();
-                activeCount--;
-                if (typeof cb === 'function') cb(0);
-              }, closeDelayMs);
-            }
-          },
-          kill: vi.fn(),
-        } as any;
+          ok: true,
+          code: 0,
+          signal: null,
+          stdout: Buffer.from(''),
+          stderr: '',
+          timedOut: false,
+          stdoutTruncated: false,
+          stderrTruncated: false,
+        };
       });
 
       const errors: any[] = [];

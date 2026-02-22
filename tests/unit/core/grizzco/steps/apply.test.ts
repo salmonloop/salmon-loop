@@ -1,6 +1,5 @@
 import { OpType } from '../../../../../src/core/grizzco/domain/grizzco-types.js';
 import { registry } from '../../../../../src/core/grizzco/services/registry.js';
-import { runApply } from '../../../../../src/core/grizzco/steps/apply.js';
 import { createMockContext } from '../mocks.js';
 
 // Mock dependencies to avoid side effects
@@ -32,6 +31,7 @@ describe('Apply Step (MicroOrchestrator)', () => {
   });
 
   it('should resolve data requirements via registry', async () => {
+    const { runApply } = await import('../../../../../src/core/grizzco/steps/apply.js');
     // 1. Setup Spies
     const mockService = {
       id: 'remote_lock',

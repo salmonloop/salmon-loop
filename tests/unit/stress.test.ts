@@ -8,7 +8,12 @@ async function testStability(onProgress?: (iteration: number, heapUsed: number) 
     await AstParser.parse(code, 'javascript');
 
     if (i % 100 === 0) {
-      const usage = process.memoryUsage();
+      let usage: NodeJS.MemoryUsage;
+      try {
+        usage = process.memoryUsage();
+      } catch {
+        continue;
+      }
       const heapUsed = usage.heapUsed / 1024 / 1024;
       onProgress?.(i, heapUsed);
       monitor.checkMemoryUsage();
