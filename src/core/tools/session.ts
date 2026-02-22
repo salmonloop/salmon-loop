@@ -11,6 +11,7 @@ import {
   type CanonicalStreamPart,
 } from '../streaming/canonical/canonical-responses-event-emitter.js';
 import { mapLlmStreamChunkToCanonicalStreamParts } from '../streaming/canonical/parts-from-llm-stream-chunk.js';
+import type { CanonicalResponsesEvent } from '../streaming/canonical/responses-events.js';
 import type {
   ChatOptions,
   ExecutionStep,
@@ -202,6 +203,31 @@ function groupNewFunctionCallPartsByCallId(params: {
   }
 
   return out;
+}
+
+function emitCanonicalResponsesEvents(params: {
+  emit: (event: LoopEvent) => void;
+  llmOutput: { kind: LlmOutputKind; step: ExecutionStep };
+  streamId: string;
+  phase: ExecutionPhase;
+  round: number;
+  source: 'provider' | 'synthesized';
+  events: CanonicalResponsesEvent[];
+  timestamp: Date;
+}): void {
+  for (const event of params.events) {
+    params.emit({
+      type: 'llm.responses.event',
+      kind: params.llmOutput.kind,
+      step: params.llmOutput.step,
+      streamId: params.streamId,
+      phase: params.phase,
+      round: params.round,
+      source: params.source,
+      event,
+      timestamp: params.timestamp,
+    });
+  }
 }
 
 /**
@@ -940,254 +966,252 @@ export async function chatWithToolsStreaming(
     const canonicalEmitter = getCanonicalEmitter(streamId);
 
     try {
-      const stream = session.llm.chatStream(messages, {
-        ...chatOptions,
-        tools: openAITools,
-        toolSpecs: allowedSpecs,
-        toolChoice: openAITools.length > 0 ? 'auto' : undefined,
-      });
+      try {
+        const stream = session.llm.chatStream(messages, {
+          ...chatOptions,
+          tools: openAITools,
+          toolSpecs: allowedSpecs,
+          toolChoice: openAITools.length > 0 ? 'auto' : undefined,
+        });
 
-      for await (const chunk of stream) {
-        if (canonicalEmitter && session.emit && session.llmOutput) {
-          const parts = mapLlmStreamChunkToCanonicalStreamParts({ streamId, chunk });
-          const at = new Date();
-          const source = chunk.source ?? 'provider';
-          const toolPartsByCallId = groupNewFunctionCallPartsByCallId({
-            parts,
-            alreadyEmittedCallIds: emittedModelToolCallIds,
-          });
+        for await (const chunk of stream) {
+          if (canonicalEmitter && session.emit && session.llmOutput) {
+            const parts = mapLlmStreamChunkToCanonicalStreamParts({ streamId, chunk });
+            const at = new Date();
+            const source = chunk.source ?? 'provider';
+            const toolPartsByCallId = groupNewFunctionCallPartsByCallId({
+              parts,
+              alreadyEmittedCallIds: emittedModelToolCallIds,
+            });
 
-          for (const [callId, callParts] of toolPartsByCallId) {
-            for (const part of callParts) {
-              const events = canonicalEmitter.push(part);
-              for (const event of events) {
-                session.emit({
-                  type: 'llm.responses.event',
-                  kind: session.llmOutput.kind,
-                  step: session.llmOutput.step,
+            for (const [callId, callParts] of toolPartsByCallId) {
+              for (const part of callParts) {
+                const events = canonicalEmitter.push(part);
+                emitCanonicalResponsesEvents({
+                  emit: session.emit,
+                  llmOutput: session.llmOutput,
                   streamId,
                   phase,
                   round,
                   source,
-                  event,
+                  events,
                   timestamp: at,
                 });
               }
+              emittedModelToolCallIds.add(callId);
             }
-            emittedModelToolCallIds.add(callId);
+          }
+
+          if (typeof chunk?.contentDelta === 'string' && chunk.contentDelta) {
+            if (session.llmOutput) {
+              emitLlmStreamDelta({
+                emit: session.emit,
+                policy: session.llmOutput.policy,
+                kind: session.llmOutput.kind,
+                step: session.llmOutput.step,
+                streamId,
+                content: chunk.contentDelta,
+              });
+            }
+            content += chunk.contentDelta;
+          }
+          toolCalls.append(chunk);
+          if (chunk?.done) {
+            finishReason = chunk.finishReason;
+            if (
+              chunk.usage &&
+              typeof chunk.usage.promptTokens === 'number' &&
+              typeof chunk.usage.completionTokens === 'number'
+            ) {
+              finishUsage = chunk.usage;
+            }
+            break;
           }
         }
+      } catch (e) {
+        recordAuditEvent(
+          'llm.round',
+          {
+            status: 'error',
+            streamed: true,
+            usedFallback: false,
+            phase,
+            round,
+            model: session.runtime.model,
+            durationMs: Date.now() - roundStartedAt,
+            provider: extractProvider(e),
+            statusCode: extractStatusCode(e),
+            networkCode: extractNetworkCode(e),
+            errorName: e instanceof Error ? e.name : 'UnknownError',
+            errorCode:
+              typeof (e as any)?.llmCode === 'string'
+                ? (e as any).llmCode
+                : typeof (e as any)?.code === 'string'
+                  ? (e as any).code
+                  : undefined,
+          },
+          { source: 'llm', severity: 'low', scope: 'session', phase },
+        );
+        throw e;
+      }
 
-        if (typeof chunk?.contentDelta === 'string' && chunk.contentDelta) {
-          if (session.llmOutput) {
-            emitLlmStreamDelta({
-              emit: session.emit,
-              policy: session.llmOutput.policy,
-              kind: session.llmOutput.kind,
-              step: session.llmOutput.step,
+      if (finishUsage) {
+        recordAuditEvent(
+          'llm.usage',
+          {
+            promptTokens: finishUsage.promptTokens,
+            completionTokens: finishUsage.completionTokens,
+          },
+          { source: 'llm', severity: 'low', scope: 'session', phase },
+        );
+      }
+
+      let collectedToolCalls = toolCalls.drain();
+      let finalContent = content;
+
+      // Some providers/models occasionally end a stream without emitting any deltas. When this happens,
+      // fall back to a single non-streaming call so downstream steps don't see an empty response.
+      if (finalContent.trim() === '' && collectedToolCalls.length === 0) {
+        recordAuditEvent(
+          'llm.stream.empty_fallback',
+          { phase, round },
+          { source: 'llm', severity: 'low', scope: 'session', phase },
+        );
+
+        usedFallback = true;
+        const fallback = await session.llm.chat(messages, {
+          ...chatOptions,
+          tools: openAITools,
+          toolSpecs: allowedSpecs,
+          toolChoice: openAITools.length > 0 ? 'auto' : undefined,
+        });
+
+        finalContent = fallback.content || '';
+        const fallbackCalls = Array.isArray(fallback.tool_calls) ? fallback.tool_calls : [];
+        collectedToolCalls = fallbackCalls;
+
+        if (session.llmOutput && finalContent) {
+          emitLlmOutput({
+            emit: session.emit,
+            policy: session.llmOutput.policy,
+            kind: session.llmOutput.kind,
+            step: session.llmOutput.step,
+            content: finalContent,
+          });
+        }
+      }
+
+      if (session.emit && session.llmOutput && collectedToolCalls.length > 0) {
+        const seenDoneIds = new Set<string>();
+        for (const call of collectedToolCalls) {
+          const callId = call?.id;
+          const toolName = call?.function?.name;
+          const argsText = call?.function?.arguments;
+          if (typeof callId !== 'string' || !callId) continue;
+          if (typeof toolName !== 'string' || !toolName) continue;
+          if (seenDoneIds.has(callId)) continue;
+          seenDoneIds.add(callId);
+
+          if (!emittedModelToolCallIds.has(callId)) {
+            emittedModelToolCallIds.add(callId);
+            const at = new Date();
+            const startEvents = canonicalEmitter?.push({
+              type: 'function_call.start',
               streamId,
-              content: chunk.contentDelta,
+              callId,
+              name: toolName,
+            });
+            const argEvents = canonicalEmitter?.push({
+              type: 'function_call_arguments.done',
+              streamId,
+              callId,
+              name: toolName,
+              arguments: typeof argsText === 'string' ? argsText : '{}',
+            });
+
+            const all = [...(startEvents ?? []), ...(argEvents ?? [])];
+            emitCanonicalResponsesEvents({
+              emit: session.emit,
+              llmOutput: session.llmOutput,
+              streamId,
+              phase,
+              round,
+              source: 'synthesized',
+              events: all,
+              timestamp: at,
             });
           }
-          content += chunk.contentDelta;
-        }
-        toolCalls.append(chunk);
-        if (chunk?.done) {
-          finishReason = chunk.finishReason;
-          if (
-            chunk.usage &&
-            typeof chunk.usage.promptTokens === 'number' &&
-            typeof chunk.usage.completionTokens === 'number'
-          ) {
-            finishUsage = chunk.usage;
-          }
-          break;
-        }
-      }
-    } catch (e) {
-      recordAuditEvent(
-        'llm.round',
-        {
-          status: 'error',
-          streamed: true,
-          usedFallback: false,
-          phase,
-          round,
-          model: session.runtime.model,
-          durationMs: Date.now() - roundStartedAt,
-          provider: extractProvider(e),
-          statusCode: extractStatusCode(e),
-          networkCode: extractNetworkCode(e),
-          errorName: e instanceof Error ? e.name : 'UnknownError',
-          errorCode:
-            typeof (e as any)?.llmCode === 'string'
-              ? (e as any).llmCode
-              : typeof (e as any)?.code === 'string'
-                ? (e as any).code
-                : undefined,
-        },
-        { source: 'llm', severity: 'low', scope: 'session', phase },
-      );
-      throw e;
-    }
 
-    if (finishUsage) {
-      recordAuditEvent(
-        'llm.usage',
-        {
-          promptTokens: finishUsage.promptTokens,
-          completionTokens: finishUsage.completionTokens,
-        },
-        { source: 'llm', severity: 'low', scope: 'session', phase },
-      );
-    }
-
-    let collectedToolCalls = toolCalls.drain();
-    let finalContent = content;
-
-    // Some providers/models occasionally end a stream without emitting any deltas. When this happens,
-    // fall back to a single non-streaming call so downstream steps don't see an empty response.
-    if (finalContent.trim() === '' && collectedToolCalls.length === 0) {
-      recordAuditEvent(
-        'llm.stream.empty_fallback',
-        { phase, round },
-        { source: 'llm', severity: 'low', scope: 'session', phase },
-      );
-
-      usedFallback = true;
-      const fallback = await session.llm.chat(messages, {
-        ...chatOptions,
-        tools: openAITools,
-        toolSpecs: allowedSpecs,
-        toolChoice: openAITools.length > 0 ? 'auto' : undefined,
-      });
-
-      finalContent = fallback.content || '';
-      const fallbackCalls = Array.isArray(fallback.tool_calls) ? fallback.tool_calls : [];
-      collectedToolCalls = fallbackCalls;
-
-      if (session.llmOutput && finalContent) {
-        emitLlmOutput({
-          emit: session.emit,
-          policy: session.llmOutput.policy,
-          kind: session.llmOutput.kind,
-          step: session.llmOutput.step,
-          content: finalContent,
-        });
-      }
-    }
-
-    if (session.emit && session.llmOutput && collectedToolCalls.length > 0) {
-      const seenDoneIds = new Set<string>();
-      for (const call of collectedToolCalls) {
-        const callId = call?.id;
-        const toolName = call?.function?.name;
-        const argsText = call?.function?.arguments;
-        if (typeof callId !== 'string' || !callId) continue;
-        if (typeof toolName !== 'string' || !toolName) continue;
-        if (seenDoneIds.has(callId)) continue;
-        seenDoneIds.add(callId);
-
-        if (!emittedModelToolCallIds.has(callId)) {
-          emittedModelToolCallIds.add(callId);
-          const at = new Date();
-          const startEvents = canonicalEmitter?.push({
-            type: 'function_call.start',
-            streamId,
-            callId,
-            name: toolName,
-          });
-          const argEvents = canonicalEmitter?.push({
-            type: 'function_call_arguments.done',
+          const doneAt = new Date();
+          const doneEvents = canonicalEmitter?.push({
+            type: 'function_call.done',
             streamId,
             callId,
             name: toolName,
             arguments: typeof argsText === 'string' ? argsText : '{}',
           });
-
-          const all = [...(startEvents ?? []), ...(argEvents ?? [])];
-          for (const event of all) {
-            session.emit({
-              type: 'llm.responses.event',
-              kind: session.llmOutput.kind,
-              step: session.llmOutput.step,
-              streamId,
-              phase,
-              round,
-              source: 'synthesized',
-              event,
-              timestamp: at,
-            });
-          }
-        }
-
-        const doneAt = new Date();
-        const doneEvents = canonicalEmitter?.push({
-          type: 'function_call.done',
-          streamId,
-          callId,
-          name: toolName,
-          arguments: typeof argsText === 'string' ? argsText : '{}',
-        });
-        for (const event of doneEvents ?? []) {
-          session.emit({
-            type: 'llm.responses.event',
-            kind: session.llmOutput.kind,
-            step: session.llmOutput.step,
+          emitCanonicalResponsesEvents({
+            emit: session.emit,
+            llmOutput: session.llmOutput,
             streamId,
             phase,
             round,
             source: 'synthesized',
-            event,
+            events: doneEvents ?? [],
             timestamp: doneAt,
           });
         }
       }
+
+      if (session.llmOutput) {
+        emitLlmStreamEnd({
+          emit: session.emit,
+          policy: session.llmOutput.policy,
+          kind: session.llmOutput.kind,
+          step: session.llmOutput.step,
+          streamId,
+          finishReason,
+        });
+      }
+
+      const assistant: LLMMessage = {
+        role: 'assistant',
+        content: finalContent,
+        tool_calls: collectedToolCalls.length > 0 ? collectedToolCalls : undefined,
+      };
+
+      recordAuditEvent(
+        'llm.round',
+        {
+          status: 'ok',
+          streamed: true,
+          usedFallback,
+          phase,
+          round,
+          model: session.runtime.model,
+          durationMs: Date.now() - roundStartedAt,
+          finishReason,
+          contentChars: finalContent.length,
+          toolCallCount: collectedToolCalls.length,
+        },
+        { source: 'llm', severity: 'low', scope: 'session', phase },
+      );
+
+      messages.push(assistant);
+
+      const calls = assistant.tool_calls || [];
+      if (!Array.isArray(calls) || calls.length === 0) {
+        return assistant;
+      }
+
+      await executeToolCalls(session, phase, round, calls, messages, chatOptions.signal);
+    } finally {
+      canonicalEmitters?.delete(streamId);
     }
-
-    if (session.llmOutput) {
-      emitLlmStreamEnd({
-        emit: session.emit,
-        policy: session.llmOutput.policy,
-        kind: session.llmOutput.kind,
-        step: session.llmOutput.step,
-        streamId,
-        finishReason,
-      });
-    }
-
-    const assistant: LLMMessage = {
-      role: 'assistant',
-      content: finalContent,
-      tool_calls: collectedToolCalls.length > 0 ? collectedToolCalls : undefined,
-    };
-
-    recordAuditEvent(
-      'llm.round',
-      {
-        status: 'ok',
-        streamed: true,
-        usedFallback,
-        phase,
-        round,
-        model: session.runtime.model,
-        durationMs: Date.now() - roundStartedAt,
-        finishReason,
-        contentChars: finalContent.length,
-        toolCallCount: collectedToolCalls.length,
-      },
-      { source: 'llm', severity: 'low', scope: 'session', phase },
-    );
-
-    messages.push(assistant);
-
-    const calls = assistant.tool_calls || [];
-    if (!Array.isArray(calls) || calls.length === 0) {
-      return assistant;
-    }
-
-    await executeToolCalls(session, phase, round, calls, messages, chatOptions.signal);
   }
+
+  // Defensive cleanup in case of early returns/throws above.
+  canonicalEmitters?.clear();
 
   session.emit?.({
     type: 'log',
