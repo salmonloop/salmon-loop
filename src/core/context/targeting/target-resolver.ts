@@ -1,7 +1,7 @@
 import type { BaseDslContext, DecisionEngine } from '../../grizzco/dsl/DecisionEngine.js';
 import { MicroTaskRunner } from '../../grizzco/dsl/MicroTaskRunner.js';
 import { logger } from '../../observability/logger.js';
-import type { CodeLocation, ContextTarget } from '../../types/index.js';
+import type { CodeLocation, ContextTarget, SymbolMap } from '../../types/index.js';
 import { normalizePath } from '../../utils/path.js';
 import type { ContextRequest } from '../types.js';
 
@@ -176,25 +176,67 @@ function buildSymbolTargets(params: {
   primaryFile: string;
   instruction: string;
   definitionMap: Record<string, CodeLocation> | undefined;
+  symbolMap?: SymbolMap;
 }): { targets: ContextTarget[]; candidates: string[]; matched: string[] } {
   const candidates = extractSymbolCandidates(params.instruction);
-  const map = params.definitionMap;
-  if (!map || candidates.length === 0) {
+  if (candidates.length === 0) {
     return { targets: [], candidates, matched: [] };
   }
 
+  const map = params.definitionMap;
+  const symbolNodes = params.symbolMap?.nodes ?? [];
+  const symbolEdges = params.symbolMap?.edges ?? [];
+  const nodeById = new Map(symbolNodes.map((n) => [n.id, n]));
+
   const matched: string[] = [];
   const targets: ContextTarget[] = [];
+  const seenMatch = new Set<string>();
   for (const name of candidates) {
-    const loc = map[name];
-    if (!loc) continue;
-    matched.push(name);
-    targets.push({
-      path: params.primaryFile,
-      reason: 'symbol_definition',
-      confidence: 'high',
-      evidence: `symbol:${name}@${loc.start.line}:${loc.start.column}`,
-    });
+    const lower = name.toLowerCase();
+    const byDefinitionMap = map?.[name];
+    if (byDefinitionMap) {
+      if (!seenMatch.has(lower)) {
+        matched.push(name);
+        seenMatch.add(lower);
+      }
+      targets.push({
+        path: params.primaryFile,
+        reason: 'symbol_definition',
+        confidence: 'high',
+        evidence: `symbol:${name}@${byDefinitionMap.start.line}:${byDefinitionMap.start.column}`,
+      });
+    }
+
+    const defNodes = symbolNodes.filter(
+      (n) => n.kind === 'definition' && n.name.toLowerCase() === lower,
+    );
+    if (defNodes.length > 0 && !seenMatch.has(lower)) {
+      matched.push(name);
+      seenMatch.add(lower);
+    }
+
+    for (const defNode of defNodes) {
+      const defPath = defNode.path || params.primaryFile;
+      targets.push({
+        path: defPath,
+        reason: 'symbol_definition',
+        confidence: 'high',
+        evidence: `symbol_node:${defNode.name}@${defNode.location.start.line}:${defNode.location.start.column}`,
+      });
+
+      for (const edge of symbolEdges) {
+        if (edge.to !== defNode.id) continue;
+        const callerNode = nodeById.get(edge.from);
+        if (!callerNode) continue;
+        const callerPath = callerNode.path || params.primaryFile;
+        targets.push({
+          path: callerPath,
+          reason: 'symbol_definition',
+          confidence: edge.type === 'call' ? 'high' : 'medium',
+          evidence: `symbol_edge:${edge.type}->${defNode.name}`,
+        });
+      }
+    }
   }
 
   return { targets: dedupeTargets(targets), candidates, matched };
@@ -207,8 +249,9 @@ export class TargetResolver {
     importRelatedFiles: string[];
     rgHitFiles: string[];
     definitionMap?: Record<string, CodeLocation>;
+    symbolMap?: SymbolMap;
   }): Promise<{ targets: ContextTarget[]; strategy: 'explicit' | 'symbol' | 'diff' | 'default' }> {
-    const { req, includedFiles, importRelatedFiles, rgHitFiles, definitionMap } = params;
+    const { req, includedFiles, importRelatedFiles, rgHitFiles, definitionMap, symbolMap } = params;
 
     const runner = new MicroTaskRunner<TargetingDslContext>({
       debugLabel: 'context-targeting',
@@ -236,6 +279,7 @@ export class TargetResolver {
             primaryFile: ctx.primaryFile,
             instruction: ctx.instruction,
             definitionMap,
+            symbolMap,
           });
           return dedupeTargets([...primary, ...res.targets]);
         }

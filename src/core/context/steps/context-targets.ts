@@ -34,6 +34,7 @@ export function buildContextTargetsStep(deps: ContextServiceDeps) {
       importRelatedFiles,
       rgHitFiles,
       definitionMap: ast.definitionMap,
+      symbolMap: ast.symbolMap,
     });
     assertNotAborted(req.signal);
 

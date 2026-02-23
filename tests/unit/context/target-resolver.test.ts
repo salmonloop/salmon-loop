@@ -49,4 +49,50 @@ describe('TargetResolver (symbol targets)', () => {
     expect(res.strategy).toBe('explicit');
     expect(res.targets.some((t) => t.reason === 'explicit_path')).toBe(true);
   });
+
+  it('resolves symbol targets from symbolMap even without definitionMap', async () => {
+    const resolver = new TargetResolver();
+    const res = await resolver.resolve({
+      req: {
+        instruction: 'fix `packUntilFull` callsites',
+        repoPath: '/repo',
+        primaryFile: 'src/core/context/policies/pack-until-full.ts',
+      },
+      includedFiles: [],
+      importRelatedFiles: [],
+      rgHitFiles: [],
+      definitionMap: undefined,
+      symbolMap: {
+        nodes: [
+          {
+            id: 'def:packUntilFull:10:1',
+            name: 'packUntilFull',
+            kind: 'definition',
+            path: 'src/core/context/policies/pack-until-full.ts',
+            location: { start: { line: 10, column: 1 }, end: { line: 10, column: 12 } },
+          },
+          {
+            id: 'ref:packUntilFull:30:5',
+            name: 'packUntilFull',
+            kind: 'reference',
+            path: 'src/core/context/steps/context-budget.ts',
+            location: { start: { line: 30, column: 5 }, end: { line: 30, column: 18 } },
+          },
+        ],
+        edges: [
+          {
+            from: 'ref:packUntilFull:30:5',
+            to: 'def:packUntilFull:10:1',
+            type: 'call',
+            confidence: 'high',
+          },
+        ],
+      },
+    });
+
+    expect(res.strategy).toBe('symbol');
+    expect(res.targets.some((t) => t.path === 'src/core/context/steps/context-budget.ts')).toBe(
+      true,
+    );
+  });
 });
