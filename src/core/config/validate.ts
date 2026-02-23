@@ -176,11 +176,7 @@ export function validateConfigFileV1(input: unknown): ConfigFileV1 {
       throw new ConfigError('CONFIG_INVALID_AST_VALIDATION', { expected: 'object' });
     }
     const strictnessRaw = (astValidationRaw as any).strictness;
-    if (
-      strictnessRaw !== undefined &&
-      strictnessRaw !== 'lenient' &&
-      strictnessRaw !== 'strict'
-    ) {
+    if (strictnessRaw !== undefined && strictnessRaw !== 'lenient' && strictnessRaw !== 'strict') {
       throw new ConfigError('CONFIG_INVALID_AST_VALIDATION_STRICTNESS', {
         strictness: String(strictnessRaw),
       });
