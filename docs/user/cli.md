@@ -249,7 +249,6 @@ s8p snap clear --force
   - `basic`: Outputs basic logs and execution steps (default when flag is present).
   - `extended`: Outputs detailed logs, including internal states and debug information.
 - `--validate`: Run code quality checks (lint and tests) before starting the loop.
-- `--target-node <name>`: The name of the node (e.g., function name) that is allowed to be modified. Enables deep AST scope integrity verification.
 - `--allowedTools <rules>`: Allow tool calls by permission rules (comma-separated; repeatable).
 - `--disallowedTools <rules>`: Deny tool calls by permission rules (comma-separated; repeatable).
 

@@ -90,7 +90,6 @@ export interface GrizzcoOptions {
 
   maxFileSize: number;
   verbose?: string;
-  targetNodeName?: string;
 
   // List of operations to perform
   operations: ShadowOperation[];

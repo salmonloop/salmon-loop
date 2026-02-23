@@ -367,7 +367,6 @@ export const en = {
   // Errors
   error: (error: string) => `Error: ${error}`,
   unexpectedError: (error: string) => `Unexpected error: ${error}`,
-  targetNodeOption: 'The name of the node (e.g., function name) that is allowed to be modified',
   runningValidation: 'Running validation checks...',
   validationUsingPackageManager: (packageManager: string) =>
     `  Using detected package manager: ${packageManager}`,

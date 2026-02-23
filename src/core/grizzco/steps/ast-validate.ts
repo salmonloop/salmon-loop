@@ -8,7 +8,6 @@ export const validateAst: Step<ValidateCtx, AstValidateCtx> = async (ctx) => {
   const result = await service.validate({
     workPath: ctx.workspace.workPath,
     diff: ctx.diff,
-    targetNodeName: ctx.options.targetNodeName,
   });
 
   if (!result.ok) {

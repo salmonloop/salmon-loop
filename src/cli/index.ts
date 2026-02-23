@@ -80,7 +80,6 @@ program
   .option('--force-reset', text.cli.forceResetOption)
   .option('--validate', text.cli.validateOption)
   .option('--preflight-policy <policy>', text.cli.preflightPolicyOption, 'lenient')
-  .option('--target-node <name>', text.cli.targetNodeOption)
   .option('--mode <mode>', text.cli.modeOption, 'patch')
   .option('--apply-back-on-dirty <mode>', text.cli.applyBackOnDirtyOption, '3way')
   .option('--worktree-prepare <command>', text.cli.worktreePrepareOption)

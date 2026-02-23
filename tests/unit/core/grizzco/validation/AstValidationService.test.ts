@@ -1,4 +1,4 @@
-import { afterEach, describe, it, expect, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AstParser } from '../../../../../src/core/ast/parser.js';
 import {
@@ -27,36 +27,14 @@ describe('AstValidationService', () => {
       convertDiffToShadowOperations: async () => ops,
       resolveLanguage: () => undefined,
       parse: async () => ({}),
-      validateScopeIntegrity: () => ({ ok: true }),
-      loadOriginalContent: async () => null,
       buildProposedSource: async () => null,
     });
 
-    const result = await service.validate({ workPath: '/repo', diff: 'x', targetNodeName: 'T' });
+    const result = await service.validate({ workPath: '/repo', diff: 'x' });
     expect(result.ok).toBe(true);
   });
 
-  it('fails when scope integrity check fails', async () => {
-    const ops: ShadowOperation[] = [
-      { type: OpType.OVERWRITE, path: 'src/a.ts', content: Buffer.from('const x = 1') },
-    ];
-
-    const service = new AstValidationService({
-      convertDiffToShadowOperations: async () => ops,
-      resolveLanguage: () => 'typescript',
-      parse: async () => ({}),
-      validateScopeIntegrity: () => ({ ok: false, reason: 'removed node' }),
-      loadOriginalContent: async () => 'const x = 0',
-      buildProposedSource: async () => 'const x = 1',
-    });
-
-    const result = await service.validate({ workPath: '/repo', diff: 'x', targetNodeName: 'T' });
-    expect(result.ok).toBe(false);
-    expect(result.error).toContain('AST Scope Integrity failed');
-    expect(result.filePath).toBe('src/a.ts');
-  });
-
-  it('fails when proposed parsing throws', async () => {
+  it('fails when proposed parsing throws non-infra error', async () => {
     const ops: ShadowOperation[] = [
       { type: OpType.OVERWRITE, path: 'src/a.ts', content: Buffer.from('bad') },
     ];
@@ -68,8 +46,6 @@ describe('AstValidationService', () => {
         if (code === 'bad') throw new Error('parse error');
         return {};
       },
-      validateScopeIntegrity: () => ({ ok: true }),
-      loadOriginalContent: async () => null,
       buildProposedSource: async () => 'bad',
     });
 
@@ -89,8 +65,6 @@ describe('AstValidationService', () => {
       convertDiffToShadowOperations: async () => ops,
       resolveLanguage: () => 'typescript',
       parse,
-      validateScopeIntegrity: () => ({ ok: true }),
-      loadOriginalContent: async () => 'const x = 0',
       buildProposedSource: async () => 'const x = 1',
     });
 
@@ -99,46 +73,25 @@ describe('AstValidationService', () => {
     expect(parse).toHaveBeenCalledWith('const x = 1', 'typescript');
   });
 
-  it('skips scope integrity when targetNodeName is not provided', async () => {
+  it('skips operation when proposed source cannot be reconstructed', async () => {
     const ops: ShadowOperation[] = [
       { type: OpType.PATCH, path: 'src/a.ts', content: Buffer.from('diff') },
     ];
 
-    const validateScopeIntegrity = vi.fn(() => ({ ok: false, reason: 'removed node' }));
+    const parse = vi.fn(async () => ({}));
     const service = new AstValidationService({
       convertDiffToShadowOperations: async () => ops,
       resolveLanguage: () => 'typescript',
-      parse: async () => ({}),
-      validateScopeIntegrity,
-      loadOriginalContent: async () => 'const x = 0',
-      buildProposedSource: async () => 'const x = 1',
-    });
-
-    const result = await service.validate({ workPath: '/repo', diff: 'x' });
-    expect(result.ok).toBe(true);
-    expect(validateScopeIntegrity).not.toHaveBeenCalled();
-  });
-
-  it('fails if targetNodeName is set but proposed source cannot be reconstructed', async () => {
-    const ops: ShadowOperation[] = [
-      { type: OpType.PATCH, path: 'src/a.ts', content: Buffer.from('diff') },
-    ];
-
-    const service = new AstValidationService({
-      convertDiffToShadowOperations: async () => ops,
-      resolveLanguage: () => 'typescript',
-      parse: async () => ({}),
-      validateScopeIntegrity: () => ({ ok: true }),
-      loadOriginalContent: async () => 'const x = 0',
+      parse,
       buildProposedSource: async () => null,
     });
 
-    const result = await service.validate({ workPath: '/repo', diff: 'x', targetNodeName: 'fn' });
-    expect(result.ok).toBe(false);
-    expect(result.error).toContain('unable to reconstruct proposed source');
+    const result = await service.validate({ workPath: '/repo', diff: 'x' });
+    expect(result.ok).toBe(true);
+    expect(parse).not.toHaveBeenCalled();
   });
 
-  it('soft-skips AST infra errors when targetNodeName is not provided', async () => {
+  it('soft-skips AST infra errors', async () => {
     const ops: ShadowOperation[] = [
       { type: OpType.PATCH, path: 'src/a.ts', content: Buffer.from('diff') },
     ];
@@ -151,36 +104,11 @@ describe('AstValidationService', () => {
           'Failed to load language typescript: ENOENT: no such file or directory, open tree-sitter-typescript.wasm',
         );
       },
-      validateScopeIntegrity: () => ({ ok: true }),
-      loadOriginalContent: async () => null,
       buildProposedSource: async () => 'const x = 1;',
     });
 
     const result = await service.validate({ workPath: '/repo', diff: 'x' });
     expect(result.ok).toBe(true);
-  });
-
-  it('does not soft-skip AST infra errors when targetNodeName is provided', async () => {
-    const ops: ShadowOperation[] = [
-      { type: OpType.PATCH, path: 'src/a.ts', content: Buffer.from('diff') },
-    ];
-
-    const service = new AstValidationService({
-      convertDiffToShadowOperations: async () => ops,
-      resolveLanguage: () => 'typescript',
-      parse: async () => {
-        throw new Error(
-          'Failed to load language typescript: ENOENT: no such file or directory, open tree-sitter-typescript.wasm',
-        );
-      },
-      validateScopeIntegrity: () => ({ ok: true }),
-      loadOriginalContent: async () => null,
-      buildProposedSource: async () => 'const x = 1;',
-    });
-
-    const result = await service.validate({ workPath: '/repo', diff: 'x', targetNodeName: 'x' });
-    expect(result.ok).toBe(false);
-    expect(result.error).toContain('AST Syntax Error');
   });
 
   it('uses AstParser.parse with correct static context in default deps', async () => {
@@ -200,9 +128,7 @@ describe('AstValidationService', () => {
         { type: OpType.PATCH, path: 'src/a.ts', content: Buffer.from('diff') },
       ],
       resolveLanguage: () => 'typescript',
-      loadOriginalContent: async () => null,
       buildProposedSource: async () => 'const a = 1;',
-      validateScopeIntegrity: () => ({ ok: true }),
     });
 
     const result = await service.validate({ workPath: '/repo', diff: 'x' });
@@ -239,8 +165,6 @@ describe('AstValidationService', () => {
       ],
       resolveLanguage: () => 'typescript',
       parse: parseSpy,
-      loadOriginalContent: async () => null,
-      validateScopeIntegrity: () => ({ ok: true }),
     });
 
     const result = await service.validate({ workPath: repo.path, diff: 'x' });

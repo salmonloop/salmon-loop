@@ -295,7 +295,6 @@ export interface RunOptions {
   worktreePrepare?: string;
   expectedChanges?: string[];
   expectedFileContent?: { path: string; content: string }[];
-  targetNodeName?: string;
   snapshotHash?: string;
   checkpointManager?: import('../strata/checkpoint/manager.js').CheckpointManager;
   checkpoint?: {
@@ -347,7 +346,6 @@ export interface LoopOptions {
   selection?: string;
   expectedChanges?: string[];
   expectedFileContent?: { path: string; content: string }[];
-  targetNodeName?: string;
   strategy?: CheckpointStrategy;
   applyBackOnDirty?: ApplyBackOnDirty;
   worktreePrepare?: string;

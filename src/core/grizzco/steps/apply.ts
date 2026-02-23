@@ -54,7 +54,6 @@ export const runApply: Step<AstValidateCtx, ApplyCtx> = async (ctx) => {
     dryRun: Boolean(ctx.options.dryRun),
     maxFileSize: Number.MAX_SAFE_INTEGER,
     verbose: ctx.options.verbose,
-    targetNodeName: ctx.options.targetNodeName,
   };
 
   const processOperation = async (op: ShadowOperation) => {

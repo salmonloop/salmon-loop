@@ -4,7 +4,7 @@ import { tmpdir } from 'os';
 import path from 'path';
 
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
-import { AstParser, validateScopeIntegrity } from '../../ast/index.js';
+import { AstParser } from '../../ast/index.js';
 import { convertDiffToShadowOperations } from '../../patch/diff.js';
 import { pluginRegistry } from '../../plugin/registry.js';
 import { OpType, type ShadowOperation } from '../domain/grizzco-types.js';
@@ -18,12 +18,6 @@ export interface AstValidationResult {
 export interface AstValidationDeps {
   convertDiffToShadowOperations: (diff: string) => Promise<ShadowOperation[]>;
   parse: (code: string, lang: string) => Promise<any>;
-  validateScopeIntegrity: (
-    originalTree: any,
-    patchedTree: any,
-    targetNodeName: string,
-  ) => { ok: boolean; reason?: string };
-  loadOriginalContent: (workPath: string, filePath: string) => Promise<string | null>;
   resolveLanguage: (filePath: string) => string | undefined;
   buildProposedSource: (workPath: string, operation: ShadowOperation) => Promise<string | null>;
 }
@@ -48,19 +42,6 @@ function isAstInfrastructureError(message: string): boolean {
 
 function defaultResolveLanguage(filePath: string): string | undefined {
   return pluginRegistry.getByExtension(filePath)?.meta.id;
-}
-
-async function defaultLoadOriginalContent(
-  workPath: string,
-  filePath: string,
-): Promise<string | null> {
-  const git = new GitAdapter(workPath);
-  try {
-    const buf = await git.show('HEAD', filePath);
-    return buf.toString('utf8');
-  } catch {
-    return null;
-  }
 }
 
 async function defaultBuildProposedSource(
@@ -130,8 +111,6 @@ export class AstValidationService {
     this.deps = {
       convertDiffToShadowOperations,
       parse: (code, lang) => AstParser.parse(code, lang),
-      validateScopeIntegrity,
-      loadOriginalContent: defaultLoadOriginalContent,
       resolveLanguage: defaultResolveLanguage,
       buildProposedSource: defaultBuildProposedSource,
       ...deps,
@@ -141,11 +120,8 @@ export class AstValidationService {
   async validate(args: {
     workPath: string;
     diff: string;
-    targetNodeName?: string;
   }): Promise<AstValidationResult> {
     const operations = await this.deps.convertDiffToShadowOperations(args.diff);
-    const targetNodeName = (args.targetNodeName ?? '').trim();
-    const enforceScopeIntegrity = targetNodeName.length > 0;
 
     for (const op of operations) {
       if (op.type === OpType.DELETE) continue;
@@ -155,53 +131,13 @@ export class AstValidationService {
 
       try {
         const proposedSource = await this.deps.buildProposedSource(args.workPath, op);
-        if (typeof proposedSource !== 'string') {
-          if (enforceScopeIntegrity) {
-            return {
-              ok: false,
-              filePath: op.path,
-              error: `AST Scope Integrity failed for ${op.path}: unable to reconstruct proposed source`,
-            };
-          }
-          continue;
-        }
+        if (typeof proposedSource !== 'string') continue;
 
-        const proposedTree = await this.deps.parse(proposedSource, lang);
-
-        if (!enforceScopeIntegrity) {
-          continue;
-        }
-
-        let originalTree: any | undefined;
-        const originalContent = await this.deps.loadOriginalContent(args.workPath, op.path);
-        if (typeof originalContent === 'string') {
-          try {
-            originalTree = await this.deps.parse(originalContent, lang);
-          } catch {
-            // Ignore original parse failures; only the proposed tree is required.
-          }
-        }
-
-        if (originalTree) {
-          const validationResult = this.deps.validateScopeIntegrity(
-            originalTree,
-            proposedTree,
-            targetNodeName,
-          );
-
-          if (!validationResult.ok) {
-            return {
-              ok: false,
-              filePath: op.path,
-              error: `AST Scope Integrity failed for ${op.path}: ${validationResult.reason}`,
-            };
-          }
-        }
+        await this.deps.parse(proposedSource, lang);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        // Best-effort mode: if AST tooling is unavailable and no strict scope target is requested,
-        // do not block the whole patch flow.
-        if (!enforceScopeIntegrity && isAstInfrastructureError(message)) {
+        // Best-effort mode: if AST tooling is unavailable, do not block patch flow.
+        if (isAstInfrastructureError(message)) {
           continue;
         }
         return {
