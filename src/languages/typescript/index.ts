@@ -117,6 +117,11 @@ function createPlugin(
       id,
       name,
       extensions,
+      capabilities: {
+        ast: {
+          strictValidation: true,
+        },
+      },
     },
     detection: {
       matches: async (repoPath: string) => {

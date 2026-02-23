@@ -5,9 +5,11 @@ import { AstValidationService } from '../validation/AstValidationService.js';
 
 export const validateAst: Step<ValidateCtx, AstValidateCtx> = async (ctx) => {
   const service = new AstValidationService();
+  const strictness = ctx.mode === 'debug' ? 'strict' : 'lenient';
   const result = await service.validate({
     workPath: ctx.workspace.workPath,
     diff: ctx.diff,
+    strictness,
   });
 
   if (!result.ok) {

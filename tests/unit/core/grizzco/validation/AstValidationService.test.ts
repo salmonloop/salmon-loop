@@ -27,6 +27,7 @@ describe('AstValidationService', () => {
       convertDiffToShadowOperations: async () => ops,
       resolveLanguage: () => undefined,
       parse: async () => ({}),
+      supportsStrictValidation: () => true,
       buildProposedSource: async () => null,
     });
 
@@ -46,6 +47,7 @@ describe('AstValidationService', () => {
         if (code === 'bad') throw new Error('parse error');
         return {};
       },
+      supportsStrictValidation: () => true,
       buildProposedSource: async () => 'bad',
     });
 
@@ -65,6 +67,7 @@ describe('AstValidationService', () => {
       convertDiffToShadowOperations: async () => ops,
       resolveLanguage: () => 'typescript',
       parse,
+      supportsStrictValidation: () => true,
       buildProposedSource: async () => 'const x = 1',
     });
 
@@ -83,6 +86,7 @@ describe('AstValidationService', () => {
       convertDiffToShadowOperations: async () => ops,
       resolveLanguage: () => 'typescript',
       parse,
+      supportsStrictValidation: () => true,
       buildProposedSource: async () => null,
     });
 
@@ -104,6 +108,7 @@ describe('AstValidationService', () => {
           'Failed to load language typescript: ENOENT: no such file or directory, open tree-sitter-typescript.wasm',
         );
       },
+      supportsStrictValidation: () => true,
       buildProposedSource: async () => 'const x = 1;',
     });
 
@@ -128,6 +133,7 @@ describe('AstValidationService', () => {
         { type: OpType.PATCH, path: 'src/a.ts', content: Buffer.from('diff') },
       ],
       resolveLanguage: () => 'typescript',
+      supportsStrictValidation: () => true,
       buildProposedSource: async () => 'const a = 1;',
     });
 
@@ -165,6 +171,7 @@ describe('AstValidationService', () => {
       ],
       resolveLanguage: () => 'typescript',
       parse: parseSpy,
+      supportsStrictValidation: () => true,
     });
 
     const result = await service.validate({ workPath: repo.path, diff: 'x' });
@@ -173,5 +180,73 @@ describe('AstValidationService', () => {
     const parsedInput = String(parseSpy.mock.calls[0]?.[0] ?? '');
     expect(parsedInput.startsWith('diff --git')).toBe(false);
     expect(parsedInput).toContain('export function hi()');
+  });
+
+  it('fails in strict mode when plugin supports strict validation and source reconstruction fails', async () => {
+    const ops: ShadowOperation[] = [
+      { type: OpType.PATCH, path: 'src/a.ts', content: Buffer.from('diff') },
+    ];
+
+    const service = new AstValidationService({
+      convertDiffToShadowOperations: async () => ops,
+      resolveLanguage: () => 'typescript',
+      supportsStrictValidation: () => true,
+      parse: async () => ({}),
+      buildProposedSource: async () => null,
+    });
+
+    const result = await service.validate({ workPath: '/repo', diff: 'x', strictness: 'strict' });
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain('unable to reconstruct proposed source');
+  });
+
+  it('keeps lenient behavior when plugin does not support strict validation', async () => {
+    const ops: ShadowOperation[] = [
+      { type: OpType.PATCH, path: 'src/a.ts', content: Buffer.from('diff') },
+    ];
+
+    const service = new AstValidationService({
+      convertDiffToShadowOperations: async () => ops,
+      resolveLanguage: () => 'typescript',
+      supportsStrictValidation: () => false,
+      parse: async () => ({}),
+      buildProposedSource: async () => null,
+    });
+
+    const result = await service.validate({ workPath: '/repo', diff: 'x', strictness: 'strict' });
+    expect(result.ok).toBe(true);
+  });
+
+  it('fails infra errors in strict mode only when plugin supports strict validation', async () => {
+    const ops: ShadowOperation[] = [
+      { type: OpType.PATCH, path: 'src/a.ts', content: Buffer.from('diff') },
+    ];
+
+    const createService = (supportsStrictValidation: boolean) =>
+      new AstValidationService({
+        convertDiffToShadowOperations: async () => ops,
+        resolveLanguage: () => 'typescript',
+        supportsStrictValidation: () => supportsStrictValidation,
+        parse: async () => {
+          throw new Error(
+            'Failed to load language typescript: ENOENT: no such file or directory, open tree-sitter-typescript.wasm',
+          );
+        },
+        buildProposedSource: async () => 'const x = 1;',
+      });
+
+    const strictResult = await createService(true).validate({
+      workPath: '/repo',
+      diff: 'x',
+      strictness: 'strict',
+    });
+    expect(strictResult.ok).toBe(false);
+
+    const nonStrictCapResult = await createService(false).validate({
+      workPath: '/repo',
+      diff: 'x',
+      strictness: 'strict',
+    });
+    expect(nonStrictCapResult.ok).toBe(true);
   });
 });

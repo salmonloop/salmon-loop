@@ -9,6 +9,8 @@ import { convertDiffToShadowOperations } from '../../patch/diff.js';
 import { pluginRegistry } from '../../plugin/registry.js';
 import { OpType, type ShadowOperation } from '../domain/grizzco-types.js';
 
+export type AstValidationStrictness = 'lenient' | 'strict';
+
 export interface AstValidationResult {
   ok: boolean;
   error?: string;
@@ -19,6 +21,7 @@ export interface AstValidationDeps {
   convertDiffToShadowOperations: (diff: string) => Promise<ShadowOperation[]>;
   parse: (code: string, lang: string) => Promise<any>;
   resolveLanguage: (filePath: string) => string | undefined;
+  supportsStrictValidation: (filePath: string) => boolean;
   buildProposedSource: (workPath: string, operation: ShadowOperation) => Promise<string | null>;
 }
 
@@ -42,6 +45,11 @@ function isAstInfrastructureError(message: string): boolean {
 
 function defaultResolveLanguage(filePath: string): string | undefined {
   return pluginRegistry.getByExtension(filePath)?.meta.id;
+}
+
+function defaultSupportsStrictValidation(filePath: string): boolean {
+  const plugin = pluginRegistry.getByExtension(filePath);
+  return Boolean(plugin?.meta.capabilities?.ast?.strictValidation);
 }
 
 async function defaultBuildProposedSource(
@@ -112,6 +120,7 @@ export class AstValidationService {
       convertDiffToShadowOperations,
       parse: (code, lang) => AstParser.parse(code, lang),
       resolveLanguage: defaultResolveLanguage,
+      supportsStrictValidation: defaultSupportsStrictValidation,
       buildProposedSource: defaultBuildProposedSource,
       ...deps,
     };
@@ -120,24 +129,36 @@ export class AstValidationService {
   async validate(args: {
     workPath: string;
     diff: string;
+    strictness?: AstValidationStrictness;
   }): Promise<AstValidationResult> {
     const operations = await this.deps.convertDiffToShadowOperations(args.diff);
+    const strictness: AstValidationStrictness = args.strictness ?? 'lenient';
 
     for (const op of operations) {
       if (op.type === OpType.DELETE) continue;
 
       const lang = this.deps.resolveLanguage(op.path);
       if (!lang) continue;
+      const enforceStrict = strictness === 'strict' && this.deps.supportsStrictValidation(op.path);
 
       try {
         const proposedSource = await this.deps.buildProposedSource(args.workPath, op);
-        if (typeof proposedSource !== 'string') continue;
+        if (typeof proposedSource !== 'string') {
+          if (enforceStrict) {
+            return {
+              ok: false,
+              filePath: op.path,
+              error: `AST Validation failed for ${op.path}: unable to reconstruct proposed source`,
+            };
+          }
+          continue;
+        }
 
         await this.deps.parse(proposedSource, lang);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        // Best-effort mode: if AST tooling is unavailable, do not block patch flow.
-        if (isAstInfrastructureError(message)) {
+        // Best-effort mode: if AST tooling is unavailable, strict-capable plugins may still fail hard.
+        if (isAstInfrastructureError(message) && !enforceStrict) {
           continue;
         }
         return {

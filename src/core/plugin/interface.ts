@@ -9,6 +9,11 @@ export interface LanguagePlugin {
     id: string; // e.g., 'typescript', 'python'
     name: string; // e.g., 'TypeScript/JavaScript'
     extensions: string[]; // e.g., ['.ts', '.tsx', '.js']
+    capabilities?: {
+      ast?: {
+        strictValidation?: boolean;
+      };
+    };
   };
 
   // Capability 1: Detection
