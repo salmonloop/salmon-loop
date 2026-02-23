@@ -7,6 +7,15 @@ const bunMigratedFiles = JSON.parse(
   readFileSync(path.join(import.meta.dirname, 'tests', 'bun-migrated-files.json'), 'utf-8'),
 ) as string[];
 
+const VITEST_ALWAYS_INCLUDE_FILES = new Set([
+  'tests/unit/scripts/target-runtime-boundary.test.ts',
+  'tests/unit/scripts/bun-purity.test.ts',
+]);
+
+const vitestDynamicExclude = bunMigratedFiles.filter(
+  (file) => !VITEST_ALWAYS_INCLUDE_FILES.has(file),
+);
+
 export default defineConfig({
   test: {
     globals: true,
@@ -22,7 +31,7 @@ export default defineConfig({
 
     // Test file patterns
     include: ['tests/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
-    exclude: ['tests/perf/**', 'tests/bun/**', ...bunMigratedFiles],
+    exclude: ['tests/perf/**', 'tests/bun/**', ...vitestDynamicExclude],
 
     // Run integration tests in isolated forks to avoid git lock contention
     // Run UI tests in jsdom environment for React hooks
