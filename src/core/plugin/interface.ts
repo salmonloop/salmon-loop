@@ -10,6 +10,11 @@ export interface LanguagePlugin {
     name: string; // e.g., 'TypeScript/JavaScript'
     extensions: string[]; // e.g., ['.ts', '.tsx', '.js']
     capabilities?: {
+      levels?: {
+        l1Parsing: true;
+        l2Symbols?: boolean;
+        l3Flow?: boolean;
+      };
       ast?: {
         strictValidation?: boolean;
       };
@@ -33,6 +38,15 @@ export interface LanguagePlugin {
     queries: {
       definitions: string; // Tree-sitter query string
       references: string;
+    };
+    queryPack?: {
+      symbols?: {
+        calls?: string;
+      };
+      flow?: {
+        control?: string;
+        exceptions?: string;
+      };
     };
   };
 

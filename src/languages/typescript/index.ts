@@ -118,6 +118,11 @@ function createPlugin(
       name,
       extensions,
       capabilities: {
+        levels: {
+          l1Parsing: true,
+          l2Symbols: true,
+          l3Flow: true,
+        },
         ast: {
           strictValidation: true,
         },
@@ -150,6 +155,32 @@ function createPlugin(
         return searchPaths[0];
       },
       queries: commonQueries,
+      queryPack: {
+        symbols: {
+          calls: `
+            (call_expression function: (identifier) @callee)
+            (call_expression function: (member_expression property: (property_identifier) @callee))
+          `,
+        },
+        flow: {
+          control: `
+            (if_statement) @branch
+            (switch_statement) @branch
+            (for_statement) @loop
+            (for_in_statement) @loop
+            (for_of_statement) @loop
+            (while_statement) @loop
+            (do_statement) @loop
+            (await_expression) @async
+          `,
+          exceptions: `
+            (try_statement) @trycatch
+            (throw_statement) @throw
+            (call_expression function: (member_expression property: (property_identifier) @catch
+              (#eq? @catch "catch")))
+          `,
+        },
+      },
     },
     dependency: commonDependency,
     diagnostics: commonDiagnostics,

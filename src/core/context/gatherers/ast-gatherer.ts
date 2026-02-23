@@ -36,6 +36,13 @@ export interface AstResult {
   parseError?: string;
 }
 
+interface QueryCapture {
+  name: string;
+  text: string;
+  line: number;
+  column: number;
+}
+
 const AST_DEEP_TRIGGER_PATTERN =
   /\b(refactor|rename|migrate|cross[- ]?file|across|dependency|dependencies|module|architecture|global)\b/i;
 
@@ -50,6 +57,7 @@ function getImportScanDepth(req: ContextRequest): { depth: number; trigger: Repo
 function buildSymbolMap(
   symbols: SymbolInfo[],
   primaryFile: string,
+  callNames: string[],
 ): {
   symbolMap: SymbolMap;
 } {
@@ -85,8 +93,7 @@ function buildSymbolMap(
     const targetDefId = definitionNodeByName.get(ref.name);
     if (!targetDefId) continue;
 
-    const snippet = ref.snippet || '';
-    const edgeType: 'reference' | 'call' = /\w+\s*\(/.test(snippet) ? 'call' : 'reference';
+    const edgeType: 'reference' | 'call' = callNames.includes(ref.name) ? 'call' : 'reference';
     edges.push({
       from: refId,
       to: targetDefId,
@@ -104,7 +111,8 @@ function summarizeControlFlow(primaryText: string): {
 } {
   const branchMatches = primaryText.match(/\b(if|else\s+if|switch|\?)\b/g) || [];
   const loopMatches = primaryText.match(/\b(for|while|do)\b/g) || [];
-  const asyncMatches = primaryText.match(/\b(await|Promise\.all|Promise\.race|setTimeout|setInterval)\b/g) || [];
+  const asyncMatches =
+    primaryText.match(/\b(await|Promise\.all|Promise\.race|setTimeout|setInterval)\b/g) || [];
 
   const tryCatchMatches = primaryText.match(/\btry\b|\bcatch\b/g) || [];
   const throwMatches = primaryText.match(/\bthrow\b/g) || [];
@@ -136,12 +144,16 @@ function summarizeControlFlow(primaryText: string): {
   };
 }
 
+function getPluginByFile(filePath: string) {
+  return pluginRegistry.getByExtension(filePath);
+}
+
 /**
  * Resolve language ID from file path using plugin registry.
  * Zero hardcoded language mappings - fully dynamic via registered plugins.
  */
 function getLanguageFromFile(filePath: string): string | undefined {
-  const plugin = pluginRegistry.getByExtension(filePath);
+  const plugin = getPluginByFile(filePath);
   return plugin?.meta.id;
 }
 
@@ -153,9 +165,20 @@ export class AstGatherer {
 
     const diagnostics = await this.gatherDiagnostics(primaryText, req.primaryFile);
     const symbolsResult = await this.gatherSymbols(primaryText, req.primaryFile, diagnostics.tree);
+    const languagePlugin = getPluginByFile(req.primaryFile);
+    const callNames = await this.gatherCallNames(
+      diagnostics.tree,
+      getLanguageFromFile(req.primaryFile),
+      languagePlugin?.parsing?.queryPack?.symbols?.calls,
+    );
+    const deepAnalysis = await this.gatherDeepAnalysis(
+      primaryText,
+      diagnostics.tree,
+      getLanguageFromFile(req.primaryFile),
+      languagePlugin?.parsing?.queryPack?.flow,
+    );
     const importedResult = await this.gatherImportedFiles(primaryText, req);
-    const { symbolMap } = buildSymbolMap(symbolsResult.symbols, req.primaryFile);
-    const controlFlowSummary = summarizeControlFlow(primaryText);
+    const { symbolMap } = buildSymbolMap(symbolsResult.symbols, req.primaryFile, callNames);
 
     return {
       symbols: symbolsResult.symbols,
@@ -163,8 +186,8 @@ export class AstGatherer {
       relatedFiles: importedResult.relatedFiles,
       repoMap: importedResult.repoMap,
       symbolMap,
-      controlFlow: controlFlowSummary.controlFlow,
-      exceptionPaths: controlFlowSummary.exceptionPaths,
+      controlFlow: deepAnalysis.controlFlow,
+      exceptionPaths: deepAnalysis.exceptionPaths,
       languageId: diagnostics.languageId,
       syntaxErrors: diagnostics.syntaxErrors,
       parseError: diagnostics.parseError,
@@ -194,6 +217,88 @@ export class AstGatherer {
       logger.debug(`  [CONTEXT] Symbol extraction unavailable for ${primaryFile}: ${e}`);
       return { symbols: [], definitionMap: {} };
     }
+  }
+
+  private async gatherCallNames(
+    parsedTree: any | undefined,
+    lang: string | undefined,
+    callsQuery: string | undefined,
+  ): Promise<string[]> {
+    if (!parsedTree || !lang || !callsQuery) return [];
+    const queryFn = (AstParser as any).queryCapturesFromQuery;
+    if (typeof queryFn !== 'function') return [];
+    const captures = (await queryFn(parsedTree, lang, callsQuery)) as QueryCapture[];
+    return Array.from(
+      new Set(
+        captures
+          .filter((c) => c.name === 'callee' && c.text.trim().length > 0)
+          .map((c) => c.text.trim()),
+      ),
+    );
+  }
+
+  private async gatherDeepAnalysis(
+    primaryText: string,
+    parsedTree: any | undefined,
+    lang: string | undefined,
+    flowPack:
+      | {
+          control?: string;
+          exceptions?: string;
+        }
+      | undefined,
+  ): Promise<{
+    controlFlow: NonNullable<ContextAnalysis['ast']>['controlFlow'];
+    exceptionPaths: NonNullable<ContextAnalysis['ast']>['exceptionPaths'];
+  }> {
+    const queryFn = (AstParser as any).queryCapturesFromQuery;
+    if (
+      !parsedTree ||
+      !lang ||
+      !flowPack?.control ||
+      !flowPack?.exceptions ||
+      typeof queryFn !== 'function'
+    ) {
+      return summarizeControlFlow(primaryText);
+    }
+
+    const controlCaptures = (await queryFn(parsedTree, lang, flowPack.control)) as QueryCapture[];
+    const exceptionCaptures = (await queryFn(
+      parsedTree,
+      lang,
+      flowPack.exceptions,
+    )) as QueryCapture[];
+
+    const branchCount = controlCaptures.filter((c) => c.name === 'branch').length;
+    const loopCount = controlCaptures.filter((c) => c.name === 'loop').length;
+    const asyncBoundaryCount = controlCaptures.filter((c) => c.name === 'async').length;
+
+    const tryCatchCount = exceptionCaptures.filter((c) => c.name === 'trycatch').length;
+    const throwCount = exceptionCaptures.filter((c) => c.name === 'throw').length;
+    const promiseCatchCount = exceptionCaptures.filter((c) => c.name === 'catch').length;
+
+    return {
+      controlFlow: {
+        branchCount,
+        loopCount,
+        asyncBoundaryCount,
+        hotspots: [
+          ...(branchCount >= 3 ? ['dense_branching'] : []),
+          ...(loopCount >= 2 ? ['nested_or_multiple_loops'] : []),
+          ...(asyncBoundaryCount >= 2 ? ['multiple_async_boundaries'] : []),
+        ],
+      },
+      exceptionPaths: {
+        tryCatchCount,
+        throwCount,
+        promiseCatchCount,
+        hotspots: [
+          ...(tryCatchCount >= 2 ? ['multiple_try_catch_paths'] : []),
+          ...(throwCount >= 2 ? ['multiple_throw_sites'] : []),
+          ...(promiseCatchCount >= 2 ? ['multiple_promise_catch_paths'] : []),
+        ],
+      },
+    };
   }
 
   private async gatherDiagnostics(

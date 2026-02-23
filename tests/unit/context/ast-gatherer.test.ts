@@ -13,6 +13,7 @@ vi.mock('../../../src/core/ast/parser.js', () => ({
     parse: vi.fn(),
     identifyDefinitions: vi.fn(),
     identifyReferences: vi.fn(),
+    queryCapturesFromQuery: vi.fn(),
   },
 }));
 
@@ -55,6 +56,7 @@ describe('AstGatherer import traversal', () => {
         snippet: 'foo()',
       },
     ]);
+    (AstParser.queryCapturesFromQuery as unknown as ReturnType<typeof vi.fn>).mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -75,7 +77,7 @@ describe('AstGatherer import traversal', () => {
     expect(result.relatedFiles.some((f) => f.path === 'b.ts')).toBe(true);
     expect(result.relatedFiles.some((f) => f.path === 'c.ts')).toBe(false);
     expect(result.symbolMap?.nodes.some((n) => n.name === 'foo')).toBe(true);
-    expect(result.symbolMap?.edges.some((e) => e.type === 'call')).toBe(true);
+    expect(result.symbolMap?.edges.some((e) => e.type === 'reference')).toBe(true);
     expect(result.controlFlow?.branchCount).toBeGreaterThan(0);
     expect(result.exceptionPaths?.throwCount).toBeGreaterThan(0);
   });
@@ -92,5 +94,34 @@ describe('AstGatherer import traversal', () => {
     expect(result.repoMap?.trigger).toBe('deep');
     expect((result.repoMap?.nodes || []).some((n) => n.path === 'c.ts')).toBe(true);
     expect(result.relatedFiles.some((f) => f.path === 'c.ts')).toBe(true);
+  });
+
+  it('uses plugin queryPack for call graph and flow summaries when available', async () => {
+    vi.spyOn(pluginRegistry, 'getByExtension').mockReturnValue({
+      meta: { id: 'ts', name: 'TypeScript', extensions: ['.ts'] },
+      parsing: {
+        queryPack: {
+          symbols: { calls: '(call_expression function: (identifier) @callee)' },
+          flow: { control: '(if_statement) @branch', exceptions: '(throw_statement) @throw' },
+        },
+      },
+    } as any);
+
+    (AstParser.queryCapturesFromQuery as unknown as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce([{ name: 'callee', text: 'foo', line: 2, column: 1 }])
+      .mockResolvedValueOnce([{ name: 'branch', text: 'if', line: 2, column: 1 }])
+      .mockResolvedValueOnce([{ name: 'throw', text: 'throw', line: 3, column: 1 }]);
+
+    const gatherer = new AstGatherer();
+    const req: ContextRequest = {
+      instruction: 'fix foo',
+      repoPath: '/repo',
+      primaryFile: 'a.ts',
+    };
+    const result = await gatherer.gather('foo();\nif (x) throw e;\n', req);
+
+    expect(result.symbolMap?.edges.some((e) => e.type === 'call')).toBe(true);
+    expect(result.controlFlow?.branchCount).toBe(1);
+    expect(result.exceptionPaths?.throwCount).toBe(1);
   });
 });

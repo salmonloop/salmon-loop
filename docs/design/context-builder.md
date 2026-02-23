@@ -26,6 +26,11 @@ The AST gatherer also emits a deterministic `repo_map` manifest:
 - **Edges**: import relationships (`from -> to`).
 - **Trigger mode**: `shallow` (default) or `deep` (when instruction intent implies cross-file refactor/migration/dependency work).
 
+Language integration follows a **thin-plugin / thick-core** model:
+- Plugins provide parse support and optional query packs (`definitions`, `references`, optional `calls`, `control`, `exceptions`).
+- Core executes query packs and builds normalized `symbol_map` + analysis summaries.
+- If optional query packs are absent, core degrades safely to generic heuristics.
+
 ## 3. Truncation Strategy: Pack-Until-Full
 
 Instead of proportional truncation, we use a "pack-until-full" strategy:

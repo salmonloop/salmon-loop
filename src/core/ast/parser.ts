@@ -277,6 +277,29 @@ export class AstParser {
       return [];
     }
   }
+
+  static async queryCapturesFromQuery(
+    tree: any,
+    lang: string,
+    queryStr: string,
+  ): Promise<Array<{ name: string; text: string; line: number; column: number }>> {
+    try {
+      if (!queryStr || !tree?.rootNode) return [];
+      const language = await this.getLanguage(lang);
+      const Query = this.getQueryClass();
+      const query = new Query(language, queryStr);
+      const captures = query.captures(tree.rootNode);
+      return captures.map((c: any) => ({
+        name: c.name,
+        text: c.node?.text || '',
+        line: nodeToRow(c.node.startPosition),
+        column: c.node.startPosition.column,
+      }));
+    } catch (e) {
+      logger.debug(`AST query capture failed: ${e}`);
+      return [];
+    }
+  }
 }
 
 /**
