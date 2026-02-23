@@ -1,10 +1,11 @@
 import { readFile } from 'fs/promises';
-import { join, extname } from 'path';
+import { join } from 'path';
 
 import { z } from 'zod';
 
 import { text } from '../../../locales/index.js';
 import { AstParser } from '../../ast/parser.js';
+import { pluginRegistry } from '../../plugin/registry.js';
 import { Phase } from '../../types/index.js';
 import { pathPrefixResource } from '../parallel/resource-helpers.js';
 import { ToolSpec, ToolRuntimeCtx } from '../types.js';
@@ -48,17 +49,7 @@ export async function executeAstDefsRefs(
 ) {
   const fullPath = join(ctx.worktreeRoot || ctx.repoRoot, input.file);
   const code = await readFile(fullPath, 'utf-8');
-  const ext = extname(input.file).slice(1);
-
-  // Map extension to tree-sitter language
-  const langMap: Record<string, string> = {
-    ts: 'typescript',
-    tsx: 'tsx',
-    js: 'javascript',
-    jsx: 'javascript',
-  };
-
-  const lang = langMap[ext];
+  const lang = pluginRegistry.getByExtension(input.file)?.meta.id;
   if (!lang) {
     return { definitions: [], references: [] };
   }
