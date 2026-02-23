@@ -4,6 +4,7 @@ export type ConfigVersion = 1;
 
 export type Verbosity = 'quiet' | 'basic' | 'verbose' | 'extended';
 export type StrategyMode = 'direct' | 'worktree';
+export type AstValidationStrictness = 'lenient' | 'strict';
 
 export type LlmProviderType =
   | 'openai-compatible'
@@ -78,6 +79,10 @@ export interface ConfigFileV1 {
   verify?: {
     command?: string;
     timeoutMs?: number;
+  };
+
+  astValidation?: {
+    strictness?: AstValidationStrictness;
   };
 
   llm?: {
@@ -190,6 +195,9 @@ export interface ResolvedConfig {
   verify: {
     command?: string;
     timeoutMs?: number;
+  };
+  astValidation: {
+    strictness: AstValidationStrictness;
   };
   llm: ResolvedLlmProvider;
   llmOutput: LlmOutputPolicy;

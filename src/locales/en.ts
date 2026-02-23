@@ -415,6 +415,12 @@ Please return the patch in PURE unified diff format:`;
           return `Config ui.log.view contains invalid value: ${details?.view || '(unknown view)'}`;
         case 'CONFIG_INVALID_UI_LOG_MODE':
           return `Config ui.log.mode contains invalid value: ${details?.mode || '(unknown mode)'}`;
+        case 'CONFIG_INVALID_AST_VALIDATION':
+          return 'Config astValidation section must be a JSON object';
+        case 'CONFIG_INVALID_AST_VALIDATION_STRICTNESS':
+          return `Config astValidation.strictness contains invalid value: ${
+            details?.strictness || '(unknown strictness)'
+          }`;
         default:
           return `Invalid config (${code}).${detailStr}`;
       }

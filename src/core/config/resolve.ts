@@ -5,6 +5,7 @@ import { ConfigError } from './errors.js';
 import { tryLoadConfigFile } from './load.js';
 import { getDefaultRepoConfigPath } from './paths.js';
 import type {
+  AstValidationStrictness,
   ApiKeySource,
   ConfigFileV1,
   LangfuseObservabilityConfigV1,
@@ -132,6 +133,8 @@ const DEFAULT_TOOL_AUTH: ToolAuthorizationConfig = {
   },
 };
 
+const DEFAULT_AST_VALIDATION_STRICTNESS: AstValidationStrictness = 'lenient';
+
 function resolveToolAuthorization(raw?: ConfigFileV1): ToolAuthorizationConfig {
   const config = raw?.toolAuthorization;
   return {
@@ -237,6 +240,12 @@ function resolveLangfuseObservability(raw?: ConfigFileV1): {
   return { enabled, outcome, endpoint, sessionId, userId };
 }
 
+function resolveAstValidationStrictness(raw?: ConfigFileV1): AstValidationStrictness {
+  const strictness = raw?.astValidation?.strictness;
+  if (strictness === 'strict' || strictness === 'lenient') return strictness;
+  return DEFAULT_AST_VALIDATION_STRICTNESS;
+}
+
 export async function resolveConfig(opts: ResolveConfigOptions): Promise<ResolvedConfig> {
   const enabled = opts.enableConfigFile !== false;
   const path = opts.configFilePath || getDefaultRepoConfigPath(opts.repoRoot);
@@ -268,6 +277,9 @@ export async function resolveConfig(opts: ResolveConfigOptions): Promise<Resolve
     verify: {
       command: raw?.verify?.command,
       timeoutMs: raw?.verify?.timeoutMs,
+    },
+    astValidation: {
+      strictness: resolveAstValidationStrictness(raw),
     },
     llm: resolveLlmFromConfig(raw),
     llmOutput: resolveLlmOutputPolicy(raw?.output?.llm),

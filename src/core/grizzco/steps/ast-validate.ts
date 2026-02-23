@@ -1,11 +1,15 @@
 import { text } from '../../../locales/index.js';
 import { Step } from '../engine/pipeline/pipeline.js';
 import { AstValidateCtx, ValidateCtx } from '../engine/pipeline/types.js';
+import { resolveAstValidationStrictness } from '../validation/ast-validation-policy.js';
 import { AstValidationService } from '../validation/AstValidationService.js';
 
 export const validateAst: Step<ValidateCtx, AstValidateCtx> = async (ctx) => {
   const service = new AstValidationService();
-  const strictness = ctx.mode === 'debug' ? 'strict' : 'lenient';
+  const strictness = resolveAstValidationStrictness({
+    mode: ctx.mode,
+    options: ctx.options,
+  });
   const result = await service.validate({
     workPath: ctx.workspace.workPath,
     diff: ctx.diff,

@@ -352,6 +352,7 @@ export async function handleRunCommand(options: any, command: Command) {
       outcomeReporter,
       langfuseSessionId: resolvedConfig.observability.langfuse.sessionId || sessionIdForOutput,
       langfuseUserId: resolvedConfig.observability.langfuse.userId,
+      astValidation: resolvedConfig.astValidation,
       toolAuthorization: resolvedConfig.toolAuthorization,
       extensions: extensionResolution?.resolved,
       headlessOutput,

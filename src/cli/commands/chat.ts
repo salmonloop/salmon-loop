@@ -105,6 +105,7 @@ export async function handleChatCommand(options: any, command: Command) {
       markdownRenderMode: resolvedConfig.markdownRenderMode,
       uiLogView: resolvedConfig.ui.logView,
       uiLogMode: resolvedConfig.ui.logMode,
+      astValidation: resolvedConfig.astValidation,
       toolAuthorization: resolvedConfig.toolAuthorization,
       extensions: extensionResolution.resolved,
       outcomeReporter,

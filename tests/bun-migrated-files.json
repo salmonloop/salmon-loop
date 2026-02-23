@@ -61,6 +61,7 @@
   "tests/unit/context/target-resolver.test.ts",
   "tests/unit/core/extensions/mcp-schema.test.ts",
   "tests/unit/core/grizzco/steps/validate-applicability.test.ts",
+  "tests/unit/core/grizzco/validation/ast-validation-policy.test.ts",
   "tests/unit/core/grizzco/validation/AstValidationService.test.ts",
   "tests/unit/core/grizzco/validation/ContextValidator.test.ts",
   "tests/unit/core/intent/chat-intent.test.ts",

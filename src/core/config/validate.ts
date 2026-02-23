@@ -170,6 +170,26 @@ export function validateConfigFileV1(input: unknown): ConfigFileV1 {
     cfg.verify = { command: input.verify.command as any, timeoutMs: input.verify.timeoutMs as any };
   }
 
+  if ((input as any).astValidation !== undefined) {
+    const astValidationRaw = (input as any).astValidation;
+    if (!isRecord(astValidationRaw)) {
+      throw new ConfigError('CONFIG_INVALID_AST_VALIDATION', { expected: 'object' });
+    }
+    const strictnessRaw = (astValidationRaw as any).strictness;
+    if (
+      strictnessRaw !== undefined &&
+      strictnessRaw !== 'lenient' &&
+      strictnessRaw !== 'strict'
+    ) {
+      throw new ConfigError('CONFIG_INVALID_AST_VALIDATION_STRICTNESS', {
+        strictness: String(strictnessRaw),
+      });
+    }
+    cfg.astValidation = {
+      strictness: strictnessRaw as any,
+    };
+  }
+
   if (input.llm !== undefined) {
     if (!isRecord(input.llm)) {
       throw new ConfigError('CONFIG_INVALID_LLM', { expected: 'object' });

@@ -21,6 +21,7 @@ export function buildRunLoopParams(params: {
   langfuseSessionId?: string;
   langfuseUserId?: string;
   toolAuthorization: any;
+  astValidation?: { strictness?: 'lenient' | 'strict' };
   extensions?: any;
   headlessOutput: boolean;
   printMode: boolean;
@@ -48,6 +49,7 @@ export function buildRunLoopParams(params: {
     outcomeReporter: params.outcomeReporter,
     langfuseSessionId: params.langfuseSessionId,
     langfuseUserId: params.langfuseUserId,
+    astValidation: params.astValidation,
     authorizationProvider: createTerminalAuthorizationProvider({
       config: params.toolAuthorization,
       extensions: params.extensions,

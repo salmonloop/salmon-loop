@@ -50,6 +50,7 @@ export interface ChatModeOptions {
   markdownRenderMode?: MarkdownRenderMode;
   uiLogView?: UiLogView;
   uiLogMode?: UiLogMode;
+  astValidation?: { strictness?: 'lenient' | 'strict' };
   toolAuthorization?: ToolAuthorizationConfig;
   extensions?: ResolvedExtensions;
   outcomeReporter?: RunOutcomeReporter;
@@ -329,6 +330,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
             llmOutput: currentLlmOutputPolicy,
             outcomeReporter: options.outcomeReporter,
             conversationContext: conversationContext.length > 0 ? conversationContext : undefined,
+            astValidation: options.astValidation,
             // Resolve sessionId at call time to support `/session` switching.
             langfuseSessionId: options.langfuseSessionId || sessionManager.getCurrent().meta.id,
             langfuseUserId: options.langfuseUserId,

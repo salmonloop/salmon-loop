@@ -348,6 +348,9 @@ export interface LoopOptions {
   expectedFileContent?: { path: string; content: string }[];
   strategy?: CheckpointStrategy;
   applyBackOnDirty?: ApplyBackOnDirty;
+  astValidation?: {
+    strictness?: 'lenient' | 'strict';
+  };
   worktreePrepare?: string;
   llmOutput?: LlmOutputPolicy;
   authorizationProvider?: ToolAuthorizationProvider;

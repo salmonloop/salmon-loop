@@ -219,6 +219,71 @@ describe('Config module', () => {
     await expect(resolveConfig({ repoRoot })).rejects.toBeInstanceOf(ConfigError);
   });
 
+  it('resolves astValidation.strictness from config', async () => {
+    const repoRoot = uniqueTmpDir('repo-ast-validation');
+    await mkdir(join(repoRoot, '.salmonloop', 'config'), { recursive: true });
+
+    await writeFile(
+      join(repoRoot, '.salmonloop', 'config', 'config.json'),
+      JSON.stringify(
+        {
+          version: 1,
+          astValidation: {
+            strictness: 'strict',
+          },
+          llm: {
+            active: 'openaiMain',
+            providers: {
+              openaiMain: {
+                type: 'openai-compatible',
+                api: { baseUrl: 'https://example.com/v1', apiKey: 'inline-key' },
+                models: { default: { id: 'gpt-test' } },
+              },
+            },
+          },
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    );
+
+    const cfg = await resolveConfig({ repoRoot });
+    expect(cfg.astValidation.strictness).toBe('strict');
+  });
+
+  it('rejects invalid astValidation.strictness values', async () => {
+    const repoRoot = uniqueTmpDir('repo-ast-validation-invalid');
+    await mkdir(join(repoRoot, '.salmonloop', 'config'), { recursive: true });
+
+    await writeFile(
+      join(repoRoot, '.salmonloop', 'config', 'config.json'),
+      JSON.stringify(
+        {
+          version: 1,
+          astValidation: {
+            strictness: 'hardcore',
+          },
+          llm: {
+            active: 'openaiMain',
+            providers: {
+              openaiMain: {
+                type: 'openai-compatible',
+                api: { baseUrl: 'https://example.com/v1', apiKey: 'inline-key' },
+                models: { default: { id: 'gpt-test' } },
+              },
+            },
+          },
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    );
+
+    await expect(resolveConfig({ repoRoot })).rejects.toBeInstanceOf(ConfigError);
+  });
+
   it('redacts inline api keys for printing', () => {
     const redacted = redactConfigForPrint({
       version: 1,
