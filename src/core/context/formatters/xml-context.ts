@@ -73,7 +73,8 @@ function renderManifest(context: Context): string[] {
   const out: string[] = [];
   const targets = context.targets;
   const repoMap = context.repoMap;
-  if ((!targets || targets.length === 0) && !repoMap) return out;
+  const symbolMap = context.symbolMap;
+  if ((!targets || targets.length === 0) && !repoMap && !symbolMap) return out;
 
   out.push('  <manifest>');
   if (targets && targets.length > 0) {
@@ -106,6 +107,26 @@ function renderManifest(context: Context): string[] {
     }
     out.push('      </edges>');
     out.push('    </repo_map>');
+  }
+
+  if (symbolMap) {
+    out.push('    <symbol_map>');
+    out.push('      <nodes>');
+    for (const node of symbolMap.nodes) {
+      const pathAttr = node.path ? ` path="${escapeXmlAttr(normalizePath(node.path))}"` : '';
+      out.push(
+        `        <node id="${escapeXmlAttr(node.id)}" name="${escapeXmlAttr(node.name)}" kind="${escapeXmlAttr(node.kind)}"${pathAttr} line="${node.location.start.line}" column="${node.location.start.column}" />`,
+      );
+    }
+    out.push('      </nodes>');
+    out.push('      <edges>');
+    for (const edge of symbolMap.edges) {
+      out.push(
+        `        <edge from="${escapeXmlAttr(edge.from)}" to="${escapeXmlAttr(edge.to)}" type="${escapeXmlAttr(edge.type)}" confidence="${escapeXmlAttr(edge.confidence)}" />`,
+      );
+    }
+    out.push('      </edges>');
+    out.push('    </symbol_map>');
   }
 
   out.push('  </manifest>');
@@ -153,6 +174,34 @@ function renderAnalysis(context: Context): string[] {
       out.push('        </note>');
     }
     out.push('      </notes>');
+  }
+
+  if (ast.controlFlow) {
+    out.push(
+      `      <control_flow branches="${ast.controlFlow.branchCount}" loops="${ast.controlFlow.loopCount}" async_boundaries="${ast.controlFlow.asyncBoundaryCount}">`,
+    );
+    if (Array.isArray(ast.controlFlow.hotspots) && ast.controlFlow.hotspots.length > 0) {
+      out.push('        <hotspots>');
+      for (const hotspot of ast.controlFlow.hotspots) {
+        out.push(`          <hotspot type="${escapeXmlAttr(hotspot)}" />`);
+      }
+      out.push('        </hotspots>');
+    }
+    out.push('      </control_flow>');
+  }
+
+  if (ast.exceptionPaths) {
+    out.push(
+      `      <exception_paths try_catch="${ast.exceptionPaths.tryCatchCount}" throws="${ast.exceptionPaths.throwCount}" promise_catch="${ast.exceptionPaths.promiseCatchCount}">`,
+    );
+    if (Array.isArray(ast.exceptionPaths.hotspots) && ast.exceptionPaths.hotspots.length > 0) {
+      out.push('        <hotspots>');
+      for (const hotspot of ast.exceptionPaths.hotspots) {
+        out.push(`          <hotspot type="${escapeXmlAttr(hotspot)}" />`);
+      }
+      out.push('        </hotspots>');
+    }
+    out.push('      </exception_paths>');
   }
 
   out.push('    </ast>');

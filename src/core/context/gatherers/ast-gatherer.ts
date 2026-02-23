@@ -9,10 +9,12 @@ import { pluginRegistry } from '../../plugin/registry.js';
 import type {
   AstSyntaxError,
   CodeLocation,
+  ContextAnalysis,
   RepoMap,
   RepoMapEdge,
   RepoMapNode,
   RelatedFileContext,
+  SymbolMap,
   SymbolInfo,
 } from '../../types/index.js';
 import { normalizePath, safeJoin } from '../../utils/path.js';
@@ -26,6 +28,9 @@ export interface AstResult {
   definitionMap: Record<string, CodeLocation>;
   relatedFiles: RelatedFileContext[];
   repoMap?: RepoMap;
+  symbolMap?: SymbolMap;
+  controlFlow?: NonNullable<ContextAnalysis['ast']>['controlFlow'];
+  exceptionPaths?: NonNullable<ContextAnalysis['ast']>['exceptionPaths'];
   languageId?: string;
   syntaxErrors?: AstSyntaxError[];
   parseError?: string;
@@ -40,6 +45,95 @@ function getImportScanDepth(req: ContextRequest): { depth: number; trigger: Repo
     return { depth: LIMITS.maxDependencyDepth, trigger: 'deep' };
   }
   return { depth: 1, trigger: 'shallow' };
+}
+
+function buildSymbolMap(
+  symbols: SymbolInfo[],
+  primaryFile: string,
+): {
+  symbolMap: SymbolMap;
+} {
+  const definitions = symbols.filter((s) => s.kind === 'definition');
+  const references = symbols.filter((s) => s.kind === 'reference');
+
+  const nodes: SymbolMap['nodes'] = [];
+  const edges: SymbolMap['edges'] = [];
+  const definitionNodeByName = new Map<string, string>();
+
+  for (const def of definitions) {
+    const id = `def:${def.name}:${def.location.start.line}:${def.location.start.column}`;
+    definitionNodeByName.set(def.name, id);
+    nodes.push({
+      id,
+      name: def.name,
+      kind: 'definition',
+      path: primaryFile,
+      location: def.location,
+    });
+  }
+
+  for (const ref of references) {
+    const refId = `ref:${ref.name}:${ref.location.start.line}:${ref.location.start.column}`;
+    nodes.push({
+      id: refId,
+      name: ref.name,
+      kind: 'reference',
+      path: primaryFile,
+      location: ref.location,
+    });
+
+    const targetDefId = definitionNodeByName.get(ref.name);
+    if (!targetDefId) continue;
+
+    const snippet = ref.snippet || '';
+    const edgeType: 'reference' | 'call' = /\w+\s*\(/.test(snippet) ? 'call' : 'reference';
+    edges.push({
+      from: refId,
+      to: targetDefId,
+      type: edgeType,
+      confidence: 'high',
+    });
+  }
+
+  return { symbolMap: { nodes, edges } };
+}
+
+function summarizeControlFlow(primaryText: string): {
+  controlFlow: NonNullable<ContextAnalysis['ast']>['controlFlow'];
+  exceptionPaths: NonNullable<ContextAnalysis['ast']>['exceptionPaths'];
+} {
+  const branchMatches = primaryText.match(/\b(if|else\s+if|switch|\?)\b/g) || [];
+  const loopMatches = primaryText.match(/\b(for|while|do)\b/g) || [];
+  const asyncMatches = primaryText.match(/\b(await|Promise\.all|Promise\.race|setTimeout|setInterval)\b/g) || [];
+
+  const tryCatchMatches = primaryText.match(/\btry\b|\bcatch\b/g) || [];
+  const throwMatches = primaryText.match(/\bthrow\b/g) || [];
+  const promiseCatchMatches = primaryText.match(/\.catch\s*\(/g) || [];
+
+  const controlHotspots: string[] = [];
+  if (branchMatches.length >= 3) controlHotspots.push('dense_branching');
+  if (loopMatches.length >= 2) controlHotspots.push('nested_or_multiple_loops');
+  if (asyncMatches.length >= 2) controlHotspots.push('multiple_async_boundaries');
+
+  const exceptionHotspots: string[] = [];
+  if (tryCatchMatches.length >= 2) exceptionHotspots.push('multiple_try_catch_paths');
+  if (throwMatches.length >= 2) exceptionHotspots.push('multiple_throw_sites');
+  if (promiseCatchMatches.length >= 2) exceptionHotspots.push('multiple_promise_catch_paths');
+
+  return {
+    controlFlow: {
+      branchCount: branchMatches.length,
+      loopCount: loopMatches.length,
+      asyncBoundaryCount: asyncMatches.length,
+      hotspots: controlHotspots,
+    },
+    exceptionPaths: {
+      tryCatchCount: Math.floor(tryCatchMatches.length / 2),
+      throwCount: throwMatches.length,
+      promiseCatchCount: promiseCatchMatches.length,
+      hotspots: exceptionHotspots,
+    },
+  };
 }
 
 /**
@@ -60,12 +154,17 @@ export class AstGatherer {
     const diagnostics = await this.gatherDiagnostics(primaryText, req.primaryFile);
     const symbolsResult = await this.gatherSymbols(primaryText, req.primaryFile, diagnostics.tree);
     const importedResult = await this.gatherImportedFiles(primaryText, req);
+    const { symbolMap } = buildSymbolMap(symbolsResult.symbols, req.primaryFile);
+    const controlFlowSummary = summarizeControlFlow(primaryText);
 
     return {
       symbols: symbolsResult.symbols,
       definitionMap: symbolsResult.definitionMap,
       relatedFiles: importedResult.relatedFiles,
       repoMap: importedResult.repoMap,
+      symbolMap,
+      controlFlow: controlFlowSummary.controlFlow,
+      exceptionPaths: controlFlowSummary.exceptionPaths,
       languageId: diagnostics.languageId,
       syntaxErrors: diagnostics.syntaxErrors,
       parseError: diagnostics.parseError,

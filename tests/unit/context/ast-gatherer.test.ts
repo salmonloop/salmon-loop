@@ -1,11 +1,19 @@
 import { readFile } from 'fs/promises';
 
+import { AstParser } from '../../../src/core/ast/parser.js';
 import { AstGatherer } from '../../../src/core/context/gatherers/ast-gatherer.js';
 import type { ContextRequest } from '../../../src/core/context/types.js';
 import { pluginRegistry } from '../../../src/core/plugin/registry.js';
 
 vi.mock('fs/promises', () => ({
   readFile: vi.fn(),
+}));
+vi.mock('../../../src/core/ast/parser.js', () => ({
+  AstParser: {
+    parse: vi.fn(),
+    identifyDefinitions: vi.fn(),
+    identifyReferences: vi.fn(),
+  },
 }));
 
 describe('AstGatherer import traversal', () => {
@@ -15,6 +23,9 @@ describe('AstGatherer import traversal', () => {
         meta: { id: 'ts', name: 'TypeScript', extensions: ['.ts'] },
       } as any,
     ]);
+    vi.spyOn(pluginRegistry, 'getByExtension').mockReturnValue({
+      meta: { id: 'ts', name: 'TypeScript', extensions: ['.ts'] },
+    } as any);
 
     const readFileMock = readFile as unknown as ReturnType<typeof vi.fn>;
     readFileMock.mockImplementation(async (filePath: any) => {
@@ -27,6 +38,23 @@ describe('AstGatherer import traversal', () => {
       }
       throw new Error(`ENOENT: ${p}`);
     });
+
+    (AstParser.parse as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({});
+    (AstParser.identifyDefinitions as unknown as ReturnType<typeof vi.fn>).mockResolvedValue([
+      {
+        name: 'foo',
+        kind: 'definition',
+        location: { start: { line: 1, column: 1 }, end: { line: 1, column: 4 } },
+      },
+    ]);
+    (AstParser.identifyReferences as unknown as ReturnType<typeof vi.fn>).mockResolvedValue([
+      {
+        name: 'foo',
+        kind: 'reference',
+        location: { start: { line: 2, column: 3 }, end: { line: 2, column: 6 } },
+        snippet: 'foo()',
+      },
+    ]);
   });
 
   afterEach(() => {
@@ -40,12 +68,16 @@ describe('AstGatherer import traversal', () => {
       repoPath: '/repo',
       primaryFile: 'a.ts',
     };
-    const result = await gatherer.gather("import { b } from './b';\n", req);
+    const result = await gatherer.gather("import { b } from './b';\nif (x) { throw err }\n", req);
 
     expect(result.repoMap?.trigger).toBe('shallow');
     expect(result.repoMap?.maxDepth).toBe(1);
     expect(result.relatedFiles.some((f) => f.path === 'b.ts')).toBe(true);
     expect(result.relatedFiles.some((f) => f.path === 'c.ts')).toBe(false);
+    expect(result.symbolMap?.nodes.some((n) => n.name === 'foo')).toBe(true);
+    expect(result.symbolMap?.edges.some((e) => e.type === 'call')).toBe(true);
+    expect(result.controlFlow?.branchCount).toBeGreaterThan(0);
+    expect(result.exceptionPaths?.throwCount).toBeGreaterThan(0);
   });
 
   it('expands traversal depth when deep trigger keywords appear', async () => {

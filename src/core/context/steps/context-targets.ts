@@ -63,11 +63,14 @@ export function buildContextTargetsStep(deps: ContextServiceDeps) {
       symbols: ast.symbols,
       definitionMap: ast.definitionMap,
       repoMap: ast.repoMap,
+      symbolMap: ast.symbolMap,
       analysis: {
         ast: {
           languageId: ast.languageId,
           syntaxErrors: ast.syntaxErrors,
           parseError: ast.parseError,
+          controlFlow: ast.controlFlow,
+          exceptionPaths: ast.exceptionPaths,
           notes: [
             'Type mismatch, dead code, and potential bug detection are not available in this analysis layer.',
           ],

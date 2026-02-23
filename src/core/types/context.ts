@@ -49,8 +49,40 @@ export interface ContextAnalysis {
     languageId?: string;
     syntaxErrors?: AstSyntaxError[];
     parseError?: string;
+    controlFlow?: {
+      branchCount: number;
+      loopCount: number;
+      asyncBoundaryCount: number;
+      hotspots?: string[];
+    };
+    exceptionPaths?: {
+      tryCatchCount: number;
+      throwCount: number;
+      promiseCatchCount: number;
+      hotspots?: string[];
+    };
     notes?: string[];
   };
+}
+
+export interface SymbolMapNode {
+  id: string;
+  name: string;
+  kind: 'definition' | 'reference';
+  path?: string;
+  location: CodeLocation;
+}
+
+export interface SymbolMapEdge {
+  from: string;
+  to: string;
+  type: 'reference' | 'call';
+  confidence: 'high' | 'medium' | 'low';
+}
+
+export interface SymbolMap {
+  nodes: SymbolMapNode[];
+  edges: SymbolMapEdge[];
 }
 
 export interface RepoMapNode {
@@ -91,6 +123,7 @@ export interface Context {
   targets?: ContextTarget[];
   analysis?: ContextAnalysis;
   repoMap?: RepoMap;
+  symbolMap?: SymbolMap;
 }
 
 export interface FileContext {

@@ -2,6 +2,7 @@ import type { Context } from '../../types/index.js';
 import type {
   AstSyntaxError,
   CodeLocation,
+  ContextAnalysis,
   RelatedFileContext,
   SymbolInfo,
 } from '../../types/index.js';
@@ -19,6 +20,9 @@ export interface ContextAstBundle {
   definitionMap: Record<string, CodeLocation>;
   relatedFiles: RelatedFileContext[];
   repoMap?: Context['repoMap'];
+  symbolMap?: Context['symbolMap'];
+  controlFlow?: NonNullable<ContextAnalysis['ast']>['controlFlow'];
+  exceptionPaths?: NonNullable<ContextAnalysis['ast']>['exceptionPaths'];
   languageId?: string;
   syntaxErrors?: AstSyntaxError[];
   parseError?: string;
@@ -52,4 +56,5 @@ export interface ContextTargetsCtx extends ContextPipelineInitCtx {
   definitionMap: Context['definitionMap'];
   analysis: Context['analysis'];
   repoMap?: Context['repoMap'];
+  symbolMap?: Context['symbolMap'];
 }

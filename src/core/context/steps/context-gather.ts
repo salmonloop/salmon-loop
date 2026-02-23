@@ -49,6 +49,9 @@ export function buildContextGatherStep(deps: ContextServiceDeps) {
       ast: {
         relatedFiles: astRes.relatedFiles,
         repoMap: astRes.repoMap,
+        symbolMap: astRes.symbolMap,
+        controlFlow: astRes.controlFlow,
+        exceptionPaths: astRes.exceptionPaths,
         symbols: astRes.symbols,
         definitionMap: astRes.definitionMap,
         languageId: astRes.languageId,

@@ -29,6 +29,20 @@ describe('ContextService', () => {
             nodes: [{ path: 'src/a.ts', depth: 0, source: 'primary' }],
             edges: [],
           },
+          symbolMap: {
+            nodes: [
+              {
+                id: 'def:foo:1:1',
+                name: 'foo',
+                kind: 'definition',
+                path: 'src/a.ts',
+                location: { start: { line: 1, column: 1 }, end: { line: 1, column: 4 } },
+              },
+            ],
+            edges: [],
+          },
+          controlFlow: { branchCount: 1, loopCount: 0, asyncBoundaryCount: 0, hotspots: [] },
+          exceptionPaths: { tryCatchCount: 0, throwCount: 0, promiseCatchCount: 0, hotspots: [] },
         }),
       } as any,
       assembler: {
@@ -47,6 +61,7 @@ describe('ContextService', () => {
     expect(result.prompt).toBe('PROMPT');
     expect(result.context.primaryText).toBe('PRIMARY');
     expect(result.context.repoMap?.trigger).toBe('shallow');
+    expect(result.context.symbolMap?.nodes[0]?.name).toBe('foo');
     expect(result.context.rgSnippets.length).toBe(1);
     expect(result.meta.diffScope).toBe('primary');
     expect(result.meta.includedFiles).toEqual(['src/a.ts']);

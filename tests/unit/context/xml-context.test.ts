@@ -60,4 +60,55 @@ describe('formatContextForXmlPrompt (analysis limits)', () => {
     expect(out).toContain('<node path="src/a.ts" depth="0" source="primary" />');
     expect(out).toContain('<edge from="src/a.ts" to="src/b.ts" type="import" />');
   });
+
+  it('renders symbol_map and deep analysis fields', () => {
+    const ctx: Context = {
+      repoPath: '/repo',
+      primaryFile: 'src/a.ts',
+      primaryText: 'if (a) { throw new Error() }\n',
+      rgSnippets: [],
+      symbolMap: {
+        nodes: [
+          {
+            id: 'def:foo:1:1',
+            name: 'foo',
+            kind: 'definition',
+            path: 'src/a.ts',
+            location: { start: { line: 1, column: 1 }, end: { line: 1, column: 4 } },
+          },
+          {
+            id: 'ref:foo:2:3',
+            name: 'foo',
+            kind: 'reference',
+            path: 'src/a.ts',
+            location: { start: { line: 2, column: 3 }, end: { line: 2, column: 6 } },
+          },
+        ],
+        edges: [{ from: 'ref:foo:2:3', to: 'def:foo:1:1', type: 'call', confidence: 'high' }],
+      },
+      analysis: {
+        ast: {
+          controlFlow: {
+            branchCount: 3,
+            loopCount: 1,
+            asyncBoundaryCount: 2,
+            hotspots: ['dense_branching'],
+          },
+          exceptionPaths: {
+            tryCatchCount: 1,
+            throwCount: 2,
+            promiseCatchCount: 1,
+            hotspots: ['multiple_throw_sites'],
+          },
+        },
+      },
+    };
+
+    const out = formatContextForXmlPrompt(ctx);
+    expect(out).toContain('<symbol_map>');
+    expect(out).toContain('node id="def:foo:1:1"');
+    expect(out).toContain('edge from="ref:foo:2:3" to="def:foo:1:1" type="call"');
+    expect(out).toContain('<control_flow branches="3" loops="1" async_boundaries="2">');
+    expect(out).toContain('<exception_paths try_catch="1" throws="2" promise_catch="1">');
+  });
 });
