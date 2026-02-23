@@ -18,6 +18,7 @@ export interface ContextAstBundle {
   symbols: SymbolInfo[];
   definitionMap: Record<string, CodeLocation>;
   relatedFiles: RelatedFileContext[];
+  repoMap?: Context['repoMap'];
   languageId?: string;
   syntaxErrors?: AstSyntaxError[];
   parseError?: string;
@@ -50,4 +51,5 @@ export interface ContextTargetsCtx extends ContextPipelineInitCtx {
   symbols: Context['symbols'];
   definitionMap: Context['definitionMap'];
   analysis: Context['analysis'];
+  repoMap?: Context['repoMap'];
 }

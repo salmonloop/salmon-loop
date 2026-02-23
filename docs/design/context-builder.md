@@ -21,6 +21,11 @@ The builder uses Tree-sitter to perform lightweight AST analysis on the primary 
 
 In addition, imported files referenced by the primary file are collected as "related files". Large related files are downgraded to an outline representation (exports, types, class/function signatures) to keep the context compact and stable.
 
+The AST gatherer also emits a deterministic `repo_map` manifest:
+- **Nodes**: primary/import files with traversal depth.
+- **Edges**: import relationships (`from -> to`).
+- **Trigger mode**: `shallow` (default) or `deep` (when instruction intent implies cross-file refactor/migration/dependency work).
+
 ## 3. Truncation Strategy: Pack-Until-Full
 
 Instead of proportional truncation, we use a "pack-until-full" strategy:
@@ -61,3 +66,10 @@ All limits are character-based rather than token-based. This makes the system:
 - **Model-Agnostic**: Works consistently across different LLM providers.
 - **Predictable**: Easy to reason about memory and resource usage.
 - **Stable**: Avoids the complexity and overhead of local tokenization.
+
+Budget planning exposes an explicit **60-30-10** split in metadata/audit:
+- **60% Primary** (`primaryText`)
+- **30% Related** (`relatedFiles`)
+- **10% Secondary** (`rgSnippets` + diffs)
+
+The runtime still applies deterministic `pack-until-full`; the split is an explicit planning/audit contract, not a hard per-section truncation wall.

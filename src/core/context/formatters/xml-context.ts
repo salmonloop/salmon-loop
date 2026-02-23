@@ -72,17 +72,42 @@ function renderPrimaryFile(context: Context): string[] {
 function renderManifest(context: Context): string[] {
   const out: string[] = [];
   const targets = context.targets;
-  if (!targets || targets.length === 0) return out;
+  const repoMap = context.repoMap;
+  if ((!targets || targets.length === 0) && !repoMap) return out;
 
   out.push('  <manifest>');
-  out.push('    <targets>');
-  for (const t of targets) {
-    const evidenceAttr = t.evidence ? ` evidence="${escapeXmlAttr(t.evidence)}"` : '';
-    out.push(
-      `      <target path="${escapeXmlAttr(normalizePath(t.path))}" reason="${escapeXmlAttr(t.reason)}" confidence="${escapeXmlAttr(t.confidence)}"${evidenceAttr} />`,
-    );
+  if (targets && targets.length > 0) {
+    out.push('    <targets>');
+    for (const t of targets) {
+      const evidenceAttr = t.evidence ? ` evidence="${escapeXmlAttr(t.evidence)}"` : '';
+      out.push(
+        `      <target path="${escapeXmlAttr(normalizePath(t.path))}" reason="${escapeXmlAttr(t.reason)}" confidence="${escapeXmlAttr(t.confidence)}"${evidenceAttr} />`,
+      );
+    }
+    out.push('    </targets>');
   }
-  out.push('    </targets>');
+
+  if (repoMap) {
+    out.push(
+      `    <repo_map trigger="${escapeXmlAttr(repoMap.trigger)}" max_depth="${repoMap.maxDepth}">`,
+    );
+    out.push('      <nodes>');
+    for (const node of repoMap.nodes) {
+      out.push(
+        `        <node path="${escapeXmlAttr(normalizePath(node.path))}" depth="${node.depth}" source="${escapeXmlAttr(node.source)}" />`,
+      );
+    }
+    out.push('      </nodes>');
+    out.push('      <edges>');
+    for (const edge of repoMap.edges) {
+      out.push(
+        `        <edge from="${escapeXmlAttr(normalizePath(edge.from))}" to="${escapeXmlAttr(normalizePath(edge.to))}" type="${escapeXmlAttr(edge.type)}" />`,
+      );
+    }
+    out.push('      </edges>');
+    out.push('    </repo_map>');
+  }
+
   out.push('  </manifest>');
 
   return out;

@@ -9,10 +9,13 @@ import { pluginRegistry } from '../../plugin/registry.js';
 import type {
   AstSyntaxError,
   CodeLocation,
+  RepoMap,
+  RepoMapEdge,
+  RepoMapNode,
   RelatedFileContext,
   SymbolInfo,
 } from '../../types/index.js';
-import { safeJoin } from '../../utils/path.js';
+import { normalizePath, safeJoin } from '../../utils/path.js';
 import { extractImportSpecifiers } from '../ast/import-extractor.js';
 import { resolveImportCandidates } from '../ast/module-resolver.js';
 import { outlineSource } from '../ast/source-outline.js';
@@ -22,9 +25,21 @@ export interface AstResult {
   symbols: SymbolInfo[];
   definitionMap: Record<string, CodeLocation>;
   relatedFiles: RelatedFileContext[];
+  repoMap?: RepoMap;
   languageId?: string;
   syntaxErrors?: AstSyntaxError[];
   parseError?: string;
+}
+
+const AST_DEEP_TRIGGER_PATTERN =
+  /\b(refactor|rename|migrate|cross[- ]?file|across|dependency|dependencies|module|architecture|global)\b/i;
+
+function getImportScanDepth(req: ContextRequest): { depth: number; trigger: RepoMap['trigger'] } {
+  const instruction = req.instruction || '';
+  if (AST_DEEP_TRIGGER_PATTERN.test(instruction)) {
+    return { depth: LIMITS.maxDependencyDepth, trigger: 'deep' };
+  }
+  return { depth: 1, trigger: 'shallow' };
 }
 
 /**
@@ -44,12 +59,13 @@ export class AstGatherer {
 
     const diagnostics = await this.gatherDiagnostics(primaryText, req.primaryFile);
     const symbolsResult = await this.gatherSymbols(primaryText, req.primaryFile, diagnostics.tree);
-    const relatedFiles = await this.gatherImportedFiles(primaryText, req);
+    const importedResult = await this.gatherImportedFiles(primaryText, req);
 
     return {
       symbols: symbolsResult.symbols,
       definitionMap: symbolsResult.definitionMap,
-      relatedFiles,
+      relatedFiles: importedResult.relatedFiles,
+      repoMap: importedResult.repoMap,
       languageId: diagnostics.languageId,
       syntaxErrors: diagnostics.syntaxErrors,
       parseError: diagnostics.parseError,
@@ -122,44 +138,90 @@ export class AstGatherer {
   private async gatherImportedFiles(
     primaryText: string,
     req: ContextRequest,
-  ): Promise<RelatedFileContext[]> {
-    const specifiers = extractImportSpecifiers(primaryText);
-    const relative = specifiers.filter((s) => s.startsWith('.'));
-
+  ): Promise<{ relatedFiles: RelatedFileContext[]; repoMap: RepoMap }> {
+    const primaryPath = normalizePath(req.primaryFile || '').replace(/^(\.\/|\/)+/, '');
+    const depthSettings = getImportScanDepth(req);
+    const queue: Array<{ from: string; text: string; depth: number }> = [
+      { from: primaryPath, text: primaryText, depth: 1 },
+    ];
+    const visitedForScan = new Set<string>();
     const related: RelatedFileContext[] = [];
-    const seen = new Set<string>();
+    const relatedSeen = new Set<string>();
+    const repoNodes = new Map<string, RepoMapNode>();
+    const repoEdges = new Map<string, RepoMapEdge>();
 
-    for (const spec of relative) {
-      const candidates = resolveImportCandidates({
-        currentFile: req.primaryFile!,
-        specifier: spec,
-      });
-      if (candidates.length === 0) continue;
-
-      const resolved = await this.pickFirstExisting(req, candidates);
-      if (!resolved) continue;
-
-      const normalized = resolved.replace(/^(\.\/|\/)+/, '');
-      if (seen.has(normalized)) continue;
-      if (normalized === req.primaryFile) continue;
-      seen.add(normalized);
-
-      const content = await this.readRepoFile(req, normalized);
-      if (content === null) continue;
-
-      const outline = outlineSource(content);
-      const isLarge = content.length > LIMITS.largeFileThresholdBytes;
-
-      related.push({
-        path: normalized,
-        kind: 'import',
-        mode: isLarge ? 'outline' : 'full',
-        content: isLarge ? `${outline}\n\n${text.context.relatedContentTruncated}` : content,
-        outline: isLarge ? undefined : outline || undefined,
-      });
+    if (primaryPath) {
+      repoNodes.set(primaryPath, { path: primaryPath, depth: 0, source: 'primary' });
     }
 
-    return related;
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      if (visitedForScan.has(current.from)) continue;
+      visitedForScan.add(current.from);
+
+      const specifiers = extractImportSpecifiers(current.text).filter((s) => s.startsWith('.'));
+      for (const spec of specifiers) {
+        const candidates = resolveImportCandidates({
+          currentFile: current.from,
+          specifier: spec,
+        });
+        if (candidates.length === 0) continue;
+
+        const resolved = await this.pickFirstExisting(req, candidates);
+        if (!resolved) continue;
+
+        const normalized = normalizePath(resolved).replace(/^(\.\/|\/)+/, '');
+        if (!normalized || normalized === primaryPath) continue;
+
+        const edgeKey = `${current.from}->${normalized}`;
+        if (!repoEdges.has(edgeKey)) {
+          repoEdges.set(edgeKey, { from: current.from, to: normalized, type: 'import' });
+        }
+
+        const existingNode = repoNodes.get(normalized);
+        if (!existingNode || existingNode.depth > current.depth) {
+          repoNodes.set(normalized, {
+            path: normalized,
+            depth: current.depth,
+            source: 'import',
+          });
+        }
+
+        const content = await this.readRepoFile(req, normalized);
+        if (content === null) continue;
+
+        if (!relatedSeen.has(normalized)) {
+          relatedSeen.add(normalized);
+          const outline = outlineSource(content);
+          const isLarge = content.length > LIMITS.largeFileThresholdBytes;
+          related.push({
+            path: normalized,
+            kind: 'import',
+            mode: isLarge ? 'outline' : 'full',
+            content: isLarge ? `${outline}\n\n${text.context.relatedContentTruncated}` : content,
+            outline: isLarge ? undefined : outline || undefined,
+          });
+        }
+
+        if (
+          current.depth < depthSettings.depth &&
+          !visitedForScan.has(normalized) &&
+          repoNodes.size < LIMITS.maxRelatedFiles + 1
+        ) {
+          queue.push({ from: normalized, text: content, depth: current.depth + 1 });
+        }
+      }
+    }
+
+    return {
+      relatedFiles: related,
+      repoMap: {
+        nodes: Array.from(repoNodes.values()),
+        edges: Array.from(repoEdges.values()),
+        maxDepth: depthSettings.depth,
+        trigger: depthSettings.trigger,
+      },
+    };
   }
 
   private async pickFirstExisting(

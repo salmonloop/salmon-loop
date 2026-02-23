@@ -62,6 +62,7 @@ export function buildContextTargetsStep(deps: ContextServiceDeps) {
       relatedFiles: ast.relatedFiles,
       symbols: ast.symbols,
       definitionMap: ast.definitionMap,
+      repoMap: ast.repoMap,
       analysis: {
         ast: {
           languageId: ast.languageId,

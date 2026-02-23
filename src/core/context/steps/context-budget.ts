@@ -12,9 +12,43 @@ import { packUntilFull } from '../policies/pack-until-full.js';
 import { rankContextForRelevance } from '../scoring/relevance.js';
 import type { ContextServiceDeps } from '../service-deps.js';
 import { calculateSectionChars, calculateUsedChars } from '../service-helpers.js';
-import type { ContextResult } from '../types.js';
+import type { ContextBudgetAllocation, ContextResult, ContextSectionChars } from '../types.js';
 
 import type { ContextTargetsCtx } from './types.js';
+
+const BUDGET_RATIO = {
+  primary: 0.6,
+  related: 0.3,
+  secondary: 0.1,
+} as const;
+
+function computeBudgetAllocation(
+  budgetChars: number,
+  sectionChars: ContextSectionChars,
+): ContextBudgetAllocation {
+  const primaryBudget = Math.max(0, Math.floor(budgetChars * BUDGET_RATIO.primary));
+  const relatedBudget = Math.max(0, Math.floor(budgetChars * BUDGET_RATIO.related));
+  const secondaryBudget = Math.max(0, budgetChars - primaryBudget - relatedBudget);
+  const secondaryUsed = Math.max(0, sectionChars.rgSnippets + sectionChars.diffs);
+
+  return {
+    ratio: {
+      primary: BUDGET_RATIO.primary,
+      related: BUDGET_RATIO.related,
+      secondary: BUDGET_RATIO.secondary,
+    },
+    budgetChars: {
+      primary: primaryBudget,
+      related: relatedBudget,
+      secondary: secondaryBudget,
+    },
+    usedChars: {
+      primary: sectionChars.primary,
+      related: sectionChars.relatedFiles,
+      secondary: secondaryUsed,
+    },
+  };
+}
 
 export function buildContextBudgetStep(deps: ContextServiceDeps) {
   const assembler = deps.assembler ?? new DefaultPromptAssembler();
@@ -33,6 +67,7 @@ export function buildContextBudgetStep(deps: ContextServiceDeps) {
     symbols,
     definitionMap,
     analysis,
+    repoMap,
   }: ContextTargetsCtx): Promise<ContextResult> => {
     const context: Context = {
       repoPath: req.repoPath,
@@ -49,6 +84,7 @@ export function buildContextBudgetStep(deps: ContextServiceDeps) {
       definitionMap,
       targets,
       analysis,
+      repoMap,
     };
 
     const compressed = applySmartCompression(context, { budgetChars: req.budgetChars });
@@ -95,6 +131,8 @@ export function buildContextBudgetStep(deps: ContextServiceDeps) {
 
     const assembled = assembler.assemble(budgeted.context, req);
     const sectionChars = calculateSectionChars(budgeted.context);
+    const requestedBudgetChars = budget ?? LIMITS.maxContextChars;
+    const budgetAllocation = computeBudgetAllocation(requestedBudgetChars, sectionChars);
     const droppedSections =
       budgeted.truncated && preBudgetSectionChars.diffs > 0
         ? {
@@ -114,6 +152,7 @@ export function buildContextBudgetStep(deps: ContextServiceDeps) {
         requestedBudgetChars: budget,
         preBudgetSectionChars,
         sectionChars,
+        budgetAllocation,
         truncated: budgeted.truncated,
         droppedSections,
       },
@@ -131,6 +170,7 @@ export function buildContextBudgetStep(deps: ContextServiceDeps) {
         requestedBudgetChars: budget,
         preBudgetSectionChars,
         sectionChars,
+        budgetAllocation,
         droppedSections,
         ...(assembled.meta || {}),
       },

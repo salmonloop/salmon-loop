@@ -53,6 +53,25 @@ export interface ContextAnalysis {
   };
 }
 
+export interface RepoMapNode {
+  path: string;
+  depth: number;
+  source: 'primary' | 'import';
+}
+
+export interface RepoMapEdge {
+  from: string;
+  to: string;
+  type: 'import';
+}
+
+export interface RepoMap {
+  nodes: RepoMapNode[];
+  edges: RepoMapEdge[];
+  maxDepth: number;
+  trigger: 'shallow' | 'deep';
+}
+
 export interface Context {
   repoPath: string;
   primaryFile?: string;
@@ -71,6 +90,7 @@ export interface Context {
   symbols?: SymbolInfo[];
   targets?: ContextTarget[];
   analysis?: ContextAnalysis;
+  repoMap?: RepoMap;
 }
 
 export interface FileContext {

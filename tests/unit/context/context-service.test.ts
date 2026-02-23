@@ -19,7 +19,17 @@ describe('ContextService', () => {
         }),
       } as any,
       astGatherer: {
-        gather: async () => ({ symbols: [], definitionMap: {}, relatedFiles: [] }),
+        gather: async () => ({
+          symbols: [],
+          definitionMap: {},
+          relatedFiles: [],
+          repoMap: {
+            trigger: 'shallow',
+            maxDepth: 1,
+            nodes: [{ path: 'src/a.ts', depth: 0, source: 'primary' }],
+            edges: [],
+          },
+        }),
       } as any,
       assembler: {
         assemble: () => ({ prompt: 'PROMPT' }),
@@ -30,15 +40,23 @@ describe('ContextService', () => {
       instruction: 'fix foo',
       repoPath: '/repo',
       primaryFile: 'src/a.ts',
+      budgetChars: 100,
     };
 
     const result = await service.build(req);
     expect(result.prompt).toBe('PROMPT');
     expect(result.context.primaryText).toBe('PRIMARY');
+    expect(result.context.repoMap?.trigger).toBe('shallow');
     expect(result.context.rgSnippets.length).toBe(1);
     expect(result.meta.diffScope).toBe('primary');
     expect(result.meta.includedFiles).toEqual(['src/a.ts']);
     expect(result.meta.usedChars).toBeGreaterThan(0);
+    expect(result.meta.budgetAllocation).toBeDefined();
+    expect(result.meta.budgetAllocation?.ratio).toEqual({
+      primary: 0.6,
+      related: 0.3,
+      secondary: 0.1,
+    });
   });
 
   it('aborts build when AbortSignal is already aborted', async () => {

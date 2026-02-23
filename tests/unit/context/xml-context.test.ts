@@ -37,4 +37,27 @@ describe('formatContextForXmlPrompt (analysis limits)', () => {
     expect(out.split('<note>').length - 1).toBe(10);
     expect(out.includes('n'.repeat(501))).toBe(false);
   });
+
+  it('renders repo_map inside manifest when available', () => {
+    const ctx: Context = {
+      repoPath: '/repo',
+      primaryFile: 'src/a.ts',
+      primaryText: 'export const a = 1;\n',
+      rgSnippets: [],
+      repoMap: {
+        trigger: 'deep',
+        maxDepth: 3,
+        nodes: [
+          { path: 'src/a.ts', depth: 0, source: 'primary' },
+          { path: 'src/b.ts', depth: 1, source: 'import' },
+        ],
+        edges: [{ from: 'src/a.ts', to: 'src/b.ts', type: 'import' }],
+      },
+    };
+
+    const out = formatContextForXmlPrompt(ctx);
+    expect(out).toContain('<repo_map trigger="deep" max_depth="3">');
+    expect(out).toContain('<node path="src/a.ts" depth="0" source="primary" />');
+    expect(out).toContain('<edge from="src/a.ts" to="src/b.ts" type="import" />');
+  });
 });

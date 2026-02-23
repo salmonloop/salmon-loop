@@ -34,6 +34,7 @@
   "tests/unit/cli/ui-sanitizer.test.ts",
   "tests/unit/cli/utils/asyncQueue.test.ts",
   "tests/unit/context-shrink.test.ts",
+  "tests/unit/context/ast-gatherer.test.ts",
   "tests/unit/context/context-service.test.ts",
   "tests/unit/grizzco-llm-strategy.test.ts",
   "tests/unit/llm-errors.test.ts",

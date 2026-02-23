@@ -34,6 +34,7 @@ export interface ContextBuildMeta {
   preBudgetSectionChars?: ContextSectionChars;
   sectionChars: ContextSectionChars;
   droppedSections?: DroppedContextSections;
+  budgetAllocation?: ContextBudgetAllocation;
 }
 
 export interface ContextSectionChars {
@@ -55,4 +56,22 @@ export interface ContextResult {
   context: Context;
   prompt: string;
   meta: ContextBuildMeta;
+}
+
+export interface ContextBudgetAllocation {
+  ratio: {
+    primary: number;
+    related: number;
+    secondary: number;
+  };
+  budgetChars: {
+    primary: number;
+    related: number;
+    secondary: number;
+  };
+  usedChars: {
+    primary: number;
+    related: number;
+    secondary: number;
+  };
 }
