@@ -8,7 +8,7 @@ Note: the repository currently does **not** ship a single `StrataSystem` class. 
 
 - **L1: ImmutableGitLayer (Git base layer)**
   - Goal: provide a reproducible, Git-backed baseline (snapshots/worktrees).
-  - Code: `src/core/strata/layers/immutable-git-layer.ts` (`ImmutableGitLayerImpl`), built on `src/core/checkpoint/manager.ts`.
+  - Code: `src/core/strata/layers/immutable-git-layer.ts` (`ImmutableGitLayerImpl`), built on `src/core/strata/checkpoint/manager.ts`.
 
 - **L2: ShadowDriver (dependency environment layer)**
   - Goal: hydrate dependency directories (e.g. `node_modules/target/build`) into a shadow/worktree without touching `.git`, so verification commands can run.

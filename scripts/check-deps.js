@@ -1,4 +1,4 @@
-import { verifyDependencyVersion } from '../src/core/dependency.js';
+import { verifyDependencyVersion } from '../src/core/context/dependencies.js';
 
 /**
  * Standalone script to check dependency versions
