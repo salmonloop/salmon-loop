@@ -1,4 +1,4 @@
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { mkdtemp, rm, writeFile, readFile, mkdir, rename, chmod, cp } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -7,8 +7,50 @@ import { logger } from '../../src/core/observability/logger.js';
 import { CheckpointManager } from '../../src/core/strata/checkpoint/manager.js';
 import { ShadowMergeEngine } from '../../src/core/strata/engine/shadow-merge-engine.js';
 
+const canUseSyncGit = (() => {
+  try {
+    execFileSync('git', ['rev-parse', '--is-inside-work-tree'], {
+      cwd: process.cwd(),
+      stdio: 'ignore',
+    });
+    // Probe a few sync git invocations to avoid false positives on constrained runtimes.
+    for (let i = 0; i < 6; i++) {
+      execFileSync('git', ['status', '--porcelain'], {
+        cwd: process.cwd(),
+        stdio: 'ignore',
+      });
+    }
+    return true;
+  } catch (error: any) {
+    if (error?.code === 'EPERM' || error?.code === 'EACCES') {
+      return false;
+    }
+    throw error;
+  }
+})();
+
+const describeMerge = canUseSyncGit ? describe : describe.skip;
+
 class GitHelper {
   constructor(public cwd: string) {}
+
+  private splitCommand(command: string): string[] {
+    const parts: string[] = [];
+    const tokenPattern = /"([^"]*)"|'([^']*)'|[^\s]+/g;
+    let match: RegExpExecArray | null;
+    while ((match = tokenPattern.exec(command)) !== null) {
+      parts.push(match[1] ?? match[2] ?? match[0]);
+    }
+    return parts;
+  }
+
+  private sanitizedEnv(): NodeJS.ProcessEnv {
+    const env = { ...process.env };
+    delete env.GIT_DIR;
+    delete env.GIT_WORK_TREE;
+    delete env.GIT_INDEX_FILE;
+    return env;
+  }
 
   run(command: string): string {
     let retries = 0;
@@ -16,7 +58,11 @@ class GitHelper {
 
     while (true) {
       try {
-        const result = execSync(`git ${command}`, { cwd: this.cwd, stdio: 'pipe' }).toString();
+        const result = execFileSync('git', this.splitCommand(command), {
+          cwd: this.cwd,
+          stdio: 'pipe',
+          env: this.sanitizedEnv(),
+        }).toString();
         return result;
       } catch (error: any) {
         // Check for lock file errors
@@ -41,10 +87,11 @@ class GitHelper {
 
   runWithInput(command: string, input: string | Buffer): string {
     try {
-      return execSync(`git ${command}`, {
+      return execFileSync('git', this.splitCommand(command), {
         cwd: this.cwd,
         stdio: ['pipe', 'pipe', 'pipe'],
         input,
+        env: this.sanitizedEnv(),
       }).toString();
     } catch (error: any) {
       throw new Error(
@@ -54,30 +101,42 @@ class GitHelper {
   }
 
   async init() {
+    try {
+      const inside = this.run('rev-parse --is-inside-work-tree').trim();
+      if (inside === 'true') {
+        this.run('config user.email "test@example.com"');
+        this.run('config user.name "Test User"');
+        this.run('config core.autocrlf false');
+        return;
+      }
+    } catch {
+      // Not a repo yet; continue with initialization.
+    }
+
     // Retry git init
     let retries = 0;
-    let lastError: any;
+    let lastError: any = null;
+    let initialized = false;
     while (retries < 5) {
       try {
-        this.run('init --initial-branch=main');
-        // Verify .git exists and is a repo
-        try {
-          const isTree = this.run('rev-parse --is-inside-work-tree').trim();
-          if (isTree === 'true') break; // Success
-        } catch {
-          // Verification failed
-        }
+        execFileSync('git', ['init', '--initial-branch=main'], {
+          cwd: this.cwd,
+          stdio: ['ignore', 'pipe', 'pipe'],
+          env: this.sanitizedEnv(),
+        });
+        initialized = true;
+        break;
       } catch (e) {
         lastError = e;
-        // Init failed
       }
+
       retries++;
-      if (retries === 5) {
-        throw new Error(
-          `Failed to initialize git repository after 5 attempts. Last error: ${lastError?.message || 'unknown'}`,
-        );
-      }
       await new Promise((r) => setTimeout(r, 200 * Math.pow(2, retries)));
+    }
+    if (!initialized) {
+      throw new Error(
+        `Failed to initialize git repository after 5 attempts. Last error: ${lastError?.message || 'unknown'}`,
+      );
     }
 
     this.run('config user.email "test@example.com"');
@@ -210,9 +269,13 @@ class MergeTestContext {
     let cloneRetries = 0;
     while (cloneRetries < 5) {
       try {
-        execSync(`git clone --local --shared "${this.mainRepoPath}" "${this.shadowRepoPath}"`, {
-          stdio: 'ignore',
-        });
+        execFileSync(
+          'git',
+          ['clone', '--local', '--shared', this.mainRepoPath, this.shadowRepoPath],
+          {
+            stdio: 'ignore',
+          },
+        );
         break;
       } catch (e) {
         cloneRetries++;
@@ -293,7 +356,7 @@ class MergeTestContext {
   }
 }
 
-describe('ShadowMergeEngine Robustness', () => {
+describeMerge('ShadowMergeEngine Robustness', () => {
   let ctx: MergeTestContext;
 
   beforeAll(async () => {

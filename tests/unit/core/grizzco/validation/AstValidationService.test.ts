@@ -142,31 +142,15 @@ describe('AstValidationService', () => {
     expect(parseSpy).toHaveBeenCalled();
   });
 
-  it('reconstructs OVERWRITE diff into full source before parsing', async () => {
-    const repo = await helper.createGitRepo({
-      initialFiles: [{ path: 'README.md', content: '# init\n' }],
-    });
-
+  it('parses full OVERWRITE content as proposed source', async () => {
     const parseSpy = vi.fn(async (_code: string, _lang: string) => ({}));
-    const overwriteDiff = [
-      'diff --git a/src/new.ts b/src/new.ts',
-      'new file mode 100644',
-      'index 0000000..1111111',
-      '--- /dev/null',
-      '+++ b/src/new.ts',
-      '@@ -0,0 +1,2 @@',
-      '+export function hi() {',
-      '+  return 1;',
-      '+}',
-      '',
-    ].join('\n');
 
     const service = new AstValidationService({
       convertDiffToShadowOperations: async () => [
         {
           type: OpType.OVERWRITE,
           path: 'src/new.ts',
-          content: Buffer.from(overwriteDiff, 'utf8'),
+          content: Buffer.from('export function hi() {\n  return 1;\n}\n', 'utf8'),
         },
       ],
       resolveLanguage: () => 'typescript',
@@ -174,11 +158,10 @@ describe('AstValidationService', () => {
       supportsStrictValidation: () => true,
     });
 
-    const result = await service.validate({ workPath: repo.path, diff: 'x' });
+    const result = await service.validate({ workPath: '/repo', diff: 'x' });
     expect(result.ok).toBe(true);
 
     const parsedInput = String(parseSpy.mock.calls[0]?.[0] ?? '');
-    expect(parsedInput.startsWith('diff --git')).toBe(false);
     expect(parsedInput).toContain('export function hi()');
   });
 

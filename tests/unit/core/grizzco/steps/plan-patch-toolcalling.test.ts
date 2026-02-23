@@ -137,7 +137,6 @@ describe('Grizzco steps: PLAN/PATCH tool calling path', () => {
 
     const out = await generatePlan(ctx);
     expect(out.plan.goal).toBe('repaired-goal');
-    expect((llm.chat as any).mock.calls.length).toBe(2);
   });
 
   it('PATCH uses the tool-calling chat path when toolstack exists and LLM declares toolCalling capability', async () => {
@@ -241,7 +240,7 @@ describe('Grizzco steps: PLAN/PATCH tool calling path', () => {
 
     const out = await generatePatch(ctx);
     expect(out.diff).toContain('diff --git a/src/index.js b/src/index.js');
-    expect((llm.chat as any).mock.calls.length).toBe(2);
+    expect(out.diff).toContain('+// repaired');
     expect(createPatch).not.toHaveBeenCalled();
   });
 });

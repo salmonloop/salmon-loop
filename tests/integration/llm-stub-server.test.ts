@@ -20,6 +20,8 @@ type StubResponse =
 function createServerQueue() {
   const responses: StubResponse[] = [];
   const requests: Array<{ url: string; method: string }> = [];
+  let mode: 'http' | 'fetch' = 'http';
+  let originalFetch: typeof globalThis.fetch | undefined;
 
   const server = http.createServer(async (req, res) => {
     requests.push({ url: req.url || '', method: req.method || '' });
@@ -44,6 +46,43 @@ function createServerQueue() {
   return {
     server,
     requests,
+    setMode: (nextMode: 'http' | 'fetch') => {
+      mode = nextMode;
+    },
+    getMode: () => mode,
+    installFetchFallback: () => {
+      if (originalFetch) return;
+      originalFetch = globalThis.fetch;
+      globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url =
+          typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+        const method =
+          init?.method || (typeof input === 'object' && 'method' in input ? input.method : 'GET');
+        requests.push({ url, method });
+        const next = responses.shift();
+        if (!next) {
+          return new Response('No stub response configured', {
+            status: 500,
+            headers: { 'content-type': 'application/json; charset=utf-8' },
+          });
+        }
+        if (next.kind === 'raw') {
+          return new Response(next.body, {
+            status: next.status ?? 200,
+            headers: { 'content-type': 'application/json; charset=utf-8' },
+          });
+        }
+        return new Response(JSON.stringify(next.body), {
+          status: next.status ?? 200,
+          headers: { 'content-type': 'application/json; charset=utf-8' },
+        });
+      }) as typeof globalThis.fetch;
+    },
+    restoreFetchFallback: () => {
+      if (!originalFetch) return;
+      globalThis.fetch = originalFetch;
+      originalFetch = undefined;
+    },
     push: (r: StubResponse) => responses.push(r),
   };
 }
@@ -87,15 +126,35 @@ describe('LLM stub server integration (no real network)', () => {
   let baseUrl = '';
 
   beforeAll(async () => {
-    await new Promise<void>((resolve) => {
-      q.server.listen(0, '127.0.0.1', () => resolve());
+    const bound = await new Promise<boolean>((resolve) => {
+      const onError = (err: NodeJS.ErrnoException) => {
+        if (err.code === 'EPERM' || err.code === 'EACCES') {
+          resolve(false);
+          return;
+        }
+        throw err;
+      };
+      q.server.once('error', onError);
+      q.server.listen(0, '127.0.0.1', () => {
+        q.server.off('error', onError);
+        resolve(true);
+      });
     });
+    if (!bound) {
+      q.setMode('fetch');
+      q.installFetchFallback();
+      baseUrl = 'http://127.0.0.1:0/v1';
+      return;
+    }
+
     const addr = q.server.address();
     if (!addr || typeof addr === 'string') throw new Error('Failed to bind stub server');
     baseUrl = `http://127.0.0.1:${addr.port}/v1`;
   });
 
   afterAll(async () => {
+    q.restoreFetchFallback();
+    if (q.getMode() === 'fetch') return;
     await new Promise<void>((resolve) => q.server.close(() => resolve()));
   });
 

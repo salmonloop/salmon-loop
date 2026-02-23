@@ -1,43 +1,49 @@
-import { execSync } from 'child_process';
-import { mkdir, writeFile, rm, readFile } from 'fs/promises';
-import { tmpdir } from 'os';
-import * as path from 'path';
-
 import { CheckpointManager } from '../../src/core/strata/checkpoint/manager.js';
+import { RealFsTestHelper } from '../helpers/real-fs-helper.js';
 
 // Oracle: The Source of Truth - using raw git commands
+const helper = new RealFsTestHelper();
+const runGit = async (repoPath: string, args: string[]): Promise<string> => {
+  const result = await helper.git(repoPath, args);
+  if (result.exitCode !== 0) {
+    throw new Error(result.stderr || `git ${args.join(' ')} failed`);
+  }
+  return result.stdout.trim();
+};
+
 const GitOracle = {
-  getHeadCommit(repoPath: string): string {
+  async getHeadCommit(repoPath: string): Promise<string> {
     try {
-      return execSync('git rev-parse HEAD', { cwd: repoPath, encoding: 'utf8' }).trim();
+      return await runGit(repoPath, ['rev-parse', 'HEAD']);
     } catch {
       return '';
     }
   },
 
-  getStagedFileSHA(repoPath: string, filePath: string): string | null {
+  async getStagedFileSHA(repoPath: string, filePath: string): Promise<string | null> {
     try {
-      return execSync(`git rev-parse :${filePath}`, { cwd: repoPath, encoding: 'utf8' }).trim();
+      return await runGit(repoPath, ['rev-parse', `:${filePath}`]);
     } catch {
       return null; // Not in index
     }
   },
 
-  fileExistsInCommit(repoPath: string, commitSha: string, filePath: string): boolean {
+  async fileExistsInCommit(
+    repoPath: string,
+    commitSha: string,
+    filePath: string,
+  ): Promise<boolean> {
     try {
-      execSync(`git cat-file -e ${commitSha}:${filePath}`, { cwd: repoPath, stdio: 'ignore' });
+      await runGit(repoPath, ['cat-file', '-e', `${commitSha}:${filePath}`]);
       return true;
     } catch {
       return false;
     }
   },
 
-  isIgnored(repoPath: string, filePath: string): boolean {
+  async isIgnored(repoPath: string, filePath: string): Promise<boolean> {
     try {
-      const output = execSync(`git check-ignore ${filePath}`, {
-        cwd: repoPath,
-        encoding: 'utf8',
-      }).trim();
+      const output = await runGit(repoPath, ['check-ignore', filePath]);
       return !!output;
     } catch {
       return false;
@@ -50,44 +56,27 @@ describe('Checkpoint System (Real Git Integration)', () => {
   let shadowPath: string;
   let manager: CheckpointManager;
 
-  const run = (cmd: string, cwd: string = tempRepoPath) => {
-    return execSync(cmd, { cwd, encoding: 'utf8' }).trim();
+  const run = async (args: string[], cwd: string = tempRepoPath) => {
+    return runGit(cwd, args);
   };
-
-  // Safe join helper directly implemented to avoid import issues if possible,
-  // or relying on path.join
-  const safeJoin = path.join;
 
   beforeEach(async () => {
     // 1. Setup Temp Repo
-    const randomId = Math.random().toString(36).slice(2);
-    tempRepoPath = safeJoin(tmpdir(), `salmon-test-repo-${randomId}`);
-    shadowPath = safeJoin(tmpdir(), `salmon-test-shadow-${randomId}`);
-
-    await mkdir(tempRepoPath, { recursive: true });
-
-    // 2. Initialize Git
-    run('git init --initial-branch=main');
-    run('git config user.name "Test User"');
-    run('git config user.email "test@example.com"');
-
-    // 3. Create Initial Commit
-    await writeFile(safeJoin(tempRepoPath, 'file1.txt'), 'initial content');
-    // We add .gitignore in test case if needed, but robust base is useful
-    await writeFile(safeJoin(tempRepoPath, '.gitignore'), 'node_modules/');
-    run('git add file1.txt .gitignore');
-    run('git commit -m "Initial commit"');
+    const repo = await helper.createGitRepo({
+      prefix: 'salmon-test-repo-',
+      initialFiles: [
+        { path: 'file1.txt', content: 'initial content' },
+        { path: '.gitignore', content: 'node_modules/' },
+      ],
+    });
+    tempRepoPath = repo.path;
+    shadowPath = await helper.createTempDir('salmon-test-shadow-');
 
     manager = new CheckpointManager();
   });
 
   afterEach(async () => {
-    try {
-      await rm(tempRepoPath, { recursive: true, force: true });
-      await rm(shadowPath, { recursive: true, force: true });
-    } catch {
-      // Ignore error
-    }
+    await helper.cleanup();
   });
 
   it(
@@ -97,30 +86,29 @@ describe('Checkpoint System (Real Git Integration)', () => {
       // --- Setup Complex State ---
 
       // 1. Modified Staged (file1.txt)
-      await writeFile(safeJoin(tempRepoPath, 'file1.txt'), 'staged content');
-      run('git add file1.txt');
+      await helper.writeFile(tempRepoPath, 'file1.txt', 'staged content');
+      await run(['add', 'file1.txt']);
 
       // 2. Modified Unstaged (file1.txt - again)
       // Note: file1 has staged content AND unstaged content
-      await writeFile(safeJoin(tempRepoPath, 'file1.txt'), 'unstaged content');
+      await helper.writeFile(tempRepoPath, 'file1.txt', 'unstaged content');
 
       // 3. New Staged (file2.txt)
-      await writeFile(safeJoin(tempRepoPath, 'file2.txt'), 'new staged');
-      run('git add file2.txt');
+      await helper.writeFile(tempRepoPath, 'file2.txt', 'new staged');
+      await run(['add', 'file2.txt']);
 
       // 4. Untracked (file3.txt)
-      await writeFile(safeJoin(tempRepoPath, 'file3.txt'), 'untracked');
+      await helper.writeFile(tempRepoPath, 'file3.txt', 'untracked');
 
       // 5. Ignored (node_modules/ignored.txt)
-      await mkdir(safeJoin(tempRepoPath, 'node_modules'), { recursive: true });
-      await writeFile(safeJoin(tempRepoPath, 'node_modules/ignored.txt'), 'ignored');
+      await helper.writeFile(tempRepoPath, 'node_modules/ignored.txt', 'ignored');
 
       // Capture "Truth" (Hashes)
-      const getHash = (file: string) => run(`git hash-object ${file}`);
+      const getHash = (file: string) => run(['hash-object', file]);
 
-      const expectedStagedFile1 = run('git ls-files -s file1.txt').split(' ')[1];
-      const expectedUnstagedFile1 = getHash('file1.txt');
-      const expectedUntrackedFile3 = getHash('file3.txt');
+      const expectedStagedFile1 = (await run(['ls-files', '-s', 'file1.txt'])).split(' ')[1];
+      const expectedUnstagedFile1 = await getHash('file1.txt');
+      const expectedUntrackedFile3 = await getHash('file3.txt');
 
       // --- Action: Create Snapshot ---
       const snapshot = await manager.createSafeSnapshot(tempRepoPath);
@@ -128,20 +116,22 @@ describe('Checkpoint System (Real Git Integration)', () => {
       // --- Verification 1: Snapshot Created ---
       expect(snapshot.commitHash).toBeDefined();
       // Verify ref exists
-      expect(() => run(`git rev-parse refs/s8p/snapshots/${snapshot.commitHash}`)).not.toThrow();
+      await expect(
+        run(['rev-parse', `refs/s8p/snapshots/${snapshot.commitHash}`]),
+      ).resolves.not.toThrow();
 
       // --- Action: Destructive Change (Wipe Workspace) ---
       // Reset to HEAD (losing staged/unstaged) and clean untracked
-      run('git reset --hard HEAD');
-      run('git clean -fd');
+      await run(['reset', '--hard', 'HEAD']);
+      await run(['clean', '-fd']);
       // Verify we lost the state
-      expect(run('git status --porcelain')).toBe('');
+      expect(await run(['status', '--porcelain'])).toBe('');
 
       // --- Action: Restore ---
       await manager.restoreToMain(tempRepoPath, snapshot.commitHash, true);
 
       // --- Verification 2: The Oracle (Git Status) ---
-      const status = run('git status --porcelain');
+      const status = await run(['status', '--porcelain']);
 
       // file1.txt should be MM (Modified in Index, Modified in Worktree)
       // file2.txt should be A  (Added to Index)
@@ -153,15 +143,15 @@ describe('Checkpoint System (Real Git Integration)', () => {
       // --- Verification 3: Content Integrity ---
 
       // Verify Staged Content of file1
-      const actualStagedFile1 = run('git ls-files -s file1.txt').split(' ')[1];
+      const actualStagedFile1 = (await run(['ls-files', '-s', 'file1.txt'])).split(' ')[1];
       expect(actualStagedFile1).toBe(expectedStagedFile1);
 
       // Verify Working Tree Content of file1
-      const actualUnstagedFile1 = getHash('file1.txt');
+      const actualUnstagedFile1 = await getHash('file1.txt');
       expect(actualUnstagedFile1).toBe(expectedUnstagedFile1);
 
       // Verify Untracked Content
-      const actualUntrackedFile3 = getHash('file3.txt');
+      const actualUntrackedFile3 = await getHash('file3.txt');
       expect(actualUntrackedFile3).toBe(expectedUntrackedFile3);
     },
   );
@@ -171,16 +161,15 @@ describe('Checkpoint System (Real Git Integration)', () => {
     const TEST_FILE_CONTENT = 'super_secret_key=12345';
 
     // 0. Update .gitignore to ignore .secret
-    await writeFile(safeJoin(tempRepoPath, '.gitignore'), '*.secret\nnode_modules/');
-    run('git add .gitignore');
-    run('git commit -m "Update ignore"');
+    await helper.writeFile(tempRepoPath, '.gitignore', '*.secret\nnode_modules/');
+    await run(['add', '.gitignore']);
+    await run(['commit', '-m', 'Update ignore']);
 
     // 1. Setup: Create ignored file
-    const secretPath = safeJoin(tempRepoPath, TEST_FILE_NAME);
-    await writeFile(secretPath, TEST_FILE_CONTENT);
+    await helper.writeFile(tempRepoPath, TEST_FILE_NAME, TEST_FILE_CONTENT);
 
     // Verification: Ensure it IS ignored by Git
-    const isIgnored = GitOracle.isIgnored(tempRepoPath, TEST_FILE_NAME);
+    const isIgnored = await GitOracle.isIgnored(tempRepoPath, TEST_FILE_NAME);
     expect(isIgnored).toBe(true);
 
     // 2. Action: Create snapshot requesting this file
@@ -188,7 +177,7 @@ describe('Checkpoint System (Real Git Integration)', () => {
 
     // 3. Oracle Verification (Snapshot Content)
     // The snapshot commit MUST contain the file
-    const existsInSnapshot = GitOracle.fileExistsInCommit(
+    const existsInSnapshot = await GitOracle.fileExistsInCommit(
       tempRepoPath,
       result.commitHash,
       TEST_FILE_NAME,
@@ -200,19 +189,18 @@ describe('Checkpoint System (Real Git Integration)', () => {
     const TEST_FILE_NAME = 'app.secret';
     const TEST_FILE_CONTENT = 'super_secret_key=12345';
 
-    await writeFile(safeJoin(tempRepoPath, '.gitignore'), '*.secret\nnode_modules/');
-    run('git add .gitignore');
-    run('git commit -m "Update ignore"');
+    await helper.writeFile(tempRepoPath, '.gitignore', '*.secret\nnode_modules/');
+    await run(['add', '.gitignore']);
+    await run(['commit', '-m', 'Update ignore']);
 
     // 1. Setup: Create ignored file
-    const secretPath = safeJoin(tempRepoPath, TEST_FILE_NAME);
-    await writeFile(secretPath, TEST_FILE_CONTENT);
+    await helper.writeFile(tempRepoPath, TEST_FILE_NAME, TEST_FILE_CONTENT);
 
     // 2. Action: Create snapshot WITHOUT requesting the secret file
     const result = await manager.createSafeSnapshot(tempRepoPath, []); // Empty include list
 
     // 3. Oracle Verification
-    const existsInSnapshot = GitOracle.fileExistsInCommit(
+    const existsInSnapshot = await GitOracle.fileExistsInCommit(
       tempRepoPath,
       result.commitHash,
       TEST_FILE_NAME,
@@ -224,27 +212,25 @@ describe('Checkpoint System (Real Git Integration)', () => {
     const TEST_FILE_NAME = 'app.secret';
     const TEST_FILE_CONTENT = 'super_secret_key=12345';
 
-    await writeFile(safeJoin(tempRepoPath, '.gitignore'), '*.secret\nnode_modules/');
-    run('git add .gitignore');
-    run('git commit -m "Update ignore"');
+    await helper.writeFile(tempRepoPath, '.gitignore', '*.secret\nnode_modules/');
+    await run(['add', '.gitignore']);
+    await run(['commit', '-m', 'Update ignore']);
 
     // 1. Setup & Snapshot
-    const secretPath = safeJoin(tempRepoPath, TEST_FILE_NAME);
-    await writeFile(secretPath, TEST_FILE_CONTENT);
+    await helper.writeFile(tempRepoPath, TEST_FILE_NAME, TEST_FILE_CONTENT);
     const snapshot = await manager.createSafeSnapshot(tempRepoPath, [TEST_FILE_NAME]);
 
     // 2. Prepare Shadow Worktree manual setup since we don't have WorkspaceManager here
-    run(`git worktree add --quiet ${shadowPath} ${snapshot.commitHash}`);
+    await run(['worktree', 'add', '--quiet', shadowPath, snapshot.commitHash]);
 
     // 3. Action: Restore
     await manager.restoreToShadow(tempRepoPath, shadowPath, snapshot.commitHash);
 
     // 4. Oracle Verification
     // The file should exist in the shadow directory
-    const shadowFilePath = safeJoin(shadowPath, TEST_FILE_NAME);
     // basic check using node fs
     try {
-      const content = await readFile(shadowFilePath, 'utf-8');
+      const content = (await helper.readFile(shadowPath, TEST_FILE_NAME)) as string;
       expect(content).toBe(TEST_FILE_CONTENT);
     } catch (e) {
       throw new Error(`File not restored to shadow: ${e}`);
@@ -255,49 +241,47 @@ describe('Checkpoint System (Real Git Integration)', () => {
     const TEST_FILE_NAME = 'app.secret';
     const TEST_FILE_CONTENT = 'super_secret_key=12345';
 
-    await writeFile(safeJoin(tempRepoPath, '.gitignore'), '*.secret\nnode_modules/');
-    run('git add .gitignore');
-    run('git commit -m "Update ignore"');
+    await helper.writeFile(tempRepoPath, '.gitignore', '*.secret\nnode_modules/');
+    await run(['add', '.gitignore']);
+    await run(['commit', '-m', 'Update ignore']);
 
     // 1. Setup
     // - Modify a tracked file and Stage it
-    const readmePath = safeJoin(tempRepoPath, 'file1.txt'); // use file1
-    await writeFile(readmePath, '# Updated Readme');
-    run('git add file1.txt');
-    const stagedShaBefore = GitOracle.getStagedFileSHA(tempRepoPath, 'file1.txt');
+    await helper.writeFile(tempRepoPath, 'file1.txt', '# Updated Readme');
+    await run(['add', 'file1.txt']);
+    const stagedShaBefore = await GitOracle.getStagedFileSHA(tempRepoPath, 'file1.txt');
 
     // - Create ignored file
-    const secretPath = safeJoin(tempRepoPath, TEST_FILE_NAME);
-    await writeFile(secretPath, TEST_FILE_CONTENT);
+    await helper.writeFile(tempRepoPath, TEST_FILE_NAME, TEST_FILE_CONTENT);
 
     // 2. Action
     const snapshot = await manager.createSafeSnapshot(tempRepoPath, [TEST_FILE_NAME]);
 
     // 3. Oracle Verification
     // - Ignored file captured?
-    expect(GitOracle.fileExistsInCommit(tempRepoPath, snapshot.commitHash, TEST_FILE_NAME)).toBe(
-      true,
-    );
+    expect(
+      await GitOracle.fileExistsInCommit(tempRepoPath, snapshot.commitHash, TEST_FILE_NAME),
+    ).toBe(true);
 
     // - Staged state preserved in metadata?
     // We verify that the user's staged index was NOT modified by the snapshot process
-    const stagedShaAfter = GitOracle.getStagedFileSHA(tempRepoPath, 'file1.txt');
+    const stagedShaAfter = await GitOracle.getStagedFileSHA(tempRepoPath, 'file1.txt');
     expect(stagedShaAfter).toBe(stagedShaBefore);
   });
 
   it('should list snapshots and retrieve details correctly', async () => {
     // 1. Create first snapshot
-    await writeFile(safeJoin(tempRepoPath, 'file1.txt'), 'v1');
-    run('git add file1.txt');
+    await helper.writeFile(tempRepoPath, 'file1.txt', 'v1');
+    await run(['add', 'file1.txt']);
     const snap1 = await manager.createSafeSnapshot(tempRepoPath);
 
     // Sleep to ensure timestamp difference (optional, but good for ordering if dependent)
     await new Promise((r) => setTimeout(r, 10));
 
     // 2. Create second snapshot
-    await writeFile(safeJoin(tempRepoPath, 'file1.txt'), 'v2'); // Unstaged change
-    await writeFile(safeJoin(tempRepoPath, 'file2.txt'), 'staged v2');
-    run('git add file2.txt');
+    await helper.writeFile(tempRepoPath, 'file1.txt', 'v2'); // Unstaged change
+    await helper.writeFile(tempRepoPath, 'file2.txt', 'staged v2');
+    await run(['add', 'file2.txt']);
     const snap2 = await manager.createSafeSnapshot(tempRepoPath);
 
     // 3. Test listSnapshots
@@ -358,7 +342,7 @@ describe('Checkpoint System (Real Git Integration)', () => {
     const snap = await manager.createSafeSnapshot(tempRepoPath);
 
     // 2. Make workspace dirty
-    await writeFile(safeJoin(tempRepoPath, 'dirty.txt'), 'I am dirty');
+    await helper.writeFile(tempRepoPath, 'dirty.txt', 'I am dirty');
 
     // 3. Try access restore without force -> Should Fail
     await expect(manager.restoreToMain(tempRepoPath, snap.commitHash)).rejects.toThrow(
@@ -376,12 +360,12 @@ describe('Checkpoint System (Real Git Integration)', () => {
     // If we modified a tracked file...
 
     // Let's create a DIRTY TRACKED file for robust test
-    await writeFile(safeJoin(tempRepoPath, 'file1.txt'), 'dirty tracked');
+    await helper.writeFile(tempRepoPath, 'file1.txt', 'dirty tracked');
     // Note: file1 is tracked.
     await expect(manager.restoreToMain(tempRepoPath, snap.commitHash)).rejects.toThrow();
     await manager.restoreToMain(tempRepoPath, snap.commitHash, true);
 
-    const content = await readFile(safeJoin(tempRepoPath, 'file1.txt'), 'utf-8');
+    const content = (await helper.readFile(tempRepoPath, 'file1.txt')) as string;
     expect(content).not.toBe('dirty tracked');
   });
 });
