@@ -156,6 +156,7 @@ function createPlugin(
       },
       queries: commonQueries,
       queryPack: {
+        version: '1.0.0',
         symbols: {
           calls: `
             (call_expression function: (identifier) @callee)

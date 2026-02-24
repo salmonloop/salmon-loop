@@ -40,6 +40,7 @@ export interface LanguagePlugin {
       references: string;
     };
     queryPack?: {
+      version?: string; // e.g., '1.0.0' - for future compatibility
       symbols?: {
         calls?: string;
       };

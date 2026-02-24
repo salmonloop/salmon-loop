@@ -6,6 +6,7 @@ import { logger } from '../observability/logger.js';
 
 import { LanguagePlugin } from './interface.js';
 import { pluginRegistry } from './registry.js';
+import { validateQueryPack } from './validator.js';
 
 // Import built-in plugins (Phase 1: explicit import)
 
@@ -25,9 +26,9 @@ export class PluginLoader {
       // Phase 1: Manually register TypeScript/JavaScript plugins
       logger.debug('Loading built-in plugins...');
 
-      pluginRegistry.register(typescriptPlugin);
-      pluginRegistry.register(tsxPlugin);
-      pluginRegistry.register(javascriptPlugin);
+      this.registerWithValidation(typescriptPlugin);
+      this.registerWithValidation(tsxPlugin);
+      this.registerWithValidation(javascriptPlugin);
 
       logger.debug(
         `Plugins loaded: ${typescriptPlugin.meta.name}, ${tsxPlugin.meta.name}, ${javascriptPlugin.meta.name}`,
@@ -80,7 +81,7 @@ export class PluginLoader {
           const plugin = pluginModule.default as LanguagePlugin;
 
           if (this.isValidPlugin(plugin)) {
-            pluginRegistry.register(plugin);
+            this.registerWithValidation(plugin);
             logger.info(`Loaded user plugin: ${plugin.meta.name} (${plugin.meta.id})`);
           } else {
             logger.warn(`Skipping invalid user plugin in ${dirName}: missing required fields.`);
@@ -140,5 +141,18 @@ export class PluginLoader {
     }
 
     return true;
+  }
+
+  /**
+   * Register plugin with queryPack validation
+   */
+  private static registerWithValidation(plugin: LanguagePlugin) {
+    const validation = validateQueryPack(plugin);
+    if (!validation.valid) {
+      logger.warn(
+        `Plugin ${plugin.meta.id} has queryPack validation errors: ${validation.errors.join(', ')}`,
+      );
+    }
+    pluginRegistry.register(plugin);
   }
 }

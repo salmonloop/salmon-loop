@@ -28,7 +28,7 @@ export function buildContextTargetsStep(deps: ContextServiceDeps) {
       { source: 'context', severity: 'low', scope: 'session', phase: CONTEXT_AUDIT_PHASE.targets },
     );
 
-    const { targets } = await deps.targetResolver.resolve({
+    const { targets, diffusionMetrics } = await deps.targetResolver.resolve({
       req,
       includedFiles: diff.includedFiles,
       importRelatedFiles,
@@ -46,6 +46,14 @@ export function buildContextTargetsStep(deps: ContextServiceDeps) {
           reason: t.reason,
           confidence: t.confidence,
         })),
+        diffusionMetrics: diffusionMetrics
+          ? {
+              totalCandidates: diffusionMetrics.totalCandidates,
+              selectedTargets: diffusionMetrics.selectedTargets,
+              budgetLimit: diffusionMetrics.budgetLimit,
+              sourceBreakdown: diffusionMetrics.sourceBreakdown,
+            }
+          : undefined,
       },
       { source: 'context', severity: 'low', scope: 'session', phase: CONTEXT_AUDIT_PHASE.targets },
     );

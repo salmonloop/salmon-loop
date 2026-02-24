@@ -176,6 +176,10 @@ interface DiffusionMetrics {
   totalCandidates: number;
   selectedTargets: number;
   budgetLimit?: number;
+  sourceBreakdown?: {
+    fromDefinitionMap: number;
+    fromSymbolMap: number;
+  };
 }
 
 function calculateEdgeWeight(edge: {
@@ -220,6 +224,8 @@ function buildSymbolTargets(params: {
   const matched: string[] = [];
   const targets: ContextTarget[] = [];
   const seenMatch = new Set<string>();
+  let fromDefinitionMap = 0;
+  let fromSymbolMap = 0;
 
   for (const name of candidates) {
     const lower = name.toLowerCase();
@@ -235,6 +241,7 @@ function buildSymbolTargets(params: {
         confidence: 'high',
         evidence: `symbol:${name}@${byDefinitionMap.start.line}:${byDefinitionMap.start.column}`,
       });
+      fromDefinitionMap++;
     }
 
     const defNodes = symbolNodes.filter(
@@ -253,6 +260,7 @@ function buildSymbolTargets(params: {
         confidence: 'high',
         evidence: `symbol_node:${defNode.name}@${defNode.location.start.line}:${defNode.location.start.column}`,
       });
+      fromSymbolMap++;
 
       // Multi-level diffusion with distance and weight control
       // Support both forward diffusion (callers) and backward diffusion (dependencies)
@@ -388,6 +396,10 @@ function buildSymbolTargets(params: {
       totalCandidates,
       selectedTargets,
       budgetLimit: budget,
+      sourceBreakdown: {
+        fromDefinitionMap,
+        fromSymbolMap,
+      },
     },
   };
 }
