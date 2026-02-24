@@ -45,7 +45,7 @@ export const astGrepSpec: Omit<ToolSpec, 'executor'> = {
     ),
     error: z.string().optional(),
   }),
-  allowedPhases: [Phase.CONTEXT, Phase.PLAN],
+  allowedPhases: [Phase.CONTEXT, Phase.EXPLORE, Phase.PLAN],
 };
 
 /**

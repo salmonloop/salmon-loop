@@ -37,7 +37,7 @@ export const astDefsRefsSpec: Omit<ToolSpec, 'executor'> = {
       }),
     ),
   }),
-  allowedPhases: [Phase.CONTEXT, Phase.PLAN],
+  allowedPhases: [Phase.CONTEXT, Phase.EXPLORE, Phase.PLAN],
 };
 
 /**
