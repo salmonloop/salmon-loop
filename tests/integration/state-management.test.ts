@@ -15,6 +15,8 @@ import { CheckpointManager } from '../../src/core/strata/checkpoint/manager.js';
  * - No state confusion or data loss
  */
 describe('State Management Integration Tests', () => {
+  type GitExecCall = [Parameters<GitAdapter['exec']>[0], ...unknown[]];
+
   let tempDir: string;
   let mainRepo: string;
   let shadowWorktree: string;
@@ -60,7 +62,6 @@ describe('State Management Integration Tests', () => {
 
   it(
     'should preserve dirty data through snapshot → restore → merge flow',
-    { timeout: 30000 },
     async () => {
       // ARRANGE: Create dirty data in main repo (simulating user's work in progress)
       const codeFile = join(mainRepo, 'code.js');
@@ -96,11 +97,11 @@ function goodbye() {
       const status = await shadowGit.exec(['status', '--short']);
       expect(status).toContain('M code.js');
     },
+    { timeout: 30000 },
   );
 
   it(
     'should handle AI modifications without losing user dirty data',
-    { timeout: 30000 },
     async () => {
       // ARRANGE: User has uncommitted changes
       const codeFile = join(mainRepo, 'code.js');
@@ -141,11 +142,11 @@ const userVar = 42;
       expect(finalContent).toContain('USER_CHANGE');
       expect(finalContent).toContain('const userVar = 42');
     },
+    { timeout: 30000 },
   );
 
   it(
     'should maintain staged/unstaged distinction across operations',
-    { timeout: 30000 },
     async () => {
       // ARRANGE: Create staged and unstaged changes
       const codeFile = join(mainRepo, 'code.js');
@@ -177,11 +178,11 @@ const userVar = 42;
       expect(content).toContain('Staged change');
       expect(content).toContain('Unstaged work');
     },
+    { timeout: 30000 },
   );
 
   it(
     'should not lose data on Windows with filesystem caching (regression test)',
-    { timeout: 30000 },
     async () => {
       // This test specifically validates the fix for Windows filesystem cache issue
       // where LLM would read stale data instead of fresh dirty content
@@ -217,11 +218,11 @@ const userVar = 42;
       const secondRead = await readFile(shadowFile, 'utf-8');
       expect(secondRead).toBe(readContent);
     },
+    { timeout: 30000 },
   );
 
   it(
     'should handle 3-way merge with user dirty data and AI changes',
-    { timeout: 30000 },
     async () => {
       // ARRANGE: Setup base state
       const codeFile = join(mainRepo, 'code.js');
@@ -269,11 +270,11 @@ function userFunction() {
       expect(finalContent).toContain('AI modified this');
       expect(finalContent).toContain('function userFunction()');
     },
+    { timeout: 30000 },
   );
 
   it(
     'should verify no external filesystem sync calls outside checkpoint manager',
-    { timeout: 30000 },
     async () => {
       // This regression test ensures that the fix is encapsulated in CheckpointManager
       // and no external code tries to manually sync the filesystem
@@ -293,26 +294,24 @@ function userFunction() {
         await checkpointManager.restoreToShadow(mainRepo, shadowWorktree, snapshot.commitHash);
 
         // ASSERT: update-index should be called exactly once (by restoreToShadow)
-        const updateIndexCalls = execSpy.mock.calls.filter(
-          ([args]: any[]) =>
-            Array.isArray(args) && args.includes('update-index') && args.includes('--refresh'),
+        const execCalls = execSpy.mock.calls as GitExecCall[];
+        const updateIndexCalls = execCalls.filter(
+          ([args]) => args.includes('update-index') && args.includes('--refresh'),
         );
         expect(updateIndexCalls.length).toBe(1);
 
         // ASSERT: No redundant status calls without -uno flag
-        const statusCalls = execSpy.mock.calls.filter(
-          ([args]: any[]) => Array.isArray(args) && args.includes('status'),
-        );
-        statusCalls.forEach(([args]: any[]) => {
-          const argsArray = args as string[];
-          if (!argsArray.includes('--porcelain=v2')) {
+        const statusCalls = execCalls.filter(([args]) => args.includes('status'));
+        statusCalls.forEach(([args]) => {
+          if (!args.includes('--porcelain=v2')) {
             // If it's a status call for logging/refresh, it should use -uno
-            expect(argsArray).toContain('-uno');
+            expect(args).toContain('-uno');
           }
         });
       } finally {
         execSpy.mockRestore();
       }
     },
+    { timeout: 30000 },
   );
 });

@@ -38,9 +38,9 @@ describe('CLI /allowlist dispatcher integration', () => {
 
     const getLastLogMessage = () => {
       const events = emit.mock.calls
-        .map((call: any) => call[0] as LoopEvent)
-        .filter((event: any) => event.type === 'log');
-      return events.at(-1)?.message || '';
+        .map((call: unknown[]) => call[0] as LoopEvent)
+        .filter((event): event is Extract<LoopEvent, { type: 'log' }> => event.type === 'log');
+      return events.at(-1)?.message ?? '';
     };
 
     const addResult = await dispatcher.dispatch('/allowlist add repo fs.read context', {

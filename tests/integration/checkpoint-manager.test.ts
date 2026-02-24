@@ -7,6 +7,8 @@ import { GitAdapter } from '../../src/core/adapters/git/git-adapter.js';
 import { CheckpointManager } from '../../src/core/strata/checkpoint/manager.js';
 
 describe('CheckpointManager - Filesystem Sync Fix', () => {
+  type GitQueryCall = [Parameters<GitAdapter['query']>[0], ...unknown[]];
+
   let tempDir: string;
   let testRepo: string;
   let shadowWorktree: string;
@@ -58,7 +60,6 @@ describe('CheckpointManager - Filesystem Sync Fix', () => {
 
   it(
     'should call git update-index --refresh during restoreToShadow',
-    { timeout: 30000 },
     async () => {
       const testFile = join(testRepo, 'test.txt');
       await import('fs/promises').then((fs) =>
@@ -73,15 +74,15 @@ describe('CheckpointManager - Filesystem Sync Fix', () => {
 
       await checkpointManager.restoreToShadow(testRepo, shadowWorktree, snapshot.commitHash);
 
-      const updateIndexCalls = querySpy.mock.calls.filter(
-        (call: any) =>
-          (call[0] as string[]).includes('update-index') &&
-          (call[0] as string[]).includes('--refresh'),
+      const queryCalls = querySpy.mock.calls as GitQueryCall[];
+      const updateIndexCalls = queryCalls.filter(
+        ([args]) => args.includes('update-index') && args.includes('--refresh'),
       );
 
       expect(updateIndexCalls.length).toBeGreaterThan(0);
       querySpy.mockRestore();
     },
+    { timeout: 30000 },
   );
 
   it('should use -uno flag to avoid untracked file scan during status check', async () => {
@@ -93,10 +94,11 @@ describe('CheckpointManager - Filesystem Sync Fix', () => {
 
     await checkpointManager.restoreToShadow(testRepo, shadowWorktree, snapshot.commitHash);
 
-    const statusCalls = querySpy.mock.calls.filter((call: any) => call[0].includes('status'));
+    const queryCalls = querySpy.mock.calls as GitQueryCall[];
+    const statusCalls = queryCalls.filter(([args]) => args.includes('status'));
 
     expect(statusCalls.length).toBeGreaterThan(0);
-    expect(statusCalls[0][0]).toContain('-uno');
+    expect(statusCalls[0]?.[0]).toContain('-uno');
 
     querySpy.mockRestore();
   });

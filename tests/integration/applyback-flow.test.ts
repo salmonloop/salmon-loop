@@ -49,9 +49,21 @@ describe('ApplyBack Flow Integration Tests', () => {
   });
 
   const getApplyBack = (s: WorkspaceSynchronizer) => s.applyBackToMainWorkspace.bind(s);
+  type ApplyBackFn = ReturnType<typeof getApplyBack>;
+  type ApplyBackPolicy = Parameters<ApplyBackFn>[3];
+  type DirtyWorkspaceScenario = {
+    name: string;
+    policy: ApplyBackPolicy | 'none';
+    shouldThrow: boolean;
+    testDescription: string;
+    mainFile: string;
+    mainContent: string;
+    worktreeFile: string;
+    worktreeContent: string;
+  };
 
   // Parameterized test scenarios for dirty workspace policies
-  const dirtyWorkspaceScenarios = [
+  const dirtyWorkspaceScenarios: DirtyWorkspaceScenario[] = [
     {
       name: 'abort apply-back when main workspace is dirty with abort policy',
       policy: 'abort' as const,
@@ -74,7 +86,7 @@ describe('ApplyBack Flow Integration Tests', () => {
     },
     {
       name: 'apply changes directly when main is dirty and policy is none with non-conflicting changes',
-      policy: 'none' as any, // Cast to any to test fallback behavior
+      policy: 'none',
       shouldThrow: false,
       testDescription: 'should apply changes directly when main is dirty and policy is none',
       mainFile: 'utils.js',
@@ -142,7 +154,7 @@ describe('ApplyBack Flow Integration Tests', () => {
         mainContent,
         worktreeFile,
         worktreeContent,
-      }: any) => {
+      }: DirtyWorkspaceScenario) => {
         // 1. Make main repo dirty
         await helper.writeFile(mainRepoPath, mainFile, mainContent);
 
@@ -151,6 +163,8 @@ describe('ApplyBack Flow Integration Tests', () => {
         const latestRef = await helper.createCommit(worktreePath, 'worktree change');
 
         const applyBack = getApplyBack(synchronizer);
+        const policyArg: ApplyBackPolicy =
+          policy === 'none' ? ('none' as unknown as ApplyBackPolicy) : policy;
 
         if (shouldThrow) {
           // 3. Verify if error is thrown with specific message
@@ -159,7 +173,7 @@ describe('ApplyBack Flow Integration Tests', () => {
               mainRepoPath,
               checkpointRef,
               '',
-              policy,
+              policyArg,
               undefined,
               [worktreeFile],
               initialRef,
@@ -176,7 +190,7 @@ describe('ApplyBack Flow Integration Tests', () => {
             mainRepoPath,
             checkpointRef,
             '',
-            policy,
+            policyArg,
             undefined,
             [worktreeFile],
             initialRef,
@@ -343,7 +357,7 @@ describe('ApplyBack Flow Integration Tests', () => {
       const nodeModulesStat = await lstat(join(mainRepoPath, 'node_modules'));
       expect(nodeModulesStat.isSymbolicLink()).toBe(false);
 
-      expect(telemetry.selectedStrategy).toBe('AtomicPatch');
+      expect(String(telemetry.selectedStrategy)).toBe('AtomicPatch');
       expect(telemetry.appliedToMain).toBe(true);
       expect(telemetry.error).toBeUndefined();
     });
@@ -386,7 +400,7 @@ describe('ApplyBack Flow Integration Tests', () => {
       const mainStatus = await helper.getGitStatus(mainRepoPath);
       expect(mainStatus.trim()).toBe('');
 
-      expect(telemetry.selectedStrategy).toBe('AtomicPatch');
+      expect(String(telemetry.selectedStrategy)).toBe('AtomicPatch');
       expect(telemetry.appliedToMain).toBe(true);
       expect(telemetry.rollbackPath).toBe('none');
       expect(telemetry.error).toBeUndefined();

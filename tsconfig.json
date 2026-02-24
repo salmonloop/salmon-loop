@@ -15,7 +15,7 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "types": ["./tests/types/bun-test.d.ts", "node"],
+    "types": ["bun-types", "bun-types/test-globals", "node"],
     "baseUrl": ".",
     "paths": {
       "yoga-layout": ["./node_modules/yoga-layout/load.js"]

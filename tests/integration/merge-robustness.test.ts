@@ -7,6 +7,25 @@ import { logger } from '../../src/core/observability/logger.js';
 import { CheckpointManager } from '../../src/core/strata/checkpoint/manager.js';
 import { ShadowMergeEngine } from '../../src/core/strata/engine/shadow-merge-engine.js';
 
+function getErrorCode(error: unknown): string | undefined {
+  return typeof error === 'object' && error !== null && 'code' in error
+    ? String((error as { code?: unknown }).code)
+    : undefined;
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return String(error);
+}
+
+function getErrorStderr(error: unknown): string {
+  if (typeof error !== 'object' || error === null || !('stderr' in error)) return '';
+  const stderr = (error as { stderr?: unknown }).stderr;
+  if (typeof stderr === 'string') return stderr;
+  if (Buffer.isBuffer(stderr)) return stderr.toString();
+  return stderr ? String(stderr) : '';
+}
+
 const canUseSyncGit = (() => {
   try {
     execFileSync('git', ['rev-parse', '--is-inside-work-tree'], {
@@ -21,8 +40,8 @@ const canUseSyncGit = (() => {
       });
     }
     return true;
-  } catch (error: any) {
-    if (error?.code === 'EPERM' || error?.code === 'EACCES') {
+  } catch (error: unknown) {
+    if (getErrorCode(error) === 'EPERM' || getErrorCode(error) === 'EACCES') {
       return false;
     }
     throw error;
@@ -64,9 +83,9 @@ class GitHelper {
           env: this.sanitizedEnv(),
         }).toString();
         return result;
-      } catch (error: any) {
+      } catch (error: unknown) {
         // Check for lock file errors
-        const stderr = error.stderr?.toString() || '';
+        const stderr = getErrorStderr(error);
         if (
           (stderr.includes('index.lock') || stderr.includes('lock file')) &&
           retries < maxRetries
@@ -80,7 +99,7 @@ class GitHelper {
           continue;
         }
 
-        throw new Error(`Git command failed: git ${command}\n${stderr || error.message}`);
+        throw new Error(`Git command failed: git ${command}\n${stderr || getErrorMessage(error)}`);
       }
     }
   }
@@ -93,9 +112,9 @@ class GitHelper {
         input,
         env: this.sanitizedEnv(),
       }).toString();
-    } catch (error: any) {
+    } catch (error: unknown) {
       throw new Error(
-        `Git command failed: git ${command}\n${error.stderr?.toString() || error.message}`,
+        `Git command failed: git ${command}\n${getErrorStderr(error) || getErrorMessage(error)}`,
       );
     }
   }
@@ -115,7 +134,7 @@ class GitHelper {
 
     // Retry git init
     let retries = 0;
-    let lastError: any = null;
+    let lastError: unknown = null;
     let initialized = false;
     while (retries < 5) {
       try {
@@ -135,7 +154,7 @@ class GitHelper {
     }
     if (!initialized) {
       throw new Error(
-        `Failed to initialize git repository after 5 attempts. Last error: ${lastError?.message || 'unknown'}`,
+        `Failed to initialize git repository after 5 attempts. Last error: ${lastError ? getErrorMessage(lastError) : 'unknown'}`,
       );
     }
 
@@ -319,9 +338,10 @@ class MergeTestContext {
       try {
         await writeFile(fullPath, content);
         return;
-      } catch (error: any) {
+      } catch (error: unknown) {
         if (attempts === 4) throw error;
-        if (error.code === 'EPERM' || error.code === 'EBUSY') {
+        const code = getErrorCode(error);
+        if (code === 'EPERM' || code === 'EBUSY') {
           await new Promise((r) => setTimeout(r, 100 * Math.pow(2, attempts)));
           attempts++;
         } else {
@@ -384,57 +404,61 @@ describeMerge('ShadowMergeEngine Robustness', () => {
   });
 
   describe('Group 1: Staging State Transitions', () => {
-    it('1.1 Partial Staged: Modify -> Add -> Modify', { timeout: 30000 }, async () => {
-      // Setup
-      const baseLines = Array.from({ length: 10 }, (_, i) => `line ${i + 1}`).join('\n') + '\n';
-      await ctx.writeFile('main', 'file.txt', baseLines);
-      await ctx.git.add('file.txt');
-      const initialRef = await ctx.git.commit('initial');
+    it(
+      '1.1 Partial Staged: Modify -> Add -> Modify',
+      async () => {
+        // Setup
+        const baseLines = Array.from({ length: 10 }, (_, i) => `line ${i + 1}`).join('\n') + '\n';
+        await ctx.writeFile('main', 'file.txt', baseLines);
+        await ctx.git.add('file.txt');
+        const initialRef = await ctx.git.commit('initial');
 
-      // User Actions
-      const stagedLines = baseLines.replace('line 1', 'user staged');
-      await ctx.writeFile('main', 'file.txt', stagedLines);
-      await ctx.git.add('file.txt'); // Staged
-      const workingLines = stagedLines.replace('line 5', 'user working');
-      await ctx.writeFile('main', 'file.txt', workingLines); // Unstaged
+        // User Actions
+        const stagedLines = baseLines.replace('line 1', 'user staged');
+        await ctx.writeFile('main', 'file.txt', stagedLines);
+        await ctx.git.add('file.txt'); // Staged
+        const workingLines = stagedLines.replace('line 5', 'user working');
+        await ctx.writeFile('main', 'file.txt', workingLines); // Unstaged
 
-      // AI Actions (in Shadow)
-      // Sync the shadow repo to initialRef.
-      ctx.shadowGit.run(`fetch origin`);
-      ctx.shadowGit.run(`reset --hard ${initialRef}`);
-      const aiLines = baseLines.replace('line 10', 'ai changes');
-      await ctx.writeFile('shadow', 'file.txt', aiLines);
-      const latestRef = await ctx.shadowGit.commit('ai changes');
+        // AI Actions (in Shadow)
+        // Sync the shadow repo to initialRef.
+        ctx.shadowGit.run(`fetch origin`);
+        ctx.shadowGit.run(`reset --hard ${initialRef}`);
+        const aiLines = baseLines.replace('line 10', 'ai changes');
+        await ctx.writeFile('shadow', 'file.txt', aiLines);
+        const latestRef = await ctx.shadowGit.commit('ai changes');
 
-      // Execute Engine
-      const engine = ctx.createEngine(initialRef, latestRef);
-      try {
-        await engine.apply();
-      } catch (e: any) {
-        const status = ctx.git.run('status');
-        logger.error(`Git Status on failure:\n${status}`);
-        const fileContent = await ctx.readFile('main', 'file.txt');
-        logger.error(`File content on failure:\n${fileContent}`);
-        throw e;
-      }
+        // Execute Engine
+        const engine = ctx.createEngine(initialRef, latestRef);
+        try {
+          await engine.apply();
+        } catch (e: unknown) {
+          const status = ctx.git.run('status');
+          logger.error(`Git Status on failure:\n${status}`);
+          const fileContent = await ctx.readFile('main', 'file.txt');
+          logger.error(`File content on failure:\n${fileContent}`);
+          throw e;
+        }
 
-      // Assertions
-      // Assert working tree contains AI changes plus user working changes.
-      const finalContent = await ctx.readFile('main', 'file.txt');
-      const expectedWorking = baseLines
-        .replace('line 1', 'user staged')
-        .replace('line 5', 'user working')
-        .replace('line 10', 'ai changes');
-      expect(finalContent).toBe(expectedWorking);
+        // Assertions
+        // Assert working tree contains AI changes plus user working changes.
+        const finalContent = await ctx.readFile('main', 'file.txt');
+        const expectedWorking = baseLines
+          .replace('line 1', 'user staged')
+          .replace('line 5', 'user working')
+          .replace('line 10', 'ai changes');
+        expect(finalContent).toBe(expectedWorking);
 
-      // Assert index contains ONLY user staged changes (Zero Index Access policy).
-      // The AI changes are applied to the working tree, but the index is left untouched.
-      const stagedContent = ctx.git.run('show :file.txt');
-      expect(stagedContent).toBe(stagedLines);
+        // Assert index contains ONLY user staged changes (Zero Index Access policy).
+        // The AI changes are applied to the working tree, but the index is left untouched.
+        const stagedContent = ctx.git.run('show :file.txt');
+        expect(stagedContent).toBe(stagedLines);
 
-      const headContent = ctx.git.run('show HEAD:file.txt');
-      expect(headContent).toBe(baseLines);
-    });
+        const headContent = ctx.git.run('show HEAD:file.txt');
+        expect(headContent).toBe(baseLines);
+      },
+      { timeout: 30000 },
+    );
 
     it('1.2 Full Staged: Modify -> Add -> Modify -> Add', async () => {
       // Setup
@@ -1168,8 +1192,8 @@ describeMerge('ShadowMergeEngine Robustness', () => {
       try {
         const content = await ctx.readFile('main', 'temp.txt');
         expect(content).toBe(userUpdated);
-      } catch (e: any) {
-        if (e.code !== 'ENOENT') throw e;
+      } catch (e: unknown) {
+        if (getErrorCode(e) !== 'ENOENT') throw e;
       }
 
       const finalStatus = ctx.git.statusEntryForPath('temp.txt');

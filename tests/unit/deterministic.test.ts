@@ -3,11 +3,14 @@ import { FakeLLM } from '../../src/core/llm/index.js';
 import * as verify from '../../src/core/verification/runner.js';
 import { runSalmonLoop } from '../../src/index.js';
 
+type MockFn = ReturnType<typeof vi.fn>;
+const asMockFn = (fn: unknown): MockFn => fn as MockFn;
+
 vi.mock('../../src/core/context/builder.js', () => ({
   ContextBuilder: {
     build: vi.fn(),
     extractFailedFiles: vi.fn().mockReturnValue([]),
-    shrinkContext: vi.fn().mockImplementation((ctx: any) => Promise.resolve(ctx)),
+    shrinkContext: vi.fn().mockImplementation((ctx: unknown) => Promise.resolve(ctx)),
   },
 }));
 vi.mock('../../src/core/adapters/git/git-adapter.js', () => ({
@@ -16,8 +19,8 @@ vi.mock('../../src/core/adapters/git/git-adapter.js', () => ({
     applyPatch: vi.fn().mockResolvedValue(undefined),
     rollbackFiles: vi.fn().mockResolvedValue({ ok: true }),
     getStatus: vi.fn().mockResolvedValue(''),
-    exec: vi.fn().mockImplementation((args: any) => {
-      if (args[0] === 'config') return Promise.resolve('mock-value');
+    exec: vi.fn().mockImplementation((args: unknown) => {
+      if (Array.isArray(args) && args[0] === 'config') return Promise.resolve('mock-value');
       return Promise.resolve('');
     }),
     query: vi.fn().mockResolvedValue(''),
@@ -51,15 +54,15 @@ describe('Deterministic Baseline Tests', () => {
     vi.clearAllMocks();
 
     // Default mocks
-    (verify.preflight as any).mockResolvedValue({ ok: true });
-    (ContextBuilder.build as any).mockResolvedValue({
+    asMockFn(verify.preflight).mockResolvedValue({ ok: true });
+    asMockFn(ContextBuilder.build).mockResolvedValue({
       repoPath: tempDir,
       rgSnippets: [],
-    } as any);
+    });
   });
 
   it('should fix a compilation error', async () => {
-    (verify.runVerify as any).mockResolvedValue({ ok: true, output: 'success', exitCode: 0 });
+    asMockFn(verify.runVerify).mockResolvedValue({ ok: true, output: 'success', exitCode: 0 });
 
     const fakeLLM = new FakeLLM(
       [{ goal: 'fix type', files: ['index.ts'], changes: ['fix type'], verify: 'tsc' }],
@@ -105,11 +108,15 @@ ${Array(1000).fill('+new line').join('\n')}`;
     });
 
     expect(result.success).toBe(false);
+    expect(result.failurePhase).toBeDefined();
+    if (!result.failurePhase) {
+      throw new Error('Expected failurePhase to be defined for oversized patch failure');
+    }
     expect(['PATCH', 'VERIFY']).toContain(result.failurePhase);
   });
 
   it('should reject dirty workspace by default', async () => {
-    (verify.preflight as any).mockResolvedValue({
+    asMockFn(verify.preflight).mockResolvedValue({
       ok: false,
       reason: 'Workspace has uncommitted changes\nM dirty.ts',
     });

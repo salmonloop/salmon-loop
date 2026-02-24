@@ -81,7 +81,6 @@ describe('Checkpoint System (Real Git Integration)', () => {
 
   it(
     'should preserve exact state of Staged, Unstaged, and Untracked files',
-    { timeout: 30000 },
     async () => {
       // --- Setup Complex State ---
 
@@ -154,6 +153,7 @@ describe('Checkpoint System (Real Git Integration)', () => {
       const actualUntrackedFile3 = await getHash('file3.txt');
       expect(actualUntrackedFile3).toBe(expectedUntrackedFile3);
     },
+    { timeout: 30000 },
   );
 
   it('Scenario 1: Explicitly including an ignored file should capture it in the snapshot', async () => {
