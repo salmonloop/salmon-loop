@@ -1,5 +1,5 @@
+import { beforeEach, describe, expect, it, vi } from 'bun:test';
 import { execa } from 'execa';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('execa', () => {
   return {

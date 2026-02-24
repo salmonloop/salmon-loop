@@ -1,5 +1,3 @@
-import type { MockInstance } from 'vitest';
-
 import { LIMITS } from '../../src/core/config/limits.js';
 
 // Mock storage
@@ -7,10 +5,8 @@ const mockLocks = new Set<string>();
 const mockLockContents = new Map<string, string>();
 const spawnMock = vi.fn();
 
-type NextTickParams = Parameters<typeof process.nextTick>;
-type KillParams = Parameters<typeof process.kill>;
-let nextTickSpy: MockInstance<NextTickParams, ReturnType<typeof process.nextTick>> | undefined;
-let killSpy: MockInstance<KillParams, ReturnType<typeof process.kill>> | undefined;
+let nextTickSpy: { mockRestore: () => void } | undefined;
+let killSpy: { mockRestore: () => void } | undefined;
 
 // Mock dependencies at top level
 vi.mock('child_process', () => ({

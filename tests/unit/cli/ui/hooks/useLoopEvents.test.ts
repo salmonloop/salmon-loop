@@ -1,5 +1,5 @@
 import { act, renderHook } from '@testing-library/react';
-import { vi } from 'vitest';
+import { vi } from 'bun:test';
 
 const hoisted = vi.hoisted(() => ({
   dispatch: vi.fn(),

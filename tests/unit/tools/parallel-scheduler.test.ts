@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import { InMemoryLockManager } from '../../../src/core/tools/parallel/lock-manager.js';
 import type { ExecutionPlan } from '../../../src/core/tools/parallel/plan.js';

@@ -1,6 +1,6 @@
 import { act, render } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
 import React from 'react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AppCore } from '../../../../src/cli/ui/App.js';
 import { UIStoreProvider } from '../../../../src/cli/ui/store/context.js';

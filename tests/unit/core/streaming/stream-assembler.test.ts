@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import { StreamAssembler } from '../../../../src/core/streaming/stream-assembler.js';
 import type { LoopEvent } from '../../../../src/core/types/index.js';

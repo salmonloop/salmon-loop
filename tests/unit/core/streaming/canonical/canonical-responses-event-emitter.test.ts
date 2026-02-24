@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import { CanonicalResponsesEventEmitter } from '../../../../../src/core/streaming/canonical/canonical-responses-event-emitter.js';
 

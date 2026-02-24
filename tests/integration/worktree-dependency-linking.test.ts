@@ -1,7 +1,7 @@
 import { readlink, rm } from 'fs/promises';
 import { join } from 'path';
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { ShadowDriver } from '../../src/core/strata/layers/shadow-driver/shadow-driver.js';
 import { WorkspaceManager } from '../../src/core/strata/layers/worktree.js';

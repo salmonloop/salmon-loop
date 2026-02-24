@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'bun:test';
 
 import { createStdoutWriter } from '../../../../src/cli/headless/stdout-writer.js';
 import { AnthropicStreamReporter } from '../../../../src/cli/reporters/anthropic-stream.js';

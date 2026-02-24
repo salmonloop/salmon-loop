@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'bun:test';
 
 import { createStdoutWriter } from '../../../../src/cli/headless/stdout-writer.js';
 import { JsonReporter } from '../../../../src/cli/reporters/json.js';

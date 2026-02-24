@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi } from 'bun:test';
 
 import { CachedService } from '../../../../../src/core/grizzco/services/CachedService.js';
 import { IDataService } from '../../../../../src/core/grizzco/services/types.js';

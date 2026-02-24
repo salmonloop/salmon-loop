@@ -2,8 +2,8 @@ import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 
+import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
 import { execa } from 'execa';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AstParser } from '../../src/core/ast/parser.js';
 import { ContextBuilder } from '../../src/core/context/builder.js';

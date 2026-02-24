@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'bun:test';
 
 import { validatePatch } from '../../../../../src/core/grizzco/steps/validate.js';
 import { normalizeDiff, validateDiff } from '../../../../../src/core/patch/diff.js';

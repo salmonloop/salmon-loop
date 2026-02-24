@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import { encodeNormalizedToNativeStreamLines } from '../../../../src/cli/headless/native-stream-normalized-encoder.js';
 import type { NormalizedStreamEvent } from '../../../../src/core/streaming/normalized-events.js';

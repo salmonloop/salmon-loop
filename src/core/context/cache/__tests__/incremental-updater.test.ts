@@ -2,7 +2,7 @@
  * Tests for Incremental Updater.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 
 import type { Context, RelatedFileContext } from '../../../types/index.js';
 import {

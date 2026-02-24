@@ -2,7 +2,7 @@ import * as fs from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { injectSmokeTest } from '../../src/core/testgen/index.js';
 

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'bun:test';
 
 import { uiReducer } from '../../../../../src/cli/ui/store/reducer.js';
 import { initialState } from '../../../../../src/cli/ui/store/reducer.js';

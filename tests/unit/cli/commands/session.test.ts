@@ -1,4 +1,4 @@
-import { vi } from 'vitest';
+import { vi } from 'bun:test';
 
 const hoisted = vi.hoisted(() => {
   const init = vi.fn(async () => {});

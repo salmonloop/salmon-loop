@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'bun:test';
 
 import { StubLLM } from '../../src/core/llm/openai.js';
 import { RuntimeEnvironment } from '../../src/core/strata/runtime/environment.js';

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import { createSlashRegistry } from '../../../../src/core/slash/registry.js';
 import { SlashRouter } from '../../../../src/core/slash/router.js';

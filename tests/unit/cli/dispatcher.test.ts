@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi } from 'bun:test';
 
 import { CommandDispatcher } from '../../../src/cli/commands/dispatcher.js';
 import { ChatSessionManager } from '../../../src/core/session/manager.js';

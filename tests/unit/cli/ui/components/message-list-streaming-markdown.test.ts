@@ -1,6 +1,6 @@
 import { render } from '@testing-library/react';
+import { vi } from 'bun:test';
 import React from 'react';
-import { vi } from 'vitest';
 
 const hoisted = vi.hoisted(() => ({
   markdownSpy: vi.fn(),

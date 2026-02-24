@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, vi } from 'vitest';
+import { afterAll, beforeAll, vi } from 'bun:test';
 
 import { PluginLoader } from '../src/core/plugin/loader.js';
 

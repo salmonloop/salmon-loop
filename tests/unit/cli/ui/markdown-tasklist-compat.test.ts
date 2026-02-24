@@ -1,7 +1,7 @@
+import { describe, it, expect } from 'bun:test';
 import chalk from 'chalk';
 import { Marked } from 'marked';
 import TerminalRendererOriginal from 'marked-terminal';
-import { describe, it, expect } from 'vitest';
 
 import { __applyMarkedTerminalTaskListCompat } from '../../../../src/cli/ui/components/Markdown.js';
 

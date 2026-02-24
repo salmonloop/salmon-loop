@@ -1,6 +1,6 @@
 import path from 'path';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import { initPlan, readPlan, updatePlan } from '../../src/core/plan/index.js';
 import { RealFsTestHelper } from '../helpers/real-fs-helper.js';

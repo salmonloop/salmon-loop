@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'bun:test';
 
 import { configCommand } from '../../../../src/cli/commands/config.js';
 import { snapshotInteractiveCommand } from '../../../../src/cli/commands/snapshot-interactive.js';

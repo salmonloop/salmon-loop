@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import { TargetResolver } from '../../../src/core/context/targeting/target-resolver.js';
 

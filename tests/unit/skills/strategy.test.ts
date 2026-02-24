@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'bun:test';
 
 import { DecisionEngine, PlanBuilder } from '../../../src/core/grizzco/dsl/DecisionEngine.js';
 import { SkillStrategyDSL } from '../../../src/core/skills/strategy.js';

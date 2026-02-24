@@ -1,6 +1,6 @@
 import { PassThrough } from 'stream';
 
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'bun:test';
 
 const spawnInteractiveProcessMock = vi.fn().mockImplementation(() => ({
   stdout: new PassThrough(),

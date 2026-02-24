@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import { applyPlanUpdate, summarizePlan } from '../../../src/core/plan/markdown-editor.js';
 

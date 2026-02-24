@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import { ToolPolicy } from '../../../src/core/tools/policy.js';
 import { Phase } from '../../../src/core/types/index.js';

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'bun:test';
 
 import { MicroTaskRunner } from '../../../src/core/skills/runtime/MicroTaskRunner.js';
 import { IExecutable, ExecutionContext, Skill } from '../../../src/core/skills/types.js';

@@ -1,6 +1,6 @@
 import * as fs from 'fs/promises';
 
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'bun:test';
 
 import { GitAdapter } from '../../../../../src/core/adapters/git/git-adapter.js';
 import { FileState, FileStatus } from '../../../../../src/core/grizzco/domain/grizzco-types.js';

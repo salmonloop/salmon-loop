@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi } from 'bun:test';
 
 // Mock external dependencies to ensure isolation
 vi.mock('../../../../src/core/strata/checkpoint/manager.js', () => ({

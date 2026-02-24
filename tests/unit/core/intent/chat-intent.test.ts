@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import { routeChatIntent } from '../../../../src/core/intent/chat-intent.js';
 import type { ChatOptions, LLM, LLMMessage, Plan } from '../../../../src/core/types/index.js';

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'bun:test';
 
 import * as session from '../../../../../src/core/tools/session.js';
 import { Phase } from '../../../../../src/core/types/index.js';

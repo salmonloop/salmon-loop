@@ -1,6 +1,6 @@
 import { readFile, stat } from 'fs/promises';
 
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { describe, expect, it, vi, beforeEach } from 'bun:test';
 
 import { executeFsReadFile, fsReadFileSpec } from '../../../src/core/tools/builtin/fs.js';
 import { registerAllBuiltins } from '../../../src/core/tools/builtin/index.js';

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi } from 'bun:test';
 
 describe('UI Selection Bus', () => {
   it('returns null when UI is unavailable', async () => {

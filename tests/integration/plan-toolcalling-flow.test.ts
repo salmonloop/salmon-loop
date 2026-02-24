@@ -1,7 +1,7 @@
 import { readFile } from 'fs/promises';
 import path from 'path';
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'bun:test';
 
 import { runSalmonLoop } from '../../src/core/runtime/loop.js';
 import { RealFsTestHelper } from '../helpers/real-fs-helper.js';

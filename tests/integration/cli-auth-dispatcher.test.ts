@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'bun:test';
 
 import { CommandDispatcher } from '../../src/cli/commands/dispatcher.js';
 import { text } from '../../src/cli/locales/index.js';

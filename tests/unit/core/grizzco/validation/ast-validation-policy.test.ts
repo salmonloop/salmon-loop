@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import { resolveAstValidationStrictness } from '../../../../../src/core/grizzco/validation/ast-validation-policy.js';
 

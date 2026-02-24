@@ -1,6 +1,6 @@
 import { render, waitFor } from '@testing-library/react';
+import { vi } from 'bun:test';
 import React from 'react';
-import { vi } from 'vitest';
 
 import { UIStoreProvider, useUIStore } from '../../../../src/cli/ui/store/context.js';
 

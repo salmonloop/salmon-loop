@@ -4,7 +4,7 @@ import * as fsp from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'bun:test';
 
 /**
  * 🛡️ ENVIRONMENT INTEGRITY GUARD 🛡️
