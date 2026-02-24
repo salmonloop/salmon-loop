@@ -34,7 +34,24 @@ export interface ContextTarget {
   path: string;
   reason: ContextTargetReason;
   confidence: ContextTargetConfidence;
-  evidence?: string;
+  evidence?: string | TargetEvidence; // Structured evidence for future extensibility
+}
+
+/**
+ * Structured evidence for target selection.
+ * Currently optional, will be gradually migrated from string evidence.
+ */
+export interface TargetEvidence {
+  type: 'symbol' | 'path' | 'diff' | 'import' | 'ripgrep' | 'fallback';
+  details?: {
+    symbolName?: string;
+    location?: { line: number; column: number };
+    matchType?: 'definition' | 'reference' | 'call';
+    source?: 'definitionMap' | 'symbolMap';
+    distance?: number; // For symbol diffusion
+    weight?: number; // For symbol diffusion
+  };
+  raw?: string; // Legacy string evidence for backward compatibility
 }
 
 export interface AstSyntaxError {

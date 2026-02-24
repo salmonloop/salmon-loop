@@ -80,7 +80,14 @@ function renderManifest(context: Context): string[] {
   if (targets && targets.length > 0) {
     out.push('    <targets>');
     for (const t of targets) {
-      const evidenceAttr = t.evidence ? ` evidence="${escapeXmlAttr(t.evidence)}"` : '';
+      // Handle both string and structured evidence
+      const evidenceStr =
+        typeof t.evidence === 'string'
+          ? t.evidence
+          : t.evidence
+            ? `${t.evidence.type}:${t.evidence.details?.symbolName || 'unknown'}`
+            : undefined;
+      const evidenceAttr = evidenceStr ? ` evidence="${escapeXmlAttr(evidenceStr)}"` : '';
       out.push(
         `      <target path="${escapeXmlAttr(normalizePath(t.path))}" reason="${escapeXmlAttr(t.reason)}" confidence="${escapeXmlAttr(t.confidence)}"${evidenceAttr} />`,
       );

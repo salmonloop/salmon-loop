@@ -143,6 +143,7 @@
   "tests/unit/context/symbol-diffusion-budget.test.ts",
   "tests/unit/context/symbol-diffusion-control.test.ts",
   "tests/unit/context/symbol-diffusion-source-tracking.test.ts",
+  "tests/unit/context/target-evidence-structure.test.ts",
   "tests/unit/core/git-adapter.test.ts",
   "tests/unit/core/git-lock-manager.acquire.test.ts",
   "tests/unit/core/git-lock-manager.pid-reuse.test.ts",

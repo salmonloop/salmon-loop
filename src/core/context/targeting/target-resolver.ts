@@ -1,7 +1,7 @@
 import type { BaseDslContext, DecisionEngine } from '../../grizzco/dsl/DecisionEngine.js';
 import { MicroTaskRunner } from '../../grizzco/dsl/MicroTaskRunner.js';
 import { logger } from '../../observability/logger.js';
-import type { CodeLocation, ContextTarget, SymbolMap } from '../../types/index.js';
+import type { CodeLocation, ContextTarget, SymbolMap, TargetEvidence } from '../../types/index.js';
 import { normalizePath } from '../../utils/path.js';
 import type { ContextRequest } from '../types.js';
 
@@ -46,11 +46,24 @@ function confidenceRank(confidence: ContextTarget['confidence']): number {
   }
 }
 
-function mergeEvidence(existing: string | undefined, next: string | undefined): string | undefined {
+function mergeEvidence(
+  existing: string | TargetEvidence | undefined,
+  next: string | TargetEvidence | undefined,
+): string | TargetEvidence | undefined {
   if (!existing) return next;
   if (!next) return existing;
-  if (existing.includes(next)) return existing;
-  return `${existing};${next}`;
+
+  // If both are strings, concatenate
+  if (typeof existing === 'string' && typeof next === 'string') {
+    if (existing.includes(next)) return existing;
+    return `${existing};${next}`;
+  }
+
+  // If either is structured, prefer structured
+  if (typeof existing === 'object') return existing;
+  if (typeof next === 'object') return next;
+
+  return existing;
 }
 
 function dedupeTargets(targets: ContextTarget[]): ContextTarget[] {

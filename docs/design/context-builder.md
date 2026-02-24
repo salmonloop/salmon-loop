@@ -78,3 +78,60 @@ Budget planning exposes an explicit **60-30-10** split in metadata/audit:
 - **10% Secondary** (`rgSnippets` + diffs)
 
 The runtime still applies deterministic `pack-until-full`; the split is an explicit planning/audit contract, not a hard per-section truncation wall.
+
+## 8. Target Diffusion Strategy & Fallback Order
+
+The `TargetResolver` uses a **tiered strategy** to select which files should be included in context. The selection follows a strict priority order with automatic fallback:
+
+### Strategy Priority (Highest to Lowest)
+
+1. **Explicit Path** (`explicit_path`)
+   - Triggered when: User instruction contains file paths (e.g., `src/foo.ts`, `./bar.js`)
+   - Confidence: `high`
+   - Evidence: `instruction_path`
+   - Fallback: None (always highest priority)
+
+2. **Symbol Definition** (`symbol_definition`)
+   - Triggered when: Instruction mentions identifiers found in `definitionMap` or `symbolMap`
+   - Confidence: `high` (direct match), `medium` (diffused)
+   - Evidence: `symbol:name@line:col` or structured `TargetEvidence`
+   - **Symbol Diffusion**: Multi-level BFS traversal
+     - **Forward diffusion**: Find callers (edges pointing TO the symbol)
+     - **Backward diffusion**: Find dependencies (edges pointing FROM the symbol)
+     - **Distance control**: `diffusionDepth` parameter (default: 1)
+     - **Budget control**: `maxDiffusionTargets` parameter
+     - **Weight-based ranking**: `edgeWeight = typeWeight + confidenceWeight`
+       - Type: `call` (3) > `reference` (1)
+       - Confidence: `high` (3) > `medium` (2) > `low` (1)
+   - **Source tracking**: Audit trail records hits from `definitionMap` vs `symbolMap`
+   - Fallback: If no symbols match, fall through to next strategy
+
+3. **Diff Included** (`diff_included`)
+   - Triggered when: Files appear in staged/unstaged git diff
+   - Confidence: `medium`
+   - Evidence: `git_diff`
+   - Fallback: If no diff files, fall through to next strategy
+
+4. **Default (Import + Ripgrep)** (`default`)
+   - Triggered when: No explicit paths, symbols, or diffs found
+   - Combines:
+     - **Import neighbors**: Files imported by primary file (max 3)
+     - **Ripgrep hits**: Files matching keyword search (max 2)
+   - Confidence: `low`
+   - Evidence: `import_neighbor` or `rg_hit`
+   - Final fallback: Primary file only with `fallback` reason
+
+### Diffusion Metrics
+
+The resolver emits `DiffusionMetrics` for observability:
+- `totalCandidates`: Total symbols available for diffusion
+- `selectedTargets`: Symbols actually selected after budget/distance limits
+- `budgetLimit`: Maximum targets allowed
+- `sourceBreakdown`: Hits from `definitionMap` vs `symbolMap`
+
+### Design Rationale
+
+- **Deterministic**: Same instruction + same codebase = same targets
+- **Fail-fast**: If high-confidence strategy succeeds, skip lower-priority strategies
+- **Budget-aware**: Symbol diffusion respects hard limits to prevent context explosion
+- **Auditable**: All decisions recorded in audit trail with evidence
