@@ -54,13 +54,14 @@ function getImportScanDepth(req: ContextRequest): { depth: number; trigger: Repo
   return { depth: 1, trigger: 'shallow' };
 }
 
-function buildSymbolMap(
+async function buildSymbolMap(
   symbols: SymbolInfo[],
   primaryFile: string,
   callNames: string[],
-): {
+  relatedFiles: RelatedFileContext[],
+): Promise<{
   symbolMap: SymbolMap;
-} {
+}> {
   const definitions = symbols.filter((s) => s.kind === 'definition');
   const references = symbols.filter((s) => s.kind === 'reference');
 
@@ -68,6 +69,7 @@ function buildSymbolMap(
   const edges: SymbolMap['edges'] = [];
   const definitionNodeByName = new Map<string, string>();
 
+  // Process primary file symbols
   for (const def of definitions) {
     const id = `def:${def.name}:${def.location.start.line}:${def.location.start.column}`;
     definitionNodeByName.set(def.name, id);
@@ -100,6 +102,36 @@ function buildSymbolMap(
       type: edgeType,
       confidence: 'high',
     });
+  }
+
+  // Process imported files
+  for (const related of relatedFiles) {
+    if (related.kind !== 'import' || related.mode !== 'full') continue;
+
+    const lang = getLanguageFromFile(related.path);
+    if (!lang) continue;
+
+    try {
+      const tree = await AstParser.parse(related.content, lang);
+      const defs = await AstParser.identifyDefinitions(tree, lang);
+
+      for (const def of defs) {
+        const id = `def:${related.path}:${def.name}:${def.location.start.line}:${def.location.start.column}`;
+        nodes.push({
+          id,
+          name: def.name,
+          kind: 'definition',
+          path: related.path,
+          location: def.location,
+        });
+        // Allow cross-file references to find these definitions
+        if (!definitionNodeByName.has(def.name)) {
+          definitionNodeByName.set(def.name, id);
+        }
+      }
+    } catch (e) {
+      logger.debug(`  [CONTEXT] Failed to extract symbols from ${related.path}: ${e}`);
+    }
   }
 
   return { symbolMap: { nodes, edges } };
@@ -178,7 +210,12 @@ export class AstGatherer {
       languagePlugin?.parsing?.queryPack?.flow,
     );
     const importedResult = await this.gatherImportedFiles(primaryText, req);
-    const { symbolMap } = buildSymbolMap(symbolsResult.symbols, req.primaryFile, callNames);
+    const { symbolMap } = await buildSymbolMap(
+      symbolsResult.symbols,
+      req.primaryFile,
+      callNames,
+      importedResult.relatedFiles,
+    );
 
     return {
       symbols: symbolsResult.symbols,

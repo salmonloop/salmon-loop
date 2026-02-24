@@ -172,17 +172,46 @@ function extractSymbolCandidates(instruction: string): string[] {
   return unique.slice(0, 20);
 }
 
+interface DiffusionMetrics {
+  totalCandidates: number;
+  selectedTargets: number;
+  budgetLimit?: number;
+}
+
+function calculateEdgeWeight(edge: {
+  type: 'reference' | 'call';
+  confidence: 'high' | 'medium' | 'low';
+}): number {
+  const typeWeight = edge.type === 'call' ? 3 : 1;
+  const confidenceWeight = edge.confidence === 'high' ? 3 : edge.confidence === 'medium' ? 2 : 1;
+  return typeWeight + confidenceWeight;
+}
+
 function buildSymbolTargets(params: {
   primaryFile: string;
   instruction: string;
   definitionMap: Record<string, CodeLocation> | undefined;
   symbolMap?: SymbolMap;
-}): { targets: ContextTarget[]; candidates: string[]; matched: string[] } {
+  diffusionDepth?: number;
+  maxDiffusionTargets?: number;
+}): {
+  targets: ContextTarget[];
+  candidates: string[];
+  matched: string[];
+  metrics: DiffusionMetrics;
+} {
   const candidates = extractSymbolCandidates(params.instruction);
   if (candidates.length === 0) {
-    return { targets: [], candidates, matched: [] };
+    return {
+      targets: [],
+      candidates,
+      matched: [],
+      metrics: { totalCandidates: 0, selectedTargets: 0 },
+    };
   }
 
+  const maxDepth = params.diffusionDepth ?? 1;
+  const budget = params.maxDiffusionTargets;
   const map = params.definitionMap;
   const symbolNodes = params.symbolMap?.nodes ?? [];
   const symbolEdges = params.symbolMap?.edges ?? [];
@@ -191,6 +220,7 @@ function buildSymbolTargets(params: {
   const matched: string[] = [];
   const targets: ContextTarget[] = [];
   const seenMatch = new Set<string>();
+
   for (const name of candidates) {
     const lower = name.toLowerCase();
     const byDefinitionMap = map?.[name];
@@ -224,22 +254,142 @@ function buildSymbolTargets(params: {
         evidence: `symbol_node:${defNode.name}@${defNode.location.start.line}:${defNode.location.start.column}`,
       });
 
-      for (const edge of symbolEdges) {
-        if (edge.to !== defNode.id) continue;
-        const callerNode = nodeById.get(edge.from);
-        if (!callerNode) continue;
-        const callerPath = callerNode.path || params.primaryFile;
+      // Multi-level diffusion with distance and weight control
+      // Support both forward diffusion (callers) and backward diffusion (dependencies)
+      const diffusionQueue: Array<{ nodeId: string; distance: number; weight: number }> = [
+        { nodeId: defNode.id, distance: 0, weight: 0 },
+      ];
+      const visited = new Set<string>([defNode.id]);
+      const diffusionTargets: Array<{
+        path: string;
+        confidence: ContextTarget['confidence'];
+        weight: number;
+        evidence: string;
+      }> = [];
+
+      // Special handling: include references in the same file as the definition
+      // These represent dependencies of the definition (e.g., helper calls utility)
+      // They are at distance 1, but the definitions they point to are at distance 2
+      const sameFileRefs = symbolNodes.filter(
+        (n) =>
+          n.kind === 'reference' &&
+          n.id !== defNode.id &&
+          (n.path || params.primaryFile) === defPath,
+      );
+
+      for (const refNode of sameFileRefs) {
+        if (visited.has(refNode.id)) continue;
+        visited.add(refNode.id);
+
+        // Add the reference node to the queue at distance 1
+        // It will be processed in the BFS loop to find its target definitions
+        diffusionQueue.push({
+          nodeId: refNode.id,
+          distance: 1,
+          weight: 0,
+        });
+      }
+
+      while (diffusionQueue.length > 0) {
+        const current = diffusionQueue.shift()!;
+        if (current.distance >= maxDepth) continue;
+
+        // Forward diffusion: find callers (edges pointing TO current node)
+        const incomingEdges = symbolEdges.filter((e) => e.to === current.nodeId);
+
+        for (const edge of incomingEdges) {
+          const callerNode = nodeById.get(edge.from);
+          if (!callerNode || visited.has(callerNode.id)) continue;
+          visited.add(callerNode.id);
+
+          const edgeWeight = calculateEdgeWeight(edge);
+          const totalWeight = current.weight + edgeWeight;
+          const callerPath = callerNode.path || params.primaryFile;
+
+          if (current.distance + 1 <= maxDepth) {
+            diffusionTargets.push({
+              path: callerPath,
+              confidence: edge.confidence,
+              weight: totalWeight,
+              evidence: `symbol_edge:${edge.type}->${callerNode.name}`,
+            });
+
+            diffusionQueue.push({
+              nodeId: callerNode.id,
+              distance: current.distance + 1,
+              weight: totalWeight,
+            });
+          }
+        }
+
+        // Backward diffusion: find dependencies (edges pointing FROM current node)
+        const outgoingEdges = symbolEdges.filter((e) => e.from === current.nodeId);
+
+        for (const edge of outgoingEdges) {
+          const depNode = nodeById.get(edge.to);
+          if (!depNode || visited.has(depNode.id)) continue;
+          visited.add(depNode.id);
+
+          const edgeWeight = calculateEdgeWeight(edge);
+          const totalWeight = current.weight + edgeWeight;
+          const depPath = depNode.path || params.primaryFile;
+
+          if (current.distance + 1 <= maxDepth) {
+            diffusionTargets.push({
+              path: depPath,
+              confidence: edge.confidence,
+              weight: totalWeight,
+              evidence: `symbol_edge:${edge.type}->${depNode.name}`,
+            });
+
+            diffusionQueue.push({
+              nodeId: depNode.id,
+              distance: current.distance + 1,
+              weight: totalWeight,
+            });
+          }
+        }
+      }
+
+      // Sort by weight (descending) and apply budget
+      diffusionTargets.sort((a, b) => b.weight - a.weight);
+      const limitedTargets =
+        budget !== undefined ? diffusionTargets.slice(0, budget) : diffusionTargets;
+
+      for (const dt of limitedTargets) {
         targets.push({
-          path: callerPath,
+          path: dt.path,
           reason: 'symbol_definition',
-          confidence: edge.type === 'call' ? 'high' : 'medium',
-          evidence: `symbol_edge:${edge.type}->${defNode.name}`,
+          confidence: dt.confidence,
+          evidence: dt.evidence,
         });
       }
     }
   }
 
-  return { targets: dedupeTargets(targets), candidates, matched };
+  const dedupedTargets = dedupeTargets(targets);
+  const primaryPath = normalizePath(params.primaryFile).replace(/^(\.\/|\/)+/, '');
+  const totalCandidates = symbolNodes.filter((n) => {
+    const nodePath = normalizePath(n.path || params.primaryFile).replace(/^(\.\/|\/)+/, '');
+    return nodePath !== primaryPath && n.kind === 'reference';
+  }).length;
+
+  // Count only diffusion targets (excluding primary file)
+  const selectedTargets = dedupedTargets.filter((t) => {
+    const targetPath = normalizePath(t.path).replace(/^(\.\/|\/)+/, '');
+    return t.reason === 'symbol_definition' && targetPath !== primaryPath;
+  }).length;
+
+  return {
+    targets: dedupedTargets,
+    candidates,
+    matched,
+    metrics: {
+      totalCandidates,
+      selectedTargets,
+      budgetLimit: budget,
+    },
+  };
 }
 
 export class TargetResolver {
@@ -250,8 +400,23 @@ export class TargetResolver {
     rgHitFiles: string[];
     definitionMap?: Record<string, CodeLocation>;
     symbolMap?: SymbolMap;
-  }): Promise<{ targets: ContextTarget[]; strategy: 'explicit' | 'symbol' | 'diff' | 'default' }> {
-    const { req, includedFiles, importRelatedFiles, rgHitFiles, definitionMap, symbolMap } = params;
+    diffusionDepth?: number;
+    maxDiffusionTargets?: number;
+  }): Promise<{
+    targets: ContextTarget[];
+    strategy: 'explicit' | 'symbol' | 'diff' | 'default';
+    diffusionMetrics?: DiffusionMetrics;
+  }> {
+    const {
+      req,
+      includedFiles,
+      importRelatedFiles,
+      rgHitFiles,
+      definitionMap,
+      symbolMap,
+      diffusionDepth,
+      maxDiffusionTargets,
+    } = params;
 
     const runner = new MicroTaskRunner<TargetingDslContext>({
       debugLabel: 'context-targeting',
@@ -280,7 +445,10 @@ export class TargetResolver {
             instruction: ctx.instruction,
             definitionMap,
             symbolMap,
+            diffusionDepth,
+            maxDiffusionTargets,
           });
+          ctx.data!.symbolMetrics = res.metrics;
           return dedupeTargets([...primary, ...res.targets]);
         }
 
@@ -387,6 +555,7 @@ export class TargetResolver {
     const strategy =
       (action?.params?.strategy as 'explicit' | 'symbol' | 'diff' | 'default' | undefined) ??
       'default';
+    const diffusionMetrics = ctx.data?.symbolMetrics as DiffusionMetrics | undefined;
 
     if (targets.length > 0) {
       logger.trace(
@@ -394,6 +563,6 @@ export class TargetResolver {
       );
     }
 
-    return { targets, strategy };
+    return { targets, strategy, diffusionMetrics };
   }
 }
