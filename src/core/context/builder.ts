@@ -37,6 +37,11 @@ function getExtensionsPattern(): string {
  */
 let cachedExtensionPattern: string | null = null;
 
+// Invalidate the cached regex when plugin registry changes so new extensions are recognized.
+pluginRegistry.onChange(() => {
+  cachedExtensionPattern = null;
+});
+
 function getCachedExtensionsPattern(): string {
   if (cachedExtensionPattern === null) {
     cachedExtensionPattern = getExtensionsPattern();

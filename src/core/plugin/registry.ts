@@ -5,6 +5,7 @@ import { LanguagePlugin } from './interface.js';
 class PluginRegistry {
   private plugins: Map<string, LanguagePlugin> = new Map();
   private extensionMap: Map<string, LanguagePlugin> = new Map();
+  private changeListeners: Array<() => void> = [];
 
   /**
    * Register a new language plugin
@@ -22,6 +23,7 @@ class PluginRegistry {
       const normalizedExt = ext.startsWith('.') ? ext : `.${ext}`;
       this.extensionMap.set(normalizedExt, plugin);
     }
+    this.emitChange();
   }
 
   /**
@@ -29,6 +31,19 @@ class PluginRegistry {
    */
   getAll(): LanguagePlugin[] {
     return Array.from(this.plugins.values());
+  }
+
+  onChange(listener: () => void): () => void {
+    this.changeListeners.push(listener);
+    return () => {
+      this.changeListeners = this.changeListeners.filter((l) => l !== listener);
+    };
+  }
+
+  private emitChange(): void {
+    for (const listener of this.changeListeners) {
+      listener();
+    }
   }
 
   /**
