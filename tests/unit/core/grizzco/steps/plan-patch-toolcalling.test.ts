@@ -67,8 +67,8 @@ describe('Grizzco steps: PLAN/PATCH tool calling path', () => {
         throw new Error('createPlan should not be called when tool calling is enabled');
       }),
       createPatch: vi.fn(async () => ''),
-      chat: vi.fn(async (messages) => {
-        captured.push(messages.map((m) => ({ role: m.role, content: m.content })));
+      chat: vi.fn(async (messages: any) => {
+        captured.push(messages.map((m: any) => ({ role: m.role, content: m.content })));
         return {
           role: 'assistant' as const,
           content: JSON.stringify({

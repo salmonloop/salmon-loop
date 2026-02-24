@@ -195,7 +195,7 @@ index 123..456 100644
     }
 
     // Default mock for shrinkContext
-    vi.spyOn(ContextBuilder, 'shrinkContext').mockImplementation(async (ctx) => ctx);
+    vi.spyOn(ContextBuilder, 'shrinkContext').mockImplementation(async (ctx: any) => ctx);
     // Default mock for preflight
     vi.mocked(verify.preflight).mockResolvedValue({ ok: true });
     // Default mock for classifyError

@@ -294,16 +294,16 @@ function userFunction() {
 
         // ASSERT: update-index should be called exactly once (by restoreToShadow)
         const updateIndexCalls = execSpy.mock.calls.filter(
-          ([args]) =>
+          ([args]: any[]) =>
             Array.isArray(args) && args.includes('update-index') && args.includes('--refresh'),
         );
         expect(updateIndexCalls.length).toBe(1);
 
         // ASSERT: No redundant status calls without -uno flag
         const statusCalls = execSpy.mock.calls.filter(
-          ([args]) => Array.isArray(args) && args.includes('status'),
+          ([args]: any[]) => Array.isArray(args) && args.includes('status'),
         );
-        statusCalls.forEach(([args]) => {
+        statusCalls.forEach(([args]: any[]) => {
           const argsArray = args as string[];
           if (!argsArray.includes('--porcelain=v2')) {
             // If it's a status call for logging/refresh, it should use -uno

@@ -1,7 +1,7 @@
 import { loadJsonSchema } from '../../../../../src/cli/commands/run/structured-output.js';
 
-const readFile = vi.fn<Parameters<any>, any>();
-const stat = vi.fn<Parameters<any>, any>();
+const readFile = vi.fn();
+const stat = vi.fn();
 
 vi.mock('fs/promises', () => ({
   readFile,

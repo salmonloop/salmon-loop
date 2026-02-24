@@ -49,7 +49,7 @@ describe('Performance Tests', () => {
       rgSnippets: [],
       primaryText: '',
     } as any);
-    vi.spyOn(ContextBuilder, 'shrinkContext').mockImplementation(async (ctx) => ctx);
+    vi.spyOn(ContextBuilder, 'shrinkContext').mockImplementation(async (ctx: any) => ctx);
     vi.spyOn(ContextBuilder, 'extractFailedFiles').mockReturnValue([]);
 
     vi.spyOn(AstParser, 'parse').mockResolvedValue({ delete: vi.fn() } as any);

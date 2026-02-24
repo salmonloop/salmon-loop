@@ -22,31 +22,39 @@ describe('Code Search Capability', () => {
 
   describe('Ripgrep Backend', () => {
     it('should include --fixed-strings when isRegex is false', async () => {
-      const execSpy = vi.spyOn(mockCtx.runner, 'execFile').mockImplementation(async (cmd, args) => {
-        if (args?.includes('--version')) {
-          return { stdout: 'ripgrep 13.0.0', stderr: '', exitCode: 0, timedOut: false };
-        }
-        return { stdout: '', stderr: '', exitCode: 0, timedOut: false };
-      });
+      const execSpy = vi
+        .spyOn(mockCtx.runner, 'execFile')
+        .mockImplementation(async (cmd: any, args: any) => {
+          if (args?.includes('--version')) {
+            return { stdout: 'ripgrep 13.0.0', stderr: '', exitCode: 0, timedOut: false };
+          }
+          return { stdout: '', stderr: '', exitCode: 0, timedOut: false };
+        });
 
       await codeSearchExecutor({ pattern: 'foo.*bar', maxMatches: 100, isRegex: false }, mockCtx);
 
       // Find the actual search call (not the version check)
-      const searchCall = execSpy.mock.calls.filter((call) => !call[1].includes('--version')).at(-1);
+      const searchCall = execSpy.mock.calls
+        .filter((call: any) => !call[1].includes('--version'))
+        .at(-1);
       expect(searchCall![1]).toContain('--fixed-strings');
     });
 
     it('should NOT include --fixed-strings when isRegex is true', async () => {
-      const execSpy = vi.spyOn(mockCtx.runner, 'execFile').mockImplementation(async (cmd, args) => {
-        if (args?.includes('--version')) {
-          return { stdout: 'ripgrep 13.0.0', stderr: '', exitCode: 0, timedOut: false };
-        }
-        return { stdout: '', stderr: '', exitCode: 0, timedOut: false };
-      });
+      const execSpy = vi
+        .spyOn(mockCtx.runner, 'execFile')
+        .mockImplementation(async (cmd: any, args: any) => {
+          if (args?.includes('--version')) {
+            return { stdout: 'ripgrep 13.0.0', stderr: '', exitCode: 0, timedOut: false };
+          }
+          return { stdout: '', stderr: '', exitCode: 0, timedOut: false };
+        });
 
       await codeSearchExecutor({ pattern: 'foo.*bar', maxMatches: 100, isRegex: true }, mockCtx);
 
-      const searchCall = execSpy.mock.calls.filter((call) => !call[1].includes('--version')).at(-1);
+      const searchCall = execSpy.mock.calls
+        .filter((call: any) => !call[1].includes('--version'))
+        .at(-1);
       expect(searchCall![1]).not.toContain('--fixed-strings');
     });
   });
@@ -57,12 +65,12 @@ describe('Code Search Capability', () => {
       // - rg --version => exit 127
       // - powershell version check => exit 0
       // - powershell search => returns JSON array
-      vi.spyOn(mockCtx.runner, 'execFile').mockImplementation(async (cmd, args) => {
+      vi.spyOn(mockCtx.runner, 'execFile').mockImplementation(async (cmd: any, args: any) => {
         if (cmd === 'rg') {
           return { stdout: '', stderr: 'rg not found', exitCode: 127, timedOut: false };
         }
 
-        if (cmd === 'powershell' && args?.some((a) => a.includes('$PSVersionTable'))) {
+        if (cmd === 'powershell' && args?.some((a: any) => a.includes('$PSVersionTable'))) {
           return { stdout: '7', stderr: '', exitCode: 0, timedOut: false };
         }
 

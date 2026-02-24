@@ -135,7 +135,14 @@ describe('ApplyBack Flow Integration Tests', () => {
     // Parameterized tests for dirty workspace policies
     test.each(dirtyWorkspaceScenarios)(
       '$testDescription',
-      async ({ policy, shouldThrow, mainFile, mainContent, worktreeFile, worktreeContent }) => {
+      async ({
+        policy,
+        shouldThrow,
+        mainFile,
+        mainContent,
+        worktreeFile,
+        worktreeContent,
+      }: any) => {
         // 1. Make main repo dirty
         await helper.writeFile(mainRepoPath, mainFile, mainContent);
 

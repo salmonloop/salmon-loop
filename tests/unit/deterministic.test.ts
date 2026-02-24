@@ -7,7 +7,7 @@ vi.mock('../../src/core/context/builder.js', () => ({
   ContextBuilder: {
     build: vi.fn(),
     extractFailedFiles: vi.fn().mockReturnValue([]),
-    shrinkContext: vi.fn().mockImplementation((ctx) => Promise.resolve(ctx)),
+    shrinkContext: vi.fn().mockImplementation((ctx: any) => Promise.resolve(ctx)),
   },
 }));
 vi.mock('../../src/core/adapters/git/git-adapter.js', () => ({
@@ -16,7 +16,7 @@ vi.mock('../../src/core/adapters/git/git-adapter.js', () => ({
     applyPatch: vi.fn().mockResolvedValue(undefined),
     rollbackFiles: vi.fn().mockResolvedValue({ ok: true }),
     getStatus: vi.fn().mockResolvedValue(''),
-    exec: vi.fn().mockImplementation((args) => {
+    exec: vi.fn().mockImplementation((args: any) => {
       if (args[0] === 'config') return Promise.resolve('mock-value');
       return Promise.resolve('');
     }),

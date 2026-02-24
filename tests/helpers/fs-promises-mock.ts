@@ -103,7 +103,7 @@ export function setupFsPromisesMock(options: FsPromisesMockOptions = {}) {
 
   if (useRealFs) {
     return async () => {
-      const actual = await vi.importActual<typeof import('fs/promises')>('fs/promises');
+      const actual = (await vi.importActual('fs/promises')) as typeof import('fs/promises');
       return {
         ...actual,
         ...mockImplementation,
@@ -145,7 +145,7 @@ export function mockReadFileContent(fileMap: Record<string, string | Buffer>) {
 
   // Replace the mock implementation
   vi.doMock('fs/promises', async () => {
-    const actual = await vi.importActual<typeof import('fs/promises')>('fs/promises');
+    const actual = (await vi.importActual('fs/promises')) as typeof import('fs/promises');
     return {
       ...actual,
       readFile: mockReadFile,
@@ -183,7 +183,7 @@ export function mockFileStats(statsMap: Record<string, Partial<Stats>>) {
   });
 
   vi.doMock('fs/promises', async () => {
-    const actual = await vi.importActual<typeof import('fs/promises')>('fs/promises');
+    const actual = (await vi.importActual('fs/promises')) as typeof import('fs/promises');
     return {
       ...actual,
       stat: mockStat,

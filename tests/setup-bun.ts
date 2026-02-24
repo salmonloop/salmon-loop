@@ -310,10 +310,20 @@ function ensureTestGlobals() {
   globalRecord.afterAll ??= afterAll;
 }
 
+function ensureExpectCompat() {
+  const expectCompat = expect as typeof expect & {
+    fail?: (message?: string) => never;
+  };
+  expectCompat.fail ??= (message?: string) => {
+    throw new Error(message ?? 'Expected test to fail');
+  };
+}
+
 ensureDom();
 ensureVitestCompat();
 ensureVitestModuleCompat();
 ensureTestGlobals();
+ensureExpectCompat();
 
 // Testing guidelines: keep test runs silent and self-validating.
 vi.spyOn(console, 'log').mockImplementation(() => {});

@@ -21,7 +21,7 @@ describe('RipgrepGatherer', () => {
 
   it('aborts in-flight rg when signal is aborted', async () => {
     const controller = new AbortController();
-    vi.mocked(spawnCommand).mockImplementation(async (input) => {
+    vi.mocked(spawnCommand).mockImplementation(async (input: any) => {
       await new Promise<void>((resolve) => {
         input.signal?.addEventListener(
           'abort',

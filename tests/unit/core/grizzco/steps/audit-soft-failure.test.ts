@@ -55,7 +55,7 @@ describe('saveAudit (blob write best-effort)', () => {
 
       expect(auditPath).toBeTruthy();
 
-      const jsonCall = writeFileMock.mock.calls.find(([p]) => String(p).endsWith('.json'));
+      const jsonCall = writeFileMock.mock.calls.find(([p]: any[]) => String(p).endsWith('.json'));
       expect(jsonCall).toBeTruthy();
 
       const auditJson = JSON.parse(String(jsonCall![1]));

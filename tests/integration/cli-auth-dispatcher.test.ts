@@ -38,8 +38,8 @@ describe('CLI /allowlist dispatcher integration', () => {
 
     const getLastLogMessage = () => {
       const events = emit.mock.calls
-        .map((call) => call[0] as LoopEvent)
-        .filter((event) => event.type === 'log');
+        .map((call: any) => call[0] as LoopEvent)
+        .filter((event: any) => event.type === 'log');
       return events.at(-1)?.message || '';
     };
 

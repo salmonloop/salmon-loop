@@ -100,45 +100,47 @@ describe('exploreCodebase', () => {
     };
 
     // Mock chatWithTools to simulate the LLM using the tool
-    vi.spyOn(session, 'chatWithTools').mockImplementation(async (_messages, _options, runtime) => {
-      // simulate the runtime calling the tool via the proxied router
-      const router = runtime.toolstack.router;
+    vi.spyOn(session, 'chatWithTools').mockImplementation(
+      async (_messages: any, _options: any, runtime: any) => {
+        // simulate the runtime calling the tool via the proxied router
+        const router = runtime.toolstack.router;
 
-      // 1. Call a random tool (should not be captured)
-      await router.call({
-        id: '1',
-        phase: Phase.EXPLORE,
-        toolName: 'ls',
-        args: { path: '.' },
-        ctx: mockRuntimeCtx,
-      });
+        // 1. Call a random tool (should not be captured)
+        await router.call({
+          id: '1',
+          phase: Phase.EXPLORE,
+          toolName: 'ls',
+          args: { path: '.' },
+          ctx: mockRuntimeCtx,
+        });
 
-      // 2. Call fs.read (should be captured)
-      // We need to verify that the router passed to chatWithTools is indeed our proxy
-      // And we need to make sure the UNDERLYING router returns the content so the proxy sees it
+        // 2. Call fs.read (should be captured)
+        // We need to verify that the router passed to chatWithTools is indeed our proxy
+        // And we need to make sure the UNDERLYING router returns the content so the proxy sees it
 
-      // Update mock underlying router to return file content
-      mockToolstack.router.call.mockImplementation(async (envelope: any) => {
-        if (envelope.toolName === 'fs.read') {
-          return {
-            toolName: 'fs.read',
-            status: 'ok',
-            output: 'file content here',
-          };
-        }
-        return { toolName: envelope.toolName, status: 'ok', output: 'list' };
-      });
+        // Update mock underlying router to return file content
+        mockToolstack.router.call.mockImplementation(async (envelope: any) => {
+          if (envelope.toolName === 'fs.read') {
+            return {
+              toolName: 'fs.read',
+              status: 'ok',
+              output: 'file content here',
+            };
+          }
+          return { toolName: envelope.toolName, status: 'ok', output: 'list' };
+        });
 
-      await router.call({
-        id: '2',
-        phase: Phase.EXPLORE,
-        toolName: 'fs.read',
-        args: { path: '/tmp/test/read.ts' },
-        ctx: mockRuntimeCtx,
-      });
+        await router.call({
+          id: '2',
+          phase: Phase.EXPLORE,
+          toolName: 'fs.read',
+          args: { path: '/tmp/test/read.ts' },
+          ctx: mockRuntimeCtx,
+        });
 
-      return { role: 'assistant', content: 'done' } as any;
-    });
+        return { role: 'assistant', content: 'done' } as any;
+      },
+    );
 
     await expect(runExplore(mockCtx)).rejects.toThrow(
       'No files were read during the exploration phase',
@@ -152,25 +154,27 @@ describe('exploreCodebase', () => {
       dryRun: false,
     };
 
-    vi.spyOn(session, 'chatWithTools').mockImplementation(async (_messages, _options, runtime) => {
-      const router = runtime.toolstack.router;
+    vi.spyOn(session, 'chatWithTools').mockImplementation(
+      async (_messages: any, _options: any, runtime: any) => {
+        const router = runtime.toolstack.router;
 
-      mockToolstack.router.call.mockResolvedValue({
-        toolName: 'fs.read',
-        status: 'error',
-        output: 'File not found',
-      });
+        mockToolstack.router.call.mockResolvedValue({
+          toolName: 'fs.read',
+          status: 'error',
+          output: 'File not found',
+        });
 
-      await router.call({
-        id: '1',
-        phase: Phase.EXPLORE,
-        toolName: 'fs.read',
-        args: { path: '/tmp/test/missing.ts' },
-        ctx: mockRuntimeCtx,
-      });
+        await router.call({
+          id: '1',
+          phase: Phase.EXPLORE,
+          toolName: 'fs.read',
+          args: { path: '/tmp/test/missing.ts' },
+          ctx: mockRuntimeCtx,
+        });
 
-      return { role: 'assistant', content: 'done' } as any;
-    });
+        return { role: 'assistant', content: 'done' } as any;
+      },
+    );
 
     await expect(runExplore(mockCtx)).rejects.toThrow(
       'No files were read during the exploration phase',
@@ -194,7 +198,7 @@ describe('exploreCodebase', () => {
     mockCtx.options.llm.chatStream = vi.fn(); // Enable streaming support
 
     vi.spyOn(session, 'chatWithToolsStreaming').mockImplementation(
-      async (_messages, _options, runtime) => {
+      async (_messages: any, _options: any, runtime: any) => {
         const router = runtime.toolstack.router;
 
         mockToolstack.router.call.mockResolvedValue({
@@ -227,38 +231,40 @@ describe('exploreCodebase', () => {
       dryRun: false,
     };
 
-    vi.spyOn(session, 'chatWithTools').mockImplementation(async (_messages, _options, runtime) => {
-      const router = runtime.toolstack.router;
+    vi.spyOn(session, 'chatWithTools').mockImplementation(
+      async (_messages: any, _options: any, runtime: any) => {
+        const router = runtime.toolstack.router;
 
-      // Simulate underlying router throwing error
-      mockToolstack.router.call.mockRejectedValue(new Error('Tool failed'));
+        // Simulate underlying router throwing error
+        mockToolstack.router.call.mockRejectedValue(new Error('Tool failed'));
 
-      await expect(
-        router.call({
-          id: '1',
+        await expect(
+          router.call({
+            id: '1',
+            phase: Phase.EXPLORE,
+            toolName: 'crash',
+            args: {},
+            ctx: mockRuntimeCtx,
+          }),
+        ).rejects.toThrow('Tool failed');
+
+        mockToolstack.router.call.mockResolvedValue({
+          toolName: 'fs.read',
+          status: 'ok',
+          output: 'recovered read',
+        });
+
+        await router.call({
+          id: '2',
           phase: Phase.EXPLORE,
-          toolName: 'crash',
-          args: {},
+          toolName: 'fs.read',
+          args: { file: '/tmp/test/read.ts' },
           ctx: mockRuntimeCtx,
-        }),
-      ).rejects.toThrow('Tool failed');
+        });
 
-      mockToolstack.router.call.mockResolvedValue({
-        toolName: 'fs.read',
-        status: 'ok',
-        output: 'recovered read',
-      });
-
-      await router.call({
-        id: '2',
-        phase: Phase.EXPLORE,
-        toolName: 'fs.read',
-        args: { file: '/tmp/test/read.ts' },
-        ctx: mockRuntimeCtx,
-      });
-
-      return { role: 'assistant', content: 'done' } as any;
-    });
+        return { role: 'assistant', content: 'done' } as any;
+      },
+    );
 
     await expect(runExplore(mockCtx)).rejects.toThrow(
       'No files were read during the exploration phase',
