@@ -25,10 +25,10 @@ describe('ContextBuilder', () => {
     vi.clearAllMocks();
 
     // Default AST mocks
-    vi.mocked(AstParser.parse).mockResolvedValue({} as any);
-    vi.mocked(AstParser.identifyDefinitions).mockResolvedValue([]);
-    vi.mocked(AstParser.identifyReferences).mockResolvedValue([]);
-    vi.mocked(spawnCommand).mockResolvedValue({
+    (AstParser.parse as any).mockResolvedValue({} as any);
+    (AstParser.identifyDefinitions as any).mockResolvedValue([]);
+    (AstParser.identifyReferences as any).mockResolvedValue([]);
+    (spawnCommand as any).mockResolvedValue({
       code: 1,
       signal: null,
       timedOut: false,
@@ -44,7 +44,7 @@ describe('ContextBuilder', () => {
   });
 
   it('should build context with primary file', async () => {
-    vi.mocked(fs.readFile).mockResolvedValue('console.log("hello");');
+    (fs.readFile as any).mockResolvedValue('console.log("hello");');
 
     const context = await ContextBuilder.build({
       instruction: 'fix something',
@@ -62,7 +62,7 @@ describe('ContextBuilder', () => {
     const controller = new AbortController();
     controller.abort();
 
-    vi.mocked(fs.readFile).mockResolvedValue('console.log("hello");');
+    (fs.readFile as any).mockResolvedValue('console.log("hello");');
 
     await expect(
       ContextBuilder.build({
@@ -77,16 +77,16 @@ describe('ContextBuilder', () => {
 
   it('should include AST symbols in context', async () => {
     const code = 'function test() { console.log("hello"); }';
-    vi.mocked(fs.readFile).mockResolvedValue(code);
-    vi.mocked(AstParser.parse).mockResolvedValue({} as any);
-    vi.mocked(AstParser.identifyDefinitions).mockResolvedValue([
+    (fs.readFile as any).mockResolvedValue(code);
+    (AstParser.parse as any).mockResolvedValue({} as any);
+    (AstParser.identifyDefinitions as any).mockResolvedValue([
       {
         name: 'test',
         kind: 'definition',
         location: { start: { line: 1, column: 9 }, end: { line: 1, column: 13 } },
       },
     ]);
-    vi.mocked(AstParser.identifyReferences).mockResolvedValue([]);
+    (AstParser.identifyReferences as any).mockResolvedValue([]);
 
     const context = await ContextBuilder.build({
       instruction: 'fix something',

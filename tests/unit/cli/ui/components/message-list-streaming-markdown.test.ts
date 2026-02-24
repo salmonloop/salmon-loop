@@ -2,9 +2,9 @@ import { render } from '@testing-library/react';
 import { vi } from 'bun:test';
 import React from 'react';
 
-const hoisted = vi.hoisted(() => ({
+const hoisted = (() => ({
   markdownSpy: vi.fn(),
-}));
+}))();
 
 vi.mock('ink', () => ({
   Box: (props: any) => React.createElement('div', null, props.children),

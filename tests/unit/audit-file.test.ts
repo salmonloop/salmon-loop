@@ -1,8 +1,8 @@
-const { readFileMock, writeFileMock, warnMock } = vi.hoisted(() => ({
+const { readFileMock, writeFileMock, warnMock } = (() => ({
   readFileMock: vi.fn(),
   writeFileMock: vi.fn(),
   warnMock: vi.fn(),
-}));
+}))();
 
 vi.mock('fs/promises', () => ({
   readFile: readFileMock,

@@ -1,6 +1,6 @@
-const { runApplyBackPhaseMock } = vi.hoisted(() => ({
+const { runApplyBackPhaseMock } = (() => ({
   runApplyBackPhaseMock: vi.fn(),
-}));
+}))();
 
 vi.mock('../../../../../src/core/grizzco/runtime/apply-back-runtime.js', () => ({
   runApplyBackPhase: runApplyBackPhaseMock,

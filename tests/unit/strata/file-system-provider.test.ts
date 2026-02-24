@@ -1,9 +1,9 @@
-const fsMocks = vi.hoisted(() => ({
+const fsMocks = (() => ({
   readFile: vi.fn(),
   writeFile: vi.fn(),
   mkdir: vi.fn(),
   unlink: vi.fn(),
-}));
+}))();
 
 vi.mock('fs', () => ({
   promises: fsMocks,

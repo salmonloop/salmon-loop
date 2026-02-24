@@ -2,11 +2,11 @@ import { render } from '@testing-library/react';
 import { vi } from 'bun:test';
 import React from 'react';
 
-const hoisted = vi.hoisted(() => ({
+const hoisted = (() => ({
   inputHandler: null as ((input: string, key: any) => void) | null,
   textInputProps: null as any,
   dispatch: vi.fn(),
-}));
+}))();
 
 vi.mock('ink', () => ({
   Box: (props: any) => React.createElement('div', null, props.children),

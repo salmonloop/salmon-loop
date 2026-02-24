@@ -6,6 +6,25 @@ import {
 } from '../../../../src/core/observability/audit-trail.js';
 import { LiteLlmLangfuseOutcomeReporter } from '../../../../src/integrations/langfuse/litellm-langfuse-outcome-reporter.js';
 
+const globalRestore = new Map<string, unknown>();
+
+function stubGlobal(name: string, value: unknown): void {
+  const key = String(name);
+  const globals = globalThis as Record<string, unknown>;
+  if (!globalRestore.has(key)) {
+    globalRestore.set(key, globals[key]);
+  }
+  globals[key] = value;
+}
+
+function restoreGlobals(): void {
+  const globals = globalThis as Record<string, unknown>;
+  for (const [key, value] of globalRestore) {
+    globals[key] = value;
+  }
+  globalRestore.clear();
+}
+
 function lastAuditAction(prefix: string): string | undefined {
   const events = getAuditTrail().filter((e) => String(e.action || '').startsWith(prefix));
   return events.length > 0 ? events[events.length - 1]!.action : undefined;
@@ -20,17 +39,17 @@ describe('LiteLlmLangfuseOutcomeReporter', () => {
   beforeEach(() => {
     clearAuditTrail();
     clearAuditContext();
-    vi.unstubAllGlobals();
+    restoreGlobals();
   });
 
   afterEach(() => {
-    vi.unstubAllGlobals();
+    restoreGlobals();
     clearAuditTrail();
     clearAuditContext();
   });
 
   it('records http_failed when ingestion responds non-2xx', async () => {
-    vi.stubGlobal(
+    stubGlobal(
       'fetch',
       vi.fn(async () => {
         return {
@@ -67,7 +86,7 @@ describe('LiteLlmLangfuseOutcomeReporter', () => {
   });
 
   it('records request_failed when fetch throws', async () => {
-    vi.stubGlobal(
+    stubGlobal(
       'fetch',
       vi.fn(async () => {
         throw new Error('boom');
@@ -98,7 +117,7 @@ describe('LiteLlmLangfuseOutcomeReporter', () => {
   });
 
   it('records timeout kind when ingestion request is aborted', async () => {
-    vi.stubGlobal(
+    stubGlobal(
       'fetch',
       vi.fn(async () => {
         const err = new Error('aborted');
@@ -131,7 +150,7 @@ describe('LiteLlmLangfuseOutcomeReporter', () => {
   });
 
   it('records ingestion_failed when response includes per-event errors', async () => {
-    vi.stubGlobal(
+    stubGlobal(
       'fetch',
       vi.fn(async () => {
         return {
@@ -170,7 +189,7 @@ describe('LiteLlmLangfuseOutcomeReporter', () => {
     const fetchMock = vi.fn(async (..._args: any[]) => {
       return { ok: true, json: async () => ({ successes: [], errors: [] }) } as any;
     });
-    vi.stubGlobal('fetch', fetchMock);
+    stubGlobal('fetch', fetchMock);
 
     const reporter = new LiteLlmLangfuseOutcomeReporter({
       proxyBaseUrl: 'https://litellm.example',

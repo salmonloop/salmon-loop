@@ -1,9 +1,9 @@
-const { queryMock, rmMock, accessMock, realpathMock } = vi.hoisted(() => ({
+const { queryMock, rmMock, accessMock, realpathMock } = (() => ({
   queryMock: vi.fn(),
   rmMock: vi.fn(),
   accessMock: vi.fn(),
   realpathMock: vi.fn(),
-}));
+}))();
 
 vi.mock('../../../src/core/adapters/git/git-adapter.js', () => ({
   GitAdapter: vi.fn().mockImplementation(() => ({

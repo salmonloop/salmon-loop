@@ -1,12 +1,12 @@
 const { mkdirMock, writeFileMock, readFileMock, unlinkMock, renameMock, getShadowLockPathMock } =
-  vi.hoisted(() => ({
+  (() => ({
     mkdirMock: vi.fn(),
     writeFileMock: vi.fn(),
     readFileMock: vi.fn(),
     unlinkMock: vi.fn(),
     renameMock: vi.fn(),
     getShadowLockPathMock: vi.fn(),
-  }));
+  }))();
 
 vi.mock('fs/promises', () => ({
   mkdir: mkdirMock,

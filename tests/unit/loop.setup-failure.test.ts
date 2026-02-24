@@ -1,8 +1,8 @@
-const { setupMock, teardownMock, clearAuditContextMock } = vi.hoisted(() => ({
+const { setupMock, teardownMock, clearAuditContextMock } = (() => ({
   setupMock: vi.fn(),
   teardownMock: vi.fn(),
   clearAuditContextMock: vi.fn(),
-}));
+}))();
 
 vi.mock('../../src/core/strata/runtime/environment.js', () => ({
   RuntimeEnvironment: vi.fn().mockImplementation(() => ({

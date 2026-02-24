@@ -14,7 +14,7 @@ describe('GitAdapter exec truncation handling', () => {
   });
 
   it('throws when stdout is truncated', async () => {
-    vi.mocked(runGitCommand).mockResolvedValue({
+    (runGitCommand as any).mockResolvedValue({
       ok: true,
       code: 0,
       signal: null,
@@ -33,7 +33,7 @@ describe('GitAdapter exec truncation handling', () => {
   });
 
   it('execMeta returns truncation metadata without throwing', async () => {
-    vi.mocked(runGitCommand).mockResolvedValue({
+    (runGitCommand as any).mockResolvedValue({
       ok: true,
       code: 0,
       signal: null,
@@ -60,7 +60,7 @@ describe('GitAdapter query gateway validation', () => {
   });
 
   it('allows approved commands', async () => {
-    vi.mocked(runGitCommand).mockResolvedValue({
+    (runGitCommand as any).mockResolvedValue({
       ok: true,
       code: 0,
       signal: null,
@@ -99,7 +99,7 @@ describe('GitAdapter query gateway validation', () => {
   });
 
   it('allows worktree operations only under temp shadow root', async () => {
-    vi.mocked(runGitCommand).mockResolvedValue({
+    (runGitCommand as any).mockResolvedValue({
       ok: true,
       code: 0,
       signal: null,
@@ -121,7 +121,7 @@ describe('GitAdapter query gateway validation', () => {
   });
 
   it('refuses destructive rollback recovery outside shadow worktree', async () => {
-    vi.mocked(runGitCommand).mockResolvedValueOnce({
+    (runGitCommand as any).mockResolvedValueOnce({
       ok: false,
       code: 1,
       signal: null,

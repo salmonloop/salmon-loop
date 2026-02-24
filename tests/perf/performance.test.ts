@@ -65,14 +65,14 @@ describe('Performance Tests', () => {
   });
 
   it('should handle a large repository without significant delay', async () => {
-    vi.mocked(mockLlm.createPlan).mockResolvedValue({
+    (mockLlm.createPlan as any).mockResolvedValue({
       goal: 'Fix',
       files: ['file0.ts'],
       changes: ['Fix log'],
       verify: 'echo "passed"',
     });
 
-    vi.mocked(mockLlm.createPatch).mockResolvedValue(
+    (mockLlm.createPatch as any).mockResolvedValue(
       'diff --git a/file0.ts b/file0.ts\n' +
         '--- a/file0.ts\n' +
         '+++ b/file0.ts\n' +

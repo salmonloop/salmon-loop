@@ -3,11 +3,11 @@ import { vi } from 'bun:test';
 
 import { useInputHistory } from '../../../../../src/cli/ui/hooks/useInputHistory.js';
 
-const hoisted = vi.hoisted(() => ({
+const hoisted = (() => ({
   state: {
     inputHistory: ['first', 'second'],
   },
-}));
+}))();
 
 vi.mock('../../../../../src/cli/ui/store/context.js', () => ({
   useUIStore: () => ({ state: hoisted.state }),

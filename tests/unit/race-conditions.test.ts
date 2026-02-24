@@ -1,3 +1,5 @@
+import { mock } from 'bun:test';
+
 import { LIMITS } from '../../src/core/config/limits.js';
 
 // Mock storage
@@ -128,7 +130,7 @@ describe('Race Conditions & Concurrency', () => {
 
   describe('AstParser.init() Concurrency', () => {
     it('should handle concurrent init() calls gracefully', async () => {
-      vi.doMock('web-tree-sitter', mockTreeSitter);
+      mock.module('web-tree-sitter', mockTreeSitter);
       const { AstParser } = await import('../../src/core/ast/parser.js');
       const results = await Promise.all([AstParser.init(), AstParser.init(), AstParser.init()]);
       expect(results).toHaveLength(3);
@@ -148,7 +150,7 @@ describe('Race Conditions & Concurrency', () => {
       let maxActive = 0;
       const executions: Array<{ id: number; start: number; end: number }> = [];
 
-      const runGit = vi.mocked(runGitCommand);
+      const runGit = runGitCommand as any;
       runGit.mockImplementation(async () => {
         const id = executions.length;
         activeCount++;

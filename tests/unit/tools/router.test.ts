@@ -161,7 +161,6 @@ describe('ToolRouter', () => {
 
   it('should cache allow_session decisions and respect ttl', async () => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date('2024-01-01T00:00:00Z'));
 
     const mockSpec = {
       name: 'fs.read',

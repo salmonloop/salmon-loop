@@ -1,7 +1,7 @@
-const { mkdirMock, writeFileMock } = vi.hoisted(() => ({
+const { mkdirMock, writeFileMock } = (() => ({
   mkdirMock: vi.fn(),
   writeFileMock: vi.fn(),
-}));
+}))();
 
 vi.mock('fs/promises', () => ({
   mkdir: mkdirMock,
@@ -15,11 +15,12 @@ import { describe, expect, it, vi } from 'bun:test';
 import { Pipeline } from '../../../../../src/core/grizzco/engine/pipeline/pipeline.js';
 import { saveAudit } from '../../../../../src/core/grizzco/steps/audit.js';
 import { clearAuditTrail } from '../../../../../src/core/observability/audit-trail.js';
+import { freezeSystemTime } from '../../../../helpers/time.js';
 
 describe('saveAudit (blob write best-effort)', () => {
   it('still writes bounded audit JSON when blob write fails', async () => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-02-15T00:00:00.000Z'));
+    const restoreTime = freezeSystemTime('2026-02-15T00:00:00.000Z');
     try {
       clearAuditTrail();
       mkdirMock.mockResolvedValue(undefined);
@@ -66,6 +67,7 @@ describe('saveAudit (blob write best-effort)', () => {
         auditJson.context.auditTrail.some((e: any) => e.action === 'audit.blob.write.failed'),
       ).toBe(true);
     } finally {
+      restoreTime();
       vi.useRealTimers();
     }
   });

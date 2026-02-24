@@ -110,7 +110,7 @@ describe('SmallfryLoop', () => {
     };
 
     // Mock pipeline to return high token usage in traces
-    vi.mocked(Pipeline.of(mockInitCtx).execute).mockResolvedValueOnce({
+    (Pipeline.of(mockInitCtx).execute as any).mockResolvedValueOnce({
       success: true,
       duration: 0,
       traces: [

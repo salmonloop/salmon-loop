@@ -1,4 +1,5 @@
 import { Semaphore } from '../../src/core/runtime/semaphore.js';
+import { advanceFakeTimers } from '../helpers/time.js';
 
 describe('Concurrency and Locking Integration', () => {
   beforeEach(() => {
@@ -34,7 +35,7 @@ describe('Concurrency and Locking Integration', () => {
 
     // Advance timers to complete all operations
     // First operation takes 500ms, second operation takes 500ms (they run sequentially due to semaphore)
-    await vi.advanceTimersByTimeAsync(1000);
+    await advanceFakeTimers(1000);
 
     const [result1, result2] = await Promise.all([promise1, promise2]);
 
@@ -69,7 +70,7 @@ describe('Concurrency and Locking Integration', () => {
     const promise3 = semaphore.run(() => mockLoopOperation('loop3', 500));
 
     // Advance timers to complete all operations
-    await vi.advanceTimersByTimeAsync(1000);
+    await advanceFakeTimers(1000);
 
     const [result1, result2, result3] = await Promise.all([promise1, promise2, promise3]);
 
@@ -115,7 +116,7 @@ describe('Concurrency and Locking Integration', () => {
     const promise2 = semaphore.run(successOperation);
 
     // Advance timers
-    await vi.advanceTimersByTimeAsync(300);
+    await advanceFakeTimers(300);
 
     const [result1, result2] = await Promise.all([promise1, promise2]);
 

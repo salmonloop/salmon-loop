@@ -5,12 +5,12 @@ import path from 'path';
 import { CheckpointManager } from '../../../src/core/strata/checkpoint/manager.js';
 import { WorkspaceSynchronizer } from '../../../src/core/strata/runtime/synchronizer.js';
 
-const { queryMock, execMetaMock, execMock, checkIgnoreMock } = vi.hoisted(() => ({
+const { queryMock, execMetaMock, execMock, checkIgnoreMock } = (() => ({
   queryMock: vi.fn(),
   execMetaMock: vi.fn(),
   execMock: vi.fn(),
   checkIgnoreMock: vi.fn(),
-}));
+}))();
 
 vi.mock('../../../src/core/adapters/git/git-adapter', () => {
   const MockGit = vi.fn().mockImplementation(() => ({

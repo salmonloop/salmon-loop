@@ -3,10 +3,10 @@ import { vi } from 'bun:test';
 
 import { useCommandLifecycle } from '../../../../../src/cli/ui/hooks/useCommandLifecycle.js';
 
-const hoisted = vi.hoisted(() => ({
+const hoisted = (() => ({
   inputHandler: null as ((input: string, key: any) => void) | null,
   dispatch: vi.fn(),
-}));
+}))();
 
 vi.mock('ink', () => ({
   useInput: (handler: (input: string, key: any) => void) => {

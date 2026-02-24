@@ -1,14 +1,14 @@
 import { runGitCommand } from '../../src/core/adapters/git/git-runner.js';
 import { spawnCommand } from '../../src/core/runtime/process-runner.js';
 
-const fsMocks = vi.hoisted(() => {
+const fsMocks = (() => {
   const realpathSync = vi.fn().mockImplementation((_p: string) => {
     throw new Error('ENOENT');
   });
   return {
     realpathSync,
   };
-});
+})();
 
 vi.mock('fs', () => fsMocks);
 
@@ -19,7 +19,7 @@ vi.mock('../../src/core/runtime/process-runner.js', () => ({
 describe('runGitCommand', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(spawnCommand).mockResolvedValue({
+    (spawnCommand as any).mockResolvedValue({
       code: 0,
       signal: null,
       timedOut: false,
@@ -59,7 +59,7 @@ describe('runGitCommand', () => {
   });
 
   it('captures stdout/stderr and returns ok=true on exit 0', async () => {
-    vi.mocked(spawnCommand).mockImplementation(async (input: any) => {
+    (spawnCommand as any).mockImplementation(async (input: any) => {
       input.onStdoutChunk?.(Buffer.from('A\n'));
       input.onStderrChunk?.(Buffer.from('warning\n'));
       return {
@@ -87,7 +87,7 @@ describe('runGitCommand', () => {
   });
 
   it('truncates stdout when maxStdoutBytes is reached', async () => {
-    vi.mocked(spawnCommand).mockImplementation(async (input: any) => {
+    (spawnCommand as any).mockImplementation(async (input: any) => {
       input.onStdoutChunk?.(Buffer.from('abcdef'));
       return {
         code: 0,
@@ -114,7 +114,7 @@ describe('runGitCommand', () => {
   });
 
   it('marks timedOut when runtime reports timeout', async () => {
-    vi.mocked(spawnCommand).mockImplementation(async (input: any) => {
+    (spawnCommand as any).mockImplementation(async (input: any) => {
       input.onStderrChunk?.(Buffer.from('timeout'));
       return {
         code: null,

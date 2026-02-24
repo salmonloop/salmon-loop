@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'bun:test';
 
-const hoisted = vi.hoisted(() => ({
+const hoisted = (() => ({
   execa: vi.fn(),
-}));
+}))();
 
 vi.mock('execa', () => ({
   execa: hoisted.execa,

@@ -5,11 +5,35 @@ import { join } from 'path';
 import { ConfigError } from '../../src/core/config/errors.js';
 import { redactConfigForPrint, resolveConfig } from '../../src/core/config/index.js';
 
+const envRestoreMap = new Map<string, string | undefined>();
+
+function setEnv(key: string, value: string | undefined) {
+  if (!envRestoreMap.has(key)) {
+    envRestoreMap.set(key, process.env[key]);
+  }
+  if (value === undefined) {
+    delete process.env[key];
+    return;
+  }
+  process.env[key] = value;
+}
+
 function uniqueTmpDir(name: string): string {
   return join(tmpdir(), `salmonloop-config-test-${name}-${Date.now()}-${Math.random()}`);
 }
 
 describe('Config module', () => {
+  afterEach(() => {
+    for (const [key, value] of envRestoreMap) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+    envRestoreMap.clear();
+  });
+
   it('loads repo-local config from .salmonloop/config/config.json and resolves inline apiKey', async () => {
     const repoRoot = uniqueTmpDir('repo');
     await mkdir(join(repoRoot, '.salmonloop', 'config'), { recursive: true });
@@ -48,7 +72,7 @@ describe('Config module', () => {
       'utf8',
     );
 
-    vi.stubEnv('SALMONLOOP_API_KEY', 'env-key');
+    setEnv('SALMONLOOP_API_KEY', 'env-key');
 
     const cfg = await resolveConfig({ repoRoot });
     expect(cfg.source.used).toBe(true);
@@ -65,9 +89,9 @@ describe('Config module', () => {
   it('falls back to environment variables when config is missing', async () => {
     const repoRoot = uniqueTmpDir('repo-missing');
 
-    vi.stubEnv('SALMONLOOP_API_KEY', 'env-key');
-    vi.stubEnv('S8P_BASE_URL', 'https://env.example/v1');
-    vi.stubEnv('S8P_MODEL', 'env-model');
+    setEnv('SALMONLOOP_API_KEY', 'env-key');
+    setEnv('S8P_BASE_URL', 'https://env.example/v1');
+    setEnv('S8P_MODEL', 'env-model');
 
     const cfg = await resolveConfig({ repoRoot });
     expect(cfg.source.used).toBe(false);
@@ -82,9 +106,9 @@ describe('Config module', () => {
   it('prefers SALMONLOOP_MODEL over legacy envs', async () => {
     const repoRoot = uniqueTmpDir('repo-model');
 
-    vi.stubEnv('SALMONLOOP_API_KEY', 'loop-key');
-    vi.stubEnv('SALMONLOOP_MODEL', 'loop-model');
-    vi.stubEnv('S8P_MODEL', 'legacy-model');
+    setEnv('SALMONLOOP_API_KEY', 'loop-key');
+    setEnv('SALMONLOOP_MODEL', 'loop-model');
+    setEnv('S8P_MODEL', 'legacy-model');
 
     const cfg = await resolveConfig({ repoRoot });
     expect(cfg.llm.models.selectedModelId).toBe('loop-model');
@@ -93,9 +117,9 @@ describe('Config module', () => {
   it('prefers SALMONLOOP_BASE_URL and trims trailing slashes', async () => {
     const repoRoot = uniqueTmpDir('repo-loop-base');
 
-    vi.stubEnv('SALMONLOOP_API_KEY', 'env-key');
-    vi.stubEnv('SALMONLOOP_BASE_URL', 'https://loop.example/v1/');
-    vi.stubEnv('S8P_BASE_URL', 'https://legacy.example/v1/');
+    setEnv('SALMONLOOP_API_KEY', 'env-key');
+    setEnv('SALMONLOOP_BASE_URL', 'https://loop.example/v1/');
+    setEnv('S8P_BASE_URL', 'https://legacy.example/v1/');
 
     const cfg = await resolveConfig({ repoRoot });
     expect(cfg.llm.api.baseUrl).toBe('https://loop.example/v1');
@@ -176,8 +200,8 @@ describe('Config module', () => {
       'utf8',
     );
 
-    vi.stubEnv('SALMONLOOP_LANGFUSE_SESSION_ID', 'sess-env');
-    vi.stubEnv('SALMONLOOP_LANGFUSE_USER_ID', 'user-env');
+    setEnv('SALMONLOOP_LANGFUSE_SESSION_ID', 'sess-env');
+    setEnv('SALMONLOOP_LANGFUSE_USER_ID', 'user-env');
 
     const cfg = await resolveConfig({ repoRoot });
     expect(cfg.observability.langfuse.sessionId).toBe('sess-env');

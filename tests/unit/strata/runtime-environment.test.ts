@@ -7,7 +7,7 @@ const {
   workspaceTeardownMock,
   hydrateMock,
   gitQueryMock,
-} = vi.hoisted(() => ({
+} = (() => ({
   migrateLegacyRuntimeMock: vi.fn().mockResolvedValue(undefined),
   createSafeSnapshotMock: vi.fn(),
   restoreToShadowMock: vi.fn().mockResolvedValue(undefined),
@@ -16,7 +16,7 @@ const {
   workspaceTeardownMock: vi.fn().mockResolvedValue(undefined),
   hydrateMock: vi.fn().mockResolvedValue(undefined),
   gitQueryMock: vi.fn(),
-}));
+}))();
 
 vi.mock('../../../src/core/runtime/paths.js', () => ({
   migrateLegacyRuntime: migrateLegacyRuntimeMock,

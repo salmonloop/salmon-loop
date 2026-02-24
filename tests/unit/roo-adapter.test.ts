@@ -31,7 +31,7 @@ describe('RooSalmonAdapter', () => {
       repoPath: '/repo',
       llm: {} as any,
     };
-    vi.mocked(runSalmonLoop).mockResolvedValue({ success: true } as any);
+    (runSalmonLoop as any).mockResolvedValue({ success: true } as any);
 
     await adapter.execute(options);
 
@@ -46,7 +46,7 @@ describe('RooSalmonAdapter', () => {
 
   it('should pipe events to onEvent handler', async () => {
     const onEvent = vi.fn();
-    vi.mocked(runSalmonLoop).mockImplementation(async (opts: any) => {
+    (runSalmonLoop as any).mockImplementation(async (opts: any) => {
       opts.onEvent({ type: 'log', level: 'info', message: 'test log' });
       return { success: true } as any;
     });
@@ -58,7 +58,7 @@ describe('RooSalmonAdapter', () => {
 
   it('should handle different event types in logEvent', async () => {
     // This test implicitly covers logEvent through the onEvent callback in execute
-    vi.mocked(runSalmonLoop).mockImplementation(async (opts: any) => {
+    (runSalmonLoop as any).mockImplementation(async (opts: any) => {
       opts.onEvent({ type: 'phase.start', phase: 'PLAN' });
       opts.onEvent({ type: 'phase.end', phase: 'PLAN', success: true });
       opts.onEvent({ type: 'diff.meta', changedFiles: ['file1.ts'] });

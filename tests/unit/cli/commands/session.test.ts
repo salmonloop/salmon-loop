@@ -1,11 +1,11 @@
 import { vi } from 'bun:test';
 
-const hoisted = vi.hoisted(() => {
+const hoisted = (() => {
   const init = vi.fn(async () => {});
   const load = vi.fn(async () => ['hello', 'world']);
   const InputHistoryManagerMock = vi.fn(() => ({ init, load }));
   return { init, load, InputHistoryManagerMock };
-});
+})();
 
 vi.mock('../../../../src/core/history/input-history.js', () => ({
   InputHistoryManager: hoisted.InputHistoryManagerMock,

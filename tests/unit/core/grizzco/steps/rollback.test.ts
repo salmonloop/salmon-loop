@@ -1,7 +1,7 @@
-const { safeRollbackMock, restoreToShadowMock } = vi.hoisted(() => ({
+const { safeRollbackMock, restoreToShadowMock } = (() => ({
   safeRollbackMock: vi.fn(),
   restoreToShadowMock: vi.fn(),
-}));
+}))();
 
 vi.mock('../../../../../src/core/adapters/git/git-adapter.js', () => ({
   GitAdapter: vi.fn().mockImplementation(() => ({

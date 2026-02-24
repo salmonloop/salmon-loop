@@ -26,11 +26,11 @@ const request: ToolAuthorizationRequest = {
 
 describe('non-interactive authorization handler', () => {
   beforeEach(() => {
-    vi.mocked(execa).mockReset();
+    (execa as any).mockReset();
   });
 
   it('uses command strategy and returns allow decision with source=hook', async () => {
-    vi.mocked(execa).mockResolvedValue({
+    (execa as any).mockResolvedValue({
       exitCode: 0,
       stdout: JSON.stringify({ outcome: 'allow_once' }),
       stderr: '',
@@ -45,7 +45,7 @@ describe('non-interactive authorization handler', () => {
   });
 
   it('fails closed when command returns invalid JSON', async () => {
-    vi.mocked(execa).mockResolvedValue({
+    (execa as any).mockResolvedValue({
       exitCode: 0,
       stdout: 'not-json',
       stderr: '',

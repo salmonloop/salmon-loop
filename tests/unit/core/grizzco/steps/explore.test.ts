@@ -124,7 +124,7 @@ describe('exploreCodebase', () => {
             return {
               toolName: 'fs.read',
               status: 'ok',
-              output: 'file content here',
+              output: { content: null },
             };
           }
           return { toolName: envelope.toolName, status: 'ok', output: 'list' };
@@ -204,7 +204,7 @@ describe('exploreCodebase', () => {
         mockToolstack.router.call.mockResolvedValue({
           toolName: 'fs.read',
           status: 'ok',
-          output: 'streaming read content',
+          output: { content: null },
         });
 
         await router.call({
@@ -251,7 +251,7 @@ describe('exploreCodebase', () => {
         mockToolstack.router.call.mockResolvedValue({
           toolName: 'fs.read',
           status: 'ok',
-          output: 'recovered read',
+          output: { content: null },
         });
 
         await router.call({

@@ -1,13 +1,13 @@
 import { FileHandleManager } from '../../../src/core/adapters/git/lock-manager.js';
 
-const fsMocks = vi.hoisted(() => {
+const fsMocks = (() => {
   return {
     mkdir: vi.fn(),
     open: vi.fn(),
     unlink: vi.fn(),
     readFile: vi.fn(),
   };
-});
+})();
 
 vi.mock('fs/promises', () => fsMocks);
 

@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'bun:test';
 import { createStdoutWriter } from '../../../../src/cli/headless/stdout-writer.js';
 import { StreamJsonReporter } from '../../../../src/cli/reporters/stream-json.js';
 import type { LoopEvent, LoopResult } from '../../../../src/core/types/index.js';
+import { freezeSystemTime } from '../../../helpers/time.js';
 
 function collectLines() {
   const lines: any[] = [];
@@ -68,7 +69,7 @@ describe('StreamJsonReporter', () => {
 
   it('emits JSONL with start, events, result, and end', () => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-02-20T00:00:00.000Z'));
+    const restoreTime = freezeSystemTime('2026-02-20T00:00:00.000Z');
 
     const { lines, write } = collectLines();
 
@@ -194,11 +195,12 @@ describe('StreamJsonReporter', () => {
     });
 
     vi.useRealTimers();
+    restoreTime();
   });
 
   it('emits tool_use and tool_result blocks for tool calls', () => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-02-20T00:00:00.000Z'));
+    const restoreTime = freezeSystemTime('2026-02-20T00:00:00.000Z');
 
     const { lines, write } = collectLines();
 
@@ -268,11 +270,12 @@ describe('StreamJsonReporter', () => {
     });
 
     vi.useRealTimers();
+    restoreTime();
   });
 
   it('emits tool_use from canonical model tool-call request and suppresses host start duplication', () => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-02-20T00:00:00.000Z'));
+    const restoreTime = freezeSystemTime('2026-02-20T00:00:00.000Z');
 
     const { lines, write } = collectLines();
 
@@ -345,6 +348,7 @@ describe('StreamJsonReporter', () => {
     expect(toolResultStarts[0]?.event?.timestamp).toBe('2026-02-20T00:00:03.000Z');
 
     vi.useRealTimers();
+    restoreTime();
   });
 
   it('matches golden fixture (basic)', () => {
@@ -476,7 +480,7 @@ describe('StreamJsonReporter', () => {
 
   it('uses exit code 130 for user cancellation', () => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-02-20T00:00:00.000Z'));
+    const restoreTime = freezeSystemTime('2026-02-20T00:00:00.000Z');
 
     const { lines, write } = collectLines();
     const reporter = new StreamJsonReporter({
@@ -500,5 +504,6 @@ describe('StreamJsonReporter', () => {
     expect(endLine.event.exit_code).toBe(130);
 
     vi.useRealTimers();
+    restoreTime();
   });
 });

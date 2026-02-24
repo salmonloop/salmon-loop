@@ -34,7 +34,7 @@ describe('findFileDependencies', () => {
       import { b } from '../b.js';
       import { c } from 'external';
     `;
-    vi.mocked(readFile).mockResolvedValue(content);
+    (readFile as any).mockResolvedValue(content);
 
     const deps = await findFileDependencies('src/index.ts', '/repo');
 
@@ -45,14 +45,14 @@ describe('findFileDependencies', () => {
 
   it('should handle missing extensions', async () => {
     const content = `import { a } from './a.js';`;
-    vi.mocked(readFile).mockResolvedValue(content);
+    (readFile as any).mockResolvedValue(content);
 
     const deps = await findFileDependencies('src/index.ts', '/repo');
     expect(deps).toContain('src/a.js');
   });
 
   it('should return empty array on error', async () => {
-    vi.mocked(readFile).mockRejectedValue(new Error('File not found'));
+    (readFile as any).mockRejectedValue(new Error('File not found'));
 
     const deps = await findFileDependencies('missing.ts', '/repo');
     expect(deps).toEqual([]);

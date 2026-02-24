@@ -1,9 +1,18 @@
-import { describe, it, expect, vi } from 'bun:test';
+import { describe, expect, it } from 'bun:test';
+
+type SelectionBusModule = typeof import('../../../../../src/cli/ui/selection/bus.js');
+
+let busImportSeq = 0;
+async function importFreshBus(): Promise<SelectionBusModule> {
+  busImportSeq += 1;
+  return import(
+    `../../../../../src/cli/ui/selection/bus.js?bun_bust=${busImportSeq}`
+  ) as Promise<SelectionBusModule>;
+}
 
 describe('UI Selection Bus', () => {
   it('returns null when UI is unavailable', async () => {
-    vi.resetModules();
-    const mod = await import('../../../../../src/cli/ui/selection/bus.js');
+    const mod = await importFreshBus();
     const result = await mod.requestSelection({
       id: 'sel-0',
       title: 'Pick one',
@@ -13,8 +22,7 @@ describe('UI Selection Bus', () => {
   });
 
   it('dispatches SET_SELECTION and resolves with the selected item', async () => {
-    vi.resetModules();
-    const mod = await import('../../../../../src/cli/ui/selection/bus.js');
+    const mod = await importFreshBus();
 
     const actions: any[] = [];
     mod.bindSelectionDispatch((action: any) => actions.push(action));
@@ -37,8 +45,7 @@ describe('UI Selection Bus', () => {
   });
 
   it('rejectSelection resolves with null and clears selection', async () => {
-    vi.resetModules();
-    const mod = await import('../../../../../src/cli/ui/selection/bus.js');
+    const mod = await importFreshBus();
 
     const actions: any[] = [];
     mod.bindSelectionDispatch((action: any) => actions.push(action));

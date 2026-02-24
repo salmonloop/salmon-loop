@@ -1,9 +1,9 @@
 import { act, renderHook } from '@testing-library/react';
 import { vi } from 'bun:test';
 
-const hoisted = vi.hoisted(() => ({
+const hoisted = (() => ({
   dispatch: vi.fn(),
-}));
+}))();
 
 vi.mock('../../../../../src/cli/ui/store/context.js', () => ({
   useUIStore: () => ({ dispatch: hoisted.dispatch }),

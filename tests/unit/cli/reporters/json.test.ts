@@ -3,11 +3,12 @@ import { describe, expect, it, vi } from 'bun:test';
 import { createStdoutWriter } from '../../../../src/cli/headless/stdout-writer.js';
 import { JsonReporter } from '../../../../src/cli/reporters/json.js';
 import type { LoopEvent, LoopResult } from '../../../../src/core/types/index.js';
+import { freezeSystemTime } from '../../../helpers/time.js';
 
 describe('JsonReporter', () => {
   it('emits a single JSON object on finish', () => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-02-20T00:00:00.000Z'));
+    const restoreTime = freezeSystemTime('2026-02-20T00:00:00.000Z');
 
     let out = '';
     const write = (chunk: string) => {
@@ -95,11 +96,12 @@ describe('JsonReporter', () => {
     });
 
     vi.useRealTimers();
+    restoreTime();
   });
 
   it('uses exit code 130 for user cancellation', () => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-02-20T00:00:00.000Z'));
+    const restoreTime = freezeSystemTime('2026-02-20T00:00:00.000Z');
 
     let out = '';
     const write = (chunk: string) => {
@@ -125,11 +127,12 @@ describe('JsonReporter', () => {
     expect(obj.metadata.exit_code).toBe(130);
 
     vi.useRealTimers();
+    restoreTime();
   });
 
   it('supports structured_output and payload overrides', () => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-02-20T00:00:00.000Z'));
+    const restoreTime = freezeSystemTime('2026-02-20T00:00:00.000Z');
 
     let out = '';
     const write = (chunk: string) => {
@@ -178,5 +181,6 @@ describe('JsonReporter', () => {
     });
 
     vi.useRealTimers();
+    restoreTime();
   });
 });

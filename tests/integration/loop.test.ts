@@ -119,7 +119,7 @@ describe('SalmonLoop Integration Tests', () => {
 
     if (result.attempts === 0 && !result.success) {
       console.error('Failure Logs:', JSON.stringify(result.logs, null, 2));
-      expect.fail(`Physical Pre-flight failed: ${result.reason}`);
+      throw new Error(`Physical Pre-flight failed: ${result.reason}`);
     }
 
     expect(result.success).toBe(false);
@@ -190,7 +190,7 @@ describe('SalmonLoop Integration Tests', () => {
 
     if (result.attempts === 0 && !result.success) {
       console.error('Failure Logs:', JSON.stringify(result.logs, null, 2));
-      expect.fail(`Physical Worktree Setup failed: ${result.reason}`);
+      throw new Error(`Physical Worktree Setup failed: ${result.reason}`);
     }
 
     expect(result.success).toBe(true);

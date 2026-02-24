@@ -4,7 +4,23 @@ import * as fsp from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
-import { describe, expect, it, vi } from 'bun:test';
+import { describe, expect, it } from 'bun:test';
+
+function isMockFunction(value: unknown): boolean {
+  if (typeof value !== 'function') return false;
+  const candidate = value as {
+    mock?: unknown;
+    mockClear?: unknown;
+    mockReset?: unknown;
+    mockRestore?: unknown;
+  };
+  return (
+    typeof candidate.mock === 'object' ||
+    typeof candidate.mockClear === 'function' ||
+    typeof candidate.mockReset === 'function' ||
+    typeof candidate.mockRestore === 'function'
+  );
+}
 
 /**
  * 🛡️ ENVIRONMENT INTEGRITY GUARD 🛡️
@@ -13,27 +29,26 @@ import { describe, expect, it, vi } from 'bun:test';
  * has NOT been compromised by global mocks.
  *
  * Integration tests MUST run against the real file system and real child processes.
- * If this test fails, it means some configuration (setup.ts, vitest.config.ts)
+ * If this test fails, it means some test setup configuration
  * or a leaked mock has hijacked the environment.
  */
 describe('Integration Environment Integrity (Guard)', () => {
   it('should NOT have mocked fs module (Sync)', () => {
-    // vi.isMockFunction returns true for both vi.mock() and vi.spyOn()
-    if (vi.isMockFunction(fs.readFileSync)) {
+    if (isMockFunction(fs.readFileSync)) {
       throw new Error('CRITICAL: fs.readFileSync is mocked! Integration tests must use real FS.');
     }
-    if (vi.isMockFunction(fs.writeFileSync)) {
+    if (isMockFunction(fs.writeFileSync)) {
       throw new Error('CRITICAL: fs.writeFileSync is mocked! Integration tests must use real FS.');
     }
   });
 
   it('should NOT have mocked fs/promises module', () => {
-    if (vi.isMockFunction(fsp.readFile)) {
+    if (isMockFunction(fsp.readFile)) {
       throw new Error(
         'CRITICAL: fs.promises.readFile is mocked! Integration tests must use real FS.',
       );
     }
-    if (vi.isMockFunction(fsp.writeFile)) {
+    if (isMockFunction(fsp.writeFile)) {
       throw new Error(
         'CRITICAL: fs.promises.writeFile is mocked! Integration tests must use real FS.',
       );
@@ -41,7 +56,7 @@ describe('Integration Environment Integrity (Guard)', () => {
   });
 
   it('should NOT have mocked child_process', () => {
-    if (vi.isMockFunction(spawn)) {
+    if (isMockFunction(spawn)) {
       throw new Error(
         'CRITICAL: child_process.spawn is mocked! Integration tests must use real processes.',
       );

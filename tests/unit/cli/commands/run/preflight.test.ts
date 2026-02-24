@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'bun:test';
 
-const hoisted = vi.hoisted(() => ({
+const hoisted = (() => ({
   spawnCommand: vi.fn(),
   loadPlugins: vi.fn(async () => {}),
   detectNodeRuntimeProfile: vi.fn(),
@@ -13,7 +13,7 @@ const hoisted = vi.hoisted(() => ({
     error: vi.fn(),
     audit: vi.fn(),
   },
-}));
+}))();
 
 vi.mock('../../../../../src/core/runtime/process-runner.js', () => ({
   spawnCommand: hoisted.spawnCommand,

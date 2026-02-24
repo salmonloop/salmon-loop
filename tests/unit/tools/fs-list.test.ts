@@ -32,7 +32,7 @@ describe('Builtin Tool: fs.list', () => {
     expect(spec).toBeDefined();
     if (!spec) throw new Error('fs.list spec missing');
 
-    vi.mocked(readdir).mockResolvedValue([
+    (readdir as any).mockResolvedValue([
       {
         name: 'src',
         isDirectory: () => true,

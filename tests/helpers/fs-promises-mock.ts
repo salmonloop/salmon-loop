@@ -14,6 +14,8 @@
 
 import type { Stats } from 'fs';
 
+import { mock } from 'bun:test';
+
 export interface FsPromisesMockOptions {
   /**
    * Use real fs/promises for unmocked functions
@@ -103,7 +105,7 @@ export function setupFsPromisesMock(options: FsPromisesMockOptions = {}) {
 
   if (useRealFs) {
     return async () => {
-      const actual = (await vi.importActual('fs/promises')) as typeof import('fs/promises');
+      const actual = await import('node:fs/promises');
       return {
         ...actual,
         ...mockImplementation,
@@ -118,8 +120,7 @@ export function setupFsPromisesMock(options: FsPromisesMockOptions = {}) {
  * Helper to reset all fs/promises mocks to default state
  */
 export function resetFsPromisesMocks() {
-  // In Vitest, mocks are reset via vi.clearAllMocks() or vi.resetAllMocks()
-  // This function is kept for API compatibility but delegates to Vitest
+  // Clear all mock call state so each test can start from a clean baseline.
   vi.resetAllMocks();
 }
 
@@ -143,13 +144,9 @@ export function mockReadFileContent(fileMap: Record<string, string | Buffer>) {
     return '';
   });
 
-  // Replace the mock implementation
-  vi.doMock('fs/promises', async () => {
-    const actual = (await vi.importActual('fs/promises')) as typeof import('fs/promises');
-    return {
-      ...actual,
-      readFile: mockReadFile,
-    };
+  mock.module('fs/promises', async () => {
+    const actual = await import('node:fs/promises');
+    return { ...actual, readFile: mockReadFile };
   });
 }
 
@@ -182,12 +179,9 @@ export function mockFileStats(statsMap: Record<string, Partial<Stats>>) {
     throw Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' });
   });
 
-  vi.doMock('fs/promises', async () => {
-    const actual = (await vi.importActual('fs/promises')) as typeof import('fs/promises');
-    return {
-      ...actual,
-      stat: mockStat,
-    };
+  mock.module('fs/promises', async () => {
+    const actual = await import('node:fs/promises');
+    return { ...actual, stat: mockStat };
   });
 }
 

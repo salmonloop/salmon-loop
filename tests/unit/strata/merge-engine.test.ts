@@ -5,9 +5,9 @@ import type { CheckpointManager } from '../../../src/core/strata/checkpoint/mana
 import { ShadowMergeEngine } from '../../../src/core/strata/engine/shadow-merge-engine.js';
 import type { IFileSystemProvider } from '../../../src/core/strata/types.js';
 
-const { adaptersByPath } = vi.hoisted(() => ({
+const { adaptersByPath } = (() => ({
   adaptersByPath: new Map<string, any>(),
-}));
+}))();
 
 vi.mock('../../../src/core/adapters/git/git-adapter.js', () => ({
   GitAdapter: vi.fn().mockImplementation((repoPath: string) => {

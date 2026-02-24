@@ -20,8 +20,8 @@ describe('Builtin Tool: fs.read_file', () => {
 
   it('should read a file within the repository', async () => {
     // Setup mocks
-    vi.mocked(stat).mockResolvedValue({ size: 12 } as any);
-    vi.mocked(readFile).mockResolvedValue('hello salmon');
+    (stat as any).mockResolvedValue({ size: 12 } as any);
+    (readFile as any).mockResolvedValue('hello salmon');
 
     const result = await executeFsReadFile(
       { file: 'test.txt' },
@@ -71,8 +71,8 @@ describe('Builtin Tool: fs.read_file', () => {
     expect(spec).toBeDefined();
     if (!spec) throw new Error('code.read spec missing');
 
-    vi.mocked(stat).mockResolvedValue({ size: 3 } as any);
-    vi.mocked(readFile).mockResolvedValue('abc');
+    (stat as any).mockResolvedValue({ size: 3 } as any);
+    (readFile as any).mockResolvedValue('abc');
 
     const args = spec.inputSchema.parse({ path: 'test.txt' });
     const result = await spec.executor(args as any, {

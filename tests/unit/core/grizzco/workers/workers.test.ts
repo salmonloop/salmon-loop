@@ -8,7 +8,7 @@ import { ThreeWayStagedAwareWorker } from '../../../../../src/core/grizzco/worke
 import { UnionMergeWorker } from '../../../../../src/core/grizzco/workers/union-merge-worker.js';
 
 // Unit tests should mock external dependencies like FS.
-// With process isolation enabled in vitest.config.ts, this mock will not leak.
+// With per-file Bun worker isolation, this mock will not leak.
 vi.mock('fs/promises', () => ({
   readFile: vi.fn(),
 }));
@@ -35,7 +35,7 @@ describe('Grizzco Workers', () => {
       } as any;
 
       // Setup mock return value
-      vi.mocked(fs.readFile).mockResolvedValue(Buffer.from('Existing Line') as any);
+      (fs.readFile as any).mockResolvedValue(Buffer.from('Existing Line') as any);
 
       const result = await worker.execute(op, state, { repoRoot: '/root' });
 

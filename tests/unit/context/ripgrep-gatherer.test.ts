@@ -8,7 +8,7 @@ vi.mock('../../../src/core/runtime/process-runner.js', () => ({
 describe('RipgrepGatherer', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(spawnCommand).mockResolvedValue({
+    (spawnCommand as any).mockResolvedValue({
       code: 0,
       signal: null,
       timedOut: false,
@@ -21,7 +21,7 @@ describe('RipgrepGatherer', () => {
 
   it('aborts in-flight rg when signal is aborted', async () => {
     const controller = new AbortController();
-    vi.mocked(spawnCommand).mockImplementation(async (input: any) => {
+    (spawnCommand as any).mockImplementation(async (input: any) => {
       await new Promise<void>((resolve) => {
         input.signal?.addEventListener(
           'abort',

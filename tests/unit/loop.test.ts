@@ -77,9 +77,6 @@ import { ErrorType, Phase } from '../../src/core/types/index.js';
 import * as verify from '../../src/core/verification/runner.js';
 import { text } from '../../src/locales/index.js';
 
-vi.mock('../../src/core/context/builder.js');
-vi.mock('../../src/core/grizzco/flows/SalmonLoopFlow.js');
-vi.mock('../../src/core/adapters/git/git-adapter.js');
 vi.mock('../../src/core/verification/runner.js', () => {
   return {
     runVerify: vi.fn(),
@@ -197,17 +194,17 @@ index 123..456 100644
     // Default mock for shrinkContext
     vi.spyOn(ContextBuilder, 'shrinkContext').mockImplementation(async (ctx: any) => ctx);
     // Default mock for preflight
-    vi.mocked(verify.preflight).mockResolvedValue({ ok: true });
+    (verify.preflight as any).mockResolvedValue({ ok: true });
     // Default mock for classifyError
-    vi.mocked(verify.classifyError).mockReturnValue(ErrorType.LOGIC);
+    (verify.classifyError as any).mockReturnValue(ErrorType.LOGIC);
     // Default mock for readFile
-    vi.mocked(readFile).mockResolvedValue(' ');
+    (readFile as any).mockResolvedValue(' ');
     // Default mock for checkSyntaxErrors
-    vi.mocked(checkSyntaxErrors).mockReturnValue([]);
+    (checkSyntaxErrors as any).mockReturnValue([]);
     // Default mock for validateNodeStructure
-    vi.mocked(validateNodeStructure).mockReturnValue(true);
+    (validateNodeStructure as any).mockReturnValue(true);
     // Default mock for validateScopeIntegrity
-    vi.mocked(validateScopeIntegrity).mockReturnValue({ ok: true });
+    (validateScopeIntegrity as any).mockReturnValue({ ok: true });
 
     // Mock executeSalmonLoopFlow
     executeFlowSpy = vi.spyOn(salmonLoopFlow, 'executeSalmonLoopFlow').mockResolvedValue({
@@ -248,7 +245,7 @@ index 123..456 100644
 -old
 +new`);
 
-    vi.mocked(verify.runVerify).mockResolvedValueOnce({
+    (verify.runVerify as any).mockResolvedValueOnce({
       ok: true,
       output: 'Success',
       exitCode: 0,
@@ -286,7 +283,7 @@ index 123..456 100644
 -old
 +new`);
 
-    vi.mocked(verify.runVerify).mockResolvedValueOnce({ ok: true, output: 'Success', exitCode: 0 });
+    (verify.runVerify as any).mockResolvedValueOnce({ ok: true, output: 'Success', exitCode: 0 });
 
     const result = await loop.run({
       instruction: 'fix bug',
@@ -343,7 +340,7 @@ index 123..456 100644
         } as any,
       });
 
-    vi.mocked(verify.runVerify).mockResolvedValue({ ok: true, output: 'Success', exitCode: 0 });
+    (verify.runVerify as any).mockResolvedValue({ ok: true, output: 'Success', exitCode: 0 });
 
     const result = await loop.run({
       instruction: 'fix bug',
@@ -396,7 +393,7 @@ index 123..456 100644
     });
 
     // Verify fails only on a.ts
-    vi.mocked(verify.runVerify).mockResolvedValue({
+    (verify.runVerify as any).mockResolvedValue({
       ok: false,
       output: 'Error in a.ts',
       exitCode: 1,
@@ -447,7 +444,7 @@ index 123..456 100644
       } as any,
     });
 
-    vi.mocked(verify.runVerify).mockResolvedValue({ ok: false, output: 'Error', exitCode: 1 });
+    (verify.runVerify as any).mockResolvedValue({ ok: false, output: 'Error', exitCode: 1 });
 
     const result = await loop.run({
       instruction: 'fix bug',

@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'bun:test';
 
-const hoisted = vi.hoisted(() => ({
+const hoisted = (() => ({
   standardReporterCtor: vi.fn(),
   startGuiCalled: vi.fn(),
-}));
+}))();
 
 vi.mock('../../../../src/cli/reporters/standard.js', () => ({
   StandardReporter: function StandardReporter(this: any, verbose: boolean) {

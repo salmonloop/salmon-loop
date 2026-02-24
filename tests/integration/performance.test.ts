@@ -58,7 +58,7 @@ describe('Performance Integration Tests', () => {
 
   it('should handle a repository execution without significant overhead', async () => {
     // We still mock the LLM because we are testing the loop engine performance, not OpenAI.
-    vi.mocked(mockLlm.createPlan).mockResolvedValue({
+    (mockLlm.createPlan as any).mockResolvedValue({
       goal: 'Fix',
       files: ['file0.ts'],
       changes: ['Fix log'],
@@ -66,7 +66,7 @@ describe('Performance Integration Tests', () => {
     });
 
     // Provide a valid patch for file0.ts
-    vi.mocked(mockLlm.createPatch).mockResolvedValue(
+    (mockLlm.createPatch as any).mockResolvedValue(
       'diff --git a/file0.ts b/file0.ts\n' +
         '--- a/file0.ts\n' +
         '+++ b/file0.ts\n' +

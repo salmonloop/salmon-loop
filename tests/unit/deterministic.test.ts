@@ -51,15 +51,15 @@ describe('Deterministic Baseline Tests', () => {
     vi.clearAllMocks();
 
     // Default mocks
-    vi.mocked(verify.preflight).mockResolvedValue({ ok: true });
-    vi.mocked(ContextBuilder.build).mockResolvedValue({
+    (verify.preflight as any).mockResolvedValue({ ok: true });
+    (ContextBuilder.build as any).mockResolvedValue({
       repoPath: tempDir,
       rgSnippets: [],
     } as any);
   });
 
   it('should fix a compilation error', async () => {
-    vi.mocked(verify.runVerify).mockResolvedValue({ ok: true, output: 'success', exitCode: 0 });
+    (verify.runVerify as any).mockResolvedValue({ ok: true, output: 'success', exitCode: 0 });
 
     const fakeLLM = new FakeLLM(
       [{ goal: 'fix type', files: ['index.ts'], changes: ['fix type'], verify: 'tsc' }],
@@ -109,7 +109,7 @@ ${Array(1000).fill('+new line').join('\n')}`;
   });
 
   it('should reject dirty workspace by default', async () => {
-    vi.mocked(verify.preflight).mockResolvedValue({
+    (verify.preflight as any).mockResolvedValue({
       ok: false,
       reason: 'Workspace has uncommitted changes\nM dirty.ts',
     });

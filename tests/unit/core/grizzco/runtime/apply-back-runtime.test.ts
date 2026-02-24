@@ -1,11 +1,11 @@
-const { recordAuditEventMock, writeDebugArtifactMock } = vi.hoisted(() => ({
+const { recordAuditEventMock, writeDebugArtifactMock } = (() => ({
   recordAuditEventMock: vi.fn(),
   writeDebugArtifactMock: vi.fn().mockResolvedValue({
     path: 'blobs/apply-back-error-test.log',
     sha256: 'sha256-test',
     chars: 12,
   }),
-}));
+}))();
 
 vi.mock('../../../../../src/core/observability/audit-trail.js', () => ({
   recordAuditEvent: recordAuditEventMock,
@@ -132,7 +132,7 @@ describe('apply-back-runtime', () => {
     );
     expect(synchronizer.applyBackToMainWorkspace).toHaveBeenCalledTimes(1);
 
-    const applyCall = vi.mocked(synchronizer.applyBackToMainWorkspace).mock.calls[0];
+    const applyCall = (synchronizer.applyBackToMainWorkspace as any).mock.calls[0];
     expect(applyCall?.[0]).toBe('/repo');
     expect(applyCall?.[1]).toBe(params.checkpointRef);
     expect(applyCall?.[2]).toBe('diff --git a/a.ts b/a.ts');
@@ -165,7 +165,7 @@ describe('apply-back-runtime', () => {
     const result = await runApplyBackPhase(params);
 
     expect(result.success).toBe(true);
-    const applyCall = vi.mocked(synchronizer.applyBackToMainWorkspace).mock.calls[0];
+    const applyCall = (synchronizer.applyBackToMainWorkspace as any).mock.calls[0];
     expect(applyCall?.[7]).toBe('base-ref');
   });
 

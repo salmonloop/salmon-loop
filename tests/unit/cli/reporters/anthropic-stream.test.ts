@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'bun:test';
 import { createStdoutWriter } from '../../../../src/cli/headless/stdout-writer.js';
 import { AnthropicStreamReporter } from '../../../../src/cli/reporters/anthropic-stream.js';
 import type { LoopEvent, LoopResult } from '../../../../src/core/types/index.js';
+import { freezeSystemTime } from '../../../helpers/time.js';
 
 function collectLines() {
   const lines: any[] = [];
@@ -22,7 +23,7 @@ function collectLines() {
 describe('AnthropicStreamReporter', () => {
   it('emits start, stream_event lines, result, and end', () => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-02-20T00:00:00.000Z'));
+    const restoreTime = freezeSystemTime('2026-02-20T00:00:00.000Z');
 
     const { lines, write } = collectLines();
 
@@ -110,6 +111,7 @@ describe('AnthropicStreamReporter', () => {
     });
 
     vi.useRealTimers();
+    restoreTime();
   });
 
   it('emits tool_use and tool_result blocks for tool calls', () => {

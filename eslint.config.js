@@ -134,7 +134,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['eslint-rules/**/*.js', 'eslint.config.js', 'vitest.config.ts'],
+    files: ['eslint-rules/**/*.js', 'eslint.config.js'],
     languageOptions: {
       parserOptions: {
         project: null,

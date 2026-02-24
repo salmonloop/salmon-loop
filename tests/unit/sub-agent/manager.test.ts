@@ -1,9 +1,9 @@
-const { setupMock, teardownMock, registryGetMock, isStopRequestedMock } = vi.hoisted(() => ({
+const { setupMock, teardownMock, registryGetMock, isStopRequestedMock } = (() => ({
   setupMock: vi.fn(),
   teardownMock: vi.fn(),
   registryGetMock: vi.fn(),
   isStopRequestedMock: vi.fn(),
-}));
+}))();
 
 vi.mock('../../../src/core/strata/runtime/environment.js', () => ({
   RuntimeEnvironment: vi.fn().mockImplementation(() => ({

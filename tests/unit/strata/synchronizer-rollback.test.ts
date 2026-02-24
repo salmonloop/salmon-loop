@@ -7,14 +7,14 @@ import { WorkspaceSynchronizer } from '../../../src/core/strata/runtime/synchron
 import type { CheckpointRef } from '../../../src/core/types/index.js';
 
 const { queryMock, execMock, execMetaMock, checkIgnoreMock, applyPatchMock, stagedTreeHash } =
-  vi.hoisted(() => ({
+  (() => ({
     queryMock: vi.fn(),
     execMock: vi.fn(),
     execMetaMock: vi.fn(),
     checkIgnoreMock: vi.fn(),
     applyPatchMock: vi.fn(),
     stagedTreeHash: '1111111111111111111111111111111111111111',
-  }));
+  }))();
 
 vi.mock('../../../src/core/adapters/git/git-adapter', () => {
   return {

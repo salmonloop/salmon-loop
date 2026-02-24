@@ -1,6 +1,7 @@
 import { LIMITS } from '../../src/core/config/limits.js';
 import { Semaphore } from '../../src/core/runtime/semaphore.js';
 import * as verificationRunner from '../../src/core/verification/runner.js';
+import { advanceFakeTimers } from '../helpers/time.js';
 
 const mockedRunVerify = vi.spyOn(verificationRunner, 'runVerify');
 
@@ -30,7 +31,7 @@ describe('Resource Limits', () => {
     const verifyPromise = verificationRunner.runVerify('/fake-repo', 'long-running-command');
 
     // Advance timers past the timeout
-    await vi.advanceTimersByTimeAsync(LIMITS.verifyTimeoutMs + 2000);
+    await advanceFakeTimers(LIMITS.verifyTimeoutMs + 2000);
 
     const result = await verifyPromise;
 
@@ -71,7 +72,7 @@ describe('Resource Limits', () => {
     const promises = Array.from({ length: numTasks }, () => semaphore.run(task));
 
     // Advance timers to complete all tasks
-    await vi.advanceTimersByTimeAsync(numTasks * 100);
+    await advanceFakeTimers(numTasks * 100);
 
     const results = await Promise.all(promises);
 
