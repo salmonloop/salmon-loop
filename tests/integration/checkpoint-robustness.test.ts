@@ -118,7 +118,7 @@ describe('Checkpoint System (Real Git Integration)', () => {
       // Verify ref exists
       await expect(
         run(['rev-parse', `refs/s8p/snapshots/${snapshot.commitHash}`]),
-      ).resolves.not.toThrow();
+      ).resolves.toMatch(/^[0-9a-f]{40}$/);
 
       // --- Action: Destructive Change (Wipe Workspace) ---
       // Reset to HEAD (losing staged/unstaged) and clean untracked
@@ -350,7 +350,9 @@ describe('Checkpoint System (Real Git Integration)', () => {
     );
 
     // 4. Try access restore WITH force -> Should Succeed
-    await expect(manager.restoreToMain(tempRepoPath, snap.commitHash, true)).resolves.not.toThrow();
+    await expect(
+      manager.restoreToMain(tempRepoPath, snap.commitHash, true),
+    ).resolves.toBeUndefined();
 
     // Verify it's actually restored (dirty file gone or ignored? Reset --hard usually cleans tracked, but verify logic)
     // transform: reset --soft PARENT, checkout SNAPSHOT.

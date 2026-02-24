@@ -203,11 +203,12 @@ async function spawnWithBun(input: SpawnCommandInput): Promise<SpawnCommandResul
 
   const state = createCaptureState();
   let subprocess: any;
+  const bunStdin = input.stdin === undefined ? 'ignore' : input.stdin;
   try {
     subprocess = bun.spawn([input.command, ...(input.args ?? [])], {
       cwd: input.cwd,
       env: input.env,
-      stdin: input.stdin !== undefined ? 'pipe' : 'ignore',
+      stdin: bunStdin,
       stdout: 'pipe',
       stderr: 'pipe',
       detached: input.detached,
@@ -222,7 +223,9 @@ async function spawnWithBun(input: SpawnCommandInput): Promise<SpawnCommandResul
     });
   }
 
-  writeInput(subprocess.stdin ?? {}, input.stdin);
+  if (bunStdin === 'pipe') {
+    writeInput(subprocess.stdin ?? {}, input.stdin);
+  }
 
   let timedOut = false;
   let aborted = false;

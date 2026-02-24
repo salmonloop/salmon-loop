@@ -8,7 +8,12 @@ import { WorkspaceManager } from '../src/core/strata/layers/worktree.js';
 function getDefaultCommand() {
   return {
     command: 'bun',
-    args: ['run', 'vitest', 'run', 'tests/integration/external-plugin.test.ts'],
+    args: [
+      'test',
+      '--preload',
+      './tests/setup-bun.ts',
+      'tests/integration/external-plugin.test.ts',
+    ],
   };
 }
 

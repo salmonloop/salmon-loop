@@ -5,14 +5,6 @@ import { executeArtifactRead } from '../../src/core/tools/builtin/artifact.js';
 import { buildBunCommand } from '../helpers/bun.js';
 import { RealFsTestHelper } from '../helpers/real-fs-helper.js';
 
-vi.mock('../../src/core/ast/parser.js', () => ({
-  AstParser: class {
-    static parse = vi.fn();
-    static identifyDefinitions = vi.fn();
-    static identifyReferences = vi.fn();
-  },
-}));
-
 // Mock the LLM
 const mockLlm = {
   createPlan: vi.fn(),
@@ -28,7 +20,7 @@ describe('SalmonLoop Integration Tests', () => {
   beforeEach(async () => {
     // Create real Git repository with explicit identity for physical commits
     const repo = await helper.createGitRepo({
-      initialFiles: [{ path: 'src/index.ts', content: 'console.log("hello");' }],
+      initialFiles: [{ path: 'src/index.ts', content: 'console.log("hello");\n' }],
       gitConfig: {
         'user.name': 'Salmon Test',
         'user.email': 'test@salmon.ai',
@@ -39,7 +31,7 @@ describe('SalmonLoop Integration Tests', () => {
 
     vi.clearAllMocks();
 
-    vi.mocked(AstParser.parse).mockResolvedValue({
+    vi.spyOn(AstParser, 'parse').mockResolvedValue({
       rootNode: {
         hasError: false,
         children: [],
@@ -50,8 +42,8 @@ describe('SalmonLoop Integration Tests', () => {
       } as any,
       delete: vi.fn(),
     } as any);
-    vi.mocked(AstParser.identifyDefinitions).mockResolvedValue([]);
-    vi.mocked(AstParser.identifyReferences).mockResolvedValue([]);
+    vi.spyOn(AstParser, 'identifyDefinitions').mockResolvedValue([]);
+    vi.spyOn(AstParser, 'identifyReferences').mockResolvedValue([]);
 
     // Ensure LLM chat has a default response for every test
     mockLlm.chat.mockResolvedValue({ role: 'assistant', content: 'Ready' });

@@ -20,6 +20,7 @@ type ViLike = {
   mock?: (modulePath: string, factory?: (() => unknown) | (() => Promise<unknown>)) => unknown;
   mocked?: <T>(value: T) => T;
   hoisted?: <T>(factory: () => T) => T;
+  isMockFunction?: (value: unknown) => boolean;
   stubEnv?: (key: string, value: string | undefined) => void;
   unstubAllEnvs?: () => void;
   stubGlobal?: (key: string, value: unknown) => void;
@@ -29,6 +30,9 @@ type ViLike = {
   doMock?: (modulePath: string, factory?: (() => unknown) | (() => Promise<unknown>)) => unknown;
   setSystemTime?: (when: string | number | Date) => void;
   advanceTimersByTime?: (ms: number) => unknown;
+  advanceTimersToNextTimer?: () => unknown;
+  getTimerCount?: () => number;
+  runOnlyPendingTimers?: () => unknown;
   runAllTimers?: () => unknown;
   useRealTimers?: (...args: unknown[]) => unknown;
 };
@@ -53,6 +57,21 @@ function ensureVitestCompat() {
   viCompat.hoisted ??= <T>(factory: () => T) => factory();
   viCompat.importActual ??= <T>(modulePath: string) => import(modulePath) as Promise<T>;
   viCompat.doMock ??= (modulePath, factory) => viCompat.mock?.(modulePath, factory);
+  viCompat.isMockFunction ??= (value: unknown) => {
+    if (typeof value !== 'function') return false;
+    const maybeMock = value as {
+      mock?: unknown;
+      mockClear?: () => unknown;
+      mockReset?: () => unknown;
+      mockRestore?: () => unknown;
+    };
+    return (
+      typeof maybeMock.mock === 'object' ||
+      typeof maybeMock.mockClear === 'function' ||
+      typeof maybeMock.mockReset === 'function' ||
+      typeof maybeMock.mockRestore === 'function'
+    );
+  };
 
   const originalMock = viCompat.mock?.bind(viCompat);
   if (originalMock) {
@@ -203,8 +222,30 @@ function ensureVitestCompat() {
     }) as typeof viCompat.advanceTimersByTime;
   }
   (viCompat as any).advanceTimersByTimeAsync ??= async (ms: number) => {
-    viCompat.advanceTimersByTime?.(ms);
-    await Promise.resolve();
+    if (!viCompat.advanceTimersByTime) {
+      throw new Error('vi.advanceTimersByTime is not available');
+    }
+
+    // Advance in chunks so timers created by earlier callbacks can fire in the same async tick window.
+    let remaining = Math.max(0, Math.floor(ms));
+    while (remaining > 0) {
+      const chunk = remaining >= 10_000 ? 250 : remaining >= 2_000 ? 50 : remaining >= 200 ? 10 : 1;
+      const step = Math.min(remaining, chunk);
+      viCompat.advanceTimersByTime(step);
+      remaining -= step;
+      await Promise.resolve();
+    }
+
+    if (viCompat.runOnlyPendingTimers && viCompat.getTimerCount) {
+      for (let i = 0; i < 20; i++) {
+        const before = viCompat.getTimerCount();
+        if (!Number.isFinite(before) || before <= 0) break;
+        viCompat.runOnlyPendingTimers();
+        await Promise.resolve();
+        const after = viCompat.getTimerCount();
+        if (!Number.isFinite(after) || after <= 0 || after === before) break;
+      }
+    }
   };
   if (originalRunAllTimers) {
     (viCompat as any).runAllTimersAsync ??= async () => {
@@ -273,3 +314,14 @@ ensureDom();
 ensureVitestCompat();
 ensureVitestModuleCompat();
 ensureTestGlobals();
+
+// Testing guidelines: keep test runs silent and self-validating.
+vi.spyOn(console, 'log').mockImplementation(() => {});
+vi.spyOn(console, 'info').mockImplementation(() => {});
+vi.spyOn(console, 'warn').mockImplementation(() => {});
+vi.spyOn(console, 'error').mockImplementation(() => {});
+
+afterAll(() => {
+  // CRITICAL SAFETY: Ensure no mocks leak between tests.
+  vi.restoreAllMocks();
+});

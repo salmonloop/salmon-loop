@@ -2,38 +2,9 @@ import * as fs from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { ContextBuilder } from '../../src/core/context/builder.js';
 import { injectSmokeTest } from '../../src/core/testgen/index.js';
-import * as verify from '../../src/core/verification/runner.js';
-
-// Mock adapters that are not the focus of this test (Git, AST, Context)
-vi.mock('../../src/core/adapters/git/git-adapter.js', () => {
-  return {
-    GitAdapter: vi.fn().mockImplementation(() => ({
-      applyPatch: vi.fn().mockResolvedValue(undefined),
-      safeRollback: vi.fn().mockResolvedValue(undefined),
-      getStatus: vi.fn().mockResolvedValue(''),
-      exec: vi.fn().mockImplementation((args) => {
-        if (args[0] === 'config') return Promise.resolve('mock-value');
-        return Promise.resolve('');
-      }),
-      query: vi.fn().mockResolvedValue(''),
-      checkIgnore: vi.fn().mockResolvedValue(false),
-    })),
-  };
-});
-
-vi.mock('../../src/core/verification/runner.js');
-vi.mock('../../src/core/ast/parser.js');
-vi.mock('../../src/core/context/builder.js', () => ({
-  ContextBuilder: {
-    build: vi.fn(),
-    shrinkContext: vi.fn().mockImplementation((ctx) => Promise.resolve(ctx)),
-    extractFailedFiles: vi.fn(),
-  },
-}));
 
 // CRITICAL: NO GLOBAL FS MOCKS. Integration tests must use the real file system.
 
@@ -41,17 +12,8 @@ describe('SalmonLoop Scenarios', () => {
   let repoPath: string;
 
   beforeEach(async () => {
-    vi.clearAllMocks();
-
     // Create a real temporary directory for the test
     repoPath = await fs.mkdtemp(join(tmpdir(), 'salmon-scenarios-'));
-
-    vi.mocked(verify.preflight).mockResolvedValue({ ok: true });
-    vi.mocked(ContextBuilder.build).mockResolvedValue({
-      repoPath,
-      primaryText: 'content',
-      rgSnippets: [],
-    } as any);
   });
 
   afterEach(async () => {

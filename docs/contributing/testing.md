@@ -94,16 +94,15 @@ All critical safety logic is verified by:
     - If yes, fix the test, not the code.
 3.  **Add Safety Comments**: Use `// CRITICAL SAFETY:` comments in production code to warn future maintainers about load-bearing logic.
 
-## 4.1 Bun Test In-Place Migration
+## 4.1 Bun Test Runtime
 
-- Run migrated Bun-native tests with `bun run test:bun:migrated`.
-- Migrated files stay in their original locations (in-place migration), then are excluded from `vitest`.
-- This avoids duplicate test files while allowing phased migration from `vitest` to `bun test`.
-- `test:bun:migrated` now runs in two lanes:
-  - shared-safe tests as per-file isolated subprocesses with configurable parallelism (`BUN_MIGRATED_PARALLELISM`),
-  - high-risk tests in isolated subprocesses listed in `tests/bun-isolated-files.json`.
-- Current baseline keeps `tests/bun-isolated-files.json` empty. Only add files there when parallel shared execution shows cross-test interference or nondeterministic failures.
-- Run `bun run check:bun-manifest` to enforce manifest integrity:
+- The project test runtime is `bun test`. Do not use `vitest` commands in development scripts or hooks.
+- Run the full suite with `bun run test:full`.
+- Unit tests run via `bun run test:bun:migrated` in per-file isolated subprocesses:
+  - shared-safe files run with configurable parallelism (`BUN_MIGRATED_PARALLELISM`),
+  - high-risk files run in strict isolation via `tests/bun-isolated-files.json`.
+- Integration and perf tests run via `scripts/run-bun-file-tests.ts`, also as per-file isolated subprocesses.
+- Run `bun run check:bun-manifest` to enforce unit manifest integrity:
   - every `tests/unit/**.test.*` file must exist in `tests/bun-migrated-files.json`,
   - `tests/bun-isolated-files.json` entries must exist and be a subset of migrated files.
 

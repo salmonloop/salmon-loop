@@ -37,7 +37,7 @@ describe('Performance Integration Tests', () => {
     const filePromises = [];
     for (let i = 0; i < 100; i++) {
       filePromises.push(
-        fs.writeFile(path.join(repoPath, `file${i}.ts`), `console.log("file ${i}");`),
+        fs.writeFile(path.join(repoPath, `file${i}.ts`), `console.log("file ${i}");\n`),
       );
     }
     await Promise.all(filePromises);

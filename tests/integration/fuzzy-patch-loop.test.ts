@@ -4,14 +4,6 @@ import { runSalmonLoop } from '../../src/core/runtime/loop.js';
 import { buildBunCommand } from '../helpers/bun.js';
 import { RealFsTestHelper } from '../helpers/real-fs-helper.js';
 
-vi.mock('../../src/core/ast/parser.js', () => ({
-  AstParser: class {
-    static parse = vi.fn();
-    static identifyDefinitions = vi.fn();
-    static identifyReferences = vi.fn();
-  },
-}));
-
 const mockLlm = {
   createPlan: vi.fn(),
   createPatch: vi.fn(),
@@ -28,7 +20,7 @@ describe('Fuzzy Patch Loop Integration', () => {
       initialFiles: [
         {
           path: 'app.js',
-          content: 'function main() {\n  console.log("start");\n}',
+          content: 'function main() {\n  console.log("start");\n}\n',
         },
       ],
     });
@@ -36,9 +28,9 @@ describe('Fuzzy Patch Loop Integration', () => {
 
     vi.clearAllMocks();
 
-    vi.mocked(AstParser.parse).mockResolvedValue({} as any);
-    vi.mocked(AstParser.identifyDefinitions).mockResolvedValue([]);
-    vi.mocked(AstParser.identifyReferences).mockResolvedValue([]);
+    vi.spyOn(AstParser, 'parse').mockResolvedValue({} as any);
+    vi.spyOn(AstParser, 'identifyDefinitions').mockResolvedValue([]);
+    vi.spyOn(AstParser, 'identifyReferences').mockResolvedValue([]);
   });
 
   afterEach(async () => {

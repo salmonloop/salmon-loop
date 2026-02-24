@@ -127,17 +127,25 @@ describe('LLM stub server integration (no real network)', () => {
 
   beforeAll(async () => {
     const bound = await new Promise<boolean>((resolve) => {
+      let settled = false;
+      const finish = (value: boolean) => {
+        if (settled) return;
+        settled = true;
+        q.server.off('error', onError);
+        resolve(value);
+      };
       const onError = (err: NodeJS.ErrnoException) => {
+        // Bun may emit an opaque "Failed to start server" error for listen(0) in restricted envs.
+        // Treat all bind failures the same and use fetch fallback mode.
         if (err.code === 'EPERM' || err.code === 'EACCES') {
-          resolve(false);
+          finish(false);
           return;
         }
-        throw err;
+        finish(false);
       };
       q.server.once('error', onError);
       q.server.listen(0, '127.0.0.1', () => {
-        q.server.off('error', onError);
-        resolve(true);
+        finish(true);
       });
     });
     if (!bound) {

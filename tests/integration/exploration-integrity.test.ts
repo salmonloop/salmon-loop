@@ -24,7 +24,7 @@ describe('Exploration Integrity Integration', () => {
         // Keep runtime artifacts out of git dirty checks across retries.
         { path: '.gitignore', content: '.salmonloop/\n' },
         { path: 'README.md', content: 'Original Content' },
-        { path: 'src/main.ts', content: 'console.log("main");' },
+        { path: 'src/main.ts', content: 'console.log("main");\n' },
       ],
     });
     repoPath = repo.path;

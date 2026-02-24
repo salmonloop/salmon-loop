@@ -1,17 +1,8 @@
 import { LIMITS } from '../../src/core/config/limits.js';
 import { Semaphore } from '../../src/core/runtime/semaphore.js';
-import { runVerify } from '../../src/core/verification/runner.js';
+import * as verificationRunner from '../../src/core/verification/runner.js';
 
-// Mock the runVerify function to simulate timeout behavior
-vi.mock('../../src/core/verification/runner.js', async (importOriginal) => {
-  const original = await importOriginal<typeof import('../../src/core/verification/runner.js')>();
-  return {
-    ...original,
-    runVerify: vi.fn(),
-  };
-});
-
-const mockedRunVerify = vi.mocked(runVerify);
+const mockedRunVerify = vi.spyOn(verificationRunner, 'runVerify');
 
 describe('Resource Limits', () => {
   beforeEach(() => {
@@ -36,7 +27,7 @@ describe('Resource Limits', () => {
     });
 
     // Create a promise that calls the mocked runVerify
-    const verifyPromise = runVerify('/fake-repo', 'long-running-command');
+    const verifyPromise = verificationRunner.runVerify('/fake-repo', 'long-running-command');
 
     // Advance timers past the timeout
     await vi.advanceTimersByTimeAsync(LIMITS.verifyTimeoutMs + 2000);
