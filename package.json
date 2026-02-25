@@ -15,7 +15,7 @@
     "t": "bun run test:unit",
     "test:unit": "bun run test:bun:migrated",
     "test:integration": "bun scripts/run-bun-file-tests.ts tests/integration",
-    "test:full": "bun run test:unit && bun run test:integration",
+    "test:full": "bun run test:unit && bun run test:integration && bun run test:perf",
     "test:runtime-boundary": "bun test --preload ./tests/setup-bun.ts tests/unit/scripts/target-runtime-boundary.test.ts tests/unit/scripts/bun-purity.test.ts",
     "test:bun:migrated": "bun scripts/run-bun-migrated-tests.ts",
     "test:worktree-smoke": "bun scripts/worktree-smoke.js",

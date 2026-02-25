@@ -61,13 +61,8 @@ export function ensureInSandbox(root: string, target: string): string {
   const resolvedRoot = path.resolve(root);
   const resolvedTarget = path.resolve(target);
 
-  if (!resolvedTarget.startsWith(resolvedRoot)) {
+  if (!isPathWithinDirectory(resolvedRoot, resolvedTarget, { allowEqual: true })) {
     throw new Error(`Security Violation: Path traversal attempt: ${target} is outside of ${root}`);
-  }
-
-  const relativeFromRoot = resolvedTarget.substring(resolvedRoot.length);
-  if (relativeFromRoot.length > 0 && !relativeFromRoot.startsWith(path.sep)) {
-    throw new Error(`Security Violation: Path traversal attempt (Partial Match): ${target}`);
   }
 
   return normalizePath(resolvedTarget);

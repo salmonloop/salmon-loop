@@ -184,5 +184,6 @@
   "tests/unit/tools/code-search.test.ts",
   "tests/unit/tools/fs-list.test.ts",
   "tests/unit/tools/fs.test.ts",
-  "tests/unit/tools/router.test.ts"
+  "tests/unit/tools/router.test.ts",
+  "tests/unit/utils/path.test.ts"
 ]

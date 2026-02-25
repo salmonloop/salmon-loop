@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
-import { isPathWithinDirectory } from '../../../src/core/utils/path.js';
+import { ensureInSandbox, isPathWithinDirectory } from '../../../src/core/utils/path.js';
 
 describe('path utils', () => {
   describe('isPathWithinDirectory', () => {
@@ -18,6 +18,16 @@ describe('path utils', () => {
 
     it('returns false for exact root match when allowEqual=false', () => {
       expect(isPathWithinDirectory('/tmp', '/tmp', { allowEqual: false })).toBe(false);
+    });
+  });
+
+  describe('ensureInSandbox', () => {
+    it('returns normalized target when contained in root', () => {
+      expect(ensureInSandbox('/tmp', '/tmp/a/b')).toBe('/tmp/a/b');
+    });
+
+    it('throws for temp-prefix lookalike paths outside root', () => {
+      expect(() => ensureInSandbox('/tmp', '/tmp-evil/a')).toThrow(/Security Violation/i);
     });
   });
 });

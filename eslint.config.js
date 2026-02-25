@@ -16,6 +16,8 @@ export default tseslint.config(
       'tests/integration/fixtures/**',
       // Ignore accidental Windows-path folders copied into the repo root (e.g. "C:\\Users\\...").
       'C:*/**',
+      // Firebase Functions sub-project has its own ESLint/TS config and should be linted separately.
+      'functions/**',
     ],
   },
   eslint.configs.recommended,

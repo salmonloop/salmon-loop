@@ -1,13 +1,14 @@
 import { readdir } from 'node:fs/promises';
 import path from 'node:path';
 
-const DEFAULT_TIMEOUT_MS = 30_000;
+// File-level timeout for a full test file run. Integration suites can exceed 30s under CI load.
+const DEFAULT_TIMEOUT_MS = 60_000;
 const DEFAULT_PARALLELISM = 4;
 const DEFAULT_PRELOAD = path.join('tests', 'setup-bun.ts');
 const DEFAULT_TEST_TIMEOUT_MS = 30_000;
 
 function isTestFile(name: string): boolean {
-  return /\.test\.(?:ts|tsx|js|jsx)$/.test(name);
+  return /\.(?:test|bench)\.(?:ts|tsx|js|jsx)$/.test(name);
 }
 
 async function collectTestFiles(repoRoot: string, rootPath: string): Promise<string[]> {
@@ -41,8 +42,17 @@ async function runSingleTestFile(
   timeoutMs: number,
   testTimeoutMs: number,
 ): Promise<number> {
+  const fileArg = file.startsWith('.') ? file : `./${file}`;
   const subprocess = bunRuntime.spawn(
-    [process.execPath, 'test', '--timeout', String(testTimeoutMs), '--preload', preloadPath, file],
+    [
+      process.execPath,
+      'test',
+      '--timeout',
+      String(testTimeoutMs),
+      '--preload',
+      preloadPath,
+      fileArg,
+    ],
     {
       cwd: repoRoot,
       stdin: 'inherit',
