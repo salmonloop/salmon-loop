@@ -57,6 +57,16 @@ llm:
       params:
         temperature: 0.2
         max_tokens: 8192
+    plan-fast:
+      provider: openaiMain
+      id: gpt-4.1-mini
+    patch-strong:
+      provider: openaiMain
+      id: gpt-4.1
+  routing:
+    phase_to_model:
+      PLAN: plan-fast
+      PATCH: patch-strong
 
 tool_authorization:
   allowlist:
