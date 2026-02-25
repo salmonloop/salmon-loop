@@ -1,4 +1,8 @@
+import { resolveConfig } from '../../config/resolve.js';
+import { applyBudgetAdjustment } from '../../context/budget/integration.js';
 import { ContextBuilder } from '../../context/builder.js';
+import type { ContextResult } from '../../context/types.js';
+import { recordAuditEvent } from '../../observability/audit-trail.js';
 import { CheckpointManager } from '../../strata/checkpoint/manager.js';
 import { Step } from '../engine/pipeline/pipeline.js';
 import { ContextCtx, PreflightCtx } from '../engine/pipeline/types.js';
@@ -29,17 +33,52 @@ export const buildContext: Step<PreflightCtx, ContextCtx> = async (ctx) => {
         }
       : ctx.options;
 
-  const builtContext = await ContextBuilder.build(contextOptions);
+  // Apply dynamic budget adjustment if enabled and on retry
+  const config = await resolveConfig({ repoRoot: ctx.options.repoPath });
+  if (config.context.dynamicBudget.enabled && (ctx.attempt ?? 0) > 1) {
+    const currentBudget = contextOptions.budgetChars ?? 30000;
+    const adjustment = applyBudgetAdjustment(currentBudget);
+
+    if (adjustment) {
+      contextOptions.budgetChars = adjustment.newBudget;
+
+      ctx.emit({
+        type: 'log',
+        level: 'info',
+        message: `Budget adjusted: ${currentBudget} → ${adjustment.newBudget} (${adjustment.reason})`,
+        timestamp: new Date(),
+      });
+
+      recordAuditEvent(
+        'context.budget.adjusted',
+        {
+          oldBudget: currentBudget,
+          newBudget: adjustment.newBudget,
+          reason: adjustment.reason,
+          attempt: ctx.attempt,
+        },
+        {
+          source: 'context',
+          severity: 'low',
+          scope: 'session',
+          phase: 'CONTEXT',
+        },
+      );
+    }
+  }
+
+  const contextResult: ContextResult = await ContextBuilder.build(contextOptions);
 
   ctx.emit({
     type: 'log',
     level: 'debug',
-    message: `Context built: ${builtContext.rgSnippets.length} snippets, ${builtContext.gitDiff ? 'with' : 'without'} git diff`,
+    message: `Context built: ${contextResult.context.rgSnippets.length} snippets, ${contextResult.context.gitDiff ? 'with' : 'without'} git diff`,
     timestamp: new Date(),
   });
 
   return {
     ...ctx,
-    context: builtContext,
+    context: contextResult.context,
+    contextResult,
   };
 };

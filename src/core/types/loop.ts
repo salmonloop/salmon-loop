@@ -303,6 +303,7 @@ export interface RunOptions {
     applyBack?: 'patch' | 'cherry-pick';
   };
   signal?: AbortSignal;
+  budgetChars?: number;
 }
 
 export interface LoopOptions {
@@ -357,6 +358,7 @@ export interface LoopOptions {
   authorizationMode?: 'blocking' | 'deferred';
   extensions?: ResolvedExtensions;
   outcomeReporter?: RunOutcomeReporter;
+  budgetChars?: number;
   eventPayload?: {
     includeToolInput?: boolean;
     includeToolOutput?: boolean;

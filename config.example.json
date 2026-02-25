@@ -8,7 +8,13 @@
     }
   },
   "context": {
-    "useTokenBudget": true
+    "useTokenBudget": true,
+    "dynamicBudget": {
+      "enabled": false,
+      "minBudget": 5000,
+      "maxBudget": 100000,
+      "adjustmentStep": 0.15
+    }
   },
   "observability": {
     "langfuse": {

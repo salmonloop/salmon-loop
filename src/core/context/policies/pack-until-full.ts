@@ -125,14 +125,10 @@ export function createBudgetCalculator(tokenCalculator?: TokenBudgetCalculator):
   return new CharBudgetCalculator();
 }
 
-function reserveDiffBudget(totalBudget: number, calculator: IBudgetCalculator): number {
-  // Reserve 25-50% for diffs, with min/max bounds
-  const quarter = Math.floor(totalBudget * 0.25);
-  const half = Math.floor(totalBudget * 0.5);
-  const minReserve = calculator.count('x'.repeat(200)); // Minimum 200 chars worth
-  const maxReserve = calculator.count('x'.repeat(10000)); // Maximum 10k chars worth
-  return Math.min(Math.max(quarter, minReserve), Math.min(half, maxReserve));
-}
+/**
+ * Budget allocation strategy with partitioned quotas.
+ * Ensures critical content always has guaranteed space.
+ */
 
 function truncateWithMarker(
   content: string,
@@ -308,7 +304,11 @@ export function packUntilFull(
 
   const primaryUnits = calc.count(context.primaryText ?? '');
   const diffUnits = calc.calculateDiffTokens(context);
-  const reservedForDiff = diffUnits > 0 ? reserveDiffBudget(budgetUnits, calc) : 0;
+
+  // Calculate minimum guaranteed budgets for critical content
+  // Ensure diffs get at least what they need (up to 30% of budget)
+  const minDiffBudget = diffUnits > 0 ? Math.min(diffUnits, Math.floor(budgetUnits * 0.3)) : 0;
+  const minTargetBudget = Math.floor(budgetUnits * 0.1); // Guarantee 10% for targets
 
   const remainingUnits = budgetUnits - primaryUnits;
   if (remainingUnits <= 0) {
@@ -326,7 +326,10 @@ export function packUntilFull(
     };
   }
 
-  let remainingNonDiffUnits = Math.max(0, remainingUnits - reservedForDiff);
+  // Reserve budget for diffs and targets
+  const reservedForDiff = Math.max(minDiffBudget, 0);
+  const reservedForTargets = Math.max(minTargetBudget, 0);
+  let remainingForContent = Math.max(0, remainingUnits - reservedForDiff - reservedForTargets);
 
   const targetSet = buildTargetSet(context);
   const relatedFiles = [...(context.relatedFiles ?? [])].sort((a, b) => {
@@ -337,12 +340,25 @@ export function packUntilFull(
   });
 
   const truncatedRelated: RelatedFileContext[] = [];
+  let usedTargetBudget = 0;
+
+  // Pack related files (targets use reserved budget, others use remaining)
   for (const file of relatedFiles) {
+    const isTarget = targetSet.has(normalizePath(file.path).replace(/^(\.\/|\/)+/, ''));
     const fileUnits = calc.calculateFileTokens(file);
 
-    if (fileUnits <= remainingNonDiffUnits) {
+    // Determine available budget
+    const availableBudget = isTarget
+      ? Math.max(0, reservedForTargets - usedTargetBudget)
+      : remainingForContent;
+
+    if (fileUnits <= availableBudget) {
       truncatedRelated.push(file);
-      remainingNonDiffUnits -= fileUnits;
+      if (isTarget) {
+        usedTargetBudget += fileUnits;
+      } else {
+        remainingForContent -= fileUnits;
+      }
       continue;
     }
 
@@ -350,7 +366,7 @@ export function packUntilFull(
     const outlineUnits = outline ? calc.count(outline) : 0;
     const minSnippetUnits = calc.count('x'.repeat(LIMITS.minSnippetChars));
 
-    if (outline && outlineUnits <= remainingNonDiffUnits && outlineUnits >= minSnippetUnits) {
+    if (outline && outlineUnits <= availableBudget && outlineUnits >= minSnippetUnits) {
       const outlineContent = `${outline}\n\n${text.context.relatedContentTruncated}`;
       truncatedRelated.push({
         ...file,
@@ -358,13 +374,29 @@ export function packUntilFull(
         content: outlineContent,
         outline: undefined,
       });
-      remainingNonDiffUnits -= calc.count(outlineContent);
+      const outlineSize = calc.count(outlineContent);
+      if (isTarget) {
+        usedTargetBudget += outlineSize;
+      } else {
+        remainingForContent -= outlineSize;
+      }
       continue;
     }
 
-    if (remainingNonDiffUnits >= minSnippetUnits) {
-      // Truncate content proportionally
-      const ratio = remainingNonDiffUnits / fileUnits;
+    // Force include target outline even if over budget
+    if (isTarget && outline && outlineUnits >= minSnippetUnits) {
+      const outlineContent = `${outline}\n\n${text.context.relatedContentTruncated}`;
+      truncatedRelated.push({
+        ...file,
+        mode: 'outline',
+        content: outlineContent,
+        outline: undefined,
+      });
+      continue;
+    }
+
+    if (availableBudget >= minSnippetUnits) {
+      const ratio = availableBudget / fileUnits;
       const sliceLen = Math.floor((file.content?.length ?? 0) * ratio);
       truncatedRelated.push({
         ...file,
@@ -372,10 +404,17 @@ export function packUntilFull(
         content: file.content?.substring(0, sliceLen) ?? '',
         outline: undefined,
       });
-      remainingNonDiffUnits = 0;
+      if (isTarget) {
+        usedTargetBudget += availableBudget;
+      } else {
+        remainingForContent = 0;
+      }
     }
     break;
   }
+
+  // Add unused target budget back to content budget
+  remainingForContent += Math.max(0, reservedForTargets - usedTargetBudget);
 
   const snippets = [...context.rgSnippets].sort((a, b) => {
     const aIsTarget = targetSet.has(normalizePath(a.file).replace(/^(\.\/|\/)+/, ''));
@@ -388,15 +427,15 @@ export function packUntilFull(
   for (const snippet of snippets) {
     const snippetUnits = calc.calculateSnippetTokens(snippet);
 
-    if (snippetUnits <= remainingNonDiffUnits) {
+    if (snippetUnits <= remainingForContent) {
       truncatedSnippets.push(snippet);
-      remainingNonDiffUnits -= snippetUnits;
+      remainingForContent -= snippetUnits;
       continue;
     }
 
     const minSnippetUnits = calc.count('x'.repeat(LIMITS.minSnippetChars));
-    if (remainingNonDiffUnits >= minSnippetUnits) {
-      const ratio = remainingNonDiffUnits / snippetUnits;
+    if (remainingForContent >= minSnippetUnits) {
+      const ratio = remainingForContent / snippetUnits;
       const sliceLen = Math.floor((snippet.content?.length ?? 0) * ratio);
       truncatedSnippets.push({
         ...snippet,
@@ -406,21 +445,21 @@ export function packUntilFull(
     break;
   }
 
-  const usedNonDiffUnits =
-    truncatedRelated.reduce((sum, f) => sum + calc.calculateFileTokens(f), 0) +
-    truncatedSnippets.reduce((sum, s) => sum + calc.calculateSnippetTokens(s), 0);
-  let remainingDiffUnits = Math.max(0, remainingUnits - usedNonDiffUnits);
+  // Pack diffs using reserved budget
+  let remainingDiffUnits = reservedForDiff;
 
-  const minDiffUnits = calc.count('x'.repeat(32));
+  // Minimum diff budget - adjust based on available budget
+  const minDiffUnits = Math.min(calc.count('x'.repeat(32)), Math.max(1, remainingDiffUnits));
+
   const stagedDiff = context.stagedDiff
     ? truncateWithMarker(context.stagedDiff, remainingDiffUnits, minDiffUnits, calc)
     : undefined;
-  if (stagedDiff) remainingDiffUnits -= calc.count(stagedDiff);
+  if (stagedDiff) remainingDiffUnits = Math.max(0, remainingDiffUnits - calc.count(stagedDiff));
 
   const unstagedDiff = context.unstagedDiff
     ? truncateWithMarker(context.unstagedDiff, remainingDiffUnits, minDiffUnits, calc)
     : undefined;
-  if (unstagedDiff) remainingDiffUnits -= calc.count(unstagedDiff);
+  if (unstagedDiff) remainingDiffUnits = Math.max(0, remainingDiffUnits - calc.count(unstagedDiff));
 
   const gitDiff =
     !stagedDiff && !unstagedDiff && context.gitDiff

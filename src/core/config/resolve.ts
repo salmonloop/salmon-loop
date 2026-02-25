@@ -251,6 +251,16 @@ function resolveUseTokenBudget(raw?: ConfigFileV1): boolean {
   return value !== false; // Default to true
 }
 
+function resolveDynamicBudget(raw?: ConfigFileV1) {
+  const config = raw?.context?.dynamicBudget;
+  return {
+    enabled: config?.enabled ?? false,
+    minBudget: config?.minBudget ?? 5000,
+    maxBudget: config?.maxBudget ?? 100000,
+    adjustmentStep: config?.adjustmentStep ?? 0.15,
+  };
+}
+
 export async function resolveConfig(opts: ResolveConfigOptions): Promise<ResolvedConfig> {
   const enabled = opts.enableConfigFile !== false;
   const path = opts.configFilePath || getDefaultRepoConfigPath(opts.repoRoot);
@@ -274,6 +284,7 @@ export async function resolveConfig(opts: ResolveConfigOptions): Promise<Resolve
     raw,
     context: {
       useTokenBudget: resolveUseTokenBudget(raw),
+      dynamicBudget: resolveDynamicBudget(raw),
     },
     observability: {
       langfuse: resolveLangfuseObservability(raw),

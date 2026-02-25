@@ -60,6 +60,7 @@ import { packUntilFull } from './policies/pack-until-full.js';
 import { rankContextForRelevance } from './scoring/relevance.js';
 import { calculateSectionChars } from './service-helpers.js';
 import { ContextService } from './service.js';
+import type { ContextResult } from './types.js';
 
 export interface ShrinkContextOptions {
   errorType?: ErrorType;
@@ -119,7 +120,7 @@ async function readRepoFileText(repoPath: string, relativePath: string): Promise
 }
 
 export class ContextBuilder {
-  static async build(options: RunOptions): Promise<Context> {
+  static async build(options: RunOptions): Promise<ContextResult> {
     const service = new ContextService();
     const result = await service.build({
       instruction: options.instruction,
@@ -131,7 +132,7 @@ export class ContextBuilder {
       signal: options.signal,
     });
 
-    return result.context;
+    return result;
   }
 
   private static tuneContext(context: Context, budgetChars: number): Context {

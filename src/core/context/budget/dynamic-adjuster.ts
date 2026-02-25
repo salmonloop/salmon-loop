@@ -28,6 +28,12 @@ export interface BudgetAdjustment {
   confidence: number;
 }
 
+export interface DynamicBudgetConfig {
+  minBudget: number;
+  maxBudget: number;
+  adjustmentStep: number;
+}
+
 /**
  * Budget adjustment strategy based on runtime feedback.
  */
@@ -36,9 +42,15 @@ export class DynamicBudgetAdjuster {
   private readonly maxHistory = 10;
 
   // Adjustment parameters
-  private readonly minBudget = 5000;
-  private readonly maxBudget = 100000;
-  private readonly adjustmentStep = 0.15; // 15% adjustment
+  private minBudget: number;
+  private maxBudget: number;
+  private adjustmentStep: number;
+
+  constructor(config?: DynamicBudgetConfig) {
+    this.minBudget = config?.minBudget ?? 5000;
+    this.maxBudget = config?.maxBudget ?? 100000;
+    this.adjustmentStep = config?.adjustmentStep ?? 0.15;
+  }
 
   /**
    * Record metrics from a completed iteration.
@@ -137,9 +149,9 @@ export class DynamicBudgetAdjuster {
  */
 let globalAdjuster: DynamicBudgetAdjuster | null = null;
 
-export function getGlobalAdjuster(): DynamicBudgetAdjuster {
+export function getGlobalAdjuster(config?: DynamicBudgetConfig): DynamicBudgetAdjuster {
   if (!globalAdjuster) {
-    globalAdjuster = new DynamicBudgetAdjuster();
+    globalAdjuster = new DynamicBudgetAdjuster(config);
   }
   return globalAdjuster;
 }

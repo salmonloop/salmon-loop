@@ -21,6 +21,7 @@ export function collectBudgetMetrics(params: {
   const meta = contextResult.meta;
 
   const budgetAllocated = meta.requestedBudgetChars ?? 30000;
+  // Note: usedChars is treated as equivalent to tokens for budget metrics
   const tokensUsed = meta.usedChars ?? 0;
   const wasTruncated = meta.truncated ?? false;
 
@@ -76,3 +77,5 @@ export function applyBudgetAdjustment(currentBudget: number): {
 export function getBudgetStats() {
   return getGlobalAdjuster().getStats();
 }
+
+export { getGlobalAdjuster };

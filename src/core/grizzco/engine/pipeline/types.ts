@@ -113,6 +113,7 @@ export interface PreflightCtx extends InitCtx {
  */
 export interface ContextCtx extends PreflightCtx {
   context: Context; // ContextBuilder result
+  contextResult?: import('../../../context/types.js').ContextResult; // For budget tracking
 }
 
 export interface ReviewSummary {

@@ -46,15 +46,15 @@ describe('ContextBuilder', () => {
   it('should build context with primary file', async () => {
     (fs.readFile as any).mockResolvedValue('console.log("hello");');
 
-    const context = await ContextBuilder.build({
+    const result = await ContextBuilder.build({
       instruction: 'fix something',
       verify: 'npm test',
       repoPath: tempDir,
       file: 'test.ts',
     });
 
-    expect(context.primaryText).toContain('console.log("hello");');
-    expect(context.repoPath).toBe(tempDir);
+    expect(result.context.primaryText).toContain('console.log("hello");');
+    expect(result.context.repoPath).toBe(tempDir);
     expect(fs.readFile).toHaveBeenCalledWith(expect.stringContaining('test.ts'), 'utf-8');
   });
 
@@ -88,13 +88,13 @@ describe('ContextBuilder', () => {
     ]);
     (AstParser.identifyReferences as any).mockResolvedValue([]);
 
-    const context = await ContextBuilder.build({
+    const result = await ContextBuilder.build({
       instruction: 'fix something',
       verify: 'npm test',
       repoPath: tempDir,
       file: 'test.ts',
     });
 
-    expect(Array.isArray(context.symbols)).toBe(true);
+    expect(Array.isArray(result.context.symbols)).toBe(true);
   });
 });

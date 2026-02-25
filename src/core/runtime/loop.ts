@@ -3,6 +3,7 @@ import { randomBytes } from 'crypto';
 import { text } from '../../locales/index.js';
 import { LIMITS } from '../config/limits.js';
 import { resolveConfig } from '../config/resolve.js';
+import { getGlobalAdjuster, resetGlobalAdjuster } from '../context/budget/dynamic-adjuster.js';
 import {
   initializeDefaultCalculator,
   setDefaultModel,
@@ -47,6 +48,12 @@ export async function runSalmonLoop(options: LoopOptions): Promise<LoopResult> {
     await initializeDefaultCalculator().catch(() => {
       // Silently fallback to char-based if initialization fails
     });
+
+    // Initialize dynamic budget adjuster with config
+    resetGlobalAdjuster(); // Reset for new session
+    if (config.context.dynamicBudget.enabled) {
+      getGlobalAdjuster(config.context.dynamicBudget);
+    }
 
     const loop = new SalmonLoop();
     return loop.run(options);

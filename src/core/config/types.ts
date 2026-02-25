@@ -191,6 +191,12 @@ export interface ResolvedConfig {
   raw?: ConfigFileV1;
   context: {
     useTokenBudget: boolean;
+    dynamicBudget: {
+      enabled: boolean;
+      minBudget: number;
+      maxBudget: number;
+      adjustmentStep: number;
+    };
   };
   observability: {
     langfuse: {
