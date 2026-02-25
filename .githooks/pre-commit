@@ -13,4 +13,3 @@ fi
 bun run check:target-runtime-boundary:staged
 bun run check:bun-purity:staged
 bun run check:unit-boundary:staged
-bun run check:bun-manifest

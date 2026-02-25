@@ -10,6 +10,7 @@ import { IDataService } from './types.js';
  */
 export class CachedService implements IDataService {
   private cache = new Map<string, any>();
+  private inFlight = new Map<string, Promise<any>>();
 
   constructor(private delegate: IDataService) {}
 
@@ -25,11 +26,22 @@ export class CachedService implements IDataService {
     if (this.cache.has(key)) {
       return this.cache.get(key);
     }
+    const pending = this.inFlight.get(key);
+    if (pending) {
+      return pending;
+    }
 
     logger.debug(`[CachedService] Cache miss for ${this.id} (Scope: ${key}), fetching...`);
-    const result = await this.delegate.fetch(ctx, filePath);
-
-    this.cache.set(key, result);
-    return result;
+    const request = this.delegate
+      .fetch(ctx, filePath)
+      .then((result) => {
+        this.cache.set(key, result);
+        return result;
+      })
+      .finally(() => {
+        this.inFlight.delete(key);
+      });
+    this.inFlight.set(key, request);
+    return request;
   }
 }

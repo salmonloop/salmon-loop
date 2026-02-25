@@ -37,6 +37,18 @@ export function classifyError(output: string): ErrorType {
     return ErrorType.AST_VALIDATION_ERROR;
   }
 
+  // 1.5 Test failure strong signals (language agnostic)
+  if (
+    lowerOutput.includes('bun file tests failed in:') ||
+    lowerOutput.includes('script "test:unit" exited with code') ||
+    lowerOutput.includes('script "test:full" exited with code') ||
+    lowerOutput.includes('test suites') ||
+    lowerOutput.includes('test files') ||
+    lowerOutput.includes('assertionerror')
+  ) {
+    return ErrorType.TEST;
+  }
+
   // 2. Delegate to plugins
   for (const plugin of pluginRegistry.getAll()) {
     const errorType = plugin.diagnostics.classifyError(output);

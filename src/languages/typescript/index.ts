@@ -52,17 +52,11 @@ const commonDiagnostics = {
       return ErrorType.COMPILATION;
     }
 
-    // Lint error keywords
-    if (
-      lowerOutput.includes('eslint') ||
-      lowerOutput.includes('prettier') ||
-      lowerOutput.includes('stylelint')
-    ) {
-      return ErrorType.LINT;
-    }
-
     // Test error keywords
     if (
+      lowerOutput.includes('bun file tests failed in:') ||
+      lowerOutput.includes('script "test:unit" exited with code') ||
+      lowerOutput.includes('script "test:full" exited with code') ||
       ((lowerOutput.includes('fail') || lowerOutput.includes('failed')) &&
         (lowerOutput.includes('test suites') ||
           lowerOutput.includes('test files') ||
@@ -73,6 +67,15 @@ const commonDiagnostics = {
       (lowerOutput.includes('failing') && lowerOutput.includes('mocha'))
     ) {
       return ErrorType.TEST;
+    }
+
+    // Lint error keywords
+    if (
+      lowerOutput.includes('eslint') ||
+      lowerOutput.includes('prettier') ||
+      lowerOutput.includes('stylelint')
+    ) {
+      return ErrorType.LINT;
     }
 
     return undefined;
