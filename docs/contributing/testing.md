@@ -98,13 +98,8 @@ All critical safety logic is verified by:
 
 - The project test runtime is `bun test`. Do not use `vitest` commands in development scripts or hooks.
 - Run the full suite with `bun run test:full`.
-- Unit tests run via `bun run test:bun:migrated` in per-file isolated subprocesses:
-  - shared-safe files run with configurable parallelism (`BUN_MIGRATED_PARALLELISM`),
-  - high-risk files run in strict isolation via `tests/bun-isolated-files.json`.
-- Integration and perf tests run via `scripts/run-bun-file-tests.ts`, also as per-file isolated subprocesses.
-- Run `bun run check:bun-manifest` to enforce unit manifest integrity:
-  - every `tests/unit/**.test.*` file must exist in `tests/bun-migrated-files.json`,
-  - `tests/bun-isolated-files.json` entries must exist and be a subset of migrated files.
+- Unit, integration, and perf tests run via `scripts/run-bun-file-tests.ts` as per-file isolated subprocesses.
+- `bun run test:unit` maps to `bun scripts/run-bun-file-tests.ts tests/unit`.
 
 ## 5. Testing Best Practices & Golden Rules
 
