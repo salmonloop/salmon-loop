@@ -60,7 +60,7 @@ export const runVerify: Step<ApplyCtx, VerifyCtx> = async (ctx) => {
     if (stats) {
       ctx.emit({
         type: 'log',
-        level: 'info',
+        level: 'debug',
         message: text.loop.budgetStatusSummary(
           Math.round(stats.avgUtilization * 100),
           Math.round(stats.truncationRate * 100),

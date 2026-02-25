@@ -72,7 +72,7 @@ describe('verify step budget status log', () => {
       ctx.emit.mock.calls.some(
         (call: any[]) =>
           call[0]?.type === 'log' &&
-          call[0]?.level === 'info' &&
+          call[0]?.level === 'debug' &&
           typeof call[0]?.message === 'string' &&
           call[0].message.includes('Budget status'),
       ),
