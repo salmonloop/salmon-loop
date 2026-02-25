@@ -144,6 +144,7 @@ describe('chatWithToolsStreaming', () => {
     expect(final.content).toBe('DONE');
     expect(calls.length).toBe(2);
     expect(calls[0].options?.tools?.length).toBeGreaterThanOrEqual(1);
+    expect(calls[0].options?.phase).toBe(Phase.PLAN);
     expect(calls[1].messages.some((m) => m.role === 'tool' && m.name === 'test.echo')).toBe(true);
   });
 

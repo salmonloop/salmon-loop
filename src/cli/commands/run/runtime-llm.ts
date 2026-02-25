@@ -1,5 +1,7 @@
 import { createRuntimeLlm } from '../../../core/llm/factory.js';
+import { createPhaseRoutingLlm } from '../../../core/llm/phase-router.js';
 import { logger } from '../../../core/observability/logger.js';
+import { EXECUTION_PHASES, Phase, type ExecutionPhase } from '../../../core/types/index.js';
 import { text } from '../../locales/index.js';
 
 export function createRuntimeLlmAndWarn(params: { llmConfig: any; langfuseEnabled: boolean }): {
@@ -9,11 +11,37 @@ export function createRuntimeLlmAndWarn(params: { llmConfig: any; langfuseEnable
   const runtimeLlm = createRuntimeLlm(params.llmConfig, {
     langfuseEnabled: params.langfuseEnabled,
   });
+  const warnings = [...runtimeLlm.warnings];
+
+  const phaseToModel = params.llmConfig?.routing?.phaseToModel;
+  const phaseLlms: Partial<Record<ExecutionPhase, any>> = {};
+  if (phaseToModel && typeof phaseToModel === 'object') {
+    const validPhases = new Set<string>([...EXECUTION_PHASES, Phase.SLASH]);
+    for (const [phase, modelId] of Object.entries(phaseToModel)) {
+      if (!validPhases.has(phase)) continue;
+      if (typeof modelId !== 'string' || !modelId.trim()) continue;
+      const perPhaseConfig = {
+        ...params.llmConfig,
+        models: {
+          ...params.llmConfig?.models,
+          selectedModelId: modelId,
+        },
+      };
+      const created = createRuntimeLlm(perPhaseConfig, { langfuseEnabled: params.langfuseEnabled });
+      warnings.push(...created.warnings);
+      phaseLlms[phase as ExecutionPhase] = created.llm;
+    }
+  }
+
+  const llm =
+    Object.keys(phaseLlms).length > 0
+      ? createPhaseRoutingLlm({ defaultLlm: runtimeLlm.llm, phaseLlms })
+      : runtimeLlm.llm;
 
   const llmType = params.llmConfig?.type;
   const clientPackage = params.llmConfig?.clientPackage;
 
-  for (const w of runtimeLlm.warnings) {
+  for (const w of Array.from(new Set(warnings))) {
     if (w === 'API_KEY_MISSING') {
       logger.warn(text.cli.apiKeyMissing);
     } else if (w === 'PROVIDER_NOT_SUPPORTED') {
@@ -23,5 +51,5 @@ export function createRuntimeLlmAndWarn(params: { llmConfig: any; langfuseEnable
     }
   }
 
-  return { llm: runtimeLlm.llm, warnings: runtimeLlm.warnings };
+  return { llm, warnings: Array.from(new Set(warnings)) };
 }

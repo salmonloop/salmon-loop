@@ -302,6 +302,7 @@ async function consumeAssistantStreamTurn(params: {
 }): Promise<StreamTurnConsumption> {
   const stream = params.session.llm.chatStream!(params.messages, {
     ...params.chatOptions,
+    phase: params.phase,
     tools: params.openAITools,
     toolSpecs: params.allowedSpecs,
     toolChoice: params.openAITools.length > 0 ? 'auto' : undefined,
@@ -394,6 +395,7 @@ async function applyEmptyStreamFallback(params: {
 
   const fallback = await params.session.llm.chat(params.messages, {
     ...params.chatOptions,
+    phase: params.phase,
     tools: params.openAITools,
     toolSpecs: params.allowedSpecs,
     toolChoice: params.openAITools.length > 0 ? 'auto' : undefined,
@@ -600,6 +602,7 @@ export async function chatWithTools(
     try {
       assistant = await session.llm.chat(messages, {
         ...chatOptions,
+        phase,
         tools: openAITools,
         toolSpecs: allowedSpecs,
         toolChoice: openAITools.length > 0 ? 'auto' : undefined,

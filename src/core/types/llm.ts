@@ -1,4 +1,5 @@
 import type { Context } from './context.js';
+import type { ExecutionPhase } from './execution.js';
 import type { Plan } from './planning.js';
 
 export const LLM_OUTPUT_KINDS = [
@@ -59,6 +60,10 @@ export interface LLMStreamChunk {
 }
 
 export interface ChatOptions {
+  /**
+   * Optional execution phase hint for model routing.
+   */
+  phase?: ExecutionPhase;
   temperature?: number;
   maxTokens?: number;
   responseFormat?: 'json_object' | 'text';
