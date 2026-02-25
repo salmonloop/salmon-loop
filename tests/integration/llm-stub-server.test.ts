@@ -306,14 +306,19 @@ describe('LLM stub server integration (no real network)', () => {
     });
 
     const after = await fs.readdir(auditDir);
-    const created = after.find((f) => !before.has(f));
+    const created = after.find(
+      (f) => !before.has(f) && f.startsWith('audit-') && f.endsWith('.json'),
+    );
     expect(created).toBeTruthy();
 
     const content = JSON.parse(await fs.readFile(path.join(auditDir, created as string), 'utf8'));
     expect(content.meta.errorCode).toBe('LLM_PATCH_EMPTY');
     expect(content.context.toolCallingAudit[0].toolName).toBe('fs.read');
 
-    await fs.rm(path.join(auditDir, created as string), { force: true });
+    const auditPath = path.join(auditDir, created as string);
+    const eventsPath = auditPath.replace(/\.json$/, '.events.jsonl');
+    await fs.rm(auditPath, { force: true });
+    await fs.rm(eventsPath, { force: true });
   });
 
   it('externalizes long verify output to a blob and keeps a preview in audit JSON', async () => {
@@ -364,7 +369,9 @@ describe('LLM stub server integration (no real network)', () => {
     const blobText = await fs.readFile(blobPath, 'utf8');
     expect(blobText.length).toBe(10_000);
 
+    const eventsPath = auditPath.replace(/\.json$/, '.events.jsonl');
     await fs.rm(auditPath, { force: true });
+    await fs.rm(eventsPath, { force: true });
     await fs.rm(blobPath, { force: true });
   });
 
@@ -441,7 +448,9 @@ describe('LLM stub server integration (no real network)', () => {
     const blobText = await fs.readFile(blobPath, 'utf8');
     expect(blobText.length).toBe(10_000);
 
+    const eventsPath = auditPath.replace(/\.json$/, '.events.jsonl');
     await fs.rm(auditPath, { force: true });
+    await fs.rm(eventsPath, { force: true });
     await fs.rm(inputBlobPath, { force: true });
     await fs.rm(blobPath, { force: true });
   });

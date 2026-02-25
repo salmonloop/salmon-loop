@@ -190,9 +190,17 @@ describe('Plan toolcalling flow (integration)', () => {
     expect(result.auditPath).toBeTruthy();
     const auditRaw = await readFile(result.auditPath!, 'utf-8');
     const audit = JSON.parse(auditRaw) as any;
-    const auditTrail = audit?.context?.auditTrail as any[] | undefined;
-    expect(Array.isArray(auditTrail)).toBe(true);
-    expect(auditTrail!.some((e) => e?.action === 'plan.runtime.init')).toBe(true);
+    const eventsRef = audit?.context?.eventsRef as { path?: string } | undefined;
+    expect(typeof eventsRef?.path).toBe('string');
+    const eventsPath = path.isAbsolute(eventsRef!.path!)
+      ? eventsRef!.path!
+      : path.join(path.dirname(result.auditPath!), eventsRef!.path!);
+    const eventsRaw = await readFile(eventsPath, 'utf-8');
+    const eventsFromAudit = eventsRaw
+      .split('\n')
+      .filter((line) => line.trim().length > 0)
+      .map((line) => JSON.parse(line));
+    expect(eventsFromAudit.some((e) => e?.action === 'plan.runtime.init')).toBe(true);
 
     expect(
       events.some(

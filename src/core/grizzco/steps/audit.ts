@@ -89,6 +89,12 @@ export async function saveAudit(
         return acc;
       }, {});
 
+    const trail = getAuditTrail();
+    const eventsFilename = filename.replace(/\.json$/, '.events.jsonl');
+    const eventsPath = path.join(auditDir, eventsFilename);
+    const eventsPayload =
+      trail.length === 0 ? '' : `${trail.map((event) => JSON.stringify(event)).join('\n')}\n`;
+
     const auditData = {
       meta: {
         timestamp: new Date().toISOString(),
@@ -104,7 +110,12 @@ export async function saveAudit(
       traces: report.traces,
       context: {
         ...sanitizedData,
-        auditTrail: getAuditTrail(),
+        eventsRef: {
+          path: eventsFilename,
+          count: trail.length,
+          firstTs: trail[0]?.timestamp,
+          lastTs: trail[trail.length - 1]?.timestamp,
+        },
       },
       authorizationIndex,
       environment: {
@@ -113,6 +124,7 @@ export async function saveAudit(
       },
     };
 
+    await fs.writeFile(eventsPath, eventsPayload, 'utf8');
     await fs.writeFile(`${auditDir}/${filename}`, JSON.stringify(auditData, null, 2));
 
     logger.debug(`[Audit] Saved structured audit log to ${filename}`);

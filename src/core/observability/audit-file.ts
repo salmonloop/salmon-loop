@@ -1,4 +1,4 @@
-import { mkdir, readFile, rename, writeFile } from 'fs/promises';
+import { appendFile, mkdir, readFile, rename, writeFile } from 'fs/promises';
 import path from 'path';
 
 import { text } from '../../locales/index.js';
@@ -12,6 +12,14 @@ interface AppendAuditParams {
   repoPath?: string;
   failureReason?: string;
   runId?: string;
+}
+
+interface AuditEventsRef {
+  path: string;
+  count?: number;
+  firstTs?: string;
+  lastTs?: string;
+  sha256?: string;
 }
 
 function toParams(input: string | undefined | AppendAuditParams): AppendAuditParams {
@@ -38,6 +46,16 @@ async function writeJsonAtomic(targetPath: string, data: unknown): Promise<void>
   }
 }
 
+function resolveEventsPath(eventsPath: string, auditPath: string): string {
+  if (path.isAbsolute(eventsPath)) return eventsPath;
+  return path.join(path.dirname(auditPath), eventsPath);
+}
+
+function buildEventsPayload(events: unknown[]): string {
+  if (events.length === 0) return '';
+  return `${events.map((event) => JSON.stringify(event)).join('\n')}\n`;
+}
+
 async function createFallbackAuditFile(params: AppendAuditParams): Promise<string | undefined> {
   if (!params.repoPath) return undefined;
   const trail = getAuditTrail();
@@ -48,6 +66,8 @@ async function createFallbackAuditFile(params: AppendAuditParams): Promise<strin
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const filename = `audit-fallback-${timestamp}.json`;
   const targetPath = path.join(auditDir, filename);
+  const eventsFilename = filename.replace(/\.json$/, '.events.jsonl');
+  const eventsPath = path.join(auditDir, eventsFilename);
 
   const payload = {
     meta: {
@@ -59,10 +79,16 @@ async function createFallbackAuditFile(params: AppendAuditParams): Promise<strin
     },
     traces: [],
     context: {
-      auditTrail: trail,
+      eventsRef: {
+        path: eventsFilename,
+        count: trail.length,
+        firstTs: trail[0]?.timestamp,
+        lastTs: trail[trail.length - 1]?.timestamp,
+      },
     },
   };
 
+  await writeFile(eventsPath, buildEventsPayload(trail), 'utf8');
   await writeJsonAtomic(targetPath, payload);
   return targetPath;
 }
@@ -86,14 +112,26 @@ export async function appendAuditTrailToAuditFile(
         ? (data.context as Record<string, unknown>)
         : {};
 
-    const existingTrail = Array.isArray((context as any).auditTrail)
-      ? (context as any).auditTrail
-      : [];
     const fullTrail = getAuditTrail();
-    const delta = fullTrail.slice(existingTrail.length);
+    const eventsRef = (context as any).eventsRef as AuditEventsRef | undefined;
+    if (!eventsRef?.path) {
+      throw new Error('Invalid audit file: context.eventsRef.path is required');
+    }
+
+    const existingCount =
+      typeof eventsRef.count === 'number' && Number.isFinite(eventsRef.count) ? eventsRef.count : 0;
+    const delta = fullTrail.slice(existingCount);
     if (delta.length === 0) return;
 
-    (context as any).auditTrail = [...existingTrail, ...delta];
+    const eventsPath = resolveEventsPath(eventsRef.path, auditPath);
+    await appendFile(eventsPath, buildEventsPayload(delta), 'utf8');
+
+    (context as any).eventsRef = {
+      ...eventsRef,
+      count: existingCount + delta.length,
+      firstTs: eventsRef.firstTs ?? delta[0]?.timestamp,
+      lastTs: delta[delta.length - 1]?.timestamp ?? eventsRef.lastTs,
+    };
     (data as any).context = context;
 
     await writeJsonAtomic(auditPath, data);

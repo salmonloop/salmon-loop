@@ -1,4 +1,5 @@
 import { readFile } from 'fs/promises';
+import path from 'path';
 
 import { logIgnoredError } from '../observability/ignored-error.js';
 import type { LoopResult } from '../types/index.js';
@@ -24,13 +25,22 @@ export class TokenTracker {
     try {
       const auditRaw = await readFile(result.auditPath, 'utf8');
       const audit = JSON.parse(auditRaw) as any;
-      const auditTrail = audit?.context?.auditTrail;
-      if (!Array.isArray(auditTrail)) return null;
+      const eventsRef = audit?.context?.eventsRef;
+      if (!eventsRef || typeof eventsRef.path !== 'string') return null;
+
+      const eventsPath = path.isAbsolute(eventsRef.path)
+        ? eventsRef.path
+        : path.join(path.dirname(result.auditPath), eventsRef.path);
+      const eventsRaw = await readFile(eventsPath, 'utf8');
+      const events = eventsRaw
+        .split('\n')
+        .filter((line) => line.trim().length > 0)
+        .map((line) => JSON.parse(line));
 
       let inputTokens = 0;
       let outputTokens = 0;
 
-      for (const event of auditTrail) {
+      for (const event of events) {
         if (!event || typeof event !== 'object') continue;
         if ((event as any).action !== 'llm.usage') continue;
         const details = (event as any).details;

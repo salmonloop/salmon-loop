@@ -10,7 +10,7 @@ mock.module('fs/promises', () => ({
 
 import * as path from 'path';
 
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it, mock } from 'bun:test';
 
 import { Pipeline } from '../../../../../src/core/grizzco/engine/pipeline/pipeline.js';
 import { saveAudit } from '../../../../../src/core/grizzco/steps/audit.js';
@@ -63,9 +63,17 @@ describe('saveAudit (blob write best-effort)', () => {
       expect(auditJson.context.verifyResult.outputTruncated).toBe(true);
       expect(auditJson.context.verifyResult.output.length).toBeLessThan(5000);
       expect(auditJson.context.verifyResult.outputBlob).toBeUndefined();
-      expect(
-        auditJson.context.auditTrail.some((e: any) => e.action === 'audit.blob.write.failed'),
-      ).toBe(true);
+      expect(auditJson.context.eventsRef).toBeTruthy();
+
+      const eventsCall = writeFileMock.mock.calls.find(([p]: any[]) =>
+        String(p).endsWith('.events.jsonl'),
+      );
+      expect(eventsCall).toBeTruthy();
+      const events = String(eventsCall![1])
+        .trim()
+        .split('\n')
+        .map((line: string) => JSON.parse(line));
+      expect(events.some((e: any) => e.action === 'audit.blob.write.failed')).toBe(true);
     } finally {
       restoreTime();
       useRealTimers();
