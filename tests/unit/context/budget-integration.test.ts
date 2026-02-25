@@ -3,6 +3,7 @@ import {
   collectBudgetMetrics,
   applyBudgetAdjustment,
   getGlobalAdjuster,
+  evaluateBudgetAlert,
 } from '../../../src/core/context/budget/integration.js';
 import type { ContextResult, DroppedContextSections } from '../../../src/core/context/types.js';
 import type { VerifyResult } from '../../../src/core/verification/runner.js';
@@ -327,6 +328,67 @@ describe('Budget Integration', () => {
       expect(stats?.sampleSize).toBe(3);
       expect(stats?.successRate).toBe(0); // All failed
       expect(stats?.truncationRate).toBe(1); // All truncated
+    });
+  });
+
+  describe('evaluateBudgetAlert', () => {
+    it('returns critical warning when critical content is dropped', () => {
+      const alert = evaluateBudgetAlert({
+        avgUtilization: 0.7,
+        truncationRate: 0.4,
+        successRate: 0.7,
+        criticalDropRate: 0.2,
+        sampleSize: 5,
+      });
+
+      expect(alert).not.toBeNull();
+      expect(alert?.level).toBe('warn');
+      expect(alert?.reason).toContain('critical');
+    });
+
+    it('returns truncation warning when truncation rate is high', () => {
+      const alert = evaluateBudgetAlert({
+        avgUtilization: 0.9,
+        truncationRate: 0.8,
+        successRate: 0.9,
+        criticalDropRate: 0,
+        sampleSize: 5,
+      });
+
+      expect(alert).not.toBeNull();
+      expect(alert?.level).toBe('warn');
+      expect(alert?.reason).toContain('truncation');
+    });
+
+    it('returns null for healthy stats', () => {
+      const alert = evaluateBudgetAlert({
+        avgUtilization: 0.75,
+        truncationRate: 0.2,
+        successRate: 0.9,
+        criticalDropRate: 0,
+        sampleSize: 5,
+      });
+
+      expect(alert).toBeNull();
+    });
+
+    it('respects custom alert thresholds', () => {
+      const alert = evaluateBudgetAlert(
+        {
+          avgUtilization: 0.8,
+          truncationRate: 0.55,
+          successRate: 0.9,
+          criticalDropRate: 0,
+          sampleSize: 5,
+        },
+        {
+          truncationRateWarn: 0.5,
+          criticalDropRateWarn: 0.1,
+        },
+      );
+
+      expect(alert).not.toBeNull();
+      expect(alert?.reason).toContain('truncation');
     });
   });
 });

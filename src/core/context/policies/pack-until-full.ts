@@ -312,15 +312,42 @@ export function packUntilFull(
 
   const remainingUnits = budgetUnits - primaryUnits;
   if (remainingUnits <= 0) {
+    const emergencyDiffBudget =
+      diffUnits > 0 ? Math.max(1, Math.min(diffUnits, Math.floor(budgetUnits * 0.1))) : 0;
+    const minDiffUnits = Math.min(calc.count('x'.repeat(16)), Math.max(1, emergencyDiffBudget));
+    let remainingDiffUnits = emergencyDiffBudget;
+
+    const stagedDiff = context.stagedDiff
+      ? truncateWithMarker(context.stagedDiff, remainingDiffUnits, minDiffUnits, calc)
+      : undefined;
+    if (stagedDiff) remainingDiffUnits = Math.max(0, remainingDiffUnits - calc.count(stagedDiff));
+
+    const unstagedDiff = context.unstagedDiff
+      ? truncateWithMarker(context.unstagedDiff, remainingDiffUnits, minDiffUnits, calc)
+      : undefined;
+    if (unstagedDiff) {
+      remainingDiffUnits = Math.max(0, remainingDiffUnits - calc.count(unstagedDiff));
+    }
+
+    const gitDiff =
+      !stagedDiff && !unstagedDiff && context.gitDiff
+        ? truncateWithMarker(context.gitDiff, remainingDiffUnits, minDiffUnits, calc)
+        : undefined;
+    if (gitDiff) remainingDiffUnits = Math.max(0, remainingDiffUnits - calc.count(gitDiff));
+
+    const untrackedDiff = context.untrackedDiff
+      ? truncateWithMarker(context.untrackedDiff, remainingDiffUnits, minDiffUnits, calc)
+      : undefined;
+
     return {
       context: {
         ...context,
         relatedFiles: [],
         rgSnippets: [],
-        gitDiff: undefined,
-        stagedDiff: undefined,
-        unstagedDiff: undefined,
-        untrackedDiff: undefined,
+        gitDiff,
+        stagedDiff,
+        unstagedDiff,
+        untrackedDiff,
       },
       truncated: true,
     };

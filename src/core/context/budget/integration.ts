@@ -9,6 +9,24 @@ import type { ContextResult } from '../types.js';
 
 import { getGlobalAdjuster, type BudgetMetrics } from './dynamic-adjuster.js';
 
+export interface BudgetStats {
+  avgUtilization: number;
+  truncationRate: number;
+  successRate: number;
+  criticalDropRate: number;
+  sampleSize: number;
+}
+
+export interface BudgetAlert {
+  level: 'warn';
+  reason: string;
+}
+
+export interface BudgetAlertThresholds {
+  truncationRateWarn: number;
+  criticalDropRateWarn: number;
+}
+
 /**
  * Collect budget metrics after context build and verification.
  */
@@ -75,7 +93,40 @@ export function applyBudgetAdjustment(currentBudget: number): {
  * Get current budget statistics for observability.
  */
 export function getBudgetStats() {
-  return getGlobalAdjuster().getStats();
+  return getGlobalAdjuster().getStats() as BudgetStats | null;
+}
+
+/**
+ * Evaluate whether budget behavior requires an operator-visible alert.
+ */
+export function evaluateBudgetAlert(
+  stats: BudgetStats | null | undefined,
+  thresholds?: Partial<BudgetAlertThresholds>,
+): BudgetAlert | null {
+  if (!stats || stats.sampleSize < 2) {
+    return null;
+  }
+
+  const effectiveThresholds: BudgetAlertThresholds = {
+    truncationRateWarn: thresholds?.truncationRateWarn ?? 0.6,
+    criticalDropRateWarn: thresholds?.criticalDropRateWarn ?? 0,
+  };
+
+  if (stats.criticalDropRate > effectiveThresholds.criticalDropRateWarn) {
+    return {
+      level: 'warn',
+      reason: `critical content dropped (${(stats.criticalDropRate * 100).toFixed(0)}%)`,
+    };
+  }
+
+  if (stats.truncationRate > effectiveThresholds.truncationRateWarn) {
+    return {
+      level: 'warn',
+      reason: `high truncation rate (${(stats.truncationRate * 100).toFixed(0)}%)`,
+    };
+  }
+
+  return null;
 }
 
 export { getGlobalAdjuster };

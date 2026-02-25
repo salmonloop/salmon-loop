@@ -66,6 +66,10 @@ export interface ConfigFileV1 {
       minBudget?: number;
       maxBudget?: number;
       adjustmentStep?: number;
+      alerts?: {
+        truncationRateWarn?: number;
+        criticalDropRateWarn?: number;
+      };
     };
   };
 
@@ -101,6 +105,7 @@ export interface ConfigFileV1 {
     routing?: {
       fallbackProviders?: string[];
       taskToModel?: Record<string, string>;
+      phaseToModel?: Record<string, string>;
     };
   };
 
@@ -180,6 +185,11 @@ export interface ResolvedLlmProvider {
     selectedModelId: string;
     selectedModelSlot: string;
   };
+  routing?: {
+    fallbackProviders?: string[];
+    taskToModel?: Record<string, string>;
+    phaseToModel?: Record<string, string>;
+  };
 }
 
 export interface ResolvedConfig {
@@ -196,6 +206,10 @@ export interface ResolvedConfig {
       minBudget: number;
       maxBudget: number;
       adjustmentStep: number;
+      alerts: {
+        truncationRateWarn: number;
+        criticalDropRateWarn: number;
+      };
     };
   };
   observability: {

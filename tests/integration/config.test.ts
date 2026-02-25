@@ -308,6 +308,157 @@ describe('Config module', () => {
     await expect(resolveConfig({ repoRoot })).rejects.toBeInstanceOf(ConfigError);
   });
 
+  it('resolves llm.routing.phaseToModel from config without changing selected model', async () => {
+    const repoRoot = uniqueTmpDir('repo-phase-to-model');
+    await mkdir(join(repoRoot, '.salmonloop', 'config'), { recursive: true });
+
+    await writeFile(
+      join(repoRoot, '.salmonloop', 'config', 'config.json'),
+      JSON.stringify(
+        {
+          version: 1,
+          llm: {
+            active: 'openaiMain',
+            routing: {
+              phaseToModel: {
+                PLAN: 'gpt-plan',
+                PATCH: 'gpt-patch',
+              },
+            },
+            providers: {
+              openaiMain: {
+                type: 'openai-compatible',
+                api: { baseUrl: 'https://example.com/v1', apiKey: 'inline-key' },
+                models: { default: { id: 'gpt-default' } },
+              },
+            },
+          },
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    );
+
+    const cfg = await resolveConfig({ repoRoot });
+    expect(cfg.llm.models.selectedModelId).toBe('gpt-default');
+    expect(cfg.llm.routing?.phaseToModel).toEqual({
+      PLAN: 'gpt-plan',
+      PATCH: 'gpt-patch',
+    });
+  });
+
+  it('rejects invalid llm.routing.phaseToModel values', async () => {
+    const repoRoot = uniqueTmpDir('repo-phase-to-model-invalid');
+    await mkdir(join(repoRoot, '.salmonloop', 'config'), { recursive: true });
+
+    await writeFile(
+      join(repoRoot, '.salmonloop', 'config', 'config.json'),
+      JSON.stringify(
+        {
+          version: 1,
+          llm: {
+            active: 'openaiMain',
+            routing: {
+              phaseToModel: {
+                PLAN: 123,
+              },
+            },
+            providers: {
+              openaiMain: {
+                type: 'openai-compatible',
+                api: { baseUrl: 'https://example.com/v1', apiKey: 'inline-key' },
+                models: { default: { id: 'gpt-default' } },
+              },
+            },
+          },
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    );
+
+    await expect(resolveConfig({ repoRoot })).rejects.toBeInstanceOf(ConfigError);
+  });
+
+  it('resolves context.dynamicBudget alert thresholds from config', async () => {
+    const repoRoot = uniqueTmpDir('repo-dynamic-budget-alert-thresholds');
+    await mkdir(join(repoRoot, '.salmonloop', 'config'), { recursive: true });
+
+    await writeFile(
+      join(repoRoot, '.salmonloop', 'config', 'config.json'),
+      JSON.stringify(
+        {
+          version: 1,
+          context: {
+            dynamicBudget: {
+              enabled: true,
+              alerts: {
+                truncationRateWarn: 0.7,
+                criticalDropRateWarn: 0.05,
+              },
+            },
+          },
+          llm: {
+            active: 'openaiMain',
+            providers: {
+              openaiMain: {
+                type: 'openai-compatible',
+                api: { baseUrl: 'https://example.com/v1', apiKey: 'inline-key' },
+                models: { default: { id: 'gpt-default' } },
+              },
+            },
+          },
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    );
+
+    const cfg = await resolveConfig({ repoRoot });
+    expect(cfg.context.dynamicBudget.alerts.truncationRateWarn).toBe(0.7);
+    expect(cfg.context.dynamicBudget.alerts.criticalDropRateWarn).toBe(0.05);
+  });
+
+  it('rejects invalid context.dynamicBudget alert thresholds', async () => {
+    const repoRoot = uniqueTmpDir('repo-dynamic-budget-alert-thresholds-invalid');
+    await mkdir(join(repoRoot, '.salmonloop', 'config'), { recursive: true });
+
+    await writeFile(
+      join(repoRoot, '.salmonloop', 'config', 'config.json'),
+      JSON.stringify(
+        {
+          version: 1,
+          context: {
+            dynamicBudget: {
+              enabled: true,
+              alerts: {
+                truncationRateWarn: 'high',
+              },
+            },
+          },
+          llm: {
+            active: 'openaiMain',
+            providers: {
+              openaiMain: {
+                type: 'openai-compatible',
+                api: { baseUrl: 'https://example.com/v1', apiKey: 'inline-key' },
+                models: { default: { id: 'gpt-default' } },
+              },
+            },
+          },
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    );
+
+    await expect(resolveConfig({ repoRoot })).rejects.toBeInstanceOf(ConfigError);
+  });
+
   it('redacts inline api keys for printing', () => {
     const redacted = redactConfigForPrint({
       version: 1,

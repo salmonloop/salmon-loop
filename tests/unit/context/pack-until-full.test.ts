@@ -40,7 +40,20 @@ describe('packUntilFull', () => {
     const result = packUntilFull(ctx, 100, charCalc);
     expect(result.truncated).toBe(true);
     expect(result.context.rgSnippets).toEqual([]);
-    expect(result.context.gitDiff).toBeUndefined();
+  });
+
+  it('keeps minimal diff evidence when primary exceeds budget', () => {
+    const ctx = makeContext({
+      primaryText: 'x'.repeat(400),
+      rgSnippets: [{ file: 'src/a.ts', line: 1, content: 'y'.repeat(200) }],
+      stagedDiff: 'diff --git a/src/a.ts b/src/a.ts\n+const x = 1;\n',
+    });
+
+    const result = packUntilFull(ctx, 100, charCalc);
+    expect(result.truncated).toBe(true);
+    expect(result.context.rgSnippets).toEqual([]);
+    expect(result.context.stagedDiff).toBeDefined();
+    expect((result.context.stagedDiff ?? '').length).toBeGreaterThan(0);
   });
 
   it('packs snippets until budget reached', () => {

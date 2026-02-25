@@ -259,6 +259,31 @@ describe('DynamicBudgetAdjuster', () => {
       expect(adjustment?.newBudget).toBeLessThanOrEqual(100000);
     });
 
+    it('should expose default alert thresholds when not provided', () => {
+      const adjuster = new DynamicBudgetAdjuster();
+      expect(adjuster.getAlertThresholds()).toEqual({
+        truncationRateWarn: 0.6,
+        criticalDropRateWarn: 0,
+      });
+    });
+
+    it('should use custom alert thresholds when provided', () => {
+      const adjuster = new DynamicBudgetAdjuster({
+        minBudget: 5000,
+        maxBudget: 100000,
+        adjustmentStep: 0.15,
+        alerts: {
+          truncationRateWarn: 0.75,
+          criticalDropRateWarn: 0.1,
+        },
+      });
+
+      expect(adjuster.getAlertThresholds()).toEqual({
+        truncationRateWarn: 0.75,
+        criticalDropRateWarn: 0.1,
+      });
+    });
+
     it('should use custom config when provided', () => {
       const config: DynamicBudgetConfig = {
         minBudget: 20000,

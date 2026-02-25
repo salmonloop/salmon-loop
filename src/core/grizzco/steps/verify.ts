@@ -1,5 +1,9 @@
 import { text } from '../../../locales/index.js';
-import { collectBudgetMetrics, getGlobalAdjuster } from '../../context/budget/integration.js';
+import {
+  collectBudgetMetrics,
+  evaluateBudgetAlert,
+  getGlobalAdjuster,
+} from '../../context/budget/integration.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
 import { ArtifactStore } from '../../sub-agent/artifacts/store.js';
 import type { ArtifactHandle } from '../../sub-agent/artifacts/types.js';
@@ -69,6 +73,35 @@ export const runVerify: Step<ApplyCtx, VerifyCtx> = async (ctx) => {
           phase: 'VERIFY',
         },
       );
+
+      const alert = evaluateBudgetAlert(stats, getGlobalAdjuster().getAlertThresholds());
+      if (alert) {
+        recordAuditEvent(
+          'context.budget.alert',
+          {
+            level: alert.level,
+            reason: alert.reason,
+            avgUtilization: stats.avgUtilization,
+            truncationRate: stats.truncationRate,
+            successRate: stats.successRate,
+            criticalDropRate: stats.criticalDropRate,
+            sampleSize: stats.sampleSize,
+          },
+          {
+            source: 'context',
+            severity: 'medium',
+            scope: 'session',
+            phase: 'VERIFY',
+          },
+        );
+
+        ctx.emit({
+          type: 'log',
+          level: 'warn',
+          message: `Budget alert: ${alert.reason}`,
+          timestamp: new Date(),
+        });
+      }
     }
   }
 

@@ -81,6 +81,18 @@ function resolveLlmFromConfig(raw?: ConfigFileV1): ResolvedLlmProvider {
   const models = provider?.models || {};
   const defaultModel = models.default?.id;
   const selectedModelId = resolveModelId(defaultModel);
+  const routing = llm?.routing;
+  const resolvedRouting =
+    routing &&
+    (routing.fallbackProviders !== undefined ||
+      routing.taskToModel !== undefined ||
+      routing.phaseToModel !== undefined)
+      ? {
+          fallbackProviders: routing.fallbackProviders,
+          taskToModel: routing.taskToModel,
+          phaseToModel: routing.phaseToModel,
+        }
+      : undefined;
 
   return {
     id: providerId,
@@ -97,6 +109,7 @@ function resolveLlmFromConfig(raw?: ConfigFileV1): ResolvedLlmProvider {
       selectedModelId,
       selectedModelSlot: 'default',
     },
+    routing: resolvedRouting,
   };
 }
 
@@ -258,6 +271,10 @@ function resolveDynamicBudget(raw?: ConfigFileV1) {
     minBudget: config?.minBudget ?? 5000,
     maxBudget: config?.maxBudget ?? 100000,
     adjustmentStep: config?.adjustmentStep ?? 0.15,
+    alerts: {
+      truncationRateWarn: config?.alerts?.truncationRateWarn ?? 0.6,
+      criticalDropRateWarn: config?.alerts?.criticalDropRateWarn ?? 0,
+    },
   };
 }
 

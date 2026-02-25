@@ -32,6 +32,10 @@ export interface DynamicBudgetConfig {
   minBudget: number;
   maxBudget: number;
   adjustmentStep: number;
+  alerts?: {
+    truncationRateWarn?: number;
+    criticalDropRateWarn?: number;
+  };
 }
 
 /**
@@ -45,11 +49,15 @@ export class DynamicBudgetAdjuster {
   private minBudget: number;
   private maxBudget: number;
   private adjustmentStep: number;
+  private alertTruncationRateWarn: number;
+  private alertCriticalDropRateWarn: number;
 
   constructor(config?: DynamicBudgetConfig) {
     this.minBudget = config?.minBudget ?? 5000;
     this.maxBudget = config?.maxBudget ?? 100000;
     this.adjustmentStep = config?.adjustmentStep ?? 0.15;
+    this.alertTruncationRateWarn = config?.alerts?.truncationRateWarn ?? 0.6;
+    this.alertCriticalDropRateWarn = config?.alerts?.criticalDropRateWarn ?? 0;
   }
 
   /**
@@ -141,6 +149,13 @@ export class DynamicBudgetAdjuster {
    */
   reset(): void {
     this.history = [];
+  }
+
+  getAlertThresholds(): { truncationRateWarn: number; criticalDropRateWarn: number } {
+    return {
+      truncationRateWarn: this.alertTruncationRateWarn,
+      criticalDropRateWarn: this.alertCriticalDropRateWarn,
+    };
   }
 }
 

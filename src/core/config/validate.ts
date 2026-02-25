@@ -157,6 +157,76 @@ export function validateConfigFileV1(input: unknown): ConfigFileV1 {
     cfg.ui = ui;
   }
 
+  if ((input as any).context !== undefined) {
+    const contextRaw = (input as any).context;
+    if (!isRecord(contextRaw)) {
+      throw new ConfigError('CONFIG_INVALID_CONTEXT', { expected: 'object' });
+    }
+    cfg.context = {};
+
+    if (contextRaw.useTokenBudget !== undefined && !isBoolean(contextRaw.useTokenBudget)) {
+      throw new ConfigError('CONFIG_INVALID_USE_TOKEN_BUDGET', { expected: 'boolean' });
+    }
+    if (contextRaw.useTokenBudget !== undefined) {
+      cfg.context.useTokenBudget = contextRaw.useTokenBudget as any;
+    }
+
+    if (contextRaw.dynamicBudget !== undefined) {
+      if (!isRecord(contextRaw.dynamicBudget)) {
+        throw new ConfigError('CONFIG_INVALID_DYNAMIC_BUDGET', { expected: 'object' });
+      }
+      const dynamicBudgetRaw = contextRaw.dynamicBudget as Record<string, unknown>;
+      const dynamicBudget: NonNullable<ConfigFileV1['context']>['dynamicBudget'] = {};
+
+      if (dynamicBudgetRaw.enabled !== undefined && !isBoolean(dynamicBudgetRaw.enabled)) {
+        throw new ConfigError('CONFIG_INVALID_DYNAMIC_BUDGET_ENABLED', { expected: 'boolean' });
+      }
+      if (dynamicBudgetRaw.minBudget !== undefined && !isNumber(dynamicBudgetRaw.minBudget)) {
+        throw new ConfigError('CONFIG_INVALID_DYNAMIC_BUDGET_MIN', { expected: 'number' });
+      }
+      if (dynamicBudgetRaw.maxBudget !== undefined && !isNumber(dynamicBudgetRaw.maxBudget)) {
+        throw new ConfigError('CONFIG_INVALID_DYNAMIC_BUDGET_MAX', { expected: 'number' });
+      }
+      if (
+        dynamicBudgetRaw.adjustmentStep !== undefined &&
+        !isNumber(dynamicBudgetRaw.adjustmentStep)
+      ) {
+        throw new ConfigError('CONFIG_INVALID_DYNAMIC_BUDGET_STEP', { expected: 'number' });
+      }
+
+      dynamicBudget.enabled = dynamicBudgetRaw.enabled as any;
+      dynamicBudget.minBudget = dynamicBudgetRaw.minBudget as any;
+      dynamicBudget.maxBudget = dynamicBudgetRaw.maxBudget as any;
+      dynamicBudget.adjustmentStep = dynamicBudgetRaw.adjustmentStep as any;
+
+      if (dynamicBudgetRaw.alerts !== undefined) {
+        if (!isRecord(dynamicBudgetRaw.alerts)) {
+          throw new ConfigError('CONFIG_INVALID_DYNAMIC_BUDGET_ALERTS', { expected: 'object' });
+        }
+        const alertsRaw = dynamicBudgetRaw.alerts as Record<string, unknown>;
+        if (alertsRaw.truncationRateWarn !== undefined && !isNumber(alertsRaw.truncationRateWarn)) {
+          throw new ConfigError('CONFIG_INVALID_DYNAMIC_BUDGET_ALERT_TRUNCATION', {
+            expected: 'number',
+          });
+        }
+        if (
+          alertsRaw.criticalDropRateWarn !== undefined &&
+          !isNumber(alertsRaw.criticalDropRateWarn)
+        ) {
+          throw new ConfigError('CONFIG_INVALID_DYNAMIC_BUDGET_ALERT_CRITICAL_DROP', {
+            expected: 'number',
+          });
+        }
+        dynamicBudget.alerts = {
+          truncationRateWarn: alertsRaw.truncationRateWarn as any,
+          criticalDropRateWarn: alertsRaw.criticalDropRateWarn as any,
+        };
+      }
+
+      cfg.context.dynamicBudget = dynamicBudget;
+    }
+  }
+
   if (input.verify !== undefined) {
     if (!isRecord(input.verify)) {
       throw new ConfigError('CONFIG_INVALID_VERIFY', { expected: 'object' });
@@ -318,6 +388,20 @@ export function validateConfigFileV1(input: unknown): ConfigFileV1 {
           }
         }
         cfg.llm.routing.taskToModel = r.taskToModel as any;
+      }
+      if (r.phaseToModel !== undefined) {
+        if (!isRecord(r.phaseToModel)) {
+          throw new ConfigError('CONFIG_INVALID_PHASE_TO_MODEL', { expected: 'object' });
+        }
+        for (const [k, v] of Object.entries(r.phaseToModel)) {
+          if (!isString(v)) {
+            throw new ConfigError('CONFIG_INVALID_PHASE_TO_MODEL_VALUE', {
+              phase: k,
+              expected: 'string',
+            });
+          }
+        }
+        cfg.llm.routing.phaseToModel = r.phaseToModel as any;
       }
     }
   }
