@@ -58,6 +58,19 @@ export const runVerify: Step<ApplyCtx, VerifyCtx> = async (ctx) => {
     // Log budget stats for observability
     const stats = getGlobalAdjuster().getStats();
     if (stats) {
+      ctx.emit({
+        type: 'log',
+        level: 'info',
+        message: text.loop.budgetStatusSummary(
+          Math.round(stats.avgUtilization * 100),
+          Math.round(stats.truncationRate * 100),
+          Math.round(stats.successRate * 100),
+          Math.round(stats.criticalDropRate * 100),
+          stats.sampleSize,
+        ),
+        timestamp: new Date(),
+      });
+
       recordAuditEvent(
         'context.budget.stats',
         {

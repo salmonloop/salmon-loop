@@ -167,6 +167,14 @@ Please return the patch in PURE unified diff format:`;
     verificationFailed: (error: string) => `Verification failed: ${error}`,
     verificationFailedSummary: 'Verification failed',
     verificationPassed: 'Verification passed successfully',
+    budgetStatusSummary: (
+      avgUtilizationPercent: number,
+      truncationRatePercent: number,
+      successRatePercent: number,
+      criticalDropRatePercent: number,
+      sampleSize: number,
+    ) =>
+      `Budget status: utilization=${avgUtilizationPercent}% truncation=${truncationRatePercent}% success=${successRatePercent}% critical_drop=${criticalDropRatePercent}% samples=${sampleSize}`,
     verificationSkipped: 'Skipped',
     verificationOutputStored: (handle: string) =>
       `Verification output saved as artifact: ${handle}`,
