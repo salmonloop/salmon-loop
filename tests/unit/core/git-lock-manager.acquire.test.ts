@@ -1,15 +1,15 @@
 const fsMocks = (() => {
   return {
-    mkdir: vi.fn(),
-    open: vi.fn(),
-    unlink: vi.fn(),
-    readFile: vi.fn(),
+    mkdir: mock(),
+    open: mock(),
+    unlink: mock(),
+    readFile: mock(),
   };
 })();
 
-vi.mock('fs/promises', () => fsMocks);
+mock.module('fs/promises', () => fsMocks);
 
-vi.mock('../../../src/core/config/limits.js', () => ({
+mock.module('../../../src/core/config/limits.js', () => ({
   LIMITS: {
     lockAcquireHardTimeoutMs: 20,
     lockWaitTimeoutMs: 200,
@@ -25,7 +25,7 @@ describe('FileHandleManager acquireLock safety paths', () => {
   const originalNodeEnv = process.env.NODE_ENV;
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    mock.clearAllMocks();
     process.env.NODE_ENV = 'test';
     process.env.SALMONLOOP_ENABLE_LOCK_IN_TEST = '1';
   });
@@ -41,13 +41,13 @@ describe('FileHandleManager acquireLock safety paths', () => {
     } else {
       process.env.NODE_ENV = originalNodeEnv;
     }
-    vi.restoreAllMocks();
+    mock.restore();
   });
 
   it('writes fresh lock metadata when forceUnlock is enabled', async () => {
     const handle = {
-      writeFile: vi.fn().mockResolvedValue(undefined),
-      close: vi.fn().mockResolvedValue(undefined),
+      writeFile: mock().mockResolvedValue(undefined),
+      close: mock().mockResolvedValue(undefined),
     };
     fsMocks.open.mockResolvedValueOnce(handle as any);
     fsMocks.unlink.mockResolvedValue(undefined);
@@ -78,7 +78,7 @@ describe('FileHandleManager acquireLock safety paths', () => {
         owner: 'another-owner',
       }),
     );
-    vi.spyOn(process, 'kill').mockImplementation((pid: number) => {
+    spyOn(process, 'kill').mockImplementation((pid: number) => {
       if (pid === 4242) return true as any;
       throw Object.assign(new Error('ESRCH'), { code: 'ESRCH' });
     });
@@ -109,7 +109,7 @@ describe('FileHandleManager acquireLock safety paths', () => {
         owner: 'another-owner',
       }),
     );
-    vi.spyOn(process, 'kill').mockImplementation((pid: number) => {
+    spyOn(process, 'kill').mockImplementation((pid: number) => {
       if (pid === 7777) {
         throw Object.assign(new Error('EPERM'), { code: 'EPERM' });
       }

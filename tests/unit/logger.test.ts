@@ -6,19 +6,19 @@ describe('Logger', () => {
 
   beforeEach(() => {
     logger = new Logger();
-    consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {
+    consoleSpy = spyOn(console, 'log').mockImplementation(() => {
       /* ignore */
     });
-    vi.spyOn(console, 'warn').mockImplementation(() => {
+    spyOn(console, 'warn').mockImplementation(() => {
       /* ignore */
     });
-    vi.spyOn(console, 'error').mockImplementation(() => {
+    spyOn(console, 'error').mockImplementation(() => {
       /* ignore */
     });
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    mock.restore();
   });
 
   it('should not log debug/trace by default', () => {

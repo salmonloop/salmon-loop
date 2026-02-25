@@ -1,11 +1,12 @@
 import { act, renderHook } from '@testing-library/react';
-import { vi } from 'bun:test';
+
+import { advanceTimersByTime } from '../../../../helpers/bun-timers.js';
 
 const hoisted = (() => ({
-  dispatch: vi.fn(),
+  dispatch: mock(),
 }))();
 
-vi.mock('../../../../../src/cli/ui/store/context.js', () => ({
+mock.module('../../../../../src/cli/ui/store/context.js', () => ({
   useUIStore: () => ({ dispatch: hoisted.dispatch }),
 }));
 
@@ -16,16 +17,16 @@ describe('useLoopEvents', () => {
 
   beforeEach(() => {
     hoisted.dispatch.mockClear();
-    vi.useFakeTimers();
+    useFakeTimers();
   });
 
   afterEach(() => {
-    vi.useRealTimers();
+    useRealTimers();
   });
 
   it('aggregates llm.stream.delta as APPEND_LLM_STREAM in chat mode', async () => {
     const useLoopEvents = await loadUseLoopEvents();
-    const onStart = vi.fn();
+    const onStart = mock();
     const signal = new AbortController().signal;
     const { result } = renderHook(() => useLoopEvents('chat', onStart, signal));
 
@@ -40,7 +41,7 @@ describe('useLoopEvents', () => {
 
     // Advance timers to trigger the 100ms throttle flush
     act(() => {
-      vi.advanceTimersByTime(100);
+      advanceTimersByTime(100);
     });
 
     expect(hoisted.dispatch).toHaveBeenCalledWith({
@@ -57,7 +58,7 @@ describe('useLoopEvents', () => {
     const useLoopEvents = await loadUseLoopEvents();
     const signal = new AbortController().signal;
     let capturedHandler: ((event: any) => void) | undefined;
-    const onStart = vi.fn((handler: (event: any) => void) => {
+    const onStart = mock((handler: (event: any) => void) => {
       capturedHandler = handler;
     });
 
@@ -77,7 +78,7 @@ describe('useLoopEvents', () => {
 
     // Advance timers to trigger the 100ms throttle flush
     act(() => {
-      vi.advanceTimersByTime(100);
+      advanceTimersByTime(100);
     });
 
     expect(hoisted.dispatch).toHaveBeenCalledWith({
@@ -92,7 +93,7 @@ describe('useLoopEvents', () => {
 
   it('dispatches SET_STATUS_BANNER for ui.status set events', async () => {
     const useLoopEvents = await loadUseLoopEvents();
-    const onStart = vi.fn();
+    const onStart = mock();
     const signal = new AbortController().signal;
     const { result } = renderHook(() => useLoopEvents('chat', onStart, signal));
 
@@ -114,7 +115,7 @@ describe('useLoopEvents', () => {
 
   it('dispatches CLEAR_STATUS_BANNER for ui.status clear events', async () => {
     const useLoopEvents = await loadUseLoopEvents();
-    const onStart = vi.fn();
+    const onStart = mock();
     const signal = new AbortController().signal;
     const { result } = renderHook(() => useLoopEvents('chat', onStart, signal));
 
@@ -131,7 +132,7 @@ describe('useLoopEvents', () => {
 
   it('dispatches a warning message for retry events', async () => {
     const useLoopEvents = await loadUseLoopEvents();
-    const onStart = vi.fn();
+    const onStart = mock();
     const signal = new AbortController().signal;
     const { result } = renderHook(() => useLoopEvents('chat', onStart, signal));
 
@@ -160,7 +161,7 @@ describe('useLoopEvents', () => {
 
   it('does not complete stream when handling non-stream events', async () => {
     const useLoopEvents = await loadUseLoopEvents();
-    const onStart = vi.fn();
+    const onStart = mock();
     const signal = new AbortController().signal;
     const { result } = renderHook(() => useLoopEvents('chat', onStart, signal));
 
@@ -174,7 +175,7 @@ describe('useLoopEvents', () => {
     });
 
     act(() => {
-      vi.advanceTimersByTime(100);
+      advanceTimersByTime(100);
     });
 
     hoisted.dispatch.mockClear();
@@ -195,7 +196,7 @@ describe('useLoopEvents', () => {
 
   it('flushes and completes stream on llm.stream.end', async () => {
     const useLoopEvents = await loadUseLoopEvents();
-    const onStart = vi.fn();
+    const onStart = mock();
     const signal = new AbortController().signal;
     const { result } = renderHook(() => useLoopEvents('chat', onStart, signal));
 

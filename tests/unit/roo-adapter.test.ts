@@ -1,18 +1,18 @@
 import { runSalmonLoop } from '../../src/core/runtime/loop.js';
 import { RooSalmonAdapter } from '../../src/integrations/roo/adapter.js';
 
-vi.mock('../../src/core/runtime/loop.js', () => ({
-  runSalmonLoop: vi.fn(),
+mock.module('../../src/core/runtime/loop.js', () => ({
+  runSalmonLoop: mock(),
 }));
 
-vi.mock('../../src/core/observability/logger.js', () => ({
+mock.module('../../src/core/observability/logger.js', () => ({
   Logger: class {
-    setVerbose = vi.fn();
-    info = vi.fn();
-    warn = vi.fn();
-    error = vi.fn();
-    debug = vi.fn();
-    trace = vi.fn();
+    setVerbose = mock();
+    info = mock();
+    warn = mock();
+    error = mock();
+    debug = mock();
+    trace = mock();
   },
 }));
 
@@ -21,7 +21,7 @@ describe('RooSalmonAdapter', () => {
 
   beforeEach(() => {
     adapter = new RooSalmonAdapter();
-    vi.clearAllMocks();
+    mock.clearAllMocks();
   });
 
   it('should call runSalmonLoop with correct options', async () => {
@@ -45,7 +45,7 @@ describe('RooSalmonAdapter', () => {
   });
 
   it('should pipe events to onEvent handler', async () => {
-    const onEvent = vi.fn();
+    const onEvent = mock();
     (runSalmonLoop as any).mockImplementation(async (opts: any) => {
       opts.onEvent({ type: 'log', level: 'info', message: 'test log' });
       return { success: true } as any;

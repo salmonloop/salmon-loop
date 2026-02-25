@@ -1,8 +1,8 @@
 let capturedSession: any;
 
-vi.mock('../../src/core/tools/session.js', () => {
+mock.module('../../src/core/tools/session.js', () => {
   return {
-    chatWithTools: vi.fn(async (_messages: any, _chatOptions: any, session: any) => {
+    chatWithTools: mock(async (_messages: any, _chatOptions: any, session: any) => {
       capturedSession = session;
       return {
         role: 'assistant',
@@ -14,7 +14,7 @@ vi.mock('../../src/core/tools/session.js', () => {
         }),
       };
     }),
-    chatWithToolsStreaming: vi.fn(async (_messages: any, _chatOptions: any, session: any) => {
+    chatWithToolsStreaming: mock(async (_messages: any, _chatOptions: any, session: any) => {
       capturedSession = session;
       return {
         role: 'assistant',
@@ -41,18 +41,18 @@ describe('Grizzco step maxRounds wiring', () => {
   it('forwards policy.maxRounds into chatWithTools session options', async () => {
     const { generatePlan } = await import('../../src/core/grizzco/steps/plan.js');
     const strategy = await import('../../src/core/grizzco/dsl/llm-strategy.js');
-    vi.spyOn(strategy, 'resolveLlmToolCallingPolicy').mockReturnValue({
+    spyOn(strategy, 'resolveLlmToolCallingPolicy').mockReturnValue({
       enabled: true,
       maxRounds: 1,
     });
 
     const llm: any = {
       getModelId: () => 'test-model',
-      createPlan: vi.fn(async () => {
+      createPlan: mock(async () => {
         throw new Error('createPlan should not be called when tool calling is enabled');
       }),
-      createPatch: vi.fn(async () => ''),
-      chat: vi.fn(async () => ({ role: 'assistant', content: '' })),
+      createPatch: mock(async () => ''),
+      chat: mock(async () => ({ role: 'assistant', content: '' })),
     };
 
     const ctx: any = {

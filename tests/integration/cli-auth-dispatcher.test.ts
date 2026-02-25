@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from 'bun:test';
+import { describe, it, expect, afterEach } from 'bun:test';
 
 import { CommandDispatcher } from '../../src/cli/commands/dispatcher.js';
 import { text } from '../../src/cli/locales/index.js';
@@ -11,20 +11,20 @@ const helper = new RealFsTestHelper();
 
 describe('CLI /allowlist dispatcher integration', () => {
   afterEach(async () => {
-    vi.clearAllMocks();
+    mock.clearAllMocks();
     await helper.cleanup();
   });
 
   it('adds, lists, and removes allowlist entries via /allowlist', async () => {
     const repoPath = await helper.createTempDir('auth-dispatch-');
     const dispatcher = new CommandDispatcher();
-    const emit = vi.fn();
+    const emit = mock();
 
     const sessionManager = {
       getCurrent: () => ({ meta: { repoPath } }),
-      addMessage: vi.fn(),
-      addIteration: vi.fn(),
-      save: vi.fn(),
+      addMessage: mock(),
+      addIteration: mock(),
+      save: mock(),
     } as unknown as ChatSessionManager;
 
     const toolAuthorization: ToolAuthorizationConfig = {
@@ -46,7 +46,7 @@ describe('CLI /allowlist dispatcher integration', () => {
     const addResult = await dispatcher.dispatch('/allowlist add repo fs.read context', {
       emit,
       sessionManager,
-      dispatch: vi.fn(),
+      dispatch: mock(),
       toolAuthorization,
     });
 
@@ -66,7 +66,7 @@ describe('CLI /allowlist dispatcher integration', () => {
     const listResult = await dispatcher.dispatch('/allowlist list repo', {
       emit,
       sessionManager,
-      dispatch: vi.fn(),
+      dispatch: mock(),
       toolAuthorization,
     });
 
@@ -78,7 +78,7 @@ describe('CLI /allowlist dispatcher integration', () => {
     const removeResult = await dispatcher.dispatch('/allowlist remove repo fs.read context', {
       emit,
       sessionManager,
-      dispatch: vi.fn(),
+      dispatch: mock(),
       toolAuthorization,
     });
 
@@ -88,7 +88,7 @@ describe('CLI /allowlist dispatcher integration', () => {
     const listEmptyResult = await dispatcher.dispatch('/allowlist list repo', {
       emit,
       sessionManager,
-      dispatch: vi.fn(),
+      dispatch: mock(),
       toolAuthorization,
     });
 

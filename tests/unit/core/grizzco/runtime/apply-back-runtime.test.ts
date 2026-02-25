@@ -1,17 +1,17 @@
 const { recordAuditEventMock, writeDebugArtifactMock } = (() => ({
-  recordAuditEventMock: vi.fn(),
-  writeDebugArtifactMock: vi.fn().mockResolvedValue({
+  recordAuditEventMock: mock(),
+  writeDebugArtifactMock: mock().mockResolvedValue({
     path: 'blobs/apply-back-error-test.log',
     sha256: 'sha256-test',
     chars: 12,
   }),
 }))();
 
-vi.mock('../../../../../src/core/observability/audit-trail.js', () => ({
+mock.module('../../../../../src/core/observability/audit-trail.js', () => ({
   recordAuditEvent: recordAuditEventMock,
 }));
 
-vi.mock('../../../../../src/core/observability/debug-artifacts.js', () => ({
+mock.module('../../../../../src/core/observability/debug-artifacts.js', () => ({
   writeDebugArtifact: writeDebugArtifactMock,
 }));
 
@@ -19,15 +19,15 @@ import { text } from '../../../../../src/locales/index.js';
 
 function createSynchronizer(overrides: Record<string, unknown> = {}) {
   return {
-    createCheckpointCommit: vi.fn().mockResolvedValue('final-ref-1'),
-    applyBackToMainWorkspace: vi.fn().mockResolvedValue(undefined),
+    createCheckpointCommit: mock().mockResolvedValue('final-ref-1'),
+    applyBackToMainWorkspace: mock().mockResolvedValue(undefined),
     ...overrides,
   };
 }
 
 function createParams(overrides: Record<string, unknown> = {}) {
   const synchronizer = createSynchronizer();
-  const emit = vi.fn();
+  const emit = mock();
   return {
     attempt: 1,
     options: {
@@ -53,7 +53,7 @@ function createParams(overrides: Record<string, unknown> = {}) {
 
 describe('apply-back-runtime', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    mock.clearAllMocks();
   });
 
   it('deduplicates and filters sidecar paths', async () => {
@@ -116,9 +116,9 @@ describe('apply-back-runtime', () => {
     const { runApplyBackPhase } =
       await import('../../../../../src/core/grizzco/runtime/apply-back-runtime.js');
     const synchronizer = createSynchronizer({
-      createCheckpointCommit: vi.fn().mockResolvedValue('final-ref-2'),
+      createCheckpointCommit: mock().mockResolvedValue('final-ref-2'),
     });
-    const emit = vi.fn();
+    const emit = mock();
     const params = createParams({ synchronizer, emit }) as any;
 
     const result = await runApplyBackPhase(params);
@@ -158,7 +158,7 @@ describe('apply-back-runtime', () => {
     const { runApplyBackPhase } =
       await import('../../../../../src/core/grizzco/runtime/apply-back-runtime.js');
     const synchronizer = createSynchronizer({
-      createCheckpointCommit: vi.fn().mockResolvedValue(undefined),
+      createCheckpointCommit: mock().mockResolvedValue(undefined),
     });
     const params = createParams({ synchronizer }) as any;
 
@@ -173,9 +173,9 @@ describe('apply-back-runtime', () => {
     const { runApplyBackPhase } =
       await import('../../../../../src/core/grizzco/runtime/apply-back-runtime.js');
     const synchronizer = createSynchronizer({
-      applyBackToMainWorkspace: vi.fn().mockRejectedValue(new Error('merge conflict')),
+      applyBackToMainWorkspace: mock().mockRejectedValue(new Error('merge conflict')),
     });
-    const emit = vi.fn();
+    const emit = mock();
 
     const result = await runApplyBackPhase(
       createParams({

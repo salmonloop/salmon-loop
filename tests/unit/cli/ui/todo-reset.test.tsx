@@ -1,48 +1,49 @@
 import { act, render } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import React from 'react';
 
 import { AppCore } from '../../../../src/cli/ui/App.js';
 import { UIStoreProvider } from '../../../../src/cli/ui/store/context.js';
+import { advanceTimersByTime } from '../../../helpers/bun-timers.js';
 
-vi.mock('ink', () => ({
+mock.module('ink', () => ({
   Box: (props: any) => React.createElement('div', null, props.children),
   Text: (props: any) => React.createElement('span', null, props.children),
 }));
 
-vi.mock('../../../../src/cli/ui/hooks/useCommandLifecycle.js', () => ({
+mock.module('../../../../src/cli/ui/hooks/useCommandLifecycle.js', () => ({
   useCommandLifecycle: () => ({
     signal: new AbortController().signal,
     isExiting: false,
-    renewSignal: vi.fn(),
+    renewSignal: mock(),
   }),
 }));
 
-vi.mock('../../../../src/cli/ui/hooks/useTerminalDimensions.js', () => ({
+mock.module('../../../../src/cli/ui/hooks/useTerminalDimensions.js', () => ({
   useTerminalDimensions: () => {},
 }));
 
-vi.mock('../../../../src/cli/ui/components/CommandInput.js', () => ({
+mock.module('../../../../src/cli/ui/components/CommandInput.js', () => ({
   CommandInput: () => null,
 }));
 
-vi.mock('../../../../src/cli/ui/components/MessageList.js', () => ({
+mock.module('../../../../src/cli/ui/components/MessageList.js', () => ({
   MessageList: () => null,
 }));
 
-vi.mock('../../../../src/cli/ui/components/StatusBannerLine.js', () => ({
+mock.module('../../../../src/cli/ui/components/StatusBannerLine.js', () => ({
   StatusBannerLine: () => null,
 }));
 
-vi.mock('../../../../src/cli/ui/components/TodoDrawer.js', () => ({
+mock.module('../../../../src/cli/ui/components/TodoDrawer.js', () => ({
   TodoDrawer: () => null,
 }));
 
-vi.mock('../../../../src/cli/ui/components/animations/StretchingThinking.js', () => ({
+mock.module('../../../../src/cli/ui/components/animations/StretchingThinking.js', () => ({
   StretchingThinking: () => null,
 }));
 
-const readPlanMock = vi.fn(async (_args: any) => ({
+const readPlanMock = mock(async (_args: any) => ({
   sessionId: 's',
   baseHash: 'h',
   active: [{ stepId: 'step-1', text: 'Task 1', checkbox: 'unchecked', status: 'todo' }],
@@ -51,12 +52,12 @@ const readPlanMock = vi.fn(async (_args: any) => ({
   conflicts: { present: false },
 }));
 
-vi.mock('../../../../src/core/plan/index.js', () => ({
+mock.module('../../../../src/core/plan/index.js', () => ({
   readPlan: (args: any) => readPlanMock(args),
 }));
 
 let interceptEvent: ((event: any) => void) | undefined;
-vi.mock('../../../../src/cli/ui/hooks/useLoopEvents.js', () => ({
+mock.module('../../../../src/cli/ui/hooks/useLoopEvents.js', () => ({
   useLoopEvents: (_mode: any, _onStart: any, _signal: any, options: any) => {
     interceptEvent = options?.interceptEvent;
     return {
@@ -69,13 +70,13 @@ vi.mock('../../../../src/cli/ui/hooks/useLoopEvents.js', () => ({
 
 describe('AppCore TODO reset', () => {
   beforeEach(() => {
-    vi.useFakeTimers();
+    useFakeTimers();
     interceptEvent = undefined;
     readPlanMock.mockClear();
   });
 
   afterEach(() => {
-    vi.useRealTimers();
+    useRealTimers();
   });
 
   it('does not re-hydrate stale plan TODOs on run.start before plan.runtime.ready', () => {
@@ -85,8 +86,8 @@ describe('AppCore TODO reset', () => {
         null,
         React.createElement(AppCore as any, {
           mode: 'chat',
-          onStart: vi.fn(),
-          onChatInput: vi.fn(),
+          onStart: mock(),
+          onChatInput: mock(),
           sessionManager: { getCurrent: () => ({ meta: { repoPath: process.cwd() } }) },
         }),
       ),
@@ -99,7 +100,7 @@ describe('AppCore TODO reset', () => {
         planPathHint: '.salmonloop/plans/old-session/SALMONLOOP_PLAN.md',
         timestamp: new Date('2026-02-14T00:00:00.000Z'),
       });
-      vi.advanceTimersByTime(200);
+      advanceTimersByTime(200);
     });
 
     expect(readPlanMock).toHaveBeenCalledTimes(1);
@@ -111,7 +112,7 @@ describe('AppCore TODO reset', () => {
         mode: 'chat',
         timestamp: new Date('2026-02-14T00:00:01.000Z'),
       });
-      vi.advanceTimersByTime(200);
+      advanceTimersByTime(200);
     });
 
     expect(readPlanMock).toHaveBeenCalledTimes(0);
@@ -124,8 +125,8 @@ describe('AppCore TODO reset', () => {
         null,
         React.createElement(AppCore as any, {
           mode: 'chat',
-          onStart: vi.fn(),
-          onChatInput: vi.fn(),
+          onStart: mock(),
+          onChatInput: mock(),
           sessionManager: { getCurrent: () => ({ meta: { repoPath: process.cwd() } }) },
         }),
       ),
@@ -138,7 +139,7 @@ describe('AppCore TODO reset', () => {
         planPathHint: '.salmonloop/plans/old-session/SALMONLOOP_PLAN.md',
         timestamp: new Date('2026-02-14T00:00:00.000Z'),
       });
-      vi.advanceTimersByTime(200);
+      advanceTimersByTime(200);
     });
 
     expect(readPlanMock).toHaveBeenCalledTimes(1);
@@ -150,7 +151,7 @@ describe('AppCore TODO reset', () => {
         mode: 'chat',
         timestamp: new Date('2026-02-14T00:00:01.000Z'),
       });
-      vi.advanceTimersByTime(200);
+      advanceTimersByTime(200);
     });
 
     expect(readPlanMock).toHaveBeenCalledTimes(1);
@@ -162,7 +163,7 @@ describe('AppCore TODO reset', () => {
         planPathHint: '.salmonloop/plans/new-session/SALMONLOOP_PLAN.md',
         timestamp: new Date('2026-02-14T00:00:02.000Z'),
       });
-      vi.advanceTimersByTime(200);
+      advanceTimersByTime(200);
     });
 
     expect(readPlanMock).toHaveBeenCalledTimes(2);

@@ -1,6 +1,6 @@
 import * as fs from 'fs/promises';
 
-import { describe, expect, it, vi } from 'bun:test';
+import { describe, expect, it } from 'bun:test';
 
 import { GitAdapter } from '../../../../../src/core/adapters/git/git-adapter.js';
 import { FileState, FileStatus } from '../../../../../src/core/grizzco/domain/grizzco-types.js';
@@ -9,8 +9,8 @@ import { UnionMergeWorker } from '../../../../../src/core/grizzco/workers/union-
 
 // Unit tests should mock external dependencies like FS.
 // With per-file Bun worker isolation, this mock will not leak.
-vi.mock('fs/promises', () => ({
-  readFile: vi.fn(),
+mock.module('fs/promises', () => ({
+  readFile: mock(),
 }));
 
 describe('Grizzco Workers', () => {
@@ -67,8 +67,8 @@ describe('Grizzco Workers', () => {
   describe('ThreeWayStagedAwareWorker', () => {
     it('should fetch Index content for Ours', async () => {
       const mockGit = {
-        show: vi.fn().mockResolvedValue(Buffer.from('content')),
-        mergeFile: vi.fn().mockResolvedValue({
+        show: mock().mockResolvedValue(Buffer.from('content')),
+        mergeFile: mock().mockResolvedValue({
           content: Buffer.from('merged'),
           hasConflict: false,
         }),

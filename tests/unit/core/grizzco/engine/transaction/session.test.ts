@@ -4,9 +4,9 @@ import { runFlowSession } from '../../../../../../src/core/grizzco/engine/transa
 describe('transaction-session', () => {
   it('maps generic runner throw to LOOP_CRASH with VERIFY phase', async () => {
     const telemetry = new LoopTelemetry(() => new Date('2026-02-13T00:00:00.000Z'));
-    const emitSanitized = vi.fn();
+    const emitSanitized = mock();
     const runner = {
-      execute: vi.fn(async () => {
+      execute: mock(async () => {
         throw new Error('boom');
       }),
     } as any;

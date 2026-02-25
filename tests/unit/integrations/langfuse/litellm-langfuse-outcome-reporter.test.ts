@@ -51,7 +51,7 @@ describe('LiteLlmLangfuseOutcomeReporter', () => {
   it('records http_failed when ingestion responds non-2xx', async () => {
     stubGlobal(
       'fetch',
-      vi.fn(async () => {
+      mock(async () => {
         return {
           ok: false,
           status: 401,
@@ -88,7 +88,7 @@ describe('LiteLlmLangfuseOutcomeReporter', () => {
   it('records request_failed when fetch throws', async () => {
     stubGlobal(
       'fetch',
-      vi.fn(async () => {
+      mock(async () => {
         throw new Error('boom');
       }),
     );
@@ -119,7 +119,7 @@ describe('LiteLlmLangfuseOutcomeReporter', () => {
   it('records timeout kind when ingestion request is aborted', async () => {
     stubGlobal(
       'fetch',
-      vi.fn(async () => {
+      mock(async () => {
         const err = new Error('aborted');
         (err as any).name = 'AbortError';
         throw err;
@@ -152,7 +152,7 @@ describe('LiteLlmLangfuseOutcomeReporter', () => {
   it('records ingestion_failed when response includes per-event errors', async () => {
     stubGlobal(
       'fetch',
-      vi.fn(async () => {
+      mock(async () => {
         return {
           ok: true,
           json: async () => ({
@@ -186,7 +186,7 @@ describe('LiteLlmLangfuseOutcomeReporter', () => {
   });
 
   it('sends Basic auth + x-litellm-api-key when litellmApiKey is provided', async () => {
-    const fetchMock = vi.fn(async (..._args: any[]) => {
+    const fetchMock = mock(async (..._args: any[]) => {
       return { ok: true, json: async () => ({ successes: [], errors: [] }) } as any;
     });
     stubGlobal('fetch', fetchMock);

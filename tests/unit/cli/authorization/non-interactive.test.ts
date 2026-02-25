@@ -1,9 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from 'bun:test';
+import { beforeEach, describe, expect, it } from 'bun:test';
 import { execa } from 'execa';
 
-vi.mock('execa', () => {
+mock.module('execa', () => {
   return {
-    execa: vi.fn(),
+    execa: mock(),
   };
 });
 

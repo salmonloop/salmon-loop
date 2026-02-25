@@ -1,13 +1,13 @@
-import { describe, expect, it, vi, beforeEach } from 'bun:test';
+import { describe, expect, it, beforeEach } from 'bun:test';
 
 import { text } from '../../../../src/cli/locales/index.js';
 
-const listAgentsMock = vi.fn();
-const getAgentMock = vi.fn();
-const tailLogsMock = vi.fn();
-const requestStopMock = vi.fn();
+const listAgentsMock = mock();
+const getAgentMock = mock();
+const tailLogsMock = mock();
+const requestStopMock = mock();
 
-vi.mock('../../../../src/core/sub-agent/controller.js', () => ({
+mock.module('../../../../src/core/sub-agent/controller.js', () => ({
   SubAgentController: {
     listAgents: (...args: any[]) => listAgentsMock(...args),
     getAgent: (...args: any[]) => getAgentMock(...args),
@@ -16,14 +16,14 @@ vi.mock('../../../../src/core/sub-agent/controller.js', () => ({
   },
 }));
 
-const emitMock = vi.fn();
+const emitMock = mock();
 
 function createContext(input: string) {
   return {
     emit: emitMock,
     input,
     sessionManager: {} as any,
-    dispatch: vi.fn(),
+    dispatch: mock(),
   };
 }
 

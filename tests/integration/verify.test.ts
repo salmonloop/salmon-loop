@@ -16,7 +16,7 @@ describe('Verify Integration Tests with Real FS', () => {
   beforeEach(async () => {
     const repo = await helper.createGitRepo();
     repoPath = repo.path;
-    vi.clearAllMocks();
+    mock.clearAllMocks();
   });
 
   afterEach(async () => {

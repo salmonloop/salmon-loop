@@ -1,40 +1,40 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'bun:test';
+import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 
 const hoisted = (() => ({
-  standardReporterCtor: vi.fn(),
-  startGuiCalled: vi.fn(),
+  standardReporterCtor: mock(),
+  startGuiCalled: mock(),
 }))();
 
-vi.mock('../../../../src/cli/reporters/standard.js', () => ({
+mock.module('../../../../src/cli/reporters/standard.js', () => ({
   StandardReporter: function StandardReporter(this: any, verbose: boolean) {
     hoisted.standardReporterCtor(verbose);
     return {
-      onStart: vi.fn(),
-      onEvent: vi.fn(),
-      onFinish: vi.fn(),
-      onError: vi.fn(),
+      onStart: mock(),
+      onEvent: mock(),
+      onFinish: mock(),
+      onError: mock(),
     };
   },
 }));
-vi.mock('../../../../src/cli/reporters/standard.ts', () => ({
+mock.module('../../../../src/cli/reporters/standard.ts', () => ({
   StandardReporter: function StandardReporter(this: any, verbose: boolean) {
     hoisted.standardReporterCtor(verbose);
     return {
-      onStart: vi.fn(),
-      onEvent: vi.fn(),
-      onFinish: vi.fn(),
-      onError: vi.fn(),
+      onStart: mock(),
+      onEvent: mock(),
+      onFinish: mock(),
+      onError: mock(),
     };
   },
 }));
 
-vi.mock('../../../../src/core/plugin/loader.js', () => ({
-  PluginLoader: { loadPlugins: vi.fn(async () => {}) },
+mock.module('../../../../src/core/plugin/loader.js', () => ({
+  PluginLoader: { loadPlugins: mock(async () => {}) },
 }));
 
-vi.mock('../../../../src/core/config/index.js', () => ({
+mock.module('../../../../src/core/config/index.js', () => ({
   ConfigError: class ConfigError extends Error {},
-  resolveConfig: vi.fn(async () => ({
+  resolveConfig: mock(async () => ({
     raw: { version: 1 },
     source: { used: false, path: undefined },
     observability: { langfuse: { enabled: false, outcome: false, endpoint: undefined } },
@@ -48,12 +48,12 @@ vi.mock('../../../../src/core/config/index.js', () => ({
   redactConfigForPrint: (v: any) => v,
 }));
 
-vi.mock('../../../../src/core/extensions/index.js', () => ({
+mock.module('../../../../src/core/extensions/index.js', () => ({
   ExtensionConfigError: class ExtensionConfigError extends Error {},
-  resolveExtensions: vi.fn(async () => ({ resolved: [] })),
+  resolveExtensions: mock(async () => ({ resolved: [] })),
 }));
 
-vi.mock('../../../../src/core/session/manager.js', () => ({
+mock.module('../../../../src/core/session/manager.js', () => ({
   ChatSessionManager: class ChatSessionManager {
     private current: any;
     constructor(private repoPath: string) {}
@@ -92,7 +92,7 @@ vi.mock('../../../../src/core/session/manager.js', () => ({
     async save() {}
   },
 }));
-vi.mock('../../../../src/core/session/manager.ts', () => ({
+mock.module('../../../../src/core/session/manager.ts', () => ({
   ChatSessionManager: class ChatSessionManager {
     private current: any;
     constructor(private repoPath: string) {}
@@ -132,48 +132,48 @@ vi.mock('../../../../src/core/session/manager.ts', () => ({
   },
 }));
 
-vi.mock('../../../../src/core/llm/factory.js', () => ({
-  createRuntimeLlm: vi.fn(() => ({
+mock.module('../../../../src/core/llm/factory.js', () => ({
+  createRuntimeLlm: mock(() => ({
     llm: {
-      chat: vi.fn(async () => ({ role: 'assistant', content: 'ok' })),
-      createPlan: vi.fn(async () => ({ goal: 'x', files: [], changes: [], verify: '' })),
-      createPatch: vi.fn(async () => ''),
+      chat: mock(async () => ({ role: 'assistant', content: 'ok' })),
+      createPlan: mock(async () => ({ goal: 'x', files: [], changes: [], verify: '' })),
+      createPatch: mock(async () => ''),
       getModelId: () => 'test',
     },
     warnings: [],
   })),
 }));
 
-vi.mock('../../../../src/core/runtime/loop.js', () => ({
-  runSalmonLoop: vi.fn(async () => ({ success: true, attempts: 1, changedFiles: [] })),
+mock.module('../../../../src/core/runtime/loop.js', () => ({
+  runSalmonLoop: mock(async () => ({ success: true, attempts: 1, changedFiles: [] })),
 }));
 
-vi.mock('../../../../src/cli/ui/index.js', () => ({
-  startGUI: vi.fn(async (_mode: any, _sessionManager: any, runFn: any) => {
+mock.module('../../../../src/cli/ui/index.js', () => ({
+  startGUI: mock(async (_mode: any, _sessionManager: any, runFn: any) => {
     hoisted.startGuiCalled();
     return runFn(() => {}, undefined, { signal: new AbortController().signal });
   }),
 }));
-vi.mock('../../../../src/cli/ui/index.tsx', () => ({
-  startGUI: vi.fn(async (_mode: any, _sessionManager: any, runFn: any) => {
+mock.module('../../../../src/cli/ui/index.tsx', () => ({
+  startGUI: mock(async (_mode: any, _sessionManager: any, runFn: any) => {
     hoisted.startGuiCalled();
     return runFn(() => {}, undefined, { signal: new AbortController().signal });
   }),
 }));
 
-vi.mock('../../../../src/cli/utils/verify-resolver.js', () => ({
-  resolveVerifyOption: vi.fn(async (_repoRoot: string, cliVerify?: string, cfgVerify?: string) => {
+mock.module('../../../../src/cli/utils/verify-resolver.js', () => ({
+  resolveVerifyOption: mock(async (_repoRoot: string, cliVerify?: string, cfgVerify?: string) => {
     return cliVerify ?? cfgVerify ?? 'bun -e "process.exit(0)"';
   }),
 }));
 
-vi.mock('../../../../src/cli/utils/llm-output.js', () => ({
-  resolveLlmOutputPolicyFromCli: vi.fn(() => ({ ok: true, policy: { kinds: [] } })),
+mock.module('../../../../src/cli/utils/llm-output.js', () => ({
+  resolveLlmOutputPolicyFromCli: mock(() => ({ ok: true, policy: { kinds: [] } })),
 }));
 
-vi.mock('../../../../src/cli/authorization/provider.js', () => ({
-  createTerminalAuthorizationProvider: vi.fn(() => ({ type: 'terminal' })),
-  createUiAuthorizationProvider: vi.fn(() => ({ type: 'ui' })),
+mock.module('../../../../src/cli/authorization/provider.js', () => ({
+  createTerminalAuthorizationProvider: mock(() => ({ type: 'terminal' })),
+  createUiAuthorizationProvider: mock(() => ({ type: 'ui' })),
 }));
 
 describe('handleRunCommand GUI mode', () => {
@@ -183,7 +183,7 @@ describe('handleRunCommand GUI mode', () => {
   beforeEach(() => {
     hoisted.standardReporterCtor.mockClear();
     hoisted.startGuiCalled.mockClear();
-    exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => undefined as never) as any);
+    exitSpy = spyOn(process, 'exit').mockImplementation((() => undefined as never) as any);
   });
 
   afterEach(() => {
@@ -278,8 +278,8 @@ describe('handleRunCommand GUI mode', () => {
       configurable: true,
     });
 
-    const stdoutWrite = vi.spyOn(process.stdout, 'write').mockImplementation(() => true as any);
-    const stderrWrite = vi.spyOn(process.stderr, 'write').mockImplementation(() => true as any);
+    const stdoutWrite = spyOn(process.stdout, 'write').mockImplementation(() => true as any);
+    const stderrWrite = spyOn(process.stderr, 'write').mockImplementation(() => true as any);
 
     const { handleRunCommand } = await import('../../../../src/cli/commands/run.js');
 

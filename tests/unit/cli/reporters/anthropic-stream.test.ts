@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 
-import { describe, expect, it, vi } from 'bun:test';
+import { describe, expect, it } from 'bun:test';
 
 import { createStdoutWriter } from '../../../../src/cli/headless/stdout-writer.js';
 import { AnthropicStreamReporter } from '../../../../src/cli/reporters/anthropic-stream.js';
@@ -22,7 +22,7 @@ function collectLines() {
 
 describe('AnthropicStreamReporter', () => {
   it('emits start, stream_event lines, result, and end', () => {
-    vi.useFakeTimers();
+    useFakeTimers();
     const restoreTime = freezeSystemTime('2026-02-20T00:00:00.000Z');
 
     const { lines, write } = collectLines();
@@ -110,7 +110,7 @@ describe('AnthropicStreamReporter', () => {
       exit_code: 0,
     });
 
-    vi.useRealTimers();
+    useRealTimers();
     restoreTime();
   });
 

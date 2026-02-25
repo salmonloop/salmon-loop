@@ -1,29 +1,29 @@
 // Force mock BEFORE importing AstParser
-vi.mock('web-tree-sitter', () => {
+mock.module('web-tree-sitter', () => {
   return {
     default: {
-      init: vi.fn().mockResolvedValue(undefined),
-      Parser: vi.fn().mockImplementation(() => ({
-        setLanguage: vi.fn(),
-        parse: vi.fn(),
+      init: mock().mockResolvedValue(undefined),
+      Parser: mock().mockImplementation(() => ({
+        setLanguage: mock(),
+        parse: mock(),
       })),
       Language: {
-        load: vi.fn().mockResolvedValue({}),
+        load: mock().mockResolvedValue({}),
       },
-      Query: vi.fn().mockImplementation(() => ({
-        captures: vi.fn().mockReturnValue([]),
+      Query: mock().mockImplementation(() => ({
+        captures: mock().mockReturnValue([]),
       })),
     },
-    Parser: vi.fn().mockImplementation(() => ({
-      init: vi.fn().mockResolvedValue(undefined),
-      setLanguage: vi.fn(),
-      parse: vi.fn(),
+    Parser: mock().mockImplementation(() => ({
+      init: mock().mockResolvedValue(undefined),
+      setLanguage: mock(),
+      parse: mock(),
     })),
     Language: {
-      load: vi.fn().mockResolvedValue({}),
+      load: mock().mockResolvedValue({}),
     },
-    Query: vi.fn().mockImplementation(() => ({
-      captures: vi.fn().mockReturnValue([]),
+    Query: mock().mockImplementation(() => ({
+      captures: mock().mockReturnValue([]),
     })),
   };
 });
@@ -32,16 +32,16 @@ import { AstParser } from '../../src/core/ast/parser.js';
 
 describe('AstParser Symbols', () => {
   beforeEach(() => {
-    vi.useFakeTimers();
-    vi.clearAllMocks();
+    useFakeTimers();
+    mock.clearAllMocks();
 
     // Default mock for getLanguage to avoid loading wasm files
-    vi.spyOn(AstParser, 'getLanguage').mockResolvedValue({});
+    spyOn(AstParser, 'getLanguage').mockResolvedValue({});
   });
 
   afterEach(() => {
-    vi.runAllTimers();
-    vi.useRealTimers();
+    runAllTimers();
+    useRealTimers();
   });
 
   describe('identifyDefinitions', () => {
@@ -50,11 +50,11 @@ describe('AstParser Symbols', () => {
         text: 'hello',
         startPosition: { row: 0, column: 9 },
         endPosition: { row: 0, column: 14 },
-        childForFieldName: vi.fn().mockReturnThis(),
+        childForFieldName: mock().mockReturnThis(),
       };
       const mockCapture = { name: 'def', node: mockNode };
       const mockQueryInstance = {
-        captures: vi.fn().mockReturnValue([mockCapture]),
+        captures: mock().mockReturnValue([mockCapture]),
       };
 
       // Import mocked Query class to verify its usage
@@ -79,11 +79,11 @@ describe('AstParser Symbols', () => {
         text: 'world',
         startPosition: { row: 1, column: 2 },
         endPosition: { row: 1, column: 7 },
-        childForFieldName: vi.fn().mockReturnThis(),
+        childForFieldName: mock().mockReturnThis(),
       };
       const mockCapture = { name: 'ref', node: mockNode };
       const mockQueryInstance = {
-        captures: vi.fn().mockReturnValue([mockCapture]),
+        captures: mock().mockReturnValue([mockCapture]),
       };
 
       const TreeSitter = await import('web-tree-sitter');

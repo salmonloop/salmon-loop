@@ -2,7 +2,7 @@ import { runGitCommand } from '../../src/core/adapters/git/git-runner.js';
 import { spawnCommand } from '../../src/core/runtime/process-runner.js';
 
 const fsMocks = (() => {
-  const realpathSync = vi.fn().mockImplementation((_p: string) => {
+  const realpathSync = mock().mockImplementation((_p: string) => {
     throw new Error('ENOENT');
   });
   return {
@@ -10,15 +10,15 @@ const fsMocks = (() => {
   };
 })();
 
-vi.mock('fs', () => fsMocks);
+mock.module('fs', () => fsMocks);
 
-vi.mock('../../src/core/runtime/process-runner.js', () => ({
-  spawnCommand: vi.fn(),
+mock.module('../../src/core/runtime/process-runner.js', () => ({
+  spawnCommand: mock(),
 }));
 
 describe('runGitCommand', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    mock.clearAllMocks();
     (spawnCommand as any).mockResolvedValue({
       code: 0,
       signal: null,

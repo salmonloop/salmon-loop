@@ -1,12 +1,12 @@
-import { describe, expect, it, vi } from 'bun:test';
+import { describe, expect, it } from 'bun:test';
 
 import { configCommand } from '../../../../src/cli/commands/config.js';
 import { snapshotInteractiveCommand } from '../../../../src/cli/commands/snapshot-interactive.js';
 import { createCliSlashRuntime } from '../../../../src/cli/slash/runtime.js';
 
-vi.mock('../../../../src/core/skills/loader.js', () => {
+mock.module('../../../../src/core/skills/loader.js', () => {
   return {
-    SkillLoader: vi.fn().mockImplementation(() => ({
+    SkillLoader: mock().mockImplementation(() => ({
       initialize: async () => [],
     })),
   };

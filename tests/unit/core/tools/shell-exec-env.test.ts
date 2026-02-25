@@ -1,16 +1,16 @@
-import { beforeEach, describe, expect, it, vi } from 'bun:test';
+import { beforeEach, describe, expect, it } from 'bun:test';
 
 const hoisted = (() => ({
-  execa: vi.fn(),
+  execa: mock(),
 }))();
 
-vi.mock('execa', () => ({
+mock.module('execa', () => ({
   execa: hoisted.execa,
 }));
 
 describe('executeShellExec environment injection', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    mock.clearAllMocks();
     hoisted.execa.mockResolvedValue({
       exitCode: 0,
       stdout: 'ok',

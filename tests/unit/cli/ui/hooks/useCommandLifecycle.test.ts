@@ -1,20 +1,20 @@
 import { act, renderHook } from '@testing-library/react';
-import { vi } from 'bun:test';
 
 import { useCommandLifecycle } from '../../../../../src/cli/ui/hooks/useCommandLifecycle.js';
+import { runOnlyPendingTimers } from '../../../../helpers/bun-timers.js';
 
 const hoisted = (() => ({
   inputHandler: null as ((input: string, key: any) => void) | null,
-  dispatch: vi.fn(),
+  dispatch: mock(),
 }))();
 
-vi.mock('ink', () => ({
+mock.module('ink', () => ({
   useInput: (handler: (input: string, key: any) => void) => {
     hoisted.inputHandler = handler;
   },
 }));
 
-vi.mock('../../../../../src/cli/ui/store/context.js', () => ({
+mock.module('../../../../../src/cli/ui/store/context.js', () => ({
   useUIStore: () => ({ dispatch: hoisted.dispatch }),
 }));
 
@@ -22,16 +22,16 @@ describe('useCommandLifecycle', () => {
   beforeEach(() => {
     hoisted.inputHandler = null;
     hoisted.dispatch.mockClear();
-    vi.useFakeTimers();
+    useFakeTimers();
   });
 
   afterEach(() => {
-    vi.runOnlyPendingTimers();
-    vi.useRealTimers();
+    runOnlyPendingTimers();
+    useRealTimers();
   });
 
   it('splat interrupts on Ctrl+C while running', () => {
-    const onExit = vi.fn();
+    const onExit = mock();
     renderHook(() => useCommandLifecycle('running', onExit));
 
     expect(hoisted.inputHandler).not.toBeNull();
@@ -50,7 +50,7 @@ describe('useCommandLifecycle', () => {
   });
 
   it('exits on second Ctrl+C', () => {
-    const onExit = vi.fn();
+    const onExit = mock();
     renderHook(() => useCommandLifecycle('running', onExit));
 
     act(() => {
@@ -65,7 +65,7 @@ describe('useCommandLifecycle', () => {
   });
 
   it('splat interrupts on double Escape while running', () => {
-    const onExit = vi.fn();
+    const onExit = mock();
     renderHook(() => useCommandLifecycle('running', onExit));
 
     act(() => {

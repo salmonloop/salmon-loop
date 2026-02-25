@@ -2,20 +2,20 @@ import { FileHandleManager } from '../../../src/core/adapters/git/lock-manager.j
 
 const fsMocks = (() => {
   return {
-    mkdir: vi.fn(),
-    open: vi.fn(),
-    unlink: vi.fn(),
-    readFile: vi.fn(),
+    mkdir: mock(),
+    open: mock(),
+    unlink: mock(),
+    readFile: mock(),
   };
 })();
 
-vi.mock('fs/promises', () => fsMocks);
+mock.module('fs/promises', () => fsMocks);
 
 describe('FileHandleManager releaseLock', () => {
   const originalEnableLockInTest = process.env.SALMONLOOP_ENABLE_LOCK_IN_TEST;
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    mock.clearAllMocks();
     process.env.SALMONLOOP_ENABLE_LOCK_IN_TEST = '1';
   });
 

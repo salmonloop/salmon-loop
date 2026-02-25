@@ -1,9 +1,9 @@
-import { describe, it, expect, vi } from 'bun:test';
+import { describe, it, expect } from 'bun:test';
 
 // Mock external dependencies to ensure isolation
-vi.mock('../../../../src/core/strata/checkpoint/manager.js', () => ({
-  CheckpointManager: vi.fn().mockImplementation(() => ({
-    listSnapshots: vi.fn().mockResolvedValue([
+mock.module('../../../../src/core/strata/checkpoint/manager.js', () => ({
+  CheckpointManager: mock().mockImplementation(() => ({
+    listSnapshots: mock().mockResolvedValue([
       { hash: 'abcdef123456', message: 'First Snapshot' },
       { hash: '789012345678', message: 'Second Snapshot' },
     ]),
@@ -41,18 +41,18 @@ describe('CLI Command Registry: Strict Logic Guard', () => {
 
   describe('getSuggestions (Multi-Level Engine)', () => {
     const mockSessionManager = {
-      listSessions: vi.fn().mockResolvedValue([
+      listSessions: mock().mockResolvedValue([
         { id: 'session-unique-id', name: 'Dev Project', updatedAt: new Date().toISOString() },
         { id: 'abc-xyz-123', name: 'Test Suite', updatedAt: new Date().toISOString() },
       ]),
-      getCurrent: vi.fn().mockReturnValue({ meta: { repoPath: '/test-repo' } }),
+      getCurrent: mock().mockReturnValue({ meta: { repoPath: '/test-repo' } }),
     };
 
     const mockContext = {
-      emit: vi.fn(),
+      emit: mock(),
       sessionManager: mockSessionManager as any,
       input: '',
-      dispatch: vi.fn(),
+      dispatch: mock(),
     };
 
     describe('Level 0: Command Suggestions', () => {

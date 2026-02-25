@@ -40,12 +40,12 @@ describe('ApplyBack Flow Integration Tests', () => {
 
     synchronizer = new WorkspaceSynchronizer(new CheckpointManager());
     monitor.resetMetrics();
-    vi.clearAllMocks();
+    mock.clearAllMocks();
   });
 
   afterEach(async () => {
     await helper.cleanup();
-    vi.restoreAllMocks();
+    mock.restore();
   });
 
   const getApplyBack = (s: WorkspaceSynchronizer) => s.applyBackToMainWorkspace.bind(s);

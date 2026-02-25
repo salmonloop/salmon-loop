@@ -5,23 +5,23 @@ import { LIMITS } from '../../src/core/config/limits.js';
 // Mock storage
 const mockLocks = new Set<string>();
 const mockLockContents = new Map<string, string>();
-const spawnMock = vi.fn();
+const spawnMock = mock();
 
 let nextTickSpy: { mockRestore: () => void } | undefined;
 let killSpy: { mockRestore: () => void } | undefined;
 
 // Mock dependencies at top level
-vi.mock('child_process', () => ({
-  spawn: vi.fn((...args: any[]) => spawnMock(...args)),
+mock.module('child_process', () => ({
+  spawn: mock((...args: any[]) => spawnMock(...args)),
 }));
 
-vi.mock('../../src/core/adapters/git/git-runner.js', () => ({
-  runGitCommand: vi.fn(),
+mock.module('../../src/core/adapters/git/git-runner.js', () => ({
+  runGitCommand: mock(),
 }));
 
-vi.mock('fs/promises', () => {
+mock.module('fs/promises', () => {
   return {
-    open: vi.fn(async (filePath: string, flags: string) => {
+    open: mock(async (filePath: string, flags: string) => {
       if (
         typeof filePath === 'string' &&
         filePath.endsWith('.salmonloop.lock') &&
@@ -34,18 +34,18 @@ vi.mock('fs/promises', () => {
         }
         mockLocks.add(filePath);
         return {
-          writeFile: vi.fn(async (contents: string) => {
+          writeFile: mock(async (contents: string) => {
             mockLockContents.set(filePath, contents);
           }),
-          close: vi.fn(),
+          close: mock(),
         };
       }
       return {
-        writeFile: vi.fn(),
-        close: vi.fn(),
+        writeFile: mock(),
+        close: mock(),
       };
     }),
-    unlink: vi.fn(async (filePath: string) => {
+    unlink: mock(async (filePath: string) => {
       if (typeof filePath === 'string' && filePath.endsWith('.salmonloop.lock')) {
         mockLocks.delete(filePath);
         mockLockContents.delete(filePath);
@@ -53,7 +53,7 @@ vi.mock('fs/promises', () => {
       }
       return undefined;
     }),
-    readFile: vi.fn(async (filePath: string, _encoding: any) => {
+    readFile: mock(async (filePath: string, _encoding: any) => {
       if (typeof filePath === 'string' && filePath.endsWith('.salmonloop.lock')) {
         return (
           mockLockContents.get(filePath) ??
@@ -66,38 +66,38 @@ vi.mock('fs/promises', () => {
       }
       return '';
     }),
-    stat: vi.fn(async (filePath: string) => {
+    stat: mock(async (filePath: string) => {
       if (typeof filePath === 'string' && filePath.endsWith('.salmonloop.lock')) {
         return { mtimeMs: Date.now() };
       }
       return { mtimeMs: Date.now() };
     }),
-    mkdir: vi.fn(async () => undefined),
-    rm: vi.fn(async () => undefined),
-    writeFile: vi.fn(async () => undefined),
+    mkdir: mock(async () => undefined),
+    rm: mock(async () => undefined),
+    writeFile: mock(async () => undefined),
   };
 });
 
 const mockTreeSitter = () => {
-  const Parser = vi.fn().mockImplementation(() => ({
-    setLanguage: vi.fn(),
-    parse: vi.fn(),
+  const Parser = mock().mockImplementation(() => ({
+    setLanguage: mock(),
+    parse: mock(),
   }));
-  (Parser as any).init = vi.fn().mockResolvedValue(undefined);
+  (Parser as any).init = mock().mockResolvedValue(undefined);
 
   return {
     default: {
-      init: vi.fn().mockResolvedValue(undefined),
+      init: mock().mockResolvedValue(undefined),
       Parser,
-      Language: { load: vi.fn().mockResolvedValue({}) },
-      Query: vi.fn().mockImplementation(() => ({
-        captures: vi.fn().mockReturnValue([]),
+      Language: { load: mock().mockResolvedValue({}) },
+      Query: mock().mockImplementation(() => ({
+        captures: mock().mockReturnValue([]),
       })),
     },
     Parser,
-    Language: { load: vi.fn().mockResolvedValue({}) },
-    Query: vi.fn().mockImplementation(() => ({
-      captures: vi.fn().mockReturnValue([]),
+    Language: { load: mock().mockResolvedValue({}) },
+    Query: mock().mockImplementation(() => ({
+      captures: mock().mockReturnValue([]),
     })),
   };
 };
@@ -108,7 +108,7 @@ describe('Race Conditions & Concurrency', () => {
 
   beforeEach(async () => {
     // We will use REAL timers but short delays to avoid flaky fake timer issues with async loops
-    killSpy = vi.spyOn(process, 'kill').mockImplementation(() => true);
+    killSpy = spyOn(process, 'kill').mockImplementation(() => true);
     process.env.SALMONLOOP_ENABLE_LOCK_IN_TEST = 'true';
     mockLocks.clear();
     mockLockContents.clear();

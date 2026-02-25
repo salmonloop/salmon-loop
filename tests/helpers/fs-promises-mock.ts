@@ -8,11 +8,36 @@
  * ```typescript
  * import { setupFsPromisesMock } from '../helpers/fs-promises-mock.js';
  *
- * vi.mock('fs/promises', () => setupFsPromisesMock());
+ * mock.module('fs/promises', () => setupFsPromisesMock());
  * ```
  */
 
 import type { Stats } from 'fs';
+import { EventEmitter } from 'node:events';
+
+type FsPath = string | Buffer | URL;
+
+interface MockFileHandle extends EventEmitter {
+  close: () => Promise<void>;
+  write: (buffer: Buffer) => Promise<{ bytesWritten: number; buffer: Buffer }>;
+  read: (
+    buffer: Buffer | null,
+    offset?: number,
+    length?: number,
+    position?: number,
+  ) => Promise<{
+    bytesRead: number;
+    buffer: Buffer;
+  }>;
+  stat: () => Promise<Stats>;
+  appendFile: (data: string | Buffer) => Promise<void>;
+  truncate: () => Promise<void>;
+  sync: () => Promise<void>;
+  datasync: () => Promise<void>;
+  chown: () => Promise<void>;
+  chmod: () => Promise<void>;
+  fd: number;
+}
 
 import { mock } from 'bun:test';
 
@@ -56,51 +81,51 @@ export function setupFsPromisesMock(options: FsPromisesMockOptions = {}) {
 
   const mockImplementation = {
     // Read operations
-    readFile: vi.fn().mockResolvedValue(defaultContent),
+    readFile: mock().mockResolvedValue(defaultContent),
 
     // Write operations
-    writeFile: vi.fn().mockResolvedValue(undefined),
-    copyFile: vi.fn().mockResolvedValue(undefined),
+    writeFile: mock().mockResolvedValue(undefined),
+    copyFile: mock().mockResolvedValue(undefined),
 
     // Directory operations
-    mkdir: vi.fn().mockResolvedValue(undefined),
-    rm: vi.fn().mockResolvedValue(undefined),
-    rmdir: vi.fn().mockResolvedValue(undefined),
-    readdir: vi.fn().mockResolvedValue([]),
+    mkdir: mock().mockResolvedValue(undefined),
+    rm: mock().mockResolvedValue(undefined),
+    rmdir: mock().mockResolvedValue(undefined),
+    readdir: mock().mockResolvedValue([]),
 
     // File operations
-    unlink: vi.fn().mockResolvedValue(undefined),
-    rename: vi.fn().mockResolvedValue(undefined),
+    unlink: mock().mockResolvedValue(undefined),
+    rename: mock().mockResolvedValue(undefined),
 
     // Metadata operations
-    stat: vi.fn().mockResolvedValue(defaultStats as Stats),
-    lstat: vi.fn().mockResolvedValue(defaultStats as Stats),
-    access: vi.fn().mockResolvedValue(undefined),
+    stat: mock().mockResolvedValue(defaultStats as Stats),
+    lstat: mock().mockResolvedValue(defaultStats as Stats),
+    access: mock().mockResolvedValue(undefined),
 
     // File handle operations
-    open: vi.fn().mockImplementation(async () => {
-      const handle = new (await import('events')).EventEmitter() as any;
-      handle.close = vi.fn().mockResolvedValue(undefined);
-      handle.write = vi.fn().mockResolvedValue({ bytesWritten: 0, buffer: Buffer.from('') });
-      handle.read = vi.fn().mockResolvedValue({ bytesRead: 0, buffer: Buffer.from('') });
-      handle.stat = vi.fn().mockResolvedValue(defaultStats);
-      handle.appendFile = vi.fn().mockResolvedValue(undefined);
-      handle.truncate = vi.fn().mockResolvedValue(undefined);
-      handle.sync = vi.fn().mockResolvedValue(undefined);
-      handle.datasync = vi.fn().mockResolvedValue(undefined);
-      handle.chown = vi.fn().mockResolvedValue(undefined);
-      handle.chmod = vi.fn().mockResolvedValue(undefined);
+    open: mock().mockImplementation(async () => {
+      const handle = new EventEmitter() as MockFileHandle;
+      handle.close = mock().mockResolvedValue(undefined);
+      handle.write = mock().mockResolvedValue({ bytesWritten: 0, buffer: Buffer.from('') });
+      handle.read = mock().mockResolvedValue({ bytesRead: 0, buffer: Buffer.from('') });
+      handle.stat = mock().mockResolvedValue(defaultStats);
+      handle.appendFile = mock().mockResolvedValue(undefined);
+      handle.truncate = mock().mockResolvedValue(undefined);
+      handle.sync = mock().mockResolvedValue(undefined);
+      handle.datasync = mock().mockResolvedValue(undefined);
+      handle.chown = mock().mockResolvedValue(undefined);
+      handle.chmod = mock().mockResolvedValue(undefined);
       handle.fd = 42;
       return handle;
     }),
 
     // Symlink operations
-    symlink: vi.fn().mockResolvedValue(undefined),
-    readlink: vi.fn().mockResolvedValue(''),
+    symlink: mock().mockResolvedValue(undefined),
+    readlink: mock().mockResolvedValue(''),
 
     // Permission operations
-    chmod: vi.fn().mockResolvedValue(undefined),
-    chown: vi.fn().mockResolvedValue(undefined),
+    chmod: mock().mockResolvedValue(undefined),
+    chown: mock().mockResolvedValue(undefined),
   };
 
   if (useRealFs) {
@@ -121,18 +146,18 @@ export function setupFsPromisesMock(options: FsPromisesMockOptions = {}) {
  */
 export function resetFsPromisesMocks() {
   // Clear all mock call state so each test can start from a clean baseline.
-  vi.resetAllMocks();
+  mock.clearAllMocks();
 }
 
 /**
  * Helper to configure readFile mock with file-specific content
  *
  * Note: This requires the fs/promises module to already be mocked.
- * Call this after vi.mock('fs/promises', setupFsPromisesMock())
+ * Call this after mock.module('fs/promises', setupFsPromisesMock())
  */
 export function mockReadFileContent(fileMap: Record<string, string | Buffer>) {
   // Access the already-mocked module
-  const mockReadFile = vi.fn().mockImplementation(async (path: any) => {
+  const mockReadFile = mock().mockImplementation(async (path: FsPath) => {
     const pathStr = typeof path === 'string' ? path : path.toString();
 
     for (const [pattern, content] of Object.entries(fileMap)) {
@@ -154,10 +179,10 @@ export function mockReadFileContent(fileMap: Record<string, string | Buffer>) {
  * Helper to configure stat mock with file-specific sizes
  *
  * Note: This requires the fs/promises module to already be mocked.
- * Call this after vi.mock('fs/promises', setupFsPromisesMock())
+ * Call this after mock.module('fs/promises', setupFsPromisesMock())
  */
 export function mockFileStats(statsMap: Record<string, Partial<Stats>>) {
-  const mockStat = vi.fn().mockImplementation(async (path: any) => {
+  const mockStat = mock().mockImplementation(async (path: FsPath) => {
     const pathStr = typeof path === 'string' ? path : path.toString();
 
     for (const [pattern, stats] of Object.entries(statsMap)) {
@@ -192,29 +217,30 @@ export function createFsOperationTracker() {
   const operations: Array<{
     operation: string;
     path: string;
-    args: any[];
+    args: unknown[];
     timestamp: number;
   }> = [];
 
-  const track = (operation: string) =>
-    vi.fn().mockImplementation(async (...args: any[]) => {
+  const track = <T = void>(operation: string) =>
+    mock<(...args: unknown[]) => Promise<T>>().mockImplementation(async (...args) => {
       operations.push({
         operation,
-        path: args[0]?.toString() || '',
+        path: String(args[0] ?? ''),
         args,
         timestamp: Date.now(),
       });
+      return undefined as T;
     });
 
   return {
     operations,
     trackedMocks: {
-      readFile: track('readFile').mockResolvedValue(''),
-      writeFile: track('writeFile').mockResolvedValue(undefined),
-      copyFile: track('copyFile').mockResolvedValue(undefined),
-      mkdir: track('mkdir').mockResolvedValue(undefined),
-      rm: track('rm').mockResolvedValue(undefined),
-      unlink: track('unlink').mockResolvedValue(undefined),
+      readFile: track<string>('readFile').mockResolvedValue(''),
+      writeFile: track<void>('writeFile').mockResolvedValue(undefined),
+      copyFile: track<void>('copyFile').mockResolvedValue(undefined),
+      mkdir: track<void>('mkdir').mockResolvedValue(undefined),
+      rm: track<void>('rm').mockResolvedValue(undefined),
+      unlink: track<void>('unlink').mockResolvedValue(undefined),
     },
     reset: () => {
       operations.length = 0;

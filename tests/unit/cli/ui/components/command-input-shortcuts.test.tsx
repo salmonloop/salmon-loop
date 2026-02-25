@@ -1,14 +1,13 @@
 import { render } from '@testing-library/react';
-import { vi } from 'bun:test';
 import React from 'react';
 
 const hoisted = (() => ({
   inputHandler: null as ((input: string, key: any) => void) | null,
   textInputProps: null as any,
-  dispatch: vi.fn(),
+  dispatch: mock(),
 }))();
 
-vi.mock('ink', () => ({
+mock.module('ink', () => ({
   Box: (props: any) => React.createElement('div', null, props.children),
   Text: (props: any) => React.createElement('span', null, props.children),
   useInput: (handler: (input: string, key: any) => void) => {
@@ -16,36 +15,36 @@ vi.mock('ink', () => ({
   },
 }));
 
-vi.mock('ink-text-input', () => ({
+mock.module('ink-text-input', () => ({
   default: (props: any) => {
     hoisted.textInputProps = props;
     return null;
   },
 }));
 
-vi.mock('../../../../../src/cli/ui/hooks/useCommandSuggestions.js', () => ({
+mock.module('../../../../../src/cli/ui/hooks/useCommandSuggestions.js', () => ({
   useCommandSuggestions: () => ({
     suggestions: [],
     selectedIndex: -1,
     startIndex: 0,
     isListClosed: true,
-    setIsListClosed: vi.fn(),
-    setSuggestions: vi.fn(),
-    setSelectedIndex: vi.fn(),
-    setStartIndex: vi.fn(),
-    navigateSuggestions: vi.fn(() => false),
+    setIsListClosed: mock(),
+    setSuggestions: mock(),
+    setSelectedIndex: mock(),
+    setStartIndex: mock(),
+    navigateSuggestions: mock(() => false),
     activeCommand: null,
   }),
 }));
 
-vi.mock('../../../../../src/cli/ui/hooks/useInputHistory.js', () => ({
+mock.module('../../../../../src/cli/ui/hooks/useInputHistory.js', () => ({
   useInputHistory: () => ({
-    navigateHistory: vi.fn(),
-    resetHistory: vi.fn(),
+    navigateHistory: mock(),
+    resetHistory: mock(),
   }),
 }));
 
-vi.mock('../../../../../src/cli/ui/store/context.js', () => ({
+mock.module('../../../../../src/cli/ui/store/context.js', () => ({
   useUIStore: () => ({
     state: {
       pendingConfirmation: undefined,
@@ -56,13 +55,13 @@ vi.mock('../../../../../src/cli/ui/store/context.js', () => ({
   }),
 }));
 
-vi.mock('../../../../../src/cli/ui/authorization/bus.js', () => ({
-  rejectAuthorization: vi.fn(),
+mock.module('../../../../../src/cli/ui/authorization/bus.js', () => ({
+  rejectAuthorization: mock(),
 }));
 
-vi.mock('../../../../../src/cli/ui/selection/bus.js', () => ({
-  rejectSelection: vi.fn(),
-  resolveSelection: vi.fn(),
+mock.module('../../../../../src/cli/ui/selection/bus.js', () => ({
+  rejectSelection: mock(),
+  resolveSelection: mock(),
 }));
 
 describe('CommandInput shortcuts', () => {
@@ -78,8 +77,8 @@ describe('CommandInput shortcuts', () => {
 
   it('suppresses Ctrl+T so it does not type into the input', async () => {
     const CommandInput = await loadCommandInput();
-    const onChange = vi.fn();
-    const onSubmit = vi.fn();
+    const onChange = mock();
+    const onSubmit = mock();
 
     render(
       <CommandInput
@@ -101,8 +100,8 @@ describe('CommandInput shortcuts', () => {
 
   it('allows normal typing', async () => {
     const CommandInput = await loadCommandInput();
-    const onChange = vi.fn();
-    const onSubmit = vi.fn();
+    const onChange = mock();
+    const onSubmit = mock();
 
     render(
       <CommandInput

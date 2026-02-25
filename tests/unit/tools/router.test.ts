@@ -5,6 +5,7 @@ import { ToolRegistry } from '../../../src/core/tools/registry.js';
 import { ToolRouter } from '../../../src/core/tools/router.js';
 import { ToolSanitizer } from '../../../src/core/tools/sanitize.js';
 import { Phase } from '../../../src/core/types/index.js';
+import { advanceTimersByTime } from '../../helpers/bun-timers.js';
 
 describe('ToolRouter', () => {
   let router: ToolRouter;
@@ -16,11 +17,11 @@ describe('ToolRouter', () => {
 
   beforeEach(() => {
     // Mocking dependencies for strict pipeline verification
-    registry = { getSpec: vi.fn() } as any;
-    policy = { decide: vi.fn() } as any;
-    budget = { runWithGuards: vi.fn() } as any;
-    audit = { onStart: vi.fn(), onEnd: vi.fn(), onAuthorization: vi.fn() } as any;
-    sanitizer = { validateInput: vi.fn(), sanitizeOutput: vi.fn() } as any;
+    registry = { getSpec: mock() } as any;
+    policy = { decide: mock() } as any;
+    budget = { runWithGuards: mock() } as any;
+    audit = { onStart: mock(), onEnd: mock(), onAuthorization: mock() } as any;
+    sanitizer = { validateInput: mock(), sanitizeOutput: mock() } as any;
 
     router = new ToolRouter(registry, policy, budget, audit, sanitizer);
   });
@@ -30,7 +31,7 @@ describe('ToolRouter', () => {
       name: 'test.tool',
       source: 'builtin',
       riskLevel: 'low',
-      executor: vi.fn().mockResolvedValue('raw output'),
+      executor: mock().mockResolvedValue('raw output'),
     };
     const envelope = {
       id: 'call_1',
@@ -70,7 +71,7 @@ describe('ToolRouter', () => {
       name: 'fs.read',
       source: 'builtin',
       riskLevel: 'low',
-      executor: vi.fn().mockResolvedValue('raw output'),
+      executor: mock().mockResolvedValue('raw output'),
     };
     const envelope = {
       id: 'call_normalized',
@@ -131,7 +132,7 @@ describe('ToolRouter', () => {
       source: 'builtin',
       riskLevel: 'high',
       sideEffects: ['network'],
-      executor: vi.fn().mockResolvedValue('ok'),
+      executor: mock().mockResolvedValue('ok'),
     };
     const envelope = {
       id: 'call_6',
@@ -142,7 +143,7 @@ describe('ToolRouter', () => {
     };
 
     const authorization = {
-      requestAuthorization: vi.fn().mockResolvedValue({ outcome: 'deny', reason: 'no' }),
+      requestAuthorization: mock().mockResolvedValue({ outcome: 'deny', reason: 'no' }),
     };
 
     (registry.getSpec as any).mockReturnValue(mockSpec);
@@ -160,14 +161,14 @@ describe('ToolRouter', () => {
   });
 
   it('should cache allow_session decisions and respect ttl', async () => {
-    vi.useFakeTimers();
+    useFakeTimers();
 
     const mockSpec = {
       name: 'fs.read',
       source: 'builtin',
       riskLevel: 'low',
       sideEffects: ['fs_read'],
-      executor: vi.fn().mockResolvedValue('ok'),
+      executor: mock().mockResolvedValue('ok'),
     };
     const envelope = {
       id: 'call_7',
@@ -178,7 +179,7 @@ describe('ToolRouter', () => {
     };
 
     const authorization = {
-      requestAuthorization: vi.fn().mockResolvedValue({ outcome: 'allow_session', ttlMs: 1000 }),
+      requestAuthorization: mock().mockResolvedValue({ outcome: 'allow_session', ttlMs: 1000 }),
     };
 
     (registry.getSpec as any).mockReturnValue(mockSpec);
@@ -198,12 +199,12 @@ describe('ToolRouter', () => {
 
     expect(authorization.requestAuthorization).toHaveBeenCalledTimes(1);
 
-    vi.advanceTimersByTime(1001);
+    advanceTimersByTime(1001);
 
     await router.call({ ...envelope, id: 'call_9' });
     expect(authorization.requestAuthorization).toHaveBeenCalledTimes(2);
 
-    vi.useRealTimers();
+    useRealTimers();
   });
 
   it('should map execution timeout to "timeout" status and TIMEOUT code', async () => {
@@ -228,7 +229,7 @@ describe('ToolRouter', () => {
     const mockSpec = {
       name: 'fs.read',
       source: 'builtin',
-      executor: vi.fn().mockResolvedValue('content'),
+      executor: mock().mockResolvedValue('content'),
     };
     const ctx = { repoRoot: '/project/root', env: { GIT_DIR: '.git' } };
     const envelope = {

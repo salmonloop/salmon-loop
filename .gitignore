@@ -60,6 +60,7 @@ CLAUDE.md
 .goose/
 .opencode/
 .roo/
+.kiro/
 findings.md
 progress.md
 task_plan.md

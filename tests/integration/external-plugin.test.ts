@@ -46,7 +46,7 @@ describe('External User Plugin Integration', () => {
   beforeEach(async () => {
     // Reset plugin loader state
     PluginLoader.reset();
-    vi.clearAllMocks();
+    mock.clearAllMocks();
 
     const root = await mkdtemp(join(tmpdir(), 'salmonloop-user-plugin-'));
     const pluginDir = join(root, '.salmonloop', 'languages', 'dummy');
@@ -56,7 +56,7 @@ describe('External User Plugin Integration', () => {
   });
 
   afterEach(async () => {
-    vi.restoreAllMocks();
+    mock.restore();
     if (fixturePath) {
       await rm(fixturePath, { recursive: true, force: true });
       fixturePath = '';

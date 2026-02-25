@@ -10,7 +10,7 @@ describe('Path Robustness', () => {
 
     beforeEach(async () => {
       const gitRunner = await import('../../src/core/adapters/git/git-runner.js');
-      runGitCommandMock = vi.spyOn(gitRunner, 'runGitCommand').mockResolvedValue({
+      runGitCommandMock = spyOn(gitRunner, 'runGitCommand').mockResolvedValue({
         ok: true,
         code: 0,
         signal: null,
@@ -24,7 +24,7 @@ describe('Path Robustness', () => {
       adapter = new GitAdapter(repoPath);
     });
     afterEach(() => {
-      vi.restoreAllMocks();
+      mock.restore();
     });
 
     function getLastCallArgs(): string[] {

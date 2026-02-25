@@ -5,11 +5,11 @@ import { FileStatus } from '../../../../../src/core/grizzco/domain/grizzco-types
 import { FileStateResolver } from '../../../../../src/core/strata/layers/file-state-resolver.js';
 
 // Mock dependencies
-vi.mock('fs/promises', () => ({
-  lstat: vi.fn(),
-  stat: vi.fn(),
-  readFile: vi.fn(),
-  open: vi.fn(),
+mock.module('fs/promises', () => ({
+  lstat: mock(),
+  stat: mock(),
+  readFile: mock(),
+  open: mock(),
 }));
 describe('FileStateResolver', () => {
   let resolver: FileStateResolver;
@@ -17,11 +17,11 @@ describe('FileStateResolver', () => {
   const workspaceRoot = '/mock/root';
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    mock.clearAllMocks();
     mockGit = {
-      getStatus: vi.fn(),
-      show: vi.fn(),
-      checkIgnore: vi.fn().mockResolvedValue(false),
+      getStatus: mock(),
+      show: mock(),
+      checkIgnore: mock().mockResolvedValue(false),
     };
     resolver = new FileStateResolver(mockGit as any, workspaceRoot);
 
@@ -31,8 +31,8 @@ describe('FileStateResolver', () => {
     (fs.readFile as any).mockResolvedValue(Buffer.from(''));
     // Mock binary detection (default to text)
     (fs.open as any).mockResolvedValue({
-      read: vi.fn().mockResolvedValue({ bytesRead: 0, buffer: Buffer.alloc(8192) }),
-      close: vi.fn().mockResolvedValue(undefined),
+      read: mock().mockResolvedValue({ bytesRead: 0, buffer: Buffer.alloc(8192) }),
+      close: mock().mockResolvedValue(undefined),
     });
   });
 
@@ -98,8 +98,8 @@ describe('FileStateResolver', () => {
       binaryBuffer[10] = 0x00;
 
       (fs.open as any).mockResolvedValue({
-        read: vi.fn().mockResolvedValue({ bytesRead: 100, buffer: binaryBuffer }),
-        close: vi.fn().mockResolvedValue(undefined),
+        read: mock().mockResolvedValue({ bytesRead: 100, buffer: binaryBuffer }),
+        close: mock().mockResolvedValue(undefined),
       });
 
       const state = await resolver.resolve('src/image.png');

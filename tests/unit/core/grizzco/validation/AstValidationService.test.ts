@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'bun:test';
+import { afterEach, describe, expect, it } from 'bun:test';
 
 import { AstParser } from '../../../../../src/core/ast/parser.js';
 import {
@@ -12,7 +12,7 @@ describe('AstValidationService', () => {
   const helper = new RealFsTestHelper();
 
   afterEach(async () => {
-    vi.restoreAllMocks();
+    mock.restore();
     await helper.cleanup();
   });
 
@@ -62,7 +62,7 @@ describe('AstValidationService', () => {
       { type: OpType.PATCH, path: 'src/a.ts', content: Buffer.from('diff') },
     ];
 
-    const parse = vi.fn(async () => ({}));
+    const parse = mock(async () => ({}));
     const service = new AstValidationService({
       convertDiffToShadowOperations: async () => ops,
       resolveLanguage: () => 'typescript',
@@ -81,7 +81,7 @@ describe('AstValidationService', () => {
       { type: OpType.PATCH, path: 'src/a.ts', content: Buffer.from('diff') },
     ];
 
-    const parse = vi.fn(async () => ({}));
+    const parse = mock(async () => ({}));
     const service = new AstValidationService({
       convertDiffToShadowOperations: async () => ops,
       resolveLanguage: () => 'typescript',
@@ -117,7 +117,7 @@ describe('AstValidationService', () => {
   });
 
   it('uses AstParser.parse with correct static context in default deps', async () => {
-    const parseSpy = vi.spyOn(AstParser, 'parse').mockImplementation(async function (
+    const parseSpy = spyOn(AstParser, 'parse').mockImplementation(async function (
       this: typeof AstParser,
       _code: string,
       _lang: string,
@@ -143,7 +143,7 @@ describe('AstValidationService', () => {
   });
 
   it('parses full OVERWRITE content as proposed source', async () => {
-    const parseSpy = vi.fn(async (_code: string, _lang: string) => ({}));
+    const parseSpy = mock(async (_code: string, _lang: string) => ({}));
 
     const service = new AstValidationService({
       convertDiffToShadowOperations: async () => [

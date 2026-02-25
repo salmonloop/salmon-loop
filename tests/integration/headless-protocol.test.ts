@@ -1,6 +1,6 @@
 import path from 'path';
 
-import { describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it } from 'bun:test';
 
 import { runCli } from '../helpers/cli-runner.js';
 import {

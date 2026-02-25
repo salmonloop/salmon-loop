@@ -1,13 +1,13 @@
 import { RipgrepGatherer } from '../../../src/core/context/gatherers/ripgrep-gatherer.js';
 import { spawnCommand } from '../../../src/core/runtime/process-runner.js';
 
-vi.mock('../../../src/core/runtime/process-runner.js', () => ({
-  spawnCommand: vi.fn(),
+mock.module('../../../src/core/runtime/process-runner.js', () => ({
+  spawnCommand: mock(),
 }));
 
 describe('RipgrepGatherer', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    mock.clearAllMocks();
     (spawnCommand as any).mockResolvedValue({
       code: 0,
       signal: null,

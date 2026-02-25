@@ -1,21 +1,21 @@
 import { readFile, stat } from 'fs/promises';
 
-import { describe, expect, it, vi, beforeEach } from 'bun:test';
+import { describe, expect, it, beforeEach } from 'bun:test';
 
 import { executeFsReadFile, fsReadFileSpec } from '../../../src/core/tools/builtin/fs.js';
 import { registerAllBuiltins } from '../../../src/core/tools/builtin/index.js';
 import { ToolRegistry } from '../../../src/core/tools/registry.js';
 
-vi.mock('fs/promises', () => ({
-  readFile: vi.fn(),
-  stat: vi.fn(),
+mock.module('fs/promises', () => ({
+  readFile: mock(),
+  stat: mock(),
 }));
 
 describe('Builtin Tool: fs.read_file', () => {
   const repoRoot = '/fake/repo';
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    mock.clearAllMocks();
   });
 
   it('should read a file within the repository', async () => {

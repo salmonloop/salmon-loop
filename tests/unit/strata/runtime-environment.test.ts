@@ -8,46 +8,46 @@ const {
   hydrateMock,
   gitQueryMock,
 } = (() => ({
-  migrateLegacyRuntimeMock: vi.fn().mockResolvedValue(undefined),
-  createSafeSnapshotMock: vi.fn(),
-  restoreToShadowMock: vi.fn().mockResolvedValue(undefined),
-  deleteSnapshotMock: vi.fn().mockResolvedValue(undefined),
-  workspaceSetupMock: vi.fn(),
-  workspaceTeardownMock: vi.fn().mockResolvedValue(undefined),
-  hydrateMock: vi.fn().mockResolvedValue(undefined),
-  gitQueryMock: vi.fn(),
+  migrateLegacyRuntimeMock: mock().mockResolvedValue(undefined),
+  createSafeSnapshotMock: mock(),
+  restoreToShadowMock: mock().mockResolvedValue(undefined),
+  deleteSnapshotMock: mock().mockResolvedValue(undefined),
+  workspaceSetupMock: mock(),
+  workspaceTeardownMock: mock().mockResolvedValue(undefined),
+  hydrateMock: mock().mockResolvedValue(undefined),
+  gitQueryMock: mock(),
 }))();
 
-vi.mock('../../../src/core/runtime/paths.js', () => ({
+mock.module('../../../src/core/runtime/paths.js', () => ({
   migrateLegacyRuntime: migrateLegacyRuntimeMock,
 }));
 
-vi.mock('../../../src/core/llm/errors.js', () => ({
+mock.module('../../../src/core/llm/errors.js', () => ({
   sanitizeError: (error: unknown) => (error instanceof Error ? error.message : String(error)),
 }));
 
-vi.mock('../../../src/core/adapters/git/git-adapter.js', () => ({
-  GitAdapter: vi.fn().mockImplementation(() => ({
+mock.module('../../../src/core/adapters/git/git-adapter.js', () => ({
+  GitAdapter: mock().mockImplementation(() => ({
     query: gitQueryMock,
   })),
 }));
 
-vi.mock('../../../src/core/strata/checkpoint/manager.js', () => ({
-  CheckpointManager: vi.fn().mockImplementation(() => ({
+mock.module('../../../src/core/strata/checkpoint/manager.js', () => ({
+  CheckpointManager: mock().mockImplementation(() => ({
     createSafeSnapshot: createSafeSnapshotMock,
     restoreToShadow: restoreToShadowMock,
     deleteSnapshot: deleteSnapshotMock,
   })),
 }));
 
-vi.mock('../../../src/core/strata/layers/worktree.js', () => ({
+mock.module('../../../src/core/strata/layers/worktree.js', () => ({
   WorkspaceManager: {
     setup: workspaceSetupMock,
     teardown: workspaceTeardownMock,
   },
 }));
 
-vi.mock('../../../src/core/strata/layers/shadow-driver/shadow-driver.js', () => ({
+mock.module('../../../src/core/strata/layers/shadow-driver/shadow-driver.js', () => ({
   ShadowDriver: {
     hydrate: hydrateMock,
   },
@@ -67,7 +67,7 @@ function createOptions(overrides: Record<string, unknown> = {}): any {
 
 describe('RuntimeEnvironment safety behavior', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    mock.clearAllMocks();
     createSafeSnapshotMock.mockResolvedValue({ commitHash: 'snapshot-hash' });
     workspaceSetupMock.mockResolvedValue({
       strategy: 'worktree',
@@ -81,14 +81,14 @@ describe('RuntimeEnvironment safety behavior', () => {
   });
 
   it('throws when activeRepoPath is accessed before setup', () => {
-    const env = new RuntimeEnvironment(createOptions(), vi.fn());
+    const env = new RuntimeEnvironment(createOptions(), mock());
 
     expect(() => env.activeRepoPath).toThrow();
   });
 
   it('fails setup when snapshot creation fails', async () => {
     createSafeSnapshotMock.mockRejectedValueOnce(new Error('snapshot-broken'));
-    const env = new RuntimeEnvironment(createOptions(), vi.fn());
+    const env = new RuntimeEnvironment(createOptions(), mock());
 
     await expect(env.setup()).rejects.toThrow('Failed to create snapshot: snapshot-broken');
   });

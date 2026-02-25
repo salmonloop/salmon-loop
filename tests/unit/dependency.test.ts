@@ -2,13 +2,13 @@ import { readFile } from 'fs/promises';
 
 import { findFileDependencies } from '../../src/core/context/dependencies.js';
 
-vi.mock('fs/promises', () => ({
-  readFile: vi.fn(),
+mock.module('fs/promises', () => ({
+  readFile: mock(),
 }));
 
-vi.mock('../../src/core/plugin/registry.js', () => ({
+mock.module('../../src/core/plugin/registry.js', () => ({
   pluginRegistry: {
-    getByExtension: vi.fn().mockReturnValue({
+    getByExtension: mock().mockReturnValue({
       dependency: {
         extractImports: (content: string) => {
           const matches = [

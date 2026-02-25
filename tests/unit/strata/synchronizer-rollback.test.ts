@@ -8,17 +8,17 @@ import type { CheckpointRef } from '../../../src/core/types/index.js';
 
 const { queryMock, execMock, execMetaMock, checkIgnoreMock, applyPatchMock, stagedTreeHash } =
   (() => ({
-    queryMock: vi.fn(),
-    execMock: vi.fn(),
-    execMetaMock: vi.fn(),
-    checkIgnoreMock: vi.fn(),
-    applyPatchMock: vi.fn(),
+    queryMock: mock(),
+    execMock: mock(),
+    execMetaMock: mock(),
+    checkIgnoreMock: mock(),
+    applyPatchMock: mock(),
     stagedTreeHash: '1111111111111111111111111111111111111111',
   }))();
 
-vi.mock('../../../src/core/adapters/git/git-adapter', () => {
+mock.module('../../../src/core/adapters/git/git-adapter', () => {
   return {
-    GitAdapter: vi.fn().mockImplementation(() => ({
+    GitAdapter: mock().mockImplementation(() => ({
       query: queryMock,
       exec: execMock,
       execMeta: execMetaMock,
@@ -68,7 +68,7 @@ describe('WorkspaceSynchronizer rollback staged restore fallback', () => {
   };
 
   beforeEach(async () => {
-    vi.clearAllMocks();
+    mock.clearAllMocks();
     extraCleanupPaths = [];
 
     repoPath = await mkdtemp(path.join(tmpdir(), 'salmon-sync-rollback-'));
@@ -323,7 +323,7 @@ describe('WorkspaceSynchronizer rollback staged restore fallback', () => {
     execMock.mockResolvedValue('');
 
     const synchronizer = new WorkspaceSynchronizer({
-      restoreToMain: vi.fn().mockResolvedValue(undefined),
+      restoreToMain: mock().mockResolvedValue(undefined),
     } as unknown as CheckpointManager);
     applyPatchMock.mockRejectedValue(new Error('simulated clean apply failure'));
 
@@ -372,7 +372,7 @@ describe('WorkspaceSynchronizer rollback staged restore fallback', () => {
     execMock.mockResolvedValue('');
 
     const synchronizer = new WorkspaceSynchronizer({
-      restoreToMain: vi.fn().mockRejectedValue(new Error('invalid snapshot metadata')),
+      restoreToMain: mock().mockRejectedValue(new Error('invalid snapshot metadata')),
     } as unknown as CheckpointManager);
     applyPatchMock.mockRejectedValue(new Error('simulated clean apply failure'));
 
@@ -416,7 +416,7 @@ describe('WorkspaceSynchronizer rollback staged restore fallback', () => {
     execMock.mockResolvedValue('');
 
     const synchronizer = new WorkspaceSynchronizer({
-      restoreToMain: vi.fn().mockResolvedValue(undefined),
+      restoreToMain: mock().mockResolvedValue(undefined),
     } as unknown as CheckpointManager);
     applyPatchMock.mockRejectedValue(new Error('simulated no-change failure'));
 

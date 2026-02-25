@@ -5,30 +5,30 @@ import { AstGatherer } from '../../../src/core/context/gatherers/ast-gatherer.js
 import type { ContextRequest } from '../../../src/core/context/types.js';
 import { pluginRegistry } from '../../../src/core/plugin/registry.js';
 
-vi.mock('fs/promises', () => ({
-  readFile: vi.fn(),
+mock.module('fs/promises', () => ({
+  readFile: mock(),
 }));
-vi.mock('../../../src/core/ast/parser.js', () => ({
+mock.module('../../../src/core/ast/parser.js', () => ({
   AstParser: {
-    parse: vi.fn(),
-    identifyDefinitions: vi.fn(),
-    identifyReferences: vi.fn(),
-    queryCapturesFromQuery: vi.fn(),
+    parse: mock(),
+    identifyDefinitions: mock(),
+    identifyReferences: mock(),
+    queryCapturesFromQuery: mock(),
   },
 }));
 
 describe('AstGatherer import traversal', () => {
   beforeEach(() => {
-    vi.spyOn(pluginRegistry, 'getAll').mockReturnValue([
+    spyOn(pluginRegistry, 'getAll').mockReturnValue([
       {
         meta: { id: 'ts', name: 'TypeScript', extensions: ['.ts'] },
       } as any,
     ]);
-    vi.spyOn(pluginRegistry, 'getByExtension').mockReturnValue({
+    spyOn(pluginRegistry, 'getByExtension').mockReturnValue({
       meta: { id: 'ts', name: 'TypeScript', extensions: ['.ts'] },
     } as any);
 
-    const readFileMock = readFile as unknown as ReturnType<typeof vi.fn>;
+    const readFileMock = readFile as unknown as ReturnType<typeof mock>;
     readFileMock.mockImplementation(async (filePath: any) => {
       const p = String(filePath);
       if (p.endsWith('/b.ts')) {
@@ -40,15 +40,15 @@ describe('AstGatherer import traversal', () => {
       throw new Error(`ENOENT: ${p}`);
     });
 
-    (AstParser.parse as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({});
-    (AstParser.identifyDefinitions as unknown as ReturnType<typeof vi.fn>).mockResolvedValue([
+    (AstParser.parse as unknown as ReturnType<typeof mock>).mockResolvedValue({});
+    (AstParser.identifyDefinitions as unknown as ReturnType<typeof mock>).mockResolvedValue([
       {
         name: 'foo',
         kind: 'definition',
         location: { start: { line: 1, column: 1 }, end: { line: 1, column: 4 } },
       },
     ]);
-    (AstParser.identifyReferences as unknown as ReturnType<typeof vi.fn>).mockResolvedValue([
+    (AstParser.identifyReferences as unknown as ReturnType<typeof mock>).mockResolvedValue([
       {
         name: 'foo',
         kind: 'reference',
@@ -56,11 +56,11 @@ describe('AstGatherer import traversal', () => {
         snippet: 'foo()',
       },
     ]);
-    (AstParser.queryCapturesFromQuery as unknown as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (AstParser.queryCapturesFromQuery as unknown as ReturnType<typeof mock>).mockResolvedValue([]);
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    mock.restore();
   });
 
   it('keeps one-hop import traversal in shallow mode', async () => {
@@ -97,7 +97,7 @@ describe('AstGatherer import traversal', () => {
   });
 
   it('uses plugin queryPack for call graph and flow summaries when available', async () => {
-    vi.spyOn(pluginRegistry, 'getByExtension').mockReturnValue({
+    spyOn(pluginRegistry, 'getByExtension').mockReturnValue({
       meta: { id: 'ts', name: 'TypeScript', extensions: ['.ts'] },
       parsing: {
         queryPack: {
@@ -107,7 +107,7 @@ describe('AstGatherer import traversal', () => {
       },
     } as any);
 
-    (AstParser.queryCapturesFromQuery as unknown as ReturnType<typeof vi.fn>)
+    (AstParser.queryCapturesFromQuery as unknown as ReturnType<typeof mock>)
       .mockResolvedValueOnce([{ name: 'callee', text: 'foo', line: 2, column: 1 }])
       .mockResolvedValueOnce([{ name: 'branch', text: 'if', line: 2, column: 1 }])
       .mockResolvedValueOnce([{ name: 'throw', text: 'throw', line: 3, column: 1 }]);

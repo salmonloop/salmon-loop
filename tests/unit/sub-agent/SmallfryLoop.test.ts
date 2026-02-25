@@ -1,20 +1,20 @@
-import { describe, it, expect, vi, beforeEach } from 'bun:test';
+import { describe, it, expect, beforeEach } from 'bun:test';
 
 import { Pipeline } from '../../../src/core/grizzco/engine/pipeline/pipeline.js';
 import { InitCtx } from '../../../src/core/grizzco/engine/pipeline/types.js';
 import { SmallfryLoop } from '../../../src/core/sub-agent/core/loop.js';
 import { SubAgentProfile } from '../../../src/core/sub-agent/types.js';
 
-vi.mock('../../../src/core/grizzco/steps/audit.js', () => ({
-  saveAudit: vi.fn().mockResolvedValue('/tmp/audit.json'),
+mock.module('../../../src/core/grizzco/steps/audit.js', () => ({
+  saveAudit: mock().mockResolvedValue('/tmp/audit.json'),
 }));
 
-vi.mock('../../../src/core/grizzco/engine/pipeline/pipeline.js', () => ({
+mock.module('../../../src/core/grizzco/engine/pipeline/pipeline.js', () => ({
   Pipeline: {
-    of: vi.fn().mockReturnValue({
-      step: vi.fn().mockReturnThis(),
-      stepWithRecovery: vi.fn().mockReturnThis(),
-      execute: vi.fn().mockResolvedValue({
+    of: mock().mockReturnValue({
+      step: mock().mockReturnThis(),
+      stepWithRecovery: mock().mockReturnThis(),
+      execute: mock().mockResolvedValue({
         success: true,
         traces: [],
         data: { reason: 'Success', attempt: 1 },
@@ -23,11 +23,11 @@ vi.mock('../../../src/core/grizzco/engine/pipeline/pipeline.js', () => ({
   },
 }));
 
-vi.mock('../../../src/core/observability/logger.js', () => ({
+mock.module('../../../src/core/observability/logger.js', () => ({
   logger: {
-    info: vi.fn(),
-    warn: vi.fn(),
-    debug: vi.fn(),
+    info: mock(),
+    warn: mock(),
+    debug: mock(),
   },
 }));
 
@@ -35,23 +35,23 @@ describe('SmallfryLoop', () => {
   let mockInitCtx: InitCtx;
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    mock.clearAllMocks();
     const mockLlm = {
-      chat: vi.fn(),
-      createPlan: vi.fn(),
-      createPatch: vi.fn(),
+      chat: mock(),
+      createPlan: mock(),
+      createPatch: mock(),
     };
     mockInitCtx = {
       workspace: { workPath: '/tmp/repo', baseRepoPath: '/tmp/repo', strategy: 'direct' },
       options: { instruction: 'test', repoPath: '/tmp/repo', llm: mockLlm },
       mode: 'patch',
       fs: {
-        readFile: vi.fn(),
-        writeFile: vi.fn(),
-        exists: vi.fn(),
-        mkdir: vi.fn(),
+        readFile: mock(),
+        writeFile: mock(),
+        exists: mock(),
+        mkdir: mock(),
       },
-      emit: vi.fn(),
+      emit: mock(),
       fileStateResolver: {} as any,
       shadowInitialRef: 'HEAD',
     };

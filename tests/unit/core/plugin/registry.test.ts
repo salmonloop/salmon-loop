@@ -1,3 +1,4 @@
+import { logger } from '../../../../src/core/observability/logger.js';
 import { LanguagePlugin } from '../../../../src/core/plugin/interface.js';
 import { pluginRegistry } from '../../../../src/core/plugin/registry.js';
 
@@ -31,7 +32,7 @@ describe('PluginRegistry', () => {
   });
 
   it('should handle overwriting plugins with the same ID', () => {
-    const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const spy = spyOn(logger, 'warn').mockImplementation(() => {});
 
     const plugin1 = createMockPlugin('conflict-id', ['.c1']);
     const plugin2 = createMockPlugin('conflict-id', ['.c2']); // Same ID, different ext
@@ -40,7 +41,7 @@ describe('PluginRegistry', () => {
     pluginRegistry.register(plugin2);
 
     expect(pluginRegistry.getById('conflict-id')).toBe(plugin2);
-    expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('already registered'));
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('already registered'));
 
     spy.mockRestore();
   });

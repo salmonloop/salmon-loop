@@ -1,33 +1,33 @@
-import { describe, expect, it, beforeEach, vi } from 'bun:test';
+import { describe, expect, it, beforeEach } from 'bun:test';
 
 import { AstParser } from '../../../src/core/ast/parser.js';
 import { AstGatherer } from '../../../src/core/context/gatherers/ast-gatherer.js';
 import type { ContextRequest } from '../../../src/core/context/types.js';
 import { pluginRegistry } from '../../../src/core/plugin/registry.js';
 
-vi.mock('../../../src/core/ast/parser.js', () => ({
+mock.module('../../../src/core/ast/parser.js', () => ({
   AstParser: {
-    parse: vi.fn(),
-    identifyDefinitions: vi.fn(),
-    identifyReferences: vi.fn(),
+    parse: mock(),
+    identifyDefinitions: mock(),
+    identifyReferences: mock(),
   },
 }));
 
 describe('Cross-file symbol map extraction', () => {
   beforeEach(() => {
-    vi.spyOn(pluginRegistry, 'getByExtension').mockReturnValue({
+    spyOn(pluginRegistry, 'getByExtension').mockReturnValue({
       meta: { id: 'typescript', name: 'TypeScript', extensions: ['.ts'] },
     } as any);
 
     // Mock AstParser methods
-    (AstParser.parse as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({});
+    (AstParser.parse as unknown as ReturnType<typeof mock>).mockResolvedValue({});
   });
 
   it('extracts symbols from imported files', async () => {
     let parseCallCount = 0;
 
     // Mock to return different symbols based on which file is being parsed
-    (AstParser.identifyDefinitions as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+    (AstParser.identifyDefinitions as unknown as ReturnType<typeof mock>).mockImplementation(
       async () => {
         parseCallCount++;
         if (parseCallCount === 1) {
@@ -57,7 +57,7 @@ describe('Cross-file symbol map extraction', () => {
       },
     );
 
-    (AstParser.identifyReferences as unknown as ReturnType<typeof vi.fn>).mockResolvedValue([
+    (AstParser.identifyReferences as unknown as ReturnType<typeof mock>).mockResolvedValue([
       {
         name: 'helper',
         kind: 'reference',
@@ -120,7 +120,7 @@ function utility() {
   it('preserves real file paths in symbol nodes', async () => {
     let parseCallCount = 0;
 
-    (AstParser.identifyDefinitions as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+    (AstParser.identifyDefinitions as unknown as ReturnType<typeof mock>).mockImplementation(
       async () => {
         parseCallCount++;
         if (parseCallCount === 1) {
@@ -144,7 +144,7 @@ function utility() {
       },
     );
 
-    (AstParser.identifyReferences as unknown as ReturnType<typeof vi.fn>).mockResolvedValue([
+    (AstParser.identifyReferences as unknown as ReturnType<typeof mock>).mockResolvedValue([
       {
         name: 'foo',
         kind: 'reference',

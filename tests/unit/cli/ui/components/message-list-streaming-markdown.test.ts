@@ -1,12 +1,11 @@
 import { render } from '@testing-library/react';
-import { vi } from 'bun:test';
 import React from 'react';
 
 const hoisted = (() => ({
-  markdownSpy: vi.fn(),
+  markdownSpy: mock(),
 }))();
 
-vi.mock('ink', () => ({
+mock.module('ink', () => ({
   Box: (props: any) => React.createElement('div', null, props.children),
   Text: (props: any) => React.createElement('span', null, props.children),
   Static: (props: any) =>
@@ -19,18 +18,18 @@ vi.mock('ink', () => ({
     ),
 }));
 
-vi.mock('../../../../../src/cli/ui/components/Markdown.js', () => ({
+mock.module('../../../../../src/cli/ui/components/Markdown.js', () => ({
   Markdown: (props: any) => {
     hoisted.markdownSpy(props.children);
     return React.createElement('div', { 'data-testid': 'markdown' }, props.children);
   },
 }));
 
-vi.mock('../../../../../src/cli/ui/components/WelcomeMessage.js', () => ({
+mock.module('../../../../../src/cli/ui/components/WelcomeMessage.js', () => ({
   WelcomeMessage: () => null,
 }));
 
-vi.mock('../../../../../src/cli/ui/store/context.js', () => ({
+mock.module('../../../../../src/cli/ui/store/context.js', () => ({
   useUIStore: () => ({
     state: {
       completedMessages: [],

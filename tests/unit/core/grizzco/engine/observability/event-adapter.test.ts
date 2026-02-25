@@ -4,7 +4,7 @@ import type { LoopEvent } from '../../../../../../src/core/types/index.js';
 
 describe('event-adapter', () => {
   it('records sanitized direct logs as PREFLIGHT', () => {
-    const onEvent = vi.fn();
+    const onEvent = mock();
     const telemetry = new LoopTelemetry(() => new Date('2026-02-13T00:00:00.000Z'));
     const adapter = createFlowEventAdapter({ onEvent, telemetry });
 

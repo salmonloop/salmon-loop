@@ -27,15 +27,15 @@ function createEmptyToolstack(): any {
 
 describe('Grizzco steps: PLAN/PATCH tool calling path', () => {
   it('PLAN uses the tool-calling chat path when toolstack exists and LLM declares toolCalling capability', async () => {
-    const createPlan = vi.fn(async () => {
+    const createPlan = mock(async () => {
       throw new Error('createPlan should not be called when tool calling is enabled');
     });
 
     const llm: LLM = {
       getCapabilities: () => ({ toolCalling: true }),
       createPlan,
-      createPatch: vi.fn(async () => ''),
-      chat: vi.fn(async () => ({
+      createPatch: mock(async () => ''),
+      chat: mock(async () => ({
         role: 'assistant' as const,
         content: JSON.stringify({
           goal: 'test-goal',
@@ -63,11 +63,11 @@ describe('Grizzco steps: PLAN/PATCH tool calling path', () => {
     const captured: any[][] = [];
     const llm: LLM = {
       getCapabilities: () => ({ toolCalling: true }),
-      createPlan: vi.fn(async () => {
+      createPlan: mock(async () => {
         throw new Error('createPlan should not be called when tool calling is enabled');
       }),
-      createPatch: vi.fn(async () => ''),
-      chat: vi.fn(async (messages: any) => {
+      createPatch: mock(async () => ''),
+      chat: mock(async (messages: any) => {
         captured.push(messages.map((m: any) => ({ role: m.role, content: m.content })));
         return {
           role: 'assistant' as const,
@@ -109,12 +109,11 @@ describe('Grizzco steps: PLAN/PATCH tool calling path', () => {
   it('PLAN repairs non-JSON responses with a second pass (contract enforcement)', async () => {
     const llm: LLM = {
       getCapabilities: () => ({ toolCalling: true }),
-      createPlan: vi.fn(async () => {
+      createPlan: mock(async () => {
         throw new Error('createPlan should not be called when tool calling is enabled');
       }),
-      createPatch: vi.fn(async () => ''),
-      chat: vi
-        .fn()
+      createPatch: mock(async () => ''),
+      chat: mock()
         .mockResolvedValueOnce({ role: 'assistant' as const, content: 'not json' })
         .mockResolvedValueOnce({
           role: 'assistant' as const,
@@ -140,7 +139,7 @@ describe('Grizzco steps: PLAN/PATCH tool calling path', () => {
   });
 
   it('PATCH uses the tool-calling chat path when toolstack exists and LLM declares toolCalling capability', async () => {
-    const createPatch = vi.fn(async () => {
+    const createPatch = mock(async () => {
       throw new Error('createPatch should not be called when tool calling is enabled');
     });
 
@@ -150,14 +149,14 @@ describe('Grizzco steps: PLAN/PATCH tool calling path', () => {
 
     const llm: LLM = {
       getCapabilities: () => ({ toolCalling: true }),
-      createPlan: vi.fn(async () => ({
+      createPlan: mock(async () => ({
         goal: 'test-goal',
         files: ['src/index.js'],
         changes: ['Add a comment'],
         verify: 'bun -e "process.exit(0)"',
       })),
       createPatch,
-      chat: vi.fn(async () => ({
+      chat: mock(async () => ({
         role: 'assistant' as const,
         content:
           'diff --git a/src/index.js b/src/index.js\n' +
@@ -191,7 +190,7 @@ describe('Grizzco steps: PLAN/PATCH tool calling path', () => {
   });
 
   it('PATCH repairs empty/non-diff responses with a second pass (contract enforcement)', async () => {
-    const createPatch = vi.fn(async () => {
+    const createPatch = mock(async () => {
       throw new Error('createPatch should not be called when tool calling is enabled');
     });
 
@@ -201,15 +200,14 @@ describe('Grizzco steps: PLAN/PATCH tool calling path', () => {
 
     const llm: LLM = {
       getCapabilities: () => ({ toolCalling: true }),
-      createPlan: vi.fn(async () => ({
+      createPlan: mock(async () => ({
         goal: 'test-goal',
         files: ['src/index.js'],
         changes: ['Add a comment'],
         verify: 'bun -e "process.exit(0)"',
       })),
       createPatch,
-      chat: vi
-        .fn()
+      chat: mock()
         .mockResolvedValueOnce({ role: 'assistant' as const, content: '' })
         .mockResolvedValueOnce({
           role: 'assistant' as const,

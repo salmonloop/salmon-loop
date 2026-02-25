@@ -1,15 +1,15 @@
 const fsMocks = (() => {
   return {
-    mkdir: vi.fn(),
-    open: vi.fn(),
-    unlink: vi.fn(),
-    readFile: vi.fn(),
+    mkdir: mock(),
+    open: mock(),
+    unlink: mock(),
+    readFile: mock(),
   };
 })();
 
-vi.mock('fs/promises', () => fsMocks);
+mock.module('fs/promises', () => fsMocks);
 
-vi.mock('../../../src/core/config/limits.js', () => ({
+mock.module('../../../src/core/config/limits.js', () => ({
   LIMITS: {
     lockAcquireHardTimeoutMs: 50,
     lockWaitTimeoutMs: 50,
@@ -25,7 +25,7 @@ describe('FileHandleManager acquireLock (PID reuse)', () => {
   const originalNodeEnv = process.env.NODE_ENV;
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    mock.clearAllMocks();
     process.env.NODE_ENV = 'test';
     process.env.SALMONLOOP_ENABLE_LOCK_IN_TEST = '1';
   });
@@ -41,16 +41,16 @@ describe('FileHandleManager acquireLock (PID reuse)', () => {
     } else {
       process.env.NODE_ENV = originalNodeEnv;
     }
-    vi.restoreAllMocks();
+    mock.restore();
   });
 
   it('treats same-pid different-owner as non-self and cleans up stale lock', async () => {
-    vi.spyOn(Date, 'now').mockReturnValue(1000);
-    vi.spyOn(process, 'kill').mockImplementation(() => {
+    spyOn(Date, 'now').mockReturnValue(1000);
+    spyOn(process, 'kill').mockImplementation(() => {
       throw Object.assign(new Error('ESRCH'), { code: 'ESRCH' });
     });
 
-    const handle = { writeFile: vi.fn(), close: vi.fn() };
+    const handle = { writeFile: mock(), close: mock() };
     fsMocks.open
       .mockRejectedValueOnce(Object.assign(new Error('exists'), { code: 'EEXIST' }))
       .mockResolvedValueOnce(handle as any);

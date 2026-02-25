@@ -24,8 +24,8 @@ function removeFile(path: string) {
   mtimes.delete(path);
 }
 
-vi.mock('fs/promises', () => ({
-  readFile: vi.fn(async (filePath: string) => {
+mock.module('fs/promises', () => ({
+  readFile: mock(async (filePath: string) => {
     if (!files.has(filePath)) {
       const error: any = new Error('ENOENT: no such file or directory');
       error.code = 'ENOENT';
@@ -33,8 +33,8 @@ vi.mock('fs/promises', () => ({
     }
     return files.get(filePath) as string;
   }),
-  readdir: vi.fn(async () => []),
-  copyFile: vi.fn(async (from: string, to: string) => {
+  readdir: mock(async () => []),
+  copyFile: mock(async (from: string, to: string) => {
     if (!files.has(from)) {
       const error: any = new Error('ENOENT: no such file or directory');
       error.code = 'ENOENT';
@@ -44,18 +44,18 @@ vi.mock('fs/promises', () => ({
     files.set(to, content);
     mtimes.set(to, (mtimes.get(from) ?? 1) + 1);
   }),
-  realpath: vi.fn(async (filePath: string) => {
+  realpath: mock(async (filePath: string) => {
     if (files.has(filePath)) return filePath;
     if (filePath.startsWith('/repo') || filePath.startsWith(os.homedir())) return filePath;
     const error: any = new Error('ENOENT: no such file or directory');
     error.code = 'ENOENT';
     throw error;
   }),
-  writeFile: vi.fn(async (filePath: string, data: string | Buffer) => {
+  writeFile: mock(async (filePath: string, data: string | Buffer) => {
     const content = typeof data === 'string' ? data : data.toString();
     setFile(filePath, content);
   }),
-  lstat: vi.fn(async (filePath: string) => {
+  lstat: mock(async (filePath: string) => {
     if (!files.has(filePath)) {
       const error: any = new Error('ENOENT: no such file or directory');
       error.code = 'ENOENT';
@@ -63,7 +63,7 @@ vi.mock('fs/promises', () => ({
     }
     return { isSymbolicLink: () => false } as any;
   }),
-  open: vi.fn(async (filePath: string, flags?: string) => {
+  open: mock(async (filePath: string, flags?: string) => {
     if (flags === 'wx' && files.has(filePath)) {
       const error: any = new Error('EEXIST: file already exists');
       error.code = 'EEXIST';
@@ -80,8 +80,8 @@ vi.mock('fs/promises', () => ({
       close: async () => undefined,
     };
   }),
-  mkdir: vi.fn(async () => undefined),
-  stat: vi.fn(async (filePath: string) => {
+  mkdir: mock(async () => undefined),
+  stat: mock(async (filePath: string) => {
     if (!files.has(filePath)) {
       const error: any = new Error('ENOENT: no such file or directory');
       error.code = 'ENOENT';
@@ -90,7 +90,7 @@ vi.mock('fs/promises', () => ({
     const content = files.get(filePath) ?? '';
     return { mtimeMs: mtimes.get(filePath) ?? 1, size: content.length } as any;
   }),
-  rename: vi.fn(async (from: string, to: string) => {
+  rename: mock(async (from: string, to: string) => {
     if (!files.has(from)) {
       const error: any = new Error('ENOENT: no such file or directory');
       error.code = 'ENOENT';
@@ -100,7 +100,7 @@ vi.mock('fs/promises', () => ({
     files.set(to, content);
     files.delete(from);
   }),
-  unlink: vi.fn(async (filePath: string) => {
+  unlink: mock(async (filePath: string) => {
     if (!files.has(filePath)) {
       const error: any = new Error('ENOENT: no such file or directory');
       error.code = 'ENOENT';
@@ -131,7 +131,7 @@ describe('allowlist', () => {
   beforeEach(() => {
     files.clear();
     mtimes.clear();
-    vi.clearAllMocks();
+    mock.clearAllMocks();
   });
 
   it('prefers repo deny over user allow', async () => {

@@ -2,16 +2,16 @@ import { WorkerFactory } from '../../../../../src/core/grizzco/execution/WorkerF
 import { createMockContext } from '../mocks.js';
 
 // Mock dependencies
-vi.mock('../../../../../src/core/adapters/fs/index.js', () => ({
+mock.module('../../../../../src/core/adapters/fs/index.js', () => ({
   AtomicFileWriter: class {
-    writeAtomic = vi.fn();
+    writeAtomic = mock();
   },
   FileAdapter: class {},
 }));
 
-vi.mock('../../../../../src/core/grizzco/execution/RejectionManager.js', () => ({
+mock.module('../../../../../src/core/grizzco/execution/RejectionManager.js', () => ({
   RejectionManager: class {
-    create = vi.fn();
+    create = mock();
   },
 }));
 
@@ -19,14 +19,14 @@ describe('Executor', () => {
   it('should execute worker and write result', async () => {
     const { Executor } = await import('../../../../../src/core/grizzco/execution/Executor.js');
     const mockWorker = {
-      execute: vi.fn().mockResolvedValue({
+      execute: mock().mockResolvedValue({
         success: true,
         mergedContent: Buffer.from('merged'),
       }),
     };
 
     const workerFactory = {
-      get: vi.fn().mockReturnValue(mockWorker),
+      get: mock().mockReturnValue(mockWorker),
     } as unknown as WorkerFactory;
 
     const executor = new Executor(workerFactory, '.salmonloop/runtime/rej');
@@ -48,14 +48,14 @@ describe('Executor', () => {
   it('should handle worker failure', async () => {
     const { Executor } = await import('../../../../../src/core/grizzco/execution/Executor.js');
     const mockWorker = {
-      execute: vi.fn().mockResolvedValue({
+      execute: mock().mockResolvedValue({
         success: false,
         error: 'Merge error',
       }),
     };
 
     const workerFactory = {
-      get: vi.fn().mockReturnValue(mockWorker),
+      get: mock().mockReturnValue(mockWorker),
     } as unknown as WorkerFactory;
 
     const executor = new Executor(workerFactory, '.salmonloop/runtime/rej');

@@ -5,9 +5,9 @@ import { buildBunCommand } from '../helpers/bun.js';
 import { RealFsTestHelper } from '../helpers/real-fs-helper.js';
 
 const mockLlm = {
-  createPlan: vi.fn(),
-  createPatch: vi.fn(),
-  chat: vi.fn().mockResolvedValue({ role: 'assistant', content: 'Ready' }),
+  createPlan: mock(),
+  createPatch: mock(),
+  chat: mock().mockResolvedValue({ role: 'assistant', content: 'Ready' }),
 } as unknown as any;
 
 describe('Fuzzy Patch Loop Integration', () => {
@@ -26,16 +26,16 @@ describe('Fuzzy Patch Loop Integration', () => {
     });
     repoPath = repo.path;
 
-    vi.clearAllMocks();
+    mock.clearAllMocks();
 
-    vi.spyOn(AstParser, 'parse').mockResolvedValue({} as any);
-    vi.spyOn(AstParser, 'identifyDefinitions').mockResolvedValue([]);
-    vi.spyOn(AstParser, 'identifyReferences').mockResolvedValue([]);
+    spyOn(AstParser, 'parse').mockResolvedValue({} as any);
+    spyOn(AstParser, 'identifyDefinitions').mockResolvedValue([]);
+    spyOn(AstParser, 'identifyReferences').mockResolvedValue([]);
   });
 
   afterEach(async () => {
     await helper.cleanup();
-    vi.restoreAllMocks();
+    mock.restore();
   });
 
   it('should succeed when patch has minor formatting differences (fuzzy match)', async () => {

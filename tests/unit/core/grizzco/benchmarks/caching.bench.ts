@@ -1,11 +1,11 @@
-import { describe, it, expect, vi } from 'bun:test';
+import { describe, it, expect } from 'bun:test';
 
 import { CachedService } from '../../../../../src/core/grizzco/services/CachedService.js';
 import { IDataService } from '../../../../../src/core/grizzco/services/types.js';
 
 describe('Performance: Service Caching', () => {
   it('should prevent redundant fetch calls', async () => {
-    const fetchSpy = vi.fn().mockResolvedValue('data');
+    const fetchSpy = mock().mockResolvedValue('data');
     const mockService: IDataService = { id: 'test', fetch: fetchSpy };
     const cachedService = new CachedService(mockService);
 

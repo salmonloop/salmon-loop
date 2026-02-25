@@ -1,14 +1,14 @@
 const { mkdirMock, writeFileMock } = (() => ({
-  mkdirMock: vi.fn(),
-  writeFileMock: vi.fn(),
+  mkdirMock: mock(),
+  writeFileMock: mock(),
 }))();
 
-vi.mock('fs/promises', () => ({
+mock.module('fs/promises', () => ({
   mkdir: mkdirMock,
   writeFile: writeFileMock,
 }));
 
-import { describe, expect, it, vi } from 'bun:test';
+import { describe, expect, it } from 'bun:test';
 
 import { Pipeline } from '../../../../../src/core/grizzco/engine/pipeline/pipeline.js';
 import { saveAudit } from '../../../../../src/core/grizzco/steps/audit.js';
@@ -17,7 +17,7 @@ import { freezeSystemTime } from '../../../../helpers/time.js';
 
 describe('saveAudit (toolCallingAudit args preview sanitization)', () => {
   it('keeps args preview only for INVALID_INPUT entries', async () => {
-    vi.useFakeTimers();
+    useFakeTimers();
     const restoreTime = freezeSystemTime('2026-02-17T00:00:00.000Z');
     try {
       clearAuditTrail();
@@ -105,7 +105,7 @@ describe('saveAudit (toolCallingAudit args preview sanitization)', () => {
       expect(other.toolResultErrorMessage).toBeUndefined();
     } finally {
       restoreTime();
-      vi.useRealTimers();
+      useRealTimers();
     }
   });
 });

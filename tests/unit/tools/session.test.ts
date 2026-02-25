@@ -185,7 +185,7 @@ describe('chatWithTools', () => {
     const sanitizer = new ToolSanitizer();
     const router = new ToolRouter(registry, policy, budget, audit, sanitizer);
 
-    const executor = vi.fn(async () => ({ ok: true }));
+    const executor = mock(async () => ({ ok: true }));
     const spec: ToolSpec<{ required: string }, { ok: boolean }> = {
       name: 'test.requires',
       source: 'builtin',

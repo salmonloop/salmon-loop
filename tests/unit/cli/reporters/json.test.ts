@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'bun:test';
+import { describe, expect, it } from 'bun:test';
 
 import { createStdoutWriter } from '../../../../src/cli/headless/stdout-writer.js';
 import { JsonReporter } from '../../../../src/cli/reporters/json.js';
@@ -7,7 +7,7 @@ import { freezeSystemTime } from '../../../helpers/time.js';
 
 describe('JsonReporter', () => {
   it('emits a single JSON object on finish', () => {
-    vi.useFakeTimers();
+    useFakeTimers();
     const restoreTime = freezeSystemTime('2026-02-20T00:00:00.000Z');
 
     let out = '';
@@ -95,12 +95,12 @@ describe('JsonReporter', () => {
       ],
     });
 
-    vi.useRealTimers();
+    useRealTimers();
     restoreTime();
   });
 
   it('uses exit code 130 for user cancellation', () => {
-    vi.useFakeTimers();
+    useFakeTimers();
     const restoreTime = freezeSystemTime('2026-02-20T00:00:00.000Z');
 
     let out = '';
@@ -126,12 +126,12 @@ describe('JsonReporter', () => {
     const obj = JSON.parse(out.trim());
     expect(obj.metadata.exit_code).toBe(130);
 
-    vi.useRealTimers();
+    useRealTimers();
     restoreTime();
   });
 
   it('supports structured_output and payload overrides', () => {
-    vi.useFakeTimers();
+    useFakeTimers();
     const restoreTime = freezeSystemTime('2026-02-20T00:00:00.000Z');
 
     let out = '';
@@ -180,7 +180,7 @@ describe('JsonReporter', () => {
       structured_output_error: 'Structured output failed schema validation.',
     });
 
-    vi.useRealTimers();
+    useRealTimers();
     restoreTime();
   });
 });

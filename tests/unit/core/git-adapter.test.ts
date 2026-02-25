@@ -4,13 +4,13 @@ import path from 'path';
 import { GitAdapter } from '../../../src/core/adapters/git/git-adapter.js';
 import { runGitCommand } from '../../../src/core/adapters/git/git-runner.js';
 
-vi.mock('../../../src/core/adapters/git/git-runner.js', () => ({
-  runGitCommand: vi.fn(),
+mock.module('../../../src/core/adapters/git/git-runner.js', () => ({
+  runGitCommand: mock(),
 }));
 
 describe('GitAdapter exec truncation handling', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    mock.clearAllMocks();
   });
 
   it('throws when stdout is truncated', async () => {
@@ -56,7 +56,7 @@ describe('GitAdapter exec truncation handling', () => {
 
 describe('GitAdapter query gateway validation', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    mock.clearAllMocks();
   });
 
   it('allows approved commands', async () => {

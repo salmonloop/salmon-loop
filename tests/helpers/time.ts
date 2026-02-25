@@ -1,4 +1,4 @@
-import { vi } from 'bun:test';
+import { advanceTimersByTime, getTimerCount, runOnlyPendingTimers } from './bun-timers.ts';
 
 export function freezeSystemTime(when: string | number | Date): () => void {
   const originalDate = Date;
@@ -45,25 +45,18 @@ export async function advanceFakeTimers(ms: number): Promise<void> {
   while (remaining > 0) {
     const chunk = remaining >= 10_000 ? 250 : remaining >= 2_000 ? 50 : remaining >= 200 ? 10 : 1;
     const step = Math.min(remaining, chunk);
-    vi.advanceTimersByTime(step);
+    advanceTimersByTime(step);
     remaining -= step;
     await Promise.resolve();
   }
 
-  const timerApi = vi as unknown as {
-    getTimerCount?: () => number;
-    runOnlyPendingTimers?: () => void;
-  };
-  if (
-    typeof timerApi.getTimerCount === 'function' &&
-    typeof timerApi.runOnlyPendingTimers === 'function'
-  ) {
+  if (typeof getTimerCount === 'function' && typeof runOnlyPendingTimers === 'function') {
     for (let i = 0; i < 20; i += 1) {
-      const before = timerApi.getTimerCount();
+      const before = getTimerCount();
       if (!Number.isFinite(before) || before <= 0) break;
-      timerApi.runOnlyPendingTimers();
+      runOnlyPendingTimers();
       await Promise.resolve();
-      const after = timerApi.getTimerCount();
+      const after = getTimerCount();
       if (!Number.isFinite(after) || after <= 0 || after === before) break;
     }
   }

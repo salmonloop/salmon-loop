@@ -1,7 +1,7 @@
 import { readFile } from 'fs/promises';
 import path from 'path';
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'bun:test';
+import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 
 import { runSalmonLoop } from '../../src/core/runtime/loop.js';
 import { RealFsTestHelper } from '../helpers/real-fs-helper.js';
@@ -13,9 +13,9 @@ describe('Plan toolcalling flow (integration)', () => {
   let repoPath: string;
 
   const mockLlm = {
-    chat: vi.fn(),
-    createPlan: vi.fn(),
-    createPatch: vi.fn(),
+    chat: mock(),
+    createPlan: mock(),
+    createPatch: mock(),
     getModelId: () => 'test-model',
     getCapabilities: () => ({ toolCalling: true }),
   };
@@ -28,7 +28,7 @@ describe('Plan toolcalling flow (integration)', () => {
       ],
     });
     repoPath = repo.path;
-    vi.clearAllMocks();
+    mock.clearAllMocks();
   });
 
   afterEach(async () => {

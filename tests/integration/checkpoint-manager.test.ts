@@ -70,7 +70,7 @@ describe('CheckpointManager - Filesystem Sync Fix', () => {
       const git = new GitAdapter(testRepo);
       await git.exec(['worktree', 'add', shadowWorktree, 'HEAD']);
 
-      const querySpy = vi.spyOn(GitAdapter.prototype, 'query');
+      const querySpy = spyOn(GitAdapter.prototype, 'query');
 
       await checkpointManager.restoreToShadow(testRepo, shadowWorktree, snapshot.commitHash);
 
@@ -90,7 +90,7 @@ describe('CheckpointManager - Filesystem Sync Fix', () => {
     const git = new GitAdapter(testRepo);
     await git.exec(['worktree', 'add', shadowWorktree, 'HEAD']);
 
-    const querySpy = vi.spyOn(GitAdapter.prototype, 'query');
+    const querySpy = spyOn(GitAdapter.prototype, 'query');
 
     await checkpointManager.restoreToShadow(testRepo, shadowWorktree, snapshot.commitHash);
 

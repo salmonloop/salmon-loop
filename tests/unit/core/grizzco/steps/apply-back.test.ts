@@ -1,8 +1,8 @@
 const { runApplyBackPhaseMock } = (() => ({
-  runApplyBackPhaseMock: vi.fn(),
+  runApplyBackPhaseMock: mock(),
 }))();
 
-vi.mock('../../../../../src/core/grizzco/runtime/apply-back-runtime.js', () => ({
+mock.module('../../../../../src/core/grizzco/runtime/apply-back-runtime.js', () => ({
   runApplyBackPhase: runApplyBackPhaseMock,
 }));
 
@@ -24,7 +24,7 @@ function createCtx(overrides: Record<string, unknown> = {}) {
       activeRepoPath: '/shadow',
       shadowTaskId: 'shadow-task',
     },
-    emit: vi.fn(),
+    emit: mock(),
     diff: 'diff --git a/a.ts b/a.ts',
     changedFiles: ['a.ts'],
     attempt: 2,
@@ -34,7 +34,7 @@ function createCtx(overrides: Record<string, unknown> = {}) {
 
 describe('apply-back step', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    mock.clearAllMocks();
   });
 
   it('skips when verify is not ok', async () => {

@@ -2,7 +2,7 @@ import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { execa } from 'execa';
 
 import { AstParser } from '../../src/core/ast/parser.js';
@@ -12,17 +12,17 @@ import { runSalmonLoop } from '../../src/core/runtime/loop.js';
 import * as verify from '../../src/core/verification/runner.js';
 
 const mockLlm = {
-  createPlan: vi.fn(),
-  createPatch: vi.fn(),
-  chat: vi.fn().mockResolvedValue({ role: 'assistant', content: 'Ready' }),
+  createPlan: mock(),
+  createPatch: mock(),
+  chat: mock().mockResolvedValue({ role: 'assistant', content: 'Ready' }),
 } as unknown as LLM;
 
 describe('Performance Tests', () => {
   let repoPath: string;
 
   beforeEach(async () => {
-    vi.useRealTimers();
-    vi.clearAllMocks();
+    useRealTimers();
+    mock.clearAllMocks();
 
     repoPath = await fs.mkdtemp(path.join(os.tmpdir(), 'salmon-loop-perf-'));
     await fs.mkdir(path.join(repoPath, '.git'), { recursive: true });
@@ -41,24 +41,24 @@ describe('Performance Tests', () => {
     await execa('git', ['add', '.'], { cwd: repoPath });
     await execa('git', ['commit', '-m', 'Initial commit'], { cwd: repoPath });
 
-    vi.spyOn(verify, 'preflight').mockResolvedValue({ ok: true });
-    vi.spyOn(verify, 'runVerify').mockResolvedValue({ ok: true, output: '', exitCode: 0 });
+    spyOn(verify, 'preflight').mockResolvedValue({ ok: true });
+    spyOn(verify, 'runVerify').mockResolvedValue({ ok: true, output: '', exitCode: 0 });
 
-    vi.spyOn(ContextBuilder, 'build').mockResolvedValue({
+    spyOn(ContextBuilder, 'build').mockResolvedValue({
       repoPath,
       rgSnippets: [],
       primaryText: '',
     } as any);
-    vi.spyOn(ContextBuilder, 'shrinkContext').mockImplementation(async (ctx: any) => ctx);
-    vi.spyOn(ContextBuilder, 'extractFailedFiles').mockReturnValue([]);
+    spyOn(ContextBuilder, 'shrinkContext').mockImplementation(async (ctx: any) => ctx);
+    spyOn(ContextBuilder, 'extractFailedFiles').mockReturnValue([]);
 
-    vi.spyOn(AstParser, 'parse').mockResolvedValue({ delete: vi.fn() } as any);
-    vi.spyOn(AstParser, 'identifyDefinitions').mockResolvedValue([]);
-    vi.spyOn(AstParser, 'identifyReferences').mockResolvedValue([]);
+    spyOn(AstParser, 'parse').mockResolvedValue({ delete: mock() } as any);
+    spyOn(AstParser, 'identifyDefinitions').mockResolvedValue([]);
+    spyOn(AstParser, 'identifyReferences').mockResolvedValue([]);
   });
 
   afterEach(async () => {
-    vi.restoreAllMocks();
+    mock.restore();
     if (repoPath) {
       await fs.rm(repoPath, { recursive: true, force: true }).catch(() => {});
     }

@@ -1,16 +1,16 @@
 import { loadJsonSchema } from '../../../../../src/cli/commands/run/structured-output.js';
 
-const readFile = vi.fn();
-const stat = vi.fn();
+const readFile = mock();
+const stat = mock();
 
-vi.mock('fs/promises', () => ({
+mock.module('fs/promises', () => ({
   readFile,
   stat,
 }));
 
 describe('loadJsonSchema', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    mock.clearAllMocks();
   });
 
   it('parses inline JSON schema', async () => {

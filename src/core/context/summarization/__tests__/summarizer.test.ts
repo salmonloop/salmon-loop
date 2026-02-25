@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'bun:test';
+import { describe, it, expect, beforeEach } from 'bun:test';
 
 import { ConversationSummarizer } from '../summarizer.js';
 import { DEFAULT_SUMMARIZATION_CONFIG } from '../types.js';
@@ -10,14 +10,14 @@ import type {
 
 // Mock LLM client
 const createMockLLM = (): SummarizationLLMClient => ({
-  chat: vi.fn().mockResolvedValue({
+  chat: mock().mockResolvedValue({
     content: 'This is a summary of the conversation.',
   }),
 });
 
 // Mock token counter
 const createMockTokenCounter = (): SummarizationTokenCounter => ({
-  count: vi.fn((text: string) => Math.ceil(text.length / 4)), // Simple estimation
+  count: mock((text: string) => Math.ceil(text.length / 4)), // Simple estimation
 });
 
 // Helper to create messages

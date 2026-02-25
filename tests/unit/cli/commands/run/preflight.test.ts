@@ -1,40 +1,40 @@
-import { beforeEach, describe, expect, it, vi } from 'bun:test';
+import { beforeEach, describe, expect, it } from 'bun:test';
 
 const hoisted = (() => ({
-  spawnCommand: vi.fn(),
-  loadPlugins: vi.fn(async () => {}),
-  detectNodeRuntimeProfile: vi.fn(),
-  resolveScriptCommand: vi.fn(),
+  spawnCommand: mock(),
+  loadPlugins: mock(async () => {}),
+  detectNodeRuntimeProfile: mock(),
+  resolveScriptCommand: mock(),
   logger: {
-    log: vi.fn(),
-    debug: vi.fn(),
-    warn: vi.fn(),
-    success: vi.fn(),
-    error: vi.fn(),
-    audit: vi.fn(),
+    log: mock(),
+    debug: mock(),
+    warn: mock(),
+    success: mock(),
+    error: mock(),
+    audit: mock(),
   },
 }))();
 
-vi.mock('../../../../../src/core/runtime/process-runner.js', () => ({
+mock.module('../../../../../src/core/runtime/process-runner.js', () => ({
   spawnCommand: hoisted.spawnCommand,
 }));
 
-vi.mock('../../../../../src/core/plugin/loader.js', () => ({
+mock.module('../../../../../src/core/plugin/loader.js', () => ({
   PluginLoader: { loadPlugins: hoisted.loadPlugins },
 }));
 
-vi.mock('../../../../../src/core/target-runtime/index.js', () => ({
+mock.module('../../../../../src/core/target-runtime/index.js', () => ({
   detectNodeRuntimeProfile: hoisted.detectNodeRuntimeProfile,
   resolveScriptCommand: hoisted.resolveScriptCommand,
 }));
 
-vi.mock('../../../../../src/core/observability/logger.js', () => ({
+mock.module('../../../../../src/core/observability/logger.js', () => ({
   logger: hoisted.logger,
 }));
 
 describe('runPreflight', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    mock.clearAllMocks();
     hoisted.spawnCommand.mockResolvedValue({
       code: 0,
       signal: null,

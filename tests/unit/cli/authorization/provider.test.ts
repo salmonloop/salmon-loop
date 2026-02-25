@@ -1,18 +1,18 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from 'bun:test';
+import { describe, expect, it, beforeEach, afterEach } from 'bun:test';
 
-vi.mock('readline/promises', () => ({
+mock.module('readline/promises', () => ({
   createInterface: () => {
     throw new Error('createInterface should not be called in forced non-interactive mode');
   },
 }));
 
-vi.mock('../../../../src/cli/authorization/allowlist.js', () => ({
-  loadAllowlistDecision: vi.fn(async () => null),
-  persistAllowlistDecision: vi.fn(async () => {}),
+mock.module('../../../../src/cli/authorization/allowlist.js', () => ({
+  loadAllowlistDecision: mock(async () => null),
+  persistAllowlistDecision: mock(async () => {}),
 }));
 
-vi.mock('../../../../src/cli/authorization/non-interactive.js', () => ({
-  requestNonInteractiveAuthorizationDecision: vi.fn(async () => ({
+mock.module('../../../../src/cli/authorization/non-interactive.js', () => ({
+  requestNonInteractiveAuthorizationDecision: mock(async () => ({
     outcome: 'allow_once',
     source: 'hook',
   })),

@@ -2,13 +2,13 @@ import { LoopTelemetry } from '../../../../../../src/core/grizzco/engine/observa
 import { FlowTransactionRunner } from '../../../../../../src/core/grizzco/engine/transaction/transaction-runner.js';
 import * as salmonFlow from '../../../../../../src/core/grizzco/flows/SalmonLoopFlow.js';
 
-vi.mock('../../../../../../src/core/grizzco/flows/SalmonLoopFlow.js', () => ({
-  executeSalmonLoopFlow: vi.fn(),
+mock.module('../../../../../../src/core/grizzco/flows/SalmonLoopFlow.js', () => ({
+  executeSalmonLoopFlow: mock(),
 }));
 
 const NOW = new Date('2026-02-13T00:00:00.000Z');
 
-function createRunner(emit = vi.fn()) {
+function createRunner(emit = mock()) {
   return new FlowTransactionRunner({
     options: {
       instruction: 'fix',
@@ -40,8 +40,8 @@ describe('transaction-runner', () => {
   let mockedExecute: any;
 
   beforeEach(() => {
-    vi.clearAllMocks();
-    mockedExecute = vi.spyOn(salmonFlow, 'executeSalmonLoopFlow').mockReset();
+    mock.clearAllMocks();
+    mockedExecute = spyOn(salmonFlow, 'executeSalmonLoopFlow').mockReset();
   });
 
   it('retries only when verify error is retryable and keeps success attempt history clean', async () => {
@@ -72,7 +72,7 @@ describe('transaction-runner', () => {
         },
       } as any);
 
-    const emit = vi.fn();
+    const emit = mock();
     const report = await createRunner(emit).execute();
 
     expect(report.success).toBe(true);
@@ -104,7 +104,7 @@ describe('transaction-runner', () => {
       },
     } as any);
 
-    const emit = vi.fn();
+    const emit = mock();
     const report = await createRunner(emit).execute();
 
     expect(report.success).toBe(false);
@@ -176,7 +176,7 @@ describe('transaction-runner', () => {
       },
     } as any);
 
-    const emit = vi.fn();
+    const emit = mock();
     const report = await createRunner(emit).execute();
 
     expect(report.success).toBe(false);

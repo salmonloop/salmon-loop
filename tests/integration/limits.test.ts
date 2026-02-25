@@ -3,16 +3,16 @@ import { Semaphore } from '../../src/core/runtime/semaphore.js';
 import * as verificationRunner from '../../src/core/verification/runner.js';
 import { advanceFakeTimers } from '../helpers/time.js';
 
-const mockedRunVerify = vi.spyOn(verificationRunner, 'runVerify');
+const mockedRunVerify = spyOn(verificationRunner, 'runVerify');
 
 describe('Resource Limits', () => {
   beforeEach(() => {
-    vi.useFakeTimers();
+    useFakeTimers();
   });
 
   afterEach(() => {
-    vi.useRealTimers();
-    vi.restoreAllMocks();
+    useRealTimers();
+    mock.restore();
   });
 
   it('should respect verify timeout', async () => {

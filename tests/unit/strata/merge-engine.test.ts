@@ -9,29 +9,29 @@ const { adaptersByPath } = (() => ({
   adaptersByPath: new Map<string, any>(),
 }))();
 
-vi.mock('../../../src/core/adapters/git/git-adapter.js', () => ({
-  GitAdapter: vi.fn().mockImplementation((repoPath: string) => {
+mock.module('../../../src/core/adapters/git/git-adapter.js', () => ({
+  GitAdapter: mock().mockImplementation((repoPath: string) => {
     if (!adaptersByPath.has(repoPath)) {
       adaptersByPath.set(repoPath, {
-        query: vi.fn(),
-        exec: vi.fn(),
-        getStatusForPath: vi.fn(),
-        mergeFile: vi.fn(),
-        show: vi.fn(),
-        checkIgnore: vi.fn().mockResolvedValue(false),
+        query: mock(),
+        exec: mock(),
+        getStatusForPath: mock(),
+        mergeFile: mock(),
+        show: mock(),
+        checkIgnore: mock().mockResolvedValue(false),
       });
     }
     return adaptersByPath.get(repoPath);
   }),
 }));
 
-vi.mock('../../../src/core/observability/logger.js', () => ({
+mock.module('../../../src/core/observability/logger.js', () => ({
   logger: {
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    trace: vi.fn(),
+    debug: mock(),
+    info: mock(),
+    warn: mock(),
+    error: mock(),
+    trace: mock(),
   },
 }));
 
@@ -96,7 +96,7 @@ describe('ShadowMergeEngine behavior safety', () => {
 
   beforeEach(() => {
     adaptersByPath.clear();
-    vi.clearAllMocks();
+    mock.clearAllMocks();
     new GitAdapter(mainRepoPath);
     new GitAdapter(shadowRepoPath);
   });
@@ -153,12 +153,13 @@ describe('ShadowMergeEngine behavior safety', () => {
     setupAdapters({ statusLine: 'M src/file.ts' });
 
     const checkpoints = {
-      createSafeSnapshot: vi
-        .fn()
-        .mockResolvedValue({ commitHash: 'snapshot-t0', stagedTree: 'staged-tree' }),
-      createDirtyBackup: vi.fn().mockResolvedValue('backup-t1'),
-      restoreDirtyBackup: vi.fn(),
-      restoreToMain: vi.fn(),
+      createSafeSnapshot: mock().mockResolvedValue({
+        commitHash: 'snapshot-t0',
+        stagedTree: 'staged-tree',
+      }),
+      createDirtyBackup: mock().mockResolvedValue('backup-t1'),
+      restoreDirtyBackup: mock(),
+      restoreToMain: mock(),
     };
 
     const engine = new ShadowMergeEngine(
@@ -187,14 +188,15 @@ describe('ShadowMergeEngine behavior safety', () => {
     });
 
     const checkpoints = {
-      createSafeSnapshot: vi
-        .fn()
-        .mockResolvedValue({ commitHash: 'snapshot-t0', stagedTree: 'staged-tree' }),
-      createDirtyBackup: vi.fn().mockResolvedValue('backup-t1'),
-      restoreDirtyBackup: vi.fn().mockImplementation(async () => {
+      createSafeSnapshot: mock().mockResolvedValue({
+        commitHash: 'snapshot-t0',
+        stagedTree: 'staged-tree',
+      }),
+      createDirtyBackup: mock().mockResolvedValue('backup-t1'),
+      restoreDirtyBackup: mock().mockImplementation(async () => {
         fsProvider.set(targetPath, 'user-dirty-content\n');
       }),
-      restoreToMain: vi.fn(),
+      restoreToMain: mock(),
     };
 
     const engine = new ShadowMergeEngine(
@@ -222,12 +224,13 @@ describe('ShadowMergeEngine behavior safety', () => {
     });
 
     const checkpoints = {
-      createSafeSnapshot: vi
-        .fn()
-        .mockResolvedValue({ commitHash: 'snapshot-t0', stagedTree: 'staged-tree' }),
-      createDirtyBackup: vi.fn().mockResolvedValue(null),
-      restoreDirtyBackup: vi.fn(),
-      restoreToMain: vi.fn().mockImplementation(async () => {
+      createSafeSnapshot: mock().mockResolvedValue({
+        commitHash: 'snapshot-t0',
+        stagedTree: 'staged-tree',
+      }),
+      createDirtyBackup: mock().mockResolvedValue(null),
+      restoreDirtyBackup: mock(),
+      restoreToMain: mock().mockImplementation(async () => {
         fsProvider.set(targetPath, 'snapshot-t0-content\n');
       }),
     };
@@ -257,12 +260,13 @@ describe('ShadowMergeEngine behavior safety', () => {
     });
 
     const checkpoints = {
-      createSafeSnapshot: vi
-        .fn()
-        .mockResolvedValue({ commitHash: 'snapshot-t0', stagedTree: 'staged-tree' }),
-      createDirtyBackup: vi.fn().mockResolvedValue(null),
-      restoreDirtyBackup: vi.fn(),
-      restoreToMain: vi.fn().mockImplementation(async () => {
+      createSafeSnapshot: mock().mockResolvedValue({
+        commitHash: 'snapshot-t0',
+        stagedTree: 'staged-tree',
+      }),
+      createDirtyBackup: mock().mockResolvedValue(null),
+      restoreDirtyBackup: mock(),
+      restoreToMain: mock().mockImplementation(async () => {
         fsProvider.set(targetPath, 'unexpected-restore\n');
       }),
     };

@@ -3,12 +3,12 @@ import { advanceFakeTimers } from '../helpers/time.js';
 
 describe('Concurrency and Locking Integration', () => {
   beforeEach(() => {
-    vi.useFakeTimers();
+    useFakeTimers();
   });
 
   afterEach(() => {
-    vi.useRealTimers();
-    vi.restoreAllMocks();
+    useRealTimers();
+    mock.restore();
   });
 
   it('should handle concurrent loop executions with locking', async () => {

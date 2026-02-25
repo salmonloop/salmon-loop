@@ -1,13 +1,11 @@
-import { vi } from 'bun:test';
-
 const hoisted = (() => {
-  const init = vi.fn(async () => {});
-  const load = vi.fn(async () => ['hello', 'world']);
-  const InputHistoryManagerMock = vi.fn(() => ({ init, load }));
+  const init = mock(async () => {});
+  const load = mock(async () => ['hello', 'world']);
+  const InputHistoryManagerMock = mock(() => ({ init, load }));
   return { init, load, InputHistoryManagerMock };
 })();
 
-vi.mock('../../../../src/core/history/input-history.js', () => ({
+mock.module('../../../../src/core/history/input-history.js', () => ({
   InputHistoryManager: hoisted.InputHistoryManagerMock,
 }));
 
@@ -20,17 +18,17 @@ describe('/session command', () => {
 
   it('loads input history for the resumed session and updates UI store', async () => {
     const { sessionCommand } = await import('../../../../src/cli/commands/session.js');
-    const dispatch = vi.fn();
-    const emit = vi.fn();
+    const dispatch = mock();
+    const emit = mock();
 
     const sessionManager = {
-      resumeSession: vi.fn(async () => {}),
-      getCurrent: vi.fn(() => ({ meta: { id: 'full-session-id', repoPath: '/repo' } })),
-      getMessages: vi.fn(() => [
+      resumeSession: mock(async () => {}),
+      getCurrent: mock(() => ({ meta: { id: 'full-session-id', repoPath: '/repo' } })),
+      getMessages: mock(() => [
         { role: 'user', content: 'hello', timestamp: 1 },
         { role: 'assistant', content: 'world', timestamp: 2 },
       ]),
-      listSessions: vi.fn(async () => []),
+      listSessions: mock(async () => []),
     };
 
     await sessionCommand.execute({

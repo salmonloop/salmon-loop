@@ -446,7 +446,7 @@ export class RealFsTestHelper {
         try {
           await rm(dirPath, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
           break; // Success
-        } catch (error: any) {
+        } catch (error) {
           attempts++;
           if (attempts === maxAttempts) {
             errors.push(error instanceof Error ? error : new Error(String(error)));

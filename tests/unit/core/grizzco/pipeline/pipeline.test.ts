@@ -18,7 +18,7 @@ describe('Pipeline', () => {
     const failStep = async () => {
       throw new Error('Boom');
     };
-    const recoverStep = vi.fn();
+    const recoverStep = mock();
 
     const result = await Pipeline.of(init)
       .stepWithRecovery('FAIL', failStep, recoverStep)
@@ -36,8 +36,8 @@ describe('Pipeline', () => {
     const controller = new AbortController();
     controller.abort();
 
-    const emit = vi.fn();
-    const step = vi.fn(async (ctx: any) => ({ ...ctx, val: (ctx.val ?? 0) + 1 }));
+    const emit = mock();
+    const step = mock(async (ctx: any) => ({ ...ctx, val: (ctx.val ?? 0) + 1 }));
 
     const init = {
       val: 0,
@@ -58,9 +58,9 @@ describe('Pipeline', () => {
     const controller = new AbortController();
     controller.abort();
 
-    const emit = vi.fn();
-    const action = vi.fn(async () => ({ ok: true }));
-    const recovery = vi.fn(async () => ({ ok: true }));
+    const emit = mock();
+    const action = mock(async () => ({ ok: true }));
+    const recovery = mock(async () => ({ ok: true }));
 
     const init = {
       emit,

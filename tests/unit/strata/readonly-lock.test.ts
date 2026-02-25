@@ -1,14 +1,14 @@
 const { mkdirMock, writeFileMock, readFileMock, unlinkMock, renameMock, getShadowLockPathMock } =
   (() => ({
-    mkdirMock: vi.fn(),
-    writeFileMock: vi.fn(),
-    readFileMock: vi.fn(),
-    unlinkMock: vi.fn(),
-    renameMock: vi.fn(),
-    getShadowLockPathMock: vi.fn(),
+    mkdirMock: mock(),
+    writeFileMock: mock(),
+    readFileMock: mock(),
+    unlinkMock: mock(),
+    renameMock: mock(),
+    getShadowLockPathMock: mock(),
   }))();
 
-vi.mock('fs/promises', () => ({
+mock.module('fs/promises', () => ({
   mkdir: mkdirMock,
   writeFile: writeFileMock,
   readFile: readFileMock,
@@ -16,15 +16,15 @@ vi.mock('fs/promises', () => ({
   rename: renameMock,
 }));
 
-vi.mock('../../../src/core/runtime/paths.js', () => ({
+mock.module('../../../src/core/runtime/paths.js', () => ({
   getShadowLockPath: getShadowLockPathMock,
 }));
 
-vi.mock('../../../src/core/observability/logger.js', () => ({
+mock.module('../../../src/core/observability/logger.js', () => ({
   logger: {
-    debug: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
+    debug: mock(),
+    warn: mock(),
+    error: mock(),
   },
 }));
 
@@ -71,15 +71,15 @@ describe('readonly-lock behavior safety', () => {
   };
 
   beforeEach(() => {
-    vi.clearAllMocks();
-    vi.restoreAllMocks();
+    mock.clearAllMocks();
+    mock.restore();
     fileState.clear();
     configureStatefulFs();
     getShadowLockPathMock.mockImplementation((shadowRoot: string) => `${shadowRoot}/lock.pid`);
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    mock.restore();
   });
 
   it('acquires lock atomically with process token payload', async () => {
@@ -97,7 +97,7 @@ describe('readonly-lock behavior safety', () => {
   it('replaces stale lock from dead process', async () => {
     const lockPath = '/tmp/s8p-wt/lock.pid';
     fileState.set(lockPath, '999:1700000000000:stale-token');
-    vi.spyOn(process, 'kill').mockImplementation((pid: number) => {
+    spyOn(process, 'kill').mockImplementation((pid: number) => {
       if (pid === 999) throw new Error('ESRCH');
       return true;
     });
@@ -113,7 +113,7 @@ describe('readonly-lock behavior safety', () => {
     const lockPath = '/tmp/s8p-wt/lock.pid';
     const existing = '4242:1700000000000:live-token';
     fileState.set(lockPath, existing);
-    vi.spyOn(process, 'kill').mockImplementation((pid: number) => {
+    spyOn(process, 'kill').mockImplementation((pid: number) => {
       if (pid === 4242) return true;
       throw new Error('ESRCH');
     });
@@ -126,7 +126,7 @@ describe('readonly-lock behavior safety', () => {
     const lockPath = '/tmp/s8p-wt/lock.pid';
     const existing = '4242:1700000000000:live-token';
     fileState.set(lockPath, existing);
-    vi.spyOn(process, 'kill').mockImplementation((pid: number) => {
+    spyOn(process, 'kill').mockImplementation((pid: number) => {
       if (pid === 4242) {
         throw Object.assign(new Error('EPERM'), { code: 'EPERM' });
       }

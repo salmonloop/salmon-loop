@@ -1,7 +1,7 @@
 import { AiSdkLLM } from '../../src/core/llm/ai-sdk.js';
 import { clearAuditContext, setAuditContext } from '../../src/core/observability/audit-trail.js';
 
-vi.mock('@ai-sdk/openai', () => {
+mock.module('@ai-sdk/openai', () => {
   return {
     createOpenAI: () => ({
       chat: () => ({ provider: 'mock-openai-chat' }),
@@ -9,7 +9,7 @@ vi.mock('@ai-sdk/openai', () => {
   };
 });
 
-vi.mock('@ai-sdk/openai-compatible', () => {
+mock.module('@ai-sdk/openai-compatible', () => {
   return {
     createOpenAICompatible: () => ({
       chatModel: () => ({ provider: 'mock-openai-compatible-chat' }),
@@ -17,12 +17,12 @@ vi.mock('@ai-sdk/openai-compatible', () => {
   };
 });
 
-vi.mock('ai', () => {
+mock.module('ai', () => {
   return {
-    generateText: vi.fn(async () => ({ text: 'ok' })),
-    streamText: vi.fn(async () => ({ fullStream: (async function* () {})() })),
-    jsonSchema: vi.fn(() => ({})),
-    tool: vi.fn(() => ({})),
+    generateText: mock(async () => ({ text: 'ok' })),
+    streamText: mock(async () => ({ fullStream: (async function* () {})() })),
+    jsonSchema: mock(() => ({})),
+    tool: mock(() => ({})),
   };
 });
 

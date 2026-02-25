@@ -3,7 +3,7 @@ import { registry } from '../../../../../src/core/grizzco/services/registry.js';
 import { createMockContext } from '../mocks.js';
 
 // Mock dependencies to avoid side effects
-vi.mock('../../../../../src/core/grizzco/execution/Executor.js', () => ({
+mock.module('../../../../../src/core/grizzco/execution/Executor.js', () => ({
   Executor: class {
     execute() {
       return Promise.resolve({
@@ -17,7 +17,7 @@ vi.mock('../../../../../src/core/grizzco/execution/Executor.js', () => ({
   },
 }));
 
-vi.mock('../../../../../src/core/grizzco/execution/WorkerFactory.js', () => ({
+mock.module('../../../../../src/core/grizzco/execution/WorkerFactory.js', () => ({
   WorkerFactory: class {
     constructor() {}
   },
@@ -35,11 +35,11 @@ describe('Apply Step (MicroOrchestrator)', () => {
     // 1. Setup Spies
     const mockService = {
       id: 'remote_lock',
-      fetch: vi.fn().mockResolvedValue({ isLocked: false }),
+      fetch: mock().mockResolvedValue({ isLocked: false }),
     };
     const mockGitConfig = {
       id: 'git_config',
-      fetch: vi.fn().mockResolvedValue({ user: { name: 'Test', email: 'test@example.com' } }),
+      fetch: mock().mockResolvedValue({ user: { name: 'Test', email: 'test@example.com' } }),
     };
 
     // 2. Register them BEFORE runApply
@@ -51,7 +51,7 @@ describe('Apply Step (MicroOrchestrator)', () => {
 
     // Setup FileStateResolver Mock
     (ctx as any).fileStateResolver = {
-      getWorkspaceMap: vi.fn().mockResolvedValue(
+      getWorkspaceMap: mock().mockResolvedValue(
         new Map([
           [
             'test.ts',
@@ -70,14 +70,12 @@ describe('Apply Step (MicroOrchestrator)', () => {
 
     // Setup GrizzcoSystem Mock (used for diff conversion in loop.ts, but here in apply.ts)
     (ctx as any).grizzcoSystem = {
-      convertDiffToShadowOperations: vi
-        .fn()
-        .mockResolvedValue([
-          { path: 'test.ts', type: OpType.PATCH, content: Buffer.from('mock-diff-content') },
-        ]),
+      convertDiffToShadowOperations: mock().mockResolvedValue([
+        { path: 'test.ts', type: OpType.PATCH, content: Buffer.from('mock-diff-content') },
+      ]),
     };
 
-    (ctx as any).emit = vi.fn();
+    (ctx as any).emit = mock();
     (ctx as any).workspace = { workPath: '/mock/repo' };
     (ctx as any).diff =
       'diff --git a/test.ts b/test.ts\n--- a/test.ts\n+++ b/test.ts\n@@ -1,1 +1,1 @@\n-old\n+new';

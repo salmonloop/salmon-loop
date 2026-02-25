@@ -1,10 +1,10 @@
-import { describe, expect, it, vi } from 'bun:test';
+import { describe, expect, it } from 'bun:test';
 
 import type { LLM } from '../../../../../src/core/types/index.js';
 
 let execCalls = 0;
 
-vi.mock('../../../../../src/core/adapters/git/git-adapter.js', () => {
+mock.module('../../../../../src/core/adapters/git/git-adapter.js', () => {
   class GitAdapter {
     constructor() {}
     async execMeta() {
@@ -41,15 +41,14 @@ describe('PATCH (tool calling path) applicability repair', () => {
 
     const llm: LLM = {
       getCapabilities: () => ({ toolCalling: true }),
-      createPlan: vi.fn(async () => ({
+      createPlan: mock(async () => ({
         goal: 'test-goal',
         files: ['src/index.js'],
         changes: ['Add a comment'],
         verify: 'bun -e "process.exit(0)"',
       })),
-      createPatch: vi.fn(async () => ''),
-      chat: vi
-        .fn()
+      createPatch: mock(async () => ''),
+      chat: mock()
         .mockResolvedValueOnce({
           role: 'assistant' as const,
           content:

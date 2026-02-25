@@ -1,9 +1,9 @@
 import { act, renderHook } from '@testing-library/react';
-import { vi } from 'bun:test';
 import React from 'react';
 
 import { useLoopEvents } from '../../src/cli/ui/hooks/useLoopEvents.js';
 import { UIStoreProvider, useUIStore } from '../../src/cli/ui/store/context.js';
+import { advanceTimersByTime } from '../helpers/bun-timers.js';
 
 function wrapper({ children }: { children: React.ReactNode }) {
   return <UIStoreProvider>{children}</UIStoreProvider>;
@@ -11,15 +11,15 @@ function wrapper({ children }: { children: React.ReactNode }) {
 
 describe('CLI UI streaming integration', () => {
   beforeEach(() => {
-    vi.useFakeTimers();
+    useFakeTimers();
   });
 
   afterEach(() => {
-    vi.useRealTimers();
+    useRealTimers();
   });
 
   it('aggregates llm.stream.delta into one AI message in chat mode', () => {
-    const onStart = vi.fn();
+    const onStart = mock();
     const signal = new AbortController().signal;
 
     const { result } = renderHook(
@@ -50,7 +50,7 @@ describe('CLI UI streaming integration', () => {
     });
 
     act(() => {
-      vi.advanceTimersByTime(250);
+      advanceTimersByTime(250);
     });
 
     const messages = [

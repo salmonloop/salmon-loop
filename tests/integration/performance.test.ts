@@ -2,7 +2,7 @@ import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { GitAdapter } from '../../src/core/adapters/git/git-adapter.js';
 import { LLM } from '../../src/core/llm/index.js';
@@ -11,9 +11,9 @@ import { runSalmonLoop } from '../../src/core/runtime/loop.js';
 // CRITICAL: NO GLOBAL MOCKS. This is a performance test on the real system.
 
 const mockLlm = {
-  createPlan: vi.fn(),
-  createPatch: vi.fn(),
-  chat: vi.fn().mockResolvedValue({ role: 'assistant', content: 'Ready' }),
+  createPlan: mock(),
+  createPatch: mock(),
+  chat: mock().mockResolvedValue({ role: 'assistant', content: 'Ready' }),
 } as unknown as LLM;
 
 describe('Performance Integration Tests', () => {
@@ -46,11 +46,11 @@ describe('Performance Integration Tests', () => {
     await git.exec(['add', '.']);
     await git.exec(['commit', '-m', 'Initial commit']);
 
-    vi.clearAllMocks();
+    mock.clearAllMocks();
   });
 
   afterEach(async () => {
-    // vi.restoreAllMocks(); // Handled by setup.ts
+    // mock.restore(); // Handled by setup.ts
     if (repoPath) {
       await fs.rm(repoPath, { recursive: true, force: true }).catch(() => {});
     }

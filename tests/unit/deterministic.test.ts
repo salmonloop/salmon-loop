@@ -3,47 +3,47 @@ import { FakeLLM } from '../../src/core/llm/index.js';
 import * as verify from '../../src/core/verification/runner.js';
 import { runSalmonLoop } from '../../src/index.js';
 
-type MockFn = ReturnType<typeof vi.fn>;
+type MockFn = ReturnType<typeof mock>;
 const asMockFn = (fn: unknown): MockFn => fn as MockFn;
 
-vi.mock('../../src/core/context/builder.js', () => ({
+mock.module('../../src/core/context/builder.js', () => ({
   ContextBuilder: {
-    build: vi.fn(),
-    extractFailedFiles: vi.fn().mockReturnValue([]),
-    shrinkContext: vi.fn().mockImplementation((ctx: unknown) => Promise.resolve(ctx)),
+    build: mock(),
+    extractFailedFiles: mock().mockReturnValue([]),
+    shrinkContext: mock().mockImplementation((ctx: unknown) => Promise.resolve(ctx)),
   },
 }));
-vi.mock('../../src/core/adapters/git/git-adapter.js', () => ({
-  GitAdapter: vi.fn().mockImplementation(() => ({
-    execMeta: vi.fn().mockResolvedValue({ ok: true, stderr: '' }),
-    applyPatch: vi.fn().mockResolvedValue(undefined),
-    rollbackFiles: vi.fn().mockResolvedValue({ ok: true }),
-    getStatus: vi.fn().mockResolvedValue(''),
-    exec: vi.fn().mockImplementation((args: unknown) => {
+mock.module('../../src/core/adapters/git/git-adapter.js', () => ({
+  GitAdapter: mock().mockImplementation(() => ({
+    execMeta: mock().mockResolvedValue({ ok: true, stderr: '' }),
+    applyPatch: mock().mockResolvedValue(undefined),
+    rollbackFiles: mock().mockResolvedValue({ ok: true }),
+    getStatus: mock().mockResolvedValue(''),
+    exec: mock().mockImplementation((args: unknown) => {
       if (Array.isArray(args) && args[0] === 'config') return Promise.resolve('mock-value');
       return Promise.resolve('');
     }),
-    query: vi.fn().mockResolvedValue(''),
-    checkIgnore: vi.fn().mockResolvedValue(false),
+    query: mock().mockResolvedValue(''),
+    checkIgnore: mock().mockResolvedValue(false),
   })),
 }));
-vi.mock('../../src/core/ast/index.js', () => ({
+mock.module('../../src/core/ast/index.js', () => ({
   AstParser: {
-    parse: vi.fn().mockResolvedValue({
-      delete: vi.fn(),
+    parse: mock().mockResolvedValue({
+      delete: mock(),
     }),
   },
-  checkSyntaxErrors: vi.fn().mockReturnValue([]),
-  validateScopeIntegrity: vi.fn().mockReturnValue({ ok: true }),
-  validateNodeStructure: vi.fn().mockReturnValue(true),
-  getTopLevelNodes: vi.fn().mockReturnValue([]),
-  getNodeName: vi.fn(),
+  checkSyntaxErrors: mock().mockReturnValue([]),
+  validateScopeIntegrity: mock().mockReturnValue({ ok: true }),
+  validateNodeStructure: mock().mockReturnValue(true),
+  getTopLevelNodes: mock().mockReturnValue([]),
+  getNodeName: mock(),
 }));
-vi.mock('../../src/core/verification/runner.js', () => {
+mock.module('../../src/core/verification/runner.js', () => {
   return {
-    runVerify: vi.fn(),
-    preflight: vi.fn(),
-    classifyError: vi.fn(),
+    runVerify: mock(),
+    preflight: mock(),
+    classifyError: mock(),
   };
 });
 
@@ -51,7 +51,7 @@ describe('Deterministic Baseline Tests', () => {
   const tempDir = '/fake/temp/dir';
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    mock.clearAllMocks();
 
     // Default mocks
     asMockFn(verify.preflight).mockResolvedValue({ ok: true });

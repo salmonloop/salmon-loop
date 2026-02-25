@@ -288,7 +288,7 @@ function userFunction() {
 
       // SPY: Monitor all git commands executed during restore
       // We spy on GitAdapter.prototype.exec instead of runGit
-      const execSpy = vi.spyOn(GitAdapter.prototype, 'exec');
+      const execSpy = spyOn(GitAdapter.prototype, 'exec');
 
       try {
         await checkpointManager.restoreToShadow(mainRepo, shadowWorktree, snapshot.commitHash);

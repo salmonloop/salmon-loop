@@ -1,9 +1,9 @@
-const runtimeEnvSetupMock = vi.fn();
-const runtimeEnvTeardownMock = vi.fn();
-const createCheckpointCommitMock = vi.fn();
-const applyBackToMainWorkspaceMock = vi.fn();
+const runtimeEnvSetupMock = mock();
+const runtimeEnvTeardownMock = mock();
+const createCheckpointCommitMock = mock();
+const applyBackToMainWorkspaceMock = mock();
 
-vi.mock('../../src/core/strata/runtime/environment.js', () => {
+mock.module('../../src/core/strata/runtime/environment.js', () => {
   return {
     RuntimeEnvironment: class {
       public workspace?: { baseRepoPath: string; workPath: string; strategy: string };
@@ -53,7 +53,7 @@ vi.mock('../../src/core/strata/runtime/environment.js', () => {
   };
 });
 
-vi.mock('../../src/core/strata/runtime/synchronizer.js', () => ({
+mock.module('../../src/core/strata/runtime/synchronizer.js', () => ({
   WorkspaceSynchronizer: class {
     constructor(_: unknown) {}
     createCheckpointCommit = createCheckpointCommitMock;
@@ -77,34 +77,34 @@ import { ErrorType, Phase } from '../../src/core/types/index.js';
 import * as verify from '../../src/core/verification/runner.js';
 import { text } from '../../src/locales/index.js';
 
-vi.mock('../../src/core/verification/runner.js', () => {
+mock.module('../../src/core/verification/runner.js', () => {
   return {
-    runVerify: vi.fn(),
-    preflight: vi.fn(),
-    classifyError: vi.fn(),
-    verifyFileContent: vi.fn(),
+    runVerify: mock(),
+    preflight: mock(),
+    classifyError: mock(),
+    verifyFileContent: mock(),
   };
 });
-vi.mock('../../src/core/ast/index.js', () => {
+mock.module('../../src/core/ast/index.js', () => {
   return {
     AstParser: {
-      parse: vi.fn().mockImplementation(async () => ({
-        delete: vi.fn(),
+      parse: mock().mockImplementation(async () => ({
+        delete: mock(),
         rootNode: {},
       })),
     },
-    checkSyntaxErrors: vi.fn().mockReturnValue([]),
-    validateScopeIntegrity: vi.fn().mockReturnValue({ ok: true }),
-    validateNodeStructure: vi.fn().mockReturnValue(true),
-    getTopLevelNodes: vi.fn().mockReturnValue([]),
-    getNodeName: vi.fn(),
+    checkSyntaxErrors: mock().mockReturnValue([]),
+    validateScopeIntegrity: mock().mockReturnValue({ ok: true }),
+    validateNodeStructure: mock().mockReturnValue(true),
+    getTopLevelNodes: mock().mockReturnValue([]),
+    getNodeName: mock(),
   };
 });
 
-vi.mock('fs/promises', () => ({
-  readFile: vi.fn().mockResolvedValue(''),
-  writeFile: vi.fn(),
-  unlink: vi.fn(),
+mock.module('fs/promises', () => ({
+  readFile: mock().mockResolvedValue(''),
+  writeFile: mock(),
+  unlink: mock(),
 }));
 
 describe('SalmonLoop', () => {
@@ -115,18 +115,18 @@ describe('SalmonLoop', () => {
   beforeEach(() => {
     loop = new SalmonLoop();
     mockLLM = new StubLLM();
-    vi.clearAllMocks();
+    mock.clearAllMocks();
     createCheckpointCommitMock.mockResolvedValue('final-ref');
     applyBackToMainWorkspaceMock.mockResolvedValue(undefined);
 
     // Default mock for LLM
-    mockLLM.createPlan = vi.fn().mockResolvedValue({
+    mockLLM.createPlan = mock().mockResolvedValue({
       goal: 'test',
       files: ['test.txt'],
       changes: ['change'],
       verify: 'verify',
     });
-    mockLLM.createPatch = vi.fn().mockResolvedValue(`diff --git a/test.txt b/test.txt
+    mockLLM.createPatch = mock().mockResolvedValue(`diff --git a/test.txt b/test.txt
 index 123..456 100644
 --- a/test.txt
 +++ b/test.txt
@@ -136,19 +136,19 @@ index 123..456 100644
 
     const mockedAdapter = {
       repoPath: '/tmp/repo',
-      applyPatch: vi.fn().mockResolvedValue(undefined),
-      rollbackFiles: vi.fn().mockResolvedValue({ ok: true }),
-      safeRollback: vi.fn().mockResolvedValue({ ok: true }),
-      getStatus: vi.fn().mockResolvedValue(''),
-      exec: vi.fn().mockResolvedValue(''),
-      query: vi.fn().mockResolvedValue(''),
-      checkIgnore: vi.fn().mockResolvedValue(false),
-      show: vi.fn().mockResolvedValue(Buffer.from('')),
-      readFile: vi.fn().mockResolvedValue(Buffer.from('')),
-      hashObject: vi.fn().mockResolvedValue(''),
-      updateIndex: vi.fn().mockResolvedValue(undefined),
-      getStatusForPath: vi.fn().mockResolvedValue(null),
-      mergeFile: vi.fn().mockResolvedValue({ content: Buffer.from(''), hasConflict: false }),
+      applyPatch: mock().mockResolvedValue(undefined),
+      rollbackFiles: mock().mockResolvedValue({ ok: true }),
+      safeRollback: mock().mockResolvedValue({ ok: true }),
+      getStatus: mock().mockResolvedValue(''),
+      exec: mock().mockResolvedValue(''),
+      query: mock().mockResolvedValue(''),
+      checkIgnore: mock().mockResolvedValue(false),
+      show: mock().mockResolvedValue(Buffer.from('')),
+      readFile: mock().mockResolvedValue(Buffer.from('')),
+      hashObject: mock().mockResolvedValue(''),
+      updateIndex: mock().mockResolvedValue(undefined),
+      getStatusForPath: mock().mockResolvedValue(null),
+      mergeFile: mock().mockResolvedValue({ content: Buffer.from(''), hasConflict: false }),
     };
     const gitAdapterConstructor = GitAdapter as unknown as {
       mockImplementation?: (impl: any) => void;
@@ -156,43 +156,43 @@ index 123..456 100644
     if (typeof gitAdapterConstructor.mockImplementation === 'function') {
       gitAdapterConstructor.mockImplementation(() => mockedAdapter as any);
     } else {
-      vi.spyOn(GitAdapter.prototype as any, 'applyPatch').mockImplementation(
+      spyOn(GitAdapter.prototype as any, 'applyPatch').mockImplementation(
         mockedAdapter.applyPatch as any,
       );
-      vi.spyOn(GitAdapter.prototype as any, 'rollbackFiles').mockImplementation(
+      spyOn(GitAdapter.prototype as any, 'rollbackFiles').mockImplementation(
         mockedAdapter.rollbackFiles as any,
       );
-      vi.spyOn(GitAdapter.prototype as any, 'safeRollback').mockImplementation(
+      spyOn(GitAdapter.prototype as any, 'safeRollback').mockImplementation(
         mockedAdapter.safeRollback as any,
       );
-      vi.spyOn(GitAdapter.prototype as any, 'getStatus').mockImplementation(
+      spyOn(GitAdapter.prototype as any, 'getStatus').mockImplementation(
         mockedAdapter.getStatus as any,
       );
-      vi.spyOn(GitAdapter.prototype as any, 'exec').mockImplementation(mockedAdapter.exec as any);
-      vi.spyOn(GitAdapter.prototype as any, 'query').mockImplementation(mockedAdapter.query as any);
-      vi.spyOn(GitAdapter.prototype as any, 'checkIgnore').mockImplementation(
+      spyOn(GitAdapter.prototype as any, 'exec').mockImplementation(mockedAdapter.exec as any);
+      spyOn(GitAdapter.prototype as any, 'query').mockImplementation(mockedAdapter.query as any);
+      spyOn(GitAdapter.prototype as any, 'checkIgnore').mockImplementation(
         mockedAdapter.checkIgnore as any,
       );
-      vi.spyOn(GitAdapter.prototype as any, 'show').mockImplementation(mockedAdapter.show as any);
-      vi.spyOn(GitAdapter.prototype as any, 'readFile').mockImplementation(
+      spyOn(GitAdapter.prototype as any, 'show').mockImplementation(mockedAdapter.show as any);
+      spyOn(GitAdapter.prototype as any, 'readFile').mockImplementation(
         mockedAdapter.readFile as any,
       );
-      vi.spyOn(GitAdapter.prototype as any, 'hashObject').mockImplementation(
+      spyOn(GitAdapter.prototype as any, 'hashObject').mockImplementation(
         mockedAdapter.hashObject as any,
       );
-      vi.spyOn(GitAdapter.prototype as any, 'updateIndex').mockImplementation(
+      spyOn(GitAdapter.prototype as any, 'updateIndex').mockImplementation(
         mockedAdapter.updateIndex as any,
       );
-      vi.spyOn(GitAdapter.prototype as any, 'getStatusForPath').mockImplementation(
+      spyOn(GitAdapter.prototype as any, 'getStatusForPath').mockImplementation(
         mockedAdapter.getStatusForPath as any,
       );
-      vi.spyOn(GitAdapter.prototype as any, 'mergeFile').mockImplementation(
+      spyOn(GitAdapter.prototype as any, 'mergeFile').mockImplementation(
         mockedAdapter.mergeFile as any,
       );
     }
 
     // Default mock for shrinkContext
-    vi.spyOn(ContextBuilder, 'shrinkContext').mockImplementation(async (ctx: any) => ctx);
+    spyOn(ContextBuilder, 'shrinkContext').mockImplementation(async (ctx: any) => ctx);
     // Default mock for preflight
     (verify.preflight as any).mockResolvedValue({ ok: true });
     // Default mock for classifyError
@@ -207,7 +207,7 @@ index 123..456 100644
     (validateScopeIntegrity as any).mockReturnValue({ ok: true });
 
     // Mock executeSalmonLoopFlow
-    executeFlowSpy = vi.spyOn(salmonLoopFlow, 'executeSalmonLoopFlow').mockResolvedValue({
+    executeFlowSpy = spyOn(salmonLoopFlow, 'executeSalmonLoopFlow').mockResolvedValue({
       success: true,
       duration: 0,
       traces: [],
@@ -221,23 +221,23 @@ index 123..456 100644
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    mock.restore();
   });
 
   it('should run successfully when verify passes', async () => {
-    vi.spyOn(ContextBuilder, 'build').mockResolvedValue({
+    spyOn(ContextBuilder, 'build').mockResolvedValue({
       repoPath: '/tmp/repo',
       primaryText: 'content',
       rgSnippets: [],
     } as any);
 
-    mockLLM.createPlan = vi.fn().mockResolvedValue({
+    mockLLM.createPlan = mock().mockResolvedValue({
       goal: 'test',
       files: ['test.txt'],
       changes: ['change'],
       verify: 'verify',
     });
-    mockLLM.createPatch = vi.fn().mockResolvedValue(`diff --git a/test.txt b/test.txt
+    mockLLM.createPatch = mock().mockResolvedValue(`diff --git a/test.txt b/test.txt
 index 123..456 100644
 --- a/test.txt
 +++ b/test.txt
@@ -266,16 +266,19 @@ index 123..456 100644
   });
 
   it('should not apply patch in dry-run mode', async () => {
-    vi.spyOn(ContextBuilder, 'build').mockResolvedValue({
+    spyOn(ContextBuilder, 'build').mockResolvedValue({
       repoPath: '/tmp/repo',
       primaryText: 'content',
       rgSnippets: [],
     } as any);
 
-    mockLLM.createPlan = vi
-      .fn()
-      .mockResolvedValue({ goal: 'test', files: [], changes: [], verify: '' });
-    mockLLM.createPatch = vi.fn().mockResolvedValue(`diff --git a/test.txt b/test.txt
+    mockLLM.createPlan = mock().mockResolvedValue({
+      goal: 'test',
+      files: [],
+      changes: [],
+      verify: '',
+    });
+    mockLLM.createPatch = mock().mockResolvedValue(`diff --git a/test.txt b/test.txt
 index 123..456 100644
 --- a/test.txt
 +++ b/test.txt
@@ -298,16 +301,19 @@ index 123..456 100644
   });
 
   it('should retry and rollback on failure', async () => {
-    vi.spyOn(ContextBuilder, 'build').mockResolvedValue({
+    spyOn(ContextBuilder, 'build').mockResolvedValue({
       repoPath: '/tmp/repo',
       primaryText: 'content',
       rgSnippets: [{ file: 'test.txt', content: '...', line: 1 }],
     } as any);
 
-    mockLLM.createPlan = vi
-      .fn()
-      .mockResolvedValue({ goal: 'test', files: ['test.txt'], changes: [], verify: '' });
-    mockLLM.createPatch = vi.fn().mockResolvedValue(`diff --git a/test.txt b/test.txt
+    mockLLM.createPlan = mock().mockResolvedValue({
+      goal: 'test',
+      files: ['test.txt'],
+      changes: [],
+      verify: '',
+    });
+    mockLLM.createPatch = mock().mockResolvedValue(`diff --git a/test.txt b/test.txt
 index 123..456 100644
 --- a/test.txt
 +++ b/test.txt
@@ -354,18 +360,21 @@ index 123..456 100644
   });
 
   it('should rollback all changed files on failure, not just failed ones', async () => {
-    vi.spyOn(ContextBuilder, 'build').mockResolvedValue({
+    spyOn(ContextBuilder, 'build').mockResolvedValue({
       repoPath: '/tmp/repo',
       primaryText: 'content',
       rgSnippets: [],
     } as any);
 
-    mockLLM.createPlan = vi
-      .fn()
-      .mockResolvedValue({ goal: 'test', files: ['a.ts', 'b.ts'], changes: [], verify: '' });
+    mockLLM.createPlan = mock().mockResolvedValue({
+      goal: 'test',
+      files: ['a.ts', 'b.ts'],
+      changes: [],
+      verify: '',
+    });
 
     // Diff changes a.ts and b.ts
-    mockLLM.createPatch = vi.fn().mockResolvedValue(`diff --git a/a.ts b/a.ts
+    mockLLM.createPatch = mock().mockResolvedValue(`diff --git a/a.ts b/a.ts
 index 123..456 100644
 --- a/a.ts
 +++ b/a.ts
@@ -411,16 +420,19 @@ index 123..456 100644
   });
 
   it('should fail when max retries exceeded', async () => {
-    vi.spyOn(ContextBuilder, 'build').mockResolvedValue({
+    spyOn(ContextBuilder, 'build').mockResolvedValue({
       repoPath: '/tmp/repo',
       primaryText: 'content',
       rgSnippets: [],
     } as any);
 
-    mockLLM.createPlan = vi
-      .fn()
-      .mockResolvedValue({ goal: 'test', files: [], changes: [], verify: '' });
-    mockLLM.createPatch = vi.fn().mockResolvedValue(`diff --git a/test.txt b/test.txt
+    mockLLM.createPlan = mock().mockResolvedValue({
+      goal: 'test',
+      files: [],
+      changes: [],
+      verify: '',
+    });
+    mockLLM.createPatch = mock().mockResolvedValue(`diff --git a/test.txt b/test.txt
 index 123..456 100644
 --- a/test.txt
 +++ b/test.txt

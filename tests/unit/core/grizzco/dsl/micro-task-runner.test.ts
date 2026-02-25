@@ -7,7 +7,7 @@ interface TestCtx {
 
 describe('micro-task-runner', () => {
   it('resolves declared data dependencies before producing plan', async () => {
-    const resolveData = vi.fn(async () => 'bar');
+    const resolveData = mock(async () => 'bar');
     const runner = new MicroTaskRunner<TestCtx>({
       strategy: (engine: DecisionEngine<TestCtx>) =>
         engine

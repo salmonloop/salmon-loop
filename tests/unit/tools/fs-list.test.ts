@@ -1,19 +1,19 @@
 import { readdir } from 'fs/promises';
 
-import { beforeEach, describe, expect, it, vi } from 'bun:test';
+import { beforeEach, describe, expect, it } from 'bun:test';
 
 import { registerAllBuiltins } from '../../../src/core/tools/builtin/index.js';
 import { ToolRegistry } from '../../../src/core/tools/registry.js';
 
-vi.mock('fs/promises', () => ({
-  readdir: vi.fn(),
+mock.module('fs/promises', () => ({
+  readdir: mock(),
 }));
 
 describe('Builtin Tool: fs.list', () => {
   const repoRoot = '/fake/repo';
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    mock.clearAllMocks();
   });
 
   function getFsListSpec() {

@@ -1,5 +1,4 @@
 import { act, renderHook } from '@testing-library/react';
-import { vi } from 'bun:test';
 
 import { useInputHistory } from '../../../../../src/cli/ui/hooks/useInputHistory.js';
 
@@ -9,13 +8,13 @@ const hoisted = (() => ({
   },
 }))();
 
-vi.mock('../../../../../src/cli/ui/store/context.js', () => ({
+mock.module('../../../../../src/cli/ui/store/context.js', () => ({
   useUIStore: () => ({ state: hoisted.state }),
 }));
 
 describe('useInputHistory', () => {
   it('resets navigation index when inputHistory is replaced (e.g. session switch)', () => {
-    const onChange = vi.fn();
+    const onChange = mock();
 
     const { result, rerender } = renderHook(
       ({ currentValue }) => useInputHistory(currentValue, onChange),

@@ -1,17 +1,17 @@
-import { describe, it, expect, vi, beforeEach } from 'bun:test';
+import { describe, it, expect, beforeEach } from 'bun:test';
 
 import * as session from '../../../../../src/core/tools/session.js';
 import { Phase } from '../../../../../src/core/types/index.js';
 
 // Mock dependencies
-vi.mock('../../../../../src/core/tools/session.js', () => ({
-  chatWithTools: vi.fn(),
-  chatWithToolsStreaming: vi.fn(),
+mock.module('../../../../../src/core/tools/session.js', () => ({
+  chatWithTools: mock(),
+  chatWithToolsStreaming: mock(),
 }));
 
-vi.mock('../../../../../src/core/prompts/runtime.js', () => ({
-  getExplorePrompt: vi.fn().mockResolvedValue('Mock Prompt'),
-  getExploreSystemPrompt: vi.fn().mockResolvedValue('Mock System Prompt'),
+mock.module('../../../../../src/core/prompts/runtime.js', () => ({
+  getExplorePrompt: mock().mockResolvedValue('Mock Prompt'),
+  getExploreSystemPrompt: mock().mockResolvedValue('Mock System Prompt'),
 }));
 
 describe('exploreCodebase', () => {
@@ -25,17 +25,17 @@ describe('exploreCodebase', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks();
-    chatWithToolsSpy = vi.spyOn(session, 'chatWithTools');
-    vi.spyOn(session, 'chatWithToolsStreaming');
+    mock.clearAllMocks();
+    chatWithToolsSpy = spyOn(session, 'chatWithTools');
+    spyOn(session, 'chatWithToolsStreaming');
 
     mockToolstack = {
       router: {
-        call: vi.fn().mockResolvedValue({ toolName: 'test', status: 'ok', output: 'ok' }),
+        call: mock().mockResolvedValue({ toolName: 'test', status: 'ok', output: 'ok' }),
       },
       registry: {
-        getSpec: vi.fn(),
-        listAll: vi.fn().mockReturnValue([
+        getSpec: mock(),
+        listAll: mock().mockReturnValue([
           { name: 'fs.read', intent: 'READ' },
           { name: 'code.search', intent: 'SEARCH' },
         ]),
@@ -59,7 +59,7 @@ describe('exploreCodebase', () => {
         workPath: '/tmp/test',
         strategy: 'worktree',
       },
-      emit: vi.fn(),
+      emit: mock(),
     };
   });
 
@@ -100,7 +100,7 @@ describe('exploreCodebase', () => {
     };
 
     // Mock chatWithTools to simulate the LLM using the tool
-    vi.spyOn(session, 'chatWithTools').mockImplementation(
+    spyOn(session, 'chatWithTools').mockImplementation(
       async (_messages: any, _options: any, runtime: any) => {
         // simulate the runtime calling the tool via the proxied router
         const router = runtime.toolstack.router;
@@ -154,7 +154,7 @@ describe('exploreCodebase', () => {
       dryRun: false,
     };
 
-    vi.spyOn(session, 'chatWithTools').mockImplementation(
+    spyOn(session, 'chatWithTools').mockImplementation(
       async (_messages: any, _options: any, runtime: any) => {
         const router = runtime.toolstack.router;
 
@@ -195,9 +195,9 @@ describe('exploreCodebase', () => {
       dryRun: false,
     };
 
-    mockCtx.options.llm.chatStream = vi.fn(); // Enable streaming support
+    mockCtx.options.llm.chatStream = mock(); // Enable streaming support
 
-    vi.spyOn(session, 'chatWithToolsStreaming').mockImplementation(
+    spyOn(session, 'chatWithToolsStreaming').mockImplementation(
       async (_messages: any, _options: any, runtime: any) => {
         const router = runtime.toolstack.router;
 
@@ -231,7 +231,7 @@ describe('exploreCodebase', () => {
       dryRun: false,
     };
 
-    vi.spyOn(session, 'chatWithTools').mockImplementation(
+    spyOn(session, 'chatWithTools').mockImplementation(
       async (_messages: any, _options: any, runtime: any) => {
         const router = runtime.toolstack.router;
 

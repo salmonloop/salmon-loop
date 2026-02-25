@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'bun:test';
+import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 
 import { runSalmonLoop } from '../../src/core/runtime/loop.js';
 import { text } from '../../src/locales/index.js';
@@ -11,9 +11,9 @@ describe('Exploration Integrity Integration', () => {
   let repoPath: string;
 
   const mockLlm = {
-    chat: vi.fn(),
-    createPlan: vi.fn(),
-    createPatch: vi.fn(),
+    chat: mock(),
+    createPlan: mock(),
+    createPatch: mock(),
     getModelId: () => 'test-model',
     getCapabilities: () => ({ toolCalling: true, streaming: true }),
   };
@@ -28,7 +28,7 @@ describe('Exploration Integrity Integration', () => {
       ],
     });
     repoPath = repo.path;
-    vi.clearAllMocks();
+    mock.clearAllMocks();
   });
 
   afterEach(async () => {

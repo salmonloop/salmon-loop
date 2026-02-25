@@ -1,28 +1,28 @@
 const { setupMock, teardownMock, clearAuditContextMock } = (() => ({
-  setupMock: vi.fn(),
-  teardownMock: vi.fn(),
-  clearAuditContextMock: vi.fn(),
+  setupMock: mock(),
+  teardownMock: mock(),
+  clearAuditContextMock: mock(),
 }))();
 
-vi.mock('../../src/core/strata/runtime/environment.js', () => ({
-  RuntimeEnvironment: vi.fn().mockImplementation(() => ({
+mock.module('../../src/core/strata/runtime/environment.js', () => ({
+  RuntimeEnvironment: mock().mockImplementation(() => ({
     setup: setupMock,
     teardown: teardownMock,
   })),
 }));
 
-vi.mock('../../src/core/observability/audit-trail.js', () => ({
-  clearAuditTrail: vi.fn(),
-  setAuditContext: vi.fn(),
+mock.module('../../src/core/observability/audit-trail.js', () => ({
+  clearAuditTrail: mock(),
+  setAuditContext: mock(),
   clearAuditContext: clearAuditContextMock,
-  getAuditTrail: vi.fn(() => []),
+  getAuditTrail: mock(() => []),
 }));
 
 import { SalmonLoop } from '../../src/core/runtime/loop.js';
 
 describe('SalmonLoop setup failure cleanup', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    mock.clearAllMocks();
   });
 
   it('tears down environment when setup fails', async () => {
@@ -35,9 +35,9 @@ describe('SalmonLoop setup failure cleanup', () => {
       repoPath: '/repo',
       strategy: 'worktree',
       llm: {
-        chat: vi.fn(),
-        createPlan: vi.fn(),
-        createPatch: vi.fn(),
+        chat: mock(),
+        createPlan: mock(),
+        createPatch: mock(),
       },
     } as any);
 

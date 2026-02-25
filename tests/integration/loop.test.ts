@@ -7,9 +7,9 @@ import { RealFsTestHelper } from '../helpers/real-fs-helper.js';
 
 // Mock the LLM
 const mockLlm = {
-  createPlan: vi.fn(),
-  createPatch: vi.fn(),
-  chat: vi.fn().mockResolvedValue({ role: 'assistant', content: 'Ready' }),
+  createPlan: mock(),
+  createPatch: mock(),
+  chat: mock().mockResolvedValue({ role: 'assistant', content: 'Ready' }),
 } as unknown as any;
 
 describe('SalmonLoop Integration Tests', () => {
@@ -29,9 +29,9 @@ describe('SalmonLoop Integration Tests', () => {
     });
     repoPath = repo.path;
 
-    vi.clearAllMocks();
+    mock.clearAllMocks();
 
-    vi.spyOn(AstParser, 'parse').mockResolvedValue({
+    spyOn(AstParser, 'parse').mockResolvedValue({
       rootNode: {
         hasError: false,
         children: [],
@@ -40,10 +40,10 @@ describe('SalmonLoop Integration Tests', () => {
         startPosition: { row: 0, column: 0 },
         endPosition: { row: 0, column: 20 },
       } as any,
-      delete: vi.fn(),
+      delete: mock(),
     } as any);
-    vi.spyOn(AstParser, 'identifyDefinitions').mockResolvedValue([]);
-    vi.spyOn(AstParser, 'identifyReferences').mockResolvedValue([]);
+    spyOn(AstParser, 'identifyDefinitions').mockResolvedValue([]);
+    spyOn(AstParser, 'identifyReferences').mockResolvedValue([]);
 
     // Ensure LLM chat has a default response for every test
     mockLlm.chat.mockResolvedValue({ role: 'assistant', content: 'Ready' });
@@ -51,7 +51,7 @@ describe('SalmonLoop Integration Tests', () => {
 
   afterEach(async () => {
     await helper.cleanup();
-    vi.restoreAllMocks();
+    mock.restore();
   });
 
   it('should complete a successful loop', async () => {

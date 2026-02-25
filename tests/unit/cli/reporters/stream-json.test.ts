@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 
-import { describe, expect, it, vi } from 'bun:test';
+import { describe, expect, it } from 'bun:test';
 
 import { createStdoutWriter } from '../../../../src/cli/headless/stdout-writer.js';
 import { StreamJsonReporter } from '../../../../src/cli/reporters/stream-json.js';
@@ -68,7 +68,7 @@ describe('StreamJsonReporter', () => {
   });
 
   it('emits JSONL with start, events, result, and end', () => {
-    vi.useFakeTimers();
+    useFakeTimers();
     const restoreTime = freezeSystemTime('2026-02-20T00:00:00.000Z');
 
     const { lines, write } = collectLines();
@@ -194,12 +194,12 @@ describe('StreamJsonReporter', () => {
       },
     });
 
-    vi.useRealTimers();
+    useRealTimers();
     restoreTime();
   });
 
   it('emits tool_use and tool_result blocks for tool calls', () => {
-    vi.useFakeTimers();
+    useFakeTimers();
     const restoreTime = freezeSystemTime('2026-02-20T00:00:00.000Z');
 
     const { lines, write } = collectLines();
@@ -269,12 +269,12 @@ describe('StreamJsonReporter', () => {
       },
     });
 
-    vi.useRealTimers();
+    useRealTimers();
     restoreTime();
   });
 
   it('emits tool_use from canonical model tool-call request and suppresses host start duplication', () => {
-    vi.useFakeTimers();
+    useFakeTimers();
     const restoreTime = freezeSystemTime('2026-02-20T00:00:00.000Z');
 
     const { lines, write } = collectLines();
@@ -347,7 +347,7 @@ describe('StreamJsonReporter', () => {
     expect(toolResultStarts).toHaveLength(1);
     expect(toolResultStarts[0]?.event?.timestamp).toBe('2026-02-20T00:00:03.000Z');
 
-    vi.useRealTimers();
+    useRealTimers();
     restoreTime();
   });
 
@@ -479,7 +479,7 @@ describe('StreamJsonReporter', () => {
   });
 
   it('uses exit code 130 for user cancellation', () => {
-    vi.useFakeTimers();
+    useFakeTimers();
     const restoreTime = freezeSystemTime('2026-02-20T00:00:00.000Z');
 
     const { lines, write } = collectLines();
@@ -503,7 +503,7 @@ describe('StreamJsonReporter', () => {
     expect(resultLine.event.exit_code).toBe(130);
     expect(endLine.event.exit_code).toBe(130);
 
-    vi.useRealTimers();
+    useRealTimers();
     restoreTime();
   });
 });

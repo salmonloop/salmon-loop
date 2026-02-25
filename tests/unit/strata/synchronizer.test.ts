@@ -6,14 +6,14 @@ import { CheckpointManager } from '../../../src/core/strata/checkpoint/manager.j
 import { WorkspaceSynchronizer } from '../../../src/core/strata/runtime/synchronizer.js';
 
 const { queryMock, execMetaMock, execMock, checkIgnoreMock } = (() => ({
-  queryMock: vi.fn(),
-  execMetaMock: vi.fn(),
-  execMock: vi.fn(),
-  checkIgnoreMock: vi.fn(),
+  queryMock: mock(),
+  execMetaMock: mock(),
+  execMock: mock(),
+  checkIgnoreMock: mock(),
 }))();
 
-vi.mock('../../../src/core/adapters/git/git-adapter', () => {
-  const MockGit = vi.fn().mockImplementation(() => ({
+mock.module('../../../src/core/adapters/git/git-adapter', () => {
+  const MockGit = mock().mockImplementation(() => ({
     query: queryMock,
     execMeta: execMetaMock,
     exec: execMock,
@@ -25,7 +25,7 @@ vi.mock('../../../src/core/adapters/git/git-adapter', () => {
 
 describe('WorkspaceSynchronizer checkpoint staging', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    mock.clearAllMocks();
     queryMock.mockImplementation(async (args: string[]) => {
       if (args[0] === 'status') {
         return ' M src/core/skills/bridge.ts\0';

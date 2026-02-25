@@ -86,88 +86,170 @@ export function normalizeHeadlessIntegrationLines(params: {
   return params.lines.map((l) => normalizeUnknown(l, params.repoPath));
 }
 
-export function pickNativeLifecycleLines(lines: any[]): any[] {
-  return lines
-    .filter((l) => isRecord(l) && isRecord(l.event) && typeof l.event.type === 'string')
-    .filter((l) => ['start', 'result', 'error', 'end'].includes(String((l as any).event.type)))
-    .map((l) => {
-      const event = (l as any).event as any;
-      return {
-        uuid: (l as any).uuid,
-        session_id: (l as any).session_id,
-        event: {
-          type: event.type,
-          ...(event.type === 'start'
-            ? {
-                command: event.command,
-                repo_path: event.repo_path,
-                instruction: event.instruction,
-              }
-            : {}),
-          ...(event.type === 'result' || event.type === 'end'
-            ? { success: event.success, exit_code: event.exit_code }
-            : {}),
-          ...(event.type === 'error' ? { error: event.error } : {}),
-          ...(event.timestamp ? { timestamp: event.timestamp } : {}),
-        },
-      };
-    });
+type NativeLifecycleType = 'start' | 'result' | 'error' | 'end';
+
+interface NativeLifecycleEvent {
+  type: NativeLifecycleType;
+  command?: string;
+  repo_path?: string;
+  instruction?: string;
+  success?: boolean;
+  exit_code?: number;
+  error?: unknown;
+  timestamp?: string;
 }
 
-export function pickAnthropicLifecycleLines(lines: any[]): any[] {
-  return lines
-    .filter((l) => isRecord(l) && typeof (l as any).type === 'string')
-    .filter((l) => ['start', 'result', 'error', 'end'].includes(String((l as any).type)))
-    .map((l) => {
-      return {
-        type: (l as any).type,
-        session_id: (l as any).session_id,
-        ...(l.type === 'start'
-          ? {
-              command: (l as any).command,
-              repo_path: (l as any).repo_path,
-              instruction: (l as any).instruction,
-            }
-          : {}),
-        ...(l.type === 'result' || l.type === 'end'
-          ? { success: (l as any).success, exit_code: (l as any).exit_code }
-          : {}),
-        ...(l.type === 'error' ? { error: (l as any).error } : {}),
-      };
-    });
+interface NativeLifecycleLine {
+  uuid?: string;
+  session_id?: string;
+  event?: unknown;
 }
 
-export function pickOpenAiLifecycleLines(lines: any[]): any[] {
-  const picked = lines
-    .filter((l) => isRecord(l) && typeof (l as any).type === 'string')
-    .filter((l) =>
-      [
-        'response.created',
-        'response.in_progress',
-        'response.completed',
-        'response.failed',
-        'error',
-      ].includes(String((l as any).type)),
-    )
-    .map((l) => {
-      if ((l as any).type === 'error') {
-        return {
-          type: (l as any).type,
-          sequence_number: (l as any).sequence_number,
-          code: (l as any).code,
-        };
-      }
+interface AnthropicLifecycleLine {
+  type: NativeLifecycleType;
+  session_id?: string;
+  command?: string;
+  repo_path?: string;
+  instruction?: string;
+  success?: boolean;
+  exit_code?: number;
+  error?: unknown;
+}
 
-      const response = isRecord((l as any).response) ? (l as any).response : {};
+interface OpenAiLifecycleLine {
+  type: string;
+  sequence_number?: number;
+  response?: Record<string, unknown>;
+  code?: number;
+}
+
+function isNativeLifecycleLine(value: unknown): value is NativeLifecycleLine & {
+  event: NativeLifecycleEvent;
+} {
+  if (!isRecord(value)) return false;
+  const event = value.event;
+  return (
+    isRecord(event) &&
+    typeof event.type === 'string' &&
+    ['start', 'result', 'error', 'end'].includes(event.type)
+  );
+}
+
+function isAnthropicLifecycleLine(value: unknown): value is AnthropicLifecycleLine {
+  return (
+    isRecord(value) &&
+    typeof value.type === 'string' &&
+    ['start', 'result', 'error', 'end'].includes(value.type)
+  );
+}
+
+const OPENAI_TYPES = new Set([
+  'response.created',
+  'response.in_progress',
+  'response.completed',
+  'response.failed',
+  'error',
+]);
+
+function isOpenAiLifecycleLine(value: unknown): value is OpenAiLifecycleLine {
+  return isRecord(value) && typeof value.type === 'string' && OPENAI_TYPES.has(value.type);
+}
+
+export function pickNativeLifecycleLines(lines: unknown[]): Array<{
+  uuid?: string;
+  session_id?: string;
+  event: NativeLifecycleEvent;
+}> {
+  return lines.filter(isNativeLifecycleLine).map((line) => {
+    const event: NativeLifecycleEvent = {
+      type: line.event.type,
+    };
+
+    if (line.event.type === 'start') {
+      event.command = line.event.command;
+      event.repo_path = line.event.repo_path;
+      event.instruction = line.event.instruction;
+    }
+
+    if (line.event.type === 'result' || line.event.type === 'end') {
+      event.success = line.event.success;
+      event.exit_code = line.event.exit_code;
+    }
+
+    if (line.event.type === 'error') {
+      event.error = line.event.error;
+    }
+
+    if (line.event.timestamp) {
+      event.timestamp = line.event.timestamp;
+    }
+
+    return {
+      uuid: line.uuid,
+      session_id: line.session_id,
+      event,
+    };
+  });
+}
+
+export function pickAnthropicLifecycleLines(lines: unknown[]): Array<{
+  type: NativeLifecycleType;
+  session_id?: string;
+  command?: string;
+  repo_path?: string;
+  instruction?: string;
+  success?: boolean;
+  exit_code?: number;
+  error?: unknown;
+}> {
+  return lines.filter(isAnthropicLifecycleLine).map((entry) => ({
+    type: entry.type,
+    session_id: entry.session_id,
+    ...(entry.type === 'start'
+      ? {
+          command: entry.command,
+          repo_path: entry.repo_path,
+          instruction: entry.instruction,
+        }
+      : {}),
+    ...(entry.type === 'result' || entry.type === 'end'
+      ? { success: entry.success, exit_code: entry.exit_code }
+      : {}),
+    ...(entry.type === 'error' ? { error: entry.error } : {}),
+  }));
+}
+
+export function pickOpenAiLifecycleLines(lines: unknown[]): Array<{
+  type: string;
+  sequence_number: number;
+  response?: {
+    object?: unknown;
+    status?: unknown;
+  };
+  code?: number;
+}> {
+  const picked = lines.filter(isOpenAiLifecycleLine);
+
+  return picked.map((entry, index) => {
+    if (entry.type === 'error') {
       return {
-        type: (l as any).type,
-        sequence_number: (l as any).sequence_number,
-        response: {
-          object: (response as any).object,
-          status: (response as any).status,
-        },
+        type: entry.type,
+        sequence_number: index,
+        code: entry.code,
       };
-    });
+    }
 
-  return picked.map((l, i) => ({ ...l, sequence_number: i }));
+    const response = isRecord(entry.response)
+      ? {
+          object: entry.response.object,
+          status: entry.response.status,
+        }
+      : undefined;
+
+    return {
+      type: entry.type,
+      sequence_number: index,
+      response,
+    };
+  });
 }

@@ -1,22 +1,22 @@
 const { safeRollbackMock, restoreToShadowMock } = (() => ({
-  safeRollbackMock: vi.fn(),
-  restoreToShadowMock: vi.fn(),
+  safeRollbackMock: mock(),
+  restoreToShadowMock: mock(),
 }))();
 
-vi.mock('../../../../../src/core/adapters/git/git-adapter.js', () => ({
-  GitAdapter: vi.fn().mockImplementation(() => ({
+mock.module('../../../../../src/core/adapters/git/git-adapter.js', () => ({
+  GitAdapter: mock().mockImplementation(() => ({
     safeRollback: safeRollbackMock,
   })),
 }));
 
-vi.mock('../../../../../src/core/strata/checkpoint/manager.js', () => ({
-  CheckpointManager: vi.fn().mockImplementation(() => ({
+mock.module('../../../../../src/core/strata/checkpoint/manager.js', () => ({
+  CheckpointManager: mock().mockImplementation(() => ({
     restoreToShadow: restoreToShadowMock,
   })),
 }));
 
 function createBaseCtx(overrides: Record<string, unknown> = {}): any {
-  const emit = vi.fn();
+  const emit = mock();
   return {
     options: {
       forceReset: false,
@@ -38,7 +38,7 @@ function createBaseCtx(overrides: Record<string, unknown> = {}): any {
 
 describe('rollback step safety behavior', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    mock.clearAllMocks();
     safeRollbackMock.mockRejectedValue(new Error('unexpected direct rollback path'));
     restoreToShadowMock.mockRejectedValue(new Error('unexpected worktree rollback path'));
   });

@@ -4,17 +4,17 @@ import { AstParser } from '../../src/core/ast/parser.js';
 import { ContextBuilder } from '../../src/core/context/builder.js';
 import { spawnCommand } from '../../src/core/runtime/process-runner.js';
 
-vi.mock('fs/promises', () => ({
-  readFile: vi.fn(),
+mock.module('fs/promises', () => ({
+  readFile: mock(),
 }));
-vi.mock('../../src/core/runtime/process-runner.js', () => ({
-  spawnCommand: vi.fn(),
+mock.module('../../src/core/runtime/process-runner.js', () => ({
+  spawnCommand: mock(),
 }));
-vi.mock('../../src/core/ast/parser.js', () => ({
+mock.module('../../src/core/ast/parser.js', () => ({
   AstParser: class {
-    static parse = vi.fn();
-    static identifyDefinitions = vi.fn();
-    static identifyReferences = vi.fn();
+    static parse = mock();
+    static identifyDefinitions = mock();
+    static identifyReferences = mock();
   },
 }));
 
@@ -22,7 +22,7 @@ describe('ContextBuilder', () => {
   const tempDir = '/fake/temp/dir';
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    mock.clearAllMocks();
 
     // Default AST mocks
     (AstParser.parse as any).mockResolvedValue({} as any);
@@ -40,7 +40,7 @@ describe('ContextBuilder', () => {
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    mock.restore();
   });
 
   it('should build context with primary file', async () => {

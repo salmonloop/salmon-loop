@@ -1,23 +1,23 @@
 const { queryMock, rmMock, accessMock, realpathMock } = (() => ({
-  queryMock: vi.fn(),
-  rmMock: vi.fn(),
-  accessMock: vi.fn(),
-  realpathMock: vi.fn(),
+  queryMock: mock(),
+  rmMock: mock(),
+  accessMock: mock(),
+  realpathMock: mock(),
 }))();
 
-vi.mock('../../../src/core/adapters/git/git-adapter.js', () => ({
-  GitAdapter: vi.fn().mockImplementation(() => ({
+mock.module('../../../src/core/adapters/git/git-adapter.js', () => ({
+  GitAdapter: mock().mockImplementation(() => ({
     query: queryMock,
   })),
 }));
 
-vi.mock('fs/promises', () => ({
+mock.module('fs/promises', () => ({
   rm: rmMock,
   access: accessMock,
   realpath: realpathMock,
 }));
 
-vi.mock('os', () => ({
+mock.module('os', () => ({
   tmpdir: () => '/tmp',
 }));
 
@@ -25,7 +25,7 @@ import { WorkspaceManager } from '../../../src/core/strata/layers/worktree.js';
 
 describe('WorkspaceManager teardown safety behavior', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    mock.clearAllMocks();
     queryMock.mockReset();
     rmMock.mockReset();
     accessMock.mockReset();

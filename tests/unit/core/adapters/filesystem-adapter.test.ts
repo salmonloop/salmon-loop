@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'bun:test';
+import { beforeEach, describe, expect, it } from 'bun:test';
 
 import {
   createFileSystemAdapter,
@@ -11,10 +11,10 @@ describe('createFileSystemAdapter', () => {
 
   beforeEach(() => {
     mockRealFs = {
-      readFile: vi.fn(),
-      writeFile: vi.fn(),
-      exists: vi.fn(),
-      mkdir: vi.fn(),
+      readFile: mock(),
+      writeFile: mock(),
+      exists: mock(),
+      mkdir: mock(),
     };
   });
 

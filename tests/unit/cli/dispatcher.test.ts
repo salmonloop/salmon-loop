@@ -1,23 +1,23 @@
-import { describe, it, expect, vi } from 'bun:test';
+import { describe, it, expect } from 'bun:test';
 
 import { CommandDispatcher } from '../../../src/cli/commands/dispatcher.js';
 import { ChatSessionManager } from '../../../src/core/session/manager.js';
 import { LoopEvent } from '../../../src/core/types/index.js';
 
 // Mock dependencies
-const mockEmit = vi.fn();
+const mockEmit = mock();
 const mockSessionManager = {
-  getCurrent: vi.fn(),
-  addMessage: vi.fn(),
-  addIteration: vi.fn(),
-  save: vi.fn(),
+  getCurrent: mock(),
+  addMessage: mock(),
+  addIteration: mock(),
+  save: mock(),
 } as unknown as ChatSessionManager;
 
 describe('CommandDispatcher', () => {
   const dispatcher = new CommandDispatcher();
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    mock.clearAllMocks();
   });
 
   it('should execute a valid command', async () => {
@@ -25,7 +25,7 @@ describe('CommandDispatcher', () => {
     const result = await dispatcher.dispatch('/help', {
       emit: mockEmit,
       sessionManager: mockSessionManager,
-      dispatch: vi.fn(),
+      dispatch: mock(),
     });
 
     expect(result).toEqual({ type: 'executed' });
@@ -40,7 +40,7 @@ describe('CommandDispatcher', () => {
     const result = await dispatcher.dispatch('/unknown_cmd', {
       emit: mockEmit,
       sessionManager: mockSessionManager,
-      dispatch: vi.fn(),
+      dispatch: mock(),
     });
 
     expect(result).toEqual({
@@ -63,7 +63,7 @@ describe('CommandDispatcher', () => {
     const result = await dispatcher.dispatch('  /verify ', {
       emit: mockEmit,
       sessionManager: mockSessionManager,
-      dispatch: vi.fn(),
+      dispatch: mock(),
     });
 
     // /verify is not in the default registry in the code I read earlier (it had exit, quit, status, clear, history, help)
@@ -81,7 +81,7 @@ describe('CommandDispatcher', () => {
     const result = await dispatcher.dispatch('hello world', {
       emit: mockEmit,
       sessionManager: mockSessionManager,
-      dispatch: vi.fn(),
+      dispatch: mock(),
     });
 
     expect(result).toEqual({
@@ -95,7 +95,7 @@ describe('CommandDispatcher', () => {
     const result = await dispatcher.dispatch('check src/cli/index.ts', {
       emit: mockEmit,
       sessionManager: mockSessionManager,
-      dispatch: vi.fn(),
+      dispatch: mock(),
     });
 
     expect(result).toEqual({
@@ -108,7 +108,7 @@ describe('CommandDispatcher', () => {
     const result = await dispatcher.dispatch('', {
       emit: mockEmit,
       sessionManager: mockSessionManager,
-      dispatch: vi.fn(),
+      dispatch: mock(),
     });
 
     expect(result).toEqual({
@@ -121,7 +121,7 @@ describe('CommandDispatcher', () => {
     const result = await dispatcher.dispatch('/snapshot restore', {
       emit: mockEmit,
       sessionManager: mockSessionManager,
-      dispatch: vi.fn(),
+      dispatch: mock(),
     });
 
     expect(result).toEqual({ type: 'executed' });

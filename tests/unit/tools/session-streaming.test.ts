@@ -47,7 +47,7 @@ describe('chatWithToolsStreaming', () => {
           yield { role: 'assistant', done: true };
         })();
       },
-      chat: vi.fn(async () => ({
+      chat: mock(async () => ({
         role: 'assistant' as const,
         content: 'FALLBACK',
         tool_calls: [],
@@ -151,7 +151,7 @@ describe('chatWithToolsStreaming', () => {
     const { registry, policy, router } = createToolstack();
     registerEchoTool(registry);
 
-    const routerSpy = vi.spyOn(router, 'call');
+    const routerSpy = spyOn(router, 'call');
     const calls: Array<{ messages: LLMMessage[] }> = [];
 
     const llm: any = {
@@ -235,7 +235,7 @@ describe('chatWithToolsStreaming', () => {
     const { registry, policy, router } = createToolstack();
     registerEchoTool(registry);
 
-    const routerSpy = vi.spyOn(router, 'call');
+    const routerSpy = spyOn(router, 'call');
     const calls: Array<{ messages: LLMMessage[] }> = [];
 
     const llm: any = {
@@ -380,7 +380,7 @@ describe('chatWithToolsStreaming', () => {
     const { registry, policy, router } = createToolstack();
     registerEchoTool(registry);
 
-    const routerSpy = vi.spyOn(router, 'call');
+    const routerSpy = spyOn(router, 'call');
     const calls: Array<{ messages: LLMMessage[] }> = [];
 
     const llm: any = {
@@ -460,7 +460,7 @@ describe('chatWithToolsStreaming', () => {
     const { registry, policy, router } = createToolstack();
     registerEchoTool(registry);
 
-    const routerSpy = vi.spyOn(router, 'call');
+    const routerSpy = spyOn(router, 'call');
 
     const calls: Array<{ messages: LLMMessage[] }> = [];
     const llm: any = {
@@ -528,7 +528,7 @@ describe('chatWithToolsStreaming', () => {
     const { registry, policy, router } = createToolstack();
     registerEchoTool(registry);
 
-    const routerSpy = vi.spyOn(router, 'call');
+    const routerSpy = spyOn(router, 'call');
 
     const calls: Array<{ messages: LLMMessage[] }> = [];
     const llm: any = {
@@ -635,7 +635,7 @@ describe('chatWithToolsStreaming', () => {
     const { registry, policy, router } = createToolstack();
     registerEchoTool(registry);
 
-    const routerSpy = vi.spyOn(router, 'call');
+    const routerSpy = spyOn(router, 'call');
 
     const llm: any = {
       chatStream() {

@@ -1,11 +1,11 @@
 const fsMocks = (() => ({
-  readFile: vi.fn(),
-  writeFile: vi.fn(),
-  mkdir: vi.fn(),
-  unlink: vi.fn(),
+  readFile: mock(),
+  writeFile: mock(),
+  mkdir: mock(),
+  unlink: mock(),
 }))();
 
-vi.mock('fs', () => ({
+mock.module('fs', () => ({
   promises: fsMocks,
 }));
 
@@ -18,7 +18,7 @@ describe('StrataFileSystemProvider safety behavior', () => {
     new StrataFileSystemProvider({} as unknown as GitAdapter);
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    mock.clearAllMocks();
     fileState.clear();
     fsMocks.readFile.mockImplementation(async (targetPath: string) => {
       const content = fileState.get(targetPath);

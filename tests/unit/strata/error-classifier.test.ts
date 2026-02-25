@@ -2,7 +2,7 @@ import { ErrorType } from '../../../src/core/types/index.js';
 import { classifyError, isRetryable } from '../../../src/core/verification/runner.js';
 
 // Mock plugin registry to simulate language plugins
-vi.mock('../../../src/core/plugin/registry.js', () => ({
+mock.module('../../../src/core/plugin/registry.js', () => ({
   pluginRegistry: {
     getAll: () => [
       {

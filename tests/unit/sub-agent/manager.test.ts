@@ -1,38 +1,38 @@
 const { setupMock, teardownMock, registryGetMock, isStopRequestedMock } = (() => ({
-  setupMock: vi.fn(),
-  teardownMock: vi.fn(),
-  registryGetMock: vi.fn(),
-  isStopRequestedMock: vi.fn(),
+  setupMock: mock(),
+  teardownMock: mock(),
+  registryGetMock: mock(),
+  isStopRequestedMock: mock(),
 }))();
 
-vi.mock('../../../src/core/strata/runtime/environment.js', () => ({
-  RuntimeEnvironment: vi.fn().mockImplementation(() => ({
+mock.module('../../../src/core/strata/runtime/environment.js', () => ({
+  RuntimeEnvironment: mock().mockImplementation(() => ({
     setup: setupMock,
     teardown: teardownMock,
   })),
 }));
 
-vi.mock('../../../src/core/sub-agent/registry.js', () => ({
+mock.module('../../../src/core/sub-agent/registry.js', () => ({
   SubAgentRegistry: {
     get: registryGetMock,
   },
 }));
 
-vi.mock('../../../src/core/sub-agent/controller.js', () => ({
+mock.module('../../../src/core/sub-agent/controller.js', () => ({
   SubAgentController: {
-    registerAgent: vi.fn(),
+    registerAgent: mock(),
     isStopRequested: isStopRequestedMock,
-    appendLog: vi.fn(),
-    updateStatus: vi.fn(),
+    appendLog: mock(),
+    updateStatus: mock(),
   },
 }));
 
-vi.mock('../../../src/core/observability/logger.js', () => ({
+mock.module('../../../src/core/observability/logger.js', () => ({
   logger: {
-    info: vi.fn(),
-    debug: vi.fn(),
-    error: vi.fn(),
-    warn: vi.fn(),
+    info: mock(),
+    debug: mock(),
+    error: mock(),
+    warn: mock(),
   },
 }));
 
@@ -40,7 +40,7 @@ import { SubAgentManager } from '../../../src/core/sub-agent/core/manager.js';
 
 describe('SubAgentManager setup cleanup', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    mock.clearAllMocks();
     registryGetMock.mockReturnValue({
       id: 'surgeon',
       name: 'Surgeon',
@@ -62,9 +62,9 @@ describe('SubAgentManager setup cleanup', () => {
       repoRoot: '/repo',
       persistenceRoot: '/repo',
       llm: {
-        chat: vi.fn(),
-        createPlan: vi.fn(),
-        createPatch: vi.fn(),
+        chat: mock(),
+        createPlan: mock(),
+        createPatch: mock(),
       },
       dryRun: false,
     } as any);

@@ -1,15 +1,15 @@
 const { readFileMock, writeFileMock, warnMock } = (() => ({
-  readFileMock: vi.fn(),
-  writeFileMock: vi.fn(),
-  warnMock: vi.fn(),
+  readFileMock: mock(),
+  writeFileMock: mock(),
+  warnMock: mock(),
 }))();
 
-vi.mock('fs/promises', () => ({
+mock.module('fs/promises', () => ({
   readFile: readFileMock,
   writeFile: writeFileMock,
 }));
 
-vi.mock('../../src/core/observability/logger.js', () => ({
+mock.module('../../src/core/observability/logger.js', () => ({
   logger: {
     warn: warnMock,
   },
