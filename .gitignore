@@ -19,7 +19,12 @@ C:\\Users\\shang\\.claude\\plugins\\marketplaces\\claude-plugins-official/
 *.swp
 *.swo
 *~
-dev.nix
+.idx/
+functions/
+dataconnect/
+firestore.indexes.json
+firestore.rules
+.firebaserc
 
 # OS
 .DS_Store

@@ -85,7 +85,7 @@ describe('process-runner', () => {
 
     const result = await spawnCommand({
       command: 'sh',
-      args: ['-lc', "printf 'abcdef'; printf '123456' 1>&2"],
+      args: ['-c', "printf 'abcdef'; printf '123456' 1>&2"],
       timeoutMs: 2000,
       maxStdoutBytes: 3,
       maxStderrBytes: 4,
@@ -111,7 +111,7 @@ describe('process-runner', () => {
     forceNodeFallback();
     const result = await spawnCommand({
       command: 'sh',
-      args: ['-lc', 'sleep 1'],
+      args: ['-c', 'sleep 1'],
       timeoutMs: 20,
       killGraceMs: 20,
     });
@@ -124,7 +124,7 @@ describe('process-runner', () => {
     forceNodeFallback();
     const processRef = spawnInteractiveProcess({
       command: 'sh',
-      args: ['-lc', "printf 'node-fallback'"],
+      args: ['-c', "printf 'node-fallback'"],
     });
     const stdoutPromise = readAll(processRef.stdout);
     const exit = await waitForExit(processRef);
@@ -145,7 +145,7 @@ describe('process-runner', () => {
 
     const processRef = spawnInteractiveProcess({
       command: 'sh',
-      args: ['-lc', "printf 'bun-runtime'"],
+      args: ['-c', "printf 'bun-runtime'"],
     });
     const stdoutPromise = readAll(processRef.stdout);
     const exit = await waitForExit(processRef);

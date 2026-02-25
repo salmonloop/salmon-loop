@@ -165,7 +165,6 @@ export class WorkspaceManager {
             if (error && typeof error === 'object' && (error as any).code === 'ENOENT') {
               return false;
             }
-            // For non-ENOENT errors, assume the path may still exist.
             return true;
           }
         })();

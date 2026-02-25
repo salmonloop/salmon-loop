@@ -11,6 +11,11 @@ function resolveBunBinary(): string {
   const explicit = (process.env.BUN_BINARY || '').trim();
   if (explicit) return explicit;
 
+  // When running via `bun test`, process.execPath points to the Bun binary.
+  if (process.execPath && /(^|\/|\\)bun(\.exe)?$/i.test(process.execPath)) {
+    return process.execPath;
+  }
+
   const home = process.env.HOME;
   if (home) {
     const candidate = join(home, '.bun', 'bin', 'bun');
