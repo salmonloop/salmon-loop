@@ -1,4 +1,7 @@
-import { packUntilFull } from '../../../src/core/context/policies/pack-until-full.js';
+import {
+  packUntilFull,
+  createBudgetCalculator,
+} from '../../../src/core/context/policies/pack-until-full.js';
 import type { Context } from '../../../src/core/types/index.js';
 
 function makeContext(overrides: Partial<Context> = {}): Context {
@@ -12,6 +15,9 @@ function makeContext(overrides: Partial<Context> = {}): Context {
 }
 
 describe('packUntilFull', () => {
+  // Use char-based calculator for deterministic tests
+  const charCalc = createBudgetCalculator();
+
   it('returns unchanged context when under budget', () => {
     const ctx = makeContext({
       primaryText: 'hello',
@@ -19,7 +25,7 @@ describe('packUntilFull', () => {
       stagedDiff: 'diff',
     });
 
-    const result = packUntilFull(ctx, 10_000);
+    const result = packUntilFull(ctx, 10_000, charCalc);
     expect(result.truncated).toBe(false);
     expect(result.context).toEqual(ctx);
   });
@@ -31,7 +37,7 @@ describe('packUntilFull', () => {
       gitDiff: 'diff --git a/x b/x',
     });
 
-    const result = packUntilFull(ctx, 100);
+    const result = packUntilFull(ctx, 100, charCalc);
     expect(result.truncated).toBe(true);
     expect(result.context.rgSnippets).toEqual([]);
     expect(result.context.gitDiff).toBeUndefined();
@@ -47,7 +53,7 @@ describe('packUntilFull', () => {
       gitDiff: 'diff --git a/x b/x',
     });
 
-    const result = packUntilFull(ctx, 80);
+    const result = packUntilFull(ctx, 80, charCalc);
     expect(result.truncated).toBe(true);
     expect(result.context.rgSnippets.length).toBe(1);
     expect(result.context.rgSnippets[0]?.file).toBe('src/a.ts');
@@ -62,7 +68,7 @@ describe('packUntilFull', () => {
       rgSnippets: [{ file: 'src/a.ts', line: 1, content: 'SNIP'.repeat(30) }],
     });
 
-    const result = packUntilFull(ctx, 150);
+    const result = packUntilFull(ctx, 150, charCalc);
     expect(result.truncated).toBe(true);
     expect(result.context.relatedFiles?.length).toBe(1);
     // Snippets should be dropped first when budget is tight.

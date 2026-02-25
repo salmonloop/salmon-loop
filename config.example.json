@@ -7,6 +7,9 @@
       "dryRun": true
     }
   },
+  "context": {
+    "useTokenBudget": true
+  },
   "observability": {
     "langfuse": {
       "enabled": false,

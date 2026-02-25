@@ -1,3 +1,4 @@
+import { initializeDefaultCalculator } from '../context/policies/pack-until-full.js';
 import { logger } from '../observability/logger.js';
 
 /**
@@ -13,6 +14,11 @@ export function initializeRuntime() {
     (globalThis as any).__SALMON_RUNTIME_INITIALIZED__ = true;
     return;
   }
+
+  // Preload token calculator in background (non-blocking)
+  initializeDefaultCalculator().catch(() => {
+    // Silently fallback to char-based if initialization fails
+  });
 
   const isGui = process.argv.includes('--gui');
 

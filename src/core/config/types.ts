@@ -59,6 +59,16 @@ export interface ConfigFileV1 {
     };
   };
 
+  context?: {
+    useTokenBudget?: boolean;
+    dynamicBudget?: {
+      enabled?: boolean;
+      minBudget?: number;
+      maxBudget?: number;
+      adjustmentStep?: number;
+    };
+  };
+
   observability?: ObservabilityConfigV1;
 
   output?: {
@@ -179,6 +189,9 @@ export interface ResolvedConfig {
     used: boolean;
   };
   raw?: ConfigFileV1;
+  context: {
+    useTokenBudget: boolean;
+  };
   observability: {
     langfuse: {
       enabled: boolean;

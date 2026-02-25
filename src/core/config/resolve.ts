@@ -246,6 +246,11 @@ function resolveAstValidationStrictness(raw?: ConfigFileV1): AstValidationStrict
   return DEFAULT_AST_VALIDATION_STRICTNESS;
 }
 
+function resolveUseTokenBudget(raw?: ConfigFileV1): boolean {
+  const value = raw?.context?.useTokenBudget;
+  return value !== false; // Default to true
+}
+
 export async function resolveConfig(opts: ResolveConfigOptions): Promise<ResolvedConfig> {
   const enabled = opts.enableConfigFile !== false;
   const path = opts.configFilePath || getDefaultRepoConfigPath(opts.repoRoot);
@@ -267,6 +272,9 @@ export async function resolveConfig(opts: ResolveConfigOptions): Promise<Resolve
       used: Boolean(loaded),
     },
     raw,
+    context: {
+      useTokenBudget: resolveUseTokenBudget(raw),
+    },
     observability: {
       langfuse: resolveLangfuseObservability(raw),
     },

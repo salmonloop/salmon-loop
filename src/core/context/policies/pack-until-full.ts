@@ -9,7 +9,7 @@ import { text } from '../../../locales/index.js';
 import { LIMITS } from '../../config/limits.js';
 import type { Context, RelatedFileContext, RipgrepResult } from '../../types/index.js';
 import { normalizePath } from '../../utils/path.js';
-import type { TokenBudgetCalculator } from '../token/token-budget.js';
+import { TokenBudgetCalculator } from '../token/token-budget.js';
 
 export interface BudgetResult {
   context: Context;
@@ -174,18 +174,131 @@ function buildTargetSet(context: Context): Set<string> {
 }
 
 /**
+ * Singleton token calculator for default usage.
+ * Initialized lazily on first use.
+ */
+let defaultTokenCalculator: TokenBudgetCalculator | null = null;
+let initializationPromise: Promise<void> | null = null;
+let useTokenBudget = true; // Default to true
+
+/**
+ * Set whether to use token budget by default.
+ * Can be controlled via config.context.useTokenBudget.
+ */
+export function setUseTokenBudget(enabled: boolean): void {
+  useTokenBudget = enabled;
+}
+
+/**
+ * Set model for adaptive budget calculation.
+ * This updates budget limits based on model capabilities.
+ */
+export function setDefaultModel(modelId: string): void {
+  if (defaultTokenCalculator) {
+    defaultTokenCalculator.setModel(modelId);
+  }
+}
+
+/**
+ * Get or create the default token calculator.
+ * Initializes on first call.
+ */
+async function getDefaultTokenCalculator(): Promise<TokenBudgetCalculator> {
+  if (defaultTokenCalculator) {
+    return defaultTokenCalculator;
+  }
+
+  if (!initializationPromise) {
+    initializationPromise = (async () => {
+      defaultTokenCalculator = new TokenBudgetCalculator();
+      await defaultTokenCalculator.initialize();
+    })();
+  }
+
+  await initializationPromise;
+  return defaultTokenCalculator!;
+}
+
+/**
+ * Create default budget calculator.
+ * Uses token-based calculation by default for accuracy.
+ * Falls back to char-based if token calculator initialization fails or disabled.
+ */
+function createDefaultCalculator(): IBudgetCalculator {
+  // If token budget is disabled, use char calculator
+  if (!useTokenBudget) {
+    return new CharBudgetCalculator();
+  }
+
+  // Return a lazy-initializing adapter
+  return {
+    count(text: string): number {
+      if (defaultTokenCalculator?.mode === 'token') {
+        return defaultTokenCalculator.count(text);
+      }
+      // Fallback to char-based estimation
+      return Math.ceil(text.length / 4);
+    },
+    calculateTotalTokens(context: Context): number {
+      if (defaultTokenCalculator?.mode === 'token') {
+        return defaultTokenCalculator.calculateTotalTokens(context);
+      }
+      return new CharBudgetCalculator().calculateTotalTokens(context);
+    },
+    calculateDiffTokens(context: Context): number {
+      if (defaultTokenCalculator?.mode === 'token') {
+        return defaultTokenCalculator.calculateDiffTokens(context);
+      }
+      return new CharBudgetCalculator().calculateDiffTokens(context);
+    },
+    calculateFileTokens(file: RelatedFileContext): number {
+      if (defaultTokenCalculator?.mode === 'token') {
+        return defaultTokenCalculator.calculateFileTokens(file);
+      }
+      return file.content?.length ?? 0;
+    },
+    calculateSnippetTokens(snippet: RipgrepResult): number {
+      if (defaultTokenCalculator?.mode === 'token') {
+        return defaultTokenCalculator.calculateSnippetTokens(snippet);
+      }
+      return snippet.content?.length ?? 0;
+    },
+    getDefaultBudget(): number {
+      if (defaultTokenCalculator?.mode === 'token') {
+        return defaultTokenCalculator.getDefaultBudget();
+      }
+      return LIMITS.maxContextChars;
+    },
+    getMinBudget(): number {
+      if (defaultTokenCalculator?.mode === 'token') {
+        return defaultTokenCalculator.getMinBudget();
+      }
+      return LIMITS.minContextChars;
+    },
+  };
+}
+
+/**
+ * Initialize the default token calculator.
+ * Call this at application startup for best performance.
+ */
+export async function initializeDefaultCalculator(): Promise<void> {
+  await getDefaultTokenCalculator();
+}
+
+/**
  * Pack context items until budget is exhausted.
  *
  * @param context - Context to pack
  * @param budget - Budget in tokens/chars (defaults to calculator's default)
- * @param calculator - Budget calculator (defaults to char-based)
+ * @param calculator - Budget calculator (defaults to token-based)
  */
 export function packUntilFull(
   context: Context,
   budget?: number,
   calculator?: IBudgetCalculator,
 ): BudgetResult {
-  const calc = calculator ?? new CharBudgetCalculator();
+  const calc = calculator ?? createDefaultCalculator();
   const budgetUnits = budget ?? calc.getDefaultBudget();
 
   const totalUnits = calc.calculateTotalTokens(context);

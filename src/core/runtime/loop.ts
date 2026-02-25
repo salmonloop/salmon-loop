@@ -2,6 +2,12 @@ import { randomBytes } from 'crypto';
 
 import { text } from '../../locales/index.js';
 import { LIMITS } from '../config/limits.js';
+import { resolveConfig } from '../config/resolve.js';
+import {
+  initializeDefaultCalculator,
+  setDefaultModel,
+  setUseTokenBudget,
+} from '../context/policies/pack-until-full.js';
 import { createFlowEventAdapter } from '../grizzco/engine/observability/event-adapter.js';
 import { LoopTelemetry } from '../grizzco/engine/observability/loop-telemetry.js';
 import { buildLoopFailureResult } from '../grizzco/engine/outcome/loop-result-mapper.js';
@@ -25,6 +31,23 @@ const globalSemaphore = new Semaphore(LIMITS.maxConcurrentOperations);
 
 export async function runSalmonLoop(options: LoopOptions): Promise<LoopResult> {
   return globalSemaphore.run(async () => {
+    // Load config for token budget settings
+    const config = await resolveConfig({
+      repoRoot: options.repoPath,
+    });
+    setUseTokenBudget(config.context.useTokenBudget);
+
+    // Set model for adaptive budget (if available)
+    const modelId = config.llm.models.selectedModelId;
+    if (modelId) {
+      setDefaultModel(modelId);
+    }
+
+    // Initialize token calculator on first run
+    await initializeDefaultCalculator().catch(() => {
+      // Silently fallback to char-based if initialization fails
+    });
+
     const loop = new SalmonLoop();
     return loop.run(options);
   });
