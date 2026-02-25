@@ -1,5 +1,6 @@
 import { resolve } from 'path';
 
+import { readFile, stat } from '../../../core/adapters/fs/node-fs.js';
 import { LIMITS } from '../../../core/config/limits.js';
 import { JsonSchemaValidator } from '../../../core/structured-output/index.js';
 import type { LoopResult } from '../../../core/types/index.js';
@@ -33,15 +34,14 @@ export async function loadJsonSchema(params: {
     return JSON.parse(value);
   }
 
-  const fs = await import('fs/promises');
   const schemaPath = resolve(params.repoPath, value);
-  const stats = await fs.stat(schemaPath);
+  const stats = await stat(schemaPath);
   if (typeof stats?.size === 'number' && stats.size > maxBytes) {
     throw new Error(
       `Schema input exceeds maximum size: ${stats.size} bytes (max ${maxBytes} bytes).`,
     );
   }
-  const raw = await fs.readFile(schemaPath, 'utf8');
+  const raw = await readFile(schemaPath, 'utf8');
   return JSON.parse(raw);
 }
 

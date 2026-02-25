@@ -3,17 +3,25 @@ import { access, readdir, readFile } from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
+import ts from 'typescript';
+
 const SCAN_ROOT = 'src';
 const ALLOWLIST_PATH = path.join('scripts', 'bun-native-boundary-allowlist.json');
-const BUN_DIRECT_USAGE = /\bBun\./;
 
 interface BunBoundaryViolation {
   filePath: string;
   reason: 'bun-direct-usage';
 }
 
+interface BunBoundaryAllowEntry {
+  path: string;
+  owner: string;
+  reason: string;
+  expiresAt?: string;
+}
+
 interface BunBoundaryAllowlist {
-  bunDirectUsage: string[];
+  bunDirectUsage: BunBoundaryAllowEntry[];
 }
 
 function normalizePathForMatch(filePath: string): string {
@@ -89,8 +97,34 @@ async function loadAllowlist(repoRoot: string): Promise<BunBoundaryAllowlist> {
   }
 
   return {
-    bunDirectUsage: parsed.bunDirectUsage.map((item) => normalizePathForMatch(item)),
+    bunDirectUsage: normalizeAllowEntries(parsed.bunDirectUsage),
   };
+}
+
+function normalizeAllowEntries(entries: unknown[]): BunBoundaryAllowEntry[] {
+  return entries.map((entry, index) => {
+    if (
+      typeof entry !== 'object' ||
+      entry === null ||
+      typeof (entry as any).path !== 'string' ||
+      typeof (entry as any).owner !== 'string' ||
+      typeof (entry as any).reason !== 'string'
+    ) {
+      throw new Error(
+        `${ALLOWLIST_PATH} bunDirectUsage[${index}] must include path, owner, reason`,
+      );
+    }
+
+    const normalized: BunBoundaryAllowEntry = {
+      path: normalizePathForMatch((entry as any).path),
+      owner: (entry as any).owner,
+      reason: (entry as any).reason,
+    };
+    if (typeof (entry as any).expiresAt === 'string') {
+      normalized.expiresAt = (entry as any).expiresAt;
+    }
+    return normalized;
+  });
 }
 
 export async function findBunNativeBoundaryViolations(
@@ -98,7 +132,7 @@ export async function findBunNativeBoundaryViolations(
   options?: { includePaths?: string[] },
 ): Promise<BunBoundaryViolation[]> {
   const allowlist = await loadAllowlist(repoRoot);
-  const bunAllow = new Set(allowlist.bunDirectUsage);
+  const bunAllow = new Set(allowlist.bunDirectUsage.map((entry) => entry.path));
 
   const selected = (options?.includePaths || [])
     .map((p) => normalizePathForMatch(path.normalize(p)))
@@ -118,12 +152,44 @@ export async function findBunNativeBoundaryViolations(
     if (!(await pathExists(fullPath))) continue;
 
     const content = await readFile(fullPath, 'utf-8');
-    if (BUN_DIRECT_USAGE.test(content) && !bunAllow.has(relPath)) {
+    const sourceFile = ts.createSourceFile(fullPath, content, ts.ScriptTarget.Latest, true);
+    if (detectBunDirectUsage(sourceFile) && !bunAllow.has(relPath)) {
       violations.push({ filePath: relPath, reason: 'bun-direct-usage' });
     }
   }
 
   return violations;
+}
+
+function detectBunDirectUsage(sourceFile: ts.SourceFile): boolean {
+  let found = false;
+
+  const visit = (node: ts.Node): void => {
+    if (found) return;
+
+    if (
+      ts.isPropertyAccessExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === 'Bun'
+    ) {
+      found = true;
+      return;
+    }
+
+    if (
+      ts.isElementAccessExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === 'Bun'
+    ) {
+      found = true;
+      return;
+    }
+
+    ts.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
+  return found;
 }
 
 async function main() {

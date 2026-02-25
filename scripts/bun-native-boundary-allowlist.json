@@ -1,5 +1,9 @@
 {
   "bunDirectUsage": [
-    "src/core/config/file-format.ts"
+    {
+      "path": "src/core/config/file-format.ts",
+      "owner": "core-platform",
+      "reason": "Bun.file is used for Bun-native config parsing benchmark path."
+    }
   ]
 }

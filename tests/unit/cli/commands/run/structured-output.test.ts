@@ -8,7 +8,7 @@ import {
 const readFile = mock();
 const stat = mock();
 
-mock.module('fs/promises', () => ({
+mock.module('../../../../../src/core/adapters/fs/node-fs.js', () => ({
   readFile,
   stat,
 }));

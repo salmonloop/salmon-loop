@@ -3,21 +3,29 @@ import { access, readdir, readFile } from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
+import ts from 'typescript';
+
 const SCAN_ROOT = 'src';
 const ALLOWLIST_PATH = path.join('scripts', 'fs-git-boundary-allowlist.json');
 
-const FS_IMPORT = /from\s+['"](?:node:)?fs(?:\/promises)?['"]/;
-const GIT_DIRECT_COMMAND =
-  /command\s*:\s*['"]git['"]|\bspawn(?:Sync)?\s*\(\s*['"]git['"]|\bexeca\s*\(\s*['"]git['"]/;
+const FS_MODULES = new Set(['fs', 'fs/promises', 'node:fs', 'node:fs/promises']);
+const GIT_SPAWN_CALLS = new Set(['spawn', 'spawnSync', 'execa']);
 
 interface BoundaryViolation {
   filePath: string;
   reason: 'fs-direct-import' | 'git-direct-command';
 }
 
+interface BoundaryAllowEntry {
+  path: string;
+  owner: string;
+  reason: string;
+  expiresAt?: string;
+}
+
 interface BoundaryAllowlist {
-  fsDirectImports: string[];
-  gitDirectCommands: string[];
+  fsDirectImports: BoundaryAllowEntry[];
+  gitDirectCommands: BoundaryAllowEntry[];
 }
 
 function normalizePathForMatch(filePath: string): string {
@@ -93,9 +101,33 @@ async function loadAllowlist(repoRoot: string): Promise<BoundaryAllowlist> {
   }
 
   return {
-    fsDirectImports: parsed.fsDirectImports.map((item) => normalizePathForMatch(item)),
-    gitDirectCommands: parsed.gitDirectCommands.map((item) => normalizePathForMatch(item)),
+    fsDirectImports: normalizeAllowEntries(parsed.fsDirectImports, 'fsDirectImports'),
+    gitDirectCommands: normalizeAllowEntries(parsed.gitDirectCommands, 'gitDirectCommands'),
   };
+}
+
+function normalizeAllowEntries(entries: unknown[], field: string): BoundaryAllowEntry[] {
+  return entries.map((entry, index) => {
+    if (
+      typeof entry !== 'object' ||
+      entry === null ||
+      typeof (entry as any).path !== 'string' ||
+      typeof (entry as any).owner !== 'string' ||
+      typeof (entry as any).reason !== 'string'
+    ) {
+      throw new Error(`${ALLOWLIST_PATH} ${field}[${index}] must include path, owner, reason`);
+    }
+
+    const normalized: BoundaryAllowEntry = {
+      path: normalizePathForMatch((entry as any).path),
+      owner: (entry as any).owner,
+      reason: (entry as any).reason,
+    };
+    if (typeof (entry as any).expiresAt === 'string') {
+      normalized.expiresAt = (entry as any).expiresAt;
+    }
+    return normalized;
+  });
 }
 
 export async function findFsGitBoundaryViolations(
@@ -103,8 +135,8 @@ export async function findFsGitBoundaryViolations(
   options?: { includePaths?: string[] },
 ): Promise<BoundaryViolation[]> {
   const allowlist = await loadAllowlist(repoRoot);
-  const fsAllow = new Set(allowlist.fsDirectImports);
-  const gitAllow = new Set(allowlist.gitDirectCommands);
+  const fsAllow = new Set(allowlist.fsDirectImports.map((entry) => entry.path));
+  const gitAllow = new Set(allowlist.gitDirectCommands.map((entry) => entry.path));
 
   const selected = (options?.includePaths || [])
     .map((p) => normalizePathForMatch(path.normalize(p)))
@@ -124,17 +156,120 @@ export async function findFsGitBoundaryViolations(
     if (!(await pathExists(fullPath))) continue;
 
     const content = await readFile(fullPath, 'utf-8');
+    const sourceFile = ts.createSourceFile(fullPath, content, ts.ScriptTarget.Latest, true);
+    const hasFsDirectImport = detectFsDirectImport(sourceFile);
+    const hasGitDirectCommand = detectGitDirectCommand(sourceFile);
 
-    if (FS_IMPORT.test(content) && !fsAllow.has(relPath)) {
+    if (hasFsDirectImport && !fsAllow.has(relPath)) {
       violations.push({ filePath: relPath, reason: 'fs-direct-import' });
     }
 
-    if (GIT_DIRECT_COMMAND.test(content) && !gitAllow.has(relPath)) {
+    if (hasGitDirectCommand && !gitAllow.has(relPath)) {
       violations.push({ filePath: relPath, reason: 'git-direct-command' });
     }
   }
 
   return violations;
+}
+
+function detectFsDirectImport(sourceFile: ts.SourceFile): boolean {
+  let found = false;
+
+  const visit = (node: ts.Node): void => {
+    if (found) return;
+
+    if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
+      if (FS_MODULES.has(node.moduleSpecifier.text)) {
+        found = true;
+        return;
+      }
+    }
+
+    if (
+      ts.isImportEqualsDeclaration(node) &&
+      ts.isExternalModuleReference(node.moduleReference) &&
+      ts.isStringLiteral(node.moduleReference.expression) &&
+      FS_MODULES.has(node.moduleReference.expression.text)
+    ) {
+      found = true;
+      return;
+    }
+
+    if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === 'require' &&
+      node.arguments.length > 0 &&
+      ts.isStringLiteral(node.arguments[0]) &&
+      FS_MODULES.has(node.arguments[0].text)
+    ) {
+      found = true;
+      return;
+    }
+
+    if (
+      ts.isCallExpression(node) &&
+      node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+      node.arguments.length > 0 &&
+      ts.isStringLiteral(node.arguments[0]) &&
+      FS_MODULES.has(node.arguments[0].text)
+    ) {
+      found = true;
+      return;
+    }
+
+    ts.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
+  return found;
+}
+
+function detectGitDirectCommand(sourceFile: ts.SourceFile): boolean {
+  let found = false;
+
+  const visit = (node: ts.Node): void => {
+    if (found) return;
+
+    if (
+      ts.isPropertyAssignment(node) &&
+      ((ts.isIdentifier(node.name) && node.name.text === 'command') ||
+        (ts.isStringLiteral(node.name) && node.name.text === 'command')) &&
+      ts.isStringLiteral(node.initializer) &&
+      node.initializer.text === 'git'
+    ) {
+      found = true;
+      return;
+    }
+
+    if (ts.isCallExpression(node) && isGitSpawnCall(node)) {
+      found = true;
+      return;
+    }
+
+    ts.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
+  return found;
+}
+
+function isGitSpawnCall(node: ts.CallExpression): boolean {
+  const callee = node.expression;
+  const firstArg = node.arguments[0];
+  if (!firstArg || !ts.isStringLiteral(firstArg) || firstArg.text !== 'git') {
+    return false;
+  }
+
+  if (ts.isIdentifier(callee)) {
+    return GIT_SPAWN_CALLS.has(callee.text);
+  }
+
+  if (ts.isPropertyAccessExpression(callee)) {
+    return GIT_SPAWN_CALLS.has(callee.name.text);
+  }
+
+  return false;
 }
 
 async function main() {

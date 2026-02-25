@@ -1,14 +1,46 @@
 {
   "fsDirectImports": [
-    "src/cli/utils/safe-fs.ts",
-    "src/core/adapters/fs/atomic-file-writer.ts",
-    "src/core/adapters/fs/file-adapter.ts",
-    "src/core/adapters/fs/node-fs.ts",
-    "src/core/adapters/git/git-adapter.ts",
-    "src/core/adapters/git/git-runner.ts",
-    "src/core/adapters/git/lock-manager.ts"
+    {
+      "path": "src/cli/utils/safe-fs.ts",
+      "owner": "core-platform",
+      "reason": "CLI safety wrapper is a boundary adapter."
+    },
+    {
+      "path": "src/core/adapters/fs/atomic-file-writer.ts",
+      "owner": "core-platform",
+      "reason": "FS adapter implementation."
+    },
+    {
+      "path": "src/core/adapters/fs/file-adapter.ts",
+      "owner": "core-platform",
+      "reason": "FS adapter implementation."
+    },
+    {
+      "path": "src/core/adapters/fs/node-fs.ts",
+      "owner": "core-platform",
+      "reason": "Single gateway for node fs bindings."
+    },
+    {
+      "path": "src/core/adapters/git/git-adapter.ts",
+      "owner": "core-platform",
+      "reason": "Git adapter implementation."
+    },
+    {
+      "path": "src/core/adapters/git/git-runner.ts",
+      "owner": "core-platform",
+      "reason": "Git command execution boundary."
+    },
+    {
+      "path": "src/core/adapters/git/lock-manager.ts",
+      "owner": "core-platform",
+      "reason": "Git lock adapter implementation."
+    }
   ],
   "gitDirectCommands": [
-    "src/core/adapters/git/git-runner.ts"
+    {
+      "path": "src/core/adapters/git/git-runner.ts",
+      "owner": "core-platform",
+      "reason": "Git command execution boundary."
+    }
   ]
 }

@@ -7,6 +7,9 @@
  * - Blacklist: ISOLATED (fallback on failure)
  */
 
+import { join } from 'path';
+
+import { existsSync } from '../../../adapters/fs/node-fs.js';
 import type { ShadowTask, Strategy } from '../../types.js';
 import { WRITE_OP_BLACKLIST } from '../../types.js';
 
@@ -70,9 +73,6 @@ export function validateDependencyPath(repoRoot: string, depPath: string): boole
  * Detect dependency paths based on repository files
  */
 export async function detectDependencyPaths(repoRoot: string): Promise<string[]> {
-  const { existsSync } = await import('fs');
-  const { join } = await import('path');
-
   const paths: string[] = [];
 
   // Node.js

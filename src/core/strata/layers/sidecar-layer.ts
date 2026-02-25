@@ -5,8 +5,10 @@
  * Provides base content for ignored files that are modified during execution.
  */
 
+import { dirname } from 'path';
+
 import { existsSync } from '../../adapters/fs/node-fs.js';
-import { readFile } from '../../adapters/fs/node-fs.js';
+import { mkdir, readFile, writeFile as writeFileToDisk } from '../../adapters/fs/node-fs.js';
 import { logger } from '../../observability/logger.js';
 import { isSafeRelativePath, normalizePath, safeJoin } from '../../utils/path.js';
 import type { SyntheticSidecarLayer } from '../types.js';
@@ -55,7 +57,7 @@ export class SyntheticSidecarLayerImpl implements SyntheticSidecarLayer {
       const shadowFilePath = safeJoin(shadowPath, filePath);
 
       try {
-        await writeFile(shadowFilePath, content);
+        await writeSidecarFile(shadowFilePath, content);
         logger.debug(`Injected file: ${filePath}`);
       } catch (error) {
         logger.warn(`Failed to inject file ${filePath}: ${error}`);
@@ -93,14 +95,10 @@ export class SyntheticSidecarLayerImpl implements SyntheticSidecarLayer {
 /**
  * Write file helper
  */
-async function writeFile(filePath: string, content: Buffer): Promise<void> {
-  const { writeFile } = await import('fs/promises');
-  const { dirname } = await import('path');
-  const { mkdir } = await import('fs/promises');
-
+async function writeSidecarFile(filePath: string, content: Buffer): Promise<void> {
   // Ensure directory exists
   await mkdir(dirname(filePath), { recursive: true });
 
   // Write file
-  await writeFile(filePath, content);
+  await writeFileToDisk(filePath, content);
 }
