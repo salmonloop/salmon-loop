@@ -19,6 +19,7 @@ C:\\Users\\shang\\.claude\\plugins\\marketplaces\\claude-plugins-official/
 *.swp
 *.swo
 *~
+dev.nix
 
 # OS
 .DS_Store
