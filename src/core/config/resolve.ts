@@ -62,26 +62,122 @@ function resolveModelId(configModelId?: string): string {
   );
 }
 
+function firstProviderRef(value: string | string[] | undefined): string | undefined {
+  if (!value) return undefined;
+  if (typeof value === 'string') return firstNonEmpty(value);
+  for (const v of value) {
+    const found = firstNonEmpty(v);
+    if (found) return found;
+  }
+  return undefined;
+}
+
 function resolveLlmFromConfig(raw?: ConfigFileV1): ResolvedLlmProvider {
   const llm = raw?.llm;
-  const providerKeys = Object.keys(llm?.providers || {});
-  const providerId = llm?.active || (providerKeys.length > 0 ? providerKeys[0] : 'default');
-  const provider = llm?.providers?.[providerId];
-  if (llm?.active && llm.providers && !provider) {
-    throw new ConfigError('CONFIG_LLM_ACTIVE_PROVIDER_NOT_FOUND', { provider: providerId });
+  const providers = llm?.providers || {};
+  const modelProfiles = llm?.models || {};
+  const hasConfiguredLlm = Boolean(llm);
+
+  if (!hasConfiguredLlm) {
+    return {
+      id: 'default',
+      type: 'openai-compatible',
+      clientPackage: undefined,
+      api: {
+        baseUrl: resolveBaseUrl(undefined),
+        timeoutMs: undefined,
+        headers: undefined,
+        apiKey: resolveApiKey(undefined).key,
+        apiKeySource: resolveApiKey(undefined).source,
+      },
+      models: {
+        selectedModelId: resolveModelId(undefined),
+        selectedModelSlot: 'default',
+      },
+    };
   }
 
-  if (provider?.models && Object.keys(provider.models).length > 0 && !provider.models.default) {
-    throw new ConfigError('CONFIG_LLM_DEFAULT_MODEL_REQUIRED', { provider: providerId });
+  if (Object.keys(providers).length === 0) {
+    throw new ConfigError('CONFIG_LLM_PROVIDERS_REQUIRED');
+  }
+  if (Object.keys(modelProfiles).length === 0) {
+    throw new ConfigError('CONFIG_LLM_MODELS_REQUIRED');
   }
 
-  const apiKeyResolution = resolveApiKey(provider?.api?.apiKey);
-  const baseUrl = resolveBaseUrl(provider?.api?.baseUrl);
+  const activeModelSlot = llm?.activeModel || Object.keys(modelProfiles)[0];
+  const activeProfile = modelProfiles[activeModelSlot];
+  if (!activeProfile) {
+    throw new ConfigError('CONFIG_LLM_ACTIVE_MODEL_NOT_FOUND', { model: activeModelSlot });
+  }
 
-  const models = provider?.models || {};
-  const defaultModel = models.default?.id;
-  const selectedModelId = resolveModelId(defaultModel);
+  const providerId = firstProviderRef(activeProfile.provider);
+  if (!providerId) {
+    throw new ConfigError('CONFIG_LLM_MODEL_PROVIDER_INVALID', { model: activeModelSlot });
+  }
+  const provider = providers[providerId];
+  if (!provider) {
+    throw new ConfigError('CONFIG_LLM_MODEL_PROVIDER_NOT_FOUND', {
+      model: activeModelSlot,
+      provider: providerId,
+    });
+  }
+
+  const apiKeyResolution = resolveApiKey(provider.api?.apiKey);
+  const baseUrl = resolveBaseUrl(provider.api?.baseUrl);
+  const selectedModelId = resolveModelId(activeProfile.id);
   const routing = llm?.routing;
+  const phaseToProviderModel =
+    routing?.phaseToModel && typeof routing.phaseToModel === 'object'
+      ? Object.fromEntries(
+          Object.entries(routing.phaseToModel)
+            .map(([phase, profileSlot]) => {
+              const profile = modelProfiles[profileSlot];
+              if (!profile) {
+                throw new ConfigError('CONFIG_LLM_PHASE_MODEL_NOT_FOUND', {
+                  phase,
+                  model: profileSlot,
+                });
+              }
+              const phaseProviderId = firstProviderRef(profile.provider);
+              if (!phaseProviderId) {
+                throw new ConfigError('CONFIG_LLM_PHASE_PROVIDER_INVALID', {
+                  phase,
+                  model: profileSlot,
+                });
+              }
+              const phaseProvider = providers[phaseProviderId];
+              if (!phaseProvider) {
+                throw new ConfigError('CONFIG_LLM_PHASE_PROVIDER_NOT_FOUND', {
+                  phase,
+                  model: profileSlot,
+                  provider: phaseProviderId,
+                });
+              }
+              const phaseKey = resolveApiKey(phaseProvider.api?.apiKey);
+              return [
+                phase,
+                {
+                  id: phaseProviderId,
+                  type: phaseProvider.type || 'openai-compatible',
+                  clientPackage: phaseProvider.client?.package,
+                  api: {
+                    baseUrl: resolveBaseUrl(phaseProvider.api?.baseUrl),
+                    timeoutMs: phaseProvider.api?.timeoutMs,
+                    headers: phaseProvider.api?.headers,
+                    apiKey: phaseKey.key,
+                    apiKeySource: phaseKey.source,
+                  },
+                  model: {
+                    id: resolveModelId(profile.id),
+                    slot: profileSlot,
+                  },
+                },
+              ] as const;
+            })
+            .filter(Boolean),
+        )
+      : undefined;
+
   const resolvedRouting =
     routing &&
     (routing.fallbackProviders !== undefined ||
@@ -91,6 +187,7 @@ function resolveLlmFromConfig(raw?: ConfigFileV1): ResolvedLlmProvider {
           fallbackProviders: routing.fallbackProviders,
           taskToModel: routing.taskToModel,
           phaseToModel: routing.phaseToModel,
+          phaseToProviderModel,
         }
       : undefined;
 
@@ -107,7 +204,7 @@ function resolveLlmFromConfig(raw?: ConfigFileV1): ResolvedLlmProvider {
     },
     models: {
       selectedModelId,
-      selectedModelSlot: 'default',
+      selectedModelSlot: activeModelSlot,
     },
     routing: resolvedRouting,
   };

@@ -50,7 +50,7 @@ describe('createRuntimeLlmAndWarn', () => {
     }));
   });
 
-  it('creates per-phase llm instances from llm.routing.phaseToModel and routes chat by phase', async () => {
+  it('creates per-phase llm instances from llm.routing.phaseToProviderModel and routes chat by phase', async () => {
     const { createRuntimeLlmAndWarn } =
       await import('../../../../../src/cli/commands/run/runtime-llm.js');
 
@@ -59,9 +59,19 @@ describe('createRuntimeLlmAndWarn', () => {
         type: 'openai-compatible',
         models: { selectedModelId: 'default-model' },
         routing: {
-          phaseToModel: {
-            PLAN: 'plan-model',
-            PATCH: 'patch-model',
+          phaseToProviderModel: {
+            PLAN: {
+              id: 'openaiMain',
+              type: 'openai-compatible',
+              api: { apiKey: 'k', apiKeySource: 'inline' },
+              model: { id: 'plan-model', slot: 'plan' },
+            },
+            PATCH: {
+              id: 'openaiMain',
+              type: 'openai-compatible',
+              api: { apiKey: 'k', apiKeySource: 'inline' },
+              model: { id: 'patch-model', slot: 'patch' },
+            },
           },
         },
       },

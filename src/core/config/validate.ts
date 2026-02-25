@@ -8,6 +8,7 @@ import {
   normalizeUiLogMode,
   normalizeUiLogView,
   type LangfuseObservabilityConfigV1,
+  type LlmModelProfileV1,
   type LlmProviderV1,
 } from './types.js';
 
@@ -261,10 +262,10 @@ export function validateConfigFileV1(input: unknown): ConfigFileV1 {
       throw new ConfigError('CONFIG_INVALID_LLM', { expected: 'object' });
     }
     cfg.llm = {};
-    if (input.llm.active !== undefined && !isString(input.llm.active)) {
-      throw new ConfigError('CONFIG_INVALID_LLM_ACTIVE', { expected: 'string' });
+    if (input.llm.activeModel !== undefined && !isString(input.llm.activeModel)) {
+      throw new ConfigError('CONFIG_INVALID_LLM_ACTIVE_MODEL', { expected: 'string' });
     }
-    if (input.llm.active !== undefined) cfg.llm.active = input.llm.active;
+    if (input.llm.activeModel !== undefined) cfg.llm.activeModel = input.llm.activeModel;
 
     if (input.llm.providers !== undefined) {
       if (!isRecord(input.llm.providers)) {
@@ -332,34 +333,53 @@ export function validateConfigFileV1(input: unknown): ConfigFileV1 {
           };
         }
 
-        if (rawProvider.models !== undefined) {
-          if (!isRecord(rawProvider.models)) {
-            throw new ConfigError('CONFIG_INVALID_MODELS', { provider: id, expected: 'object' });
-          }
-          p.models = {};
-          for (const [slot, rawModel] of Object.entries(rawProvider.models)) {
-            if (!isRecord(rawModel)) {
-              throw new ConfigError('CONFIG_INVALID_MODEL', {
-                provider: id,
-                model: slot,
-                expected: 'object',
-              });
-            }
-            if (!isString(rawModel.id) || !rawModel.id.trim()) {
-              throw new ConfigError('CONFIG_INVALID_MODEL_ID', {
-                provider: id,
-                model: slot,
-                expected: 'non_empty_string',
-              });
-            }
-            p.models[slot] = {
-              id: rawModel.id,
-              params: isRecord(rawModel.params) ? (rawModel.params as any) : undefined,
-            };
-          }
+        if ((rawProvider as any).models !== undefined) {
+          throw new ConfigError('CONFIG_LLM_PROVIDER_MODELS_NOT_SUPPORTED', {
+            provider: id,
+            hint: 'use llm.models with provider references',
+          });
         }
 
         cfg.llm.providers[id] = p;
+      }
+    }
+
+    if (input.llm.models !== undefined) {
+      if (!isRecord(input.llm.models)) {
+        throw new ConfigError('CONFIG_INVALID_LLM_MODELS', { expected: 'object' });
+      }
+      cfg.llm.models = {};
+      for (const [slot, rawModel] of Object.entries(input.llm.models)) {
+        if (!isRecord(rawModel)) {
+          throw new ConfigError('CONFIG_INVALID_LLM_MODEL_PROFILE', {
+            model: slot,
+            expected: 'object',
+          });
+        }
+        const provider = (rawModel as any).provider;
+        if (
+          !isString(provider) &&
+          !(Array.isArray(provider) && provider.length > 0 && provider.every(isString))
+        ) {
+          throw new ConfigError('CONFIG_INVALID_LLM_MODEL_PROVIDER', {
+            model: slot,
+            expected: 'string_or_non_empty_string_array',
+          });
+        }
+        if (!isString((rawModel as any).id) || !(rawModel as any).id.trim()) {
+          throw new ConfigError('CONFIG_INVALID_LLM_MODEL_ID', {
+            model: slot,
+            expected: 'non_empty_string',
+          });
+        }
+
+        cfg.llm.models[slot] = {
+          provider: provider as any,
+          id: (rawModel as any).id,
+          params: isRecord((rawModel as any).params)
+            ? ((rawModel as any).params as LlmModelProfileV1['params'])
+            : undefined,
+        };
       }
     }
 

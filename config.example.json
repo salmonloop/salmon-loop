@@ -44,7 +44,7 @@
     "timeoutMs": 600000
   },
   "llm": {
-    "active": "openaiMain",
+    "activeModel": "coding-task",
     "providers": {
       "openaiMain": {
         "type": "openai-compatible",
@@ -56,11 +56,16 @@
           "apiKey": null,
           "timeoutMs": 60000,
           "headers": {}
-        },
-        "models": {
-          "default": {
-            "id": "gpt-4.1-mini"
-          }
+        }
+      }
+    },
+    "models": {
+      "coding-task": {
+        "provider": "openaiMain",
+        "id": "gpt-4.1-mini",
+        "params": {
+          "temperature": 0.2,
+          "maxTokens": 8192
         }
       }
     }

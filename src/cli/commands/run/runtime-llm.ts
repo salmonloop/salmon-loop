@@ -13,18 +13,27 @@ export function createRuntimeLlmAndWarn(params: { llmConfig: any; langfuseEnable
   });
   const warnings = [...runtimeLlm.warnings];
 
-  const phaseToModel = params.llmConfig?.routing?.phaseToModel;
+  const phaseToProviderModel = params.llmConfig?.routing?.phaseToProviderModel;
   const phaseLlms: Partial<Record<ExecutionPhase, any>> = {};
-  if (phaseToModel && typeof phaseToModel === 'object') {
+  if (phaseToProviderModel && typeof phaseToProviderModel === 'object') {
     const validPhases = new Set<string>([...EXECUTION_PHASES, Phase.SLASH]);
-    for (const [phase, modelId] of Object.entries(phaseToModel)) {
+    for (const [phase, target] of Object.entries(phaseToProviderModel)) {
       if (!validPhases.has(phase)) continue;
-      if (typeof modelId !== 'string' || !modelId.trim()) continue;
+      if (!target || typeof target !== 'object') continue;
       const perPhaseConfig = {
-        ...params.llmConfig,
+        id: (target as any).id,
+        type: (target as any).type,
+        clientPackage: (target as any).clientPackage,
+        api: {
+          baseUrl: (target as any).api?.baseUrl,
+          timeoutMs: (target as any).api?.timeoutMs,
+          headers: (target as any).api?.headers,
+          apiKey: (target as any).api?.apiKey,
+          apiKeySource: (target as any).api?.apiKeySource,
+        },
         models: {
-          ...params.llmConfig?.models,
-          selectedModelId: modelId,
+          selectedModelId: (target as any).model?.id,
+          selectedModelSlot: (target as any).model?.slot || 'default',
         },
       };
       const created = createRuntimeLlm(perPhaseConfig, { langfuseEnabled: params.langfuseEnabled });

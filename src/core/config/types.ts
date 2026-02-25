@@ -100,8 +100,9 @@ export interface ConfigFileV1 {
   };
 
   llm?: {
-    active?: string;
+    activeModel?: string;
     providers?: Record<string, LlmProviderV1>;
+    models?: Record<string, LlmModelProfileV1>;
     routing?: {
       fallbackProviders?: string[];
       taskToModel?: Record<string, string>;
@@ -154,17 +155,36 @@ export interface LlmProviderV1 {
     timeoutMs?: number;
     headers?: Record<string, string>;
   };
-  models?: Record<string, LlmModelV1>;
 }
 
-export interface LlmModelV1 {
+export interface LlmModelParamsV1 {
+  temperature?: number;
+  maxTokens?: number;
+  topP?: number;
+  presencePenalty?: number;
+  frequencyPenalty?: number;
+}
+
+export interface LlmModelProfileV1 {
+  provider: string | string[];
   id: string;
-  params?: {
-    temperature?: number;
-    maxTokens?: number;
-    topP?: number;
-    presencePenalty?: number;
-    frequencyPenalty?: number;
+  params?: LlmModelParamsV1;
+}
+
+export interface ResolvedLlmPhaseOverride {
+  id: string;
+  type: LlmProviderType;
+  clientPackage?: string;
+  api: {
+    baseUrl?: string;
+    timeoutMs?: number;
+    headers?: Record<string, string>;
+    apiKey?: string;
+    apiKeySource: ApiKeySource;
+  };
+  model: {
+    id: string;
+    slot: string;
   };
 }
 
@@ -189,6 +209,7 @@ export interface ResolvedLlmProvider {
     fallbackProviders?: string[];
     taskToModel?: Record<string, string>;
     phaseToModel?: Record<string, string>;
+    phaseToProviderModel?: Record<string, ResolvedLlmPhaseOverride>;
   };
 }
 

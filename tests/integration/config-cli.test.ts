@@ -20,7 +20,7 @@ describe('Config CLI integration', () => {
           version: 1,
           verify: { command: 'bun -e "process.exit(0)"' },
           llm: {
-            active: 'openaiMain',
+            activeModel: 'default',
             providers: {
               openaiMain: {
                 type: 'openai-compatible',
@@ -31,9 +31,12 @@ describe('Config CLI integration', () => {
                   timeoutMs: 60000,
                   headers: {},
                 },
-                models: {
-                  default: { id: 'gpt-test' },
-                },
+              },
+            },
+            models: {
+              default: {
+                provider: 'openaiMain',
+                id: 'gpt-test',
               },
             },
           },
@@ -79,12 +82,17 @@ describe('Config CLI integration', () => {
         {
           version: 1,
           llm: {
-            active: 'openaiMain',
+            activeModel: 'default',
             providers: {
               openaiMain: {
                 type: 'openai-compatible',
                 api: { apiKey: 'secret-inline-key' },
-                models: { default: { id: 'gpt-test' } },
+              },
+            },
+            models: {
+              default: {
+                provider: 'openaiMain',
+                id: 'gpt-test',
               },
             },
           },

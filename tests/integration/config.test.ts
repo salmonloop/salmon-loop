@@ -22,6 +22,29 @@ function uniqueTmpDir(name: string): string {
   return join(tmpdir(), `salmonloop-config-test-${name}-${Date.now()}-${Math.random()}`);
 }
 
+function llmConfig(modelId: string, extra?: Record<string, unknown>) {
+  return {
+    activeModel: 'default',
+    providers: {
+      openaiMain: {
+        type: 'openai-compatible',
+        client: { package: '@ai-sdk/openai-compatible' },
+        api: {
+          baseUrl: 'https://example.com/v1',
+          apiKey: 'inline-key',
+        },
+      },
+    },
+    models: {
+      default: {
+        provider: 'openaiMain',
+        id: modelId,
+      },
+    },
+    ...(extra || {}),
+  };
+}
+
 describe('Config module', () => {
   afterEach(() => {
     for (const [key, value] of envRestoreMap) {
@@ -50,20 +73,7 @@ describe('Config module', () => {
             },
           },
           llm: {
-            active: 'openaiMain',
-            providers: {
-              openaiMain: {
-                type: 'openai-compatible',
-                client: { package: '@ai-sdk/openai-compatible' },
-                api: {
-                  baseUrl: 'https://example.com/v1',
-                  apiKey: 'inline-key',
-                },
-                models: {
-                  default: { id: 'gpt-test' },
-                },
-              },
-            },
+            ...llmConfig('gpt-test'),
           },
         },
         null,
@@ -144,14 +154,7 @@ describe('Config module', () => {
             },
           },
           llm: {
-            active: 'openaiMain',
-            providers: {
-              openaiMain: {
-                type: 'openai-compatible',
-                api: { baseUrl: 'https://example.com/v1', apiKey: 'inline-key' },
-                models: { default: { id: 'gpt-test' } },
-              },
-            },
+            ...llmConfig('gpt-test'),
           },
         },
         null,
@@ -184,14 +187,7 @@ describe('Config module', () => {
             },
           },
           llm: {
-            active: 'openaiMain',
-            providers: {
-              openaiMain: {
-                type: 'openai-compatible',
-                api: { baseUrl: 'https://example.com/v1', apiKey: 'inline-key' },
-                models: { default: { id: 'gpt-test' } },
-              },
-            },
+            ...llmConfig('gpt-test'),
           },
         },
         null,
@@ -224,14 +220,7 @@ describe('Config module', () => {
             },
           },
           llm: {
-            active: 'openaiMain',
-            providers: {
-              openaiMain: {
-                type: 'openai-compatible',
-                api: { baseUrl: 'https://example.com/v1', apiKey: 'inline-key' },
-                models: { default: { id: 'gpt-test' } },
-              },
-            },
+            ...llmConfig('gpt-test'),
           },
         },
         null,
@@ -256,14 +245,7 @@ describe('Config module', () => {
             strictness: 'strict',
           },
           llm: {
-            active: 'openaiMain',
-            providers: {
-              openaiMain: {
-                type: 'openai-compatible',
-                api: { baseUrl: 'https://example.com/v1', apiKey: 'inline-key' },
-                models: { default: { id: 'gpt-test' } },
-              },
-            },
+            ...llmConfig('gpt-test'),
           },
         },
         null,
@@ -289,14 +271,7 @@ describe('Config module', () => {
             strictness: 'hardcore',
           },
           llm: {
-            active: 'openaiMain',
-            providers: {
-              openaiMain: {
-                type: 'openai-compatible',
-                api: { baseUrl: 'https://example.com/v1', apiKey: 'inline-key' },
-                models: { default: { id: 'gpt-test' } },
-              },
-            },
+            ...llmConfig('gpt-test'),
           },
         },
         null,
@@ -318,20 +293,28 @@ describe('Config module', () => {
         {
           version: 1,
           llm: {
-            active: 'openaiMain',
-            routing: {
-              phaseToModel: {
-                PLAN: 'gpt-plan',
-                PATCH: 'gpt-patch',
+            ...llmConfig('gpt-default', {
+              models: {
+                default: {
+                  provider: 'openaiMain',
+                  id: 'gpt-default',
+                },
+                planModel: {
+                  provider: 'openaiMain',
+                  id: 'gpt-plan',
+                },
+                patchModel: {
+                  provider: 'openaiMain',
+                  id: 'gpt-patch',
+                },
               },
-            },
-            providers: {
-              openaiMain: {
-                type: 'openai-compatible',
-                api: { baseUrl: 'https://example.com/v1', apiKey: 'inline-key' },
-                models: { default: { id: 'gpt-default' } },
+              routing: {
+                phaseToModel: {
+                  PLAN: 'planModel',
+                  PATCH: 'patchModel',
+                },
               },
-            },
+            }),
           },
         },
         null,
@@ -343,9 +326,11 @@ describe('Config module', () => {
     const cfg = await resolveConfig({ repoRoot });
     expect(cfg.llm.models.selectedModelId).toBe('gpt-default');
     expect(cfg.llm.routing?.phaseToModel).toEqual({
-      PLAN: 'gpt-plan',
-      PATCH: 'gpt-patch',
+      PLAN: 'planModel',
+      PATCH: 'patchModel',
     });
+    expect(cfg.llm.routing?.phaseToProviderModel?.PLAN?.model.id).toBe('gpt-plan');
+    expect(cfg.llm.routing?.phaseToProviderModel?.PATCH?.model.id).toBe('gpt-patch');
   });
 
   it('rejects invalid llm.routing.phaseToModel values', async () => {
@@ -358,7 +343,7 @@ describe('Config module', () => {
         {
           version: 1,
           llm: {
-            active: 'openaiMain',
+            activeModel: 'default',
             routing: {
               phaseToModel: {
                 PLAN: 123,
@@ -368,7 +353,12 @@ describe('Config module', () => {
               openaiMain: {
                 type: 'openai-compatible',
                 api: { baseUrl: 'https://example.com/v1', apiKey: 'inline-key' },
-                models: { default: { id: 'gpt-default' } },
+              },
+            },
+            models: {
+              default: {
+                provider: 'openaiMain',
+                id: 'gpt-default',
               },
             },
           },
@@ -401,14 +391,7 @@ describe('Config module', () => {
             },
           },
           llm: {
-            active: 'openaiMain',
-            providers: {
-              openaiMain: {
-                type: 'openai-compatible',
-                api: { baseUrl: 'https://example.com/v1', apiKey: 'inline-key' },
-                models: { default: { id: 'gpt-default' } },
-              },
-            },
+            ...llmConfig('gpt-default'),
           },
         },
         null,
@@ -440,14 +423,7 @@ describe('Config module', () => {
             },
           },
           llm: {
-            active: 'openaiMain',
-            providers: {
-              openaiMain: {
-                type: 'openai-compatible',
-                api: { baseUrl: 'https://example.com/v1', apiKey: 'inline-key' },
-                models: { default: { id: 'gpt-default' } },
-              },
-            },
+            ...llmConfig('gpt-default'),
           },
         },
         null,
@@ -463,14 +439,19 @@ describe('Config module', () => {
     const redacted = redactConfigForPrint({
       version: 1,
       llm: {
-        active: 'openaiMain',
+        activeModel: 'default',
         providers: {
           openaiMain: {
             type: 'openai-compatible',
             api: {
               apiKey: 'inline-key',
             },
-            models: { default: { id: 'gpt-test' } },
+          },
+        },
+        models: {
+          default: {
+            provider: 'openaiMain',
+            id: 'gpt-test',
           },
         },
       },
