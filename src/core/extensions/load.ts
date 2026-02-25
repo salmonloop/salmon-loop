@@ -1,6 +1,6 @@
-import fs from 'node:fs/promises';
-
 import { ZodSchema } from 'zod';
+
+import { syncFs as fs } from '../adapters/fs/node-fs.js';
 
 export interface LoadResult<T> {
   path: string;

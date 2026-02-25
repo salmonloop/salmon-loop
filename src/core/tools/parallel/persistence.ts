@@ -1,6 +1,6 @@
-import fs from 'fs/promises';
 import path from 'path';
 
+import { syncFs as fs } from '../../adapters/fs/node-fs.js';
 import type { ToolRuntimeCtx } from '../types.js';
 
 import { ExecutionPlan, PlanRunResult } from './plan.js';

@@ -1,0 +1,5 @@
+{
+  "bunDirectUsage": [
+    "src/core/config/file-format.ts"
+  ]
+}

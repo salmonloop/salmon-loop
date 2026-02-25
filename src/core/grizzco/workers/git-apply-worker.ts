@@ -1,8 +1,8 @@
 import { randomBytes } from 'crypto';
-import { rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import * as path from 'path';
 
+import { rm } from '../../adapters/fs/node-fs.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { logIgnoredError } from '../../observability/ignored-error.js';
 import { FileState, FileStatus, MergeResult, ShadowOperation } from '../domain/grizzco-types.js';

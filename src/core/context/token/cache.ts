@@ -6,7 +6,8 @@
  */
 
 import { createHash } from 'crypto';
-import { stat } from 'fs/promises';
+
+import { stat } from '../../adapters/fs/node-fs.js';
 
 import type { CacheStats, FileCacheEntry } from './types.js';
 

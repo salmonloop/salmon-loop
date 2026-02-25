@@ -1,11 +1,10 @@
-import { readFile } from 'fs/promises';
-
+import { readFile } from '../../../src/core/adapters/fs/node-fs.js';
 import { AstParser } from '../../../src/core/ast/parser.js';
 import { AstGatherer } from '../../../src/core/context/gatherers/ast-gatherer.js';
 import type { ContextRequest } from '../../../src/core/context/types.js';
 import { pluginRegistry } from '../../../src/core/plugin/registry.js';
 
-mock.module('fs/promises', () => ({
+mock.module('../../../src/core/adapters/fs/node-fs.js', () => ({
   readFile: mock(),
 }));
 mock.module('../../../src/core/ast/parser.js', () => ({

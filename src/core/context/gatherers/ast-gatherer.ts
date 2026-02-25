@@ -1,6 +1,5 @@
-import { readFile } from 'fs/promises';
-
 import { text } from '../../../locales/index.js';
+import { readFile } from '../../adapters/fs/node-fs.js';
 import { AstParser } from '../../ast/parser.js';
 import { checkSyntaxErrors } from '../../ast/validator.js';
 import { LIMITS } from '../../config/limits.js';

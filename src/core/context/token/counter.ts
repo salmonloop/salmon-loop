@@ -5,7 +5,7 @@
  * of encoding selection, caching, and file operations.
  */
 
-import { readFile } from 'fs/promises';
+import { readFile } from '../../adapters/fs/node-fs.js';
 
 import { TokenCache } from './cache.js';
 import { EncodingRegistry } from './encoding-registry.js';

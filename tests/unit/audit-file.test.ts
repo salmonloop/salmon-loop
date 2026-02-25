@@ -9,7 +9,7 @@ const { readFileMock, writeFileMock, renameMock, mkdirMock, appendFileMock, warn
   warnMock: mock(),
 }))();
 
-mock.module('fs/promises', () => ({
+mock.module('../../src/core/adapters/fs/node-fs.js', () => ({
   readFile: readFileMock,
   writeFile: writeFileMock,
   rename: renameMock,

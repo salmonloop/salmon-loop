@@ -1,8 +1,8 @@
 import { randomBytes } from 'crypto';
-import { readFile, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import path from 'path';
 
+import { readFile, rm } from '../../adapters/fs/node-fs.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { AstParser } from '../../ast/index.js';
 import { convertDiffToShadowOperations } from '../../patch/diff.js';

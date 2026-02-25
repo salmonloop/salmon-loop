@@ -1,5 +1,4 @@
-import { readFile } from 'fs/promises';
-
+import { readFile } from '../../core/adapters/fs/node-fs.js';
 import { recordAuditEvent } from '../../core/observability/audit-trail.js';
 import { logger } from '../../core/observability/logger.js';
 import type {

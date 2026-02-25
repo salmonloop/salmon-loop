@@ -1,7 +1,7 @@
-import { readdir } from 'fs/promises';
 import { join } from 'path';
 
 import { typescriptPlugin, tsxPlugin, javascriptPlugin } from '../../languages/typescript/index.js';
+import { readdir } from '../adapters/fs/node-fs.js';
 import { logger } from '../observability/logger.js';
 
 import { LanguagePlugin } from './interface.js';

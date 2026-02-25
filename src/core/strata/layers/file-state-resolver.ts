@@ -1,7 +1,7 @@
-import * as fs from 'fs/promises';
 import { Buffer } from 'node:buffer';
 import * as path from 'path';
 
+import * as fs from '../../adapters/fs/node-fs.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { LIMITS } from '../../config/limits.js';
 import { FileState, FileStatus } from '../../grizzco/domain/grizzco-types.js';

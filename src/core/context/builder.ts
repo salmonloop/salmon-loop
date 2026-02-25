@@ -1,6 +1,6 @@
-import { readFile } from 'fs/promises';
 import path from 'path';
 
+import { readFile } from '../adapters/fs/node-fs.js';
 import { LIMITS } from '../config/limits.js';
 import { pluginRegistry } from '../plugin/registry.js';
 import { ErrorType, type Context, type RunOptions } from '../types/index.js';

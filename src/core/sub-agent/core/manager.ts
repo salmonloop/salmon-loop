@@ -1,8 +1,8 @@
 import { createHash, randomBytes } from 'crypto';
-import * as fs from 'fs/promises';
 
 import { text } from '../../../locales/index.js';
 import { createFileSystemAdapter } from '../../adapters/fs/index.js';
+import * as fs from '../../adapters/fs/node-fs.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { InitCtx } from '../../grizzco/engine/pipeline/types.js';
 import { logger } from '../../observability/logger.js';

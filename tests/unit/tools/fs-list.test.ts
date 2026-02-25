@@ -1,11 +1,10 @@
-import { readdir } from 'fs/promises';
-
 import { beforeEach, describe, expect, it } from 'bun:test';
 
+import { readdir } from '../../../src/core/adapters/fs/node-fs.js';
 import { registerAllBuiltins } from '../../../src/core/tools/builtin/index.js';
 import { ToolRegistry } from '../../../src/core/tools/registry.js';
 
-mock.module('fs/promises', () => ({
+mock.module('../../../src/core/adapters/fs/node-fs.js', () => ({
   readdir: mock(),
 }));
 

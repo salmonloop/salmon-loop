@@ -1,7 +1,6 @@
-import * as fs from 'fs/promises';
-
 import { describe, expect, it } from 'bun:test';
 
+import * as fs from '../../../../../src/core/adapters/fs/node-fs.js';
 import { GitAdapter } from '../../../../../src/core/adapters/git/git-adapter.js';
 import { FileState, FileStatus } from '../../../../../src/core/grizzco/domain/grizzco-types.js';
 import { ThreeWayStagedAwareWorker } from '../../../../../src/core/grizzco/workers/three-way-staged-worker.js';
@@ -9,7 +8,7 @@ import { UnionMergeWorker } from '../../../../../src/core/grizzco/workers/union-
 
 // Unit tests should mock external dependencies like FS.
 // With per-file Bun worker isolation, this mock will not leak.
-mock.module('fs/promises', () => ({
+mock.module('../../../../../src/core/adapters/fs/node-fs.js', () => ({
   readFile: mock(),
 }));
 

@@ -1,7 +1,7 @@
-import { readFile } from 'fs/promises';
 import { join } from 'path';
 
 import { text } from '../../locales/index.js';
+import { readFile } from '../adapters/fs/node-fs.js';
 import { GitAdapter } from '../adapters/git/git-adapter.js';
 import { LIMITS } from '../config/limits.js';
 import { logger } from '../observability/logger.js';

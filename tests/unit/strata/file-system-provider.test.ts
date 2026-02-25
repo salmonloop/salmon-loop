@@ -5,7 +5,7 @@ const fsMocks = (() => ({
   unlink: mock(),
 }))();
 
-mock.module('fs', () => ({
+mock.module('../../../src/core/adapters/fs/node-fs.js', () => ({
   promises: fsMocks,
 }));
 

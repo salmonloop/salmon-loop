@@ -5,9 +5,8 @@
  * Provides base content for ignored files that are modified during execution.
  */
 
-import { existsSync } from 'fs';
-import { readFile } from 'fs/promises';
-
+import { existsSync } from '../../adapters/fs/node-fs.js';
+import { readFile } from '../../adapters/fs/node-fs.js';
 import { logger } from '../../observability/logger.js';
 import { isSafeRelativePath, normalizePath, safeJoin } from '../../utils/path.js';
 import type { SyntheticSidecarLayer } from '../types.js';

@@ -1,6 +1,7 @@
 import { randomBytes, createHash } from 'crypto';
-import { mkdir, readFile, rename, stat, writeFile } from 'fs/promises';
 import path from 'path';
+
+import { mkdir, readFile, rename, stat, writeFile } from '../adapters/fs/node-fs.js';
 
 const SESSION_ID_RE = /^[a-zA-Z0-9_-]{6,64}$/;
 

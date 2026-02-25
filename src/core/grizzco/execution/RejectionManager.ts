@@ -1,6 +1,6 @@
-import * as fs from 'fs/promises';
 import * as path from 'path';
 
+import * as fs from '../../adapters/fs/node-fs.js';
 import { TransactionContext } from '../domain/grizzco-types.js';
 
 export interface Rejection {

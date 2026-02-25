@@ -1,7 +1,7 @@
-import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+import { syncFs as fs } from '../adapters/fs/node-fs.js';
 import { logger } from '../observability/logger.js';
 
 import { SkillParser } from './parser.js';

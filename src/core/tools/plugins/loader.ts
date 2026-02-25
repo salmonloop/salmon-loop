@@ -1,7 +1,7 @@
-import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+import { syncFs as fs } from '../../adapters/fs/node-fs.js';
 import type { ResolvedToolPlugin } from '../../extensions/types.js';
 import { logger } from '../../observability/logger.js';
 import { Phase } from '../../types/index.js';

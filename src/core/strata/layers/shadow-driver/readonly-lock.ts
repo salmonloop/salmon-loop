@@ -8,9 +8,9 @@
  */
 
 import { randomBytes } from 'crypto';
-import { mkdir, writeFile, unlink, readFile, rename } from 'fs/promises';
 import path from 'path';
 
+import { mkdir, writeFile, unlink, readFile, rename } from '../../../adapters/fs/node-fs.js';
 import { logger } from '../../../observability/logger.js';
 import { getShadowLockPath } from '../../../runtime/paths.js';
 import { spawnCommand } from '../../../runtime/process-runner.js';

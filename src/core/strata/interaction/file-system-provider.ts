@@ -1,6 +1,6 @@
-import { promises as fs } from 'fs';
 import * as path from 'path';
 
+import { promises as fs } from '../../adapters/fs/node-fs.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { logger } from '../../observability/logger.js';
 import { ensureInSandbox } from '../../utils/path.js';

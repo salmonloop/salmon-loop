@@ -1,9 +1,9 @@
-import { readFile } from 'fs/promises';
 import { fileURLToPath } from 'node:url';
 
 import Handlebars from 'handlebars';
 import { z } from 'zod';
 
+import { readFile } from '../adapters/fs/node-fs.js';
 import type { ToolSpec } from '../tools/types.js';
 
 import type { ExplorePromptVars, PatchPromptVars, PlanPromptVars } from './schema.js';

@@ -1,5 +1,4 @@
-import { promises as fs } from 'fs';
-
+import { promises as fs } from '../../adapters/fs/node-fs.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { CheckpointManager } from '../../strata/checkpoint/manager.js';
 import { ShadowMergeEngine } from '../../strata/engine/shadow-merge-engine.js';

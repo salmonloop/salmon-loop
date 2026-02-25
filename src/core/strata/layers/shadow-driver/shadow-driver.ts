@@ -4,10 +4,10 @@
  * Core implementation of Layer 2 ShadowDriver following v2.0 specification.
  */
 
-import { existsSync } from 'fs';
-import { rm, mkdir, symlink } from 'fs/promises';
 import { join } from 'path';
 
+import { existsSync } from '../../../adapters/fs/node-fs.js';
+import { rm, mkdir, symlink } from '../../../adapters/fs/node-fs.js';
 import { logger } from '../../../observability/logger.js';
 import { spawnCommand } from '../../../runtime/process-runner.js';
 import { normalizePath } from '../../../utils/path.js';

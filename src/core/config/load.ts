@@ -1,4 +1,4 @@
-import { readFile } from 'fs/promises';
+import { readFile } from '../adapters/fs/node-fs.js';
 
 import { ConfigError } from './errors.js';
 import { parseConfigText } from './file-format.js';

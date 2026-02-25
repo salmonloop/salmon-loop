@@ -1,6 +1,5 @@
-import { existsSync } from 'fs';
-import { readFile } from 'fs/promises';
-
+import { existsSync } from '../adapters/fs/node-fs.js';
+import { readFile } from '../adapters/fs/node-fs.js';
 import { ensureInSandbox, safeJoin } from '../utils/path.js';
 
 export type NodePackageManager = 'bun' | 'npm' | 'pnpm' | 'yarn';

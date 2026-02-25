@@ -1,7 +1,7 @@
-import * as fs from 'fs/promises';
 import { Buffer } from 'node:buffer';
 import * as path from 'path';
 
+import * as fs from '../../adapters/fs/node-fs.js';
 import { FileState, MergeResult, ShadowOperation } from '../domain/grizzco-types.js';
 
 import { IMergeWorker } from './i-merge-worker.js';

@@ -1,9 +1,9 @@
-import { readFile } from 'fs/promises';
 import { join } from 'path';
 
 import { z } from 'zod';
 
 import { text } from '../../../locales/index.js';
+import { readFile } from '../../adapters/fs/node-fs.js';
 import { AstParser } from '../../ast/parser.js';
 import { pluginRegistry } from '../../plugin/registry.js';
 import { Phase } from '../../types/index.js';

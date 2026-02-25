@@ -1,8 +1,8 @@
-import fs from 'fs';
 import { createRequire } from 'module';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
+import { syncFs as fs } from '../../core/adapters/fs/node-fs.js';
 import { LanguagePlugin } from '../../core/plugin/interface.js';
 import { ErrorType } from '../../core/types/index.js';
 

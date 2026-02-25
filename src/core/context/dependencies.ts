@@ -1,7 +1,6 @@
-import { readFileSync } from 'fs';
-import { readFile } from 'fs/promises';
-
 import { text } from '../../locales/index.js';
+import { readFileSync } from '../adapters/fs/node-fs.js';
+import { readFile } from '../adapters/fs/node-fs.js';
 import { LIMITS } from '../config/limits.js';
 import { logger } from '../observability/logger.js';
 import { pluginRegistry } from '../plugin/registry.js';

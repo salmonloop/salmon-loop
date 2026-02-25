@@ -1,8 +1,8 @@
 import { randomBytes } from 'crypto';
-import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import * as path from 'path';
 
+import { promises as fs } from '../../adapters/fs/node-fs.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { logIgnoredError } from '../../observability/ignored-error.js';
 import { StrataContentGuardian } from '../../strata/interaction/content-guardian.js';

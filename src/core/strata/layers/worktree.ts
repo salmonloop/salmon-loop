@@ -1,9 +1,9 @@
 import { randomBytes } from 'crypto';
-import { access, realpath, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { basename, join, normalize } from 'path';
 
 import { text } from '../../../locales/index.js';
+import { access, realpath, rm } from '../../adapters/fs/node-fs.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { logger } from '../../observability/logger.js';
 import { RunOptions, ExecutionWorkspace, LoopEvent } from '../../types/index.js';

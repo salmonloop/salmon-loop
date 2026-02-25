@@ -1,5 +1,6 @@
-import { mkdir, readdir, rename, rm, stat } from 'fs/promises';
 import path from 'path';
+
+import { mkdir, readdir, rename, rm, stat } from '../adapters/fs/node-fs.js';
 
 async function pathExists(target: string): Promise<boolean> {
   try {

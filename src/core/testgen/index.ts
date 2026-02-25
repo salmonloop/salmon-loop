@@ -1,5 +1,6 @@
-import { writeFile } from 'fs/promises';
 import { join } from 'path';
+
+import { writeFile } from '../adapters/fs/node-fs.js';
 
 import { detectProjectType } from './detector.js';
 import { NODE_TEMPLATE, PYTHON_TEMPLATE, JAVA_TEMPLATE, GO_TEMPLATE } from './templates.js';

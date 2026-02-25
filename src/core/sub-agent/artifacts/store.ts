@@ -1,8 +1,8 @@
 import { createHash, randomBytes } from 'crypto';
-import * as fs from 'fs/promises';
 import { tmpdir } from 'os';
 import path from 'path';
 
+import * as fs from '../../adapters/fs/node-fs.js';
 import { LIMITS } from '../../config/limits.js';
 import { logger } from '../../observability/logger.js';
 

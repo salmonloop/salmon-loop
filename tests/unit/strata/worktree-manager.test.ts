@@ -11,7 +11,7 @@ mock.module('../../../src/core/adapters/git/git-adapter.js', () => ({
   })),
 }));
 
-mock.module('fs/promises', () => ({
+mock.module('../../../src/core/adapters/fs/node-fs.js', () => ({
   rm: rmMock,
   access: accessMock,
   realpath: realpathMock,

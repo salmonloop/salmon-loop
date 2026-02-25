@@ -3,7 +3,7 @@ const { mkdirMock, writeFileMock } = (() => ({
   writeFileMock: mock(),
 }))();
 
-mock.module('fs/promises', () => ({
+mock.module('../../../../../src/core/adapters/fs/node-fs.js', () => ({
   mkdir: mkdirMock,
   writeFile: writeFileMock,
 }));

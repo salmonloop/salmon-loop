@@ -1,8 +1,8 @@
 import { randomBytes } from 'crypto';
-import { mkdir, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
+import { mkdir, rm } from '../../adapters/fs/node-fs.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { logger } from '../../observability/logger.js';
 import { normalizePath } from '../../utils/path.js';

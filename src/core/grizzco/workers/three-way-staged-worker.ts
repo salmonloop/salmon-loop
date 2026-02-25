@@ -1,10 +1,10 @@
 import { randomBytes } from 'crypto';
-import { promises as fs } from 'fs';
 import { Buffer } from 'node:buffer';
 import { tmpdir } from 'os';
 import * as path from 'path';
 
 import { TextNormalizer } from '../../../utils/eol.js';
+import { promises as fs } from '../../adapters/fs/node-fs.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { logIgnoredError } from '../../observability/ignored-error.js';
 import { FileState, MergeResult, ShadowOperation } from '../domain/grizzco-types.js';

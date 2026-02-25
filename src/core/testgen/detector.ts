@@ -1,5 +1,6 @@
-import { existsSync } from 'fs';
 import { join } from 'path';
+
+import { existsSync } from '../adapters/fs/node-fs.js';
 
 export type ProjectType = 'nodejs' | 'python' | 'java_maven' | 'java_gradle' | 'go' | 'unknown';
 

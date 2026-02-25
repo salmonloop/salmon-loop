@@ -1,7 +1,7 @@
-import { appendFile, mkdir, readFile, rename, writeFile } from 'fs/promises';
 import path from 'path';
 
 import { text } from '../../locales/index.js';
+import { appendFile, mkdir, readFile, rename, writeFile } from '../adapters/fs/node-fs.js';
 import { getAuditDir } from '../runtime/paths.js';
 
 import { getAuditTrail } from './audit-trail.js';

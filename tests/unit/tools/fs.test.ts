@@ -1,12 +1,11 @@
-import { readFile, stat } from 'fs/promises';
-
 import { describe, expect, it, beforeEach } from 'bun:test';
 
+import { readFile, stat } from '../../../src/core/adapters/fs/node-fs.js';
 import { executeFsReadFile, fsReadFileSpec } from '../../../src/core/tools/builtin/fs.js';
 import { registerAllBuiltins } from '../../../src/core/tools/builtin/index.js';
 import { ToolRegistry } from '../../../src/core/tools/registry.js';
 
-mock.module('fs/promises', () => ({
+mock.module('../../../src/core/adapters/fs/node-fs.js', () => ({
   readFile: mock(),
   stat: mock(),
 }));

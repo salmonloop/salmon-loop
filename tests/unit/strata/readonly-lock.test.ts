@@ -8,7 +8,7 @@ const { mkdirMock, writeFileMock, readFileMock, unlinkMock, renameMock, getShado
     getShadowLockPathMock: mock(),
   }))();
 
-mock.module('fs/promises', () => ({
+mock.module('../../../src/core/adapters/fs/node-fs.js', () => ({
   mkdir: mkdirMock,
   writeFile: writeFileMock,
   readFile: readFileMock,

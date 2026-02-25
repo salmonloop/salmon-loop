@@ -1,4 +1,3 @@
-import fs from 'fs';
 import { createRequire } from 'module';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -6,6 +5,7 @@ import { fileURLToPath } from 'url';
 import * as TreeSitter from 'web-tree-sitter';
 
 import { text } from '../../locales/index.js';
+import { syncFs as fs } from '../adapters/fs/node-fs.js';
 import { LIMITS } from '../config/limits.js';
 import { langOrchestrator } from '../language-support/orchestrator.js';
 import { logger } from '../observability/logger.js';

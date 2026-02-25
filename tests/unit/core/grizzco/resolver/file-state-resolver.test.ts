@@ -1,11 +1,11 @@
-import * as fs from 'fs/promises';
 import * as path from 'path';
 
+import * as fs from '../../../../../src/core/adapters/fs/node-fs.js';
 import { FileStatus } from '../../../../../src/core/grizzco/domain/grizzco-types.js';
 import { FileStateResolver } from '../../../../../src/core/strata/layers/file-state-resolver.js';
 
 // Mock dependencies
-mock.module('fs/promises', () => ({
+mock.module('../../../../../src/core/adapters/fs/node-fs.js', () => ({
   lstat: mock(),
   stat: mock(),
   readFile: mock(),

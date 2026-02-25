@@ -1,6 +1,7 @@
-import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
+
+import { mkdtemp, rm } from '../../adapters/fs/node-fs.js';
 
 export interface IsolatedEnv {
   tmpDir: string;

@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'crypto';
-import { mkdir, writeFile } from 'fs/promises';
 import path from 'path';
 
+import { mkdir, writeFile } from '../adapters/fs/node-fs.js';
 import { getAuditDir } from '../runtime/paths.js';
 import type { DebugArtifactRef } from '../types/index.js';
 

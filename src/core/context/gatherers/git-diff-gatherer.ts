@@ -1,6 +1,6 @@
-import { access } from 'fs/promises';
 import path from 'path';
 
+import { access } from '../../adapters/fs/node-fs.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { LIMITS } from '../../config/limits.js';
 import { logger } from '../../observability/logger.js';

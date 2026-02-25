@@ -1,14 +1,15 @@
-import { readFile } from 'fs/promises';
-
+import { readFile } from '../../src/core/adapters/fs/node-fs.js';
 import { findFileDependencies } from '../../src/core/context/dependencies.js';
+import { pluginRegistry } from '../../src/core/plugin/registry.js';
 
-mock.module('fs/promises', () => ({
+mock.module('../../src/core/adapters/fs/node-fs.js', () => ({
   readFile: mock(),
 }));
 
-mock.module('../../src/core/plugin/registry.js', () => ({
-  pluginRegistry: {
-    getByExtension: mock().mockReturnValue({
+describe('findFileDependencies', () => {
+  beforeEach(() => {
+    mock.clearAllMocks();
+    spyOn(pluginRegistry, 'getByExtension').mockReturnValue({
       dependency: {
         extractImports: (content: string) => {
           const matches = [
@@ -23,11 +24,13 @@ mock.module('../../src/core/plugin/registry.js', () => ({
           return imp;
         },
       },
-    }),
-  },
-}));
+    } as any);
+  });
 
-describe('findFileDependencies', () => {
+  afterEach(() => {
+    mock.restore();
+  });
+
   it('should extract relative dependencies', async () => {
     const content = `
       import { a } from './a.js';

@@ -1,7 +1,7 @@
 import { createHash } from 'crypto';
-import * as fs from 'fs/promises';
 import path from 'path';
 
+import * as fs from '../../adapters/fs/node-fs.js';
 import { LIMITS } from '../../config/limits.js';
 import { truncateOutput } from '../../context/truncation/index.js';
 import { getAuditTrail, recordAuditEvent } from '../../observability/audit-trail.js';

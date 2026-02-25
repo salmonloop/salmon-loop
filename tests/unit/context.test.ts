@@ -1,10 +1,9 @@
-import * as fs from 'fs/promises';
-
+import * as fs from '../../src/core/adapters/fs/node-fs.js';
 import { AstParser } from '../../src/core/ast/parser.js';
 import { ContextBuilder } from '../../src/core/context/builder.js';
 import { spawnCommand } from '../../src/core/runtime/process-runner.js';
 
-mock.module('fs/promises', () => ({
+mock.module('../../src/core/adapters/fs/node-fs.js', () => ({
   readFile: mock(),
 }));
 mock.module('../../src/core/runtime/process-runner.js', () => ({

@@ -1,4 +1,9 @@
 import { createHash, randomBytes } from 'crypto';
+import { tmpdir } from 'os';
+import path from 'path';
+
+import { text } from '../../../locales/index.js';
+import { TextNormalizer } from '../../../utils/eol.js';
 import {
   copyFile,
   lstat,
@@ -9,12 +14,7 @@ import {
   stat,
   unlink,
   writeFile,
-} from 'fs/promises';
-import { tmpdir } from 'os';
-import path from 'path';
-
-import { text } from '../../../locales/index.js';
-import { TextNormalizer } from '../../../utils/eol.js';
+} from '../../adapters/fs/node-fs.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { logIgnoredError } from '../../observability/ignored-error.js';
 import { logger } from '../../observability/logger.js';
