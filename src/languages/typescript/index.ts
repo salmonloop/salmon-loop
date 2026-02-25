@@ -60,7 +60,7 @@ const commonDiagnostics = {
       ((lowerOutput.includes('fail') || lowerOutput.includes('failed')) &&
         (lowerOutput.includes('test suites') ||
           lowerOutput.includes('test files') ||
-          lowerOutput.includes('spec'))) || // Jest/Vitest/Mocha
+          lowerOutput.includes('spec'))) || // Common test framework signals
       lowerOutput.includes('assertionerror') ||
       lowerOutput.includes('expect(') ||
       lowerOutput.includes('should(') ||
