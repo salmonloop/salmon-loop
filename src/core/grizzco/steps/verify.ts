@@ -3,6 +3,7 @@ import {
   collectBudgetMetrics,
   evaluateBudgetAlert,
   getGlobalAdjuster,
+  recordBudgetAlert,
 } from '../../context/budget/integration.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
 import { ArtifactStore } from '../../sub-agent/artifacts/store.js';
@@ -76,6 +77,7 @@ export const runVerify: Step<ApplyCtx, VerifyCtx> = async (ctx) => {
 
       const alert = evaluateBudgetAlert(stats, getGlobalAdjuster().getAlertThresholds());
       if (alert) {
+        recordBudgetAlert();
         recordAuditEvent(
           'context.budget.alert',
           {

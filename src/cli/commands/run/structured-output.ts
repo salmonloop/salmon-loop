@@ -102,6 +102,17 @@ export async function buildStructuredOutputState(params: {
             total_tokens: params.result.usage.totalTokens,
           }
         : undefined,
+      budget_summary: params.result.budgetSummary
+        ? {
+            attempt_count: params.result.budgetSummary.attemptCount,
+            adjustment_count: params.result.budgetSummary.adjustmentCount,
+            alert_count: params.result.budgetSummary.alertCount,
+            critical_drop_count: params.result.budgetSummary.criticalDropCount,
+            avg_utilization: params.result.budgetSummary.avgUtilization,
+            truncation_rate: params.result.budgetSummary.truncationRate,
+            success_rate: params.result.budgetSummary.successRate,
+          }
+        : undefined,
     };
 
     const validation = validator.validate({ schema, data: candidate });

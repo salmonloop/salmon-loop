@@ -1,3 +1,4 @@
+import type { BudgetRunSummary } from '../context/budget/dynamic-adjuster.js';
 import type { ResolvedExtensions } from '../extensions/types.js';
 import type { RunOutcomeReporter } from '../observability/run-outcome-reporter.js';
 import type {
@@ -75,6 +76,7 @@ export interface LoopResult {
   authorizationSummary?: AuthorizationSourceSummary;
   strategyName?: string;
   fsMode?: FlowMode;
+  budgetSummary?: BudgetRunSummary;
 }
 
 /**

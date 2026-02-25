@@ -1,3 +1,5 @@
+import { getGlobalAdjuster } from '../../../../../../src/core/context/budget/dynamic-adjuster.js';
+import { recordBudgetAlert } from '../../../../../../src/core/context/budget/integration.js';
 import { LoopTelemetry } from '../../../../../../src/core/grizzco/engine/observability/loop-telemetry.js';
 import {
   buildLoopFailureResult,
@@ -16,10 +18,12 @@ function createTelemetry() {
 describe('loop-result-mapper', () => {
   beforeEach(() => {
     clearAuditTrail();
+    getGlobalAdjuster().reset();
   });
 
   afterEach(() => {
     clearAuditTrail();
+    getGlobalAdjuster().reset();
   });
 
   it('maps success dry-run result', () => {
@@ -167,6 +171,57 @@ describe('loop-result-mapper', () => {
     expect(result.success).toBe(false);
     expect(result.reasonCode).toBe('MAX_RETRIES');
     expect(result.failurePhase).toBe('VERIFY');
+  });
+
+  it('includes budget summary when budget metrics exist', () => {
+    const adjuster = getGlobalAdjuster();
+    adjuster.recordMetrics({
+      budgetAllocated: 30000,
+      tokensUsed: 25000,
+      wasTruncated: true,
+      criticalContentDropped: false,
+      verifySuccess: false,
+      iteration: 1,
+    });
+    adjuster.recordMetrics({
+      budgetAllocated: 30000,
+      tokensUsed: 15000,
+      wasTruncated: false,
+      criticalContentDropped: false,
+      verifySuccess: true,
+      iteration: 2,
+    });
+    recordBudgetAlert();
+
+    const telemetry = createTelemetry();
+    const report: FlowTransactionReport = {
+      success: true,
+      attempts: 2,
+      flowReport: {
+        success: true,
+        duration: 1,
+        traces: [],
+        strategyName: 'patch',
+        fsMode: 'patch',
+      },
+      history: [],
+      retryExhausted: false,
+      lastContext: { diff: 'diff', changedFiles: [] } as any,
+    };
+
+    const result = buildLoopResultFromTransaction({
+      executionReport: report,
+      flowMode: 'patch',
+      options: {} as any,
+      telemetry,
+    });
+
+    expect(result.budgetSummary).toEqual(
+      expect.objectContaining({
+        attemptCount: 2,
+        alertCount: 1,
+      }),
+    );
   });
 
   it('maps generic crash via failure result builder', () => {

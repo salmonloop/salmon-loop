@@ -4,6 +4,9 @@ import {
   applyBudgetAdjustment,
   getGlobalAdjuster,
   evaluateBudgetAlert,
+  getBudgetRunSummary,
+  recordBudgetAlert,
+  recordBudgetAdjustment,
 } from '../../../src/core/context/budget/integration.js';
 import type { ContextResult, DroppedContextSections } from '../../../src/core/context/types.js';
 import type { VerifyResult } from '../../../src/core/verification/runner.js';
@@ -328,6 +331,47 @@ describe('Budget Integration', () => {
       expect(stats?.sampleSize).toBe(3);
       expect(stats?.successRate).toBe(0); // All failed
       expect(stats?.truncationRate).toBe(1); // All truncated
+    });
+  });
+
+  describe('run summary', () => {
+    it('returns null summary when there is no budget history', () => {
+      const summary = getBudgetRunSummary();
+      expect(summary).toBeNull();
+    });
+
+    it('aggregates counters and rates for run-end reporting', () => {
+      const adjuster = getGlobalAdjuster();
+      adjuster.recordMetrics(
+        createBudgetMetrics({
+          iteration: 1,
+          wasTruncated: true,
+          verifySuccess: false,
+          criticalContentDropped: true,
+          tokensUsed: 28000,
+        }),
+      );
+      adjuster.recordMetrics(
+        createBudgetMetrics({
+          iteration: 2,
+          wasTruncated: false,
+          verifySuccess: true,
+          criticalContentDropped: false,
+          tokensUsed: 18000,
+        }),
+      );
+
+      recordBudgetAdjustment();
+      recordBudgetAlert();
+
+      const summary = getBudgetRunSummary();
+      expect(summary).not.toBeNull();
+      expect(summary?.attemptCount).toBe(2);
+      expect(summary?.adjustmentCount).toBe(1);
+      expect(summary?.alertCount).toBe(1);
+      expect(summary?.criticalDropCount).toBe(1);
+      expect(summary?.truncationRate).toBe(0.5);
+      expect(summary?.successRate).toBe(0.5);
     });
   });
 

@@ -8,6 +8,7 @@ import type { VerifyResult } from '../../verification/runner.js';
 import type { ContextResult } from '../types.js';
 
 import { getGlobalAdjuster, type BudgetMetrics } from './dynamic-adjuster.js';
+import type { BudgetRunSummary } from './dynamic-adjuster.js';
 
 export interface BudgetStats {
   avgUtilization: number;
@@ -83,6 +84,7 @@ export function applyBudgetAdjustment(currentBudget: number): {
     return null;
   }
 
+  adjuster.recordAdjustment();
   return {
     newBudget: adjustment.newBudget,
     reason: adjustment.reason,
@@ -127,6 +129,18 @@ export function evaluateBudgetAlert(
   }
 
   return null;
+}
+
+export function recordBudgetAlert(): void {
+  getGlobalAdjuster().recordAlert();
+}
+
+export function recordBudgetAdjustment(): void {
+  getGlobalAdjuster().recordAdjustment();
+}
+
+export function getBudgetRunSummary(): BudgetRunSummary | null {
+  return getGlobalAdjuster().getRunSummary();
 }
 
 export { getGlobalAdjuster };

@@ -38,12 +38,24 @@ export interface DynamicBudgetConfig {
   };
 }
 
+export interface BudgetRunSummary {
+  attemptCount: number;
+  adjustmentCount: number;
+  alertCount: number;
+  criticalDropCount: number;
+  avgUtilization: number;
+  truncationRate: number;
+  successRate: number;
+}
+
 /**
  * Budget adjustment strategy based on runtime feedback.
  */
 export class DynamicBudgetAdjuster {
   private history: BudgetMetrics[] = [];
   private readonly maxHistory = 10;
+  private adjustmentCount = 0;
+  private alertCount = 0;
 
   // Adjustment parameters
   private minBudget: number;
@@ -149,12 +161,43 @@ export class DynamicBudgetAdjuster {
    */
   reset(): void {
     this.history = [];
+    this.adjustmentCount = 0;
+    this.alertCount = 0;
   }
 
   getAlertThresholds(): { truncationRateWarn: number; criticalDropRateWarn: number } {
     return {
       truncationRateWarn: this.alertTruncationRateWarn,
       criticalDropRateWarn: this.alertCriticalDropRateWarn,
+    };
+  }
+
+  recordAdjustment(): void {
+    this.adjustmentCount += 1;
+  }
+
+  recordAlert(): void {
+    this.alertCount += 1;
+  }
+
+  getRunSummary(): BudgetRunSummary | null {
+    if (this.history.length === 0) return null;
+
+    const attemptCount = this.history.length;
+    const criticalDropCount = this.history.filter((m) => m.criticalContentDropped).length;
+    const truncationCount = this.history.filter((m) => m.wasTruncated).length;
+    const successCount = this.history.filter((m) => m.verifySuccess).length;
+    const avgUtilization =
+      this.history.reduce((sum, m) => sum + m.tokensUsed / m.budgetAllocated, 0) / attemptCount;
+
+    return {
+      attemptCount,
+      adjustmentCount: this.adjustmentCount,
+      alertCount: this.alertCount,
+      criticalDropCount,
+      avgUtilization,
+      truncationRate: truncationCount / attemptCount,
+      successRate: successCount / attemptCount,
     };
   }
 }

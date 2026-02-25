@@ -121,6 +121,21 @@ export class StandardReporter implements SalmonReporter {
       const summary = this.formatAuthorizationSummary(result.authorizationSummary);
       logger.info(text.cli.authorizationSummary(summary));
     }
+    if (result.budgetSummary) {
+      const s = result.budgetSummary;
+      logger.info(text.cli.budgetSummaryTitle);
+      logger.info(
+        text.cli.budgetSummaryLine(
+          s.attemptCount,
+          s.adjustmentCount,
+          s.alertCount,
+          s.criticalDropCount,
+          Math.round(s.avgUtilization * 100),
+          Math.round(s.truncationRate * 100),
+          Math.round(s.successRate * 100),
+        ),
+      );
+    }
 
     if (this.verbose && result.logs) {
       logger.log('\n' + chalk.bold(text.cli.stepLogs));

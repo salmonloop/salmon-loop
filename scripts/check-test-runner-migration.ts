@@ -103,7 +103,9 @@ async function main() {
   }
 
   if (violations.length === 0) {
-    console.log('Test-runner migration check passed: no Vitest/Jest residue in runtime docs/scripts.');
+    console.log(
+      'Test-runner migration check passed: no Vitest/Jest residue in runtime docs/scripts.',
+    );
     return;
   }
 

@@ -340,6 +340,17 @@ export const en = {
   authorizationSummary: (summary: string) => `  Authorization sources: ${summary}`,
   authorizationSummaryRealtime: (summary: string) =>
     `  Authorization sources (current): ${summary}`,
+  budgetSummaryTitle: '  Budget summary:',
+  budgetSummaryLine: (
+    attempts: number,
+    adjustments: number,
+    alerts: number,
+    criticalDrops: number,
+    avgUtilizationPercent: number,
+    truncationRatePercent: number,
+    successRatePercent: number,
+  ) =>
+    `    attempts=${attempts} adjustments=${adjustments} alerts=${alerts} critical_drops=${criticalDrops} avg_utilization=${avgUtilizationPercent}% truncation_rate=${truncationRatePercent}% success_rate=${successRatePercent}%`,
   diffMeta: (files: number, lines: number) => `  Diff: ${files} files changed, ${lines} lines.`,
   uiDiffMeta: (files: number, lines: number) => `Diff: ${files} file(s), ${lines} line(s) changed.`,
   uiVerifyPassed: 'Verify passed.',

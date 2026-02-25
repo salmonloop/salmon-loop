@@ -1,4 +1,5 @@
 import { text } from '../../../../locales/index.js';
+import { getBudgetRunSummary } from '../../../context/budget/integration.js';
 import { getAuthorizationDecisionsFromAuditTrail } from '../../../observability/authorization-decisions.js';
 import { getTokenUsageFromAuditTrail } from '../../../observability/token-usage.js';
 import { ErrorType, Phase } from '../../../types/index.js';
@@ -45,6 +46,7 @@ export function buildLoopResultFromTransaction({
   if (executionReport.success) {
     const attempts = executionReport.attempts;
     const usage = getTokenUsageFromAuditTrail() ?? undefined;
+    const budgetSummary = getBudgetRunSummary() ?? undefined;
     if (options.dryRun || flowMode === 'review') {
       return {
         success: true,
@@ -62,6 +64,7 @@ export function buildLoopResultFromTransaction({
         authorizationSummary: executionReport.authorizationSummary || undefined,
         strategyName: executionReport.flowReport.strategyName ?? flowMode,
         fsMode: executionReport.flowReport.fsMode ?? flowMode,
+        budgetSummary,
       };
     }
 
@@ -81,6 +84,7 @@ export function buildLoopResultFromTransaction({
       authorizationSummary: executionReport.authorizationSummary || undefined,
       strategyName: executionReport.flowReport.strategyName ?? flowMode,
       fsMode: executionReport.flowReport.fsMode ?? flowMode,
+      budgetSummary,
     };
   }
 
@@ -96,6 +100,7 @@ export function buildLoopResultFromTransaction({
     (executionReport.retryExhausted ? Phase.VERIFY : undefined);
 
   const usage = getTokenUsageFromAuditTrail() ?? undefined;
+  const budgetSummary = getBudgetRunSummary() ?? undefined;
   return {
     success: false,
     reason: failureReason,
@@ -113,6 +118,7 @@ export function buildLoopResultFromTransaction({
     authorizationSummary: executionReport.authorizationSummary || undefined,
     strategyName: executionReport.flowReport.strategyName ?? flowMode,
     fsMode: executionReport.flowReport.fsMode ?? flowMode,
+    budgetSummary,
   };
 }
 
@@ -125,6 +131,7 @@ export function buildLoopFailureResult({
   failurePhase,
 }: BuildLoopCrashParams): LoopResult {
   const usage = getTokenUsageFromAuditTrail() ?? undefined;
+  const budgetSummary = getBudgetRunSummary() ?? undefined;
   const authorizationDecisions = (() => {
     const decisions = getAuthorizationDecisionsFromAuditTrail();
     return decisions.length > 0 ? decisions : undefined;
@@ -143,5 +150,6 @@ export function buildLoopFailureResult({
     auditPath,
     strategyName: flowMode,
     fsMode: flowMode,
+    budgetSummary,
   };
 }
