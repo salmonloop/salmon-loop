@@ -181,6 +181,11 @@ describe('StreamJsonReporter', () => {
         attempts: 1,
         changed_files: ['src/a.ts'],
         result: 'Done',
+        run_end: {
+          success: true,
+          exit_code: 0,
+          timestamp: '2026-02-20T00:00:00.000Z',
+        },
       },
     });
 

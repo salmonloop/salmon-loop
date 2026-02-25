@@ -115,15 +115,8 @@ export async function startGUI(
           logger.setReporter(new LoopEventReporter(emit, { source: 'core.logger' }));
           logger.setSilent(false);
 
-          emit({ type: 'run.start', mode: 'run', timestamp: new Date() });
           runFn(emit, undefined, options)
             .then((result) => {
-              emit({
-                type: 'run.end',
-                mode: 'run',
-                success: Boolean(result?.success),
-                timestamp: new Date(),
-              });
               setTimeout(() => {
                 unmount();
                 resolveExit(result);
@@ -137,7 +130,6 @@ export async function startGUI(
                 source: 'ui.startGUI',
                 timestamp: new Date(),
               });
-              emit({ type: 'run.end', mode: 'run', success: false, timestamp: new Date() });
               setTimeout(() => {
                 unmount();
                 resolveExit({ success: false, reason: err.message });
@@ -156,26 +148,15 @@ export async function startGUI(
           logger.setReporter(new LoopEventReporter(emit, { source: 'core.logger' }));
           logger.setSilent(false);
 
-          emit({ type: 'run.start', mode: 'chat', timestamp: new Date() });
-          runFn(emit, input, options, dispatch)
-            .then((result) => {
-              emit({
-                type: 'run.end',
-                mode: 'chat',
-                success: Boolean(result?.success),
-                timestamp: new Date(),
-              });
-            })
-            .catch((err) => {
-              emit({
-                type: 'log',
-                message: `Chat Error: ${err.message}`,
-                level: 'error',
-                source: 'ui.startGUI',
-                timestamp: new Date(),
-              });
-              emit({ type: 'run.end', mode: 'chat', success: false, timestamp: new Date() });
+          runFn(emit, input, options, dispatch).catch((err) => {
+            emit({
+              type: 'log',
+              message: `Chat Error: ${err.message}`,
+              level: 'error',
+              source: 'ui.startGUI',
+              timestamp: new Date(),
             });
+          });
         }
       }}
     />,

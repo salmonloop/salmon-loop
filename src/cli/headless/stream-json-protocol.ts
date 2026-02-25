@@ -131,6 +131,11 @@ export function encodeStreamResult(params: {
       error_code: params.loopResult.errorCode,
       authorization_summary: params.loopResult.authorizationSummary,
       result: params.resultText,
+      run_end: {
+        success: Boolean(params.loopResult.success),
+        exit_code: exitCode,
+        timestamp: toIso(params.at),
+      },
     }) as any,
   });
 }

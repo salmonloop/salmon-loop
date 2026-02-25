@@ -110,6 +110,11 @@ export function encodeJsonResult(params: EncodeJsonResultParams): unknown {
         started_at: params.startedAt.toISOString(),
         ended_at: params.endedAt.toISOString(),
       },
+      run_end: {
+        success,
+        exit_code: exitCode,
+        timestamp: params.endedAt.toISOString(),
+      },
     },
   };
 }

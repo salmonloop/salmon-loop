@@ -77,6 +77,11 @@ describe('JsonReporter', () => {
       reason_code: 'SUCCESS',
       attempts: 1,
       changed_files: ['src/a.ts'],
+      run_end: {
+        success: true,
+        timestamp: '2026-02-20T00:00:00.000Z',
+        exit_code: 0,
+      },
       usage: { input_tokens: 12, output_tokens: 34, total_tokens: 46 },
       authorization_decisions: [
         {

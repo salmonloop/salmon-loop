@@ -1,12 +1,18 @@
-const { readFileMock, writeFileMock, warnMock } = (() => ({
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
+
+const { readFileMock, writeFileMock, renameMock, mkdirMock, warnMock } = (() => ({
   readFileMock: mock(),
   writeFileMock: mock(),
+  renameMock: mock(),
+  mkdirMock: mock(),
   warnMock: mock(),
 }))();
 
 mock.module('fs/promises', () => ({
   readFile: readFileMock,
   writeFile: writeFileMock,
+  rename: renameMock,
+  mkdir: mkdirMock,
 }));
 
 mock.module('../../src/core/observability/logger.js', () => ({
@@ -27,6 +33,8 @@ describe('appendAuditTrailToAuditFile', () => {
     clearAuditTrail();
     readFileMock.mockReset();
     writeFileMock.mockReset();
+    renameMock.mockReset();
+    mkdirMock.mockReset();
     warnMock.mockReset();
   });
 
@@ -59,5 +67,22 @@ describe('appendAuditTrailToAuditFile', () => {
     await expect(appendAuditTrailToAuditFile('/tmp/missing.json')).resolves.toBeUndefined();
     expect(warnMock).toHaveBeenCalledTimes(1);
     expect(writeFileMock).not.toHaveBeenCalled();
+  });
+
+  it('creates a fallback audit file when auditPath is missing', async () => {
+    recordAuditEvent('test.action.fallback', { a: 1 }, { source: 'test' });
+    renameMock.mockResolvedValue(undefined);
+    mkdirMock.mockResolvedValue(undefined);
+
+    const out = await appendAuditTrailToAuditFile({
+      auditPath: undefined,
+      repoPath: '/tmp/repo',
+      failureReason: 'boom',
+      runId: 'run-1',
+    });
+
+    expect(out).toBeTruthy();
+    expect(writeFileMock).toHaveBeenCalledTimes(1);
+    expect(renameMock).toHaveBeenCalledTimes(1);
   });
 });

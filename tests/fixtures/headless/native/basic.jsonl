@@ -13,5 +13,5 @@
 {"uuid":"uuid-13","session_id":"sess-golden","event":{"type":"content_block_stop","index":0,"timestamp":"2026-02-20T00:00:04.000Z"}}
 {"uuid":"uuid-14","session_id":"sess-golden","event":{"type":"message_stop","stop_reason":"end_turn","timestamp":"2026-02-20T00:00:04.000Z"}}
 {"uuid":"uuid-15","session_id":"sess-golden","event":{"type":"llm.output","kind":"assistant_message","step":"REPORT","content":"Done","timestamp":"2026-02-20T00:00:05.000Z"}}
-{"uuid":"uuid-16","session_id":"sess-golden","event":{"type":"result","timestamp":"2026-02-20T00:00:06.000Z","success":true,"exit_code":0,"reason":"SUCCESS","reason_code":"SUCCESS","attempts":1,"changed_files":["src/a.ts"],"result":"Done"}}
+{"uuid":"uuid-16","session_id":"sess-golden","event":{"type":"result","timestamp":"2026-02-20T00:00:06.000Z","success":true,"exit_code":0,"reason":"SUCCESS","reason_code":"SUCCESS","attempts":1,"changed_files":["src/a.ts"],"result":"Done","run_end":{"success":true,"exit_code":0,"timestamp":"2026-02-20T00:00:06.000Z"}}}
 {"uuid":"uuid-17","session_id":"sess-golden","event":{"type":"end","timestamp":"2026-02-20T00:00:07.000Z","success":true,"exit_code":0}}

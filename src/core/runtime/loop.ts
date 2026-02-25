@@ -20,6 +20,7 @@ import { appendAuditTrailToAuditFile } from '../observability/audit-file.js';
 import {
   clearAuditContext,
   clearAuditTrail,
+  recordAuditEvent,
   setAuditContext,
 } from '../observability/audit-trail.js';
 import { logger } from '../observability/logger.js';
@@ -82,6 +83,10 @@ export class SalmonLoop {
     let latestAuditPath: string | undefined;
     const shadowTaskId = randomBytes(4).toString('hex');
     let finalResult: LoopResult | undefined;
+    const runMode = 'run' as const;
+
+    emitSanitized({ type: 'run.start', mode: runMode, timestamp: now() });
+    recordAuditEvent('run.start', { mode: runMode }, { scope: 'session', severity: 'low' });
 
     try {
       const hostContext = await hostRunner.boot();
@@ -110,6 +115,17 @@ export class SalmonLoop {
       });
       latestAuditPath = sessionResult.auditPath;
       finalResult = sessionResult.result;
+      emitSanitized({
+        type: 'run.end',
+        mode: runMode,
+        success: Boolean(finalResult.success),
+        timestamp: now(),
+      });
+      recordAuditEvent(
+        'run.end',
+        { mode: runMode, success: Boolean(finalResult.success) },
+        { scope: 'session', severity: finalResult.success ? 'low' : 'medium' },
+      );
       return finalResult;
     } catch (error) {
       const message = sanitizeError(error);
@@ -124,6 +140,12 @@ export class SalmonLoop {
         reasonCode: 'LOOP_FAILED',
         failurePhase: Phase.PREFLIGHT,
       });
+      emitSanitized({ type: 'run.end', mode: runMode, success: false, timestamp: now() });
+      recordAuditEvent(
+        'run.end',
+        { mode: runMode, success: false },
+        { scope: 'session', severity: 'high', phase: Phase.PREFLIGHT },
+      );
       return finalResult;
     } finally {
       try {
@@ -147,7 +169,18 @@ export class SalmonLoop {
           }
         }
         // Append at the end so any audit events emitted by the outcomeReporter are persisted too.
-        await appendAuditTrailToAuditFile(latestAuditPath);
+        const fallbackFailureReason =
+          finalResult && !finalResult.success ? finalResult.reason : undefined;
+        const appendedPath = await appendAuditTrailToAuditFile({
+          auditPath: latestAuditPath,
+          repoPath: options.repoPath,
+          failureReason: fallbackFailureReason,
+          runId: correlationId,
+        });
+        if (!latestAuditPath && appendedPath) {
+          latestAuditPath = appendedPath;
+          if (finalResult) finalResult.auditPath = appendedPath;
+        }
         clearAuditContext();
       }
     }
