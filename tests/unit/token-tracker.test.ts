@@ -8,6 +8,13 @@ const { readFileMock, traceMock } = (() => ({
 mock.module('fs/promises', () => ({
   readFile: readFileMock,
 }));
+mock.module('../../src/core/adapters/fs/index.js', () => ({
+  FileAdapter: class {
+    async readFile(filePath: string): Promise<string> {
+      return await readFileMock(filePath);
+    }
+  },
+}));
 mock.module('../../src/core/observability/logger.js', () => ({
   logger: {
     trace: traceMock,

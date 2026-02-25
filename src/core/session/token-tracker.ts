@@ -1,6 +1,6 @@
-import { readFile } from 'fs/promises';
 import path from 'path';
 
+import { FileAdapter } from '../adapters/fs/index.js';
 import { logIgnoredError } from '../observability/ignored-error.js';
 import type { LoopResult } from '../types/index.js';
 import type { TokenUsage } from '../types/usage.js';
@@ -12,6 +12,8 @@ import type { ChatSession } from './types.js';
  * Extracts and accumulates token statistics from LLM execution results.
  */
 export class TokenTracker {
+  private static readonly fileAdapter = new FileAdapter();
+
   /**
    * Extract token usage from LoopResult
    * Strategies (in order of priority):
@@ -23,7 +25,7 @@ export class TokenTracker {
     if (!result.auditPath) return null;
 
     try {
-      const auditRaw = await readFile(result.auditPath, 'utf8');
+      const auditRaw = await this.fileAdapter.readFile(result.auditPath, 'utf8');
       const audit = JSON.parse(auditRaw) as any;
       const eventsRef = audit?.context?.eventsRef;
       if (!eventsRef || typeof eventsRef.path !== 'string') return null;
@@ -31,7 +33,7 @@ export class TokenTracker {
       const eventsPath = path.isAbsolute(eventsRef.path)
         ? eventsRef.path
         : path.join(path.dirname(result.auditPath), eventsRef.path);
-      const eventsRaw = await readFile(eventsPath, 'utf8');
+      const eventsRaw = await this.fileAdapter.readFile(eventsPath, 'utf8');
       const events = eventsRaw
         .split('\n')
         .filter((line) => line.trim().length > 0)
