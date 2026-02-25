@@ -96,7 +96,7 @@ All critical safety logic is verified by:
 
 ## 4.1 Bun Test Runtime
 
-- The project test runtime is `bun test`. Do not use `vitest` commands in development scripts or hooks.
+- The project test runtime is `bun test`. Do not use legacy non-Bun test runner commands in development scripts or hooks.
 - Run the full suite with `bun run test:full`.
 - Unit, integration, and perf tests run via `scripts/run-bun-file-tests.ts` as per-file isolated subprocesses.
 - `bun run test:unit` maps to `bun scripts/run-bun-file-tests.ts tests/unit`.

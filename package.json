@@ -26,9 +26,10 @@
     "check:target-runtime-boundary:staged": "bun scripts/check-target-runtime-hardcoding.ts --staged",
     "check:unit-boundary": "bun scripts/check-unit-test-boundary.ts",
     "check:unit-boundary:staged": "bun scripts/check-unit-test-boundary.ts --staged",
+    "check:test-runner-migration": "bun scripts/check-test-runner-migration.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "verify": "bun run check:bun-purity && bun run check:target-runtime-boundary && bun run check:unit-boundary && bun run lint && bun run typecheck && bun run test:full",
+    "verify": "bun run check:bun-purity && bun run check:target-runtime-boundary && bun run check:unit-boundary && bun run check:test-runner-migration && bun run lint && bun run typecheck && bun run test:full",
     "test:watch": "bun test --watch --preload ./tests/setup-bun.ts tests",
     "test:watch:unit": "bun test --watch --preload ./tests/setup-bun.ts tests/unit",
     "test:watch:integration": "bun test --watch --preload ./tests/setup-bun.ts tests/integration",
@@ -36,7 +37,7 @@
     "test:watch:perf": "bun test --watch --preload ./tests/setup-bun.ts tests/perf",
     "test:coverage": "bun test --coverage --preload ./tests/setup-bun.ts tests",
     "test:report": "bun test --reporter=junit --reporter-outfile=test-report.xml --preload ./tests/setup-bun.ts tests",
-    "test:ci": "bun run check:bun-purity && bun run check:target-runtime-boundary && bun run check:unit-boundary && bun run lint && bun run test:full",
+    "test:ci": "bun run verify",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\""
   },
   "keywords": [

@@ -134,7 +134,7 @@ Logs should clearly reflect the call source and status:
 
 ---
 
-## 11. Testing Hard Requirements (Vitest)
+## 11. Testing Hard Requirements (Bun Test)
 *   **Environment Isolation**: Must use `useFakeTimers()`, Mock `process.nextTick`.
 *   **No Side Effects**: Ban real disk I/O, network requests, and child process spawning (except in integration tests).
 *   **Mandatory Test Scenarios**:
