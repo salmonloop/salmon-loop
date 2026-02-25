@@ -8,6 +8,16 @@ mock.module('../../../src/core/adapters/git/git-runner.js', () => ({
   runGitCommand: mock(),
 }));
 
+async function expectSecurityViolation(promise: Promise<unknown>): Promise<void> {
+  try {
+    await promise;
+    throw new Error('Expected Security Violation');
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    expect(message).toMatch(/Security Violation/i);
+  }
+}
+
 describe('GitAdapter exec truncation handling', () => {
   beforeEach(() => {
     mock.clearAllMocks();
@@ -114,10 +124,28 @@ describe('GitAdapter query gateway validation', () => {
     const worktreePath = path.join(shadowRoot, 'repo', 'test');
 
     const git = new GitAdapter('/repo');
-    await expect(
-      git.query(['worktree', 'add', '--quiet', '--detach', worktreePath, 'HEAD']),
-    ).resolves.toBe('');
+    const output = await git.query([
+      'worktree',
+      'add',
+      '--quiet',
+      '--detach',
+      worktreePath,
+      'HEAD',
+    ]);
+    expect(output).toBe('');
     expect(runGitCommand).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects worktree operations under temp-prefix lookalike paths', async () => {
+    const fakeShadowRoot = `${path.join(path.resolve(tmpdir()), 's8p-wt')}-evil`;
+    const fakeWorktreePath = path.join(fakeShadowRoot, 'repo', 'test');
+
+    const git = new GitAdapter('/repo');
+    await expectSecurityViolation(
+      git.query(['worktree', 'add', '--quiet', '--detach', fakeWorktreePath, 'HEAD']),
+    );
+    await expectSecurityViolation(git.query(['worktree', 'remove', '--force', fakeWorktreePath]));
+    expect(runGitCommand).not.toHaveBeenCalled();
   });
 
   it('refuses destructive rollback recovery outside shadow worktree', async () => {

@@ -152,4 +152,16 @@ describe('WorkspaceManager teardown safety behavior', () => {
       }),
     ).rejects.toThrow('Worktree path not in temp directory, refusing to delete');
   });
+
+  it('refuses fallback deletion for temp-prefix path outside temp directory', async () => {
+    queryMock.mockResolvedValueOnce('');
+
+    await expect(
+      WorkspaceManager.teardown({
+        strategy: 'worktree',
+        baseRepoPath: '/repo',
+        workPath: '/tmp-evil/worktree',
+      }),
+    ).rejects.toThrow('Worktree path not in temp directory, refusing to delete');
+  });
 });

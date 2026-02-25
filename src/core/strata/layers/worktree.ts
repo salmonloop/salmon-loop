@@ -1,12 +1,51 @@
 import { randomBytes } from 'crypto';
 import { access, realpath, rm } from 'fs/promises';
 import { tmpdir } from 'os';
-import { basename, join, normalize, relative } from 'path';
+import { basename, join, normalize } from 'path';
 
 import { text } from '../../../locales/index.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { logger } from '../../observability/logger.js';
 import { RunOptions, ExecutionWorkspace, LoopEvent } from '../../types/index.js';
+import { isPathWithinDirectory } from '../../utils/path.js';
+
+function normalizePathForCompare(value: string): string {
+  const normalized = normalize(value).replace(/\\/g, '/');
+  if (process.platform === 'darwin' && normalized.startsWith('/private/')) {
+    return normalized.slice('/private'.length);
+  }
+  return normalized;
+}
+
+async function tryRealpath(value: string): Promise<string | null> {
+  try {
+    return await realpath(value);
+  } catch {
+    return null;
+  }
+}
+
+async function resolveWorktreeMatchPath(
+  worktreePaths: string[],
+  targetPath: string,
+): Promise<string | null> {
+  const targetNorm = normalizePathForCompare(targetPath);
+  const exactMatch =
+    worktreePaths.find((p) => p === targetPath) ||
+    worktreePaths.find((p) => normalizePathForCompare(p) === targetNorm);
+  if (exactMatch) return exactMatch;
+
+  const targetReal = await tryRealpath(targetPath);
+  if (!targetReal) return null;
+
+  for (const candidate of worktreePaths) {
+    const candidateReal = await tryRealpath(candidate);
+    if (candidateReal && candidateReal === targetReal) {
+      return candidate;
+    }
+  }
+  return null;
+}
 
 /**
  * WorkspaceManager - Manages execution workspace for different checkpoint strategies
@@ -41,10 +80,10 @@ export class WorkspaceManager {
       const tmpDir = normalize(tmpdir());
       const normalizedWorktreePath = normalize(worktreePath);
 
-      if (!normalizedWorktreePath.startsWith(tmpDir)) {
+      if (!isPathWithinDirectory(tmpDir, normalizedWorktreePath, { allowEqual: false })) {
         throw new Error('Worktree path must be in system temp directory');
       }
-      if (!relative(options.repoPath, worktreePath).startsWith('..')) {
+      if (isPathWithinDirectory(options.repoPath, worktreePath, { allowEqual: true })) {
         throw new Error('Worktree path must not be inside repo path');
       }
 
@@ -118,40 +157,7 @@ export class WorkspaceManager {
         .map((line) => line.slice('worktree '.length).trim())
         .filter(Boolean);
 
-      const normalizeForCompare = (value: string) => {
-        const normalized = normalize(value).replace(/\\/g, '/');
-        if (process.platform === 'darwin' && normalized.startsWith('/private/')) {
-          return normalized.slice('/private'.length);
-        }
-        return normalized;
-      };
-
-      const tryRealpath = async (value: string) => {
-        try {
-          return await realpath(value);
-        } catch {
-          return null;
-        }
-      };
-
-      const targetNorm = normalizeForCompare(workspace.workPath);
-      const exactMatch =
-        worktreePaths.find((p) => p === workspace.workPath) ||
-        worktreePaths.find((p) => normalizeForCompare(p) === targetNorm);
-
-      let matchPath: string | null = exactMatch ?? null;
-      if (!matchPath) {
-        const targetReal = await tryRealpath(workspace.workPath);
-        if (targetReal) {
-          for (const p of worktreePaths) {
-            const pReal = await tryRealpath(p);
-            if (pReal && pReal === targetReal) {
-              matchPath = p;
-              break;
-            }
-          }
-        }
-      }
+      const matchPath = await resolveWorktreeMatchPath(worktreePaths, workspace.workPath);
 
       if (matchPath) {
         await git.query(['worktree', 'remove', '--force', matchPath]);
@@ -200,9 +206,7 @@ export class WorkspaceManager {
     }
 
     if (!removed) {
-      const tmpDir = normalize(tmpdir());
-      const normalizedWorktreePath = normalize(workspace.workPath);
-      if (!normalizedWorktreePath.startsWith(tmpDir)) {
+      if (!isPathWithinDirectory(tmpdir(), workspace.workPath, { allowEqual: false })) {
         throw new Error('Worktree path not in temp directory, refusing to delete');
       }
       await rm(workspace.workPath, {

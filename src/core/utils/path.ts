@@ -72,3 +72,21 @@ export function ensureInSandbox(root: string, target: string): string {
 
   return normalizePath(resolvedTarget);
 }
+
+/**
+ * Check whether a target path is located within a root directory.
+ * Uses resolved absolute paths and path.relative to avoid prefix-match pitfalls.
+ */
+export function isPathWithinDirectory(
+  root: string,
+  target: string,
+  options: { allowEqual?: boolean } = {},
+): boolean {
+  const { allowEqual = true } = options;
+  const resolvedRoot = path.resolve(root);
+  const resolvedTarget = path.resolve(target);
+  const rel = path.relative(resolvedRoot, resolvedTarget);
+
+  if (rel === '') return allowEqual;
+  return !rel.startsWith('..') && !path.isAbsolute(rel);
+}

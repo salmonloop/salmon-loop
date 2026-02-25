@@ -9,7 +9,7 @@ import { LIMITS } from '../../config/limits.js';
 import { logIgnoredError } from '../../observability/ignored-error.js';
 import { logger } from '../../observability/logger.js';
 import { GitError } from '../../types/index.js';
-import { normalizePath } from '../../utils/path.js';
+import { isPathWithinDirectory, normalizePath } from '../../utils/path.js';
 
 import type { GitRunLimits, GitRunResult } from './git-runner.js';
 import { runGitCommand } from './git-runner.js';
@@ -635,7 +635,9 @@ export class GitAdapter {
 
         const worktreePath = path.resolve(args[i]!);
         const baseRef = args[i + 1]!;
-        if (!worktreePath.startsWith(shadowRoot)) throw new Error(text.git.securityViolation(cmd));
+        if (!isPathWithinDirectory(shadowRoot, worktreePath, { allowEqual: false })) {
+          throw new Error(text.git.securityViolation(cmd));
+        }
         if (!baseRef || baseRef.includes('..')) throw new Error(text.git.securityViolation(cmd));
         return;
       }
@@ -654,7 +656,9 @@ export class GitAdapter {
         if (args.length - i !== 1) throw new Error(text.git.securityViolation(cmd));
 
         const worktreePath = path.resolve(args[i]!);
-        if (!worktreePath.startsWith(shadowRoot)) throw new Error(text.git.securityViolation(cmd));
+        if (!isPathWithinDirectory(shadowRoot, worktreePath, { allowEqual: false })) {
+          throw new Error(text.git.securityViolation(cmd));
+        }
         return;
       }
 
@@ -674,7 +678,7 @@ export class GitAdapter {
    * - If an attacker could bypass this check, they could trigger data loss in the main repository
    * - Using realpathSync ensures we compare canonical paths, not attacker-controlled symlinks
    *
-   * @returns Canonical shadow root path with trailing separator (e.g., "/tmp/s8p-wt/")
+   * @returns Canonical shadow root path (e.g., "/tmp/s8p-wt")
    */
   private static resolveShadowRoot(): string {
     const tmpResolved = path.resolve(tmpdir());
@@ -687,7 +691,7 @@ export class GitAdapter {
       // Fall back to resolved path. If tmp is not realpath-resolvable, prefer denying shadow checks elsewhere.
       tmpReal = tmpResolved;
     }
-    return path.join(tmpReal, 's8p-wt') + path.sep;
+    return path.join(tmpReal, 's8p-wt');
   }
 
   /**
@@ -695,8 +699,8 @@ export class GitAdapter {
    *
    * SECURITY: Multi-layer defense against path traversal and symlink attacks:
    * 1. Both shadowRoot AND repoPath are resolved via realpathSync
-   * 2. Trailing separator prevents partial matches (e.g., /tmp/s8p-wt-evil won't match /tmp/s8p-wt/)
-   * 3. String prefix check ensures strict containment
+   * 2. Directory-aware containment check prevents partial matches (e.g., /tmp/s8p-wt-evil)
+   * 3. String prefix pitfalls are avoided by path.relative semantics
    *
    * Why this check is CRITICAL:
    * - Operations like resolveConflicts() execute `git reset --hard HEAD` and `git clean -fd`
@@ -722,7 +726,7 @@ export class GitAdapter {
     } catch {
       repo = repoResolved;
     }
-    return (repo + path.sep).startsWith(expectedRoot);
+    return isPathWithinDirectory(expectedRoot, repo, { allowEqual: false });
   }
 
   /**
