@@ -5,7 +5,12 @@ import { join, resolve } from 'path';
  * Runtime state is stored under ".salmonloop/runtime/" (audit, rejections, tmp, locks).
  */
 export function getDefaultRepoConfigPath(repoRoot: string): string {
-  return join(resolve(repoRoot), '.salmonloop', 'config', 'config.json');
+  return getDefaultRepoConfigPaths(repoRoot)[0];
+}
+
+export function getDefaultRepoConfigPaths(repoRoot: string): string[] {
+  const base = join(resolve(repoRoot), '.salmonloop', 'config');
+  return [join(base, 'config.yaml'), join(base, 'config.yml'), join(base, 'config.json')];
 }
 
 export function resolveConfigPath(repoRoot: string, configPath: string): string {

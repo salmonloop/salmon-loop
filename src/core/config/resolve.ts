@@ -377,7 +377,7 @@ function resolveDynamicBudget(raw?: ConfigFileV1) {
 
 export async function resolveConfig(opts: ResolveConfigOptions): Promise<ResolvedConfig> {
   const enabled = opts.enableConfigFile !== false;
-  const path = opts.configFilePath || getDefaultRepoConfigPath(opts.repoRoot);
+  const path = opts.configFilePath;
   const required = Boolean(opts.configFilePath);
 
   const loaded = await tryLoadConfigFile({
@@ -392,7 +392,7 @@ export async function resolveConfig(opts: ResolveConfigOptions): Promise<Resolve
   return {
     source: {
       enabled,
-      path: loaded?.path || path,
+      path: loaded?.path || path || getDefaultRepoConfigPath(opts.repoRoot),
       used: Boolean(loaded),
     },
     raw,

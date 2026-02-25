@@ -82,6 +82,7 @@
   "tests/unit/core/tools/headless-payload.test.ts",
   "tests/unit/core/tools/mcp/streamable-http.test.ts",
   "tests/unit/core/adapters/filesystem-adapter.test.ts",
+  "tests/unit/core/config/file-format.test.ts",
   "tests/unit/core/grizzco/dsl/micro-task-runner.test.ts",
   "tests/unit/core/grizzco/engine/observability/event-adapter.test.ts",
   "tests/unit/core/grizzco/steps/apply.test.ts",

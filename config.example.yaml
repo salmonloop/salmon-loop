@@ -1,0 +1,73 @@
+version: 1
+cli:
+  defaults:
+    verbosity: extended
+    strategy: worktree
+    dry_run: true
+
+context:
+  use_token_budget: true
+  dynamic_budget:
+    enabled: false
+    min_budget: 5000
+    max_budget: 100000
+    adjustment_step: 0.15
+
+observability:
+  langfuse:
+    enabled: false
+    outcome: false
+    endpoint: https://your-litellm-host/langfuse/
+    user_id: user-123
+
+output:
+  llm:
+    kinds:
+      - review
+      - assistant_message
+  markdown:
+    theme: default
+    mode: enhanced
+
+ui:
+  log:
+    mode: normal
+    view: standard
+
+verify:
+  command: node -e "process.exit(0)"
+  timeout_ms: 600000
+
+llm:
+  active_model: coding-task
+  providers:
+    openaiMain:
+      type: openai-compatible
+      client:
+        package: "@ai-sdk/openai-compatible"
+      api:
+        base_url: https://api.openai.com/v1
+        api_key: null
+        timeout_ms: 60000
+        headers: {}
+  models:
+    coding-task:
+      provider: openaiMain
+      id: gpt-4.1-mini
+      params:
+        temperature: 0.2
+        max_tokens: 8192
+
+tool_authorization:
+  allowlist:
+    repo_file: .salmonloop/config/authorization.json
+    user_file: ~/.salmonloop/config/authorization-user.json
+    summary:
+      every: 100
+      min_interval_ms: 600000
+      failure_min_interval_ms: 60000
+      max_tool_stats: 1000
+      max_path_stats: 2000
+    matching:
+      deny_side_effects: any
+      allow_side_effects: all

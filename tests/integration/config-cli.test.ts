@@ -56,6 +56,40 @@ describe('Config CLI integration', () => {
     expect(stdout).not.toContain('secret-inline-key');
   }, 120000);
 
+  it('loads default repo config from YAML when config.yaml exists', async () => {
+    const repo = await helper.createGitRepo();
+
+    await helper.writeFile(
+      repo.path,
+      '.salmonloop/config/config.yaml',
+      `version: 1
+verify:
+  command: bun -e "process.exit(0)"
+llm:
+  active_model: default
+  providers:
+    openaiMain:
+      type: openai-compatible
+      api:
+        base_url: https://example.com/v1
+        api_key: secret-inline-key
+  models:
+    default:
+      provider: openaiMain
+      id: gpt-test
+`,
+    );
+
+    const { exitCode, stdout, stderr } = await runCli(['run', '-r', repo.path, '--print-config']);
+    expect(stderr).toBe('');
+    expect(exitCode).toBe(0);
+
+    const printed = JSON.parse(stdout) as any;
+    expect(printed.version).toBe(1);
+    expect(printed.llm.providers.openaiMain.api.apiKey).toBe('[REDACTED]');
+    expect(stdout).not.toContain('secret-inline-key');
+  }, 120000);
+
   it('fails when --config points to a missing file', async () => {
     const repo = await helper.createGitRepo();
 

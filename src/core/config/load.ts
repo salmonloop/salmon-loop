@@ -1,9 +1,8 @@
 import { readFile } from 'fs/promises';
 
-import { sanitizeError } from '../llm/errors.js';
-
 import { ConfigError } from './errors.js';
-import { resolveConfigPath } from './paths.js';
+import { parseConfigText } from './file-format.js';
+import { getDefaultRepoConfigPaths, resolveConfigPath } from './paths.js';
 import type { ConfigFileV1 } from './types.js';
 import { validateConfigFileV1 } from './validate.js';
 
@@ -22,29 +21,28 @@ export interface LoadedConfig {
 export async function tryLoadConfigFile(opts: LoadConfigOptions): Promise<LoadedConfig | null> {
   if (!opts.enabled) return null;
 
-  if (!opts.configPath) {
-    return null;
-  }
+  const candidatePaths = opts.configPath
+    ? [resolveConfigPath(opts.repoRoot, opts.configPath)]
+    : getDefaultRepoConfigPaths(opts.repoRoot);
 
-  const absPath = resolveConfigPath(opts.repoRoot, opts.configPath);
-  try {
-    const raw = await readFile(absPath, 'utf8');
-    let parsed: unknown;
+  for (let i = 0; i < candidatePaths.length; i++) {
+    const absPath = candidatePaths[i];
     try {
-      parsed = JSON.parse(raw);
-    } catch (e) {
-      throw new ConfigError('CONFIG_PARSE_FAILED', { path: absPath, error: sanitizeError(e) });
-    }
-
-    const config = validateConfigFileV1(parsed);
-    return { path: absPath, config };
-  } catch (e: any) {
-    if (e?.code === 'ENOENT') {
-      if (opts.required) {
-        throw new ConfigError('CONFIG_FILE_NOT_FOUND', { path: absPath });
+      const raw = await readFile(absPath, 'utf8');
+      const parsed = parseConfigText(raw, absPath);
+      const config = validateConfigFileV1(parsed);
+      return { path: absPath, config };
+    } catch (e: any) {
+      if (e?.code === 'ENOENT') {
+        const isLast = i === candidatePaths.length - 1;
+        if (opts.required && isLast) {
+          throw new ConfigError('CONFIG_FILE_NOT_FOUND', { path: absPath });
+        }
+        continue;
       }
-      return null;
+      throw e;
     }
-    throw e;
   }
+
+  return null;
 }

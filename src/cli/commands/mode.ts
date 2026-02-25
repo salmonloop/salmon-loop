@@ -1,6 +1,11 @@
 import { FileAdapter } from '../../core/adapters/fs/index.js';
+import {
+  detectConfigFileFormat,
+  parseConfigText,
+  stringifyConfigText,
+} from '../../core/config/file-format.js';
 import { ConfigError } from '../../core/config/index.js';
-import { getDefaultRepoConfigPath } from '../../core/config/paths.js';
+import { getDefaultRepoConfigPaths } from '../../core/config/paths.js';
 import { normalizeUiLogMode, type UiLogMode } from '../../core/config/types.js';
 import { validateConfigFileV1 } from '../../core/config/validate.js';
 import { sanitizeError } from '../../core/llm/errors.js';
@@ -11,42 +16,37 @@ import { parseSuggestionContext } from './utils.js';
 
 const LOG_MODE_SUGGESTIONS: UiLogMode[] = ['quiet', 'normal', 'debug'];
 
+async function resolveConfigPathForReadWrite(
+  fileAdapter: FileAdapter,
+  repoRoot: string,
+): Promise<string> {
+  const candidates = getDefaultRepoConfigPaths(repoRoot);
+  for (const p of candidates) {
+    if (await fileAdapter.exists(p)) return p;
+  }
+  return candidates[0];
+}
+
 async function readUiLogModeFromConfig(repoRoot: string): Promise<UiLogMode | undefined> {
   const fileAdapter = new FileAdapter();
-  const configPath = getDefaultRepoConfigPath(repoRoot);
+  const configPath = await resolveConfigPathForReadWrite(fileAdapter, repoRoot);
   const exists = await fileAdapter.exists(configPath);
   if (!exists) return undefined;
   const raw = await fileAdapter.readFile(configPath);
-  let parsed: any;
-  try {
-    parsed = JSON.parse(raw);
-  } catch (error) {
-    throw new ConfigError('CONFIG_PARSE_FAILED', {
-      path: configPath,
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
+  const parsed = parseConfigText(raw, configPath);
   const validated = validateConfigFileV1(parsed);
   return validated.ui?.log?.mode;
 }
 
 async function persistUiLogMode(repoRoot: string, mode: UiLogMode) {
   const fileAdapter = new FileAdapter();
-  const configPath = getDefaultRepoConfigPath(repoRoot);
+  const configPath = await resolveConfigPathForReadWrite(fileAdapter, repoRoot);
   const exists = await fileAdapter.exists(configPath);
   let baseConfig: any = { version: 1 };
 
   if (exists) {
     const raw = await fileAdapter.readFile(configPath);
-    let parsed: any;
-    try {
-      parsed = JSON.parse(raw);
-    } catch (error) {
-      throw new ConfigError('CONFIG_PARSE_FAILED', {
-        path: configPath,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
+    const parsed = parseConfigText(raw, configPath);
     validateConfigFileV1(parsed);
     baseConfig = parsed;
   }
@@ -63,7 +63,8 @@ async function persistUiLogMode(repoRoot: string, mode: UiLogMode) {
     },
   };
 
-  await fileAdapter.writeFile(configPath, JSON.stringify(baseConfig, null, 2) + '\n');
+  const format = detectConfigFileFormat(configPath);
+  await fileAdapter.writeFile(configPath, stringifyConfigText(baseConfig, format));
   return configPath;
 }
 

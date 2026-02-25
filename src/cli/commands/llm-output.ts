@@ -1,6 +1,11 @@
 import { FileAdapter } from '../../core/adapters/fs/index.js';
+import {
+  detectConfigFileFormat,
+  parseConfigText,
+  stringifyConfigText,
+} from '../../core/config/file-format.js';
 import { ConfigError } from '../../core/config/index.js';
-import { getDefaultRepoConfigPath } from '../../core/config/paths.js';
+import { getDefaultRepoConfigPaths } from '../../core/config/paths.js';
 import { validateConfigFileV1 } from '../../core/config/validate.js';
 import { sanitizeError } from '../../core/llm/errors.js';
 import { resolveLlmOutputPolicy, DEFAULT_LLM_OUTPUT_POLICY } from '../../core/llm/output-policy.js';
@@ -18,23 +23,26 @@ function formatKinds(kinds: string[]): string {
   return kinds.join(', ');
 }
 
+async function resolveConfigPathForReadWrite(
+  fileAdapter: FileAdapter,
+  repoRoot: string,
+): Promise<string> {
+  const candidates = getDefaultRepoConfigPaths(repoRoot);
+  for (const p of candidates) {
+    if (await fileAdapter.exists(p)) return p;
+  }
+  return candidates[0];
+}
+
 async function persistLlmOutputKinds(repoRoot: string, kinds: LlmOutputKind[]) {
   const fileAdapter = new FileAdapter();
-  const configPath = getDefaultRepoConfigPath(repoRoot);
+  const configPath = await resolveConfigPathForReadWrite(fileAdapter, repoRoot);
   const exists = await fileAdapter.exists(configPath);
   let baseConfig: any = { version: 1 };
 
   if (exists) {
     const raw = await fileAdapter.readFile(configPath);
-    let parsed: any;
-    try {
-      parsed = JSON.parse(raw);
-    } catch (error) {
-      throw new ConfigError('CONFIG_PARSE_FAILED', {
-        path: configPath,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
+    const parsed = parseConfigText(raw, configPath);
     validateConfigFileV1(parsed);
     baseConfig = parsed;
   }
@@ -51,7 +59,8 @@ async function persistLlmOutputKinds(repoRoot: string, kinds: LlmOutputKind[]) {
     },
   };
 
-  await fileAdapter.writeFile(configPath, JSON.stringify(baseConfig, null, 2) + '\n');
+  const format = detectConfigFileFormat(configPath);
+  await fileAdapter.writeFile(configPath, stringifyConfigText(baseConfig, format));
   return configPath;
 }
 

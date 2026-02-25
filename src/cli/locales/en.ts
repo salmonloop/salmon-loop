@@ -215,7 +215,8 @@ export const en = {
   instructionOption: 'Instruction for code modification (required)',
   verifyOption:
     'Verification command to run (e.g., "pytest", "go test ./...", or your project test command) (required)',
-  configOption: 'Path to SalmonLoop config JSON (default: <repo>/.salmonloop/config/config.json)',
+  configOption:
+    'Path to SalmonLoop config file (YAML/JSON). Default lookup: <repo>/.salmonloop/config/config.yaml, config.yml, config.json',
   noConfigFileOption: 'Disable loading config file from the repository',
   printConfigOption: 'Print the resolved config (redacted) and exit',
   repoOption: 'Repository path (default: current directory)',

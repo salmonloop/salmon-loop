@@ -364,7 +364,7 @@ Please return the patch in PURE unified diff format:`;
         case 'CONFIG_FILE_NOT_FOUND':
           return `Config file not found: ${details?.path || '(unknown path)'}`;
         case 'CONFIG_PARSE_FAILED':
-          return `Failed to parse config JSON: ${details?.path || '(unknown path)'}`;
+          return `Failed to parse config file: ${details?.path || '(unknown path)'}`;
         case 'CONFIG_INVALID_ROOT':
           return 'Config file must be a JSON object';
         case 'CONFIG_UNSUPPORTED':
