@@ -127,11 +127,11 @@ main();`,
       expect(xmlContext).toContain('<primary_file');
       expect(xmlContext).toContain('src/index.ts');
 
-      // 2. Convert it to JSON (currently throws because XML parsing is unimplemented)
-      // This confirms our error handling path
-      expect(() => ContextFormatConverter.xmlToJson(xmlContext)).toThrow(
-        'XML parsing not implemented yet',
-      );
+      // 2. Round-trip XML through the converter
+      const jsonFromXml = ContextFormatConverter.xmlToJson(xmlContext);
+      const directJson = ContextFormatConverter.contextToJson(testContext);
+
+      expect(jsonFromXml).toEqual(directJson);
     });
 
     test('should produce optimized JSON directly from Context', () => {

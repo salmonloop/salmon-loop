@@ -84,11 +84,25 @@ describe('Context Format Migration - XML to JSON', () => {
 
     test('should handle XML to JSON conversion gracefully', () => {
       const xmlContext = generateTestXMLContext();
+      const expectedContext: Context = {
+        repoPath: '/test/repo',
+        primaryFile: 'src/test.ts',
+        primaryText: 'export const test = "hello";',
+        rgSnippets: [],
+        targets: [
+          {
+            path: 'src/test.ts',
+            reason: 'primary',
+            confidence: 'high',
+            evidence: { type: 'symbol', details: { symbolName: 'test' } },
+          },
+        ],
+      };
 
-      // 这个应该抛出，因为我们还没有完全实现 XML 解析
-      expect(() => ContextFormatConverter.xmlToJson(xmlContext)).toThrow(
-        'XML parsing not implemented yet',
-      );
+      const jsonFromXml = ContextFormatConverter.xmlToJson(xmlContext);
+      const directJson = ContextFormatConverter.contextToJson(expectedContext);
+
+      expect(jsonFromXml).toEqual(directJson);
     });
   });
 

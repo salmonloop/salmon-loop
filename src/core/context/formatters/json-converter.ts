@@ -5,7 +5,22 @@
 
 import { XMLParser } from 'fast-xml-parser';
 
-import type { AstSyntaxError, Context, ContextAnalysis, ContextTarget } from '../../types/index.js';
+import type {
+  AstSyntaxError,
+  Context,
+  ContextAnalysis,
+  ContextTarget,
+  RelatedFileContext,
+  RepoMap,
+  RepoMapEdge,
+  RepoMapNode,
+  RipgrepResult,
+  SymbolMap,
+  SymbolMapEdge,
+  SymbolMapNode,
+  TargetEvidence,
+} from '../../types/index.js';
+import { normalizePath } from '../../utils/path.js';
 
 import type {
   JsonAnalysis,
@@ -375,7 +390,335 @@ export class ContextFormatConverter {
     return size;
   }
 
+  private static extractTargets(targetsNode: any): ContextTarget[] {
+    const targets = this.ensureArray(targetsNode);
+    return targets
+      .filter((node) => node && node.path && node.reason)
+      .map((node) => ({
+        path: normalizePath(node.path),
+        reason: node.reason,
+        confidence: this.normalizeTargetConfidence(node.confidence),
+        evidence: this.parseTargetEvidence(node.evidence),
+      }));
+  }
+
+  private static extractRepoMap(node: any): RepoMap | undefined {
+    if (!node) return undefined;
+    const repoMap: RepoMap = {
+      trigger: node.trigger === 'shallow' ? 'shallow' : 'deep',
+      maxDepth: this.toNumber(node.max_depth),
+      nodes: this.extractRepoNodes(node.nodes),
+      edges: this.extractRepoEdges(node.edges),
+    };
+
+    if (!repoMap.nodes.length && !repoMap.edges.length) {
+      return undefined;
+    }
+
+    return repoMap;
+  }
+
+  private static extractRepoNodes(container: any): RepoMapNode[] {
+    const entries = this.ensureArray(container?.node);
+    return entries
+      .filter((entry) => entry && entry.path)
+      .map((entry) => ({
+        path: normalizePath(entry.path),
+        depth: this.toNumber(entry.depth),
+        source: entry.source === 'primary' ? 'primary' : 'import',
+      }));
+  }
+
+  private static extractRepoEdges(container: any): RepoMapEdge[] {
+    const entries = this.ensureArray(container?.edge);
+    return entries
+      .filter((entry) => entry && entry.from && entry.to && entry.type)
+      .map((entry) => ({
+        from: normalizePath(entry.from),
+        to: normalizePath(entry.to),
+        type: entry.type,
+      }));
+  }
+
+  private static extractSymbolMap(container: any): SymbolMap | undefined {
+    if (!container) return undefined;
+    const nodes = this.ensureArray(container.nodes?.node)
+      .filter((entry) => entry && entry.id && entry.name && entry.kind)
+      .map((entry) => {
+        const kind: SymbolMapNode['kind'] =
+          entry.kind === 'definition' ? 'definition' : 'reference';
+        return {
+          id: entry.id,
+          name: entry.name,
+          kind,
+          path: entry.path ? normalizePath(entry.path) : undefined,
+          location: {
+            start: {
+              line: this.toNumber(entry.line),
+              column: this.toNumber(entry.column),
+            },
+            end: {
+              line: this.toNumber(entry.line),
+              column: this.toNumber(entry.column),
+            },
+          },
+        };
+      });
+
+    const edges = this.ensureArray(container.edges?.edge)
+      .filter((entry) => entry && entry.from && entry.to && entry.type)
+      .map((entry) => {
+        const type: SymbolMapEdge['type'] = entry.type === 'call' ? 'call' : 'reference';
+        return {
+          from: entry.from,
+          to: entry.to,
+          type,
+          confidence: this.normalizeConfidence(entry.confidence),
+        };
+      });
+
+    if (!nodes.length && !edges.length) {
+      return undefined;
+    }
+
+    return { nodes, edges };
+  }
+
+  private static normalizeConfidence(value: string | undefined): 'high' | 'medium' | 'low' {
+    switch (value) {
+      case 'high':
+        return 'high';
+      case 'low':
+        return 'low';
+      default:
+        return 'medium';
+    }
+  }
+
+  private static normalizeTargetConfidence(value: string | undefined): ContextTarget['confidence'] {
+    switch (value) {
+      case 'high':
+        return 'high';
+      case 'low':
+        return 'low';
+      default:
+        return 'medium';
+    }
+  }
+
+  private static extractRelatedFiles(container: any): RelatedFileContext[] {
+    const entries = this.ensureArray(container?.file);
+    return entries
+      .filter((entry) => entry && entry.path && entry.reason && entry.mode)
+      .map((entry) => ({
+        path: normalizePath(entry.path),
+        content: this.extractCDataValue(entry, '      ') ?? '',
+        kind: entry.reason as RelatedFileContext['kind'],
+        mode: entry.mode === 'full' ? 'full' : 'outline',
+      }));
+  }
+
+  private static extractSnippets(container: any): RipgrepResult[] {
+    const entries = this.ensureArray(container?.snippet);
+    return entries
+      .filter((entry) => entry && entry.file && entry.line)
+      .map((entry) => ({
+        file: normalizePath(entry.file),
+        line: this.toNumber(entry.line),
+        content: this.extractCDataValue(entry, '      ') ?? '',
+      }));
+  }
+
+  private static extractDiffs(root: any): Partial<Context> {
+    const diffResult: Partial<Context> = {};
+    const staged = this.extractCDataValue(root.staged_diff, '    ');
+    if (staged) diffResult.stagedDiff = staged;
+    const unstaged = this.extractCDataValue(root.unstaged_diff, '    ');
+    if (unstaged) diffResult.unstagedDiff = unstaged;
+    const gitDiff = this.extractCDataValue(root.git_diff, '    ');
+    if (gitDiff) diffResult.gitDiff = gitDiff;
+    const untracked = this.extractCDataValue(root.untracked_diff, '    ');
+    if (untracked) diffResult.untrackedDiff = untracked;
+    return diffResult;
+  }
+
+  private static extractUntrackedFiles(container: any): string[] {
+    const entries = this.ensureArray(container?.file);
+    return entries.filter((entry) => entry && entry.path).map((entry) => normalizePath(entry.path));
+  }
+
+  private static extractAnalysis(astNode: any): ContextAst | undefined {
+    if (!astNode) return undefined;
+
+    const ast: ContextAst = {};
+
+    if (astNode.language?.id) {
+      ast.languageId = astNode.language.id;
+    }
+
+    const parseError = this.extractCDataValue(astNode.parse_error, '        ');
+    if (parseError) {
+      ast.parseError = parseError;
+    }
+
+    const syntaxEntries = this.ensureArray(astNode.syntax_errors?.error);
+    if (syntaxEntries.length > 0) {
+      ast.syntaxErrors = syntaxEntries.map((entry) => ({
+        line: this.toNumber(entry.line),
+        column: this.toNumber(entry.column),
+        type: entry.type === 'MISSING' ? 'MISSING' : 'ERROR',
+        text: this.extractCDataValue(entry, '          ') ?? '',
+      }));
+    }
+
+    const notes = this.ensureArray(astNode.notes?.note)
+      .map((note) => this.extractCDataValue(note, '          '))
+      .filter((value): value is string => Boolean(value));
+    if (notes.length) {
+      ast.notes = notes;
+    }
+
+    if (astNode.control_flow) {
+      const controlFlow: NonNullable<ContextAst['controlFlow']> = {
+        branchCount: this.toNumber(astNode.control_flow.branches),
+        loopCount: this.toNumber(astNode.control_flow.loops),
+        asyncBoundaryCount: this.toNumber(astNode.control_flow.async_boundaries),
+      };
+      const hotspots = this.extractHotspots(astNode.control_flow.hotspots);
+      if (hotspots.length) {
+        controlFlow.hotspots = hotspots;
+      }
+      ast.controlFlow = controlFlow;
+    }
+
+    if (astNode.exception_paths) {
+      const exceptionPaths: NonNullable<ContextAst['exceptionPaths']> = {
+        tryCatchCount: this.toNumber(astNode.exception_paths.try_catch),
+        throwCount: this.toNumber(astNode.exception_paths.throws),
+        promiseCatchCount: this.toNumber(astNode.exception_paths.promise_catch),
+      };
+      const hotspots = this.extractHotspots(astNode.exception_paths.hotspots);
+      if (hotspots.length) {
+        exceptionPaths.hotspots = hotspots;
+      }
+      ast.exceptionPaths = exceptionPaths;
+    }
+
+    return Object.keys(ast).length ? ast : undefined;
+  }
+
+  private static extractHotspots(container: any): string[] {
+    const entries = this.ensureArray(container?.hotspot);
+    return entries
+      .map((entry) => entry?.type)
+      .filter((value): value is string => typeof value === 'string');
+  }
+
+  private static ensureArray<T>(value: T | T[] | null | undefined | ''): T[] {
+    if (!value || value === '') return [];
+    return Array.isArray(value) ? value : [value];
+  }
+
+  private static extractCDataValue(node: any, indent: string): string | undefined {
+    if (!node) return undefined;
+    const raw =
+      node['#text'] ?? node['#cdata-section'] ?? (typeof node === 'string' ? node : undefined);
+    if (typeof raw !== 'string') return undefined;
+    let value = raw;
+    if (value.startsWith('\n')) {
+      value = value.slice(1);
+    }
+    const suffix = `\n${indent}`;
+    if (value.endsWith(suffix)) {
+      value = value.slice(0, -suffix.length);
+    }
+    return value;
+  }
+
+  private static toNumber(value: string | undefined): number {
+    const parsed = Number(value);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }
+
+  private static parseTargetEvidence(raw: string | undefined): ContextTarget['evidence'] {
+    if (!raw) return undefined;
+    if (!raw.includes(':')) {
+      return raw;
+    }
+
+    const [type, symbolName] = raw.split(':', 2);
+    const allowedType: TargetEvidence['type'] = [
+      'symbol',
+      'path',
+      'diff',
+      'import',
+      'ripgrep',
+      'fallback',
+    ].includes(type as TargetEvidence['type'])
+      ? (type as TargetEvidence['type'])
+      : 'symbol';
+
+    return {
+      type: allowedType,
+      details: symbolName ? { symbolName } : undefined,
+    };
+  }
+
   private static extractContextFromXML(_parsed: any): Context {
-    throw new Error('XML parsing not implemented yet - this is expected in TDD');
+    const root = _parsed?.context;
+    if (!root) {
+      throw new Error('XML context payload missing <context> root');
+    }
+
+    const context: Context = {
+      repoPath: '',
+      rgSnippets: [],
+    };
+
+    const manifest = root.manifest;
+    const targets = this.extractTargets(manifest?.targets?.target);
+    if (targets.length) {
+      context.targets = targets;
+    }
+
+    const repoMap = this.extractRepoMap(manifest?.repo_map);
+    if (repoMap) {
+      context.repoMap = repoMap;
+    }
+
+    const symbolMap = this.extractSymbolMap(manifest?.symbol_map);
+    if (symbolMap) {
+      context.symbolMap = symbolMap;
+    }
+
+    context.primaryFile = root.primary_file?.path
+      ? normalizePath(root.primary_file.path)
+      : undefined;
+    const primaryText = this.extractCDataValue(root.primary_file, '    ');
+    if (primaryText) {
+      context.primaryText = primaryText;
+    }
+
+    const relatedFiles = this.extractRelatedFiles(root.related_files);
+    if (relatedFiles.length) {
+      context.relatedFiles = relatedFiles;
+    }
+
+    context.rgSnippets = this.extractSnippets(root.code_snippets);
+
+    const diffs = this.extractDiffs(root);
+    Object.assign(context, diffs);
+
+    const untrackedFiles = this.extractUntrackedFiles(root.untracked_files);
+    if (untrackedFiles.length) {
+      context.untrackedFiles = untrackedFiles;
+    }
+
+    const analysisAst = this.extractAnalysis(root.analysis?.ast);
+    if (analysisAst) {
+      context.analysis = { ast: analysisAst };
+    }
+
+    return context;
   }
 }
