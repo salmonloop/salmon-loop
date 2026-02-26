@@ -42,5 +42,17 @@
       "owner": "core-platform",
       "reason": "Git command execution boundary."
     }
+  ],
+  "processDirectCommands": [
+    {
+      "path": "src/core/runtime/spawn-command.ts",
+      "owner": "core-platform",
+      "reason": "Runtime process boundary implementation."
+    },
+    {
+      "path": "src/core/runtime/spawn-interactive.ts",
+      "owner": "core-platform",
+      "reason": "Runtime process boundary implementation."
+    }
   ]
 }

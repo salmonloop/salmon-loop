@@ -20,7 +20,11 @@ async function createRepoWithAllowlist(): Promise<string> {
   await write(
     repoRoot,
     'scripts/fs-git-boundary-allowlist.json',
-    JSON.stringify({ fsDirectImports: [], gitDirectCommands: [] }, null, 2),
+    JSON.stringify(
+      { fsDirectImports: [], gitDirectCommands: [], processDirectCommands: [] },
+      null,
+      2,
+    ),
   );
   return repoRoot;
 }
@@ -68,5 +72,20 @@ describe('fs/git boundary AST guard', () => {
 
     const violations = await findFsGitBoundaryViolations(repoRoot);
     expect(violations).toEqual([]);
+  });
+
+  it('detects process direct usage via child_process and Bun.spawn', async () => {
+    const repoRoot = await createRepoWithAllowlist();
+    await write(
+      repoRoot,
+      'src/process.ts',
+      "import { spawn } from 'child_process';\nspawn('echo', ['x']);\nBun.spawn(['echo', 'x']);\n",
+    );
+
+    const violations = await findFsGitBoundaryViolations(repoRoot);
+    expect(violations).toContainEqual({
+      filePath: 'src/process.ts',
+      reason: 'process-direct-command',
+    });
   });
 });
