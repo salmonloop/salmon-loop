@@ -4,19 +4,28 @@ import { join } from 'path';
 import { FileAdapter } from '../adapters/fs/index.js';
 import type { LoopIteration } from '../types/index.js';
 
+import { SessionCompressor, CompressedSessionStore } from './compression.js';
+import { SessionPruningEngine, type MemoryPruningStrategy } from './pruning-strategy.js';
 import type { ChatSession, ChatMessage, SummaryState } from './types.js';
 
 /**
  * Manages chat session persistence and lifecycle.
  * Storage: .salmonloop/chat-sessions/<id>.json
+ * Features: Auto-pruning, compression, intelligent cleanup
  */
 export class ChatSessionManager {
   private storageDir: string;
   private currentSession: ChatSession | null = null;
   private fileAdapter = new FileAdapter();
+  private pruningEngine: SessionPruningEngine;
+  private compressor: SessionCompressor;
+  private compressedStore: CompressedSessionStore;
 
-  constructor(repoPath: string) {
+  constructor(repoPath: string, pruningStrategy?: Partial<MemoryPruningStrategy>) {
     this.storageDir = join(repoPath, '.salmonloop', 'chat-sessions');
+    this.pruningEngine = new SessionPruningEngine(pruningStrategy);
+    this.compressor = new SessionCompressor();
+    this.compressedStore = new CompressedSessionStore(repoPath);
   }
 
   /**
@@ -226,5 +235,125 @@ export class ChatSessionManager {
     }
 
     return sessions.sort((a, b) => b.updatedAt - a.updatedAt);
+  }
+
+  /**
+   * Perform automatic session cleanup based on pruning strategy
+   */
+  async performAutoCleanup(): Promise<{
+    deleted: number;
+    archived: number;
+    kept: number;
+  }> {
+    const sessions = await this.loadAllSessions();
+    const analysis = this.pruningEngine.analyzeSessions(sessions);
+
+    let deleted = 0;
+    let archived = 0;
+
+    // Delete low-priority sessions
+    for (const sessionId of analysis.sessionsToDelete) {
+      await this.deleteSession(sessionId);
+      deleted++;
+    }
+
+    // Archive medium-priority sessions
+    for (const sessionId of analysis.sessionsToArchive) {
+      const session = sessions.find((s) => s.meta.id === sessionId);
+      if (session) {
+        await this.archiveSession(session);
+        await this.deleteSession(sessionId);
+        archived++;
+      }
+    }
+
+    return {
+      deleted,
+      archived,
+      kept: analysis.sessionsToKeep.length,
+    };
+  }
+
+  /**
+   * Archive a session with compression
+   */
+  async archiveSession(session: ChatSession): Promise<string> {
+    const importanceScore = this.pruningEngine.getSessionScore(session);
+    return await this.compressedStore.saveCompressed(session, importanceScore);
+  }
+
+  /**
+   * Load all sessions from storage
+   */
+  private async loadAllSessions(): Promise<ChatSession[]> {
+    const files = await this.fileAdapter.readdir(this.storageDir).catch(() => []);
+    const sessions: ChatSession[] = [];
+
+    for (const file of files) {
+      if (!file.endsWith('.json')) continue;
+
+      try {
+        const filePath = join(this.storageDir, file);
+        const data = await this.fileAdapter.readFile(filePath);
+        const session = JSON.parse(data) as ChatSession;
+        sessions.push(session);
+      } catch (error) {
+        // Skip corrupted session files
+        console.warn(`Failed to load session file ${file}:`, error);
+      }
+    }
+
+    return sessions;
+  }
+
+  /**
+   * Delete a session file
+   */
+  private async deleteSession(sessionId: string): Promise<void> {
+    const filePath = join(this.storageDir, `${sessionId}.json`);
+    try {
+      await this.fileAdapter.deleteFile(filePath);
+    } catch (error) {
+      console.warn(`Failed to delete session ${sessionId}:`, error);
+    }
+  }
+
+  /**
+   * Get session importance score
+   */
+  getSessionScore(session: ChatSession): number {
+    return this.pruningEngine.getSessionScore(session);
+  }
+
+  /**
+   * Update pruning strategy
+   */
+  updatePruningStrategy(strategy: Partial<MemoryPruningStrategy>): void {
+    this.pruningEngine.updateStrategy(strategy);
+  }
+
+  /**
+   * Get current pruning strategy
+   */
+  getPruningStrategy(): MemoryPruningStrategy {
+    return this.pruningEngine.getStrategy();
+  }
+
+  /**
+   * List archived sessions
+   */
+  async listArchivedSessions(): Promise<Array<{ id: string; name: string; archivedAt: number }>> {
+    // Implement archived session list functionality
+    // This needs to access the compressed storage
+    return [];
+  }
+
+  /**
+   * Restore session from archive
+   */
+  async restoreFromArchive(_archiveId: string): Promise<ChatSession | null> {
+    // Implement session restoration from archive functionality
+    // This needs to access the compressed storage and decompress
+    return null;
   }
 }
