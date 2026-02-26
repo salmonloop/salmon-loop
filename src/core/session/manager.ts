@@ -178,7 +178,7 @@ export class ChatSessionManager {
     const messages = this.currentSession?.messages || [];
     return messages.map((m, i) => ({
       ...m,
-      id: (m as any).id || `msg-${i}-${m.timestamp}`,
+      id: m.id || `msg-${i}-${m.timestamp}`,
     }));
   }
 

@@ -5,6 +5,7 @@ import type { LoopIteration, LoopResult } from '../types/index.js';
  * Single message in chat history
  */
 export interface ChatMessage extends LLMMessage {
+  id?: string;
   timestamp: number;
   /** Links message to execution iteration */
   iterationId?: string;

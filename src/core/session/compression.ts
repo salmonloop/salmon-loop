@@ -4,7 +4,38 @@ import { gzip, gunzip } from 'zlib';
 import { FileAdapter } from '../adapters/fs/index.js';
 
 import type { ChatSession, ChatMessage } from './types.js';
-import type { LoopIteration } from '../types/index.js';
+
+export interface PartialChatSession {
+  meta: {
+    id: string;
+    name: string;
+    createdAt: number;
+    updatedAt: number;
+    repoPath?: string;
+    totalIterations?: number;
+    successfulIterations?: number;
+    totalTokens?: { input: number; output: number };
+    snapshots?: unknown[];
+  };
+  messages: Array<{
+    role: 'user' | 'assistant' | 'system';
+    content: string;
+    timestamp: number;
+  }>;
+  iterations: PartialIteration[];
+}
+
+export interface CompressionConfig {
+  maxKeyMessages: number;
+  maxKeyIterations: number;
+}
+
+export const DEFAULT_COMPRESSION_CONFIG: CompressionConfig = {
+  maxKeyMessages: 20,
+  maxKeyIterations: 10,
+};
+
+export type PartialIteration = CompressedIteration;
 
 const gzipAsync = promisify(gzip);
 const gunzipAsync = promisify(gunzip);
@@ -96,7 +127,7 @@ export interface CompressedIteration {
 export class SessionCompressor {
   private summaryGenerator: SessionSummaryGenerator;
 
-  constructor() {
+  constructor(private config: CompressionConfig = DEFAULT_COMPRESSION_CONFIG) {
     this.summaryGenerator = new SessionSummaryGenerator();
   }
 
@@ -144,16 +175,13 @@ export class SessionCompressor {
       },
     };
 
-    // Serialize and calculate compressed size
+    // Serialize and compress
     const serialized = serializeToBinary(compressed);
+    const compressedData = await gzipAsync(serialized);
 
-    // Simulate compression by calculating a smaller size
-    // In a real implementation, this would be the actual compressed size
-    const simulatedCompressedSize = Math.max(1, Math.floor(serialized.length * 0.6)); // Simulate 40% compression
-    compressed.meta.compressedSize = simulatedCompressedSize;
-
-    // Calculate compression ratio
-    const ratio = 1 - simulatedCompressedSize / originalSize;
+    // Set actual sizes
+    compressed.meta.compressedSize = compressedData.length;
+    const ratio = 1 - compressedData.length / originalSize;
     compressed.meta.compressionRatio = Math.round(ratio * 100);
 
     return compressed;
@@ -179,7 +207,7 @@ export class SessionCompressor {
   /**
    * Decompress and reconstruct original session (partial reconstruction)
    */
-  async decompressToSession(compressed: CompressedSession): Promise<Partial<ChatSession>> {
+  async decompressToSession(compressed: CompressedSession): Promise<PartialChatSession> {
     return {
       meta: {
         id: compressed.meta.id,
@@ -198,16 +226,13 @@ export class SessionCompressor {
         timestamp: msg.timestamp,
       })),
       iterations: compressed.compressed.keyIterations.map(
-        (iter) =>
-          ({
-            id: iter.id,
-            result: {
-              success: iter.outcome === 'success',
-              summary: iter.summary,
-              errorCount: iter.errorCount,
-            },
-            timestamp: iter.timestamp,
-          }) as unknown as LoopIteration & { id: string },
+        (iter): CompressedIteration => ({
+          id: iter.id,
+          outcome: iter.outcome,
+          timestamp: iter.timestamp,
+          summary: iter.summary,
+          errorCount: iter.errorCount,
+        }),
       ),
     };
   }

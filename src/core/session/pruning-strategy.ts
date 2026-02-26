@@ -9,6 +9,7 @@ export interface MemoryPruningStrategy {
   importanceScoring: (session: ChatSession) => number;
   autoPrune: boolean;
   gracePeriodDays: number;
+  lowScoreThreshold: number;
 }
 
 /**
@@ -20,6 +21,7 @@ export const DEFAULT_PRUNING_STRATEGY: MemoryPruningStrategy = {
   autoPrune: true,
   gracePeriodDays: 7,
   importanceScoring: calculateDefaultImportanceScore,
+  lowScoreThreshold: 10,
 };
 
 /**
@@ -103,7 +105,7 @@ export class SessionPruningEngine {
     for (const { session, score, ageInDays } of sessionsWithScores) {
       const isExpired = ageInDays > this.strategy.maxAgeDays;
       const isInGracePeriod = ageInDays <= this.strategy.maxAgeDays + this.strategy.gracePeriodDays;
-      const hasLowScore = score < 10; // Low importance threshold
+      const hasLowScore = score < this.strategy.lowScoreThreshold;
 
       if (isExpired && hasLowScore && !isInGracePeriod) {
         // Expired and low importance sessions to delete directly
