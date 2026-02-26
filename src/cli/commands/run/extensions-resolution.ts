@@ -10,7 +10,7 @@ export async function resolveRunExtensions(params: {
   try {
     const extensionResolution = await resolveExtensions({ repoRoot: params.repoPath });
     return { ok: true, extensionResolution };
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err instanceof ExtensionConfigError) {
       logger.error(`Extension configuration invalid: ${err.message}`);
       if (params.outputFormat === 'json') {

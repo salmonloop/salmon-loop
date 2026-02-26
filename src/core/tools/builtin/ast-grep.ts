@@ -122,10 +122,10 @@ export async function executeAstGrep(
     }));
 
     return { matches };
-  } catch (e: any) {
+  } catch (e: unknown) {
     return {
       matches: [],
-      error: e.message,
+      error: e instanceof Error ? e.message : String(e),
     };
   }
 }

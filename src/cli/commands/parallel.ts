@@ -214,7 +214,7 @@ export const parallelCommand: Command = {
         let extensionResolution;
         try {
           extensionResolution = await resolveExtensions({ repoRoot: workspace.baseRepoPath });
-        } catch (error: any) {
+        } catch (error: unknown) {
           const message = error instanceof Error ? error.message : String(error);
           emit({
             type: 'log',

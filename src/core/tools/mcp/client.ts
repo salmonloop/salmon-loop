@@ -12,7 +12,7 @@ import {
   isEventStreamResponse,
   safeDrainResponse,
 } from './streamable-http.js';
-import { McpExecutionResult, McpServerConfig } from './types.js';
+import { McpExecutionResult, McpServerConfig, McpToolDefinition } from './types.js';
 
 /**
  * MCP Client handling JSON-RPC communication over stdio with an external server.
@@ -22,7 +22,7 @@ export class McpClient {
   private requestId = 0;
   private pendingRequests = new Map<
     number,
-    { resolve: (val: any) => void; reject: (err: Error) => void }
+    { resolve: (val: unknown) => void; reject: (err: Error) => void }
   >();
   private rl: Interface | null = null;
   private sessionId: string | undefined;
@@ -48,7 +48,7 @@ export class McpClient {
     this.process = spawnInteractiveProcess({
       command: this.config.command!,
       args: this.config.args || [],
-      env: { ...process.env, ...(this.config.env as any) },
+      env: { ...process.env, ...(this.config.env as Record<string, string>) },
       cwd: this.config.cwd,
       // Never inherit stderr into the parent TTY: it bypasses UI sanitization and can leak raw errors.
       windowsHide: true,
@@ -85,16 +85,16 @@ export class McpClient {
   /**
    * Retrieves the list of tools provided by the MCP server.
    */
-  async listTools(): Promise<any[]> {
-    const response: any = await this.request('tools/list', {});
+  async listTools(): Promise<McpToolDefinition[]> {
+    const response = await this.request<{ tools?: McpToolDefinition[] }>('tools/list', {});
     return response.tools || [];
   }
 
   /**
    * Executes a tool on the MCP server.
    */
-  async callTool(name: string, args: any): Promise<McpExecutionResult> {
-    return (await this.request('tools/call', { name, arguments: args })) as McpExecutionResult;
+  async callTool(name: string, args: Record<string, unknown>): Promise<McpExecutionResult> {
+    return await this.request<McpExecutionResult>('tools/call', { name, arguments: args });
   }
 
   private async initialize(): Promise<void> {
@@ -109,9 +109,9 @@ export class McpClient {
     await this.notification('notifications/initialized', {});
   }
 
-  private async request(method: string, params: any): Promise<unknown> {
+  private async request<T = unknown>(method: string, params: Record<string, unknown>): Promise<T> {
     if (this.isHttp()) {
-      return await this.requestHttp(method, params);
+      return (await this.requestHttp(method, params)) as T;
     }
     if (!this.process?.stdin?.write) {
       throw new Error(`MCP client ${this.config.name} is not started`);
@@ -121,7 +121,7 @@ export class McpClient {
     const message = JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n';
 
     return new Promise((resolve, reject) => {
-      this.pendingRequests.set(id, { resolve, reject });
+      this.pendingRequests.set(id, { resolve: resolve as (val: unknown) => void, reject });
       this.process!.stdin!.write!(message);
 
       // Default timeout for MCP requests
@@ -138,7 +138,7 @@ export class McpClient {
     });
   }
 
-  private async notification(method: string, params: any): Promise<void> {
+  private async notification(method: string, params: Record<string, unknown>): Promise<void> {
     if (this.isHttp()) {
       await this.notificationHttp(method, params);
       return;
@@ -186,7 +186,7 @@ export class McpClient {
     this.pendingRequests.clear();
   }
 
-  private async requestHttp(method: string, params: any): Promise<unknown> {
+  private async requestHttp(method: string, params: Record<string, unknown>): Promise<unknown> {
     const url = this.config.url!;
     const headers = this.config.headers ?? {};
 
@@ -211,11 +211,12 @@ export class McpClient {
       assertOk(response, `MCP request ${id} (${method}) to ${this.config.name}`);
 
       if (!isEventStreamResponse(response)) {
-        const message: any = await response.json();
-        if (message.error) {
-          throw new Error(`MCP Error [${message.error.code}]: ${message.error.message}`);
+        const message = (await response.json()) as Record<string, unknown>;
+        if (message && typeof message === 'object' && message.error) {
+          const err = message.error as Record<string, unknown>;
+          throw new Error(`MCP Error [${err.code}]: ${err.message}`);
         }
-        return message.result;
+        return message?.result;
       }
 
       let lastEventId: string | undefined;
@@ -234,10 +235,11 @@ export class McpClient {
           if (!event.data) continue;
 
           try {
-            const msg: any = JSON.parse(event.data);
+            const msg = JSON.parse(event.data) as Record<string, unknown>;
             if (msg.id === id) {
               if (msg.error) {
-                throw new Error(`MCP Error [${msg.error.code}]: ${msg.error.message}`);
+                const err = msg.error as Record<string, unknown>;
+                throw new Error(`MCP Error [${err.code}]: ${err.message}`);
               }
               return msg.result;
             }
@@ -285,8 +287,8 @@ export class McpClient {
           clearTimeout(resumeTimeout);
         }
       }
-    } catch (err: any) {
-      if (err?.name === 'AbortError') {
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === 'AbortError') {
         throw new Error(
           `MCP Request ${id} (${method}) to ${this.config.name} timed out after ${timeoutMs / 1000}s`,
         );
@@ -297,7 +299,7 @@ export class McpClient {
     }
   }
 
-  private async notificationHttp(method: string, params: any): Promise<void> {
+  private async notificationHttp(method: string, params: Record<string, unknown>): Promise<void> {
     const url = this.config.url!;
     const headers = this.config.headers ?? {};
     const payload = { jsonrpc: '2.0', method, params };
@@ -320,8 +322,8 @@ export class McpClient {
         throw new Error(`MCP notification ${method} failed with HTTP ${response.status}`);
       }
       await safeDrainResponse(response);
-    } catch (err: any) {
-      if (err?.name === 'AbortError') {
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === 'AbortError') {
         throw new Error(
           `MCP notification ${method} to ${this.config.name} timed out after ${timeoutMs / 1000}s`,
         );

@@ -82,11 +82,11 @@ export class StrataSyncWorker implements IMergeWorker {
         workerId: this.id,
         executionTime: Date.now() - startTime,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return {
         path: state.path,
         success: false,
-        error: `Strata sync failed: ${error.message}`,
+        error: `Strata sync failed: ${error instanceof Error ? error.message : String(error)}`,
         isConflict: false,
         workerId: this.id,
         executionTime: Date.now() - startTime,

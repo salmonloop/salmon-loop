@@ -65,11 +65,11 @@ export class ThreeWayStagedAwareWorker implements IMergeWorker {
         workerId: this.id,
         executionTime: Date.now() - startTime,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return {
         path: state.path,
         success: false,
-        error: `Staged merge failed: ${error.message}`,
+        error: `Staged merge failed: ${error instanceof Error ? error.message : String(error)}`,
         isConflict: false,
         workerId: this.id,
         executionTime: Date.now() - startTime,

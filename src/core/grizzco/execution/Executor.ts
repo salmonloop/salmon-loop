@@ -75,8 +75,10 @@ export class Executor {
       }
 
       return { success: true, actionTaken: `MERGE(${plan.workerId})` };
-    } catch (error: any) {
-      const msg = text.grizzco.errors.unexpectedException(error.message);
+    } catch (error: unknown) {
+      const msg = text.grizzco.errors.unexpectedException(
+        error instanceof Error ? error.message : String(error),
+      );
       await this.rejectionMgr.create(file.path, msg, ctx);
       return { success: false, error: msg, actionTaken: 'EXCEPTION' };
     }

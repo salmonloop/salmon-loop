@@ -85,11 +85,11 @@ export const rgBackend: Backend<CodeSearchInputT, CodeSearchOutputT> = {
           stats: { hits: matches.length },
         },
       };
-    } catch (err: any) {
+    } catch (err: unknown) {
       return {
         ok: false,
         code: 'RUNTIME_ERROR',
-        message: `Failed to parse ripgrep output: ${err.message}`,
+        message: `Failed to parse ripgrep output: ${err instanceof Error ? err.message : String(err)}`,
         retryable: true,
       };
     }

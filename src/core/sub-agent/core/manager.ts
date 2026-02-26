@@ -131,15 +131,22 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
       } finally {
         await runtimeEnv.teardown();
       }
-    } catch (error: any) {
-      SubAgentController.appendLog(agentId, `Execution failed: ${error?.message ?? error}`);
-      logger.error(`[SubAgentManager] Smallfry ${agentId} crashed: ${error.message}`);
+    } catch (error: unknown) {
+      SubAgentController.appendLog(
+        agentId,
+        `Execution failed: ${(error instanceof Error ? error.message : undefined) ?? error}`,
+      );
+      logger.error(
+        `[SubAgentManager] Smallfry ${agentId} crashed: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return {
         agent_ref: profile.id,
         success: false,
-        summary: text.smallfry.errors.missionFailedWithReason(error.message),
+        summary: text.smallfry.errors.missionFailedWithReason(
+          error instanceof Error ? error.message : String(error),
+        ),
         tokenUsage: 0,
-        reason: error.message,
+        reason: error instanceof Error ? error.message : String(error),
         reasonCode: 'LOOP_CRASH',
         attempts: 1,
         logs: [],

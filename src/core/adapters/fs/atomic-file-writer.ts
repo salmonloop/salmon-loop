@@ -59,9 +59,21 @@ export class AtomicFileWriter {
     await this.retryWithBackoff(async () => {
       try {
         await fs.unlink(filePath);
-      } catch (error: any) {
-        if (error.code === 'ENOENT') return; // Already gone
-        if (error.code === 'EBUSY' || error.code === 'EPERM') {
+      } catch (error: unknown) {
+        if (
+          (error && typeof error === 'object' && 'code' in error
+            ? (error as { code?: string }).code
+            : undefined) === 'ENOENT'
+        )
+          return; // Already gone
+        if (
+          (error && typeof error === 'object' && 'code' in error
+            ? (error as { code?: string }).code
+            : undefined) === 'EBUSY' ||
+          (error && typeof error === 'object' && 'code' in error
+            ? (error as { code?: string }).code
+            : undefined) === 'EPERM'
+        ) {
           throw error; // Trigger retry
         }
         throw error;
@@ -78,8 +90,12 @@ export class AtomicFileWriter {
       if (stats.isSymbolicLink()) {
         throw new Error(`Refusing to write to symbolic link: ${filePath}`);
       }
-    } catch (error: any) {
-      if (error.code !== 'ENOENT') {
+    } catch (error: unknown) {
+      if (
+        (error && typeof error === 'object' && 'code' in error
+          ? (error as { code?: string }).code
+          : undefined) !== 'ENOENT'
+      ) {
         throw error;
       }
     }
@@ -95,11 +111,20 @@ export class AtomicFileWriter {
     await this.retryWithBackoff(async () => {
       try {
         await fs.rename(tempPath, targetPath);
-      } catch (error: any) {
-        if (error.code === 'EBUSY' || error.code === 'EPERM') {
+      } catch (error: unknown) {
+        if (
+          (error && typeof error === 'object' && 'code' in error
+            ? (error as { code?: string }).code
+            : undefined) === 'EBUSY' ||
+          (error && typeof error === 'object' && 'code' in error
+            ? (error as { code?: string }).code
+            : undefined) === 'EPERM'
+        ) {
           throw error;
         }
-        throw new Error(`Atomic rename failed: ${error.message} (${tempPath} -> ${targetPath})`);
+        throw new Error(
+          `Atomic rename failed: ${error instanceof Error ? error.message : String(error)} (${tempPath} -> ${targetPath})`,
+        );
       }
     });
   }
@@ -111,8 +136,8 @@ export class AtomicFileWriter {
       try {
         await fn();
         return;
-      } catch (error: any) {
-        lastError = error;
+      } catch (error: unknown) {
+        lastError = error instanceof Error ? error : new Error(String(error));
         if (attempt === this.retryConfig.maxAttempts - 1) break;
 
         const delay = Math.min(

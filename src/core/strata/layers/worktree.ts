@@ -167,7 +167,7 @@ export class WorkspaceManager {
           try {
             await access(workspace.workPath);
             return true;
-          } catch (error: any) {
+          } catch (error: unknown) {
             if (error && typeof error === 'object' && (error as any).code === 'ENOENT') {
               return false;
             }
@@ -193,7 +193,12 @@ export class WorkspaceManager {
         });
       }
     } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
+      const msg =
+        error instanceof Error
+          ? error instanceof Error
+            ? error.message
+            : String(error)
+          : String(error);
       onEvent?.({
         type: 'action.fallback',
         tool: 'git',

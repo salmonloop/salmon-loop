@@ -74,8 +74,8 @@ export async function linkDirLinux(src: string, dest: string): Promise<void> {
     await exec(['cp', '-al', `${normalizedSrc}/.`, normalizedDest], {
       allowExitCodes: new Set([0]),
     });
-  } catch (err: any) {
-    if (String(err?.message || '').includes('EXDEV')) {
+  } catch (err: unknown) {
+    if (String((err instanceof Error ? err.message : String(err)) || '').includes('EXDEV')) {
       logger.debug('Cross-device hardlink failed, falling back to copy');
       await exec(['cp', '-r', `${normalizedSrc}/.`, normalizedDest], {
         allowExitCodes: new Set([0]),

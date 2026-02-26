@@ -2,43 +2,54 @@ import { z } from 'zod';
 
 import { logger } from '../../observability/logger.js';
 
+interface JsonSchema {
+  type?: string;
+  description?: string;
+  properties?: Record<string, unknown>;
+  required?: string[];
+  items?: unknown;
+  [key: string]: unknown;
+}
+
 /**
  * Converts a JSON Schema (commonly used in MCP) to a Zod schema.
  * This implementation covers the core JSON Schema types used by tools.
  */
-export function jsonSchemaToZod(jsonSchema: any): z.ZodType<any> {
+export function jsonSchemaToZod(jsonSchema: unknown): z.ZodType<any> {
   if (!jsonSchema || typeof jsonSchema !== 'object') {
     return z.any();
   }
 
+  const schema = jsonSchema as JsonSchema;
+
   // Handle cases where the schema is just a description or empty
-  if (!jsonSchema.type && !jsonSchema.properties) {
+  if (!schema.type && !schema.properties) {
     return z.any();
   }
 
   try {
-    switch (jsonSchema.type) {
+    switch (schema.type) {
       case 'string':
-        return z.string().describe(jsonSchema.description || '');
+        return z.string().describe(schema.description || '');
 
       case 'number':
       case 'integer':
-        return z.number().describe(jsonSchema.description || '');
+        return z.number().describe(schema.description || '');
 
       case 'boolean':
-        return z.boolean().describe(jsonSchema.description || '');
+        return z.boolean().describe(schema.description || '');
 
       case 'array': {
-        const items = jsonSchema.items ? jsonSchemaToZod(jsonSchema.items) : z.any();
-        return z.array(items).describe(jsonSchema.description || '');
+        const items = schema.items ? jsonSchemaToZod(schema.items) : z.any();
+        return z.array(items).describe(schema.description || '');
       }
 
       case 'object':
       case undefined: {
         // Often schemas with properties omit 'type: object'
         const shape: Record<string, z.ZodType<any>> = {};
-        const properties = jsonSchema.properties || {};
-        const required = jsonSchema.required || [];
+        const properties = (schema.properties || {}) as Record<string, unknown>;
+        const required = schema.required || [];
 
         for (const [key, prop] of Object.entries(properties)) {
           let fieldSchema = jsonSchemaToZod(prop);
@@ -47,16 +58,16 @@ export function jsonSchemaToZod(jsonSchema: any): z.ZodType<any> {
           }
           shape[key] = fieldSchema;
         }
-        return z.object(shape).describe(jsonSchema.description || '');
+        return z.object(shape).describe(schema.description || '');
       }
 
       default:
-        logger.debug(`Unsupported JSON schema type: ${jsonSchema.type}, falling back to any`);
+        logger.debug(`Unsupported JSON schema type: ${schema.type}, falling back to any`);
         return z.any();
     }
   } catch (err) {
     logger.error(
-      `Failed to convert JSON schema to Zod: ${err} (Schema: ${JSON.stringify(jsonSchema)})`,
+      `Failed to convert JSON schema to Zod: ${String(err)} (Schema: ${JSON.stringify(schema)})`,
     );
     return z.any();
   }

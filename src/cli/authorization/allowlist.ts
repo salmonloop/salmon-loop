@@ -366,8 +366,9 @@ async function resolveRealTargetForMissingPath(targetPath: string): Promise<stri
       const realParent = await realpath(current);
       const relative = path.relative(current, targetPath);
       return path.join(realParent, relative);
-    } catch (error: any) {
-      if (error?.code !== 'ENOENT') return null;
+    } catch (error: unknown) {
+      if (error && typeof error === 'object' && 'code' in error && error.code !== 'ENOENT')
+        return null;
     }
     const next = path.dirname(current);
     if (next === current) return null;
@@ -408,8 +409,8 @@ async function ensureAllowlistPath(
   let realTarget: string;
   try {
     realTarget = await realpath(normalizedResolved, normalizedRoot);
-  } catch (error: any) {
-    if (error?.code === 'ENOENT') {
+  } catch (error: unknown) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
       const resolvedTarget = await resolveRealTargetForMissingPath(normalizedResolved);
       if (!resolvedTarget) return null;
       realTarget = resolvedTarget;
@@ -448,8 +449,9 @@ async function readAllowlistCache(
     const raw = await readFileUtf8(cachePath, rootContext);
     const parsed = JSON.parse(raw) as AllowlistCacheFile;
     return parsed;
-  } catch (error: any) {
-    if (error?.code === 'ENOENT') return null;
+  } catch (error: unknown) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT')
+      return null;
     return null;
   }
 }
@@ -676,8 +678,8 @@ async function loadAllowlistResolved(
       path: resolved,
     });
     return createEmptyAllowlist();
-  } catch (error: any) {
-    if (error?.code === 'ENOENT') {
+  } catch (error: unknown) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
       recordAllowlistLoadSummary({
         scope,
         outcome: 'success',
@@ -873,8 +875,8 @@ async function acquireAllowlistFileLock(
         { source: 'allowlist', severity: 'low', scope },
       );
       return;
-    } catch (error: any) {
-      if (error?.code === 'EEXIST') {
+    } catch (error: unknown) {
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'EEXIST') {
         try {
           const raw = await readFileUtf8(lockPath, rootContext);
           const metadata = JSON.parse(raw) as { pid?: number; timestamp?: number; owner?: string };
@@ -916,7 +918,7 @@ async function acquireAllowlistFileLock(
         continue;
       }
 
-      if (error?.code === 'ENOENT') {
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
         await mkdirp(path.dirname(lockPath), rootContext);
         continue;
       }
@@ -954,8 +956,9 @@ async function releaseAllowlistFileLock(
       { path: lockPath, owner, pid: process.pid },
       { source: 'allowlist', severity: 'low', scope },
     );
-  } catch (error: any) {
-    if (error?.code !== 'ENOENT') throw error;
+  } catch (error: unknown) {
+    if (error && typeof error === 'object' && 'code' in error && error.code !== 'ENOENT')
+      throw error;
   } finally {
     allowlistLockOwners.delete(lockPath);
   }
@@ -1001,11 +1004,19 @@ async function writeFileAtomic(
       try {
         await copyFile(targetPath, backupPath, rootContext);
         backupCreated = true;
-      } catch (copyError: any) {
-        if (copyError?.code !== 'ENOENT') {
+      } catch (copyError: unknown) {
+        if (
+          copyError &&
+          typeof copyError === 'object' &&
+          'code' in copyError &&
+          copyError.code !== 'ENOENT'
+        ) {
           logger.audit(
             'ALLOWLIST_ATOMIC_WRITE_BACKUP_FAILED',
-            { path: targetPath, error: copyError?.message || String(copyError) },
+            {
+              path: targetPath,
+              error: copyError instanceof Error ? copyError.message : String(copyError),
+            },
             { source: 'allowlist', severity: 'medium', scope },
           );
         }
@@ -1274,8 +1285,9 @@ export async function clearAllowlistCache(params: {
     targets.map(async ({ path: filePath, rootContext }) => {
       try {
         await unlink(filePath, rootContext);
-      } catch (error: any) {
-        if (error?.code !== 'ENOENT') throw error;
+      } catch (error: unknown) {
+        if (error && typeof error === 'object' && 'code' in error && error.code !== 'ENOENT')
+          throw error;
       }
     }),
   );

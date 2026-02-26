@@ -144,9 +144,13 @@ export class FileHandleManager {
           await handle.writeFile(JSON.stringify(metadata), 'utf8');
           await handle.close();
           return;
-        } catch (e: any) {
+        } catch (e: unknown) {
           if (abortState.aborted) throw new Error(text.resource.lockAcquireHardTimeout(repoPath));
-          if (e.code === 'EEXIST') {
+          if (
+            (e && typeof e === 'object' && 'code' in e
+              ? (e as { code?: string }).code
+              : undefined) === 'EEXIST'
+          ) {
             // Check if the lock is stale or the process is dead
             try {
               const fs = await import('fs/promises');
@@ -175,7 +179,11 @@ export class FileHandleManager {
               LIMITS.retry.io.maxDelayMs,
             );
             await this.abortableDelay(delay, hardAbort.signal);
-          } else if (e.code === 'ENOENT') {
+          } else if (
+            (e && typeof e === 'object' && 'code' in e
+              ? (e as { code?: string }).code
+              : undefined) === 'ENOENT'
+          ) {
             // Directory might not exist, try to create it
             try {
               await mkdir(repoPath, { recursive: true });
@@ -320,14 +328,19 @@ export class FileHandleManager {
       }
 
       await unlink(lockFile);
-    } catch (e: any) {
-      if (e.code !== 'ENOENT') {
+    } catch (e: unknown) {
+      if (
+        (e && typeof e === 'object' && 'code' in e ? (e as { code?: string }).code : undefined) !==
+        'ENOENT'
+      ) {
         // We don't throw here to avoid masking other errors, but we report it via event
         onEvent?.({
           type: 'resource.status',
           resource: 'lock',
           status: 'warning',
-          message: text.resource.lockReleaseFailed(repoPath) + `: ${e.message}`,
+          message:
+            text.resource.lockReleaseFailed(repoPath) +
+            `: ${e instanceof Error ? e.message : String(e)}`,
           timestamp: new Date(),
         });
       }

@@ -57,11 +57,11 @@ export const sessionCommand: Command = {
           message: `Switched to session: ${sessionId}`,
           timestamp: new Date(),
         });
-      } catch (error: any) {
+      } catch (error: unknown) {
         emit({
           type: 'log',
           level: 'error',
-          message: `Failed to switch session: ${error.message}`,
+          message: `Failed to switch session: ${error instanceof Error ? error.message : String(error)}`,
         });
       }
       return;

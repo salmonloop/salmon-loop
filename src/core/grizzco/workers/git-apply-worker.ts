@@ -65,7 +65,12 @@ export class GitApplyWorker implements IMergeWorker {
       return {
         path: state.path,
         success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error:
+          error instanceof Error
+            ? error instanceof Error
+              ? error.message
+              : String(error)
+            : String(error),
         isConflict: false,
         workerId: this.id,
         executionTime: Date.now() - startTime,

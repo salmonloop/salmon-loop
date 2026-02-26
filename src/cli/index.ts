@@ -191,13 +191,17 @@ if (headlessDetection.outputFormat) {
 
 try {
   program.parse(rewrittenArgv);
-} catch (err: any) {
+} catch (err: unknown) {
   // Commander uses special error names for built-in logic like --help or missing args
-  if (err.name === 'CommanderError') {
+  if ((err instanceof Error ? err.name : undefined) === 'CommanderError') {
     if (
       headlessDetection.outputFormat &&
-      err.code !== 'commander.helpDisplayed' &&
-      err.code !== 'commander.version'
+      (err && typeof err === 'object' && 'code' in err
+        ? (err as { code?: string }).code
+        : undefined) !== 'commander.helpDisplayed' &&
+      (err && typeof err === 'object' && 'code' in err
+        ? (err as { code?: string }).code
+        : undefined) !== 'commander.version'
     ) {
       const writer = createStdoutWriter();
       const headlessErrorWriter = createHeadlessErrorWriter({
@@ -210,7 +214,7 @@ try {
       });
 
       headlessErrorWriter.writeUsageError({
-        message: err.message,
+        message: err instanceof Error ? err.message : String(err),
         instruction: headlessDetection.instruction,
       });
 
@@ -218,8 +222,19 @@ try {
     }
 
     // Only exit if it's not a help message
-    if (err.code !== 'commander.helpDisplayed' && err.code !== 'commander.version') {
-      process.exit(err.exitCode || 1);
+    if (
+      (err && typeof err === 'object' && 'code' in err
+        ? (err as { code?: string }).code
+        : undefined) !== 'commander.helpDisplayed' &&
+      (err && typeof err === 'object' && 'code' in err
+        ? (err as { code?: string }).code
+        : undefined) !== 'commander.version'
+    ) {
+      process.exit(
+        (err && typeof err === 'object' && 'exitCode' in err
+          ? (err as { exitCode?: number }).exitCode
+          : undefined) || 1,
+      );
     }
   } else {
     // This is a real application crash - send through our hardened logger

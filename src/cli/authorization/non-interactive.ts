@@ -132,7 +132,7 @@ export async function requestNonInteractiveAuthorizationDecision(params: {
       }
 
       return normalizeDecisionSource(parsed.data as AuthorizationDecision);
-    } catch (err: any) {
+    } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       logger.warn(`Non-interactive authorization command failed: ${msg}`);
       return deny(text.cli.toolAuthorizationNonInteractiveFailed('command_failed'));
@@ -177,7 +177,7 @@ export async function requestNonInteractiveAuthorizationDecision(params: {
       }
 
       return normalizeDecisionSource(parsed.data as AuthorizationDecision);
-    } catch (err: any) {
+    } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       logger.warn(`Non-interactive authorization MCP tool failed: ${msg}`);
       return deny(text.cli.toolAuthorizationNonInteractiveFailed('mcp_failed'));

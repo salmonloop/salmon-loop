@@ -135,11 +135,11 @@ export class MMThreeWayWorker implements IMergeWorker {
         workerId: this.id,
         executionTime: Date.now() - startTime,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return {
         path: state.path,
         success: false,
-        error: `MM merge failed: ${error.message}`,
+        error: `MM merge failed: ${error instanceof Error ? error.message : String(error)}`,
         isConflict: false,
         workerId: this.id,
         executionTime: Date.now() - startTime,

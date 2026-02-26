@@ -29,6 +29,13 @@ export const McpServerConfigSchema = z
 
 export type McpServerConfig = z.infer<typeof McpServerConfigSchema>;
 
+export interface McpToolDefinition {
+  name: string;
+  description?: string;
+  inputSchema?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
 /**
  * Extended ToolSpec for tools discovered via MCP.
  */

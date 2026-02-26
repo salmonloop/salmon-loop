@@ -52,11 +52,11 @@ export class ThreeWayMergeWorker implements IMergeWorker {
         workerId: this.id,
         executionTime: Date.now() - startTime,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return {
         path: state.path,
         success: false,
-        error: `Three-way merge failed: ${error.message}`,
+        error: `Three-way merge failed: ${error instanceof Error ? error.message : String(error)}`,
         isConflict: false,
         workerId: this.id,
         executionTime: Date.now() - startTime,

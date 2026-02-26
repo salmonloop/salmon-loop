@@ -127,7 +127,7 @@ export async function buildStructuredOutputState(params: {
     }
 
     return { ok: true, candidate };
-  } catch (err: any) {
+  } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     return {
       ok: false,

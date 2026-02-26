@@ -192,8 +192,12 @@ export async function verifyFileContent(
     } else {
       return expected.test(content);
     }
-  } catch (err: any) {
-    if (err.code === 'ENOENT') {
+  } catch (err: unknown) {
+    if (
+      (err && typeof err === 'object' && 'code' in err
+        ? (err as { code?: string }).code
+        : undefined) === 'ENOENT'
+    ) {
       return false;
     }
     // Report unexpected errors via event instead of direct logger.warn
@@ -201,10 +205,15 @@ export async function verifyFileContent(
       type: 'resource.status',
       resource: 'file',
       status: 'warning',
-      message: text.verify.verifyFileContentError(filePath, err.message),
+      message: text.verify.verifyFileContentError(
+        filePath,
+        err instanceof Error ? err.message : String(err),
+      ),
       timestamp: new Date(),
     });
-    logger.debug(`verifyFileContent failed for ${filePath}: ${err.message}`);
+    logger.debug(
+      `verifyFileContent failed for ${filePath}: ${err instanceof Error ? err.message : String(err)}`,
+    );
     return false;
   }
 }

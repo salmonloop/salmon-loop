@@ -113,8 +113,8 @@ export class MicroTaskRunner implements IExecutable<Record<string, any>, SkillEx
         },
       });
       return stdout.trim();
-    } catch (error: any) {
-      return `Error: ${error.message}`;
+    } catch (error: unknown) {
+      return `Error: ${error instanceof Error ? error.message : String(error)}`;
     }
   }
 }

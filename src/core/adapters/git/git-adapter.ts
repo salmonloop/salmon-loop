@@ -502,7 +502,12 @@ export class GitAdapter {
         await this.exec([...base, '--pathspec-from-file', tempFile, '--pathspec-file-nul']);
       } catch (error) {
         // Fallback for older Git versions without pathspec-from-file support.
-        const msg = error instanceof Error ? error.message : String(error);
+        const msg =
+          error instanceof Error
+            ? error instanceof Error
+              ? error.message
+              : String(error)
+            : String(error);
         if (!/pathspec-from-file/i.test(msg)) throw error;
         for (const batch of batches) {
           await this.exec([...base, '--', ...batch]);
@@ -512,13 +517,22 @@ export class GitAdapter {
           .unlink(tempFile)
           .catch((error) => logIgnoredError(`[GitAdapter] cleanup ${tempFile}`, error));
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       try {
         await this.resolveConflicts();
-      } catch (cleanupError: any) {
+      } catch (cleanupError: unknown) {
         const cleanupMessage =
-          cleanupError instanceof Error ? cleanupError.message : String(cleanupError);
-        const rollbackMessage = error instanceof Error ? error.message : String(error);
+          cleanupError instanceof Error
+            ? cleanupError instanceof Error
+              ? cleanupError.message
+              : String(cleanupError)
+            : String(cleanupError);
+        const rollbackMessage =
+          error instanceof Error
+            ? error instanceof Error
+              ? error.message
+              : String(error)
+            : String(error);
         throw new GitError(
           `${cleanupMessage}; original rollback error: ${rollbackMessage}`,
           'rollbackFiles',

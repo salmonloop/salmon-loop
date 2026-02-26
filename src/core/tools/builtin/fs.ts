@@ -215,8 +215,10 @@ export async function executeFsList(
       truncated: sliced.length < totalEntries,
       totalEntries,
     };
-  } catch (e: any) {
-    throw new Error(`Failed to list directory ${dir}: ${e.message}`);
+  } catch (e: unknown) {
+    throw new Error(
+      `Failed to list directory ${dir}: ${e instanceof Error ? e.message : String(e)}`,
+    );
   }
 }
 
@@ -252,7 +254,7 @@ export async function executeFsReadFile(
       content,
       size: fileStat.size,
     };
-  } catch (e: any) {
-    throw new Error(`Failed to read file ${file}: ${e.message}`);
+  } catch (e: unknown) {
+    throw new Error(`Failed to read file ${file}: ${e instanceof Error ? e.message : String(e)}`);
   }
 }

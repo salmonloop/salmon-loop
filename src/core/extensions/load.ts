@@ -23,11 +23,18 @@ export async function tryLoadJsonFile(
   try {
     const contents = await fs.readFile(path, 'utf-8');
     return { exists: true, json: JSON.parse(contents) };
-  } catch (error: any) {
-    if (error?.code === 'ENOENT') {
+  } catch (error: unknown) {
+    if (
+      (error && typeof error === 'object' && 'code' in error
+        ? (error as { code?: string }).code
+        : undefined) === 'ENOENT'
+    ) {
       return { exists: false };
     }
-    throw new ExtensionConfigError(path, error?.message || 'Unable to read file');
+    throw new ExtensionConfigError(
+      path,
+      (error instanceof Error ? error.message : String(error)) || 'Unable to read file',
+    );
   }
 }
 
@@ -40,7 +47,10 @@ export async function loadConfig<T>(
   try {
     const config = schema.parse(loaded.json);
     return { path, config };
-  } catch (error: any) {
-    throw new ExtensionConfigError(path, error?.message || 'Schema validation failed');
+  } catch (error: unknown) {
+    throw new ExtensionConfigError(
+      path,
+      (error instanceof Error ? error.message : String(error)) || 'Schema validation failed',
+    );
   }
 }

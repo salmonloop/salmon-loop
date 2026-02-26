@@ -112,7 +112,7 @@ export async function handleChatCommand(options: any, command: Command) {
       langfuseSessionId: resolvedConfig.observability.langfuse.sessionId,
       langfuseUserId: resolvedConfig.observability.langfuse.userId,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     logger.error(msg, true);
     process.exit(1);

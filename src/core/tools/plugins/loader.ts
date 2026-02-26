@@ -30,7 +30,7 @@ export async function registerPluginTools(registry: ToolRegistry, plugins: Resol
       if (stats.isDirectory()) {
         entryPoint = path.join(entryPoint, 'index.js');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.warn(
         `Plugin ${plugin.id} path ${entryPoint} is not accessible: ${
           error instanceof Error ? error.message : String(error)
@@ -40,11 +40,11 @@ export async function registerPluginTools(registry: ToolRegistry, plugins: Resol
     }
 
     const moduleUrl = pathToFileURL(entryPoint).href;
-    let manifest: any;
+    let manifest: { register?: unknown; pluginId?: unknown } | undefined;
     try {
       const mod = await import(moduleUrl);
-      manifest = mod.default ?? mod;
-    } catch (error: any) {
+      manifest = (mod.default ?? mod) as { register?: unknown; pluginId?: unknown };
+    } catch (error: unknown) {
       logger.error(
         `Failed to import plugin ${plugin.id} from ${entryPoint}: ${
           error instanceof Error ? error.message : String(error)
@@ -69,7 +69,7 @@ export async function registerPluginTools(registry: ToolRegistry, plugins: Resol
     let tools: ToolSpec[] = [];
     try {
       tools = await registerFn();
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error(
         `Plugin ${pluginId} register() failed: ${error instanceof Error ? error.message : String(error)}`,
       );

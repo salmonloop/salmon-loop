@@ -104,10 +104,9 @@ export class PromptRegistry {
   }
 
   /**
-   * Convert Zod schema to a simplified JSON Schema representation
-   * Note: This is a basic conversion. For production, consider using zod-to-json-schema library.
+   * Convert Zod schema to a JSON Schema representation
    */
-  private zodToJsonSchema(zodSchema: any): any {
+  private zodToJsonSchema(zodSchema: z.ZodTypeAny | undefined): Record<string, unknown> {
     if (!zodSchema) {
       return { type: 'object', description: 'Schema details unavailable' };
     }
@@ -115,8 +114,8 @@ export class PromptRegistry {
     const unwrapForJsonSchema = (schema: z.ZodTypeAny): z.ZodTypeAny => {
       let current: z.ZodTypeAny = schema;
       for (let depth = 0; depth < 20; depth++) {
-        const ZodEffects: any = (z as any).ZodEffects;
-        if (typeof ZodEffects === 'function' && current instanceof ZodEffects) {
+        const ZodEffects = (z as any).ZodEffects;
+        if (ZodEffects && current instanceof ZodEffects) {
           current = (current as any)._def.schema;
           continue;
         }
@@ -124,15 +123,11 @@ export class PromptRegistry {
           current = (current as any)._def.out;
           continue;
         }
-        if (current instanceof z.ZodOptional) {
-          current = (current as any)._def.innerType;
-          continue;
-        }
-        if (current instanceof z.ZodNullable) {
-          current = (current as any)._def.innerType;
-          continue;
-        }
-        if (current instanceof z.ZodDefault) {
+        if (
+          current instanceof z.ZodOptional ||
+          current instanceof z.ZodNullable ||
+          current instanceof z.ZodDefault
+        ) {
           current = (current as any)._def.innerType;
           continue;
         }
@@ -142,18 +137,20 @@ export class PromptRegistry {
     };
 
     try {
-      const schema = z.toJSONSchema(unwrapForJsonSchema(zodSchema)) as Record<string, unknown>;
+      const unwrapped = unwrapForJsonSchema(zodSchema);
+      const schema = (z as any).toJSONSchema(unwrapped) as Record<string, unknown>;
 
       if (schema && typeof schema === 'object') {
-        const { $schema: _ignored, ...rest } = schema as any;
-        return rest;
+        const { $schema: _ignored, ...rest } = schema;
+        return rest as Record<string, unknown>;
       }
-    } catch {
+    } catch (_e) {
       // Fall through to best-effort fallback
     }
 
-    if (zodSchema?._def?.description) {
-      return { description: zodSchema._def.description };
+    const def = zodSchema?._def as { description?: string } | undefined;
+    if (def?.description) {
+      return { description: def.description };
     }
 
     return { type: 'object', description: 'Schema details available at runtime' };

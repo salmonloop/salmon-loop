@@ -202,7 +202,15 @@ async function spawnWithBun(input: SpawnCommandInput): Promise<SpawnCommandResul
   }
 
   const state = createCaptureState();
-  let subprocess: any;
+  let subprocess: {
+    stdin?: { write?: (data: Buffer | string) => void; end?: () => void };
+    stdout?: ReadableStream<Uint8Array>;
+    stderr?: ReadableStream<Uint8Array>;
+    exited: Promise<number>;
+    pid?: number;
+    kill: (signal: string) => void;
+    signalCode?: NodeJS.Signals;
+  };
   const bunStdin = input.stdin === undefined ? 'ignore' : input.stdin;
   try {
     subprocess = bun.spawn([input.command, ...(input.args ?? [])], {
@@ -214,12 +222,24 @@ async function spawnWithBun(input: SpawnCommandInput): Promise<SpawnCommandResul
       detached: input.detached,
       windowsHide: input.windowsHide,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    let code: string | undefined;
+    let message: string;
+
+    if (error instanceof Error) {
+      if ('code' in error) {
+        code = (error as { code?: string }).code;
+      }
+      message = error.message;
+    } else {
+      message = String(error);
+    }
+
     return finalizeResult(input, state, {
       code: -1,
       signal: null,
       timedOut: false,
-      error: { code: error?.code, message: String(error?.message ?? error) },
+      error: { code, message },
     });
   }
 
@@ -259,8 +279,20 @@ async function spawnWithBun(input: SpawnCommandInput): Promise<SpawnCommandResul
   let error: { code?: string; message: string } | undefined;
   try {
     code = await subprocess.exited;
-  } catch (err: any) {
-    error = { code: err?.code, message: String(err?.message ?? err) };
+  } catch (err: unknown) {
+    let errorCode: string | undefined;
+    let errorMessage: string;
+
+    if (err instanceof Error) {
+      if ('code' in err) {
+        errorCode = (err as { code?: string }).code;
+      }
+      errorMessage = err.message;
+    } else {
+      errorMessage = String(err);
+    }
+
+    error = { code: errorCode, message: errorMessage };
     code = -1;
   } finally {
     if (timeoutTimer) clearTimeout(timeoutTimer);
@@ -346,12 +378,25 @@ async function spawnWithNode(input: SpawnCommandInput): Promise<SpawnCommandResu
     child.stdout?.on('data', onStdoutData);
     child.stderr?.on('data', onStderrData);
 
-    child.on('error', (error: any) => {
+    child.on('error', (error: unknown) => {
       if (aborted) {
         settle(null, null);
         return;
       }
-      settle(-1, null, { code: error?.code, message: String(error?.message ?? error) });
+
+      let errorCode: string | undefined;
+      let errorMessage: string;
+
+      if (error instanceof Error) {
+        if ('code' in error) {
+          errorCode = (error as { code?: string }).code;
+        }
+        errorMessage = error.message;
+      } else {
+        errorMessage = String(error);
+      }
+
+      settle(-1, null, { code: errorCode, message: errorMessage });
     });
 
     child.on('close', (code, signal) => {

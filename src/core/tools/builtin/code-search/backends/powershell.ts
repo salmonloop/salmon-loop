@@ -86,11 +86,11 @@ export const psBackend: Backend<CodeSearchInputT, CodeSearchOutputT> = {
           stats: { hits: normalizedMatches.length },
         },
       };
-    } catch (err: any) {
+    } catch (err: unknown) {
       return {
         ok: false,
         code: 'RUNTIME_ERROR',
-        message: `Failed to parse powershell output: ${err.message}`,
+        message: `Failed to parse powershell output: ${err instanceof Error ? err.message : String(err)}`,
         retryable: true,
       };
     }

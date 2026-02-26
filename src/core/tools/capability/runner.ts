@@ -25,12 +25,29 @@ export function createControlledRunner() {
           exitCode: result.exitCode ?? 0,
           timedOut: result.timedOut,
         };
-      } catch (err: any) {
+      } catch (err: unknown) {
+        let stderr = String(err);
+        let exitCode = -1;
+        let timedOut = false;
+
+        if (err instanceof Error) {
+          stderr = err.message;
+        }
+
+        if (err && typeof err === 'object') {
+          if ('exitCode' in err && typeof (err as { exitCode: unknown }).exitCode === 'number') {
+            exitCode = (err as { exitCode: number }).exitCode;
+          }
+          if ('timedOut' in err && typeof (err as { timedOut: unknown }).timedOut === 'boolean') {
+            timedOut = (err as { timedOut: boolean }).timedOut;
+          }
+        }
+
         return {
           stdout: '',
-          stderr: err.message,
-          exitCode: err.exitCode ?? -1,
-          timedOut: err.timedOut ?? false,
+          stderr,
+          exitCode,
+          timedOut,
         };
       }
     },

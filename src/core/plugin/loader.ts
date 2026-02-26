@@ -86,18 +86,20 @@ export class PluginLoader {
           } else {
             logger.warn(`Skipping invalid user plugin in ${dirName}: missing required fields.`);
           }
-        } catch (err: any) {
-          if (err.code !== 'ENOENT') {
+        } catch (err: unknown) {
+          if (err && typeof err === 'object' && 'code' in err && err.code !== 'ENOENT') {
             logger.warn(
-              `Failed to load user plugin from ${dirName}: ${err instanceof Error ? err.message : String(err)}`,
+              `Failed to load user plugin from ${dirName}: ${err instanceof Error ? (err instanceof Error ? err.message : String(err)) : String(err)}`,
             );
           }
         }
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Ignore if directory doesn't exist
-      if (err.code !== 'ENOENT') {
-        logger.debug(`Error scanning for user plugins: ${err.message}`);
+      if (err && typeof err === 'object' && 'code' in err && err.code !== 'ENOENT') {
+        logger.debug(
+          `Error scanning for user plugins: ${err instanceof Error ? err.message : String(err)}`,
+        );
       }
     }
   }

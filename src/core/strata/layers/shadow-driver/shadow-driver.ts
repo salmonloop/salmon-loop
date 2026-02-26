@@ -55,9 +55,15 @@ export class ShadowDriver {
         // Use 'junction' for Windows compatibility (no admin rights needed usually)
         await symlink(sourcePath, targetDepPath, 'junction');
         logger.debug(`Linked dependency: ${depPath}`);
-      } catch (err: any) {
-        if (err.code !== 'EEXIST') {
-          logger.warn(`Failed to link ${depPath}: ${err.message}`);
+      } catch (err: unknown) {
+        if (
+          (err && typeof err === 'object' && 'code' in err
+            ? (err as { code?: string }).code
+            : undefined) !== 'EEXIST'
+        ) {
+          logger.warn(
+            `Failed to link ${depPath}: ${err instanceof Error ? err.message : String(err)}`,
+          );
         } else {
           logger.debug(`Dependency link already exists: ${depPath}`);
         }

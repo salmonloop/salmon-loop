@@ -121,7 +121,7 @@ export async function handleRunCommand(options: any, command: Command) {
       });
       sessionManager = initialized.sessionManager;
       sessionIdForOutput = initialized.sessionId;
-    } catch (err: any) {
+    } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       if (outputFormat !== 'text') {
         if (resumeSessionId) {
@@ -416,7 +416,7 @@ export async function handleRunCommand(options: any, command: Command) {
 
     process.exitCode = headlessErrorWriter.writeResultExitCode(result, structuredOutputState.ok);
     return;
-  } catch (err: any) {
+  } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     logger.error(text.cli.unexpectedError(msg), false);
     if (outputFormat === 'json') {

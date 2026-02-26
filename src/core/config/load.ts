@@ -32,8 +32,11 @@ export async function tryLoadConfigFile(opts: LoadConfigOptions): Promise<Loaded
       const parsed = parseConfigText(raw, absPath);
       const config = validateConfigFileV1(parsed);
       return { path: absPath, config };
-    } catch (e: any) {
-      if (e?.code === 'ENOENT') {
+    } catch (e: unknown) {
+      if (
+        (e && typeof e === 'object' && 'code' in e ? (e as { code?: string }).code : undefined) ===
+        'ENOENT'
+      ) {
         const isLast = i === candidatePaths.length - 1;
         if (opts.required && isLast) {
           throw new ConfigError('CONFIG_FILE_NOT_FOUND', { path: absPath });

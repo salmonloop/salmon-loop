@@ -37,7 +37,11 @@ export async function acquireLock(shadowRoot: string): Promise<void> {
         return;
       } catch (error) {
         const err = error as NodeJS.ErrnoException;
-        if (err?.code !== 'EEXIST') {
+        if (
+          (err && typeof err === 'object' && 'code' in err
+            ? (err as { code?: string }).code
+            : undefined) !== 'EEXIST'
+        ) {
           throw error;
         }
 
@@ -111,8 +115,20 @@ async function isProcessAlive(pid: number): Promise<boolean> {
   } catch (error) {
     const err = error as NodeJS.ErrnoException;
     const message = err?.message || '';
-    if (err?.code === 'ESRCH' || message.includes('ESRCH')) return false;
-    if (err?.code === 'EPERM' || message.includes('EPERM')) return true;
+    if (
+      (err && typeof err === 'object' && 'code' in err
+        ? (err as { code?: string }).code
+        : undefined) === 'ESRCH' ||
+      message.includes('ESRCH')
+    )
+      return false;
+    if (
+      (err && typeof err === 'object' && 'code' in err
+        ? (err as { code?: string }).code
+        : undefined) === 'EPERM' ||
+      message.includes('EPERM')
+    )
+      return true;
     return true;
   }
 }

@@ -277,9 +277,23 @@ export class ToolRouter {
 
       this.audit.onEnd(result);
       return result;
-    } catch (e: any) {
-      const errorCode = e.code || 'RUNTIME_ERROR';
-      const errorMessage = e.message || String(e);
+    } catch (e: unknown) {
+      let errorCode = 'RUNTIME_ERROR';
+      let errorMessage = String(e);
+
+      if (e instanceof Error) {
+        errorMessage = e.message;
+        if ('code' in e && typeof (e as { code?: unknown }).code === 'string') {
+          errorCode = (e as { code: string }).code;
+        }
+      } else if (e && typeof e === 'object') {
+        if ('message' in e && typeof (e as { message: unknown }).message === 'string') {
+          errorMessage = (e as { message: string }).message;
+        }
+        if ('code' in e && typeof (e as { code?: unknown }).code === 'string') {
+          errorCode = (e as { code: string }).code;
+        }
+      }
 
       const result = this.createErrorResult(
         envelope,

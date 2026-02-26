@@ -21,7 +21,7 @@ export async function resolveRunConfig(params: {
       configFilePath: params.cliOptions.config,
       enableConfigFile: params.cliOptions.configFile !== false,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err instanceof ConfigError) {
       const msg = text.config.error(err.code || err.message, err.details);
       logger.error(msg);

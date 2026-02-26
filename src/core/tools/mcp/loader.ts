@@ -111,7 +111,7 @@ export async function registerMcpTools(registry: ToolRegistry, servers: Resolved
         logger.info(`Registered MCP tool ${spec.name} from ${server.name}`);
         registry.register(spec);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       logger.error(`Failed to register MCP server ${server.name}: ${message}`);
     } finally {

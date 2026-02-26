@@ -57,8 +57,9 @@ async function assertParentInSandbox(resolvedPath: string, rootContext?: string)
       const realParent = await fsPromises.realpath(current);
       ensureInSandbox(realRoot, realParent);
       return;
-    } catch (error: any) {
-      if (error?.code !== 'ENOENT') throw error;
+    } catch (error: unknown) {
+      if (error && typeof error === 'object' && 'code' in error && error.code !== 'ENOENT')
+        throw error;
       const next = path.dirname(current);
       if (next === current) {
         throw error;
@@ -78,8 +79,8 @@ async function assertNotSymlink(resolvedPath: string): Promise<void> {
     if (stats.isSymbolicLink()) {
       throw new Error(`Security Violation: Refusing to follow symlink: ${resolvedPath}`);
     }
-  } catch (error: any) {
-    if (error?.code === 'ENOENT') return;
+  } catch (error: unknown) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') return;
     throw error;
   }
 }
