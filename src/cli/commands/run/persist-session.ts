@@ -1,8 +1,10 @@
 import type { ChatSessionManager } from '../../../core/session/manager.js';
-import type { LoopResult } from '../../../core/types/index.js';
+import { refreshSessionSummary } from '../../../core/session/summary-sync.js';
+import type { LLM, LoopResult } from '../../../core/types/index.js';
 
 export async function persistRunSession(params: {
   sessionManager?: ChatSessionManager;
+  llm: LLM;
   instruction?: string;
   result: LoopResult;
   buildAssistantMessage: (result: LoopResult) => string;
@@ -32,6 +34,11 @@ export async function persistRunSession(params: {
       });
     }
 
+    await refreshSessionSummary({
+      sessionManager: params.sessionManager,
+      llm: params.llm,
+      contextHash: params.result.contextHash,
+    });
     await params.sessionManager.save();
   } catch {
     // Best-effort persistence: never block the CLI exit path.

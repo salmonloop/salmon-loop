@@ -35,6 +35,9 @@ export function buildLoopResultFromTransaction({
   const ctx =
     executionReport.lastContext ??
     (executionReport.flowReport.data as Partial<ShrinkCtx> | undefined);
+  const contextHash =
+    (ctx as { contextResult?: { meta?: { contextHash?: string } } } | undefined)?.contextResult
+      ?.meta?.contextHash ?? ctx?.context?.contextHash;
   const verifyArtifact = ctx?.verifyArtifact ?? executionReport.lastVerifyArtifact;
 
   const authorizationDecisions = (() => {
@@ -53,6 +56,7 @@ export function buildLoopResultFromTransaction({
         reason: text.loop.operationCompleted,
         reasonCode: options.dryRun ? 'DRY_RUN' : 'SUCCESS',
         attempts,
+        contextHash,
         logs: telemetry.getLogs(),
         usage,
         authorizationDecisions,
@@ -73,6 +77,7 @@ export function buildLoopResultFromTransaction({
       reason: text.loop.operationCompleted,
       reasonCode: 'SUCCESS',
       attempts,
+      contextHash,
       logs: telemetry.getLogs(),
       usage,
       authorizationDecisions,
@@ -106,6 +111,7 @@ export function buildLoopResultFromTransaction({
     reason: failureReason,
     reasonCode,
     attempts: executionReport.attempts,
+    contextHash,
     logs: telemetry.getLogs(),
     usage,
     authorizationDecisions,

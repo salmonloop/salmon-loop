@@ -410,6 +410,7 @@ export async function handleRunCommand(options: any, command: Command) {
 
     await persistRunSession({
       sessionManager,
+      llm,
       instruction: instructionText,
       result,
       buildAssistantMessage,

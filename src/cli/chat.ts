@@ -18,6 +18,7 @@ import {
   buildSessionConversationContext,
   getDefaultSessionContextBudgetTokens,
 } from '../core/session/session-context-builder.js';
+import { refreshSessionSummary } from '../core/session/summary-sync.js';
 import { TokenTracker } from '../core/session/token-tracker.js';
 import type {
   CheckpointStrategy,
@@ -306,6 +307,10 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
               timestamp: Date.now(),
             });
 
+            await refreshSessionSummary({
+              sessionManager,
+              llm: options.llm,
+            });
             await sessionManager.save();
             return { kind: 'answer' as const };
           }
@@ -392,6 +397,11 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
         TokenTracker.accumulate(sessionManager.getCurrent(), usage);
       }
 
+      await refreshSessionSummary({
+        sessionManager,
+        llm: options.llm,
+        contextHash: result.contextHash,
+      });
       await sessionManager.save();
       currentInstruction = null;
       return result;

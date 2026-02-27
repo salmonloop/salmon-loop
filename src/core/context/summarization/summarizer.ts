@@ -257,6 +257,7 @@ export class ConversationSummarizer {
     messages: SummarizableMessage[],
     contextHash?: string,
   ): Promise<SummarizationResult | null> {
+    this.ensureStateAligned(contextHash);
     if (messages.length <= this.config.keepRecentMessages) {
       return null;
     }

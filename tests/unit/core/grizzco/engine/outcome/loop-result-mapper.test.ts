@@ -59,6 +59,37 @@ describe('loop-result-mapper', () => {
     expect(result.auditPath).toBe('/tmp/audit.json');
   });
 
+  it('propagates contextHash from context context to loop result', () => {
+    const telemetry = createTelemetry();
+    const report: FlowTransactionReport = {
+      success: true,
+      attempts: 1,
+      flowReport: {
+        success: true,
+        duration: 1,
+        traces: [],
+        strategyName: 'patch',
+        fsMode: 'patch',
+      },
+      history: [],
+      retryExhausted: false,
+      lastContext: {
+        context: {
+          contextHash: 'ctx-hash-1',
+        },
+      } as any,
+    };
+
+    const result = buildLoopResultFromTransaction({
+      executionReport: report,
+      flowMode: 'patch',
+      options: {} as any,
+      telemetry,
+    });
+
+    expect(result.contextHash).toBe('ctx-hash-1');
+  });
+
   it('surfaces token usage aggregated from audit trail', () => {
     recordAuditEvent('llm.usage', { promptTokens: 10, completionTokens: 20 });
     recordAuditEvent('llm.usage', { promptTokens: 5, completionTokens: 1 });

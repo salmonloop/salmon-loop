@@ -62,6 +62,7 @@ export interface LoopResult {
   reason: string;
   reasonCode: LoopReasonCode;
   attempts: number;
+  contextHash?: string;
   logs: StepLog[];
   usage?: TokenUsage;
   authorizationDecisions?: AuthorizationDecisionRecord[];
