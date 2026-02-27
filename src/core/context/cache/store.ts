@@ -1,7 +1,10 @@
 import { Buffer } from 'node:buffer';
 
 import { FileAdapter } from '../../adapters/fs/file-adapter.js';
+import { recordAuditEvent } from '../../observability/audit-trail.js';
 import type { ContextResult } from '../types.js';
+
+import { ContextCacheError, type ContextCacheErrorCode } from './errors.js';
 
 export interface ContextCacheEntry {
   result: ContextResult;
@@ -20,6 +23,12 @@ export interface ContextCacheStore {
   entries(): Promise<Array<[string, ContextCacheEntry]>>;
   size(): Promise<number>;
   clear(): Promise<void>;
+}
+
+export interface PersistentContextCacheStoreOptions {
+  strict?: boolean;
+  fallbackMode?: 'fail' | 'memory';
+  cleanupFn?: (details: { filePath: string; error: Error }) => Promise<void>;
 }
 
 export class MemoryContextCacheStore implements ContextCacheStore {
@@ -61,10 +70,15 @@ export class PersistentContextCacheStore implements ContextCacheStore {
   private readonly map = new Map<string, ContextCacheEntry>();
   private readonly strict: boolean;
   private initPromise: Promise<void> | null = null;
+  private readonly cleanupFn?: (details: { filePath: string; error: Error }) => Promise<void>;
+  private readonly fallbackMode: 'fail' | 'memory';
+  private degradedToMemory = false;
 
-  constructor(filePath: string, options?: { strict?: boolean }) {
+  constructor(filePath: string, options?: PersistentContextCacheStoreOptions) {
     this.filePath = filePath;
     this.strict = options?.strict ?? false;
+    this.cleanupFn = options?.cleanupFn;
+    this.fallbackMode = options?.fallbackMode ?? 'fail';
   }
 
   private async ensureLoaded(): Promise<void> {
@@ -85,14 +99,89 @@ export class PersistentContextCacheStore implements ContextCacheStore {
       }
     } catch (error) {
       if (this.isNotFoundError(error)) return;
-      if (this.strict) {
-        throw new Error(
-          `Failed to load context cache from ${this.filePath}: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
-      }
+      await this.handleLoadFailure(error);
     }
+  }
+
+  private async handleLoadFailure(error: unknown): Promise<void> {
+    const normalized = this.normalizeError(error);
+    const code: ContextCacheErrorCode = this.isCorruptError(normalized)
+      ? 'CONTEXT_CACHE_CORRUPT'
+      : 'CONTEXT_CACHE_IO';
+    const remediation = this.getRemediationMessage(code);
+    const contextError = new ContextCacheError(
+      code,
+      this.filePath,
+      remediation,
+      `Failed to load context cache: ${normalized.message}`,
+      normalized,
+    );
+    this.recordLoadFailureAudit(contextError, normalized);
+    await this.attemptCleanup(normalized);
+    const shouldThrow = this.strict || this.fallbackMode === 'fail';
+    if (shouldThrow) {
+      throw contextError;
+    }
+    if (this.fallbackMode === 'memory') {
+      this.degradedToMemory = true;
+    }
+  }
+
+  private normalizeError(error: unknown): Error {
+    if (error instanceof Error) return error;
+    return new Error(String(error ?? 'Unknown context cache error'));
+  }
+
+  private isCorruptError(error: Error): boolean {
+    const lower = error.message.toLowerCase();
+    return (
+      error instanceof SyntaxError ||
+      lower.includes('unexpected token') ||
+      lower.includes('invalid or unexpected') ||
+      lower.includes('json')
+    );
+  }
+
+  private getRemediationMessage(code: ContextCacheErrorCode): string {
+    return `持久化缓存 ${this.filePath} 可能损坏或权限不足，错误码 ${code}。请删除该文件或切换为内存缓存后重试。`;
+  }
+
+  private recordLoadFailureAudit(contextError: ContextCacheError, underlying: Error): void {
+    recordAuditEvent(
+      'context.cache.load_failure',
+      {
+        code: contextError.code,
+        filePath: this.filePath,
+        fallbackMode: this.fallbackMode,
+        remediation: contextError.remediation,
+        error: underlying.message,
+      },
+      { source: 'context.cache', severity: 'high', scope: 'repo', phase: 'CONTEXT' },
+    );
+  }
+
+  private async attemptCleanup(error: Error): Promise<void> {
+    if (!this.cleanupFn) return;
+    try {
+      await this.cleanupFn({ filePath: this.filePath, error });
+    } catch (cleanupError) {
+      const normalizedCleanup =
+        cleanupError instanceof Error
+          ? cleanupError
+          : new Error(String(cleanupError ?? 'Unknown cleanup error'));
+      this.recordCleanupFailure(normalizedCleanup);
+    }
+  }
+
+  private recordCleanupFailure(error: Error): void {
+    recordAuditEvent(
+      'context.cache.cleanup_failure',
+      {
+        filePath: this.filePath,
+        error: error.message,
+      },
+      { source: 'context.cache', severity: 'medium', scope: 'repo', phase: 'CONTEXT' },
+    );
   }
 
   private isNotFoundError(error: unknown): boolean {
@@ -105,6 +194,8 @@ export class PersistentContextCacheStore implements ContextCacheStore {
   }
 
   private async flushToDisk(): Promise<void> {
+    if (this.degradedToMemory) return;
+
     const payload: PersistentPayload = {
       version: 1,
       entries: Object.fromEntries(this.map.entries()),

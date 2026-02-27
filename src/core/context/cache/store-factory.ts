@@ -1,4 +1,6 @@
+import { FileAdapter } from '../../adapters/fs/file-adapter.js';
 import type { ConfigFileV1 } from '../../config/types.js';
+import { recordAuditEvent } from '../../observability/audit-trail.js';
 import type { PermissionGate } from '../../permission-gate/gate.js';
 
 import { resolveContextCachePath } from './path-resolver.js';
@@ -6,6 +8,7 @@ import {
   MemoryContextCacheStore,
   PersistentContextCacheStore,
   type ContextCacheStore,
+  type PersistentContextCacheStoreOptions,
 } from './store.js';
 
 export async function createContextCacheStore(
@@ -28,9 +31,49 @@ export async function createContextCacheStore(
       ? Math.floor(cacheConfig.ttlMs)
       : undefined;
 
+  const fallbackToMemoryOnFailure = Boolean(cacheConfig?.fallbackToMemoryOnFailure);
+  const cacheStrict = fallbackToMemoryOnFailure ? false : (cacheConfig?.strict ?? true);
+  const fallbackMode: PersistentContextCacheStoreOptions['fallbackMode'] = fallbackToMemoryOnFailure
+    ? 'memory'
+    : 'fail';
+  const cleanupAdapter = new FileAdapter();
+  const cleanupFn: PersistentContextCacheStoreOptions['cleanupFn'] = async (details) => {
+    try {
+      await cleanupAdapter.deleteFile(details.filePath);
+    } catch {
+      // best-effort cleanup only
+    }
+  };
+
   if (pathResolution.mode === 'persistent' && pathResolution.filePath) {
+    const storeOptions: PersistentContextCacheStoreOptions = {
+      strict: cacheStrict,
+      fallbackMode,
+      cleanupFn,
+    };
+    const persistentStore = new PersistentContextCacheStore(pathResolution.filePath, storeOptions);
+    if (fallbackToMemoryOnFailure) {
+      try {
+        await persistentStore.size();
+      } catch (error) {
+        recordAuditEvent(
+          'context.cache.fallback_to_memory',
+          {
+            filePath: pathResolution.filePath,
+            error: error instanceof Error ? error.message : String(error ?? 'unknown'),
+          },
+          { source: 'context.cache', severity: 'medium', scope: 'repo', phase: 'CONTEXT' },
+        );
+        return {
+          store: new MemoryContextCacheStore(),
+          maxEntries,
+          ttlMs,
+        };
+      }
+    }
+
     return {
-      store: new PersistentContextCacheStore(pathResolution.filePath, { strict: true }),
+      store: persistentStore,
       maxEntries,
       ttlMs,
     };

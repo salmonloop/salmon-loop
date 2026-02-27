@@ -17,7 +17,7 @@ export async function resolveContextCachePath(
   rawConfig?: ConfigFileV1,
   options?: {
     permissionGate?: PermissionGate;
-    fileAdapter?: Pick<FileAdapter, 'exists' | 'realpath'>;
+    fileAdapter?: Pick<FileAdapter, 'exists' | 'realpath' | 'access' | 'mkdir'>;
   },
   pathAdapter: PathAdapter = defaultPathAdapter,
 ): Promise<ContextCachePathResolution> {
@@ -41,6 +41,7 @@ export async function resolveContextCachePath(
   const fileAdapter = options?.fileAdapter ?? new FileAdapter();
   const resolvedPath = pathAdapter.resolve(repoPath, cacheConfig.path);
   const resolvedRoots = cacheConfig.allowedRoots.map((root) => pathAdapter.resolve(repoPath, root));
+  await ensureAllowedRootsAccessible(resolvedRoots, fileAdapter);
   const canonicalPath = await resolveCanonicalPath(resolvedPath, fileAdapter, pathAdapter);
   const canonicalRoots = await Promise.all(
     resolvedRoots.map(async (root) => await resolveCanonicalPath(root, fileAdapter, pathAdapter)),
@@ -145,4 +146,32 @@ async function resolveCanonicalPath(
     (acc, segment) => pathAdapter.join(acc, segment),
     canonicalExisting,
   );
+}
+
+async function ensureAllowedRootsAccessible(
+  roots: string[],
+  fileAdapter: Pick<FileAdapter, 'exists' | 'access' | 'mkdir'>,
+): Promise<void> {
+  for (const root of roots) {
+    if (!(await fileAdapter.exists(root))) {
+      try {
+        await fileAdapter.mkdir(root);
+      } catch (error) {
+        throw new ConfigError('CONFIG_CONTEXT_CACHE_ROOT_UNAVAILABLE', {
+          root,
+          reason: 'missing',
+          detail: error instanceof Error ? error.message : String(error ?? 'unknown'),
+        });
+      }
+    }
+    try {
+      await fileAdapter.access(root);
+    } catch (error) {
+      throw new ConfigError('CONFIG_CONTEXT_CACHE_ROOT_UNAVAILABLE', {
+        root,
+        reason: 'not_writable',
+        detail: error instanceof Error ? error.message : String(error ?? 'unknown'),
+      });
+    }
+  }
 }

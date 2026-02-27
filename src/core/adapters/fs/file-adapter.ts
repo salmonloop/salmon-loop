@@ -1,4 +1,4 @@
-import { promises as fs, type Dirent, Stats } from 'fs';
+import { promises as fs, constants, type Dirent, Stats } from 'fs';
 import * as path from 'path';
 
 import { AtomicFileWriter } from './atomic-file-writer.js';
@@ -96,5 +96,12 @@ export class FileAdapter {
    */
   async deleteFile(filePath: string): Promise<void> {
     return this.atomicWriter.deleteAtomic(filePath);
+  }
+
+  /**
+   * Check permissions/access for a file or directory.
+   */
+  async access(filePath: string, mode: number = constants.R_OK | constants.W_OK): Promise<void> {
+    await fs.access(filePath, mode);
   }
 }

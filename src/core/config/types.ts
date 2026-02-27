@@ -65,6 +65,8 @@ export interface ConfigFileV1 {
       mode?: 'memory' | 'persistent';
       path?: string;
       allowedRoots?: string[];
+      strict?: boolean;
+      fallbackToMemoryOnFailure?: boolean;
       maxEntries?: number;
       ttlMs?: number;
     };

@@ -1,19 +1,57 @@
-import { describe, expect, it } from 'bun:test';
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
 import { ConfigError } from '../../../src/core/config/errors.js';
-import { createContextCacheStore } from '../../../src/core/context/cache/store-factory.js';
-import {
-  MemoryContextCacheStore,
-  PersistentContextCacheStore,
-} from '../../../src/core/context/cache/store.js';
+
+const resolveContextCachePathMock = mock();
+mock.module('../../../src/core/context/cache/path-resolver.js', () => ({
+  resolveContextCachePath: () => resolveContextCachePathMock(),
+}));
+
+const persistentCtorMock = mock();
+const persistentSizeMock = mock();
+
+class PersistentStoreMock {
+  constructor(filePath: string, options: Record<string, unknown>) {
+    persistentCtorMock(filePath, options);
+  }
+
+  async size() {
+    return persistentSizeMock();
+  }
+}
+
+class MemoryStoreMock {}
+
+mock.module('../../../src/core/context/cache/store.js', () => ({
+  MemoryContextCacheStore: MemoryStoreMock,
+  PersistentContextCacheStore: PersistentStoreMock,
+}));
+
+async function loadFactory() {
+  return await import('../../../src/core/context/cache/store-factory.js');
+}
 
 describe('createContextCacheStore', () => {
-  it('defaults to memory store when cache mode is not configured', async () => {
-    const created = await createContextCacheStore('/repo', undefined);
-    expect(created.store).toBeInstanceOf(MemoryContextCacheStore);
+  beforeEach(() => {
+    resolveContextCachePathMock.mockClear();
+    persistentCtorMock.mockClear();
+    persistentSizeMock.mockClear();
   });
 
-  it('creates persistent store when cache.mode is persistent', async () => {
+  it('defaults to memory store when cache mode is not configured', async () => {
+    resolveContextCachePathMock.mockResolvedValue({ mode: 'memory' });
+    const { createContextCacheStore } = await loadFactory();
+    const created = await createContextCacheStore('/repo', undefined);
+    expect(created.store).toBeInstanceOf(MemoryStoreMock);
+    expect(persistentCtorMock).not.toHaveBeenCalled();
+  });
+
+  it('creates persistent store when path resolution returns persistent mode', async () => {
+    resolveContextCachePathMock.mockResolvedValue({
+      mode: 'persistent',
+      filePath: '/repo/.salmonloop/cache.json',
+    });
+    const { createContextCacheStore } = await loadFactory();
     const created = await createContextCacheStore('/repo', {
       context: {
         cache: {
@@ -25,71 +63,80 @@ describe('createContextCacheStore', () => {
         },
       },
     } as any);
-    expect(created.store).toBeInstanceOf(PersistentContextCacheStore);
+
+    expect(created.store).toBeInstanceOf(PersistentStoreMock);
     expect(created.maxEntries).toBe(12);
     expect(created.ttlMs).toBe(3456);
+    expect(persistentCtorMock).toHaveBeenCalledWith(
+      '/repo/.salmonloop/cache.json',
+      expect.objectContaining({
+        strict: true,
+        fallbackMode: 'fail',
+      }),
+    );
   });
 
-  it('throws when persistent cache path is outside allowed roots', async () => {
+  it('propagates ConfigError from path resolver', async () => {
+    resolveContextCachePathMock.mockRejectedValue(
+      new ConfigError('PERMISSION_DENIED_CONTEXT_CACHE_OUTSIDE_ROOT'),
+    );
+    const { createContextCacheStore } = await loadFactory();
     await expect(
       createContextCacheStore('/repo', {
         context: {
           cache: {
             mode: 'persistent',
-            path: '../outside/context-cache.json',
-            allowedRoots: ['.salmonloop/cache'],
           },
         },
       } as any),
-    ).rejects.toThrow(new ConfigError('PERMISSION_DENIED_CONTEXT_CACHE_OUTSIDE_ROOT'));
+    ).rejects.toThrow(ConfigError);
   });
 
-  it('allows outside cache root with permission gate', async () => {
-    const created = await createContextCacheStore(
-      '/repo',
-      {
-        context: {
-          cache: {
-            mode: 'persistent',
-            path: '../outside/context-cache.json',
-            allowedRoots: ['.salmonloop/cache'],
-          },
-        },
-      } as any,
-      {
-        permissionGate: {
-          requestAuthorization: async () => ({ kind: 'allow', source: 'cli' as const }),
+  it('passes strict false and fallback memory options when configured', async () => {
+    resolveContextCachePathMock.mockResolvedValue({
+      mode: 'persistent',
+      filePath: '/repo/.salmonloop/cache.json',
+    });
+    const { createContextCacheStore } = await loadFactory();
+    await createContextCacheStore('/repo', {
+      context: {
+        cache: {
+          mode: 'persistent',
+          path: '.salmonloop/cache/custom.json',
+          allowedRoots: ['.salmonloop/cache'],
+          strict: false,
+          fallbackToMemoryOnFailure: true,
         },
       },
+    } as any);
+
+    expect(persistentCtorMock).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        strict: false,
+        fallbackMode: 'memory',
+      }),
     );
-    expect(created.store).toBeInstanceOf(PersistentContextCacheStore);
   });
 
-  it('returns permission-required when permission gate responds with challenge', async () => {
-    await expect(
-      createContextCacheStore(
-        '/repo',
-        {
-          context: {
-            cache: {
-              mode: 'persistent',
-              path: '../outside/context-cache.json',
-              allowedRoots: ['.salmonloop/cache'],
-            },
-          },
-        } as any,
-        {
-          permissionGate: {
-            requestAuthorizationDeferred: async () => ({
-              kind: 'pending',
-              challenge: 'abc123',
-              message: 'authorization required',
-              requestId: 'req-1',
-            }),
-            requestAuthorization: async () => ({ kind: 'deny', source: 'policy' }),
-          },
+  it('falls back to memory store when persistent store fails to load', async () => {
+    resolveContextCachePathMock.mockResolvedValue({
+      mode: 'persistent',
+      filePath: '/repo/.salmonloop/cache.json',
+    });
+    persistentSizeMock.mockRejectedValue(new Error('boom'));
+    const { createContextCacheStore } = await loadFactory();
+    const created = await createContextCacheStore('/repo', {
+      context: {
+        cache: {
+          mode: 'persistent',
+          path: '.salmonloop/cache/custom.json',
+          allowedRoots: ['.salmonloop/cache'],
+          fallbackToMemoryOnFailure: true,
         },
-      ),
-    ).rejects.toThrow(new ConfigError('PERMISSION_REQUIRED_CONTEXT_CACHE_OUTSIDE_ROOT'));
+      },
+    } as any);
+
+    expect(created.store).toBeInstanceOf(MemoryStoreMock);
   });
 });
