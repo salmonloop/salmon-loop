@@ -12,4 +12,7 @@ Guidelines:
 - Keep phase outputs strictly compliant (PLAN must still be pure JSON, PATCH must still be a unified diff). Tool calls are allowed, but your final content must remain valid.
 {{/if}}
 
+## Knowledge Retention
+You have access to a cross-session knowledge base. When you learn important project-specific rules, long-term architectural decisions, or user preferences, use the `update_knowledge` tool to persist them. This helps you stay consistent in future sessions.
+
 {{> tool_defs}}

@@ -14,6 +14,7 @@ import {
   fsReadFileSpec,
 } from './fs.js';
 import { gitCatSpec, executeGitCat, gitStatusSpec, executeGitStatus } from './git.js';
+import { updateKnowledgeSpec, executeUpdateKnowledge } from './knowledge.js';
 import { planInitSpec, planReadSpec, planUpdateSpec } from './plan.js';
 import { proposalApplySpec, executeProposalApply } from './proposal.js';
 import { shellExecSpec, executeShellExec } from './shell.js';
@@ -28,6 +29,10 @@ export function registerAllBuiltins(registry: ToolRegistry): void {
   registry.register({
     ...artifactReadSpec,
     executor: executeArtifactRead as any,
+  });
+  registry.register({
+    ...updateKnowledgeSpec,
+    executor: executeUpdateKnowledge as any,
   });
   registry.register({
     ...proposalApplySpec,
@@ -103,6 +108,8 @@ export {
   executeFsList,
   fsReadFileSpec as fsReadSpec,
   executeFsReadFile as executeFsRead,
+  updateKnowledgeSpec,
+  executeUpdateKnowledge,
   astGrepSpec as codeSearchAstSpec,
   executeAstGrep as executeCodeSearchAst,
   verifyRunSpec as testRunSpec,
