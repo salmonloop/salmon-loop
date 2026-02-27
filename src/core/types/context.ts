@@ -150,6 +150,17 @@ export interface Context {
   gitHistory?: {
     recentCommits?: string;
   };
+  projectTopology?: ProjectTopology;
+}
+
+export interface ProjectTopology {
+  modules: Array<{
+    name: string;
+    path: string;
+    description?: string;
+    estimatedRole?: 'core' | 'adapter' | 'cli' | 'util' | 'other';
+  }>;
+  folderStructure?: string; // Brief tree-like overview of src/
 }
 
 export interface FileContext {

@@ -1,6 +1,7 @@
 import { DefaultPromptAssembler } from './assembly/default-prompt-assembler.js';
 import type { PromptAssembler } from './assembly/prompt-assembler.js';
 import { PromptCachingManager } from './cache/prompt-caching.js';
+import { ArchitectureGatherer } from './gatherers/architecture-gatherer.js';
 import { AstGatherer } from './gatherers/ast-gatherer.js';
 import { GitDiffGatherer } from './gatherers/git-diff-gatherer.js';
 import { GitHistoryGatherer } from './gatherers/git-history-gatherer.js';
@@ -16,6 +17,7 @@ export interface ContextServiceDeps {
   astGatherer: AstGatherer;
   metadataGatherer: MetadataGatherer;
   gitHistoryGatherer: GitHistoryGatherer;
+  architectureGatherer: ArchitectureGatherer;
   targetResolver: TargetResolver;
   assembler: PromptAssembler;
   promptCachingManager: PromptCachingManager;
@@ -29,6 +31,7 @@ export function defaultContextServiceDeps(): ContextServiceDeps {
     astGatherer: new AstGatherer(),
     metadataGatherer: new MetadataGatherer(),
     gitHistoryGatherer: new GitHistoryGatherer(),
+    architectureGatherer: new ArchitectureGatherer(),
     targetResolver: new TargetResolver(),
     assembler: new DefaultPromptAssembler(),
     promptCachingManager: new PromptCachingManager(),

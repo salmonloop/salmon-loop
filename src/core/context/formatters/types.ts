@@ -17,6 +17,19 @@ export interface JsonContext {
   a?: JsonAnalysis; // analysis
   pm?: JsonProjectMetadata; // projectMetadata
   gh?: JsonGitHistory; // gitHistory
+  pt?: JsonProjectTopology; // projectTopology
+}
+
+export interface JsonProjectTopology {
+  ms?: JsonModule[]; // modules
+  fs?: string; // folderStructure
+}
+
+export interface JsonModule {
+  n: string; // name
+  p: string; // path
+  d?: string; // description
+  er?: 'c' | 'a' | 'cl' | 'u' | 'o'; // estimatedRole (core, adapter, cli, util, other)
 }
 
 export interface JsonGitHistory {

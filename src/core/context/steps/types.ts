@@ -43,6 +43,7 @@ export interface ContextGatherCtx extends ContextPrimaryCtx {
   ast: ContextAstBundle;
   projectMetadata: Context['projectMetadata'];
   gitHistory: Context['gitHistory'];
+  projectTopology: Context['projectTopology'];
 }
 
 export interface ContextTargetsCtx extends ContextPipelineInitCtx {
@@ -61,4 +62,5 @@ export interface ContextTargetsCtx extends ContextPipelineInitCtx {
   symbolMap?: Context['symbolMap'];
   projectMetadata: Context['projectMetadata'];
   gitHistory: Context['gitHistory'];
+  projectTopology: Context['projectTopology'];
 }

@@ -112,9 +112,35 @@ export class ContextFormatConverter {
       };
     }
 
+    if (context.projectTopology) {
+      jsonContext.pt = {
+        ms: context.projectTopology.modules.map((m) => ({
+          n: m.name,
+          p: m.path,
+          d: m.description,
+          er: ContextFormatConverter.convertModuleRole(m.estimatedRole),
+        })),
+        fs: context.projectTopology.folderStructure,
+      };
+    }
+
     return {
       c: jsonContext,
     };
+  }
+
+  private static convertModuleRole(
+    role: 'core' | 'adapter' | 'cli' | 'util' | 'other' | undefined,
+  ): 'c' | 'a' | 'cl' | 'u' | 'o' | undefined {
+    if (!role) return undefined;
+    const map = {
+      core: 'c',
+      adapter: 'a',
+      cli: 'cl',
+      util: 'u',
+      other: 'o',
+    } as const;
+    return map[role];
   }
 
   /**

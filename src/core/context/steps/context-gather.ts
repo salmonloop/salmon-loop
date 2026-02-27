@@ -16,13 +16,15 @@ export function buildContextGatherStep(deps: ContextServiceDeps) {
       { source: 'context', severity: 'low', scope: 'session', phase: CONTEXT_AUDIT_PHASE.gather },
     );
 
-    const [rgSnippets, diffRes, astRes, projectMetadata, gitHistory] = await Promise.all([
-      deps.ripgrepGatherer.searchMultipleKeywords(keywords, req.repoPath, req.signal),
-      deps.gitDiffGatherer.gather({ ...req, diffScope }),
-      deps.astGatherer.gather(primaryText, req),
-      deps.metadataGatherer.gather(req),
-      deps.gitHistoryGatherer.gather(req),
-    ]);
+    const [rgSnippets, diffRes, astRes, projectMetadata, gitHistory, projectTopology] =
+      await Promise.all([
+        deps.ripgrepGatherer.searchMultipleKeywords(keywords, req.repoPath, req.signal),
+        deps.gitDiffGatherer.gather({ ...req, diffScope }),
+        deps.astGatherer.gather(primaryText, req),
+        deps.metadataGatherer.gather(req),
+        deps.gitHistoryGatherer.gather(req),
+        deps.architectureGatherer.gather(req),
+      ]);
     assertNotAborted(req.signal);
 
     recordContextAuditEvent(
@@ -35,6 +37,7 @@ export function buildContextGatherStep(deps: ContextServiceDeps) {
         hasParseError: Boolean(astRes.parseError),
         hasProjectMetadata: Boolean(projectMetadata),
         hasGitHistory: Boolean(gitHistory),
+        hasProjectTopology: Boolean(projectTopology),
       },
       { source: 'context', severity: 'low', scope: 'session', phase: CONTEXT_AUDIT_PHASE.gather },
     );
@@ -46,6 +49,7 @@ export function buildContextGatherStep(deps: ContextServiceDeps) {
       rgSnippets,
       projectMetadata,
       gitHistory,
+      projectTopology,
       diff: {
         includedFiles: diffRes.includedFiles,
         stagedDiff: diffRes.stagedDiff,
