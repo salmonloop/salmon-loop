@@ -11,7 +11,12 @@ import type {
 // Mock LLM client
 const createMockLLM = (): SummarizationLLMClient => ({
   chat: mock().mockResolvedValue({
-    content: 'This is a summary of the conversation.',
+    content: `[SUMMARY]
+This is a summary of the conversation.
+[/SUMMARY]
+[STATE_JSON]
+{"decisions":["Use TDD"],"constraints":["No regression"],"open_questions":[],"pending_tasks":["Add tests"],"rejected_options":[],"assumptions":[],"risks":[],"owner":["agent"]}
+[/STATE_JSON]`,
   }),
 });
 
@@ -57,6 +62,8 @@ describe('ConversationSummarizer', () => {
       expect(state.summary).toBe('');
       expect(state.summaryTokens).toBe(0);
       expect(state.summarizedMessageIds).toHaveLength(0);
+      expect(state.structuredState?.decisions).toEqual([]);
+      expect(state.summaryVersion).toBe(2);
     });
   });
 
@@ -65,6 +72,7 @@ describe('ConversationSummarizer', () => {
       summarizer['state'].summary = 'Test summary';
       summarizer['state'].summaryTokens = 10;
       summarizer['state'].summarizedMessageIds = ['msg-0', 'msg-1'];
+      summarizer['state'].contextHash = 'ctx-1';
 
       const state = summarizer.getState();
       summarizer.reset();
@@ -74,6 +82,7 @@ describe('ConversationSummarizer', () => {
       expect(restored.summary).toBe('Test summary');
       expect(restored.summaryTokens).toBe(10);
       expect(restored.summarizedMessageIds).toEqual(['msg-0', 'msg-1']);
+      expect(restored.contextHash).toBe('ctx-1');
     });
 
     it('should reset state', () => {
@@ -83,6 +92,7 @@ describe('ConversationSummarizer', () => {
       const state = summarizer.getState();
       expect(state.summary).toBe('');
       expect(state.summarizedMessageIds).toHaveLength(0);
+      expect(state.structuredState?.pending_tasks).toEqual([]);
     });
   });
 
@@ -139,7 +149,8 @@ describe('ConversationSummarizer', () => {
 
       // Should have summary + remaining messages
       expect(context[0].role).toBe('system');
-      expect(context[0].content).toContain('Previous summary');
+      expect(context[0].content).toContain('Conversation structured state');
+      expect(context[1].content).toContain('Previous summary');
     });
   });
 
@@ -171,22 +182,37 @@ describe('ConversationSummarizer', () => {
       expect(result).not.toBeNull();
       expect(result?.messagesSummarized).toBeGreaterThan(0);
       expect(mockLLM.chat).toHaveBeenCalled();
+      expect(syncSummarizer.getState().structuredState?.decisions).toContain('Use TDD');
     });
   });
 
   describe('forceSummarize', () => {
     it('should summarize even if threshold not met', async () => {
       const messages = createMessages(15); // More than keepRecentMessages
-      const result = await summarizer.forceSummarize(messages);
+      const result = await summarizer.forceSummarize(messages, 'ctx-1');
 
       expect(result).not.toBeNull();
       expect(result?.messagesSummarized).toBeGreaterThan(0);
+      expect(summarizer.getState().contextHash).toBe('ctx-1');
     });
 
     it('should return null if too few messages', async () => {
       const messages = createMessages(5); // Less than keepRecentMessages
       const result = await summarizer.forceSummarize(messages);
       expect(result).toBeNull();
+    });
+
+    it('should reset previous summary when contextHash changes', async () => {
+      const messages = createMessages(15);
+      await summarizer.forceSummarize(messages, 'ctx-1');
+      const state1 = summarizer.getState();
+      expect(state1.summarizedMessageIds.length).toBeGreaterThan(0);
+
+      await summarizer.forceSummarize(messages, 'ctx-2');
+      const state2 = summarizer.getState();
+      expect(state2.contextHash).toBe('ctx-2');
+      expect(state2.summary).toContain('summary');
+      expect(state2.summarizedMessageIds.length).toBeGreaterThan(0);
     });
   });
 

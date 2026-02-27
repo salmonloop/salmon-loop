@@ -76,6 +76,26 @@ export interface SummaryState {
 
   /** Last summary timestamp */
   lastSummarizedAt: number;
+
+  /** Summary schema version for compatibility */
+  summaryVersion?: number;
+
+  /** Canonical structured state to prevent summary drift */
+  structuredState?: StructuredSummaryState;
+
+  /** Context hash used to validate summary alignment */
+  contextHash?: string;
+}
+
+export interface StructuredSummaryState {
+  decisions: string[];
+  constraints: string[];
+  open_questions: string[];
+  pending_tasks: string[];
+  rejected_options: string[];
+  assumptions: string[];
+  risks: string[];
+  owner: string[];
 }
 
 /**

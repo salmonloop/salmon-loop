@@ -29,5 +29,9 @@ describe('Context Gatherers (Audit Improvements)', () => {
     expect(typeof result.recentCommits).toBe('string');
     // It should have at least one line (the one-line format)
     expect(result.recentCommits?.length).toBeGreaterThan(0);
+    expect(result.churnByFile).toBeDefined();
+    const weights = Object.values(result.churnByFile ?? {});
+    expect(weights.length).toBeGreaterThan(0);
+    expect(weights.every((v) => Number.isFinite(v) && v >= 0)).toBe(true);
   });
 });

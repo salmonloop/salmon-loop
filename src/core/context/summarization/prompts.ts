@@ -31,6 +31,25 @@ export function buildIncrementalSummaryPrompt(input: IncrementalSummaryInput): s
     .map((m) => `${m.role.toUpperCase()}: ${m.content}`)
     .join('\n\n');
 
+  const outputContract = `Output format (strict):
+1) Human summary:
+[SUMMARY]
+<concise summary text>
+[/SUMMARY]
+2) Structured state JSON:
+[STATE_JSON]
+{
+  "decisions": [],
+  "constraints": [],
+  "open_questions": [],
+  "pending_tasks": [],
+  "rejected_options": [],
+  "assumptions": [],
+  "risks": [],
+  "owner": []
+}
+[/STATE_JSON]`;
+
   if (currentSummary) {
     return `Current summary:
 ${currentSummary}
@@ -38,7 +57,8 @@ ${currentSummary}
 New lines of conversation:
 ${formattedMessages}
 
-Updated summary (integrate new information into current summary, keep it concise and focused on key decisions, code changes, and important context):`;
+Updated summary (integrate new information into current summary, keep it concise and focused on key decisions, code changes, and important context).
+${outputContract}`;
   }
 
   return `Summarize this conversation, capturing:
@@ -50,7 +70,7 @@ Updated summary (integrate new information into current summary, keep it concise
 Conversation:
 ${formattedMessages}
 
-Summary:`;
+${outputContract}`;
 }
 
 /**

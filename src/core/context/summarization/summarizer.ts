@@ -17,6 +17,7 @@ import type {
   SummarizationConfig,
   SummarizationResult,
   SummarizableMessage,
+  StructuredSummaryState,
   SummaryState,
   SummarizationLLMClient,
   SummarizationTokenCounter,
@@ -56,6 +57,9 @@ export class ConversationSummarizer {
       summaryTokens: 0,
       summarizedMessageIds: [],
       lastSummarizedAt: 0,
+      summaryVersion: 2,
+      structuredState: this.createEmptyStructuredState(),
+      contextHash: undefined,
     };
   }
 
@@ -88,6 +92,11 @@ export class ConversationSummarizer {
       summaryTokens: this.state.summaryTokens,
       summarizedMessageIds: [...this.state.summarizedMessageIds],
       lastSummarizedAt: this.state.lastSummarizedAt,
+      summaryVersion: this.state.summaryVersion,
+      structuredState: this.state.structuredState
+        ? { ...this.state.structuredState }
+        : this.createEmptyStructuredState(),
+      contextHash: this.state.contextHash,
     };
   }
 
@@ -100,6 +109,11 @@ export class ConversationSummarizer {
       summaryTokens: state.summaryTokens,
       summarizedMessageIds: [...state.summarizedMessageIds],
       lastSummarizedAt: state.lastSummarizedAt,
+      summaryVersion: state.summaryVersion ?? 2,
+      structuredState: state.structuredState
+        ? this.normalizeStructuredState(state.structuredState)
+        : this.createEmptyStructuredState(),
+      contextHash: state.contextHash,
     };
     logger.debug(
       `[Summarizer] Restored state with ${state.summarizedMessageIds.length} summarized messages`,
@@ -115,6 +129,9 @@ export class ConversationSummarizer {
       summaryTokens: 0,
       summarizedMessageIds: [],
       lastSummarizedAt: 0,
+      summaryVersion: 2,
+      structuredState: this.createEmptyStructuredState(),
+      contextHash: undefined,
     };
     this.summaryInProgress = false;
   }
@@ -128,7 +145,20 @@ export class ConversationSummarizer {
   getEffectiveContext(messages: SummarizableMessage[]): SummarizableMessage[] {
     const result: SummarizableMessage[] = [];
 
-    // 1. Add summary if exists
+    // 1. Add structured state if exists
+    if (this.state.structuredState) {
+      result.push({
+        id: 'summary-state',
+        role: 'system',
+        content:
+          `[Conversation structured state v${this.state.summaryVersion ?? 2}]` +
+          `\ncontextHash=${this.state.contextHash ?? 'none'}\n` +
+          JSON.stringify(this.state.structuredState),
+        timestamp: this.state.lastSummarizedAt,
+      });
+    }
+
+    // 2. Add human-readable summary if exists
     if (this.state.summary) {
       result.push({
         id: 'summary',
@@ -138,7 +168,7 @@ export class ConversationSummarizer {
       });
     }
 
-    // 2. Add recent messages not yet summarized
+    // 3. Add recent messages not yet summarized
     const summarizedSet = new Set(this.state.summarizedMessageIds);
     const recentMessages = messages
       .filter((m) => !summarizedSet.has(m.id))
@@ -195,7 +225,10 @@ export class ConversationSummarizer {
    * Trigger summarization.
    * If async mode, returns null immediately and runs in background.
    */
-  async triggerSummarization(messages: SummarizableMessage[]): Promise<SummarizationResult | null> {
+  async triggerSummarization(
+    messages: SummarizableMessage[],
+    contextHash?: string,
+  ): Promise<SummarizationResult | null> {
     if (this.summaryInProgress) {
       logger.debug('[Summarizer] Summary already in progress, skipping');
       return null;
@@ -207,33 +240,41 @@ export class ConversationSummarizer {
 
     if (this.config.async) {
       // Fire and forget
-      this.runSummarization(messages).catch((err) => {
+      this.runSummarization(messages, contextHash).catch((err) => {
         const errMsg = err instanceof Error ? err.message : String(err);
         logger.warn(`[Summarizer] Async summarization failed: ${errMsg}`);
       });
       return null;
     }
 
-    return this.runSummarization(messages);
+    return this.runSummarization(messages, contextHash);
   }
 
   /**
    * Force summarization now (for session end or explicit request).
    */
-  async forceSummarize(messages: SummarizableMessage[]): Promise<SummarizationResult | null> {
+  async forceSummarize(
+    messages: SummarizableMessage[],
+    contextHash?: string,
+  ): Promise<SummarizationResult | null> {
     if (messages.length <= this.config.keepRecentMessages) {
       return null;
     }
-    return this.runSummarization(messages);
+    return this.runSummarization(messages, contextHash);
   }
 
   /**
    * Run incremental summarization.
    */
-  private async runSummarization(messages: SummarizableMessage[]): Promise<SummarizationResult> {
+  private async runSummarization(
+    messages: SummarizableMessage[],
+    contextHash?: string,
+  ): Promise<SummarizationResult> {
     this.summaryInProgress = true;
 
     try {
+      this.ensureStateAligned(contextHash);
+
       // 1. Get messages to summarize (exclude recent N)
       const summarizedSet = new Set(this.state.summarizedMessageIds);
       const toSummarize = messages
@@ -260,7 +301,7 @@ export class ConversationSummarizer {
 
       // 3. Build prompt and call LLM
       const prompt = buildIncrementalSummaryPrompt({
-        currentSummary: this.state.summary,
+        currentSummary: this.composeCurrentSummaryForPrompt(),
         newMessages: batch,
       });
 
@@ -271,7 +312,8 @@ export class ConversationSummarizer {
         maxTokens: this.config.maxSummaryTokens,
       });
 
-      let newSummary = response.content;
+      const parsed = this.parseSummaryResponse(response.content);
+      let newSummary = parsed.summary;
       const afterTokens = this.tokenCounter.count(newSummary);
 
       // 4. Truncate if needed
@@ -284,6 +326,9 @@ export class ConversationSummarizer {
       // 5. Update state
       this.state.summary = newSummary;
       this.state.summaryTokens = this.tokenCounter.count(newSummary);
+      this.state.structuredState = parsed.structuredState;
+      this.state.contextHash = contextHash;
+      this.state.summaryVersion = 2;
       for (const msg of batch) {
         this.state.summarizedMessageIds.push(msg.id);
       }
@@ -314,5 +359,87 @@ export class ConversationSummarizer {
 
   private formatMessage(msg: SummarizableMessage): string {
     return `${msg.role}: ${msg.content}`;
+  }
+
+  private composeCurrentSummaryForPrompt(): string {
+    if (!this.state.summary && !this.state.structuredState) {
+      return '';
+    }
+
+    const structured = this.state.structuredState
+      ? `\n\nCurrent structured state:\n${JSON.stringify(this.state.structuredState)}`
+      : '';
+    return `${this.state.summary}${structured}`;
+  }
+
+  private ensureStateAligned(contextHash?: string): void {
+    if (!contextHash) return;
+    if (!this.state.contextHash || this.state.contextHash === contextHash) return;
+
+    logger.warn(
+      `[Summarizer] Context hash changed (${this.state.contextHash} -> ${contextHash}), rebuilding summary state`,
+    );
+    this.state.summary = '';
+    this.state.summaryTokens = 0;
+    this.state.summarizedMessageIds = [];
+    this.state.structuredState = this.createEmptyStructuredState();
+    this.state.contextHash = undefined;
+    this.state.lastSummarizedAt = 0;
+  }
+
+  private parseSummaryResponse(content: string): {
+    summary: string;
+    structuredState: StructuredSummaryState;
+  } {
+    const summaryMatch = content.match(/\[SUMMARY\]([\s\S]*?)\[\/SUMMARY\]/);
+    const summary = (summaryMatch?.[1] ?? content).trim();
+
+    const stateMatch = content.match(/\[STATE_JSON\]([\s\S]*?)\[\/STATE_JSON\]/);
+    if (!stateMatch?.[1]) {
+      return { summary, structuredState: this.createEmptyStructuredState() };
+    }
+
+    try {
+      const parsed = JSON.parse(stateMatch[1]);
+      return { summary, structuredState: this.normalizeStructuredState(parsed) };
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      logger.warn(`[Summarizer] Failed to parse structured summary state: ${errMsg}`);
+      return { summary, structuredState: this.createEmptyStructuredState() };
+    }
+  }
+
+  private normalizeStructuredState(input: unknown): StructuredSummaryState {
+    const normalized = this.createEmptyStructuredState();
+    if (!input || typeof input !== 'object') return normalized;
+
+    const source = input as Record<string, unknown>;
+    normalized.decisions = this.ensureStringArray(source.decisions);
+    normalized.constraints = this.ensureStringArray(source.constraints);
+    normalized.open_questions = this.ensureStringArray(source.open_questions);
+    normalized.pending_tasks = this.ensureStringArray(source.pending_tasks);
+    normalized.rejected_options = this.ensureStringArray(source.rejected_options);
+    normalized.assumptions = this.ensureStringArray(source.assumptions);
+    normalized.risks = this.ensureStringArray(source.risks);
+    normalized.owner = this.ensureStringArray(source.owner);
+    return normalized;
+  }
+
+  private ensureStringArray(value: unknown): string[] {
+    if (!Array.isArray(value)) return [];
+    return value.filter((item): item is string => typeof item === 'string');
+  }
+
+  private createEmptyStructuredState(): StructuredSummaryState {
+    return {
+      decisions: [],
+      constraints: [],
+      open_questions: [],
+      pending_tasks: [],
+      rejected_options: [],
+      assumptions: [],
+      risks: [],
+      owner: [],
+    };
   }
 }

@@ -24,6 +24,21 @@ export interface SummaryState {
   summarizedMessageIds: string[];
   /** Last summary timestamp */
   lastSummarizedAt: number;
+  /** Summary schema version for compatibility */
+  summaryVersion?: number;
+  /** Canonical structured state to prevent drift */
+  structuredState?: {
+    decisions: string[];
+    constraints: string[];
+    open_questions: string[];
+    pending_tasks: string[];
+    rejected_options: string[];
+    assumptions: string[];
+    risks: string[];
+    owner: string[];
+  };
+  /** Context hash used to validate summary alignment */
+  contextHash?: string;
 }
 
 /**
