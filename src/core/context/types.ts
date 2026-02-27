@@ -43,6 +43,8 @@ export interface ContextBuildMeta {
   droppedSections?: DroppedContextSections;
   budgetAllocation?: ContextBudgetAllocation;
   contextHash?: string;
+  targetSetSignature?: string;
+  intentSignature?: string;
   environment?: {
     workspaceMode: WorkspaceMode;
   };

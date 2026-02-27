@@ -8,6 +8,7 @@ import { logger } from '../observability/logger.js';
 import { ContextDiff, IncrementalUpdater } from './cache/incremental-updater.js';
 import type { PromptCachingManager } from './cache/prompt-caching.js';
 import type { PromptCacheStats } from './cache/types.js';
+import { createIntentSignature } from './hash.js';
 import type { ContextServiceDeps } from './service-deps.js';
 import { defaultContextServiceDeps } from './service-deps.js';
 import { buildContextBudgetStep } from './steps/context-budget.js';
@@ -21,7 +22,13 @@ export class ContextService {
   private readonly deps: ContextServiceDeps;
   private readonly cache = new Map<
     string,
-    { result: ContextResult; trackedFiles: string[]; signature: string }
+    {
+      result: ContextResult;
+      trackedFiles: string[];
+      signature: string;
+      targetSetSignature?: string;
+      intentSignature: string;
+    }
   >();
   private readonly updaters = new Map<string, IncrementalUpdater>();
   private readonly promptCachingManager: PromptCachingManager;
@@ -35,8 +42,14 @@ export class ContextService {
 
   async build(req: ContextRequest): Promise<ContextResult> {
     const diffScope: DiffScope = req.diffScope ?? 'primary';
+    const intentSignature = createIntentSignature({
+      instruction: req.instruction,
+      primaryFile: req.primaryFile,
+      selection: req.selection,
+      diffScope: req.diffScope,
+    });
 
-    const cacheKey = await this.makeCacheKey(req);
+    const cacheKey = this.makeCacheKey(req, intentSignature);
     const cached = await this.getValidCachedResult(cacheKey, req.repoPath);
     if (cached && !req.signal?.aborted) {
       logger.trace(`[CONTEXT_CACHE] hit ${cacheKey}`);
@@ -59,41 +72,26 @@ export class ContextService {
     const contextResult = report.data as ContextResult;
     const trackedFiles = this.collectTrackedFiles(req, contextResult);
     const signature = await this.computeTrackedFilesSignature(req.repoPath, trackedFiles);
-    this.cache.set(cacheKey, { result: contextResult, trackedFiles, signature });
+    this.cache.set(cacheKey, {
+      result: contextResult,
+      trackedFiles,
+      signature,
+      targetSetSignature: contextResult.meta.targetSetSignature,
+      intentSignature,
+    });
     this.recordContextDiff(cacheKey, contextResult);
     return contextResult;
   }
 
-  private async makeCacheKey(req: ContextRequest): Promise<string> {
+  private makeCacheKey(req: ContextRequest, intentSignature: string): string {
     const parts = [
       req.repoPath,
       req.snapshotHash ?? '',
-      req.primaryFile ?? '',
-      req.instruction ?? '',
-      req.selection ?? '',
       req.diffScope ?? 'primary',
       req.workspaceMode ?? 'direct',
+      intentSignature,
     ];
-    const fingerprint = await this.computeRequestFingerprint(req);
-    return [...parts, fingerprint].join('::');
-  }
-
-  private async computeRequestFingerprint(req: ContextRequest): Promise<string> {
-    if (req.snapshotHash) {
-      return `snapshot:${req.snapshotHash}`;
-    }
-
-    if (!req.primaryFile) {
-      return 'primary:none';
-    }
-
-    const absolutePath = path.resolve(req.repoPath, req.primaryFile);
-    try {
-      const content = await this.fileAdapter.readFile(absolutePath, 'utf-8');
-      return createHash('sha1').update(content, 'utf-8').digest('hex');
-    } catch {
-      return `missing:${absolutePath}`;
-    }
+    return parts.join('::');
   }
 
   private async getValidCachedResult(
@@ -116,6 +114,9 @@ export class ContextService {
     for (const file of result.meta.includedFiles ?? []) {
       if (file) deduped.add(file);
     }
+    for (const target of result.context.targets ?? []) {
+      if (target.path) deduped.add(target.path);
+    }
     return [...deduped].sort().slice(0, ContextService.MAX_CACHE_TRACKED_FILES);
   }
 
@@ -131,7 +132,23 @@ export class ContextService {
         parts.push(`${relativeFile}:missing`);
       }
     }
+    parts.push(...(await this.computeRepoStateSignatureParts(repoPath)));
     return createHash('sha1').update(parts.join('|')).digest('hex');
+  }
+
+  private async computeRepoStateSignatureParts(repoPath: string): Promise<string[]> {
+    const gitFiles = ['.git/HEAD', '.git/index'];
+    const parts: string[] = [];
+    for (const rel of gitFiles) {
+      const gitPath = path.resolve(repoPath, rel);
+      try {
+        const stat = await this.fileAdapter.stat(gitPath);
+        parts.push(`${rel}:${stat.mtimeMs}:${stat.size}`);
+      } catch {
+        parts.push(`${rel}:missing`);
+      }
+    }
+    return parts;
   }
 
   private recordContextDiff(key: string, contextResult: ContextResult): void {

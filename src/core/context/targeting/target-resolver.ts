@@ -3,6 +3,7 @@ import { MicroTaskRunner } from '../../grizzco/dsl/MicroTaskRunner.js';
 import { logger } from '../../observability/logger.js';
 import type { CodeLocation, ContextTarget, SymbolMap, TargetEvidence } from '../../types/index.js';
 import { normalizePath } from '../../utils/path.js';
+import { createTargetSetSignature } from '../hash.js';
 import type { ContextRequest } from '../types.js';
 
 import { getChurnRankingPolicy, type ChurnRankingPolicy } from './churn-policy.js';
@@ -495,6 +496,7 @@ export class TargetResolver {
     targets: ContextTarget[];
     strategy: 'explicit' | 'symbol' | 'diff' | 'default';
     diffusionMetrics?: DiffusionMetrics;
+    targetSetSignature: string;
   }> {
     const {
       req,
@@ -652,6 +654,7 @@ export class TargetResolver {
       req.primaryFile,
       this.churnPolicy,
     );
+    const targetSetSignature = createTargetSetSignature(targetsWithChurn);
 
     if (targetsWithChurn.length > 0) {
       logger.trace(
@@ -659,6 +662,6 @@ export class TargetResolver {
       );
     }
 
-    return { targets: targetsWithChurn, strategy, diffusionMetrics };
+    return { targets: targetsWithChurn, strategy, diffusionMetrics, targetSetSignature };
   }
 }

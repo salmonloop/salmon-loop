@@ -52,6 +52,7 @@ export interface ContextTargetsCtx extends ContextPipelineInitCtx {
   primaryText: string | undefined;
   rgSnippets: Context['rgSnippets'];
   targets: Context['targets'];
+  targetSetSignature?: string;
   includedFiles: string[];
   stagedDiff: string | undefined;
   unstagedDiff: string | undefined;

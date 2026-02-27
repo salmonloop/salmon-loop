@@ -197,4 +197,81 @@ describe('ContextService', () => {
     expect(second.prompt).toBe('PROMPT-2');
     expect(assembleCount).toBe(2);
   });
+
+  it('keeps cache when unrelated noise changes but tracked signatures stay stable', async () => {
+    let assembleCount = 0;
+    const service = new ContextService({
+      primaryTextGatherer: { gather: async () => ({ primaryText: 'PRIMARY' }) } as any,
+      ripgrepGatherer: { searchMultipleKeywords: async () => [] } as any,
+      gitDiffGatherer: { gather: async () => ({ includedFiles: ['src/a.ts'] }) } as any,
+      astGatherer: {
+        gather: async () => ({ symbols: [], definitionMap: {}, relatedFiles: [] }),
+      } as any,
+      assembler: {
+        assemble: () => {
+          assembleCount += 1;
+          return { prompt: `PROMPT-${assembleCount}` };
+        },
+      },
+    });
+
+    const statsByPath: Record<string, { mtimeMs: number; size: number }> = {
+      '/repo/src/a.ts': { mtimeMs: 10, size: 100 },
+      '/repo/.git/HEAD': { mtimeMs: 1, size: 32 },
+      '/repo/.git/index': { mtimeMs: 1, size: 64 },
+      '/repo/noise.log': { mtimeMs: 1, size: 1 },
+    };
+    (service as any).fileAdapter = {
+      stat: async (filePath: string) => statsByPath[filePath] ?? ({ mtimeMs: 0, size: 0 } as any),
+    };
+
+    const req: ContextRequest = {
+      instruction: 'fix foo',
+      repoPath: '/repo',
+      primaryFile: 'src/a.ts',
+    };
+
+    const first = await service.build(req);
+    expect(first.prompt).toBe('PROMPT-1');
+    statsByPath['/repo/noise.log'] = { mtimeMs: 999, size: 999 };
+    const second = await service.build(req);
+    expect(second.prompt).toBe('PROMPT-1');
+    expect(assembleCount).toBe(1);
+  });
+
+  it('isolates cache by snapshot/workspace mode when no explicit target file is provided', async () => {
+    let assembleCount = 0;
+    const service = new ContextService({
+      primaryTextGatherer: { gather: async () => ({ primaryText: undefined }) } as any,
+      ripgrepGatherer: { searchMultipleKeywords: async () => [] } as any,
+      gitDiffGatherer: { gather: async () => ({ includedFiles: [] }) } as any,
+      astGatherer: {
+        gather: async () => ({ symbols: [], definitionMap: {}, relatedFiles: [] }),
+      } as any,
+      assembler: {
+        assemble: () => {
+          assembleCount += 1;
+          return { prompt: `PROMPT-${assembleCount}` };
+        },
+      },
+    });
+
+    (service as any).fileAdapter = {
+      stat: async () => ({ mtimeMs: 1, size: 1 }),
+    };
+
+    const req: ContextRequest = {
+      instruction: 'answer only',
+      repoPath: '/repo',
+      primaryFile: undefined,
+    };
+
+    const first = await service.build(req);
+    expect(first.prompt).toBe('PROMPT-1');
+    const second = await service.build({ ...req, snapshotHash: 'snap-2' });
+    expect(second.prompt).toBe('PROMPT-2');
+    const third = await service.build({ ...req, snapshotHash: 'snap-2', workspaceMode: 'shadow' });
+    expect(third.prompt).toBe('PROMPT-3');
+    expect(assembleCount).toBe(3);
+  });
 });

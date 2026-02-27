@@ -1,11 +1,10 @@
-import { createHash } from 'node:crypto';
-
 import { LIMITS } from '../../config/limits.js';
 import type { Context } from '../../types/index.js';
 import { DefaultPromptAssembler } from '../assembly/default-prompt-assembler.js';
 import { CONTEXT_AUDIT_ACTION, CONTEXT_AUDIT_PHASE } from '../audit-constants.js';
 import { recordContextAuditEvent } from '../audit.js';
 import { applySmartCompression } from '../compression/smart-compress.js';
+import { createContextHash } from '../hash.js';
 import {
   buildContextBudgetPolicyPlan,
   executeContextBudgetPolicyPlan,
@@ -61,6 +60,7 @@ export function buildContextBudgetStep(deps: ContextServiceDeps) {
     primaryText,
     rgSnippets,
     targets,
+    targetSetSignature,
     includedFiles,
     stagedDiff,
     unstagedDiff,
@@ -147,7 +147,7 @@ export function buildContextBudgetStep(deps: ContextServiceDeps) {
     });
 
     const assembled = assembler.assemble(budgeted.context, req);
-    const contextHash = createHash('sha1').update(JSON.stringify(budgeted.context)).digest('hex');
+    const contextHash = createContextHash(budgeted.context);
     const sectionChars = calculateSectionChars(budgeted.context);
     const requestedBudgetChars = budget ?? LIMITS.maxContextChars;
     const budgetAllocation = computeBudgetAllocation(requestedBudgetChars, sectionChars);
@@ -181,6 +181,7 @@ export function buildContextBudgetStep(deps: ContextServiceDeps) {
       context: {
         ...budgeted.context,
         contextHash,
+        targetSetSignature,
       },
       prompt: assembled.prompt,
       meta: {
@@ -193,6 +194,7 @@ export function buildContextBudgetStep(deps: ContextServiceDeps) {
         sectionChars,
         budgetAllocation,
         contextHash,
+        targetSetSignature,
         environment: {
           workspaceMode,
         },

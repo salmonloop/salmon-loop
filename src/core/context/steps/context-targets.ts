@@ -33,7 +33,7 @@ export function buildContextTargetsStep(deps: ContextServiceDeps) {
       { source: 'context', severity: 'low', scope: 'session', phase: CONTEXT_AUDIT_PHASE.targets },
     );
 
-    const { targets, diffusionMetrics } = await deps.targetResolver.resolve({
+    const { targets, diffusionMetrics, targetSetSignature } = await deps.targetResolver.resolve({
       req,
       includedFiles: diff.includedFiles,
       importRelatedFiles,
@@ -72,6 +72,7 @@ export function buildContextTargetsStep(deps: ContextServiceDeps) {
       primaryText,
       rgSnippets,
       targets,
+      targetSetSignature,
       projectMetadata,
       gitHistory,
       projectTopology,

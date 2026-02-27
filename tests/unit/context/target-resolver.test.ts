@@ -121,6 +121,8 @@ describe('TargetResolver (symbol targets)', () => {
     expect(res.targets[1]?.ranking?.finalScore).toBeGreaterThan(
       res.targets[2]?.ranking?.finalScore ?? 0,
     );
+    expect(typeof res.targetSetSignature).toBe('string');
+    expect(res.targetSetSignature.length).toBeGreaterThan(0);
   });
 
   it('keeps semantic priority when low-signal target has higher churn', async () => {

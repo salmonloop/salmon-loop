@@ -136,6 +136,7 @@ export interface Context {
   primaryFile?: string;
   workspaceMode?: WorkspaceMode;
   contextHash?: string;
+  targetSetSignature?: string;
   primaryText?: string;
   relatedFiles?: RelatedFileContext[];
   rgSnippets: RipgrepResult[];
