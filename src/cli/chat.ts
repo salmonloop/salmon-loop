@@ -245,6 +245,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
         options.llm.getModelId?.() || process.env.SALMONLOOP_MODEL || process.env.S8P_MODEL;
       const conversationContext = buildSessionConversationContext(sessionManager.getMessages(), {
         budgetTokens: getDefaultSessionContextBudgetTokens({ modelId: modelIdForBudget }),
+        summaryState: sessionManager.getSummaryState(),
       });
 
       // Single source of truth: chat runtime owns when a user message is appended to the UI list.

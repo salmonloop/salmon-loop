@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'bun:test';
+import { describe, it, expect, beforeEach, mock } from 'bun:test';
 
 import { ConversationSummarizer } from '../summarizer.js';
 import { DEFAULT_SUMMARIZATION_CONFIG } from '../types.js';
@@ -143,6 +143,16 @@ describe('ConversationSummarizer', () => {
       // Manually set up a summarized state
       summarizer['state'].summary = 'Previous summary';
       summarizer['state'].summarizedMessageIds = ['msg-0', 'msg-1', 'msg-2'];
+      summarizer['state'].structuredState = {
+        decisions: ['Use TDD'],
+        constraints: [],
+        open_questions: [],
+        pending_tasks: [],
+        rejected_options: [],
+        assumptions: [],
+        risks: [],
+        owner: [],
+      };
 
       const messages = createMessages(5);
       const context = summarizer.getEffectiveContext(messages);

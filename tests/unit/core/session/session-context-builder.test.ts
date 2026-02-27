@@ -57,4 +57,38 @@ describe('session-context-builder', () => {
     expect(ctx[0].role).toBe('user');
     expect(ctx[0].content.length).toBe(40);
   });
+
+  it('prepends structured summary state and human summary when provided', () => {
+    const messages = [{ role: 'user', content: 'hello', timestamp: 1 }] as any[];
+
+    const ctx = buildSessionConversationContext(messages as any, {
+      budgetTokens: 200,
+      countTokens: () => 1,
+      summaryState: {
+        summary: 'human summary',
+        summaryTokens: 10,
+        summarizedMessageIds: ['m1'],
+        lastSummarizedAt: Date.now(),
+        summaryVersion: 2,
+        contextHash: 'ctx-abc',
+        structuredState: {
+          decisions: ['d1'],
+          constraints: ['c1'],
+          open_questions: [],
+          pending_tasks: [],
+          rejected_options: [],
+          assumptions: [],
+          risks: [],
+          owner: ['agent'],
+        },
+      },
+    });
+
+    expect(ctx[0]?.role).toBe('system');
+    expect(ctx[0]?.content).toContain('Conversation structured state');
+    expect(ctx[0]?.content).toContain('contextHash=ctx-abc');
+    expect(ctx[1]?.role).toBe('system');
+    expect(ctx[1]?.content).toContain('human summary');
+    expect(ctx[2]?.role).toBe('user');
+  });
 });

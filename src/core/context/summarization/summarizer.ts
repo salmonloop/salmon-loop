@@ -146,7 +146,7 @@ export class ConversationSummarizer {
     const result: SummarizableMessage[] = [];
 
     // 1. Add structured state if exists
-    if (this.state.structuredState) {
+    if (this.state.structuredState && this.hasStructuredStateContent(this.state.structuredState)) {
       result.push({
         id: 'summary-state',
         role: 'system',
@@ -441,5 +441,18 @@ export class ConversationSummarizer {
       risks: [],
       owner: [],
     };
+  }
+
+  private hasStructuredStateContent(state: StructuredSummaryState): boolean {
+    return (
+      state.decisions.length > 0 ||
+      state.constraints.length > 0 ||
+      state.open_questions.length > 0 ||
+      state.pending_tasks.length > 0 ||
+      state.rejected_options.length > 0 ||
+      state.assumptions.length > 0 ||
+      state.risks.length > 0 ||
+      state.owner.length > 0
+    );
   }
 }

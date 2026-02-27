@@ -1,7 +1,7 @@
 import { TokenBudgetCalculator } from '../context/token/token-budget.js';
 import type { LLMMessage } from '../types/index.js';
 
-import type { ChatMessage } from './types.js';
+import type { ChatMessage, SummaryState } from './types.js';
 
 export interface SessionContextBuilderOptions {
   /**
@@ -18,6 +18,11 @@ export interface SessionContextBuilderOptions {
    * If not provided, a deterministic rough approximation is used.
    */
   countTokens?: (text: string) => number;
+  /**
+   * Optional persisted summary state. When present, a structured summary system
+   * message is prepended before conversational turns (budget permitting).
+   */
+  summaryState?: SummaryState;
 }
 
 export const DEFAULT_SESSION_CONTEXT_BUDGET_FRACTION = 0.15;
@@ -103,5 +108,59 @@ export function buildSessionConversationContext(
   while (selected.length > 0 && selected[0].role === 'assistant') {
     selected.shift();
   }
-  return selected;
+
+  const summaryMessages = buildSummaryMessages(options.summaryState);
+  if (summaryMessages.length === 0) {
+    return selected;
+  }
+
+  const selectedTokens = selected.reduce(
+    (sum, msg) => sum + Math.max(0, Math.floor(count(msg.content))),
+    0,
+  );
+  let budgetLeftForSummary = Math.max(0, budgetTokens - selectedTokens);
+  const prepended: LLMMessage[] = [];
+  for (const msg of summaryMessages) {
+    if (budgetLeftForSummary <= 0) break;
+    const fullTokens = Math.max(0, Math.floor(count(msg.content)));
+    if (fullTokens <= budgetLeftForSummary) {
+      prepended.push(msg);
+      budgetLeftForSummary -= fullTokens;
+      continue;
+    }
+
+    const maxChars = Math.max(0, budgetLeftForSummary * 4);
+    if (maxChars >= 16) {
+      prepended.push({ role: 'system', content: msg.content.slice(0, maxChars) });
+    }
+    budgetLeftForSummary = 0;
+  }
+
+  return [...prepended, ...selected];
+}
+
+function buildSummaryMessages(summaryState?: SummaryState): LLMMessage[] {
+  if (!summaryState) return [];
+
+  const messages: LLMMessage[] = [];
+  const structured = summaryState.structuredState;
+  if (structured) {
+    messages.push({
+      role: 'system',
+      content:
+        `[Conversation structured state v${summaryState.summaryVersion ?? 2}]` +
+        `\ncontextHash=${summaryState.contextHash ?? 'none'}\n` +
+        JSON.stringify(structured),
+    });
+  }
+
+  const summaryText = typeof summaryState.summary === 'string' ? summaryState.summary.trim() : '';
+  if (summaryText) {
+    messages.push({
+      role: 'system',
+      content: `[Previous conversation summary]\n${summaryText}`,
+    });
+  }
+
+  return messages;
 }

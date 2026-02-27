@@ -330,6 +330,7 @@ export async function handleRunCommand(options: any, command: Command) {
       shouldInjectSessionContext && sessionManager
         ? buildSessionConversationContext(sessionManager.getMessages(), {
             budgetTokens: getDefaultSessionContextBudgetTokens({ modelId: modelIdForBudget }),
+            summaryState: sessionManager.getSummaryState(),
           })
         : [];
 
