@@ -259,6 +259,100 @@ describe('Headless protocol integration', () => {
     });
   }, 120000);
 
+  it('fails fast when context cache path is outside allowed roots in headless stream-json', async () => {
+    const repo = await helper.createGitRepo();
+    await helper.writeFile(
+      repo.path,
+      '.salmonloop/config/config.json',
+      JSON.stringify(
+        {
+          version: 1,
+          context: {
+            cache: {
+              mode: 'persistent',
+              path: '../outside/context-cache.json',
+              allowedRoots: ['.salmonloop/cache'],
+            },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    const { exitCode, stdout } = await runCli([
+      '-r',
+      repo.path,
+      '-p',
+      'hello',
+      '--output-format',
+      'stream-json',
+      '--mode',
+      'review',
+    ]);
+
+    expect(exitCode).toBe(1);
+    const lines = stdout
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => JSON.parse(line) as any);
+    const retryEvents = lines.filter((line) => line.event?.type === 'retry');
+    const resultEvent = lines.find((line) => line.event?.type === 'result');
+    expect(retryEvents).toHaveLength(0);
+    expect(resultEvent?.event?.error_code).toBe('PERMISSION_DENIED_CONTEXT_CACHE_OUTSIDE_ROOT');
+    expect(lines[lines.length - 1]).toMatchObject({
+      event: { type: 'end', success: false, exit_code: 1 },
+    });
+  }, 120000);
+
+  it('allows one-off outside-root context cache path with --allow-outside-cache-root in headless stream-json', async () => {
+    const repo = await helper.createGitRepo();
+    await helper.writeFile(
+      repo.path,
+      '.salmonloop/config/config.json',
+      JSON.stringify(
+        {
+          version: 1,
+          context: {
+            cache: {
+              mode: 'persistent',
+              path: '../outside/context-cache.json',
+              allowedRoots: ['.salmonloop/cache'],
+            },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    const { exitCode, stdout } = await runCli([
+      '-r',
+      repo.path,
+      '-p',
+      'hello',
+      '--output-format',
+      'stream-json',
+      '--mode',
+      'review',
+      '--allow-outside-cache-root',
+    ]);
+
+    expect(exitCode).toBe(0);
+    const lines = stdout
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => JSON.parse(line) as any);
+    const retryEvents = lines.filter((line) => line.event?.type === 'retry');
+    const resultEvent = lines.find((line) => line.event?.type === 'result');
+    expect(retryEvents).toHaveLength(0);
+    expect(resultEvent?.event?.success).toBe(true);
+    expect(resultEvent?.event?.error_code).toBeUndefined();
+    expect(lines[lines.length - 1]).toMatchObject({
+      event: { type: 'end', success: true, exit_code: 0 },
+    });
+  }, 120000);
+
   it('emits machine-readable errors when --resume session is missing in headless stream-json (native)', async () => {
     const repo = await helper.createGitRepo();
 
