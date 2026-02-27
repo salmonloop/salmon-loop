@@ -40,10 +40,13 @@ describe('Reflection Engine Integration', () => {
 
     const input = {
       instruction: 'add export',
+      metadata: {
+        packageJson: { dependencies: { typescript: '^5.0.0' } },
+      },
       history: [
         {
           attempt: 1,
-          error: 'Target environment failed: default export not allowed',
+          error: 'SyntaxError: Export declarations are not supported',
           plan: { goal: 'test' },
           patch: '',
           contextSummary: '',

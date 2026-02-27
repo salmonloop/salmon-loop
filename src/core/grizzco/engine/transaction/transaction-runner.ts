@@ -157,6 +157,7 @@ export class FlowTransactionRunner {
             instruction: this.params.options.instruction,
             history: this.historyEntries,
             success: true,
+            metadata: shrinkCtx?.context?.projectMetadata,
             finalPlan: shrinkCtx?.plan,
             finalPatch: shrinkCtx?.diff,
           };
