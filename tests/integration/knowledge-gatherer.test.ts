@@ -20,25 +20,30 @@ describe('KnowledgeGatherer', () => {
     await mkdir(testRepo, { recursive: true });
   });
 
-  test('should read project rules from knowledge.json', async () => {
+  test('should read project rules from aggregated knowledge files', async () => {
     const indexPath = getDefaultIndexPath(testRepo);
-    await mkdir(indexPath, { recursive: true });
+    const knowledgeDir = safeJoin(indexPath, 'knowledge');
+    await mkdir(knowledgeDir, { recursive: true });
 
-    const knowledgeData = {
-      project_rules: ['Always use TDD'],
-      user_preferences: 'Prefers functional style',
-    };
-
-    await writeFile(safeJoin(indexPath, 'knowledge.json'), JSON.stringify(knowledgeData));
+    // Simulate two rule update events
+    await writeFile(
+      safeJoin(knowledgeDir, '100-project_rules.json'),
+      JSON.stringify({ project_rules: ['Old Rule'] }),
+    );
+    await writeFile(
+      safeJoin(knowledgeDir, '200-project_rules.json'),
+      JSON.stringify({ project_rules: ['New Rule'] }),
+    );
 
     const gatherer = new KnowledgeGatherer();
     const result = await gatherer.gather(mockReq);
 
-    expect(result.project_rules).toContain('Always use TDD');
-    expect(result.user_preferences).toBe('Prefers functional style');
+    // Last-Writer-Wins
+    expect(result.project_rules).toContain('New Rule');
+    expect(result.project_rules).not.toContain('Old Rule');
   });
 
-  test('should return empty knowledge if file does not exist', async () => {
+  test('should return empty knowledge if directory does not exist', async () => {
     const gatherer = new KnowledgeGatherer();
     const result = await gatherer.gather(mockReq);
 

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { readFile, writeFile, mkdir } from '../../adapters/fs/node-fs.js';
+import { writeFile, mkdir } from '../../adapters/fs/node-fs.js';
 import { getDefaultIndexPath } from '../../config/paths.js';
 import { Phase } from '../../types/index.js';
 import { safeJoin } from '../../utils/path.js';
@@ -44,45 +44,44 @@ export async function executeUpdateKnowledge(
 ) {
   const { repoRoot } = ctx;
   const indexPath = getDefaultIndexPath(repoRoot);
-  const knowledgeFile = safeJoin(indexPath, 'knowledge.json');
+  const knowledgeDir = safeJoin(indexPath, 'knowledge');
 
-  let currentKnowledge: any = {};
-  try {
-    const content = await readFile(knowledgeFile, 'utf-8');
-    currentKnowledge = JSON.parse(content);
-  } catch {
-    // New file or invalid JSON
-  }
+  // Use high-resolution timestamp + category for unique append-only filenames
+  const timestamp = Date.now();
+  const fileName = `${timestamp}-${input.category}.json`;
+  const filePath = safeJoin(knowledgeDir, fileName);
 
+  let dataToSave: any = {};
   switch (input.category) {
     case 'project_rules':
-      currentKnowledge.project_rules = input.rules;
+      dataToSave = { project_rules: input.rules };
       break;
     case 'architectural_decisions':
-      if (!currentKnowledge.architectural_decisions) {
-        currentKnowledge.architectural_decisions = [];
-      }
-      currentKnowledge.architectural_decisions.push({
-        date: new Date().toISOString().split('T')[0],
-        decision: input.decision,
-        related_files: input.related_files,
-      });
+      dataToSave = {
+        architectural_decisions: [
+          {
+            date: new Date().toISOString().split('T')[0],
+            decision: input.decision,
+            related_files: input.related_files,
+          },
+        ],
+      };
       break;
     case 'user_preferences':
-      currentKnowledge.user_preferences = input.preferences;
+      dataToSave = { user_preferences: input.preferences };
       break;
   }
 
   try {
-    await mkdir(indexPath, { recursive: true });
-    await writeFile(knowledgeFile, JSON.stringify(currentKnowledge, null, 2));
+    await mkdir(knowledgeDir, { recursive: true });
+    await writeFile(filePath, JSON.stringify(dataToSave, null, 2));
     return {
       success: true,
-      message: `Successfully updated knowledge category: ${input.category}`,
+      message: `Successfully recorded knowledge event: ${fileName}`,
     };
   } catch (e) {
     throw new Error(
-      `Failed to update knowledge base: ${e instanceof Error ? e.message : String(e)}`,
+      `Failed to record knowledge event: ${e instanceof Error ? e.message : String(e)}`,
     );
   }
 }
