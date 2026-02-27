@@ -109,9 +109,14 @@ export interface PreflightCtx extends InitCtx {
 }
 
 /**
+ * Stage 1.5: After Dependency Preparation
+ */
+export type PrepareDepsCtx = PreflightCtx;
+
+/**
  * Stage 2: After Context Discovery
  */
-export interface ContextCtx extends PreflightCtx {
+export interface ContextCtx extends PrepareDepsCtx {
   context: Context; // ContextBuilder result
   contextResult?: import('../../../context/types.js').ContextResult; // For budget tracking
 }

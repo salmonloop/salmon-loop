@@ -6,9 +6,9 @@ import type { ContextResult } from '../../context/types.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
 import { CheckpointManager } from '../../strata/checkpoint/manager.js';
 import { Step } from '../engine/pipeline/pipeline.js';
-import { ContextCtx, PreflightCtx } from '../engine/pipeline/types.js';
+import { ContextCtx, PrepareDepsCtx } from '../engine/pipeline/types.js';
 
-export const buildContext: Step<PreflightCtx, ContextCtx> = async (ctx) => {
+export const buildContext: Step<PrepareDepsCtx, ContextCtx> = async (ctx) => {
   if (ctx.initialContext) {
     ctx.emit({
       type: 'log',

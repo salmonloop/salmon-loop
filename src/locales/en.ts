@@ -438,6 +438,7 @@ Please return the patch in PURE unified diff format:`;
   // Progress bar and interactive feedback
   progress: {
     preflight: 'Preflight checks',
+    prepare_deps: 'Preparing dependencies',
     context: 'Gathering context',
     explore: 'Exploring codebase',
     plan: 'Creating plan',

@@ -13,6 +13,7 @@ import { generateReview } from '../steps/generateReview.js';
 import { generatePatch } from '../steps/patch.js';
 import { generatePlan } from '../steps/plan.js';
 import { runPreflight } from '../steps/preflight.js';
+import { runPrepareDeps } from '../steps/prepare-deps.js';
 import { runReviewShrink } from '../steps/review-shrink.js';
 import { runRollback, runEmergencyRollback } from '../steps/rollback.js';
 import { runShrink } from '../steps/shrink.js';
@@ -26,6 +27,7 @@ type ModePipeline = Pipeline<ReviewCtx> | Pipeline<ShrinkCtx>;
 function buildBasePipeline(initCtx: InitCtx): Pipeline<ExploreCtx> {
   return Pipeline.of(initCtx)
     .step('PREFLIGHT', runPreflight)
+    .step('PREPARE_DEPS', runPrepareDeps)
     .step('CONTEXT', buildContext)
     .step('EXPLORE', exploreCodebase);
 }

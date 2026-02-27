@@ -277,6 +277,7 @@ export function useLoopEvents(
           // Explicit mapping: Add blue label messages to the UI list when key phases start
           const phaseTypeMap: Record<string, MessageType> = {
             PREFLIGHT: 'preflight_step',
+            PREPARE_DEPS: 'preflight_step',
             CONTEXT: 'context_step',
             EXPLORE: 'explore_step',
             PLAN: 'plan_step',

@@ -18,6 +18,7 @@ export interface FileSystem {
  */
 export const EXECUTION_PHASES = [
   'PREFLIGHT',
+  'PREPARE_DEPS',
   'CONTEXT',
   'EXPLORE',
   'PLAN',
@@ -41,6 +42,7 @@ export const Phase = {
   // It is intentionally excluded from EXECUTION_PHASES to avoid impacting the main SalmonLoop flow.
   SLASH: 'SLASH',
   PREFLIGHT: 'PREFLIGHT',
+  PREPARE_DEPS: 'PREPARE_DEPS',
   CONTEXT: 'CONTEXT',
   EXPLORE: 'EXPLORE',
   PLAN: 'PLAN',
