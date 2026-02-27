@@ -1,3 +1,5 @@
+import { builtinModules } from 'module';
+
 import type { EnvironmentMode, ExecutionPhase, LoopReasonCode } from '../types/index.js';
 
 export interface FailureGuidance {
@@ -27,6 +29,35 @@ function extractMissingModule(output: string): string | undefined {
   return undefined;
 }
 
+const BUILTIN_MODULES = new Set(builtinModules.map((name) => name.replace(/^node:/, '')));
+const SAFE_PACKAGE_NAME_PATTERN = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/;
+
+function isBarePackageSpecifier(specifier: string): boolean {
+  const trimmed = specifier.trim();
+  if (!trimmed) return false;
+  if (trimmed.startsWith('.') || trimmed.startsWith('/') || trimmed.startsWith('\\')) return false;
+  if (trimmed.startsWith('node:') || trimmed.startsWith('#')) return false;
+  if (trimmed.startsWith('~/') || trimmed.startsWith('@/')) return false;
+  if (/^[a-zA-Z]:[\\/]/.test(trimmed)) return false;
+  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(trimmed)) return false;
+  if (BUILTIN_MODULES.has(trimmed)) return false;
+  return true;
+}
+
+function extractPackageName(specifier: string): string | undefined {
+  if (!isBarePackageSpecifier(specifier)) return undefined;
+  if (specifier.startsWith('@')) {
+    const [scope, name] = specifier.split('/');
+    if (!scope || !name) return undefined;
+    return `${scope}/${name}`;
+  }
+  return specifier.split('/')[0] || undefined;
+}
+
+function isSafePackageName(packageName: string): boolean {
+  return SAFE_PACKAGE_NAME_PATTERN.test(packageName);
+}
+
 function inferInstallCommand(output: string, pkg: string): string {
   const lower = output.toLowerCase();
   if (lower.includes('pnpm')) return `pnpm add ${pkg}`;
@@ -35,24 +66,34 @@ function inferInstallCommand(output: string, pkg: string): string {
   return `bun add ${pkg}`;
 }
 
+function buildGenericDependencyGuidance(): FailureGuidance {
+  return {
+    diagnosticCode: 'VERIFY_DEPENDENCY_ERROR',
+    safeHint:
+      'Verification failed because dependency setup is incomplete in the execution environment.',
+    remediationSteps: [
+      'Install project dependencies in the repository root and retry.',
+      'If this keeps failing, ensure all imported packages are declared in package.json.',
+    ],
+  };
+}
+
 function buildDependencyGuidance(input: BuildFailureGuidanceInput): FailureGuidance | undefined {
   if (input.reasonCode !== 'VERIFY_FAILED') return undefined;
   const output = input.verifyOutput || '';
-  const missingModule = extractMissingModule(output);
-  if (!missingModule) {
+  const missingSpecifier = extractMissingModule(output);
+  if (!missingSpecifier) {
     if (input.errorCode !== 'dependency_error') return undefined;
-    return {
-      diagnosticCode: 'VERIFY_DEPENDENCY_ERROR',
-      safeHint:
-        'Verification failed because dependency setup is incomplete in the execution environment.',
-      remediationSteps: [
-        'Install project dependencies in the repository root and retry.',
-        'If this keeps failing, ensure all imported packages are declared in package.json.',
-      ],
-    };
+    return buildGenericDependencyGuidance();
   }
 
-  const installCommand = inferInstallCommand(output, missingModule);
+  const packageName = extractPackageName(missingSpecifier);
+  if (!packageName || !isSafePackageName(packageName)) {
+    if (input.errorCode !== 'dependency_error') return undefined;
+    return buildGenericDependencyGuidance();
+  }
+
+  const installCommand = inferInstallCommand(output, packageName);
   const modeHint =
     input.environmentMode === 'strict'
       ? 'strict mode uses an isolated worktree and does not inherit parent-level node_modules.'
@@ -60,7 +101,7 @@ function buildDependencyGuidance(input: BuildFailureGuidanceInput): FailureGuida
 
   return {
     diagnosticCode: 'UNDECLARED_DEPENDENCY',
-    safeHint: `Missing declared dependency '${missingModule}' in verification environment.`,
+    safeHint: `Missing declared dependency '${packageName}' in verification environment.`,
     remediationSteps: [
       `Declare and install it in this project (for example: \`${installCommand}\`).`,
       'Commit the updated lockfile so isolated environments can reproduce dependencies.',
