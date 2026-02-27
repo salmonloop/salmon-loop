@@ -9,6 +9,7 @@ import { defaultContextServiceDeps } from './service-deps.js';
 import { buildContextBudgetStep } from './steps/context-budget.js';
 import { buildContextGatherStep } from './steps/context-gather.js';
 import { buildContextPrimaryStep } from './steps/context-primary.js';
+import { buildContextPromotionStep } from './steps/context-promotion.js';
 import { buildContextTargetsStep } from './steps/context-targets.js';
 import type { ContextRequest, ContextResult, DiffScope } from './types.js';
 
@@ -40,6 +41,7 @@ export class ContextService {
       .step('CONTEXT_PRIMARY', buildContextPrimaryStep(this.deps))
       .step('CONTEXT_GATHER', buildContextGatherStep(this.deps))
       .step('CONTEXT_TARGETS', buildContextTargetsStep(this.deps))
+      .step('CONTEXT_PROMOTION', buildContextPromotionStep(this.deps))
       .step('CONTEXT_BUDGET', buildContextBudgetStep(this.deps))
       .execute();
     if (!report.success) {

@@ -8,12 +8,14 @@ export const CONTEXT_AUDIT_ACTION = {
   relevanceRanking: 'context.relevance.ranking',
   packSummary: 'context.pack.summary',
   shrinkSummary: 'context.shrink.summary',
+  promotionCompleted: 'context.promotion.completed',
 } as const;
 
 export const CONTEXT_AUDIT_PHASE = {
   primary: 'CONTEXT_PRIMARY',
   gather: 'CONTEXT_GATHER',
   targets: 'CONTEXT_TARGETS',
+  promotion: 'CONTEXT_PROMOTION',
   budget: 'CONTEXT_BUDGET',
   shrink: 'SHRINK',
 } as const;
