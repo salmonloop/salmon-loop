@@ -141,6 +141,15 @@ export interface Context {
   analysis?: ContextAnalysis;
   repoMap?: RepoMap;
   symbolMap?: SymbolMap;
+  projectMetadata?: {
+    packageJson?: any;
+    readmeHeader?: string;
+    configFiles?: string[];
+    aiInstructions?: string;
+  };
+  gitHistory?: {
+    recentCommits?: string;
+  };
 }
 
 export interface FileContext {

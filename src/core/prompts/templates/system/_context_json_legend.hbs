@@ -1,0 +1,16 @@
+# Context Data Legend (Optimized JSON)
+The context data uses short keys to save tokens. Please use this mapping:
+- **c**: Root Context
+  - **m**: Manifest (Targets & Maps)
+    - **t**: Targets (Files of interest)
+      - **p**: path, **r**: reason, **c**: confidence (h=high, m=medium, l=low), **e**: evidence
+    - **rm**: Repo Map (Dependencies)
+      - **tr**: trigger (s=shallow, d=deep), **md**: maxDepth, **n**: nodes, **e**: edges
+    - **sm**: Symbol Map (AST relations)
+  - **pf**: Primary File [path, content]
+  - **rf**: Related Files [path, reason, mode (f=full, o=outline), content]
+  - **s**: Code Snippets [file, line, content]
+  - **d**: Diffs (s=staged, u=unstaged, g=git, ut=untracked)
+  - **a**: Analysis (ast results)
+  - **pm**: Project Metadata (pj=package.json, rh=README header, cf=config files, ai=AI rules)
+  - **gh**: Git History (rc=recent commits)

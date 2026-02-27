@@ -41,6 +41,8 @@ export interface ContextGatherCtx extends ContextPrimaryCtx {
   rgSnippets: Context['rgSnippets'];
   diff: ContextDiffBundle;
   ast: ContextAstBundle;
+  projectMetadata: Context['projectMetadata'];
+  gitHistory: Context['gitHistory'];
 }
 
 export interface ContextTargetsCtx extends ContextPipelineInitCtx {
@@ -57,4 +59,6 @@ export interface ContextTargetsCtx extends ContextPipelineInitCtx {
   analysis: Context['analysis'];
   repoMap?: Context['repoMap'];
   symbolMap?: Context['symbolMap'];
+  projectMetadata: Context['projectMetadata'];
+  gitHistory: Context['gitHistory'];
 }

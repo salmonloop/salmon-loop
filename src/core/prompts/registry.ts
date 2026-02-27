@@ -11,6 +11,10 @@ import type { ExplorePromptVars, PatchPromptVars, PlanPromptVars } from './schem
 const TEMPLATE_URLS: Record<string, URL> = {
   'system/_tool_defs.hbs': new URL('./templates/system/_tool_defs.hbs', import.meta.url),
   'system/main_system.hbs': new URL('./templates/system/main_system.hbs', import.meta.url),
+  'system/_context_json_legend.hbs': new URL(
+    './templates/system/_context_json_legend.hbs',
+    import.meta.url,
+  ),
   'system/explore_system.hbs': new URL('./templates/system/explore_system.hbs', import.meta.url),
   'system/plan_system.hbs': new URL('./templates/system/plan_system.hbs', import.meta.url),
   'system/patch_system.hbs': new URL('./templates/system/patch_system.hbs', import.meta.url),
@@ -29,8 +33,13 @@ export class PromptRegistry {
 
     this.initPromise = (async () => {
       Handlebars.registerHelper('json', (context) => JSON.stringify(context, null, 2));
+      Handlebars.registerHelper(
+        'is_json',
+        (context) => typeof context === 'string' && context.trim().startsWith('{'),
+      );
 
       await this.registerPartial('tool_defs', 'system/_tool_defs.hbs');
+      await this.registerPartial('context_json_legend', 'system/_context_json_legend.hbs');
       await this.registerPartial('main_system', 'system/main_system.hbs');
 
       await this.loadTemplate('explore_system', 'system/explore_system.hbs');

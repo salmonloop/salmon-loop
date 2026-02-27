@@ -7,6 +7,9 @@ You are a code modification assistant. Please generate a detailed modification p
 - **Untracked Files**: New files that are not yet tracked by git.
 
 # Context Data
+{{#if (is_json context)}}
+{{> context_json_legend}}
+{{/if}}
 {{{context}}}
 
 # Instruction

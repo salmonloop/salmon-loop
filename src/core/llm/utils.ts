@@ -1,11 +1,22 @@
 import { text } from '../../locales/index.js';
 import { LIMITS } from '../config/limits.js';
+import { ContextFormatConverter } from '../context/formatters/json-converter.js';
 import { formatContextForXmlPrompt } from '../context/formatters/xml-context.js';
 import type { Context, Plan } from '../types/index.js';
 
 import { wrapPatchEmpty } from './errors.js';
 
-export function formatContextForPrompt(context: Context): string {
+export interface FormatOptions {
+  format?: 'xml' | 'json';
+}
+
+export function formatContextForPrompt(context: Context, options: FormatOptions = {}): string {
+  const format = options.format ?? 'json';
+
+  if (format === 'json') {
+    return JSON.stringify(ContextFormatConverter.contextToJson(context));
+  }
+
   return formatContextForXmlPrompt(context);
 }
 

@@ -16,10 +16,12 @@ export function buildContextGatherStep(deps: ContextServiceDeps) {
       { source: 'context', severity: 'low', scope: 'session', phase: CONTEXT_AUDIT_PHASE.gather },
     );
 
-    const [rgSnippets, diffRes, astRes] = await Promise.all([
+    const [rgSnippets, diffRes, astRes, projectMetadata, gitHistory] = await Promise.all([
       deps.ripgrepGatherer.searchMultipleKeywords(keywords, req.repoPath, req.signal),
       deps.gitDiffGatherer.gather({ ...req, diffScope }),
       deps.astGatherer.gather(primaryText, req),
+      deps.metadataGatherer.gather(req),
+      deps.gitHistoryGatherer.gather(req),
     ]);
     assertNotAborted(req.signal);
 
@@ -31,6 +33,8 @@ export function buildContextGatherStep(deps: ContextServiceDeps) {
         importedFiles: astRes.relatedFiles.length,
         syntaxErrors: astRes.syntaxErrors?.length ?? 0,
         hasParseError: Boolean(astRes.parseError),
+        hasProjectMetadata: Boolean(projectMetadata),
+        hasGitHistory: Boolean(gitHistory),
       },
       { source: 'context', severity: 'low', scope: 'session', phase: CONTEXT_AUDIT_PHASE.gather },
     );
@@ -40,6 +44,8 @@ export function buildContextGatherStep(deps: ContextServiceDeps) {
       diffScope,
       primaryText,
       rgSnippets,
+      projectMetadata,
+      gitHistory,
       diff: {
         includedFiles: diffRes.includedFiles,
         stagedDiff: diffRes.stagedDiff,

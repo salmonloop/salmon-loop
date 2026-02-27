@@ -6,6 +6,6 @@ import type { PromptAssembler } from './prompt-assembler.js';
 
 export class DefaultPromptAssembler implements PromptAssembler {
   assemble(context: Context, _req: ContextRequest) {
-    return { prompt: formatContextForPrompt(context) };
+    return { prompt: formatContextForPrompt(context, { format: 'json' }) };
   }
 }

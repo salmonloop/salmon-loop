@@ -10,6 +10,9 @@ You are a code modification assistant. Please generate a unified diff format pat
 {{{plan}}}
 
 # Context Data
+{{#if (is_json context)}}
+{{> context_json_legend}}
+{{/if}}
 {{{context}}}
 {{#if targetFiles}}
 # Target Files

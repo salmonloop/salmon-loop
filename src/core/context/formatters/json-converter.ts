@@ -97,6 +97,21 @@ export class ContextFormatConverter {
       jsonContext.a = this.convertAnalysis(context.analysis!);
     }
 
+    if (context.projectMetadata) {
+      jsonContext.pm = {
+        pj: context.projectMetadata.packageJson,
+        rh: context.projectMetadata.readmeHeader,
+        cf: context.projectMetadata.configFiles,
+        ai: context.projectMetadata.aiInstructions,
+      };
+    }
+
+    if (context.gitHistory) {
+      jsonContext.gh = {
+        rc: context.gitHistory.recentCommits,
+      };
+    }
+
     return {
       c: jsonContext,
     };

@@ -11,6 +11,8 @@ export function buildContextTargetsStep(deps: ContextServiceDeps) {
     diffScope,
     primaryText,
     rgSnippets,
+    projectMetadata,
+    gitHistory,
     diff,
     ast,
   }: ContextGatherCtx): Promise<ContextTargetsCtx> => {
@@ -64,6 +66,8 @@ export function buildContextTargetsStep(deps: ContextServiceDeps) {
       primaryText,
       rgSnippets,
       targets,
+      projectMetadata,
+      gitHistory,
       includedFiles: diff.includedFiles,
       stagedDiff: diff.stagedDiff,
       unstagedDiff: diff.unstagedDiff,

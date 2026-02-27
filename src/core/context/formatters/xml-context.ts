@@ -292,12 +292,57 @@ function renderUntrackedFiles(files: string[] | undefined): string[] {
   return out;
 }
 
+function renderMetadata(context: Context): string[] {
+  const out: string[] = [];
+  const meta = context.projectMetadata;
+  if (!meta) return out;
+
+  out.push('  <project_metadata>');
+  if (meta.packageJson) {
+    out.push('    <package_json>');
+    out.push(cdataBlock(JSON.stringify(meta.packageJson, null, 2), '      '));
+    out.push('    </package_json>');
+  }
+  if (meta.readmeHeader) {
+    out.push('    <readme_header>');
+    out.push(cdataBlock(meta.readmeHeader, '      '));
+    out.push('    </readme_header>');
+  }
+  if (meta.aiInstructions) {
+    out.push('    <ai_instructions>');
+    out.push(cdataBlock(meta.aiInstructions, '      '));
+    out.push('    </ai_instructions>');
+  }
+  if (meta.configFiles && meta.configFiles.length > 0) {
+    out.push('    <config_files>');
+    for (const file of meta.configFiles) {
+      out.push(`      <file path="${escapeXmlAttr(file)}" />`);
+    }
+    out.push('    </config_files>');
+  }
+  out.push('  </project_metadata>');
+  return out;
+}
+
+function renderGitHistory(context: Context): string[] {
+  const out: string[] = [];
+  const history = context.gitHistory;
+  if (!history?.recentCommits) return out;
+
+  out.push('  <git_history>');
+  out.push(cdataBlock(history.recentCommits, '    '));
+  out.push('  </git_history>');
+  return out;
+}
+
 export function formatContextForXmlPrompt(context: Context): string {
   const out: string[] = [];
   out.push('<context>');
 
   out.push(...renderManifest(context));
   out.push(...renderAnalysis(context));
+  out.push(...renderMetadata(context));
+  out.push(...renderGitHistory(context));
   out.push(...renderPrimaryFile(context));
   out.push(...renderRelatedFiles(context.relatedFiles));
   out.push(...renderSnippets(context.rgSnippets));

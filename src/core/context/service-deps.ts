@@ -3,6 +3,8 @@ import type { PromptAssembler } from './assembly/prompt-assembler.js';
 import { PromptCachingManager } from './cache/prompt-caching.js';
 import { AstGatherer } from './gatherers/ast-gatherer.js';
 import { GitDiffGatherer } from './gatherers/git-diff-gatherer.js';
+import { GitHistoryGatherer } from './gatherers/git-history-gatherer.js';
+import { MetadataGatherer } from './gatherers/metadata-gatherer.js';
 import { PrimaryTextGatherer } from './gatherers/primary-text-gatherer.js';
 import { RipgrepGatherer } from './gatherers/ripgrep-gatherer.js';
 import { TargetResolver } from './targeting/target-resolver.js';
@@ -12,6 +14,8 @@ export interface ContextServiceDeps {
   ripgrepGatherer: RipgrepGatherer;
   gitDiffGatherer: GitDiffGatherer;
   astGatherer: AstGatherer;
+  metadataGatherer: MetadataGatherer;
+  gitHistoryGatherer: GitHistoryGatherer;
   targetResolver: TargetResolver;
   assembler: PromptAssembler;
   promptCachingManager: PromptCachingManager;
@@ -23,6 +27,8 @@ export function defaultContextServiceDeps(): ContextServiceDeps {
     ripgrepGatherer: new RipgrepGatherer(),
     gitDiffGatherer: new GitDiffGatherer(),
     astGatherer: new AstGatherer(),
+    metadataGatherer: new MetadataGatherer(),
+    gitHistoryGatherer: new GitHistoryGatherer(),
     targetResolver: new TargetResolver(),
     assembler: new DefaultPromptAssembler(),
     promptCachingManager: new PromptCachingManager(),

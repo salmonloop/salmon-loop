@@ -15,6 +15,19 @@ export interface JsonContext {
   s?: [string, number, string][]; // snippets [file, line, content]
   d?: JsonDiffs; // diffs
   a?: JsonAnalysis; // analysis
+  pm?: JsonProjectMetadata; // projectMetadata
+  gh?: JsonGitHistory; // gitHistory
+}
+
+export interface JsonGitHistory {
+  rc?: string; // recentCommits
+}
+
+export interface JsonProjectMetadata {
+  pj?: any; // packageJson
+  rh?: string; // readmeHeader
+  cf?: string[]; // configFiles
+  ai?: string; // aiInstructions
 }
 
 // 目标清单（精简字段名）
