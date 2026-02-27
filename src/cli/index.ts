@@ -89,6 +89,7 @@ program
   .option('--output-profile <profile>', text.cli.outputProfileOption)
   .option('--headless-include-tool-input', text.cli.headlessIncludeToolInputOption)
   .option('--headless-include-tool-output', text.cli.headlessIncludeToolOutputOption)
+  .option('--allow-outside-cache-root', text.cli.allowOutsideCacheRootOption)
   .option(
     '--headless-include-authorization-decisions',
     text.cli.headlessIncludeAuthorizationDecisionsOption,
@@ -167,6 +168,7 @@ program
   .option('-s, --selection <text>', text.cli.selectionOption)
   .option('--diff-scope <scope>', text.cli.contextDiffScopeOption, 'primary')
   .option('--budget-chars <n>', text.cli.contextBudgetCharsOption)
+  .option('--allow-outside-cache-root', text.cli.allowOutsideCacheRootOption)
   .action(handleContextCommand);
 
 // --- Command: Chat ---

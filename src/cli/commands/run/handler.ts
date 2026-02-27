@@ -61,6 +61,7 @@ export async function handleRunCommand(options: any, command: Command) {
   const headlessIncludeToolInput = parsed.headlessIncludeToolInput;
   const headlessIncludeToolOutput = parsed.headlessIncludeToolOutput;
   const headlessIncludeAuthorizationDecisions = parsed.headlessIncludeAuthorizationDecisions;
+  const allowOutsideCacheRoot = parsed.allowOutsideCacheRoot;
   const stdoutWriter = createStdoutWriter();
 
   const instruction = parsed.instruction;
@@ -361,6 +362,7 @@ export async function handleRunCommand(options: any, command: Command) {
       headlessIncludeToolInput,
       headlessIncludeToolOutput,
       headlessIncludeAuthorizationDecisions,
+      allowOutsideCacheRoot,
       permissionRules:
         allowedToolRules.length > 0 || disallowedToolRules.length > 0
           ? { allow: allowedToolRules, deny: disallowedToolRules }

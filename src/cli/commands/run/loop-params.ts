@@ -28,6 +28,7 @@ export function buildRunLoopParams(params: {
   headlessIncludeToolInput: boolean;
   headlessIncludeToolOutput: boolean;
   headlessIncludeAuthorizationDecisions: boolean;
+  allowOutsideCacheRoot: boolean;
   permissionRules?: { allow: string[]; deny: string[] };
 }) {
   return {
@@ -50,6 +51,7 @@ export function buildRunLoopParams(params: {
     langfuseSessionId: params.langfuseSessionId,
     langfuseUserId: params.langfuseUserId,
     astValidation: params.astValidation,
+    allowOutsideCacheRoot: params.allowOutsideCacheRoot,
     authorizationProvider: createTerminalAuthorizationProvider({
       config: params.toolAuthorization,
       extensions: params.extensions,

@@ -1,4 +1,5 @@
 import type { ConfigFileV1 } from '../../config/types.js';
+import type { PermissionGate } from '../../permission-gate/gate.js';
 
 import { resolveContextCachePath } from './path-resolver.js';
 import {
@@ -7,16 +8,17 @@ import {
   type ContextCacheStore,
 } from './store.js';
 
-export function createContextCacheStore(
+export async function createContextCacheStore(
   repoPath: string,
   rawConfig?: ConfigFileV1,
-): {
+  options?: { permissionGate?: PermissionGate },
+): Promise<{
   store: ContextCacheStore;
   maxEntries?: number;
   ttlMs?: number;
-} {
+}> {
   const cacheConfig = rawConfig?.context?.cache;
-  const pathResolution = resolveContextCachePath(repoPath, rawConfig);
+  const pathResolution = await resolveContextCachePath(repoPath, rawConfig, options);
   const maxEntries =
     typeof cacheConfig?.maxEntries === 'number' && cacheConfig.maxEntries > 0
       ? Math.floor(cacheConfig.maxEntries)

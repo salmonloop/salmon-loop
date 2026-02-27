@@ -8,13 +8,13 @@ import {
 } from '../../../src/core/context/cache/store.js';
 
 describe('createContextCacheStore', () => {
-  it('defaults to memory store when cache mode is not configured', () => {
-    const created = createContextCacheStore('/repo', undefined);
+  it('defaults to memory store when cache mode is not configured', async () => {
+    const created = await createContextCacheStore('/repo', undefined);
     expect(created.store).toBeInstanceOf(MemoryContextCacheStore);
   });
 
-  it('creates persistent store when cache.mode is persistent', () => {
-    const created = createContextCacheStore('/repo', {
+  it('creates persistent store when cache.mode is persistent', async () => {
+    const created = await createContextCacheStore('/repo', {
       context: {
         cache: {
           mode: 'persistent',
@@ -30,8 +30,8 @@ describe('createContextCacheStore', () => {
     expect(created.ttlMs).toBe(3456);
   });
 
-  it('throws when persistent cache path is outside allowed roots', () => {
-    expect(() =>
+  it('throws when persistent cache path is outside allowed roots', async () => {
+    await expect(
       createContextCacheStore('/repo', {
         context: {
           cache: {
@@ -41,6 +41,27 @@ describe('createContextCacheStore', () => {
           },
         },
       } as any),
-    ).toThrow(new ConfigError('CONFIG_INVALID_CONTEXT_CACHE_PATH_NOT_ALLOWED'));
+    ).rejects.toThrow(new ConfigError('PERMISSION_DENIED_CONTEXT_CACHE_OUTSIDE_ROOT'));
+  });
+
+  it('allows outside cache root with permission gate', async () => {
+    const created = await createContextCacheStore(
+      '/repo',
+      {
+        context: {
+          cache: {
+            mode: 'persistent',
+            path: '../outside/context-cache.json',
+            allowedRoots: ['.salmonloop/cache'],
+          },
+        },
+      } as any,
+      {
+        permissionGate: {
+          requestAuthorization: async () => ({ kind: 'allow', source: 'cli' as const }),
+        },
+      },
+    );
+    expect(created.store).toBeInstanceOf(PersistentContextCacheStore);
   });
 });

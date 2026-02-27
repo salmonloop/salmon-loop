@@ -249,6 +249,8 @@ export const en = {
     'Headless only: include tool output summary in stream-json output. Only valid with --output-format stream-json.',
   headlessIncludeAuthorizationDecisionsOption:
     'Headless only: include tool authorization decisions in headless output. Only valid with --output-format json or stream-json.',
+  allowOutsideCacheRootOption:
+    'Allow context cache persistent path outside configured allowed roots for this run only (high risk).',
   jsonSchemaOption:
     'JSON Schema for structured_output (file path or JSON string). Only valid with --output-format json.',
   llmOutputOption:

@@ -84,11 +84,7 @@ export class PersistentContextCacheStore implements ContextCacheStore {
         this.map.set(key, value);
       }
     } catch (error) {
-      const code =
-        error && typeof error === 'object' && 'code' in error
-          ? String((error as { code?: unknown }).code)
-          : '';
-      if (code === 'ENOENT') return;
+      if (this.isNotFoundError(error)) return;
       if (this.strict) {
         throw new Error(
           `Failed to load context cache from ${this.filePath}: ${
@@ -99,12 +95,24 @@ export class PersistentContextCacheStore implements ContextCacheStore {
     }
   }
 
+  private isNotFoundError(error: unknown): boolean {
+    if (!error || typeof error !== 'object') return false;
+    const maybeCode = 'code' in error ? String((error as { code?: unknown }).code ?? '') : '';
+    if (maybeCode === 'ENOENT') return true;
+    const maybeMessage =
+      'message' in error ? String((error as { message?: unknown }).message ?? '') : '';
+    return maybeMessage.includes('ENOENT');
+  }
+
   private async flushToDisk(): Promise<void> {
     const payload: PersistentPayload = {
       version: 1,
       entries: Object.fromEntries(this.map.entries()),
     };
-    await this.fileAdapter.writeFileAtomic(this.filePath, Buffer.from(JSON.stringify(payload), 'utf-8'));
+    await this.fileAdapter.writeFileAtomic(
+      this.filePath,
+      Buffer.from(JSON.stringify(payload), 'utf-8'),
+    );
   }
 
   async get(key: string): Promise<ContextCacheEntry | undefined> {

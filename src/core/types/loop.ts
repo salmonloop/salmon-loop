@@ -307,6 +307,7 @@ export interface RunOptions {
   };
   signal?: AbortSignal;
   budgetChars?: number;
+  allowOutsideCacheRoot?: boolean;
 }
 
 export interface LoopOptions {
@@ -350,6 +351,7 @@ export interface LoopOptions {
   selection?: string;
   expectedChanges?: string[];
   expectedFileContent?: { path: string; content: string }[];
+  allowOutsideCacheRoot?: boolean;
   strategy?: CheckpointStrategy;
   applyBackOnDirty?: ApplyBackOnDirty;
   astValidation?: {

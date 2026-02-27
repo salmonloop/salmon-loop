@@ -2,6 +2,7 @@ import { FileAdapter } from '../adapters/fs/file-adapter.js';
 import { defaultPathAdapter } from '../adapters/path/path-adapter.js';
 import { LIMITS } from '../config/limits.js';
 import { resolveConfig } from '../config/resolve.js';
+import { createDefaultPermissionGate } from '../permission-gate/default-gate.js';
 import { pluginRegistry } from '../plugin/registry.js';
 import { ErrorType, type Context, type RunOptions } from '../types/index.js';
 import { ensureInSandbox, normalizePath } from '../utils/path.js';
@@ -124,7 +125,11 @@ async function readRepoFileText(repoPath: string, relativePath: string): Promise
 export class ContextBuilder {
   static async build(options: RunOptions): Promise<ContextResult> {
     const config = await resolveConfig({ repoRoot: options.repoPath });
-    const cacheConfig = createContextCacheStore(options.repoPath, config.raw);
+    const cacheConfig = await createContextCacheStore(options.repoPath, config.raw, {
+      permissionGate: createDefaultPermissionGate({
+        allowOutsideCacheRoot: options.allowOutsideCacheRoot,
+      }),
+    });
     const service = new ContextService(
       {},
       {

@@ -6,6 +6,7 @@ import { createContextCacheStore } from '../../core/context/cache/store-factory.
 import { ContextService } from '../../core/context/index.js';
 import { setChurnRankingPolicy } from '../../core/context/targeting/churn-policy.js';
 import { logger } from '../../core/observability/logger.js';
+import { createDefaultPermissionGate } from '../../core/permission-gate/default-gate.js';
 import { text } from '../locales/index.js';
 
 export async function handleContextCommand(options: any, command: Command) {
@@ -46,7 +47,11 @@ export async function handleContextCommand(options: any, command: Command) {
     tieBreakWeight: resolvedConfig.raw?.context?.churn?.weight?.tiebreak,
   });
 
-  const cacheConfig = createContextCacheStore(repoPath, resolvedConfig.raw);
+  const cacheConfig = await createContextCacheStore(repoPath, resolvedConfig.raw, {
+    permissionGate: createDefaultPermissionGate({
+      allowOutsideCacheRoot: Boolean((allOptions as any).allowOutsideCacheRoot),
+    }),
+  });
   const service = new ContextService(
     {},
     {

@@ -57,6 +57,7 @@ export function parseRunCommandOptions(command: Command): RunCommandParsedOption
   const headlessIncludeAuthorizationDecisions = Boolean(
     (allOptions as any).headlessIncludeAuthorizationDecisions,
   );
+  const allowOutsideCacheRoot = Boolean((allOptions as any).allowOutsideCacheRoot);
 
   const instruction = explicitInstruction ?? printInstruction;
 
@@ -78,6 +79,7 @@ export function parseRunCommandOptions(command: Command): RunCommandParsedOption
     headlessIncludeToolInput,
     headlessIncludeToolOutput,
     headlessIncludeAuthorizationDecisions,
+    allowOutsideCacheRoot,
     allowedToolRules,
     disallowedToolRules,
   };

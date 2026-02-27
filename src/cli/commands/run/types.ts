@@ -28,6 +28,7 @@ export interface RunCommandParsedOptions {
   headlessIncludeToolInput: boolean;
   headlessIncludeToolOutput: boolean;
   headlessIncludeAuthorizationDecisions: boolean;
+  allowOutsideCacheRoot: boolean;
 }
 
 export interface RunCommandValidatedOptions extends RunCommandParsedOptions {
