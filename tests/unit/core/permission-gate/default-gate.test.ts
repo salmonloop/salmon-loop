@@ -33,4 +33,44 @@ describe('DefaultPermissionGate', () => {
     });
     expect(deferred?.kind).toBe('decision');
   });
+
+  it('delegates outside-root decision to authorization provider when configured', async () => {
+    const gate = createDefaultPermissionGate({
+      repoRoot: '/repo',
+      authorizationProvider: {
+        requestAuthorization: async () => ({ outcome: 'allow_once', source: 'user' }),
+      },
+    });
+    const decision = await gate.requestAuthorization({
+      action: 'context.cache.outside_root',
+      resource: '/outside/cache.json',
+      risk: 'high',
+    });
+    expect(decision.kind).toBe('allow');
+    expect(decision.source).toBe('user');
+  });
+
+  it('returns pending challenge when provider defers authorization', async () => {
+    const gate = createDefaultPermissionGate({
+      repoRoot: '/repo',
+      authorizationProvider: {
+        requestAuthorization: async () => ({ outcome: 'deny', source: 'user' }),
+        requestAuthorizationDeferred: async () => ({
+          kind: 'pending',
+          challenge: 'abc123',
+          message: 'approval required',
+        }),
+      },
+    });
+    const deferred = await gate.requestAuthorizationDeferred?.({
+      action: 'context.cache.outside_root',
+      resource: '/outside/cache.json',
+      risk: 'high',
+    });
+    expect(deferred).toEqual({
+      kind: 'pending',
+      challenge: 'abc123',
+      message: 'approval required',
+    });
+  });
 });

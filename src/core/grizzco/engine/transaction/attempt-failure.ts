@@ -51,6 +51,12 @@ function extractErrorCode(error: unknown): string | undefined {
   return undefined;
 }
 
+function extractErrorCodeFromTraces(flowReport: FlowReport): string | undefined {
+  const traceWithError = [...flowReport.traces].reverse().find((trace) => Boolean(trace.error));
+  if (!traceWithError) return undefined;
+  return extractErrorCode(traceWithError.error);
+}
+
 function sanitizeReason(value: unknown): string {
   const sanitized = sanitizeError(value) || text.loop.loopExecutionFailed;
   if (sanitized === REDACTED_ERROR_TOKEN) {
@@ -88,7 +94,7 @@ export function resolveAttemptFailure(params: {
     return undefined;
   }
 
-  const errorCode = extractErrorCode(flowReport.error);
+  const errorCode = extractErrorCode(flowReport.error) ?? extractErrorCodeFromTraces(flowReport);
 
   if (errorCode === 'PREFLIGHT_NOT_GIT') {
     return {

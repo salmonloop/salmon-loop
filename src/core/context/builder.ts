@@ -128,6 +128,8 @@ export class ContextBuilder {
     const cacheConfig = await createContextCacheStore(options.repoPath, config.raw, {
       permissionGate: createDefaultPermissionGate({
         allowOutsideCacheRoot: options.allowOutsideCacheRoot,
+        authorizationProvider: options.authorizationProvider,
+        repoRoot: options.repoPath,
       }),
     });
     const service = new ContextService(

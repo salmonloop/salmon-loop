@@ -1,8 +1,21 @@
+import { createHash } from 'crypto';
+
+import type { ToolAuthorizationProvider } from '../tools/authorization/types.js';
+
 import type { PermissionGate } from './gate.js';
 import type { PermissionDecision, PermissionRequest } from './types.js';
 
 class DefaultPermissionGate implements PermissionGate {
-  constructor(private readonly options: { allowOutsideCacheRoot?: boolean } = {}) {}
+  constructor(
+    private readonly options: {
+      allowOutsideCacheRoot?: boolean;
+      authorizationProvider?: ToolAuthorizationProvider;
+      repoRoot?: string;
+      worktreeRoot?: string;
+      attemptId?: number;
+      model?: string;
+    } = {},
+  ) {}
 
   async requestAuthorization(request: PermissionRequest): Promise<PermissionDecision> {
     if (
@@ -10,6 +23,11 @@ class DefaultPermissionGate implements PermissionGate {
       this.options.allowOutsideCacheRoot === true
     ) {
       return { kind: 'allow', source: 'cli', reason: 'allow-outside-cache-root' };
+    }
+    if (request.action === 'context.cache.outside_root' && this.options.authorizationProvider) {
+      const toolRequest = this.toToolAuthorizationRequest(request);
+      const decision = await this.options.authorizationProvider.requestAuthorization(toolRequest);
+      return this.mapAuthorizationDecision(decision);
     }
 
     return {
@@ -20,17 +38,92 @@ class DefaultPermissionGate implements PermissionGate {
   }
 
   async requestAuthorizationDeferred(request: PermissionRequest) {
+    if (
+      request.action === 'context.cache.outside_root' &&
+      this.options.allowOutsideCacheRoot === true
+    ) {
+      return {
+        kind: 'decision',
+        decision: { kind: 'allow', source: 'cli', reason: 'allow-outside-cache-root' },
+      } as const;
+    }
+    if (
+      request.action === 'context.cache.outside_root' &&
+      this.options.authorizationProvider?.requestAuthorizationDeferred
+    ) {
+      const toolRequest = this.toToolAuthorizationRequest(request);
+      const deferred =
+        await this.options.authorizationProvider.requestAuthorizationDeferred(toolRequest);
+      if (deferred.kind === 'pending') {
+        return deferred;
+      }
+      return {
+        kind: 'decision',
+        decision: this.mapAuthorizationDecision(deferred.decision),
+      } as const;
+    }
     const decision = await this.requestAuthorization(request);
     return { kind: 'decision', decision } as const;
   }
 
-  async waitForAuthorization(_requestId: string, _signal?: AbortSignal) {
-    return null;
+  async waitForAuthorization(requestId: string, signal?: AbortSignal) {
+    const provider = this.options.authorizationProvider;
+    if (!provider?.waitForAuthorization) return null;
+    const decision = await provider.waitForAuthorization(requestId, signal);
+    if (!decision) return null;
+    return this.mapAuthorizationDecision(decision);
+  }
+
+  private toToolAuthorizationRequest(request: PermissionRequest) {
+    const raw = `${request.action}|${request.resource}|${Date.now()}`;
+    const id = createHash('sha256').update(raw, 'utf8').digest('hex');
+    return {
+      id,
+      toolName: request.action,
+      source: 'builtin' as const,
+      phase: 'CONTEXT' as const,
+      riskLevel: request.risk === 'critical' ? 'high' : request.risk,
+      sideEffects: ['fs_write' as const],
+      argsSummary: request.resource,
+      repoRoot: this.options.repoRoot ?? '',
+      worktreeRoot: this.options.worktreeRoot,
+      attemptId: this.options.attemptId ?? 1,
+      model: this.options.model,
+      timestamp: Date.now(),
+    };
+  }
+
+  private mapAuthorizationDecision(decision: {
+    outcome: 'allow' | 'allow_once' | 'allow_session' | 'deny';
+    reason?: string;
+    source?: 'auto' | 'allowlist' | 'user' | 'cache' | 'cli' | 'hook';
+  }): PermissionDecision {
+    if (decision.outcome === 'deny') {
+      return {
+        kind: 'deny',
+        reason: decision.reason ?? 'denied',
+        source:
+          decision.source === 'auto' || decision.source === 'allowlist'
+            ? 'policy'
+            : decision.source,
+      };
+    }
+    return {
+      kind: 'allow',
+      reason: decision.reason,
+      source:
+        decision.source === 'auto' || decision.source === 'allowlist' ? 'policy' : decision.source,
+    };
   }
 }
 
 export function createDefaultPermissionGate(options?: {
   allowOutsideCacheRoot?: boolean;
+  authorizationProvider?: ToolAuthorizationProvider;
+  repoRoot?: string;
+  worktreeRoot?: string;
+  attemptId?: number;
+  model?: string;
 }): PermissionGate {
   return new DefaultPermissionGate(options);
 }

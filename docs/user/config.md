@@ -62,6 +62,31 @@ SalmonLoop uses canonical signatures for context consistency:
 
 These signatures are emitted in context audit events to make cache hits/misses explainable.
 
+### `context.cache.allowedRoots` and outside-root override
+
+When `context.cache.mode` is `persistent`, SalmonLoop resolves `context.cache.path` and enforces
+that it stays under at least one configured `context.cache.allowedRoots` entry.
+
+Example:
+
+```json
+{
+  "context": {
+    "cache": {
+      "mode": "persistent",
+      "path": ".salmonloop/cache/context-cache.json",
+      "allowedRoots": [".salmonloop/cache"]
+    }
+  }
+}
+```
+
+Safety behavior:
+
+- Default is fail-closed (`PERMISSION_DENIED_CONTEXT_CACHE_OUTSIDE_ROOT`).
+- Canonical path checks also reject symlink-based escapes.
+- One-off CLI override is available via `--allow-outside-cache-root` (high risk).
+
 ## CLI Options
 
 - `--config <path>`: Explicitly load a config file (relative paths are resolved against the repo root).

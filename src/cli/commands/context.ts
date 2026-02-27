@@ -50,6 +50,7 @@ export async function handleContextCommand(options: any, command: Command) {
   const cacheConfig = await createContextCacheStore(repoPath, resolvedConfig.raw, {
     permissionGate: createDefaultPermissionGate({
       allowOutsideCacheRoot: Boolean((allOptions as any).allowOutsideCacheRoot),
+      repoRoot: repoPath,
     }),
   });
   const service = new ContextService(

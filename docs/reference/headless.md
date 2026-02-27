@@ -45,6 +45,20 @@ Headless automation should rely on exit codes instead of parsing human logs:
 
 These are implemented in `src/core/runtime/exit-codes.ts`.
 
+## Authorization behavior in headless mode
+
+Headless runs should assume non-interactive operation:
+
+- Keep `context.cache.path` inside `context.cache.allowedRoots`.
+- By default, outside-root cache paths are denied.
+- If you intentionally need an outside-root cache for a single run, pass
+  `--allow-outside-cache-root` explicitly.
+
+Recommended CI posture:
+
+- Treat `--allow-outside-cache-root` as an exception path.
+- Require explicit invocation per job instead of setting it globally.
+
 ## Smoke checklist (real providers)
 
 This checklist is intentionally small and CI-friendly. It validates the headless contract in a

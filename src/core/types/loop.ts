@@ -308,6 +308,7 @@ export interface RunOptions {
   signal?: AbortSignal;
   budgetChars?: number;
   allowOutsideCacheRoot?: boolean;
+  authorizationProvider?: ToolAuthorizationProvider;
 }
 
 export interface LoopOptions {

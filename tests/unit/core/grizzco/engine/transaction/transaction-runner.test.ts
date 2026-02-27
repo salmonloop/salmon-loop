@@ -186,6 +186,26 @@ describe('transaction-runner', () => {
     expect(emit).not.toHaveBeenCalled();
   });
 
+  it('does not retry when context phase denies cache permission from trace code only', async () => {
+    mockedExecute.mockResolvedValue({
+      success: false,
+      duration: 1,
+      traces: [
+        { name: 'CONTEXT', error: { code: 'PERMISSION_DENIED_CONTEXT_CACHE_OUTSIDE_ROOT' } },
+      ],
+      data: undefined,
+    } as any);
+
+    const emit = mock();
+    const report = await createRunner(emit).execute();
+
+    expect(report.success).toBe(false);
+    expect(report.attempts).toBe(1);
+    expect(report.retryExhausted).toBe(false);
+    expect(report.lastErrorCode).toBe('PERMISSION_DENIED_CONTEXT_CACHE_OUTSIDE_ROOT');
+    expect(emit).not.toHaveBeenCalled();
+  });
+
   it('marks retry exhaustion after max retryable verify failures', async () => {
     mockedExecute.mockResolvedValue({
       success: true,
