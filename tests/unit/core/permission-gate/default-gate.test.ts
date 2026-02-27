@@ -71,6 +71,7 @@ describe('DefaultPermissionGate', () => {
       kind: 'pending',
       challenge: 'abc123',
       message: 'approval required',
+      requestId: expect.any(String),
     });
   });
 });

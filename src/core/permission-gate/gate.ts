@@ -6,7 +6,7 @@ export interface PermissionGate {
     request: PermissionRequest,
   ) => Promise<
     | { kind: 'decision'; decision: PermissionDecision }
-    | { kind: 'pending'; challenge: string; message: string }
+    | { kind: 'pending'; challenge: string; message: string; requestId: string }
   >;
   waitForAuthorization?: (
     requestId: string,

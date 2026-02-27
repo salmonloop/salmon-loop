@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 
+import { ConfigError } from '../../../src/core/config/errors.js';
 import { resolveContextCachePath } from '../../../src/core/context/cache/path-resolver.js';
 import { clearAuditTrail, getAuditTrail } from '../../../src/core/observability/audit-trail.js';
 
@@ -48,5 +49,42 @@ describe('resolveContextCachePath permission audit', () => {
         { fileAdapter },
       ),
     ).rejects.toThrow(/PERMISSION_DENIED_CONTEXT_CACHE_OUTSIDE_ROOT/);
+  });
+
+  it('records requestId and throws permission-required with requestId for deferred auth', async () => {
+    let caught: unknown;
+    try {
+      await resolveContextCachePath(
+        '/repo',
+        {
+          context: {
+            cache: {
+              mode: 'persistent',
+              path: '../outside/context-cache.json',
+              allowedRoots: ['.salmonloop/cache'],
+            },
+          },
+        } as any,
+        {
+          permissionGate: {
+            requestAuthorizationDeferred: async () => ({
+              kind: 'pending',
+              challenge: 'abc123',
+              message: 'authorization required',
+              requestId: 'req-1',
+            }),
+            requestAuthorization: async () => ({ kind: 'deny', source: 'policy' }),
+          },
+        },
+      );
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(ConfigError);
+    expect((caught as ConfigError).code).toBe('PERMISSION_REQUIRED_CONTEXT_CACHE_OUTSIDE_ROOT');
+    expect((caught as ConfigError).details?.requestId).toBe('req-1');
+    const events = getAuditTrail().filter((e) => e.action === 'permission.decision');
+    expect((events[0]?.details as any)?.requestId).toBe('req-1');
   });
 });

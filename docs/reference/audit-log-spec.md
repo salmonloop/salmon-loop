@@ -150,6 +150,18 @@ The allowlist subsystem also emits audit events for cache and safety signals:
     - Summary events are throttled (time/interval-based) to avoid log amplification.
     - Tool/path counters are best-effort and capped with LRU eviction.
 
+## Permission Decision Events
+
+`permission.decision` events capture high-risk authorization outcomes in a normalized shape:
+
+- `action` (e.g. `context.cache.outside_root`)
+- `resource` (target path/resource)
+- `risk` (`low|medium|high|critical`)
+- `decision` (`allow|deny|pending|challenge`)
+- `source` (`policy|cli|user|cache|hook`)
+- `requestId` (stable correlation id for deferred authorization)
+- `challenge` (short challenge token for interactive confirmation)
+
 ## Redaction and Safety
 
 Audit logs are designed to be safe to share for debugging:

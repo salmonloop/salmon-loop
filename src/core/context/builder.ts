@@ -1,5 +1,6 @@
 import { FileAdapter } from '../adapters/fs/file-adapter.js';
 import { defaultPathAdapter } from '../adapters/path/path-adapter.js';
+import { ConfigError } from '../config/errors.js';
 import { LIMITS } from '../config/limits.js';
 import { resolveConfig } from '../config/resolve.js';
 import { createDefaultPermissionGate } from '../permission-gate/default-gate.js';
@@ -53,6 +54,7 @@ function getCachedExtensionsPattern(): string {
 
 import { outlineSource } from './ast/source-outline.js';
 import { createContextCacheStore } from './cache/store-factory.js';
+import type { ContextCacheStore } from './cache/store.js';
 import { applySmartCompression } from './compression/smart-compress.js';
 import { findFileDependencies } from './dependencies.js';
 import {
@@ -125,13 +127,35 @@ async function readRepoFileText(repoPath: string, relativePath: string): Promise
 export class ContextBuilder {
   static async build(options: RunOptions): Promise<ContextResult> {
     const config = await resolveConfig({ repoRoot: options.repoPath });
-    const cacheConfig = await createContextCacheStore(options.repoPath, config.raw, {
-      permissionGate: createDefaultPermissionGate({
-        allowOutsideCacheRoot: options.allowOutsideCacheRoot,
-        authorizationProvider: options.authorizationProvider,
-        repoRoot: options.repoPath,
-      }),
+    const permissionGate = createDefaultPermissionGate({
+      allowOutsideCacheRoot: options.allowOutsideCacheRoot,
+      authorizationProvider: options.authorizationProvider,
+      repoRoot: options.repoPath,
     });
+    let cacheConfig: { store: ContextCacheStore; maxEntries?: number; ttlMs?: number };
+    try {
+      cacheConfig = await createContextCacheStore(options.repoPath, config.raw, {
+        permissionGate,
+      });
+    } catch (error) {
+      const requestId =
+        error instanceof ConfigError &&
+        error.code === 'PERMISSION_REQUIRED_CONTEXT_CACHE_OUTSIDE_ROOT'
+          ? error.details?.requestId
+          : undefined;
+      if (!requestId || !permissionGate.waitForAuthorization) {
+        throw error;
+      }
+
+      const decision = await permissionGate.waitForAuthorization(requestId, options.signal);
+      if (decision?.kind === 'allow') {
+        cacheConfig = await createContextCacheStore(options.repoPath, config.raw, {
+          permissionGate,
+        });
+      } else {
+        throw error;
+      }
+    }
     const service = new ContextService(
       {},
       {

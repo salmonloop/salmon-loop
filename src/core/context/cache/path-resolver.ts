@@ -73,11 +73,13 @@ export async function resolveContextCachePath(
         }
       | undefined;
     let pendingChallenge: string | undefined;
+    let pendingRequestId: string | undefined;
 
     if (options?.permissionGate?.requestAuthorizationDeferred) {
       const deferred = await options.permissionGate.requestAuthorizationDeferred(request);
       if (deferred.kind === 'pending') {
         pendingChallenge = deferred.challenge;
+        pendingRequestId = deferred.requestId;
       } else {
         decision = deferred.decision;
       }
@@ -94,6 +96,7 @@ export async function resolveContextCachePath(
         decision: pendingChallenge ? 'pending' : (decision?.kind ?? 'deny'),
         source: decision?.source ?? (pendingChallenge ? 'user' : 'policy'),
         challenge: pendingChallenge ?? decision?.challengeId,
+        requestId: pendingRequestId,
       },
       { source: 'permission_gate', severity: 'high', scope: 'session', phase: 'CONTEXT' },
     );
@@ -105,6 +108,7 @@ export async function resolveContextCachePath(
         canonicalPath,
         canonicalRoots: canonicalRoots.join(','),
         challenge: pendingChallenge ?? decision?.challengeId ?? '',
+        requestId: pendingRequestId ?? '',
       });
     }
     if (decision?.kind !== 'allow') {

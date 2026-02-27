@@ -55,7 +55,7 @@ class DefaultPermissionGate implements PermissionGate {
       const deferred =
         await this.options.authorizationProvider.requestAuthorizationDeferred(toolRequest);
       if (deferred.kind === 'pending') {
-        return deferred;
+        return { ...deferred, requestId: toolRequest.id };
       }
       return {
         kind: 'decision',

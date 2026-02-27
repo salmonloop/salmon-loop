@@ -1,6 +1,10 @@
 import { AstParser } from '../../src/core/ast/parser.js';
+import { ConfigError } from '../../src/core/config/errors.js';
 import { resolveConfig } from '../../src/core/config/resolve.js';
 import { ContextBuilder } from '../../src/core/context/builder.js';
+import * as storeFactory from '../../src/core/context/cache/store-factory.js';
+import { MemoryContextCacheStore } from '../../src/core/context/cache/store.js';
+import * as permissionGate from '../../src/core/permission-gate/default-gate.js';
 import { spawnCommand } from '../../src/core/runtime/process-runner.js';
 
 const readFileMock = mock();
@@ -10,6 +14,7 @@ mock.module('../../src/core/adapters/fs/file-adapter.js', () => ({
     readFile = readFileMock;
     stat = mock();
     exists = mock().mockResolvedValue(false);
+    realpath = mock(async (p: string) => p);
     readdir = mock().mockResolvedValue([]);
     readdirWithTypes = mock().mockResolvedValue([]);
     mkdir = mock();
@@ -113,5 +118,31 @@ describe('ContextBuilder', () => {
     });
 
     expect(Array.isArray(result.context.symbols)).toBe(true);
+  });
+
+  it('retries cache-store creation after deferred permission is approved', async () => {
+    readFileMock.mockResolvedValue('console.log("hello");');
+
+    const gate = {
+      requestAuthorization: mock(async () => ({ kind: 'deny', source: 'policy' as const })),
+      waitForAuthorization: mock(async () => ({ kind: 'allow', source: 'user' as const })),
+    };
+    spyOn(permissionGate, 'createDefaultPermissionGate').mockReturnValue(gate as any);
+    spyOn(storeFactory, 'createContextCacheStore')
+      .mockRejectedValueOnce(
+        new ConfigError('PERMISSION_REQUIRED_CONTEXT_CACHE_OUTSIDE_ROOT', { requestId: 'req-1' }),
+      )
+      .mockResolvedValueOnce({ store: new MemoryContextCacheStore() });
+
+    const result = await ContextBuilder.build({
+      instruction: 'fix something',
+      verify: 'npm test',
+      repoPath: tempDir,
+      file: 'test.ts',
+    });
+
+    expect(result.context.repoPath).toBe(tempDir);
+    expect(storeFactory.createContextCacheStore).toHaveBeenCalledTimes(2);
+    expect(gate.waitForAuthorization).toHaveBeenCalledWith('req-1', undefined);
   });
 });

@@ -84,6 +84,7 @@ describe('createContextCacheStore', () => {
               kind: 'pending',
               challenge: 'abc123',
               message: 'authorization required',
+              requestId: 'req-1',
             }),
             requestAuthorization: async () => ({ kind: 'deny', source: 'policy' }),
           },
