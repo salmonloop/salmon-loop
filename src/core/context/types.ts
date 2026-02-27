@@ -1,5 +1,11 @@
 import type { CheckpointManager } from '../strata/checkpoint/manager.js';
-import type { Context, RipgrepResult, CodeLocation, SymbolInfo } from '../types/index.js';
+import type {
+  CodeLocation,
+  Context,
+  RipgrepResult,
+  SymbolInfo,
+  WorkspaceMode,
+} from '../types/index.js';
 
 export type DiffScope = 'primary' | 'ast_related';
 
@@ -7,6 +13,7 @@ export interface ContextRequest {
   instruction: string;
   repoPath: string;
   primaryFile?: string;
+  workspaceMode?: WorkspaceMode;
   selection?: string;
   snapshotHash?: string;
   checkpointManager?: CheckpointManager;
@@ -35,6 +42,10 @@ export interface ContextBuildMeta {
   sectionChars: ContextSectionChars;
   droppedSections?: DroppedContextSections;
   budgetAllocation?: ContextBudgetAllocation;
+  contextHash?: string;
+  environment?: {
+    workspaceMode: WorkspaceMode;
+  };
 }
 
 export interface ContextSectionChars {

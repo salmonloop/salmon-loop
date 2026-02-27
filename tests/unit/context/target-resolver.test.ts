@@ -95,4 +95,27 @@ describe('TargetResolver (symbol targets)', () => {
       true,
     );
   });
+
+  it('applies churn weight and orders targets by churn in default strategy', async () => {
+    const resolver = new TargetResolver();
+    const res = await resolver.resolve({
+      req: {
+        instruction: 'please improve context ranking',
+        repoPath: '/repo',
+        primaryFile: 'src/core/context/service.ts',
+      },
+      includedFiles: [],
+      importRelatedFiles: ['src/a.ts', 'src/b.ts'],
+      rgHitFiles: [],
+      churnByFile: {
+        'src/a.ts': 2,
+        'src/b.ts': 9,
+      },
+    });
+
+    expect(res.strategy).toBe('default');
+    expect(res.targets[0]?.path).toBe('src/core/context/service.ts');
+    expect(res.targets[1]?.path).toBe('src/b.ts');
+    expect(res.targets[1]?.churnWeight).toBeGreaterThan(res.targets[2]?.churnWeight ?? 0);
+  });
 });

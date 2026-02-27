@@ -91,6 +91,49 @@ function dedupeTargets(targets: ContextTarget[]): ContextTarget[] {
   return out;
 }
 
+function applyChurnWeights(
+  targets: ContextTarget[],
+  churnByFile: Record<string, number> | undefined,
+  primaryFile: string | undefined,
+): ContextTarget[] {
+  if (!churnByFile || Object.keys(churnByFile).length === 0) {
+    return targets;
+  }
+
+  const normalizedPrimary = primaryFile
+    ? normalizePath(primaryFile).replace(/^(\.\/|\/)+/, '')
+    : undefined;
+  const maxChurn = Math.max(...Object.values(churnByFile), 1);
+
+  return [...targets]
+    .map((target) => {
+      const normalized = normalizePath(target.path).replace(/^(\.\/|\/)+/, '');
+      const churnCount = churnByFile[normalized] ?? 0;
+      return {
+        ...target,
+        churnWeight: churnCount > 0 ? Number((churnCount / maxChurn).toFixed(4)) : 0,
+      };
+    })
+    .sort((a, b) => {
+      const aPath = normalizePath(a.path).replace(/^(\.\/|\/)+/, '');
+      const bPath = normalizePath(b.path).replace(/^(\.\/|\/)+/, '');
+      if (normalizedPrimary && aPath === normalizedPrimary && bPath !== normalizedPrimary) {
+        return -1;
+      }
+      if (normalizedPrimary && bPath === normalizedPrimary && aPath !== normalizedPrimary) {
+        return 1;
+      }
+
+      const weightDiff = (b.churnWeight ?? 0) - (a.churnWeight ?? 0);
+      if (weightDiff !== 0) return weightDiff;
+
+      const reasonDiff = reasonRank(b.reason) - reasonRank(a.reason);
+      if (reasonDiff !== 0) return reasonDiff;
+
+      return aPath.localeCompare(bPath);
+    });
+}
+
 function buildPrimaryTarget(primaryFile: string | undefined): ContextTarget[] {
   if (!primaryFile) return [];
   return [{ path: primaryFile, reason: 'primary', confidence: 'high' }];
@@ -427,6 +470,7 @@ export class TargetResolver {
     symbolMap?: SymbolMap;
     diffusionDepth?: number;
     maxDiffusionTargets?: number;
+    churnByFile?: Record<string, number>;
   }): Promise<{
     targets: ContextTarget[];
     strategy: 'explicit' | 'symbol' | 'diff' | 'default';
@@ -441,6 +485,7 @@ export class TargetResolver {
       symbolMap,
       diffusionDepth,
       maxDiffusionTargets,
+      churnByFile,
     } = params;
 
     const runner = new MicroTaskRunner<TargetingDslContext>({
@@ -581,13 +626,14 @@ export class TargetResolver {
       (action?.params?.strategy as 'explicit' | 'symbol' | 'diff' | 'default' | undefined) ??
       'default';
     const diffusionMetrics = ctx.data?.symbolMetrics as DiffusionMetrics | undefined;
+    const targetsWithChurn = applyChurnWeights(targets, churnByFile, req.primaryFile);
 
-    if (targets.length > 0) {
+    if (targetsWithChurn.length > 0) {
       logger.trace(
-        `  [CONTEXT] TargetResolver selected ${targets.length} targets (strategy=${strategy})`,
+        `  [CONTEXT] TargetResolver selected ${targetsWithChurn.length} targets (strategy=${strategy})`,
       );
     }
 
-    return { targets, strategy, diffusionMetrics };
+    return { targets: targetsWithChurn, strategy, diffusionMetrics };
   }
 }

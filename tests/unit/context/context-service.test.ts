@@ -132,4 +132,26 @@ describe('ContextService', () => {
     const result = await service.build(req);
     expect(result.meta.diffScope).toBe('ast_related');
   });
+
+  it('records workspaceMode in context meta', async () => {
+    const service = new ContextService({
+      primaryTextGatherer: { gather: async () => ({ primaryText: 'PRIMARY' }) } as any,
+      ripgrepGatherer: { searchMultipleKeywords: async () => [] } as any,
+      gitDiffGatherer: { gather: async () => ({ includedFiles: [] }) } as any,
+      astGatherer: {
+        gather: async () => ({ symbols: [], definitionMap: {}, relatedFiles: [] }),
+      } as any,
+      assembler: { assemble: () => ({ prompt: 'PROMPT' }) },
+    });
+
+    const req: ContextRequest = {
+      instruction: 'fix foo',
+      repoPath: '/repo',
+      primaryFile: 'src/a.ts',
+      workspaceMode: 'shadow',
+    };
+
+    const result = await service.build(req);
+    expect(result.meta.environment?.workspaceMode).toBe('shadow');
+  });
 });

@@ -40,6 +40,7 @@ export function buildContextTargetsStep(deps: ContextServiceDeps) {
       rgHitFiles,
       definitionMap: ast.definitionMap,
       symbolMap: ast.symbolMap,
+      churnByFile: gitHistory?.churnByFile,
     });
     assertNotAborted(req.signal);
 

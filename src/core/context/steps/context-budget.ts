@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { LIMITS } from '../../config/limits.js';
 import type { Context } from '../../types/index.js';
 import { DefaultPromptAssembler } from '../assembly/default-prompt-assembler.js';
@@ -75,10 +77,12 @@ export function buildContextBudgetStep(deps: ContextServiceDeps) {
     knowledgeBase,
     runtimeArtifacts,
   }: ContextTargetsCtx): Promise<ContextResult> => {
+    const workspaceMode = req.workspaceMode ?? 'direct';
     const context: Context = {
       repoPath: req.repoPath,
       instruction: req.instruction,
       primaryFile: req.primaryFile,
+      workspaceMode,
       primaryText,
       relatedFiles,
       rgSnippets,
@@ -143,6 +147,7 @@ export function buildContextBudgetStep(deps: ContextServiceDeps) {
     });
 
     const assembled = assembler.assemble(budgeted.context, req);
+    const contextHash = createHash('sha1').update(JSON.stringify(budgeted.context)).digest('hex');
     const sectionChars = calculateSectionChars(budgeted.context);
     const requestedBudgetChars = budget ?? LIMITS.maxContextChars;
     const budgetAllocation = computeBudgetAllocation(requestedBudgetChars, sectionChars);
@@ -173,7 +178,10 @@ export function buildContextBudgetStep(deps: ContextServiceDeps) {
     );
 
     return {
-      context: budgeted.context,
+      context: {
+        ...budgeted.context,
+        contextHash,
+      },
       prompt: assembled.prompt,
       meta: {
         usedChars: calculateUsedChars(budgeted.context),
@@ -184,6 +192,10 @@ export function buildContextBudgetStep(deps: ContextServiceDeps) {
         preBudgetSectionChars,
         sectionChars,
         budgetAllocation,
+        contextHash,
+        environment: {
+          workspaceMode,
+        },
         droppedSections,
         ...(assembled.meta || {}),
       },

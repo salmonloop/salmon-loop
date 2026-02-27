@@ -34,6 +34,7 @@ export interface ContextTarget {
   path: string;
   reason: ContextTargetReason;
   confidence: ContextTargetConfidence;
+  churnWeight?: number;
   evidence?: string | TargetEvidence; // Structured evidence for future extensibility
 }
 
@@ -125,6 +126,8 @@ export interface Context {
   repoPath: string;
   instruction?: string;
   primaryFile?: string;
+  workspaceMode?: WorkspaceMode;
+  contextHash?: string;
   primaryText?: string;
   relatedFiles?: RelatedFileContext[];
   rgSnippets: RipgrepResult[];
@@ -150,6 +153,7 @@ export interface Context {
   };
   gitHistory?: {
     recentCommits?: string;
+    churnByFile?: Record<string, number>;
   };
   projectTopology?: ProjectTopology;
   knowledgeBase?: ProjectKnowledge;
@@ -161,6 +165,8 @@ export interface RuntimeArtifacts {
   envVars?: string[]; // Names of key non-sensitive env vars present
   lockFiles?: Array<{ path: string; hash?: string }>; // Critical lock files
 }
+
+export type WorkspaceMode = 'direct' | 'shadow';
 
 export interface ProjectKnowledge {
   project_rules?: string[];

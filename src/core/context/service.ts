@@ -1,3 +1,7 @@
+import { createHash } from 'node:crypto';
+import path from 'node:path';
+
+import { FileAdapter } from '../adapters/fs/file-adapter.js';
 import { Pipeline } from '../grizzco/engine/pipeline/pipeline.js';
 import { logger } from '../observability/logger.js';
 
@@ -18,6 +22,7 @@ export class ContextService {
   private readonly cache = new Map<string, ContextResult>();
   private readonly updaters = new Map<string, IncrementalUpdater>();
   private readonly promptCachingManager: PromptCachingManager;
+  private readonly fileAdapter = new FileAdapter();
 
   constructor(deps: Partial<ContextServiceDeps> = {}) {
     this.deps = { ...defaultContextServiceDeps(), ...deps };
@@ -27,7 +32,7 @@ export class ContextService {
   async build(req: ContextRequest): Promise<ContextResult> {
     const diffScope: DiffScope = req.diffScope ?? 'primary';
 
-    const cacheKey = this.makeCacheKey(req);
+    const cacheKey = await this.makeCacheKey(req);
     const cached = this.cache.get(cacheKey);
     if (cached && !req.signal?.aborted) {
       logger.trace(`[CONTEXT_CACHE] hit ${cacheKey}`);
@@ -53,7 +58,7 @@ export class ContextService {
     return contextResult;
   }
 
-  private makeCacheKey(req: ContextRequest): string {
+  private async makeCacheKey(req: ContextRequest): Promise<string> {
     const parts = [
       req.repoPath,
       req.snapshotHash ?? '',
@@ -61,8 +66,28 @@ export class ContextService {
       req.instruction ?? '',
       req.selection ?? '',
       req.diffScope ?? 'primary',
+      req.workspaceMode ?? 'direct',
     ];
-    return parts.join('::');
+    const fingerprint = await this.computeRequestFingerprint(req);
+    return [...parts, fingerprint].join('::');
+  }
+
+  private async computeRequestFingerprint(req: ContextRequest): Promise<string> {
+    if (req.snapshotHash) {
+      return `snapshot:${req.snapshotHash}`;
+    }
+
+    if (!req.primaryFile) {
+      return 'primary:none';
+    }
+
+    const absolutePath = path.resolve(req.repoPath, req.primaryFile);
+    try {
+      const content = await this.fileAdapter.readFile(absolutePath, 'utf-8');
+      return createHash('sha1').update(content, 'utf-8').digest('hex');
+    } catch {
+      return `missing:${absolutePath}`;
+    }
   }
 
   private recordContextDiff(key: string, contextResult: ContextResult): void {
