@@ -1,10 +1,25 @@
-import * as fs from '../../src/core/adapters/fs/node-fs.js';
 import { AstParser } from '../../src/core/ast/parser.js';
+import { resolveConfig } from '../../src/core/config/resolve.js';
 import { ContextBuilder } from '../../src/core/context/builder.js';
 import { spawnCommand } from '../../src/core/runtime/process-runner.js';
 
-mock.module('../../src/core/adapters/fs/node-fs.js', () => ({
-  readFile: mock(),
+const readFileMock = mock();
+
+mock.module('../../src/core/adapters/fs/file-adapter.js', () => ({
+  FileAdapter: class {
+    readFile = readFileMock;
+    stat = mock();
+    exists = mock().mockResolvedValue(false);
+    readdir = mock().mockResolvedValue([]);
+    readdirWithTypes = mock().mockResolvedValue([]);
+    mkdir = mock();
+    writeFile = mock();
+    writeFileAtomic = mock();
+    deleteFile = mock();
+  },
+}));
+mock.module('../../src/core/config/resolve.js', () => ({
+  resolveConfig: mock(),
 }));
 mock.module('../../src/core/runtime/process-runner.js', () => ({
   spawnCommand: mock(),
@@ -36,6 +51,9 @@ describe('ContextBuilder', () => {
       stdoutTruncated: false,
       stderrTruncated: false,
     });
+    (resolveConfig as any).mockResolvedValue({
+      raw: {},
+    });
   });
 
   afterEach(() => {
@@ -43,7 +61,7 @@ describe('ContextBuilder', () => {
   });
 
   it('should build context with primary file', async () => {
-    (fs.readFile as any).mockResolvedValue('console.log("hello");');
+    readFileMock.mockResolvedValue('console.log("hello");');
 
     const result = await ContextBuilder.build({
       instruction: 'fix something',
@@ -54,14 +72,14 @@ describe('ContextBuilder', () => {
 
     expect(result.context.primaryText).toContain('console.log("hello");');
     expect(result.context.repoPath).toBe(tempDir);
-    expect(fs.readFile).toHaveBeenCalledWith(expect.stringContaining('test.ts'), 'utf-8');
+    expect(readFileMock).toHaveBeenCalledWith(expect.stringContaining('test.ts'), 'utf-8');
   });
 
   it('should abort when AbortSignal is already aborted', async () => {
     const controller = new AbortController();
     controller.abort();
 
-    (fs.readFile as any).mockResolvedValue('console.log("hello");');
+    readFileMock.mockResolvedValue('console.log("hello");');
 
     await expect(
       ContextBuilder.build({
@@ -76,7 +94,7 @@ describe('ContextBuilder', () => {
 
   it('should include AST symbols in context', async () => {
     const code = 'function test() { console.log("hello"); }';
-    (fs.readFile as any).mockResolvedValue(code);
+    readFileMock.mockResolvedValue(code);
     (AstParser.parse as any).mockResolvedValue({} as any);
     (AstParser.identifyDefinitions as any).mockResolvedValue([
       {

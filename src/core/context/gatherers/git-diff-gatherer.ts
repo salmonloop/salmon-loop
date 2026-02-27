@@ -1,12 +1,13 @@
-import path from 'path';
-
-import { access } from '../../adapters/fs/node-fs.js';
+import { FileAdapter } from '../../adapters/fs/file-adapter.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
+import { defaultPathAdapter } from '../../adapters/path/path-adapter.js';
 import { LIMITS } from '../../config/limits.js';
 import { logger } from '../../observability/logger.js';
 import { normalizePath } from '../../utils/path.js';
 import { findFileDependencies } from '../dependencies.js';
 import type { ContextRequest, DiffScope } from '../types.js';
+
+const fileAdapter = new FileAdapter();
 
 export interface GitDiffResult {
   stagedDiff?: string;
@@ -72,7 +73,7 @@ async function resolveSourcePaths(repoPath: string, files: string[]): Promise<st
 
   for (const file of files) {
     const normalized = normalizePath(file);
-    const full = path.join(repoPath, normalized);
+    const full = defaultPathAdapter.join(repoPath, normalized);
 
     if (await exists(full)) {
       resolved.push(normalized);
@@ -80,7 +81,7 @@ async function resolveSourcePaths(repoPath: string, files: string[]): Promise<st
     }
 
     const mapped = mapEsmImportPathToSource(normalized);
-    if (mapped !== normalized && (await exists(path.join(repoPath, mapped)))) {
+    if (mapped !== normalized && (await exists(defaultPathAdapter.join(repoPath, mapped)))) {
       resolved.push(mapped);
       continue;
     }
@@ -98,12 +99,7 @@ function mapEsmImportPathToSource(filePath: string): string {
 }
 
 async function exists(p: string): Promise<boolean> {
-  try {
-    await access(p);
-    return true;
-  } catch {
-    return false;
-  }
+  return await fileAdapter.exists(p);
 }
 
 export class GitDiffGatherer {

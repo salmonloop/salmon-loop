@@ -5,7 +5,7 @@
  * of encoding selection, caching, and file operations.
  */
 
-import { readFile } from '../../adapters/fs/node-fs.js';
+import { FileAdapter } from '../../adapters/fs/file-adapter.js';
 
 import { TokenCache } from './cache.js';
 import { EncodingRegistry } from './encoding-registry.js';
@@ -56,6 +56,7 @@ export class TokenCounter {
   private registry: EncodingRegistry;
   private cache: TokenCache;
   private config: Required<TokenCounterConfig>;
+  private readonly fileAdapter = new FileAdapter();
 
   constructor(config: TokenCounterConfig = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -233,6 +234,6 @@ export class TokenCounter {
   // ==================== Private ====================
 
   private async readFileContent(path: string): Promise<string> {
-    return readFile(path, 'utf-8');
+    return this.fileAdapter.readFile(path, 'utf-8');
   }
 }

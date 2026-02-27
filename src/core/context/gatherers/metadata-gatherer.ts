@@ -1,4 +1,4 @@
-import { readFile } from '../../adapters/fs/node-fs.js';
+import { FileAdapter } from '../../adapters/fs/file-adapter.js';
 import { safeJoin } from '../../utils/path.js';
 import type { ContextRequest } from '../types.js';
 
@@ -16,13 +16,15 @@ export interface ProjectMetadata {
 }
 
 export class MetadataGatherer {
+  private readonly fileAdapter = new FileAdapter();
+
   async gather(req: ContextRequest): Promise<ProjectMetadata> {
     const { repoPath } = req;
     const metadata: ProjectMetadata = {};
 
     // 1. package.json
     try {
-      const pkgRaw = await readFile(safeJoin(repoPath, 'package.json'), 'utf-8');
+      const pkgRaw = await this.fileAdapter.readFile(safeJoin(repoPath, 'package.json'), 'utf-8');
       metadata.packageJson = JSON.parse(pkgRaw);
     } catch {
       // Ignored
@@ -30,7 +32,7 @@ export class MetadataGatherer {
 
     // 2. README.md (first 1000 chars)
     try {
-      const readmeRaw = await readFile(safeJoin(repoPath, 'README.md'), 'utf-8');
+      const readmeRaw = await this.fileAdapter.readFile(safeJoin(repoPath, 'README.md'), 'utf-8');
       metadata.readmeHeader = readmeRaw.slice(0, 1000);
     } catch {
       // Ignored
@@ -40,7 +42,7 @@ export class MetadataGatherer {
     const aiFiles = ['GEMINI.md', 'CLAUDE.md', 'ARCH.md', '.gemini/ARCH.md'];
     for (const file of aiFiles) {
       try {
-        const content = await readFile(safeJoin(repoPath, file), 'utf-8');
+        const content = await this.fileAdapter.readFile(safeJoin(repoPath, file), 'utf-8');
         metadata.aiInstructions = (metadata.aiInstructions || '') + `\n--- ${file} ---\n${content}`;
       } catch {
         // Ignored
@@ -62,7 +64,7 @@ export class MetadataGatherer {
     metadata.configFiles = [];
     for (const config of commonConfigs) {
       try {
-        await readFile(safeJoin(repoPath, config), 'utf-8');
+        await this.fileAdapter.readFile(safeJoin(repoPath, config), 'utf-8');
         metadata.configFiles.push(config);
       } catch {
         // Ignored: config not found

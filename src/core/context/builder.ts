@@ -1,7 +1,7 @@
-import path from 'path';
-
-import { readFile } from '../adapters/fs/node-fs.js';
+import { FileAdapter } from '../adapters/fs/file-adapter.js';
+import { defaultPathAdapter } from '../adapters/path/path-adapter.js';
 import { LIMITS } from '../config/limits.js';
+import { resolveConfig } from '../config/resolve.js';
 import { pluginRegistry } from '../plugin/registry.js';
 import { ErrorType, type Context, type RunOptions } from '../types/index.js';
 import { ensureInSandbox, normalizePath } from '../utils/path.js';
@@ -36,6 +36,7 @@ function getExtensionsPattern(): string {
  * Cache on module load to avoid repeated plugin iteration.
  */
 let cachedExtensionPattern: string | null = null;
+const fileAdapter = new FileAdapter();
 
 // Invalidate the cached regex when plugin registry changes so new extensions are recognized.
 pluginRegistry.onChange(() => {
@@ -50,6 +51,7 @@ function getCachedExtensionsPattern(): string {
 }
 
 import { outlineSource } from './ast/source-outline.js';
+import { createContextCacheStore } from './cache/store-factory.js';
 import { applySmartCompression } from './compression/smart-compress.js';
 import { findFileDependencies } from './dependencies.js';
 import {
@@ -112,8 +114,8 @@ function mergeTargets(
 async function readRepoFileText(repoPath: string, relativePath: string): Promise<string | null> {
   try {
     const normalized = normalizePath(relativePath).replace(/^(\.\/|\/)+/, '');
-    const fullPath = ensureInSandbox(repoPath, path.join(repoPath, normalized));
-    return await readFile(fullPath, 'utf-8');
+    const fullPath = ensureInSandbox(repoPath, defaultPathAdapter.join(repoPath, normalized));
+    return await fileAdapter.readFile(fullPath, 'utf-8');
   } catch {
     return null;
   }
@@ -121,7 +123,16 @@ async function readRepoFileText(repoPath: string, relativePath: string): Promise
 
 export class ContextBuilder {
   static async build(options: RunOptions): Promise<ContextResult> {
-    const service = new ContextService();
+    const config = await resolveConfig({ repoRoot: options.repoPath });
+    const cacheConfig = createContextCacheStore(options.repoPath, config.raw);
+    const service = new ContextService(
+      {},
+      {
+        cacheStore: cacheConfig.store,
+        cacheMaxEntries: cacheConfig.maxEntries,
+        cacheTtlMs: cacheConfig.ttlMs,
+      },
+    );
     const result = await service.build({
       instruction: options.instruction,
       repoPath: options.repoPath,

@@ -7,7 +7,7 @@
 
 import { createHash } from 'crypto';
 
-import { stat } from '../../adapters/fs/node-fs.js';
+import { FileAdapter } from '../../adapters/fs/file-adapter.js';
 
 import type { CacheStats, FileCacheEntry } from './types.js';
 
@@ -28,6 +28,7 @@ export class TokenCache {
   private memoryCache: Map<string, MemoryCacheEntry>;
   private fileCache: Map<string, FileCacheEntry>;
   private readonly maxSize: number;
+  private readonly fileAdapter = new FileAdapter();
   private hits = 0;
   private misses = 0;
 
@@ -89,7 +90,7 @@ export class TokenCache {
       }
 
       // Validate modification time
-      const stats = await stat(filePath);
+      const stats = await this.fileAdapter.stat(filePath);
       if (stats.mtimeMs !== entry.mtime) {
         // File changed, invalidate
         this.fileCache.delete(filePath);
@@ -115,7 +116,7 @@ export class TokenCache {
    */
   async setForFile(filePath: string, content: string, tokens: number): Promise<void> {
     try {
-      const stats = await stat(filePath);
+      const stats = await this.fileAdapter.stat(filePath);
 
       // LRU eviction
       if (this.fileCache.size >= this.maxSize) {

@@ -1,10 +1,7 @@
-import { readFile } from '../../src/core/adapters/fs/node-fs.js';
 import { findFileDependencies } from '../../src/core/context/dependencies.js';
 import { pluginRegistry } from '../../src/core/plugin/registry.js';
 
-mock.module('../../src/core/adapters/fs/node-fs.js', () => ({
-  readFile: mock(),
-}));
+const readFileMock = mock();
 
 describe('findFileDependencies', () => {
   beforeEach(() => {
@@ -37,9 +34,11 @@ describe('findFileDependencies', () => {
       import { b } from '../b.js';
       import { c } from 'external';
     `;
-    (readFile as any).mockResolvedValue(content);
+    readFileMock.mockResolvedValue(content);
 
-    const deps = await findFileDependencies('src/index.ts', '/repo');
+    const deps = await findFileDependencies('src/index.ts', '/repo', undefined, {
+      fileAdapter: { readFile: readFileMock },
+    });
 
     expect(deps).toContain('src/a.js');
     expect(deps).toContain('b.js');
@@ -48,16 +47,20 @@ describe('findFileDependencies', () => {
 
   it('should handle missing extensions', async () => {
     const content = `import { a } from './a.js';`;
-    (readFile as any).mockResolvedValue(content);
+    readFileMock.mockResolvedValue(content);
 
-    const deps = await findFileDependencies('src/index.ts', '/repo');
+    const deps = await findFileDependencies('src/index.ts', '/repo', undefined, {
+      fileAdapter: { readFile: readFileMock },
+    });
     expect(deps).toContain('src/a.js');
   });
 
   it('should return empty array on error', async () => {
-    (readFile as any).mockRejectedValue(new Error('File not found'));
+    readFileMock.mockRejectedValue(new Error('File not found'));
 
-    const deps = await findFileDependencies('missing.ts', '/repo');
+    const deps = await findFileDependencies('missing.ts', '/repo', undefined, {
+      fileAdapter: { readFile: readFileMock },
+    });
     expect(deps).toEqual([]);
   });
 });

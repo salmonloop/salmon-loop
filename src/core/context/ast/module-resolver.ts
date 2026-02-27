@@ -1,7 +1,5 @@
-import path from 'path';
-
 import { pluginRegistry } from '../../plugin/registry.js';
-import { normalizePath } from '../../utils/path.js';
+import { normalizePath, safeDirname, safeJoin } from '../../utils/path.js';
 
 export interface ResolveImportOptions {
   currentFile: string; // repo-relative
@@ -40,8 +38,8 @@ export function resolveImportCandidates(opts: ResolveImportOptions): string[] {
   const spec = opts.specifier.trim();
   if (!spec.startsWith('.')) return [];
 
-  const baseDir = normalizePath(path.posix.dirname(normalizePath(opts.currentFile)));
-  const joined = normalizePath(path.posix.join(baseDir, spec));
+  const baseDir = safeDirname(normalizePath(opts.currentFile));
+  const joined = normalizePath(safeJoin(baseDir, spec));
 
   // Prevent escaping the repo root.
   if (joined.startsWith('..')) return [];
@@ -49,7 +47,7 @@ export function resolveImportCandidates(opts: ResolveImportOptions): string[] {
   const normalizedJoined = joined.replace(/^(\.\/|\/)+/, '');
   if (!normalizedJoined) return [];
 
-  const hasExt = path.posix.extname(normalizedJoined) !== '';
+  const hasExt = /\.[^/.]+$/.test(normalizedJoined);
   if (hasExt) {
     const out = [normalizedJoined];
     if (normalizedJoined.endsWith('.js')) out.push(normalizedJoined.replace(/\.js$/, '.ts'));

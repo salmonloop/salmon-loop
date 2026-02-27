@@ -1,4 +1,4 @@
-import { promises as fs, Stats } from 'fs';
+import { promises as fs, type Dirent, Stats } from 'fs';
 import * as path from 'path';
 
 import { AtomicFileWriter } from './atomic-file-writer.js';
@@ -61,6 +61,13 @@ export class FileAdapter {
    */
   async readdir(dirPath: string): Promise<string[]> {
     return fs.readdir(dirPath);
+  }
+
+  /**
+   * Read directory entries with file type metadata.
+   */
+  async readdirWithTypes(dirPath: string): Promise<Dirent[]> {
+    return fs.readdir(dirPath, { withFileTypes: true });
   }
 
   /**

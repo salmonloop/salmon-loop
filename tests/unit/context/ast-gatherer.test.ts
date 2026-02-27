@@ -1,11 +1,20 @@
-import { readFile } from '../../../src/core/adapters/fs/node-fs.js';
 import { AstParser } from '../../../src/core/ast/parser.js';
 import { AstGatherer } from '../../../src/core/context/gatherers/ast-gatherer.js';
 import type { ContextRequest } from '../../../src/core/context/types.js';
 import { pluginRegistry } from '../../../src/core/plugin/registry.js';
 
-mock.module('../../../src/core/adapters/fs/node-fs.js', () => ({
-  readFile: mock(),
+const readFileMock = mock();
+
+mock.module('../../../src/core/adapters/fs/file-adapter.js', () => ({
+  FileAdapter: class {
+    readFile = readFileMock;
+    stat = mock();
+    exists = mock().mockResolvedValue(false);
+    readdir = mock().mockResolvedValue([]);
+    mkdir = mock();
+    writeFile = mock();
+    deleteFile = mock();
+  },
 }));
 mock.module('../../../src/core/ast/parser.js', () => ({
   AstParser: {
@@ -27,7 +36,6 @@ describe('AstGatherer import traversal', () => {
       meta: { id: 'ts', name: 'TypeScript', extensions: ['.ts'] },
     } as any);
 
-    const readFileMock = readFile as unknown as ReturnType<typeof mock>;
     readFileMock.mockImplementation(async (filePath: any) => {
       const p = String(filePath);
       if (p.endsWith('/b.ts')) {

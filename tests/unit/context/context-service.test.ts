@@ -1,3 +1,4 @@
+import { MemoryContextCacheStore } from '../../../src/core/context/cache/store.js';
 import { ContextService } from '../../../src/core/context/service.js';
 import type { ContextRequest } from '../../../src/core/context/types.js';
 
@@ -341,11 +342,14 @@ describe('ContextService', () => {
     };
 
     await service.build(req);
-    const cache = (service as any).cache as Map<string, any>;
-    const key = [...cache.keys()][0]!;
-    const entry = cache.get(key)!;
+    const store = (service as any).cacheStore as MemoryContextCacheStore;
+    const entries = await store.entries();
+    const firstEntry = entries[0];
+    expect(firstEntry).toBeDefined();
+    if (!firstEntry) throw new Error('cache entry missing');
+    const [key, entry] = firstEntry;
     entry.targetSetSignature = 'tampered-signature';
-    cache.set(key, entry);
+    await store.set(key, entry);
 
     const second = await service.build(req);
     expect(second.prompt).toBe('PROMPT-2');
@@ -379,7 +383,7 @@ describe('ContextService', () => {
     await service.build({ instruction: 'one', repoPath: '/repo', primaryFile: 'src/a.ts' });
 
     expect(assembleCount).toBe(4);
-    const stats = service.getCacheStats();
+    const stats = await service.getCacheStats();
     expect(stats.maxEntries).toBe(2);
     expect(stats.evictions).toBeGreaterThan(0);
   });
@@ -412,7 +416,7 @@ describe('ContextService', () => {
     await service.build(req);
 
     expect(assembleCount).toBe(2);
-    const stats = service.getCacheStats();
+    const stats = await service.getCacheStats();
     expect(stats.hits).toBeGreaterThanOrEqual(1);
     expect(stats.misses).toBeGreaterThanOrEqual(1);
   });

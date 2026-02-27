@@ -1,4 +1,4 @@
-import { readFile } from '../../adapters/fs/node-fs.js';
+import { FileAdapter } from '../../adapters/fs/file-adapter.js';
 import { LIMITS } from '../../config/limits.js';
 import type { Context } from '../../types/index.js';
 import { ensureInSandbox, normalizePath, safeJoin } from '../../utils/path.js';
@@ -9,6 +9,8 @@ import type { ContextServiceDeps } from '../service-deps.js';
 import { assertNotAborted } from '../service-helpers.js';
 
 import type { ContextTargetsCtx } from './types.js';
+
+const fileAdapter = new FileAdapter();
 
 /**
  * Promotes high-relevance 'outline' files to 'full' content.
@@ -50,7 +52,7 @@ export function buildContextPromotionStep(_deps: ContextServiceDeps) {
       try {
         const normalized = normalizePath(candidate.path).replace(/^(\.\/|\/)+/, '');
         const fullPath = ensureInSandbox(req.repoPath, safeJoin(req.repoPath, normalized));
-        const content = await readFile(fullPath, 'utf-8');
+        const content = await fileAdapter.readFile(fullPath, 'utf-8');
 
         // Only promote if not obscenely large
         if (content.length < LIMITS.largeFileThresholdBytes * 2) {

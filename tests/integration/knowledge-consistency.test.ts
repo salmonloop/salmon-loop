@@ -37,7 +37,8 @@ describe('Knowledge Consistency & Deprecation', () => {
     await mkdir(knowledgeDir, { recursive: true });
 
     // 1. Setup existing "lax mode" rule
-    await KnowledgeGatherer.prototype['compact'](
+    const gathererForSetup = new KnowledgeGatherer();
+    await gathererForSetup['compact'](
       knowledgeDir,
       {
         project_rules: ['Use lax mode.'],

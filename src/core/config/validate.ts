@@ -172,6 +172,60 @@ export function validateConfigFileV1(input: unknown): ConfigFileV1 {
       cfg.context.useTokenBudget = contextRaw.useTokenBudget as any;
     }
 
+    if (contextRaw.cache !== undefined) {
+      if (!isRecord(contextRaw.cache)) {
+        throw new ConfigError('CONFIG_INVALID_CONTEXT_CACHE', { expected: 'object' });
+      }
+      const cacheRaw = contextRaw.cache as Record<string, unknown>;
+      const cache: NonNullable<ConfigFileV1['context']>['cache'] = {};
+      if (
+        cacheRaw.mode !== undefined &&
+        cacheRaw.mode !== 'memory' &&
+        cacheRaw.mode !== 'persistent'
+      ) {
+        throw new ConfigError('CONFIG_INVALID_CONTEXT_CACHE_MODE', { mode: String(cacheRaw.mode) });
+      }
+      if (cacheRaw.path !== undefined && !isString(cacheRaw.path)) {
+        throw new ConfigError('CONFIG_INVALID_CONTEXT_CACHE_PATH', { expected: 'string' });
+      }
+      if (
+        cacheRaw.allowedRoots !== undefined &&
+        (!Array.isArray(cacheRaw.allowedRoots) || cacheRaw.allowedRoots.some((v) => !isString(v)))
+      ) {
+        throw new ConfigError('CONFIG_INVALID_CONTEXT_CACHE_ALLOWED_ROOTS', {
+          expected: 'string[]',
+        });
+      }
+      if (cacheRaw.maxEntries !== undefined && !isNumber(cacheRaw.maxEntries)) {
+        throw new ConfigError('CONFIG_INVALID_CONTEXT_CACHE_MAX_ENTRIES', { expected: 'number' });
+      }
+      if (cacheRaw.ttlMs !== undefined && !isNumber(cacheRaw.ttlMs)) {
+        throw new ConfigError('CONFIG_INVALID_CONTEXT_CACHE_TTL', { expected: 'number' });
+      }
+      if (cacheRaw.mode === 'persistent') {
+        if (!isString(cacheRaw.path) || cacheRaw.path.length === 0) {
+          throw new ConfigError('CONFIG_INVALID_CONTEXT_CACHE_PATH', {
+            expected: 'non-empty string',
+          });
+        }
+        if (
+          !Array.isArray(cacheRaw.allowedRoots) ||
+          cacheRaw.allowedRoots.length === 0 ||
+          cacheRaw.allowedRoots.some((v) => !isString(v) || v.length === 0)
+        ) {
+          throw new ConfigError('CONFIG_INVALID_CONTEXT_CACHE_ALLOWED_ROOTS', {
+            expected: 'non-empty string[]',
+          });
+        }
+      }
+      cache.mode = cacheRaw.mode as any;
+      cache.path = cacheRaw.path as any;
+      cache.allowedRoots = cacheRaw.allowedRoots as any;
+      cache.maxEntries = cacheRaw.maxEntries as any;
+      cache.ttlMs = cacheRaw.ttlMs as any;
+      cfg.context.cache = cache;
+    }
+
     if (contextRaw.churn !== undefined) {
       if (!isRecord(contextRaw.churn)) {
         throw new ConfigError('CONFIG_INVALID_CHURN', { expected: 'object' });

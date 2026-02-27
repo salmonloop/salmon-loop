@@ -1,10 +1,13 @@
 import { text } from '../../locales/index.js';
-import { readFileSync } from '../adapters/fs/node-fs.js';
-import { readFile } from '../adapters/fs/node-fs.js';
+import { FileAdapter } from '../adapters/fs/file-adapter.js';
 import { LIMITS } from '../config/limits.js';
 import { logger } from '../observability/logger.js';
 import { pluginRegistry } from '../plugin/registry.js';
 import { safeJoin, safeDirname } from '../utils/path.js';
+
+interface DependencyFsAdapter {
+  readFile(filePath: string, encoding?: BufferEncoding): Promise<string>;
+}
 
 /**
  * Simple dependency analyzer to find related files
@@ -13,6 +16,7 @@ export async function findFileDependencies(
   filePath: string,
   repoPath: string,
   options?: { depth?: number; maxFiles?: number },
+  deps?: { fileAdapter?: DependencyFsAdapter },
 ): Promise<string[]> {
   const depth = Math.max(1, Math.min(LIMITS.maxDependencyDepth, options?.depth ?? 1));
   const maxFiles = Math.max(1, options?.maxFiles ?? 1000);
@@ -31,8 +35,8 @@ export async function findFileDependencies(
     for (const current of frontier) {
       if (results.length >= maxFiles) return results;
 
-      const deps = await findDirectDependencies(current, repoPath);
-      for (const dep of deps) {
+      const directDeps = await findDirectDependencies(current, repoPath, deps?.fileAdapter);
+      for (const dep of directDeps) {
         if (results.length >= maxFiles) break;
         if (seen.has(dep)) continue;
         seen.add(dep);
@@ -48,9 +52,16 @@ export async function findFileDependencies(
   return results;
 }
 
-async function findDirectDependencies(filePath: string, repoPath: string): Promise<string[]> {
+async function findDirectDependencies(
+  filePath: string,
+  repoPath: string,
+  fsAdapter?: DependencyFsAdapter,
+): Promise<string[]> {
   try {
-    const content = await readFile(safeJoin(repoPath, filePath), 'utf-8');
+    const content = await (fsAdapter ?? new FileAdapter()).readFile(
+      safeJoin(repoPath, filePath),
+      'utf-8',
+    );
     const dependencies: string[] = [];
 
     // Detect language plugin for this file
@@ -96,11 +107,16 @@ async function findDirectDependencies(filePath: string, repoPath: string): Promi
 /**
  * Check dependency versions against expected values
  */
-export function verifyDependencyVersion(rootPath: string): void {
+export async function verifyDependencyVersion(
+  rootPath: string,
+  deps?: { fileAdapter?: DependencyFsAdapter },
+): Promise<void> {
   try {
     // Read package.json
     const packageJsonPath = safeJoin(rootPath, 'package.json');
-    const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
+    const packageJson = JSON.parse(
+      await (deps?.fileAdapter ?? new FileAdapter()).readFile(packageJsonPath, 'utf-8'),
+    );
 
     // Check web-tree-sitter version
     const expectedVersion = '0.26.3';

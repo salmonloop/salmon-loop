@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import { readdir, readFile, stat } from '../../adapters/fs/node-fs.js';
+import { FileAdapter } from '../../adapters/fs/file-adapter.js';
 import type { RuntimeArtifacts } from '../../types/context.js';
 import { safeJoin } from '../../utils/path.js';
 import type { ContextRequest } from '../types.js';
@@ -16,6 +16,7 @@ export class ArtifactGatherer {
     'go.sum',
     'requirements.txt',
   ];
+  private readonly fileAdapter = new FileAdapter();
 
   async gather(req: ContextRequest): Promise<RuntimeArtifacts> {
     const { repoPath } = req;
@@ -27,7 +28,7 @@ export class ArtifactGatherer {
 
     // 1. Detect Build Dirs
     try {
-      const rootEntries = await readdir(repoPath);
+      const rootEntries = await this.fileAdapter.readdir(repoPath);
       artifacts.buildDirs = rootEntries.filter((e) =>
         ArtifactGatherer.COMMON_BUILD_DIRS.includes(e),
       );
@@ -39,10 +40,10 @@ export class ArtifactGatherer {
     for (const lock of ArtifactGatherer.CRITICAL_LOCK_FILES) {
       try {
         const lockPath = safeJoin(repoPath, lock);
-        const lockStat = await stat(lockPath);
+        const lockStat = await this.fileAdapter.stat(lockPath);
         if (lockStat.isFile()) {
           // For large lock files, we only take a partial hash to be fast
-          const content = await readFile(lockPath, 'utf-8');
+          const content = await this.fileAdapter.readFile(lockPath, 'utf-8');
           const hash = createHash('md5').update(content.slice(0, 5000)).digest('hex');
           artifacts.lockFiles?.push({ path: lock, hash });
         }

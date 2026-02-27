@@ -111,6 +111,28 @@ export default tseslint.config(
     },
   },
   {
+    files: ['src/core/context/**/*.ts', 'src/cli/commands/context.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'path',
+              message:
+                'Use src/core/adapters/path/path-adapter.ts instead of importing path directly in context modules.',
+            },
+            {
+              name: 'node:path',
+              message:
+                'Use src/core/adapters/path/path-adapter.ts instead of importing node:path directly in context modules.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ['src/core/adapters/git/git-adapter.ts'],
     rules: {
       'no-restricted-imports': 'off',

@@ -1,7 +1,6 @@
-import path from 'path';
-
 import { text } from '../../../locales/index.js';
-import { readFile } from '../../adapters/fs/node-fs.js';
+import { FileAdapter } from '../../adapters/fs/file-adapter.js';
+import { defaultPathAdapter } from '../../adapters/path/path-adapter.js';
 import { LIMITS } from '../../config/limits.js';
 import { safeJoin } from '../../utils/path.js';
 import type { ContextRequest } from '../types.js';
@@ -11,6 +10,8 @@ export interface PrimaryTextResult {
 }
 
 export class PrimaryTextGatherer {
+  private readonly fileAdapter = new FileAdapter();
+
   async gather(req: ContextRequest): Promise<PrimaryTextResult> {
     let primaryText: string | undefined;
 
@@ -30,10 +31,10 @@ export class PrimaryTextGatherer {
           );
         }
       } else {
-        const filePath = path.isAbsolute(req.primaryFile)
+        const filePath = defaultPathAdapter.isAbsolute(req.primaryFile)
           ? req.primaryFile
           : safeJoin(req.repoPath, req.primaryFile);
-        primaryText = await readFile(filePath, 'utf-8');
+        primaryText = await this.fileAdapter.readFile(filePath, 'utf-8');
       }
     } else if (req.selection) {
       primaryText = req.selection;

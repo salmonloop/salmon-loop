@@ -1,8 +1,8 @@
-import { resolve } from 'path';
-
 import { Command } from 'commander';
 
+import { defaultPathAdapter } from '../../core/adapters/path/path-adapter.js';
 import { resolveConfig } from '../../core/config/resolve.js';
+import { createContextCacheStore } from '../../core/context/cache/store-factory.js';
 import { ContextService } from '../../core/context/index.js';
 import { setChurnRankingPolicy } from '../../core/context/targeting/churn-policy.js';
 import { logger } from '../../core/observability/logger.js';
@@ -10,7 +10,7 @@ import { text } from '../locales/index.js';
 
 export async function handleContextCommand(options: any, command: Command) {
   const allOptions = command.optsWithGlobals();
-  const repoPath = resolve(allOptions.repo || process.cwd());
+  const repoPath = defaultPathAdapter.resolve(allOptions.repo || process.cwd());
 
   if (options.file && options.selection) {
     logger.error(text.cli.fileSelectionConflict, true);
@@ -46,7 +46,15 @@ export async function handleContextCommand(options: any, command: Command) {
     tieBreakWeight: resolvedConfig.raw?.context?.churn?.weight?.tiebreak,
   });
 
-  const service = new ContextService();
+  const cacheConfig = createContextCacheStore(repoPath, resolvedConfig.raw);
+  const service = new ContextService(
+    {},
+    {
+      cacheStore: cacheConfig.store,
+      cacheMaxEntries: cacheConfig.maxEntries,
+      cacheTtlMs: cacheConfig.ttlMs,
+    },
+  );
   const result = await service.build({
     instruction: options.instruction,
     repoPath,

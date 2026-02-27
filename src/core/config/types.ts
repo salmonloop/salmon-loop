@@ -61,6 +61,13 @@ export interface ConfigFileV1 {
 
   context?: {
     useTokenBudget?: boolean;
+    cache?: {
+      mode?: 'memory' | 'persistent';
+      path?: string;
+      allowedRoots?: string[];
+      maxEntries?: number;
+      ttlMs?: number;
+    };
     churn?: {
       weight?: {
         primary?: number;

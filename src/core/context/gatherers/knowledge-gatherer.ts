@@ -1,4 +1,4 @@
-import { readdir, readFile, writeFile, unlink, mkdir } from '../../adapters/fs/node-fs.js';
+import { FileAdapter } from '../../adapters/fs/file-adapter.js';
 import { getDefaultIndexPath } from '../../config/paths.js';
 import { logger } from '../../observability/logger.js';
 import type { ProjectKnowledge } from '../../types/context.js';
@@ -9,6 +9,7 @@ export class KnowledgeGatherer {
   private static readonly KNOWLEDGE_SUBDIR = 'knowledge';
   private static readonly SNAPSHOT_FILE = 'snapshot.json';
   private static readonly COMPACTION_THRESHOLD = 20; // Compact after 20 events
+  private readonly fileAdapter = new FileAdapter();
 
   async gather(req: ContextRequest): Promise<ProjectKnowledge> {
     const { repoPath } = req;
@@ -23,7 +24,7 @@ export class KnowledgeGatherer {
     const allDeprecated = new Set<string>();
 
     try {
-      const allFiles = await readdir(knowledgeDir);
+      const allFiles = await this.fileAdapter.readdir(knowledgeDir);
       // Sort files by timestamp (ascending) to apply Last-Writer-Wins correctly
       // We process snapshot.json first if it exists, then all event files
       const eventFiles = allFiles
@@ -33,7 +34,7 @@ export class KnowledgeGatherer {
       // 1. Load Snapshot if exists
       if (allFiles.includes(KnowledgeGatherer.SNAPSHOT_FILE)) {
         try {
-          const snapshotContent = await readFile(
+          const snapshotContent = await this.fileAdapter.readFile(
             safeJoin(knowledgeDir, KnowledgeGatherer.SNAPSHOT_FILE),
             'utf-8',
           );
@@ -50,7 +51,7 @@ export class KnowledgeGatherer {
       // 2. Load and Apply Events
       for (const file of eventFiles) {
         try {
-          const content = await readFile(safeJoin(knowledgeDir, file), 'utf-8');
+          const content = await this.fileAdapter.readFile(safeJoin(knowledgeDir, file), 'utf-8');
           const data = JSON.parse(content);
 
           if (data.project_rules) {
@@ -105,12 +106,12 @@ export class KnowledgeGatherer {
     const snapshotPath = safeJoin(knowledgeDir, KnowledgeGatherer.SNAPSHOT_FILE);
 
     try {
-      await mkdir(knowledgeDir, { recursive: true });
-      await writeFile(snapshotPath, JSON.stringify(aggregated, null, 2));
+      await this.fileAdapter.mkdir(knowledgeDir);
+      await this.fileAdapter.writeFile(snapshotPath, JSON.stringify(aggregated, null, 2));
 
       // After successful snapshot write, delete merged event files
       for (const file of filesToMerge) {
-        await unlink(safeJoin(knowledgeDir, file)).catch(() => {});
+        await this.fileAdapter.deleteFile(safeJoin(knowledgeDir, file)).catch(() => {});
       }
 
       logger.info(`[KnowledgeGatherer] Compaction complete. Merged into ${snapshotPath}`);

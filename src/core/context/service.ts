@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
-import path from 'node:path';
 
 import { FileAdapter } from '../adapters/fs/file-adapter.js';
+import { defaultPathAdapter } from '../adapters/path/path-adapter.js';
 import { Pipeline } from '../grizzco/engine/pipeline/pipeline.js';
 import { logger } from '../observability/logger.js';
 
@@ -9,6 +9,11 @@ import { CONTEXT_AUDIT_ACTION, CONTEXT_AUDIT_PHASE } from './audit-constants.js'
 import { recordContextAuditEvent } from './audit.js';
 import { ContextDiff, IncrementalUpdater } from './cache/incremental-updater.js';
 import type { PromptCachingManager } from './cache/prompt-caching.js';
+import {
+  MemoryContextCacheStore,
+  type ContextCacheEntry,
+  type ContextCacheStore,
+} from './cache/store.js';
 import type { PromptCacheStats } from './cache/types.js';
 import { createIntentSignature, createTargetSetSignature } from './hash.js';
 import type { ContextServiceDeps } from './service-deps.js';
@@ -20,19 +25,9 @@ import { buildContextPromotionStep } from './steps/context-promotion.js';
 import { buildContextTargetsStep } from './steps/context-targets.js';
 import type { ContextRequest, ContextResult, DiffScope } from './types.js';
 
-interface CacheEntry {
-  result: ContextResult;
-  trackedFiles: string[];
-  signature: string;
-  targetSetSignature?: string;
-  intentSignature: string;
-  createdAt?: number;
-  lastAccessedAt?: number;
-}
-
 export class ContextService {
   private readonly deps: ContextServiceDeps;
-  private readonly cache = new Map<string, CacheEntry>();
+  private readonly cacheStore: ContextCacheStore;
   private readonly updaters = new Map<string, IncrementalUpdater>();
   private readonly promptCachingManager: PromptCachingManager;
   private readonly fileAdapter = new FileAdapter();
@@ -49,7 +44,7 @@ export class ContextService {
 
   constructor(
     deps: Partial<ContextServiceDeps> = {},
-    options?: { cacheMaxEntries?: number; cacheTtlMs?: number },
+    options?: { cacheMaxEntries?: number; cacheTtlMs?: number; cacheStore?: ContextCacheStore },
   ) {
     this.deps = { ...defaultContextServiceDeps(), ...deps };
     this.promptCachingManager = this.deps.promptCachingManager;
@@ -61,6 +56,7 @@ export class ContextService {
       options?.cacheTtlMs && options.cacheTtlMs > 0
         ? Math.floor(options.cacheTtlMs)
         : ContextService.DEFAULT_CACHE_TTL_MS;
+    this.cacheStore = options?.cacheStore ?? new MemoryContextCacheStore();
   }
 
   async build(req: ContextRequest): Promise<ContextResult> {
@@ -107,15 +103,15 @@ export class ContextService {
     const contextResult = report.data as ContextResult;
     const trackedFiles = this.collectTrackedFiles(req, contextResult);
     const signature = await this.computeTrackedFilesSignature(req.repoPath, trackedFiles);
-    this.cache.set(cacheKey, {
+    await this.cacheStore.set(cacheKey, {
       result: contextResult,
       trackedFiles,
       signature,
       targetSetSignature: contextResult.meta.targetSetSignature,
       intentSignature,
     });
-    this.bumpCacheEntry(cacheKey);
-    this.evictLruIfNeeded();
+    await this.bumpCacheEntry(cacheKey);
+    await this.evictLruIfNeeded();
     this.recordContextDiff(cacheKey, contextResult);
     return contextResult;
   }
@@ -139,13 +135,13 @@ export class ContextService {
     missReason?: 'key_miss' | 'signature_mismatch' | 'target_signature_mismatch' | 'expired';
     targetSetSignature?: string;
   }> {
-    this.evictExpiredEntries();
-    const entry = this.cache.get(cacheKey);
+    await this.evictExpiredEntries();
+    const entry = await this.cacheStore.get(cacheKey);
     if (!entry) {
       this.cacheMetrics.misses += 1;
       return { missReason: 'key_miss' };
     }
-    if (this.isExpired(cacheKey, entry)) {
+    if (await this.isExpired(cacheKey, entry)) {
       this.cacheMetrics.misses += 1;
       return { missReason: 'expired' };
     }
@@ -155,7 +151,7 @@ export class ContextService {
       entry.result.meta.targetSetSignature ??
       expectedTargetSetSignature;
     if (recordedTargetSetSignature !== expectedTargetSetSignature) {
-      this.cache.delete(cacheKey);
+      await this.cacheStore.delete(cacheKey);
       this.cacheMetrics.misses += 1;
       return {
         missReason: 'target_signature_mismatch',
@@ -164,12 +160,12 @@ export class ContextService {
     }
     const nextSignature = await this.computeTrackedFilesSignature(repoPath, entry.trackedFiles);
     if (nextSignature !== entry.signature) {
-      this.cache.delete(cacheKey);
+      await this.cacheStore.delete(cacheKey);
       this.cacheMetrics.misses += 1;
       return { missReason: 'signature_mismatch', targetSetSignature: expectedTargetSetSignature };
     }
     this.cacheMetrics.hits += 1;
-    this.bumpCacheEntry(cacheKey);
+    await this.bumpCacheEntry(cacheKey);
     return { result: entry.result, targetSetSignature: expectedTargetSetSignature };
   }
 
@@ -188,7 +184,7 @@ export class ContextService {
   private async computeTrackedFilesSignature(repoPath: string, files: string[]): Promise<string> {
     const parts: string[] = [];
     for (const relativeFile of files) {
-      const absoluteFile = path.resolve(repoPath, relativeFile);
+      const absoluteFile = defaultPathAdapter.resolve(repoPath, relativeFile);
       try {
         const stat = await this.fileAdapter.stat(absoluteFile);
         parts.push(`${relativeFile}:${stat.mtimeMs}:${stat.size}`);
@@ -207,7 +203,7 @@ export class ContextService {
     const gitFiles = ['.git/HEAD', '.git/index'];
     const parts: string[] = [];
     for (const rel of gitFiles) {
-      const gitPath = path.resolve(repoPath, rel);
+      const gitPath = defaultPathAdapter.resolve(repoPath, rel);
       try {
         const stat = await this.fileAdapter.stat(gitPath);
         parts.push(`${rel}:${stat.mtimeMs}:${stat.size}`);
@@ -218,38 +214,38 @@ export class ContextService {
     return parts;
   }
 
-  private getEntryTimestamp(entry: CacheEntry): number {
+  private getEntryTimestamp(entry: ContextCacheEntry): number {
     return entry.lastAccessedAt ?? entry.createdAt ?? 0;
   }
 
-  private bumpCacheEntry(cacheKey: string): void {
-    const entry = this.cache.get(cacheKey);
+  private async bumpCacheEntry(cacheKey: string): Promise<void> {
+    const entry = await this.cacheStore.get(cacheKey);
     if (!entry) return;
     const now = Date.now();
     entry.createdAt = entry.createdAt ?? now;
     entry.lastAccessedAt = now;
-    this.cache.set(cacheKey, entry);
+    await this.cacheStore.set(cacheKey, entry);
   }
 
-  private isExpired(cacheKey: string, entry: CacheEntry): boolean {
+  private async isExpired(cacheKey: string, entry: ContextCacheEntry): Promise<boolean> {
     const last = this.getEntryTimestamp(entry);
     if (!last || Date.now() - last <= this.cacheTtlMs) return false;
-    this.cache.delete(cacheKey);
+    await this.cacheStore.delete(cacheKey);
     this.cacheMetrics.evictions += 1;
     return true;
   }
 
-  private evictExpiredEntries(): void {
-    for (const [key, entry] of this.cache.entries()) {
-      this.isExpired(key, entry);
+  private async evictExpiredEntries(): Promise<void> {
+    for (const [key, entry] of await this.cacheStore.entries()) {
+      await this.isExpired(key, entry);
     }
   }
 
-  private evictLruIfNeeded(): void {
-    while (this.cache.size > this.cacheMaxEntries) {
+  private async evictLruIfNeeded(): Promise<void> {
+    while ((await this.cacheStore.size()) > this.cacheMaxEntries) {
       let victimKey: string | undefined;
       let victimTs = Number.POSITIVE_INFINITY;
-      for (const [key, entry] of this.cache.entries()) {
+      for (const [key, entry] of await this.cacheStore.entries()) {
         const ts = this.getEntryTimestamp(entry);
         if (ts < victimTs) {
           victimTs = ts;
@@ -257,12 +253,12 @@ export class ContextService {
         }
       }
       if (!victimKey) break;
-      this.cache.delete(victimKey);
+      await this.cacheStore.delete(victimKey);
       this.cacheMetrics.evictions += 1;
     }
   }
 
-  getCacheStats(): {
+  async getCacheStats(): Promise<{
     size: number;
     maxEntries: number;
     ttlMs: number;
@@ -270,11 +266,11 @@ export class ContextService {
     misses: number;
     evictions: number;
     hitRate: number;
-  } {
+  }> {
     const total = this.cacheMetrics.hits + this.cacheMetrics.misses;
     const hitRate = total > 0 ? this.cacheMetrics.hits / total : 0;
     return {
-      size: this.cache.size,
+      size: await this.cacheStore.size(),
       maxEntries: this.cacheMaxEntries,
       ttlMs: this.cacheTtlMs,
       hits: this.cacheMetrics.hits,

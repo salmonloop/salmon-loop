@@ -1,5 +1,5 @@
 import { text } from '../../../locales/index.js';
-import { readFile } from '../../adapters/fs/node-fs.js';
+import { FileAdapter } from '../../adapters/fs/file-adapter.js';
 import { AstParser } from '../../ast/parser.js';
 import { checkSyntaxErrors } from '../../ast/validator.js';
 import { LIMITS } from '../../config/limits.js';
@@ -189,6 +189,8 @@ function getLanguageFromFile(filePath: string): string | undefined {
 }
 
 export class AstGatherer {
+  private readonly fileAdapter = new FileAdapter();
+
   async gather(primaryText: string | undefined, req: ContextRequest): Promise<AstResult> {
     if (!primaryText || !req.primaryFile) {
       return { symbols: [], definitionMap: {}, relatedFiles: [] };
@@ -478,7 +480,7 @@ export class AstGatherer {
       }
 
       try {
-        await readFile(safeJoin(req.repoPath, c), 'utf-8');
+        await this.fileAdapter.readFile(safeJoin(req.repoPath, c), 'utf-8');
         return c;
       } catch {
         // continue
@@ -496,7 +498,7 @@ export class AstGatherer {
     }
 
     try {
-      return await readFile(safeJoin(req.repoPath, filePath), 'utf-8');
+      return await this.fileAdapter.readFile(safeJoin(req.repoPath, filePath), 'utf-8');
     } catch {
       return null;
     }

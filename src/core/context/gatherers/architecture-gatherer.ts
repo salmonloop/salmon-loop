@@ -1,4 +1,4 @@
-import { readdir, readFile, writeFile, mkdir } from '../../adapters/fs/node-fs.js';
+import { FileAdapter } from '../../adapters/fs/file-adapter.js';
 import { logger } from '../../observability/logger.js';
 import type { ProjectTopology } from '../../types/context.js';
 import { safeJoin } from '../../utils/path.js';
@@ -7,6 +7,7 @@ import type { ContextRequest } from '../types.js';
 export class ArchitectureGatherer {
   private static readonly INDEX_DIR = '.salmonloop/index';
   private static readonly ARCH_FILE = 'architecture.json';
+  private readonly fileAdapter = new FileAdapter();
 
   async gather(req: ContextRequest): Promise<ProjectTopology> {
     const { repoPath } = req;
@@ -15,7 +16,7 @@ export class ArchitectureGatherer {
 
     // Try reading from cache first
     try {
-      const cached = await readFile(archFile, 'utf-8');
+      const cached = await this.fileAdapter.readFile(archFile, 'utf-8');
       const parsed = JSON.parse(cached);
       // Simple cache validation: if it has modules, use it
       if (parsed.modules && Array.isArray(parsed.modules)) {
@@ -32,7 +33,7 @@ export class ArchitectureGatherer {
 
     const srcPath = safeJoin(repoPath, 'src');
     try {
-      const srcEntries = await readdir(srcPath, { withFileTypes: true });
+      const srcEntries = await this.fileAdapter.readdirWithTypes(srcPath);
       const moduleList: string[] = [];
 
       for (const entry of srcEntries) {
@@ -53,8 +54,8 @@ export class ArchitectureGatherer {
 
       // Persistence: save to cache
       try {
-        await mkdir(indexDir, { recursive: true });
-        await writeFile(archFile, JSON.stringify(topology, null, 2));
+        await this.fileAdapter.mkdir(indexDir);
+        await this.fileAdapter.writeFile(archFile, JSON.stringify(topology, null, 2));
       } catch (e) {
         logger.debug(`[ArchitectureGatherer] Failed to save cache: ${e}`);
       }
