@@ -1,6 +1,7 @@
 export type VerboseLevel = 'basic' | 'extended';
 export type ApplyBackOnDirty = 'abort' | '3way';
 export type FlowMode = 'patch' | 'review' | 'debug';
+export type EnvironmentMode = 'strict' | 'parity';
 
 export interface FileSystem {
   readFile(path: string, encoding?: string): Promise<string>;

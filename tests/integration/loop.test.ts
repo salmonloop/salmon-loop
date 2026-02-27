@@ -1,3 +1,5 @@
+import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
+
 import { AstParser } from '../../src/core/ast/parser.js';
 import { LLM } from '../../src/core/llm/index.js';
 import { runSalmonLoop } from '../../src/core/runtime/loop.js';
@@ -198,5 +200,56 @@ describe('SalmonLoop Integration Tests', () => {
     // Verify changes applied back to main repo
     const content = await helper.readFile(repoPath, 'src/index.ts');
     expect(content).toContain('console.log("world")');
+  });
+
+  it('runs PREPARE_DEPS before VERIFY in worktree mode', async () => {
+    const prepareMarker = '.prepare-deps-ok';
+    const worktreePrepare = bunCommand(
+      `-e "import { writeFileSync } from 'fs'; writeFileSync('${prepareMarker}', 'ok')"`,
+    );
+    const verifyPrepare = bunCommand(
+      `-e "import { existsSync } from 'fs'; process.exit(existsSync('${prepareMarker}') ? 0 : 1)"`,
+    );
+
+    mockLlm.createPlan.mockResolvedValue({
+      goal: 'Fix the log message',
+      files: ['src/index.ts'],
+      changes: ['Change hello to world'],
+      verify: verifyPrepare,
+    });
+
+    mockLlm.createPatch.mockResolvedValue(
+      'diff --git a/src/index.ts b/src/index.ts\n' +
+        '--- a/src/index.ts\n' +
+        '+++ b/src/index.ts\n' +
+        '@@ -1,1 +1,1 @@\n' +
+        '-console.log("hello");\n' +
+        '+console.log("world");',
+    );
+
+    const phaseStarts: string[] = [];
+    const result = await runSalmonLoop({
+      instruction: 'Fix the log message',
+      verify: verifyPrepare,
+      repoPath: repoPath,
+      file: 'src/index.ts',
+      llm: mockLlm as unknown as LLM,
+      strategy: 'worktree',
+      worktreePrepare,
+      onEvent: (event) => {
+        if (event.type === 'phase.start') {
+          phaseStarts.push(event.phase);
+        }
+      },
+    });
+
+    expect(result.success).toBe(true);
+
+    const prepareDepsIndex = phaseStarts.indexOf('PREPARE_DEPS');
+    const verifyIndex = phaseStarts.indexOf('VERIFY');
+
+    expect(prepareDepsIndex).toBeGreaterThanOrEqual(0);
+    expect(verifyIndex).toBeGreaterThanOrEqual(0);
+    expect(prepareDepsIndex).toBeLessThan(verifyIndex);
   });
 });

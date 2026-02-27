@@ -11,6 +11,7 @@ import type { ToolAuthorizationProvider } from '../tools/authorization/types.js'
 import type { AuthorizationDecisionRecord } from './authorization.js';
 import type {
   ApplyBackOnDirty,
+  EnvironmentMode,
   ErrorType,
   ExecutionPhase,
   ExecutionStep,
@@ -295,6 +296,7 @@ export interface RunOptions {
   verbose?: VerboseLevel;
   strategy?: CheckpointStrategy;
   applyBackOnDirty?: ApplyBackOnDirty;
+  environmentMode?: EnvironmentMode;
   worktreePrepare?: string;
   expectedChanges?: string[];
   expectedFileContent?: { path: string; content: string }[];
@@ -355,6 +357,7 @@ export interface LoopOptions {
   allowOutsideCacheRoot?: boolean;
   strategy?: CheckpointStrategy;
   applyBackOnDirty?: ApplyBackOnDirty;
+  environmentMode?: EnvironmentMode;
   astValidation?: {
     strictness?: 'lenient' | 'strict';
   };
@@ -376,4 +379,5 @@ export interface ExecutionWorkspace {
   baseRepoPath: string;
   workPath: string;
   strategy: CheckpointStrategy;
+  environmentMode?: EnvironmentMode;
 }

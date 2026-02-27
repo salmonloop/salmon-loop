@@ -243,6 +243,25 @@ export async function handleRunCommand(options: any, command: Command) {
     return;
   }
 
+  const rawEnvironmentMode = String((allOptions as any).environmentMode || 'strict');
+  if (rawEnvironmentMode !== 'strict' && rawEnvironmentMode !== 'parity') {
+    logger.error(text.cli.invalidEnvironmentMode(rawEnvironmentMode));
+    if (outputFormat === 'json') {
+      writeJsonFailure({
+        message: text.cli.invalidEnvironmentMode(rawEnvironmentMode),
+        repoPath: runPath,
+      });
+    } else if (outputFormat === 'stream-json') {
+      headlessErrorWriter.writeUsageError({
+        sessionId: sessionIdForOutput ?? randomUUID(),
+        message: text.cli.invalidEnvironmentMode(rawEnvironmentMode),
+        instruction,
+      });
+    }
+    process.exitCode = 1;
+    return;
+  }
+
   const extensionsResult = await resolveRunExtensions({
     repoPath: runPath,
     outputFormat,
@@ -348,6 +367,7 @@ export async function handleRunCommand(options: any, command: Command) {
       selection: allOptions.selection,
       verbose: verboseLevel,
       checkpointStrategy: allOptions.checkpointStrategy as CheckpointStrategy,
+      environmentMode: rawEnvironmentMode,
       applyBackOnDirty,
       worktreePrepare: allOptions.worktreePrepare,
       llmOutput,

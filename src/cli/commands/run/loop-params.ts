@@ -14,6 +14,7 @@ export function buildRunLoopParams(params: {
   selection?: unknown[];
   verbose?: any;
   checkpointStrategy?: CheckpointStrategy;
+  environmentMode?: 'strict' | 'parity';
   applyBackOnDirty: any;
   worktreePrepare?: any;
   llmOutput: any;
@@ -44,6 +45,7 @@ export function buildRunLoopParams(params: {
     selection: params.selection,
     verbose: params.verbose,
     strategy: params.checkpointStrategy,
+    environmentMode: params.environmentMode,
     applyBackOnDirty: params.applyBackOnDirty,
     worktreePrepare: params.worktreePrepare,
     llmOutput: params.llmOutput,

@@ -235,6 +235,7 @@ export const en = {
   preflightPolicyOption:
     'Preflight policy (lenient: continue on test failure, strict: fail on test failure)',
   checkpointStrategyOption: 'Checkpoint strategy to use (direct, worktree)',
+  environmentModeOption: 'Worktree environment mode (strict, parity)',
   applyBackOnDirtyOption: 'Behavior when apply-back detects a dirty workspace (3way, abort)',
   worktreePrepareOption: 'Optional setup command to run inside worktree',
   streamOutputOption: 'Stream LLM responses to the CLI as they arrive (best effort)',
@@ -272,6 +273,8 @@ export const en = {
   structuredOutputSchemaFailed: 'Structured output failed schema validation.',
   invalidMode: (mode: string) =>
     `Invalid --mode "${mode}". Expected "patch", "review", or "debug".`,
+  invalidEnvironmentMode: (mode: string) =>
+    `Invalid --environment-mode "${mode}". Expected "strict" or "parity".`,
   invalidOutputFormat: (format: string) =>
     `Invalid --output-format "${format}". Expected "text", "stream-json", or "json".`,
   invalidOutputProfile: (profile: string) =>

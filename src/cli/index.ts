@@ -82,6 +82,7 @@ program
   .option('--preflight-policy <policy>', text.cli.preflightPolicyOption, 'lenient')
   .option('--mode <mode>', text.cli.modeOption, 'patch')
   .option('--apply-back-on-dirty <mode>', text.cli.applyBackOnDirtyOption, '3way')
+  .option('--environment-mode <mode>', text.cli.environmentModeOption, 'strict')
   .option('--worktree-prepare <command>', text.cli.worktreePrepareOption)
   .option('--stream-output', text.cli.streamOutputOption)
   .option('--include-partial-messages', text.cli.includePartialMessagesOption)

@@ -125,6 +125,7 @@ export class RuntimeEnvironment {
           dryRun: options.dryRun,
           verbose: options.verbose,
           strategy: options.strategy,
+          environmentMode: options.environmentMode,
         },
         this.initialSnapshotHash,
         emit,

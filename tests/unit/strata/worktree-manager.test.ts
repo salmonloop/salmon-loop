@@ -1,3 +1,5 @@
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
+
 const { queryMock, rmMock, accessMock, realpathMock } = (() => ({
   queryMock: mock(),
   rmMock: mock(),
@@ -49,6 +51,36 @@ describe('WorkspaceManager teardown safety behavior', () => {
     expect(
       events.some((event) => event?.resource === 'worktree' && event?.status === 'skipped'),
     ).toBe(true);
+  });
+
+  it('creates strict-mode worktree paths under system temp root', async () => {
+    queryMock.mockResolvedValueOnce('base-ref\n').mockResolvedValueOnce('');
+
+    const workspace = await WorkspaceManager.setup({
+      instruction: 'test',
+      verify: 'echo ok',
+      repoPath: '/repo/my-project',
+      strategy: 'worktree',
+      environmentMode: 'strict',
+    } as any);
+
+    expect(workspace.environmentMode).toBe('strict');
+    expect(workspace.workPath).toContain('/tmp/s8p-wt/my-project/');
+  });
+
+  it('creates parity-mode worktree paths under repo-parent parity root', async () => {
+    queryMock.mockResolvedValueOnce('base-ref\n').mockResolvedValueOnce('');
+
+    const workspace = await WorkspaceManager.setup({
+      instruction: 'test',
+      verify: 'echo ok',
+      repoPath: '/home/test/projects/my-project',
+      strategy: 'worktree',
+      environmentMode: 'parity',
+    } as any);
+
+    expect(workspace.environmentMode).toBe('parity');
+    expect(workspace.workPath).toContain('/home/test/projects/.salmonloop/worktrees/my-project/');
   });
 
   it('falls back to filesystem cleanup when git worktree removal fails', async () => {
@@ -141,6 +173,19 @@ describe('WorkspaceManager teardown safety behavior', () => {
     ).toBe(true);
   });
 
+  it('allows fallback cleanup under parity worktree root', async () => {
+    queryMock.mockResolvedValueOnce('');
+
+    await WorkspaceManager.teardown({
+      strategy: 'worktree',
+      baseRepoPath: '/home/test/projects/my-project',
+      workPath: '/home/test/projects/.salmonloop/worktrees/my-project/test-worktree',
+      environmentMode: 'parity',
+    });
+
+    expect(rmMock).toHaveBeenCalled();
+  });
+
   it('refuses fallback deletion outside temp directory', async () => {
     queryMock.mockResolvedValueOnce('');
 
@@ -150,7 +195,7 @@ describe('WorkspaceManager teardown safety behavior', () => {
         baseRepoPath: '/repo',
         workPath: '/unsafe/worktree',
       }),
-    ).rejects.toThrow('Worktree path not in temp directory, refusing to delete');
+    ).rejects.toThrow('Worktree path not in managed roots, refusing to delete');
   });
 
   it('refuses fallback deletion for temp-prefix path outside temp directory', async () => {
@@ -162,6 +207,6 @@ describe('WorkspaceManager teardown safety behavior', () => {
         baseRepoPath: '/repo',
         workPath: '/tmp-evil/worktree',
       }),
-    ).rejects.toThrow('Worktree path not in temp directory, refusing to delete');
+    ).rejects.toThrow('Worktree path not in managed roots, refusing to delete');
   });
 });

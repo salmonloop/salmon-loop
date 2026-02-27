@@ -1,6 +1,6 @@
 import { randomBytes } from 'crypto';
 import { tmpdir } from 'os';
-import { basename, join, normalize } from 'path';
+import { basename, dirname, join, normalize, resolve } from 'path';
 
 import { text } from '../../../locales/index.js';
 import { access, realpath, rm } from '../../adapters/fs/node-fs.js';
@@ -8,6 +8,21 @@ import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { logger } from '../../observability/logger.js';
 import { RunOptions, ExecutionWorkspace, LoopEvent } from '../../types/index.js';
 import { isPathWithinDirectory } from '../../utils/path.js';
+
+function resolveEnvironmentMode(options: Pick<RunOptions, 'environmentMode'>): 'strict' | 'parity' {
+  return options.environmentMode === 'parity' ? 'parity' : 'strict';
+}
+
+function resolveParityWorktreeRoot(repoPath: string): string {
+  return join(dirname(resolve(repoPath)), '.salmonloop', 'worktrees');
+}
+
+function isManagedWorktreePath(baseRepoPath: string, workPath: string): boolean {
+  if (isPathWithinDirectory(tmpdir(), workPath, { allowEqual: false })) return true;
+  const parityRoot = resolveParityWorktreeRoot(baseRepoPath);
+  if (isPathWithinDirectory(parityRoot, workPath, { allowEqual: false })) return true;
+  return false;
+}
 
 function normalizePathForCompare(value: string): string {
   const normalized = normalize(value).replace(/\\/g, '/');
@@ -75,13 +90,24 @@ export class WorkspaceManager {
       const repoName = basename(options.repoPath);
       const timestamp = Date.now();
       const random = randomBytes(4).toString('hex');
-      const worktreePath = join(tmpdir(), `s8p-wt/${repoName}/${timestamp}-${random}`);
-
-      const tmpDir = normalize(tmpdir());
+      const environmentMode = resolveEnvironmentMode(options);
+      const rootDir =
+        environmentMode === 'parity'
+          ? join(resolveParityWorktreeRoot(options.repoPath), repoName)
+          : join(tmpdir(), `s8p-wt/${repoName}`);
+      const worktreePath = join(rootDir, `${timestamp}-${random}`);
       const normalizedWorktreePath = normalize(worktreePath);
 
-      if (!isPathWithinDirectory(tmpDir, normalizedWorktreePath, { allowEqual: false })) {
-        throw new Error('Worktree path must be in system temp directory');
+      if (environmentMode === 'parity') {
+        const parityRoot = normalize(resolveParityWorktreeRoot(options.repoPath));
+        if (!isPathWithinDirectory(parityRoot, normalizedWorktreePath, { allowEqual: false })) {
+          throw new Error('Worktree path must be under parity worktree root');
+        }
+      } else {
+        const tmpDir = normalize(tmpdir());
+        if (!isPathWithinDirectory(tmpDir, normalizedWorktreePath, { allowEqual: false })) {
+          throw new Error('Worktree path must be in system temp directory');
+        }
       }
       if (isPathWithinDirectory(options.repoPath, worktreePath, { allowEqual: true })) {
         throw new Error('Worktree path must not be inside repo path');
@@ -102,6 +128,7 @@ export class WorkspaceManager {
         baseRepoPath: options.repoPath,
         workPath: worktreePath,
         strategy: 'worktree',
+        environmentMode,
       };
     }
 
@@ -117,6 +144,7 @@ export class WorkspaceManager {
       baseRepoPath: options.repoPath,
       workPath: options.repoPath,
       strategy: 'direct',
+      environmentMode: resolveEnvironmentMode(options),
     };
   }
 
@@ -211,8 +239,8 @@ export class WorkspaceManager {
     }
 
     if (!removed) {
-      if (!isPathWithinDirectory(tmpdir(), workspace.workPath, { allowEqual: false })) {
-        throw new Error('Worktree path not in temp directory, refusing to delete');
+      if (!isManagedWorktreePath(workspace.baseRepoPath, workspace.workPath)) {
+        throw new Error('Worktree path not in managed roots, refusing to delete');
       }
       await rm(workspace.workPath, {
         recursive: true,
