@@ -6,7 +6,7 @@ SalmonLoop lets you add non-builtin capabilities (MCP servers, local tool plugin
 
 | Scope | Path | Purpose |
 | --- | --- | --- |
-| Repository | `.salmonloop/config/mcp.json` | MCP servers (either stdio via `command` or remote via `url`). |
+| Repository | `.salmonloop/config/mcp.json` | MCP servers (stdio via `command` or streamable via `url`). |
 | Repository | `.salmonloop/config/tools.json` | Local JS plugin definitions (`path`, `enabled`, `allowUserScope`). |
 | Repository | `.salmonloop/config/skills.json` | Additional skill discovery paths, whether to keep compatibility defaults. |
 | User | `~/.salmonloop/config/mcp-user.json` | Same fields as repo MCP config, default `enabled: false`. |
@@ -63,6 +63,7 @@ Entries merge with the policy “user first, repo overrides.” Repo files can d
 ```
 
 - Exactly one of `command` or `url` is required per server entry.
+- `url` indicates a **Streamable HTTP** connection, where JSON-RPC messages are exchanged over a streaming response.
 - `headers` are sent with every request (POST/GET/DELETE) for Streamable HTTP connections.
 
 ## Tool plugin sample
@@ -119,11 +120,11 @@ SalmonLoop supports two MCP transport types for connecting to external servers:
 ### Streamable HTTP (remote)
 
 - **Transport**: HTTP/HTTPS connection using the `url` field.
-- **Configuration**: Optional `headers` dictionary sent with every request.
-- **Communication**: JSON-RPC over HTTP POST, with server-sent events (SSE) support for streaming responses.
-- **Session management**: Automatic session ID handling via `MCP-Session-Id` header; GET requests with `Last-Event-ID` for reconnect/resume.
-- **Features**: Same JSON-RPC operations as stdio, plus SSE streaming and automatic reconnection logic.
-- **Use case**: Remote MCP servers, cloud-hosted tools, or services requiring HTTP transport.
+- **SSOT Strategy**: SalmonLoop treats "Streamable" as the single source of truth for all remote communications.
+- **Communication**: JSON-RPC over a persistent HTTP POST connection. The server returns a continuous stream of response chunks.
+- **Session management**: Handled via standard HTTP headers and correlation IDs within the JSON-RPC payload.
+- **Features**: Same JSON-RPC operations as stdio, using standard streaming bodies to ensure high responsiveness and zero-latency tool updates.
+- **Use case**: Remote MCP servers, cloud-hosted tools, or services requiring an elastic, streamable transport layer.
 
 ### Capabilities and constraints
 
