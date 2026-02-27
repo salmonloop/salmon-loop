@@ -124,6 +124,18 @@ export class ContextFormatConverter {
       };
     }
 
+    if (context.knowledgeBase) {
+      jsonContext.kb = {
+        pr: context.knowledgeBase.project_rules,
+        ad: context.knowledgeBase.architectural_decisions?.map((d) => [
+          d.date,
+          d.decision,
+          d.related_files,
+        ]),
+        up: context.knowledgeBase.user_preferences,
+      };
+    }
+
     return {
       c: jsonContext,
     };

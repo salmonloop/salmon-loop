@@ -16,15 +16,23 @@ export function buildContextGatherStep(deps: ContextServiceDeps) {
       { source: 'context', severity: 'low', scope: 'session', phase: CONTEXT_AUDIT_PHASE.gather },
     );
 
-    const [rgSnippets, diffRes, astRes, projectMetadata, gitHistory, projectTopology] =
-      await Promise.all([
-        deps.ripgrepGatherer.searchMultipleKeywords(keywords, req.repoPath, req.signal),
-        deps.gitDiffGatherer.gather({ ...req, diffScope }),
-        deps.astGatherer.gather(primaryText, req),
-        deps.metadataGatherer.gather(req),
-        deps.gitHistoryGatherer.gather(req),
-        deps.architectureGatherer.gather(req),
-      ]);
+    const [
+      rgSnippets,
+      diffRes,
+      astRes,
+      projectMetadata,
+      gitHistory,
+      projectTopology,
+      knowledgeBase,
+    ] = await Promise.all([
+      deps.ripgrepGatherer.searchMultipleKeywords(keywords, req.repoPath, req.signal),
+      deps.gitDiffGatherer.gather({ ...req, diffScope }),
+      deps.astGatherer.gather(primaryText, req),
+      deps.metadataGatherer.gather(req),
+      deps.gitHistoryGatherer.gather(req),
+      deps.architectureGatherer.gather(req),
+      deps.knowledgeGatherer.gather(req),
+    ]);
     assertNotAborted(req.signal);
 
     recordContextAuditEvent(
@@ -38,6 +46,7 @@ export function buildContextGatherStep(deps: ContextServiceDeps) {
         hasProjectMetadata: Boolean(projectMetadata),
         hasGitHistory: Boolean(gitHistory),
         hasProjectTopology: Boolean(projectTopology),
+        hasKnowledgeBase: Boolean(knowledgeBase),
       },
       { source: 'context', severity: 'low', scope: 'session', phase: CONTEXT_AUDIT_PHASE.gather },
     );
@@ -50,6 +59,7 @@ export function buildContextGatherStep(deps: ContextServiceDeps) {
       projectMetadata,
       gitHistory,
       projectTopology,
+      knowledgeBase,
       diff: {
         includedFiles: diffRes.includedFiles,
         stagedDiff: diffRes.stagedDiff,

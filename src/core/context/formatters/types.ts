@@ -18,6 +18,13 @@ export interface JsonContext {
   pm?: JsonProjectMetadata; // projectMetadata
   gh?: JsonGitHistory; // gitHistory
   pt?: JsonProjectTopology; // projectTopology
+  kb?: JsonProjectKnowledge; // knowledgeBase
+}
+
+export interface JsonProjectKnowledge {
+  pr?: string[]; // project_rules
+  ad?: Array<[string, string, string[]?]>; // architectural_decisions [date, decision, files]
+  up?: string; // user_preferences
 }
 
 export interface JsonProjectTopology {

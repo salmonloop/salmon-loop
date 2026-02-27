@@ -5,6 +5,7 @@ import { ArchitectureGatherer } from './gatherers/architecture-gatherer.js';
 import { AstGatherer } from './gatherers/ast-gatherer.js';
 import { GitDiffGatherer } from './gatherers/git-diff-gatherer.js';
 import { GitHistoryGatherer } from './gatherers/git-history-gatherer.js';
+import { KnowledgeGatherer } from './gatherers/knowledge-gatherer.js';
 import { MetadataGatherer } from './gatherers/metadata-gatherer.js';
 import { PrimaryTextGatherer } from './gatherers/primary-text-gatherer.js';
 import { RipgrepGatherer } from './gatherers/ripgrep-gatherer.js';
@@ -18,6 +19,7 @@ export interface ContextServiceDeps {
   metadataGatherer: MetadataGatherer;
   gitHistoryGatherer: GitHistoryGatherer;
   architectureGatherer: ArchitectureGatherer;
+  knowledgeGatherer: KnowledgeGatherer;
   targetResolver: TargetResolver;
   assembler: PromptAssembler;
   promptCachingManager: PromptCachingManager;
@@ -32,6 +34,7 @@ export function defaultContextServiceDeps(): ContextServiceDeps {
     metadataGatherer: new MetadataGatherer(),
     gitHistoryGatherer: new GitHistoryGatherer(),
     architectureGatherer: new ArchitectureGatherer(),
+    knowledgeGatherer: new KnowledgeGatherer(),
     targetResolver: new TargetResolver(),
     assembler: new DefaultPromptAssembler(),
     promptCachingManager: new PromptCachingManager(),

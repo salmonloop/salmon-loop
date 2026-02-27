@@ -151,6 +151,17 @@ export interface Context {
     recentCommits?: string;
   };
   projectTopology?: ProjectTopology;
+  knowledgeBase?: ProjectKnowledge;
+}
+
+export interface ProjectKnowledge {
+  project_rules?: string[];
+  architectural_decisions?: Array<{
+    date: string;
+    decision: string;
+    related_files?: string[];
+  }>;
+  user_preferences?: string;
 }
 
 export interface ProjectTopology {

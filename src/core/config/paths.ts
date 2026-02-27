@@ -17,3 +17,7 @@ export function resolveConfigPath(repoRoot: string, configPath: string): string 
   // Relative paths are resolved against the target repo root (not the CLI's cwd).
   return resolve(repoRoot, configPath);
 }
+
+export function getDefaultIndexPath(repoRoot: string): string {
+  return join(resolve(repoRoot), '.salmonloop', 'index');
+}
