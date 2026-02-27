@@ -4,6 +4,7 @@ import Handlebars from 'handlebars';
 import { z } from 'zod';
 
 import { readFile } from '../adapters/fs/node-fs.js';
+import type { ReflectionInput } from '../reflection/types.js';
 import type { ToolSpec } from '../tools/types.js';
 
 import type { ExplorePromptVars, PatchPromptVars, PlanPromptVars } from './schema.js';
@@ -17,6 +18,7 @@ const TEMPLATE_URLS: Record<string, URL> = {
   ),
   'system/explore_system.hbs': new URL('./templates/system/explore_system.hbs', import.meta.url),
   'system/plan_system.hbs': new URL('./templates/system/plan_system.hbs', import.meta.url),
+  'system/reflection.hbs': new URL('./templates/system/reflection.hbs', import.meta.url),
   'system/patch_system.hbs': new URL('./templates/system/patch_system.hbs', import.meta.url),
   'phases/explore_user.hbs': new URL('./templates/phases/explore_user.hbs', import.meta.url),
   'phases/plan_user.hbs': new URL('./templates/phases/plan_user.hbs', import.meta.url),
@@ -45,6 +47,7 @@ export class PromptRegistry {
       await this.loadTemplate('explore_system', 'system/explore_system.hbs');
       await this.loadTemplate('plan_system', 'system/plan_system.hbs');
       await this.loadTemplate('patch_system', 'system/patch_system.hbs');
+      await this.loadTemplate('reflection', 'system/reflection.hbs');
       await this.loadTemplate('explore', 'phases/explore_user.hbs');
       await this.loadTemplate('plan', 'phases/plan_user.hbs');
       await this.loadTemplate('patch', 'phases/patch_user.hbs');
@@ -174,7 +177,7 @@ export class PromptRegistry {
   }
 
   renderPatchSystem(): string {
-    return this.renderPatchSystemWithRuntime(undefined);
+    return this.render('patch_system', { tools: this.getToolsForTemplate() });
   }
 
   renderPatchSystemWithRuntime(runtime?: unknown): string {
@@ -182,7 +185,7 @@ export class PromptRegistry {
   }
 
   renderExploreSystem(): string {
-    return this.renderExploreSystemWithRuntime(undefined);
+    return this.render('explore_system', { tools: this.getToolsForTemplate() });
   }
 
   renderExploreSystemWithRuntime(runtime?: unknown): string {
@@ -199,6 +202,10 @@ export class PromptRegistry {
 
   renderPatch(vars: PatchPromptVars): string {
     return this.render('patch', vars);
+  }
+
+  renderReflection(vars: ReflectionInput): string {
+    return this.render('reflection', vars);
   }
 }
 

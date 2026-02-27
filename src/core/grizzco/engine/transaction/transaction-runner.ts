@@ -1,4 +1,6 @@
 import { recordAuditEvent } from '../../../observability/audit-trail.js';
+import { ReflectionEngine } from '../../../reflection/engine.js';
+import type { ReflectionInput } from '../../../reflection/types.js';
 import type { FileStateResolver } from '../../../strata/layers/file-state-resolver.js';
 import type { WorkspaceSynchronizer } from '../../../strata/runtime/synchronizer.js';
 import type { ArtifactHandle } from '../../../sub-agent/artifacts/types.js';
@@ -147,6 +149,24 @@ export class FlowTransactionRunner {
           { attempt, flowMode: this.params.flowMode },
           { phase: successPhase, severity: 'low', scope: 'session' },
         );
+
+        // Reflection Mechanism: trigger when multiple attempts were needed
+        if (attempt > 1 && this.params.options.llm) {
+          const reflectionEngine = new ReflectionEngine(this.params.options.llm);
+          const reflectionInput: ReflectionInput = {
+            instruction: this.params.options.instruction,
+            history: this.historyEntries,
+            success: true,
+            finalPlan: shrinkCtx?.plan,
+            finalPatch: shrinkCtx?.diff,
+          };
+          reflectionEngine
+            .reflect(reflectionInput, this.params.options.repoPath)
+            .catch((e: unknown) =>
+              recordAuditEvent('reflection.error', { error: String(e) }, { severity: 'medium' }),
+            );
+        }
+
         return mapSuccessReport({
           attempt,
           flowReport: result,
