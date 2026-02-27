@@ -62,6 +62,9 @@ export interface LoopResult {
   success: boolean;
   reason: string;
   reasonCode: LoopReasonCode;
+  diagnosticCode?: string;
+  safeHint?: string;
+  remediationSteps?: string[];
   attempts: number;
   contextHash?: string;
   logs: StepLog[];

@@ -21,4 +21,7 @@ export interface FlowTransactionReport {
   terminalReason?: string;
   terminalReasonCode?: LoopReasonCode;
   terminalFailurePhase?: ExecutionPhase;
+  terminalDiagnosticCode?: string;
+  terminalSafeHint?: string;
+  terminalRemediationSteps?: string[];
 }

@@ -165,6 +165,9 @@ export class StreamAssembler {
         exitCode: getExitCode(result),
         reason: result.reason,
         reasonCode: result.reasonCode,
+        diagnosticCode: result.diagnosticCode,
+        safeHint: result.safeHint,
+        remediationSteps: result.remediationSteps,
         timestamp: this.clock(),
       },
     ];

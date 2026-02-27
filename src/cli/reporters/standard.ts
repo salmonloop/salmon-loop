@@ -236,7 +236,10 @@ export class StandardReporter implements SalmonReporter {
 
   private handleFailure(result: LoopResult) {
     logger.error(text.cli.operationFailed);
-    logger.bold(text.cli.reason(result.reason));
+    logger.bold(text.cli.reason(result.safeHint || result.reason));
+    if (result.diagnosticCode) {
+      logger.error(`  Diagnostic code: ${result.diagnosticCode}`);
+    }
     if (result.errorCode) {
       logger.error(text.cli.errorCode(result.errorCode));
     }
@@ -245,6 +248,11 @@ export class StandardReporter implements SalmonReporter {
     }
     if (result.verifyArtifact?.handle) {
       logger.log(text.cli.verifyOutputArtifact(result.verifyArtifact.handle));
+    }
+    if (Array.isArray(result.remediationSteps) && result.remediationSteps.length > 0) {
+      for (const step of result.remediationSteps) {
+        logger.cyan(`${text.symbols.suggestion} ${step}`);
+      }
     }
 
     if (result.failurePhase === Phase.PREFLIGHT) {

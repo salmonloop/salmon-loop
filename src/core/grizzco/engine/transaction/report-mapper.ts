@@ -73,6 +73,9 @@ export function mapTerminalFailureReport(
     terminalReason: failure.reason,
     terminalReasonCode: failure.reasonCode,
     terminalFailurePhase: failure.failurePhase,
+    terminalDiagnosticCode: failure.diagnosticCode,
+    terminalSafeHint: failure.safeHint,
+    terminalRemediationSteps: [...failure.remediationSteps],
   };
 }
 

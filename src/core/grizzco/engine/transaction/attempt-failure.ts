@@ -1,4 +1,5 @@
 import { text } from '../../../../locales/index.js';
+import { buildFailureGuidance } from '../../../failure/diagnostics.js';
 import { sanitizeError } from '../../../llm/errors.js';
 import { REDACTED_ERROR_TOKEN } from '../../../observability/error-envelope.js';
 import { EXECUTION_PHASES } from '../../../types/index.js';
@@ -13,6 +14,9 @@ export interface AttemptFailureDetails {
   failurePhase: ExecutionPhase;
   retryable: boolean;
   errorCode?: string;
+  diagnosticCode: string;
+  safeHint: string;
+  remediationSteps: string[];
 }
 
 const RETRYABLE_PHASES = new Set<ExecutionPhase>([
@@ -76,17 +80,29 @@ export function resolveAttemptFailure(params: {
     flowMode !== 'review' &&
     context?.applyBackResult?.success === false &&
     !context.applyBackResult.skipped;
+  const environmentMode = context?.options?.environmentMode;
 
   if (applyBackFailed) {
+    const fallbackReason =
+      context.applyBackResult?.safeMessage ||
+      context.applyBackResult?.error ||
+      text.loop.applyBackFailed;
+    const guidance = buildFailureGuidance({
+      reasonCode: 'APPLY_BACK_FAILED',
+      failurePhase: 'APPLY_BACK',
+      errorCode: context.applyBackResult?.errorCode || 'APPLY_BACK_FAILED',
+      environmentMode,
+      fallbackReason,
+    });
     return {
-      reason:
-        context.applyBackResult?.safeMessage ||
-        context.applyBackResult?.error ||
-        text.loop.applyBackFailed,
+      reason: guidance.safeHint,
       reasonCode: 'APPLY_BACK_FAILED',
       failurePhase: 'APPLY_BACK',
       retryable: false,
       errorCode: context.applyBackResult?.errorCode || 'APPLY_BACK_FAILED',
+      diagnosticCode: guidance.diagnosticCode,
+      safeHint: guidance.safeHint,
+      remediationSteps: guidance.remediationSteps,
     };
   }
 
@@ -97,65 +113,123 @@ export function resolveAttemptFailure(params: {
   const errorCode = extractErrorCode(flowReport.error) ?? extractErrorCodeFromTraces(flowReport);
 
   if (errorCode === 'PREFLIGHT_NOT_GIT') {
+    const fallbackReason = sanitizeReason(flowReport.error);
+    const guidance = buildFailureGuidance({
+      reasonCode: 'PREFLIGHT_NOT_GIT',
+      failurePhase: 'PREFLIGHT',
+      errorCode,
+      environmentMode,
+      fallbackReason,
+    });
     return {
-      reason: sanitizeReason(flowReport.error),
+      reason: guidance.safeHint,
       reasonCode: 'PREFLIGHT_NOT_GIT',
       failurePhase: 'PREFLIGHT',
       retryable: false,
       errorCode,
+      diagnosticCode: guidance.diagnosticCode,
+      safeHint: guidance.safeHint,
+      remediationSteps: guidance.remediationSteps,
     };
   }
   if (errorCode === 'PREFLIGHT_DIRTY') {
+    const fallbackReason = sanitizeReason(flowReport.error);
+    const guidance = buildFailureGuidance({
+      reasonCode: 'PREFLIGHT_DIRTY',
+      failurePhase: 'PREFLIGHT',
+      errorCode,
+      environmentMode,
+      fallbackReason,
+    });
     return {
-      reason: sanitizeReason(flowReport.error),
+      reason: guidance.safeHint,
       reasonCode: 'PREFLIGHT_DIRTY',
       failurePhase: 'PREFLIGHT',
       retryable: false,
       errorCode,
+      diagnosticCode: guidance.diagnosticCode,
+      safeHint: guidance.safeHint,
+      remediationSteps: guidance.remediationSteps,
     };
   }
   if (errorCode && NON_RETRYABLE_PERMISSION_CODES.has(errorCode)) {
+    const fallbackReason = sanitizeReason(flowReport.error);
+    const guidance = buildFailureGuidance({
+      reasonCode: 'LOOP_FAILED',
+      failurePhase: 'CONTEXT',
+      errorCode,
+      environmentMode,
+      fallbackReason,
+    });
     return {
-      reason: sanitizeReason(flowReport.error),
+      reason: guidance.safeHint,
       reasonCode: 'LOOP_FAILED',
       failurePhase: 'CONTEXT',
       retryable: false,
       errorCode,
+      diagnosticCode: guidance.diagnosticCode,
+      safeHint: guidance.safeHint,
+      remediationSteps: guidance.remediationSteps,
     };
   }
 
   if (flowMode !== 'review' && context?.verifyResult?.ok === false) {
     const verifyOutput = context.verifyResult.output || text.loop.loopExecutionFailed;
     const errorType = classifyError(verifyOutput);
+    const fallbackReason = sanitizeReason(context.lastError || verifyOutput);
+    const guidance = buildFailureGuidance({
+      reasonCode: 'VERIFY_FAILED',
+      failurePhase: 'VERIFY',
+      errorCode: String(errorType),
+      verifyOutput,
+      environmentMode,
+      fallbackReason,
+    });
     return {
-      reason: sanitizeReason(context.lastError || verifyOutput),
+      reason: guidance.safeHint,
       reasonCode: 'VERIFY_FAILED',
       failurePhase: 'VERIFY',
       retryable: isRetryable(errorType),
       errorCode: String(errorType),
+      diagnosticCode: guidance.diagnosticCode,
+      safeHint: guidance.safeHint,
+      remediationSteps: guidance.remediationSteps,
     };
   }
 
   const failurePhase = inferFailurePhase(flowReport);
-  const reason = sanitizeReason(context?.lastError || flowReport.error);
+  const fallbackReason = sanitizeReason(context?.lastError || flowReport.error);
+  const guidance = buildFailureGuidance({
+    reasonCode: failurePhase === 'ROLLBACK' ? 'ROLLBACK_FAILED' : 'LOOP_FAILED',
+    failurePhase,
+    errorCode,
+    environmentMode,
+    fallbackReason,
+  });
   const hasStructuredFailureTrace = flowReport.traces.some((trace) => Boolean(trace.error));
   const retryableByPhase = hasStructuredFailureTrace && RETRYABLE_PHASES.has(failurePhase);
 
   if (failurePhase === 'ROLLBACK') {
     return {
-      reason,
+      reason: guidance.safeHint,
       reasonCode: 'ROLLBACK_FAILED',
       failurePhase,
       retryable: false,
       errorCode,
+      diagnosticCode: guidance.diagnosticCode,
+      safeHint: guidance.safeHint,
+      remediationSteps: guidance.remediationSteps,
     };
   }
 
   return {
-    reason,
+    reason: guidance.safeHint,
     reasonCode: 'LOOP_FAILED',
     failurePhase,
     retryable: retryableByPhase,
     errorCode,
+    diagnosticCode: guidance.diagnosticCode,
+    safeHint: guidance.safeHint,
+    remediationSteps: guidance.remediationSteps,
   };
 }

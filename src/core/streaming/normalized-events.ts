@@ -22,6 +22,9 @@ export type NormalizedStreamEvent =
       exitCode: number;
       reason?: string;
       reasonCode?: LoopResult['reasonCode'];
+      diagnosticCode?: string;
+      safeHint?: string;
+      remediationSteps?: string[];
     } & NormalizedBaseEvent)
   | ({
       type: 'normalized.message_start';

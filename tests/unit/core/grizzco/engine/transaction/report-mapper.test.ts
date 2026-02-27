@@ -38,6 +38,9 @@ describe('transaction-report-mapper', () => {
         reasonCode: 'APPLY_BACK_FAILED',
         failurePhase: 'APPLY_BACK',
         retryable: false,
+        diagnosticCode: 'APPLY_BACK_FAILED',
+        safeHint: 'Apply back failed safely.',
+        remediationSteps: ['Retry after resolving local conflicts.'],
       },
       lastErrorCode: 'APPLY_BACK_FAILED',
     });
@@ -45,6 +48,9 @@ describe('transaction-report-mapper', () => {
     expect(report.success).toBe(false);
     expect(report.retryExhausted).toBe(false);
     expect(report.terminalReasonCode).toBe('APPLY_BACK_FAILED');
+    expect(report.terminalDiagnosticCode).toBe('APPLY_BACK_FAILED');
+    expect(report.terminalSafeHint).toBe('Apply back failed safely.');
+    expect(report.terminalRemediationSteps).toEqual(['Retry after resolving local conflicts.']);
     expect(report.attempts).toBe(2);
   });
 

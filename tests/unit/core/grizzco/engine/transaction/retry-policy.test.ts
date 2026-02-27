@@ -7,6 +7,9 @@ describe('retry-policy', () => {
       failure: {
         reason: 'fatal',
         reasonCode: 'LOOP_FAILED',
+        diagnosticCode: 'LOOP_FAILED',
+        safeHint: 'fatal',
+        remediationSteps: [],
         failurePhase: 'APPLY',
         retryable: false,
       },
@@ -26,6 +29,9 @@ describe('retry-policy', () => {
       failure: {
         reason: 'verify failed',
         reasonCode: 'VERIFY_FAILED',
+        diagnosticCode: 'VERIFY_FAILED',
+        safeHint: 'verify failed',
+        remediationSteps: [],
         failurePhase: 'VERIFY',
         retryable: true,
       },
@@ -45,6 +51,9 @@ describe('retry-policy', () => {
       failure: {
         reason: 'verify failed',
         reasonCode: 'VERIFY_FAILED',
+        diagnosticCode: 'VERIFY_FAILED',
+        safeHint: 'verify failed',
+        remediationSteps: [],
         failurePhase: 'VERIFY',
         retryable: true,
       },

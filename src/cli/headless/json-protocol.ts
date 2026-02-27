@@ -4,6 +4,9 @@ export interface JsonPayloadOverrides {
   success?: boolean;
   exitCode?: number;
   reason?: string;
+  safeHint?: string;
+  remediationSteps?: string[];
+  diagnosticCode?: string;
   reasonCode?: string;
   errorCode?: string;
   structuredOutputError?: string;
@@ -82,7 +85,11 @@ export function encodeJsonResult(params: EncodeJsonResultParams): unknown {
   const overrides = params.overrides;
   const exitCode = overrides?.exitCode ?? toExitCode(params.loopResult);
   const success = overrides?.success ?? Boolean(params.loopResult.success);
-  const reason = overrides?.reason ?? params.loopResult.reason;
+  const safeHint = overrides?.safeHint ?? params.loopResult.safeHint ?? params.loopResult.reason;
+  const remediationSteps = overrides?.remediationSteps ?? params.loopResult.remediationSteps ?? [];
+  const diagnosticCode =
+    overrides?.diagnosticCode ?? params.loopResult.diagnosticCode ?? params.loopResult.reasonCode;
+  const reason = overrides?.reason ?? safeHint;
   const reasonCode = overrides?.reasonCode ?? params.loopResult.reasonCode;
   const errorCode = overrides?.errorCode ?? params.loopResult.errorCode;
 
@@ -98,6 +105,9 @@ export function encodeJsonResult(params: EncodeJsonResultParams): unknown {
       exit_code: exitCode,
       reason,
       reason_code: reasonCode,
+      diagnostic_code: diagnosticCode,
+      safe_hint: safeHint,
+      remediation_steps: remediationSteps,
       attempts: params.loopResult.attempts,
       changed_files: params.loopResult.changedFiles ?? [],
       audit_path: params.loopResult.auditPath,

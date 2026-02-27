@@ -97,6 +97,12 @@ export function buildLoopResultFromTransaction({
   const failureReason =
     executionReport.terminalReason ||
     (executionReport.retryExhausted ? text.loop.exceededMaxRetriesSimple : retryFailureReason);
+  const safeHint =
+    executionReport.terminalSafeHint ||
+    (executionReport.retryExhausted
+      ? text.loop.exceededMaxRetriesSimple
+      : executionReport.terminalReason || failureReason);
+  const remediationSteps = executionReport.terminalRemediationSteps ?? [];
   const reasonCode =
     executionReport.terminalReasonCode ||
     (executionReport.retryExhausted ? 'MAX_RETRIES' : 'LOOP_FAILED');
@@ -108,8 +114,11 @@ export function buildLoopResultFromTransaction({
   const budgetSummary = getBudgetRunSummary() ?? undefined;
   return {
     success: false,
-    reason: failureReason,
+    reason: safeHint,
     reasonCode,
+    diagnosticCode: executionReport.terminalDiagnosticCode ?? reasonCode,
+    safeHint,
+    remediationSteps,
     attempts: executionReport.attempts,
     contextHash,
     logs: telemetry.getLogs(),
@@ -146,6 +155,9 @@ export function buildLoopFailureResult({
     success: false,
     reason: message,
     reasonCode,
+    diagnosticCode: reasonCode,
+    safeHint: message,
+    remediationSteps: [],
     attempts: 0,
     logs: telemetry.getLogs(),
     usage,

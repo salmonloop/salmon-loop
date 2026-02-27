@@ -204,6 +204,41 @@ describe('loop-result-mapper', () => {
     expect(result.failurePhase).toBe('VERIFY');
   });
 
+  it('propagates diagnostic contract from terminal transaction failure', () => {
+    const telemetry = createTelemetry();
+    const report: FlowTransactionReport = {
+      success: false,
+      attempts: 1,
+      flowReport: {
+        success: false,
+        duration: 1,
+        traces: [],
+        strategyName: 'patch',
+        fsMode: 'patch',
+      },
+      history: [{ attempt: 1, plan: null, patch: null, error: 'old', contextSummary: '' }],
+      retryExhausted: false,
+      terminalReason: 'old',
+      terminalReasonCode: 'VERIFY_FAILED',
+      terminalFailurePhase: 'VERIFY',
+      terminalDiagnosticCode: 'UNDECLARED_DEPENDENCY',
+      terminalSafeHint: "Missing declared dependency 'fast-xml-parser'.",
+      terminalRemediationSteps: ['Run bun add fast-xml-parser and retry.'],
+    };
+
+    const result = buildLoopResultFromTransaction({
+      executionReport: report,
+      flowMode: 'patch',
+      options: {} as any,
+      telemetry,
+    });
+
+    expect(result.reason).toBe("Missing declared dependency 'fast-xml-parser'.");
+    expect(result.safeHint).toBe("Missing declared dependency 'fast-xml-parser'.");
+    expect(result.diagnosticCode).toBe('UNDECLARED_DEPENDENCY');
+    expect(result.remediationSteps).toEqual(['Run bun add fast-xml-parser and retry.']);
+  });
+
   it('includes budget summary when budget metrics exist', () => {
     const adjuster = getGlobalAdjuster();
     adjuster.recordMetrics({
