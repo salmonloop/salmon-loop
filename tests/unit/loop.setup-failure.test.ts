@@ -63,6 +63,10 @@ describe('SalmonLoop setup failure cleanup', () => {
     expect(appendAuditTrailToAuditFileMock).toHaveBeenCalledWith(
       expect.objectContaining({
         repoPath: '/repo',
+        finalOutcome: expect.objectContaining({
+          success: false,
+          reasonCode: 'LOOP_FAILED',
+        }),
       }),
     );
   });

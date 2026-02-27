@@ -211,6 +211,14 @@ export class SalmonLoop {
           repoPath: options.repoPath,
           failureReason: fallbackFailureReason,
           runId: correlationId,
+          finalOutcome: finalResult
+            ? {
+                success: finalResult.success,
+                reasonCode: finalResult.reasonCode,
+                failurePhase: finalResult.failurePhase,
+                errorCode: finalResult.errorCode,
+              }
+            : undefined,
         });
         if (!latestAuditPath && appendedPath) {
           latestAuditPath = appendedPath;

@@ -12,6 +12,12 @@ interface AppendAuditParams {
   repoPath?: string;
   failureReason?: string;
   runId?: string;
+  finalOutcome?: {
+    success: boolean;
+    reasonCode?: string;
+    failurePhase?: string;
+    errorCode?: string;
+  };
 }
 
 interface AuditEventsRef {
@@ -72,7 +78,10 @@ async function createFallbackAuditFile(params: AppendAuditParams): Promise<strin
   const payload = {
     meta: {
       timestamp: new Date().toISOString(),
-      success: false,
+      success: params.finalOutcome?.success ?? false,
+      reasonCode: params.finalOutcome?.reasonCode,
+      failurePhase: params.finalOutcome?.failurePhase,
+      errorCode: params.finalOutcome?.errorCode,
       error: params.failureReason,
       runId: params.runId,
       source: 'appendAuditTrailToAuditFile.fallback',
@@ -106,6 +115,37 @@ export async function appendAuditTrailToAuditFile(
 
     const raw = await readFile(auditPath, 'utf8');
     const data = JSON.parse(raw) as Record<string, unknown>;
+    const meta =
+      data.meta && typeof data.meta === 'object' ? (data.meta as Record<string, unknown>) : {};
+    let metaChanged = false;
+    if (params.finalOutcome) {
+      if (meta.success !== params.finalOutcome.success) {
+        meta.success = params.finalOutcome.success;
+        metaChanged = true;
+      }
+      if (
+        params.finalOutcome.reasonCode !== undefined &&
+        meta.reasonCode !== params.finalOutcome.reasonCode
+      ) {
+        meta.reasonCode = params.finalOutcome.reasonCode;
+        metaChanged = true;
+      }
+      if (
+        params.finalOutcome.failurePhase !== undefined &&
+        meta.failurePhase !== params.finalOutcome.failurePhase
+      ) {
+        meta.failurePhase = params.finalOutcome.failurePhase;
+        metaChanged = true;
+      }
+      if (
+        params.finalOutcome.errorCode !== undefined &&
+        meta.errorCode !== params.finalOutcome.errorCode
+      ) {
+        meta.errorCode = params.finalOutcome.errorCode;
+        metaChanged = true;
+      }
+      (data as any).meta = meta;
+    }
 
     const context =
       data.context && typeof data.context === 'object'
@@ -121,7 +161,11 @@ export async function appendAuditTrailToAuditFile(
     const existingCount =
       typeof eventsRef.count === 'number' && Number.isFinite(eventsRef.count) ? eventsRef.count : 0;
     const delta = fullTrail.slice(existingCount);
-    if (delta.length === 0) return;
+    if (delta.length === 0) {
+      if (!metaChanged) return;
+      await writeJsonAtomic(auditPath, data);
+      return auditPath;
+    }
 
     const eventsPath = resolveEventsPath(eventsRef.path, auditPath);
     await appendFile(eventsPath, buildEventsPayload(delta), 'utf8');

@@ -115,4 +115,44 @@ describe('appendAuditTrailToAuditFile', () => {
     expect(writeFileMock).toHaveBeenCalledTimes(2);
     expect(renameMock).toHaveBeenCalledTimes(1);
   });
+
+  it('updates audit meta to final run outcome even when no new events are appended', async () => {
+    recordAuditEvent('test.action.one', { a: 1 }, { source: 'test' });
+    const existingTrail = getAuditTrail();
+
+    readFileMock.mockResolvedValue(
+      JSON.stringify({
+        meta: {
+          success: true,
+          reasonCode: 'OK',
+        },
+        context: {
+          eventsRef: {
+            path: '/tmp/audit.events.jsonl',
+            count: existingTrail.length,
+            firstTs: existingTrail[0]?.timestamp,
+            lastTs: existingTrail[existingTrail.length - 1]?.timestamp,
+          },
+        },
+      }),
+    );
+
+    await appendAuditTrailToAuditFile({
+      auditPath: '/tmp/audit.json',
+      finalOutcome: {
+        success: false,
+        reasonCode: 'VERIFY_FAILED',
+        failurePhase: 'VERIFY',
+        errorCode: 'dependency_error',
+      },
+    });
+
+    expect(appendFileMock).not.toHaveBeenCalled();
+    expect(writeFileMock).toHaveBeenCalledTimes(1);
+    const written = JSON.parse(writeFileMock.mock.calls[0]![1]) as any;
+    expect(written.meta.success).toBe(false);
+    expect(written.meta.reasonCode).toBe('VERIFY_FAILED');
+    expect(written.meta.failurePhase).toBe('VERIFY');
+    expect(written.meta.errorCode).toBe('dependency_error');
+  });
 });
