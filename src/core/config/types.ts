@@ -97,6 +97,10 @@ export interface ConfigFileV1 {
       enabled?: boolean;
       mark?: string;
       maxDepth?: number;
+      keyAllowlist?: string[];
+      keyDenylist?: string[];
+      patterns?: string[];
+      disableDefaults?: boolean;
     };
   };
 
@@ -148,6 +152,7 @@ export interface ObservabilityConfigV1 {
     buffer?: {
       maxEvents?: number;
       maxBytes?: number;
+      droppedWarn?: number;
     };
   };
 }
@@ -276,6 +281,7 @@ export interface ResolvedConfig {
       buffer: {
         maxEvents: number;
         maxBytes: number;
+        droppedWarn: number;
       };
     };
   };
@@ -284,6 +290,10 @@ export interface ResolvedConfig {
       enabled: boolean;
       mark: string;
       maxDepth: number;
+      keyAllowlist?: string[];
+      keyDenylist?: string[];
+      patterns?: string[];
+      disableDefaults?: boolean;
     };
   };
   ui: {

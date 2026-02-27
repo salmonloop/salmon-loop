@@ -3,6 +3,7 @@ import { randomBytes } from 'crypto';
 import { text } from '../../locales/index.js';
 import { LIMITS } from '../config/limits.js';
 import { resolveConfig } from '../config/resolve.js';
+import type { ResolvedConfig } from '../config/types.js';
 import { getGlobalAdjuster, resetGlobalAdjuster } from '../context/budget/dynamic-adjuster.js';
 import {
   initializeDefaultCalculator,
@@ -61,12 +62,14 @@ export async function runSalmonLoop(options: LoopOptions): Promise<LoopResult> {
       getGlobalAdjuster(config.context.dynamicBudget);
     }
 
-    const loop = new SalmonLoop();
+    const loop = new SalmonLoop(config);
     return loop.run(options);
   });
 }
 
 export class SalmonLoop {
+  constructor(private readonly config: ResolvedConfig) {}
+
   async run(options: LoopOptions): Promise<LoopResult> {
     clearAuditTrail();
     const correlationId = `run-${randomBytes(4).toString('hex')}`;
@@ -188,6 +191,17 @@ export class SalmonLoop {
             { count: dropStats.count, since: dropStats.since },
             { source: 'audit', severity: 'medium', scope: 'session' },
           );
+          const warnThreshold = this.config.observability.audit.buffer.droppedWarn;
+          if (dropStats.count >= warnThreshold) {
+            logger.warn(
+              `Audit buffer dropped ${dropStats.count} events (threshold=${warnThreshold}).`,
+            );
+            recordAuditEvent(
+              'audit.dropped.warn',
+              { count: dropStats.count, since: dropStats.since, threshold: warnThreshold },
+              { source: 'audit', severity: 'high', scope: 'session' },
+            );
+          }
         }
         // Append at the end so any audit events emitted by the outcomeReporter are persisted too.
         const fallbackFailureReason =

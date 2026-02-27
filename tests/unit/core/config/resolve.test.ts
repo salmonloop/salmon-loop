@@ -25,8 +25,18 @@ describe('resolveConfig (security/observability)', () => {
   it('applies configured redaction and audit buffer limits', async () => {
     tryLoadConfigFileMock.mockResolvedValue({
       config: {
-        security: { redaction: { enabled: false, mark: '[MASKED]', maxDepth: 3 } },
-        observability: { audit: { buffer: { maxEvents: 5, maxBytes: 2048 } } },
+        security: {
+          redaction: {
+            enabled: false,
+            mark: '[MASKED]',
+            maxDepth: 3,
+            keyAllowlist: ['safe_key'],
+            keyDenylist: ['secret_key'],
+            patterns: ['secret-[a-z]+'],
+            disableDefaults: true,
+          },
+        },
+        observability: { audit: { buffer: { maxEvents: 5, maxBytes: 2048, droppedWarn: 100 } } },
       },
       path: '/repo/.salmonloop/config.json',
     });
@@ -36,7 +46,12 @@ describe('resolveConfig (security/observability)', () => {
     expect(resolved.security.redaction.enabled).toBe(false);
     expect(resolved.security.redaction.mark).toBe('[MASKED]');
     expect(resolved.security.redaction.maxDepth).toBe(3);
+    expect(resolved.security.redaction.keyAllowlist).toEqual(['safe_key']);
+    expect(resolved.security.redaction.keyDenylist).toEqual(['secret_key']);
+    expect(resolved.security.redaction.patterns).toEqual(['secret-[a-z]+']);
+    expect(resolved.security.redaction.disableDefaults).toBe(true);
     expect(resolved.observability.audit.buffer.maxEvents).toBe(5);
     expect(resolved.observability.audit.buffer.maxBytes).toBe(2048);
+    expect(resolved.observability.audit.buffer.droppedWarn).toBe(100);
   });
 });

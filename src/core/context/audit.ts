@@ -1,5 +1,5 @@
 import { recordAuditEvent, type AuditTrailMeta } from '../observability/audit-trail.js';
-import { redactSensitiveString } from '../security/redaction.js';
+import { redactByKey, redactSensitiveString } from '../security/redaction.js';
 
 const DEFAULT_LIMITS = {
   maxDepth: 4,
@@ -11,8 +11,15 @@ const DEFAULT_LIMITS = {
 const TRUNCATED = '[Truncated]' as const;
 const CIRCULAR = '[Circular]' as const;
 
-function sanitizeValue(value: unknown, state: { depth: number; seen: WeakSet<object> }): unknown {
+function sanitizeValue(
+  value: unknown,
+  state: { depth: number; seen: WeakSet<object> },
+  key?: string,
+): unknown {
   if (value === null || value === undefined) return value;
+
+  const byKey = redactByKey(key, value);
+  if (byKey.redacted) return byKey.value;
 
   if (typeof value === 'string') {
     const { value: redacted } = redactSensitiveString(value);
@@ -40,7 +47,7 @@ function sanitizeValue(value: unknown, state: { depth: number; seen: WeakSet<obj
     const out: Record<string, unknown> = {};
     const keys = Object.keys(obj).slice(0, DEFAULT_LIMITS.maxObjectKeys);
     for (const k of keys) {
-      out[k] = sanitizeValue(obj[k], { depth: state.depth + 1, seen: state.seen });
+      out[k] = sanitizeValue(obj[k], { depth: state.depth + 1, seen: state.seen }, k);
     }
     return out;
   }

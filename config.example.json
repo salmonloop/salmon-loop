@@ -29,7 +29,8 @@
     "audit": {
       "buffer": {
         "maxEvents": 10000,
-        "maxBytes": 20971520
+        "maxBytes": 20971520,
+        "droppedWarn": 100
       }
     }
   },
@@ -37,7 +38,10 @@
     "redaction": {
       "enabled": true,
       "mark": "[REDACTED]",
-      "maxDepth": 6
+      "maxDepth": 6,
+      "keyDenylist": ["secret", "token"],
+      "patterns": ["secret-[a-z]+"],
+      "disableDefaults": false
     }
   },
   "output": {

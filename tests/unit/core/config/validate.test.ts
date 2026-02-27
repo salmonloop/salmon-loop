@@ -86,6 +86,34 @@ describe('validateConfigFileV1 (audit buffer)', () => {
       }),
     ).toThrow(/CONFIG_INVALID_OBSERVABILITY_AUDIT_MAX_EVENTS/);
   });
+
+  it('accepts audit buffer warn threshold', () => {
+    const parsed = validateConfigFileV1({
+      observability: {
+        audit: {
+          buffer: {
+            droppedWarn: 200,
+          },
+        },
+      },
+    });
+
+    expect(parsed.observability?.audit?.buffer?.droppedWarn).toBe(200);
+  });
+
+  it('rejects invalid audit buffer warn threshold', () => {
+    expect(() =>
+      validateConfigFileV1({
+        observability: {
+          audit: {
+            buffer: {
+              droppedWarn: 'nope',
+            },
+          },
+        },
+      }),
+    ).toThrow(/CONFIG_INVALID_OBSERVABILITY_AUDIT_DROPPED_WARN/);
+  });
 });
 
 describe('validateConfigFileV1 (security.redaction)', () => {
@@ -115,5 +143,35 @@ describe('validateConfigFileV1 (security.redaction)', () => {
         },
       }),
     ).toThrow(/CONFIG_INVALID_SECURITY_REDACTION_ENABLED/);
+  });
+
+  it('accepts redaction allow/deny lists and patterns', () => {
+    const parsed = validateConfigFileV1({
+      security: {
+        redaction: {
+          keyAllowlist: ['safe_key'],
+          keyDenylist: ['secret_key'],
+          patterns: ['secret-[a-z]+'],
+          disableDefaults: true,
+        },
+      },
+    });
+
+    expect(parsed.security?.redaction?.keyAllowlist).toEqual(['safe_key']);
+    expect(parsed.security?.redaction?.keyDenylist).toEqual(['secret_key']);
+    expect(parsed.security?.redaction?.patterns).toEqual(['secret-[a-z]+']);
+    expect(parsed.security?.redaction?.disableDefaults).toBe(true);
+  });
+
+  it('rejects invalid redaction lists and patterns', () => {
+    expect(() =>
+      validateConfigFileV1({
+        security: {
+          redaction: {
+            keyAllowlist: 'nope',
+          },
+        },
+      }),
+    ).toThrow(/CONFIG_INVALID_SECURITY_REDACTION_KEY_ALLOWLIST/);
   });
 });

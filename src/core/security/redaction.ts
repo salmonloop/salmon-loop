@@ -9,6 +9,10 @@ export interface RedactionConfig {
   enabled: boolean;
   mark: string;
   maxDepth: number;
+  keyAllowlist?: string[];
+  keyDenylist?: string[];
+  patterns?: string[];
+  disableDefaults?: boolean;
 }
 
 const DEFAULT_LIMITS = {
@@ -22,23 +26,62 @@ const DEFAULT_REDACTION_CONFIG: RedactionConfig = {
 };
 
 let currentConfig: RedactionConfig = { ...DEFAULT_REDACTION_CONFIG };
+let compiledPatterns: Array<RegExp> = [];
 let redactionCount = 0;
 
 export function setRedactionConfig(options?: Partial<RedactionConfig>): RedactionConfig {
   if (!options) {
     currentConfig = { ...DEFAULT_REDACTION_CONFIG };
+    compiledPatterns = [...SIMPLE_PATTERNS];
     return currentConfig;
   }
   currentConfig = {
     enabled: options.enabled ?? currentConfig.enabled,
     mark: options.mark ?? currentConfig.mark,
     maxDepth: options.maxDepth ?? currentConfig.maxDepth,
+    keyAllowlist: options.keyAllowlist ?? currentConfig.keyAllowlist,
+    keyDenylist: options.keyDenylist ?? currentConfig.keyDenylist,
+    patterns: options.patterns ?? currentConfig.patterns,
+    disableDefaults: options.disableDefaults ?? currentConfig.disableDefaults,
   };
+  compiledPatterns = [];
+  if (!currentConfig.disableDefaults) {
+    compiledPatterns.push(...SIMPLE_PATTERNS);
+  }
+  if (currentConfig.patterns && currentConfig.patterns.length > 0) {
+    for (const pattern of currentConfig.patterns) {
+      try {
+        compiledPatterns.push(new RegExp(pattern, 'g'));
+      } catch {
+        // Ignore invalid patterns to avoid breaking runtime.
+      }
+    }
+  }
   return currentConfig;
 }
 
 export function getRedactionConfig(): RedactionConfig {
   return { ...currentConfig };
+}
+
+export function redactByKey(
+  key: string | undefined,
+  value: unknown,
+  options: RedactionOptions = {},
+): RedactionResult<unknown> {
+  if (!key || !currentConfig.enabled) {
+    return { value, redacted: false };
+  }
+  const denylist = currentConfig.keyDenylist ?? [];
+  if (denylist.includes(key)) {
+    redactionCount += 1;
+    return { value: options.mark ?? currentConfig.mark, redacted: true };
+  }
+  const allowlist = currentConfig.keyAllowlist ?? [];
+  if (allowlist.length > 0 && !allowlist.includes(key)) {
+    return { value, redacted: false };
+  }
+  return { value, redacted: false };
 }
 
 export function drainRedactionMetrics(): { count: number } {
@@ -61,6 +104,8 @@ const SIMPLE_PATTERNS: Array<RegExp> = [
 const KV_PATTERN = /(\b(?:token|secret|password|api[_-]?key)\b\s*[:=]\s*)([^\s,'"]+)/gi;
 const QUERY_PATTERN = /([?&](?:token|secret|password|api_key|apikey)=)([^&\s]+)/gi;
 
+compiledPatterns = [...SIMPLE_PATTERNS];
+
 export function redactSensitiveString(
   input: string,
   options: RedactionOptions = {},
@@ -82,7 +127,7 @@ export function redactSensitiveString(
     return `${prefix}${mark}`;
   });
 
-  for (const pattern of SIMPLE_PATTERNS) {
+  for (const pattern of compiledPatterns) {
     const next = output.replace(pattern, mark);
     if (next !== output) {
       redacted = true;
@@ -142,6 +187,12 @@ export function redactSensitiveValue<T>(
   let redacted = false;
   const out: Record<string, unknown> = {};
   for (const [key, val] of Object.entries(obj)) {
+    const denylist = currentConfig.keyDenylist ?? [];
+    if (denylist.includes(key)) {
+      redacted = true;
+      out[key] = options.mark ?? currentConfig.mark;
+      continue;
+    }
     const result = redactSensitiveValue(val as any, options, {
       depth: state.depth + 1,
       seen: state.seen,

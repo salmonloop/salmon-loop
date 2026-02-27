@@ -25,12 +25,19 @@ observability:
     buffer:
       max_events: 10000
       max_bytes: 20971520
+      dropped_warn: 100
 
 security:
   redaction:
     enabled: true
     mark: "[REDACTED]"
     max_depth: 6
+    key_denylist:
+      - secret
+      - token
+    patterns:
+      - "secret-[a-z]+"
+    disable_defaults: false
 
 output:
   llm:

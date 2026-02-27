@@ -33,4 +33,23 @@ describe('context audit redaction', () => {
 
     expect(payload).toContain('sk-1234567890abcdef');
   });
+
+  it('respects custom patterns and key denylist', () => {
+    setRedactionConfig({
+      patterns: ['secret-[a-z]+'],
+      keyDenylist: ['force_redact'],
+      disableDefaults: true,
+    });
+    recordContextAuditEvent('context.test', {
+      note: 'secret-token',
+      force_redact: 'safe_value',
+    });
+
+    const [event] = getAuditTrail();
+    const payload = JSON.stringify(event.details);
+
+    expect(payload).not.toContain('secret-token');
+    expect(payload).not.toContain('safe_value');
+    expect(payload).toContain('[REDACTED]');
+  });
 });

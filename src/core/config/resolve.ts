@@ -356,6 +356,7 @@ function resolveAuditBuffer(raw?: ConfigFileV1) {
   return {
     maxEvents: cfg?.maxEvents ?? 10000,
     maxBytes: cfg?.maxBytes ?? 20 * 1024 * 1024,
+    droppedWarn: cfg?.droppedWarn ?? 100,
   };
 }
 
@@ -365,6 +366,10 @@ function resolveRedactionConfig(raw?: ConfigFileV1): RedactionConfig {
     enabled: cfg?.enabled ?? true,
     mark: cfg?.mark ?? '[REDACTED]',
     maxDepth: cfg?.maxDepth ?? 6,
+    keyAllowlist: cfg?.keyAllowlist,
+    keyDenylist: cfg?.keyDenylist,
+    patterns: cfg?.patterns,
+    disableDefaults: cfg?.disableDefaults,
   };
 }
 

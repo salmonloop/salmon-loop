@@ -152,7 +152,8 @@ Example:
     "audit": {
       "buffer": {
         "maxEvents": 10000,
-        "maxBytes": 20971520
+        "maxBytes": 20971520,
+        "droppedWarn": 100
       }
     }
   }
@@ -163,6 +164,7 @@ Notes:
 
 - When limits are exceeded, low-severity events are dropped first.
 - A summary `audit.dropped` event is emitted once space is available.
+- If `droppedWarn` is exceeded, an `audit.dropped.warn` event is emitted.
 
 ## Redaction
 
@@ -178,7 +180,10 @@ Example:
     "redaction": {
       "enabled": true,
       "mark": "[REDACTED]",
-      "maxDepth": 6
+      "maxDepth": 6,
+      "keyDenylist": ["secret", "token"],
+      "patterns": ["secret-[a-z]+"],
+      "disableDefaults": false
     }
   }
 }
@@ -188,6 +193,9 @@ Notes:
 
 - Redaction is enabled by default.
 - Disabling redaction is not recommended in shared or regulated environments.
+- `keyDenylist` forces full redaction for matching keys.
+- `patterns` adds custom regex rules (applied to string values).
+- `disableDefaults` disables built-in redaction patterns.
 
 Environment variable overrides (preferred):
 

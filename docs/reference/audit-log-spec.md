@@ -175,6 +175,9 @@ Audit logs are designed to be safe to share for debugging:
 - `audit.dropped`: emitted when low-severity audit events are dropped due to buffer limits.
   - `details.count`: number of dropped events
   - `details.since`: ISO timestamp when drops began (best-effort)
+- `audit.dropped.warn`: emitted when dropped events exceed the configured warning threshold.
+  - `details.count`: number of dropped events
+  - `details.since`: ISO timestamp when drops began (best-effort)
 
 ## Redaction Metrics
 

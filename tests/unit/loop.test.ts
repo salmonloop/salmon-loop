@@ -111,9 +111,15 @@ describe('SalmonLoop', () => {
   let loop: SalmonLoop;
   let mockLLM: StubLLM;
   let executeFlowSpy: any;
+  const resolvedConfig = {
+    observability: {
+      audit: { buffer: { maxEvents: 10000, maxBytes: 1024 * 1024, droppedWarn: 100 } },
+    },
+    security: { redaction: { enabled: true, mark: '[REDACTED]', maxDepth: 6 } },
+  } as any;
 
   beforeEach(() => {
-    loop = new SalmonLoop();
+    loop = new SalmonLoop(resolvedConfig);
     mockLLM = new StubLLM();
     mock.clearAllMocks();
     createCheckpointCommitMock.mockResolvedValue('final-ref');

@@ -110,10 +110,16 @@ export function validateConfigFileV1(input: unknown): ConfigFileV1 {
             expected: 'number',
           });
         }
+        if (bufferRaw.droppedWarn !== undefined && !isNumber(bufferRaw.droppedWarn)) {
+          throw new ConfigError('CONFIG_INVALID_OBSERVABILITY_AUDIT_DROPPED_WARN', {
+            expected: 'number',
+          });
+        }
         cfg.observability.audit = {
           buffer: {
             maxEvents: bufferRaw.maxEvents as any,
             maxBytes: bufferRaw.maxBytes as any,
+            droppedWarn: bufferRaw.droppedWarn as any,
           },
         };
       }
@@ -569,11 +575,46 @@ export function validateConfigFileV1(input: unknown): ConfigFileV1 {
           expected: 'number',
         });
       }
+      if (
+        redactionRaw.keyAllowlist !== undefined &&
+        (!Array.isArray(redactionRaw.keyAllowlist) ||
+          redactionRaw.keyAllowlist.some((v) => !isString(v)))
+      ) {
+        throw new ConfigError('CONFIG_INVALID_SECURITY_REDACTION_KEY_ALLOWLIST', {
+          expected: 'string[]',
+        });
+      }
+      if (
+        redactionRaw.keyDenylist !== undefined &&
+        (!Array.isArray(redactionRaw.keyDenylist) ||
+          redactionRaw.keyDenylist.some((v) => !isString(v)))
+      ) {
+        throw new ConfigError('CONFIG_INVALID_SECURITY_REDACTION_KEY_DENYLIST', {
+          expected: 'string[]',
+        });
+      }
+      if (
+        redactionRaw.patterns !== undefined &&
+        (!Array.isArray(redactionRaw.patterns) || redactionRaw.patterns.some((v) => !isString(v)))
+      ) {
+        throw new ConfigError('CONFIG_INVALID_SECURITY_REDACTION_PATTERNS', {
+          expected: 'string[]',
+        });
+      }
+      if (redactionRaw.disableDefaults !== undefined && !isBoolean(redactionRaw.disableDefaults)) {
+        throw new ConfigError('CONFIG_INVALID_SECURITY_REDACTION_DISABLE_DEFAULTS', {
+          expected: 'boolean',
+        });
+      }
       cfg.security = {
         redaction: {
           enabled: redactionRaw.enabled as any,
           mark: redactionRaw.mark as any,
           maxDepth: redactionRaw.maxDepth as any,
+          keyAllowlist: redactionRaw.keyAllowlist as any,
+          keyDenylist: redactionRaw.keyDenylist as any,
+          patterns: redactionRaw.patterns as any,
+          disableDefaults: redactionRaw.disableDefaults as any,
         },
       };
     }
