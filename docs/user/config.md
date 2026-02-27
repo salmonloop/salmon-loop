@@ -58,6 +58,7 @@ SalmonLoop uses canonical signatures for context consistency:
 - `intentSignature`: derived from instruction, primary file hint, selection, and diff scope.
 - `targetSetSignature`: derived from resolved target list (path/reason/confidence/ranking).
 - `contextHash`: canonical hash of final packed context content.
+- Signatures are versioned (`intent:v1:*`, `targets:v1:*`, `context:v1:*`) for forward-compatible algorithm upgrades.
 
 These signatures are emitted in context audit events to make cache hits/misses explainable.
 

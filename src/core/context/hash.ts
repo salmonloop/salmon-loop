@@ -20,18 +20,20 @@ function hashStable(value: unknown): string {
     .digest('hex');
 }
 
+const SIGNATURE_VERSION = 'v1';
+
 export function createIntentSignature(input: {
   instruction?: string;
   primaryFile?: string;
   selection?: string;
   diffScope?: string;
 }): string {
-  return hashStable({
+  return `intent:${SIGNATURE_VERSION}:${hashStable({
     instruction: input.instruction ?? '',
     primaryFile: input.primaryFile ?? '',
     selection: input.selection ?? '',
     diffScope: input.diffScope ?? 'primary',
-  });
+  })}`;
 }
 
 export function createTargetSetSignature(targets: ContextTarget[] | undefined): string {
@@ -56,9 +58,9 @@ export function createTargetSetSignature(targets: ContextTarget[] | undefined): 
         a.reason.localeCompare(b.reason) ||
         a.confidence.localeCompare(b.confidence),
     );
-  return hashStable(normalized);
+  return `targets:${SIGNATURE_VERSION}:${hashStable(normalized)}`;
 }
 
 export function createContextHash(context: Context): string {
-  return hashStable(context);
+  return `context:${SIGNATURE_VERSION}:${hashStable(context)}`;
 }

@@ -351,4 +351,69 @@ describe('ContextService', () => {
     expect(second.prompt).toBe('PROMPT-2');
     expect(assembleCount).toBe(2);
   });
+
+  it('evicts least-recently-used entries when max cache size is exceeded', async () => {
+    let assembleCount = 0;
+    const service = new ContextService(
+      {
+        primaryTextGatherer: { gather: async () => ({ primaryText: 'PRIMARY' }) } as any,
+        ripgrepGatherer: { searchMultipleKeywords: async () => [] } as any,
+        gitDiffGatherer: { gather: async () => ({ includedFiles: [] }) } as any,
+        astGatherer: {
+          gather: async () => ({ symbols: [], definitionMap: {}, relatedFiles: [] }),
+        } as any,
+        assembler: {
+          assemble: () => {
+            assembleCount += 1;
+            return { prompt: `PROMPT-${assembleCount}` };
+          },
+        },
+      },
+      { cacheMaxEntries: 2, cacheTtlMs: 60000 },
+    );
+    (service as any).fileAdapter = { stat: async () => ({ mtimeMs: 1, size: 1 }) };
+
+    await service.build({ instruction: 'one', repoPath: '/repo', primaryFile: 'src/a.ts' });
+    await service.build({ instruction: 'two', repoPath: '/repo', primaryFile: 'src/a.ts' });
+    await service.build({ instruction: 'three', repoPath: '/repo', primaryFile: 'src/a.ts' });
+    await service.build({ instruction: 'one', repoPath: '/repo', primaryFile: 'src/a.ts' });
+
+    expect(assembleCount).toBe(4);
+    const stats = service.getCacheStats();
+    expect(stats.maxEntries).toBe(2);
+    expect(stats.evictions).toBeGreaterThan(0);
+  });
+
+  it('expires entries after TTL and tracks hit/miss metrics', async () => {
+    let assembleCount = 0;
+    const service = new ContextService(
+      {
+        primaryTextGatherer: { gather: async () => ({ primaryText: 'PRIMARY' }) } as any,
+        ripgrepGatherer: { searchMultipleKeywords: async () => [] } as any,
+        gitDiffGatherer: { gather: async () => ({ includedFiles: [] }) } as any,
+        astGatherer: {
+          gather: async () => ({ symbols: [], definitionMap: {}, relatedFiles: [] }),
+        } as any,
+        assembler: {
+          assemble: () => {
+            assembleCount += 1;
+            return { prompt: `PROMPT-${assembleCount}` };
+          },
+        },
+      },
+      { cacheMaxEntries: 8, cacheTtlMs: 5 },
+    );
+    (service as any).fileAdapter = { stat: async () => ({ mtimeMs: 1, size: 1 }) };
+
+    const req: ContextRequest = { instruction: 'same', repoPath: '/repo', primaryFile: 'src/a.ts' };
+    await service.build(req);
+    await service.build(req);
+    await new Promise((resolve) => setTimeout(resolve, 15));
+    await service.build(req);
+
+    expect(assembleCount).toBe(2);
+    const stats = service.getCacheStats();
+    expect(stats.hits).toBeGreaterThanOrEqual(1);
+    expect(stats.misses).toBeGreaterThanOrEqual(1);
+  });
 });

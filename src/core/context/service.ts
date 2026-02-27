@@ -20,26 +20,47 @@ import { buildContextPromotionStep } from './steps/context-promotion.js';
 import { buildContextTargetsStep } from './steps/context-targets.js';
 import type { ContextRequest, ContextResult, DiffScope } from './types.js';
 
+interface CacheEntry {
+  result: ContextResult;
+  trackedFiles: string[];
+  signature: string;
+  targetSetSignature?: string;
+  intentSignature: string;
+  createdAt?: number;
+  lastAccessedAt?: number;
+}
+
 export class ContextService {
   private readonly deps: ContextServiceDeps;
-  private readonly cache = new Map<
-    string,
-    {
-      result: ContextResult;
-      trackedFiles: string[];
-      signature: string;
-      targetSetSignature?: string;
-      intentSignature: string;
-    }
-  >();
+  private readonly cache = new Map<string, CacheEntry>();
   private readonly updaters = new Map<string, IncrementalUpdater>();
   private readonly promptCachingManager: PromptCachingManager;
   private readonly fileAdapter = new FileAdapter();
   private static readonly MAX_CACHE_TRACKED_FILES = 64;
+  private static readonly DEFAULT_CACHE_MAX_ENTRIES = 256;
+  private static readonly DEFAULT_CACHE_TTL_MS = 5 * 60 * 1000;
+  private readonly cacheMaxEntries: number;
+  private readonly cacheTtlMs: number;
+  private readonly cacheMetrics = {
+    hits: 0,
+    misses: 0,
+    evictions: 0,
+  };
 
-  constructor(deps: Partial<ContextServiceDeps> = {}) {
+  constructor(
+    deps: Partial<ContextServiceDeps> = {},
+    options?: { cacheMaxEntries?: number; cacheTtlMs?: number },
+  ) {
     this.deps = { ...defaultContextServiceDeps(), ...deps };
     this.promptCachingManager = this.deps.promptCachingManager;
+    this.cacheMaxEntries =
+      options?.cacheMaxEntries && options.cacheMaxEntries > 0
+        ? Math.floor(options.cacheMaxEntries)
+        : ContextService.DEFAULT_CACHE_MAX_ENTRIES;
+    this.cacheTtlMs =
+      options?.cacheTtlMs && options.cacheTtlMs > 0
+        ? Math.floor(options.cacheTtlMs)
+        : ContextService.DEFAULT_CACHE_TTL_MS;
   }
 
   async build(req: ContextRequest): Promise<ContextResult> {
@@ -93,6 +114,8 @@ export class ContextService {
       targetSetSignature: contextResult.meta.targetSetSignature,
       intentSignature,
     });
+    this.bumpCacheEntry(cacheKey);
+    this.evictLruIfNeeded();
     this.recordContextDiff(cacheKey, contextResult);
     return contextResult;
   }
@@ -113,11 +136,19 @@ export class ContextService {
     repoPath: string,
   ): Promise<{
     result?: ContextResult;
-    missReason?: 'key_miss' | 'signature_mismatch' | 'target_signature_mismatch';
+    missReason?: 'key_miss' | 'signature_mismatch' | 'target_signature_mismatch' | 'expired';
     targetSetSignature?: string;
   }> {
+    this.evictExpiredEntries();
     const entry = this.cache.get(cacheKey);
-    if (!entry) return { missReason: 'key_miss' };
+    if (!entry) {
+      this.cacheMetrics.misses += 1;
+      return { missReason: 'key_miss' };
+    }
+    if (this.isExpired(cacheKey, entry)) {
+      this.cacheMetrics.misses += 1;
+      return { missReason: 'expired' };
+    }
     const expectedTargetSetSignature = createTargetSetSignature(entry.result.context.targets);
     const recordedTargetSetSignature =
       entry.targetSetSignature ??
@@ -125,6 +156,7 @@ export class ContextService {
       expectedTargetSetSignature;
     if (recordedTargetSetSignature !== expectedTargetSetSignature) {
       this.cache.delete(cacheKey);
+      this.cacheMetrics.misses += 1;
       return {
         missReason: 'target_signature_mismatch',
         targetSetSignature: expectedTargetSetSignature,
@@ -133,8 +165,11 @@ export class ContextService {
     const nextSignature = await this.computeTrackedFilesSignature(repoPath, entry.trackedFiles);
     if (nextSignature !== entry.signature) {
       this.cache.delete(cacheKey);
+      this.cacheMetrics.misses += 1;
       return { missReason: 'signature_mismatch', targetSetSignature: expectedTargetSetSignature };
     }
+    this.cacheMetrics.hits += 1;
+    this.bumpCacheEntry(cacheKey);
     return { result: entry.result, targetSetSignature: expectedTargetSetSignature };
   }
 
@@ -181,6 +216,72 @@ export class ContextService {
       }
     }
     return parts;
+  }
+
+  private getEntryTimestamp(entry: CacheEntry): number {
+    return entry.lastAccessedAt ?? entry.createdAt ?? 0;
+  }
+
+  private bumpCacheEntry(cacheKey: string): void {
+    const entry = this.cache.get(cacheKey);
+    if (!entry) return;
+    const now = Date.now();
+    entry.createdAt = entry.createdAt ?? now;
+    entry.lastAccessedAt = now;
+    this.cache.set(cacheKey, entry);
+  }
+
+  private isExpired(cacheKey: string, entry: CacheEntry): boolean {
+    const last = this.getEntryTimestamp(entry);
+    if (!last || Date.now() - last <= this.cacheTtlMs) return false;
+    this.cache.delete(cacheKey);
+    this.cacheMetrics.evictions += 1;
+    return true;
+  }
+
+  private evictExpiredEntries(): void {
+    for (const [key, entry] of this.cache.entries()) {
+      this.isExpired(key, entry);
+    }
+  }
+
+  private evictLruIfNeeded(): void {
+    while (this.cache.size > this.cacheMaxEntries) {
+      let victimKey: string | undefined;
+      let victimTs = Number.POSITIVE_INFINITY;
+      for (const [key, entry] of this.cache.entries()) {
+        const ts = this.getEntryTimestamp(entry);
+        if (ts < victimTs) {
+          victimTs = ts;
+          victimKey = key;
+        }
+      }
+      if (!victimKey) break;
+      this.cache.delete(victimKey);
+      this.cacheMetrics.evictions += 1;
+    }
+  }
+
+  getCacheStats(): {
+    size: number;
+    maxEntries: number;
+    ttlMs: number;
+    hits: number;
+    misses: number;
+    evictions: number;
+    hitRate: number;
+  } {
+    const total = this.cacheMetrics.hits + this.cacheMetrics.misses;
+    const hitRate = total > 0 ? this.cacheMetrics.hits / total : 0;
+    return {
+      size: this.cache.size,
+      maxEntries: this.cacheMaxEntries,
+      ttlMs: this.cacheTtlMs,
+      hits: this.cacheMetrics.hits,
+      misses: this.cacheMetrics.misses,
+      evictions: this.cacheMetrics.evictions,
+      hitRate,
+    };
   }
 
   private recordContextDiff(key: string, contextResult: ContextResult): void {

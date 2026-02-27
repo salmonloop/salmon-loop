@@ -41,4 +41,72 @@ describe('ContextService cache (integration)', () => {
 
     expect(gatherCount).toBe(2);
   });
+
+  it('invalidates no-primary cache when git state signature changes', async () => {
+    const repoPath = await mkdtemp(join(tmpdir(), 'context-cache-noprimary-'));
+    await mkdir(join(repoPath, '.git'), { recursive: true });
+    await writeFile(join(repoPath, '.git', 'HEAD'), 'ref: refs/heads/main\n');
+    await writeFile(join(repoPath, '.git', 'index'), 'index-v1');
+
+    let gatherCount = 0;
+    const service = new ContextService({
+      primaryTextGatherer: {
+        gather: async () => {
+          gatherCount++;
+          return { primaryText: undefined };
+        },
+      } as any,
+      ripgrepGatherer: { searchMultipleKeywords: async () => [] } as any,
+      gitDiffGatherer: { gather: async () => ({ includedFiles: [] }) } as any,
+      astGatherer: {
+        gather: async () => ({ symbols: [], definitionMap: {}, relatedFiles: [] }),
+      } as any,
+      assembler: { assemble: () => ({ prompt: 'PROMPT' }) },
+    });
+
+    const req: ContextRequest = {
+      instruction: 'help me improve this',
+      repoPath,
+    };
+
+    await service.build(req);
+    await writeFile(join(repoPath, '.git', 'index'), 'index-v2');
+    await service.build(req);
+
+    expect(gatherCount).toBe(2);
+  });
+
+  it('keeps no-primary cache hit when only unrelated noise files change', async () => {
+    const repoPath = await mkdtemp(join(tmpdir(), 'context-cache-noise-'));
+    await mkdir(join(repoPath, '.git'), { recursive: true });
+    await writeFile(join(repoPath, '.git', 'HEAD'), 'ref: refs/heads/main\n');
+    await writeFile(join(repoPath, '.git', 'index'), 'index-v1');
+
+    let gatherCount = 0;
+    const service = new ContextService({
+      primaryTextGatherer: {
+        gather: async () => {
+          gatherCount++;
+          return { primaryText: undefined };
+        },
+      } as any,
+      ripgrepGatherer: { searchMultipleKeywords: async () => [] } as any,
+      gitDiffGatherer: { gather: async () => ({ includedFiles: [] }) } as any,
+      astGatherer: {
+        gather: async () => ({ symbols: [], definitionMap: {}, relatedFiles: [] }),
+      } as any,
+      assembler: { assemble: () => ({ prompt: 'PROMPT' }) },
+    });
+
+    const req: ContextRequest = {
+      instruction: 'help me improve this',
+      repoPath,
+    };
+
+    await service.build(req);
+    await writeFile(join(repoPath, 'noise.log'), `noise-${Date.now()}\n`);
+    await service.build(req);
+
+    expect(gatherCount).toBe(1);
+  });
 });

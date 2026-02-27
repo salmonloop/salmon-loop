@@ -22,6 +22,7 @@ describe('context hash utilities', () => {
       instruction: 'fix x',
     });
     expect(a).toBe(b);
+    expect(a.startsWith('intent:v1:')).toBe(true);
   });
 
   it('creates order-independent target set signatures', () => {
@@ -34,6 +35,7 @@ describe('context hash utilities', () => {
       { path: 'src/b.ts', reason: 'import_neighbor', confidence: 'medium' },
     ] as ContextTarget[]);
     expect(a).toBe(b);
+    expect(a.startsWith('targets:v1:')).toBe(true);
   });
 
   it('creates stable context hash for object key ordering differences', () => {
@@ -52,5 +54,6 @@ describe('context hash utilities', () => {
       instruction: 'fix',
     } as Context);
     expect(a).toBe(b);
+    expect(a.startsWith('context:v1:')).toBe(true);
   });
 });
