@@ -1,4 +1,5 @@
 import {
+  resolveNodeWorktreePrepareCommand,
   resolveNodeVerifyCommand,
   resolveScriptCommand,
 } from '../../../../src/core/target-runtime/command-resolver.js';
@@ -75,5 +76,55 @@ describe('resolveNodeVerifyCommand', () => {
   test('returns undefined when test script is missing', () => {
     const profile = makeProfile('pnpm', { lint: 'eslint .' });
     expect(resolveNodeVerifyCommand(profile)).toBeUndefined();
+  });
+});
+
+describe('resolveNodeWorktreePrepareCommand', () => {
+  test('returns bun frozen install command when lockfile is present', () => {
+    const profile = {
+      ...makeProfile('bun', {}),
+      source: 'lockfile' as const,
+    };
+    expect(resolveNodeWorktreePrepareCommand(profile)).toBe('bun install --frozen-lockfile');
+  });
+
+  test('returns bun install command when lockfile is not detected', () => {
+    const profile = {
+      ...makeProfile('bun', {}),
+      source: 'packageManager' as const,
+    };
+    expect(resolveNodeWorktreePrepareCommand(profile)).toBe('bun install');
+  });
+
+  test('returns pnpm frozen install command when lockfile is present', () => {
+    const profile = {
+      ...makeProfile('pnpm', {}),
+      source: 'lockfile' as const,
+    };
+    expect(resolveNodeWorktreePrepareCommand(profile)).toBe('pnpm install --frozen-lockfile');
+  });
+
+  test('returns yarn immutable install command when lockfile is present', () => {
+    const profile = {
+      ...makeProfile('yarn', {}),
+      source: 'lockfile' as const,
+    };
+    expect(resolveNodeWorktreePrepareCommand(profile)).toBe('yarn install --immutable');
+  });
+
+  test('returns npm ci when lockfile is present', () => {
+    const profile = {
+      ...makeProfile('npm', {}),
+      source: 'lockfile' as const,
+    };
+    expect(resolveNodeWorktreePrepareCommand(profile)).toBe('npm ci');
+  });
+
+  test('returns npm install when lockfile is not detected', () => {
+    const profile = {
+      ...makeProfile('npm', {}),
+      source: 'default' as const,
+    };
+    expect(resolveNodeWorktreePrepareCommand(profile)).toBe('npm install');
   });
 });

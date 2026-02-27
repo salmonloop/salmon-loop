@@ -208,6 +208,7 @@ export async function handleRunCommand(options: any, command: Command) {
 
   const llmOutput = runtimeOptions.llmOutput;
   const effectiveVerify = runtimeOptions.effectiveVerify;
+  const effectiveWorktreePrepare = runtimeOptions.effectiveWorktreePrepare;
 
   const instructionGuard = ensureInstructionOrExit({
     command,
@@ -369,7 +370,7 @@ export async function handleRunCommand(options: any, command: Command) {
       checkpointStrategy: allOptions.checkpointStrategy as CheckpointStrategy,
       environmentMode: rawEnvironmentMode,
       applyBackOnDirty,
-      worktreePrepare: allOptions.worktreePrepare,
+      worktreePrepare: effectiveWorktreePrepare,
       llmOutput,
       outcomeReporter,
       langfuseSessionId: resolvedConfig.observability.langfuse.sessionId || sessionIdForOutput,

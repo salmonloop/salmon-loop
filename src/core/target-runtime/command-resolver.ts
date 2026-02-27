@@ -38,3 +38,22 @@ export function resolveScriptCommand(
 export function resolveNodeVerifyCommand(profile: NodeRuntimeProfile): string | undefined {
   return resolveScriptCommand(profile, 'test')?.shellCommand;
 }
+
+export function resolveNodeWorktreePrepareCommand(profile: NodeRuntimeProfile): string {
+  const hasLockfile = profile.source === 'lockfile';
+
+  switch (profile.packageManager) {
+    case 'bun':
+      return hasLockfile ? 'bun install --frozen-lockfile' : 'bun install';
+    case 'pnpm':
+      return hasLockfile ? 'pnpm install --frozen-lockfile' : 'pnpm install';
+    case 'yarn':
+      return hasLockfile ? 'yarn install --immutable' : 'yarn install';
+    case 'npm':
+      return hasLockfile ? 'npm ci' : 'npm install';
+    default: {
+      const manager: never = profile.packageManager;
+      return manager;
+    }
+  }
+}

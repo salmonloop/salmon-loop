@@ -4,7 +4,10 @@ import * as path from 'path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-import { autoDetectVerifyCommand } from '../../../../src/cli/utils/detectors/index.js';
+import {
+  autoDetectVerifyCommand,
+  autoDetectWorktreePrepareCommand,
+} from '../../../../src/cli/utils/detectors/index.js';
 
 describe('autoDetectVerifyCommand', () => {
   let repoPath = '';
@@ -81,5 +84,48 @@ describe('autoDetectVerifyCommand', () => {
   it('returns undefined when package.json is invalid', async () => {
     await fs.writeFile(path.join(repoPath, 'package.json'), '{invalid-json', 'utf-8');
     await expect(autoDetectVerifyCommand(repoPath)).resolves.toBeUndefined();
+  });
+});
+
+describe('autoDetectWorktreePrepareCommand', () => {
+  let repoPath = '';
+
+  beforeEach(async () => {
+    repoPath = await fs.mkdtemp(path.join(os.tmpdir(), 'salmon-loop-detector-'));
+  });
+
+  afterEach(async () => {
+    if (repoPath) {
+      await fs.rm(repoPath, { recursive: true, force: true });
+    }
+  });
+
+  it('detects bun prepare command from bun lockfile', async () => {
+    await fs.writeFile(
+      path.join(repoPath, 'package.json'),
+      JSON.stringify({ scripts: {} }, null, 2),
+      'utf-8',
+    );
+    await fs.writeFile(path.join(repoPath, 'bun.lock'), '', 'utf-8');
+
+    await expect(autoDetectWorktreePrepareCommand(repoPath)).resolves.toBe(
+      'bun install --frozen-lockfile',
+    );
+  });
+
+  it('detects npm prepare command when no lockfile hint exists', async () => {
+    await fs.writeFile(
+      path.join(repoPath, 'package.json'),
+      JSON.stringify({ scripts: {} }, null, 2),
+      'utf-8',
+    );
+
+    await expect(autoDetectWorktreePrepareCommand(repoPath)).resolves.toBe('npm install');
+  });
+
+  it('returns undefined when package.json is invalid', async () => {
+    await fs.writeFile(path.join(repoPath, 'package.json'), '{invalid-json', 'utf-8');
+
+    await expect(autoDetectWorktreePrepareCommand(repoPath)).resolves.toBeUndefined();
   });
 });

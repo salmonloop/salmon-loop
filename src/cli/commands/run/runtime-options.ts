@@ -2,6 +2,7 @@ import { logger } from '../../../core/observability/logger.js';
 import { text } from '../../locales/index.js';
 import { resolveLlmOutputPolicyFromCli } from '../../utils/llm-output.js';
 import { resolveVerifyOption } from '../../utils/verify-resolver.js';
+import { resolveWorktreePrepareOption } from '../../utils/worktree-prepare-resolver.js';
 
 export async function resolveRunRuntimeOptions(params: {
   repoPath: string;
@@ -9,7 +10,10 @@ export async function resolveRunRuntimeOptions(params: {
   cliOptions: any;
   outputFormat: 'text' | 'json' | 'stream-json';
   writeJsonFailure: (args: { message: string; repoPath?: string }) => void;
-}): Promise<{ ok: true; llmOutput: any; effectiveVerify?: string } | { ok: false; exitCode: 1 }> {
+}): Promise<
+  | { ok: true; llmOutput: any; effectiveVerify?: string; effectiveWorktreePrepare?: string }
+  | { ok: false; exitCode: 1 }
+> {
   const llmOutputResolution = resolveLlmOutputPolicyFromCli(
     params.resolvedConfig.llmOutput,
     params.cliOptions.llmOutput,
@@ -43,5 +47,11 @@ export async function resolveRunRuntimeOptions(params: {
     params.resolvedConfig.verify.command,
   );
 
-  return { ok: true, llmOutput, effectiveVerify };
+  const effectiveWorktreePrepare = await resolveWorktreePrepareOption(
+    params.repoPath,
+    params.cliOptions.checkpointStrategy,
+    params.cliOptions.worktreePrepare,
+  );
+
+  return { ok: true, llmOutput, effectiveVerify, effectiveWorktreePrepare };
 }

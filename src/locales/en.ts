@@ -333,6 +333,8 @@ Please return the patch in PURE unified diff format:`;
       'Worktree strategy active: dirty state will be preserved in shadow worktree.',
     ripgrepNotFoundWarning: 'ripgrep (rg) not found. Context gathering may be limited.',
     autoDetected: (command: string) => `Auto-detected verification command: ${command}`,
+    autoDetectedWorktreePrepare: (command: string) =>
+      `Auto-detected worktree prepare command: ${command}`,
     noCommandFound: 'No verification command found. Verification will be skipped.',
     explicitlyDisabled: 'Verification explicitly disabled via --no-verify',
   },
