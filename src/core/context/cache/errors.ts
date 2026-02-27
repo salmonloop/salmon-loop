@@ -1,6 +1,9 @@
 import { SalmonError } from '../../types/index.js';
 
-export type ContextCacheErrorCode = 'CONTEXT_CACHE_IO' | 'CONTEXT_CACHE_CORRUPT';
+export type ContextCacheErrorCode =
+  | 'CONTEXT_CACHE_IO'
+  | 'CONTEXT_CACHE_CORRUPT'
+  | 'CONTEXT_CACHE_OVERSIZE';
 
 export class ContextCacheError extends SalmonError {
   constructor(

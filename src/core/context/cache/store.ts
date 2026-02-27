@@ -2,6 +2,7 @@ import { Buffer } from 'node:buffer';
 
 import { FileAdapter } from '../../adapters/fs/file-adapter.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
+import { redactSensitiveValue } from '../../security/redaction.js';
 import type { ContextResult } from '../types.js';
 
 import { ContextCacheError, type ContextCacheErrorCode } from './errors.js';
@@ -28,6 +29,7 @@ export interface ContextCacheStore {
 export interface PersistentContextCacheStoreOptions {
   strict?: boolean;
   fallbackMode?: 'fail' | 'memory';
+  maxPayloadBytes?: number;
   cleanupFn?: (details: { filePath: string; error: Error }) => Promise<void>;
 }
 
@@ -72,6 +74,7 @@ export class PersistentContextCacheStore implements ContextCacheStore {
   private initPromise: Promise<void> | null = null;
   private readonly cleanupFn?: (details: { filePath: string; error: Error }) => Promise<void>;
   private readonly fallbackMode: 'fail' | 'memory';
+  private readonly maxPayloadBytes?: number;
   private degradedToMemory = false;
 
   constructor(filePath: string, options?: PersistentContextCacheStoreOptions) {
@@ -79,6 +82,7 @@ export class PersistentContextCacheStore implements ContextCacheStore {
     this.strict = options?.strict ?? false;
     this.cleanupFn = options?.cleanupFn;
     this.fallbackMode = options?.fallbackMode ?? 'fail';
+    this.maxPayloadBytes = options?.maxPayloadBytes;
   }
 
   private async ensureLoaded(): Promise<void> {
@@ -143,7 +147,10 @@ export class PersistentContextCacheStore implements ContextCacheStore {
   }
 
   private getRemediationMessage(code: ContextCacheErrorCode): string {
-    return `持久化缓存 ${this.filePath} 可能损坏或权限不足，错误码 ${code}。请删除该文件或切换为内存缓存后重试。`;
+    if (code === 'CONTEXT_CACHE_OVERSIZE') {
+      return `Context cache payload too large for ${this.filePath}. Increase the cache size limit or use memory cache.`;
+    }
+    return `Persistent cache ${this.filePath} may be corrupted or inaccessible (code ${code}). Delete the file or switch to memory cache, then retry.`;
   }
 
   private recordLoadFailureAudit(contextError: ContextCacheError, underlying: Error): void {
@@ -200,10 +207,31 @@ export class PersistentContextCacheStore implements ContextCacheStore {
       version: 1,
       entries: Object.fromEntries(this.map.entries()),
     };
-    await this.fileAdapter.writeFileAtomic(
-      this.filePath,
-      Buffer.from(JSON.stringify(payload), 'utf-8'),
-    );
+    const redacted = redactSensitiveValue(payload).value as PersistentPayload;
+    const serialized = JSON.stringify(redacted);
+    if (this.maxPayloadBytes && Buffer.byteLength(serialized, 'utf-8') > this.maxPayloadBytes) {
+      recordAuditEvent(
+        'context.cache.oversize',
+        {
+          filePath: this.filePath,
+          bytes: Buffer.byteLength(serialized, 'utf-8'),
+          maxBytes: this.maxPayloadBytes,
+          fallbackMode: this.fallbackMode,
+        },
+        { source: 'context.cache', severity: 'high', scope: 'repo', phase: 'CONTEXT' },
+      );
+      if (this.fallbackMode === 'memory') {
+        this.degradedToMemory = true;
+        return;
+      }
+      throw new ContextCacheError(
+        'CONTEXT_CACHE_OVERSIZE',
+        this.filePath,
+        this.getRemediationMessage('CONTEXT_CACHE_OVERSIZE'),
+        `Context cache payload exceeds max size (${this.maxPayloadBytes} bytes)`,
+      );
+    }
+    await this.fileAdapter.writeFileAtomic(this.filePath, Buffer.from(serialized, 'utf-8'));
   }
 
   async get(key: string): Promise<ContextCacheEntry | undefined> {

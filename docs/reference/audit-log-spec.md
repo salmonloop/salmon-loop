@@ -169,3 +169,13 @@ Audit logs are designed to be safe to share for debugging:
 - Tool call arguments are redacted and truncated.
 - Error messages are truncated.
 - Secrets (API keys, tokens, authorization headers, cookies) are redacted when present in recorded payloads.
+
+## Audit Buffer Events
+
+- `audit.dropped`: emitted when low-severity audit events are dropped due to buffer limits.
+  - `details.count`: number of dropped events
+  - `details.since`: ISO timestamp when drops began (best-effort)
+
+## Redaction Metrics
+
+- `context.redaction.count`: emitted with the number of redaction operations applied during a run.

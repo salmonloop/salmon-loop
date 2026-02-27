@@ -7,6 +7,8 @@ cli:
 
 context:
   use_token_budget: true
+  cache:
+    max_payload_bytes: 5242880
   dynamic_budget:
     enabled: false
     min_budget: 5000
@@ -19,6 +21,16 @@ observability:
     outcome: false
     endpoint: https://your-litellm-host/langfuse/
     user_id: user-123
+  audit:
+    buffer:
+      max_events: 10000
+      max_bytes: 20971520
+
+security:
+  redaction:
+    enabled: true
+    mark: "[REDACTED]"
+    max_depth: 6
 
 output:
   llm:

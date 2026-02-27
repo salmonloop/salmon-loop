@@ -69,6 +69,7 @@ export interface ConfigFileV1 {
       fallbackToMemoryOnFailure?: boolean;
       maxEntries?: number;
       ttlMs?: number;
+      maxPayloadBytes?: number;
     };
     churn?: {
       weight?: {
@@ -90,6 +91,14 @@ export interface ConfigFileV1 {
   };
 
   observability?: ObservabilityConfigV1;
+
+  security?: {
+    redaction?: {
+      enabled?: boolean;
+      mark?: string;
+      maxDepth?: number;
+    };
+  };
 
   output?: {
     llm?: LlmOutputConfig;
@@ -135,6 +144,12 @@ export interface LlmOutputConfig {
 
 export interface ObservabilityConfigV1 {
   langfuse?: LangfuseObservabilityConfigV1;
+  audit?: {
+    buffer?: {
+      maxEvents?: number;
+      maxBytes?: number;
+    };
+  };
 }
 
 export interface LangfuseObservabilityConfigV1 {
@@ -256,6 +271,19 @@ export interface ResolvedConfig {
       endpoint?: string;
       sessionId?: string;
       userId?: string;
+    };
+    audit: {
+      buffer: {
+        maxEvents: number;
+        maxBytes: number;
+      };
+    };
+  };
+  security: {
+    redaction: {
+      enabled: boolean;
+      mark: string;
+      maxDepth: number;
     };
   };
   ui: {

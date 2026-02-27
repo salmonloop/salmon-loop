@@ -87,6 +87,37 @@ export function validateConfigFileV1(input: unknown): ConfigFileV1 {
       out.userId = lf.userId as any;
       cfg.observability.langfuse = out;
     }
+
+    if ((obs as any).audit !== undefined) {
+      const auditRaw = (obs as any).audit;
+      if (!isRecord(auditRaw)) {
+        throw new ConfigError('CONFIG_INVALID_OBSERVABILITY_AUDIT', { expected: 'object' });
+      }
+      const bufferRaw = (auditRaw as any).buffer;
+      if (bufferRaw !== undefined) {
+        if (!isRecord(bufferRaw)) {
+          throw new ConfigError('CONFIG_INVALID_OBSERVABILITY_AUDIT_BUFFER', {
+            expected: 'object',
+          });
+        }
+        if (bufferRaw.maxEvents !== undefined && !isNumber(bufferRaw.maxEvents)) {
+          throw new ConfigError('CONFIG_INVALID_OBSERVABILITY_AUDIT_MAX_EVENTS', {
+            expected: 'number',
+          });
+        }
+        if (bufferRaw.maxBytes !== undefined && !isNumber(bufferRaw.maxBytes)) {
+          throw new ConfigError('CONFIG_INVALID_OBSERVABILITY_AUDIT_MAX_BYTES', {
+            expected: 'number',
+          });
+        }
+        cfg.observability.audit = {
+          buffer: {
+            maxEvents: bufferRaw.maxEvents as any,
+            maxBytes: bufferRaw.maxBytes as any,
+          },
+        };
+      }
+    }
   }
 
   if (input.cli !== undefined) {
@@ -202,6 +233,9 @@ export function validateConfigFileV1(input: unknown): ConfigFileV1 {
       if (cacheRaw.ttlMs !== undefined && !isNumber(cacheRaw.ttlMs)) {
         throw new ConfigError('CONFIG_INVALID_CONTEXT_CACHE_TTL', { expected: 'number' });
       }
+      if (cacheRaw.maxPayloadBytes !== undefined && !isNumber(cacheRaw.maxPayloadBytes)) {
+        throw new ConfigError('CONFIG_INVALID_CONTEXT_CACHE_MAX_PAYLOAD', { expected: 'number' });
+      }
       if (cacheRaw.mode === 'persistent') {
         if (!isString(cacheRaw.path) || cacheRaw.path.length === 0) {
           throw new ConfigError('CONFIG_INVALID_CONTEXT_CACHE_PATH', {
@@ -223,6 +257,7 @@ export function validateConfigFileV1(input: unknown): ConfigFileV1 {
       cache.allowedRoots = cacheRaw.allowedRoots as any;
       cache.maxEntries = cacheRaw.maxEntries as any;
       cache.ttlMs = cacheRaw.ttlMs as any;
+      cache.maxPayloadBytes = cacheRaw.maxPayloadBytes as any;
       cfg.context.cache = cache;
     }
 
@@ -508,6 +543,39 @@ export function validateConfigFileV1(input: unknown): ConfigFileV1 {
         }
         cfg.llm.routing.phaseToModel = r.phaseToModel as any;
       }
+    }
+  }
+
+  if ((input as any).security !== undefined) {
+    const securityRaw = (input as any).security;
+    if (!isRecord(securityRaw)) {
+      throw new ConfigError('CONFIG_INVALID_SECURITY', { expected: 'object' });
+    }
+    if (securityRaw.redaction !== undefined) {
+      if (!isRecord(securityRaw.redaction)) {
+        throw new ConfigError('CONFIG_INVALID_SECURITY_REDACTION', { expected: 'object' });
+      }
+      const redactionRaw = securityRaw.redaction as Record<string, unknown>;
+      if (redactionRaw.enabled !== undefined && !isBoolean(redactionRaw.enabled)) {
+        throw new ConfigError('CONFIG_INVALID_SECURITY_REDACTION_ENABLED', {
+          expected: 'boolean',
+        });
+      }
+      if (redactionRaw.mark !== undefined && !isString(redactionRaw.mark)) {
+        throw new ConfigError('CONFIG_INVALID_SECURITY_REDACTION_MARK', { expected: 'string' });
+      }
+      if (redactionRaw.maxDepth !== undefined && !isNumber(redactionRaw.maxDepth)) {
+        throw new ConfigError('CONFIG_INVALID_SECURITY_REDACTION_MAX_DEPTH', {
+          expected: 'number',
+        });
+      }
+      cfg.security = {
+        redaction: {
+          enabled: redactionRaw.enabled as any,
+          mark: redactionRaw.mark as any,
+          maxDepth: redactionRaw.maxDepth as any,
+        },
+      };
     }
   }
 

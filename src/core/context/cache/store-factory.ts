@@ -30,6 +30,10 @@ export async function createContextCacheStore(
     typeof cacheConfig?.ttlMs === 'number' && cacheConfig.ttlMs > 0
       ? Math.floor(cacheConfig.ttlMs)
       : undefined;
+  const maxPayloadBytes =
+    typeof cacheConfig?.maxPayloadBytes === 'number' && cacheConfig.maxPayloadBytes > 0
+      ? Math.floor(cacheConfig.maxPayloadBytes)
+      : undefined;
 
   const fallbackToMemoryOnFailure = Boolean(cacheConfig?.fallbackToMemoryOnFailure);
   const cacheStrict = fallbackToMemoryOnFailure ? false : (cacheConfig?.strict ?? true);
@@ -50,6 +54,7 @@ export async function createContextCacheStore(
       strict: cacheStrict,
       fallbackMode,
       cleanupFn,
+      maxPayloadBytes,
     };
     const persistentStore = new PersistentContextCacheStore(pathResolution.filePath, storeOptions);
     if (fallbackToMemoryOnFailure) {

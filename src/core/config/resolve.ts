@@ -1,5 +1,6 @@
 import { resolveBaseUrl } from '../llm/base-url.js';
 import { resolveLlmOutputPolicy } from '../llm/output-policy.js';
+import type { RedactionConfig } from '../security/redaction.js';
 
 import { ConfigError } from './errors.js';
 import { tryLoadConfigFile } from './load.js';
@@ -350,6 +351,23 @@ function resolveLangfuseObservability(raw?: ConfigFileV1): {
   return { enabled, outcome, endpoint, sessionId, userId };
 }
 
+function resolveAuditBuffer(raw?: ConfigFileV1) {
+  const cfg = raw?.observability?.audit?.buffer;
+  return {
+    maxEvents: cfg?.maxEvents ?? 10000,
+    maxBytes: cfg?.maxBytes ?? 20 * 1024 * 1024,
+  };
+}
+
+function resolveRedactionConfig(raw?: ConfigFileV1): RedactionConfig {
+  const cfg = raw?.security?.redaction;
+  return {
+    enabled: cfg?.enabled ?? true,
+    mark: cfg?.mark ?? '[REDACTED]',
+    maxDepth: cfg?.maxDepth ?? 6,
+  };
+}
+
 function resolveAstValidationStrictness(raw?: ConfigFileV1): AstValidationStrictness {
   const strictness = raw?.astValidation?.strictness;
   if (strictness === 'strict' || strictness === 'lenient') return strictness;
@@ -402,6 +420,12 @@ export async function resolveConfig(opts: ResolveConfigOptions): Promise<Resolve
     },
     observability: {
       langfuse: resolveLangfuseObservability(raw),
+      audit: {
+        buffer: resolveAuditBuffer(raw),
+      },
+    },
+    security: {
+      redaction: resolveRedactionConfig(raw),
     },
     ui: {
       logMode: uiLogMode,

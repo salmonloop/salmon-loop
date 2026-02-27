@@ -20,11 +20,14 @@ import { appendAuditTrailToAuditFile } from '../observability/audit-file.js';
 import {
   clearAuditContext,
   clearAuditTrail,
+  drainAuditDropStats,
   recordAuditEvent,
+  setAuditBufferLimits,
   setAuditContext,
 } from '../observability/audit-trail.js';
 import { logger } from '../observability/logger.js';
 import { buildRunOutcomeReport } from '../observability/run-outcome-reporter.js';
+import { drainRedactionMetrics, setRedactionConfig } from '../security/redaction.js';
 import { Phase, type FlowMode, type LoopOptions, type LoopResult } from '../types/index.js';
 
 import { Semaphore } from './semaphore.js';
@@ -38,6 +41,8 @@ export async function runSalmonLoop(options: LoopOptions): Promise<LoopResult> {
       repoRoot: options.repoPath,
     });
     setUseTokenBudget(config.context.useTokenBudget);
+    setAuditBufferLimits(config.observability.audit.buffer);
+    setRedactionConfig(config.security.redaction);
 
     // Set model for adaptive budget (if available)
     const modelId = config.llm.models.selectedModelId;
@@ -167,6 +172,22 @@ export class SalmonLoop {
             const msg = error instanceof Error ? error.message : String(error);
             logger.warn(text.grizzco.observability.outcomeReporterFailed(msg));
           }
+        }
+        const redactionStats = drainRedactionMetrics();
+        if (redactionStats.count > 0) {
+          recordAuditEvent(
+            'context.redaction.count',
+            { count: redactionStats.count },
+            { source: 'security', severity: 'low', scope: 'session' },
+          );
+        }
+        const dropStats = drainAuditDropStats();
+        if (dropStats.count > 0) {
+          recordAuditEvent(
+            'audit.dropped',
+            { count: dropStats.count, since: dropStats.since },
+            { source: 'audit', severity: 'medium', scope: 'session' },
+          );
         }
         // Append at the end so any audit events emitted by the outcomeReporter are persisted too.
         const fallbackFailureReason =

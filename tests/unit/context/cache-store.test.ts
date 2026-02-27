@@ -78,4 +78,62 @@ describe('PersistentContextCacheStore', () => {
 
     expect(writeFileAtomicMock).toHaveBeenCalledTimes(1);
   });
+
+  it('redacts sensitive fields before persisting', async () => {
+    readFileMock.mockRejectedValue(new Error('ENOENT'));
+    const { PersistentContextCacheStore } = await loadStoreModule();
+    const store = new PersistentContextCacheStore('/repo/.salmonloop/cache/context-cache.json', {
+      strict: true,
+    });
+
+    await store.set('k', {
+      result: {
+        prompt: 'p',
+        context: {
+          repoPath: '/repo',
+          instruction: 'use token sk-1234567890abcdef',
+        } as any,
+        meta: { usedChars: 1, truncated: false, includedFiles: [] } as any,
+      } as any,
+      trackedFiles: [],
+      signature: 's',
+      intentSignature: 'i',
+    });
+
+    const payload = writeFileAtomicMock.mock.calls[0]![1] as Buffer;
+    const raw = payload.toString('utf-8');
+    expect(raw).not.toContain('sk-1234567890abcdef');
+    expect(raw).toContain('[REDACTED]');
+  });
+
+  it('falls back to memory when payload exceeds max size', async () => {
+    readFileMock.mockRejectedValue(new Error('ENOENT'));
+    const { PersistentContextCacheStore } = await loadStoreModule();
+    const store = new PersistentContextCacheStore('/repo/.salmonloop/cache/context-cache.json', {
+      strict: false,
+      fallbackMode: 'memory',
+      maxPayloadBytes: 64,
+    } as any);
+
+    await store.set('k', {
+      result: {
+        prompt: 'p',
+        context: {
+          repoPath: '/repo',
+          instruction: 'x'.repeat(500),
+        } as any,
+        meta: { usedChars: 1, truncated: false, includedFiles: [] } as any,
+      } as any,
+      trackedFiles: [],
+      signature: 's',
+      intentSignature: 'i',
+    });
+
+    expect(writeFileAtomicMock).not.toHaveBeenCalled();
+    expect(recordAuditEventMock).toHaveBeenCalledWith(
+      'context.cache.oversize',
+      expect.any(Object),
+      expect.objectContaining({ severity: 'high' }),
+    );
+  });
 });

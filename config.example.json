@@ -9,6 +9,9 @@
   },
   "context": {
     "useTokenBudget": true,
+    "cache": {
+      "maxPayloadBytes": 5242880
+    },
     "dynamicBudget": {
       "enabled": false,
       "minBudget": 5000,
@@ -22,6 +25,19 @@
       "outcome": false,
       "endpoint": "https://your-litellm-host/langfuse/",
       "userId": "user-123"
+    },
+    "audit": {
+      "buffer": {
+        "maxEvents": 10000,
+        "maxBytes": 20971520
+      }
+    }
+  },
+  "security": {
+    "redaction": {
+      "enabled": true,
+      "mark": "[REDACTED]",
+      "maxDepth": 6
     }
   },
   "output": {

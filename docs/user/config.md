@@ -87,6 +87,27 @@ Safety behavior:
 - Canonical path checks also reject symlink-based escapes.
 - One-off CLI override is available via `--allow-outside-cache-root` (high risk).
 
+### `context.cache.maxPayloadBytes`
+
+Sets an upper bound (in bytes) for the persistent context cache payload.
+
+Example:
+
+```json
+{
+  "context": {
+    "cache": {
+      "maxPayloadBytes": 5242880
+    }
+  }
+}
+```
+
+Notes:
+
+- When exceeded, persistent cache will fall back to memory (if configured) and emit an audit event.
+- This helps avoid large cache files with sensitive context.
+
 ## CLI Options
 
 - `--config <path>`: Explicitly load a config file (relative paths are resolved against the repo root).
@@ -116,6 +137,57 @@ Example:
   }
 }
 ```
+
+## Audit Buffer
+
+### `observability.audit.buffer`
+
+Limits in-memory audit trail growth for long-running sessions.
+
+Example:
+
+```json
+{
+  "observability": {
+    "audit": {
+      "buffer": {
+        "maxEvents": 10000,
+        "maxBytes": 20971520
+      }
+    }
+  }
+}
+```
+
+Notes:
+
+- When limits are exceeded, low-severity events are dropped first.
+- A summary `audit.dropped` event is emitted once space is available.
+
+## Redaction
+
+### `security.redaction`
+
+Controls sensitive-data redaction for audit logs and cache payloads.
+
+Example:
+
+```json
+{
+  "security": {
+    "redaction": {
+      "enabled": true,
+      "mark": "[REDACTED]",
+      "maxDepth": 6
+    }
+  }
+}
+```
+
+Notes:
+
+- Redaction is enabled by default.
+- Disabling redaction is not recommended in shared or regulated environments.
 
 Environment variable overrides (preferred):
 

@@ -1,4 +1,5 @@
 import { recordAuditEvent, type AuditTrailMeta } from '../observability/audit-trail.js';
+import { redactSensitiveString } from '../security/redaction.js';
 
 const DEFAULT_LIMITS = {
   maxDepth: 4,
@@ -14,9 +15,10 @@ function sanitizeValue(value: unknown, state: { depth: number; seen: WeakSet<obj
   if (value === null || value === undefined) return value;
 
   if (typeof value === 'string') {
-    return value.length <= DEFAULT_LIMITS.maxStringChars
-      ? value
-      : value.slice(0, DEFAULT_LIMITS.maxStringChars);
+    const { value: redacted } = redactSensitiveString(value);
+    return redacted.length <= DEFAULT_LIMITS.maxStringChars
+      ? redacted
+      : redacted.slice(0, DEFAULT_LIMITS.maxStringChars);
   }
   if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
     return value;
