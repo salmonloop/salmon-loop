@@ -38,6 +38,7 @@ export async function persistRunSession(params: {
       sessionManager: params.sessionManager,
       llm: params.llm,
       contextHash: params.result.contextHash,
+      strategy: 'force',
     });
     await params.sessionManager.save();
   } catch {

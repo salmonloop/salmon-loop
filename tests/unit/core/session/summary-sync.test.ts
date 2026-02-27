@@ -45,6 +45,7 @@ Session summary
       sessionManager: sessionManager as any,
       llm,
       contextHash: 'ctx-123',
+      strategy: 'force',
     });
 
     expect(persistedState).toBeDefined();
@@ -66,5 +67,39 @@ Session summary
     await expect(
       refreshSessionSummary({ llm, sessionManager: undefined }),
     ).resolves.toBeUndefined();
+  });
+
+  it('does not call llm in auto mode when trigger threshold is not met', async () => {
+    let persistedState: any;
+    const sessionManager = {
+      getSummaryState: () => undefined,
+      getMessagesWithIds: () => createMessages(4),
+      updateSummaryState: (state: any) => {
+        persistedState = state;
+      },
+    };
+
+    const chat = mock().mockResolvedValue({
+      role: 'assistant',
+      content: 'should-not-be-called',
+    });
+    const llm: LLM = {
+      chat,
+      createPlan: async () => {
+        throw new Error('unused');
+      },
+      createPatch: async () => {
+        throw new Error('unused');
+      },
+    };
+
+    await refreshSessionSummary({
+      sessionManager: sessionManager as any,
+      llm,
+      strategy: 'auto',
+    });
+
+    expect(chat).not.toHaveBeenCalled();
+    expect(persistedState).toBeDefined();
   });
 });

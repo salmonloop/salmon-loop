@@ -19,10 +19,14 @@ import type { ContextRequest, ContextResult, DiffScope } from './types.js';
 
 export class ContextService {
   private readonly deps: ContextServiceDeps;
-  private readonly cache = new Map<string, ContextResult>();
+  private readonly cache = new Map<
+    string,
+    { result: ContextResult; trackedFiles: string[]; signature: string }
+  >();
   private readonly updaters = new Map<string, IncrementalUpdater>();
   private readonly promptCachingManager: PromptCachingManager;
   private readonly fileAdapter = new FileAdapter();
+  private static readonly MAX_CACHE_TRACKED_FILES = 64;
 
   constructor(deps: Partial<ContextServiceDeps> = {}) {
     this.deps = { ...defaultContextServiceDeps(), ...deps };
@@ -33,7 +37,7 @@ export class ContextService {
     const diffScope: DiffScope = req.diffScope ?? 'primary';
 
     const cacheKey = await this.makeCacheKey(req);
-    const cached = this.cache.get(cacheKey);
+    const cached = await this.getValidCachedResult(cacheKey, req.repoPath);
     if (cached && !req.signal?.aborted) {
       logger.trace(`[CONTEXT_CACHE] hit ${cacheKey}`);
       return cached;
@@ -53,7 +57,9 @@ export class ContextService {
       throw report.error ?? new Error('Context pipeline failed');
     }
     const contextResult = report.data as ContextResult;
-    this.cache.set(cacheKey, contextResult);
+    const trackedFiles = this.collectTrackedFiles(req, contextResult);
+    const signature = await this.computeTrackedFilesSignature(req.repoPath, trackedFiles);
+    this.cache.set(cacheKey, { result: contextResult, trackedFiles, signature });
     this.recordContextDiff(cacheKey, contextResult);
     return contextResult;
   }
@@ -88,6 +94,44 @@ export class ContextService {
     } catch {
       return `missing:${absolutePath}`;
     }
+  }
+
+  private async getValidCachedResult(
+    cacheKey: string,
+    repoPath: string,
+  ): Promise<ContextResult | undefined> {
+    const entry = this.cache.get(cacheKey);
+    if (!entry) return undefined;
+    const nextSignature = await this.computeTrackedFilesSignature(repoPath, entry.trackedFiles);
+    if (nextSignature !== entry.signature) {
+      this.cache.delete(cacheKey);
+      return undefined;
+    }
+    return entry.result;
+  }
+
+  private collectTrackedFiles(req: ContextRequest, result: ContextResult): string[] {
+    const deduped = new Set<string>();
+    if (req.primaryFile) deduped.add(req.primaryFile);
+    for (const file of result.meta.includedFiles ?? []) {
+      if (file) deduped.add(file);
+    }
+    return [...deduped].sort().slice(0, ContextService.MAX_CACHE_TRACKED_FILES);
+  }
+
+  private async computeTrackedFilesSignature(repoPath: string, files: string[]): Promise<string> {
+    if (files.length === 0) return 'files:none';
+    const parts: string[] = [];
+    for (const relativeFile of files) {
+      const absoluteFile = path.resolve(repoPath, relativeFile);
+      try {
+        const stat = await this.fileAdapter.stat(absoluteFile);
+        parts.push(`${relativeFile}:${stat.mtimeMs}:${stat.size}`);
+      } catch {
+        parts.push(`${relativeFile}:missing`);
+      }
+    }
+    return createHash('sha1').update(parts.join('|')).digest('hex');
   }
 
   private recordContextDiff(key: string, contextResult: ContextResult): void {

@@ -9,8 +9,10 @@ export async function refreshSessionSummary(params: {
   sessionManager?: ChatSessionManager;
   llm: LLM;
   contextHash?: string;
+  strategy?: 'auto' | 'force';
 }): Promise<void> {
   const { sessionManager, llm, contextHash } = params;
+  const strategy = params.strategy ?? 'auto';
   if (!sessionManager) return;
 
   try {
@@ -52,7 +54,11 @@ export async function refreshSessionSummary(params: {
       timestamp: msg.timestamp,
     }));
 
-    await summarizer.forceSummarize(messages, contextHash);
+    if (strategy === 'force') {
+      await summarizer.forceSummarize(messages, contextHash);
+    } else {
+      await summarizer.triggerSummarization(messages, contextHash);
+    }
     sessionManager.updateSummaryState(summarizer.getState());
   } catch {
     // Best-effort summary update: never affect execution flow.

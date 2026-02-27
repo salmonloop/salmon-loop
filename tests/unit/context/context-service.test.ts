@@ -154,4 +154,47 @@ describe('ContextService', () => {
     const result = await service.build(req);
     expect(result.meta.environment?.workspaceMode).toBe('shadow');
   });
+
+  it('invalidates cached context when tracked file signature changes', async () => {
+    let assembleCount = 0;
+    const service = new ContextService({
+      primaryTextGatherer: { gather: async () => ({ primaryText: 'PRIMARY' }) } as any,
+      ripgrepGatherer: { searchMultipleKeywords: async () => [] } as any,
+      gitDiffGatherer: { gather: async () => ({ includedFiles: ['src/b.ts'] }) } as any,
+      astGatherer: {
+        gather: async () => ({ symbols: [], definitionMap: {}, relatedFiles: [] }),
+      } as any,
+      assembler: {
+        assemble: () => {
+          assembleCount += 1;
+          return { prompt: `PROMPT-${assembleCount}` };
+        },
+      },
+    });
+
+    const mtimes: Record<string, number> = {
+      '/repo/src/a.ts': 10,
+      '/repo/src/b.ts': 20,
+    };
+    (service as any).fileAdapter = {
+      readFile: async () => 'same-primary-content',
+      stat: async (filePath: string) =>
+        ({ mtimeMs: mtimes[filePath] ?? 0, size: 100 }) as { mtimeMs: number; size: number },
+    };
+
+    const req: ContextRequest = {
+      instruction: 'fix foo',
+      repoPath: '/repo',
+      primaryFile: 'src/a.ts',
+    };
+
+    const first = await service.build(req);
+    expect(first.prompt).toBe('PROMPT-1');
+    expect(assembleCount).toBe(1);
+
+    mtimes['/repo/src/b.ts'] = 99;
+    const second = await service.build(req);
+    expect(second.prompt).toBe('PROMPT-2');
+    expect(assembleCount).toBe(2);
+  });
 });

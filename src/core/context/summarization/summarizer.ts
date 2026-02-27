@@ -234,6 +234,7 @@ export class ConversationSummarizer {
       return null;
     }
 
+    this.ensureStateAligned(contextHash);
     if (!this.shouldTrigger(messages)) {
       return null;
     }

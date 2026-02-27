@@ -310,6 +310,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
             await refreshSessionSummary({
               sessionManager,
               llm: options.llm,
+              strategy: 'auto',
             });
             await sessionManager.save();
             return { kind: 'answer' as const };
@@ -401,6 +402,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
         sessionManager,
         llm: options.llm,
         contextHash: result.contextHash,
+        strategy: 'auto',
       });
       await sessionManager.save();
       currentInstruction = null;
