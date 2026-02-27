@@ -117,5 +117,94 @@ describe('TargetResolver (symbol targets)', () => {
     expect(res.targets[0]?.path).toBe('src/core/context/service.ts');
     expect(res.targets[1]?.path).toBe('src/b.ts');
     expect(res.targets[1]?.churnWeight).toBeGreaterThan(res.targets[2]?.churnWeight ?? 0);
+    expect(res.targets[1]?.ranking?.semanticScore).toBeGreaterThan(0);
+    expect(res.targets[1]?.ranking?.finalScore).toBeGreaterThan(
+      res.targets[2]?.ranking?.finalScore ?? 0,
+    );
+  });
+
+  it('keeps semantic priority when low-signal target has higher churn', async () => {
+    const resolver = new TargetResolver({
+      churnPolicy: {
+        primaryBoost: 10000,
+        rerankWeight: 0.35,
+        tieBreakWeight: 0.05,
+      },
+    });
+    const res = await resolver.resolve({
+      req: {
+        instruction: 'improve context',
+        repoPath: '/repo',
+        primaryFile: 'src/core/context/service.ts',
+      },
+      includedFiles: [],
+      importRelatedFiles: ['src/import.ts'],
+      rgHitFiles: ['src/rg.ts'],
+      churnByFile: {
+        'src/import.ts': 1,
+        'src/rg.ts': 100,
+      },
+    });
+
+    expect(res.strategy).toBe('default');
+    expect(res.targets.findIndex((t) => t.path === 'src/import.ts')).toBeLessThan(
+      res.targets.findIndex((t) => t.path === 'src/rg.ts'),
+    );
+  });
+
+  it('uses churn to rerank same-semantic candidates', async () => {
+    const resolver = new TargetResolver({
+      churnPolicy: {
+        primaryBoost: 10000,
+        rerankWeight: 0.35,
+        tieBreakWeight: 0.05,
+      },
+    });
+    const res = await resolver.resolve({
+      req: {
+        instruction: 'improve context',
+        repoPath: '/repo',
+        primaryFile: 'src/core/context/service.ts',
+      },
+      includedFiles: [],
+      importRelatedFiles: ['src/a.ts', 'src/b.ts'],
+      rgHitFiles: [],
+      churnByFile: {
+        'src/a.ts': 1,
+        'src/b.ts': 9,
+      },
+    });
+
+    expect(res.strategy).toBe('default');
+    expect(res.targets[1]?.path).toBe('src/b.ts');
+    expect(res.targets[2]?.path).toBe('src/a.ts');
+  });
+
+  it('falls back to semantic+path ordering when churn weights are disabled', async () => {
+    const resolver = new TargetResolver({
+      churnPolicy: {
+        primaryBoost: 10000,
+        rerankWeight: 0,
+        tieBreakWeight: 0,
+      },
+    });
+    const res = await resolver.resolve({
+      req: {
+        instruction: 'improve context',
+        repoPath: '/repo',
+        primaryFile: 'src/core/context/service.ts',
+      },
+      includedFiles: [],
+      importRelatedFiles: ['src/z.ts', 'src/a.ts'],
+      rgHitFiles: [],
+      churnByFile: {
+        'src/z.ts': 100,
+        'src/a.ts': 1,
+      },
+    });
+
+    expect(res.strategy).toBe('default');
+    expect(res.targets[1]?.path).toBe('src/a.ts');
+    expect(res.targets[2]?.path).toBe('src/z.ts');
   });
 });

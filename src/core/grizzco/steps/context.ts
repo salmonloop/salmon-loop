@@ -1,6 +1,7 @@
 import { resolveConfig } from '../../config/resolve.js';
 import { applyBudgetAdjustment } from '../../context/budget/integration.js';
 import { ContextBuilder } from '../../context/builder.js';
+import { setChurnRankingPolicy } from '../../context/targeting/churn-policy.js';
 import type { ContextResult } from '../../context/types.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
 import { CheckpointManager } from '../../strata/checkpoint/manager.js';
@@ -35,6 +36,11 @@ export const buildContext: Step<PreflightCtx, ContextCtx> = async (ctx) => {
 
   // Apply dynamic budget adjustment if enabled and on retry
   const config = await resolveConfig({ repoRoot: ctx.options.repoPath });
+  setChurnRankingPolicy({
+    primaryBoost: config.raw?.context?.churn?.weight?.primary,
+    rerankWeight: config.raw?.context?.churn?.weight?.rerank,
+    tieBreakWeight: config.raw?.context?.churn?.weight?.tiebreak,
+  });
   if (config.context.dynamicBudget.enabled && (ctx.attempt ?? 0) > 1) {
     const currentBudget = contextOptions.budgetChars ?? 30000;
     const adjustment = applyBudgetAdjustment(currentBudget);

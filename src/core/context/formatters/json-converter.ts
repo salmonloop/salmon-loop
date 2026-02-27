@@ -293,6 +293,14 @@ export class ContextFormatConverter {
       p: target.path,
       r: target.reason,
       c: this.mapConfidence(target.confidence),
+      rs: target.ranking
+        ? [
+            target.ranking.semanticScore,
+            target.ranking.churnScore,
+            target.ranking.primaryBoostScore,
+            target.ranking.finalScore,
+          ]
+        : undefined,
       e: evidence,
     };
   }

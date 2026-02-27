@@ -68,6 +68,7 @@ export interface JsonTarget {
   p: string; // path
   r: string; // reason
   c: 'h' | 'm' | 'l'; // confidence (high, medium, low)
+  rs?: [number, number, number, number]; // ranking score [semantic, churn, primaryBoost, final]
   e?: JsonEvidence; // evidence
 }
 

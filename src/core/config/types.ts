@@ -61,6 +61,13 @@ export interface ConfigFileV1 {
 
   context?: {
     useTokenBudget?: boolean;
+    churn?: {
+      weight?: {
+        primary?: number;
+        rerank?: number;
+        tiebreak?: number;
+      };
+    };
     dynamicBudget?: {
       enabled?: boolean;
       minBudget?: number;

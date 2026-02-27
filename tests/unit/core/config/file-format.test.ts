@@ -76,4 +76,23 @@ llm:
     expect(text).toContain('openai_main');
     expect(text).toContain('X-API-Key');
   });
+
+  it('supports context churn weight keys in snake_case YAML', () => {
+    const raw = `
+version: 1
+context:
+  churn:
+    weight:
+      primary: 12000
+      rerank: 0.4
+      tiebreak: 0.1
+`;
+    const parsed = parseConfigText(raw, '/tmp/config.yaml') as any;
+    expect(parsed.context.churn.weight.primary).toBe(12000);
+    expect(parsed.context.churn.weight.rerank).toBe(0.4);
+    expect(parsed.context.churn.weight.tiebreak).toBe(0.1);
+
+    const text = stringifyConfigText(parsed, 'yaml');
+    expect(text).toContain('tiebreak');
+  });
 });

@@ -172,6 +172,37 @@ export function validateConfigFileV1(input: unknown): ConfigFileV1 {
       cfg.context.useTokenBudget = contextRaw.useTokenBudget as any;
     }
 
+    if (contextRaw.churn !== undefined) {
+      if (!isRecord(contextRaw.churn)) {
+        throw new ConfigError('CONFIG_INVALID_CHURN', { expected: 'object' });
+      }
+      const churnRaw = contextRaw.churn as Record<string, unknown>;
+      const churn: NonNullable<ConfigFileV1['context']>['churn'] = {};
+
+      if (churnRaw.weight !== undefined) {
+        if (!isRecord(churnRaw.weight)) {
+          throw new ConfigError('CONFIG_INVALID_CHURN_WEIGHT', { expected: 'object' });
+        }
+        const weightRaw = churnRaw.weight as Record<string, unknown>;
+        if (weightRaw.primary !== undefined && !isNumber(weightRaw.primary)) {
+          throw new ConfigError('CONFIG_INVALID_CHURN_WEIGHT_PRIMARY', { expected: 'number' });
+        }
+        if (weightRaw.rerank !== undefined && !isNumber(weightRaw.rerank)) {
+          throw new ConfigError('CONFIG_INVALID_CHURN_WEIGHT_RERANK', { expected: 'number' });
+        }
+        if (weightRaw.tiebreak !== undefined && !isNumber(weightRaw.tiebreak)) {
+          throw new ConfigError('CONFIG_INVALID_CHURN_WEIGHT_TIEBREAK', { expected: 'number' });
+        }
+        churn.weight = {
+          primary: weightRaw.primary as any,
+          rerank: weightRaw.rerank as any,
+          tiebreak: weightRaw.tiebreak as any,
+        };
+      }
+
+      cfg.context.churn = churn;
+    }
+
     if (contextRaw.dynamicBudget !== undefined) {
       if (!isRecord(contextRaw.dynamicBudget)) {
         throw new ConfigError('CONFIG_INVALID_DYNAMIC_BUDGET', { expected: 'object' });

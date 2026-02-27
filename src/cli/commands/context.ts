@@ -2,7 +2,9 @@ import { resolve } from 'path';
 
 import { Command } from 'commander';
 
+import { resolveConfig } from '../../core/config/resolve.js';
 import { ContextService } from '../../core/context/index.js';
+import { setChurnRankingPolicy } from '../../core/context/targeting/churn-policy.js';
 import { logger } from '../../core/observability/logger.js';
 import { text } from '../locales/index.js';
 
@@ -36,6 +38,13 @@ export async function handleContextCommand(options: any, command: Command) {
     }
     budgetChars = parsed;
   }
+
+  const resolvedConfig = await resolveConfig({ repoRoot: repoPath });
+  setChurnRankingPolicy({
+    primaryBoost: resolvedConfig.raw?.context?.churn?.weight?.primary,
+    rerankWeight: resolvedConfig.raw?.context?.churn?.weight?.rerank,
+    tieBreakWeight: resolvedConfig.raw?.context?.churn?.weight?.tiebreak,
+  });
 
   const service = new ContextService();
   const result = await service.build({

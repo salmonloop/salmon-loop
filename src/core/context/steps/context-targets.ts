@@ -51,6 +51,8 @@ export function buildContextTargetsStep(deps: ContextServiceDeps) {
           path: t.path,
           reason: t.reason,
           confidence: t.confidence,
+          churnWeight: t.churnWeight,
+          ranking: t.ranking,
         })),
         diffusionMetrics: diffusionMetrics
           ? {

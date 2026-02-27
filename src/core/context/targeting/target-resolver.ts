@@ -5,6 +5,8 @@ import type { CodeLocation, ContextTarget, SymbolMap, TargetEvidence } from '../
 import { normalizePath } from '../../utils/path.js';
 import type { ContextRequest } from '../types.js';
 
+import { getChurnRankingPolicy, type ChurnRankingPolicy } from './churn-policy.js';
+
 interface TargetingDslContext extends BaseDslContext {
   repoPath: string;
   primaryFile?: string;
@@ -95,40 +97,47 @@ function applyChurnWeights(
   targets: ContextTarget[],
   churnByFile: Record<string, number> | undefined,
   primaryFile: string | undefined,
+  churnPolicy: ChurnRankingPolicy,
 ): ContextTarget[] {
-  if (!churnByFile || Object.keys(churnByFile).length === 0) {
-    return targets;
-  }
-
   const normalizedPrimary = primaryFile
     ? normalizePath(primaryFile).replace(/^(\.\/|\/)+/, '')
     : undefined;
-  const maxChurn = Math.max(...Object.values(churnByFile), 1);
+  const maxChurn = Math.max(...Object.values(churnByFile ?? {}), 1);
+  const hasChurn = Boolean(churnByFile && Object.keys(churnByFile).length > 0);
 
   return [...targets]
     .map((target) => {
       const normalized = normalizePath(target.path).replace(/^(\.\/|\/)+/, '');
-      const churnCount = churnByFile[normalized] ?? 0;
+      const churnCount = hasChurn ? (churnByFile?.[normalized] ?? 0) : 0;
+      const churnScore = churnCount > 0 ? Number((churnCount / maxChurn).toFixed(4)) : 0;
+      const semanticScore = reasonRank(target.reason) * 10 + confidenceRank(target.confidence);
+      const primaryBoostScore =
+        normalizedPrimary && normalized === normalizedPrimary ? churnPolicy.primaryBoost : 0;
+      const finalScore =
+        semanticScore + primaryBoostScore + churnScore * Math.max(churnPolicy.rerankWeight, 0);
       return {
         ...target,
-        churnWeight: churnCount > 0 ? Number((churnCount / maxChurn).toFixed(4)) : 0,
+        churnWeight: churnScore,
+        ranking: {
+          semanticScore,
+          churnScore,
+          primaryBoostScore,
+          finalScore: Number(finalScore.toFixed(6)),
+        },
       };
     })
     .sort((a, b) => {
       const aPath = normalizePath(a.path).replace(/^(\.\/|\/)+/, '');
       const bPath = normalizePath(b.path).replace(/^(\.\/|\/)+/, '');
-      if (normalizedPrimary && aPath === normalizedPrimary && bPath !== normalizedPrimary) {
-        return -1;
-      }
-      if (normalizedPrimary && bPath === normalizedPrimary && aPath !== normalizedPrimary) {
-        return 1;
-      }
+      const finalScoreDiff = (b.ranking?.finalScore ?? 0) - (a.ranking?.finalScore ?? 0);
+      if (finalScoreDiff !== 0) return finalScoreDiff;
 
-      const weightDiff = (b.churnWeight ?? 0) - (a.churnWeight ?? 0);
-      if (weightDiff !== 0) return weightDiff;
+      const tieBreakDiff =
+        ((b.churnWeight ?? 0) - (a.churnWeight ?? 0)) * Math.max(churnPolicy.tieBreakWeight, 0);
+      if (tieBreakDiff !== 0) return tieBreakDiff;
 
-      const reasonDiff = reasonRank(b.reason) - reasonRank(a.reason);
-      if (reasonDiff !== 0) return reasonDiff;
+      const semanticDiff = (b.ranking?.semanticScore ?? 0) - (a.ranking?.semanticScore ?? 0);
+      if (semanticDiff !== 0) return semanticDiff;
 
       return aPath.localeCompare(bPath);
     });
@@ -461,6 +470,17 @@ function buildSymbolTargets(params: {
 }
 
 export class TargetResolver {
+  private readonly churnPolicy: ChurnRankingPolicy;
+
+  constructor(options?: { churnPolicy?: Partial<ChurnRankingPolicy> }) {
+    const current = getChurnRankingPolicy();
+    this.churnPolicy = {
+      primaryBoost: options?.churnPolicy?.primaryBoost ?? current.primaryBoost,
+      rerankWeight: options?.churnPolicy?.rerankWeight ?? current.rerankWeight,
+      tieBreakWeight: options?.churnPolicy?.tieBreakWeight ?? current.tieBreakWeight,
+    };
+  }
+
   async resolve(params: {
     req: ContextRequest;
     includedFiles: string[];
@@ -626,7 +646,12 @@ export class TargetResolver {
       (action?.params?.strategy as 'explicit' | 'symbol' | 'diff' | 'default' | undefined) ??
       'default';
     const diffusionMetrics = ctx.data?.symbolMetrics as DiffusionMetrics | undefined;
-    const targetsWithChurn = applyChurnWeights(targets, churnByFile, req.primaryFile);
+    const targetsWithChurn = applyChurnWeights(
+      targets,
+      churnByFile,
+      req.primaryFile,
+      this.churnPolicy,
+    );
 
     if (targetsWithChurn.length > 0) {
       logger.trace(

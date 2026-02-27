@@ -35,7 +35,15 @@ export interface ContextTarget {
   reason: ContextTargetReason;
   confidence: ContextTargetConfidence;
   churnWeight?: number;
+  ranking?: ContextTargetRanking;
   evidence?: string | TargetEvidence; // Structured evidence for future extensibility
+}
+
+export interface ContextTargetRanking {
+  semanticScore: number;
+  churnScore: number;
+  primaryBoostScore: number;
+  finalScore: number;
 }
 
 /**
