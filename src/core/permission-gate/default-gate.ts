@@ -6,6 +6,9 @@ import type { PermissionGate } from './gate.js';
 import type { PermissionDecision, PermissionRequest } from './types.js';
 
 class DefaultPermissionGate implements PermissionGate {
+  private readonly approvedOutsideRootResources = new Set<string>();
+  private readonly pendingRequests = new Map<string, PermissionRequest>();
+
   constructor(
     private readonly options: {
       allowOutsideCacheRoot?: boolean;
@@ -18,6 +21,12 @@ class DefaultPermissionGate implements PermissionGate {
   ) {}
 
   async requestAuthorization(request: PermissionRequest): Promise<PermissionDecision> {
+    if (
+      request.action === 'context.cache.outside_root' &&
+      this.approvedOutsideRootResources.has(request.resource)
+    ) {
+      return { kind: 'allow', source: 'cache', reason: 'authorized_once' };
+    }
     if (
       request.action === 'context.cache.outside_root' &&
       this.options.allowOutsideCacheRoot === true
@@ -40,6 +49,15 @@ class DefaultPermissionGate implements PermissionGate {
   async requestAuthorizationDeferred(request: PermissionRequest) {
     if (
       request.action === 'context.cache.outside_root' &&
+      this.approvedOutsideRootResources.has(request.resource)
+    ) {
+      return {
+        kind: 'decision',
+        decision: { kind: 'allow', source: 'cache', reason: 'authorized_once' },
+      } as const;
+    }
+    if (
+      request.action === 'context.cache.outside_root' &&
       this.options.allowOutsideCacheRoot === true
     ) {
       return {
@@ -55,6 +73,7 @@ class DefaultPermissionGate implements PermissionGate {
       const deferred =
         await this.options.authorizationProvider.requestAuthorizationDeferred(toolRequest);
       if (deferred.kind === 'pending') {
+        this.pendingRequests.set(toolRequest.id, request);
         return { ...deferred, requestId: toolRequest.id };
       }
       return {
@@ -71,7 +90,17 @@ class DefaultPermissionGate implements PermissionGate {
     if (!provider?.waitForAuthorization) return null;
     const decision = await provider.waitForAuthorization(requestId, signal);
     if (!decision) return null;
-    return this.mapAuthorizationDecision(decision);
+    const mapped = this.mapAuthorizationDecision(decision);
+    const pending = this.pendingRequests.get(requestId);
+    if (
+      pending?.action === 'context.cache.outside_root' &&
+      mapped.kind === 'allow' &&
+      pending.resource
+    ) {
+      this.approvedOutsideRootResources.add(pending.resource);
+    }
+    this.pendingRequests.delete(requestId);
+    return mapped;
   }
 
   private toToolAuthorizationRequest(request: PermissionRequest) {

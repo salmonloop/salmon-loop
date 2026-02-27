@@ -74,4 +74,39 @@ describe('DefaultPermissionGate', () => {
       requestId: expect.any(String),
     });
   });
+
+  it('caches allow decision after deferred authorization is approved once', async () => {
+    const gate = createDefaultPermissionGate({
+      repoRoot: '/repo',
+      authorizationProvider: {
+        requestAuthorization: async () => ({ outcome: 'deny', source: 'user' }),
+        requestAuthorizationDeferred: async () => ({
+          kind: 'pending',
+          challenge: 'abc123',
+          message: 'authorization required',
+        }),
+        waitForAuthorization: async (_requestId: string) => ({
+          outcome: 'allow_once',
+          source: 'user',
+        }),
+      },
+    });
+
+    const deferred = await gate.requestAuthorizationDeferred?.({
+      action: 'context.cache.outside_root',
+      resource: '/outside/cache.json',
+      risk: 'high',
+    });
+    expect(deferred?.kind).toBe('pending');
+    const wait = await gate.waitForAuthorization?.((deferred as any).requestId);
+    expect(wait?.kind).toBe('allow');
+
+    const decision = await gate.requestAuthorization({
+      action: 'context.cache.outside_root',
+      resource: '/outside/cache.json',
+      risk: 'high',
+    });
+    expect(decision.kind).toBe('allow');
+    expect(decision.source).toBe('cache');
+  });
 });

@@ -353,6 +353,79 @@ describe('Headless protocol integration', () => {
     });
   }, 120000);
 
+  it('supports deferred non-interactive permission approval and records requestId in audit', async () => {
+    const repo = await helper.createGitRepo();
+    await helper.writeFile(
+      repo.path,
+      '.salmonloop/config/config.json',
+      JSON.stringify(
+        {
+          version: 1,
+          context: {
+            cache: {
+              mode: 'persistent',
+              path: '../outside/context-cache.json',
+              allowedRoots: ['.salmonloop/cache'],
+            },
+          },
+          toolAuthorization: {
+            nonInteractive: {
+              strategy: 'command',
+              command: {
+                cmd: `echo '{"outcome":"allow_once"}'`,
+              },
+            },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    const { exitCode, stdout } = await runCli([
+      '-r',
+      repo.path,
+      '-p',
+      'hello',
+      '--output-format',
+      'stream-json',
+      '--mode',
+      'review',
+    ]);
+
+    expect(exitCode).toBe(0);
+    const lines = stdout
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => JSON.parse(line) as any);
+    const retryEvents = lines.filter((line) => line.event?.type === 'retry');
+    const resultEvent = lines.find((line) => line.event?.type === 'result');
+    expect(retryEvents).toHaveLength(0);
+    expect(resultEvent?.event?.attempts).toBe(1);
+    expect(resultEvent?.event?.success).toBe(true);
+    expect(resultEvent?.event?.audit_path).toBeTruthy();
+
+    const auditPath = String(resultEvent?.event?.audit_path ?? '');
+    expect(auditPath.length).toBeGreaterThan(0);
+    const auditRaw = await helper.readFile(repo.path, path.relative(repo.path, auditPath), 'utf-8');
+    const audit = JSON.parse(String(auditRaw)) as any;
+    const eventsRefPath = String(audit.context?.eventsRef?.path ?? '');
+    expect(eventsRefPath.length).toBeGreaterThan(0);
+    const eventsRaw = await helper.readFile(
+      repo.path,
+      `.salmonloop/runtime/audit/${eventsRefPath}`,
+      'utf-8',
+    );
+    const events = String(eventsRaw)
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => JSON.parse(line) as any);
+    const permissionEvent = events.find((e: any) => e.action === 'permission.decision');
+    expect(permissionEvent?.details?.decision).toBe('pending');
+    expect(typeof permissionEvent?.details?.requestId).toBe('string');
+    expect(permissionEvent?.details?.requestId.length).toBeGreaterThan(0);
+  }, 120000);
+
   it('emits machine-readable errors when --resume session is missing in headless stream-json (native)', async () => {
     const repo = await helper.createGitRepo();
 

@@ -323,12 +323,42 @@ export function createTerminalAuthorizationProvider(options?: {
   forceNonInteractive?: boolean;
 }): ToolAuthorizationProvider {
   const forceNonInteractive = Boolean(options?.forceNonInteractive);
+  const deferredRequests = new Map<string, ToolAuthorizationRequest>();
+
+  const shouldUseForcedDeferred = (
+    request: ToolAuthorizationRequest,
+    config: ToolAuthorizationConfig,
+  ) => {
+    if (!forceNonInteractive) return false;
+    if (config.nonInteractive?.strategy === 'deny') return false;
+    if (!request.id || !request.id.trim()) return false;
+    return true;
+  };
+
+  const buildDeferredMessage = (request: ToolAuthorizationRequest) => {
+    const summary = buildSummary(request);
+    const effects = buildEffects(request);
+    return text.cli.toolAuthorizationPrompt(request.toolName, request.riskLevel, effects, summary);
+  };
+
   return {
-    async waitForAuthorization(_requestId: string) {
-      return null;
+    async waitForAuthorization(requestId: string) {
+      const pending = deferredRequests.get(requestId);
+      if (!pending) return null;
+      deferredRequests.delete(requestId);
+      return await this.requestAuthorization(pending);
     },
 
     async requestAuthorizationDeferred(request: ToolAuthorizationRequest) {
+      const config = resolveConfig(options?.config);
+      if (shouldUseForcedDeferred(request, config)) {
+        deferredRequests.set(request.id, request);
+        return {
+          kind: 'pending',
+          challenge: request.id.slice(0, 6),
+          message: buildDeferredMessage(request),
+        } as const;
+      }
       const decision = await this.requestAuthorization(request);
       return { kind: 'decision', decision } as const;
     },

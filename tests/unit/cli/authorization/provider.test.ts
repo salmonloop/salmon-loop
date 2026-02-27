@@ -54,4 +54,44 @@ describe('createTerminalAuthorizationProvider', () => {
     expect(requestNonInteractiveAuthorizationDecision).toHaveBeenCalledTimes(1);
     expect(decision.outcome).toBe('allow_once');
   });
+
+  it('returns pending in deferred mode for forced non-interactive command strategy', async () => {
+    const { createTerminalAuthorizationProvider } =
+      await import('../../../../src/cli/authorization/provider.js');
+    const { requestNonInteractiveAuthorizationDecision } =
+      await import('../../../../src/cli/authorization/non-interactive.js');
+
+    const provider = createTerminalAuthorizationProvider({
+      forceNonInteractive: true,
+      config: {
+        nonInteractive: {
+          strategy: 'command',
+          command: { cmd: 'echo {"outcome":"allow_once"}' },
+        },
+      },
+    });
+
+    const request = {
+      id: 'req-2',
+      toolName: 'context.cache.outside_root',
+      source: 'builtin' as const,
+      phase: 'CONTEXT' as const,
+      riskLevel: 'high' as const,
+      sideEffects: ['fs_write' as const],
+      repoRoot: process.cwd(),
+      attemptId: 1,
+      timestamp: Date.now(),
+    };
+    const deferred = await provider.requestAuthorizationDeferred?.(request);
+    expect(deferred).toEqual({
+      kind: 'pending',
+      challenge: 'req-2',
+      message: expect.any(String),
+    });
+    expect(requestNonInteractiveAuthorizationDecision).toHaveBeenCalledTimes(0);
+
+    const resolved = await provider.waitForAuthorization?.('req-2');
+    expect(requestNonInteractiveAuthorizationDecision).toHaveBeenCalledTimes(1);
+    expect(resolved?.outcome).toBe('allow_once');
+  });
 });
