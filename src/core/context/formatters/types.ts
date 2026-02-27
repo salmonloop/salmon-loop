@@ -19,6 +19,13 @@ export interface JsonContext {
   gh?: JsonGitHistory; // gitHistory
   pt?: JsonProjectTopology; // projectTopology
   kb?: JsonProjectKnowledge; // knowledgeBase
+  ra?: JsonRuntimeArtifacts; // runtimeArtifacts
+}
+
+export interface JsonRuntimeArtifacts {
+  bd?: string[]; // buildDirs
+  ev?: string[]; // envVars
+  lf?: Array<[string, string?]>; // lockFiles [path, hash]
 }
 
 export interface JsonProjectKnowledge {

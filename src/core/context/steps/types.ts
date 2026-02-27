@@ -45,6 +45,7 @@ export interface ContextGatherCtx extends ContextPrimaryCtx {
   gitHistory: Context['gitHistory'];
   projectTopology: Context['projectTopology'];
   knowledgeBase: Context['knowledgeBase'];
+  runtimeArtifacts: Context['runtimeArtifacts'];
 }
 
 export interface ContextTargetsCtx extends ContextPipelineInitCtx {
@@ -65,4 +66,5 @@ export interface ContextTargetsCtx extends ContextPipelineInitCtx {
   gitHistory: Context['gitHistory'];
   projectTopology: Context['projectTopology'];
   knowledgeBase: Context['knowledgeBase'];
+  runtimeArtifacts: Context['runtimeArtifacts'];
 }

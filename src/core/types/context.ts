@@ -123,6 +123,7 @@ export interface RepoMap {
 
 export interface Context {
   repoPath: string;
+  instruction?: string;
   primaryFile?: string;
   primaryText?: string;
   relatedFiles?: RelatedFileContext[];
@@ -152,6 +153,13 @@ export interface Context {
   };
   projectTopology?: ProjectTopology;
   knowledgeBase?: ProjectKnowledge;
+  runtimeArtifacts?: RuntimeArtifacts;
+}
+
+export interface RuntimeArtifacts {
+  buildDirs?: string[]; // Detected build output directories
+  envVars?: string[]; // Names of key non-sensitive env vars present
+  lockFiles?: Array<{ path: string; hash?: string }>; // Critical lock files
 }
 
 export interface ProjectKnowledge {

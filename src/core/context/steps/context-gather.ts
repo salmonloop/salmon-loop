@@ -24,6 +24,7 @@ export function buildContextGatherStep(deps: ContextServiceDeps) {
       gitHistory,
       projectTopology,
       knowledgeBase,
+      runtimeArtifacts,
     ] = await Promise.all([
       deps.ripgrepGatherer.searchMultipleKeywords(keywords, req.repoPath, req.signal),
       deps.gitDiffGatherer.gather({ ...req, diffScope }),
@@ -32,8 +33,16 @@ export function buildContextGatherStep(deps: ContextServiceDeps) {
       deps.gitHistoryGatherer.gather(req),
       deps.architectureGatherer.gather(req),
       deps.knowledgeGatherer.gather(req),
+      deps.artifactGatherer.gather(req),
     ]);
     assertNotAborted(req.signal);
+
+    // 2nd Stage: Semantic/Ghost Dependency Probe
+    const existingFiles = new Set(astRes.relatedFiles.map((f) => f.path));
+    const ghostFiles = await deps.ghostDependencyGatherer.gather(primaryText, req, existingFiles);
+    if (ghostFiles.length > 0) {
+      astRes.relatedFiles.push(...ghostFiles);
+    }
 
     recordContextAuditEvent(
       CONTEXT_AUDIT_ACTION.gatherCompleted,
@@ -41,12 +50,14 @@ export function buildContextGatherStep(deps: ContextServiceDeps) {
         rgSnippets: rgSnippets.length,
         includedFiles: diffRes.includedFiles.length,
         importedFiles: astRes.relatedFiles.length,
+        ghostFiles: ghostFiles.length,
         syntaxErrors: astRes.syntaxErrors?.length ?? 0,
         hasParseError: Boolean(astRes.parseError),
         hasProjectMetadata: Boolean(projectMetadata),
         hasGitHistory: Boolean(gitHistory),
         hasProjectTopology: Boolean(projectTopology),
         hasKnowledgeBase: Boolean(knowledgeBase),
+        hasRuntimeArtifacts: Boolean(runtimeArtifacts),
       },
       { source: 'context', severity: 'low', scope: 'session', phase: CONTEXT_AUDIT_PHASE.gather },
     );
@@ -60,6 +71,7 @@ export function buildContextGatherStep(deps: ContextServiceDeps) {
       gitHistory,
       projectTopology,
       knowledgeBase,
+      runtimeArtifacts,
       diff: {
         includedFiles: diffRes.includedFiles,
         stagedDiff: diffRes.stagedDiff,

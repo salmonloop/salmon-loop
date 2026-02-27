@@ -73,9 +73,11 @@ export function buildContextBudgetStep(deps: ContextServiceDeps) {
     gitHistory,
     projectTopology,
     knowledgeBase,
+    runtimeArtifacts,
   }: ContextTargetsCtx): Promise<ContextResult> => {
     const context: Context = {
       repoPath: req.repoPath,
+      instruction: req.instruction,
       primaryFile: req.primaryFile,
       primaryText,
       relatedFiles,
@@ -95,6 +97,7 @@ export function buildContextBudgetStep(deps: ContextServiceDeps) {
       gitHistory,
       projectTopology,
       knowledgeBase,
+      runtimeArtifacts,
     };
 
     const compressed = applySmartCompression(context, { budgetChars: req.budgetChars });

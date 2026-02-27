@@ -34,12 +34,12 @@ export class ReflectionEngine {
       // Persist suggested knowledge if any
       if (result.suggestedRules && result.suggestedRules.length > 0) {
         // Since we are in the engine, we can call the executor directly
-        // We need a minimal mock context
         const mockCtx: any = { repoRoot };
         await executeUpdateKnowledge(
           {
             category: 'project_rules',
             rules: result.suggestedRules,
+            deprecated_rules: result.deprecatedRules,
           },
           mockCtx,
         );

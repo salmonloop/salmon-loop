@@ -12,5 +12,6 @@ export interface ReflectionInput {
 export interface ReflectionResult {
   lessons: string[];
   suggestedRules?: string[];
+  deprecatedRules?: string[];
   suggestedDecisions?: string[];
 }

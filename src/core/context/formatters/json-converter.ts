@@ -136,6 +136,14 @@ export class ContextFormatConverter {
       };
     }
 
+    if (context.runtimeArtifacts) {
+      jsonContext.ra = {
+        bd: context.runtimeArtifacts.buildDirs,
+        ev: context.runtimeArtifacts.envVars,
+        lf: context.runtimeArtifacts.lockFiles?.map((l) => [l.path, l.hash]),
+      };
+    }
+
     return {
       c: jsonContext,
     };

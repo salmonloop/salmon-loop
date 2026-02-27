@@ -20,6 +20,7 @@ export class KnowledgeGatherer {
       architectural_decisions: [],
       user_preferences: undefined,
     };
+    const allDeprecated = new Set<string>();
 
     try {
       const allFiles = await readdir(knowledgeDir);
@@ -38,6 +39,9 @@ export class KnowledgeGatherer {
           );
           const snapshotData = JSON.parse(snapshotContent);
           Object.assign(aggregated, snapshotData);
+          if (snapshotData.deprecated_rules) {
+            snapshotData.deprecated_rules.forEach((r: string) => allDeprecated.add(r));
+          }
         } catch (e) {
           logger.warn(`[KnowledgeGatherer] Failed to load snapshot: ${e}`);
         }
@@ -52,6 +56,9 @@ export class KnowledgeGatherer {
           if (data.project_rules) {
             aggregated.project_rules = data.project_rules;
           }
+          if (data.deprecated_rules) {
+            data.deprecated_rules.forEach((r: string) => allDeprecated.add(r));
+          }
           if (data.architectural_decisions) {
             aggregated.architectural_decisions!.push(...data.architectural_decisions);
           }
@@ -61,6 +68,11 @@ export class KnowledgeGatherer {
         } catch {
           // Skip corrupted files
         }
+      }
+
+      // Filter out deprecated rules from aggregated project_rules
+      if (aggregated.project_rules) {
+        aggregated.project_rules = aggregated.project_rules.filter((r) => !allDeprecated.has(r));
       }
 
       // 3. Optional Compaction

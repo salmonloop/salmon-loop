@@ -9,7 +9,11 @@ import { ToolSpec, ToolRuntimeCtx } from '../types.js';
 const updateKnowledgeInputSchema = z.discriminatedUnion('category', [
   z.object({
     category: z.literal('project_rules'),
-    rules: z.array(z.string()).describe('Full list of project rules and coding standards'),
+    rules: z.array(z.string()).describe('Full list of active project rules and coding standards'),
+    deprecated_rules: z
+      .array(z.string())
+      .optional()
+      .describe('List of previously recorded rules that are no longer valid or have been replaced'),
   }),
   z.object({
     category: z.literal('architectural_decisions'),
@@ -54,7 +58,10 @@ export async function executeUpdateKnowledge(
   let dataToSave: any = {};
   switch (input.category) {
     case 'project_rules':
-      dataToSave = { project_rules: input.rules };
+      dataToSave = {
+        project_rules: input.rules,
+        deprecated_rules: input.deprecated_rules,
+      };
       break;
     case 'architectural_decisions':
       dataToSave = {

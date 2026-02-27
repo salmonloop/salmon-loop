@@ -15,6 +15,7 @@ export function buildContextTargetsStep(deps: ContextServiceDeps) {
     gitHistory,
     projectTopology,
     knowledgeBase,
+    runtimeArtifacts,
     diff,
     ast,
   }: ContextGatherCtx): Promise<ContextTargetsCtx> => {
@@ -72,6 +73,7 @@ export function buildContextTargetsStep(deps: ContextServiceDeps) {
       gitHistory,
       projectTopology,
       knowledgeBase,
+      runtimeArtifacts,
       includedFiles: diff.includedFiles,
       stagedDiff: diff.stagedDiff,
       unstagedDiff: diff.unstagedDiff,

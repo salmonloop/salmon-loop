@@ -33,15 +33,17 @@ function buildTargetSet(context: Context): Set<string> {
   return out;
 }
 
+function extractKeywords(instruction: string | undefined): string[] {
+  if (!instruction) return [];
+  // Basic keyword extraction: split by non-alphanumeric, filter short words
+  return instruction
+    .toLowerCase()
+    .split(/[^a-z0-9_]/)
+    .filter((word) => word.length >= 3);
+}
+
 /**
  * Compute a granular relevance score for a related file.
- *
- * Scoring Factors:
- * - Base score by kind (import, failed, dependency)
- * - Bonus for being an explicit target
- * - Bonus for being a changed file (in diff)
- * - Penalty for depth in RepoMap (distance from primary)
- * - Bonus for having definitions in SymbolMap
  */
 function computeRelatedFileScore(params: {
   file: RelatedFileContext;
@@ -49,8 +51,10 @@ function computeRelatedFileScore(params: {
   isTarget: boolean;
   repoMap?: RepoMap;
   symbolMap?: SymbolMap;
+  keywords: string[];
+  primaryFile?: string;
 }): number {
-  const { file, changedFiles, isTarget, repoMap, symbolMap } = params;
+  const { file, changedFiles, isTarget, repoMap, symbolMap, keywords, primaryFile } = params;
   const normalizedPath = normalizePath(file.path).replace(/^(\.\/|\/)+/, '');
 
   let score = 50;
@@ -73,30 +77,71 @@ function computeRelatedFileScore(params: {
     }
   }
 
-  // 3. RepoMap Depth Penalty (Attention focus)
+  // 3. RepoMap Depth Penalty
   if (repoMap) {
     const node = repoMap.nodes.find(
       (n) => normalizePath(n.path).replace(/^(\.\/|\/)+/, '') === normalizedPath,
     );
     if (node) {
-      // Penalty: -5 per level of depth from primary
       score -= node.depth * 5;
     } else if (repoMap.nodes.length > 0) {
-      // Not in repo map but map exists: likely very distant or indirect
       score -= 15;
     }
   }
 
-  // 4. SymbolMap Bonus (Semantic density)
+  // 4. Instruction Keyword Bonus (Path-based)
+  const fileNameLower = normalizedPath.toLowerCase();
+  const pathTokens = fileNameLower.split(/[^a-z0-9]/).filter((t) => t.length >= 3);
+
+  for (const kw of keywords) {
+    const matchesPath = pathTokens.some((t) => kw.includes(t) || t.includes(kw));
+    if (matchesPath) {
+      score += 15;
+      break;
+    }
+  }
+
+  // 5. Symbol Analysis
   if (symbolMap) {
-    const hasDefinition = symbolMap.nodes.some(
-      (n) =>
-        n.kind === 'definition' &&
-        n.path &&
-        normalizePath(n.path).replace(/^(\.\/|\/)+/, '') === normalizedPath,
+    const fileSymbols = symbolMap.nodes.filter(
+      (n) => n.path && normalizePath(n.path).replace(/^(\.\/|\/)+/, '') === normalizedPath,
     );
+
+    const hasDefinition = fileSymbols.some((n) => n.kind === 'definition');
     if (hasDefinition) {
       score += 10;
+    }
+
+    // 6. Instruction Keyword Bonus (Symbol-based)
+    for (const kw of keywords) {
+      const matchesSymbol = fileSymbols.some((s) => {
+        const symLower = s.name.toLowerCase();
+        return symLower.includes(kw) || kw.includes(symLower);
+      });
+      if (matchesSymbol) {
+        score += 10;
+        break;
+      }
+    }
+
+    // 7. Call Density Bonus
+    if (primaryFile) {
+      const normalizedPrimary = normalizePath(primaryFile).replace(/^(\.\/|\/)+/, '');
+      const callCount = symbolMap.edges.filter((e) => {
+        if (e.type !== 'call') return false;
+        const fromNode = symbolMap.nodes.find((n) => n.id === e.from);
+        const toNode = symbolMap.nodes.find((n) => n.id === e.to);
+        return (
+          fromNode?.path &&
+          normalizePath(fromNode.path).replace(/^(\.\/|\/)+/, '') === normalizedPrimary &&
+          toNode?.path &&
+          normalizePath(toNode.path).replace(/^(\.\/|\/)+/, '') === normalizedPath
+        );
+      }).length;
+
+      if (callCount > 0) {
+        score += Math.min(15, callCount * 3);
+      }
     }
   }
 
@@ -120,8 +165,10 @@ function rankRelatedFiles(
   related: RelatedFileContext[] | undefined,
   changedFiles: Set<string>,
   targetSet: Set<string>,
-  repoMap?: RepoMap,
-  symbolMap?: SymbolMap,
+  repoMap: RepoMap | undefined,
+  symbolMap: SymbolMap | undefined,
+  keywords: string[],
+  primaryFile: string | undefined,
 ): RelatedFileContext[] | undefined {
   if (!related) return related;
   return stableSortByScore(
@@ -133,6 +180,8 @@ function rankRelatedFiles(
         isTarget: targetSet.has(normalizePath(f.path).replace(/^(\.\/|\/)+/, '')),
         repoMap,
         symbolMap,
+        keywords,
+        primaryFile,
       }),
     (f) => normalizePath(f.path).replace(/^(\.\/|\/)+/, ''),
   );
@@ -162,6 +211,15 @@ function rankSnippets(snippets: RipgrepResult[], targetSet: Set<string>): Ripgre
   });
 }
 
+/**
+ * Ranks context items by relevance to the primary task and instruction.
+ *
+ * This implementation uses a multi-factor scoring engine (Semantic Probe) that considers:
+ * - Direct targets and diffs
+ * - AST symbol density and call frequency
+ * - Instruction keyword alignment
+ * - Dependency graph distance
+ */
 export function rankContextForRelevance(context: Context): Context {
   const changed = new Set<string>([
     ...extractChangedFilesFromDiffText(context.stagedDiff),
@@ -169,6 +227,7 @@ export function rankContextForRelevance(context: Context): Context {
     ...extractChangedFilesFromDiffText(context.gitDiff),
   ]);
   const targetSet = buildTargetSet(context);
+  const keywords = extractKeywords(context.instruction);
 
   return {
     ...context,
@@ -178,6 +237,8 @@ export function rankContextForRelevance(context: Context): Context {
       targetSet,
       context.repoMap,
       context.symbolMap,
+      keywords,
+      context.primaryFile,
     ),
     rgSnippets: rankSnippets(context.rgSnippets, targetSet),
   };
