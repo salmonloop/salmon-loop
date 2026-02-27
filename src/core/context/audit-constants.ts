@@ -1,5 +1,6 @@
 export const CONTEXT_AUDIT_ACTION = {
   inputSummary: 'context.input.summary',
+  cacheLookup: 'context.cache.lookup',
   keywordsExtracted: 'context.keywords.extracted',
   gatherCompleted: 'context.gather.completed',
   targetingCandidates: 'context.targeting.candidates',

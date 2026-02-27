@@ -19,6 +19,48 @@ The precedence order is:
 3. Environment variables
 4. CLI flags
 
+## Context Targeting & Cache
+
+### `context.churn.weight`
+
+Controls churn-aware target ranking layers:
+
+- `primary`: fixed boost applied to the primary target layer.
+- `rerank`: churn contribution in the main ranking score.
+- `tiebreak`: churn contribution only when final scores are tied.
+
+Example:
+
+```json
+{
+  "context": {
+    "churn": {
+      "weight": {
+        "primary": 10000,
+        "rerank": 0.35,
+        "tiebreak": 0.05
+      }
+    }
+  }
+}
+```
+
+Notes:
+
+- Keep `primary` much larger than semantic scores to guarantee deterministic primary-first behavior.
+- Keep `rerank` moderate (`0.2-0.5`) so churn improves ordering without overriding semantic intent.
+- Keep `tiebreak` small (`0-0.1`) to avoid instability.
+
+### Context Signatures
+
+SalmonLoop uses canonical signatures for context consistency:
+
+- `intentSignature`: derived from instruction, primary file hint, selection, and diff scope.
+- `targetSetSignature`: derived from resolved target list (path/reason/confidence/ranking).
+- `contextHash`: canonical hash of final packed context content.
+
+These signatures are emitted in context audit events to make cache hits/misses explainable.
+
 ## CLI Options
 
 - `--config <path>`: Explicitly load a config file (relative paths are resolved against the repo root).

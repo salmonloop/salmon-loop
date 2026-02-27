@@ -1,5 +1,6 @@
 import { CONTEXT_AUDIT_ACTION, CONTEXT_AUDIT_PHASE } from '../audit-constants.js';
 import { recordContextAuditEvent } from '../audit.js';
+import { createIntentSignature } from '../hash.js';
 import type { ContextServiceDeps } from '../service-deps.js';
 import { assertNotAborted } from '../service-helpers.js';
 
@@ -47,6 +48,13 @@ export function buildContextTargetsStep(deps: ContextServiceDeps) {
     recordContextAuditEvent(
       CONTEXT_AUDIT_ACTION.targetsResolved,
       {
+        intentSignature: createIntentSignature({
+          instruction: req.instruction,
+          primaryFile: req.primaryFile,
+          selection: req.selection,
+          diffScope: req.diffScope,
+        }),
+        targetSetSignature,
         strategyTargets: targets.map((t) => ({
           path: t.path,
           reason: t.reason,

@@ -4,7 +4,7 @@ import { DefaultPromptAssembler } from '../assembly/default-prompt-assembler.js'
 import { CONTEXT_AUDIT_ACTION, CONTEXT_AUDIT_PHASE } from '../audit-constants.js';
 import { recordContextAuditEvent } from '../audit.js';
 import { applySmartCompression } from '../compression/smart-compress.js';
-import { createContextHash } from '../hash.js';
+import { createContextHash, createIntentSignature } from '../hash.js';
 import {
   buildContextBudgetPolicyPlan,
   executeContextBudgetPolicyPlan,
@@ -167,6 +167,19 @@ export function buildContextBudgetStep(deps: ContextServiceDeps) {
     recordContextAuditEvent(
       CONTEXT_AUDIT_ACTION.packSummary,
       {
+        intentSignature: createIntentSignature({
+          instruction: req.instruction,
+          primaryFile: req.primaryFile,
+          selection: req.selection,
+          diffScope: req.diffScope,
+        }),
+        targetSetSignature,
+        cacheKeyHint: [
+          req.repoPath,
+          req.snapshotHash ?? '',
+          req.diffScope ?? 'primary',
+          workspaceMode,
+        ].join('::'),
         requestedBudgetChars: budget,
         preBudgetSectionChars,
         sectionChars,

@@ -5,10 +5,12 @@ import { FileAdapter } from '../adapters/fs/file-adapter.js';
 import { Pipeline } from '../grizzco/engine/pipeline/pipeline.js';
 import { logger } from '../observability/logger.js';
 
+import { CONTEXT_AUDIT_ACTION, CONTEXT_AUDIT_PHASE } from './audit-constants.js';
+import { recordContextAuditEvent } from './audit.js';
 import { ContextDiff, IncrementalUpdater } from './cache/incremental-updater.js';
 import type { PromptCachingManager } from './cache/prompt-caching.js';
 import type { PromptCacheStats } from './cache/types.js';
-import { createIntentSignature } from './hash.js';
+import { createIntentSignature, createTargetSetSignature } from './hash.js';
 import type { ContextServiceDeps } from './service-deps.js';
 import { defaultContextServiceDeps } from './service-deps.js';
 import { buildContextBudgetStep } from './steps/context-budget.js';
@@ -50,7 +52,19 @@ export class ContextService {
     });
 
     const cacheKey = this.makeCacheKey(req, intentSignature);
-    const cached = await this.getValidCachedResult(cacheKey, req.repoPath);
+    const cacheLookup = await this.getValidCachedResult(cacheKey, req.repoPath);
+    recordContextAuditEvent(
+      CONTEXT_AUDIT_ACTION.cacheLookup,
+      {
+        cacheKey,
+        intentSignature,
+        targetSetSignature: cacheLookup.targetSetSignature,
+        hit: Boolean(cacheLookup.result),
+        missReason: cacheLookup.result ? undefined : cacheLookup.missReason,
+      },
+      { source: 'context', severity: 'low', scope: 'session', phase: CONTEXT_AUDIT_PHASE.primary },
+    );
+    const cached = cacheLookup.result;
     if (cached && !req.signal?.aborted) {
       logger.trace(`[CONTEXT_CACHE] hit ${cacheKey}`);
       return cached;
@@ -97,15 +111,31 @@ export class ContextService {
   private async getValidCachedResult(
     cacheKey: string,
     repoPath: string,
-  ): Promise<ContextResult | undefined> {
+  ): Promise<{
+    result?: ContextResult;
+    missReason?: 'key_miss' | 'signature_mismatch' | 'target_signature_mismatch';
+    targetSetSignature?: string;
+  }> {
     const entry = this.cache.get(cacheKey);
-    if (!entry) return undefined;
+    if (!entry) return { missReason: 'key_miss' };
+    const expectedTargetSetSignature = createTargetSetSignature(entry.result.context.targets);
+    const recordedTargetSetSignature =
+      entry.targetSetSignature ??
+      entry.result.meta.targetSetSignature ??
+      expectedTargetSetSignature;
+    if (recordedTargetSetSignature !== expectedTargetSetSignature) {
+      this.cache.delete(cacheKey);
+      return {
+        missReason: 'target_signature_mismatch',
+        targetSetSignature: expectedTargetSetSignature,
+      };
+    }
     const nextSignature = await this.computeTrackedFilesSignature(repoPath, entry.trackedFiles);
     if (nextSignature !== entry.signature) {
       this.cache.delete(cacheKey);
-      return undefined;
+      return { missReason: 'signature_mismatch', targetSetSignature: expectedTargetSetSignature };
     }
-    return entry.result;
+    return { result: entry.result, targetSetSignature: expectedTargetSetSignature };
   }
 
   private collectTrackedFiles(req: ContextRequest, result: ContextResult): string[] {
@@ -121,7 +151,6 @@ export class ContextService {
   }
 
   private async computeTrackedFilesSignature(repoPath: string, files: string[]): Promise<string> {
-    if (files.length === 0) return 'files:none';
     const parts: string[] = [];
     for (const relativeFile of files) {
       const absoluteFile = path.resolve(repoPath, relativeFile);
@@ -131,6 +160,9 @@ export class ContextService {
       } catch {
         parts.push(`${relativeFile}:missing`);
       }
+    }
+    if (files.length === 0) {
+      parts.push('files:none');
     }
     parts.push(...(await this.computeRepoStateSignatureParts(repoPath)));
     return createHash('sha1').update(parts.join('|')).digest('hex');

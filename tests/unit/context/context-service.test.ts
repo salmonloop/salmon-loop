@@ -274,4 +274,81 @@ describe('ContextService', () => {
     expect(third.prompt).toBe('PROMPT-3');
     expect(assembleCount).toBe(3);
   });
+
+  it('invalidates cache for no-primary requests when git state signature changes', async () => {
+    let assembleCount = 0;
+    const service = new ContextService({
+      primaryTextGatherer: { gather: async () => ({ primaryText: undefined }) } as any,
+      ripgrepGatherer: { searchMultipleKeywords: async () => [] } as any,
+      gitDiffGatherer: { gather: async () => ({ includedFiles: [] }) } as any,
+      astGatherer: {
+        gather: async () => ({ symbols: [], definitionMap: {}, relatedFiles: [] }),
+      } as any,
+      assembler: {
+        assemble: () => {
+          assembleCount += 1;
+          return { prompt: `PROMPT-${assembleCount}` };
+        },
+      },
+    });
+
+    const statsByPath: Record<string, { mtimeMs: number; size: number }> = {
+      '/repo/.git/HEAD': { mtimeMs: 1, size: 32 },
+      '/repo/.git/index': { mtimeMs: 1, size: 64 },
+    };
+    (service as any).fileAdapter = {
+      stat: async (filePath: string) => statsByPath[filePath] ?? ({ mtimeMs: 0, size: 0 } as any),
+    };
+
+    const req: ContextRequest = {
+      instruction: 'answer only',
+      repoPath: '/repo',
+      primaryFile: undefined,
+    };
+
+    const first = await service.build(req);
+    expect(first.prompt).toBe('PROMPT-1');
+    statsByPath['/repo/.git/index'] = { mtimeMs: 10, size: 80 };
+    const second = await service.build(req);
+    expect(second.prompt).toBe('PROMPT-2');
+    expect(assembleCount).toBe(2);
+  });
+
+  it('invalidates cache when persisted target signature is inconsistent', async () => {
+    let assembleCount = 0;
+    const service = new ContextService({
+      primaryTextGatherer: { gather: async () => ({ primaryText: 'PRIMARY' }) } as any,
+      ripgrepGatherer: { searchMultipleKeywords: async () => [] } as any,
+      gitDiffGatherer: { gather: async () => ({ includedFiles: ['src/a.ts'] }) } as any,
+      astGatherer: {
+        gather: async () => ({ symbols: [], definitionMap: {}, relatedFiles: [] }),
+      } as any,
+      assembler: {
+        assemble: () => {
+          assembleCount += 1;
+          return { prompt: `PROMPT-${assembleCount}` };
+        },
+      },
+    });
+    (service as any).fileAdapter = {
+      stat: async () => ({ mtimeMs: 1, size: 1 }),
+    };
+
+    const req: ContextRequest = {
+      instruction: 'fix foo',
+      repoPath: '/repo',
+      primaryFile: 'src/a.ts',
+    };
+
+    await service.build(req);
+    const cache = (service as any).cache as Map<string, any>;
+    const key = [...cache.keys()][0]!;
+    const entry = cache.get(key)!;
+    entry.targetSetSignature = 'tampered-signature';
+    cache.set(key, entry);
+
+    const second = await service.build(req);
+    expect(second.prompt).toBe('PROMPT-2');
+    expect(assembleCount).toBe(2);
+  });
 });
