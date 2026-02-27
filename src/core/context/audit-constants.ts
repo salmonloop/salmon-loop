@@ -10,6 +10,7 @@ export const CONTEXT_AUDIT_ACTION = {
   packSummary: 'context.pack.summary',
   shrinkSummary: 'context.shrink.summary',
   promotionCompleted: 'context.promotion.completed',
+  promotionFailed: 'context.promotion.failed',
 } as const;
 
 export const CONTEXT_AUDIT_PHASE = {

@@ -67,8 +67,18 @@ export function buildContextPromotionStep(_deps: ContextServiceDeps) {
             promotedPaths.push(candidate.path);
           }
         }
-      } catch {
-        // Ignore read errors
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error ?? 'Unknown error');
+        recordContextAuditEvent(
+          CONTEXT_AUDIT_ACTION.promotionFailed,
+          { path: candidate.path, error: message },
+          {
+            source: 'context',
+            severity: 'medium',
+            scope: 'session',
+            phase: CONTEXT_AUDIT_PHASE.promotion,
+          },
+        );
       }
     }
 
