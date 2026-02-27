@@ -1,4 +1,10 @@
-import type { Context, RelatedFileContext, RipgrepResult } from '../../types/index.js';
+import type {
+  Context,
+  RelatedFileContext,
+  RipgrepResult,
+  RepoMap,
+  SymbolMap,
+} from '../../types/index.js';
 import { normalizePath } from '../../utils/path.js';
 
 function extractChangedFilesFromDiffText(diffText: string | undefined): Set<string> {
@@ -27,27 +33,74 @@ function buildTargetSet(context: Context): Set<string> {
   return out;
 }
 
+/**
+ * Compute a granular relevance score for a related file.
+ *
+ * Scoring Factors:
+ * - Base score by kind (import, failed, dependency)
+ * - Bonus for being an explicit target
+ * - Bonus for being a changed file (in diff)
+ * - Penalty for depth in RepoMap (distance from primary)
+ * - Bonus for having definitions in SymbolMap
+ */
 function computeRelatedFileScore(params: {
   file: RelatedFileContext;
   changedFiles: Set<string>;
   isTarget: boolean;
+  repoMap?: RepoMap;
+  symbolMap?: SymbolMap;
 }): number {
-  const { file, changedFiles, isTarget } = params;
-  // Target file is represented by <primary_file>, not related files.
+  const { file, changedFiles, isTarget, repoMap, symbolMap } = params;
   const normalizedPath = normalizePath(file.path).replace(/^(\.\/|\/)+/, '');
 
-  let base = 50;
+  let score = 50;
+
+  // 1. Kind-based scoring
   if (file.kind === 'import') {
-    base = changedFiles.has(normalizedPath) ? 90 : 60;
+    score = changedFiles.has(normalizedPath) ? 90 : 60;
   } else if (file.kind === 'failed') {
-    base = 95;
+    score = 95;
   } else if (file.kind === 'dependency') {
-    base = changedFiles.has(normalizedPath) ? 85 : 55;
+    score = changedFiles.has(normalizedPath) ? 85 : 55;
   }
 
-  if (!isTarget) return base;
-  if (file.kind === 'failed') return 98;
-  return Math.min(97, base + 30);
+  // 2. Explicit Target Bonus
+  if (isTarget) {
+    if (file.kind === 'failed') {
+      score = 98;
+    } else {
+      score = Math.min(97, score + 30);
+    }
+  }
+
+  // 3. RepoMap Depth Penalty (Attention focus)
+  if (repoMap) {
+    const node = repoMap.nodes.find(
+      (n) => normalizePath(n.path).replace(/^(\.\/|\/)+/, '') === normalizedPath,
+    );
+    if (node) {
+      // Penalty: -5 per level of depth from primary
+      score -= node.depth * 5;
+    } else if (repoMap.nodes.length > 0) {
+      // Not in repo map but map exists: likely very distant or indirect
+      score -= 15;
+    }
+  }
+
+  // 4. SymbolMap Bonus (Semantic density)
+  if (symbolMap) {
+    const hasDefinition = symbolMap.nodes.some(
+      (n) =>
+        n.kind === 'definition' &&
+        n.path &&
+        normalizePath(n.path).replace(/^(\.\/|\/)+/, '') === normalizedPath,
+    );
+    if (hasDefinition) {
+      score += 10;
+    }
+  }
+
+  return score;
 }
 
 function stableSortByScore<T>(
@@ -67,6 +120,8 @@ function rankRelatedFiles(
   related: RelatedFileContext[] | undefined,
   changedFiles: Set<string>,
   targetSet: Set<string>,
+  repoMap?: RepoMap,
+  symbolMap?: SymbolMap,
 ): RelatedFileContext[] | undefined {
   if (!related) return related;
   return stableSortByScore(
@@ -76,6 +131,8 @@ function rankRelatedFiles(
         file: f,
         changedFiles,
         isTarget: targetSet.has(normalizePath(f.path).replace(/^(\.\/|\/)+/, '')),
+        repoMap,
+        symbolMap,
       }),
     (f) => normalizePath(f.path).replace(/^(\.\/|\/)+/, ''),
   );
@@ -115,7 +172,13 @@ export function rankContextForRelevance(context: Context): Context {
 
   return {
     ...context,
-    relatedFiles: rankRelatedFiles(context.relatedFiles, changed, targetSet),
+    relatedFiles: rankRelatedFiles(
+      context.relatedFiles,
+      changed,
+      targetSet,
+      context.repoMap,
+      context.symbolMap,
+    ),
     rgSnippets: rankSnippets(context.rgSnippets, targetSet),
   };
 }

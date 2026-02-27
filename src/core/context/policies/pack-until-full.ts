@@ -359,12 +359,8 @@ export function packUntilFull(
   let remainingForContent = Math.max(0, remainingUnits - reservedForDiff - reservedForTargets);
 
   const targetSet = buildTargetSet(context);
-  const relatedFiles = [...(context.relatedFiles ?? [])].sort((a, b) => {
-    const aIsTarget = targetSet.has(normalizePath(a.path).replace(/^(\.\/|\/)+/, ''));
-    const bIsTarget = targetSet.has(normalizePath(b.path).replace(/^(\.\/|\/)+/, ''));
-    if (aIsTarget !== bIsTarget) return aIsTarget ? -1 : 1;
-    return 0;
-  });
+  // Respect pre-sorted order from relevance ranking
+  const relatedFiles = context.relatedFiles ?? [];
 
   const truncatedRelated: RelatedFileContext[] = [];
   let usedTargetBudget = 0;
@@ -376,13 +372,18 @@ export function packUntilFull(
 
     // Determine available budget
     const availableBudget = isTarget
-      ? Math.max(0, reservedForTargets - usedTargetBudget)
+      ? Math.max(0, reservedForTargets - usedTargetBudget) + remainingForContent
       : remainingForContent;
 
     if (fileUnits <= availableBudget) {
       truncatedRelated.push(file);
       if (isTarget) {
-        usedTargetBudget += fileUnits;
+        const fromTargetReserve = Math.min(
+          fileUnits,
+          Math.max(0, reservedForTargets - usedTargetBudget),
+        );
+        usedTargetBudget += fromTargetReserve;
+        remainingForContent -= fileUnits - fromTargetReserve;
       } else {
         remainingForContent -= fileUnits;
       }
@@ -443,12 +444,7 @@ export function packUntilFull(
   // Add unused target budget back to content budget
   remainingForContent += Math.max(0, reservedForTargets - usedTargetBudget);
 
-  const snippets = [...context.rgSnippets].sort((a, b) => {
-    const aIsTarget = targetSet.has(normalizePath(a.file).replace(/^(\.\/|\/)+/, ''));
-    const bIsTarget = targetSet.has(normalizePath(b.file).replace(/^(\.\/|\/)+/, ''));
-    if (aIsTarget !== bIsTarget) return aIsTarget ? -1 : 1;
-    return 0;
-  });
+  const snippets = context.rgSnippets;
 
   const truncatedSnippets: RipgrepResult[] = [];
   for (const snippet of snippets) {

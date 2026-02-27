@@ -1,4 +1,5 @@
 import { packUntilFull } from '../../../src/core/context/policies/pack-until-full.js';
+import { rankContextForRelevance } from '../../../src/core/context/scoring/relevance.js';
 import type { Context } from '../../../src/core/types/index.js';
 
 function makeContext(overrides: Partial<Context> = {}): Context {
@@ -21,7 +22,8 @@ describe('packUntilFull (targets)', () => {
       ],
     });
 
-    const result = packUntilFull(ctx, 200);
+    const ranked = rankContextForRelevance(ctx);
+    const result = packUntilFull(ranked, 200);
     expect(result.truncated).toBe(true);
     expect(result.context.relatedFiles?.[0]?.path).toBe('src/target.ts');
   });
@@ -35,7 +37,8 @@ describe('packUntilFull (targets)', () => {
       ],
     });
 
-    const result = packUntilFull(ctx, 200);
+    const ranked = rankContextForRelevance(ctx);
+    const result = packUntilFull(ranked, 200);
     expect(result.truncated).toBe(true);
     expect(result.context.rgSnippets[0]?.file).toBe('src/target.ts');
   });
