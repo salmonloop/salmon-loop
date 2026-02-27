@@ -18,6 +18,15 @@ class DefaultPermissionGate implements PermissionGate {
       reason: `Permission denied for action ${request.action}`,
     };
   }
+
+  async requestAuthorizationDeferred(request: PermissionRequest) {
+    const decision = await this.requestAuthorization(request);
+    return { kind: 'decision', decision } as const;
+  }
+
+  async waitForAuthorization(_requestId: string, _signal?: AbortSignal) {
+    return null;
+  }
 }
 
 export function createDefaultPermissionGate(options?: {

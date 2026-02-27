@@ -23,4 +23,14 @@ describe('DefaultPermissionGate', () => {
     expect(decision.kind).toBe('allow');
     expect(decision.source).toBe('cli');
   });
+
+  it('supports deferred interface by returning immediate decision', async () => {
+    const gate = createDefaultPermissionGate();
+    const deferred = await gate.requestAuthorizationDeferred?.({
+      action: 'context.cache.outside_root',
+      resource: '/tmp/cache.json',
+      risk: 'high',
+    });
+    expect(deferred?.kind).toBe('decision');
+  });
 });

@@ -162,6 +162,30 @@ describe('transaction-runner', () => {
     expect(report.history[0]?.error).toBe('apply back failed');
   });
 
+  it('does not retry when context phase requires cache permission authorization', async () => {
+    mockedExecute.mockResolvedValue({
+      success: false,
+      duration: 1,
+      traces: [
+        { name: 'CONTEXT', error: { code: 'PERMISSION_REQUIRED_CONTEXT_CACHE_OUTSIDE_ROOT' } },
+      ],
+      error: Object.assign(new Error('permission required'), {
+        code: 'PERMISSION_REQUIRED_CONTEXT_CACHE_OUTSIDE_ROOT',
+      }),
+      data: undefined,
+    } as any);
+
+    const emit = mock();
+    const report = await createRunner(emit).execute();
+
+    expect(report.success).toBe(false);
+    expect(report.attempts).toBe(1);
+    expect(report.retryExhausted).toBe(false);
+    expect(report.terminalReasonCode).toBe('LOOP_FAILED');
+    expect(report.lastErrorCode).toBe('PERMISSION_REQUIRED_CONTEXT_CACHE_OUTSIDE_ROOT');
+    expect(emit).not.toHaveBeenCalled();
+  });
+
   it('marks retry exhaustion after max retryable verify failures', async () => {
     mockedExecute.mockResolvedValue({
       success: true,

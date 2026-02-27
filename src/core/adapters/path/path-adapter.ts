@@ -4,6 +4,7 @@ export interface PathAdapter {
   join(...segments: string[]): string;
   resolve(...segments: string[]): string;
   dirname(filePath: string): string;
+  basename(filePath: string): string;
   relative(from: string, to: string): string;
   isAbsolute(filePath: string): boolean;
 }
@@ -19,6 +20,10 @@ export class NodePathAdapter implements PathAdapter {
 
   dirname(filePath: string): string {
     return path.dirname(filePath);
+  }
+
+  basename(filePath: string): string {
+    return path.basename(filePath);
   }
 
   relative(from: string, to: string): string {

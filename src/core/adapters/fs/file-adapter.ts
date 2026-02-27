@@ -57,6 +57,13 @@ export class FileAdapter {
   }
 
   /**
+   * Resolve real path (follows symlinks).
+   */
+  async realpath(filePath: string): Promise<string> {
+    return fs.realpath(filePath);
+  }
+
+  /**
    * Read directory
    */
   async readdir(dirPath: string): Promise<string[]> {

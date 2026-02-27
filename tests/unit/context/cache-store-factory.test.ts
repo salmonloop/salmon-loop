@@ -64,4 +64,31 @@ describe('createContextCacheStore', () => {
     );
     expect(created.store).toBeInstanceOf(PersistentContextCacheStore);
   });
+
+  it('returns permission-required when permission gate responds with challenge', async () => {
+    await expect(
+      createContextCacheStore(
+        '/repo',
+        {
+          context: {
+            cache: {
+              mode: 'persistent',
+              path: '../outside/context-cache.json',
+              allowedRoots: ['.salmonloop/cache'],
+            },
+          },
+        } as any,
+        {
+          permissionGate: {
+            requestAuthorizationDeferred: async () => ({
+              kind: 'pending',
+              challenge: 'abc123',
+              message: 'authorization required',
+            }),
+            requestAuthorization: async () => ({ kind: 'deny', source: 'policy' }),
+          },
+        },
+      ),
+    ).rejects.toThrow(new ConfigError('PERMISSION_REQUIRED_CONTEXT_CACHE_OUTSIDE_ROOT'));
+  });
 });

@@ -27,6 +27,11 @@ const RETRYABLE_PHASES = new Set<ExecutionPhase>([
   'SHRINK',
 ]);
 
+const NON_RETRYABLE_PERMISSION_CODES = new Set([
+  'PERMISSION_REQUIRED_CONTEXT_CACHE_OUTSIDE_ROOT',
+  'PERMISSION_DENIED_CONTEXT_CACHE_OUTSIDE_ROOT',
+]);
+
 function inferFailurePhase(flowReport: FlowReport): ExecutionPhase {
   const failedTrace = [...flowReport.traces].reverse().find((trace) => Boolean(trace.error));
   if (failedTrace && (EXECUTION_PHASES as readonly string[]).includes(failedTrace.name)) {
@@ -99,6 +104,15 @@ export function resolveAttemptFailure(params: {
       reason: sanitizeReason(flowReport.error),
       reasonCode: 'PREFLIGHT_DIRTY',
       failurePhase: 'PREFLIGHT',
+      retryable: false,
+      errorCode,
+    };
+  }
+  if (errorCode && NON_RETRYABLE_PERMISSION_CODES.has(errorCode)) {
+    return {
+      reason: sanitizeReason(flowReport.error),
+      reasonCode: 'LOOP_FAILED',
+      failurePhase: 'CONTEXT',
       retryable: false,
       errorCode,
     };
