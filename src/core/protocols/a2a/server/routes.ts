@@ -26,7 +26,7 @@ export function createA2ARoutes(deps: {
     handle: (request: unknown) => Promise<unknown>;
   };
   eventSource: {
-    open: (taskId: string) => Response;
+    open: (taskId: string, request?: Request) => Response;
   };
   authPolicy?: A2AAuthPolicyMiddleware;
 }) {
@@ -41,12 +41,17 @@ export function createA2ARoutes(deps: {
       const subscribeMatch = url.pathname.match(/^\/tasks\/([^/]+)\/subscribe$/);
       if (request.method === 'GET' && subscribeMatch) {
         if (deps.authPolicy) {
-          const decision = await deps.authPolicy.authorize(request);
+          const decision = await deps.authPolicy.authorize({
+            request,
+            action: 'task.subscribe',
+            resource: 'task',
+            taskId: subscribeMatch[1],
+          });
           if (!decision.allowed) {
             return new Response(decision.message, { status: decision.status });
           }
         }
-        return deps.eventSource.open(subscribeMatch[1]);
+        return deps.eventSource.open(subscribeMatch[1], request);
       }
 
       if (request.method === 'POST' && url.pathname === '/rpc') {
@@ -62,7 +67,11 @@ export function createA2ARoutes(deps: {
           });
         }
         if (deps.authPolicy) {
-          const decision = await deps.authPolicy.authorize(request);
+          const decision = await deps.authPolicy.authorize({
+            request,
+            action: 'rpc.invoke',
+            resource: 'rpc',
+          });
           if (!decision.allowed) {
             const id =
               payload &&

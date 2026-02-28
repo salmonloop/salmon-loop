@@ -166,4 +166,40 @@ describe('A2A server integration', () => {
     expect(text).toContain('event: task.completed');
     expect(text).toContain('"taskId":"task_1"');
   });
+
+  test('replays missed task events from last-event-id over SSE subscriptions', async () => {
+    const bus = createTaskEventBus();
+    bus.publish({ type: 'task.accepted', taskId: 'task_1' });
+    bus.publish({ type: 'task.completed', taskId: 'task_1' });
+
+    const routes = createA2ARoutes({
+      buildAgentCard: () =>
+        buildA2AAgentCard({
+          name: 'salmon-loop',
+          url: 'https://example.com',
+          capabilities: [{ id: 'patch', title: 'Patch code' }],
+          security: [],
+        }),
+      jsonRpcHandler: {
+        handle: async () => ({ jsonrpc: '2.0', id: '1', result: { id: 'task_1' } }),
+      },
+      eventSource: createSseEventSource(bus),
+    });
+
+    const server = createA2AHttpServer({ routes });
+    const response = await server.fetch(
+      new Request('https://example.com/tasks/task_1/subscribe', {
+        headers: { 'last-event-id': '1' },
+      }),
+    );
+
+    const reader = response.body?.getReader();
+    expect(reader).toBeDefined();
+
+    const chunk = await reader!.read();
+    const text = new TextDecoder().decode(chunk.value);
+
+    expect(text).toContain('id: 2');
+    expect(text).toContain('event: task.completed');
+  });
 });

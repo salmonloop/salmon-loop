@@ -236,4 +236,52 @@ describe('A2A routes', () => {
     expect(response.status).toBe(403);
     await expect(response.text()).resolves.toBe('Task stream forbidden');
   });
+
+  test('passes action and task resource context into policy hooks', async () => {
+    const seen: Array<{ action: string; resource: string; taskId: string | null }> = [];
+    const routes = createA2ARoutes({
+      buildAgentCard: () => ({
+        name: 'salmon-loop',
+        url: 'https://example.com',
+        skills: [],
+        securitySchemes: [],
+      }),
+      jsonRpcHandler: {
+        handle: async () => ({ jsonrpc: '2.0', id: '1', result: { id: 'task_1' } }),
+      },
+      eventSource: {
+        open: () =>
+          new Response('event: ping\n\n', {
+            headers: { 'content-type': 'text/event-stream' },
+          }),
+      },
+      authPolicy: createA2AAuthPolicyMiddleware({
+        authenticator: createBearerTokenAuthenticator({ tokens: ['secret-token'] }),
+        policy: {
+          async authorize(input) {
+            seen.push({
+              action: input.action,
+              resource: input.resource,
+              taskId: input.taskId ?? null,
+            });
+            return { allowed: true };
+          },
+        },
+      }),
+    });
+
+    await routes.handle(
+      new Request('https://example.com/tasks/task_42/subscribe', {
+        headers: { authorization: 'Bearer secret-token' },
+      }),
+    );
+
+    expect(seen).toEqual([
+      {
+        action: 'task.subscribe',
+        resource: 'task',
+        taskId: 'task_42',
+      },
+    ]);
+  });
 });

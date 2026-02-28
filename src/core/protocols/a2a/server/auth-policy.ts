@@ -11,12 +11,20 @@ export type A2APolicyDecision =
   | { allowed: true }
   | { allowed: false; status: 403; message: string };
 
+export interface A2APolicyInput {
+  request: Request;
+  authContext: A2AAuthContext;
+  action: string;
+  resource: string;
+  taskId?: string;
+}
+
 export interface A2AAuthenticator {
   authenticate(request: Request): Promise<A2AAuthenticationResult>;
 }
 
 export interface A2APolicy {
-  authorize(input: { request: Request; authContext: A2AAuthContext }): Promise<A2APolicyDecision>;
+  authorize(input: A2APolicyInput): Promise<A2APolicyDecision>;
 }
 
 export type A2AAccessDecision =
@@ -24,7 +32,12 @@ export type A2AAccessDecision =
   | { allowed: false; status: 401 | 403; message: string };
 
 export interface A2AAuthPolicyMiddleware {
-  authorize(request: Request): Promise<A2AAccessDecision>;
+  authorize(input: {
+    request: Request;
+    action: string;
+    resource: string;
+    taskId?: string;
+  }): Promise<A2AAccessDecision>;
 }
 
 export function createBearerTokenAuthenticator(deps: { tokens: string[] }): A2AAuthenticator {
@@ -70,8 +83,8 @@ export function createA2AAuthPolicyMiddleware(deps: {
   policy: A2APolicy;
 }): A2AAuthPolicyMiddleware {
   return {
-    async authorize(request) {
-      const authenticated = await deps.authenticator.authenticate(request);
+    async authorize(input) {
+      const authenticated = await deps.authenticator.authenticate(input.request);
       if (!authenticated.authenticated) {
         return {
           allowed: false,
@@ -81,8 +94,11 @@ export function createA2AAuthPolicyMiddleware(deps: {
       }
 
       const decision = await deps.policy.authorize({
-        request,
+        request: input.request,
         authContext: authenticated.authContext,
+        action: input.action,
+        resource: input.resource,
+        taskId: input.taskId,
       });
       if (!decision.allowed) {
         return {

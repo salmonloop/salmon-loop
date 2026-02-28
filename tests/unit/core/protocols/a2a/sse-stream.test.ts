@@ -20,4 +20,35 @@ describe('A2A SSE event source', () => {
     expect(text).toContain('event: task.completed');
     expect(text).toContain('"taskId":"task_1"');
   });
+
+  test('replays missed task events after last-event-id before streaming new ones', async () => {
+    const bus = createTaskEventBus();
+    const source = createSseEventSource(bus);
+
+    bus.publish({ type: 'task.accepted', taskId: 'task_1' });
+    bus.publish({ type: 'task.completed', taskId: 'task_1' });
+
+    const response = source.open(
+      'task_1',
+      new Request('https://example.com/tasks/task_1/subscribe', {
+        headers: { 'last-event-id': '1' },
+      }),
+    );
+    const reader = response.body?.getReader();
+    expect(reader).toBeDefined();
+
+    const replayChunk = await reader!.read();
+    const replayText = new TextDecoder().decode(replayChunk.value);
+
+    expect(replayText).toContain('id: 2');
+    expect(replayText).toContain('event: task.completed');
+
+    bus.publish({ type: 'task.cancelled', taskId: 'task_1' });
+
+    const liveChunk = await reader!.read();
+    const liveText = new TextDecoder().decode(liveChunk.value);
+
+    expect(liveText).toContain('id: 3');
+    expect(liveText).toContain('event: task.cancelled');
+  });
 });
