@@ -398,6 +398,26 @@ function resolveDynamicBudget(raw?: ConfigFileV1) {
   };
 }
 
+function resolveServerConfig(raw?: ConfigFileV1): ResolvedConfig['server'] {
+  const serverRaw = raw?.server;
+  if (!serverRaw) return undefined;
+  const server: NonNullable<ResolvedConfig['server']> = {};
+  if (serverRaw.a2a) {
+    server.a2a = {
+      host: serverRaw.a2a.host,
+      port: serverRaw.a2a.port,
+      tokens: serverRaw.a2a.tokens,
+    };
+  }
+  if (serverRaw.sidecar) {
+    server.sidecar = {
+      socket: serverRaw.sidecar.socket,
+      allowConditional: serverRaw.sidecar.allowConditional,
+    };
+  }
+  return Object.keys(server).length > 0 ? server : undefined;
+}
+
 export async function resolveConfig(opts: ResolveConfigOptions): Promise<ResolvedConfig> {
   const enabled = opts.enableConfigFile !== false;
   const path = opts.configFilePath;
@@ -419,6 +439,7 @@ export async function resolveConfig(opts: ResolveConfigOptions): Promise<Resolve
       used: Boolean(loaded),
     },
     raw,
+    server: resolveServerConfig(raw),
     context: {
       useTokenBudget: resolveUseTokenBudget(raw),
       dynamicBudget: resolveDynamicBudget(raw),

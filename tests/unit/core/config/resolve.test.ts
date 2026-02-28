@@ -54,4 +54,24 @@ describe('resolveConfig (security/observability)', () => {
     expect(resolved.observability.audit.buffer.maxBytes).toBe(2048);
     expect(resolved.observability.audit.buffer.droppedWarn).toBe(100);
   });
+
+  it('resolves server config when provided', async () => {
+    tryLoadConfigFileMock.mockResolvedValue({
+      config: {
+        server: {
+          a2a: { host: '0.0.0.0', port: 7447, tokens: ['secret'] },
+          sidecar: { socket: '/tmp/agent-message.sock', allowConditional: true },
+        },
+      },
+      path: '/repo/.salmonloop/config.json',
+    });
+
+    const resolved = await resolveConfig({ repoRoot: '/repo' });
+
+    expect(resolved.server?.a2a?.host).toBe('0.0.0.0');
+    expect(resolved.server?.a2a?.port).toBe(7447);
+    expect(resolved.server?.a2a?.tokens).toEqual(['secret']);
+    expect(resolved.server?.sidecar?.socket).toBe('/tmp/agent-message.sock');
+    expect(resolved.server?.sidecar?.allowConditional).toBe(true);
+  });
 });

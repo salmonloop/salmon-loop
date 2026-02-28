@@ -59,6 +59,18 @@ export interface ConfigFileV1 {
     };
   };
 
+  server?: {
+    a2a?: {
+      host?: string;
+      port?: number;
+      tokens?: string[];
+    };
+    sidecar?: {
+      socket?: string;
+      allowConditional?: boolean;
+    };
+  };
+
   context?: {
     useTokenBudget?: boolean;
     cache?: {
@@ -256,6 +268,17 @@ export interface ResolvedConfig {
     used: boolean;
   };
   raw?: ConfigFileV1;
+  server?: {
+    a2a?: {
+      host?: string;
+      port?: number;
+      tokens?: string[];
+    };
+    sidecar?: {
+      socket?: string;
+      allowConditional?: boolean;
+    };
+  };
   context: {
     useTokenBudget: boolean;
     dynamicBudget: {

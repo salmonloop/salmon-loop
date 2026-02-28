@@ -175,3 +175,39 @@ describe('validateConfigFileV1 (security.redaction)', () => {
     ).toThrow(/CONFIG_INVALID_SECURITY_REDACTION_KEY_ALLOWLIST/);
   });
 });
+
+describe('validateConfigFileV1 (server)', () => {
+  it('accepts A2A and sidecar server settings', () => {
+    const parsed = validateConfigFileV1({
+      server: {
+        a2a: {
+          host: '0.0.0.0',
+          port: 7447,
+          tokens: ['token-a', 'token-b'],
+        },
+        sidecar: {
+          socket: '/tmp/agent-message.sock',
+          allowConditional: true,
+        },
+      },
+    });
+
+    expect(parsed.server?.a2a?.host).toBe('0.0.0.0');
+    expect(parsed.server?.a2a?.port).toBe(7447);
+    expect(parsed.server?.a2a?.tokens).toEqual(['token-a', 'token-b']);
+    expect(parsed.server?.sidecar?.socket).toBe('/tmp/agent-message.sock');
+    expect(parsed.server?.sidecar?.allowConditional).toBe(true);
+  });
+
+  it('rejects invalid server config', () => {
+    expect(() =>
+      validateConfigFileV1({
+        server: {
+          a2a: {
+            port: 'nope',
+          },
+        },
+      }),
+    ).toThrow(/CONFIG_INVALID_SERVER_A2A_PORT/);
+  });
+});

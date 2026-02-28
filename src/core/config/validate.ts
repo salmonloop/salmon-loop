@@ -153,6 +153,55 @@ export function validateConfigFileV1(input: unknown): ConfigFileV1 {
     }
   }
 
+  if ((input as any).server !== undefined) {
+    const serverRaw = (input as any).server;
+    if (!isRecord(serverRaw)) {
+      throw new ConfigError('CONFIG_INVALID_SERVER', { expected: 'object' });
+    }
+    const server: NonNullable<ConfigFileV1['server']> = {};
+    if (serverRaw.a2a !== undefined) {
+      if (!isRecord(serverRaw.a2a)) {
+        throw new ConfigError('CONFIG_INVALID_SERVER_A2A', { expected: 'object' });
+      }
+      const a2aRaw = serverRaw.a2a as Record<string, unknown>;
+      if (a2aRaw.host !== undefined && !isString(a2aRaw.host)) {
+        throw new ConfigError('CONFIG_INVALID_SERVER_A2A_HOST', { expected: 'string' });
+      }
+      if (a2aRaw.port !== undefined && !isNumber(a2aRaw.port)) {
+        throw new ConfigError('CONFIG_INVALID_SERVER_A2A_PORT', { expected: 'number' });
+      }
+      if (a2aRaw.tokens !== undefined) {
+        if (!Array.isArray(a2aRaw.tokens) || !a2aRaw.tokens.every(isString)) {
+          throw new ConfigError('CONFIG_INVALID_SERVER_A2A_TOKENS', { expected: 'string[]' });
+        }
+      }
+      server.a2a = {
+        host: a2aRaw.host as any,
+        port: a2aRaw.port as any,
+        tokens: a2aRaw.tokens as any,
+      };
+    }
+    if (serverRaw.sidecar !== undefined) {
+      if (!isRecord(serverRaw.sidecar)) {
+        throw new ConfigError('CONFIG_INVALID_SERVER_SIDECAR', { expected: 'object' });
+      }
+      const sidecarRaw = serverRaw.sidecar as Record<string, unknown>;
+      if (sidecarRaw.socket !== undefined && !isString(sidecarRaw.socket)) {
+        throw new ConfigError('CONFIG_INVALID_SERVER_SIDECAR_SOCKET', { expected: 'string' });
+      }
+      if (sidecarRaw.allowConditional !== undefined && !isBoolean(sidecarRaw.allowConditional)) {
+        throw new ConfigError('CONFIG_INVALID_SERVER_SIDECAR_ALLOW_CONDITIONAL', {
+          expected: 'boolean',
+        });
+      }
+      server.sidecar = {
+        socket: sidecarRaw.socket as any,
+        allowConditional: sidecarRaw.allowConditional as any,
+      };
+    }
+    cfg.server = server;
+  }
+
   if ((input as any).ui !== undefined) {
     const uiRaw = (input as any).ui;
     if (!isRecord(uiRaw)) {

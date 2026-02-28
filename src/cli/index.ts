@@ -177,8 +177,8 @@ program
 program
   .command('serve')
   .description(text.cli.serveDescription)
-  .option('--a2a-host <host>', text.cli.a2aHostOption, '127.0.0.1')
-  .option('--a2a-port <port>', text.cli.a2aPortOption, '7431')
+  .option('--a2a-host <host>', text.cli.a2aHostOption)
+  .option('--a2a-port <port>', text.cli.a2aPortOption)
   .option(
     '--a2a-token <token>',
     text.cli.a2aTokenOption,

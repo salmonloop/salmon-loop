@@ -28,7 +28,7 @@ import { createRuntimeLlmAndWarn } from './run/runtime-llm.js';
 function parsePort(value: unknown, fallback: number): number {
   if (value === undefined || value === null || value === '') return fallback;
   const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : fallback;
+  return Number.isFinite(parsed) ? parsed : Number.NaN;
 }
 
 function buildSidecarHandlers(deps: {
@@ -56,25 +56,28 @@ export async function handleServeCommand(_options: unknown, command: Command) {
   const allOptions = command.optsWithGlobals();
   const repoPath = defaultPathAdapter.resolve(allOptions.repo || process.cwd());
 
-  const a2aHost = String(allOptions.a2aHost ?? '127.0.0.1');
-  const a2aPort = parsePort(allOptions.a2aPort, 7431);
+  const resolvedConfig = await resolveConfig({ repoRoot: repoPath });
+  const serverConfig = resolvedConfig.server;
+  const rawA2aHost = allOptions.a2aHost ?? serverConfig?.a2a?.host;
+  const a2aHost = String(rawA2aHost ?? '127.0.0.1');
+  const rawA2aPort = allOptions.a2aPort ?? serverConfig?.a2a?.port;
+  const a2aPort = parsePort(rawA2aPort, 7431);
   if (!Number.isFinite(a2aPort) || a2aPort <= 0) {
-    logger.error(text.cli.invalidA2APort(String(allOptions.a2aPort ?? '')), true);
+    logger.error(text.cli.invalidA2APort(String(rawA2aPort ?? '')), true);
     process.exit(1);
   }
 
   const sidecarSocket =
     typeof allOptions.sidecarSocket === 'string' && allOptions.sidecarSocket.length > 0
       ? allOptions.sidecarSocket
-      : getSidecarSocketPath();
-  const allowConditional = Boolean(allOptions.sidecarAllowConditional);
+      : (serverConfig?.sidecar?.socket ?? getSidecarSocketPath());
+  const allowConditional =
+    allOptions.sidecarAllowConditional ?? serverConfig?.sidecar?.allowConditional ?? false;
   if (!sidecarSocket.startsWith('\\\\.\\pipe\\')) {
     await mkdir(defaultPathAdapter.dirname(sidecarSocket), { recursive: true });
   }
 
   await PluginLoader.loadPlugins(repoPath);
-
-  const resolvedConfig = await resolveConfig({ repoRoot: repoPath });
   const extensions = await resolveExtensions({ repoRoot: repoPath });
 
   const { llm } = createRuntimeLlmAndWarn({
@@ -109,10 +112,11 @@ export async function handleServeCommand(_options: unknown, command: Command) {
   const tokens: string[] = Array.isArray(allOptions.a2aToken)
     ? allOptions.a2aToken.filter((token: unknown) => typeof token === 'string')
     : [];
+  const authTokens = tokens.length > 0 ? tokens : (serverConfig?.a2a?.tokens ?? []);
   const authPolicy =
-    tokens.length > 0
+    authTokens.length > 0
       ? createA2AAuthPolicyMiddleware({
-          authenticator: createBearerTokenAuthenticator({ tokens }),
+          authenticator: createBearerTokenAuthenticator({ tokens: authTokens }),
           policy: createAllowAllA2APolicy(),
         })
       : undefined;
@@ -122,7 +126,7 @@ export async function handleServeCommand(_options: unknown, command: Command) {
     name: 'salmon-loop',
     url: `http://${a2aHost}:${a2aPort}`,
     capabilities,
-    security: tokens.length > 0 ? [{ type: 'http', scheme: 'bearer' }] : [],
+    security: authTokens.length > 0 ? [{ type: 'http', scheme: 'bearer' }] : [],
   });
 
   const sidecarRoutes = buildSidecarRouteDescriptors({
