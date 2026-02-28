@@ -3,6 +3,7 @@ export const en = {
   programDescription: 'A minimal viable loop for automated code patching',
   runDescription: 'Run the salmon-loop',
   contextDescription: 'Build and print the context prompt (no LLM call)',
+  serveDescription: 'Start the A2A + sidecar server',
 
   // Chat mode
   chatResumed: (name: string) => `Resumed: ${name}`,
@@ -138,6 +139,14 @@ export const en = {
   configOutputDescription: 'Set which LLM sections are shown in the UI (advanced)',
   configOutputUsage: 'Usage: /config output <none|all|review,assistant_message,plan,patch>',
   configAllowlistDescription: 'Manage tool allowlist (repo/user)',
+  a2aHostOption: 'A2A listen host (default: 127.0.0.1)',
+  a2aPortOption: 'A2A listen port (default: 7431)',
+  a2aTokenOption: 'Bearer token for A2A auth (repeatable)',
+  sidecarSocketOption: 'UDS path for the sidecar UI server',
+  sidecarAllowConditionalOption: 'Expose conditional sidecar routes (use with care)',
+  invalidA2APort: (value: string) => `Invalid A2A port: ${value}`,
+  serveStarted: (host: string, port: number, socket: string) =>
+    `A2A listening on ${host}:${port}; sidecar socket at ${socket}`,
   configAllowlistUsage:
     'Usage: /config allowlist <list|add|remove|clear|hash|reload> [scope] [tool] [phase] [args=<hash>] [effects=a,b] [deny]',
   authUsage:

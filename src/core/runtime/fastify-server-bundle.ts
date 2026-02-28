@@ -5,12 +5,13 @@ export type FastifyListenOptions = {
 };
 
 export type FastifyServerLike = {
-  register: (plugin: (instance: FastifyServerLike) => Promise<void> | void) => Promise<void> | void;
-  listen: (options: FastifyListenOptions) => Promise<void> | void;
-  close: () => Promise<void> | void;
+  route: (...args: any[]) => any;
+  register: (...args: any[]) => any;
+  listen: (...args: any[]) => any;
+  close: (...args: any[]) => any;
 };
 
-export type FastifyFactory = (options?: { name?: string }) => FastifyServerLike;
+export type FastifyFactory = () => FastifyServerLike;
 
 export function createFastifyServerBundle(deps: {
   createFastify: FastifyFactory;
@@ -21,8 +22,8 @@ export function createFastifyServerBundle(deps: {
   a2aListen: FastifyListenOptions;
   sidecarListen: FastifyListenOptions;
 }) {
-  const a2aServer = deps.createFastify({ name: 'a2a' });
-  const sidecarServer = deps.createFastify({ name: 'sidecar' });
+  const a2aServer = deps.createFastify();
+  const sidecarServer = deps.createFastify();
 
   async function start(): Promise<void> {
     if (deps.configureA2A) {

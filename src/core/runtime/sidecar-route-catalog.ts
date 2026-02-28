@@ -1,8 +1,4 @@
-import type {
-  RouteDescriptor,
-  RouteExposure,
-  RouteScope,
-} from './sidecar-fastify-plugin.js';
+import type { RouteDescriptor, RouteExposure, RouteScope } from './sidecar-fastify-plugin.js';
 
 export type SidecarRouteSpec = {
   id: string;
@@ -13,10 +9,7 @@ export type SidecarRouteSpec = {
   policyTag: string;
 };
 
-export type SidecarRouteHandlers = Record<
-  string,
-  (request: Request) => Promise<Response>
->;
+export type SidecarRouteHandlers = Record<string, (request: Request) => Promise<Response>>;
 
 export const defaultSidecarRouteCatalog: SidecarRouteSpec[] = [
   {

@@ -15,6 +15,7 @@ import { handleContextCommand } from './commands/context.js';
 import { handleRestoreCommand } from './commands/restore.js';
 import { createHeadlessErrorWriter } from './commands/run/headless-error-writer.js';
 import { handleRunCommand } from './commands/run.js';
+import { handleServeCommand } from './commands/serve.js';
 import {
   handleSnapshotList,
   handleSnapshotCreate,
@@ -172,6 +173,22 @@ program
   .option('--allow-outside-cache-root', text.cli.allowOutsideCacheRootOption)
   .action(handleContextCommand);
 
+// --- Command: Serve ---
+program
+  .command('serve')
+  .description(text.cli.serveDescription)
+  .option('--a2a-host <host>', text.cli.a2aHostOption, '127.0.0.1')
+  .option('--a2a-port <port>', text.cli.a2aPortOption, '7431')
+  .option(
+    '--a2a-token <token>',
+    text.cli.a2aTokenOption,
+    (value, previous: string[]) => previous.concat([value]),
+    [] as string[],
+  )
+  .option('--sidecar-socket <path>', text.cli.sidecarSocketOption)
+  .option('--sidecar-allow-conditional', text.cli.sidecarAllowConditionalOption)
+  .action(handleServeCommand);
+
 // --- Command: Chat ---
 program
   .command('chat', { isDefault: true })
@@ -254,6 +271,7 @@ function rewriteArgvForPrintMode(argv: string[]): string[] {
 
   const knownCommands = new Set([
     'run',
+    'serve',
     'chat',
     'context',
     'restore',

@@ -55,8 +55,8 @@ describe('sidecar route catalog', () => {
   });
 
   test('default catalog avoids A2A/sidecar prefixes', () => {
-    const prefixed = defaultSidecarRouteCatalog.filter((route) =>
-      route.path.startsWith('/a2a') || route.path.startsWith('/sidecar'),
+    const prefixed = defaultSidecarRouteCatalog.filter(
+      (route) => route.path.startsWith('/a2a') || route.path.startsWith('/sidecar'),
     );
     expect(prefixed).toHaveLength(0);
   });
