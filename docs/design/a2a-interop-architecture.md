@@ -195,7 +195,6 @@ Suggested long-term layout:
 - `src/interfaces/vscode/*`
 - `src/interfaces/web/*`
 - `src/interfaces/native/*`
-- `src/integrations/roo/*`
 
 The main architectural intent is:
 

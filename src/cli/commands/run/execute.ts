@@ -4,6 +4,7 @@ import type { ApplyBackOnDirty, LoopEvent, LoopResult } from '../../../core/type
 import { createUiAuthorizationProvider } from '../../authorization/provider.js';
 import type { SalmonReporter } from '../../reporters/base.js';
 import type { UIConfig } from '../../ui/index.js';
+import { createCliTaskRunner } from '../../../interfaces/cli/task-runner.js';
 
 export async function executeRunLoop(params: {
   useGui: boolean;
@@ -54,11 +55,22 @@ export async function executeRunLoop(params: {
     return result;
   }
 
-  const result = await runSalmonLoop({
-    ...(params.loopParams as any),
-    applyBackOnDirty: params.applyBackOnDirty,
-    onEvent: (event: LoopEvent) => params.reporter.onEvent(event),
+  const runner = createCliTaskRunner({
+    facade: {
+      createTask: async ({ capability, request }) =>
+        runSalmonLoop({
+          ...(params.loopParams as any),
+          mode: capability as any,
+          instruction: request.instruction,
+          applyBackOnDirty: params.applyBackOnDirty,
+          onEvent: (event: LoopEvent) => params.reporter.onEvent(event),
+        }),
+    },
   });
+  const result = (await runner.run({
+    capability: String((params.loopParams as any).mode ?? 'patch'),
+    instruction: String((params.loopParams as any).instruction ?? ''),
+  })) as LoopResult;
 
   emitLlmOutput({
     emit: (event) => params.reporter.onEvent(event),
