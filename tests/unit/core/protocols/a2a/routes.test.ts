@@ -147,6 +147,56 @@ describe('A2A routes', () => {
       },
     });
   });
+  test('returns error data payloads when json-rpc errors include details', async () => {
+    const routes = createA2ARoutes({
+      buildAgentCard: () => ({
+        name: 'salmon-loop',
+        url: 'https://example.com',
+        skills: [],
+        securitySchemes: [],
+      }),
+      jsonRpcHandler: {
+        handle: async () => {
+          throw new A2AJsonRpcError({
+            code: -32009,
+            message: 'Task is not retryable: task_1',
+            status: 409,
+            data: { reason: 'not_retryable', category: 'policy', state: 'failed' },
+          });
+        },
+      },
+      eventSource: {
+        open: () =>
+          new Response('event: ping\n\n', {
+            headers: { 'content-type': 'text/event-stream' },
+          }),
+      },
+    });
+
+    const response = await routes.handle(
+      new Request('https://example.com/rpc', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: '55',
+          method: 'tasks/retry',
+          params: { id: 'task_1' },
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      jsonrpc: '2.0',
+      id: '55',
+      error: {
+        code: -32009,
+        message: 'Task is not retryable: task_1',
+        data: { reason: 'not_retryable', category: 'policy', state: 'failed' },
+      },
+    });
+  });
 
   test('returns JSON-RPC auth errors for unauthenticated rpc requests', async () => {
     const routes = createA2ARoutes({

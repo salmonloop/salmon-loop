@@ -16,7 +16,17 @@ export interface TaskTransitionPolicy {
   isResumable(state: TaskState): boolean;
   isRetryable(state: TaskState): boolean;
   isReopenable(state: TaskState): boolean;
+  canRetry(task: {
+    state: TaskState;
+    failure?: { category?: string; retryable?: boolean; code?: string; message?: string };
+  }): boolean;
+  canReopen(task: {
+    state: TaskState;
+    failure?: { category?: string; code?: string; message?: string; retryable?: boolean };
+  }): boolean;
 }
+
+const RETRYABLE_FAILURE_CATEGORIES = new Set(['verification', 'runtime', 'infrastructure']);
 
 export function createTaskTransitionPolicy(): TaskTransitionPolicy {
   return {
@@ -34,6 +44,19 @@ export function createTaskTransitionPolicy(): TaskTransitionPolicy {
     },
     isReopenable(state) {
       return state === 'completed' || state === 'failed' || state === 'cancelled';
+    },
+    canRetry(task) {
+      if (!this.isRetryable(task.state)) return false;
+      if (!task.failure) return false;
+      if (!task.failure.retryable) return false;
+      if (!task.failure.category) return false;
+      return RETRYABLE_FAILURE_CATEGORIES.has(task.failure.category);
+    },
+    canReopen(task) {
+      if (!this.isReopenable(task.state)) return false;
+      if (task.state === 'completed') return true;
+      if (!task.failure?.category) return false;
+      return RETRYABLE_FAILURE_CATEGORIES.has(task.failure.category);
     },
   };
 }

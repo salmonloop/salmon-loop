@@ -2,6 +2,10 @@ export interface TaskEvent {
   id?: string;
   type: string;
   taskId: string;
+  state?: string;
+  attempt?: number;
+  failure?: { category?: string; code?: string };
+  requiredAction?: { type: string; reason?: string };
 }
 
 export interface TaskEventBus {

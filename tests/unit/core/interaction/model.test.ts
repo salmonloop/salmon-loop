@@ -46,6 +46,47 @@ describe('interaction model', () => {
     expect(policy.isReopenable('running')).toBe(false);
   });
 
+  test('evaluates retry and reopen eligibility using failure metadata', () => {
+    const policy = createTaskTransitionPolicy();
+
+    expect(
+      policy.canRetry({
+        state: 'failed',
+        failure: { code: 'VERIFY_FAILED', category: 'verification', retryable: true, message: '' },
+      }),
+    ).toBe(true);
+    expect(
+      policy.canRetry({
+        state: 'failed',
+        failure: { code: 'POLICY_BLOCK', category: 'policy', retryable: true, message: '' },
+      }),
+    ).toBe(false);
+    expect(
+      policy.canRetry({
+        state: 'failed',
+        failure: { code: 'VERIFY_FAILED', category: 'verification', retryable: false, message: '' },
+      }),
+    ).toBe(false);
+
+    expect(
+      policy.canReopen({
+        state: 'completed',
+      }),
+    ).toBe(true);
+    expect(
+      policy.canReopen({
+        state: 'failed',
+        failure: { code: 'VERIFY_FAILED', category: 'verification', retryable: true, message: '' },
+      }),
+    ).toBe(true);
+    expect(
+      policy.canReopen({
+        state: 'failed',
+        failure: { code: 'POLICY_BLOCK', category: 'policy', retryable: true, message: '' },
+      }),
+    ).toBe(false);
+  });
+
   test('enforces the canonical task transition matrix', () => {
     expect(canTransitionTaskState('accepted', 'running')).toBe(true);
     expect(canTransitionTaskState('running', 'streaming')).toBe(true);

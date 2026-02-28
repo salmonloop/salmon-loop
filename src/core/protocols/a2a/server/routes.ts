@@ -6,6 +6,7 @@ function buildJsonRpcError(params: {
   code: number;
   message: string;
   status?: number;
+  data?: Record<string, unknown>;
 }): Response {
   return Response.json(
     {
@@ -14,6 +15,7 @@ function buildJsonRpcError(params: {
       error: {
         code: params.code,
         message: params.message,
+        ...(params.data ? { data: params.data } : {}),
       },
     },
     { status: params.status ?? 400 },
@@ -150,6 +152,7 @@ export function createA2ARoutes(deps: {
               code: error.code,
               message: error.message,
               status: error.status,
+              data: error.data,
             });
           }
 

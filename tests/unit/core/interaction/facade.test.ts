@@ -167,6 +167,38 @@ describe('interaction facade', () => {
     expect(resumedTerminal).toBeNull();
   });
 
+  test('denies retry or reopen when failure metadata disallows it', async () => {
+    const facade = createInteractionFacade({
+      executeTask: async (task) => ({
+        ...task,
+        state: 'failed',
+        failure: {
+          code: 'POLICY_BLOCK',
+          category: 'policy',
+          message: 'Policy denied',
+          retryable: true,
+        },
+      }),
+    });
+
+    const created = await facade.createTask({
+      capability: 'patch',
+      request: { instruction: 'fix bug' },
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const retried = await facade.retryTask(created.id);
+    expect(retried).toBeNull();
+
+    const reopened = await facade.reopenTask(created.id, {
+      type: 'confirmation',
+      reason: 'reopen',
+      prompt: 'Try again?',
+    });
+    expect(reopened).toBeNull();
+  });
+
   test('fails, retries, and reopens tasks through canonical transitions', async () => {
     const facade = createInteractionFacade({
       executeTask: async (task) => ({ ...task, state: 'running' }),

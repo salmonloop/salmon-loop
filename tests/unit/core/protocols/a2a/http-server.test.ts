@@ -567,6 +567,49 @@ describe('A2A JSON-RPC handler', () => {
     } satisfies Partial<A2AJsonRpcError>);
   });
 
+  test('returns structured error data when task is not retryable', async () => {
+    const handler = createA2AJsonRpcHandler({
+      facade: {
+        async createTask() {
+          return { id: 'task_1', state: 'accepted' };
+        },
+        async retryTask() {
+          return null;
+        },
+        async getTask() {
+          return {
+            id: 'task_1',
+            state: 'failed',
+            capability: 'patch',
+            createdAt: '2026-02-28T00:00:00.000Z',
+            failure: {
+              code: 'POLICY_BLOCK',
+              category: 'policy',
+              message: 'Policy denied',
+              retryable: true,
+            },
+          };
+        },
+      },
+    });
+
+    await expect(
+      handler.handle({
+        method: 'tasks/retry',
+        params: { id: 'task_1' },
+        id: '99',
+      }),
+    ).rejects.toMatchObject({
+      code: -32009,
+      status: 409,
+      data: {
+        reason: 'not_retryable',
+        category: 'policy',
+        state: 'failed',
+      },
+    } satisfies Partial<A2AJsonRpcError>);
+  });
+
   test('projects artifact delivery metadata for handle and url artifacts', async () => {
     const handler = createA2AJsonRpcHandler({
       facade: {

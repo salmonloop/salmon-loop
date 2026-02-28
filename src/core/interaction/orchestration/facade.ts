@@ -80,7 +80,12 @@ export function createInteractionFacade(deps: {
         state: 'cancelled',
       }));
       if (!cancelled) return null;
-      deps.eventBus?.publish({ type: 'task.cancelled', taskId: cancelled.id });
+      deps.eventBus?.publish({
+        type: 'task.cancelled',
+        taskId: cancelled.id,
+        state: cancelled.state,
+        attempt: cancelled.attempt,
+      });
       return cancelled;
     },
     async resumeTask(id) {
@@ -91,7 +96,12 @@ export function createInteractionFacade(deps: {
         inputRequired: undefined,
       }));
       if (!resumed) return null;
-      deps.eventBus?.publish({ type: 'task.resumed', taskId: resumed.id });
+      deps.eventBus?.publish({
+        type: 'task.resumed',
+        taskId: resumed.id,
+        state: resumed.state,
+        attempt: resumed.attempt,
+      });
       return resumed;
     },
     async failTask(id, failure) {
@@ -102,10 +112,19 @@ export function createInteractionFacade(deps: {
         failure,
       }));
       if (!failed) return null;
-      deps.eventBus?.publish({ type: 'task.failed', taskId: failed.id });
+      deps.eventBus?.publish({
+        type: 'task.failed',
+        taskId: failed.id,
+        state: failed.state,
+        attempt: failed.attempt,
+        failure: { category: failed.failure?.category, code: failed.failure?.code },
+      });
       return failed;
     },
     async retryTask(id) {
+      const current = store.get(id);
+      if (!current) return null;
+      if (!transitionPolicy.canRetry(current)) return null;
       const retried = updateTask(id, 'accepted', (task) => ({
         ...task,
         state: 'accepted',
@@ -115,10 +134,18 @@ export function createInteractionFacade(deps: {
         inputRequired: undefined,
       }));
       if (!retried) return null;
-      deps.eventBus?.publish({ type: 'task.retried', taskId: retried.id });
+      deps.eventBus?.publish({
+        type: 'task.retried',
+        taskId: retried.id,
+        state: retried.state,
+        attempt: retried.attempt,
+      });
       return retried;
     },
     async reopenTask(id, action) {
+      const current = store.get(id);
+      if (!current) return null;
+      if (!transitionPolicy.canReopen(current)) return null;
       const reopened = updateTask(id, 'awaiting_input', (task) => ({
         ...task,
         state: 'awaiting_input',
@@ -126,7 +153,13 @@ export function createInteractionFacade(deps: {
         statusMessage: 'Task reopened',
       }));
       if (!reopened) return null;
-      deps.eventBus?.publish({ type: 'task.reopened', taskId: reopened.id });
+      deps.eventBus?.publish({
+        type: 'task.reopened',
+        taskId: reopened.id,
+        state: reopened.state,
+        attempt: reopened.attempt,
+        requiredAction: { type: action.type, reason: action.reason },
+      });
       return reopened;
     },
     async listTasks(query) {

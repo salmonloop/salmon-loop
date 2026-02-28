@@ -219,6 +219,7 @@ export function createA2AJsonRpcHandler(deps: {
               code: -32009,
               message: `Task is not resumable: ${request.params.id}`,
               status: 409,
+              data: { reason: 'not_resumable', state: existingTask.state },
             });
           }
           throw new A2AJsonRpcError({
@@ -245,6 +246,11 @@ export function createA2AJsonRpcHandler(deps: {
               code: -32009,
               message: `Task is not retryable: ${request.params.id}`,
               status: 409,
+              data: {
+                reason: 'not_retryable',
+                state: existingTask.state,
+                category: existingTask.failure?.category,
+              },
             });
           }
           throw new A2AJsonRpcError({
@@ -275,6 +281,11 @@ export function createA2AJsonRpcHandler(deps: {
               code: -32009,
               message: `Task is not reopenable: ${request.params.id}`,
               status: 409,
+              data: {
+                reason: 'not_reopenable',
+                state: existingTask.state,
+                category: existingTask.failure?.category,
+              },
             });
           }
           throw new A2AJsonRpcError({
@@ -326,6 +337,7 @@ export function createA2AJsonRpcHandler(deps: {
               code: -32009,
               message: `Task is not awaiting input: ${request.params.id}`,
               status: 409,
+              data: { reason: 'not_awaiting_input', state: existingTask.state },
             });
           }
           throw new A2AJsonRpcError({
