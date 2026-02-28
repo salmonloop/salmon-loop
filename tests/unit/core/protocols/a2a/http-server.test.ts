@@ -26,4 +26,54 @@ describe('A2A JSON-RPC handler', () => {
     expect(result.id).toBe('1');
     expect(result.result.id).toBe('task_1');
   });
+
+  test('serves task lookup requests', async () => {
+    const handler = createA2AJsonRpcHandler({
+      facade: {
+        async createTask() {
+          return { id: 'task_1', state: 'accepted' };
+        },
+        async getTask() {
+          return { id: 'task_1', state: 'completed' };
+        },
+        async cancelTask() {
+          return { id: 'task_1', state: 'cancelled' };
+        },
+      },
+    });
+
+    const result = await handler.handle({
+      method: 'tasks/get',
+      params: { id: 'task_1' },
+      id: '2',
+    });
+
+    expect(result.id).toBe('2');
+    expect(result.result.state).toBe('completed');
+  });
+
+  test('serves task cancellation requests', async () => {
+    const handler = createA2AJsonRpcHandler({
+      facade: {
+        async createTask() {
+          return { id: 'task_1', state: 'accepted' };
+        },
+        async getTask() {
+          return { id: 'task_1', state: 'completed' };
+        },
+        async cancelTask() {
+          return { id: 'task_1', state: 'cancelled' };
+        },
+      },
+    });
+
+    const result = await handler.handle({
+      method: 'tasks/cancel',
+      params: { id: 'task_1' },
+      id: '3',
+    });
+
+    expect(result.id).toBe('3');
+    expect(result.result.state).toBe('cancelled');
+  });
 });

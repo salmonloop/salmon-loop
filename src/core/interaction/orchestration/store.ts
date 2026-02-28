@@ -10,4 +10,9 @@ export class InMemoryTaskStore {
   get(id: string): TaskEnvelope | null {
     return this.tasks.get(id) ?? null;
   }
+
+  update(task: TaskEnvelope): TaskEnvelope {
+    this.tasks.set(task.id, task);
+    return task;
+  }
 }
