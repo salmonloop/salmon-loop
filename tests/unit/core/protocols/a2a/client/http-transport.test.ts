@@ -132,6 +132,43 @@ describe('A2A http transport', () => {
     expect(seen[1]?.init?.headers).toMatchObject({ 'Last-Event-ID': '1' });
   });
 
+  test('closes stream after idle timeout', async () => {
+    let aborted = false;
+    let timeoutCallback: (() => void) | null = null;
+
+    const transport = createA2AHttpTransport({
+      baseUrl: 'https://example.com',
+      setTimeout: (fn: () => void) => {
+        timeoutCallback = fn;
+        return 1 as unknown as ReturnType<typeof setTimeout>;
+      },
+      clearTimeout: () => undefined,
+      fetch: async (_url, init) => {
+        if (init?.signal) {
+          init.signal.addEventListener('abort', () => {
+            aborted = true;
+          });
+        }
+        return new Response(new ReadableStream({ start() {} }), {
+          headers: { 'content-type': 'text/event-stream' },
+        });
+      },
+    });
+
+    const response = await transport.subscribe('task_1', { idleTimeoutMs: 100 });
+    const reading = readAll(response.body!);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    if (!timeoutCallback) {
+      throw new Error('timeout callback not registered');
+    }
+    const fire = timeoutCallback as () => void;
+    fire();
+
+    await reading;
+
+    expect(aborted).toBe(true);
+  });
+
   test('throws on non-ok rpc responses', async () => {
     const transport = createA2AHttpTransport({
       baseUrl: 'https://example.com',

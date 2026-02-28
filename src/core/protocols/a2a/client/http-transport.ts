@@ -17,6 +17,15 @@ export type A2AReconnectOptions = {
   maxDelayMs?: number;
 };
 
+export type A2ASubscribeOptions = {
+  lastEventId?: string;
+  reconnect?: A2AReconnectOptions;
+  idleTimeoutMs?: number;
+};
+
+export type A2ASetTimeout = (handler: () => void, timeout?: number) => unknown;
+export type A2AClearTimeout = (handle: unknown) => void;
+
 export function createA2AHttpTransport(deps: {
   baseUrl: string;
   headers?: Record<string, string>;
@@ -24,11 +33,17 @@ export function createA2AHttpTransport(deps: {
   timeoutMs?: number;
   delayMs?: (ms: number) => Promise<void>;
   reconnect?: A2AReconnectOptions;
+  setTimeout?: A2ASetTimeout;
+  clearTimeout?: A2AClearTimeout;
 }): A2AClientTransport {
   const baseUrl = deps.baseUrl.replace(/\/$/, '');
   const fetchImpl = deps.fetch ?? globalThis.fetch;
   const delayMs =
     deps.delayMs ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  const setTimeoutImpl: A2ASetTimeout =
+    deps.setTimeout ?? ((handler, timeout) => globalThis.setTimeout(handler, timeout));
+  const clearTimeoutImpl: A2AClearTimeout =
+    deps.clearTimeout ?? ((handle) => globalThis.clearTimeout(handle as number));
   const reconnectDefaults = deps.reconnect ?? {};
 
   function resolveReconnect(options?: A2AReconnectOptions) {
@@ -80,10 +95,7 @@ export function createA2AHttpTransport(deps: {
     }
   }
 
-  async function subscribe(
-    taskId: string,
-    options?: { lastEventId?: string; reconnect?: A2AReconnectOptions },
-  ): Promise<Response> {
+  async function subscribe(taskId: string, options?: A2ASubscribeOptions): Promise<Response> {
     const headers: Record<string, string> = {
       Accept: DEFAULT_ACCEPT.sse,
       ...(deps.headers ?? {}),
@@ -96,10 +108,34 @@ export function createA2AHttpTransport(deps: {
         let lastEventId = options?.lastEventId;
         let attempts = 0;
         let activeController: AbortController | null = null;
+        let activeBody: ReadableStream<Uint8Array> | null = null;
+        let idleTimer: ReturnType<A2ASetTimeout> | null = null;
+        let idleExpired = false;
 
         const cancelCurrent = () => {
           aborted = true;
           activeController?.abort();
+        };
+
+        const clearIdleTimer = () => {
+          if (!idleTimer) return;
+          clearTimeoutImpl(idleTimer);
+          idleTimer = null;
+        };
+
+        const resetIdleTimer = () => {
+          clearIdleTimer();
+          if (!options?.idleTimeoutMs) return;
+          idleTimer = setTimeoutImpl(() => {
+            idleExpired = true;
+            try {
+              controller.close();
+            } catch {
+              // ignore double-close
+            }
+            activeBody?.cancel().catch(() => undefined);
+            cancelCurrent();
+          }, options.idleTimeoutMs);
         };
 
         cancelStream = cancelCurrent;
@@ -131,17 +167,20 @@ export function createA2AHttpTransport(deps: {
                 throw new Error('A2A SSE response missing body');
               }
 
+              activeBody = response.body;
+              resetIdleTimer();
               for await (const event of decodeSseEvents(response.body)) {
                 if (aborted) break;
                 if (event.id) lastEventId = event.id;
+                resetIdleTimer();
                 controller.enqueue(encodeSseEvent(event));
               }
 
-              if (attempts >= reconnect.maxRetries) {
+              if (idleExpired || attempts >= reconnect.maxRetries) {
                 break;
               }
             } catch (err) {
-              if (attempts >= reconnect.maxRetries) {
+              if (idleExpired || attempts >= reconnect.maxRetries) {
                 controller.error(err);
                 break;
               }
@@ -155,6 +194,7 @@ export function createA2AHttpTransport(deps: {
             await delayMs(delay);
           }
 
+          clearIdleTimer();
           if (!controller.desiredSize) return;
           controller.close();
           cancelCurrent();

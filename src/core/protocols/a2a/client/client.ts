@@ -57,7 +57,11 @@ export function createA2AClient(deps: { transport: A2AClientTransport }) {
   async function subscribeTask(
     taskId: string,
     handler: (task: TaskEnvelope) => void,
-    options?: { lastEventId?: string; reconnect?: A2AReconnectOptions },
+    options?: {
+      lastEventId?: string;
+      reconnect?: A2AReconnectOptions;
+      idleTimeoutMs?: number;
+    },
   ): Promise<void> {
     const response = await deps.transport.subscribe(taskId, options);
     if (!response.body) {
