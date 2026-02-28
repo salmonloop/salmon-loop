@@ -1,3 +1,6 @@
+import type { SseEvent } from '../../../tools/mcp/streamable-http.js';
+import { decodeSseEvents, isEventStreamResponse } from '../../../tools/mcp/streamable-http.js';
+
 import type { A2AClientTransport } from './transport.js';
 import type { A2AJsonRpcRequest } from './types.js';
 
@@ -13,9 +16,35 @@ export function createA2AHttpTransport(deps: {
   headers?: Record<string, string>;
   fetch?: A2AFetchLike;
   timeoutMs?: number;
+  delayMs?: (ms: number) => Promise<void>;
+  reconnect?: {
+    maxRetries?: number;
+    baseDelayMs?: number;
+    maxDelayMs?: number;
+  };
 }): A2AClientTransport {
   const baseUrl = deps.baseUrl.replace(/\/$/, '');
   const fetchImpl = deps.fetch ?? globalThis.fetch;
+  const delayMs =
+    deps.delayMs ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  const reconnect = deps.reconnect ?? {};
+  const maxRetries = reconnect.maxRetries ?? 0;
+  const baseDelayMs = reconnect.baseDelayMs ?? 250;
+  const maxDelayMs = reconnect.maxDelayMs ?? 2000;
+
+  function encodeSseEvent(event: SseEvent): Uint8Array {
+    let text = '';
+    if (event.id) text += `id: ${event.id}\n`;
+    if (event.event) text += `event: ${event.event}\n`;
+    if (typeof event.retry === 'number') text += `retry: ${event.retry}\n`;
+    if (event.data) {
+      for (const line of event.data.split('\n')) {
+        text += `data: ${line}\n`;
+      }
+    }
+    text += '\n';
+    return new TextEncoder().encode(text);
+  }
 
   async function request(payload: A2AJsonRpcRequest): Promise<unknown> {
     const controller = deps.timeoutMs ? new AbortController() : null;
@@ -48,18 +77,89 @@ export function createA2AHttpTransport(deps: {
       Accept: DEFAULT_ACCEPT.sse,
       ...(deps.headers ?? {}),
     };
-    if (options?.lastEventId) headers['Last-Event-ID'] = options.lastEventId;
+    let cancelStream: (() => void) | null = null;
+    const stream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        let aborted = false;
+        let lastEventId = options?.lastEventId;
+        let attempts = 0;
+        let activeController: AbortController | null = null;
 
-    const response = await fetchImpl(`${baseUrl}/tasks/${taskId}/subscribe`, {
-      method: 'GET',
-      headers,
+        const cancelCurrent = () => {
+          aborted = true;
+          activeController?.abort();
+        };
+
+        cancelStream = cancelCurrent;
+
+        const run = async () => {
+          while (!aborted) {
+            activeController = new AbortController();
+            const requestHeaders = {
+              ...headers,
+              ...(lastEventId ? { 'Last-Event-ID': lastEventId } : {}),
+            };
+
+            try {
+              const response = await fetchImpl(`${baseUrl}/tasks/${taskId}/subscribe`, {
+                method: 'GET',
+                headers: requestHeaders,
+                signal: activeController.signal,
+              });
+
+              if (!response.ok) {
+                throw new Error(`A2A SSE subscription failed with HTTP ${response.status}`);
+              }
+
+              if (!isEventStreamResponse(response)) {
+                throw new Error('A2A SSE subscription did not return text/event-stream');
+              }
+
+              if (!response.body) {
+                throw new Error('A2A SSE response missing body');
+              }
+
+              for await (const event of decodeSseEvents(response.body)) {
+                if (aborted) break;
+                if (event.id) lastEventId = event.id;
+                controller.enqueue(encodeSseEvent(event));
+              }
+
+              if (attempts >= maxRetries) {
+                break;
+              }
+            } catch (err) {
+              if (attempts >= maxRetries) {
+                controller.error(err);
+                break;
+              }
+            }
+
+            attempts += 1;
+            const delay = Math.min(maxDelayMs, baseDelayMs * 2 ** (attempts - 1));
+            await delayMs(delay);
+          }
+
+          if (!controller.desiredSize) return;
+          controller.close();
+          cancelCurrent();
+        };
+
+        run().catch((err) => controller.error(err));
+      },
+      cancel() {
+        cancelStream?.();
+      },
     });
 
-    if (!response.ok) {
-      throw new Error(`A2A SSE subscription failed with HTTP ${response.status}`);
-    }
-
-    return response;
+    return new Response(stream, {
+      status: 200,
+      headers: {
+        'content-type': 'text/event-stream; charset=utf-8',
+        'cache-control': 'no-cache',
+        connection: 'keep-alive',
+      },
+    });
   }
 
   return { request, subscribe };

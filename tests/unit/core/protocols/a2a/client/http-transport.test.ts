@@ -2,6 +2,29 @@ import { describe, expect, test } from 'bun:test';
 
 import { createA2AHttpTransport } from '../../../../../../src/core/protocols/a2a/client/http-transport.js';
 
+function buildSseStream(chunks: string[]): ReadableStream<Uint8Array> {
+  const encoder = new TextEncoder();
+  return new ReadableStream({
+    start(controller) {
+      for (const chunk of chunks) controller.enqueue(encoder.encode(chunk));
+      controller.close();
+    },
+  });
+}
+
+async function readAll(stream: ReadableStream<Uint8Array>): Promise<string> {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let text = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    text += decoder.decode(value, { stream: true });
+  }
+  text += decoder.decode();
+  return text;
+}
+
 describe('A2A http transport', () => {
   test('posts JSON-RPC requests with headers', async () => {
     const seen: Array<{ url: string; init?: RequestInit }> = [];
@@ -64,6 +87,48 @@ describe('A2A http transport', () => {
       Accept: 'text/event-stream',
       'Last-Event-ID': '42',
     });
+  });
+
+  test('reconnects SSE streams with last event id', async () => {
+    const seen: Array<{ url: string; init?: RequestInit }> = [];
+    const responses = [
+      new Response(
+        buildSseStream([
+          'id: 1\n',
+          'event: task.completed\n',
+          'data: {"taskId":"task_1","type":"task.completed"}\n\n',
+        ]),
+        { headers: { 'content-type': 'text/event-stream' } },
+      ),
+      new Response(
+        buildSseStream([
+          'id: 2\n',
+          'event: task.failed\n',
+          'data: {"taskId":"task_1","type":"task.failed"}\n\n',
+        ]),
+        { headers: { 'content-type': 'text/event-stream' } },
+      ),
+    ];
+
+    const transport = createA2AHttpTransport({
+      baseUrl: 'https://example.com',
+      reconnect: { maxRetries: 1, baseDelayMs: 0 },
+      delayMs: async () => undefined,
+      fetch: async (url, init) => {
+        seen.push({ url: String(url), init });
+        return responses.shift() ?? new Response('', { status: 500 });
+      },
+    });
+
+    const response = await transport.subscribe('task_1');
+    const body = await readAll(response.body!);
+
+    expect(body).toContain('id: 1');
+    expect(body).toContain('event: task.completed');
+    expect(body).toContain('id: 2');
+    expect(body).toContain('event: task.failed');
+    expect(seen).toHaveLength(2);
+    expect(seen[1]?.init?.headers).toMatchObject({ 'Last-Event-ID': '1' });
   });
 
   test('throws on non-ok rpc responses', async () => {
