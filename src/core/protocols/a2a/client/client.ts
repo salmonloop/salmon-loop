@@ -31,13 +31,16 @@ export function createA2AClient(deps: { transport: A2AClientTransport }) {
   const sync = createTaskSyncEngine();
   const sseBridge = createA2ASseSubscriptionBridge();
 
-  async function startTask(input: { instruction: string }): Promise<TaskEnvelope> {
+  async function startTask(
+    input: { instruction: string },
+    options?: { headers?: Record<string, string> },
+  ): Promise<TaskEnvelope> {
     const payload = buildA2AJsonRpcRequest({
       requestId: crypto.randomUUID(),
       action: 'start',
       instruction: input.instruction,
     });
-    const response = await deps.transport.request(payload);
+    const response = await deps.transport.request(payload, { headers: options?.headers });
     const task = mapA2ATaskResultToCanonicalTask(assertJsonRpcResult(response));
     const enriched = { ...task, request: { instruction: input.instruction } };
     return sync.applySnapshot(enriched);
@@ -45,7 +48,7 @@ export function createA2AClient(deps: { transport: A2AClientTransport }) {
 
   async function syncTask(
     taskId: string,
-    options?: { sinceEventId?: string; requireReplay?: boolean },
+    options?: { sinceEventId?: string; requireReplay?: boolean; headers?: Record<string, string> },
   ): Promise<TaskEnvelope> {
     const payload = buildA2AJsonRpcRequest({
       requestId: crypto.randomUUID(),
@@ -54,7 +57,7 @@ export function createA2AClient(deps: { transport: A2AClientTransport }) {
       sinceEventId: options?.sinceEventId,
       requireReplay: options?.requireReplay,
     });
-    const response = await deps.transport.request(payload);
+    const response = await deps.transport.request(payload, { headers: options?.headers });
     const task = mapA2ATaskResultToCanonicalTask(assertJsonRpcResult(response));
     return sync.applySnapshot(task);
   }
@@ -68,6 +71,7 @@ export function createA2AClient(deps: { transport: A2AClientTransport }) {
       idleTimeoutMs?: number;
       autoSyncOnEnd?: boolean;
       onSync?: (task: TaskEnvelope) => void;
+      headers?: Record<string, string>;
     },
   ): Promise<void> {
     const response = await deps.transport.subscribe(taskId, options);

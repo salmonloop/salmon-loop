@@ -21,6 +21,7 @@ export type A2ASubscribeOptions = {
   lastEventId?: string;
   reconnect?: A2AReconnectOptions;
   idleTimeoutMs?: number;
+  headers?: Record<string, string>;
 };
 
 export type A2ASetTimeout = (handler: () => void, timeout?: number) => unknown;
@@ -69,7 +70,10 @@ export function createA2AHttpTransport(deps: {
     return new TextEncoder().encode(text);
   }
 
-  async function request(payload: A2AJsonRpcRequest): Promise<unknown> {
+  async function request(
+    payload: A2AJsonRpcRequest,
+    options?: { headers?: Record<string, string> },
+  ): Promise<unknown> {
     const controller = deps.timeoutMs ? new AbortController() : null;
     const timeout = deps.timeoutMs ? setTimeout(() => controller?.abort(), deps.timeoutMs) : null;
 
@@ -80,6 +84,7 @@ export function createA2AHttpTransport(deps: {
           Accept: DEFAULT_ACCEPT.json,
           'Content-Type': 'application/json',
           ...(deps.headers ?? {}),
+          ...(options?.headers ?? {}),
         },
         body: JSON.stringify(payload),
         signal: controller?.signal,
@@ -99,6 +104,7 @@ export function createA2AHttpTransport(deps: {
     const headers: Record<string, string> = {
       Accept: DEFAULT_ACCEPT.sse,
       ...(deps.headers ?? {}),
+      ...(options?.headers ?? {}),
     };
     const reconnect = resolveReconnect(options?.reconnect);
     let cancelStream: (() => void) | null = null;
