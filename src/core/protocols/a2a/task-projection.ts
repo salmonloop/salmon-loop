@@ -4,6 +4,17 @@ interface CanonicalTaskLike {
   capability?: string;
   tenantId?: string;
   createdAt?: string;
+  statusMessage?: string;
+  inputRequired?: {
+    type: string;
+    prompt: string;
+  };
+  artifacts?: Array<{
+    id: string;
+    name: string;
+    kind: string;
+    mimeType?: string;
+  }>;
 }
 
 type A2ATaskStatusState =
@@ -31,7 +42,15 @@ export function projectCanonicalTaskToA2ATask(task: CanonicalTaskLike) {
     status: {
       state: projectTaskState(task.state),
       timestamp: task.createdAt ?? new Date().toISOString(),
+      message: task.statusMessage,
     },
+    requiredAction: task.inputRequired,
+    artifacts: (task.artifacts ?? []).map((artifact) => ({
+      artifactId: artifact.id,
+      name: artifact.name,
+      kind: artifact.kind,
+      mimeType: artifact.mimeType,
+    })),
     metadata: {
       capability: task.capability,
       tenantId: task.tenantId,

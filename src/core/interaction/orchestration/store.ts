@@ -15,4 +15,8 @@ export class InMemoryTaskStore {
     this.tasks.set(task.id, task);
     return task;
   }
+
+  list(): TaskEnvelope[] {
+    return [...this.tasks.values()];
+  }
 }

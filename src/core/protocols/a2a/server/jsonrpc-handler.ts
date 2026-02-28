@@ -20,17 +20,51 @@ interface JsonRpcTaskResult {
   status?: {
     state: string;
     timestamp: string;
+    message?: string;
   };
+  requiredAction?: {
+    type: string;
+    prompt: string;
+  };
+  artifacts?: Array<{
+    artifactId: string;
+    name: string;
+    kind: string;
+    mimeType?: string;
+  }>;
   metadata?: {
     capability?: string;
     tenantId?: string;
   };
 }
 
+interface JsonRpcTaskListResult {
+  items: JsonRpcTaskResult[];
+}
+
+interface CanonicalTaskResult {
+  id: string;
+  state: string;
+  capability?: string;
+  tenantId?: string;
+  createdAt?: string;
+  statusMessage?: string;
+  inputRequired?: {
+    type: string;
+    prompt: string;
+  };
+  artifacts?: Array<{
+    id: string;
+    name: string;
+    kind: string;
+    mimeType?: string;
+  }>;
+}
+
 interface JsonRpcResponse {
   jsonrpc: '2.0';
   id: string;
-  result: JsonRpcTaskResult;
+  result: JsonRpcTaskResult | JsonRpcTaskListResult;
 }
 
 function isJsonRpcRequest(value: unknown): value is JsonRpcRequest {
@@ -44,9 +78,10 @@ export function createA2AJsonRpcHandler(deps: {
     createTask: (input: {
       capability: string;
       request: { instruction: string };
-    }) => Promise<JsonRpcTaskResult>;
-    getTask?: (id: string) => Promise<JsonRpcTaskResult | null>;
-    cancelTask?: (id: string) => Promise<JsonRpcTaskResult | null>;
+    }) => Promise<CanonicalTaskResult>;
+    getTask?: (id: string) => Promise<CanonicalTaskResult | null>;
+    cancelTask?: (id: string) => Promise<CanonicalTaskResult | null>;
+    listTasks?: () => Promise<CanonicalTaskResult[]>;
   };
 }) {
   return {
@@ -106,6 +141,17 @@ export function createA2AJsonRpcHandler(deps: {
           jsonrpc: '2.0',
           id: request.id,
           result: projectCanonicalTaskToA2ATask(task),
+        };
+      }
+
+      if (request.method === 'tasks/list' && deps.facade.listTasks) {
+        const tasks = await deps.facade.listTasks();
+        return {
+          jsonrpc: '2.0',
+          id: request.id,
+          result: {
+            items: tasks.map((task) => projectCanonicalTaskToA2ATask(task)),
+          },
         };
       }
 

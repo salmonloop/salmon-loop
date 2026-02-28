@@ -11,6 +11,18 @@ export interface TaskRequest {
   instruction: string;
 }
 
+export interface TaskArtifact {
+  id: string;
+  name: string;
+  kind: string;
+  mimeType?: string;
+}
+
+export interface TaskRequiredAction {
+  type: string;
+  prompt: string;
+}
+
 export interface TaskEnvelope {
   id: string;
   capability: string;
@@ -18,4 +30,7 @@ export interface TaskEnvelope {
   tenantId?: string;
   request: TaskRequest;
   createdAt: string;
+  statusMessage?: string;
+  inputRequired?: TaskRequiredAction;
+  artifacts?: TaskArtifact[];
 }

@@ -7,6 +7,7 @@ export interface InteractionFacade {
   createTask(input: { capability: string; request: TaskRequest }): Promise<TaskEnvelope>;
   getTask(id: string): Promise<TaskEnvelope | null>;
   cancelTask(id: string): Promise<TaskEnvelope | null>;
+  listTasks(): Promise<TaskEnvelope[]>;
 }
 
 export function createInteractionFacade(deps: {
@@ -45,6 +46,9 @@ export function createInteractionFacade(deps: {
       });
       deps.eventBus?.publish({ type: 'task.cancelled', taskId: cancelled.id });
       return cancelled;
+    },
+    async listTasks() {
+      return store.list();
     },
   };
 }

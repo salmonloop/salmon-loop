@@ -147,6 +147,66 @@ describe('A2A server integration', () => {
     expect(authorizedResponse.status).toBe(200);
   });
 
+  test('serves task history queries over rpc', async () => {
+    const handler = createA2AJsonRpcHandler({
+      facade: {
+        async createTask() {
+          return { id: 'task_1', state: 'accepted' };
+        },
+        async listTasks() {
+          return [
+            {
+              id: 'task_1',
+              state: 'completed',
+              capability: 'patch',
+              createdAt: '2026-02-28T00:00:00.000Z',
+            },
+          ];
+        },
+      },
+    });
+
+    const routes = createA2ARoutes({
+      buildAgentCard: () =>
+        buildA2AAgentCard({
+          name: 'salmon-loop',
+          url: 'https://example.com',
+          capabilities: [{ id: 'patch', title: 'Patch code' }],
+          security: [],
+        }),
+      jsonRpcHandler: handler,
+      eventSource: createSseEventSource(),
+    });
+
+    const server = createA2AHttpServer({ routes });
+    const response = await server.fetch(
+      new Request('https://example.com/rpc', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: '9',
+          method: 'tasks/list',
+          params: {},
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      jsonrpc: '2.0',
+      id: '9',
+      result: {
+        items: [
+          {
+            id: 'task_1',
+            status: { state: 'completed' },
+          },
+        ],
+      },
+    });
+  });
+
   test('streams live task events over SSE subscriptions', async () => {
     const bus = createTaskEventBus();
     const routes = createA2ARoutes({
