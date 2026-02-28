@@ -40,6 +40,15 @@ export type A2ATaskResult = {
     tenantId?: string;
     attempt?: number;
   };
+  events?: Array<{
+    id?: string;
+    type: string;
+    taskId: string;
+    state?: string;
+    attempt?: number;
+    failure?: { category?: string; code?: string };
+    requiredAction?: { type: string; reason?: string };
+  }>;
 };
 
 export type A2AOutboundAction =

@@ -101,6 +101,8 @@ await client.syncTask('task_1', {
 
 If `requireReplay` is true and the server does not support replay, the request fails with a JSON-RPC error.
 
+When replay events are returned by the server, the client applies them to the canonical task state before returning the result.
+
 ## API Summary
 
 - `startTask(input, options?)`

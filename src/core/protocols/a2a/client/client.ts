@@ -58,8 +58,17 @@ export function createA2AClient(deps: { transport: A2AClientTransport }) {
       requireReplay: options?.requireReplay,
     });
     const response = await deps.transport.request(payload, { headers: options?.headers });
-    const task = mapA2ATaskResultToCanonicalTask(assertJsonRpcResult(response));
-    return sync.applySnapshot(task);
+    const result = assertJsonRpcResult(response);
+    const task = mapA2ATaskResultToCanonicalTask(result);
+    const snapshot = sync.applySnapshot(task);
+    if (result.events?.length) {
+      let latest = snapshot;
+      for (const event of result.events) {
+        latest = sync.applyEvent(event);
+      }
+      return latest;
+    }
+    return snapshot;
   }
 
   async function subscribeTask(

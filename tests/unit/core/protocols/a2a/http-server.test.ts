@@ -296,6 +296,9 @@ describe('A2A JSON-RPC handler', () => {
     });
 
     expect(result.id).toBe('4d');
+    expect('items' in result.result).toBe(false);
+    const taskResult = result.result as Exclude<typeof result.result, { items: unknown }>;
+    expect(Array.isArray(taskResult.events)).toBe(true);
   });
 
   test('serves task history query requests', async () => {

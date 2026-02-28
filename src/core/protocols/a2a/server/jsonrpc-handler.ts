@@ -1,3 +1,4 @@
+import type { TaskEvent } from '../../../interaction/events/bus.js';
 import { projectCanonicalTaskToA2ATask } from '../task-projection.js';
 
 import { A2AJsonRpcError } from './jsonrpc-error.js';
@@ -60,6 +61,15 @@ interface JsonRpcTaskResult {
     tenantId?: string;
     attempt?: number;
   };
+  events?: Array<{
+    id?: string;
+    type: string;
+    taskId: string;
+    state?: string;
+    attempt?: number;
+    failure?: { category?: string; code?: string };
+    requiredAction?: { type: string; reason?: string };
+  }>;
 }
 
 interface JsonRpcTaskListResult {
@@ -137,7 +147,7 @@ export function createA2AJsonRpcHandler(deps: {
     ) => Promise<CanonicalTaskResult | null>;
     getArtifact?: (id: string, artifactId: string) => Promise<CanonicalTaskResult | null>;
   };
-  eventBus?: { list: (taskId: string, options?: { afterId?: string | null }) => unknown[] };
+  eventBus?: { list: (taskId: string, options?: { afterId?: string | null }) => TaskEvent[] };
 }) {
   function selectArtifact(
     task: CanonicalTaskResult,
@@ -205,10 +215,18 @@ export function createA2AJsonRpcHandler(deps: {
             status: 404,
           });
         }
+        const result = projectCanonicalTaskToA2ATask(task) as JsonRpcTaskResult;
+
+        if (request.params.sinceEventId && deps.eventBus) {
+          result.events = deps.eventBus.list(request.params.id, {
+            afterId: request.params.sinceEventId,
+          });
+        }
+
         return {
           jsonrpc: '2.0',
           id: request.id,
-          result: projectCanonicalTaskToA2ATask(task),
+          result,
         };
       }
 

@@ -224,4 +224,31 @@ describe('A2A client', () => {
       params: { id: 'task_7', sinceEventId: '10' },
     });
   });
+
+  test('applies replay events returned from syncTask', async () => {
+    const client = createA2AClient({
+      transport: {
+        async request() {
+          return {
+            jsonrpc: '2.0',
+            id: '8',
+            result: {
+              id: 'task_8',
+              state: 'running',
+              status: { state: 'working', timestamp: '2026-02-28T00:00:00.000Z' },
+              metadata: { capability: 'patch' },
+              events: [{ id: '11', type: 'task.completed', taskId: 'task_8', state: 'completed' }],
+            },
+          };
+        },
+        async subscribe() {
+          return new Response('', { headers: { 'content-type': 'text/event-stream' } });
+        },
+      },
+    });
+
+    const task = await client.syncTask('task_8', { sinceEventId: '10' });
+
+    expect(task.state).toBe('completed');
+  });
 });
