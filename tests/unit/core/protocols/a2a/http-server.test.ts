@@ -248,6 +248,7 @@ describe('A2A JSON-RPC handler', () => {
     ).rejects.toMatchObject({
       code: -32602,
       status: 400,
+      data: { reason: 'missing_since_event_id' },
     } satisfies Partial<A2AJsonRpcError>);
   });
 

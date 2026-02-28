@@ -103,6 +103,23 @@ If `requireReplay` is true and the server does not support replay, the request f
 
 When replay events are returned by the server, the client applies them to the canonical task state before returning the result.
 
+## Server Replay Support Matrix
+
+| Server Capability | Request | Behavior | Error Code | `error.data.reason` |
+| --- | --- | --- | --- | --- |
+| Replay supported (`eventBus` available) | `sinceEventId` + `requireReplay: true` | Returns snapshot + `events` | - | - |
+| Replay supported | `sinceEventId` without `requireReplay` | Returns snapshot + `events` (best effort) | - | - |
+| Replay unsupported | `requireReplay: true` | Request fails | `-32009` | `replay_not_supported` |
+| Replay unsupported | `sinceEventId` only | Returns snapshot (no events) | - | - |
+| Missing `sinceEventId` | `requireReplay: true` | Request fails | `-32602` | `missing_since_event_id` |
+
+## Error Codes and Data (Replay)
+
+When `requireReplay` is used, the server responds with standard JSON-RPC error codes and structured `error.data`:
+
+- `-32602` (Invalid params): `error.data.reason = "missing_since_event_id"`
+- `-32009` (State not allowed): `error.data.reason = "replay_not_supported"`
+
 ## API Summary
 
 - `startTask(input, options?)`

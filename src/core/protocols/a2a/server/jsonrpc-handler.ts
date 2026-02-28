@@ -195,6 +195,7 @@ export function createA2AJsonRpcHandler(deps: {
             code: -32602,
             message: 'Invalid params: sinceEventId required when requireReplay is true',
             status: 400,
+            data: { reason: 'missing_since_event_id' },
           });
         }
 
