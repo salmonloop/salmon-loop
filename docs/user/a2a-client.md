@@ -95,6 +95,7 @@ await client.subscribeTask('task_1', (task) => {
 ```ts
 await client.syncTask('task_1', {
   sinceEventId: '42',
+  replayLimit: 100,
   requireReplay: true,
 });
 ```
@@ -103,12 +104,14 @@ If `requireReplay` is true and the server does not support replay, the request f
 
 When replay events are returned by the server, the client applies them to the canonical task state before returning the result.
 
+Use `replayLimit` to cap the number of replay events returned by the server. This protects clients from overly large replay payloads.
+
 ## Server Replay Support Matrix
 
 | Server Capability | Request | Behavior | Error Code | `error.data.reason` |
 | --- | --- | --- | --- | --- |
-| Replay supported (`eventBus` available) | `sinceEventId` + `requireReplay: true` | Returns snapshot + `events` | - | - |
-| Replay supported | `sinceEventId` without `requireReplay` | Returns snapshot + `events` (best effort) | - | - |
+| Replay supported (`eventBus` available) | `sinceEventId` + `requireReplay: true` | Returns snapshot + `events` (honors `replayLimit`) | - | - |
+| Replay supported | `sinceEventId` without `requireReplay` | Returns snapshot + `events` (best effort, honors `replayLimit`) | - | - |
 | Replay unsupported | `requireReplay: true` | Request fails | `-32009` | `replay_not_supported` |
 | Replay unsupported | `sinceEventId` only | Returns snapshot (no events) | - | - |
 | Missing `sinceEventId` | `requireReplay: true` | Request fails | `-32602` | `missing_since_event_id` |
@@ -128,7 +131,7 @@ When `requireReplay` is used, the server responds with standard JSON-RPC error c
 
 Key options:
 - `headers`
-- `reconnect` (`maxRetries`, `baseDelayMs`, `maxDelayMs`)
+- `reconnect` (`maxRetries`, `baseDelayMs`, `maxDelayMs`, `jitterRatio`, `resetWindowMs`)
 - `idleTimeoutMs`
 - `autoSyncOnEnd`
 - `onSync`
