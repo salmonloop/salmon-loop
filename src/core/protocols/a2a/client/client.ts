@@ -61,6 +61,7 @@ export function createA2AClient(deps: { transport: A2AClientTransport }) {
       lastEventId?: string;
       reconnect?: A2AReconnectOptions;
       idleTimeoutMs?: number;
+      autoSyncOnEnd?: boolean;
     },
   ): Promise<void> {
     const response = await deps.transport.subscribe(taskId, options);
@@ -72,6 +73,11 @@ export function createA2AClient(deps: { transport: A2AClientTransport }) {
       const updated = sync.applyEvent(event);
       handler(updated);
     });
+
+    if (options?.autoSyncOnEnd !== false) {
+      const snapshot = await syncTask(taskId);
+      handler(snapshot);
+    }
   }
 
   return { startTask, syncTask, subscribeTask };

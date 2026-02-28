@@ -12,7 +12,7 @@ function buildSseStream(chunks: string[]): ReadableStream<Uint8Array> {
   });
 }
 
-function createStubTransport(responses: unknown[]) {
+function createStubTransport(responses: unknown[], stream?: ReadableStream<Uint8Array>) {
   let index = 0;
   return {
     async request() {
@@ -20,11 +20,12 @@ function createStubTransport(responses: unknown[]) {
     },
     async subscribe() {
       return new Response(
-        buildSseStream([
-          'id: 1\n',
-          'event: task.completed\n',
-          'data: {"taskId":"task_3","type":"task.completed","state":"completed"}\n\n',
-        ]),
+        stream ??
+          buildSseStream([
+            'id: 1\n',
+            'event: task.completed\n',
+            'data: {"taskId":"task_3","type":"task.completed","state":"completed"}\n\n',
+          ]),
         { headers: { 'content-type': 'text/event-stream' } },
       );
     },
@@ -94,7 +95,69 @@ describe('A2A client', () => {
     await client.startTask({ instruction: 'seed' });
 
     const updates: string[] = [];
-    await client.subscribeTask('task_3', (task) => updates.push(task.state));
+    await client.subscribeTask('task_3', (task) => updates.push(task.state), {
+      autoSyncOnEnd: false,
+    });
+
+    expect(updates).toEqual(['completed']);
+  });
+
+  test('syncs latest snapshot after stream ends by default', async () => {
+    const client = createA2AClient({
+      transport: createStubTransport(
+        [
+          {
+            jsonrpc: '2.0',
+            id: '4',
+            result: {
+              id: 'task_4',
+              state: 'failed',
+              status: { state: 'failed', timestamp: '2026-02-28T00:00:00.000Z' },
+              metadata: { capability: 'patch' },
+            },
+          },
+        ],
+        buildSseStream([
+          'id: 1\n',
+          'event: task.completed\n',
+          'data: {"taskId":"task_4","type":"task.completed","state":"completed"}\n\n',
+        ]),
+      ),
+    });
+
+    const updates: string[] = [];
+    await client.subscribeTask('task_4', (task) => updates.push(task.state));
+
+    expect(updates).toEqual(['completed', 'failed']);
+  });
+
+  test('skips auto sync when disabled', async () => {
+    const client = createA2AClient({
+      transport: createStubTransport(
+        [
+          {
+            jsonrpc: '2.0',
+            id: '5',
+            result: {
+              id: 'task_5',
+              state: 'failed',
+              status: { state: 'failed', timestamp: '2026-02-28T00:00:00.000Z' },
+              metadata: { capability: 'patch' },
+            },
+          },
+        ],
+        buildSseStream([
+          'id: 1\n',
+          'event: task.completed\n',
+          'data: {"taskId":"task_5","type":"task.completed","state":"completed"}\n\n',
+        ]),
+      ),
+    });
+
+    const updates: string[] = [];
+    await client.subscribeTask('task_5', (task) => updates.push(task.state), {
+      autoSyncOnEnd: false,
+    });
 
     expect(updates).toEqual(['completed']);
   });
