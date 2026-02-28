@@ -28,6 +28,12 @@ export interface TaskRequiredAction {
   prompt: string;
 }
 
+export interface TaskFailure {
+  code: string;
+  message: string;
+  retryable?: boolean;
+}
+
 export interface TaskEnvelope {
   id: string;
   capability: string;
@@ -35,7 +41,9 @@ export interface TaskEnvelope {
   tenantId?: string;
   request: TaskRequest;
   createdAt: string;
+  attempt?: number;
   statusMessage?: string;
+  failure?: TaskFailure;
   inputRequired?: TaskRequiredAction;
   artifacts?: TaskArtifact[];
 }

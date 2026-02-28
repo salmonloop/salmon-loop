@@ -1,5 +1,10 @@
 import type { TaskEventBus } from '../events/bus.js';
-import type { TaskEnvelope, TaskRequest } from '../model/index.js';
+import {
+  canTransitionTaskState,
+  type TaskEnvelope,
+  type TaskFailure,
+  type TaskRequest,
+} from '../model/index.js';
 
 import { InMemoryTaskStore } from './store.js';
 
@@ -8,6 +13,9 @@ export interface InteractionFacade {
   getTask(id: string): Promise<TaskEnvelope | null>;
   cancelTask(id: string): Promise<TaskEnvelope | null>;
   resumeTask(id: string): Promise<TaskEnvelope | null>;
+  failTask(id: string, failure: TaskFailure): Promise<TaskEnvelope | null>;
+  retryTask(id: string): Promise<TaskEnvelope | null>;
+  reopenTask(id: string, action: { type: string; prompt: string }): Promise<TaskEnvelope | null>;
   listTasks(query?: {
     capability?: string;
     state?: string;
@@ -24,6 +32,17 @@ export function createInteractionFacade(deps: {
 }): InteractionFacade {
   const store = new InMemoryTaskStore();
 
+  function updateTask(
+    id: string,
+    nextState: TaskEnvelope['state'],
+    mutate: (task: TaskEnvelope) => TaskEnvelope,
+  ): TaskEnvelope | null {
+    const task = store.get(id);
+    if (!task) return null;
+    if (!canTransitionTaskState(task.state, nextState)) return null;
+    return store.update(mutate(task));
+  }
+
   return {
     async createTask(input) {
       const task: TaskEnvelope = {
@@ -32,12 +51,19 @@ export function createInteractionFacade(deps: {
         state: 'accepted',
         request: input.request,
         createdAt: new Date().toISOString(),
+        attempt: 1,
       };
       store.save(task);
       deps.eventBus?.publish({ type: 'task.accepted', taskId: task.id });
       void deps.executeTask(task).then((result) => {
         store.update(result);
-        deps.eventBus?.publish({ type: 'task.completed', taskId: result.id });
+        if (result.state === 'completed') {
+          deps.eventBus?.publish({ type: 'task.completed', taskId: result.id });
+        } else if (result.state === 'failed') {
+          deps.eventBus?.publish({ type: 'task.failed', taskId: result.id });
+        } else if (result.state === 'awaiting_input') {
+          deps.eventBus?.publish({ type: 'task.awaiting_input', taskId: result.id });
+        }
       });
       return task;
     },
@@ -45,29 +71,59 @@ export function createInteractionFacade(deps: {
       return store.get(id);
     },
     async cancelTask(id) {
-      const task = store.get(id);
-      if (!task) return null;
-
-      const cancelled = store.update({
+      const cancelled = updateTask(id, 'cancelled', (task) => ({
         ...task,
         state: 'cancelled',
-      });
+      }));
+      if (!cancelled) return null;
       deps.eventBus?.publish({ type: 'task.cancelled', taskId: cancelled.id });
       return cancelled;
     },
     async resumeTask(id) {
-      const task = store.get(id);
-      if (!task) return null;
-      if (task.state !== 'awaiting_input' && task.state !== 'streaming') return null;
-
-      const resumed = store.update({
+      const resumed = updateTask(id, 'running', (task) => ({
         ...task,
         state: 'running',
         statusMessage: 'Task resumed',
         inputRequired: undefined,
-      });
+      }));
+      if (!resumed) return null;
       deps.eventBus?.publish({ type: 'task.resumed', taskId: resumed.id });
       return resumed;
+    },
+    async failTask(id, failure) {
+      const failed = updateTask(id, 'failed', (task) => ({
+        ...task,
+        state: 'failed',
+        statusMessage: failure.message,
+        failure,
+      }));
+      if (!failed) return null;
+      deps.eventBus?.publish({ type: 'task.failed', taskId: failed.id });
+      return failed;
+    },
+    async retryTask(id) {
+      const retried = updateTask(id, 'accepted', (task) => ({
+        ...task,
+        state: 'accepted',
+        attempt: (task.attempt ?? 1) + 1,
+        statusMessage: 'Task retried',
+        failure: undefined,
+        inputRequired: undefined,
+      }));
+      if (!retried) return null;
+      deps.eventBus?.publish({ type: 'task.retried', taskId: retried.id });
+      return retried;
+    },
+    async reopenTask(id, action) {
+      const reopened = updateTask(id, 'awaiting_input', (task) => ({
+        ...task,
+        state: 'awaiting_input',
+        inputRequired: action,
+        statusMessage: 'Task reopened',
+      }));
+      if (!reopened) return null;
+      deps.eventBus?.publish({ type: 'task.reopened', taskId: reopened.id });
+      return reopened;
     },
     async listTasks(query) {
       return store.list(query);

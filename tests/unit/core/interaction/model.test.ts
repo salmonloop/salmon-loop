@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
 import {
+  canTransitionTaskState,
   isTerminalTaskState,
   type TaskEnvelope,
 } from '../../../../src/core/interaction/model/index.js';
@@ -24,5 +25,18 @@ describe('interaction model', () => {
 
     expect(task.tenantId).toBe('default');
     expect(task.capability).toBe('patch');
+  });
+
+  test('enforces the canonical task transition matrix', () => {
+    expect(canTransitionTaskState('accepted', 'running')).toBe(true);
+    expect(canTransitionTaskState('running', 'streaming')).toBe(true);
+    expect(canTransitionTaskState('streaming', 'awaiting_input')).toBe(true);
+    expect(canTransitionTaskState('awaiting_input', 'running')).toBe(true);
+    expect(canTransitionTaskState('failed', 'accepted')).toBe(true);
+    expect(canTransitionTaskState('completed', 'awaiting_input')).toBe(true);
+
+    expect(canTransitionTaskState('completed', 'running')).toBe(false);
+    expect(canTransitionTaskState('cancelled', 'streaming')).toBe(false);
+    expect(canTransitionTaskState('accepted', 'completed')).toBe(false);
   });
 });

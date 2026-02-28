@@ -4,7 +4,13 @@ interface CanonicalTaskLike {
   capability?: string;
   tenantId?: string;
   createdAt?: string;
+  attempt?: number;
   statusMessage?: string;
+  failure?: {
+    code: string;
+    message: string;
+    retryable?: boolean;
+  };
   inputRequired?: {
     type: string;
     prompt: string;
@@ -49,6 +55,7 @@ export function projectCanonicalTaskToA2ATask(task: CanonicalTaskLike) {
       timestamp: task.createdAt ?? new Date().toISOString(),
       message: task.statusMessage,
     },
+    failure: task.failure,
     requiredAction: task.inputRequired,
     artifacts: (task.artifacts ?? []).map((artifact) => ({
       artifactId: artifact.id,
@@ -64,6 +71,7 @@ export function projectCanonicalTaskToA2ATask(task: CanonicalTaskLike) {
     metadata: {
       capability: task.capability,
       tenantId: task.tenantId,
+      attempt: task.attempt,
     },
   };
 }

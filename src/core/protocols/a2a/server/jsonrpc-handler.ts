@@ -35,6 +35,11 @@ interface JsonRpcTaskResult {
     type: string;
     prompt: string;
   };
+  failure?: {
+    code: string;
+    message: string;
+    retryable?: boolean;
+  };
   artifacts?: Array<{
     artifactId: string;
     name: string;
@@ -49,6 +54,7 @@ interface JsonRpcTaskResult {
   metadata?: {
     capability?: string;
     tenantId?: string;
+    attempt?: number;
   };
 }
 
@@ -63,7 +69,13 @@ interface CanonicalTaskResult {
   capability?: string;
   tenantId?: string;
   createdAt?: string;
+  attempt?: number;
   statusMessage?: string;
+  failure?: {
+    code: string;
+    message: string;
+    retryable?: boolean;
+  };
   inputRequired?: {
     type: string;
     prompt: string;
@@ -102,6 +114,11 @@ export function createA2AJsonRpcHandler(deps: {
     getTask?: (id: string) => Promise<CanonicalTaskResult | null>;
     cancelTask?: (id: string) => Promise<CanonicalTaskResult | null>;
     resumeTask?: (id: string) => Promise<CanonicalTaskResult | null>;
+    retryTask?: (id: string) => Promise<CanonicalTaskResult | null>;
+    reopenTask?: (
+      id: string,
+      action?: { type: string; prompt: string },
+    ) => Promise<CanonicalTaskResult | null>;
     listTasks?: (query?: {
       capability?: string;
       state?: string;
@@ -197,6 +214,61 @@ export function createA2AJsonRpcHandler(deps: {
             throw new A2AJsonRpcError({
               code: -32009,
               message: `Task is not resumable: ${request.params.id}`,
+              status: 409,
+            });
+          }
+          throw new A2AJsonRpcError({
+            code: -32004,
+            message: `Task not found: ${request.params.id}`,
+            status: 404,
+          });
+        }
+        return {
+          jsonrpc: '2.0',
+          id: request.id,
+          result: projectCanonicalTaskToA2ATask(task),
+        };
+      }
+
+      if (request.method === 'tasks/retry' && deps.facade.retryTask && request.params.id) {
+        const task = await deps.facade.retryTask(request.params.id);
+        if (!task) {
+          const existingTask = deps.facade.getTask
+            ? await deps.facade.getTask(request.params.id)
+            : null;
+          if (existingTask) {
+            throw new A2AJsonRpcError({
+              code: -32009,
+              message: `Task is not retryable: ${request.params.id}`,
+              status: 409,
+            });
+          }
+          throw new A2AJsonRpcError({
+            code: -32004,
+            message: `Task not found: ${request.params.id}`,
+            status: 404,
+          });
+        }
+        return {
+          jsonrpc: '2.0',
+          id: request.id,
+          result: projectCanonicalTaskToA2ATask(task),
+        };
+      }
+
+      if (request.method === 'tasks/reopen' && deps.facade.reopenTask && request.params.id) {
+        const task = await deps.facade.reopenTask(request.params.id, {
+          type: 'confirmation',
+          prompt: 'Provide updated approval',
+        });
+        if (!task) {
+          const existingTask = deps.facade.getTask
+            ? await deps.facade.getTask(request.params.id)
+            : null;
+          if (existingTask) {
+            throw new A2AJsonRpcError({
+              code: -32009,
+              message: `Task is not reopenable: ${request.params.id}`,
               status: 409,
             });
           }

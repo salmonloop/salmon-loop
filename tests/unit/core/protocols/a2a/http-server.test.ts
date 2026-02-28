@@ -90,6 +90,11 @@ describe('A2A JSON-RPC handler', () => {
             capability: 'patch',
             createdAt: '2026-02-28T00:00:00.000Z',
             statusMessage: 'Need approval to continue',
+            failure: {
+              code: 'VERIFY_FAILED',
+              message: 'Need approval to continue',
+              retryable: true,
+            },
             inputRequired: {
               type: 'confirmation',
               prompt: 'Approve patch application?',
@@ -132,6 +137,11 @@ describe('A2A JSON-RPC handler', () => {
         mimeType: 'text/x-diff',
       },
     ]);
+    expect(taskResult.failure).toEqual({
+      code: 'VERIFY_FAILED',
+      message: 'Need approval to continue',
+      retryable: true,
+    });
   });
 
   test('serves task cancellation requests', async () => {
@@ -614,5 +624,71 @@ describe('A2A JSON-RPC handler', () => {
         url: 'https://example.com/artifacts/report.html',
       },
     ]);
+  });
+
+  test('retries and reopens tasks through json-rpc methods', async () => {
+    const handler = createA2AJsonRpcHandler({
+      facade: {
+        async createTask() {
+          return { id: 'task_1', state: 'accepted' };
+        },
+        async retryTask(id) {
+          expect(id).toBe('task_1');
+          return {
+            id: 'task_1',
+            state: 'accepted',
+            capability: 'patch',
+            createdAt: '2026-02-28T00:00:00.000Z',
+            statusMessage: 'Task retried',
+            attempt: 2,
+          };
+        },
+        async reopenTask(id) {
+          expect(id).toBe('task_2');
+          return {
+            id: 'task_2',
+            state: 'awaiting_input',
+            capability: 'patch',
+            createdAt: '2026-02-28T00:00:00.000Z',
+            statusMessage: 'Task reopened',
+            inputRequired: {
+              type: 'confirmation',
+              prompt: 'Provide updated approval',
+            },
+          };
+        },
+      },
+    });
+
+    const retried = await handler.handle({
+      method: 'tasks/retry',
+      params: { id: 'task_1' },
+      id: '14',
+    });
+    expect('items' in retried.result).toBe(false);
+    const retryResult = retried.result as Exclude<typeof retried.result, { items: unknown }>;
+    expect(retryResult.status).toEqual({
+      state: 'submitted',
+      timestamp: '2026-02-28T00:00:00.000Z',
+      message: 'Task retried',
+    });
+    expect(retryResult.metadata).toMatchObject({ attempt: 2 });
+
+    const reopened = await handler.handle({
+      method: 'tasks/reopen',
+      params: { id: 'task_2' },
+      id: '15',
+    });
+    expect('items' in reopened.result).toBe(false);
+    const reopenResult = reopened.result as Exclude<typeof reopened.result, { items: unknown }>;
+    expect(reopenResult.status).toEqual({
+      state: 'input-required',
+      timestamp: '2026-02-28T00:00:00.000Z',
+      message: 'Task reopened',
+    });
+    expect(reopenResult.requiredAction).toEqual({
+      type: 'confirmation',
+      prompt: 'Provide updated approval',
+    });
   });
 });

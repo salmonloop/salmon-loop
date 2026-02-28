@@ -315,7 +315,183 @@ describe('A2A server integration', () => {
       },
     });
   });
+  test('serves task retry and reopen semantics over rpc', async () => {
+    const handler = createA2AJsonRpcHandler({
+      facade: {
+        async createTask() {
+          return { id: 'task_1', state: 'accepted' };
+        },
+        async retryTask() {
+          return {
+            id: 'task_1',
+            state: 'accepted',
+            capability: 'patch',
+            createdAt: '2026-02-28T00:00:00.000Z',
+            attempt: 2,
+            statusMessage: 'Task retried',
+          };
+        },
+        async reopenTask() {
+          return {
+            id: 'task_2',
+            state: 'awaiting_input',
+            capability: 'patch',
+            createdAt: '2026-02-28T00:00:00.000Z',
+            statusMessage: 'Task reopened',
+            inputRequired: {
+              type: 'confirmation',
+              prompt: 'Provide updated approval',
+            },
+          };
+        },
+      },
+    });
 
+    const routes = createA2ARoutes({
+      buildAgentCard: () =>
+        buildA2AAgentCard({
+          name: 'salmon-loop',
+          url: 'https://example.com',
+          capabilities: [{ id: 'patch', title: 'Patch code' }],
+          security: [],
+        }),
+      jsonRpcHandler: handler,
+      eventSource: createSseEventSource(),
+    });
+
+    const server = createA2AHttpServer({ routes });
+    const retryResponse = await server.fetch(
+      new Request('https://example.com/rpc', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: '20',
+          method: 'tasks/retry',
+          params: { id: 'task_1' },
+        }),
+      }),
+    );
+
+    expect(retryResponse.status).toBe(200);
+    await expect(retryResponse.json()).resolves.toMatchObject({
+      jsonrpc: '2.0',
+      id: '20',
+      result: {
+        id: 'task_1',
+        status: {
+          state: 'submitted',
+          message: 'Task retried',
+        },
+        metadata: {
+          attempt: 2,
+        },
+      },
+    });
+
+    const reopenResponse = await server.fetch(
+      new Request('https://example.com/rpc', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: '21',
+          method: 'tasks/reopen',
+          params: { id: 'task_2' },
+        }),
+      }),
+    );
+
+    expect(reopenResponse.status).toBe(200);
+    await expect(reopenResponse.json()).resolves.toMatchObject({
+      jsonrpc: '2.0',
+      id: '21',
+      result: {
+        id: 'task_2',
+        status: {
+          state: 'input-required',
+          message: 'Task reopened',
+        },
+        requiredAction: {
+          type: 'confirmation',
+          prompt: 'Provide updated approval',
+        },
+      },
+    });
+  });
+
+  test('projects failure details on task lookup over rpc', async () => {
+    const handler = createA2AJsonRpcHandler({
+      facade: {
+        async createTask() {
+          return { id: 'task_1', state: 'accepted' };
+        },
+        async getTask() {
+          return {
+            id: 'task_3',
+            state: 'failed',
+            capability: 'verify',
+            createdAt: '2026-02-28T00:00:00.000Z',
+            attempt: 3,
+            statusMessage: 'Verification failed',
+            failure: {
+              code: 'VERIFY_FAILED',
+              message: 'Tests did not pass',
+              retryable: true,
+            },
+          };
+        },
+      },
+    });
+
+    const routes = createA2ARoutes({
+      buildAgentCard: () =>
+        buildA2AAgentCard({
+          name: 'salmon-loop',
+          url: 'https://example.com',
+          capabilities: [{ id: 'verify', title: 'Verify code' }],
+          security: [],
+        }),
+      jsonRpcHandler: handler,
+      eventSource: createSseEventSource(),
+    });
+
+    const server = createA2AHttpServer({ routes });
+    const response = await server.fetch(
+      new Request('https://example.com/rpc', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: '22',
+          method: 'tasks/get',
+          params: { id: 'task_3' },
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      jsonrpc: '2.0',
+      id: '22',
+      result: {
+        id: 'task_3',
+        status: {
+          state: 'failed',
+          message: 'Verification failed',
+        },
+        failure: {
+          code: 'VERIFY_FAILED',
+          message: 'Tests did not pass',
+          retryable: true,
+        },
+        metadata: {
+          attempt: 3,
+          capability: 'verify',
+        },
+      },
+    });
+  });
   test('applies rpc method policy hooks and returns selected artifact content only', async () => {
     const seen: Array<{ action: string; resource: string; taskId: string | null }> = [];
     const handler = createA2AJsonRpcHandler({

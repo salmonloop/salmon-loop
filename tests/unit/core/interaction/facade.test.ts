@@ -51,27 +51,35 @@ describe('interaction facade', () => {
     expect(cancelled?.state).toBe('cancelled');
   });
 
-  test('publishes accepted, completed, and cancelled events to the task bus', async () => {
+  test('publishes completed and cancelled lifecycle events on valid transitions', async () => {
     const bus = createTaskEventBus();
     const seen: string[] = [];
     bus.subscribe((event) => {
       seen.push(event.type);
     });
 
-    const facade = createInteractionFacade({
+    const completingFacade = createInteractionFacade({
       eventBus: bus,
       executeTask: async (task) => ({ ...task, state: 'completed' }),
     });
 
-    const created = await facade.createTask({
+    await completingFacade.createTask({
       capability: 'patch',
       request: { instruction: 'fix bug' },
     });
-
     await new Promise((resolve) => setTimeout(resolve, 0));
-    await facade.cancelTask(created.id);
 
-    expect(seen).toEqual(['task.accepted', 'task.completed', 'task.cancelled']);
+    const cancellableFacade = createInteractionFacade({
+      eventBus: bus,
+      executeTask: async (task) => task,
+    });
+    const created = await cancellableFacade.createTask({
+      capability: 'patch',
+      request: { instruction: 'cancel me' },
+    });
+    await cancellableFacade.cancelTask(created.id);
+
+    expect(seen).toEqual(['task.accepted', 'task.completed', 'task.accepted', 'task.cancelled']);
   });
 
   test('accepts input only for awaiting_input tasks and clears required action', async () => {
@@ -157,5 +165,63 @@ describe('interaction facade', () => {
 
     const resumedTerminal = await terminalFacade.resumeTask(terminalCreated.id);
     expect(resumedTerminal).toBeNull();
+  });
+
+  test('fails, retries, and reopens tasks through canonical transitions', async () => {
+    const facade = createInteractionFacade({
+      executeTask: async (task) => ({ ...task, state: 'running' }),
+    });
+
+    const created = await facade.createTask({
+      capability: 'patch',
+      request: { instruction: 'fix bug' },
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const failed = await facade.failTask(created.id, {
+      code: 'VERIFY_FAILED',
+      message: 'Verification failed',
+      retryable: true,
+    });
+    expect(failed).toMatchObject({
+      state: 'failed',
+      failure: {
+        code: 'VERIFY_FAILED',
+        message: 'Verification failed',
+        retryable: true,
+      },
+      attempt: 1,
+    });
+
+    const retried = await facade.retryTask(created.id);
+    expect(retried).toMatchObject({
+      state: 'accepted',
+      failure: undefined,
+      attempt: 2,
+      statusMessage: 'Task retried',
+    });
+
+    const completedFacade = createInteractionFacade({
+      executeTask: async (task) => ({ ...task, state: 'completed' }),
+    });
+    const completed = await completedFacade.createTask({
+      capability: 'patch',
+      request: { instruction: 'ship it' },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const reopened = await completedFacade.reopenTask(completed.id, {
+      type: 'confirmation',
+      prompt: 'Provide updated approval',
+    });
+    expect(reopened).toMatchObject({
+      state: 'awaiting_input',
+      inputRequired: {
+        type: 'confirmation',
+        prompt: 'Provide updated approval',
+      },
+      statusMessage: 'Task reopened',
+    });
   });
 });

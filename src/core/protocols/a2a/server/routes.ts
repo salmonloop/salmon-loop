@@ -41,6 +41,8 @@ function buildRpcPolicyContext(payload: unknown): {
   if (method === 'tasks/list') return { action: 'task.list', resource: 'task' };
   if (method === 'tasks/cancel') return { action: 'task.cancel', resource: 'task', taskId };
   if (method === 'tasks/resume') return { action: 'task.resume', resource: 'task', taskId };
+  if (method === 'tasks/retry') return { action: 'task.retry', resource: 'task', taskId };
+  if (method === 'tasks/reopen') return { action: 'task.reopen', resource: 'task', taskId };
   if (method === 'tasks/submitInput') {
     return { action: 'task.submit_input', resource: 'task', taskId };
   }
