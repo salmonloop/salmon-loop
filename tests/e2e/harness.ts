@@ -133,10 +133,12 @@ export async function prepareRepo(options: RepoSetupOptions): Promise<PreparedRe
   };
 }
 
-async function findLatestAudit(repoPath: string): Promise<any> {
+export async function findLatestAudit(repoPath: string): Promise<any> {
   const auditDir = join(repoPath, '.salmonloop', 'runtime', 'audit');
   const entries = await readdir(auditDir);
-  const auditFiles = entries.filter((entry) => entry.startsWith('audit-') && entry.endsWith('.json'));
+  const auditFiles = entries.filter(
+    (entry) => entry.startsWith('audit-') && entry.endsWith('.json'),
+  );
   if (auditFiles.length === 0) {
     throw new Error(`No audit json found under ${auditDir}`);
   }
@@ -159,8 +161,7 @@ async function spawnCli(
   repoPath: string,
   args: string[],
   envOverrides?: Record<string, string>,
-): Promise<{ exitCode: number; stdout: string; stderr: string }>
-{
+): Promise<{ exitCode: number; stdout: string; stderr: string }> {
   const dotenvDir = await mkdtemp(join(tmpdir(), 'salmonloop-e2e-dotenv-'));
   const dotenvPath = join(dotenvDir, '.env');
   await writeFile(dotenvPath, '', 'utf8');
@@ -218,10 +219,7 @@ function parseJsonLines(stdout: string): any[] {
     .map((line) => JSON.parse(line));
 }
 
-export async function runScenario(
-  repoPath: string,
-  options: RunOptions,
-): Promise<RunResult> {
+export async function runScenario(repoPath: string, options: RunOptions): Promise<RunResult> {
   const args: string[] = [
     'run',
     '--repo',

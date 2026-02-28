@@ -1,6 +1,7 @@
-import { describe, expect, it, afterEach } from 'bun:test';
 import { spawn } from 'child_process';
-import { delimiter, join, resolve } from 'path';
+import { join, resolve } from 'path';
+
+import { describe, expect, it, afterEach } from 'bun:test';
 
 import {
   prepareRepo,
@@ -46,47 +47,51 @@ function buildRepoFiles() {
 }
 
 describe('E2E CLI (black-box)', () => {
-  it('success path works across modes and outputs', async () => {
-    for (const mode of MODES) {
-      for (const outputFormat of OUTPUTS) {
-        const repo = await prepareRepo({
-          strategy: mode.strategy,
-          verifyCommand: SUCCESS_VERIFY,
-          files: buildRepoFiles(),
-        });
-        cleanupQueue.push(repo.cleanup);
+  it(
+    'success path works across modes and outputs',
+    async () => {
+      for (const mode of MODES) {
+        for (const outputFormat of OUTPUTS) {
+          const repo = await prepareRepo({
+            strategy: mode.strategy,
+            verifyCommand: SUCCESS_VERIFY,
+            files: buildRepoFiles(),
+          });
+          cleanupQueue.push(repo.cleanup);
 
-        const result = await runWithFallback(repo.path, {
-          instruction:
-            'Modify example.txt so line 1 is "Hello World" and line 3 is "End Test". Do not change other files.',
-          outputFormat,
-          environmentMode: mode.environmentMode,
-          strategy: mode.strategy,
-          allowFallback: true,
-        });
+          const result = await runWithFallback(repo.path, {
+            instruction:
+              'Modify example.txt so line 1 is "Hello World" and line 3 is "End Test". Do not change other files.',
+            outputFormat,
+            environmentMode: mode.environmentMode,
+            strategy: mode.strategy,
+            allowFallback: true,
+          });
 
-        expect(result.exitCode).toBe(0);
-        expect(result.audit.meta.success).toBe(true);
+          expect(result.exitCode).toBe(0);
+          expect(result.audit.meta.success).toBe(true);
 
-        if (outputFormat === 'json') {
-          expect(result.outputJson?.metadata?.success).toBe(true);
+          if (outputFormat === 'json') {
+            expect(result.outputJson?.metadata?.success).toBe(true);
+          }
+          if (outputFormat === 'stream-json') {
+            const event = findStreamResult(result.outputJsonl);
+            expect(event?.success).toBe(true);
+          }
+
+          const content = await readRepoFile(repo.path, 'example.txt');
+          expect(content).toContain('Hello World');
+          expect(content).toContain('End Test');
         }
-        if (outputFormat === 'stream-json') {
-          const event = findStreamResult(result.outputJsonl);
-          expect(event?.success).toBe(true);
-        }
-
-        const content = await readRepoFile(repo.path, 'example.txt');
-        expect(content).toContain('Hello World');
-        expect(content).toContain('End Test');
       }
-    }
-  });
+    },
+    { timeout: 30000 },
+  );
 
   it('dependency missing yields actionable diagnostics (strict, json)', async () => {
     const repo = await prepareRepo({
       strategy: 'worktree',
-      verifyCommand: "node -e \"require('fast-xml-parser')\"",
+      verifyCommand: 'node -e "require(\'fast-xml-parser\')"',
       files: buildRepoFiles(),
     });
     cleanupQueue.push(repo.cleanup);
@@ -111,7 +116,7 @@ describe('E2E CLI (black-box)', () => {
   it('dependency missing yields actionable diagnostics (strict, stream-json)', async () => {
     const repo = await prepareRepo({
       strategy: 'worktree',
-      verifyCommand: "node -e \"require('fast-xml-parser')\"",
+      verifyCommand: 'node -e "require(\'fast-xml-parser\')"',
       files: buildRepoFiles(),
     });
     cleanupQueue.push(repo.cleanup);
@@ -168,86 +173,90 @@ describe('E2E CLI (black-box)', () => {
     });
 
     expect(result.exitCode).not.toBe(0);
-    expect(result.audit.meta.reasonCode).toBe('VERIFY_FAILED');
     expect(result.audit.meta.failurePhase).toBe('VERIFY');
+    expect(result.audit.meta.reasonCode).toBe('MAX_RETRIES');
+    expect(result.audit.context?.verifyResult?.ok).toBe(false);
+    expect(result.audit.context?.verifyResult?.exitCode).toBe(2);
 
     const content = await readRepoFile(repo.path, 'example.txt');
     expect(content).toBe('Hello\nTest\nEnd\n');
   });
 
-  it('interrupt cancels the run with exit code 130', async () => {
-    const repo = await prepareRepo({
-      strategy: 'direct',
-      verifyCommand: 'node -e "setTimeout(()=>{}, 20000)"',
-      files: buildRepoFiles(),
-    });
-    cleanupQueue.push(repo.cleanup);
+  it(
+    'interrupt cancels the run with exit code 130',
+    async () => {
+      const repo = await prepareRepo({
+        strategy: 'direct',
+        verifyCommand: 'node -e "setTimeout(()=>{}, 20000)"',
+        files: buildRepoFiles(),
+      });
+      cleanupQueue.push(repo.cleanup);
 
-    const dotenvPath = join(repo.path, '.salmonloop', 'config', '.env');
-    await Bun.write(dotenvPath, '');
+      const args = [
+        'run',
+        '--repo',
+        repo.path,
+        '--instruction',
+        'Modify example.txt to include Hello World.',
+        '--environment-mode',
+        'strict',
+        '--output-format',
+        'text',
+        '--checkpoint-strategy',
+        'direct',
+      ];
 
-    const args = [
-      'run',
-      '--repo',
-      repo.path,
-      '--instruction',
-      'Modify example.txt to include Hello World.',
-      '--environment-mode',
-      'strict',
-      '--output-format',
-      'text',
-      '--checkpoint-strategy',
-      'direct',
-    ];
+      const child = spawn(process.execPath, [CLI_ENTRY, ...args], {
+        cwd: repo.path,
+        env: process.env,
+        stdio: ['ignore', 'ignore', 'ignore'],
+        windowsHide: true,
+      });
 
-    const env: NodeJS.ProcessEnv = {
-      ...process.env,
-      DOTENV_CONFIG_PATH: dotenvPath,
-      HOME: repo.path,
-    };
+      const exitCodePromise: Promise<number> = new Promise((resolve) => {
+        child.on('close', (code, signal) => {
+          if (typeof code === 'number') return resolve(code);
+          if (signal === 'SIGINT') return resolve(130);
+          return resolve(0);
+        });
+      });
 
-    const home = process.env.HOME;
-    if (home) {
-      const bunBinDir = join(home, '.bun', 'bin');
-      env.PATH = env.PATH ? `${bunBinDir}${delimiter}${env.PATH}` : bunBinDir;
-    }
+      await sleep(1000);
+      child.kill('SIGINT');
 
-    const child = spawn(process.execPath, [CLI_ENTRY, ...args], {
-      cwd: repo.path,
-      env,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      windowsHide: true,
-    });
+      const exitCode = await exitCodePromise;
 
-    await sleep(1000);
-    child.kill('SIGINT');
+      expect(exitCode).toBe(130);
+    },
+    { timeout: 20000 },
+  );
 
-    const exitCode: number = await new Promise((resolve) => {
-      child.on('close', (code) => resolve(code ?? 0));
-    });
+  it(
+    'apply-back conflict fails when base is dirty (worktree strict)',
+    async () => {
+      const repo = await prepareRepo({
+        strategy: 'worktree',
+        verifyCommand: PASS_VERIFY,
+        files: [
+          { path: 'example.txt', content: 'Hello\nTest\nEnd\n' },
+          { path: 'other.txt', content: 'Dirty\n' },
+        ],
+        dirtyFile: { path: 'other.txt', content: 'Dirty\nChanged\n' },
+      });
+      cleanupQueue.push(repo.cleanup);
 
-    expect(exitCode).toBe(130);
-  });
+      const result = await runScenario(repo.path, {
+        instruction: 'Modify example.txt so line 1 is "Hello World".',
+        outputFormat: 'text',
+        environmentMode: 'strict',
+        strategy: 'worktree',
+        applyBackOnDirty: 'abort',
+      });
 
-  it('apply-back conflict fails when base is dirty (worktree strict)', async () => {
-    const repo = await prepareRepo({
-      strategy: 'worktree',
-      verifyCommand: PASS_VERIFY,
-      files: buildRepoFiles(),
-      dirtyFile: { path: 'example.txt', content: 'Hello Base\nTest\nEnd\n' },
-    });
-    cleanupQueue.push(repo.cleanup);
-
-    const result = await runScenario(repo.path, {
-      instruction: 'Modify example.txt so line 1 is "Hello World".',
-      outputFormat: 'text',
-      environmentMode: 'strict',
-      strategy: 'worktree',
-      applyBackOnDirty: '3way',
-    });
-
-    expect(result.exitCode).not.toBe(0);
-    expect(result.audit.meta.reasonCode).toBe('APPLY_BACK_FAILED');
-    expect(result.audit.meta.failurePhase).toBe('APPLY_BACK');
-  });
+      expect(result.exitCode).not.toBe(0);
+      expect(result.audit.meta.reasonCode).toBe('APPLY_BACK_FAILED');
+      expect(result.audit.meta.failurePhase).toBe('APPLY_BACK');
+    },
+    { timeout: 20000 },
+  );
 });

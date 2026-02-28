@@ -649,7 +649,11 @@ export class GitAdapter {
 
         const worktreePath = path.resolve(args[i]!);
         const baseRef = args[i + 1]!;
-        if (!isPathWithinDirectory(shadowRoot, worktreePath, { allowEqual: false })) {
+        const parityRoot = GitAdapter.resolveParityShadowRoot(this.repoPath);
+        const allowed = [shadowRoot, parityRoot].some((root) =>
+          isPathWithinDirectory(root, worktreePath, { allowEqual: false }),
+        );
+        if (!allowed) {
           throw new Error(text.git.securityViolation(cmd));
         }
         if (!baseRef || baseRef.includes('..')) throw new Error(text.git.securityViolation(cmd));
@@ -670,7 +674,11 @@ export class GitAdapter {
         if (args.length - i !== 1) throw new Error(text.git.securityViolation(cmd));
 
         const worktreePath = path.resolve(args[i]!);
-        if (!isPathWithinDirectory(shadowRoot, worktreePath, { allowEqual: false })) {
+        const parityRoot = GitAdapter.resolveParityShadowRoot(this.repoPath);
+        const allowed = [shadowRoot, parityRoot].some((root) =>
+          isPathWithinDirectory(root, worktreePath, { allowEqual: false }),
+        );
+        if (!allowed) {
           throw new Error(text.git.securityViolation(cmd));
         }
         return;
@@ -706,6 +714,18 @@ export class GitAdapter {
       tmpReal = tmpResolved;
     }
     return path.join(tmpReal, 's8p-wt');
+  }
+
+  private static resolveParityShadowRoot(repoPath: string): string {
+    const repoResolved = path.resolve(repoPath);
+    let repoReal = repoResolved;
+    try {
+      repoReal = realpathSync(repoResolved);
+    } catch {
+      repoReal = repoResolved;
+    }
+    const parent = path.dirname(repoReal);
+    return path.join(parent, '.salmonloop', 'worktrees');
   }
 
   /**
