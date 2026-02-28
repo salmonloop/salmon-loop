@@ -1,3 +1,4 @@
+import type { TaskEventBus } from '../events/bus.js';
 import type { TaskEnvelope, TaskRequest } from '../model/index.js';
 
 import { InMemoryTaskStore } from './store.js';
@@ -10,6 +11,7 @@ export interface InteractionFacade {
 
 export function createInteractionFacade(deps: {
   executeTask: (task: TaskEnvelope) => Promise<TaskEnvelope>;
+  eventBus?: TaskEventBus;
 }): InteractionFacade {
   const store = new InMemoryTaskStore();
 
@@ -23,8 +25,10 @@ export function createInteractionFacade(deps: {
         createdAt: new Date().toISOString(),
       };
       store.save(task);
+      deps.eventBus?.publish({ type: 'task.accepted', taskId: task.id });
       void deps.executeTask(task).then((result) => {
         store.update(result);
+        deps.eventBus?.publish({ type: 'task.completed', taskId: result.id });
       });
       return task;
     },
@@ -35,10 +39,12 @@ export function createInteractionFacade(deps: {
       const task = store.get(id);
       if (!task) return null;
 
-      return store.update({
+      const cancelled = store.update({
         ...task,
         state: 'cancelled',
       });
+      deps.eventBus?.publish({ type: 'task.cancelled', taskId: cancelled.id });
+      return cancelled;
     },
   };
 }

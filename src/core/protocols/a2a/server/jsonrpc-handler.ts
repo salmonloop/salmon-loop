@@ -1,3 +1,5 @@
+import { A2AJsonRpcError } from './jsonrpc-error.js';
+
 interface JsonRpcRequest {
   method: string;
   params: {
@@ -40,7 +42,11 @@ export function createA2AJsonRpcHandler(deps: {
   return {
     async handle(request: unknown): Promise<JsonRpcResponse> {
       if (!isJsonRpcRequest(request)) {
-        throw new Error('Invalid JSON-RPC request');
+        throw new A2AJsonRpcError({
+          code: -32600,
+          message: 'Invalid JSON-RPC request',
+          status: 400,
+        });
       }
 
       if (request.method === 'message/send') {
@@ -63,7 +69,13 @@ export function createA2AJsonRpcHandler(deps: {
 
       if (request.method === 'tasks/get' && deps.facade.getTask && request.params.id) {
         const task = await deps.facade.getTask(request.params.id);
-        if (!task) throw new Error(`Task not found: ${request.params.id}`);
+        if (!task) {
+          throw new A2AJsonRpcError({
+            code: -32004,
+            message: `Task not found: ${request.params.id}`,
+            status: 404,
+          });
+        }
         return {
           jsonrpc: '2.0',
           id: request.id,
@@ -73,7 +85,13 @@ export function createA2AJsonRpcHandler(deps: {
 
       if (request.method === 'tasks/cancel' && deps.facade.cancelTask && request.params.id) {
         const task = await deps.facade.cancelTask(request.params.id);
-        if (!task) throw new Error(`Task not found: ${request.params.id}`);
+        if (!task) {
+          throw new A2AJsonRpcError({
+            code: -32004,
+            message: `Task not found: ${request.params.id}`,
+            status: 404,
+          });
+        }
         return {
           jsonrpc: '2.0',
           id: request.id,
@@ -81,7 +99,11 @@ export function createA2AJsonRpcHandler(deps: {
         };
       }
 
-      throw new Error(`Unsupported method: ${request.method}`);
+      throw new A2AJsonRpcError({
+        code: -32601,
+        message: `Unsupported method: ${request.method}`,
+        status: 400,
+      });
     },
   };
 }

@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
+import { A2AJsonRpcError } from '../../../../../src/core/protocols/a2a/server/jsonrpc-error.js';
 import { createA2AJsonRpcHandler } from '../../../../../src/core/protocols/a2a/server/jsonrpc-handler.js';
 
 describe('A2A JSON-RPC handler', () => {
@@ -75,5 +76,46 @@ describe('A2A JSON-RPC handler', () => {
 
     expect(result.id).toBe('3');
     expect(result.result.state).toBe('cancelled');
+  });
+
+  test('raises typed invalid request errors', async () => {
+    const handler = createA2AJsonRpcHandler({
+      facade: {
+        async createTask() {
+          return { id: 'task_1', state: 'accepted' };
+        },
+      },
+    });
+
+    await expect(handler.handle({ method: 123, id: null })).rejects.toMatchObject({
+      code: -32600,
+      status: 400,
+      message: 'Invalid JSON-RPC request',
+    } satisfies Partial<A2AJsonRpcError>);
+  });
+
+  test('raises typed task-not-found errors', async () => {
+    const handler = createA2AJsonRpcHandler({
+      facade: {
+        async createTask() {
+          return { id: 'task_1', state: 'accepted' };
+        },
+        async getTask() {
+          return null;
+        },
+      },
+    });
+
+    await expect(
+      handler.handle({
+        method: 'tasks/get',
+        params: { id: 'missing-task' },
+        id: '4',
+      }),
+    ).rejects.toMatchObject({
+      code: -32004,
+      status: 404,
+      message: 'Task not found: missing-task',
+    } satisfies Partial<A2AJsonRpcError>);
   });
 });

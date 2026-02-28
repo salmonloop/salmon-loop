@@ -16,4 +16,18 @@ describe('task event bus', () => {
 
     expect(seen).toEqual(['task.accepted', 'task.completed']);
   });
+
+  test('supports unsubscribing listeners', () => {
+    const seen: string[] = [];
+    const bus = createTaskEventBus();
+
+    const unsubscribe = bus.subscribe((event) => {
+      seen.push(event.type);
+    });
+
+    unsubscribe();
+    bus.publish({ type: 'task.completed', taskId: 'task_1' });
+
+    expect(seen).toEqual([]);
+  });
 });
