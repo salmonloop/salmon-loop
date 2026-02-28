@@ -1,6 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 
-import { isTerminalTaskState, type TaskEnvelope } from '../../../../src/core/interaction/model/index.js';
+import {
+  isTerminalTaskState,
+  type TaskEnvelope,
+} from '../../../../src/core/interaction/model/index.js';
 
 describe('interaction model', () => {
   test('recognizes terminal task states', () => {

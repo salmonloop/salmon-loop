@@ -1,10 +1,10 @@
 import { emitLlmOutput } from '../../../core/llm/output-policy.js';
 import { runSalmonLoop } from '../../../core/runtime/loop.js';
 import type { ApplyBackOnDirty, LoopEvent, LoopResult } from '../../../core/types/index.js';
+import { createCliTaskRunner } from '../../../interfaces/cli/task-runner.js';
 import { createUiAuthorizationProvider } from '../../authorization/provider.js';
 import type { SalmonReporter } from '../../reporters/base.js';
 import type { UIConfig } from '../../ui/index.js';
-import { createCliTaskRunner } from '../../../interfaces/cli/task-runner.js';
 
 export async function executeRunLoop(params: {
   useGui: boolean;

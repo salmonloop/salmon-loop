@@ -2,16 +2,22 @@ interface JsonRpcRequest {
   method: string;
   params: {
     message?: {
+      role?: string;
       parts?: Array<{ type: string; text?: string }>;
     };
   };
   id: string;
 }
 
+interface JsonRpcTaskResult {
+  id: string;
+  state: string;
+}
+
 interface JsonRpcResponse {
   jsonrpc: '2.0';
   id: string;
-  result: unknown;
+  result: JsonRpcTaskResult;
 }
 
 export function createA2AJsonRpcHandler(deps: {
@@ -19,7 +25,7 @@ export function createA2AJsonRpcHandler(deps: {
     createTask: (input: {
       capability: string;
       request: { instruction: string };
-    }) => Promise<unknown>;
+    }) => Promise<JsonRpcTaskResult>;
   };
 }) {
   return {
