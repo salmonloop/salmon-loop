@@ -59,6 +59,17 @@ describe('A2A server integration', () => {
       }),
     );
     expect(rpcResponse.status).toBe(200);
+    await expect(rpcResponse.json()).resolves.toMatchObject({
+      jsonrpc: '2.0',
+      id: '1',
+      result: {
+        id: 'task_1',
+        state: 'accepted',
+        status: {
+          state: 'submitted',
+        },
+      },
+    });
 
     const sseResponse = await server.fetch(
       new Request('https://example.com/tasks/task_1/subscribe'),

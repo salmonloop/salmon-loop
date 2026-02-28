@@ -1,3 +1,5 @@
+import { projectCanonicalTaskToA2ATask } from '../task-projection.js';
+
 import { A2AJsonRpcError } from './jsonrpc-error.js';
 
 interface JsonRpcRequest {
@@ -15,6 +17,14 @@ interface JsonRpcRequest {
 interface JsonRpcTaskResult {
   id: string;
   state: string;
+  status?: {
+    state: string;
+    timestamp: string;
+  };
+  metadata?: {
+    capability?: string;
+    tenantId?: string;
+  };
 }
 
 interface JsonRpcResponse {
@@ -63,7 +73,7 @@ export function createA2AJsonRpcHandler(deps: {
         return {
           jsonrpc: '2.0',
           id: request.id,
-          result: task,
+          result: projectCanonicalTaskToA2ATask(task),
         };
       }
 
@@ -79,7 +89,7 @@ export function createA2AJsonRpcHandler(deps: {
         return {
           jsonrpc: '2.0',
           id: request.id,
-          result: task,
+          result: projectCanonicalTaskToA2ATask(task),
         };
       }
 
@@ -95,7 +105,7 @@ export function createA2AJsonRpcHandler(deps: {
         return {
           jsonrpc: '2.0',
           id: request.id,
-          result: task,
+          result: projectCanonicalTaskToA2ATask(task),
         };
       }
 

@@ -4,10 +4,19 @@ export interface A2AEventSource {
   open(taskId: string, request?: Request): Response;
 }
 
-export function createSseEventSource(bus?: TaskEventBus): A2AEventSource {
+export function createSseEventSource(
+  bus?: TaskEventBus,
+  options?: {
+    maxReplayEvents?: number;
+    heartbeatIntervalMs?: number;
+    setInterval?: typeof globalThis.setInterval;
+    clearInterval?: typeof globalThis.clearInterval;
+  },
+): A2AEventSource {
   return {
     open(taskId: string, request?: Request) {
       let unsubscribe: (() => void) | undefined;
+      let heartbeatTimer: ReturnType<typeof setInterval> | undefined;
       const lastEventId =
         request?.headers.get('last-event-id') ??
         (request ? new URL(request.url).searchParams.get('lastEventId') : null);
@@ -23,10 +32,18 @@ export function createSseEventSource(bus?: TaskEventBus): A2AEventSource {
             controller.enqueue(
               new TextEncoder().encode(`event: task.subscribed\ndata: {"taskId":"${taskId}"}\n\n`),
             );
+            if (options?.heartbeatIntervalMs) {
+              const scheduleInterval = options.setInterval ?? globalThis.setInterval;
+              heartbeatTimer = scheduleInterval(() => {
+                controller.enqueue(new TextEncoder().encode(': heartbeat\n\n'));
+              }, options.heartbeatIntervalMs);
+            }
             return;
           }
 
-          const replayEvents = bus.list(taskId, { afterId: lastEventId });
+          const replayEvents = bus
+            .list(taskId, { afterId: lastEventId })
+            .slice(-(options?.maxReplayEvents ?? Number.POSITIVE_INFINITY));
           for (const event of replayEvents) {
             controller.enqueue(encodeEvent(event));
           }
@@ -36,9 +53,20 @@ export function createSseEventSource(bus?: TaskEventBus): A2AEventSource {
             if (lastEventId && event.id && Number(event.id) <= Number(lastEventId)) return;
             controller.enqueue(encodeEvent(event));
           });
+
+          if (options?.heartbeatIntervalMs) {
+            const scheduleInterval = options.setInterval ?? globalThis.setInterval;
+            heartbeatTimer = scheduleInterval(() => {
+              controller.enqueue(new TextEncoder().encode(': heartbeat\n\n'));
+            }, options.heartbeatIntervalMs);
+          }
         },
         cancel() {
           unsubscribe?.();
+          if (heartbeatTimer) {
+            const cancelInterval = options?.clearInterval ?? globalThis.clearInterval;
+            cancelInterval(heartbeatTimer);
+          }
         },
       });
 

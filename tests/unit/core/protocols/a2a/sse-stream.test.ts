@@ -51,4 +51,58 @@ describe('A2A SSE event source', () => {
     expect(liveText).toContain('id: 3');
     expect(liveText).toContain('event: task.cancelled');
   });
+
+  test('limits replay volume according to replay window policy', async () => {
+    const bus = createTaskEventBus();
+    const source = createSseEventSource(bus, { maxReplayEvents: 2 });
+
+    bus.publish({ type: 'task.accepted', taskId: 'task_1' });
+    bus.publish({ type: 'task.running', taskId: 'task_1' });
+    bus.publish({ type: 'task.completed', taskId: 'task_1' });
+
+    const response = source.open(
+      'task_1',
+      new Request('https://example.com/tasks/task_1/subscribe'),
+    );
+    const reader = response.body?.getReader();
+    expect(reader).toBeDefined();
+
+    const firstChunk = await reader!.read();
+    const firstText = new TextDecoder().decode(firstChunk.value);
+    expect(firstText).toContain('id: 2');
+    expect(firstText).toContain('event: task.running');
+
+    const secondChunk = await reader!.read();
+    const secondText = new TextDecoder().decode(secondChunk.value);
+    expect(secondText).toContain('id: 3');
+    expect(secondText).toContain('event: task.completed');
+  });
+
+  test('emits heartbeat comments when configured', async () => {
+    let heartbeatTick: (() => void) | undefined;
+    const source = createSseEventSource(undefined, {
+      heartbeatIntervalMs: 10,
+      setInterval: ((callback: TimerHandler) => {
+        if (typeof callback === 'function') {
+          heartbeatTick = () => callback();
+        }
+        return 1 as unknown as ReturnType<typeof globalThis.setInterval>;
+      }) as unknown as typeof globalThis.setInterval,
+      clearInterval: () => {},
+    });
+
+    const response = source.open(
+      'task_1',
+      new Request('https://example.com/tasks/task_1/subscribe'),
+    );
+    const reader = response.body?.getReader();
+    expect(reader).toBeDefined();
+
+    await reader!.read();
+    heartbeatTick?.();
+
+    const chunk = await reader!.read();
+    const text = new TextDecoder().decode(chunk.value);
+    expect(text).toContain(': heartbeat');
+  });
 });

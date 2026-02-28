@@ -8,7 +8,12 @@ describe('A2A JSON-RPC handler', () => {
     const handler = createA2AJsonRpcHandler({
       facade: {
         async createTask() {
-          return { id: 'task_1', state: 'accepted' };
+          return {
+            id: 'task_1',
+            state: 'accepted',
+            capability: 'patch',
+            createdAt: '2026-02-28T00:00:00.000Z',
+          };
         },
       },
     });
@@ -26,6 +31,10 @@ describe('A2A JSON-RPC handler', () => {
 
     expect(result.id).toBe('1');
     expect(result.result.id).toBe('task_1');
+    expect(result.result.status).toEqual({
+      state: 'submitted',
+      timestamp: '2026-02-28T00:00:00.000Z',
+    });
   });
 
   test('serves task lookup requests', async () => {
@@ -35,7 +44,12 @@ describe('A2A JSON-RPC handler', () => {
           return { id: 'task_1', state: 'accepted' };
         },
         async getTask() {
-          return { id: 'task_1', state: 'completed' };
+          return {
+            id: 'task_1',
+            state: 'completed',
+            capability: 'patch',
+            createdAt: '2026-02-28T00:00:00.000Z',
+          };
         },
         async cancelTask() {
           return { id: 'task_1', state: 'cancelled' };
@@ -51,6 +65,10 @@ describe('A2A JSON-RPC handler', () => {
 
     expect(result.id).toBe('2');
     expect(result.result.state).toBe('completed');
+    expect(result.result.status).toEqual({
+      state: 'completed',
+      timestamp: '2026-02-28T00:00:00.000Z',
+    });
   });
 
   test('serves task cancellation requests', async () => {
@@ -63,7 +81,12 @@ describe('A2A JSON-RPC handler', () => {
           return { id: 'task_1', state: 'completed' };
         },
         async cancelTask() {
-          return { id: 'task_1', state: 'cancelled' };
+          return {
+            id: 'task_1',
+            state: 'cancelled',
+            capability: 'patch',
+            createdAt: '2026-02-28T00:00:00.000Z',
+          };
         },
       },
     });
@@ -76,6 +99,10 @@ describe('A2A JSON-RPC handler', () => {
 
     expect(result.id).toBe('3');
     expect(result.result.state).toBe('cancelled');
+    expect(result.result.status).toEqual({
+      state: 'canceled',
+      timestamp: '2026-02-28T00:00:00.000Z',
+    });
   });
 
   test('raises typed invalid request errors', async () => {
