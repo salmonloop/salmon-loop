@@ -20,7 +20,11 @@ export function buildA2AJsonRpcRequest(input: A2AOutboundAction): A2AJsonRpcRequ
       jsonrpc: '2.0',
       id: input.requestId,
       method: 'tasks/get',
-      params: { id: input.taskId },
+      params: {
+        id: input.taskId,
+        ...(input.sinceEventId ? { sinceEventId: input.sinceEventId } : {}),
+        ...(input.requireReplay ? { requireReplay: true } : {}),
+      },
     };
   }
 

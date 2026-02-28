@@ -43,11 +43,16 @@ export function createA2AClient(deps: { transport: A2AClientTransport }) {
     return sync.applySnapshot(enriched);
   }
 
-  async function syncTask(taskId: string): Promise<TaskEnvelope> {
+  async function syncTask(
+    taskId: string,
+    options?: { sinceEventId?: string; requireReplay?: boolean },
+  ): Promise<TaskEnvelope> {
     const payload = buildA2AJsonRpcRequest({
       requestId: crypto.randomUUID(),
       action: 'get',
       taskId,
+      sinceEventId: options?.sinceEventId,
+      requireReplay: options?.requireReplay,
     });
     const response = await deps.transport.request(payload);
     const task = mapA2ATaskResultToCanonicalTask(assertJsonRpcResult(response));
@@ -62,6 +67,7 @@ export function createA2AClient(deps: { transport: A2AClientTransport }) {
       reconnect?: A2AReconnectOptions;
       idleTimeoutMs?: number;
       autoSyncOnEnd?: boolean;
+      onSync?: (task: TaskEnvelope) => void;
     },
   ): Promise<void> {
     const response = await deps.transport.subscribe(taskId, options);
@@ -76,7 +82,11 @@ export function createA2AClient(deps: { transport: A2AClientTransport }) {
 
     if (options?.autoSyncOnEnd !== false) {
       const snapshot = await syncTask(taskId);
-      handler(snapshot);
+      if (options?.onSync) {
+        options.onSync(snapshot);
+      } else {
+        handler(snapshot);
+      }
     }
   }
 

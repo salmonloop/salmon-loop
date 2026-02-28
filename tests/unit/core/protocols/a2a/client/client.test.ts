@@ -161,4 +161,67 @@ describe('A2A client', () => {
 
     expect(updates).toEqual(['completed']);
   });
+
+  test('emits sync callback for auto sync snapshot', async () => {
+    const client = createA2AClient({
+      transport: createStubTransport(
+        [
+          {
+            jsonrpc: '2.0',
+            id: '6',
+            result: {
+              id: 'task_6',
+              state: 'failed',
+              status: { state: 'failed', timestamp: '2026-02-28T00:00:00.000Z' },
+              metadata: { capability: 'patch' },
+            },
+          },
+        ],
+        buildSseStream([
+          'id: 1\n',
+          'event: task.completed\n',
+          'data: {"taskId":"task_6","type":"task.completed","state":"completed"}\n\n',
+        ]),
+      ),
+    });
+
+    const syncUpdates: string[] = [];
+    await client.subscribeTask('task_6', () => undefined, {
+      onSync: (task) => syncUpdates.push(task.state),
+    });
+
+    expect(syncUpdates).toEqual(['failed']);
+  });
+
+  test('requests replay when sinceEventId is provided', async () => {
+    const seen: Array<{ method: string; params: Record<string, unknown> }> = [];
+    const client = createA2AClient({
+      transport: {
+        async request(payload) {
+          seen.push({ method: payload.method, params: payload.params ?? {} });
+          return {
+            jsonrpc: '2.0',
+            id: '7',
+            result: {
+              id: 'task_7',
+              state: 'completed',
+              status: { state: 'completed', timestamp: '2026-02-28T00:00:00.000Z' },
+              metadata: { capability: 'patch' },
+            },
+          };
+        },
+        async subscribe() {
+          return new Response('', { headers: { 'content-type': 'text/event-stream' } });
+        },
+      },
+    });
+
+    await client.syncTask('task_7', { sinceEventId: '10' });
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toMatchObject({
+      method: 'tasks/get',
+      params: { id: 'task_7', sinceEventId: '10' },
+    });
+  });
 });

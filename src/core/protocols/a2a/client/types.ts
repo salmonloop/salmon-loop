@@ -44,7 +44,13 @@ export type A2ATaskResult = {
 
 export type A2AOutboundAction =
   | { action: 'start'; requestId: string; instruction: string }
-  | { action: 'get'; requestId: string; taskId: string }
+  | {
+      action: 'get';
+      requestId: string;
+      taskId: string;
+      sinceEventId?: string;
+      requireReplay?: boolean;
+    }
   | { action: 'retry'; requestId: string; taskId: string }
   | { action: 'reopen'; requestId: string; taskId: string; prompt?: string }
   | {
