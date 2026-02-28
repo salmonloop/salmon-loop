@@ -48,13 +48,19 @@ export function createA2AClient(deps: { transport: A2AClientTransport }) {
 
   async function syncTask(
     taskId: string,
-    options?: { sinceEventId?: string; requireReplay?: boolean; headers?: Record<string, string> },
+    options?: {
+      sinceEventId?: string;
+      replayLimit?: number;
+      requireReplay?: boolean;
+      headers?: Record<string, string>;
+    },
   ): Promise<TaskEnvelope> {
     const payload = buildA2AJsonRpcRequest({
       requestId: crypto.randomUUID(),
       action: 'get',
       taskId,
       sinceEventId: options?.sinceEventId,
+      replayLimit: options?.replayLimit,
       requireReplay: options?.requireReplay,
     });
     const response = await deps.transport.request(payload, { headers: options?.headers });

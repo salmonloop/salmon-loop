@@ -13,6 +13,7 @@ interface JsonRpcRequest {
     limit?: number;
     cursor?: string;
     sinceEventId?: string;
+    replayLimit?: number;
     requireReplay?: boolean;
     input?: {
       type: string;
@@ -147,7 +148,9 @@ export function createA2AJsonRpcHandler(deps: {
     ) => Promise<CanonicalTaskResult | null>;
     getArtifact?: (id: string, artifactId: string) => Promise<CanonicalTaskResult | null>;
   };
-  eventBus?: { list: (taskId: string, options?: { afterId?: string | null }) => TaskEvent[] };
+  eventBus?: {
+    list: (taskId: string, options?: { afterId?: string | null; limit?: number }) => TaskEvent[];
+  };
 }) {
   function selectArtifact(
     task: CanonicalTaskResult,
@@ -221,6 +224,7 @@ export function createA2AJsonRpcHandler(deps: {
         if (request.params.sinceEventId && deps.eventBus) {
           result.events = deps.eventBus.list(request.params.id, {
             afterId: request.params.sinceEventId,
+            limit: request.params.replayLimit,
           });
         }
 

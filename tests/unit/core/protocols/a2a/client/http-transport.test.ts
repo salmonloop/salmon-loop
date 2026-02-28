@@ -132,6 +132,64 @@ describe('A2A http transport', () => {
     expect(seen[1]?.init?.headers).toMatchObject({ 'Last-Event-ID': '1' });
   });
 
+  test('applies jitter to reconnect delay when configured', async () => {
+    const delays: number[] = [];
+    const responses = [
+      new Response(buildSseStream(['event: ping\n\n']), {
+        headers: { 'content-type': 'text/event-stream' },
+      }),
+      new Response(buildSseStream(['event: pong\n\n']), {
+        headers: { 'content-type': 'text/event-stream' },
+      }),
+    ];
+    const transport = createA2AHttpTransport({
+      baseUrl: 'https://example.com',
+      delayMs: async (ms) => {
+        delays.push(ms);
+      },
+      fetch: async () =>
+        responses.shift() ??
+        new Response(buildSseStream(['event: done\n\n']), {
+          headers: { 'content-type': 'text/event-stream' },
+        }),
+      random: () => 1,
+    });
+
+    const response = await transport.subscribe('task_1', {
+      reconnect: { maxRetries: 1, baseDelayMs: 100, maxDelayMs: 1000, jitterRatio: 0.5 },
+    });
+    await readAll(response.body!);
+
+    expect(delays).toEqual([150]);
+  });
+
+  test('resets reconnect backoff after a stable connection window', async () => {
+    const delays: number[] = [];
+    const nowValues = [0, 600, 600];
+    const transport = createA2AHttpTransport({
+      baseUrl: 'https://example.com',
+      delayMs: async (ms) => {
+        delays.push(ms);
+      },
+      now: () => nowValues.shift() ?? 600,
+      fetch: async () => {
+        if (delays.length === 0) {
+          return new Response('', { status: 500 });
+        }
+        return new Response(buildSseStream(['event: ping\n\n']), {
+          headers: { 'content-type': 'text/event-stream' },
+        });
+      },
+    });
+
+    const response = await transport.subscribe('task_1', {
+      reconnect: { maxRetries: 2, baseDelayMs: 100, resetWindowMs: 500 },
+    });
+    await readAll(response.body!);
+
+    expect(delays.slice(0, 2)).toEqual([100, 100]);
+  });
+
   test('closes stream after idle timeout', async () => {
     let aborted = false;
     let timeoutCallback: (() => void) | null = null;

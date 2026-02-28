@@ -302,6 +302,35 @@ describe('A2A JSON-RPC handler', () => {
     expect(Array.isArray(taskResult.events)).toBe(true);
   });
 
+  test('limits replay volume when replayLimit is provided', async () => {
+    const bus = createTaskEventBus();
+    bus.publish({ type: 'task.accepted', taskId: 'task_1' });
+    bus.publish({ type: 'task.running', taskId: 'task_1' });
+    bus.publish({ type: 'task.completed', taskId: 'task_1' });
+
+    const handler = createA2AJsonRpcHandler({
+      facade: {
+        async createTask() {
+          return { id: 'task_1', state: 'accepted' };
+        },
+        async getTask() {
+          return { id: 'task_1', state: 'completed' };
+        },
+      },
+      eventBus: bus,
+    });
+
+    const result = await handler.handle({
+      method: 'tasks/get',
+      params: { id: 'task_1', sinceEventId: '1', requireReplay: true, replayLimit: 1 },
+      id: '4e',
+    });
+
+    const taskResult = result.result as Exclude<typeof result.result, { items: unknown }>;
+    expect(taskResult.events).toHaveLength(1);
+    expect(taskResult.events?.[0]?.id).toBe('2');
+  });
+
   test('serves task history query requests', async () => {
     const handler = createA2AJsonRpcHandler({
       facade: {

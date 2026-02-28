@@ -43,6 +43,7 @@ export function createA2AHttpClient(deps: {
       taskId: string,
       options?: {
         sinceEventId?: string;
+        replayLimit?: number;
         requireReplay?: boolean;
         headers?: Record<string, string>;
       },

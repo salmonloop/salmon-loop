@@ -20,6 +20,14 @@ export function createSseEventSource(
       const lastEventId =
         request?.headers.get('last-event-id') ??
         (request ? new URL(request.url).searchParams.get('lastEventId') : null);
+      const replayLimitParam = request
+        ? new URL(request.url).searchParams.get('replayLimit')
+        : null;
+      const parsedReplayLimit = replayLimitParam ? Number(replayLimitParam) : null;
+      const replayLimit =
+        parsedReplayLimit && Number.isFinite(parsedReplayLimit) && parsedReplayLimit > 0
+          ? parsedReplayLimit
+          : null;
 
       const encodeEvent = (event: { id?: string; taskId: string; type: string }) =>
         new TextEncoder().encode(
@@ -41,9 +49,17 @@ export function createSseEventSource(
             return;
           }
 
-          const replayEvents = bus
-            .list(taskId, { afterId: lastEventId })
-            .slice(-(options?.maxReplayEvents ?? Number.POSITIVE_INFINITY));
+          let replayEvents = bus.list(taskId, {
+            afterId: lastEventId,
+            limit:
+              replayLimit !== null && Number.isFinite(replayLimit)
+                ? Math.min(replayLimit, options?.maxReplayEvents ?? replayLimit)
+                : undefined,
+          });
+
+          if (replayLimit === null && options?.maxReplayEvents) {
+            replayEvents = replayEvents.slice(-options.maxReplayEvents);
+          }
           for (const event of replayEvents) {
             controller.enqueue(encodeEvent(event));
           }

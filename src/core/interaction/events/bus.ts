@@ -11,7 +11,7 @@ export interface TaskEvent {
 export interface TaskEventBus {
   subscribe(listener: (event: TaskEvent) => void): () => void;
   publish(event: TaskEvent): void;
-  list(taskId: string, options?: { afterId?: string | null }): TaskEvent[];
+  list(taskId: string, options?: { afterId?: string | null; limit?: number }): TaskEvent[];
 }
 
 export function createTaskEventBus(): TaskEventBus {
@@ -27,9 +27,21 @@ export function createTaskEventBus(): TaskEventBus {
       };
     },
     publish(event) {
+      let resolvedId = event.id;
+      if (resolvedId) {
+        const numericId = Number(resolvedId);
+        if (Number.isFinite(numericId) && numericId >= nextId) {
+          nextId = numericId + 1;
+        } else {
+          resolvedId = String(nextId++);
+        }
+      } else {
+        resolvedId = String(nextId++);
+      }
+
       const persistedEvent = {
         ...event,
-        id: event.id ?? String(nextId++),
+        id: resolvedId,
       };
       events.push(persistedEvent);
       for (const listener of listeners) {
@@ -38,11 +50,16 @@ export function createTaskEventBus(): TaskEventBus {
     },
     list(taskId, options) {
       const afterId = options?.afterId ?? null;
-      return events.filter((event) => {
+      const filtered = events.filter((event) => {
         if (event.taskId !== taskId) return false;
         if (!afterId) return true;
         return Number(event.id) > Number(afterId);
       });
+      const limit = options?.limit;
+      if (typeof limit === 'number') {
+        return filtered.slice(0, Math.max(0, limit));
+      }
+      return filtered;
     },
   };
 }

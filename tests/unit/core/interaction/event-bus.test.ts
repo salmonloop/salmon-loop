@@ -68,4 +68,31 @@ describe('task event bus', () => {
 
     expect(seen).toEqual([]);
   });
+
+  test('assigns monotonically increasing ids even when callers provide ids', () => {
+    const seen: string[] = [];
+    const bus = createTaskEventBus();
+
+    bus.subscribe((event) => {
+      if (event.id) seen.push(event.id);
+    });
+
+    bus.publish({ id: '10', type: 'task.accepted', taskId: 'task_1' });
+    bus.publish({ id: '2', type: 'task.completed', taskId: 'task_1' });
+
+    expect(seen).toEqual(['10', '11']);
+  });
+
+  test('lists task events with limit after a given id', () => {
+    const bus = createTaskEventBus();
+
+    bus.publish({ type: 'task.accepted', taskId: 'task_1' });
+    bus.publish({ type: 'task.running', taskId: 'task_1' });
+    bus.publish({ type: 'task.completed', taskId: 'task_1' });
+
+    const events = bus.list('task_1', { afterId: '1', limit: 1 });
+
+    expect(events).toHaveLength(1);
+    expect(events[0]?.id).toBe('2');
+  });
 });

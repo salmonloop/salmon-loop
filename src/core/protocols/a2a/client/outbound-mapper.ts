@@ -23,6 +23,7 @@ export function buildA2AJsonRpcRequest(input: A2AOutboundAction): A2AJsonRpcRequ
       params: {
         id: input.taskId,
         ...(input.sinceEventId ? { sinceEventId: input.sinceEventId } : {}),
+        ...(typeof input.replayLimit === 'number' ? { replayLimit: input.replayLimit } : {}),
         ...(input.requireReplay ? { requireReplay: true } : {}),
       },
     };

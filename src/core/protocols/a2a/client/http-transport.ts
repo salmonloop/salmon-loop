@@ -15,6 +15,8 @@ export type A2AReconnectOptions = {
   maxRetries?: number;
   baseDelayMs?: number;
   maxDelayMs?: number;
+  jitterRatio?: number;
+  resetWindowMs?: number;
 };
 
 export type A2ASubscribeOptions = {
@@ -36,6 +38,8 @@ export function createA2AHttpTransport(deps: {
   reconnect?: A2AReconnectOptions;
   setTimeout?: A2ASetTimeout;
   clearTimeout?: A2AClearTimeout;
+  random?: () => number;
+  now?: () => number;
 }): A2AClientTransport {
   const baseUrl = deps.baseUrl.replace(/\/$/, '');
   const fetchImpl = deps.fetch ?? globalThis.fetch;
@@ -46,6 +50,8 @@ export function createA2AHttpTransport(deps: {
   const clearTimeoutImpl: A2AClearTimeout =
     deps.clearTimeout ?? ((handle) => globalThis.clearTimeout(handle as number));
   const reconnectDefaults = deps.reconnect ?? {};
+  const random = deps.random ?? Math.random;
+  const now = deps.now ?? (() => Date.now());
 
   function resolveReconnect(options?: A2AReconnectOptions) {
     const reconnect = options ?? reconnectDefaults;
@@ -53,6 +59,8 @@ export function createA2AHttpTransport(deps: {
       maxRetries: reconnect.maxRetries ?? 0,
       baseDelayMs: reconnect.baseDelayMs ?? 250,
       maxDelayMs: reconnect.maxDelayMs ?? 2000,
+      jitterRatio: reconnect.jitterRatio ?? 0,
+      resetWindowMs: reconnect.resetWindowMs,
     };
   }
 
@@ -113,6 +121,7 @@ export function createA2AHttpTransport(deps: {
         let aborted = false;
         let lastEventId = options?.lastEventId;
         let attempts = 0;
+        let connectedAt: number | null = null;
         let activeController: AbortController | null = null;
         let activeBody: ReadableStream<Uint8Array> | null = null;
         let idleTimer: ReturnType<A2ASetTimeout> | null = null;
@@ -174,12 +183,21 @@ export function createA2AHttpTransport(deps: {
               }
 
               activeBody = response.body;
+              connectedAt = now();
               resetIdleTimer();
               for await (const event of decodeSseEvents(response.body)) {
                 if (aborted) break;
                 if (event.id) lastEventId = event.id;
                 resetIdleTimer();
                 controller.enqueue(encodeSseEvent(event));
+              }
+
+              if (
+                reconnect.resetWindowMs &&
+                connectedAt !== null &&
+                now() - connectedAt >= reconnect.resetWindowMs
+              ) {
+                attempts = 0;
               }
 
               if (idleExpired || attempts >= reconnect.maxRetries) {
@@ -193,10 +211,14 @@ export function createA2AHttpTransport(deps: {
             }
 
             attempts += 1;
-            const delay = Math.min(
+            const delayBase = Math.min(
               reconnect.maxDelayMs,
               reconnect.baseDelayMs * 2 ** (attempts - 1),
             );
+            const jitterRatio = reconnect.jitterRatio ?? 0;
+            const jittered =
+              jitterRatio > 0 ? delayBase * (1 + (random() * 2 - 1) * jitterRatio) : delayBase;
+            const delay = Math.max(0, Math.min(reconnect.maxDelayMs, jittered));
             await delayMs(delay);
           }
 

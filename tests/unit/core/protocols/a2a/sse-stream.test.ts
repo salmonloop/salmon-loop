@@ -78,6 +78,36 @@ describe('A2A SSE event source', () => {
     expect(secondText).toContain('event: task.completed');
   });
 
+  test('respects replay limit query parameter', async () => {
+    const bus = createTaskEventBus();
+    const source = createSseEventSource(bus);
+
+    bus.publish({ type: 'task.accepted', taskId: 'task_1' });
+    bus.publish({ type: 'task.running', taskId: 'task_1' });
+    bus.publish({ type: 'task.completed', taskId: 'task_1' });
+
+    const response = source.open(
+      'task_1',
+      new Request('https://example.com/tasks/task_1/subscribe?replayLimit=1', {
+        headers: { 'last-event-id': '1' },
+      }),
+    );
+    const reader = response.body?.getReader();
+    expect(reader).toBeDefined();
+
+    const replayChunk = await reader!.read();
+    const replayText = new TextDecoder().decode(replayChunk.value);
+    expect(replayText).toContain('id: 2');
+    expect(replayText).toContain('event: task.running');
+
+    bus.publish({ type: 'task.cancelled', taskId: 'task_1' });
+
+    const nextChunk = await reader!.read();
+    const nextText = new TextDecoder().decode(nextChunk.value);
+    expect(nextText).toContain('id: 4');
+    expect(nextText).toContain('event: task.cancelled');
+  });
+
   test('emits heartbeat comments when configured', async () => {
     let heartbeatTick: (() => void) | undefined;
     const source = createSseEventSource(undefined, {

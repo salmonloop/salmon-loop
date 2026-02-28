@@ -58,6 +58,7 @@ export type A2AOutboundAction =
       requestId: string;
       taskId: string;
       sinceEventId?: string;
+      replayLimit?: number;
       requireReplay?: boolean;
     }
   | { action: 'retry'; requestId: string; taskId: string }
