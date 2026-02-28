@@ -173,3 +173,31 @@ describe('GitAdapter query gateway validation', () => {
     expect(runGitCommand).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('GitAdapter shadow path parity handling', () => {
+  beforeEach(() => {
+    mock.clearAllMocks();
+  });
+
+  it('allows updateIndex inside parity worktree root', async () => {
+    (runGitCommand as any).mockResolvedValue({
+      ok: true,
+      code: 0,
+      signal: null,
+      stdout: Buffer.from('', 'utf8'),
+      stderr: '',
+      timedOut: false,
+      stdoutTruncated: false,
+      stderrTruncated: false,
+    });
+
+    const baseRepo = path.join(path.resolve('/tmp'), 'repo');
+    const parityRoot = path.join(path.dirname(baseRepo), '.salmonloop', 'worktrees');
+    const worktreePath = path.join(parityRoot, path.basename(baseRepo), '123');
+
+    const git = new GitAdapter(worktreePath);
+
+    await expect(git.updateIndex('100644', 'deadbeef', 'file.txt')).resolves.toBeUndefined();
+    expect(runGitCommand).toHaveBeenCalledTimes(1);
+  });
+});

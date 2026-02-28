@@ -728,6 +728,18 @@ export class GitAdapter {
     return path.join(parent, '.salmonloop', 'worktrees');
   }
 
+  private static resolveParityShadowRootFromPath(repoPath: string): string | null {
+    const parsed = path.parse(repoPath);
+    const rel = repoPath.slice(parsed.root.length);
+    const parts = rel.split(path.sep).filter((part) => part.length > 0);
+    for (let i = 0; i < parts.length - 1; i += 1) {
+      if (parts[i] === '.salmonloop' && parts[i + 1] === 'worktrees') {
+        return path.join(parsed.root, ...parts.slice(0, i + 2));
+      }
+    }
+    return null;
+  }
+
   /**
    * Verifies if the current GitAdapter instance points to a shadow worktree.
    *
@@ -760,7 +772,10 @@ export class GitAdapter {
     } catch {
       repo = repoResolved;
     }
-    return isPathWithinDirectory(expectedRoot, repo, { allowEqual: false });
+    if (isPathWithinDirectory(expectedRoot, repo, { allowEqual: false })) return true;
+    const parityRoot = GitAdapter.resolveParityShadowRootFromPath(repo);
+    if (!parityRoot) return false;
+    return isPathWithinDirectory(parityRoot, repo, { allowEqual: false });
   }
 
   /**
