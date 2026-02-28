@@ -17,6 +17,10 @@ export interface TaskArtifact {
   kind: string;
   mimeType?: string;
   content?: string;
+  delivery?: 'inline' | 'handle' | 'url';
+  handle?: string;
+  url?: string;
+  expiresAt?: string;
 }
 
 export interface TaskRequiredAction {

@@ -417,6 +417,104 @@ describe('A2A server integration', () => {
     ]);
   });
 
+  test('serves task resume and handle-delivered artifacts over authenticated routes', async () => {
+    const seen: Array<{ action: string; resource: string; taskId: string | null }> = [];
+    const handler = createA2AJsonRpcHandler({
+      facade: {
+        async createTask() {
+          return { id: 'task_1', state: 'accepted' };
+        },
+        async resumeTask() {
+          return {
+            id: 'task_1',
+            state: 'running',
+            capability: 'patch',
+            createdAt: '2026-02-28T00:00:00.000Z',
+            statusMessage: 'Task resumed',
+          };
+        },
+      },
+    });
+
+    const routes = createA2ARoutes({
+      buildAgentCard: () =>
+        buildA2AAgentCard({
+          name: 'salmon-loop',
+          url: 'https://example.com',
+          capabilities: [{ id: 'patch', title: 'Patch code' }],
+          security: [{ type: 'http', scheme: 'bearer' }],
+        }),
+      jsonRpcHandler: handler,
+      eventSource: createSseEventSource(),
+      authPolicy: createA2AAuthPolicyMiddleware({
+        authenticator: createBearerTokenAuthenticator({ tokens: ['secret-token'] }),
+        policy: {
+          async authorize(input) {
+            seen.push({
+              action: input.action,
+              resource: input.resource,
+              taskId: input.taskId ?? null,
+            });
+            return { allowed: true };
+          },
+        },
+      }),
+      artifactStore: {
+        async read(handle) {
+          expect(handle).toBe('artifact-handle-1');
+          return new Response('artifact body', {
+            headers: { 'content-type': 'text/plain' },
+          });
+        },
+      },
+    });
+
+    const server = createA2AHttpServer({ routes });
+
+    const resumeResponse = await server.fetch(
+      new Request('https://example.com/rpc', {
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer secret-token',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: '13',
+          method: 'tasks/resume',
+          params: { id: 'task_1' },
+        }),
+      }),
+    );
+
+    expect(resumeResponse.status).toBe(200);
+    await expect(resumeResponse.json()).resolves.toMatchObject({
+      jsonrpc: '2.0',
+      id: '13',
+      result: {
+        id: 'task_1',
+        status: {
+          state: 'working',
+          message: 'Task resumed',
+        },
+      },
+    });
+
+    const artifactRouteResponse = await server.fetch(
+      new Request('https://example.com/artifacts/artifact-handle-1'),
+    );
+
+    expect(artifactRouteResponse.status).toBe(200);
+    await expect(artifactRouteResponse.text()).resolves.toBe('artifact body');
+    expect(seen).toEqual([
+      {
+        action: 'task.resume',
+        resource: 'task',
+        taskId: 'task_1',
+      },
+    ]);
+  });
+
   test('streams live task events over SSE subscriptions', async () => {
     const bus = createTaskEventBus();
     const routes = createA2ARoutes({

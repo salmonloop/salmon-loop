@@ -122,4 +122,40 @@ describe('interaction facade', () => {
       inputRequired: undefined,
     });
   });
+
+  test('resumes suspended tasks only from resumable states', async () => {
+    const facade = createInteractionFacade({
+      executeTask: async (task) => ({
+        ...task,
+        state: 'streaming',
+        statusMessage: 'Streaming in progress',
+      }),
+    });
+
+    const created = await facade.createTask({
+      capability: 'patch',
+      request: { instruction: 'fix bug' },
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const resumedStreaming = await facade.resumeTask(created.id);
+    expect(resumedStreaming).toMatchObject({
+      state: 'running',
+      statusMessage: 'Task resumed',
+    });
+
+    const terminalFacade = createInteractionFacade({
+      executeTask: async (task) => ({ ...task, state: 'completed' }),
+    });
+    const terminalCreated = await terminalFacade.createTask({
+      capability: 'patch',
+      request: { instruction: 'fix bug' },
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const resumedTerminal = await terminalFacade.resumeTask(terminalCreated.id);
+    expect(resumedTerminal).toBeNull();
+  });
 });

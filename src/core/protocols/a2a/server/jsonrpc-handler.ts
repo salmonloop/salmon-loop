@@ -41,6 +41,10 @@ interface JsonRpcTaskResult {
     kind: string;
     mimeType?: string;
     content?: string;
+    delivery?: 'inline' | 'handle' | 'url';
+    handle?: string;
+    url?: string;
+    expiresAt?: string;
   }>;
   metadata?: {
     capability?: string;
@@ -70,6 +74,10 @@ interface CanonicalTaskResult {
     kind: string;
     mimeType?: string;
     content?: string;
+    delivery?: 'inline' | 'handle' | 'url';
+    handle?: string;
+    url?: string;
+    expiresAt?: string;
   }>;
 }
 
@@ -93,6 +101,7 @@ export function createA2AJsonRpcHandler(deps: {
     }) => Promise<CanonicalTaskResult>;
     getTask?: (id: string) => Promise<CanonicalTaskResult | null>;
     cancelTask?: (id: string) => Promise<CanonicalTaskResult | null>;
+    resumeTask?: (id: string) => Promise<CanonicalTaskResult | null>;
     listTasks?: (query?: {
       capability?: string;
       state?: string;
@@ -165,6 +174,32 @@ export function createA2AJsonRpcHandler(deps: {
       if (request.method === 'tasks/cancel' && deps.facade.cancelTask && request.params.id) {
         const task = await deps.facade.cancelTask(request.params.id);
         if (!task) {
+          throw new A2AJsonRpcError({
+            code: -32004,
+            message: `Task not found: ${request.params.id}`,
+            status: 404,
+          });
+        }
+        return {
+          jsonrpc: '2.0',
+          id: request.id,
+          result: projectCanonicalTaskToA2ATask(task),
+        };
+      }
+
+      if (request.method === 'tasks/resume' && deps.facade.resumeTask && request.params.id) {
+        const task = await deps.facade.resumeTask(request.params.id);
+        if (!task) {
+          const existingTask = deps.facade.getTask
+            ? await deps.facade.getTask(request.params.id)
+            : null;
+          if (existingTask) {
+            throw new A2AJsonRpcError({
+              code: -32009,
+              message: `Task is not resumable: ${request.params.id}`,
+              status: 409,
+            });
+          }
           throw new A2AJsonRpcError({
             code: -32004,
             message: `Task not found: ${request.params.id}`,

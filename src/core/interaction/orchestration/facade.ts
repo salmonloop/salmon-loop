@@ -7,6 +7,7 @@ export interface InteractionFacade {
   createTask(input: { capability: string; request: TaskRequest }): Promise<TaskEnvelope>;
   getTask(id: string): Promise<TaskEnvelope | null>;
   cancelTask(id: string): Promise<TaskEnvelope | null>;
+  resumeTask(id: string): Promise<TaskEnvelope | null>;
   listTasks(query?: {
     capability?: string;
     state?: string;
@@ -53,6 +54,20 @@ export function createInteractionFacade(deps: {
       });
       deps.eventBus?.publish({ type: 'task.cancelled', taskId: cancelled.id });
       return cancelled;
+    },
+    async resumeTask(id) {
+      const task = store.get(id);
+      if (!task) return null;
+      if (task.state !== 'awaiting_input' && task.state !== 'streaming') return null;
+
+      const resumed = store.update({
+        ...task,
+        state: 'running',
+        statusMessage: 'Task resumed',
+        inputRequired: undefined,
+      });
+      deps.eventBus?.publish({ type: 'task.resumed', taskId: resumed.id });
+      return resumed;
     },
     async listTasks(query) {
       return store.list(query);

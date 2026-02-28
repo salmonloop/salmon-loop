@@ -40,6 +40,7 @@ function buildRpcPolicyContext(payload: unknown): {
   if (method === 'tasks/get') return { action: 'task.get', resource: 'task', taskId };
   if (method === 'tasks/list') return { action: 'task.list', resource: 'task' };
   if (method === 'tasks/cancel') return { action: 'task.cancel', resource: 'task', taskId };
+  if (method === 'tasks/resume') return { action: 'task.resume', resource: 'task', taskId };
   if (method === 'tasks/submitInput') {
     return { action: 'task.submit_input', resource: 'task', taskId };
   }
@@ -58,6 +59,9 @@ export function createA2ARoutes(deps: {
   };
   eventSource: {
     open: (taskId: string, request?: Request) => Response;
+  };
+  artifactStore?: {
+    read: (handle: string) => Promise<Response | null>;
   };
   authPolicy?: A2AAuthPolicyMiddleware;
 }) {
@@ -83,6 +87,12 @@ export function createA2ARoutes(deps: {
           }
         }
         return deps.eventSource.open(subscribeMatch[1], request);
+      }
+
+      const artifactMatch = url.pathname.match(/^\/artifacts\/([^/]+)$/);
+      if (request.method === 'GET' && artifactMatch && deps.artifactStore) {
+        const response = await deps.artifactStore.read(artifactMatch[1]);
+        return response ?? new Response('Not Found', { status: 404 });
       }
 
       if (request.method === 'POST' && url.pathname === '/rpc') {

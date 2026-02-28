@@ -346,4 +346,99 @@ describe('A2A routes', () => {
       },
     ]);
   });
+
+  test('derives task.resume policy action from rpc method', async () => {
+    const seen: Array<{ action: string; resource: string; taskId: string | null }> = [];
+    const routes = createA2ARoutes({
+      buildAgentCard: () => ({
+        name: 'salmon-loop',
+        url: 'https://example.com',
+        skills: [],
+        securitySchemes: [],
+      }),
+      jsonRpcHandler: {
+        handle: async () => ({ jsonrpc: '2.0', id: '3', result: { id: 'task_1' } }),
+      },
+      eventSource: {
+        open: () =>
+          new Response('event: ping\n\n', {
+            headers: { 'content-type': 'text/event-stream' },
+          }),
+      },
+      authPolicy: createA2AAuthPolicyMiddleware({
+        authenticator: createBearerTokenAuthenticator({ tokens: ['secret-token'] }),
+        policy: {
+          async authorize(input) {
+            seen.push({
+              action: input.action,
+              resource: input.resource,
+              taskId: input.taskId ?? null,
+            });
+            return { allowed: true };
+          },
+        },
+      }),
+    });
+
+    const response = await routes.handle(
+      new Request('https://example.com/rpc', {
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer secret-token',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: '3',
+          method: 'tasks/resume',
+          params: { id: 'task_1' },
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(seen).toEqual([
+      {
+        action: 'task.resume',
+        resource: 'task',
+        taskId: 'task_1',
+      },
+    ]);
+  });
+
+  test('serves artifact payloads through the handle delivery route', async () => {
+    const routes = createA2ARoutes({
+      buildAgentCard: () => ({
+        name: 'salmon-loop',
+        url: 'https://example.com',
+        skills: [],
+        securitySchemes: [],
+      }),
+      jsonRpcHandler: {
+        handle: async () => ({ jsonrpc: '2.0', id: '1', result: { id: 'task_1' } }),
+      },
+      eventSource: {
+        open: () =>
+          new Response('event: ping\n\n', {
+            headers: { 'content-type': 'text/event-stream' },
+          }),
+      },
+      artifactStore: {
+        async read(handle) {
+          expect(handle).toBe('artifact-handle-1');
+          return new Response('verify output', {
+            headers: { 'content-type': 'text/plain' },
+          });
+        },
+      },
+    });
+
+    const response = await routes.handle(
+      new Request('https://example.com/artifacts/artifact-handle-1'),
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toContain('text/plain');
+    await expect(response.text()).resolves.toBe('verify output');
+  });
 });

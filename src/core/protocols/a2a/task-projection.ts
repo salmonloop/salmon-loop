@@ -15,6 +15,10 @@ interface CanonicalTaskLike {
     kind: string;
     mimeType?: string;
     content?: string;
+    delivery?: 'inline' | 'handle' | 'url';
+    handle?: string;
+    url?: string;
+    expiresAt?: string;
   }>;
 }
 
@@ -52,6 +56,10 @@ export function projectCanonicalTaskToA2ATask(task: CanonicalTaskLike) {
       kind: artifact.kind,
       mimeType: artifact.mimeType,
       content: artifact.content,
+      delivery: artifact.delivery,
+      handle: artifact.handle,
+      url: artifact.url,
+      expiresAt: artifact.expiresAt,
     })),
     metadata: {
       capability: task.capability,

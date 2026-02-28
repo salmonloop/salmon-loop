@@ -485,4 +485,134 @@ describe('A2A JSON-RPC handler', () => {
       },
     ]);
   });
+
+  test('resumes an awaiting task', async () => {
+    const handler = createA2AJsonRpcHandler({
+      facade: {
+        async createTask() {
+          return { id: 'task_1', state: 'accepted' };
+        },
+        async resumeTask(id) {
+          expect(id).toBe('task_1');
+          return {
+            id: 'task_1',
+            state: 'running',
+            capability: 'patch',
+            createdAt: '2026-02-28T00:00:00.000Z',
+            statusMessage: 'Task resumed',
+          };
+        },
+      },
+    });
+
+    const result = await handler.handle({
+      method: 'tasks/resume',
+      params: { id: 'task_1' },
+      id: '10',
+    });
+
+    expect('items' in result.result).toBe(false);
+    const taskResult = result.result as Exclude<typeof result.result, { items: unknown }>;
+    expect(taskResult.status).toEqual({
+      state: 'working',
+      timestamp: '2026-02-28T00:00:00.000Z',
+      message: 'Task resumed',
+    });
+  });
+
+  test('returns an invalid-state error when resuming a terminal task', async () => {
+    const handler = createA2AJsonRpcHandler({
+      facade: {
+        async createTask() {
+          return { id: 'task_1', state: 'accepted' };
+        },
+        async getTask() {
+          return {
+            id: 'task_1',
+            state: 'completed',
+            capability: 'patch',
+            createdAt: '2026-02-28T00:00:00.000Z',
+          };
+        },
+        async resumeTask() {
+          return null;
+        },
+      },
+    });
+
+    await expect(
+      handler.handle({
+        method: 'tasks/resume',
+        params: { id: 'task_1' },
+        id: '11',
+      }),
+    ).rejects.toMatchObject({
+      code: -32009,
+      status: 409,
+      message: 'Task is not resumable: task_1',
+    } satisfies Partial<A2AJsonRpcError>);
+  });
+
+  test('projects artifact delivery metadata for handle and url artifacts', async () => {
+    const handler = createA2AJsonRpcHandler({
+      facade: {
+        async createTask() {
+          return { id: 'task_1', state: 'accepted' };
+        },
+        async getTask() {
+          return {
+            id: 'task_1',
+            state: 'completed',
+            capability: 'patch',
+            createdAt: '2026-02-28T00:00:00.000Z',
+            artifacts: [
+              {
+                id: 'artifact_1',
+                name: 'patch.diff',
+                kind: 'diff',
+                mimeType: 'text/x-diff',
+                delivery: 'handle',
+                handle: 'artifact-handle-1',
+              },
+              {
+                id: 'artifact_2',
+                name: 'report.html',
+                kind: 'html',
+                mimeType: 'text/html',
+                delivery: 'url',
+                url: 'https://example.com/artifacts/report.html',
+              },
+            ],
+          };
+        },
+      },
+    });
+
+    const result = await handler.handle({
+      method: 'tasks/get',
+      params: { id: 'task_1' },
+      id: '12',
+    });
+
+    expect('items' in result.result).toBe(false);
+    const taskResult = result.result as Exclude<typeof result.result, { items: unknown }>;
+    expect(taskResult.artifacts).toEqual([
+      {
+        artifactId: 'artifact_1',
+        name: 'patch.diff',
+        kind: 'diff',
+        mimeType: 'text/x-diff',
+        delivery: 'handle',
+        handle: 'artifact-handle-1',
+      },
+      {
+        artifactId: 'artifact_2',
+        name: 'report.html',
+        kind: 'html',
+        mimeType: 'text/html',
+        delivery: 'url',
+        url: 'https://example.com/artifacts/report.html',
+      },
+    ]);
+  });
 });
