@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 
 import {
   canTransitionTaskState,
+  createTaskTransitionPolicy,
   isTerminalTaskState,
   type TaskEnvelope,
 } from '../../../../src/core/interaction/model/index.js';
@@ -25,6 +26,24 @@ describe('interaction model', () => {
 
     expect(task.tenantId).toBe('default');
     expect(task.capability).toBe('patch');
+  });
+
+  test('exposes transition policy predicates and allowed targets', () => {
+    const policy = createTaskTransitionPolicy();
+
+    expect(policy.allowedTargets('running')).toEqual([
+      'streaming',
+      'awaiting_input',
+      'completed',
+      'failed',
+      'cancelled',
+    ]);
+    expect(policy.isResumable('streaming')).toBe(true);
+    expect(policy.isResumable('completed')).toBe(false);
+    expect(policy.isRetryable('failed')).toBe(true);
+    expect(policy.isRetryable('completed')).toBe(false);
+    expect(policy.isReopenable('completed')).toBe(true);
+    expect(policy.isReopenable('running')).toBe(false);
   });
 
   test('enforces the canonical task transition matrix', () => {

@@ -33,10 +33,12 @@ interface JsonRpcTaskResult {
   };
   requiredAction?: {
     type: string;
+    reason?: 'approval' | 'clarification' | 'reopen';
     prompt: string;
   };
   failure?: {
     code: string;
+    category?: 'verification' | 'runtime' | 'policy' | 'infrastructure';
     message: string;
     retryable?: boolean;
   };
@@ -73,11 +75,13 @@ interface CanonicalTaskResult {
   statusMessage?: string;
   failure?: {
     code: string;
+    category?: 'verification' | 'runtime' | 'policy' | 'infrastructure';
     message: string;
     retryable?: boolean;
   };
   inputRequired?: {
     type: string;
+    reason?: 'approval' | 'clarification' | 'reopen';
     prompt: string;
   };
   artifacts?: Array<{
@@ -117,7 +121,7 @@ export function createA2AJsonRpcHandler(deps: {
     retryTask?: (id: string) => Promise<CanonicalTaskResult | null>;
     reopenTask?: (
       id: string,
-      action?: { type: string; prompt: string },
+      action?: { type: string; reason?: 'approval' | 'clarification' | 'reopen'; prompt: string },
     ) => Promise<CanonicalTaskResult | null>;
     listTasks?: (query?: {
       capability?: string;
@@ -259,6 +263,7 @@ export function createA2AJsonRpcHandler(deps: {
       if (request.method === 'tasks/reopen' && deps.facade.reopenTask && request.params.id) {
         const task = await deps.facade.reopenTask(request.params.id, {
           type: 'confirmation',
+          reason: 'reopen',
           prompt: 'Provide updated approval',
         });
         if (!task) {

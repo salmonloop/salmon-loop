@@ -8,11 +8,13 @@ interface CanonicalTaskLike {
   statusMessage?: string;
   failure?: {
     code: string;
+    category?: 'verification' | 'runtime' | 'policy' | 'infrastructure';
     message: string;
     retryable?: boolean;
   };
   inputRequired?: {
     type: string;
+    reason?: 'approval' | 'clarification' | 'reopen';
     prompt: string;
   };
   artifacts?: Array<{

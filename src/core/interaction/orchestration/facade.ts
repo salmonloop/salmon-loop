@@ -1,6 +1,6 @@
 import type { TaskEventBus } from '../events/bus.js';
 import {
-  canTransitionTaskState,
+  createTaskTransitionPolicy,
   type TaskEnvelope,
   type TaskFailure,
   type TaskRequest,
@@ -15,7 +15,10 @@ export interface InteractionFacade {
   resumeTask(id: string): Promise<TaskEnvelope | null>;
   failTask(id: string, failure: TaskFailure): Promise<TaskEnvelope | null>;
   retryTask(id: string): Promise<TaskEnvelope | null>;
-  reopenTask(id: string, action: { type: string; prompt: string }): Promise<TaskEnvelope | null>;
+  reopenTask(
+    id: string,
+    action: { type: string; reason?: 'approval' | 'clarification' | 'reopen'; prompt: string },
+  ): Promise<TaskEnvelope | null>;
   listTasks(query?: {
     capability?: string;
     state?: string;
@@ -31,6 +34,7 @@ export function createInteractionFacade(deps: {
   eventBus?: TaskEventBus;
 }): InteractionFacade {
   const store = new InMemoryTaskStore();
+  const transitionPolicy = createTaskTransitionPolicy();
 
   function updateTask(
     id: string,
@@ -39,7 +43,7 @@ export function createInteractionFacade(deps: {
   ): TaskEnvelope | null {
     const task = store.get(id);
     if (!task) return null;
-    if (!canTransitionTaskState(task.state, nextState)) return null;
+    if (!transitionPolicy.allows(task.state, nextState)) return null;
     return store.update(mutate(task));
   }
 

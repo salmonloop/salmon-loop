@@ -92,11 +92,13 @@ describe('A2A JSON-RPC handler', () => {
             statusMessage: 'Need approval to continue',
             failure: {
               code: 'VERIFY_FAILED',
+              category: 'verification',
               message: 'Need approval to continue',
               retryable: true,
             },
             inputRequired: {
               type: 'confirmation',
+              reason: 'approval',
               prompt: 'Approve patch application?',
             },
             artifacts: [
@@ -127,6 +129,7 @@ describe('A2A JSON-RPC handler', () => {
     });
     expect(taskResult.requiredAction).toEqual({
       type: 'confirmation',
+      reason: 'approval',
       prompt: 'Approve patch application?',
     });
     expect(taskResult.artifacts).toEqual([
@@ -139,6 +142,7 @@ describe('A2A JSON-RPC handler', () => {
     ]);
     expect(taskResult.failure).toEqual({
       code: 'VERIFY_FAILED',
+      category: 'verification',
       message: 'Need approval to continue',
       retryable: true,
     });
@@ -653,6 +657,7 @@ describe('A2A JSON-RPC handler', () => {
             statusMessage: 'Task reopened',
             inputRequired: {
               type: 'confirmation',
+              reason: 'reopen',
               prompt: 'Provide updated approval',
             },
           };
@@ -688,6 +693,7 @@ describe('A2A JSON-RPC handler', () => {
     });
     expect(reopenResult.requiredAction).toEqual({
       type: 'confirmation',
+      reason: 'reopen',
       prompt: 'Provide updated approval',
     });
   });

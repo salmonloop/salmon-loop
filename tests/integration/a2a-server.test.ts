@@ -340,6 +340,7 @@ describe('A2A server integration', () => {
             statusMessage: 'Task reopened',
             inputRequired: {
               type: 'confirmation',
+              reason: 'reopen',
               prompt: 'Provide updated approval',
             },
           };
@@ -414,6 +415,7 @@ describe('A2A server integration', () => {
         },
         requiredAction: {
           type: 'confirmation',
+          reason: 'reopen',
           prompt: 'Provide updated approval',
         },
       },
@@ -436,6 +438,7 @@ describe('A2A server integration', () => {
             statusMessage: 'Verification failed',
             failure: {
               code: 'VERIFY_FAILED',
+              category: 'verification',
               message: 'Tests did not pass',
               retryable: true,
             },
@@ -482,6 +485,7 @@ describe('A2A server integration', () => {
         },
         failure: {
           code: 'VERIFY_FAILED',
+          category: 'verification',
           message: 'Tests did not pass',
           retryable: true,
         },

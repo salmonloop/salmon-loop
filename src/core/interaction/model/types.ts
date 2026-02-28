@@ -25,11 +25,13 @@ export interface TaskArtifact {
 
 export interface TaskRequiredAction {
   type: string;
+  reason?: 'approval' | 'clarification' | 'reopen';
   prompt: string;
 }
 
 export interface TaskFailure {
   code: string;
+  category?: 'verification' | 'runtime' | 'policy' | 'infrastructure';
   message: string;
   retryable?: boolean;
 }

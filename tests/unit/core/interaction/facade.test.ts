@@ -181,6 +181,7 @@ describe('interaction facade', () => {
 
     const failed = await facade.failTask(created.id, {
       code: 'VERIFY_FAILED',
+      category: 'verification',
       message: 'Verification failed',
       retryable: true,
     });
@@ -188,6 +189,7 @@ describe('interaction facade', () => {
       state: 'failed',
       failure: {
         code: 'VERIFY_FAILED',
+        category: 'verification',
         message: 'Verification failed',
         retryable: true,
       },
@@ -213,12 +215,14 @@ describe('interaction facade', () => {
 
     const reopened = await completedFacade.reopenTask(completed.id, {
       type: 'confirmation',
+      reason: 'reopen',
       prompt: 'Provide updated approval',
     });
     expect(reopened).toMatchObject({
       state: 'awaiting_input',
       inputRequired: {
         type: 'confirmation',
+        reason: 'reopen',
         prompt: 'Provide updated approval',
       },
       statusMessage: 'Task reopened',
