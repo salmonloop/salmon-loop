@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
+import { createTaskEventBus } from '../../../../../src/core/interaction/events/bus.js';
 import { A2AJsonRpcError } from '../../../../../src/core/protocols/a2a/server/jsonrpc-error.js';
 import { createA2AJsonRpcHandler } from '../../../../../src/core/protocols/a2a/server/jsonrpc-handler.js';
 
@@ -223,6 +224,78 @@ describe('A2A JSON-RPC handler', () => {
       status: 404,
       message: 'Task not found: missing-task',
     } satisfies Partial<A2AJsonRpcError>);
+  });
+
+  test('rejects replay requests without sinceEventId', async () => {
+    const handler = createA2AJsonRpcHandler({
+      facade: {
+        async createTask() {
+          return { id: 'task_1', state: 'accepted' };
+        },
+        async getTask() {
+          return { id: 'task_1', state: 'completed' };
+        },
+      },
+      eventBus: createTaskEventBus(),
+    });
+
+    await expect(
+      handler.handle({
+        method: 'tasks/get',
+        params: { id: 'task_1', requireReplay: true },
+        id: '4b',
+      }),
+    ).rejects.toMatchObject({
+      code: -32602,
+      status: 400,
+    } satisfies Partial<A2AJsonRpcError>);
+  });
+
+  test('rejects replay requests when replay is unsupported', async () => {
+    const handler = createA2AJsonRpcHandler({
+      facade: {
+        async createTask() {
+          return { id: 'task_1', state: 'accepted' };
+        },
+        async getTask() {
+          return { id: 'task_1', state: 'completed' };
+        },
+      },
+    });
+
+    await expect(
+      handler.handle({
+        method: 'tasks/get',
+        params: { id: 'task_1', sinceEventId: '10', requireReplay: true },
+        id: '4c',
+      }),
+    ).rejects.toMatchObject({
+      code: -32009,
+      status: 409,
+      data: { reason: 'replay_not_supported' },
+    } satisfies Partial<A2AJsonRpcError>);
+  });
+
+  test('allows replay requests when event bus is available', async () => {
+    const handler = createA2AJsonRpcHandler({
+      facade: {
+        async createTask() {
+          return { id: 'task_1', state: 'accepted' };
+        },
+        async getTask() {
+          return { id: 'task_1', state: 'completed' };
+        },
+      },
+      eventBus: createTaskEventBus(),
+    });
+
+    const result = await handler.handle({
+      method: 'tasks/get',
+      params: { id: 'task_1', sinceEventId: '10', requireReplay: true },
+      id: '4d',
+    });
+
+    expect(result.id).toBe('4d');
   });
 
   test('serves task history query requests', async () => {

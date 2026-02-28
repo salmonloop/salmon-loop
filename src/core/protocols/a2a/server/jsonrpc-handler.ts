@@ -11,6 +11,8 @@ interface JsonRpcRequest {
     state?: string;
     limit?: number;
     cursor?: string;
+    sinceEventId?: string;
+    requireReplay?: boolean;
     input?: {
       type: string;
       value: string;
@@ -135,6 +137,7 @@ export function createA2AJsonRpcHandler(deps: {
     ) => Promise<CanonicalTaskResult | null>;
     getArtifact?: (id: string, artifactId: string) => Promise<CanonicalTaskResult | null>;
   };
+  eventBus?: { list: (taskId: string, options?: { afterId?: string | null }) => unknown[] };
 }) {
   function selectArtifact(
     task: CanonicalTaskResult,
@@ -177,6 +180,23 @@ export function createA2AJsonRpcHandler(deps: {
       }
 
       if (request.method === 'tasks/get' && deps.facade.getTask && request.params.id) {
+        if (request.params.requireReplay && !request.params.sinceEventId) {
+          throw new A2AJsonRpcError({
+            code: -32602,
+            message: 'Invalid params: sinceEventId required when requireReplay is true',
+            status: 400,
+          });
+        }
+
+        if (request.params.requireReplay && !deps.eventBus) {
+          throw new A2AJsonRpcError({
+            code: -32009,
+            message: `Task replay is not supported: ${request.params.id}`,
+            status: 409,
+            data: { reason: 'replay_not_supported' },
+          });
+        }
+
         const task = await deps.facade.getTask(request.params.id);
         if (!task) {
           throw new A2AJsonRpcError({
