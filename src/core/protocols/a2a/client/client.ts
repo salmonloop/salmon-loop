@@ -1,6 +1,7 @@
 import type { TaskEnvelope } from '../../../interaction/model/index.js';
 import { createTaskSyncEngine } from '../../../interaction/sync/task-sync-engine.js';
 
+import type { A2AReconnectOptions } from './http-transport.js';
 import { mapA2ATaskResultToCanonicalTask } from './inbound-mapper.js';
 import { buildA2AJsonRpcRequest } from './outbound-mapper.js';
 import { createA2ASseSubscriptionBridge } from './sse-bridge.js';
@@ -56,7 +57,7 @@ export function createA2AClient(deps: { transport: A2AClientTransport }) {
   async function subscribeTask(
     taskId: string,
     handler: (task: TaskEnvelope) => void,
-    options?: { lastEventId?: string },
+    options?: { lastEventId?: string; reconnect?: A2AReconnectOptions },
   ): Promise<void> {
     const response = await deps.transport.subscribe(taskId, options);
     if (!response.body) {

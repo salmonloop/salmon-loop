@@ -11,26 +11,34 @@ const DEFAULT_ACCEPT = {
 
 export type A2AFetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
+export type A2AReconnectOptions = {
+  maxRetries?: number;
+  baseDelayMs?: number;
+  maxDelayMs?: number;
+};
+
 export function createA2AHttpTransport(deps: {
   baseUrl: string;
   headers?: Record<string, string>;
   fetch?: A2AFetchLike;
   timeoutMs?: number;
   delayMs?: (ms: number) => Promise<void>;
-  reconnect?: {
-    maxRetries?: number;
-    baseDelayMs?: number;
-    maxDelayMs?: number;
-  };
+  reconnect?: A2AReconnectOptions;
 }): A2AClientTransport {
   const baseUrl = deps.baseUrl.replace(/\/$/, '');
   const fetchImpl = deps.fetch ?? globalThis.fetch;
   const delayMs =
     deps.delayMs ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
-  const reconnect = deps.reconnect ?? {};
-  const maxRetries = reconnect.maxRetries ?? 0;
-  const baseDelayMs = reconnect.baseDelayMs ?? 250;
-  const maxDelayMs = reconnect.maxDelayMs ?? 2000;
+  const reconnectDefaults = deps.reconnect ?? {};
+
+  function resolveReconnect(options?: A2AReconnectOptions) {
+    const reconnect = options ?? reconnectDefaults;
+    return {
+      maxRetries: reconnect.maxRetries ?? 0,
+      baseDelayMs: reconnect.baseDelayMs ?? 250,
+      maxDelayMs: reconnect.maxDelayMs ?? 2000,
+    };
+  }
 
   function encodeSseEvent(event: SseEvent): Uint8Array {
     let text = '';
@@ -72,11 +80,15 @@ export function createA2AHttpTransport(deps: {
     }
   }
 
-  async function subscribe(taskId: string, options?: { lastEventId?: string }): Promise<Response> {
+  async function subscribe(
+    taskId: string,
+    options?: { lastEventId?: string; reconnect?: A2AReconnectOptions },
+  ): Promise<Response> {
     const headers: Record<string, string> = {
       Accept: DEFAULT_ACCEPT.sse,
       ...(deps.headers ?? {}),
     };
+    const reconnect = resolveReconnect(options?.reconnect);
     let cancelStream: (() => void) | null = null;
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
@@ -125,18 +137,21 @@ export function createA2AHttpTransport(deps: {
                 controller.enqueue(encodeSseEvent(event));
               }
 
-              if (attempts >= maxRetries) {
+              if (attempts >= reconnect.maxRetries) {
                 break;
               }
             } catch (err) {
-              if (attempts >= maxRetries) {
+              if (attempts >= reconnect.maxRetries) {
                 controller.error(err);
                 break;
               }
             }
 
             attempts += 1;
-            const delay = Math.min(maxDelayMs, baseDelayMs * 2 ** (attempts - 1));
+            const delay = Math.min(
+              reconnect.maxDelayMs,
+              reconnect.baseDelayMs * 2 ** (attempts - 1),
+            );
             await delayMs(delay);
           }
 

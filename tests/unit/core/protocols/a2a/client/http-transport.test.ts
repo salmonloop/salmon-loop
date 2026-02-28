@@ -89,7 +89,7 @@ describe('A2A http transport', () => {
     });
   });
 
-  test('reconnects SSE streams with last event id', async () => {
+  test('reconnects SSE streams with last event id using per-call options', async () => {
     const seen: Array<{ url: string; init?: RequestInit }> = [];
     const responses = [
       new Response(
@@ -112,7 +112,6 @@ describe('A2A http transport', () => {
 
     const transport = createA2AHttpTransport({
       baseUrl: 'https://example.com',
-      reconnect: { maxRetries: 1, baseDelayMs: 0 },
       delayMs: async () => undefined,
       fetch: async (url, init) => {
         seen.push({ url: String(url), init });
@@ -120,7 +119,9 @@ describe('A2A http transport', () => {
       },
     });
 
-    const response = await transport.subscribe('task_1');
+    const response = await transport.subscribe('task_1', {
+      reconnect: { maxRetries: 1, baseDelayMs: 0 },
+    });
     const body = await readAll(response.body!);
 
     expect(body).toContain('id: 1');
