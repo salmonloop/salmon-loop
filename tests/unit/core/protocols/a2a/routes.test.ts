@@ -284,4 +284,66 @@ describe('A2A routes', () => {
       },
     ]);
   });
+
+  test('derives rpc policy actions from the invoked method', async () => {
+    const seen: Array<{ action: string; resource: string; taskId: string | null }> = [];
+    const routes = createA2ARoutes({
+      buildAgentCard: () => ({
+        name: 'salmon-loop',
+        url: 'https://example.com',
+        skills: [],
+        securitySchemes: [],
+      }),
+      jsonRpcHandler: {
+        handle: async () => ({ jsonrpc: '2.0', id: '2', result: { id: 'task_1' } }),
+      },
+      eventSource: {
+        open: () =>
+          new Response('event: ping\n\n', {
+            headers: { 'content-type': 'text/event-stream' },
+          }),
+      },
+      authPolicy: createA2AAuthPolicyMiddleware({
+        authenticator: createBearerTokenAuthenticator({ tokens: ['secret-token'] }),
+        policy: {
+          async authorize(input) {
+            seen.push({
+              action: input.action,
+              resource: input.resource,
+              taskId: input.taskId ?? null,
+            });
+            return { allowed: true };
+          },
+        },
+      }),
+    });
+
+    const response = await routes.handle(
+      new Request('https://example.com/rpc', {
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer secret-token',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: '2',
+          method: 'tasks/submitInput',
+          params: {
+            id: 'task_1',
+            input: { type: 'confirmation', value: 'approve' },
+          },
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(seen).toEqual([
+      {
+        action: 'task.submit_input',
+        resource: 'task',
+        taskId: 'task_1',
+      },
+    ]);
+  });
 });

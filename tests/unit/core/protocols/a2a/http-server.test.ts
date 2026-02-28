@@ -255,4 +255,234 @@ describe('A2A JSON-RPC handler', () => {
       status: { state: 'failed' },
     });
   });
+
+  test('applies task history filters and pagination', async () => {
+    const handler = createA2AJsonRpcHandler({
+      facade: {
+        async createTask() {
+          return { id: 'task_1', state: 'accepted' };
+        },
+        async listTasks(input) {
+          expect(input).toEqual({
+            capability: 'patch',
+            state: 'completed',
+            limit: 1,
+            cursor: 'task_1',
+          });
+          return {
+            items: [
+              {
+                id: 'task_2',
+                state: 'completed',
+                capability: 'patch',
+                createdAt: '2026-02-28T01:00:00.000Z',
+              },
+            ],
+            nextCursor: 'task_2',
+          };
+        },
+      },
+    });
+
+    const result = await handler.handle({
+      method: 'tasks/list',
+      params: {
+        capability: 'patch',
+        state: 'completed',
+        limit: 1,
+        cursor: 'task_1',
+      },
+      id: '5a',
+    });
+
+    expect('items' in result.result).toBe(true);
+    const listResult = result.result as Extract<typeof result.result, { items: unknown }>;
+    expect(listResult.nextCursor).toBe('task_2');
+    expect(listResult.items).toHaveLength(1);
+  });
+
+  test('submits input to an awaiting task', async () => {
+    const handler = createA2AJsonRpcHandler({
+      facade: {
+        async createTask() {
+          return { id: 'task_1', state: 'accepted' };
+        },
+        async submitInput(id, input) {
+          expect(id).toBe('task_1');
+          expect(input).toEqual({
+            type: 'confirmation',
+            value: 'approve',
+          });
+          return {
+            id: 'task_1',
+            state: 'running',
+            capability: 'patch',
+            createdAt: '2026-02-28T00:00:00.000Z',
+            statusMessage: 'Resumed after confirmation',
+          };
+        },
+      },
+    });
+
+    const result = await handler.handle({
+      method: 'tasks/submitInput',
+      params: {
+        id: 'task_1',
+        input: {
+          type: 'confirmation',
+          value: 'approve',
+        },
+      },
+      id: '6',
+    });
+
+    expect('items' in result.result).toBe(false);
+    const taskResult = result.result as Exclude<typeof result.result, { items: unknown }>;
+    expect(taskResult.status).toEqual({
+      state: 'working',
+      timestamp: '2026-02-28T00:00:00.000Z',
+      message: 'Resumed after confirmation',
+    });
+  });
+
+  test('fetches a specific task artifact', async () => {
+    const handler = createA2AJsonRpcHandler({
+      facade: {
+        async createTask() {
+          return { id: 'task_1', state: 'accepted' };
+        },
+        async getArtifact(taskId, artifactId) {
+          expect(taskId).toBe('task_1');
+          expect(artifactId).toBe('artifact_1');
+          return {
+            id: 'task_1',
+            state: 'completed',
+            capability: 'patch',
+            createdAt: '2026-02-28T00:00:00.000Z',
+            artifacts: [
+              {
+                id: 'artifact_1',
+                name: 'patch.diff',
+                kind: 'diff',
+                mimeType: 'text/x-diff',
+              },
+            ],
+          };
+        },
+      },
+    });
+
+    const result = await handler.handle({
+      method: 'tasks/getArtifact',
+      params: {
+        id: 'task_1',
+        artifactId: 'artifact_1',
+      },
+      id: '7',
+    });
+
+    expect('items' in result.result).toBe(false);
+    const taskResult = result.result as Exclude<typeof result.result, { items: unknown }>;
+    expect(taskResult.artifacts).toEqual([
+      {
+        artifactId: 'artifact_1',
+        name: 'patch.diff',
+        kind: 'diff',
+        mimeType: 'text/x-diff',
+      },
+    ]);
+  });
+
+  test('returns an invalid-state error when submitting input to a non-awaiting task', async () => {
+    const handler = createA2AJsonRpcHandler({
+      facade: {
+        async createTask() {
+          return { id: 'task_1', state: 'accepted' };
+        },
+        async getTask() {
+          return {
+            id: 'task_1',
+            state: 'completed',
+            capability: 'patch',
+            createdAt: '2026-02-28T00:00:00.000Z',
+          };
+        },
+        async submitInput() {
+          return null;
+        },
+      },
+    });
+
+    await expect(
+      handler.handle({
+        method: 'tasks/submitInput',
+        params: {
+          id: 'task_1',
+          input: {
+            type: 'confirmation',
+            value: 'approve',
+          },
+        },
+        id: '8',
+      }),
+    ).rejects.toMatchObject({
+      code: -32009,
+      status: 409,
+      message: 'Task is not awaiting input: task_1',
+    } satisfies Partial<A2AJsonRpcError>);
+  });
+
+  test('returns only the requested artifact and includes inline content when present', async () => {
+    const handler = createA2AJsonRpcHandler({
+      facade: {
+        async createTask() {
+          return { id: 'task_1', state: 'accepted' };
+        },
+        async getArtifact() {
+          return {
+            id: 'task_1',
+            state: 'completed',
+            capability: 'patch',
+            createdAt: '2026-02-28T00:00:00.000Z',
+            artifacts: [
+              {
+                id: 'artifact_1',
+                name: 'patch.diff',
+                kind: 'diff',
+                mimeType: 'text/x-diff',
+                content: 'diff --git a/file.ts b/file.ts',
+              },
+              {
+                id: 'artifact_2',
+                name: 'notes.txt',
+                kind: 'text',
+                mimeType: 'text/plain',
+              },
+            ],
+          };
+        },
+      },
+    });
+
+    const result = await handler.handle({
+      method: 'tasks/getArtifact',
+      params: {
+        id: 'task_1',
+        artifactId: 'artifact_1',
+      },
+      id: '9',
+    });
+
+    expect('items' in result.result).toBe(false);
+    const taskResult = result.result as Exclude<typeof result.result, { items: unknown }>;
+    expect(taskResult.artifacts).toEqual([
+      {
+        artifactId: 'artifact_1',
+        name: 'patch.diff',
+        kind: 'diff',
+        mimeType: 'text/x-diff',
+        content: 'diff --git a/file.ts b/file.ts',
+      },
+    ]);
+  });
 });

@@ -20,6 +20,37 @@ function buildJsonRpcError(params: {
   );
 }
 
+function buildRpcPolicyContext(payload: unknown): {
+  action: string;
+  resource: string;
+  taskId?: string;
+} {
+  if (!payload || typeof payload !== 'object') {
+    return { action: 'rpc.invoke', resource: 'rpc' };
+  }
+
+  const method =
+    'method' in payload && typeof payload.method === 'string' ? payload.method : undefined;
+  const params =
+    'params' in payload && payload.params && typeof payload.params === 'object'
+      ? (payload.params as Record<string, unknown>)
+      : undefined;
+  const taskId = typeof params?.id === 'string' ? params.id : undefined;
+
+  if (method === 'tasks/get') return { action: 'task.get', resource: 'task', taskId };
+  if (method === 'tasks/list') return { action: 'task.list', resource: 'task' };
+  if (method === 'tasks/cancel') return { action: 'task.cancel', resource: 'task', taskId };
+  if (method === 'tasks/submitInput') {
+    return { action: 'task.submit_input', resource: 'task', taskId };
+  }
+  if (method === 'tasks/getArtifact') {
+    return { action: 'task.get_artifact', resource: 'task', taskId };
+  }
+  if (method === 'message/send') return { action: 'message.send', resource: 'message' };
+
+  return { action: 'rpc.invoke', resource: 'rpc' };
+}
+
 export function createA2ARoutes(deps: {
   buildAgentCard: () => unknown;
   jsonRpcHandler: {
@@ -67,10 +98,12 @@ export function createA2ARoutes(deps: {
           });
         }
         if (deps.authPolicy) {
+          const policyContext = buildRpcPolicyContext(payload);
           const decision = await deps.authPolicy.authorize({
             request,
-            action: 'rpc.invoke',
-            resource: 'rpc',
+            action: policyContext.action,
+            resource: policyContext.resource,
+            taskId: policyContext.taskId,
           });
           if (!decision.allowed) {
             const id =

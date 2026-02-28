@@ -6,6 +6,15 @@ interface JsonRpcRequest {
   method: string;
   params: {
     id?: string;
+    artifactId?: string;
+    capability?: string;
+    state?: string;
+    limit?: number;
+    cursor?: string;
+    input?: {
+      type: string;
+      value: string;
+    };
     message?: {
       role?: string;
       parts?: Array<{ type: string; text?: string }>;
@@ -31,6 +40,7 @@ interface JsonRpcTaskResult {
     name: string;
     kind: string;
     mimeType?: string;
+    content?: string;
   }>;
   metadata?: {
     capability?: string;
@@ -40,6 +50,7 @@ interface JsonRpcTaskResult {
 
 interface JsonRpcTaskListResult {
   items: JsonRpcTaskResult[];
+  nextCursor?: string;
 }
 
 interface CanonicalTaskResult {
@@ -58,6 +69,7 @@ interface CanonicalTaskResult {
     name: string;
     kind: string;
     mimeType?: string;
+    content?: string;
   }>;
 }
 
@@ -81,9 +93,31 @@ export function createA2AJsonRpcHandler(deps: {
     }) => Promise<CanonicalTaskResult>;
     getTask?: (id: string) => Promise<CanonicalTaskResult | null>;
     cancelTask?: (id: string) => Promise<CanonicalTaskResult | null>;
-    listTasks?: () => Promise<CanonicalTaskResult[]>;
+    listTasks?: (query?: {
+      capability?: string;
+      state?: string;
+      limit?: number;
+      cursor?: string;
+    }) => Promise<{ items: CanonicalTaskResult[]; nextCursor?: string } | CanonicalTaskResult[]>;
+    submitInput?: (
+      id: string,
+      input: { type: string; value: string },
+    ) => Promise<CanonicalTaskResult | null>;
+    getArtifact?: (id: string, artifactId: string) => Promise<CanonicalTaskResult | null>;
   };
 }) {
+  function selectArtifact(
+    task: CanonicalTaskResult,
+    artifactId: string,
+  ): CanonicalTaskResult | null {
+    const artifact = task.artifacts?.find((candidate) => candidate.id === artifactId);
+    if (!artifact) return null;
+    return {
+      ...task,
+      artifacts: [artifact],
+    };
+  }
+
   return {
     async handle(request: unknown): Promise<JsonRpcResponse> {
       if (!isJsonRpcRequest(request)) {
@@ -145,13 +179,82 @@ export function createA2AJsonRpcHandler(deps: {
       }
 
       if (request.method === 'tasks/list' && deps.facade.listTasks) {
-        const tasks = await deps.facade.listTasks();
+        const tasks = await deps.facade.listTasks({
+          capability: request.params.capability,
+          state: request.params.state,
+          limit: request.params.limit,
+          cursor: request.params.cursor,
+        });
+        const items = Array.isArray(tasks) ? tasks : tasks.items;
         return {
           jsonrpc: '2.0',
           id: request.id,
           result: {
-            items: tasks.map((task) => projectCanonicalTaskToA2ATask(task)),
+            items: items.map((task) => projectCanonicalTaskToA2ATask(task)),
+            nextCursor: Array.isArray(tasks) ? undefined : tasks.nextCursor,
           },
+        };
+      }
+
+      if (request.method === 'tasks/submitInput' && deps.facade.submitInput && request.params.id) {
+        if (!request.params.input) {
+          throw new A2AJsonRpcError({
+            code: -32600,
+            message: 'Invalid JSON-RPC request',
+            status: 400,
+          });
+        }
+        const task = await deps.facade.submitInput(request.params.id, request.params.input);
+        if (!task) {
+          const existingTask = deps.facade.getTask
+            ? await deps.facade.getTask(request.params.id)
+            : null;
+          if (existingTask) {
+            throw new A2AJsonRpcError({
+              code: -32009,
+              message: `Task is not awaiting input: ${request.params.id}`,
+              status: 409,
+            });
+          }
+          throw new A2AJsonRpcError({
+            code: -32004,
+            message: `Task not found: ${request.params.id}`,
+            status: 404,
+          });
+        }
+        return {
+          jsonrpc: '2.0',
+          id: request.id,
+          result: projectCanonicalTaskToA2ATask(task),
+        };
+      }
+
+      if (
+        request.method === 'tasks/getArtifact' &&
+        deps.facade.getArtifact &&
+        request.params.id &&
+        request.params.artifactId
+      ) {
+        const task = await deps.facade.getArtifact(request.params.id, request.params.artifactId);
+        if (!task) {
+          throw new A2AJsonRpcError({
+            code: -32004,
+            message: `Artifact not found: ${request.params.artifactId}`,
+            status: 404,
+          });
+        }
+        const selectedTask = selectArtifact(task, request.params.artifactId);
+        if (!selectedTask) {
+          throw new A2AJsonRpcError({
+            code: -32004,
+            message: `Artifact not found: ${request.params.artifactId}`,
+            status: 404,
+          });
+        }
+        return {
+          jsonrpc: '2.0',
+          id: request.id,
+          result: projectCanonicalTaskToA2ATask(selectedTask),
         };
       }
 

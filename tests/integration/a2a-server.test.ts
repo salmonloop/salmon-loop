@@ -207,6 +207,216 @@ describe('A2A server integration', () => {
     });
   });
 
+  test('serves task input submission and artifact fetch over rpc', async () => {
+    const handler = createA2AJsonRpcHandler({
+      facade: {
+        async createTask() {
+          return { id: 'task_1', state: 'accepted' };
+        },
+        async submitInput() {
+          return {
+            id: 'task_1',
+            state: 'running',
+            capability: 'patch',
+            createdAt: '2026-02-28T00:00:00.000Z',
+            statusMessage: 'Resumed after confirmation',
+          };
+        },
+        async getArtifact() {
+          return {
+            id: 'task_1',
+            state: 'completed',
+            capability: 'patch',
+            createdAt: '2026-02-28T00:00:00.000Z',
+            artifacts: [
+              {
+                id: 'artifact_1',
+                name: 'patch.diff',
+                kind: 'diff',
+                mimeType: 'text/x-diff',
+              },
+            ],
+          };
+        },
+      },
+    });
+
+    const routes = createA2ARoutes({
+      buildAgentCard: () =>
+        buildA2AAgentCard({
+          name: 'salmon-loop',
+          url: 'https://example.com',
+          capabilities: [{ id: 'patch', title: 'Patch code' }],
+          security: [],
+        }),
+      jsonRpcHandler: handler,
+      eventSource: createSseEventSource(),
+    });
+
+    const server = createA2AHttpServer({ routes });
+
+    const submitResponse = await server.fetch(
+      new Request('https://example.com/rpc', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: '10',
+          method: 'tasks/submitInput',
+          params: {
+            id: 'task_1',
+            input: { type: 'confirmation', value: 'approve' },
+          },
+        }),
+      }),
+    );
+
+    expect(submitResponse.status).toBe(200);
+    await expect(submitResponse.json()).resolves.toMatchObject({
+      jsonrpc: '2.0',
+      id: '10',
+      result: {
+        id: 'task_1',
+        status: {
+          state: 'working',
+          message: 'Resumed after confirmation',
+        },
+      },
+    });
+
+    const artifactResponse = await server.fetch(
+      new Request('https://example.com/rpc', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: '11',
+          method: 'tasks/getArtifact',
+          params: {
+            id: 'task_1',
+            artifactId: 'artifact_1',
+          },
+        }),
+      }),
+    );
+
+    expect(artifactResponse.status).toBe(200);
+    await expect(artifactResponse.json()).resolves.toMatchObject({
+      jsonrpc: '2.0',
+      id: '11',
+      result: {
+        id: 'task_1',
+        artifacts: [
+          {
+            artifactId: 'artifact_1',
+            name: 'patch.diff',
+          },
+        ],
+      },
+    });
+  });
+
+  test('applies rpc method policy hooks and returns selected artifact content only', async () => {
+    const seen: Array<{ action: string; resource: string; taskId: string | null }> = [];
+    const handler = createA2AJsonRpcHandler({
+      facade: {
+        async createTask() {
+          return { id: 'task_1', state: 'accepted' };
+        },
+        async getArtifact() {
+          return {
+            id: 'task_1',
+            state: 'completed',
+            capability: 'patch',
+            createdAt: '2026-02-28T00:00:00.000Z',
+            artifacts: [
+              {
+                id: 'artifact_1',
+                name: 'patch.diff',
+                kind: 'diff',
+                mimeType: 'text/x-diff',
+                content: 'diff --git a/file.ts b/file.ts',
+              },
+              {
+                id: 'artifact_2',
+                name: 'notes.txt',
+                kind: 'text',
+                mimeType: 'text/plain',
+              },
+            ],
+          };
+        },
+      },
+    });
+
+    const routes = createA2ARoutes({
+      buildAgentCard: () =>
+        buildA2AAgentCard({
+          name: 'salmon-loop',
+          url: 'https://example.com',
+          capabilities: [{ id: 'patch', title: 'Patch code' }],
+          security: [{ type: 'http', scheme: 'bearer' }],
+        }),
+      jsonRpcHandler: handler,
+      eventSource: createSseEventSource(),
+      authPolicy: createA2AAuthPolicyMiddleware({
+        authenticator: createBearerTokenAuthenticator({ tokens: ['secret-token'] }),
+        policy: {
+          async authorize(input) {
+            seen.push({
+              action: input.action,
+              resource: input.resource,
+              taskId: input.taskId ?? null,
+            });
+            return { allowed: true };
+          },
+        },
+      }),
+    });
+
+    const server = createA2AHttpServer({ routes });
+    const artifactResponse = await server.fetch(
+      new Request('https://example.com/rpc', {
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer secret-token',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: '12',
+          method: 'tasks/getArtifact',
+          params: {
+            id: 'task_1',
+            artifactId: 'artifact_1',
+          },
+        }),
+      }),
+    );
+
+    expect(artifactResponse.status).toBe(200);
+    await expect(artifactResponse.json()).resolves.toMatchObject({
+      jsonrpc: '2.0',
+      id: '12',
+      result: {
+        id: 'task_1',
+        artifacts: [
+          {
+            artifactId: 'artifact_1',
+            content: 'diff --git a/file.ts b/file.ts',
+          },
+        ],
+      },
+    });
+    expect(seen).toEqual([
+      {
+        action: 'task.get_artifact',
+        resource: 'task',
+        taskId: 'task_1',
+      },
+    ]);
+  });
+
   test('streams live task events over SSE subscriptions', async () => {
     const bus = createTaskEventBus();
     const routes = createA2ARoutes({

@@ -14,6 +14,7 @@ interface CanonicalTaskLike {
     name: string;
     kind: string;
     mimeType?: string;
+    content?: string;
   }>;
 }
 
@@ -50,6 +51,7 @@ export function projectCanonicalTaskToA2ATask(task: CanonicalTaskLike) {
       name: artifact.name,
       kind: artifact.kind,
       mimeType: artifact.mimeType,
+      content: artifact.content,
     })),
     metadata: {
       capability: task.capability,

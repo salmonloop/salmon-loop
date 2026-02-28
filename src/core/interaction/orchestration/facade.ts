@@ -7,7 +7,14 @@ export interface InteractionFacade {
   createTask(input: { capability: string; request: TaskRequest }): Promise<TaskEnvelope>;
   getTask(id: string): Promise<TaskEnvelope | null>;
   cancelTask(id: string): Promise<TaskEnvelope | null>;
-  listTasks(): Promise<TaskEnvelope[]>;
+  listTasks(query?: {
+    capability?: string;
+    state?: string;
+    limit?: number;
+    cursor?: string;
+  }): Promise<{ items: TaskEnvelope[]; nextCursor?: string }>;
+  submitInput(id: string, input: { type: string; value: string }): Promise<TaskEnvelope | null>;
+  getArtifact(id: string, artifactId: string): Promise<TaskEnvelope | null>;
 }
 
 export function createInteractionFacade(deps: {
@@ -47,8 +54,31 @@ export function createInteractionFacade(deps: {
       deps.eventBus?.publish({ type: 'task.cancelled', taskId: cancelled.id });
       return cancelled;
     },
-    async listTasks() {
-      return store.list();
+    async listTasks(query) {
+      return store.list(query);
+    },
+    async submitInput(id, input) {
+      const task = store.get(id);
+      if (!task) return null;
+      if (task.state !== 'awaiting_input') return null;
+      if (task.inputRequired && task.inputRequired.type !== input.type) return null;
+
+      return store.update({
+        ...task,
+        state: 'running',
+        statusMessage: `Input received: ${input.value}`,
+        inputRequired: undefined,
+      });
+    },
+    async getArtifact(id, artifactId) {
+      const task = store.get(id);
+      if (!task) return null;
+      const artifact = task.artifacts?.find((candidate) => candidate.id === artifactId);
+      if (!artifact) return null;
+      return {
+        ...task,
+        artifacts: [artifact],
+      };
     },
   };
 }

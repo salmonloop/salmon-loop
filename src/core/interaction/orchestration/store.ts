@@ -16,7 +16,31 @@ export class InMemoryTaskStore {
     return task;
   }
 
-  list(): TaskEnvelope[] {
-    return [...this.tasks.values()];
+  list(query?: { capability?: string; state?: string; limit?: number; cursor?: string }): {
+    items: TaskEnvelope[];
+    nextCursor?: string;
+  } {
+    let tasks = [...this.tasks.values()];
+
+    if (query?.cursor) {
+      const cursorIndex = tasks.findIndex((task) => task.id === query.cursor);
+      tasks = cursorIndex >= 0 ? tasks.slice(cursorIndex + 1) : tasks;
+    }
+
+    if (query?.capability) {
+      tasks = tasks.filter((task) => task.capability === query.capability);
+    }
+
+    if (query?.state) {
+      tasks = tasks.filter((task) => task.state === query.state);
+    }
+
+    const items = typeof query?.limit === 'number' ? tasks.slice(0, query.limit) : tasks;
+    const nextCursor =
+      typeof query?.limit === 'number' && tasks.length > items.length && items.length > 0
+        ? items[items.length - 1]?.id
+        : undefined;
+
+    return { items, nextCursor };
   }
 }

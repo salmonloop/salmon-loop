@@ -16,6 +16,7 @@ export interface TaskArtifact {
   name: string;
   kind: string;
   mimeType?: string;
+  content?: string;
 }
 
 export interface TaskRequiredAction {

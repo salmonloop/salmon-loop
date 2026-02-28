@@ -73,4 +73,53 @@ describe('interaction facade', () => {
 
     expect(seen).toEqual(['task.accepted', 'task.completed', 'task.cancelled']);
   });
+
+  test('accepts input only for awaiting_input tasks and clears required action', async () => {
+    const facade = createInteractionFacade({
+      executeTask: async (task) => ({ ...task, state: 'completed' }),
+    });
+
+    const created = await facade.createTask({
+      capability: 'patch',
+      request: { instruction: 'fix bug' },
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const awaiting = await facade.getTask(created.id);
+    expect(awaiting).not.toBeNull();
+
+    const resumed = await facade.submitInput(created.id, {
+      type: 'confirmation',
+      value: 'approve',
+    });
+
+    expect(resumed).toBeNull();
+
+    const facadeWithAwaitingTask = createInteractionFacade({
+      executeTask: async (task) => ({
+        ...task,
+        state: 'awaiting_input',
+        inputRequired: { type: 'confirmation', prompt: 'Approve patch?' },
+      }),
+    });
+
+    const awaitingCreated = await facadeWithAwaitingTask.createTask({
+      capability: 'patch',
+      request: { instruction: 'fix bug' },
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const resumedAwaiting = await facadeWithAwaitingTask.submitInput(awaitingCreated.id, {
+      type: 'confirmation',
+      value: 'approve',
+    });
+
+    expect(resumedAwaiting).toMatchObject({
+      state: 'running',
+      statusMessage: 'Input received: approve',
+      inputRequired: undefined,
+    });
+  });
 });
