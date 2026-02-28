@@ -82,6 +82,17 @@ Builds and prints the assembled context prompt without calling the LLM.
 s8p context -i "..." [-f src/file.ts | -s "..."] [--diff-scope primary|ast_related] [--budget-chars 30000]
 ```
 
+### Serve (A2A + Sidecar)
+
+Start the A2A HTTP server and the local sidecar server (for UI integration).
+
+```bash
+s8p serve
+```
+
+Configuration defaults come from the `server` section of the config file.
+See `docs/user/config.md` for the `server.a2a` and `server.sidecar` fields.
+
 ## Global Options
 
 - `-r, --repo <path>`: Path to the git repository root. Defaults to the current directory.

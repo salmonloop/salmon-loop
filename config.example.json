@@ -59,6 +59,17 @@
       "view": "standard"
     }
   },
+  "server": {
+    "a2a": {
+      "host": "127.0.0.1",
+      "port": 7431,
+      "tokens": []
+    },
+    "sidecar": {
+      "socket": "/home/you/.local/share/SalmonLoop/sidecar/agent-message.sock",
+      "allowConditional": false
+    }
+  },
   "verify": {
     "command": "node -e \"process.exit(0)\"",
     "timeoutMs": 600000

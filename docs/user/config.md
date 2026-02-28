@@ -19,6 +19,59 @@ The precedence order is:
 3. Environment variables
 4. CLI flags
 
+## Server
+
+SalmonLoop can expose an A2A HTTP server plus a local sidecar server for UI integration.
+Configuration lives under the `server` top-level key.
+
+### `server.a2a`
+
+Controls the A2A HTTP listener and optional token-based auth.
+
+- `host`: Host/interface to bind (default: `127.0.0.1`).
+- `port`: TCP port to listen on (default: `7431`).
+- `tokens`: Optional list of bearer tokens that are accepted by the A2A server. If empty, no token check is enforced.
+
+Example:
+
+```json
+{
+  "server": {
+    "a2a": {
+      "host": "127.0.0.1",
+      "port": 7431,
+      "tokens": ["dev-token"]
+    }
+  }
+}
+```
+
+### `server.sidecar`
+
+Controls the local sidecar server (UDS or named pipe). Leave `socket` unset to use the OS default.
+
+- `socket`: Absolute path to the UDS socket (POSIX) or Windows named pipe path.
+- `allowConditional`: Whether to expose conditional sidecar routes (default: `false`).
+
+Default socket paths:
+
+- Linux: `~/.local/share/SalmonLoop/sidecar/agent-message.sock`
+- macOS: `~/Library/Application Support/SalmonLoop/sidecar/agent-message.sock`
+- Windows: `\\\\.\\pipe\\salmonloop-agent-message`
+
+Example:
+
+```json
+{
+  "server": {
+    "sidecar": {
+      "socket": "/home/you/.local/share/SalmonLoop/sidecar/agent-message.sock",
+      "allowConditional": false
+    }
+  }
+}
+```
+
 ## Context Targeting & Cache
 
 ### `context.churn.weight`
