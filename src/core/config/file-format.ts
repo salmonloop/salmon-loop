@@ -1,3 +1,5 @@
+import { stringify as stringifyYaml } from 'yaml';
+
 import { ConfigError } from './errors.js';
 
 export type ConfigFileFormat = 'json' | 'yaml';
@@ -100,7 +102,11 @@ export function parseConfigText(raw: string, configPath: string): unknown {
 export function stringifyConfigText(value: unknown, format: ConfigFileFormat): string {
   if (format === 'yaml') {
     const yamlShape = convertInternalToYamlOutput(value);
-    return `${Bun.YAML.stringify(yamlShape)}`;
+    return stringifyYaml(yamlShape, {
+      collectionStyle: 'block',
+      indent: 2,
+      lineWidth: 0,
+    });
   }
   return `${JSON.stringify(value, null, 2)}\n`;
 }
