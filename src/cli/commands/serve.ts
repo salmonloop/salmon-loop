@@ -5,17 +5,17 @@ import { defaultPathAdapter } from '../../core/adapters/path/path-adapter.js';
 import { createSalmonTaskExecutor } from '../../core/backends/salmon-loop/task-executor.js';
 import { resolveConfig } from '../../core/config/resolve.js';
 import { resolveExtensions } from '../../core/extensions/index.js';
+import { createTaskEventBus } from '../../core/interaction/events/bus.js';
+import { createInteractionFacade } from '../../core/interaction/orchestration/facade.js';
 import { logger, StderrReporter } from '../../core/observability/logger.js';
 import { PluginLoader } from '../../core/plugin/loader.js';
-import { createAcpJsonRpcHandler } from '../../core/protocols/acp/index.js';
 import { buildA2AAgentCard } from '../../core/protocols/a2a/agent-card.js';
 import {
   createA2AAuthPolicyMiddleware,
   createAllowAllA2APolicy,
   createBearerTokenAuthenticator,
 } from '../../core/protocols/a2a/server/auth-policy.js';
-import { createTaskEventBus } from '../../core/interaction/events/bus.js';
-import { createInteractionFacade } from '../../core/interaction/orchestration/facade.js';
+import { createAcpJsonRpcHandler } from '../../core/protocols/acp/index.js';
 import { createAgentServerRuntime } from '../../core/runtime/agent-server-runtime.js';
 import { runSalmonLoop } from '../../core/runtime/loop.js';
 import { getSidecarSocketPath } from '../../core/runtime/sidecar-paths.js';

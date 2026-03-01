@@ -26,7 +26,9 @@ describe('ACP session lifecycle', () => {
 
     const handler = createAcpJsonRpcHandler({
       agentInfo: { name: 'salmon-loop', version: '0.2.0' },
-      emitNotification: async (note) => notifications.push(note),
+      emitNotification: async (note) => {
+        notifications.push(note);
+      },
       eventBus,
       facade: {
         createTask: async () => {
@@ -36,6 +38,7 @@ describe('ACP session lifecycle', () => {
             state: 'accepted',
             capability: 'patch',
             request: { instruction: 'hi' },
+            createdAt: new Date().toISOString(),
           } as any;
         },
         getTask: async () => null,
@@ -91,15 +94,19 @@ describe('ACP session lifecycle', () => {
 
     const handler = createAcpJsonRpcHandler({
       agentInfo: { name: 'salmon-loop', version: '0.2.0' },
-      emitNotification: async (note) => notifications.push(note),
+      emitNotification: async (note) => {
+        notifications.push(note);
+      },
       eventBus,
       facade: {
-        createTask: async () => ({
-          id: 'task_1',
-          state: 'accepted',
-          capability: 'patch',
-          request: { instruction: 'hi' },
-        }) as any,
+        createTask: async () =>
+          ({
+            id: 'task_1',
+            state: 'accepted',
+            capability: 'patch',
+            request: { instruction: 'hi' },
+            createdAt: new Date().toISOString(),
+          }) as any,
         getTask: async () => null,
         cancelTask: async () => null,
         resumeTask: async () => null,

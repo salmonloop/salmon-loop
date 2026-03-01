@@ -46,14 +46,17 @@ const DEFAULT_CAPABILITIES = {
 };
 
 type Facade = {
-  createTask: (input: { capability: string; request: { instruction: string } }) => Promise<TaskEnvelope>;
+  createTask: (input: {
+    capability: string;
+    request: { instruction: string };
+  }) => Promise<TaskEnvelope>;
   getTask: (id: string) => Promise<TaskEnvelope | null>;
   cancelTask: (id: string) => Promise<TaskEnvelope | null>;
   resumeTask: (id: string) => Promise<TaskEnvelope | null>;
   retryTask: (id: string) => Promise<TaskEnvelope | null>;
   reopenTask: (
     id: string,
-    action?: { type: string; reason?: 'approval' | 'clarification' | 'reopen'; prompt: string },
+    action: { type: string; reason?: 'approval' | 'clarification' | 'reopen'; prompt: string },
   ) => Promise<TaskEnvelope | null>;
   listTasks: (query?: {
     capability?: string;
@@ -227,7 +230,10 @@ export function createAcpJsonRpcHandler(deps: {
     sessions.update(sessionId, (current) => ({
       ...current,
       cancelRequested: false,
-      history: [...current.history, { role: 'user', content: prompt as Array<Record<string, unknown>> }],
+      history: [
+        ...current.history,
+        { role: 'user', content: prompt as Array<Record<string, unknown>> },
+      ],
     }));
 
     if (promptText.trim().length > 0) {
@@ -245,7 +251,11 @@ export function createAcpJsonRpcHandler(deps: {
 
     sessions.update(sessionId, (current) => ({ ...current, taskId: task.id }));
 
-    const terminalEvent = await awaitTerminalEvent({ taskId: task.id, eventBus: deps.eventBus, session });
+    const terminalEvent = await awaitTerminalEvent({
+      taskId: task.id,
+      eventBus: deps.eventBus,
+      session,
+    });
     let stopReason: string = 'end_turn';
     let assistantText = 'Task completed.';
 
@@ -266,7 +276,10 @@ export function createAcpJsonRpcHandler(deps: {
 
     sessions.update(sessionId, (current) => ({
       ...current,
-      history: [...current.history, { role: 'assistant', content: [buildTextContentBlock(assistantText)] }],
+      history: [
+        ...current.history,
+        { role: 'assistant', content: [buildTextContentBlock(assistantText)] },
+      ],
     }));
 
     return {

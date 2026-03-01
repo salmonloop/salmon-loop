@@ -7,12 +7,14 @@ function createHandler() {
     agentInfo: { name: 'salmon-loop', version: '0.2.0' },
     emitNotification: async () => {},
     facade: {
-      createTask: async () => ({
-        id: 'task_1',
-        state: 'accepted',
-        capability: 'patch',
-        request: { instruction: 'hi' },
-      }) as any,
+      createTask: async () =>
+        ({
+          id: 'task_1',
+          state: 'accepted',
+          capability: 'patch',
+          request: { instruction: 'hi' },
+          createdAt: new Date().toISOString(),
+        }) as any,
       getTask: async () => null,
       cancelTask: async () => null,
       resumeTask: async () => null,

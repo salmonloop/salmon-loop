@@ -5,7 +5,10 @@ import { isAcpJsonRpcError, type AcpJsonRpcResponse } from '../../protocols/acp/
 const PARSE_ERROR = -32700;
 const INTERNAL_ERROR = -32603;
 
-function writeJson(stream: NodeJS.WritableStream, payload: AcpJsonRpcResponse | Record<string, unknown>) {
+function writeJson(
+  stream: NodeJS.WritableStream,
+  payload: AcpJsonRpcResponse | Record<string, unknown>,
+) {
   stream.write(`${JSON.stringify(payload)}\n`);
 }
 

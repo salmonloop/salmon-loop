@@ -20,7 +20,10 @@ export type AcpSessionRecord = {
 export type AcpSessionStore = {
   create: (input: { cwd: string; mcpServers: unknown[]; title?: string }) => AcpSessionRecord;
   get: (id: string) => AcpSessionRecord | undefined;
-  update: (id: string, mutate: (session: AcpSessionRecord) => AcpSessionRecord) => AcpSessionRecord | undefined;
+  update: (
+    id: string,
+    mutate: (session: AcpSessionRecord) => AcpSessionRecord,
+  ) => AcpSessionRecord | undefined;
   list: () => AcpSessionRecord[];
   delete: (id: string) => boolean;
 };

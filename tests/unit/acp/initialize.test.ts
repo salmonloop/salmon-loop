@@ -12,6 +12,7 @@ function createHandler() {
         state: 'accepted',
         capability: 'patch',
         request: { instruction: 'hi' },
+        createdAt: new Date().toISOString(),
       }),
       getTask: async () => null,
       cancelTask: async () => null,
@@ -43,9 +44,10 @@ describe('ACP initialize', () => {
     if (!response || 'error' in response) {
       throw new Error('Expected initialize response');
     }
-    expect(response.result).toBeTruthy();
-    expect(response.result.protocolVersion).toBe(1);
-    expect(response.result.agentCapabilities).toBeTruthy();
-    expect(response.result.agentInfo?.name).toBe('salmon-loop');
+    const result = response.result as any;
+    expect(result).toBeTruthy();
+    expect(result.protocolVersion).toBe(1);
+    expect(result.agentCapabilities).toBeTruthy();
+    expect(result.agentInfo?.name).toBe('salmon-loop');
   });
 });

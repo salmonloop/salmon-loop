@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'bun:test';
 import { PassThrough } from 'stream';
+
+import { describe, expect, it } from 'bun:test';
 
 import { createAcpJsonRpcHandler } from '../../../src/core/protocols/acp/jsonrpc.js';
 import { createAcpStdioLoop } from '../../../src/core/transports/stdio/acp-stdio-loop.js';
@@ -70,6 +71,7 @@ describe('ACP stdio stream', () => {
             state: 'accepted',
             capability: 'patch',
             request: { instruction: 'hi' },
+            createdAt: new Date().toISOString(),
           } as any;
         },
         getTask: async () => null,
@@ -95,7 +97,11 @@ describe('ACP stdio stream', () => {
         jsonrpc: '2.0',
         id: 1,
         method: 'initialize',
-        params: { protocolVersion: 1, clientInfo: { name: 'test', version: '0.0.0' }, capabilities: {} },
+        params: {
+          protocolVersion: 1,
+          clientInfo: { name: 'test', version: '0.0.0' },
+          capabilities: {},
+        },
       })}\n`,
     );
 
