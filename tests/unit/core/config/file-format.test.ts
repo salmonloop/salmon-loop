@@ -77,6 +77,27 @@ llm:
     expect(text).toContain('X-API-Key');
   });
 
+  it('stringifies YAML in block style', () => {
+    const text = stringifyConfigText(
+      {
+        version: 1,
+        ui: {
+          log: {
+            view: 'compact',
+            mode: 'normal',
+          },
+        },
+      },
+      'yaml',
+    );
+
+    expect(text).toContain('ui:\n');
+    expect(text).toContain('  log:\n');
+    expect(text).toContain('    view: compact');
+    expect(text).not.toContain('{');
+    expect(text).not.toContain('}');
+  });
+
   it('supports context churn weight keys in snake_case YAML', () => {
     const raw = `
 version: 1
