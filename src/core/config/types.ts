@@ -161,6 +161,7 @@ export interface LlmOutputConfig {
 export interface ObservabilityConfigV1 {
   langfuse?: LangfuseObservabilityConfigV1;
   audit?: {
+    scope?: 'repo' | 'user';
     buffer?: {
       maxEvents?: number;
       maxBytes?: number;
@@ -301,6 +302,7 @@ export interface ResolvedConfig {
       userId?: string;
     };
     audit: {
+      scope: 'repo' | 'user';
       buffer: {
         maxEvents: number;
         maxBytes: number;

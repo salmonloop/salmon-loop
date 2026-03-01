@@ -104,6 +104,7 @@ See `docs/user/config.md` for the `server.a2a` and `server.sidecar` fields.
 - `--no-config-file`: Disable loading the repo config file.
 - `--print-config`: Print the resolved config (redacted) and exit.
 - `--verbose [level]`: Enable verbose logging (`basic` or `extended`).
+- `--audit-scope <scope>`: Audit log scope (`repo` or `user`). Overrides `observability.audit.scope` config.
 - `--stream-output`: Stream LLM responses to the CLI as they arrive.
   - **Behavior**: Real-time display of text deltas during the PLAN phase.
   - **Tool Status**: Reports when a tool starts and completes (e.g., `[TOOL: code_search] Start... Done`).

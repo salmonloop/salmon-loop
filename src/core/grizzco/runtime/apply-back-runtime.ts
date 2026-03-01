@@ -156,6 +156,7 @@ export async function runApplyBackPhase(
     try {
       debugArtifact = await writeDebugArtifact({
         repoRoot: options.repoPath,
+        auditScope: options.auditScope,
         prefix: 'apply-back-error',
         content: [
           `applyBack failure`,

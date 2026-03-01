@@ -9,12 +9,22 @@ const { readFileMock, writeFileMock, renameMock, mkdirMock, appendFileMock, warn
   warnMock: mock(),
 }))();
 
+const getAuditDirMock = mock((repoPath: string, scope?: string) =>
+  scope === 'user'
+    ? '/home/testuser/.salmonloop/runtime/audit'
+    : `${repoPath}/.salmonloop/runtime/audit`,
+);
+
 mock.module('../../src/core/adapters/fs/node-fs.js', () => ({
   readFile: readFileMock,
   writeFile: writeFileMock,
   rename: renameMock,
   mkdir: mkdirMock,
   appendFile: appendFileMock,
+}));
+
+mock.module('../../src/core/runtime/paths.js', () => ({
+  getAuditDir: getAuditDirMock,
 }));
 
 mock.module('../../src/core/observability/logger.js', () => ({
@@ -43,6 +53,7 @@ describe('appendAuditTrailToAuditFile', () => {
     mkdirMock.mockReset();
     appendFileMock.mockReset();
     warnMock.mockReset();
+    getAuditDirMock.mockClear();
   });
 
   it('appends new audit events to the events file and updates eventsRef', async () => {
@@ -114,6 +125,22 @@ describe('appendAuditTrailToAuditFile', () => {
     expect(out).toBeTruthy();
     expect(writeFileMock).toHaveBeenCalledTimes(2);
     expect(renameMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses audit scope when creating fallback audit file', async () => {
+    recordAuditEvent('test.action.scope', { a: 1 }, { source: 'test' });
+    renameMock.mockResolvedValue(undefined);
+    mkdirMock.mockResolvedValue(undefined);
+
+    await appendAuditTrailToAuditFile({
+      auditPath: undefined,
+      repoPath: '/tmp/repo',
+      auditScope: 'user',
+      failureReason: 'boom',
+      runId: 'run-2',
+    });
+
+    expect(getAuditDirMock).toHaveBeenCalledWith('/tmp/repo', 'user');
   });
 
   it('updates audit meta to final run outcome even when no new events are appended', async () => {

@@ -209,6 +209,7 @@ export class SalmonLoop {
         const appendedPath = await appendAuditTrailToAuditFile({
           auditPath: latestAuditPath,
           repoPath: options.repoPath,
+          auditScope: options.auditScope,
           failureReason: fallbackFailureReason,
           runId: correlationId,
           finalOutcome: finalResult

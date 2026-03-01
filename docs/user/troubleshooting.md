@@ -1,6 +1,6 @@
 # Troubleshooting
 
-If a run fails, first check the latest audit log in `.salmonloop/runtime/audit/audit-*.json` and look for `meta.errorCode`.
+If a run fails, first check the latest audit log in `.salmonloop/runtime/audit/audit-*.json` (default repo scope) or `~/.salmonloop/runtime/audit/audit-*.json` (user scope) and look for `meta.errorCode`.
 Stable codes are documented in `docs/reference/error-codes.md`.
 
 ## Langfuse outcome reporting failed
@@ -13,7 +13,8 @@ Symptom:
 How to debug:
 
 1. Find the audit file for the run id:
-   - `rg -l 'run-<id>' .salmonloop/runtime/audit/audit-*.json`
+   - Repo scope: `rg -l 'run-<id>' .salmonloop/runtime/audit/audit-*.json`
+   - User scope: `rg -l 'run-<id>' ~/.salmonloop/runtime/audit/audit-*.json`
 2. Inspect Langfuse-related audit events:
    - `jq '.context.auditTrail[] | select(.action|startswith(\"langfuse.outcome.\"))' <audit-file>`
 
@@ -45,7 +46,7 @@ Actions:
 Meaning: the LLM client failed to parse a JSON response (typically a truncated upstream response or a malformed proxy response).
 
 Actions:
-- Inspect the latest `.salmonloop/runtime/audit/audit-*.json` and check `meta.errorCode`.
+- Inspect the latest audit log (repo scope: `.salmonloop/runtime/audit/audit-*.json`, user scope: `~/.salmonloop/runtime/audit/audit-*.json`) and check `meta.errorCode`.
   - Common codes:
     - `LLM_HTTP_RESPONSE_INVALID_JSON`
     - `LLM_HTTP_REQUEST_FAILED`

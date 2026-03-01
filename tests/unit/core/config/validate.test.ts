@@ -114,6 +114,30 @@ describe('validateConfigFileV1 (audit buffer)', () => {
       }),
     ).toThrow(/CONFIG_INVALID_OBSERVABILITY_AUDIT_DROPPED_WARN/);
   });
+
+  it('accepts audit scope user', () => {
+    const parsed = validateConfigFileV1({
+      observability: {
+        audit: {
+          scope: 'user',
+        },
+      },
+    });
+
+    expect(parsed.observability?.audit?.scope).toBe('user');
+  });
+
+  it('rejects invalid audit scope', () => {
+    expect(() =>
+      validateConfigFileV1({
+        observability: {
+          audit: {
+            scope: 'invalid',
+          },
+        },
+      }),
+    ).toThrow(/CONFIG_INVALID_OBSERVABILITY_AUDIT_SCOPE/);
+  });
 });
 
 describe('validateConfigFileV1 (security.redaction)', () => {

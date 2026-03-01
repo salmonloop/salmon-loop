@@ -8,6 +8,7 @@ import { createRuntimeLlm } from '../../core/llm/factory.js';
 import { logger } from '../../core/observability/logger.js';
 import { PluginLoader } from '../../core/plugin/loader.js';
 import { text } from '../locales/index.js';
+import { resolveAuditScope } from '../utils/audit-scope.js';
 import { resolveLlmOutputPolicyFromCli } from '../utils/llm-output.js';
 import { createOutcomeReporter } from '../utils/outcome-reporter.js';
 import { resolveVerifyOption } from '../utils/verify-resolver.js';
@@ -42,6 +43,15 @@ export async function handleChatCommand(options: any, command: Command) {
     repoRoot: runPath,
     enableConfigFile: true,
   });
+  const auditScopeResolution = resolveAuditScope({
+    cliValue: allOptions.auditScope,
+    configValue: resolvedConfig.observability.audit.scope,
+  });
+  if (!auditScopeResolution.ok) {
+    logger.error(text.cli.invalidAuditScope(auditScopeResolution.invalid), true);
+    process.exit(1);
+  }
+  const auditScope = auditScopeResolution.value;
 
   const llmOutputResolution = resolveLlmOutputPolicyFromCli(
     resolvedConfig.llmOutput,
@@ -100,6 +110,7 @@ export async function handleChatCommand(options: any, command: Command) {
       toolAuthorization: resolvedConfig.toolAuthorization,
       extensions: extensionResolution.resolved,
       outcomeReporter,
+      auditScope,
       langfuseSessionId: resolvedConfig.observability.langfuse.sessionId,
       langfuseUserId: resolvedConfig.observability.langfuse.userId,
     });

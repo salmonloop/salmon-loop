@@ -1,3 +1,4 @@
+import * as os from 'os';
 import path from 'path';
 
 import { mkdir, readdir, rename, rm, stat } from '../adapters/fs/node-fs.js';
@@ -15,7 +16,16 @@ export function getRuntimeRoot(repoRoot: string): string {
   return path.join(repoRoot, '.salmonloop', 'runtime');
 }
 
-export function getAuditDir(repoRoot: string): string {
+export type AuditScope = 'repo' | 'user';
+
+export function getUserRuntimeRoot(): string {
+  return path.join(os.homedir(), '.salmonloop', 'runtime');
+}
+
+export function getAuditDir(repoRoot: string, scope: AuditScope = 'repo'): string {
+  if (scope === 'user') {
+    return path.join(getUserRuntimeRoot(), 'audit');
+  }
   return path.join(getRuntimeRoot(repoRoot), 'audit');
 }
 

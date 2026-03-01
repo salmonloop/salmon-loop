@@ -37,7 +37,10 @@ mock.module('../../../../src/core/config/index.js', () => ({
   resolveConfig: mock(async () => ({
     raw: { version: 1 },
     source: { used: false, path: undefined },
-    observability: { langfuse: { enabled: false, outcome: false, endpoint: undefined } },
+    observability: {
+      langfuse: { enabled: false, outcome: false, endpoint: undefined },
+      audit: { scope: 'repo' },
+    },
     llmOutput: { kinds: [] },
     markdownTheme: 'default',
     markdownRenderMode: 'enhanced',

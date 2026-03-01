@@ -10,6 +10,7 @@ import { logger } from './logger.js';
 interface AppendAuditParams {
   auditPath?: string;
   repoPath?: string;
+  auditScope?: 'repo' | 'user';
   failureReason?: string;
   runId?: string;
   finalOutcome?: {
@@ -67,7 +68,7 @@ async function createFallbackAuditFile(params: AppendAuditParams): Promise<strin
   const trail = getAuditTrail();
   if (trail.length === 0) return undefined;
 
-  const auditDir = getAuditDir(params.repoPath);
+  const auditDir = getAuditDir(params.repoPath, params.auditScope);
   await mkdir(auditDir, { recursive: true });
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const filename = `audit-fallback-${timestamp}.json`;

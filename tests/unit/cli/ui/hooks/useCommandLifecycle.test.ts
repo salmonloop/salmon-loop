@@ -19,15 +19,27 @@ mock.module('../../../../../src/cli/ui/store/context.js', () => ({
 }));
 
 describe('useCommandLifecycle', () => {
+  let consoleErrorSpy: ReturnType<typeof spyOn>;
+
   beforeEach(() => {
     hoisted.inputHandler = null;
     hoisted.dispatch.mockClear();
+    consoleErrorSpy = spyOn(console, 'error').mockImplementation(() => {
+      /* ignore */
+    });
     useFakeTimers();
   });
 
   afterEach(() => {
-    runOnlyPendingTimers();
+    act(() => {
+      runOnlyPendingTimers();
+    });
     useRealTimers();
+    const hasActWarning = consoleErrorSpy.mock.calls.some((call: any[]) =>
+      call.some((arg: any) => typeof arg === 'string' && arg.includes('not wrapped in act')),
+    );
+    expect(hasActWarning).toBe(false);
+    mock.restore();
   });
 
   it('splat interrupts on Ctrl+C while running', () => {

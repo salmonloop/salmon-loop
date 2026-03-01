@@ -360,6 +360,11 @@ function resolveAuditBuffer(raw?: ConfigFileV1) {
   };
 }
 
+function resolveAuditScope(raw?: ConfigFileV1): 'repo' | 'user' {
+  const scope = raw?.observability?.audit?.scope;
+  return scope === 'user' ? 'user' : 'repo';
+}
+
 function resolveRedactionConfig(raw?: ConfigFileV1): RedactionConfig {
   const cfg = raw?.security?.redaction;
   return {
@@ -447,6 +452,7 @@ export async function resolveConfig(opts: ResolveConfigOptions): Promise<Resolve
     observability: {
       langfuse: resolveLangfuseObservability(raw),
       audit: {
+        scope: resolveAuditScope(raw),
         buffer: resolveAuditBuffer(raw),
       },
     },

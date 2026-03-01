@@ -24,6 +24,7 @@ mock.module('../../../../src/core/config/index.js', () => ({
         sessionId: 'session-123',
         userId: 'user-456',
       },
+      audit: { scope: 'repo' },
     },
     toolAuthorization: { allowlist: {} },
     verify: { command: undefined },
@@ -55,7 +56,8 @@ mock.module('../../../../src/cli/utils/verify-resolver.js', () => ({
 }));
 
 mock.module('../../../../src/cli/chat.js', () => ({
-  startChatMode: mock(async () => {
+  startChatMode: mock(async (options: Record<string, unknown>) => {
+    hoisted.reporterCalls.push({ startChatMode: options });
     hoisted.startChatCalls += 1;
   }),
 }));
@@ -65,13 +67,13 @@ describe('handleChatCommand outcome reporter', () => {
     const { handleChatCommand } = await import('../../../../src/cli/commands/chat.js');
 
     const command: any = {
-      optsWithGlobals: () => ({ repo: '/repo' }),
+      optsWithGlobals: () => ({ repo: '/repo', auditScope: 'user' }),
     };
 
     await handleChatCommand({}, command);
 
     expect(hoisted.startChatCalls).toBe(1);
-    expect(hoisted.reporterCalls.length).toBe(1);
+    expect(hoisted.reporterCalls.length).toBe(2);
     expect(hoisted.reporterCalls[0]).toEqual({
       enabled: true,
       endpoint: 'https://langfuse.example.test',
@@ -79,5 +81,7 @@ describe('handleChatCommand outcome reporter', () => {
       llmApiKey: 'llm-key',
       proxyApiKeyEnv: process.env.SALMONLOOP_LANGFUSE_PROXY_API_KEY,
     });
+    const startChatCall = hoisted.reporterCalls[1]?.startChatMode as Record<string, unknown>;
+    expect(startChatCall?.auditScope).toBe('user');
   });
 });

@@ -44,12 +44,13 @@ function formatTimestampForFilename(value: Date): string {
 
 export async function writeDebugArtifact(params: {
   repoRoot: string;
+  auditScope?: 'repo' | 'user';
   prefix: string;
   content: string;
 }): Promise<DebugArtifactRef | null> {
-  const { repoRoot, prefix, content } = params;
+  const { repoRoot, prefix, content, auditScope } = params;
 
-  const auditDir = getAuditDir(repoRoot);
+  const auditDir = getAuditDir(repoRoot, auditScope);
   const blobsDir = path.join(auditDir, 'blobs');
   await mkdir(blobsDir, { recursive: true });
 

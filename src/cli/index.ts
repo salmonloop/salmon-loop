@@ -52,7 +52,8 @@ program
   .option('-v, --verify <command>', text.cli.verifyOption)
   .option('--no-verify', 'Disable verification')
   .option('-cs, --checkpoint-strategy <type>', text.cli.checkpointStrategyOption, 'worktree')
-  .option('--llm-output <kinds>', text.cli.llmOutputOption);
+  .option('--llm-output <kinds>', text.cli.llmOutputOption)
+  .option('--audit-scope <scope>', text.cli.auditScopeOption);
 
 // --- Main Command: Run ---
 program

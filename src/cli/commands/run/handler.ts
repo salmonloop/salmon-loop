@@ -13,6 +13,7 @@ import { ApplyBackOnDirty, CheckpointStrategy, LoopResult } from '../../../core/
 import { createStdoutWriter } from '../../headless/stdout-writer.js';
 import { text } from '../../locales/index.js';
 import { StderrLogReporter } from '../../reporters/stderr-log-reporter.js';
+import { resolveAuditScope } from '../../utils/audit-scope.js';
 import { createOutcomeReporter } from '../../utils/outcome-reporter.js';
 
 import { buildRunAssistantMessage } from './assistant-message.js';
@@ -293,6 +294,16 @@ export async function handleRunCommand(options: any, command: Command) {
   });
 
   try {
+    const auditScopeResolution = resolveAuditScope({
+      cliValue: allOptions.auditScope,
+      configValue: resolvedConfig.observability.audit.scope,
+    });
+    if (!auditScopeResolution.ok) {
+      logger.error(text.cli.invalidAuditScope(auditScopeResolution.invalid), true);
+      process.exit(1);
+    }
+    const auditScope = auditScopeResolution.value;
+
     const { llm } = createRuntimeLlmAndWarn({
       llmConfig: resolvedConfig.llm,
       langfuseEnabled: resolvedConfig.observability.langfuse.enabled,
@@ -373,6 +384,7 @@ export async function handleRunCommand(options: any, command: Command) {
       worktreePrepare: effectiveWorktreePrepare,
       llmOutput,
       outcomeReporter,
+      auditScope,
       langfuseSessionId: resolvedConfig.observability.langfuse.sessionId || sessionIdForOutput,
       langfuseUserId: resolvedConfig.observability.langfuse.userId,
       astValidation: resolvedConfig.astValidation,

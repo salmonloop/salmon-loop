@@ -19,6 +19,7 @@ export function buildRunLoopParams(params: {
   worktreePrepare?: any;
   llmOutput: any;
   outcomeReporter?: any;
+  auditScope?: 'repo' | 'user';
   langfuseSessionId?: string;
   langfuseUserId?: string;
   toolAuthorization: any;
@@ -50,6 +51,7 @@ export function buildRunLoopParams(params: {
     worktreePrepare: params.worktreePrepare,
     llmOutput: params.llmOutput,
     outcomeReporter: params.outcomeReporter,
+    auditScope: params.auditScope,
     langfuseSessionId: params.langfuseSessionId,
     langfuseUserId: params.langfuseUserId,
     astValidation: params.astValidation,

@@ -267,6 +267,7 @@ export const en = {
     'JSON Schema for structured_output (file path or JSON string). Only valid with --output-format json.',
   llmOutputOption:
     'LLM output visibility (none, all, review, assistant_message, explore, plan, patch; comma-separated)',
+  auditScopeOption: 'Audit log scope (repo, user)',
   contextDiffScopeOption: 'Diff scope for context (primary, ast_related)',
   contextBudgetCharsOption: 'Context budget in characters (e.g., 30000)',
   modeOption: 'Flow mode to run (patch, review, debug)',
@@ -290,6 +291,8 @@ export const en = {
     `Invalid --output-format "${format}". Expected "text", "stream-json", or "json".`,
   invalidOutputProfile: (profile: string) =>
     `Invalid --output-profile "${profile}". Expected "native", "anthropic", or "openai".`,
+  invalidAuditScope: (scope: string) =>
+    `Invalid --audit-scope "${scope}". Expected "repo" or "user".`,
   headlessToolPayloadRequiresStreamJson:
     '--headless-include-tool-input/--headless-include-tool-output are only valid when --output-format is set to "stream-json".',
   headlessToolPayloadNotSupportedWithOpenAiProfile:

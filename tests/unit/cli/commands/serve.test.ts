@@ -12,7 +12,7 @@ const hoisted = (() => ({
   config: {
     llm: { api: { baseUrl: undefined, apiKey: undefined } },
     llmOutput: { kinds: [] },
-    observability: { langfuse: { enabled: false, outcome: false } },
+    observability: { langfuse: { enabled: false, outcome: false }, audit: { scope: 'repo' } },
     toolAuthorization: { allowlist: {} },
     verify: { command: undefined },
     cli: { defaults: {} },
@@ -39,6 +39,17 @@ mock.module('../../../../src/core/extensions/index.js', () => ({
 
 mock.module('../../../../src/core/plugin/loader.js', () => ({
   PluginLoader: { loadPlugins: mock(async () => {}) },
+}));
+
+mock.module('../../../../src/core/observability/logger.js', () => ({
+  logger: {
+    error: mock(),
+    warn: mock(),
+    info: mock(),
+    success: mock(),
+    setReporter: mock(),
+  },
+  StderrReporter: class {},
 }));
 
 mock.module('../../../../src/core/adapters/fs/node-fs.js', () => ({
@@ -151,6 +162,7 @@ describe('handleServeCommand', () => {
           sessionId: 'session-123',
           userId: 'user-456',
         },
+        audit: { scope: 'repo' },
       },
       toolAuthorization: { allowlist: {} },
       verify: { command: undefined },
@@ -177,5 +189,26 @@ describe('handleServeCommand', () => {
     expect(hoisted.lastRunLoopOptions?.outcomeReporter).toEqual({ type: 'outcome-reporter' });
     expect(hoisted.lastRunLoopOptions?.langfuseSessionId).toBe('session-123');
     expect(hoisted.lastRunLoopOptions?.langfuseUserId).toBe('user-456');
+  });
+
+  it('passes audit scope override to the loop', async () => {
+    const { handleServeCommand } = await import('../../../../src/cli/commands/serve.js');
+
+    const command: any = {
+      optsWithGlobals: () => ({
+        repo: '/repo',
+        a2aHost: '127.0.0.1',
+        a2aPort: '8081',
+        acpStdio: false,
+        auditScope: 'user',
+      }),
+    };
+
+    await handleServeCommand({}, command);
+
+    expect(hoisted.runLoop).toBeDefined();
+    await hoisted.runLoop!({ instruction: 'test', mode: 'patch' });
+
+    expect(hoisted.lastRunLoopOptions?.auditScope).toBe('user');
   });
 });

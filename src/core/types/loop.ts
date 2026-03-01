@@ -333,6 +333,7 @@ export interface LoopOptions {
    * - GUI/TUI: hydrate from local state for seamless multi-turn experiences.
    */
   conversationContext?: LLMMessage[];
+  auditScope?: 'repo' | 'user';
   /**
    * Optional Langfuse sessionId. If set, multiple runs will be grouped under a single Langfuse Session.
    * Chat mode will typically pass the local chat session ID.

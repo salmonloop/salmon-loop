@@ -18,7 +18,8 @@ export async function saveAudit(
   _options: LoopOptions,
 ): Promise<string | undefined> {
   try {
-    const auditDir = getAuditDir(_options?.repoPath || process.cwd());
+    const auditScope = _options?.auditScope ?? 'repo';
+    const auditDir = getAuditDir(_options?.repoPath || process.cwd(), auditScope);
     await fs.mkdir(auditDir, { recursive: true });
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');

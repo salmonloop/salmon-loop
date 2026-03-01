@@ -55,6 +55,7 @@ export interface ChatModeOptions {
   toolAuthorization?: ToolAuthorizationConfig;
   extensions?: ResolvedExtensions;
   outcomeReporter?: RunOutcomeReporter;
+  auditScope?: 'repo' | 'user';
   /**
    * Optional override. If unset, chat mode will use the local chat session id.
    */
@@ -336,6 +337,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
             signal: mergedSignal.signal,
             llmOutput: currentLlmOutputPolicy,
             outcomeReporter: options.outcomeReporter,
+            auditScope: options.auditScope,
             conversationContext: conversationContext.length > 0 ? conversationContext : undefined,
             astValidation: options.astValidation,
             // Resolve sessionId at call time to support `/session` switching.

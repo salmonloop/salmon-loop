@@ -93,7 +93,17 @@ export function validateConfigFileV1(input: unknown): ConfigFileV1 {
       if (!isRecord(auditRaw)) {
         throw new ConfigError('CONFIG_INVALID_OBSERVABILITY_AUDIT', { expected: 'object' });
       }
+      const scopeRaw = (auditRaw as any).scope;
       const bufferRaw = (auditRaw as any).buffer;
+      const auditOut: { scope?: 'repo' | 'user'; buffer?: any } = {};
+      if (scopeRaw !== undefined) {
+        if (!isString(scopeRaw) || (scopeRaw !== 'repo' && scopeRaw !== 'user')) {
+          throw new ConfigError('CONFIG_INVALID_OBSERVABILITY_AUDIT_SCOPE', {
+            expected: 'repo|user',
+          });
+        }
+        auditOut.scope = scopeRaw as any;
+      }
       if (bufferRaw !== undefined) {
         if (!isRecord(bufferRaw)) {
           throw new ConfigError('CONFIG_INVALID_OBSERVABILITY_AUDIT_BUFFER', {
@@ -115,13 +125,14 @@ export function validateConfigFileV1(input: unknown): ConfigFileV1 {
             expected: 'number',
           });
         }
-        cfg.observability.audit = {
-          buffer: {
-            maxEvents: bufferRaw.maxEvents as any,
-            maxBytes: bufferRaw.maxBytes as any,
-            droppedWarn: bufferRaw.droppedWarn as any,
-          },
+        auditOut.buffer = {
+          maxEvents: bufferRaw.maxEvents as any,
+          maxBytes: bufferRaw.maxBytes as any,
+          droppedWarn: bufferRaw.droppedWarn as any,
         };
+      }
+      if (auditOut.scope || auditOut.buffer) {
+        cfg.observability.audit = auditOut as any;
       }
     }
   }

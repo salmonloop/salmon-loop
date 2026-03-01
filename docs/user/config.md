@@ -193,6 +193,25 @@ Example:
 
 ## Audit Buffer
 
+### `observability.audit.scope`
+
+Controls where audit logs are written.
+
+- `repo` (default): `<repoRoot>/.salmonloop/runtime/audit/`
+- `user`: `~/.salmonloop/runtime/audit/`
+
+Example:
+
+```json
+{
+  "observability": {
+    "audit": {
+      "scope": "user"
+    }
+  }
+}
+```
+
 ### `observability.audit.buffer`
 
 Limits in-memory audit trail growth for long-running sessions.

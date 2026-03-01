@@ -1,11 +1,28 @@
-const { mkdirMock, writeFileMock } = (() => ({
+const { mkdirMock, writeFileMock, getAuditDirMock } = (() => ({
   mkdirMock: mock(),
   writeFileMock: mock(),
+  getAuditDirMock: mock((repoPath: string, scope?: string) =>
+    scope === 'user'
+      ? '/home/testuser/.salmonloop/runtime/audit'
+      : `${repoPath}/.salmonloop/runtime/audit`,
+  ),
 }))();
 
 mock.module('../../../../../src/core/adapters/fs/node-fs.js', () => ({
   mkdir: mkdirMock,
   writeFile: writeFileMock,
+}));
+
+mock.module('../../../../../src/core/runtime/paths.js', () => ({
+  getAuditDir: getAuditDirMock,
+}));
+
+mock.module('../../../../../src/core/observability/logger.js', () => ({
+  logger: {
+    debug: mock(),
+    warn: mock(),
+    error: mock(),
+  },
 }));
 
 import * as path from 'path';
@@ -19,7 +36,6 @@ import { freezeSystemTime } from '../../../../helpers/time.js';
 
 describe('saveAudit (blob write best-effort)', () => {
   it('still writes bounded audit JSON when blob write fails', async () => {
-    useFakeTimers();
     const restoreTime = freezeSystemTime('2026-02-15T00:00:00.000Z');
     try {
       clearAuditTrail();
@@ -76,7 +92,37 @@ describe('saveAudit (blob write best-effort)', () => {
       expect(events.some((e: any) => e.action === 'audit.blob.write.failed')).toBe(true);
     } finally {
       restoreTime();
-      useRealTimers();
     }
+  });
+
+  it('uses audit scope when writing audit files', async () => {
+    clearAuditTrail();
+    mkdirMock.mockResolvedValue(undefined);
+    writeFileMock.mockResolvedValue(undefined);
+
+    const report = await Pipeline.of({
+      verifyResult: {
+        ok: true,
+        exitCode: 0,
+        output: 'ok',
+      },
+    } as any)
+      .step('VERIFY', async (ctx) => ctx)
+      .execute();
+
+    const noopLlm = {
+      chat: async () => ({ role: 'assistant' as const, content: '' }),
+      createPlan: async () => ({ goal: '', files: [], changes: [], verify: '' }),
+      createPatch: async () => '',
+    };
+
+    await saveAudit(report as any, {
+      instruction: 'audit',
+      repoPath: '/tmp/repo',
+      llm: noopLlm as any,
+      auditScope: 'user',
+    });
+
+    expect(getAuditDirMock).toHaveBeenCalledWith('/tmp/repo', 'user');
   });
 });

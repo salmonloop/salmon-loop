@@ -2,6 +2,7 @@ import { describe, expect, it, mock } from 'bun:test';
 
 const hoisted = (() => ({
   reporterCalls: [] as Array<Record<string, unknown>>,
+  loopParamsCalls: [] as Array<Record<string, unknown>>,
 }))();
 
 mock.module('../../../../src/cli/utils/outcome-reporter.js', () => ({
@@ -25,6 +26,7 @@ mock.module('../../../../src/cli/commands/run/parse-options.js', () => ({
       checkpointStrategy: 'worktree',
       environmentMode: undefined,
       applyBackOnDirty: '3way',
+      auditScope: 'user',
     },
     repoPath: '/repo',
     continueSession: false,
@@ -40,6 +42,7 @@ mock.module('../../../../src/cli/commands/run/parse-options.js', () => ({
     headlessIncludeAuthorizationDecisions: false,
     allowOutsideCacheRoot: false,
     instruction: 'fix bug',
+    auditScope: 'user',
     allowedToolRules: [],
     disallowedToolRules: [],
   })),
@@ -62,6 +65,7 @@ mock.module('../../../../src/cli/commands/run/config-resolution.js', () => ({
           sessionId: 'session-123',
           userId: 'user-456',
         },
+        audit: { scope: 'repo' },
       },
       llm: { api: { baseUrl: 'https://llm.example.test', apiKey: 'llm-key' }, models: {} },
       llmOutput: { kinds: [] },
@@ -109,7 +113,10 @@ mock.module('../../../../src/cli/commands/run/reporter-factory.js', () => ({
 }));
 
 mock.module('../../../../src/cli/commands/run/loop-params.js', () => ({
-  buildRunLoopParams: mock(() => ({ applyBackOnDirty: '3way' })),
+  buildRunLoopParams: mock((params: Record<string, unknown>) => {
+    hoisted.loopParamsCalls.push(params);
+    return { applyBackOnDirty: '3way' };
+  }),
 }));
 
 mock.module('../../../../src/cli/commands/run/execute.js', () => ({
@@ -179,5 +186,6 @@ describe('handleRunCommand outcome reporter', () => {
       llmApiKey: 'llm-key',
       proxyApiKeyEnv: process.env.SALMONLOOP_LANGFUSE_PROXY_API_KEY,
     });
+    expect(hoisted.loopParamsCalls[0]?.auditScope).toBe('user');
   });
 });

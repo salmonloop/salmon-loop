@@ -26,6 +26,7 @@ import {
 import { createAcpStdioLoop } from '../../core/transports/stdio/acp-stdio-loop.js';
 import { createTerminalAuthorizationProvider } from '../authorization/provider.js';
 import { text } from '../locales/index.js';
+import { resolveAuditScope } from '../utils/audit-scope.js';
 import { createOutcomeReporter } from '../utils/outcome-reporter.js';
 
 import { createRuntimeLlmAndWarn } from './run/runtime-llm.js';
@@ -63,6 +64,15 @@ export async function handleServeCommand(_options: unknown, command: Command) {
 
   const resolvedConfig = await resolveConfig({ repoRoot: repoPath });
   const serverConfig = resolvedConfig.server;
+  const auditScopeResolution = resolveAuditScope({
+    cliValue: allOptions.auditScope,
+    configValue: resolvedConfig.observability.audit.scope,
+  });
+  if (!auditScopeResolution.ok) {
+    logger.error(text.cli.invalidAuditScope(auditScopeResolution.invalid), true);
+    process.exit(1);
+  }
+  const auditScope = auditScopeResolution.value;
   const rawA2aHost = allOptions.a2aHost ?? serverConfig?.a2a?.host;
   const a2aHost = String(rawA2aHost ?? '127.0.0.1');
   const rawA2aPort = allOptions.a2aPort ?? serverConfig?.a2a?.port;
@@ -123,6 +133,7 @@ export async function handleServeCommand(_options: unknown, command: Command) {
         outcomeReporter,
         langfuseSessionId: resolvedConfig.observability.langfuse.sessionId,
         langfuseUserId: resolvedConfig.observability.langfuse.userId,
+        auditScope,
         authorizationProvider,
         extensions: extensions.resolved,
       });
