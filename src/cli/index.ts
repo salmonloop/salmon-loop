@@ -185,6 +185,7 @@ program
     (value, previous: string[]) => previous.concat([value]),
     [] as string[],
   )
+  .option('--no-acp-stdio', text.cli.acpStdioDisableOption)
   .option('--sidecar-socket <path>', text.cli.sidecarSocketOption)
   .option('--sidecar-allow-conditional', text.cli.sidecarAllowConditionalOption)
   .action(handleServeCommand);

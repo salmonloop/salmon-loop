@@ -142,6 +142,7 @@ export const en = {
   a2aHostOption: 'A2A listen host (default: 127.0.0.1)',
   a2aPortOption: 'A2A listen port (default: 7431)',
   a2aTokenOption: 'Bearer token for A2A auth (repeatable)',
+  acpStdioDisableOption: 'Disable agent-client-protocol (ACP) stdio server',
   sidecarSocketOption: 'UDS path for the sidecar UI server',
   sidecarAllowConditionalOption: 'Expose conditional sidecar routes (use with care)',
   invalidA2APort: (value: string) => `Invalid A2A port: ${value}`,

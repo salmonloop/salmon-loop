@@ -91,6 +91,78 @@ export class ConsoleReporter implements LogReporter {
   }
 }
 
+/**
+ * Stderr-only reporter for protocols that reserve stdout (e.g., ACP stdio).
+ */
+export class StderrReporter implements LogReporter {
+  constructor(private verboseLevel: LogLevel = 'none') {}
+
+  setVerbose(level: LogLevel) {
+    this.verboseLevel = level;
+  }
+
+  get isBasic() {
+    return this.verboseLevel === 'basic' || this.verboseLevel === 'extended';
+  }
+
+  get isExtended() {
+    return this.verboseLevel === 'extended';
+  }
+
+  log(level: string, message: string, metadata?: any): void {
+    const safeMessage =
+      message === REDACTED_ERROR_TOKEN ? text.errors.technicalDetailsHidden : message;
+    switch (level) {
+      case 'info':
+      case 'log':
+      case 'bold':
+        console.error(level === 'bold' ? chalk.bold(safeMessage) : safeMessage);
+        break;
+      case 'success':
+        console.error(chalk.green(safeMessage));
+        break;
+      case 'warn':
+      case 'degraded':
+        console.error(
+          level === 'degraded'
+            ? chalk.magenta(`[DEGRADED] ${safeMessage}`)
+            : chalk.yellow(safeMessage),
+        );
+        break;
+      case 'error':
+        console.error(chalk.red(safeMessage));
+        break;
+      case 'debug':
+        if (this.isBasic) console.error(chalk.gray(safeMessage));
+        break;
+      case 'trace':
+        if (this.isExtended) console.error(chalk.gray(safeMessage));
+        break;
+      case 'cyan':
+        console.error(chalk.cyan(safeMessage));
+        break;
+      case 'dim':
+        console.error(chalk.dim(safeMessage));
+        break;
+      case 'step':
+        if (this.isBasic) {
+          const phase = metadata?.phase || 'STEP';
+          console.error(chalk.blue(`\n[${phase.toUpperCase()}] `) + safeMessage);
+        }
+        break;
+      case 'audit': {
+        const timestamp = new Date().toISOString();
+        console.error(chalk.bgBlue.white(`[AUDIT] ${timestamp} - ${safeMessage}`));
+        break;
+      }
+    }
+  }
+
+  clear(): void {
+    // No-op: stderr cannot be cleared reliably without side effects.
+  }
+}
+
 export interface LoggerOptions {
   verbose?: VerboseLevel | boolean;
   prefix?: string;
