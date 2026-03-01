@@ -169,6 +169,7 @@ export async function handleServeCommand(_options: unknown, command: Command) {
       errorOutput: process.stderr,
       handler,
     });
+    logger.info(text.cli.acpStdioStarted('n/a (stdio)'));
   }
 
   const fastify = (await import('fastify')).default;

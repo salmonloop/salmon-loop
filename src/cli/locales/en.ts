@@ -145,6 +145,7 @@ export const en = {
   acpStdioDisableOption: 'Disable agent-client-protocol (ACP) stdio server',
   sidecarSocketOption: 'UDS path for the sidecar UI server',
   sidecarAllowConditionalOption: 'Expose conditional sidecar routes (use with care)',
+  acpStdioStarted: (port: string) => `ACP (agent-client-protocol) stdio enabled; port ${port}`,
   invalidA2APort: (value: string) => `Invalid A2A port: ${value}`,
   serveStarted: (host: string, port: number, socket: string) =>
     `A2A listening on ${host}:${port}; sidecar socket at ${socket}`,
