@@ -1,5 +1,5 @@
-import { LiteLlmLangfuseOutcomeReporter } from '../../../integrations/langfuse/litellm-langfuse-outcome-reporter.js';
-import { resolveLangfuseOutcomeProxyBaseUrl } from '../../../integrations/langfuse/outcome-proxy.js';
+import { LiteLlmLangfuseOutcomeReporter } from '../../integrations/langfuse/litellm-langfuse-outcome-reporter.js';
+import { resolveLangfuseOutcomeProxyBaseUrl } from '../../integrations/langfuse/outcome-proxy.js';
 
 export function createOutcomeReporter(params: {
   enabled: boolean;
@@ -7,8 +7,6 @@ export function createOutcomeReporter(params: {
   llmBaseUrl?: string;
   llmApiKey?: string;
   proxyApiKeyEnv?: string;
-  proxyPathPrefix?: string;
-  sessionId?: string;
 }) {
   const resolved = resolveLangfuseOutcomeProxyBaseUrl({
     enabled: params.enabled,

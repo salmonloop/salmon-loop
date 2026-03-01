@@ -13,6 +13,7 @@ import { ApplyBackOnDirty, CheckpointStrategy, LoopResult } from '../../../core/
 import { createStdoutWriter } from '../../headless/stdout-writer.js';
 import { text } from '../../locales/index.js';
 import { StderrLogReporter } from '../../reporters/stderr-log-reporter.js';
+import { createOutcomeReporter } from '../../utils/outcome-reporter.js';
 
 import { buildRunAssistantMessage } from './assistant-message.js';
 import { resolveRunConfig } from './config-resolution.js';
@@ -23,7 +24,6 @@ import { createHeadlessErrorWriter } from './headless-error-writer.js';
 import { ensureInstructionOrExit } from './instruction-guard.js';
 import { buildRunLoopParams } from './loop-params.js';
 import { resolveRunMode } from './mode.js';
-import { createOutcomeReporter } from './outcome-reporter.js';
 import { parseRunCommandOptions } from './parse-options.js';
 import { persistRunSession } from './persist-session.js';
 import { PreflightPolicy, runPreflight } from './preflight.js';

@@ -26,6 +26,7 @@ import {
 import { createAcpStdioLoop } from '../../core/transports/stdio/acp-stdio-loop.js';
 import { createTerminalAuthorizationProvider } from '../authorization/provider.js';
 import { text } from '../locales/index.js';
+import { createOutcomeReporter } from '../utils/outcome-reporter.js';
 
 import { createRuntimeLlmAndWarn } from './run/runtime-llm.js';
 
@@ -93,6 +94,14 @@ export async function handleServeCommand(_options: unknown, command: Command) {
     langfuseEnabled: resolvedConfig.observability.langfuse.enabled,
   });
 
+  const outcomeReporter = createOutcomeReporter({
+    enabled: resolvedConfig.observability.langfuse.outcome,
+    endpoint: resolvedConfig.observability.langfuse.endpoint,
+    llmBaseUrl: resolvedConfig.llm.api.baseUrl,
+    llmApiKey: resolvedConfig.llm.api.apiKey,
+    proxyApiKeyEnv: process.env.SALMONLOOP_LANGFUSE_PROXY_API_KEY,
+  });
+
   const authorizationProvider = createTerminalAuthorizationProvider({
     config: resolvedConfig.toolAuthorization,
     extensions: extensions.resolved,
@@ -111,6 +120,9 @@ export async function handleServeCommand(_options: unknown, command: Command) {
         applyBackOnDirty: '3way',
         environmentMode: 'strict',
         llmOutput: resolvedConfig.llmOutput,
+        outcomeReporter,
+        langfuseSessionId: resolvedConfig.observability.langfuse.sessionId,
+        langfuseUserId: resolvedConfig.observability.langfuse.userId,
         authorizationProvider,
         extensions: extensions.resolved,
       });

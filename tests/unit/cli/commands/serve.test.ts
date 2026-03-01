@@ -5,6 +5,18 @@ const hoisted = (() => ({
     options: { port?: number; host?: string; path?: string };
   }>,
   acpLoopCalls: [] as Array<Record<string, unknown>>,
+  lastRunLoopOptions: undefined as Record<string, unknown> | undefined,
+  runLoop: undefined as
+    | ((options: { instruction: string; mode: string }) => Promise<unknown>)
+    | undefined,
+  config: {
+    llm: { api: { baseUrl: undefined, apiKey: undefined } },
+    llmOutput: { kinds: [] },
+    observability: { langfuse: { enabled: false, outcome: false } },
+    toolAuthorization: { allowlist: {} },
+    verify: { command: undefined },
+    cli: { defaults: {} },
+  } as any,
 }))();
 
 mock.module('../../../../src/core/runtime/sidecar-paths.js', () => ({
@@ -12,14 +24,7 @@ mock.module('../../../../src/core/runtime/sidecar-paths.js', () => ({
 }));
 
 mock.module('../../../../src/core/config/resolve.js', () => ({
-  resolveConfig: mock(async () => ({
-    llm: {},
-    llmOutput: { kinds: [] },
-    observability: { langfuse: { enabled: false } },
-    toolAuthorization: { allowlist: {} },
-    verify: { command: undefined },
-    cli: { defaults: {} },
-  })),
+  resolveConfig: mock(async () => hoisted.config),
 }));
 
 mock.module('../../../../src/core/extensions/index.js', () => ({
@@ -45,7 +50,27 @@ mock.module('../../../../src/cli/commands/run/runtime-llm.js', () => ({
 }));
 
 mock.module('../../../../src/core/runtime/loop.js', () => ({
-  runSalmonLoop: mock(async () => ({ success: true })),
+  runSalmonLoop: mock(async (options: Record<string, unknown>) => {
+    hoisted.lastRunLoopOptions = options;
+    return { success: true };
+  }),
+}));
+
+mock.module('../../../../src/core/backends/salmon-loop/task-executor.js', () => ({
+  createSalmonTaskExecutor: mock((deps: { runLoop: any }) => {
+    hoisted.runLoop = deps.runLoop;
+    return {
+      execute: mock(async () => ({
+        id: 'task_1',
+        state: 'completed',
+        request: { instruction: '' },
+      })),
+    };
+  }),
+}));
+
+mock.module('../../../../src/cli/utils/outcome-reporter.js', () => ({
+  createOutcomeReporter: mock(() => ({ type: 'outcome-reporter' })),
 }));
 
 mock.module('../../../../src/core/protocols/acp/index.js', () => ({
@@ -112,5 +137,45 @@ describe('handleServeCommand', () => {
     await handleServeCommand({}, command);
 
     expect(hoisted.acpLoopCalls.length).toBe(1);
+  });
+
+  it('passes outcome reporter and langfuse ids to the loop', async () => {
+    hoisted.config = {
+      llm: { api: { baseUrl: 'https://llm.example.test', apiKey: 'llm-key' } },
+      llmOutput: { kinds: [] },
+      observability: {
+        langfuse: {
+          enabled: true,
+          outcome: true,
+          endpoint: 'https://langfuse.example.test',
+          sessionId: 'session-123',
+          userId: 'user-456',
+        },
+      },
+      toolAuthorization: { allowlist: {} },
+      verify: { command: undefined },
+      cli: { defaults: {} },
+    };
+
+    const { handleServeCommand } = await import('../../../../src/cli/commands/serve.js');
+
+    const command: any = {
+      optsWithGlobals: () => ({
+        repo: '/repo',
+        a2aHost: '127.0.0.1',
+        a2aPort: '8081',
+        acpStdio: false,
+      }),
+    };
+
+    await handleServeCommand({}, command);
+
+    expect(hoisted.runLoop).toBeDefined();
+    await hoisted.runLoop!({ instruction: 'test', mode: 'patch' });
+
+    expect(hoisted.lastRunLoopOptions).toBeDefined();
+    expect(hoisted.lastRunLoopOptions?.outcomeReporter).toEqual({ type: 'outcome-reporter' });
+    expect(hoisted.lastRunLoopOptions?.langfuseSessionId).toBe('session-123');
+    expect(hoisted.lastRunLoopOptions?.langfuseUserId).toBe('user-456');
   });
 });

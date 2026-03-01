@@ -7,10 +7,9 @@ import { resolveExtensions } from '../../core/extensions/index.js';
 import { createRuntimeLlm } from '../../core/llm/factory.js';
 import { logger } from '../../core/observability/logger.js';
 import { PluginLoader } from '../../core/plugin/loader.js';
-import { LiteLlmLangfuseOutcomeReporter } from '../../integrations/langfuse/litellm-langfuse-outcome-reporter.js';
-import { resolveLangfuseOutcomeProxyBaseUrl } from '../../integrations/langfuse/outcome-proxy.js';
 import { text } from '../locales/index.js';
 import { resolveLlmOutputPolicyFromCli } from '../utils/llm-output.js';
+import { createOutcomeReporter } from '../utils/outcome-reporter.js';
 import { resolveVerifyOption } from '../utils/verify-resolver.js';
 
 export async function handleChatCommand(options: any, command: Command) {
@@ -59,21 +58,13 @@ export async function handleChatCommand(options: any, command: Command) {
     langfuseEnabled: resolvedConfig.observability.langfuse.enabled,
   });
 
-  const outcomeReporter = (() => {
-    const resolved = resolveLangfuseOutcomeProxyBaseUrl({
-      enabled: resolvedConfig.observability.langfuse.outcome,
-      endpoint: resolvedConfig.observability.langfuse.endpoint,
-      llmBaseUrl: resolvedConfig.llm.api.baseUrl,
-    });
-    if (!resolved.enabled || !resolved.proxyBaseUrl) return undefined;
-    const proxyApiKey =
-      (process.env.SALMONLOOP_LANGFUSE_PROXY_API_KEY || '').trim() || resolvedConfig.llm.api.apiKey;
-    return new LiteLlmLangfuseOutcomeReporter({
-      proxyBaseUrl: resolved.proxyBaseUrl,
-      proxyPathPrefix: resolved.proxyPathPrefix,
-      litellmApiKey: proxyApiKey,
-    });
-  })();
+  const outcomeReporter = createOutcomeReporter({
+    enabled: resolvedConfig.observability.langfuse.outcome,
+    endpoint: resolvedConfig.observability.langfuse.endpoint,
+    llmBaseUrl: resolvedConfig.llm.api.baseUrl,
+    llmApiKey: resolvedConfig.llm.api.apiKey,
+    proxyApiKeyEnv: process.env.SALMONLOOP_LANGFUSE_PROXY_API_KEY,
+  });
 
   // Smart verification resolution with auto-detection
   const verifyCommand = await resolveVerifyOption(
