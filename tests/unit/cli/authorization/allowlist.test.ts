@@ -1,12 +1,8 @@
 import * as crypto from 'crypto';
 import * as os from 'os';
 
-import {
-  clearAllowlistCache,
-  loadAllowlistDecision,
-  persistAllowlistDecision,
-  removeAllowlistRule,
-} from '../../../../src/cli/authorization/allowlist.js';
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
+
 import type { ToolAuthorizationConfig } from '../../../../src/core/config/types.js';
 import { Phase } from '../../../../src/core/types/index.js';
 
@@ -110,6 +106,87 @@ mock.module('fs/promises', () => ({
   }),
 }));
 
+mock.module('../../../../src/cli/utils/safe-fs.js', () => ({
+  readFileUtf8: mock(async (filePath: string) => {
+    if (!files.has(filePath)) {
+      const error: any = new Error('ENOENT: no such file or directory');
+      error.code = 'ENOENT';
+      throw error;
+    }
+    return files.get(filePath) as string;
+  }),
+  writeFileUtf8: mock(async (filePath: string, data: string) => {
+    setFile(filePath, data);
+  }),
+  stat: mock(async (filePath: string) => {
+    if (!files.has(filePath)) {
+      const error: any = new Error('ENOENT: no such file or directory');
+      error.code = 'ENOENT';
+      throw error;
+    }
+    const content = files.get(filePath) ?? '';
+    return { mtimeMs: mtimes.get(filePath) ?? 1, size: content.length } as any;
+  }),
+  readdir: mock(async () => []),
+  copyFile: mock(async (from: string, to: string) => {
+    if (!files.has(from)) {
+      const error: any = new Error('ENOENT: no such file or directory');
+      error.code = 'ENOENT';
+      throw error;
+    }
+    const content = files.get(from) as string;
+    files.set(to, content);
+    mtimes.set(to, (mtimes.get(from) ?? 1) + 1);
+  }),
+  realpath: mock(async (filePath: string) => {
+    if (files.has(filePath)) return filePath;
+    if (filePath.startsWith('/repo') || filePath.startsWith(os.homedir())) return filePath;
+    const error: any = new Error('ENOENT: no such file or directory');
+    error.code = 'ENOENT';
+    throw error;
+  }),
+  rename: mock(async (from: string, to: string) => {
+    if (!files.has(from)) {
+      const error: any = new Error('ENOENT: no such file or directory');
+      error.code = 'ENOENT';
+      throw error;
+    }
+    const content = files.get(from) as string;
+    files.set(to, content);
+    files.delete(from);
+  }),
+  unlink: mock(async (filePath: string) => {
+    if (!files.has(filePath)) {
+      const error: any = new Error('ENOENT: no such file or directory');
+      error.code = 'ENOENT';
+      throw error;
+    }
+    removeFile(filePath);
+  }),
+  openFile: mock(async (filePath: string, flags?: string) => {
+    if (flags === 'wx' && files.has(filePath)) {
+      const error: any = new Error('EEXIST: file already exists');
+      error.code = 'EEXIST';
+      throw error;
+    }
+    if (!files.has(filePath)) {
+      setFile(filePath, '');
+    }
+    return {
+      writeFile: async (content: string | Buffer) => {
+        const value = typeof content === 'string' ? content : content.toString();
+        setFile(filePath, value);
+      },
+      close: async () => undefined,
+    };
+  }),
+  mkdirp: mock(async () => undefined),
+}));
+
+async function loadAllowlistModule() {
+  return await import('../../../../src/cli/authorization/allowlist.js');
+}
+
 const repoRoot = '/repo';
 const repoAllowlistPath = '/repo/.salmonloop/config/authorization.json';
 const userAllowlistPath = `${os.homedir()}/.salmonloop/config/authorization-user.json`;
@@ -135,6 +212,7 @@ describe('allowlist', () => {
   });
 
   it('prefers repo deny over user allow', async () => {
+    const { loadAllowlistDecision } = await loadAllowlistModule();
     setFile(
       repoAllowlistPath,
       JSON.stringify({
@@ -171,6 +249,7 @@ describe('allowlist', () => {
   });
 
   it('prefers user deny over repo allow', async () => {
+    const { loadAllowlistDecision } = await loadAllowlistModule();
     setFile(
       repoAllowlistPath,
       JSON.stringify({
@@ -207,6 +286,7 @@ describe('allowlist', () => {
   });
 
   it('falls back to user allow when repo has no match', async () => {
+    const { loadAllowlistDecision } = await loadAllowlistModule();
     setFile(
       repoAllowlistPath,
       JSON.stringify({
@@ -239,6 +319,7 @@ describe('allowlist', () => {
   });
 
   it('persists allowlist rules and matches args/side effects', async () => {
+    const { loadAllowlistDecision, persistAllowlistDecision } = await loadAllowlistModule();
     await persistAllowlistDecision({
       config: baseConfig,
       repoRoot,
@@ -272,6 +353,12 @@ describe('allowlist', () => {
   });
 
   it('removes rules and clears cache', async () => {
+    const {
+      clearAllowlistCache,
+      loadAllowlistDecision,
+      persistAllowlistDecision,
+      removeAllowlistRule,
+    } = await loadAllowlistModule();
     await persistAllowlistDecision({
       config: baseConfig,
       repoRoot,
@@ -314,6 +401,7 @@ describe('allowlist', () => {
   });
 
   it('blocks allowlist paths outside allowed roots', async () => {
+    const { loadAllowlistDecision } = await loadAllowlistModule();
     setFile(
       '/etc/passwd',
       JSON.stringify({
