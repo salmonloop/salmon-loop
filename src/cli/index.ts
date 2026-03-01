@@ -212,7 +212,7 @@ if (headlessDetection.outputFormat) {
 }
 
 try {
-  program.parse(rewrittenArgv);
+  await program.parseAsync(rewrittenArgv);
 } catch (err: unknown) {
   // Commander uses special error names for built-in logic like --help or missing args
   if ((err instanceof Error ? err.name : undefined) === 'CommanderError') {
