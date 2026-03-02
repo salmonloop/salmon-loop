@@ -71,7 +71,7 @@ type Facade = {
 function isRequest(value: unknown): value is AcpJsonRpcRequest {
   if (!value || typeof value !== 'object') return false;
   const candidate = value as Record<string, unknown>;
-  return typeof candidate.method === 'string';
+  return candidate.jsonrpc === '2.0' && typeof candidate.method === 'string';
 }
 
 function resolveId(id: AcpJsonRpcId | undefined): AcpJsonRpcId {
@@ -143,10 +143,16 @@ async function awaitTerminalEvent(params: {
   taskId: string;
   eventBus?: {
     subscribe: (listener: (event: TaskEvent) => void) => () => void;
+    list: (taskId: string, options?: { afterId?: string | null; limit?: number }) => TaskEvent[];
   };
   session: AcpSessionRecord;
 }): Promise<TaskEvent | null> {
   if (!params.eventBus) return null;
+
+  const history = params.eventBus.list(params.taskId);
+  const terminal = history.find(isTerminalTaskEvent);
+  if (terminal) return terminal;
+
   return await new Promise((resolve) => {
     const unsubscribe = params.eventBus!.subscribe((event) => {
       if (event.taskId !== params.taskId) return;

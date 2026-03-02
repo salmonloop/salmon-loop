@@ -68,10 +68,15 @@ export function createAcpStdioLoop(input: {
         writeJson(input.output, response);
       }
     } catch (error) {
-      const id =
-        payload && typeof payload === 'object' && 'id' in (payload as Record<string, unknown>)
-          ? (payload as Record<string, unknown>).id
-          : null;
+      const isObject = payload !== null && typeof payload === 'object' && !Array.isArray(payload);
+      const hasId = isObject && 'id' in (payload as Record<string, unknown>);
+
+      if (isObject && !hasId) {
+        input.errorOutput?.write(`ACP handler error (notification ignored): ${String(error)}\n`);
+        return;
+      }
+
+      const id = hasId ? (payload as Record<string, unknown>).id : null;
 
       if (isAcpJsonRpcError(error)) {
         writeJson(
