@@ -1,5 +1,6 @@
 import type { CommandRunner } from '../../runtime/command-runner-context.js';
 import type { ToolAuthorizationProvider } from '../../tools/authorization/types.js';
+import type { FileSystem } from '../../types/index.js';
 import type { LoopEvent } from '../../types/index.js';
 import type { TaskEventBus } from '../events/bus.js';
 import {
@@ -19,6 +20,7 @@ export interface InteractionFacade {
     authorizationProvider?: ToolAuthorizationProvider;
     authorizationMode?: 'blocking' | 'deferred';
     commandRunner?: CommandRunner;
+    fileSystemOverride?: FileSystem;
   }): Promise<{ task: TaskEnvelope; signal: AbortSignal }>;
   getTask(id: string): Promise<TaskEnvelope | null>;
   cancelTask(id: string): Promise<TaskEnvelope | null>;
@@ -48,6 +50,7 @@ export function createInteractionFacade(deps: {
       authorizationProvider?: ToolAuthorizationProvider;
       authorizationMode?: 'blocking' | 'deferred';
       commandRunner?: CommandRunner;
+      fileSystemOverride?: FileSystem;
     },
   ) => Promise<TaskEnvelope>;
   eventBus?: TaskEventBus;
@@ -88,6 +91,7 @@ export function createInteractionFacade(deps: {
           authorizationProvider: input.authorizationProvider,
           authorizationMode: input.authorizationMode,
           commandRunner: input.commandRunner,
+          fileSystemOverride: input.fileSystemOverride,
         })
         .then((result) => {
           taskControllers.delete(task.id);

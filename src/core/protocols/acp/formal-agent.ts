@@ -15,9 +15,11 @@ import { defaultPathAdapter } from '../../adapters/path/path-adapter.js';
 import type { TaskEvent } from '../../interaction/events/bus.js';
 import type { TaskEnvelope } from '../../interaction/model/index.js';
 import type { CommandRunner } from '../../runtime/command-runner-context.js';
+import type { FileSystem } from '../../types/index.js';
 import type { LoopEvent } from '../../types/index.js';
 
 import { createAcpCommandRunner } from './acp-command-runner.js';
+import { createAcpFileSystem } from './acp-filesystem.js';
 import { createAcpSessionStore, isTerminalTaskEvent, type AcpSessionRecord } from './handlers.js';
 import { createAcpToolAuthorizationProvider } from './permission-provider.js';
 
@@ -29,6 +31,7 @@ type Facade = {
     authorizationProvider?: import('../../tools/authorization/types.js').ToolAuthorizationProvider;
     authorizationMode?: 'blocking' | 'deferred';
     commandRunner?: CommandRunner;
+    fileSystemOverride?: FileSystem;
   }) => Promise<{ task: TaskEnvelope; signal: AbortSignal }>;
   getTask: (id: string) => Promise<TaskEnvelope | null>;
   cancelTask: (id: string) => Promise<TaskEnvelope | null>;
@@ -260,6 +263,14 @@ export function createAcpFormalAgent(deps: {
         throw new RequestError(-32000, 'Client capability terminal is required');
       }
 
+      const fsCaps = (clientCapabilities ?? defaultClientCapabilities).fs;
+      if (!fsCaps?.readTextFile) {
+        throw new RequestError(-32000, 'Client capability fs.readTextFile is required');
+      }
+      if (!fsCaps?.writeTextFile) {
+        throw new RequestError(-32000, 'Client capability fs.writeTextFile is required');
+      }
+
       const promptText = extractTextFromPrompt(params.prompt);
       sessions.update(params.sessionId, (current) => ({
         ...current,
@@ -271,6 +282,7 @@ export function createAcpFormalAgent(deps: {
         capability: 'patch',
         request: { instruction: promptText },
         commandRunner: createAcpCommandRunner({ conn: deps.conn, sessionId: params.sessionId }),
+        fileSystemOverride: createAcpFileSystem({ conn: deps.conn, sessionId: params.sessionId }),
         authorizationProvider: createAcpToolAuthorizationProvider({
           conn: deps.conn,
           sessionId: params.sessionId,

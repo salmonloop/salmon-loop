@@ -151,6 +151,7 @@ export async function handleServeCommand(_options: unknown, command: Command) {
       signal,
       authorizationProvider,
       authorizationMode,
+      fileSystemOverride,
     }) => {
       await runSalmonLoop({
         instruction,
@@ -166,6 +167,7 @@ export async function handleServeCommand(_options: unknown, command: Command) {
         langfuseSessionId: resolvedConfig.observability.langfuse.sessionId,
         langfuseUserId: resolvedConfig.observability.langfuse.userId,
         auditScope,
+        fileSystemOverride,
         authorizationProvider: authorizationProvider ?? defaultAuthorizationProvider,
         authorizationMode,
         extensions: extensions.resolved,

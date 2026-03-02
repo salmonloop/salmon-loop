@@ -181,7 +181,7 @@ describe('ACP formal protocol (SDK)', () => {
 
     await clientConn.initialize({
       protocolVersion: 1,
-      clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: true },
+      clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
     });
 
     const { sessionId } = await clientConn.newSession({ cwd: '/repo', mcpServers: [] });
@@ -192,5 +192,100 @@ describe('ACP formal protocol (SDK)', () => {
     });
 
     expect(sawCommandRunner).toBe(true);
+  });
+
+  it('fails session/prompt when clientCapabilities.fs.readTextFile is false', async () => {
+    const { clientConn } = createConnectedPair({
+      toAgent: (conn) =>
+        createAcpFormalAgent({
+          conn,
+          agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+          facade: {
+            createTask: async () => {
+              throw new Error('should not be reached');
+            },
+            getTask: async () => null,
+            cancelTask: async () => null,
+            resumeTask: async () => null,
+            retryTask: async () => null,
+            reopenTask: async () => null,
+            listTasks: async () => ({ items: [] }),
+            submitInput: async () => null,
+            getArtifact: async () => null,
+          },
+        }),
+      toClient: () => ({
+        requestPermission: async () => ({ outcome: { outcome: 'cancelled' } }),
+        sessionUpdate: async () => {},
+      }),
+    });
+
+    await clientConn.initialize({
+      protocolVersion: 1,
+      clientCapabilities: { fs: { readTextFile: false, writeTextFile: true }, terminal: true },
+    });
+
+    const { sessionId } = await clientConn.newSession({ cwd: '/repo', mcpServers: [] });
+
+    await expect(
+      clientConn.prompt({
+        sessionId,
+        prompt: [{ type: 'text', text: 'hi' }],
+      }),
+    ).rejects.toMatchObject({ code: -32000 });
+  });
+
+  it('passes an ACP-backed filesystem override into task execution', async () => {
+    let sawFileSystemOverride = false;
+
+    const { clientConn } = createConnectedPair({
+      toAgent: (conn) =>
+        createAcpFormalAgent({
+          conn,
+          agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+          facade: {
+            createTask: async (input: any) => {
+              sawFileSystemOverride = Boolean(input.fileSystemOverride);
+              return {
+                task: {
+                  id: 'task_1',
+                  capability: 'patch',
+                  state: 'accepted',
+                  request: { instruction: input.request.instruction },
+                  createdAt: new Date().toISOString(),
+                  attempt: 1,
+                },
+                signal: new AbortController().signal,
+              };
+            },
+            getTask: async () => null,
+            cancelTask: async () => null,
+            resumeTask: async () => null,
+            retryTask: async () => null,
+            reopenTask: async () => null,
+            listTasks: async () => ({ items: [] }),
+            submitInput: async () => null,
+            getArtifact: async () => null,
+          },
+        }),
+      toClient: () => ({
+        requestPermission: async () => ({ outcome: { outcome: 'cancelled' } }),
+        sessionUpdate: async () => {},
+      }),
+    });
+
+    await clientConn.initialize({
+      protocolVersion: 1,
+      clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
+    });
+
+    const { sessionId } = await clientConn.newSession({ cwd: '/repo', mcpServers: [] });
+
+    await clientConn.prompt({
+      sessionId,
+      prompt: [{ type: 'text', text: 'hi' }],
+    });
+
+    expect(sawFileSystemOverride).toBe(true);
   });
 });

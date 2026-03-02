@@ -22,7 +22,9 @@ export class HostRunner {
     private readonly now: () => Date,
   ) {
     this.flowMode = options.mode ?? 'patch';
-    this.fsAdapter = createFileSystemAdapter(this.flowMode);
+    this.fsAdapter = options.fileSystemOverride
+      ? createFileSystemAdapter(this.flowMode, options.fileSystemOverride)
+      : createFileSystemAdapter(this.flowMode);
   }
 
   async boot(): Promise<HostBootContext> {

@@ -15,6 +15,7 @@ import type {
   ErrorType,
   ExecutionPhase,
   ExecutionStep,
+  FileSystem,
   FlowMode,
   VerboseLevel,
 } from './execution.js';
@@ -320,6 +321,7 @@ export interface LoopOptions {
   instruction: string;
   verify?: string;
   repoPath: string;
+  fileSystemOverride?: FileSystem;
   signal?: AbortSignal;
   llm: LLM;
   /**
