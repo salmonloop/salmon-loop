@@ -67,11 +67,14 @@ describe('ACP stdio stream', () => {
         createTask: async () => {
           taskCounter += 1;
           return {
-            id: `task_${taskCounter}`,
-            state: 'accepted',
-            capability: 'patch',
-            request: { instruction: 'hi' },
-            createdAt: new Date().toISOString(),
+            task: {
+              id: `task_${taskCounter}`,
+              state: 'accepted',
+              capability: 'patch',
+              request: { instruction: 'hi' },
+              createdAt: new Date().toISOString(),
+            } as any,
+            signal: new AbortController().signal,
           } as any;
         },
         getTask: async () => null,

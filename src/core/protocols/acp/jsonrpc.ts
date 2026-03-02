@@ -129,6 +129,15 @@ function buildMessageChunkUpdate(type: 'user_message_chunk' | 'agent_message_chu
   });
 }
 
+function ensureMarkdownParagraphBreak(text: string): string {
+  // ACP clients SHOULD render text blocks as Markdown.
+  // In Markdown, a single '\n' inside a paragraph is typically a soft break and may render as a space.
+  // Use a paragraph break ('\n\n') so UIs don't depend on preserving trailing spaces.
+  if (!text) return text;
+  const trimmed = text.replace(/\r?\n$/, '');
+  return `${trimmed}\n\n`;
+}
+
 function mapToolKind(toolName: string): 'read' | 'edit' | 'execute' {
   const name = toolName.toLowerCase();
   if (name.includes('read') || name.includes('get') || name.includes('view')) return 'read';
@@ -167,21 +176,26 @@ function loopEventToAcpUpdate(event: LoopEvent): Record<string, unknown> | null 
     case 'phase.start':
       return {
         sessionUpdate: 'agent_message_chunk',
-        content: { type: 'text', text: `Starting ${event.phase}...` },
+        content: { type: 'text', text: ensureMarkdownParagraphBreak(`Starting ${event.phase}...`) },
       };
     case 'phase.end':
       return {
         sessionUpdate: 'agent_message_chunk',
         content: {
           type: 'text',
-          text: event.success ? `${event.phase} completed` : `${event.phase} failed`,
+          text: ensureMarkdownParagraphBreak(
+            event.success ? `${event.phase} completed` : `${event.phase} failed`,
+          ),
         },
       };
     case 'log':
       if (event.level === 'error' || event.level === 'warn') {
         return {
           sessionUpdate: 'agent_message_chunk',
-          content: { type: 'text', text: `[${event.level.toUpperCase()}] ${event.message}` },
+          content: {
+            type: 'text',
+            text: ensureMarkdownParagraphBreak(`[${event.level.toUpperCase()}] ${event.message}`),
+          },
         };
       }
       return null;
@@ -306,11 +320,9 @@ export function createAcpJsonRpcHandler(deps: {
     }));
 
     if (promptText.trim().length > 0) {
-      await emitSessionUpdate(
-        deps.emitNotification,
-        sessionId,
-        buildMessageChunkUpdate('user_message_chunk', promptText),
-      );
+      // Do not echo the user message back via session/update on session/prompt.
+      // Clients already know the prompt content (they sent it) and many UIs will display it
+      // optimistically, which can cause duplicates if we also stream it here.
     }
 
     const { task, signal } = await deps.facade.createTask({
@@ -328,7 +340,10 @@ export function createAcpJsonRpcHandler(deps: {
       await emitSessionUpdate(
         deps.emitNotification,
         sessionId,
-        buildMessageChunkUpdate('agent_message_chunk', 'Task cancelled.'),
+        buildMessageChunkUpdate(
+          'agent_message_chunk',
+          ensureMarkdownParagraphBreak('Task cancelled.'),
+        ),
       );
       sessions.update(sessionId, (current) => ({
         ...current,
@@ -363,7 +378,7 @@ export function createAcpJsonRpcHandler(deps: {
     await emitSessionUpdate(
       deps.emitNotification,
       sessionId,
-      buildMessageChunkUpdate('agent_message_chunk', assistantText),
+      buildMessageChunkUpdate('agent_message_chunk', ensureMarkdownParagraphBreak(assistantText)),
     );
 
     sessions.update(sessionId, (current) => ({
@@ -392,7 +407,10 @@ export function createAcpJsonRpcHandler(deps: {
     await emitSessionUpdate(
       deps.emitNotification,
       sessionId,
-      buildMessageChunkUpdate('agent_message_chunk', 'Cancellation requested.'),
+      buildMessageChunkUpdate(
+        'agent_message_chunk',
+        ensureMarkdownParagraphBreak('Cancellation requested.'),
+      ),
     );
   }
 
