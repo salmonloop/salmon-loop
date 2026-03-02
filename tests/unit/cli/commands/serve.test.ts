@@ -50,6 +50,7 @@ mock.module('../../../../src/core/observability/logger.js', () => ({
     setReporter: mock(),
   },
   StderrReporter: class {},
+  PlainReporter: class {},
 }));
 
 mock.module('../../../../src/core/adapters/fs/node-fs.js', () => ({

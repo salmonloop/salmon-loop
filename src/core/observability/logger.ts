@@ -163,6 +163,79 @@ export class StderrReporter implements LogReporter {
   }
 }
 
+/**
+ * Plain text reporter without colors for environments where ANSI colors should be disabled.
+ */
+export class PlainReporter implements LogReporter {
+  constructor(private verboseLevel: LogLevel = 'none') {}
+
+  setVerbose(level: LogLevel) {
+    this.verboseLevel = level;
+  }
+
+  private get isBasic() {
+    return this.verboseLevel === 'basic' || this.verboseLevel === 'extended';
+  }
+
+  private get isExtended() {
+    return this.verboseLevel === 'extended';
+  }
+
+  log(level: string, message: string, metadata?: any): void {
+    const safeMessage =
+      message === REDACTED_ERROR_TOKEN ? text.errors.technicalDetailsHidden : message;
+
+    const writeLine = (line: string) => {
+      console.error(line);
+    };
+
+    switch (level) {
+      case 'info':
+      case 'log':
+      case 'bold':
+        writeLine(safeMessage);
+        break;
+      case 'success':
+        writeLine(safeMessage);
+        break;
+      case 'warn':
+      case 'degraded':
+        writeLine(level === 'degraded' ? `[DEGRADED] ${safeMessage}` : safeMessage);
+        break;
+      case 'error':
+        writeLine(safeMessage);
+        break;
+      case 'debug':
+        if (this.isBasic) writeLine(safeMessage);
+        break;
+      case 'trace':
+        if (this.isExtended) writeLine(safeMessage);
+        break;
+      case 'cyan':
+        writeLine(safeMessage);
+        break;
+      case 'dim':
+        writeLine(safeMessage);
+        break;
+      case 'step':
+        if (this.isBasic) {
+          const phase = metadata?.phase || 'STEP';
+          writeLine(`\n[${phase.toUpperCase()}] ${safeMessage}`);
+        }
+        break;
+      case 'audit': {
+        const timestamp = new Date().toISOString();
+        writeLine(`[AUDIT] ${timestamp} - ${safeMessage}`);
+        break;
+      }
+    }
+  }
+
+  clear(): void {
+    // No-op: stderr cannot be cleared reliably without side effects.
+  }
+}
+
 export interface LoggerOptions {
   verbose?: VerboseLevel | boolean;
   prefix?: string;

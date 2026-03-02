@@ -7,7 +7,7 @@ import { resolveConfig } from '../../core/config/resolve.js';
 import { resolveExtensions } from '../../core/extensions/index.js';
 import { createTaskEventBus } from '../../core/interaction/events/bus.js';
 import { createInteractionFacade } from '../../core/interaction/orchestration/facade.js';
-import { logger, StderrReporter } from '../../core/observability/logger.js';
+import { logger, PlainReporter, StderrReporter } from '../../core/observability/logger.js';
 import { PluginLoader } from '../../core/plugin/loader.js';
 import { buildA2AAgentCard } from '../../core/protocols/a2a/agent-card.js';
 import {
@@ -82,8 +82,9 @@ export async function handleServeCommand(_options: unknown, command: Command) {
     process.exit(1);
   }
   const acpStdioEnabled = allOptions.acpStdio !== false;
+  const colorEnabled = allOptions.color === true;
   if (acpStdioEnabled) {
-    logger.setReporter(new StderrReporter());
+    logger.setReporter(colorEnabled ? new StderrReporter() : new PlainReporter());
   }
 
   const sidecarSocket =

@@ -189,6 +189,7 @@ program
   .option('--no-acp-stdio', text.cli.acpStdioDisableOption)
   .option('--sidecar-socket <path>', text.cli.sidecarSocketOption)
   .option('--sidecar-allow-conditional', text.cli.sidecarAllowConditionalOption)
+  .option('--no-color', 'Disable colored output in logs')
   .action(handleServeCommand);
 
 // --- Command: Chat ---
