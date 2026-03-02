@@ -1,3 +1,4 @@
+import type { LoopEvent } from '../../types/index.js';
 import type { TaskEventBus } from '../events/bus.js';
 import {
   createTaskTransitionPolicy,
@@ -9,7 +10,11 @@ import {
 import { InMemoryTaskStore } from './store.js';
 
 export interface InteractionFacade {
-  createTask(input: { capability: string; request: TaskRequest }): Promise<TaskEnvelope>;
+  createTask(input: {
+    capability: string;
+    request: TaskRequest;
+    onEvent?: (event: LoopEvent) => void;
+  }): Promise<TaskEnvelope>;
   getTask(id: string): Promise<TaskEnvelope | null>;
   cancelTask(id: string): Promise<TaskEnvelope | null>;
   resumeTask(id: string): Promise<TaskEnvelope | null>;
@@ -30,7 +35,10 @@ export interface InteractionFacade {
 }
 
 export function createInteractionFacade(deps: {
-  executeTask: (task: TaskEnvelope) => Promise<TaskEnvelope>;
+  executeTask: (
+    task: TaskEnvelope,
+    options?: { onEvent?: (event: LoopEvent) => void },
+  ) => Promise<TaskEnvelope>;
   eventBus?: TaskEventBus;
 }): InteractionFacade {
   const store = new InMemoryTaskStore();
@@ -59,7 +67,7 @@ export function createInteractionFacade(deps: {
       };
       store.save(task);
       deps.eventBus?.publish({ type: 'task.accepted', taskId: task.id });
-      void deps.executeTask(task).then((result) => {
+      void deps.executeTask(task, { onEvent: input.onEvent }).then((result) => {
         store.update(result);
         if (result.state === 'completed') {
           deps.eventBus?.publish({ type: 'task.completed', taskId: result.id });

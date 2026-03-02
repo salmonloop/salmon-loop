@@ -119,7 +119,7 @@ export async function handleServeCommand(_options: unknown, command: Command) {
   });
 
   const executor = createSalmonTaskExecutor({
-    runLoop: async ({ instruction, mode }) => {
+    runLoop: async ({ instruction, mode, onEvent }) => {
       await runSalmonLoop({
         instruction,
         repoPath,
@@ -136,6 +136,7 @@ export async function handleServeCommand(_options: unknown, command: Command) {
         auditScope,
         authorizationProvider,
         extensions: extensions.resolved,
+        onEvent,
       });
     },
   });

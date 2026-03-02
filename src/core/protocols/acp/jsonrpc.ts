@@ -1,5 +1,6 @@
 import type { TaskEvent } from '../../interaction/events/bus.js';
 import type { TaskEnvelope } from '../../interaction/model/index.js';
+import type { LoopEvent } from '../../types/index.js';
 
 import { createAcpSessionStore, isTerminalTaskEvent, type AcpSessionRecord } from './handlers.js';
 import { AcpJsonRpcError } from './jsonrpc-error.js';
@@ -49,6 +50,7 @@ type Facade = {
   createTask: (input: {
     capability: string;
     request: { instruction: string };
+    onEvent?: (event: LoopEvent) => void;
   }) => Promise<TaskEnvelope>;
   getTask: (id: string) => Promise<TaskEnvelope | null>;
   cancelTask: (id: string) => Promise<TaskEnvelope | null>;
@@ -125,6 +127,66 @@ function buildMessageChunkUpdate(type: 'user_message_chunk' | 'agent_message_chu
     sessionUpdate: type,
     content: buildTextContentBlock(text),
   });
+}
+
+function mapToolKind(toolName: string): 'read' | 'edit' | 'execute' {
+  const name = toolName.toLowerCase();
+  if (name.includes('read') || name.includes('get') || name.includes('view')) return 'read';
+  if (name.includes('write') || name.includes('edit') || name.includes('patch')) return 'edit';
+  return 'execute';
+}
+
+function loopEventToAcpUpdate(event: LoopEvent): Record<string, unknown> | null {
+  switch (event.type) {
+    case 'llm.stream.delta':
+      return {
+        sessionUpdate: 'agent_message_chunk',
+        content: { type: 'text', text: event.content || '' },
+      };
+    case 'llm.output':
+      return {
+        sessionUpdate: 'agent_message_chunk',
+        content: { type: 'text', text: event.content || '' },
+      };
+    case 'tool.call.start':
+      return {
+        sessionUpdate: 'tool_call',
+        toolCallId: event.callId,
+        status: 'in_progress',
+        title: event.toolName,
+        kind: mapToolKind(event.toolName),
+      };
+    case 'tool.call.end':
+      return {
+        sessionUpdate: 'tool_call',
+        toolCallId: event.callId,
+        status: event.status === 'ok' ? 'completed' : 'failed',
+        title: '',
+        kind: 'execute',
+      };
+    case 'phase.start':
+      return {
+        sessionUpdate: 'status',
+        phase: event.phase,
+        message: `Starting ${event.phase}...`,
+      };
+    case 'phase.end':
+      return {
+        sessionUpdate: 'status',
+        phase: event.phase,
+        message: event.success ? `${event.phase} completed` : `${event.phase} failed`,
+      };
+    case 'log':
+      if (event.level === 'error' || event.level === 'warn') {
+        return {
+          sessionUpdate: 'agent_message_chunk',
+          content: { type: 'text', text: `[${event.level.toUpperCase()}] ${event.message}` },
+        };
+      }
+      return null;
+    default:
+      return null;
+  }
 }
 
 async function emitSessionUpdate(
@@ -253,6 +315,12 @@ export function createAcpJsonRpcHandler(deps: {
     const task = await deps.facade.createTask({
       capability: 'patch',
       request: { instruction: promptText },
+      onEvent: (event: LoopEvent) => {
+        const update = loopEventToAcpUpdate(event);
+        if (update) {
+          void emitSessionUpdate(deps.emitNotification, sessionId, update);
+        }
+      },
     });
 
     sessions.update(sessionId, (current) => ({ ...current, taskId: task.id }));
