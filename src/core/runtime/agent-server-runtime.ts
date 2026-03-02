@@ -31,7 +31,7 @@ export function createAgentServerRuntime(deps: {
   createFastify: FastifyFactory;
   a2a: {
     buildAgentCard: () => unknown;
-    executeTask: (task: TaskEnvelope) => Promise<TaskEnvelope>;
+    executeTask: (task: TaskEnvelope, options?: { signal?: AbortSignal }) => Promise<TaskEnvelope>;
     authPolicy?: A2AAuthPolicyMiddleware;
     artifactStore?: {
       read: (handle: string) => Promise<Response | null>;
@@ -70,6 +70,10 @@ export function createAgentServerRuntime(deps: {
   const jsonRpcHandler = createA2AJsonRpcHandler({
     facade: {
       ...facade,
+      async createTask(input) {
+        const result = await facade.createTask(input);
+        return result.task;
+      },
       async reopenTask(id, action) {
         if (!action) return null;
         return facade.reopenTask(id, action);

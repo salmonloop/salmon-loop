@@ -9,7 +9,7 @@ describe('interaction facade', () => {
       executeTask: async (task) => ({ ...task, state: 'completed' }),
     });
 
-    const created = await facade.createTask({
+    const { task: created } = await facade.createTask({
       capability: 'patch',
       request: { instruction: 'fix bug' },
     });
@@ -25,7 +25,7 @@ describe('interaction facade', () => {
       executeTask: async (task) => ({ ...task, state: 'completed' }),
     });
 
-    const created = await facade.createTask({
+    const { task: created } = await facade.createTask({
       capability: 'patch',
       request: { instruction: 'fix bug' },
     });
@@ -41,7 +41,7 @@ describe('interaction facade', () => {
       executeTask: async (task) => task,
     });
 
-    const created = await facade.createTask({
+    const { task: created } = await facade.createTask({
       capability: 'patch',
       request: { instruction: 'fix bug' },
     });
@@ -73,7 +73,7 @@ describe('interaction facade', () => {
       eventBus: bus,
       executeTask: async (task) => task,
     });
-    const created = await cancellableFacade.createTask({
+    const { task: created } = await cancellableFacade.createTask({
       capability: 'patch',
       request: { instruction: 'cancel me' },
     });
@@ -87,7 +87,7 @@ describe('interaction facade', () => {
       executeTask: async (task) => ({ ...task, state: 'completed' }),
     });
 
-    const created = await facade.createTask({
+    const { task: created } = await facade.createTask({
       capability: 'patch',
       request: { instruction: 'fix bug' },
     });
@@ -112,7 +112,7 @@ describe('interaction facade', () => {
       }),
     });
 
-    const awaitingCreated = await facadeWithAwaitingTask.createTask({
+    const { task: awaitingCreated } = await facadeWithAwaitingTask.createTask({
       capability: 'patch',
       request: { instruction: 'fix bug' },
     });
@@ -140,7 +140,7 @@ describe('interaction facade', () => {
       }),
     });
 
-    const created = await facade.createTask({
+    const { task: created } = await facade.createTask({
       capability: 'patch',
       request: { instruction: 'fix bug' },
     });
@@ -156,7 +156,7 @@ describe('interaction facade', () => {
     const terminalFacade = createInteractionFacade({
       executeTask: async (task) => ({ ...task, state: 'completed' }),
     });
-    const terminalCreated = await terminalFacade.createTask({
+    const { task: terminalCreated } = await terminalFacade.createTask({
       capability: 'patch',
       request: { instruction: 'fix bug' },
     });
@@ -181,7 +181,7 @@ describe('interaction facade', () => {
       }),
     });
 
-    const created = await facade.createTask({
+    const { task: created } = await facade.createTask({
       capability: 'patch',
       request: { instruction: 'fix bug' },
     });
@@ -204,7 +204,7 @@ describe('interaction facade', () => {
       executeTask: async (task) => ({ ...task, state: 'running' }),
     });
 
-    const created = await facade.createTask({
+    const { task: created } = await facade.createTask({
       capability: 'patch',
       request: { instruction: 'fix bug' },
     });
@@ -239,7 +239,7 @@ describe('interaction facade', () => {
     const completedFacade = createInteractionFacade({
       executeTask: async (task) => ({ ...task, state: 'completed' }),
     });
-    const completed = await completedFacade.createTask({
+    const { task: completed } = await completedFacade.createTask({
       capability: 'patch',
       request: { instruction: 'ship it' },
     });

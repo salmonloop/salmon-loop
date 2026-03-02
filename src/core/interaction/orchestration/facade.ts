@@ -14,7 +14,7 @@ export interface InteractionFacade {
     capability: string;
     request: TaskRequest;
     onEvent?: (event: LoopEvent) => void;
-  }): Promise<TaskEnvelope>;
+  }): Promise<{ task: TaskEnvelope; signal: AbortSignal }>;
   getTask(id: string): Promise<TaskEnvelope | null>;
   cancelTask(id: string): Promise<TaskEnvelope | null>;
   resumeTask(id: string): Promise<TaskEnvelope | null>;
@@ -37,12 +37,13 @@ export interface InteractionFacade {
 export function createInteractionFacade(deps: {
   executeTask: (
     task: TaskEnvelope,
-    options?: { onEvent?: (event: LoopEvent) => void },
+    options?: { onEvent?: (event: LoopEvent) => void; signal?: AbortSignal },
   ) => Promise<TaskEnvelope>;
   eventBus?: TaskEventBus;
 }): InteractionFacade {
   const store = new InMemoryTaskStore();
   const transitionPolicy = createTaskTransitionPolicy();
+  const taskControllers = new Map<string, AbortController>();
 
   function updateTask(
     id: string,
@@ -57,6 +58,7 @@ export function createInteractionFacade(deps: {
 
   return {
     async createTask(input) {
+      const controller = new AbortController();
       const task: TaskEnvelope = {
         id: `task_${Date.now()}`,
         capability: input.capability,
@@ -66,23 +68,31 @@ export function createInteractionFacade(deps: {
         attempt: 1,
       };
       store.save(task);
+      taskControllers.set(task.id, controller);
       deps.eventBus?.publish({ type: 'task.accepted', taskId: task.id });
-      void deps.executeTask(task, { onEvent: input.onEvent }).then((result) => {
-        store.update(result);
-        if (result.state === 'completed') {
-          deps.eventBus?.publish({ type: 'task.completed', taskId: result.id });
-        } else if (result.state === 'failed') {
-          deps.eventBus?.publish({ type: 'task.failed', taskId: result.id });
-        } else if (result.state === 'awaiting_input') {
-          deps.eventBus?.publish({ type: 'task.awaiting_input', taskId: result.id });
-        }
-      });
-      return task;
+      void deps
+        .executeTask(task, { onEvent: input.onEvent, signal: controller.signal })
+        .then((result) => {
+          taskControllers.delete(task.id);
+          store.update(result);
+          if (result.state === 'completed') {
+            deps.eventBus?.publish({ type: 'task.completed', taskId: result.id });
+          } else if (result.state === 'failed') {
+            deps.eventBus?.publish({ type: 'task.failed', taskId: result.id });
+          } else if (result.state === 'awaiting_input') {
+            deps.eventBus?.publish({ type: 'task.awaiting_input', taskId: result.id });
+          }
+        });
+      return { task, signal: controller.signal };
     },
     async getTask(id) {
       return store.get(id);
     },
     async cancelTask(id) {
+      const controller = taskControllers.get(id);
+      if (controller) {
+        controller.abort();
+      }
       const cancelled = updateTask(id, 'cancelled', (task) => ({
         ...task,
         state: 'cancelled',

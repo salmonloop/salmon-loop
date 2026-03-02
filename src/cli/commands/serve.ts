@@ -119,7 +119,7 @@ export async function handleServeCommand(_options: unknown, command: Command) {
   });
 
   const executor = createSalmonTaskExecutor({
-    runLoop: async ({ instruction, mode, onEvent }) => {
+    runLoop: async ({ instruction, mode, onEvent, signal }) => {
       await runSalmonLoop({
         instruction,
         repoPath,
@@ -137,6 +137,7 @@ export async function handleServeCommand(_options: unknown, command: Command) {
         authorizationProvider,
         extensions: extensions.resolved,
         onEvent,
+        signal,
       });
     },
   });
@@ -187,13 +188,20 @@ export async function handleServeCommand(_options: unknown, command: Command) {
       },
     });
 
-    createAcpStdioLoop({
+    const acpLoop = createAcpStdioLoop({
       input: process.stdin,
       output: process.stdout,
       errorOutput: process.stderr,
       handler,
     });
     logger.info(text.cli.acpStdioStarted('n/a (stdio)'));
+
+    // Handle SIGINT for graceful shutdown
+    process.on('SIGINT', () => {
+      logger.info('Received SIGINT, shutting down ACP server...');
+      acpLoop.close();
+      process.exit(0);
+    });
   }
 
   const fastify = (await import('fastify')).default;
@@ -214,6 +222,12 @@ export async function handleServeCommand(_options: unknown, command: Command) {
       sidecar: { path: sidecarSocket },
     },
     a2aBaseUrl: `http://${a2aHost}:${a2aPort}`,
+  });
+
+  // Handle SIGINT for graceful shutdown
+  process.on('SIGINT', () => {
+    logger.info('Received SIGINT, shutting down server...');
+    runtime.close().then(() => process.exit(0));
   });
 
   await runtime.start();

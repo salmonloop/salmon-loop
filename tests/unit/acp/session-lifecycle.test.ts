@@ -34,11 +34,14 @@ describe('ACP session lifecycle', () => {
         createTask: async () => {
           taskCounter += 1;
           return {
-            id: `task_${taskCounter}`,
-            state: 'accepted',
-            capability: 'patch',
-            request: { instruction: 'hi' },
-            createdAt: new Date().toISOString(),
+            task: {
+              id: `task_${taskCounter}`,
+              state: 'accepted',
+              capability: 'patch',
+              request: { instruction: 'hi' },
+              createdAt: new Date().toISOString(),
+            },
+            signal: new AbortController().signal,
           } as any;
         },
         getTask: async () => null,
@@ -101,11 +104,14 @@ describe('ACP session lifecycle', () => {
       facade: {
         createTask: async () =>
           ({
-            id: 'task_1',
-            state: 'accepted',
-            capability: 'patch',
-            request: { instruction: 'hi' },
-            createdAt: new Date().toISOString(),
+            task: {
+              id: 'task_1',
+              state: 'accepted',
+              capability: 'patch',
+              request: { instruction: 'hi' },
+              createdAt: new Date().toISOString(),
+            },
+            signal: new AbortController().signal,
           }) as any,
         getTask: async () => null,
         cancelTask: async () => null,

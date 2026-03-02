@@ -8,11 +8,14 @@ function createHandler() {
     emitNotification: async () => {},
     facade: {
       createTask: async () => ({
-        id: 'task_1',
-        state: 'accepted',
-        capability: 'patch',
-        request: { instruction: 'hi' },
-        createdAt: new Date().toISOString(),
+        task: {
+          id: 'task_1',
+          state: 'accepted',
+          capability: 'patch',
+          request: { instruction: 'hi' },
+          createdAt: new Date().toISOString(),
+        },
+        signal: new AbortController().signal,
       }),
       getTask: async () => null,
       cancelTask: async () => null,

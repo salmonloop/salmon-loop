@@ -34,7 +34,7 @@ describe('task event bus', () => {
       executeTask: async (task) => ({ ...task, state: 'running' }),
     });
 
-    const created = await facade.createTask({
+    const { task: created } = await facade.createTask({
       capability: 'patch',
       request: { instruction: 'fail me' },
     });

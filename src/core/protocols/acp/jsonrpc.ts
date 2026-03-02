@@ -51,7 +51,7 @@ type Facade = {
     capability: string;
     request: { instruction: string };
     onEvent?: (event: LoopEvent) => void;
-  }) => Promise<TaskEnvelope>;
+  }) => Promise<{ task: TaskEnvelope; signal: AbortSignal }>;
   getTask: (id: string) => Promise<TaskEnvelope | null>;
   cancelTask: (id: string) => Promise<TaskEnvelope | null>;
   resumeTask: (id: string) => Promise<TaskEnvelope | null>;
@@ -166,15 +166,16 @@ function loopEventToAcpUpdate(event: LoopEvent): Record<string, unknown> | null 
       };
     case 'phase.start':
       return {
-        sessionUpdate: 'status',
-        phase: event.phase,
-        message: `Starting ${event.phase}...`,
+        sessionUpdate: 'agent_message_chunk',
+        content: { type: 'text', text: `Starting ${event.phase}...` },
       };
     case 'phase.end':
       return {
-        sessionUpdate: 'status',
-        phase: event.phase,
-        message: event.success ? `${event.phase} completed` : `${event.phase} failed`,
+        sessionUpdate: 'agent_message_chunk',
+        content: {
+          type: 'text',
+          text: event.success ? `${event.phase} completed` : `${event.phase} failed`,
+        },
       };
     case 'log':
       if (event.level === 'error' || event.level === 'warn') {
@@ -312,7 +313,7 @@ export function createAcpJsonRpcHandler(deps: {
       );
     }
 
-    const task = await deps.facade.createTask({
+    const { task, signal } = await deps.facade.createTask({
       capability: 'patch',
       request: { instruction: promptText },
       onEvent: (event: LoopEvent) => {
@@ -322,6 +323,23 @@ export function createAcpJsonRpcHandler(deps: {
         }
       },
     });
+
+    if (signal.aborted) {
+      await emitSessionUpdate(
+        deps.emitNotification,
+        sessionId,
+        buildMessageChunkUpdate('agent_message_chunk', 'Task cancelled.'),
+      );
+      sessions.update(sessionId, (current) => ({
+        ...current,
+        taskId: task.id,
+        history: [
+          ...current.history,
+          { role: 'assistant', content: [buildTextContentBlock('Task cancelled.')] },
+        ],
+      }));
+      return { stopReason: 'cancelled' };
+    }
 
     sessions.update(sessionId, (current) => ({ ...current, taskId: task.id }));
 
