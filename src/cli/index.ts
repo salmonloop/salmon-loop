@@ -15,7 +15,7 @@ import { handleContextCommand } from './commands/context.js';
 import { handleRestoreCommand } from './commands/restore.js';
 import { createHeadlessErrorWriter } from './commands/run/headless-error-writer.js';
 import { handleRunCommand } from './commands/run.js';
-import { handleServeCommand } from './commands/serve.js';
+import { registerServeCommands } from './commands/serve.js';
 import {
   handleSnapshotList,
   handleSnapshotCreate,
@@ -175,22 +175,7 @@ program
   .action(handleContextCommand);
 
 // --- Command: Serve ---
-program
-  .command('serve')
-  .description(text.cli.serveDescription)
-  .option('--a2a-host <host>', text.cli.a2aHostOption)
-  .option('--a2a-port <port>', text.cli.a2aPortOption)
-  .option(
-    '--a2a-token <token>',
-    text.cli.a2aTokenOption,
-    (value, previous: string[]) => previous.concat([value]),
-    [] as string[],
-  )
-  .option('--no-acp-stdio', text.cli.acpStdioDisableOption)
-  .option('--sidecar-socket <path>', text.cli.sidecarSocketOption)
-  .option('--sidecar-allow-conditional', text.cli.sidecarAllowConditionalOption)
-  .option('--no-color', 'Disable colored output in logs')
-  .action(handleServeCommand);
+registerServeCommands(program);
 
 // --- Command: Chat ---
 program

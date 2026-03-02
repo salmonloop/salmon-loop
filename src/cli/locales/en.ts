@@ -4,6 +4,8 @@ export const en = {
   runDescription: 'Run the salmon-loop',
   contextDescription: 'Build and print the context prompt (no LLM call)',
   serveDescription: 'Start the A2A + sidecar server',
+  serveAcpDescription: 'Start the agent-client-protocol (ACP) stdio server only',
+  noColorOption: 'Disable colored output in logs',
 
   // Chat mode
   chatResumed: (name: string) => `Resumed: ${name}`,

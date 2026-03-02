@@ -58,6 +58,31 @@ function buildSidecarHandlers(deps: {
   };
 }
 
+export function registerServeCommands(program: Command) {
+  const serve = program
+    .command('serve')
+    .description(text.cli.serveDescription)
+    .option('--a2a-host <host>', text.cli.a2aHostOption)
+    .option('--a2a-port <port>', text.cli.a2aPortOption)
+    .option(
+      '--a2a-token <token>',
+      text.cli.a2aTokenOption,
+      (value, previous: string[]) => previous.concat([value]),
+      [] as string[],
+    )
+    .option('--no-acp-stdio', text.cli.acpStdioDisableOption)
+    .option('--sidecar-socket <path>', text.cli.sidecarSocketOption)
+    .option('--sidecar-allow-conditional', text.cli.sidecarAllowConditionalOption)
+    .option('--no-color', text.cli.noColorOption)
+    .action(handleServeCommand);
+
+  serve
+    .command('acp')
+    .description(text.cli.serveAcpDescription)
+    .option('--no-color', text.cli.noColorOption)
+    .action(handleServeAcpCommand);
+}
+
 export async function handleServeCommand(_options: unknown, command: Command) {
   const allOptions = command.optsWithGlobals();
   const repoPath = defaultPathAdapter.resolve(allOptions.repo || process.cwd());
@@ -232,4 +257,98 @@ export async function handleServeCommand(_options: unknown, command: Command) {
 
   await runtime.start();
   logger.success(text.cli.serveStarted(a2aHost, a2aPort, sidecarSocket));
+}
+
+export async function handleServeAcpCommand(_options: unknown, command: Command) {
+  const allOptions = command.optsWithGlobals();
+  const repoPath = defaultPathAdapter.resolve(allOptions.repo || process.cwd());
+
+  const resolvedConfig = await resolveConfig({ repoRoot: repoPath });
+
+  logger.setReporter(allOptions.color === false ? new StderrReporter() : new PlainReporter());
+
+  await PluginLoader.loadPlugins(repoPath);
+  const extensions = await resolveExtensions({ repoRoot: repoPath });
+
+  const { llm } = createRuntimeLlmAndWarn({
+    llmConfig: resolvedConfig.llm,
+    langfuseEnabled: resolvedConfig.observability.langfuse.enabled,
+  });
+
+  const auditScopeResolution = resolveAuditScope({
+    cliValue: allOptions.auditScope,
+    configValue: resolvedConfig.observability.audit.scope,
+  });
+  if (!auditScopeResolution.ok) {
+    logger.error(text.cli.invalidAuditScope(auditScopeResolution.invalid), true);
+    process.exit(1);
+  }
+
+  const outcomeReporter = createOutcomeReporter({
+    enabled: resolvedConfig.observability.langfuse.outcome,
+    endpoint: resolvedConfig.observability.langfuse.endpoint,
+    llmBaseUrl: resolvedConfig.llm.api.baseUrl,
+    llmApiKey: resolvedConfig.llm.api.apiKey,
+    proxyApiKeyEnv: process.env.SALMONLOOP_LANGFUSE_PROXY_API_KEY,
+  });
+
+  const authorizationProvider = createTerminalAuthorizationProvider({
+    config: resolvedConfig.toolAuthorization,
+    extensions: extensions.resolved,
+    forceNonInteractive: true,
+  });
+
+  const executor = createSalmonTaskExecutor({
+    runLoop: async ({ instruction, mode, onEvent, signal }) => {
+      await runSalmonLoop({
+        instruction,
+        repoPath,
+        llm,
+        mode: mode as any,
+        verify: resolvedConfig.verify.command,
+        strategy: 'worktree',
+        applyBackOnDirty: '3way',
+        environmentMode: 'strict',
+        llmOutput: resolvedConfig.llmOutput,
+        outcomeReporter,
+        langfuseSessionId: resolvedConfig.observability.langfuse.sessionId,
+        langfuseUserId: resolvedConfig.observability.langfuse.userId,
+        auditScope: auditScopeResolution.value,
+        authorizationProvider,
+        extensions: extensions.resolved,
+        onEvent,
+        signal,
+      });
+    },
+  });
+
+  const sharedEventBus = createTaskEventBus();
+  const acpFacade = createInteractionFacade({
+    executeTask: executor.execute,
+    eventBus: sharedEventBus,
+  });
+
+  const handler = createAcpJsonRpcHandler({
+    agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+    facade: acpFacade,
+    eventBus: sharedEventBus,
+    emitNotification: async (note) => {
+      process.stdout.write(`${JSON.stringify(note)}\n`);
+    },
+  });
+
+  const acpLoop = createAcpStdioLoop({
+    input: process.stdin,
+    output: process.stdout,
+    errorOutput: process.stderr,
+    handler,
+  });
+
+  logger.info(text.cli.acpStdioStarted('n/a (stdio)'));
+
+  process.on('SIGINT', () => {
+    logger.info('Received SIGINT, shutting down ACP server...');
+    acpLoop.close();
+    process.exit(0);
+  });
 }

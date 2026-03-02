@@ -10,6 +10,12 @@ Start the server:
 s8p serve
 ```
 
+For ACP UIs that only need stdio (and to avoid HTTP port conflicts), start ACP-only mode:
+
+```bash
+s8p serve acp
+```
+
 Or in dev:
 
 ```bash
@@ -32,7 +38,7 @@ Configure your ACP UI to launch Salmon-Loop as a stdio agent:
 {
   "name": "salmon-loop",
   "command": "s8p",
-  "args": ["serve"],
+  "args": ["serve", "acp"],
   "env": {
     "NODE_ENV": "production"
   }
