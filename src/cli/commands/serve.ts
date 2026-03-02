@@ -82,9 +82,8 @@ export async function handleServeCommand(_options: unknown, command: Command) {
     process.exit(1);
   }
   const acpStdioEnabled = allOptions.acpStdio !== false;
-  const colorEnabled = allOptions.color === true;
   if (acpStdioEnabled) {
-    logger.setReporter(colorEnabled ? new StderrReporter() : new PlainReporter());
+    logger.setReporter(allOptions.color === false ? new StderrReporter() : new PlainReporter());
   }
 
   const sidecarSocket =
