@@ -5,23 +5,26 @@ This module implements the ACP (agent-client-protocol) stdio JSON-RPC adapter fo
 ## Scope
 
 - Stdio JSON-RPC 2.0 transport (stdout only for protocol messages).
-- ACP baseline methods:
+- ACP baseline methods via official SDK:
   - `initialize`
+  - `authenticate`
   - `session/new`
   - `session/load`
   - `session/prompt`
-  - `session/cancel`
+  - `session/cancel` (notification)
   - `session/update` (notification)
-- Draft methods (optional capabilities):
-  - `session/list`
-  - `session/delete`
+- Client capability methods (agent → client requests) via official SDK:
+  - `session/request_permission`
+  - `fs/read_text_file`
+  - `fs/write_text_file`
+  - `terminal/*`
 
 ## File Responsibilities
 
-- `jsonrpc.ts`: request validation, method dispatch, session lifecycle, update notifications.
+- `formal-agent.ts`: ACP Agent implementation (session lifecycle, prompt handling, session/update).
+- `permission-provider.ts`: maps internal tool authorization to `session/request_permission`.
+- `stdio-server.ts`: stdio transport bootstrap using `ndJsonStream`.
 - `handlers.ts`: in-memory session store and helpers.
-- `jsonrpc-error.ts`: ACP JSON-RPC error types.
-- `src/core/transports/stdio/acp-stdio-loop.ts`: stdio read/write loop.
 
 ## Method Mapping
 
@@ -30,7 +33,6 @@ This module implements the ACP (agent-client-protocol) stdio JSON-RPC adapter fo
 - `session/load` → reload session + replay history via `session/update`.
 - `session/prompt` → create task via canonical facade and push `session/update` chunks.
 - `session/cancel` → cancel current task (notification-only response).
-- `session/list/delete` → local session store operations.
 
 ## Notifications
 
@@ -45,11 +47,9 @@ This module implements the ACP (agent-client-protocol) stdio JSON-RPC adapter fo
 ## Testing
 
 - Unit tests: `tests/unit/acp/*.test.ts`
-- Integration tests: `tests/integration/acp/stdio-stream.test.ts`
 
 Run:
 
 ```bash
-bun test tests/unit/acp/initialize.test.ts
-bun test tests/integration/acp/stdio-stream.test.ts
+bun test tests/unit/acp/formal-protocol-sdk.test.ts
 ```

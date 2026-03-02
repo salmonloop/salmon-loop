@@ -85,14 +85,23 @@ mock.module('../../../../src/cli/utils/outcome-reporter.js', () => ({
   createOutcomeReporter: mock(() => ({ type: 'outcome-reporter' })),
 }));
 
-mock.module('../../../../src/core/protocols/acp/index.js', () => ({
-  createAcpJsonRpcHandler: mock(() => ({ handle: mock(async () => null) })),
+mock.module('../../../../src/core/protocols/acp/formal-agent.js', () => ({
+  createAcpFormalAgent: mock(() => ({
+    initialize: mock(async () => ({
+      protocolVersion: 1,
+      agentCapabilities: { loadSession: true },
+    })),
+    authenticate: mock(async () => ({})),
+    newSession: mock(async () => ({ sessionId: 'sess_1' })),
+    prompt: mock(async () => ({ stopReason: 'end_turn' })),
+    cancel: mock(async () => {}),
+  })),
 }));
 
-mock.module('../../../../src/core/transports/stdio/acp-stdio-loop.js', () => ({
-  createAcpStdioLoop: mock((args: Record<string, unknown>) => {
-    hoisted.acpLoopCalls.push(args);
-    return { close: () => {} };
+mock.module('../../../../src/core/protocols/acp/stdio-server.js', () => ({
+  startAcpStdioServer: mock((args: unknown) => {
+    hoisted.acpLoopCalls.push({ createAgent: args });
+    return { closed: Promise.resolve() };
   }),
 }));
 

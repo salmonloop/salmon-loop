@@ -425,19 +425,19 @@ async function spawnWithNode(input: SpawnCommandInput): Promise<SpawnCommandResu
   });
 }
 
-export async function spawnCommand(input: SpawnCommandInput): Promise<SpawnCommandResult> {
+export async function spawnCommandLocal(input: SpawnCommandInput): Promise<SpawnCommandResult> {
   if (getBunRuntime()) {
     return await spawnWithBun(input);
   }
   return await spawnWithNode(input);
 }
 
-export async function isCommandAvailable(command: string): Promise<boolean> {
+export async function isCommandAvailableLocal(command: string): Promise<boolean> {
   const bun = getBunRuntime();
   if (bun?.which) {
     return Boolean(bun.which(command));
   }
-  const result = await spawnCommand({
+  const result = await spawnCommandLocal({
     command,
     args: ['--version'],
     timeoutMs: 1500,

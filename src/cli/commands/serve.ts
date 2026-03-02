@@ -15,7 +15,8 @@ import {
   createAllowAllA2APolicy,
   createBearerTokenAuthenticator,
 } from '../../core/protocols/a2a/server/auth-policy.js';
-import { createAcpJsonRpcHandler } from '../../core/protocols/acp/index.js';
+import { createAcpFormalAgent } from '../../core/protocols/acp/formal-agent.js';
+import { startAcpStdioServer } from '../../core/protocols/acp/stdio-server.js';
 import { createAgentServerRuntime } from '../../core/runtime/agent-server-runtime.js';
 import { runSalmonLoop } from '../../core/runtime/loop.js';
 import { getSidecarSocketPath } from '../../core/runtime/sidecar-paths.js';
@@ -23,7 +24,6 @@ import {
   buildSidecarRouteDescriptors,
   defaultSidecarRouteCatalog,
 } from '../../core/runtime/sidecar-route-catalog.js';
-import { createAcpStdioLoop } from '../../core/transports/stdio/acp-stdio-loop.js';
 import { createTerminalAuthorizationProvider } from '../authorization/provider.js';
 import { text } from '../locales/index.js';
 import { resolveAuditScope } from '../utils/audit-scope.js';
@@ -137,14 +137,21 @@ export async function handleServeCommand(_options: unknown, command: Command) {
     proxyApiKeyEnv: process.env.SALMONLOOP_LANGFUSE_PROXY_API_KEY,
   });
 
-  const authorizationProvider = createTerminalAuthorizationProvider({
+  const defaultAuthorizationProvider = createTerminalAuthorizationProvider({
     config: resolvedConfig.toolAuthorization,
     extensions: extensions.resolved,
     forceNonInteractive: true,
   });
 
   const executor = createSalmonTaskExecutor({
-    runLoop: async ({ instruction, mode, onEvent, signal }) => {
+    runLoop: async ({
+      instruction,
+      mode,
+      onEvent,
+      signal,
+      authorizationProvider,
+      authorizationMode,
+    }) => {
       await runSalmonLoop({
         instruction,
         repoPath,
@@ -159,7 +166,8 @@ export async function handleServeCommand(_options: unknown, command: Command) {
         langfuseSessionId: resolvedConfig.observability.langfuse.sessionId,
         langfuseUserId: resolvedConfig.observability.langfuse.userId,
         auditScope,
-        authorizationProvider,
+        authorizationProvider: authorizationProvider ?? defaultAuthorizationProvider,
+        authorizationMode,
         extensions: extensions.resolved,
         onEvent,
         signal,
@@ -204,27 +212,20 @@ export async function handleServeCommand(_options: unknown, command: Command) {
   });
 
   if (acpStdioEnabled) {
-    const handler = createAcpJsonRpcHandler({
-      agentInfo: { name: 'salmon-loop', version: '0.2.0' },
-      facade: acpFacade,
-      eventBus: sharedEventBus,
-      emitNotification: async (note) => {
-        process.stdout.write(`${JSON.stringify(note)}\n`);
-      },
-    });
-
-    const acpLoop = createAcpStdioLoop({
-      input: process.stdin,
-      output: process.stdout,
-      errorOutput: process.stderr,
-      handler,
-    });
+    startAcpStdioServer((conn) =>
+      createAcpFormalAgent({
+        conn,
+        agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+        facade: acpFacade,
+        eventBus: sharedEventBus,
+      }),
+    );
     logger.info(text.cli.acpStdioStarted('n/a (stdio)'));
 
     // Handle SIGINT for graceful shutdown
     process.on('SIGINT', () => {
       logger.info('Received SIGINT, shutting down ACP server...');
-      acpLoop.close();
+      process.stdin.destroy();
       process.exit(0);
     });
   }
@@ -292,14 +293,21 @@ export async function handleServeAcpCommand(_options: unknown, command: Command)
     proxyApiKeyEnv: process.env.SALMONLOOP_LANGFUSE_PROXY_API_KEY,
   });
 
-  const authorizationProvider = createTerminalAuthorizationProvider({
+  const defaultAuthorizationProvider = createTerminalAuthorizationProvider({
     config: resolvedConfig.toolAuthorization,
     extensions: extensions.resolved,
     forceNonInteractive: true,
   });
 
   const executor = createSalmonTaskExecutor({
-    runLoop: async ({ instruction, mode, onEvent, signal }) => {
+    runLoop: async ({
+      instruction,
+      mode,
+      onEvent,
+      signal,
+      authorizationProvider,
+      authorizationMode,
+    }) => {
       await runSalmonLoop({
         instruction,
         repoPath,
@@ -314,7 +322,8 @@ export async function handleServeAcpCommand(_options: unknown, command: Command)
         langfuseSessionId: resolvedConfig.observability.langfuse.sessionId,
         langfuseUserId: resolvedConfig.observability.langfuse.userId,
         auditScope: auditScopeResolution.value,
-        authorizationProvider,
+        authorizationProvider: authorizationProvider ?? defaultAuthorizationProvider,
+        authorizationMode,
         extensions: extensions.resolved,
         onEvent,
         signal,
@@ -328,27 +337,20 @@ export async function handleServeAcpCommand(_options: unknown, command: Command)
     eventBus: sharedEventBus,
   });
 
-  const handler = createAcpJsonRpcHandler({
-    agentInfo: { name: 'salmon-loop', version: '0.2.0' },
-    facade: acpFacade,
-    eventBus: sharedEventBus,
-    emitNotification: async (note) => {
-      process.stdout.write(`${JSON.stringify(note)}\n`);
-    },
-  });
-
-  const acpLoop = createAcpStdioLoop({
-    input: process.stdin,
-    output: process.stdout,
-    errorOutput: process.stderr,
-    handler,
-  });
+  startAcpStdioServer((conn) =>
+    createAcpFormalAgent({
+      conn,
+      agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+      facade: acpFacade,
+      eventBus: sharedEventBus,
+    }),
+  );
 
   logger.info(text.cli.acpStdioStarted('n/a (stdio)'));
 
   process.on('SIGINT', () => {
     logger.info('Received SIGINT, shutting down ACP server...');
-    acpLoop.close();
+    process.stdin.destroy();
     process.exit(0);
   });
 }

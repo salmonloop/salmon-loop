@@ -1,3 +1,5 @@
+import type { CommandRunner } from '../../runtime/command-runner-context.js';
+import type { ToolAuthorizationProvider } from '../../tools/authorization/types.js';
 import type { LoopEvent } from '../../types/index.js';
 import type { TaskEventBus } from '../events/bus.js';
 import {
@@ -14,6 +16,9 @@ export interface InteractionFacade {
     capability: string;
     request: TaskRequest;
     onEvent?: (event: LoopEvent) => void;
+    authorizationProvider?: ToolAuthorizationProvider;
+    authorizationMode?: 'blocking' | 'deferred';
+    commandRunner?: CommandRunner;
   }): Promise<{ task: TaskEnvelope; signal: AbortSignal }>;
   getTask(id: string): Promise<TaskEnvelope | null>;
   cancelTask(id: string): Promise<TaskEnvelope | null>;
@@ -37,7 +42,13 @@ export interface InteractionFacade {
 export function createInteractionFacade(deps: {
   executeTask: (
     task: TaskEnvelope,
-    options?: { onEvent?: (event: LoopEvent) => void; signal?: AbortSignal },
+    options?: {
+      onEvent?: (event: LoopEvent) => void;
+      signal?: AbortSignal;
+      authorizationProvider?: ToolAuthorizationProvider;
+      authorizationMode?: 'blocking' | 'deferred';
+      commandRunner?: CommandRunner;
+    },
   ) => Promise<TaskEnvelope>;
   eventBus?: TaskEventBus;
 }): InteractionFacade {
@@ -71,7 +82,13 @@ export function createInteractionFacade(deps: {
       taskControllers.set(task.id, controller);
       deps.eventBus?.publish({ type: 'task.accepted', taskId: task.id });
       void deps
-        .executeTask(task, { onEvent: input.onEvent, signal: controller.signal })
+        .executeTask(task, {
+          onEvent: input.onEvent,
+          signal: controller.signal,
+          authorizationProvider: input.authorizationProvider,
+          authorizationMode: input.authorizationMode,
+          commandRunner: input.commandRunner,
+        })
         .then((result) => {
           taskControllers.delete(task.id);
           store.update(result);

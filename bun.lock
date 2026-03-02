@@ -5,6 +5,7 @@
     "": {
       "name": "salmon-loop",
       "dependencies": {
+        "@agentclientprotocol/sdk": "^0.14.1",
         "@ai-sdk/openai": "^3.0.23",
         "@ai-sdk/openai-compatible": "^2.0.24",
         "@inquirer/prompts": "^8.2.0",
@@ -64,6 +65,8 @@
   },
   "packages": {
     "@acemir/cssom": ["@acemir/cssom@0.9.31", "https://registry.npmmirror.com/@acemir/cssom/-/cssom-0.9.31.tgz", {}, "sha512-ZnR3GSaH+/vJ0YlHau21FjfLYjMpYVIzTD8M8vIEQvIGxeOXyXdzCI140rrCY862p/C/BbzWsjc1dgnM9mkoTA=="],
+
+    "@agentclientprotocol/sdk": ["@agentclientprotocol/sdk@0.14.1", "https://registry.npmmirror.com/@agentclientprotocol/sdk/-/sdk-0.14.1.tgz", { "peerDependencies": { "zod": "^3.25.0 || ^4.0.0" } }, "sha512-b6r3PS3Nly+Wyw9U+0nOr47bV8tfS476EgyEMhoKvJCZLbgqoDFN7DJwkxL88RR0aiOqOYV1ZnESHqb+RmdH8w=="],
 
     "@ai-sdk/gateway": ["@ai-sdk/gateway@3.0.29", "https://registry.npmmirror.com/@ai-sdk/gateway/-/gateway-3.0.29.tgz", { "dependencies": { "@ai-sdk/provider": "3.0.6", "@ai-sdk/provider-utils": "4.0.11", "@vercel/oidc": "3.1.0" }, "peerDependencies": { "zod": "4.3.6" } }, "sha512-zf6yXT+7DcVGWG7ntxVCYC48X/opsWlO5ePvgH8W9DaEVUtkemqKUEzBqowQ778PkZo8sqMnRfD0+fi9HamRRQ=="],
 

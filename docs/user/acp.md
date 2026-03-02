@@ -50,7 +50,7 @@ Configure your ACP UI to launch Salmon-Loop as a stdio agent:
 Initialize:
 
 ```json
-{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1,"clientInfo":{"name":"manual","version":"0.0.0"},"capabilities":{}}}
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1,"clientInfo":{"name":"manual","version":"0.0.0"},"clientCapabilities":{"fs":{"readTextFile":false,"writeTextFile":false},"terminal":false}}}
 ```
 
 Create a session:
