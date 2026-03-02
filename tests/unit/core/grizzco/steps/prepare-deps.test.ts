@@ -63,6 +63,8 @@ describe('runPrepareDeps', () => {
       '/tmp/worktree',
       'bun install --frozen-lockfile',
       expect.any(Number),
+      undefined,
+      undefined,
     );
   });
 
@@ -111,6 +113,8 @@ describe('runPrepareDeps', () => {
       '/tmp/worktree',
       'bun install --frozen-lockfile',
       expect.any(Number),
+      undefined,
+      undefined,
     );
   });
 

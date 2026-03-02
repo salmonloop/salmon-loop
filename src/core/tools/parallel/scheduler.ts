@@ -56,6 +56,7 @@ export class ParallelScheduler {
     signal: AbortSignal,
     options?: PlanRunOptions,
   ): Promise<PlanRunResult> {
+    const baseCtx: ToolRuntimeCtx = ctx.signal === signal ? ctx : { ...ctx, signal };
     const recordEnabled = Boolean(
       options?.record ?? (plan.policy.deterministic && !options?.replay),
     );
@@ -149,7 +150,8 @@ export class ParallelScheduler {
       try {
         const spec = this.tryResolveSpec(node);
         if (!spec) {
-          const phase = typeof (ctx as any).phase === 'string' ? (ctx as any).phase : undefined;
+          const phase =
+            typeof (baseCtx as any).phase === 'string' ? (baseCtx as any).phase : undefined;
           const toolResult: ToolResult = {
             id: nodeId,
             toolName: node.toolName,
@@ -200,10 +202,10 @@ export class ParallelScheduler {
           typeof (this.router as any).preflightDeferredAuthorization === 'function'
             ? await (this.router as any).preflightDeferredAuthorization({
                 id: nodeId,
-                phase: (ctx as any).phase || 'execute',
+                phase: (baseCtx as any).phase || 'execute',
                 toolName: node.toolName,
                 args: resolvedArgs,
-                ctx,
+                ctx: baseCtx,
               })
             : null;
         if (preflight?.kind === 'pending') {
@@ -239,8 +241,8 @@ export class ParallelScheduler {
         // 2. Compute Resources (JIT)
         const resources =
           node.resources ??
-          spec.computeResources?.(resolvedArgs, ctx) ??
-          this.deriveDefaultResources(spec, ctx);
+          spec.computeResources?.(resolvedArgs, baseCtx) ??
+          this.deriveDefaultResources(spec, baseCtx);
         node.resources = resources;
 
         // 3. Acquire Locks
@@ -256,10 +258,12 @@ export class ParallelScheduler {
           const runStart = Date.now();
           const result = await this.router.call({
             id: nodeId,
-            phase: (ctx as any).phase || 'execute',
+            phase: (baseCtx as any).phase || 'execute',
             toolName: node.toolName,
             args: resolvedArgs,
-            ctx: isolatedEnv ? { ...ctx, env: { ...ctx.env, ...isolatedEnv.env } } : ctx,
+            ctx: isolatedEnv
+              ? { ...baseCtx, env: { ...baseCtx.env, ...isolatedEnv.env } }
+              : baseCtx,
           });
           const runMs = Date.now() - runStart;
           const timing = { lockWaitMs, runMs };

@@ -55,6 +55,11 @@ export async function executeRunLoop(params: {
     return result;
   }
 
+  const abortController = new AbortController();
+  const onInterrupt = () => abortController.abort();
+  process.once('SIGINT', onInterrupt);
+  process.once('SIGTERM', onInterrupt);
+
   const runner = createCliTaskRunner({
     facade: {
       createTask: async ({ capability, request }) =>
@@ -63,14 +68,21 @@ export async function executeRunLoop(params: {
           mode: capability as any,
           instruction: request.instruction,
           applyBackOnDirty: params.applyBackOnDirty,
+          signal: abortController.signal,
           onEvent: (event: LoopEvent) => params.reporter.onEvent(event),
         }),
     },
   });
-  const result = (await runner.run({
-    capability: String((params.loopParams as any).mode ?? 'patch'),
-    instruction: String((params.loopParams as any).instruction ?? ''),
-  })) as LoopResult;
+  let result: LoopResult;
+  try {
+    result = (await runner.run({
+      capability: String((params.loopParams as any).mode ?? 'patch'),
+      instruction: String((params.loopParams as any).instruction ?? ''),
+    })) as LoopResult;
+  } finally {
+    process.off('SIGINT', onInterrupt);
+    process.off('SIGTERM', onInterrupt);
+  }
 
   emitLlmOutput({
     emit: (event) => params.reporter.onEvent(event),

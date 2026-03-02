@@ -28,6 +28,7 @@ export type ConcurrencyHint =
 
 export interface ToolRuntimeCtx {
   repoRoot: string;
+  signal?: AbortSignal;
   /**
    * Optional base repository path used for internal persistence (audit logs, plan state, etc.).
    * When running in worktree strategy, repoRoot/worktreeRoot may point at the shadow worktree,

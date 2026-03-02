@@ -26,7 +26,12 @@ export const runVerify: Step<ApplyCtx, VerifyCtx> = async (ctx) => {
     };
   }
 
-  const verifyResult = await runVerifyCommand(ctx.workspace.workPath, ctx.options.verify);
+  const verifyResult = await runVerifyCommand(
+    ctx.workspace.workPath,
+    ctx.options.verify,
+    undefined,
+    ctx.options.signal,
+  );
   let verifyArtifact: ArtifactHandle | undefined;
 
   recordAuditEvent(

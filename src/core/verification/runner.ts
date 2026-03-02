@@ -89,6 +89,7 @@ export async function runCommand(
   command: string,
   timeoutMs: number,
   env?: Record<string, string>,
+  signal?: AbortSignal,
 ): Promise<{
   ok: boolean;
   output: string;
@@ -108,9 +109,11 @@ export async function runCommand(
     args: shell.args,
     cwd: repoPath,
     windowsHide: true,
+    detached: process.platform !== 'win32',
     env: env ? { ...process.env, ...env } : process.env,
     timeoutMs,
     killGraceMs: 2000,
+    signal,
     onStdoutChunk: appendOutput,
     onStderrChunk: appendOutput,
   });
@@ -149,8 +152,9 @@ export async function runVerify(
   repoPath: string,
   verifyCommand: string,
   env?: Record<string, string>,
+  signal?: AbortSignal,
 ): Promise<VerifyResult> {
-  const result = await runCommand(repoPath, verifyCommand, LIMITS.verifyTimeoutMs, env);
+  const result = await runCommand(repoPath, verifyCommand, LIMITS.verifyTimeoutMs, env, signal);
   if (!result.ok && result.output.includes('Command timed out')) {
     result.output = result.output.replace('Command timed out', text.verify.commandTimeout);
   }

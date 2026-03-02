@@ -74,6 +74,7 @@ export async function executeAstGrep(
       cwd: ctx.worktreeRoot || ctx.repoRoot,
       env: ctx.env ? { ...process.env, ...ctx.env } : process.env,
       timeoutMs: 30_000,
+      signal: ctx.signal,
       onStdoutChunk: (chunk) => {
         if (stdoutBytes >= maxOutputBytes) return;
         const buffer = Buffer.from(chunk);

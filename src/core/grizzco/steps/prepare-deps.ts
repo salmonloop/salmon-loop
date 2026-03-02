@@ -56,6 +56,8 @@ export const runPrepareDeps: Step<PreflightCtx, PrepareDepsCtx> = async (ctx) =>
     ctx.workspace.workPath,
     command,
     LIMITS.worktreePrepareTimeoutMs,
+    undefined,
+    ctx.options.signal,
   );
 
   recordAuditEvent(

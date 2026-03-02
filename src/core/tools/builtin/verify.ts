@@ -37,7 +37,7 @@ export async function executeVerifyRun(
 ) {
   const { command } = input;
   const activePath = ctx.worktreeRoot || ctx.repoRoot;
-  const result = await runVerify(activePath, command, ctx.env);
+  const result = await runVerify(activePath, command, ctx.env, ctx.signal);
 
   const errorType = !result.ok ? classifyError(result.output) : undefined;
 

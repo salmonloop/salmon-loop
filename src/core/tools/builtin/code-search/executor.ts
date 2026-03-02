@@ -41,6 +41,7 @@ export async function codeSearchExecutor(
           args,
           cwd: opts?.cwd ?? ctx.repoRoot,
           timeoutMs: opts?.timeoutMs,
+          signal: ctx.signal,
           env: { ...process.env, ...ctx.env, ...opts?.env },
           onStdoutChunk: (chunk) => {
             if (stdoutBytes >= maxStdoutBytes) return;
