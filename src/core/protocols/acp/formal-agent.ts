@@ -123,6 +123,17 @@ function buildTextContentBlock(text: string): ContentBlock {
   return { type: 'text', text };
 }
 
+function buildJsonResourceContentBlock(data: unknown): ContentBlock {
+  return {
+    type: 'resource',
+    resource: {
+      mimeType: 'application/json',
+      uri: 's8p://input-required',
+      text: JSON.stringify(data),
+    },
+  } as ContentBlock;
+}
+
 const defaultPromptCapabilities = {
   image: false,
   audio: false,
@@ -698,6 +709,7 @@ export function createAcpFormalAgent(deps: {
       let stopReason: StopReason = 'end_turn';
       let assistantText = 'Task completed.';
       let assistantMeta: Record<string, unknown> | undefined;
+      let latest: TaskEnvelope | null | undefined;
       const cancelRequested = sessions.get(params.sessionId)?.cancelRequested === true;
 
       if (cancelRequested) {
@@ -707,7 +719,7 @@ export function createAcpFormalAgent(deps: {
         assistantText = 'Task failed.';
       } else if (terminalEvent?.type === 'task.awaiting_input') {
         assistantText = 'Task awaiting input.';
-        const latest = await deps.facade.getTask(task.id);
+        latest = await deps.facade.getTask(task.id);
         const formatted = latest?.inputRequired
           ? formatInputRequiredMessage(latest.inputRequired)
           : null;
@@ -725,6 +737,12 @@ export function createAcpFormalAgent(deps: {
         content: buildTextContentBlock(ensureMarkdownParagraphBreak(assistantText)),
         ...(assistantMeta ? { _meta: assistantMeta } : {}),
       });
+      if (latest?.inputRequired) {
+        await emitSessionUpdate(params.sessionId, {
+          sessionUpdate: 'agent_message_chunk',
+          content: buildJsonResourceContentBlock(latest.inputRequired),
+        });
+      }
 
       const sessionAfterAssistantMessage =
         sessions.update(params.sessionId, (current) => ({

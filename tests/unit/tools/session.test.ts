@@ -255,4 +255,83 @@ describe('chatWithTools', () => {
     expect(typeof invalid.rawArgsPreview).toBe('string');
     expect(typeof invalid.parsedArgsPreview).toBe('string');
   });
+
+  it('throws interrupt errors from tool execution', async () => {
+    const registry = new ToolRegistry();
+    const policy = new ToolPolicy();
+    const budget = new BudgetGuard();
+    const audit = new ToolAuditLogger();
+    const sanitizer = new ToolSanitizer();
+    const router = new ToolRouter(registry, policy, budget, audit, sanitizer);
+
+    const interrupt = {
+      type: 'awaiting_input',
+      reason: 'clarification',
+      prompt: 'Need input',
+      data: { inputRequired: { type: 'question', prompt: 'Need input' } },
+    };
+    const askSpec: ToolSpec<{ prompt: string }, { ok: boolean }> = {
+      name: 'interaction.ask_user',
+      source: 'builtin',
+      intent: 'INFRA',
+      description: 'Ask user tool',
+      riskLevel: 'low',
+      sideEffects: ['none'],
+      concurrency: 'serial_only',
+      allowedPhases: [Phase.PLAN],
+      inputSchema: z.object({ prompt: z.string() }),
+      outputSchema: z.object({ ok: z.boolean() }),
+      executor: async () => {
+        const err = new Error('User input required');
+        (err as any).code = 'INTERRUPT_REQUIRED';
+        (err as any).interrupt = interrupt;
+        throw err;
+      },
+    };
+    registry.register(askSpec);
+
+    const llm: LLM = {
+      async chat() {
+        return {
+          role: 'assistant',
+          content: '',
+          tool_calls: [
+            {
+              id: 'call_1',
+              type: 'function',
+              function: {
+                name: 'interaction.ask_user',
+                arguments: JSON.stringify({ prompt: 'x' }),
+              },
+            },
+          ],
+        };
+      },
+      async createPlan() {
+        throw new Error('not used');
+      },
+      async createPatch() {
+        throw new Error('not used');
+      },
+    };
+
+    await expect(
+      chatWithTools(
+        [{ role: 'user', content: 'prompt' }],
+        {},
+        {
+          phase: Phase.PLAN,
+          llm,
+          runtime: {
+            repoRoot: '/tmp',
+            attemptId: 1,
+            dryRun: true,
+            model: 'test-model',
+            worktreeRoot: '/tmp',
+          },
+          toolstack: { registry, policy, router },
+        },
+      ),
+    ).rejects.toMatchObject({ code: 'INTERRUPT_REQUIRED', interrupt });
+  });
 });

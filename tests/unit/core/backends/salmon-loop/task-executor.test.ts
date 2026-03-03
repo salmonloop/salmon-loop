@@ -4,8 +4,18 @@ import { createSalmonTaskExecutor } from '../../../../../src/core/backends/salmo
 
 describe('salmon task executor', () => {
   test('maps a canonical task request into loop options', async () => {
+    let observedOptions: any = null;
     const executor = createSalmonTaskExecutor({
-      runLoop: async (options) => ({ success: true, reason: 'ok', options }),
+      runLoop: async (options) => {
+        observedOptions = options;
+        return {
+          success: true,
+          reason: 'ok',
+          reasonCode: 'SUCCESS',
+          attempts: 1,
+          logs: [],
+        };
+      },
     });
 
     const result = await executor.execute({
@@ -17,5 +27,6 @@ describe('salmon task executor', () => {
     });
 
     expect(result.state).toBe('completed');
+    expect(observedOptions?.instruction).toBe('fix bug');
   });
 });

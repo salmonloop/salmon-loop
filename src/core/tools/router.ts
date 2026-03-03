@@ -287,8 +287,11 @@ export class ToolRouter {
         if ('code' in e && typeof (e as { code?: unknown }).code === 'string') {
           errorCode = (e as { code: string }).code;
         }
+        if ('interrupt' in e) {
+          errorMeta = { ...(errorMeta ?? {}), interrupt: (e as any).interrupt };
+        }
         if ('inputRequired' in e) {
-          errorMeta = { inputRequired: (e as any).inputRequired };
+          errorMeta = { ...(errorMeta ?? {}), inputRequired: (e as any).inputRequired };
         }
       } else if (e && typeof e === 'object') {
         if ('message' in e && typeof (e as { message: unknown }).message === 'string') {
@@ -297,8 +300,11 @@ export class ToolRouter {
         if ('code' in e && typeof (e as { code?: unknown }).code === 'string') {
           errorCode = (e as { code: string }).code;
         }
+        if ('interrupt' in e) {
+          errorMeta = { ...(errorMeta ?? {}), interrupt: (e as any).interrupt };
+        }
         if ('inputRequired' in e) {
-          errorMeta = { inputRequired: (e as any).inputRequired };
+          errorMeta = { ...(errorMeta ?? {}), inputRequired: (e as any).inputRequired };
         }
       }
 

@@ -149,7 +149,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
           throw err;
         }
 
-        const answer = question.multiSelect ? selected.join(', ') : selected[0] ?? '';
+        const answer = question.multiSelect ? selected.join(', ') : (selected[0] ?? '');
         answers[question.question] = answer;
       }
 

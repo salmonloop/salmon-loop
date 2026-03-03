@@ -37,7 +37,7 @@ const askUserInputSchema = z
 
 const askUserOutputSchema = z.object({
   questions: z.array(questionSchema),
-  answers: z.record(z.string()),
+  answers: z.record(z.string(), z.string()),
 });
 
 function buildPrompt(questions: AskUserInput['questions']): string {
@@ -81,8 +81,14 @@ export const askUserSpec: ToolSpec<AskUserInput, AskUserOutput> = {
 
     if (!ctx.userInputProvider) {
       const err = new Error(text.tools.askUserRequired);
-      (err as any).code = 'ASK_USER_REQUIRED';
-      (err as any).inputRequired = buildInputRequired(input);
+      const inputRequired = buildInputRequired(input);
+      (err as any).code = 'INTERRUPT_REQUIRED';
+      (err as any).interrupt = {
+        type: 'awaiting_input',
+        reason: inputRequired.reason ?? 'clarification',
+        prompt: inputRequired.prompt,
+        data: { inputRequired },
+      };
       throw err;
     }
 

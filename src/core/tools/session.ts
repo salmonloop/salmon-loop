@@ -1222,12 +1222,12 @@ async function executeToolCalls(
 
     if (
       result.status !== 'ok' &&
-      result.error?.code === 'ASK_USER_REQUIRED' &&
-      result.meta?.inputRequired
+      result.error?.code === 'INTERRUPT_REQUIRED' &&
+      result.meta?.interrupt
     ) {
-      const err = new Error(result.error.message || 'User input required');
-      (err as any).code = 'ASK_USER_REQUIRED';
-      (err as any).inputRequired = result.meta.inputRequired;
+      const err = new Error(result.error.message || 'Interrupt required');
+      (err as any).code = 'INTERRUPT_REQUIRED';
+      (err as any).interrupt = result.meta.interrupt;
       throw err;
     }
 

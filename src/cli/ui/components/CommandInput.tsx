@@ -212,7 +212,10 @@ export const CommandInput: React.FC<Props> = ({
             if (isSelecting && pendingSelection) {
               const items = pendingSelection.items ?? [];
               if (isMultiSelecting) {
-                resolveSelection(pendingSelection.id, selectedItems.length > 0 ? selectedItems : []);
+                resolveSelection(
+                  pendingSelection.id,
+                  selectedItems.length > 0 ? selectedItems : [],
+                );
               } else {
                 const picked = items[selectionIndex]?.id ?? null;
                 resolveSelection(pendingSelection.id, picked ? [picked] : []);

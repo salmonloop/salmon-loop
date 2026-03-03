@@ -24,6 +24,13 @@ describe('createSalmonTaskExecutor', () => {
       runLoop: async () => {
         const result = await spawnCommand({ command: 'echo', args: ['hi'] });
         observedStdout = result.stdout;
+        return {
+          success: true,
+          reason: 'ok',
+          reasonCode: 'SUCCESS',
+          attempts: 1,
+          logs: [],
+        };
       },
     });
 

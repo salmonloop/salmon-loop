@@ -153,7 +153,7 @@ export async function handleServeCommand(_options: unknown, command: Command) {
       authorizationMode,
       fileSystemOverride,
     }) => {
-      await runSalmonLoop({
+      return await runSalmonLoop({
         instruction,
         repoPath,
         llm,
@@ -310,7 +310,7 @@ export async function handleServeAcpCommand(_options: unknown, command: Command)
       authorizationProvider,
       authorizationMode,
     }) => {
-      await runSalmonLoop({
+      return await runSalmonLoop({
         instruction,
         repoPath,
         llm,

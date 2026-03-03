@@ -14,12 +14,12 @@ import {
   fsReadFileSpec,
 } from './fs.js';
 import { gitCatSpec, executeGitCat, gitStatusSpec, executeGitStatus } from './git.js';
+import { askUserSpec } from './interaction.js';
 import { updateKnowledgeSpec, executeUpdateKnowledge } from './knowledge.js';
 import { planInitSpec, planReadSpec, planUpdateSpec } from './plan.js';
 import { proposalApplySpec, executeProposalApply } from './proposal.js';
 import { shellExecSpec, executeShellExec } from './shell.js';
 import { verifyRunSpec, executeVerifyRun } from './verify.js';
-import { askUserSpec } from './interaction.js';
 
 /**
  * Registers all builtin tools into the provided registry

@@ -1078,7 +1078,9 @@ describe('ACP formal protocol (SDK)', () => {
         }),
       toClient: () => ({
         requestPermission: async () => ({ outcome: { outcome: 'cancelled' } }),
-        sessionUpdate: async ({ update }: any) => updates.push(update),
+        sessionUpdate: async ({ update }: any) => {
+          updates.push(update);
+        },
       }),
     });
 
@@ -1095,6 +1097,16 @@ describe('ACP formal protocol (SDK)', () => {
 
     const update = updates.find((u) => u?.sessionUpdate === 'agent_message_chunk');
     expect(update?._meta?.inputRequired).toMatchObject({
+      ...inputRequired,
+      responseFormat: 'json',
+    });
+    const resourceUpdate = updates.find(
+      (u) => u?.sessionUpdate === 'agent_message_chunk' && u?.content?.type === 'resource',
+    );
+    const resourceBlock = resourceUpdate?.content;
+    expect(resourceBlock?.resource?.mimeType).toBe('application/json');
+    expect(resourceBlock?.resource?.uri).toBe('s8p://input-required');
+    expect(JSON.parse(resourceBlock?.resource?.text ?? '{}')).toMatchObject({
       ...inputRequired,
       responseFormat: 'json',
     });

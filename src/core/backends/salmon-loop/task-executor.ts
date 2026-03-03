@@ -1,5 +1,4 @@
 import type { TaskEnvelope } from '../../interaction/model/index.js';
-import type { LoopResult } from '../../types/index.js';
 import type { CommandRunner } from '../../runtime/command-runner-context.js';
 import {
   createLocalCommandRunner,
@@ -8,6 +7,7 @@ import {
 import type { ToolAuthorizationProvider } from '../../tools/authorization/types.js';
 import type { FileSystem } from '../../types/index.js';
 import type { LoopEvent } from '../../types/index.js';
+import type { LoopResult } from '../../types/index.js';
 
 export function createSalmonTaskExecutor(deps: {
   runLoop: (options: {

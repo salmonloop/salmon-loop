@@ -77,10 +77,30 @@ function sanitizeReason(value: unknown): string {
 
 function extractInputRequired(error: unknown): LoopInputRequired | undefined {
   if (!error || typeof error !== 'object') return undefined;
-  const value = (error as any).inputRequired;
+  const value = 'inputRequired' in (error as any) ? (error as any).inputRequired : (error as any);
   if (!value || typeof value !== 'object') return undefined;
   if (typeof value.prompt !== 'string' || typeof value.type !== 'string') return undefined;
   return value as LoopInputRequired;
+}
+
+function extractInterrupt(error: unknown):
+  | {
+      type: string;
+      reason?: string;
+      prompt?: string;
+      data?: Record<string, unknown>;
+    }
+  | undefined {
+  if (!error || typeof error !== 'object') return undefined;
+  const value = (error as any).interrupt;
+  if (!value || typeof value !== 'object') return undefined;
+  if (typeof (value as any).type !== 'string') return undefined;
+  return value as {
+    type: string;
+    reason?: string;
+    prompt?: string;
+    data?: Record<string, unknown>;
+  };
 }
 
 export function resolveAttemptFailure(params: {
@@ -89,21 +109,23 @@ export function resolveAttemptFailure(params: {
   flowMode: FlowMode;
 }): AttemptFailureDetails | undefined {
   const { flowReport, context, flowMode } = params;
-  const askUserInput = extractInputRequired(flowReport.error);
-  const askUserCode = extractErrorCode(flowReport.error);
-  if (askUserCode === 'ASK_USER_REQUIRED' && askUserInput) {
+  const interrupt = extractInterrupt(flowReport.error);
+  const interruptCode = extractErrorCode(flowReport.error);
+  if (interruptCode === 'INTERRUPT_REQUIRED' && interrupt?.type === 'awaiting_input') {
+    const inputRequired = extractInputRequired(interrupt.data?.inputRequired);
+    if (!inputRequired) return undefined;
     const failurePhase = inferFailurePhase(flowReport);
-    const reason = askUserInput.prompt || text.tools.askUserPromptDefault;
+    const reason = interrupt.prompt || inputRequired.prompt || text.tools.askUserPromptDefault;
     return {
       reason,
       reasonCode: 'AWAITING_INPUT',
       failurePhase,
       retryable: false,
-      errorCode: 'ASK_USER_REQUIRED',
-      diagnosticCode: 'ASK_USER_REQUIRED',
+      errorCode: 'INTERRUPT_REQUIRED',
+      diagnosticCode: 'INTERRUPT_REQUIRED',
       safeHint: reason,
       remediationSteps: [],
-      inputRequired: askUserInput,
+      inputRequired,
     };
   }
   const verifyOk =

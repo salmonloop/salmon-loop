@@ -254,4 +254,42 @@ describe('ToolRouter', () => {
       expect.objectContaining({ phase: Phase.CONTEXT }),
     );
   });
+
+  it('should include interrupt metadata when tool throws interrupt error', async () => {
+    const interrupt = {
+      type: 'awaiting_input',
+      reason: 'clarification',
+      prompt: 'Need input',
+      data: { inputRequired: { type: 'question', prompt: 'Need input' } },
+    };
+    const mockSpec = {
+      name: 'interaction.ask_user',
+      source: 'builtin',
+      riskLevel: 'low',
+      executor: mock().mockImplementation(() => {
+        const err = new Error('User input required');
+        (err as any).code = 'INTERRUPT_REQUIRED';
+        (err as any).interrupt = interrupt;
+        throw err;
+      }),
+    };
+    const envelope = {
+      id: 'call_interrupt',
+      toolName: 'interaction.ask_user',
+      args: { questions: [] },
+      phase: Phase.PLAN,
+      ctx: { repoRoot: '/tmp' } as any,
+    };
+
+    (registry.getSpec as any).mockReturnValue(mockSpec);
+    (sanitizer.validateInput as any).mockReturnValue({ ok: true });
+    (policy.decide as any).mockReturnValue({ allowed: true });
+    (budget.runWithGuards as any).mockImplementation(({ fn }: any) => fn());
+
+    const result = await router.call(envelope);
+
+    expect(result.status).toBe('error');
+    expect(result.error?.code).toBe('INTERRUPT_REQUIRED');
+    expect(result.meta?.interrupt).toMatchObject(interrupt);
+  });
 });
