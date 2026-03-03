@@ -5,6 +5,7 @@ export function buildRunAssistantMessage(params: { mode: FlowMode; result: LoopR
   if (!params.result.success) return text.cli.chatFailed(params.result.reason);
 
   if (params.mode === 'review') return text.cli.chatReviewCompleted;
+  if (params.mode === 'research') return text.cli.chatResearchCompleted;
 
   const changedFiles = params.result.changedFiles ?? [];
   if (changedFiles.length === 0) return text.cli.chatNoChanges;

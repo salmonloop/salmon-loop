@@ -82,7 +82,7 @@ program
   .option('--force-reset', text.cli.forceResetOption)
   .option('--validate', text.cli.validateOption)
   .option('--preflight-policy <policy>', text.cli.preflightPolicyOption, 'lenient')
-  .option('--mode <mode>', text.cli.modeOption, 'patch')
+  .option('--act-mode <mode>', text.cli.actModeOption, 'patch')
   .option('--apply-back-on-dirty <mode>', text.cli.applyBackOnDirtyOption, '3way')
   .option('--environment-mode <mode>', text.cli.environmentModeOption, 'strict')
   .option('--worktree-prepare <command>', text.cli.worktreePrepareOption)

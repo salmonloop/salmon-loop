@@ -143,7 +143,10 @@ export class FlowTransactionRunner {
       );
 
       if (!attemptFailure) {
-        const successPhase = this.params.flowMode === 'review' ? 'SHRINK' : 'APPLY_BACK';
+        const successPhase =
+          this.params.flowMode === 'review' || this.params.flowMode === 'research'
+            ? 'SHRINK'
+            : 'APPLY_BACK';
         recordAuditEvent(
           'loop.attempt.success',
           { attempt, flowMode: this.params.flowMode },

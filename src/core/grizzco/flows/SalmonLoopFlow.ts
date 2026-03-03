@@ -1,10 +1,17 @@
 import { Pipeline, FlowReport } from '../engine/pipeline/pipeline.js';
-import type { ExploreCtx, InitCtx, ReviewCtx, ShrinkCtx } from '../engine/pipeline/types.js';
+import type {
+  ExploreCtx,
+  InitCtx,
+  ResearchCtx,
+  ReviewCtx,
+  ShrinkCtx,
+} from '../engine/pipeline/types.js';
 import { runApplyBack } from '../steps/apply-back.js';
 import { runApply } from '../steps/apply.js';
 import { validateAst } from '../steps/ast-validate.js';
 import { saveAudit } from '../steps/audit.js';
 import { buildContext } from '../steps/context.js';
+import { displayResearch } from '../steps/display-research.js';
 import { displayReview } from '../steps/displayReview.js';
 import { exploreCodebase } from '../steps/explore.js';
 import { extractIssues } from '../steps/extractIssues.js';
@@ -14,15 +21,17 @@ import { generatePatch } from '../steps/patch.js';
 import { generatePlan } from '../steps/plan.js';
 import { runPreflight } from '../steps/preflight.js';
 import { runPrepareDeps } from '../steps/prepare-deps.js';
+import { runResearchShrink } from '../steps/research-shrink.js';
+import { generateResearch } from '../steps/research.js';
 import { runReviewShrink } from '../steps/review-shrink.js';
 import { runRollback, runEmergencyRollback } from '../steps/rollback.js';
 import { runShrink } from '../steps/shrink.js';
 import { validatePatch } from '../steps/validate.js';
 import { runVerify } from '../steps/verify.js';
 
-export type FlowTerminalCtx = ReviewCtx | ShrinkCtx;
+export type FlowTerminalCtx = ReviewCtx | ResearchCtx | ShrinkCtx;
 
-type ModePipeline = Pipeline<ReviewCtx> | Pipeline<ShrinkCtx>;
+type ModePipeline = Pipeline<ResearchCtx> | Pipeline<ReviewCtx> | Pipeline<ShrinkCtx>;
 
 function buildBasePipeline(initCtx: InitCtx): Pipeline<ExploreCtx> {
   return Pipeline.of(initCtx)
@@ -52,6 +61,13 @@ function buildReviewPipeline(base: Pipeline<ExploreCtx>): Pipeline<ReviewCtx> {
     .step('SHRINK', runReviewShrink);
 }
 
+function buildResearchPipeline(base: Pipeline<ExploreCtx>): Pipeline<ResearchCtx> {
+  return base
+    .step('RESEARCH', generateResearch)
+    .step('REPORT', displayResearch)
+    .step('SHRINK', runResearchShrink);
+}
+
 function buildDebugPipeline(base: Pipeline<ExploreCtx>): Pipeline<ShrinkCtx> {
   return base
     .step('REVIEW', generateReview)
@@ -72,6 +88,10 @@ function buildPipelineByMode(initCtx: InitCtx): ModePipeline {
 
   if (initCtx.mode === 'review') {
     return buildReviewPipeline(basePipeline);
+  }
+
+  if (initCtx.mode === 'research') {
+    return buildResearchPipeline(basePipeline);
   }
 
   if (initCtx.mode === 'debug') {

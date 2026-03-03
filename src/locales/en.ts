@@ -631,7 +631,7 @@ Please return the patch in PURE unified diff format:`;
       mergeFailed: (err: string) => `Merge execution failed: ${err}`,
       unexpectedException: (err: string) => `Unexpected execution exception: ${err}`,
       readOnlyFileSystem: (operation: string) =>
-        `Read-only filesystem: ${operation} is not permitted in review mode.`,
+        `Read-only filesystem: ${operation} is not permitted in read-only modes.`,
       flowStrategyAlreadyRegistered: (mode: string) =>
         `Flow strategy "${mode}" is already registered.`,
       unknownFlowMode: (mode: string, available: string) =>
@@ -646,6 +646,16 @@ Please return the patch in PURE unified diff format:`;
       suggestionRaw: (content: string) => `Review output: ${content}`,
       issuesExtracted: (count: number) => `Identified ${count} issue(s) from review.`,
       fixPlanGenerated: 'Generated fix plan based on review feedback.',
+    },
+    research: {
+      generated: 'Research generated.',
+      header: 'Research summary:',
+      empty: 'No research findings available.',
+      summary: (content: string) => `Summary: ${content}`,
+      findingItem: (index: number, summary: string, confidence?: number, uncertainty?: string) =>
+        `Finding ${index}: ${summary}${
+          typeof confidence === 'number' ? ` (confidence: ${confidence})` : ''
+        }${uncertainty ? ` [uncertainty: ${uncertainty}]` : ''}`,
     },
   },
 

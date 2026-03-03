@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'bun:test';
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
 import {
   createFileSystemAdapter,
@@ -31,5 +31,10 @@ describe('createFileSystemAdapter', () => {
   it('returns the real filesystem for debug mode', () => {
     const fsAdapter = createFileSystemAdapter('debug' as FlowMode, mockRealFs);
     expect(fsAdapter).toBe(mockRealFs);
+  });
+
+  it('returns a ReadOnlyFileSystem for research mode', () => {
+    const fsAdapter = createFileSystemAdapter('research' as FlowMode, mockRealFs);
+    expect(fsAdapter).toBeInstanceOf(ReadOnlyFileSystem);
   });
 });

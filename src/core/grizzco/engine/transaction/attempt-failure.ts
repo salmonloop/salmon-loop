@@ -75,9 +75,11 @@ export function resolveAttemptFailure(params: {
   flowMode: FlowMode;
 }): AttemptFailureDetails | undefined {
   const { flowReport, context, flowMode } = params;
-  const verifyOk = flowMode === 'review' ? true : context?.verifyResult?.ok !== false;
+  const verifyOk =
+    flowMode === 'review' || flowMode === 'research' ? true : context?.verifyResult?.ok !== false;
   const applyBackFailed =
     flowMode !== 'review' &&
+    flowMode !== 'research' &&
     context?.applyBackResult?.success === false &&
     !context.applyBackResult.skipped;
   const environmentMode = context?.options?.environmentMode;

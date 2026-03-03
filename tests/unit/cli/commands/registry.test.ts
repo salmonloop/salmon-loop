@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'bun:test';
+import { describe, expect, it, mock } from 'bun:test';
 
 // Mock external dependencies to ensure isolation
 mock.module('../../../../src/core/strata/checkpoint/manager.js', () => ({
@@ -36,6 +36,11 @@ describe('CLI Command Registry: Strict Logic Guard', () => {
     it('should not match partial command names', async () => {
       const { findCommand } = await loadRegistry();
       expect(findCommand('/exitter')).toBeUndefined();
+    });
+
+    it('should not expose /mode', async () => {
+      const { findCommand } = await loadRegistry();
+      expect(findCommand('/mode')).toBeUndefined();
     });
   });
 

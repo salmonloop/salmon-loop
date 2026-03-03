@@ -126,7 +126,7 @@ export interface ReviewSummary {
   timestamp: number;
 }
 
-export interface ReviewCtx extends ContextCtx {
+export interface ReviewCtx extends ContextCtx, ReportableCtx {
   review: ReviewSummary;
 }
 
@@ -138,6 +138,43 @@ export interface ExploreCtx extends ContextCtx {
     filesFound: number;
     toolCallCount?: number;
   };
+}
+
+export interface ResearchSource {
+  toolName: string;
+  summary?: string;
+  ok?: boolean;
+  timestamp: number;
+}
+
+export interface ResearchFinding {
+  summary: string;
+  confidence?: number;
+  uncertainty?: string;
+}
+
+export type ReportKind = 'review' | 'research';
+
+export interface ReportPayload {
+  kind: ReportKind;
+  summary?: string;
+  suggestions?: ReviewSummary['suggestions'];
+  findings?: ResearchFinding[];
+  timestamp: number;
+}
+
+export interface ReportableCtx extends ContextCtx {
+  report: ReportPayload;
+}
+
+/**
+ * Stage 2.75: After Research
+ */
+export interface ResearchCtx extends ExploreCtx, ReportableCtx {
+  researchNotes: unknown[];
+  researchFindings: ResearchFinding[];
+  sources: ResearchSource[];
+  researchText: string;
 }
 
 /**

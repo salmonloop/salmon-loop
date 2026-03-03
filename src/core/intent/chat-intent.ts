@@ -18,7 +18,7 @@ export interface RouteChatIntentOptions {
 
 const LlmDecisionSchema = z
   .object({
-    intent: z.enum(['answer', 'review', 'patch', 'debug']),
+    intent: z.enum(['answer', 'review', 'patch', 'debug', 'research']),
     confidence: z.number().min(0).max(1),
     reason: z.string().min(1).max(300),
   })

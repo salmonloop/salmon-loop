@@ -63,11 +63,19 @@ export async function generateReview(ctx: ContextCtx): Promise<ReviewCtx> {
     timestamp: new Date(),
   });
 
+  const suggestions = parseReviewResponse(response.content);
+  const timestamp = Date.now();
+
   return {
     ...ctx,
     review: {
-      suggestions: parseReviewResponse(response.content),
-      timestamp: Date.now(),
+      suggestions,
+      timestamp,
+    },
+    report: {
+      kind: 'review',
+      suggestions,
+      timestamp,
     },
   };
 }

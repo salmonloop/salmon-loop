@@ -55,7 +55,7 @@ describe('Headless protocol integration', () => {
       'hello',
       '--output-format',
       'json',
-      '--mode',
+      '--act-mode',
       'review',
       '--no-config-file',
     ]);
@@ -86,7 +86,7 @@ describe('Headless protocol integration', () => {
       'hello',
       '--output-format',
       'stream-json',
-      '--mode',
+      '--act-mode',
       'review',
       '--no-config-file',
     ]);
@@ -139,7 +139,7 @@ describe('Headless protocol integration', () => {
       'stream-json',
       '--output-profile',
       'anthropic',
-      '--mode',
+      '--act-mode',
       'review',
       '--no-config-file',
     ]);
@@ -193,7 +193,7 @@ describe('Headless protocol integration', () => {
       'stream-json',
       '--output-profile',
       'openai',
-      '--mode',
+      '--act-mode',
       'review',
       '--no-config-file',
     ]);
@@ -242,7 +242,7 @@ describe('Headless protocol integration', () => {
       'hello',
       '--output-format',
       'stream-json',
-      '--mode',
+      '--act-mode',
       'review',
       '--no-config-file',
     ]);
@@ -287,7 +287,7 @@ describe('Headless protocol integration', () => {
       'hello',
       '--output-format',
       'stream-json',
-      '--mode',
+      '--act-mode',
       'review',
     ]);
 
@@ -333,7 +333,7 @@ describe('Headless protocol integration', () => {
       'hello',
       '--output-format',
       'stream-json',
-      '--mode',
+      '--act-mode',
       'review',
       '--allow-outside-cache-root',
     ]);
@@ -389,7 +389,7 @@ describe('Headless protocol integration', () => {
       'hello',
       '--output-format',
       'stream-json',
-      '--mode',
+      '--act-mode',
       'review',
     ]);
 
@@ -438,7 +438,7 @@ describe('Headless protocol integration', () => {
       'hello',
       '--output-format',
       'stream-json',
-      '--mode',
+      '--act-mode',
       'review',
       '--no-config-file',
     ]);
@@ -475,7 +475,7 @@ describe('Headless protocol integration', () => {
       'hello',
       '--output-format',
       'stream-json',
-      '--mode',
+      '--act-mode',
       'review',
       '--no-config-file',
     ]);
@@ -513,7 +513,7 @@ describe('Headless protocol integration', () => {
       'stream-json',
       '--output-profile',
       'anthropic',
-      '--mode',
+      '--act-mode',
       'review',
       '--no-config-file',
     ]);
@@ -552,7 +552,7 @@ describe('Headless protocol integration', () => {
       'stream-json',
       '--output-profile',
       'anthropic',
-      '--mode',
+      '--act-mode',
       'review',
       '--no-config-file',
     ]);
@@ -590,7 +590,7 @@ describe('Headless protocol integration', () => {
       'stream-json',
       '--output-profile',
       'openai',
-      '--mode',
+      '--act-mode',
       'review',
       '--no-config-file',
     ]);
@@ -629,7 +629,7 @@ describe('Headless protocol integration', () => {
       'stream-json',
       '--output-profile',
       'openai',
-      '--mode',
+      '--act-mode',
       'review',
       '--no-config-file',
     ]);
@@ -665,7 +665,7 @@ describe('Headless protocol integration', () => {
       'hello',
       '--output-format',
       'stream-json',
-      '--mode',
+      '--act-mode',
       'review',
       '--no-config-file',
     ]);
@@ -708,7 +708,7 @@ describe('Headless protocol integration', () => {
       'stream-json',
       '--output-profile',
       'anthropic',
-      '--mode',
+      '--act-mode',
       'review',
       '--no-config-file',
     ]);
@@ -751,7 +751,7 @@ describe('Headless protocol integration', () => {
       'stream-json',
       '--output-profile',
       'openai',
-      '--mode',
+      '--act-mode',
       'review',
       '--no-config-file',
     ]);
@@ -786,7 +786,7 @@ describe('Headless protocol integration', () => {
       '--output-format',
       'json',
       '--unknown-flag',
-      '--mode',
+      '--act-mode',
       'review',
       '--no-config-file',
     ]);
@@ -819,7 +819,7 @@ describe('Headless protocol integration', () => {
       '--output-format',
       'stream-json',
       '--unknown-flag',
-      '--mode',
+      '--act-mode',
       'review',
       '--no-config-file',
     ]);
@@ -866,7 +866,7 @@ describe('Headless protocol integration', () => {
       '--output-profile',
       'openai',
       '--unknown-flag',
-      '--mode',
+      '--act-mode',
       'review',
       '--no-config-file',
     ]);
@@ -897,7 +897,7 @@ describe('Headless protocol integration', () => {
       'x',
       '--output-format',
       'stream-json',
-      '--mode',
+      '--act-mode',
       'review',
       '--no-config-file',
     ]);
@@ -940,7 +940,7 @@ describe('Headless protocol integration', () => {
       'stream-json',
       '--output-profile',
       'anthropic',
-      '--mode',
+      '--act-mode',
       'review',
       '--no-config-file',
     ]);
@@ -1001,7 +1001,7 @@ describe('Headless protocol integration', () => {
       'stream-json',
       '--output-profile',
       'openai',
-      '--mode',
+      '--act-mode',
       'review',
       '--no-config-file',
     ]);
@@ -1046,7 +1046,7 @@ describe('Headless protocol integration', () => {
       'openai',
       '--json-schema',
       '{}',
-      '--mode',
+      '--act-mode',
       'review',
       '--no-config-file',
     ]);
@@ -1078,7 +1078,7 @@ describe('Headless protocol integration', () => {
       '--output-profile',
       'openai',
       '--headless-include-tool-input',
-      '--mode',
+      '--act-mode',
       'review',
       '--no-config-file',
     ]);
@@ -1110,7 +1110,7 @@ describe('Headless protocol integration', () => {
       '--output-profile',
       'openai',
       '--headless-include-authorization-decisions',
-      '--mode',
+      '--act-mode',
       'review',
       '--no-config-file',
     ]);
@@ -1141,7 +1141,7 @@ describe('Headless protocol integration', () => {
       'stream-json',
       '--json-schema',
       '{}',
-      '--mode',
+      '--act-mode',
       'review',
       '--no-config-file',
     ]);
@@ -1177,7 +1177,7 @@ describe('Headless protocol integration', () => {
       'anthropic',
       '--json-schema',
       '{}',
-      '--mode',
+      '--act-mode',
       'review',
       '--no-config-file',
     ]);
@@ -1215,7 +1215,7 @@ describe('Headless protocol integration', () => {
       'json',
       '--json-schema',
       schema,
-      '--mode',
+      '--act-mode',
       'review',
       '--no-config-file',
     ]);
@@ -1244,7 +1244,7 @@ describe('Headless protocol integration', () => {
       'json',
       '--output-profile',
       'native',
-      '--mode',
+      '--act-mode',
       'review',
       '--no-config-file',
     ]);
@@ -1286,7 +1286,7 @@ describe('Headless protocol integration', () => {
       'json',
       '--json-schema',
       schema,
-      '--mode',
+      '--act-mode',
       'review',
       '--no-config-file',
     ]);
@@ -1322,7 +1322,7 @@ describe('Headless protocol integration', () => {
       'json',
       '--json-schema',
       schema,
-      '--mode',
+      '--act-mode',
       'review',
       '--no-config-file',
     ]);
@@ -1354,7 +1354,7 @@ describe('Headless protocol integration', () => {
       'json',
       '--json-schema',
       '{',
-      '--mode',
+      '--act-mode',
       'review',
       '--no-config-file',
     ]);

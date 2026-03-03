@@ -50,7 +50,7 @@ export function buildLoopResultFromTransaction({
     const attempts = executionReport.attempts;
     const usage = getTokenUsageFromAuditTrail() ?? undefined;
     const budgetSummary = getBudgetRunSummary() ?? undefined;
-    if (options.dryRun || flowMode === 'review') {
+    if (options.dryRun || flowMode === 'review' || flowMode === 'research') {
       return {
         success: true,
         reason: text.loop.operationCompleted,

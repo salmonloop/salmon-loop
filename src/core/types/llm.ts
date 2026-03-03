@@ -6,6 +6,7 @@ export const LLM_OUTPUT_KINDS = [
   'review',
   'assistant_message',
   'explore',
+  'research',
   'plan',
   'patch',
 ] as const;

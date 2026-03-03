@@ -27,6 +27,7 @@ export const en = {
   chatSuccess: (files: string) => `Changes applied successfully.\n\nFiles changed: ${files}`,
   chatNoChanges: 'Completed successfully. No files were changed.',
   chatReviewCompleted: 'Review completed successfully.',
+  chatResearchCompleted: 'Research completed successfully.',
   chatFailed: (reason: string) => `Failed: ${reason}`,
   chatPrompt: 's8p>',
   chatExitHint: 'Press Ctrl+C again to exit',
@@ -109,7 +110,7 @@ export const en = {
   llmOutputUnavailable: 'LLM output configuration is unavailable in this mode.',
   llmOutputPersisted: (path: string) => `LLM output settings saved to ${path}`,
   llmOutputPersistFailed: (reason: string) => `Failed to save LLM output settings: ${reason}`,
-  modeUsage: 'Usage: /config mode <quiet|normal|debug> (alias: /mode)',
+  modeUsage: 'Usage: /config mode <quiet|normal|debug>',
   modeSuggestion: (mode: string) => {
     if (mode === 'quiet') return 'Quiet: show errors only';
     if (mode === 'normal') return 'Normal: recommended (key steps + warnings/errors)';
@@ -268,11 +269,11 @@ export const en = {
   jsonSchemaOption:
     'JSON Schema for structured_output (file path or JSON string). Only valid with --output-format json.',
   llmOutputOption:
-    'LLM output visibility (none, all, review, assistant_message, explore, plan, patch; comma-separated)',
+    'LLM output visibility (none, all, review, assistant_message, explore, research, plan, patch; comma-separated)',
   auditScopeOption: 'Audit log scope (repo, user)',
   contextDiffScopeOption: 'Diff scope for context (primary, ast_related)',
   contextBudgetCharsOption: 'Context budget in characters (e.g., 30000)',
-  modeOption: 'Flow mode to run (patch, review, debug)',
+  actModeOption: 'Flow mode to run (patch, review, debug, research)',
 
   // Error messages
   fileSelectionConflict: '--file and --selection are mutually exclusive',
@@ -285,8 +286,8 @@ export const en = {
     '--json-schema is only valid when --output-format is set to "json".',
   jsonSchemaLoadFailed: (msg: string) => `Failed to load JSON schema: ${msg}.`,
   structuredOutputSchemaFailed: 'Structured output failed schema validation.',
-  invalidMode: (mode: string) =>
-    `Invalid --mode "${mode}". Expected "patch", "review", or "debug".`,
+  invalidActMode: (mode: string) =>
+    `Invalid --act-mode "${mode}". Expected "patch", "review", "debug", or "research".`,
   invalidEnvironmentMode: (mode: string) =>
     `Invalid --environment-mode "${mode}". Expected "strict" or "parity".`,
   invalidOutputFormat: (format: string) =>
@@ -310,7 +311,7 @@ export const en = {
   continueResumeConflict: '--continue and --resume are mutually exclusive.',
   resumeNotFound: (id: string) => `Session not found: ${id}.`,
   invalidLlmOutputKind: (kind?: string) =>
-    `Invalid --llm-output value${kind ? `: "${kind}"` : ''}. Expected "none", "all", or a comma-separated list of: review, assistant_message, explore, plan, patch.`,
+    `Invalid --llm-output value${kind ? `: "${kind}"` : ''}. Expected "none", "all", or a comma-separated list of: review, assistant_message, explore, research, plan, patch.`,
   contextInvalidDiffScope: (scope: string) =>
     `Invalid --diff-scope "${scope}". Expected "primary" or "ast_related".`,
   contextInvalidBudgetChars: (value: string) => `Invalid --budget-chars "${value}".`,

@@ -1,6 +1,6 @@
 export type VerboseLevel = 'basic' | 'extended';
 export type ApplyBackOnDirty = 'abort' | '3way';
-export type FlowMode = 'patch' | 'review' | 'debug';
+export type FlowMode = 'patch' | 'review' | 'debug' | 'research';
 export type EnvironmentMode = 'strict' | 'parity';
 
 export interface FileSystem {
@@ -22,6 +22,7 @@ export const EXECUTION_PHASES = [
   'PREPARE_DEPS',
   'CONTEXT',
   'EXPLORE',
+  'RESEARCH',
   'PLAN',
   'PATCH',
   'VALIDATE',
@@ -46,6 +47,7 @@ export const Phase = {
   PREPARE_DEPS: 'PREPARE_DEPS',
   CONTEXT: 'CONTEXT',
   EXPLORE: 'EXPLORE',
+  RESEARCH: 'RESEARCH',
   PLAN: 'PLAN',
   PATCH: 'PATCH',
   VALIDATE: 'VALIDATE',

@@ -228,16 +228,16 @@ export async function handleRunCommand(options: any, command: Command) {
 
   const instructionText = instruction as string;
 
-  const rawMode = String(allOptions.mode || 'patch');
+  const rawMode = String(allOptions.actMode || 'patch');
   const mode = resolveRunMode(rawMode);
   if (!mode) {
-    logger.error(text.cli.invalidMode(rawMode));
+    logger.error(text.cli.invalidActMode(rawMode));
     if (outputFormat === 'json') {
-      writeJsonFailure({ message: text.cli.invalidMode(rawMode), repoPath: runPath });
+      writeJsonFailure({ message: text.cli.invalidActMode(rawMode), repoPath: runPath });
     } else if (outputFormat === 'stream-json') {
       headlessErrorWriter.writeUsageError({
         sessionId: sessionIdForOutput ?? randomUUID(),
-        message: text.cli.invalidMode(rawMode),
+        message: text.cli.invalidActMode(rawMode),
         instruction,
       });
     }
