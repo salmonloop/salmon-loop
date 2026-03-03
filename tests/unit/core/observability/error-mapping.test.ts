@@ -128,6 +128,15 @@ describe('mapErrorForDisplay', () => {
     expect(technical.message).toBe(text.errors.technicalError);
   });
 
+  it('maps USAGE_ERROR detail messages to localized messages', () => {
+    const result = mapErrorForDisplay({
+      message: 'PRINT_INSTRUCTION_CONFLICT',
+      code: 'USAGE_ERROR',
+    });
+
+    expect(result.message).toBe(text.errors.usagePrintInstructionConflict);
+  });
+
   it('keeps original message when no mapping applies', () => {
     const result = mapErrorForDisplay({
       message: 'Something went wrong',

@@ -80,6 +80,13 @@ export const en = {
     toolCallBudgetExceeded: 'Tool call budget exceeded.',
     ppdToolResultMissing: 'Tool result is missing required payload.',
     technicalError: 'Technical error occurred.',
+    usagePrintInstructionConflict:
+      'Usage error: --print-instruction cannot be used with explicit instructions.',
+    usageContinueResumeConflict: 'Usage error: --continue and --resume cannot be used together.',
+    usageOutputProfileRequiresStreamJson:
+      'Usage error: --output-profile requires --output-format stream-json.',
+    usageInvalidOutputProfile: 'Usage error: invalid output profile.',
+    usageJsonSchemaRequiresJson: 'Usage error: --json-schema requires --output-format json.',
   },
 
   acp: {

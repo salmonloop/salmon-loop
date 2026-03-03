@@ -31,6 +31,24 @@ function mapLlmCodeToMessage(code: string): string | undefined {
   return undefined;
 }
 
+function mapUsageErrorMessage(message: string, code?: string): string | undefined {
+  if (code !== 'USAGE_ERROR') return undefined;
+  switch (message) {
+    case 'PRINT_INSTRUCTION_CONFLICT':
+      return text.errors.usagePrintInstructionConflict;
+    case 'CONTINUE_RESUME_CONFLICT':
+      return text.errors.usageContinueResumeConflict;
+    case 'OUTPUT_PROFILE_REQUIRES_STREAM_JSON':
+      return text.errors.usageOutputProfileRequiresStreamJson;
+    case 'INVALID_OUTPUT_PROFILE':
+      return text.errors.usageInvalidOutputProfile;
+    case 'JSON_SCHEMA_REQUIRES_JSON':
+      return text.errors.usageJsonSchemaRequiresJson;
+    default:
+      return undefined;
+  }
+}
+
 type CodeMessageLookup = Record<string, () => string>;
 
 const CODE_MESSAGE_MAP: CodeMessageLookup = {
@@ -97,13 +115,15 @@ function mapKnownErrorCode(code: string): string | undefined {
 
 export function mapErrorForDisplay(input: ErrorDisplayInput): ErrorDisplayOutput {
   const rawMessage = input.message ?? '';
+  const mappedByMessage = mapUsageErrorMessage(rawMessage, input.code);
   const mappedByCode = input.code ? mapKnownErrorCode(input.code) : undefined;
+  const mapped = mappedByMessage ?? mappedByCode;
   const isRedacted = rawMessage === REDACTED_ERROR_TOKEN;
 
   if (isRedacted) {
-    if (mappedByCode) {
+    if (mapped) {
       return {
-        message: mappedByCode,
+        message: mapped,
         code: input.code,
         redacted: true,
       };
@@ -115,9 +135,9 @@ export function mapErrorForDisplay(input: ErrorDisplayInput): ErrorDisplayOutput
     };
   }
 
-  if (mappedByCode) {
+  if (mapped) {
     return {
-      message: mappedByCode,
+      message: mapped,
       code: input.code,
       redacted: false,
     };
