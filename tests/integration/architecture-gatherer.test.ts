@@ -1,16 +1,24 @@
-import { mkdir, writeFile, rm } from 'node:fs/promises';
+import { mkdir, writeFile, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 
-import { describe, test, expect, beforeEach } from 'bun:test';
+import { describe, test, expect, beforeEach, afterEach, afterAll } from 'bun:test';
 
 import { ArchitectureGatherer } from '../../src/core/context/gatherers/architecture-gatherer.js';
 import { ContextRequest } from '../../src/core/context/types.js';
 
 describe('ArchitectureGatherer', () => {
-  const testRepo = path.join(process.cwd(), 'tests/tmp/architecture-test');
+  const testRepo = path.join(process.cwd(), 'tests/tmp/architecture-test-runtime');
   const mockReq: ContextRequest = {
     repoPath: testRepo,
     instruction: 'analyze architecture',
+  };
+  const repoExists = async () => {
+    try {
+      await stat(testRepo);
+      return true;
+    } catch {
+      return false;
+    }
   };
 
   beforeEach(async () => {
@@ -23,6 +31,14 @@ describe('ArchitectureGatherer', () => {
 
     await writeFile(path.join(testRepo, 'package.json'), JSON.stringify({ name: 'test-project' }));
     await writeFile(path.join(testRepo, 'src/index.ts'), '// entry point');
+  });
+
+  afterEach(async () => {
+    await rm(testRepo, { recursive: true, force: true });
+  });
+
+  afterAll(async () => {
+    expect(await repoExists()).toBe(false);
   });
 
   test('should scan src/ and identify core modules', async () => {

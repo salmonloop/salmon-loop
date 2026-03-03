@@ -1,5 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
+import { mock, describe, it, beforeEach, afterEach, expect, jest } from 'bun:test';
 
+import { text } from '../../../../../src/cli/locales/index.js';
 import { advanceTimersByTime } from '../../../../helpers/bun-timers.js';
 
 const hoisted = (() => ({
@@ -17,11 +19,11 @@ describe('useLoopEvents', () => {
 
   beforeEach(() => {
     hoisted.dispatch.mockClear();
-    useFakeTimers();
+    jest.useFakeTimers();
   });
 
   afterEach(() => {
-    useRealTimers();
+    jest.useRealTimers();
   });
 
   it('aggregates llm.stream.delta as APPEND_LLM_STREAM in chat mode', async () => {
@@ -229,5 +231,30 @@ describe('useLoopEvents', () => {
       type: 'COMPLETE_STREAM',
       payload: { id: 'stream-chat-end-1' },
     });
+  });
+
+  it('maps redacted log messages to localized text in the UI', async () => {
+    const useLoopEvents = await loadUseLoopEvents();
+    const onStart = mock();
+    const signal = new AbortController().signal;
+    const { result } = renderHook(() => useLoopEvents('chat', onStart, signal));
+
+    act(() => {
+      result.current.sanitizeAndDispatch({
+        type: 'log',
+        level: 'error',
+        message: 'ERR_TECHNICAL_DETAILS_HIDDEN',
+        timestamp: new Date('2026-02-06T23:07:00.000Z'),
+      });
+    });
+
+    expect(hoisted.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'ADD_MESSAGE',
+        payload: expect.objectContaining({
+          content: text.errors.technicalDetailsHidden,
+        }),
+      }),
+    );
   });
 });

@@ -1,5 +1,6 @@
 import { useEffect, useCallback, useRef } from 'react';
 
+import { mapErrorForDisplay } from '../../../core/observability/error-mapping.js';
 import { KAOMOJI } from '../../../core/ui/kaomoji.js';
 import { text } from '../../locales/index.js';
 import { useUIStore } from '../store/context.js';
@@ -253,7 +254,7 @@ export function useLoopEvents(
         }
         const type =
           event.level === 'error' ? 'error' : event.level === 'warn' ? 'warning' : 'system';
-        const content = msg;
+        const content = mapErrorForDisplay({ message: msg, code: event.code }).message;
 
         dispatchSanitizedMessage({ content, type, timestamp: event.timestamp });
       } else if (event.type === 'snapshot.created') {
