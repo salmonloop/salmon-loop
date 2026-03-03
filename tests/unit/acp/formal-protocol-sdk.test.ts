@@ -650,4 +650,74 @@ describe('ACP formal protocol (SDK)', () => {
     const result = await promptPromise;
     expect(result.stopReason).toBe('cancelled');
   });
+
+  it('returns cancelled stopReason even if terminal event is not task.cancelled after session/cancel', async () => {
+    const listeners = new Set<(event: any) => void>();
+    const eventBus = {
+      subscribe: (listener: (event: any) => void) => {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
+      list: () => [],
+    };
+
+    const { clientConn } = createConnectedPair({
+      toAgent: (conn) =>
+        createAcpFormalAgent({
+          conn,
+          agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+          eventBus: eventBus as any,
+          facade: {
+            createTask: async (input: any) => ({
+              task: {
+                id: 'task_cancel_2',
+                capability: 'patch',
+                state: 'accepted',
+                request: { instruction: input.request.instruction },
+                createdAt: new Date().toISOString(),
+                attempt: 1,
+              },
+              signal: new AbortController().signal,
+            }),
+            getTask: async () => null,
+            cancelTask: async () => {
+              const event = {
+                taskId: 'task_cancel_2',
+                type: 'task.failed',
+                timestamp: Date.now(),
+              };
+              for (const listener of listeners) listener(event);
+              return null;
+            },
+            resumeTask: async () => null,
+            retryTask: async () => null,
+            reopenTask: async () => null,
+            listTasks: async () => ({ items: [] }),
+            submitInput: async () => null,
+            getArtifact: async () => null,
+          },
+        }),
+      toClient: () => ({
+        requestPermission: async () => ({ outcome: { outcome: 'cancelled' } }),
+        sessionUpdate: async () => {},
+      }),
+    });
+
+    await clientConn.initialize({
+      protocolVersion: 1,
+      clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
+    });
+    const { sessionId } = await clientConn.newSession({ cwd: '/repo', mcpServers: [] });
+
+    const promptPromise = clientConn.prompt({
+      sessionId,
+      prompt: [{ type: 'text', text: 'long running task' }],
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await clientConn.cancel({ sessionId });
+
+    const result = await promptPromise;
+    expect(result.stopReason).toBe('cancelled');
+  });
 });

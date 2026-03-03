@@ -548,8 +548,12 @@ export function createAcpFormalAgent(deps: {
       const terminalEvent = await awaitTerminalEvent({ taskId: task.id, eventBus: deps.eventBus });
       let stopReason: StopReason = 'end_turn';
       let assistantText = 'Task completed.';
+      const cancelRequested = sessions.get(params.sessionId)?.cancelRequested === true;
 
-      if (terminalEvent?.type === 'task.failed') {
+      if (cancelRequested) {
+        assistantText = 'Task cancelled.';
+        stopReason = 'cancelled';
+      } else if (terminalEvent?.type === 'task.failed') {
         assistantText = 'Task failed.';
       } else if (terminalEvent?.type === 'task.awaiting_input') {
         assistantText = 'Task awaiting input.';
