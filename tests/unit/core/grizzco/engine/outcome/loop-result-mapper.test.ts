@@ -10,6 +10,7 @@ import {
   clearAuditTrail,
   recordAuditEvent,
 } from '../../../../../../src/core/observability/audit-trail.js';
+import { text } from '../../../../../../src/locales/index.js';
 
 function createTelemetry() {
   return new LoopTelemetry(() => new Date('2026-02-13T00:00:00.000Z'));
@@ -285,6 +286,40 @@ describe('loop-result-mapper', () => {
     expect(result.safeHint).toBe("Missing declared dependency 'fast-xml-parser'.");
     expect(result.diagnosticCode).toBe('UNDECLARED_DEPENDENCY');
     expect(result.remediationSteps).toEqual(['Run bun add fast-xml-parser and retry.']);
+  });
+
+  it('builds an error envelope for terminal failures', () => {
+    const telemetry = createTelemetry();
+    const report: FlowTransactionReport = {
+      success: false,
+      attempts: 1,
+      flowReport: {
+        success: false,
+        duration: 1,
+        traces: [],
+        strategyName: 'patch',
+        fsMode: 'patch',
+      },
+      history: [{ attempt: 1, plan: null, patch: null, error: 'old', contextSummary: '' }],
+      retryExhausted: false,
+      lastErrorCode: 'LLM_HTTP_REQUEST_FAILED',
+      terminalReason: 'old',
+      terminalReasonCode: 'LOOP_FAILED',
+      terminalFailurePhase: 'EXPLORE',
+      terminalSafeHint: 'LLM request failed. Please retry in a moment.',
+      terminalRemediationSteps: ['Retry the command after a short delay.'],
+    };
+
+    const result = buildLoopResultFromTransaction({
+      executionReport: report,
+      flowMode: 'patch',
+      options: {} as any,
+      telemetry,
+    });
+
+    expect(result.errorEnvelope?.code).toBe('LLM_HTTP_REQUEST_FAILED');
+    expect(result.errorEnvelope?.safeMessage).toBe(text.llmErrors.httpRequestFailed);
+    expect(result.errorEnvelope?.safeHint).toBe('LLM request failed. Please retry in a moment.');
   });
 
   it('includes budget summary when budget metrics exist', () => {

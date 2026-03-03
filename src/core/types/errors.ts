@@ -57,6 +57,22 @@ export interface ErrorEnvelope {
    */
   safeMessage: string;
   /**
+   * Optional user-facing hint for remediation or next steps.
+   */
+  safeHint?: string;
+  /**
+   * Optional remediation steps suitable for display.
+   */
+  remediationSteps?: string[];
+  /**
+   * Whether the original error details were redacted.
+   */
+  redacted?: boolean;
+  /**
+   * Optional tag for the redaction source (LLM/TOOL/STACK/NETWORK/INTERNAL).
+   */
+  redactionSource?: string;
+  /**
    * Safe metadata for diagnostics and auditing. Must be JSON-serializable and non-sensitive.
    */
   safeMeta?: Record<string, unknown>;

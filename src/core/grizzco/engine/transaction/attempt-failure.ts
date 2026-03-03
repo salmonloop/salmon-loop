@@ -1,7 +1,7 @@
 import { text } from '../../../../locales/index.js';
 import { buildFailureGuidance } from '../../../failure/diagnostics.js';
 import { sanitizeError } from '../../../llm/errors.js';
-import { REDACTED_ERROR_TOKEN } from '../../../observability/error-envelope.js';
+import { mapErrorForDisplay } from '../../../observability/error-mapping.js';
 import { EXECUTION_PHASES } from '../../../types/index.js';
 import type {
   ExecutionPhase,
@@ -69,10 +69,7 @@ function extractErrorCodeFromTraces(flowReport: FlowReport): string | undefined 
 
 function sanitizeReason(value: unknown): string {
   const sanitized = sanitizeError(value) || text.loop.loopExecutionFailed;
-  if (sanitized === REDACTED_ERROR_TOKEN) {
-    return text.errors.technicalDetailsHidden;
-  }
-  return sanitized;
+  return mapErrorForDisplay({ message: sanitized }).message;
 }
 
 function extractInputRequired(error: unknown): LoopInputRequired | undefined {

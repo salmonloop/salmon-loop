@@ -5,6 +5,7 @@ import * as fs from '../../adapters/fs/node-fs.js';
 import { LIMITS } from '../../config/limits.js';
 import { truncateOutput } from '../../context/truncation/index.js';
 import { getAuditTrail, recordAuditEvent } from '../../observability/audit-trail.js';
+import { mapErrorForDisplay } from '../../observability/error-mapping.js';
 import { logger } from '../../observability/logger.js';
 import { getAuditDir } from '../../runtime/paths.js';
 import { SalmonError, type LoopOptions } from '../../types/index.js';
@@ -12,6 +13,20 @@ import { FlowReport } from '../engine/pipeline/pipeline.js';
 import type { ShrinkCtx } from '../engine/pipeline/types.js';
 
 type AuditContext = Partial<ShrinkCtx>;
+
+function replaceRedactedTokens(value: unknown): unknown {
+  if (value === null || value === undefined) return value;
+  if (typeof value === 'string') return mapErrorForDisplay({ message: value }).message;
+  if (Array.isArray(value)) return value.map((item) => replaceRedactedTokens(item));
+  if (typeof value === 'object') {
+    const result: Record<string, unknown> = {};
+    for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+      result[key] = replaceRedactedTokens(entry);
+    }
+    return result;
+  }
+  return value;
+}
 
 export async function saveAudit(
   report: FlowReport,
@@ -28,11 +43,12 @@ export async function saveAudit(
     // Sanitize context data to be JSON friendly
     const ctx = report.data as AuditContext | undefined;
     const sanitizedData = sanitizeContext(report.data);
+    const mappedData = replaceRedactedTokens(sanitizedData) as typeof sanitizedData;
     try {
       await externalizeVerifyOutput({
         auditDir,
         timestamp,
-        sanitizedContext: sanitizedData,
+        sanitizedContext: mappedData,
       });
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
@@ -47,7 +63,7 @@ export async function saveAudit(
       await externalizeToolAuditTextFields({
         auditDir,
         timestamp,
-        sanitizedContext: sanitizedData,
+        sanitizedContext: mappedData,
       });
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
@@ -74,6 +90,11 @@ export async function saveAudit(
         : report.error
           ? { name: 'UnknownError', message: String(report.error), stack: undefined }
           : undefined;
+    const mappedErrorMeta = replaceRedactedTokens(errorMeta) as typeof errorMeta;
+    const errorDisplay = mapErrorForDisplay({
+      message: mappedErrorMeta?.message,
+      code: (mappedErrorMeta as any)?.code,
+    });
 
     const toolAuditLogs = ctx?.toolAuditLogger?.getLogs?.() || [];
     const authorizationIndex = toolAuditLogs
@@ -103,14 +124,15 @@ export async function saveAudit(
         success: report.success,
         lastStep: report.lastStep,
         // Keep a stable, human-friendly message for backwards compatibility.
-        error: errorMeta?.message,
-        errorName: errorMeta?.name,
-        errorCode: (errorMeta as any)?.code,
-        errorStack: errorMeta?.stack,
+        error: errorDisplay.message,
+        errorName: mappedErrorMeta?.name,
+        errorCode: (mappedErrorMeta as any)?.code,
+        errorStack: mappedErrorMeta?.stack,
+        errorRedacted: errorDisplay.redacted || undefined,
       },
       traces: report.traces,
       context: {
-        ...sanitizedData,
+        ...mappedData,
         eventsRef: {
           path: eventsFilename,
           count: trail.length,

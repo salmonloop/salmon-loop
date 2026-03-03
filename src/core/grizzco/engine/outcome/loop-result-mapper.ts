@@ -1,6 +1,7 @@
 import { text } from '../../../../locales/index.js';
 import { getBudgetRunSummary } from '../../../context/budget/integration.js';
 import { getAuthorizationDecisionsFromAuditTrail } from '../../../observability/authorization-decisions.js';
+import { buildFailureEnvelope } from '../../../observability/error-envelope.js';
 import { getTokenUsageFromAuditTrail } from '../../../observability/token-usage.js';
 import { ErrorType, Phase } from '../../../types/index.js';
 import type { ExecutionPhase, FlowMode, LoopOptions, LoopResult } from '../../../types/index.js';
@@ -112,6 +113,13 @@ export function buildLoopResultFromTransaction({
 
   const usage = getTokenUsageFromAuditTrail() ?? undefined;
   const budgetSummary = getBudgetRunSummary() ?? undefined;
+  const errorEnvelope = buildFailureEnvelope({
+    code: executionReport.lastErrorCode,
+    phase: failurePhase,
+    safeHint,
+    remediationSteps,
+    fallbackMessage: failureReason,
+  });
   return {
     success: false,
     reason: safeHint,
@@ -119,6 +127,7 @@ export function buildLoopResultFromTransaction({
     diagnosticCode: executionReport.terminalDiagnosticCode ?? reasonCode,
     safeHint,
     remediationSteps,
+    errorEnvelope,
     attempts: executionReport.attempts,
     contextHash,
     logs: telemetry.getLogs(),
@@ -155,6 +164,10 @@ export function buildLoopFailureResult({
     const decisions = getAuthorizationDecisionsFromAuditTrail();
     return decisions.length > 0 ? decisions : undefined;
   })();
+  const errorEnvelope = buildFailureEnvelope({
+    phase: failurePhase,
+    fallbackMessage: message,
+  });
   return {
     success: false,
     reason: message,
@@ -162,6 +175,7 @@ export function buildLoopFailureResult({
     diagnosticCode: reasonCode,
     safeHint: message,
     remediationSteps: [],
+    errorEnvelope,
     attempts: 0,
     logs: telemetry.getLogs(),
     usage,

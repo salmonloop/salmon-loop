@@ -1,8 +1,7 @@
 import chalk from 'chalk';
 
-import { REDACTED_ERROR_TOKEN } from '../../core/observability/error-envelope.js';
+import { mapErrorForDisplay } from '../../core/observability/error-mapping.js';
 import type { LogLevel, LogReporter } from '../../core/observability/logger.js';
-import { text } from '../locales/index.js';
 
 export class StderrLogReporter implements LogReporter {
   constructor(private verboseLevel: LogLevel = 'none') {}
@@ -20,8 +19,10 @@ export class StderrLogReporter implements LogReporter {
   }
 
   log(level: string, message: string, metadata?: any): void {
-    const safeMessage =
-      message === REDACTED_ERROR_TOKEN ? text.errors.technicalDetailsHidden : message;
+    const safeMessage = mapErrorForDisplay({
+      message,
+      code: metadata?.code,
+    }).message;
 
     const writeLine = (line: string) => {
       process.stderr.write(line + '\n');

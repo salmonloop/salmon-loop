@@ -1,6 +1,7 @@
 import chalk from 'chalk';
 import ProgressBar from 'progress';
 
+import { mapErrorForDisplay } from '../../core/observability/error-mapping.js';
 import { logger } from '../../core/observability/logger.js';
 import {
   LoopEvent,
@@ -180,34 +181,10 @@ export class StandardReporter implements SalmonReporter {
   }
 
   private handleLogEvent(event: { level: string; message: string; code?: string }) {
-    let displayMessage = event.message;
-
-    // Handle sanitized technical errors from core to ensure no hardcoded text in core
-    if (displayMessage === 'ERR_TECHNICAL_DETAILS_HIDDEN') {
-      displayMessage = text.errors.technicalDetailsHidden;
-    }
-
-    // Mapping logic: if code is provided, try to find the localized message
-    if (event.code) {
-      const llmErrors = text.llmErrors as Record<string, any>;
-      const llmText = text.llm as Record<string, any>;
-
-      // Try to map LlmErrorCode to localized message keys.
-      if (event.code.startsWith('LLM_')) {
-        // Convert LLM_HTTP_REQUEST_FAILED to httpRequestFailed.
-        const camelCode = event.code
-          .toLowerCase()
-          .replace(/_([a-z])/g, (_, g) => g.toUpperCase())
-          .replace(/^llm/, '');
-        const finalCamel = camelCode.charAt(0).toLowerCase() + camelCode.slice(1);
-
-        if (llmErrors[finalCamel]) {
-          displayMessage = llmErrors[finalCamel];
-        } else if (llmText[finalCamel]) {
-          displayMessage = llmText[finalCamel];
-        }
-      }
-    }
+    const displayMessage = mapErrorForDisplay({
+      message: event.message,
+      code: event.code,
+    }).message;
 
     if (event.level === 'error') {
       logger.error(displayMessage);
@@ -235,13 +212,20 @@ export class StandardReporter implements SalmonReporter {
   }
 
   private handleFailure(result: LoopResult) {
+    const envelope = result.errorEnvelope;
+    const failureReason = envelope?.safeHint || result.safeHint || result.reason;
+    const remediationSteps =
+      envelope?.remediationSteps && envelope.remediationSteps.length > 0
+        ? envelope.remediationSteps
+        : result.remediationSteps;
     logger.error(text.cli.operationFailed);
-    logger.bold(text.cli.reason(result.safeHint || result.reason));
+    logger.bold(text.cli.reason(failureReason));
     if (result.diagnosticCode) {
       logger.error(`  Diagnostic code: ${result.diagnosticCode}`);
     }
-    if (result.errorCode) {
-      logger.error(text.cli.errorCode(result.errorCode));
+    const errorCode = envelope?.code || result.errorCode;
+    if (errorCode) {
+      logger.error(text.cli.errorCode(errorCode));
     }
     if (result.auditPath) {
       logger.log(text.cli.auditPath(result.auditPath));
@@ -249,8 +233,8 @@ export class StandardReporter implements SalmonReporter {
     if (result.verifyArtifact?.handle) {
       logger.log(text.cli.verifyOutputArtifact(result.verifyArtifact.handle));
     }
-    if (Array.isArray(result.remediationSteps) && result.remediationSteps.length > 0) {
-      for (const step of result.remediationSteps) {
+    if (Array.isArray(remediationSteps) && remediationSteps.length > 0) {
+      for (const step of remediationSteps) {
         logger.cyan(`${text.symbols.suggestion} ${step}`);
       }
     }

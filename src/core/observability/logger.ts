@@ -1,13 +1,12 @@
 import chalk from 'chalk';
 
-import { text } from '../../locales/index.js';
 import { FileAdapter } from '../adapters/fs/index.js';
 import { VerboseLevel } from '../types/index.js';
 import { sanitizeObject, sanitizeErrorMessage } from '../utils/sanitizer.js';
 
 import type { AuditTrailMeta } from './audit-trail.js';
 import { recordAuditEvent } from './audit-trail.js';
-import { REDACTED_ERROR_TOKEN } from './error-envelope.js';
+import { mapErrorForDisplay } from './error-mapping.js';
 
 export type LogLevel = 'none' | 'basic' | 'extended';
 
@@ -38,8 +37,10 @@ export class ConsoleReporter implements LogReporter {
   }
 
   log(level: string, message: string, metadata?: any): void {
-    const safeMessage =
-      message === REDACTED_ERROR_TOKEN ? text.errors.technicalDetailsHidden : message;
+    const safeMessage = mapErrorForDisplay({
+      message,
+      code: metadata?.code,
+    }).message;
     switch (level) {
       case 'info':
       case 'log':
@@ -110,8 +111,10 @@ export class StderrReporter implements LogReporter {
   }
 
   log(level: string, message: string, metadata?: any): void {
-    const safeMessage =
-      message === REDACTED_ERROR_TOKEN ? text.errors.technicalDetailsHidden : message;
+    const safeMessage = mapErrorForDisplay({
+      message,
+      code: metadata?.code,
+    }).message;
     switch (level) {
       case 'info':
       case 'log':
@@ -182,8 +185,10 @@ export class PlainReporter implements LogReporter {
   }
 
   log(level: string, message: string, metadata?: any): void {
-    const safeMessage =
-      message === REDACTED_ERROR_TOKEN ? text.errors.technicalDetailsHidden : message;
+    const safeMessage = mapErrorForDisplay({
+      message,
+      code: metadata?.code,
+    }).message;
 
     const writeLine = (line: string) => {
       console.error(line);

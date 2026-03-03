@@ -9,6 +9,7 @@ import type { ArtifactHandle } from '../sub-agent/artifacts/types.js';
 import type { ToolAuthorizationProvider } from '../tools/authorization/types.js';
 
 import type { AuthorizationDecisionRecord } from './authorization.js';
+import type { ErrorEnvelope } from './errors.js';
 import type {
   ApplyBackOnDirty,
   EnvironmentMode,
@@ -100,6 +101,7 @@ export interface LoopResult {
   diagnosticCode?: string;
   safeHint?: string;
   remediationSteps?: string[];
+  errorEnvelope?: ErrorEnvelope;
   attempts: number;
   contextHash?: string;
   logs: StepLog[];
