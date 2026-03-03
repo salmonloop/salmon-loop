@@ -137,6 +137,18 @@ describe('mapErrorForDisplay', () => {
     expect(result.message).toBe(text.errors.usagePrintInstructionConflict);
   });
 
+  it('maps allowlist and slash message tokens to localized messages', () => {
+    const allowlist = mapErrorForDisplay({
+      message: 'ALLOWLIST_PARSE_FAILED',
+    });
+    const slash = mapErrorForDisplay({
+      message: 'UNKNOWN_SLASH',
+    });
+
+    expect(allowlist.message).toBe(text.errors.allowlistParseFailed);
+    expect(slash.message).toBe(text.errors.unknownSlash);
+  });
+
   it('keeps original message when no mapping applies', () => {
     const result = mapErrorForDisplay({
       message: 'Something went wrong',

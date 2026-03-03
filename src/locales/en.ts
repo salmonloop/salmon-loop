@@ -87,6 +87,14 @@ export const en = {
       'Usage error: --output-profile requires --output-format stream-json.',
     usageInvalidOutputProfile: 'Usage error: invalid output profile.',
     usageJsonSchemaRequiresJson: 'Usage error: --json-schema requires --output-format json.',
+    allowlistParseFailed: 'Allowlist parsing failed.',
+    allowlistWriteFailed: 'Allowlist write failed.',
+    allowlistCacheWriteFailed: 'Allowlist cache write failed.',
+    allowlistLockTimeout: 'Allowlist lock acquisition timed out.',
+    allowlistLockVerificationFailed: 'Allowlist lock verification failed.',
+    allowlistAtomicWriteBackupFailed: 'Allowlist atomic write backup failed.',
+    allowlistAtomicRestoreFailed: 'Allowlist atomic restore failed.',
+    allowlistPathBlocked: 'Allowlist blocked the requested path.',
   },
 
   acp: {

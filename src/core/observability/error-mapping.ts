@@ -49,6 +49,35 @@ function mapUsageErrorMessage(message: string, code?: string): string | undefine
   }
 }
 
+function mapMessageToken(message: string): string | undefined {
+  switch (message) {
+    case 'UNKNOWN_SLASH':
+      return text.errors.unknownSlash;
+    case 'NO_HANDLER':
+      return text.errors.noSlashHandler;
+    case 'INTERNAL_ERROR':
+      return text.errors.internalError;
+    case 'ALLOWLIST_PARSE_FAILED':
+      return text.errors.allowlistParseFailed;
+    case 'ALLOWLIST_WRITE_FAILED':
+      return text.errors.allowlistWriteFailed;
+    case 'ALLOWLIST_CACHE_WRITE_FAILED':
+      return text.errors.allowlistCacheWriteFailed;
+    case 'ALLOWLIST_LOCK_TIMEOUT':
+      return text.errors.allowlistLockTimeout;
+    case 'ALLOWLIST_LOCK_VERIFICATION_FAILED':
+      return text.errors.allowlistLockVerificationFailed;
+    case 'ALLOWLIST_ATOMIC_WRITE_BACKUP_FAILED':
+      return text.errors.allowlistAtomicWriteBackupFailed;
+    case 'ALLOWLIST_ATOMIC_RESTORE_FAILED':
+      return text.errors.allowlistAtomicRestoreFailed;
+    case 'ALLOWLIST_PATH_BLOCKED':
+      return text.errors.allowlistPathBlocked;
+    default:
+      return undefined;
+  }
+}
+
 type CodeMessageLookup = Record<string, () => string>;
 
 const CODE_MESSAGE_MAP: CodeMessageLookup = {
@@ -115,7 +144,8 @@ function mapKnownErrorCode(code: string): string | undefined {
 
 export function mapErrorForDisplay(input: ErrorDisplayInput): ErrorDisplayOutput {
   const rawMessage = input.message ?? '';
-  const mappedByMessage = mapUsageErrorMessage(rawMessage, input.code);
+  const mappedByMessage =
+    mapUsageErrorMessage(rawMessage, input.code) ?? mapMessageToken(rawMessage);
   const mappedByCode = input.code ? mapKnownErrorCode(input.code) : undefined;
   const mapped = mappedByMessage ?? mappedByCode;
   const isRedacted = rawMessage === REDACTED_ERROR_TOKEN;
