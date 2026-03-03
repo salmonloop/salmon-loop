@@ -65,4 +65,40 @@ describe('interaction.ask_user tool', () => {
       ),
     ).rejects.toMatchObject({ code: 'ASK_USER_REQUIRED' });
   });
+
+  it('rejects answers that do not match question options', async () => {
+    const { askUserSpec } = await import('../../../../src/core/tools/builtin/interaction.js');
+
+    const provider = {
+      askUser: async (input: any) => ({
+        questions: input.questions,
+        answers: { 'Pick one': 'C' },
+      }),
+    };
+
+    await expect(
+      askUserSpec.executor(
+        {
+          questions: [
+            {
+              question: 'Pick one',
+              header: 'Pick',
+              options: [
+                { label: 'A', description: 'First' },
+                { label: 'B', description: 'Second' },
+              ],
+              multiSelect: false,
+            },
+          ],
+        },
+        {
+          repoRoot: '/repo',
+          attemptId: 1,
+          dryRun: false,
+          userInputProvider: provider,
+          agentKind: 'primary',
+        } as any,
+      ),
+    ).rejects.toMatchObject({ code: 'INVALID_OUTPUT' });
+  });
 });

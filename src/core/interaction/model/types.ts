@@ -27,6 +27,8 @@ export interface TaskRequiredAction {
   type: string;
   reason?: 'approval' | 'clarification' | 'reopen';
   prompt: string;
+  questions?: import('../../types/index.js').AskUserQuestion[];
+  responseFormat?: 'json';
 }
 
 export interface TaskFailure {

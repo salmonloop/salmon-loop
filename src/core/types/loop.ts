@@ -66,6 +66,7 @@ export interface LoopInputRequired {
   reason?: 'approval' | 'clarification' | 'reopen';
   prompt: string;
   questions?: AskUserQuestion[];
+  responseFormat?: 'json';
 }
 
 export interface LoopIteration {
@@ -123,6 +124,13 @@ export interface LoopResult {
  * Events emitted during the SalmonLoop execution.
  */
 export type LoopEvent =
+  | {
+      type: 'task.awaiting_input';
+      reason: 'approval' | 'clarification' | 'reopen';
+      prompt: string;
+      inputRequired?: LoopInputRequired;
+      timestamp: Date;
+    }
   | { type: 'phase.start'; phase: ExecutionPhase; timestamp: Date }
   | { type: 'phase.end'; phase: ExecutionPhase; success: boolean; timestamp: Date }
   | {

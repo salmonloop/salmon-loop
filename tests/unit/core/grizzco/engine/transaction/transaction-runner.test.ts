@@ -1,3 +1,5 @@
+import { beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
+
 import { LoopTelemetry } from '../../../../../../src/core/grizzco/engine/observability/loop-telemetry.js';
 import { FlowTransactionRunner } from '../../../../../../src/core/grizzco/engine/transaction/transaction-runner.js';
 import * as salmonFlow from '../../../../../../src/core/grizzco/flows/SalmonLoopFlow.js';
@@ -86,6 +88,48 @@ describe('transaction-runner', () => {
         type: 'retry',
         fromAttempt: 1,
         toAttempt: 2,
+      }),
+    );
+  });
+
+  it('emits task.awaiting_input when ask_user is required', async () => {
+    const inputRequired = {
+      type: 'question',
+      reason: 'clarification',
+      prompt: 'Pick one',
+      questions: [
+        {
+          question: 'Which option?',
+          header: 'Pick',
+          options: [
+            { label: 'A', description: 'First' },
+            { label: 'B', description: 'Second' },
+          ],
+          multiSelect: false,
+        },
+      ],
+    };
+
+    mockedExecute.mockResolvedValueOnce({
+      success: false,
+      duration: 1,
+      traces: [],
+      error: { code: 'ASK_USER_REQUIRED', inputRequired },
+      data: {
+        context: { repoPath: '/repo', rgSnippets: [] },
+      },
+    } as any);
+
+    const emit = mock();
+    const report = await createRunner(emit).execute();
+
+    expect(report.success).toBe(false);
+    expect(emit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'task.awaiting_input',
+        reason: 'clarification',
+        prompt: 'Pick one',
+        inputRequired,
       }),
     );
   });

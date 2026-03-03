@@ -1025,6 +1025,7 @@ describe('ACP formal protocol (SDK)', () => {
       type: 'question',
       reason: 'clarification',
       prompt: 'Pick one',
+      responseFormat: 'json',
       questions: [
         {
           question: 'Which option?',
@@ -1093,6 +1094,9 @@ describe('ACP formal protocol (SDK)', () => {
     });
 
     const update = updates.find((u) => u?.sessionUpdate === 'agent_message_chunk');
-    expect(update?._meta?.inputRequired).toEqual(inputRequired);
+    expect(update?._meta?.inputRequired).toMatchObject({
+      ...inputRequired,
+      responseFormat: 'json',
+    });
   });
 });

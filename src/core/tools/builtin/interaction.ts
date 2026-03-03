@@ -57,6 +57,7 @@ function buildInputRequired(input: AskUserInput): LoopInputRequired {
     reason: 'clarification',
     prompt: buildPrompt(input.questions),
     questions: input.questions,
+    responseFormat: 'json',
   };
 }
 
@@ -68,15 +69,7 @@ export const askUserSpec: ToolSpec<AskUserInput, AskUserOutput> = {
   riskLevel: 'low',
   sideEffects: ['none'],
   concurrency: 'serial_only',
-  allowedPhases: [
-    Phase.EXPLORE,
-    Phase.PLAN,
-    Phase.PATCH,
-    Phase.VALIDATE,
-    Phase.AST_VALIDATE,
-    Phase.VERIFY,
-    Phase.SHRINK,
-  ],
+  allowedPhases: [Phase.EXPLORE, Phase.PLAN, Phase.PATCH, Phase.VALIDATE, Phase.AST_VALIDATE],
   inputSchema: askUserInputSchema,
   outputSchema: askUserOutputSchema,
   executor: async (input, ctx: ToolRuntimeCtx) => {
@@ -93,6 +86,41 @@ export const askUserSpec: ToolSpec<AskUserInput, AskUserOutput> = {
       throw err;
     }
 
-    return ctx.userInputProvider.askUser(input, { signal: ctx.signal });
+    const output = await ctx.userInputProvider.askUser(input, { signal: ctx.signal });
+    const validationError = validateAnswers(input, output.answers);
+    if (validationError) {
+      const err = new Error(validationError);
+      (err as any).code = 'INVALID_OUTPUT';
+      throw err;
+    }
+    return { questions: input.questions, answers: output.answers };
   },
 };
+
+function validateAnswers(input: AskUserInput, answers: AskUserOutput['answers']): string | null {
+  const questionMap = new Map(
+    input.questions.map((q) => [q.question, new Set(q.options.map((o) => o.label))]),
+  );
+
+  for (const key of Object.keys(answers)) {
+    const allowed = questionMap.get(key);
+    if (!allowed) {
+      return `Unknown question answer key: ${key}`;
+    }
+    const raw = answers[key] ?? '';
+    const parts = raw
+      .split(',')
+      .map((part) => part.trim())
+      .filter(Boolean);
+    if (parts.length === 0) {
+      return `Empty answer for question: ${key}`;
+    }
+    for (const answer of parts) {
+      if (!allowed.has(answer)) {
+        return `Invalid answer "${answer}" for question: ${key}`;
+      }
+    }
+  }
+
+  return null;
+}

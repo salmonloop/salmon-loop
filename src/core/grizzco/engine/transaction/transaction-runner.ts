@@ -182,6 +182,17 @@ export class FlowTransactionRunner {
         });
       }
 
+      if (attemptFailure.reasonCode === 'AWAITING_INPUT') {
+        const inputRequired = attemptFailure.inputRequired;
+        this.params.emit({
+          type: 'task.awaiting_input',
+          reason: inputRequired?.reason ?? 'clarification',
+          prompt: inputRequired?.prompt ?? attemptFailure.reason,
+          inputRequired,
+          timestamp: this.params.now(),
+        });
+      }
+
       recordAuditEvent(
         'loop.attempt.failure',
         {
