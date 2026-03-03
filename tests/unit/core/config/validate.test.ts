@@ -235,3 +235,29 @@ describe('validateConfigFileV1 (server)', () => {
     ).toThrow(/CONFIG_INVALID_SERVER_A2A_PORT/);
   });
 });
+
+describe('validateConfigFileV1 (output.llm)', () => {
+  it('accepts research output kind', () => {
+    const parsed = validateConfigFileV1({
+      output: {
+        llm: {
+          kinds: ['research'],
+        },
+      },
+    });
+
+    expect(parsed.output?.llm?.kinds).toEqual(['research']);
+  });
+
+  it('rejects invalid output kinds', () => {
+    expect(() =>
+      validateConfigFileV1({
+        output: {
+          llm: {
+            kinds: ['nope'],
+          },
+        },
+      }),
+    ).toThrow(/CONFIG_INVALID_LLM_OUTPUT_KIND/);
+  });
+});

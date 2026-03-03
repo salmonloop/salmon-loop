@@ -1,5 +1,12 @@
 import { text } from '../../../locales/index.js';
+import { SalmonError } from '../../types/errors.js';
 import type { ReportableCtx, ReviewSuggestion, ReviewSummary } from '../engine/pipeline/types.js';
+
+export class ReportContextMissingError extends SalmonError {
+  constructor(message: string) {
+    super(message, 'REPORT_CONTEXT_MISSING');
+  }
+}
 
 function safeStringify(value: unknown): string {
   try {
@@ -64,7 +71,9 @@ function normalizeSuggestions(
 
 export async function displayReport<T extends ReportableCtx>(ctx: T): Promise<T> {
   if (!ctx.report || !ctx.report.kind) {
-    throw new Error('Report context missing: expected report.kind to be set before REPORT step.');
+    throw new ReportContextMissingError(
+      'Report context missing: expected report.kind to be set before REPORT step.',
+    );
   }
   const outputKinds = ctx.options?.llmOutput?.kinds ?? [];
   if (outputKinds.includes(ctx.report.kind)) {

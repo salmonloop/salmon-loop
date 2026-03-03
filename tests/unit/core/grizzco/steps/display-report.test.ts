@@ -10,9 +10,16 @@ describe('displayReport', () => {
       emit: () => {},
     };
 
-    await expect(displayReport(ctx)).rejects.toThrow(
-      'Report context missing: expected report.kind to be set before REPORT step.',
-    );
+    try {
+      await displayReport(ctx);
+      throw new Error('Expected displayReport to throw');
+    } catch (error: any) {
+      expect(error?.message).toBe(
+        'Report context missing: expected report.kind to be set before REPORT step.',
+      );
+      expect(error?.name).toBe('ReportContextMissingError');
+      expect(error?.code).toBe('REPORT_CONTEXT_MISSING');
+    }
   });
 
   it('renders research findings with research header', async () => {
