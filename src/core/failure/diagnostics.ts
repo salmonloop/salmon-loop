@@ -110,9 +110,92 @@ function buildDependencyGuidance(input: BuildFailureGuidanceInput): FailureGuida
   };
 }
 
+function buildErrorCodeGuidance(input: BuildFailureGuidanceInput): FailureGuidance | undefined {
+  switch (input.errorCode) {
+    case 'LLM_HTTP_REQUEST_FAILED':
+      return {
+        diagnosticCode: 'LLM_HTTP_REQUEST_FAILED',
+        safeHint: 'LLM request failed. Please retry in a moment.',
+        remediationSteps: [
+          'Retry the command after a short delay.',
+          'If it persists, check provider status or credentials.',
+        ],
+      };
+    case 'LLM_HTTP_ABORTED':
+      return {
+        diagnosticCode: 'LLM_HTTP_ABORTED',
+        safeHint: 'LLM request was aborted. Please retry.',
+        remediationSteps: [
+          'Retry the command.',
+          'If it persists, check network connectivity or timeouts.',
+        ],
+      };
+    case 'noFilesRead':
+      return {
+        diagnosticCode: 'NO_FILES_READ',
+        safeHint:
+          'Exploration did not read any files. Open the files you intend to modify and retry.',
+        remediationSteps: ['Explicitly open or reference target files, then retry.'],
+      };
+    case 'explorationHallucination':
+      return {
+        diagnosticCode: 'EXPLORATION_HALLUCINATION',
+        safeHint:
+          'Exploration found candidate files but did not read their contents. Open the target files and retry.',
+        remediationSteps: ['Open or reference the intended files so they can be read.'],
+      };
+    case 'PATCH_NOT_APPLICABLE':
+      return {
+        diagnosticCode: 'PATCH_NOT_APPLICABLE',
+        safeHint: 'Patch could not be applied cleanly. Please retry.',
+        remediationSteps: [
+          'Re-run after syncing with the latest file contents.',
+          'If it keeps failing, rerun with a smaller, more targeted change.',
+        ],
+      };
+    case 'LLM_PATCH_EMPTY':
+      return {
+        diagnosticCode: 'LLM_PATCH_EMPTY',
+        safeHint: 'LLM returned an empty patch. Please retry.',
+        remediationSteps: ['Retry the command.'],
+      };
+    case 'LLM_PATCH_NOT_UNIFIED_DIFF':
+      return {
+        diagnosticCode: 'LLM_PATCH_NOT_UNIFIED_DIFF',
+        safeHint: 'LLM returned a patch in an unsupported format. Please retry.',
+        remediationSteps: ['Ensure the patch is in unified diff format.'],
+      };
+    case 'lint':
+      return {
+        diagnosticCode: 'LINT_FAILED',
+        safeHint: 'Linting failed. Fix lint issues and retry.',
+        remediationSteps: ['Run the lint command locally to see details.'],
+      };
+    case 'test':
+      return {
+        diagnosticCode: 'TEST_FAILED',
+        safeHint: 'Tests failed. Fix test failures and retry.',
+        remediationSteps: ['Run the test command locally to see details.'],
+      };
+    case 'Error':
+      return {
+        diagnosticCode: 'UNEXPECTED_ERROR',
+        safeHint: 'An unexpected error occurred. Check the audit log for details and retry.',
+        remediationSteps: [
+          'Retry the command; if it persists, inspect the audit log for specifics.',
+        ],
+      };
+    default:
+      return undefined;
+  }
+}
+
 export function buildFailureGuidance(input: BuildFailureGuidanceInput): FailureGuidance {
   const dependencyGuidance = buildDependencyGuidance(input);
   if (dependencyGuidance) return dependencyGuidance;
+
+  const errorCodeGuidance = buildErrorCodeGuidance(input);
+  if (errorCodeGuidance) return errorCodeGuidance;
 
   if (input.reasonCode === 'PREFLIGHT_NOT_GIT') {
     return {

@@ -50,4 +50,125 @@ describe('buildFailureGuidance', () => {
     expect(guidance.remediationSteps.join('\n')).not.toContain('echo HACKED');
     expect(guidance.remediationSteps.join('\n')).not.toContain('bun add left-pad; echo HACKED');
   });
+
+  it('maps LLM request failures to a friendly hint', () => {
+    const guidance = buildFailureGuidance({
+      reasonCode: 'LOOP_FAILED',
+      failurePhase: 'EXPLORE',
+      errorCode: 'LLM_HTTP_REQUEST_FAILED',
+      fallbackReason:
+        'Technical details were hidden for safety. See the audit log for more information.',
+    });
+
+    expect(guidance.safeHint).toBe('LLM request failed. Please retry in a moment.');
+    expect(guidance.remediationSteps).toContain('Retry the command after a short delay.');
+  });
+
+  it('maps LLM aborted requests to a friendly hint', () => {
+    const guidance = buildFailureGuidance({
+      reasonCode: 'LOOP_FAILED',
+      failurePhase: 'EXPLORE',
+      errorCode: 'LLM_HTTP_ABORTED',
+      fallbackReason:
+        'Technical details were hidden for safety. See the audit log for more information.',
+    });
+
+    expect(guidance.safeHint).toBe('LLM request was aborted. Please retry.');
+    expect(guidance.remediationSteps).toContain('Retry the command.');
+  });
+
+  it('maps exploration no-files-read to a clear action hint', () => {
+    const guidance = buildFailureGuidance({
+      reasonCode: 'LOOP_FAILED',
+      failurePhase: 'EXPLORE',
+      errorCode: 'noFilesRead',
+      fallbackReason: 'No files were read during the exploration phase.',
+    });
+
+    expect(guidance.safeHint).toBe(
+      'Exploration did not read any files. Open the files you intend to modify and retry.',
+    );
+    expect(guidance.remediationSteps).toContain(
+      'Explicitly open or reference target files, then retry.',
+    );
+  });
+
+  it('maps patch not applicable to a friendly hint', () => {
+    const guidance = buildFailureGuidance({
+      reasonCode: 'LOOP_FAILED',
+      failurePhase: 'VALIDATE',
+      errorCode: 'PATCH_NOT_APPLICABLE',
+      fallbackReason: 'Patch did not apply cleanly.',
+    });
+
+    expect(guidance.safeHint).toBe('Patch could not be applied cleanly. Please retry.');
+    expect(guidance.remediationSteps).toContain(
+      'Re-run after syncing with the latest file contents.',
+    );
+  });
+
+  it('maps empty patch output to a friendly hint', () => {
+    const guidance = buildFailureGuidance({
+      reasonCode: 'LOOP_FAILED',
+      failurePhase: 'PATCH',
+      errorCode: 'LLM_PATCH_EMPTY',
+      fallbackReason: 'LLM returned an empty patch',
+    });
+
+    expect(guidance.safeHint).toBe('LLM returned an empty patch. Please retry.');
+    expect(guidance.remediationSteps).toContain('Retry the command.');
+  });
+
+  it('maps non-unified diff output to a friendly hint', () => {
+    const guidance = buildFailureGuidance({
+      reasonCode: 'LOOP_FAILED',
+      failurePhase: 'PATCH',
+      errorCode: 'LLM_PATCH_NOT_UNIFIED_DIFF',
+      fallbackReason: 'LLM patch is not in unified diff format',
+    });
+
+    expect(guidance.safeHint).toBe('LLM returned a patch in an unsupported format. Please retry.');
+    expect(guidance.remediationSteps).toContain('Ensure the patch is in unified diff format.');
+  });
+
+  it('maps lint failures to a clear action hint', () => {
+    const guidance = buildFailureGuidance({
+      reasonCode: 'VERIFY_FAILED',
+      failurePhase: 'VERIFY',
+      errorCode: 'lint',
+      fallbackReason: 'Lint failed',
+    });
+
+    expect(guidance.safeHint).toBe('Linting failed. Fix lint issues and retry.');
+    expect(guidance.remediationSteps).toContain('Run the lint command locally to see details.');
+  });
+
+  it('maps test failures to a clear action hint', () => {
+    const guidance = buildFailureGuidance({
+      reasonCode: 'VERIFY_FAILED',
+      failurePhase: 'VERIFY',
+      errorCode: 'test',
+      fallbackReason: 'Tests failed',
+    });
+
+    expect(guidance.safeHint).toBe('Tests failed. Fix test failures and retry.');
+    expect(guidance.remediationSteps).toContain('Run the test command locally to see details.');
+  });
+
+  it('maps generic Error code to a friendly hint', () => {
+    const guidance = buildFailureGuidance({
+      reasonCode: 'LOOP_FAILED',
+      failurePhase: 'EXPLORE',
+      errorCode: 'Error',
+      fallbackReason:
+        'Technical details were hidden for safety. See the audit log for more information.',
+    });
+
+    expect(guidance.safeHint).toBe(
+      'An unexpected error occurred. Check the audit log for details and retry.',
+    );
+    expect(guidance.remediationSteps).toContain(
+      'Retry the command; if it persists, inspect the audit log for specifics.',
+    );
+  });
 });

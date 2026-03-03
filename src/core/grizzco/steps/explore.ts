@@ -5,6 +5,7 @@ import { composeChatMessages } from '../../llm/message-composition.js';
 import { formatContextForPrompt } from '../../llm/utils.js';
 import { getExplorePrompt, getExploreSystemPrompt } from '../../prompts/runtime.js';
 import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
+import { SalmonError } from '../../types/errors.js';
 import { Phase, RelatedFileContext } from '../../types/index.js';
 import { ensureInSandbox, isSafeRelativePath, normalizePath } from '../../utils/path.js';
 import { resolveLlmToolCallingPolicy } from '../dsl/llm-strategy.js';
@@ -215,7 +216,7 @@ export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
       message: msg,
       timestamp: new Date(),
     });
-    throw new Error(msg);
+    throw new SalmonError(msg, validation.errorCode);
   }
 
   // Update context with captured files

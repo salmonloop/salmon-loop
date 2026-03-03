@@ -1,7 +1,6 @@
-import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
+import { describe, it, expect, beforeEach, afterEach, mock } from 'bun:test';
 
 import { runSalmonLoop } from '../../src/core/runtime/loop.js';
-import { text } from '../../src/locales/index.js';
 import { RealFsTestHelper } from '../helpers/real-fs-helper.js';
 
 type TestLlmPhase = 'explore_no_read' | 'explore_with_read' | 'plan' | 'patch' | 'done';
@@ -144,7 +143,9 @@ describe('Exploration Integrity Integration', () => {
 
     expect(result.success).toBe(true);
     expect(result.attempts).toBeGreaterThanOrEqual(2);
-    expect(result.history?.[0]?.error).toContain(text.errors.technicalDetailsHidden);
+    expect(result.history?.[0]?.error).toContain(
+      'Exploration did not read any files. Open the files you intend to modify and retry.',
+    );
 
     const content = await helper.readFile(repoPath, 'src/main.ts');
     expect(content).toContain('updated');
