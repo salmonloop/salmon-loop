@@ -53,7 +53,15 @@ describe('resolveAttemptFailure diagnostics', () => {
         success: false,
         duration: 1,
         traces: [],
-        error: { code: 'ASK_USER_REQUIRED', inputRequired },
+        error: {
+          code: 'INTERRUPT_REQUIRED',
+          interrupt: {
+            type: 'awaiting_input',
+            reason: 'clarification',
+            prompt: 'Pick one',
+            data: { inputRequired },
+          },
+        },
       } as any,
       context: {
         options: { environmentMode: 'strict' },

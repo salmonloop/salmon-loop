@@ -38,7 +38,7 @@ describe('interaction.ask_user tool', () => {
     expect(output.questions.length).toBe(1);
   });
 
-  it('throws when no provider is available', async () => {
+  it('throws interrupt when no provider is available', async () => {
     const { askUserSpec } = await import('../../../../src/core/tools/builtin/interaction.js');
 
     await expect(
@@ -63,7 +63,7 @@ describe('interaction.ask_user tool', () => {
           agentKind: 'primary',
         } as any,
       ),
-    ).rejects.toMatchObject({ code: 'ASK_USER_REQUIRED' });
+    ).rejects.toMatchObject({ code: 'INTERRUPT_REQUIRED' });
   });
 
   it('rejects answers that do not match question options', async () => {
