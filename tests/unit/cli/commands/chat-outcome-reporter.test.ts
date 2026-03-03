@@ -36,6 +36,7 @@ mock.module('../../../../src/core/config/index.js', () => ({
 }));
 
 mock.module('../../../../src/core/extensions/index.js', () => ({
+  ExtensionConfigError: class ExtensionConfigError extends Error {},
   resolveExtensions: mock(async () => ({ resolved: { mcpServers: [], toolPlugins: [] } })),
 }));
 

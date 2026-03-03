@@ -3,7 +3,7 @@ import { resolve } from 'path';
 import { Command } from 'commander';
 
 import { resolveConfig } from '../../core/config/index.js';
-import { resolveExtensions } from '../../core/extensions/index.js';
+import { resolveExtensions, ExtensionConfigError } from '../../core/extensions/index.js';
 import { createRuntimeLlm } from '../../core/llm/factory.js';
 import { logger } from '../../core/observability/logger.js';
 import { PluginLoader } from '../../core/plugin/loader.js';
@@ -90,7 +90,17 @@ export async function handleChatCommand(options: any, command: Command) {
 
   // Dynamic import to avoid circular dependencies if any, and keep startup fast
   const { startChatMode } = await import('../chat.js');
-  const extensionResolution = await resolveExtensions({ repoRoot: runPath });
+
+  let extensionResolution;
+  try {
+    extensionResolution = await resolveExtensions({ repoRoot: runPath });
+  } catch (err: unknown) {
+    if (err instanceof ExtensionConfigError) {
+      logger.error(`Extension configuration invalid: ${err.message}`);
+      process.exit(1);
+    }
+    throw err;
+  }
 
   try {
     await startChatMode({

@@ -51,6 +51,23 @@ type Facade = {
   getArtifact: (id: string, artifactId: string) => Promise<TaskEnvelope | null>;
 };
 
+type AcpPlanEntry = {
+  content: string;
+  priority: 'high' | 'medium' | 'low';
+  status: 'pending' | 'in_progress' | 'completed';
+};
+
+type AcpSessionRuntimeState = {
+  planEntries: Map<string, AcpPlanEntry>;
+  lastPlanDigest: string | null;
+  lastCommandsDigest: string | null;
+  // Reserved for future protocol-compliant mode integration.
+  modeReserved: {
+    availableModes: Array<{ id: string; name: string }>;
+    currentModeId: string | null;
+  };
+};
+
 function isAbsolutePath(filePath: string): boolean {
   if (defaultPathAdapter.isAbsolute(filePath)) return true;
   // Cross-platform absolute check for Windows paths on non-Windows runtimes.
@@ -141,6 +158,86 @@ function loopEventToSessionUpdate(event: LoopEvent): SessionUpdate | null {
   }
 }
 
+function createSessionRuntimeState(): AcpSessionRuntimeState {
+  return {
+    planEntries: new Map(),
+    lastPlanDigest: null,
+    lastCommandsDigest: null,
+    modeReserved: {
+      availableModes: [],
+      currentModeId: null,
+    },
+  };
+}
+
+function applyPhaseToPlanState(event: LoopEvent, state: AcpSessionRuntimeState): boolean {
+  if (event.type !== 'phase.start' && event.type !== 'phase.end') return false;
+
+  const phaseKey = event.phase;
+  const existing = state.planEntries.get(phaseKey);
+
+  if (event.type === 'phase.start') {
+    for (const [key, entry] of state.planEntries.entries()) {
+      if (key !== phaseKey && entry.status === 'in_progress') {
+        state.planEntries.set(key, { ...entry, status: 'completed' });
+      }
+    }
+    state.planEntries.set(phaseKey, {
+      content: phaseKey,
+      priority: existing?.priority ?? 'medium',
+      status: 'in_progress',
+    });
+    return true;
+  }
+
+  state.planEntries.set(phaseKey, {
+    content: phaseKey,
+    priority: existing?.priority ?? 'medium',
+    status: 'completed',
+  });
+  return true;
+}
+
+function buildPlanUpdateIfChanged(state: AcpSessionRuntimeState): SessionUpdate | null {
+  const entries = Array.from(state.planEntries.values());
+  const digest = JSON.stringify(entries);
+  if (digest === state.lastPlanDigest) return null;
+  state.lastPlanDigest = digest;
+  return {
+    sessionUpdate: 'plan',
+    entries,
+  };
+}
+
+function buildAvailableCommandsUpdateIfChanged(
+  state: AcpSessionRuntimeState,
+): SessionUpdate | null {
+  const availableCommands: Array<{ name: string; description: string }> = [];
+  const digest = JSON.stringify(availableCommands);
+  if (digest === state.lastCommandsDigest) return null;
+  state.lastCommandsDigest = digest;
+  return {
+    sessionUpdate: 'available_commands_update',
+    availableCommands,
+  };
+}
+
+function loopEventToSessionUpdates(
+  event: LoopEvent,
+  state: AcpSessionRuntimeState,
+): SessionUpdate[] {
+  const updates: SessionUpdate[] = [];
+  const mapped = loopEventToSessionUpdate(event);
+  if (mapped) updates.push(mapped);
+
+  if (applyPhaseToPlanState(event, state)) {
+    const planUpdate = buildPlanUpdateIfChanged(state);
+    if (planUpdate) updates.push(planUpdate);
+  }
+
+  return updates;
+}
+
 async function awaitTerminalEvent(params: {
   taskId: string;
   eventBus?: {
@@ -173,6 +270,7 @@ export function createAcpFormalAgent(deps: {
   };
 }): Agent {
   const sessions = createAcpSessionStore();
+  const sessionRuntime = new Map<string, AcpSessionRuntimeState>();
   let clientCapabilities: ClientCapabilities | undefined;
   const defaultClientCapabilities: ClientCapabilities = {
     fs: { readTextFile: false, writeTextFile: false },
@@ -196,6 +294,14 @@ export function createAcpFormalAgent(deps: {
       }));
     }
     return session;
+  }
+
+  function ensureSessionRuntimeState(sessionId: string): AcpSessionRuntimeState {
+    const existing = sessionRuntime.get(sessionId);
+    if (existing) return existing;
+    const created = createSessionRuntimeState();
+    sessionRuntime.set(sessionId, created);
+    return created;
   }
 
   return {
@@ -228,6 +334,7 @@ export function createAcpFormalAgent(deps: {
         throw new RequestError(-32602, 'Invalid params: cwd must be an absolute path');
       }
       const session = sessions.create({ cwd: params.cwd, mcpServers: params.mcpServers ?? [] });
+      ensureSessionRuntimeState(session.id);
       return { sessionId: session.id };
     },
 
@@ -235,6 +342,7 @@ export function createAcpFormalAgent(deps: {
       await loadSessionInternal(params);
 
       const session = sessions.get(params.sessionId)!;
+      ensureSessionRuntimeState(session.id);
       for (const entry of session.history) {
         const textParts = entry.content
           .map((block) =>
@@ -272,11 +380,17 @@ export function createAcpFormalAgent(deps: {
       }
 
       const promptText = extractTextFromPrompt(params.prompt);
+      const runtimeState = ensureSessionRuntimeState(params.sessionId);
       sessions.update(params.sessionId, (current) => ({
         ...current,
         cancelRequested: false,
         history: [...current.history, { role: 'user', content: params.prompt as unknown as any[] }],
       }));
+
+      const commandsUpdate = buildAvailableCommandsUpdateIfChanged(runtimeState);
+      if (commandsUpdate) {
+        await emitSessionUpdate(params.sessionId, commandsUpdate);
+      }
 
       const { task, signal } = await deps.facade.createTask({
         capability: 'patch',
@@ -290,8 +404,9 @@ export function createAcpFormalAgent(deps: {
         }),
         authorizationMode: 'blocking',
         onEvent: (event: LoopEvent) => {
-          const update = loopEventToSessionUpdate(event);
-          if (update) void emitSessionUpdate(params.sessionId, update);
+          for (const update of loopEventToSessionUpdates(event, runtimeState)) {
+            void emitSessionUpdate(params.sessionId, update);
+          }
         },
       });
 

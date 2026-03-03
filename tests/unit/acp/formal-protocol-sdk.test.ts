@@ -99,6 +99,86 @@ describe('ACP formal protocol (SDK)', () => {
     ).rejects.toMatchObject({ code: -32602 });
   });
 
+  it('returns sessionId for session/load response', async () => {
+    const updates: any[] = [];
+
+    const { clientConn } = createConnectedPair({
+      toAgent: (conn) =>
+        createAcpFormalAgent({
+          conn,
+          agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+          facade: {
+            createTask: async () => {
+              throw new Error('not used');
+            },
+            getTask: async () => null,
+            cancelTask: async () => null,
+            resumeTask: async () => null,
+            retryTask: async () => null,
+            reopenTask: async () => null,
+            listTasks: async () => ({ items: [] }),
+            submitInput: async () => null,
+            getArtifact: async () => null,
+          },
+        }),
+      toClient: () => ({
+        requestPermission: async () => ({ outcome: { outcome: 'cancelled' } }),
+        sessionUpdate: async (params: any) => {
+          updates.push(params);
+        },
+      }),
+    });
+
+    await clientConn.initialize({
+      protocolVersion: 1,
+      clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
+    });
+
+    const { sessionId } = await clientConn.newSession({ cwd: '/repo', mcpServers: [] });
+
+    const res = await clientConn.loadSession({ sessionId, cwd: '/repo', mcpServers: [] });
+    expect(res).toMatchObject({ sessionId });
+    expect(Array.isArray(updates)).toBe(true);
+  });
+
+  it('returns -32601 when session/set_mode is called but mode capability is not provided', async () => {
+    const { clientConn } = createConnectedPair({
+      toAgent: (conn) =>
+        createAcpFormalAgent({
+          conn,
+          agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+          facade: {
+            createTask: async () => {
+              throw new Error('not used');
+            },
+            getTask: async () => null,
+            cancelTask: async () => null,
+            resumeTask: async () => null,
+            retryTask: async () => null,
+            reopenTask: async () => null,
+            listTasks: async () => ({ items: [] }),
+            submitInput: async () => null,
+            getArtifact: async () => null,
+          },
+        }),
+      toClient: () => ({
+        requestPermission: async () => ({ outcome: { outcome: 'cancelled' } }),
+        sessionUpdate: async () => {},
+      }),
+    });
+
+    await clientConn.initialize({
+      protocolVersion: 1,
+      clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
+    });
+
+    const { sessionId } = await clientConn.newSession({ cwd: '/repo', mcpServers: [] });
+
+    await expect(
+      clientConn.setSessionMode({ sessionId, modeId: 'worktree' }),
+    ).rejects.toMatchObject({ code: -32601 });
+  });
+
   it('fails session/prompt when clientCapabilities.terminal is false', async () => {
     const { clientConn } = createConnectedPair({
       toAgent: (conn) =>
@@ -287,5 +367,74 @@ describe('ACP formal protocol (SDK)', () => {
     });
 
     expect(sawFileSystemOverride).toBe(true);
+  });
+
+  it('emits plan and available_commands_update session updates during prompt', async () => {
+    const updates: any[] = [];
+
+    const { clientConn } = createConnectedPair({
+      toAgent: (conn) =>
+        createAcpFormalAgent({
+          conn,
+          agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+          facade: {
+            createTask: async (input: any) => {
+              input.onEvent?.({
+                type: 'phase.start',
+                phase: 'PLAN',
+                timestamp: new Date(),
+              });
+              input.onEvent?.({
+                type: 'phase.end',
+                phase: 'PLAN',
+                success: true,
+                timestamp: new Date(),
+              });
+              return {
+                task: {
+                  id: 'task_1',
+                  capability: 'patch',
+                  state: 'accepted',
+                  request: { instruction: input.request.instruction },
+                  createdAt: new Date().toISOString(),
+                  attempt: 1,
+                },
+                signal: new AbortController().signal,
+              };
+            },
+            getTask: async () => null,
+            cancelTask: async () => null,
+            resumeTask: async () => null,
+            retryTask: async () => null,
+            reopenTask: async () => null,
+            listTasks: async () => ({ items: [] }),
+            submitInput: async () => null,
+            getArtifact: async () => null,
+          },
+        }),
+      toClient: () => ({
+        requestPermission: async () => ({ outcome: { outcome: 'cancelled' } }),
+        sessionUpdate: async (params: any) => {
+          updates.push(params.update);
+        },
+      }),
+    });
+
+    await clientConn.initialize({
+      protocolVersion: 1,
+      clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
+    });
+
+    const { sessionId } = await clientConn.newSession({ cwd: '/repo', mcpServers: [] });
+
+    await clientConn.prompt({
+      sessionId,
+      prompt: [{ type: 'text', text: 'hi' }],
+    });
+
+    expect(updates.some((update) => update.sessionUpdate === 'plan')).toBe(true);
+    expect(updates.some((update) => update.sessionUpdate === 'available_commands_update')).toBe(
+      true,
+    );
   });
 });
