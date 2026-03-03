@@ -179,6 +179,143 @@ describe('ACP formal protocol (SDK)', () => {
     ).rejects.toMatchObject({ code: -32601 });
   });
 
+  it('includes configOptions in session/new response', async () => {
+    const { clientConn } = createConnectedPair({
+      toAgent: (conn) =>
+        createAcpFormalAgent({
+          conn,
+          agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+          facade: {
+            createTask: async () => {
+              throw new Error('not used');
+            },
+            getTask: async () => null,
+            cancelTask: async () => null,
+            resumeTask: async () => null,
+            retryTask: async () => null,
+            reopenTask: async () => null,
+            listTasks: async () => ({ items: [] }),
+            submitInput: async () => null,
+            getArtifact: async () => null,
+          },
+        }),
+      toClient: () => ({
+        requestPermission: async () => ({ outcome: { outcome: 'cancelled' } }),
+        sessionUpdate: async () => {},
+      }),
+    });
+
+    await clientConn.initialize({
+      protocolVersion: 1,
+      clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
+    });
+
+    const response = await clientConn.newSession({ cwd: '/repo', mcpServers: [] });
+    expect(response.configOptions).toBeArray();
+    expect(response.configOptions?.[0]).toMatchObject({
+      type: 'select',
+      id: '_salmonloop_permission_policy',
+      currentValue: 'ask',
+    });
+  });
+
+  it('supports session/set_config_option and emits config_option_update', async () => {
+    const updates: any[] = [];
+
+    const { clientConn } = createConnectedPair({
+      toAgent: (conn) =>
+        createAcpFormalAgent({
+          conn,
+          agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+          facade: {
+            createTask: async () => {
+              throw new Error('not used');
+            },
+            getTask: async () => null,
+            cancelTask: async () => null,
+            resumeTask: async () => null,
+            retryTask: async () => null,
+            reopenTask: async () => null,
+            listTasks: async () => ({ items: [] }),
+            submitInput: async () => null,
+            getArtifact: async () => null,
+          },
+        }),
+      toClient: () => ({
+        requestPermission: async () => ({ outcome: { outcome: 'cancelled' } }),
+        sessionUpdate: async (params: any) => {
+          updates.push(params.update);
+        },
+      }),
+    });
+
+    await clientConn.initialize({
+      protocolVersion: 1,
+      clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
+    });
+
+    const { sessionId } = await clientConn.newSession({ cwd: '/repo', mcpServers: [] });
+    const response = await clientConn.setSessionConfigOption({
+      sessionId,
+      configId: '_salmonloop_permission_policy',
+      value: 'deny_all',
+    });
+
+    expect(response.configOptions[0]).toMatchObject({
+      type: 'select',
+      id: '_salmonloop_permission_policy',
+      currentValue: 'deny_all',
+    });
+    expect(
+      updates.some(
+        (update) =>
+          update.sessionUpdate === 'config_option_update' &&
+          update.configOptions?.[0]?.currentValue === 'deny_all',
+      ),
+    ).toBe(true);
+  });
+
+  it('returns -32602 when session/set_config_option has unsupported configId', async () => {
+    const { clientConn } = createConnectedPair({
+      toAgent: (conn) =>
+        createAcpFormalAgent({
+          conn,
+          agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+          facade: {
+            createTask: async () => {
+              throw new Error('not used');
+            },
+            getTask: async () => null,
+            cancelTask: async () => null,
+            resumeTask: async () => null,
+            retryTask: async () => null,
+            reopenTask: async () => null,
+            listTasks: async () => ({ items: [] }),
+            submitInput: async () => null,
+            getArtifact: async () => null,
+          },
+        }),
+      toClient: () => ({
+        requestPermission: async () => ({ outcome: { outcome: 'cancelled' } }),
+        sessionUpdate: async () => {},
+      }),
+    });
+
+    await clientConn.initialize({
+      protocolVersion: 1,
+      clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
+    });
+
+    const { sessionId } = await clientConn.newSession({ cwd: '/repo', mcpServers: [] });
+    await expect(
+      clientConn.setSessionConfigOption({
+        sessionId,
+        configId: '_unsupported',
+        value: 'x',
+      }),
+    ).rejects.toMatchObject({ code: -32602 });
+  });
+
   it('fails session/prompt when clientCapabilities.terminal is false', async () => {
     const { clientConn } = createConnectedPair({
       toAgent: (conn) =>

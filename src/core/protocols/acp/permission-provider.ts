@@ -53,6 +53,7 @@ export function createAcpToolAuthorizationProvider(params: {
   conn: AgentSideConnection;
   sessionId: string;
   clientCapabilities: ClientCapabilities;
+  getPermissionPolicy?: () => 'ask' | 'deny_all';
 }): ToolAuthorizationProvider {
   return {
     async requestAuthorization(request: ToolAuthorizationRequest) {
@@ -75,6 +76,10 @@ export function createAcpToolAuthorizationProvider(params: {
       }
       if (request.sideEffects.includes('process') && !params.clientCapabilities.terminal) {
         return { outcome: 'deny', reason: 'client_missing_capability: terminal', source: 'auto' };
+      }
+      const hasSideEffects = request.sideEffects.some((effect) => effect !== 'fs_read');
+      if (params.getPermissionPolicy?.() === 'deny_all' && hasSideEffects) {
+        return { outcome: 'deny', reason: 'session_config:deny_all', source: 'auto' };
       }
 
       const toolCall = toToolCallUpdate(request);

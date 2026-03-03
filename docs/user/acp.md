@@ -67,6 +67,18 @@ Send a prompt:
 
 ACP streams progress via `session/update` notifications on stdout.
 
+Update a session config option:
+
+```json
+{"jsonrpc":"2.0","id":4,"method":"session/set_config_option","params":{"sessionId":"<session-id>","configId":"_salmonloop_permission_policy","value":"deny_all"}}
+```
+
+Current built-in config option:
+
+- `_salmonloop_permission_policy`
+  - `ask` (default): request UI permission for side-effecting tools
+  - `deny_all`: auto-deny side-effecting tools
+
 ## Troubleshooting
 
 - **No startup message**: ACP logs are on **stderr**. Stdout only outputs JSON-RPC.

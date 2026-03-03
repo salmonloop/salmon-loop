@@ -10,6 +10,7 @@ This module implements the ACP (agent-client-protocol) stdio JSON-RPC adapter fo
   - `authenticate`
   - `session/new`
   - `session/load`
+  - `session/set_config_option`
   - `session/prompt`
   - `session/cancel` (notification)
   - `session/update` (notification)
@@ -31,12 +32,20 @@ This module implements the ACP (agent-client-protocol) stdio JSON-RPC adapter fo
 - `initialize` → protocol metadata and capability exposure.
 - `session/new` → create session record (no task yet).
 - `session/load` → reload session + replay history via `session/update`.
+- `session/set_config_option` → update session config selectors and return latest config options.
 - `session/prompt` → create task via canonical facade and push `session/update` chunks.
 - `session/cancel` → cancel current task (notification-only response).
 
 ## Notifications
 
 - `session/update` is the standard progress channel.
+- This implementation emits:
+  - `agent_message_chunk`
+  - `tool_call`
+  - `tool_call_update`
+  - `plan`
+  - `available_commands_update`
+  - `config_option_update`
 - All updates are emitted as JSON-RPC notifications to stdout.
 
 ## stdout/stderr Constraints

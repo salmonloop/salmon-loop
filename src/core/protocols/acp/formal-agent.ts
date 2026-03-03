@@ -6,6 +6,7 @@ import {
   type ClientCapabilities,
   type ContentBlock,
   type LoadSessionRequest,
+  type SessionConfigOption,
   type SessionUpdate,
   type StopReason,
   type ToolKind,
@@ -57,16 +58,24 @@ type AcpPlanEntry = {
   status: 'pending' | 'in_progress' | 'completed';
 };
 
+type AcpPermissionPolicy = 'ask' | 'deny_all';
+
 type AcpSessionRuntimeState = {
   planEntries: Map<string, AcpPlanEntry>;
   lastPlanDigest: string | null;
   lastCommandsDigest: string | null;
+  lastConfigDigest: string | null;
+  permissionPolicy: AcpPermissionPolicy;
   // Reserved for future protocol-compliant mode integration.
   modeReserved: {
     availableModes: Array<{ id: string; name: string }>;
     currentModeId: string | null;
   };
 };
+
+const ACP_PERMISSION_POLICY_CONFIG_ID = '_salmonloop_permission_policy';
+const ACP_PERMISSION_POLICY_ASK: AcpPermissionPolicy = 'ask';
+const ACP_PERMISSION_POLICY_DENY_ALL: AcpPermissionPolicy = 'deny_all';
 
 function isAbsolutePath(filePath: string): boolean {
   if (defaultPathAdapter.isAbsolute(filePath)) return true;
@@ -159,14 +168,64 @@ function loopEventToSessionUpdate(event: LoopEvent): SessionUpdate | null {
 }
 
 function createSessionRuntimeState(): AcpSessionRuntimeState {
+  const permissionPolicy = ACP_PERMISSION_POLICY_ASK;
   return {
     planEntries: new Map(),
     lastPlanDigest: null,
     lastCommandsDigest: null,
+    lastConfigDigest: JSON.stringify(
+      buildConfigOptionsFromPolicy(permissionPolicy as AcpPermissionPolicy),
+    ),
+    permissionPolicy,
     modeReserved: {
       availableModes: [],
       currentModeId: null,
     },
+  };
+}
+
+function isPermissionPolicyValue(value: string): value is AcpPermissionPolicy {
+  return value === ACP_PERMISSION_POLICY_ASK || value === ACP_PERMISSION_POLICY_DENY_ALL;
+}
+
+function buildConfigOptionsFromPolicy(
+  permissionPolicy: AcpPermissionPolicy,
+): SessionConfigOption[] {
+  return [
+    {
+      type: 'select',
+      id: ACP_PERMISSION_POLICY_CONFIG_ID,
+      name: 'Permission Policy',
+      description: 'How side-effecting operations should be authorized for this session.',
+      currentValue: permissionPolicy,
+      options: [
+        {
+          value: ACP_PERMISSION_POLICY_ASK,
+          name: 'Ask User',
+          description: 'Request user permission for side-effecting operations.',
+        },
+        {
+          value: ACP_PERMISSION_POLICY_DENY_ALL,
+          name: 'Deny All',
+          description: 'Automatically deny side-effecting operations.',
+        },
+      ],
+    },
+  ];
+}
+
+function buildConfigOptions(state: AcpSessionRuntimeState): SessionConfigOption[] {
+  return buildConfigOptionsFromPolicy(state.permissionPolicy);
+}
+
+function buildConfigOptionUpdateIfChanged(state: AcpSessionRuntimeState): SessionUpdate | null {
+  const configOptions = buildConfigOptions(state);
+  const digest = JSON.stringify(configOptions);
+  if (digest === state.lastConfigDigest) return null;
+  state.lastConfigDigest = digest;
+  return {
+    sessionUpdate: 'config_option_update',
+    configOptions,
   };
 }
 
@@ -334,15 +393,15 @@ export function createAcpFormalAgent(deps: {
         throw new RequestError(-32602, 'Invalid params: cwd must be an absolute path');
       }
       const session = sessions.create({ cwd: params.cwd, mcpServers: params.mcpServers ?? [] });
-      ensureSessionRuntimeState(session.id);
-      return { sessionId: session.id };
+      const runtimeState = ensureSessionRuntimeState(session.id);
+      return { sessionId: session.id, configOptions: buildConfigOptions(runtimeState) };
     },
 
     async loadSession(params) {
       await loadSessionInternal(params);
 
       const session = sessions.get(params.sessionId)!;
-      ensureSessionRuntimeState(session.id);
+      const runtimeState = ensureSessionRuntimeState(session.id);
       for (const entry of session.history) {
         const textParts = entry.content
           .map((block) =>
@@ -358,7 +417,32 @@ export function createAcpFormalAgent(deps: {
         }
       }
 
-      return { sessionId: session.id };
+      return { sessionId: session.id, configOptions: buildConfigOptions(runtimeState) };
+    },
+
+    async setSessionConfigOption(params) {
+      if (!sessions.get(params.sessionId)) {
+        throw new RequestError(-32004, `Session not found: ${params.sessionId}`);
+      }
+
+      const runtimeState = ensureSessionRuntimeState(params.sessionId);
+      if (params.configId !== ACP_PERMISSION_POLICY_CONFIG_ID) {
+        throw new RequestError(-32602, `Invalid params: unsupported configId "${params.configId}"`);
+      }
+      if (!isPermissionPolicyValue(params.value)) {
+        throw new RequestError(
+          -32602,
+          `Invalid params: unsupported value "${params.value}" for "${params.configId}"`,
+        );
+      }
+
+      runtimeState.permissionPolicy = params.value;
+      const update = buildConfigOptionUpdateIfChanged(runtimeState);
+      if (update) {
+        await emitSessionUpdate(params.sessionId, update);
+      }
+
+      return { configOptions: buildConfigOptions(runtimeState) };
     },
 
     async prompt(params) {
@@ -401,6 +485,7 @@ export function createAcpFormalAgent(deps: {
           conn: deps.conn,
           sessionId: params.sessionId,
           clientCapabilities: clientCapabilities ?? defaultClientCapabilities,
+          getPermissionPolicy: () => runtimeState.permissionPolicy,
         }),
         authorizationMode: 'blocking',
         onEvent: (event: LoopEvent) => {
