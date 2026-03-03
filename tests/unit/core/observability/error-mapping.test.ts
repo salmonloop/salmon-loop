@@ -66,6 +66,39 @@ describe('mapErrorForDisplay', () => {
     expect(result.redacted).toBe(true);
   });
 
+  it('maps tool and output error codes to localized messages', () => {
+    const toolParse = mapErrorForDisplay({
+      message: 'tool parse failed',
+      code: 'TOOL_PARSE_ERROR',
+    });
+    const outputParse = mapErrorForDisplay({
+      message: 'output parse failed',
+      code: 'OUTPUT_PARSE_FAILED',
+    });
+    const authRequired = mapErrorForDisplay({
+      message: 'auth required',
+      code: 'AUTH_REQUIRED',
+    });
+
+    expect(toolParse.message).toBe(text.errors.toolParseError);
+    expect(outputParse.message).toBe(text.errors.outputParseFailed);
+    expect(authRequired.message).toBe(text.errors.authRequired);
+  });
+
+  it('maps ask-user interruption error codes to localized messages', () => {
+    const cancelled = mapErrorForDisplay({
+      message: 'ask user cancelled',
+      code: 'ASK_USER_CANCELLED',
+    });
+    const blocked = mapErrorForDisplay({
+      message: 'ask user blocked',
+      code: 'ASK_USER_SUBAGENT_BLOCKED',
+    });
+
+    expect(cancelled.message).toBe(text.errors.askUserCancelled);
+    expect(blocked.message).toBe(text.errors.askUserSubagentBlocked);
+  });
+
   it('keeps original message when no mapping applies', () => {
     const result = mapErrorForDisplay({
       message: 'Something went wrong',
