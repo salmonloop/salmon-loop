@@ -79,6 +79,13 @@ const CODE_MESSAGE_MAP: CodeMessageLookup = {
   INTERNAL_ERROR: () => text.errors.internalError,
   UNAVAILABLE: () => text.errors.toolUnavailable,
   NONZERO_EXIT: () => text.errors.nonzeroExit,
+  TOOL_NOT_FOUND: () => text.errors.toolNotFound,
+  MALFORMED_TOOL_CALL: () => text.errors.malformedToolCall,
+  INVALID_TOOL_ARGUMENTS_JSON: () => text.errors.invalidToolArguments,
+  BUDGET_CONCURRENCY: () => text.errors.toolBudgetConcurrency,
+  TOOL_CALL_BUDGET_EXCEEDED: () => text.errors.toolCallBudgetExceeded,
+  PPD_TOOL_RESULT_MISSING: () => text.errors.ppdToolResultMissing,
+  TECHNICAL_ERROR: () => text.errors.technicalError,
 };
 
 function mapKnownErrorCode(code: string): string | undefined {

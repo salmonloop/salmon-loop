@@ -99,6 +99,35 @@ describe('mapErrorForDisplay', () => {
     expect(blocked.message).toBe(text.errors.askUserSubagentBlocked);
   });
 
+  it('maps tool routing and budget error codes to localized messages', () => {
+    const notFound = mapErrorForDisplay({
+      message: 'not found',
+      code: 'TOOL_NOT_FOUND',
+    });
+    const malformed = mapErrorForDisplay({
+      message: 'malformed tool call',
+      code: 'MALFORMED_TOOL_CALL',
+    });
+    const invalidArgs = mapErrorForDisplay({
+      message: 'invalid tool arguments',
+      code: 'INVALID_TOOL_ARGUMENTS_JSON',
+    });
+    const budget = mapErrorForDisplay({
+      message: 'budget',
+      code: 'BUDGET_CONCURRENCY',
+    });
+    const technical = mapErrorForDisplay({
+      message: 'technical',
+      code: 'TECHNICAL_ERROR',
+    });
+
+    expect(notFound.message).toBe(text.errors.toolNotFound);
+    expect(malformed.message).toBe(text.errors.malformedToolCall);
+    expect(invalidArgs.message).toBe(text.errors.invalidToolArguments);
+    expect(budget.message).toBe(text.errors.toolBudgetConcurrency);
+    expect(technical.message).toBe(text.errors.technicalError);
+  });
+
   it('keeps original message when no mapping applies', () => {
     const result = mapErrorForDisplay({
       message: 'Something went wrong',

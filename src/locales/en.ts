@@ -73,6 +73,13 @@ export const en = {
     internalError: 'Internal error occurred.',
     toolUnavailable: 'Required tool backend is unavailable.',
     nonzeroExit: 'Command failed with non-zero exit code.',
+    toolNotFound: 'Tool not found.',
+    malformedToolCall: 'Tool call was malformed.',
+    invalidToolArguments: 'Tool arguments were invalid.',
+    toolBudgetConcurrency: 'Tool call rejected due to concurrency budget.',
+    toolCallBudgetExceeded: 'Tool call budget exceeded.',
+    ppdToolResultMissing: 'Tool result is missing required payload.',
+    technicalError: 'Technical error occurred.',
   },
 
   acp: {
