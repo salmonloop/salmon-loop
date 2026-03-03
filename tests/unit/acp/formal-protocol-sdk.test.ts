@@ -507,6 +507,191 @@ describe('ACP formal protocol (SDK)', () => {
     expect(sawFileSystemOverride).toBe(true);
   });
 
+  it('emits user_message_chunk and non-empty available_commands_update', async () => {
+    const updates: any[] = [];
+
+    const { clientConn } = createConnectedPair({
+      toAgent: (conn) =>
+        createAcpFormalAgent({
+          conn,
+          agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+          facade: {
+            createTask: async (input: any) => ({
+              task: {
+                id: 'task_1',
+                capability: 'patch',
+                state: 'accepted',
+                request: { instruction: input.request.instruction },
+                createdAt: new Date().toISOString(),
+                attempt: 1,
+              },
+              signal: new AbortController().signal,
+            }),
+            getTask: async () => null,
+            cancelTask: async () => null,
+            resumeTask: async () => null,
+            retryTask: async () => null,
+            reopenTask: async () => null,
+            listTasks: async () => ({ items: [] }),
+            submitInput: async () => null,
+            getArtifact: async () => null,
+          },
+        }),
+      toClient: () => ({
+        requestPermission: async () => ({ outcome: { outcome: 'cancelled' } }),
+        sessionUpdate: async (params: any) => {
+          updates.push(params.update);
+        },
+      }),
+    });
+
+    await clientConn.initialize({
+      protocolVersion: 1,
+      clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
+    });
+
+    const { sessionId } = await clientConn.newSession({ cwd: '/repo', mcpServers: [] });
+    await clientConn.prompt({ sessionId, prompt: [{ type: 'text', text: 'hi' }] });
+
+    expect(updates.some((u) => u.sessionUpdate === 'user_message_chunk')).toBe(true);
+    const available = updates.find((u) => u.sessionUpdate === 'available_commands_update');
+    expect(Array.isArray(available?.availableCommands)).toBe(true);
+    expect(available.availableCommands.length).toBeGreaterThan(0);
+  });
+
+  it('handles ACP slash command without creating a task', async () => {
+    let sawCreateTask = false;
+    const updates: any[] = [];
+
+    const { clientConn } = createConnectedPair({
+      toAgent: (conn) =>
+        createAcpFormalAgent({
+          conn,
+          agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+          facade: {
+            createTask: async () => {
+              sawCreateTask = true;
+              return {
+                task: {
+                  id: 'task_1',
+                  capability: 'patch',
+                  state: 'accepted',
+                  request: { instruction: '' },
+                  createdAt: new Date().toISOString(),
+                  attempt: 1,
+                },
+                signal: new AbortController().signal,
+              };
+            },
+            getTask: async () => null,
+            cancelTask: async () => null,
+            resumeTask: async () => null,
+            retryTask: async () => null,
+            reopenTask: async () => null,
+            listTasks: async () => ({ items: [] }),
+            submitInput: async () => null,
+            getArtifact: async () => null,
+          },
+        }),
+      toClient: () => ({
+        requestPermission: async () => ({ outcome: { outcome: 'cancelled' } }),
+        sessionUpdate: async (params: any) => {
+          updates.push(params.update);
+        },
+      }),
+    });
+
+    await clientConn.initialize({
+      protocolVersion: 1,
+      clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
+    });
+
+    const { sessionId } = await clientConn.newSession({ cwd: '/repo', mcpServers: [] });
+    const result = await clientConn.prompt({
+      sessionId,
+      prompt: [{ type: 'text', text: '/help' }],
+    });
+
+    expect(sawCreateTask).toBe(false);
+    expect(result.stopReason).toBe('end_turn');
+    expect(updates.some((u) => u.sessionUpdate === 'agent_message_chunk')).toBe(true);
+  });
+
+  it('includes content blocks in tool_call and tool_call_update', async () => {
+    const updates: any[] = [];
+
+    const { clientConn } = createConnectedPair({
+      toAgent: (conn) =>
+        createAcpFormalAgent({
+          conn,
+          agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+          facade: {
+            createTask: async (input: any) => {
+              input.onEvent?.({
+                type: 'tool.call.start',
+                callId: 'call_1',
+                toolName: 'fs.read',
+                phase: 'PLAN',
+                round: 1,
+                input: { path: '/repo/README.md' },
+                timestamp: new Date(),
+              });
+              input.onEvent?.({
+                type: 'tool.call.end',
+                callId: 'call_1',
+                toolName: 'fs.read',
+                phase: 'PLAN',
+                round: 1,
+                status: 'ok',
+                outputSummary: 'read /repo/README.md',
+                timestamp: new Date(),
+              });
+              return {
+                task: {
+                  id: 'task_1',
+                  capability: 'patch',
+                  state: 'accepted',
+                  request: { instruction: input.request.instruction },
+                  createdAt: new Date().toISOString(),
+                  attempt: 1,
+                },
+                signal: new AbortController().signal,
+              };
+            },
+            getTask: async () => null,
+            cancelTask: async () => null,
+            resumeTask: async () => null,
+            retryTask: async () => null,
+            reopenTask: async () => null,
+            listTasks: async () => ({ items: [] }),
+            submitInput: async () => null,
+            getArtifact: async () => null,
+          },
+        }),
+      toClient: () => ({
+        requestPermission: async () => ({ outcome: { outcome: 'cancelled' } }),
+        sessionUpdate: async (params: any) => {
+          updates.push(params.update);
+        },
+      }),
+    });
+
+    await clientConn.initialize({
+      protocolVersion: 1,
+      clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
+    });
+
+    const { sessionId } = await clientConn.newSession({ cwd: '/repo', mcpServers: [] });
+    await clientConn.prompt({ sessionId, prompt: [{ type: 'text', text: 'hi' }] });
+
+    const start = updates.find((u) => u.sessionUpdate === 'tool_call' && u.toolCallId === 'call_1');
+    const end = updates.find(
+      (u) => u.sessionUpdate === 'tool_call_update' && u.toolCallId === 'call_1',
+    );
+    expect(Array.isArray(start?.content)).toBe(true);
+    expect(Array.isArray(end?.content)).toBe(true);
+  });
+
   it('accepts resource_link prompt blocks and forwards them into instruction text', async () => {
     let capturedInstruction = '';
 

@@ -9,13 +9,16 @@ import {
   type SessionConfigOption,
   type SessionUpdate,
   type StopReason,
+  type ToolCallContent,
   type ToolKind,
 } from '@agentclientprotocol/sdk';
 
+import { text } from '../../../locales/index.js';
 import { defaultPathAdapter } from '../../adapters/path/path-adapter.js';
 import type { TaskEvent } from '../../interaction/events/bus.js';
 import type { TaskEnvelope } from '../../interaction/model/index.js';
 import type { CommandRunner } from '../../runtime/command-runner-context.js';
+import { parseSlashInput } from '../../slash/parser.js';
 import type { FileSystem } from '../../types/index.js';
 import type { LoopEvent } from '../../types/index.js';
 
@@ -103,6 +106,10 @@ const defaultPromptCapabilities = {
   embeddedContext: false,
 };
 
+const ACP_AVAILABLE_COMMANDS: Array<{ name: string; description: string }> = [
+  { name: 'help', description: text.acp.slashHelpDescription },
+];
+
 function formatResourceLink(block: Extract<ContentBlock, { type: 'resource_link' }>): string {
   const title = block.title ?? block.name ?? block.uri;
   const description = block.description ? ` - ${block.description}` : '';
@@ -152,6 +159,21 @@ function mapToolKind(toolName: string): ToolKind {
   return 'execute';
 }
 
+function buildToolCallContent(textValue: string): ToolCallContent[] {
+  return [{ type: 'content', content: buildTextContentBlock(textValue) }];
+}
+
+function formatToolCallStart(event: Extract<LoopEvent, { type: 'tool.call.start' }>): string {
+  const input = event.input === undefined ? '' : `\nInput: ${JSON.stringify(event.input)}`;
+  return `Tool call started: ${event.toolName}${input}`;
+}
+
+function formatToolCallEnd(event: Extract<LoopEvent, { type: 'tool.call.end' }>): string {
+  if (event.outputSummary) return event.outputSummary;
+  const status = event.status === 'ok' ? 'completed' : 'failed';
+  return `Tool call ${status}: ${event.toolName}`;
+}
+
 function loopEventToSessionUpdate(event: LoopEvent): SessionUpdate | null {
   switch (event.type) {
     case 'llm.stream.delta':
@@ -171,12 +193,14 @@ function loopEventToSessionUpdate(event: LoopEvent): SessionUpdate | null {
         status: 'in_progress',
         title: event.toolName,
         kind: mapToolKind(event.toolName),
+        content: buildToolCallContent(formatToolCallStart(event)),
       };
     case 'tool.call.end':
       return {
         sessionUpdate: 'tool_call_update',
         toolCallId: event.callId,
         status: event.status === 'ok' ? 'completed' : 'failed',
+        content: buildToolCallContent(formatToolCallEnd(event)),
       };
     case 'phase.start':
       return {
@@ -328,7 +352,7 @@ function buildPlanUpdateIfChanged(state: AcpSessionRuntimeState): SessionUpdate 
 function buildAvailableCommandsUpdateIfChanged(
   state: AcpSessionRuntimeState,
 ): SessionUpdate | null {
-  const availableCommands: Array<{ name: string; description: string }> = [];
+  const availableCommands = ACP_AVAILABLE_COMMANDS;
   const digest = JSON.stringify(availableCommands);
   if (digest === state.lastCommandsDigest) return null;
   state.lastCommandsDigest = digest;
@@ -352,6 +376,34 @@ function loopEventToSessionUpdates(
   }
 
   return updates;
+}
+
+function extractSlashInput(prompt: ContentBlock[]): string | null {
+  if (prompt.length !== 1) return null;
+  const block = prompt[0];
+  if (!block || block.type !== 'text') return null;
+  const raw = block.text ?? '';
+  if (!raw.trimStart().startsWith('/')) return null;
+  return raw;
+}
+
+function buildSlashHelpMessage(): string {
+  const names = ACP_AVAILABLE_COMMANDS.map((cmd) => `/${cmd.name}`).join(', ');
+  return text.acp.slashHelpResponse(names);
+}
+
+function normalizeSlashName(commandName: string): string {
+  return commandName.replace(/^\/+/, '').toLowerCase();
+}
+
+function isKnownSlashCommand(commandName: string): boolean {
+  const normalized = normalizeSlashName(commandName);
+  return ACP_AVAILABLE_COMMANDS.some((cmd) => cmd.name.toLowerCase() === normalized);
+}
+
+function buildSlashUnknownMessage(commandName: string): string {
+  const normalized = normalizeSlashName(commandName);
+  return text.acp.slashUnknownCommand(normalized);
 }
 
 async function awaitTerminalEvent(params: {
@@ -550,9 +602,44 @@ export function createAcpFormalAgent(deps: {
         await emitSessionUpdate(params.sessionId, sessionInfoUpdate);
       }
 
+      await emitSessionUpdate(params.sessionId, {
+        sessionUpdate: 'user_message_chunk',
+        content: buildTextContentBlock(promptText),
+      });
+
       const commandsUpdate = buildAvailableCommandsUpdateIfChanged(runtimeState);
       if (commandsUpdate) {
         await emitSessionUpdate(params.sessionId, commandsUpdate);
+      }
+
+      const slashInput = extractSlashInput(params.prompt);
+      if (slashInput) {
+        const parsed = parseSlashInput(slashInput);
+        if (parsed.kind === 'slash' && parsed.commandName) {
+          const responseText = isKnownSlashCommand(parsed.commandName)
+            ? buildSlashHelpMessage()
+            : buildSlashUnknownMessage(parsed.commandName);
+          await emitSessionUpdate(params.sessionId, {
+            sessionUpdate: 'agent_message_chunk',
+            content: buildTextContentBlock(ensureMarkdownParagraphBreak(responseText)),
+          });
+          const sessionAfterAssistantMessage =
+            sessions.update(params.sessionId, (current) => ({
+              ...current,
+              history: [
+                ...current.history,
+                { role: 'assistant', content: [buildTextContentBlock(responseText)] as any },
+              ],
+            })) ?? sessions.get(params.sessionId)!;
+          const finalSessionInfoUpdate = buildSessionInfoUpdateIfChanged(
+            sessionAfterAssistantMessage,
+            runtimeState,
+          );
+          if (finalSessionInfoUpdate) {
+            await emitSessionUpdate(params.sessionId, finalSessionInfoUpdate);
+          }
+          return { stopReason: 'end_turn' };
+        }
       }
 
       const { task, signal } = await deps.facade.createTask({

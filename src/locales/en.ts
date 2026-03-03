@@ -26,6 +26,12 @@ export const en = {
       'Technical details were hidden for safety. See the audit log for more information.',
   },
 
+  acp: {
+    slashHelpDescription: 'Show available ACP slash commands',
+    slashHelpResponse: (commands: string) => `Available commands: ${commands}`,
+    slashUnknownCommand: (commandName: string) => `Unknown command: /${commandName}`,
+  },
+
   prompts: {
     definitionHint: 'Definitions should be modified with extreme caution',
     referenceHint: 'References marked with ↗️ indicate usage locations',
