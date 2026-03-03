@@ -65,6 +65,7 @@ type AcpSessionRuntimeState = {
   lastPlanDigest: string | null;
   lastCommandsDigest: string | null;
   lastConfigDigest: string | null;
+  lastSessionInfoDigest: string | null;
   permissionPolicy: AcpPermissionPolicy;
   // Reserved for future protocol-compliant mode integration.
   modeReserved: {
@@ -176,6 +177,7 @@ function createSessionRuntimeState(): AcpSessionRuntimeState {
     lastConfigDigest: JSON.stringify(
       buildConfigOptionsFromPolicy(permissionPolicy as AcpPermissionPolicy),
     ),
+    lastSessionInfoDigest: null,
     permissionPolicy,
     modeReserved: {
       availableModes: [],
@@ -226,6 +228,22 @@ function buildConfigOptionUpdateIfChanged(state: AcpSessionRuntimeState): Sessio
   return {
     sessionUpdate: 'config_option_update',
     configOptions,
+  };
+}
+
+function buildSessionInfoUpdateIfChanged(
+  session: AcpSessionRecord,
+  state: AcpSessionRuntimeState,
+): SessionUpdate | null {
+  const title = session.title ?? null;
+  const updatedAt = session.updatedAt ?? null;
+  const digest = JSON.stringify({ title, updatedAt });
+  if (digest === state.lastSessionInfoDigest) return null;
+  state.lastSessionInfoDigest = digest;
+  return {
+    sessionUpdate: 'session_info_update',
+    title,
+    updatedAt,
   };
 }
 
@@ -402,6 +420,10 @@ export function createAcpFormalAgent(deps: {
 
       const session = sessions.get(params.sessionId)!;
       const runtimeState = ensureSessionRuntimeState(session.id);
+      const sessionInfoUpdate = buildSessionInfoUpdateIfChanged(session, runtimeState);
+      if (sessionInfoUpdate) {
+        await emitSessionUpdate(session.id, sessionInfoUpdate);
+      }
       for (const entry of session.history) {
         const textParts = entry.content
           .map((block) =>
@@ -437,9 +459,16 @@ export function createAcpFormalAgent(deps: {
       }
 
       runtimeState.permissionPolicy = params.value;
+      const updatedSession =
+        sessions.update(params.sessionId, (current) => ({ ...current })) ??
+        sessions.get(params.sessionId)!;
       const update = buildConfigOptionUpdateIfChanged(runtimeState);
       if (update) {
         await emitSessionUpdate(params.sessionId, update);
+      }
+      const sessionInfoUpdate = buildSessionInfoUpdateIfChanged(updatedSession, runtimeState);
+      if (sessionInfoUpdate) {
+        await emitSessionUpdate(params.sessionId, sessionInfoUpdate);
       }
 
       return { configOptions: buildConfigOptions(runtimeState) };
@@ -465,11 +494,22 @@ export function createAcpFormalAgent(deps: {
 
       const promptText = extractTextFromPrompt(params.prompt);
       const runtimeState = ensureSessionRuntimeState(params.sessionId);
-      sessions.update(params.sessionId, (current) => ({
-        ...current,
-        cancelRequested: false,
-        history: [...current.history, { role: 'user', content: params.prompt as unknown as any[] }],
-      }));
+      const sessionAfterUserMessage =
+        sessions.update(params.sessionId, (current) => ({
+          ...current,
+          cancelRequested: false,
+          history: [
+            ...current.history,
+            { role: 'user', content: params.prompt as unknown as any[] },
+          ],
+        })) ?? sessions.get(params.sessionId)!;
+      const sessionInfoUpdate = buildSessionInfoUpdateIfChanged(
+        sessionAfterUserMessage,
+        runtimeState,
+      );
+      if (sessionInfoUpdate) {
+        await emitSessionUpdate(params.sessionId, sessionInfoUpdate);
+      }
 
       const commandsUpdate = buildAvailableCommandsUpdateIfChanged(runtimeState);
       if (commandsUpdate) {
@@ -523,13 +563,21 @@ export function createAcpFormalAgent(deps: {
         content: buildTextContentBlock(ensureMarkdownParagraphBreak(assistantText)),
       });
 
-      sessions.update(params.sessionId, (current) => ({
-        ...current,
-        history: [
-          ...current.history,
-          { role: 'assistant', content: [buildTextContentBlock(assistantText)] as any },
-        ],
-      }));
+      const sessionAfterAssistantMessage =
+        sessions.update(params.sessionId, (current) => ({
+          ...current,
+          history: [
+            ...current.history,
+            { role: 'assistant', content: [buildTextContentBlock(assistantText)] as any },
+          ],
+        })) ?? sessions.get(params.sessionId)!;
+      const finalSessionInfoUpdate = buildSessionInfoUpdateIfChanged(
+        sessionAfterAssistantMessage,
+        runtimeState,
+      );
+      if (finalSessionInfoUpdate) {
+        await emitSessionUpdate(params.sessionId, finalSessionInfoUpdate);
+      }
 
       return { stopReason };
     },

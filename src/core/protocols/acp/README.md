@@ -46,6 +46,7 @@ This module implements the ACP (agent-client-protocol) stdio JSON-RPC adapter fo
   - `plan`
   - `available_commands_update`
   - `config_option_update`
+  - `session_info_update`
 - All updates are emitted as JSON-RPC notifications to stdout.
 
 ## stdout/stderr Constraints

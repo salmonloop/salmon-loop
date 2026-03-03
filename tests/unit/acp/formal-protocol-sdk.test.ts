@@ -506,7 +506,7 @@ describe('ACP formal protocol (SDK)', () => {
     expect(sawFileSystemOverride).toBe(true);
   });
 
-  it('emits plan and available_commands_update session updates during prompt', async () => {
+  it('emits plan, available_commands_update and session_info_update during prompt', async () => {
     const updates: any[] = [];
 
     const { clientConn } = createConnectedPair({
@@ -573,5 +573,10 @@ describe('ACP formal protocol (SDK)', () => {
     expect(updates.some((update) => update.sessionUpdate === 'available_commands_update')).toBe(
       true,
     );
+    const hasSessionInfoUpdate = updates.some(
+      (update) =>
+        update.sessionUpdate === 'session_info_update' && typeof update.updatedAt === 'string',
+    );
+    expect(hasSessionInfoUpdate).toBe(true);
   });
 });
