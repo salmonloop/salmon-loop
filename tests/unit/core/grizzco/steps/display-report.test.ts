@@ -4,6 +4,17 @@ import { displayReport } from '../../../../../src/core/grizzco/steps/display-rep
 import { text } from '../../../../../src/locales/index.js';
 
 describe('displayReport', () => {
+  it('throws when report payload is missing', async () => {
+    const ctx: any = {
+      options: { llmOutput: { kinds: [] } },
+      emit: () => {},
+    };
+
+    await expect(displayReport(ctx)).rejects.toThrow(
+      'Report context missing: expected report.kind to be set before REPORT step.',
+    );
+  });
+
   it('renders research findings with research header', async () => {
     const messages: string[] = [];
     const ctx: any = {

@@ -42,4 +42,22 @@ describe('llm output policy', () => {
     expect(streamed).toContain('api_key: [REDACTED]');
     expect(streamed).not.toContain('sk-1234567890abcdef');
   });
+
+  it('emits research output when policy includes research', () => {
+    const events: LoopEvent[] = [];
+    const emit = (event: LoopEvent) => events.push(event);
+    const policy: LlmOutputPolicy = { kinds: ['research'] };
+
+    emitLlmStreamDelta({
+      emit,
+      policy,
+      kind: 'research',
+      step: 'RESEARCH',
+      streamId: 'stream-research',
+      content: 'research output',
+    });
+
+    const streamed = events.find((event) => event.type === 'llm.stream.delta');
+    expect(streamed).toBeDefined();
+  });
 });

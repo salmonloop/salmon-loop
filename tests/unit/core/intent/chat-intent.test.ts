@@ -47,6 +47,13 @@ describe('routeChatIntent', () => {
     expect(decision.classifier).toBe('llm');
   });
 
+  it('routes deep research requests to research (heuristic)', async () => {
+    const llm = new JsonLlm({ intent: 'answer', confidence: 1, reason: 'unused' });
+    const decision = await routeChatIntent('please do deep research on this topic', { llm });
+    expect(decision.intent).toBe('research');
+    expect(decision.classifier).toBe('heuristic');
+  });
+
   it('downgrades low-confidence mutating intents to answer', async () => {
     const llm = new JsonLlm({ intent: 'patch', confidence: 0.2, reason: 'uncertain' });
     const decision = await routeChatIntent('请修复这个问题', { llm });
