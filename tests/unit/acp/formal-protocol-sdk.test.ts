@@ -99,7 +99,7 @@ describe('ACP formal protocol (SDK)', () => {
     ).rejects.toMatchObject({ code: -32602 });
   });
 
-  it('returns sessionId for session/load response', async () => {
+  it('returns schema-compliant payload for session/load response', async () => {
     const updates: any[] = [];
 
     const { clientConn } = createConnectedPair({
@@ -137,7 +137,8 @@ describe('ACP formal protocol (SDK)', () => {
     const { sessionId } = await clientConn.newSession({ cwd: '/repo', mcpServers: [] });
 
     const res = await clientConn.loadSession({ sessionId, cwd: '/repo', mcpServers: [] });
-    expect(res).toMatchObject({ sessionId });
+    expect(Array.isArray(res.configOptions)).toBe(true);
+    expect(Object.prototype.hasOwnProperty.call(res, 'sessionId')).toBe(false);
     expect(Array.isArray(updates)).toBe(true);
   });
 
@@ -578,5 +579,75 @@ describe('ACP formal protocol (SDK)', () => {
         update.sessionUpdate === 'session_info_update' && typeof update.updatedAt === 'string',
     );
     expect(hasSessionInfoUpdate).toBe(true);
+  });
+
+  it('returns cancelled stopReason when receiving session/cancel during prompt', async () => {
+    const listeners = new Set<(event: any) => void>();
+    const eventBus = {
+      subscribe: (listener: (event: any) => void) => {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
+      list: () => [],
+    };
+
+    const { clientConn } = createConnectedPair({
+      toAgent: (conn) =>
+        createAcpFormalAgent({
+          conn,
+          agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+          eventBus: eventBus as any,
+          facade: {
+            createTask: async (input: any) => ({
+              task: {
+                id: 'task_cancel_1',
+                capability: 'patch',
+                state: 'accepted',
+                request: { instruction: input.request.instruction },
+                createdAt: new Date().toISOString(),
+                attempt: 1,
+              },
+              signal: new AbortController().signal,
+            }),
+            getTask: async () => null,
+            cancelTask: async () => {
+              const event = {
+                taskId: 'task_cancel_1',
+                type: 'task.cancelled',
+                timestamp: Date.now(),
+              };
+              for (const listener of listeners) listener(event);
+              return null;
+            },
+            resumeTask: async () => null,
+            retryTask: async () => null,
+            reopenTask: async () => null,
+            listTasks: async () => ({ items: [] }),
+            submitInput: async () => null,
+            getArtifact: async () => null,
+          },
+        }),
+      toClient: () => ({
+        requestPermission: async () => ({ outcome: { outcome: 'cancelled' } }),
+        sessionUpdate: async () => {},
+      }),
+    });
+
+    await clientConn.initialize({
+      protocolVersion: 1,
+      clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
+    });
+    const { sessionId } = await clientConn.newSession({ cwd: '/repo', mcpServers: [] });
+
+    const promptPromise = clientConn.prompt({
+      sessionId,
+      prompt: [{ type: 'text', text: 'long running task' }],
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await clientConn.cancel({ sessionId });
+
+    const result = await promptPromise;
+    expect(result.stopReason).toBe('cancelled');
   });
 });

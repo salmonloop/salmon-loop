@@ -439,7 +439,7 @@ export function createAcpFormalAgent(deps: {
         }
       }
 
-      return { sessionId: session.id, configOptions: buildConfigOptions(runtimeState) };
+      return { configOptions: buildConfigOptions(runtimeState) };
     },
 
     async setSessionConfigOption(params) {
