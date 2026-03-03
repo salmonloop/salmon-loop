@@ -39,15 +39,20 @@ export const CommandInput: React.FC<Props> = ({
   const isConfirming = !!pendingConfirmation;
   const isAuthorizing = !!pendingAuthorization;
   const isSelecting = !!pendingSelection;
+  const isMultiSelecting = Boolean(pendingSelection?.multiSelect);
   const isIntercepting = isAuthorizing || isConfirming || isSelecting;
   const activeChallenge = pendingAuthorization?.challenge || pendingConfirmation?.challenge;
 
   const [inputKey, setInputKey] = useState(0);
   const [selectionIndex, setSelectionIndex] = useState(0);
+  const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const suppressNextInputChangeRef = React.useRef(false);
 
   React.useEffect(() => {
-    if (pendingSelection) setSelectionIndex(0);
+    if (pendingSelection) {
+      setSelectionIndex(0);
+      setSelectedItems([]);
+    }
   }, [pendingSelection?.id]);
 
   const {
@@ -147,6 +152,14 @@ export const CommandInput: React.FC<Props> = ({
         }
         return;
       }
+      if (isMultiSelecting && input === ' ') {
+        const picked = items[selectionIndex]?.id;
+        if (!picked) return;
+        setSelectedItems((prev) =>
+          prev.includes(picked) ? prev.filter((id) => id !== picked) : [...prev, picked],
+        );
+        return;
+      }
       return;
     }
 
@@ -198,8 +211,12 @@ export const CommandInput: React.FC<Props> = ({
           onSubmit={(val) => {
             if (isSelecting && pendingSelection) {
               const items = pendingSelection.items ?? [];
-              const picked = items[selectionIndex]?.id ?? null;
-              resolveSelection(pendingSelection.id, picked);
+              if (isMultiSelecting) {
+                resolveSelection(pendingSelection.id, selectedItems.length > 0 ? selectedItems : []);
+              } else {
+                const picked = items[selectionIndex]?.id ?? null;
+                resolveSelection(pendingSelection.id, picked ? [picked] : []);
+              }
               dispatch({ type: 'SET_INPUT', payload: '' });
               return;
             }
@@ -224,7 +241,9 @@ export const CommandInput: React.FC<Props> = ({
           }}
           placeholder={
             isSelecting
-              ? en.gui.selectionPlaceholder
+              ? isMultiSelecting
+                ? en.gui.selectionPlaceholderMulti
+                : en.gui.selectionPlaceholder
               : isIntercepting && activeChallenge
                 ? en.gui.confirmationChallenge(activeChallenge)
                 : placeholder
@@ -253,7 +272,9 @@ export const CommandInput: React.FC<Props> = ({
           )}
           <Text color="gray" dimColor>
             {isSelecting
-              ? en.gui.selectionHint
+              ? isMultiSelecting
+                ? en.gui.selectionHintMulti
+                : en.gui.selectionHint
               : isAuthorizing
                 ? en.gui.authorizationWarning
                 : en.gui.highRiskWarning}
@@ -267,6 +288,11 @@ export const CommandInput: React.FC<Props> = ({
             <Box flexDirection="column" marginTop={1}>
               {pendingSelection.items.map((item, idx) => (
                 <Text key={item.id} color={idx === selectionIndex ? 'green' : 'gray'}>
+                  {isMultiSelecting && (
+                    <Text color={selectedItems.includes(item.id) ? 'green' : 'gray'}>
+                      {selectedItems.includes(item.id) ? '[x] ' : '[ ] '}
+                    </Text>
+                  )}
                   {item.label}
                   {item.description ? ` - ${item.description}` : ''}
                 </Text>

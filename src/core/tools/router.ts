@@ -280,11 +280,15 @@ export class ToolRouter {
     } catch (e: unknown) {
       let errorCode = 'RUNTIME_ERROR';
       let errorMessage = String(e);
+      let errorMeta: Record<string, any> | undefined;
 
       if (e instanceof Error) {
         errorMessage = e.message;
         if ('code' in e && typeof (e as { code?: unknown }).code === 'string') {
           errorCode = (e as { code: string }).code;
+        }
+        if ('inputRequired' in e) {
+          errorMeta = { inputRequired: (e as any).inputRequired };
         }
       } else if (e && typeof e === 'object') {
         if ('message' in e && typeof (e as { message: unknown }).message === 'string') {
@@ -292,6 +296,9 @@ export class ToolRouter {
         }
         if ('code' in e && typeof (e as { code?: unknown }).code === 'string') {
           errorCode = (e as { code: string }).code;
+        }
+        if ('inputRequired' in e) {
+          errorMeta = { inputRequired: (e as any).inputRequired };
         }
       }
 
@@ -301,6 +308,7 @@ export class ToolRouter {
         errorCode === 'TIMEOUT' ? 'timeout' : 'error',
         errorCode,
         errorMessage,
+        errorMeta,
       );
 
       this.audit.onEnd(result);

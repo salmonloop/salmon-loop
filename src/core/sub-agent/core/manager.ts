@@ -203,6 +203,7 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
       verify: undefined,
       strategy: 'worktree',
       contextFiles: request.contextFiles,
+      agentKind: 'subagent',
     };
     const env = new RuntimeEnvironment(options, (event) => {
       if (event.type === 'log') {

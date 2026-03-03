@@ -2,6 +2,7 @@ import type { ArtifactHandle } from '../../../sub-agent/artifacts/types.js';
 import type {
   AuthorizationSourceSummary,
   ExecutionPhase,
+  LoopInputRequired,
   LoopIteration,
   LoopReasonCode,
 } from '../../../types/index.js';
@@ -24,4 +25,5 @@ export interface FlowTransactionReport {
   terminalDiagnosticCode?: string;
   terminalSafeHint?: string;
   terminalRemediationSteps?: string[];
+  terminalInputRequired?: LoopInputRequired;
 }

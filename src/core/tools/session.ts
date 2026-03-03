@@ -1220,6 +1220,17 @@ async function executeToolCalls(
       timestamp: new Date(),
     });
 
+    if (
+      result.status !== 'ok' &&
+      result.error?.code === 'ASK_USER_REQUIRED' &&
+      result.meta?.inputRequired
+    ) {
+      const err = new Error(result.error.message || 'User input required');
+      (err as any).code = 'ASK_USER_REQUIRED';
+      (err as any).inputRequired = result.meta.inputRequired;
+      throw err;
+    }
+
     if (result.status !== 'ok') {
       const errorCode = result.error?.code;
       const attachArgsPreview = errorCode === 'INVALID_INPUT';

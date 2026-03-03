@@ -42,7 +42,8 @@ async function selectParallelPlanFromUi(
   });
 
   const promptId = `parallel-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  return requestSelection({ id: promptId, title, items });
+  const selected = await requestSelection({ id: promptId, title, items });
+  return selected?.[0] ?? null;
 }
 
 function parallelSubcommandHint(sub: string) {

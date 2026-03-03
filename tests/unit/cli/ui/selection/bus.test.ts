@@ -39,8 +39,8 @@ describe('UI Selection Bus', () => {
     const p = mod.requestSelection(prompt);
     expect(actions[0]).toEqual({ type: 'SET_SELECTION', payload: prompt });
 
-    mod.resolveSelection(prompt.id, 'b');
-    await expect(p).resolves.toBe('b');
+    mod.resolveSelection(prompt.id, ['b']);
+    await expect(p).resolves.toEqual(['b']);
     expect(actions.some((a) => a.type === 'CLEAR_SELECTION')).toBe(true);
   });
 

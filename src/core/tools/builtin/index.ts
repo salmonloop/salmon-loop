@@ -19,6 +19,7 @@ import { planInitSpec, planReadSpec, planUpdateSpec } from './plan.js';
 import { proposalApplySpec, executeProposalApply } from './proposal.js';
 import { shellExecSpec, executeShellExec } from './shell.js';
 import { verifyRunSpec, executeVerifyRun } from './verify.js';
+import { askUserSpec } from './interaction.js';
 
 /**
  * Registers all builtin tools into the provided registry
@@ -92,6 +93,7 @@ export function registerAllBuiltins(registry: ToolRegistry): void {
   registry.register(planInitSpec);
   registry.register(planReadSpec);
   registry.register(planUpdateSpec);
+  registry.register(askUserSpec);
 }
 
 export {

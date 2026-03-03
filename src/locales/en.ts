@@ -30,6 +30,11 @@ export const en = {
     slashHelpDescription: 'Show available ACP slash commands',
     slashHelpResponse: (commands: string) => `Available commands: ${commands}`,
     slashUnknownCommand: (commandName: string) => `Unknown command: /${commandName}`,
+    askUserHeader: 'User input required',
+    askUserQuestion: (question: string) => `Question: ${question}`,
+    askUserOptionsHeader: 'Options:',
+    askUserOption: (label: string, description: string) => `- ${label}: ${description}`,
+    askUserMultiSelectHint: 'Multi-select enabled (comma-separated answers)',
   },
 
   prompts: {
@@ -541,6 +546,7 @@ Please return the patch in PURE unified diff format:`;
     planInitDescription: 'Initialize a runtime Markdown plan file under .salmonloop/plans/',
     planReadDescription: 'Read a summarized view of the current runtime Markdown plan',
     planUpdateDescription: 'Update a plan step by stable sl:id with minimal in-place edits',
+    askUserDescription: 'Ask the user a structured question and wait for input',
 
     // Execution logs
     executing: (name: string) => `Executing tool: ${name}...`,
@@ -568,6 +574,9 @@ Please return the patch in PURE unified diff format:`;
       'Tool execution denied: no matching --allowedTools permission rule',
     permissionRulesParseFailed: (details: string) =>
       `Invalid permission rules: ${details || 'unknown error'}`,
+    askUserRequired: 'User input required',
+    askUserSubagentBlocked: 'User input is unavailable in sub-agent execution',
+    askUserPromptDefault: 'User input required',
   },
 
   audit: {

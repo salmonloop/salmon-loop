@@ -88,7 +88,7 @@ describe('ACP formal protocol (SDK)', () => {
 
     await clientConn.initialize({
       protocolVersion: 1,
-      clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false },
+      clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: false },
     });
 
     await expect(
@@ -131,7 +131,7 @@ describe('ACP formal protocol (SDK)', () => {
 
     await clientConn.initialize({
       protocolVersion: 1,
-      clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
+      clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: false },
     });
 
     const { sessionId } = await clientConn.newSession({ cwd: '/repo', mcpServers: [] });
@@ -170,7 +170,7 @@ describe('ACP formal protocol (SDK)', () => {
 
     await clientConn.initialize({
       protocolVersion: 1,
-      clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
+      clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: false },
     });
 
     const { sessionId } = await clientConn.newSession({ cwd: '/repo', mcpServers: [] });
@@ -345,7 +345,7 @@ describe('ACP formal protocol (SDK)', () => {
 
     await clientConn.initialize({
       protocolVersion: 1,
-      clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false },
+      clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: false },
     });
 
     const { sessionId } = await clientConn.newSession({ cwd: '/repo', mcpServers: [] });
@@ -1005,5 +1005,94 @@ describe('ACP formal protocol (SDK)', () => {
 
     const result = await promptPromise;
     expect(result.stopReason).toBe('cancelled');
+  });
+
+  it('emits structured inputRequired meta for awaiting input', async () => {
+    const updates: any[] = [];
+    const events: any[] = [];
+    const listeners = new Set<(event: any) => void>();
+    let lastTaskId = 'task_1';
+
+    const eventBus = {
+      subscribe: (listener: (event: any) => void) => {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
+      list: (taskId: string) => events.filter((e) => e.taskId === taskId),
+    };
+
+    const inputRequired = {
+      type: 'question',
+      reason: 'clarification',
+      prompt: 'Pick one',
+      questions: [
+        {
+          question: 'Which option?',
+          header: 'Pick',
+          options: [
+            { label: 'A', description: 'First' },
+            { label: 'B', description: 'Second' },
+          ],
+          multiSelect: false,
+        },
+      ],
+    };
+
+    const { clientConn } = createConnectedPair({
+      toAgent: (conn) =>
+        createAcpFormalAgent({
+          conn,
+          agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+          eventBus: eventBus as any,
+          facade: {
+            createTask: async (input: any) => {
+              lastTaskId = `task_${Date.now()}`;
+              events.push({ type: 'task.awaiting_input', taskId: lastTaskId });
+              return {
+                task: {
+                  id: lastTaskId,
+                  capability: 'patch',
+                  state: 'accepted',
+                  request: { instruction: input.request.instruction },
+                  createdAt: new Date().toISOString(),
+                  attempt: 1,
+                },
+                signal: new AbortController().signal,
+              };
+            },
+            getTask: async () =>
+              ({
+                id: lastTaskId,
+                state: 'awaiting_input',
+                inputRequired,
+              }) as any,
+            cancelTask: async () => null,
+            resumeTask: async () => null,
+            retryTask: async () => null,
+            reopenTask: async () => null,
+            listTasks: async () => ({ items: [] }),
+            submitInput: async () => null,
+            getArtifact: async () => null,
+          },
+        }),
+      toClient: () => ({
+        requestPermission: async () => ({ outcome: { outcome: 'cancelled' } }),
+        sessionUpdate: async ({ update }: any) => updates.push(update),
+      }),
+    });
+
+    await clientConn.initialize({
+      protocolVersion: 1,
+      clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
+    });
+    const { sessionId } = await clientConn.newSession({ cwd: '/tmp', mcpServers: [] });
+
+    await clientConn.prompt({
+      sessionId,
+      prompt: [{ type: 'text', text: 'Ask a question' }],
+    });
+
+    const update = updates.find((u) => u?.sessionUpdate === 'agent_message_chunk');
+    expect(update?._meta?.inputRequired).toEqual(inputRequired);
   });
 });

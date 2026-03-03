@@ -29,4 +29,41 @@ describe('resolveAttemptFailure diagnostics', () => {
     expect(failure?.remediationSteps[0]).toContain('bun add fast-xml-parser');
     expect(failure?.reason).toBe(failure?.safeHint);
   });
+
+  it('maps ask_user interruptions to awaiting input', () => {
+    const inputRequired = {
+      type: 'question',
+      reason: 'clarification',
+      prompt: 'Pick one',
+      questions: [
+        {
+          question: 'Which option?',
+          header: 'Pick',
+          options: [
+            { label: 'A', description: 'First' },
+            { label: 'B', description: 'Second' },
+          ],
+          multiSelect: false,
+        },
+      ],
+    };
+
+    const failure = resolveAttemptFailure({
+      flowReport: {
+        success: false,
+        duration: 1,
+        traces: [],
+        error: { code: 'ASK_USER_REQUIRED', inputRequired },
+      } as any,
+      context: {
+        options: { environmentMode: 'strict' },
+      } as any,
+      flowMode: 'patch',
+    });
+
+    expect(failure).toBeTruthy();
+    expect(failure?.reasonCode).toBe('AWAITING_INPUT');
+    expect(failure?.retryable).toBe(false);
+    expect((failure as any)?.inputRequired).toEqual(inputRequired);
+  });
 });

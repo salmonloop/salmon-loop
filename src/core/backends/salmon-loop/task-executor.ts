@@ -1,4 +1,5 @@
 import type { TaskEnvelope } from '../../interaction/model/index.js';
+import type { LoopResult } from '../../types/index.js';
 import type { CommandRunner } from '../../runtime/command-runner-context.js';
 import {
   createLocalCommandRunner,
@@ -17,7 +18,7 @@ export function createSalmonTaskExecutor(deps: {
     authorizationProvider?: ToolAuthorizationProvider;
     authorizationMode?: 'blocking' | 'deferred';
     fileSystemOverride?: FileSystem;
-  }) => Promise<unknown>;
+  }) => Promise<LoopResult>;
 }) {
   return {
     async execute(
@@ -32,8 +33,8 @@ export function createSalmonTaskExecutor(deps: {
       },
     ): Promise<TaskEnvelope> {
       const runner = options?.commandRunner ?? createLocalCommandRunner();
-      await withCommandRunner(runner, async () => {
-        await deps.runLoop({
+      const result = await withCommandRunner(runner, async () => {
+        return await deps.runLoop({
           instruction: task.request.instruction,
           mode: task.capability,
           onEvent: options?.onEvent,
@@ -43,6 +44,15 @@ export function createSalmonTaskExecutor(deps: {
           fileSystemOverride: options?.fileSystemOverride,
         });
       });
+
+      if (result.reasonCode === 'AWAITING_INPUT' && result.inputRequired) {
+        return {
+          ...task,
+          state: 'awaiting_input',
+          statusMessage: result.inputRequired.prompt,
+          inputRequired: result.inputRequired,
+        };
+      }
 
       return {
         ...task,

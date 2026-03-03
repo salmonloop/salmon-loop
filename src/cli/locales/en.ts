@@ -40,6 +40,7 @@ export const en = {
   slashHandlerUnavailable: 'Command handler unavailable',
   slashInternalError: 'Internal error',
   skillNoPrompt: (id: string) => `Skill ${id} did not produce a prompt`,
+  askUserCancelled: 'User cancelled input request',
 
   gui: {
     title: 'Salmon Loop',
@@ -64,6 +65,8 @@ export const en = {
     authorizationHint: 'Tip: add "all", "save", or "global" after the code.',
     selectionPlaceholder: 'Use Up/Down to select, Enter to confirm (Esc to cancel)',
     selectionHint: 'Use Up/Down to navigate, Enter to select, Esc to cancel.',
+    selectionPlaceholderMulti: 'Use Up/Down, Space to toggle, Enter to confirm (Esc to cancel)',
+    selectionHintMulti: 'Use Up/Down to navigate, Space to toggle, Enter to confirm.',
   },
 
   // Command descriptions

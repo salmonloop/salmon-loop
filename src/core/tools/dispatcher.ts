@@ -23,6 +23,8 @@ export class ToolDispatcher {
       attemptId: number;
       dryRun: boolean;
       model?: string;
+      userInputProvider?: import('../types/index.js').UserInputProvider;
+      agentKind?: 'primary' | 'subagent';
     },
   ) {}
 
@@ -58,6 +60,8 @@ export class ToolDispatcher {
           attemptId: this.options.attemptId,
           dryRun: this.options.dryRun,
           model: this.options.model,
+          userInputProvider: this.options.userInputProvider,
+          agentKind: this.options.agentKind,
         },
       };
 

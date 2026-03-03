@@ -90,6 +90,54 @@ describe('loop-result-mapper', () => {
     expect(result.contextHash).toBe('ctx-hash-1');
   });
 
+  it('propagates inputRequired for awaiting_input results', () => {
+    const telemetry = createTelemetry();
+    const inputRequired = {
+      type: 'question',
+      reason: 'clarification',
+      prompt: 'Pick one',
+      questions: [
+        {
+          question: 'Which option?',
+          header: 'Pick',
+          options: [
+            { label: 'A', description: 'First' },
+            { label: 'B', description: 'Second' },
+          ],
+          multiSelect: false,
+        },
+      ],
+    };
+
+    const report: FlowTransactionReport = {
+      success: false,
+      attempts: 1,
+      flowReport: {
+        success: false,
+        duration: 1,
+        traces: [],
+        strategyName: 'patch',
+        fsMode: 'patch',
+      },
+      history: [],
+      retryExhausted: false,
+      terminalReason: 'Awaiting input',
+      terminalReasonCode: 'AWAITING_INPUT',
+      terminalInputRequired: inputRequired as any,
+    };
+
+    const result = buildLoopResultFromTransaction({
+      executionReport: report,
+      flowMode: 'patch',
+      options: {} as any,
+      telemetry,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.reasonCode).toBe('AWAITING_INPUT');
+    expect((result as any).inputRequired).toEqual(inputRequired);
+  });
+
   it('surfaces token usage aggregated from audit trail', () => {
     recordAuditEvent('llm.usage', { promptTokens: 10, completionTokens: 20 });
     recordAuditEvent('llm.usage', { promptTokens: 5, completionTokens: 1 });

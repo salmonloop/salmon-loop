@@ -134,6 +134,10 @@ export function buildLoopResultFromTransaction({
     strategyName: executionReport.flowReport.strategyName ?? flowMode,
     fsMode: executionReport.flowReport.fsMode ?? flowMode,
     budgetSummary,
+    inputRequired:
+      executionReport.terminalReasonCode === 'AWAITING_INPUT'
+        ? executionReport.terminalInputRequired
+        : undefined,
   };
 }
 

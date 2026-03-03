@@ -179,6 +179,8 @@ export async function generateResearch(ctx: ExploreCtx): Promise<ResearchCtx> {
         llm: ctx.options.llm,
         model:
           ctx.options.llm.getModelId?.() || process.env.SALMONLOOP_MODEL || process.env.S8P_MODEL,
+        userInputProvider: ctx.options.userInputProvider,
+        agentKind: ctx.options.agentKind ?? 'primary',
       },
       toolstack: ctx.toolstack,
       eventPayload: ctx.options.eventPayload,

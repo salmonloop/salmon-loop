@@ -25,6 +25,7 @@ import type {
   LLM,
   LoopEvent,
   LlmOutputPolicy,
+  UserInputProvider,
   VerboseLevel,
 } from '../core/types/index.js';
 
@@ -35,6 +36,7 @@ import { CHAT_QUEUE_CONFIG } from './config.js';
 import { text } from './locales/index.js';
 import { createCliSlashRuntime } from './slash/runtime.js';
 import type { GUIOptions } from './ui/index.js';
+import { requestSelection } from './ui/selection/bus.js';
 import { buildTranscriptMessages } from './ui/utils/transcript.js';
 import { createAsyncQueue } from './utils/asyncQueue.js';
 
@@ -116,6 +118,44 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
     },
     config: options.toolAuthorization,
   });
+
+  const userInputProvider: UserInputProvider = {
+    askUser: async (input, requestOptions) => {
+      const answers: Record<string, string> = {};
+      for (const question of input.questions) {
+        if (requestOptions?.signal?.aborted) {
+          const err = new Error(text.cli.askUserCancelled);
+          (err as any).code = 'ASK_USER_CANCELLED';
+          throw err;
+        }
+
+        const items = question.options.map((opt) => ({
+          id: opt.label,
+          label: opt.label,
+          description: opt.description,
+        }));
+        const title = question.header?.trim() || question.question;
+        const promptId = `ask-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const selected = await requestSelection({
+          id: promptId,
+          title,
+          items,
+          multiSelect: question.multiSelect,
+        });
+
+        if (!selected || selected.length === 0) {
+          const err = new Error(text.cli.askUserCancelled);
+          (err as any).code = 'ASK_USER_CANCELLED';
+          throw err;
+        }
+
+        const answer = question.multiSelect ? selected.join(', ') : selected[0] ?? '';
+        answers[question.question] = answer;
+      }
+
+      return { questions: input.questions, answers };
+    },
+  };
 
   const slashRuntime = await createCliSlashRuntime({
     repoRoot: options.repoPath,
@@ -345,6 +385,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
             langfuseUserId: options.langfuseUserId,
             authorizationProvider,
             authorizationMode: 'deferred',
+            userInputProvider,
           });
 
           return { kind: 'flow' as const, mode: intentDecision.intent, result };

@@ -55,6 +55,29 @@ type Facade = {
   getArtifact: (id: string, artifactId: string) => Promise<TaskEnvelope | null>;
 };
 
+function formatInputRequiredMessage(inputRequired: TaskEnvelope['inputRequired']): string | null {
+  if (!inputRequired || !Array.isArray((inputRequired as any).questions)) return null;
+  const questions = (inputRequired as any).questions as Array<{
+    question: string;
+    options: Array<{ label: string; description: string }>;
+    multiSelect: boolean;
+  }>;
+  if (questions.length === 0) return null;
+
+  const lines: string[] = [text.acp.askUserHeader];
+  for (const q of questions) {
+    lines.push(text.acp.askUserQuestion(q.question));
+    lines.push(text.acp.askUserOptionsHeader);
+    for (const option of q.options) {
+      lines.push(text.acp.askUserOption(option.label, option.description));
+    }
+    if (q.multiSelect) {
+      lines.push(text.acp.askUserMultiSelectHint);
+    }
+  }
+  return lines.join('\n');
+}
+
 type AcpPlanEntry = {
   content: string;
   priority: 'high' | 'medium' | 'low';
@@ -674,6 +697,7 @@ export function createAcpFormalAgent(deps: {
       const terminalEvent = await awaitTerminalEvent({ taskId: task.id, eventBus: deps.eventBus });
       let stopReason: StopReason = 'end_turn';
       let assistantText = 'Task completed.';
+      let assistantMeta: Record<string, unknown> | undefined;
       const cancelRequested = sessions.get(params.sessionId)?.cancelRequested === true;
 
       if (cancelRequested) {
@@ -683,6 +707,14 @@ export function createAcpFormalAgent(deps: {
         assistantText = 'Task failed.';
       } else if (terminalEvent?.type === 'task.awaiting_input') {
         assistantText = 'Task awaiting input.';
+        const latest = await deps.facade.getTask(task.id);
+        const formatted = latest?.inputRequired
+          ? formatInputRequiredMessage(latest.inputRequired)
+          : null;
+        if (formatted) assistantText = formatted;
+        if (latest?.inputRequired) {
+          assistantMeta = { inputRequired: latest.inputRequired };
+        }
       } else if (terminalEvent?.type === 'task.cancelled') {
         assistantText = 'Task cancelled.';
         stopReason = 'cancelled';
@@ -691,6 +723,7 @@ export function createAcpFormalAgent(deps: {
       await emitSessionUpdate(params.sessionId, {
         sessionUpdate: 'agent_message_chunk',
         content: buildTextContentBlock(ensureMarkdownParagraphBreak(assistantText)),
+        ...(assistantMeta ? { _meta: assistantMeta } : {}),
       });
 
       const sessionAfterAssistantMessage =

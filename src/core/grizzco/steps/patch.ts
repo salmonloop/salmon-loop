@@ -112,6 +112,8 @@ export const generatePatch: Step<PlanCtx, PatchCtx> = async (ctx) => {
         llm: ctx.options.llm,
         model:
           ctx.options.llm.getModelId?.() || process.env.SALMONLOOP_MODEL || process.env.S8P_MODEL,
+        userInputProvider: ctx.options.userInputProvider,
+        agentKind: ctx.options.agentKind ?? 'primary',
       },
       toolstack,
       eventPayload: ctx.options.eventPayload,

@@ -200,6 +200,7 @@ export interface UIState {
     id: string;
     title: string;
     items: Array<{ id: string; label: string; description?: string }>;
+    multiSelect?: boolean;
   };
 }
 

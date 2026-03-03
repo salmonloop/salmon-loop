@@ -33,7 +33,40 @@ export type LoopReasonCode =
   | 'MAX_RETRIES'
   | 'APPLY_BACK_FAILED'
   | 'LOOP_CRASH'
+  | 'AWAITING_INPUT'
   | 'SUCCESS';
+
+export interface AskUserOption {
+  label: string;
+  description: string;
+}
+
+export interface AskUserQuestion {
+  question: string;
+  header: string;
+  options: AskUserOption[];
+  multiSelect: boolean;
+}
+
+export interface AskUserInput {
+  questions: AskUserQuestion[];
+}
+
+export interface AskUserOutput {
+  questions: AskUserQuestion[];
+  answers: Record<string, string>;
+}
+
+export interface UserInputProvider {
+  askUser: (input: AskUserInput, options?: { signal?: AbortSignal }) => Promise<AskUserOutput>;
+}
+
+export interface LoopInputRequired {
+  type: string;
+  reason?: 'approval' | 'clarification' | 'reopen';
+  prompt: string;
+  questions?: AskUserQuestion[];
+}
 
 export interface LoopIteration {
   attempt: number;
@@ -83,6 +116,7 @@ export interface LoopResult {
   strategyName?: string;
   fsMode?: FlowMode;
   budgetSummary?: BudgetRunSummary;
+  inputRequired?: LoopInputRequired;
 }
 
 /**
@@ -374,6 +408,8 @@ export interface LoopOptions {
   extensions?: ResolvedExtensions;
   outcomeReporter?: RunOutcomeReporter;
   budgetChars?: number;
+  userInputProvider?: UserInputProvider;
+  agentKind?: 'primary' | 'subagent';
   eventPayload?: {
     includeToolInput?: boolean;
     includeToolOutput?: boolean;

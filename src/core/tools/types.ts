@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import type { ExecutionPhase, LLM } from '../types/index.js';
+import type { ExecutionPhase, LLM, UserInputProvider } from '../types/index.js';
 
 import { ResourceKey } from './parallel/resources.js';
 
@@ -41,6 +41,8 @@ export interface ToolRuntimeCtx {
   model?: string;
   env?: Record<string, string>;
   phase?: ExecutionPhase;
+  userInputProvider?: UserInputProvider;
+  agentKind?: 'primary' | 'subagent';
   /**
    * Optional runtime LLM reference for internal orchestration tools (e.g., sub-agent dispatch).
    * This is not exposed to the model; it is a host-only in-process reference.

@@ -76,6 +76,7 @@ export function mapTerminalFailureReport(
     terminalDiagnosticCode: failure.diagnosticCode,
     terminalSafeHint: failure.safeHint,
     terminalRemediationSteps: [...failure.remediationSteps],
+    terminalInputRequired: failure.inputRequired,
   };
 }
 

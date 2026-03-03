@@ -3,7 +3,12 @@ import { buildFailureGuidance } from '../../../failure/diagnostics.js';
 import { sanitizeError } from '../../../llm/errors.js';
 import { REDACTED_ERROR_TOKEN } from '../../../observability/error-envelope.js';
 import { EXECUTION_PHASES } from '../../../types/index.js';
-import type { ExecutionPhase, FlowMode, LoopReasonCode } from '../../../types/index.js';
+import type {
+  ExecutionPhase,
+  FlowMode,
+  LoopInputRequired,
+  LoopReasonCode,
+} from '../../../types/index.js';
 import { classifyError, isRetryable } from '../../../verification/runner.js';
 import type { FlowReport } from '../pipeline/pipeline.js';
 import type { ShrinkCtx } from '../pipeline/types.js';
@@ -17,6 +22,7 @@ export interface AttemptFailureDetails {
   diagnosticCode: string;
   safeHint: string;
   remediationSteps: string[];
+  inputRequired?: LoopInputRequired;
 }
 
 const RETRYABLE_PHASES = new Set<ExecutionPhase>([
@@ -69,12 +75,37 @@ function sanitizeReason(value: unknown): string {
   return sanitized;
 }
 
+function extractInputRequired(error: unknown): LoopInputRequired | undefined {
+  if (!error || typeof error !== 'object') return undefined;
+  const value = (error as any).inputRequired;
+  if (!value || typeof value !== 'object') return undefined;
+  if (typeof value.prompt !== 'string' || typeof value.type !== 'string') return undefined;
+  return value as LoopInputRequired;
+}
+
 export function resolveAttemptFailure(params: {
   flowReport: FlowReport;
   context?: ShrinkCtx;
   flowMode: FlowMode;
 }): AttemptFailureDetails | undefined {
   const { flowReport, context, flowMode } = params;
+  const askUserInput = extractInputRequired(flowReport.error);
+  const askUserCode = extractErrorCode(flowReport.error);
+  if (askUserCode === 'ASK_USER_REQUIRED' && askUserInput) {
+    const failurePhase = inferFailurePhase(flowReport);
+    const reason = askUserInput.prompt || text.tools.askUserPromptDefault;
+    return {
+      reason,
+      reasonCode: 'AWAITING_INPUT',
+      failurePhase,
+      retryable: false,
+      errorCode: 'ASK_USER_REQUIRED',
+      diagnosticCode: 'ASK_USER_REQUIRED',
+      safeHint: reason,
+      remediationSteps: [],
+      inputRequired: askUserInput,
+    };
+  }
   const verifyOk =
     flowMode === 'review' || flowMode === 'research' ? true : context?.verifyResult?.ok !== false;
   const applyBackFailed =
