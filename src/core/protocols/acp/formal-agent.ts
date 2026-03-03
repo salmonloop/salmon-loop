@@ -97,10 +97,49 @@ function buildTextContentBlock(text: string): ContentBlock {
   return { type: 'text', text };
 }
 
-function extractTextFromPrompt(prompt: ContentBlock[]): string {
+const defaultPromptCapabilities = {
+  image: false,
+  audio: false,
+  embeddedContext: false,
+};
+
+function formatResourceLink(block: Extract<ContentBlock, { type: 'resource_link' }>): string {
+  const title = block.title ?? block.name ?? block.uri;
+  const description = block.description ? ` - ${block.description}` : '';
+  return `Resource: ${title} (${block.uri})${description}`;
+}
+
+function extractTextFromPrompt(
+  prompt: ContentBlock[],
+  capabilities: { image: boolean; audio: boolean; embeddedContext: boolean },
+): string {
   const parts: string[] = [];
   for (const block of prompt) {
-    if (block.type === 'text') parts.push(block.text);
+    switch (block.type) {
+      case 'text':
+        parts.push(block.text);
+        break;
+      case 'resource_link':
+        parts.push(formatResourceLink(block));
+        break;
+      case 'image':
+        if (!capabilities.image) {
+          throw new RequestError(-32000, 'Prompt content type image is not supported');
+        }
+        break;
+      case 'audio':
+        if (!capabilities.audio) {
+          throw new RequestError(-32000, 'Prompt content type audio is not supported');
+        }
+        break;
+      case 'resource':
+        if (!capabilities.embeddedContext) {
+          throw new RequestError(-32000, 'Prompt content type resource is not supported');
+        }
+        break;
+      default:
+        throw new RequestError(-32602, 'Invalid params: unsupported content block type');
+    }
   }
   return parts.join('\n');
 }
@@ -395,7 +434,7 @@ export function createAcpFormalAgent(deps: {
         authMethods: [],
         agentCapabilities: {
           loadSession: true,
-          promptCapabilities: { image: false, audio: false, embeddedContext: false },
+          promptCapabilities: defaultPromptCapabilities,
           mcpCapabilities: { http: false, sse: false },
           sessionCapabilities: {},
         },
@@ -492,7 +531,7 @@ export function createAcpFormalAgent(deps: {
         throw new RequestError(-32000, 'Client capability fs.writeTextFile is required');
       }
 
-      const promptText = extractTextFromPrompt(params.prompt);
+      const promptText = extractTextFromPrompt(params.prompt, defaultPromptCapabilities);
       const runtimeState = ensureSessionRuntimeState(params.sessionId);
       const sessionAfterUserMessage =
         sessions.update(params.sessionId, (current) => ({
