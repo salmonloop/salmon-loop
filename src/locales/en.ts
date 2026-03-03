@@ -2,6 +2,7 @@ export const en = {
   llm: {
     planEmpty: 'LLM returned empty response for plan',
     planInvalid: 'Invalid Plan structure: missing required fields',
+    planInvalidJson: 'LLM returned invalid JSON for plan',
     planParseFailed: (content: string, error: string) => {
       const raw = String(content ?? '');
       const max = 800;
@@ -10,12 +11,15 @@ export const en = {
     },
     patchEmpty: (reason?: string) =>
       `LLM returned empty response for patch${reason ? ` (${reason})` : ''}`,
+    patchNotUnifiedDiff: 'LLM patch is not in unified diff format',
+    patchInvalid: 'LLM patch is invalid',
     reviewEmpty: 'LLM returned empty response for review',
     validationFailed:
       'Tool output validation failed. The output does not match the expected schema.',
   },
 
   llmErrors: {
+    httpResponseInvalidJson: 'LLM returned an invalid JSON response',
     httpInvalidJson: 'LLM returned a malformed JSON response',
     httpAborted: 'LLM request was aborted',
     httpRequestFailed: 'LLM request failed',
@@ -24,6 +28,35 @@ export const en = {
   errors: {
     technicalDetailsHidden:
       'Technical details were hidden for safety. See the audit log for more information.',
+    noFilesRead: 'No files were read during exploration. Open target files and retry.',
+    explorationHallucination:
+      'Exploration found candidate files but did not read them. Open target files and retry.',
+    preflightNotGit: 'Preflight failed: not a git repository.',
+    preflightDirty: 'Preflight failed: workspace has uncommitted changes.',
+    applyBackFailed: 'Apply-back failed due to conflicting local changes.',
+    patchNotApplicable: 'Patch could not be applied cleanly.',
+    diffValidationFailed: 'Diff validation failed.',
+    gitError: 'Git operation failed.',
+    schemaInvalid: 'Structured output schema is invalid.',
+    schemaValidationFailed: 'Structured output validation failed.',
+    schemaViolation: 'Tool output schema violation detected.',
+    usageError: 'Usage error: invalid command options.',
+    interruptRequired: 'Input required to continue.',
+    permissionRuleDeny: 'Permission denied by policy.',
+    permissionRequiredContextCacheOutsideRoot:
+      'Permission required: context cache outside repository root.',
+    permissionDeniedContextCacheOutsideRoot:
+      'Permission denied: context cache outside repository root.',
+    compilationFailed: 'Compilation failed.',
+    lintFailed: 'Linting failed.',
+    testFailed: 'Tests failed.',
+    logicFailed: 'Verification failed.',
+    dependencyError: 'Dependency setup failed in the verification environment.',
+    resourceLockError: 'Resource lock error during verification.',
+    astValidationError: 'AST validation error.',
+    unknownError: 'Unknown error.',
+    timeout: 'Operation timed out.',
+    runtimeError: 'Runtime error occurred.',
   },
 
   acp: {

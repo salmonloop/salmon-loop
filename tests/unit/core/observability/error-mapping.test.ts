@@ -22,6 +22,50 @@ describe('mapErrorForDisplay', () => {
     expect(result.code).toBe('LLM_HTTP_REQUEST_FAILED');
   });
 
+  it('maps additional error codes to localized messages', () => {
+    const preflight = mapErrorForDisplay({
+      message: 'ERR_TECHNICAL_DETAILS_HIDDEN',
+      code: 'PREFLIGHT_NOT_GIT',
+    });
+    const schema = mapErrorForDisplay({
+      message: 'Schema invalid',
+      code: 'SCHEMA_INVALID',
+    });
+    const lint = mapErrorForDisplay({
+      message: 'Lint failed',
+      code: 'lint',
+    });
+    const patchEmpty = mapErrorForDisplay({
+      message: 'LLM patch empty',
+      code: 'LLM_PATCH_EMPTY',
+    });
+
+    expect(preflight.message).toBe(text.errors.preflightNotGit);
+    expect(preflight.redacted).toBe(true);
+    expect(schema.message).toBe(text.errors.schemaInvalid);
+    expect(lint.message).toBe(text.errors.lintFailed);
+    expect(patchEmpty.message).toBe(text.llm.patchEmpty());
+  });
+
+  it('maps config error codes using config formatter', () => {
+    const result = mapErrorForDisplay({
+      message: 'Config failed',
+      code: 'CONFIG_LLM_MODELS_REQUIRED',
+    });
+
+    expect(result.message).toBe(text.config.error('CONFIG_LLM_MODELS_REQUIRED'));
+  });
+
+  it('maps redacted errors to code-specific messages when available', () => {
+    const result = mapErrorForDisplay({
+      message: REDACTED_ERROR_TOKEN,
+      code: 'noFilesRead',
+    });
+
+    expect(result.message).toBe(text.errors.noFilesRead);
+    expect(result.redacted).toBe(true);
+  });
+
   it('keeps original message when no mapping applies', () => {
     const result = mapErrorForDisplay({
       message: 'Something went wrong',
