@@ -63,6 +63,9 @@ function normalizeSuggestions(
 }
 
 export async function displayReport<T extends ReportableCtx>(ctx: T): Promise<T> {
+  if (!ctx.report || !ctx.report.kind) {
+    throw new Error('Report context missing: expected report.kind to be set before REPORT step.');
+  }
   const outputKinds = ctx.options?.llmOutput?.kinds ?? [];
   if (outputKinds.includes(ctx.report.kind)) {
     return ctx;

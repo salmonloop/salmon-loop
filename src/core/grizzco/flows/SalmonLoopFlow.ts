@@ -21,9 +21,8 @@ import { generatePatch } from '../steps/patch.js';
 import { generatePlan } from '../steps/plan.js';
 import { runPreflight } from '../steps/preflight.js';
 import { runPrepareDeps } from '../steps/prepare-deps.js';
-import { runResearchShrink } from '../steps/research-shrink.js';
+import { runReadOnlyShrink } from '../steps/read-only-shrink.js';
 import { generateResearch } from '../steps/research.js';
-import { runReviewShrink } from '../steps/review-shrink.js';
 import { runRollback, runEmergencyRollback } from '../steps/rollback.js';
 import { runShrink } from '../steps/shrink.js';
 import { validatePatch } from '../steps/validate.js';
@@ -58,14 +57,14 @@ function buildReviewPipeline(base: Pipeline<ExploreCtx>): Pipeline<ReviewCtx> {
   return base
     .step('REVIEW', generateReview)
     .step('REPORT', displayReview)
-    .step('SHRINK', runReviewShrink);
+    .step('SHRINK', runReadOnlyShrink);
 }
 
 function buildResearchPipeline(base: Pipeline<ExploreCtx>): Pipeline<ResearchCtx> {
   return base
     .step('RESEARCH', generateResearch)
     .step('REPORT', displayResearch)
-    .step('SHRINK', runResearchShrink);
+    .step('SHRINK', runReadOnlyShrink);
 }
 
 function buildDebugPipeline(base: Pipeline<ExploreCtx>): Pipeline<ShrinkCtx> {
