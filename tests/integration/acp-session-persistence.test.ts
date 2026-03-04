@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -53,6 +54,28 @@ function createClient() {
 }
 
 describe('ACP session persistence integration', () => {
+  async function runWriterInChildProcess(
+    fixturePath: string,
+    persistencePath: string,
+    cwd: string,
+  ): Promise<{ code: number | null; stdout: string; stderr: string }> {
+    return await new Promise((resolve, reject) => {
+      const child = spawn(process.execPath, [fixturePath, persistencePath, cwd], {
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      let stdout = '';
+      let stderr = '';
+      child.stdout.on('data', (chunk) => {
+        stdout += String(chunk);
+      });
+      child.stderr.on('data', (chunk) => {
+        stderr += String(chunk);
+      });
+      child.on('error', reject);
+      child.on('close', (code) => resolve({ code, stdout, stderr }));
+    });
+  }
+
   it('restores session identity across agent restarts', async () => {
     const tempRoot = await mkdtemp(path.join(tmpdir(), 'salmonloop-acp-session-'));
     const persistencePath = path.join(tempRoot, 'acp', 'sessions.v1.json');
@@ -319,6 +342,32 @@ describe('ACP session persistence integration', () => {
       const ids = new Set(payload.sessions.map((entry) => entry.id));
       expect(ids.has(sessionA)).toBe(true);
       expect(ids.has(sessionB)).toBe(true);
+    } finally {
+      await rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('preserves sessions across real child-process concurrent writers', async () => {
+    const tempRoot = await mkdtemp(path.join(tmpdir(), 'salmonloop-acp-session-multiproc-'));
+    const persistencePath = path.join(tempRoot, 'acp', 'sessions.v1.json');
+    const fixturePath = path.resolve(process.cwd(), 'tests/fixtures/acp-session-writer.ts');
+
+    try {
+      const [writerA, writerB] = await Promise.all([
+        runWriterInChildProcess(fixturePath, persistencePath, '/repo-child-a'),
+        runWriterInChildProcess(fixturePath, persistencePath, '/repo-child-b'),
+      ]);
+      expect(writerA.code).toBe(0);
+      expect(writerB.code).toBe(0);
+      expect(writerA.stderr.trim()).toBe('');
+      expect(writerB.stderr.trim()).toBe('');
+
+      const payload = JSON.parse(await readFile(persistencePath, 'utf8')) as {
+        sessions: Array<{ id: string; cwd: string }>;
+      };
+      const cwdSet = new Set(payload.sessions.map((entry) => entry.cwd));
+      expect(cwdSet.has('/repo-child-a')).toBe(true);
+      expect(cwdSet.has('/repo-child-b')).toBe(true);
     } finally {
       await rm(tempRoot, { recursive: true, force: true });
     }

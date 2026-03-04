@@ -865,6 +865,48 @@ export function createAcpFormalAgent(deps: {
     };
   }
 
+  function toResumeHint(
+    probe: {
+      checkpointId: string;
+      valid: boolean;
+      reason?: string;
+    } | null,
+  ): { code: string; message: string } | null {
+    if (!probe || probe.valid) return null;
+    switch (probe.reason) {
+      case 'not_found':
+        return {
+          code: 'CHECKPOINT_NOT_FOUND',
+          message: 'Checkpoint not found. Start a new session.',
+        };
+      case 'manifest_parse_error':
+        return {
+          code: 'CHECKPOINT_MANIFEST_PARSE_ERROR',
+          message: 'Checkpoint metadata is corrupted. Recreate checkpoint metadata and retry.',
+        };
+      case 'manifest_io_error':
+        return {
+          code: 'CHECKPOINT_MANIFEST_IO_ERROR',
+          message: 'Checkpoint metadata is unreadable due to filesystem I/O issues.',
+        };
+      case 'manifest_lock_timeout':
+        return {
+          code: 'CHECKPOINT_MANIFEST_LOCK_TIMEOUT',
+          message: 'Checkpoint metadata is busy (lock timeout). Retry shortly.',
+        };
+      case 'manifest_unavailable':
+        return {
+          code: 'CHECKPOINT_MANIFEST_UNAVAILABLE',
+          message: 'Checkpoint metadata is unavailable in current runtime.',
+        };
+      default:
+        return {
+          code: 'CHECKPOINT_RESUME_UNAVAILABLE',
+          message: 'Checkpoint resume is unavailable. Start a new session or retry.',
+        };
+    }
+  }
+
   async function emitSessionUpdate(sessionId: string, update: SessionUpdate) {
     await deps.conn.sessionUpdate({ sessionId, update });
   }
@@ -1023,12 +1065,15 @@ export function createAcpFormalAgent(deps: {
           },
           { source: 'acp', severity: 'low', scope: 'session', phase: 'PREFLIGHT' },
         );
+        const resumeHint = toResumeHint(resumeProbe);
         response._meta = {
           salmonloop: {
             latestCheckpointId: latest?.id ?? null,
             checkpoint: toCheckpointMeta(latest),
             resumeReady,
             resumeProbe,
+            resumeHint: resumeHint?.message ?? null,
+            resumeHintCode: resumeHint?.code ?? null,
           },
         };
       } else {

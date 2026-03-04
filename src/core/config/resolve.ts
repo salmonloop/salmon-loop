@@ -436,6 +436,10 @@ function resolveServerConfig(raw?: ConfigFileV1): ResolvedConfig['server'] {
         lockStaleMs: serverRaw.acp.sessionStore?.lockStaleMs,
         lockHeartbeatMs: serverRaw.acp.sessionStore?.lockHeartbeatMs,
       },
+      checkpointManifest: {
+        lockStaleMs: serverRaw.acp.checkpointManifest?.lockStaleMs,
+        lockHeartbeatMs: serverRaw.acp.checkpointManifest?.lockHeartbeatMs,
+      },
     };
   }
   return Object.keys(server).length > 0 ? server : undefined;

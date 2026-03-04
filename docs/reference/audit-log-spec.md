@@ -188,6 +188,8 @@ Related ACP persistence/checkpoint events:
       - `manifest_parse_error`
       - `manifest_io_error`
       - `manifest_lock_timeout`
+  - `_meta.salmonloop.resumeHint` / `_meta.salmonloop.resumeHintCode` are returned in ACP
+    `session/load` response to provide UI-safe mapping for failed resume probe reasons.
 
 ## Permission Decision Events
 

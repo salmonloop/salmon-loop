@@ -44,6 +44,8 @@ When available, `session/new` and `session/load` responses include:
 - `_meta.salmonloop.checkpoint = { id, createdAt, strategy, backend }`
 - `_meta.salmonloop.resumeReady`
 - `_meta.salmonloop.resumeProbe = { checkpointId, valid, reason }`
+- `_meta.salmonloop.resumeHint`
+- `_meta.salmonloop.resumeHintCode`
 
 UI should prefer rendering from `_meta.salmonloop.checkpoint` (typed object) rather than
 only reading `latestCheckpointId`.
@@ -56,6 +58,9 @@ only reading `latestCheckpointId`.
 - `manifest_parse_error`
 - `manifest_io_error`
 - `manifest_lock_timeout`
+
+`resumeHint` / `resumeHintCode` provide UI-safe human-readable fallback messaging for
+resume failures, so UI can avoid generic hidden-technical-details prompts.
 
 ## Session Persistence
 

@@ -207,7 +207,53 @@ describe('ACP formal protocol (SDK)', () => {
       checkpointId: 'cp-latest',
       valid: true,
     });
+    expect((res as any)?._meta?.salmonloop?.resumeHint).toBeNull();
+    expect((res as any)?._meta?.salmonloop?.resumeHintCode).toBeNull();
     expect(getAuditTrail().some((event) => event.action === 'acp.checkpoint.read')).toBe(true);
+  });
+
+  it('returns readable resume hint when probe fails', async () => {
+    const { clientConn } = createConnectedPair({
+      toAgent: (conn) =>
+        createAcpFormalAgent({
+          conn,
+          agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+          checkpointReader: {
+            listBySession: async () => [{ id: 'cp-missing' }],
+            probeById: async () => ({ valid: false, reason: 'manifest_lock_timeout' }),
+          },
+          facade: {
+            createTask: async () => {
+              throw new Error('not used');
+            },
+            getTask: async () => null,
+            cancelTask: async () => null,
+            resumeTask: async () => null,
+            retryTask: async () => null,
+            reopenTask: async () => null,
+            listTasks: async () => ({ items: [] }),
+            submitInput: async () => null,
+            getArtifact: async () => null,
+          },
+        }),
+      toClient: () => ({
+        requestPermission: async () => ({ outcome: { outcome: 'cancelled' } }),
+        sessionUpdate: async () => {},
+      }),
+    });
+
+    await clientConn.initialize({
+      protocolVersion: 1,
+      clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: false },
+    });
+
+    const { sessionId } = await clientConn.newSession({ cwd: '/repo', mcpServers: [] });
+    const res = await clientConn.loadSession({ sessionId, cwd: '/repo', mcpServers: [] });
+    expect((res as any)?._meta?.salmonloop?.resumeReady).toBe(false);
+    expect((res as any)?._meta?.salmonloop?.resumeHintCode).toBe(
+      'CHECKPOINT_MANIFEST_LOCK_TIMEOUT',
+    );
+    expect(typeof (res as any)?._meta?.salmonloop?.resumeHint).toBe('string');
   });
 
   it('can disable loadSession capability and reject session/load', async () => {

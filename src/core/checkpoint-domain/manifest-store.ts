@@ -10,6 +10,11 @@ const CHECKPOINT_MANIFEST_FILENAME_V1 = 'manifest.v1.json';
 const MANIFEST_LOCK_STALE_MS = 1000 * 30;
 const MANIFEST_LOCK_HEARTBEAT_MS = 1000 * 5;
 
+export interface CheckpointManifestLockPolicy {
+  lockStaleMs?: number;
+  lockHeartbeatMs?: number;
+}
+
 interface CheckpointManifestV1 {
   schemaVersion: 1 | 2;
   revision?: number;
@@ -90,7 +95,13 @@ async function writeManifestAtomic(
   await rename(tmpPath, manifestPath);
 }
 
-async function withManifestLock<T>(repoPath: string, operation: () => Promise<T>): Promise<T> {
+async function withManifestLock<T>(
+  repoPath: string,
+  operation: () => Promise<T>,
+  lockPolicy?: CheckpointManifestLockPolicy,
+): Promise<T> {
+  const effectiveLockStaleMs = lockPolicy?.lockStaleMs ?? MANIFEST_LOCK_STALE_MS;
+  const effectiveLockHeartbeatMs = lockPolicy?.lockHeartbeatMs ?? MANIFEST_LOCK_HEARTBEAT_MS;
   const dir = getUserCheckpointManifestDir(repoPath);
   await mkdir(dir, { recursive: true });
   const lockPath = defaultPathAdapter.join(dir, '.manifest.lock');
@@ -122,7 +133,7 @@ async function withManifestLock<T>(repoPath: string, operation: () => Promise<T>
           ? parsed.createdAtMs
           : null;
       if (createdAtMs === null) return;
-      if (Date.now() - createdAtMs <= MANIFEST_LOCK_STALE_MS) return;
+      if (Date.now() - createdAtMs <= effectiveLockStaleMs) return;
       if (typeof parsed.pid === 'number' && isPidAlive(parsed.pid)) return;
       await unlink(lockPath);
       recordAuditEvent(
@@ -136,7 +147,7 @@ async function withManifestLock<T>(repoPath: string, operation: () => Promise<T>
       try {
         const lockStat = await stat(lockPath);
         const ageMs = Date.now() - lockStat.mtimeMs;
-        if (Number.isFinite(ageMs) && ageMs > MANIFEST_LOCK_STALE_MS * 2) {
+        if (Number.isFinite(ageMs) && ageMs > effectiveLockStaleMs * 2) {
           await unlink(lockPath);
           recordAuditEvent(
             'checkpoint.manifest.lock.corrupted_reclaimed',
@@ -175,13 +186,16 @@ async function withManifestLock<T>(repoPath: string, operation: () => Promise<T>
   }
 
   try {
-    const heartbeat = setInterval(() => {
-      void writeFile(
-        lockPath,
-        JSON.stringify({ pid: process.pid, createdAtMs: Date.now() }),
-        'utf8',
-      );
-    }, MANIFEST_LOCK_HEARTBEAT_MS);
+    const heartbeat = setInterval(
+      () => {
+        void writeFile(
+          lockPath,
+          JSON.stringify({ pid: process.pid, createdAtMs: Date.now() }),
+          'utf8',
+        );
+      },
+      Math.max(1000, effectiveLockHeartbeatMs),
+    );
     try {
       return await operation();
     } finally {
@@ -221,57 +235,72 @@ export async function readCheckpointManifest(repoPath: string): Promise<Checkpoi
 export async function upsertCheckpointHandle(
   repoPath: string,
   handle: CheckpointHandle,
+  lockPolicy?: CheckpointManifestLockPolicy,
 ): Promise<void> {
-  await withManifestLock(repoPath, async () => {
-    const manifestPath = toManifestPath(repoPath);
-    const manifest = await readCheckpointManifest(repoPath);
-    manifest.checkpoints[handle.id] = handle;
-    if (!manifest.checkpointLineage) manifest.checkpointLineage = {};
-    manifest.checkpointLineage[handle.id] = { parentId: handle.parentId };
-    manifest.revision = (manifest.revision ?? 0) + 1;
-    await writeManifestAtomic(manifestPath, manifest);
-  });
+  await withManifestLock(
+    repoPath,
+    async () => {
+      const manifestPath = toManifestPath(repoPath);
+      const manifest = await readCheckpointManifest(repoPath);
+      manifest.checkpoints[handle.id] = handle;
+      if (!manifest.checkpointLineage) manifest.checkpointLineage = {};
+      manifest.checkpointLineage[handle.id] = { parentId: handle.parentId };
+      manifest.revision = (manifest.revision ?? 0) + 1;
+      await writeManifestAtomic(manifestPath, manifest);
+    },
+    lockPolicy,
+  );
 }
 
 export async function linkSessionToCheckpoint(
   repoPath: string,
   sessionId: string,
   checkpointId: string,
+  lockPolicy?: CheckpointManifestLockPolicy,
 ): Promise<void> {
-  await withManifestLock(repoPath, async () => {
-    const manifestPath = toManifestPath(repoPath);
-    const manifest = await readCheckpointManifest(repoPath);
-    const existing = manifest.sessions[sessionId] ?? { sessionId, history: [] };
-    if (existing.history.at(-1) !== checkpointId) {
-      existing.history.push(checkpointId);
-    }
-    existing.currentCheckpointId = checkpointId;
-    manifest.sessions[sessionId] = existing;
-    manifest.revision = (manifest.revision ?? 0) + 1;
-    await writeManifestAtomic(manifestPath, manifest);
-  });
+  await withManifestLock(
+    repoPath,
+    async () => {
+      const manifestPath = toManifestPath(repoPath);
+      const manifest = await readCheckpointManifest(repoPath);
+      const existing = manifest.sessions[sessionId] ?? { sessionId, history: [] };
+      if (existing.history.at(-1) !== checkpointId) {
+        existing.history.push(checkpointId);
+      }
+      existing.currentCheckpointId = checkpointId;
+      manifest.sessions[sessionId] = existing;
+      manifest.revision = (manifest.revision ?? 0) + 1;
+      await writeManifestAtomic(manifestPath, manifest);
+    },
+    lockPolicy,
+  );
 }
 
 export async function removeCheckpointHandle(
   repoPath: string,
   checkpointId: string,
+  lockPolicy?: CheckpointManifestLockPolicy,
 ): Promise<void> {
-  await withManifestLock(repoPath, async () => {
-    const manifestPath = toManifestPath(repoPath);
-    const manifest = await readCheckpointManifest(repoPath);
-    delete manifest.checkpoints[checkpointId];
-    if (manifest.checkpointLineage) {
-      delete manifest.checkpointLineage[checkpointId];
-    }
-    for (const session of Object.values(manifest.sessions)) {
-      session.history = session.history.filter((id) => id !== checkpointId);
-      if (session.currentCheckpointId === checkpointId) {
-        session.currentCheckpointId = session.history.at(-1);
+  await withManifestLock(
+    repoPath,
+    async () => {
+      const manifestPath = toManifestPath(repoPath);
+      const manifest = await readCheckpointManifest(repoPath);
+      delete manifest.checkpoints[checkpointId];
+      if (manifest.checkpointLineage) {
+        delete manifest.checkpointLineage[checkpointId];
       }
-    }
-    manifest.revision = (manifest.revision ?? 0) + 1;
-    await writeManifestAtomic(manifestPath, manifest);
-  });
+      for (const session of Object.values(manifest.sessions)) {
+        session.history = session.history.filter((id) => id !== checkpointId);
+        if (session.currentCheckpointId === checkpointId) {
+          session.currentCheckpointId = session.history.at(-1);
+        }
+      }
+      manifest.revision = (manifest.revision ?? 0) + 1;
+      await writeManifestAtomic(manifestPath, manifest);
+    },
+    lockPolicy,
+  );
 }
 
 export type CheckpointProbeReason =
@@ -346,6 +375,7 @@ export async function probeCheckpointHandle(
 export async function garbageCollectManifest(
   repoPath: string,
   options: { olderThanMs?: number; maxPerSession?: number } = {},
+  lockPolicy?: CheckpointManifestLockPolicy,
 ): Promise<{ removed: number; removedIds: string[] }> {
   const olderThanMs = options.olderThanMs ?? 1000 * 60 * 60 * 24 * 14;
   const maxPerSession = options.maxPerSession ?? 30;
@@ -353,33 +383,37 @@ export async function garbageCollectManifest(
   let removed = 0;
   const removedIds: string[] = [];
 
-  await withManifestLock(repoPath, async () => {
-    const manifestPath = toManifestPath(repoPath);
-    const manifest = await readCheckpointManifest(repoPath);
-    const protectedIds = new Set<string>();
-    for (const session of Object.values(manifest.sessions)) {
-      const sorted = [...session.history]
-        .map((id) => manifest.checkpoints[id])
-        .filter((v): v is CheckpointHandle => Boolean(v))
-        .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
-      for (const item of sorted.slice(0, maxPerSession)) protectedIds.add(item.id);
-      if (session.currentCheckpointId) protectedIds.add(session.currentCheckpointId);
-    }
+  await withManifestLock(
+    repoPath,
+    async () => {
+      const manifestPath = toManifestPath(repoPath);
+      const manifest = await readCheckpointManifest(repoPath);
+      const protectedIds = new Set<string>();
+      for (const session of Object.values(manifest.sessions)) {
+        const sorted = [...session.history]
+          .map((id) => manifest.checkpoints[id])
+          .filter((v): v is CheckpointHandle => Boolean(v))
+          .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+        for (const item of sorted.slice(0, maxPerSession)) protectedIds.add(item.id);
+        if (session.currentCheckpointId) protectedIds.add(session.currentCheckpointId);
+      }
 
-    for (const [id, handle] of Object.entries(manifest.checkpoints)) {
-      const created = Date.parse(handle.createdAt);
-      if (protectedIds.has(id)) continue;
-      if (Number.isFinite(created) && created >= cutoff) continue;
-      delete manifest.checkpoints[id];
-      if (manifest.checkpointLineage) delete manifest.checkpointLineage[id];
-      removed += 1;
-      removedIds.push(id);
-    }
-    if (removed > 0) {
-      manifest.revision = (manifest.revision ?? 0) + 1;
-      await writeManifestAtomic(manifestPath, manifest);
-    }
-  });
+      for (const [id, handle] of Object.entries(manifest.checkpoints)) {
+        const created = Date.parse(handle.createdAt);
+        if (protectedIds.has(id)) continue;
+        if (Number.isFinite(created) && created >= cutoff) continue;
+        delete manifest.checkpoints[id];
+        if (manifest.checkpointLineage) delete manifest.checkpointLineage[id];
+        removed += 1;
+        removedIds.push(id);
+      }
+      if (removed > 0) {
+        manifest.revision = (manifest.revision ?? 0) + 1;
+        await writeManifestAtomic(manifestPath, manifest);
+      }
+    },
+    lockPolicy,
+  );
 
   return { removed, removedIds };
 }

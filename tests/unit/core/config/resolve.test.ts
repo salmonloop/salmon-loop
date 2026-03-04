@@ -69,6 +69,10 @@ describe('resolveConfig (security/observability)', () => {
               lockStaleMs: 40000,
               lockHeartbeatMs: 2000,
             },
+            checkpointManifest: {
+              lockStaleMs: 42000,
+              lockHeartbeatMs: 2500,
+            },
           },
         },
       },
@@ -84,6 +88,8 @@ describe('resolveConfig (security/observability)', () => {
     expect(resolved.server?.sidecar?.allowConditional).toBe(true);
     expect(resolved.server?.acp?.sessionStore?.maxEntries).toBe(256);
     expect(resolved.server?.acp?.sessionStore?.lockHeartbeatMs).toBe(2000);
+    expect(resolved.server?.acp?.checkpointManifest?.lockStaleMs).toBe(42000);
+    expect(resolved.server?.acp?.checkpointManifest?.lockHeartbeatMs).toBe(2500);
   });
 
   it('uses interactive as default permission mode', async () => {

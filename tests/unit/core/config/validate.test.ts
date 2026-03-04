@@ -221,6 +221,10 @@ describe('validateConfigFileV1 (server)', () => {
             lockStaleMs: 45000,
             lockHeartbeatMs: 3000,
           },
+          checkpointManifest: {
+            lockStaleMs: 42000,
+            lockHeartbeatMs: 2500,
+          },
         },
       },
     });
@@ -231,6 +235,7 @@ describe('validateConfigFileV1 (server)', () => {
     expect(parsed.server?.sidecar?.socket).toBe('/tmp/agent-message.sock');
     expect(parsed.server?.sidecar?.allowConditional).toBe(true);
     expect(parsed.server?.acp?.sessionStore?.maxEntries).toBe(300);
+    expect(parsed.server?.acp?.checkpointManifest?.lockStaleMs).toBe(42000);
   });
 
   it('rejects invalid server config', () => {
@@ -257,6 +262,20 @@ describe('validateConfigFileV1 (server)', () => {
         },
       }),
     ).toThrow(/CONFIG_INVALID_SERVER_ACP_SESSION_STORE_MAX_ENTRIES/);
+  });
+
+  it('rejects invalid ACP checkpoint manifest config', () => {
+    expect(() =>
+      validateConfigFileV1({
+        server: {
+          acp: {
+            checkpointManifest: {
+              lockHeartbeatMs: 'bad',
+            },
+          },
+        },
+      }),
+    ).toThrow(/CONFIG_INVALID_SERVER_ACP_CHECKPOINT_MANIFEST_LOCK_HEARTBEAT_MS/);
   });
 });
 

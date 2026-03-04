@@ -88,6 +88,10 @@ export interface ConfigFileV1 {
         lockStaleMs?: number;
         lockHeartbeatMs?: number;
       };
+      checkpointManifest?: {
+        lockStaleMs?: number;
+        lockHeartbeatMs?: number;
+      };
     };
   };
 
@@ -305,6 +309,10 @@ export interface ResolvedConfig {
         maxEntries?: number;
         maxAgeMs?: number;
         historyMaxEntries?: number;
+        lockStaleMs?: number;
+        lockHeartbeatMs?: number;
+      };
+      checkpointManifest?: {
         lockStaleMs?: number;
         lockHeartbeatMs?: number;
       };

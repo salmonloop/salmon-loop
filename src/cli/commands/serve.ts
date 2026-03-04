@@ -180,7 +180,10 @@ export async function handleServeCommand(_options: unknown, command: Command) {
   });
 
   const sharedEventBus = createTaskEventBus();
-  const checkpointService = new GitSnapshotCheckpointService();
+  const checkpointService = new GitSnapshotCheckpointService(
+    undefined,
+    resolvedConfig.server?.acp?.checkpointManifest,
+  );
   await checkpointService.gc({
     repoPath,
     olderThanMs: 1000 * 60 * 60 * 24 * 14,
@@ -354,7 +357,10 @@ export async function handleServeAcpCommand(_options: unknown, command: Command)
   });
 
   const sharedEventBus = createTaskEventBus();
-  const checkpointService = new GitSnapshotCheckpointService();
+  const checkpointService = new GitSnapshotCheckpointService(
+    undefined,
+    resolvedConfig.server?.acp?.checkpointManifest,
+  );
   await checkpointService.gc({
     repoPath,
     olderThanMs: 1000 * 60 * 60 * 24 * 14,

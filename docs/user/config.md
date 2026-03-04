@@ -100,6 +100,28 @@ Example:
 }
 ```
 
+### `server.acp.checkpointManifest`
+
+Controls checkpoint manifest lock policy.
+
+- `lockStaleMs`: lock stale threshold before reclaim (default: `30000`).
+- `lockHeartbeatMs`: lock heartbeat interval while holding lock (default: `5000`).
+
+Example:
+
+```json
+{
+  "server": {
+    "acp": {
+      "checkpointManifest": {
+        "lockStaleMs": 45000,
+        "lockHeartbeatMs": 3000
+      }
+    }
+  }
+}
+```
+
 ## Context Targeting & Cache
 
 ### `context.churn.weight`

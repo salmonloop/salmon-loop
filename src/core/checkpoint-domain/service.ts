@@ -10,6 +10,7 @@ import {
 } from './manifest-store.js';
 import type {
   CheckpointHandle,
+  CheckpointLockPolicy,
   CreateCheckpointInput,
   DeleteCheckpointInput,
   ListCheckpointInput,
@@ -40,7 +41,10 @@ export interface CheckpointService {
 }
 
 export class GitSnapshotCheckpointService implements CheckpointService {
-  constructor(private readonly checkpointManager: CheckpointManager = new CheckpointManager()) {}
+  constructor(
+    private readonly checkpointManager: CheckpointManager = new CheckpointManager(),
+    private readonly lockPolicy?: CheckpointLockPolicy,
+  ) {}
 
   async create(input: CreateCheckpointInput): Promise<CheckpointHandle> {
     const snapshot = await this.checkpointManager.createSafeSnapshot(
@@ -59,9 +63,9 @@ export class GitSnapshotCheckpointService implements CheckpointService {
         stagedTree: snapshot.stagedTree,
       },
     };
-    await upsertCheckpointHandle(input.repoPath, handle);
+    await upsertCheckpointHandle(input.repoPath, handle, this.lockPolicy);
     if (input.sessionId) {
-      await linkSessionToCheckpoint(input.repoPath, input.sessionId, handle.id);
+      await linkSessionToCheckpoint(input.repoPath, input.sessionId, handle.id, this.lockPolicy);
     }
     return handle;
   }
@@ -115,7 +119,7 @@ export class GitSnapshotCheckpointService implements CheckpointService {
 
   async delete(input: DeleteCheckpointInput): Promise<void> {
     await this.checkpointManager.deleteSnapshot(input.repoPath, input.checkpointId);
-    await removeCheckpointHandle(input.repoPath, input.checkpointId);
+    await removeCheckpointHandle(input.repoPath, input.checkpointId, this.lockPolicy);
   }
 
   async gc(input: {
@@ -123,10 +127,14 @@ export class GitSnapshotCheckpointService implements CheckpointService {
     olderThanMs?: number;
     maxPerSession?: number;
   }): Promise<{ removed: number; refsRemoved: number }> {
-    const manifestGc = await garbageCollectManifest(input.repoPath, {
-      olderThanMs: input.olderThanMs,
-      maxPerSession: input.maxPerSession,
-    });
+    const manifestGc = await garbageCollectManifest(
+      input.repoPath,
+      {
+        olderThanMs: input.olderThanMs,
+        maxPerSession: input.maxPerSession,
+      },
+      this.lockPolicy,
+    );
     let refsRemoved = 0;
     for (const checkpointId of manifestGc.removedIds) {
       try {

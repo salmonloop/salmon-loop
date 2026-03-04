@@ -65,6 +65,9 @@ Quick commands:
    - User scope: `ls -t ~/.salmonloop/runtime/audit/audit-*.json | head -n 1`
 2. Filter lock-related events:
    - `jq '.context.auditTrail[] | select(.action|test("acp\\.session\\.lock|checkpoint\\.manifest\\.lock"))' <audit-file>`
+3. Aggregate lock events by action/repo hash:
+   - `bun scripts/audit-lock-dashboard.ts`
+   - `bun scripts/audit-lock-dashboard.ts --json`
 
 Event to action mapping:
 
@@ -94,3 +97,4 @@ Related ACP recovery events:
 - `acp.session.hydrate.failed`: ACP session snapshot could not be loaded during startup.
 - `acp.checkpoint.read`: includes `resumeProbe.reason` for checkpoint availability
   (`ok|not_found|manifest_unavailable|manifest_parse_error|manifest_io_error|manifest_lock_timeout`).
+  ACP `session/load` also returns `_meta.salmonloop.resumeHint` + `resumeHintCode` for direct UI mapping.

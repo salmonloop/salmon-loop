@@ -42,3 +42,8 @@ export interface ListCheckpointInput {
   sessionId?: string;
   limit?: number;
 }
+
+export interface CheckpointLockPolicy {
+  lockStaleMs?: number;
+  lockHeartbeatMs?: number;
+}

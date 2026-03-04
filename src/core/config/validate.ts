@@ -266,6 +266,31 @@ export function validateConfigFileV1(input: unknown): ConfigFileV1 {
           lockHeartbeatMs: sessionStoreRaw.lockHeartbeatMs as any,
         };
       }
+      if (acpRaw.checkpointManifest !== undefined) {
+        if (!isRecord(acpRaw.checkpointManifest)) {
+          throw new ConfigError('CONFIG_INVALID_SERVER_ACP_CHECKPOINT_MANIFEST', {
+            expected: 'object',
+          });
+        }
+        const manifestRaw = acpRaw.checkpointManifest as Record<string, unknown>;
+        const validateOptionalNumber = (value: unknown, code: string) => {
+          if (value !== undefined && !isNumber(value)) {
+            throw new ConfigError(code, { expected: 'number' });
+          }
+        };
+        validateOptionalNumber(
+          manifestRaw.lockStaleMs,
+          'CONFIG_INVALID_SERVER_ACP_CHECKPOINT_MANIFEST_LOCK_STALE_MS',
+        );
+        validateOptionalNumber(
+          manifestRaw.lockHeartbeatMs,
+          'CONFIG_INVALID_SERVER_ACP_CHECKPOINT_MANIFEST_LOCK_HEARTBEAT_MS',
+        );
+        acp.checkpointManifest = {
+          lockStaleMs: manifestRaw.lockStaleMs as any,
+          lockHeartbeatMs: manifestRaw.lockHeartbeatMs as any,
+        };
+      }
       server.acp = acp;
     }
     cfg.server = server;

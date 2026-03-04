@@ -9,6 +9,8 @@ export interface AcpCheckpointSessionMeta {
   latestCheckpointId: string | null;
   checkpoint: AcpCheckpointMeta | null;
   resumeReady?: boolean;
+  resumeHint?: string | null;
+  resumeHintCode?: string | null;
   resumeProbe?: {
     checkpointId: string;
     valid: boolean;

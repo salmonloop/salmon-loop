@@ -51,8 +51,14 @@ describe('GitSnapshotCheckpointService', () => {
     expect(upsertCheckpointHandleMock).toHaveBeenCalledWith(
       '/repo',
       expect.objectContaining({ id: 'cp-123' }),
+      undefined,
     );
-    expect(linkSessionToCheckpointMock).toHaveBeenCalledWith('/repo', 'sess-1', 'cp-123');
+    expect(linkSessionToCheckpointMock).toHaveBeenCalledWith(
+      '/repo',
+      'sess-1',
+      'cp-123',
+      undefined,
+    );
   });
 
   it('lists checkpoints for session history', async () => {
@@ -98,7 +104,7 @@ describe('GitSnapshotCheckpointService', () => {
     await service.delete({ repoPath: '/repo', checkpointId: 'cp-1' });
 
     expect(deleteSnapshot).toHaveBeenCalledWith('/repo', 'cp-1');
-    expect(removeCheckpointHandleMock).toHaveBeenCalledWith('/repo', 'cp-1');
+    expect(removeCheckpointHandleMock).toHaveBeenCalledWith('/repo', 'cp-1', undefined);
   });
 
   it('reconciles git snapshot refs for garbage-collected manifest ids', async () => {
@@ -115,7 +121,50 @@ describe('GitSnapshotCheckpointService', () => {
 
     const result = await service.gc({ repoPath: '/repo' });
 
+    expect(garbageCollectManifestMock).toHaveBeenCalledWith(
+      '/repo',
+      { olderThanMs: undefined, maxPerSession: undefined },
+      undefined,
+    );
     expect(deleteSnapshot).toHaveBeenCalledTimes(2);
     expect(result).toEqual({ removed: 2, refsRemoved: 2 });
+  });
+
+  it('passes configured lock policy to manifest operations', async () => {
+    const manager = {
+      createSafeSnapshot: mock().mockResolvedValue({ commitHash: 'cp-xyz', stagedTree: 'tree-z' }),
+      deleteSnapshot: mock().mockResolvedValue(undefined),
+    } as any;
+    const service = new GitSnapshotCheckpointService(manager, {
+      lockStaleMs: 45000,
+      lockHeartbeatMs: 3000,
+    });
+
+    await service.create({
+      repoPath: '/repo',
+      strategy: 'worktree',
+      sessionId: 'sess-1',
+    });
+    await service.delete({ repoPath: '/repo', checkpointId: 'cp-xyz' });
+    await service.gc({ repoPath: '/repo', olderThanMs: 1000, maxPerSession: 10 });
+
+    expect(upsertCheckpointHandleMock).toHaveBeenCalledWith(
+      '/repo',
+      expect.objectContaining({ id: 'cp-xyz' }),
+      { lockStaleMs: 45000, lockHeartbeatMs: 3000 },
+    );
+    expect(linkSessionToCheckpointMock).toHaveBeenCalledWith('/repo', 'sess-1', 'cp-xyz', {
+      lockStaleMs: 45000,
+      lockHeartbeatMs: 3000,
+    });
+    expect(removeCheckpointHandleMock).toHaveBeenCalledWith('/repo', 'cp-xyz', {
+      lockStaleMs: 45000,
+      lockHeartbeatMs: 3000,
+    });
+    expect(garbageCollectManifestMock).toHaveBeenCalledWith(
+      '/repo',
+      { olderThanMs: 1000, maxPerSession: 10 },
+      { lockStaleMs: 45000, lockHeartbeatMs: 3000 },
+    );
   });
 });
