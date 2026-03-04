@@ -53,3 +53,43 @@ Actions:
 - If tool calling is enabled, also inspect `context.toolCallingAudit` for argument parsing failures:
   - `toolResultErrorCode: INVALID_TOOL_ARGUMENTS_JSON`
 - Retry with `--verbose=extended` and ensure your provider config (base URL, headers, timeouts) is correct.
+
+## ACP / Checkpoint lock troubleshooting
+
+When ACP session persistence or checkpoint manifest writes are blocked, inspect audit events first.
+
+Quick commands:
+
+1. Find latest audit:
+   - Repo scope: `ls -t .salmonloop/runtime/audit/audit-*.json | head -n 1`
+   - User scope: `ls -t ~/.salmonloop/runtime/audit/audit-*.json | head -n 1`
+2. Filter lock-related events:
+   - `jq '.context.auditTrail[] | select(.action|test("acp\\.session\\.lock|checkpoint\\.manifest\\.lock"))' <audit-file>`
+
+Event to action mapping:
+
+- `acp.session.lock.acquire_timeout`
+  - Meaning: ACP session store lock was not acquired within retry budget.
+  - Action: ensure no other long-running ACP process is holding the lock; restart stale ACP servers.
+- `acp.session.lock.stale_reclaimed`
+  - Meaning: stale ACP lock was reclaimed after age/liveness checks.
+  - Action: usually safe; if frequent, inspect abnormal ACP exits.
+- `acp.session.lock.corrupted_reclaimed`
+  - Meaning: lock payload could not be parsed and was reclaimed by mtime fallback.
+  - Action: check filesystem reliability and abrupt process termination patterns.
+
+- `checkpoint.manifest.lock.acquire_timeout`
+  - Meaning: checkpoint manifest lock contention exceeded retry budget.
+  - Action: inspect concurrent checkpoint writers; reduce overlap of parallel runs on same repo.
+- `checkpoint.manifest.lock.stale_reclaimed`
+  - Meaning: stale manifest lock was reclaimed.
+  - Action: usually safe; monitor for repeated crashes.
+- `checkpoint.manifest.lock.corrupted_reclaimed`
+  - Meaning: corrupted lock payload was reclaimed via mtime fallback.
+  - Action: inspect host fs health and forced termination signals.
+
+Related ACP recovery events:
+
+- `acp.session.persist.failed`: ACP session snapshot could not be persisted.
+- `acp.session.hydrate.failed`: ACP session snapshot could not be loaded during startup.
+- `acp.checkpoint.read`: includes `resumeProbe.reason` for checkpoint availability (`ok|not_found|manifest_unavailable`).

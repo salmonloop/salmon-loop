@@ -150,6 +150,38 @@ The allowlist subsystem also emits audit events for cache and safety signals:
     - Summary events are throttled (time/interval-based) to avoid log amplification.
     - Tool/path counters are best-effort and capped with LRU eviction.
 
+## ACP / Checkpoint Lock Events
+
+Checkpoint manifest and ACP session persistence emit lock lifecycle events:
+
+- `checkpoint.manifest.lock.acquire_timeout`
+  - `repoPathHash`
+- `checkpoint.manifest.lock.stale_reclaimed`
+  - `repoPathHash`
+- `checkpoint.manifest.lock.corrupted_reclaimed`
+  - `ageMs`
+
+- `acp.session.lock.acquire_timeout`
+  - `lockPath`
+- `acp.session.lock.stale_reclaimed`
+  - `lockPath`
+- `acp.session.lock.corrupted_reclaimed`
+  - `ageMs`
+
+Related ACP persistence/checkpoint events:
+
+- `acp.session.persist.failed`
+  - `errorName`
+- `acp.session.hydrate.failed`
+  - `errorName`
+- `acp.checkpoint.read`
+  - `sessionId`
+  - `repoPathHash`
+  - `latestCheckpointId`
+  - `hit`
+  - `latencyMs`
+  - `resumeProbe` (`checkpointId`, `valid`, `reason`)
+
 ## Permission Decision Events
 
 `permission.decision` events capture high-risk authorization outcomes in a normalized shape:
