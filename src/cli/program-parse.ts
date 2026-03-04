@@ -1,6 +1,4 @@
-import type { Command } from 'commander';
-
-import type { DetectedHeadlessOutput } from './argv/headless-detection.js';
+import type { CliRuntimeContext } from './cli-runtime-context.js';
 import {
   emitHeadlessCommanderUsageError,
   getCommanderErrorExitCode,
@@ -8,31 +6,24 @@ import {
   shouldExitCommanderError,
 } from './program-error-adapter.js';
 
-export function configureProgramOutputForHeadless(
-  program: Command,
-  headlessDetection: DetectedHeadlessOutput,
-): void {
-  if (!headlessDetection.outputFormat) return;
-  program.configureOutput({
+export function configureProgramOutputForHeadless(context: CliRuntimeContext): void {
+  if (!context.headlessDetection.outputFormat) return;
+  context.program.configureOutput({
     writeOut: () => {},
     writeErr: () => {},
   });
-  program.showHelpAfterError(false);
-  program.showSuggestionAfterError(false);
+  context.program.showHelpAfterError(false);
+  context.program.showSuggestionAfterError(false);
 }
 
-export async function parseProgramOrExit(params: {
-  program: Command;
-  argv: string[];
-  headlessDetection: DetectedHeadlessOutput;
-}): Promise<void> {
+export async function parseProgramOrExit(context: CliRuntimeContext): Promise<void> {
   try {
-    await params.program.parseAsync(params.argv);
+    await context.program.parseAsync(context.rewrittenArgv);
   } catch (err: unknown) {
     if (isCommanderError(err)) {
       emitHeadlessCommanderUsageError({
         err,
-        headlessDetection: params.headlessDetection,
+        headlessDetection: context.headlessDetection,
       });
       if (shouldExitCommanderError(err)) {
         process.exit(getCommanderErrorExitCode(err));
