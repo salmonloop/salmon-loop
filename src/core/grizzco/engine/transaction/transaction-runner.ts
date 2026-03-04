@@ -4,17 +4,16 @@ import type { ReflectionInput } from '../../../reflection/types.js';
 import type { FileStateResolver } from '../../../strata/layers/file-state-resolver.js';
 import type { WorkspaceSynchronizer } from '../../../strata/runtime/synchronizer.js';
 import type { ArtifactHandle } from '../../../sub-agent/artifacts/types.js';
+import type { Context } from '../../../types/context.js';
+import type { CheckpointRef, ExecutionWorkspace } from '../../../types/loop.js';
 import type {
   AuthorizationSourceSummary,
-  CheckpointRef,
-  Context,
-  ExecutionWorkspace,
   FileSystem,
   FlowMode,
   LoopEvent,
   LoopIteration,
   LoopOptions,
-} from '../../../types/index.js';
+} from '../../../types/runtime.js';
 import { executeSalmonLoopFlow } from '../../flows/SalmonLoopFlow.js';
 import type { FlowTerminalCtx } from '../../flows/SalmonLoopFlow.js';
 import { LoopTelemetry } from '../observability/loop-telemetry.js';

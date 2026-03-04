@@ -2,7 +2,9 @@
  * LLM implementations are swappable.
  * Core loop must NOT depend on provider-specific behavior.
  */
-import type { Context, LLM, LLMMessage, Plan } from '../types/index.js';
+import type { Context } from '../types/context.js';
+import type { LLM, LLMMessage } from '../types/llm.js';
+import type { Plan } from '../types/planning.js';
 
 export type { LLM };
 

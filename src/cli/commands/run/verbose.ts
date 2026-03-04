@@ -1,5 +1,5 @@
 import { logger } from '../../../core/observability/logger.js';
-import type { VerboseLevel } from '../../../core/types/index.js';
+import type { VerboseLevel } from '../../../core/types/execution.js';
 import { text } from '../../locales/index.js';
 
 export function resolveVerboseLevel(raw: unknown): VerboseLevel | undefined {

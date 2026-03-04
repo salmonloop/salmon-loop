@@ -1,12 +1,7 @@
 import { LIMITS } from '../config/limits.js';
 import { CanonicalResponsesEventEmitter } from '../streaming/canonical/canonical-responses-event-emitter.js';
-import {
-  LLM_OUTPUT_KINDS,
-  type ExecutionStep,
-  type LlmOutputKind,
-  type LlmOutputPolicy,
-  type LoopEvent,
-} from '../types/index.js';
+import { LLM_OUTPUT_KINDS, type LlmOutputKind, type LlmOutputPolicy } from '../types/llm.js';
+import type { ExecutionStep, LoopEvent } from '../types/runtime.js';
 
 const SECRET_LINE_PATTERN = /(api[-_]?key|authorization|token|secret|password|cookie)/i;
 const TOKEN_LIKE_PATTERN = /[A-Za-z0-9_\-/+=]{16,}/;

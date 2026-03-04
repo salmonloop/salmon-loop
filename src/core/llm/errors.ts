@@ -1,4 +1,4 @@
-import { SalmonError } from '../types/index.js';
+import { SalmonError } from '../types/errors.js';
 import { sanitizeErrorMessage } from '../utils/sanitizer.js';
 
 export type LlmErrorCode =

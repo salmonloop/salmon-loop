@@ -3,7 +3,7 @@ import { composeChatMessages } from '../../llm/message-composition.js';
 import { emitLlmOutput } from '../../llm/output-policy.js';
 import { formatContextForPrompt } from '../../llm/utils.js';
 import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
-import { Phase } from '../../types/index.js';
+import { Phase } from '../../types/runtime.js';
 import { resolveLlmToolCallingPolicy } from '../dsl/llm-strategy.js';
 import type {
   ExploreCtx,

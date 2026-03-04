@@ -1,5 +1,5 @@
 import { sanitizeUiLogMessage } from '../../../observability/ui-log-sanitize.js';
-import type { ExecutionPhase, LoopEvent } from '../../../types/index.js';
+import type { ExecutionPhase, LoopEvent } from '../../../types/runtime.js';
 
 import type { LoopTelemetry } from './loop-telemetry.js';
 

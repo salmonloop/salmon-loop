@@ -3,7 +3,7 @@ import { resolve } from 'path';
 import { readFile, stat } from '../../../core/adapters/fs/node-fs.js';
 import { LIMITS } from '../../../core/config/limits.js';
 import { JsonSchemaValidator } from '../../../core/structured-output/index.js';
-import type { LoopResult } from '../../../core/types/index.js';
+import type { LoopResult } from '../../../core/types/loop.js';
 
 import type { OutputFormat } from './types.js';
 

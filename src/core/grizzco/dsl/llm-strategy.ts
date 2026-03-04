@@ -1,5 +1,5 @@
-import type { LLM } from '../../types/index.js';
-import { Phase, type ExecutionPhase } from '../../types/index.js';
+import type { LLM } from '../../types/llm.js';
+import { Phase, type ExecutionPhase } from '../../types/runtime.js';
 
 import { DecisionEngine, type DslContext, PlanBuilder } from './DecisionEngine.js';
 

@@ -1,5 +1,5 @@
 import { getExitCode } from '../../core/runtime/exit-codes.js';
-import type { LoopResult } from '../../core/types/index.js';
+import type { LoopResult } from '../../core/types/loop.js';
 
 export type AnthropicStreamLine =
   | {

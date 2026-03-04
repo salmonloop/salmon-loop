@@ -1,4 +1,4 @@
-import { ExecutionPhase } from '../../core/types/index.js';
+import type { ExecutionPhase } from '../../core/types/execution.js';
 
 export interface UIState {
   phase: ExecutionPhase | 'IDLE';

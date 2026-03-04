@@ -1,5 +1,5 @@
 import type { RuntimeEnvironment } from '../../../strata/runtime/environment.js';
-import type { FileSystem, FlowMode } from '../../../types/index.js';
+import type { FileSystem, FlowMode } from '../../../types/runtime.js';
 
 export interface PlanRuntimeContext {
   sessionId: string;

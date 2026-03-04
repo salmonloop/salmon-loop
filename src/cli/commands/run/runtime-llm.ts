@@ -1,7 +1,7 @@
 import { createRuntimeLlm } from '../../../core/llm/factory.js';
 import { createPhaseRoutingLlm } from '../../../core/llm/phase-router.js';
 import { logger } from '../../../core/observability/logger.js';
-import { EXECUTION_PHASES, Phase, type ExecutionPhase } from '../../../core/types/index.js';
+import { EXECUTION_PHASES, Phase, type ExecutionPhase } from '../../../core/types/execution.js';
 import { text } from '../../locales/index.js';
 
 export function createRuntimeLlmAndWarn(params: { llmConfig: any; langfuseEnabled: boolean }): {

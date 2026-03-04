@@ -8,17 +8,11 @@ import type {
 import type { ArtifactHandle } from '../../../sub-agent/artifacts/types.js';
 import type { ToolAuditLogger } from '../../../tools/audit.js';
 import type { Toolstack } from '../../../tools/loader.js';
-import type {
-  CheckpointRef,
-  Context,
-  DebugArtifactRef,
-  ExecutionWorkspace,
-  FileSystem,
-  FlowMode,
-  LoopEvent,
-  LoopOptions,
-  Plan,
-} from '../../../types/index.js';
+import type { Context } from '../../../types/context.js';
+import type { DebugArtifactRef } from '../../../types/errors.js';
+import type { CheckpointRef, ExecutionWorkspace } from '../../../types/loop.js';
+import type { Plan } from '../../../types/planning.js';
+import type { FileSystem, FlowMode, LoopEvent, LoopOptions } from '../../../types/runtime.js';
 import type { VerifyResult } from '../../../verification/runner.js';
 import type { DecisionRecord } from '../../dsl/DecisionEngine.js';
 import type { ExecutionResult } from '../../execution/Executor.js';

@@ -1,7 +1,7 @@
 import { sanitizeError } from '../../../llm/errors.js';
 import { extractErrorCode } from '../../../observability/error-envelope.js';
-import { Phase } from '../../../types/index.js';
-import type { FlowMode, LoopEvent, LoopOptions, LoopResult } from '../../../types/index.js';
+import { Phase } from '../../../types/runtime.js';
+import type { FlowMode, LoopEvent, LoopOptions, LoopResult } from '../../../types/runtime.js';
 import { LoopTelemetry } from '../observability/loop-telemetry.js';
 import {
   buildLoopFailureResult,

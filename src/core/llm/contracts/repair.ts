@@ -1,5 +1,5 @@
 import { LIMITS } from '../../config/limits.js';
-import type { ChatOptions, LLM, LLMMessage } from '../../types/index.js';
+import type { ChatOptions, LLM, LLMMessage } from '../../types/llm.js';
 
 function truncateForPrompt(text: string, maxChars: number): string {
   const value = String(text ?? '');

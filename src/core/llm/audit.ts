@@ -1,5 +1,5 @@
 import type { ToolIntent } from '../tools/types.js';
-import type { ExecutionPhase } from '../types/index.js';
+import type { ExecutionPhase } from '../types/runtime.js';
 
 export interface ToolCallingAuditEntry {
   timestamp: string;

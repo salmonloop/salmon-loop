@@ -1,4 +1,4 @@
-import type { FlowMode, LoopOptions } from '../../types/index.js';
+import type { FlowMode, LoopOptions } from '../../types/runtime.js';
 
 import type { AstValidationStrictness } from './AstValidationService.js';
 

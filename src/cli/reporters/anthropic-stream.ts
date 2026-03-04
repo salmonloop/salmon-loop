@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 
 import { StreamAssembler } from '../../core/streaming/stream-assembler.js';
-import type { LoopEvent, LoopResult } from '../../core/types/index.js';
+import type { LoopEvent, LoopResult } from '../../core/types/loop.js';
 import { encodeNormalizedToAnthropicStreamLines } from '../headless/anthropic-stream-normalized-encoder.js';
 import {
   encodeAnthropicEnd,

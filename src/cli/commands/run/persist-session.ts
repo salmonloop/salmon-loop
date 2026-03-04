@@ -1,6 +1,7 @@
 import type { ChatSessionManager } from '../../../core/session/manager.js';
 import { refreshSessionSummary } from '../../../core/session/summary-sync.js';
-import type { LLM, LoopResult } from '../../../core/types/index.js';
+import type { LLM } from '../../../core/types/llm.js';
+import type { LoopResult } from '../../../core/types/loop.js';
 
 export async function persistRunSession(params: {
   sessionManager?: ChatSessionManager;

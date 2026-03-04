@@ -1,4 +1,4 @@
-import type { LLMMessage } from '../types/index.js';
+import type { LLMMessage } from '../types/llm.js';
 
 function toSafeConversationMessage(msg: LLMMessage): LLMMessage | null {
   if (!msg || typeof msg !== 'object') return null;

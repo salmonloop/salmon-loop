@@ -3,7 +3,7 @@ import { sanitizeError } from '../../../llm/errors.js';
 import { recordAuditEvent } from '../../../observability/audit-trail.js';
 import { initPlan } from '../../../plan/index.js';
 import { RuntimeEnvironment } from '../../../strata/runtime/environment.js';
-import type { FlowMode, FileSystem, LoopEvent, LoopOptions } from '../../../types/index.js';
+import type { FlowMode, FileSystem, LoopEvent, LoopOptions } from '../../../types/runtime.js';
 
 import type { HostBootContext, PlanRuntimeContext } from './types.js';
 

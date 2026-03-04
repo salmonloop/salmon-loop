@@ -1,7 +1,7 @@
 import { text } from '../../../locales/index.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
 import { createStandardToolstack } from '../../tools/loader.js';
-import { Phase } from '../../types/index.js';
+import { Phase } from '../../types/runtime.js';
 import { preflight } from '../../verification/runner.js';
 import { resolveLlmToolCallingPolicy } from '../dsl/llm-strategy.js';
 import { Step } from '../engine/pipeline/pipeline.js';

@@ -2,13 +2,13 @@ import { text } from '../../../../locales/index.js';
 import { buildFailureGuidance } from '../../../failure/diagnostics.js';
 import { sanitizeError } from '../../../llm/errors.js';
 import { mapErrorForDisplay } from '../../../observability/error-mapping.js';
-import { EXECUTION_PHASES } from '../../../types/index.js';
+import { EXECUTION_PHASES } from '../../../types/runtime.js';
 import type {
   ExecutionPhase,
   FlowMode,
   LoopInputRequired,
   LoopReasonCode,
-} from '../../../types/index.js';
+} from '../../../types/runtime.js';
 import { classifyError, isRetryable } from '../../../verification/runner.js';
 import type { FlowReport } from '../pipeline/pipeline.js';
 import type { ShrinkCtx } from '../pipeline/types.js';

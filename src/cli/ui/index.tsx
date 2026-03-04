@@ -9,7 +9,7 @@ import type {
 } from '../../core/config/types.js';
 import { logger } from '../../core/observability/logger.js';
 import { LoopEventReporter } from '../../core/observability/loop-event-reporter.js';
-import { LoopEvent } from '../../core/types/index.js';
+import type { LoopEvent } from '../../core/types/loop.js';
 import { text } from '../locales/index.js';
 
 import { App } from './App.js';

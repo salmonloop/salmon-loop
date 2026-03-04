@@ -3,13 +3,8 @@ import ProgressBar from 'progress';
 
 import { mapErrorForDisplay } from '../../core/observability/error-mapping.js';
 import { logger } from '../../core/observability/logger.js';
-import {
-  LoopEvent,
-  LoopResult,
-  Phase,
-  ErrorType,
-  ALL_VISIBLE_STEPS,
-} from '../../core/types/index.js';
+import { ALL_VISIBLE_STEPS, ErrorType, Phase } from '../../core/types/execution.js';
+import { type LoopEvent, type LoopResult } from '../../core/types/loop.js';
 import { text } from '../locales/index.js';
 
 import { SalmonReporter } from './base.js';

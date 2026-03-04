@@ -1,14 +1,8 @@
 import { GitAdapter } from '../../../adapters/git/git-adapter.js';
 import { FileStateResolver } from '../../../strata/layers/file-state-resolver.js';
 import { WorkspaceSynchronizer } from '../../../strata/runtime/synchronizer.js';
-import type {
-  CheckpointRef,
-  ExecutionWorkspace,
-  FileSystem,
-  FlowMode,
-  LoopEvent,
-  LoopOptions,
-} from '../../../types/index.js';
+import type { CheckpointRef, ExecutionWorkspace } from '../../../types/loop.js';
+import type { FileSystem, FlowMode, LoopEvent, LoopOptions } from '../../../types/runtime.js';
 import type { LoopTelemetry } from '../observability/loop-telemetry.js';
 
 import { FlowTransactionRunner } from './transaction-runner.js';

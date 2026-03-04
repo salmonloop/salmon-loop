@@ -1,12 +1,7 @@
-import type {
-  ChatOptions,
-  Context,
-  ExecutionPhase,
-  LLM,
-  LLMMessage,
-  LLMStreamChunk,
-} from '../types/index.js';
-import { Phase, type Plan } from '../types/index.js';
+import type { Context as ContextType } from '../types/context.js';
+import type { ChatOptions, LLM, LLMMessage, LLMStreamChunk } from '../types/llm.js';
+import type { Plan } from '../types/planning.js';
+import { Phase, type ExecutionPhase } from '../types/runtime.js';
 
 type PhaseLlmMap = Partial<Record<ExecutionPhase, LLM>>;
 
@@ -44,7 +39,7 @@ export function createPhaseRoutingLlm(params: { defaultLlm: LLM; phaseLlms: Phas
       };
     },
     createPlan(
-      context: Context,
+      context: ContextType,
       instruction: string,
       lastError?: string,
       signal?: AbortSignal,
@@ -52,7 +47,7 @@ export function createPhaseRoutingLlm(params: { defaultLlm: LLM; phaseLlms: Phas
       return resolve(Phase.PLAN).createPlan(context, instruction, lastError, signal);
     },
     createPatch(
-      context: Context,
+      context: ContextType,
       plan: Plan,
       lastError?: string,
       signal?: AbortSignal,

@@ -8,7 +8,8 @@ import { getAuditTrail, recordAuditEvent } from '../../observability/audit-trail
 import { mapErrorForDisplay } from '../../observability/error-mapping.js';
 import { logger } from '../../observability/logger.js';
 import { getAuditDir } from '../../runtime/paths.js';
-import { SalmonError, type LoopOptions } from '../../types/index.js';
+import { SalmonError } from '../../types/errors.js';
+import type { LoopOptions } from '../../types/runtime.js';
 import { FlowReport } from '../engine/pipeline/pipeline.js';
 import type { ShrinkCtx } from '../engine/pipeline/types.js';
 

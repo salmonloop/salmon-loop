@@ -1,4 +1,4 @@
-import type { AuthorizationSourceSummary } from '../../../types/index.js';
+import type { AuthorizationSourceSummary } from '../../../types/runtime.js';
 
 export function buildAuthorizationSummary(
   logs: unknown[] | undefined,

@@ -2,7 +2,8 @@ import { text } from '../../locales/index.js';
 import { LIMITS } from '../config/limits.js';
 import { ContextFormatConverter } from '../context/formatters/json-converter.js';
 import { formatContextForXmlPrompt } from '../context/formatters/xml-context.js';
-import type { Context, Plan } from '../types/index.js';
+import type { Context } from '../types/context.js';
+import type { Plan } from '../types/planning.js';
 
 import { wrapPatchEmpty } from './errors.js';
 

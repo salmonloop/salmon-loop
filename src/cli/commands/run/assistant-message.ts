@@ -1,4 +1,5 @@
-import type { LoopResult, FlowMode } from '../../../core/types/index.js';
+import type { FlowMode } from '../../../core/types/execution.js';
+import type { LoopResult } from '../../../core/types/loop.js';
 import { text } from '../../locales/index.js';
 
 export function buildRunAssistantMessage(params: { mode: FlowMode; result: LoopResult }): string {

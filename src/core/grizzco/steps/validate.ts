@@ -1,6 +1,6 @@
 import { text } from '../../../locales/index.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
-import { PatchNotApplicableError } from '../../types/index.js';
+import { PatchNotApplicableError } from '../../types/errors.js';
 import { Step } from '../engine/pipeline/pipeline.js';
 import { PatchCtx, ValidateCtx } from '../engine/pipeline/types.js';
 

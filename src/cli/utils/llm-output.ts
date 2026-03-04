@@ -3,7 +3,7 @@ import {
   LLM_OUTPUT_KINDS,
   type LlmOutputKind,
   type LlmOutputPolicy,
-} from '../../core/types/index.js';
+} from '../../core/types/llm.js';
 
 const ALL_KINDS = [...LLM_OUTPUT_KINDS];
 

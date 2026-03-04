@@ -5,7 +5,7 @@ import type {
   LoopInputRequired,
   LoopIteration,
   LoopReasonCode,
-} from '../../../types/index.js';
+} from '../../../types/runtime.js';
 import type { FlowReport } from '../pipeline/pipeline.js';
 import type { ShrinkCtx } from '../pipeline/types.js';
 

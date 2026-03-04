@@ -1,4 +1,4 @@
-import type { LoopResult } from '../types/index.js';
+import type { LoopResult } from '../types/runtime.js';
 
 export const EXIT_CODES = {
   success: 0,

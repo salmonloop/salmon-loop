@@ -21,14 +21,9 @@ import {
 } from '../core/session/session-context-builder.js';
 import { refreshSessionSummary } from '../core/session/summary-sync.js';
 import { TokenTracker } from '../core/session/token-tracker.js';
-import type {
-  CheckpointStrategy,
-  LLM,
-  LoopEvent,
-  LlmOutputPolicy,
-  UserInputProvider,
-  VerboseLevel,
-} from '../core/types/index.js';
+import type { VerboseLevel } from '../core/types/execution.js';
+import type { LLM, LlmOutputPolicy } from '../core/types/llm.js';
+import type { CheckpointStrategy, LoopEvent, UserInputProvider } from '../core/types/loop.js';
 
 import { createUiAuthorizationProvider } from './authorization/provider.js';
 import { commands } from './commands/registry.js';

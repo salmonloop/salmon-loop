@@ -9,7 +9,8 @@ import { extractUnifiedDiffFromLLMContent, formatContextForPrompt } from '../../
 import { normalizeDiff, validateDiff, type DiffMeta } from '../../patch/diff.js';
 import { getPatchPrompt, getPatchSystemPrompt } from '../../prompts/runtime.js';
 import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
-import { DiffValidationError, Phase } from '../../types/index.js';
+import { DiffValidationError } from '../../types/errors.js';
+import { Phase } from '../../types/runtime.js';
 import { resolveLlmToolCallingPolicy } from '../dsl/llm-strategy.js';
 import { Step } from '../engine/pipeline/pipeline.js';
 import { PatchCtx, PlanCtx } from '../engine/pipeline/types.js';

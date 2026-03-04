@@ -1,4 +1,4 @@
-import type { LoopResult } from '../../core/types/index.js';
+import type { LoopResult } from '../../core/types/loop.js';
 
 export interface JsonPayloadOverrides {
   success?: boolean;

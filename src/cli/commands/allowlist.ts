@@ -1,5 +1,5 @@
 import { logger } from '../../core/observability/logger.js';
-import { EXECUTION_PHASES } from '../../core/types/index.js';
+import { EXECUTION_PHASES } from '../../core/types/execution.js';
 import {
   clearAllowlist,
   clearAllowlistCache,

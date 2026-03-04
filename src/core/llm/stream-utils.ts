@@ -1,4 +1,4 @@
-import type { LLMStreamChunk } from '../types/index.js';
+import type { LLMStreamChunk } from '../types/llm.js';
 
 function normalizeToolInput(raw: unknown): unknown {
   if (typeof raw !== 'string') return raw;

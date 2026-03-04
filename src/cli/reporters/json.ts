@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 
-import type { LoopEvent, LoopResult } from '../../core/types/index.js';
+import type { LoopEvent, LoopResult } from '../../core/types/loop.js';
 import type { JsonPayloadOverrides } from '../headless/json-protocol.js';
 import { encodeJsonCrash, encodeJsonResult } from '../headless/json-protocol.js';
 import type { StdoutWriter } from '../headless/stdout-writer.js';

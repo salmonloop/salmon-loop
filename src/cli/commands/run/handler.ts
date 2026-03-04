@@ -10,7 +10,8 @@ import {
   buildSessionConversationContext,
   getDefaultSessionContextBudgetTokens,
 } from '../../../core/session/session-context-builder.js';
-import { ApplyBackOnDirty, CheckpointStrategy, LoopResult } from '../../../core/types/index.js';
+import type { ApplyBackOnDirty } from '../../../core/types/execution.js';
+import type { CheckpointStrategy, LoopResult } from '../../../core/types/loop.js';
 import { createStdoutWriter } from '../../headless/stdout-writer.js';
 import { text } from '../../locales/index.js';
 import { StderrLogReporter } from '../../reporters/stderr-log-reporter.js';

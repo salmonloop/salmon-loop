@@ -4,7 +4,8 @@ import { writeDebugArtifact } from '../../observability/debug-artifacts.js';
 import { buildErrorEnvelope, toSafeErrorSummary } from '../../observability/error-envelope.js';
 import { WorkspaceSynchronizer } from '../../strata/runtime/synchronizer.js';
 import type { ApplyBackTelemetry } from '../../strata/runtime/synchronizer.js';
-import type { CheckpointRef, LoopEvent, LoopOptions } from '../../types/index.js';
+import type { CheckpointRef } from '../../types/loop.js';
+import type { LoopEvent, LoopOptions } from '../../types/runtime.js';
 
 import { collectSidecarPaths } from './apply-back-utils.js';
 
