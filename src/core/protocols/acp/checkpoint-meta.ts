@@ -12,6 +12,12 @@ export interface AcpCheckpointSessionMeta {
   resumeProbe?: {
     checkpointId: string;
     valid: boolean;
-    reason?: string;
+    reason?:
+      | 'ok'
+      | 'not_found'
+      | 'manifest_unavailable'
+      | 'manifest_parse_error'
+      | 'manifest_io_error'
+      | 'manifest_lock_timeout';
   } | null;
 }

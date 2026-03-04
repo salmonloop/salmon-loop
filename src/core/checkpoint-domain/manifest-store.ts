@@ -8,6 +8,7 @@ import type { CheckpointHandle, SessionCheckpointLink } from './types.js';
 const CHECKPOINT_MANIFEST_FILENAME_V2 = 'manifest.v2.json';
 const CHECKPOINT_MANIFEST_FILENAME_V1 = 'manifest.v1.json';
 const MANIFEST_LOCK_STALE_MS = 1000 * 30;
+const MANIFEST_LOCK_HEARTBEAT_MS = 1000 * 5;
 
 interface CheckpointManifestV1 {
   schemaVersion: 1 | 2;
@@ -168,11 +169,24 @@ async function withManifestLock<T>(repoPath: string, operation: () => Promise<T>
       },
       { source: 'runtime', severity: 'medium', scope: 'session', phase: 'PREFLIGHT' },
     );
-    throw new Error('CHECKPOINT_MANIFEST_LOCK_TIMEOUT');
+    throw Object.assign(new Error('CHECKPOINT_MANIFEST_LOCK_TIMEOUT'), {
+      code: 'CHECKPOINT_MANIFEST_LOCK_TIMEOUT',
+    });
   }
 
   try {
-    return await operation();
+    const heartbeat = setInterval(() => {
+      void writeFile(
+        lockPath,
+        JSON.stringify({ pid: process.pid, createdAtMs: Date.now() }),
+        'utf8',
+      );
+    }, MANIFEST_LOCK_HEARTBEAT_MS);
+    try {
+      return await operation();
+    } finally {
+      clearInterval(heartbeat);
+    }
   } finally {
     try {
       await handle.close();
@@ -260,7 +274,13 @@ export async function removeCheckpointHandle(
   });
 }
 
-export type CheckpointProbeReason = 'ok' | 'not_found' | 'manifest_unavailable';
+export type CheckpointProbeReason =
+  | 'ok'
+  | 'not_found'
+  | 'manifest_unavailable'
+  | 'manifest_parse_error'
+  | 'manifest_io_error'
+  | 'manifest_lock_timeout';
 
 function isNotFoundError(error: unknown): boolean {
   return Boolean(
@@ -276,6 +296,9 @@ export async function probeCheckpointHandle(
   repoPath: string,
   checkpointId: string,
 ): Promise<{ handle: CheckpointHandle | null; reason: CheckpointProbeReason }> {
+  if (!checkpointId || checkpointId.trim().length === 0) {
+    return { handle: null, reason: 'not_found' };
+  }
   const manifestV2Path = toManifestPath(repoPath, CHECKPOINT_MANIFEST_FILENAME_V2);
   const manifestV1Path = toManifestPath(repoPath, CHECKPOINT_MANIFEST_FILENAME_V1);
   let raw: string | null = null;
@@ -283,7 +306,15 @@ export async function probeCheckpointHandle(
     raw = await readFile(manifestV2Path, 'utf8');
   } catch (error) {
     if (!isNotFoundError(error)) {
-      return { handle: null, reason: 'manifest_unavailable' };
+      if (
+        error &&
+        typeof error === 'object' &&
+        'code' in error &&
+        (error as { code?: unknown }).code === 'CHECKPOINT_MANIFEST_LOCK_TIMEOUT'
+      ) {
+        return { handle: null, reason: 'manifest_lock_timeout' };
+      }
+      return { handle: null, reason: 'manifest_io_error' };
     }
   }
   if (raw === null) {
@@ -291,7 +322,15 @@ export async function probeCheckpointHandle(
       raw = await readFile(manifestV1Path, 'utf8');
     } catch (error) {
       if (isNotFoundError(error)) return { handle: null, reason: 'not_found' };
-      return { handle: null, reason: 'manifest_unavailable' };
+      if (
+        error &&
+        typeof error === 'object' &&
+        'code' in error &&
+        (error as { code?: unknown }).code === 'CHECKPOINT_MANIFEST_LOCK_TIMEOUT'
+      ) {
+        return { handle: null, reason: 'manifest_lock_timeout' };
+      }
+      return { handle: null, reason: 'manifest_io_error' };
     }
   }
   try {
@@ -300,7 +339,7 @@ export async function probeCheckpointHandle(
     if (!handle) return { handle: null, reason: 'not_found' };
     return { handle, reason: 'ok' };
   } catch {
-    return { handle: null, reason: 'manifest_unavailable' };
+    return { handle: null, reason: 'manifest_parse_error' };
   }
 }
 

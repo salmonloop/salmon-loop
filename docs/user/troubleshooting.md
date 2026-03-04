@@ -92,4 +92,5 @@ Related ACP recovery events:
 
 - `acp.session.persist.failed`: ACP session snapshot could not be persisted.
 - `acp.session.hydrate.failed`: ACP session snapshot could not be loaded during startup.
-- `acp.checkpoint.read`: includes `resumeProbe.reason` for checkpoint availability (`ok|not_found|manifest_unavailable`).
+- `acp.checkpoint.read`: includes `resumeProbe.reason` for checkpoint availability
+  (`ok|not_found|manifest_unavailable|manifest_parse_error|manifest_io_error|manifest_lock_timeout`).

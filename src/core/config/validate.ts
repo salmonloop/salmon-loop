@@ -222,6 +222,52 @@ export function validateConfigFileV1(input: unknown): ConfigFileV1 {
         allowConditional: sidecarRaw.allowConditional as any,
       };
     }
+    if (serverRaw.acp !== undefined) {
+      if (!isRecord(serverRaw.acp)) {
+        throw new ConfigError('CONFIG_INVALID_SERVER_ACP', { expected: 'object' });
+      }
+      const acpRaw = serverRaw.acp as Record<string, unknown>;
+      const acp: NonNullable<NonNullable<ConfigFileV1['server']>['acp']> = {};
+      if (acpRaw.sessionStore !== undefined) {
+        if (!isRecord(acpRaw.sessionStore)) {
+          throw new ConfigError('CONFIG_INVALID_SERVER_ACP_SESSION_STORE', { expected: 'object' });
+        }
+        const sessionStoreRaw = acpRaw.sessionStore as Record<string, unknown>;
+        const validateOptionalNumber = (value: unknown, code: string) => {
+          if (value !== undefined && !isNumber(value)) {
+            throw new ConfigError(code, { expected: 'number' });
+          }
+        };
+        validateOptionalNumber(
+          sessionStoreRaw.maxEntries,
+          'CONFIG_INVALID_SERVER_ACP_SESSION_STORE_MAX_ENTRIES',
+        );
+        validateOptionalNumber(
+          sessionStoreRaw.maxAgeMs,
+          'CONFIG_INVALID_SERVER_ACP_SESSION_STORE_MAX_AGE_MS',
+        );
+        validateOptionalNumber(
+          sessionStoreRaw.historyMaxEntries,
+          'CONFIG_INVALID_SERVER_ACP_SESSION_STORE_HISTORY_MAX_ENTRIES',
+        );
+        validateOptionalNumber(
+          sessionStoreRaw.lockStaleMs,
+          'CONFIG_INVALID_SERVER_ACP_SESSION_STORE_LOCK_STALE_MS',
+        );
+        validateOptionalNumber(
+          sessionStoreRaw.lockHeartbeatMs,
+          'CONFIG_INVALID_SERVER_ACP_SESSION_STORE_LOCK_HEARTBEAT_MS',
+        );
+        acp.sessionStore = {
+          maxEntries: sessionStoreRaw.maxEntries as any,
+          maxAgeMs: sessionStoreRaw.maxAgeMs as any,
+          historyMaxEntries: sessionStoreRaw.historyMaxEntries as any,
+          lockStaleMs: sessionStoreRaw.lockStaleMs as any,
+          lockHeartbeatMs: sessionStoreRaw.lockHeartbeatMs as any,
+        };
+      }
+      server.acp = acp;
+    }
     cfg.server = server;
   }
 

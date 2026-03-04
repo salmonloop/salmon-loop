@@ -158,10 +158,10 @@ describe('checkpoint manifest store', () => {
     expect(renameMock).toHaveBeenCalled();
   });
 
-  it('returns manifest_unavailable when manifest file cannot be parsed', async () => {
+  it('returns manifest_parse_error when manifest file cannot be parsed', async () => {
     readFileMock.mockResolvedValue('{ not-json');
     const result = await probeCheckpointHandle('/repo', 'cp-any');
-    expect(result.reason).toBe('manifest_unavailable');
+    expect(result.reason).toBe('manifest_parse_error');
   });
 
   it('reclaims stale manifest lock before writing', async () => {

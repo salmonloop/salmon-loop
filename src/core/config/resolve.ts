@@ -427,6 +427,17 @@ function resolveServerConfig(raw?: ConfigFileV1): ResolvedConfig['server'] {
       allowConditional: serverRaw.sidecar.allowConditional,
     };
   }
+  if (serverRaw.acp) {
+    server.acp = {
+      sessionStore: {
+        maxEntries: serverRaw.acp.sessionStore?.maxEntries,
+        maxAgeMs: serverRaw.acp.sessionStore?.maxAgeMs,
+        historyMaxEntries: serverRaw.acp.sessionStore?.historyMaxEntries,
+        lockStaleMs: serverRaw.acp.sessionStore?.lockStaleMs,
+        lockHeartbeatMs: serverRaw.acp.sessionStore?.lockHeartbeatMs,
+      },
+    };
+  }
   return Object.keys(server).length > 0 ? server : undefined;
 }
 

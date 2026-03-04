@@ -181,6 +181,13 @@ Related ACP persistence/checkpoint events:
   - `hit`
   - `latencyMs`
   - `resumeProbe` (`checkpointId`, `valid`, `reason`)
+    - `reason` may be:
+      - `ok`
+      - `not_found`
+      - `manifest_unavailable`
+      - `manifest_parse_error`
+      - `manifest_io_error`
+      - `manifest_lock_timeout`
 
 ## Permission Decision Events
 

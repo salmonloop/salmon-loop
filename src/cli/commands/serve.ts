@@ -238,6 +238,7 @@ export async function handleServeCommand(_options: unknown, command: Command) {
         },
         facade: acpFacade,
         sessionPersistencePath: getUserAcpSessionStorePath(),
+        sessionStorePolicy: resolvedConfig.server?.acp?.sessionStore,
         eventBus: sharedEventBus,
       }),
     );
@@ -380,6 +381,7 @@ export async function handleServeAcpCommand(_options: unknown, command: Command)
       },
       facade: acpFacade,
       sessionPersistencePath: getUserAcpSessionStorePath(),
+      sessionStorePolicy: resolvedConfig.server?.acp?.sessionStore,
       eventBus: sharedEventBus,
     }),
   );

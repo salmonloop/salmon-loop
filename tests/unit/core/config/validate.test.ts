@@ -201,7 +201,7 @@ describe('validateConfigFileV1 (security.redaction)', () => {
 });
 
 describe('validateConfigFileV1 (server)', () => {
-  it('accepts A2A and sidecar server settings', () => {
+  it('accepts A2A, sidecar, and ACP server settings', () => {
     const parsed = validateConfigFileV1({
       server: {
         a2a: {
@@ -213,6 +213,15 @@ describe('validateConfigFileV1 (server)', () => {
           socket: '/tmp/agent-message.sock',
           allowConditional: true,
         },
+        acp: {
+          sessionStore: {
+            maxEntries: 300,
+            maxAgeMs: 1209600000,
+            historyMaxEntries: 80,
+            lockStaleMs: 45000,
+            lockHeartbeatMs: 3000,
+          },
+        },
       },
     });
 
@@ -221,6 +230,7 @@ describe('validateConfigFileV1 (server)', () => {
     expect(parsed.server?.a2a?.tokens).toEqual(['token-a', 'token-b']);
     expect(parsed.server?.sidecar?.socket).toBe('/tmp/agent-message.sock');
     expect(parsed.server?.sidecar?.allowConditional).toBe(true);
+    expect(parsed.server?.acp?.sessionStore?.maxEntries).toBe(300);
   });
 
   it('rejects invalid server config', () => {
@@ -233,6 +243,20 @@ describe('validateConfigFileV1 (server)', () => {
         },
       }),
     ).toThrow(/CONFIG_INVALID_SERVER_A2A_PORT/);
+  });
+
+  it('rejects invalid ACP session store config', () => {
+    expect(() =>
+      validateConfigFileV1({
+        server: {
+          acp: {
+            sessionStore: {
+              maxEntries: 'bad',
+            },
+          },
+        },
+      }),
+    ).toThrow(/CONFIG_INVALID_SERVER_ACP_SESSION_STORE_MAX_ENTRIES/);
   });
 });
 

@@ -120,6 +120,7 @@ const ACP_PERMISSION_POLICY_DENY_ALL: AcpPermissionPolicy = 'deny_all';
 const ACP_SESSION_STORE_MAX_ENTRIES = 200;
 const ACP_SESSION_STORE_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 30;
 const ACP_SESSION_STORE_LOCK_STALE_MS = 1000 * 30;
+const ACP_SESSION_STORE_LOCK_HEARTBEAT_MS = 1000 * 5;
 const ACP_SESSION_HISTORY_MAX_ENTRIES = 40;
 
 function isAbsolutePath(filePath: string): boolean {
@@ -503,10 +504,16 @@ export function createAcpFormalAgent(deps: {
       strategy?: string;
       backend?: string;
     } | null>;
-    probeById?: (input: {
-      repoPath: string;
-      checkpointId: string;
-    }) => Promise<{ valid: boolean; reason: 'ok' | 'not_found' | 'manifest_unavailable' }>;
+    probeById?: (input: { repoPath: string; checkpointId: string }) => Promise<{
+      valid: boolean;
+      reason:
+        | 'ok'
+        | 'not_found'
+        | 'manifest_unavailable'
+        | 'manifest_parse_error'
+        | 'manifest_io_error'
+        | 'manifest_lock_timeout';
+    }>;
   };
   capabilityPolicy?: {
     loadSession?: boolean;
@@ -516,6 +523,13 @@ export function createAcpFormalAgent(deps: {
     list: (taskId: string, options?: { afterId?: string | null; limit?: number }) => TaskEvent[];
   };
   sessionPersistencePath?: string;
+  sessionStorePolicy?: {
+    maxEntries?: number;
+    maxAgeMs?: number;
+    historyMaxEntries?: number;
+    lockStaleMs?: number;
+    lockHeartbeatMs?: number;
+  };
 }): Agent {
   const sessions = createAcpSessionStore();
   const sessionRuntime = new Map<string, AcpSessionRuntimeState>();
@@ -526,11 +540,32 @@ export function createAcpFormalAgent(deps: {
   };
   const loadSessionCapability = deps.capabilityPolicy?.loadSession ?? true;
   const sessionPersistencePath = deps.sessionPersistencePath;
+  const sessionStorePolicy = {
+    maxEntries: deps.sessionStorePolicy?.maxEntries ?? ACP_SESSION_STORE_MAX_ENTRIES,
+    maxAgeMs: deps.sessionStorePolicy?.maxAgeMs ?? ACP_SESSION_STORE_MAX_AGE_MS,
+    historyMaxEntries:
+      deps.sessionStorePolicy?.historyMaxEntries ?? ACP_SESSION_HISTORY_MAX_ENTRIES,
+    lockStaleMs: deps.sessionStorePolicy?.lockStaleMs ?? ACP_SESSION_STORE_LOCK_STALE_MS,
+    lockHeartbeatMs:
+      deps.sessionStorePolicy?.lockHeartbeatMs ?? ACP_SESSION_STORE_LOCK_HEARTBEAT_MS,
+  };
   let sessionsHydrated = false;
   let hydratePromise: Promise<void> | null = null;
 
-  type PersistedAcpSessionStore = {
+  type PersistedAcpSessionStoreV1 = {
     schemaVersion: 1;
+    sessions: Array<{
+      id: string;
+      cwd: string;
+      mcpServers: unknown[];
+      createdAt: string;
+      updatedAt: string;
+      title?: string;
+    }>;
+  };
+
+  type PersistedAcpSessionStoreV2 = {
+    schemaVersion: 2;
     sessions: Array<{
       id: string;
       cwd: string;
@@ -542,6 +577,7 @@ export function createAcpFormalAgent(deps: {
       history?: AcpSessionRecord['history'];
     }>;
   };
+  type PersistedAcpSessionStore = PersistedAcpSessionStoreV1 | PersistedAcpSessionStoreV2;
 
   function parseTimestamp(value: unknown): number {
     if (typeof value !== 'string' || value.length === 0) return 0;
@@ -561,11 +597,38 @@ export function createAcpFormalAgent(deps: {
       history?: AcpSessionRecord['history'];
     }>,
   ) {
-    const cutoff = Date.now() - ACP_SESSION_STORE_MAX_AGE_MS;
+    const cutoff = Date.now() - sessionStorePolicy.maxAgeMs;
     return [...records]
       .filter((record) => parseTimestamp(record.updatedAt) >= cutoff)
       .sort((a, b) => parseTimestamp(b.updatedAt) - parseTimestamp(a.updatedAt))
-      .slice(0, ACP_SESSION_STORE_MAX_ENTRIES);
+      .slice(0, sessionStorePolicy.maxEntries);
+  }
+
+  function normalizePersistedSessionStore(input: unknown): PersistedAcpSessionStoreV2 {
+    if (!input || typeof input !== 'object') {
+      return { schemaVersion: 2, sessions: [] };
+    }
+    const raw = input as Partial<PersistedAcpSessionStore>;
+    if (!Array.isArray(raw.sessions)) return { schemaVersion: 2, sessions: [] };
+    if (raw.schemaVersion === 1) {
+      return {
+        schemaVersion: 2,
+        sessions: raw.sessions.map((entry) => ({
+          id: entry.id,
+          cwd: entry.cwd,
+          mcpServers: entry.mcpServers,
+          createdAt: entry.createdAt,
+          updatedAt: entry.updatedAt,
+          title: entry.title,
+          taskId: undefined,
+          history: [],
+        })),
+      };
+    }
+    if (raw.schemaVersion === 2) {
+      return { schemaVersion: 2, sessions: raw.sessions as PersistedAcpSessionStoreV2['sessions'] };
+    }
+    return { schemaVersion: 2, sessions: [] };
   }
 
   function isPidAlive(pid: number): boolean {
@@ -609,7 +672,7 @@ export function createAcpFormalAgent(deps: {
       updatedAt: session.updatedAt,
       title: session.title,
       taskId: session.taskId,
-      history: session.history.slice(-ACP_SESSION_HISTORY_MAX_ENTRIES),
+      history: session.history.slice(-sessionStorePolicy.historyMaxEntries),
     }));
     const prunedRecords = pruneSessionRecords(baseRecords);
     const keepIds = new Set(prunedRecords.map((record) => record.id));
@@ -619,7 +682,7 @@ export function createAcpFormalAgent(deps: {
       }
     }
 
-    const payload: PersistedAcpSessionStore = { schemaVersion: 1, sessions: prunedRecords };
+    const payload: PersistedAcpSessionStoreV2 = { schemaVersion: 2, sessions: prunedRecords };
 
     const tryClearStaleLock = async (): Promise<void> => {
       try {
@@ -630,7 +693,7 @@ export function createAcpFormalAgent(deps: {
             ? parsed.createdAtMs
             : null;
         if (createdAtMs === null) return;
-        if (Date.now() - createdAtMs <= ACP_SESSION_STORE_LOCK_STALE_MS) return;
+        if (Date.now() - createdAtMs <= sessionStorePolicy.lockStaleMs) return;
         if (typeof parsed.pid === 'number' && isPidAlive(parsed.pid)) return;
         await unlink(lockPath);
         recordAuditEvent(
@@ -642,7 +705,7 @@ export function createAcpFormalAgent(deps: {
         try {
           const lockStat = await stat(lockPath);
           const ageMs = Date.now() - lockStat.mtimeMs;
-          if (Number.isFinite(ageMs) && ageMs > ACP_SESSION_STORE_LOCK_STALE_MS * 2) {
+          if (Number.isFinite(ageMs) && ageMs > sessionStorePolicy.lockStaleMs * 2) {
             await unlink(lockPath);
             recordAuditEvent(
               'acp.session.lock.corrupted_reclaimed',
@@ -681,12 +744,42 @@ export function createAcpFormalAgent(deps: {
         throw new Error('ACP_SESSION_PERSIST_LOCK_TIMEOUT');
       }
 
+      const heartbeat = setInterval(
+        () => {
+          void writeFile(
+            lockPath,
+            JSON.stringify({ pid: process.pid, createdAtMs: Date.now() }),
+            'utf8',
+          );
+        },
+        Math.max(1000, sessionStorePolicy.lockHeartbeatMs),
+      );
       const tempPath = defaultPathAdapter.join(
         dir,
         `.sessions.v1.json.tmp-${process.pid}-${Date.now()}`,
       );
-      await writeFile(tempPath, JSON.stringify(payload, null, 2), 'utf8');
-      await rename(tempPath, sessionPersistencePath);
+      try {
+        let existing: PersistedAcpSessionStoreV2 = { schemaVersion: 2, sessions: [] };
+        try {
+          const existingRaw = await readFile(sessionPersistencePath, 'utf8');
+          existing = normalizePersistedSessionStore(JSON.parse(existingRaw));
+        } catch {
+          // ignore read failure; writing fresh payload is acceptable
+        }
+
+        const merged = new Map<string, PersistedAcpSessionStoreV2['sessions'][number]>();
+        for (const entry of existing.sessions) merged.set(entry.id, entry);
+        for (const entry of payload.sessions) merged.set(entry.id, entry);
+        const mergedPayload: PersistedAcpSessionStoreV2 = {
+          schemaVersion: 2,
+          sessions: pruneSessionRecords(Array.from(merged.values())),
+        };
+
+        await writeFile(tempPath, JSON.stringify(mergedPayload, null, 2), 'utf8');
+        await rename(tempPath, sessionPersistencePath);
+      } finally {
+        clearInterval(heartbeat);
+      }
     } catch (error) {
       recordAuditEvent(
         'acp.session.persist.failed',
@@ -719,8 +812,7 @@ export function createAcpFormalAgent(deps: {
       if (!sessionPersistencePath) return;
       try {
         const raw = await readFile(sessionPersistencePath, 'utf8');
-        const parsed = JSON.parse(raw) as PersistedAcpSessionStore;
-        if (!parsed || parsed.schemaVersion !== 1 || !Array.isArray(parsed.sessions)) return;
+        const parsed = normalizePersistedSessionStore(JSON.parse(raw));
         for (const stored of pruneSessionRecords(parsed.sessions)) {
           sessions.upsert({
             id: stored.id,
@@ -731,7 +823,7 @@ export function createAcpFormalAgent(deps: {
             title: stored.title,
             taskId: stored.taskId,
             history: Array.isArray(stored.history)
-              ? stored.history.slice(-ACP_SESSION_HISTORY_MAX_ENTRIES)
+              ? stored.history.slice(-sessionStorePolicy.historyMaxEntries)
               : [],
             cancelRequested: false,
           });
@@ -939,6 +1031,18 @@ export function createAcpFormalAgent(deps: {
             resumeProbe,
           },
         };
+      } else {
+        recordAuditEvent(
+          'acp.checkpoint.read',
+          {
+            sessionId: params.sessionId,
+            repoPathHash: hashRepoPath(params.cwd),
+            latestCheckpointId: null,
+            hit: false,
+            reason: 'checkpoint_reader_missing',
+          },
+          { source: 'acp', severity: 'low', scope: 'session', phase: 'PREFLIGHT' },
+        );
       }
 
       return response;

@@ -264,8 +264,61 @@ describe('ACP session persistence integration', () => {
         schemaVersion: number;
         sessions: unknown[];
       };
-      expect(payload.schemaVersion).toBe(1);
+      expect(payload.schemaVersion).toBe(2);
       expect(payload.sessions.length > 0).toBe(true);
+    } finally {
+      await rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('merges concurrent session writers into one persisted store', async () => {
+    const tempRoot = await mkdtemp(path.join(tmpdir(), 'salmonloop-acp-session-merge-'));
+    const persistencePath = path.join(tempRoot, 'acp', 'sessions.v1.json');
+
+    try {
+      const pairA = createConnectedPair({
+        toAgent: (conn) =>
+          createAcpFormalAgent({
+            conn,
+            agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+            facade: createFacade(),
+            sessionPersistencePath: persistencePath,
+          }),
+        toClient: () => createClient(),
+      });
+      const pairB = createConnectedPair({
+        toAgent: (conn) =>
+          createAcpFormalAgent({
+            conn,
+            agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+            facade: createFacade(),
+            sessionPersistencePath: persistencePath,
+          }),
+        toClient: () => createClient(),
+      });
+
+      await Promise.all([
+        pairA.clientConn.initialize({
+          protocolVersion: 1,
+          clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
+        }),
+        pairB.clientConn.initialize({
+          protocolVersion: 1,
+          clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
+        }),
+      ]);
+
+      const [{ sessionId: sessionA }, { sessionId: sessionB }] = await Promise.all([
+        pairA.clientConn.newSession({ cwd: '/repoA', mcpServers: [] }),
+        pairB.clientConn.newSession({ cwd: '/repoB', mcpServers: [] }),
+      ]);
+
+      const payload = JSON.parse(await readFile(persistencePath, 'utf8')) as {
+        sessions: Array<{ id: string }>;
+      };
+      const ids = new Set(payload.sessions.map((entry) => entry.id));
+      expect(ids.has(sessionA)).toBe(true);
+      expect(ids.has(sessionB)).toBe(true);
     } finally {
       await rm(tempRoot, { recursive: true, force: true });
     }

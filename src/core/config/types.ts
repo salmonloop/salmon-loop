@@ -80,6 +80,15 @@ export interface ConfigFileV1 {
       socket?: string;
       allowConditional?: boolean;
     };
+    acp?: {
+      sessionStore?: {
+        maxEntries?: number;
+        maxAgeMs?: number;
+        historyMaxEntries?: number;
+        lockStaleMs?: number;
+        lockHeartbeatMs?: number;
+      };
+    };
   };
 
   context?: {
@@ -290,6 +299,15 @@ export interface ResolvedConfig {
     sidecar?: {
       socket?: string;
       allowConditional?: boolean;
+    };
+    acp?: {
+      sessionStore?: {
+        maxEntries?: number;
+        maxAgeMs?: number;
+        historyMaxEntries?: number;
+        lockStaleMs?: number;
+        lockHeartbeatMs?: number;
+      };
     };
   };
   context: {

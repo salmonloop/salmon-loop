@@ -72,6 +72,34 @@ Example:
 }
 ```
 
+### `server.acp.sessionStore`
+
+Controls ACP session persistence retention and lock policy.
+
+- `maxEntries`: max persisted sessions (default: `200`).
+- `maxAgeMs`: drop sessions older than this age (default: `2592000000` = 30 days).
+- `historyMaxEntries`: max persisted history entries per session (default: `40`).
+- `lockStaleMs`: lock stale threshold before reclaim (default: `30000`).
+- `lockHeartbeatMs`: lock heartbeat interval while holding lock (default: `5000`).
+
+Example:
+
+```json
+{
+  "server": {
+    "acp": {
+      "sessionStore": {
+        "maxEntries": 500,
+        "maxAgeMs": 1209600000,
+        "historyMaxEntries": 80,
+        "lockStaleMs": 45000,
+        "lockHeartbeatMs": 3000
+      }
+    }
+  }
+}
+```
+
 ## Context Targeting & Cache
 
 ### `context.churn.weight`

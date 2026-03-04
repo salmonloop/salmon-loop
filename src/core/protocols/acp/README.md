@@ -53,6 +53,9 @@ only reading `latestCheckpointId`.
 - `ok`
 - `not_found`
 - `manifest_unavailable`
+- `manifest_parse_error`
+- `manifest_io_error`
+- `manifest_lock_timeout`
 
 ## Session Persistence
 
@@ -61,6 +64,7 @@ only reading `latestCheckpointId`.
 - Persisted fields include safe session state:
   `sessionId`, `cwd`, `mcpServers`, timestamps, title, recent `history`, and `taskId`.
 - Store is bounded by retention policy (30 days, max 200 sessions, capped history per session).
+- Persistence schema supports migration (`schemaVersion` v1 -> v2 normalization during load).
 
 ## Notifications
 

@@ -21,7 +21,13 @@ export interface CheckpointService {
   load(input: LoadCheckpointInput): Promise<CheckpointHandle | null>;
   loadWithStatus(input: LoadCheckpointInput): Promise<{
     handle: CheckpointHandle | null;
-    reason: 'ok' | 'not_found' | 'manifest_unavailable';
+    reason:
+      | 'ok'
+      | 'not_found'
+      | 'manifest_unavailable'
+      | 'manifest_parse_error'
+      | 'manifest_io_error'
+      | 'manifest_lock_timeout';
   }>;
   resume(input: LoadCheckpointInput): Promise<CheckpointHandle | null>;
   list(input: ListCheckpointInput): Promise<CheckpointHandle[]>;
@@ -67,7 +73,13 @@ export class GitSnapshotCheckpointService implements CheckpointService {
 
   async loadWithStatus(input: LoadCheckpointInput): Promise<{
     handle: CheckpointHandle | null;
-    reason: 'ok' | 'not_found' | 'manifest_unavailable';
+    reason:
+      | 'ok'
+      | 'not_found'
+      | 'manifest_unavailable'
+      | 'manifest_parse_error'
+      | 'manifest_io_error'
+      | 'manifest_lock_timeout';
   }> {
     return probeCheckpointHandle(input.repoPath, input.checkpointId);
   }

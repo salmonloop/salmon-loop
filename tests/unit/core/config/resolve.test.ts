@@ -61,6 +61,15 @@ describe('resolveConfig (security/observability)', () => {
         server: {
           a2a: { host: '0.0.0.0', port: 7447, tokens: ['secret'] },
           sidecar: { socket: '/tmp/agent-message.sock', allowConditional: true },
+          acp: {
+            sessionStore: {
+              maxEntries: 256,
+              maxAgeMs: 1000 * 60 * 60,
+              historyMaxEntries: 32,
+              lockStaleMs: 40000,
+              lockHeartbeatMs: 2000,
+            },
+          },
         },
       },
       path: '/repo/.salmonloop/config.json',
@@ -73,6 +82,8 @@ describe('resolveConfig (security/observability)', () => {
     expect(resolved.server?.a2a?.tokens).toEqual(['secret']);
     expect(resolved.server?.sidecar?.socket).toBe('/tmp/agent-message.sock');
     expect(resolved.server?.sidecar?.allowConditional).toBe(true);
+    expect(resolved.server?.acp?.sessionStore?.maxEntries).toBe(256);
+    expect(resolved.server?.acp?.sessionStore?.lockHeartbeatMs).toBe(2000);
   });
 
   it('uses interactive as default permission mode', async () => {
