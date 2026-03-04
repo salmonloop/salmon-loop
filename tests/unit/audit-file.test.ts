@@ -201,4 +201,25 @@ describe('appendAuditTrailToAuditFile', () => {
     expect(written.meta.errorSummary).toBe(text.errors.technicalDetailsHidden);
     expect(written.meta.errorCategory).toBe('unknown');
   });
+
+  it('prefers event-derived error summary/category in fallback audit meta', async () => {
+    recordAuditEvent(
+      'langfuse.outcome.http_failed',
+      { status: 401, statusText: 'Unauthorized' },
+      { source: 'observability' },
+    );
+    renameMock.mockResolvedValue(undefined);
+    mkdirMock.mockResolvedValue(undefined);
+
+    await appendAuditTrailToAuditFile({
+      auditPath: undefined,
+      repoPath: '/tmp/repo',
+      failureReason: REDACTED_ERROR_TOKEN,
+      runId: 'run-4',
+    });
+
+    const written = JSON.parse(writeFileMock.mock.calls[1]![1]) as any;
+    expect(written.meta.errorCategory).toBe('auth');
+    expect(written.meta.errorSummary).toContain('401');
+  });
 });

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test';
 
 import { REDACTED_ERROR_TOKEN } from '../../../../src/core/observability/error-envelope.js';
 import {
+  mapAuditTrailToError,
   mapErrorForAudit,
   mapErrorForDisplay,
 } from '../../../../src/core/observability/error-mapping.js';
@@ -178,5 +179,18 @@ describe('mapErrorForAudit', () => {
 
     expect(preflight.category).toBe('preflight');
     expect(config.category).toBe('config');
+  });
+
+  it('maps Langfuse http_failed (401) to auth summary/category', () => {
+    const result = mapAuditTrailToError([
+      {
+        action: 'langfuse.outcome.http_failed',
+        details: { status: 401, statusText: 'Unauthorized' },
+        timestamp: new Date().toISOString(),
+      },
+    ]);
+
+    expect(result?.category).toBe('auth');
+    expect(result?.summary).toContain('401');
   });
 });

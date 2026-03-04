@@ -1,5 +1,6 @@
 import { text } from '../../locales/index.js';
 
+import type { AuditTrailEvent } from './audit-trail.js';
 import { REDACTED_ERROR_TOKEN } from './error-envelope.js';
 
 export interface ErrorDisplayInput {
@@ -209,4 +210,55 @@ export function mapErrorForAudit(input: ErrorDisplayInput): ErrorAuditOutput {
     code: input.code,
     redacted: isRedacted || display.redacted,
   };
+}
+
+function buildLangfuseHttpFailed(details: unknown): ErrorAuditOutput | undefined {
+  const status = typeof (details as any)?.status === 'number' ? (details as any).status : undefined;
+  if (!status) return undefined;
+  if (status === 401 || status === 403) {
+    return {
+      summary: `Langfuse ingestion unauthorized (HTTP ${status})`,
+      category: 'auth',
+      redacted: false,
+    };
+  }
+  if (status >= 500) {
+    return {
+      summary: `Langfuse ingestion failed (HTTP ${status})`,
+      category: 'network',
+      redacted: false,
+    };
+  }
+  if (status >= 400) {
+    return {
+      summary: `Langfuse ingestion failed (HTTP ${status})`,
+      category: 'config',
+      redacted: false,
+    };
+  }
+  return {
+    summary: `Langfuse ingestion failed (HTTP ${status})`,
+    category: 'unknown',
+    redacted: false,
+  };
+}
+
+export function mapAuditTrailToError(
+  events: AuditTrailEvent[],
+): ErrorAuditOutput | undefined {
+  for (let i = events.length - 1; i >= 0; i -= 1) {
+    const event = events[i];
+    if (!event) continue;
+    if (event.action === 'langfuse.outcome.http_failed') {
+      return buildLangfuseHttpFailed(event.details);
+    }
+    if (event.action === 'langfuse.outcome.request_failed') {
+      return {
+        summary: 'Langfuse ingestion request failed',
+        category: 'network',
+        redacted: false,
+      };
+    }
+  }
+  return undefined;
 }

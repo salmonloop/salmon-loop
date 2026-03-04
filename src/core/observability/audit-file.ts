@@ -5,7 +5,7 @@ import { appendFile, mkdir, readFile, rename, writeFile } from '../adapters/fs/n
 import { getAuditDir } from '../runtime/paths.js';
 
 import { getAuditTrail } from './audit-trail.js';
-import { mapErrorForAudit } from './error-mapping.js';
+import { mapAuditTrailToError, mapErrorForAudit } from './error-mapping.js';
 import { logger } from './logger.js';
 
 interface AppendAuditParams {
@@ -76,10 +76,13 @@ async function createFallbackAuditFile(params: AppendAuditParams): Promise<strin
   const targetPath = path.join(auditDir, filename);
   const eventsFilename = filename.replace(/\.json$/, '.events.jsonl');
   const eventsPath = path.join(auditDir, eventsFilename);
-  const auditError = mapErrorForAudit({
-    message: params.failureReason,
-    code: params.finalOutcome?.errorCode ?? params.finalOutcome?.reasonCode,
-  });
+  const trailError = mapAuditTrailToError(trail);
+  const auditError =
+    trailError ??
+    mapErrorForAudit({
+      message: params.failureReason,
+      code: params.finalOutcome?.errorCode ?? params.finalOutcome?.reasonCode,
+    });
 
   const payload = {
     meta: {
@@ -125,12 +128,17 @@ export async function appendAuditTrailToAuditFile(
     const data = JSON.parse(raw) as Record<string, unknown>;
     const meta =
       data.meta && typeof data.meta === 'object' ? (data.meta as Record<string, unknown>) : {};
+    const fullTrail = getAuditTrail();
     let metaChanged = false;
     if (params.finalOutcome) {
-      const auditError = mapErrorForAudit({
-        message: params.failureReason ?? (typeof meta.error === 'string' ? meta.error : undefined),
-        code: params.finalOutcome.errorCode ?? params.finalOutcome.reasonCode,
-      });
+      const trailError = mapAuditTrailToError(fullTrail);
+      const auditError =
+        trailError ??
+        mapErrorForAudit({
+          message:
+            params.failureReason ?? (typeof meta.error === 'string' ? meta.error : undefined),
+          code: params.finalOutcome.errorCode ?? params.finalOutcome.reasonCode,
+        });
       if (meta.success !== params.finalOutcome.success) {
         meta.success = params.finalOutcome.success;
         metaChanged = true;
@@ -172,7 +180,6 @@ export async function appendAuditTrailToAuditFile(
         ? (data.context as Record<string, unknown>)
         : {};
 
-    const fullTrail = getAuditTrail();
     const eventsRef = (context as any).eventsRef as AuditEventsRef | undefined;
     if (!eventsRef?.path) {
       throw new Error('Invalid audit file: context.eventsRef.path is required');
