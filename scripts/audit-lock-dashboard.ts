@@ -4,13 +4,16 @@ import path from 'node:path';
 export interface LockAuditEvent {
   action: string;
   details?: Record<string, unknown>;
+  timestamp?: string;
 }
 
 export interface LockDashboardReport {
   generatedAt: string;
   auditDir: string;
+  since?: string;
   filesScanned: number;
   matchedEvents: number;
+  timeoutEvents: number;
   byAction: Record<string, number>;
   byRepo: Record<
     string,
@@ -22,6 +25,7 @@ export interface LockDashboardReport {
 }
 
 const LOCK_ACTION_PATTERNS = [/^acp\.session\.lock\./, /^checkpoint\.manifest\.lock\./];
+const LOCK_TIMEOUT_ACTION_PATTERN = /\.lock\.acquire_timeout$/;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -49,7 +53,11 @@ function collectLockEventsFromJsonValue(raw: unknown): LockAuditEvent[] {
   if (!isRecord(raw)) return [];
   const out: LockAuditEvent[] = [];
   if (typeof raw.action === 'string' && isLockAction(raw.action)) {
-    out.push({ action: raw.action, details: isRecord(raw.details) ? raw.details : undefined });
+    out.push({
+      action: raw.action,
+      details: isRecord(raw.details) ? raw.details : undefined,
+      timestamp: typeof raw.timestamp === 'string' ? raw.timestamp : undefined,
+    });
   }
   const context = raw.context;
   if (isRecord(context) && Array.isArray(context.auditTrail)) {
@@ -59,6 +67,7 @@ function collectLockEventsFromJsonValue(raw: unknown): LockAuditEvent[] {
       out.push({
         action: entry.action,
         details: isRecord(entry.details) ? entry.details : undefined,
+        timestamp: typeof entry.timestamp === 'string' ? entry.timestamp : undefined,
       });
     }
   }
@@ -87,7 +96,18 @@ async function readLockEventsFromFile(filePath: string): Promise<LockAuditEvent[
   }
 }
 
-export async function buildLockDashboardReport(auditDir: string): Promise<LockDashboardReport> {
+function shouldKeepBySince(event: LockAuditEvent, sinceMs?: number): boolean {
+  if (!sinceMs) return true;
+  if (!event.timestamp) return false;
+  const eventMs = Date.parse(event.timestamp);
+  if (!Number.isFinite(eventMs)) return false;
+  return eventMs >= sinceMs;
+}
+
+export async function buildLockDashboardReport(
+  auditDir: string,
+  options: { sinceMs?: number } = {},
+): Promise<LockDashboardReport> {
   const resolvedAuditDir = path.resolve(auditDir);
   const entries = await readdir(resolvedAuditDir, { withFileTypes: true });
   const candidateFiles = entries
@@ -101,8 +121,10 @@ export async function buildLockDashboardReport(auditDir: string): Promise<LockDa
   const report: LockDashboardReport = {
     generatedAt: new Date().toISOString(),
     auditDir: resolvedAuditDir,
+    since: options.sinceMs ? new Date(options.sinceMs).toISOString() : undefined,
     filesScanned: candidateFiles.length,
     matchedEvents: 0,
+    timeoutEvents: 0,
     byAction: {},
     byRepo: {},
   };
@@ -110,8 +132,12 @@ export async function buildLockDashboardReport(auditDir: string): Promise<LockDa
   for (const filePath of candidateFiles) {
     const events = await readLockEventsFromFile(filePath);
     for (const event of events) {
+      if (!shouldKeepBySince(event, options.sinceMs)) continue;
       report.matchedEvents += 1;
       addCount(report.byAction, event.action);
+      if (LOCK_TIMEOUT_ACTION_PATTERN.test(event.action)) {
+        report.timeoutEvents += 1;
+      }
       const repo = extractRepoDimension(event);
       if (!report.byRepo[repo]) {
         report.byRepo[repo] = { total: 0, byAction: {} };
@@ -126,8 +152,12 @@ export async function buildLockDashboardReport(auditDir: string): Promise<LockDa
 export function renderLockDashboardText(report: LockDashboardReport): string {
   const lines: string[] = [];
   lines.push(`[lock-dashboard] dir: ${report.auditDir}`);
+  if (report.since) {
+    lines.push(`[lock-dashboard] since: ${report.since}`);
+  }
   lines.push(`[lock-dashboard] files: ${report.filesScanned}`);
   lines.push(`[lock-dashboard] matched lock events: ${report.matchedEvents}`);
+  lines.push(`[lock-dashboard] acquire_timeout events: ${report.timeoutEvents}`);
   lines.push('[lock-dashboard] by action:');
   for (const [action, count] of Object.entries(report.byAction).sort((a, b) => b[1] - a[1])) {
     lines.push(`  - ${action}: ${count}`);
@@ -141,21 +171,61 @@ export function renderLockDashboardText(report: LockDashboardReport): string {
   return lines.join('\n');
 }
 
+function parseNumberFlag(args: string[], name: string): number | undefined {
+  const index = args.indexOf(name);
+  if (index < 0 || !args[index + 1]) return undefined;
+  const value = Number(args[index + 1]);
+  if (!Number.isFinite(value) || value < 0) {
+    throw new Error(`Invalid value for ${name}: ${args[index + 1]}`);
+  }
+  return value;
+}
+
+function parseSinceMs(args: string[]): number | undefined {
+  const sinceIndex = args.indexOf('--since');
+  if (sinceIndex >= 0 && args[sinceIndex + 1]) {
+    const parsed = Date.parse(args[sinceIndex + 1]);
+    if (!Number.isFinite(parsed)) {
+      throw new Error(`Invalid --since timestamp: ${args[sinceIndex + 1]}`);
+    }
+    return parsed;
+  }
+  const hours = parseNumberFlag(args, '--hours');
+  if (hours === undefined) return undefined;
+  return Date.now() - hours * 60 * 60 * 1000;
+}
+
+export function exceedsTimeoutThreshold(
+  report: LockDashboardReport,
+  maxTimeouts?: number,
+): boolean {
+  if (maxTimeouts === undefined) return false;
+  return report.timeoutEvents > maxTimeouts;
+}
+
 async function runCli(): Promise<void> {
   const args = process.argv.slice(2);
   const json = args.includes('--json');
+  const sinceMs = parseSinceMs(args);
+  const maxTimeouts = parseNumberFlag(args, '--max-timeouts');
   const dirFlagIndex = args.indexOf('--dir');
   const directory =
     dirFlagIndex >= 0 && args[dirFlagIndex + 1]
       ? args[dirFlagIndex + 1]
       : path.join(process.cwd(), '.salmonloop', 'runtime', 'audit');
 
-  const report = await buildLockDashboardReport(directory);
+  const report = await buildLockDashboardReport(directory, { sinceMs });
   if (json) {
     process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
-    return;
+  } else {
+    process.stdout.write(`${renderLockDashboardText(report)}\n`);
   }
-  process.stdout.write(`${renderLockDashboardText(report)}\n`);
+  if (exceedsTimeoutThreshold(report, maxTimeouts)) {
+    process.stderr.write(
+      `[lock-dashboard] threshold exceeded: acquire_timeout=${report.timeoutEvents} > max=${maxTimeouts}\n`,
+    );
+    process.exitCode = 2;
+  }
 }
 
 if (import.meta.main) {

@@ -30,6 +30,7 @@ Common causes:
 Meaning: the APPLY step received a diff that validated but did not produce any file operations.
 
 Actions:
+
 - Ensure the patch is a standard git unified diff.
 - If the diff starts with `--- a/...` and has no `diff --git`, upgrade to a version that supports headerless unified diffs.
 
@@ -38,6 +39,7 @@ Actions:
 Meaning: `git apply -3` requires valid preimage blob ids from `index <old>..<new>` lines, but the repository does not contain them (often due to fake index lines in generated diffs).
 
 Actions:
+
 - Prefer diffs without `index` lines.
 - Use a version that strips unsafe `index` lines or falls back safely.
 
@@ -46,6 +48,7 @@ Actions:
 Meaning: the LLM client failed to parse a JSON response (typically a truncated upstream response or a malformed proxy response).
 
 Actions:
+
 - Inspect the latest audit log (repo scope: `.salmonloop/runtime/audit/audit-*.json`, user scope: `~/.salmonloop/runtime/audit/audit-*.json`) and check `meta.errorCode`.
   - Common codes:
     - `LLM_HTTP_RESPONSE_INVALID_JSON`
@@ -68,6 +71,9 @@ Quick commands:
 3. Aggregate lock events by action/repo hash:
    - `bun scripts/audit-lock-dashboard.ts`
    - `bun scripts/audit-lock-dashboard.ts --json`
+   - `bun scripts/audit-lock-dashboard.ts --hours 24`
+   - `bun scripts/audit-lock-dashboard.ts --since 2026-03-04T00:00:00Z`
+   - `bun scripts/audit-lock-dashboard.ts --hours 1 --max-timeouts 3`
 
 Event to action mapping:
 

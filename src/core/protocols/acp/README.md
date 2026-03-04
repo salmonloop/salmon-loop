@@ -62,6 +62,21 @@ only reading `latestCheckpointId`.
 `resumeHint` / `resumeHintCode` provide UI-safe human-readable fallback messaging for
 resume failures, so UI can avoid generic hidden-technical-details prompts.
 
+Recommended UI mapping priority:
+
+1. Use `resumeHintCode` for i18n key lookup.
+2. Fallback to server-provided `resumeHint`.
+3. Fallback to generic "resume unavailable".
+
+Current stable `resumeHintCode` values:
+
+- `CHECKPOINT_NOT_FOUND`
+- `CHECKPOINT_MANIFEST_PARSE_ERROR`
+- `CHECKPOINT_MANIFEST_IO_ERROR`
+- `CHECKPOINT_MANIFEST_LOCK_TIMEOUT`
+- `CHECKPOINT_MANIFEST_UNAVAILABLE`
+- `CHECKPOINT_RESUME_UNAVAILABLE`
+
 ## Session Persistence
 
 - ACP session identity is persisted in user runtime storage and can be reloaded after process restart.
