@@ -70,4 +70,24 @@ describe('snapshot write-tree helpers', () => {
     });
     expect(typeof details.indexLockAgeMs).toBe('number');
   });
+
+  it('returns safe defaults when probe sub-steps fail', async () => {
+    statMock.mockRejectedValue(Object.assign(new Error('missing lock'), { code: 'ENOENT' }));
+    const git = {
+      repoPath: '/repo',
+      exec: async () => {
+        throw new Error('ls-files unavailable');
+      },
+      execMeta: async () => {
+        throw new Error('rev-parse unavailable');
+      },
+    } as any;
+
+    const details = await probeWriteTreeFailure(git);
+    expect(details).toMatchObject({
+      indexLockPresent: false,
+    });
+    expect(details.unmergedCount).toBeUndefined();
+    expect(details.isInsideWorkTree).toBeUndefined();
+  });
 });

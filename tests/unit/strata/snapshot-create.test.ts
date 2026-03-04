@@ -72,4 +72,69 @@ describe('snapshot create helper', () => {
 
     expect(commitHash).toBe('commit-hash');
   });
+
+  it('uses plain add for include paths that are not ignored', async () => {
+    const execCalls: string[] = [];
+    const git = {
+      query: async () => '',
+      exec: async (args: string[]) => {
+        execCalls.push(args.join(' '));
+        if (args[0] === 'check-ignore') return '';
+        if (args[0] === 'write-tree') return 'working-tree-hash\n';
+        if (args[0] === 'commit-tree') return 'commit-hash\n';
+        return '';
+      },
+    } as any;
+
+    const commitHash = await createSnapshotCommitFromStagedTree({
+      git,
+      stagedTree: 'staged-tree-hash',
+      includePaths: ['normal.txt'],
+      message: 'snapshot message',
+    });
+
+    expect(commitHash).toBe('commit-hash');
+    expect(execCalls).toContain('add -- normal.txt');
+    expect(execCalls.some((call) => call === 'add -f -- normal.txt')).toBe(false);
+  });
+
+  it('filters unsafe untracked paths before staging', async () => {
+    const execCalls: string[] = [];
+    const git = {
+      query: async (args: string[]) => {
+        if (args[0] === 'ls-files') {
+          return [
+            'safe.txt',
+            'node_modules/pkg/index.js',
+            '.env',
+            '.git/HEAD',
+            'dist/app.js',
+            'build/output.js',
+          ].join('\n');
+        }
+        return '';
+      },
+      exec: async (args: string[]) => {
+        execCalls.push(args.join(' '));
+        if (args[0] === 'write-tree') return 'working-tree-hash\n';
+        if (args[0] === 'commit-tree') return 'commit-hash\n';
+        return '';
+      },
+    } as any;
+
+    const commitHash = await createSnapshotCommitFromStagedTree({
+      git,
+      stagedTree: 'staged-tree-hash',
+      includePaths: [],
+      message: 'snapshot message',
+    });
+
+    expect(commitHash).toBe('commit-hash');
+    expect(execCalls).toContain('add -- safe.txt');
+    expect(execCalls.some((call) => call.includes('node_modules/pkg/index.js'))).toBe(false);
+    expect(execCalls.some((call) => call.includes('.env'))).toBe(false);
+    expect(execCalls.some((call) => call.includes('.git/HEAD'))).toBe(false);
+    expect(execCalls.some((call) => call.includes('dist/app.js'))).toBe(false);
+    expect(execCalls.some((call) => call.includes('build/output.js'))).toBe(false);
+  });
 });
