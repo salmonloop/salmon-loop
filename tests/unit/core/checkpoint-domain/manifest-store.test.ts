@@ -34,6 +34,7 @@ mock.module('../../../../src/core/runtime/paths.js', () => ({
 }));
 
 import {
+  probeCheckpointHandle,
   readCheckpointManifest,
   removeCheckpointHandle,
   upsertCheckpointHandle,
@@ -73,8 +74,30 @@ describe('checkpoint manifest store', () => {
     expect(writeFileMock).toHaveBeenCalled();
     expect(renameMock).toHaveBeenCalledWith(
       expect.stringContaining('.tmp-'),
-      '/home/test/.salmonloop/runtime/checkpoints/5/manifest.v1.json',
+      '/home/test/.salmonloop/runtime/checkpoints/5/manifest.v2.json',
     );
+  });
+
+  it('falls back to legacy v1 manifest when v2 file is missing', async () => {
+    readFileMock
+      .mockRejectedValueOnce(Object.assign(new Error('missing-v2'), { code: 'ENOENT' }))
+      .mockResolvedValueOnce(
+        JSON.stringify({
+          schemaVersion: 1,
+          checkpoints: {
+            'cp-legacy': {
+              id: 'cp-legacy',
+              createdAt: '2026-03-04T00:00:00.000Z',
+              strategy: 'worktree',
+              backend: 'git_snapshot',
+            },
+          },
+          sessions: {},
+        }),
+      );
+
+    const manifest = await readCheckpointManifest('/repo');
+    expect(manifest.checkpoints['cp-legacy']?.id).toBe('cp-legacy');
   });
 
   it('reads v2 manifest shape with lightweight compatibility migration', async () => {
@@ -126,5 +149,11 @@ describe('checkpoint manifest store', () => {
     await removeCheckpointHandle('/repo', 'cp-1');
 
     expect(renameMock).toHaveBeenCalled();
+  });
+
+  it('returns manifest_unavailable when manifest file cannot be parsed', async () => {
+    readFileMock.mockResolvedValue('{ not-json');
+    const result = await probeCheckpointHandle('/repo', 'cp-any');
+    expect(result.reason).toBe('manifest_unavailable');
   });
 });

@@ -4,7 +4,8 @@ import { getUserCheckpointManifestDir } from '../runtime/paths.js';
 
 import type { CheckpointHandle, SessionCheckpointLink } from './types.js';
 
-const CHECKPOINT_MANIFEST_FILENAME = 'manifest.v1.json';
+const CHECKPOINT_MANIFEST_FILENAME_V2 = 'manifest.v2.json';
+const CHECKPOINT_MANIFEST_FILENAME_V1 = 'manifest.v1.json';
 
 interface CheckpointManifestV1 {
   schemaVersion: 1 | 2;
@@ -64,11 +65,11 @@ function normalizeManifest(input: unknown): CheckpointManifestV1 {
   return createEmptyManifest();
 }
 
-function toManifestPath(repoPath: string): string {
-  return defaultPathAdapter.join(
-    getUserCheckpointManifestDir(repoPath),
-    CHECKPOINT_MANIFEST_FILENAME,
-  );
+function toManifestPath(
+  repoPath: string,
+  filename: string = CHECKPOINT_MANIFEST_FILENAME_V2,
+): string {
+  return defaultPathAdapter.join(getUserCheckpointManifestDir(repoPath), filename);
 }
 
 async function writeManifestAtomic(
@@ -101,8 +102,7 @@ async function withManifestLock<T>(repoPath: string, operation: () => Promise<T>
     }
   }
   if (!handle) {
-    // Best-effort fallback when lock cannot be acquired.
-    return operation();
+    throw new Error('CHECKPOINT_MANIFEST_LOCK_TIMEOUT');
   }
 
   try {
@@ -122,9 +122,16 @@ async function withManifestLock<T>(repoPath: string, operation: () => Promise<T>
 }
 
 export async function readCheckpointManifest(repoPath: string): Promise<CheckpointManifestV1> {
-  const manifestPath = toManifestPath(repoPath);
+  const manifestV2Path = toManifestPath(repoPath, CHECKPOINT_MANIFEST_FILENAME_V2);
+  const manifestV1Path = toManifestPath(repoPath, CHECKPOINT_MANIFEST_FILENAME_V1);
   try {
-    const raw = await readFile(manifestPath, 'utf8');
+    const raw = await readFile(manifestV2Path, 'utf8');
+    return normalizeManifest(JSON.parse(raw));
+  } catch {
+    // fallback to legacy v1 file
+  }
+  try {
+    const raw = await readFile(manifestV1Path, 'utf8');
     return normalizeManifest(JSON.parse(raw));
   } catch {
     return createEmptyManifest();
@@ -189,12 +196,40 @@ export async function removeCheckpointHandle(
 
 export type CheckpointProbeReason = 'ok' | 'not_found' | 'manifest_unavailable';
 
+function isNotFoundError(error: unknown): boolean {
+  return Boolean(
+    error &&
+    typeof error === 'object' &&
+    'code' in error &&
+    ((error as { code?: unknown }).code === 'ENOENT' ||
+      (error as { code?: unknown }).code === 'ENOTDIR'),
+  );
+}
+
 export async function probeCheckpointHandle(
   repoPath: string,
   checkpointId: string,
 ): Promise<{ handle: CheckpointHandle | null; reason: CheckpointProbeReason }> {
+  const manifestV2Path = toManifestPath(repoPath, CHECKPOINT_MANIFEST_FILENAME_V2);
+  const manifestV1Path = toManifestPath(repoPath, CHECKPOINT_MANIFEST_FILENAME_V1);
+  let raw: string | null = null;
   try {
-    const manifest = await readCheckpointManifest(repoPath);
+    raw = await readFile(manifestV2Path, 'utf8');
+  } catch (error) {
+    if (!isNotFoundError(error)) {
+      return { handle: null, reason: 'manifest_unavailable' };
+    }
+  }
+  if (raw === null) {
+    try {
+      raw = await readFile(manifestV1Path, 'utf8');
+    } catch (error) {
+      if (isNotFoundError(error)) return { handle: null, reason: 'not_found' };
+      return { handle: null, reason: 'manifest_unavailable' };
+    }
+  }
+  try {
+    const manifest = normalizeManifest(JSON.parse(raw));
     const handle = manifest.checkpoints[checkpointId] ?? null;
     if (!handle) return { handle: null, reason: 'not_found' };
     return { handle, reason: 'ok' };
@@ -206,11 +241,12 @@ export async function probeCheckpointHandle(
 export async function garbageCollectManifest(
   repoPath: string,
   options: { olderThanMs?: number; maxPerSession?: number } = {},
-): Promise<{ removed: number }> {
+): Promise<{ removed: number; removedIds: string[] }> {
   const olderThanMs = options.olderThanMs ?? 1000 * 60 * 60 * 24 * 14;
   const maxPerSession = options.maxPerSession ?? 30;
   const cutoff = Date.now() - olderThanMs;
   let removed = 0;
+  const removedIds: string[] = [];
 
   await withManifestLock(repoPath, async () => {
     const manifestPath = toManifestPath(repoPath);
@@ -232,6 +268,7 @@ export async function garbageCollectManifest(
       delete manifest.checkpoints[id];
       if (manifest.checkpointLineage) delete manifest.checkpointLineage[id];
       removed += 1;
+      removedIds.push(id);
     }
     if (removed > 0) {
       manifest.revision = (manifest.revision ?? 0) + 1;
@@ -239,5 +276,5 @@ export async function garbageCollectManifest(
     }
   });
 
-  return { removed };
+  return { removed, removedIds };
 }
