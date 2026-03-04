@@ -92,17 +92,9 @@ function formatInputRequiredMessage(inputRequired: TaskEnvelope['inputRequired']
   return lines.join('\n');
 }
 
-type AcpPlanEntry = {
-  content: string;
-  priority: 'high' | 'medium' | 'low';
-  status: 'pending' | 'in_progress' | 'completed';
-};
-
 type AcpPermissionPolicy = 'ask' | 'deny_all';
 
 type AcpSessionRuntimeState = {
-  planEntries: Map<string, AcpPlanEntry>;
-  lastPlanDigest: string | null;
   lastCommandsDigest: string | null;
   lastConfigDigest: string | null;
   lastSessionInfoDigest: string | null;
@@ -291,8 +283,6 @@ function loopEventToSessionUpdate(event: LoopEvent): SessionUpdate | null {
 function createSessionRuntimeState(): AcpSessionRuntimeState {
   const permissionPolicy = ACP_PERMISSION_POLICY_ASK;
   return {
-    planEntries: new Map(),
-    lastPlanDigest: null,
     lastCommandsDigest: null,
     lastConfigDigest: JSON.stringify(
       buildConfigOptionsFromPolicy(permissionPolicy as AcpPermissionPolicy),
@@ -367,45 +357,6 @@ function buildSessionInfoUpdateIfChanged(
   };
 }
 
-function applyPhaseToPlanState(event: LoopEvent, state: AcpSessionRuntimeState): boolean {
-  if (event.type !== 'phase.start' && event.type !== 'phase.end') return false;
-
-  const phaseKey = event.phase;
-  const existing = state.planEntries.get(phaseKey);
-
-  if (event.type === 'phase.start') {
-    for (const [key, entry] of state.planEntries.entries()) {
-      if (key !== phaseKey && entry.status === 'in_progress') {
-        state.planEntries.set(key, { ...entry, status: 'completed' });
-      }
-    }
-    state.planEntries.set(phaseKey, {
-      content: phaseKey,
-      priority: existing?.priority ?? 'medium',
-      status: 'in_progress',
-    });
-    return true;
-  }
-
-  state.planEntries.set(phaseKey, {
-    content: phaseKey,
-    priority: existing?.priority ?? 'medium',
-    status: 'completed',
-  });
-  return true;
-}
-
-function buildPlanUpdateIfChanged(state: AcpSessionRuntimeState): SessionUpdate | null {
-  const entries = Array.from(state.planEntries.values());
-  const digest = JSON.stringify(entries);
-  if (digest === state.lastPlanDigest) return null;
-  state.lastPlanDigest = digest;
-  return {
-    sessionUpdate: 'plan',
-    entries,
-  };
-}
-
 function buildAvailableCommandsUpdateIfChanged(
   state: AcpSessionRuntimeState,
 ): SessionUpdate | null {
@@ -421,16 +372,11 @@ function buildAvailableCommandsUpdateIfChanged(
 
 function loopEventToSessionUpdates(
   event: LoopEvent,
-  state: AcpSessionRuntimeState,
+  _state: AcpSessionRuntimeState,
 ): SessionUpdate[] {
   const updates: SessionUpdate[] = [];
   const mapped = loopEventToSessionUpdate(event);
   if (mapped) updates.push(mapped);
-
-  if (applyPhaseToPlanState(event, state)) {
-    const planUpdate = buildPlanUpdateIfChanged(state);
-    if (planUpdate) updates.push(planUpdate);
-  }
 
   return updates;
 }

@@ -996,7 +996,7 @@ describe('ACP formal protocol (SDK)', () => {
     ).rejects.toMatchObject({ code: -32000 });
   });
 
-  it('emits plan, available_commands_update and session_info_update during prompt', async () => {
+  it('emits available_commands_update and session_info_update during prompt', async () => {
     const updates: any[] = [];
 
     const { clientConn } = createConnectedPair({
@@ -1059,7 +1059,7 @@ describe('ACP formal protocol (SDK)', () => {
       prompt: [{ type: 'text', text: 'hi' }],
     });
 
-    expect(updates.some((update) => update.sessionUpdate === 'plan')).toBe(true);
+    expect(updates.some((update) => update.sessionUpdate === 'plan')).toBe(false);
     expect(updates.some((update) => update.sessionUpdate === 'available_commands_update')).toBe(
       true,
     );
@@ -1068,6 +1068,74 @@ describe('ACP formal protocol (SDK)', () => {
         update.sessionUpdate === 'session_info_update' && typeof update.updatedAt === 'string',
     );
     expect(hasSessionInfoUpdate).toBe(true);
+  });
+
+  it('does not map internal phases into ACP plan updates', async () => {
+    const updates: any[] = [];
+
+    const { clientConn } = createConnectedPair({
+      toAgent: (conn) =>
+        createAcpFormalAgent({
+          conn,
+          agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+          facade: {
+            createTask: async (input: any) => {
+              for (const phase of ['PREFLIGHT', 'PREPARE_DEPS', 'CONTEXT', 'EXPLORE']) {
+                input.onEvent?.({
+                  type: 'phase.start',
+                  phase,
+                  timestamp: new Date(),
+                });
+                input.onEvent?.({
+                  type: 'phase.end',
+                  phase,
+                  success: true,
+                  timestamp: new Date(),
+                });
+              }
+              return {
+                task: {
+                  id: 'task_1',
+                  capability: 'patch',
+                  state: 'accepted',
+                  request: { instruction: input.request.instruction },
+                  createdAt: new Date().toISOString(),
+                  attempt: 1,
+                },
+                signal: new AbortController().signal,
+              };
+            },
+            getTask: async () => null,
+            cancelTask: async () => null,
+            resumeTask: async () => null,
+            retryTask: async () => null,
+            reopenTask: async () => null,
+            listTasks: async () => ({ items: [] }),
+            submitInput: async () => null,
+            getArtifact: async () => null,
+          },
+        }),
+      toClient: () => ({
+        requestPermission: async () => ({ outcome: { outcome: 'cancelled' } }),
+        sessionUpdate: async (params: any) => {
+          updates.push(params.update);
+        },
+      }),
+    });
+
+    await clientConn.initialize({
+      protocolVersion: 1,
+      clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
+    });
+
+    const { sessionId } = await clientConn.newSession({ cwd: '/repo', mcpServers: [] });
+
+    await clientConn.prompt({
+      sessionId,
+      prompt: [{ type: 'text', text: 'hi' }],
+    });
+
+    expect(updates.some((update) => update.sessionUpdate === 'plan')).toBe(false);
   });
 
   it('returns cancelled stopReason when receiving session/cancel during prompt', async () => {
