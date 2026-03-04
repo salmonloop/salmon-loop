@@ -17,6 +17,7 @@ import {
 } from './ai-sdk/message-mapper.js';
 import { withAuditObservationName } from './ai-sdk/observation-context.js';
 import { createAiSdkChatModel, resolveAiSdkModelId } from './ai-sdk/provider-factory.js';
+import { buildAiSdkRequestParams } from './ai-sdk/request-params.js';
 import {
   createAiSdkRetryLogger,
   isRetryableAiSdkError,
@@ -94,17 +95,16 @@ export class AiSdkLLM implements LLM {
         });
 
         try {
-          const result = await generateText({
-            model: this.model,
-            messages: aiMessages,
-            tools,
-            temperature: options.temperature,
-            maxOutputTokens: options.maxTokens,
-            stopSequences: options.stop,
-            toolChoice: options.toolChoice === 'none' ? 'none' : tools ? 'auto' : undefined,
-            headers: attemptCtx.langfuseHeaders,
-            abortSignal: attemptCtx.abortSignal,
-          });
+          const result = await generateText(
+            buildAiSdkRequestParams({
+              model: this.model,
+              messages: aiMessages,
+              tools,
+              options,
+              headers: attemptCtx.langfuseHeaders,
+              abortSignal: attemptCtx.abortSignal,
+            }),
+          );
 
           recordAiSdkRequestSuccess({
             requestId,
@@ -180,17 +180,16 @@ export class AiSdkLLM implements LLM {
       });
 
       try {
-        const result = await streamText({
-          model: this.model,
-          messages: aiMessages,
-          tools,
-          temperature: options.temperature,
-          maxOutputTokens: options.maxTokens,
-          stopSequences: options.stop,
-          toolChoice: options.toolChoice === 'none' ? 'none' : tools ? 'auto' : undefined,
-          headers: attemptCtx.langfuseHeaders,
-          abortSignal: attemptCtx.abortSignal,
-        });
+        const result = await streamText(
+          buildAiSdkRequestParams({
+            model: this.model,
+            messages: aiMessages,
+            tools,
+            options,
+            headers: attemptCtx.langfuseHeaders,
+            abortSignal: attemptCtx.abortSignal,
+          }),
+        );
 
         let doneEmitted = false;
         // Use fullStream to get errors and finish reasons explicitly
