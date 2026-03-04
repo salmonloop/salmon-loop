@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'bun:test';
 
 import { REDACTED_ERROR_TOKEN } from '../../../../src/core/observability/error-envelope.js';
-import { mapErrorForAudit, mapErrorForDisplay } from '../../../../src/core/observability/error-mapping.js';
+import {
+  mapErrorForAudit,
+  mapErrorForDisplay,
+} from '../../../../src/core/observability/error-mapping.js';
 import { text } from '../../../../src/locales/index.js';
 
 describe('mapErrorForDisplay', () => {

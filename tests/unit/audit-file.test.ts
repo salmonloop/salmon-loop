@@ -34,12 +34,12 @@ mock.module('../../src/core/observability/logger.js', () => ({
 }));
 
 import { appendAuditTrailToAuditFile } from '../../src/core/observability/audit-file.js';
-import { REDACTED_ERROR_TOKEN } from '../../src/core/observability/error-envelope.js';
 import {
   clearAuditTrail,
   getAuditTrail,
   recordAuditEvent,
 } from '../../src/core/observability/audit-trail.js';
+import { REDACTED_ERROR_TOKEN } from '../../src/core/observability/error-envelope.js';
 import { text } from '../../src/locales/index.js';
 
 describe('appendAuditTrailToAuditFile', () => {
