@@ -1,26 +1,12 @@
 import type { Command } from 'commander';
 
 import type { DetectedHeadlessOutput } from './argv/headless-detection.js';
-import { createHeadlessErrorWriter } from './commands/run/headless-error-writer.js';
-import { createStdoutWriter } from './headless/stdout-writer.js';
-
-function getCommanderCode(err: unknown): string | undefined {
-  if (err && typeof err === 'object' && 'code' in err) {
-    return (err as { code?: string }).code;
-  }
-  return undefined;
-}
-
-function getCommanderExitCode(err: unknown): number | undefined {
-  if (err && typeof err === 'object' && 'exitCode' in err) {
-    return (err as { exitCode?: number }).exitCode;
-  }
-  return undefined;
-}
-
-function isCommanderHelpLike(code: string | undefined): boolean {
-  return code === 'commander.helpDisplayed' || code === 'commander.version';
-}
+import {
+  emitHeadlessCommanderUsageError,
+  getCommanderErrorExitCode,
+  isCommanderError,
+  shouldExitCommanderError,
+} from './program-error-adapter.js';
 
 export function configureProgramOutputForHeadless(
   program: Command,
@@ -43,28 +29,13 @@ export async function parseProgramOrExit(params: {
   try {
     await params.program.parseAsync(params.argv);
   } catch (err: unknown) {
-    const isCommanderError = (err instanceof Error ? err.name : undefined) === 'CommanderError';
-    if (isCommanderError) {
-      const code = getCommanderCode(err);
-      if (params.headlessDetection.outputFormat && !isCommanderHelpLike(code)) {
-        const writer = createStdoutWriter();
-        const headlessErrorWriter = createHeadlessErrorWriter({
-          repoPath: params.headlessDetection.repoPath ?? process.cwd(),
-          outputFormat: params.headlessDetection.outputFormat,
-          outputProfileForStreamJson: params.headlessDetection.outputProfile ?? 'native',
-          writer,
-          getSessionId: () => undefined,
-          getResumeSessionId: () => params.headlessDetection.resumeSessionId,
-        });
-        headlessErrorWriter.writeUsageError({
-          message: err instanceof Error ? err.message : String(err),
-          instruction: params.headlessDetection.instruction,
-        });
-        process.exit(1);
-      }
-
-      if (!isCommanderHelpLike(code)) {
-        process.exit(getCommanderExitCode(err) || 1);
+    if (isCommanderError(err)) {
+      emitHeadlessCommanderUsageError({
+        err,
+        headlessDetection: params.headlessDetection,
+      });
+      if (shouldExitCommanderError(err)) {
+        process.exit(getCommanderErrorExitCode(err));
       }
       return;
     }
