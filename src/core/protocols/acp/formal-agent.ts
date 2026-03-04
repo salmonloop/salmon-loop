@@ -683,6 +683,12 @@ export function createAcpFormalAgent(deps: {
     }
 
     const payload: PersistedAcpSessionStoreV2 = { schemaVersion: 2, sessions: prunedRecords };
+    const primaryRepoPath = prunedRecords[0]?.cwd;
+    const lockAuditDetails = {
+      lockPath,
+      lockPathHash: createHash('sha256').update(lockPath).digest('hex').slice(0, 16),
+      repoPathHash: primaryRepoPath ? hashRepoPath(primaryRepoPath) : undefined,
+    };
 
     const tryClearStaleLock = async (): Promise<void> => {
       try {
@@ -696,11 +702,12 @@ export function createAcpFormalAgent(deps: {
         if (Date.now() - createdAtMs <= sessionStorePolicy.lockStaleMs) return;
         if (typeof parsed.pid === 'number' && isPidAlive(parsed.pid)) return;
         await unlink(lockPath);
-        recordAuditEvent(
-          'acp.session.lock.stale_reclaimed',
-          { lockPath },
-          { source: 'acp', severity: 'low', scope: 'session', phase: 'PREFLIGHT' },
-        );
+        recordAuditEvent('acp.session.lock.stale_reclaimed', lockAuditDetails, {
+          source: 'acp',
+          severity: 'low',
+          scope: 'session',
+          phase: 'PREFLIGHT',
+        });
       } catch {
         try {
           const lockStat = await stat(lockPath);
@@ -709,7 +716,10 @@ export function createAcpFormalAgent(deps: {
             await unlink(lockPath);
             recordAuditEvent(
               'acp.session.lock.corrupted_reclaimed',
-              { ageMs: Math.max(0, Math.floor(ageMs)) },
+              {
+                ...lockAuditDetails,
+                ageMs: Math.max(0, Math.floor(ageMs)),
+              },
               { source: 'acp', severity: 'medium', scope: 'session', phase: 'PREFLIGHT' },
             );
           }
@@ -736,11 +746,12 @@ export function createAcpFormalAgent(deps: {
         }
       }
       if (!lockHandle) {
-        recordAuditEvent(
-          'acp.session.lock.acquire_timeout',
-          { lockPath },
-          { source: 'acp', severity: 'medium', scope: 'session', phase: 'PREFLIGHT' },
-        );
+        recordAuditEvent('acp.session.lock.acquire_timeout', lockAuditDetails, {
+          source: 'acp',
+          severity: 'medium',
+          scope: 'session',
+          phase: 'PREFLIGHT',
+        });
         throw new Error('ACP_SESSION_PERSIST_LOCK_TIMEOUT');
       }
 

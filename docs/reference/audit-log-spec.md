@@ -156,17 +156,43 @@ Checkpoint manifest and ACP session persistence emit lock lifecycle events:
 
 - `checkpoint.manifest.lock.acquire_timeout`
   - `repoPathHash`
+  - `lockPathHash`
 - `checkpoint.manifest.lock.stale_reclaimed`
   - `repoPathHash`
+  - `lockPathHash`
 - `checkpoint.manifest.lock.corrupted_reclaimed`
   - `ageMs`
+  - `repoPathHash`
+  - `lockPathHash`
 
 - `acp.session.lock.acquire_timeout`
   - `lockPath`
+  - `lockPathHash`
+  - `repoPathHash` (optional)
 - `acp.session.lock.stale_reclaimed`
   - `lockPath`
+  - `lockPathHash`
+  - `repoPathHash` (optional)
 - `acp.session.lock.corrupted_reclaimed`
   - `ageMs`
+  - `lockPath`
+  - `lockPathHash`
+  - `repoPathHash` (optional)
+
+Manifest self-heal events:
+
+- `checkpoint.manifest.self_healed`
+  - `reason` (currently: `parse_error`)
+  - `schemaHint` (`v1` or `v2`)
+  - `repoPathHash`
+  - `manifestPathHash`
+  - `backupPathHash`
+- `checkpoint.manifest.self_heal_failed`
+  - `reason`
+  - `schemaHint`
+  - `repoPathHash`
+  - `manifestPathHash`
+  - `errorName`
 
 Related ACP persistence/checkpoint events:
 

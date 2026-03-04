@@ -77,6 +77,12 @@ Current stable `resumeHintCode` values:
 - `CHECKPOINT_MANIFEST_UNAVAILABLE`
 - `CHECKPOINT_RESUME_UNAVAILABLE`
 
+Compatibility guarantee:
+
+- These listed codes are stable for ACP `protocolVersion: 1`.
+- New codes may be added additively; clients should ignore unknown codes and fallback to generic messaging.
+- Existing code semantics will not be repurposed without explicit protocol compatibility notice.
+
 ## Session Persistence
 
 - ACP session identity is persisted in user runtime storage and can be reloaded after process restart.

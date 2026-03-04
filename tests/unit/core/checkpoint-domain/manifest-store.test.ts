@@ -164,6 +164,26 @@ describe('checkpoint manifest store', () => {
     expect(result.reason).toBe('manifest_parse_error');
   });
 
+  it('self-heals corrupted v2 manifest by creating backup and rewriting empty manifest', async () => {
+    readFileMock
+      .mockResolvedValueOnce('{ invalid-json')
+      .mockRejectedValueOnce(Object.assign(new Error('missing-v1'), { code: 'ENOENT' }));
+
+    const manifest = await readCheckpointManifest('/repo');
+
+    expect(manifest.schemaVersion).toBe(2);
+    expect(manifest.checkpoints).toEqual({});
+    expect(
+      writeFileMock.mock.calls.some(
+        (call) => typeof call[0] === 'string' && call[0].includes('.manifest.v2.json.corrupt-'),
+      ),
+    ).toBe(true);
+    expect(renameMock).toHaveBeenCalledWith(
+      expect.stringContaining('.tmp-'),
+      '/home/test/.salmonloop/runtime/checkpoints/5/manifest.v2.json',
+    );
+  });
+
   it('reclaims stale manifest lock before writing', async () => {
     openMock
       .mockRejectedValueOnce(Object.assign(new Error('exists'), { code: 'EEXIST' }))

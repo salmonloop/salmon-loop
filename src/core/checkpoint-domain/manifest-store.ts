@@ -1,3 +1,5 @@
+import { createHash } from 'crypto';
+
 import { mkdir, open, readFile, rename, stat, unlink, writeFile } from '../adapters/fs/node-fs.js';
 import { defaultPathAdapter } from '../adapters/path/path-adapter.js';
 import { recordAuditEvent } from '../observability/audit-trail.js';
@@ -80,6 +82,10 @@ function toManifestPath(
   return defaultPathAdapter.join(getUserCheckpointManifestDir(repoPath), filename);
 }
 
+function hashValue(value: string): string {
+  return createHash('sha256').update(value).digest('hex').slice(0, 16);
+}
+
 async function writeManifestAtomic(
   manifestPath: string,
   manifest: CheckpointManifestV1,
@@ -95,6 +101,53 @@ async function writeManifestAtomic(
   await rename(tmpPath, manifestPath);
 }
 
+async function backupCorruptedManifest(manifestPath: string, raw: string): Promise<string> {
+  const dir = defaultPathAdapter.dirname(manifestPath);
+  const backupPath = defaultPathAdapter.join(
+    dir,
+    `.${defaultPathAdapter.basename(manifestPath)}.corrupt-${Date.now()}-${process.pid}.bak`,
+  );
+  await writeFile(backupPath, raw, 'utf8');
+  return backupPath;
+}
+
+async function selfHealCorruptedManifest(params: {
+  repoPath: string;
+  manifestPath: string;
+  raw: string;
+  reason: 'parse_error';
+  schemaHint: 'v1' | 'v2';
+}): Promise<void> {
+  const repoPathHash = defaultPathAdapter.basename(getUserCheckpointManifestDir(params.repoPath));
+  try {
+    const backupPath = await backupCorruptedManifest(params.manifestPath, params.raw);
+    await writeManifestAtomic(params.manifestPath, createEmptyManifest());
+    recordAuditEvent(
+      'checkpoint.manifest.self_healed',
+      {
+        reason: params.reason,
+        schemaHint: params.schemaHint,
+        repoPathHash,
+        manifestPathHash: hashValue(params.manifestPath),
+        backupPathHash: hashValue(backupPath),
+      },
+      { source: 'runtime', severity: 'medium', scope: 'session', phase: 'PREFLIGHT' },
+    );
+  } catch (error) {
+    recordAuditEvent(
+      'checkpoint.manifest.self_heal_failed',
+      {
+        reason: params.reason,
+        schemaHint: params.schemaHint,
+        repoPathHash,
+        manifestPathHash: hashValue(params.manifestPath),
+        errorName: error instanceof Error ? error.name : typeof error,
+      },
+      { source: 'runtime', severity: 'medium', scope: 'session', phase: 'PREFLIGHT' },
+    );
+  }
+}
+
 async function withManifestLock<T>(
   repoPath: string,
   operation: () => Promise<T>,
@@ -105,6 +158,8 @@ async function withManifestLock<T>(
   const dir = getUserCheckpointManifestDir(repoPath);
   await mkdir(dir, { recursive: true });
   const lockPath = defaultPathAdapter.join(dir, '.manifest.lock');
+  const repoPathHash = defaultPathAdapter.basename(getUserCheckpointManifestDir(repoPath));
+  const lockPathHash = hashValue(lockPath);
 
   const isPidAlive = (pid: number): boolean => {
     if (!Number.isInteger(pid) || pid <= 0) return false;
@@ -139,7 +194,8 @@ async function withManifestLock<T>(
       recordAuditEvent(
         'checkpoint.manifest.lock.stale_reclaimed',
         {
-          repoPathHash: defaultPathAdapter.basename(getUserCheckpointManifestDir(repoPath)),
+          repoPathHash,
+          lockPathHash,
         },
         { source: 'runtime', severity: 'low', scope: 'session', phase: 'PREFLIGHT' },
       );
@@ -151,7 +207,11 @@ async function withManifestLock<T>(
           await unlink(lockPath);
           recordAuditEvent(
             'checkpoint.manifest.lock.corrupted_reclaimed',
-            { ageMs: Math.max(0, Math.floor(ageMs)) },
+            {
+              ageMs: Math.max(0, Math.floor(ageMs)),
+              repoPathHash,
+              lockPathHash,
+            },
             { source: 'runtime', severity: 'medium', scope: 'session', phase: 'PREFLIGHT' },
           );
         }
@@ -176,7 +236,8 @@ async function withManifestLock<T>(
     recordAuditEvent(
       'checkpoint.manifest.lock.acquire_timeout',
       {
-        repoPathHash: defaultPathAdapter.basename(getUserCheckpointManifestDir(repoPath)),
+        repoPathHash,
+        lockPathHash,
       },
       { source: 'runtime', severity: 'medium', scope: 'session', phase: 'PREFLIGHT' },
     );
@@ -220,16 +281,38 @@ export async function readCheckpointManifest(repoPath: string): Promise<Checkpoi
   const manifestV1Path = toManifestPath(repoPath, CHECKPOINT_MANIFEST_FILENAME_V1);
   try {
     const raw = await readFile(manifestV2Path, 'utf8');
-    return normalizeManifest(JSON.parse(raw));
+    try {
+      return normalizeManifest(JSON.parse(raw));
+    } catch {
+      await selfHealCorruptedManifest({
+        repoPath,
+        manifestPath: manifestV2Path,
+        raw,
+        reason: 'parse_error',
+        schemaHint: 'v2',
+      });
+    }
   } catch {
     // fallback to legacy v1 file
   }
   try {
     const raw = await readFile(manifestV1Path, 'utf8');
-    return normalizeManifest(JSON.parse(raw));
+    try {
+      return normalizeManifest(JSON.parse(raw));
+    } catch {
+      await selfHealCorruptedManifest({
+        repoPath,
+        manifestPath: manifestV1Path,
+        raw,
+        reason: 'parse_error',
+        schemaHint: 'v1',
+      });
+      return createEmptyManifest();
+    }
   } catch {
     return createEmptyManifest();
   }
+  return createEmptyManifest();
 }
 
 export async function upsertCheckpointHandle(

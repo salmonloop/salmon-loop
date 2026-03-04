@@ -79,6 +79,29 @@ Current built-in config option:
   - `ask` (default): request UI permission for side-effecting tools
   - `deny_all`: auto-deny side-effecting tools
 
+## Compatibility Contract
+
+Salmon-Loop exposes ACP extension metadata under `_meta.salmonloop.*`.
+
+Versioning policy:
+
+- This metadata follows an additive compatibility contract for ACP `protocolVersion: 1`.
+- Existing fields/codes are never silently repurposed.
+- New fields/codes may be added; clients must ignore unknown values.
+
+`resumeHintCode` compatibility:
+
+- **Stable codes** (backward-compatible; safe for UI i18n key mapping):
+  - `CHECKPOINT_NOT_FOUND`
+  - `CHECKPOINT_MANIFEST_PARSE_ERROR`
+  - `CHECKPOINT_MANIFEST_IO_ERROR`
+  - `CHECKPOINT_MANIFEST_LOCK_TIMEOUT`
+  - `CHECKPOINT_MANIFEST_UNAVAILABLE`
+  - `CHECKPOINT_RESUME_UNAVAILABLE`
+- **Extensible space**:
+  - Future codes may be added without ACP protocol major bump.
+  - UI must treat unknown codes as generic resume-unavailable and optionally render `resumeHint`.
+
 ## Troubleshooting
 
 - **No startup message**: ACP logs are on **stderr**. Stdout only outputs JSON-RPC.

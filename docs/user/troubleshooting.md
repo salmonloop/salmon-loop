@@ -96,6 +96,12 @@ Event to action mapping:
 - `checkpoint.manifest.lock.corrupted_reclaimed`
   - Meaning: corrupted lock payload was reclaimed via mtime fallback.
   - Action: inspect host fs health and forced termination signals.
+- `checkpoint.manifest.self_healed`
+  - Meaning: manifest content was corrupted, runtime backed it up and rebuilt a clean manifest automatically.
+  - Action: inspect adjacent backup file and previous run crashes; resume from last valid checkpoint if needed.
+- `checkpoint.manifest.self_heal_failed`
+  - Meaning: manifest corruption detected but auto-heal failed.
+  - Action: check filesystem permissions/space and recover from manifest backup manually.
 
 Related ACP recovery events:
 
