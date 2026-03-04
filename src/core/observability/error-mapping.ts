@@ -1,6 +1,6 @@
 import { text } from '../../locales/index.js';
 
-import type { AuditTrailEvent } from './audit-trail.js';
+import { getAuditTrail, type AuditTrailEvent } from './audit-trail.js';
 import { REDACTED_ERROR_TOKEN } from './error-envelope.js';
 
 export interface ErrorDisplayInput {
@@ -159,6 +159,14 @@ export function mapErrorForDisplay(input: ErrorDisplayInput): ErrorDisplayOutput
   const isRedacted = rawMessage === REDACTED_ERROR_TOKEN;
 
   if (isRedacted) {
+    const trailError = mapAuditTrailToError(getAuditTrail());
+    if (trailError?.summary) {
+      return {
+        message: trailError.summary,
+        code: input.code,
+        redacted: true,
+      };
+    }
     if (mapped) {
       return {
         message: mapped,

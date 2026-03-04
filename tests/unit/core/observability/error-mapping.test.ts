@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'bun:test';
 
+import {
+  clearAuditTrail,
+  recordAuditEvent,
+} from '../../../../src/core/observability/audit-trail.js';
 import { REDACTED_ERROR_TOKEN } from '../../../../src/core/observability/error-envelope.js';
 import {
   mapAuditTrailToError,
@@ -161,6 +165,20 @@ describe('mapErrorForDisplay', () => {
 
     expect(result.message).toBe('Something went wrong');
     expect(result.redacted).toBe(false);
+  });
+
+  it('uses audit trail summary when display message is redacted', () => {
+    clearAuditTrail();
+    recordAuditEvent(
+      'langfuse.outcome.http_failed',
+      { status: 401, statusText: 'Unauthorized' },
+      { source: 'observability' },
+    );
+
+    const result = mapErrorForDisplay({ message: REDACTED_ERROR_TOKEN });
+
+    expect(result.message).toContain('Langfuse ingestion unauthorized');
+    expect(result.message).toContain('401');
   });
 });
 
