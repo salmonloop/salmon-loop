@@ -1,29 +1,32 @@
-import { runAnswerExecutor } from '../core/answer/answer-executor.js';
-import type {
-  MarkdownRenderMode,
-  MarkdownTheme,
-  PermissionMode,
-  ToolAuthorizationConfig,
-} from '../core/config/index.js';
-import type { UiLogMode, UiLogView } from '../core/config/types.js';
-import type { ResolvedExtensions } from '../core/extensions/types.js';
-import { InputHistoryManager } from '../core/history/input-history.js';
-import { routeChatIntent } from '../core/intent/chat-intent.js';
-import { DEFAULT_LLM_OUTPUT_POLICY, emitLlmOutput } from '../core/llm/output-policy.js';
-import { logIgnoredError } from '../core/observability/ignored-error.js';
-import { logger } from '../core/observability/logger.js';
-import type { RunOutcomeReporter } from '../core/observability/run-outcome-reporter.js';
-import { runSalmonLoop } from '../core/runtime/loop.js';
-import { ChatSessionManager } from '../core/session/manager.js';
 import {
   buildSessionConversationContext,
+  ChatSessionManager,
+  DEFAULT_LLM_OUTPUT_POLICY,
+  emitLlmOutput,
   getDefaultSessionContextBudgetTokens,
-} from '../core/session/session-context-builder.js';
-import { refreshSessionSummary } from '../core/session/summary-sync.js';
-import { TokenTracker } from '../core/session/token-tracker.js';
-import type { VerboseLevel } from '../core/types/execution.js';
-import type { LLM, LlmOutputPolicy } from '../core/types/llm.js';
-import type { CheckpointStrategy, LoopEvent, UserInputProvider } from '../core/types/loop.js';
+  InputHistoryManager,
+  logIgnoredError,
+  logger,
+  refreshSessionSummary,
+  routeChatIntent,
+  runAnswerExecutor,
+  runSalmonLoop,
+  TokenTracker,
+  type CheckpointStrategy,
+  type LLM,
+  type LoopEvent,
+  type LlmOutputPolicy,
+  type MarkdownRenderMode,
+  type MarkdownTheme,
+  type PermissionMode,
+  type ResolvedExtensions,
+  type RunOutcomeReporter,
+  type ToolAuthorizationConfig,
+  type UiLogMode,
+  type UiLogView,
+  type UserInputProvider,
+  type VerboseLevel,
+} from '../core/facades/cli-chat.js';
 
 import { createUiAuthorizationProvider } from './authorization/provider.js';
 import { commands } from './commands/registry.js';
