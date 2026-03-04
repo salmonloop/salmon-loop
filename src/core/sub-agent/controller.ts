@@ -13,10 +13,21 @@ export interface SubAgentView {
   logs: string[];
 }
 
-export class SubAgentController {
-  private static readonly agents = new Map<string, SubAgentView>();
+export interface SubAgentControllerPort {
+  registerAgent(id: string, profile: SubAgentProfile, status: SubAgentStatus): void;
+  updateStatus(id: string, status: SubAgentStatus, summary?: string): void;
+  appendLog(id: string, message: string): void;
+  listAgents(): SubAgentView[];
+  getAgent(id: string): SubAgentView | undefined;
+  tailLogs(id: string, count: number): string[];
+  requestStop(id: string): boolean;
+  isStopRequested(id: string): boolean;
+}
 
-  static registerAgent(id: string, profile: SubAgentProfile, status: SubAgentStatus) {
+export class InMemorySubAgentController implements SubAgentControllerPort {
+  private readonly agents = new Map<string, SubAgentView>();
+
+  registerAgent(id: string, profile: SubAgentProfile, status: SubAgentStatus) {
     const existing = this.agents.get(id);
     if (existing) {
       existing.status = status;
@@ -34,7 +45,7 @@ export class SubAgentController {
     });
   }
 
-  static updateStatus(id: string, status: SubAgentStatus, summary?: string) {
+  updateStatus(id: string, status: SubAgentStatus, summary?: string) {
     const agent = this.agents.get(id);
     if (!agent) return;
     agent.status = status;
@@ -43,7 +54,7 @@ export class SubAgentController {
     this.appendLog(id, `Status -> ${status}${summary ? ` (${summary})` : ''}`);
   }
 
-  static appendLog(id: string, message: string) {
+  appendLog(id: string, message: string) {
     const agent = this.agents.get(id);
     if (!agent) return;
     agent.logs.push(`${new Date().toISOString()} ${message}`);
@@ -52,21 +63,21 @@ export class SubAgentController {
     }
   }
 
-  static listAgents(): SubAgentView[] {
+  listAgents(): SubAgentView[] {
     return Array.from(this.agents.values());
   }
 
-  static getAgent(id: string): SubAgentView | undefined {
+  getAgent(id: string): SubAgentView | undefined {
     return this.agents.get(id);
   }
 
-  static tailLogs(id: string, count: number): string[] {
+  tailLogs(id: string, count: number): string[] {
     const agent = this.agents.get(id);
     if (!agent) return [];
     return agent.logs.slice(-count);
   }
 
-  static requestStop(id: string): boolean {
+  requestStop(id: string): boolean {
     const agent = this.agents.get(id);
     if (!agent) return false;
     if (agent.stopRequested) return true;
@@ -75,7 +86,13 @@ export class SubAgentController {
     return true;
   }
 
-  static isStopRequested(id: string): boolean {
+  isStopRequested(id: string): boolean {
     return this.agents.get(id)?.stopRequested ?? false;
   }
+}
+
+export const SubAgentController: SubAgentControllerPort = new InMemorySubAgentController();
+
+export function createSubAgentController(): SubAgentControllerPort {
+  return new InMemorySubAgentController();
 }

@@ -7,7 +7,7 @@ import {
 import { ConfigError } from '../../core/config/index.js';
 import { getDefaultRepoConfigPaths } from '../../core/config/paths.js';
 import { validateConfigFileV1 } from '../../core/config/validate.js';
-import { sanitizeError } from '../../core/llm/errors.js';
+import { sanitizeError } from '../../core/llm/index.js';
 import { resolveLlmOutputPolicy, DEFAULT_LLM_OUTPUT_POLICY } from '../../core/llm/output-policy.js';
 import { LLM_OUTPUT_KINDS, type LlmOutputKind } from '../../core/types/index.js';
 import { text } from '../locales/index.js';

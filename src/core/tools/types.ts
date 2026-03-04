@@ -53,18 +53,22 @@ export interface ToolRuntimeCtx {
 export const TOOL_INTENTS = ['READ', 'SEARCH', 'LIST', 'WRITE', 'INFRA', 'AGENT'] as const;
 export type ToolIntent = (typeof TOOL_INTENTS)[number];
 
-export interface ToolSpec<I = any, O = any> {
+export interface ToolSpecDescriptor {
   name: string; // e.g. "code.search"
   source: ToolSource; // builtin/mcp/plugin
   intent: ToolIntent; // Semantic intent of the tool
   description: string;
+}
 
+export interface ToolSpecGovernance {
   riskLevel: RiskLevel;
   sideEffects: SideEffect[];
   concurrency: ConcurrencyHint;
   allowedPhases: ExecutionPhase[];
   defaultTimeoutMs?: number;
+}
 
+export interface ToolSpecSchemas<I = any, O = any> {
   inputSchema: z.ZodType<I>;
   outputSchema: z.ZodType<O>;
 
@@ -74,10 +78,15 @@ export interface ToolSpec<I = any, O = any> {
    * If it throws, the system falls back to the default JSON args summary.
    */
   summarizeArgsForAuthorization?: (args: I, ctx: ToolRuntimeCtx) => Promise<string | undefined>;
+}
 
+export interface ToolSpecRuntime<I = any, O = any> {
   computeResources?: (args: I, ctx: ToolRuntimeCtx) => ResourceKey[];
   executor: (input: I, ctx: ToolRuntimeCtx) => Promise<O>;
 }
+
+export interface ToolSpec<I = any, O = any>
+  extends ToolSpecDescriptor, ToolSpecGovernance, ToolSpecSchemas<I, O>, ToolSpecRuntime<I, O> {}
 
 export interface ToolCallEnvelope {
   id: string;

@@ -10,6 +10,7 @@ import { Command } from 'commander';
 import { initializeRuntime } from '../core/runtime/initialize.js';
 
 import { detectHeadlessOutputFromArgv } from './argv/headless-detection.js';
+import { rewriteArgvForPrintMode } from './argv/print-mode.js';
 import { handleChatCommand } from './commands/chat.js';
 import { handleContextCommand } from './commands/context.js';
 import { handleRestoreCommand } from './commands/restore.js';
@@ -251,69 +252,4 @@ try {
       logger.error('CLI execution crashed', err, true);
     });
   }
-}
-
-function rewriteArgvForPrintMode(argv: string[]): string[] {
-  const tokens = argv.slice(2);
-  const hasPrint = tokens.some((t) => t === '-p' || t === '--print' || t.startsWith('--print='));
-  if (!hasPrint) return argv;
-
-  const knownCommands = new Set([
-    'run',
-    'serve',
-    'chat',
-    'context',
-    'restore',
-    'checkout',
-    'snapshot',
-    'snap',
-  ]);
-
-  const flagsWithValues = new Set([
-    '-p',
-    '--print',
-    '-r',
-    '--repo',
-    '--resume',
-    '-v',
-    '--verify',
-    '-cs',
-    '--checkpoint-strategy',
-    '--llm-output',
-  ]);
-
-  const startsWithAny = (value: string, prefixes: string[]) => {
-    for (const prefix of prefixes) {
-      if (value.startsWith(prefix)) return true;
-    }
-    return false;
-  };
-
-  for (let i = 0; i < tokens.length; i++) {
-    const token = tokens[i];
-    if (token === '--') break;
-
-    if (flagsWithValues.has(token)) {
-      i += 1; // skip value token
-      continue;
-    }
-
-    if (
-      startsWithAny(token, [
-        '--print=',
-        '--repo=',
-        '--resume=',
-        '--verify=',
-        '--checkpoint-strategy=',
-        '--llm-output=',
-      ])
-    ) {
-      continue;
-    }
-
-    if (token.startsWith('-')) continue;
-    if (knownCommands.has(token)) return argv;
-  }
-
-  return [...argv.slice(0, 2), 'run', ...tokens];
 }

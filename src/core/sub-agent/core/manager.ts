@@ -12,7 +12,7 @@ import type { ToolRuntimeCtx } from '../../tools/types.js';
 import type { LLM, LoopOptions } from '../../types/index.js';
 import { ErrorType } from '../../types/index.js';
 import { ArtifactStore } from '../artifacts/store.js';
-import { SubAgentController } from '../controller.js';
+import { SubAgentController, type SubAgentControllerPort } from '../controller.js';
 import { SubAgentRegistry } from '../registry.js';
 import type {
   IExecutable,
@@ -31,7 +31,10 @@ import { SmallfryLoop } from './loop.js';
 export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentResult> {
   private activeAgents = new Map<string, { profile: SubAgentProfile; status: SubAgentStatus }>();
 
-  constructor(private ctx: ToolRuntimeCtx) {}
+  constructor(
+    private ctx: ToolRuntimeCtx,
+    private readonly controller: SubAgentControllerPort = SubAgentController,
+  ) {}
 
   /**
    * Spawns a new sub-agent and monitors its execution.
@@ -58,7 +61,7 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
     }
 
     this.activeAgents.set(agentId, { profile, status: 'hiring' });
-    SubAgentController.registerAgent(agentId, profile, 'hiring');
+    this.controller.registerAgent(agentId, profile, 'hiring');
 
     logger.info(
       `[SubAgentManager] ${text.smallfry.status.spawning} (ID: ${agentId}, Role: ${profile.role})`,
@@ -73,7 +76,7 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
 
     try {
       this.updateStatus(agentId, 'working');
-      if (SubAgentController.isStopRequested(agentId)) {
+      if (this.controller.isStopRequested(agentId)) {
         throw new Error('Stop requested before launching Smallfry');
       }
 
@@ -132,7 +135,7 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
         await runtimeEnv.teardown();
       }
     } catch (error: unknown) {
-      SubAgentController.appendLog(
+      this.controller.appendLog(
         agentId,
         `Execution failed: ${(error instanceof Error ? error.message : undefined) ?? error}`,
       );
@@ -167,7 +170,7 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
     if (entry) {
       entry.status = status;
       logger.debug(`[SubAgentManager] Smallfry ${id} status: ${status}`);
-      SubAgentController.updateStatus(id, status);
+      this.controller.updateStatus(id, status);
     }
   }
 
