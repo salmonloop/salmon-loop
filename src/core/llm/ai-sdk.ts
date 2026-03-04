@@ -19,14 +19,13 @@ import { withAuditObservationName } from './ai-sdk/observation-context.js';
 import { createAiSdkChatModel, resolveAiSdkModelId } from './ai-sdk/provider-factory.js';
 import { buildAiSdkRequestParams } from './ai-sdk/request-params.js';
 import {
-  createAiSdkRetryLogger,
-  isRetryableAiSdkError,
+  executeAiSdkAttempt,
+  executeAiSdkStreamAttempt,
   prepareAiSdkAttempt,
-  recordAiSdkRequestError,
-  recordAiSdkRequestSuccess,
+  type PreparedAiSdkAttempt,
 } from './ai-sdk/request-runtime.js';
-import { toLlmError, wrapPlanEmpty, sanitizeError, LlmError } from './errors.js';
-import { withRetry, withStreamRetry } from './retry-utils.js';
+import { executeWithAiSdkRetry, executeWithAiSdkStreamRetry } from './ai-sdk/retry-executor.js';
+import { wrapPlanEmpty, sanitizeError, LlmError } from './errors.js';
 import { mapAiSdkStreamPartToChunk } from './stream-utils.js';
 import {
   extractUnifiedDiffFromLLMContent,
@@ -82,79 +81,55 @@ export class AiSdkLLM implements LLM {
     const requestId = randomUUID();
     let attempt = 0;
 
-    return withRetry(
-      async () => {
+    return executeWithAiSdkRetry({
+      signal: options.signal,
+      modelId: this.modelId,
+      streamed: false,
+      run: async () => {
         attempt += 1;
-        const attemptCtx = prepareAiSdkAttempt({
-          timeoutMs,
-          externalSignal: options.signal,
-          langfuseEnabled: Boolean(this.cfg.langfuseEnabled),
+        return executeAiSdkAttempt({
           requestId,
+          modelId: this.modelId,
           attempt,
-          tools,
-        });
-
-        try {
-          const result = await generateText(
-            buildAiSdkRequestParams({
-              model: this.model,
-              messages: aiMessages,
+          streamed: false,
+          prepare: () =>
+            prepareAiSdkAttempt({
+              timeoutMs,
+              externalSignal: options.signal,
+              langfuseEnabled: Boolean(this.cfg.langfuseEnabled),
+              requestId,
+              attempt,
               tools,
-              options,
-              headers: attemptCtx.langfuseHeaders,
-              abortSignal: attemptCtx.abortSignal,
             }),
-          );
+          run: async (attemptCtx) => {
+            const result = await generateText(
+              buildAiSdkRequestParams({
+                model: this.model,
+                messages: aiMessages,
+                tools,
+                options,
+                headers: attemptCtx.langfuseHeaders,
+                abortSignal: attemptCtx.abortSignal,
+              }),
+            );
 
-          recordAiSdkRequestSuccess({
-            requestId,
-            modelId: this.modelId,
-            attempt,
-            startedAt: attemptCtx.startedAt,
-            toolCount: attemptCtx.toolCount,
-            streamed: false,
-            auditCtx: attemptCtx.auditCtx,
-          });
+            const usage = extractUsageFromAiSdkResult(result);
+            if (usage) {
+              recordAuditEvent('llm.usage', usage, {
+                source: 'llm',
+                severity: 'low',
+                scope: 'session',
+              });
+            }
 
-          const usage = extractUsageFromAiSdkResult(result);
-          if (usage) {
-            recordAuditEvent('llm.usage', usage, {
-              source: 'llm',
-              severity: 'low',
-              scope: 'session',
-            });
-          }
-
-          return {
-            role: 'assistant' as LLMRole,
-            content: result.text || '',
-            tool_calls: toOpenAiToolCalls((result as any).toolCalls),
-          };
-        } catch (e) {
-          recordAiSdkRequestError({
-            requestId,
-            modelId: this.modelId,
-            attempt,
-            startedAt: attemptCtx.startedAt,
-            toolCount: attemptCtx.toolCount,
-            streamed: false,
-            auditCtx: attemptCtx.auditCtx,
-            error: e,
-          });
-          throw e;
-        } finally {
-          attemptCtx.cleanup();
-        }
+            return {
+              role: 'assistant' as LLMRole,
+              content: result.text || '',
+              tool_calls: toOpenAiToolCalls((result as any).toolCalls),
+            };
+          },
+        });
       },
-      {
-        maxRetries: 2,
-        jitterRatio: 0.2,
-        signal: options.signal, // Pass signal to retry logic
-        retryableErrors: isRetryableAiSdkError,
-        onRetry: createAiSdkRetryLogger({ modelId: this.modelId, streamed: false }),
-      },
-    ).catch((e) => {
-      throw toLlmError(e, 'ai-sdk');
     });
   }
 
@@ -164,91 +139,68 @@ export class AiSdkLLM implements LLM {
   ): AsyncIterable<LLMStreamChunk> {
     const aiMessages = toAiSdkMessages(messages);
     const tools = toAiSdkToolSet(options.tools, options.toolSpecs);
+    const model = this.model;
     const timeoutMs = this.timeoutMs;
     const requestId = randomUUID();
     let attempt = 0;
 
-    const streamFactory = async function* (this: AiSdkLLM) {
+    const streamFactory = () => {
       attempt += 1;
-      const attemptCtx = prepareAiSdkAttempt({
-        timeoutMs,
-        externalSignal: options.signal,
-        langfuseEnabled: Boolean(this.cfg.langfuseEnabled),
+      return executeAiSdkStreamAttempt({
         requestId,
+        modelId: this.modelId,
         attempt,
-        tools,
-      });
-
-      try {
-        const result = await streamText(
-          buildAiSdkRequestParams({
-            model: this.model,
-            messages: aiMessages,
+        streamed: true,
+        prepare: () =>
+          prepareAiSdkAttempt({
+            timeoutMs,
+            externalSignal: options.signal,
+            langfuseEnabled: Boolean(this.cfg.langfuseEnabled),
+            requestId,
+            attempt,
             tools,
-            options,
-            headers: attemptCtx.langfuseHeaders,
-            abortSignal: attemptCtx.abortSignal,
           }),
-        );
+        run: async function* (attemptCtx: PreparedAiSdkAttempt) {
+          const result = await streamText(
+            buildAiSdkRequestParams({
+              model,
+              messages: aiMessages,
+              tools,
+              options,
+              headers: attemptCtx.langfuseHeaders,
+              abortSignal: attemptCtx.abortSignal,
+            }),
+          );
 
-        let doneEmitted = false;
-        // Use fullStream to get errors and finish reasons explicitly
-        for await (const part of (result as any).fullStream) {
-          if (!part) continue;
+          let doneEmitted = false;
+          // Use fullStream to get errors and finish reasons explicitly
+          for await (const part of (result as any).fullStream) {
+            if (!part) continue;
 
-          if (part.type === 'error') throw part.error;
-          if (part.type === 'abort') throw new Error('Stream aborted');
+            if (part.type === 'error') throw part.error;
+            if (part.type === 'abort') throw new Error('Stream aborted');
 
-          const chunk = mapAiSdkStreamPartToChunk(part);
-          if (!chunk) continue;
+            const chunk = mapAiSdkStreamPartToChunk(part);
+            if (!chunk) continue;
 
-          if (chunk.done) {
-            doneEmitted = true;
+            if (chunk.done) {
+              doneEmitted = true;
+            }
+            yield chunk;
           }
-          yield chunk;
-        }
 
-        if (!doneEmitted) {
-          yield { role: 'assistant' as LLMRole, done: true, finishReason: 'unknown' };
-        }
-
-        recordAiSdkRequestSuccess({
-          requestId,
-          modelId: this.modelId,
-          attempt,
-          startedAt: attemptCtx.startedAt,
-          toolCount: attemptCtx.toolCount,
-          streamed: true,
-          auditCtx: attemptCtx.auditCtx,
-        });
-      } catch (e) {
-        recordAiSdkRequestError({
-          requestId,
-          modelId: this.modelId,
-          attempt,
-          startedAt: attemptCtx.startedAt,
-          toolCount: attemptCtx.toolCount,
-          streamed: true,
-          auditCtx: attemptCtx.auditCtx,
-          error: e,
-        });
-        throw e;
-      } finally {
-        attemptCtx.cleanup();
-      }
-    }.bind(this);
-
-    try {
-      yield* withStreamRetry(streamFactory, {
-        maxRetries: 2,
-        jitterRatio: 0.2,
-        signal: options.signal, // Pass signal to retry logic
-        retryableErrors: isRetryableAiSdkError,
-        onRetry: createAiSdkRetryLogger({ modelId: this.modelId, streamed: true }),
+          if (!doneEmitted) {
+            yield { role: 'assistant' as LLMRole, done: true, finishReason: 'unknown' };
+          }
+        },
       });
-    } catch (e) {
-      throw toLlmError(e, 'ai-sdk');
-    }
+    };
+
+    yield* executeWithAiSdkStreamRetry({
+      run: streamFactory,
+      signal: options.signal,
+      modelId: this.modelId,
+    });
   }
 
   /**

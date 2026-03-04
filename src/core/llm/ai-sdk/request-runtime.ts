@@ -26,6 +26,13 @@ export interface PreparedAiSdkAttempt {
   toolCount: number;
 }
 
+interface AttemptExecutionInput {
+  requestId: string;
+  modelId: string;
+  attempt: number;
+  streamed: boolean;
+}
+
 export function createAbortRuntime(params: { timeoutMs?: number; externalSignal?: AbortSignal }): {
   signal: AbortSignal;
   cleanup: () => void;
@@ -154,4 +161,77 @@ export function createAiSdkRetryLogger(params: { modelId: string; streamed: bool
 
 export function isRetryableAiSdkError(error: unknown): boolean {
   return classifyRetryableApiError(error).retryable;
+}
+
+export async function executeAiSdkAttempt<T>(
+  input: AttemptExecutionInput & {
+    prepare: () => PreparedAiSdkAttempt;
+    run: (attemptCtx: PreparedAiSdkAttempt) => Promise<T>;
+  },
+): Promise<T> {
+  const attemptCtx = input.prepare();
+  try {
+    const result = await input.run(attemptCtx);
+    recordAiSdkRequestSuccess({
+      requestId: input.requestId,
+      modelId: input.modelId,
+      attempt: input.attempt,
+      startedAt: attemptCtx.startedAt,
+      toolCount: attemptCtx.toolCount,
+      streamed: input.streamed,
+      auditCtx: attemptCtx.auditCtx,
+    });
+    return result;
+  } catch (error) {
+    recordAiSdkRequestError({
+      requestId: input.requestId,
+      modelId: input.modelId,
+      attempt: input.attempt,
+      startedAt: attemptCtx.startedAt,
+      toolCount: attemptCtx.toolCount,
+      streamed: input.streamed,
+      auditCtx: attemptCtx.auditCtx,
+      error,
+    });
+    throw error;
+  } finally {
+    attemptCtx.cleanup();
+  }
+}
+
+export async function* executeAiSdkStreamAttempt<T>(
+  input: AttemptExecutionInput & {
+    prepare: () => PreparedAiSdkAttempt;
+    run: (attemptCtx: PreparedAiSdkAttempt) => AsyncIterable<T>;
+  },
+): AsyncIterable<T> {
+  const attemptCtx = input.prepare();
+  try {
+    for await (const item of input.run(attemptCtx)) {
+      yield item;
+    }
+    recordAiSdkRequestSuccess({
+      requestId: input.requestId,
+      modelId: input.modelId,
+      attempt: input.attempt,
+      startedAt: attemptCtx.startedAt,
+      toolCount: attemptCtx.toolCount,
+      streamed: input.streamed,
+      auditCtx: attemptCtx.auditCtx,
+    });
+  } catch (error) {
+    recordAiSdkRequestError({
+      requestId: input.requestId,
+      modelId: input.modelId,
+      attempt: input.attempt,
+      startedAt: attemptCtx.startedAt,
+      toolCount: attemptCtx.toolCount,
+      streamed: input.streamed,
+      auditCtx: attemptCtx.auditCtx,
+      error,
+    });
+    throw error;
+  } finally {
+    attemptCtx.cleanup();
+  }
 }

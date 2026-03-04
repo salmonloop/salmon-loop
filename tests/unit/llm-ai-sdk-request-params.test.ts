@@ -7,7 +7,7 @@ describe('buildAiSdkRequestParams', () => {
     const params = buildAiSdkRequestParams({
       model: { id: 'm' },
       messages: [{ role: 'user', content: 'hi' }],
-      tools: { read: {} },
+      tools: { read: {} as any },
       options: { toolChoice: 'none' },
       headers: {},
       abortSignal: new AbortController().signal,
@@ -20,7 +20,7 @@ describe('buildAiSdkRequestParams', () => {
     const params = buildAiSdkRequestParams({
       model: { id: 'm' },
       messages: [{ role: 'user', content: 'hi' }],
-      tools: { read: {} },
+      tools: { read: {} as any },
       options: {},
       headers: {},
       abortSignal: new AbortController().signal,

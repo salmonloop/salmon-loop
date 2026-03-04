@@ -1,4 +1,5 @@
 import { jsonSchema, tool } from 'ai';
+import type { ToolSet } from 'ai';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 
@@ -203,7 +204,7 @@ export function toAiSdkMessages(messages: LLMMessage[]): any[] {
 export function toAiSdkToolSet(
   openAiTools: any[] | undefined,
   toolSpecs?: ToolSpec[],
-): Record<string, any> | undefined {
+): ToolSet | undefined {
   const tools: Record<string, any> = {};
 
   if (Array.isArray(toolSpecs)) {
@@ -241,7 +242,7 @@ export function toAiSdkToolSet(
     }
   }
 
-  return Object.keys(tools).length > 0 ? tools : undefined;
+  return Object.keys(tools).length > 0 ? (tools as ToolSet) : undefined;
 }
 
 export function toOpenAiToolCalls(toolCalls: any[] | undefined): any[] | undefined {

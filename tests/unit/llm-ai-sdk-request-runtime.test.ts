@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'bun:test';
 
-import { prepareAiSdkAttempt } from '../../src/core/llm/ai-sdk/request-runtime.js';
-import { clearAuditContext, setAuditContext } from '../../src/core/observability/audit-trail.js';
+import {
+  executeAiSdkAttempt,
+  executeAiSdkStreamAttempt,
+  prepareAiSdkAttempt,
+} from '../../src/core/llm/ai-sdk/request-runtime.js';
+import {
+  clearAuditContext,
+  clearAuditTrail,
+  getAuditTrail,
+  setAuditContext,
+} from '../../src/core/observability/audit-trail.js';
 
 describe('prepareAiSdkAttempt', () => {
   it('builds attempt context with toolCount and langfuse headers when enabled', () => {
@@ -73,5 +82,146 @@ describe('prepareAiSdkAttempt', () => {
 
     expect(attempt.abortSignal.aborted).toBe(true);
     attempt.cleanup();
+  });
+});
+
+describe('executeAiSdkAttempt', () => {
+  it('records success and always cleans up', async () => {
+    clearAuditTrail();
+    let cleaned = false;
+
+    const result = await executeAiSdkAttempt({
+      requestId: 'req-success',
+      modelId: 'gpt-test',
+      attempt: 1,
+      streamed: false,
+      prepare: () => ({
+        startedAt: Date.now() - 5,
+        auditCtx: { correlationId: 'run-1', phase: 'PLAN' },
+        abortSignal: new AbortController().signal,
+        cleanup: () => {
+          cleaned = true;
+        },
+        langfuseHeaders: {},
+        toolCount: 2,
+      }),
+      run: async () => 'ok',
+    });
+
+    expect(result).toBe('ok');
+    expect(cleaned).toBe(true);
+    const trail = getAuditTrail();
+    const requestEvents = trail.filter((event) => event.action === 'llm.request');
+    expect(requestEvents.length).toBe(1);
+    expect((requestEvents[0]?.details as any).status).toBe('ok');
+  });
+
+  it('records error and always cleans up', async () => {
+    clearAuditTrail();
+    let cleaned = false;
+
+    await expect(
+      executeAiSdkAttempt({
+        requestId: 'req-error',
+        modelId: 'gpt-test',
+        attempt: 1,
+        streamed: false,
+        prepare: () => ({
+          startedAt: Date.now() - 5,
+          auditCtx: { correlationId: 'run-1', phase: 'PATCH' },
+          abortSignal: new AbortController().signal,
+          cleanup: () => {
+            cleaned = true;
+          },
+          langfuseHeaders: {},
+          toolCount: 1,
+        }),
+        run: async () => {
+          throw new Error('fail');
+        },
+      }),
+    ).rejects.toThrow('fail');
+
+    expect(cleaned).toBe(true);
+    const trail = getAuditTrail();
+    const requestEvents = trail.filter((event) => event.action === 'llm.request');
+    expect(requestEvents.length).toBe(1);
+    expect((requestEvents[0]?.details as any).status).toBe('error');
+  });
+});
+
+describe('executeAiSdkStreamAttempt', () => {
+  it('records success and yields stream items', async () => {
+    clearAuditTrail();
+    let cleaned = false;
+
+    const items: string[] = [];
+    for await (const item of executeAiSdkStreamAttempt({
+      requestId: 'stream-success',
+      modelId: 'gpt-test',
+      attempt: 1,
+      streamed: true,
+      prepare: () => ({
+        startedAt: Date.now() - 5,
+        auditCtx: { correlationId: 'run-1', phase: 'REPORT' },
+        abortSignal: new AbortController().signal,
+        cleanup: () => {
+          cleaned = true;
+        },
+        langfuseHeaders: {},
+        toolCount: 0,
+      }),
+      run: async function* () {
+        yield 'a';
+        yield 'b';
+      },
+    })) {
+      items.push(item);
+    }
+
+    expect(items).toEqual(['a', 'b']);
+    expect(cleaned).toBe(true);
+    const trail = getAuditTrail();
+    const requestEvents = trail.filter((event) => event.action === 'llm.request');
+    expect(requestEvents.length).toBe(1);
+    expect((requestEvents[0]?.details as any).status).toBe('ok');
+  });
+
+  it('records error and cleans up when stream fails', async () => {
+    clearAuditTrail();
+    let cleaned = false;
+
+    await expect(
+      (async () => {
+        for await (const _item of executeAiSdkStreamAttempt({
+          requestId: 'stream-error',
+          modelId: 'gpt-test',
+          attempt: 1,
+          streamed: true,
+          prepare: () => ({
+            startedAt: Date.now() - 5,
+            auditCtx: { correlationId: 'run-1', phase: 'REPORT' },
+            abortSignal: new AbortController().signal,
+            cleanup: () => {
+              cleaned = true;
+            },
+            langfuseHeaders: {},
+            toolCount: 0,
+          }),
+          run: async function* () {
+            yield* [];
+            throw new Error('stream-fail');
+          },
+        })) {
+          // no-op
+        }
+      })(),
+    ).rejects.toThrow('stream-fail');
+
+    expect(cleaned).toBe(true);
+    const trail = getAuditTrail();
+    const requestEvents = trail.filter((event) => event.action === 'llm.request');
+    expect(requestEvents.length).toBe(1);
+    expect((requestEvents[0]?.details as any).status).toBe('error');
   });
 });
