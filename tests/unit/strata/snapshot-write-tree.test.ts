@@ -71,6 +71,30 @@ describe('snapshot write-tree helpers', () => {
     expect(typeof details.indexLockAgeMs).toBe('number');
   });
 
+  it('exposes spawnErrorCode when rev-parse fails at spawn layer', async () => {
+    statMock.mockRejectedValue(Object.assign(new Error('missing lock'), { code: 'ENOENT' }));
+    const git = {
+      repoPath: '/repo',
+      exec: async (args: string[]) => {
+        if (args[0] === 'ls-files') return '';
+        return '';
+      },
+      execMeta: async () => ({
+        ok: false,
+        code: -1,
+        stderr: 'spawn failed',
+        error: { code: 'ENOENT', message: 'spawn git ENOENT' },
+      }),
+    } as any;
+
+    const details = await probeWriteTreeFailure(git);
+    expect(details).toMatchObject({
+      isInsideWorkTree: false,
+      spawnErrorCode: 'ENOENT',
+      workTreeProbeErrorCode: 'ENOENT',
+    });
+  });
+
   it('returns safe defaults when probe sub-steps fail', async () => {
     statMock.mockRejectedValue(Object.assign(new Error('missing lock'), { code: 'ENOENT' }));
     const git = {

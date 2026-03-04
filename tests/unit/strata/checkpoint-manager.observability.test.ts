@@ -228,4 +228,47 @@ describe('CheckpointManager observability', () => {
       expect.any(Object),
     );
   });
+
+  it('captures spawnErrorCode when rev-parse fails before git exits normally', async () => {
+    gitQueryMock.mockImplementation(async (args: string[]) => {
+      if (args[0] === 'write-tree') {
+        throw Object.assign(new Error('fatal write-tree failure'), {
+          code: 'GIT_ERROR',
+          stderr: 'fatal: unable to cache tree',
+          command: 'write-tree',
+        });
+      }
+      return '';
+    });
+    statMock.mockRejectedValue(Object.assign(new Error('missing lock'), { code: 'ENOENT' }));
+    gitExecMock.mockImplementation(async (args: string[]) => {
+      if (args[0] === 'ls-files') return '';
+      return '';
+    });
+    gitExecMetaMock.mockResolvedValue({
+      ok: false,
+      code: -1,
+      signal: null,
+      stdout: Buffer.from(''),
+      stderr: 'spawn failed',
+      timedOut: false,
+      stdoutTruncated: false,
+      stderrTruncated: false,
+      error: { code: 'ENOENT', message: 'spawn git ENOENT' },
+    });
+
+    const manager = new CheckpointManager();
+    await expect(manager.createSafeSnapshot('/repo')).rejects.toThrow();
+
+    expect(recordAuditEventMock).toHaveBeenCalledWith(
+      'snapshot.create.step.failed',
+      expect.objectContaining({
+        step: 'write-tree',
+        isInsideWorkTree: false,
+        spawnErrorCode: 'ENOENT',
+        workTreeProbeErrorCode: 'ENOENT',
+      }),
+      expect.any(Object),
+    );
+  });
 });

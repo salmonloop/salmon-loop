@@ -52,6 +52,8 @@ export async function probeWriteTreeFailure(git: GitAdapter): Promise<Record<str
       details.isInsideWorkTree = insideMeta.stdout.toString('utf8').trim() === 'true';
     } else {
       details.isInsideWorkTree = false;
+      details.spawnErrorCode =
+        typeof insideMeta.error?.code === 'string' ? insideMeta.error.code : undefined;
       details.workTreeProbeErrorCode =
         insideMeta.error?.code ||
         (typeof insideMeta.code === 'number' ? `EXIT_${insideMeta.code}` : undefined);
