@@ -1,21 +1,15 @@
-import { randomBytes } from 'crypto';
-
 import { LIMITS } from '../config/limits.js';
 import type { ResolvedConfig } from '../config/types.js';
-import { createFlowEventAdapter, LoopTelemetry } from '../grizzco/engine/observability/index.js';
-import { buildLoopFailureResult } from '../grizzco/engine/outcome/index.js';
 import { buildFlowTransactionRunner, runFlowSession } from '../grizzco/engine/transaction/index.js';
-import { HostRunner } from '../grizzco/runtime/host/index.js';
-import { sanitizeError } from '../llm/errors.js';
-import {
-  clearAuditTrail,
-  recordAuditEvent,
-  setAuditContext,
-} from '../observability/audit-trail.js';
-import { extractErrorCode, REDACTED_ERROR_TOKEN } from '../observability/error-envelope.js';
-import { Phase, type FlowMode, type LoopOptions, type LoopResult } from '../types/runtime.js';
+import { Phase, type LoopOptions, type LoopResult } from '../types/runtime.js';
 
 import { finalizeLoopRun } from './loop-finalize.js';
+import {
+  buildLoopFailureFromError,
+  initializeLoopLifecycle,
+  recordLoopRunEnd,
+  recordLoopRunStart,
+} from './loop-run-lifecycle.js';
 import { resolveAndApplyRuntimeConfig } from './loop-runtime-config.js';
 import { Semaphore } from './semaphore.js';
 
@@ -34,33 +28,17 @@ export class SalmonLoop {
   constructor(private readonly config: ResolvedConfig) {}
 
   async run(options: LoopOptions): Promise<LoopResult> {
-    clearAuditTrail();
-    const correlationId = `run-${randomBytes(4).toString('hex')}`;
-    setAuditContext({
-      correlationId,
-      scope: 'session',
-      sessionId: options.langfuseSessionId,
-      userId: options.langfuseUserId,
-    });
-
-    const now = () => new Date();
-    const telemetry = new LoopTelemetry(now);
-    const { emitSanitized, emitFlow } = createFlowEventAdapter({
-      onEvent: options.onEvent,
-      telemetry,
-    });
-
-    const hostRunner = new HostRunner(options, emitSanitized, now);
+    const lifecycle = initializeLoopLifecycle(options);
     let latestAuditPath: string | undefined;
-    const shadowTaskId = randomBytes(4).toString('hex');
     let finalResult: LoopResult | undefined;
-    const runMode = 'run' as const;
-
-    emitSanitized({ type: 'run.start', mode: runMode, timestamp: now() });
-    recordAuditEvent('run.start', { mode: runMode }, { scope: 'session', severity: 'low' });
+    recordLoopRunStart({
+      emitSanitized: lifecycle.emitSanitized,
+      runMode: lifecycle.runMode,
+      now: lifecycle.now,
+    });
 
     try {
-      const hostContext = await hostRunner.boot();
+      const hostContext = await lifecycle.hostRunner.boot();
       const runner = buildFlowTransactionRunner({
         flowMode: hostContext.flowMode,
         fsAdapter: hostContext.fsAdapter,
@@ -68,10 +46,10 @@ export class SalmonLoop {
         activeRepoPath: hostContext.activeRepoPath,
         planRuntime: hostContext.planRuntime,
         options,
-        emitFlow,
-        now,
-        telemetry,
-        shadowTaskId,
+        emitFlow: lifecycle.emitFlow,
+        now: lifecycle.now,
+        telemetry: lifecycle.telemetry,
+        shadowTaskId: lifecycle.shadowTaskId,
       });
       const { flowMode } = hostContext;
 
@@ -79,74 +57,43 @@ export class SalmonLoop {
         runner,
         flowMode,
         options,
-        telemetry,
-        now,
-        emitSanitized,
+        telemetry: lifecycle.telemetry,
+        now: lifecycle.now,
+        emitSanitized: lifecycle.emitSanitized,
         auditPath: latestAuditPath,
       });
       latestAuditPath = sessionResult.auditPath;
       finalResult = sessionResult.result;
-      emitSanitized({
-        type: 'run.end',
-        mode: runMode,
+      recordLoopRunEnd({
+        emitSanitized: lifecycle.emitSanitized,
+        runMode: lifecycle.runMode,
         success: Boolean(finalResult.success),
-        timestamp: now(),
+        now: lifecycle.now,
       });
-      recordAuditEvent(
-        'run.end',
-        { mode: runMode, success: Boolean(finalResult.success) },
-        { scope: 'session', severity: finalResult.success ? 'low' : 'medium' },
-      );
       return finalResult;
     } catch (error) {
-      const extractedCode = extractErrorCode(error);
-      const errorCode = extractedCode && extractedCode !== 'Error' ? extractedCode : undefined;
-      const message = sanitizeError(error);
-      const safeMeta =
-        error &&
-        typeof error === 'object' &&
-        'safeMeta' in error &&
-        (error as { safeMeta?: unknown }).safeMeta &&
-        typeof (error as { safeMeta?: unknown }).safeMeta === 'object'
-          ? ((error as { safeMeta: Record<string, unknown> }).safeMeta as Record<string, unknown>)
-          : undefined;
-      recordAuditEvent(
-        'run.failed.diagnostic',
-        {
-          errorName: error instanceof Error ? error.name : typeof error,
-          errorCode,
-          phase: Phase.PREFLIGHT,
-          source: 'runtime.loop.catch',
-          redacted: message === REDACTED_ERROR_TOKEN,
-          safeMeta,
-        },
-        { source: 'runtime', severity: 'high', scope: 'session', phase: Phase.PREFLIGHT },
-      );
-      telemetry.recordLog(Phase.PREFLIGHT, message, false);
-      emitSanitized({ type: 'log', level: 'error', message, timestamp: now() });
-      const fallbackFlowMode: FlowMode = options.mode ?? 'patch';
-      finalResult = buildLoopFailureResult({
-        message,
-        flowMode: fallbackFlowMode,
-        telemetry,
-        auditPath: latestAuditPath,
-        reasonCode: 'LOOP_FAILED',
-        failurePhase: Phase.PREFLIGHT,
-        errorCode,
+      finalResult = buildLoopFailureFromError({
+        error,
+        options,
+        telemetry: lifecycle.telemetry,
+        emitSanitized: lifecycle.emitSanitized,
+        now: lifecycle.now,
+        latestAuditPath,
       });
-      emitSanitized({ type: 'run.end', mode: runMode, success: false, timestamp: now() });
-      recordAuditEvent(
-        'run.end',
-        { mode: runMode, success: false },
-        { scope: 'session', severity: 'high', phase: Phase.PREFLIGHT },
-      );
+      recordLoopRunEnd({
+        emitSanitized: lifecycle.emitSanitized,
+        runMode: lifecycle.runMode,
+        success: false,
+        now: lifecycle.now,
+        auditMeta: { severity: 'high', phase: Phase.PREFLIGHT },
+      });
       return finalResult;
     } finally {
       const finalized = await finalizeLoopRun({
         config: this.config,
         options,
-        hostRunner,
-        correlationId,
+        hostRunner: lifecycle.hostRunner,
+        correlationId: lifecycle.correlationId,
         latestAuditPath,
         finalResult,
       });
