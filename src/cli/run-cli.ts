@@ -1,15 +1,28 @@
-import { createCliRuntimeContext } from './cli-runtime-context.js';
+import { createCliRuntimeContext, type CliRuntimeContext } from './cli-runtime-context.js';
 import { bootstrapProgram } from './program-bootstrap.js';
 import { registerProgramCommands } from './program-commands.js';
 import { configureGlobalProgramOptions } from './program-options.js';
-import { configureProgramOutputForHeadless, parseProgramOrExit } from './program-parse.js';
+import { configureProgramOutputForHeadless } from './program-output-mode.js';
+import { parseProgramOrExit } from './program-parse.js';
 
-export async function runCli(argv: string[]): Promise<void> {
+export function buildCliProgram() {
   const program = bootstrapProgram();
   configureGlobalProgramOptions(program);
   registerProgramCommands(program);
+  return program;
+}
 
-  const context = createCliRuntimeContext(program, argv);
+export function createCliContextFromArgv(argv: string[]): CliRuntimeContext {
+  const program = buildCliProgram();
+  return createCliRuntimeContext(program, argv);
+}
+
+export async function executeCliContext(context: CliRuntimeContext): Promise<void> {
   configureProgramOutputForHeadless(context);
   await parseProgramOrExit(context);
+}
+
+export async function runCli(argv: string[]): Promise<void> {
+  const context = createCliContextFromArgv(argv);
+  await executeCliContext(context);
 }

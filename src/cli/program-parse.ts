@@ -4,17 +4,8 @@ import {
   getCommanderErrorExitCode,
   isCommanderError,
   shouldExitCommanderError,
-} from './program-error-adapter.js';
-
-export function configureProgramOutputForHeadless(context: CliRuntimeContext): void {
-  if (!context.headlessDetection.outputFormat) return;
-  context.program.configureOutput({
-    writeOut: () => {},
-    writeErr: () => {},
-  });
-  context.program.showHelpAfterError(false);
-  context.program.showSuggestionAfterError(false);
-}
+} from './commander-error-adapter.js';
+import { reportCliCrash } from './crash-reporter.js';
 
 export async function parseProgramOrExit(context: CliRuntimeContext): Promise<void> {
   try {
@@ -30,9 +21,6 @@ export async function parseProgramOrExit(context: CliRuntimeContext): Promise<vo
       }
       return;
     }
-
-    import('../core/observability/logger.js').then(({ logger }) => {
-      logger.error('CLI execution crashed', err, true);
-    });
+    reportCliCrash(err);
   }
 }

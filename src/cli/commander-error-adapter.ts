@@ -1,20 +1,7 @@
 import type { DetectedHeadlessOutput } from './argv/headless-detection.js';
+import { getCommanderCode, getCommanderExitCode } from './commander-error-meta.js';
 import { createHeadlessErrorWriter } from './commands/run/headless-error-writer.js';
 import { createStdoutWriter } from './headless/stdout-writer.js';
-
-function getCommanderCode(err: unknown): string | undefined {
-  if (err && typeof err === 'object' && 'code' in err) {
-    return (err as { code?: string }).code;
-  }
-  return undefined;
-}
-
-function getCommanderExitCode(err: unknown): number | undefined {
-  if (err && typeof err === 'object' && 'exitCode' in err) {
-    return (err as { exitCode?: number }).exitCode;
-  }
-  return undefined;
-}
 
 function isCommanderHelpLike(code: string | undefined): boolean {
   return code === 'commander.helpDisplayed' || code === 'commander.version';
