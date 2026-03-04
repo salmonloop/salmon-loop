@@ -2,12 +2,10 @@ import { randomBytes } from 'crypto';
 
 import { LIMITS } from '../config/limits.js';
 import type { ResolvedConfig } from '../config/types.js';
-import { createFlowEventAdapter } from '../grizzco/engine/observability/event-adapter.js';
-import { LoopTelemetry } from '../grizzco/engine/observability/loop-telemetry.js';
-import { buildLoopFailureResult } from '../grizzco/engine/outcome/loop-result-mapper.js';
-import { buildFlowTransactionRunner } from '../grizzco/engine/transaction/runner-builder.js';
-import { runFlowSession } from '../grizzco/engine/transaction/session.js';
-import { HostRunner } from '../grizzco/runtime/host/host-runner.js';
+import { createFlowEventAdapter, LoopTelemetry } from '../grizzco/engine/observability/index.js';
+import { buildLoopFailureResult } from '../grizzco/engine/outcome/index.js';
+import { buildFlowTransactionRunner, runFlowSession } from '../grizzco/engine/transaction/index.js';
+import { HostRunner } from '../grizzco/runtime/host/index.js';
 import { sanitizeError } from '../llm/errors.js';
 import {
   clearAuditTrail,
@@ -15,7 +13,7 @@ import {
   setAuditContext,
 } from '../observability/audit-trail.js';
 import { extractErrorCode, REDACTED_ERROR_TOKEN } from '../observability/error-envelope.js';
-import { Phase, type FlowMode, type LoopOptions, type LoopResult } from '../types/index.js';
+import { Phase, type FlowMode, type LoopOptions, type LoopResult } from '../types/runtime.js';
 
 import { finalizeLoopRun } from './loop-finalize.js';
 import { resolveAndApplyRuntimeConfig } from './loop-runtime-config.js';

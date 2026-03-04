@@ -8,7 +8,7 @@ import {
 } from '../context/policies/pack-until-full.js';
 import { setAuditBufferLimits } from '../observability/audit-trail.js';
 import { setRedactionConfig } from '../security/redaction.js';
-import type { LoopOptions } from '../types/index.js';
+import type { LoopOptions } from '../types/runtime.js';
 
 export async function resolveAndApplyRuntimeConfig(options: LoopOptions): Promise<ResolvedConfig> {
   const config = await resolveConfig({

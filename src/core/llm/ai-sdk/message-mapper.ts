@@ -4,7 +4,7 @@ import { zodToJsonSchema } from 'zod-to-json-schema';
 
 import { toolToOpenAI } from '../../tools/mapper.js';
 import type { ToolSpec } from '../../tools/types.js';
-import type { LLMMessage } from '../../types/index.js';
+import type { LLMMessage } from '../../types/llm.js';
 
 function formatOutputSchema(schema: z.ZodType<any> | undefined): string {
   if (!schema) return 'any (dynamic)';

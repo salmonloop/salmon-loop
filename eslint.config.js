@@ -5,6 +5,8 @@ import tseslint from 'typescript-eslint';
 
 import noLanguageHardcoding from './eslint-rules/no-language-hardcoding.js';
 
+const LANGUAGE_HARDCODING_WHITELIST = ['src/languages/', 'src/core/plugin/loader.ts', 'tests/'];
+
 export default tseslint.config(
   {
     ignores: [
@@ -61,11 +63,7 @@ export default tseslint.config(
       'salmon-loop/no-language-hardcoding': [
         'error',
         {
-          whitelist: [
-            'src/languages/', // Plugin implementations are allowed
-            'src/core/plugin/loader.ts', // Plugin registration
-            'tests/', // Test files
-          ],
+          whitelist: LANGUAGE_HARDCODING_WHITELIST,
         },
       ],
     },

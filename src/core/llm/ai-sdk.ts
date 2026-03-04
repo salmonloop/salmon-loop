@@ -11,15 +11,9 @@ import {
   setAuditContext,
 } from '../observability/audit-trail.js';
 import { getPatchPrompt, getPlanPrompt } from '../prompts/runtime.js';
-import type {
-  ChatOptions,
-  Context,
-  LLM,
-  LLMMessage,
-  LLMRole,
-  LLMStreamChunk,
-  Plan,
-} from '../types/index.js';
+import type { Context } from '../types/context.js';
+import type { ChatOptions, LLM, LLMMessage, LLMRole, LLMStreamChunk } from '../types/llm.js';
+import type { Plan } from '../types/planning.js';
 
 import { buildLangfuseHeaders } from './ai-sdk/langfuse-headers.js';
 import {

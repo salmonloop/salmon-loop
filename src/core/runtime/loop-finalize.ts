@@ -1,6 +1,6 @@
 import { text } from '../../locales/index.js';
 import type { ResolvedConfig } from '../config/types.js';
-import { HostRunner } from '../grizzco/runtime/host/host-runner.js';
+import { HostRunner } from '../grizzco/runtime/host/index.js';
 import { appendAuditTrailToAuditFile } from '../observability/audit-file.js';
 import {
   clearAuditContext,
@@ -10,7 +10,7 @@ import {
 import { logger } from '../observability/logger.js';
 import { buildRunOutcomeReport } from '../observability/run-outcome-reporter.js';
 import { drainRedactionMetrics } from '../security/redaction.js';
-import type { LoopOptions, LoopResult } from '../types/index.js';
+import type { LoopOptions, LoopResult } from '../types/runtime.js';
 
 export async function finalizeLoopRun(params: {
   config: ResolvedConfig;
