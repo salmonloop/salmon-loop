@@ -1,19 +1,25 @@
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
 const {
+  garbageCollectManifestMock,
   linkSessionToCheckpointMock,
+  probeCheckpointHandleMock,
   readCheckpointManifestMock,
   removeCheckpointHandleMock,
   upsertCheckpointHandleMock,
 } = (() => ({
+  garbageCollectManifestMock: mock(),
   linkSessionToCheckpointMock: mock(),
+  probeCheckpointHandleMock: mock(),
   readCheckpointManifestMock: mock(),
   removeCheckpointHandleMock: mock(),
   upsertCheckpointHandleMock: mock(),
 }))();
 
 mock.module('../../../../src/core/checkpoint-domain/manifest-store.js', () => ({
+  garbageCollectManifest: garbageCollectManifestMock,
   linkSessionToCheckpoint: linkSessionToCheckpointMock,
+  probeCheckpointHandle: probeCheckpointHandleMock,
   readCheckpointManifest: readCheckpointManifestMock,
   removeCheckpointHandle: removeCheckpointHandleMock,
   upsertCheckpointHandle: upsertCheckpointHandleMock,
@@ -24,6 +30,8 @@ import { GitSnapshotCheckpointService } from '../../../../src/core/checkpoint-do
 describe('GitSnapshotCheckpointService', () => {
   beforeEach(() => {
     mock.clearAllMocks();
+    garbageCollectManifestMock.mockResolvedValue({ removed: 0, removedIds: [] });
+    probeCheckpointHandleMock.mockResolvedValue({ handle: null, reason: 'not_found' });
   });
 
   it('creates checkpoint handle and links session', async () => {
@@ -91,5 +99,23 @@ describe('GitSnapshotCheckpointService', () => {
 
     expect(deleteSnapshot).toHaveBeenCalledWith('/repo', 'cp-1');
     expect(removeCheckpointHandleMock).toHaveBeenCalledWith('/repo', 'cp-1');
+  });
+
+  it('reconciles git snapshot refs for garbage-collected manifest ids', async () => {
+    garbageCollectManifestMock.mockResolvedValue({
+      removed: 2,
+      removedIds: ['cp-1', 'cp-2'],
+    });
+    const deleteSnapshot = mock().mockResolvedValue(undefined);
+    const manager = {
+      createSafeSnapshot: mock(),
+      deleteSnapshot,
+    } as any;
+    const service = new GitSnapshotCheckpointService(manager);
+
+    const result = await service.gc({ repoPath: '/repo' });
+
+    expect(deleteSnapshot).toHaveBeenCalledTimes(2);
+    expect(result).toEqual({ removed: 2, refsRemoved: 2 });
   });
 });

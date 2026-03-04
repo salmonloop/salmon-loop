@@ -30,7 +30,7 @@ export interface CheckpointService {
     repoPath: string;
     olderThanMs?: number;
     maxPerSession?: number;
-  }): Promise<{ removed: number }>;
+  }): Promise<{ removed: number; refsRemoved: number }>;
 }
 
 export class GitSnapshotCheckpointService implements CheckpointService {
@@ -110,10 +110,20 @@ export class GitSnapshotCheckpointService implements CheckpointService {
     repoPath: string;
     olderThanMs?: number;
     maxPerSession?: number;
-  }): Promise<{ removed: number }> {
-    return garbageCollectManifest(input.repoPath, {
+  }): Promise<{ removed: number; refsRemoved: number }> {
+    const manifestGc = await garbageCollectManifest(input.repoPath, {
       olderThanMs: input.olderThanMs,
       maxPerSession: input.maxPerSession,
     });
+    let refsRemoved = 0;
+    for (const checkpointId of manifestGc.removedIds) {
+      try {
+        await this.checkpointManager.deleteSnapshot(input.repoPath, checkpointId);
+        refsRemoved += 1;
+      } catch {
+        // Best-effort ref reconciliation; manifest remains source of truth.
+      }
+    }
+    return { removed: manifestGc.removed, refsRemoved };
   }
 }
