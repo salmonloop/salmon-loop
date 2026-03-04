@@ -2,11 +2,13 @@ import * as crypto from 'crypto';
 import * as os from 'os';
 import * as path from 'path';
 
-import { LIMITS } from '../../core/config/limits.js';
-import type { ToolAuthorizationConfig } from '../../core/config/types.js';
-import { logger } from '../../core/observability/logger.js';
-import type { SideEffect } from '../../core/tools/types.js';
-import type { ExecutionPhase } from '../../core/types/execution.js';
+import {
+  LIMITS,
+  logger,
+  type ExecutionPhase,
+  type SideEffect,
+  type ToolAuthorizationConfig,
+} from '../../core/facades/cli-authorization-allowlist.js';
 import { text } from '../locales/index.js';
 import {
   copyFile,

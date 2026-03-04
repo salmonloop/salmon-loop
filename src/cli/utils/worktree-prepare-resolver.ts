@@ -1,5 +1,4 @@
-import { logger } from '../../core/observability/logger.js';
-import type { CheckpointStrategy } from '../../core/types/loop.js';
+import { logger, type CheckpointStrategy } from '../../core/facades/cli-utils-worktree.js';
 import { text } from '../../locales/index.js';
 
 import { autoDetectWorktreePrepareCommand } from './detectors/index.js';

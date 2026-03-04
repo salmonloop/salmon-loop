@@ -1,4 +1,4 @@
-import type { NormalizedStreamEvent } from '../../core/streaming/normalized-events.js';
+import type { NormalizedStreamEvent } from '../../core/facades/cli-headless.js';
 
 import {
   encodeStreamEvent,

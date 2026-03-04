@@ -1,6 +1,8 @@
-import type { ToolAuthorizationConfig } from '../../core/config/types.js';
-import { ChatSessionManager } from '../../core/session/manager.js';
-import type { LlmOutputPolicy } from '../../core/types/llm.js';
+import type {
+  LlmOutputPolicy,
+  ToolAuthorizationConfig,
+} from '../../core/facades/cli-command-dispatcher.js';
+import { ChatSessionManager } from '../../core/facades/cli-command-dispatcher.js';
 
 export interface CommandContext {
   emit: (event: any) => void;

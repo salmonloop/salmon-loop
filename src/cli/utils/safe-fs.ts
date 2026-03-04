@@ -2,7 +2,7 @@ import * as fsPromises from 'fs/promises';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { ensureInSandbox, safeJoin } from '../../core/utils/path.js';
+import { ensureInSandbox, safeJoin } from '../../core/facades/cli-utils-path.js';
 
 function resolvePath(targetPath: string, rootContext?: string): string {
   if (!rootContext) return targetPath;

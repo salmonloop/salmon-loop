@@ -1,5 +1,7 @@
-import { parseCanonicalFunctionCallItemId } from '../../core/streaming/canonical/function-call-item-id.js';
-import type { CanonicalResponsesEvent } from '../../core/streaming/canonical/responses-events.js';
+import {
+  parseCanonicalFunctionCallItemId,
+  type CanonicalResponsesEvent,
+} from '../../core/facades/cli-headless.js';
 
 import type { UnsequencedResponseStreamEvent } from './openai-responses-state.js';
 import { OpenAiResponsesState } from './openai-responses-state.js';

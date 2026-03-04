@@ -1,4 +1,4 @@
-import { logIgnoredError } from '../../core/observability/ignored-error.js';
+import { logIgnoredError } from '../../core/facades/cli-observability.js';
 
 export interface AsyncQueueState {
   pendingCount: number;

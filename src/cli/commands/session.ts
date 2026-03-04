@@ -1,4 +1,4 @@
-import { InputHistoryManager } from '../../core/history/input-history.js';
+import { InputHistoryManager } from '../../core/facades/cli-command-session.js';
 import { text } from '../locales/index.js';
 import { buildTranscriptMessages } from '../ui/utils/transcript.js';
 

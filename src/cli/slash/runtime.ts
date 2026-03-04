@@ -1,19 +1,19 @@
-import { logIgnoredError } from '../../core/observability/ignored-error.js';
-import { logger } from '../../core/observability/logger.js';
-import { SkillLoader } from '../../core/skills/loader.js';
-import { executeSkill } from '../../core/skills/runtime/SkillRunner.js';
-import type { Skill } from '../../core/skills/types.js';
-import { createSlashRegistry } from '../../core/slash/registry.js';
-import { SlashRouter } from '../../core/slash/router.js';
-import type {
+import {
+  createSlashRegistry,
+  createStandardToolstack,
+  executeSkill,
+  logIgnoredError,
+  logger,
+  RuntimeEnvironment,
+  SkillLoader,
+  SlashRouter,
+  type Skill,
   SlashCommandSpec,
   SlashDispatchDecision,
   SlashHandler,
   SlashHandlerProvider,
-} from '../../core/slash/types.js';
-import { RuntimeEnvironment } from '../../core/strata/runtime/environment.js';
-import type { ToolAuthorizationProvider } from '../../core/tools/authorization/types.js';
-import { createStandardToolstack } from '../../core/tools/loader.js';
+  type ToolAuthorizationProvider,
+} from '../../core/facades/cli-slash-runtime.js';
 import { suggestSubcommands } from '../commands/subcommand-suggestions.js';
 import type { Command, CommandContext } from '../commands/types.js';
 import { text } from '../locales/index.js';

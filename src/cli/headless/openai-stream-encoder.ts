@@ -9,7 +9,7 @@ import type {
   ToolChoiceOptions,
 } from 'openai/resources/responses/responses';
 
-import type { CanonicalResponsesEvent } from '../../core/streaming/canonical/responses-events.js';
+import type { CanonicalResponsesEvent } from '../../core/facades/cli-headless.js';
 
 import { OpenAiResponsesCanonicalApplier } from './openai-responses-canonical-applier.js';
 import {

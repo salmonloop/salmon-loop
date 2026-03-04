@@ -1,5 +1,4 @@
-import { getExitCode } from '../../core/runtime/exit-codes.js';
-import type { LoopResult } from '../../core/types/loop.js';
+import { getExitCode, type LoopResult } from '../../core/facades/cli-headless.js';
 
 export type AnthropicStreamLine =
   | {

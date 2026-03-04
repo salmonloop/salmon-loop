@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import { Command } from 'commander';
 
-import { initializeRuntime } from '../core/runtime/initialize.js';
+import { initializeRuntime } from '../core/facades/cli-program-bootstrap.js';
 
 import { text } from './locales/index.js';
 

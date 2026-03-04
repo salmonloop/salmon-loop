@@ -1,5 +1,8 @@
-import type { CanonicalResponsesEvent } from '../../core/streaming/canonical/responses-events.js';
-import type { LoopEvent, LoopResult } from '../../core/types/loop.js';
+import type {
+  CanonicalResponsesEvent,
+  LoopEvent,
+  LoopResult,
+} from '../../core/facades/cli-reporters.js';
 import {
   OpenAiStreamEncoder,
   type OpenAiStreamEncoderOptions,

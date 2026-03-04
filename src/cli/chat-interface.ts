@@ -2,7 +2,7 @@ import * as readline from 'readline';
 
 import chalk from 'chalk';
 
-import { logger } from '../core/observability/logger.js';
+import { logger } from '../core/facades/cli-observability.js';
 
 import { text } from './locales/index.js';
 

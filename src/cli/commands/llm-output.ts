@@ -1,15 +1,17 @@
-import { FileAdapter } from '../../core/adapters/fs/index.js';
 import {
+  ConfigError,
+  DEFAULT_LLM_OUTPUT_POLICY,
   detectConfigFileFormat,
+  FileAdapter,
+  getDefaultRepoConfigPaths,
+  LLM_OUTPUT_KINDS,
   parseConfigText,
+  resolveLlmOutputPolicy,
+  sanitizeError,
   stringifyConfigText,
-} from '../../core/config/file-format.js';
-import { ConfigError } from '../../core/config/index.js';
-import { getDefaultRepoConfigPaths } from '../../core/config/paths.js';
-import { validateConfigFileV1 } from '../../core/config/validate.js';
-import { sanitizeError } from '../../core/llm/index.js';
-import { resolveLlmOutputPolicy, DEFAULT_LLM_OUTPUT_POLICY } from '../../core/llm/output-policy.js';
-import { LLM_OUTPUT_KINDS, type LlmOutputKind } from '../../core/types/llm.js';
+  type LlmOutputKind,
+  validateConfigFileV1,
+} from '../../core/facades/cli-command-config.js';
 import { text } from '../locales/index.js';
 import { parseLlmOutputKinds } from '../utils/llm-output.js';
 

@@ -1,4 +1,4 @@
-import type { LoopResult } from '../../core/types/loop.js';
+import type { LoopResult } from '../../core/facades/cli-headless.js';
 
 export interface JsonPayloadOverrides {
   success?: boolean;

@@ -2,11 +2,15 @@ import { resolve } from 'path';
 
 import { Command } from 'commander';
 
-import { normalizePermissionMode, resolveConfig } from '../../core/config/index.js';
-import { resolveExtensions, ExtensionConfigError } from '../../core/extensions/index.js';
-import { createRuntimeLlm } from '../../core/llm/factory.js';
-import { logger } from '../../core/observability/logger.js';
-import { PluginLoader } from '../../core/plugin/loader.js';
+import {
+  createRuntimeLlm,
+  ExtensionConfigError,
+  logger,
+  normalizePermissionMode,
+  PluginLoader,
+  resolveConfig,
+  resolveExtensions,
+} from '../../core/facades/cli-command-chat.js';
 import { text } from '../locales/index.js';
 import { resolveAuditScope } from '../utils/audit-scope.js';
 import { resolveLlmOutputPolicyFromCli } from '../utils/llm-output.js';

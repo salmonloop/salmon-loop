@@ -1,4 +1,4 @@
-import type { LoopEvent, LoopResult } from '../../core/types/loop.js';
+import type { LoopEvent, LoopResult } from '../../core/facades/cli-reporters.js';
 
 export interface SalmonReporter {
   onStart(instruction: string): void;

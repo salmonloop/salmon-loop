@@ -1,10 +1,15 @@
 import chalk from 'chalk';
 import ProgressBar from 'progress';
 
-import { mapErrorForDisplay } from '../../core/observability/error-mapping.js';
-import { logger } from '../../core/observability/logger.js';
-import { ALL_VISIBLE_STEPS, ErrorType, Phase } from '../../core/types/execution.js';
-import { type LoopEvent, type LoopResult } from '../../core/types/loop.js';
+import {
+  ALL_VISIBLE_STEPS,
+  ErrorType,
+  logger,
+  mapErrorForDisplay,
+  Phase,
+  type LoopEvent,
+  type LoopResult,
+} from '../../core/facades/cli-reporters.js';
 import { text } from '../locales/index.js';
 
 import { SalmonReporter } from './base.js';

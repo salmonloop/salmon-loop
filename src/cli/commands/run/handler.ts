@@ -2,16 +2,17 @@ import { randomUUID } from 'crypto';
 
 import type { Command } from 'commander';
 
-import { normalizePermissionMode } from '../../../core/config/index.js';
-import { logger } from '../../../core/observability/logger.js';
-import { getExitCode } from '../../../core/runtime/exit-codes.js';
-import type { ChatSessionManager } from '../../../core/session/manager.js';
 import {
   buildSessionConversationContext,
+  getExitCode,
   getDefaultSessionContextBudgetTokens,
-} from '../../../core/session/session-context-builder.js';
-import type { ApplyBackOnDirty } from '../../../core/types/execution.js';
-import type { CheckpointStrategy, LoopResult } from '../../../core/types/loop.js';
+  logger,
+  normalizePermissionMode,
+  type ApplyBackOnDirty,
+  type ChatSessionManager,
+  type CheckpointStrategy,
+  type LoopResult,
+} from '../../../core/facades/cli-run-handler.js';
 import { createStdoutWriter } from '../../headless/stdout-writer.js';
 import { text } from '../../locales/index.js';
 import { StderrLogReporter } from '../../reporters/stderr-log-reporter.js';

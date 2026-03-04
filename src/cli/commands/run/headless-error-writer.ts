@@ -1,7 +1,9 @@
 import { randomUUID } from 'crypto';
 
-import { getExitCode } from '../../../core/runtime/exit-codes.js';
-import type { LoopResult } from '../../../core/types/loop.js';
+import {
+  getExitCode,
+  type LoopResult,
+} from '../../../core/facades/cli-run-headless-error-writer.js';
 import {
   encodeAnthropicEnd,
   encodeAnthropicError,

@@ -4,12 +4,11 @@ import React from 'react';
 import type {
   MarkdownRenderMode,
   MarkdownTheme,
+  LoopEvent,
   UiLogMode,
   UiLogView,
-} from '../../core/config/types.js';
-import { logger } from '../../core/observability/logger.js';
-import { LoopEventReporter } from '../../core/observability/loop-event-reporter.js';
-import type { LoopEvent } from '../../core/types/loop.js';
+} from '../../core/facades/cli-ui.js';
+import { logger, LoopEventReporter } from '../../core/facades/cli-ui.js';
 import { text } from '../locales/index.js';
 
 import { App } from './App.js';

@@ -1,5 +1,4 @@
-import { logger } from '../../core/observability/logger.js';
-import { EXECUTION_PHASES } from '../../core/types/execution.js';
+import { EXECUTION_PHASES, logger } from '../../core/facades/cli-command-allowlist.js';
 import {
   clearAllowlist,
   clearAllowlistCache,

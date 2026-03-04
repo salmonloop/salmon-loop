@@ -3,8 +3,7 @@ import { resolve } from 'path';
 import chalk from 'chalk';
 import { Command } from 'commander';
 
-import { logger } from '../../core/observability/logger.js';
-import { CheckpointManager } from '../../core/strata/checkpoint/manager.js';
+import { CheckpointManager, logger } from '../../core/facades/cli-command-checkpoint.js';
 import { text } from '../locales/index.js';
 
 export async function handleSnapshotList(_options: any, command: Command) {

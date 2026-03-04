@@ -1,9 +1,9 @@
-import { resolveLlmOutputPolicy } from '../../core/llm/output-policy.js';
 import {
   LLM_OUTPUT_KINDS,
+  resolveLlmOutputPolicy,
   type LlmOutputKind,
   type LlmOutputPolicy,
-} from '../../core/types/llm.js';
+} from '../../core/facades/cli-utils-llm-output.js';
 
 const ALL_KINDS = [...LLM_OUTPUT_KINDS];
 

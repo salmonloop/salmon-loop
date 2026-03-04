@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { SubAgentController } from '../../core/sub-agent/controller.js';
+import { SubAgentController } from '../../core/facades/cli-subagent.js';
 import { text } from '../locales/index.js';
 
 import type { Command } from './types.js';

@@ -1,7 +1,9 @@
-import type { ToolAuthorizationConfig } from '../../core/config/types.js';
-import { ChatSessionManager } from '../../core/session/manager.js';
-import type { LlmOutputPolicy } from '../../core/types/llm.js';
-import type { LoopEvent } from '../../core/types/loop.js';
+import type {
+  LlmOutputPolicy,
+  LoopEvent,
+  ToolAuthorizationConfig,
+} from '../../core/facades/cli-command-dispatcher.js';
+import { ChatSessionManager } from '../../core/facades/cli-command-dispatcher.js';
 import { text } from '../locales/index.js';
 
 import { findCommand } from './registry.js';

@@ -1,13 +1,14 @@
 import { createInterface } from 'readline/promises';
 
-import type { PermissionMode, ToolAuthorizationConfig } from '../../core/config/types.js';
-import type { ResolvedExtensions } from '../../core/extensions/types.js';
-import { logger } from '../../core/observability/logger.js';
 import type {
   AuthorizationDecision,
+  PermissionMode,
+  ResolvedExtensions,
+  ToolAuthorizationConfig,
   ToolAuthorizationProvider,
   ToolAuthorizationRequest,
-} from '../../core/tools/authorization/types.js';
+} from '../../core/facades/cli-authorization-provider.js';
+import { logger } from '../../core/facades/cli-authorization-provider.js';
 import { TOOL_AUTH_CONFIG } from '../config.js';
 import { text } from '../locales/index.js';
 import { getPendingAuthorization, requestAuthorization } from '../ui/authorization/bus.js';

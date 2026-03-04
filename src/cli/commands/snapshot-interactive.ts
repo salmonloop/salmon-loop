@@ -1,4 +1,4 @@
-import { CheckpointManager } from '../../core/strata/checkpoint/manager.js';
+import { CheckpointManager } from '../../core/facades/cli-command-checkpoint.js';
 
 import type { Command, CommandResult } from './types.js';
 import { parseSuggestionContext } from './utils.js';

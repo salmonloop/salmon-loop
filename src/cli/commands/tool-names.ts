@@ -1,13 +1,15 @@
 import * as os from 'os';
 import * as path from 'path';
 
-import { logger } from '../../core/observability/logger.js';
-import { skillToToolSpec } from '../../core/skills/bridge.js';
-import { SkillParser } from '../../core/skills/parser.js';
-import type { Skill } from '../../core/skills/types.js';
-import { registerAllBuiltins } from '../../core/tools/builtin/index.js';
-import { ToolRegistry } from '../../core/tools/registry.js';
-import type { SideEffect } from '../../core/tools/types.js';
+import {
+  logger,
+  registerAllBuiltins,
+  skillToToolSpec,
+  SkillParser,
+  ToolRegistry,
+  type SideEffect,
+  type Skill,
+} from '../../core/facades/cli-command-tool-names.js';
 import {
   existsSync,
   readFileUtf8,

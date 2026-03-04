@@ -1,7 +1,10 @@
 import chalk from 'chalk';
 
-import { mapErrorForDisplay } from '../../core/observability/error-mapping.js';
-import type { LogLevel, LogReporter } from '../../core/observability/logger.js';
+import {
+  mapErrorForDisplay,
+  type LogLevel,
+  type LogReporter,
+} from '../../core/facades/cli-reporters.js';
 
 export class StderrLogReporter implements LogReporter {
   constructor(private verboseLevel: LogLevel = 'none') {}

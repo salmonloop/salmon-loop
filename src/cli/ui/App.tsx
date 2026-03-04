@@ -4,13 +4,12 @@ import React from 'react';
 import type {
   MarkdownRenderMode,
   MarkdownTheme,
+  LoopEvent,
+  PlanReadResult,
   UiLogMode,
   UiLogView,
-} from '../../core/config/types.js';
-import { logIgnoredError } from '../../core/observability/ignored-error.js';
-import { readPlan } from '../../core/plan/index.js';
-import type { PlanReadResult } from '../../core/plan/types.js';
-import type { LoopEvent } from '../../core/types/loop.js';
+} from '../../core/facades/cli-ui.js';
+import { logIgnoredError, readPlan } from '../../core/facades/cli-ui.js';
 import { text } from '../locales/index.js';
 
 import { bindAuthorizationDispatch, resolveAuthorization } from './authorization/bus.js';

@@ -1,7 +1,10 @@
-import { emitLlmOutput } from '../../../core/llm/output-policy.js';
-import { runSalmonLoop } from '../../../core/runtime/loop.js';
-import type { ApplyBackOnDirty } from '../../../core/types/execution.js';
-import type { LoopEvent, LoopResult } from '../../../core/types/loop.js';
+import {
+  emitLlmOutput,
+  runSalmonLoop,
+  type ApplyBackOnDirty,
+  type LoopEvent,
+  type LoopResult,
+} from '../../../core/facades/cli-run-execute.js';
 import { createCliTaskRunner } from '../../../interfaces/cli/task-runner.js';
 import { createUiAuthorizationProvider } from '../../authorization/provider.js';
 import type { SalmonReporter } from '../../reporters/base.js';

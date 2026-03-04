@@ -1,5 +1,4 @@
-import { getExitCode } from '../../core/runtime/exit-codes.js';
-import type { LoopEvent, LoopResult } from '../../core/types/loop.js';
+import { getExitCode, type LoopEvent, type LoopResult } from '../../core/facades/cli-headless.js';
 
 type OutputTimestamp = string;
 

@@ -1,14 +1,15 @@
-import { FileAdapter } from '../../core/adapters/fs/index.js';
 import {
+  ConfigError,
   detectConfigFileFormat,
+  FileAdapter,
+  getDefaultRepoConfigPaths,
+  normalizeUiLogMode,
   parseConfigText,
+  sanitizeError,
   stringifyConfigText,
-} from '../../core/config/file-format.js';
-import { ConfigError } from '../../core/config/index.js';
-import { getDefaultRepoConfigPaths } from '../../core/config/paths.js';
-import { normalizeUiLogMode, type UiLogMode } from '../../core/config/types.js';
-import { validateConfigFileV1 } from '../../core/config/validate.js';
-import { sanitizeError } from '../../core/llm/index.js';
+  type UiLogMode,
+  validateConfigFileV1,
+} from '../../core/facades/cli-command-config.js';
 import { text } from '../locales/index.js';
 
 import type { Command } from './types.js';

@@ -1,6 +1,8 @@
-import type { PermissionMode } from '../../../core/config/types.js';
-import type { LLMMessage } from '../../../core/types/llm.js';
-import type { CheckpointStrategy } from '../../../core/types/loop.js';
+import type {
+  CheckpointStrategy,
+  LLMMessage,
+  PermissionMode,
+} from '../../../core/facades/cli-run-loop-params.js';
 import { createTerminalAuthorizationProvider } from '../../authorization/provider.js';
 
 export function buildRunLoopParams(params: {

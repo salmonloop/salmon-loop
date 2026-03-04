@@ -1,10 +1,13 @@
-import { resolveExtensions } from '../../core/extensions/index.js';
-import { CheckpointManager } from '../../core/strata/checkpoint/manager.js';
-import { WorkspaceManager } from '../../core/strata/layers/worktree.js';
-import { createStandardToolstack } from '../../core/tools/loader.js';
-import { InMemoryLockManager } from '../../core/tools/parallel/lock-manager.js';
-import { PlanPersistence, type PersistedPlanState } from '../../core/tools/parallel/persistence.js';
-import { ParallelScheduler } from '../../core/tools/parallel/scheduler.js';
+import {
+  CheckpointManager,
+  createStandardToolstack,
+  InMemoryLockManager,
+  ParallelScheduler,
+  PlanPersistence,
+  resolveExtensions,
+  type PersistedPlanState,
+  WorkspaceManager,
+} from '../../core/facades/cli-command-parallel.js';
 import { createUiAuthorizationProvider } from '../authorization/provider.js';
 import { text } from '../locales/index.js';
 import { requestSelection } from '../ui/selection/bus.js';

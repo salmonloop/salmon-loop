@@ -1,14 +1,14 @@
 import { execa } from 'execa';
 import { z } from 'zod';
 
-import type { ToolAuthorizationConfig } from '../../core/config/types.js';
-import type { ResolvedExtensions, ResolvedMcpServer } from '../../core/extensions/types.js';
-import { logger } from '../../core/observability/logger.js';
 import type {
   AuthorizationDecision,
+  ResolvedExtensions,
+  ResolvedMcpServer,
+  ToolAuthorizationConfig,
   ToolAuthorizationRequest,
-} from '../../core/tools/authorization/types.js';
-import { McpClient } from '../../core/tools/mcp/client.js';
+} from '../../core/facades/cli-authorization-non-interactive.js';
+import { logger, McpClient } from '../../core/facades/cli-authorization-non-interactive.js';
 import { text } from '../locales/index.js';
 
 const DecisionSchema = z

@@ -1,4 +1,4 @@
-import { logger } from '../../core/observability/logger.js';
+import { logger } from '../../core/facades/cli-observability.js';
 import { text } from '../locales/index.js';
 
 import type { Command } from './types.js';
