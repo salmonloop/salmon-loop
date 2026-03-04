@@ -530,6 +530,7 @@ export function createAcpFormalAgent(deps: {
     lockStaleMs?: number;
     lockHeartbeatMs?: number;
   };
+  executionBinding?: 'local' | 'client';
 }): Agent {
   const sessions = createAcpSessionStore();
   const sessionRuntime = new Map<string, AcpSessionRuntimeState>();
@@ -549,6 +550,7 @@ export function createAcpFormalAgent(deps: {
     lockHeartbeatMs:
       deps.sessionStorePolicy?.lockHeartbeatMs ?? ACP_SESSION_STORE_LOCK_HEARTBEAT_MS,
   };
+  const executionBinding = deps.executionBinding ?? 'local';
   let sessionsHydrated = false;
   let hydratePromise: Promise<void> | null = null;
 
@@ -1225,8 +1227,14 @@ export function createAcpFormalAgent(deps: {
           checkpointSessionId: params.sessionId,
           repoPath: session.cwd,
         },
-        commandRunner: createAcpCommandRunner({ conn: deps.conn, sessionId: params.sessionId }),
-        fileSystemOverride: createAcpFileSystem({ conn: deps.conn, sessionId: params.sessionId }),
+        commandRunner:
+          executionBinding === 'client'
+            ? createAcpCommandRunner({ conn: deps.conn, sessionId: params.sessionId })
+            : undefined,
+        fileSystemOverride:
+          executionBinding === 'client'
+            ? createAcpFileSystem({ conn: deps.conn, sessionId: params.sessionId })
+            : undefined,
         authorizationProvider: createAcpToolAuthorizationProvider({
           conn: deps.conn,
           sessionId: params.sessionId,

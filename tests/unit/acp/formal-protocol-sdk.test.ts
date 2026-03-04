@@ -551,8 +551,9 @@ describe('ACP formal protocol (SDK)', () => {
     ).rejects.toMatchObject({ code: -32000 });
   });
 
-  it('passes an ACP-backed command runner into task execution', async () => {
+  it('uses local execution binding by default (no ACP command runner/filesystem)', async () => {
     let sawCommandRunner = false;
+    let sawFileSystemOverride = false;
     let observedRepoPath: string | undefined;
 
     const { clientConn } = createConnectedPair({
@@ -563,6 +564,7 @@ describe('ACP formal protocol (SDK)', () => {
           facade: {
             createTask: async (input: any) => {
               sawCommandRunner = Boolean(input.commandRunner);
+              sawFileSystemOverride = Boolean(input.fileSystemOverride);
               observedRepoPath = input.request?.repoPath;
               return {
                 task: {
@@ -604,7 +606,8 @@ describe('ACP formal protocol (SDK)', () => {
       prompt: [{ type: 'text', text: 'hi' }],
     });
 
-    expect(sawCommandRunner).toBe(true);
+    expect(sawCommandRunner).toBe(false);
+    expect(sawFileSystemOverride).toBe(false);
     expect(observedRepoPath).toBe('/repo');
   });
 
@@ -649,7 +652,8 @@ describe('ACP formal protocol (SDK)', () => {
     ).rejects.toMatchObject({ code: -32000 });
   });
 
-  it('passes an ACP-backed filesystem override into task execution', async () => {
+  it('can use ACP execution binding when explicitly enabled', async () => {
+    let sawCommandRunner = false;
     let sawFileSystemOverride = false;
 
     const { clientConn } = createConnectedPair({
@@ -657,8 +661,10 @@ describe('ACP formal protocol (SDK)', () => {
         createAcpFormalAgent({
           conn,
           agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+          executionBinding: 'client',
           facade: {
             createTask: async (input: any) => {
+              sawCommandRunner = Boolean(input.commandRunner);
               sawFileSystemOverride = Boolean(input.fileSystemOverride);
               return {
                 task: {
@@ -700,6 +706,7 @@ describe('ACP formal protocol (SDK)', () => {
       prompt: [{ type: 'text', text: 'hi' }],
     });
 
+    expect(sawCommandRunner).toBe(true);
     expect(sawFileSystemOverride).toBe(true);
   });
 

@@ -24,6 +24,10 @@ bun run dev serve
 
 ACP runs over stdio, so **stdout is reserved for JSON-RPC only**. Startup logs are printed to **stderr**.
 
+Execution model:
+- ACP is used as the control/authorization plane by default.
+- Side-effect execution (including git checkpoint preflight) runs in Salmon-Loop local runtime unless client binding is explicitly enabled.
+
 Disable ACP stdio (if needed):
 
 ```bash
