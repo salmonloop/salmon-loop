@@ -229,6 +229,11 @@ Related ACP persistence/checkpoint events:
   - `errorFingerprint` (hashed message fingerprint)
   - `stderrFingerprint` (hashed stderr first-line fingerprint when available)
   - `commandFingerprint` (hashed git subcommand fingerprint when available)
+  - `writeTreeAttempts` (only for `step=write-tree`; number of retry attempts)
+  - `indexLockPresent` (only for `step=write-tree`; probe result)
+  - `indexLockAgeMs` (if lock exists)
+  - `unmergedCount` (probe from `git ls-files -u`)
+  - `isInsideWorkTree` (probe from `git rev-parse --is-inside-work-tree`)
   - Notes:
     - `errorHintCode` is an extensible enum. Current common values include:
       `GIT_INDEX_LOCKED`, `GIT_INDEX_UNMERGED`, `GIT_TREE_BUILD_FAILED`,

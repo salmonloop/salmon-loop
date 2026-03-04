@@ -2,7 +2,7 @@ import { createHash, randomBytes } from 'crypto';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
-import { mkdir, rm } from '../../adapters/fs/node-fs.js';
+import { mkdir, rm, stat } from '../../adapters/fs/node-fs.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
 import { logger } from '../../observability/logger.js';
@@ -14,6 +14,8 @@ export interface SnapshotResult {
 }
 
 export class CheckpointManager {
+  private readonly writeTreeRetryDelaysMs = [30, 80];
+
   private hashRepoPath(repoPath: string): string {
     return createHash('sha256').update(repoPath).digest('hex').slice(0, 16);
   }
@@ -78,6 +80,7 @@ export class CheckpointManager {
     errorFingerprint?: string;
     stderrFingerprint?: string;
     commandFingerprint?: string;
+    writeTreeAttempts?: number;
   } {
     if (!error || typeof error !== 'object') {
       return {
@@ -92,10 +95,13 @@ export class CheckpointManager {
       errorFingerprint?: string;
       stderrFingerprint?: string;
       commandFingerprint?: string;
+      writeTreeAttempts?: number;
     } = {
       errorCode: this.extractSafeErrorCode(error),
       errorName: typeof asRecord.name === 'string' ? asRecord.name : undefined,
       errorHintCode: this.classifyGitFailure(error),
+      writeTreeAttempts:
+        typeof asRecord.writeTreeAttempts === 'number' ? asRecord.writeTreeAttempts : undefined,
     };
     if (typeof asRecord.message === 'string' && asRecord.message.length > 0) {
       safe.errorFingerprint = this.hashSafe(asRecord.message);
@@ -142,7 +148,8 @@ export class CheckpointManager {
     const git = new GitAdapter(repoPath);
     try {
       step = 'write-tree';
-      const stagedTree = (await git.query(['write-tree'])).trim();
+      const { tree: stagedTree, attempts: writeTreeAttempts } =
+        await this.tryWriteTreeWithRetry(git);
 
       // 2. Prepare temporary environment for Working Tree capture
       const random = randomBytes(4).toString('hex');
@@ -238,6 +245,7 @@ export class CheckpointManager {
         step === 'write-tree-final' ||
         step === 'commit-tree'
       ) {
+        const writeTreeProbe = step === 'write-tree' ? await this.probeWriteTreeFailure(git) : {};
         recordAuditEvent(
           'snapshot.create.step.failed',
           {
@@ -245,12 +253,62 @@ export class CheckpointManager {
             repoPathHash: this.hashRepoPath(repoPath),
             includePathsCount: includePaths.length,
             ...this.extractSafeErrorSummary(error),
+            ...writeTreeProbe,
           },
           { source: 'runtime', severity: 'high', scope: 'session', phase: 'PREFLIGHT' },
         );
       }
       throw error;
     }
+  }
+
+  private async tryWriteTreeWithRetry(
+    git: GitAdapter,
+  ): Promise<{ tree: string; attempts: number }> {
+    let attempts = 0;
+    let lastError: unknown;
+    for (let i = 0; i <= this.writeTreeRetryDelaysMs.length; i += 1) {
+      attempts = i + 1;
+      try {
+        return { tree: (await git.query(['write-tree'])).trim(), attempts };
+      } catch (error) {
+        lastError = error;
+        if (i >= this.writeTreeRetryDelaysMs.length) break;
+        await new Promise((resolve) => setTimeout(resolve, this.writeTreeRetryDelaysMs[i]));
+      }
+    }
+    throw Object.assign(lastError instanceof Error ? lastError : new Error('write-tree failed'), {
+      writeTreeAttempts: attempts,
+    });
+  }
+
+  private async probeWriteTreeFailure(git: GitAdapter): Promise<Record<string, unknown>> {
+    const details: Record<string, unknown> = {};
+    const indexLockPath = join(git.repoPath, '.git', 'index.lock');
+    try {
+      const lockStat = await stat(indexLockPath);
+      details.indexLockPresent = true;
+      details.indexLockAgeMs = Math.max(0, Math.floor(Date.now() - lockStat.mtimeMs));
+    } catch {
+      details.indexLockPresent = false;
+    }
+    try {
+      const unmergedRaw = await git.exec(['ls-files', '-u'], { allowError: true });
+      const count = unmergedRaw
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean).length;
+      details.unmergedCount = count;
+    } catch {
+      details.unmergedCount = undefined;
+    }
+    try {
+      const inside = await git.exec(['rev-parse', '--is-inside-work-tree'], { allowError: true });
+      details.isInsideWorkTree = inside.trim() === 'true';
+    } catch {
+      details.isInsideWorkTree = undefined;
+    }
+    return details;
   }
 
   /**

@@ -118,4 +118,9 @@ Snapshot preflight diagnosis:
     `GIT_INDEX_CORRUPTED`, `GIT_INDEX_WRITE_FAILED`, `GIT_DUBIOUS_OWNERSHIP`, `GIT_NO_SPACE`,
     `GIT_WRITE_TREE_FATAL`)
   - `errorFingerprint` / `stderrFingerprint` / `commandFingerprint`
+- For `step=write-tree`, runtime also records probe/retry details:
+  - `writeTreeAttempts` (current policy retries short transient failures before fail-out)
+  - `indexLockPresent` / `indexLockAgeMs`
+  - `unmergedCount`
+  - `isInsideWorkTree`
 - Use these to group recurring failures without exposing raw git stderr.
