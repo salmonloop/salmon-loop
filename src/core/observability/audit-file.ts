@@ -5,6 +5,7 @@ import { appendFile, mkdir, readFile, rename, writeFile } from '../adapters/fs/n
 import { getAuditDir } from '../runtime/paths.js';
 
 import { getAuditTrail } from './audit-trail.js';
+import { mapErrorForAudit } from './error-mapping.js';
 import { logger } from './logger.js';
 
 interface AppendAuditParams {
@@ -75,6 +76,10 @@ async function createFallbackAuditFile(params: AppendAuditParams): Promise<strin
   const targetPath = path.join(auditDir, filename);
   const eventsFilename = filename.replace(/\.json$/, '.events.jsonl');
   const eventsPath = path.join(auditDir, eventsFilename);
+  const auditError = mapErrorForAudit({
+    message: params.failureReason,
+    code: params.finalOutcome?.errorCode ?? params.finalOutcome?.reasonCode,
+  });
 
   const payload = {
     meta: {
@@ -83,6 +88,8 @@ async function createFallbackAuditFile(params: AppendAuditParams): Promise<strin
       reasonCode: params.finalOutcome?.reasonCode,
       failurePhase: params.finalOutcome?.failurePhase,
       errorCode: params.finalOutcome?.errorCode,
+      errorCategory: auditError.category,
+      errorSummary: auditError.summary,
       error: params.failureReason,
       runId: params.runId,
       source: 'appendAuditTrailToAuditFile.fallback',
@@ -120,6 +127,10 @@ export async function appendAuditTrailToAuditFile(
       data.meta && typeof data.meta === 'object' ? (data.meta as Record<string, unknown>) : {};
     let metaChanged = false;
     if (params.finalOutcome) {
+      const auditError = mapErrorForAudit({
+        message: params.failureReason ?? (typeof meta.error === 'string' ? meta.error : undefined),
+        code: params.finalOutcome.errorCode ?? params.finalOutcome.reasonCode,
+      });
       if (meta.success !== params.finalOutcome.success) {
         meta.success = params.finalOutcome.success;
         metaChanged = true;
@@ -143,6 +154,14 @@ export async function appendAuditTrailToAuditFile(
         meta.errorCode !== params.finalOutcome.errorCode
       ) {
         meta.errorCode = params.finalOutcome.errorCode;
+        metaChanged = true;
+      }
+      if (meta.errorCategory !== auditError.category) {
+        meta.errorCategory = auditError.category;
+        metaChanged = true;
+      }
+      if (meta.errorSummary !== auditError.summary) {
+        meta.errorSummary = auditError.summary;
         metaChanged = true;
       }
       (data as any).meta = meta;

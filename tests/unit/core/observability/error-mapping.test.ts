@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 
 import { REDACTED_ERROR_TOKEN } from '../../../../src/core/observability/error-envelope.js';
-import { mapErrorForDisplay } from '../../../../src/core/observability/error-mapping.js';
+import { mapErrorForAudit, mapErrorForDisplay } from '../../../../src/core/observability/error-mapping.js';
 import { text } from '../../../../src/locales/index.js';
 
 describe('mapErrorForDisplay', () => {
@@ -157,5 +157,23 @@ describe('mapErrorForDisplay', () => {
 
     expect(result.message).toBe('Something went wrong');
     expect(result.redacted).toBe(false);
+  });
+});
+
+describe('mapErrorForAudit', () => {
+  it('maps redacted token to technical details hidden summary and marks redacted', () => {
+    const result = mapErrorForAudit({ message: REDACTED_ERROR_TOKEN });
+
+    expect(result.summary).toBe(text.errors.technicalDetailsHidden);
+    expect(result.redacted).toBe(true);
+    expect(result.category).toBe('unknown');
+  });
+
+  it('categorizes preflight and config errors', () => {
+    const preflight = mapErrorForAudit({ message: 'x', code: 'PREFLIGHT_NOT_GIT' });
+    const config = mapErrorForAudit({ message: 'x', code: 'CONFIG_LLM_MODELS_REQUIRED' });
+
+    expect(preflight.category).toBe('preflight');
+    expect(config.category).toBe('config');
   });
 });

@@ -34,11 +34,13 @@ mock.module('../../src/core/observability/logger.js', () => ({
 }));
 
 import { appendAuditTrailToAuditFile } from '../../src/core/observability/audit-file.js';
+import { REDACTED_ERROR_TOKEN } from '../../src/core/observability/error-envelope.js';
 import {
   clearAuditTrail,
   getAuditTrail,
   recordAuditEvent,
 } from '../../src/core/observability/audit-trail.js';
+import { text } from '../../src/locales/index.js';
 
 describe('appendAuditTrailToAuditFile', () => {
   afterAll(() => {
@@ -181,5 +183,22 @@ describe('appendAuditTrailToAuditFile', () => {
     expect(written.meta.reasonCode).toBe('VERIFY_FAILED');
     expect(written.meta.failurePhase).toBe('VERIFY');
     expect(written.meta.errorCode).toBe('dependency_error');
+  });
+
+  it('writes errorCategory and errorSummary to audit meta on fallback', async () => {
+    recordAuditEvent('test.action.fallback', { a: 1 }, { source: 'test' });
+    renameMock.mockResolvedValue(undefined);
+    mkdirMock.mockResolvedValue(undefined);
+
+    await appendAuditTrailToAuditFile({
+      auditPath: undefined,
+      repoPath: '/tmp/repo',
+      failureReason: REDACTED_ERROR_TOKEN,
+      runId: 'run-3',
+    });
+
+    const written = JSON.parse(writeFileMock.mock.calls[1]![1]) as any;
+    expect(written.meta.errorSummary).toBe(text.errors.technicalDetailsHidden);
+    expect(written.meta.errorCategory).toBe('unknown');
   });
 });

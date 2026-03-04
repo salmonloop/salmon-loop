@@ -13,6 +13,13 @@ export interface ErrorDisplayOutput {
   redacted: boolean;
 }
 
+export interface ErrorAuditOutput {
+  summary: string;
+  category: string;
+  code?: string;
+  redacted: boolean;
+}
+
 function mapLlmCodeToMessage(code: string): string | undefined {
   if (!code.startsWith('LLM_')) return undefined;
 
@@ -177,5 +184,29 @@ export function mapErrorForDisplay(input: ErrorDisplayInput): ErrorDisplayOutput
     message: rawMessage,
     code: input.code,
     redacted: false,
+  };
+}
+
+function mapErrorCategory(code?: string): string {
+  if (!code) return 'unknown';
+  if (code.startsWith('CONFIG_')) return 'config';
+  if (code.startsWith('PREFLIGHT_')) return 'preflight';
+  if (code === 'VERIFY_FAILED') return 'verify';
+  if (code.startsWith('AUTH_')) return 'auth';
+  if (code.startsWith('LLM_')) return 'llm';
+  return 'unknown';
+}
+
+export function mapErrorForAudit(input: ErrorDisplayInput): ErrorAuditOutput {
+  const rawMessage = input.message ?? '';
+  const isRedacted = rawMessage === REDACTED_ERROR_TOKEN;
+  const display = mapErrorForDisplay(input);
+  const summary = isRedacted ? text.errors.technicalDetailsHidden : display.message;
+
+  return {
+    summary,
+    category: mapErrorCategory(input.code),
+    code: input.code,
+    redacted: isRedacted || display.redacted,
   };
 }
