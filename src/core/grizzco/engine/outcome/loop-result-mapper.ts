@@ -24,6 +24,7 @@ interface BuildLoopCrashParams {
   auditPath?: string;
   reasonCode: 'LOOP_CRASH' | 'LOOP_FAILED';
   failurePhase?: ExecutionPhase;
+  errorCode?: string;
 }
 
 export function buildLoopResultFromTransaction({
@@ -157,6 +158,7 @@ export function buildLoopFailureResult({
   auditPath,
   reasonCode,
   failurePhase,
+  errorCode,
 }: BuildLoopCrashParams): LoopResult {
   const usage = getTokenUsageFromAuditTrail() ?? undefined;
   const budgetSummary = getBudgetRunSummary() ?? undefined;
@@ -183,6 +185,7 @@ export function buildLoopFailureResult({
     history: telemetry.getHistory(),
     failurePhase,
     errorType: ErrorType.UNKNOWN,
+    errorCode,
     auditPath,
     strategyName: flowMode,
     fsMode: flowMode,

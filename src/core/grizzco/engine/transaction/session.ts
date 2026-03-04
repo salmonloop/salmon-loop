@@ -1,4 +1,5 @@
 import { sanitizeError } from '../../../llm/errors.js';
+import { extractErrorCode } from '../../../observability/error-envelope.js';
 import { Phase } from '../../../types/index.js';
 import type { FlowMode, LoopEvent, LoopOptions, LoopResult } from '../../../types/index.js';
 import { LoopTelemetry } from '../observability/loop-telemetry.js';
@@ -60,6 +61,8 @@ export async function runFlowSession(params: FlowSessionParams): Promise<FlowSes
     }
 
     const message = sanitizeError(error);
+    const extractedCode = extractErrorCode(error);
+    const errorCode = extractedCode && extractedCode !== 'Error' ? extractedCode : undefined;
     telemetry.recordLog('error', message, false);
     emitSanitized({ type: 'log', level: 'error', message, timestamp: now() });
     return {
@@ -70,6 +73,7 @@ export async function runFlowSession(params: FlowSessionParams): Promise<FlowSes
         auditPath,
         reasonCode: 'LOOP_CRASH',
         failurePhase: Phase.VERIFY,
+        errorCode,
       }),
       auditPath,
     };

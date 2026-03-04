@@ -1007,6 +1007,94 @@ describe('ACP formal protocol (SDK)', () => {
     expect(result.stopReason).toBe('cancelled');
   });
 
+  it('surfaces task failure detail instead of generic completion text', async () => {
+    const updates: any[] = [];
+    const listeners = new Set<(event: any) => void>();
+    const taskId = 'task_failed_1';
+    const failureMessage = 'Langfuse ingestion unauthorized (HTTP 401)';
+
+    const eventBus = {
+      subscribe: (listener: (event: any) => void) => {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
+      list: () => [],
+    };
+
+    const { clientConn } = createConnectedPair({
+      toAgent: (conn) =>
+        createAcpFormalAgent({
+          conn,
+          agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+          eventBus: eventBus as any,
+          facade: {
+            createTask: async (input: any) => {
+              setTimeout(() => {
+                const event = {
+                  taskId,
+                  type: 'task.failed',
+                  timestamp: Date.now(),
+                };
+                for (const listener of listeners) listener(event);
+              }, 0);
+              return {
+                task: {
+                  id: taskId,
+                  capability: 'patch',
+                  state: 'accepted',
+                  request: { instruction: input.request.instruction },
+                  createdAt: new Date().toISOString(),
+                  attempt: 1,
+                },
+                signal: new AbortController().signal,
+              };
+            },
+            getTask: async () =>
+              ({
+                id: taskId,
+                state: 'failed',
+                failure: {
+                  code: 'LOOP_FAILED',
+                  category: 'infrastructure',
+                  message: failureMessage,
+                },
+              }) as any,
+            cancelTask: async () => null,
+            resumeTask: async () => null,
+            retryTask: async () => null,
+            reopenTask: async () => null,
+            listTasks: async () => ({ items: [] }),
+            submitInput: async () => null,
+            getArtifact: async () => null,
+          },
+        }),
+      toClient: () => ({
+        requestPermission: async () => ({ outcome: { outcome: 'cancelled' } }),
+        sessionUpdate: async ({ update }: any) => {
+          updates.push(update);
+        },
+      }),
+    });
+
+    await clientConn.initialize({
+      protocolVersion: 1,
+      clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
+    });
+    const { sessionId } = await clientConn.newSession({ cwd: '/repo', mcpServers: [] });
+
+    await clientConn.prompt({
+      sessionId,
+      prompt: [{ type: 'text', text: 'trigger failure' }],
+    });
+
+    const agentTexts = updates
+      .filter((u) => u?.sessionUpdate === 'agent_message_chunk' && u?.content?.type === 'text')
+      .map((u) => String(u.content.text ?? ''));
+
+    expect(agentTexts.some((line) => line.includes(`Task failed: ${failureMessage}`))).toBe(true);
+    expect(agentTexts.some((line) => line.includes('Task completed.'))).toBe(false);
+  });
+
   it('emits structured inputRequired meta for awaiting input', async () => {
     const updates: any[] = [];
     const events: any[] = [];

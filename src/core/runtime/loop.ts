@@ -26,6 +26,7 @@ import {
   setAuditBufferLimits,
   setAuditContext,
 } from '../observability/audit-trail.js';
+import { extractErrorCode, REDACTED_ERROR_TOKEN } from '../observability/error-envelope.js';
 import { logger } from '../observability/logger.js';
 import { buildRunOutcomeReport } from '../observability/run-outcome-reporter.js';
 import { drainRedactionMetrics, setRedactionConfig } from '../security/redaction.js';
@@ -136,7 +137,29 @@ export class SalmonLoop {
       );
       return finalResult;
     } catch (error) {
+      const extractedCode = extractErrorCode(error);
+      const errorCode = extractedCode && extractedCode !== 'Error' ? extractedCode : undefined;
       const message = sanitizeError(error);
+      const safeMeta =
+        error &&
+        typeof error === 'object' &&
+        'safeMeta' in error &&
+        (error as { safeMeta?: unknown }).safeMeta &&
+        typeof (error as { safeMeta?: unknown }).safeMeta === 'object'
+          ? ((error as { safeMeta: Record<string, unknown> }).safeMeta as Record<string, unknown>)
+          : undefined;
+      recordAuditEvent(
+        'run.failed.diagnostic',
+        {
+          errorName: error instanceof Error ? error.name : typeof error,
+          errorCode,
+          phase: Phase.PREFLIGHT,
+          source: 'runtime.loop.catch',
+          redacted: message === REDACTED_ERROR_TOKEN,
+          safeMeta,
+        },
+        { source: 'runtime', severity: 'high', scope: 'session', phase: Phase.PREFLIGHT },
+      );
       telemetry.recordLog(Phase.PREFLIGHT, message, false);
       emitSanitized({ type: 'log', level: 'error', message, timestamp: now() });
       const fallbackFlowMode: FlowMode = options.mode ?? 'patch';
@@ -147,6 +170,7 @@ export class SalmonLoop {
         auditPath: latestAuditPath,
         reasonCode: 'LOOP_FAILED',
         failurePhase: Phase.PREFLIGHT,
+        errorCode,
       });
       emitSanitized({ type: 'run.end', mode: runMode, success: false, timestamp: now() });
       recordAuditEvent(

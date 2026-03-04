@@ -1,5 +1,9 @@
+import { createHash } from 'crypto';
+
 import { text } from '../../../locales/index.js';
+import { stat } from '../../adapters/fs/node-fs.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
+import { LIMITS } from '../../config/limits.js';
 import { sanitizeError } from '../../llm/errors.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
 import { logger } from '../../observability/logger.js';
@@ -9,6 +13,47 @@ import { KAOMOJI } from '../../ui/kaomoji.js';
 import { CheckpointManager } from '../checkpoint/manager.js';
 import { ShadowDriver } from '../layers/shadow-driver/shadow-driver.js';
 import { WorkspaceManager } from '../layers/worktree.js';
+
+type ErrorWithCode = Error & {
+  code?: string;
+  cause?: unknown;
+  safeMeta?: Record<string, unknown>;
+};
+
+function hashRepoPath(repoPath: string): string {
+  return createHash('sha256').update(repoPath).digest('hex').slice(0, 16);
+}
+
+async function pathExists(target: string): Promise<boolean> {
+  try {
+    await stat(target);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function asPreflightError(
+  code: string,
+  message: string,
+  cause?: unknown,
+  safeMeta?: Record<string, unknown>,
+): ErrorWithCode {
+  const inheritedCode =
+    cause && typeof cause === 'object' && typeof (cause as { code?: unknown }).code === 'string'
+      ? ((cause as { code: string }).code as string)
+      : undefined;
+  const finalCode = inheritedCode?.startsWith('PREFLIGHT_') ? inheritedCode : code;
+  const error = new Error(message) as ErrorWithCode;
+  error.code = finalCode;
+  if (cause !== undefined) {
+    error.cause = cause;
+  }
+  if (safeMeta) {
+    error.safeMeta = safeMeta;
+  }
+  return error;
+}
 
 /**
  * Manages the execution environment for SalmonLoop.
@@ -81,7 +126,7 @@ export class RuntimeEnvironment {
    */
   get activeRepoPath(): string {
     if (!this.workspace) {
-      throw new Error(text.loop.workspaceInitFailed);
+      throw asPreflightError('PREFLIGHT_WORKSPACE_UNINITIALIZED', text.loop.workspaceInitFailed);
     }
     return this.workspace.workPath;
   }
@@ -89,16 +134,20 @@ export class RuntimeEnvironment {
   async setup(): Promise<void> {
     const { options, emit, checkpointManager } = this;
     const now = () => new Date();
-    await migrateLegacyRuntime(options.repoPath);
+    try {
+      await migrateLegacyRuntime(options.repoPath);
+    } catch (error) {
+      const msg = `Failed to migrate runtime state: ${sanitizeError(error)}`;
+      throw asPreflightError('PREFLIGHT_RUNTIME_MIGRATION_FAILED', msg, error);
+    }
 
     // 1. Create safe snapshot if using worktree strategy
     if (options.strategy === 'worktree') {
+      const includePaths: string[] = [];
+      if (options.file) {
+        includePaths.push(options.file);
+      }
       try {
-        const includePaths: string[] = [];
-        if (options.file) {
-          includePaths.push(options.file);
-        }
-
         const snapshot = await checkpointManager.createSafeSnapshot(options.repoPath, includePaths);
         this.initialSnapshotHash = snapshot.commitHash;
 
@@ -108,8 +157,53 @@ export class RuntimeEnvironment {
           timestamp: now(),
         });
       } catch (error) {
+        const repoExists = await pathExists(options.repoPath);
+        let gitAvailable: boolean | 'unknown' = 'unknown';
+        let gitProbeErrorCode: string | undefined;
+        let gitProbeErrorName: string | undefined;
+        try {
+          const gitProbe = await new GitAdapter(options.repoPath).execMeta(
+            ['rev-parse', '--is-inside-work-tree'],
+            {
+              cwd: options.repoPath,
+              limits: { maxStdoutBytes: 4_096, maxStderrChars: 4_096 },
+              timeoutMs: LIMITS.gitTimeoutMs,
+            },
+          );
+          if (gitProbe.ok) {
+            gitAvailable = true;
+          } else if (gitProbe.error?.code === 'ENOENT') {
+            gitAvailable = false;
+          }
+        } catch (probeError) {
+          if (probeError && typeof probeError === 'object') {
+            if (typeof (probeError as { code?: unknown }).code === 'string') {
+              gitProbeErrorCode = (probeError as { code: string }).code;
+            }
+            if (typeof (probeError as { name?: unknown }).name === 'string') {
+              gitProbeErrorName = (probeError as { name: string }).name;
+            }
+          }
+          // Keep unknown when probe itself fails.
+        }
+        const safeMeta = {
+          strategy: options.strategy ?? 'local',
+          worktreeEnabled: options.strategy === 'worktree',
+          repoPathHash: hashRepoPath(options.repoPath),
+          repoExists,
+          gitAvailable,
+          gitProbeErrorCode,
+          gitProbeErrorName,
+          includePathsCount: includePaths.length,
+        };
+        recordAuditEvent('snapshot.create.failed', safeMeta, {
+          source: 'runtime',
+          severity: 'high',
+          scope: 'session',
+          phase: 'PREFLIGHT',
+        });
         const msg = `Failed to create snapshot: ${sanitizeError(error)}`;
-        throw new Error(msg);
+        throw asPreflightError('PREFLIGHT_SNAPSHOT_FAILED', msg, error, safeMeta);
       }
     }
 
@@ -164,7 +258,11 @@ export class RuntimeEnvironment {
       }
     } catch (error) {
       const msg = sanitizeError(error);
-      throw new Error(`${text.loop.workspaceInitFailed}: ${msg}`);
+      throw asPreflightError(
+        'PREFLIGHT_WORKSPACE_INIT_FAILED',
+        `${text.loop.workspaceInitFailed}: ${msg}`,
+        error,
+      );
     }
 
     // 5. Capture worktree metadata if using worktree strategy
@@ -187,7 +285,7 @@ export class RuntimeEnvironment {
         });
       } catch (error) {
         const msg = text.loop.worktreeMetadataFailed(sanitizeError(error));
-        throw new Error(msg);
+        throw asPreflightError('PREFLIGHT_WORKTREE_METADATA_FAILED', msg, error);
       }
     }
   }

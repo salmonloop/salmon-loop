@@ -1,4 +1,5 @@
 import type { TaskEnvelope } from '../../interaction/model/index.js';
+import { mapErrorForDisplay } from '../../observability/error-mapping.js';
 import type { CommandRunner } from '../../runtime/command-runner-context.js';
 import {
   createLocalCommandRunner,
@@ -8,6 +9,27 @@ import type { ToolAuthorizationProvider } from '../../tools/authorization/types.
 import type { FileSystem } from '../../types/index.js';
 import type { LoopEvent } from '../../types/index.js';
 import type { LoopResult } from '../../types/index.js';
+
+function inferFailureCategory(
+  result: LoopResult,
+): 'verification' | 'runtime' | 'policy' | 'infrastructure' {
+  if (result.failurePhase === 'VERIFY' || result.reasonCode === 'VERIFY_FAILED') {
+    return 'verification';
+  }
+  if (result.errorCode === 'AUTH_REQUIRED') {
+    return 'policy';
+  }
+  if (
+    result.failurePhase === 'PREFLIGHT' ||
+    result.reasonCode === 'PREFLIGHT_NOT_GIT' ||
+    result.reasonCode === 'PREFLIGHT_DIRTY' ||
+    result.errorCode === 'PREFLIGHT_NOT_GIT' ||
+    result.errorCode === 'PREFLIGHT_DIRTY'
+  ) {
+    return 'infrastructure';
+  }
+  return 'runtime';
+}
 
 export function createSalmonTaskExecutor(deps: {
   runLoop: (options: {
@@ -51,6 +73,24 @@ export function createSalmonTaskExecutor(deps: {
           state: 'awaiting_input',
           statusMessage: result.inputRequired.prompt,
           inputRequired: result.inputRequired,
+        };
+      }
+
+      if (!result.success) {
+        const failureCode = result.errorCode ?? result.reasonCode ?? 'LOOP_FAILED';
+        const failureMessage = mapErrorForDisplay({
+          message: result.reason,
+          code: failureCode,
+        }).message;
+        return {
+          ...task,
+          state: 'failed',
+          statusMessage: failureMessage,
+          failure: {
+            code: failureCode,
+            message: failureMessage,
+            category: inferFailureCategory(result),
+          },
         };
       }
 

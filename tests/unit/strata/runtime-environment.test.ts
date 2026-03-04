@@ -1,3 +1,5 @@
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
+
 const {
   migrateLegacyRuntimeMock,
   createSafeSnapshotMock,
@@ -7,6 +9,7 @@ const {
   workspaceTeardownMock,
   hydrateMock,
   gitQueryMock,
+  gitExecMetaMock,
 } = (() => ({
   migrateLegacyRuntimeMock: mock().mockResolvedValue(undefined),
   createSafeSnapshotMock: mock(),
@@ -16,6 +19,7 @@ const {
   workspaceTeardownMock: mock().mockResolvedValue(undefined),
   hydrateMock: mock().mockResolvedValue(undefined),
   gitQueryMock: mock(),
+  gitExecMetaMock: mock(),
 }))();
 
 mock.module('../../../src/core/runtime/paths.js', () => ({
@@ -29,6 +33,7 @@ mock.module('../../../src/core/llm/errors.js', () => ({
 mock.module('../../../src/core/adapters/git/git-adapter.js', () => ({
   GitAdapter: mock().mockImplementation(() => ({
     query: gitQueryMock,
+    execMeta: gitExecMetaMock,
   })),
 }));
 
@@ -78,6 +83,7 @@ describe('RuntimeEnvironment safety behavior', () => {
       if (args[0] === 'rev-parse') return 'head-ref';
       return '';
     });
+    gitExecMetaMock.mockResolvedValue({ ok: true });
   });
 
   it('throws when activeRepoPath is accessed before setup', () => {
@@ -90,7 +96,55 @@ describe('RuntimeEnvironment safety behavior', () => {
     createSafeSnapshotMock.mockRejectedValueOnce(new Error('snapshot-broken'));
     const env = new RuntimeEnvironment(createOptions(), mock());
 
-    await expect(env.setup()).rejects.toThrow('Failed to create snapshot: snapshot-broken');
+    await expect(env.setup()).rejects.toMatchObject({
+      code: 'PREFLIGHT_SNAPSHOT_FAILED',
+      message: 'Failed to create snapshot: snapshot-broken',
+      safeMeta: {
+        strategy: 'worktree',
+        worktreeEnabled: true,
+        repoPathHash: expect.any(String),
+        repoExists: expect.any(Boolean),
+        gitAvailable: expect.anything(),
+        includePathsCount: 0,
+      },
+    });
+  });
+
+  it('fails setup with preflight migration code when runtime migration throws', async () => {
+    migrateLegacyRuntimeMock.mockRejectedValueOnce(new Error('migration-broken'));
+    const env = new RuntimeEnvironment(createOptions(), mock());
+
+    await expect(env.setup()).rejects.toMatchObject({
+      code: 'PREFLIGHT_RUNTIME_MIGRATION_FAILED',
+      message: 'Failed to migrate runtime state: migration-broken',
+    });
+  });
+
+  it('captures git probe diagnostics when snapshot preflight probe throws', async () => {
+    createSafeSnapshotMock.mockRejectedValueOnce(new Error('snapshot-broken'));
+    gitExecMetaMock.mockRejectedValueOnce(
+      Object.assign(new Error('probe-broken'), { code: 'ETIMEDOUT', name: 'ProbeError' }),
+    );
+    const env = new RuntimeEnvironment(createOptions(), mock());
+
+    await expect(env.setup()).rejects.toMatchObject({
+      code: 'PREFLIGHT_SNAPSHOT_FAILED',
+      safeMeta: {
+        gitAvailable: 'unknown',
+        gitProbeErrorCode: 'ETIMEDOUT',
+        gitProbeErrorName: 'ProbeError',
+      },
+    });
+  });
+
+  it('fails setup with preflight workspace code when workspace setup throws', async () => {
+    workspaceSetupMock.mockRejectedValueOnce(new Error('workspace-broken'));
+    const env = new RuntimeEnvironment(createOptions(), mock());
+
+    await expect(env.setup()).rejects.toMatchObject({
+      code: 'PREFLIGHT_WORKSPACE_INIT_FAILED',
+      message: 'Failed to initialize workspace: workspace-broken',
+    });
   });
 
   it('continues setup when dependency hydration fails and emits warning', async () => {

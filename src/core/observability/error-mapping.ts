@@ -21,6 +21,10 @@ export interface ErrorAuditOutput {
   redacted: boolean;
 }
 
+export interface AuditTrailDerivedFailure extends ErrorAuditOutput {
+  source: string;
+}
+
 function mapLlmCodeToMessage(code: string): string | undefined {
   if (!code.startsWith('LLM_')) return undefined;
 
@@ -267,4 +271,37 @@ export function mapAuditTrailToError(events: AuditTrailEvent[]): ErrorAuditOutpu
     }
   }
   return undefined;
+}
+
+export function mapAuditTrailToSecondaryFailures(
+  events: AuditTrailEvent[],
+): AuditTrailDerivedFailure[] {
+  const failures: AuditTrailDerivedFailure[] = [];
+
+  for (let i = 0; i < events.length; i += 1) {
+    const event = events[i];
+    if (!event) continue;
+
+    if (event.action === 'langfuse.outcome.http_failed') {
+      const mapped = buildLangfuseHttpFailed(event.details);
+      if (mapped) {
+        failures.push({
+          ...mapped,
+          source: event.action,
+        });
+      }
+      continue;
+    }
+
+    if (event.action === 'langfuse.outcome.request_failed') {
+      failures.push({
+        source: event.action,
+        summary: 'Langfuse ingestion request failed',
+        category: 'network',
+        redacted: false,
+      });
+    }
+  }
+
+  return failures;
 }

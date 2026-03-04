@@ -202,7 +202,47 @@ describe('appendAuditTrailToAuditFile', () => {
     expect(written.meta.errorCategory).toBe('unknown');
   });
 
-  it('prefers event-derived error summary/category in fallback audit meta', async () => {
+  it('does not override primary error summary/category with Langfuse events when appending existing audit file', async () => {
+    recordAuditEvent(
+      'langfuse.outcome.http_failed',
+      { status: 401, statusText: 'Unauthorized' },
+      { source: 'observability' },
+    );
+    readFileMock.mockResolvedValue(
+      JSON.stringify({
+        meta: {},
+        context: {
+          eventsRef: {
+            path: '/tmp/audit.events.jsonl',
+            count: 0,
+          },
+        },
+      }),
+    );
+
+    await appendAuditTrailToAuditFile({
+      auditPath: '/tmp/audit.json',
+      failureReason: REDACTED_ERROR_TOKEN,
+      finalOutcome: {
+        success: false,
+        reasonCode: 'LOOP_FAILED',
+      },
+    });
+
+    const written = JSON.parse(writeFileMock.mock.calls[0]![1]) as any;
+    expect(written.meta.errorCategory).toBe('unknown');
+    expect(written.meta.errorSummary).toBe(text.errors.technicalDetailsHidden);
+    expect(written.meta.secondaryFailures).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          source: 'langfuse.outcome.http_failed',
+          category: 'auth',
+        }),
+      ]),
+    );
+  });
+
+  it('keeps redacted primary failure and records event-derived secondary failures in fallback audit meta', async () => {
     recordAuditEvent(
       'langfuse.outcome.http_failed',
       { status: 401, statusText: 'Unauthorized' },
@@ -219,7 +259,20 @@ describe('appendAuditTrailToAuditFile', () => {
     });
 
     const written = JSON.parse(writeFileMock.mock.calls[1]![1]) as any;
-    expect(written.meta.errorCategory).toBe('auth');
-    expect(written.meta.errorSummary).toContain('401');
+    expect(written.meta.errorCategory).toBe('unknown');
+    expect(written.meta.errorSummary).toBe(text.errors.technicalDetailsHidden);
+    expect(written.meta.primaryFailure).toMatchObject({
+      category: 'unknown',
+      summary: text.errors.technicalDetailsHidden,
+      redacted: true,
+    });
+    expect(written.meta.secondaryFailures).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          source: 'langfuse.outcome.http_failed',
+          category: 'auth',
+        }),
+      ]),
+    );
   });
 });

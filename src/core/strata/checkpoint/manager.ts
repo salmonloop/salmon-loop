@@ -1,9 +1,10 @@
-import { randomBytes } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
 import { mkdir, rm } from '../../adapters/fs/node-fs.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
+import { recordAuditEvent } from '../../observability/audit-trail.js';
 import { logger } from '../../observability/logger.js';
 import { normalizePath } from '../../utils/path.js';
 
@@ -13,6 +14,21 @@ export interface SnapshotResult {
 }
 
 export class CheckpointManager {
+  private hashRepoPath(repoPath: string): string {
+    return createHash('sha256').update(repoPath).digest('hex').slice(0, 16);
+  }
+
+  private extractSafeErrorCode(error: unknown): string | undefined {
+    if (!error || typeof error !== 'object') return undefined;
+    if (typeof (error as { code?: unknown }).code === 'string') {
+      return (error as { code: string }).code;
+    }
+    if (typeof (error as { name?: unknown }).name === 'string') {
+      return (error as { name: string }).name;
+    }
+    return undefined;
+  }
+
   /**
    * Creates a safe snapshot of the current repository state (T0).
    * S8P Checkpoint Protocol v1.0
@@ -30,91 +46,128 @@ export class CheckpointManager {
     includePaths: string[] = [],
     message?: string,
   ): Promise<SnapshotResult> {
+    let step:
+      | 'write-tree'
+      | 'read-tree'
+      | 'add-u'
+      | 'write-tree-final'
+      | 'commit-tree'
+      | 'update-ref'
+      | undefined;
     // 1. Capture Staged State (read directly from user's real index)
     // git write-tree generates a tree object from the current index
     const git = new GitAdapter(repoPath);
-    const stagedTree = (await git.query(['write-tree'])).trim();
-
-    // 2. Prepare temporary environment for Working Tree capture
-    const random = randomBytes(4).toString('hex');
-    const tempIndexFile = join(tmpdir(), `s8p-idx-${Date.now()}-${random}`);
-    const env = { GIT_INDEX_FILE: tempIndexFile };
-
     try {
-      // 3. Initialize temporary index (based on Staged Tree)
-      // We use the staged tree as the base because it contains all tracked files (including newly added ones)
-      // HEAD would miss files that are added to index but not yet committed
-      await git.exec(['read-tree', stagedTree], { env });
+      step = 'write-tree';
+      const stagedTree = (await git.query(['write-tree'])).trim();
 
-      // 4. Capture Working Tree (Tracked files only)
-      // -u: Update tracked files (Modified/Deleted)
-      await git.exec(['add', '-u', '.'], { env });
+      // 2. Prepare temporary environment for Working Tree capture
+      const random = randomBytes(4).toString('hex');
+      const tempIndexFile = join(tmpdir(), `s8p-idx-${Date.now()}-${random}`);
+      const env = { GIT_INDEX_FILE: tempIndexFile };
 
-      // 5. Handle Untracked files (Safe Policy)
-      const untracked = await this.getSafeUntrackedFiles(repoPath);
-      if (untracked.length > 0) {
-        // Explicitly add safe untracked files
-        await git.exec(['add', '--', ...untracked], { env });
-      }
+      try {
+        // 3. Initialize temporary index (based on Staged Tree)
+        // We use the staged tree as the base because it contains all tracked files (including newly added ones)
+        // HEAD would miss files that are added to index but not yet committed
+        step = 'read-tree';
+        await git.exec(['read-tree', stagedTree], { env });
 
-      // 6. Handle Explicitly Included Ignored Files
-      if (includePaths.length > 0) {
-        for (const file of includePaths) {
-          try {
-            // Check if file is ignored to decide whether to use -f
-            // We use check-ignore. If it output something, it is ignored.
-            const isIgnored = await git
-              .exec(['check-ignore', file])
-              .then((out: string) => !!out.trim())
-              .catch(() => false); // check-ignore exits with 1 if not ignored
+        // 4. Capture Working Tree (Tracked files only)
+        // -u: Update tracked files (Modified/Deleted)
+        step = 'add-u';
+        await git.exec(['add', '-u', '.'], { env });
 
-            if (isIgnored) {
-              await git.exec(['add', '-f', '--', file], { env });
-            } else {
-              // If not ignored, it might be already added by step 4 or 5, but ensuring it's added here is safe
-              await git.exec(['add', '--', file], { env });
+        // 5. Handle Untracked files (Safe Policy)
+        const untracked = await this.getSafeUntrackedFiles(repoPath);
+        if (untracked.length > 0) {
+          // Explicitly add safe untracked files
+          await git.exec(['add', '--', ...untracked], { env });
+        }
+
+        // 6. Handle Explicitly Included Ignored Files
+        if (includePaths.length > 0) {
+          for (const file of includePaths) {
+            try {
+              // Check if file is ignored to decide whether to use -f
+              // We use check-ignore. If it output something, it is ignored.
+              const isIgnored = await git
+                .exec(['check-ignore', file])
+                .then((out: string) => !!out.trim())
+                .catch(() => false); // check-ignore exits with 1 if not ignored
+
+              if (isIgnored) {
+                await git.exec(['add', '-f', '--', file], { env });
+              } else {
+                // If not ignored, it might be already added by step 4 or 5, but ensuring it's added here is safe
+                await git.exec(['add', '--', file], { env });
+              }
+            } catch {
+              // If file doesn't exist or other error, we skip it to prevent crashing the whole snapshot
+              // This aligns with "Graceful handling" in requirements
             }
-          } catch {
-            // If file doesn't exist or other error, we skip it to prevent crashing the whole snapshot
-            // This aligns with "Graceful handling" in requirements
           }
         }
+
+        // 7. Generate Working Tree Object
+        step = 'write-tree-final';
+        const workingTree = (await git.exec(['write-tree'], { env })).trim();
+
+        // 8. Generate Snapshot Commit
+        const metadata = JSON.stringify({
+          v: '1.0',
+          staged: stagedTree,
+          forced: includePaths,
+          desc: message,
+          ts: Date.now(),
+        });
+
+        step = 'commit-tree';
+        const commitHash = (
+          await git.exec(['commit-tree', workingTree, '-p', 'HEAD', '-m', metadata], { env })
+        ).trim();
+
+        // 9. Mount Reference (Persistence)
+        // Use update-ref to prevent GC and allow easy lookup
+        step = 'update-ref';
+        await git.query([
+          'update-ref',
+          '-m',
+          's8p-checkpoint',
+          `refs/s8p/snapshots/${commitHash}`,
+          commitHash,
+        ]);
+
+        return { commitHash, stagedTree };
+      } finally {
+        // Cleanup temporary index
+        try {
+          await rm(tempIndexFile, { force: true });
+        } catch {
+          // Ignore cleanup errors
+        }
       }
-
-      // 7. Generate Working Tree Object
-      const workingTree = (await git.exec(['write-tree'], { env })).trim();
-
-      // 8. Generate Snapshot Commit
-      const metadata = JSON.stringify({
-        v: '1.0',
-        staged: stagedTree,
-        forced: includePaths,
-        desc: message,
-        ts: Date.now(),
-      });
-
-      const commitHash = (
-        await git.exec(['commit-tree', workingTree, '-p', 'HEAD', '-m', metadata], { env })
-      ).trim();
-
-      // 9. Mount Reference (Persistence)
-      // Use update-ref to prevent GC and allow easy lookup
-      await git.query([
-        'update-ref',
-        '-m',
-        's8p-checkpoint',
-        `refs/s8p/snapshots/${commitHash}`,
-        commitHash,
-      ]);
-
-      return { commitHash, stagedTree };
-    } finally {
-      // Cleanup temporary index
-      try {
-        await rm(tempIndexFile, { force: true });
-      } catch {
-        // Ignore cleanup errors
+    } catch (error) {
+      if (
+        step === 'write-tree' ||
+        step === 'read-tree' ||
+        step === 'add-u' ||
+        step === 'write-tree-final' ||
+        step === 'commit-tree'
+      ) {
+        recordAuditEvent(
+          'snapshot.create.step.failed',
+          {
+            step,
+            repoPathHash: this.hashRepoPath(repoPath),
+            includePathsCount: includePaths.length,
+            errorName: error instanceof Error ? error.name : typeof error,
+            errorCode: this.extractSafeErrorCode(error),
+          },
+          { source: 'runtime', severity: 'high', scope: 'session', phase: 'PREFLIGHT' },
+        );
       }
+      throw error;
     }
   }
 

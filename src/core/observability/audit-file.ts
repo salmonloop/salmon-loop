@@ -5,7 +5,11 @@ import { appendFile, mkdir, readFile, rename, writeFile } from '../adapters/fs/n
 import { getAuditDir } from '../runtime/paths.js';
 
 import { getAuditTrail } from './audit-trail.js';
-import { mapAuditTrailToError, mapErrorForAudit } from './error-mapping.js';
+import {
+  mapAuditTrailToSecondaryFailures,
+  mapErrorForAudit,
+  type AuditTrailDerivedFailure,
+} from './error-mapping.js';
 import { logger } from './logger.js';
 
 interface AppendAuditParams {
@@ -28,6 +32,17 @@ interface AuditEventsRef {
   firstTs?: string;
   lastTs?: string;
   sha256?: string;
+}
+
+function toSecondaryFailureMeta(
+  failures: AuditTrailDerivedFailure[],
+): Array<{ source: string; category: string; summary: string; redacted: boolean }> {
+  return failures.map((failure) => ({
+    source: failure.source,
+    category: failure.category,
+    summary: failure.summary,
+    redacted: failure.redacted,
+  }));
 }
 
 function toParams(input: string | undefined | AppendAuditParams): AppendAuditParams {
@@ -76,13 +91,11 @@ async function createFallbackAuditFile(params: AppendAuditParams): Promise<strin
   const targetPath = path.join(auditDir, filename);
   const eventsFilename = filename.replace(/\.json$/, '.events.jsonl');
   const eventsPath = path.join(auditDir, eventsFilename);
-  const trailError = mapAuditTrailToError(trail);
-  const auditError =
-    trailError ??
-    mapErrorForAudit({
-      message: params.failureReason,
-      code: params.finalOutcome?.errorCode ?? params.finalOutcome?.reasonCode,
-    });
+  const auditError = mapErrorForAudit({
+    message: params.failureReason,
+    code: params.finalOutcome?.errorCode ?? params.finalOutcome?.reasonCode,
+  });
+  const secondaryFailures = mapAuditTrailToSecondaryFailures(trail);
 
   const payload = {
     meta: {
@@ -93,6 +106,13 @@ async function createFallbackAuditFile(params: AppendAuditParams): Promise<strin
       errorCode: params.finalOutcome?.errorCode,
       errorCategory: auditError.category,
       errorSummary: auditError.summary,
+      primaryFailure: {
+        code: auditError.code,
+        category: auditError.category,
+        summary: auditError.summary,
+        redacted: auditError.redacted,
+      },
+      secondaryFailures: toSecondaryFailureMeta(secondaryFailures),
       error: params.failureReason,
       runId: params.runId,
       source: 'appendAuditTrailToAuditFile.fallback',
@@ -131,14 +151,11 @@ export async function appendAuditTrailToAuditFile(
     const fullTrail = getAuditTrail();
     let metaChanged = false;
     if (params.finalOutcome) {
-      const trailError = mapAuditTrailToError(fullTrail);
-      const auditError =
-        trailError ??
-        mapErrorForAudit({
-          message:
-            params.failureReason ?? (typeof meta.error === 'string' ? meta.error : undefined),
-          code: params.finalOutcome.errorCode ?? params.finalOutcome.reasonCode,
-        });
+      const auditError = mapErrorForAudit({
+        message: params.failureReason ?? (typeof meta.error === 'string' ? meta.error : undefined),
+        code: params.finalOutcome.errorCode ?? params.finalOutcome.reasonCode,
+      });
+      const secondaryFailures = mapAuditTrailToSecondaryFailures(fullTrail);
       if (meta.success !== params.finalOutcome.success) {
         meta.success = params.finalOutcome.success;
         metaChanged = true;
@@ -170,6 +187,25 @@ export async function appendAuditTrailToAuditFile(
       }
       if (meta.errorSummary !== auditError.summary) {
         meta.errorSummary = auditError.summary;
+        metaChanged = true;
+      }
+      const nextPrimaryFailure = {
+        code: auditError.code,
+        category: auditError.category,
+        summary: auditError.summary,
+        redacted: auditError.redacted,
+      };
+      const primaryDigest = JSON.stringify(meta.primaryFailure ?? null);
+      const nextPrimaryDigest = JSON.stringify(nextPrimaryFailure);
+      if (primaryDigest !== nextPrimaryDigest) {
+        meta.primaryFailure = nextPrimaryFailure;
+        metaChanged = true;
+      }
+      const nextSecondaryFailures = toSecondaryFailureMeta(secondaryFailures);
+      const secondaryDigest = JSON.stringify(meta.secondaryFailures ?? []);
+      const nextSecondaryDigest = JSON.stringify(nextSecondaryFailures);
+      if (secondaryDigest !== nextSecondaryDigest) {
+        meta.secondaryFailures = nextSecondaryFailures;
         metaChanged = true;
       }
       (data as any).meta = meta;

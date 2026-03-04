@@ -7,6 +7,7 @@ import {
 import { REDACTED_ERROR_TOKEN } from '../../../../src/core/observability/error-envelope.js';
 import {
   mapAuditTrailToError,
+  mapAuditTrailToSecondaryFailures,
   mapErrorForAudit,
   mapErrorForDisplay,
 } from '../../../../src/core/observability/error-mapping.js';
@@ -210,5 +211,30 @@ describe('mapErrorForAudit', () => {
 
     expect(result?.category).toBe('auth');
     expect(result?.summary).toContain('401');
+  });
+
+  it('maps observability events into secondary failure entries', () => {
+    const result = mapAuditTrailToSecondaryFailures([
+      {
+        action: 'langfuse.outcome.http_failed',
+        details: { status: 401, statusText: 'Unauthorized' },
+        timestamp: new Date().toISOString(),
+      },
+      {
+        action: 'langfuse.outcome.request_failed',
+        details: { kind: 'timeout' },
+        timestamp: new Date().toISOString(),
+      },
+    ]);
+
+    expect(result).toHaveLength(2);
+    expect(result[0]).toMatchObject({
+      source: 'langfuse.outcome.http_failed',
+      category: 'auth',
+    });
+    expect(result[1]).toMatchObject({
+      source: 'langfuse.outcome.request_failed',
+      category: 'network',
+    });
   });
 });

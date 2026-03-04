@@ -9,7 +9,9 @@ describe('transaction-session', () => {
     const emitSanitized = mock();
     const runner = {
       execute: mock(async () => {
-        throw new Error('boom');
+        const error = new Error('boom') as Error & { code?: string };
+        error.code = 'PREFLIGHT_NOT_GIT';
+        throw error;
       }),
     } as any;
 
@@ -25,6 +27,7 @@ describe('transaction-session', () => {
     expect(session.result.success).toBe(false);
     expect(session.result.reasonCode).toBe('LOOP_CRASH');
     expect(session.result.failurePhase).toBe('VERIFY');
+    expect(session.result.errorCode).toBe('PREFLIGHT_NOT_GIT');
     expect(emitSanitized).toHaveBeenCalledTimes(1);
   });
 });

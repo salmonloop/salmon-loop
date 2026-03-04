@@ -17,6 +17,7 @@ import { text } from '../../../locales/index.js';
 import { defaultPathAdapter } from '../../adapters/path/path-adapter.js';
 import type { TaskEvent } from '../../interaction/events/bus.js';
 import type { TaskEnvelope } from '../../interaction/model/index.js';
+import { mapErrorForDisplay } from '../../observability/error-mapping.js';
 import type { CommandRunner } from '../../runtime/command-runner-context.js';
 import { parseSlashInput } from '../../slash/parser.js';
 import type { FileSystem } from '../../types/index.js';
@@ -252,10 +253,14 @@ function loopEventToSessionUpdate(event: LoopEvent): SessionUpdate | null {
       };
     case 'log':
       if (event.level === 'error' || event.level === 'warn') {
+        const displayMessage = mapErrorForDisplay({
+          message: event.message,
+          code: event.code,
+        }).message;
         return {
           sessionUpdate: 'agent_message_chunk',
           content: buildTextContentBlock(
-            ensureMarkdownParagraphBreak(`[${event.level.toUpperCase()}] ${event.message}`),
+            ensureMarkdownParagraphBreak(`[${event.level.toUpperCase()}] ${displayMessage}`),
           ),
         };
       }
@@ -716,7 +721,10 @@ export function createAcpFormalAgent(deps: {
         assistantText = 'Task cancelled.';
         stopReason = 'cancelled';
       } else if (terminalEvent?.type === 'task.failed') {
-        assistantText = 'Task failed.';
+        latest = await deps.facade.getTask(task.id);
+        const failureMessage =
+          typeof latest?.failure?.message === 'string' ? latest.failure.message : undefined;
+        assistantText = failureMessage ? `Task failed: ${failureMessage}` : 'Task failed.';
       } else if (terminalEvent?.type === 'task.awaiting_input') {
         assistantText = 'Task awaiting input.';
         latest = await deps.facade.getTask(task.id);
