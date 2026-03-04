@@ -1,3 +1,10 @@
 export { runSalmonLoop } from './core/runtime/loop.js';
 export { StubLLM, AiSdkLLM } from './core/llm/index.js';
-export * from './core/types/index.js';
+export * from './core/types/authorization.js';
+export * from './core/types/context.js';
+export * from './core/types/errors.js';
+export * from './core/types/execution.js';
+export * from './core/types/llm.js';
+export * from './core/types/loop.js';
+export * from './core/types/planning.js';
+export * from './core/types/usage.js';
