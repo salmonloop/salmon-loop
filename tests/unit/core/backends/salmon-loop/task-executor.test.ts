@@ -23,12 +23,13 @@ describe('salmon task executor', () => {
       id: 'task_1',
       capability: 'patch',
       state: 'accepted',
-      request: { instruction: 'fix bug' },
+      request: { instruction: 'fix bug', checkpointSessionId: 'acp-sess-1' },
       createdAt: '2026-02-28T00:00:00.000Z',
     });
 
     expect(result.state).toBe('completed');
     expect(observedOptions?.instruction).toBe('fix bug');
+    expect(observedOptions?.checkpointSessionId).toBe('acp-sess-1');
   });
 
   test('marks task as failed when loop execution fails', async () => {

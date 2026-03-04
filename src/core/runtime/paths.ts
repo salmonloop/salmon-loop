@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import * as os from 'os';
 import path from 'path';
 
@@ -35,6 +36,15 @@ export function getRejectionsDir(repoRoot: string): string {
 
 export function getTmpDir(repoRoot: string): string {
   return path.join(getRuntimeRoot(repoRoot), 'tmp');
+}
+
+export function getCheckpointsDir(repoRoot: string): string {
+  return path.join(getRuntimeRoot(repoRoot), 'checkpoints');
+}
+
+export function getUserCheckpointManifestDir(repoRoot: string): string {
+  const digest = createHash('sha256').update(repoRoot).digest('hex').slice(0, 16);
+  return path.join(getUserRuntimeRoot(), 'checkpoints', digest);
 }
 
 export function getShadowLockPath(shadowRoot: string): string {

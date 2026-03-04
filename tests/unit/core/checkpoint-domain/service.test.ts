@@ -1,0 +1,85 @@
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
+
+const {
+  linkSessionToCheckpointMock,
+  readCheckpointManifestMock,
+  removeCheckpointHandleMock,
+  upsertCheckpointHandleMock,
+} = (() => ({
+  linkSessionToCheckpointMock: mock(),
+  readCheckpointManifestMock: mock(),
+  removeCheckpointHandleMock: mock(),
+  upsertCheckpointHandleMock: mock(),
+}))();
+
+mock.module('../../../../src/core/checkpoint-domain/manifest-store.js', () => ({
+  linkSessionToCheckpoint: linkSessionToCheckpointMock,
+  readCheckpointManifest: readCheckpointManifestMock,
+  removeCheckpointHandle: removeCheckpointHandleMock,
+  upsertCheckpointHandle: upsertCheckpointHandleMock,
+}));
+
+import { GitSnapshotCheckpointService } from '../../../../src/core/checkpoint-domain/service.js';
+
+describe('GitSnapshotCheckpointService', () => {
+  beforeEach(() => {
+    mock.clearAllMocks();
+  });
+
+  it('creates checkpoint handle and links session', async () => {
+    const manager = {
+      createSafeSnapshot: mock().mockResolvedValue({ commitHash: 'cp-123', stagedTree: 'tree-1' }),
+      deleteSnapshot: mock().mockResolvedValue(undefined),
+    } as any;
+    const service = new GitSnapshotCheckpointService(manager);
+
+    const handle = await service.create({
+      repoPath: '/repo',
+      strategy: 'worktree',
+      sessionId: 'sess-1',
+    });
+
+    expect(handle.id).toBe('cp-123');
+    expect(upsertCheckpointHandleMock).toHaveBeenCalledWith(
+      '/repo',
+      expect.objectContaining({ id: 'cp-123' }),
+    );
+    expect(linkSessionToCheckpointMock).toHaveBeenCalledWith('/repo', 'sess-1', 'cp-123');
+  });
+
+  it('lists checkpoints for session history', async () => {
+    readCheckpointManifestMock.mockResolvedValue({
+      schemaVersion: 1,
+      checkpoints: {
+        'cp-1': { id: 'cp-1', createdAt: 't1', strategy: 'worktree', backend: 'git_snapshot' },
+        'cp-2': { id: 'cp-2', createdAt: 't2', strategy: 'worktree', backend: 'git_snapshot' },
+      },
+      sessions: {
+        'sess-1': { sessionId: 'sess-1', currentCheckpointId: 'cp-2', history: ['cp-1', 'cp-2'] },
+      },
+    });
+    const manager = {
+      createSafeSnapshot: mock(),
+      deleteSnapshot: mock(),
+    } as any;
+    const service = new GitSnapshotCheckpointService(manager);
+
+    const items = await service.list({ repoPath: '/repo', sessionId: 'sess-1' });
+
+    expect(items.map((item) => item.id)).toEqual(['cp-1', 'cp-2']);
+  });
+
+  it('deletes checkpoint from backend and manifest', async () => {
+    const deleteSnapshot = mock().mockResolvedValue(undefined);
+    const manager = {
+      createSafeSnapshot: mock(),
+      deleteSnapshot,
+    } as any;
+    const service = new GitSnapshotCheckpointService(manager);
+
+    await service.delete({ repoPath: '/repo', checkpointId: 'cp-1' });
+
+    expect(deleteSnapshot).toHaveBeenCalledWith('/repo', 'cp-1');
+    expect(removeCheckpointHandleMock).toHaveBeenCalledWith('/repo', 'cp-1');
+  });
+});

@@ -3,6 +3,7 @@ import type { Command } from 'commander';
 import { mkdir } from '../../core/adapters/fs/node-fs.js';
 import { defaultPathAdapter } from '../../core/adapters/path/path-adapter.js';
 import { createSalmonTaskExecutor } from '../../core/backends/salmon-loop/task-executor.js';
+import { GitSnapshotCheckpointService } from '../../core/checkpoint-domain/service.js';
 import { resolveConfig } from '../../core/config/resolve.js';
 import { resolveExtensions } from '../../core/extensions/index.js';
 import { createTaskEventBus } from '../../core/interaction/events/bus.js';
@@ -178,6 +179,7 @@ export async function handleServeCommand(_options: unknown, command: Command) {
   });
 
   const sharedEventBus = createTaskEventBus();
+  const checkpointService = new GitSnapshotCheckpointService();
   const acpFacade = createInteractionFacade({
     executeTask: executor.execute,
     eventBus: sharedEventBus,
@@ -218,6 +220,10 @@ export async function handleServeCommand(_options: unknown, command: Command) {
       createAcpFormalAgent({
         conn,
         agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+        checkpointReader: {
+          listBySession: async ({ repoPath, sessionId, limit }) =>
+            await checkpointService.list({ repoPath, sessionId, limit }),
+        },
         facade: acpFacade,
         capabilityPolicy: { loadSession: false },
         eventBus: sharedEventBus,
@@ -335,6 +341,7 @@ export async function handleServeAcpCommand(_options: unknown, command: Command)
   });
 
   const sharedEventBus = createTaskEventBus();
+  const checkpointService = new GitSnapshotCheckpointService();
   const acpFacade = createInteractionFacade({
     executeTask: executor.execute,
     eventBus: sharedEventBus,
@@ -344,6 +351,10 @@ export async function handleServeAcpCommand(_options: unknown, command: Command)
     createAcpFormalAgent({
       conn,
       agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+      checkpointReader: {
+        listBySession: async ({ repoPath, sessionId, limit }) =>
+          await checkpointService.list({ repoPath, sessionId, limit }),
+      },
       facade: acpFacade,
       capabilityPolicy: { loadSession: false },
       eventBus: sharedEventBus,

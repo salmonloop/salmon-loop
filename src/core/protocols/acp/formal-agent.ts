@@ -31,7 +31,7 @@ import { createAcpToolAuthorizationProvider } from './permission-provider.js';
 type Facade = {
   createTask: (input: {
     capability: string;
-    request: { instruction: string };
+    request: { instruction: string; checkpointSessionId?: string };
     onEvent?: (event: LoopEvent) => void;
     authorizationProvider?: import('../../tools/authorization/types.js').ToolAuthorizationProvider;
     authorizationMode?: 'blocking' | 'deferred';
@@ -471,6 +471,13 @@ export function createAcpFormalAgent(deps: {
   conn: AgentSideConnection;
   agentInfo: { name: string; version: string };
   facade: Facade;
+  checkpointReader?: {
+    listBySession: (input: {
+      repoPath: string;
+      sessionId: string;
+      limit?: number;
+    }) => Promise<Array<{ id: string }>>;
+  };
   capabilityPolicy?: {
     loadSession?: boolean;
   };
@@ -576,7 +583,25 @@ export function createAcpFormalAgent(deps: {
         }
       }
 
-      return { configOptions: buildConfigOptions(runtimeState) };
+      const response: {
+        configOptions: SessionConfigOption[];
+        _meta?: Record<string, unknown>;
+      } = { configOptions: buildConfigOptions(runtimeState) };
+      if (deps.checkpointReader) {
+        const checkpoints = await deps.checkpointReader.listBySession({
+          repoPath: params.cwd,
+          sessionId: params.sessionId,
+          limit: 1,
+        });
+        const latest = checkpoints.at(-1);
+        response._meta = {
+          salmonloop: {
+            latestCheckpointId: latest?.id ?? null,
+          },
+        };
+      }
+
+      return response;
     },
 
     async setSessionConfigOption(params) {
@@ -690,7 +715,7 @@ export function createAcpFormalAgent(deps: {
 
       const { task, signal } = await deps.facade.createTask({
         capability: 'patch',
-        request: { instruction: promptText },
+        request: { instruction: promptText, checkpointSessionId: params.sessionId },
         commandRunner: createAcpCommandRunner({ conn: deps.conn, sessionId: params.sessionId }),
         fileSystemOverride: createAcpFileSystem({ conn: deps.conn, sessionId: params.sessionId }),
         authorizationProvider: createAcpToolAuthorizationProvider({

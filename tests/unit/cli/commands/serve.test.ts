@@ -81,6 +81,14 @@ mock.module('../../../../src/core/backends/salmon-loop/task-executor.js', () => 
   }),
 }));
 
+mock.module('../../../../src/core/checkpoint-domain/service.js', () => ({
+  GitSnapshotCheckpointService: class {
+    async list() {
+      return [];
+    }
+  },
+}));
+
 mock.module('../../../../src/cli/utils/outcome-reporter.js', () => ({
   createOutcomeReporter: mock(() => ({ type: 'outcome-reporter' })),
 }));

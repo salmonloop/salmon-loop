@@ -9,6 +9,7 @@ export type TaskState =
 
 export interface TaskRequest {
   instruction: string;
+  checkpointSessionId?: string;
 }
 
 export interface TaskArtifact {

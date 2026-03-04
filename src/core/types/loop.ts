@@ -363,6 +363,7 @@ export interface RunOptions {
 
 export interface LoopOptions {
   instruction: string;
+  checkpointSessionId?: string;
   verify?: string;
   repoPath: string;
   fileSystemOverride?: FileSystem;

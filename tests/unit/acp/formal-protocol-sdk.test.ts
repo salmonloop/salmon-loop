@@ -142,6 +142,45 @@ describe('ACP formal protocol (SDK)', () => {
     expect(Array.isArray(updates)).toBe(true);
   });
 
+  it('exposes latest checkpoint id in session/load _meta when checkpoint reader is provided', async () => {
+    const { clientConn } = createConnectedPair({
+      toAgent: (conn) =>
+        createAcpFormalAgent({
+          conn,
+          agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+          checkpointReader: {
+            listBySession: async () => [{ id: 'cp-latest' }],
+          },
+          facade: {
+            createTask: async () => {
+              throw new Error('not used');
+            },
+            getTask: async () => null,
+            cancelTask: async () => null,
+            resumeTask: async () => null,
+            retryTask: async () => null,
+            reopenTask: async () => null,
+            listTasks: async () => ({ items: [] }),
+            submitInput: async () => null,
+            getArtifact: async () => null,
+          },
+        }),
+      toClient: () => ({
+        requestPermission: async () => ({ outcome: { outcome: 'cancelled' } }),
+        sessionUpdate: async () => {},
+      }),
+    });
+
+    await clientConn.initialize({
+      protocolVersion: 1,
+      clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: false },
+    });
+
+    const { sessionId } = await clientConn.newSession({ cwd: '/repo', mcpServers: [] });
+    const res = await clientConn.loadSession({ sessionId, cwd: '/repo', mcpServers: [] });
+    expect((res as any)?._meta?.salmonloop?.latestCheckpointId).toBe('cp-latest');
+  });
+
   it('can disable loadSession capability and reject session/load', async () => {
     const { clientConn } = createConnectedPair({
       toAgent: (conn) =>

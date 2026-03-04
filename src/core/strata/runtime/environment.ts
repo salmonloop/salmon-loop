@@ -3,6 +3,7 @@ import { createHash } from 'crypto';
 import { text } from '../../../locales/index.js';
 import { stat } from '../../adapters/fs/node-fs.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
+import { GitSnapshotCheckpointService } from '../../checkpoint-domain/service.js';
 import { LIMITS } from '../../config/limits.js';
 import { sanitizeError } from '../../llm/errors.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
@@ -63,6 +64,7 @@ export class RuntimeEnvironment {
   public workspace?: ExecutionWorkspace;
   public checkpointRef?: CheckpointRef;
   public readonly checkpointManager: CheckpointManager;
+  public readonly checkpointService: GitSnapshotCheckpointService;
 
   public initialSnapshotHash?: string;
   private setupWorkPath?: string; // Tracks path for cleanup even if workspace setup fails
@@ -72,6 +74,7 @@ export class RuntimeEnvironment {
     private emit: (event: LoopEvent) => void,
   ) {
     this.checkpointManager = new CheckpointManager();
+    this.checkpointService = new GitSnapshotCheckpointService(this.checkpointManager);
   }
 
   /**
@@ -148,8 +151,13 @@ export class RuntimeEnvironment {
         includePaths.push(options.file);
       }
       try {
-        const snapshot = await checkpointManager.createSafeSnapshot(options.repoPath, includePaths);
-        this.initialSnapshotHash = snapshot.commitHash;
+        const snapshot = await this.checkpointService.create({
+          repoPath: options.repoPath,
+          strategy: 'worktree',
+          includePaths,
+          sessionId: options.checkpointSessionId,
+        });
+        this.initialSnapshotHash = snapshot.id;
 
         emit({
           type: 'snapshot.created',

@@ -45,6 +45,19 @@ mock.module('../../../src/core/strata/checkpoint/manager.js', () => ({
   })),
 }));
 
+mock.module('../../../src/core/checkpoint-domain/service.js', () => ({
+  GitSnapshotCheckpointService: mock().mockImplementation((checkpointManager: any) => ({
+    create: async (input: { repoPath: string; includePaths?: string[]; message?: string }) => {
+      const snapshot = await checkpointManager.createSafeSnapshot(
+        input.repoPath,
+        input.includePaths ?? [],
+        input.message,
+      );
+      return { id: snapshot.commitHash };
+    },
+  })),
+}));
+
 mock.module('../../../src/core/strata/layers/worktree.js', () => ({
   WorkspaceManager: {
     setup: workspaceSetupMock,

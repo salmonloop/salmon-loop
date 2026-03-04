@@ -34,6 +34,7 @@ function inferFailureCategory(
 export function createSalmonTaskExecutor(deps: {
   runLoop: (options: {
     instruction: string;
+    checkpointSessionId?: string;
     mode: string;
     onEvent?: (event: LoopEvent) => void;
     signal?: AbortSignal;
@@ -58,6 +59,7 @@ export function createSalmonTaskExecutor(deps: {
       const result = await withCommandRunner(runner, async () => {
         return await deps.runLoop({
           instruction: task.request.instruction,
+          checkpointSessionId: task.request.checkpointSessionId,
           mode: task.capability,
           onEvent: options?.onEvent,
           signal: options?.signal,
