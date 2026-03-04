@@ -54,6 +54,12 @@ only reading `latestCheckpointId`.
 - `not_found`
 - `manifest_unavailable`
 
+## Session Persistence
+
+- ACP session identity is persisted in user runtime storage and can be reloaded after process restart.
+- Default persistence file: `~/.salmonloop/runtime/acp/sessions.v1.json`.
+- Persisted fields are safe metadata only (`sessionId`, `cwd`, `mcpServers`, timestamps, title).
+
 ## Notifications
 
 - `session/update` is the standard progress channel.

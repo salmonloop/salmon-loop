@@ -20,6 +20,7 @@ import { createAcpFormalAgent } from '../../core/protocols/acp/formal-agent.js';
 import { startAcpStdioServer } from '../../core/protocols/acp/stdio-server.js';
 import { createAgentServerRuntime } from '../../core/runtime/agent-server-runtime.js';
 import { runSalmonLoop } from '../../core/runtime/loop.js';
+import { getUserAcpSessionStorePath } from '../../core/runtime/paths.js';
 import { getSidecarSocketPath } from '../../core/runtime/sidecar-paths.js';
 import {
   buildSidecarRouteDescriptors,
@@ -236,7 +237,7 @@ export async function handleServeCommand(_options: unknown, command: Command) {
           },
         },
         facade: acpFacade,
-        capabilityPolicy: { loadSession: false },
+        sessionPersistencePath: getUserAcpSessionStorePath(),
         eventBus: sharedEventBus,
       }),
     );
@@ -378,7 +379,7 @@ export async function handleServeAcpCommand(_options: unknown, command: Command)
         },
       },
       facade: acpFacade,
-      capabilityPolicy: { loadSession: false },
+      sessionPersistencePath: getUserAcpSessionStorePath(),
       eventBus: sharedEventBus,
     }),
   );

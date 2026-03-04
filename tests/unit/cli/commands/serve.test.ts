@@ -55,6 +55,12 @@ mock.module('../../../../src/core/observability/logger.js', () => ({
 
 mock.module('../../../../src/core/adapters/fs/node-fs.js', () => ({
   mkdir: mock(async () => {}),
+  readdir: mock(async () => []),
+  rename: mock(async () => {}),
+  rm: mock(async () => {}),
+  stat: mock(async () => {
+    throw Object.assign(new Error('missing'), { code: 'ENOENT' });
+  }),
 }));
 
 mock.module('../../../../src/cli/commands/run/runtime-llm.js', () => ({

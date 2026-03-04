@@ -47,6 +47,10 @@ export function getUserCheckpointManifestDir(repoRoot: string): string {
   return path.join(getUserRuntimeRoot(), 'checkpoints', digest);
 }
 
+export function getUserAcpSessionStorePath(): string {
+  return path.join(getUserRuntimeRoot(), 'acp', 'sessions.v1.json');
+}
+
 export function getShadowLockPath(shadowRoot: string): string {
   return path.join(shadowRoot, '.salmonloop', 'runtime', 'locks', 'shadow.lock');
 }

@@ -16,6 +16,7 @@ import {
 } from '@agentclientprotocol/sdk';
 
 import { text } from '../../../locales/index.js';
+import { mkdir, readFile, rename, writeFile } from '../../adapters/fs/node-fs.js';
 import { defaultPathAdapter } from '../../adapters/path/path-adapter.js';
 import type { TaskEvent } from '../../interaction/events/bus.js';
 import type { TaskEnvelope } from '../../interaction/model/index.js';
@@ -502,6 +503,7 @@ export function createAcpFormalAgent(deps: {
     subscribe: (listener: (event: TaskEvent) => void) => () => void;
     list: (taskId: string, options?: { afterId?: string | null; limit?: number }) => TaskEvent[];
   };
+  sessionPersistencePath?: string;
 }): Agent {
   const sessions = createAcpSessionStore();
   const sessionRuntime = new Map<string, AcpSessionRuntimeState>();
@@ -511,6 +513,100 @@ export function createAcpFormalAgent(deps: {
     terminal: false,
   };
   const loadSessionCapability = deps.capabilityPolicy?.loadSession ?? true;
+  const sessionPersistencePath = deps.sessionPersistencePath;
+  let sessionsHydrated = false;
+  let hydratePromise: Promise<void> | null = null;
+
+  type PersistedAcpSessionStore = {
+    schemaVersion: 1;
+    sessions: Array<{
+      id: string;
+      cwd: string;
+      mcpServers: unknown[];
+      createdAt: string;
+      updatedAt: string;
+      title?: string;
+    }>;
+  };
+
+  function isFileMissing(error: unknown): boolean {
+    return Boolean(
+      error &&
+      typeof error === 'object' &&
+      'code' in error &&
+      ((error as { code?: unknown }).code === 'ENOENT' ||
+        (error as { code?: unknown }).code === 'ENOTDIR'),
+    );
+  }
+
+  async function persistSessionsBestEffort(): Promise<void> {
+    if (!sessionPersistencePath) return;
+    const dir = defaultPathAdapter.dirname(sessionPersistencePath);
+    const payload: PersistedAcpSessionStore = {
+      schemaVersion: 1,
+      sessions: sessions.list().map((session) => ({
+        id: session.id,
+        cwd: session.cwd,
+        mcpServers: session.mcpServers,
+        createdAt: session.createdAt,
+        updatedAt: session.updatedAt,
+        title: session.title,
+      })),
+    };
+    const tempPath = defaultPathAdapter.join(
+      dir,
+      `.sessions.v1.json.tmp-${process.pid}-${Date.now()}`,
+    );
+    try {
+      await mkdir(dir, { recursive: true });
+      await writeFile(tempPath, JSON.stringify(payload, null, 2), 'utf8');
+      await rename(tempPath, sessionPersistencePath);
+    } catch (error) {
+      recordAuditEvent(
+        'acp.session.persist.failed',
+        {
+          errorName: error instanceof Error ? error.name : typeof error,
+        },
+        { source: 'acp', severity: 'low', scope: 'session', phase: 'PREFLIGHT' },
+      );
+    }
+  }
+
+  async function hydrateSessionsOnce(): Promise<void> {
+    if (sessionsHydrated) return;
+    if (hydratePromise) return hydratePromise;
+    hydratePromise = (async () => {
+      sessionsHydrated = true;
+      if (!sessionPersistencePath) return;
+      try {
+        const raw = await readFile(sessionPersistencePath, 'utf8');
+        const parsed = JSON.parse(raw) as PersistedAcpSessionStore;
+        if (!parsed || parsed.schemaVersion !== 1 || !Array.isArray(parsed.sessions)) return;
+        for (const stored of parsed.sessions) {
+          sessions.upsert({
+            id: stored.id,
+            cwd: stored.cwd,
+            mcpServers: Array.isArray(stored.mcpServers) ? stored.mcpServers : [],
+            createdAt: stored.createdAt,
+            updatedAt: stored.updatedAt,
+            title: stored.title,
+            history: [],
+            cancelRequested: false,
+          });
+        }
+      } catch (error) {
+        if (isFileMissing(error)) return;
+        recordAuditEvent(
+          'acp.session.hydrate.failed',
+          {
+            errorName: error instanceof Error ? error.name : typeof error,
+          },
+          { source: 'acp', severity: 'low', scope: 'session', phase: 'PREFLIGHT' },
+        );
+      }
+    })();
+    return hydratePromise;
+  }
 
   function hashRepoPath(repoPath: string): string {
     return createHash('sha256').update(repoPath).digest('hex').slice(0, 16);
@@ -540,6 +636,7 @@ export function createAcpFormalAgent(deps: {
   }
 
   async function loadSessionInternal(params: LoadSessionRequest): Promise<AcpSessionRecord> {
+    await hydrateSessionsOnce();
     const session = sessions.get(params.sessionId);
     if (!session) {
       throw new RequestError(-32004, `Session not found: ${params.sessionId}`);
@@ -550,6 +647,7 @@ export function createAcpFormalAgent(deps: {
         cwd: params.cwd,
         mcpServers: params.mcpServers ?? [],
       }));
+      await persistSessionsBestEffort();
     }
     return session;
   }
@@ -588,10 +686,12 @@ export function createAcpFormalAgent(deps: {
     },
 
     async newSession(params) {
+      await hydrateSessionsOnce();
       if (!isAbsolutePath(params.cwd)) {
         throw new RequestError(-32602, 'Invalid params: cwd must be an absolute path');
       }
       const session = sessions.create({ cwd: params.cwd, mcpServers: params.mcpServers ?? [] });
+      await persistSessionsBestEffort();
       const runtimeState = ensureSessionRuntimeState(session.id);
       let sessionMeta: Record<string, unknown> | undefined;
       if (deps.checkpointReader) {
@@ -703,6 +803,7 @@ export function createAcpFormalAgent(deps: {
     },
 
     async setSessionConfigOption(params) {
+      await hydrateSessionsOnce();
       if (!sessions.get(params.sessionId)) {
         throw new RequestError(-32004, `Session not found: ${params.sessionId}`);
       }
@@ -722,6 +823,7 @@ export function createAcpFormalAgent(deps: {
       const updatedSession =
         sessions.update(params.sessionId, (current) => ({ ...current })) ??
         sessions.get(params.sessionId)!;
+      await persistSessionsBestEffort();
       const update = buildConfigOptionUpdateIfChanged(runtimeState);
       if (update) {
         await emitSessionUpdate(params.sessionId, update);
@@ -735,6 +837,7 @@ export function createAcpFormalAgent(deps: {
     },
 
     async prompt(params) {
+      await hydrateSessionsOnce();
       const session = sessions.get(params.sessionId);
       if (!session) {
         throw new RequestError(-32004, `Session not found: ${params.sessionId}`);
@@ -763,6 +866,7 @@ export function createAcpFormalAgent(deps: {
             { role: 'user', content: params.prompt as unknown as any[] },
           ],
         })) ?? sessions.get(params.sessionId)!;
+      await persistSessionsBestEffort();
       const sessionInfoUpdate = buildSessionInfoUpdateIfChanged(
         sessionAfterUserMessage,
         runtimeState,
@@ -800,6 +904,7 @@ export function createAcpFormalAgent(deps: {
                 { role: 'assistant', content: [buildTextContentBlock(responseText)] as any },
               ],
             })) ?? sessions.get(params.sessionId)!;
+          await persistSessionsBestEffort();
           const finalSessionInfoUpdate = buildSessionInfoUpdateIfChanged(
             sessionAfterAssistantMessage,
             runtimeState,
@@ -831,6 +936,7 @@ export function createAcpFormalAgent(deps: {
       });
 
       sessions.update(params.sessionId, (current) => ({ ...current, taskId: task.id }));
+      await persistSessionsBestEffort();
 
       if (signal.aborted) {
         await emitSessionUpdate(params.sessionId, {
@@ -890,6 +996,7 @@ export function createAcpFormalAgent(deps: {
             { role: 'assistant', content: [buildTextContentBlock(assistantText)] as any },
           ],
         })) ?? sessions.get(params.sessionId)!;
+      await persistSessionsBestEffort();
       const finalSessionInfoUpdate = buildSessionInfoUpdateIfChanged(
         sessionAfterAssistantMessage,
         runtimeState,
@@ -902,10 +1009,12 @@ export function createAcpFormalAgent(deps: {
     },
 
     async cancel(params) {
+      await hydrateSessionsOnce();
       const session = sessions.get(params.sessionId);
       if (!session) return;
 
       sessions.update(params.sessionId, (current) => ({ ...current, cancelRequested: true }));
+      await persistSessionsBestEffort();
       if (session.taskId) {
         await deps.facade.cancelTask(session.taskId);
       }

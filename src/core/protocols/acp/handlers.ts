@@ -19,6 +19,7 @@ export type AcpSessionRecord = {
 
 export type AcpSessionStore = {
   create: (input: { cwd: string; mcpServers: unknown[]; title?: string }) => AcpSessionRecord;
+  upsert: (session: AcpSessionRecord) => AcpSessionRecord;
   get: (id: string) => AcpSessionRecord | undefined;
   update: (
     id: string,
@@ -48,6 +49,10 @@ export function createAcpSessionStore(): AcpSessionStore {
         cancelRequested: false,
       };
       sessions.set(id, session);
+      return session;
+    },
+    upsert(session) {
+      sessions.set(session.id, session);
       return session;
     },
     get(id) {
