@@ -1138,6 +1138,92 @@ describe('ACP formal protocol (SDK)', () => {
     expect(updates.some((update) => update.sessionUpdate === 'plan')).toBe(false);
   });
 
+  it('projects ACP plan updates from core runtime plan file events', async () => {
+    const updates: any[] = [];
+    const readBySessionCalls: Array<{ repoPath: string; sessionId: string }> = [];
+    const readBySession = async ({
+      repoPath,
+      sessionId,
+    }: {
+      repoPath: string;
+      sessionId: string;
+    }) => {
+      readBySessionCalls.push({ repoPath, sessionId });
+      return {
+        sessionId: 'plan_sess_1',
+        baseHash: 'hash_v1',
+        active: [{ stepId: 's1', text: 'Implement adapter bridge' }],
+        pending: [{ stepId: 's2', text: 'Add protocol tests' }],
+        recentDone: [{ stepId: 's0', text: 'Write design doc' }],
+      };
+    };
+
+    const { clientConn } = createConnectedPair({
+      toAgent: (conn) =>
+        createAcpFormalAgent({
+          conn,
+          agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+          planReader: { readBySession },
+          facade: {
+            createTask: async (input: any) => {
+              input.onEvent?.({
+                type: 'plan.runtime.ready',
+                sessionId: 'plan_sess_1',
+                planPathHint: '.salmonloop/plans/plan_sess_1/SALMONLOOP_PLAN.md',
+                timestamp: new Date(),
+              });
+              return {
+                task: {
+                  id: 'task_1',
+                  capability: 'patch',
+                  state: 'accepted',
+                  request: { instruction: input.request.instruction },
+                  createdAt: new Date().toISOString(),
+                  attempt: 1,
+                },
+                signal: new AbortController().signal,
+              };
+            },
+            getTask: async () => null,
+            cancelTask: async () => null,
+            resumeTask: async () => null,
+            retryTask: async () => null,
+            reopenTask: async () => null,
+            listTasks: async () => ({ items: [] }),
+            submitInput: async () => null,
+            getArtifact: async () => null,
+          },
+        }),
+      toClient: () => ({
+        requestPermission: async () => ({ outcome: { outcome: 'cancelled' } }),
+        sessionUpdate: async (params: any) => {
+          updates.push(params.update);
+        },
+      }),
+    });
+
+    await clientConn.initialize({
+      protocolVersion: 1,
+      clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
+    });
+
+    const { sessionId } = await clientConn.newSession({ cwd: '/repo', mcpServers: [] });
+
+    await clientConn.prompt({
+      sessionId,
+      prompt: [{ type: 'text', text: 'hi' }],
+    });
+
+    expect(readBySessionCalls).toEqual([{ repoPath: '/repo', sessionId: 'plan_sess_1' }]);
+    const planUpdate = updates.find((update) => update.sessionUpdate === 'plan');
+    expect(planUpdate).toBeTruthy();
+    expect(planUpdate.entries).toEqual([
+      { content: 'Implement adapter bridge', status: 'in_progress', priority: 'high' },
+      { content: 'Add protocol tests', status: 'pending', priority: 'medium' },
+      { content: 'Write design doc', status: 'completed', priority: 'low' },
+    ]);
+  });
+
   it('returns cancelled stopReason when receiving session/cancel during prompt', async () => {
     const listeners = new Set<(event: any) => void>();
     const eventBus = {

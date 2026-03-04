@@ -30,6 +30,7 @@ import type { TaskEvent } from '../../interaction/events/bus.js';
 import type { TaskEnvelope } from '../../interaction/model/index.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
 import { mapErrorForDisplay } from '../../observability/error-mapping.js';
+import { readPlan } from '../../plan/index.js';
 import type { CommandRunner } from '../../runtime/command-runner-context.js';
 import { parseSlashInput } from '../../slash/parser.js';
 import type { FileSystem } from '../../types/index.js';
@@ -94,7 +95,29 @@ function formatInputRequiredMessage(inputRequired: TaskEnvelope['inputRequired']
 
 type AcpPermissionPolicy = 'ask' | 'deny_all';
 
+type AcpPlanEntry = {
+  content: string;
+  priority: 'high' | 'medium' | 'low';
+  status: 'pending' | 'in_progress' | 'completed';
+};
+
+type CorePlanStepSummary = {
+  stepId: string;
+  text: string;
+};
+
+type CorePlanReadResult = {
+  sessionId: string;
+  baseHash: string;
+  active: CorePlanStepSummary[];
+  pending: CorePlanStepSummary[];
+  recentDone: CorePlanStepSummary[];
+};
+
 type AcpSessionRuntimeState = {
+  runtimePlanSessionId: string | null;
+  runtimePlanPathHint: string | null;
+  lastPlanDigest: string | null;
   lastCommandsDigest: string | null;
   lastConfigDigest: string | null;
   lastSessionInfoDigest: string | null;
@@ -283,6 +306,9 @@ function loopEventToSessionUpdate(event: LoopEvent): SessionUpdate | null {
 function createSessionRuntimeState(): AcpSessionRuntimeState {
   const permissionPolicy = ACP_PERMISSION_POLICY_ASK;
   return {
+    runtimePlanSessionId: null,
+    runtimePlanPathHint: null,
+    lastPlanDigest: null,
     lastCommandsDigest: null,
     lastConfigDigest: JSON.stringify(
       buildConfigOptionsFromPolicy(permissionPolicy as AcpPermissionPolicy),
@@ -381,6 +407,67 @@ function loopEventToSessionUpdates(
   return updates;
 }
 
+function shouldRefreshPlanForEvent(event: LoopEvent): boolean {
+  if (event.type === 'plan.runtime.ready') return true;
+  if (
+    event.type === 'tool.call.end' &&
+    (event.toolName === 'plan.init' || event.toolName === 'plan.update') &&
+    event.status === 'ok'
+  ) {
+    return true;
+  }
+  if (
+    event.type === 'plan.runtime.journal' &&
+    event.phase === 'PLAN' &&
+    event.kind === 'end' &&
+    event.ok
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function mapCorePlanToAcpEntries(read: CorePlanReadResult): AcpPlanEntry[] {
+  const entries: AcpPlanEntry[] = [];
+  const seen = new Set<string>();
+  const push = (
+    step: CorePlanStepSummary,
+    status: AcpPlanEntry['status'],
+    priority: AcpPlanEntry['priority'],
+  ) => {
+    if (!step?.stepId || seen.has(step.stepId)) return;
+    seen.add(step.stepId);
+    entries.push({
+      content: step.text?.trim() || step.stepId,
+      status,
+      priority,
+    });
+  };
+
+  for (const step of read.active) push(step, 'in_progress', 'high');
+  for (const step of read.pending) push(step, 'pending', 'medium');
+  for (const step of read.recentDone) push(step, 'completed', 'low');
+  return entries;
+}
+
+function buildPlanUpdateFromCoreIfChanged(
+  read: CorePlanReadResult,
+  state: AcpSessionRuntimeState,
+): SessionUpdate | null {
+  const entries = mapCorePlanToAcpEntries(read);
+  const digest = JSON.stringify({
+    sessionId: read.sessionId,
+    baseHash: read.baseHash,
+    entries,
+  });
+  if (digest === state.lastPlanDigest) return null;
+  state.lastPlanDigest = digest;
+  return {
+    sessionUpdate: 'plan',
+    entries,
+  };
+}
+
 function extractSlashInput(prompt: ContentBlock[]): string | null {
   if (prompt.length !== 1) return null;
   const block = prompt[0];
@@ -435,6 +522,9 @@ export function createAcpFormalAgent(deps: {
   conn: AgentSideConnection;
   agentInfo: { name: string; version: string };
   facade: Facade;
+  planReader?: {
+    readBySession: (input: { repoPath: string; sessionId: string }) => Promise<CorePlanReadResult>;
+  };
   checkpointReader?: {
     listBySession: (input: { repoPath: string; sessionId: string; limit?: number }) => Promise<
       Array<{
@@ -870,6 +960,53 @@ export function createAcpFormalAgent(deps: {
     await deps.conn.sessionUpdate({ sessionId, update });
   }
 
+  async function emitRuntimePlanUpdateIfNeeded(params: {
+    sessionId: string;
+    repoPath: string;
+    event: LoopEvent;
+    state: AcpSessionRuntimeState;
+  }): Promise<void> {
+    const { state, event } = params;
+    const planReader = deps.planReader ?? {
+      readBySession: async ({ repoPath, sessionId }: { repoPath: string; sessionId: string }) =>
+        await readPlan({ persistenceRoot: repoPath, sessionId }),
+    };
+
+    if (event.type === 'plan.runtime.ready') {
+      state.runtimePlanSessionId = event.sessionId;
+      state.runtimePlanPathHint = event.planPathHint;
+      state.lastPlanDigest = null;
+    } else if (!shouldRefreshPlanForEvent(event)) {
+      return;
+    }
+
+    if (!state.runtimePlanSessionId) return;
+    if (!shouldRefreshPlanForEvent(event)) return;
+
+    try {
+      const read = await planReader.readBySession({
+        repoPath: params.repoPath,
+        sessionId: state.runtimePlanSessionId,
+      });
+      const planUpdate = buildPlanUpdateFromCoreIfChanged(read, state);
+      if (planUpdate) {
+        await emitSessionUpdate(params.sessionId, planUpdate);
+      }
+    } catch (error) {
+      recordAuditEvent(
+        'acp.plan.read.failed',
+        {
+          sessionId: params.sessionId,
+          repoPathHash: hashRepoPath(params.repoPath),
+          runtimePlanSessionId: state.runtimePlanSessionId,
+          runtimePlanPathHint: state.runtimePlanPathHint,
+          errorName: error instanceof Error ? error.name : typeof error,
+        },
+        { source: 'acp', severity: 'low', scope: 'session', phase: 'PLAN' },
+      );
+    }
+  }
+
   async function loadSessionInternal(params: LoadSessionRequest): Promise<AcpSessionRecord> {
     await hydrateSessionsOnce();
     const session = sessions.get(params.sessionId);
@@ -1192,6 +1329,12 @@ export function createAcpFormalAgent(deps: {
           for (const update of loopEventToSessionUpdates(event, runtimeState)) {
             void emitSessionUpdate(params.sessionId, update);
           }
+          void emitRuntimePlanUpdateIfNeeded({
+            sessionId: params.sessionId,
+            repoPath: session.cwd,
+            event,
+            state: runtimeState,
+          });
         },
       });
 
