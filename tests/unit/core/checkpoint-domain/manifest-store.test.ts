@@ -44,7 +44,10 @@ describe('checkpoint manifest store', () => {
   beforeEach(() => {
     mock.clearAllMocks();
     mkdirMock.mockResolvedValue(undefined);
-    openMock.mockResolvedValue({ close: mock().mockResolvedValue(undefined) });
+    openMock.mockResolvedValue({
+      writeFile: mock().mockResolvedValue(undefined),
+      close: mock().mockResolvedValue(undefined),
+    });
     writeFileMock.mockResolvedValue(undefined);
     renameMock.mockResolvedValue(undefined);
     unlinkMock.mockResolvedValue(undefined);
@@ -155,5 +158,31 @@ describe('checkpoint manifest store', () => {
     readFileMock.mockResolvedValue('{ not-json');
     const result = await probeCheckpointHandle('/repo', 'cp-any');
     expect(result.reason).toBe('manifest_unavailable');
+  });
+
+  it('reclaims stale manifest lock before writing', async () => {
+    openMock
+      .mockRejectedValueOnce(Object.assign(new Error('exists'), { code: 'EEXIST' }))
+      .mockResolvedValueOnce({
+        writeFile: mock().mockResolvedValue(undefined),
+        close: mock().mockResolvedValue(undefined),
+      });
+    readFileMock.mockImplementation(async (targetPath: string) => {
+      if (targetPath.endsWith('.manifest.lock')) {
+        return JSON.stringify({ createdAtMs: Date.now() - 1000 * 60 });
+      }
+      throw Object.assign(new Error('missing manifest'), { code: 'ENOENT' });
+    });
+
+    await upsertCheckpointHandle('/repo', {
+      id: 'cp-lock',
+      createdAt: '2026-03-04T00:00:00.000Z',
+      strategy: 'worktree',
+      backend: 'git_snapshot',
+    });
+
+    expect(unlinkMock).toHaveBeenCalledWith(
+      '/home/test/.salmonloop/runtime/checkpoints/5/.manifest.lock',
+    );
   });
 });

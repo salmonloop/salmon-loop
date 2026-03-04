@@ -16,7 +16,7 @@ import {
 } from '@agentclientprotocol/sdk';
 
 import { text } from '../../../locales/index.js';
-import { mkdir, readFile, rename, writeFile } from '../../adapters/fs/node-fs.js';
+import { mkdir, open, readFile, rename, unlink, writeFile } from '../../adapters/fs/node-fs.js';
 import { defaultPathAdapter } from '../../adapters/path/path-adapter.js';
 import type { TaskEvent } from '../../interaction/events/bus.js';
 import type { TaskEnvelope } from '../../interaction/model/index.js';
@@ -109,6 +109,9 @@ type AcpSessionRuntimeState = {
 const ACP_PERMISSION_POLICY_CONFIG_ID = '_salmonloop_permission_policy';
 const ACP_PERMISSION_POLICY_ASK: AcpPermissionPolicy = 'ask';
 const ACP_PERMISSION_POLICY_DENY_ALL: AcpPermissionPolicy = 'deny_all';
+const ACP_SESSION_STORE_MAX_ENTRIES = 200;
+const ACP_SESSION_STORE_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 30;
+const ACP_SESSION_STORE_LOCK_STALE_MS = 1000 * 30;
 
 function isAbsolutePath(filePath: string): boolean {
   if (defaultPathAdapter.isAbsolute(filePath)) return true;
@@ -529,6 +532,29 @@ export function createAcpFormalAgent(deps: {
     }>;
   };
 
+  function parseTimestamp(value: unknown): number {
+    if (typeof value !== 'string' || value.length === 0) return 0;
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  function pruneSessionRecords(
+    records: Array<{
+      id: string;
+      cwd: string;
+      mcpServers: unknown[];
+      createdAt: string;
+      updatedAt: string;
+      title?: string;
+    }>,
+  ) {
+    const cutoff = Date.now() - ACP_SESSION_STORE_MAX_AGE_MS;
+    return [...records]
+      .filter((record) => parseTimestamp(record.updatedAt) >= cutoff)
+      .sort((a, b) => parseTimestamp(b.updatedAt) - parseTimestamp(a.updatedAt))
+      .slice(0, ACP_SESSION_STORE_MAX_ENTRIES);
+  }
+
   function isFileMissing(error: unknown): boolean {
     return Boolean(
       error &&
@@ -542,23 +568,66 @@ export function createAcpFormalAgent(deps: {
   async function persistSessionsBestEffort(): Promise<void> {
     if (!sessionPersistencePath) return;
     const dir = defaultPathAdapter.dirname(sessionPersistencePath);
-    const payload: PersistedAcpSessionStore = {
-      schemaVersion: 1,
-      sessions: sessions.list().map((session) => ({
-        id: session.id,
-        cwd: session.cwd,
-        mcpServers: session.mcpServers,
-        createdAt: session.createdAt,
-        updatedAt: session.updatedAt,
-        title: session.title,
-      })),
+    const lockPath = `${sessionPersistencePath}.lock`;
+
+    const baseRecords = sessions.list().map((session) => ({
+      id: session.id,
+      cwd: session.cwd,
+      mcpServers: session.mcpServers,
+      createdAt: session.createdAt,
+      updatedAt: session.updatedAt,
+      title: session.title,
+    }));
+    const prunedRecords = pruneSessionRecords(baseRecords);
+    const keepIds = new Set(prunedRecords.map((record) => record.id));
+    for (const record of sessions.list()) {
+      if (!keepIds.has(record.id)) {
+        sessions.delete(record.id);
+      }
+    }
+
+    const payload: PersistedAcpSessionStore = { schemaVersion: 1, sessions: prunedRecords };
+
+    const tryClearStaleLock = async (): Promise<void> => {
+      try {
+        const raw = await readFile(lockPath, 'utf8');
+        const parsed = JSON.parse(raw) as { createdAtMs?: number };
+        const createdAtMs =
+          typeof parsed.createdAtMs === 'number' && Number.isFinite(parsed.createdAtMs)
+            ? parsed.createdAtMs
+            : null;
+        if (createdAtMs === null) return;
+        if (Date.now() - createdAtMs <= ACP_SESSION_STORE_LOCK_STALE_MS) return;
+        await unlink(lockPath);
+      } catch {
+        // ignore
+      }
     };
-    const tempPath = defaultPathAdapter.join(
-      dir,
-      `.sessions.v1.json.tmp-${process.pid}-${Date.now()}`,
-    );
+
+    let lockHandle: Awaited<ReturnType<typeof open>> | undefined;
     try {
       await mkdir(dir, { recursive: true });
+      for (let attempt = 0; attempt < 8; attempt += 1) {
+        try {
+          lockHandle = await open(lockPath, 'wx');
+          await lockHandle.writeFile(
+            JSON.stringify({ pid: process.pid, createdAtMs: Date.now() }),
+            'utf8',
+          );
+          break;
+        } catch {
+          await tryClearStaleLock();
+          await new Promise((resolve) => setTimeout(resolve, 20 * (attempt + 1)));
+        }
+      }
+      if (!lockHandle) {
+        throw new Error('ACP_SESSION_PERSIST_LOCK_TIMEOUT');
+      }
+
+      const tempPath = defaultPathAdapter.join(
+        dir,
+        `.sessions.v1.json.tmp-${process.pid}-${Date.now()}`,
+      );
       await writeFile(tempPath, JSON.stringify(payload, null, 2), 'utf8');
       await rename(tempPath, sessionPersistencePath);
     } catch (error) {
@@ -569,6 +638,19 @@ export function createAcpFormalAgent(deps: {
         },
         { source: 'acp', severity: 'low', scope: 'session', phase: 'PREFLIGHT' },
       );
+    } finally {
+      if (lockHandle) {
+        try {
+          await lockHandle.close();
+        } catch {
+          // ignore
+        }
+        try {
+          await unlink(lockPath);
+        } catch {
+          // ignore
+        }
+      }
     }
   }
 
@@ -582,7 +664,7 @@ export function createAcpFormalAgent(deps: {
         const raw = await readFile(sessionPersistencePath, 'utf8');
         const parsed = JSON.parse(raw) as PersistedAcpSessionStore;
         if (!parsed || parsed.schemaVersion !== 1 || !Array.isArray(parsed.sessions)) return;
-        for (const stored of parsed.sessions) {
+        for (const stored of pruneSessionRecords(parsed.sessions)) {
           sessions.upsert({
             id: stored.id,
             cwd: stored.cwd,

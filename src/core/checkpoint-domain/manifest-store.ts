@@ -6,6 +6,7 @@ import type { CheckpointHandle, SessionCheckpointLink } from './types.js';
 
 const CHECKPOINT_MANIFEST_FILENAME_V2 = 'manifest.v2.json';
 const CHECKPOINT_MANIFEST_FILENAME_V1 = 'manifest.v1.json';
+const MANIFEST_LOCK_STALE_MS = 1000 * 30;
 
 interface CheckpointManifestV1 {
   schemaVersion: 1 | 2;
@@ -92,12 +93,30 @@ async function withManifestLock<T>(repoPath: string, operation: () => Promise<T>
   await mkdir(dir, { recursive: true });
   const lockPath = defaultPathAdapter.join(dir, '.manifest.lock');
 
+  const tryClearStaleLock = async (): Promise<void> => {
+    try {
+      const raw = await readFile(lockPath, 'utf8');
+      const parsed = JSON.parse(raw) as { createdAtMs?: number };
+      const createdAtMs =
+        typeof parsed.createdAtMs === 'number' && Number.isFinite(parsed.createdAtMs)
+          ? parsed.createdAtMs
+          : null;
+      if (createdAtMs === null) return;
+      if (Date.now() - createdAtMs <= MANIFEST_LOCK_STALE_MS) return;
+      await unlink(lockPath);
+    } catch {
+      // Ignore lock probe failures; retry loop handles contention.
+    }
+  };
+
   let handle: Awaited<ReturnType<typeof open>> | undefined;
-  for (let attempt = 0; attempt < 5; attempt += 1) {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
     try {
       handle = await open(lockPath, 'wx');
+      await handle.writeFile(JSON.stringify({ pid: process.pid, createdAtMs: Date.now() }), 'utf8');
       break;
     } catch {
+      await tryClearStaleLock();
       await new Promise((resolve) => setTimeout(resolve, 30 * (attempt + 1)));
     }
   }

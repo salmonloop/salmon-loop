@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -91,6 +91,71 @@ describe('ACP session persistence integration', () => {
       });
       const loaded = await second.clientConn.loadSession({
         sessionId,
+        cwd: '/repo',
+        mcpServers: [],
+      });
+      expect(Array.isArray(loaded.configOptions)).toBe(true);
+    } finally {
+      await rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('prunes stale sessions during hydration', async () => {
+    const tempRoot = await mkdtemp(path.join(tmpdir(), 'salmonloop-acp-session-prune-'));
+    const persistencePath = path.join(tempRoot, 'acp', 'sessions.v1.json');
+    const oldTs = new Date(Date.now() - 1000 * 60 * 60 * 24 * 90).toISOString();
+    const freshTs = new Date().toISOString();
+
+    try {
+      await mkdir(path.dirname(persistencePath), { recursive: true });
+      await writeFile(
+        persistencePath,
+        JSON.stringify(
+          {
+            schemaVersion: 1,
+            sessions: [
+              {
+                id: 'sess_old',
+                cwd: '/repo',
+                mcpServers: [],
+                createdAt: oldTs,
+                updatedAt: oldTs,
+              },
+              {
+                id: 'sess_fresh',
+                cwd: '/repo',
+                mcpServers: [],
+                createdAt: freshTs,
+                updatedAt: freshTs,
+              },
+            ],
+          },
+          null,
+          2,
+        ),
+        'utf8',
+      );
+
+      const pair = createConnectedPair({
+        toAgent: (conn) =>
+          createAcpFormalAgent({
+            conn,
+            agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+            facade: createFacade(),
+            sessionPersistencePath: persistencePath,
+          }),
+        toClient: () => createClient(),
+      });
+      await pair.clientConn.initialize({
+        protocolVersion: 1,
+        clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
+      });
+
+      await expect(
+        pair.clientConn.loadSession({ sessionId: 'sess_old', cwd: '/repo', mcpServers: [] }),
+      ).rejects.toMatchObject({ code: -32004 });
+      const loaded = await pair.clientConn.loadSession({
+        sessionId: 'sess_fresh',
         cwd: '/repo',
         mcpServers: [],
       });
