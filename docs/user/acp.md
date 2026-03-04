@@ -107,6 +107,12 @@ Versioning policy:
 - **No startup message**: ACP logs are on **stderr**. Stdout only outputs JSON-RPC.
 - **No JSON-RPC response**: ensure ACP is enabled (no `--no-acp-stdio`).
 - **UI can’t connect**: confirm the UI launches `s8p serve` as a stdio subprocess.
+- **`failed to get old checkpoint ... not implemented yet` in UI logs**:
+  - This is currently a UI-side warning in some ACP clients, not a Salmon-Loop protocol failure.
+  - Check Salmon-Loop audit logs for the real failure reason.
+- **`PREFLIGHT_SNAPSHOT_FAILED` with `step=write-tree`**:
+  - Verify the ACP session `cwd` points to a real Git worktree.
+  - Salmon-Loop now executes per-session tasks against `session.cwd` (fallback: server startup repo path), so incorrect UI `cwd` is the most common cause.
 
 ## Related
 

@@ -123,4 +123,5 @@ Snapshot preflight diagnosis:
   - `indexLockPresent` / `indexLockAgeMs`
   - `unmergedCount`
   - `isInsideWorkTree`
+  - `workTreeProbeErrorCode` / `workTreeProbeHintCode` (when rev-parse probe fails)
 - Use these to group recurring failures without exposing raw git stderr.

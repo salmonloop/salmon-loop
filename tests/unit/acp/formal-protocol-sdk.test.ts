@@ -553,6 +553,7 @@ describe('ACP formal protocol (SDK)', () => {
 
   it('passes an ACP-backed command runner into task execution', async () => {
     let sawCommandRunner = false;
+    let observedRepoPath: string | undefined;
 
     const { clientConn } = createConnectedPair({
       toAgent: (conn) =>
@@ -562,6 +563,7 @@ describe('ACP formal protocol (SDK)', () => {
           facade: {
             createTask: async (input: any) => {
               sawCommandRunner = Boolean(input.commandRunner);
+              observedRepoPath = input.request?.repoPath;
               return {
                 task: {
                   id: 'task_1',
@@ -603,6 +605,7 @@ describe('ACP formal protocol (SDK)', () => {
     });
 
     expect(sawCommandRunner).toBe(true);
+    expect(observedRepoPath).toBe('/repo');
   });
 
   it('fails session/prompt when clientCapabilities.fs.readTextFile is false', async () => {

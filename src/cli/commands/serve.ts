@@ -87,9 +87,9 @@ export function registerServeCommands(program: Command) {
 
 export async function handleServeCommand(_options: unknown, command: Command) {
   const allOptions = command.optsWithGlobals();
-  const repoPath = defaultPathAdapter.resolve(allOptions.repo || process.cwd());
+  const defaultRepoPath = defaultPathAdapter.resolve(allOptions.repo || process.cwd());
 
-  const resolvedConfig = await resolveConfig({ repoRoot: repoPath });
+  const resolvedConfig = await resolveConfig({ repoRoot: defaultRepoPath });
   const serverConfig = resolvedConfig.server;
   const auditScopeResolution = resolveAuditScope({
     cliValue: allOptions.auditScope,
@@ -123,8 +123,8 @@ export async function handleServeCommand(_options: unknown, command: Command) {
     await mkdir(defaultPathAdapter.dirname(sidecarSocket), { recursive: true });
   }
 
-  await PluginLoader.loadPlugins(repoPath);
-  const extensions = await resolveExtensions({ repoRoot: repoPath });
+  await PluginLoader.loadPlugins(defaultRepoPath);
+  const extensions = await resolveExtensions({ repoRoot: defaultRepoPath });
 
   const { llm } = createRuntimeLlmAndWarn({
     llmConfig: resolvedConfig.llm,
@@ -149,15 +149,17 @@ export async function handleServeCommand(_options: unknown, command: Command) {
     runLoop: async ({
       instruction,
       mode,
+      repoPath,
       onEvent,
       signal,
       authorizationProvider,
       authorizationMode,
       fileSystemOverride,
     }) => {
+      const effectiveRepoPath = repoPath ?? defaultRepoPath;
       return await runSalmonLoop({
         instruction,
-        repoPath,
+        repoPath: effectiveRepoPath,
         llm,
         mode: mode as any,
         verify: resolvedConfig.verify.command,
@@ -185,7 +187,7 @@ export async function handleServeCommand(_options: unknown, command: Command) {
     resolvedConfig.server?.acp?.checkpointManifest,
   );
   await checkpointService.gc({
-    repoPath,
+    repoPath: defaultRepoPath,
     olderThanMs: 1000 * 60 * 60 * 24 * 14,
     maxPerSession: 30,
   });
@@ -287,14 +289,14 @@ export async function handleServeCommand(_options: unknown, command: Command) {
 
 export async function handleServeAcpCommand(_options: unknown, command: Command) {
   const allOptions = command.optsWithGlobals();
-  const repoPath = defaultPathAdapter.resolve(allOptions.repo || process.cwd());
+  const defaultRepoPath = defaultPathAdapter.resolve(allOptions.repo || process.cwd());
 
-  const resolvedConfig = await resolveConfig({ repoRoot: repoPath });
+  const resolvedConfig = await resolveConfig({ repoRoot: defaultRepoPath });
 
   logger.setReporter(allOptions.color === false ? new StderrReporter() : new PlainReporter());
 
-  await PluginLoader.loadPlugins(repoPath);
-  const extensions = await resolveExtensions({ repoRoot: repoPath });
+  await PluginLoader.loadPlugins(defaultRepoPath);
+  const extensions = await resolveExtensions({ repoRoot: defaultRepoPath });
 
   const { llm } = createRuntimeLlmAndWarn({
     llmConfig: resolvedConfig.llm,
@@ -328,14 +330,16 @@ export async function handleServeAcpCommand(_options: unknown, command: Command)
     runLoop: async ({
       instruction,
       mode,
+      repoPath,
       onEvent,
       signal,
       authorizationProvider,
       authorizationMode,
     }) => {
+      const effectiveRepoPath = repoPath ?? defaultRepoPath;
       return await runSalmonLoop({
         instruction,
-        repoPath,
+        repoPath: effectiveRepoPath,
         llm,
         mode: mode as any,
         verify: resolvedConfig.verify.command,
@@ -362,7 +366,7 @@ export async function handleServeAcpCommand(_options: unknown, command: Command)
     resolvedConfig.server?.acp?.checkpointManifest,
   );
   await checkpointService.gc({
-    repoPath,
+    repoPath: defaultRepoPath,
     olderThanMs: 1000 * 60 * 60 * 24 * 14,
     maxPerSession: 30,
   });

@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
-const { gitQueryMock, gitExecMock, recordAuditEventMock, rmMock, statMock } = (() => ({
-  gitQueryMock: mock(),
-  gitExecMock: mock(),
-  recordAuditEventMock: mock(),
-  rmMock: mock().mockResolvedValue(undefined),
-  statMock: mock(),
-}))();
+const { gitQueryMock, gitExecMock, gitExecMetaMock, recordAuditEventMock, rmMock, statMock } =
+  (() => ({
+    gitQueryMock: mock(),
+    gitExecMock: mock(),
+    gitExecMetaMock: mock(),
+    recordAuditEventMock: mock(),
+    rmMock: mock().mockResolvedValue(undefined),
+    statMock: mock(),
+  }))();
 
 mock.module('../../../src/core/adapters/fs/node-fs.js', () => ({
   mkdir: mock(),
@@ -16,8 +18,10 @@ mock.module('../../../src/core/adapters/fs/node-fs.js', () => ({
 
 mock.module('../../../src/core/adapters/git/git-adapter.js', () => ({
   GitAdapter: mock().mockImplementation(() => ({
+    repoPath: '/repo',
     query: gitQueryMock,
     exec: gitExecMock,
+    execMeta: gitExecMetaMock,
   })),
 }));
 
@@ -30,6 +34,16 @@ import { CheckpointManager } from '../../../src/core/strata/checkpoint/manager.j
 describe('CheckpointManager observability', () => {
   beforeEach(() => {
     mock.clearAllMocks();
+    gitExecMetaMock.mockResolvedValue({
+      ok: true,
+      code: 0,
+      signal: null,
+      stdout: Buffer.from('true\n'),
+      stderr: '',
+      timedOut: false,
+      stdoutTruncated: false,
+      stderrTruncated: false,
+    });
   });
 
   it('emits a safe step failure event when read-tree fails', async () => {
@@ -154,7 +168,6 @@ describe('CheckpointManager observability', () => {
     statMock.mockResolvedValue({ mtimeMs: Date.now() - 5000 } as any);
     gitExecMock.mockImplementation(async (args: string[]) => {
       if (args[0] === 'ls-files') return '';
-      if (args[0] === 'rev-parse') return 'true\n';
       return '';
     });
 
@@ -169,6 +182,48 @@ describe('CheckpointManager observability', () => {
         indexLockPresent: true,
         isInsideWorkTree: true,
         unmergedCount: 0,
+      }),
+      expect.any(Object),
+    );
+  });
+
+  it('captures worktree probe hint when rev-parse fails during write-tree probe', async () => {
+    gitQueryMock.mockImplementation(async (args: string[]) => {
+      if (args[0] === 'write-tree') {
+        throw Object.assign(new Error('fatal write-tree failure'), {
+          code: 'GIT_ERROR',
+          stderr: 'fatal: unable to cache tree',
+          command: 'write-tree',
+        });
+      }
+      return '';
+    });
+    statMock.mockRejectedValue(Object.assign(new Error('missing lock'), { code: 'ENOENT' }));
+    gitExecMock.mockImplementation(async (args: string[]) => {
+      if (args[0] === 'ls-files') return '';
+      return '';
+    });
+    gitExecMetaMock.mockResolvedValue({
+      ok: false,
+      code: 128,
+      signal: null,
+      stdout: Buffer.from(''),
+      stderr: 'fatal: not a git repository',
+      timedOut: false,
+      stdoutTruncated: false,
+      stderrTruncated: false,
+    });
+
+    const manager = new CheckpointManager();
+    await expect(manager.createSafeSnapshot('/repo')).rejects.toThrow();
+
+    expect(recordAuditEventMock).toHaveBeenCalledWith(
+      'snapshot.create.step.failed',
+      expect.objectContaining({
+        step: 'write-tree',
+        isInsideWorkTree: false,
+        workTreeProbeErrorCode: 'EXIT_128',
+        workTreeProbeHintCode: 'GIT_NOT_REPOSITORY',
       }),
       expect.any(Object),
     );

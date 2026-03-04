@@ -44,7 +44,7 @@ import { createAcpToolAuthorizationProvider } from './permission-provider.js';
 type Facade = {
   createTask: (input: {
     capability: string;
-    request: { instruction: string; checkpointSessionId?: string };
+    request: { instruction: string; checkpointSessionId?: string; repoPath?: string };
     onEvent?: (event: LoopEvent) => void;
     authorizationProvider?: import('../../tools/authorization/types.js').ToolAuthorizationProvider;
     authorizationMode?: 'blocking' | 'deferred';
@@ -1220,7 +1220,11 @@ export function createAcpFormalAgent(deps: {
 
       const { task, signal } = await deps.facade.createTask({
         capability: 'patch',
-        request: { instruction: promptText, checkpointSessionId: params.sessionId },
+        request: {
+          instruction: promptText,
+          checkpointSessionId: params.sessionId,
+          repoPath: session.cwd,
+        },
         commandRunner: createAcpCommandRunner({ conn: deps.conn, sessionId: params.sessionId }),
         fileSystemOverride: createAcpFileSystem({ conn: deps.conn, sessionId: params.sessionId }),
         authorizationProvider: createAcpToolAuthorizationProvider({

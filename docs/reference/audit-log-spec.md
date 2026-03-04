@@ -234,6 +234,8 @@ Related ACP persistence/checkpoint events:
   - `indexLockAgeMs` (if lock exists)
   - `unmergedCount` (probe from `git ls-files -u`)
   - `isInsideWorkTree` (probe from `git rev-parse --is-inside-work-tree`)
+  - `workTreeProbeErrorCode` (when `isInsideWorkTree=false` due to rev-parse failure)
+  - `workTreeProbeHintCode` (safe classifier for rev-parse failure context)
   - Notes:
     - `errorHintCode` is an extensible enum. Current common values include:
       `GIT_INDEX_LOCKED`, `GIT_INDEX_UNMERGED`, `GIT_TREE_BUILD_FAILED`,
