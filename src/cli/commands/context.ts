@@ -1,12 +1,14 @@
 import { Command } from 'commander';
 
-import { defaultPathAdapter } from '../../core/adapters/path/path-adapter.js';
-import { resolveConfig } from '../../core/config/resolve.js';
-import { createContextCacheStore } from '../../core/context/cache/store-factory.js';
-import { ContextService } from '../../core/context/index.js';
-import { setChurnRankingPolicy } from '../../core/context/targeting/churn-policy.js';
-import { logger } from '../../core/observability/logger.js';
-import { createDefaultPermissionGate } from '../../core/permission-gate/default-gate.js';
+import {
+  createContextCacheStore,
+  createDefaultPermissionGate,
+  ContextService,
+  defaultPathAdapter,
+  logger,
+  resolveConfig,
+  setChurnRankingPolicy,
+} from '../../core/facades/cli-context.js';
 import { text } from '../locales/index.js';
 
 export async function handleContextCommand(options: any, command: Command) {

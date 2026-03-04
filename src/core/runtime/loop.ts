@@ -1,15 +1,7 @@
 import { randomBytes } from 'crypto';
 
-import { text } from '../../locales/index.js';
 import { LIMITS } from '../config/limits.js';
-import { resolveConfig } from '../config/resolve.js';
 import type { ResolvedConfig } from '../config/types.js';
-import { getGlobalAdjuster, resetGlobalAdjuster } from '../context/budget/dynamic-adjuster.js';
-import {
-  initializeDefaultCalculator,
-  setDefaultModel,
-  setUseTokenBudget,
-} from '../context/policies/pack-until-full.js';
 import { createFlowEventAdapter } from '../grizzco/engine/observability/event-adapter.js';
 import { LoopTelemetry } from '../grizzco/engine/observability/loop-telemetry.js';
 import { buildLoopFailureResult } from '../grizzco/engine/outcome/loop-result-mapper.js';
@@ -17,51 +9,23 @@ import { buildFlowTransactionRunner } from '../grizzco/engine/transaction/runner
 import { runFlowSession } from '../grizzco/engine/transaction/session.js';
 import { HostRunner } from '../grizzco/runtime/host/host-runner.js';
 import { sanitizeError } from '../llm/errors.js';
-import { appendAuditTrailToAuditFile } from '../observability/audit-file.js';
 import {
-  clearAuditContext,
   clearAuditTrail,
-  drainAuditDropStats,
   recordAuditEvent,
-  setAuditBufferLimits,
   setAuditContext,
 } from '../observability/audit-trail.js';
 import { extractErrorCode, REDACTED_ERROR_TOKEN } from '../observability/error-envelope.js';
-import { logger } from '../observability/logger.js';
-import { buildRunOutcomeReport } from '../observability/run-outcome-reporter.js';
-import { drainRedactionMetrics, setRedactionConfig } from '../security/redaction.js';
 import { Phase, type FlowMode, type LoopOptions, type LoopResult } from '../types/index.js';
 
+import { finalizeLoopRun } from './loop-finalize.js';
+import { resolveAndApplyRuntimeConfig } from './loop-runtime-config.js';
 import { Semaphore } from './semaphore.js';
 
 const globalSemaphore = new Semaphore(LIMITS.maxConcurrentOperations);
 
 export async function runSalmonLoop(options: LoopOptions): Promise<LoopResult> {
   return globalSemaphore.run(async () => {
-    // Load config for token budget settings
-    const config = await resolveConfig({
-      repoRoot: options.repoPath,
-    });
-    setUseTokenBudget(config.context.useTokenBudget);
-    setAuditBufferLimits(config.observability.audit.buffer);
-    setRedactionConfig(config.security.redaction);
-
-    // Set model for adaptive budget (if available)
-    const modelId = config.llm.models.selectedModelId;
-    if (modelId) {
-      setDefaultModel(modelId);
-    }
-
-    // Initialize token calculator on first run
-    await initializeDefaultCalculator().catch(() => {
-      // Silently fallback to char-based if initialization fails
-    });
-
-    // Initialize dynamic budget adjuster with config
-    resetGlobalAdjuster(); // Reset for new session
-    if (config.context.dynamicBudget.enabled) {
-      getGlobalAdjuster(config.context.dynamicBudget);
-    }
+    const config = await resolveAndApplyRuntimeConfig(options);
 
     const loop = new SalmonLoop(config);
     return loop.run(options);
@@ -180,77 +144,16 @@ export class SalmonLoop {
       );
       return finalResult;
     } finally {
-      try {
-        await hostRunner.teardown();
-      } finally {
-        if (options.outcomeReporter && finalResult) {
-          try {
-            await options.outcomeReporter.report(buildRunOutcomeReport(finalResult), {
-              runId: correlationId,
-              auditPath: latestAuditPath,
-              mode: options.mode,
-              repoPath: options.repoPath,
-              sessionId: options.langfuseSessionId,
-              userId: options.langfuseUserId,
-              instruction: options.instruction,
-              verify: options.verify,
-            });
-          } catch (error) {
-            const msg = error instanceof Error ? error.message : String(error);
-            logger.warn(text.grizzco.observability.outcomeReporterFailed(msg));
-          }
-        }
-        const redactionStats = drainRedactionMetrics();
-        if (redactionStats.count > 0) {
-          recordAuditEvent(
-            'context.redaction.count',
-            { count: redactionStats.count },
-            { source: 'security', severity: 'low', scope: 'session' },
-          );
-        }
-        const dropStats = drainAuditDropStats();
-        if (dropStats.count > 0) {
-          recordAuditEvent(
-            'audit.dropped',
-            { count: dropStats.count, since: dropStats.since },
-            { source: 'audit', severity: 'medium', scope: 'session' },
-          );
-          const warnThreshold = this.config.observability.audit.buffer.droppedWarn;
-          if (dropStats.count >= warnThreshold) {
-            logger.warn(
-              `Audit buffer dropped ${dropStats.count} events (threshold=${warnThreshold}).`,
-            );
-            recordAuditEvent(
-              'audit.dropped.warn',
-              { count: dropStats.count, since: dropStats.since, threshold: warnThreshold },
-              { source: 'audit', severity: 'high', scope: 'session' },
-            );
-          }
-        }
-        // Append at the end so any audit events emitted by the outcomeReporter are persisted too.
-        const fallbackFailureReason =
-          finalResult && !finalResult.success ? finalResult.reason : undefined;
-        const appendedPath = await appendAuditTrailToAuditFile({
-          auditPath: latestAuditPath,
-          repoPath: options.repoPath,
-          auditScope: options.auditScope,
-          failureReason: fallbackFailureReason,
-          runId: correlationId,
-          finalOutcome: finalResult
-            ? {
-                success: finalResult.success,
-                reasonCode: finalResult.reasonCode,
-                failurePhase: finalResult.failurePhase,
-                errorCode: finalResult.errorCode,
-              }
-            : undefined,
-        });
-        if (!latestAuditPath && appendedPath) {
-          latestAuditPath = appendedPath;
-          if (finalResult) finalResult.auditPath = appendedPath;
-        }
-        clearAuditContext();
-      }
+      const finalized = await finalizeLoopRun({
+        config: this.config,
+        options,
+        hostRunner,
+        correlationId,
+        latestAuditPath,
+        finalResult,
+      });
+      latestAuditPath = finalized.latestAuditPath;
+      finalResult = finalized.finalResult;
     }
   }
 }

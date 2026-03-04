@@ -1,31 +1,31 @@
 import type { Command } from 'commander';
 
-import { mkdir } from '../../core/adapters/fs/node-fs.js';
-import { defaultPathAdapter } from '../../core/adapters/path/path-adapter.js';
-import { createSalmonTaskExecutor } from '../../core/backends/salmon-loop/task-executor.js';
-import { GitSnapshotCheckpointService } from '../../core/checkpoint-domain/service.js';
-import { resolveConfig } from '../../core/config/resolve.js';
-import { resolveExtensions } from '../../core/extensions/index.js';
-import { createTaskEventBus } from '../../core/interaction/events/bus.js';
-import { createInteractionFacade } from '../../core/interaction/orchestration/facade.js';
-import { logger, PlainReporter, StderrReporter } from '../../core/observability/logger.js';
-import { PluginLoader } from '../../core/plugin/loader.js';
-import { buildA2AAgentCard } from '../../core/protocols/a2a/agent-card.js';
 import {
+  buildA2AAgentCard,
+  buildSidecarRouteDescriptors,
   createA2AAuthPolicyMiddleware,
+  createAcpFormalAgent,
+  createAgentServerRuntime,
   createAllowAllA2APolicy,
   createBearerTokenAuthenticator,
-} from '../../core/protocols/a2a/server/auth-policy.js';
-import { createAcpFormalAgent } from '../../core/protocols/acp/formal-agent.js';
-import { startAcpStdioServer } from '../../core/protocols/acp/stdio-server.js';
-import { createAgentServerRuntime } from '../../core/runtime/agent-server-runtime.js';
-import { runSalmonLoop } from '../../core/runtime/loop.js';
-import { getUserAcpSessionStorePath } from '../../core/runtime/paths.js';
-import { getSidecarSocketPath } from '../../core/runtime/sidecar-paths.js';
-import {
-  buildSidecarRouteDescriptors,
+  createInteractionFacade,
+  createSalmonTaskExecutor,
+  createTaskEventBus,
   defaultSidecarRouteCatalog,
-} from '../../core/runtime/sidecar-route-catalog.js';
+  defaultPathAdapter,
+  getSidecarSocketPath,
+  getUserAcpSessionStorePath,
+  GitSnapshotCheckpointService,
+  logger,
+  mkdir,
+  PlainReporter,
+  PluginLoader,
+  resolveConfig,
+  resolveExtensions,
+  runSalmonLoop,
+  startAcpStdioServer,
+  StderrReporter,
+} from '../../core/facades/cli-serve.js';
 import { createTerminalAuthorizationProvider } from '../authorization/provider.js';
 import { text } from '../locales/index.js';
 import { resolveAuditScope } from '../utils/audit-scope.js';
