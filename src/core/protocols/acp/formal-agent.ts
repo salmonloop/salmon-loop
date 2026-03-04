@@ -472,11 +472,14 @@ export function createAcpFormalAgent(deps: {
   agentInfo: { name: string; version: string };
   facade: Facade;
   checkpointReader?: {
-    listBySession: (input: {
-      repoPath: string;
-      sessionId: string;
-      limit?: number;
-    }) => Promise<Array<{ id: string }>>;
+    listBySession: (input: { repoPath: string; sessionId: string; limit?: number }) => Promise<
+      Array<{
+        id: string;
+        createdAt?: string;
+        strategy?: string;
+        backend?: string;
+      }>
+    >;
   };
   capabilityPolicy?: {
     loadSession?: boolean;
@@ -597,6 +600,14 @@ export function createAcpFormalAgent(deps: {
         response._meta = {
           salmonloop: {
             latestCheckpointId: latest?.id ?? null,
+            checkpoint: latest
+              ? {
+                  id: latest.id,
+                  createdAt: latest.createdAt ?? null,
+                  strategy: latest.strategy ?? null,
+                  backend: latest.backend ?? null,
+                }
+              : null,
           },
         };
       }

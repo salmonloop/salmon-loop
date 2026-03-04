@@ -149,7 +149,14 @@ describe('ACP formal protocol (SDK)', () => {
           conn,
           agentInfo: { name: 'salmon-loop', version: '0.2.0' },
           checkpointReader: {
-            listBySession: async () => [{ id: 'cp-latest' }],
+            listBySession: async () => [
+              {
+                id: 'cp-latest',
+                createdAt: '2026-03-04T00:00:00.000Z',
+                strategy: 'worktree',
+                backend: 'git_snapshot',
+              },
+            ],
           },
           facade: {
             createTask: async () => {
@@ -179,6 +186,12 @@ describe('ACP formal protocol (SDK)', () => {
     const { sessionId } = await clientConn.newSession({ cwd: '/repo', mcpServers: [] });
     const res = await clientConn.loadSession({ sessionId, cwd: '/repo', mcpServers: [] });
     expect((res as any)?._meta?.salmonloop?.latestCheckpointId).toBe('cp-latest');
+    expect((res as any)?._meta?.salmonloop?.checkpoint).toMatchObject({
+      id: 'cp-latest',
+      createdAt: '2026-03-04T00:00:00.000Z',
+      strategy: 'worktree',
+      backend: 'git_snapshot',
+    });
   });
 
   it('can disable loadSession capability and reject session/load', async () => {
