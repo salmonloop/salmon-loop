@@ -1,35 +1,29 @@
 import { randomUUID } from 'crypto';
 
-import { createOpenAI } from '@ai-sdk/openai';
-import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { generateText, streamText } from 'ai';
 
 import { LIMITS } from '../config/limits.js';
-import {
-  getAuditContext,
-  recordAuditEvent,
-  setAuditContext,
-} from '../observability/audit-trail.js';
+import { recordAuditEvent } from '../observability/audit-trail.js';
 import { getPatchPrompt, getPlanPrompt } from '../prompts/runtime.js';
 import type { Context } from '../types/context.js';
 import type { ChatOptions, LLM, LLMMessage, LLMRole, LLMStreamChunk } from '../types/llm.js';
 import type { Plan } from '../types/planning.js';
 
-import { buildLangfuseHeaders } from './ai-sdk/langfuse-headers.js';
 import {
   extractUsageFromAiSdkResult,
   toAiSdkMessages,
   toAiSdkToolSet,
   toOpenAiToolCalls,
 } from './ai-sdk/message-mapper.js';
+import { withAuditObservationName } from './ai-sdk/observation-context.js';
+import { createAiSdkChatModel, resolveAiSdkModelId } from './ai-sdk/provider-factory.js';
 import {
-  createAbortRuntime,
   createAiSdkRetryLogger,
   isRetryableAiSdkError,
+  prepareAiSdkAttempt,
   recordAiSdkRequestError,
   recordAiSdkRequestSuccess,
 } from './ai-sdk/request-runtime.js';
-import { resolveBaseUrl } from './base-url.js';
 import { toLlmError, wrapPlanEmpty, sanitizeError, LlmError } from './errors.js';
 import { withRetry, withStreamRetry } from './retry-utils.js';
 import { mapAiSdkStreamPartToChunk } from './stream-utils.js';
@@ -58,34 +52,9 @@ export class AiSdkLLM implements LLM {
   private timeoutMs?: number;
 
   constructor(private readonly cfg: AiSdkLlmConfig) {
-    this.modelId = cfg.modelId || process.env.SALMONLOOP_MODEL || process.env.S8P_MODEL || 'gpt-4o';
+    this.modelId = resolveAiSdkModelId(cfg.modelId);
     this.timeoutMs = cfg.timeoutMs;
-
-    if (cfg.clientPackage === '@ai-sdk/openai') {
-      const provider = createOpenAI({
-        apiKey: cfg.apiKey ?? process.env.SALMONLOOP_API_KEY ?? process.env.S8P_API_KEY,
-        baseURL: resolveBaseUrl(cfg.baseUrl),
-        headers: cfg.headers,
-      });
-
-      // Prefer the chat API to preserve the existing tool call loop semantics.
-      this.model = provider.chat(this.modelId);
-      return;
-    }
-
-    const headers: Record<string, string> = { ...(cfg.headers || {}) };
-    const apiKey = cfg.apiKey ?? process.env.SALMONLOOP_API_KEY ?? process.env.S8P_API_KEY;
-    if (apiKey && !headers.Authorization) {
-      headers.Authorization = `Bearer ${apiKey}`;
-    }
-
-    const provider = createOpenAICompatible({
-      name: cfg.providerName || 'openai-compatible',
-      baseURL: resolveBaseUrl(cfg.baseUrl) ?? '',
-      headers,
-    });
-
-    this.model = provider.chatModel(this.modelId);
+    this.model = createAiSdkChatModel(cfg, this.modelId);
   }
 
   getModelId(): string {
@@ -115,21 +84,14 @@ export class AiSdkLLM implements LLM {
     return withRetry(
       async () => {
         attempt += 1;
-        const startedAt = Date.now();
-        const auditCtx = getAuditContext();
-        const { signal: abortSignal, cleanup } = createAbortRuntime({
+        const attemptCtx = prepareAiSdkAttempt({
           timeoutMs,
           externalSignal: options.signal,
+          langfuseEnabled: Boolean(this.cfg.langfuseEnabled),
+          requestId,
+          attempt,
+          tools,
         });
-        const langfuseHeaders = buildLangfuseHeaders(Boolean(this.cfg.langfuseEnabled), {
-          runId: auditCtx.correlationId,
-          phase: auditCtx.phase,
-          observationName: auditCtx.observationName,
-          observationId: `${requestId}-a${attempt}`,
-          sessionId: auditCtx.sessionId,
-          userId: auditCtx.userId,
-        });
-        const toolCount = tools ? Object.keys(tools).length : 0;
 
         try {
           const result = await generateText({
@@ -140,18 +102,18 @@ export class AiSdkLLM implements LLM {
             maxOutputTokens: options.maxTokens,
             stopSequences: options.stop,
             toolChoice: options.toolChoice === 'none' ? 'none' : tools ? 'auto' : undefined,
-            headers: langfuseHeaders,
-            abortSignal,
+            headers: attemptCtx.langfuseHeaders,
+            abortSignal: attemptCtx.abortSignal,
           });
 
           recordAiSdkRequestSuccess({
             requestId,
             modelId: this.modelId,
             attempt,
-            startedAt,
-            toolCount,
+            startedAt: attemptCtx.startedAt,
+            toolCount: attemptCtx.toolCount,
             streamed: false,
-            auditCtx,
+            auditCtx: attemptCtx.auditCtx,
           });
 
           const usage = extractUsageFromAiSdkResult(result);
@@ -173,15 +135,15 @@ export class AiSdkLLM implements LLM {
             requestId,
             modelId: this.modelId,
             attempt,
-            startedAt,
-            toolCount,
+            startedAt: attemptCtx.startedAt,
+            toolCount: attemptCtx.toolCount,
             streamed: false,
-            auditCtx,
+            auditCtx: attemptCtx.auditCtx,
             error: e,
           });
           throw e;
         } finally {
-          cleanup();
+          attemptCtx.cleanup();
         }
       },
       {
@@ -208,21 +170,14 @@ export class AiSdkLLM implements LLM {
 
     const streamFactory = async function* (this: AiSdkLLM) {
       attempt += 1;
-      const startedAt = Date.now();
-      const auditCtx = getAuditContext();
-      const { signal: abortSignal, cleanup } = createAbortRuntime({
+      const attemptCtx = prepareAiSdkAttempt({
         timeoutMs,
         externalSignal: options.signal,
+        langfuseEnabled: Boolean(this.cfg.langfuseEnabled),
+        requestId,
+        attempt,
+        tools,
       });
-      const langfuseHeaders = buildLangfuseHeaders(Boolean(this.cfg.langfuseEnabled), {
-        runId: auditCtx.correlationId,
-        phase: auditCtx.phase,
-        observationName: auditCtx.observationName,
-        observationId: `${requestId}-a${attempt}`,
-        sessionId: auditCtx.sessionId,
-        userId: auditCtx.userId,
-      });
-      const toolCount = tools ? Object.keys(tools).length : 0;
 
       try {
         const result = await streamText({
@@ -233,8 +188,8 @@ export class AiSdkLLM implements LLM {
           maxOutputTokens: options.maxTokens,
           stopSequences: options.stop,
           toolChoice: options.toolChoice === 'none' ? 'none' : tools ? 'auto' : undefined,
-          headers: langfuseHeaders,
-          abortSignal,
+          headers: attemptCtx.langfuseHeaders,
+          abortSignal: attemptCtx.abortSignal,
         });
 
         let doneEmitted = false;
@@ -262,25 +217,25 @@ export class AiSdkLLM implements LLM {
           requestId,
           modelId: this.modelId,
           attempt,
-          startedAt,
-          toolCount,
+          startedAt: attemptCtx.startedAt,
+          toolCount: attemptCtx.toolCount,
           streamed: true,
-          auditCtx,
+          auditCtx: attemptCtx.auditCtx,
         });
       } catch (e) {
         recordAiSdkRequestError({
           requestId,
           modelId: this.modelId,
           attempt,
-          startedAt,
-          toolCount,
+          startedAt: attemptCtx.startedAt,
+          toolCount: attemptCtx.toolCount,
           streamed: true,
-          auditCtx,
+          auditCtx: attemptCtx.auditCtx,
           error: e,
         });
         throw e;
       } finally {
-        cleanup();
+        attemptCtx.cleanup();
       }
     }.bind(this);
 
@@ -323,12 +278,8 @@ export class AiSdkLLM implements LLM {
       lastError,
     );
 
-    const prevObsName = getAuditContext().observationName;
-    setAuditContext({ observationName: 'PLAN:plan-json' });
-    const response = await this.chat([{ role: 'user', content: prompt }], { signal }).finally(
-      () => {
-        setAuditContext({ observationName: prevObsName });
-      },
+    const response = await withAuditObservationName('PLAN:plan-json', async () =>
+      this.chat([{ role: 'user', content: prompt }], { signal }),
     );
 
     const content = response.content;
@@ -362,12 +313,8 @@ export class AiSdkLLM implements LLM {
       lastError,
     );
 
-    const prevObsName = getAuditContext().observationName;
-    setAuditContext({ observationName: 'PATCH:unified-diff' });
-    const response = await this.chat([{ role: 'user', content: prompt }], { signal }).finally(
-      () => {
-        setAuditContext({ observationName: prevObsName });
-      },
+    const response = await withAuditObservationName('PATCH:unified-diff', async () =>
+      this.chat([{ role: 'user', content: prompt }], { signal }),
     );
     return extractUnifiedDiffFromLLMContent(response.content || '');
   }

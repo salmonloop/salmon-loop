@@ -1,5 +1,10 @@
-import { recordAuditEvent, type AuditTrailMeta } from '../../observability/audit-trail.js';
+import {
+  getAuditContext,
+  recordAuditEvent,
+  type AuditTrailMeta,
+} from '../../observability/audit-trail.js';
 
+import { buildLangfuseHeaders } from './langfuse-headers.js';
 import { classifyRetryableApiError } from './retry-classifier.js';
 
 interface BaseAuditInput {
@@ -10,6 +15,15 @@ interface BaseAuditInput {
   toolCount: number;
   streamed: boolean;
   auditCtx: AuditTrailMeta;
+}
+
+export interface PreparedAiSdkAttempt {
+  startedAt: number;
+  auditCtx: AuditTrailMeta;
+  abortSignal: AbortSignal;
+  cleanup: () => void;
+  langfuseHeaders: Record<string, string>;
+  toolCount: number;
 }
 
 export function createAbortRuntime(params: { timeoutMs?: number; externalSignal?: AbortSignal }): {
@@ -39,6 +53,40 @@ export function createAbortRuntime(params: { timeoutMs?: number; externalSignal?
   };
 
   return { signal: abortController.signal, cleanup };
+}
+
+export function prepareAiSdkAttempt(params: {
+  timeoutMs?: number;
+  externalSignal?: AbortSignal;
+  langfuseEnabled: boolean;
+  requestId: string;
+  attempt: number;
+  tools?: Record<string, unknown>;
+}): PreparedAiSdkAttempt {
+  const startedAt = Date.now();
+  const auditCtx = getAuditContext();
+  const { signal: abortSignal, cleanup } = createAbortRuntime({
+    timeoutMs: params.timeoutMs,
+    externalSignal: params.externalSignal,
+  });
+  const langfuseHeaders = buildLangfuseHeaders(params.langfuseEnabled, {
+    runId: auditCtx.correlationId,
+    phase: auditCtx.phase,
+    observationName: auditCtx.observationName,
+    observationId: `${params.requestId}-a${params.attempt}`,
+    sessionId: auditCtx.sessionId,
+    userId: auditCtx.userId,
+  });
+  const toolCount = params.tools ? Object.keys(params.tools).length : 0;
+
+  return {
+    startedAt,
+    auditCtx,
+    abortSignal,
+    cleanup,
+    langfuseHeaders,
+    toolCount,
+  };
 }
 
 export function recordAiSdkRequestSuccess(input: BaseAuditInput): void {
