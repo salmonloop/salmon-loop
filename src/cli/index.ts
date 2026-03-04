@@ -4,31 +4,14 @@
 process.env.FORCE_COLOR = '3';
 
 import 'dotenv/config';
-import chalk from 'chalk';
-import { Command } from 'commander';
-
-import { initializeRuntime } from '../core/runtime/initialize.js';
 
 import { detectHeadlessOutputFromArgv } from './argv/headless-detection.js';
 import { rewriteArgvForPrintMode } from './argv/print-mode.js';
-import { text } from './locales/index.js';
+import { bootstrapProgram } from './program-bootstrap.js';
 import { registerProgramCommands } from './program-commands.js';
 import { configureGlobalProgramOptions } from './program-options.js';
 import { configureProgramOutputForHeadless, parseProgramOrExit } from './program-parse.js';
-
-// --- Global Safety Initialization ---
-initializeRuntime();
-
-// Force global chalk level
-chalk.level = 3;
-
-const program = new Command();
-
-// --- Framework Error Hardening ---
-// Prevent Commander from printing raw errors directly to terminal
-program.exitOverride();
-
-program.name('s8p').alias('salmonloop').description(text.cli.programDescription).version('0.2.0');
+const program = bootstrapProgram();
 configureGlobalProgramOptions(program);
 registerProgramCommands(program);
 

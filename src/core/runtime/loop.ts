@@ -3,12 +3,8 @@ import type { ResolvedConfig } from '../config/types.js';
 import { Phase, type LoopOptions, type LoopResult } from '../types/runtime.js';
 
 import { finalizeLoopRun } from './loop-finalize.js';
-import {
-  buildLoopFailureFromError,
-  initializeLoopLifecycle,
-  recordLoopRunEnd,
-  recordLoopRunStart,
-} from './loop-run-lifecycle.js';
+import { buildLoopFailureFromError, initializeLoopLifecycle } from './loop-run-lifecycle.js';
+import { recordLoopRunEnd, recordLoopRunStart } from './loop-run-reporter.js';
 import { resolveAndApplyRuntimeConfig } from './loop-runtime-config.js';
 import { executeLoopSession } from './loop-session-runner.js';
 import { Semaphore } from './semaphore.js';
