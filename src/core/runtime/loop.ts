@@ -1,6 +1,5 @@
 import { LIMITS } from '../config/limits.js';
 import type { ResolvedConfig } from '../config/types.js';
-import { buildFlowTransactionRunner, runFlowSession } from '../grizzco/engine/transaction/index.js';
 import { Phase, type LoopOptions, type LoopResult } from '../types/runtime.js';
 
 import { finalizeLoopRun } from './loop-finalize.js';
@@ -11,6 +10,7 @@ import {
   recordLoopRunStart,
 } from './loop-run-lifecycle.js';
 import { resolveAndApplyRuntimeConfig } from './loop-runtime-config.js';
+import { executeLoopSession } from './loop-session-runner.js';
 import { Semaphore } from './semaphore.js';
 
 const globalSemaphore = new Semaphore(LIMITS.maxConcurrentOperations);
@@ -38,29 +38,10 @@ export class SalmonLoop {
     });
 
     try {
-      const hostContext = await lifecycle.hostRunner.boot();
-      const runner = buildFlowTransactionRunner({
-        flowMode: hostContext.flowMode,
-        fsAdapter: hostContext.fsAdapter,
-        env: hostContext.env,
-        activeRepoPath: hostContext.activeRepoPath,
-        planRuntime: hostContext.planRuntime,
+      const sessionResult = await executeLoopSession({
         options,
-        emitFlow: lifecycle.emitFlow,
-        now: lifecycle.now,
-        telemetry: lifecycle.telemetry,
-        shadowTaskId: lifecycle.shadowTaskId,
-      });
-      const { flowMode } = hostContext;
-
-      const sessionResult = await runFlowSession({
-        runner,
-        flowMode,
-        options,
-        telemetry: lifecycle.telemetry,
-        now: lifecycle.now,
-        emitSanitized: lifecycle.emitSanitized,
-        auditPath: latestAuditPath,
+        lifecycle,
+        latestAuditPath,
       });
       latestAuditPath = sessionResult.auditPath;
       finalResult = sessionResult.result;
