@@ -112,4 +112,29 @@ describe('CheckpointManager observability', () => {
       expect.any(Object),
     );
   });
+
+  it('classifies generic fatal write-tree failures into write-tree specific hint code', async () => {
+    gitQueryMock.mockImplementation(async (args: string[]) => {
+      if (args[0] === 'write-tree') {
+        throw Object.assign(new Error('git failed\nStderr: fatal: unable to cache tree'), {
+          code: 'GIT_ERROR',
+          stderr: 'fatal: unable to cache tree',
+          command: 'write-tree',
+        });
+      }
+      return '';
+    });
+
+    const manager = new CheckpointManager();
+    await expect(manager.createSafeSnapshot('/repo')).rejects.toThrow();
+
+    expect(recordAuditEventMock).toHaveBeenCalledWith(
+      'snapshot.create.step.failed',
+      expect.objectContaining({
+        step: 'write-tree',
+        errorHintCode: 'GIT_WRITE_TREE_FATAL',
+      }),
+      expect.any(Object),
+    );
+  });
 });

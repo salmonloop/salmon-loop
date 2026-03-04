@@ -38,6 +38,7 @@ export class CheckpointManager {
     if (!asRecord) return undefined;
     const stderr = typeof asRecord.stderr === 'string' ? asRecord.stderr.toLowerCase() : '';
     const message = typeof asRecord.message === 'string' ? asRecord.message.toLowerCase() : '';
+    const command = typeof asRecord.command === 'string' ? asRecord.command.toLowerCase() : '';
     const body = `${message}\n${stderr}`;
     if (body.includes('index.lock')) return 'GIT_INDEX_LOCKED';
     if (
@@ -66,6 +67,7 @@ export class CheckpointManager {
       return 'GIT_INDEX_WRITE_FAILED';
     }
     if (body.includes('no space left on device')) return 'GIT_NO_SPACE';
+    if (command.includes('write-tree') && body.includes('fatal:')) return 'GIT_WRITE_TREE_FATAL';
     return 'GIT_FAILURE_UNKNOWN';
   }
 
