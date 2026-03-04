@@ -16,7 +16,15 @@ import {
 } from '@agentclientprotocol/sdk';
 
 import { text } from '../../../locales/index.js';
-import { mkdir, open, readFile, rename, unlink, writeFile } from '../../adapters/fs/node-fs.js';
+import {
+  mkdir,
+  open,
+  readFile,
+  rename,
+  stat,
+  unlink,
+  writeFile,
+} from '../../adapters/fs/node-fs.js';
 import { defaultPathAdapter } from '../../adapters/path/path-adapter.js';
 import type { TaskEvent } from '../../interaction/events/bus.js';
 import type { TaskEnvelope } from '../../interaction/model/index.js';
@@ -112,6 +120,7 @@ const ACP_PERMISSION_POLICY_DENY_ALL: AcpPermissionPolicy = 'deny_all';
 const ACP_SESSION_STORE_MAX_ENTRIES = 200;
 const ACP_SESSION_STORE_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 30;
 const ACP_SESSION_STORE_LOCK_STALE_MS = 1000 * 30;
+const ACP_SESSION_HISTORY_MAX_ENTRIES = 40;
 
 function isAbsolutePath(filePath: string): boolean {
   if (defaultPathAdapter.isAbsolute(filePath)) return true;
@@ -529,6 +538,8 @@ export function createAcpFormalAgent(deps: {
       createdAt: string;
       updatedAt: string;
       title?: string;
+      taskId?: string;
+      history?: AcpSessionRecord['history'];
     }>;
   };
 
@@ -546,6 +557,8 @@ export function createAcpFormalAgent(deps: {
       createdAt: string;
       updatedAt: string;
       title?: string;
+      taskId?: string;
+      history?: AcpSessionRecord['history'];
     }>,
   ) {
     const cutoff = Date.now() - ACP_SESSION_STORE_MAX_AGE_MS;
@@ -553,6 +566,24 @@ export function createAcpFormalAgent(deps: {
       .filter((record) => parseTimestamp(record.updatedAt) >= cutoff)
       .sort((a, b) => parseTimestamp(b.updatedAt) - parseTimestamp(a.updatedAt))
       .slice(0, ACP_SESSION_STORE_MAX_ENTRIES);
+  }
+
+  function isPidAlive(pid: number): boolean {
+    if (!Number.isInteger(pid) || pid <= 0) return false;
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch (error) {
+      if (
+        error &&
+        typeof error === 'object' &&
+        'code' in error &&
+        (error as { code?: unknown }).code === 'EPERM'
+      ) {
+        return true;
+      }
+      return false;
+    }
   }
 
   function isFileMissing(error: unknown): boolean {
@@ -577,6 +608,8 @@ export function createAcpFormalAgent(deps: {
       createdAt: session.createdAt,
       updatedAt: session.updatedAt,
       title: session.title,
+      taskId: session.taskId,
+      history: session.history.slice(-ACP_SESSION_HISTORY_MAX_ENTRIES),
     }));
     const prunedRecords = pruneSessionRecords(baseRecords);
     const keepIds = new Set(prunedRecords.map((record) => record.id));
@@ -591,16 +624,35 @@ export function createAcpFormalAgent(deps: {
     const tryClearStaleLock = async (): Promise<void> => {
       try {
         const raw = await readFile(lockPath, 'utf8');
-        const parsed = JSON.parse(raw) as { createdAtMs?: number };
+        const parsed = JSON.parse(raw) as { createdAtMs?: number; pid?: number };
         const createdAtMs =
           typeof parsed.createdAtMs === 'number' && Number.isFinite(parsed.createdAtMs)
             ? parsed.createdAtMs
             : null;
         if (createdAtMs === null) return;
         if (Date.now() - createdAtMs <= ACP_SESSION_STORE_LOCK_STALE_MS) return;
+        if (typeof parsed.pid === 'number' && isPidAlive(parsed.pid)) return;
         await unlink(lockPath);
+        recordAuditEvent(
+          'acp.session.lock.stale_reclaimed',
+          { lockPath },
+          { source: 'acp', severity: 'low', scope: 'session', phase: 'PREFLIGHT' },
+        );
       } catch {
-        // ignore
+        try {
+          const lockStat = await stat(lockPath);
+          const ageMs = Date.now() - lockStat.mtimeMs;
+          if (Number.isFinite(ageMs) && ageMs > ACP_SESSION_STORE_LOCK_STALE_MS * 2) {
+            await unlink(lockPath);
+            recordAuditEvent(
+              'acp.session.lock.corrupted_reclaimed',
+              { ageMs: Math.max(0, Math.floor(ageMs)) },
+              { source: 'acp', severity: 'medium', scope: 'session', phase: 'PREFLIGHT' },
+            );
+          }
+        } catch {
+          // ignore
+        }
       }
     };
 
@@ -621,6 +673,11 @@ export function createAcpFormalAgent(deps: {
         }
       }
       if (!lockHandle) {
+        recordAuditEvent(
+          'acp.session.lock.acquire_timeout',
+          { lockPath },
+          { source: 'acp', severity: 'medium', scope: 'session', phase: 'PREFLIGHT' },
+        );
         throw new Error('ACP_SESSION_PERSIST_LOCK_TIMEOUT');
       }
 
@@ -672,7 +729,10 @@ export function createAcpFormalAgent(deps: {
             createdAt: stored.createdAt,
             updatedAt: stored.updatedAt,
             title: stored.title,
-            history: [],
+            taskId: stored.taskId,
+            history: Array.isArray(stored.history)
+              ? stored.history.slice(-ACP_SESSION_HISTORY_MAX_ENTRIES)
+              : [],
             cancelRequested: false,
           });
         }

@@ -5,6 +5,7 @@ const {
   openMock,
   readFileMock,
   renameMock,
+  statMock,
   unlinkMock,
   writeFileMock,
   getUserCheckpointManifestDirMock,
@@ -13,6 +14,7 @@ const {
   openMock: mock(),
   readFileMock: mock(),
   renameMock: mock(),
+  statMock: mock(),
   unlinkMock: mock(),
   writeFileMock: mock(),
   getUserCheckpointManifestDirMock: mock(
@@ -25,6 +27,7 @@ mock.module('../../../../src/core/adapters/fs/node-fs.js', () => ({
   open: openMock,
   readFile: readFileMock,
   rename: renameMock,
+  stat: statMock,
   unlink: unlinkMock,
   writeFile: writeFileMock,
 }));
@@ -50,6 +53,7 @@ describe('checkpoint manifest store', () => {
     });
     writeFileMock.mockResolvedValue(undefined);
     renameMock.mockResolvedValue(undefined);
+    statMock.mockResolvedValue({ mtimeMs: Date.now() } as any);
     unlinkMock.mockResolvedValue(undefined);
   });
 
@@ -176,6 +180,33 @@ describe('checkpoint manifest store', () => {
 
     await upsertCheckpointHandle('/repo', {
       id: 'cp-lock',
+      createdAt: '2026-03-04T00:00:00.000Z',
+      strategy: 'worktree',
+      backend: 'git_snapshot',
+    });
+
+    expect(unlinkMock).toHaveBeenCalledWith(
+      '/home/test/.salmonloop/runtime/checkpoints/5/.manifest.lock',
+    );
+  });
+
+  it('reclaims corrupted stale lock payload using lock mtime fallback', async () => {
+    openMock
+      .mockRejectedValueOnce(Object.assign(new Error('exists'), { code: 'EEXIST' }))
+      .mockResolvedValueOnce({
+        writeFile: mock().mockResolvedValue(undefined),
+        close: mock().mockResolvedValue(undefined),
+      });
+    readFileMock.mockImplementation(async (targetPath: string) => {
+      if (targetPath.endsWith('.manifest.lock')) {
+        return '{ invalid-json';
+      }
+      throw Object.assign(new Error('missing manifest'), { code: 'ENOENT' });
+    });
+    statMock.mockResolvedValueOnce({ mtimeMs: Date.now() - 1000 * 90 } as any);
+
+    await upsertCheckpointHandle('/repo', {
+      id: 'cp-corrupt-lock',
       createdAt: '2026-03-04T00:00:00.000Z',
       strategy: 'worktree',
       backend: 'git_snapshot',

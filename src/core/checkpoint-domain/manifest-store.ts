@@ -1,5 +1,6 @@
-import { mkdir, open, readFile, rename, unlink, writeFile } from '../adapters/fs/node-fs.js';
+import { mkdir, open, readFile, rename, stat, unlink, writeFile } from '../adapters/fs/node-fs.js';
 import { defaultPathAdapter } from '../adapters/path/path-adapter.js';
+import { recordAuditEvent } from '../observability/audit-trail.js';
 import { getUserCheckpointManifestDir } from '../runtime/paths.js';
 
 import type { CheckpointHandle, SessionCheckpointLink } from './types.js';
@@ -93,19 +94,58 @@ async function withManifestLock<T>(repoPath: string, operation: () => Promise<T>
   await mkdir(dir, { recursive: true });
   const lockPath = defaultPathAdapter.join(dir, '.manifest.lock');
 
+  const isPidAlive = (pid: number): boolean => {
+    if (!Number.isInteger(pid) || pid <= 0) return false;
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch (error) {
+      if (
+        error &&
+        typeof error === 'object' &&
+        'code' in error &&
+        (error as { code?: unknown }).code === 'EPERM'
+      ) {
+        return true;
+      }
+      return false;
+    }
+  };
+
   const tryClearStaleLock = async (): Promise<void> => {
     try {
       const raw = await readFile(lockPath, 'utf8');
-      const parsed = JSON.parse(raw) as { createdAtMs?: number };
+      const parsed = JSON.parse(raw) as { createdAtMs?: number; pid?: number };
       const createdAtMs =
         typeof parsed.createdAtMs === 'number' && Number.isFinite(parsed.createdAtMs)
           ? parsed.createdAtMs
           : null;
       if (createdAtMs === null) return;
       if (Date.now() - createdAtMs <= MANIFEST_LOCK_STALE_MS) return;
+      if (typeof parsed.pid === 'number' && isPidAlive(parsed.pid)) return;
       await unlink(lockPath);
+      recordAuditEvent(
+        'checkpoint.manifest.lock.stale_reclaimed',
+        {
+          repoPathHash: defaultPathAdapter.basename(getUserCheckpointManifestDir(repoPath)),
+        },
+        { source: 'runtime', severity: 'low', scope: 'session', phase: 'PREFLIGHT' },
+      );
     } catch {
-      // Ignore lock probe failures; retry loop handles contention.
+      try {
+        const lockStat = await stat(lockPath);
+        const ageMs = Date.now() - lockStat.mtimeMs;
+        if (Number.isFinite(ageMs) && ageMs > MANIFEST_LOCK_STALE_MS * 2) {
+          await unlink(lockPath);
+          recordAuditEvent(
+            'checkpoint.manifest.lock.corrupted_reclaimed',
+            { ageMs: Math.max(0, Math.floor(ageMs)) },
+            { source: 'runtime', severity: 'medium', scope: 'session', phase: 'PREFLIGHT' },
+          );
+        }
+      } catch {
+        // Ignore lock probe failures; retry loop handles contention.
+      }
     }
   };
 
@@ -121,6 +161,13 @@ async function withManifestLock<T>(repoPath: string, operation: () => Promise<T>
     }
   }
   if (!handle) {
+    recordAuditEvent(
+      'checkpoint.manifest.lock.acquire_timeout',
+      {
+        repoPathHash: defaultPathAdapter.basename(getUserCheckpointManifestDir(repoPath)),
+      },
+      { source: 'runtime', severity: 'medium', scope: 'session', phase: 'PREFLIGHT' },
+    );
     throw new Error('CHECKPOINT_MANIFEST_LOCK_TIMEOUT');
   }
 
