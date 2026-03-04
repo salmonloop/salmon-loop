@@ -9,6 +9,7 @@ import { logger } from '../../observability/logger.js';
 import { normalizePath } from '../../utils/path.js';
 
 import { extractSafeSnapshotErrorSummary, hashRepoPathForAudit } from './snapshot-audit.js';
+import { createSnapshotCommitFromStagedTree } from './snapshot-create.js';
 import { probeWriteTreeFailure, tryWriteTreeWithRetry } from './snapshot-write-tree.js';
 
 export interface SnapshotResult {
@@ -49,97 +50,30 @@ export class CheckpointManager {
     const git = new GitAdapter(repoPath);
     try {
       step = 'write-tree';
-      const { tree: stagedTree, attempts: _writeTreeAttempts } = await tryWriteTreeWithRetry(
+      const { tree: stagedTree } = await tryWriteTreeWithRetry(git, this.writeTreeRetryDelaysMs);
+
+      const commitHash = await createSnapshotCommitFromStagedTree({
         git,
-        this.writeTreeRetryDelaysMs,
-      );
+        stagedTree,
+        includePaths,
+        message,
+        onStep: (currentStep) => {
+          step = currentStep;
+        },
+      });
 
-      // 2. Prepare temporary environment for Working Tree capture
-      const random = randomBytes(4).toString('hex');
-      const tempIndexFile = join(tmpdir(), `s8p-idx-${Date.now()}-${random}`);
-      const env = { GIT_INDEX_FILE: tempIndexFile };
+      // 9. Mount Reference (Persistence)
+      // Use update-ref to prevent GC and allow easy lookup
+      step = 'update-ref';
+      await git.query([
+        'update-ref',
+        '-m',
+        's8p-checkpoint',
+        `refs/s8p/snapshots/${commitHash}`,
+        commitHash,
+      ]);
 
-      try {
-        // 3. Initialize temporary index (based on Staged Tree)
-        // We use the staged tree as the base because it contains all tracked files (including newly added ones)
-        // HEAD would miss files that are added to index but not yet committed
-        step = 'read-tree';
-        await git.exec(['read-tree', stagedTree], { env });
-
-        // 4. Capture Working Tree (Tracked files only)
-        // -u: Update tracked files (Modified/Deleted)
-        step = 'add-u';
-        await git.exec(['add', '-u', '.'], { env });
-
-        // 5. Handle Untracked files (Safe Policy)
-        const untracked = await this.getSafeUntrackedFiles(repoPath);
-        if (untracked.length > 0) {
-          // Explicitly add safe untracked files
-          await git.exec(['add', '--', ...untracked], { env });
-        }
-
-        // 6. Handle Explicitly Included Ignored Files
-        if (includePaths.length > 0) {
-          for (const file of includePaths) {
-            try {
-              // Check if file is ignored to decide whether to use -f
-              // We use check-ignore. If it output something, it is ignored.
-              const isIgnored = await git
-                .exec(['check-ignore', file])
-                .then((out: string) => !!out.trim())
-                .catch(() => false); // check-ignore exits with 1 if not ignored
-
-              if (isIgnored) {
-                await git.exec(['add', '-f', '--', file], { env });
-              } else {
-                // If not ignored, it might be already added by step 4 or 5, but ensuring it's added here is safe
-                await git.exec(['add', '--', file], { env });
-              }
-            } catch {
-              // If file doesn't exist or other error, we skip it to prevent crashing the whole snapshot
-              // This aligns with "Graceful handling" in requirements
-            }
-          }
-        }
-
-        // 7. Generate Working Tree Object
-        step = 'write-tree-final';
-        const workingTree = (await git.exec(['write-tree'], { env })).trim();
-
-        // 8. Generate Snapshot Commit
-        const metadata = JSON.stringify({
-          v: '1.0',
-          staged: stagedTree,
-          forced: includePaths,
-          desc: message,
-          ts: Date.now(),
-        });
-
-        step = 'commit-tree';
-        const commitHash = (
-          await git.exec(['commit-tree', workingTree, '-p', 'HEAD', '-m', metadata], { env })
-        ).trim();
-
-        // 9. Mount Reference (Persistence)
-        // Use update-ref to prevent GC and allow easy lookup
-        step = 'update-ref';
-        await git.query([
-          'update-ref',
-          '-m',
-          's8p-checkpoint',
-          `refs/s8p/snapshots/${commitHash}`,
-          commitHash,
-        ]);
-
-        return { commitHash, stagedTree };
-      } finally {
-        // Cleanup temporary index
-        try {
-          await rm(tempIndexFile, { force: true });
-        } catch {
-          // Ignore cleanup errors
-        }
-      }
+      return { commitHash, stagedTree };
     } catch (error) {
       if (
         step === 'write-tree' ||
@@ -557,30 +491,6 @@ export class CheckpointManager {
   ): Promise<string> {
     const git = new GitAdapter(repoPath);
     return await git.query(['show', `${snapshotHash}:${filePath}`]);
-  }
-
-  /**
-   * Gets a list of safe untracked files.
-   * Excludes .gitignore rules and hardcoded blacklists.
-   */
-  private async getSafeUntrackedFiles(repoPath: string): Promise<string[]> {
-    const git = new GitAdapter(repoPath);
-    // --exclude-standard: Respect .gitignore
-    // -o: List other (untracked) files
-    const output = await git.query(['ls-files', '-o', '--exclude-standard']);
-    const files = output.split('\n').filter((f: string) => f.trim());
-
-    // Hardcoded blacklist for double safety
-    return files.filter((f: string) => {
-      const normalized = normalizePath(f);
-      return (
-        !normalized.includes('node_modules/') &&
-        !normalized.includes('.env') &&
-        !normalized.includes('.git/') &&
-        !normalized.includes('dist/') &&
-        !normalized.includes('build/')
-      );
-    });
   }
 
   /**
