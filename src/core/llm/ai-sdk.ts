@@ -6,14 +6,13 @@ import { LIMITS } from '../config/limits.js';
 import { recordAuditEvent } from '../observability/audit-trail.js';
 import { getPatchPrompt, getPlanPrompt } from '../prompts/runtime.js';
 import type { Context } from '../types/context.js';
-import type { ChatOptions, LLM, LLMMessage, LLMRole, LLMStreamChunk } from '../types/llm.js';
+import type { ChatOptions, LLM, LLMMessage, LLMStreamChunk } from '../types/llm.js';
 import type { Plan } from '../types/planning.js';
 
 import {
   extractUsageFromAiSdkResult,
   toAiSdkMessages,
   toAiSdkToolSet,
-  toOpenAiToolCalls,
 } from './ai-sdk/message-mapper.js';
 import { withAuditObservationName } from './ai-sdk/observation-context.js';
 import { createAiSdkChatModel, resolveAiSdkModelId } from './ai-sdk/provider-factory.js';
@@ -24,9 +23,12 @@ import {
   prepareAiSdkAttempt,
   type PreparedAiSdkAttempt,
 } from './ai-sdk/request-runtime.js';
+import {
+  mapAiSdkGenerateResultToMessage,
+  mapAiSdkStreamResultToChunks,
+} from './ai-sdk/result-mapper.js';
 import { executeWithAiSdkRetry, executeWithAiSdkStreamRetry } from './ai-sdk/retry-executor.js';
 import { wrapPlanEmpty, sanitizeError, LlmError } from './errors.js';
-import { mapAiSdkStreamPartToChunk } from './stream-utils.js';
 import {
   extractUnifiedDiffFromLLMContent,
   formatContextForPrompt,
@@ -122,11 +124,7 @@ export class AiSdkLLM implements LLM {
               });
             }
 
-            return {
-              role: 'assistant' as LLMRole,
-              content: result.text || '',
-              tool_calls: toOpenAiToolCalls((result as any).toolCalls),
-            };
+            return mapAiSdkGenerateResultToMessage(result as any);
           },
         });
       },
@@ -171,27 +169,7 @@ export class AiSdkLLM implements LLM {
               abortSignal: attemptCtx.abortSignal,
             }),
           );
-
-          let doneEmitted = false;
-          // Use fullStream to get errors and finish reasons explicitly
-          for await (const part of (result as any).fullStream) {
-            if (!part) continue;
-
-            if (part.type === 'error') throw part.error;
-            if (part.type === 'abort') throw new Error('Stream aborted');
-
-            const chunk = mapAiSdkStreamPartToChunk(part);
-            if (!chunk) continue;
-
-            if (chunk.done) {
-              doneEmitted = true;
-            }
-            yield chunk;
-          }
-
-          if (!doneEmitted) {
-            yield { role: 'assistant' as LLMRole, done: true, finishReason: 'unknown' };
-          }
+          yield* mapAiSdkStreamResultToChunks((result as any).fullStream);
         },
       });
     };
