@@ -29,7 +29,7 @@ describe('prepareAiSdkAttempt', () => {
       langfuseEnabled: true,
       requestId: 'req-1',
       attempt: 2,
-      tools: { read: {}, write: {} },
+      tools: { read: {}, write: {} } as any,
     });
 
     expect(attempt.startedAt).toBeTypeOf('number');

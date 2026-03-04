@@ -1,3 +1,5 @@
+import type { ToolSet } from 'ai';
+
 import {
   getAuditContext,
   recordAuditEvent,
@@ -68,7 +70,7 @@ export function prepareAiSdkAttempt(params: {
   langfuseEnabled: boolean;
   requestId: string;
   attempt: number;
-  tools?: Record<string, unknown>;
+  tools?: ToolSet;
 }): PreparedAiSdkAttempt {
   const startedAt = Date.now();
   const auditCtx = getAuditContext();
