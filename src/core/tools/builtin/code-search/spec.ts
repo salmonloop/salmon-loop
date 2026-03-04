@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { Phase, ExecutionPhase } from '../../../types/index.js';
+import { Phase, ExecutionPhase } from '../../../types/runtime.js';
 import { repoResource } from '../../parallel/resource-helpers.js';
 import { ToolSpec } from '../../types.js';
 

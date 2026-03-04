@@ -1,6 +1,6 @@
 import { FileAdapter } from '../../adapters/fs/file-adapter.js';
 import { LIMITS } from '../../config/limits.js';
-import type { Context } from '../../types/index.js';
+import type { Context } from '../../types/context.js';
 import { ensureInSandbox, normalizePath, safeJoin } from '../../utils/path.js';
 import { CONTEXT_AUDIT_ACTION, CONTEXT_AUDIT_PHASE } from '../audit-constants.js';
 import { recordContextAuditEvent } from '../audit.js';

@@ -4,7 +4,7 @@
  * Computes diffs between context versions and applies incremental updates.
  */
 
-import type { Context } from '../../types/index.js';
+import type { Context } from '../../types/context.js';
 
 /**
  * Context diff between two versions.

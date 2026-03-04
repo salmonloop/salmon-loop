@@ -19,7 +19,7 @@ import type {
   SymbolMapEdge,
   SymbolMapNode,
   TargetEvidence,
-} from '../../types/index.js';
+} from '../../types/context.js';
 import { normalizePath } from '../../utils/path.js';
 
 import type {

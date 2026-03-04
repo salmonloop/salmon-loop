@@ -2,7 +2,7 @@ import { execa } from 'execa';
 import { z } from 'zod';
 
 import { text } from '../../../locales/index.js';
-import { Phase } from '../../types/index.js';
+import { Phase } from '../../types/runtime.js';
 import { getPlatformShellInvocation } from '../../utils/platform-shell.js';
 import { processResource, repoResource } from '../parallel/resource-helpers.js';
 import type { ToolSpec, ToolRuntimeCtx } from '../types.js';

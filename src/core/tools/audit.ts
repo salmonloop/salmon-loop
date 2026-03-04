@@ -1,6 +1,6 @@
 import { text } from '../../locales/index.js';
 import { logger } from '../observability/logger.js';
-import { AuthorizationSourceSummary, ExecutionPhase, Phase } from '../types/index.js';
+import { AuthorizationSourceSummary, ExecutionPhase, Phase } from '../types/runtime.js';
 import { sanitizeErrorMessage } from '../utils/sanitizer.js';
 
 import { PolicyDecision } from './policy.js';

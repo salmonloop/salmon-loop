@@ -1,4 +1,4 @@
-import type { ExecutionPhase } from '../../types/index.js';
+import type { ExecutionPhase } from '../../types/runtime.js';
 import type { RiskLevel, SideEffect, ToolSource } from '../types.js';
 
 export interface ToolAuthorizationRequest {

@@ -7,7 +7,7 @@
  * - Model-agnostic configuration
  */
 
-import type { LLMMessage } from '../../types/index.js';
+import type { LLMMessage } from '../../types/llm.js';
 import type { SummaryModelConfig } from '../token/types.js';
 
 /**

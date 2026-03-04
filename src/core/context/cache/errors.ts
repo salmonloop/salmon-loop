@@ -1,4 +1,4 @@
-import { SalmonError } from '../../types/index.js';
+import { SalmonError } from '../../types/errors.js';
 
 export type ContextCacheErrorCode =
   | 'CONTEXT_CACHE_IO'

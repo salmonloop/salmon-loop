@@ -15,7 +15,7 @@ import type {
   RelatedFileContext,
   SymbolMap,
   SymbolInfo,
-} from '../../types/index.js';
+} from '../../types/context.js';
 import { normalizePath, safeJoin } from '../../utils/path.js';
 import { extractImportSpecifiers } from '../ast/import-extractor.js';
 import { resolveImportCandidates } from '../ast/module-resolver.js';

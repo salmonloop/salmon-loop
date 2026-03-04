@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { text } from '../../../locales/index.js';
 import { initPlan, readPlan, updatePlan } from '../../plan/index.js';
-import { Phase } from '../../types/index.js';
+import { Phase } from '../../types/runtime.js';
 import type { ResourceKey } from '../parallel/resources.js';
 import type { ToolSpec, ToolRuntimeCtx } from '../types.js';
 

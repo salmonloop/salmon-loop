@@ -1,5 +1,5 @@
 import { text } from '../../../locales/index.js';
-import type { Context, RelatedFileContext, RipgrepResult } from '../../types/index.js';
+import type { Context, RelatedFileContext, RipgrepResult } from '../../types/context.js';
 import { normalizePath } from '../../utils/path.js';
 
 const ANALYSIS_LIMITS = {

@@ -1,4 +1,4 @@
-import type { Context } from '../types/index.js';
+import type { Context } from '../types/context.js';
 
 export function assertNotAborted(signal?: AbortSignal): void {
   if (signal?.aborted) {

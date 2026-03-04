@@ -4,7 +4,7 @@ import type {
   RipgrepResult,
   RepoMap,
   SymbolMap,
-} from '../../types/index.js';
+} from '../../types/context.js';
 import { normalizePath } from '../../utils/path.js';
 
 function extractChangedFilesFromDiffText(diffText: string | undefined): Set<string> {

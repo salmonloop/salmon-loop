@@ -1,7 +1,12 @@
 import type { BaseDslContext, DecisionEngine } from '../../grizzco/dsl/DecisionEngine.js';
 import { MicroTaskRunner } from '../../grizzco/dsl/MicroTaskRunner.js';
 import { logger } from '../../observability/logger.js';
-import type { CodeLocation, ContextTarget, SymbolMap, TargetEvidence } from '../../types/index.js';
+import type {
+  CodeLocation,
+  ContextTarget,
+  SymbolMap,
+  TargetEvidence,
+} from '../../types/context.js';
 import { normalizePath } from '../../utils/path.js';
 import { createTargetSetSignature } from '../hash.js';
 import type { ContextRequest } from '../types.js';

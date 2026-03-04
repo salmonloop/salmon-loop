@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
-import type { ExecutionPhase, LLM, UserInputProvider } from '../types/index.js';
+import type { LLM } from '../types/llm.js';
+import type { ExecutionPhase, UserInputProvider } from '../types/runtime.js';
 
 import { ResourceKey } from './parallel/resources.js';
 

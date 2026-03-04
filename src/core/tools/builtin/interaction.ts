@@ -1,8 +1,8 @@
 import { z } from 'zod';
 
 import { text } from '../../../locales/index.js';
-import type { AskUserInput, AskUserOutput, LoopInputRequired } from '../../types/index.js';
-import { Phase } from '../../types/index.js';
+import type { AskUserInput, AskUserOutput, LoopInputRequired } from '../../types/runtime.js';
+import { Phase } from '../../types/runtime.js';
 import type { ToolSpec, ToolRuntimeCtx } from '../types.js';
 
 const optionSchema = z.object({

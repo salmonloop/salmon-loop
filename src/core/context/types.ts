@@ -5,7 +5,7 @@ import type {
   RipgrepResult,
   SymbolInfo,
   WorkspaceMode,
-} from '../types/index.js';
+} from '../types/context.js';
 
 export type DiffScope = 'primary' | 'ast_related';
 

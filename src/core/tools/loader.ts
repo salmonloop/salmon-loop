@@ -2,7 +2,7 @@ import { text } from '../../locales/index.js';
 import type { ResolvedExtensions } from '../extensions/types.js';
 import { skillToToolSpec } from '../skills/bridge.js';
 import { SkillLoader } from '../skills/loader.js';
-import type { AuthorizationSourceSummary, ExecutionPhase } from '../types/index.js';
+import type { AuthorizationSourceSummary, ExecutionPhase } from '../types/runtime.js';
 
 import { ToolAuditLogger } from './audit.js';
 import type { ToolAuthorizationProvider } from './authorization/types.js';

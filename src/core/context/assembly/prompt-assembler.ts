@@ -1,4 +1,4 @@
-import type { Context } from '../../types/index.js';
+import type { Context } from '../../types/context.js';
 import type { ContextBuildMeta, ContextRequest } from '../types.js';
 
 export interface AssembleResult {

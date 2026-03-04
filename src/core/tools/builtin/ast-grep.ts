@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { pluginRegistry } from '../../plugin/registry.js';
 import { spawnCommand } from '../../runtime/process-runner.js';
-import { Phase } from '../../types/index.js';
+import { Phase } from '../../types/runtime.js';
 import { processResource } from '../parallel/resource-helpers.js';
 import { ToolSpec, ToolRuntimeCtx } from '../types.js';
 

@@ -5,7 +5,9 @@ import { LIMITS } from '../config/limits.js';
 import { resolveConfig } from '../config/resolve.js';
 import { createDefaultPermissionGate } from '../permission-gate/default-gate.js';
 import { pluginRegistry } from '../plugin/registry.js';
-import { ErrorType, type Context, type RunOptions } from '../types/index.js';
+import type { Context } from '../types/context.js';
+import type { RunOptions } from '../types/loop.js';
+import { ErrorType } from '../types/runtime.js';
 import { ensureInSandbox, normalizePath } from '../utils/path.js';
 
 /**

@@ -1,6 +1,6 @@
 import { LIMITS } from '../../config/limits.js';
 import type { ExecutionPlan } from '../../grizzco/dsl/DecisionEngine.js';
-import type { Context } from '../../types/index.js';
+import type { Context } from '../../types/context.js';
 import type { ContextSectionChars } from '../types.js';
 
 export interface ContextBudgetPolicyInput {

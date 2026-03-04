@@ -1,6 +1,6 @@
 import * as crypto from 'crypto';
 
-import { ExecutionPhase } from '../types/index.js';
+import type { ExecutionPhase, UserInputProvider } from '../types/runtime.js';
 
 import { ToolParser, ToolParseError } from './parser.js';
 import { ToolRouter } from './router.js';
@@ -23,7 +23,7 @@ export class ToolDispatcher {
       attemptId: number;
       dryRun: boolean;
       model?: string;
-      userInputProvider?: import('../types/index.js').UserInputProvider;
+      userInputProvider?: UserInputProvider;
       agentKind?: 'primary' | 'subagent';
     },
   ) {}

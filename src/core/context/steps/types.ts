@@ -1,11 +1,11 @@
-import type { Context } from '../../types/index.js';
+import type { Context } from '../../types/context.js';
 import type {
   AstSyntaxError,
   CodeLocation,
   ContextAnalysis,
   RelatedFileContext,
   SymbolInfo,
-} from '../../types/index.js';
+} from '../../types/context.js';
 import type { ContextRequest, DiffScope } from '../types.js';
 
 export interface ContextDiffBundle {

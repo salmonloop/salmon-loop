@@ -4,7 +4,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 
-import type { Context, RelatedFileContext } from '../../../types/index.js';
+import type { Context, RelatedFileContext } from '../../../types/context.js';
 import {
   IncrementalUpdater,
   getIncrementalUpdater,

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import type { Context, ContextTarget } from '../types/index.js';
+import type { Context, ContextTarget } from '../types/context.js';
 
 function stableValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map((item) => stableValue(item));

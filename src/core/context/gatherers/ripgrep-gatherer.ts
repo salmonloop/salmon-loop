@@ -1,7 +1,7 @@
 import { LIMITS } from '../../config/limits.js';
 import { logger } from '../../observability/logger.js';
 import { spawnCommand } from '../../runtime/process-runner.js';
-import type { RipgrepResult } from '../../types/index.js';
+import type { RipgrepResult } from '../../types/context.js';
 import { normalizePath } from '../../utils/path.js';
 
 export class RipgrepGatherer {

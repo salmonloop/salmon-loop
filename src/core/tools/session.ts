@@ -12,16 +12,9 @@ import {
 } from '../streaming/canonical/canonical-responses-event-emitter.js';
 import { mapLlmStreamChunkToCanonicalStreamParts } from '../streaming/canonical/parts-from-llm-stream-chunk.js';
 import type { CanonicalResponsesEvent } from '../streaming/canonical/responses-events.js';
-import type {
-  ChatOptions,
-  ExecutionStep,
-  LlmOutputKind,
-  LlmOutputPolicy,
-  LLMMessage,
-  LoopEvent,
-  LLM,
-} from '../types/index.js';
-import { Phase, type ExecutionPhase } from '../types/index.js';
+import type { ChatOptions, LlmOutputKind, LlmOutputPolicy, LLM, LLMMessage } from '../types/llm.js';
+import type { ExecutionStep, LoopEvent } from '../types/runtime.js';
+import { Phase, type ExecutionPhase } from '../types/runtime.js';
 import { isSafeRelativePath, normalizePath } from '../utils/path.js';
 
 import { buildHeadlessToolInputPayload } from './headless-payload.js';

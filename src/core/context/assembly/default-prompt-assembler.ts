@@ -1,5 +1,5 @@
 import { formatContextForPrompt } from '../../llm/utils.js';
-import type { Context } from '../../types/index.js';
+import type { Context } from '../../types/context.js';
 import type { ContextRequest } from '../types.js';
 
 import type { PromptAssembler } from './prompt-assembler.js';

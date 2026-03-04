@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { writeFile, mkdir } from '../../adapters/fs/node-fs.js';
 import { getDefaultIndexPath } from '../../config/paths.js';
-import { Phase } from '../../types/index.js';
+import { Phase } from '../../types/runtime.js';
 import { safeJoin } from '../../utils/path.js';
 import { ToolSpec, ToolRuntimeCtx } from '../types.js';
 

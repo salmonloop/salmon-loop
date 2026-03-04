@@ -7,7 +7,7 @@
 
 import { text } from '../../../locales/index.js';
 import { LIMITS } from '../../config/limits.js';
-import type { Context, RelatedFileContext, RipgrepResult } from '../../types/index.js';
+import type { Context, RelatedFileContext, RipgrepResult } from '../../types/context.js';
 import { normalizePath } from '../../utils/path.js';
 import { TokenBudgetCalculator } from '../token/token-budget.js';
 

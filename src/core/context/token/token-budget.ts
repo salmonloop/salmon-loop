@@ -8,7 +8,7 @@
  */
 
 import { LIMITS } from '../../config/limits.js';
-import type { Context, RelatedFileContext, RipgrepResult } from '../../types/index.js';
+import type { Context, RelatedFileContext, RipgrepResult } from '../../types/context.js';
 
 import {
   getAdaptiveBudgetCalculator,

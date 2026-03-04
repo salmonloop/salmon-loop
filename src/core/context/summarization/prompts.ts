@@ -6,7 +6,7 @@
  * - No need to regenerate entire summary
  */
 
-import type { LLMMessage } from '../../types/index.js';
+import type { LLMMessage } from '../../types/llm.js';
 
 /**
  * Input for building incremental summary prompt.
