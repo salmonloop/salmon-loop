@@ -22,7 +22,13 @@ import {
   toAiSdkToolSet,
   toOpenAiToolCalls,
 } from './ai-sdk/message-mapper.js';
-import { classifyRetryableApiError } from './ai-sdk/retry-classifier.js';
+import {
+  createAbortRuntime,
+  createAiSdkRetryLogger,
+  isRetryableAiSdkError,
+  recordAiSdkRequestError,
+  recordAiSdkRequestSuccess,
+} from './ai-sdk/request-runtime.js';
 import { resolveBaseUrl } from './base-url.js';
 import { toLlmError, wrapPlanEmpty, sanitizeError, LlmError } from './errors.js';
 import { withRetry, withStreamRetry } from './retry-utils.js';
@@ -110,8 +116,11 @@ export class AiSdkLLM implements LLM {
       async () => {
         attempt += 1;
         const startedAt = Date.now();
-        const abortController = new AbortController();
         const auditCtx = getAuditContext();
+        const { signal: abortSignal, cleanup } = createAbortRuntime({
+          timeoutMs,
+          externalSignal: options.signal,
+        });
         const langfuseHeaders = buildLangfuseHeaders(Boolean(this.cfg.langfuseEnabled), {
           runId: auditCtx.correlationId,
           phase: auditCtx.phase,
@@ -120,21 +129,7 @@ export class AiSdkLLM implements LLM {
           sessionId: auditCtx.sessionId,
           userId: auditCtx.userId,
         });
-
-        // Handle internal timeout
-        const timeoutHandle =
-          typeof timeoutMs === 'number' && timeoutMs > 0
-            ? setTimeout(() => abortController.abort(), timeoutMs)
-            : undefined;
-
-        // Chain with external signal if provided
-        if (options.signal) {
-          if (options.signal.aborted) {
-            abortController.abort();
-          } else {
-            options.signal.addEventListener('abort', () => abortController.abort());
-          }
-        }
+        const toolCount = tools ? Object.keys(tools).length : 0;
 
         try {
           const result = await generateText({
@@ -146,25 +141,18 @@ export class AiSdkLLM implements LLM {
             stopSequences: options.stop,
             toolChoice: options.toolChoice === 'none' ? 'none' : tools ? 'auto' : undefined,
             headers: langfuseHeaders,
-            abortSignal: abortController.signal,
+            abortSignal,
           });
 
-          recordAuditEvent(
-            'llm.request',
-            {
-              requestId,
-              runId: auditCtx.correlationId,
-              phase: auditCtx.phase,
-              provider: 'ai-sdk',
-              streamed: false,
-              modelId: this.modelId,
-              attempt,
-              durationMs: Date.now() - startedAt,
-              toolCount: tools ? Object.keys(tools).length : 0,
-              status: 'ok',
-            },
-            { source: 'llm', severity: 'low', scope: 'session' },
-          );
+          recordAiSdkRequestSuccess({
+            requestId,
+            modelId: this.modelId,
+            attempt,
+            startedAt,
+            toolCount,
+            streamed: false,
+            auditCtx,
+          });
 
           const usage = extractUsageFromAiSdkResult(result);
           if (usage) {
@@ -181,56 +169,27 @@ export class AiSdkLLM implements LLM {
             tool_calls: toOpenAiToolCalls((result as any).toolCalls),
           };
         } catch (e) {
-          const cls = classifyRetryableApiError(e);
-          recordAuditEvent(
-            'llm.request',
-            {
-              requestId,
-              runId: auditCtx.correlationId,
-              phase: auditCtx.phase,
-              provider: 'ai-sdk',
-              streamed: false,
-              modelId: this.modelId,
-              attempt,
-              durationMs: Date.now() - startedAt,
-              toolCount: tools ? Object.keys(tools).length : 0,
-              status: 'error',
-              statusCode: cls.statusCode,
-              networkCode: cls.networkCode,
-              retryable: cls.retryable,
-              retryReason: cls.reason,
-            },
-            { source: 'llm', severity: 'low', scope: 'session' },
-          );
+          recordAiSdkRequestError({
+            requestId,
+            modelId: this.modelId,
+            attempt,
+            startedAt,
+            toolCount,
+            streamed: false,
+            auditCtx,
+            error: e,
+          });
           throw e;
         } finally {
-          if (timeoutHandle) clearTimeout(timeoutHandle);
+          cleanup();
         }
       },
       {
         maxRetries: 2,
         jitterRatio: 0.2,
         signal: options.signal, // Pass signal to retry logic
-        retryableErrors: (err) => {
-          return classifyRetryableApiError(err).retryable;
-        },
-        onRetry: ({ attempt, delayMs, error }) => {
-          const cls = classifyRetryableApiError(error);
-          recordAuditEvent(
-            'llm.retry',
-            {
-              provider: 'ai-sdk',
-              modelId: this.modelId,
-              streamed: false,
-              attempt,
-              delayMs,
-              reason: cls.reason,
-              statusCode: cls.statusCode,
-              networkCode: cls.networkCode,
-            },
-            { source: 'llm', severity: 'low', scope: 'session' },
-          );
-        },
+        retryableErrors: isRetryableAiSdkError,
+        onRetry: createAiSdkRetryLogger({ modelId: this.modelId, streamed: false }),
       },
     ).catch((e) => {
       throw toLlmError(e, 'ai-sdk');
@@ -250,8 +209,11 @@ export class AiSdkLLM implements LLM {
     const streamFactory = async function* (this: AiSdkLLM) {
       attempt += 1;
       const startedAt = Date.now();
-      const abortController = new AbortController();
       const auditCtx = getAuditContext();
+      const { signal: abortSignal, cleanup } = createAbortRuntime({
+        timeoutMs,
+        externalSignal: options.signal,
+      });
       const langfuseHeaders = buildLangfuseHeaders(Boolean(this.cfg.langfuseEnabled), {
         runId: auditCtx.correlationId,
         phase: auditCtx.phase,
@@ -260,21 +222,7 @@ export class AiSdkLLM implements LLM {
         sessionId: auditCtx.sessionId,
         userId: auditCtx.userId,
       });
-
-      // Handle internal timeout
-      const timeoutHandle =
-        typeof timeoutMs === 'number' && timeoutMs > 0
-          ? setTimeout(() => abortController.abort(), timeoutMs)
-          : undefined;
-
-      // Chain with external signal if provided
-      if (options.signal) {
-        if (options.signal.aborted) {
-          abortController.abort();
-        } else {
-          options.signal.addEventListener('abort', () => abortController.abort());
-        }
-      }
+      const toolCount = tools ? Object.keys(tools).length : 0;
 
       try {
         const result = await streamText({
@@ -286,7 +234,7 @@ export class AiSdkLLM implements LLM {
           stopSequences: options.stop,
           toolChoice: options.toolChoice === 'none' ? 'none' : tools ? 'auto' : undefined,
           headers: langfuseHeaders,
-          abortSignal: abortController.signal,
+          abortSignal,
         });
 
         let doneEmitted = false;
@@ -310,47 +258,29 @@ export class AiSdkLLM implements LLM {
           yield { role: 'assistant' as LLMRole, done: true, finishReason: 'unknown' };
         }
 
-        recordAuditEvent(
-          'llm.request',
-          {
-            requestId,
-            runId: auditCtx.correlationId,
-            phase: auditCtx.phase,
-            provider: 'ai-sdk',
-            streamed: true,
-            modelId: this.modelId,
-            attempt,
-            durationMs: Date.now() - startedAt,
-            toolCount: tools ? Object.keys(tools).length : 0,
-            status: 'ok',
-          },
-          { source: 'llm', severity: 'low', scope: 'session' },
-        );
+        recordAiSdkRequestSuccess({
+          requestId,
+          modelId: this.modelId,
+          attempt,
+          startedAt,
+          toolCount,
+          streamed: true,
+          auditCtx,
+        });
       } catch (e) {
-        const cls = classifyRetryableApiError(e);
-        recordAuditEvent(
-          'llm.request',
-          {
-            requestId,
-            runId: auditCtx.correlationId,
-            phase: auditCtx.phase,
-            provider: 'ai-sdk',
-            streamed: true,
-            modelId: this.modelId,
-            attempt,
-            durationMs: Date.now() - startedAt,
-            toolCount: tools ? Object.keys(tools).length : 0,
-            status: 'error',
-            statusCode: cls.statusCode,
-            networkCode: cls.networkCode,
-            retryable: cls.retryable,
-            retryReason: cls.reason,
-          },
-          { source: 'llm', severity: 'low', scope: 'session' },
-        );
+        recordAiSdkRequestError({
+          requestId,
+          modelId: this.modelId,
+          attempt,
+          startedAt,
+          toolCount,
+          streamed: true,
+          auditCtx,
+          error: e,
+        });
         throw e;
       } finally {
-        if (timeoutHandle) clearTimeout(timeoutHandle);
+        cleanup();
       }
     }.bind(this);
 
@@ -359,24 +289,8 @@ export class AiSdkLLM implements LLM {
         maxRetries: 2,
         jitterRatio: 0.2,
         signal: options.signal, // Pass signal to retry logic
-        retryableErrors: (err) => classifyRetryableApiError(err).retryable,
-        onRetry: ({ attempt, delayMs, error }) => {
-          const cls = classifyRetryableApiError(error);
-          recordAuditEvent(
-            'llm.retry',
-            {
-              provider: 'ai-sdk',
-              modelId: this.modelId,
-              streamed: true,
-              attempt,
-              delayMs,
-              reason: cls.reason,
-              statusCode: cls.statusCode,
-              networkCode: cls.networkCode,
-            },
-            { source: 'llm', severity: 'low', scope: 'session' },
-          );
-        },
+        retryableErrors: isRetryableAiSdkError,
+        onRetry: createAiSdkRetryLogger({ modelId: this.modelId, streamed: true }),
       });
     } catch (e) {
       throw toLlmError(e, 'ai-sdk');

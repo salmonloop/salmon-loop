@@ -14,7 +14,6 @@ import { rewriteArgvForPrintMode } from './argv/print-mode.js';
 import { handleChatCommand } from './commands/chat.js';
 import { handleContextCommand } from './commands/context.js';
 import { handleRestoreCommand } from './commands/restore.js';
-import { createHeadlessErrorWriter } from './commands/run/headless-error-writer.js';
 import { handleRunCommand } from './commands/run.js';
 import { registerServeCommands } from './commands/serve.js';
 import {
@@ -27,8 +26,8 @@ import {
   handleSnapshotDelete,
   handleSnapshotClear,
 } from './commands/snapshot.js';
-import { createStdoutWriter } from './headless/stdout-writer.js';
 import { text } from './locales/index.js';
+import { configureProgramOutputForHeadless, parseProgramOrExit } from './program-parse.js';
 
 // --- Global Safety Initialization ---
 initializeRuntime();
@@ -189,67 +188,9 @@ program
 // Parse arguments with manual error handling
 const rewrittenArgv = rewriteArgvForPrintMode(process.argv);
 const headlessDetection = detectHeadlessOutputFromArgv(rewrittenArgv);
-
-if (headlessDetection.outputFormat) {
-  program.configureOutput({
-    writeOut: () => {},
-    writeErr: () => {},
-  });
-  program.showHelpAfterError(false);
-  program.showSuggestionAfterError(false);
-}
-
-try {
-  await program.parseAsync(rewrittenArgv);
-} catch (err: unknown) {
-  // Commander uses special error names for built-in logic like --help or missing args
-  if ((err instanceof Error ? err.name : undefined) === 'CommanderError') {
-    if (
-      headlessDetection.outputFormat &&
-      (err && typeof err === 'object' && 'code' in err
-        ? (err as { code?: string }).code
-        : undefined) !== 'commander.helpDisplayed' &&
-      (err && typeof err === 'object' && 'code' in err
-        ? (err as { code?: string }).code
-        : undefined) !== 'commander.version'
-    ) {
-      const writer = createStdoutWriter();
-      const headlessErrorWriter = createHeadlessErrorWriter({
-        repoPath: headlessDetection.repoPath ?? process.cwd(),
-        outputFormat: headlessDetection.outputFormat,
-        outputProfileForStreamJson: headlessDetection.outputProfile ?? 'native',
-        writer,
-        getSessionId: () => undefined,
-        getResumeSessionId: () => headlessDetection.resumeSessionId,
-      });
-
-      headlessErrorWriter.writeUsageError({
-        message: err instanceof Error ? err.message : String(err),
-        instruction: headlessDetection.instruction,
-      });
-
-      process.exit(1);
-    }
-
-    // Only exit if it's not a help message
-    if (
-      (err && typeof err === 'object' && 'code' in err
-        ? (err as { code?: string }).code
-        : undefined) !== 'commander.helpDisplayed' &&
-      (err && typeof err === 'object' && 'code' in err
-        ? (err as { code?: string }).code
-        : undefined) !== 'commander.version'
-    ) {
-      process.exit(
-        (err && typeof err === 'object' && 'exitCode' in err
-          ? (err as { exitCode?: number }).exitCode
-          : undefined) || 1,
-      );
-    }
-  } else {
-    // This is a real application crash - send through our hardened logger
-    import('../core/observability/logger.js').then(({ logger }) => {
-      logger.error('CLI execution crashed', err, true);
-    });
-  }
-}
+configureProgramOutputForHeadless(program, headlessDetection);
+await parseProgramOrExit({
+  program,
+  argv: rewrittenArgv,
+  headlessDetection,
+});
