@@ -14,8 +14,14 @@ function isJsonObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-async function writeInvalidRequest(output: WritableStream<Uint8Array>) {
-  logger.warn('ACP stdio received non-object JSON; returning Invalid Request.');
+function formatLineSnippet(line: string, maxLength = 160): string {
+  if (line.length <= maxLength) return line;
+  return `${line.slice(0, maxLength - 3)}...`;
+}
+
+async function writeInvalidRequest(output: WritableStream<Uint8Array>, line: string) {
+  const snippet = formatLineSnippet(line);
+  logger.warn(`ACP stdio received non-object JSON; returning Invalid Request. line="${snippet}"`);
   const writer = output.getWriter();
   const encoder = new TextEncoder();
   try {
@@ -52,10 +58,11 @@ export function createAcpStdioStream(
               if (isJsonObject(parsed)) {
                 controller.enqueue(parsed as AnyMessage);
               } else {
-                await writeInvalidRequest(output);
+                await writeInvalidRequest(output, trimmed);
               }
             } catch (error) {
-              logger.warn('ACP stdio failed to parse JSON line.', error);
+              const detail = error instanceof Error ? error.message : String(error);
+              logger.warn(`ACP stdio failed to parse JSON line. reason="${detail}"`);
             }
           }
         }
