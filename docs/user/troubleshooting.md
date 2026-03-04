@@ -110,3 +110,10 @@ Related ACP recovery events:
 - `acp.checkpoint.read`: includes `resumeProbe.reason` for checkpoint availability
   (`ok|not_found|manifest_unavailable|manifest_parse_error|manifest_io_error|manifest_lock_timeout`).
   ACP `session/load` also returns `_meta.salmonloop.resumeHint` + `resumeHintCode` for direct UI mapping.
+
+Snapshot preflight diagnosis:
+
+- `snapshot.create.step.failed` now includes safe classifier/fingerprints:
+  - `errorHintCode` (e.g. `GIT_INDEX_LOCKED`, `GIT_INDEX_UNMERGED`)
+  - `errorFingerprint` / `stderrFingerprint` / `commandFingerprint`
+- Use these to group recurring failures without exposing raw git stderr.

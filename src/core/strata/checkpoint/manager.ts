@@ -29,6 +29,65 @@ export class CheckpointManager {
     return undefined;
   }
 
+  private hashSafe(value: string): string {
+    return createHash('sha256').update(value).digest('hex').slice(0, 16);
+  }
+
+  private classifyGitFailure(error: unknown): string | undefined {
+    const asRecord = error && typeof error === 'object' ? (error as Record<string, unknown>) : null;
+    if (!asRecord) return undefined;
+    const stderr = typeof asRecord.stderr === 'string' ? asRecord.stderr.toLowerCase() : '';
+    const message = typeof asRecord.message === 'string' ? asRecord.message.toLowerCase() : '';
+    const body = `${message}\n${stderr}`;
+    if (body.includes('index.lock')) return 'GIT_INDEX_LOCKED';
+    if (body.includes('you need to resolve your current index first')) return 'GIT_INDEX_UNMERGED';
+    if (body.includes('not a git repository')) return 'GIT_NOT_REPOSITORY';
+    if (body.includes('permission denied')) return 'GIT_PERMISSION_DENIED';
+    if (body.includes('unable to read index file')) return 'GIT_INDEX_UNREADABLE';
+    return 'GIT_FAILURE_UNKNOWN';
+  }
+
+  private extractSafeErrorSummary(error: unknown): {
+    errorCode?: string;
+    errorName?: string;
+    errorHintCode?: string;
+    errorFingerprint?: string;
+    stderrFingerprint?: string;
+    commandFingerprint?: string;
+  } {
+    if (!error || typeof error !== 'object') {
+      return {
+        errorName: typeof error,
+      };
+    }
+    const asRecord = error as Record<string, unknown>;
+    const safe: {
+      errorCode?: string;
+      errorName?: string;
+      errorHintCode?: string;
+      errorFingerprint?: string;
+      stderrFingerprint?: string;
+      commandFingerprint?: string;
+    } = {
+      errorCode: this.extractSafeErrorCode(error),
+      errorName: typeof asRecord.name === 'string' ? asRecord.name : undefined,
+      errorHintCode: this.classifyGitFailure(error),
+    };
+    if (typeof asRecord.message === 'string' && asRecord.message.length > 0) {
+      safe.errorFingerprint = this.hashSafe(asRecord.message);
+    }
+    if (typeof asRecord.stderr === 'string' && asRecord.stderr.length > 0) {
+      const firstLine = asRecord.stderr.split('\n')[0] ?? '';
+      if (firstLine.length > 0) {
+        safe.stderrFingerprint = this.hashSafe(firstLine);
+      }
+    }
+    if (typeof asRecord.command === 'string' && asRecord.command.length > 0) {
+      safe.commandFingerprint = this.hashSafe(asRecord.command);
+    }
+    return safe;
+  }
+
   /**
    * Creates a safe snapshot of the current repository state (T0).
    * S8P Checkpoint Protocol v1.0
@@ -161,8 +220,7 @@ export class CheckpointManager {
             step,
             repoPathHash: this.hashRepoPath(repoPath),
             includePathsCount: includePaths.length,
-            errorName: error instanceof Error ? error.name : typeof error,
-            errorCode: this.extractSafeErrorCode(error),
+            ...this.extractSafeErrorSummary(error),
           },
           { source: 'runtime', severity: 'high', scope: 'session', phase: 'PREFLIGHT' },
         );

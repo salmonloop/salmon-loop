@@ -50,6 +50,36 @@ describe('CheckpointManager observability', () => {
         includePathsCount: 0,
         errorName: 'Error',
         errorCode: 'EACCES',
+        errorHintCode: 'GIT_FAILURE_UNKNOWN',
+        errorFingerprint: expect.any(String),
+      }),
+      expect.any(Object),
+    );
+  });
+
+  it('classifies known git index lock failures with safe hint code', async () => {
+    gitQueryMock.mockResolvedValueOnce('staged-tree\n');
+    gitExecMock.mockImplementation(async (args: string[]) => {
+      if (args[0] === 'read-tree') {
+        throw Object.assign(new Error('git failed\nStderr: fatal: Unable to create index.lock'), {
+          code: 'GIT_ERROR',
+          stderr: 'fatal: Unable to create index.lock: File exists',
+          command: 'read-tree staged-tree',
+        });
+      }
+      return '';
+    });
+
+    const manager = new CheckpointManager();
+    await expect(manager.createSafeSnapshot('/repo')).rejects.toThrow();
+
+    expect(recordAuditEventMock).toHaveBeenCalledWith(
+      'snapshot.create.step.failed',
+      expect.objectContaining({
+        step: 'read-tree',
+        errorHintCode: 'GIT_INDEX_LOCKED',
+        stderrFingerprint: expect.any(String),
+        commandFingerprint: expect.any(String),
       }),
       expect.any(Object),
     );

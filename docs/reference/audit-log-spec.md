@@ -217,6 +217,19 @@ Related ACP persistence/checkpoint events:
   - `_meta.salmonloop.resumeHint` / `_meta.salmonloop.resumeHintCode` are returned in ACP
     `session/load` response to provide UI-safe mapping for failed resume probe reasons.
 
+## Snapshot Failure Events
+
+- `snapshot.create.step.failed`
+  - `step` (`write-tree|read-tree|add-u|write-tree-final|commit-tree`)
+  - `repoPathHash`
+  - `includePathsCount`
+  - `errorCode`
+  - `errorName`
+  - `errorHintCode` (safe classifier, e.g. `GIT_INDEX_LOCKED`, `GIT_INDEX_UNMERGED`)
+  - `errorFingerprint` (hashed message fingerprint)
+  - `stderrFingerprint` (hashed stderr first-line fingerprint when available)
+  - `commandFingerprint` (hashed git subcommand fingerprint when available)
+
 ## Permission Decision Events
 
 `permission.decision` events capture high-risk authorization outcomes in a normalized shape:
