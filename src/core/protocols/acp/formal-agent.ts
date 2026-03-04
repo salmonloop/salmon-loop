@@ -471,6 +471,9 @@ export function createAcpFormalAgent(deps: {
   conn: AgentSideConnection;
   agentInfo: { name: string; version: string };
   facade: Facade;
+  capabilityPolicy?: {
+    loadSession?: boolean;
+  };
   eventBus?: {
     subscribe: (listener: (event: TaskEvent) => void) => () => void;
     list: (taskId: string, options?: { afterId?: string | null; limit?: number }) => TaskEvent[];
@@ -483,6 +486,7 @@ export function createAcpFormalAgent(deps: {
     fs: { readTextFile: false, writeTextFile: false },
     terminal: false,
   };
+  const loadSessionCapability = deps.capabilityPolicy?.loadSession ?? true;
 
   async function emitSessionUpdate(sessionId: string, update: SessionUpdate) {
     await deps.conn.sessionUpdate({ sessionId, update });
@@ -524,7 +528,7 @@ export function createAcpFormalAgent(deps: {
         agentInfo: deps.agentInfo,
         authMethods: [],
         agentCapabilities: {
-          loadSession: true,
+          loadSession: loadSessionCapability,
           promptCapabilities: defaultPromptCapabilities,
           mcpCapabilities: { http: false, sse: false },
           sessionCapabilities: {},
@@ -546,6 +550,9 @@ export function createAcpFormalAgent(deps: {
     },
 
     async loadSession(params) {
+      if (!loadSessionCapability) {
+        throw new RequestError(-32601, '"Method not found": session/load');
+      }
       await loadSessionInternal(params);
 
       const session = sessions.get(params.sessionId)!;

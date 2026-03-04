@@ -219,6 +219,7 @@ export async function handleServeCommand(_options: unknown, command: Command) {
         conn,
         agentInfo: { name: 'salmon-loop', version: '0.2.0' },
         facade: acpFacade,
+        capabilityPolicy: { loadSession: false },
         eventBus: sharedEventBus,
       }),
     );
@@ -344,6 +345,7 @@ export async function handleServeAcpCommand(_options: unknown, command: Command)
       conn,
       agentInfo: { name: 'salmon-loop', version: '0.2.0' },
       facade: acpFacade,
+      capabilityPolicy: { loadSession: false },
       eventBus: sharedEventBus,
     }),
   );

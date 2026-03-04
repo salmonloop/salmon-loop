@@ -142,6 +142,47 @@ describe('ACP formal protocol (SDK)', () => {
     expect(Array.isArray(updates)).toBe(true);
   });
 
+  it('can disable loadSession capability and reject session/load', async () => {
+    const { clientConn } = createConnectedPair({
+      toAgent: (conn) =>
+        createAcpFormalAgent({
+          conn,
+          agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+          capabilityPolicy: { loadSession: false },
+          facade: {
+            createTask: async () => {
+              throw new Error('not used');
+            },
+            getTask: async () => null,
+            cancelTask: async () => null,
+            resumeTask: async () => null,
+            retryTask: async () => null,
+            reopenTask: async () => null,
+            listTasks: async () => ({ items: [] }),
+            submitInput: async () => null,
+            getArtifact: async () => null,
+          },
+        }),
+      toClient: () => ({
+        requestPermission: async () => ({ outcome: { outcome: 'cancelled' } }),
+        sessionUpdate: async () => {},
+      }),
+    });
+
+    const initialize = await clientConn.initialize({
+      protocolVersion: 1,
+      clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: false },
+    });
+    expect(initialize.agentCapabilities?.loadSession).toBe(false);
+
+    const { sessionId } = await clientConn.newSession({ cwd: '/repo', mcpServers: [] });
+    await expect(
+      clientConn.loadSession({ sessionId, cwd: '/repo', mcpServers: [] }),
+    ).rejects.toMatchObject({
+      code: -32601,
+    });
+  });
+
   it('returns -32601 when session/set_mode is called but mode capability is not provided', async () => {
     const { clientConn } = createConnectedPair({
       toAgent: (conn) =>
