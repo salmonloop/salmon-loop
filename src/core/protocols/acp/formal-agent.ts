@@ -490,6 +490,10 @@ export function createAcpFormalAgent(deps: {
       strategy?: string;
       backend?: string;
     } | null>;
+    probeById?: (input: {
+      repoPath: string;
+      checkpointId: string;
+    }) => Promise<{ valid: boolean; reason: 'ok' | 'not_found' | 'manifest_unavailable' }>;
   };
   capabilityPolicy?: {
     loadSession?: boolean;
@@ -643,14 +647,25 @@ export function createAcpFormalAgent(deps: {
         _meta?: Record<string, unknown>;
       } = { configOptions: buildConfigOptions(runtimeState) };
       if (deps.checkpointReader) {
+        const startedAt = Date.now();
         const checkpoints = await deps.checkpointReader.listBySession({
           repoPath: params.cwd,
           sessionId: params.sessionId,
           limit: 1,
         });
         const latest = checkpoints.at(-1);
-        let resumeProbe: { checkpointId: string; valid: boolean } | null = null;
-        if (latest?.id && deps.checkpointReader.getById) {
+        let resumeProbe: { checkpointId: string; valid: boolean; reason?: string } | null = null;
+        if (latest?.id && deps.checkpointReader.probeById) {
+          const probed = await deps.checkpointReader.probeById({
+            repoPath: params.cwd,
+            checkpointId: latest.id,
+          });
+          resumeProbe = {
+            checkpointId: latest.id,
+            valid: probed.valid,
+            reason: probed.reason,
+          };
+        } else if (latest?.id && deps.checkpointReader.getById) {
           const found = await deps.checkpointReader.getById({
             repoPath: params.cwd,
             checkpointId: latest.id,
@@ -658,8 +673,10 @@ export function createAcpFormalAgent(deps: {
           resumeProbe = {
             checkpointId: latest.id,
             valid: Boolean(found),
+            reason: found ? 'ok' : 'not_found',
           };
         }
+        const resumeReady = resumeProbe?.valid ?? Boolean(latest);
         recordAuditEvent(
           'acp.checkpoint.read',
           {
@@ -667,6 +684,7 @@ export function createAcpFormalAgent(deps: {
             repoPathHash: hashRepoPath(params.cwd),
             latestCheckpointId: latest?.id ?? null,
             hit: Boolean(latest),
+            latencyMs: Date.now() - startedAt,
             resumeProbe: resumeProbe ?? undefined,
           },
           { source: 'acp', severity: 'low', scope: 'session', phase: 'PREFLIGHT' },
@@ -675,6 +693,7 @@ export function createAcpFormalAgent(deps: {
           salmonloop: {
             latestCheckpointId: latest?.id ?? null,
             checkpoint: toCheckpointMeta(latest),
+            resumeReady,
             resumeProbe,
           },
         };

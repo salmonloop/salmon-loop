@@ -36,6 +36,24 @@ This module implements the ACP (agent-client-protocol) stdio JSON-RPC adapter fo
 - `session/prompt` → create task via canonical facade and push `session/update` chunks.
 - `session/cancel` → cancel current task (notification-only response).
 
+## SalmonLoop Checkpoint Meta
+
+When available, `session/new` and `session/load` responses include:
+
+- `_meta.salmonloop.latestCheckpointId`
+- `_meta.salmonloop.checkpoint = { id, createdAt, strategy, backend }`
+- `_meta.salmonloop.resumeReady`
+- `_meta.salmonloop.resumeProbe = { checkpointId, valid, reason }`
+
+UI should prefer rendering from `_meta.salmonloop.checkpoint` (typed object) rather than
+only reading `latestCheckpointId`.
+
+`resumeProbe.reason` is a soft failure classifier:
+
+- `ok`
+- `not_found`
+- `manifest_unavailable`
+
 ## Notifications
 
 - `session/update` is the standard progress channel.

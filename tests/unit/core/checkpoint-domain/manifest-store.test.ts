@@ -1,20 +1,31 @@
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
-const { mkdirMock, readFileMock, renameMock, writeFileMock, getUserCheckpointManifestDirMock } =
-  (() => ({
-    mkdirMock: mock(),
-    readFileMock: mock(),
-    renameMock: mock(),
-    writeFileMock: mock(),
-    getUserCheckpointManifestDirMock: mock(
-      (repoPath: string) => `/home/test/.salmonloop/runtime/checkpoints/${repoPath.length}`,
-    ),
-  }))();
+const {
+  mkdirMock,
+  openMock,
+  readFileMock,
+  renameMock,
+  unlinkMock,
+  writeFileMock,
+  getUserCheckpointManifestDirMock,
+} = (() => ({
+  mkdirMock: mock(),
+  openMock: mock(),
+  readFileMock: mock(),
+  renameMock: mock(),
+  unlinkMock: mock(),
+  writeFileMock: mock(),
+  getUserCheckpointManifestDirMock: mock(
+    (repoPath: string) => `/home/test/.salmonloop/runtime/checkpoints/${repoPath.length}`,
+  ),
+}))();
 
 mock.module('../../../../src/core/adapters/fs/node-fs.js', () => ({
   mkdir: mkdirMock,
+  open: openMock,
   readFile: readFileMock,
   rename: renameMock,
+  unlink: unlinkMock,
   writeFile: writeFileMock,
 }));
 
@@ -32,8 +43,10 @@ describe('checkpoint manifest store', () => {
   beforeEach(() => {
     mock.clearAllMocks();
     mkdirMock.mockResolvedValue(undefined);
+    openMock.mockResolvedValue({ close: mock().mockResolvedValue(undefined) });
     writeFileMock.mockResolvedValue(undefined);
     renameMock.mockResolvedValue(undefined);
+    unlinkMock.mockResolvedValue(undefined);
   });
 
   it('returns empty manifest when file is missing', async () => {
@@ -41,7 +54,7 @@ describe('checkpoint manifest store', () => {
 
     const manifest = await readCheckpointManifest('/repo');
 
-    expect(manifest.schemaVersion).toBe(1);
+    expect(manifest.schemaVersion).toBe(2);
     expect(manifest.checkpoints).toEqual({});
     expect(manifest.sessions).toEqual({});
   });
@@ -84,7 +97,7 @@ describe('checkpoint manifest store', () => {
     );
 
     const manifest = await readCheckpointManifest('/repo');
-    expect(manifest.schemaVersion).toBe(1);
+    expect(manifest.schemaVersion).toBe(2);
     expect(manifest.checkpoints['cp-2']?.id).toBe('cp-2');
   });
 

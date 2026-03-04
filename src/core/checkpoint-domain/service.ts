@@ -1,7 +1,9 @@
 import { CheckpointManager } from '../strata/checkpoint/manager.js';
 
 import {
+  garbageCollectManifest,
   linkSessionToCheckpoint,
+  probeCheckpointHandle,
   readCheckpointManifest,
   removeCheckpointHandle,
   upsertCheckpointHandle,
@@ -17,9 +19,18 @@ import type {
 export interface CheckpointService {
   create(input: CreateCheckpointInput): Promise<CheckpointHandle>;
   load(input: LoadCheckpointInput): Promise<CheckpointHandle | null>;
+  loadWithStatus(input: LoadCheckpointInput): Promise<{
+    handle: CheckpointHandle | null;
+    reason: 'ok' | 'not_found' | 'manifest_unavailable';
+  }>;
   resume(input: LoadCheckpointInput): Promise<CheckpointHandle | null>;
   list(input: ListCheckpointInput): Promise<CheckpointHandle[]>;
   delete(input: DeleteCheckpointInput): Promise<void>;
+  gc(input: {
+    repoPath: string;
+    olderThanMs?: number;
+    maxPerSession?: number;
+  }): Promise<{ removed: number }>;
 }
 
 export class GitSnapshotCheckpointService implements CheckpointService {
@@ -54,6 +65,13 @@ export class GitSnapshotCheckpointService implements CheckpointService {
     return manifest.checkpoints[input.checkpointId] ?? null;
   }
 
+  async loadWithStatus(input: LoadCheckpointInput): Promise<{
+    handle: CheckpointHandle | null;
+    reason: 'ok' | 'not_found' | 'manifest_unavailable';
+  }> {
+    return probeCheckpointHandle(input.repoPath, input.checkpointId);
+  }
+
   async resume(input: LoadCheckpointInput): Promise<CheckpointHandle | null> {
     return this.load(input);
   }
@@ -86,5 +104,16 @@ export class GitSnapshotCheckpointService implements CheckpointService {
   async delete(input: DeleteCheckpointInput): Promise<void> {
     await this.checkpointManager.deleteSnapshot(input.repoPath, input.checkpointId);
     await removeCheckpointHandle(input.repoPath, input.checkpointId);
+  }
+
+  async gc(input: {
+    repoPath: string;
+    olderThanMs?: number;
+    maxPerSession?: number;
+  }): Promise<{ removed: number }> {
+    return garbageCollectManifest(input.repoPath, {
+      olderThanMs: input.olderThanMs,
+      maxPerSession: input.maxPerSession,
+    });
   }
 }

@@ -180,6 +180,11 @@ export async function handleServeCommand(_options: unknown, command: Command) {
 
   const sharedEventBus = createTaskEventBus();
   const checkpointService = new GitSnapshotCheckpointService();
+  await checkpointService.gc({
+    repoPath,
+    olderThanMs: 1000 * 60 * 60 * 24 * 14,
+    maxPerSession: 30,
+  });
   const acpFacade = createInteractionFacade({
     executeTask: executor.execute,
     eventBus: sharedEventBus,
@@ -224,7 +229,11 @@ export async function handleServeCommand(_options: unknown, command: Command) {
           listBySession: async ({ repoPath, sessionId, limit }) =>
             await checkpointService.list({ repoPath, sessionId, limit }),
           getById: async ({ repoPath, checkpointId }) =>
-            await checkpointService.load({ repoPath, checkpointId }),
+            (await checkpointService.loadWithStatus({ repoPath, checkpointId })).handle,
+          probeById: async ({ repoPath, checkpointId }) => {
+            const status = await checkpointService.loadWithStatus({ repoPath, checkpointId });
+            return { valid: Boolean(status.handle), reason: status.reason };
+          },
         },
         facade: acpFacade,
         capabilityPolicy: { loadSession: false },
@@ -344,6 +353,11 @@ export async function handleServeAcpCommand(_options: unknown, command: Command)
 
   const sharedEventBus = createTaskEventBus();
   const checkpointService = new GitSnapshotCheckpointService();
+  await checkpointService.gc({
+    repoPath,
+    olderThanMs: 1000 * 60 * 60 * 24 * 14,
+    maxPerSession: 30,
+  });
   const acpFacade = createInteractionFacade({
     executeTask: executor.execute,
     eventBus: sharedEventBus,
@@ -357,7 +371,11 @@ export async function handleServeAcpCommand(_options: unknown, command: Command)
         listBySession: async ({ repoPath, sessionId, limit }) =>
           await checkpointService.list({ repoPath, sessionId, limit }),
         getById: async ({ repoPath, checkpointId }) =>
-          await checkpointService.load({ repoPath, checkpointId }),
+          (await checkpointService.loadWithStatus({ repoPath, checkpointId })).handle,
+        probeById: async ({ repoPath, checkpointId }) => {
+          const status = await checkpointService.loadWithStatus({ repoPath, checkpointId });
+          return { valid: Boolean(status.handle), reason: status.reason };
+        },
       },
       facade: acpFacade,
       capabilityPolicy: { loadSession: false },

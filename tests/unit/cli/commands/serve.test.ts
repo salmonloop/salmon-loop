@@ -83,8 +83,16 @@ mock.module('../../../../src/core/backends/salmon-loop/task-executor.js', () => 
 
 mock.module('../../../../src/core/checkpoint-domain/service.js', () => ({
   GitSnapshotCheckpointService: class {
+    async gc() {
+      return { removed: 0 };
+    }
+
     async list() {
       return [];
+    }
+
+    async loadWithStatus() {
+      return { handle: null, reason: 'not_found' as const };
     }
   },
 }));
