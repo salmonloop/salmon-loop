@@ -51,8 +51,18 @@ describe('GitSnapshotCheckpointService', () => {
     readCheckpointManifestMock.mockResolvedValue({
       schemaVersion: 1,
       checkpoints: {
-        'cp-1': { id: 'cp-1', createdAt: 't1', strategy: 'worktree', backend: 'git_snapshot' },
-        'cp-2': { id: 'cp-2', createdAt: 't2', strategy: 'worktree', backend: 'git_snapshot' },
+        'cp-1': {
+          id: 'cp-1',
+          createdAt: '2026-03-04T10:00:00.000Z',
+          strategy: 'worktree',
+          backend: 'git_snapshot',
+        },
+        'cp-2': {
+          id: 'cp-2',
+          createdAt: '2026-03-04T11:00:00.000Z',
+          strategy: 'worktree',
+          backend: 'git_snapshot',
+        },
       },
       sessions: {
         'sess-1': { sessionId: 'sess-1', currentCheckpointId: 'cp-2', history: ['cp-1', 'cp-2'] },
@@ -66,7 +76,7 @@ describe('GitSnapshotCheckpointService', () => {
 
     const items = await service.list({ repoPath: '/repo', sessionId: 'sess-1' });
 
-    expect(items.map((item) => item.id)).toEqual(['cp-1', 'cp-2']);
+    expect(items.map((item) => item.id)).toEqual(['cp-2', 'cp-1']);
   });
 
   it('deletes checkpoint from backend and manifest', async () => {

@@ -223,6 +223,8 @@ export async function handleServeCommand(_options: unknown, command: Command) {
         checkpointReader: {
           listBySession: async ({ repoPath, sessionId, limit }) =>
             await checkpointService.list({ repoPath, sessionId, limit }),
+          getById: async ({ repoPath, checkpointId }) =>
+            await checkpointService.load({ repoPath, checkpointId }),
         },
         facade: acpFacade,
         capabilityPolicy: { loadSession: false },
@@ -354,6 +356,8 @@ export async function handleServeAcpCommand(_options: unknown, command: Command)
       checkpointReader: {
         listBySession: async ({ repoPath, sessionId, limit }) =>
           await checkpointService.list({ repoPath, sessionId, limit }),
+        getById: async ({ repoPath, checkpointId }) =>
+          await checkpointService.load({ repoPath, checkpointId }),
       },
       facade: acpFacade,
       capabilityPolicy: { loadSession: false },

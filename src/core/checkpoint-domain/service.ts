@@ -60,18 +60,27 @@ export class GitSnapshotCheckpointService implements CheckpointService {
 
   async list(input: ListCheckpointInput): Promise<CheckpointHandle[]> {
     const manifest = await readCheckpointManifest(input.repoPath);
+    const sortByCreatedAtDesc = (items: CheckpointHandle[]): CheckpointHandle[] =>
+      [...items].sort((a, b) => {
+        const ta = Date.parse(a.createdAt || '');
+        const tb = Date.parse(b.createdAt || '');
+        return (Number.isFinite(tb) ? tb : 0) - (Number.isFinite(ta) ? ta : 0);
+      });
+
     if (!input.sessionId) {
-      const values = Object.values(manifest.checkpoints);
+      const values = sortByCreatedAtDesc(Object.values(manifest.checkpoints));
       if (!input.limit || input.limit <= 0) return values;
       return values.slice(0, input.limit);
     }
     const link = manifest.sessions[input.sessionId];
     if (!link) return [];
-    const handles = link.history
-      .map((checkpointId) => manifest.checkpoints[checkpointId])
-      .filter((value): value is CheckpointHandle => Boolean(value));
+    const handles = sortByCreatedAtDesc(
+      link.history
+        .map((checkpointId) => manifest.checkpoints[checkpointId])
+        .filter((value): value is CheckpointHandle => Boolean(value)),
+    );
     if (!input.limit || input.limit <= 0) return handles;
-    return handles.slice(-input.limit);
+    return handles.slice(0, input.limit);
   }
 
   async delete(input: DeleteCheckpointInput): Promise<void> {

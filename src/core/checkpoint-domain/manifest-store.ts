@@ -12,12 +12,47 @@ interface CheckpointManifestV1 {
   sessions: Record<string, SessionCheckpointLink>;
 }
 
+interface CheckpointManifestV2 {
+  schemaVersion: 2;
+  checkpoints: Record<string, CheckpointHandle>;
+  sessions: Record<string, SessionCheckpointLink>;
+  checkpointLineage?: Record<string, { parentId?: string }>;
+}
+
+type AnyCheckpointManifest = CheckpointManifestV1 | CheckpointManifestV2;
+
 function createEmptyManifest(): CheckpointManifestV1 {
   return {
     schemaVersion: 1,
     checkpoints: {},
     sessions: {},
   };
+}
+
+function normalizeManifest(input: unknown): CheckpointManifestV1 {
+  if (!input || typeof input !== 'object') return createEmptyManifest();
+  const parsed = input as Partial<AnyCheckpointManifest>;
+  if (!parsed.checkpoints || !parsed.sessions) return createEmptyManifest();
+
+  if (parsed.schemaVersion === 1) {
+    return {
+      schemaVersion: 1,
+      checkpoints: parsed.checkpoints,
+      sessions: parsed.sessions,
+    };
+  }
+
+  if (parsed.schemaVersion === 2) {
+    // Lightweight compatibility migrator:
+    // v2 may carry extra lineage metadata; v1 runtime can ignore it safely.
+    return {
+      schemaVersion: 1,
+      checkpoints: parsed.checkpoints,
+      sessions: parsed.sessions,
+    };
+  }
+
+  return createEmptyManifest();
 }
 
 function toManifestPath(repoPath: string): string {
@@ -46,11 +81,7 @@ export async function readCheckpointManifest(repoPath: string): Promise<Checkpoi
   const manifestPath = toManifestPath(repoPath);
   try {
     const raw = await readFile(manifestPath, 'utf8');
-    const parsed = JSON.parse(raw) as CheckpointManifestV1;
-    if (parsed?.schemaVersion !== 1 || !parsed.checkpoints || !parsed.sessions) {
-      return createEmptyManifest();
-    }
-    return parsed;
+    return normalizeManifest(JSON.parse(raw));
   } catch {
     return createEmptyManifest();
   }

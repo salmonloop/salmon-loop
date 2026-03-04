@@ -1,3 +1,5 @@
+import { createHash } from 'crypto';
+
 import {
   PROTOCOL_VERSION,
   RequestError,
@@ -17,6 +19,7 @@ import { text } from '../../../locales/index.js';
 import { defaultPathAdapter } from '../../adapters/path/path-adapter.js';
 import type { TaskEvent } from '../../interaction/events/bus.js';
 import type { TaskEnvelope } from '../../interaction/model/index.js';
+import { recordAuditEvent } from '../../observability/audit-trail.js';
 import { mapErrorForDisplay } from '../../observability/error-mapping.js';
 import type { CommandRunner } from '../../runtime/command-runner-context.js';
 import { parseSlashInput } from '../../slash/parser.js';
@@ -25,6 +28,7 @@ import type { LoopEvent } from '../../types/index.js';
 
 import { createAcpCommandRunner } from './acp-command-runner.js';
 import { createAcpFileSystem } from './acp-filesystem.js';
+import type { AcpCheckpointMeta } from './checkpoint-meta.js';
 import { createAcpSessionStore, isTerminalTaskEvent, type AcpSessionRecord } from './handlers.js';
 import { createAcpToolAuthorizationProvider } from './permission-provider.js';
 
@@ -480,6 +484,12 @@ export function createAcpFormalAgent(deps: {
         backend?: string;
       }>
     >;
+    getById?: (input: { repoPath: string; checkpointId: string }) => Promise<{
+      id: string;
+      createdAt?: string;
+      strategy?: string;
+      backend?: string;
+    } | null>;
   };
   capabilityPolicy?: {
     loadSession?: boolean;
@@ -497,6 +507,29 @@ export function createAcpFormalAgent(deps: {
     terminal: false,
   };
   const loadSessionCapability = deps.capabilityPolicy?.loadSession ?? true;
+
+  function hashRepoPath(repoPath: string): string {
+    return createHash('sha256').update(repoPath).digest('hex').slice(0, 16);
+  }
+
+  function toCheckpointMeta(
+    input:
+      | {
+          id: string;
+          createdAt?: string;
+          strategy?: string;
+          backend?: string;
+        }
+      | undefined,
+  ): AcpCheckpointMeta | null {
+    if (!input) return null;
+    return {
+      id: input.id,
+      createdAt: input.createdAt ?? null,
+      strategy: input.strategy ?? null,
+      backend: input.backend ?? null,
+    };
+  }
 
   async function emitSessionUpdate(sessionId: string, update: SessionUpdate) {
     await deps.conn.sessionUpdate({ sessionId, update });
@@ -556,7 +589,26 @@ export function createAcpFormalAgent(deps: {
       }
       const session = sessions.create({ cwd: params.cwd, mcpServers: params.mcpServers ?? [] });
       const runtimeState = ensureSessionRuntimeState(session.id);
-      return { sessionId: session.id, configOptions: buildConfigOptions(runtimeState) };
+      let sessionMeta: Record<string, unknown> | undefined;
+      if (deps.checkpointReader) {
+        const checkpoints = await deps.checkpointReader.listBySession({
+          repoPath: params.cwd,
+          sessionId: session.id,
+          limit: 1,
+        });
+        const latest = checkpoints.at(-1);
+        sessionMeta = {
+          salmonloop: {
+            latestCheckpointId: latest?.id ?? null,
+            checkpoint: toCheckpointMeta(latest),
+          },
+        };
+      }
+      return {
+        sessionId: session.id,
+        configOptions: buildConfigOptions(runtimeState),
+        ...(sessionMeta ? { _meta: sessionMeta } : {}),
+      };
     },
 
     async loadSession(params) {
@@ -597,17 +649,33 @@ export function createAcpFormalAgent(deps: {
           limit: 1,
         });
         const latest = checkpoints.at(-1);
+        let resumeProbe: { checkpointId: string; valid: boolean } | null = null;
+        if (latest?.id && deps.checkpointReader.getById) {
+          const found = await deps.checkpointReader.getById({
+            repoPath: params.cwd,
+            checkpointId: latest.id,
+          });
+          resumeProbe = {
+            checkpointId: latest.id,
+            valid: Boolean(found),
+          };
+        }
+        recordAuditEvent(
+          'acp.checkpoint.read',
+          {
+            sessionId: params.sessionId,
+            repoPathHash: hashRepoPath(params.cwd),
+            latestCheckpointId: latest?.id ?? null,
+            hit: Boolean(latest),
+            resumeProbe: resumeProbe ?? undefined,
+          },
+          { source: 'acp', severity: 'low', scope: 'session', phase: 'PREFLIGHT' },
+        );
         response._meta = {
           salmonloop: {
             latestCheckpointId: latest?.id ?? null,
-            checkpoint: latest
-              ? {
-                  id: latest.id,
-                  createdAt: latest.createdAt ?? null,
-                  strategy: latest.strategy ?? null,
-                  backend: latest.backend ?? null,
-                }
-              : null,
+            checkpoint: toCheckpointMeta(latest),
+            resumeProbe,
           },
         };
       }

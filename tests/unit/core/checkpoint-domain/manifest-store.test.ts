@@ -64,6 +64,30 @@ describe('checkpoint manifest store', () => {
     );
   });
 
+  it('reads v2 manifest shape with lightweight compatibility migration', async () => {
+    readFileMock.mockResolvedValue(
+      JSON.stringify({
+        schemaVersion: 2,
+        checkpoints: {
+          'cp-2': {
+            id: 'cp-2',
+            createdAt: '2026-03-04T00:00:00.000Z',
+            strategy: 'worktree',
+            backend: 'git_snapshot',
+          },
+        },
+        sessions: {},
+        checkpointLineage: {
+          'cp-2': { parentId: 'cp-1' },
+        },
+      }),
+    );
+
+    const manifest = await readCheckpointManifest('/repo');
+    expect(manifest.schemaVersion).toBe(1);
+    expect(manifest.checkpoints['cp-2']?.id).toBe('cp-2');
+  });
+
   it('removes checkpoint and keeps manifest consistent', async () => {
     readFileMock.mockResolvedValue(
       JSON.stringify({
