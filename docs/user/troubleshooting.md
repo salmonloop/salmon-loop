@@ -114,6 +114,7 @@ Related ACP recovery events:
 Snapshot preflight diagnosis:
 
 - `snapshot.create.step.failed` now includes safe classifier/fingerprints:
-  - `errorHintCode` (e.g. `GIT_INDEX_LOCKED`, `GIT_INDEX_UNMERGED`)
+  - `errorHintCode` (e.g. `GIT_INDEX_LOCKED`, `GIT_INDEX_UNMERGED`, `GIT_TREE_BUILD_FAILED`,
+    `GIT_INDEX_CORRUPTED`, `GIT_INDEX_WRITE_FAILED`, `GIT_DUBIOUS_OWNERSHIP`, `GIT_NO_SPACE`)
   - `errorFingerprint` / `stderrFingerprint` / `commandFingerprint`
 - Use these to group recurring failures without exposing raw git stderr.

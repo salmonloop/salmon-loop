@@ -84,4 +84,32 @@ describe('CheckpointManager observability', () => {
       expect.any(Object),
     );
   });
+
+  it('classifies write-tree build errors into a stable hint code', async () => {
+    gitQueryMock.mockImplementation(async (args: string[]) => {
+      if (args[0] === 'write-tree') {
+        throw Object.assign(
+          new Error('git failed\nStderr: fatal: git-write-tree: error building trees'),
+          {
+            code: 'GIT_ERROR',
+            stderr: 'fatal: git-write-tree: error building trees',
+            command: 'write-tree',
+          },
+        );
+      }
+      return '';
+    });
+
+    const manager = new CheckpointManager();
+    await expect(manager.createSafeSnapshot('/repo')).rejects.toThrow();
+
+    expect(recordAuditEventMock).toHaveBeenCalledWith(
+      'snapshot.create.step.failed',
+      expect.objectContaining({
+        step: 'write-tree',
+        errorHintCode: 'GIT_TREE_BUILD_FAILED',
+      }),
+      expect.any(Object),
+    );
+  });
 });

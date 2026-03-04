@@ -40,10 +40,32 @@ export class CheckpointManager {
     const message = typeof asRecord.message === 'string' ? asRecord.message.toLowerCase() : '';
     const body = `${message}\n${stderr}`;
     if (body.includes('index.lock')) return 'GIT_INDEX_LOCKED';
-    if (body.includes('you need to resolve your current index first')) return 'GIT_INDEX_UNMERGED';
+    if (
+      body.includes('you need to resolve your current index first') ||
+      body.includes('unmerged files')
+    ) {
+      return 'GIT_INDEX_UNMERGED';
+    }
+    if (body.includes('error building trees')) return 'GIT_TREE_BUILD_FAILED';
+    if (body.includes('invalid object') || body.includes('invalid sha1 pointer')) {
+      return 'GIT_OBJECT_CORRUPTED';
+    }
     if (body.includes('not a git repository')) return 'GIT_NOT_REPOSITORY';
+    if (body.includes('must be run in a work tree')) return 'GIT_NOT_WORKTREE';
+    if (body.includes('detected dubious ownership')) return 'GIT_DUBIOUS_OWNERSHIP';
     if (body.includes('permission denied')) return 'GIT_PERMISSION_DENIED';
-    if (body.includes('unable to read index file')) return 'GIT_INDEX_UNREADABLE';
+    if (
+      body.includes('unable to read index file') ||
+      body.includes('index file smaller than expected') ||
+      body.includes('bad index file') ||
+      body.includes('index file corrupt')
+    ) {
+      return 'GIT_INDEX_CORRUPTED';
+    }
+    if (body.includes('unable to write new index file') || body.includes('could not write index')) {
+      return 'GIT_INDEX_WRITE_FAILED';
+    }
+    if (body.includes('no space left on device')) return 'GIT_NO_SPACE';
     return 'GIT_FAILURE_UNKNOWN';
   }
 

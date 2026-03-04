@@ -229,6 +229,12 @@ Related ACP persistence/checkpoint events:
   - `errorFingerprint` (hashed message fingerprint)
   - `stderrFingerprint` (hashed stderr first-line fingerprint when available)
   - `commandFingerprint` (hashed git subcommand fingerprint when available)
+  - Notes:
+    - `errorHintCode` is an extensible enum. Current common values include:
+      `GIT_INDEX_LOCKED`, `GIT_INDEX_UNMERGED`, `GIT_TREE_BUILD_FAILED`,
+      `GIT_INDEX_CORRUPTED`, `GIT_INDEX_WRITE_FAILED`, `GIT_DUBIOUS_OWNERSHIP`,
+      `GIT_NOT_REPOSITORY`, `GIT_NOT_WORKTREE`, `GIT_PERMISSION_DENIED`, `GIT_NO_SPACE`,
+      and `GIT_FAILURE_UNKNOWN`.
 
 ## Permission Decision Events
 
