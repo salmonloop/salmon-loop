@@ -12,6 +12,7 @@ import type {
   LangfuseObservabilityConfigV1,
   MarkdownRenderMode,
   MarkdownTheme,
+  PermissionMode,
   ResolvedConfig,
   ResolvedLlmProvider,
   ToolAuthorizationConfig,
@@ -23,6 +24,7 @@ import {
   DEFAULT_MARKDOWN_THEME,
   DEFAULT_UI_LOG_MODE,
   DEFAULT_UI_LOG_VIEW,
+  normalizePermissionMode,
   normalizeUiLogMode,
   normalizeUiLogView,
 } from './types.js';
@@ -324,6 +326,11 @@ function resolveUiLogMode(raw?: ConfigFileV1): UiLogMode {
   return cfg ?? DEFAULT_UI_LOG_MODE;
 }
 
+function resolvePermissionMode(raw?: ConfigFileV1): PermissionMode {
+  const cfg = normalizePermissionMode(raw?.mode);
+  return cfg ?? 'interactive';
+}
+
 function resolveLangfuseObservability(raw?: ConfigFileV1): {
   enabled: boolean;
   outcome: boolean;
@@ -436,6 +443,7 @@ export async function resolveConfig(opts: ResolveConfigOptions): Promise<Resolve
   });
   const raw = loaded?.config;
   const uiLogMode = resolveUiLogMode(raw);
+  const permissionMode = resolvePermissionMode(raw);
 
   return {
     source: {
@@ -444,6 +452,7 @@ export async function resolveConfig(opts: ResolveConfigOptions): Promise<Resolve
       used: Boolean(loaded),
     },
     raw,
+    permissionMode,
     server: resolveServerConfig(raw),
     context: {
       useTokenBudget: resolveUseTokenBudget(raw),

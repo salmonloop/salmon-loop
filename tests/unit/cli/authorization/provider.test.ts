@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach, afterEach } from 'bun:test';
+import { describe, expect, it, beforeEach, afterEach, mock } from 'bun:test';
 
 mock.module('readline/promises', () => ({
   createInterface: () => {
@@ -23,6 +23,7 @@ describe('createTerminalAuthorizationProvider', () => {
   const originalStdoutIsTTY = Object.getOwnPropertyDescriptor(process.stdout, 'isTTY');
 
   beforeEach(() => {
+    mock.clearAllMocks();
     Object.defineProperty(process.stdin, 'isTTY', { value: true, configurable: true });
     Object.defineProperty(process.stdout, 'isTTY', { value: true, configurable: true });
   });
@@ -93,5 +94,36 @@ describe('createTerminalAuthorizationProvider', () => {
     const resolved = await provider.waitForAuthorization?.('req-2');
     expect(requestNonInteractiveAuthorizationDecision).toHaveBeenCalledTimes(1);
     expect(resolved?.outcome).toBe('allow_once');
+  });
+
+  it('auto-approves without allowlist or prompt when permission mode is yolo', async () => {
+    const { createTerminalAuthorizationProvider } =
+      await import('../../../../src/cli/authorization/provider.js');
+    const { loadAllowlistDecision } =
+      await import('../../../../src/cli/authorization/allowlist.js');
+    const { requestNonInteractiveAuthorizationDecision } =
+      await import('../../../../src/cli/authorization/non-interactive.js');
+
+    const provider = createTerminalAuthorizationProvider({
+      permissionMode: 'yolo' as any,
+      forceNonInteractive: true,
+    });
+    const decision = await provider.requestAuthorization({
+      id: 'req-yolo',
+      toolName: 'Bash',
+      source: 'builtin',
+      phase: 'PATCH',
+      riskLevel: 'high',
+      sideEffects: ['fs_write'],
+      repoRoot: process.cwd(),
+      attemptId: 1,
+      timestamp: Date.now(),
+    });
+
+    expect(decision.outcome).toBe('allow_session');
+    expect(decision.source).toBe('auto');
+    expect(decision.reason).toBe('permission_mode_yolo');
+    expect(loadAllowlistDecision).toHaveBeenCalledTimes(0);
+    expect(requestNonInteractiveAuthorizationDecision).toHaveBeenCalledTimes(0);
   });
 });

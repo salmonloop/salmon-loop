@@ -1,3 +1,4 @@
+import type { PermissionMode } from '../../../core/config/types.js';
 import type { CheckpointStrategy, LLMMessage } from '../../../core/types/index.js';
 import { createTerminalAuthorizationProvider } from '../../authorization/provider.js';
 
@@ -32,6 +33,7 @@ export function buildRunLoopParams(params: {
   headlessIncludeAuthorizationDecisions: boolean;
   allowOutsideCacheRoot: boolean;
   permissionRules?: { allow: string[]; deny: string[] };
+  permissionMode: PermissionMode;
 }) {
   return {
     instruction: params.instruction,
@@ -60,6 +62,7 @@ export function buildRunLoopParams(params: {
       config: params.toolAuthorization,
       extensions: params.extensions,
       forceNonInteractive: params.headlessOutput || params.printMode,
+      permissionMode: params.permissionMode,
     }),
     extensions: params.extensions,
     permissionRules: params.permissionRules,

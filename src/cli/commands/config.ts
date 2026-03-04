@@ -13,6 +13,7 @@ import { text } from '../locales/index.js';
 
 import { allowlistCommand } from './allowlist.js';
 import { llmOutputCommand } from './llm-output.js';
+import { logModeCommand } from './log-mode.js';
 import { modeCommand } from './mode.js';
 import type { Command } from './types.js';
 import { parseSuggestionContext } from './utils.js';
@@ -82,7 +83,6 @@ async function persistUiLogView(repoRoot: string, view: UiLogView) {
 
 const viewSubcommand: Command = {
   name: 'view',
-  aliases: ['log'],
   description: text.cli.configViewDescription,
   usage: text.cli.configViewUsage,
   getSuggestions: ({ input }) => {
@@ -189,6 +189,20 @@ const modeSubcommand: Command = {
     modeCommand.execute({ ...ctx, input: delegateInputToCommand(ctx.input, '/mode') }),
 };
 
+const logModeSubcommand: Command = {
+  name: 'log-mode',
+  aliases: ['log'],
+  description: text.cli.configLogModeDescription,
+  usage: text.cli.configLogModeUsage,
+  getSuggestions: (ctx) =>
+    logModeCommand.getSuggestions?.({
+      ...ctx,
+      input: delegateInputToCommand(ctx.input, '/log-mode'),
+    }) ?? [],
+  execute: async (ctx) =>
+    logModeCommand.execute({ ...ctx, input: delegateInputToCommand(ctx.input, '/log-mode') }),
+};
+
 const outputSubcommand: Command = {
   name: 'output',
   description: text.cli.configOutputDescription,
@@ -227,6 +241,7 @@ function findSubcommand(root: Command, name: string): Command | undefined {
 
 const configSubcommands: Command[] = [
   modeSubcommand,
+  logModeSubcommand,
   viewSubcommand,
   outputSubcommand,
   allowlistSubcommand,

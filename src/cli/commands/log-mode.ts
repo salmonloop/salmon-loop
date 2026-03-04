@@ -6,7 +6,7 @@ import {
 } from '../../core/config/file-format.js';
 import { ConfigError } from '../../core/config/index.js';
 import { getDefaultRepoConfigPaths } from '../../core/config/paths.js';
-import { normalizePermissionMode, type PermissionMode } from '../../core/config/types.js';
+import { normalizeUiLogMode, type UiLogMode } from '../../core/config/types.js';
 import { validateConfigFileV1 } from '../../core/config/validate.js';
 import { sanitizeError } from '../../core/llm/errors.js';
 import { text } from '../locales/index.js';
@@ -14,7 +14,7 @@ import { text } from '../locales/index.js';
 import type { Command } from './types.js';
 import { parseSuggestionContext } from './utils.js';
 
-const MODE_SUGGESTIONS: PermissionMode[] = ['interactive', 'yolo'];
+const LOG_MODE_SUGGESTIONS: UiLogMode[] = ['quiet', 'normal', 'debug'];
 
 async function resolveConfigPathForReadWrite(
   fileAdapter: FileAdapter,
@@ -27,7 +27,7 @@ async function resolveConfigPathForReadWrite(
   return candidates[0];
 }
 
-async function readPermissionModeFromConfig(repoRoot: string): Promise<PermissionMode | undefined> {
+async function readUiLogModeFromConfig(repoRoot: string): Promise<UiLogMode | undefined> {
   const fileAdapter = new FileAdapter();
   const configPath = await resolveConfigPathForReadWrite(fileAdapter, repoRoot);
   const exists = await fileAdapter.exists(configPath);
@@ -35,10 +35,10 @@ async function readPermissionModeFromConfig(repoRoot: string): Promise<Permissio
   const raw = await fileAdapter.readFile(configPath);
   const parsed = parseConfigText(raw, configPath);
   const validated = validateConfigFileV1(parsed);
-  return normalizePermissionMode(validated.mode);
+  return validated.ui?.log?.mode;
 }
 
-async function persistPermissionMode(repoRoot: string, mode: PermissionMode) {
+async function persistUiLogMode(repoRoot: string, mode: UiLogMode) {
   const fileAdapter = new FileAdapter();
   const configPath = await resolveConfigPathForReadWrite(fileAdapter, repoRoot);
   const exists = await fileAdapter.exists(configPath);
@@ -54,45 +54,52 @@ async function persistPermissionMode(repoRoot: string, mode: PermissionMode) {
   if (!baseConfig.version) {
     baseConfig.version = 1;
   }
-  baseConfig.mode = mode;
+
+  baseConfig.ui = {
+    ...(baseConfig.ui ?? {}),
+    log: {
+      ...(baseConfig.ui?.log ?? {}),
+      mode,
+    },
+  };
 
   const format = detectConfigFileFormat(configPath);
   await fileAdapter.writeFile(configPath, stringifyConfigText(baseConfig, format));
   return configPath;
 }
 
-export const modeCommand: Command = {
-  name: '/mode',
-  description: text.cli.commandMode,
-  order: 53,
+export const logModeCommand: Command = {
+  name: '/log-mode',
+  description: text.cli.commandLogMode,
+  order: 54,
   hidden: true,
   getSuggestions: ({ input }) => {
     const { argIndex, currentPrefix } = parseSuggestionContext(input);
     if (argIndex !== 1) return [];
     const search = currentPrefix.toLowerCase();
-    return MODE_SUGGESTIONS.filter((m) => m.startsWith(search)).map((m) => ({
+    return LOG_MODE_SUGGESTIONS.filter((m) => m.startsWith(search)).map((m) => ({
       name: m,
-      description: text.cli.modeSuggestion(m),
+      description: text.cli.logModeSuggestion(m),
     }));
   },
-  execute: async ({ emit, input, sessionManager }) => {
+  execute: async ({ emit, input, sessionManager, dispatch }) => {
     const args = input.trim().split(/\s+/).slice(1);
     const rawValue = args[0];
     const repoRoot = sessionManager.getCurrent().meta.repoPath;
 
     if (!rawValue) {
       try {
-        const current = (await readPermissionModeFromConfig(repoRoot)) ?? 'interactive';
+        const current = (await readUiLogModeFromConfig(repoRoot)) ?? 'normal';
         emit({
           type: 'log',
           level: 'info',
-          message: text.cli.modeCurrent(current),
+          message: text.cli.logModeCurrent(current),
           timestamp: new Date(),
         });
         emit({
           type: 'log',
           level: 'info',
-          message: text.cli.modeUsage,
+          message: text.cli.logModeUsage,
           timestamp: new Date(),
         });
         return;
@@ -104,42 +111,43 @@ export const modeCommand: Command = {
         emit({
           type: 'log',
           level: 'error',
-          message: text.cli.modePersistFailed(message),
+          message: text.cli.logModePersistFailed(message),
           timestamp: new Date(),
         });
         return;
       }
     }
 
-    const normalized = normalizePermissionMode(rawValue);
+    const normalized = normalizeUiLogMode(rawValue);
     if (!normalized) {
       emit({
         type: 'log',
         level: 'error',
-        message: text.cli.modeInvalid(rawValue),
+        message: text.cli.logModeInvalid(rawValue),
         timestamp: new Date(),
       });
       emit({
         type: 'log',
         level: 'info',
-        message: text.cli.modeUsage,
+        message: text.cli.logModeUsage,
         timestamp: new Date(),
       });
       return;
     }
 
     try {
-      const configPath = await persistPermissionMode(repoRoot, normalized);
+      const configPath = await persistUiLogMode(repoRoot, normalized);
+      dispatch?.({ type: 'SET_LOG_MODE', payload: normalized });
       emit({
         type: 'log',
         level: 'info',
-        message: text.cli.modeUpdated(normalized),
+        message: text.cli.logModeUpdated(normalized),
         timestamp: new Date(),
       });
       emit({
         type: 'log',
         level: 'info',
-        message: text.cli.modePersisted(configPath),
+        message: text.cli.logModePersisted(configPath),
         timestamp: new Date(),
       });
     } catch (error) {
@@ -150,7 +158,7 @@ export const modeCommand: Command = {
       emit({
         type: 'log',
         level: 'error',
-        message: text.cli.modePersistFailed(message),
+        message: text.cli.logModePersistFailed(message),
         timestamp: new Date(),
       });
     }

@@ -2,7 +2,7 @@ import { resolve } from 'path';
 
 import { Command } from 'commander';
 
-import { resolveConfig } from '../../core/config/index.js';
+import { normalizePermissionMode, resolveConfig } from '../../core/config/index.js';
 import { resolveExtensions, ExtensionConfigError } from '../../core/extensions/index.js';
 import { createRuntimeLlm } from '../../core/llm/factory.js';
 import { logger } from '../../core/observability/logger.js';
@@ -52,6 +52,14 @@ export async function handleChatCommand(options: any, command: Command) {
     process.exit(1);
   }
   const auditScope = auditScopeResolution.value;
+  const rawPermissionMode = allOptions.mode ?? resolvedConfig.permissionMode ?? 'interactive';
+  const permissionMode = normalizePermissionMode(rawPermissionMode);
+  if (!permissionMode) {
+    logger.error(
+      `Invalid --mode "${String(rawPermissionMode)}". Expected "interactive" or "yolo".`,
+    );
+    process.exit(1);
+  }
 
   const llmOutputResolution = resolveLlmOutputPolicyFromCli(
     resolvedConfig.llmOutput,
@@ -107,7 +115,12 @@ export async function handleChatCommand(options: any, command: Command) {
       repoPath: runPath,
       llm,
       verifyCommand,
-      checkpointStrategy: allOptions.checkpointStrategy || 'worktree',
+      checkpointStrategy:
+        permissionMode === 'yolo' &&
+        typeof command.getOptionValueSource === 'function' &&
+        command.getOptionValueSource('checkpointStrategy') !== 'cli'
+          ? 'direct'
+          : allOptions.checkpointStrategy || 'worktree',
       continue: continueSession,
       resumeSessionId,
       verbose: allOptions.verbose,
@@ -118,6 +131,7 @@ export async function handleChatCommand(options: any, command: Command) {
       uiLogMode: resolvedConfig.ui.logMode,
       astValidation: resolvedConfig.astValidation,
       toolAuthorization: resolvedConfig.toolAuthorization,
+      permissionMode,
       extensions: extensionResolution.resolved,
       outcomeReporter,
       auditScope,

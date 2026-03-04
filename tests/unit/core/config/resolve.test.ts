@@ -74,4 +74,24 @@ describe('resolveConfig (security/observability)', () => {
     expect(resolved.server?.sidecar?.socket).toBe('/tmp/agent-message.sock');
     expect(resolved.server?.sidecar?.allowConditional).toBe(true);
   });
+
+  it('uses interactive as default permission mode', async () => {
+    tryLoadConfigFileMock.mockResolvedValue(undefined);
+    const resolved = await resolveConfig({ repoRoot: '/repo' });
+
+    expect(resolved.permissionMode).toBe('interactive');
+  });
+
+  it('resolves permission mode from config', async () => {
+    tryLoadConfigFileMock.mockResolvedValue({
+      config: {
+        mode: 'yolo',
+      },
+      path: '/repo/.salmonloop/config.json',
+    });
+
+    const resolved = await resolveConfig({ repoRoot: '/repo' });
+
+    expect(resolved.permissionMode).toBe('yolo');
+  });
 });

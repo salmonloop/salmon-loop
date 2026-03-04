@@ -20,8 +20,8 @@ export const en = {
   chatCommandHistory: '  /history      - Show iteration history',
   chatCommandQueue: '  /queue        - Manage the chat queue',
   chatCommandAuth: '  /config allowlist - Manage tool allowlist',
-  chatCommandMode: '  /config mode      - Set UI verbosity (quiet/normal/debug)',
-  chatCommandConfig: '  /config           - Settings (mode/view/output/allowlist)',
+  chatCommandMode: '  /config mode      - Set permission mode (interactive/yolo)',
+  chatCommandConfig: '  /config           - Settings (mode/log-mode/view/output/allowlist)',
   chatSessionSaved: 'Session saved. Goodbye!',
   chatThinking: 'Thinking...',
   chatSuccess: (files: string) => `Changes applied successfully.\n\nFiles changed: ${files}`,
@@ -77,8 +77,9 @@ export const en = {
   commandSessions: 'List all chat sessions',
   commandQueue: 'Manage the chat queue',
   commandLlmOutput: 'Set which LLM sections are shown in the UI (advanced)',
-  commandMode: 'Set UI verbosity (quiet|normal|debug) and save to config',
-  commandConfig: 'Settings hub (mode, view, output, allowlist)',
+  commandMode: 'Set permission mode (interactive|yolo) and save to config',
+  commandLogMode: 'Set UI verbosity (quiet|normal|debug) and save to config',
+  commandConfig: 'Settings hub (mode, log-mode, view, output, allowlist)',
   commandAuth: 'Manage tool allowlist',
   commandParallel: 'Manage parallel plans',
   commandSubagent: 'Consult or dispatch a Smallfry (sub-agent)',
@@ -113,26 +114,39 @@ export const en = {
   llmOutputUnavailable: 'LLM output configuration is unavailable in this mode.',
   llmOutputPersisted: (path: string) => `LLM output settings saved to ${path}`,
   llmOutputPersistFailed: (reason: string) => `Failed to save LLM output settings: ${reason}`,
-  modeUsage: 'Usage: /config mode <quiet|normal|debug>',
+  modeUsage: 'Usage: /mode <interactive|yolo>',
   modeSuggestion: (mode: string) => {
+    if (mode === 'interactive') return 'Interactive permission checks and allowlist rules';
+    if (mode === 'yolo') return 'Bypass prompts, allowlist, and permission rules';
+    return `Set permission mode to ${mode}`;
+  },
+  modeCurrent: (mode: string) => `Current permission mode: ${mode}`,
+  modeInvalid: (mode: string) => `Invalid mode: ${mode}. Expected one of: interactive, yolo.`,
+  modeUpdated: (mode: string) => `Permission mode updated: ${mode}`,
+  modePersisted: (path: string) => `Permission mode saved to ${path}`,
+  modePersistFailed: (error: string) => `Failed to save permission mode: ${error}`,
+  logModeUsage: 'Usage: /log-mode <quiet|normal|debug>',
+  logModeSuggestion: (mode: string) => {
     if (mode === 'quiet') return 'Quiet: show errors only';
     if (mode === 'normal') return 'Normal: recommended (key steps + warnings/errors)';
     if (mode === 'debug') return 'Debug: verbose (all logs + tool details)';
     return `Set UI verbosity to ${mode}`;
   },
-  modeCurrent: (mode: string) => `Current UI verbosity: ${mode}`,
-  modeInvalid: (mode: string) =>
+  logModeCurrent: (mode: string) => `Current UI verbosity: ${mode}`,
+  logModeInvalid: (mode: string) =>
     `Invalid log mode: ${mode}. Expected one of: quiet, normal, debug.`,
-  modeUpdated: (mode: string) => `UI log mode updated: ${mode}`,
-  modePersisted: (path: string) => `UI log mode saved to ${path}`,
-  modePersistFailed: (error: string) => `Failed to save UI log mode: ${error}`,
+  logModeUpdated: (mode: string) => `UI log mode updated: ${mode}`,
+  logModePersisted: (path: string) => `UI log mode saved to ${path}`,
+  logModePersistFailed: (error: string) => `Failed to save UI log mode: ${error}`,
   configUsage: [
-    'Usage: /config <mode|view|output|allowlist>',
-    'Subcommands: mode, view, output, allowlist',
+    'Usage: /config <mode|log-mode|view|output|allowlist>',
+    'Subcommands: mode, log-mode, view, output, allowlist',
   ].join('\n'),
   configUnknownSubcommand: (name: string) => `Unknown subcommand: ${name}`,
-  configModeDescription: 'UI verbosity (quiet/normal/debug)',
-  configModeUsage: 'Usage: /config mode <quiet|normal|debug>',
+  configModeDescription: 'Permission mode (interactive/yolo)',
+  configModeUsage: 'Usage: /config mode <interactive|yolo>',
+  configLogModeDescription: 'UI verbosity (quiet/normal/debug)',
+  configLogModeUsage: 'Usage: /config log-mode <quiet|normal|debug>',
   configViewDescription: 'Set UI density (compact|standard|full) and save to config',
   configViewUsage: 'Usage: /config view <full|standard|compact>',
   configViewSuggestion: (view: string) => `Set UI density to ${view}`,
@@ -252,6 +266,7 @@ export const en = {
   preflightPolicyOption:
     'Preflight policy (lenient: continue on test failure, strict: fail on test failure)',
   checkpointStrategyOption: 'Checkpoint strategy to use (direct, worktree)',
+  permissionModeOption: 'Permission mode (interactive, yolo)',
   environmentModeOption: 'Worktree environment mode (strict, parity)',
   applyBackOnDirtyOption: 'Behavior when apply-back detects a dirty workspace (3way, abort)',
   worktreePrepareOption: 'Optional setup command to run inside worktree',

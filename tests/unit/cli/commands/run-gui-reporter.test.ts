@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
+import { describe, it, expect, beforeEach, afterEach, mock, spyOn } from 'bun:test';
 
 const hoisted = (() => ({
   standardReporterCtor: mock(),
@@ -34,6 +34,13 @@ mock.module('../../../../src/core/plugin/loader.js', () => ({
 
 mock.module('../../../../src/core/config/index.js', () => ({
   ConfigError: class ConfigError extends Error {},
+  normalizePermissionMode: (raw: unknown) => {
+    const v = String(raw ?? '')
+      .trim()
+      .toLowerCase();
+    if (v === 'interactive' || v === 'yolo') return v;
+    return undefined;
+  },
   resolveConfig: mock(async () => ({
     raw: { version: 1 },
     source: { used: false, path: undefined },
@@ -210,7 +217,7 @@ describe('handleRunCommand GUI mode', () => {
         repo: process.cwd(),
         print: undefined,
         instruction: 'test',
-        mode: 'patch',
+        mode: 'interactive',
         configFile: true,
         config: undefined,
         printConfig: false,
@@ -249,7 +256,7 @@ describe('handleRunCommand GUI mode', () => {
         repo: process.cwd(),
         print: undefined,
         instruction: 'test',
-        mode: 'patch',
+        mode: 'interactive',
         configFile: true,
         config: undefined,
         printConfig: false,
@@ -291,7 +298,7 @@ describe('handleRunCommand GUI mode', () => {
         repo: process.cwd(),
         print: undefined,
         instruction: 'test',
-        mode: 'patch',
+        mode: 'interactive',
         configFile: true,
         config: undefined,
         printConfig: false,
@@ -334,7 +341,7 @@ describe('handleRunCommand GUI mode', () => {
         repo: process.cwd(),
         print: 'test',
         instruction: undefined,
-        mode: 'patch',
+        mode: 'interactive',
         configFile: true,
         config: undefined,
         printConfig: false,

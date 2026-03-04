@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 
 import type { Command } from 'commander';
 
+import { normalizePermissionMode } from '../../../core/config/index.js';
 import { logger } from '../../../core/observability/logger.js';
 import { getExitCode } from '../../../core/runtime/exit-codes.js';
 import type { ChatSessionManager } from '../../../core/session/manager.js';
@@ -227,6 +228,15 @@ export async function handleRunCommand(options: any, command: Command) {
   }
 
   const instructionText = instruction as string;
+  const rawPermissionMode = allOptions.mode ?? resolvedConfig.permissionMode ?? 'interactive';
+  const permissionMode = normalizePermissionMode(rawPermissionMode);
+  if (!permissionMode) {
+    logger.error(
+      `Invalid --mode "${String(rawPermissionMode)}". Expected "interactive" or "yolo".`,
+    );
+    process.exitCode = 1;
+    return;
+  }
 
   const rawMode = String(allOptions.actMode || 'patch');
   const mode = resolveRunMode(rawMode);
@@ -378,7 +388,12 @@ export async function handleRunCommand(options: any, command: Command) {
       file: allOptions.file,
       selection: allOptions.selection,
       verbose: verboseLevel,
-      checkpointStrategy: allOptions.checkpointStrategy as CheckpointStrategy,
+      checkpointStrategy:
+        permissionMode === 'yolo' &&
+        typeof command.getOptionValueSource === 'function' &&
+        command.getOptionValueSource('checkpointStrategy') !== 'cli'
+          ? ('direct' as CheckpointStrategy)
+          : (allOptions.checkpointStrategy as CheckpointStrategy),
       environmentMode: rawEnvironmentMode,
       applyBackOnDirty,
       worktreePrepare: effectiveWorktreePrepare,
@@ -397,9 +412,12 @@ export async function handleRunCommand(options: any, command: Command) {
       headlessIncludeAuthorizationDecisions,
       allowOutsideCacheRoot,
       permissionRules:
-        allowedToolRules.length > 0 || disallowedToolRules.length > 0
-          ? { allow: allowedToolRules, deny: disallowedToolRules }
-          : undefined,
+        permissionMode === 'yolo'
+          ? undefined
+          : allowedToolRules.length > 0 || disallowedToolRules.length > 0
+            ? { allow: allowedToolRules, deny: disallowedToolRules }
+            : undefined,
+      permissionMode,
     });
 
     const buildAssistantMessage = (result: LoopResult) =>
@@ -413,6 +431,7 @@ export async function handleRunCommand(options: any, command: Command) {
       llmOutput,
       buildAssistantMessage,
       toolAuthorizationConfig: resolvedConfig.toolAuthorization,
+      permissionMode,
       guiConfig: {
         markdownTheme: resolvedConfig.markdownTheme,
         markdownRenderMode: resolvedConfig.markdownRenderMode,

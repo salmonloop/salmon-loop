@@ -1,6 +1,6 @@
 import { createInterface } from 'readline/promises';
 
-import type { ToolAuthorizationConfig } from '../../core/config/types.js';
+import type { PermissionMode, ToolAuthorizationConfig } from '../../core/config/types.js';
 import type { ResolvedExtensions } from '../../core/extensions/types.js';
 import { logger } from '../../core/observability/logger.js';
 import type {
@@ -58,6 +58,7 @@ export function createUiAuthorizationProvider(options?: {
     message: string;
   }) => void;
   config?: ToolAuthorizationConfig;
+  permissionMode?: PermissionMode;
 }): ToolAuthorizationProvider {
   const pending = new Map<string, Promise<AuthorizationDecision>>();
   const resolved = new Map<string, AuthorizationDecision>();
@@ -126,6 +127,19 @@ export function createUiAuthorizationProvider(options?: {
 
     async requestAuthorizationDeferred(request: ToolAuthorizationRequest) {
       const config = resolveConfig(options?.config);
+      if (options?.permissionMode === 'yolo') {
+        return {
+          kind: 'decision',
+          decision: applySessionTtl(
+            {
+              outcome: 'allow_session',
+              source: 'auto',
+              reason: 'permission_mode_yolo',
+            },
+            config,
+          ),
+        } as const;
+      }
 
       const cached = resolved.get(request.id);
       if (cached) {
@@ -256,6 +270,16 @@ export function createUiAuthorizationProvider(options?: {
 
     async requestAuthorization(request: ToolAuthorizationRequest): Promise<AuthorizationDecision> {
       const config = resolveConfig(options?.config);
+      if (options?.permissionMode === 'yolo') {
+        return applySessionTtl(
+          {
+            outcome: 'allow_session',
+            source: 'auto',
+            reason: 'permission_mode_yolo',
+          },
+          config,
+        );
+      }
       const allowlistDecision = await loadAllowlistDecision({
         config,
         repoRoot: request.repoRoot,
@@ -321,6 +345,7 @@ export function createTerminalAuthorizationProvider(options?: {
   config?: ToolAuthorizationConfig;
   extensions?: ResolvedExtensions;
   forceNonInteractive?: boolean;
+  permissionMode?: PermissionMode;
 }): ToolAuthorizationProvider {
   const forceNonInteractive = Boolean(options?.forceNonInteractive);
   const deferredRequests = new Map<string, ToolAuthorizationRequest>();
@@ -351,6 +376,19 @@ export function createTerminalAuthorizationProvider(options?: {
 
     async requestAuthorizationDeferred(request: ToolAuthorizationRequest) {
       const config = resolveConfig(options?.config);
+      if (options?.permissionMode === 'yolo') {
+        return {
+          kind: 'decision',
+          decision: applySessionTtl(
+            {
+              outcome: 'allow_session',
+              source: 'auto',
+              reason: 'permission_mode_yolo',
+            },
+            config,
+          ),
+        } as const;
+      }
       if (shouldUseForcedDeferred(request, config)) {
         deferredRequests.set(request.id, request);
         return {
@@ -365,6 +403,16 @@ export function createTerminalAuthorizationProvider(options?: {
 
     async requestAuthorization(request: ToolAuthorizationRequest): Promise<AuthorizationDecision> {
       const config = resolveConfig(options?.config);
+      if (options?.permissionMode === 'yolo') {
+        return applySessionTtl(
+          {
+            outcome: 'allow_session',
+            source: 'auto',
+            reason: 'permission_mode_yolo',
+          },
+          config,
+        );
+      }
       const allowlistDecision = await loadAllowlistDecision({
         config,
         repoRoot: request.repoRoot,

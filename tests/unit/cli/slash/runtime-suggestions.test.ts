@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it, mock } from 'bun:test';
 
 import { configCommand } from '../../../../src/cli/commands/config.js';
 import { snapshotInteractiveCommand } from '../../../../src/cli/commands/snapshot-interactive.js';
@@ -28,6 +28,8 @@ describe('CliSlashRuntime suggestions', () => {
     });
 
     const names = suggestions.map((s) => s.name.trim());
+    expect(names).toContain('mode');
+    expect(names).toContain('log-mode');
     expect(names).toContain('view');
 
     const aliasSuggestions = await runtime.getSuggestions('/config l', {

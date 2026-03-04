@@ -7,6 +7,7 @@ export type {
   LlmOutputConfig,
   MarkdownRenderMode,
   MarkdownTheme,
+  PermissionMode,
   ResolvedConfig,
   ToolAuthorizationConfig,
 } from './types.js';
@@ -15,4 +16,5 @@ export {
   DEFAULT_MARKDOWN_THEME,
   MARKDOWN_RENDER_MODES,
   MARKDOWN_THEMES,
+  normalizePermissionMode,
 } from './types.js';

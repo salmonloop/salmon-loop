@@ -5,6 +5,7 @@ export type ConfigVersion = 1;
 export type Verbosity = 'quiet' | 'basic' | 'verbose' | 'extended';
 export type StrategyMode = 'direct' | 'worktree';
 export type AstValidationStrictness = 'lenient' | 'strict';
+export type PermissionMode = 'interactive' | 'yolo';
 
 export type LlmProviderType =
   | 'openai-compatible'
@@ -48,8 +49,18 @@ export function normalizeUiLogMode(raw: unknown): UiLogMode | undefined {
   return undefined;
 }
 
+export function normalizePermissionMode(raw: unknown): PermissionMode | undefined {
+  const value = String(raw ?? '')
+    .trim()
+    .toLowerCase();
+  if (value === 'interactive') return 'interactive';
+  if (value === 'yolo') return 'yolo';
+  return undefined;
+}
+
 export interface ConfigFileV1 {
   version?: ConfigVersion;
+  mode?: PermissionMode;
 
   cli?: {
     defaults?: {
@@ -269,6 +280,7 @@ export interface ResolvedConfig {
     used: boolean;
   };
   raw?: ConfigFileV1;
+  permissionMode: PermissionMode;
   server?: {
     a2a?: {
       host?: string;

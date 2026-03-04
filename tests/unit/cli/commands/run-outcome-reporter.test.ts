@@ -3,21 +3,11 @@ import { describe, expect, it, mock } from 'bun:test';
 const hoisted = (() => ({
   reporterCalls: [] as Array<Record<string, unknown>>,
   loopParamsCalls: [] as Array<Record<string, unknown>>,
-}))();
-
-mock.module('../../../../src/cli/utils/outcome-reporter.js', () => ({
-  createOutcomeReporter: mock((params: Record<string, unknown>) => {
-    hoisted.reporterCalls.push(params);
-    return { type: 'outcome-reporter' };
-  }),
-}));
-
-mock.module('../../../../src/cli/commands/run/parse-options.js', () => ({
-  parseRunCommandOptions: mock(() => ({
+  parsedOptions: {
     allOptions: {
       gui: false,
       validate: false,
-      mode: 'patch',
+      mode: 'interactive',
       verbose: false,
       dryRun: false,
       forceReset: false,
@@ -43,9 +33,20 @@ mock.module('../../../../src/cli/commands/run/parse-options.js', () => ({
     allowOutsideCacheRoot: false,
     instruction: 'fix bug',
     auditScope: 'user',
-    allowedToolRules: [],
-    disallowedToolRules: [],
-  })),
+    allowedToolRules: [] as string[],
+    disallowedToolRules: [] as string[],
+  },
+}))();
+
+mock.module('../../../../src/cli/utils/outcome-reporter.js', () => ({
+  createOutcomeReporter: mock((params: Record<string, unknown>) => {
+    hoisted.reporterCalls.push(params);
+    return { type: 'outcome-reporter' };
+  }),
+}));
+
+mock.module('../../../../src/cli/commands/run/parse-options.js', () => ({
+  parseRunCommandOptions: mock(() => hoisted.parsedOptions),
 }));
 
 mock.module('../../../../src/cli/commands/run/early-errors.js', () => ({
@@ -187,5 +188,47 @@ describe('handleRunCommand outcome reporter', () => {
       proxyApiKeyEnv: process.env.SALMONLOOP_LANGFUSE_PROXY_API_KEY,
     });
     expect(hoisted.loopParamsCalls[0]?.auditScope).toBe('user');
+  });
+
+  it('defaults checkpoint strategy to direct when permission mode is yolo and strategy is implicit default', async () => {
+    hoisted.parsedOptions = {
+      ...hoisted.parsedOptions,
+      allOptions: {
+        ...hoisted.parsedOptions.allOptions,
+        mode: 'yolo',
+        checkpointStrategy: 'worktree',
+      },
+    };
+    hoisted.loopParamsCalls.length = 0;
+
+    const { handleRunCommand } = await import('../../../../src/cli/commands/run/handler.js');
+    const command: any = {
+      optsWithGlobals: () => ({}),
+      getOptionValueSource: (name: string) => (name === 'checkpointStrategy' ? 'default' : 'cli'),
+    };
+
+    await handleRunCommand({}, command);
+
+    expect(hoisted.loopParamsCalls[0]?.checkpointStrategy).toBe('direct');
+  });
+
+  it('ignores cli permission rules when permission mode is yolo', async () => {
+    hoisted.parsedOptions = {
+      ...hoisted.parsedOptions,
+      allOptions: {
+        ...hoisted.parsedOptions.allOptions,
+        mode: 'yolo',
+      },
+      allowedToolRules: ['Bash(ls *)'],
+      disallowedToolRules: ['Bash(rm *)'],
+    };
+    hoisted.loopParamsCalls.length = 0;
+
+    const { handleRunCommand } = await import('../../../../src/cli/commands/run/handler.js');
+    const command: any = { optsWithGlobals: () => ({}) };
+
+    await handleRunCommand({}, command);
+
+    expect(hoisted.loopParamsCalls[0]?.permissionRules).toBeUndefined();
   });
 });

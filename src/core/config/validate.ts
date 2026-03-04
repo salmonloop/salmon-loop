@@ -5,6 +5,7 @@ import {
   MARKDOWN_RENDER_MODES,
   MARKDOWN_THEMES,
   type ConfigFileV1,
+  normalizePermissionMode,
   normalizeUiLogMode,
   normalizeUiLogView,
   type LangfuseObservabilityConfigV1,
@@ -51,6 +52,17 @@ export function validateConfigFileV1(input: unknown): ConfigFileV1 {
   }
 
   const cfg: ConfigFileV1 = { version: 1 };
+
+  if ((input as any).mode !== undefined) {
+    if (!isString((input as any).mode)) {
+      throw new ConfigError('CONFIG_INVALID_MODE', { expected: 'interactive|yolo' });
+    }
+    const normalized = normalizePermissionMode((input as any).mode);
+    if (!normalized) {
+      throw new ConfigError('CONFIG_INVALID_MODE', { mode: String((input as any).mode) });
+    }
+    cfg.mode = normalized;
+  }
 
   if (input.observability !== undefined) {
     if (!isRecord(input.observability)) {

@@ -14,6 +14,7 @@ export async function executeRunLoop(params: {
   llmOutput: any;
   buildAssistantMessage: (result: LoopResult) => string;
   toolAuthorizationConfig?: any;
+  permissionMode?: 'interactive' | 'yolo';
   guiConfig?: UIConfig;
 }): Promise<LoopResult> {
   const build = params.buildAssistantMessage;
@@ -27,6 +28,7 @@ export async function executeRunLoop(params: {
         const authorizationProvider = createUiAuthorizationProvider({
           emit: (event) => emit({ ...event, timestamp: new Date() }),
           config: params.toolAuthorizationConfig,
+          permissionMode: params.permissionMode,
         });
         const runResult = await runSalmonLoop({
           ...(params.loopParams as any),

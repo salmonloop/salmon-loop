@@ -13,6 +13,13 @@ mock.module('../../../../src/cli/utils/outcome-reporter.js', () => ({
 }));
 
 mock.module('../../../../src/core/config/index.js', () => ({
+  normalizePermissionMode: (raw: unknown) => {
+    const v = String(raw ?? '')
+      .trim()
+      .toLowerCase();
+    if (v === 'interactive' || v === 'yolo') return v;
+    return undefined;
+  },
   resolveConfig: mock(async () => ({
     llm: { api: { baseUrl: 'https://llm.example.test', apiKey: 'llm-key' } },
     llmOutput: { kinds: [] },

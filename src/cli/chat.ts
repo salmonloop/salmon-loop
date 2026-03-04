@@ -2,6 +2,7 @@ import { runAnswerExecutor } from '../core/answer/answer-executor.js';
 import type {
   MarkdownRenderMode,
   MarkdownTheme,
+  PermissionMode,
   ToolAuthorizationConfig,
 } from '../core/config/index.js';
 import type { UiLogMode, UiLogView } from '../core/config/types.js';
@@ -55,6 +56,7 @@ export interface ChatModeOptions {
   uiLogMode?: UiLogMode;
   astValidation?: { strictness?: 'lenient' | 'strict' };
   toolAuthorization?: ToolAuthorizationConfig;
+  permissionMode?: PermissionMode;
   extensions?: ResolvedExtensions;
   outcomeReporter?: RunOutcomeReporter;
   auditScope?: 'repo' | 'user';
@@ -117,6 +119,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
       latestEmit?.({ ...event, timestamp: new Date() });
     },
     config: options.toolAuthorization,
+    permissionMode: options.permissionMode,
   });
 
   const userInputProvider: UserInputProvider = {

@@ -261,3 +261,29 @@ describe('validateConfigFileV1 (output.llm)', () => {
     ).toThrow(/CONFIG_INVALID_LLM_OUTPUT_KIND/);
   });
 });
+
+describe('validateConfigFileV1 (permission mode)', () => {
+  it('accepts interactive permission mode', () => {
+    const parsed = validateConfigFileV1({
+      mode: 'interactive',
+    });
+
+    expect(parsed.mode).toBe('interactive');
+  });
+
+  it('accepts yolo permission mode', () => {
+    const parsed = validateConfigFileV1({
+      mode: 'yolo',
+    });
+
+    expect(parsed.mode).toBe('yolo');
+  });
+
+  it('rejects invalid permission mode', () => {
+    expect(() =>
+      validateConfigFileV1({
+        mode: 'fast',
+      }),
+    ).toThrow(/CONFIG_INVALID_MODE/);
+  });
+});
