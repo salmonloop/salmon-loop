@@ -243,9 +243,7 @@ function buildLangfuseHttpFailed(details: unknown): ErrorAuditOutput | undefined
   };
 }
 
-export function mapAuditTrailToError(
-  events: AuditTrailEvent[],
-): ErrorAuditOutput | undefined {
+export function mapAuditTrailToError(events: AuditTrailEvent[]): ErrorAuditOutput | undefined {
   for (let i = events.length - 1; i >= 0; i -= 1) {
     const event = events[i];
     if (!event) continue;
