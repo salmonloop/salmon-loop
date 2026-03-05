@@ -99,7 +99,7 @@ export function createA2ARoutes(deps: {
         return response ?? new Response('Not Found', { status: 404 });
       }
 
-      if (request.method === 'POST' && url.pathname === '/rpc') {
+      if (request.method === 'POST' && url.pathname === '/a2a/jsonrpc') {
         let payload: unknown;
         try {
           payload = await request.json();

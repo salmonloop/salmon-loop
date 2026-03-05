@@ -42,7 +42,7 @@ describe('A2A server integration', () => {
     expect(cardResponse.status).toBe(200);
 
     const rpcResponse = await server.fetch(
-      new Request('https://example.com/rpc', {
+      new Request('https://example.com/a2a/jsonrpc', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
@@ -106,7 +106,7 @@ describe('A2A server integration', () => {
     const server = createA2AHttpServer({ routes });
 
     const unauthorizedResponse = await server.fetch(
-      new Request('https://example.com/rpc', {
+      new Request('https://example.com/a2a/jsonrpc', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
@@ -125,7 +125,7 @@ describe('A2A server integration', () => {
     expect(unauthorizedResponse.status).toBe(401);
 
     const authorizedResponse = await server.fetch(
-      new Request('https://example.com/rpc', {
+      new Request('https://example.com/a2a/jsonrpc', {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
@@ -180,7 +180,7 @@ describe('A2A server integration', () => {
 
     const server = createA2AHttpServer({ routes });
     const response = await server.fetch(
-      new Request('https://example.com/rpc', {
+      new Request('https://example.com/a2a/jsonrpc', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
@@ -256,7 +256,7 @@ describe('A2A server integration', () => {
     const server = createA2AHttpServer({ routes });
 
     const submitResponse = await server.fetch(
-      new Request('https://example.com/rpc', {
+      new Request('https://example.com/a2a/jsonrpc', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
@@ -285,7 +285,7 @@ describe('A2A server integration', () => {
     });
 
     const artifactResponse = await server.fetch(
-      new Request('https://example.com/rpc', {
+      new Request('https://example.com/a2a/jsonrpc', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
@@ -362,7 +362,7 @@ describe('A2A server integration', () => {
 
     const server = createA2AHttpServer({ routes });
     const retryResponse = await server.fetch(
-      new Request('https://example.com/rpc', {
+      new Request('https://example.com/a2a/jsonrpc', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
@@ -391,7 +391,7 @@ describe('A2A server integration', () => {
     });
 
     const reopenResponse = await server.fetch(
-      new Request('https://example.com/rpc', {
+      new Request('https://example.com/a2a/jsonrpc', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
@@ -461,7 +461,7 @@ describe('A2A server integration', () => {
 
     const server = createA2AHttpServer({ routes });
     const response = await server.fetch(
-      new Request('https://example.com/rpc', {
+      new Request('https://example.com/a2a/jsonrpc', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
@@ -556,7 +556,7 @@ describe('A2A server integration', () => {
 
     const server = createA2AHttpServer({ routes });
     const artifactResponse = await server.fetch(
-      new Request('https://example.com/rpc', {
+      new Request('https://example.com/a2a/jsonrpc', {
         method: 'POST',
         headers: {
           authorization: 'Bearer secret-token',
@@ -652,7 +652,7 @@ describe('A2A server integration', () => {
     const server = createA2AHttpServer({ routes });
 
     const resumeResponse = await server.fetch(
-      new Request('https://example.com/rpc', {
+      new Request('https://example.com/a2a/jsonrpc', {
         method: 'POST',
         headers: {
           authorization: 'Bearer secret-token',

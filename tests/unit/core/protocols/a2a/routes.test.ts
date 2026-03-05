@@ -81,7 +81,7 @@ describe('A2A routes', () => {
     });
 
     const response = await routes.handle(
-      new Request('https://example.com/rpc', {
+      new Request('https://example.com/a2a/jsonrpc', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: '{bad-json',
@@ -125,7 +125,7 @@ describe('A2A routes', () => {
     });
 
     const response = await routes.handle(
-      new Request('https://example.com/rpc', {
+      new Request('https://example.com/a2a/jsonrpc', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
@@ -174,7 +174,7 @@ describe('A2A routes', () => {
     });
 
     const response = await routes.handle(
-      new Request('https://example.com/rpc', {
+      new Request('https://example.com/a2a/jsonrpc', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
@@ -222,7 +222,7 @@ describe('A2A routes', () => {
     });
 
     const response = await routes.handle(
-      new Request('https://example.com/rpc', {
+      new Request('https://example.com/a2a/jsonrpc', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
@@ -369,7 +369,7 @@ describe('A2A routes', () => {
     });
 
     const response = await routes.handle(
-      new Request('https://example.com/rpc', {
+      new Request('https://example.com/a2a/jsonrpc', {
         method: 'POST',
         headers: {
           authorization: 'Bearer secret-token',
@@ -431,7 +431,7 @@ describe('A2A routes', () => {
     });
 
     const response = await routes.handle(
-      new Request('https://example.com/rpc', {
+      new Request('https://example.com/a2a/jsonrpc', {
         method: 'POST',
         headers: {
           authorization: 'Bearer secret-token',
@@ -490,7 +490,7 @@ describe('A2A routes', () => {
     });
 
     const retryResponse = await routes.handle(
-      new Request('https://example.com/rpc', {
+      new Request('https://example.com/a2a/jsonrpc', {
         method: 'POST',
         headers: {
           authorization: 'Bearer secret-token',
@@ -506,7 +506,7 @@ describe('A2A routes', () => {
     );
 
     const reopenResponse = await routes.handle(
-      new Request('https://example.com/rpc', {
+      new Request('https://example.com/a2a/jsonrpc', {
         method: 'POST',
         headers: {
           authorization: 'Bearer secret-token',
