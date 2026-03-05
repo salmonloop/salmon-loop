@@ -86,7 +86,7 @@ export function createA2AHttpTransport(deps: {
     const timeout = deps.timeoutMs ? setTimeout(() => controller?.abort(), deps.timeoutMs) : null;
 
     try {
-      const response = await fetchImpl(`${baseUrl}/rpc`, {
+      const response = await fetchImpl(`${baseUrl}/a2a/jsonrpc`, {
         method: 'POST',
         headers: {
           Accept: DEFAULT_ACCEPT.json,

@@ -30,7 +30,7 @@ describe('A2A http client factory', () => {
 
     expect(task.id).toBe('task_1');
     expect(seen).toHaveLength(1);
-    expect(seen[0]?.url).toBe('https://example.com/rpc');
+    expect(seen[0]?.url).toBe('https://example.com/a2a/jsonrpc');
   });
 
   test('merges default headers with per-call overrides', async () => {

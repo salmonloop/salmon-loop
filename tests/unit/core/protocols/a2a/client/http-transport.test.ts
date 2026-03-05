@@ -54,7 +54,7 @@ describe('A2A http transport', () => {
       result: { id: 'task_1' },
     });
     expect(seen).toHaveLength(1);
-    expect(seen[0]?.url).toBe('https://example.com/rpc');
+    expect(seen[0]?.url).toBe('https://example.com/a2a/jsonrpc');
     expect(seen[0]?.init?.method).toBe('POST');
     expect(seen[0]?.init?.headers).toMatchObject({
       authorization: 'Bearer token',

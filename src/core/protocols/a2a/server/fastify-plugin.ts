@@ -28,7 +28,7 @@ export function createA2AFastifyPlugin(deps: { routes: A2ARoutes; baseUrl?: stri
     };
 
     fastify.route({ method: 'GET', url: '/.well-known/agent-card.json', handler });
-    fastify.route({ method: 'POST', url: '/rpc', handler });
+    fastify.route({ method: 'POST', url: '/a2a/jsonrpc', handler });
     fastify.route({ method: 'GET', url: '/tasks/:taskId/subscribe', handler });
     fastify.route({ method: 'GET', url: '/artifacts/:artifactId', handler });
   };

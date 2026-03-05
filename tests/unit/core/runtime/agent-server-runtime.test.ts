@@ -72,7 +72,7 @@ describe('agent server runtime', () => {
     const a2aRoutes = fastify.servers[0].routes.map((route) => route.url);
     expect(a2aRoutes).toEqual([
       '/.well-known/agent-card.json',
-      '/rpc',
+      '/a2a/jsonrpc',
       '/tasks/:taskId/subscribe',
       '/artifacts/:artifactId',
     ]);

@@ -55,7 +55,7 @@ describe('A2A fastify plugin', () => {
     const registered = fastify.routes.map((route) => `${route.method} ${route.url}`);
     expect(registered).toEqual([
       'GET /.well-known/agent-card.json',
-      'POST /rpc',
+      'POST /a2a/jsonrpc',
       'GET /tasks/:taskId/subscribe',
       'GET /artifacts/:artifactId',
     ]);
@@ -75,12 +75,12 @@ describe('A2A fastify plugin', () => {
     });
 
     await plugin(fastify.instance as any);
-    const rpcRoute = fastify.routes.find((route) => route.url === '/rpc');
+    const rpcRoute = fastify.routes.find((route) => route.url === '/a2a/jsonrpc');
     expect(rpcRoute).toBeDefined();
 
     const reply = createReplyMock();
     await rpcRoute!.handler(
-      { method: 'POST', url: '/rpc', headers: { 'content-type': 'application/json' } },
+      { method: 'POST', url: '/a2a/jsonrpc', headers: { 'content-type': 'application/json' } },
       reply,
     );
 
