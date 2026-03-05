@@ -70,12 +70,10 @@ class RingBuffer<T> {
 /**
  * Monitor class to track errors and generate reports
  *
- * Can be used as:
- * - Singleton: `import { monitor } from './monitor.js'`
- * - Instance: `const m = new Monitor()` (useful for testing)
+ * Prefer explicit wiring via setMonitor()/getMonitor() at startup.
+ * Tests may also instantiate `new Monitor()` directly for isolation.
  */
 export class Monitor {
-  private static instance: Monitor;
   private errorHistory: RingBuffer<ErrorEntry>;
   private checkpointMetrics: CheckpointMetrics;
   private applyBackMetrics: ApplyBackMetrics;
@@ -94,13 +92,6 @@ export class Monitor {
       totalDuration: 0,
       durations: [],
     };
-  }
-
-  static getInstance(): Monitor {
-    if (!Monitor.instance) {
-      Monitor.instance = new Monitor();
-    }
-    return Monitor.instance;
   }
 
   /**
@@ -288,4 +279,27 @@ export class Monitor {
   }
 }
 
-export const monitor = Monitor.getInstance();
+export function createMonitor(): Monitor {
+  return new Monitor();
+}
+
+let activeMonitor: Monitor | null = null;
+
+export function setMonitor(next: Monitor): void {
+  activeMonitor = next;
+}
+
+export function getMonitor(): Monitor {
+  if (!activeMonitor) {
+    throw new Error('Monitor is not initialized. Call setMonitor(createMonitor()) at startup.');
+  }
+  return activeMonitor;
+}
+
+export function tryGetMonitor(): Monitor | null {
+  return activeMonitor;
+}
+
+export function clearMonitor(): void {
+  activeMonitor = null;
+}

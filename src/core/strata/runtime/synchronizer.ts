@@ -18,7 +18,7 @@ import {
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { logIgnoredError } from '../../observability/ignored-error.js';
 import { getLogger } from '../../observability/logger.js';
-import { monitor } from '../../observability/monitor.js';
+import { getMonitor } from '../../observability/monitor.js';
 import { ApplyBackOnDirty, CheckpointRef, VerboseLevel } from '../../types/index.js';
 import { CheckpointManager } from '../checkpoint/manager.js';
 import { detectDependencyPaths } from '../layers/shadow-driver/strategy.js';
@@ -1056,7 +1056,7 @@ export class WorkspaceSynchronizer {
       }
       // Record monitoring metrics
       const duration = Date.now() - startTime;
-      monitor.recordApplyBack(applySuccess, duration);
+      getMonitor().recordApplyBack(applySuccess, duration);
       getLogger().info(`applyBack completed in ${duration}ms, success: ${applySuccess}`);
     }
   }

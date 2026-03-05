@@ -1,9 +1,10 @@
 import { AstParser } from '../../src/core/ast/parser.js';
-import { monitor } from '../../src/core/observability/monitor.js';
+import { Monitor } from '../../src/core/observability/monitor.js';
 
 async function testStability(
   onProgress?: (iteration: number, heapUsedMb: number | undefined) => void,
 ) {
+  const monitor = new Monitor();
   const code = `function hello() { console.log('world'); }`;
 
   for (let i = 0; i < 1000; i++) {

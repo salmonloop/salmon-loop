@@ -1,7 +1,12 @@
 import { lstat, symlink } from 'fs/promises';
 import { join } from 'path';
 
-import { monitor } from '../../src/core/observability/monitor.js';
+import {
+  clearMonitor,
+  createMonitor,
+  getMonitor,
+  setMonitor,
+} from '../../src/core/observability/monitor.js';
 import { CheckpointManager } from '../../src/core/strata/checkpoint/manager.js';
 import { WorkspaceSynchronizer } from '../../src/core/strata/runtime/synchronizer.js';
 import type { ApplyBackTelemetry } from '../../src/core/strata/runtime/synchronizer.js';
@@ -17,6 +22,7 @@ describe('ApplyBack Flow Integration Tests', () => {
   let initialRef: string;
 
   beforeEach(async () => {
+    setMonitor(createMonitor());
     // create a new repo
     const repo = await helper.createGitRepo({
       initialFiles: [
@@ -39,12 +45,13 @@ describe('ApplyBack Flow Integration Tests', () => {
     };
 
     synchronizer = new WorkspaceSynchronizer(new CheckpointManager());
-    monitor.resetMetrics();
+    getMonitor().resetMetrics();
     mock.clearAllMocks();
   });
 
   afterEach(async () => {
     await helper.cleanup();
+    clearMonitor();
     mock.restore();
   });
 
@@ -139,7 +146,7 @@ describe('ApplyBack Flow Integration Tests', () => {
       expect(telemetry.rollbackPath).toBe('none');
 
       // Verify metrics
-      const metrics = monitor.getApplyBackMetrics();
+      const metrics = getMonitor().getApplyBackMetrics();
       expect(metrics.attempts).toBe(1);
       expect(metrics.failures).toBe(0);
     });
@@ -240,7 +247,7 @@ describe('ApplyBack Flow Integration Tests', () => {
       expect(content).toContain('>>>>>>>');
 
       // Verify metrics recorded success
-      expect(monitor.getApplyBackMetrics().failures).toBe(0);
+      expect(getMonitor().getApplyBackMetrics().failures).toBe(0);
     });
 
     // Test dirty backup creation on merge conflict

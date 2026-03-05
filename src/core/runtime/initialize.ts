@@ -1,5 +1,6 @@
 import { initializeDefaultCalculator } from '../context/policies/pack-until-full.js';
 import { createLogger, getLogger, setLogger, tryGetLogger } from '../observability/logger.js';
+import { createMonitor, setMonitor, tryGetMonitor } from '../observability/monitor.js';
 
 /**
  * Initializes the Core safety runtime.
@@ -23,6 +24,11 @@ export function initializeRuntime() {
   // Initialize logger before installing global error handlers.
   if (!tryGetLogger()) {
     setLogger(createLogger());
+  }
+
+  // Initialize monitor once so subsystems can record metrics without hidden singletons.
+  if (!tryGetMonitor()) {
+    setMonitor(createMonitor());
   }
 
   const isGui = process.argv.includes('--gui');
