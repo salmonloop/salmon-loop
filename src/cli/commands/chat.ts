@@ -4,8 +4,10 @@ import { Command } from 'commander';
 
 import {
   createPluginRegistry,
+  createPromptRegistry,
   createRuntimeLlm,
   setPluginRegistry,
+  setPromptRegistry,
   ExtensionConfigError,
   logger,
   normalizePermissionMode,
@@ -45,6 +47,7 @@ export async function handleChatCommand(options: any, command: Command) {
   // Initialize plugins (including user plugins from .salmonloop/languages)
   const languagePlugins = createPluginRegistry();
   setPluginRegistry(languagePlugins);
+  setPromptRegistry(createPromptRegistry());
   await PluginLoader.loadPlugins(languagePlugins, runPath);
 
   const resolvedConfig = await resolveConfig({

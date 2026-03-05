@@ -5,6 +5,11 @@ export {
   setPluginRegistry,
   type PluginRegistry,
 } from '../plugin/registry.js';
+export {
+  createPromptRegistry,
+  setPromptRegistry,
+  type PromptRegistry,
+} from '../prompts/registry.js';
 export { getExitCode } from '../runtime/exit-codes.js';
 export type { ChatSessionManager } from '../session/manager.js';
 export {

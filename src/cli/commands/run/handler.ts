@@ -5,11 +5,13 @@ import type { Command } from 'commander';
 import {
   buildSessionConversationContext,
   createPluginRegistry,
+  createPromptRegistry,
   getExitCode,
   getDefaultSessionContextBudgetTokens,
   logger,
   normalizePermissionMode,
   setPluginRegistry,
+  setPromptRegistry,
   type ApplyBackOnDirty,
   type ChatSessionManager,
   type CheckpointStrategy,
@@ -46,6 +48,7 @@ export async function handleRunCommand(options: any, command: Command) {
   const runPath = parsed.repoPath;
   const languagePlugins = createPluginRegistry();
   setPluginRegistry(languagePlugins);
+  setPromptRegistry(createPromptRegistry());
   const continueSession = parsed.continueSession;
   const resumeSessionId = parsed.resumeSessionId;
   const printInstruction = parsed.printInstruction;

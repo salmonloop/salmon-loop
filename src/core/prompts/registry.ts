@@ -84,7 +84,7 @@ export class PromptRegistry {
   private render(name: string, data: unknown): string {
     const template = this.templates.get(name);
     if (!template) {
-      throw new Error(`Prompt template "${name}" not found (did you call promptRegistry.init()?)`);
+      throw new Error(`Prompt template "${name}" not found (did you call PromptRegistry.init()?)`);
     }
     return template(data);
   }
@@ -209,4 +209,27 @@ export class PromptRegistry {
   }
 }
 
-export const promptRegistry = new PromptRegistry();
+export function createPromptRegistry(): PromptRegistry {
+  return new PromptRegistry();
+}
+
+let activePromptRegistry: PromptRegistry | null = null;
+
+export function setPromptRegistry(registry: PromptRegistry): void {
+  activePromptRegistry = registry;
+}
+
+export function getPromptRegistry(): PromptRegistry {
+  if (!activePromptRegistry) {
+    throw new Error('PromptRegistry is not initialized. Call setPromptRegistry() at startup.');
+  }
+  return activePromptRegistry;
+}
+
+export function tryGetPromptRegistry(): PromptRegistry | null {
+  return activePromptRegistry;
+}
+
+export function clearPromptRegistry(): void {
+  activePromptRegistry = null;
+}

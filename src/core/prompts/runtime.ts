@@ -1,6 +1,6 @@
 import type { ToolRegistry } from '../tools/registry.js';
 
-import { promptRegistry } from './registry.js';
+import { getPromptRegistry } from './registry.js';
 
 export type PromptRuntime = {
   plan?: { sessionId: string; planPathHint: string };
@@ -22,6 +22,7 @@ export async function getExplorePrompt(
   instruction: string,
   lastError?: string,
 ): Promise<string> {
+  const promptRegistry = getPromptRegistry();
   await promptRegistry.init();
   return promptRegistry.renderExplore({
     context,
@@ -34,6 +35,7 @@ export async function getExploreSystemPrompt(
   toolRegistry?: ToolRegistry,
   runtime?: PromptRuntime,
 ): Promise<string> {
+  const promptRegistry = getPromptRegistry();
   await promptRegistry.init();
   if (toolRegistry) {
     promptRegistry.setTools(toolRegistry.listAll());
@@ -47,6 +49,7 @@ export async function getPlanPrompt(
   maxFilesChanged: number,
   lastError?: string,
 ): Promise<string> {
+  const promptRegistry = getPromptRegistry();
   await promptRegistry.init();
   return promptRegistry.renderPlan({
     context,
@@ -63,6 +66,7 @@ export async function getPatchPrompt(
   maxDiffLines: number,
   lastError?: string,
 ): Promise<string> {
+  const promptRegistry = getPromptRegistry();
   await promptRegistry.init();
   return promptRegistry.renderPatch({
     plan,
@@ -78,6 +82,7 @@ export async function getPlanSystemPrompt(
   toolRegistry?: ToolRegistry,
   runtime?: PromptRuntime,
 ): Promise<string> {
+  const promptRegistry = getPromptRegistry();
   await promptRegistry.init();
   if (toolRegistry) {
     promptRegistry.setTools(toolRegistry.listAll());
@@ -89,6 +94,7 @@ export async function getPatchSystemPrompt(
   toolRegistry?: ToolRegistry,
   runtime?: PromptRuntime,
 ): Promise<string> {
+  const promptRegistry = getPromptRegistry();
   await promptRegistry.init();
   if (toolRegistry) {
     promptRegistry.setTools(toolRegistry.listAll());

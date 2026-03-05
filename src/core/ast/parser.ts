@@ -7,7 +7,7 @@ import * as TreeSitter from 'web-tree-sitter';
 import { text } from '../../locales/index.js';
 import { syncFs as fs } from '../adapters/fs/node-fs.js';
 import { LIMITS } from '../config/limits.js';
-import { langOrchestrator } from '../language-support/orchestrator.js';
+import { createLanguageSupportOrchestrator } from '../language-support/orchestrator.js';
 import { logger } from '../observability/logger.js';
 import { tryGetPluginRegistry } from '../plugin/registry.js';
 import { SymbolInfo } from '../types/index.js';
@@ -215,7 +215,7 @@ export class AstParser {
       const language = await this.getLanguage(lang);
 
       // Get query from plugin via DSL orchestrator (zero hardcoded fallback)
-      const queryStr = await langOrchestrator.getASTQuery(lang, 'definitions');
+      const queryStr = await createLanguageSupportOrchestrator().getASTQuery(lang, 'definitions');
 
       if (!queryStr || !tree?.rootNode) return [];
 
@@ -250,7 +250,7 @@ export class AstParser {
       const language = await this.getLanguage(lang);
 
       // Get query from plugin via DSL orchestrator (zero hardcoded fallback)
-      const queryStr = await langOrchestrator.getASTQuery(lang, 'references');
+      const queryStr = await createLanguageSupportOrchestrator().getASTQuery(lang, 'references');
 
       if (!queryStr || !tree?.rootNode) return [];
 

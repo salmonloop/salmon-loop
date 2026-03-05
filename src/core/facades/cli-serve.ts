@@ -14,6 +14,12 @@ export {
   setPluginRegistry,
   type PluginRegistry,
 } from '../plugin/registry.js';
+export {
+  clearPromptRegistry,
+  createPromptRegistry,
+  setPromptRegistry,
+  type PromptRegistry,
+} from '../prompts/registry.js';
 export { buildA2AAgentCard } from '../protocols/a2a/agent-card.js';
 export {
   createA2AAuthPolicyMiddleware,

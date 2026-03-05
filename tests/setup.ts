@@ -6,6 +6,11 @@ import {
   createPluginRegistry,
   setPluginRegistry,
 } from '../src/core/plugin/registry.js';
+import {
+  clearPromptRegistry,
+  createPromptRegistry,
+  setPromptRegistry,
+} from '../src/core/prompts/registry.js';
 
 import {
   clearMockState,
@@ -19,6 +24,7 @@ beforeAll(async () => {
   // Ensure plugins are loaded for all tests
   const registry = createPluginRegistry();
   setPluginRegistry(registry);
+  setPromptRegistry(createPromptRegistry());
   await PluginLoader.loadPlugins(registry);
 });
 
@@ -29,6 +35,7 @@ afterEach(() => {
 
 afterAll(() => {
   clearPluginRegistry();
+  clearPromptRegistry();
   // CRITICAL SAFETY: Ensure no mocks leak between tests and restore console
   restoreConsoleOutputs();
 });

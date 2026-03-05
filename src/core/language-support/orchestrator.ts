@@ -45,4 +45,6 @@ export class LanguageSupportOrchestrator {
   }
 }
 
-export const langOrchestrator = new LanguageSupportOrchestrator();
+export function createLanguageSupportOrchestrator(): LanguageSupportOrchestrator {
+  return new LanguageSupportOrchestrator();
+}

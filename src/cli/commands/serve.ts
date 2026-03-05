@@ -12,6 +12,7 @@ import {
   createSalmonTaskExecutor,
   createTaskEventBus,
   createPluginRegistry,
+  createPromptRegistry,
   defaultSidecarRouteCatalog,
   defaultPathAdapter,
   getSidecarSocketPath,
@@ -25,6 +26,7 @@ import {
   resolveExtensions,
   runSalmonLoop,
   setPluginRegistry,
+  setPromptRegistry,
   startAcpStdioServer,
   StderrReporter,
 } from '../../core/facades/cli-serve.js';
@@ -127,6 +129,7 @@ export async function handleServeCommand(_options: unknown, command: Command) {
 
   const languagePlugins = createPluginRegistry();
   setPluginRegistry(languagePlugins);
+  setPromptRegistry(createPromptRegistry());
   await PluginLoader.loadPlugins(languagePlugins, defaultRepoPath);
   const extensions = await resolveExtensions({ repoRoot: defaultRepoPath });
 
@@ -302,6 +305,7 @@ export async function handleServeAcpCommand(_options: unknown, command: Command)
 
   const languagePlugins = createPluginRegistry();
   setPluginRegistry(languagePlugins);
+  setPromptRegistry(createPromptRegistry());
   await PluginLoader.loadPlugins(languagePlugins, defaultRepoPath);
   const extensions = await resolveExtensions({ repoRoot: defaultRepoPath });
 

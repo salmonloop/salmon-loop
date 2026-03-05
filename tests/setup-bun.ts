@@ -5,6 +5,11 @@ import {
   createPluginRegistry,
   setPluginRegistry,
 } from '../src/core/plugin/registry.js';
+import {
+  clearPromptRegistry,
+  createPromptRegistry,
+  setPromptRegistry,
+} from '../src/core/prompts/registry.js';
 
 import {
   afterAll,
@@ -30,10 +35,12 @@ afterEach(() => {
 beforeAll(async () => {
   const registry = createPluginRegistry();
   setPluginRegistry(registry);
+  setPromptRegistry(createPromptRegistry());
 });
 
 afterAll(() => {
   clearPluginRegistry();
+  clearPromptRegistry();
   restoreConsoleOutputs();
   mock.restore();
 });

@@ -1,5 +1,5 @@
 import { logger } from '../observability/logger.js';
-import { promptRegistry } from '../prompts/registry.js';
+import { getPromptRegistry } from '../prompts/registry.js';
 import { executeUpdateKnowledge } from '../tools/builtin/knowledge.js';
 import { LLM } from '../types/index.js';
 
@@ -9,6 +9,7 @@ export class ReflectionEngine {
   constructor(private readonly llm: LLM) {}
 
   async reflect(input: ReflectionInput, repoRoot: string): Promise<ReflectionResult> {
+    const promptRegistry = getPromptRegistry();
     await promptRegistry.init();
 
     // Only reflect if there were failures and final success

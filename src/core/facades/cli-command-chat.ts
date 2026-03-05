@@ -9,3 +9,9 @@ export {
   setPluginRegistry,
   type PluginRegistry,
 } from '../plugin/registry.js';
+export {
+  clearPromptRegistry,
+  createPromptRegistry,
+  setPromptRegistry,
+  type PromptRegistry,
+} from '../prompts/registry.js';
