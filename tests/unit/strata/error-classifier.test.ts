@@ -1,22 +1,6 @@
 import { ErrorType } from '../../../src/core/types/index.js';
 import { classifyError, isRetryable } from '../../../src/core/verification/runner.js';
 
-// Mock plugin registry to simulate language plugins
-mock.module('../../../src/core/plugin/registry.js', () => ({
-  pluginRegistry: {
-    getAll: () => [
-      {
-        diagnostics: {
-          classifyError: (output: string) => {
-            if (output.includes('TS1234')) return ErrorType.COMPILATION;
-            return undefined;
-          },
-        },
-      },
-    ],
-  },
-}));
-
 describe('Error Classifier Robustness (Migrated from legacy robustness.test.ts)', () => {
   describe('Classification Edge Cases', () => {
     it('should handle empty or whitespace output', () => {

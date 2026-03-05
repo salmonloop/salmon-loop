@@ -2,7 +2,7 @@ import { text } from '../../locales/index.js';
 import { FileAdapter } from '../adapters/fs/file-adapter.js';
 import { LIMITS } from '../config/limits.js';
 import { logger } from '../observability/logger.js';
-import { pluginRegistry } from '../plugin/registry.js';
+import { getPluginRegistry } from '../plugin/registry.js';
 import { safeJoin, safeDirname } from '../utils/path.js';
 
 interface DependencyFsAdapter {
@@ -65,7 +65,7 @@ async function findDirectDependencies(
     const dependencies: string[] = [];
 
     // Detect language plugin for this file
-    const plugin = pluginRegistry.getByExtension(filePath);
+    const plugin = getPluginRegistry().getByExtension(filePath);
 
     if (plugin) {
       // Use plugin strategy

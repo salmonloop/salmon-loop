@@ -52,9 +52,10 @@ describe('runPreflight', () => {
     hoisted.detectNodeRuntimeProfile.mockResolvedValue(undefined);
 
     const { runPreflight } = await import('../../../../../src/cli/commands/run/preflight.js');
-    await runPreflight({ repoPath: '/tmp/repo', validate: true, useGui: false });
+    const languagePlugins = {} as any;
+    await runPreflight({ languagePlugins, repoPath: '/tmp/repo', validate: true, useGui: false });
 
-    expect(hoisted.loadPlugins).toHaveBeenCalledWith('/tmp/repo');
+    expect(hoisted.loadPlugins).toHaveBeenCalledWith(languagePlugins, '/tmp/repo');
     expect(hoisted.spawnCommand).not.toHaveBeenCalled();
     expect(hoisted.logger.warn).toHaveBeenCalledTimes(1);
   });
@@ -88,7 +89,8 @@ describe('runPreflight', () => {
     });
 
     const { runPreflight } = await import('../../../../../src/cli/commands/run/preflight.js');
-    await runPreflight({ repoPath: '/tmp/repo', validate: true, useGui: false });
+    const languagePlugins = {} as any;
+    await runPreflight({ languagePlugins, repoPath: '/tmp/repo', validate: true, useGui: false });
 
     expect(hoisted.spawnCommand).toHaveBeenCalledTimes(2);
     expect(hoisted.spawnCommand).toHaveBeenNthCalledWith(
@@ -170,7 +172,8 @@ describe('runPreflight', () => {
       });
 
     const { runPreflight } = await import('../../../../../src/cli/commands/run/preflight.js');
-    await runPreflight({ repoPath: '/tmp/repo', validate: true, useGui: false });
+    const languagePlugins = {} as any;
+    await runPreflight({ languagePlugins, repoPath: '/tmp/repo', validate: true, useGui: false });
 
     expect(hoisted.logger.warn).toHaveBeenCalledTimes(2);
     expect(hoisted.logger.success).toHaveBeenCalledTimes(1);
@@ -235,7 +238,9 @@ describe('runPreflight', () => {
       });
 
     const { runPreflight } = await import('../../../../../src/cli/commands/run/preflight.js');
+    const languagePlugins = {} as any;
     await runPreflight({
+      languagePlugins,
       repoPath: '/tmp/repo',
       validate: true,
       useGui: false,
@@ -286,7 +291,8 @@ describe('runPreflight', () => {
     });
 
     const { runPreflight } = await import('../../../../../src/cli/commands/run/preflight.js');
-    await runPreflight({ repoPath: '/tmp/repo', validate: true, useGui: false });
+    const languagePlugins = {} as any;
+    await runPreflight({ languagePlugins, repoPath: '/tmp/repo', validate: true, useGui: false });
 
     expect(hoisted.logger.audit).toHaveBeenCalledTimes(1);
     expect(hoisted.logger.error).toHaveBeenCalled();
@@ -324,7 +330,8 @@ describe('runPreflight', () => {
     });
 
     const { runPreflight } = await import('../../../../../src/cli/commands/run/preflight.js');
-    await runPreflight({ repoPath: '/tmp/repo', validate: true, useGui: false });
+    const languagePlugins = {} as any;
+    await runPreflight({ languagePlugins, repoPath: '/tmp/repo', validate: true, useGui: false });
 
     expect(hoisted.logger.audit).toHaveBeenCalledTimes(1);
     expect(hoisted.logger.error).toHaveBeenCalled();

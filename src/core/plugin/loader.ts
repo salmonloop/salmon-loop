@@ -5,13 +5,13 @@ import { readdir } from '../adapters/fs/node-fs.js';
 import { logger } from '../observability/logger.js';
 
 import { LanguagePlugin } from './interface.js';
-import { pluginRegistry } from './registry.js';
+import type { PluginRegistry } from './registry.js';
 import { validateQueryPack } from './validator.js';
 
 // Import built-in plugins (Phase 1: explicit import)
 
 export class PluginLoader {
-  private static isLoaded = false;
+  private static loaded = new WeakSet<PluginRegistry>();
 
   /**
    * Initialize and load all available plugins.
@@ -19,16 +19,16 @@ export class PluginLoader {
    *
    * @param repoPath - Optional repository path to scan for user plugins
    */
-  static async loadPlugins(repoPath?: string) {
-    if (this.isLoaded) return;
+  static async loadPlugins(registry: PluginRegistry, repoPath?: string) {
+    if (this.loaded.has(registry)) return;
 
     try {
       // Phase 1: Manually register TypeScript/JavaScript plugins
       logger.debug('Loading built-in plugins...');
 
-      this.registerWithValidation(typescriptPlugin);
-      this.registerWithValidation(tsxPlugin);
-      this.registerWithValidation(javascriptPlugin);
+      this.registerWithValidation(registry, typescriptPlugin);
+      this.registerWithValidation(registry, tsxPlugin);
+      this.registerWithValidation(registry, javascriptPlugin);
 
       logger.debug(
         `Plugins loaded: ${typescriptPlugin.meta.name}, ${tsxPlugin.meta.name}, ${javascriptPlugin.meta.name}`,
@@ -36,10 +36,10 @@ export class PluginLoader {
 
       // Phase 2: Load user plugins from .salmonloop/languages/
       if (repoPath) {
-        await this.loadUserPlugins(repoPath);
+        await this.loadUserPlugins(registry, repoPath);
       }
 
-      this.isLoaded = true;
+      this.loaded.add(registry);
     } catch (error) {
       // In test environment, we want to know why it failed
       if (process.env.NODE_ENV === 'test') {
@@ -56,7 +56,7 @@ export class PluginLoader {
   /**
    * Scan and load user plugins from .salmonloop/languages/
    */
-  private static async loadUserPlugins(repoPath: string) {
+  private static async loadUserPlugins(registry: PluginRegistry, repoPath: string) {
     const userPluginDir = join(repoPath, '.salmonloop', 'languages');
     try {
       // Check if directory exists
@@ -81,7 +81,7 @@ export class PluginLoader {
           const plugin = pluginModule.default as LanguagePlugin;
 
           if (this.isValidPlugin(plugin)) {
-            this.registerWithValidation(plugin);
+            this.registerWithValidation(registry, plugin);
             logger.info(`Loaded user plugin: ${plugin.meta.name} (${plugin.meta.id})`);
           } else {
             logger.warn(`Skipping invalid user plugin in ${dirName}: missing required fields.`);
@@ -108,7 +108,7 @@ export class PluginLoader {
    * Reset loader state (useful for testing)
    */
   static reset() {
-    this.isLoaded = false;
+    this.loaded = new WeakSet<PluginRegistry>();
   }
 
   /**
@@ -148,13 +148,13 @@ export class PluginLoader {
   /**
    * Register plugin with queryPack validation
    */
-  private static registerWithValidation(plugin: LanguagePlugin) {
+  private static registerWithValidation(registry: PluginRegistry, plugin: LanguagePlugin) {
     const validation = validateQueryPack(plugin);
     if (!validation.valid) {
       logger.warn(
         `Plugin ${plugin.meta.id} has queryPack validation errors: ${validation.errors.join(', ')}`,
       );
     }
-    pluginRegistry.register(plugin);
+    registry.register(plugin);
   }
 }

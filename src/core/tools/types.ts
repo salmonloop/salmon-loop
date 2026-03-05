@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import type { PluginRegistry } from '../plugin/registry.js';
 import type { SubAgentControllerPort } from '../sub-agent/controller.js';
 import type { LLM } from '../types/llm.js';
 import type { ExecutionPhase, UserInputProvider } from '../types/runtime.js';
@@ -45,6 +46,10 @@ export interface ToolRuntimeCtx {
   phase?: ExecutionPhase;
   userInputProvider?: UserInputProvider;
   agentKind?: 'primary' | 'subagent';
+  /**
+   * Language plugin registry used for AST parsing and language-aware helpers.
+   */
+  languagePlugins?: PluginRegistry;
   /**
    * Optional sub-agent controller shared across the current host process.
    * This is host-only state and is not exposed to the model.

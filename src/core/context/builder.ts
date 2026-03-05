@@ -4,7 +4,7 @@ import { ConfigError } from '../config/errors.js';
 import { LIMITS } from '../config/limits.js';
 import { resolveConfig } from '../config/resolve.js';
 import { createDefaultPermissionGate } from '../permission-gate/default-gate.js';
-import { pluginRegistry } from '../plugin/registry.js';
+import type { PluginRegistry } from '../plugin/registry.js';
 import type { Context } from '../types/context.js';
 import type { RunOptions } from '../types/loop.js';
 import { ErrorType } from '../types/runtime.js';
@@ -23,7 +23,13 @@ const BASE_EXTENSIONS = ['json', 'md', 'txt', 'yaml', 'yml', 'toml', 'lock', 'lo
  */
 function getExtensionsPattern(): string {
   const extensions = new Set<string>(BASE_EXTENSIONS);
-  const plugins = pluginRegistry.getAll();
+  return Array.from(extensions).join('|');
+}
+
+function getExtensionsPatternForPlugins(
+  plugins: Array<{ meta: { extensions: string[] } }>,
+): string {
+  const extensions = new Set<string>(BASE_EXTENSIONS);
 
   for (const plugin of plugins) {
     for (const ext of plugin.meta.extensions) {
@@ -35,24 +41,7 @@ function getExtensionsPattern(): string {
   return Array.from(extensions).join('|');
 }
 
-/**
- * Cached extension pattern for extractFailedFiles regex construction.
- * Cache on module load to avoid repeated plugin iteration.
- */
-let cachedExtensionPattern: string | null = null;
 const fileAdapter = new FileAdapter();
-
-// Invalidate the cached regex when plugin registry changes so new extensions are recognized.
-pluginRegistry.onChange(() => {
-  cachedExtensionPattern = null;
-});
-
-function getCachedExtensionsPattern(): string {
-  if (cachedExtensionPattern === null) {
-    cachedExtensionPattern = getExtensionsPattern();
-  }
-  return cachedExtensionPattern;
-}
 
 import { outlineSource } from './ast/source-outline.js';
 import { createContextCacheStore } from './cache/store-factory.js';
@@ -208,11 +197,15 @@ export class ContextBuilder {
    * Extract potential failed file paths from verification output.
    * Uses dynamically registered extensions from plugin registry.
    */
-  static extractFailedFiles(verifyOutput: string): string[] {
+  static extractFailedFiles(
+    verifyOutput: string,
+    deps?: { languagePlugins?: PluginRegistry },
+  ): string[] {
     const uniqueFiles = new Set<string>();
 
-    // Build extension pattern dynamically from registered plugins
-    const extPattern = getCachedExtensionsPattern();
+    const extPattern = deps?.languagePlugins
+      ? getExtensionsPatternForPlugins(deps.languagePlugins.getAll())
+      : getExtensionsPattern();
 
     // Strategy 1: Look for file paths followed by line numbers (common in stack traces and compiler output)
     // We handle both quoted and unquoted paths.

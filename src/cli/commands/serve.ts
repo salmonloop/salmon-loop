@@ -11,6 +11,7 @@ import {
   createInteractionFacade,
   createSalmonTaskExecutor,
   createTaskEventBus,
+  createPluginRegistry,
   defaultSidecarRouteCatalog,
   defaultPathAdapter,
   getSidecarSocketPath,
@@ -23,6 +24,7 @@ import {
   resolveConfig,
   resolveExtensions,
   runSalmonLoop,
+  setPluginRegistry,
   startAcpStdioServer,
   StderrReporter,
 } from '../../core/facades/cli-serve.js';
@@ -123,7 +125,9 @@ export async function handleServeCommand(_options: unknown, command: Command) {
     await mkdir(defaultPathAdapter.dirname(sidecarSocket), { recursive: true });
   }
 
-  await PluginLoader.loadPlugins(defaultRepoPath);
+  const languagePlugins = createPluginRegistry();
+  setPluginRegistry(languagePlugins);
+  await PluginLoader.loadPlugins(languagePlugins, defaultRepoPath);
   const extensions = await resolveExtensions({ repoRoot: defaultRepoPath });
 
   const { llm } = createRuntimeLlmAndWarn({
@@ -171,6 +175,7 @@ export async function handleServeCommand(_options: unknown, command: Command) {
         langfuseSessionId: resolvedConfig.observability.langfuse.sessionId,
         langfuseUserId: resolvedConfig.observability.langfuse.userId,
         auditScope,
+        languagePlugins,
         fileSystemOverride,
         authorizationProvider: authorizationProvider ?? defaultAuthorizationProvider,
         authorizationMode,
@@ -295,7 +300,9 @@ export async function handleServeAcpCommand(_options: unknown, command: Command)
 
   logger.setReporter(allOptions.color === false ? new StderrReporter() : new PlainReporter());
 
-  await PluginLoader.loadPlugins(defaultRepoPath);
+  const languagePlugins = createPluginRegistry();
+  setPluginRegistry(languagePlugins);
+  await PluginLoader.loadPlugins(languagePlugins, defaultRepoPath);
   const extensions = await resolveExtensions({ repoRoot: defaultRepoPath });
 
   const { llm } = createRuntimeLlmAndWarn({
@@ -351,6 +358,7 @@ export async function handleServeAcpCommand(_options: unknown, command: Command)
         langfuseSessionId: resolvedConfig.observability.langfuse.sessionId,
         langfuseUserId: resolvedConfig.observability.langfuse.userId,
         auditScope: auditScopeResolution.value,
+        languagePlugins,
         authorizationProvider: authorizationProvider ?? defaultAuthorizationProvider,
         authorizationMode,
         extensions: extensions.resolved,

@@ -3,11 +3,16 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 
 import { PluginLoader } from '../../src/core/plugin/loader.js';
-import { pluginRegistry } from '../../src/core/plugin/registry.js';
+import {
+  clearPluginRegistry,
+  createPluginRegistry,
+  setPluginRegistry,
+} from '../../src/core/plugin/registry.js';
 import { ErrorType } from '../../src/core/types/index.js';
 
 describe('External User Plugin Integration', () => {
   let fixturePath = '';
+  let registry = createPluginRegistry();
 
   const dummyPluginSource = `export default {
   meta: {
@@ -47,6 +52,8 @@ describe('External User Plugin Integration', () => {
     // Reset plugin loader state
     PluginLoader.reset();
     mock.clearAllMocks();
+    registry = createPluginRegistry();
+    setPluginRegistry(registry);
 
     const root = await mkdtemp(join(tmpdir(), 'salmonloop-user-plugin-'));
     const pluginDir = join(root, '.salmonloop', 'languages', 'dummy');
@@ -57,6 +64,7 @@ describe('External User Plugin Integration', () => {
 
   afterEach(async () => {
     mock.restore();
+    clearPluginRegistry();
     if (fixturePath) {
       await rm(fixturePath, { recursive: true, force: true });
       fixturePath = '';
@@ -64,17 +72,17 @@ describe('External User Plugin Integration', () => {
   });
 
   it('should load user plugin from .salmonloop/languages directory', async () => {
-    await PluginLoader.loadPlugins(fixturePath);
+    await PluginLoader.loadPlugins(registry, fixturePath);
 
-    const plugin = pluginRegistry.getById('dummy-lang');
+    const plugin = registry.getById('dummy-lang');
     expect(plugin).toBeDefined();
     expect(plugin?.meta.name).toBe('Dummy Language');
   });
 
   it('should use user plugin for dependency extraction', async () => {
-    await PluginLoader.loadPlugins(fixturePath);
+    await PluginLoader.loadPlugins(registry, fixturePath);
 
-    const plugin = pluginRegistry.getByExtension('test.dummy');
+    const plugin = registry.getByExtension('test.dummy');
     expect(plugin).toBeDefined();
 
     const content = 'import foo.dummy\nimport bar.dummy';
@@ -84,9 +92,9 @@ describe('External User Plugin Integration', () => {
   });
 
   it('should use user plugin for error classification', async () => {
-    await PluginLoader.loadPlugins(fixturePath);
+    await PluginLoader.loadPlugins(registry, fixturePath);
 
-    const plugin = pluginRegistry.getById('dummy-lang');
+    const plugin = registry.getById('dummy-lang');
     const errorType = plugin?.diagnostics.classifyError('Some output with dummy error in it');
 
     expect(errorType).toBe(ErrorType.COMPILATION);

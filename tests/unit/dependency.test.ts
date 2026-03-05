@@ -1,12 +1,13 @@
 import { findFileDependencies } from '../../src/core/context/dependencies.js';
-import { pluginRegistry } from '../../src/core/plugin/registry.js';
+import { getPluginRegistry } from '../../src/core/plugin/registry.js';
 
 const readFileMock = mock();
 
 describe('findFileDependencies', () => {
   beforeEach(() => {
     mock.clearAllMocks();
-    spyOn(pluginRegistry, 'getByExtension').mockReturnValue({
+    const registry = getPluginRegistry();
+    spyOn(registry, 'getByExtension').mockReturnValue({
       dependency: {
         extractImports: (content: string) => {
           const matches = [

@@ -3,7 +3,9 @@ import { resolve } from 'path';
 import { Command } from 'commander';
 
 import {
+  createPluginRegistry,
   createRuntimeLlm,
+  setPluginRegistry,
   ExtensionConfigError,
   logger,
   normalizePermissionMode,
@@ -41,7 +43,9 @@ export async function handleChatCommand(options: any, command: Command) {
   }
 
   // Initialize plugins (including user plugins from .salmonloop/languages)
-  await PluginLoader.loadPlugins(runPath);
+  const languagePlugins = createPluginRegistry();
+  setPluginRegistry(languagePlugins);
+  await PluginLoader.loadPlugins(languagePlugins, runPath);
 
   const resolvedConfig = await resolveConfig({
     repoRoot: runPath,
@@ -141,6 +145,7 @@ export async function handleChatCommand(options: any, command: Command) {
       auditScope,
       langfuseSessionId: resolvedConfig.observability.langfuse.sessionId,
       langfuseUserId: resolvedConfig.observability.langfuse.userId,
+      languagePlugins,
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);

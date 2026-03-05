@@ -1,5 +1,5 @@
 import type { DecisionEngine } from '../../grizzco/dsl/DecisionEngine.js';
-import { pluginRegistry } from '../../plugin/registry.js';
+import { tryGetPluginRegistry } from '../../plugin/registry.js';
 
 export interface QueryContext {
   lang: string;
@@ -33,7 +33,7 @@ export function languageQueryStrategy(engine: DecisionEngine<QueryContext>) {
 
 export async function resolveQueryData(ctx: QueryContext, key: string): Promise<unknown> {
   if (key === 'pluginQuery') {
-    const plugin = pluginRegistry.getById(ctx.lang);
+    const plugin = tryGetPluginRegistry()?.getById(ctx.lang);
     if (!plugin) return null;
     return ctx.queryType === 'definitions'
       ? plugin.parsing.queries.definitions

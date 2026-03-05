@@ -1,5 +1,5 @@
 import type { DecisionEngine } from '../../grizzco/dsl/DecisionEngine.js';
-import { pluginRegistry } from '../../plugin/registry.js';
+import { tryGetPluginRegistry } from '../../plugin/registry.js';
 
 export interface ExtensionCandidateContext {
   importPath: string;
@@ -31,7 +31,7 @@ export async function resolveExtensionData(
   key: string,
 ): Promise<unknown> {
   if (key === 'extensions') {
-    const allPlugins = pluginRegistry.getAll();
+    const allPlugins = tryGetPluginRegistry()?.getAll() ?? [];
     const extensions = new Set<string>();
     for (const plugin of allPlugins) {
       for (const ext of plugin.meta.extensions) {

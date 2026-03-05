@@ -2,6 +2,7 @@ import chalk from 'chalk';
 
 import { logger } from '../../../core/observability/logger.js';
 import { PluginLoader } from '../../../core/plugin/loader.js';
+import type { PluginRegistry } from '../../../core/plugin/registry.js';
 import {
   ProcessFailure,
   ProcessFailureKind,
@@ -120,12 +121,13 @@ async function runValidateCommand(params: {
 }
 
 export async function runPreflight(params: {
+  languagePlugins: PluginRegistry;
   repoPath: string;
   validate: boolean;
   useGui: boolean;
   preflightPolicy?: PreflightPolicy;
 }) {
-  await PluginLoader.loadPlugins(params.repoPath);
+  await PluginLoader.loadPlugins(params.languagePlugins, params.repoPath);
 
   if (!params.validate) return;
   const preflightPolicy = params.preflightPolicy ?? 'lenient';

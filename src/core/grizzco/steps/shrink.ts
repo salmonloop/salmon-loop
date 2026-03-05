@@ -27,7 +27,9 @@ function inferDependencyDepth(output: string): number {
 export const runShrink: Step<RollbackCtx, ShrinkCtx> = async (ctx) => {
   if (!ctx.verifyResult.ok) {
     // Only shrink if verification failed
-    const failedFiles = ContextBuilder.extractFailedFiles(ctx.verifyResult.output);
+    const failedFiles = ContextBuilder.extractFailedFiles(ctx.verifyResult.output, {
+      languagePlugins: ctx.options.languagePlugins,
+    });
     const errorType = classifyError(ctx.verifyResult.output);
     const dependencyDepth = inferDependencyDepth(ctx.verifyResult.output);
 

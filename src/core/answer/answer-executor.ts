@@ -6,6 +6,7 @@ import {
   clearAuditTrail,
   setAuditContext,
 } from '../observability/audit-trail.js';
+import type { PluginRegistry } from '../plugin/registry.js';
 import type { SubAgentControllerPort } from '../sub-agent/controller.js';
 import type { ToolAuthorizationProvider } from '../tools/authorization/types.js';
 import { createStandardToolstack } from '../tools/loader.js';
@@ -29,6 +30,7 @@ export interface AnswerExecutorOptions {
   authorizationProvider?: ToolAuthorizationProvider;
   authorizationMode?: 'blocking' | 'deferred';
   allowedToolNames?: string[];
+  languagePlugins?: PluginRegistry;
   subAgentController?: SubAgentControllerPort;
 }
 
@@ -90,6 +92,7 @@ export async function runAnswerExecutor(options: AnswerExecutorOptions): Promise
           attemptId: 0,
           dryRun: false,
           model: options.llm.getModelId?.(),
+          languagePlugins: options.languagePlugins,
           subAgentController: options.subAgentController,
         },
         toolstack,

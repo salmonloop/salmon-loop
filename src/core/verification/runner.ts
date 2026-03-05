@@ -5,7 +5,7 @@ import { readFile } from '../adapters/fs/node-fs.js';
 import { GitAdapter } from '../adapters/git/git-adapter.js';
 import { LIMITS } from '../config/limits.js';
 import { logger } from '../observability/logger.js';
-import { pluginRegistry } from '../plugin/registry.js';
+import { tryGetPluginRegistry } from '../plugin/registry.js';
 import { isCommandAvailable, spawnCommand } from '../runtime/process-runner.js';
 import { ErrorType, LoopEvent } from '../types/index.js';
 import type { ExecutionWorkspace } from '../types/index.js';
@@ -42,6 +42,8 @@ export function classifyError(output: string): ErrorType {
     lowerOutput.includes('bun file tests failed in:') ||
     lowerOutput.includes('script "test:unit" exited with code') ||
     lowerOutput.includes('script "test:full" exited with code') ||
+    lowerOutput.startsWith('fail ') ||
+    lowerOutput.includes('\nfail ') ||
     lowerOutput.includes('test suites') ||
     lowerOutput.includes('test files') ||
     lowerOutput.includes('assertionerror')
@@ -50,14 +52,40 @@ export function classifyError(output: string): ErrorType {
   }
 
   // 2. Delegate to plugins
-  for (const plugin of pluginRegistry.getAll()) {
+  for (const plugin of tryGetPluginRegistry()?.getAll() ?? []) {
     const errorType = plugin.diagnostics.classifyError(output);
     if (errorType) {
       return errorType;
     }
   }
 
-  // 3. Generic logic fallback
+  // 3. Heuristics fallback (works even without plugins)
+  if (
+    /TS\d{3,5}/i.test(output) ||
+    lowerOutput.includes('error ts') ||
+    lowerOutput.includes('failed to compile')
+  ) {
+    return ErrorType.COMPILATION;
+  }
+
+  if (
+    lowerOutput.includes('eslint') ||
+    lowerOutput.includes('prettier') ||
+    lowerOutput.includes('prettier/prettier')
+  ) {
+    return ErrorType.LINT;
+  }
+
+  if (
+    lowerOutput.includes('fail ') ||
+    lowerOutput.includes('test suites') ||
+    lowerOutput.includes('test files') ||
+    lowerOutput.includes('assertionerror')
+  ) {
+    return ErrorType.TEST;
+  }
+
+  // 4. Generic logic fallback
   if (output.trim().length > 0) {
     return ErrorType.LOGIC;
   }

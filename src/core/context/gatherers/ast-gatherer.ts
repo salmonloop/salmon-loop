@@ -4,7 +4,7 @@ import { AstParser } from '../../ast/parser.js';
 import { checkSyntaxErrors } from '../../ast/validator.js';
 import { LIMITS } from '../../config/limits.js';
 import { logger } from '../../observability/logger.js';
-import { pluginRegistry } from '../../plugin/registry.js';
+import { getPluginRegistry } from '../../plugin/registry.js';
 import type {
   AstSyntaxError,
   CodeLocation,
@@ -176,7 +176,7 @@ function summarizeControlFlow(primaryText: string): {
 }
 
 function getPluginByFile(filePath: string) {
-  return pluginRegistry.getByExtension(filePath);
+  return getPluginRegistry().getByExtension(filePath);
 }
 
 /**

@@ -4,10 +4,12 @@ import type { Command } from 'commander';
 
 import {
   buildSessionConversationContext,
+  createPluginRegistry,
   getExitCode,
   getDefaultSessionContextBudgetTokens,
   logger,
   normalizePermissionMode,
+  setPluginRegistry,
   type ApplyBackOnDirty,
   type ChatSessionManager,
   type CheckpointStrategy,
@@ -42,6 +44,8 @@ export async function handleRunCommand(options: any, command: Command) {
   const parsed = parseRunCommandOptions(command);
   const allOptions = parsed.allOptions;
   const runPath = parsed.repoPath;
+  const languagePlugins = createPluginRegistry();
+  setPluginRegistry(languagePlugins);
   const continueSession = parsed.continueSession;
   const resumeSessionId = parsed.resumeSessionId;
   const printInstruction = parsed.printInstruction;
@@ -160,6 +164,7 @@ export async function handleRunCommand(options: any, command: Command) {
   const preflightPolicy = rawPreflightPolicy as PreflightPolicy;
 
   await runPreflight({
+    languagePlugins,
     repoPath: runPath,
     validate: Boolean(allOptions.validate),
     useGui,
@@ -383,6 +388,7 @@ export async function handleRunCommand(options: any, command: Command) {
       verify: effectiveVerify,
       repoPath: runPath,
       llm,
+      languagePlugins,
       conversationContext: conversationContext.length > 0 ? conversationContext : undefined,
       mode,
       dryRun: allOptions.dryRun,

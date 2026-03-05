@@ -1,5 +1,10 @@
 export { normalizePermissionMode } from '../config/index.js';
 export { logger } from '../observability/logger.js';
+export {
+  createPluginRegistry,
+  setPluginRegistry,
+  type PluginRegistry,
+} from '../plugin/registry.js';
 export { getExitCode } from '../runtime/exit-codes.js';
 export type { ChatSessionManager } from '../session/manager.js';
 export {

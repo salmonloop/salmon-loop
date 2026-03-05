@@ -2,7 +2,7 @@ import { logger } from '../observability/logger.js';
 
 import { LanguagePlugin } from './interface.js';
 
-class PluginRegistry {
+export class PluginRegistry {
   private plugins: Map<string, LanguagePlugin> = new Map();
   private extensionMap: Map<string, LanguagePlugin> = new Map();
   private changeListeners: Array<() => void> = [];
@@ -81,4 +81,27 @@ class PluginRegistry {
   }
 }
 
-export const pluginRegistry = new PluginRegistry();
+export function createPluginRegistry(): PluginRegistry {
+  return new PluginRegistry();
+}
+
+let activePluginRegistry: PluginRegistry | null = null;
+
+export function setPluginRegistry(registry: PluginRegistry): void {
+  activePluginRegistry = registry;
+}
+
+export function getPluginRegistry(): PluginRegistry {
+  if (!activePluginRegistry) {
+    throw new Error('PluginRegistry is not initialized. Call setPluginRegistry() at startup.');
+  }
+  return activePluginRegistry;
+}
+
+export function tryGetPluginRegistry(): PluginRegistry | null {
+  return activePluginRegistry;
+}
+
+export function clearPluginRegistry(): void {
+  activePluginRegistry = null;
+}

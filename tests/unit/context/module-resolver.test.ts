@@ -1,9 +1,10 @@
 import { resolveImportCandidates } from '../../../src/core/context/ast/module-resolver.js';
 import { PluginLoader } from '../../../src/core/plugin/loader.js';
+import { getPluginRegistry } from '../../../src/core/plugin/registry.js';
 
 describe('resolveImportCandidates', () => {
   beforeAll(async () => {
-    await PluginLoader.loadPlugins();
+    await PluginLoader.loadPlugins(getPluginRegistry());
   });
 
   it('returns empty candidates for non-relative specifiers', () => {

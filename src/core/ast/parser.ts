@@ -9,7 +9,7 @@ import { syncFs as fs } from '../adapters/fs/node-fs.js';
 import { LIMITS } from '../config/limits.js';
 import { langOrchestrator } from '../language-support/orchestrator.js';
 import { logger } from '../observability/logger.js';
-import { pluginRegistry } from '../plugin/registry.js';
+import { tryGetPluginRegistry } from '../plugin/registry.js';
 import { SymbolInfo } from '../types/index.js';
 
 const require = createRequire(import.meta.url);
@@ -115,7 +115,7 @@ export class AstParser {
 
         if (!finalWasmPath) {
           // 1. Try to get WASM path from plugin registry first (New Architecture)
-          const plugin = pluginRegistry.getById(lang);
+          const plugin = tryGetPluginRegistry()?.getById(lang);
           if (plugin) {
             const wasmSource = await plugin.parsing.getTreeSitterWasm();
             if (typeof wasmSource === 'string') {

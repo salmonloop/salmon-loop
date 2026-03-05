@@ -1,4 +1,4 @@
-import { pluginRegistry } from '../../plugin/registry.js';
+import { getPluginRegistry } from '../../plugin/registry.js';
 import { normalizePath, safeDirname, safeJoin } from '../../utils/path.js';
 
 export interface ResolveImportOptions {
@@ -8,7 +8,7 @@ export interface ResolveImportOptions {
 
 // Dynamic extension candidates from registered plugins
 function getExtensionCandidates(): string[] {
-  const allPlugins = pluginRegistry.getAll();
+  const allPlugins = getPluginRegistry().getAll();
   const extensions = new Set<string>();
   for (const plugin of allPlugins) {
     for (const ext of plugin.meta.extensions) {
@@ -23,7 +23,7 @@ function getExtensionCandidates(): string[] {
 
 // Dynamic index candidates from registered plugins
 function getIndexCandidates(): string[] {
-  const allPlugins = pluginRegistry.getAll();
+  const allPlugins = getPluginRegistry().getAll();
   const indices = new Set<string>();
   for (const plugin of allPlugins) {
     for (const ext of plugin.meta.extensions) {

@@ -8,6 +8,12 @@ export { createTaskEventBus } from '../interaction/events/bus.js';
 export { createInteractionFacade } from '../interaction/orchestration/facade.js';
 export { logger, PlainReporter, StderrReporter } from '../observability/logger.js';
 export { PluginLoader } from '../plugin/loader.js';
+export {
+  clearPluginRegistry,
+  createPluginRegistry,
+  setPluginRegistry,
+  type PluginRegistry,
+} from '../plugin/registry.js';
 export { buildA2AAgentCard } from '../protocols/a2a/agent-card.js';
 export {
   createA2AAuthPolicyMiddleware,

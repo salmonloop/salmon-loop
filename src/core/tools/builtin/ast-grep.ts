@@ -1,20 +1,12 @@
 import { z } from 'zod';
 
-import { pluginRegistry } from '../../plugin/registry.js';
 import { spawnCommand } from '../../runtime/process-runner.js';
 import { Phase } from '../../types/runtime.js';
 import { processResource } from '../parallel/resource-helpers.js';
 import { ToolSpec, ToolRuntimeCtx } from '../types.js';
 
-/**
- * Get description for language parameter based on registered plugins.
- */
-function getLanguageDescription(): string {
-  const plugins = pluginRegistry.getAll();
-  const langIds = plugins.map((p) => p.meta.id);
-  const examples = langIds.slice(0, 5).join(', ');
-  return `Source language. Supported: ${examples}${langIds.length > 5 ? ' (and more)' : ''}`;
-}
+const LANGUAGE_DESCRIPTION =
+  'Source language plugin id (e.g., "typescript", "tsx", "javascript"). If omitted, ast-grep will auto-detect.';
 
 /**
  * Spec for the ast-grep structural search tool.
@@ -32,7 +24,7 @@ export const astGrepSpec: Omit<ToolSpec, 'executor'> = {
   inputSchema: z.object({
     pattern: z.string().describe('ast-grep pattern to search for'),
     paths: z.array(z.string()).optional().describe('Scope search to specific files or directories'),
-    language: z.string().optional().describe(getLanguageDescription()),
+    language: z.string().optional().describe(LANGUAGE_DESCRIPTION),
   }),
   outputSchema: z.object({
     matches: z.array(

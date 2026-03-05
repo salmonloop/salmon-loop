@@ -1,7 +1,7 @@
 import { AstParser } from '../../../src/core/ast/parser.js';
 import { AstGatherer } from '../../../src/core/context/gatherers/ast-gatherer.js';
 import type { ContextRequest } from '../../../src/core/context/types.js';
-import { pluginRegistry } from '../../../src/core/plugin/registry.js';
+import { getPluginRegistry } from '../../../src/core/plugin/registry.js';
 
 const readFileMock = mock();
 
@@ -27,12 +27,13 @@ mock.module('../../../src/core/ast/parser.js', () => ({
 
 describe('AstGatherer import traversal', () => {
   beforeEach(() => {
-    spyOn(pluginRegistry, 'getAll').mockReturnValue([
+    const registry = getPluginRegistry();
+    spyOn(registry, 'getAll').mockReturnValue([
       {
         meta: { id: 'ts', name: 'TypeScript', extensions: ['.ts'] },
       } as any,
     ]);
-    spyOn(pluginRegistry, 'getByExtension').mockReturnValue({
+    spyOn(registry, 'getByExtension').mockReturnValue({
       meta: { id: 'ts', name: 'TypeScript', extensions: ['.ts'] },
     } as any);
 
@@ -104,7 +105,8 @@ describe('AstGatherer import traversal', () => {
   });
 
   it('uses plugin queryPack for call graph and flow summaries when available', async () => {
-    spyOn(pluginRegistry, 'getByExtension').mockReturnValue({
+    const registry = getPluginRegistry();
+    spyOn(registry, 'getByExtension').mockReturnValue({
       meta: { id: 'ts', name: 'TypeScript', extensions: ['.ts'] },
       parsing: {
         queryPack: {

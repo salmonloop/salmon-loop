@@ -3,7 +3,7 @@ import { describe, expect, it, beforeEach } from 'bun:test';
 import { AstParser } from '../../../src/core/ast/parser.js';
 import { AstGatherer } from '../../../src/core/context/gatherers/ast-gatherer.js';
 import type { ContextRequest } from '../../../src/core/context/types.js';
-import { pluginRegistry } from '../../../src/core/plugin/registry.js';
+import { getPluginRegistry } from '../../../src/core/plugin/registry.js';
 
 mock.module('../../../src/core/ast/parser.js', () => ({
   AstParser: {
@@ -15,7 +15,8 @@ mock.module('../../../src/core/ast/parser.js', () => ({
 
 describe('Cross-file symbol map extraction', () => {
   beforeEach(() => {
-    spyOn(pluginRegistry, 'getByExtension').mockReturnValue({
+    const registry = getPluginRegistry();
+    spyOn(registry, 'getByExtension').mockReturnValue({
       meta: { id: 'typescript', name: 'TypeScript', extensions: ['.ts'] },
     } as any);
 

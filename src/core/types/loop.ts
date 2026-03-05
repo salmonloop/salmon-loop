@@ -1,6 +1,7 @@
 import type { BudgetRunSummary } from '../context/budget/dynamic-adjuster.js';
 import type { ResolvedExtensions } from '../extensions/types.js';
 import type { RunOutcomeReporter } from '../observability/run-outcome-reporter.js';
+import type { PluginRegistry } from '../plugin/registry.js';
 import type {
   CanonicalResponsesEvent,
   CanonicalResponsesEventSource,
@@ -422,6 +423,11 @@ export interface LoopOptions {
   budgetChars?: number;
   userInputProvider?: UserInputProvider;
   agentKind?: 'primary' | 'subagent';
+  /**
+   * Optional language plugin registry for AST/language-aware logic.
+   * CLI/servers should initialize and pass this at startup.
+   */
+  languagePlugins?: PluginRegistry;
   /**
    * Optional sub-agent controller instance to share Smallfry state with the host UI.
    * If omitted, sub-agent orchestration tools may create a private controller.

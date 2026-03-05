@@ -19,6 +19,7 @@ import {
   type MarkdownRenderMode,
   type MarkdownTheme,
   type PermissionMode,
+  type PluginRegistry,
   type ResolvedExtensions,
   type RunOutcomeReporter,
   type ToolAuthorizationConfig,
@@ -56,6 +57,7 @@ export interface ChatModeOptions {
   astValidation?: { strictness?: 'lenient' | 'strict' };
   toolAuthorization?: ToolAuthorizationConfig;
   permissionMode?: PermissionMode;
+  languagePlugins?: PluginRegistry;
   extensions?: ResolvedExtensions;
   outcomeReporter?: RunOutcomeReporter;
   auditScope?: 'repo' | 'user';
@@ -342,6 +344,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
               authorizationProvider,
               authorizationMode: 'deferred',
               subAgentController,
+              languagePlugins: options.languagePlugins,
             });
 
             const responseText = answer.content?.trim() ? answer.content : text.cli.chatAnswerEmpty;
@@ -384,6 +387,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
             auditScope: options.auditScope,
             conversationContext: conversationContext.length > 0 ? conversationContext : undefined,
             astValidation: options.astValidation,
+            languagePlugins: options.languagePlugins,
             // Resolve sessionId at call time to support `/session` switching.
             langfuseSessionId: options.langfuseSessionId || sessionManager.getCurrent().meta.id,
             langfuseUserId: options.langfuseUserId,

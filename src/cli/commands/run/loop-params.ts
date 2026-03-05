@@ -2,6 +2,7 @@ import type {
   CheckpointStrategy,
   LLMMessage,
   PermissionMode,
+  PluginRegistry,
 } from '../../../core/facades/cli-run-loop-params.js';
 import { createTerminalAuthorizationProvider } from '../../authorization/provider.js';
 
@@ -37,6 +38,7 @@ export function buildRunLoopParams(params: {
   allowOutsideCacheRoot: boolean;
   permissionRules?: { allow: string[]; deny: string[] };
   permissionMode: PermissionMode;
+  languagePlugins?: PluginRegistry;
 }) {
   return {
     instruction: params.instruction,
@@ -60,6 +62,7 @@ export function buildRunLoopParams(params: {
     langfuseSessionId: params.langfuseSessionId,
     langfuseUserId: params.langfuseUserId,
     astValidation: params.astValidation,
+    languagePlugins: params.languagePlugins,
     allowOutsideCacheRoot: params.allowOutsideCacheRoot,
     authorizationProvider: createTerminalAuthorizationProvider({
       config: params.toolAuthorization,

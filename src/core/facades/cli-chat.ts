@@ -15,6 +15,7 @@ export { logger } from '../observability/logger.js';
 export type { RunOutcomeReporter } from '../observability/run-outcome-reporter.js';
 export { runSalmonLoop } from '../runtime/loop.js';
 export { ChatSessionManager } from '../session/manager.js';
+export type { PluginRegistry } from '../plugin/registry.js';
 export {
   buildSessionConversationContext,
   getDefaultSessionContextBudgetTokens,

@@ -1,6 +1,11 @@
 import { afterAll, afterEach, beforeAll } from 'bun:test';
 
 import { PluginLoader } from '../src/core/plugin/loader.js';
+import {
+  clearPluginRegistry,
+  createPluginRegistry,
+  setPluginRegistry,
+} from '../src/core/plugin/registry.js';
 
 import {
   clearMockState,
@@ -12,7 +17,9 @@ muteConsoleOutputs();
 
 beforeAll(async () => {
   // Ensure plugins are loaded for all tests
-  await PluginLoader.loadPlugins();
+  const registry = createPluginRegistry();
+  setPluginRegistry(registry);
+  await PluginLoader.loadPlugins(registry);
 });
 
 afterEach(() => {
@@ -21,6 +28,7 @@ afterEach(() => {
 });
 
 afterAll(() => {
+  clearPluginRegistry();
   // CRITICAL SAFETY: Ensure no mocks leak between tests and restore console
   restoreConsoleOutputs();
 });

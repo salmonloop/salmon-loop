@@ -6,7 +6,7 @@ import { readFile, rm } from '../../adapters/fs/node-fs.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { AstParser } from '../../ast/index.js';
 import { convertDiffToShadowOperations } from '../../patch/diff.js';
-import { pluginRegistry } from '../../plugin/registry.js';
+import { tryGetPluginRegistry } from '../../plugin/registry.js';
 import { OpType, type ShadowOperation } from '../domain/grizzco-types.js';
 
 export type AstValidationStrictness = 'lenient' | 'strict';
@@ -44,11 +44,11 @@ function isAstInfrastructureError(message: string): boolean {
 }
 
 function defaultResolveLanguage(filePath: string): string | undefined {
-  return pluginRegistry.getByExtension(filePath)?.meta.id;
+  return tryGetPluginRegistry()?.getByExtension(filePath)?.meta.id;
 }
 
 function defaultSupportsStrictValidation(filePath: string): boolean {
-  const plugin = pluginRegistry.getByExtension(filePath);
+  const plugin = tryGetPluginRegistry()?.getByExtension(filePath);
   return Boolean(plugin?.meta.capabilities?.ast?.strictValidation);
 }
 

@@ -1,4 +1,3 @@
-import { PluginLoader } from '../../src/core/plugin/loader.js';
 import { ErrorType } from '../../src/core/types/index.js';
 import { runVerify, classifyError, preflight } from '../../src/core/verification/runner.js';
 import { buildBunCommand } from '../helpers/bun.js';
@@ -8,10 +7,6 @@ describe('Verify Integration Tests with Real FS', () => {
   const helper = new RealFsTestHelper();
   const bunCommand = (args: string) => buildBunCommand(args);
   let repoPath: string;
-
-  beforeAll(async () => {
-    await PluginLoader.loadPlugins();
-  });
 
   beforeEach(async () => {
     const repo = await helper.createGitRepo();
