@@ -11,9 +11,11 @@ import { RuntimeEnvironment } from '../../strata/runtime/environment.js';
 import type { ToolRuntimeCtx } from '../../tools/types.js';
 import type { LLM, LoopOptions } from '../../types/index.js';
 import { ErrorType } from '../../types/index.js';
+import type { ExecutionWorkspace } from '../../types/loop.js';
 import { ArtifactStore } from '../artifacts/store.js';
 import type { SubAgentControllerPort } from '../controller.js';
-import { SubAgentRegistry } from '../registry.js';
+import type { SubAgentRegistry } from '../registry.js';
+import { getSubAgentRegistry } from '../registry.js';
 import type {
   IExecutable,
   SubAgentProfile,
@@ -24,23 +26,51 @@ import type {
 
 import { SmallfryLoop } from './loop.js';
 
+export type SubAgentRuntimeEnvironment = {
+  setup(): Promise<void>;
+  teardown(): Promise<void>;
+  workspace?: ExecutionWorkspace;
+  initialSnapshotHash?: string;
+};
+
+export type CreateSubAgentRuntimeEnvironment = (
+  options: LoopOptions,
+  emit: (event: any) => void,
+) => SubAgentRuntimeEnvironment;
+
+export type SubAgentManagerDeps = {
+  registry: Pick<SubAgentRegistry, 'get'>;
+  createRuntimeEnvironment: CreateSubAgentRuntimeEnvironment;
+  artifactStore: Pick<typeof ArtifactStore, 'saveText'>;
+};
+
 /**
  * SubAgentManager coordinates the lifecycle of Smallfrys.
  * It handles profile resolution, budget monitoring, and result aggregation.
  */
 export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentResult> {
   private activeAgents = new Map<string, { profile: SubAgentProfile; status: SubAgentStatus }>();
+  private readonly deps: SubAgentManagerDeps;
 
   constructor(
     private ctx: ToolRuntimeCtx,
     private readonly controller: SubAgentControllerPort,
-  ) {}
+    deps?: Partial<SubAgentManagerDeps>,
+  ) {
+    this.deps = {
+      registry: deps?.registry ?? getSubAgentRegistry(),
+      createRuntimeEnvironment:
+        deps?.createRuntimeEnvironment ??
+        ((options, emit) => new RuntimeEnvironment(options, emit)),
+      artifactStore: deps?.artifactStore ?? ArtifactStore,
+    };
+  }
 
   /**
    * Spawns a new sub-agent and monitors its execution.
    */
   async execute(request: SubAgentRequest): Promise<SubAgentResult> {
-    const profile = SubAgentRegistry.get(request.agent_ref);
+    const profile = this.deps.registry.get(request.agent_ref);
 
     if (!profile) {
       return this.fail(
@@ -196,7 +226,7 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
     request: SubAgentRequest,
     llm: LLM,
     agentId: string,
-  ): Promise<RuntimeEnvironment> {
+  ): Promise<SubAgentRuntimeEnvironment> {
     const baseRepoPath = this.ctx.persistenceRoot || this.ctx.repoRoot;
     const options: LoopOptions = {
       instruction: request.task,
@@ -208,7 +238,7 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
       contextFiles: request.contextFiles,
       agentKind: 'subagent',
     };
-    const env = new RuntimeEnvironment(options, (event) => {
+    const env = this.deps.createRuntimeEnvironment(options, (event) => {
       if (event.type === 'log') {
         getLogger().debug(`[Smallfry:${agentId}] ${event.level}: ${event.message}`);
       }
@@ -233,7 +263,7 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
     const patch = result.finalPatch;
     if (!patch || typeof patch !== 'string') return result;
 
-    const saved = await ArtifactStore.saveText({
+    const saved = await this.deps.artifactStore.saveText({
       content: patch,
       mimeType: 'text/x-diff',
       fileExt: 'patch',

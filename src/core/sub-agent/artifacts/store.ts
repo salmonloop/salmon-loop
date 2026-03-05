@@ -171,5 +171,3 @@ export class ArtifactStore {
     this.gcTimer.unref();
   }
 }
-
-ArtifactStore.ensureGcLoop();

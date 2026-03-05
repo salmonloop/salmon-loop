@@ -1,6 +1,12 @@
 import { initializeDefaultCalculator } from '../context/policies/pack-until-full.js';
 import { createLogger, getLogger, setLogger, tryGetLogger } from '../observability/logger.js';
 import { createMonitor, setMonitor, tryGetMonitor } from '../observability/monitor.js';
+import { registerDefaultSubAgentProfiles } from '../sub-agent/registry-defaults.js';
+import {
+  createSubAgentRegistry,
+  setSubAgentRegistry,
+  tryGetSubAgentRegistry,
+} from '../sub-agent/registry.js';
 
 /**
  * Initializes the Core safety runtime.
@@ -29,6 +35,13 @@ export function initializeRuntime() {
   // Initialize monitor once so subsystems can record metrics without hidden singletons.
   if (!tryGetMonitor()) {
     setMonitor(createMonitor());
+  }
+
+  // Sub-agent profiles are runtime state; wire explicitly for predictable tests.
+  if (!tryGetSubAgentRegistry()) {
+    const registry = createSubAgentRegistry();
+    registerDefaultSubAgentProfiles(registry);
+    setSubAgentRegistry(registry);
   }
 
   const isGui = process.argv.includes('--gui');

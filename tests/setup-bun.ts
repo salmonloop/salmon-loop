@@ -12,6 +12,12 @@ import {
   createPromptRegistry,
   setPromptRegistry,
 } from '../src/core/prompts/registry.js';
+import { registerDefaultSubAgentProfiles } from '../src/core/sub-agent/registry-defaults.js';
+import {
+  clearSubAgentRegistry,
+  createSubAgentRegistry,
+  setSubAgentRegistry,
+} from '../src/core/sub-agent/registry.js';
 
 import {
   afterAll,
@@ -37,6 +43,9 @@ afterEach(() => {
 beforeAll(async () => {
   setLogger(createLogger({ silent: true }));
   setMonitor(createMonitor());
+  const subAgents = createSubAgentRegistry();
+  registerDefaultSubAgentProfiles(subAgents);
+  setSubAgentRegistry(subAgents);
   const registry = createPluginRegistry();
   setPluginRegistry(registry);
   setPromptRegistry(createPromptRegistry());
@@ -47,6 +56,7 @@ afterAll(() => {
   clearPromptRegistry();
   clearLogger();
   clearMonitor();
+  clearSubAgentRegistry();
   restoreConsoleOutputs();
   mock.restore();
 });

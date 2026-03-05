@@ -14,19 +14,6 @@ const { infoMock, debugMock, errorMock, warnMock } = (() => ({
   warnMock: mock(),
 }))();
 
-mock.module('../../../src/core/strata/runtime/environment.js', () => ({
-  RuntimeEnvironment: mock().mockImplementation(() => ({
-    setup: setupMock,
-    teardown: teardownMock,
-  })),
-}));
-
-mock.module('../../../src/core/sub-agent/registry.js', () => ({
-  SubAgentRegistry: {
-    get: registryGetMock,
-  },
-}));
-
 import { clearLogger, setLogger } from '../../../src/core/observability/logger.js';
 import { SubAgentManager } from '../../../src/core/sub-agent/core/manager.js';
 
@@ -60,6 +47,15 @@ describe('SubAgentManager setup cleanup', () => {
     setupMock.mockRejectedValue(new Error('env setup failed'));
     teardownMock.mockResolvedValue(undefined);
 
+    const deps = {
+      registry: { get: registryGetMock },
+      createRuntimeEnvironment: () =>
+        ({
+          setup: setupMock,
+          teardown: teardownMock,
+        }) as any,
+    };
+
     const controller = {
       registerAgent: mock(),
       isStopRequested: isStopRequestedMock,
@@ -83,6 +79,7 @@ describe('SubAgentManager setup cleanup', () => {
         dryRun: false,
       } as any,
       controller as any,
+      deps as any,
     );
 
     const result = await manager.execute({
