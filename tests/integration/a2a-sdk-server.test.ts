@@ -154,6 +154,15 @@ describe('A2A SDK express server', () => {
    *
    * This test verifies that when a task completes and cancellation is requested during
    * the grace period, only "canceled" status is published (no "completed" event).
+   *
+   * Original Issue: When cancellation arrives after task completion, the SSE stream
+   * would publish "completed", call eventBus.finished(), and close the stream before
+   * the cancellation could be processed. This caused iterator.next() to receive
+   * "completed" instead of "canceled".
+   *
+   * Fix: Delay publishing "completed" by COMPLETION_GRACE_PERIOD_MS to allow
+   * cancellation requests to arrive. Check store state after delay to detect
+   * cancellation and publish "canceled" instead.
    */
   test('BUG CONDITION: cancellation during grace period publishes only canceled status', async () => {
     const { url, close } = await startTestServer({
