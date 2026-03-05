@@ -18,7 +18,7 @@ import {
   getSidecarSocketPath,
   getUserAcpSessionStorePath,
   GitSnapshotCheckpointService,
-  logger,
+  getLogger,
   mkdir,
   PlainReporter,
   PluginLoader,
@@ -100,7 +100,7 @@ export async function handleServeCommand(_options: unknown, command: Command) {
     configValue: resolvedConfig.observability.audit.scope,
   });
   if (!auditScopeResolution.ok) {
-    logger.error(text.cli.invalidAuditScope(auditScopeResolution.invalid), true);
+    getLogger().error(text.cli.invalidAuditScope(auditScopeResolution.invalid), true);
     process.exit(1);
   }
   const auditScope = auditScopeResolution.value;
@@ -109,12 +109,14 @@ export async function handleServeCommand(_options: unknown, command: Command) {
   const rawA2aPort = allOptions.a2aPort ?? serverConfig?.a2a?.port;
   const a2aPort = parsePort(rawA2aPort, 7431);
   if (!Number.isFinite(a2aPort) || a2aPort <= 0) {
-    logger.error(text.cli.invalidA2APort(String(rawA2aPort ?? '')), true);
+    getLogger().error(text.cli.invalidA2APort(String(rawA2aPort ?? '')), true);
     process.exit(1);
   }
   const acpStdioEnabled = allOptions.acpStdio !== false;
   if (acpStdioEnabled) {
-    logger.setReporter(allOptions.color === false ? new StderrReporter() : new PlainReporter());
+    getLogger().setReporter(
+      allOptions.color === false ? new StderrReporter() : new PlainReporter(),
+    );
   }
 
   const sidecarSocket =
@@ -255,11 +257,11 @@ export async function handleServeCommand(_options: unknown, command: Command) {
         eventBus: sharedEventBus,
       }),
     );
-    logger.info(text.cli.acpStdioStarted('n/a (stdio)'));
+    getLogger().info(text.cli.acpStdioStarted('n/a (stdio)'));
 
     // Handle SIGINT for graceful shutdown
     process.on('SIGINT', () => {
-      logger.info('Received SIGINT, shutting down ACP server...');
+      getLogger().info('Received SIGINT, shutting down ACP server...');
       process.stdin.destroy();
       process.exit(0);
     });
@@ -287,12 +289,12 @@ export async function handleServeCommand(_options: unknown, command: Command) {
 
   // Handle SIGINT for graceful shutdown
   process.on('SIGINT', () => {
-    logger.info('Received SIGINT, shutting down server...');
+    getLogger().info('Received SIGINT, shutting down server...');
     runtime.close().then(() => process.exit(0));
   });
 
   await runtime.start();
-  logger.success(text.cli.serveStarted(a2aHost, a2aPort, sidecarSocket));
+  getLogger().success(text.cli.serveStarted(a2aHost, a2aPort, sidecarSocket));
 }
 
 export async function handleServeAcpCommand(_options: unknown, command: Command) {
@@ -301,7 +303,7 @@ export async function handleServeAcpCommand(_options: unknown, command: Command)
 
   const resolvedConfig = await resolveConfig({ repoRoot: defaultRepoPath });
 
-  logger.setReporter(allOptions.color === false ? new StderrReporter() : new PlainReporter());
+  getLogger().setReporter(allOptions.color === false ? new StderrReporter() : new PlainReporter());
 
   const languagePlugins = createPluginRegistry();
   setPluginRegistry(languagePlugins);
@@ -319,7 +321,7 @@ export async function handleServeAcpCommand(_options: unknown, command: Command)
     configValue: resolvedConfig.observability.audit.scope,
   });
   if (!auditScopeResolution.ok) {
-    logger.error(text.cli.invalidAuditScope(auditScopeResolution.invalid), true);
+    getLogger().error(text.cli.invalidAuditScope(auditScopeResolution.invalid), true);
     process.exit(1);
   }
 
@@ -408,10 +410,10 @@ export async function handleServeAcpCommand(_options: unknown, command: Command)
     }),
   );
 
-  logger.info(text.cli.acpStdioStarted('n/a (stdio)'));
+  getLogger().info(text.cli.acpStdioStarted('n/a (stdio)'));
 
   process.on('SIGINT', () => {
-    logger.info('Received SIGINT, shutting down ACP server...');
+    getLogger().info('Received SIGINT, shutting down ACP server...');
     process.stdin.destroy();
     process.exit(0);
   });

@@ -1,4 +1,4 @@
-import { logger } from '../../observability/logger.js';
+import { getLogger } from '../../observability/logger.js';
 
 import { IDataService } from './types.js';
 
@@ -14,7 +14,7 @@ export const registry = {
    */
   register(service: IDataService): void {
     if (services.has(service.id)) {
-      logger.warn(`[ServiceRegistry] Overwriting existing service: ${service.id}`);
+      getLogger().warn(`[ServiceRegistry] Overwriting existing service: ${service.id}`);
     }
     services.set(service.id, service);
   },

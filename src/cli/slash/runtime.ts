@@ -3,7 +3,7 @@ import {
   createStandardToolstack,
   executeSkill,
   logIgnoredError,
-  logger,
+  getLogger,
   RuntimeEnvironment,
   SkillLoader,
   SlashRouter,
@@ -183,7 +183,7 @@ export async function createCliSlashRuntime(
                 options.emit(event);
                 return;
               }
-              logger.debug(`[slash.skill] ${JSON.stringify(event)}`);
+              getLogger().debug(`[slash.skill] ${JSON.stringify(event)}`);
             };
 
             const env = new RuntimeEnvironment(

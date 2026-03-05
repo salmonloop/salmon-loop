@@ -9,7 +9,7 @@ import { dirname } from 'path';
 
 import { existsSync } from '../../adapters/fs/node-fs.js';
 import { mkdir, readFile, writeFile as writeFileToDisk } from '../../adapters/fs/node-fs.js';
-import { logger } from '../../observability/logger.js';
+import { getLogger } from '../../observability/logger.js';
 import { isSafeRelativePath, normalizePath, safeJoin } from '../../utils/path.js';
 import type { SyntheticSidecarLayer } from '../types.js';
 
@@ -25,12 +25,12 @@ export class SyntheticSidecarLayerImpl implements SyntheticSidecarLayer {
    * Capture ignored/untracked files
    */
   async capture(paths: string[]): Promise<void> {
-    logger.debug(`Capturing ${paths.length} ignored/untracked files`);
+    getLogger().debug(`Capturing ${paths.length} ignored/untracked files`);
 
     for (const filePath of paths) {
       const normalized = normalizePath(filePath);
       if (!isSafeRelativePath(normalized)) {
-        logger.warn(`Skipping unsafe path capture: ${filePath}`);
+        getLogger().warn(`Skipping unsafe path capture: ${filePath}`);
         continue;
       }
 
@@ -39,10 +39,10 @@ export class SyntheticSidecarLayerImpl implements SyntheticSidecarLayer {
         if (existsSync(absolutePath)) {
           const content = await readFile(absolutePath);
           this.capturedFiles.set(normalized, content);
-          logger.debug(`Captured file: ${normalized}`);
+          getLogger().debug(`Captured file: ${normalized}`);
         }
       } catch (error) {
-        logger.warn(`Failed to capture file ${filePath}: ${error}`);
+        getLogger().warn(`Failed to capture file ${filePath}: ${error}`);
       }
     }
   }
@@ -51,16 +51,16 @@ export class SyntheticSidecarLayerImpl implements SyntheticSidecarLayer {
    * Inject captured files to shadow worktree
    */
   async inject(shadowPath: string): Promise<void> {
-    logger.debug(`Injecting ${this.capturedFiles.size} files to shadow worktree`);
+    getLogger().debug(`Injecting ${this.capturedFiles.size} files to shadow worktree`);
 
     for (const [filePath, content] of this.capturedFiles) {
       const shadowFilePath = safeJoin(shadowPath, filePath);
 
       try {
         await writeSidecarFile(shadowFilePath, content);
-        logger.debug(`Injected file: ${filePath}`);
+        getLogger().debug(`Injected file: ${filePath}`);
       } catch (error) {
-        logger.warn(`Failed to inject file ${filePath}: ${error}`);
+        getLogger().warn(`Failed to inject file ${filePath}: ${error}`);
       }
     }
   }
@@ -88,7 +88,7 @@ export class SyntheticSidecarLayerImpl implements SyntheticSidecarLayer {
    */
   async clear(): Promise<void> {
     this.capturedFiles.clear();
-    logger.debug('Cleared all captured files');
+    getLogger().debug('Cleared all captured files');
   }
 }
 

@@ -8,7 +8,7 @@ import { join } from 'path';
 
 import { existsSync } from '../../../adapters/fs/node-fs.js';
 import { rm, mkdir, symlink } from '../../../adapters/fs/node-fs.js';
-import { logger } from '../../../observability/logger.js';
+import { getLogger } from '../../../observability/logger.js';
 import { spawnCommand } from '../../../runtime/process-runner.js';
 import { normalizePath } from '../../../utils/path.js';
 import { getPlatformShellInvocation } from '../../../utils/platform-shell.js';
@@ -37,11 +37,11 @@ export class ShadowDriver {
     const depPaths = await detectDependencyPaths(repoRoot);
 
     if (depPaths.length === 0) {
-      logger.debug('No dependencies detected to hydrate.');
+      getLogger().debug('No dependencies detected to hydrate.');
       return;
     }
 
-    logger.debug(`Hydrating environment: ${depPaths.join(', ')} -> ${targetRoot}`);
+    getLogger().debug(`Hydrating environment: ${depPaths.join(', ')} -> ${targetRoot}`);
 
     for (const depPath of depPaths) {
       const sourcePath = join(repoRoot, depPath);
@@ -54,18 +54,18 @@ export class ShadowDriver {
       try {
         // Use 'junction' for Windows compatibility (no admin rights needed usually)
         await symlink(sourcePath, targetDepPath, 'junction');
-        logger.debug(`Linked dependency: ${depPath}`);
+        getLogger().debug(`Linked dependency: ${depPath}`);
       } catch (err: unknown) {
         if (
           (err && typeof err === 'object' && 'code' in err
             ? (err as { code?: string }).code
             : undefined) !== 'EEXIST'
         ) {
-          logger.warn(
+          getLogger().warn(
             `Failed to link ${depPath}: ${err instanceof Error ? err.message : String(err)}`,
           );
         } else {
-          logger.debug(`Dependency link already exists: ${depPath}`);
+          getLogger().debug(`Dependency link already exists: ${depPath}`);
         }
       }
     }
@@ -81,7 +81,7 @@ export class ShadowDriver {
     const strategy = determineStrategy(task, this.config.whitelist);
     const depPaths = await planDependencyPaths(this.config);
 
-    logger.debug(`ShadowDriver setup: strategy=${strategy}, depPaths=${depPaths.join(',')}`);
+    getLogger().debug(`ShadowDriver setup: strategy=${strategy}, depPaths=${depPaths.join(',')}`);
 
     // Prepare dependency directories
     await this.prepareDependencyDirs(depPaths);
@@ -91,7 +91,7 @@ export class ShadowDriver {
         existsSync(join(this.config.repoRoot, 'bun.lock')) ||
         existsSync(join(this.config.repoRoot, 'bun.lockb'))
       ) {
-        logger.debug('bun project detected');
+        getLogger().debug('bun project detected');
       }
       await this.copyDependencies(depPaths);
     } else if (strategy === 'AGGRESSIVE') {
@@ -133,7 +133,7 @@ export class ShadowDriver {
         // Create the directory itself to ensure copy contents works correctly (paired with cp src/. dest)
         await mkdir(depPath, { recursive: true });
       } catch (error) {
-        logger.warn(`Failed to create dependency directory ${depPath}: ${error}`);
+        getLogger().warn(`Failed to create dependency directory ${depPath}: ${error}`);
       }
     }
   }
@@ -148,9 +148,9 @@ export class ShadowDriver {
 
       try {
         await copyDir(srcPath, destPath, this.config.platform);
-        logger.debug(`Copied dependency: ${dep}`);
+        getLogger().debug(`Copied dependency: ${dep}`);
       } catch (error) {
-        logger.error(`Failed to copy dependency ${dep}: ${error}`);
+        getLogger().error(`Failed to copy dependency ${dep}: ${error}`);
         throw error;
       }
     }
@@ -170,9 +170,9 @@ export class ShadowDriver {
 
       try {
         await linkDirLinux(srcPath, destPath);
-        logger.debug(`Linked dependency: ${dep}`);
+        getLogger().debug(`Linked dependency: ${dep}`);
       } catch (error) {
-        logger.error(`Failed to link dependency ${dep}: ${error}`);
+        getLogger().error(`Failed to link dependency ${dep}: ${error}`);
         throw error;
       }
     }
@@ -198,12 +198,12 @@ async function runWithDriver(
     const env = getEnvInjection(ctx.repoRoot);
     await executeCommand(task.command, ctx.shadowRoot, env);
 
-    logger.debug(`Command executed successfully: ${task.command}`);
+    getLogger().debug(`Command executed successfully: ${task.command}`);
   } catch (error) {
     if (isFallback) throw error;
 
     if (isEnvironmentError(error)) {
-      logger.debug(`Environment error detected, triggering fallback: ${error}`);
+      getLogger().debug(`Environment error detected, triggering fallback: ${error}`);
       await cleanup(ctx.shadowRoot, depPaths);
       return runWithDriver({ ...task, forceIsolation: true }, ctx, true);
     }
@@ -250,7 +250,7 @@ async function executeCommand(command: string, cwd: string, env: NodeJS.ProcessE
 async function cleanup(root: string, depPaths?: string[]): Promise<void> {
   const normalizedRoot = normalizePath(root);
 
-  logger.debug(`Cleaning up shadow environment: ${normalizedRoot}`);
+  getLogger().debug(`Cleaning up shadow environment: ${normalizedRoot}`);
 
   // Restore write permissions if needed
   if (process.platform === 'linux' && depPaths?.length) {
@@ -263,9 +263,9 @@ async function cleanup(root: string, depPaths?: string[]): Promise<void> {
   // Remove shadow directory
   try {
     await rm(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 });
-    logger.debug(`Successfully cleaned up shadow environment: ${normalizedRoot}`);
+    getLogger().debug(`Successfully cleaned up shadow environment: ${normalizedRoot}`);
   } catch (error) {
-    logger.error(`Failed to cleanup shadow environment ${normalizedRoot}: ${error}`);
+    getLogger().error(`Failed to cleanup shadow environment ${normalizedRoot}: ${error}`);
     throw error;
   }
 }

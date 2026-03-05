@@ -1,5 +1,5 @@
 import { FileAdapter } from '../../adapters/fs/file-adapter.js';
-import { logger } from '../../observability/logger.js';
+import { getLogger } from '../../observability/logger.js';
 import type { ProjectTopology } from '../../types/context.js';
 import { safeJoin } from '../../utils/path.js';
 import type { ContextRequest } from '../types.js';
@@ -57,10 +57,10 @@ export class ArchitectureGatherer {
         await this.fileAdapter.mkdir(indexDir);
         await this.fileAdapter.writeFile(archFile, JSON.stringify(topology, null, 2));
       } catch (e) {
-        logger.debug(`[ArchitectureGatherer] Failed to save cache: ${e}`);
+        getLogger().debug(`[ArchitectureGatherer] Failed to save cache: ${e}`);
       }
     } catch (e) {
-      logger.debug(`[ArchitectureGatherer] Failed to scan src directory: ${e}`);
+      getLogger().debug(`[ArchitectureGatherer] Failed to scan src directory: ${e}`);
       // Fallback if no src directory
       return { modules: [] };
     }

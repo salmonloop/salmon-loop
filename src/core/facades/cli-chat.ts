@@ -11,7 +11,7 @@ export { InputHistoryManager } from '../history/input-history.js';
 export { routeChatIntent } from '../intent/chat-intent.js';
 export { DEFAULT_LLM_OUTPUT_POLICY, emitLlmOutput } from '../llm/output-policy.js';
 export { logIgnoredError } from '../observability/ignored-error.js';
-export { logger } from '../observability/logger.js';
+export { getLogger } from '../observability/logger.js';
 export type { RunOutcomeReporter } from '../observability/run-outcome-reporter.js';
 export { runSalmonLoop } from '../runtime/loop.js';
 export { ChatSessionManager } from '../session/manager.js';

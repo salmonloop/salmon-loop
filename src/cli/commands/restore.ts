@@ -2,7 +2,7 @@ import { resolve } from 'path';
 
 import { Command } from 'commander';
 
-import { CheckpointManager, logger } from '../../core/facades/cli-command-checkpoint.js';
+import { CheckpointManager, getLogger } from '../../core/facades/cli-command-checkpoint.js';
 import { text } from '../locales/index.js';
 
 export async function handleRestoreCommand(hash: string, options: any, command: Command) {
@@ -12,16 +12,16 @@ export async function handleRestoreCommand(hash: string, options: any, command: 
   const manager = new CheckpointManager();
 
   try {
-    logger.info(text.cli.restoreStarting(hash));
+    getLogger().info(text.cli.restoreStarting(hash));
     await manager.restoreToMain(runPath, hash, options.force);
-    logger.success(text.cli.restoreSuccess(hash));
+    getLogger().success(text.cli.restoreSuccess(hash));
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     if (msg.includes('Workspace is dirty')) {
-      logger.error(text.cli.restoreFailedDirty);
-      logger.warn(text.cli.restoreFailedDirtyHint);
+      getLogger().error(text.cli.restoreFailedDirty);
+      getLogger().warn(text.cli.restoreFailedDirtyHint);
     } else {
-      logger.error(text.cli.restoreFailed(msg));
+      getLogger().error(text.cli.restoreFailed(msg));
     }
     process.exit(1);
   }

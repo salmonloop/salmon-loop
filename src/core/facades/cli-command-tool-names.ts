@@ -1,4 +1,4 @@
-export { logger } from '../observability/logger.js';
+export { getLogger } from '../observability/logger.js';
 export { skillToToolSpec } from '../skills/bridge.js';
 export { SkillParser } from '../skills/parser.js';
 export type { Skill } from '../skills/types.js';

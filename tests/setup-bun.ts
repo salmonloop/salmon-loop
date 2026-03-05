@@ -1,5 +1,6 @@
 import { mock } from 'bun:test';
 
+import { clearLogger, createLogger, setLogger } from '../src/core/observability/logger.js';
 import {
   clearPluginRegistry,
   createPluginRegistry,
@@ -33,6 +34,7 @@ afterEach(() => {
 });
 
 beforeAll(async () => {
+  setLogger(createLogger({ silent: true }));
   const registry = createPluginRegistry();
   setPluginRegistry(registry);
   setPromptRegistry(createPromptRegistry());
@@ -41,6 +43,7 @@ beforeAll(async () => {
 afterAll(() => {
   clearPluginRegistry();
   clearPromptRegistry();
+  clearLogger();
   restoreConsoleOutputs();
   mock.restore();
 });

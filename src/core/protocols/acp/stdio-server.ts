@@ -2,7 +2,7 @@ import { Readable, Writable } from 'node:stream';
 
 import { AgentSideConnection, type Agent, type AnyMessage } from '@agentclientprotocol/sdk';
 
-import { logger } from '../../observability/logger.js';
+import { getLogger } from '../../observability/logger.js';
 
 const INVALID_REQUEST = {
   jsonrpc: '2.0',
@@ -21,7 +21,9 @@ function formatLineSnippet(line: string, maxLength = 160): string {
 
 async function writeInvalidRequest(output: WritableStream<Uint8Array>, line: string) {
   const snippet = formatLineSnippet(line);
-  logger.warn(`ACP stdio received non-object JSON; returning Invalid Request. line="${snippet}"`);
+  getLogger().warn(
+    `ACP stdio received non-object JSON; returning Invalid Request. line="${snippet}"`,
+  );
   const writer = output.getWriter();
   const encoder = new TextEncoder();
   try {
@@ -62,7 +64,7 @@ export function createAcpStdioStream(
               }
             } catch (error) {
               const detail = error instanceof Error ? error.message : String(error);
-              logger.warn(`ACP stdio failed to parse JSON line. reason="${detail}"`);
+              getLogger().warn(`ACP stdio failed to parse JSON line. reason="${detail}"`);
             }
           }
         }

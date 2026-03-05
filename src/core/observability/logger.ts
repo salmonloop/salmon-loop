@@ -489,4 +489,27 @@ export class Logger {
   }
 }
 
-export const logger = new Logger();
+export function createLogger(options?: LoggerOptions): Logger {
+  return new Logger(options);
+}
+
+let activeLogger: Logger | null = null;
+
+export function setLogger(next: Logger): void {
+  activeLogger = next;
+}
+
+export function getLogger(): Logger {
+  if (!activeLogger) {
+    throw new Error('Logger is not initialized. Call setLogger(createLogger()) at startup.');
+  }
+  return activeLogger;
+}
+
+export function tryGetLogger(): Logger | null {
+  return activeLogger;
+}
+
+export function clearLogger(): void {
+  activeLogger = null;
+}

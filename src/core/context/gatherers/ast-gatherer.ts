@@ -3,7 +3,7 @@ import { FileAdapter } from '../../adapters/fs/file-adapter.js';
 import { AstParser } from '../../ast/parser.js';
 import { checkSyntaxErrors } from '../../ast/validator.js';
 import { LIMITS } from '../../config/limits.js';
-import { logger } from '../../observability/logger.js';
+import { getLogger } from '../../observability/logger.js';
 import { getPluginRegistry } from '../../plugin/registry.js';
 import type {
   AstSyntaxError,
@@ -129,7 +129,7 @@ async function buildSymbolMap(
         }
       }
     } catch (e) {
-      logger.debug(`  [CONTEXT] Failed to extract symbols from ${related.path}: ${e}`);
+      getLogger().debug(`  [CONTEXT] Failed to extract symbols from ${related.path}: ${e}`);
     }
   }
 
@@ -252,7 +252,7 @@ export class AstGatherer {
 
       return { symbols: [...defs, ...refs], definitionMap };
     } catch (e) {
-      logger.debug(`  [CONTEXT] Symbol extraction unavailable for ${primaryFile}: ${e}`);
+      getLogger().debug(`  [CONTEXT] Symbol extraction unavailable for ${primaryFile}: ${e}`);
       return { symbols: [], definitionMap: {} };
     }
   }
@@ -372,7 +372,7 @@ export class AstGatherer {
       };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      logger.debug(`  [CONTEXT] AST diagnostics unavailable for ${primaryFile}: ${msg}`);
+      getLogger().debug(`  [CONTEXT] AST diagnostics unavailable for ${primaryFile}: ${msg}`);
       return { languageId, syntaxErrors: undefined, parseError: msg };
     }
   }

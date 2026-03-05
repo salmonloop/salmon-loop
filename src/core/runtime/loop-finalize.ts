@@ -7,7 +7,7 @@ import {
   drainAuditDropStats,
   recordAuditEvent,
 } from '../observability/audit-trail.js';
-import { logger } from '../observability/logger.js';
+import { getLogger } from '../observability/logger.js';
 import { buildRunOutcomeReport } from '../observability/run-outcome-reporter.js';
 import { drainRedactionMetrics } from '../security/redaction.js';
 import type { LoopOptions, LoopResult } from '../types/runtime.js';
@@ -41,7 +41,7 @@ export async function finalizeLoopRun(params: {
         });
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
-        logger.warn(text.grizzco.observability.outcomeReporterFailed(msg));
+        getLogger().warn(text.grizzco.observability.outcomeReporterFailed(msg));
       }
     }
     const redactionStats = drainRedactionMetrics();
@@ -61,7 +61,9 @@ export async function finalizeLoopRun(params: {
       );
       const warnThreshold = config.observability.audit.buffer.droppedWarn;
       if (dropStats.count >= warnThreshold) {
-        logger.warn(`Audit buffer dropped ${dropStats.count} events (threshold=${warnThreshold}).`);
+        getLogger().warn(
+          `Audit buffer dropped ${dropStats.count} events (threshold=${warnThreshold}).`,
+        );
         recordAuditEvent(
           'audit.dropped.warn',
           { count: dropStats.count, since: dropStats.since, threshold: warnThreshold },

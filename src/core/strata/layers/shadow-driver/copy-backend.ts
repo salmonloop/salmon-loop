@@ -7,7 +7,7 @@
  * - Windows: robocopy /MIR
  */
 
-import { logger } from '../../../observability/logger.js';
+import { getLogger } from '../../../observability/logger.js';
 import { spawnCommand } from '../../../runtime/process-runner.js';
 import { normalizePath } from '../../../utils/path.js';
 import type { Platform } from '../../types.js';
@@ -19,7 +19,7 @@ export async function copyDir(src: string, dest: string, platform: Platform): Pr
   const normalizedSrc = normalizePath(src);
   const normalizedDest = normalizePath(dest);
 
-  logger.debug(`Copying ${normalizedSrc} to ${normalizedDest} on ${platform}`);
+  getLogger().debug(`Copying ${normalizedSrc} to ${normalizedDest} on ${platform}`);
 
   if (platform === 'darwin') {
     try {
@@ -27,7 +27,7 @@ export async function copyDir(src: string, dest: string, platform: Platform): Pr
         allowExitCodes: new Set([0]),
       });
     } catch (err) {
-      logger.warn(`macOS CoW copy failed, falling back to standard copy: ${err}`);
+      getLogger().warn(`macOS CoW copy failed, falling back to standard copy: ${err}`);
       await exec(['cp', '-R', `${normalizedSrc}/.`, normalizedDest], {
         allowExitCodes: new Set([0]),
       });
@@ -76,7 +76,7 @@ export async function linkDirLinux(src: string, dest: string): Promise<void> {
     });
   } catch (err: unknown) {
     if (String((err instanceof Error ? err.message : String(err)) || '').includes('EXDEV')) {
-      logger.debug('Cross-device hardlink failed, falling back to copy');
+      getLogger().debug('Cross-device hardlink failed, falling back to copy');
       await exec(['cp', '-r', `${normalizedSrc}/.`, normalizedDest], {
         allowExitCodes: new Set([0]),
       });

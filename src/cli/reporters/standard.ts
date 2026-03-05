@@ -4,7 +4,7 @@ import ProgressBar from 'progress';
 import {
   ALL_VISIBLE_STEPS,
   ErrorType,
-  logger,
+  getLogger,
   mapErrorForDisplay,
   Phase,
   type LoopEvent,
@@ -33,7 +33,7 @@ export class StandardReporter implements SalmonReporter {
         const phaseKey = event.phase.toLowerCase() as keyof typeof text.progress;
         const phaseName = text.progress[phaseKey] || event.phase;
         this.bar?.render({ phase: phaseName });
-        logger.step(event.phase, phaseName);
+        getLogger().step(event.phase, phaseName);
         break;
       }
       case 'phase.end': {
@@ -48,22 +48,22 @@ export class StandardReporter implements SalmonReporter {
       case 'authorization.summary': {
         const summary = this.formatAuthorizationSummary(event.summary);
         if (summary !== this.lastAuthorizationSummary) {
-          logger.info(text.cli.authorizationSummaryRealtime(summary));
+          getLogger().info(text.cli.authorizationSummaryRealtime(summary));
           this.lastAuthorizationSummary = summary;
         }
         break;
       }
       case 'verify.result':
         if (!event.ok) {
-          logger.error('\n' + text.cli.operationFailed);
-          logger.debug(event.output);
+          getLogger().error('\n' + text.cli.operationFailed);
+          getLogger().debug(event.output);
         }
         break;
       case 'diff.meta':
-        logger.success(text.cli.diffMeta(event.fileCount, event.lineCount));
+        getLogger().success(text.cli.diffMeta(event.fileCount, event.lineCount));
         break;
       case 'retry':
-        logger.warn(
+        getLogger().warn(
           text.cli.retry(
             event.fromAttempt,
             event.toAttempt,
@@ -84,7 +84,7 @@ export class StandardReporter implements SalmonReporter {
             if (this.bar) {
               this.bar.interrupt(header);
             } else {
-              logger.log(header);
+              getLogger().log(header);
             }
           }
           if (this.bar) {
@@ -101,8 +101,8 @@ export class StandardReporter implements SalmonReporter {
           this.bar.interrupt(header);
           this.bar.interrupt(event.content);
         } else {
-          logger.log(header);
-          logger.log(event.content);
+          getLogger().log(header);
+          getLogger().log(event.content);
         }
         break;
       }
@@ -112,20 +112,20 @@ export class StandardReporter implements SalmonReporter {
   onFinish(result: LoopResult) {
     this.bar?.terminate();
     if (result.success) {
-      logger.success(text.cli.operationSuccess);
-      logger.log(text.cli.attempts(result.attempts));
+      getLogger().success(text.cli.operationSuccess);
+      getLogger().log(text.cli.attempts(result.attempts));
     } else {
       this.handleFailure(result);
     }
 
     if (result.authorizationSummary) {
       const summary = this.formatAuthorizationSummary(result.authorizationSummary);
-      logger.info(text.cli.authorizationSummary(summary));
+      getLogger().info(text.cli.authorizationSummary(summary));
     }
     if (result.budgetSummary) {
       const s = result.budgetSummary;
-      logger.info(text.cli.budgetSummaryTitle);
-      logger.info(
+      getLogger().info(text.cli.budgetSummaryTitle);
+      getLogger().info(
         text.cli.budgetSummaryLine(
           s.attemptCount,
           s.adjustmentCount,
@@ -139,18 +139,18 @@ export class StandardReporter implements SalmonReporter {
     }
 
     if (this.verbose && result.logs) {
-      logger.log('\n' + chalk.bold(text.cli.stepLogs));
+      getLogger().log('\n' + chalk.bold(text.cli.stepLogs));
       result.logs.forEach((log) => {
         const symbol = log.success
           ? chalk.green(text.symbols.success)
           : chalk.red(text.symbols.error);
-        logger.log(`${symbol} [${chalk.blue(log.step.toUpperCase())}] ${log.output}`);
+        getLogger().log(`${symbol} [${chalk.blue(log.step.toUpperCase())}] ${log.output}`);
       });
     }
   }
 
   onError(error: Error) {
-    logger.error(text.cli.unexpectedError(error.message), true);
+    getLogger().error(text.cli.unexpectedError(error.message), true);
   }
 
   private initProgressBar() {
@@ -161,7 +161,7 @@ export class StandardReporter implements SalmonReporter {
         render: () => {},
         tick: () => {},
         terminate: () => {},
-        interrupt: (msg: string) => logger.info(msg),
+        interrupt: (msg: string) => getLogger().info(msg),
       } as any;
       return;
     }
@@ -187,15 +187,15 @@ export class StandardReporter implements SalmonReporter {
     }).message;
 
     if (event.level === 'error') {
-      logger.error(displayMessage);
+      getLogger().error(displayMessage);
     } else if (event.level === 'warn') {
-      logger.warn(displayMessage);
+      getLogger().warn(displayMessage);
     } else if (event.level === 'trace') {
-      logger.trace(displayMessage);
+      getLogger().trace(displayMessage);
     } else if (event.level === 'info') {
-      logger.info(displayMessage);
+      getLogger().info(displayMessage);
     } else {
-      logger.debug(displayMessage);
+      getLogger().debug(displayMessage);
     }
   }
 
@@ -218,45 +218,45 @@ export class StandardReporter implements SalmonReporter {
       envelope?.remediationSteps && envelope.remediationSteps.length > 0
         ? envelope.remediationSteps
         : result.remediationSteps;
-    logger.error(text.cli.operationFailed);
-    logger.bold(text.cli.reason(failureReason));
+    getLogger().error(text.cli.operationFailed);
+    getLogger().bold(text.cli.reason(failureReason));
     if (result.diagnosticCode) {
-      logger.error(`  Diagnostic code: ${result.diagnosticCode}`);
+      getLogger().error(`  Diagnostic code: ${result.diagnosticCode}`);
     }
     const errorCode = envelope?.code || result.errorCode;
     if (errorCode) {
-      logger.error(text.cli.errorCode(errorCode));
+      getLogger().error(text.cli.errorCode(errorCode));
     }
     if (result.auditPath) {
-      logger.log(text.cli.auditPath(result.auditPath));
+      getLogger().log(text.cli.auditPath(result.auditPath));
     }
     if (result.verifyArtifact?.handle) {
-      logger.log(text.cli.verifyOutputArtifact(result.verifyArtifact.handle));
+      getLogger().log(text.cli.verifyOutputArtifact(result.verifyArtifact.handle));
     }
     if (Array.isArray(remediationSteps) && remediationSteps.length > 0) {
       for (const step of remediationSteps) {
-        logger.cyan(`${text.symbols.suggestion} ${step}`);
+        getLogger().cyan(`${text.symbols.suggestion} ${step}`);
       }
     }
 
     if (result.failurePhase === Phase.PREFLIGHT) {
       if (result.reasonCode === 'PREFLIGHT_DIRTY') {
-        logger.cyan(`${text.symbols.suggestion} Suggestion: ${text.suggestions.dirty}`);
+        getLogger().cyan(`${text.symbols.suggestion} Suggestion: ${text.suggestions.dirty}`);
       } else if (result.reasonCode === 'PREFLIGHT_NOT_GIT') {
-        logger.cyan(`${text.symbols.suggestion} Suggestion: ${text.suggestions.notGit}`);
+        getLogger().cyan(`${text.symbols.suggestion} Suggestion: ${text.suggestions.notGit}`);
       }
     } else if (result.failurePhase === Phase.VERIFY) {
       if (result.errorType === ErrorType.COMPILATION) {
-        logger.cyan(`${text.symbols.suggestion} Suggestion: ${text.suggestions.compilation}`);
+        getLogger().cyan(`${text.symbols.suggestion} Suggestion: ${text.suggestions.compilation}`);
       } else if (result.errorType === ErrorType.LINT) {
-        logger.cyan(`${text.symbols.suggestion} Suggestion: ${text.suggestions.lint}`);
+        getLogger().cyan(`${text.symbols.suggestion} Suggestion: ${text.suggestions.lint}`);
       } else {
-        logger.cyan(`${text.symbols.suggestion} Suggestion: ${text.suggestions.test}`);
+        getLogger().cyan(`${text.symbols.suggestion} Suggestion: ${text.suggestions.test}`);
       }
     } else if (result.failurePhase === Phase.ROLLBACK) {
-      logger.cyan(`${text.symbols.suggestion} Suggestion: ${text.suggestions.rollbackFailed}`);
+      getLogger().cyan(`${text.symbols.suggestion} Suggestion: ${text.suggestions.rollbackFailed}`);
     }
 
-    logger.log(text.cli.attempts(result.attempts));
+    getLogger().log(text.cli.attempts(result.attempts));
   }
 }

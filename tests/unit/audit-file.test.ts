@@ -27,12 +27,6 @@ mock.module('../../src/core/runtime/paths.js', () => ({
   getAuditDir: getAuditDirMock,
 }));
 
-mock.module('../../src/core/observability/logger.js', () => ({
-  logger: {
-    warn: warnMock,
-  },
-}));
-
 import { appendAuditTrailToAuditFile } from '../../src/core/observability/audit-file.js';
 import {
   clearAuditTrail,
@@ -40,14 +34,17 @@ import {
   recordAuditEvent,
 } from '../../src/core/observability/audit-trail.js';
 import { REDACTED_ERROR_TOKEN } from '../../src/core/observability/error-envelope.js';
+import { clearLogger, setLogger } from '../../src/core/observability/logger.js';
 import { text } from '../../src/locales/index.js';
 
 describe('appendAuditTrailToAuditFile', () => {
   afterAll(() => {
     mock.restore();
+    clearLogger();
   });
 
   beforeEach(() => {
+    setLogger({ warn: warnMock } as any);
     clearAuditTrail();
     readFileMock.mockReset();
     writeFileMock.mockReset();

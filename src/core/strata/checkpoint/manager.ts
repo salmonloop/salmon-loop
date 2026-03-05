@@ -5,7 +5,7 @@ import { join } from 'path';
 import { mkdir, rm } from '../../adapters/fs/node-fs.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
-import { logger } from '../../observability/logger.js';
+import { getLogger } from '../../observability/logger.js';
 import { normalizePath } from '../../utils/path.js';
 
 import { extractSafeSnapshotErrorSummary, hashRepoPathForAudit } from './snapshot-audit.js';
@@ -164,14 +164,14 @@ export class CheckpointManager {
       throw new Error(`Snapshot ${snapshotHash} missing staged tree info`);
     }
 
-    logger.debug(`[restoreToShadow] Restoring snapshot ${snapshotHash} to shadow worktree`);
-    logger.debug(`[restoreToShadow] Snapshot metadata - staged tree: ${meta.staged}`);
+    getLogger().debug(`[restoreToShadow] Restoring snapshot ${snapshotHash} to shadow worktree`);
+    getLogger().debug(`[restoreToShadow] Snapshot metadata - staged tree: ${meta.staged}`);
 
     // 2. Restore Working Tree
     // Force checkout the snapshot in the shadow worktree
     // This sets HEAD, Index, and Working Tree to the snapshot state (Dirty)
     await shadowGit.exec(['checkout', '-f', snapshotHash]);
-    logger.debug(`[restoreToShadow] Step 1: Checked out snapshot to shadow worktree`);
+    getLogger().debug(`[restoreToShadow] Step 1: Checked out snapshot to shadow worktree`);
 
     // 3. Reset HEAD to Original Parent
     // The snapshot commit is created with HEAD as parent.
@@ -180,13 +180,13 @@ export class CheckpointManager {
     const parent = await git.query(['rev-parse', `${snapshotHash}^`]);
     const parentTrimmed = parent.trim();
     await shadowGit.exec(['reset', '--soft', parentTrimmed]);
-    logger.debug(`[restoreToShadow] Step 2: Reset HEAD to parent ${parentTrimmed}`);
+    getLogger().debug(`[restoreToShadow] Step 2: Reset HEAD to parent ${parentTrimmed}`);
 
     // 4. Restore Staged State
     // Read the staged tree into the shadow worktree's index
     // This ensures the Index matches the original Staged state.
     await shadowGit.query(['read-tree', meta.staged]);
-    logger.debug(`[restoreToShadow] Step 3: Restored staged tree to index`);
+    getLogger().debug(`[restoreToShadow] Step 3: Restored staged tree to index`);
 
     // At this point:
     // - Shadow Disk = Snapshot Working Tree (contains dirty data)
@@ -218,26 +218,26 @@ export class CheckpointManager {
     try {
       // Refresh index entries for tracked files only (fast, no untracked scan)
       await shadowGit.query(['update-index', '-q', '--refresh']);
-      logger.debug(`[restoreToShadow] Git index refreshed successfully`);
+      getLogger().debug(`[restoreToShadow] Git index refreshed successfully`);
 
       // Get status for logging (skip untracked files for performance)
       const status = await shadowGit.query(['status', '--short', '-uno']);
       const headRef = await shadowGit.query(['rev-parse', 'HEAD']);
 
-      logger.debug(
+      getLogger().debug(
         `[restoreToShadow] Post-restore git status in ${shadowPath}:\n${status || '(clean)'}`,
       );
-      logger.debug(`[restoreToShadow] Current HEAD: ${headRef.trim()}`);
+      getLogger().debug(`[restoreToShadow] Current HEAD: ${headRef.trim()}`);
 
       if (status.trim()) {
-        logger.debug(
+        getLogger().debug(
           `[restoreToShadow] Shadow worktree contains unstaged changes as expected. ` +
             `This preserves the original dirty state for 3-way merge.`,
         );
       }
     } catch (e) {
       // NOT a critical failure - system has fallback via Git Object Database
-      logger.error(
+      getLogger().error(
         `[restoreToShadow] Failed to refresh index or verify status: ${e instanceof Error ? e.message : String(e)}`,
       );
       // Intentionally NOT throwing - execution continues with ODB fallback
@@ -283,7 +283,9 @@ export class CheckpointManager {
         msg.includes('not in') ||
         msg.includes('invalid object name')
       ) {
-        logger.debug(`[CheckpointManager] File ${filePath} not found in snapshot ${snapshotHash}`);
+        getLogger().debug(
+          `[CheckpointManager] File ${filePath} not found in snapshot ${snapshotHash}`,
+        );
         return null;
       }
       // Rethrow unexpected errors (e.g. git process crash, corruption) to avoid masking real issues
@@ -436,7 +438,7 @@ export class CheckpointManager {
     } else {
       // If we can't find it, maybe it's already gone.
       // We could throw, but idempotency is nice.
-      logger.debug(`Could not find snapshot ref for hash ${snapshotHash} to delete.`);
+      getLogger().debug(`Could not find snapshot ref for hash ${snapshotHash} to delete.`);
     }
   }
 
@@ -559,7 +561,7 @@ export class CheckpointManager {
   async restoreDirtyBackup(repoPath: string, backupHash: string): Promise<void> {
     const git = new GitAdapter(repoPath);
 
-    logger.debug(`[CheckpointManager] Restoring dirty backup T1: ${backupHash}`);
+    getLogger().debug(`[CheckpointManager] Restoring dirty backup T1: ${backupHash}`);
 
     // 1. Get Metadata (stored by createSafeSnapshot)
     const msg = await git.query(['log', '-1', '--format=%B', backupHash]);

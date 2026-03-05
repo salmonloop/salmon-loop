@@ -1,4 +1,4 @@
-import { logger } from '../observability/logger.js';
+import { getLogger } from '../observability/logger.js';
 
 import { LanguagePlugin } from './interface.js';
 
@@ -12,7 +12,7 @@ export class PluginRegistry {
    */
   register(plugin: LanguagePlugin) {
     if (this.plugins.has(plugin.meta.id)) {
-      logger.warn(`Plugin ${plugin.meta.id} is already registered. Overwriting.`);
+      getLogger().warn(`Plugin ${plugin.meta.id} is already registered. Overwriting.`);
     }
 
     this.plugins.set(plugin.meta.id, plugin);

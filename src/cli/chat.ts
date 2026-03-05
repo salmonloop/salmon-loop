@@ -6,7 +6,7 @@ import {
   getDefaultSessionContextBudgetTokens,
   InputHistoryManager,
   logIgnoredError,
-  logger,
+  getLogger,
   refreshSessionSummary,
   routeChatIntent,
   runAnswerExecutor,
@@ -474,7 +474,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
   const queueController: QueueController = {
     pause: () => {
       queue.pause();
-      logger.audit(
+      getLogger().audit(
         'QUEUE_PAUSE',
         { status: 'paused' },
         { source: 'chat', severity: 'low', scope: 'session' },
@@ -483,7 +483,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
     resume: () => {
       queue.resume();
       lastInterruptedInput = null;
-      logger.audit(
+      getLogger().audit(
         'QUEUE_RESUME',
         { status: 'resumed' },
         { source: 'chat', severity: 'low', scope: 'session' },
@@ -493,7 +493,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
       const cleared = queue.clear();
       lastInterruptedInput = null;
       latestDispatch?.({ type: 'CLEAR_QUEUE_MESSAGES' });
-      logger.audit(
+      getLogger().audit(
         'QUEUE_CLEAR',
         { cleared },
         { source: 'chat', severity: 'low', scope: 'session' },

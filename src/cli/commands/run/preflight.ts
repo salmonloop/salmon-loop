@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 
-import { logger } from '../../../core/observability/logger.js';
+import { getLogger } from '../../../core/facades/cli-observability.js';
 import { PluginLoader } from '../../../core/plugin/loader.js';
 import type { PluginRegistry } from '../../../core/plugin/registry.js';
 import {
@@ -99,7 +99,7 @@ async function runValidateCommand(params: {
 
   if (combined) {
     const output = params.useGui ? combined.slice(0, 2_000) : combined;
-    logger.log(output);
+    getLogger().log(output);
   }
 
   if (result.failure) {
@@ -132,25 +132,25 @@ export async function runPreflight(params: {
   if (!params.validate) return;
   const preflightPolicy = params.preflightPolicy ?? 'lenient';
 
-  logger.log(chalk.blue(text.cli.runningValidation));
+  getLogger().log(chalk.blue(text.cli.runningValidation));
 
   const profile = await detectNodeRuntimeProfile(params.repoPath);
   if (!profile) {
-    logger.warn(text.cli.validationSkippedNoPackageJson);
+    getLogger().warn(text.cli.validationSkippedNoPackageJson);
     return;
   }
 
   const lintCommand = resolveScriptCommand(profile, 'lint');
   const testCommand = resolveScriptCommand(profile, 'test');
   if (!lintCommand && !testCommand) {
-    logger.warn(text.cli.validationSkippedNoScripts);
+    getLogger().warn(text.cli.validationSkippedNoScripts);
     return;
   }
 
-  logger.debug(text.cli.validationUsingPackageManager(profile.packageManager));
+  getLogger().debug(text.cli.validationUsingPackageManager(profile.packageManager));
   try {
     if (lintCommand) {
-      logger.debug(text.cli.runningScript('lint', lintCommand.shellCommand));
+      getLogger().debug(text.cli.runningScript('lint', lintCommand.shellCommand));
       try {
         await runValidateCommand({
           repoPath: params.repoPath,
@@ -161,20 +161,20 @@ export async function runPreflight(params: {
         });
       } catch (error) {
         if (error instanceof PreflightCommandError) {
-          logger.audit('cli.preflight.command_failure', error.details, {
+          getLogger().audit('cli.preflight.command_failure', error.details, {
             source: 'cli',
             severity: 'low',
           });
-          logger.error(buildFailureMessage(error.details));
+          getLogger().error(buildFailureMessage(error.details));
         }
         throw error;
       }
     } else {
-      logger.debug(text.cli.scriptMissing('lint'));
+      getLogger().debug(text.cli.scriptMissing('lint'));
     }
 
     if (testCommand) {
-      logger.debug(text.cli.runningScript('test', testCommand.shellCommand));
+      getLogger().debug(text.cli.runningScript('test', testCommand.shellCommand));
       try {
         await runValidateCommand({
           repoPath: params.repoPath,
@@ -185,25 +185,25 @@ export async function runPreflight(params: {
         });
       } catch (error) {
         if (error instanceof PreflightCommandError) {
-          logger.audit('cli.preflight.command_failure', error.details, {
+          getLogger().audit('cli.preflight.command_failure', error.details, {
             source: 'cli',
             severity: 'low',
           });
           const detailedMessage = buildFailureMessage(error.details);
           if (preflightPolicy === 'strict') {
-            logger.error(detailedMessage);
+            getLogger().error(detailedMessage);
             throw error;
           }
-          logger.warn(detailedMessage);
+          getLogger().warn(detailedMessage);
         }
-        logger.warn(text.cli.testsFailedContinuing);
+        getLogger().warn(text.cli.testsFailedContinuing);
       }
     } else {
-      logger.debug(text.cli.scriptMissing('test'));
+      getLogger().debug(text.cli.scriptMissing('test'));
     }
 
-    logger.success(text.cli.validationCompleted);
+    getLogger().success(text.cli.validationCompleted);
   } catch {
-    logger.error(text.cli.validationFailed, true);
+    getLogger().error(text.cli.validationFailed, true);
   }
 }

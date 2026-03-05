@@ -5,7 +5,7 @@ import { join } from 'path';
 import { text } from '../../../locales/index.js';
 import { LIMITS } from '../../config/limits.js';
 import { logIgnoredError } from '../../observability/ignored-error.js';
-import { logger } from '../../observability/logger.js';
+import { getLogger } from '../../observability/logger.js';
 import { LoopEvent } from '../../types/index.js';
 
 interface LockMetadata {
@@ -215,7 +215,9 @@ export class FileHandleManager {
 
         // Log lock holder info to file for debugging
         const age = Date.now() - metadata.timestamp;
-        logger.debug(`Lock held by PID ${metadata.pid}, owner: ${metadata.owner}, age: ${age}ms`);
+        getLogger().debug(
+          `Lock held by PID ${metadata.pid}, owner: ${metadata.owner}, age: ${age}ms`,
+        );
 
         const isAlive = this.isProcessAlive(metadata.pid);
 
@@ -249,15 +251,15 @@ export class FileHandleManager {
             });
             return;
           } catch (retryError) {
-            logger.debug(`Final lock acquisition attempt failed: ${retryError}`);
+            getLogger().debug(`Final lock acquisition attempt failed: ${retryError}`);
           }
         } else {
-          logger.debug(
+          getLogger().debug(
             `Lock is not stale (age: ${age}ms < ${LIMITS.lockStaleThresholdMs}ms), skipping force removal`,
           );
         }
       } catch (cleanupError) {
-        logger.debug(`Force cleanup failed: ${cleanupError}`);
+        getLogger().debug(`Force cleanup failed: ${cleanupError}`);
       }
 
       throw new Error(text.resource.lockAcquireTimeout(repoPath));

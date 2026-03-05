@@ -2,7 +2,7 @@ import { join } from 'path';
 
 import { typescriptPlugin, tsxPlugin, javascriptPlugin } from '../../languages/typescript/index.js';
 import { readdir } from '../adapters/fs/node-fs.js';
-import { logger } from '../observability/logger.js';
+import { getLogger } from '../observability/logger.js';
 
 import { LanguagePlugin } from './interface.js';
 import type { PluginRegistry } from './registry.js';
@@ -24,13 +24,13 @@ export class PluginLoader {
 
     try {
       // Phase 1: Manually register TypeScript/JavaScript plugins
-      logger.debug('Loading built-in plugins...');
+      getLogger().debug('Loading built-in plugins...');
 
       this.registerWithValidation(registry, typescriptPlugin);
       this.registerWithValidation(registry, tsxPlugin);
       this.registerWithValidation(registry, javascriptPlugin);
 
-      logger.debug(
+      getLogger().debug(
         `Plugins loaded: ${typescriptPlugin.meta.name}, ${tsxPlugin.meta.name}, ${javascriptPlugin.meta.name}`,
       );
 
@@ -44,10 +44,10 @@ export class PluginLoader {
       // In test environment, we want to know why it failed
       if (process.env.NODE_ENV === 'test') {
         const errorMsg = error instanceof Error ? error.message : String(error);
-        logger.error(`CRITICAL: Failed to load plugins: ${errorMsg}`);
+        getLogger().error(`CRITICAL: Failed to load plugins: ${errorMsg}`);
         throw error;
       }
-      logger.error(
+      getLogger().error(
         `Failed to load plugins: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
@@ -69,7 +69,7 @@ export class PluginLoader {
 
       if (pluginDirs.length === 0) return;
 
-      logger.info(`Found ${pluginDirs.length} potential user plugins in ${userPluginDir}`);
+      getLogger().info(`Found ${pluginDirs.length} potential user plugins in ${userPluginDir}`);
 
       for (const dirName of pluginDirs) {
         const entryPoint = join(userPluginDir, dirName, 'index.js');
@@ -82,13 +82,15 @@ export class PluginLoader {
 
           if (this.isValidPlugin(plugin)) {
             this.registerWithValidation(registry, plugin);
-            logger.info(`Loaded user plugin: ${plugin.meta.name} (${plugin.meta.id})`);
+            getLogger().info(`Loaded user plugin: ${plugin.meta.name} (${plugin.meta.id})`);
           } else {
-            logger.warn(`Skipping invalid user plugin in ${dirName}: missing required fields.`);
+            getLogger().warn(
+              `Skipping invalid user plugin in ${dirName}: missing required fields.`,
+            );
           }
         } catch (err: unknown) {
           if (err && typeof err === 'object' && 'code' in err && err.code !== 'ENOENT') {
-            logger.warn(
+            getLogger().warn(
               `Failed to load user plugin from ${dirName}: ${err instanceof Error ? (err instanceof Error ? err.message : String(err)) : String(err)}`,
             );
           }
@@ -97,7 +99,7 @@ export class PluginLoader {
     } catch (err: unknown) {
       // Ignore if directory doesn't exist
       if (err && typeof err === 'object' && 'code' in err && err.code !== 'ENOENT') {
-        logger.debug(
+        getLogger().debug(
           `Error scanning for user plugins: ${err instanceof Error ? err.message : String(err)}`,
         );
       }
@@ -151,7 +153,7 @@ export class PluginLoader {
   private static registerWithValidation(registry: PluginRegistry, plugin: LanguagePlugin) {
     const validation = validateQueryPack(plugin);
     if (!validation.valid) {
-      logger.warn(
+      getLogger().warn(
         `Plugin ${plugin.meta.id} has queryPack validation errors: ${validation.errors.join(', ')}`,
       );
     }

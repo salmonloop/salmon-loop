@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { logger } from '../../observability/logger.js';
+import { getLogger } from '../../observability/logger.js';
 
 interface JsonSchema {
   type?: string;
@@ -62,11 +62,11 @@ export function jsonSchemaToZod(jsonSchema: unknown): z.ZodType<any> {
       }
 
       default:
-        logger.debug(`Unsupported JSON schema type: ${schema.type}, falling back to any`);
+        getLogger().debug(`Unsupported JSON schema type: ${schema.type}, falling back to any`);
         return z.any();
     }
   } catch (err) {
-    logger.error(
+    getLogger().error(
       `Failed to convert JSON schema to Zod: ${String(err)} (Schema: ${JSON.stringify(schema)})`,
     );
     return z.any();

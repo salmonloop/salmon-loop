@@ -1,7 +1,7 @@
 import { text } from '../../locales/index.js';
 import { FileAdapter } from '../adapters/fs/file-adapter.js';
 import { LIMITS } from '../config/limits.js';
-import { logger } from '../observability/logger.js';
+import { getLogger } from '../observability/logger.js';
 import { getPluginRegistry } from '../plugin/registry.js';
 import { safeJoin, safeDirname } from '../utils/path.js';
 
@@ -123,12 +123,12 @@ export async function verifyDependencyVersion(
     const actualVersion = packageJson.dependencies?.['web-tree-sitter'];
 
     if (actualVersion !== expectedVersion) {
-      logger.warn(
+      getLogger().warn(
         text.dependency.versionMismatch('web-tree-sitter', expectedVersion, actualVersion),
       );
-      logger.warn(text.dependency.versionMismatchHint);
+      getLogger().warn(text.dependency.versionMismatchHint);
     }
   } catch (error) {
-    logger.error(`${text.dependency.checkFailed}: ${error}`);
+    getLogger().error(`${text.dependency.checkFailed}: ${error}`);
   }
 }

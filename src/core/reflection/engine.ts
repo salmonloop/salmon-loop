@@ -1,4 +1,4 @@
-import { logger } from '../observability/logger.js';
+import { getLogger } from '../observability/logger.js';
 import { getPromptRegistry } from '../prompts/registry.js';
 import { executeUpdateKnowledge } from '../tools/builtin/knowledge.js';
 import { LLM } from '../types/index.js';
@@ -18,7 +18,7 @@ export class ReflectionEngine {
       return { lessons: [] };
     }
 
-    logger.debug(`[Reflection] Triggering reflection for ${failures.length} failures.`);
+    getLogger().debug(`[Reflection] Triggering reflection for ${failures.length} failures.`);
 
     const prompt = promptRegistry.renderReflection(input);
 
@@ -59,12 +59,12 @@ export class ReflectionEngine {
         }
       }
 
-      logger.debug(
+      getLogger().debug(
         `[Reflection] Reflection completed with ${result.lessons?.length ?? 0} lessons.`,
       );
       return result;
     } catch (e) {
-      logger.warn(
+      getLogger().warn(
         `[Reflection] Failed to perform reflection: ${e instanceof Error ? e.message : String(e)}`,
       );
       return { lessons: [] };

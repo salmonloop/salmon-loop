@@ -6,7 +6,7 @@ export { resolveConfig } from '../config/resolve.js';
 export { resolveExtensions } from '../extensions/index.js';
 export { createTaskEventBus } from '../interaction/events/bus.js';
 export { createInteractionFacade } from '../interaction/orchestration/facade.js';
-export { logger, PlainReporter, StderrReporter } from '../observability/logger.js';
+export { getLogger, PlainReporter, StderrReporter } from '../observability/logger.js';
 export { PluginLoader } from '../plugin/loader.js';
 export {
   clearPluginRegistry,

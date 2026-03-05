@@ -1,6 +1,6 @@
 import { FileAdapter } from '../../adapters/fs/file-adapter.js';
 import { getDefaultIndexPath } from '../../config/paths.js';
-import { logger } from '../../observability/logger.js';
+import { getLogger } from '../../observability/logger.js';
 import type { ProjectKnowledge } from '../../types/context.js';
 import { safeJoin } from '../../utils/path.js';
 import type { ContextRequest } from '../types.js';
@@ -44,7 +44,7 @@ export class KnowledgeGatherer {
             snapshotData.deprecated_rules.forEach((r: string) => allDeprecated.add(r));
           }
         } catch (e) {
-          logger.warn(`[KnowledgeGatherer] Failed to load snapshot: ${e}`);
+          getLogger().warn(`[KnowledgeGatherer] Failed to load snapshot: ${e}`);
         }
       }
 
@@ -80,7 +80,7 @@ export class KnowledgeGatherer {
       if (eventFiles.length >= KnowledgeGatherer.COMPACTION_THRESHOLD) {
         // Run compaction in background (non-blocking)
         this.compact(knowledgeDir, aggregated, eventFiles).catch((e) =>
-          logger.debug(`[KnowledgeGatherer] Compaction failed: ${e}`),
+          getLogger().debug(`[KnowledgeGatherer] Compaction failed: ${e}`),
         );
       }
     } catch {
@@ -101,7 +101,7 @@ export class KnowledgeGatherer {
     aggregated: ProjectKnowledge,
     filesToMerge: string[],
   ): Promise<void> {
-    logger.debug(`[KnowledgeGatherer] Compacting ${filesToMerge.length} knowledge events...`);
+    getLogger().debug(`[KnowledgeGatherer] Compacting ${filesToMerge.length} knowledge events...`);
 
     const snapshotPath = safeJoin(knowledgeDir, KnowledgeGatherer.SNAPSHOT_FILE);
 
@@ -114,7 +114,7 @@ export class KnowledgeGatherer {
         await this.fileAdapter.deleteFile(safeJoin(knowledgeDir, file)).catch(() => {});
       }
 
-      logger.info(`[KnowledgeGatherer] Compaction complete. Merged into ${snapshotPath}`);
+      getLogger().info(`[KnowledgeGatherer] Compaction complete. Merged into ${snapshotPath}`);
     } catch (e) {
       throw new Error(`Failed to compact knowledge: ${e}`);
     }

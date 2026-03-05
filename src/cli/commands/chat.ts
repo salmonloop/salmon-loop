@@ -9,7 +9,7 @@ import {
   setPluginRegistry,
   setPromptRegistry,
   ExtensionConfigError,
-  logger,
+  getLogger,
   normalizePermissionMode,
   PluginLoader,
   resolveConfig,
@@ -35,12 +35,12 @@ export async function handleChatCommand(options: any, command: Command) {
       : undefined;
 
   if (printInstruction) {
-    logger.error(text.cli.printCommandConflict('chat'), true);
+    getLogger().error(text.cli.printCommandConflict('chat'), true);
     process.exit(1);
   }
 
   if (continueSession && resumeSessionId) {
-    logger.error(text.cli.continueResumeConflict, true);
+    getLogger().error(text.cli.continueResumeConflict, true);
     process.exit(1);
   }
 
@@ -59,14 +59,14 @@ export async function handleChatCommand(options: any, command: Command) {
     configValue: resolvedConfig.observability.audit.scope,
   });
   if (!auditScopeResolution.ok) {
-    logger.error(text.cli.invalidAuditScope(auditScopeResolution.invalid), true);
+    getLogger().error(text.cli.invalidAuditScope(auditScopeResolution.invalid), true);
     process.exit(1);
   }
   const auditScope = auditScopeResolution.value;
   const rawPermissionMode = allOptions.mode ?? resolvedConfig.permissionMode ?? 'interactive';
   const permissionMode = normalizePermissionMode(rawPermissionMode);
   if (!permissionMode) {
-    logger.error(
+    getLogger().error(
       `Invalid --mode "${String(rawPermissionMode)}". Expected "interactive" or "yolo".`,
     );
     process.exit(1);
@@ -77,7 +77,7 @@ export async function handleChatCommand(options: any, command: Command) {
     allOptions.llmOutput,
   );
   if (!llmOutputResolution.ok) {
-    logger.error(text.cli.invalidLlmOutputKind(llmOutputResolution.invalid), true);
+    getLogger().error(text.cli.invalidLlmOutputKind(llmOutputResolution.invalid), true);
     process.exitCode = 1;
     return;
   }
@@ -104,7 +104,7 @@ export async function handleChatCommand(options: any, command: Command) {
 
   // Verification is now optional - the loop will skip if undefined
   if (!verifyCommand) {
-    logger.warn(text.verify.noCommandFound);
+    getLogger().warn(text.verify.noCommandFound);
   }
 
   // Dynamic import to avoid circular dependencies if any, and keep startup fast
@@ -115,7 +115,7 @@ export async function handleChatCommand(options: any, command: Command) {
     extensionResolution = await resolveExtensions({ repoRoot: runPath });
   } catch (err: unknown) {
     if (err instanceof ExtensionConfigError) {
-      logger.error(`Extension configuration invalid: ${err.message}`);
+      getLogger().error(`Extension configuration invalid: ${err.message}`);
       process.exit(1);
     }
     throw err;
@@ -152,7 +152,7 @@ export async function handleChatCommand(options: any, command: Command) {
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    logger.error(msg, true);
+    getLogger().error(msg, true);
     process.exit(1);
   }
 }

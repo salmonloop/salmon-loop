@@ -5,7 +5,7 @@ import { createFileSystemAdapter } from '../../adapters/fs/index.js';
 import * as fs from '../../adapters/fs/node-fs.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { InitCtx } from '../../grizzco/engine/pipeline/types.js';
-import { logger } from '../../observability/logger.js';
+import { getLogger } from '../../observability/logger.js';
 import { FileStateResolver } from '../../strata/layers/file-state-resolver.js';
 import { RuntimeEnvironment } from '../../strata/runtime/environment.js';
 import type { ToolRuntimeCtx } from '../../tools/types.js';
@@ -56,21 +56,21 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
 
     if (currentDepth >= MAX_RECURSION_DEPTH) {
       const msg = text.smallfry.errors.recursionLimitExceeded(currentDepth, MAX_RECURSION_DEPTH);
-      logger.error(`[SubAgentManager] ${msg}`);
+      getLogger().error(`[SubAgentManager] ${msg}`);
       return this.fail(profile.id, msg, 'LOOP_FAILED');
     }
 
     this.activeAgents.set(agentId, { profile, status: 'hiring' });
     this.controller.registerAgent(agentId, profile, 'hiring');
 
-    logger.info(
+    getLogger().info(
       `[SubAgentManager] ${text.smallfry.status.spawning} (ID: ${agentId}, Role: ${profile.role})`,
     );
 
     const llm = this.ctx.llm;
     if (!llm) {
       const msg = text.smallfry.errors.dispatchMissingRuntimeLlm;
-      logger.error(`[SubAgentManager] ${msg}`);
+      getLogger().error(`[SubAgentManager] ${msg}`);
       return this.fail(profile.id, msg, 'LOOP_CRASH');
     }
 
@@ -117,9 +117,9 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
               this.updateStatus(agentId, 'working');
             }
             if (event.type === 'log') {
-              logger.debug(`[Smallfry:${agentId}] ${event.level}: ${event.message}`);
+              getLogger().debug(`[Smallfry:${agentId}] ${event.level}: ${event.message}`);
             } else {
-              logger.debug(`[Smallfry:${agentId}] ${event.type}`);
+              getLogger().debug(`[Smallfry:${agentId}] ${event.type}`);
             }
           },
           fileStateResolver: resolver,
@@ -139,7 +139,7 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
         agentId,
         `Execution failed: ${(error instanceof Error ? error.message : undefined) ?? error}`,
       );
-      logger.error(
+      getLogger().error(
         `[SubAgentManager] Smallfry ${agentId} crashed: ${error instanceof Error ? error.message : String(error)}`,
       );
       return {
@@ -169,7 +169,7 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
     const entry = this.activeAgents.get(id);
     if (entry) {
       entry.status = status;
-      logger.debug(`[SubAgentManager] Smallfry ${id} status: ${status}`);
+      getLogger().debug(`[SubAgentManager] Smallfry ${id} status: ${status}`);
       this.controller.updateStatus(id, status);
     }
   }
@@ -210,7 +210,7 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
     };
     const env = new RuntimeEnvironment(options, (event) => {
       if (event.type === 'log') {
-        logger.debug(`[Smallfry:${agentId}] ${event.level}: ${event.message}`);
+        getLogger().debug(`[Smallfry:${agentId}] ${event.level}: ${event.message}`);
       }
     });
 
@@ -221,7 +221,7 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
       try {
         await env.teardown();
       } catch (teardownError) {
-        logger.warn(
+        getLogger().warn(
           `[SubAgentManager] Failed to teardown isolated environment after setup error: ${teardownError instanceof Error ? teardownError.message : String(teardownError)}`,
         );
       }

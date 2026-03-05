@@ -2,7 +2,7 @@ import * as path from 'path';
 
 import { text } from '../../../locales/index.js';
 import { AtomicFileWriter } from '../../adapters/fs/index.js';
-import { logger } from '../../observability/logger.js';
+import { getLogger } from '../../observability/logger.js';
 import { DslContext, ExecutionPlan } from '../dsl/DecisionEngine.js';
 
 import { RejectionManager } from './RejectionManager.js';
@@ -49,7 +49,7 @@ export class Executor {
 
     try {
       const worker = this.workerFactory.get(plan.workerId);
-      logger.debug(`[Executor] Executing worker ${plan.workerId} for ${file.path}`);
+      getLogger().debug(`[Executor] Executing worker ${plan.workerId} for ${file.path}`);
 
       // 3. Execute Worker
       const result = await worker.execute(operation, file, {
@@ -71,7 +71,7 @@ export class Executor {
         const absolutePath = ctx.repoRoot ? path.join(ctx.repoRoot, file.path) : file.path;
         await this.writer.writeAtomic(absolutePath, result.mergedContent);
       } else if (result.mergedContent && ctx.options.dryRun) {
-        logger.info(`[DryRun] Would write ${file.path}`);
+        getLogger().info(`[DryRun] Would write ${file.path}`);
       }
 
       return { success: true, actionTaken: `MERGE(${plan.workerId})` };

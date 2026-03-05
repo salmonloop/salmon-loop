@@ -1,6 +1,6 @@
 export type { ToolAuthorizationConfig } from '../config/types.js';
 export type { ResolvedExtensions, ResolvedMcpServer } from '../extensions/types.js';
-export { logger } from '../observability/logger.js';
+export { getLogger } from '../observability/logger.js';
 export type {
   AuthorizationDecision,
   ToolAuthorizationRequest,

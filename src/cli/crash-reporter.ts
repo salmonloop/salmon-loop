@@ -1,5 +1,5 @@
+import { getLogger } from '../core/observability/logger.js';
+
 export function reportCliCrash(err: unknown): void {
-  import('../core/observability/logger.js').then(({ logger }) => {
-    logger.error('CLI execution crashed', err, true);
-  });
+  getLogger().error('CLI execution crashed', err, true);
 }

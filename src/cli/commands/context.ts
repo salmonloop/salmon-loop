@@ -5,7 +5,7 @@ import {
   createDefaultPermissionGate,
   ContextService,
   defaultPathAdapter,
-  logger,
+  getLogger,
   resolveConfig,
   setChurnRankingPolicy,
 } from '../../core/facades/cli-context.js';
@@ -16,18 +16,18 @@ export async function handleContextCommand(options: any, command: Command) {
   const repoPath = defaultPathAdapter.resolve(allOptions.repo || process.cwd());
 
   if (options.file && options.selection) {
-    logger.error(text.cli.fileSelectionConflict, true);
+    getLogger().error(text.cli.fileSelectionConflict, true);
     process.exit(1);
   }
 
   if (!options.instruction) {
-    logger.error(text.cli.instructionRequired, true);
+    getLogger().error(text.cli.instructionRequired, true);
     process.exit(1);
   }
 
   const rawDiffScope = String(options.diffScope || 'primary');
   if (rawDiffScope !== 'primary' && rawDiffScope !== 'ast_related') {
-    logger.error(text.cli.contextInvalidDiffScope(rawDiffScope), true);
+    getLogger().error(text.cli.contextInvalidDiffScope(rawDiffScope), true);
     process.exit(1);
   }
   const diffScope = rawDiffScope === 'ast_related' ? 'ast_related' : 'primary';
@@ -36,7 +36,7 @@ export async function handleContextCommand(options: any, command: Command) {
   if (options.budgetChars !== undefined) {
     const parsed = Number(options.budgetChars);
     if (!Number.isFinite(parsed) || parsed <= 0) {
-      logger.error(text.cli.contextInvalidBudgetChars(String(options.budgetChars)), true);
+      getLogger().error(text.cli.contextInvalidBudgetChars(String(options.budgetChars)), true);
       process.exit(1);
     }
     budgetChars = parsed;
@@ -72,6 +72,6 @@ export async function handleContextCommand(options: any, command: Command) {
     budgetChars,
   });
 
-  logger.success(text.cli.contextBuilt(result.meta.usedChars, result.meta.truncated));
+  getLogger().success(text.cli.contextBuilt(result.meta.usedChars, result.meta.truncated));
   process.stdout.write(result.prompt.trimEnd() + '\n');
 }

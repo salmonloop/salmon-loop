@@ -1,4 +1,6 @@
-import { beforeEach, describe, expect, it } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, it, mock } from 'bun:test';
+
+import { clearLogger, setLogger } from '../../../../../src/core/observability/logger.js';
 
 const hoisted = (() => ({
   spawnCommand: mock(),
@@ -28,13 +30,15 @@ mock.module('../../../../../src/core/target-runtime/index.js', () => ({
   resolveScriptCommand: hoisted.resolveScriptCommand,
 }));
 
-mock.module('../../../../../src/core/observability/logger.js', () => ({
-  logger: hoisted.logger,
-}));
-
 describe('runPreflight', () => {
+  afterAll(() => {
+    mock.restore();
+    clearLogger();
+  });
+
   beforeEach(() => {
     mock.clearAllMocks();
+    setLogger(hoisted.logger as any);
     hoisted.spawnCommand.mockResolvedValue({
       code: 0,
       signal: null,

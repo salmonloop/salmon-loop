@@ -1,4 +1,4 @@
-import { logger } from '../observability/logger.js';
+import { getLogger } from '../observability/logger.js';
 
 import { Skill, SkillFrontmatter } from './types.js';
 
@@ -9,7 +9,7 @@ export class SkillParser {
     const match = content.match(yamlRegex);
 
     if (!match) {
-      logger.error(`Failed to parse skill at ${filePath}: Missing frontmatter`);
+      getLogger().error(`Failed to parse skill at ${filePath}: Missing frontmatter`);
       return {
         id: filePath,
         path: filePath,

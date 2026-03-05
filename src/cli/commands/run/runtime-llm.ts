@@ -2,7 +2,7 @@ import {
   createPhaseRoutingLlm,
   createRuntimeLlm,
   EXECUTION_PHASES,
-  logger,
+  getLogger,
   Phase,
   type ExecutionPhase,
 } from '../../../core/facades/cli-run-runtime-llm.js';
@@ -56,11 +56,11 @@ export function createRuntimeLlmAndWarn(params: { llmConfig: any; langfuseEnable
 
   for (const w of Array.from(new Set(warnings))) {
     if (w === 'API_KEY_MISSING') {
-      logger.warn(text.cli.apiKeyMissing);
+      getLogger().warn(text.cli.apiKeyMissing);
     } else if (w === 'PROVIDER_NOT_SUPPORTED') {
-      logger.warn(text.cli.providerNotSupported(String(llmType)));
+      getLogger().warn(text.cli.providerNotSupported(String(llmType)));
     } else if (w === 'CLIENT_PACKAGE_NOT_SUPPORTED') {
-      logger.warn(text.cli.clientPackageNotSupported(String(clientPackage || '')));
+      getLogger().warn(text.cli.clientPackageNotSupported(String(clientPackage || '')));
     }
   }
 

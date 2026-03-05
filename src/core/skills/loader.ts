@@ -2,7 +2,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { syncFs as fs } from '../adapters/fs/node-fs.js';
-import { logger } from '../observability/logger.js';
+import { getLogger } from '../observability/logger.js';
 
 import { SkillParser } from './parser.js';
 import { Skill } from './types.js';
@@ -40,7 +40,7 @@ export class SkillLoader {
           const content = fs.readFileSync(skillFile, 'utf-8');
           const skill = SkillParser.parse(content, skillFile);
           if (seen.has(skill.id)) {
-            logger.warn(
+            getLogger().warn(
               `Duplicate skill ${skill.id} found in ${skillFile}; already loaded from ${seen.get(
                 skill.id,
               )}`,
@@ -50,7 +50,7 @@ export class SkillLoader {
           seen.set(skill.id, `${target.label}:${skillFile}`);
           inventory.push(skill);
         } catch (err) {
-          logger.error(
+          getLogger().error(
             `Failed to load skill at ${skillFile}: ${err instanceof Error ? err.message : String(err)}`,
           );
         }

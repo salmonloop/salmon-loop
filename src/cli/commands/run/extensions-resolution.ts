@@ -1,6 +1,6 @@
 import { resolveExtensions, ExtensionConfigError } from '../../../core/extensions/index.js';
 import type { ExtensionResolution } from '../../../core/extensions/index.js';
-import { logger } from '../../../core/observability/logger.js';
+import { getLogger } from '../../../core/facades/cli-observability.js';
 
 export async function resolveRunExtensions(params: {
   repoPath: string;
@@ -12,7 +12,7 @@ export async function resolveRunExtensions(params: {
     return { ok: true, extensionResolution };
   } catch (err: unknown) {
     if (err instanceof ExtensionConfigError) {
-      logger.error(`Extension configuration invalid: ${err.message}`);
+      getLogger().error(`Extension configuration invalid: ${err.message}`);
       if (params.outputFormat === 'json') {
         params.writeJsonFailure({
           message: `Extension configuration invalid: ${err.message}`,

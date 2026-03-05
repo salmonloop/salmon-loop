@@ -2,7 +2,7 @@ import * as readline from 'readline';
 
 import chalk from 'chalk';
 
-import { logger } from '../core/facades/cli-observability.js';
+import { getLogger } from '../core/facades/cli-observability.js';
 
 import { text } from './locales/index.js';
 
@@ -65,7 +65,7 @@ export class ChatInterface {
   private handleInterrupt(onInterrupt: () => void, _source: string): void {
     if (this.abortController && !this.abortController.signal.aborted) {
       // Only log if we're actually aborting a new signal
-      logger.log(chalk.yellow(`\n${text.cli.chatTaskInterrupted}`));
+      getLogger().log(chalk.yellow(`\n${text.cli.chatTaskInterrupted}`));
       this.abortController.abort();
       onInterrupt();
     }

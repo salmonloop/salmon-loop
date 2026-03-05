@@ -1,5 +1,5 @@
 import { initializeDefaultCalculator } from '../context/policies/pack-until-full.js';
-import { logger } from '../observability/logger.js';
+import { createLogger, getLogger, setLogger, tryGetLogger } from '../observability/logger.js';
 
 /**
  * Initializes the Core safety runtime.
@@ -19,6 +19,11 @@ export function initializeRuntime() {
   initializeDefaultCalculator().catch(() => {
     // Silently fallback to char-based if initialization fails
   });
+
+  // Initialize logger before installing global error handlers.
+  if (!tryGetLogger()) {
+    setLogger(createLogger());
+  }
 
   const isGui = process.argv.includes('--gui');
 
@@ -114,11 +119,11 @@ export function initializeRuntime() {
 
   // 2. Global Process Handlers
   process.on('unhandledRejection', (reason) => {
-    logger.error('Unhandled Rejection detected in Core runtime', reason, true);
+    getLogger().error('Unhandled Rejection detected in Core runtime', reason, true);
   });
 
   process.on('uncaughtException', (error) => {
-    logger.error('Uncaught Exception detected in Core runtime', error, true);
+    getLogger().error('Uncaught Exception detected in Core runtime', error, true);
   });
 
   (globalThis as any).__SALMON_RUNTIME_INITIALIZED__ = true;

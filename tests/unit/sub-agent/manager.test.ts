@@ -1,8 +1,17 @@
+import { afterAll, beforeEach, describe, expect, it, mock } from 'bun:test';
+
 const { setupMock, teardownMock, registryGetMock, isStopRequestedMock } = (() => ({
   setupMock: mock(),
   teardownMock: mock(),
   registryGetMock: mock(),
   isStopRequestedMock: mock(),
+}))();
+
+const { infoMock, debugMock, errorMock, warnMock } = (() => ({
+  infoMock: mock(),
+  debugMock: mock(),
+  errorMock: mock(),
+  warnMock: mock(),
 }))();
 
 mock.module('../../../src/core/strata/runtime/environment.js', () => ({
@@ -18,19 +27,21 @@ mock.module('../../../src/core/sub-agent/registry.js', () => ({
   },
 }));
 
-mock.module('../../../src/core/observability/logger.js', () => ({
-  logger: {
-    info: mock(),
-    debug: mock(),
-    error: mock(),
-    warn: mock(),
-  },
-}));
-
+import { clearLogger, setLogger } from '../../../src/core/observability/logger.js';
 import { SubAgentManager } from '../../../src/core/sub-agent/core/manager.js';
 
 describe('SubAgentManager setup cleanup', () => {
+  afterAll(() => {
+    mock.restore();
+    clearLogger();
+  });
+
   beforeEach(() => {
+    setLogger({ info: infoMock, debug: debugMock, error: errorMock, warn: warnMock } as any);
+    infoMock.mockReset();
+    debugMock.mockReset();
+    errorMock.mockReset();
+    warnMock.mockReset();
     mock.clearAllMocks();
     registryGetMock.mockReturnValue({
       id: 'surgeon',

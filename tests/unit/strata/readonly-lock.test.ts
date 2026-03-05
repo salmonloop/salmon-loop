@@ -1,3 +1,5 @@
+import { afterAll, beforeEach, describe, expect, it, mock } from 'bun:test';
+
 const { mkdirMock, writeFileMock, readFileMock, unlinkMock, renameMock, getShadowLockPathMock } =
   (() => ({
     mkdirMock: mock(),
@@ -7,6 +9,12 @@ const { mkdirMock, writeFileMock, readFileMock, unlinkMock, renameMock, getShado
     renameMock: mock(),
     getShadowLockPathMock: mock(),
   }))();
+
+const { debugMock, warnMock, errorMock } = (() => ({
+  debugMock: mock(),
+  warnMock: mock(),
+  errorMock: mock(),
+}))();
 
 mock.module('../../../src/core/adapters/fs/node-fs.js', () => ({
   mkdir: mkdirMock,
@@ -20,14 +28,7 @@ mock.module('../../../src/core/runtime/paths.js', () => ({
   getShadowLockPath: getShadowLockPathMock,
 }));
 
-mock.module('../../../src/core/observability/logger.js', () => ({
-  logger: {
-    debug: mock(),
-    warn: mock(),
-    error: mock(),
-  },
-}));
-
+import { clearLogger, setLogger } from '../../../src/core/observability/logger.js';
 import {
   acquireLock,
   releaseLock,
@@ -43,6 +44,18 @@ function enoent(): NodeJS.ErrnoException {
 
 describe('readonly-lock behavior safety', () => {
   const fileState = new Map<string, string>();
+
+  afterAll(() => {
+    mock.restore();
+    clearLogger();
+  });
+
+  beforeEach(() => {
+    setLogger({ debug: debugMock, warn: warnMock, error: errorMock } as any);
+    debugMock.mockReset();
+    warnMock.mockReset();
+    errorMock.mockReset();
+  });
 
   const configureStatefulFs = () => {
     mkdirMock.mockResolvedValue(undefined);

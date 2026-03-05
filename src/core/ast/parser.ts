@@ -8,7 +8,7 @@ import { text } from '../../locales/index.js';
 import { syncFs as fs } from '../adapters/fs/node-fs.js';
 import { LIMITS } from '../config/limits.js';
 import { createLanguageSupportOrchestrator } from '../language-support/orchestrator.js';
-import { logger } from '../observability/logger.js';
+import { getLogger } from '../observability/logger.js';
 import { tryGetPluginRegistry } from '../plugin/registry.js';
 import { SymbolInfo } from '../types/index.js';
 
@@ -36,7 +36,7 @@ export class AstParser {
     try {
       return (TreeSitter as any).Parser || (TreeSitter as any).default?.Parser || TreeSitter;
     } catch (_error) {
-      logger.degrade(text.ast.degradedApi);
+      getLogger().degrade(text.ast.degradedApi);
       return (TreeSitter as any).default || TreeSitter;
     }
   }
@@ -48,7 +48,7 @@ export class AstParser {
     try {
       return (TreeSitter as any).Language || (TreeSitter as any).default?.Language;
     } catch (_error) {
-      logger.degrade(text.ast.degradedApi);
+      getLogger().degrade(text.ast.degradedApi);
       return (TreeSitter as any).default?.Language;
     }
   }
@@ -60,7 +60,7 @@ export class AstParser {
     try {
       return (TreeSitter as any).Query || (TreeSitter as any).default?.Query;
     } catch (_error) {
-      logger.degrade(text.ast.degradedApi);
+      getLogger().degrade(text.ast.degradedApi);
       return (TreeSitter as any).default?.Query;
     }
   }
@@ -198,7 +198,7 @@ export class AstParser {
 
       return tree;
     } catch (e) {
-      logger.error(`AST parse failed: ${e}`);
+      getLogger().error(`AST parse failed: ${e}`);
       throw e;
     } finally {
       if (parser) {
@@ -237,7 +237,7 @@ export class AstParser {
           };
         });
     } catch (e) {
-      logger.error(`AST identifyDefinitions failed: ${e}`);
+      getLogger().error(`AST identifyDefinitions failed: ${e}`);
       return [];
     }
   }
@@ -273,7 +273,7 @@ export class AstParser {
           };
         });
     } catch (e) {
-      logger.error(`AST identifyReferences failed: ${e}`);
+      getLogger().error(`AST identifyReferences failed: ${e}`);
       return [];
     }
   }
@@ -296,7 +296,7 @@ export class AstParser {
         column: c.node.startPosition.column,
       }));
     } catch (e) {
-      logger.debug(`AST query capture failed: ${e}`);
+      getLogger().debug(`AST query capture failed: ${e}`);
       return [];
     }
   }

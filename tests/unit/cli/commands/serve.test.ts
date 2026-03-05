@@ -1,4 +1,6 @@
-import { describe, expect, it, mock } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, it, mock } from 'bun:test';
+
+import { clearLogger, setLogger } from '../../../../src/core/observability/logger.js';
 
 const hoisted = (() => ({
   listenCalls: [] as Array<{
@@ -17,6 +19,13 @@ const hoisted = (() => ({
     verify: { command: undefined },
     cli: { defaults: {} },
   } as any,
+  logger: {
+    error: mock(),
+    warn: mock(),
+    info: mock(),
+    success: mock(),
+    setReporter: mock(),
+  },
 }))();
 
 mock.module('../../../../src/core/runtime/sidecar-paths.js', () => ({
@@ -39,18 +48,6 @@ mock.module('../../../../src/core/extensions/index.js', () => ({
 
 mock.module('../../../../src/core/plugin/loader.js', () => ({
   PluginLoader: { loadPlugins: mock(async () => {}) },
-}));
-
-mock.module('../../../../src/core/observability/logger.js', () => ({
-  logger: {
-    error: mock(),
-    warn: mock(),
-    info: mock(),
-    success: mock(),
-    setReporter: mock(),
-  },
-  StderrReporter: class {},
-  PlainReporter: class {},
 }));
 
 mock.module('../../../../src/core/adapters/fs/node-fs.js', () => ({
@@ -143,6 +140,20 @@ mock.module('fastify', () => ({
 }));
 
 describe('handleServeCommand', () => {
+  afterAll(() => {
+    mock.restore();
+    clearLogger();
+  });
+
+  beforeEach(() => {
+    setLogger(hoisted.logger as any);
+    hoisted.logger.error.mockReset();
+    hoisted.logger.warn.mockReset();
+    hoisted.logger.info.mockReset();
+    hoisted.logger.success.mockReset();
+    hoisted.logger.setReporter.mockReset();
+  });
+
   it('builds runtime with listen options and starts', async () => {
     const { handleServeCommand } = await import('../../../../src/cli/commands/serve.js');
 

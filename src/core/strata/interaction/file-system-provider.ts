@@ -2,7 +2,7 @@ import * as path from 'path';
 
 import { promises as fs } from '../../adapters/fs/node-fs.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
-import { logger } from '../../observability/logger.js';
+import { getLogger } from '../../observability/logger.js';
 import { ensureInSandbox } from '../../utils/path.js';
 import type { IFileSystemProvider } from '../types.js';
 
@@ -30,12 +30,12 @@ export class StrataFileSystemProvider implements IFileSystemProvider {
     const fullPath = ensureInSandbox(repoPath, path.join(repoPath, relativePath));
 
     try {
-      logger.debug(`[StrataFileSystem] Reading 'Yours' content from disk: ${relativePath}`);
+      getLogger().debug(`[StrataFileSystem] Reading 'Yours' content from disk: ${relativePath}`);
       return await fs.readFile(fullPath);
     } catch (error) {
       const err = error as NodeJS.ErrnoException;
       if (err.code === 'ENOENT') {
-        logger.debug(`[StrataFileSystem] File not found on disk: ${relativePath}`);
+        getLogger().debug(`[StrataFileSystem] File not found on disk: ${relativePath}`);
         return null;
       }
       throw error;

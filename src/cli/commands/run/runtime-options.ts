@@ -1,4 +1,4 @@
-import { logger } from '../../../core/observability/logger.js';
+import { getLogger } from '../../../core/facades/cli-observability.js';
 import { text } from '../../locales/index.js';
 import { resolveLlmOutputPolicyFromCli } from '../../utils/llm-output.js';
 import { resolveVerifyOption } from '../../utils/verify-resolver.js';
@@ -19,7 +19,7 @@ export async function resolveRunRuntimeOptions(params: {
     params.cliOptions.llmOutput,
   );
   if (!llmOutputResolution.ok) {
-    logger.error(text.cli.invalidLlmOutputKind(llmOutputResolution.invalid));
+    getLogger().error(text.cli.invalidLlmOutputKind(llmOutputResolution.invalid));
     if (params.outputFormat === 'json') {
       params.writeJsonFailure({
         message: text.cli.invalidLlmOutputKind(llmOutputResolution.invalid),

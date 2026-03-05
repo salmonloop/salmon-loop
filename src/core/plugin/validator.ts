@@ -1,4 +1,4 @@
-import { logger } from '../observability/logger.js';
+import { getLogger } from '../observability/logger.js';
 
 import type { LanguagePlugin } from './interface.js';
 
@@ -68,7 +68,7 @@ export function validateQueryPack(plugin: LanguagePlugin): {
   }
 
   if (errors.length > 0) {
-    logger.warn(`Plugin ${plugin.meta.id} queryPack validation failed: ${errors.join(', ')}`);
+    getLogger().warn(`Plugin ${plugin.meta.id} queryPack validation failed: ${errors.join(', ')}`);
   }
 
   return { valid: errors.length === 0, errors };

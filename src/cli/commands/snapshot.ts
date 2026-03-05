@@ -3,7 +3,7 @@ import { resolve } from 'path';
 import chalk from 'chalk';
 import { Command } from 'commander';
 
-import { CheckpointManager, logger } from '../../core/facades/cli-command-checkpoint.js';
+import { CheckpointManager, getLogger } from '../../core/facades/cli-command-checkpoint.js';
 import { text } from '../locales/index.js';
 
 export async function handleSnapshotList(_options: any, command: Command) {
@@ -13,12 +13,12 @@ export async function handleSnapshotList(_options: any, command: Command) {
   const snapshots = await manager.listSnapshots(runPath);
 
   if (snapshots.length === 0) {
-    logger.log(text.cli.noSnapshots);
+    getLogger().log(text.cli.noSnapshots);
     return;
   }
 
-  logger.log(chalk.bold(text.cli.availableSnapshots));
-  logger.log(chalk.dim(text.cli.snapshotTableHead));
+  getLogger().log(chalk.bold(text.cli.availableSnapshots));
+  getLogger().log(chalk.dim(text.cli.snapshotTableHead));
 
   snapshots.forEach((s) => {
     // Parse the message to extract the description if available.
@@ -34,7 +34,7 @@ export async function handleSnapshotList(_options: any, command: Command) {
     } catch {
       // Keep original message if parsing fails.
     }
-    logger.log(`${chalk.cyan(s.hash)}  ${chalk.gray(s.timestamp)}  ${displayMsg}`);
+    getLogger().log(`${chalk.cyan(s.hash)}  ${chalk.gray(s.timestamp)}  ${displayMsg}`);
   });
 }
 
@@ -49,12 +49,12 @@ export async function handleSnapshotCreate(options: any, command: Command) {
       options.include || [],
       options.message,
     );
-    logger.success(text.cli.snapshotCreated(result.commitHash));
+    getLogger().success(text.cli.snapshotCreated(result.commitHash));
     if (options.message) {
-      logger.log(text.cli.snapshotMessage(options.message));
+      getLogger().log(text.cli.snapshotMessage(options.message));
     }
   } catch (error) {
-    logger.error(
+    getLogger().error(
       text.cli.snapshotCreateFailed(error instanceof Error ? error.message : String(error)),
     );
     process.exit(1);
@@ -68,29 +68,29 @@ export async function handleSnapshotShow(hash: string, options: any, command: Co
 
   try {
     const details = await manager.getSnapshotDetails(runPath, hash);
-    logger.log(chalk.bold(text.cli.snapshotDetails(hash)));
+    getLogger().log(chalk.bold(text.cli.snapshotDetails(hash)));
 
     if (details.stagedFiles.length > 0) {
-      logger.log(chalk.green('\n' + text.cli.stagedFiles));
-      details.stagedFiles.forEach((f) => logger.log(`  ${f}`));
+      getLogger().log(chalk.green('\n' + text.cli.stagedFiles));
+      details.stagedFiles.forEach((f) => getLogger().log(`  ${f}`));
     } else {
-      logger.log(chalk.gray('\n' + text.cli.noStagedFiles));
+      getLogger().log(chalk.gray('\n' + text.cli.noStagedFiles));
     }
 
     if (details.unstagedFiles.length > 0) {
-      logger.log(chalk.yellow('\n' + text.cli.unstagedChanges));
-      details.unstagedFiles.forEach((f) => logger.log(`  ${f}`));
+      getLogger().log(chalk.yellow('\n' + text.cli.unstagedChanges));
+      details.unstagedFiles.forEach((f) => getLogger().log(`  ${f}`));
     } else {
-      logger.log(chalk.gray('\n' + text.cli.noUnstagedChanges));
+      getLogger().log(chalk.gray('\n' + text.cli.noUnstagedChanges));
     }
 
     if (options.files) {
-      logger.log(chalk.blue('\n' + text.cli.allFilesInSnapshot));
+      getLogger().log(chalk.blue('\n' + text.cli.allFilesInSnapshot));
       const files = await manager.getSnapshotFiles(runPath, hash);
-      files.forEach((f) => logger.log(`  ${f}`));
+      files.forEach((f) => getLogger().log(`  ${f}`));
     }
   } catch (error) {
-    logger.error(
+    getLogger().error(
       text.cli.snapshotShowFailed(error instanceof Error ? error.message : String(error)),
     );
     process.exit(1);
@@ -110,12 +110,14 @@ export async function handleSnapshotDiff(
   try {
     const diffOutput = await manager.getSnapshotDiff(runPath, hash, otherHash, options.code);
     if (!diffOutput.trim()) {
-      logger.log(text.cli.noDifferences);
+      getLogger().log(text.cli.noDifferences);
     } else {
       process.stdout.write(diffOutput + '\n');
     }
   } catch (error) {
-    logger.error(text.cli.getDiffFailed(error instanceof Error ? error.message : String(error)));
+    getLogger().error(
+      text.cli.getDiffFailed(error instanceof Error ? error.message : String(error)),
+    );
     process.exit(1);
   }
 }
@@ -134,7 +136,9 @@ export async function handleSnapshotCat(
     const content = await manager.getSnapshotFileContent(runPath, hash, file);
     process.stdout.write(content);
   } catch (error) {
-    logger.error(text.cli.readFileFailed(error instanceof Error ? error.message : String(error)));
+    getLogger().error(
+      text.cli.readFileFailed(error instanceof Error ? error.message : String(error)),
+    );
     process.exit(1);
   }
 }
@@ -151,11 +155,13 @@ export async function handleSnapshotExport(
   const manager = new CheckpointManager();
 
   try {
-    logger.info(text.cli.exportStarting(hash, targetDir));
+    getLogger().info(text.cli.exportStarting(hash, targetDir));
     await manager.exportSnapshot(runPath, hash, targetDir);
-    logger.success(text.cli.exportSuccess(hash));
+    getLogger().success(text.cli.exportSuccess(hash));
   } catch (error) {
-    logger.error(text.cli.exportFailed(error instanceof Error ? error.message : String(error)));
+    getLogger().error(
+      text.cli.exportFailed(error instanceof Error ? error.message : String(error)),
+    );
     process.exit(1);
   }
 }
@@ -167,9 +173,9 @@ export async function handleSnapshotDelete(hash: string, _options: any, command:
 
   try {
     await manager.deleteSnapshot(runPath, hash);
-    logger.success(text.cli.snapshotDeleted(hash));
+    getLogger().success(text.cli.snapshotDeleted(hash));
   } catch (error) {
-    logger.error(
+    getLogger().error(
       text.cli.snapshotDeleteFailed(error instanceof Error ? error.message : String(error)),
     );
     process.exit(1);
@@ -182,15 +188,15 @@ export async function handleSnapshotClear(options: any, command: Command) {
   const manager = new CheckpointManager();
 
   if (!options.force) {
-    logger.warn(text.cli.clearForcePrompt);
+    getLogger().warn(text.cli.clearForcePrompt);
     return;
   }
 
   try {
     await manager.clearSnapshots(runPath);
-    logger.success(text.cli.allSnapshotsCleared);
+    getLogger().success(text.cli.allSnapshotsCleared);
   } catch (error) {
-    logger.error(
+    getLogger().error(
       text.cli.clearSnapshotsFailed(error instanceof Error ? error.message : String(error)),
     );
     process.exit(1);

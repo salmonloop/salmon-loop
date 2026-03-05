@@ -1,4 +1,6 @@
-import { afterAll, describe, expect, it, mock } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, it, mock } from 'bun:test';
+
+import { clearLogger, setLogger } from '../../src/core/observability/logger.js';
 
 const { readFileMock, traceMock } = (() => ({
   readFileMock: mock(),
@@ -15,11 +17,6 @@ mock.module('../../src/core/adapters/fs/index.js', () => ({
     }
   },
 }));
-mock.module('../../src/core/observability/logger.js', () => ({
-  logger: {
-    trace: traceMock,
-  },
-}));
 
 async function loadTokenTracker() {
   return await import('../../src/core/session/token-tracker.js');
@@ -28,6 +25,11 @@ async function loadTokenTracker() {
 describe('TokenTracker.extractFromResult', () => {
   afterAll(() => {
     mock.restore();
+    clearLogger();
+  });
+
+  beforeEach(() => {
+    setLogger({ trace: traceMock } as any);
   });
 
   it('prefers usage from LoopResult when available', async () => {

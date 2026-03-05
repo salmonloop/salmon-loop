@@ -1,4 +1,4 @@
-import { logger } from '../../../../src/core/observability/logger.js';
+import { getLogger } from '../../../../src/core/observability/logger.js';
 import { LanguagePlugin } from '../../../../src/core/plugin/interface.js';
 import { createPluginRegistry } from '../../../../src/core/plugin/registry.js';
 
@@ -29,6 +29,7 @@ describe('PluginRegistry', () => {
   });
 
   it('should handle overwriting plugins with the same ID', () => {
+    const logger = getLogger();
     const spy = spyOn(logger, 'warn').mockImplementation(() => {});
     const registry = createPluginRegistry();
 

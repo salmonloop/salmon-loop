@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto';
 
 import type { Command } from 'commander';
 
-import { logger } from '../../../core/observability/logger.js';
+import { getLogger } from '../../../core/facades/cli-observability.js';
 import { text } from '../../locales/index.js';
 
 export function ensureInstructionOrExit(params: {
@@ -20,7 +20,7 @@ export function ensureInstructionOrExit(params: {
   if (params.instruction) return { ok: true };
   if (params.validate) return { ok: true };
 
-  logger.error(text.cli.optionsRequired);
+  getLogger().error(text.cli.optionsRequired);
 
   if (params.outputFormat === 'text') {
     params.command.help();

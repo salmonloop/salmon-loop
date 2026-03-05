@@ -5,7 +5,7 @@ import { basename, dirname, join, normalize, resolve } from 'path';
 import { text } from '../../../locales/index.js';
 import { access, realpath, rm } from '../../adapters/fs/node-fs.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
-import { logger } from '../../observability/logger.js';
+import { getLogger } from '../../observability/logger.js';
 import { RunOptions, ExecutionWorkspace, LoopEvent } from '../../types/index.js';
 import { isPathWithinDirectory } from '../../utils/path.js';
 
@@ -123,7 +123,7 @@ export class WorkspaceManager {
         timestamp: new Date(),
       });
 
-      logger.debug(`Created worktree at: ${worktreePath}`);
+      getLogger().debug(`Created worktree at: ${worktreePath}`);
       return {
         baseRepoPath: options.repoPath,
         workPath: worktreePath,
@@ -158,7 +158,7 @@ export class WorkspaceManager {
     onEvent?: (event: LoopEvent) => void,
   ): Promise<void> {
     if (workspace.strategy !== 'worktree') {
-      logger.debug(`Teardown workspace (strategy: ${workspace.strategy}) - no action needed`);
+      getLogger().debug(`Teardown workspace (strategy: ${workspace.strategy}) - no action needed`);
       return;
     }
 
@@ -205,11 +205,11 @@ export class WorkspaceManager {
 
         if (directoryStillExists) {
           removed = false;
-          logger.debug(
+          getLogger().debug(
             `git worktree remove reported success but directory still exists; falling back to fs.rm: ${workspace.workPath}`,
           );
         } else {
-          logger.debug(`Removed worktree: ${matchPath}`);
+          getLogger().debug(`Removed worktree: ${matchPath}`);
         }
       } else {
         onEvent?.({
@@ -235,7 +235,7 @@ export class WorkspaceManager {
         severity: 'low',
         timestamp: new Date(),
       });
-      logger.debug(`git worktree remove failed, falling back to filesystem removal: ${msg}`);
+      getLogger().debug(`git worktree remove failed, falling back to filesystem removal: ${msg}`);
     }
 
     if (!removed) {
@@ -248,7 +248,9 @@ export class WorkspaceManager {
         maxRetries: 3,
         retryDelay: 100,
       });
-      logger.debug(`Successfully cleaned up worktree directory via fs.rm: ${workspace.workPath}`);
+      getLogger().debug(
+        `Successfully cleaned up worktree directory via fs.rm: ${workspace.workPath}`,
+      );
     }
   }
 }

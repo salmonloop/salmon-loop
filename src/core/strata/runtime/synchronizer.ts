@@ -17,7 +17,7 @@ import {
 } from '../../adapters/fs/node-fs.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { logIgnoredError } from '../../observability/ignored-error.js';
-import { logger } from '../../observability/logger.js';
+import { getLogger } from '../../observability/logger.js';
 import { monitor } from '../../observability/monitor.js';
 import { ApplyBackOnDirty, CheckpointRef, VerboseLevel } from '../../types/index.js';
 import { CheckpointManager } from '../checkpoint/manager.js';
@@ -161,7 +161,7 @@ export class WorkspaceSynchronizer {
     try {
       detectedDependencyPaths = await detectDependencyPaths(repoPath);
     } catch (error) {
-      logger.debug(
+      getLogger().debug(
         `[checkpoint] Failed to detect dependency paths: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
@@ -205,7 +205,7 @@ export class WorkspaceSynchronizer {
     const filtered: string[] = [];
     for (const relativePath of relativePaths) {
       if (this.isPathWithinRoots(relativePath, symlinkedRoots)) {
-        logger.debug(`[${logPrefix}] Skipping symlinked dependency path: ${relativePath}`);
+        getLogger().debug(`[${logPrefix}] Skipping symlinked dependency path: ${relativePath}`);
         continue;
       }
       filtered.push(relativePath);
@@ -250,7 +250,7 @@ export class WorkspaceSynchronizer {
 
     const trackedProbe = await git.execMeta(['ls-files', '--error-unmatch', '--', relativePath]);
     if (pathIsIgnored && !trackedProbe.ok && trackedProbe.code === 1) {
-      logger.debug(
+      getLogger().debug(
         `[checkpoint] Skipping ignored untracked path during checkpoint staging: ${relativePath}`,
       );
       return 'skipped';
@@ -331,7 +331,7 @@ export class WorkspaceSynchronizer {
     for (const file of filteredPaths) {
       const policy = await this.shouldAllowPath(repoPath, file);
       if (!policy.allowed) {
-        logger.warn(text.loop.skipPathDueToPolicy(policy.reason, file));
+        getLogger().warn(text.loop.skipPathDueToPolicy(policy.reason, file));
         continue;
       }
       allowed.push(file);
@@ -400,7 +400,7 @@ export class WorkspaceSynchronizer {
 
       // Check topology changes
       if (['R', 'D', 'A', 'C', 'T'].includes(status)) {
-        logger.debug(
+        getLogger().debug(
           `[SmartRoute] Topology change detected (${status}), upgrading to AtomicPatch.`,
         );
         return ApplyStrategy.AtomicPatch;
@@ -411,12 +411,14 @@ export class WorkspaceSynchronizer {
 
       // Check binary files
       if (filePath && this.isBinaryPath(filePath)) {
-        logger.debug(`[SmartRoute] Binary file detected (${filePath}), upgrading to AtomicPatch.`);
+        getLogger().debug(
+          `[SmartRoute] Binary file detected (${filePath}), upgrading to AtomicPatch.`,
+        );
         return ApplyStrategy.AtomicPatch;
       }
     }
 
-    logger.debug('[SmartRoute] Pure text modifications detected, using ExplicitMerge.');
+    getLogger().debug('[SmartRoute] Pure text modifications detected, using ExplicitMerge.');
     return ApplyStrategy.ExplicitMerge;
   }
 
@@ -482,11 +484,11 @@ export class WorkspaceSynchronizer {
         await writeFile(mainAbsPath, restoredStr);
 
         if (mergeResult.hasConflict) {
-          logger.warn(`[ExplicitMerge] Conflict detected in ${relativePath}`);
+          getLogger().warn(`[ExplicitMerge] Conflict detected in ${relativePath}`);
           conflicts.push(relativePath);
         }
       } catch (err) {
-        logger.error(`[ExplicitMerge] Failed to merge ${relativePath}: ${err}`);
+        getLogger().error(`[ExplicitMerge] Failed to merge ${relativePath}: ${err}`);
         throw err;
       } finally {
         // Cleanup temps
@@ -532,7 +534,7 @@ export class WorkspaceSynchronizer {
     );
 
     if (filteredPaths.length === 0) {
-      logger.info(
+      getLogger().info(
         '[applyBack] Skipping AtomicPatch because only dependency projection paths changed.',
       );
       return;
@@ -662,7 +664,7 @@ export class WorkspaceSynchronizer {
           shadowInitialRef,
           shadowLatestRef,
         );
-        logger.info(`[applyBack] Smart Routing selected strategy: ${strategy}`);
+        getLogger().info(`[applyBack] Smart Routing selected strategy: ${strategy}`);
       }
       if (telemetry) {
         telemetry.selectedStrategy = strategy;
@@ -809,8 +811,8 @@ export class WorkspaceSynchronizer {
         };
 
         dirtyBackup = (await createDirtyBackup()) as any;
-        logger.info(text.loop.applyBackCheckpointCreated());
-        logger.info(text.loop.applyBackCheckpointLocation(dirtyBackup?.dir || ''));
+        getLogger().info(text.loop.applyBackCheckpointCreated());
+        getLogger().info(text.loop.applyBackCheckpointLocation(dirtyBackup?.dir || ''));
         if (telemetry) {
           telemetry.dirtyBackupCreated = true;
           telemetry.dirtyBackupDir = dirtyBackup?.dir || undefined;
@@ -826,7 +828,7 @@ export class WorkspaceSynchronizer {
         }
         if (shadowInitialRef && shadowLatestRef) {
           if (strategy === ApplyStrategy.ExplicitMerge) {
-            logger.info('[applyBack] Executing ExplicitMerge (Smart Routing)');
+            getLogger().info('[applyBack] Executing ExplicitMerge (Smart Routing)');
             const result = await this.applyExplicitMerge(
               mainRepoPath,
               checkpointRef.worktreePath,
@@ -834,14 +836,14 @@ export class WorkspaceSynchronizer {
               shadowLatestRef,
             );
             if (result.conflicts.length > 0) {
-              logger.warn(
+              getLogger().warn(
                 `[applyBack] ExplicitMerge completed with ${result.conflicts.length} conflicts.`,
               );
               // NOTE: We do NOT throw here. Markers are in the files.
               // This is "Success with Conflicts".
             }
           } else {
-            logger.info('[applyBack] Executing AtomicPatch (Smart Routing)');
+            getLogger().info('[applyBack] Executing AtomicPatch (Smart Routing)');
             await this.applyAtomicPatch(
               mainRepoPath,
               checkpointRef.worktreePath,
@@ -852,7 +854,7 @@ export class WorkspaceSynchronizer {
         } else {
           // Fallback if no shadow refs (legacy flow or raw patch)
           // Always use Atomic Patch for raw diffs
-          logger.info('[applyBack] Executing Raw Patch Apply');
+          getLogger().info('[applyBack] Executing Raw Patch Apply');
           const git = new GitAdapter(mainRepoPath);
           await git.applyPatch(diffText, { threeWay: true });
         }
@@ -911,8 +913,8 @@ export class WorkspaceSynchronizer {
         if (telemetry) {
           telemetry.rollbackPath = 'dirtyBackup';
         }
-        logger.warn(text.loop.applyBackRollbackAttempt);
-        logger.warn(text.loop.checkpointLocation(dirtyBackup.dir));
+        getLogger().warn(text.loop.applyBackRollbackAttempt);
+        getLogger().warn(text.loop.checkpointLocation(dirtyBackup.dir));
         const git = new GitAdapter(mainRepoPath);
 
         // Best-effort cleanup: even if git is in a conflicted/unmerged state, we must still restore files.
@@ -940,7 +942,7 @@ export class WorkspaceSynchronizer {
                 path.join(mainRepoPath, ...file.split('/')),
               );
             } catch (e) {
-              logger.error(
+              getLogger().error(
                 `[applyBack] Failed to restore tracked file ${file}: ${e instanceof Error ? e.message : String(e)}`,
               );
             }
@@ -978,7 +980,7 @@ export class WorkspaceSynchronizer {
             }
           } catch (e) {
             const patchError = e instanceof Error ? e.message : String(e);
-            logger.error(
+            getLogger().error(
               `[applyBack] Failed to restore staged state from patch. ${patchError}. ` +
                 `Falling back to read-tree restore.`,
             );
@@ -995,7 +997,7 @@ export class WorkspaceSynchronizer {
                 telemetry.stagedRestoreSucceeded = false;
                 telemetry.stagedRestoreError = `${patchError}; fallback read-tree failed: ${fallbackMessage}`;
               }
-              logger.error(
+              getLogger().error(
                 `[applyBack] CRITICAL: Failed to restore staged state from backup. ` +
                   `Patch error: ${patchError}; fallback read-tree error: ${fallbackMessage}`,
               );
@@ -1017,7 +1019,7 @@ export class WorkspaceSynchronizer {
             telemetry.rollbackPath = 'cleanSnapshot';
           }
         } catch (snapshotRestoreError) {
-          logger.error(
+          getLogger().error(
             `[applyBack] Snapshot restore failed during clean rollback. ` +
               `baseRef=${checkpointRef.baseRef}; ` +
               `error=${snapshotRestoreError instanceof Error ? snapshotRestoreError.message : String(snapshotRestoreError)}. ` +
@@ -1043,7 +1045,7 @@ export class WorkspaceSynchronizer {
         try {
           await rm(dirtyBackup.dir, { recursive: true, force: true });
         } catch (cleanupError) {
-          logger.debug(
+          getLogger().debug(
             `[applyBack] Failed to cleanup dirty backup ${dirtyBackup.dir}: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`,
           );
         }
@@ -1055,7 +1057,7 @@ export class WorkspaceSynchronizer {
       // Record monitoring metrics
       const duration = Date.now() - startTime;
       monitor.recordApplyBack(applySuccess, duration);
-      logger.info(`applyBack completed in ${duration}ms, success: ${applySuccess}`);
+      getLogger().info(`applyBack completed in ${duration}ms, success: ${applySuccess}`);
     }
   }
 }

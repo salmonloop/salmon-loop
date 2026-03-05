@@ -1,4 +1,4 @@
-import { logger, type CheckpointStrategy } from '../../core/facades/cli-utils-worktree.js';
+import { getLogger, type CheckpointStrategy } from '../../core/facades/cli-utils-worktree.js';
 import { text } from '../../locales/index.js';
 
 import { autoDetectWorktreePrepareCommand } from './detectors/index.js';
@@ -18,7 +18,7 @@ export async function resolveWorktreePrepareOption(
 
   const detected = await autoDetectWorktreePrepareCommand(repoPath);
   if (detected) {
-    logger.info(text.verify.autoDetectedWorktreePrepare(detected));
+    getLogger().info(text.verify.autoDetectedWorktreePrepare(detected));
     return detected;
   }
 

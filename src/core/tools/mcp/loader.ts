@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { LIMITS } from '../../config/limits.js';
 import type { ResolvedMcpServer } from '../../extensions/types.js';
-import { logger } from '../../observability/logger.js';
+import { getLogger } from '../../observability/logger.js';
 import { ExecutionPhase, Phase } from '../../types/runtime.js';
 import { ToolRegistry } from '../registry.js';
 import type { ToolSpec } from '../types.js';
@@ -37,7 +37,7 @@ export async function registerMcpTools(registry: ToolRegistry, servers: Resolved
     if (!server.enabled) continue;
 
     if (!server.allowTools || server.allowTools.length === 0) {
-      logger.warn(`MCP server ${server.name} has no tool allowlist; skipping registration.`);
+      getLogger().warn(`MCP server ${server.name} has no tool allowlist; skipping registration.`);
       continue;
     }
 
@@ -60,7 +60,7 @@ export async function registerMcpTools(registry: ToolRegistry, servers: Resolved
       await client.start();
       const toolList = await client.listTools();
       if (!Array.isArray(toolList) || toolList.length === 0) {
-        logger.warn(`MCP server ${server.name} reported no tools.`);
+        getLogger().warn(`MCP server ${server.name} reported no tools.`);
       }
 
       for (const tool of toolList) {
@@ -108,12 +108,12 @@ export async function registerMcpTools(registry: ToolRegistry, servers: Resolved
           },
         };
 
-        logger.info(`Registered MCP tool ${spec.name} from ${server.name}`);
+        getLogger().info(`Registered MCP tool ${spec.name} from ${server.name}`);
         registry.register(spec);
       }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
-      logger.error(`Failed to register MCP server ${server.name}: ${message}`);
+      getLogger().error(`Failed to register MCP server ${server.name}: ${message}`);
     } finally {
       await client.stop();
     }

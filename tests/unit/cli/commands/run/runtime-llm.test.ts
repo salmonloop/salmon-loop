@@ -1,4 +1,6 @@
-import { beforeEach, describe, expect, it } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, it, mock } from 'bun:test';
+
+import { clearLogger, setLogger } from '../../../../../src/core/observability/logger.js';
 
 const hoisted = (() => ({
   createRuntimeLlm: mock(),
@@ -16,10 +18,6 @@ const hoisted = (() => ({
 
 mock.module('../../../../../src/core/llm/factory.js', () => ({
   createRuntimeLlm: hoisted.createRuntimeLlm,
-}));
-
-mock.module('../../../../../src/core/observability/logger.js', () => ({
-  logger: hoisted.logger,
 }));
 
 mock.module('../../../../../src/cli/locales/index.js', () => ({
@@ -41,8 +39,14 @@ function fakeLlm(id: string) {
 }
 
 describe('createRuntimeLlmAndWarn', () => {
+  afterAll(() => {
+    mock.restore();
+    clearLogger();
+  });
+
   beforeEach(() => {
     mock.clearAllMocks();
+    setLogger(hoisted.logger as any);
     hoisted.createRuntimeLlm.mockImplementation((cfg: any) => ({
       llm: fakeLlm(cfg.models?.selectedModelId || 'default-model'),
       backend: 'stub',

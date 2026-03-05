@@ -1,4 +1,4 @@
-import { logger } from '../../core/facades/cli-observability.js';
+import { getLogger } from '../../core/facades/cli-observability.js';
 import { text } from '../locales/index.js';
 
 import type { Command } from './types.js';
@@ -67,7 +67,7 @@ export const queueCommand: Command = {
           message: text.cli.queueAlreadyPaused,
           timestamp: new Date(),
         });
-        logger.audit(
+        getLogger().audit(
           'QUEUE_PAUSE',
           { status: 'already_paused' },
           { source: 'cli', severity: 'low', scope: 'session' },
@@ -81,7 +81,7 @@ export const queueCommand: Command = {
         message: text.cli.queuePaused,
         timestamp: new Date(),
       });
-      logger.audit(
+      getLogger().audit(
         'QUEUE_PAUSE',
         { status: 'paused' },
         { source: 'cli', severity: 'low', scope: 'session' },
@@ -97,7 +97,7 @@ export const queueCommand: Command = {
           message: text.cli.queueNotPaused,
           timestamp: new Date(),
         });
-        logger.audit(
+        getLogger().audit(
           'QUEUE_RESUME',
           { status: 'not_paused' },
           { source: 'cli', severity: 'low', scope: 'session' },
@@ -111,7 +111,7 @@ export const queueCommand: Command = {
         message: text.cli.queueResumed,
         timestamp: new Date(),
       });
-      logger.audit(
+      getLogger().audit(
         'QUEUE_RESUME',
         { status: 'resumed' },
         { source: 'cli', severity: 'low', scope: 'session' },
@@ -148,7 +148,7 @@ export const queueCommand: Command = {
         message: text.cli.queueClearedCount(cleared),
         timestamp: new Date(),
       });
-      logger.audit(
+      getLogger().audit(
         'QUEUE_CLEAR',
         { cleared },
         { source: 'cli', severity: 'low', scope: 'session' },

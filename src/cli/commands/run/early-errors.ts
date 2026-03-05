@@ -1,4 +1,4 @@
-import { logger } from '../../../core/observability/logger.js';
+import { getLogger } from '../../../core/facades/cli-observability.js';
 import { text } from '../../locales/index.js';
 
 export function handleEarlyRunCommandErrors(params: {
@@ -42,7 +42,7 @@ export function handleEarlyRunCommandErrors(params: {
     (params.headlessIncludeToolInput || params.headlessIncludeToolOutput) &&
     params.outputFormat !== 'stream-json'
   ) {
-    logger.error(text.cli.headlessToolPayloadRequiresStreamJson);
+    getLogger().error(text.cli.headlessToolPayloadRequiresStreamJson);
     if (params.headlessOutput) {
       params.headlessErrorWriter.writeUsageError({
         sessionId: params.sessionIdForOutput ?? params.resumeSessionId,
@@ -54,7 +54,7 @@ export function handleEarlyRunCommandErrors(params: {
   }
 
   if (params.headlessIncludeAuthorizationDecisions && params.outputFormat === 'text') {
-    logger.error(text.cli.headlessAuthorizationDecisionsRequireHeadlessOutput);
+    getLogger().error(text.cli.headlessAuthorizationDecisionsRequireHeadlessOutput);
     if (params.headlessOutput) {
       params.headlessErrorWriter.writeUsageError({
         sessionId: params.sessionIdForOutput ?? params.resumeSessionId,
@@ -67,20 +67,20 @@ export function handleEarlyRunCommandErrors(params: {
 
   if (params.explicitInstruction && params.printInstruction) {
     if (params.headlessOutput) {
-      logger.error(text.cli.printInstructionConflict);
+      getLogger().error(text.cli.printInstructionConflict);
       params.headlessErrorWriter.writeUsageError({
         message: text.cli.printInstructionConflict,
         instruction: params.printInstruction,
       });
       return { ok: false, exitCode: 1 };
     }
-    logger.error(text.cli.printInstructionConflict, true);
+    getLogger().error(text.cli.printInstructionConflict, true);
     return { ok: false, exitCode: 1 };
   }
 
   if (params.continueSession && params.resumeSessionId) {
     if (params.headlessOutput) {
-      logger.error(text.cli.continueResumeConflict);
+      getLogger().error(text.cli.continueResumeConflict);
       params.headlessErrorWriter.writeUsageError({
         message: text.cli.continueResumeConflict,
         sessionId: params.resumeSessionId,
@@ -88,12 +88,12 @@ export function handleEarlyRunCommandErrors(params: {
       });
       return { ok: false, exitCode: 1 };
     }
-    logger.error(text.cli.continueResumeConflict, true);
+    getLogger().error(text.cli.continueResumeConflict, true);
     return { ok: false, exitCode: 1 };
   }
 
   if (params.rawOutputProfile && params.outputFormat !== 'stream-json') {
-    logger.error(text.cli.outputProfileRequiresStreamJson);
+    getLogger().error(text.cli.outputProfileRequiresStreamJson);
     if (params.outputFormat === 'json') {
       params.headlessErrorWriter.writeJsonFailure({
         sessionId: params.sessionIdForOutput,
@@ -108,7 +108,7 @@ export function handleEarlyRunCommandErrors(params: {
   if (params.outputFormat === 'stream-json') {
     const outputProfile = params.outputProfileForStreamJson;
     if (outputProfile !== 'native' && outputProfile !== 'anthropic' && outputProfile !== 'openai') {
-      logger.error(text.cli.invalidOutputProfile(outputProfile));
+      getLogger().error(text.cli.invalidOutputProfile(outputProfile));
       params.headlessErrorWriter.writeUsageError({
         sessionId: params.sessionIdForOutput ?? params.resumeSessionId,
         message: text.cli.invalidOutputProfile(outputProfile),
@@ -120,7 +120,7 @@ export function handleEarlyRunCommandErrors(params: {
       outputProfile === 'openai' &&
       (params.headlessIncludeToolInput || params.headlessIncludeToolOutput)
     ) {
-      logger.error(text.cli.headlessToolPayloadNotSupportedWithOpenAiProfile);
+      getLogger().error(text.cli.headlessToolPayloadNotSupportedWithOpenAiProfile);
       params.headlessErrorWriter.writeUsageError({
         sessionId: params.sessionIdForOutput ?? params.resumeSessionId,
         message: text.cli.headlessToolPayloadNotSupportedWithOpenAiProfile,
@@ -133,7 +133,7 @@ export function handleEarlyRunCommandErrors(params: {
       params.headlessIncludeAuthorizationDecisions &&
       (outputProfile === 'anthropic' || outputProfile === 'openai')
     ) {
-      logger.error(text.cli.headlessAuthorizationDecisionsNotSupportedWithStrictProfiles);
+      getLogger().error(text.cli.headlessAuthorizationDecisionsNotSupportedWithStrictProfiles);
       params.headlessErrorWriter.writeUsageError({
         sessionId: params.sessionIdForOutput ?? params.resumeSessionId,
         message: text.cli.headlessAuthorizationDecisionsNotSupportedWithStrictProfiles,
@@ -144,7 +144,7 @@ export function handleEarlyRunCommandErrors(params: {
   }
 
   if (params.jsonSchemaSpec && params.outputFormat !== 'json') {
-    logger.error(text.cli.jsonSchemaRequiresJsonOutput);
+    getLogger().error(text.cli.jsonSchemaRequiresJsonOutput);
     if (params.outputFormat === 'stream-json') {
       params.headlessErrorWriter.writeUsageError({
         sessionId: params.sessionIdForOutput,

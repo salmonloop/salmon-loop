@@ -1,6 +1,6 @@
 import type { BaseDslContext, DecisionEngine } from '../../grizzco/dsl/DecisionEngine.js';
 import { MicroTaskRunner } from '../../grizzco/dsl/MicroTaskRunner.js';
-import { logger } from '../../observability/logger.js';
+import { getLogger } from '../../observability/logger.js';
 import type {
   CodeLocation,
   ContextTarget,
@@ -662,7 +662,7 @@ export class TargetResolver {
     const targetSetSignature = createTargetSetSignature(targetsWithChurn);
 
     if (targetsWithChurn.length > 0) {
-      logger.trace(
+      getLogger().trace(
         `  [CONTEXT] TargetResolver selected ${targetsWithChurn.length} targets (strategy=${strategy})`,
       );
     }

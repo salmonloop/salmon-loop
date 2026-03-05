@@ -1,4 +1,4 @@
-import { logger } from '../../observability/logger.js';
+import { getLogger } from '../../observability/logger.js';
 
 export const MCP_PROTOCOL_VERSION = '2025-11-25';
 
@@ -105,7 +105,7 @@ export async function safeDrainResponse(response: Response): Promise<void> {
       await response.arrayBuffer();
     }
   } catch (err) {
-    logger.debug(`Failed to drain response body: ${String(err)}`);
+    getLogger().debug(`Failed to drain response body: ${String(err)}`);
   }
 }
 

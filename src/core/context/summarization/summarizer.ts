@@ -10,7 +10,7 @@
  * Based on best practices from LangChain, OpenAI Realtime API, and Voice AI systems.
  */
 
-import { logger } from '../../observability/logger.js';
+import { getLogger } from '../../observability/logger.js';
 
 import { buildIncrementalSummaryPrompt, truncateSummary } from './prompts.js';
 import type {
@@ -70,7 +70,7 @@ export class ConversationSummarizer {
    */
   async initialize(): Promise<void> {
     this.initialized = true;
-    logger.debug('[Summarizer] Initialized');
+    getLogger().debug('[Summarizer] Initialized');
   }
 
   /**
@@ -115,7 +115,7 @@ export class ConversationSummarizer {
         : this.createEmptyStructuredState(),
       contextHash: state.contextHash,
     };
-    logger.debug(
+    getLogger().debug(
       `[Summarizer] Restored state with ${state.summarizedMessageIds.length} summarized messages`,
     );
   }
@@ -230,7 +230,7 @@ export class ConversationSummarizer {
     contextHash?: string,
   ): Promise<SummarizationResult | null> {
     if (this.summaryInProgress) {
-      logger.debug('[Summarizer] Summary already in progress, skipping');
+      getLogger().debug('[Summarizer] Summary already in progress, skipping');
       return null;
     }
 
@@ -243,7 +243,7 @@ export class ConversationSummarizer {
       // Fire and forget
       this.runSummarization(messages, contextHash).catch((err) => {
         const errMsg = err instanceof Error ? err.message : String(err);
-        logger.warn(`[Summarizer] Async summarization failed: ${errMsg}`);
+        getLogger().warn(`[Summarizer] Async summarization failed: ${errMsg}`);
       });
       return null;
     }
@@ -336,7 +336,7 @@ export class ConversationSummarizer {
       }
       this.state.lastSummarizedAt = Date.now();
 
-      logger.info(
+      getLogger().info(
         `[Summarizer] Summarized ${batch.length} messages, ` +
           `reduced ${beforeTokens} → ${this.state.summaryTokens} tokens`,
       );
@@ -350,7 +350,7 @@ export class ConversationSummarizer {
         async: this.config.async,
       };
     } catch (error) {
-      logger.error('[Summarizer] Summarization failed', error);
+      getLogger().error('[Summarizer] Summarization failed', error);
       throw error;
     } finally {
       this.summaryInProgress = false;
@@ -378,7 +378,7 @@ export class ConversationSummarizer {
     if (!contextHash) return;
     if (!this.state.contextHash || this.state.contextHash === contextHash) return;
 
-    logger.warn(
+    getLogger().warn(
       `[Summarizer] Context hash changed (${this.state.contextHash} -> ${contextHash}), rebuilding summary state`,
     );
     this.state.summary = '';
@@ -406,7 +406,7 @@ export class ConversationSummarizer {
       return { summary, structuredState: this.normalizeStructuredState(parsed) };
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : String(error);
-      logger.warn(`[Summarizer] Failed to parse structured summary state: ${errMsg}`);
+      getLogger().warn(`[Summarizer] Failed to parse structured summary state: ${errMsg}`);
       return { summary, structuredState: this.createEmptyStructuredState() };
     }
   }

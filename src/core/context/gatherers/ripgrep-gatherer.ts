@@ -1,5 +1,5 @@
 import { LIMITS } from '../../config/limits.js';
-import { logger } from '../../observability/logger.js';
+import { getLogger } from '../../observability/logger.js';
 import { spawnCommand } from '../../runtime/process-runner.js';
 import type { RipgrepResult } from '../../types/context.js';
 import { normalizePath } from '../../utils/path.js';
@@ -10,7 +10,7 @@ export class RipgrepGatherer {
     cwd: string,
     signal?: AbortSignal,
   ): Promise<RipgrepResult[]> {
-    logger.trace(`  [RG] Searching for: "${query}" in ${cwd}`);
+    getLogger().trace(`  [RG] Searching for: "${query}" in ${cwd}`);
 
     if (signal?.aborted) {
       throw new Error('Operation cancelled by user');
@@ -45,19 +45,23 @@ export class RipgrepGatherer {
       throw new Error('Operation cancelled by user');
     }
 
-    logger.trace(`  [RG] Process closed with code ${result.code}. Output length: ${output.length}`);
+    getLogger().trace(
+      `  [RG] Process closed with code ${result.code}. Output length: ${output.length}`,
+    );
 
     if (result.error) {
       if (result.error.code === 'ENOENT') {
-        logger.error('Error: ripgrep (rg) not found in PATH. Context gathering may be incomplete.');
+        getLogger().error(
+          'Error: ripgrep (rg) not found in PATH. Context gathering may be incomplete.',
+        );
       } else {
-        logger.error(`Error running ripgrep: ${result.error.message}`);
+        getLogger().error(`Error running ripgrep: ${result.error.message}`);
       }
       return [];
     }
 
     if (result.timedOut) {
-      logger.trace(`  [RG] Timeout reached for query: "${query}".`);
+      getLogger().trace(`  [RG] Timeout reached for query: "${query}".`);
       return [];
     }
 
@@ -94,7 +98,7 @@ export class RipgrepGatherer {
     if (signal?.aborted) throw new Error('Operation cancelled by user');
 
     const cappedKeywords = keywords.slice(0, LIMITS.maxKeywords);
-    logger.trace(`  [CONTEXT] Searching keywords: ${cappedKeywords.join(', ')}`);
+    getLogger().trace(`  [CONTEXT] Searching keywords: ${cappedKeywords.join(', ')}`);
 
     const searchPromises = cappedKeywords.map((keyword) => this.runRipgrep(keyword, cwd, signal));
     const resultsArrays = await Promise.all(searchPromises);

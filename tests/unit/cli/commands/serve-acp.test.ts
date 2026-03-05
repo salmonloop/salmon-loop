@@ -1,5 +1,7 @@
-import { describe, expect, it, mock } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, it, mock } from 'bun:test';
 import { Command } from 'commander';
+
+import { clearLogger, setLogger } from '../../../../src/core/observability/logger.js';
 
 const hoisted = (() => ({
   listenCalls: [] as Array<{ options: { port?: number; host?: string; path?: string } }>,
@@ -13,6 +15,13 @@ const hoisted = (() => ({
     verify: { command: undefined },
     cli: { defaults: {} },
   } as any,
+  logger: {
+    error: mock(),
+    warn: mock(),
+    info: mock(),
+    success: mock(),
+    setReporter: mock(),
+  },
 }))();
 
 mock.module('../../../../src/core/config/resolve.js', () => ({
@@ -33,17 +42,7 @@ mock.module('../../../../src/core/plugin/loader.js', () => ({
   PluginLoader: { loadPlugins: mock(async () => {}) },
 }));
 
-mock.module('../../../../src/core/observability/logger.js', () => ({
-  logger: {
-    error: mock(),
-    warn: mock(),
-    info: mock(),
-    success: mock(),
-    setReporter: mock(),
-  },
-  StderrReporter: class {},
-  PlainReporter: class {},
-}));
+// Use setLogger() instead of mocking the entire logger module so imports remain stable.
 
 mock.module('../../../../src/cli/commands/run/runtime-llm.js', () => ({
   createRuntimeLlmAndWarn: mock(() => ({ llm: {}, warnings: [] })),
@@ -127,6 +126,20 @@ mock.module('fastify', () => ({
     close: mock(async () => {}),
   }),
 }));
+
+afterAll(() => {
+  mock.restore();
+  clearLogger();
+});
+
+beforeEach(() => {
+  setLogger(hoisted.logger as any);
+  hoisted.logger.error.mockReset();
+  hoisted.logger.warn.mockReset();
+  hoisted.logger.info.mockReset();
+  hoisted.logger.success.mockReset();
+  hoisted.logger.setReporter.mockReset();
+});
 
 describe('handleServeAcpCommand', () => {
   it('starts ACP stdio loop without starting A2A + sidecar listeners', async () => {

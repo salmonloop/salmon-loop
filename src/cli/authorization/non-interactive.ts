@@ -8,7 +8,7 @@ import type {
   ToolAuthorizationConfig,
   ToolAuthorizationRequest,
 } from '../../core/facades/cli-authorization-non-interactive.js';
-import { logger, McpClient } from '../../core/facades/cli-authorization-non-interactive.js';
+import { getLogger, McpClient } from '../../core/facades/cli-authorization-non-interactive.js';
 import { text } from '../locales/index.js';
 
 const DecisionSchema = z
@@ -95,7 +95,9 @@ export async function requestNonInteractiveAuthorizationDecision(params: {
   if (strategy === 'command') {
     const cmd = params.config.nonInteractive?.command?.cmd;
     if (!cmd) {
-      logger.warn('Non-interactive authorization strategy is "command" but no command is set.');
+      getLogger().warn(
+        'Non-interactive authorization strategy is "command" but no command is set.',
+      );
       return deny(text.cli.toolAuthorizationNonInteractiveMisconfigured('command'));
     }
 
@@ -114,7 +116,7 @@ export async function requestNonInteractiveAuthorizationDecision(params: {
 
       const stdout = String(res.stdout ?? '').trim();
       if (!stdout) {
-        logger.warn('Non-interactive authorization command returned empty stdout.');
+        getLogger().warn('Non-interactive authorization command returned empty stdout.');
         return deny(text.cli.toolAuthorizationNonInteractiveFailed('empty_response'));
       }
 
@@ -127,14 +129,14 @@ export async function requestNonInteractiveAuthorizationDecision(params: {
 
       const parsed = DecisionSchema.safeParse(json);
       if (!parsed.success) {
-        logger.warn('Non-interactive authorization command returned invalid decision JSON.');
+        getLogger().warn('Non-interactive authorization command returned invalid decision JSON.');
         return deny(text.cli.toolAuthorizationNonInteractiveFailed('invalid_decision'));
       }
 
       return normalizeDecisionSource(parsed.data as AuthorizationDecision);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      logger.warn(`Non-interactive authorization command failed: ${msg}`);
+      getLogger().warn(`Non-interactive authorization command failed: ${msg}`);
       return deny(text.cli.toolAuthorizationNonInteractiveFailed('command_failed'));
     }
   }
@@ -143,13 +145,17 @@ export async function requestNonInteractiveAuthorizationDecision(params: {
     const serverName = params.config.nonInteractive?.mcp?.server;
     const toolName = params.config.nonInteractive?.mcp?.tool;
     if (!serverName || !toolName) {
-      logger.warn('Non-interactive authorization strategy is "mcp" but server/tool is missing.');
+      getLogger().warn(
+        'Non-interactive authorization strategy is "mcp" but server/tool is missing.',
+      );
       return deny(text.cli.toolAuthorizationNonInteractiveMisconfigured('mcp'));
     }
 
     const server = findMcpServer(params.extensions, serverName);
     if (!server) {
-      logger.warn(`Non-interactive authorization MCP server not found or disabled: ${serverName}`);
+      getLogger().warn(
+        `Non-interactive authorization MCP server not found or disabled: ${serverName}`,
+      );
       return deny(text.cli.toolAuthorizationNonInteractiveFailed('mcp_server_not_found'));
     }
 
@@ -172,14 +178,16 @@ export async function requestNonInteractiveAuthorizationDecision(params: {
       const payload = extractDecisionPayloadFromMcpResult(result);
       const parsed = DecisionSchema.safeParse(payload);
       if (!parsed.success) {
-        logger.warn('Non-interactive authorization MCP tool returned invalid decision payload.');
+        getLogger().warn(
+          'Non-interactive authorization MCP tool returned invalid decision payload.',
+        );
         return deny(text.cli.toolAuthorizationNonInteractiveFailed('invalid_decision'));
       }
 
       return normalizeDecisionSource(parsed.data as AuthorizationDecision);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      logger.warn(`Non-interactive authorization MCP tool failed: ${msg}`);
+      getLogger().warn(`Non-interactive authorization MCP tool failed: ${msg}`);
       return deny(text.cli.toolAuthorizationNonInteractiveFailed('mcp_failed'));
     } finally {
       clearTimeout(timeout);
@@ -188,6 +196,6 @@ export async function requestNonInteractiveAuthorizationDecision(params: {
   }
 
   const unknown = String(params.config.nonInteractive?.strategy ?? '');
-  logger.warn(text.cli.toolAuthorizationNonInteractiveUnsupported(unknown));
+  getLogger().warn(text.cli.toolAuthorizationNonInteractiveUnsupported(unknown));
   return deny(text.cli.toolAuthorizationNonInteractiveUnsupported(unknown));
 }

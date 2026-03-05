@@ -27,7 +27,7 @@ const {
 Object.defineProperty(mock, 'fn', { value: mock, writable: false });
 import * as auditTrail from '../../src/core/observability/audit-trail.js';
 import type { AuditTrailEvent } from '../../src/core/observability/audit-trail.js';
-import { logger } from '../../src/core/observability/logger.js';
+import { tryGetLogger } from '../../src/core/observability/logger.js';
 
 const silentConsoleTargets: Array<keyof Console> = ['log', 'info', 'warn', 'error'];
 let consoleSpies: Array<ReturnType<typeof spyOn>> = [];
@@ -117,7 +117,8 @@ export function muteConsoleOutputs() {
     spy.mockImplementation(() => {});
     consoleSpies.push(spy);
   }
-  if (previousLoggerSilent === null && typeof logger.getSilent === 'function') {
+  const logger = tryGetLogger();
+  if (logger && previousLoggerSilent === null && typeof logger.getSilent === 'function') {
     previousLoggerSilent = logger.getSilent();
     if (typeof logger.setSilent === 'function') {
       logger.setSilent(true);
@@ -130,7 +131,8 @@ export function restoreConsoleOutputs() {
     spy.mockRestore();
   }
   if (previousLoggerSilent !== null) {
-    if (typeof logger.setSilent === 'function') {
+    const logger = tryGetLogger();
+    if (logger && typeof logger.setSilent === 'function') {
       logger.setSilent(previousLoggerSilent);
     }
     previousLoggerSilent = null;
@@ -159,6 +161,12 @@ export async function captureLoggerAudit<Result>(
   events: AuditTrailEvent[];
   auditEntries: LoggerAuditEntry[];
 }> {
+  const logger = tryGetLogger();
+  if (!logger) {
+    throw new Error(
+      'Logger is not initialized. captureLoggerAudit requires setLogger() in test setup.',
+    );
+  }
   const entries: LoggerAuditEntry[] = [];
   const originalAudit = logger.audit.bind(logger);
   logger.audit = (action: string, details: unknown, meta?: string | auditTrail.AuditTrailMeta) => {

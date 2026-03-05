@@ -1,7 +1,7 @@
 import { createInterface, Interface } from 'readline';
 
 import { LIMITS } from '../../config/limits.js';
-import { logger } from '../../observability/logger.js';
+import { getLogger } from '../../observability/logger.js';
 import { InteractiveProcess, spawnInteractiveProcess } from '../../runtime/process-runner.js';
 
 import {
@@ -38,13 +38,13 @@ export class McpClient {
    */
   async start(): Promise<void> {
     if (this.isHttp()) {
-      logger.info(`Connecting to MCP server: ${this.config.name} (url: ${this.config.url})`);
+      getLogger().info(`Connecting to MCP server: ${this.config.name} (url: ${this.config.url})`);
       await this.initialize();
-      logger.info(`MCP server ${this.config.name} ready.`);
+      getLogger().info(`MCP server ${this.config.name} ready.`);
       return;
     }
 
-    logger.info(`Starting MCP server: ${this.config.name} (command: ${this.config.command})`);
+    getLogger().info(`Starting MCP server: ${this.config.name} (command: ${this.config.command})`);
     this.process = spawnInteractiveProcess({
       command: this.config.command!,
       args: this.config.args || [],
@@ -59,12 +59,12 @@ export class McpClient {
     }
 
     this.process.on('error', (err) => {
-      logger.error(`MCP process error (${this.config.name}): ${err}`);
+      getLogger().error(`MCP process error (${this.config.name}): ${err}`);
     });
 
     this.process.on('exit', (code) => {
       if (code !== 0 && code !== null) {
-        logger.error(`MCP server ${this.config.name} exited with code ${code}`);
+        getLogger().error(`MCP server ${this.config.name} exited with code ${code}`);
       }
     });
 
@@ -79,7 +79,7 @@ export class McpClient {
 
     await this.initialize();
 
-    logger.info(`MCP server ${this.config.name} ready.`);
+    getLogger().info(`MCP server ${this.config.name} ready.`);
   }
 
   /**
@@ -166,12 +166,14 @@ export class McpClient {
       }
       // Handle Notifications/Requests from Server (Optional, future proofing)
       else if (message.method) {
-        logger.debug(
+        getLogger().debug(
           `Received MCP notification/request: ${message.method} (server: ${this.config.name})`,
         );
       }
     } catch (err) {
-      logger.error(`Failed to parse MCP message from ${this.config.name}: ${err} (line: ${line})`);
+      getLogger().error(
+        `Failed to parse MCP message from ${this.config.name}: ${err} (line: ${line})`,
+      );
     }
   }
 
@@ -244,12 +246,12 @@ export class McpClient {
               return msg.result;
             }
             if (msg.method) {
-              logger.debug(
+              getLogger().debug(
                 `Received MCP notification/request: ${msg.method} (server: ${this.config.name})`,
               );
             }
           } catch (err) {
-            logger.error(
+            getLogger().error(
               `Failed to parse MCP SSE message from ${this.config.name}: ${String(err)} (data: ${event.data})`,
             );
           }

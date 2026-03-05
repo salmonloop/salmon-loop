@@ -4,7 +4,7 @@ import path from 'path';
 
 import * as fs from '../../adapters/fs/node-fs.js';
 import { LIMITS } from '../../config/limits.js';
-import { logger } from '../../observability/logger.js';
+import { getLogger } from '../../observability/logger.js';
 
 import { ARTIFACT_HANDLE_PREFIX, ArtifactHandle } from './types.js';
 
@@ -154,7 +154,7 @@ export class ArtifactStore {
     try {
       const result = await this.gc();
       if (result.removedFiles > 0) {
-        logger.debug(
+        getLogger().debug(
           `[ArtifactStore] GC removed ${result.removedFiles} files (${result.removedBytes} bytes)`,
         );
       }

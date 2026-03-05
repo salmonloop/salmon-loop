@@ -1,5 +1,5 @@
 import { redactConfigForPrint, resolveConfig, ConfigError } from '../../../core/config/index.js';
-import { logger } from '../../../core/observability/logger.js';
+import { getLogger } from '../../../core/facades/cli-observability.js';
 import { text } from '../../locales/index.js';
 
 export type ResolvedCliConfig = Awaited<ReturnType<typeof resolveConfig>>;
@@ -24,7 +24,7 @@ export async function resolveRunConfig(params: {
   } catch (err: unknown) {
     if (err instanceof ConfigError) {
       const msg = text.config.error(err.code || err.message, err.details);
-      logger.error(msg);
+      getLogger().error(msg);
       if (params.outputFormat === 'json') {
         params.writeJsonFailure({ message: msg, errorCode: err.code, repoPath: params.repoPath });
       }
@@ -32,7 +32,7 @@ export async function resolveRunConfig(params: {
     }
 
     const msg = err instanceof Error ? err.message : String(err);
-    logger.error(text.config.loadFailed(msg));
+    getLogger().error(text.config.loadFailed(msg));
     if (params.outputFormat === 'json') {
       params.writeJsonFailure({ message: text.config.loadFailed(msg), repoPath: params.repoPath });
     }

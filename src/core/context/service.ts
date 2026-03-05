@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { FileAdapter } from '../adapters/fs/file-adapter.js';
 import { defaultPathAdapter } from '../adapters/path/path-adapter.js';
 import { Pipeline } from '../grizzco/engine/pipeline/pipeline.js';
-import { logger } from '../observability/logger.js';
+import { getLogger } from '../observability/logger.js';
 
 import { CONTEXT_AUDIT_ACTION, CONTEXT_AUDIT_PHASE } from './audit-constants.js';
 import { recordContextAuditEvent } from './audit.js';
@@ -83,12 +83,12 @@ export class ContextService {
     );
     const cached = cacheLookup.result;
     if (cached && !req.signal?.aborted) {
-      logger.trace(`[CONTEXT_CACHE] hit ${cacheKey}`);
+      getLogger().trace(`[CONTEXT_CACHE] hit ${cacheKey}`);
       return cached;
     }
 
-    logger.trace(`  [CONTEXT] Building context for repo: ${req.repoPath}`);
-    logger.trace(`  [CONTEXT] File: ${req.primaryFile}, Instruction: ${req.instruction}`);
+    getLogger().trace(`  [CONTEXT] Building context for repo: ${req.repoPath}`);
+    getLogger().trace(`  [CONTEXT] File: ${req.primaryFile}, Instruction: ${req.instruction}`);
 
     const report = await Pipeline.of({ req, diffScope })
       .step('CONTEXT_PRIMARY', buildContextPrimaryStep(this.deps))
@@ -300,14 +300,14 @@ export class ContextService {
     if (!diff.addedFiles.length && !diff.modifiedFiles.length && !diff.removedFiles.length) {
       return;
     }
-    logger.trace(
+    getLogger().trace(
       `[CONTEXT_CACHE] ${key} diff added=${diff.addedFiles.length} modified=${diff.modifiedFiles.length} removed=${diff.removedFiles.length}`,
     );
   }
 
   private logPromptCacheStats(key: string): void {
     const stats: PromptCacheStats = this.promptCachingManager.getStats();
-    logger.trace(
+    getLogger().trace(
       `[PROMPT_CACHE] ${key} provider=${stats.provider} hitRate=${(stats.cacheHitRate * 100).toFixed(1)}% cachedTokens=${stats.cachedTokens}`,
     );
   }

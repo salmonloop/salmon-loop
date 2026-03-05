@@ -6,7 +6,7 @@ import { LIMITS } from '../../config/limits.js';
 import { truncateOutput } from '../../context/truncation/index.js';
 import { getAuditTrail, recordAuditEvent } from '../../observability/audit-trail.js';
 import { mapErrorForDisplay } from '../../observability/error-mapping.js';
-import { logger } from '../../observability/logger.js';
+import { getLogger } from '../../observability/logger.js';
 import { getAuditDir } from '../../runtime/paths.js';
 import { SalmonError } from '../../types/errors.js';
 import type { LoopOptions } from '../../types/runtime.js';
@@ -53,7 +53,7 @@ export async function saveAudit(
       });
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
-      logger.warn(`[Audit] Failed to externalize verify output: ${msg}`);
+      getLogger().warn(`[Audit] Failed to externalize verify output: ${msg}`);
       recordAuditEvent(
         'audit.blob.externalize.failed',
         { target: 'verifyResult.output', error: msg.slice(0, 500) },
@@ -68,7 +68,7 @@ export async function saveAudit(
       });
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
-      logger.warn(`[Audit] Failed to externalize tool audit summaries: ${msg}`);
+      getLogger().warn(`[Audit] Failed to externalize tool audit summaries: ${msg}`);
       recordAuditEvent(
         'audit.blob.externalize.failed',
         { target: 'toolAuditLogs.*', error: msg.slice(0, 500) },
@@ -151,11 +151,11 @@ export async function saveAudit(
     await fs.writeFile(eventsPath, eventsPayload, 'utf8');
     await fs.writeFile(`${auditDir}/${filename}`, JSON.stringify(auditData, null, 2));
 
-    logger.debug(`[Audit] Saved structured audit log to ${filename}`);
+    getLogger().debug(`[Audit] Saved structured audit log to ${filename}`);
     return `${auditDir}/${filename}`;
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    logger.error(`[Audit] Failed to save audit log: ${msg}`);
+    getLogger().error(`[Audit] Failed to save audit log: ${msg}`);
     return undefined;
   }
 }
@@ -205,7 +205,7 @@ async function writeBlobBestEffort(args: {
     return { path: path.join('blobs', blobName), sha256, chars: content.length };
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    logger.warn(`[Audit] Failed to write blob ${blobName}: ${msg}`);
+    getLogger().warn(`[Audit] Failed to write blob ${blobName}: ${msg}`);
     recordAuditEvent(
       'audit.blob.write.failed',
       {

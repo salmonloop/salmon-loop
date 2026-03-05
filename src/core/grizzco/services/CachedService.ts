@@ -1,4 +1,4 @@
-import { logger } from '../../observability/logger.js';
+import { getLogger } from '../../observability/logger.js';
 import { AstValidateCtx } from '../engine/pipeline/types.js';
 
 import { IDataService } from './types.js';
@@ -31,7 +31,7 @@ export class CachedService implements IDataService {
       return pending;
     }
 
-    logger.debug(`[CachedService] Cache miss for ${this.id} (Scope: ${key}), fetching...`);
+    getLogger().debug(`[CachedService] Cache miss for ${this.id} (Scope: ${key}), fetching...`);
     const request = this.delegate
       .fetch(ctx, filePath)
       .then((result) => {

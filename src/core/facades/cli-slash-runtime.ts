@@ -1,5 +1,5 @@
 export { logIgnoredError } from '../observability/ignored-error.js';
-export { logger } from '../observability/logger.js';
+export { getLogger } from '../observability/logger.js';
 export { SkillLoader } from '../skills/loader.js';
 export { executeSkill } from '../skills/runtime/SkillRunner.js';
 export type { Skill } from '../skills/types.js';

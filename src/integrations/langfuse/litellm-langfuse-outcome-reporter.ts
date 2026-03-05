@@ -1,6 +1,6 @@
 import { readFile } from '../../core/adapters/fs/node-fs.js';
 import { recordAuditEvent } from '../../core/observability/audit-trail.js';
-import { logger } from '../../core/observability/logger.js';
+import { getLogger } from '../../core/observability/logger.js';
 import type {
   RunOutcomeContext,
   RunOutcomeReport,
@@ -251,11 +251,11 @@ export class LiteLlmLangfuseOutcomeReporter implements RunOutcomeReporter {
         { traceId, ok: true, scores: scores.map((s) => s.name) },
         { source: 'observability', severity: 'low', scope: 'session' },
       );
-      logger.debug(text.grizzco.langfuse.outcomeReported(traceId));
+      getLogger().debug(text.grizzco.langfuse.outcomeReported(traceId));
       return;
     }
 
-    logger.warn(text.grizzco.langfuse.outcomeReportFailed(traceId));
+    getLogger().warn(text.grizzco.langfuse.outcomeReportFailed(traceId));
   }
 
   private async postIngestion(events: LangfuseIngestionEvent[], traceId: string): Promise<boolean> {
@@ -314,7 +314,7 @@ export class LiteLlmLangfuseOutcomeReporter implements RunOutcomeReporter {
             },
             { source: 'observability', severity: 'low', scope: 'session' },
           );
-          logger.debug(
+          getLogger().debug(
             `[Langfuse] Ingestion returned errors for ids: ${result.errors
               .map((e) => e.id)
               .join(',')}`,

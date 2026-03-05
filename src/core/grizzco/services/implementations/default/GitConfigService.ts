@@ -1,5 +1,5 @@
 import { GitAdapter } from '../../../../adapters/git/git-adapter.js';
-import { logger } from '../../../../observability/logger.js';
+import { getLogger } from '../../../../observability/logger.js';
 import { AstValidateCtx } from '../../../engine/pipeline/types.js';
 import { IDataService } from '../../types.js';
 
@@ -7,7 +7,7 @@ export class GitConfigService implements IDataService {
   readonly id = 'git_config';
 
   async fetch(ctx: AstValidateCtx, _filePath?: string): Promise<any> {
-    logger.debug('[GitConfigService] Fetching git configuration...');
+    getLogger().debug('[GitConfigService] Fetching git configuration...');
 
     try {
       const git = new GitAdapter(ctx.workspace.workPath);
@@ -36,7 +36,7 @@ export class GitConfigService implements IDataService {
         },
       };
     } catch (error) {
-      logger.warn(`[GitConfigService] Failed to fetch config: ${error}`);
+      getLogger().warn(`[GitConfigService] Failed to fetch config: ${error}`);
       return { user: {}, remote: {} };
     }
   }

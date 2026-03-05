@@ -1,12 +1,23 @@
 import path from 'path';
 
+import { afterAll, beforeEach, describe, expect, it, mock } from 'bun:test';
+
 import { GitAdapter } from '../../../src/core/adapters/git/git-adapter.js';
+import { clearLogger, setLogger } from '../../../src/core/observability/logger.js';
 import type { CheckpointManager } from '../../../src/core/strata/checkpoint/manager.js';
 import { ShadowMergeEngine } from '../../../src/core/strata/engine/shadow-merge-engine.js';
 import type { IFileSystemProvider } from '../../../src/core/strata/types.js';
 
 const { adaptersByPath } = (() => ({
   adaptersByPath: new Map<string, any>(),
+}))();
+
+const { debugMock, infoMock, warnMock, errorMock, traceMock } = (() => ({
+  debugMock: mock(),
+  infoMock: mock(),
+  warnMock: mock(),
+  errorMock: mock(),
+  traceMock: mock(),
 }))();
 
 mock.module('../../../src/core/adapters/git/git-adapter.js', () => ({
@@ -23,16 +34,6 @@ mock.module('../../../src/core/adapters/git/git-adapter.js', () => ({
     }
     return adaptersByPath.get(repoPath);
   }),
-}));
-
-mock.module('../../../src/core/observability/logger.js', () => ({
-  logger: {
-    debug: mock(),
-    info: mock(),
-    warn: mock(),
-    error: mock(),
-    trace: mock(),
-  },
 }));
 
 function adapterFor(repoPath: string): any {
@@ -94,7 +95,24 @@ describe('ShadowMergeEngine behavior safety', () => {
   const shadowRepoPath = '/mock/shadow';
   const targetPath = path.join(mainRepoPath, 'src/file.ts');
 
+  afterAll(() => {
+    mock.restore();
+    clearLogger();
+  });
+
   beforeEach(() => {
+    setLogger({
+      debug: debugMock,
+      info: infoMock,
+      warn: warnMock,
+      error: errorMock,
+      trace: traceMock,
+    } as any);
+    debugMock.mockReset();
+    infoMock.mockReset();
+    warnMock.mockReset();
+    errorMock.mockReset();
+    traceMock.mockReset();
     adaptersByPath.clear();
     mock.clearAllMocks();
     new GitAdapter(mainRepoPath);

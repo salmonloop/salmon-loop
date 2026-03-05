@@ -2,7 +2,7 @@ import * as os from 'os';
 import * as path from 'path';
 
 import {
-  logger,
+  getLogger,
   registerAllBuiltins,
   skillToToolSpec,
   SkillParser,
@@ -51,7 +51,7 @@ async function loadSkillsFromPath(root: string): Promise<Skill[]> {
       const content = await readFileUtf8(skillFile, root);
       skills.push(SkillParser.parse(content, skillFile));
     } catch (error) {
-      logger.warn(
+      getLogger().warn(
         `Failed to load skill at ${skillFile}: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
@@ -112,7 +112,7 @@ function loadSkillsFromPathSync(root: string): Skill[] {
       const content = readFileUtf8Sync(skillFile, root);
       skills.push(SkillParser.parse(content, skillFile));
     } catch (error) {
-      logger.warn(
+      getLogger().warn(
         `Failed to load skill at ${skillFile}: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
@@ -136,7 +136,7 @@ export async function getKnownToolNames(repoRoot: string): Promise<Set<string>> 
         registry.register(skillToToolSpec(skill));
       } catch (error) {
         const label = skill.metadata?.name || skill.id;
-        logger.warn(
+        getLogger().warn(
           `Failed to register skill ${label}: ${error instanceof Error ? error.message : String(error)}`,
         );
       }
@@ -163,7 +163,7 @@ export function getKnownToolNamesSync(repoRoot: string): Set<string> {
         registry.register(skillToToolSpec(skill));
       } catch (error) {
         const label = skill.metadata?.name || skill.id;
-        logger.warn(
+        getLogger().warn(
           `Failed to register skill ${label}: ${error instanceof Error ? error.message : String(error)}`,
         );
       }

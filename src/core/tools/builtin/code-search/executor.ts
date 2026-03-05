@@ -1,5 +1,5 @@
 import { LIMITS } from '../../../config/limits.js';
-import { logger } from '../../../observability/logger.js';
+import { getLogger } from '../../../observability/logger.js';
 import { spawnCommand } from '../../../runtime/process-runner.js';
 import { runWithFallback } from '../../capability/executor.js';
 import { CapabilityCtx } from '../../capability/types.js';
@@ -18,7 +18,7 @@ export async function codeSearchExecutor(
   input: CodeSearchInputT,
   ctx: ToolRuntimeCtx & { phase: ExecutionPhase }, // Phase is injected by Router
 ): Promise<CodeSearchOutputT> {
-  logger.debug(`Searching for pattern: ${input.pattern}`);
+  getLogger().debug(`Searching for pattern: ${input.pattern}`);
 
   // Construct CapabilityCtx for the underlying backends
   const capCtx: CapabilityCtx = {
@@ -82,7 +82,8 @@ export async function codeSearchExecutor(
       maxOutputBytes: LIMITS.maxToolOutputBytes,
     },
     audit: {
-      event: (e) => logger.audit('code.search.backend', e, { source: 'tool', severity: 'low' }),
+      event: (e) =>
+        getLogger().audit('code.search.backend', e, { source: 'tool', severity: 'low' }),
     },
   };
 

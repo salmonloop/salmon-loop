@@ -8,7 +8,7 @@ import type {
   UiLogMode,
   UiLogView,
 } from '../../core/facades/cli-ui.js';
-import { logger, LoopEventReporter } from '../../core/facades/cli-ui.js';
+import { getLogger, LoopEventReporter } from '../../core/facades/cli-ui.js';
 import { text } from '../locales/index.js';
 
 import { App } from './App.js';
@@ -71,9 +71,9 @@ export async function startGUI(
   uiConfig?: UIConfig,
 ) {
   // Silence global logger to prevent output from interfering with Ink
-  const preReporter = logger.getReporter();
-  const preSilent = logger.getSilent();
-  logger.setSilent(true);
+  const preReporter = getLogger().getReporter();
+  const preSilent = getLogger().getSilent();
+  getLogger().setSilent(true);
 
   const preConsole = {
     error: console.error,
@@ -111,8 +111,8 @@ export async function startGUI(
       onStart={(emit: (event: LoopEvent) => void, options: GUIOptions) => {
         if (mode === 'run') {
           // Route core logs through structured LoopEvents (GUI-safe; no stdout/stderr writes).
-          logger.setReporter(new LoopEventReporter(emit, { source: 'core.logger' }));
-          logger.setSilent(false);
+          getLogger().setReporter(new LoopEventReporter(emit, { source: 'core.logger' }));
+          getLogger().setSilent(false);
 
           runFn(emit, undefined, options)
             .then((result) => {
@@ -144,8 +144,8 @@ export async function startGUI(
       ) => {
         if (mode === 'chat') {
           // Route core logs through structured LoopEvents (GUI-safe; no stdout/stderr writes).
-          logger.setReporter(new LoopEventReporter(emit, { source: 'core.logger' }));
-          logger.setSilent(false);
+          getLogger().setReporter(new LoopEventReporter(emit, { source: 'core.logger' }));
+          getLogger().setSilent(false);
 
           runFn(emit, input, options, dispatch).catch((err) => {
             emit({
@@ -187,8 +187,8 @@ export async function startGUI(
     const result = await Promise.race([waitUntilExit(), exitPromise]);
     return result;
   } finally {
-    logger.setReporter(preReporter);
-    logger.setSilent(preSilent);
+    getLogger().setReporter(preReporter);
+    getLogger().setSilent(preSilent);
 
     console.error = preConsole.error;
     console.log = preConsole.log;

@@ -1,4 +1,4 @@
-import { logger } from '../../observability/logger.js';
+import { getLogger } from '../../observability/logger.js';
 
 import { Backend, BackendFail, BackendResult, CapabilityCtx } from './types.js';
 
@@ -46,7 +46,7 @@ export async function runWithFallback<I, O>(
     try {
       compatible = await backend.isCompatible(ctx);
     } catch (err) {
-      logger.debug(`Compatibility check failed for backend ${backend.id}: ${err}`);
+      getLogger().debug(`Compatibility check failed for backend ${backend.id}: ${err}`);
       compatible = false;
     }
 
@@ -112,7 +112,7 @@ export async function runWithFallback<I, O>(
       throw createBackendError(backend.id, res, meta);
     }
 
-    logger.warn(`Backend ${backend.id} failed with ${res.code}, attempting fallback...`);
+    getLogger().warn(`Backend ${backend.id} failed with ${res.code}, attempting fallback...`);
   }
 
   throw new Error(`All backends failed for capability. Tried: ${JSON.stringify(meta.tried)}`);

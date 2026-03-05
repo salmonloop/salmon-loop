@@ -11,7 +11,7 @@ import { randomBytes } from 'crypto';
 import path from 'path';
 
 import { mkdir, writeFile, unlink, readFile, rename } from '../../../adapters/fs/node-fs.js';
-import { logger } from '../../../observability/logger.js';
+import { getLogger } from '../../../observability/logger.js';
 import { getShadowLockPath } from '../../../runtime/paths.js';
 import { spawnCommand } from '../../../runtime/process-runner.js';
 import { normalizePath } from '../../../utils/path.js';
@@ -33,7 +33,7 @@ export async function acquireLock(shadowRoot: string): Promise<void> {
       try {
         await writeFile(lockPath, lockPayload, { flag: 'wx' });
         ownedLockTokens.set(lockPath, lockPayload);
-        logger.debug(`Lock acquired for shadowRoot: ${shadowRoot}`);
+        getLogger().debug(`Lock acquired for shadowRoot: ${shadowRoot}`);
         return;
       } catch (error) {
         const err = error as NodeJS.ErrnoException;
@@ -63,18 +63,18 @@ export async function acquireLock(shadowRoot: string): Promise<void> {
         }
         if (isAlive && oldPid === pid) {
           ownedLockTokens.set(lockPath, existingLock);
-          logger.debug(`Lock already held by current process ${pid}`);
+          getLogger().debug(`Lock already held by current process ${pid}`);
           return;
         }
 
-        logger.warn(`Stale lock found for process ${oldPid}, removing...`);
+        getLogger().warn(`Stale lock found for process ${oldPid}, removing...`);
         await removeLockByToken(lockPath, existingLock);
       }
     }
 
     throw new Error('Failed to acquire lock due to concurrent lock updates');
   } catch (error) {
-    logger.error(`Failed to acquire lock: ${error}`);
+    getLogger().error(`Failed to acquire lock: ${error}`);
     throw error;
   }
 }
@@ -86,22 +86,22 @@ export async function releaseLock(shadowRoot: string): Promise<void> {
   const lockPath = getShadowLockPath(shadowRoot);
   const ownedToken = ownedLockTokens.get(lockPath);
   if (!ownedToken) {
-    logger.warn(`Skip releasing unowned lock: ${shadowRoot}`);
+    getLogger().warn(`Skip releasing unowned lock: ${shadowRoot}`);
     return;
   }
 
   try {
     const removed = await removeLockByToken(lockPath, ownedToken);
     if (!removed) {
-      logger.warn(`Skip releasing lock due to ownership mismatch: ${shadowRoot}`);
+      getLogger().warn(`Skip releasing lock due to ownership mismatch: ${shadowRoot}`);
       ownedLockTokens.delete(lockPath);
       return;
     }
 
     ownedLockTokens.delete(lockPath);
-    logger.debug(`Lock released for shadowRoot: ${shadowRoot}`);
+    getLogger().debug(`Lock released for shadowRoot: ${shadowRoot}`);
   } catch (error) {
-    logger.warn(`Failed to release lock: ${error}`);
+    getLogger().warn(`Failed to release lock: ${error}`);
   }
 }
 
@@ -180,15 +180,15 @@ async function removeLockByToken(lockPath: string, expectedToken: string): Promi
 export async function enforceReadOnly(root: string, depPaths: string[]): Promise<void> {
   if (process.platform !== 'linux') return;
 
-  logger.debug(`Enforcing readonly lock on ${depPaths.length} paths`);
+  getLogger().debug(`Enforcing readonly lock on ${depPaths.length} paths`);
 
   for (const dep of depPaths) {
     const depPath = normalizePath(`${root}/${dep}`);
     try {
       await execChmod('a-w', depPath);
-      logger.debug(`Readonly lock applied to ${depPath}`);
+      getLogger().debug(`Readonly lock applied to ${depPath}`);
     } catch (error) {
-      logger.warn(`Failed to apply readonly lock to ${depPath}: ${error}`);
+      getLogger().warn(`Failed to apply readonly lock to ${depPath}: ${error}`);
     }
   }
 }
@@ -199,15 +199,15 @@ export async function enforceReadOnly(root: string, depPaths: string[]): Promise
 export async function restoreWrite(root: string, depPaths: string[]): Promise<void> {
   if (process.platform !== 'linux') return;
 
-  logger.debug(`Restoring write permissions on ${depPaths.length} paths`);
+  getLogger().debug(`Restoring write permissions on ${depPaths.length} paths`);
 
   for (const dep of depPaths) {
     const depPath = normalizePath(`${root}/${dep}`);
     try {
       await execChmod('u+w', depPath);
-      logger.debug(`Write permissions restored to ${depPath}`);
+      getLogger().debug(`Write permissions restored to ${depPath}`);
     } catch (error) {
-      logger.warn(`Failed to restore write permissions to ${depPath}: ${error}`);
+      getLogger().warn(`Failed to restore write permissions to ${depPath}: ${error}`);
     }
   }
 }

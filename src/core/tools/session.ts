@@ -5,7 +5,7 @@ import type { ToolCallingAuditSink } from '../llm/audit.js';
 import { emitLlmOutput, emitLlmStreamDelta, emitLlmStreamEnd } from '../llm/output-policy.js';
 import { redactErrorMessage, redactJsonString, redactValue } from '../llm/redact.js';
 import { recordAuditEvent } from '../observability/audit-trail.js';
-import { logger } from '../observability/logger.js';
+import { getLogger } from '../observability/logger.js';
 import {
   CanonicalResponsesEventEmitter,
   type CanonicalStreamPart,
@@ -929,7 +929,7 @@ function applyStrictToolOutputSchemaValidation(params: {
   }
 
   const validationError = parsed.error.message;
-  logger.error(
+  getLogger().error(
     `[tool] schema violation for ${params.toolName} (callId: ${params.callId}): ${validationError}`,
   );
 
@@ -1059,7 +1059,7 @@ async function executeToolCalls(
     allowedUsed++;
 
     if (!toolName || typeof toolName !== 'string') {
-      logger.warn('Received malformed tool call (missing function.name)');
+      getLogger().warn('Received malformed tool call (missing function.name)');
       session.toolCallingAudit?.event({
         timestamp: new Date().toISOString(),
         phase,

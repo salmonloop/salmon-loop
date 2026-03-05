@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, mock, spyOn } from 'bun:test';
 
 import { StandardReporter } from '../../../../src/cli/reporters/standard.js';
-import { logger } from '../../../../src/core/observability/logger.js';
+import { getLogger } from '../../../../src/core/observability/logger.js';
 
 describe('StandardReporter budget summary', () => {
   afterEach(() => {
@@ -9,6 +9,7 @@ describe('StandardReporter budget summary', () => {
   });
 
   it('prints run-end budget summary when present', () => {
+    const logger = getLogger();
     const infoSpy = spyOn(logger, 'info').mockImplementation(() => {});
     const successSpy = spyOn(logger, 'success').mockImplementation(() => {});
     const logSpy = spyOn(logger, 'log').mockImplementation(() => {});

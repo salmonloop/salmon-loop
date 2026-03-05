@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile, readFile, mkdir, rename, chmod, cp } from 'fs/p
 import { tmpdir } from 'os';
 import { join } from 'path';
 
-import { logger } from '../../src/core/observability/logger.js';
+import { getLogger } from '../../src/core/observability/logger.js';
 import { CheckpointManager } from '../../src/core/strata/checkpoint/manager.js';
 import { ShadowMergeEngine } from '../../src/core/strata/engine/shadow-merge-engine.js';
 
@@ -324,7 +324,7 @@ class MergeTestContext {
     } catch (e) {
       // Ignore cleanup errors on Windows to prevent failing the test suite just because of cleanup
       if (process.platform !== 'win32') throw e;
-      logger.warn(`Cleanup failed (ignored on Windows): ${e}`);
+      getLogger().warn(`Cleanup failed (ignored on Windows): ${e}`);
     }
   }
 
@@ -434,9 +434,9 @@ describeMerge('ShadowMergeEngine Robustness', () => {
           await engine.apply();
         } catch (e: unknown) {
           const status = ctx.git.run('status');
-          logger.error(`Git Status on failure:\n${status}`);
+          getLogger().error(`Git Status on failure:\n${status}`);
           const fileContent = await ctx.readFile('main', 'file.txt');
-          logger.error(`File content on failure:\n${fileContent}`);
+          getLogger().error(`File content on failure:\n${fileContent}`);
           throw e;
         }
 

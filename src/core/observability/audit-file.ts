@@ -10,7 +10,7 @@ import {
   mapErrorForAudit,
   type AuditTrailDerivedFailure,
 } from './error-mapping.js';
-import { logger } from './logger.js';
+import { getLogger } from './logger.js';
 
 interface AppendAuditParams {
   auditPath?: string;
@@ -245,7 +245,7 @@ export async function appendAuditTrailToAuditFile(
     return auditPath;
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    logger.warn(text.grizzco.audit.appendFailed(msg));
+    getLogger().warn(text.grizzco.audit.appendFailed(msg));
     return undefined;
   }
 }

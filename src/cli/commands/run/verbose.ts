@@ -1,4 +1,4 @@
-import { logger } from '../../../core/observability/logger.js';
+import { getLogger } from '../../../core/facades/cli-observability.js';
 import type { VerboseLevel } from '../../../core/types/execution.js';
 import { text } from '../../locales/index.js';
 
@@ -22,23 +22,23 @@ export function logRunVerboseSummary(params: {
 }) {
   if (!params.verboseLevel) return;
 
-  logger.setVerbose(params.verboseLevel);
-  logger.cyan(text.cli.runningWith);
-  logger.log(text.cli.instruction(params.instruction));
+  getLogger().setVerbose(params.verboseLevel);
+  getLogger().cyan(text.cli.runningWith);
+  getLogger().log(text.cli.instruction(params.instruction));
   if (params.verify) {
-    logger.log(text.cli.verify(params.verify));
+    getLogger().log(text.cli.verify(params.verify));
   }
-  logger.log(text.cli.repoPath(params.repoPath));
-  if (params.file) logger.log(text.cli.contextFile(params.file));
-  if (params.selection) logger.log(text.cli.contextSelection(params.selection.length));
+  getLogger().log(text.cli.repoPath(params.repoPath));
+  if (params.file) getLogger().log(text.cli.contextFile(params.file));
+  if (params.selection) getLogger().log(text.cli.contextSelection(params.selection.length));
   if (params.allowedToolRules.length > 0) {
-    logger.log(text.cli.allowedTools(params.allowedToolRules.join(', ')));
+    getLogger().log(text.cli.allowedTools(params.allowedToolRules.join(', ')));
   }
   if (params.disallowedToolRules.length > 0) {
-    logger.log(text.cli.disallowedTools(params.disallowedToolRules.join(', ')));
+    getLogger().log(text.cli.disallowedTools(params.disallowedToolRules.join(', ')));
   }
-  if (params.dryRun) logger.warn(text.cli.dryRunEnabled);
+  if (params.dryRun) getLogger().warn(text.cli.dryRunEnabled);
   if (params.configPath) {
-    logger.log(text.cli.configPath(params.configPath));
+    getLogger().log(text.cli.configPath(params.configPath));
   }
 }

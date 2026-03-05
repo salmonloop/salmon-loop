@@ -1,3 +1,7 @@
+import * as path from 'path';
+
+import { afterAll, beforeEach, describe, expect, it, mock } from 'bun:test';
+
 const { mkdirMock, writeFileMock, getAuditDirMock } = (() => ({
   mkdirMock: mock(),
   writeFileMock: mock(),
@@ -6,6 +10,12 @@ const { mkdirMock, writeFileMock, getAuditDirMock } = (() => ({
       ? '/home/testuser/.salmonloop/runtime/audit'
       : `${repoPath}/.salmonloop/runtime/audit`,
   ),
+}))();
+
+const { debugMock, warnMock, errorMock } = (() => ({
+  debugMock: mock(),
+  warnMock: mock(),
+  errorMock: mock(),
 }))();
 
 mock.module('../../../../../src/core/adapters/fs/node-fs.js', () => ({
@@ -17,24 +27,25 @@ mock.module('../../../../../src/core/runtime/paths.js', () => ({
   getAuditDir: getAuditDirMock,
 }));
 
-mock.module('../../../../../src/core/observability/logger.js', () => ({
-  logger: {
-    debug: mock(),
-    warn: mock(),
-    error: mock(),
-  },
-}));
-
-import * as path from 'path';
-
-import { describe, expect, it, mock } from 'bun:test';
-
 import { Pipeline } from '../../../../../src/core/grizzco/engine/pipeline/pipeline.js';
 import { saveAudit } from '../../../../../src/core/grizzco/steps/audit.js';
 import { clearAuditTrail } from '../../../../../src/core/observability/audit-trail.js';
+import { clearLogger, setLogger } from '../../../../../src/core/observability/logger.js';
 import { freezeSystemTime } from '../../../../helpers/time.js';
 
 describe('saveAudit (blob write best-effort)', () => {
+  afterAll(() => {
+    mock.restore();
+    clearLogger();
+  });
+
+  beforeEach(() => {
+    setLogger({ debug: debugMock, warn: warnMock, error: errorMock } as any);
+    debugMock.mockReset();
+    warnMock.mockReset();
+    errorMock.mockReset();
+  });
+
   it('still writes bounded audit JSON when blob write fails', async () => {
     const restoreTime = freezeSystemTime('2026-02-15T00:00:00.000Z');
     try {

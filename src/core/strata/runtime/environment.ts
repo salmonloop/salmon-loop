@@ -7,7 +7,7 @@ import { GitSnapshotCheckpointService } from '../../checkpoint-domain/service.js
 import { LIMITS } from '../../config/limits.js';
 import { sanitizeError } from '../../llm/errors.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
-import { logger } from '../../observability/logger.js';
+import { getLogger } from '../../observability/logger.js';
 import { migrateLegacyRuntime } from '../../runtime/paths.js';
 import { CheckpointRef, ExecutionWorkspace, LoopEvent, LoopOptions } from '../../types/index.js';
 import { KAOMOJI } from '../../ui/kaomoji.js';
@@ -341,7 +341,7 @@ export class RuntimeEnvironment {
           );
         } catch (error) {
           checkpointCleanupOk = false;
-          logger.debug(
+          getLogger().debug(
             `Failed to delete snapshot ref refs/s8p/snapshots/${this.initialSnapshotHash}: ${error}`,
           );
         }

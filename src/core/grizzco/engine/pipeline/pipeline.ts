@@ -1,5 +1,5 @@
 import { recordAuditEvent, setAuditContext } from '../../../observability/audit-trail.js';
-import { logger } from '../../../observability/logger.js';
+import { getLogger } from '../../../observability/logger.js';
 import { appendPlanNote } from '../../../plan/index.js';
 import {
   EXECUTION_PHASES,
@@ -99,7 +99,7 @@ export class Pipeline<CurrentCtx> {
             { note, error: msg },
             { source: 'plan', severity: 'low', scope: 'session', phase: name },
           );
-          logger.debug(`[PlanRuntime] Failed to append note: ${msg}`);
+          getLogger().debug(`[PlanRuntime] Failed to append note: ${msg}`);
           return false;
         }
       };
@@ -252,7 +252,7 @@ export class Pipeline<CurrentCtx> {
             { note, error: msg },
             { source: 'plan', severity: 'low', scope: 'session', phase: name },
           );
-          logger.debug(`[PlanRuntime] Failed to append note: ${msg}`);
+          getLogger().debug(`[PlanRuntime] Failed to append note: ${msg}`);
           return false;
         }
       };
@@ -326,7 +326,7 @@ export class Pipeline<CurrentCtx> {
           });
 
           // 2. Force audit log to disk (persistent storage)
-          logger.audit(
+          getLogger().audit(
             'PIPELINE_RECOVERY_FAILED',
             {
               step: name,

@@ -2,7 +2,7 @@ import { text } from '../../locales/index.js';
 import { LIMITS } from '../config/limits.js';
 import { ErrorType } from '../types/index.js';
 
-import { logger } from './logger.js';
+import { getLogger } from './logger.js';
 
 /**
  * Represents a single error entry in the monitor
@@ -150,9 +150,9 @@ export class Monitor {
     if (heapUsedMB > thresholdMB) {
       const msg = text.monitor.memoryWarning(heapUsedMB.toFixed(2), thresholdMB.toString());
       this.recordError(ErrorType.UNKNOWN, msg);
-      logger.warn(`[Monitor] ${msg}`);
+      getLogger().warn(`[Monitor] ${msg}`);
       if (global.gc) {
-        logger.debug(`[Monitor] ${text.monitor.suggestingGc}`);
+        getLogger().debug(`[Monitor] ${text.monitor.suggestingGc}`);
         global.gc();
       }
     }

@@ -3,7 +3,7 @@ import path from 'path';
 import { text } from '../../../locales/index.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { logIgnoredError } from '../../observability/ignored-error.js';
-import { logger } from '../../observability/logger.js';
+import { getLogger } from '../../observability/logger.js';
 import { getRejectionsDir, getTmpDir } from '../../runtime/paths.js';
 import type { IFileSystemProvider, SyntheticSidecarLayer } from '../../strata/types.js';
 import type { VerboseLevel } from '../../types/index.js';
@@ -65,17 +65,17 @@ export class ShadowMergeEngine {
     }
 
     if (isDirty && strategy === '3way') {
-      logger.warn(text.loop.using3WayMergeStrategy);
+      getLogger().warn(text.loop.using3WayMergeStrategy);
     }
 
     // Zero Trust Workflow: Pre-Flight (Safety)
-    logger.debug('[ShadowMergeEngine] Creating snapshot for atomic transaction');
+    getLogger().debug('[ShadowMergeEngine] Creating snapshot for atomic transaction');
     const snapshot = await this.checkpoints.createSafeSnapshot(mainRepoPath);
 
     // T1: Dirty Transaction Backup (Captured early to satisfy Atomicity Contract and Unit Tests)
     const t1BackupHash = await this.checkpoints.createDirtyBackup(mainRepoPath);
     if (t1BackupHash) {
-      logger.debug(`[ShadowMergeEngine] Created T1 Dirty Backup: ${t1BackupHash}`);
+      getLogger().debug(`[ShadowMergeEngine] Created T1 Dirty Backup: ${t1BackupHash}`);
     }
 
     try {
@@ -151,7 +151,7 @@ export class ShadowMergeEngine {
                   continue;
                 }
                 const emptyBase = Buffer.alloc(0);
-                logger.warn(text.loop.unionMergeWarning(op.path));
+                getLogger().warn(text.loop.unionMergeWarning(op.path));
                 const workingMerge = await this.mergeFileContents(
                   mainRepoPath,
                   emptyBase,
@@ -252,7 +252,7 @@ export class ShadowMergeEngine {
       }
 
       if (skipped.length > 0) {
-        logger.warn(text.loop.skippedFiles(skipped.join(', ')));
+        getLogger().warn(text.loop.skippedFiles(skipped.join(', ')));
       }
 
       if (conflicts.length > 0) {
@@ -267,7 +267,7 @@ export class ShadowMergeEngine {
               await this.fsp.writeFile(rejFullPath, aiContent, mainRepoPath);
             }
           } catch (e) {
-            logger.error(`Failed to generate rejection for ${conflictPath}: ${e}`);
+            getLogger().error(`Failed to generate rejection for ${conflictPath}: ${e}`);
           }
         }
         throw new Error(
@@ -275,24 +275,24 @@ export class ShadowMergeEngine {
         );
       }
 
-      logger.debug('[ShadowMergeEngine] Transaction completed successfully');
+      getLogger().debug('[ShadowMergeEngine] Transaction completed successfully');
     } catch (error) {
-      logger.error(`[ShadowMergeEngine] Transaction failed, rolling back: ${error}`);
+      getLogger().error(`[ShadowMergeEngine] Transaction failed, rolling back: ${error}`);
 
       if (t1BackupHash) {
-        logger.debug(
+        getLogger().debug(
           `[ShadowMergeEngine] T1 backup found (${t1BackupHash}), performing safe rollback.`,
         );
         await this.checkpoints.restoreDirtyBackup(mainRepoPath, t1BackupHash);
       } else if (!isDirty) {
-        logger.warn(
+        getLogger().warn(
           `[ShadowMergeEngine] No T1 backup found in clean workspace rollback. Restoring T0 snapshot: ${snapshot.commitHash}`,
         );
         await this.checkpoints.restoreToMain(mainRepoPath, snapshot.commitHash, true);
       } else {
         // If T1 backup is missing, restoring T0 can overwrite user dirty state.
         // Do not perform automated restore in this branch.
-        logger.error(
+        getLogger().error(
           `[ShadowMergeEngine] CRITICAL: No T1 backup found during rollback. ` +
             `Skipping automated restore to prevent potential data loss. ` +
             `Please verify workspace state manually. Snapshot was: ${snapshot.commitHash}`,
@@ -482,7 +482,7 @@ export class ShadowMergeEngine {
       const status = await git.query(['status', '--porcelain']);
       return status.trim().length > 0;
     } catch (error) {
-      logger.error(`Failed to check workspace status: ${error}`);
+      getLogger().error(`Failed to check workspace status: ${error}`);
       return false;
     }
   }

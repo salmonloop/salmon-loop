@@ -1,4 +1,4 @@
-import { EXECUTION_PHASES, logger } from '../../core/facades/cli-command-allowlist.js';
+import { EXECUTION_PHASES, getLogger } from '../../core/facades/cli-command-allowlist.js';
 import {
   clearAllowlist,
   clearAllowlistCache,
@@ -179,7 +179,7 @@ export const allowlistCommand: Command = {
       try {
         knownTools = await getKnownToolNames(repoRoot);
       } catch (error) {
-        logger.warn(
+        getLogger().warn(
           `Failed to load tool registry for validation: ${error instanceof Error ? error.message : String(error)}`,
         );
         emit({

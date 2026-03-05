@@ -7,7 +7,7 @@ import * as path from 'path';
 import { text } from '../../../locales/index.js';
 import { LIMITS } from '../../config/limits.js';
 import { logIgnoredError } from '../../observability/ignored-error.js';
-import { logger } from '../../observability/logger.js';
+import { getLogger } from '../../observability/logger.js';
 import { GitError } from '../../types/index.js';
 import { isPathWithinDirectory, normalizePath } from '../../utils/path.js';
 
@@ -172,7 +172,9 @@ export class GitAdapter {
     }
 
     if (res.code === 128) {
-      logger.debug(`[GitAdapter] Code 128 Debug: Args: ${args.join(' ')}\nStderr: ${res.stderr}`);
+      getLogger().debug(
+        `[GitAdapter] Code 128 Debug: Args: ${args.join(' ')}\nStderr: ${res.stderr}`,
+      );
     }
 
     if (res.error?.message) {

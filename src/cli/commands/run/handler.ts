@@ -8,7 +8,7 @@ import {
   createPromptRegistry,
   getExitCode,
   getDefaultSessionContextBudgetTokens,
-  logger,
+  getLogger,
   normalizePermissionMode,
   setPluginRegistry,
   setPromptRegistry,
@@ -61,7 +61,7 @@ export async function handleRunCommand(options: any, command: Command) {
     rawOutputFormat !== 'stream-json' &&
     rawOutputFormat !== 'json'
   ) {
-    logger.error(text.cli.invalidOutputFormat(rawOutputFormat), true);
+    getLogger().error(text.cli.invalidOutputFormat(rawOutputFormat), true);
     process.exit(1);
   }
 
@@ -80,7 +80,7 @@ export async function handleRunCommand(options: any, command: Command) {
   const useGui = !headlessOutput && !printMode && allOptions.gui !== false && process.stdout.isTTY;
 
   if (headlessOutput) {
-    logger.setReporter(new StderrLogReporter());
+    getLogger().setReporter(new StderrLogReporter());
   }
 
   const wantSessionPersistence =
@@ -150,7 +150,7 @@ export async function handleRunCommand(options: any, command: Command) {
           });
         }
       } else {
-        logger.error(msg);
+        getLogger().error(msg);
       }
       process.exitCode = 1;
       return;
@@ -161,7 +161,7 @@ export async function handleRunCommand(options: any, command: Command) {
 
   const rawPreflightPolicy = String((allOptions as any).preflightPolicy || 'lenient');
   if (rawPreflightPolicy !== 'lenient' && rawPreflightPolicy !== 'strict') {
-    logger.error(text.cli.invalidPreflightPolicy(rawPreflightPolicy), true);
+    getLogger().error(text.cli.invalidPreflightPolicy(rawPreflightPolicy), true);
     return;
   }
   const preflightPolicy = rawPreflightPolicy as PreflightPolicy;
@@ -241,7 +241,7 @@ export async function handleRunCommand(options: any, command: Command) {
   const rawPermissionMode = allOptions.mode ?? resolvedConfig.permissionMode ?? 'interactive';
   const permissionMode = normalizePermissionMode(rawPermissionMode);
   if (!permissionMode) {
-    logger.error(
+    getLogger().error(
       `Invalid --mode "${String(rawPermissionMode)}". Expected "interactive" or "yolo".`,
     );
     process.exitCode = 1;
@@ -251,7 +251,7 @@ export async function handleRunCommand(options: any, command: Command) {
   const rawMode = String(allOptions.actMode || 'patch');
   const mode = resolveRunMode(rawMode);
   if (!mode) {
-    logger.error(text.cli.invalidActMode(rawMode));
+    getLogger().error(text.cli.invalidActMode(rawMode));
     if (outputFormat === 'json') {
       writeJsonFailure({ message: text.cli.invalidActMode(rawMode), repoPath: runPath });
     } else if (outputFormat === 'stream-json') {
@@ -267,7 +267,7 @@ export async function handleRunCommand(options: any, command: Command) {
 
   const rawEnvironmentMode = String((allOptions as any).environmentMode || 'strict');
   if (rawEnvironmentMode !== 'strict' && rawEnvironmentMode !== 'parity') {
-    logger.error(text.cli.invalidEnvironmentMode(rawEnvironmentMode));
+    getLogger().error(text.cli.invalidEnvironmentMode(rawEnvironmentMode));
     if (outputFormat === 'json') {
       writeJsonFailure({
         message: text.cli.invalidEnvironmentMode(rawEnvironmentMode),
@@ -296,7 +296,7 @@ export async function handleRunCommand(options: any, command: Command) {
   const extensionResolution = extensionsResult.extensionResolution;
 
   if (!effectiveVerify) {
-    logger.warn(text.verify.noCommandFound);
+    getLogger().warn(text.verify.noCommandFound);
   }
 
   const verboseLevel = resolveVerboseLevel(allOptions.verbose);
@@ -319,7 +319,7 @@ export async function handleRunCommand(options: any, command: Command) {
       configValue: resolvedConfig.observability.audit.scope,
     });
     if (!auditScopeResolution.ok) {
-      logger.error(text.cli.invalidAuditScope(auditScopeResolution.invalid), true);
+      getLogger().error(text.cli.invalidAuditScope(auditScopeResolution.invalid), true);
       process.exit(1);
     }
     const auditScope = auditScopeResolution.value;
@@ -485,7 +485,7 @@ export async function handleRunCommand(options: any, command: Command) {
     return;
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    logger.error(text.cli.unexpectedError(msg), false);
+    getLogger().error(text.cli.unexpectedError(msg), false);
     if (outputFormat === 'json') {
       writeJsonFailure({
         message: text.cli.unexpectedError(msg),

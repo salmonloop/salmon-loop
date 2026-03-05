@@ -8,7 +8,7 @@ import type {
   ToolAuthorizationProvider,
   ToolAuthorizationRequest,
 } from '../../core/facades/cli-authorization-provider.js';
-import { logger } from '../../core/facades/cli-authorization-provider.js';
+import { getLogger } from '../../core/facades/cli-authorization-provider.js';
 import { TOOL_AUTH_CONFIG } from '../config.js';
 import { text } from '../locales/index.js';
 import { getPendingAuthorization, requestAuthorization } from '../ui/authorization/bus.js';
@@ -424,11 +424,11 @@ export function createTerminalAuthorizationProvider(options?: {
       });
 
       if (allowlistDecision === 'allow') {
-        logger.info(text.cli.toolAuthorizationAllowlisted(request.toolName));
+        getLogger().info(text.cli.toolAuthorizationAllowlisted(request.toolName));
         return { outcome: 'allow', source: 'allowlist' };
       }
       if (allowlistDecision === 'deny') {
-        logger.warn(text.cli.toolAuthorizationDenylisted(request.toolName));
+        getLogger().warn(text.cli.toolAuthorizationDenylisted(request.toolName));
         return {
           outcome: 'deny',
           reason: text.cli.toolAuthorizationDenylisted(request.toolName),
@@ -437,7 +437,9 @@ export function createTerminalAuthorizationProvider(options?: {
       }
 
       if (shouldAutoAllow(request, config)) {
-        logger.info(text.cli.toolAuthorizationAutoApproved(request.toolName, request.riskLevel));
+        getLogger().info(
+          text.cli.toolAuthorizationAutoApproved(request.toolName, request.riskLevel),
+        );
         return applySessionTtl({ outcome: 'allow_session', source: 'auto' }, config);
       }
 
@@ -463,7 +465,7 @@ export function createTerminalAuthorizationProvider(options?: {
           return applySessionTtl(nonInteractive, config);
         }
 
-        logger.warn(text.cli.toolAuthorizationMissingUi);
+        getLogger().warn(text.cli.toolAuthorizationMissingUi);
         return { outcome: 'deny', reason: text.cli.toolAuthorizationMissingUi };
       }
 
@@ -487,10 +489,10 @@ export function createTerminalAuthorizationProvider(options?: {
         const allowRepo = normalized.startsWith('s');
         const allowUser = normalized.startsWith('g');
         if (!allowSession && !allowOnce && !allowRepo && !allowUser) {
-          logger.warn(text.cli.toolAuthorizationDenied);
+          getLogger().warn(text.cli.toolAuthorizationDenied);
           return { outcome: 'deny', reason: text.cli.toolAuthorizationDenied, source: 'user' };
         }
-        logger.info(text.cli.toolAuthorizationApproved);
+        getLogger().info(text.cli.toolAuthorizationApproved);
         const decision: AuthorizationDecision = allowRepo
           ? { outcome: 'allow', persist: 'repo', source: 'user' }
           : allowUser

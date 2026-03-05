@@ -35,7 +35,7 @@ import { mkdtemp, mkdir, writeFile, readFile, rm, stat } from 'fs/promises';
 import { tmpdir } from 'os';
 import path from 'path';
 
-import { logger } from '../../src/core/observability/logger.js';
+import { tryGetLogger } from '../../src/core/observability/logger.js';
 
 export interface GitRepoInfo {
   /** Absolute path to the repository */
@@ -161,9 +161,9 @@ export class RealFsTestHelper {
             }
           }
         }
-        logger.trace(`git init attempt ${initAttempts + 1} failed or unverified.`);
+        tryGetLogger()?.trace(`git init attempt ${initAttempts + 1} failed or unverified.`);
       } catch (e) {
-        logger.trace(`git init attempt ${initAttempts + 1} threw error: ${e}`);
+        tryGetLogger()?.trace(`git init attempt ${initAttempts + 1} threw error: ${e}`);
       }
 
       initAttempts++;
@@ -461,7 +461,7 @@ export class RealFsTestHelper {
     this.createdPaths = [];
 
     if (errors.length > 0) {
-      logger.warn(
+      tryGetLogger()?.warn(
         `Failed to cleanup ${errors.length} directories: ${errors.map((e) => e.message).join(', ')}`,
       );
     }

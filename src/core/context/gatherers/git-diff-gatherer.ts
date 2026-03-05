@@ -2,7 +2,7 @@ import { FileAdapter } from '../../adapters/fs/file-adapter.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { defaultPathAdapter } from '../../adapters/path/path-adapter.js';
 import { LIMITS } from '../../config/limits.js';
-import { logger } from '../../observability/logger.js';
+import { getLogger } from '../../observability/logger.js';
 import { normalizePath } from '../../utils/path.js';
 import { findFileDependencies } from '../dependencies.js';
 import type { ContextRequest, DiffScope } from '../types.js';
@@ -47,7 +47,7 @@ async function runGitDiff(
 
   if (!res.ok) return undefined;
   if (res.stdoutTruncated) {
-    logger.debug(
+    getLogger().debug(
       `[GitDiffGatherer] git diff stdout truncated at ${LIMITS.maxToolOutputBytes} bytes (args=${args.join(
         ' ',
       )}); dropping diff for safety`,

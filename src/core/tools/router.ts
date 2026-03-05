@@ -3,7 +3,7 @@ import * as crypto from 'crypto';
 import { z } from 'zod';
 
 import { LIMITS } from '../config/limits.js';
-import { logger } from '../observability/logger.js';
+import { getLogger } from '../observability/logger.js';
 
 import { ToolAuditLogger } from './audit.js';
 import type {
@@ -636,7 +636,7 @@ export class ToolRouter {
     });
 
     if (decision.outcome === 'deny') {
-      logger.warn(`Authorization denied for tool ${spec.name}`);
+      getLogger().warn(`Authorization denied for tool ${spec.name}`);
       return { kind: 'deny', reason: decision.reason, source: decision.source };
     }
 

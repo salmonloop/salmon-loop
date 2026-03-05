@@ -1,9 +1,16 @@
-import { describe, it, expect, beforeEach } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, it, mock } from 'bun:test';
 
 import { Pipeline } from '../../../src/core/grizzco/engine/pipeline/pipeline.js';
 import { InitCtx } from '../../../src/core/grizzco/engine/pipeline/types.js';
+import { clearLogger, setLogger } from '../../../src/core/observability/logger.js';
 import { SmallfryLoop } from '../../../src/core/sub-agent/core/loop.js';
 import { SubAgentProfile } from '../../../src/core/sub-agent/types.js';
+
+const { infoMock, warnMock, debugMock } = (() => ({
+  infoMock: mock(),
+  warnMock: mock(),
+  debugMock: mock(),
+}))();
 
 mock.module('../../../src/core/grizzco/steps/audit.js', () => ({
   saveAudit: mock().mockResolvedValue('/tmp/audit.json'),
@@ -23,18 +30,19 @@ mock.module('../../../src/core/grizzco/engine/pipeline/pipeline.js', () => ({
   },
 }));
 
-mock.module('../../../src/core/observability/logger.js', () => ({
-  logger: {
-    info: mock(),
-    warn: mock(),
-    debug: mock(),
-  },
-}));
-
 describe('SmallfryLoop', () => {
   let mockInitCtx: InitCtx;
 
+  afterAll(() => {
+    mock.restore();
+    clearLogger();
+  });
+
   beforeEach(() => {
+    setLogger({ info: infoMock, warn: warnMock, debug: debugMock } as any);
+    infoMock.mockReset();
+    warnMock.mockReset();
+    debugMock.mockReset();
     mock.clearAllMocks();
     const mockLlm = {
       chat: mock(),

@@ -4,7 +4,7 @@ import * as path from 'path';
 
 import {
   LIMITS,
-  logger,
+  getLogger,
   type ExecutionPhase,
   type SideEffect,
   type ToolAuthorizationConfig,
@@ -208,7 +208,7 @@ async function cleanupAllowlistArtifacts(
     }
 
     if (cleaned > 0) {
-      logger.audit(
+      getLogger().audit(
         'ALLOWLIST_TEMP_ARTIFACTS_CLEANED',
         { path: dir, count: cleaned },
         { source: 'allowlist', severity: 'low', scope },
@@ -318,7 +318,7 @@ function recordAllowlistLoadSummary(params: {
   summaryState.lastLoggedAt = Date.now();
   summaryState.lastLoggedTotal = stats.total;
   summaryState.lastLoggedFailure = stats.failure;
-  logger.audit(
+  getLogger().audit(
     'ALLOWLIST_LOAD_SUMMARY',
     {
       scope,
@@ -381,8 +381,8 @@ async function resolveRealTargetForMissingPath(targetPath: string): Promise<stri
 }
 
 function logBlockedAllowlistPath(filePath: string, scope: 'repo' | 'user'): void {
-  logger.warn(text.cli.authPathBlocked(filePath, scope));
-  logger.audit(
+  getLogger().warn(text.cli.authPathBlocked(filePath, scope));
+  getLogger().audit(
     'ALLOWLIST_PATH_BLOCKED',
     { path: filePath, scope },
     { source: 'allowlist', severity: 'high', scope },
@@ -501,7 +501,7 @@ async function saveAllowlistCacheWithAudit(
     );
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    logger.audit(
+    getLogger().audit(
       'ALLOWLIST_CACHE_WRITE_FAILED',
       { path: cachePath, sourcePath, error: msg },
       { source: 'allowlist', severity: 'high', scope },
@@ -594,7 +594,7 @@ async function loadAllowlistResolved(
           toolName,
           path: resolved,
         });
-        logger.audit(
+        getLogger().audit(
           'ALLOWLIST_CACHE_HIT',
           {
             path: resolved,
@@ -607,8 +607,8 @@ async function loadAllowlistResolved(
         return cached.data;
       }
       if (reason) {
-        logger.info(text.cli.authCacheInvalidated(reason, resolved));
-        logger.audit(
+        getLogger().info(text.cli.authCacheInvalidated(reason, resolved));
+        getLogger().audit(
           'ALLOWLIST_CACHE_INVALIDATED',
           {
             path: resolved,
@@ -622,7 +622,7 @@ async function loadAllowlistResolved(
         );
       }
     } else {
-      logger.audit(
+      getLogger().audit(
         'ALLOWLIST_CACHE_MISS',
         { path: resolved, cachePath },
         { source: 'allowlist', severity: 'low', scope: scopeResolved },
@@ -644,7 +644,7 @@ async function loadAllowlistResolved(
         toolName,
         path: resolved,
       });
-      logger.audit(
+      getLogger().audit(
         'ALLOWLIST_PARSE_FAILED',
         { path: resolved, error: msg },
         { source: 'allowlist', severity: 'medium', scope: scopeResolved },
@@ -716,7 +716,7 @@ async function saveAllowlistResolved(
     await writeFileAtomic(resolved, JSON.stringify(allowlist, null, 2), scopeRoot, scope);
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    logger.audit(
+    getLogger().audit(
       'ALLOWLIST_WRITE_FAILED',
       { path: resolved, error: msg },
       { source: 'allowlist', severity: 'high', scope },
@@ -840,7 +840,7 @@ async function acquireAllowlistFileLock(
           const retryRaw = await readFileUtf8(lockPath, rootContext);
           const retryMetadata = JSON.parse(retryRaw) as { owner?: string; pid?: number };
           if (retryMetadata.owner !== owner) {
-            logger.audit(
+            getLogger().audit(
               'ALLOWLIST_LOCK_VERIFICATION_FAILED',
               { path: lockPath, owner, pid: process.pid },
               { source: 'allowlist', severity: 'medium', scope },
@@ -856,7 +856,7 @@ async function acquireAllowlistFileLock(
           }
         }
       } catch {
-        logger.audit(
+        getLogger().audit(
           'ALLOWLIST_LOCK_VERIFICATION_FAILED',
           { path: lockPath, owner, pid: process.pid },
           { source: 'allowlist', severity: 'medium', scope },
@@ -871,7 +871,7 @@ async function acquireAllowlistFileLock(
         continue;
       }
       allowlistLockOwners.set(lockPath, owner);
-      logger.audit(
+      getLogger().audit(
         'ALLOWLIST_LOCK_ACQUIRED',
         { path: lockPath, owner, pid: process.pid, waitedMs: Date.now() - start },
         { source: 'allowlist', severity: 'low', scope },
@@ -893,7 +893,7 @@ async function acquireAllowlistFileLock(
           }
           if (!isAlive || age > LIMITS.lockStaleThresholdMs) {
             await unlink(lockPath, rootContext).catch(() => undefined);
-            logger.audit(
+            getLogger().audit(
               'ALLOWLIST_LOCK_STALE_REMOVED',
               { path: lockPath, owner: metadata.owner, pid: metadata.pid, ageMs: age },
               { source: 'allowlist', severity: 'medium', scope },
@@ -903,7 +903,7 @@ async function acquireAllowlistFileLock(
         } catch {
           // If lock contents are unreadable, treat it as stale and retry.
           await unlink(lockPath, rootContext).catch(() => undefined);
-          logger.audit(
+          getLogger().audit(
             'ALLOWLIST_LOCK_STALE_REMOVED',
             { path: lockPath, owner: 'unknown', pid: undefined, ageMs: undefined },
             { source: 'allowlist', severity: 'medium', scope },
@@ -929,7 +929,7 @@ async function acquireAllowlistFileLock(
     }
   }
 
-  logger.audit(
+  getLogger().audit(
     'ALLOWLIST_LOCK_TIMEOUT',
     { path: lockPath },
     { source: 'allowlist', severity: 'high', scope },
@@ -953,7 +953,7 @@ async function releaseAllowlistFileLock(
   }
   try {
     await unlink(lockPath, rootContext);
-    logger.audit(
+    getLogger().audit(
       'ALLOWLIST_LOCK_RELEASED',
       { path: lockPath, owner, pid: process.pid },
       { source: 'allowlist', severity: 'low', scope },
@@ -997,7 +997,7 @@ async function writeFileAtomic(
     await rename(tempPath, targetPath, rootContext);
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    logger.audit(
+    getLogger().audit(
       'ALLOWLIST_ATOMIC_WRITE_FALLBACK',
       { path: targetPath, error: msg },
       { source: 'allowlist', severity: 'medium', scope },
@@ -1013,7 +1013,7 @@ async function writeFileAtomic(
           'code' in copyError &&
           copyError.code !== 'ENOENT'
         ) {
-          logger.audit(
+          getLogger().audit(
             'ALLOWLIST_ATOMIC_WRITE_BACKUP_FAILED',
             {
               path: targetPath,
@@ -1029,7 +1029,7 @@ async function writeFileAtomic(
         try {
           await copyFile(backupPath, targetPath, rootContext);
         } catch {
-          logger.audit(
+          getLogger().audit(
             'ALLOWLIST_ATOMIC_RESTORE_FAILED',
             { path: targetPath },
             { source: 'allowlist', severity: 'high', scope },
@@ -1131,7 +1131,7 @@ export async function persistAllowlistDecision(params: {
         scopeRoot,
         scope,
       );
-      logger.audit(
+      getLogger().audit(
         'ALLOWLIST_RULE_PERSISTED',
         { path: resolved, toolName, scope, mode, phase, sideEffects, argsHash },
         { source: 'allowlist', severity: 'medium', scope },
@@ -1212,7 +1212,7 @@ export async function removeAllowlistRule(params: {
         scopeRoot,
         scope,
       );
-      logger.audit(
+      getLogger().audit(
         'ALLOWLIST_RULE_REMOVED',
         { path: resolved, toolName, scope, phase, sideEffects, argsHash, removedAll },
         { source: 'allowlist', severity: 'medium', scope },
@@ -1252,7 +1252,7 @@ export async function clearAllowlist(params: {
         scopeRoot,
         scope,
       );
-      logger.audit(
+      getLogger().audit(
         'ALLOWLIST_CLEARED',
         { path: resolved, scope },
         { source: 'allowlist', severity: 'medium', scope },

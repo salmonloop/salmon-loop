@@ -6,7 +6,7 @@ import { buildContext } from '../../grizzco/steps/context.js';
 import { generatePatch } from '../../grizzco/steps/patch.js';
 import { generatePlan } from '../../grizzco/steps/plan.js';
 import { runPreflight } from '../../grizzco/steps/preflight.js';
-import { logger } from '../../observability/logger.js';
+import { getLogger } from '../../observability/logger.js';
 import { IExecutable, SubAgentProfile, SubAgentResult } from '../types.js';
 
 /**
@@ -26,7 +26,7 @@ export class SmallfryLoop implements IExecutable<InitCtx, SubAgentResult> {
    * Run the recursive loop based on the stratagem.
    */
   async execute(initCtx: InitCtx): Promise<SubAgentResult> {
-    logger.info(`[SmallfryLoop] ${text.smallfry.status.working} (${this.profile.name})`);
+    getLogger().info(`[SmallfryLoop] ${text.smallfry.status.working} (${this.profile.name})`);
 
     let pipeline: Pipeline<any> = Pipeline.of(initCtx);
 
@@ -71,7 +71,7 @@ export class SmallfryLoop implements IExecutable<InitCtx, SubAgentResult> {
 
     // Hard Budget Enforcement Check
     if (this.profile.maxTokens && tokenUsage > this.profile.maxTokens) {
-      logger.warn(`[SmallfryLoop] Budget exceeded: ${tokenUsage}/${this.profile.maxTokens}`);
+      getLogger().warn(`[SmallfryLoop] Budget exceeded: ${tokenUsage}/${this.profile.maxTokens}`);
       report.success = false;
       if (finalCtx) {
         finalCtx.reason = text.smallfry.errors.budgetExceeded(tokenUsage, this.profile.maxTokens);

@@ -4,7 +4,7 @@ import { text } from '../../locales/index.js';
 import { readFile } from '../adapters/fs/node-fs.js';
 import { GitAdapter } from '../adapters/git/git-adapter.js';
 import { LIMITS } from '../config/limits.js';
-import { logger } from '../observability/logger.js';
+import { getLogger } from '../observability/logger.js';
 import { tryGetPluginRegistry } from '../plugin/registry.js';
 import { isCommandAvailable, spawnCommand } from '../runtime/process-runner.js';
 import { ErrorType, LoopEvent } from '../types/index.js';
@@ -232,7 +232,7 @@ export async function verifyFileContent(
     ) {
       return false;
     }
-    // Report unexpected errors via event instead of direct logger.warn
+    // Report unexpected errors via event instead of direct getLogger().warn
     onEvent?.({
       type: 'resource.status',
       resource: 'file',
@@ -243,7 +243,7 @@ export async function verifyFileContent(
       ),
       timestamp: new Date(),
     });
-    logger.debug(
+    getLogger().debug(
       `verifyFileContent failed for ${filePath}: ${err instanceof Error ? err.message : String(err)}`,
     );
     return false;
