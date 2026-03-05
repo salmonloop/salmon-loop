@@ -10,7 +10,11 @@ describe('A2A HTTP server facade', () => {
       },
     });
 
-    const response = await server.fetch(new Request('https://example.com/a2a/jsonrpc', { method: 'POST' }));
+    const response = await server.fetch(
+      new Request('https://example.com/a2a/jsonrpc', {
+        method: 'POST',
+      }),
+    );
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true });

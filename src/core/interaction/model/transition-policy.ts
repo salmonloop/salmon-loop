@@ -5,7 +5,7 @@ const TASK_TRANSITIONS: Record<TaskState, TaskState[]> = {
   running: ['streaming', 'awaiting_input', 'completed', 'failed', 'cancelled'],
   awaiting_input: ['running', 'cancelled'],
   streaming: ['running', 'awaiting_input', 'completed', 'failed', 'cancelled'],
-  completed: ['awaiting_input'],
+  completed: ['awaiting_input', 'cancelled'],
   failed: ['accepted', 'awaiting_input'],
   cancelled: ['accepted', 'awaiting_input'],
 };

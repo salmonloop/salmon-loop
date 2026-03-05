@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { buildA2AAgentCard } from '../../../../../src/core/protocols/a2a/agent-card.js';
+import { buildA2AAgentCard } from '../../../../../src/core/protocols/a2a/agent-card.ts';
 
 describe('A2A agent card', () => {
   test('declares bearer auth and projected capabilities', () => {
@@ -13,6 +13,7 @@ describe('A2A agent card', () => {
 
     expect(card.name).toBe('salmon-loop');
     expect(card.skills).toHaveLength(1);
-    expect(card.securitySchemes).toEqual([{ type: 'http', scheme: 'bearer' }]);
+    const securityValues = card.securitySchemes ? Object.values(card.securitySchemes) : [];
+    expect(securityValues).toContainEqual({ type: 'http', scheme: 'bearer' });
   });
 });

@@ -1,58 +1,150 @@
+import http from 'http';
+import type { AddressInfo } from 'net';
+
+import type { Message, TaskStatusUpdateEvent } from '@a2a-js/sdk';
+import { JsonRpcTransport } from '@a2a-js/sdk/client';
+import { InMemoryTaskStore } from '@a2a-js/sdk/server';
 import { describe, expect, test } from 'bun:test';
 
+import { createTaskEventBus } from '../../src/core/interaction/events/bus.js';
+import type { TaskEnvelope } from '../../src/core/interaction/model/index.js';
+import { createInteractionFacade } from '../../src/core/interaction/orchestration/facade.js';
 import { buildA2AAgentCard } from '../../src/core/protocols/a2a/agent-card.js';
-import { createA2AHttpServer } from '../../src/core/protocols/a2a/server/http-server.js';
-import { createA2AJsonRpcHandler } from '../../src/core/protocols/a2a/server/jsonrpc-handler.js';
-import { createA2ARoutes } from '../../src/core/protocols/a2a/server/routes.js';
-import { createSseEventSource } from '../../src/core/protocols/a2a/server/sse-stream.js';
+import { createA2AInteractionExecutor } from '../../src/core/protocols/a2a/sdk/executor.js';
+import { createA2ASdkExpressApp } from '../../src/core/protocols/a2a/sdk/server.js';
 
-describe('A2A SDK-compatible server surface', () => {
-  test('serves agent card and JSON-RPC entrypoint at /a2a/jsonrpc', async () => {
-    const handler = createA2AJsonRpcHandler({
-      facade: {
-        async createTask() {
-          return { id: 'task_1', state: 'accepted' };
-        },
-      },
+const BASE_CAPABILITIES = [{ id: 'patch', title: 'Patch code' }];
+
+type ServerHandle = {
+  url: string;
+  close: () => Promise<void>;
+};
+
+type ExecuteTaskFn = (
+  task: TaskEnvelope,
+  options?: { signal?: AbortSignal },
+) => Promise<TaskEnvelope>;
+
+async function startTestServer(deps: { executeTask: ExecuteTaskFn }) {
+  const taskBus = createTaskEventBus();
+  const taskStore = new InMemoryTaskStore();
+  const facade = createInteractionFacade({ executeTask: deps.executeTask, eventBus: taskBus });
+  const executor = createA2AInteractionExecutor({ facade, taskEventBus: taskBus, taskStore });
+  const app = createA2ASdkExpressApp({
+    agentCard: buildA2AAgentCard({
+      name: 'test-agent',
+      url: 'http://localhost',
+      capabilities: BASE_CAPABILITIES,
+      security: [],
+    }),
+    agentExecutor: executor,
+    taskStore,
+  });
+
+  const server = http.createServer(app);
+  await new Promise<void>((resolve, reject) => {
+    server.listen(0, '127.0.0.1', (err?: Error) => {
+      if (err) return reject(err);
+      resolve();
     });
+    server.on('error', reject);
+  });
+  const address = server.address() as AddressInfo;
+  const url = `http://${address.address}:${address.port}`;
 
-    const routes = createA2ARoutes({
-      buildAgentCard: () =>
-        buildA2AAgentCard({
-          name: 'salmon-loop',
-          url: 'https://example.com/a2a/jsonrpc',
-          capabilities: [{ id: 'patch', title: 'Patch code' }],
-          security: [],
-        }),
-      jsonRpcHandler: handler,
-      eventSource: createSseEventSource(),
-    });
-
-    const server = createA2AHttpServer({ routes });
-
-    const cardResponse = await server.fetch(
-      new Request('https://example.com/.well-known/agent-card.json'),
-    );
-    expect(cardResponse.status).toBe(200);
-
-    const rpcResponse = await server.fetch(
-      new Request('https://example.com/a2a/jsonrpc', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: '1',
-          method: 'message/send',
-          params: {
-            message: {
-              role: 'user',
-              parts: [{ type: 'text', text: 'fix bug' }],
-            },
-          },
-        }),
+  return {
+    url,
+    close: () =>
+      new Promise<void>((resolve, reject) => {
+        server.close((err?: Error) => (err ? reject(err) : resolve()));
       }),
-    );
+  } satisfies ServerHandle;
+}
 
-    expect(rpcResponse.status).toBe(200);
+function createMessage(id: string): Message {
+  return {
+    kind: 'message',
+    messageId: id,
+    role: 'user',
+    parts: [{ kind: 'text', text: 'fix bug' }],
+    contextId: id,
+  };
+}
+
+describe('A2A SDK express server', () => {
+  test('message/send returns a completed task that can be queried', async () => {
+    const { url, close } = await startTestServer({
+      executeTask: async (task) => ({ ...task, state: 'completed' }),
+    });
+    try {
+      const transport = new JsonRpcTransport({ endpoint: `${url}/a2a/jsonrpc` });
+      const result = await transport.sendMessage({
+        message: createMessage('msg-1'),
+      });
+
+      expect(result.kind).toBe('task');
+      if (result.kind !== 'task') {
+        throw new Error('expected task response');
+      }
+      expect(result.status.state).toBe('completed');
+
+      const stored = await transport.getTask({ id: result.id });
+      if (!stored) {
+        throw new Error('missing stored task');
+      }
+      expect(stored.status.state).toBe('completed');
+      expect(stored.metadata?.capability).toBe('patch');
+    } finally {
+      await close();
+    }
+  });
+
+  test('message/stream yields status updates and cancel observes cancellation', async () => {
+    const { url, close } = await startTestServer({
+      executeTask: (task, options) =>
+        new Promise((resolve) => {
+          if (options?.signal?.aborted) {
+            resolve({ ...task, state: 'cancelled', statusMessage: 'cancelled' });
+            return;
+          }
+          const timer = setTimeout(() => resolve({ ...task, state: 'completed' }), 400);
+          options?.signal?.addEventListener('abort', () => {
+            clearTimeout(timer);
+            resolve({
+              ...task,
+              state: 'cancelled',
+              statusMessage: 'cancelled',
+            });
+          });
+        }),
+    });
+    try {
+      const transport = new JsonRpcTransport({ endpoint: `${url}/a2a/jsonrpc` });
+      const iterator = transport.sendMessageStream({ message: createMessage('msg-2') });
+
+      const first = await iterator.next();
+      expect(first.done).toBe(false);
+      if (!first.value || first.value.kind !== 'status-update') {
+        throw new Error('expected first event to be a status update');
+      }
+      const firstUpdate = first.value as TaskStatusUpdateEvent;
+      expect(firstUpdate.status.state).toBe('submitted');
+
+      const taskId = firstUpdate.taskId;
+      expect(taskId).toBeDefined();
+      await transport.cancelTask({ id: taskId! });
+      const second = await iterator.next();
+      expect(second.done).toBe(false);
+      if (!second.value || second.value.kind !== 'status-update') {
+        throw new Error('expected second event to be a status update');
+      }
+      const secondUpdate = second.value as TaskStatusUpdateEvent;
+      expect(secondUpdate.status.state).toBe('canceled');
+      expect(secondUpdate.final).toBe(true);
+
+      await iterator.return();
+    } finally {
+      await close();
+    }
   });
 });
