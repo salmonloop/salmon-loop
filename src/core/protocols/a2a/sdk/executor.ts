@@ -17,6 +17,7 @@ export type CreateA2AInteractionExecutorDeps = {
     createTask(input: {
       capability: string;
       request: { instruction: string };
+      taskId?: string;
     }): Promise<{ task: TaskEnvelope }>;
     getTask(id: string): Promise<TaskEnvelope | null>;
     cancelTask(id: string): Promise<TaskEnvelope | null>;
@@ -34,7 +35,9 @@ export function createA2AInteractionExecutor(
   const cancelledTaskIds = new Set<string>();
   const COMPLETION_GRACE_PERIOD_MS = 1500;
   const cleanupByTaskId = new Map<string, () => void>();
-  const cancellationWaiters = new Map<string, (() => void)[]>();
+  const submittedPublished = new Set<string>();
+  // Prevents duplicate terminal status events when publishTaskStatus is called multiple times
+  const terminalPublished = new Set<string>();
 
   return {
     async execute(requestContext, executionEventBus) {
@@ -75,6 +78,8 @@ export function createA2AInteractionExecutor(
         const { task } = await deps.facade.createTask({
           capability,
           request: { instruction: extractInstruction(requestContext.userMessage) },
+          // Pass SDK's taskId to facade to ensure consistency with eventBusManager
+          taskId: requestContext.taskId,
         });
         resolvedTaskId = task.id;
         cleanupByTaskId.set(task.id, cleanup);
@@ -96,7 +101,6 @@ export function createA2AInteractionExecutor(
     },
     async cancelTask(taskId, cancelEventBus) {
       cancelledTaskIds.add(taskId);
-      signalCancellation(taskId);
       await deps.facade.cancelTask(taskId);
       const isFinal = await publishTaskStatus(taskId, cancelEventBus);
       if (isFinal) {
@@ -111,28 +115,136 @@ export function createA2AInteractionExecutor(
     const envelope = await deps.facade.getTask(taskId);
     if (!envelope) return false;
 
+    // Build status from task state
+    const currentState = mapState(envelope.state);
+
+    // ALWAYS publish "submitted" first if not yet published
+    if (!submittedPublished.has(taskId)) {
+      submittedPublished.add(taskId);
+      const submittedStatus: TaskStatus = {
+        state: 'submitted',
+        timestamp: envelope.createdAt ?? new Date().toISOString(),
+        message: undefined,
+      };
+      const submittedUpdate: TaskStatusUpdateEvent = {
+        kind: 'status-update',
+        taskId: envelope.id,
+        contextId: metadata.contextId,
+        status: submittedStatus,
+        final: false,
+        metadata: { attempt: envelope.attempt },
+      };
+      eventBus.publish(submittedUpdate);
+
+      // Save as 'running' state (not completed) to keep task cancelable during grace period.
+      // SDK rejects cancellation if task is already in terminal state in the store.
+      const submittedEnvelope = { ...envelope, state: 'running' as const };
+      const snapshot = buildTaskSnapshot(submittedEnvelope, metadata);
+      await store.save(snapshot);
+
+      // If the current state is still "submitted", we're done
+      if (currentState === 'submitted') {
+        return false;
+      }
+      // Otherwise, continue to publish the actual current state
+    }
+
+    // If terminal status already published, don't publish again
+    if (terminalPublished.has(taskId)) {
+      return true;
+    }
+
+    // For "completed" state, apply grace period and check for cancellation.
+    // This prevents race condition where "completed" is published before cancellation arrives.
+    if (currentState === 'completed') {
+      if (cancelledTaskIds.has(taskId)) {
+        terminalPublished.add(taskId);
+        const canceledEnvelope = { ...envelope, state: 'cancelled' as const };
+        const snapshot = buildTaskSnapshot(canceledEnvelope, metadata);
+        await store.save(snapshot);
+        const status = {
+          ...buildTaskStatus(envelope, metadata.contextId),
+          state: 'canceled' as const,
+        };
+        const update: TaskStatusUpdateEvent = {
+          kind: 'status-update',
+          taskId: envelope.id,
+          contextId: metadata.contextId,
+          status,
+          final: true,
+          metadata: { attempt: envelope.attempt },
+        };
+        eventBus.publish(update);
+        return true;
+      }
+
+      // Grace period allows cancellation to arrive before publishing "completed"
+      await delay(COMPLETION_GRACE_PERIOD_MS);
+
+      // Check both executor state and store state to detect cancellation.
+      // SDK may cancel directly in store if eventBus is unavailable.
+      const taskAfterGrace = await store.load(taskId);
+      const wasCancelled =
+        cancelledTaskIds.has(taskId) || taskAfterGrace?.status.state === 'canceled';
+
+      if (wasCancelled) {
+        terminalPublished.add(taskId);
+        if (taskAfterGrace?.status.state !== 'canceled') {
+          const canceledEnvelope = { ...envelope, state: 'cancelled' as const };
+          const snapshot = buildTaskSnapshot(canceledEnvelope, metadata);
+          await store.save(snapshot);
+        }
+        const status = {
+          ...buildTaskStatus(envelope, metadata.contextId),
+          state: 'canceled' as const,
+        };
+        const update: TaskStatusUpdateEvent = {
+          kind: 'status-update',
+          taskId: envelope.id,
+          contextId: metadata.contextId,
+          status,
+          final: true,
+          metadata: { attempt: envelope.attempt },
+        };
+        eventBus.publish(update);
+        return true;
+      }
+
+      // No cancellation detected, safe to publish "completed"
+      terminalPublished.add(taskId);
+      const snapshot = buildTaskSnapshot(envelope, metadata);
+      await store.save(snapshot);
+      const status = buildTaskStatus(envelope, metadata.contextId);
+      const update: TaskStatusUpdateEvent = {
+        kind: 'status-update',
+        taskId: envelope.id,
+        contextId: metadata.contextId,
+        status,
+        final: true,
+        metadata: { attempt: envelope.attempt },
+      };
+      eventBus.publish(update);
+      return true;
+    }
+
+    // For all other states (working, failed, canceled, etc.), save and publish immediately
     const snapshot = buildTaskSnapshot(envelope, metadata);
     await store.save(snapshot);
-
-    let status = buildTaskStatus(envelope, metadata.contextId);
-    let shouldOverrideCancel = cancelledTaskIds.has(taskId);
-    if (status.state === 'completed' && !shouldOverrideCancel) {
-      await delay(COMPLETION_GRACE_PERIOD_MS);
-      shouldOverrideCancel = cancelledTaskIds.has(taskId);
-    }
-    if (shouldOverrideCancel && status.state !== 'canceled') {
-      status = { ...status, state: 'canceled' };
+    const status = buildTaskStatus(envelope, metadata.contextId);
+    const isFinal = isTerminalState(status.state);
+    if (isFinal) {
+      terminalPublished.add(taskId);
     }
     const update: TaskStatusUpdateEvent = {
       kind: 'status-update',
       taskId: envelope.id,
       contextId: metadata.contextId,
       status,
-      final: isTerminalState(status.state),
+      final: isFinal,
       metadata: { attempt: envelope.attempt },
     };
     eventBus.publish(update);
-    return update.final;
+    return isFinal;
   }
 
   function finalizeTask(taskId: string, eventBus: ExecutionEventBus) {
@@ -144,6 +256,8 @@ export function createA2AInteractionExecutor(
     }
     cleanupByTaskId.delete(taskId);
     cancelledTaskIds.delete(taskId);
+    submittedPublished.delete(taskId);
+    terminalPublished.delete(taskId);
   }
 
   function extractInstruction(message: Message): string {
@@ -156,47 +270,6 @@ export function createA2AInteractionExecutor(
 
   function delay(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
-  }
-
-  function signalCancellation(taskId: string) {
-    const waiters = cancellationWaiters.get(taskId);
-    if (!waiters) return;
-    cancellationWaiters.delete(taskId);
-    for (const resolve of waiters) {
-      resolve();
-    }
-  }
-
-  function waitForCancellation(taskId: string, timeout: number): Promise<boolean> {
-    if (cancelledTaskIds.has(taskId)) {
-      return Promise.resolve(true);
-    }
-    return new Promise((resolve) => {
-      const cleanup = () => {
-        const waiters = cancellationWaiters.get(taskId);
-        if (waiters) {
-          cancellationWaiters.set(
-            taskId,
-            waiters.filter((waiter) => waiter !== listener),
-          );
-          if (cancellationWaiters.get(taskId)?.length === 0) {
-            cancellationWaiters.delete(taskId);
-          }
-        }
-      };
-      const listener = () => {
-        clearTimeout(timer);
-        cleanup();
-        resolve(true);
-      };
-      const timer = setTimeout(() => {
-        cleanup();
-        resolve(false);
-      }, timeout);
-      const waiters = cancellationWaiters.get(taskId) ?? [];
-      waiters.push(listener);
-      cancellationWaiters.set(taskId, waiters);
-    });
   }
 
   function mapState(state: TaskEnvelope['state']): TaskStatus['state'] {

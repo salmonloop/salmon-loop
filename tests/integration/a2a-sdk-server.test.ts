@@ -147,4 +147,183 @@ describe('A2A SDK express server', () => {
       await close();
     }
   });
+
+  /**
+   * Bug Condition Exploration Test - Property 1: Fault Condition
+   * **Validates: Requirements - Race Condition Between Completion and Cancellation**
+   *
+   * This test verifies that when a task completes and cancellation is requested during
+   * the grace period, only "canceled" status is published (no "completed" event).
+   */
+  test('BUG CONDITION: cancellation during grace period publishes only canceled status', async () => {
+    const { url, close } = await startTestServer({
+      executeTask: async (task) => {
+        // Task completes immediately
+        return { ...task, state: 'completed' };
+      },
+    });
+    try {
+      const transport = new JsonRpcTransport({ endpoint: `${url}/a2a/jsonrpc` });
+      const iterator = transport.sendMessageStream({ message: createMessage('msg-race') });
+
+      const first = await iterator.next();
+      expect(first.done).toBe(false);
+      const firstUpdate = first.value as TaskStatusUpdateEvent;
+      expect(firstUpdate.status.state).toBe('submitted');
+
+      const taskId = firstUpdate.taskId;
+      expect(taskId).toBeDefined();
+
+      // Cancel immediately after task completes (during grace period)
+      await transport.cancelTask({ id: taskId! });
+
+      // Collect all subsequent status updates
+      const statusUpdates: TaskStatusUpdateEvent[] = [];
+      let result = await iterator.next();
+      while (!result.done) {
+        if (result.value && result.value.kind === 'status-update') {
+          statusUpdates.push(result.value as TaskStatusUpdateEvent);
+        }
+        result = await iterator.next();
+      }
+
+      // Verify only "canceled" status is published (no "completed")
+      const completedUpdates = statusUpdates.filter((u) => u.status.state === 'completed');
+      const canceledUpdates = statusUpdates.filter((u) => u.status.state === 'canceled');
+
+      expect(completedUpdates.length).toBe(0); // No completed status should be published
+      expect(canceledUpdates.length).toBe(1); // Only one canceled status
+      expect(canceledUpdates[0].final).toBe(true);
+
+      await iterator.return();
+    } finally {
+      await close();
+    }
+  });
+
+  /**
+   * Preservation Property Tests - Property 2: Preservation
+   */
+
+  test('PRESERVATION: task completes normally without cancellation', async () => {
+    const { url, close } = await startTestServer({
+      executeTask: async (task) => {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        return { ...task, state: 'completed' };
+      },
+    });
+    try {
+      const transport = new JsonRpcTransport({ endpoint: `${url}/a2a/jsonrpc` });
+      const iterator = transport.sendMessageStream({ message: createMessage('msg-normal') });
+
+      const first = await iterator.next();
+      expect(first.done).toBe(false);
+      const firstUpdate = first.value as TaskStatusUpdateEvent;
+      expect(firstUpdate.status.state).toBe('submitted');
+
+      const second = await iterator.next();
+      expect(second.done).toBe(false);
+      const secondUpdate = second.value as TaskStatusUpdateEvent;
+      expect(secondUpdate.status.state).toBe('completed');
+      expect(secondUpdate.final).toBe(true);
+
+      await iterator.return();
+    } finally {
+      await close();
+    }
+  });
+
+  test('PRESERVATION: task cancelled before completion', async () => {
+    const { url, close } = await startTestServer({
+      executeTask: (task, options) =>
+        new Promise((resolve) => {
+          if (options?.signal?.aborted) {
+            resolve({ ...task, state: 'cancelled', statusMessage: 'cancelled' });
+            return;
+          }
+          const timer = setTimeout(() => resolve({ ...task, state: 'completed' }), 5000);
+          options?.signal?.addEventListener('abort', () => {
+            clearTimeout(timer);
+            resolve({ ...task, state: 'cancelled', statusMessage: 'cancelled' });
+          });
+        }),
+    });
+    try {
+      const transport = new JsonRpcTransport({ endpoint: `${url}/a2a/jsonrpc` });
+      const iterator = transport.sendMessageStream({ message: createMessage('msg-cancel') });
+
+      const first = await iterator.next();
+      const firstUpdate = first.value as TaskStatusUpdateEvent;
+      const taskId = firstUpdate.taskId;
+      await transport.cancelTask({ id: taskId! });
+
+      const second = await iterator.next();
+      const secondUpdate = second.value as TaskStatusUpdateEvent;
+      expect(secondUpdate.status.state).toBe('canceled');
+      expect(secondUpdate.final).toBe(true);
+
+      await iterator.return();
+    } finally {
+      await close();
+    }
+  });
+
+  test('PRESERVATION: failed tasks publish failed status', async () => {
+    const { url, close } = await startTestServer({
+      executeTask: async (task) => {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        return { ...task, state: 'failed', statusMessage: 'error' };
+      },
+    });
+    try {
+      const transport = new JsonRpcTransport({ endpoint: `${url}/a2a/jsonrpc` });
+      const iterator = transport.sendMessageStream({ message: createMessage('msg-fail') });
+
+      const first = await iterator.next();
+      const firstUpdate = first.value as TaskStatusUpdateEvent;
+      expect(firstUpdate.status.state).toBe('submitted');
+
+      const second = await iterator.next();
+      const secondUpdate = second.value as TaskStatusUpdateEvent;
+      expect(secondUpdate.status.state).toBe('failed');
+      expect(secondUpdate.final).toBe(true);
+
+      await iterator.return();
+    } finally {
+      await close();
+    }
+  });
+
+  test('PRESERVATION: terminal states have final flag', async () => {
+    const { url, close } = await startTestServer({
+      executeTask: async (task) => {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        return { ...task, state: 'completed' };
+      },
+    });
+    try {
+      const transport = new JsonRpcTransport({ endpoint: `${url}/a2a/jsonrpc` });
+      const iterator = transport.sendMessageStream({ message: createMessage('msg-term') });
+
+      let completedUpdate: TaskStatusUpdateEvent | null = null;
+      let result = await iterator.next();
+      while (!result.done) {
+        if (result.value && result.value.kind === 'status-update') {
+          const update = result.value as TaskStatusUpdateEvent;
+          if (update.status.state === 'completed') {
+            completedUpdate = update;
+            break;
+          }
+        }
+        result = await iterator.next();
+      }
+
+      expect(completedUpdate).not.toBeNull();
+      expect(completedUpdate?.final).toBe(true);
+
+      await iterator.return();
+    } finally {
+      await close();
+    }
+  });
 });

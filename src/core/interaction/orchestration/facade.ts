@@ -16,6 +16,7 @@ export interface InteractionFacade {
   createTask(input: {
     capability: string;
     request: TaskRequest;
+    taskId?: string;
     onEvent?: (event: LoopEvent) => void;
     authorizationProvider?: ToolAuthorizationProvider;
     authorizationMode?: 'blocking' | 'deferred';
@@ -74,7 +75,8 @@ export function createInteractionFacade(deps: {
     async createTask(input) {
       const controller = new AbortController();
       const task: TaskEnvelope = {
-        id: `task_${Date.now()}`,
+        // Use provided taskId (from A2A SDK) or generate one for standalone usage
+        id: input.taskId ?? `task_${Date.now()}`,
         capability: input.capability,
         state: 'accepted',
         request: input.request,
