@@ -3,12 +3,19 @@ import type {
   ToolAuthorizationConfig,
 } from '../../core/facades/cli-command-dispatcher.js';
 import { ChatSessionManager } from '../../core/facades/cli-command-dispatcher.js';
+import type { SubAgentControllerPort } from '../../core/facades/cli-subagent.js';
+
+export type SubAgentControllerView = Pick<
+  SubAgentControllerPort,
+  'getAgent' | 'listAgents' | 'requestStop' | 'tailLogs'
+>;
 
 export interface CommandContext {
   emit: (event: any) => void;
   sessionManager: ChatSessionManager;
   input: string;
   dispatch: (action: any) => void;
+  subAgentController?: SubAgentControllerView;
   queue?: QueueController;
   toolAuthorization?: ToolAuthorizationConfig;
   getLlmOutputPolicy?: () => LlmOutputPolicy | undefined;

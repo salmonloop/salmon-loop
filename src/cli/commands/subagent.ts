@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { SubAgentController } from '../../core/facades/cli-subagent.js';
+import type { SubAgentControllerPort } from '../../core/facades/cli-subagent.js';
 import { text } from '../locales/index.js';
 
 import type { Command } from './types.js';
@@ -17,7 +17,7 @@ const tailParser = (token: string) => {
 const formatLogLines = (lines: string[]) =>
   lines.length === 0 ? ['(no recent log entries)'] : lines;
 
-const formatAgentRow = (agent: ReturnType<typeof SubAgentController.listAgents>[number]) =>
+const formatAgentRow = (agent: ReturnType<SubAgentControllerPort['listAgents']>[number]) =>
   `${agent.id} | ${agent.status} | ${agent.profile.role} | ${agent.summary ?? 'No summary'}`;
 
 export const subAgentCommand: Command = {
@@ -25,7 +25,9 @@ export const subAgentCommand: Command = {
   aliases: ['/subagent', '/sub-agent'],
   order: 70,
   description: text.cli.commandSubagent,
-  async getSuggestions({ input }) {
+  async getSuggestions(context) {
+    const { input } = context;
+    const controller = context.subAgentController;
     const trimmed = input.trimStart();
     if (!trimmed.startsWith('/')) return [];
     const parts = trimmed.split(/\s+/).slice(1);
@@ -46,7 +48,7 @@ export const subAgentCommand: Command = {
 
     if (['info', 'log', 'stop'].includes(verb)) {
       const search = parts[1]?.toLowerCase() ?? '';
-      return SubAgentController.listAgents()
+      return (controller?.listAgents() ?? [])
         .filter((agent) => agent.id.toLowerCase().startsWith(search))
         .map((agent) => ({
           name: agent.id,
@@ -56,7 +58,9 @@ export const subAgentCommand: Command = {
 
     return [];
   },
-  async execute({ emit, input }) {
+  async execute(context) {
+    const { emit, input } = context;
+    const controller = context.subAgentController;
     const tokens = input.trim().split(/\s+/).slice(1);
     const verb = tokens[0]?.toLowerCase();
 
@@ -84,7 +88,7 @@ export const subAgentCommand: Command = {
 
     switch (verb) {
       case 'list': {
-        const agents = SubAgentController.listAgents();
+        const agents = controller?.listAgents() ?? [];
         const rows = agents.map(formatAgentRow);
         emit({
           type: 'log',
@@ -104,7 +108,7 @@ export const subAgentCommand: Command = {
           });
           return;
         }
-        const agent = SubAgentController.getAgent(agentIdArg);
+        const agent = controller?.getAgent(agentIdArg);
         if (!agent) {
           emit({
             type: 'log',
@@ -132,7 +136,7 @@ export const subAgentCommand: Command = {
           });
           return;
         }
-        const agent = SubAgentController.getAgent(agentIdArg);
+        const agent = controller?.getAgent(agentIdArg);
         if (!agent) {
           emit({
             type: 'log',
@@ -144,7 +148,7 @@ export const subAgentCommand: Command = {
         }
         const tailToken = tokens.find((token) => token.startsWith('tail='));
         const tail = tailToken ? (tailParser(tailToken) ?? 20) : 20;
-        const lines = formatLogLines(SubAgentController.tailLogs(agentIdArg, tail));
+        const lines = formatLogLines(controller?.tailLogs(agentIdArg, tail) ?? []);
         emit({
           type: 'log',
           level: 'info',
@@ -163,7 +167,7 @@ export const subAgentCommand: Command = {
           });
           return;
         }
-        const agent = SubAgentController.getAgent(agentIdArg);
+        const agent = controller?.getAgent(agentIdArg);
         if (!agent) {
           emit({
             type: 'log',
@@ -173,7 +177,7 @@ export const subAgentCommand: Command = {
           });
           return;
         }
-        SubAgentController.requestStop(agentIdArg);
+        controller?.requestStop(agentIdArg);
         emit({
           type: 'log',
           level: 'info',

@@ -5,8 +5,6 @@ import tseslint from 'typescript-eslint';
 
 import noLanguageHardcoding from './eslint-rules/no-language-hardcoding.js';
 
-const LANGUAGE_HARDCODING_WHITELIST = ['src/languages/', 'src/core/plugin/loader.ts', 'tests/'];
-
 export default tseslint.config(
   {
     ignores: [
@@ -59,19 +57,20 @@ export default tseslint.config(
           alphabetize: { order: 'asc', caseInsensitive: true },
         },
       ],
-      // Architecture guard: prevent hardcoded language logic
-      'salmon-loop/no-language-hardcoding': [
-        'error',
-        {
-          whitelist: LANGUAGE_HARDCODING_WHITELIST,
-        },
-      ],
     },
     settings: {
       'import/resolver': {
         typescript: true,
         node: true,
       },
+    },
+  },
+  {
+    files: ['src/core/**/*.ts', 'src/cli/**/*.ts'],
+    ignores: ['src/core/plugin/loader.ts', 'src/languages/**'],
+    rules: {
+      // Architecture guard: prevent hardcoded language logic.
+      'salmon-loop/no-language-hardcoding': 'error',
     },
   },
   {

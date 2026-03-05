@@ -9,15 +9,26 @@ import { resolveAndApplyRuntimeConfig } from './loop-runtime-config.js';
 import { executeLoopSession } from './loop-session-runner.js';
 import { Semaphore } from './semaphore.js';
 
-const globalSemaphore = new Semaphore(LIMITS.maxConcurrentOperations);
+export function createRunSalmonLoop(deps?: {
+  semaphore?: Semaphore;
+  resolveConfig?: typeof resolveAndApplyRuntimeConfig;
+}): (options: LoopOptions) => Promise<LoopResult> {
+  const semaphore = deps?.semaphore ?? new Semaphore(LIMITS.maxConcurrentOperations);
+  const resolveConfig = deps?.resolveConfig ?? resolveAndApplyRuntimeConfig;
+
+  return async (options: LoopOptions): Promise<LoopResult> =>
+    semaphore.run(async () => {
+      const config = await resolveConfig(options);
+
+      const loop = new SalmonLoop(config);
+      return loop.run(options);
+    });
+}
+
+const defaultRunSalmonLoop = createRunSalmonLoop();
 
 export async function runSalmonLoop(options: LoopOptions): Promise<LoopResult> {
-  return globalSemaphore.run(async () => {
-    const config = await resolveAndApplyRuntimeConfig(options);
-
-    const loop = new SalmonLoop(config);
-    return loop.run(options);
-  });
+  return defaultRunSalmonLoop(options);
 }
 
 export class SalmonLoop {

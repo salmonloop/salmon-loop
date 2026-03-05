@@ -29,35 +29,6 @@ export const UI_LOG_MODES = ['quiet', 'normal', 'debug'] as const;
 export type UiLogMode = (typeof UI_LOG_MODES)[number];
 export const DEFAULT_UI_LOG_MODE: UiLogMode = 'normal';
 
-export function normalizeUiLogView(raw: unknown): UiLogView | undefined {
-  const value = String(raw ?? '')
-    .trim()
-    .toLowerCase();
-  if (value === 'full' || value === 'verbose') return 'full';
-  if (value === 'standard' || value === 'normal') return 'standard';
-  if (value === 'compact' || value === 'dense') return 'compact';
-  return undefined;
-}
-
-export function normalizeUiLogMode(raw: unknown): UiLogMode | undefined {
-  const value = String(raw ?? '')
-    .trim()
-    .toLowerCase();
-  if (value === 'quiet' || value === 'minimal') return 'quiet';
-  if (value === 'normal' || value === 'default') return 'normal';
-  if (value === 'debug' || value === 'all') return 'debug';
-  return undefined;
-}
-
-export function normalizePermissionMode(raw: unknown): PermissionMode | undefined {
-  const value = String(raw ?? '')
-    .trim()
-    .toLowerCase();
-  if (value === 'interactive') return 'interactive';
-  if (value === 'yolo') return 'yolo';
-  return undefined;
-}
-
 export interface ConfigFileV1 {
   version?: ConfigVersion;
   mode?: PermissionMode;

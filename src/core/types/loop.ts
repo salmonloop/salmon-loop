@@ -6,6 +6,7 @@ import type {
   CanonicalResponsesEventSource,
 } from '../streaming/canonical/responses-events.js';
 import type { ArtifactHandle } from '../sub-agent/artifacts/types.js';
+import type { SubAgentControllerPort } from '../sub-agent/controller.js';
 import type { ToolAuthorizationProvider } from '../tools/authorization/types.js';
 
 import type { AuthorizationDecisionRecord } from './authorization.js';
@@ -421,6 +422,11 @@ export interface LoopOptions {
   budgetChars?: number;
   userInputProvider?: UserInputProvider;
   agentKind?: 'primary' | 'subagent';
+  /**
+   * Optional sub-agent controller instance to share Smallfry state with the host UI.
+   * If omitted, sub-agent orchestration tools may create a private controller.
+   */
+  subAgentController?: SubAgentControllerPort;
   eventPayload?: {
     includeToolInput?: boolean;
     includeToolOutput?: boolean;

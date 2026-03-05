@@ -7,15 +7,6 @@ const getAgentMock = mock();
 const tailLogsMock = mock();
 const requestStopMock = mock();
 
-mock.module('../../../../src/core/sub-agent/controller.js', () => ({
-  SubAgentController: {
-    listAgents: (...args: any[]) => listAgentsMock(...args),
-    getAgent: (...args: any[]) => getAgentMock(...args),
-    tailLogs: (...args: any[]) => tailLogsMock(...args),
-    requestStop: (...args: any[]) => requestStopMock(...args),
-  },
-}));
-
 const emitMock = mock();
 
 function createContext(input: string) {
@@ -24,6 +15,12 @@ function createContext(input: string) {
     input,
     sessionManager: {} as any,
     dispatch: mock(),
+    subAgentController: {
+      listAgents: (...args: any[]) => listAgentsMock(...args),
+      getAgent: (...args: any[]) => getAgentMock(...args),
+      tailLogs: (...args: any[]) => tailLogsMock(...args),
+      requestStop: (...args: any[]) => requestStopMock(...args),
+    },
   };
 }
 
@@ -44,7 +41,7 @@ describe('Sub-agent slash command', () => {
     const subAgentCommand = await loadCommand();
     listAgentsMock.mockReturnValue([]);
 
-    const suggestions = await subAgentCommand.getSuggestions!({ input: '/smallfry ' } as any);
+    const suggestions = await subAgentCommand.getSuggestions!(createContext('/smallfry ') as any);
     const names = suggestions.map((entry) => entry.name);
 
     expect(names).toHaveLength(4);
@@ -58,9 +55,9 @@ describe('Sub-agent slash command', () => {
       { id: 'agent-beta', status: 'idle', profile: { role: 'scout' } },
     ]);
 
-    const suggestions = await subAgentCommand.getSuggestions!({
-      input: '/smallfry info agent-b',
-    } as any);
+    const suggestions = await subAgentCommand.getSuggestions!(
+      createContext('/smallfry info agent-b') as any,
+    );
 
     expect(suggestions).toEqual([{ name: 'agent-beta', description: 'idle (scout)' }]);
   });

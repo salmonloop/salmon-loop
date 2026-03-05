@@ -6,6 +6,7 @@ import {
   clearAuditTrail,
   setAuditContext,
 } from '../observability/audit-trail.js';
+import type { SubAgentControllerPort } from '../sub-agent/controller.js';
 import type { ToolAuthorizationProvider } from '../tools/authorization/types.js';
 import { createStandardToolstack } from '../tools/loader.js';
 import { chatWithTools } from '../tools/session.js';
@@ -28,6 +29,7 @@ export interface AnswerExecutorOptions {
   authorizationProvider?: ToolAuthorizationProvider;
   authorizationMode?: 'blocking' | 'deferred';
   allowedToolNames?: string[];
+  subAgentController?: SubAgentControllerPort;
 }
 
 export interface AnswerResult {
@@ -88,6 +90,7 @@ export async function runAnswerExecutor(options: AnswerExecutorOptions): Promise
           attemptId: 0,
           dryRun: false,
           model: options.llm.getModelId?.(),
+          subAgentController: options.subAgentController,
         },
         toolstack,
         emit: options.emit,

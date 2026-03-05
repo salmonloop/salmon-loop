@@ -27,6 +27,7 @@ import {
   type UserInputProvider,
   type VerboseLevel,
 } from '../core/facades/cli-chat.js';
+import { createSubAgentController } from '../core/facades/cli-subagent.js';
 
 import { createUiAuthorizationProvider } from './authorization/provider.js';
 import { commands } from './commands/registry.js';
@@ -73,6 +74,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
   await sessionManager.init();
   const historyManager = new InputHistoryManager(options.repoPath);
   await historyManager.init();
+  const subAgentController = createSubAgentController();
 
   // Load or create session
   let session = null as Awaited<ReturnType<ChatSessionManager['loadLast']>> | null;
@@ -339,6 +341,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
               llmOutputPolicy: currentLlmOutputPolicy,
               authorizationProvider,
               authorizationMode: 'deferred',
+              subAgentController,
             });
 
             const responseText = answer.content?.trim() ? answer.content : text.cli.chatAnswerEmpty;
@@ -387,6 +390,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
             authorizationProvider,
             authorizationMode: 'deferred',
             userInputProvider,
+            subAgentController,
           });
 
           return { kind: 'flow' as const, mode: intentDecision.intent, result };
@@ -607,6 +611,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
         sessionManager,
         input,
         dispatch: latestDispatch || (() => {}),
+        subAgentController,
         queue: queueController,
         toolAuthorization: options.toolAuthorization,
         getLlmOutputPolicy: () => currentLlmOutputPolicy,
@@ -639,6 +644,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
           sessionManager,
           input,
           dispatch: latestDispatch,
+          subAgentController,
           queue: queueController,
           toolAuthorization: options.toolAuthorization,
           getLlmOutputPolicy: () => currentLlmOutputPolicy,

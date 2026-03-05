@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import type { SubAgentControllerPort } from '../sub-agent/controller.js';
 import type { LLM } from '../types/llm.js';
 import type { ExecutionPhase, UserInputProvider } from '../types/runtime.js';
 
@@ -44,6 +45,11 @@ export interface ToolRuntimeCtx {
   phase?: ExecutionPhase;
   userInputProvider?: UserInputProvider;
   agentKind?: 'primary' | 'subagent';
+  /**
+   * Optional sub-agent controller shared across the current host process.
+   * This is host-only state and is not exposed to the model.
+   */
+  subAgentController?: SubAgentControllerPort;
   /**
    * Optional runtime LLM reference for internal orchestration tools (e.g., sub-agent dispatch).
    * This is not exposed to the model; it is a host-only in-process reference.

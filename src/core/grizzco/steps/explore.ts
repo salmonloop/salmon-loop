@@ -173,6 +173,7 @@ export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
           ctx.options.llm.getModelId?.() || process.env.SALMONLOOP_MODEL || process.env.S8P_MODEL,
         userInputProvider: ctx.options.userInputProvider,
         agentKind: ctx.options.agentKind ?? 'primary',
+        subAgentController: ctx.options.subAgentController,
       },
       toolstack: proxiedToolstack,
       eventPayload: ctx.options.eventPayload,

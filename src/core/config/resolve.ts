@@ -1,7 +1,9 @@
 import { resolveLlmOutputPolicy } from '../llm/output-policy.js';
 import type { RedactionConfig } from '../security/redaction.js';
 
+import { DEFAULT_AST_VALIDATION_STRICTNESS, DEFAULT_TOOL_AUTH } from './defaults.js';
 import { tryLoadConfigFile } from './load.js';
+import { normalizePermissionMode, normalizeUiLogMode, normalizeUiLogView } from './normalize.js';
 import { getDefaultRepoConfigPath } from './paths.js';
 import { firstNonEmpty, parseBoolEnv } from './resolve-env.js';
 import { resolveLlmFromConfig } from './resolve-llm.js';
@@ -22,9 +24,6 @@ import {
   DEFAULT_MARKDOWN_THEME,
   DEFAULT_UI_LOG_MODE,
   DEFAULT_UI_LOG_VIEW,
-  normalizePermissionMode,
-  normalizeUiLogMode,
-  normalizeUiLogView,
 } from './types.js';
 
 export interface ResolveConfigOptions {
@@ -32,35 +31,6 @@ export interface ResolveConfigOptions {
   configFilePath?: string;
   enableConfigFile?: boolean;
 }
-
-const DEFAULT_TOOL_AUTH: ToolAuthorizationConfig = {
-  sessionTtlMs: 30 * 60 * 1000,
-  autoAllowRisk: {
-    low: true,
-    medium: false,
-    high: false,
-  },
-  nonInteractive: {
-    strategy: 'deny',
-  },
-  allowlist: {
-    repoFile: '.salmonloop/config/authorization.json',
-    userFile: '~/.salmonloop/config/authorization-user.json',
-    summary: {
-      every: 100,
-      minIntervalMs: 10 * 60 * 1000,
-      failureMinIntervalMs: 60 * 1000,
-      maxToolStats: 1000,
-      maxPathStats: 2000,
-    },
-    matching: {
-      denySideEffects: 'any',
-      allowSideEffects: 'all',
-    },
-  },
-};
-
-const DEFAULT_AST_VALIDATION_STRICTNESS: AstValidationStrictness = 'lenient';
 
 function resolveToolAuthorization(raw?: ConfigFileV1): ToolAuthorizationConfig {
   const config = raw?.toolAuthorization;

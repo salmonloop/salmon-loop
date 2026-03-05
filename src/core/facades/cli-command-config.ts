@@ -10,10 +10,8 @@ export {
   normalizePermissionMode,
   normalizeUiLogMode,
   normalizeUiLogView,
-  type PermissionMode,
-  type UiLogMode,
-  type UiLogView,
-} from '../config/types.js';
+} from '../config/normalize.js';
+export type { PermissionMode, UiLogMode, UiLogView } from '../config/types.js';
 export { validateConfigFileV1 } from '../config/validate.js';
 export { sanitizeError } from '../llm/index.js';
 export { DEFAULT_LLM_OUTPUT_POLICY, resolveLlmOutputPolicy } from '../llm/output-policy.js';

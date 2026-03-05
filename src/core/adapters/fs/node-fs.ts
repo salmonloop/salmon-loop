@@ -1,7 +1,6 @@
 import * as fs from 'fs';
 import * as fsPromises from 'fs/promises';
 
-export default fsPromises;
 export const promises = fsPromises;
 export const syncFs: typeof fs & typeof fsPromises = Object.assign({}, fs, fsPromises);
 

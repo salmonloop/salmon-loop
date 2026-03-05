@@ -16,5 +16,5 @@ export {
   DEFAULT_MARKDOWN_THEME,
   MARKDOWN_RENDER_MODES,
   MARKDOWN_THEMES,
-  normalizePermissionMode,
 } from './types.js';
+export { normalizePermissionMode, normalizeUiLogMode, normalizeUiLogView } from './normalize.js';

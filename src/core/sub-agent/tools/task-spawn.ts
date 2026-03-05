@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { text } from '../../../locales/index.js';
 import type { ToolRuntimeCtx } from '../../tools/types.js';
 import { ToolSpec } from '../../tools/types.js';
+import { createSubAgentController } from '../controller.js';
 import { SubAgentManager } from '../core/manager.js';
 import { SubAgentRequestSchema, SubAgentResult } from '../types.js';
 
@@ -27,7 +28,7 @@ export const subAgentTaskSpec: ToolSpec = {
   outputSchema: z.any(), // Maps to SubAgentResult
 
   executor: async (input: any, ctx: ToolRuntimeCtx): Promise<SubAgentResult> => {
-    const manager = new SubAgentManager(ctx);
+    const manager = new SubAgentManager(ctx, ctx.subAgentController ?? createSubAgentController());
 
     // Launch the Smallfry via the manager
     return await manager.execute(input);

@@ -1,13 +1,11 @@
 import { LLM_OUTPUT_KINDS } from '../types/index.js';
 
 import { ConfigError } from './errors.js';
+import { normalizePermissionMode, normalizeUiLogMode, normalizeUiLogView } from './normalize.js';
 import {
   MARKDOWN_RENDER_MODES,
   MARKDOWN_THEMES,
   type ConfigFileV1,
-  normalizePermissionMode,
-  normalizeUiLogMode,
-  normalizeUiLogView,
   type LangfuseObservabilityConfigV1,
   type LlmModelProfileV1,
   type LlmProviderV1,

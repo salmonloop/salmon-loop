@@ -18,15 +18,6 @@ mock.module('../../../src/core/sub-agent/registry.js', () => ({
   },
 }));
 
-mock.module('../../../src/core/sub-agent/controller.js', () => ({
-  SubAgentController: {
-    registerAgent: mock(),
-    isStopRequested: isStopRequestedMock,
-    appendLog: mock(),
-    updateStatus: mock(),
-  },
-}));
-
 mock.module('../../../src/core/observability/logger.js', () => ({
   logger: {
     info: mock(),
@@ -58,16 +49,30 @@ describe('SubAgentManager setup cleanup', () => {
     setupMock.mockRejectedValue(new Error('env setup failed'));
     teardownMock.mockResolvedValue(undefined);
 
-    const manager = new SubAgentManager({
-      repoRoot: '/repo',
-      persistenceRoot: '/repo',
-      llm: {
-        chat: mock(),
-        createPlan: mock(),
-        createPatch: mock(),
-      },
-      dryRun: false,
-    } as any);
+    const controller = {
+      registerAgent: mock(),
+      isStopRequested: isStopRequestedMock,
+      appendLog: mock(),
+      updateStatus: mock(),
+      listAgents: mock(() => []),
+      getAgent: mock(() => undefined),
+      tailLogs: mock(() => []),
+      requestStop: mock(() => true),
+    };
+
+    const manager = new SubAgentManager(
+      {
+        repoRoot: '/repo',
+        persistenceRoot: '/repo',
+        llm: {
+          chat: mock(),
+          createPlan: mock(),
+          createPatch: mock(),
+        },
+        dryRun: false,
+      } as any,
+      controller as any,
+    );
 
     const result = await manager.execute({
       agent_ref: 'surgeon',

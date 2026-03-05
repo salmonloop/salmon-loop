@@ -91,8 +91,6 @@ export class InMemorySubAgentController implements SubAgentControllerPort {
   }
 }
 
-export const SubAgentController: SubAgentControllerPort = new InMemorySubAgentController();
-
 export function createSubAgentController(): SubAgentControllerPort {
   return new InMemorySubAgentController();
 }

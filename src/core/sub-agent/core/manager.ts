@@ -12,7 +12,7 @@ import type { ToolRuntimeCtx } from '../../tools/types.js';
 import type { LLM, LoopOptions } from '../../types/index.js';
 import { ErrorType } from '../../types/index.js';
 import { ArtifactStore } from '../artifacts/store.js';
-import { SubAgentController, type SubAgentControllerPort } from '../controller.js';
+import type { SubAgentControllerPort } from '../controller.js';
 import { SubAgentRegistry } from '../registry.js';
 import type {
   IExecutable,
@@ -33,7 +33,7 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
 
   constructor(
     private ctx: ToolRuntimeCtx,
-    private readonly controller: SubAgentControllerPort = SubAgentController,
+    private readonly controller: SubAgentControllerPort,
   ) {}
 
   /**
