@@ -98,7 +98,8 @@ describe('Config module', () => {
 
   it('falls back to environment variables when config is missing', async () => {
     const repoRoot = uniqueTmpDir('repo-missing');
-
+    setEnv('SALMONLOOP_BASE_URL', undefined);
+    setEnv('S8P_BASE_URL', undefined);
     setEnv('SALMONLOOP_API_KEY', 'env-key');
     setEnv('S8P_BASE_URL', 'https://env.example/v1');
     setEnv('S8P_MODEL', 'env-model');

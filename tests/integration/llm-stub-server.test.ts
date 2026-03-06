@@ -361,7 +361,7 @@ describe('LLM stub server integration (no real network)', () => {
     expect(content.context.verifyResult.outputTruncated).toBe(true);
     expect(typeof content.context.verifyResult.output).toBe('string');
     expect(content.context.verifyResult.output.length).toBeLessThan(5000);
-    expect(content.context.verifyResult.outputBlob.path).toMatch(/^blobs\//);
+    expect(content.context.verifyResult.outputBlob.path).toMatch(/^blobs[\\/]/);
     expect(content.context.verifyResult.outputBlob.sha256).toMatch(/^[a-f0-9]{64}$/);
     expect(content.context.verifyResult.outputBlob.chars).toBe(10_000);
 
@@ -426,7 +426,7 @@ describe('LLM stub server integration (no real network)', () => {
     expect(content.context.toolAuditLogs[0].inputSummaryTruncated).toBe(true);
     expect(typeof content.context.toolAuditLogs[0].inputSummary).toBe('string');
     expect(content.context.toolAuditLogs[0].inputSummary.length).toBeLessThan(5000);
-    expect(content.context.toolAuditLogs[0].inputSummaryBlob.path).toMatch(/^blobs\//);
+    expect(content.context.toolAuditLogs[0].inputSummaryBlob.path).toMatch(/^blobs[\\/]/);
     expect(content.context.toolAuditLogs[0].inputSummaryBlob.sha256).toMatch(/^[a-f0-9]{64}$/);
     expect(content.context.toolAuditLogs[0].inputSummaryBlob.chars).toBe(10_000);
 

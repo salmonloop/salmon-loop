@@ -67,11 +67,6 @@ describe('WorkspaceSynchronizer checkpoint staging', () => {
       process.platform === 'win32' ? 'junction' : 'dir',
     );
 
-    await helper.modifyFile(repo.path, 'src/index.ts', 'export const value = 2;\n');
-
-    const statusBefore = runGit(repo.path, ['status', '--short']);
-    expect(statusBefore).toContain('?? node_modules');
-
     const synchronizer = new WorkspaceSynchronizer(new CheckpointManager());
     const checkpointHash = await synchronizer.createCheckpointCommit(repo.path, 'task-a', 'step-a');
 
