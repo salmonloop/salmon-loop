@@ -2,24 +2,26 @@ import * as fs from 'fs/promises';
 import * as os from 'os';
 import path from 'path';
 
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
+
+let sandboxTmpDir = '';
+const originalTmpdir = os.tmpdir;
+
+mock.module('os', () => ({
+  tmpdir: () => sandboxTmpDir || originalTmpdir(),
+}));
 
 import { ArtifactStore } from '../../../../src/core/sub-agent/artifacts/store.js';
 import { executeArtifactRead } from '../../../../src/core/tools/builtin/artifact.js';
 
 describe('ArtifactStore', () => {
-  let sandboxTmpDir = '';
-  let originalTmpDir = '';
-
   beforeEach(async () => {
-    originalTmpDir = process.env.TMPDIR ?? '';
-    sandboxTmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'sl-artifacts-'));
-    process.env.TMPDIR = sandboxTmpDir;
+    sandboxTmpDir = await fs.mkdtemp(path.join(originalTmpdir(), 'sl-artifacts-'));
   });
 
   afterEach(async () => {
-    process.env.TMPDIR = originalTmpDir;
     await fs.rm(sandboxTmpDir, { recursive: true, force: true });
+    sandboxTmpDir = '';
   });
 
   test('saves and reads text artifacts by handle', async () => {

@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
+import { setLogger } from '../../../src/core/observability/logger.js';
+import { WorkspaceManager } from '../../../src/core/strata/layers/worktree.js';
+
 const { queryMock, rmMock, accessMock, realpathMock } = (() => ({
   queryMock: mock(),
   rmMock: mock(),
@@ -23,8 +26,6 @@ mock.module('os', () => ({
   tmpdir: () => '/tmp',
 }));
 
-import { WorkspaceManager } from '../../../src/core/strata/layers/worktree.js';
-
 describe('WorkspaceManager teardown safety behavior', () => {
   beforeEach(() => {
     mock.clearAllMocks();
@@ -35,6 +36,15 @@ describe('WorkspaceManager teardown safety behavior', () => {
 
     rmMock.mockResolvedValue(undefined);
     accessMock.mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }));
+
+    setLogger({
+      error: mock(),
+      warn: mock(),
+      info: mock(),
+      success: mock(),
+      debug: mock(),
+      setReporter: mock(),
+    } as any);
   });
 
   it('emits skipped status when workPath equals base repo', async () => {
@@ -65,7 +75,7 @@ describe('WorkspaceManager teardown safety behavior', () => {
     } as any);
 
     expect(workspace.environmentMode).toBe('strict');
-    expect(workspace.workPath).toContain('/tmp/s8p-wt/my-project/');
+    expect(workspace.workPath.replace(/\\/g, '/')).toContain('/tmp/s8p-wt/my-project/');
   });
 
   it('creates parity-mode worktree paths under repo-parent parity root', async () => {
@@ -80,7 +90,9 @@ describe('WorkspaceManager teardown safety behavior', () => {
     } as any);
 
     expect(workspace.environmentMode).toBe('parity');
-    expect(workspace.workPath).toContain('/home/test/projects/.salmonloop/worktrees/my-project/');
+    expect(workspace.workPath.replace(/\\/g, '/')).toContain(
+      '/home/test/projects/.salmonloop/worktrees/my-project/',
+    );
   });
 
   it('falls back to filesystem cleanup when git worktree removal fails', async () => {

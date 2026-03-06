@@ -23,7 +23,8 @@ describe('path utils', () => {
 
   describe('ensureInSandbox', () => {
     it('returns normalized target when contained in root', () => {
-      expect(ensureInSandbox('/tmp', '/tmp/a/b')).toBe('/tmp/a/b');
+      const result = ensureInSandbox('/tmp', '/tmp/a/b');
+      expect(result.replace(/\\/g, '/').replace(/^[A-Z]:/, '')).toBe('/tmp/a/b');
     });
 
     it('throws for temp-prefix lookalike paths outside root', () => {

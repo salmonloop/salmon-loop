@@ -3,11 +3,8 @@ import type { Command } from 'commander';
 import {
   buildA2AAgentCard,
   buildSidecarRouteDescriptors,
-  createA2AAuthPolicyMiddleware,
   createAcpFormalAgent,
   createAgentServerRuntime,
-  createAllowAllA2APolicy,
-  createBearerTokenAuthenticator,
   createInteractionFacade,
   createSalmonTaskExecutor,
   createTaskEventBus,
@@ -210,12 +207,23 @@ export async function handleServeCommand(_options: unknown, command: Command) {
     ? allOptions.a2aToken.filter((token: unknown) => typeof token === 'string')
     : [];
   const authTokens = tokens.length > 0 ? tokens : (serverConfig?.a2a?.tokens ?? []);
-  const authPolicy =
+
+  // Create Express middleware for authentication
+  const authMiddleware =
     authTokens.length > 0
-      ? createA2AAuthPolicyMiddleware({
-          authenticator: createBearerTokenAuthenticator({ tokens: authTokens }),
-          policy: createAllowAllA2APolicy(),
-        })
+      ? (req: any, res: any, next: any) => {
+          const authHeader = req.headers.authorization;
+          if (!authHeader) {
+            res.status(401).json({ error: 'Unauthorized' });
+            return;
+          }
+          const [scheme, token] = authHeader.split(' ');
+          if (scheme?.toLowerCase() !== 'bearer' || !authTokens.includes(token)) {
+            res.status(401).json({ error: 'Unauthorized' });
+            return;
+          }
+          next();
+        }
       : undefined;
 
   const capabilities = [{ id: 'patch', title: 'Patch code' }];
@@ -274,7 +282,7 @@ export async function handleServeCommand(_options: unknown, command: Command) {
       buildAgentCard: () => agentCard,
       executeTask: executor.execute,
       eventBus: sharedEventBus,
-      authPolicy,
+      authMiddleware,
     },
     sidecar: {
       routes: sidecarRoutes,

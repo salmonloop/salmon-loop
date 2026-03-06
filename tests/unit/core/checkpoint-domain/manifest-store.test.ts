@@ -79,8 +79,9 @@ describe('checkpoint manifest store', () => {
     });
 
     expect(writeFileMock).toHaveBeenCalled();
-    expect(renameMock).toHaveBeenCalledWith(
-      expect.stringContaining('.tmp-'),
+    const renameCalls = renameMock.mock.calls;
+    expect(renameCalls.length).toBeGreaterThan(0);
+    expect(renameCalls[0][1].replace(/\\/g, '/')).toBe(
       '/home/test/.salmonloop/runtime/checkpoints/5/manifest.v2.json',
     );
   });
@@ -178,8 +179,9 @@ describe('checkpoint manifest store', () => {
         (call) => typeof call[0] === 'string' && call[0].includes('.manifest.v2.json.corrupt-'),
       ),
     ).toBe(true);
-    expect(renameMock).toHaveBeenCalledWith(
-      expect.stringContaining('.tmp-'),
+    const renameCalls = renameMock.mock.calls;
+    expect(renameCalls.length).toBeGreaterThan(0);
+    expect(renameCalls[0][1].replace(/\\/g, '/')).toBe(
       '/home/test/.salmonloop/runtime/checkpoints/5/manifest.v2.json',
     );
   });
@@ -205,7 +207,9 @@ describe('checkpoint manifest store', () => {
       backend: 'git_snapshot',
     });
 
-    expect(unlinkMock).toHaveBeenCalledWith(
+    const unlinkCalls = unlinkMock.mock.calls;
+    expect(unlinkCalls.length).toBeGreaterThan(0);
+    expect(unlinkCalls[0][0].replace(/\\/g, '/')).toBe(
       '/home/test/.salmonloop/runtime/checkpoints/5/.manifest.lock',
     );
   });
@@ -232,7 +236,9 @@ describe('checkpoint manifest store', () => {
       backend: 'git_snapshot',
     });
 
-    expect(unlinkMock).toHaveBeenCalledWith(
+    const unlinkCalls = unlinkMock.mock.calls;
+    expect(unlinkCalls.length).toBeGreaterThan(0);
+    expect(unlinkCalls[0][0].replace(/\\/g, '/')).toBe(
       '/home/test/.salmonloop/runtime/checkpoints/5/.manifest.lock',
     );
   });

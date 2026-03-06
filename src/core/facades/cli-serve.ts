@@ -21,11 +21,6 @@ export {
   type PromptRegistry,
 } from '../prompts/registry.js';
 export { buildA2AAgentCard } from '../protocols/a2a/agent-card.js';
-export {
-  createA2AAuthPolicyMiddleware,
-  createAllowAllA2APolicy,
-  createBearerTokenAuthenticator,
-} from '../protocols/a2a/server/auth-policy.js';
 export { createAcpFormalAgent } from '../protocols/acp/formal-agent.js';
 export { startAcpStdioServer } from '../protocols/acp/stdio-server.js';
 export { createAgentServerRuntime } from '../runtime/agent-server-runtime.js';

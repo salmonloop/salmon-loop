@@ -28,6 +28,17 @@ const hoisted = (() => ({
   },
 }))();
 
+mock.module('../../../../src/core/runtime/agent-server-runtime.js', () => ({
+  createAgentServerRuntime: mock((config: any) => {
+    hoisted.listenCalls.push({ options: config.listen.a2a });
+    hoisted.listenCalls.push({ options: config.listen.sidecar });
+    return {
+      start: mock(async () => {}),
+      close: mock(async () => {}),
+    };
+  }),
+}));
+
 mock.module('../../../../src/core/runtime/sidecar-paths.js', () => ({
   getSidecarSocketPath: () => '/tmp/agent-message.sock',
 }));
@@ -56,6 +67,9 @@ mock.module('../../../../src/core/adapters/fs/node-fs.js', () => ({
   rename: mock(async () => {}),
   rm: mock(async () => {}),
   stat: mock(async () => {
+    throw Object.assign(new Error('missing'), { code: 'ENOENT' });
+  }),
+  readFile: mock(async () => {
     throw Object.assign(new Error('missing'), { code: 'ENOENT' });
   }),
 }));
@@ -126,17 +140,6 @@ mock.module('../../../../src/core/protocols/acp/stdio-server.js', () => ({
 
 mock.module('../../../../src/cli/authorization/provider.js', () => ({
   createTerminalAuthorizationProvider: mock(() => ({ type: 'terminal' })),
-}));
-
-mock.module('fastify', () => ({
-  default: () => ({
-    route: mock(() => {}),
-    register: mock(async (plugin: any) => plugin({ route: mock(() => {}) })),
-    listen: mock(async (listenOptions: { port?: number; host?: string; path?: string }) => {
-      hoisted.listenCalls.push({ options: listenOptions });
-    }),
-    close: mock(async () => {}),
-  }),
 }));
 
 describe('handleServeCommand', () => {

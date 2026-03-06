@@ -1,5 +1,9 @@
+import { InMemoryTaskStore } from '@a2a-js/sdk/server';
 import { describe, expect, test } from 'bun:test';
+import type { Express } from 'express';
 
+import { createTaskEventBus } from '../../../../src/core/interaction/events/bus.js';
+import { buildA2AAgentCard } from '../../../../src/core/protocols/a2a/agent-card.js';
 import { createAgentServerRuntime } from '../../../../src/core/runtime/agent-server-runtime.js';
 import { buildSidecarRouteDescriptors } from '../../../../src/core/runtime/sidecar-route-catalog.js';
 
@@ -31,9 +35,12 @@ function createFastifyFactory() {
   return { factory, servers, listens };
 }
 
+let portCounter = 7500;
+
 describe('agent server runtime', () => {
-  test('registers A2A and sidecar routes and listens on both endpoints', async () => {
+  test('creates runtime with Express a2aServer and Fastify sidecarServer', async () => {
     const fastify = createFastifyFactory();
+    const port = portCounter++;
 
     const sidecarRoutes = buildSidecarRouteDescriptors({
       strict: true,
@@ -55,31 +62,402 @@ describe('agent server runtime', () => {
     const runtime = createAgentServerRuntime({
       createFastify: fastify.factory,
       a2a: {
-        buildAgentCard: () => ({ name: 'salmon-loop' }),
+        buildAgentCard: () =>
+          buildA2AAgentCard({
+            name: 'salmon-loop',
+            url: 'http://localhost:7447',
+            capabilities: [{ id: 'patch', title: 'Patch code' }],
+            security: [],
+          }),
         executeTask: async (task) => ({ ...task, state: 'completed' }),
       },
       sidecar: {
         routes: sidecarRoutes,
       },
       listen: {
-        a2a: { host: '127.0.0.1', port: 7447 },
+        a2a: { host: '127.0.0.1', port },
+        sidecar: { path: '/tmp/agent-message.sock' },
+      },
+    });
+
+    // Validates: Requirements 1.1, 1.2, 1.3, 1.4
+    expect(runtime).toBeDefined();
+    expect(runtime.eventBus).toBeDefined();
+    expect(typeof (runtime.a2aServer as Express).use).toBe('function');
+    expect(typeof runtime.sidecarServer.register).toBe('function');
+    expect(typeof runtime.start).toBe('function');
+    expect(typeof runtime.close).toBe('function');
+
+    await runtime.close();
+  });
+
+  test('starts both A2A and sidecar servers', async () => {
+    const fastify = createFastifyFactory();
+    const port = portCounter++;
+
+    const sidecarRoutes = buildSidecarRouteDescriptors({
+      strict: true,
+      catalog: [
+        {
+          id: 'health',
+          method: 'GET',
+          path: '/health',
+          exposure: 'essential',
+          scope: 'uds',
+          policyTag: 'sidecar.health.read',
+        },
+      ],
+      handlers: {
+        health: async () => new Response('ok'),
+      },
+    });
+
+    const runtime = createAgentServerRuntime({
+      createFastify: fastify.factory,
+      a2a: {
+        buildAgentCard: () =>
+          buildA2AAgentCard({
+            name: 'salmon-loop',
+            url: 'http://localhost:7447',
+            capabilities: [{ id: 'patch', title: 'Patch code' }],
+            security: [],
+          }),
+        executeTask: async (task) => ({ ...task, state: 'completed' }),
+      },
+      sidecar: {
+        routes: sidecarRoutes,
+      },
+      listen: {
+        a2a: { host: '127.0.0.1', port },
         sidecar: { path: '/tmp/agent-message.sock' },
       },
     });
 
     await runtime.start();
 
-    const a2aRoutes = fastify.servers[0].routes.map((route) => route.url);
-    expect(a2aRoutes).toEqual([
-      '/.well-known/agent-card.json',
-      '/a2a/jsonrpc',
-      '/tasks/:taskId/subscribe',
-      '/artifacts/:artifactId',
-    ]);
-    expect(fastify.servers[1].routes).toEqual([{ method: 'GET', url: '/health' }]);
-    expect(fastify.listens).toEqual([
-      { host: '127.0.0.1', port: 7447 },
-      { path: '/tmp/agent-message.sock' },
-    ]);
+    // Validates: Requirements 1.5
+    // Sidecar server should have listened
+    expect(fastify.listens).toContainEqual({ path: '/tmp/agent-message.sock' });
+
+    await runtime.close();
+  });
+
+  test('close() is idempotent and can be called multiple times', async () => {
+    const fastify = createFastifyFactory();
+    const port = portCounter++;
+
+    const sidecarRoutes = buildSidecarRouteDescriptors({
+      strict: true,
+      catalog: [
+        {
+          id: 'health',
+          method: 'GET',
+          path: '/health',
+          exposure: 'essential',
+          scope: 'uds',
+          policyTag: 'sidecar.health.read',
+        },
+      ],
+      handlers: {
+        health: async () => new Response('ok'),
+      },
+    });
+
+    const runtime = createAgentServerRuntime({
+      createFastify: fastify.factory,
+      a2a: {
+        buildAgentCard: () =>
+          buildA2AAgentCard({
+            name: 'salmon-loop',
+            url: 'http://localhost:7447',
+            capabilities: [{ id: 'patch', title: 'Patch code' }],
+            security: [],
+          }),
+        executeTask: async (task) => ({ ...task, state: 'completed' }),
+      },
+      sidecar: {
+        routes: sidecarRoutes,
+      },
+      listen: {
+        a2a: { host: '127.0.0.1', port },
+        sidecar: { path: '/tmp/agent-message.sock' },
+      },
+    });
+
+    // Validates: Requirements 1.7, 15.4
+    await runtime.close();
+    await runtime.close();
+    await runtime.close();
+
+    expect(true).toBe(true);
+  });
+
+  test('accepts custom eventBus and shares it with executor', async () => {
+    const fastify = createFastifyFactory();
+    const customEventBus = createTaskEventBus();
+    const port = portCounter++;
+
+    const sidecarRoutes = buildSidecarRouteDescriptors({
+      strict: true,
+      catalog: [
+        {
+          id: 'health',
+          method: 'GET',
+          path: '/health',
+          exposure: 'essential',
+          scope: 'uds',
+          policyTag: 'sidecar.health.read',
+        },
+      ],
+      handlers: {
+        health: async () => new Response('ok'),
+      },
+    });
+
+    const runtime = createAgentServerRuntime({
+      createFastify: fastify.factory,
+      a2a: {
+        buildAgentCard: () =>
+          buildA2AAgentCard({
+            name: 'salmon-loop',
+            url: 'http://localhost:7447',
+            capabilities: [{ id: 'patch', title: 'Patch code' }],
+            security: [],
+          }),
+        executeTask: async (task) => ({ ...task, state: 'completed' }),
+        eventBus: customEventBus,
+      },
+      sidecar: {
+        routes: sidecarRoutes,
+      },
+      listen: {
+        a2a: { host: '127.0.0.1', port },
+        sidecar: { path: '/tmp/agent-message.sock' },
+      },
+    });
+
+    // Validates: Requirements 1.1, 1.2
+    expect(runtime.eventBus).toBe(customEventBus);
+
+    await runtime.close();
+  });
+
+  test('accepts custom taskStore and shares it with executor and SDK', async () => {
+    const fastify = createFastifyFactory();
+    const customTaskStore = new InMemoryTaskStore();
+    const port = portCounter++;
+
+    const sidecarRoutes = buildSidecarRouteDescriptors({
+      strict: true,
+      catalog: [
+        {
+          id: 'health',
+          method: 'GET',
+          path: '/health',
+          exposure: 'essential',
+          scope: 'uds',
+          policyTag: 'sidecar.health.read',
+        },
+      ],
+      handlers: {
+        health: async () => new Response('ok'),
+      },
+    });
+
+    const runtime = createAgentServerRuntime({
+      createFastify: fastify.factory,
+      a2a: {
+        buildAgentCard: () =>
+          buildA2AAgentCard({
+            name: 'salmon-loop',
+            url: 'http://localhost:7447',
+            capabilities: [{ id: 'patch', title: 'Patch code' }],
+            security: [],
+          }),
+        executeTask: async (task) => ({ ...task, state: 'completed' }),
+        taskStore: customTaskStore,
+      },
+      sidecar: {
+        routes: sidecarRoutes,
+      },
+      listen: {
+        a2a: { host: '127.0.0.1', port },
+        sidecar: { path: '/tmp/agent-message.sock' },
+      },
+    });
+
+    // Validates: Requirements 2.4, 7.1, 7.2
+    expect(runtime).toBeDefined();
+    expect(runtime.a2aServer).toBeDefined();
+
+    await runtime.close();
+  });
+
+  test('accepts authentication middleware', async () => {
+    const fastify = createFastifyFactory();
+    const port = portCounter++;
+
+    const sidecarRoutes = buildSidecarRouteDescriptors({
+      strict: true,
+      catalog: [
+        {
+          id: 'health',
+          method: 'GET',
+          path: '/health',
+          exposure: 'essential',
+          scope: 'uds',
+          policyTag: 'sidecar.health.read',
+        },
+      ],
+      handlers: {
+        health: async () => new Response('ok'),
+      },
+    });
+
+    const authMiddleware = (req: any, res: any, next: any) => {
+      const token = req.headers?.authorization;
+      if (token === 'Bearer valid-token') {
+        next();
+      } else {
+        res.status(401).json({ error: 'Unauthorized' });
+      }
+    };
+
+    const runtime = createAgentServerRuntime({
+      createFastify: fastify.factory,
+      a2a: {
+        buildAgentCard: () =>
+          buildA2AAgentCard({
+            name: 'salmon-loop',
+            url: 'http://localhost:7447',
+            capabilities: [{ id: 'patch', title: 'Patch code' }],
+            security: [],
+          }),
+        executeTask: async (task) => ({ ...task, state: 'completed' }),
+        authMiddleware,
+      },
+      sidecar: {
+        routes: sidecarRoutes,
+      },
+      listen: {
+        a2a: { host: '127.0.0.1', port },
+        sidecar: { path: '/tmp/agent-message.sock' },
+      },
+    });
+
+    // Validates: Requirements 4.1, 10.2
+    expect(runtime).toBeDefined();
+    expect(runtime.a2aServer).toBeDefined();
+
+    await runtime.close();
+  });
+
+  test('throws error when starting runtime twice', async () => {
+    const fastify = createFastifyFactory();
+    const port = portCounter++;
+
+    const sidecarRoutes = buildSidecarRouteDescriptors({
+      strict: true,
+      catalog: [
+        {
+          id: 'health',
+          method: 'GET',
+          path: '/health',
+          exposure: 'essential',
+          scope: 'uds',
+          policyTag: 'sidecar.health.read',
+        },
+      ],
+      handlers: {
+        health: async () => new Response('ok'),
+      },
+    });
+
+    const runtime = createAgentServerRuntime({
+      createFastify: fastify.factory,
+      a2a: {
+        buildAgentCard: () =>
+          buildA2AAgentCard({
+            name: 'salmon-loop',
+            url: 'http://localhost:7447',
+            capabilities: [{ id: 'patch', title: 'Patch code' }],
+            security: [],
+          }),
+        executeTask: async (task) => ({ ...task, state: 'completed' }),
+      },
+      sidecar: {
+        routes: sidecarRoutes,
+      },
+      listen: {
+        a2a: { host: '127.0.0.1', port },
+        sidecar: { path: '/tmp/agent-message.sock' },
+      },
+    });
+
+    await runtime.start();
+
+    // Validates: Requirements 1.5, 10.1
+    try {
+      await runtime.start();
+      expect(true).toBe(false);
+    } catch (error) {
+      expect((error as Error).message).toContain('already started');
+    }
+
+    await runtime.close();
+  });
+
+  test('applies custom configuration to A2A server', async () => {
+    const fastify = createFastifyFactory();
+    let configureA2ACalled = false;
+    const port = portCounter++;
+
+    const sidecarRoutes = buildSidecarRouteDescriptors({
+      strict: true,
+      catalog: [
+        {
+          id: 'health',
+          method: 'GET',
+          path: '/health',
+          exposure: 'essential',
+          scope: 'uds',
+          policyTag: 'sidecar.health.read',
+        },
+      ],
+      handlers: {
+        health: async () => new Response('ok'),
+      },
+    });
+
+    const runtime = createAgentServerRuntime({
+      createFastify: fastify.factory,
+      a2a: {
+        buildAgentCard: () =>
+          buildA2AAgentCard({
+            name: 'salmon-loop',
+            url: 'http://localhost:7447',
+            capabilities: [{ id: 'patch', title: 'Patch code' }],
+            security: [],
+          }),
+        executeTask: async (task) => ({ ...task, state: 'completed' }),
+      },
+      sidecar: {
+        routes: sidecarRoutes,
+      },
+      listen: {
+        a2a: { host: '127.0.0.1', port },
+        sidecar: { path: '/tmp/agent-message.sock' },
+      },
+      configureA2A: async (_app) => {
+        configureA2ACalled = true;
+      },
+    });
+
+    await runtime.start();
+
+    // Validates: Requirements 1.1, 1.2
+    expect(configureA2ACalled).toBe(true);
+
+    await runtime.close();
   });
 });

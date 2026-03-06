@@ -1,8 +1,24 @@
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
+
+import { defaultPathAdapter } from '../../../src/core/adapters/path/path-adapter.js';
 import { MemoryContextCacheStore } from '../../../src/core/context/cache/store.js';
 import { ContextService } from '../../../src/core/context/service.js';
 import type { ContextRequest } from '../../../src/core/context/types.js';
+import { setLogger } from '../../../src/core/observability/logger.js';
 
 describe('ContextService', () => {
+  beforeEach(() => {
+    setLogger({
+      error: mock(),
+      warn: mock(),
+      info: mock(),
+      success: mock(),
+      debug: mock(),
+      trace: mock(),
+      setReporter: mock(),
+    } as any);
+  });
+
   it('builds prompt and context with injected deps', async () => {
     const service = new ContextService({
       primaryTextGatherer: {
@@ -158,6 +174,16 @@ describe('ContextService', () => {
 
   it('invalidates cached context when tracked file signature changes', async () => {
     let assembleCount = 0;
+    let bFileMtime = 20;
+    const statMock = mock();
+    statMock.mockImplementation(async (filePath: string) => {
+      const mtimes: Record<string, number> = {
+        [defaultPathAdapter.resolve('/repo', 'src/a.ts')]: 10,
+        [defaultPathAdapter.resolve('/repo', 'src/b.ts')]: bFileMtime,
+      };
+      return { mtimeMs: mtimes[filePath] ?? 0, size: 100 } as { mtimeMs: number; size: number };
+    });
+
     const service = new ContextService({
       primaryTextGatherer: { gather: async () => ({ primaryText: 'PRIMARY' }) } as any,
       ripgrepGatherer: { searchMultipleKeywords: async () => [] } as any,
@@ -173,14 +199,9 @@ describe('ContextService', () => {
       },
     });
 
-    const mtimes: Record<string, number> = {
-      '/repo/src/a.ts': 10,
-      '/repo/src/b.ts': 20,
-    };
     (service as any).fileAdapter = {
       readFile: async () => 'same-primary-content',
-      stat: async (filePath: string) =>
-        ({ mtimeMs: mtimes[filePath] ?? 0, size: 100 }) as { mtimeMs: number; size: number },
+      stat: statMock,
     };
 
     const req: ContextRequest = {
@@ -193,7 +214,7 @@ describe('ContextService', () => {
     expect(first.prompt).toBe('PROMPT-1');
     expect(assembleCount).toBe(1);
 
-    mtimes['/repo/src/b.ts'] = 99;
+    bFileMtime = 99;
     const second = await service.build(req);
     expect(second.prompt).toBe('PROMPT-2');
     expect(assembleCount).toBe(2);
@@ -217,10 +238,10 @@ describe('ContextService', () => {
     });
 
     const statsByPath: Record<string, { mtimeMs: number; size: number }> = {
-      '/repo/src/a.ts': { mtimeMs: 10, size: 100 },
-      '/repo/.git/HEAD': { mtimeMs: 1, size: 32 },
-      '/repo/.git/index': { mtimeMs: 1, size: 64 },
-      '/repo/noise.log': { mtimeMs: 1, size: 1 },
+      [defaultPathAdapter.resolve('/repo', 'src/a.ts')]: { mtimeMs: 10, size: 100 },
+      [defaultPathAdapter.resolve('/repo', '.git/HEAD')]: { mtimeMs: 1, size: 32 },
+      [defaultPathAdapter.resolve('/repo', '.git/index')]: { mtimeMs: 1, size: 64 },
+      [defaultPathAdapter.resolve('/repo', 'noise.log')]: { mtimeMs: 1, size: 1 },
     };
     (service as any).fileAdapter = {
       stat: async (filePath: string) => statsByPath[filePath] ?? ({ mtimeMs: 0, size: 0 } as any),
@@ -278,6 +299,16 @@ describe('ContextService', () => {
 
   it('invalidates cache for no-primary requests when git state signature changes', async () => {
     let assembleCount = 0;
+    let gitIndexMtime = 1;
+    const statMock = mock();
+    statMock.mockImplementation(async (filePath: string) => {
+      const statsByPath: Record<string, { mtimeMs: number; size: number }> = {
+        [defaultPathAdapter.resolve('/repo', '.git/HEAD')]: { mtimeMs: 1, size: 32 },
+        [defaultPathAdapter.resolve('/repo', '.git/index')]: { mtimeMs: gitIndexMtime, size: 64 },
+      };
+      return statsByPath[filePath] ?? ({ mtimeMs: 0, size: 0 } as any);
+    });
+
     const service = new ContextService({
       primaryTextGatherer: { gather: async () => ({ primaryText: undefined }) } as any,
       ripgrepGatherer: { searchMultipleKeywords: async () => [] } as any,
@@ -293,12 +324,8 @@ describe('ContextService', () => {
       },
     });
 
-    const statsByPath: Record<string, { mtimeMs: number; size: number }> = {
-      '/repo/.git/HEAD': { mtimeMs: 1, size: 32 },
-      '/repo/.git/index': { mtimeMs: 1, size: 64 },
-    };
     (service as any).fileAdapter = {
-      stat: async (filePath: string) => statsByPath[filePath] ?? ({ mtimeMs: 0, size: 0 } as any),
+      stat: statMock,
     };
 
     const req: ContextRequest = {
@@ -309,7 +336,7 @@ describe('ContextService', () => {
 
     const first = await service.build(req);
     expect(first.prompt).toBe('PROMPT-1');
-    statsByPath['/repo/.git/index'] = { mtimeMs: 10, size: 80 };
+    gitIndexMtime = 10;
     const second = await service.build(req);
     expect(second.prompt).toBe('PROMPT-2');
     expect(assembleCount).toBe(2);

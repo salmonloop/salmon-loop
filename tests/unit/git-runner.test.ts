@@ -1,4 +1,7 @@
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
+
 import { runGitCommand } from '../../src/core/adapters/git/git-runner.js';
+import { defaultPathAdapter } from '../../src/core/adapters/path/path-adapter.js';
 import { spawnCommand } from '../../src/core/runtime/process-runner.js';
 
 const fsMocks = (() => {
@@ -33,8 +36,8 @@ describe('runGitCommand', () => {
   it('rejects when cwd escapes repoRoot', async () => {
     await expect(
       runGitCommand({
-        repoRoot: '/repo',
-        cwd: '/tmp',
+        repoRoot: defaultPathAdapter.resolve('/repo'),
+        cwd: defaultPathAdapter.resolve('/tmp'),
         args: ['status'],
         timeoutMs: 5,
       }),
@@ -43,15 +46,21 @@ describe('runGitCommand', () => {
 
   it('rejects when realpath escapes repoRoot via symlink', async () => {
     fsMocks.realpathSync.mockImplementation((p: string) => {
-      if (p === '/repo-link') return '/real/repo';
-      if (p === '/repo-link/sub') return '/real/outside';
-      throw new Error('ENOENT');
+      // normalize inputs since defaultPathAdapter.resolve might produce drive letters or backslashes
+      const repoLink = defaultPathAdapter.resolve('/repo-link');
+      const sub = defaultPathAdapter.resolve('/repo-link/sub');
+      if (p === repoLink) return defaultPathAdapter.resolve('/real/repo');
+      if (p === sub) return defaultPathAdapter.resolve('/real/outside');
+      if (typeof p === 'string' && p.startsWith(repoLink)) {
+        return p.replace(new RegExp(`^${repoLink}`), defaultPathAdapter.resolve('/real/repo'));
+      }
+      return p;
     });
 
     await expect(
       runGitCommand({
-        repoRoot: '/repo-link',
-        cwd: '/repo-link/sub',
+        repoRoot: defaultPathAdapter.resolve('/repo-link'),
+        cwd: defaultPathAdapter.resolve('/repo-link/sub'),
         args: ['status'],
         timeoutMs: 5,
       }),

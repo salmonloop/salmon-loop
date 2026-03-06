@@ -1,3 +1,11 @@
+import path from 'path';
+
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
+
+import type { GitAdapter } from '../../../src/core/adapters/git/git-adapter.js';
+import { setLogger } from '../../../src/core/observability/logger.js';
+import { StrataFileSystemProvider } from '../../../src/core/strata/interaction/file-system-provider.js';
+
 const fsMocks = (() => ({
   readFile: mock(),
   writeFile: mock(),
@@ -9,9 +17,6 @@ mock.module('../../../src/core/adapters/fs/node-fs.js', () => ({
   promises: fsMocks,
 }));
 
-import type { GitAdapter } from '../../../src/core/adapters/git/git-adapter.js';
-import { StrataFileSystemProvider } from '../../../src/core/strata/interaction/file-system-provider.js';
-
 describe('StrataFileSystemProvider safety behavior', () => {
   const fileState = new Map<string, Buffer>();
   const createProvider = (): StrataFileSystemProvider =>
@@ -20,12 +25,23 @@ describe('StrataFileSystemProvider safety behavior', () => {
   beforeEach(() => {
     mock.clearAllMocks();
     fileState.clear();
+    setLogger({
+      error: mock(),
+      warn: mock(),
+      info: mock(),
+      success: mock(),
+      debug: mock(),
+      setReporter: mock(),
+    } as any);
     fsMocks.readFile.mockImplementation(async (targetPath: string) => {
-      const content = fileState.get(targetPath);
-      if (!content) {
-        throw Object.assign(new Error('missing'), { code: 'ENOENT' });
+      // Normalize path to handle both forward and backslash separators
+      const normalizedPath = targetPath.replace(/\\/g, '/');
+      for (const [key, value] of fileState.entries()) {
+        if (key.replace(/\\/g, '/') === normalizedPath) {
+          return Buffer.from(value);
+        }
       }
-      return Buffer.from(content);
+      throw Object.assign(new Error('missing'), { code: 'ENOENT' });
     });
     fsMocks.writeFile.mockImplementation(async (targetPath: string, content: Buffer | string) => {
       const normalized = Buffer.isBuffer(content) ? Buffer.from(content) : Buffer.from(content);
@@ -57,10 +73,15 @@ describe('StrataFileSystemProvider safety behavior', () => {
   });
 
   it('returns buffered content for safe reads with root context', async () => {
-    fileState.set('/repo/src/file.ts', Buffer.from('safe-content'));
+    // On Windows, path.resolve converts /repo to C:\repo (or current drive)
+    // We need to use the resolved absolute path
+    const rootPath = path.resolve('/repo');
+    const filePath = path.resolve('/repo/src/file.ts');
+
+    fileState.set(filePath, Buffer.from('safe-content'));
     const provider = createProvider();
 
-    const content = await provider.readFileBufferSafe('/repo/src/file.ts', '/repo');
+    const content = await provider.readFileBufferSafe(filePath, rootPath);
 
     expect(content?.toString()).toBe('safe-content');
   });

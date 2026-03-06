@@ -1,18 +1,17 @@
+import type { AgentCard } from '@a2a-js/sdk';
+import type { TaskStore } from '@a2a-js/sdk/server';
+import { InMemoryTaskStore } from '@a2a-js/sdk/server';
+import type { UserBuilder as A2AUserBuilder } from '@a2a-js/sdk/server/express';
+import type { Express, RequestHandler } from 'express';
+
 import { createTaskEventBus } from '../interaction/events/bus.js';
 import type { TaskEventBus } from '../interaction/events/bus.js';
 import type { TaskEnvelope } from '../interaction/model/index.js';
 import { createInteractionFacade } from '../interaction/orchestration/facade.js';
-import type { A2AAuthPolicyMiddleware } from '../protocols/a2a/server/auth-policy.js';
-import { createA2AFastifyPlugin } from '../protocols/a2a/server/fastify-plugin.js';
-import { createA2AJsonRpcHandler } from '../protocols/a2a/server/jsonrpc-handler.js';
-import { createA2ARoutes } from '../protocols/a2a/server/routes.js';
-import { createSseEventSource } from '../protocols/a2a/server/sse-stream.js';
+import { createA2AInteractionExecutor } from '../protocols/a2a/sdk/executor.js';
+import { createA2ASdkExpressApp } from '../protocols/a2a/sdk/server.js';
 
-import {
-  createFastifyServerBundle,
-  type FastifyFactory,
-  type FastifyListenOptions,
-} from './fastify-server-bundle.js';
+import { type FastifyFactory, type FastifyListenOptions } from './fastify-server-bundle.js';
 import {
   createSidecarFastifyPlugin,
   type RouteDescriptor,
@@ -21,7 +20,7 @@ import {
 
 export type AgentServerRuntime = {
   eventBus: TaskEventBus;
-  a2aServer: ReturnType<FastifyFactory>;
+  a2aServer: Express;
   sidecarServer: ReturnType<FastifyFactory>;
   start: () => Promise<void>;
   close: () => Promise<void>;
@@ -30,19 +29,12 @@ export type AgentServerRuntime = {
 export function createAgentServerRuntime(deps: {
   createFastify: FastifyFactory;
   a2a: {
-    buildAgentCard: () => unknown;
+    buildAgentCard: () => AgentCard;
     executeTask: (task: TaskEnvelope, options?: { signal?: AbortSignal }) => Promise<TaskEnvelope>;
-    authPolicy?: A2AAuthPolicyMiddleware;
-    artifactStore?: {
-      read: (handle: string) => Promise<Response | null>;
-    };
+    authMiddleware?: RequestHandler;
+    userBuilder?: A2AUserBuilder;
+    taskStore?: TaskStore;
     eventBus?: TaskEventBus;
-    sse?: {
-      maxReplayEvents?: number;
-      heartbeatIntervalMs?: number;
-      setInterval?: typeof globalThis.setInterval;
-      clearInterval?: typeof globalThis.clearInterval;
-    };
   };
   sidecar: {
     routes: RouteDescriptor[];
@@ -55,45 +47,39 @@ export function createAgentServerRuntime(deps: {
     baseUrl?: string;
   };
   listen: {
-    a2a: FastifyListenOptions;
+    a2a: { port: number; host?: string };
     sidecar: FastifyListenOptions;
   };
   a2aBaseUrl?: string;
-  configureA2A?: (instance: ReturnType<FastifyFactory>) => Promise<void> | void;
+  configureA2A?: (app: Express) => Promise<void> | void;
   configureSidecar?: (instance: ReturnType<FastifyFactory>) => Promise<void> | void;
 }) {
   const eventBus = deps.a2a.eventBus ?? createTaskEventBus();
+  const taskStore = deps.a2a.taskStore ?? new InMemoryTaskStore();
+
   const facade = createInteractionFacade({
     executeTask: deps.a2a.executeTask,
     eventBus,
   });
-  const jsonRpcHandler = createA2AJsonRpcHandler({
+
+  const executor = createA2AInteractionExecutor({
     facade: {
-      ...facade,
-      async createTask(input) {
-        const result = await facade.createTask(input);
-        return result.task;
-      },
-      async reopenTask(id, action) {
-        if (!action) return null;
-        return facade.reopenTask(id, action);
-      },
+      createTask: (input) => facade.createTask(input).then((result) => ({ task: result.task })),
+      getTask: (id) => facade.getTask(id),
+      cancelTask: (id) => facade.cancelTask(id),
     },
-    eventBus,
-  });
-  const eventSource = createSseEventSource(eventBus, deps.a2a.sse);
-
-  const routes = createA2ARoutes({
-    buildAgentCard: deps.a2a.buildAgentCard,
-    jsonRpcHandler,
-    eventSource,
-    artifactStore: deps.a2a.artifactStore,
-    authPolicy: deps.a2a.authPolicy,
+    taskEventBus: eventBus,
+    taskStore,
   });
 
-  const a2aPlugin = createA2AFastifyPlugin({
-    routes,
-    baseUrl: deps.a2aBaseUrl,
+  const agentCard = deps.a2a.buildAgentCard();
+
+  const a2aApp = createA2ASdkExpressApp({
+    agentCard,
+    agentExecutor: executor,
+    taskStore,
+    userBuilder: deps.a2a.userBuilder,
+    authMiddleware: deps.a2a.authMiddleware,
   });
 
   const sidecarPlugin = createSidecarFastifyPlugin({
@@ -104,21 +90,61 @@ export function createAgentServerRuntime(deps: {
     baseUrl: deps.sidecar.baseUrl,
   });
 
-  const bundle = createFastifyServerBundle({
-    createFastify: deps.createFastify,
-    a2aPlugin,
-    sidecarPlugin,
-    configureA2A: deps.configureA2A,
-    configureSidecar: deps.configureSidecar,
-    a2aListen: deps.listen.a2a,
-    sidecarListen: deps.listen.sidecar,
-  });
+  const sidecarServer = deps.createFastify();
+  let a2aServerInstance: ReturnType<typeof a2aApp.listen> | null = null;
+  let sidecarServerInstance: ReturnType<typeof sidecarServer.listen> | null = null;
+  let started = false;
+
+  async function start(): Promise<void> {
+    if (started) {
+      throw new Error('Runtime already started');
+    }
+
+    if (deps.configureA2A) {
+      await deps.configureA2A(a2aApp);
+    }
+
+    if (deps.configureSidecar) {
+      await deps.configureSidecar(sidecarServer);
+    }
+    await sidecarServer.register(sidecarPlugin);
+
+    a2aServerInstance = await new Promise((resolve, reject) => {
+      const server = a2aApp.listen(
+        deps.listen.a2a.port,
+        deps.listen.a2a.host ?? '0.0.0.0',
+        (err?: Error) => {
+          if (err) reject(err);
+          else resolve(server);
+        },
+      );
+    });
+
+    sidecarServerInstance = await sidecarServer.listen(deps.listen.sidecar);
+    started = true;
+  }
+
+  async function close(): Promise<void> {
+    if (a2aServerInstance) {
+      await new Promise<void>((resolve) => {
+        a2aServerInstance!.close(() => resolve());
+      });
+      a2aServerInstance = null;
+    }
+
+    if (sidecarServerInstance) {
+      await sidecarServer.close();
+      sidecarServerInstance = null;
+    }
+
+    started = false;
+  }
 
   return {
     eventBus,
-    a2aServer: bundle.a2aServer,
-    sidecarServer: bundle.sidecarServer,
-    start: bundle.start,
-    close: bundle.close,
+    a2aServer: a2aApp,
+    sidecarServer,
+    start,
+    close,
   };
 }

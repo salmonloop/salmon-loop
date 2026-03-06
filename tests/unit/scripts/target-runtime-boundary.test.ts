@@ -40,7 +40,7 @@ describe('target runtime boundary guard', () => {
 
     const violations = await findRuntimeCommandHardcoding(repoRoot);
     expect(violations).toHaveLength(1);
-    expect(violations[0].filePath).toBe(path.join('src', 'cli', 'commands', 'run', 'preflight.ts'));
+    expect(violations[0].filePath.replace(/\\/g, '/')).toBe('src/cli/commands/run/preflight.ts');
     expect(violations[0].snippet).toBe('pnpm run');
   });
 
@@ -79,7 +79,7 @@ describe('target runtime boundary guard', () => {
     });
 
     expect(violations).toHaveLength(1);
-    expect(violations[0].filePath).toBe(path.join('src', 'cli', 'commands', 'run', 'preflight.ts'));
+    expect(violations[0].filePath.replace(/\\/g, '/')).toBe('src/cli/commands/run/preflight.ts');
     expect(violations[0].snippet).toBe('npm run');
   });
 
