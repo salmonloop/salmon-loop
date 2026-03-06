@@ -433,7 +433,7 @@ describe('LLM stub server integration (no real network)', () => {
     expect(content.context.toolAuditLogs[0].outputSummaryTruncated).toBe(true);
     expect(typeof content.context.toolAuditLogs[0].outputSummary).toBe('string');
     expect(content.context.toolAuditLogs[0].outputSummary.length).toBeLessThan(5000);
-    expect(content.context.toolAuditLogs[0].outputSummaryBlob.path).toMatch(/^blobs\//);
+    expect(content.context.toolAuditLogs[0].outputSummaryBlob.path).toMatch(/^blobs[\\/]/);
     expect(content.context.toolAuditLogs[0].outputSummaryBlob.sha256).toMatch(/^[a-f0-9]{64}$/);
     expect(content.context.toolAuditLogs[0].outputSummaryBlob.chars).toBe(10_000);
 

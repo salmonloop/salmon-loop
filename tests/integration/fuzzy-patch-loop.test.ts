@@ -1,4 +1,5 @@
 import { mock, spyOn } from 'bun:test';
+
 import { AstParser } from '../../src/core/ast/parser.js';
 import { LLM } from '../../src/core/llm/index.js';
 import { runSalmonLoop } from '../../src/core/runtime/loop.js';

@@ -1,4 +1,5 @@
 import { mock } from 'bun:test';
+
 import { ErrorType } from '../../src/core/types/index.js';
 import { runVerify, classifyError, preflight } from '../../src/core/verification/runner.js';
 import { buildBunCommand } from '../helpers/bun.js';
