@@ -77,7 +77,7 @@ describe('agent server runtime - error handling scenarios', () => {
       },
       listen: {
         a2a: { host: '127.0.0.1', port },
-        sidecar: { path: '/tmp/agent-message-1.sock' },
+        sidecar: { type: 'pipe' as const, path: '/tmp/agent-message-1.sock' },
       },
     });
 
@@ -101,7 +101,7 @@ describe('agent server runtime - error handling scenarios', () => {
       },
       listen: {
         a2a: { host: '127.0.0.1', port }, // Same port
-        sidecar: { path: '/tmp/agent-message-2.sock' },
+        sidecar: { type: 'pipe' as const, path: '/tmp/agent-message-2.sock' },
       },
     });
 
@@ -179,7 +179,7 @@ describe('agent server runtime - error handling scenarios', () => {
       },
       listen: {
         a2a: { host: '127.0.0.1', port },
-        sidecar: { path: '/tmp/agent-message-auth.sock' },
+        sidecar: { type: 'pipe' as const, path: '/tmp/agent-message-auth.sock' },
       },
     });
 
@@ -245,7 +245,7 @@ describe('agent server runtime - error handling scenarios', () => {
       },
       listen: {
         a2a: { host: '127.0.0.1', port },
-        sidecar: { path: '/tmp/agent-message-fail.sock' },
+        sidecar: { type: 'pipe' as const, path: '/tmp/agent-message-fail.sock' },
       },
     });
 
@@ -297,7 +297,7 @@ describe('agent server runtime - error handling scenarios', () => {
         },
         listen: {
           a2a: { host: '127.0.0.1', port },
-          sidecar: { path: '/tmp/agent-message-invalid.sock' },
+          sidecar: { type: 'pipe' as const, path: '/tmp/agent-message-invalid.sock' },
         },
       });
 
@@ -371,7 +371,7 @@ describe('agent server runtime - error handling scenarios', () => {
       },
       listen: {
         a2a: { host: '127.0.0.1', port },
-        sidecar: { path: '/tmp/agent-message-eventbus.sock' },
+        sidecar: { type: 'pipe' as const, path: '/tmp/agent-message-eventbus.sock' },
       },
     });
 
@@ -442,7 +442,7 @@ describe('agent server runtime - error handling scenarios', () => {
       },
       listen: {
         a2a: { host: '127.0.0.1', port },
-        sidecar: { path: '/tmp/agent-message-logging.sock' },
+        sidecar: { type: 'pipe' as const, path: '/tmp/agent-message-logging.sock' },
       },
     });
 
@@ -496,7 +496,7 @@ describe('agent server runtime - error handling scenarios', () => {
       },
       listen: {
         a2a: { host: '127.0.0.1', port: -1 }, // Invalid port
-        sidecar: { path: '/tmp/agent-message-startup.sock' },
+        sidecar: { type: 'pipe' as const, path: '/tmp/agent-message-startup.sock' },
       },
     });
 
@@ -567,7 +567,7 @@ describe('agent server runtime - error handling scenarios', () => {
       },
       listen: {
         a2a: { host: '127.0.0.1', port },
-        sidecar: { path: '/tmp/agent-message-concurrent.sock' },
+        sidecar: { type: 'pipe' as const, path: '/tmp/agent-message-concurrent.sock' },
       },
     });
 

@@ -12,7 +12,7 @@ import {
   createPromptRegistry,
   defaultSidecarRouteCatalog,
   defaultPathAdapter,
-  getSidecarSocketPath,
+  getSidecarListenOptions,
   getUserAcpSessionStorePath,
   GitSnapshotCheckpointService,
   getLogger,
@@ -116,14 +116,14 @@ export async function handleServeCommand(_options: unknown, command: Command) {
     );
   }
 
-  const sidecarSocket =
+  const sidecarListen =
     typeof allOptions.sidecarSocket === 'string' && allOptions.sidecarSocket.length > 0
-      ? allOptions.sidecarSocket
-      : (serverConfig?.sidecar?.socket ?? getSidecarSocketPath());
+      ? { type: 'pipe' as const, path: allOptions.sidecarSocket }
+      : getSidecarListenOptions();
   const allowConditional =
     allOptions.sidecarAllowConditional ?? serverConfig?.sidecar?.allowConditional ?? false;
-  if (!sidecarSocket.startsWith('\\\\.\\pipe\\')) {
-    await mkdir(defaultPathAdapter.dirname(sidecarSocket), { recursive: true });
+  if (sidecarListen.type === 'pipe' && !sidecarListen.path.startsWith('\\\\.\\pipe\\')) {
+    await mkdir(defaultPathAdapter.dirname(sidecarListen.path), { recursive: true });
   }
 
   const languagePlugins = createPluginRegistry();
@@ -290,7 +290,7 @@ export async function handleServeCommand(_options: unknown, command: Command) {
     },
     listen: {
       a2a: { host: a2aHost, port: a2aPort },
-      sidecar: { path: sidecarSocket },
+      sidecar: sidecarListen,
     },
     a2aBaseUrl: `http://${a2aHost}:${a2aPort}`,
   });
@@ -302,7 +302,11 @@ export async function handleServeCommand(_options: unknown, command: Command) {
   });
 
   await runtime.start();
-  getLogger().success(text.cli.serveStarted(a2aHost, a2aPort, sidecarSocket));
+  const sidecarAddress =
+    sidecarListen.type === 'tcp'
+      ? `http://${sidecarListen.host}:${sidecarListen.port}`
+      : sidecarListen.path;
+  getLogger().success(text.cli.serveStarted(a2aHost, a2aPort, sidecarAddress));
 }
 
 export async function handleServeAcpCommand(_options: unknown, command: Command) {

@@ -73,7 +73,7 @@ describe('agent server runtime - property-based tests', () => {
           sidecar: { routes: sidecarRoutes },
           listen: {
             a2a: { port, host: '127.0.0.1' },
-            sidecar: { path: '/tmp/agent-message.sock' },
+            sidecar: { type: 'pipe' as const, path: '/tmp/agent-message.sock' },
           },
         });
 
@@ -129,7 +129,7 @@ describe('agent server runtime - property-based tests', () => {
           sidecar: { routes: sidecarRoutes },
           listen: {
             a2a: { port, host: '127.0.0.1' },
-            sidecar: { path: '/tmp/agent-message.sock' },
+            sidecar: { type: 'pipe' as const, path: '/tmp/agent-message.sock' },
           },
         });
 
@@ -191,7 +191,7 @@ describe('agent server runtime - property-based tests', () => {
           sidecar: { routes: sidecarRoutes },
           listen: {
             a2a: { port, host: '127.0.0.1' },
-            sidecar: { path: '/tmp/agent-message.sock' },
+            sidecar: { type: 'pipe' as const, path: '/tmp/agent-message.sock' },
           },
         });
 
@@ -242,7 +242,7 @@ describe('agent server runtime - property-based tests', () => {
           sidecar: { routes: sidecarRoutes },
           listen: {
             a2a: { port, host: '127.0.0.1' },
-            sidecar: { path: '/tmp/agent-message.sock' },
+            sidecar: { type: 'pipe' as const, path: '/tmp/agent-message.sock' },
           },
         });
 

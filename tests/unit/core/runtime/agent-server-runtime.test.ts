@@ -76,7 +76,7 @@ describe('agent server runtime', () => {
       },
       listen: {
         a2a: { host: '127.0.0.1', port },
-        sidecar: { path: '/tmp/agent-message.sock' },
+        sidecar: { type: 'pipe' as const, path: '/tmp/agent-message.sock' },
       },
     });
 
@@ -129,7 +129,7 @@ describe('agent server runtime', () => {
       },
       listen: {
         a2a: { host: '127.0.0.1', port },
-        sidecar: { path: '/tmp/agent-message.sock' },
+        sidecar: { type: 'pipe' as const, path: '/tmp/agent-message.sock' },
       },
     });
 
@@ -180,7 +180,7 @@ describe('agent server runtime', () => {
       },
       listen: {
         a2a: { host: '127.0.0.1', port },
-        sidecar: { path: '/tmp/agent-message.sock' },
+        sidecar: { type: 'pipe' as const, path: '/tmp/agent-message.sock' },
       },
     });
 
@@ -232,7 +232,7 @@ describe('agent server runtime', () => {
       },
       listen: {
         a2a: { host: '127.0.0.1', port },
-        sidecar: { path: '/tmp/agent-message.sock' },
+        sidecar: { type: 'pipe' as const, path: '/tmp/agent-message.sock' },
       },
     });
 
@@ -282,7 +282,7 @@ describe('agent server runtime', () => {
       },
       listen: {
         a2a: { host: '127.0.0.1', port },
-        sidecar: { path: '/tmp/agent-message.sock' },
+        sidecar: { type: 'pipe' as const, path: '/tmp/agent-message.sock' },
       },
     });
 
@@ -341,7 +341,7 @@ describe('agent server runtime', () => {
       },
       listen: {
         a2a: { host: '127.0.0.1', port },
-        sidecar: { path: '/tmp/agent-message.sock' },
+        sidecar: { type: 'pipe' as const, path: '/tmp/agent-message.sock' },
       },
     });
 
@@ -390,7 +390,7 @@ describe('agent server runtime', () => {
       },
       listen: {
         a2a: { host: '127.0.0.1', port },
-        sidecar: { path: '/tmp/agent-message.sock' },
+        sidecar: { type: 'pipe' as const, path: '/tmp/agent-message.sock' },
       },
     });
 
@@ -446,7 +446,7 @@ describe('agent server runtime', () => {
       },
       listen: {
         a2a: { host: '127.0.0.1', port },
-        sidecar: { path: '/tmp/agent-message.sock' },
+        sidecar: { type: 'pipe' as const, path: '/tmp/agent-message.sock' },
       },
       configureA2A: async (_app) => {
         configureA2ACalled = true;

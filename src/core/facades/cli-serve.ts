@@ -26,7 +26,11 @@ export { startAcpStdioServer } from '../protocols/acp/stdio-server.js';
 export { createAgentServerRuntime } from '../runtime/agent-server-runtime.js';
 export { runSalmonLoop } from '../runtime/loop.js';
 export { getUserAcpSessionStorePath } from '../runtime/paths.js';
-export { getSidecarSocketPath } from '../runtime/sidecar-paths.js';
+export {
+  getSidecarSocketPath,
+  getSidecarListenOptions,
+  type SidecarListenOptions,
+} from '../runtime/sidecar-paths.js';
 export {
   buildSidecarRouteDescriptors,
   defaultSidecarRouteCatalog,

@@ -17,6 +17,7 @@ import {
   type RouteDescriptor,
   type SidecarPolicyDecision,
 } from './sidecar-fastify-plugin.js';
+import type { SidecarListenOptions } from './sidecar-paths.js';
 
 export type AgentServerRuntime = {
   eventBus: TaskEventBus;
@@ -48,7 +49,7 @@ export function createAgentServerRuntime(deps: {
   };
   listen: {
     a2a: { port: number; host?: string };
-    sidecar: FastifyListenOptions;
+    sidecar: SidecarListenOptions;
   };
   a2aBaseUrl?: string;
   configureA2A?: (app: Express) => Promise<void> | void;
@@ -84,7 +85,7 @@ export function createAgentServerRuntime(deps: {
 
   const sidecarPlugin = createSidecarFastifyPlugin({
     routes: deps.sidecar.routes,
-    scope: 'uds',
+    scope: deps.listen.sidecar.type === 'tcp' ? 'tcp' : 'uds',
     allowConditional: deps.sidecar.allowConditional,
     authorize: deps.sidecar.authorize,
     baseUrl: deps.sidecar.baseUrl,
@@ -120,7 +121,11 @@ export function createAgentServerRuntime(deps: {
       );
     });
 
-    sidecarServerInstance = await sidecarServer.listen(deps.listen.sidecar);
+    const sidecarListenOpts: FastifyListenOptions =
+      deps.listen.sidecar.type === 'tcp'
+        ? { port: deps.listen.sidecar.port, host: deps.listen.sidecar.host }
+        : { path: deps.listen.sidecar.path };
+    sidecarServerInstance = await sidecarServer.listen(sidecarListenOpts);
     started = true;
   }
 

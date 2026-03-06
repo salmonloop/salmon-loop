@@ -4,7 +4,7 @@ import { clearLogger, setLogger } from '../../../../src/core/observability/logge
 
 const hoisted = (() => ({
   listenCalls: [] as Array<{
-    options: { port?: number; host?: string; path?: string };
+    options: { port?: number; host?: string; path?: string; type?: string };
   }>,
   acpLoopCalls: [] as Array<Record<string, unknown>>,
   lastRunLoopOptions: undefined as Record<string, unknown> | undefined,
@@ -41,6 +41,7 @@ mock.module('../../../../src/core/runtime/agent-server-runtime.js', () => ({
 
 mock.module('../../../../src/core/runtime/sidecar-paths.js', () => ({
   getSidecarSocketPath: () => '/tmp/agent-message.sock',
+  getSidecarListenOptions: () => ({ type: 'pipe' as const, path: '/tmp/agent-message.sock' }),
 }));
 
 mock.module('../../../../src/core/config/resolve.js', () => ({
@@ -175,7 +176,7 @@ describe('handleServeCommand', () => {
 
     expect(hoisted.listenCalls).toEqual([
       { options: { host: '0.0.0.0', port: 8081 } },
-      { options: { path: '/tmp/custom.sock' } },
+      { options: { type: 'pipe', path: '/tmp/custom.sock' } },
     ]);
   });
 

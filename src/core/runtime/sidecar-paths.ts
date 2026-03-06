@@ -47,3 +47,23 @@ export function getSidecarSocketPath(
   const pathAdapter = options?.pathAdapter ?? defaultPathAdapter;
   return pathAdapter.join(dataDir, 'sidecar', socketName);
 }
+
+export function isBunRuntime(): boolean {
+  return typeof (globalThis as { Bun?: unknown }).Bun !== 'undefined';
+}
+
+export type SidecarListenOptions =
+  | { type: 'pipe'; path: string }
+  | { type: 'tcp'; port: number; host: string };
+
+export function getSidecarListenOptions(
+  options?: UserDataPathOptions & { socketName?: string; sidecarPort?: number },
+): SidecarListenOptions {
+  const platform = options?.platform ?? process.platform;
+
+  if (platform === 'win32' && isBunRuntime()) {
+    return { type: 'tcp', port: options?.sidecarPort ?? 7432, host: '127.0.0.1' };
+  }
+
+  return { type: 'pipe', path: getSidecarSocketPath(options) };
+}
