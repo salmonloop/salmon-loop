@@ -133,3 +133,25 @@ All critical safety logic is verified by:
 - **R**epeatable: Tests should run the same in any environment.
 - **S**elf-validating: Tests should have a boolean output (pass/fail).
 - **T**imely: Tests should be written alongside or before the code.
+
+## 6. Case Study: Avoiding Semantic Drift in Integration Tests
+
+**Semantic Drift** occurs when the test setup (fixtures, pre-conditions) deviates from the actual physical or business semantics that the production code relies on. This often happens when tests try to force an error or edge case using "clever" system-level tricks instead of domain-level mechanisms.
+
+### The Problem: OS-Level Hacks
+In an earlier version of our tests, to trigger a mid-apply failure during `git apply` (to test the Rollback mechanism), the test created a directory in the main repo and a symlink with the same name in the patch. 
+- **Intent**: Force an `EISDIR` or "Directory not empty" error from the OS to crash `git apply`.
+- **Result**: Semantic drift. In Windows, Git treats junctions differently and simply applied the patch inside the directory without throwing an error. The expected crash never occurred, leading to a silent failure of the test's intent (the rollback mechanism was never actually triggered or tested).
+
+### The Solution: Domain-Level Constraints
+Production code (`WorkspaceSynchronizer`) relies on Git protocols (specifically `git apply -3` for 3-way merges). The fix was to replace the OS-level symlink trick with a pure Git domain-level mechanism: **a 3-way merge conflict**.
+
+1. **Setup**: Modify the same file differently in both the main repo (dirty/uncommitted) and the worktree (committed).
+2. **Trigger**: When `git apply -3` encounters the conflict, it writes `<<<<<<<` markers to the file (achieving a physical mutation/dirty workspace) and exits with code 1.
+3. **Smart Routing Awareness**: If a patch contains only text modifications, our `Smart Routing` might choose `ExplicitMerge` (which purposefully tolerates conflicts without throwing an error). To guarantee `AtomicPatch` (which strictly throws on conflicts and triggers the Rollback mechanism), the test intentionally adds a dummy file (`trigger_atomic.txt`) to introduce a topology change (Add), forcing the stricter route.
+4. **Assertion**: A successful rollback must *remove* the `<<<<<<<` markers, restoring the file to its exact pre-patch dirty state. Asserting that the markers *exist* after a rollback would mean the rollback failed to clean up the mess!
+
+### Key Takeaways
+- **Align Triggers with Domain Logic**: If the system relies on Git, trigger errors using Git features (merge conflicts), not OS file system quirks (symlinks vs junctions).
+- **Understand Internal Routing**: Be aware of internal decision trees (like Smart Routing). Your test setup must accurately navigate these routes to hit the desired error-handling branches.
+- **Verify Restoration, Not Damage**: When testing rollbacks, assert that the damage (e.g., conflict markers) is completely erased and user data is restored, rather than asserting that the damage is still visible.
