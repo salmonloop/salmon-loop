@@ -1,137 +1,102 @@
-# A2A Client SDK
+# A2A Client SDK (Deprecated)
 
-This document covers the A2A client SDK usage for Salmon-Loop. The client is protocol-focused, with a pluggable transport and a canonical task model.
+> **Note**: The A2A client SDK located at `src/core/protocols/a2a/client/` has been deprecated and removed as part of the A2A migration to the official `@a2a-js/sdk`.
 
-## Quick Start
+## Migration Status
+
+As of the A2A migration cleanup, the custom A2A client implementation has been removed. The server-side implementation now uses the official `@a2a-js/sdk` Express server adapter.
+
+### What Changed
+
+- **Removed**: `src/core/protocols/a2a/client/` directory and all related client code
+- **Removed**: `createA2AHttpClient()` and associated types
+- **Removed**: Custom HTTP transport and SSE subscription logic
+
+### Current Architecture
+
+The current implementation focuses on the **server-side** A2A protocol using `@a2a-js/sdk`:
+
+- **Server**: Express-based SDK server (`src/core/protocols/a2a/sdk/server.ts`)
+- **Executor**: Custom executor adapter (`src/core/protocols/a2a/sdk/executor.ts`)
+- **Runtime**: Migrated runtime (`src/core/runtime/agent-server-runtime.ts`)
+
+### How to Interact with Salmon-Loop Server
+
+To interact with a Salmon-Loop A2A server, use any standard HTTP client or the official `@a2a-js/sdk` client:
 
 ```ts
-import { createA2AHttpClient } from '../src/core/protocols/a2a/client/index.js';
+import { JsonRpcTransport } from '@a2a-js/sdk/client';
 
-const client = createA2AHttpClient({
-  baseUrl: 'https://example.com',
-  defaultOptions: {
-    headers: { authorization: 'Bearer token' },
-    reconnect: { maxRetries: 3, baseDelayMs: 250, maxDelayMs: 2000 },
-    idleTimeoutMs: 60_000,
+const transport = new JsonRpcTransport({
+  endpoint: 'http://localhost:7447/a2a/jsonrpc',
+});
+
+// Send a task request
+const response = await transport.sendMessage({
+  jsonrpc: '2.0',
+  method: 'message/send',
+  params: {
+    message: {
+      role: 'user',
+      parts: [{ kind: 'text', text: 'fix bug' }],
+    },
   },
+  id: 1,
 });
-
-const task = await client.startTask({ instruction: 'fix bug' });
-console.log(task.id, task.state);
 ```
 
-## Default Options and Per-Call Overrides
+### Alternative: Using Fetch API
 
-`createA2AHttpClient` accepts `defaultOptions`, which are applied across calls. Each API call can override headers and subscription settings.
+For simple use cases, you can use the native Fetch API:
 
 ```ts
-const client = createA2AHttpClient({
-  baseUrl: 'https://example.com',
-  defaultOptions: {
-    headers: { authorization: 'Bearer default' },
-    reconnect: { maxRetries: 2 },
-    idleTimeoutMs: 30_000,
+const response = await fetch('http://localhost:7447/a2a/jsonrpc', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    Authorization: 'Bearer your-token',
   },
+  body: JSON.stringify({
+    jsonrpc: '2.0',
+    method: 'message/send',
+    params: {
+      message: {
+        role: 'user',
+        parts: [{ kind: 'text', text: 'fix bug' }],
+      },
+    },
+    id: 1,
+  }),
 });
 
-await client.startTask(
-  { instruction: 'fix bug' },
-  { headers: { authorization: 'Bearer override' } },
-);
+const result = await response.json();
+console.log(result);
 ```
 
-## Subscribing to Task Updates
+### Server Capabilities
 
-Use `subscribeTask` to stream updates over SSE. The client will automatically apply stream events to the canonical task model.
+The Salmon-Loop A2A server supports:
 
-```ts
-await client.subscribeTask('task_1', (task) => {
-  console.log('stream update', task.state);
-});
-```
+- **Agent Card**: `/.well-known/agent-card.json`
+- **JSON-RPC Endpoint**: `/a2a/jsonrpc`
+- **Methods**:
+  - `message/send` - Send a message and receive a completed task
+  - `message/stream` - Stream task updates via SSE
+  - `tasks/get` - Retrieve a task by ID
+  - `tasks/cancel` - Cancel a running task
 
-### Idle Timeout
+### Migration Checklist
 
-Set `idleTimeoutMs` to auto-close a subscription when no events arrive for the specified duration.
+If you were using the old A2A client SDK:
 
-```ts
-await client.subscribeTask('task_1', (task) => {
-  console.log('stream update', task.state);
-}, {
-  idleTimeoutMs: 10_000,
-});
-```
+- [ ] Replace `createA2AHttpClient()` with `JsonRpcTransport` or Fetch API
+- [ ] Update import paths from `src/core/protocols/a2a/client/` to `@a2a-js/sdk/client`
+- [ ] Verify authentication headers are still applied correctly
+- [ ] Test task submission and streaming functionality
+- [ ] Update error handling to match JSON-RPC response format
 
-### Auto Sync on Stream End
+### References
 
-By default, when the stream ends the client performs a `syncTask` call to fetch the latest snapshot. You can disable this behavior with `autoSyncOnEnd`.
-
-```ts
-await client.subscribeTask('task_1', (task) => {
-  console.log('stream update', task.state);
-}, {
-  autoSyncOnEnd: false,
-});
-```
-
-### onSync Callback
-
-If you want to separate stream updates from snapshot reconciliation, provide an `onSync` callback.
-
-```ts
-await client.subscribeTask('task_1', (task) => {
-  console.log('stream update', task.state);
-}, {
-  onSync: (snapshot) => {
-    console.log('sync snapshot', snapshot.state);
-  },
-});
-```
-
-## Sync with Replay Requirements
-
-`syncTask` supports replay requests for server-side event replay. Use `sinceEventId` to request a replay starting after that event. If you need strict replay behavior, set `requireReplay`.
-
-```ts
-await client.syncTask('task_1', {
-  sinceEventId: '42',
-  replayLimit: 100,
-  requireReplay: true,
-});
-```
-
-If `requireReplay` is true and the server does not support replay, the request fails with a JSON-RPC error.
-
-When replay events are returned by the server, the client applies them to the canonical task state before returning the result.
-
-Use `replayLimit` to cap the number of replay events returned by the server. This protects clients from overly large replay payloads.
-
-## Server Replay Support Matrix
-
-| Server Capability | Request | Behavior | Error Code | `error.data.reason` |
-| --- | --- | --- | --- | --- |
-| Replay supported (`eventBus` available) | `sinceEventId` + `requireReplay: true` | Returns snapshot + `events` (honors `replayLimit`) | - | - |
-| Replay supported | `sinceEventId` without `requireReplay` | Returns snapshot + `events` (best effort, honors `replayLimit`) | - | - |
-| Replay unsupported | `requireReplay: true` | Request fails | `-32009` | `replay_not_supported` |
-| Replay unsupported | `sinceEventId` only | Returns snapshot (no events) | - | - |
-| Missing `sinceEventId` | `requireReplay: true` | Request fails | `-32602` | `missing_since_event_id` |
-
-## Error Codes and Data (Replay)
-
-When `requireReplay` is used, the server responds with standard JSON-RPC error codes and structured `error.data`:
-
-- `-32602` (Invalid params): `error.data.reason = "missing_since_event_id"`
-- `-32009` (State not allowed): `error.data.reason = "replay_not_supported"`
-
-## API Summary
-
-- `startTask(input, options?)`
-- `syncTask(taskId, options?)`
-- `subscribeTask(taskId, handler, options?)`
-
-Key options:
-- `headers`
-- `reconnect` (`maxRetries`, `baseDelayMs`, `maxDelayMs`, `jitterRatio`, `resetWindowMs`)
-- `idleTimeoutMs`
-- `autoSyncOnEnd`
-- `onSync`
+- [Official @a2a-js/sdk Documentation](https://github.com/ai16z/a2a-js)
+- [A2A Protocol Specification](https://github.com/AI-2-All/a2a-spec)
+- Salmon-Loop A2A Server Implementation: `src/core/protocols/a2a/sdk/`
