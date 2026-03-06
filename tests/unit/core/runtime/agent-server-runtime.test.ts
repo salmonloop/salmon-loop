@@ -5,6 +5,7 @@ import type { Express } from 'express';
 import { createTaskEventBus } from '../../../../src/core/interaction/events/bus.js';
 import { buildA2AAgentCard } from '../../../../src/core/protocols/a2a/agent-card.js';
 import { createAgentServerRuntime } from '../../../../src/core/runtime/agent-server-runtime.js';
+import { createPipeListenOptions } from '../../../../src/core/runtime/sidecar-paths.js';
 import { buildSidecarRouteDescriptors } from '../../../../src/core/runtime/sidecar-route-catalog.js';
 
 type RouteRegistration = { method: string; url: string };
@@ -76,7 +77,7 @@ describe('agent server runtime', () => {
       },
       listen: {
         a2a: { host: '127.0.0.1', port },
-        sidecar: { type: 'pipe' as const, path: '/tmp/agent-message.sock' },
+        sidecar: createPipeListenOptions('/tmp/agent-message.sock'),
       },
     });
 
@@ -129,7 +130,7 @@ describe('agent server runtime', () => {
       },
       listen: {
         a2a: { host: '127.0.0.1', port },
-        sidecar: { type: 'pipe' as const, path: '/tmp/agent-message.sock' },
+        sidecar: createPipeListenOptions('/tmp/agent-message.sock'),
       },
     });
 
@@ -180,7 +181,7 @@ describe('agent server runtime', () => {
       },
       listen: {
         a2a: { host: '127.0.0.1', port },
-        sidecar: { type: 'pipe' as const, path: '/tmp/agent-message.sock' },
+        sidecar: createPipeListenOptions('/tmp/agent-message.sock'),
       },
     });
 
@@ -232,7 +233,7 @@ describe('agent server runtime', () => {
       },
       listen: {
         a2a: { host: '127.0.0.1', port },
-        sidecar: { type: 'pipe' as const, path: '/tmp/agent-message.sock' },
+        sidecar: createPipeListenOptions('/tmp/agent-message.sock'),
       },
     });
 
@@ -282,7 +283,7 @@ describe('agent server runtime', () => {
       },
       listen: {
         a2a: { host: '127.0.0.1', port },
-        sidecar: { type: 'pipe' as const, path: '/tmp/agent-message.sock' },
+        sidecar: createPipeListenOptions('/tmp/agent-message.sock'),
       },
     });
 
@@ -341,7 +342,7 @@ describe('agent server runtime', () => {
       },
       listen: {
         a2a: { host: '127.0.0.1', port },
-        sidecar: { type: 'pipe' as const, path: '/tmp/agent-message.sock' },
+        sidecar: createPipeListenOptions('/tmp/agent-message.sock'),
       },
     });
 
@@ -390,7 +391,7 @@ describe('agent server runtime', () => {
       },
       listen: {
         a2a: { host: '127.0.0.1', port },
-        sidecar: { type: 'pipe' as const, path: '/tmp/agent-message.sock' },
+        sidecar: createPipeListenOptions('/tmp/agent-message.sock'),
       },
     });
 
@@ -446,7 +447,7 @@ describe('agent server runtime', () => {
       },
       listen: {
         a2a: { host: '127.0.0.1', port },
-        sidecar: { type: 'pipe' as const, path: '/tmp/agent-message.sock' },
+        sidecar: createPipeListenOptions('/tmp/agent-message.sock'),
       },
       configureA2A: async (_app) => {
         configureA2ACalled = true;

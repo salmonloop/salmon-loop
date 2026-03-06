@@ -5,6 +5,7 @@ import * as fc from 'fast-check';
 
 import { buildA2AAgentCard } from '../../../../src/core/protocols/a2a/agent-card.js';
 import { createAgentServerRuntime } from '../../../../src/core/runtime/agent-server-runtime.js';
+import { createPipeListenOptions } from '../../../../src/core/runtime/sidecar-paths.js';
 import { buildSidecarRouteDescriptors } from '../../../../src/core/runtime/sidecar-route-catalog.js';
 
 type RouteRegistration = { method: string; url: string };
@@ -73,7 +74,7 @@ describe('agent server runtime - property-based tests', () => {
           sidecar: { routes: sidecarRoutes },
           listen: {
             a2a: { port, host: '127.0.0.1' },
-            sidecar: { type: 'pipe' as const, path: '/tmp/agent-message.sock' },
+            sidecar: createPipeListenOptions('/tmp/agent-message.sock'),
           },
         });
 
@@ -129,7 +130,7 @@ describe('agent server runtime - property-based tests', () => {
           sidecar: { routes: sidecarRoutes },
           listen: {
             a2a: { port, host: '127.0.0.1' },
-            sidecar: { type: 'pipe' as const, path: '/tmp/agent-message.sock' },
+            sidecar: createPipeListenOptions('/tmp/agent-message.sock'),
           },
         });
 
@@ -191,7 +192,7 @@ describe('agent server runtime - property-based tests', () => {
           sidecar: { routes: sidecarRoutes },
           listen: {
             a2a: { port, host: '127.0.0.1' },
-            sidecar: { type: 'pipe' as const, path: '/tmp/agent-message.sock' },
+            sidecar: createPipeListenOptions('/tmp/agent-message.sock'),
           },
         });
 
@@ -242,7 +243,7 @@ describe('agent server runtime - property-based tests', () => {
           sidecar: { routes: sidecarRoutes },
           listen: {
             a2a: { port, host: '127.0.0.1' },
-            sidecar: { type: 'pipe' as const, path: '/tmp/agent-message.sock' },
+            sidecar: createPipeListenOptions('/tmp/agent-message.sock'),
           },
         });
 

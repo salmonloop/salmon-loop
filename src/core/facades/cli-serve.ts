@@ -29,6 +29,8 @@ export { getUserAcpSessionStorePath } from '../runtime/paths.js';
 export {
   getSidecarSocketPath,
   getSidecarListenOptions,
+  createPipeListenOptions,
+  createTcpListenOptions,
   type SidecarListenOptions,
 } from '../runtime/sidecar-paths.js';
 export {

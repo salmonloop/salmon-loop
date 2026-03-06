@@ -56,6 +56,14 @@ export type SidecarListenOptions =
   | { type: 'pipe'; path: string }
   | { type: 'tcp'; port: number; host: string };
 
+export function createPipeListenOptions(path: string): SidecarListenOptions {
+  return { type: 'pipe', path };
+}
+
+export function createTcpListenOptions(port: number, host = '127.0.0.1'): SidecarListenOptions {
+  return { type: 'tcp', port, host };
+}
+
 export function getSidecarListenOptions(
   options?: UserDataPathOptions & { socketName?: string; sidecarPort?: number },
 ): SidecarListenOptions {

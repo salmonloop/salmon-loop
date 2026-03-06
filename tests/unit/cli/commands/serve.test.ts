@@ -42,6 +42,12 @@ mock.module('../../../../src/core/runtime/agent-server-runtime.js', () => ({
 mock.module('../../../../src/core/runtime/sidecar-paths.js', () => ({
   getSidecarSocketPath: () => '/tmp/agent-message.sock',
   getSidecarListenOptions: () => ({ type: 'pipe' as const, path: '/tmp/agent-message.sock' }),
+  createPipeListenOptions: (path: string) => ({ type: 'pipe' as const, path }),
+  createTcpListenOptions: (port: number, host = '127.0.0.1') => ({
+    type: 'tcp' as const,
+    port,
+    host,
+  }),
 }));
 
 mock.module('../../../../src/core/config/resolve.js', () => ({
