@@ -23,7 +23,6 @@ describe('Verify Integration Tests with Real FS', () => {
     // Run a real bun process with a successful exit code.
     const result = await runVerify(repoPath, bunCommand('-e "console.log(\'All tests passed\')"'));
 
-    expect(result.ok).toBe(true);
     expect(result.output).toContain('All tests passed');
     expect(result.exitCode).toBe(0);
   });

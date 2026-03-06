@@ -1,11 +1,10 @@
 import { existsSync } from 'fs';
 import { join } from 'path';
 
-function quoteShellArg(value: string): string {
-  if (/^[a-zA-Z0-9_./:-]+$/.test(value)) return value;
-  return JSON.stringify(value);
-}
-
+/**
+ * Resolves the bun executable path.
+ * Returns the raw path without quoting to avoid shell escaping issues.
+ */
 export function resolveBunExecutable(): string {
   const explicit = (process.env.BUN_BINARY || '').trim();
   if (explicit) return explicit;
@@ -24,6 +23,11 @@ export function resolveBunExecutable(): string {
   return 'bun';
 }
 
+/**
+ * Builds a bun command string for execution.
+ * Does not add extra quoting - relies on shell to handle argument escaping.
+ */
 export function buildBunCommand(args: string): string {
-  return `${quoteShellArg(resolveBunExecutable())} ${args}`;
+  const exe = resolveBunExecutable();
+  return `${exe} ${args}`;
 }
