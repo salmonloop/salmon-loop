@@ -45,7 +45,9 @@ describe('Git Integration Tests (Real Filesystem)', () => {
 
     // Verify the file was actually modified
     const content = await helper.readFile(repo.path, 'test.txt');
-    expect(content).toBe('line1\nmodified\nline3\n');
+    const contentStr = typeof content === 'string' ? content : content.toString('utf-8');
+    const normalizedContent = contentStr.replace(/\r\n/g, '\n');
+    expect(normalizedContent).toBe('line1\nmodified\nline3\n');
   });
 
   it('should rollback specific files in real repository', async () => {

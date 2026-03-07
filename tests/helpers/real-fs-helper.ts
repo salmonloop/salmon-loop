@@ -104,6 +104,9 @@ async function execCommand(
 export class RealFsTestHelper {
   private createdPaths: string[] = [];
 
+  // Note: Logger and Monitor are initialized by tests/setup-bun.ts via --preload
+  // Production code should use tryGetLogger()/tryGetMonitor() for test compatibility
+
   /**
    * Creates a temporary directory with a unique name
    *

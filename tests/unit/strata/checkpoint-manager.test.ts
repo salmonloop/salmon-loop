@@ -71,8 +71,13 @@ describe('CheckpointManager behavior safety', () => {
     const index = await helper.git(repo.path, ['show', ':src/file.ts']);
     const status = await helper.getGitStatus(repo.path);
 
-    expect(working).toBe('unstaged\n');
-    expect(index.stdout).toBe('staged');
+    // Cross-platform: normalize line endings for comparison
+    const workingStr = typeof working === 'string' ? working : working.toString('utf-8');
+    const normalizedWorking = workingStr.replace(/\r\n/g, '\n');
+    const normalizedIndex = index.stdout.replace(/\r\n/g, '\n');
+
+    expect(normalizedWorking).toBe('unstaged\n');
+    expect(normalizedIndex).toBe('staged');
     expect(status).toContain('MM src/file.ts');
   });
 

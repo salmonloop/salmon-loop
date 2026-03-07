@@ -94,7 +94,10 @@ describe('SalmonLoop Integration Tests', () => {
   });
 
   it('should retry when verification fails', async () => {
-    const failingVerify = bunCommand('-e "console.error(\'fail\'); process.exit(1)"');
+    await helper.writeFile(repoPath, 'fail.ts', "console.error('fail'); process.exit(1);");
+    await helper.git(repoPath, ['add', 'fail.ts']);
+    await helper.git(repoPath, ['commit', '-m', 'add fail script']);
+    const failingVerify = bunCommand('fail.ts');
     mockLlm.createPlan.mockResolvedValue({
       goal: 'Fix the log message',
       files: ['src/index.ts'],
@@ -129,7 +132,10 @@ describe('SalmonLoop Integration Tests', () => {
   });
 
   it('stores verify output as an artifact when verification fails', async () => {
-    const failingVerify = bunCommand('-e "console.error(\'fail\'); process.exit(1)"');
+    await helper.writeFile(repoPath, 'fail.ts', "console.error('fail'); process.exit(1);");
+    await helper.git(repoPath, ['add', 'fail.ts']);
+    await helper.git(repoPath, ['commit', '-m', 'add fail script']);
+    const failingVerify = bunCommand('fail.ts');
     mockLlm.createPlan.mockResolvedValue({
       goal: 'Log failure',
       files: ['src/index.ts'],
@@ -204,12 +210,21 @@ describe('SalmonLoop Integration Tests', () => {
 
   it('runs PREPARE_DEPS before VERIFY in worktree mode', async () => {
     const prepareMarker = '.prepare-deps-ok';
-    const worktreePrepare = bunCommand(
-      `-e "import { writeFileSync } from 'fs'; writeFileSync('${prepareMarker}', 'ok')"`,
+    await helper.writeFile(
+      repoPath,
+      'prepare.ts',
+      `import { writeFileSync } from 'fs'; writeFileSync('${prepareMarker}', 'ok');`,
     );
-    const verifyPrepare = bunCommand(
-      `-e "import { existsSync } from 'fs'; process.exit(existsSync('${prepareMarker}') ? 0 : 1)"`,
+    await helper.writeFile(
+      repoPath,
+      'verify.ts',
+      `import { existsSync } from 'fs'; process.exit(existsSync('${prepareMarker}') ? 0 : 1);`,
     );
+    await helper.git(repoPath, ['add', 'prepare.ts', 'verify.ts']);
+    await helper.git(repoPath, ['commit', '-m', 'add scripts']);
+
+    const worktreePrepare = bunCommand('prepare.ts');
+    const verifyPrepare = bunCommand('verify.ts');
 
     mockLlm.createPlan.mockResolvedValue({
       goal: 'Fix the log message',
@@ -243,6 +258,10 @@ describe('SalmonLoop Integration Tests', () => {
       },
     });
 
+    if (!result.success) {
+      console.error('Test failed with reason:', result.reason);
+      console.error('Failure Logs:', JSON.stringify(result.logs, null, 2));
+    }
     expect(result.success).toBe(true);
 
     const prepareDepsIndex = phaseStarts.indexOf('PREPARE_DEPS');

@@ -10,8 +10,7 @@
  * - No mocks for core functionality
  */
 
-import { stat, symlink } from 'fs/promises';
-import { join } from 'path';
+import { stat } from 'fs/promises';
 
 import { CheckpointManager } from '../../src/core/strata/checkpoint/manager.js';
 import { WorkspaceSynchronizer } from '../../src/core/strata/runtime/synchronizer.js';
@@ -206,9 +205,9 @@ describe('ApplyBack Dirty Workspace Safety - CRITICAL SCENARIOS (Real Filesystem
         initialFiles: [
           { path: 'README.md', content: 'base readme\n' },
           { path: 'staged.txt', content: 'base staged\n' },
+          { path: 'conflict.txt', content: 'base content\n' },
         ],
       });
-
       const worktreePath = await helper.createWorktree(mainRepo.path);
 
       // User intent in main repo: staged content must survive rollback.
@@ -216,26 +215,26 @@ describe('ApplyBack Dirty Workspace Safety - CRITICAL SCENARIOS (Real Filesystem
       const indexBefore = await helper.git(mainRepo.path, ['rev-parse', ':staged.txt']);
       expect((await helper.getGitStatus(mainRepo.path)).includes('M  staged.txt')).toBe(true);
 
-      // Keep a real directory in main repo so symlink patch fails with "Directory not empty".
-      await helper.writeFile(mainRepo.path, 'temp_link/keep.txt', 'keep');
+      // Create a 3-way merge conflict scenario:
+      // Main repo modifies conflict.txt but does NOT stage it
+      await helper.modifyFile(mainRepo.path, 'conflict.txt', 'main repo content\n');
 
-      // Ensure apply mutates at least one file before failing, so rollback path is exercised.
-      await helper.modifyFile(worktreePath, 'README.md', 'worktree changed readme\n');
-      const symlinkTarget = await helper.createTempDir('symlink-target-');
-      await helper.writeFile(symlinkTarget, 'placeholder.txt', 'placeholder');
-      await symlink(
-        symlinkTarget,
-        join(worktreePath, 'temp_link'),
-        process.platform === 'win32' ? 'junction' : 'dir',
-      );
-
-      await helper.git(worktreePath, ['add', 'README.md', 'temp_link']);
-      await helper.git(worktreePath, ['commit', '-m', 'add symlink conflict']);
-      const shadowLatestRef = (await helper.git(worktreePath, ['rev-parse', 'HEAD'])).stdout.trim();
       const shadowInitialRef = (
-        await helper.git(worktreePath, ['rev-parse', 'HEAD~1'])
+        await helper.git(worktreePath, ['rev-parse', 'HEAD'])
       ).stdout.trim();
 
+      // Worktree modifies the same file differently, stages and commits
+      await helper.modifyFile(worktreePath, 'conflict.txt', 'worktree content\n');
+      await helper.git(worktreePath, ['add', 'conflict.txt']);
+
+      // Also modify README.md and add a new file to force AtomicPatch routing
+      await helper.modifyFile(worktreePath, 'README.md', 'worktree changed readme\n');
+      await helper.writeFile(worktreePath, 'trigger_atomic.txt', 'force atomic patch\n');
+      await helper.git(worktreePath, ['add', 'README.md', 'trigger_atomic.txt']);
+
+      await helper.git(worktreePath, ['commit', '-m', 'modify files and trigger atomic patch']);
+
+      const shadowLatestRef = (await helper.git(worktreePath, ['rev-parse', 'HEAD'])).stdout.trim();
       const checkpointRef: CheckpointRef = {
         strategy: 'worktree',
         repoPath: mainRepo.path,
@@ -243,9 +242,10 @@ describe('ApplyBack Dirty Workspace Safety - CRITICAL SCENARIOS (Real Filesystem
         baseRef: shadowInitialRef,
         branchName: 'test-worktree',
       };
-
       const synchronizer = new WorkspaceSynchronizer(new CheckpointManager());
 
+      // Apply back will fail due to merge conflict in conflict.txt
+      // This triggers rollback while leaving conflict markers in the file
       await expect(
         synchronizer.applyBackToMainWorkspace(
           mainRepo.path,
@@ -253,7 +253,7 @@ describe('ApplyBack Dirty Workspace Safety - CRITICAL SCENARIOS (Real Filesystem
           '',
           '3way',
           'extended',
-          ['README.md', 'temp_link'],
+          ['README.md', 'conflict.txt', 'trigger_atomic.txt'],
           shadowInitialRef,
           shadowLatestRef,
         ),
@@ -262,9 +262,12 @@ describe('ApplyBack Dirty Workspace Safety - CRITICAL SCENARIOS (Real Filesystem
       // CRITICAL: Index must remain identical to original staged state.
       const indexAfter = await helper.git(mainRepo.path, ['rev-parse', ':staged.txt']);
       expect(indexAfter.stdout).toBe(indexBefore.stdout);
-
       const statusAfter = await helper.getGitStatus(mainRepo.path);
       expect(statusAfter).toContain('M  staged.txt');
+
+      // Verify rollback successfully restored the file, removing the conflict markers
+      const conflictContent = await helper.readFile(mainRepo.path, 'conflict.txt');
+      expect(conflictContent).toBe('main repo content\n');
     });
   });
 
@@ -515,32 +518,38 @@ describe('ApplyBack Dirty Workspace Safety - CRITICAL SCENARIOS (Real Filesystem
 
     it('should restore nested untracked files when rollback is triggered', async () => {
       const mainRepo = await helper.createGitRepo({
-        initialFiles: [{ path: 'README.md', content: 'base readme\n' }],
+        initialFiles: [
+          { path: 'README.md', content: 'base readme\n' },
+          { path: 'conflict.txt', content: 'base content\n' },
+        ],
       });
       const worktreePath = await helper.createWorktree(mainRepo.path);
 
+      // Create nested untracked files that must survive the rollback storm
       await helper.writeFile(mainRepo.path, 'scratch/deep/file.txt', 'nested untracked content');
       const statusBefore = await helper.getGitStatus(mainRepo.path);
       expect(statusBefore).toContain('?? scratch/');
 
-      await helper.writeFile(mainRepo.path, 'temp_link/keep.txt', 'keep');
-      await helper.modifyFile(worktreePath, 'README.md', 'worktree changed readme\n');
+      // Create a 3-way merge conflict scenario:
+      // Main repo modifies conflict.txt (dirty, uncommitted)
+      await helper.modifyFile(mainRepo.path, 'conflict.txt', 'main repo content\n');
 
-      const symlinkTarget = await helper.createTempDir('nested-untracked-target-');
-      await helper.writeFile(symlinkTarget, 'placeholder.txt', 'placeholder');
-      await symlink(
-        symlinkTarget,
-        join(worktreePath, 'temp_link'),
-        process.platform === 'win32' ? 'junction' : 'dir',
-      );
-
-      await helper.git(worktreePath, ['add', 'README.md', 'temp_link']);
-      await helper.git(worktreePath, ['commit', '-m', 'trigger rollback for nested untracked']);
-      const shadowLatestRef = (await helper.git(worktreePath, ['rev-parse', 'HEAD'])).stdout.trim();
       const shadowInitialRef = (
-        await helper.git(worktreePath, ['rev-parse', 'HEAD~1'])
+        await helper.git(worktreePath, ['rev-parse', 'HEAD'])
       ).stdout.trim();
 
+      // Worktree modifies the same file differently, stages and commits
+      await helper.modifyFile(worktreePath, 'conflict.txt', 'worktree content\n');
+      await helper.git(worktreePath, ['add', 'conflict.txt']);
+
+      // Also modify README.md and add a new file to force AtomicPatch routing
+      await helper.modifyFile(worktreePath, 'README.md', 'worktree changed readme\n');
+      await helper.writeFile(worktreePath, 'trigger_atomic.txt', 'force atomic patch\n');
+      await helper.git(worktreePath, ['add', 'README.md', 'trigger_atomic.txt']);
+
+      await helper.git(worktreePath, ['commit', '-m', 'modify files and trigger atomic patch']);
+
+      const shadowLatestRef = (await helper.git(worktreePath, ['rev-parse', 'HEAD'])).stdout.trim();
       const checkpointRef: CheckpointRef = {
         strategy: 'worktree',
         repoPath: mainRepo.path,
@@ -548,9 +557,9 @@ describe('ApplyBack Dirty Workspace Safety - CRITICAL SCENARIOS (Real Filesystem
         baseRef: shadowInitialRef,
         branchName: 'test-worktree',
       };
-
       const synchronizer = new WorkspaceSynchronizer(new CheckpointManager());
 
+      // Apply back will fail due to merge conflict, triggering rollback
       await expect(
         synchronizer.applyBackToMainWorkspace(
           mainRepo.path,
@@ -558,16 +567,21 @@ describe('ApplyBack Dirty Workspace Safety - CRITICAL SCENARIOS (Real Filesystem
           '',
           '3way',
           'extended',
-          ['README.md', 'temp_link'],
+          ['README.md', 'conflict.txt', 'trigger_atomic.txt'],
           shadowInitialRef,
           shadowLatestRef,
         ),
       ).rejects.toThrow();
 
+      // CRITICAL: Nested untracked file must survive and retain original content
       const nestedUntrackedExists = await helper.fileExists(mainRepo.path, 'scratch/deep/file.txt');
       expect(nestedUntrackedExists).toBe(true);
       const nestedUntrackedContent = await helper.readFile(mainRepo.path, 'scratch/deep/file.txt');
       expect(nestedUntrackedContent).toBe('nested untracked content');
+
+      // Verify rollback successfully restored the file, removing the conflict markers
+      const conflictContent = await helper.readFile(mainRepo.path, 'conflict.txt');
+      expect(conflictContent).toBe('main repo content\n');
     });
   });
 

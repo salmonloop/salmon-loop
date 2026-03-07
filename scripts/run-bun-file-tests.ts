@@ -2,7 +2,9 @@ import { readdir } from 'node:fs/promises';
 import path from 'node:path';
 
 // File-level timeout for a full test file run. Integration suites can exceed 30s under CI load.
-const DEFAULT_TIMEOUT_MS = 60_000;
+// Large integration test files (e.g., headless-protocol, merge-robustness) require 120s+.
+// Set to 180s to accommodate parallel execution overhead while maintaining safety bounds.
+const DEFAULT_TIMEOUT_MS = 180_000;
 const DEFAULT_PARALLELISM = 4;
 const DEFAULT_PRELOAD = path.join('tests', 'setup-bun.ts');
 const DEFAULT_TEST_TIMEOUT_MS = 30_000;

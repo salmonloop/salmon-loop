@@ -63,10 +63,12 @@ describe('proposal.apply (integration)', () => {
       expect(result.ok).toBe(true);
 
       const baseFile = await helper.readFile(repo.path, 'foo.txt');
-      expect(baseFile).toBe('old\n');
-
+      const baseFileStr = typeof baseFile === 'string' ? baseFile : baseFile.toString('utf-8');
+      expect(baseFileStr.replace(/\r\n/g, '\n')).toBe('old\n');
       const shadowFile = await helper.readFile(worktreePath, 'foo.txt');
-      expect(shadowFile).toBe('new\n');
+      const shadowFileStr =
+        typeof shadowFile === 'string' ? shadowFile : shadowFile.toString('utf-8');
+      expect(shadowFileStr.replace(/\r\n/g, '\n')).toBe('new\n');
 
       const baseStatusAfter = await helper.git(repo.path, ['status', '--porcelain']);
       expect(baseStatusAfter.stdout).toBe('');

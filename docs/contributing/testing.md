@@ -134,7 +134,131 @@ All critical safety logic is verified by:
 - **S**elf-validating: Tests should have a boolean output (pass/fail).
 - **T**imely: Tests should be written alongside or before the code.
 
-## 6. Case Study: Avoiding Semantic Drift in Integration Tests
+## 6. Case Study: Cross-Platform Testing & Constraint Safety
+
+This section documents critical lessons learned from fixing integration tests that failed on Windows due to semantic drift and cross-platform incompatibilities.
+
+### 6.1 The Problem: OS-Level Abstractions Leak
+
+**Original Issue**: Tests used filesystem-level tricks (symlinks) to trigger Git failures, which behaved differently on Windows vs Unix.
+
+```typescript
+// ❌ BAD: OS-dependent symlink to trigger failure
+await symlink(targetDir, join(worktreePath, 'temp_link'), 'junction');
+// Windows: Git treats junction as regular directory, patch succeeds
+// Unix: Git rejects symlink over directory, patch fails (as expected)
+```
+
+**Root Cause**: The test tried to force a failure using operating system semantics instead of Git's domain semantics. This created semantic drift where the test no longer validated the actual production code path.
+
+### 6.2 The Solution: Domain-Level Conflict Mechanisms
+
+**Fixed Approach**: Use Git's native 3-way merge conflict to trigger rollback, ensuring cross-platform consistency.
+
+```typescript
+// ✅ GOOD: Git-native conflict mechanism
+await helper.modifyFile(mainRepo, 'conflict.txt', 'user changes');
+await helper.modifyFile(worktree, 'conflict.txt', 'ai changes');
+// Git apply -3 encounters conflict, writes markers, exits code 1
+// This triggers rollback in production code exactly as designed
+```
+
+**Key Insight**: Production code (`WorkspaceSynchronizer`) relies on Git protocols. Tests must trigger failures using the same protocols, not OS-level quirks.
+
+### 6.3 Smart Routing Awareness: Hidden Decision Trees
+
+**Critical Discovery**: The system has internal routing logic that chooses between `ExplicitMerge` (tolerates conflicts) and `AtomicPatch` (strict failure on conflicts).
+
+```typescript
+// Production code: Smart Routing in analyzeStrategy()
+if (['R', 'D', 'A', 'C', 'T'].includes(status)) {
+  return ApplyStrategy.AtomicPatch; // Strict mode
+}
+return ApplyStrategy.ExplicitMerge; // Tolerant mode
+```
+
+**Test Implication**: If your patch contains only text modifications, Smart Routing selects `ExplicitMerge`, which purposefully does NOT throw on conflicts. To test rollback, you must force `AtomicPatch` by including a topology change (like adding a new file).
+
+```typescript
+// ✅ GOOD: Force AtomicPatch routing
+await helper.writeFile(worktree, 'trigger_atomic.txt', 'force strict mode');
+await helper.git(worktree, ['add', 'trigger_atomic.txt']);
+// Now Smart Routing selects AtomicPatch, which throws on conflict
+```
+
+### 6.4 Cross-Platform Command Execution
+
+**Problem**: Inline shell commands (`bun -e "code"`) fail on Windows due to quoting/escaping differences.
+
+**Solution**: Write script files instead of inline commands.
+
+```typescript
+// ❌ BAD: Inline command
+const verify = bunCommand(`-e "console.error('fail'); process.exit(1)"`);
+
+// ✅ GOOD: Script file
+await helper.writeFile(repo, 'fail.ts', "console.error('fail'); process.exit(1);");
+const verify = bunCommand('fail.ts');
+```
+
+### 6.5 Monitor Initialization: Graceful Degradation
+
+**Problem**: Production code calls `getMonitor()` which throws if Monitor isn't initialized. Tests running without `--preload` crash.
+
+**Solution**: Use `tryGetMonitor()` for optional metrics recording.
+
+```typescript
+// Production code change (safe for tests and production)
+const monitor = tryGetMonitor();
+if (monitor) {
+  monitor.recordApplyBack(success, duration);
+}
+```
+
+**Rationale**: Metrics are observability, not core functionality. The system should work without monitor initialization, especially in test environments.
+
+### 6.6 Validation: Did We Drift From Production?
+
+**Critical Question**: Do these fixes change the semantics being tested?
+
+**Answer**: NO - The fixes actually align tests closer to production:
+
+1. **Rollback Trigger**: Production uses Git exit codes, not OS errors. Tests now use the same.
+2. **Conflict Detection**: Production writes `<<<<<<<` markers when conflicts occur. Tests verify these markers are cleaned up by rollback.
+3. **Smart Routing**: Tests now correctly navigate the production routing logic instead of bypassing it.
+
+### 6.7 Safety Constraint Verification
+
+**Absolute Safety Requirements**:
+- ✅ User's staged changes must survive rollback
+- ✅ User's untracked files must survive rollback
+- ✅ Conflict markers must be cleaned up after rollback
+- ✅ Index state must be preserved (Zero Index Access policy)
+
+**Test Enhancement**: Tests now assert rollback SUCCESS by verifying conflict markers are REMOVED, not just that an error was thrown.
+
+```typescript
+// ✅ GOOD: Verify rollback effectiveness
+const content = await readFile('conflict.txt');
+expect(content).toBe('user original content'); // Clean state
+expect(content).not.toContain('<<<<<<<'); // No conflict markers
+```
+
+### 6.8 Key Takeaways
+
+1. **Align Triggers with Domain Logic**: Use Git features (merge conflicts) not OS features (symlinks) to test Git-based systems.
+
+2. **Understand Internal Routing**: Know your system's decision trees. Tests must navigate them correctly to hit desired code paths.
+
+3. **Verify Restoration, Not Damage**: When testing rollback, assert that damage is ERASED and user data is RESTORED, not that damage exists.
+
+4. **Cross-Platform Commands**: Avoid inline shell commands. Use script files for portability.
+
+5. **Graceful Degradation**: Optional subsystems (monitoring, logging) should not crash when uninitialized.
+
+6. **Semantic Drift Detection**: Ask "If I refactor production code but keep the same behavior, will this test still pass?" If NO, you're testing implementation details, not behavior.
+
+## 7. Case Study: Avoiding Semantic Drift in Integration Tests
 
 **Semantic Drift** occurs when the test setup (fixtures, pre-conditions) deviates from the actual physical or business semantics that the production code relies on. This often happens when tests try to force an error or edge case using "clever" system-level tricks instead of domain-level mechanisms.
 
