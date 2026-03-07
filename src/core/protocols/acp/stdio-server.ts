@@ -33,6 +33,35 @@ async function writeInvalidRequest(output: WritableStream<Uint8Array>, line: str
   }
 }
 
+async function processStdioLine(
+  line: string,
+  output: WritableStream<Uint8Array>,
+  controller: ReadableStreamDefaultController<AnyMessage>,
+) {
+  const trimmed = line.trim();
+  if (!trimmed) return;
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (!isJsonObject(parsed)) {
+      await writeInvalidRequest(output, trimmed);
+      return;
+    }
+
+    if (parsed.params && typeof parsed.params === 'object' && !Array.isArray(parsed.params)) {
+      const params = parsed.params as Record<string, unknown>;
+      if (params.mcpServers === null) {
+        delete params.mcpServers;
+      }
+    }
+
+    controller.enqueue(parsed as AnyMessage);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    getLogger().warn(`ACP stdio failed to parse JSON line. reason="${detail}"`);
+  }
+}
+
 export function createAcpStdioStream(
   output: WritableStream<Uint8Array>,
   input: ReadableStream<Uint8Array>,
@@ -53,19 +82,7 @@ export function createAcpStdioStream(
           const lines = buffer.split('\n');
           buffer = lines.pop() || '';
           for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed) continue;
-            try {
-              const parsed = JSON.parse(trimmed);
-              if (isJsonObject(parsed)) {
-                controller.enqueue(parsed as AnyMessage);
-              } else {
-                await writeInvalidRequest(output, trimmed);
-              }
-            } catch (error) {
-              const detail = error instanceof Error ? error.message : String(error);
-              getLogger().warn(`ACP stdio failed to parse JSON line. reason="${detail}"`);
-            }
+            await processStdioLine(line, output, controller);
           }
         }
       } finally {
