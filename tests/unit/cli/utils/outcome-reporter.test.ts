@@ -38,15 +38,14 @@ describe('createOutcomeReporter', () => {
       enabled: false,
       endpoint: 'https://langfuse.example.test',
       llmBaseUrl: 'https://llm.example.test',
-      llmApiKey: 'key',
-      proxyApiKeyEnv: 'env-key',
+      langfuseApiKey: 'langfuse-key',
     });
 
     expect(reporter).toBeUndefined();
     expect(hoisted.reporterOptions.length).toBe(0);
   });
 
-  it('uses proxyApiKeyEnv over llmApiKey when enabled', async () => {
+  it('uses langfuseApiKey when enabled', async () => {
     hoisted.resolution = {
       enabled: true,
       proxyBaseUrl: 'https://proxy.example.test',
@@ -58,8 +57,7 @@ describe('createOutcomeReporter', () => {
       enabled: true,
       endpoint: 'https://langfuse.example.test',
       llmBaseUrl: 'https://llm.example.test',
-      llmApiKey: 'llm-key',
-      proxyApiKeyEnv: 'env-key',
+      langfuseApiKey: 'langfuse-key',
     });
 
     expect(reporter).toBeDefined();
@@ -67,7 +65,7 @@ describe('createOutcomeReporter', () => {
       {
         proxyBaseUrl: 'https://proxy.example.test',
         proxyPathPrefix: '/v1',
-        litellmApiKey: 'env-key',
+        litellmApiKey: 'langfuse-key',
       },
     ]);
   });

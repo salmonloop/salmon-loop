@@ -63,6 +63,8 @@ mock.module('../../../../src/cli/commands/run/config-resolution.js', () => ({
           enabled: true,
           outcome: true,
           endpoint: 'https://langfuse.example.test',
+          apiKey: 'langfuse-key',
+          apiKeySource: 'inline',
           sessionId: 'session-123',
           userId: 'user-456',
         },
@@ -184,8 +186,7 @@ describe('handleRunCommand outcome reporter', () => {
       enabled: true,
       endpoint: 'https://langfuse.example.test',
       llmBaseUrl: 'https://llm.example.test',
-      llmApiKey: 'llm-key',
-      proxyApiKeyEnv: process.env.SALMONLOOP_LANGFUSE_PROXY_API_KEY,
+      langfuseApiKey: 'langfuse-key',
     });
     expect(hoisted.loopParamsCalls[0]?.auditScope).toBe('user');
   });

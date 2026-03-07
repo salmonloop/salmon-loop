@@ -5,8 +5,7 @@ export function createOutcomeReporter(params: {
   enabled: boolean;
   endpoint?: string;
   llmBaseUrl?: string;
-  llmApiKey?: string;
-  proxyApiKeyEnv?: string;
+  langfuseApiKey?: string;
 }) {
   const resolved = resolveLangfuseOutcomeProxyBaseUrl({
     enabled: params.enabled,
@@ -15,10 +14,9 @@ export function createOutcomeReporter(params: {
   });
   if (!resolved.enabled || !resolved.proxyBaseUrl) return undefined;
 
-  const proxyApiKey = (params.proxyApiKeyEnv || '').trim() || params.llmApiKey;
   return new LiteLlmLangfuseOutcomeReporter({
     proxyBaseUrl: resolved.proxyBaseUrl,
     proxyPathPrefix: resolved.proxyPathPrefix,
-    litellmApiKey: proxyApiKey,
+    litellmApiKey: params.langfuseApiKey,
   });
 }

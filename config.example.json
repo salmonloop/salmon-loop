@@ -24,6 +24,7 @@
       "enabled": false,
       "outcome": false,
       "endpoint": "https://your-litellm-host/langfuse/",
+      "apiKey": null,
       "userId": "user-123"
     },
     "audit": {

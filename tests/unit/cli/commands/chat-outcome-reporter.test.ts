@@ -28,6 +28,8 @@ mock.module('../../../../src/core/config/index.js', () => ({
         enabled: true,
         outcome: true,
         endpoint: 'https://langfuse.example.test',
+        apiKey: 'langfuse-key',
+        apiKeySource: 'inline',
         sessionId: 'session-123',
         userId: 'user-456',
       },
@@ -86,8 +88,7 @@ describe('handleChatCommand outcome reporter', () => {
       enabled: true,
       endpoint: 'https://langfuse.example.test',
       llmBaseUrl: 'https://llm.example.test',
-      llmApiKey: 'llm-key',
-      proxyApiKeyEnv: process.env.SALMONLOOP_LANGFUSE_PROXY_API_KEY,
+      langfuseApiKey: 'langfuse-key',
     });
     const startChatCall = hoisted.reporterCalls[1]?.startChatMode as Record<string, unknown>;
     expect(startChatCall?.auditScope).toBe('user');

@@ -141,8 +141,7 @@ export async function handleServeCommand(_options: unknown, command: Command) {
     enabled: resolvedConfig.observability.langfuse.outcome,
     endpoint: resolvedConfig.observability.langfuse.endpoint,
     llmBaseUrl: resolvedConfig.llm.api.baseUrl,
-    llmApiKey: resolvedConfig.llm.api.apiKey,
-    proxyApiKeyEnv: process.env.SALMONLOOP_LANGFUSE_PROXY_API_KEY,
+    langfuseApiKey: resolvedConfig.observability.langfuse.apiKey,
   });
 
   const defaultAuthorizationProvider = createTerminalAuthorizationProvider({
@@ -341,8 +340,7 @@ export async function handleServeAcpCommand(_options: unknown, command: Command)
     enabled: resolvedConfig.observability.langfuse.outcome,
     endpoint: resolvedConfig.observability.langfuse.endpoint,
     llmBaseUrl: resolvedConfig.llm.api.baseUrl,
-    llmApiKey: resolvedConfig.llm.api.apiKey,
-    proxyApiKeyEnv: process.env.SALMONLOOP_LANGFUSE_PROXY_API_KEY,
+    langfuseApiKey: resolvedConfig.observability.langfuse.apiKey,
   });
 
   const defaultAuthorizationProvider = createTerminalAuthorizationProvider({

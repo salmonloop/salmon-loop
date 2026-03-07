@@ -27,6 +27,10 @@ function isBoolean(value: unknown): value is boolean {
   return typeof value === 'boolean';
 }
 
+function isNull(value: unknown): value is null {
+  return value === null;
+}
+
 function isValidLlmOutputKind(value: unknown): boolean {
   return typeof value === 'string' && (LLM_OUTPUT_KINDS as readonly string[]).includes(value);
 }
@@ -84,6 +88,11 @@ export function validateConfigFileV1(input: unknown): ConfigFileV1 {
       if (lf.endpoint !== undefined && !isString(lf.endpoint)) {
         throw new ConfigError('CONFIG_INVALID_LANGFUSE_ENDPOINT', { expected: 'string' });
       }
+      if (lf.apiKey !== undefined && !(isString(lf.apiKey) || isNull(lf.apiKey))) {
+        throw new ConfigError('CONFIG_INVALID_LANGFUSE_API_KEY', {
+          expected: 'string|null',
+        });
+      }
       if (lf.sessionId !== undefined && !isString(lf.sessionId)) {
         throw new ConfigError('CONFIG_INVALID_LANGFUSE_SESSION_ID', { expected: 'string' });
       }
@@ -93,6 +102,7 @@ export function validateConfigFileV1(input: unknown): ConfigFileV1 {
       out.enabled = lf.enabled as any;
       out.outcome = lf.outcome as any;
       out.endpoint = lf.endpoint as any;
+      out.apiKey = lf.apiKey as any;
       out.sessionId = lf.sessionId as any;
       out.userId = lf.userId as any;
       cfg.observability.langfuse = out;

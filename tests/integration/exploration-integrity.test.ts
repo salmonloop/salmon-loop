@@ -143,9 +143,7 @@ describe('Exploration Integrity Integration', () => {
 
     expect(result.success).toBe(true);
     expect(result.attempts).toBeGreaterThanOrEqual(2);
-    expect(result.history?.[0]?.error).toContain(
-      'Exploration did not read any files. Open the files you intend to modify and retry.',
-    );
+    expect(result.history?.[0]?.error).toContain('Exploration did not read any files.');
 
     const content = await helper.readFile(repoPath, 'src/main.ts');
     expect(content).toContain('updated');

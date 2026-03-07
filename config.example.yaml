@@ -20,6 +20,7 @@ observability:
     enabled: false
     outcome: false
     endpoint: https://your-litellm-host/langfuse/
+    api_key: null
     user_id: user-123
   audit:
     buffer:

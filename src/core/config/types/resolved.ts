@@ -103,6 +103,8 @@ export interface ResolvedConfig {
       enabled: boolean;
       outcome: boolean;
       endpoint?: string;
+      apiKey?: string;
+      apiKeySource: ApiKeySource;
       sessionId?: string;
       userId?: string;
     };

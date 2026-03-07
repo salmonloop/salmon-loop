@@ -1,6 +1,24 @@
 import { DEFAULT_AUDIT_BUFFER } from '../defaults.js';
 import { firstNonEmpty, parseBoolEnv } from '../resolve-env.js';
-import type { ConfigFileV1, LangfuseObservabilityConfigV1, ResolvedConfig } from '../types.js';
+import type {
+  ApiKeySource,
+  ConfigFileV1,
+  LangfuseObservabilityConfigV1,
+  ResolvedConfig,
+} from '../types.js';
+
+function resolveLangfuseApiKey(inlineKey: string | null | undefined): {
+  key?: string;
+  source: ApiKeySource;
+} {
+  const inline = firstNonEmpty(inlineKey);
+  if (inline) return { key: inline, source: 'inline' };
+
+  const envKey = firstNonEmpty(process.env.SALMONLOOP_LANGFUSE_API_KEY);
+  if (envKey) return { key: envKey, source: 'env' };
+
+  return { source: 'missing' };
+}
 
 export function resolveLangfuseObservability(
   raw?: ConfigFileV1,
@@ -16,13 +34,23 @@ export function resolveLangfuseObservability(
   const endpoint =
     firstNonEmpty(process.env.SALMONLOOP_LANGFUSE_PROXY_URL) ?? firstNonEmpty(cfg?.endpoint);
 
+  const resolvedApiKey = resolveLangfuseApiKey(cfg?.apiKey);
+
   const sessionId =
     firstNonEmpty(process.env.SALMONLOOP_LANGFUSE_SESSION_ID) ?? firstNonEmpty(cfg?.sessionId);
 
   const userId =
     firstNonEmpty(process.env.SALMONLOOP_LANGFUSE_USER_ID) ?? firstNonEmpty(cfg?.userId);
 
-  return { enabled, outcome, endpoint, sessionId, userId };
+  return {
+    enabled,
+    outcome,
+    endpoint,
+    apiKey: resolvedApiKey.key,
+    apiKeySource: resolvedApiKey.source,
+    sessionId,
+    userId,
+  };
 }
 
 export function resolveAuditBuffer(

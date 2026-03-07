@@ -158,6 +158,12 @@ export interface LangfuseObservabilityConfigV1 {
    */
   endpoint?: string;
   /**
+   * Optional auth key for Langfuse outcome reporting via the LiteLLM proxy route.
+   *
+   * This must NOT reuse the active LLM provider apiKey. Configure a dedicated key for the Langfuse proxy.
+   */
+  apiKey?: string | null;
+  /**
    * Optional Langfuse sessionId. If set, multiple SalmonLoop runs can be grouped into a single Langfuse Session.
    */
   sessionId?: string;

@@ -413,6 +413,7 @@ Config example:
       "enabled": true,
       "outcome": true,
       "endpoint": "https://your-litellm-host/langfuse/",
+      "apiKey": "langfuse-proxy-key",
       "userId": "user-123"
     }
   }
@@ -427,6 +428,8 @@ Notes:
   you explicitly set `observability.langfuse.endpoint`.
 - `enabled` controls Langfuse correlation headers on _LLM_ calls (spans/tokens). `outcome` controls the end-of-run ingestion
   request (scores + `metadata.salmonloop.*`). You can enable either independently.
+- `observability.langfuse.apiKey` is an optional auth key used for the outcome ingestion call to the LiteLLM `/langfuse/*`
+  proxy route. Configure a dedicated key for the proxy; do not reuse the active LLM provider apiKey.
 - If `sessionId` is omitted, chat mode auto-uses the local chat session ID; run mode leaves it unset.
 - `sessionId` is mainly an **override** for special cases (e.g. CI batch runs / eval suites where you want many runs grouped);
   in normal interactive chat you should not set it manually.
@@ -436,9 +439,9 @@ Environment variable overrides:
 - `SALMONLOOP_LANGFUSE`: override `observability.langfuse.enabled`
 - `SALMONLOOP_LANGFUSE_OUTCOME`: override `observability.langfuse.outcome`
 - `SALMONLOOP_LANGFUSE_PROXY_URL`: override `observability.langfuse.endpoint` (can be either a root URL or a full `/langfuse/` endpoint)
+- `SALMONLOOP_LANGFUSE_API_KEY`: override `observability.langfuse.apiKey` (optional; used for outcome ingestion auth)
 - `SALMONLOOP_LANGFUSE_SESSION_ID`: override `observability.langfuse.sessionId`
 - `SALMONLOOP_LANGFUSE_USER_ID`: override `observability.langfuse.userId`
-- `SALMONLOOP_LANGFUSE_PROXY_API_KEY`: optional auth key for outcome reporting (defaults to the active LLM apiKey)
 - `SALMONLOOP_LANGFUSE_RELEASE`: optional release string attached to traces (useful for regressions)
 
 ## `client.package` (Optional)

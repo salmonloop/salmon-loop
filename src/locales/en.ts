@@ -477,6 +477,8 @@ Please return the patch in PURE unified diff format:`;
           return 'Config observability.langfuse.outcome must be a boolean';
         case 'CONFIG_INVALID_LANGFUSE_ENDPOINT':
           return 'Config observability.langfuse.endpoint must be a string';
+        case 'CONFIG_INVALID_LANGFUSE_API_KEY':
+          return 'Config observability.langfuse.apiKey must be a string or null';
         case 'CONFIG_INVALID_LANGFUSE_SESSION_ID':
           return 'Config observability.langfuse.sessionId must be a string';
         case 'CONFIG_INVALID_LANGFUSE_USER_ID':
