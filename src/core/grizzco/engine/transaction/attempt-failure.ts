@@ -52,11 +52,10 @@ function inferFailurePhase(flowReport: FlowReport): ExecutionPhase {
 
 function extractErrorCode(error: unknown): string | undefined {
   if (typeof error === 'object' && error !== null) {
-    return (
-      (error as { llmCode?: string; code?: string; name?: string }).llmCode ??
-      (error as { llmCode?: string; code?: string; name?: string }).code ??
-      (error as { llmCode?: string; code?: string; name?: string }).name
-    );
+    const err = error as { llmCode?: string; code?: string; name?: string; errorCode?: string };
+    // Prioritize code (from SalmonError) for better specificity
+    // SalmonError stores the error code in the 'code' property
+    return err.llmCode ?? err.code ?? err.errorCode ?? err.name;
   }
   return undefined;
 }

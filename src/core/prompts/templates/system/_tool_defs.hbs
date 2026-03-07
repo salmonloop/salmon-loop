@@ -1,36 +1,60 @@
 {{! Tool definitions for LLM context }}
 {{#if tools}}
-  ## Available Tools You have access to the following tools to help complete your tasks:
+## Available Tools
 
-  {{#each tools}}
-    ###
-    {{this.name}}
-    **Description**:
-    {{this.description}}
-    **Source**:
-    {{this.source}}
-    **Intent**:
-    {{this.intent}}
-    **Risk Level**:
-    {{this.riskLevel}}
-    **Side Effects**:
-    {{#each this.sideEffects}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}
-    **Allowed Phases**:
-    {{#each this.allowedPhases}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}
-    {{#if this.defaultTimeoutMs}}**Timeout**: {{this.defaultTimeoutMs}}ms{{/if}}
+You have access to the following tools to help complete your tasks:
 
-    **Input Schema**: ```json
-    {{{json this.inputSchema}}}
-    ``` **Output Schema**: ```json
-    {{{json this.outputSchema}}}
-    ```
+{{#each tools}}
+### {{this.name}}
 
-  {{/each}}
+**Description**: {{this.description}}
 
-  ## Tool Usage Guidelines - Only call tools that are allowed in the current execution phase -
-  Respect side effect declarations and risk levels - Tool calls will be validated against input
-  schemas before execution - High-risk tools may require additional confirmation
+**Source**: {{this.source}}
 
+**Intent**: {{this.intent}}
+
+**Risk Level**: {{this.riskLevel}}
+
+**Side Effects**: {{#each this.sideEffects}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}
+
+**Allowed Phases**: {{#each this.allowedPhases}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}
+
+{{#if this.defaultTimeoutMs}}**Timeout**: {{this.defaultTimeoutMs}}ms{{/if}}
+
+**Input Schema**:
+```json
+{{{json this.inputSchema}}}
+```
+
+**Output Schema**:
+```json
+{{{json this.outputSchema}}}
+```
+
+{{#if this.examples}}
+**Usage Examples**:
+{{#each this.examples}}
+- {{this.description}}:
+  ```json
+  {{{json this.input}}}
+  ```
+  {{#if this.output}}
+  **Output**:
+  ```json
+  {{{json this.output}}}
+  ```
+  {{/if}}
+{{/each}}
+{{/if}}
+
+{{/each}}
+
+## Tool Usage Guidelines
+
+- Only call tools that are allowed in the current execution phase
+- Respect side effect declarations and risk levels
+- Tool calls will be validated against input schemas before execution
+- High-risk tools may require additional confirmation
 {{else}}
-  {{! No tools registered - this is expected during initialization or testing }}
+{{! No tools registered - this is expected during initialization or testing }}
 {{/if}}

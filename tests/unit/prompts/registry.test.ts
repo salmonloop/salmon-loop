@@ -324,5 +324,104 @@ describe('PromptRegistry', () => {
       expect(output).toContain('"file"');
       expect(output).toContain('Relative path to file');
     });
+
+    describe('Tool Examples', () => {
+      it('should render tool examples when available', async () => {
+        const registry = newRegistry();
+        await registry.init();
+        const mockTool: ToolSpec = {
+          name: 'git.cat',
+          source: 'builtin',
+          intent: 'READ',
+          description: 'Read file from git',
+          riskLevel: 'low',
+          sideEffects: ['git_read'],
+          concurrency: 'parallel_ok',
+          allowedPhases: ['PLAN'],
+          inputSchema: z.object({ file: z.string() }),
+          outputSchema: z.object({ content: z.string() }),
+          executor: async () => ({ content: '' }),
+          examples: [
+            {
+              description: 'Read from HEAD',
+              input: { file: 'src/main.ts', ref: 'HEAD' },
+              output: { content: '<content>', file: 'src/main.ts', ref: 'HEAD' },
+            },
+          ],
+        };
+        registry.setTools([mockTool]);
+        const output = registry.renderPlanSystem();
+        expect(output).toContain('Usage Examples');
+        expect(output).toContain('Read from HEAD');
+        expect(output).toContain('src/main.ts');
+        expect(output).toContain('HEAD');
+      });
+
+      it('should not render usage examples section if examples array is empty', async () => {
+        const registry = newRegistry();
+        await registry.init();
+        const mockTool: ToolSpec = {
+          name: 'fs.read',
+          source: 'builtin',
+          intent: 'READ',
+          description: 'Read file',
+          riskLevel: 'low',
+          sideEffects: ['fs_read'],
+          concurrency: 'parallel_ok',
+          allowedPhases: ['PLAN'],
+          inputSchema: z.object({ file: z.string() }),
+          outputSchema: z.object({ content: z.string() }),
+          executor: async () => ({ content: '' }),
+          examples: [],
+        };
+        registry.setTools([mockTool]);
+        const output = registry.renderPlanSystem();
+        expect(output).not.toContain('Usage Examples');
+      });
+
+      it('should not render usage examples section if examples is undefined', async () => {
+        const registry = newRegistry();
+        await registry.init();
+        const mockTool: ToolSpec = {
+          name: 'code.search',
+          source: 'builtin',
+          intent: 'SEARCH',
+          description: 'Search code',
+          riskLevel: 'low',
+          sideEffects: ['fs_read'],
+          concurrency: 'parallel_ok',
+          allowedPhases: ['PLAN'],
+          inputSchema: z.object({ pattern: z.string() }),
+          outputSchema: z.object({ matches: z.array(z.any()) }),
+          executor: async () => ({ matches: [] }),
+        };
+        registry.setTools([mockTool]);
+        const output = registry.renderPlanSystem();
+        expect(output).not.toContain('Usage Examples');
+      });
+
+      it('should access examples field without type assertions', async () => {
+        const registry = newRegistry();
+        await registry.init();
+        const mockTool: ToolSpec = {
+          name: 'test.tool',
+          source: 'builtin',
+          intent: 'READ',
+          description: 'Test tool',
+          riskLevel: 'low',
+          sideEffects: ['none'],
+          concurrency: 'parallel_ok',
+          allowedPhases: ['PLAN'],
+          inputSchema: z.object({}),
+          outputSchema: z.object({}),
+          executor: async () => ({}),
+          examples: [{ description: 'Test', input: {} }],
+        };
+        registry.setTools([mockTool]);
+        const output = registry.renderPlanSystem();
+        expect(output).toContain('Usage Examples');
+        expect(output).toContain('Test');
+      });
+    });
   });
 });

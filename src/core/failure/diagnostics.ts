@@ -134,15 +134,23 @@ function buildErrorCodeGuidance(input: BuildFailureGuidanceInput): FailureGuidan
       return {
         diagnosticCode: 'NO_FILES_READ',
         safeHint:
-          'Exploration did not read any files. Open the files you intend to modify and retry.',
-        remediationSteps: ['Explicitly open or reference target files, then retry.'],
+          'Exploration did not read any files. Your instruction may be too vague (for example, "review my code"). Please specify the exact file(s) or scope you want to work with.',
+        remediationSteps: [
+          'Explicitly open the target file(s) in your editor, or reference them in your instruction (for example: "review src/main.ts").',
+          'If you want to review recent changes, try "review the last committed files" or "review git diff".',
+          'Retry the command after opening or referencing the specific files.',
+        ],
       };
     case 'explorationHallucination':
       return {
         diagnosticCode: 'EXPLORATION_HALLUCINATION',
         safeHint:
-          'Exploration found candidate files but did not read their contents. Open the target files and retry.',
-        remediationSteps: ['Open or reference the intended files so they can be read.'],
+          'Exploration found candidate files via search but did not read them. This usually happens when the instruction is ambiguous (e.g., "review my code" without specifying which files).',
+        remediationSteps: [
+          'Open the specific file(s) you want to work with in your editor, or reference them explicitly in your instruction.',
+          'If you saw file names in search results, try: "review <file-path>" or "analyze <file-path>".',
+          'For ambiguous instructions like "review my code", the agent needs you to clarify which files or scope to focus on.',
+        ],
       };
     case 'PATCH_NOT_APPLICABLE':
       return {

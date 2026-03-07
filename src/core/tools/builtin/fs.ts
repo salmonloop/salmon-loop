@@ -88,16 +88,13 @@ export const fsReadFileSpec: Omit<ToolSpec, 'executor'> = {
   name: 'fs.read',
   source: 'builtin',
   intent: 'READ',
-  description: text.tools.fsReadDescription,
+  description: `${text.tools.fsReadDescription} IMPORTANT: The file parameter must be a relative path (e.g., "src/main.ts"). Do NOT use absolute paths or paths with "..".`,
   riskLevel: 'low',
   sideEffects: ['fs_read'],
   concurrency: 'parallel_ok',
   computeResources: (input, ctx) => [pathPrefixResource(ctx, input.file)],
   inputSchema: fsReadInputSchema,
-  outputSchema: z.object({
-    content: z.string(),
-    size: z.number(),
-  }),
+  outputSchema: z.object({ content: z.string(), size: z.number() }),
   allowedPhases: [
     Phase.SLASH,
     Phase.CONTEXT,
@@ -106,6 +103,23 @@ export const fsReadFileSpec: Omit<ToolSpec, 'executor'> = {
     Phase.PATCH,
     Phase.VERIFY,
     Phase.SHRINK,
+  ],
+  examples: [
+    {
+      description: 'Read a source file',
+      input: { file: 'src/main.ts' },
+      output: { content: '<file content>', size: 1234 },
+    },
+    {
+      description: 'Read configuration file',
+      input: { file: 'package.json' },
+      output: { content: '<file content>', size: 1234 },
+    },
+    {
+      description: 'Read README documentation',
+      input: { file: 'README.md' },
+      output: { content: '<file content>', size: 6789 },
+    },
   ],
 };
 

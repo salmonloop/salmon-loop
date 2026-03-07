@@ -112,6 +112,8 @@ export class PromptRegistry {
       // Convert Zod schemas to JSON Schema for LLM consumption
       inputSchema: this.zodToJsonSchema(spec.inputSchema),
       outputSchema: this.zodToJsonSchema(spec.outputSchema),
+      // Include usage examples if available
+      examples: spec.examples,
     }));
   }
 

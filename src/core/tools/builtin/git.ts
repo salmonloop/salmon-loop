@@ -11,7 +11,7 @@ export const gitCatSpec: Omit<ToolSpec, 'executor'> = {
   name: 'git.cat',
   source: 'builtin',
   intent: 'READ',
-  description: text.tools.gitCatDescription,
+  description: `${text.tools.gitCatDescription} IMPORTANT: The file parameter must be a relative path (e.g., "src/main.ts"). Do NOT use absolute paths or paths with "..".`,
   riskLevel: 'low',
   sideEffects: ['git_read'],
   concurrency: 'parallel_ok',
@@ -26,6 +26,23 @@ export const gitCatSpec: Omit<ToolSpec, 'executor'> = {
     ref: z.string(),
   }),
   allowedPhases: [Phase.SLASH, Phase.CONTEXT],
+  examples: [
+    {
+      description: 'Read a file from HEAD revision',
+      input: { file: 'src/main.ts', ref: 'HEAD' },
+      output: { content: '<file content>', file: 'src/main.ts', ref: 'HEAD' },
+    },
+    {
+      description: 'Read a file from a specific tag',
+      input: { file: 'README.md', ref: 'v1.0.0' },
+      output: { content: '<file content>', file: 'README.md', ref: 'v1.0.0' },
+    },
+    {
+      description: 'Read a file using default ref (HEAD)',
+      input: { file: 'package.json' },
+      output: { content: '<file content>', file: 'package.json', ref: 'HEAD' },
+    },
+  ],
 };
 
 /**

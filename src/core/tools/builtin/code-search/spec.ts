@@ -74,4 +74,18 @@ export const CodeSearchSpec: Omit<ToolSpec<CodeSearchInputT, CodeSearchOutputT>,
   allowedPhases: [Phase.SLASH, Phase.CONTEXT, Phase.EXPLORE, Phase.PLAN, Phase.PATCH, Phase.VERIFY],
   inputSchema: CodeSearchInput,
   outputSchema: CodeSearchOutput,
+  examples: [
+    {
+      description: 'Search for a function name',
+      input: { pattern: 'function main' },
+    },
+    {
+      description: 'Search with file filter',
+      input: { pattern: 'console.log', glob: '*.ts' },
+    },
+    {
+      description: 'Regex search',
+      input: { pattern: 'export\\s+default', isRegex: true },
+    },
+  ],
 };

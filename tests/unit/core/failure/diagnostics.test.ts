@@ -86,10 +86,10 @@ describe('buildFailureGuidance', () => {
     });
 
     expect(guidance.safeHint).toBe(
-      'Exploration did not read any files. Open the files you intend to modify and retry.',
+      'Exploration did not read any files. Your instruction may be too vague (for example, "review my code"). Please specify the exact file(s) or scope you want to work with.',
     );
     expect(guidance.remediationSteps).toContain(
-      'Explicitly open or reference target files, then retry.',
+      'Explicitly open the target file(s) in your editor, or reference them in your instruction (for example: "review src/main.ts").',
     );
   });
 

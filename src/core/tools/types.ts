@@ -65,11 +65,26 @@ export interface ToolRuntimeCtx {
 export const TOOL_INTENTS = ['READ', 'SEARCH', 'LIST', 'WRITE', 'INFRA', 'AGENT'] as const;
 export type ToolIntent = (typeof TOOL_INTENTS)[number];
 
+/**
+ * Represents a single usage example for a tool.
+ * Examples help LLMs understand the correct way to invoke tools
+ * and the expected input/output formats.
+ */
+export interface ToolExample {
+  /** Human-readable description of what this example demonstrates */
+  description: string;
+  /** The input arguments passed to the tool */
+  input: Record<string, unknown>;
+  /** Optional example output. Use placeholders like "<content>" for dynamic data */
+  output?: Record<string, unknown>;
+}
+
 export interface ToolSpecDescriptor {
   name: string; // e.g. "code.search"
   source: ToolSource; // builtin/mcp/plugin
   intent: ToolIntent; // Semantic intent of the tool
   description: string;
+  examples?: ToolExample[];
 }
 
 export interface ToolSpecGovernance {
