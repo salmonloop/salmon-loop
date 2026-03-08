@@ -23,6 +23,7 @@ export const en = {
     httpInvalidJson: 'LLM returned a malformed JSON response',
     httpAborted: 'LLM request was aborted',
     httpRequestFailed: 'LLM request failed',
+    contextLengthExceeded: 'LLM prompt exceeds the model context length.',
   },
 
   errors: {

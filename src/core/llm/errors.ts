@@ -5,6 +5,7 @@ export type LlmErrorCode =
   | 'LLM_HTTP_RESPONSE_INVALID_JSON'
   | 'LLM_HTTP_ABORTED'
   | 'LLM_HTTP_REQUEST_FAILED'
+  | 'LLM_CONTEXT_LENGTH_EXCEEDED'
   | 'LLM_PLAN_EMPTY'
   | 'LLM_PLAN_INVALID_JSON'
   | 'LLM_PATCH_EMPTY'
@@ -172,7 +173,34 @@ export function toLlmError(err: unknown, provider?: string): LlmError {
   }
 
   // Use a generic message for all other HTTP failures
+  if (
+    isContextLengthExceeded({
+      statusCode: meta.statusCode,
+      providerMessage: meta.providerMessage,
+    })
+  ) {
+    return new LlmError('LLM context length exceeded', 'LLM_CONTEXT_LENGTH_EXCEEDED', meta);
+  }
+
   return new LlmError('LLM request failed', 'LLM_HTTP_REQUEST_FAILED', meta);
+}
+
+function isContextLengthExceeded(input: {
+  statusCode?: number;
+  providerMessage?: string;
+}): boolean {
+  if (input.statusCode !== 400 && input.statusCode !== 413) return false;
+  const msg = (input.providerMessage ?? '').toLowerCase();
+  if (!msg) return false;
+  return (
+    msg.includes('maximum context length') ||
+    msg.includes('context length') ||
+    msg.includes('too many tokens') ||
+    msg.includes('prompt is too long') ||
+    msg.includes('input is too long') ||
+    msg.includes('reduce the length') ||
+    msg.includes('please reduce')
+  );
 }
 
 export function wrapPlanEmpty(): LlmError {

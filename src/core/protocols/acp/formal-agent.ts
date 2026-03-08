@@ -28,6 +28,7 @@ import {
 import { defaultPathAdapter } from '../../adapters/path/path-adapter.js';
 import type { TaskEvent } from '../../interaction/events/bus.js';
 import type { TaskEnvelope } from '../../interaction/model/index.js';
+import { inferTurnStopReasonFromFailure } from '../../interaction/turn-stop-reason.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
 import { readPlan } from '../../plan/index.js';
 import type { CommandRunner } from '../../runtime/command-runner-context.js';
@@ -1460,6 +1461,8 @@ export function createAcpFormalAgent(deps: {
         const failureMessage =
           typeof latest?.failure?.message === 'string' ? latest.failure.message : undefined;
         assistantText = failureMessage ? `Task failed: ${failureMessage}` : 'Task failed.';
+        const inferred = inferTurnStopReasonFromFailure(latest?.failure);
+        if (inferred) stopReason = inferred;
       } else if (terminalEvent?.type === 'task.awaiting_input') {
         assistantText = 'Task awaiting input.';
         latest = await deps.facade.getTask(task.id);
