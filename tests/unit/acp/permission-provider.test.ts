@@ -58,6 +58,32 @@ describe('ACP permission provider', () => {
     expect(decision.outcome).toBe('deny');
   });
 
+  it('ignores client capability matrix when enforcement is disabled', async () => {
+    const provider = createAcpToolAuthorizationProvider({
+      conn: {
+        requestPermission: async () => ({
+          outcome: { outcome: 'selected', optionId: 'allow_once' },
+        }),
+      } as any,
+      sessionId: 'sess_1',
+      clientCapabilities: {
+        fs: { readTextFile: false, writeTextFile: false },
+        terminal: false,
+      } as any,
+      enforceClientCapabilities: false,
+    });
+
+    const decision = await provider.requestAuthorization({
+      id: 'req-1',
+      toolName: 'terminal.exec',
+      argsSummary: 'echo hi',
+      riskLevel: 'low',
+      sideEffects: ['process'],
+    } as any);
+
+    expect(decision.outcome).not.toBe('deny');
+  });
+
   it('denies side-effecting tools when session config sets deny_all policy', async () => {
     const requestPermission = mock(
       async () => ({ outcome: { outcome: 'selected', optionId: 'allow_once' } }) as any,

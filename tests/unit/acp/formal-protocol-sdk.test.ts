@@ -139,6 +139,8 @@ describe('ACP formal protocol (SDK)', () => {
 
     const res = await clientConn.loadSession({ sessionId, cwd: '/repo', mcpServers: [] });
     expect(Array.isArray(res.configOptions)).toBe(true);
+    expect(res.modes).toMatchObject({ currentModeId: 'interactive' });
+    expect(Array.isArray(res.modes?.availableModes)).toBe(true);
     expect(Object.prototype.hasOwnProperty.call(res, 'sessionId')).toBe(false);
     expect(Array.isArray(updates)).toBe(true);
   });
@@ -335,7 +337,8 @@ describe('ACP formal protocol (SDK)', () => {
     expect((res as any)?._meta?.salmonloop?.latestCheckpointId).toBe('cp-new');
   });
 
-  it('returns -32601 when session/set_mode is called but mode capability is not provided', async () => {
+  it('supports session/set_mode and emits current_mode_update', async () => {
+    const updates: any[] = [];
     const { clientConn } = createConnectedPair({
       toAgent: (conn) =>
         createAcpFormalAgent({
@@ -357,7 +360,9 @@ describe('ACP formal protocol (SDK)', () => {
         }),
       toClient: () => ({
         requestPermission: async () => ({ outcome: { outcome: 'cancelled' } }),
-        sessionUpdate: async () => {},
+        sessionUpdate: async (params: any) => {
+          updates.push(params.update);
+        },
       }),
     });
 
@@ -368,9 +373,15 @@ describe('ACP formal protocol (SDK)', () => {
 
     const { sessionId } = await clientConn.newSession({ cwd: '/repo', mcpServers: [] });
 
-    await expect(
-      clientConn.setSessionMode({ sessionId, modeId: 'worktree' }),
-    ).rejects.toMatchObject({ code: -32601 });
+    await expect(clientConn.setSessionMode({ sessionId, modeId: 'yolo' })).resolves.toBeDefined();
+    expect(
+      updates.some(
+        (update) =>
+          update?.sessionUpdate === 'current_mode_update' && update?.currentModeId === 'yolo',
+      ),
+    ).toBe(true);
+    const res = await clientConn.loadSession({ sessionId, cwd: '/repo', mcpServers: [] });
+    expect(res.modes).toMatchObject({ currentModeId: 'yolo' });
   });
 
   it('includes configOptions in session/new response', async () => {
@@ -406,6 +417,7 @@ describe('ACP formal protocol (SDK)', () => {
 
     const response = await clientConn.newSession({ cwd: '/repo', mcpServers: [] });
     expect(response.configOptions).toBeArray();
+    expect(response.modes).toMatchObject({ currentModeId: 'interactive' });
     expect(response.configOptions?.[0]).toMatchObject({
       type: 'select',
       id: '_salmonloop_permission_policy',
@@ -510,7 +522,8 @@ describe('ACP formal protocol (SDK)', () => {
     ).rejects.toMatchObject({ code: -32602 });
   });
 
-  it('fails session/prompt when clientCapabilities.terminal is false', async () => {
+  it('does not require terminal capability for local execution binding', async () => {
+    let createTaskCalled = false;
     const { clientConn } = createConnectedPair({
       toAgent: (conn) =>
         createAcpFormalAgent({
@@ -518,7 +531,18 @@ describe('ACP formal protocol (SDK)', () => {
           agentInfo: { name: 'salmon-loop', version: '0.2.0' },
           facade: {
             createTask: async () => {
-              throw new Error('should not be reached');
+              createTaskCalled = true;
+              return {
+                task: {
+                  id: 'task_1',
+                  capability: 'patch',
+                  state: 'accepted',
+                  request: { instruction: 'hi' },
+                  createdAt: new Date().toISOString(),
+                  attempt: 1,
+                },
+                signal: new AbortController().signal,
+              };
             },
             getTask: async () => null,
             cancelTask: async () => null,
@@ -548,7 +572,8 @@ describe('ACP formal protocol (SDK)', () => {
         sessionId,
         prompt: [{ type: 'text', text: 'hi' }],
       }),
-    ).rejects.toMatchObject({ code: -32000 });
+    ).resolves.toBeDefined();
+    expect(createTaskCalled).toBe(true);
   });
 
   it('uses local execution binding by default (no ACP command runner/filesystem)', async () => {
@@ -611,15 +636,30 @@ describe('ACP formal protocol (SDK)', () => {
     expect(observedRepoPath).toBe('/repo');
   });
 
-  it('fails session/prompt when clientCapabilities.fs.readTextFile is false', async () => {
+  it('falls back to local binding when executionBinding=client but client capabilities are missing', async () => {
+    let sawCommandRunner = false;
+    let sawFileSystemOverride = false;
     const { clientConn } = createConnectedPair({
       toAgent: (conn) =>
         createAcpFormalAgent({
           conn,
           agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+          executionBinding: 'client',
           facade: {
-            createTask: async () => {
-              throw new Error('should not be reached');
+            createTask: async (input: any) => {
+              sawCommandRunner = Boolean(input.commandRunner);
+              sawFileSystemOverride = Boolean(input.fileSystemOverride);
+              return {
+                task: {
+                  id: 'task_1',
+                  capability: 'patch',
+                  state: 'accepted',
+                  request: { instruction: input.request.instruction },
+                  createdAt: new Date().toISOString(),
+                  attempt: 1,
+                },
+                signal: new AbortController().signal,
+              };
             },
             getTask: async () => null,
             cancelTask: async () => null,
@@ -639,7 +679,7 @@ describe('ACP formal protocol (SDK)', () => {
 
     await clientConn.initialize({
       protocolVersion: 1,
-      clientCapabilities: { fs: { readTextFile: false, writeTextFile: true }, terminal: true },
+      clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: false },
     });
 
     const { sessionId } = await clientConn.newSession({ cwd: '/repo', mcpServers: [] });
@@ -649,7 +689,9 @@ describe('ACP formal protocol (SDK)', () => {
         sessionId,
         prompt: [{ type: 'text', text: 'hi' }],
       }),
-    ).rejects.toMatchObject({ code: -32000 });
+    ).resolves.toBeDefined();
+    expect(sawCommandRunner).toBe(false);
+    expect(sawFileSystemOverride).toBe(false);
   });
 
   it('can use ACP execution binding when explicitly enabled', async () => {
@@ -893,6 +935,72 @@ describe('ACP formal protocol (SDK)', () => {
     );
     expect(Array.isArray(start?.content)).toBe(true);
     expect(Array.isArray(end?.content)).toBe(true);
+  });
+
+  it('emits agent_thought_chunk for non-assistant LLM output kinds', async () => {
+    const updates: any[] = [];
+
+    const { clientConn } = createConnectedPair({
+      toAgent: (conn) =>
+        createAcpFormalAgent({
+          conn,
+          agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+          facade: {
+            createTask: async (input: any) => {
+              input.onEvent?.({
+                type: 'llm.stream.delta',
+                kind: 'review',
+                step: 'REVIEW',
+                streamId: 'stream_1',
+                content: 'internal reasoning',
+                timestamp: new Date(),
+              });
+              return {
+                task: {
+                  id: 'task_1',
+                  capability: 'patch',
+                  state: 'accepted',
+                  request: { instruction: input.request.instruction },
+                  createdAt: new Date().toISOString(),
+                  attempt: 1,
+                },
+                signal: new AbortController().signal,
+              };
+            },
+            getTask: async () => null,
+            cancelTask: async () => null,
+            resumeTask: async () => null,
+            retryTask: async () => null,
+            reopenTask: async () => null,
+            listTasks: async () => ({ items: [] }),
+            submitInput: async () => null,
+            getArtifact: async () => null,
+          },
+        }),
+      toClient: () => ({
+        requestPermission: async () => ({ outcome: { outcome: 'cancelled' } }),
+        sessionUpdate: async (params: any) => {
+          updates.push(params.update);
+        },
+      }),
+    });
+
+    await clientConn.initialize({
+      protocolVersion: 1,
+      clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
+    });
+
+    const { sessionId } = await clientConn.newSession({ cwd: '/repo', mcpServers: [] });
+    await clientConn.prompt({ sessionId, prompt: [{ type: 'text', text: 'hi' }] });
+
+    expect(
+      updates.some(
+        (u) =>
+          u.sessionUpdate === 'agent_thought_chunk' &&
+          u.content?.type === 'text' &&
+          u.content?.text?.includes('internal reasoning'),
+      ),
+    ).toBe(true);
   });
 
   it('accepts resource_link prompt blocks and forwards them into instruction text', async () => {

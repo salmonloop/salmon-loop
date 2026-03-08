@@ -10,6 +10,30 @@ const DEFAULT_PARALLELISM = 4;
 const DEFAULT_PRELOAD = path.join('tests', 'setup-bun.ts');
 const DEFAULT_TEST_TIMEOUT_MS = 30_000;
 
+let outputBroken = false;
+
+function isEpipeError(error: unknown): boolean {
+  return Boolean(
+    error &&
+    typeof error === 'object' &&
+    'code' in error &&
+    (error as { code?: unknown }).code === 'EPIPE',
+  );
+}
+
+function safeWrite(stream: NodeJS.WritableStream, text: string): void {
+  if (outputBroken) return;
+  try {
+    stream.write(text);
+  } catch (error) {
+    if (isEpipeError(error)) {
+      outputBroken = true;
+      return;
+    }
+    throw error;
+  }
+}
+
 function isTestFile(name: string): boolean {
   return /\.(?:test|bench)\.(?:ts|tsx|js|jsx)$/.test(name);
 }
@@ -88,6 +112,21 @@ async function main() {
     throw new Error('Usage: bun scripts/run-bun-file-tests.ts <dir> [...dirs]');
   }
 
+  process.stdout.on('error', (error) => {
+    if (isEpipeError(error)) {
+      outputBroken = true;
+      return;
+    }
+    throw error;
+  });
+  process.stderr.on('error', (error) => {
+    if (isEpipeError(error)) {
+      outputBroken = true;
+      return;
+    }
+    throw error;
+  });
+
   const repoRoot = process.cwd();
   const preloadPath = path.join(repoRoot, DEFAULT_PRELOAD);
   const timeoutMs = Number(process.env.BUN_FILE_TEST_TIMEOUT_MS || DEFAULT_TIMEOUT_MS);
@@ -107,7 +146,8 @@ async function main() {
   }
 
   const parallelism = resolveParallelism(allFiles.length);
-  process.stdout.write(
+  safeWrite(
+    process.stdout,
     `\nRunning ${allFiles.length} files under bun:test with parallelism=${parallelism}...\n`,
   );
 
@@ -119,7 +159,8 @@ async function main() {
         const index = cursor++;
         if (index >= allFiles.length) break;
         const file = allFiles[index];
-        process.stdout.write(
+        safeWrite(
+          process.stdout,
           `\n[file ${index + 1}/${allFiles.length} | worker ${workerIndex + 1}] ${file}\n`,
         );
         const code = await runSingleTestFile(
@@ -138,15 +179,15 @@ async function main() {
   );
 
   if (failedFiles.length > 0) {
-    process.stderr.write('\nBun file tests failed in:\n');
+    safeWrite(process.stderr, '\nBun file tests failed in:\n');
     for (const file of failedFiles) {
-      process.stderr.write(`- ${file}\n`);
+      safeWrite(process.stderr, `- ${file}\n`);
     }
     process.exitCode = 1;
     return;
   }
 
-  process.stdout.write(`\nAll ${allFiles.length} files passed under bun:test.\n`);
+  safeWrite(process.stdout, `\nAll ${allFiles.length} files passed under bun:test.\n`);
   process.exitCode = 0;
 }
 

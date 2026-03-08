@@ -248,6 +248,7 @@ export async function handleServeCommand(_options: unknown, command: Command) {
       createAcpFormalAgent({
         conn,
         agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+        defaultModeId: resolvedConfig.permissionMode,
         checkpointReader: {
           listBySession: async ({ repoPath, sessionId, limit }) =>
             await checkpointService.list({ repoPath, sessionId, limit }),
@@ -403,6 +404,7 @@ export async function handleServeAcpCommand(_options: unknown, command: Command)
     createAcpFormalAgent({
       conn,
       agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+      defaultModeId: resolvedConfig.permissionMode,
       checkpointReader: {
         listBySession: async ({ repoPath, sessionId, limit }) =>
           await checkpointService.list({ repoPath, sessionId, limit }),

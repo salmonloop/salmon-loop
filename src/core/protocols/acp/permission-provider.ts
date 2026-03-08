@@ -53,32 +53,43 @@ export function createAcpToolAuthorizationProvider(params: {
   conn: AgentSideConnection;
   sessionId: string;
   clientCapabilities: ClientCapabilities;
-  getPermissionPolicy?: () => 'ask' | 'deny_all';
+  getPermissionPolicy?: () => 'ask' | 'deny_all' | 'allow_all';
+  enforceClientCapabilities?: boolean;
 }): ToolAuthorizationProvider {
   return {
     async requestAuthorization(request: ToolAuthorizationRequest) {
-      if (request.sideEffects.includes('fs_read') && !params.clientCapabilities.fs?.readTextFile) {
-        return {
-          outcome: 'deny',
-          reason: 'client_missing_capability: fs.readTextFile',
-          source: 'auto',
-        };
+      const enforceClientCapabilities = params.enforceClientCapabilities ?? true;
+      if (enforceClientCapabilities) {
+        if (
+          request.sideEffects.includes('fs_read') &&
+          !params.clientCapabilities.fs?.readTextFile
+        ) {
+          return {
+            outcome: 'deny',
+            reason: 'client_missing_capability: fs.readTextFile',
+            source: 'auto',
+          };
+        }
+        if (
+          request.sideEffects.includes('fs_write') &&
+          !params.clientCapabilities.fs?.writeTextFile
+        ) {
+          return {
+            outcome: 'deny',
+            reason: 'client_missing_capability: fs.writeTextFile',
+            source: 'auto',
+          };
+        }
+        if (request.sideEffects.includes('process') && !params.clientCapabilities.terminal) {
+          return { outcome: 'deny', reason: 'client_missing_capability: terminal', source: 'auto' };
+        }
       }
-      if (
-        request.sideEffects.includes('fs_write') &&
-        !params.clientCapabilities.fs?.writeTextFile
-      ) {
-        return {
-          outcome: 'deny',
-          reason: 'client_missing_capability: fs.writeTextFile',
-          source: 'auto',
-        };
-      }
-      if (request.sideEffects.includes('process') && !params.clientCapabilities.terminal) {
-        return { outcome: 'deny', reason: 'client_missing_capability: terminal', source: 'auto' };
+      const permissionPolicy = params.getPermissionPolicy?.() ?? 'ask';
+      if (permissionPolicy === 'allow_all') {
+        return { outcome: 'allow_session', source: 'auto', reason: 'session_mode:yolo' };
       }
       const hasSideEffects = request.sideEffects.some((effect) => effect !== 'fs_read');
-      if (params.getPermissionPolicy?.() === 'deny_all' && hasSideEffects) {
+      if (permissionPolicy === 'deny_all' && hasSideEffects) {
         return { outcome: 'deny', reason: 'session_config:deny_all', source: 'auto' };
       }
 

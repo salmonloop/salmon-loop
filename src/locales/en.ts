@@ -106,6 +106,15 @@ export const en = {
     askUserOptionsHeader: 'Options:',
     askUserOption: (label: string, description: string) => `- ${label}: ${description}`,
     askUserMultiSelectHint: 'Multi-select enabled (comma-separated answers)',
+    permissionPolicyName: 'Permission policy',
+    permissionPolicyDescription:
+      'How side-effecting operations should be authorized for this session.',
+    permissionPolicyAskName: 'Ask user',
+    permissionPolicyAskDescription: 'Request user permission for side-effecting operations.',
+    permissionPolicyDenyAllName: 'Deny all',
+    permissionPolicyDenyAllDescription: 'Automatically deny side-effecting operations.',
+    modeInteractiveDescription: 'Request permission before running side-effecting operations.',
+    modeYoloDescription: 'Bypass permission prompts for side-effecting operations.',
   },
 
   prompts: {

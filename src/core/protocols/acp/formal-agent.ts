@@ -8,6 +8,9 @@ import {
   type ClientCapabilities,
   type ContentBlock,
   type LoadSessionRequest,
+  type SessionMode,
+  type SessionModeId,
+  type SessionModeState,
   type SessionConfigOption,
   type SessionUpdate,
   type StopReason,
@@ -94,6 +97,7 @@ function formatInputRequiredMessage(inputRequired: TaskEnvelope['inputRequired']
 }
 
 type AcpPermissionPolicy = 'ask' | 'deny_all';
+type AcpSessionModeId = 'interactive' | 'yolo';
 
 type AcpPlanEntry = {
   content: string;
@@ -122,16 +126,13 @@ type AcpSessionRuntimeState = {
   lastConfigDigest: string | null;
   lastSessionInfoDigest: string | null;
   permissionPolicy: AcpPermissionPolicy;
-  // Reserved for future protocol-compliant mode integration.
-  modeReserved: {
-    availableModes: Array<{ id: string; name: string }>;
-    currentModeId: string | null;
-  };
+  modeId: AcpSessionModeId;
 };
 
 const ACP_PERMISSION_POLICY_CONFIG_ID = '_salmonloop_permission_policy';
 const ACP_PERMISSION_POLICY_ASK: AcpPermissionPolicy = 'ask';
 const ACP_PERMISSION_POLICY_DENY_ALL: AcpPermissionPolicy = 'deny_all';
+const ACP_DEFAULT_MODE_ID: AcpSessionModeId = 'interactive';
 const ACP_SESSION_STORE_MAX_ENTRIES = 200;
 const ACP_SESSION_STORE_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 30;
 const ACP_SESSION_STORE_LOCK_STALE_MS = 1000 * 30;
@@ -246,12 +247,14 @@ function loopEventToSessionUpdate(event: LoopEvent): SessionUpdate | null {
   switch (event.type) {
     case 'llm.stream.delta':
       return {
-        sessionUpdate: 'agent_message_chunk',
+        sessionUpdate:
+          event.kind === 'assistant_message' ? 'agent_message_chunk' : 'agent_thought_chunk',
         content: buildTextContentBlock(event.content || ''),
       };
     case 'llm.output':
       return {
-        sessionUpdate: 'agent_message_chunk',
+        sessionUpdate:
+          event.kind === 'assistant_message' ? 'agent_message_chunk' : 'agent_thought_chunk',
         content: buildTextContentBlock(event.content || ''),
       };
     case 'tool.call.start':
@@ -304,22 +307,7 @@ function loopEventToSessionUpdate(event: LoopEvent): SessionUpdate | null {
 }
 
 function createSessionRuntimeState(): AcpSessionRuntimeState {
-  const permissionPolicy = ACP_PERMISSION_POLICY_ASK;
-  return {
-    runtimePlanSessionId: null,
-    runtimePlanPathHint: null,
-    lastPlanDigest: null,
-    lastCommandsDigest: null,
-    lastConfigDigest: JSON.stringify(
-      buildConfigOptionsFromPolicy(permissionPolicy as AcpPermissionPolicy),
-    ),
-    lastSessionInfoDigest: null,
-    permissionPolicy,
-    modeReserved: {
-      availableModes: [],
-      currentModeId: null,
-    },
-  };
+  return createSessionRuntimeStateFromPersisted();
 }
 
 function isPermissionPolicyValue(value: string): value is AcpPermissionPolicy {
@@ -333,19 +321,19 @@ function buildConfigOptionsFromPolicy(
     {
       type: 'select',
       id: ACP_PERMISSION_POLICY_CONFIG_ID,
-      name: 'Permission Policy',
-      description: 'How side-effecting operations should be authorized for this session.',
+      name: text.acp.permissionPolicyName,
+      description: text.acp.permissionPolicyDescription,
       currentValue: permissionPolicy,
       options: [
         {
           value: ACP_PERMISSION_POLICY_ASK,
-          name: 'Ask User',
-          description: 'Request user permission for side-effecting operations.',
+          name: text.acp.permissionPolicyAskName,
+          description: text.acp.permissionPolicyAskDescription,
         },
         {
           value: ACP_PERMISSION_POLICY_DENY_ALL,
-          name: 'Deny All',
-          description: 'Automatically deny side-effecting operations.',
+          name: text.acp.permissionPolicyDenyAllName,
+          description: text.acp.permissionPolicyDenyAllDescription,
         },
       ],
     },
@@ -394,6 +382,65 @@ function buildAvailableCommandsUpdateIfChanged(
     sessionUpdate: 'available_commands_update',
     availableCommands,
   };
+}
+
+function isSessionModeId(value: string): value is AcpSessionModeId {
+  return value === 'interactive' || value === 'yolo';
+}
+
+function buildSessionModeState(state: AcpSessionRuntimeState): SessionModeState {
+  const availableModes: SessionMode[] = [
+    {
+      id: 'interactive',
+      name: 'interactive',
+      description: text.acp.modeInteractiveDescription,
+    },
+    {
+      id: 'yolo',
+      name: 'yolo',
+      description: text.acp.modeYoloDescription,
+    },
+  ];
+
+  return {
+    availableModes,
+    currentModeId: state.modeId as SessionModeId,
+  };
+}
+
+function buildCurrentModeUpdate(modeId: AcpSessionModeId): SessionUpdate {
+  return { sessionUpdate: 'current_mode_update', currentModeId: modeId };
+}
+
+function getPermissionPolicyForAuthorization(
+  state: AcpSessionRuntimeState,
+): 'ask' | 'deny_all' | 'allow_all' {
+  if (state.modeId === 'yolo') return 'allow_all';
+  return state.permissionPolicy;
+}
+
+function createSessionRuntimeStateFromPersisted(input?: {
+  permissionPolicy?: unknown;
+  modeId?: unknown;
+  defaultModeId?: AcpSessionModeId;
+}): AcpSessionRuntimeState {
+  const permissionPolicy = isPermissionPolicyValue(String(input?.permissionPolicy))
+    ? (input?.permissionPolicy as AcpPermissionPolicy)
+    : ACP_PERMISSION_POLICY_ASK;
+  const modeId = isSessionModeId(String(input?.modeId))
+    ? (input?.modeId as AcpSessionModeId)
+    : (input?.defaultModeId ?? ACP_DEFAULT_MODE_ID);
+  const state: AcpSessionRuntimeState = {
+    runtimePlanSessionId: null,
+    runtimePlanPathHint: null,
+    lastPlanDigest: null,
+    lastCommandsDigest: null,
+    lastConfigDigest: JSON.stringify(buildConfigOptionsFromPolicy(permissionPolicy)),
+    lastSessionInfoDigest: null,
+    permissionPolicy,
+    modeId,
+  };
+  return state;
 }
 
 function loopEventToSessionUpdates(
@@ -522,6 +569,7 @@ export function createAcpFormalAgent(deps: {
   conn: AgentSideConnection;
   agentInfo: { name: string; version: string };
   facade: Facade;
+  defaultModeId?: AcpSessionModeId;
   planReader?: {
     readBySession: (input: { repoPath: string; sessionId: string }) => Promise<CorePlanReadResult>;
   };
@@ -613,6 +661,8 @@ export function createAcpFormalAgent(deps: {
       title?: string;
       taskId?: string;
       history?: AcpSessionRecord['history'];
+      permissionPolicy?: AcpPermissionPolicy;
+      modeId?: AcpSessionModeId;
     }>;
   };
   type PersistedAcpSessionStore = PersistedAcpSessionStoreV1 | PersistedAcpSessionStoreV2;
@@ -633,6 +683,8 @@ export function createAcpFormalAgent(deps: {
       title?: string;
       taskId?: string;
       history?: AcpSessionRecord['history'];
+      permissionPolicy?: AcpPermissionPolicy;
+      modeId?: AcpSessionModeId;
     }>,
   ) {
     const cutoff = Date.now() - sessionStorePolicy.maxAgeMs;
@@ -660,6 +712,8 @@ export function createAcpFormalAgent(deps: {
           title: entry.title,
           taskId: undefined,
           history: [],
+          permissionPolicy: ACP_PERMISSION_POLICY_ASK,
+          modeId: deps.defaultModeId ?? ACP_DEFAULT_MODE_ID,
         })),
       };
     }
@@ -702,16 +756,21 @@ export function createAcpFormalAgent(deps: {
     const dir = defaultPathAdapter.dirname(sessionPersistencePath);
     const lockPath = `${sessionPersistencePath}.lock`;
 
-    const baseRecords = sessions.list().map((session) => ({
-      id: session.id,
-      cwd: session.cwd,
-      mcpServers: session.mcpServers,
-      createdAt: session.createdAt,
-      updatedAt: session.updatedAt,
-      title: session.title,
-      taskId: session.taskId,
-      history: session.history.slice(-sessionStorePolicy.historyMaxEntries),
-    }));
+    const baseRecords = sessions.list().map((session) => {
+      const runtimeState = ensureSessionRuntimeState(session.id);
+      return {
+        id: session.id,
+        cwd: session.cwd,
+        mcpServers: session.mcpServers,
+        createdAt: session.createdAt,
+        updatedAt: session.updatedAt,
+        title: session.title,
+        taskId: session.taskId,
+        history: session.history.slice(-sessionStorePolicy.historyMaxEntries),
+        permissionPolicy: runtimeState.permissionPolicy,
+        modeId: runtimeState.modeId,
+      };
+    });
     const prunedRecords = pruneSessionRecords(baseRecords);
     const keepIds = new Set(prunedRecords.map((record) => record.id));
     for (const record of sessions.list()) {
@@ -876,6 +935,16 @@ export function createAcpFormalAgent(deps: {
               : [],
             cancelRequested: false,
           });
+          if (!sessionRuntime.has(stored.id)) {
+            sessionRuntime.set(
+              stored.id,
+              createSessionRuntimeStateFromPersisted({
+                permissionPolicy: stored.permissionPolicy,
+                modeId: stored.modeId,
+                defaultModeId: deps.defaultModeId,
+              }),
+            );
+          }
         }
       } catch (error) {
         if (isFileMissing(error)) return;
@@ -1028,6 +1097,9 @@ export function createAcpFormalAgent(deps: {
     const existing = sessionRuntime.get(sessionId);
     if (existing) return existing;
     const created = createSessionRuntimeState();
+    if (deps.defaultModeId) {
+      created.modeId = deps.defaultModeId;
+    }
     sessionRuntime.set(sessionId, created);
     return created;
   }
@@ -1083,6 +1155,7 @@ export function createAcpFormalAgent(deps: {
       return {
         sessionId: session.id,
         configOptions: buildConfigOptions(runtimeState),
+        modes: buildSessionModeState(runtimeState),
         ...(sessionMeta ? { _meta: sessionMeta } : {}),
       };
     },
@@ -1116,8 +1189,12 @@ export function createAcpFormalAgent(deps: {
 
       const response: {
         configOptions: SessionConfigOption[];
+        modes: SessionModeState;
         _meta?: Record<string, unknown>;
-      } = { configOptions: buildConfigOptions(runtimeState) };
+      } = {
+        configOptions: buildConfigOptions(runtimeState),
+        modes: buildSessionModeState(runtimeState),
+      };
       if (deps.checkpointReader) {
         const startedAt = Date.now();
         const checkpoints = await deps.checkpointReader.listBySession({
@@ -1189,6 +1266,23 @@ export function createAcpFormalAgent(deps: {
       return response;
     },
 
+    async setSessionMode(params) {
+      await hydrateSessionsOnce();
+      const session = sessions.get(params.sessionId);
+      if (!session) {
+        throw new RequestError(-32004, `Session not found: ${params.sessionId}`);
+      }
+      if (!isSessionModeId(params.modeId)) {
+        throw new RequestError(-32602, `Invalid params: unsupported modeId "${params.modeId}"`);
+      }
+      const runtimeState = ensureSessionRuntimeState(params.sessionId);
+      if (runtimeState.modeId === params.modeId) return {};
+      runtimeState.modeId = params.modeId;
+      await persistSessionsBestEffort();
+      await emitSessionUpdate(params.sessionId, buildCurrentModeUpdate(runtimeState.modeId));
+      return {};
+    },
+
     async setSessionConfigOption(params) {
       await hydrateSessionsOnce();
       if (!sessions.get(params.sessionId)) {
@@ -1230,17 +1324,12 @@ export function createAcpFormalAgent(deps: {
         throw new RequestError(-32004, `Session not found: ${params.sessionId}`);
       }
 
-      if ((clientCapabilities ?? defaultClientCapabilities).terminal !== true) {
-        throw new RequestError(-32000, 'Client capability terminal is required');
-      }
-
-      const fsCaps = (clientCapabilities ?? defaultClientCapabilities).fs;
-      if (!fsCaps?.readTextFile) {
-        throw new RequestError(-32000, 'Client capability fs.readTextFile is required');
-      }
-      if (!fsCaps?.writeTextFile) {
-        throw new RequestError(-32000, 'Client capability fs.writeTextFile is required');
-      }
+      const caps = clientCapabilities ?? defaultClientCapabilities;
+      const fsCaps = caps.fs;
+      const clientExecutionReady =
+        caps.terminal === true && Boolean(fsCaps?.readTextFile) && Boolean(fsCaps?.writeTextFile);
+      const effectiveExecutionBinding =
+        executionBinding === 'client' && !clientExecutionReady ? 'local' : executionBinding;
 
       const promptText = extractTextFromPrompt(params.prompt, defaultPromptCapabilities);
       const runtimeState = ensureSessionRuntimeState(params.sessionId);
@@ -1311,18 +1400,19 @@ export function createAcpFormalAgent(deps: {
           repoPath: session.cwd,
         },
         commandRunner:
-          executionBinding === 'client'
+          effectiveExecutionBinding === 'client'
             ? createAcpCommandRunner({ conn: deps.conn, sessionId: params.sessionId })
             : undefined,
         fileSystemOverride:
-          executionBinding === 'client'
+          effectiveExecutionBinding === 'client'
             ? createAcpFileSystem({ conn: deps.conn, sessionId: params.sessionId })
             : undefined,
         authorizationProvider: createAcpToolAuthorizationProvider({
           conn: deps.conn,
           sessionId: params.sessionId,
-          clientCapabilities: clientCapabilities ?? defaultClientCapabilities,
-          getPermissionPolicy: () => runtimeState.permissionPolicy,
+          clientCapabilities: caps,
+          getPermissionPolicy: () => getPermissionPolicyForAuthorization(runtimeState),
+          enforceClientCapabilities: effectiveExecutionBinding === 'client',
         }),
         authorizationMode: 'blocking',
         onEvent: (event: LoopEvent) => {
