@@ -8,9 +8,6 @@ import {
   type ClientCapabilities,
   type ContentBlock,
   type LoadSessionRequest,
-  type SessionMode,
-  type SessionModeId,
-  type SessionModeState,
   type SessionConfigOption,
   type SessionUpdate,
   type StopReason,
@@ -32,7 +29,6 @@ import { defaultPathAdapter } from '../../adapters/path/path-adapter.js';
 import type { TaskEvent } from '../../interaction/events/bus.js';
 import type { TaskEnvelope } from '../../interaction/model/index.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
-import { mapErrorForDisplay } from '../../observability/error-mapping.js';
 import { readPlan } from '../../plan/index.js';
 import type { CommandRunner } from '../../runtime/command-runner-context.js';
 import { parseSlashInput } from '../../slash/parser.js';
@@ -221,12 +217,41 @@ function extractTextFromPrompt(
   return parts.join('\n');
 }
 
-function mapToolKind(toolName: string): ToolKind {
+function mapToolKind(toolName: string, intent?: string): ToolKind {
+  if (intent) {
+    switch (intent.toUpperCase()) {
+      case 'READ':
+        return 'read';
+      case 'LIST':
+        return 'read';
+      case 'SEARCH':
+        return 'search';
+      case 'WRITE':
+        return 'edit';
+      case 'INFRA':
+        return 'execute';
+      case 'AGENT':
+        return 'think';
+    }
+  }
+
   const name = toolName.toLowerCase();
-  if (name.includes('read') || name.includes('get') || name.includes('view')) return 'read';
+  if (
+    name.includes('read') ||
+    name.includes('get') ||
+    name.includes('view') ||
+    name.includes('ls') ||
+    name.includes('list')
+  )
+    return 'read';
   if (name.includes('write') || name.includes('edit') || name.includes('patch')) return 'edit';
   if (name.includes('delete') || name.includes('remove') || name.includes('rm')) return 'delete';
-  return 'execute';
+  if (name.includes('move') || name.includes('rename') || name.includes('mv')) return 'move';
+  if (name.includes('grep') || name.includes('search') || name.includes('find')) return 'search';
+  if (name.includes('run') || name.includes('exec') || name.includes('spawn')) return 'execute';
+  if (name.includes('plan') || name.includes('think') || name.includes('reason')) return 'think';
+  if (name.includes('fetch') || name.includes('curl') || name.includes('http')) return 'fetch';
+  return 'other';
 }
 
 function buildToolCallContent(textValue: string): ToolCallContent[] {
@@ -236,20 +261,20 @@ function buildToolCallContent(textValue: string): ToolCallContent[] {
 function extractLocationFromInput(input: unknown): { path: string; line?: number }[] | undefined {
   if (!input || typeof input !== 'object') return undefined;
   const typedInput = input as Record<string, unknown>;
-  if (typeof typedInput.path === 'string') {
+  const pathCandidate = typedInput.path ?? typedInput.file ?? typedInput.uri;
+  if (typeof pathCandidate === 'string' && pathCandidate.trim()) {
+    let path = pathCandidate.replace(/^file:\/\/\//, '/').replace(/^file:\/\//, '');
+    if (/^\/[a-zA-Z]:/.test(path)) {
+      path = path.slice(1);
+    }
     return [
       {
-        path: typedInput.path,
+        path,
         line: typeof typedInput.line === 'number' ? typedInput.line : undefined,
       },
     ];
   }
   return undefined;
-}
-
-function formatToolCallStart(event: Extract<LoopEvent, { type: 'tool.call.start' }>): string {
-  const input = event.input === undefined ? '' : `\nInput: ${JSON.stringify(event.input)}`;
-  return `Tool call started: ${event.toolName}${input}`;
 }
 
 function formatToolCallEnd(event: Extract<LoopEvent, { type: 'tool.call.end' }>): string {
@@ -276,10 +301,10 @@ function loopEventToSessionUpdate(event: LoopEvent): SessionUpdate | null {
       return {
         sessionUpdate: 'tool_call',
         toolCallId: event.callId,
-        status: 'in_progress',
+        status: 'pending',
         title: event.toolName,
-        kind: mapToolKind(event.toolName),
-        content: buildToolCallContent(formatToolCallStart(event)),
+        kind: mapToolKind(event.toolName, event.toolIntent),
+        content: [],
         rawInput: event.input as any,
         locations: extractLocationFromInput(event.input),
       };
@@ -288,36 +313,14 @@ function loopEventToSessionUpdate(event: LoopEvent): SessionUpdate | null {
         sessionUpdate: 'tool_call_update',
         toolCallId: event.callId,
         status: event.status === 'ok' ? 'completed' : 'failed',
-        content: buildToolCallContent(formatToolCallEnd(event)),
+        content: event.status !== 'ok' ? buildToolCallContent(formatToolCallEnd(event)) : [],
         rawOutput: event.outputSummary as any,
       };
     case 'phase.start':
-      return {
-        sessionUpdate: 'agent_message_chunk',
-        content: buildTextContentBlock(ensureMarkdownParagraphBreak(`Starting ${event.phase}...`)),
-      };
+      return null;
     case 'phase.end':
-      return {
-        sessionUpdate: 'agent_message_chunk',
-        content: buildTextContentBlock(
-          ensureMarkdownParagraphBreak(
-            event.success ? `${event.phase} completed` : `${event.phase} failed`,
-          ),
-        ),
-      };
+      return null;
     case 'log':
-      if (event.level === 'error' || event.level === 'warn') {
-        const displayMessage = mapErrorForDisplay({
-          message: event.message,
-          code: event.code,
-        }).message;
-        return {
-          sessionUpdate: 'agent_message_chunk',
-          content: buildTextContentBlock(
-            ensureMarkdownParagraphBreak(`[${event.level.toUpperCase()}] ${displayMessage}`),
-          ),
-        };
-      }
       return null;
     default:
       return null;
@@ -403,26 +406,6 @@ function isSessionModeId(value: string): value is AcpSessionModeId {
   return value === 'interactive' || value === 'yolo';
 }
 
-function buildSessionModeState(state: AcpSessionRuntimeState): SessionModeState {
-  const availableModes: SessionMode[] = [
-    {
-      id: 'interactive',
-      name: 'interactive',
-      description: text.acp.modeInteractiveDescription,
-    },
-    {
-      id: 'yolo',
-      name: 'yolo',
-      description: text.acp.modeYoloDescription,
-    },
-  ];
-
-  return {
-    availableModes,
-    currentModeId: state.modeId as SessionModeId,
-  };
-}
-
 function buildCurrentModeUpdate(modeId: AcpSessionModeId): SessionUpdate {
   return { sessionUpdate: 'current_mode_update', currentModeId: modeId };
 }
@@ -477,7 +460,8 @@ function loopEventToSessionUpdates(
   return updates;
 }
 
-function shouldRefreshPlanForEvent(event: LoopEvent): boolean {
+function shouldRefreshPlanForEvent(event?: LoopEvent): boolean {
+  if (!event) return true;
   if (event.type === 'plan.runtime.ready') return true;
   if (
     event.type === 'tool.call.end' &&
@@ -571,11 +555,6 @@ function normalizeSlashName(commandName: string): string {
 function isKnownSlashCommand(commandName: string): boolean {
   const normalized = normalizeSlashName(commandName);
   return ACP_AVAILABLE_COMMANDS.some((cmd) => cmd.name.toLowerCase() === normalized);
-}
-
-function buildSlashUnknownMessage(commandName: string): string {
-  const normalized = normalizeSlashName(commandName);
-  return text.acp.slashUnknownCommand(normalized);
 }
 
 async function awaitTerminalEvent(params: {
@@ -1067,25 +1046,23 @@ export function createAcpFormalAgent(deps: {
   async function emitRuntimePlanUpdateIfNeeded(params: {
     sessionId: string;
     repoPath: string;
-    event: LoopEvent;
+    event?: LoopEvent;
     state: AcpSessionRuntimeState;
   }): Promise<void> {
+    if (!shouldRefreshPlanForEvent(params.event)) return;
     const { state, event } = params;
     const planReader = deps.planReader ?? {
       readBySession: async ({ repoPath, sessionId }: { repoPath: string; sessionId: string }) =>
         await readPlan({ persistenceRoot: repoPath, sessionId }),
     };
 
-    if (event.type === 'plan.runtime.ready') {
+    if (event?.type === 'plan.runtime.ready') {
       state.runtimePlanSessionId = event.sessionId;
       state.runtimePlanPathHint = event.planPathHint;
       state.lastPlanDigest = null;
-    } else if (!shouldRefreshPlanForEvent(event)) {
-      return;
     }
 
     if (!state.runtimePlanSessionId) return;
-    if (!shouldRefreshPlanForEvent(event)) return;
 
     try {
       const read = await planReader.readBySession({
@@ -1172,6 +1149,13 @@ export function createAcpFormalAgent(deps: {
       const session = sessions.create({ cwd: params.cwd, mcpServers: params.mcpServers ?? [] });
       await persistSessionsBestEffort();
       const runtimeState = ensureSessionRuntimeState(session.id);
+
+      // Restore session state on creation
+      const commandsUpdate = buildAvailableCommandsUpdateIfChanged(runtimeState);
+      if (commandsUpdate) await emitSessionUpdate(session.id, commandsUpdate);
+      const modeUpdate = buildCurrentModeUpdateIfChanged(runtimeState);
+      if (modeUpdate) await emitSessionUpdate(session.id, modeUpdate);
+
       let sessionMeta: Record<string, unknown> | undefined;
       if (deps.checkpointReader) {
         const checkpoints = await deps.checkpointReader.listBySession({
@@ -1203,28 +1187,37 @@ export function createAcpFormalAgent(deps: {
       const session = sessions.get(params.sessionId)!;
       const runtimeState = ensureSessionRuntimeState(session.id);
 
+      // Restore plan state if session was running a task
+      if (session.taskId && session.cwd) {
+        await emitRuntimePlanUpdateIfNeeded({
+          sessionId: session.id,
+          repoPath: session.cwd,
+          state: runtimeState,
+        });
+      }
+
+      const commandsUpdate = buildAvailableCommandsUpdateIfChanged(runtimeState);
+      if (commandsUpdate) await emitSessionUpdate(session.id, commandsUpdate);
+      const modeUpdate = buildCurrentModeUpdateIfChanged(runtimeState);
+      if (modeUpdate) await emitSessionUpdate(session.id, modeUpdate);
+
       for (const entry of session.history) {
-        const textParts = entry.content
-          .map((block) =>
-            block.type === 'text' && typeof block.text === 'string' ? block.text : '',
-          )
-          .filter(Boolean);
-        if (textParts.length > 0) {
-          const updateType = entry.role === 'user' ? 'user_message_chunk' : 'agent_message_chunk';
-          await emitSessionUpdate(session.id, {
-            sessionUpdate: updateType,
-            content: buildTextContentBlock(textParts.join('\n')),
-          });
+        if (entry.role !== 'assistant') continue;
+        for (const block of entry.content) {
+          if (block.type === 'text' && typeof block.text === 'string' && block.text.trim()) {
+            await emitSessionUpdate(session.id, {
+              sessionUpdate: 'agent_message_chunk',
+              content: buildTextContentBlock(block.text),
+            });
+          }
         }
       }
 
       const response: {
         configOptions: SessionConfigOption[];
-        modes: SessionModeState;
         _meta?: Record<string, unknown>;
       } = {
         configOptions: buildConfigOptions(runtimeState),
-        modes: buildSessionModeState(runtimeState),
       };
       if (deps.checkpointReader) {
         const startedAt = Date.now();
@@ -1374,11 +1367,6 @@ export function createAcpFormalAgent(deps: {
         await emitSessionUpdate(params.sessionId, modeUpdate);
       }
 
-      await emitSessionUpdate(params.sessionId, {
-        sessionUpdate: 'user_message_chunk',
-        content: buildTextContentBlock(promptText),
-      });
-
       const commandsUpdate = buildAvailableCommandsUpdateIfChanged(runtimeState);
       if (commandsUpdate) {
         await emitSessionUpdate(params.sessionId, commandsUpdate);
@@ -1387,10 +1375,12 @@ export function createAcpFormalAgent(deps: {
       const slashInput = extractSlashInput(params.prompt);
       if (slashInput) {
         const parsed = parseSlashInput(slashInput);
-        if (parsed.kind === 'slash' && parsed.commandName) {
-          const responseText = isKnownSlashCommand(parsed.commandName)
-            ? buildSlashHelpMessage()
-            : buildSlashUnknownMessage(parsed.commandName);
+        if (
+          parsed.kind === 'slash' &&
+          parsed.commandName &&
+          isKnownSlashCommand(parsed.commandName)
+        ) {
+          const responseText = buildSlashHelpMessage();
           await emitSessionUpdate(params.sessionId, {
             sessionUpdate: 'agent_message_chunk',
             content: buildTextContentBlock(ensureMarkdownParagraphBreak(responseText)),
@@ -1501,7 +1491,7 @@ export function createAcpFormalAgent(deps: {
         ...current,
         history: [
           ...current.history,
-          { role: 'assistant', content: buildToolCallContent(assistantText) as any },
+          { role: 'assistant', content: [buildTextContentBlock(assistantText)] as any },
         ],
       }));
       await persistSessionsBestEffort();

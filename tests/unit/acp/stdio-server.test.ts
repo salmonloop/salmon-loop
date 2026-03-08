@@ -64,6 +64,23 @@ describe('ACP stdio guard', () => {
     });
   });
 
+  it('returns Parse error for invalid JSON', async () => {
+    const input = makeInputStream('text\n');
+    const { output, getText } = makeOutputCollector();
+    const stream = createAcpStdioStream(output, input);
+
+    await drainReadable(stream.readable);
+
+    const lines = getText().trim().split('\n');
+    expect(lines).toHaveLength(1);
+    const message = JSON.parse(lines[0]);
+    expect(message).toEqual({
+      jsonrpc: '2.0',
+      id: null,
+      error: { code: -32700, message: 'Parse error' },
+    });
+  });
+
   it('passes through valid JSON-RPC objects', async () => {
     const input = makeInputStream('{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n');
     const { output, getText } = makeOutputCollector();

@@ -31,7 +31,8 @@ export function createAcpFileSystem(params: {
 
     async exists(path: string): Promise<boolean> {
       try {
-        await params.conn.readTextFile({ sessionId: params.sessionId, path });
+        // Use minimal limit to check existence without transferring full content
+        await params.conn.readTextFile({ sessionId: params.sessionId, path, line: 1, limit: 1 });
         return true;
       } catch (error) {
         if (isResourceNotFoundError(error)) return false;
@@ -39,9 +40,10 @@ export function createAcpFileSystem(params: {
       }
     },
 
-    async mkdir(): Promise<void> {
-      // ACP formal FS methods are file-based; directory creation is host-dependent.
-      // Hosts typically create parent directories as part of writeTextFile().
+    async mkdir(_path: string, _options?: { recursive?: boolean }): Promise<void> {
+      // ACP formal FS methods are currently file-based; explicit directory creation
+      // is usually handled implicitly by the host during writeTextFile().
+      // This is a no-op to satisfy the interface while avoiding non-standard extensions.
       return;
     },
   };

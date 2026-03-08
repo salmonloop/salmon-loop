@@ -2,12 +2,18 @@ import { Readable, Writable } from 'node:stream';
 
 import { AgentSideConnection, type Agent, type AnyMessage } from '@agentclientprotocol/sdk';
 
-import { getLogger } from '../../observability/logger.js';
+import { tryGetLogger } from '../../observability/logger.js';
 
 const INVALID_REQUEST = {
   jsonrpc: '2.0',
   id: null,
   error: { code: -32600, message: 'Invalid Request' },
+} as const;
+
+const PARSE_ERROR = {
+  jsonrpc: '2.0',
+  id: null,
+  error: { code: -32700, message: 'Parse error' },
 } as const;
 
 function isJsonObject(value: unknown): value is Record<string, unknown> {
@@ -19,23 +25,48 @@ function formatLineSnippet(line: string, maxLength = 160): string {
   return `${line.slice(0, maxLength - 3)}...`;
 }
 
-async function writeInvalidRequest(output: WritableStream<Uint8Array>, line: string) {
-  const snippet = formatLineSnippet(line);
-  getLogger().warn(
-    `ACP stdio received non-object JSON; returning Invalid Request. line="${snippet}"`,
-  );
+function safeWarn(message: string): void {
+  const logger = tryGetLogger();
+  if (logger) logger.warn(message);
+}
+
+type NdjsonWriter = {
+  write: (message: unknown) => Promise<void>;
+};
+
+function createNdjsonWriter(output: WritableStream<Uint8Array>): NdjsonWriter {
   const writer = output.getWriter();
   const encoder = new TextEncoder();
-  try {
-    await writer.write(encoder.encode(JSON.stringify(INVALID_REQUEST) + '\n'));
-  } finally {
-    writer.releaseLock();
-  }
+
+  let tail: Promise<unknown> = Promise.resolve();
+
+  return {
+    async write(message) {
+      const content = JSON.stringify(message) + '\n';
+      const data = encoder.encode(content);
+
+      tail = tail
+        .catch(() => undefined)
+        .then(() => writer.write(data))
+        .catch((error) => {
+          const detail = error instanceof Error ? error.message : String(error);
+          safeWarn(`ACP stdio failed to write NDJSON line. reason="${detail}"`);
+        });
+
+      await tail;
+    },
+  };
+}
+
+async function writeInvalidRequest(ndjson: NdjsonWriter, line: string) {
+  const snippet = formatLineSnippet(line);
+  safeWarn(`ACP stdio received non-object JSON; returning Invalid Request. line="${snippet}"`);
+  await ndjson.write(INVALID_REQUEST);
 }
 
 async function processStdioLine(
   line: string,
-  output: WritableStream<Uint8Array>,
+  ndjson: NdjsonWriter,
   controller: ReadableStreamDefaultController<AnyMessage>,
 ) {
   const trimmed = line.trim();
@@ -44,7 +75,7 @@ async function processStdioLine(
   try {
     const parsed = JSON.parse(trimmed);
     if (!isJsonObject(parsed)) {
-      await writeInvalidRequest(output, trimmed);
+      await writeInvalidRequest(ndjson, trimmed);
       return;
     }
 
@@ -58,7 +89,8 @@ async function processStdioLine(
     controller.enqueue(parsed as AnyMessage);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
-    getLogger().warn(`ACP stdio failed to parse JSON line. reason="${detail}"`);
+    safeWarn(`ACP stdio failed to parse JSON line. reason="${detail}"`);
+    await ndjson.write(PARSE_ERROR);
   }
 }
 
@@ -67,7 +99,7 @@ export function createAcpStdioStream(
   input: ReadableStream<Uint8Array>,
 ) {
   const textDecoder = new TextDecoder();
-  const textEncoder = new TextEncoder();
+  const ndjson = createNdjsonWriter(output);
 
   const readable = new ReadableStream<AnyMessage>({
     async start(controller) {
@@ -82,7 +114,7 @@ export function createAcpStdioStream(
           const lines = buffer.split('\n');
           buffer = lines.pop() || '';
           for (const line of lines) {
-            await processStdioLine(line, output, controller);
+            await processStdioLine(line, ndjson, controller);
           }
         }
       } finally {
@@ -94,13 +126,7 @@ export function createAcpStdioStream(
 
   const writable = new WritableStream<AnyMessage>({
     async write(message) {
-      const content = JSON.stringify(message) + '\n';
-      const writer = output.getWriter();
-      try {
-        await writer.write(textEncoder.encode(content));
-      } finally {
-        writer.releaseLock();
-      }
+      await ndjson.write(message);
     },
   });
 

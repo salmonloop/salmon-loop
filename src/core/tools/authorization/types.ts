@@ -4,6 +4,7 @@ import type { RiskLevel, SideEffect, ToolSource } from '../types.js';
 export interface ToolAuthorizationRequest {
   id: string;
   toolName: string;
+  toolIntent?: string;
   source: ToolSource;
   phase: ExecutionPhase;
   riskLevel: RiskLevel;

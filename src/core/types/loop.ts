@@ -271,6 +271,7 @@ export type LoopEvent =
       type: 'tool.call.start';
       callId: string;
       toolName: string;
+      toolIntent?: string;
       phase: ExecutionPhase;
       round: number;
       input?: unknown;

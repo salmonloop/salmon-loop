@@ -154,12 +154,18 @@ export function createAcpCommandRunner(params: {
       }
 
       try {
+        const env = input.env
+          ? Object.entries(input.env)
+              .filter(([, value]) => value !== undefined)
+              .map(([name, value]) => ({ name, value: String(value) }))
+          : undefined;
+
         terminal = await params.conn.createTerminal({
           sessionId: params.sessionId,
           command: input.command,
           args: input.args ?? [],
           cwd: input.cwd ?? undefined,
-          env: input.env ?? undefined,
+          env,
           outputByteLimit: computeOutputByteLimit(input),
         } as any);
 

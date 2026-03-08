@@ -1017,6 +1017,11 @@ async function executeToolCalls(
         ? buildHeadlessToolInputPayload(argsValue)
         : undefined;
 
+    const spec =
+      typeof toolName === 'string'
+        ? session.toolstack.registry.listAll().find((s) => s.name === toolName)
+        : undefined;
+
     if (typeof toolName === 'string') {
       session.emit?.({
         type: 'log',
@@ -1030,6 +1035,7 @@ async function executeToolCalls(
       type: 'tool.call.start',
       callId,
       toolName: normalizedToolName,
+      toolIntent: spec?.intent,
       phase,
       round,
       input,
@@ -1125,7 +1131,6 @@ async function executeToolCalls(
       continue;
     }
 
-    const spec = session.toolstack.registry.listAll().find((s) => s.name === toolName);
     session.toolCallingAudit?.event({
       timestamp: new Date().toISOString(),
       phase,
