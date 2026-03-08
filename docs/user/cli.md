@@ -8,19 +8,17 @@ SalmonLoop provides a command-line interface (`s8p`) for automated code patching
 
 Enter the interactive chat mode to provide instructions and receive patches in real-time.
 
-#### UI log mode and density
+#### UI controls (chat mode)
 
-In chat mode, SalmonLoop exposes two UI controls:
+In chat mode, SalmonLoop exposes a few UI-related controls:
 
-- `/config mode <quiet|normal|debug>`: controls **how much** output the TUI shows (recommended for new users: `normal`).
+- `/config log-mode <quiet|normal|debug>`: controls **how much** output the TUI shows (recommended for new users: `normal`).
+  - Aliases: `/config mode`, `/config log`, `/log-mode`
 - `/config view <full|standard|compact>`: controls **how dense** the TUI renders the output.
+- `/mode <interactive|yolo>`: controls the permission mode used for tool authorization decisions.
+  - Aliases: `/config permission-mode`, `/permission-mode`, `/perm-mode`
 
-Aliases:
-
-- `/mode` is an alias of `/config mode`.
-- `/config log` is an alias of `/config view`.
-
-Both settings are persisted to the repo config at `<repoRoot>/.salmonloop/config/config.json`.
+All settings are persisted to the repo config at `<repoRoot>/.salmonloop/config/config.json`.
 
 Advanced settings:
 

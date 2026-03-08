@@ -179,20 +179,9 @@ const viewSubcommand: Command = {
   },
 };
 
-const modeSubcommand: Command = {
-  name: 'mode',
-  description: text.cli.configModeDescription,
-  usage: text.cli.configModeUsage,
-  getSuggestions: (ctx) =>
-    modeCommand.getSuggestions?.({ ...ctx, input: delegateInputToCommand(ctx.input, '/mode') }) ??
-    [],
-  execute: async (ctx) =>
-    modeCommand.execute({ ...ctx, input: delegateInputToCommand(ctx.input, '/mode') }),
-};
-
 const logModeSubcommand: Command = {
   name: 'log-mode',
-  aliases: ['log'],
+  aliases: ['log', 'mode'],
   description: text.cli.configLogModeDescription,
   usage: text.cli.configLogModeUsage,
   getSuggestions: (ctx) =>
@@ -202,6 +191,20 @@ const logModeSubcommand: Command = {
     }) ?? [],
   execute: async (ctx) =>
     logModeCommand.execute({ ...ctx, input: delegateInputToCommand(ctx.input, '/log-mode') }),
+};
+
+const permissionModeSubcommand: Command = {
+  name: 'permission-mode',
+  aliases: ['perm-mode', 'perm', 'permission'],
+  description: text.cli.configPermissionModeDescription,
+  usage: text.cli.configPermissionModeUsage,
+  getSuggestions: (ctx) =>
+    modeCommand.getSuggestions?.({
+      ...ctx,
+      input: delegateInputToCommand(ctx.input, '/mode'),
+    }) ?? [],
+  execute: async (ctx) =>
+    modeCommand.execute({ ...ctx, input: delegateInputToCommand(ctx.input, '/mode') }),
 };
 
 const outputSubcommand: Command = {
@@ -241,11 +244,11 @@ function findSubcommand(root: Command, name: string): Command | undefined {
 }
 
 const configSubcommands: Command[] = [
-  modeSubcommand,
   logModeSubcommand,
   viewSubcommand,
   outputSubcommand,
   allowlistSubcommand,
+  permissionModeSubcommand,
 ];
 
 export const configCommand: Command = {

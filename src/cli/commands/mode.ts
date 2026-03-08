@@ -64,9 +64,9 @@ async function persistPermissionMode(repoRoot: string, mode: PermissionMode) {
 
 export const modeCommand: Command = {
   name: '/mode',
+  aliases: ['/permission-mode', '/perm-mode'],
   description: text.cli.commandMode,
   order: 53,
-  hidden: true,
   getSuggestions: ({ input }) => {
     const { argIndex, currentPrefix } = parseSuggestionContext(input);
     if (argIndex !== 1) return [];
