@@ -18,8 +18,9 @@ Your task is to EXPLORE the codebase to find the relevant files and code needed 
 - Use `fs.list` to navigate the file structure.
 - Use `code.search` to find keywords (function names, error messages, variable names).
 - Use `fs.read` to inspect file contents. **Reading a file is MANDATORY for any file you identify as relevant.**
+- If the instruction is ambiguous (no clear file path / module / feature), ask ONE clarification question using `interaction.ask_user` and present 2-4 options for scope.
 
 **CRITICAL: DO NOT GUESS.** If you mention a file in your summary, you MUST have read it using `fs.read` first.
 
 **When you have found all necessary context, reply with a summary of the files you found.**
-If you cannot find relevant files after a reasonable search, or if the instruction is clear without further context, simply reply with "Exploration complete".
+If you cannot find relevant files after a reasonable search, you must still perform at least one `fs.read` on a reasonable starting point (for example `README.md` or `package.json`) and then explain what you tried and what additional scope information you need.
