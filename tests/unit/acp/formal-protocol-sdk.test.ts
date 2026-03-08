@@ -935,6 +935,8 @@ describe('ACP formal protocol (SDK)', () => {
     );
     expect(Array.isArray(start?.content)).toBe(true);
     expect(Array.isArray(end?.content)).toBe(true);
+    expect(start?.rawInput).toBe(JSON.stringify({ path: '/repo/README.md' }));
+    expect(end?.rawOutput).toBe('read /repo/README.md');
   });
 
   it('emits agent_thought_chunk for non-assistant LLM output kinds', async () => {
@@ -1104,7 +1106,7 @@ describe('ACP formal protocol (SDK)', () => {
     ).rejects.toMatchObject({ code: -32000 });
   });
 
-  it('emits available_commands_update and session_info_update during prompt', async () => {
+  it('emits available_commands_update and current_mode_update during prompt', async () => {
     const updates: any[] = [];
 
     const { clientConn } = createConnectedPair({
@@ -1171,11 +1173,11 @@ describe('ACP formal protocol (SDK)', () => {
     expect(updates.some((update) => update.sessionUpdate === 'available_commands_update')).toBe(
       true,
     );
-    const hasSessionInfoUpdate = updates.some(
+    const hasCurrentModeUpdate = updates.some(
       (update) =>
-        update.sessionUpdate === 'session_info_update' && typeof update.updatedAt === 'string',
+        update.sessionUpdate === 'current_mode_update' && update.currentModeId === 'interactive',
     );
-    expect(hasSessionInfoUpdate).toBe(true);
+    expect(hasCurrentModeUpdate).toBe(true);
   });
 
   it('does not map internal phases into ACP plan updates', async () => {
@@ -1260,9 +1262,9 @@ describe('ACP formal protocol (SDK)', () => {
       return {
         sessionId: 'plan_sess_1',
         baseHash: 'hash_v1',
-        active: [{ stepId: 's1', text: 'Implement adapter bridge' }],
-        pending: [{ stepId: 's2', text: 'Add protocol tests' }],
-        recentDone: [{ stepId: 's0', text: 'Write design doc' }],
+        active: [{ stepId: '1', text: '! Implement adapter bridge' }],
+        pending: [{ stepId: '2', text: '· Add protocol tests' }],
+        recentDone: [{ stepId: '3', text: '‐ Write design doc' }],
       };
     };
 

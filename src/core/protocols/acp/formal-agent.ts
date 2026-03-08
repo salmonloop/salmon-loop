@@ -124,7 +124,7 @@ type AcpSessionRuntimeState = {
   lastPlanDigest: string | null;
   lastCommandsDigest: string | null;
   lastConfigDigest: string | null;
-  lastSessionInfoDigest: string | null;
+  lastModeDigest: string | null;
   permissionPolicy: AcpPermissionPolicy;
   modeId: AcpSessionModeId;
 };
@@ -265,6 +265,7 @@ function loopEventToSessionUpdate(event: LoopEvent): SessionUpdate | null {
         title: event.toolName,
         kind: mapToolKind(event.toolName),
         content: buildToolCallContent(formatToolCallStart(event)),
+        rawInput: event.input ? JSON.stringify(event.input) : undefined,
       };
     case 'tool.call.end':
       return {
@@ -272,6 +273,7 @@ function loopEventToSessionUpdate(event: LoopEvent): SessionUpdate | null {
         toolCallId: event.callId,
         status: event.status === 'ok' ? 'completed' : 'failed',
         content: buildToolCallContent(formatToolCallEnd(event)),
+        rawOutput: event.outputSummary || undefined,
       };
     case 'phase.start':
       return {
@@ -355,22 +357,6 @@ function buildConfigOptionUpdateIfChanged(state: AcpSessionRuntimeState): Sessio
   };
 }
 
-function buildSessionInfoUpdateIfChanged(
-  session: AcpSessionRecord,
-  state: AcpSessionRuntimeState,
-): SessionUpdate | null {
-  const title = session.title ?? null;
-  const updatedAt = session.updatedAt ?? null;
-  const digest = JSON.stringify({ title, updatedAt });
-  if (digest === state.lastSessionInfoDigest) return null;
-  state.lastSessionInfoDigest = digest;
-  return {
-    sessionUpdate: 'session_info_update',
-    title,
-    updatedAt,
-  };
-}
-
 function buildAvailableCommandsUpdateIfChanged(
   state: AcpSessionRuntimeState,
 ): SessionUpdate | null {
@@ -412,6 +398,13 @@ function buildCurrentModeUpdate(modeId: AcpSessionModeId): SessionUpdate {
   return { sessionUpdate: 'current_mode_update', currentModeId: modeId };
 }
 
+function buildCurrentModeUpdateIfChanged(state: AcpSessionRuntimeState): SessionUpdate | null {
+  const digest = state.modeId;
+  if (digest === state.lastModeDigest) return null;
+  state.lastModeDigest = digest;
+  return buildCurrentModeUpdate(state.modeId);
+}
+
 function getPermissionPolicyForAuthorization(
   state: AcpSessionRuntimeState,
 ): 'ask' | 'deny_all' | 'allow_all' {
@@ -436,7 +429,7 @@ function createSessionRuntimeStateFromPersisted(input?: {
     lastPlanDigest: null,
     lastCommandsDigest: null,
     lastConfigDigest: JSON.stringify(buildConfigOptionsFromPolicy(permissionPolicy)),
-    lastSessionInfoDigest: null,
+    lastModeDigest: null,
     permissionPolicy,
     modeId,
   };
@@ -477,23 +470,35 @@ function shouldRefreshPlanForEvent(event: LoopEvent): boolean {
 function mapCorePlanToAcpEntries(read: CorePlanReadResult): AcpPlanEntry[] {
   const entries: AcpPlanEntry[] = [];
   const seen = new Set<string>();
-  const push = (
-    step: CorePlanStepSummary,
-    status: AcpPlanEntry['status'],
-    priority: AcpPlanEntry['priority'],
-  ) => {
+
+  const parsePriority = (text: string): { priority: AcpPlanEntry['priority']; content: string } => {
+    const trimmed = text.trim();
+    if (trimmed.startsWith('!')) {
+      return { priority: 'high', content: trimmed.slice(1).trim() };
+    }
+    if (trimmed.startsWith('·')) {
+      return { priority: 'medium', content: trimmed.slice(1).trim() };
+    }
+    if (trimmed.startsWith('‐')) {
+      return { priority: 'low', content: trimmed.slice(1).trim() };
+    }
+    return { priority: 'medium', content: trimmed };
+  };
+
+  const push = (step: CorePlanStepSummary, status: AcpPlanEntry['status']) => {
     if (!step?.stepId || seen.has(step.stepId)) return;
     seen.add(step.stepId);
+    const { priority, content } = parsePriority(step.text || step.stepId);
     entries.push({
-      content: step.text?.trim() || step.stepId,
+      content,
       status,
       priority,
     });
   };
 
-  for (const step of read.active) push(step, 'in_progress', 'high');
-  for (const step of read.pending) push(step, 'pending', 'medium');
-  for (const step of read.recentDone) push(step, 'completed', 'low');
+  for (const step of read.active) push(step, 'in_progress');
+  for (const step of read.pending) push(step, 'pending');
+  for (const step of read.recentDone) push(step, 'completed');
   return entries;
 }
 
@@ -1168,10 +1173,7 @@ export function createAcpFormalAgent(deps: {
 
       const session = sessions.get(params.sessionId)!;
       const runtimeState = ensureSessionRuntimeState(session.id);
-      const sessionInfoUpdate = buildSessionInfoUpdateIfChanged(session, runtimeState);
-      if (sessionInfoUpdate) {
-        await emitSessionUpdate(session.id, sessionInfoUpdate);
-      }
+
       for (const entry of session.history) {
         const textParts = entry.content
           .map((block) =>
@@ -1279,7 +1281,14 @@ export function createAcpFormalAgent(deps: {
       if (runtimeState.modeId === params.modeId) return {};
       runtimeState.modeId = params.modeId;
       await persistSessionsBestEffort();
-      await emitSessionUpdate(params.sessionId, buildCurrentModeUpdate(runtimeState.modeId));
+      const modeUpdate = buildCurrentModeUpdateIfChanged(runtimeState);
+      if (modeUpdate) {
+        await emitSessionUpdate(params.sessionId, modeUpdate);
+      }
+      const configUpdate = buildConfigOptionUpdateIfChanged(runtimeState);
+      if (configUpdate) {
+        await emitSessionUpdate(params.sessionId, configUpdate);
+      }
       return {};
     },
 
@@ -1301,17 +1310,15 @@ export function createAcpFormalAgent(deps: {
       }
 
       runtimeState.permissionPolicy = params.value;
-      const updatedSession =
-        sessions.update(params.sessionId, (current) => ({ ...current })) ??
-        sessions.get(params.sessionId)!;
+      sessions.update(params.sessionId, (current) => ({ ...current }));
       await persistSessionsBestEffort();
       const update = buildConfigOptionUpdateIfChanged(runtimeState);
       if (update) {
         await emitSessionUpdate(params.sessionId, update);
       }
-      const sessionInfoUpdate = buildSessionInfoUpdateIfChanged(updatedSession, runtimeState);
-      if (sessionInfoUpdate) {
-        await emitSessionUpdate(params.sessionId, sessionInfoUpdate);
+      const modeUpdate = buildCurrentModeUpdateIfChanged(runtimeState);
+      if (modeUpdate) {
+        await emitSessionUpdate(params.sessionId, modeUpdate);
       }
 
       return { configOptions: buildConfigOptions(runtimeState) };
@@ -1333,22 +1340,25 @@ export function createAcpFormalAgent(deps: {
 
       const promptText = extractTextFromPrompt(params.prompt, defaultPromptCapabilities);
       const runtimeState = ensureSessionRuntimeState(params.sessionId);
-      const sessionAfterUserMessage =
-        sessions.update(params.sessionId, (current) => ({
+      sessions.update(params.sessionId, (current) => {
+        return {
           ...current,
           cancelRequested: false,
           history: [
             ...current.history,
             { role: 'user', content: params.prompt as unknown as any[] },
           ],
-        })) ?? sessions.get(params.sessionId)!;
+        };
+      });
       await persistSessionsBestEffort();
-      const sessionInfoUpdate = buildSessionInfoUpdateIfChanged(
-        sessionAfterUserMessage,
-        runtimeState,
-      );
-      if (sessionInfoUpdate) {
-        await emitSessionUpdate(params.sessionId, sessionInfoUpdate);
+
+      const configUpdate = buildConfigOptionUpdateIfChanged(runtimeState);
+      if (configUpdate) {
+        await emitSessionUpdate(params.sessionId, configUpdate);
+      }
+      const modeUpdate = buildCurrentModeUpdateIfChanged(runtimeState);
+      if (modeUpdate) {
+        await emitSessionUpdate(params.sessionId, modeUpdate);
       }
 
       await emitSessionUpdate(params.sessionId, {
@@ -1372,22 +1382,15 @@ export function createAcpFormalAgent(deps: {
             sessionUpdate: 'agent_message_chunk',
             content: buildTextContentBlock(ensureMarkdownParagraphBreak(responseText)),
           });
-          const sessionAfterAssistantMessage =
-            sessions.update(params.sessionId, (current) => ({
-              ...current,
-              history: [
-                ...current.history,
-                { role: 'assistant', content: [buildTextContentBlock(responseText)] as any },
-              ],
-            })) ?? sessions.get(params.sessionId)!;
+          sessions.update(params.sessionId, (current) => ({
+            ...current,
+            history: [
+              ...current.history,
+              { role: 'assistant', content: [buildTextContentBlock(responseText)] as any },
+            ],
+          }));
           await persistSessionsBestEffort();
-          const finalSessionInfoUpdate = buildSessionInfoUpdateIfChanged(
-            sessionAfterAssistantMessage,
-            runtimeState,
-          );
-          if (finalSessionInfoUpdate) {
-            await emitSessionUpdate(params.sessionId, finalSessionInfoUpdate);
-          }
+
           return { stopReason: 'end_turn' };
         }
       }
@@ -1481,22 +1484,14 @@ export function createAcpFormalAgent(deps: {
         });
       }
 
-      const sessionAfterAssistantMessage =
-        sessions.update(params.sessionId, (current) => ({
-          ...current,
-          history: [
-            ...current.history,
-            { role: 'assistant', content: [buildTextContentBlock(assistantText)] as any },
-          ],
-        })) ?? sessions.get(params.sessionId)!;
+      sessions.update(params.sessionId, (current) => ({
+        ...current,
+        history: [
+          ...current.history,
+          { role: 'assistant', content: buildToolCallContent(assistantText) as any },
+        ],
+      }));
       await persistSessionsBestEffort();
-      const finalSessionInfoUpdate = buildSessionInfoUpdateIfChanged(
-        sessionAfterAssistantMessage,
-        runtimeState,
-      );
-      if (finalSessionInfoUpdate) {
-        await emitSessionUpdate(params.sessionId, finalSessionInfoUpdate);
-      }
 
       return { stopReason };
     },
