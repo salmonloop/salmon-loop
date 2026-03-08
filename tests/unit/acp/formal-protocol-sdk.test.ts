@@ -337,7 +337,7 @@ describe('ACP formal protocol (SDK)', () => {
     expect((res as any)?._meta?.salmonloop?.latestCheckpointId).toBe('cp-new');
   });
 
-  it('supports session/set_mode and emits current_mode_update', async () => {
+  it('supports mode switching via session/set_config_option and emits current_mode_update', async () => {
     const updates: any[] = [];
     const { clientConn } = createConnectedPair({
       toAgent: (conn) =>
@@ -373,15 +373,21 @@ describe('ACP formal protocol (SDK)', () => {
 
     const { sessionId } = await clientConn.newSession({ cwd: '/repo', mcpServers: [] });
 
-    await expect(clientConn.setSessionMode({ sessionId, modeId: 'yolo' })).resolves.toBeDefined();
+    await expect(
+      clientConn.setSessionConfigOption({ sessionId, configId: '_salmonloop_mode', value: 'yolo' }),
+    ).resolves.toBeDefined();
+
     expect(
       updates.some(
         (update) =>
           update?.sessionUpdate === 'current_mode_update' && update?.currentModeId === 'yolo',
       ),
     ).toBe(true);
+
     const res = await clientConn.loadSession({ sessionId, cwd: '/repo', mcpServers: [] });
-    expect(res.modes).toMatchObject({ currentModeId: 'yolo' });
+    expect(res.configOptions.find((o: any) => o.id === '_salmonloop_mode')?.currentValue).toBe(
+      'yolo',
+    );
   });
 
   it('includes configOptions in session/new response', async () => {
@@ -417,7 +423,7 @@ describe('ACP formal protocol (SDK)', () => {
 
     const response = await clientConn.newSession({ cwd: '/repo', mcpServers: [] });
     expect(response.configOptions).toBeArray();
-    expect(response.modes).toMatchObject({ currentModeId: 'interactive' });
+    expect(response.configOptions.some((opt: any) => opt.id === '_salmonloop_mode')).toBe(true);
     expect(response.configOptions?.[0]).toMatchObject({
       type: 'select',
       id: '_salmonloop_permission_policy',
@@ -935,7 +941,7 @@ describe('ACP formal protocol (SDK)', () => {
     );
     expect(Array.isArray(start?.content)).toBe(true);
     expect(Array.isArray(end?.content)).toBe(true);
-    expect(start?.rawInput).toBe(JSON.stringify({ path: '/repo/README.md' }));
+    expect(start?.rawInput).toEqual({ path: '/repo/README.md' });
     expect(end?.rawOutput).toBe('read /repo/README.md');
   });
 

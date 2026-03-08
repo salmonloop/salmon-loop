@@ -130,6 +130,7 @@ type AcpSessionRuntimeState = {
 };
 
 const ACP_PERMISSION_POLICY_CONFIG_ID = '_salmonloop_permission_policy';
+const ACP_MODE_CONFIG_ID = '_salmonloop_mode';
 const ACP_PERMISSION_POLICY_ASK: AcpPermissionPolicy = 'ask';
 const ACP_PERMISSION_POLICY_DENY_ALL: AcpPermissionPolicy = 'deny_all';
 const ACP_DEFAULT_MODE_ID: AcpSessionModeId = 'interactive';
@@ -232,6 +233,20 @@ function buildToolCallContent(textValue: string): ToolCallContent[] {
   return [{ type: 'content', content: buildTextContentBlock(textValue) }];
 }
 
+function extractLocationFromInput(input: unknown): { path: string; line?: number }[] | undefined {
+  if (!input || typeof input !== 'object') return undefined;
+  const typedInput = input as Record<string, unknown>;
+  if (typeof typedInput.path === 'string') {
+    return [
+      {
+        path: typedInput.path,
+        line: typeof typedInput.line === 'number' ? typedInput.line : undefined,
+      },
+    ];
+  }
+  return undefined;
+}
+
 function formatToolCallStart(event: Extract<LoopEvent, { type: 'tool.call.start' }>): string {
   const input = event.input === undefined ? '' : `\nInput: ${JSON.stringify(event.input)}`;
   return `Tool call started: ${event.toolName}${input}`;
@@ -265,7 +280,8 @@ function loopEventToSessionUpdate(event: LoopEvent): SessionUpdate | null {
         title: event.toolName,
         kind: mapToolKind(event.toolName),
         content: buildToolCallContent(formatToolCallStart(event)),
-        rawInput: event.input ? JSON.stringify(event.input) : undefined,
+        rawInput: event.input as any,
+        locations: extractLocationFromInput(event.input),
       };
     case 'tool.call.end':
       return {
@@ -273,7 +289,7 @@ function loopEventToSessionUpdate(event: LoopEvent): SessionUpdate | null {
         toolCallId: event.callId,
         status: event.status === 'ok' ? 'completed' : 'failed',
         content: buildToolCallContent(formatToolCallEnd(event)),
-        rawOutput: event.outputSummary || undefined,
+        rawOutput: event.outputSummary as any,
       };
     case 'phase.start':
       return {
@@ -316,16 +332,14 @@ function isPermissionPolicyValue(value: string): value is AcpPermissionPolicy {
   return value === ACP_PERMISSION_POLICY_ASK || value === ACP_PERMISSION_POLICY_DENY_ALL;
 }
 
-function buildConfigOptionsFromPolicy(
-  permissionPolicy: AcpPermissionPolicy,
-): SessionConfigOption[] {
+function buildConfigOptions(state: AcpSessionRuntimeState): SessionConfigOption[] {
   return [
     {
       type: 'select',
       id: ACP_PERMISSION_POLICY_CONFIG_ID,
       name: text.acp.permissionPolicyName,
       description: text.acp.permissionPolicyDescription,
-      currentValue: permissionPolicy,
+      currentValue: state.permissionPolicy,
       options: [
         {
           value: ACP_PERMISSION_POLICY_ASK,
@@ -339,11 +353,26 @@ function buildConfigOptionsFromPolicy(
         },
       ],
     },
+    {
+      type: 'select',
+      id: ACP_MODE_CONFIG_ID,
+      name: 'Session Mode',
+      description: text.acp.modeInteractiveDescription,
+      currentValue: state.modeId,
+      options: [
+        {
+          value: 'interactive',
+          name: 'Interactive',
+          description: text.acp.modeInteractiveDescription,
+        },
+        {
+          value: 'yolo',
+          name: 'YOLO',
+          description: text.acp.modeYoloDescription,
+        },
+      ],
+    },
   ];
-}
-
-function buildConfigOptions(state: AcpSessionRuntimeState): SessionConfigOption[] {
-  return buildConfigOptionsFromPolicy(state.permissionPolicy);
 }
 
 function buildConfigOptionUpdateIfChanged(state: AcpSessionRuntimeState): SessionUpdate | null {
@@ -428,11 +457,12 @@ function createSessionRuntimeStateFromPersisted(input?: {
     runtimePlanPathHint: null,
     lastPlanDigest: null,
     lastCommandsDigest: null,
-    lastConfigDigest: JSON.stringify(buildConfigOptionsFromPolicy(permissionPolicy)),
+    lastConfigDigest: null,
     lastModeDigest: null,
     permissionPolicy,
     modeId,
   };
+  state.lastConfigDigest = JSON.stringify(buildConfigOptions(state));
   return state;
 }
 
@@ -1160,7 +1190,6 @@ export function createAcpFormalAgent(deps: {
       return {
         sessionId: session.id,
         configOptions: buildConfigOptions(runtimeState),
-        modes: buildSessionModeState(runtimeState),
         ...(sessionMeta ? { _meta: sessionMeta } : {}),
       };
     },
@@ -1268,30 +1297,6 @@ export function createAcpFormalAgent(deps: {
       return response;
     },
 
-    async setSessionMode(params) {
-      await hydrateSessionsOnce();
-      const session = sessions.get(params.sessionId);
-      if (!session) {
-        throw new RequestError(-32004, `Session not found: ${params.sessionId}`);
-      }
-      if (!isSessionModeId(params.modeId)) {
-        throw new RequestError(-32602, `Invalid params: unsupported modeId "${params.modeId}"`);
-      }
-      const runtimeState = ensureSessionRuntimeState(params.sessionId);
-      if (runtimeState.modeId === params.modeId) return {};
-      runtimeState.modeId = params.modeId;
-      await persistSessionsBestEffort();
-      const modeUpdate = buildCurrentModeUpdateIfChanged(runtimeState);
-      if (modeUpdate) {
-        await emitSessionUpdate(params.sessionId, modeUpdate);
-      }
-      const configUpdate = buildConfigOptionUpdateIfChanged(runtimeState);
-      if (configUpdate) {
-        await emitSessionUpdate(params.sessionId, configUpdate);
-      }
-      return {};
-    },
-
     async setSessionConfigOption(params) {
       await hydrateSessionsOnce();
       if (!sessions.get(params.sessionId)) {
@@ -1299,17 +1304,25 @@ export function createAcpFormalAgent(deps: {
       }
 
       const runtimeState = ensureSessionRuntimeState(params.sessionId);
-      if (params.configId !== ACP_PERMISSION_POLICY_CONFIG_ID) {
+      if (params.configId === ACP_PERMISSION_POLICY_CONFIG_ID) {
+        if (!isPermissionPolicyValue(params.value)) {
+          throw new RequestError(
+            -32602,
+            `Invalid params: unsupported value "${params.value}" for "${params.configId}"`,
+          );
+        }
+        runtimeState.permissionPolicy = params.value;
+      } else if (params.configId === ACP_MODE_CONFIG_ID) {
+        if (!isSessionModeId(params.value)) {
+          throw new RequestError(
+            -32602,
+            `Invalid params: unsupported value "${params.value}" for "${params.configId}"`,
+          );
+        }
+        runtimeState.modeId = params.value;
+      } else {
         throw new RequestError(-32602, `Invalid params: unsupported configId "${params.configId}"`);
       }
-      if (!isPermissionPolicyValue(params.value)) {
-        throw new RequestError(
-          -32602,
-          `Invalid params: unsupported value "${params.value}" for "${params.configId}"`,
-        );
-      }
-
-      runtimeState.permissionPolicy = params.value;
       sessions.update(params.sessionId, (current) => ({ ...current }));
       await persistSessionsBestEffort();
       const update = buildConfigOptionUpdateIfChanged(runtimeState);
