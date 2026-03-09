@@ -111,6 +111,11 @@ export interface LoopResult {
   authorizationDecisions?: AuthorizationDecisionRecord[];
   history?: LoopIteration[];
   finalPatch?: string;
+  /**
+   * Optional user-facing message produced by read-only flows (e.g. answer).
+   * Chat mode can use this as the assistant transcript content.
+   */
+  assistantMessage?: string;
   failurePhase?: ExecutionPhase;
   changedFiles?: string[];
   errorType?: ErrorType;

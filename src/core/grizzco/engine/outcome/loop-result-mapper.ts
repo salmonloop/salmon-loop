@@ -6,7 +6,7 @@ import { getTokenUsageFromAuditTrail } from '../../../observability/token-usage.
 import { ErrorType, Phase } from '../../../types/runtime.js';
 import type { ExecutionPhase, FlowMode, LoopOptions, LoopResult } from '../../../types/runtime.js';
 import type { LoopTelemetry } from '../observability/loop-telemetry.js';
-import type { ShrinkCtx } from '../pipeline/types.js';
+import type { TerminalCtx } from '../pipeline/types.js';
 import type { FlowTransactionReport } from '../transaction/types.js';
 
 interface BuildLoopResultParams {
@@ -36,11 +36,30 @@ export function buildLoopResultFromTransaction({
 }: BuildLoopResultParams): LoopResult {
   const ctx =
     executionReport.lastContext ??
-    (executionReport.flowReport.data as Partial<ShrinkCtx> | undefined);
-  const contextHash =
-    (ctx as { contextResult?: { meta?: { contextHash?: string } } } | undefined)?.contextResult
-      ?.meta?.contextHash ?? ctx?.context?.contextHash;
-  const verifyArtifact = ctx?.verifyArtifact ?? executionReport.lastVerifyArtifact;
+    (executionReport.flowReport.data as Partial<TerminalCtx> | undefined);
+  const contextHash = (() => {
+    const hashFromBudget = (ctx as any)?.contextResult?.meta?.contextHash;
+    if (typeof hashFromBudget === 'string') return hashFromBudget;
+    const hashFromContext =
+      ctx && typeof ctx === 'object' && 'context' in ctx
+        ? (ctx as any).context?.contextHash
+        : undefined;
+    return typeof hashFromContext === 'string' ? hashFromContext : undefined;
+  })();
+  const verifyArtifact =
+    ctx && typeof ctx === 'object' && 'verifyArtifact' in ctx
+      ? (ctx as any).verifyArtifact
+      : executionReport.lastVerifyArtifact;
+  const assistantMessage =
+    flowMode === 'answer'
+      ? (ctx as any)?.report?.summary?.trim?.()
+        ? String((ctx as any).report.summary).trim()
+        : ''
+      : undefined;
+  const finalPatch =
+    ctx && typeof ctx === 'object' && 'diff' in ctx ? (ctx as any).diff : undefined;
+  const changedFiles =
+    ctx && typeof ctx === 'object' && 'changedFiles' in ctx ? (ctx as any).changedFiles : undefined;
 
   const authorizationDecisions = (() => {
     if (!options.eventPayload?.includeAuthorizationDecisions) return undefined;
@@ -52,7 +71,12 @@ export function buildLoopResultFromTransaction({
     const attempts = executionReport.attempts;
     const usage = getTokenUsageFromAuditTrail() ?? undefined;
     const budgetSummary = getBudgetRunSummary() ?? undefined;
-    if (options.dryRun || flowMode === 'review' || flowMode === 'research') {
+    if (
+      options.dryRun ||
+      flowMode === 'review' ||
+      flowMode === 'research' ||
+      flowMode === 'answer'
+    ) {
       return {
         success: true,
         reason: text.loop.operationCompleted,
@@ -63,8 +87,9 @@ export function buildLoopResultFromTransaction({
         usage,
         authorizationDecisions,
         history: telemetry.getHistory(),
-        finalPatch: ctx?.diff,
-        changedFiles: ctx?.changedFiles,
+        finalPatch,
+        changedFiles,
+        assistantMessage,
         auditPath,
         verifyArtifact,
         authorizationSummary: executionReport.authorizationSummary || undefined,
@@ -84,8 +109,9 @@ export function buildLoopResultFromTransaction({
       usage,
       authorizationDecisions,
       history: telemetry.getHistory(),
-      finalPatch: ctx?.diff,
-      changedFiles: ctx?.changedFiles,
+      finalPatch,
+      changedFiles,
+      assistantMessage,
       auditPath,
       verifyArtifact,
       authorizationSummary: executionReport.authorizationSummary || undefined,

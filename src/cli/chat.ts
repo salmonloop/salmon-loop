@@ -9,7 +9,6 @@ import {
   getLogger,
   refreshSessionSummary,
   routeChatIntent,
-  runAnswerExecutor,
   runSalmonLoop,
   TokenTracker,
   type CheckpointStrategy,
@@ -332,42 +331,11 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
             timestamp: new Date(),
           });
 
-          if (intentDecision.intent === 'answer') {
-            const answer = await runAnswerExecutor({
-              repoPath: options.repoPath,
-              llm: options.llm,
-              instruction: trimmed,
-              conversationContext: conversationContext.length > 0 ? conversationContext : undefined,
-              emit: latestEmit,
-              signal: mergedSignal.signal,
-              llmOutputPolicy: currentLlmOutputPolicy,
-              authorizationProvider,
-              authorizationMode: 'deferred',
-              subAgentController,
-              languagePlugins: options.languagePlugins,
-            });
-
-            const responseText = answer.content?.trim() ? answer.content : text.cli.chatAnswerEmpty;
-
-            sessionManager.addMessage({
-              role: 'assistant',
-              content: responseText,
-              timestamp: Date.now(),
-            });
-
-            await refreshSessionSummary({
-              sessionManager,
-              llm: options.llm,
-              strategy: 'auto',
-            });
-            await sessionManager.save();
-            return { kind: 'answer' as const };
-          }
-
-          const strategy =
-            intentDecision.intent === 'review'
-              ? 'direct'
-              : options.checkpointStrategy || 'worktree';
+          const nonMutating =
+            intentDecision.intent === 'review' ||
+            intentDecision.intent === 'research' ||
+            intentDecision.intent === 'answer';
+          const strategy = nonMutating ? 'direct' : options.checkpointStrategy || 'worktree';
 
           const verboseLevel =
             options.verbose === true ? 'basic' : (options.verbose as VerboseLevel | undefined);
@@ -405,11 +373,6 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
         mergedSignal.cleanup();
       });
 
-      if (execution.kind === 'answer') {
-        currentInstruction = null;
-        return { ok: true, kind: 'answer' as const };
-      }
-
       const result = execution.result;
       const mode = execution.mode;
 
@@ -419,21 +382,27 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
 
       // Add assistant message & iteration info
       const changedFiles = result.changedFiles ?? [];
-      const responseText = result.success
-        ? mode === 'review'
-          ? text.cli.chatReviewCompleted
-          : changedFiles.length === 0
-            ? text.cli.chatNoChanges
-            : text.cli.chatSuccess(changedFiles.join(', '))
-        : text.cli.chatFailed(result.reason);
+      const responseText = (() => {
+        if (!result.success) return text.cli.chatFailed(result.reason);
+        if (mode === 'answer') {
+          const content = String(result.assistantMessage ?? '').trim();
+          return content || text.cli.chatAnswerEmpty;
+        }
+        if (mode === 'review') return text.cli.chatReviewCompleted;
+        return changedFiles.length === 0
+          ? text.cli.chatNoChanges
+          : text.cli.chatSuccess(changedFiles.join(', '));
+      })();
 
-      emitLlmOutput({
-        emit: latestEmit,
-        policy: currentLlmOutputPolicy,
-        kind: 'assistant_message',
-        step: 'REPORT',
-        content: responseText,
-      });
+      if (mode !== 'answer') {
+        emitLlmOutput({
+          emit: latestEmit,
+          policy: currentLlmOutputPolicy,
+          kind: 'assistant_message',
+          step: 'REPORT',
+          content: responseText,
+        });
+      }
 
       sessionManager.addMessage({
         role: 'assistant',

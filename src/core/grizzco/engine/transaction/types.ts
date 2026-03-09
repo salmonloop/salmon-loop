@@ -7,7 +7,7 @@ import type {
   LoopReasonCode,
 } from '../../../types/runtime.js';
 import type { FlowReport } from '../pipeline/pipeline.js';
-import type { ShrinkCtx } from '../pipeline/types.js';
+import type { TerminalCtx } from '../pipeline/types.js';
 
 export interface FlowTransactionReport {
   success: boolean;
@@ -17,7 +17,7 @@ export interface FlowTransactionReport {
   authorizationSummary?: AuthorizationSourceSummary | null;
   lastErrorCode?: string;
   retryExhausted: boolean;
-  lastContext?: ShrinkCtx | undefined;
+  lastContext?: TerminalCtx | undefined;
   lastVerifyArtifact?: ArtifactHandle;
   terminalReason?: string;
   terminalReasonCode?: LoopReasonCode;

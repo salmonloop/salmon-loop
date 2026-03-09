@@ -31,7 +31,7 @@ export function createFileSystemAdapter(
   mode: FlowMode,
   realFs: FileSystem = new FileAdapterFileSystem(),
 ): FileSystem {
-  if (mode === 'review' || mode === 'research') {
+  if (mode === 'review' || mode === 'research' || mode === 'answer') {
     return new ReadOnlyFileSystem(realFs);
   }
   return realFs;

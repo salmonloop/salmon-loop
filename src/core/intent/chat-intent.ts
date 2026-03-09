@@ -174,6 +174,38 @@ async function routeByLlm(
   input: string,
   options: RouteChatIntentOptions,
 ): Promise<ChatIntentDecision> {
+  const extractJsonObject = (raw: string): unknown => {
+    const trimmed = String(raw ?? '').trim();
+    if (!trimmed) {
+      throw new Error('Empty LLM response');
+    }
+
+    const stripCodeFence = (value: string): string => {
+      const v = value.trim();
+      if (!v.startsWith('```')) return v;
+      const firstNewline = v.indexOf('\n');
+      if (firstNewline < 0) return v.replace(/```/g, '').trim();
+      const withoutHeader = v.slice(firstNewline + 1);
+      const closing = withoutHeader.lastIndexOf('```');
+      if (closing >= 0) return withoutHeader.slice(0, closing).trim();
+      return withoutHeader.trim();
+    };
+
+    const candidate = stripCodeFence(trimmed);
+
+    try {
+      return JSON.parse(candidate);
+    } catch {
+      // Best-effort: extract the first JSON object from mixed output.
+      const start = candidate.indexOf('{');
+      const end = candidate.lastIndexOf('}');
+      if (start >= 0 && end > start) {
+        return JSON.parse(candidate.slice(start, end + 1));
+      }
+      throw new Error(`Invalid JSON: ${candidate.slice(0, 80)}`);
+    }
+  };
+
   const system = [
     'You are an intent router for a coding assistant.',
     'Classify the user message into exactly one intent:',
@@ -182,7 +214,7 @@ async function routeByLlm(
     '- patch: user is requesting code changes, new features, or refactors.',
     '- debug: user is reporting an error/failing tests/logs and wants it fixed.',
     'Return a JSON object with keys: intent, confidence (0..1), reason.',
-    'Return JSON only.',
+    'Return JSON only (no Markdown, no code fences, no backticks).',
   ].join('\n');
 
   const messages: LLMMessage[] = [
@@ -199,7 +231,7 @@ async function routeByLlm(
   });
 
   const raw = String(res?.content ?? '').trim();
-  const parsed = JSON.parse(raw);
+  const parsed = extractJsonObject(raw);
   const value = LlmDecisionSchema.parse(parsed);
 
   const intent = value.intent as ChatIntent;

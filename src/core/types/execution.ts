@@ -1,6 +1,6 @@
 export type VerboseLevel = 'basic' | 'extended';
 export type ApplyBackOnDirty = 'abort' | '3way';
-export type FlowMode = 'patch' | 'review' | 'debug' | 'research';
+export type FlowMode = 'patch' | 'review' | 'debug' | 'research' | 'answer';
 export type EnvironmentMode = 'strict' | 'parity';
 
 export interface FileSystem {

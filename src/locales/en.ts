@@ -739,6 +739,10 @@ Please return the patch in PURE unified diff format:`;
       issuesExtracted: (count: number) => `Identified ${count} issue(s) from review.`,
       fixPlanGenerated: 'Generated fix plan based on review feedback.',
     },
+    answer: {
+      header: 'Answer:',
+      empty: 'No answer produced.',
+    },
     research: {
       generated: 'Research generated.',
       header: 'Research summary:',

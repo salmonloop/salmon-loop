@@ -1,6 +1,11 @@
 import { text } from '../../../locales/index.js';
 import { SalmonError } from '../../types/errors.js';
-import type { ReportableCtx, ReviewSuggestion, ReviewSummary } from '../engine/pipeline/types.js';
+import type {
+  InitCtx,
+  ReportableCtx,
+  ReviewSuggestion,
+  ReviewSummary,
+} from '../engine/pipeline/types.js';
 
 export class ReportContextMissingError extends SalmonError {
   constructor(message: string) {
@@ -69,14 +74,19 @@ function normalizeSuggestions(
   return [{ type: 'note', content: safeStringify(input) }];
 }
 
-export async function displayReport<T extends ReportableCtx>(ctx: T): Promise<T> {
+type ReportDisplayCtx = ReportableCtx & Pick<InitCtx, 'emit' | 'options'>;
+
+export async function displayReport<T extends ReportDisplayCtx>(ctx: T): Promise<T> {
   if (!ctx.report || !ctx.report.kind) {
     throw new ReportContextMissingError(
       'Report context missing: expected report.kind to be set before REPORT step.',
     );
   }
   const outputKinds = ctx.options?.llmOutput?.kinds ?? [];
-  if (outputKinds.includes(ctx.report.kind)) {
+  if (
+    outputKinds.includes(ctx.report.kind as any) ||
+    (ctx.report.kind === 'answer' && outputKinds.includes('assistant_message'))
+  ) {
     return ctx;
   }
 
@@ -122,6 +132,32 @@ export async function displayReport<T extends ReportableCtx>(ctx: T): Promise<T>
         ),
         timestamp: new Date(),
       });
+    });
+    return ctx;
+  }
+
+  if (ctx.report.kind === 'answer') {
+    ctx.emit({
+      type: 'log',
+      level: 'info',
+      message: text.grizzco.answer.header,
+      timestamp: new Date(),
+    });
+    const summary = ctx.report.summary?.trim();
+    if (!summary) {
+      ctx.emit({
+        type: 'log',
+        level: 'info',
+        message: text.grizzco.answer.empty,
+        timestamp: new Date(),
+      });
+      return ctx;
+    }
+    ctx.emit({
+      type: 'log',
+      level: 'info',
+      message: summary,
+      timestamp: new Date(),
     });
     return ctx;
   }

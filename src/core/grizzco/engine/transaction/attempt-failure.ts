@@ -125,10 +125,13 @@ export function resolveAttemptFailure(params: {
     };
   }
   const verifyOk =
-    flowMode === 'review' || flowMode === 'research' ? true : context?.verifyResult?.ok !== false;
+    flowMode === 'review' || flowMode === 'research' || flowMode === 'answer'
+      ? true
+      : context?.verifyResult?.ok !== false;
   const applyBackFailed =
     flowMode !== 'review' &&
     flowMode !== 'research' &&
+    flowMode !== 'answer' &&
     context?.applyBackResult?.success === false &&
     !context.applyBackResult.skipped;
   const environmentMode = context?.options?.environmentMode;

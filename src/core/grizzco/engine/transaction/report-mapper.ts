@@ -1,7 +1,7 @@
 import type { ArtifactHandle } from '../../../sub-agent/artifacts/types.js';
 import type { AuthorizationSourceSummary, LoopIteration } from '../../../types/runtime.js';
 import type { FlowReport } from '../pipeline/pipeline.js';
-import type { ShrinkCtx } from '../pipeline/types.js';
+import type { TerminalCtx } from '../pipeline/types.js';
 
 import type { AttemptFailureDetails } from './attempt-failure.js';
 import type { FlowTransactionReport } from './types.js';
@@ -11,7 +11,7 @@ interface TransactionReportBase {
   flowReport: FlowReport;
   history: LoopIteration[];
   authorizationSummary: AuthorizationSourceSummary | null;
-  lastContext?: ShrinkCtx;
+  lastContext?: TerminalCtx;
   lastVerifyArtifact?: ArtifactHandle;
 }
 
@@ -86,7 +86,7 @@ export function mapRetryExhaustedReport(params: {
   history: LoopIteration[];
   authorizationSummary: AuthorizationSourceSummary | null;
   lastErrorCode?: string;
-  lastContext?: ShrinkCtx;
+  lastContext?: TerminalCtx;
   lastVerifyArtifact?: ArtifactHandle;
 }): FlowTransactionReport {
   const {

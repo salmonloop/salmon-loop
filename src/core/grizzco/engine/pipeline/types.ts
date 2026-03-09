@@ -147,7 +147,7 @@ export interface ResearchFinding {
   uncertainty?: string;
 }
 
-export type ReportKind = 'review' | 'research';
+export type ReportKind = 'review' | 'research' | 'answer';
 
 export interface ReportPayload {
   kind: ReportKind;
@@ -157,9 +157,23 @@ export interface ReportPayload {
   timestamp: number;
 }
 
-export interface ReportableCtx extends ContextCtx {
+/**
+ * Marker interface for contexts that can be rendered via the REPORT step.
+ *
+ * Note: this intentionally does not imply a discovered repository `context`.
+ * Some lightweight modes (e.g. answer) are read-only and may skip CONTEXT/EXPLORE.
+ */
+export interface ReportableCtx {
   report: ReportPayload;
 }
+
+/**
+ * Answer mode is a lightweight, read-only flow that produces a user-facing response
+ * (optionally with read-only tool assistance) without mutating the repository.
+ */
+export interface AnswerCtx extends PreflightCtx, ReportableCtx {}
+
+export type TerminalCtx = AnswerCtx | ReviewCtx | ResearchCtx | ShrinkCtx;
 
 /**
  * Stage 2.75: After Research

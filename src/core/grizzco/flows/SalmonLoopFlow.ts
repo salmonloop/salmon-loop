@@ -1,16 +1,20 @@
 import { Pipeline, FlowReport } from '../engine/pipeline/pipeline.js';
 import type {
+  AnswerCtx,
   ExploreCtx,
   InitCtx,
   ResearchCtx,
   ReviewCtx,
   ShrinkCtx,
+  TerminalCtx,
 } from '../engine/pipeline/types.js';
+import { generateAnswer } from '../steps/answer.js';
 import { runApplyBack } from '../steps/apply-back.js';
 import { runApply } from '../steps/apply.js';
 import { validateAst } from '../steps/ast-validate.js';
 import { saveAudit } from '../steps/audit.js';
 import { buildContext } from '../steps/context.js';
+import { displayAnswer } from '../steps/display-answer.js';
 import { displayResearch } from '../steps/display-research.js';
 import { displayReview } from '../steps/displayReview.js';
 import { exploreCodebase } from '../steps/explore.js';
@@ -28,9 +32,11 @@ import { runShrink } from '../steps/shrink.js';
 import { validatePatch } from '../steps/validate.js';
 import { runVerify } from '../steps/verify.js';
 
-export type FlowTerminalCtx = ReviewCtx | ResearchCtx | ShrinkCtx;
-
-type ModePipeline = Pipeline<ResearchCtx> | Pipeline<ReviewCtx> | Pipeline<ShrinkCtx>;
+type ModePipeline =
+  | Pipeline<AnswerCtx>
+  | Pipeline<ResearchCtx>
+  | Pipeline<ReviewCtx>
+  | Pipeline<ShrinkCtx>;
 
 function buildBasePipeline(initCtx: InitCtx): Pipeline<ExploreCtx> {
   return Pipeline.of(initCtx)
@@ -38,6 +44,14 @@ function buildBasePipeline(initCtx: InitCtx): Pipeline<ExploreCtx> {
     .step('PREPARE_DEPS', runPrepareDeps)
     .step('CONTEXT', buildContext)
     .step('EXPLORE', exploreCodebase);
+}
+
+function buildLightAnswerPipeline(initCtx: InitCtx): Pipeline<AnswerCtx> {
+  return Pipeline.of(initCtx)
+    .step('PREFLIGHT', runPreflight)
+    .step('ANSWER', generateAnswer)
+    .step('REPORT', displayAnswer)
+    .step('SHRINK', runReadOnlyShrink);
 }
 
 function buildPatchPipeline(base: Pipeline<ExploreCtx>): Pipeline<ShrinkCtx> {
@@ -83,6 +97,10 @@ function buildDebugPipeline(base: Pipeline<ExploreCtx>): Pipeline<ShrinkCtx> {
 }
 
 function buildPipelineByMode(initCtx: InitCtx): ModePipeline {
+  if (initCtx.mode === 'answer') {
+    return buildLightAnswerPipeline(initCtx);
+  }
+
   const basePipeline = buildBasePipeline(initCtx);
 
   if (initCtx.mode === 'review') {
@@ -100,9 +118,7 @@ function buildPipelineByMode(initCtx: InitCtx): ModePipeline {
   return buildPatchPipeline(basePipeline);
 }
 
-export async function executeSalmonLoopFlow(
-  initCtx: InitCtx,
-): Promise<FlowReport<FlowTerminalCtx>> {
+export async function executeSalmonLoopFlow(initCtx: InitCtx): Promise<FlowReport<TerminalCtx>> {
   const pipeline = buildPipelineByMode(initCtx);
   const report = await pipeline.execute();
 

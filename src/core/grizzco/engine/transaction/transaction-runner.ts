@@ -15,10 +15,9 @@ import type {
   LoopOptions,
 } from '../../../types/runtime.js';
 import { executeSalmonLoopFlow } from '../../flows/SalmonLoopFlow.js';
-import type { FlowTerminalCtx } from '../../flows/SalmonLoopFlow.js';
 import { LoopTelemetry } from '../observability/loop-telemetry.js';
 import type { FlowReport } from '../pipeline/pipeline.js';
-import type { InitCtx, ShrinkCtx } from '../pipeline/types.js';
+import type { InitCtx, ShrinkCtx, TerminalCtx } from '../pipeline/types.js';
 
 import { resolveAttemptFailure } from './attempt-failure.js';
 import { buildAuthorizationSummary } from './authorization-summary.js';
@@ -64,12 +63,12 @@ export class FlowTransactionRunner {
   private currentContext: Context | undefined;
   private currentLastError: string | undefined;
   private authorizationSummary: AuthorizationSourceSummary | null = null;
-  private lastContext: ShrinkCtx | undefined;
+  private lastContext: TerminalCtx | undefined;
   private lastVerifyArtifact: ArtifactHandle | undefined;
 
   constructor(private readonly params: FlowTransactionRunnerParams) {}
 
-  private isShrinkCtx(ctx: FlowTerminalCtx | undefined): ctx is ShrinkCtx {
+  private isShrinkCtx(ctx: TerminalCtx | undefined): ctx is ShrinkCtx {
     return Boolean(ctx && 'verifyResult' in ctx);
   }
 
@@ -111,12 +110,12 @@ export class FlowTransactionRunner {
 
       lastReport = result;
       const terminalCtx = result.data;
+      if (terminalCtx) {
+        this.lastContext = terminalCtx;
+      }
       const shrinkCtx = this.isShrinkCtx(terminalCtx) ? terminalCtx : undefined;
-      if (shrinkCtx) {
-        this.lastContext = shrinkCtx;
-        if (shrinkCtx.verifyArtifact) {
-          this.lastVerifyArtifact = shrinkCtx.verifyArtifact;
-        }
+      if (shrinkCtx?.verifyArtifact) {
+        this.lastVerifyArtifact = shrinkCtx.verifyArtifact;
       }
 
       const attemptFailure = resolveAttemptFailure({
