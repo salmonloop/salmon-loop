@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import type { TaskEvent } from '../../interaction/events/bus.js';
 
 export type AcpSessionHistoryEntry = {
@@ -29,15 +31,13 @@ export type AcpSessionStore = {
   delete: (id: string) => boolean;
 };
 
-let sessionCounter = 0;
-
 export function createAcpSessionStore(): AcpSessionStore {
   const sessions = new Map<string, AcpSessionRecord>();
 
   return {
     create(input) {
       const now = new Date().toISOString();
-      const id = `sess_${Date.now()}_${++sessionCounter}`;
+      const id = `sess_${Date.now()}_${process.pid}_${randomUUID()}`;
       const session: AcpSessionRecord = {
         id,
         cwd: input.cwd,

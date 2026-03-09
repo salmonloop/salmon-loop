@@ -16,6 +16,7 @@ Chinese documentation is provided as a user guide and may lag behind.
 
 - Contributing: contributing/contributing.md
 - Testing: contributing/testing.md
+- Release process: contributing/release.md
 - Coding standards: contributing/coding-standards.md
 - Security: contributing/security.md
 

@@ -46,7 +46,10 @@
     "test:coverage": "bun test --coverage --preload ./tests/setup-bun.ts tests",
     "test:report": "bun test --reporter=junit --reporter-outfile=test-report.xml --preload ./tests/setup-bun.ts tests",
     "test:ci": "bun run verify",
-    "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\""
+    "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",
+    "release": "bun scripts/release.ts cut",
+    "release:cut": "bun scripts/release.ts cut",
+    "release:dispatch": "bun scripts/release.ts dispatch"
   },
   "keywords": [
     "code",

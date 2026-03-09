@@ -135,6 +135,7 @@ const ACP_SESSION_STORE_MAX_ENTRIES = 200;
 const ACP_SESSION_STORE_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 30;
 const ACP_SESSION_STORE_LOCK_STALE_MS = 1000 * 30;
 const ACP_SESSION_STORE_LOCK_HEARTBEAT_MS = 1000 * 5;
+const ACP_SESSION_STORE_LOCK_ACQUIRE_TIMEOUT_MS = 1000 * 5;
 const ACP_SESSION_HISTORY_MAX_ENTRIES = 40;
 
 function isAbsolutePath(filePath: string): boolean {
@@ -628,6 +629,7 @@ export function createAcpFormalAgent(deps: {
     historyMaxEntries?: number;
     lockStaleMs?: number;
     lockHeartbeatMs?: number;
+    lockAcquireTimeoutMs?: number;
   };
   executionBinding?: 'local' | 'client';
 }): Agent {
@@ -648,6 +650,8 @@ export function createAcpFormalAgent(deps: {
     lockStaleMs: deps.sessionStorePolicy?.lockStaleMs ?? ACP_SESSION_STORE_LOCK_STALE_MS,
     lockHeartbeatMs:
       deps.sessionStorePolicy?.lockHeartbeatMs ?? ACP_SESSION_STORE_LOCK_HEARTBEAT_MS,
+    lockAcquireTimeoutMs:
+      deps.sessionStorePolicy?.lockAcquireTimeoutMs ?? ACP_SESSION_STORE_LOCK_ACQUIRE_TIMEOUT_MS,
   };
   const executionBinding = deps.executionBinding ?? 'local';
   let sessionsHydrated = false;
@@ -844,7 +848,8 @@ export function createAcpFormalAgent(deps: {
     let lockHandle: Awaited<ReturnType<typeof open>> | undefined;
     try {
       await mkdir(dir, { recursive: true });
-      for (let attempt = 0; attempt < 8; attempt += 1) {
+      const acquireDeadlineMs = Date.now() + Math.max(250, sessionStorePolicy.lockAcquireTimeoutMs);
+      for (let attempt = 0; Date.now() < acquireDeadlineMs; attempt += 1) {
         try {
           lockHandle = await open(lockPath, 'wx');
           await lockHandle.writeFile(
@@ -854,7 +859,8 @@ export function createAcpFormalAgent(deps: {
           break;
         } catch {
           await tryClearStaleLock();
-          await new Promise((resolve) => setTimeout(resolve, 20 * (attempt + 1)));
+          const delayMs = Math.min(250, 20 * (attempt + 1));
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
         }
       }
       if (!lockHandle) {
