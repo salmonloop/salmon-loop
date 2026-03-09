@@ -8,6 +8,7 @@ Chinese documentation is provided as a user guide and may lag behind.
 - Getting Started: getting-started/overview.md
 - Quickstart: getting-started/quickstart.md
 - CLI: user/cli.md
+- Headless output: reference/headless.md
 - Strategies (direct vs worktree): user/strategies.md
 - Execution safety: user/execution-safety.md
 - Troubleshooting: user/troubleshooting.md
@@ -38,6 +39,11 @@ Chinese documentation is provided as a user guide and may lag behind.
 - Error codes: reference/error-codes.md
 - Compatibility: reference/compatibility.md
 - Changelog: reference/changelog.md
+
+## Project Links
+
+- Website: https://www.s8p.io
+- Repository: https://github.com/salmonloop/salmon-loop
 
 ## Chinese Guide (Non-SSOT)
 

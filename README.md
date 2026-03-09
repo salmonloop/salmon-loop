@@ -2,13 +2,14 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-SalmonLoop is a patch-first coding agent for repositories that care about safety, auditability, and clean diffs.
-It behaves like an agent when a task needs reasoning, but it stays strict about verification, rollback, and protecting user data.
+SalmonLoop is a chat-first coding agent CLI for repositories that care about safety, auditability, and clean diffs.
+Open `s8p`, describe the job, and let the loop stay disciplined about verification, rollback, and protecting user data.
 
 ## Why SalmonLoop
 
 - **Agent, with guardrails**: SalmonLoop can plan, patch, verify, and serve through ACP/A2A, but it does not get a free pass to mutate your repo however it wants.
-- **Patch-first by default**: Changes are generated as diffs, not mystery rewrites.
+- **Chat-first UX**: `s8p` drops straight into the main experience.
+- **Patch-first under the hood**: Changes are generated as diffs, not mystery rewrites.
 - **Verify before success**: A run is only successful if your verification command passes.
 - **Built for messy real repos**: The worktree strategy keeps dirty workspaces safer by isolating execution and applying changes back carefully.
 - **Observable**: Sessions, audit events, snapshots, and structured outputs make it easier to inspect what happened.
@@ -29,11 +30,12 @@ The execution model stays pragmatic:
 ### 1. Install
 
 ```bash
-bun install
-bun run build
+npm install -g salmon-loop
+# or
+bun install -g salmon-loop
 ```
 
-Requires `bun >= 1.3.9`.
+Requires `bun >= 1.3.9` if you use Bun as your package manager.
 
 ### 2. Configure an LLM
 
@@ -47,7 +49,21 @@ SALMONLOOP_MODEL=gpt-4.1-mini
 
 Legacy `S8P_*` aliases still work, but new setups should prefer `SALMONLOOP_*`.
 
-### 3. Run a patch task
+### 3. Start chat mode
+
+```bash
+s8p
+```
+
+That is the primary product surface. Open it inside the repository you want to work on, then give it a task and a verification command in chat.
+
+Example prompt:
+
+```bash
+Fix the null handling in src/user.ts and verify with bun run test
+```
+
+### 4. Use `run` when you want one-shot automation
 
 ```bash
 s8p run \
@@ -57,13 +73,7 @@ s8p run \
   --checkpoint-strategy worktree
 ```
 
-If you want the interactive UI instead:
-
-```bash
-s8p
-```
-
-### 4. Serve it as an agent
+### 5. Serve it as an agent
 
 ```bash
 s8p serve
@@ -73,8 +83,8 @@ This starts the built-in agent server stack for A2A and local sidecar integratio
 
 ## What Users Usually Care About
 
-- **Chat mode**: `s8p` or `s8p chat`
-- **Single run**: `s8p run --instruction "..." --verify "..."`
+- **Chat mode**: `s8p`
+- **Single run**: `s8p run --instruction "..." --verify "..."` when chat is not the right fit
 - **Context only**: `s8p context -i "..."`
 - **Snapshots**: `s8p snap ls`, `s8p snap show <hash>`, `s8p checkout <hash>`
 - **Headless / CI**: `--output-format json` or `--output-format stream-json`
@@ -96,8 +106,6 @@ If you want the exact contract, start with [docs/design/execution-contract.md](d
 
 - **Language plugins**: add support under `.salmonloop/languages/<lang>/index.js`
 - **External tools and MCP**: configure extensions under `.salmonloop/config/`
-- **Embedded usage**: SalmonLoop can be used as a library inside your own tooling
-
 See [docs/user/plugins.md](docs/user/plugins.md) and [docs/user/extensions.md](docs/user/extensions.md).
 
 ## Contributing

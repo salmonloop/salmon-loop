@@ -2,13 +2,14 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-SalmonLoop 是一个以补丁为中心的 coding agent，适合对安全性、可审计性和干净 diff 有要求的代码仓库。
-它在需要时会表现得像 Agent，但在验证、回滚和用户数据保护上一直很克制。
+SalmonLoop 是一个以对话为主入口的 coding agent CLI，适合对安全性、可审计性和干净 diff 有要求的代码仓库。
+直接运行 `s8p` 就会进入主体验，后面的执行仍然会严格受验证、回滚和用户数据保护约束。
 
 ## 为什么用 SalmonLoop
 
 - **是 Agent，但有边界**：它可以规划、打补丁、验证，也能通过 ACP / A2A 对外提供 Agent 能力，但不会无约束地乱改仓库。
-- **补丁优先**：默认产出 diff，而不是神秘的大段重写。
+- **对话优先**：`s8p` 直接进入主体验。
+- **补丁优先**：底层依然默认产出 diff，而不是神秘的大段重写。
 - **验证通过才算成功**：你的验证命令不过，任务就不算完成。
 - **适合真实仓库**：`worktree` 策略可以在脏工作区里隔离执行，再谨慎地 apply back。
 - **过程可追踪**：会话、审计事件、快照和结构化输出都方便排查问题。
@@ -29,11 +30,12 @@ SalmonLoop 不是那种会一直在代码库里游荡的自动驾驶型 Agent。
 ### 1. 安装
 
 ```bash
-bun install
-bun run build
+npm install -g salmon-loop
+# 或
+bun install -g salmon-loop
 ```
 
-要求 `bun >= 1.3.9`。
+如果你用 Bun 作为包管理器，要求 `bun >= 1.3.9`。
 
 ### 2. 配置 LLM
 
@@ -47,7 +49,21 @@ SALMONLOOP_MODEL=gpt-4.1-mini
 
 旧的 `S8P_*` 别名仍然兼容，但新配置建议统一用 `SALMONLOOP_*`。
 
-### 3. 跑一个补丁任务
+### 3. 进入对话模式
+
+```bash
+s8p
+```
+
+这是主推入口。进入目标仓库后，直接在对话里给它任务和验证命令即可。
+
+例如：
+
+```bash
+Fix the null handling in src/user.ts and verify with bun run test
+```
+
+### 4. 需要一次性执行时再用 `run`
 
 ```bash
 s8p run \
@@ -57,13 +73,7 @@ s8p run \
   --checkpoint-strategy worktree
 ```
 
-如果你更喜欢交互界面：
-
-```bash
-s8p
-```
-
-### 4. 作为 Agent 服务运行
+### 5. 作为 Agent 服务运行
 
 ```bash
 s8p serve
@@ -73,8 +83,8 @@ s8p serve
 
 ## 用户最常用的能力
 
-- **聊天模式**：`s8p` 或 `s8p chat`
-- **单次执行**：`s8p run --instruction "..." --verify "..."`
+- **对话模式**：`s8p`
+- **单次执行**：`s8p run --instruction "..." --verify "..."`，适合非交互场景
 - **只构建上下文**：`s8p context -i "..."`
 - **快照管理**：`s8p snap ls`、`s8p snap show <hash>`、`s8p checkout <hash>`
 - **Headless / CI**：`--output-format json` 或 `--output-format stream-json`
@@ -96,8 +106,6 @@ SalmonLoop 在这里是故意严格的。
 
 - **语言插件**：放到 `.salmonloop/languages/<lang>/index.js`
 - **外部工具和 MCP**：通过 `.salmonloop/config/` 配置
-- **作为库嵌入**：可以集成进你自己的工具链
-
 相关文档见 [docs/user/plugins.md](docs/user/plugins.md) 和 [docs/user/extensions.md](docs/user/extensions.md)。
 
 ## 参与贡献

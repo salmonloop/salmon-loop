@@ -1,15 +1,29 @@
 {
   "name": "salmon-loop",
   "version": "0.2.0",
-  "description": "A minimal viable execution loop for automated code patching",
+  "description": "A chat-first coding agent CLI for safe, reviewable repository changes",
   "type": "module",
   "bin": {
     "s8p": "dist/cli/index.js",
     "salmon-loop": "dist/cli/index.js"
   },
+  "files": [
+    "dist/cli/**/*.js",
+    "dist/core/**/*.js",
+    "dist/integrations/**/*.js",
+    "dist/interfaces/**/*.js",
+    "dist/languages/**/*.js",
+    "dist/locales/**/*.js",
+    "dist/utils/**/*.js",
+    "dist/core/prompts/templates/**/*.hbs",
+    "README.md",
+    "README.zh-CN.md",
+    "LICENSE"
+  ],
+  "preferGlobal": true,
   "scripts": {
     "check-deps": "bun scripts/check-deps.js",
-    "build": "tsc -p tsconfig.build.json && bun scripts/copy-assets.js",
+    "build": "bun scripts/clean-dist.js && bun ./node_modules/typescript/bin/tsc -p tsconfig.build.json && bun scripts/copy-assets.js",
     "dev": "bun src/cli/index.ts",
     "test": "bun run test:unit",
     "t": "bun run test:unit",
@@ -46,10 +60,11 @@
     "test:coverage": "bun test --coverage --preload ./tests/setup-bun.ts tests",
     "test:report": "bun test --reporter=junit --reporter-outfile=test-report.xml --preload ./tests/setup-bun.ts tests",
     "test:ci": "bun run verify",
+    "pack:dry": "npm pack --dry-run",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",
     "release": "bun scripts/release.ts cut",
     "release:cut": "bun scripts/release.ts cut",
-    "release:dispatch": "bun scripts/release.ts dispatch"
+    "release:publish": "bun scripts/release.ts publish"
   },
   "keywords": [
     "code",
@@ -58,7 +73,18 @@
     "llm"
   ],
   "author": "",
+  "homepage": "https://www.s8p.io",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/salmonloop/salmon-loop.git"
+  },
+  "bugs": {
+    "url": "https://github.com/salmonloop/salmon-loop/issues"
+  },
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "engines": {
     "bun": ">=1.3.9"
   },

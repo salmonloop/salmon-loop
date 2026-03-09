@@ -1,0 +1,8 @@
+*
+!dist/**/*.js
+!dist/**/*.hbs
+!README.md
+!README.zh-CN.md
+!LICENSE
+dist/**/__tests__/**
+dist/**/*.test.js

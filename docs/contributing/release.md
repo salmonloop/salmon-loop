@@ -1,7 +1,7 @@
-# Release Process (Compiled Binaries)
+# Release Process (npm CLI Package)
 
-This repository publishes **compiled CLI binaries** via GitHub Releases using the workflow
-`/.github/workflows/release-compiled.yml`.
+This repository publishes the `salmon-loop` CLI package to npm.
+The package is installed with `npm install -g salmon-loop` or `bun install -g salmon-loop`.
 
 The recommended way to cut a release is the repo helper script:
 
@@ -13,8 +13,7 @@ The recommended way to cut a release is the repo helper script:
 - Your workspace is clean (no unstaged/staged/untracked changes), unless you explicitly use
   `--allow-dirty` (not recommended).
 - You have Bun installed and can run `bun run verify` locally.
-- If you want to dispatch the GitHub Actions workflow from your terminal, install GitHub CLI (`gh`)
-  and ensure you are authenticated.
+- You have npm access to publish the `salmon-loop` package.
 
 ## What a Release Does
 
@@ -26,7 +25,7 @@ When applied (`--apply`), the release script will:
 4. Update `package.json` version.
 5. Create a commit: `chore(release): vX.Y.Z`
 6. Create an annotated tag: `vX.Y.Z`
-7. Optionally push commit + tag and dispatch the GitHub Actions release workflow.
+7. Optionally push commit + tag and publish the package to npm.
 
 ## Cut a Release (Recommended)
 
@@ -48,35 +47,41 @@ To set an explicit version:
 bun run release:cut --version 0.2.1 --apply --push
 ```
 
-### Dispatch GitHub Release Build (Optional)
+### Publish to npm (Optional)
 
-To build and publish compiled binaries to the GitHub Release, dispatch the workflow:
-
-```bash
-bun run release:cut --bump patch --apply --push --dispatch
-```
-
-Notes:
-
-- The dispatch step uses the workflow name `Release (compiled binaries)` by default.
-- If you prefer, you can dispatch an existing tag without cutting a new one:
+To cut the release and publish the package to npm in one go:
 
 ```bash
-bun run release:dispatch --tag v0.2.1 --apply
+bun run release:cut --bump patch --apply --push --publish
 ```
 
-## Artifacts (Workflow Output)
+If you need a non-default dist-tag:
 
-The workflow publishes these assets to the GitHub Release:
+```bash
+bun run release:cut --bump patch --apply --push --publish --npm-tag next
+```
 
-- `salmon-loop-darwin-arm64`
-- `salmon-loop-darwin-x64`
-- `salmon-loop-linux-x64-gnu`
-- `salmon-loop-linux-x64-musl`
-- `salmon-loop-windows-x64.exe`
-- `SHA256SUMS`
+If you only need to publish the already-built package contents:
 
-These names are consumed by the install scripts under `scripts/install/`.
+```bash
+bun run release:publish --apply
+```
+
+If your npm account uses 2FA:
+
+```bash
+bun run release:cut --bump patch --apply --push --publish --npm-otp 123456
+```
+
+## Packaging Checks
+
+Before publishing, verify the package shape:
+
+```bash
+bun run pack:dry
+```
+
+This should only include the runtime files needed by the CLI package, not repository-only content such as tests or GitHub workflows.
 
 ## Troubleshooting
 
@@ -86,6 +91,7 @@ These names are consumed by the install scripts under `scripts/install/`.
   - Pull/rebase `main` first, then retry.
 - **"Tag already exists"**
   - Pick a new version or delete the tag if it was created by mistake (use with caution).
-- **"GitHub CLI (gh) is not available"**
-  - Install `gh`, or dispatch the workflow from the GitHub Actions UI.
-
+- **"`npm publish` failed"**
+  - Check npm authentication, package name availability, and 2FA requirements.
+- **"Published files look wrong"**
+  - Run `bun run pack:dry` and adjust the `files` field in `package.json`.

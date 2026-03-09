@@ -10,11 +10,6 @@ type Semver = {
   raw: string;
 };
 
-type GitRepoRef = {
-  owner: string;
-  repo: string;
-};
-
 function parseSemver(input: string): Semver {
   const trimmed = input.trim();
   const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(trimmed);
@@ -147,75 +142,35 @@ async function writePackageJson(pkgPath: string, json: unknown): Promise<void> {
   await writeFile(pkgPath, content, 'utf-8');
 }
 
-function parseGitHubRepoFromRemote(remoteUrl: string): GitRepoRef | null {
-  const url = remoteUrl.trim();
-
-  const ssh = /^git@github\.com:([^/]+)\/([^/]+?)(?:\.git)?$/i.exec(url);
-  if (ssh) return { owner: ssh[1], repo: ssh[2] };
-
-  const https = /^https?:\/\/github\.com\/([^/]+)\/([^/]+?)(?:\.git)?$/i.exec(url);
-  if (https) return { owner: https[1], repo: https[2] };
-
-  return null;
-}
-
-async function getOriginRepo(cwd: string, remote: string): Promise<GitRepoRef | null> {
-  const res = await run('git', ['remote', 'get-url', remote], { cwd });
-  if (res.exitCode !== 0) return null;
-  return parseGitHubRepoFromRemote(res.stdout);
-}
-
-async function hasGhCli(): Promise<boolean> {
-  const res = await run('gh', ['--version'], { stdio: 'pipe' });
+async function hasNpmCli(): Promise<boolean> {
+  const res = await run('npm', ['--version'], { stdio: 'pipe' });
   return res.exitCode === 0;
 }
 
-async function dispatchReleaseWorkflow(options: {
+async function publishPackage(options: {
   cwd: string;
-  remote: string;
-  repo?: string;
-  workflow: string;
-  tag: string;
-  ref: string;
   apply: boolean;
+  tag?: string;
+  otp?: string;
+  access?: 'public' | 'restricted';
 }): Promise<void> {
-  const repoRef =
-    options.repo?.includes('/') === true
-      ? { owner: options.repo.split('/')[0]!, repo: options.repo.split('/')[1]! }
-      : await getOriginRepo(options.cwd, options.remote);
-
-  const repoArg = repoRef ? `${repoRef.owner}/${repoRef.repo}` : undefined;
-
-  if (!(await hasGhCli())) {
-    const repoHint = repoArg ? ` --repo ${repoArg}` : '';
-    throw new Error(
-      [
-        'GitHub CLI (gh) is not available in PATH.',
-        'Install it, or dispatch the workflow manually:',
-        `  gh workflow run "${options.workflow}"${repoHint} --ref ${options.ref} -f tag=${options.tag}`,
-      ].join('\n'),
-    );
+  if (!(await hasNpmCli())) {
+    throw new Error('npm is not available in PATH. Install Node.js/npm before publishing.');
   }
 
-  const args = [
-    'workflow',
-    'run',
-    options.workflow,
-    '--ref',
-    options.ref,
-    '-f',
-    `tag=${options.tag}`,
-  ];
-  if (repoArg) args.push('--repo', repoArg);
+  const args = ['publish'];
+  if (options.tag) args.push('--tag', options.tag);
+  if (options.otp) args.push('--otp', options.otp);
+  if (options.access) args.push('--access', options.access);
 
   if (!options.apply) {
-    process.stdout.write(`[dry-run] gh ${args.join(' ')}\n`);
+    process.stdout.write(`[dry-run] npm ${args.join(' ')}\n`);
     return;
   }
 
-  const res = await run('gh', args, { cwd: options.cwd, stdio: 'inherit' });
+  const res = await run('npm', args, { cwd: options.cwd, stdio: 'inherit' });
   if (res.exitCode !== 0) {
-    throw new Error('Failed to dispatch GitHub Actions workflow.');
+    throw new Error('npm publish failed.');
   }
 }
 
@@ -231,9 +186,10 @@ async function cutRelease(options: {
   build: boolean;
   apply: boolean;
   push: boolean;
-  dispatch: boolean;
-  workflow: string;
-  repo?: string;
+  publish: boolean;
+  npmTag?: string;
+  npmOtp?: string;
+  npmAccess?: 'public' | 'restricted';
 }): Promise<void> {
   await assertGitRepo(options.cwd);
 
@@ -300,9 +256,9 @@ async function cutRelease(options: {
         `- Commit: chore(release): ${tag}`,
         `- Tag: ${tag}`,
         options.push ? `- Push: ${options.remote} (commit + tag)` : '- Push: (skipped)',
-        options.dispatch
-          ? `- Dispatch workflow: "${options.workflow}" (input tag=${tag})`
-          : '- Dispatch workflow: (skipped)',
+        options.publish
+          ? `- Publish package: npm publish${options.npmTag ? ` --tag ${options.npmTag}` : ''}`
+          : '- Publish package: (skipped)',
         '',
         'Re-run with --apply to make changes.',
       ].join('\n') + '\n',
@@ -357,15 +313,13 @@ async function cutRelease(options: {
     if (pushTag.exitCode !== 0) throw new Error('git push (tag) failed.');
   }
 
-  if (options.dispatch) {
-    await dispatchReleaseWorkflow({
+  if (options.publish) {
+    await publishPackage({
       cwd: options.cwd,
-      remote: options.remote,
-      repo: options.repo,
-      workflow: options.workflow,
-      tag,
-      ref: options.branch,
       apply: true,
+      tag: options.npmTag,
+      otp: options.npmOtp,
+      access: options.npmAccess,
     });
   }
 }
@@ -396,15 +350,19 @@ function buildProgram(): Command {
     .option('--skip-build', 'Skip `bun run build`', false)
     .option('--apply', 'Apply changes (default is dry-run)', false)
     .option('--push', 'Push commit and tag to remote (requires --apply)', false)
+    .option('--publish', 'Publish the package to npm after tagging (requires --apply)', false)
+    .option('--npm-tag <name>', 'npm dist-tag to publish under (default: npm default)')
+    .option('--npm-otp <code>', 'One-time password for npm 2FA')
     .option(
-      '--dispatch',
-      'Dispatch the GitHub Actions compiled-binary workflow (requires --apply)',
-      false,
-    )
-    .option('--workflow <name>', 'Workflow name or file', 'Release (compiled binaries)')
-    .option(
-      '--repo <owner/repo>',
-      'GitHub repo for dispatch (defaults to origin remote when possible)',
+      '--npm-access <level>',
+      'npm access level',
+      (value) => {
+        if (value !== 'public' && value !== 'restricted') {
+          throw new Error('`--npm-access` must be either "public" or "restricted".');
+        }
+        return value;
+      },
+      'public',
     )
     .action(async (opts) => {
       await cutRelease({
@@ -419,35 +377,37 @@ function buildProgram(): Command {
         build: !opts.skipBuild,
         apply: Boolean(opts.apply),
         push: Boolean(opts.push),
-        dispatch: Boolean(opts.dispatch),
-        workflow: String(opts.workflow),
-        repo: opts.repo ? String(opts.repo) : undefined,
+        publish: Boolean(opts.publish),
+        npmTag: opts.npmTag ? String(opts.npmTag) : undefined,
+        npmOtp: opts.npmOtp ? String(opts.npmOtp) : undefined,
+        npmAccess: opts.npmAccess as 'public' | 'restricted',
       });
     });
 
   program
-    .command('dispatch')
-    .description(
-      'Dispatch the GitHub Actions compiled-binary release workflow for an existing tag.',
-    )
-    .requiredOption('--tag <vX.Y.Z>', 'Release tag (e.g. v0.2.1)')
-    .option('--branch <name>', 'Git ref for workflow dispatch', 'main')
-    .option('--remote <name>', 'Git remote used to infer GitHub repo (optional)', 'origin')
-    .option('--workflow <name>', 'Workflow name or file', 'Release (compiled binaries)')
+    .command('publish')
+    .description('Publish the current package contents to npm.')
+    .option('--tag <name>', 'npm dist-tag (default: npm default)')
+    .option('--otp <code>', 'One-time password for npm 2FA')
     .option(
-      '--repo <owner/repo>',
-      'GitHub repo for dispatch (defaults to origin remote when possible)',
+      '--access <level>',
+      'npm access level',
+      (value) => {
+        if (value !== 'public' && value !== 'restricted') {
+          throw new Error('`--access` must be either "public" or "restricted".');
+        }
+        return value;
+      },
+      'public',
     )
-    .option('--apply', 'Actually dispatch (default is dry-run)', false)
+    .option('--apply', 'Actually publish (default is dry-run)', false)
     .action(async (opts) => {
-      await dispatchReleaseWorkflow({
+      await publishPackage({
         cwd: process.cwd(),
-        remote: String(opts.remote),
-        repo: opts.repo ? String(opts.repo) : undefined,
-        workflow: String(opts.workflow),
-        tag: String(opts.tag),
-        ref: String(opts.branch),
         apply: Boolean(opts.apply),
+        tag: opts.tag ? String(opts.tag) : undefined,
+        otp: opts.otp ? String(opts.otp) : undefined,
+        access: opts.access as 'public' | 'restricted',
       });
     });
 
