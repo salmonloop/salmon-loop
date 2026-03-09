@@ -20,3 +20,33 @@ jobs:
           bun-version: ${{ inputs.bun-version }}
       - name: Verify
         run: bun run verify
+
+  publish-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup
+        uses: ./.github/actions/setup
+        with:
+          bun-version: ${{ inputs.bun-version }}
+      - name: Build package
+        run: bun run build
+      - name: Pack npm tarball
+        shell: bash
+        run: npm pack --json > pack-output.json
+      - name: Install tarball in temp directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          TARBALL="$(bun -e "const items = JSON.parse(await Bun.file('pack-output.json').text()); process.stdout.write(items[0].filename);")"
+          mkdir -p .tmp/publish-smoke
+          cd .tmp/publish-smoke
+          bun add "../../${TARBALL}"
+      - name: Smoke test CLI entrypoints
+        shell: bash
+        run: |
+          set -euo pipefail
+          BIN="./.tmp/publish-smoke/node_modules/.bin/s8p"
+          "$BIN" --help
+          "$BIN" run --help
+          "$BIN" serve --help

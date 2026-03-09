@@ -206,7 +206,8 @@ async function assertReleaseArtifact(options: { cwd: string; tarballPath: string
       throw new Error('Failed to install packed tarball into a temporary directory.');
     }
 
-    const binPath = path.join(installDir, 'node_modules', '.bin', 's8p.cmd');
+    const binName = process.platform === 'win32' ? 's8p.cmd' : 's8p';
+    const binPath = path.join(installDir, 'node_modules', '.bin', binName);
     const smokeCommands = [['--help'], ['run', '--help'], ['serve', '--help']];
 
     for (const args of smokeCommands) {
