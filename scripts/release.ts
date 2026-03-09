@@ -1,4 +1,6 @@
-import { readFile, writeFile } from 'fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'fs/promises';
+import os from 'os';
+import path from 'path';
 
 import { Command, Option } from 'commander';
 import { execa } from 'execa';
@@ -147,6 +149,86 @@ async function hasNpmCli(): Promise<boolean> {
   return res.exitCode === 0;
 }
 
+async function assertNpmAuth(cwd: string): Promise<void> {
+  if (!(await hasNpmCli())) {
+    throw new Error('npm is not available in PATH. Install Node.js/npm before publishing.');
+  }
+
+  const res = await run('npm', ['whoami'], { cwd, stdio: 'pipe' });
+  if (res.exitCode !== 0) {
+    throw new Error(
+      [
+        'npm authentication check failed.',
+        'Run `npm login` (or configure your npm token) and retry.',
+        (res.stderr || res.stdout || '').trim(),
+      ]
+        .filter(Boolean)
+        .join('\n'),
+    );
+  }
+}
+
+async function createPackArtifact(cwd: string): Promise<string> {
+  const res = await run('npm', ['pack', '--json'], { cwd, stdio: 'pipe' });
+  if (res.exitCode !== 0) {
+    throw new Error((res.stderr || '').trim() || '`npm pack` failed.');
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(res.stdout);
+  } catch {
+    throw new Error('Failed to parse `npm pack --json` output.');
+  }
+
+  if (!Array.isArray(parsed) || parsed.length === 0) {
+    throw new Error('`npm pack --json` did not return a tarball descriptor.');
+  }
+
+  const filename = parsed[0] && typeof parsed[0] === 'object' ? (parsed[0] as any).filename : '';
+  if (typeof filename !== 'string' || !filename.trim()) {
+    throw new Error('`npm pack --json` did not include a tarball filename.');
+  }
+
+  return path.join(cwd, filename);
+}
+
+async function assertReleaseArtifact(options: { cwd: string; tarballPath: string }): Promise<void> {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'salmon-loop-release-'));
+  const installDir = path.join(tempRoot, 'install');
+
+  try {
+    const installRes = await run('npm', ['install', '--prefix', installDir, options.tarballPath], {
+      cwd: options.cwd,
+      stdio: 'inherit',
+    });
+    if (installRes.exitCode !== 0) {
+      throw new Error('Failed to install packed tarball into a temporary directory.');
+    }
+
+    const binPath = path.join(installDir, 'node_modules', '.bin', 's8p.cmd');
+    const smokeCommands = [['--help'], ['run', '--help'], ['serve', '--help']];
+
+    for (const args of smokeCommands) {
+      const smokeRes = await run(binPath, args, { cwd: installDir, stdio: 'inherit' });
+      if (smokeRes.exitCode !== 0) {
+        throw new Error(`Smoke test failed for: s8p ${args.join(' ')}`.trim());
+      }
+    }
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+}
+
+async function runPackagingChecks(cwd: string): Promise<void> {
+  const tarballPath = await createPackArtifact(cwd);
+  try {
+    await assertReleaseArtifact({ cwd, tarballPath });
+  } finally {
+    await rm(tarballPath, { force: true });
+  }
+}
+
 async function publishPackage(options: {
   cwd: string;
   apply: boolean;
@@ -167,6 +249,8 @@ async function publishPackage(options: {
     process.stdout.write(`[dry-run] npm ${args.join(' ')}\n`);
     return;
   }
+
+  await assertNpmAuth(options.cwd);
 
   const res = await run('npm', args, { cwd: options.cwd, stdio: 'inherit' });
   if (res.exitCode !== 0) {
@@ -190,6 +274,7 @@ async function cutRelease(options: {
   npmTag?: string;
   npmOtp?: string;
   npmAccess?: 'public' | 'restricted';
+  packageCheck: boolean;
 }): Promise<void> {
   await assertGitRepo(options.cwd);
 
@@ -248,6 +333,14 @@ async function cutRelease(options: {
     }
   }
 
+  if (options.packageCheck) {
+    await runPackagingChecks(options.cwd);
+  }
+
+  if (options.publish && options.apply) {
+    await assertNpmAuth(options.cwd);
+  }
+
   if (!options.apply) {
     process.stdout.write(
       [
@@ -255,6 +348,9 @@ async function cutRelease(options: {
         `- Update package.json version: ${currentVersion.raw} -> ${nextVersion}`,
         `- Commit: chore(release): ${tag}`,
         `- Tag: ${tag}`,
+        options.packageCheck
+          ? '- Package checks: npm pack + temporary install + CLI smoke tests'
+          : '- Package checks: (skipped)',
         options.push ? `- Push: ${options.remote} (commit + tag)` : '- Push: (skipped)',
         options.publish
           ? `- Publish package: npm publish${options.npmTag ? ` --tag ${options.npmTag}` : ''}`
@@ -348,6 +444,7 @@ function buildProgram(): Command {
     .option('--allow-dirty', 'Allow cutting from a dirty workspace (not recommended)', false)
     .option('--skip-verify', 'Skip `bun run verify`', false)
     .option('--skip-build', 'Skip `bun run build`', false)
+    .option('--skip-package-check', 'Skip npm pack and temporary-install smoke tests', false)
     .option('--apply', 'Apply changes (default is dry-run)', false)
     .option('--push', 'Push commit and tag to remote (requires --apply)', false)
     .option('--publish', 'Publish the package to npm after tagging (requires --apply)', false)
@@ -375,6 +472,7 @@ function buildProgram(): Command {
         version: opts.version ? String(opts.version) : undefined,
         verify: !opts.skipVerify,
         build: !opts.skipBuild,
+        packageCheck: !opts.skipPackageCheck,
         apply: Boolean(opts.apply),
         push: Boolean(opts.push),
         publish: Boolean(opts.publish),

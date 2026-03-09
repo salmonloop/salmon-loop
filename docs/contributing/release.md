@@ -22,10 +22,12 @@ When applied (`--apply`), the release script will:
 1. Run safety checks (branch, cleanliness, upstream status when available, tag existence).
 2. Run `bun run verify` (unless `--skip-verify`).
 3. Run `bun run build` (unless `--skip-build`).
-4. Update `package.json` version.
-5. Create a commit: `chore(release): vX.Y.Z`
-6. Create an annotated tag: `vX.Y.Z`
-7. Optionally push commit + tag and publish the package to npm.
+4. Run packaging checks: `npm pack`, temporary install, and CLI smoke tests for `s8p`, `s8p run`, and `s8p serve` (unless `--skip-package-check`).
+5. Check npm authentication before publish when `--publish` is requested.
+6. Update `package.json` version.
+7. Create a commit: `chore(release): vX.Y.Z`
+8. Create an annotated tag: `vX.Y.Z`
+9. Optionally push commit + tag and publish the package to npm.
 
 ## Cut a Release (Recommended)
 
@@ -47,6 +49,23 @@ To set an explicit version:
 bun run release:cut --version 0.2.1 --apply --push
 ```
 
+## Versioning Policy
+
+Use `--bump patch|minor|major` as an explicit release decision. The script increments numbers mechanically; the team is responsible for choosing the correct level.
+
+- `patch`
+  - Bug fixes, internal refactors, documentation updates, packaging cleanup, or other changes that do not change the expected CLI contract.
+- `minor`
+  - New commands, new flags, new supported workflows, or behavior additions that stay backward-compatible for existing users.
+- `major`
+  - Breaking CLI behavior changes, removed commands/flags, incompatible config changes, or workflow changes that require users to update automation or scripts.
+
+If the release does not fit a simple increment, set the version explicitly:
+
+```bash
+bun run release:cut --version 0.3.0 --apply --push
+```
+
 ### Publish to npm (Optional)
 
 To cut the release and publish the package to npm in one go:
@@ -54,6 +73,8 @@ To cut the release and publish the package to npm in one go:
 ```bash
 bun run release:cut --bump patch --apply --push --publish
 ```
+
+This is the standard team release path.
 
 If you need a non-default dist-tag:
 
@@ -66,6 +87,8 @@ If you only need to publish the already-built package contents:
 ```bash
 bun run release:publish --apply
 ```
+
+This path assumes you have already verified the exact package contents you want to publish.
 
 If your npm account uses 2FA:
 
@@ -81,6 +104,7 @@ Before publishing, verify the package shape:
 bun run pack:dry
 ```
 
+The release script now runs package checks automatically unless `--skip-package-check` is used.
 This should only include the runtime files needed by the CLI package, not repository-only content such as tests or GitHub workflows.
 
 ## Troubleshooting
@@ -93,5 +117,9 @@ This should only include the runtime files needed by the CLI package, not reposi
   - Pick a new version or delete the tag if it was created by mistake (use with caution).
 - **"`npm publish` failed"**
   - Check npm authentication, package name availability, and 2FA requirements.
+- **"npm authentication check failed"**
+  - Run `npm login` (or refresh your npm token) and retry.
+- **"Smoke test failed for: s8p ..."**
+  - Rebuild, run `bun run pack:dry`, then validate the packed tarball in a temporary install before retrying.
 - **"Published files look wrong"**
   - Run `bun run pack:dry` and adjust the `files` field in `package.json`.
