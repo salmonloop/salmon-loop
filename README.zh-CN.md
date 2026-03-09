@@ -2,153 +2,135 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-一个用于自动化代码补丁的最小可行执行循环。
+SalmonLoop 是一个以补丁为中心的 coding agent，适合对安全性、可审计性和干净 diff 有要求的代码仓库。
+它在需要时会表现得像 Agent，但在验证、回滚和用户数据保护上一直很克制。
 
-## 架构设计：三层分流模型 (Three-Layer Triage)
+## 为什么用 SalmonLoop
 
-Salmon-Loop 采用独特的 **三层分流模型**，以最高效、最安全的方式处理不同复杂度的任务：
+- **是 Agent，但有边界**：它可以规划、打补丁、验证，也能通过 ACP / A2A 对外提供 Agent 能力，但不会无约束地乱改仓库。
+- **补丁优先**：默认产出 diff，而不是神秘的大段重写。
+- **验证通过才算成功**：你的验证命令不过，任务就不算完成。
+- **适合真实仓库**：`worktree` 策略可以在脏工作区里隔离执行，再谨慎地 apply back。
+- **过程可追踪**：会话、审计事件、快照和结构化输出都方便排查问题。
 
-1.  **确定性工具 (SimpleTool)**：原子化、极速执行的操作（如 Git、文件系统操作），作为纯函数执行。零编排开销。
-2.  **微任务 (MicroTask)**：需要微决策或数据补全（如动态上下文组装）的确定性任务。由 **Grizzco DSL** 和 `MicroTaskRunner` 驱动。
-3.  **子代理 (SubAgent)**：需要反思循环和自主规划的复杂多步目标。通过完整的 LLM 驱动执行循环管理。
+## 整体气质
 
-这种分层方法确保了简单任务保持极速和可预测，而复杂任务则能获得所需的认知计算能力。
+SalmonLoop 不是那种会一直在代码库里游荡的自动驾驶型 Agent。
+它更像一个纪律严格的工程 Agent：输入明确指令，输出可审查的补丁。
 
-## 设计理念 (Philosophy)
+它的执行模型也比较务实：
 
-Salmon-Loop 建立在三个核心原则之上：
+1. **确定性工具** 处理便宜、可靠的操作。
+2. **微任务** 负责小范围逻辑拼装和上下文补全。
+3. **子代理** 只在确实需要多步推理时出场。
 
-1.  **补丁优先 (Patch-First)**：所有更改都通过标准的 unified diff (`git apply`) 应用，并使用鲁棒的三路合并策略进行集成。这确保了更改是精确的、可逆的和可审查的。
-2.  **验证优先 (Verify-First)**：如果没有通过用户提供的验证命令（例如 `bun run test`），任何更改都不会被视为成功。
-3.  **快速失败 (Fail-Fast)**：如果验证失败，系统会立即回滚更改并报告错误。它不会试图在没有明确计划的情况下“猜测”如何修复破坏的状态。
+## 快速开始
 
-## 非目标 (Non-Goals)
-
-- **不是代理 (Not an Agent)**：Salmon-Loop 是一个执行特定指令的工具，而不是一个无限探索代码库的自主代理。
-- **不进行重构 (No Refactors)**：它专为针对性的修复和功能开发而设计，而不是大规模的架构重构。
-- **不重写整个文件 (No Whole-File Rewrite)**：它通过补丁修改现有文件；它不会从头开始重写整个文件。
-
-## 使用方法
-
-### 安装
+### 1. 安装
 
 ```bash
 bun install
 bun run build
 ```
 
-### 安装二进制（无需 Bun）
+要求 `bun >= 1.3.9`。
 
-macOS / Linux：
+### 2. 配置 LLM
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/salmonloop/salmon-loop/main/scripts/install/install.sh | bash
-```
-
-Windows（PowerShell）：
-
-```powershell
-irm https://raw.githubusercontent.com/salmonloop/salmon-loop/main/scripts/install/install.ps1 | iex
-```
-
-### 配置
-
-复制示例环境文件并添加您的 API 密钥：
+新建本地 `.env`，优先使用这些环境变量：
 
 ```bash
-cp .env.example .env
+SALMONLOOP_API_KEY=your-key
+SALMONLOOP_BASE_URL=https://api.openai.com/v1
+SALMONLOOP_MODEL=gpt-4.1-mini
 ```
 
-编辑 `.env` 并设置您的 `SALMONLOOP_API_KEY`（或兼容的旧别名 `S8P_API_KEY`）。您还可以自定义 `SALMONLOOP_BASE_URL`（优先）或旧名 `S8P_BASE_URL`，以及 `SALMONLOOP_MODEL`（优先）或旧名 `S8P_MODEL`。
+旧的 `S8P_*` 别名仍然兼容，但新配置建议统一用 `SALMONLOOP_*`。
 
-### 运行 CLI
-
-默认情况下，Salmon-Loop 会进入交互式的 **chat** 模式。对于单次执行的任务，请使用 **run** 命令：
+### 3. 跑一个补丁任务
 
 ```bash
-# 开发模式（无需构建）
-bun run dev run --instruction "fix bug" --verify "bun run test"
-
-# 或直接运行 TypeScript 入口
-bun src/cli/index.ts run --instruction "fix bug" --verify "bun run test"
-
-# 或者在构建后
-bun dist/cli/index.js run --instruction "fix bug" --verify "bun run test"
+s8p run \
+  --repo /path/to/your/repo \
+  --instruction "Fix the null handling in src/user.ts" \
+  --verify "bun run test" \
+  --checkpoint-strategy worktree
 ```
 
-### 快速示例
-
-修复 bug 并使用 `bun run test` 验证：
+如果你更喜欢交互界面：
 
 ```bash
-salmon-loop run --instruction "Fix the null pointer exception in user.ts" --verify "bun run test"
+s8p
 ```
 
-### 库使用方式
-
-SalmonLoop 可以嵌入到您自己的工具中：
-
-```typescript
-import { runSalmonLoop, AiSdkLLM } from 'salmon-loop';
-
-const llm = new AiSdkLLM({
-  clientPackage: '@ai-sdk/openai-compatible',
-  baseUrl: 'https://api.openai.com/v1',
-  apiKey: process.env.SALMONLOOP_API_KEY,
-  modelId: process.env.SALMONLOOP_MODEL || 'gpt-4o',
-});
-
-const result = await runSalmonLoop({
-  instruction: '修复拼写错误',
-  verify: 'bun run test',
-  repoPath: process.cwd(),
-  llm,
-});
-```
-
-## 开发 (Development)
-
-### 运行测试与代码检查
-
-您可以在本地运行与 CI 相同的检查：
+### 4. 作为 Agent 服务运行
 
 ```bash
-# 运行所有测试
-bun run test:full
-
-# 运行代码风格检查 (Lint)
-bun run lint
-
-# 运行代码格式化
-bun run format
+s8p serve
 ```
 
-### 本地 CI 模拟
+这会启动内置的 Agent 服务栈，用于 A2A 和本地 sidecar 集成。
 
-为了在本地模拟 GitHub Actions 环境，我们建议使用 [act](https://github.com/nektos/act)：
+## 用户最常用的能力
+
+- **聊天模式**：`s8p` 或 `s8p chat`
+- **单次执行**：`s8p run --instruction "..." --verify "..."`
+- **只构建上下文**：`s8p context -i "..."`
+- **快照管理**：`s8p snap ls`、`s8p snap show <hash>`、`s8p checkout <hash>`
+- **Headless / CI**：`--output-format json` 或 `--output-format stream-json`
+
+更完整的用法可以看 [docs/user/cli.md](docs/user/cli.md)、[docs/user/config.md](docs/user/config.md)、[docs/reference/headless.md](docs/reference/headless.md)。
+
+## 安全模型
+
+SalmonLoop 在这里是故意严格的。
+
+- **用户数据安全优先**：执行契约明确限制对主工作区和 Git index 的非预期写入。
+- **脏工作区支持是显式设计**：需要隔离执行和更安全的 apply-back 时，就用 `worktree`。
+- **回滚不是附属功能**：验证失败就是失败，不会含糊带过。
+- **只读阶段必须只读**：探索、规划、验证阶段不会随便获得写权限。
+
+如果你想看完整契约，先从 [docs/design/execution-contract.md](docs/design/execution-contract.md) 开始。
+
+## 扩展能力
+
+- **语言插件**：放到 `.salmonloop/languages/<lang>/index.js`
+- **外部工具和 MCP**：通过 `.salmonloop/config/` 配置
+- **作为库嵌入**：可以集成进你自己的工具链
+
+相关文档见 [docs/user/plugins.md](docs/user/plugins.md) 和 [docs/user/extensions.md](docs/user/extensions.md)。
+
+## 参与贡献
+
+对贡献者来说，最短路径是：
 
 ```bash
-# 在本地运行 CI 工作流
-act
+bun run setup:hooks
+bun run verify
 ```
 
-## 安全与约束
+这个仓库里，`bun run verify` 就是代码交付线。
 
-- **脏工作区检查**：默认情况下，如果 git 工作区有未提交的更改，SalmonLoop 将拒绝运行。使用 `worktree` 策略可以在隔离环境中运行。
-- **影子合并 (Shadow Merge)**：在隔离的影子环境中使用三路合并策略，安全地集成 AI 更改与用户修改。
-- **快速失败**：如果补丁无法应用或在达到最大重试次数后验证仍失败，循环将立即终止。
-- **AST 校验**：执行深度 AST 结构和作用域完整性检查，防止语法错误和意外的副作用。
-- **文件锁**：使用鲁棒的锁定协议防止并发修改和仓库损坏。
-- **执行限制**：执行过程受到文件数量、Diff 大小和上下文预算的严格限制。
+建议先看：
 
-## 文档 (Documentation)
+- [docs/contributing/contributing.md](docs/contributing/contributing.md)
+- [docs/contributing/testing.md](docs/contributing/testing.md)
+- [docs/contributing/coding-standards.md](docs/contributing/coding-standards.md)
+- [docs/contributing/release.md](docs/contributing/release.md)
+- [docs/contributing/security.md](docs/contributing/security.md)
 
-更多详细信息请参阅 [docs/README.md](docs/README.md)：
+## 文档入口
 
-- [设计与限制](docs/zh-CN/design/execution-limits.md)
-- [CLI 使用说明](docs/zh-CN/usage/cli.md)
-- [示例库](docs/zh-CN/usage/examples.md)
+完整文档目录在 [docs/README.md](docs/README.md)。
 
-## 许可证
+推荐先读这些：
+
+- [docs/getting-started/overview.md](docs/getting-started/overview.md)
+- [docs/getting-started/quickstart.md](docs/getting-started/quickstart.md)
+- [docs/user/execution-safety.md](docs/user/execution-safety.md)
+- [docs/design/execution-limits.md](docs/design/execution-limits.md)
+- [docs/reference/changelog.md](docs/reference/changelog.md)
+
+## License
 
 MIT

@@ -2,162 +2,134 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-A minimal viable execution loop for automated code patching.
+SalmonLoop is a patch-first coding agent for repositories that care about safety, auditability, and clean diffs.
+It behaves like an agent when a task needs reasoning, but it stays strict about verification, rollback, and protecting user data.
 
-## Architecture: Three-Layer Triage
+## Why SalmonLoop
 
-Salmon-Loop employs a unique **Three-Layer Triage** model to handle varying levels of task complexity with maximum efficiency and safety:
+- **Agent, with guardrails**: SalmonLoop can plan, patch, verify, and serve through ACP/A2A, but it does not get a free pass to mutate your repo however it wants.
+- **Patch-first by default**: Changes are generated as diffs, not mystery rewrites.
+- **Verify before success**: A run is only successful if your verification command passes.
+- **Built for messy real repos**: The worktree strategy keeps dirty workspaces safer by isolating execution and applying changes back carefully.
+- **Observable**: Sessions, audit events, snapshots, and structured outputs make it easier to inspect what happened.
 
-1.  **SimpleTool (Deterministic)**: Atomic, high-speed operations (e.g., Git, FS) executed as pure functions. Zero orchestration overhead.
-2.  **MicroTask (Logic Bridge)**: Deterministic tasks requiring micro-decisions or data resolution (e.g., dynamic context assembly). Driven by the **Grizzco DSL** and `MicroTaskRunner`.
-3.  **SubAgent (Probabilistic)**: Complex, multi-step goals requiring reflection and autonomous planning. Managed via full LLM-driven execution loops.
+## The Vibe
 
-This tiered approach ensures that simple tasks remain blazing fast and predictable, while complex tasks have the cognitive power they need.
+SalmonLoop is not trying to be an always-on autopilot that wanders around your codebase.
+It is a disciplined engineering agent: focused instructions in, reviewable patches out.
 
-## Philosophy
+The execution model stays pragmatic:
 
-Salmon-Loop is built on three core principles:
+1. **Deterministic tools** for cheap, reliable operations.
+2. **Microtasks** for small logic bridges and context assembly.
+3. **Sub-agents** for multi-step tasks that actually need agent behavior.
 
-1.  **Patch-First**: All changes are applied via standard unified diffs (`git apply`) and integrated using a robust 3-way merge strategy. This ensures changes are precise, reversible, and reviewable.
-2.  **Verify-First**: No change is considered successful without passing a user-provided verification command (e.g., `bun run test`).
-3.  **Fail-Fast**: If verification fails, the system immediately rolls back changes and reports the error. It does not attempt to "guess" its way out of a broken state without a clear plan.
+## Quickstart
 
-## Non-Goals
-
-- **Not an Agent**: Salmon-Loop is a tool for executing specific instructions, not an autonomous agent that explores the codebase indefinitely.
-- **No Refactors**: It is designed for targeted fixes and features, not large-scale architectural refactoring.
-- **No Whole-File Rewrite**: It modifies existing files via patches; it does not rewrite entire files from scratch.
-
-## Language Support & Plugins
-
-Salmon-Loop features a pluggable architecture for programming language support.
-
-- **Built-in Support**: TypeScript and JavaScript are supported out of the box.
-- **Extensibility**: You can add support for other languages (Python, Go, Rust, etc.) by adding a plugin.
-- **Zero-Config**: Place your plugin in `.salmonloop/languages/<lang>/index.js` and it will be automatically loaded.
-
-See [Plugin Documentation](docs/user/plugins.md) for details on how to create custom language plugins.
-
-## Usage
-
-### Installation
+### 1. Install
 
 ```bash
 bun install
 bun run build
 ```
 
-### Binary install (no Bun required)
+Requires `bun >= 1.3.9`.
 
-macOS / Linux:
+### 2. Configure an LLM
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/salmonloop/salmon-loop/main/scripts/install/install.sh | bash
-```
-
-Windows (PowerShell):
-
-```powershell
-irm https://raw.githubusercontent.com/salmonloop/salmon-loop/main/scripts/install/install.ps1 | iex
-```
-
-### Configuration
-
-Copy the example environment file and add your API key:
+Create a local `.env` and set the preferred environment variables:
 
 ```bash
-cp .env.example .env
+SALMONLOOP_API_KEY=your-key
+SALMONLOOP_BASE_URL=https://api.openai.com/v1
+SALMONLOOP_MODEL=gpt-4.1-mini
 ```
 
-Edit `.env` and set your `SALMONLOOP_API_KEY` (or legacy `S8P_API_KEY`). You can also customize `SALMONLOOP_BASE_URL` (preferred) or legacy `S8P_BASE_URL`, plus `SALMONLOOP_MODEL` (preferred) or legacy `S8P_MODEL`.
+Legacy `S8P_*` aliases still work, but new setups should prefer `SALMONLOOP_*`.
 
-### Running the CLI
-
-By default, Salmon-Loop enters interactive **chat** mode. For single-turn tasks, use the **run** command:
+### 3. Run a patch task
 
 ```bash
-# Development (no build required)
-bun run dev run --instruction "fix bug" --verify "bun run test"
-
-# Or run the TypeScript entry directly
-bun src/cli/index.ts run --instruction "fix bug" --verify "bun run test"
-
-# Or after building
-bun dist/cli/index.js run --instruction "fix bug" --verify "bun run test"
+s8p run \
+  --repo /path/to/your/repo \
+  --instruction "Fix the null handling in src/user.ts" \
+  --verify "bun run test" \
+  --checkpoint-strategy worktree
 ```
 
-### Quick Example
-
-Fix a bug and verify with `bun run test`:
+If you want the interactive UI instead:
 
 ```bash
-salmon-loop run --instruction "Fix the null pointer exception in user.ts" --verify "bun run test"
+s8p
 ```
 
-### Library Usage
-
-SalmonLoop can be embedded into your own tools:
-
-```typescript
-import { runSalmonLoop, AiSdkLLM } from 'salmon-loop';
-
-const llm = new AiSdkLLM({
-  clientPackage: '@ai-sdk/openai-compatible',
-  baseUrl: 'https://api.openai.com/v1',
-  apiKey: process.env.SALMONLOOP_API_KEY,
-  modelId: process.env.SALMONLOOP_MODEL || 'gpt-4o',
-});
-
-const result = await runSalmonLoop({
-  instruction: 'Fix typo',
-  verify: 'bun run test',
-  repoPath: process.cwd(),
-  llm,
-});
-```
-
-## Development
-
-### Running Tests & Linting
-
-You can run the same checks that the CI performs locally:
+### 4. Serve it as an agent
 
 ```bash
-# Run all tests
-bun run test:full
-
-# Run linting
-bun run lint
-
-# Run formatting
-bun run format
+s8p serve
 ```
 
-### Local CI Simulation
+This starts the built-in agent server stack for A2A and local sidecar integration.
 
-To simulate the GitHub Actions environment locally, we recommend using [act](https://github.com/nektos/act):
+## What Users Usually Care About
+
+- **Chat mode**: `s8p` or `s8p chat`
+- **Single run**: `s8p run --instruction "..." --verify "..."`
+- **Context only**: `s8p context -i "..."`
+- **Snapshots**: `s8p snap ls`, `s8p snap show <hash>`, `s8p checkout <hash>`
+- **Headless / CI**: `--output-format json` or `--output-format stream-json`
+
+More detail lives in [docs/user/cli.md](docs/user/cli.md), [docs/user/config.md](docs/user/config.md), and [docs/reference/headless.md](docs/reference/headless.md).
+
+## Safety Model
+
+SalmonLoop is opinionated here, on purpose.
+
+- **User data safety comes first**: the execution contract is designed to avoid unintended writes to the main workspace and Git index.
+- **Dirty workspace support is explicit**: use `worktree` when you need isolation and safer apply-back behavior.
+- **Rollback is part of the design**: failed verification is not a soft warning; it is a failed run.
+- **Read-only phases stay read-only**: exploration, planning, and validation do not get casual write access.
+
+If you want the exact contract, start with [docs/design/execution-contract.md](docs/design/execution-contract.md).
+
+## Extensibility
+
+- **Language plugins**: add support under `.salmonloop/languages/<lang>/index.js`
+- **External tools and MCP**: configure extensions under `.salmonloop/config/`
+- **Embedded usage**: SalmonLoop can be used as a library inside your own tooling
+
+See [docs/user/plugins.md](docs/user/plugins.md) and [docs/user/extensions.md](docs/user/extensions.md).
+
+## Contributing
+
+For contributors, the short version is:
 
 ```bash
-# Run the CI workflow locally
-act
+bun run setup:hooks
+bun run verify
 ```
 
-## Safety & Constraints
+`bun run verify` is the delivery bar for code changes in this repository.
 
-- **Dirty Workspace**: By default, SalmonLoop will refuse to run if the git workspace has uncommitted changes. Use `worktree` strategy to run in an isolated environment.
-- **Shadow Merge**: Safely integrates AI changes with user modifications using a 3-way merge strategy in an isolated shadow environment.
-- **Fail-Fast**: The loop terminates immediately if a patch cannot be applied or if verification fails after maximum retries.
-- **AST Verification**: Performs deep AST structure and scope integrity checks to prevent syntax errors and unintended side effects.
-- **File Locking**: Uses a robust locking protocol to prevent concurrent modifications and repository corruption.
-- **Limits**: Execution is bound by strict limits on file count, diff size, and context budget.
+Useful docs:
 
-## Documentation
+- [docs/contributing/contributing.md](docs/contributing/contributing.md)
+- [docs/contributing/testing.md](docs/contributing/testing.md)
+- [docs/contributing/coding-standards.md](docs/contributing/coding-standards.md)
+- [docs/contributing/release.md](docs/contributing/release.md)
+- [docs/contributing/security.md](docs/contributing/security.md)
 
-For more details, please refer to [docs/README.md](docs/README.md):
+## Docs Map
 
-- [Design & Limits](docs/design/execution-limits.md)
-- [CLI Usage](docs/user/cli.md)
-- [Examples](docs/user/examples.md)
+The documentation hub is [docs/README.md](docs/README.md).
+
+Good starting points:
+
+- [docs/getting-started/overview.md](docs/getting-started/overview.md)
+- [docs/getting-started/quickstart.md](docs/getting-started/quickstart.md)
+- [docs/user/execution-safety.md](docs/user/execution-safety.md)
+- [docs/design/execution-limits.md](docs/design/execution-limits.md)
+- [docs/reference/changelog.md](docs/reference/changelog.md)
 
 ## License
 
