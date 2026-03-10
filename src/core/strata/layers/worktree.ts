@@ -1,20 +1,36 @@
 import { randomBytes } from 'crypto';
 import { tmpdir } from 'os';
-import { basename, dirname, join, normalize, resolve } from 'path';
+import path from 'path';
 
 import { text } from '../../../locales/index.js';
 import { access, realpath, rm } from '../../adapters/fs/node-fs.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { getLogger } from '../../observability/logger.js';
 import { RunOptions, ExecutionWorkspace, LoopEvent } from '../../types/index.js';
-import { isPathWithinDirectory } from '../../utils/path.js';
+import { isPathWithinDirectory, normalizePath } from '../../utils/path.js';
 
 function resolveEnvironmentMode(options: Pick<RunOptions, 'environmentMode'>): 'strict' | 'parity' {
   return options.environmentMode === 'parity' ? 'parity' : 'strict';
 }
 
+function isWindowsAbsolutePath(p: string): boolean {
+  return /^[a-zA-Z]:[\\/]/.test(p) || p.startsWith('\\\\');
+}
+
+function selectPathImpl(p: string): path.PlatformPath {
+  const normalized = normalizePath(p);
+  if (!normalized) return path;
+  if (isWindowsAbsolutePath(normalized)) return path.win32;
+  if (normalized.startsWith('/')) return path.posix;
+  return path;
+}
+
 function resolveParityWorktreeRoot(repoPath: string): string {
-  return join(dirname(resolve(repoPath)), '.salmonloop', 'worktrees');
+  const impl = selectPathImpl(repoPath);
+  const normalizedRepoPath = normalizePath(repoPath);
+  return normalizePath(
+    impl.join(impl.dirname(impl.resolve(normalizedRepoPath)), '.salmonloop', 'worktrees'),
+  );
 }
 
 function isManagedWorktreePath(baseRepoPath: string, workPath: string): boolean {
@@ -25,7 +41,7 @@ function isManagedWorktreePath(baseRepoPath: string, workPath: string): boolean 
 }
 
 function normalizePathForCompare(value: string): string {
-  const normalized = normalize(value).replace(/\\/g, '/');
+  const normalized = path.normalize(value).replace(/\\/g, '/');
   if (process.platform === 'darwin' && normalized.startsWith('/private/')) {
     return normalized.slice('/private'.length);
   }
@@ -87,24 +103,27 @@ export class WorkspaceManager {
 
     if (strategy === 'worktree') {
       const baseRef = initialCommit || (await git.query(['rev-parse', 'HEAD']));
-      const repoName = basename(options.repoPath);
+      const repoPathImpl = selectPathImpl(options.repoPath);
+      const repoName = repoPathImpl.basename(normalizePath(options.repoPath));
       const timestamp = Date.now();
       const random = randomBytes(4).toString('hex');
       const environmentMode = resolveEnvironmentMode(options);
+      const worktreeRootImpl =
+        environmentMode === 'parity' ? selectPathImpl(options.repoPath) : selectPathImpl(tmpdir());
       const rootDir =
         environmentMode === 'parity'
-          ? join(resolveParityWorktreeRoot(options.repoPath), repoName)
-          : join(tmpdir(), `s8p-wt/${repoName}`);
-      const worktreePath = join(rootDir, `${timestamp}-${random}`);
-      const normalizedWorktreePath = normalize(worktreePath);
+          ? worktreeRootImpl.join(resolveParityWorktreeRoot(options.repoPath), repoName)
+          : worktreeRootImpl.join(tmpdir(), `s8p-wt/${repoName}`);
+      const worktreePath = worktreeRootImpl.join(rootDir, `${timestamp}-${random}`);
+      const normalizedWorktreePath = worktreeRootImpl.normalize(worktreePath);
 
       if (environmentMode === 'parity') {
-        const parityRoot = normalize(resolveParityWorktreeRoot(options.repoPath));
+        const parityRoot = worktreeRootImpl.normalize(resolveParityWorktreeRoot(options.repoPath));
         if (!isPathWithinDirectory(parityRoot, normalizedWorktreePath, { allowEqual: false })) {
           throw new Error('Worktree path must be under parity worktree root');
         }
       } else {
-        const tmpDir = normalize(tmpdir());
+        const tmpDir = worktreeRootImpl.normalize(tmpdir());
         if (!isPathWithinDirectory(tmpDir, normalizedWorktreePath, { allowEqual: false })) {
           throw new Error('Worktree path must be in system temp directory');
         }

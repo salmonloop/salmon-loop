@@ -1,5 +1,21 @@
 import path from 'path';
 
+function isWindowsAbsolutePath(p: string): boolean {
+  // Drive letter, e.g. "C:\\" or "C:/"
+  if (/^[a-zA-Z]:[\\/]/.test(p)) return true;
+  // UNC path, e.g. "\\\\server\\share"
+  if (p.startsWith('\\\\')) return true;
+  return false;
+}
+
+function shouldUseWin32PathSemantics(p: string): boolean {
+  if (!p) return false;
+  if (isWindowsAbsolutePath(p)) return true;
+  // Heuristic: treat backslash-containing paths as Windows-like, even if relative.
+  // This enables correct behavior for inputs like "src\\components\\file.ts" on POSIX.
+  return p.includes('\\');
+}
+
 /**
  * Normalize a path to use forward slashes, regardless of the operating system.
  * This ensures consistency across Windows and Linux/macOS.
@@ -32,7 +48,9 @@ export function safeResolve(...paths: string[]): string {
  * Get the directory name of a path and normalize it.
  */
 export function safeDirname(p: string): string {
-  return normalizePath(path.dirname(p));
+  const normalized = normalizePath(p);
+  const impl = shouldUseWin32PathSemantics(p) ? path.win32 : path.posix;
+  return normalizePath(impl.dirname(normalized));
 }
 
 /**
@@ -58,8 +76,19 @@ export function isSafeRelativePath(p: string): boolean {
  * Throws a security violation if the path escapes the sandbox.
  */
 export function ensureInSandbox(root: string, target: string): string {
-  const resolvedRoot = path.resolve(root);
-  const resolvedTarget = path.resolve(target);
+  const normalizedRoot = normalizePath(root);
+  const normalizedTarget = normalizePath(target);
+  const impl = isWindowsAbsolutePath(normalizedRoot) ? path.win32 : path.posix;
+
+  if (impl === path.posix && isWindowsAbsolutePath(normalizedTarget)) {
+    throw new Error(`Security Violation: Path traversal attempt: ${target} is outside of ${root}`);
+  }
+  if (impl === path.win32 && normalizedTarget.startsWith('/')) {
+    throw new Error(`Security Violation: Path traversal attempt: ${target} is outside of ${root}`);
+  }
+
+  const resolvedRoot = impl.resolve(normalizedRoot);
+  const resolvedTarget = impl.resolve(normalizedTarget);
 
   if (!isPathWithinDirectory(resolvedRoot, resolvedTarget, { allowEqual: true })) {
     throw new Error(`Security Violation: Path traversal attempt: ${target} is outside of ${root}`);
@@ -78,10 +107,22 @@ export function isPathWithinDirectory(
   options: { allowEqual?: boolean } = {},
 ): boolean {
   const { allowEqual = true } = options;
-  const resolvedRoot = path.resolve(root);
-  const resolvedTarget = path.resolve(target);
-  const rel = path.relative(resolvedRoot, resolvedTarget);
 
-  if (rel === '') return allowEqual;
-  return !rel.startsWith('..') && !path.isAbsolute(rel);
+  const normalizedRoot = normalizePath(root);
+  const normalizedTarget = normalizePath(target);
+  const impl =
+    isWindowsAbsolutePath(normalizedRoot) || shouldUseWin32PathSemantics(normalizedTarget)
+      ? path.win32
+      : path.posix;
+
+  if (impl === path.posix && isWindowsAbsolutePath(normalizedTarget)) return false;
+  if (impl === path.win32 && normalizedTarget.startsWith('/')) return false;
+
+  const resolvedRoot = impl.resolve(normalizedRoot);
+  const resolvedTarget = impl.resolve(normalizedTarget);
+  const rel = impl.relative(resolvedRoot, resolvedTarget);
+  const relNormalized = normalizePath(rel);
+
+  if (relNormalized === '') return allowEqual;
+  return !relNormalized.startsWith('..') && !impl.isAbsolute(rel);
 }
