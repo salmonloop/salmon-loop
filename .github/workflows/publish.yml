@@ -1,0 +1,68 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: Publish
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+jobs:
+  quality:
+    uses: ./.github/workflows/reusable-test.yml
+    with:
+      bun-version: '1.3.9'
+
+  publish:
+    runs-on: ubuntu-latest
+    needs: quality
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup
+        uses: ./.github/actions/setup
+        with:
+          bun-version: '1.3.9'
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: https://registry.npmjs.org
+      - name: Verify tag matches package.json
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="$(bun -e "const pkg = JSON.parse(await Bun.file('package.json').text()); process.stdout.write(pkg.version)")"
+          EXPECTED="v${VERSION}"
+          if [ "$TAG" != "$EXPECTED" ]; then
+            echo "Tag ${TAG} does not match package.json version ${VERSION}."
+            exit 1
+          fi
+      - name: Verify tag is on main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --prune origin main
+          git merge-base --is-ancestor "$GITHUB_REF_NAME" "origin/main"
+      - name: Build
+        run: bun run build
+      - name: Publish to npm
+        shell: bash
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "NPM_TOKEN is not set."
+            exit 1
+          fi
+          VERSION="$(bun -e "const pkg = JSON.parse(await Bun.file('package.json').text()); process.stdout.write(pkg.version)")"
+          if npm view salmon-loop@"${VERSION}" version >/dev/null 2>&1; then
+            echo "Version ${VERSION} already published. Skipping publish."
+            exit 0
+          fi
+          npm publish --access public

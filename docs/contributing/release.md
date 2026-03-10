@@ -7,6 +7,8 @@ The recommended way to cut a release is the repo helper script:
 
 - `bun run release:cut` (safe-by-default, dry-run unless `--apply`)
 
+Publishing is automated: pushing a `vX.Y.Z` tag triggers the `Publish` workflow, which validates the tag, runs the full test suite, runs publish smoke checks, and then publishes the npm package.
+
 ## Prerequisites
 
 - You are on the release branch (default: `main`).
@@ -42,6 +44,8 @@ To apply the release, push the commit and tag:
 ```bash
 bun run release:cut --bump patch --apply --push
 ```
+
+The tag push will trigger CI to publish the package. Make sure `NPM_TOKEN` is configured in GitHub Actions secrets before using the automated publish path.
 
 To set an explicit version:
 
@@ -123,3 +127,32 @@ This should only include the runtime files needed by the CLI package, not reposi
   - Rebuild, run `bun run pack:dry`, then validate the packed tarball in a temporary install before retrying.
 - **"Published files look wrong"**
   - Run `bun run pack:dry` and adjust the `files` field in `package.json`.
+
+## Failure Recovery
+
+If the publish workflow fails after the tag was pushed, decide whether to re-run or roll back.
+
+### Re-run the publish (preferred if the tag/version is correct)
+
+1. Fix the issue (e.g., adjust `files`, fix CI, or retry after npm outage).
+2. Re-run the `Publish` workflow on the existing tag.
+3. If the package was partially published, delete the bad version and re-publish the same tag.
+
+### Roll back the release (only when the tag/version is wrong)
+
+1. Delete the tag locally and on origin:
+```bash
+git tag -d vX.Y.Z
+git push origin :refs/tags/vX.Y.Z
+```
+2. Revert the release commit:
+```bash
+git revert <release_commit_sha>
+git push origin main
+```
+3. Cut a new release with the corrected version.
+
+### If npm publish succeeded but CI failed after
+
+1. Leave the tag as-is; the package is already released.
+2. Fix CI separately and continue for the next version.
