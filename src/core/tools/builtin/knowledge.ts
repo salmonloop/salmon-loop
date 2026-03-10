@@ -6,6 +6,23 @@ import { Phase } from '../../types/runtime.js';
 import { safeJoin } from '../../utils/path.js';
 import { ToolSpec, ToolRuntimeCtx } from '../types.js';
 
+let lastEventTimestampMs = 0;
+let eventSequence = 0;
+
+function nextEventFilePrefix(): string {
+  const nowMs = Date.now();
+  if (nowMs === lastEventTimestampMs) {
+    eventSequence += 1;
+  } else {
+    lastEventTimestampMs = nowMs;
+    eventSequence = 0;
+  }
+
+  // Keep lexical sort order aligned with chronological order.
+  // KnowledgeGatherer sorts filenames as strings (ascending).
+  return `${nowMs}-${String(eventSequence).padStart(6, '0')}`;
+}
+
 const updateKnowledgeInputSchema = z.discriminatedUnion('category', [
   z.object({
     category: z.literal('project_rules'),
@@ -50,9 +67,9 @@ export async function executeUpdateKnowledge(
   const indexPath = getDefaultIndexPath(repoRoot);
   const knowledgeDir = safeJoin(indexPath, 'knowledge');
 
-  // Use high-resolution timestamp + category for unique append-only filenames
-  const timestamp = Date.now();
-  const fileName = `${timestamp}-${input.category}.json`;
+  // Use timestamp + per-process sequence to ensure unique append-only filenames
+  // even when multiple events occur within the same millisecond.
+  const fileName = `${nextEventFilePrefix()}-${input.category}.json`;
   const filePath = safeJoin(knowledgeDir, fileName);
 
   let dataToSave: any = {};
