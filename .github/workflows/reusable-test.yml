@@ -42,12 +42,22 @@ jobs:
           TARBALL_PATH="$(pwd)/${TARBALL}"
           mkdir -p .tmp/publish-smoke
           cd .tmp/publish-smoke
+          if [ ! -f package.json ]; then
+            printf '%s\n' '{"name":"publish-smoke","private":true}' > package.json
+          fi
           bun add "${TARBALL_PATH}"
       - name: Smoke test CLI entrypoints
         shell: bash
         run: |
           set -euo pipefail
-          BIN="./.tmp/publish-smoke/node_modules/.bin/s8p"
+          cd .tmp/publish-smoke
+          BIN="$(bun pm bin)/s8p"
+          if [ ! -f "${BIN}" ]; then
+            echo "Expected CLI entrypoint not found at: ${BIN}"
+            echo "bun pm bin: $(bun pm bin)"
+            ls -la "$(bun pm bin)" || true
+            exit 1
+          fi
           "$BIN" --help
           "$BIN" run --help
           "$BIN" serve --help
