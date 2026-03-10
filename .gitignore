@@ -6,6 +6,7 @@ yarn.lock
 # Build output
 dist/
 *.tsbuildinfo
+*.tgz
 
 # Environment
 .env
