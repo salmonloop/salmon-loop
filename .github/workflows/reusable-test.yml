@@ -39,9 +39,10 @@ jobs:
         run: |
           set -euo pipefail
           TARBALL="$(bun -e "const items = JSON.parse(await Bun.file('pack-output.json').text()); process.stdout.write(items[0].filename);")"
+          TARBALL_PATH="$(pwd)/${TARBALL}"
           mkdir -p .tmp/publish-smoke
           cd .tmp/publish-smoke
-          bun add "../../${TARBALL}"
+          bun add "${TARBALL_PATH}"
       - name: Smoke test CLI entrypoints
         shell: bash
         run: |

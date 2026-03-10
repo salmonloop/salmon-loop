@@ -1,0 +1,3291 @@
+[
+  {
+    "id": "salmon-loop@0.2.1",
+    "name": "salmon-loop",
+    "version": "0.2.1",
+    "size": 541372,
+    "unpackedSize": 2309441,
+    "shasum": "964e97fd9d7b05334ee86fdf809070cd93558383",
+    "integrity": "sha512-sFtmcRIIkaujwrYeX5Q+86q1+ahxYtsQnLvmc7LljPQV07TZ+iO1CcXO9sJdaUfRCUknzHIafitju71QMVnRaQ==",
+    "filename": "salmon-loop-0.2.1.tgz",
+    "files": [
+      {
+        "path": "LICENSE",
+        "size": 1067,
+        "mode": 420
+      },
+      {
+        "path": "README.md",
+        "size": 4960,
+        "mode": 420
+      },
+      {
+        "path": "README.zh-CN.md",
+        "size": 4769,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/argv/headless-detection.js",
+        "size": 2147,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/argv/print-mode.js",
+        "size": 1449,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/authorization/allowlist.js",
+        "size": 37816,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/authorization/non-interactive.js",
+        "size": 6882,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/authorization/provider.js",
+        "size": 17849,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/chat-interface.js",
+        "size": 2770,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/chat.js",
+        "size": 20282,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/cli-runtime-context.js",
+        "size": 473,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/commander-error-adapter.js",
+        "size": 1580,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/commander-error-meta.js",
+        "size": 368,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/commands/allowlist.js",
+        "size": 10545,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/commands/chat.js",
+        "size": 5464,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/commands/config.js",
+        "size": 9324,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/commands/context.js",
+        "size": 2576,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/commands/dispatcher.js",
+        "size": 2062,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/commands/exit.js",
+        "size": 241,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/commands/llm-output.js",
+        "size": 4984,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/commands/log-mode.js",
+        "size": 5353,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/commands/mode.js",
+        "size": 5178,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/commands/new.js",
+        "size": 637,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/commands/parallel.js",
+        "size": 10741,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/commands/queue.js",
+        "size": 4658,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/commands/registry.js",
+        "size": 3339,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/commands/restore.js",
+        "size": 1108,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/commands/run.js",
+        "size": 84,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/commands/run/assistant-message.js",
+        "size": 588,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/commands/run/config-resolution.js",
+        "size": 1637,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/commands/run/early-errors.js",
+        "size": 5218,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/commands/run/execute.js",
+        "size": 2867,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/commands/run/extensions-resolution.js",
+        "size": 913,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/commands/run/handler.js",
+        "size": 18305,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/commands/run/headless-error-writer.js",
+        "size": 6603,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/commands/run/instruction-guard.js",
+        "size": 931,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/commands/run/loop-params.js",
+        "size": 1981,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/commands/run/mode.js",
+        "size": 260,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/commands/run/parse-options.js",
+        "size": 2543,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/commands/run/persist-session.js",
+        "size": 1349,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/commands/run/preflight.js",
+        "size": 6162,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/commands/run/reporter-factory.js",
+        "size": 1852,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/commands/run/runtime-llm.js",
+        "size": 2566,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/commands/run/runtime-options.js",
+        "size": 1720,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/commands/run/session.js",
+        "size": 681,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/commands/run/structured-output.js",
+        "size": 4548,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/commands/run/types.js",
+        "size": 44,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/commands/run/validate-options.js",
+        "size": 1291,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/commands/run/verbose.js",
+        "size": 1354,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/commands/serve.js",
+        "size": 15572,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/commands/session.js",
+        "size": 3209,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/commands/snapshot-interactive.js",
+        "size": 6432,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/commands/snapshot.js",
+        "size": 6527,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/commands/status.js",
+        "size": 682,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/commands/subagent.js",
+        "size": 6860,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/commands/subcommand-suggestions.js",
+        "size": 2487,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/commands/tool-names.js",
+        "size": 5538,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/commands/types.js",
+        "size": 44,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/commands/utils.js",
+        "size": 1337,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/config.js",
+        "size": 487,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/crash-reporter.js",
+        "size": 202,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/headless/anthropic-stream-normalized-encoder.js",
+        "size": 5966,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/headless/anthropic-stream-protocol.js",
+        "size": 1812,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/headless/json-protocol.js",
+        "size": 4413,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/headless/native-stream-normalized-encoder.js",
+        "size": 7274,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/headless/openai-responses-canonical-applier.js",
+        "size": 4047,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/headless/openai-responses-state.js",
+        "size": 9282,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/headless/openai-stream-encoder.js",
+        "size": 4963,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/headless/stdout-writer.js",
+        "size": 326,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/headless/stream-json-protocol.js",
+        "size": 4333,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/index.js",
+        "size": 322,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/locales/en.js",
+        "size": 29605,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/locales/index.js",
+        "size": 189,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/program-bootstrap.js",
+        "size": 555,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/program-commands.js",
+        "size": 5557,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/program-options.js",
+        "size": 849,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/program-output-mode.js",
+        "size": 379,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/program-parse.js",
+        "size": 912,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/reporters/anthropic-stream.js",
+        "size": 2732,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/reporters/base.js",
+        "size": 43,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/reporters/json.js",
+        "size": 2269,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/reporters/openai-stream.js",
+        "size": 2580,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/reporters/standard.js",
+        "size": 9385,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/reporters/stderr-log-reporter.js",
+        "size": 2407,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/reporters/stream-json.js",
+        "size": 3864,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/run-cli.js",
+        "size": 1022,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/slash/runtime.js",
+        "size": 10762,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/ui/App.js",
+        "size": 13387,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/ui/authorization/bus.js",
+        "size": 1149,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/ui/components/animations/StretchingThinking.js",
+        "size": 1847,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/ui/components/animations/ThinkingWave.js",
+        "size": 628,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/ui/components/animations/TypeIndicator.js",
+        "size": 1063,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/ui/components/CommandInput.js",
+        "size": 10462,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/ui/components/CommandSuggestionList.js",
+        "size": 2834,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/ui/components/layout/SplitPane.js",
+        "size": 963,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/ui/components/Markdown.js",
+        "size": 15800,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/ui/components/MessageList.js",
+        "size": 2031,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/ui/components/messageList/items/EmphasisMessageItem.js",
+        "size": 2413,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/ui/components/messageList/items/InterruptMessageItem.js",
+        "size": 900,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/ui/components/messageList/items/LightweightMessageItem.js",
+        "size": 1080,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/ui/components/messageList/items/StandardMessageItem.js",
+        "size": 2276,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/ui/components/messageList/items/WelcomeMessageItem.js",
+        "size": 274,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/ui/components/messageList/MessageItem.js",
+        "size": 1520,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/ui/components/messageList/messageListLayout.js",
+        "size": 1274,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/ui/components/messageList/QueuePreviewList.js",
+        "size": 745,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/ui/components/messageList/streaming.js",
+        "size": 2126,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/ui/components/messageList/types.js",
+        "size": 44,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/ui/components/messageList/utils.js",
+        "size": 323,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/ui/components/sidebar/FileContext.js",
+        "size": 750,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/ui/components/sidebar/MissionControl.js",
+        "size": 927,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/ui/components/StatusBannerLine.js",
+        "size": 404,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/ui/components/TodoDrawer.js",
+        "size": 2863,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/ui/components/WelcomeMessage.js",
+        "size": 4616,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/ui/config.js",
+        "size": 1865,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/ui/hooks/useCommandLifecycle.js",
+        "size": 3956,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/ui/hooks/useCommandSuggestions.js",
+        "size": 3546,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/ui/hooks/useInputHistory.js",
+        "size": 2268,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/ui/hooks/useLoopEvents.js",
+        "size": 16679,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/ui/hooks/useLoopState.js",
+        "size": 2557,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/ui/hooks/useOnionExit.js",
+        "size": 1088,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/ui/hooks/useTerminalDimensions.js",
+        "size": 1232,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/ui/index.js",
+        "size": 5670,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/ui/selection/bus.js",
+        "size": 985,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/ui/status/formatStatusBanner.js",
+        "size": 245,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/ui/store/context.js",
+        "size": 749,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/ui/store/reducer.js",
+        "size": 9940,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/ui/store/types.js",
+        "size": 1915,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/ui/styles/theme.js",
+        "size": 8365,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/ui/types.js",
+        "size": 44,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/ui/utils/sanitizer.js",
+        "size": 5897,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/ui/utils/transcript.js",
+        "size": 1112,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/utils/asyncQueue.js",
+        "size": 3916,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/utils/audit-scope.js",
+        "size": 429,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/utils/detectors/index.js",
+        "size": 1307,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/utils/llm-output.js",
+        "size": 1199,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/utils/outcome-reporter.js",
+        "size": 758,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/utils/safe-fs.js",
+        "size": 6921,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/utils/verify-resolver.js",
+        "size": 1227,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli/utils/worktree-prepare-resolver.js",
+        "size": 746,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/adapters/fs/atomic-file-writer.js",
+        "size": 5299,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/adapters/fs/file-adapter.js",
+        "size": 2660,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/adapters/fs/filesystem.js",
+        "size": 1003,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/adapters/fs/index.js",
+        "size": 264,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/adapters/fs/node-fs.js",
+        "size": 460,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/adapters/fs/readonly-filesystem.js",
+        "size": 673,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/adapters/git/git-adapter.js",
+        "size": 30948,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/adapters/git/git-runner.js",
+        "size": 3826,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/adapters/git/lock-manager.js",
+        "size": 13310,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/adapters/git/types.js",
+        "size": 44,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/adapters/path/index.js",
+        "size": 106,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/adapters/path/path-adapter.js",
+        "size": 590,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/ast/guard.js",
+        "size": 3851,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/ast/index.js",
+        "size": 122,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/ast/parser.js",
+        "size": 11015,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/ast/validator.js",
+        "size": 1357,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/backends/salmon-loop/task-executor.js",
+        "size": 2780,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/checkpoint-domain/manifest-store.js",
+        "size": 15112,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/checkpoint-domain/service.js",
+        "size": 3568,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/checkpoint-domain/types.js",
+        "size": 44,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/config/defaults.js",
+        "size": 1292,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/config/errors.js",
+        "size": 388,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/config/file-format.js",
+        "size": 3448,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/config/index.js",
+        "size": 451,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/config/limits.js",
+        "size": 3052,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/config/load.js",
+        "size": 1343,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/config/normalize.js",
+        "size": 1027,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/config/paths.js",
+        "size": 876,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/config/redact.js",
+        "size": 500,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/config/resolve-env.js",
+        "size": 1330,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/config/resolve-llm.js",
+        "size": 5073,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/config/resolve.js",
+        "size": 2760,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/config/resolvers/ast-validation.js",
+        "size": 355,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/config/resolvers/context.js",
+        "size": 1005,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/config/resolvers/observability.js",
+        "size": 2057,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/config/resolvers/output.js",
+        "size": 354,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/config/resolvers/permission-mode.js",
+        "size": 234,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/config/resolvers/security.js",
+        "size": 560,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/config/resolvers/server.js",
+        "size": 1294,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/config/resolvers/tool-authorization.js",
+        "size": 2167,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/config/resolvers/ui.js",
+        "size": 981,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/config/types.js",
+        "size": 149,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/config/types/config-file.js",
+        "size": 50,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/config/types/primitives.js",
+        "size": 468,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/config/types/resolved.js",
+        "size": 47,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/config/validate.js",
+        "size": 40854,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/assembly/default-prompt-assembler.js",
+        "size": 269,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/assembly/prompt-assembler.js",
+        "size": 55,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/ast/import-extractor.js",
+        "size": 934,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/ast/module-resolver.js",
+        "size": 2263,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/ast/source-outline.js",
+        "size": 800,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/audit-constants.js",
+        "size": 891,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/audit.js",
+        "size": 2020,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/budget/dynamic-adjuster.js",
+        "size": 5661,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/budget/example-integration.js",
+        "size": 1639,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/budget/integration.js",
+        "size": 2999,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/builder.js",
+        "size": 12902,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/cache/errors.js",
+        "size": 488,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/cache/incremental-updater.js",
+        "size": 4085,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/cache/index.js",
+        "size": 938,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/cache/path-resolver.js",
+        "size": 5904,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/cache/prompt-caching.js",
+        "size": 5727,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/cache/store-factory.js",
+        "size": 2719,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/cache/store.js",
+        "size": 7172,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/cache/types.js",
+        "size": 377,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/compression/js-like-comments.js",
+        "size": 3973,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/compression/smart-compress.js",
+        "size": 2481,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/compression/whitespace.js",
+        "size": 898,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/dependencies.js",
+        "size": 4282,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/effectiveness/index.js",
+        "size": 770,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/effectiveness/tracker.js",
+        "size": 8820,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/effectiveness/types.js",
+        "size": 339,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/formatters/index.js",
+        "size": 253,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/formatters/json-converter.js",
+        "size": 23343,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/formatters/types.js",
+        "size": 159,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/formatters/xml-context.js",
+        "size": 11632,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/gatherers/architecture-gatherer.js",
+        "size": 3124,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/gatherers/artifact-gatherer.js",
+        "size": 2064,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/gatherers/ast-gatherer.js",
+        "size": 16290,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/gatherers/ghost-dependency-gatherer.js",
+        "size": 2156,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/gatherers/git-diff-gatherer.js",
+        "size": 3471,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/gatherers/git-history-gatherer.js",
+        "size": 2169,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/gatherers/knowledge-gatherer.js",
+        "size": 4944,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/gatherers/metadata-gatherer.js",
+        "size": 2037,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/gatherers/primary-text-gatherer.js",
+        "size": 1768,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/gatherers/ripgrep-gatherer.js",
+        "size": 3828,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/hash.js",
+        "size": 1960,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/index.js",
+        "size": 161,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/keywords.js",
+        "size": 4526,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/policies/budget-policy.js",
+        "size": 1372,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/policies/pack-until-full.js",
+        "size": 16033,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/scoring/relevance.js",
+        "size": 6927,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/service-deps.js",
+        "size": 1750,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/service-helpers.js",
+        "size": 1360,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/service.js",
+        "size": 11241,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/steps/context-budget.js",
+        "size": 7035,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/steps/context-gather.js",
+        "size": 3478,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/steps/context-primary.js",
+        "size": 951,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/steps/context-promotion.js",
+        "size": 3919,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/steps/context-targets.js",
+        "size": 3829,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/steps/types.js",
+        "size": 44,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/summarization/index.js",
+        "size": 860,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/summarization/prompts.js",
+        "size": 2461,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/summarization/summarizer.js",
+        "size": 14687,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/summarization/types.js",
+        "size": 767,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/targeting/churn-policy.js",
+        "size": 990,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/targeting/target-resolver.js",
+        "size": 20826,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/token/adaptive-budget.js",
+        "size": 11145,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/token/cache.js",
+        "size": 4793,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/token/counter.js",
+        "size": 5587,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/token/encoding-registry.js",
+        "size": 4423,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/token/index.js",
+        "size": 1162,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/token/token-budget.js",
+        "size": 6518,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/token/types.js",
+        "size": 233,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/truncation/index.js",
+        "size": 916,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/truncation/semantic-truncator.js",
+        "size": 3224,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/truncation/strategies/error-stack.js",
+        "size": 3370,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/truncation/strategies/generic.js",
+        "size": 1550,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/truncation/strategies/git-diff.js",
+        "size": 3578,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/truncation/strategies/index.js",
+        "size": 362,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/truncation/strategies/json.js",
+        "size": 4891,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/truncation/strategies/log.js",
+        "size": 4373,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/truncation/strategies/test-result.js",
+        "size": 5341,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/truncation/type-detector.js",
+        "size": 3841,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/truncation/types.js",
+        "size": 418,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/context/types.js",
+        "size": 44,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/extensions/index.js",
+        "size": 4871,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/extensions/load.js",
+        "size": 1239,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/extensions/merge.js",
+        "size": 832,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/extensions/paths.js",
+        "size": 1393,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/extensions/redact.js",
+        "size": 1083,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/extensions/schemas.js",
+        "size": 2384,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/extensions/types.js",
+        "size": 44,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/facades/cli-authorization-allowlist.js",
+        "size": 157,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/facades/cli-authorization-non-interactive.js",
+        "size": 169,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/facades/cli-authorization-provider.js",
+        "size": 110,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/facades/cli-chat.js",
+        "size": 740,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/facades/cli-command-allowlist.js",
+        "size": 163,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/facades/cli-command-chat.js",
+        "size": 572,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/facades/cli-command-checkpoint.js",
+        "size": 175,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/facades/cli-command-config.js",
+        "size": 684,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/facades/cli-command-dispatcher.js",
+        "size": 110,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/facades/cli-command-parallel.js",
+        "size": 513,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/facades/cli-command-session.js",
+        "size": 114,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/facades/cli-command-tool-names.js",
+        "size": 330,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/facades/cli-context.js",
+        "size": 511,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/facades/cli-headless.js",
+        "size": 196,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/facades/cli-observability.js",
+        "size": 170,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/facades/cli-program-bootstrap.js",
+        "size": 111,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/facades/cli-reporters.js",
+        "size": 314,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/facades/cli-run-execute.js",
+        "size": 152,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/facades/cli-run-handler.js",
+        "size": 510,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/facades/cli-run-headless-error-writer.js",
+        "size": 113,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/facades/cli-run-loop-params.js",
+        "size": 58,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/facades/cli-run-persist-session.js",
+        "size": 119,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/facades/cli-run-runtime-llm.js",
+        "size": 286,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/facades/cli-serve.js",
+        "size": 1599,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/facades/cli-slash-runtime.js",
+        "size": 529,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/facades/cli-subagent.js",
+        "size": 111,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/facades/cli-ui.js",
+        "size": 281,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/facades/cli-utils-llm-output.js",
+        "size": 166,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/facades/cli-utils-path.js",
+        "size": 104,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/facades/cli-utils-worktree.js",
+        "size": 102,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/failure/diagnostics.js",
+        "size": 9588,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/feedback/index.js",
+        "size": 1050,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/feedback/parsers.js",
+        "size": 1957,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/feedback/patterns.js",
+        "size": 847,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/feedback/types.js",
+        "size": 44,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/domain/grizzco-types.js",
+        "size": 1451,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/dsl/DecisionEngine.js",
+        "size": 4219,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/dsl/llm-strategy.js",
+        "size": 2610,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/dsl/MicroTaskRunner.js",
+        "size": 1400,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/dsl/strategies.js",
+        "size": 3243,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/dsl/types.js",
+        "size": 44,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/engine/observability/event-adapter.js",
+        "size": 1486,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/engine/observability/index.js",
+        "size": 147,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/engine/observability/loop-telemetry.js",
+        "size": 1318,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/engine/outcome/index.js",
+        "size": 131,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/engine/outcome/loop-result-mapper.js",
+        "size": 7097,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/engine/pipeline/pipeline.js",
+        "size": 14042,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/engine/pipeline/types.js",
+        "size": 44,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/engine/transaction/attempt-failure.js",
+        "size": 9237,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/engine/transaction/authorization-summary.js",
+        "size": 1187,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/engine/transaction/index.js",
+        "size": 146,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/engine/transaction/report-mapper.js",
+        "size": 1686,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/engine/transaction/retry-policy.js",
+        "size": 567,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/engine/transaction/runner-builder.js",
+        "size": 1752,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/engine/transaction/session.js",
+        "size": 2220,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/engine/transaction/transaction-runner.js",
+        "size": 8679,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/engine/transaction/types.js",
+        "size": 44,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/execution/Executor.js",
+        "size": 2636,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/execution/RejectionManager.js",
+        "size": 2252,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/execution/WorkerFactory.js",
+        "size": 1391,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/flows/SalmonLoopFlow.js",
+        "size": 4038,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/runtime/apply-back-runtime.js",
+        "size": 6143,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/runtime/apply-back-utils.js",
+        "size": 371,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/runtime/host/host-runner.js",
+        "size": 3721,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/runtime/host/index.js",
+        "size": 80,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/runtime/host/types.js",
+        "size": 44,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/services/CachedService.js",
+        "size": 1339,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/services/implementations/default/GitConfigService.js",
+        "size": 1360,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/services/implementations/mock/MockLockService.js",
+        "size": 464,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/services/implementations/mock/MockUserQuotaService.js",
+        "size": 424,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/services/registry.js",
+        "size": 787,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/services/types.js",
+        "size": 44,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/steps/answer.js",
+        "size": 2728,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/steps/apply-back.js",
+        "size": 1411,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/steps/apply.js",
+        "size": 5700,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/steps/ast-validate.js",
+        "size": 1221,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/steps/audit.js",
+        "size": 12837,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/steps/context.js",
+        "size": 3054,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/steps/display-answer.js",
+        "size": 186,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/steps/display-report.js",
+        "size": 5305,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/steps/display-research.js",
+        "size": 190,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/steps/displayReview.js",
+        "size": 185,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/steps/explore.js",
+        "size": 9635,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/steps/extractIssues.js",
+        "size": 933,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/steps/generateFixPlan.js",
+        "size": 400,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/steps/generateReview.js",
+        "size": 2054,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/steps/patch.js",
+        "size": 8826,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/steps/plan.js",
+        "size": 7562,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/steps/preflight.js",
+        "size": 4043,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/steps/prepare-deps.js",
+        "size": 2433,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/steps/read-only-shrink.js",
+        "size": 109,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/steps/research.js",
+        "size": 6888,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/steps/rollback.js",
+        "size": 6180,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/steps/shrink.js",
+        "size": 2444,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/steps/validate.js",
+        "size": 1518,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/steps/verify.js",
+        "size": 5534,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/validation/ast-validation-policy.js",
+        "size": 508,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/validation/AstValidationService.js",
+        "size": 5841,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/validation/ContextValidator.js",
+        "size": 675,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/workers/direct-write-worker.js",
+        "size": 2022,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/workers/git-apply-worker.js",
+        "size": 3175,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/workers/i-merge-worker.js",
+        "size": 53,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/workers/mm-three-way-worker.js",
+        "size": 4995,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/workers/no-op-worker.js",
+        "size": 415,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/workers/overwrite-binary-worker.js",
+        "size": 875,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/workers/strata-sync-worker.js",
+        "size": 2960,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/workers/three-way-merge-worker.js",
+        "size": 3237,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/workers/three-way-staged-worker.js",
+        "size": 3467,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/grizzco/workers/union-merge-worker.js",
+        "size": 2685,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/history/input-history.js",
+        "size": 1758,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/intent/chat-intent.js",
+        "size": 7840,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/interaction/events/bus.js",
+        "size": 1629,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/interaction/model/events.js",
+        "size": 45,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/interaction/model/index.js",
+        "size": 181,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/interaction/model/task-state.js",
+        "size": 389,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/interaction/model/transition-policy.js",
+        "size": 1882,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/interaction/model/types.js",
+        "size": 44,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/interaction/orchestration/facade.js",
+        "size": 6978,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/interaction/orchestration/index.js",
+        "size": 88,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/interaction/orchestration/store.js",
+        "size": 1117,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/interaction/sync/task-sync-engine.js",
+        "size": 1945,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/interaction/turn-stop-reason.js",
+        "size": 768,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/language-support/index.js",
+        "size": 107,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/language-support/orchestrator.js",
+        "size": 1354,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/language-support/strategies/extension-candidate-strategy.js",
+        "size": 1047,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/language-support/strategies/index.js",
+        "size": 130,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/language-support/strategies/language-query-strategy.js",
+        "size": 1015,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/llm/ai-sdk.js",
+        "size": 3925,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/llm/ai-sdk/chat-executor.js",
+        "size": 3632,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/llm/ai-sdk/langfuse-headers.js",
+        "size": 876,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/llm/ai-sdk/message-mapper.js",
+        "size": 8296,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/llm/ai-sdk/observation-context.js",
+        "size": 596,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/llm/ai-sdk/provider-factory.js",
+        "size": 1259,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/llm/ai-sdk/request-params.js",
+        "size": 586,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/llm/ai-sdk/request-runtime.js",
+        "size": 5752,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/llm/ai-sdk/result-mapper.js",
+        "size": 988,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/llm/ai-sdk/retry-classifier.js",
+        "size": 3183,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/llm/ai-sdk/retry-executor.js",
+        "size": 1258,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/llm/audit.js",
+        "size": 44,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/llm/base-url.js",
+        "size": 573,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/llm/contracts/repair.js",
+        "size": 2477,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/llm/errors.js",
+        "size": 6911,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/llm/factory.js",
+        "size": 892,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/llm/http/index.js",
+        "size": 44,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/llm/index.js",
+        "size": 340,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/llm/message-composition.js",
+        "size": 859,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/llm/openai.js",
+        "size": 1791,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/llm/output-policy.js",
+        "size": 5916,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/llm/phase-router.js",
+        "size": 2577,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/llm/redact.js",
+        "size": 1137,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/llm/registry.js",
+        "size": 3185,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/llm/retry-utils.js",
+        "size": 4255,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/llm/stream-utils.js",
+        "size": 2798,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/llm/utils.js",
+        "size": 3320,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/observability/audit-file.js",
+        "size": 8457,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/observability/audit-trail.js",
+        "size": 3760,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/observability/authorization-decisions.js",
+        "size": 2037,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/observability/debug-artifacts.js",
+        "size": 2612,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/observability/error-envelope.js",
+        "size": 2031,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/observability/error-mapping.js",
+        "size": 10308,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/observability/ignored-error.js",
+        "size": 274,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/observability/logger.js",
+        "size": 14935,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/observability/loop-event-reporter.js",
+        "size": 1395,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/observability/monitor.js",
+        "size": 7820,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/observability/run-outcome-reporter.js",
+        "size": 512,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/observability/token-usage.js",
+        "size": 1257,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/observability/ui-log-sanitize.js",
+        "size": 1418,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/patch/aggregator.js",
+        "size": 3971,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/patch/diff.js",
+        "size": 12162,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/permission-gate/default-gate.js",
+        "size": 4862,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/permission-gate/gate.js",
+        "size": 43,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/permission-gate/types.js",
+        "size": 44,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/plan/index.js",
+        "size": 112,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/plan/manager.js",
+        "size": 4533,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/plan/markdown-editor.js",
+        "size": 8991,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/plan/storage.js",
+        "size": 2749,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/plan/types.js",
+        "size": 44,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/plugin/interface.js",
+        "size": 48,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/plugin/loader.js",
+        "size": 5739,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/plugin/registry.js",
+        "size": 2697,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/plugin/validator.js",
+        "size": 3259,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/prompts/registry.js",
+        "size": 7684,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/prompts/runtime.js",
+        "size": 2280,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/prompts/schema.js",
+        "size": 45,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/prompts/templates/phases/explore_user.hbs",
+        "size": 1240,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/prompts/templates/phases/patch_user.hbs",
+        "size": 2491,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/prompts/templates/phases/plan_user.hbs",
+        "size": 1578,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/prompts/templates/system/_context_json_legend.hbs",
+        "size": 1225,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/prompts/templates/system/_tool_defs.hbs",
+        "size": 1309,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/prompts/templates/system/explore_system.hbs",
+        "size": 2104,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/prompts/templates/system/main_system.hbs",
+        "size": 890,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/prompts/templates/system/patch_system.hbs",
+        "size": 661,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/prompts/templates/system/plan_system.hbs",
+        "size": 384,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/prompts/templates/system/reflection.hbs",
+        "size": 1808,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/protocols/a2a/agent-card.js",
+        "size": 1149,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/protocols/a2a/mapper.js",
+        "size": 444,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/protocols/a2a/sdk/auth-middleware.js",
+        "size": 1113,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/protocols/a2a/sdk/executor.js",
+        "size": 12055,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/protocols/a2a/sdk/server.js",
+        "size": 1123,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/protocols/a2a/task-projection.js",
+        "size": 1419,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/protocols/acp/acp-command-runner.js",
+        "size": 7221,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/protocols/acp/acp-filesystem.js",
+        "size": 1540,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/protocols/acp/checkpoint-meta.js",
+        "size": 54,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/protocols/acp/formal-agent.js",
+        "size": 49947,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/protocols/acp/handlers.js",
+        "size": 1582,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/protocols/acp/permission-provider.js",
+        "size": 5314,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/protocols/acp/stdio-server.js",
+        "size": 4049,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/reflection/engine.js",
+        "size": 2502,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/reflection/types.js",
+        "size": 44,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/runtime/agent-server-runtime.js",
+        "size": 3343,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/runtime/bun-runtime.js",
+        "size": 665,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/runtime/command-runner-context.js",
+        "size": 544,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/runtime/exit-codes.js",
+        "size": 324,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/runtime/fastify-fetch-bridge.js",
+        "size": 1655,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/runtime/fastify-server-bundle.js",
+        "size": 832,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/runtime/initialize.js",
+        "size": 6619,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/runtime/loop-finalize.js",
+        "size": 3487,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/runtime/loop-run-lifecycle.js",
+        "size": 2916,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/runtime/loop-run-reporter.js",
+        "size": 758,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/runtime/loop-runtime-config.js",
+        "size": 1175,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/runtime/loop-session-runner.js",
+        "size": 1174,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/runtime/loop.js",
+        "size": 3134,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/runtime/paths.js",
+        "size": 2771,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/runtime/process-runner.js",
+        "size": 681,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/runtime/process-types.js",
+        "size": 52,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/runtime/semaphore.js",
+        "size": 850,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/runtime/sidecar-fastify-plugin.js",
+        "size": 1611,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/runtime/sidecar-paths.js",
+        "size": 2036,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/runtime/sidecar-route-catalog.js",
+        "size": 2607,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/runtime/spawn-command.js",
+        "size": 11997,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/runtime/spawn-interactive.js",
+        "size": 2286,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/security/redaction.js",
+        "size": 5570,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/session/compression.js",
+        "size": 11840,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/session/flow.js",
+        "size": 2569,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/session/manager.js",
+        "size": 10143,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/session/pruning-strategy.js",
+        "size": 5589,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/session/session-context-builder.js",
+        "size": 4876,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/session/summary-sync.js",
+        "size": 3004,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/session/token-tracker.js",
+        "size": 3234,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/session/types.js",
+        "size": 44,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/skills/bridge.js",
+        "size": 1098,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/skills/index.js",
+        "size": 285,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/skills/loader.js",
+        "size": 3067,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/skills/parser.js",
+        "size": 2816,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/skills/runtime/MicroTaskRunner.js",
+        "size": 4136,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/skills/runtime/SkillRunner.js",
+        "size": 4368,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/skills/strategy.js",
+        "size": 1210,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/skills/types.js",
+        "size": 44,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/slash/index.js",
+        "size": 181,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/slash/parser.js",
+        "size": 1125,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/slash/registry.js",
+        "size": 3046,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/slash/router.js",
+        "size": 2901,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/slash/steps/slash-decide.js",
+        "size": 706,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/slash/steps/slash-execute.js",
+        "size": 2985,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/slash/steps/types.js",
+        "size": 44,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/slash/strategy.js",
+        "size": 1230,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/slash/types.js",
+        "size": 44,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/strata/checkpoint/manager.js",
+        "size": 23188,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/strata/checkpoint/snapshot-audit.js",
+        "size": 3547,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/strata/checkpoint/snapshot-create.js",
+        "size": 3187,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/strata/checkpoint/snapshot-write-tree.js",
+        "size": 2712,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/strata/engine/shadow-merge-engine.js",
+        "size": 18029,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/strata/index.js",
+        "size": 531,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/strata/interaction/content-guardian.js",
+        "size": 2070,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/strata/interaction/file-system-provider.js",
+        "size": 3127,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/strata/layers/file-state-resolver.js",
+        "size": 5499,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/strata/layers/immutable-git-layer.js",
+        "size": 1222,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/strata/layers/shadow-driver/copy-backend.js",
+        "size": 3825,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/strata/layers/shadow-driver/env.js",
+        "size": 959,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/strata/layers/shadow-driver/error-classifier.js",
+        "size": 1380,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/strata/layers/shadow-driver/index.js",
+        "size": 570,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/strata/layers/shadow-driver/readonly-lock.js",
+        "size": 7483,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/strata/layers/shadow-driver/shadow-driver.js",
+        "size": 8714,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/strata/layers/shadow-driver/strategy.js",
+        "size": 2705,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/strata/layers/sidecar-layer.js",
+        "size": 3274,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/strata/layers/worktree.js",
+        "size": 9226,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/strata/runtime/environment.js",
+        "size": 17424,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/strata/runtime/synchronizer.js",
+        "size": 39366,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/strata/types.js",
+        "size": 1156,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/streaming/canonical/canonical-responses-event-emitter.js",
+        "size": 11720,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/streaming/canonical/function-call-item-id.js",
+        "size": 416,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/streaming/canonical/parts-from-llm-stream-chunk.js",
+        "size": 2060,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/streaming/canonical/responses-event-emitter.js",
+        "size": 3590,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/streaming/canonical/responses-events.js",
+        "size": 55,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/streaming/normalized-events.js",
+        "size": 272,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/streaming/normalized-from-text.js",
+        "size": 1403,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/streaming/stream-assembler.js",
+        "size": 12840,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/structured-output/index.js",
+        "size": 166,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/structured-output/json-extract.js",
+        "size": 1778,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/structured-output/json-schema-validator.js",
+        "size": 2623,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/structured-output/types.js",
+        "size": 44,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/sub-agent/artifacts/store.js",
+        "size": 5625,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/sub-agent/artifacts/types.js",
+        "size": 90,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/sub-agent/controller.js",
+        "size": 2016,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/sub-agent/core/loop.js",
+        "size": 3588,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/sub-agent/core/manager.js",
+        "size": 10107,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/sub-agent/registry-defaults.js",
+        "size": 1696,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/sub-agent/registry.js",
+        "size": 940,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/sub-agent/tools/task-spawn.js",
+        "size": 1285,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/sub-agent/types.js",
+        "size": 836,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/target-runtime/command-resolver.js",
+        "size": 1456,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/target-runtime/index.js",
+        "size": 102,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/target-runtime/profile.js",
+        "size": 2518,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/testgen/detector.js",
+        "size": 630,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/testgen/index.js",
+        "size": 1393,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/testgen/templates.js",
+        "size": 914,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/audit.js",
+        "size": 4770,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/authorization/types.js",
+        "size": 44,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/budget.js",
+        "size": 4002,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/builtin/artifact.js",
+        "size": 1046,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/builtin/ast-grep.js",
+        "size": 3969,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/builtin/ast.js",
+        "size": 2393,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/builtin/code-search/backends/powershell.js",
+        "size": 3402,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/builtin/code-search/backends/rg.js",
+        "size": 2705,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/builtin/code-search/executor.js",
+        "size": 3639,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/builtin/code-search/parse/plain-grep.js",
+        "size": 1928,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/builtin/code-search/parse/rg-json.js",
+        "size": 1012,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/builtin/code-search/spec.js",
+        "size": 3143,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/builtin/fs.js",
+        "size": 8098,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/builtin/git.js",
+        "size": 4438,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/builtin/index.js",
+        "size": 3118,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/builtin/interaction.js",
+        "size": 4023,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/builtin/knowledge.js",
+        "size": 3248,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/builtin/plan.js",
+        "size": 5176,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/builtin/proposal.js",
+        "size": 8396,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/builtin/shell.js",
+        "size": 2357,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/builtin/verify.js",
+        "size": 1524,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/capability/executor.js",
+        "size": 2979,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/capability/runner.js",
+        "size": 1749,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/capability/types.js",
+        "size": 44,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/dispatcher.js",
+        "size": 3037,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/headless-payload.js",
+        "size": 1283,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/loader.js",
+        "size": 4172,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/mapper.js",
+        "size": 4660,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/mcp/client.js",
+        "size": 12879,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/mcp/loader.js",
+        "size": 4373,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/mcp/schema.js",
+        "size": 2177,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/mcp/streamable-http.js",
+        "size": 3598,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/mcp/types.js",
+        "size": 805,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/parallel/isolation.js",
+        "size": 750,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/parallel/lock-manager.js",
+        "size": 4246,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/parallel/persistence.js",
+        "size": 4603,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/parallel/plan-builder.js",
+        "size": 1753,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/parallel/plan.js",
+        "size": 43,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/parallel/refs.js",
+        "size": 233,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/parallel/resolve-args.js",
+        "size": 1596,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/parallel/resource-helpers.js",
+        "size": 947,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/parallel/resources.js",
+        "size": 48,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/parallel/scheduler.js",
+        "size": 16482,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/parser.js",
+        "size": 3793,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/permissions/permission-rules.js",
+        "size": 16504,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/plugins/loader.js",
+        "size": 4362,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/policy.js",
+        "size": 4150,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/registry.js",
+        "size": 789,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/router.js",
+        "size": 21899,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/sanitize.js",
+        "size": 3159,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/schema-utils.js",
+        "size": 2606,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/session.js",
+        "size": 42993,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/streaming/ToolCallAccumulator.js",
+        "size": 1964,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/tools/types.js",
+        "size": 116,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/types/authorization.js",
+        "size": 52,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/types/context.js",
+        "size": 46,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/types/errors.js",
+        "size": 805,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/types/execution.js",
+        "size": 1845,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/types/index.js",
+        "size": 272,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/types/llm.js",
+        "size": 163,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/types/loop.js",
+        "size": 43,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/types/planning.js",
+        "size": 47,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/types/runtime.js",
+        "size": 124,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/types/usage.js",
+        "size": 44,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/ui/kaomoji.js",
+        "size": 134,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/utils/path.js",
+        "size": 2714,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/utils/platform-shell.js",
+        "size": 451,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/utils/sanitizer.js",
+        "size": 3753,
+        "mode": 420
+      },
+      {
+        "path": "dist/core/verification/runner.js",
+        "size": 10110,
+        "mode": 420
+      },
+      {
+        "path": "dist/integrations/langfuse/litellm-langfuse-outcome-reporter.js",
+        "size": 10469,
+        "mode": 420
+      },
+      {
+        "path": "dist/integrations/langfuse/outcome-proxy.js",
+        "size": 2694,
+        "mode": 420
+      },
+      {
+        "path": "dist/interfaces/cli/task-runner.js",
+        "size": 310,
+        "mode": 420
+      },
+      {
+        "path": "dist/languages/typescript/index.js",
+        "size": 6711,
+        "mode": 420
+      },
+      {
+        "path": "dist/locales/en.js",
+        "size": 45270,
+        "mode": 420
+      },
+      {
+        "path": "dist/locales/index.js",
+        "size": 325,
+        "mode": 420
+      },
+      {
+        "path": "dist/utils/eol.js",
+        "size": 1390,
+        "mode": 420
+      },
+      {
+        "path": "package.json",
+        "size": 6180,
+        "mode": 420
+      }
+    ],
+    "entryCount": 655,
+    "bundled": []
+  }
+]
