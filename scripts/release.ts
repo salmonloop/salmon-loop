@@ -168,8 +168,13 @@ async function assertNpmAuth(cwd: string): Promise<void> {
   }
 }
 
-async function createPackArtifact(cwd: string): Promise<string> {
-  const res = await run('npm', ['pack', '--json'], { cwd, stdio: 'pipe' });
+async function createPackArtifact(cwd: string, packDestination?: string): Promise<string> {
+  const args = ['pack', '--json'];
+  if (packDestination) {
+    args.push('--pack-destination', packDestination);
+  }
+
+  const res = await run('npm', args, { cwd, stdio: 'pipe' });
   if (res.exitCode !== 0) {
     throw new Error((res.stderr || '').trim() || '`npm pack` failed.');
   }
@@ -190,7 +195,7 @@ async function createPackArtifact(cwd: string): Promise<string> {
     throw new Error('`npm pack --json` did not include a tarball filename.');
   }
 
-  return path.join(cwd, filename);
+  return path.join(packDestination ?? cwd, filename);
 }
 
 async function assertReleaseArtifact(options: { cwd: string; tarballPath: string }): Promise<void> {
@@ -222,11 +227,12 @@ async function assertReleaseArtifact(options: { cwd: string; tarballPath: string
 }
 
 async function runPackagingChecks(cwd: string): Promise<void> {
-  const tarballPath = await createPackArtifact(cwd);
+  const packRoot = await mkdtemp(path.join(os.tmpdir(), 'salmon-loop-pack-'));
+  const tarballPath = await createPackArtifact(cwd, packRoot);
   try {
     await assertReleaseArtifact({ cwd, tarballPath });
   } finally {
-    await rm(tarballPath, { force: true });
+    await rm(packRoot, { recursive: true, force: true });
   }
 }
 

@@ -33,13 +33,18 @@ jobs:
         run: bun run build
       - name: Pack npm tarball
         shell: bash
-        run: npm pack --json > pack-output.json
+        run: |
+          set -euo pipefail
+          PACK_DEST=".tmp/publish-smoke-pack"
+          mkdir -p "${PACK_DEST}"
+          npm pack --json --pack-destination "${PACK_DEST}" > pack-output.json
       - name: Install tarball in temp directory
         shell: bash
         run: |
           set -euo pipefail
+          PACK_DEST=".tmp/publish-smoke-pack"
           TARBALL="$(bun -e "const items = JSON.parse(await Bun.file('pack-output.json').text()); process.stdout.write(items[0].filename);")"
-          TARBALL_PATH="$(pwd)/${TARBALL}"
+          TARBALL_PATH="$(pwd)/${PACK_DEST}/${TARBALL}"
           mkdir -p .tmp/publish-smoke
           cd .tmp/publish-smoke
           if [ ! -f package.json ]; then
