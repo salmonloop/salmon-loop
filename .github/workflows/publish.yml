@@ -11,7 +11,7 @@ jobs:
   quality:
     uses: ./.github/workflows/reusable-test.yml
     with:
-      bun-version: '1.3.9'
+      bun-version: '1.3.10'
 
   publish:
     runs-on: ubuntu-latest
@@ -25,7 +25,7 @@ jobs:
       - name: Setup
         uses: ./.github/actions/setup
         with:
-          bun-version: '1.3.9'
+          bun-version: '1.3.10'
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
