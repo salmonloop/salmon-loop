@@ -1,6 +1,7 @@
 import type {
   AgentSideConnection,
   PermissionOption,
+  SessionUpdate,
   ToolCallUpdate,
   ToolKind,
 } from '@agentclientprotocol/sdk';
@@ -87,6 +88,23 @@ export function createAcpToolAuthorizationProvider(params: {
   getPermissionPolicy?: () => 'ask' | 'deny_all' | 'allow_all';
   enforceClientCapabilities?: boolean;
 }): ToolAuthorizationProvider {
+  const inProgressEmitted = new Set<string>();
+
+  const emitInProgressBestEffort = async (toolCallId: string) => {
+    if (inProgressEmitted.has(toolCallId)) return;
+    inProgressEmitted.add(toolCallId);
+    try {
+      const update: SessionUpdate = {
+        sessionUpdate: 'tool_call_update',
+        toolCallId,
+        status: 'in_progress',
+      };
+      await params.conn.sessionUpdate({ sessionId: params.sessionId, update });
+    } catch {
+      // Best-effort: do not block authorization if the client can't accept updates.
+    }
+  };
+
   return {
     async requestAuthorization(request: ToolAuthorizationRequest) {
       const enforceClientCapabilities = params.enforceClientCapabilities ?? true;
@@ -117,6 +135,7 @@ export function createAcpToolAuthorizationProvider(params: {
       }
       const permissionPolicy = params.getPermissionPolicy?.() ?? 'ask';
       if (permissionPolicy === 'allow_all') {
+        await emitInProgressBestEffort(request.id);
         return { outcome: 'allow_session', source: 'auto', reason: 'session_mode:yolo' };
       }
       const hasSideEffects = request.sideEffects.some((effect) => effect !== 'fs_read');
@@ -137,8 +156,10 @@ export function createAcpToolAuthorizationProvider(params: {
 
       switch (response.outcome.optionId) {
         case 'allow_once':
+          await emitInProgressBestEffort(request.id);
           return { outcome: 'allow_once', source: 'user' };
         case 'allow_always':
+          await emitInProgressBestEffort(request.id);
           return { outcome: 'allow_session', source: 'user' };
         case 'reject_once':
         case 'reject_always':

@@ -100,6 +100,49 @@ describe('ACP formal protocol (SDK)', () => {
     ).rejects.toMatchObject({ code: -32602 });
   });
 
+  it('emits session_info_update during session/new', async () => {
+    const updates: any[] = [];
+
+    const { clientConn } = createConnectedPair({
+      toAgent: (conn) =>
+        createAcpFormalAgent({
+          conn,
+          agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+          facade: {
+            createTask: async () => {
+              throw new Error('not used');
+            },
+            getTask: async () => null,
+            cancelTask: async () => null,
+            resumeTask: async () => null,
+            retryTask: async () => null,
+            reopenTask: async () => null,
+            listTasks: async () => ({ items: [] }),
+            submitInput: async () => null,
+            getArtifact: async () => null,
+          },
+        }),
+      toClient: () => ({
+        requestPermission: async () => ({ outcome: { outcome: 'cancelled' } }),
+        sessionUpdate: async (params: any) => {
+          updates.push(params.update);
+        },
+      }),
+    });
+
+    await clientConn.initialize({
+      protocolVersion: 1,
+      clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false },
+    });
+
+    await clientConn.newSession({ cwd: '/repo', mcpServers: [] });
+
+    const info = updates.find((u) => u.sessionUpdate === 'session_info_update');
+    expect(info?.title).toBe('repo');
+    expect(typeof info?.updatedAt).toBe('string');
+    expect(Number.isFinite(Date.parse(info.updatedAt))).toBe(true);
+  });
+
   it('returns schema-compliant payload for session/load response', async () => {
     const updates: any[] = [];
 
@@ -144,6 +187,58 @@ describe('ACP formal protocol (SDK)', () => {
     );
     expect(Object.prototype.hasOwnProperty.call(res, 'sessionId')).toBe(false);
     expect(Array.isArray(updates)).toBe(true);
+  });
+
+  it('emits session_info_update at prompt start and end', async () => {
+    const updates: any[] = [];
+
+    const { clientConn } = createConnectedPair({
+      toAgent: (conn) =>
+        createAcpFormalAgent({
+          conn,
+          agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+          facade: {
+            createTask: async (input: any) => ({
+              task: {
+                id: 'task_1',
+                capability: 'patch',
+                state: 'accepted',
+                request: { instruction: input.request.instruction },
+                createdAt: new Date().toISOString(),
+                attempt: 1,
+              },
+              signal: new AbortController().signal,
+            }),
+            getTask: async () => null,
+            cancelTask: async () => null,
+            resumeTask: async () => null,
+            retryTask: async () => null,
+            reopenTask: async () => null,
+            listTasks: async () => ({ items: [] }),
+            submitInput: async () => null,
+            getArtifact: async () => null,
+          },
+        }),
+      toClient: () => ({
+        requestPermission: async () => ({ outcome: { outcome: 'cancelled' } }),
+        sessionUpdate: async (params: any) => {
+          updates.push(params.update);
+        },
+      }),
+    });
+
+    await clientConn.initialize({
+      protocolVersion: 1,
+      clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
+    });
+
+    const { sessionId } = await clientConn.newSession({ cwd: '/repo', mcpServers: [] });
+    updates.length = 0;
+
+    await clientConn.prompt({ sessionId, prompt: [{ type: 'text', text: 'hi' }] });
+
+    const infoUpdates = updates.filter((u) => u.sessionUpdate === 'session_info_update');
+    expect(infoUpdates.length).toBeGreaterThanOrEqual(2);
   });
 
   it('exposes latest checkpoint id in session/load _meta when checkpoint reader is provided', async () => {

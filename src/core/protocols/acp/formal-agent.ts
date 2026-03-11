@@ -123,6 +123,7 @@ type AcpSessionRuntimeState = {
   lastCommandsDigest: string | null;
   lastConfigDigest: string | null;
   lastModeDigest: string | null;
+  lastSessionInfoDigest: string | null;
   permissionPolicy: AcpPermissionPolicy;
   modeId: AcpSessionModeId;
 };
@@ -146,6 +147,15 @@ function isAbsolutePath(filePath: string): boolean {
   if (/^[a-zA-Z]:[\\/]/.test(filePath)) return true; // drive letter
   if (filePath.startsWith('\\\\')) return true; // UNC path
   return false;
+}
+
+function deriveSessionTitleFromCwd(cwd: string): string {
+  const trimmed = cwd.replace(/[\\/]+$/, '');
+  if (!trimmed) return cwd;
+  const segments = trimmed.split(/[\\/]/).filter(Boolean);
+  const basename = segments.at(-1);
+  if (basename && basename.trim()) return basename;
+  return trimmed;
 }
 
 function ensureMarkdownParagraphBreak(text: string): string {
@@ -399,6 +409,22 @@ function buildAvailableCommandsUpdateIfChanged(
   };
 }
 
+function buildSessionInfoUpdateIfChanged(
+  session: Pick<AcpSessionRecord, 'title' | 'updatedAt'>,
+  state: AcpSessionRuntimeState,
+): SessionUpdate | null {
+  const title = typeof session.title === 'string' ? session.title : null;
+  const updatedAt = typeof session.updatedAt === 'string' ? session.updatedAt : null;
+  const digest = JSON.stringify({ title, updatedAt });
+  if (digest === state.lastSessionInfoDigest) return null;
+  state.lastSessionInfoDigest = digest;
+  return {
+    sessionUpdate: 'session_info_update',
+    title,
+    updatedAt,
+  };
+}
+
 function isSessionModeId(value: string): value is AcpSessionModeId {
   return value === 'interactive' || value === 'yolo';
 }
@@ -457,6 +483,7 @@ function createSessionRuntimeStateFromPersisted(input?: {
     lastCommandsDigest: null,
     lastConfigDigest: null,
     lastModeDigest: null,
+    lastSessionInfoDigest: null,
     permissionPolicy,
     modeId,
   };
@@ -1081,6 +1108,19 @@ export function createAcpFormalAgent(deps: {
     await deps.conn.sessionUpdate({ sessionId, update });
   }
 
+  async function emitSessionInfoUpdateBestEffort(sessionId: string) {
+    const session = sessions.get(sessionId);
+    if (!session) return;
+    const state = ensureSessionRuntimeState(sessionId);
+    const update = buildSessionInfoUpdateIfChanged(session, state);
+    if (!update) return;
+    try {
+      await emitSessionUpdate(sessionId, update);
+    } catch {
+      // Best-effort: do not fail the request due to notification delivery issues.
+    }
+  }
+
   async function emitRuntimePlanUpdateIfNeeded(params: {
     sessionId: string;
     repoPath: string;
@@ -1194,9 +1234,15 @@ export function createAcpFormalAgent(deps: {
       if (!isAbsolutePath(params.cwd)) {
         throw new RequestError(-32602, 'Invalid params: cwd must be an absolute path');
       }
-      const session = sessions.create({ cwd: params.cwd, mcpServers: params.mcpServers ?? [] });
+      const session = sessions.create({
+        cwd: params.cwd,
+        mcpServers: params.mcpServers ?? [],
+        title: deriveSessionTitleFromCwd(params.cwd),
+      });
       await persistSessionsBestEffort();
       const runtimeState = ensureSessionRuntimeState(session.id);
+
+      await emitSessionInfoUpdateBestEffort(session.id);
 
       // Restore session state on creation
       const commandsUpdate = buildAvailableCommandsUpdateIfChanged(runtimeState);
@@ -1233,8 +1279,20 @@ export function createAcpFormalAgent(deps: {
       }
       await loadSessionInternal(params);
 
-      const session = sessions.get(params.sessionId)!;
+      let session = sessions.get(params.sessionId)!;
       const runtimeState = ensureSessionRuntimeState(session.id);
+
+      if (typeof session.title !== 'string' || !session.title.trim()) {
+        session =
+          sessions.update(session.id, (current) => ({
+            ...current,
+            title: deriveSessionTitleFromCwd(current.cwd),
+          })) ?? session;
+        await persistSessionsBestEffort();
+      }
+
+      runtimeState.lastSessionInfoDigest = null;
+      await emitSessionInfoUpdateBestEffort(session.id);
 
       // Restore plan state if session was running a task
       if (session.taskId && session.cwd) {
@@ -1369,6 +1427,7 @@ export function createAcpFormalAgent(deps: {
       }
       sessions.update(params.sessionId, (current) => ({ ...current }));
       await persistSessionsBestEffort();
+      await emitSessionInfoUpdateBestEffort(params.sessionId);
       const update = buildConfigOptionUpdateIfChanged(runtimeState);
       if (update) {
         await emitSessionUpdate(params.sessionId, update);
@@ -1394,6 +1453,7 @@ export function createAcpFormalAgent(deps: {
       runtimeState.modeId = params.modeId;
       sessions.update(params.sessionId, (current) => ({ ...current }));
       await persistSessionsBestEffort();
+      await emitSessionInfoUpdateBestEffort(params.sessionId);
 
       // Send mode update notification
       const modeUpdate = buildCurrentModeUpdateIfChanged(runtimeState);
@@ -1427,9 +1487,14 @@ export function createAcpFormalAgent(deps: {
       }
 
       sessions.update(params.sessionId, (current) => {
+        const title =
+          typeof current.title === 'string' && current.title.trim()
+            ? current.title
+            : deriveSessionTitleFromCwd(current.cwd);
         return {
           ...current,
           cancelRequested: false,
+          title,
           history: [
             ...current.history,
             { role: 'user', content: params.prompt as unknown as any[] },
@@ -1437,6 +1502,7 @@ export function createAcpFormalAgent(deps: {
         };
       });
       await persistSessionsBestEffort();
+      await emitSessionInfoUpdateBestEffort(params.sessionId);
 
       const configUpdate = buildConfigOptionUpdateIfChanged(runtimeState);
       if (configUpdate) {
@@ -1473,6 +1539,7 @@ export function createAcpFormalAgent(deps: {
             ],
           }));
           await persistSessionsBestEffort();
+          await emitSessionInfoUpdateBestEffort(params.sessionId);
 
           return { stopReason: 'end_turn' };
         }
@@ -1483,6 +1550,7 @@ export function createAcpFormalAgent(deps: {
         return { stopReason: 'cancelled' };
       }
 
+      const pendingUpdates: Promise<void>[] = [];
       const { task, signal } = await deps.facade.createTask({
         capability: 'patch',
         request: {
@@ -1508,14 +1576,22 @@ export function createAcpFormalAgent(deps: {
         authorizationMode: 'blocking',
         onEvent: (event: LoopEvent) => {
           for (const update of loopEventToSessionUpdates(event, runtimeState)) {
-            void emitSessionUpdate(params.sessionId, update);
+            pendingUpdates.push(
+              emitSessionUpdate(params.sessionId, update).catch(() => {
+                // Ignore errors in session update notifications
+              }),
+            );
           }
-          void emitRuntimePlanUpdateIfNeeded({
-            sessionId: params.sessionId,
-            repoPath: session.cwd,
-            event,
-            state: runtimeState,
-          });
+          pendingUpdates.push(
+            emitRuntimePlanUpdateIfNeeded({
+              sessionId: params.sessionId,
+              repoPath: session.cwd,
+              event,
+              state: runtimeState,
+            }).catch(() => {
+              // Ignore errors in plan update notifications
+            }),
+          );
         },
       });
 
@@ -1583,6 +1659,21 @@ export function createAcpFormalAgent(deps: {
       }));
       await persistSessionsBestEffort();
 
+      const latestSession = sessions.get(params.sessionId);
+      if (latestSession) {
+        const sessionInfoUpdate = buildSessionInfoUpdateIfChanged(latestSession, runtimeState);
+        if (sessionInfoUpdate) {
+          pendingUpdates.push(
+            emitSessionUpdate(params.sessionId, sessionInfoUpdate).catch(() => {
+              // Ignore errors in session update notifications
+            }),
+          );
+        }
+      }
+
+      // Wait for all pending session updates to be sent before responding
+      await Promise.all(pendingUpdates);
+
       return { stopReason };
     },
 
@@ -1594,6 +1685,7 @@ export function createAcpFormalAgent(deps: {
       // Mark the session as cancelled
       sessions.update(params.sessionId, (current) => ({ ...current, cancelRequested: true }));
       await persistSessionsBestEffort();
+      await emitSessionInfoUpdateBestEffort(params.sessionId);
 
       // If a task is running, cancel it
       if (session.taskId) {

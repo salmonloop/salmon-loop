@@ -60,7 +60,7 @@ jobs:
             echo "NPM_TOKEN is not set."
             exit 1
           fi
-          echo "node: $(node --version)"
+          echo "node: $(bun -p \"process.versions.node\")"
           echo "npm: $(npm --version)"
           echo "npm whoami: $(npm whoami)"
           # Helpful for diagnosing EOTP. Some token types (e.g. automation/granular) may not
