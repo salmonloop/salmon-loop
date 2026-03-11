@@ -169,12 +169,6 @@ function buildJsonResourceContentBlock(data: unknown): ContentBlock {
   } as ContentBlock;
 }
 
-const defaultPromptCapabilities = {
-  image: false,
-  audio: false,
-  embeddedContext: false,
-};
-
 const ACP_AVAILABLE_COMMANDS: Array<{ name: string; description: string }> = [
   { name: 'help', description: text.acp.slashHelpDescription },
 ];
@@ -636,6 +630,15 @@ export function createAcpFormalAgent(deps: {
   };
   capabilityPolicy?: {
     loadSession?: boolean;
+    promptCapabilities?: {
+      image?: boolean;
+      audio?: boolean;
+      embeddedContext?: boolean;
+    };
+    mcpCapabilities?: {
+      http?: boolean;
+      sse?: boolean;
+    };
   };
   eventBus?: {
     subscribe: (listener: (event: TaskEvent) => void) => () => void;
@@ -660,6 +663,15 @@ export function createAcpFormalAgent(deps: {
     terminal: false,
   };
   const loadSessionCapability = deps.capabilityPolicy?.loadSession ?? true;
+  const promptCapabilities = {
+    image: deps.capabilityPolicy?.promptCapabilities?.image ?? false,
+    audio: deps.capabilityPolicy?.promptCapabilities?.audio ?? false,
+    embeddedContext: deps.capabilityPolicy?.promptCapabilities?.embeddedContext ?? false,
+  };
+  const mcpCapabilities = {
+    http: deps.capabilityPolicy?.mcpCapabilities?.http ?? false,
+    sse: deps.capabilityPolicy?.mcpCapabilities?.sse ?? false,
+  };
   const sessionPersistencePath = deps.sessionPersistencePath;
   const sessionStorePolicy = {
     maxEntries: deps.sessionStorePolicy?.maxEntries ?? ACP_SESSION_STORE_MAX_ENTRIES,
@@ -1166,8 +1178,8 @@ export function createAcpFormalAgent(deps: {
         authMethods: [],
         agentCapabilities: {
           loadSession: loadSessionCapability,
-          promptCapabilities: defaultPromptCapabilities,
-          mcpCapabilities: { http: false, sse: false },
+          promptCapabilities: promptCapabilities,
+          mcpCapabilities: mcpCapabilities,
           sessionCapabilities: {},
         },
       };
@@ -1406,7 +1418,7 @@ export function createAcpFormalAgent(deps: {
       const effectiveExecutionBinding =
         executionBinding === 'client' && !clientExecutionReady ? 'local' : executionBinding;
 
-      const promptText = extractTextFromPrompt(params.prompt, defaultPromptCapabilities);
+      const promptText = extractTextFromPrompt(params.prompt, promptCapabilities);
       const runtimeState = ensureSessionRuntimeState(params.sessionId);
       sessions.update(params.sessionId, (current) => {
         return {
