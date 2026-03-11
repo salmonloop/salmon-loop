@@ -9,6 +9,7 @@ import {
   type ContentBlock,
   type LoadSessionRequest,
   type SessionConfigOption,
+  type SessionModeState,
   type SessionUpdate,
   type StopReason,
   type ToolCallContent,
@@ -410,6 +411,24 @@ function isSessionModeId(value: string): value is AcpSessionModeId {
 
 function buildCurrentModeUpdate(modeId: AcpSessionModeId): SessionUpdate {
   return { sessionUpdate: 'current_mode_update', currentModeId: modeId };
+}
+
+function buildModesState(modeId: AcpSessionModeId): SessionModeState {
+  return {
+    currentModeId: modeId,
+    availableModes: [
+      {
+        id: 'interactive',
+        name: 'Interactive',
+        description: text.acp.modeInteractiveDescription,
+      },
+      {
+        id: 'yolo',
+        name: 'YOLO',
+        description: text.acp.modeYoloDescription,
+      },
+    ],
+  };
 }
 
 function buildCurrentModeUpdateIfChanged(state: AcpSessionRuntimeState): SessionUpdate | null {
@@ -1131,8 +1150,18 @@ export function createAcpFormalAgent(deps: {
 
       clientCapabilities = params.clientCapabilities;
 
+      // Protocol version negotiation:
+      // - If the client's requested version is supported, return the same version
+      // - Otherwise, return the latest version the agent supports
+      // Currently, the agent only supports protocol version 1
+      const supportedProtocolVersion = PROTOCOL_VERSION;
+      const negotiatedVersion =
+        params.protocolVersion <= supportedProtocolVersion
+          ? params.protocolVersion
+          : supportedProtocolVersion;
+
       return {
-        protocolVersion: PROTOCOL_VERSION,
+        protocolVersion: negotiatedVersion,
         agentInfo: deps.agentInfo,
         authMethods: [],
         agentCapabilities: {
@@ -1181,6 +1210,7 @@ export function createAcpFormalAgent(deps: {
       return {
         sessionId: session.id,
         configOptions: buildConfigOptions(runtimeState),
+        modes: buildModesState(runtimeState.modeId),
         ...(sessionMeta ? { _meta: sessionMeta } : {}),
       };
     },
@@ -1222,9 +1252,11 @@ export function createAcpFormalAgent(deps: {
 
       const response: {
         configOptions: SessionConfigOption[];
+        modes: SessionModeState;
         _meta?: Record<string, unknown>;
       } = {
         configOptions: buildConfigOptions(runtimeState),
+        modes: buildModesState(runtimeState.modeId),
       };
       if (deps.checkpointReader) {
         const startedAt = Date.now();
@@ -1335,6 +1367,29 @@ export function createAcpFormalAgent(deps: {
       }
 
       return { configOptions: buildConfigOptions(runtimeState) };
+    },
+
+    async setSessionMode(params) {
+      await hydrateSessionsOnce();
+      if (!sessions.get(params.sessionId)) {
+        throw new RequestError(-32004, `Session not found: ${params.sessionId}`);
+      }
+
+      const runtimeState = ensureSessionRuntimeState(params.sessionId);
+      if (!isSessionModeId(params.modeId)) {
+        throw new RequestError(-32602, `Invalid params: unsupported modeId "${params.modeId}"`);
+      }
+      runtimeState.modeId = params.modeId;
+      sessions.update(params.sessionId, (current) => ({ ...current }));
+      await persistSessionsBestEffort();
+
+      // Send mode update notification
+      const modeUpdate = buildCurrentModeUpdateIfChanged(runtimeState);
+      if (modeUpdate) {
+        await emitSessionUpdate(params.sessionId, modeUpdate);
+      }
+
+      return {};
     },
 
     async prompt(params) {
