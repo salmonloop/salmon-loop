@@ -1420,6 +1420,12 @@ export function createAcpFormalAgent(deps: {
 
       const promptText = extractTextFromPrompt(params.prompt, promptCapabilities);
       const runtimeState = ensureSessionRuntimeState(params.sessionId);
+
+      // Check for cancellation before starting processing
+      if (sessions.get(params.sessionId)?.cancelRequested === true) {
+        return { stopReason: 'cancelled' };
+      }
+
       sessions.update(params.sessionId, (current) => {
         return {
           ...current,
@@ -1470,6 +1476,11 @@ export function createAcpFormalAgent(deps: {
 
           return { stopReason: 'end_turn' };
         }
+      }
+
+      // Check for cancellation again before creating task
+      if (sessions.get(params.sessionId)?.cancelRequested === true) {
+        return { stopReason: 'cancelled' };
       }
 
       const { task, signal } = await deps.facade.createTask({
@@ -1580,11 +1591,17 @@ export function createAcpFormalAgent(deps: {
       const session = sessions.get(params.sessionId);
       if (!session) return;
 
+      // Mark the session as cancelled
       sessions.update(params.sessionId, (current) => ({ ...current, cancelRequested: true }));
       await persistSessionsBestEffort();
+
+      // If a task is running, cancel it
       if (session.taskId) {
         await deps.facade.cancelTask(session.taskId);
       }
+
+      // Note: The prompt method will check the cancelRequested flag and return
+      // StopReason::Cancelled as required by the protocol
     },
 
     extMethod: async () => ({}),
