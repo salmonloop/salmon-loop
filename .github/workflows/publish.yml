@@ -60,10 +60,14 @@ jobs:
             echo "NPM_TOKEN is not set."
             exit 1
           fi
+          echo "node: $(node --version)"
+          echo "npm: $(npm --version)"
           echo "npm whoami: $(npm whoami)"
-          # Helpful for diagnosing EOTP: shows whether the account enforces 2FA for writes.
-          # This does not reveal any secrets.
-          npm profile get "two-factor auth" || true
+          # Helpful for diagnosing EOTP. Some token types (e.g. automation/granular) may not
+          # have permission to read profile details; treat 403 as non-fatal and informational.
+          if ! npm profile get "two-factor auth" 2>/dev/null; then
+            echo "npm profile get (two-factor auth) not accessible for this token (non-fatal)."
+          fi
           VERSION="$(bun -e "const pkg = JSON.parse(await Bun.file('package.json').text()); process.stdout.write(pkg.version)")"
           if npm view salmon-loop@"${VERSION}" version >/dev/null 2>&1; then
             echo "Version ${VERSION} already published. Skipping publish."
