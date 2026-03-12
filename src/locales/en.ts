@@ -96,6 +96,59 @@ export const en = {
     allowlistAtomicWriteBackupFailed: 'Allowlist atomic write backup failed.',
     allowlistAtomicRestoreFailed: 'Allowlist atomic restore failed.',
     allowlistPathBlocked: 'Allowlist blocked the requested path.',
+    // File system security errors
+    pathOutsideRepo: 'Access denied: Path is outside of repository root.',
+    // Worktree errors
+    worktreePathMustBeUnderParityRoot: 'Worktree path must be under parity worktree root',
+    worktreePathMustBeInTempDir: 'Worktree path must be in system temp directory',
+    worktreePathMustNotBeInsideRepo: 'Worktree path must not be inside repo path',
+    worktreePathNotInManagedRoots: 'Worktree path not in managed roots, refusing to delete',
+    // Shadow driver errors
+    aggressiveStrategyLinuxOnly: 'AGGRESSIVE strategy only supported on Linux',
+    commandTimedOut: 'Command timed out',
+    // Lock errors
+    failedToAcquireLock: 'Failed to acquire lock due to concurrent lock updates',
+    lockAcquisitionAborted: 'Lock acquisition aborted',
+    // Checkpoint errors
+    workspaceDirtyUseForce: 'Workspace is dirty. Use --force to overwrite.',
+    // Session errors
+    noActiveSession: 'No active session',
+    // Runtime errors
+    bunRuntimeNotAvailable: 'Bun runtime is not available',
+    runtimeAlreadyStarted: 'Runtime already started',
+    // Protocol errors
+    acpSessionPersistLockTimeout: 'ACP_SESSION_PERSIST_LOCK_TIMEOUT',
+    // Registry errors
+    subAgentRegistryNotInitialized:
+      'SubAgentRegistry is not initialized. Call setSubAgentRegistry() at startup.',
+    promptRegistryNotInitialized:
+      'PromptRegistry is not initialized. Call setPromptRegistry() at startup.',
+    pluginRegistryNotInitialized:
+      'PluginRegistry is not initialized. Call setPluginRegistry() at startup.',
+    monitorNotInitialized:
+      'Monitor is not initialized. Call setMonitor(createMonitor()) at startup.',
+    loggerNotInitialized: 'Logger is not initialized. Call setLogger(createLogger()) at startup.',
+    // Plan storage errors
+    invalidSessionId: 'Invalid sessionId (expected 6-64 chars of [a-zA-Z0-9_-]).',
+    invalidStepId: 'Invalid stepId.',
+    // Audit errors
+    invalidAuditFile: 'Invalid audit file: context.eventsRef.path is required',
+    // LLM errors
+    operationAborted: 'Operation aborted',
+    emptyLlmResponse: 'Empty LLM response',
+    streamAborted: 'Stream aborted',
+    // Worker errors
+    repoRootRequired: 'repoRoot context is required for union-merge reading',
+    patchContentEmpty: 'Patch content is empty',
+    // Transaction errors
+    runtimeEnvironmentMissingWorkspace: 'Runtime environment missing workspace after setup',
+    executionTerminatedWithoutReport: 'SalmonLoop execution terminated without a FlowReport',
+    // Decision engine errors
+    planBuilderContextNotBound: 'PlanBuilder: context not bound',
+    // Pipeline errors
+    operationCancelledByUser: 'Operation cancelled by user',
+    // Sub-agent errors
+    stopRequestedBeforeLaunch: 'Stop requested before launching Smallfry',
   },
 
   acp: {
@@ -753,6 +806,10 @@ Please return the patch in PURE unified diff format:`;
           typeof confidence === 'number' ? ` (confidence: ${confidence})` : ''
         }${uncertainty ? ` [uncertainty: ${uncertainty}]` : ''}`,
     },
+  },
+
+  intent: {
+    researchKeywords: ['deep research', 'research', 'investigate', 'investigation'],
   },
 
   skills: {

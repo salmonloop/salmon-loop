@@ -82,17 +82,13 @@ function routeHeuristic(input: string): ChatIntentDecision {
   }
 
   // Review-like requests
-  const researchSignals = [
+  const researchSignals: readonly string[] = [
     'deep research',
     'research',
     'investigate',
     'investigation',
-    '调研',
-    '研究',
-    '资料搜集',
-    '资料收集',
   ];
-  if (researchSignals.some((s) => lower.includes(s))) {
+  if (researchSignals.some((s: string) => lower.includes(s))) {
     return {
       intent: 'research',
       confidence: 0.86,

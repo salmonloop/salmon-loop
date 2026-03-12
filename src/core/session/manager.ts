@@ -2,6 +2,7 @@ import { randomBytes } from 'crypto';
 import { join } from 'path';
 
 import { FileAdapter } from '../adapters/fs/index.js';
+import { getLogger } from '../observability/logger.js';
 import type { LoopIteration } from '../types/index.js';
 
 import { SessionCompressor, CompressedSessionStore } from './compression.js';
@@ -299,7 +300,7 @@ export class ChatSessionManager {
         sessions.push(session);
       } catch (error) {
         // Skip corrupted session files
-        console.warn(`Failed to load session file ${file}:`, error);
+        getLogger().warn(`Failed to load session file ${file}: ${error}`);
       }
     }
 
@@ -314,7 +315,7 @@ export class ChatSessionManager {
     try {
       await this.fileAdapter.deleteFile(filePath);
     } catch (error) {
-      console.warn(`Failed to delete session ${sessionId}:`, error);
+      getLogger().warn(`Failed to delete session ${sessionId}: ${error}`);
     }
   }
 

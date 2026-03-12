@@ -8,4 +8,5 @@
  */
 import { en } from './en.js';
 
-export const text = en;
+export const text = en as typeof en;
+export type LocaleText = typeof en;

@@ -311,14 +311,14 @@ export class SessionCompressor {
   }
 
   private determineOutcome(iteration: any): 'success' | 'failure' | 'partial' {
-    // 简化的结果判断逻辑
+    // Simplified result determination logic
     if (iteration.result?.success === true) return 'success';
     if (iteration.result?.success === false) return 'failure';
     return 'partial';
   }
 
   private generateIterationSummary(iteration: any): string {
-    // 生成迭代的简短摘要
+    // Generate brief iteration summary
     const result = iteration.result;
     if (!result) return 'No result data';
 
@@ -330,7 +330,7 @@ export class SessionCompressor {
   }
 
   private countErrors(iteration: any): number {
-    // 计算迭代中的错误数量
+    // Count errors in iteration
     const result = iteration.result;
     if (!result) return 0;
 
@@ -462,7 +462,7 @@ export class CompressedSessionStore {
 
   private async readFile(path: string): Promise<Uint8Array> {
     const data = await this.fileAdapter.readFile(path);
-    // FileAdapter返回base64字符串，需要解码为Uint8Array
+    // FileAdapter returns base64 string, need to decode to Uint8Array
     if (typeof data === 'string') {
       return new Uint8Array(Buffer.from(data, 'base64'));
     }

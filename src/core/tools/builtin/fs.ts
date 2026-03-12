@@ -189,7 +189,7 @@ export async function executeFsList(
   const { path: dir, includeHidden, maxEntries } = input;
 
   if (isAbsolute(dir)) {
-    throw new Error('Access denied: Path is outside of repository root.');
+    throw new Error(text.errors.pathOutsideRepo);
   }
 
   const absoluteRoot = resolve(ctx.repoRoot);
@@ -197,7 +197,7 @@ export async function executeFsList(
   const relPath = relative(absoluteRoot, absolutePath);
 
   if (relPath.startsWith('..') || isAbsolute(relPath)) {
-    throw new Error('Access denied: Path is outside of repository root.');
+    throw new Error(text.errors.pathOutsideRepo);
   }
 
   try {
@@ -246,7 +246,7 @@ export async function executeFsReadFile(
   const { file } = input;
 
   if (isAbsolute(file)) {
-    throw new Error('Access denied: Path is outside of repository root.');
+    throw new Error(text.errors.pathOutsideRepo);
   }
 
   // CRITICAL SAFETY: Path traversal check using relative path resolution
@@ -257,7 +257,7 @@ export async function executeFsReadFile(
   const relPath = relative(absoluteRoot, absolutePath);
 
   if (relPath.startsWith('..') || isAbsolute(relPath)) {
-    throw new Error('Access denied: Path is outside of repository root.');
+    throw new Error(text.errors.pathOutsideRepo);
   }
 
   try {

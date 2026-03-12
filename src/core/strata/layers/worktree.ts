@@ -120,16 +120,16 @@ export class WorkspaceManager {
       if (environmentMode === 'parity') {
         const parityRoot = worktreeRootImpl.normalize(resolveParityWorktreeRoot(options.repoPath));
         if (!isPathWithinDirectory(parityRoot, normalizedWorktreePath, { allowEqual: false })) {
-          throw new Error('Worktree path must be under parity worktree root');
+          throw new Error(text.errors.worktreePathMustBeUnderParityRoot);
         }
       } else {
         const tmpDir = worktreeRootImpl.normalize(tmpdir());
         if (!isPathWithinDirectory(tmpDir, normalizedWorktreePath, { allowEqual: false })) {
-          throw new Error('Worktree path must be in system temp directory');
+          throw new Error(text.errors.worktreePathMustBeInTempDir);
         }
       }
       if (isPathWithinDirectory(options.repoPath, worktreePath, { allowEqual: true })) {
-        throw new Error('Worktree path must not be inside repo path');
+        throw new Error(text.errors.worktreePathMustNotBeInsideRepo);
       }
 
       // Use GitAdapter for worktree creation
@@ -259,7 +259,7 @@ export class WorkspaceManager {
 
     if (!removed) {
       if (!isManagedWorktreePath(workspace.baseRepoPath, workspace.workPath)) {
-        throw new Error('Worktree path not in managed roots, refusing to delete');
+        throw new Error(text.errors.worktreePathNotInManagedRoots);
       }
       await rm(workspace.workPath, {
         recursive: true,
