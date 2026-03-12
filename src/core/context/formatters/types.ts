@@ -3,7 +3,7 @@
  * Uses shortest field names to reduce token consumption
  */
 
-// 核心上下文数据结构
+// Core context data structure
 export interface JsonContextData {
   c: JsonContext; // context
 }
