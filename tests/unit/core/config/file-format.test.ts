@@ -8,6 +8,10 @@ describe('config file format', () => {
 version: 1
 llm:
   active_model: coding_task
+  simple_model: coding_task
+  medium_model: coding_task
+  complex_model: coding_task
+  reasoning_model: coding_task
   providers:
     openai_main:
       type: openai-compatible
@@ -28,6 +32,10 @@ llm:
     const parsed = parseConfigText(raw, '/tmp/config.yaml') as any;
 
     expect(parsed.llm.activeModel).toBe('coding_task');
+    expect(parsed.llm.simpleModel).toBe('coding_task');
+    expect(parsed.llm.mediumModel).toBe('coding_task');
+    expect(parsed.llm.complexModel).toBe('coding_task');
+    expect(parsed.llm.reasoningModel).toBe('coding_task');
     expect(parsed.llm.providers.openai_main.api.baseUrl).toBe('https://example.com/v1');
     expect(parsed.llm.providers.openai_main.api.apiKey).toBe('key');
     expect(parsed.llm.providers.openai_main.api.timeoutMs).toBe(60000);

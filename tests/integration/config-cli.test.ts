@@ -21,6 +21,10 @@ describe('Config CLI integration', () => {
           verify: { command: 'bun -e "process.exit(0)"' },
           llm: {
             activeModel: 'default',
+            simpleModel: 'default',
+            mediumModel: 'default',
+            complexModel: 'default',
+            reasoningModel: 'default',
             providers: {
               openaiMain: {
                 type: 'openai-compatible',
@@ -53,6 +57,10 @@ describe('Config CLI integration', () => {
     const printed = JSON.parse(stdout) as any;
     expect(printed.version).toBe(1);
     expect(printed.llm.providers.openaiMain.api.apiKey).toBe('[REDACTED]');
+    expect(printed.llm.simpleModel).toBe('default');
+    expect(printed.llm.mediumModel).toBe('default');
+    expect(printed.llm.complexModel).toBe('default');
+    expect(printed.llm.reasoningModel).toBe('default');
     expect(stdout).not.toContain('secret-inline-key');
   }, 120000);
 
@@ -67,6 +75,10 @@ verify:
   command: bun -e "process.exit(0)"
 llm:
   active_model: default
+  simple_model: default
+  medium_model: default
+  complex_model: default
+  reasoning_model: default
   providers:
     openaiMain:
       type: openai-compatible
@@ -87,6 +99,10 @@ llm:
     const printed = JSON.parse(stdout) as any;
     expect(printed.version).toBe(1);
     expect(printed.llm.providers.openaiMain.api.apiKey).toBe('[REDACTED]');
+    expect(printed.llm.simpleModel).toBe('default');
+    expect(printed.llm.mediumModel).toBe('default');
+    expect(printed.llm.complexModel).toBe('default');
+    expect(printed.llm.reasoningModel).toBe('default');
     expect(stdout).not.toContain('secret-inline-key');
   }, 120000);
 

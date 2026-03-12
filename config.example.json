@@ -76,7 +76,11 @@
     "timeoutMs": 600000
   },
   "llm": {
-    "activeModel": "coding-task",
+    "activeModel": "my-medium",
+    "simpleModel": "my-simple",
+    "mediumModel": "my-medium",
+    "complexModel": "my-complex",
+    "reasoningModel": "my-reasoning",
     "providers": {
       "openaiMain": {
         "type": "openai-compatible",
@@ -99,6 +103,36 @@
           "temperature": 0.2,
           "maxTokens": 8192
         }
+      },
+      "my-simple": {
+        "provider": "openaiMain",
+        "id": "gpt-4.1-mini"
+      },
+      "my-medium": {
+        "provider": "openaiMain",
+        "id": "gpt-5.1"
+      },
+      "my-complex": {
+        "provider": "openaiMain",
+        "id": "gpt-5.2"
+      },
+      "my-reasoning": {
+        "provider": "openaiMain",
+        "id": "gpt-5.4"
+      },
+      "plan-fast": {
+        "provider": "openaiMain",
+        "id": "gpt-4.1-mini"
+      },
+      "patch-strong": {
+        "provider": "openaiMain",
+        "id": "gpt-4.1"
+      }
+    },
+    "routing": {
+      "phaseToModel": {
+        "PLAN": "plan-fast",
+        "PATCH": "patch-strong"
       }
     }
   },

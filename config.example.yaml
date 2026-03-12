@@ -68,7 +68,11 @@ verify:
   timeout_ms: 600000
 
 llm:
-  active_model: coding-task
+  active_model: my-medium
+  simple_model: my-simple
+  medium_model: my-medium
+  complex_model: my-complex
+  reasoning_model: my-reasoning
   providers:
     openaiMain:
       type: openai-compatible
@@ -86,6 +90,18 @@ llm:
       params:
         temperature: 0.2
         max_tokens: 8192
+    my-simple:
+      provider: openaiMain
+      id: gpt-4.1-mini
+    my-medium:
+      provider: openaiMain
+      id: gpt-5.1
+    my-complex:
+      provider: openaiMain
+      id: gpt-5.2
+    my-reasoning:
+      provider: openaiMain
+      id: gpt-5.4
     plan-fast:
       provider: openaiMain
       id: gpt-4.1-mini

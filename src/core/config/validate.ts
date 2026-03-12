@@ -544,6 +544,28 @@ export function validateConfigFileV1(input: unknown): ConfigFileV1 {
     }
     if (input.llm.activeModel !== undefined) cfg.llm.activeModel = input.llm.activeModel;
 
+    const llmAny = input.llm as any;
+
+    if (llmAny.simpleModel !== undefined && !isString(llmAny.simpleModel)) {
+      throw new ConfigError('CONFIG_INVALID_LLM_SIMPLE_MODEL', { expected: 'string' });
+    }
+    if (llmAny.simpleModel !== undefined) cfg.llm.simpleModel = llmAny.simpleModel;
+
+    if (llmAny.mediumModel !== undefined && !isString(llmAny.mediumModel)) {
+      throw new ConfigError('CONFIG_INVALID_LLM_MEDIUM_MODEL', { expected: 'string' });
+    }
+    if (llmAny.mediumModel !== undefined) cfg.llm.mediumModel = llmAny.mediumModel;
+
+    if (llmAny.complexModel !== undefined && !isString(llmAny.complexModel)) {
+      throw new ConfigError('CONFIG_INVALID_LLM_COMPLEX_MODEL', { expected: 'string' });
+    }
+    if (llmAny.complexModel !== undefined) cfg.llm.complexModel = llmAny.complexModel;
+
+    if (llmAny.reasoningModel !== undefined && !isString(llmAny.reasoningModel)) {
+      throw new ConfigError('CONFIG_INVALID_LLM_REASONING_MODEL', { expected: 'string' });
+    }
+    if (llmAny.reasoningModel !== undefined) cfg.llm.reasoningModel = llmAny.reasoningModel;
+
     if (input.llm.providers !== undefined) {
       if (!isRecord(input.llm.providers)) {
         throw new ConfigError('CONFIG_INVALID_LLM_PROVIDERS', { expected: 'object' });

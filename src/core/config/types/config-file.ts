@@ -120,6 +120,10 @@ export interface ConfigFileV1 {
 
   llm?: {
     activeModel?: string;
+    simpleModel?: string;
+    mediumModel?: string;
+    complexModel?: string;
+    reasoningModel?: string;
     providers?: Record<string, LlmProviderV1>;
     models?: Record<string, LlmModelProfileV1>;
     routing?: {
