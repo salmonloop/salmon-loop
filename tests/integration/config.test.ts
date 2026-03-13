@@ -51,6 +51,7 @@ describe('Config module', () => {
     await mkdir(tempHome, { recursive: true });
     setEnv('HOME', tempHome);
     setEnv('USERPROFILE', tempHome);
+    setEnv('SALMONLOOP_USER_CONFIG_HOME', tempHome);
   });
 
   afterEach(() => {

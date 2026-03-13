@@ -51,6 +51,7 @@ export async function runCli(
     S8P_API_KEY: '',
     HOME: envOverrides?.HOME ?? baseHome,
     USERPROFILE: envOverrides?.USERPROFILE ?? baseHome,
+    SALMONLOOP_USER_CONFIG_HOME: envOverrides?.SALMONLOOP_USER_CONFIG_HOME ?? baseHome,
     ...envOverrides,
   };
 

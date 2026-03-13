@@ -2,6 +2,12 @@ import { homedir } from 'os';
 
 import { defaultPathAdapter } from '../adapters/path/path-adapter.js';
 
+function resolveUserConfigHome(): string {
+  const override = (process.env.SALMONLOOP_USER_CONFIG_HOME || '').trim();
+  if (override) return defaultPathAdapter.resolve(override);
+  return homedir();
+}
+
 /**
  * Repo-local configuration lives under ".salmonloop/" and is expected to be gitignored.
  * Runtime state is stored under ".salmonloop/runtime/" (audit, rejections, tmp, locks).
@@ -24,7 +30,7 @@ export function getDefaultRepoConfigPaths(repoRoot: string): string[] {
 }
 
 export function getDefaultUserConfigPaths(): string[] {
-  const base = defaultPathAdapter.join(homedir(), '.salmonloop', 'config');
+  const base = defaultPathAdapter.join(resolveUserConfigHome(), '.salmonloop', 'config');
   return [
     defaultPathAdapter.join(base, 'config.yaml'),
     defaultPathAdapter.join(base, 'config.yml'),

@@ -1,3 +1,5 @@
+import { createServer } from 'node:net';
+
 import { InMemoryTaskStore } from '@a2a-js/sdk/server';
 import { describe, expect, test, mock } from 'bun:test';
 
@@ -35,13 +37,33 @@ function createFastifyFactory() {
   return { factory, servers, listens };
 }
 
-let portCounter = 9000;
+async function getOpenPort() {
+  return new Promise<number>((resolve, reject) => {
+    const server = createServer();
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address();
+      if (!address || typeof address === 'string') {
+        server.close(() => reject(new Error('Failed to resolve open port')));
+        return;
+      }
+      const { port } = address;
+      server.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve(port);
+      });
+    });
+  });
+}
 
 describe('agent server runtime - error handling scenarios', () => {
   // Validates: Requirement 10.1 - Port already in use error
   test('throws descriptive error when port is already bound', async () => {
     const fastify = createFastifyFactory();
-    const port = portCounter++;
+    const port = await getOpenPort();
 
     const sidecarRoutes = buildSidecarRouteDescriptors({
       strict: true,
@@ -129,7 +151,7 @@ describe('agent server runtime - error handling scenarios', () => {
   // Validates: Requirement 10.2 - Authentication failure
   test('authentication middleware rejects invalid credentials with 401', async () => {
     const fastify = createFastifyFactory();
-    const port = portCounter++;
+    const port = await getOpenPort();
 
     const sidecarRoutes = buildSidecarRouteDescriptors({
       strict: true,
@@ -198,7 +220,7 @@ describe('agent server runtime - error handling scenarios', () => {
   // Validates: Requirement 10.2 - Task execution failure
   test('returns failed TaskEnvelope when executeTask throws exception', async () => {
     const fastify = createFastifyFactory();
-    const port = portCounter++;
+    const port = await getOpenPort();
 
     const sidecarRoutes = buildSidecarRouteDescriptors({
       strict: true,
@@ -263,7 +285,7 @@ describe('agent server runtime - error handling scenarios', () => {
   // Validates: Requirement 10.3 - Invalid AgentCard validation
   test('throws validation error when buildAgentCard returns malformed AgentCard', async () => {
     const fastify = createFastifyFactory();
-    const port = portCounter++;
+    const port = await getOpenPort();
 
     const sidecarRoutes = buildSidecarRouteDescriptors({
       strict: true,
@@ -318,7 +340,7 @@ describe('agent server runtime - error handling scenarios', () => {
   // Validates: Requirement 10.4 - Event bus publish failure handling
   test('logs error but continues when event bus publish fails', async () => {
     const fastify = createFastifyFactory();
-    const port = portCounter++;
+    const port = await getOpenPort();
 
     const sidecarRoutes = buildSidecarRouteDescriptors({
       strict: true,
@@ -389,7 +411,7 @@ describe('agent server runtime - error handling scenarios', () => {
   // Validates: Requirement 10.4 - Sufficient logging context
   test('provides sufficient context in error scenarios', async () => {
     const fastify = createFastifyFactory();
-    const port = portCounter++;
+    const port = await getOpenPort();
 
     const sidecarRoutes = buildSidecarRouteDescriptors({
       strict: true,
@@ -517,7 +539,7 @@ describe('agent server runtime - error handling scenarios', () => {
   // Validates: Requirement 10.2 - Multiple error scenarios
   test('handles multiple concurrent errors without corruption', async () => {
     const fastify = createFastifyFactory();
-    const port = portCounter++;
+    const port = await getOpenPort();
 
     const sidecarRoutes = buildSidecarRouteDescriptors({
       strict: true,

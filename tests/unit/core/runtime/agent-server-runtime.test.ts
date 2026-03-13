@@ -1,3 +1,5 @@
+import { createServer } from 'node:net';
+
 import { InMemoryTaskStore } from '@a2a-js/sdk/server';
 import { describe, expect, test } from 'bun:test';
 import type { Express } from 'express';
@@ -36,12 +38,32 @@ function createFastifyFactory() {
   return { factory, servers, listens };
 }
 
-let portCounter = 7500;
+async function getOpenPort() {
+  return new Promise<number>((resolve, reject) => {
+    const server = createServer();
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address();
+      if (!address || typeof address === 'string') {
+        server.close(() => reject(new Error('Failed to resolve open port')));
+        return;
+      }
+      const { port } = address;
+      server.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve(port);
+      });
+    });
+  });
+}
 
 describe('agent server runtime', () => {
   test('creates runtime with Express a2aServer and Fastify sidecarServer', async () => {
     const fastify = createFastifyFactory();
-    const port = portCounter++;
+    const port = await getOpenPort();
 
     const sidecarRoutes = buildSidecarRouteDescriptors({
       strict: true,
@@ -94,7 +116,7 @@ describe('agent server runtime', () => {
 
   test('starts both A2A and sidecar servers', async () => {
     const fastify = createFastifyFactory();
-    const port = portCounter++;
+    const port = await getOpenPort();
 
     const sidecarRoutes = buildSidecarRouteDescriptors({
       strict: true,
@@ -145,7 +167,7 @@ describe('agent server runtime', () => {
 
   test('close() is idempotent and can be called multiple times', async () => {
     const fastify = createFastifyFactory();
-    const port = portCounter++;
+    const port = await getOpenPort();
 
     const sidecarRoutes = buildSidecarRouteDescriptors({
       strict: true,
@@ -196,7 +218,7 @@ describe('agent server runtime', () => {
   test('accepts custom eventBus and shares it with executor', async () => {
     const fastify = createFastifyFactory();
     const customEventBus = createTaskEventBus();
-    const port = portCounter++;
+    const port = await getOpenPort();
 
     const sidecarRoutes = buildSidecarRouteDescriptors({
       strict: true,
@@ -246,7 +268,7 @@ describe('agent server runtime', () => {
   test('accepts custom taskStore and shares it with executor and SDK', async () => {
     const fastify = createFastifyFactory();
     const customTaskStore = new InMemoryTaskStore();
-    const port = portCounter++;
+    const port = await getOpenPort();
 
     const sidecarRoutes = buildSidecarRouteDescriptors({
       strict: true,
@@ -296,7 +318,7 @@ describe('agent server runtime', () => {
 
   test('accepts authentication middleware', async () => {
     const fastify = createFastifyFactory();
-    const port = portCounter++;
+    const port = await getOpenPort();
 
     const sidecarRoutes = buildSidecarRouteDescriptors({
       strict: true,
@@ -355,7 +377,7 @@ describe('agent server runtime', () => {
 
   test('throws error when starting runtime twice', async () => {
     const fastify = createFastifyFactory();
-    const port = portCounter++;
+    const port = await getOpenPort();
 
     const sidecarRoutes = buildSidecarRouteDescriptors({
       strict: true,
@@ -411,7 +433,7 @@ describe('agent server runtime', () => {
   test('applies custom configuration to A2A server', async () => {
     const fastify = createFastifyFactory();
     let configureA2ACalled = false;
-    const port = portCounter++;
+    const port = await getOpenPort();
 
     const sidecarRoutes = buildSidecarRouteDescriptors({
       strict: true,

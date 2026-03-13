@@ -4,8 +4,8 @@ import path from 'node:path';
 // File-level timeout for a full test file run. Integration suites can exceed 30s under CI load.
 // Large integration test files (e.g., headless-protocol, merge-robustness) can exceed 180s on
 // heavily contended machines (especially when multiple files run in parallel).
-// Set to 300s to reduce flakiness while keeping bounded execution.
-const DEFAULT_TIMEOUT_MS = 300_000;
+// Set to 600s to reduce flakiness on slower Windows runners while keeping bounded execution.
+const DEFAULT_TIMEOUT_MS = 600_000;
 const DEFAULT_PARALLELISM = 4;
 const DEFAULT_PRELOAD = path.join('tests', 'setup-bun.ts');
 const DEFAULT_TEST_TIMEOUT_MS = 30_000;
