@@ -2,7 +2,11 @@ import { readFile } from '../adapters/fs/node-fs.js';
 
 import { ConfigError } from './errors.js';
 import { parseConfigText } from './file-format.js';
-import { getDefaultRepoConfigPaths, resolveConfigPath } from './paths.js';
+import {
+  getDefaultRepoConfigPaths,
+  getDefaultUserConfigPaths,
+  resolveConfigPath,
+} from './paths.js';
 import type { ConfigFileV1 } from './types.js';
 import { validateConfigFileV1 } from './validate.js';
 
@@ -18,13 +22,15 @@ export interface LoadedConfig {
   config: ConfigFileV1;
 }
 
-export async function tryLoadConfigFile(opts: LoadConfigOptions): Promise<LoadedConfig | null> {
-  if (!opts.enabled) return null;
+export interface LoadedConfigStack {
+  repo?: LoadedConfig;
+  user?: LoadedConfig;
+}
 
-  const candidatePaths = opts.configPath
-    ? [resolveConfigPath(opts.repoRoot, opts.configPath)]
-    : getDefaultRepoConfigPaths(opts.repoRoot);
-
+async function loadFromCandidates(
+  candidatePaths: string[],
+  required: boolean | undefined,
+): Promise<LoadedConfig | null> {
   for (let i = 0; i < candidatePaths.length; i++) {
     const absPath = candidatePaths[i];
     try {
@@ -38,7 +44,7 @@ export async function tryLoadConfigFile(opts: LoadConfigOptions): Promise<Loaded
         'ENOENT'
       ) {
         const isLast = i === candidatePaths.length - 1;
-        if (opts.required && isLast) {
+        if (required && isLast) {
           throw new ConfigError('CONFIG_FILE_NOT_FOUND', { path: absPath });
         }
         continue;
@@ -48,4 +54,27 @@ export async function tryLoadConfigFile(opts: LoadConfigOptions): Promise<Loaded
   }
 
   return null;
+}
+
+export async function tryLoadConfigFile(opts: LoadConfigOptions): Promise<LoadedConfig | null> {
+  if (!opts.enabled) return null;
+
+  const candidatePaths = opts.configPath
+    ? [resolveConfigPath(opts.repoRoot, opts.configPath)]
+    : getDefaultRepoConfigPaths(opts.repoRoot);
+
+  return loadFromCandidates(candidatePaths, opts.required);
+}
+
+export async function loadConfigStack(opts: LoadConfigOptions): Promise<LoadedConfigStack> {
+  if (!opts.enabled) return {};
+
+  if (opts.configPath) {
+    const loaded = await tryLoadConfigFile(opts);
+    return loaded ? { repo: loaded } : {};
+  }
+
+  const repo = await loadFromCandidates(getDefaultRepoConfigPaths(opts.repoRoot), false);
+  const user = await loadFromCandidates(getDefaultUserConfigPaths(), false);
+  return { repo: repo ?? undefined, user: user ?? undefined };
 }

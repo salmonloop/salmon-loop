@@ -18,7 +18,8 @@ export function buildAiSdkRequestParams(params: {
     messages: params.messages,
     tools: params.tools,
     temperature: params.options.temperature,
-    maxOutputTokens: params.options.maxTokens != null ? Number(params.options.maxTokens) : undefined,
+    maxOutputTokens:
+      params.options.maxTokens != null ? Number(params.options.maxTokens) : undefined,
     stopSequences: params.options.stop,
     toolChoice: (params.options.toolChoice === 'none'
       ? 'none'

@@ -1,6 +1,7 @@
 import { resolveLlmOutputPolicy } from '../llm/output-policy.js';
 
-import { tryLoadConfigFile } from './load.js';
+import { loadConfigStack } from './load.js';
+import { mergeConfigFiles } from './merge.js';
 import { getDefaultRepoConfigPath } from './paths.js';
 import { resolveLlmFromConfig } from './resolve-llm.js';
 import { resolveAstValidationStrictness } from './resolvers/ast-validation.js';
@@ -29,21 +30,23 @@ export async function resolveConfig(opts: ResolveConfigOptions): Promise<Resolve
   const path = opts.configFilePath;
   const required = Boolean(opts.configFilePath);
 
-  const loaded = await tryLoadConfigFile({
+  const loaded = await loadConfigStack({
     repoRoot: opts.repoRoot,
     configPath: path,
     enabled,
     required,
   });
-  const raw = loaded?.config;
+  const raw = mergeConfigFiles(loaded.user?.config, loaded.repo?.config);
   const uiLogMode = resolveUiLogMode(raw);
   const permissionMode = resolvePermissionMode(raw);
+  const sourcePath =
+    loaded.repo?.path || loaded.user?.path || path || getDefaultRepoConfigPath(opts.repoRoot);
 
   return {
     source: {
       enabled,
-      path: loaded?.path || path || getDefaultRepoConfigPath(opts.repoRoot),
-      used: Boolean(loaded),
+      path: sourcePath,
+      used: Boolean(loaded.repo || loaded.user),
     },
     raw,
     permissionMode,

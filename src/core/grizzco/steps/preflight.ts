@@ -9,7 +9,11 @@ import { InitCtx, PreflightCtx } from '../engine/pipeline/types.js';
 
 export const runPreflight: Step<InitCtx, PreflightCtx> = async (ctx) => {
   const result = await preflight(ctx.workspace, ctx.emit, {
-    ignoreDirty: ctx.mode === 'review' || ctx.mode === 'research' || ctx.mode === 'answer',
+    ignoreDirty:
+      ctx.mode === 'review' ||
+      ctx.mode === 'research' ||
+      ctx.mode === 'answer' ||
+      ctx.options.permissionMode === 'yolo',
   });
 
   if (!result.ok) {

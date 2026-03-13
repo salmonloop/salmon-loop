@@ -1,3 +1,4 @@
+import type { PermissionMode } from '../config/types.js';
 import type { BudgetRunSummary } from '../context/budget/dynamic-adjuster.js';
 import type { ResolvedExtensions } from '../extensions/types.js';
 import type { RunOutcomeReporter } from '../observability/run-outcome-reporter.js';
@@ -400,6 +401,7 @@ export interface LoopOptions {
   langfuseUserId?: string;
   allowedToolNames?: string[];
   permissionRules?: import('../tools/permissions/permission-rules.js').RawPermissionRulesInput;
+  permissionMode?: PermissionMode;
   timeoutMs?: number;
   recursionDepth?: number;
   mode?: FlowMode;

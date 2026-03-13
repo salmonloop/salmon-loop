@@ -1,3 +1,4 @@
+import { homedir } from 'os';
 import { join, resolve } from 'path';
 
 /**
@@ -10,6 +11,11 @@ export function getDefaultRepoConfigPath(repoRoot: string): string {
 
 export function getDefaultRepoConfigPaths(repoRoot: string): string[] {
   const base = join(resolve(repoRoot), '.salmonloop', 'config');
+  return [join(base, 'config.yaml'), join(base, 'config.yml'), join(base, 'config.json')];
+}
+
+export function getDefaultUserConfigPaths(): string[] {
+  const base = join(homedir(), '.salmonloop', 'config');
   return [join(base, 'config.yaml'), join(base, 'config.yml'), join(base, 'config.json')];
 }
 

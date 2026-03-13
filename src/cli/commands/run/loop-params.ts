@@ -70,6 +70,7 @@ export function buildRunLoopParams(params: {
       forceNonInteractive: params.headlessOutput || params.printMode,
       permissionMode: params.permissionMode,
     }),
+    permissionMode: params.permissionMode,
     extensions: params.extensions,
     permissionRules: params.permissionRules,
     eventPayload:

@@ -363,6 +363,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
             authorizationMode: 'deferred',
             userInputProvider,
             subAgentController,
+            permissionMode: options.permissionMode,
           });
 
           return { kind: 'flow' as const, mode: intentDecision.intent, result };
