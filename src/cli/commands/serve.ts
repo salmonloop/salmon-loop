@@ -93,6 +93,7 @@ export async function handleServeCommand(_options: unknown, command: Command) {
     configPath: allOptions.config,
     enableConfigFile: allOptions.configFile !== false,
     auditScope: allOptions.auditScope,
+    logMode: allOptions.logMode,
   });
   if (!configResult.ok) {
     getLogger().error(configResult.message, true);
@@ -317,6 +318,7 @@ export async function handleServeAcpCommand(_options: unknown, command: Command)
     configPath: allOptions.config,
     enableConfigFile: allOptions.configFile !== false,
     auditScope: allOptions.auditScope,
+    logMode: allOptions.logMode,
   });
   if (!configResult.ok) {
     getLogger().error(configResult.message, true);

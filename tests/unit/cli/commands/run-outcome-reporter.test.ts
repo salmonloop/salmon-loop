@@ -57,26 +57,32 @@ mock.module('../../../../src/cli/commands/run/config-resolution.js', () => ({
   resolveRunConfig: mock(async () => ({
     ok: true,
     resolvedConfig: {
-      source: { used: false, path: undefined },
-      observability: {
-        langfuse: {
-          enabled: true,
-          outcome: true,
-          endpoint: 'https://langfuse.example.test',
-          apiKey: 'langfuse-key',
-          apiKeySource: 'inline',
-          sessionId: 'session-123',
-          userId: 'user-456',
+      repoPath: '/repo',
+      outputFormat: 'text',
+      headlessOutput: false,
+      auditScope: 'user',
+      resolvedConfig: {
+        source: { used: false, path: undefined },
+        observability: {
+          langfuse: {
+            enabled: true,
+            outcome: true,
+            endpoint: 'https://langfuse.example.test',
+            apiKey: 'langfuse-key',
+            apiKeySource: 'inline',
+            sessionId: 'session-123',
+            userId: 'user-456',
+          },
+          audit: { scope: 'repo' },
         },
-        audit: { scope: 'repo' },
+        llm: { api: { baseUrl: 'https://llm.example.test', apiKey: 'llm-key' }, models: {} },
+        llmOutput: { kinds: [] },
+        markdownTheme: 'default',
+        markdownRenderMode: 'enhanced',
+        ui: { logView: 'summary', logMode: 'auto' },
+        toolAuthorization: { allowlist: {} },
+        astValidation: { strictness: 'strict' },
       },
-      llm: { api: { baseUrl: 'https://llm.example.test', apiKey: 'llm-key' }, models: {} },
-      llmOutput: { kinds: [] },
-      markdownTheme: 'default',
-      markdownRenderMode: 'enhanced',
-      ui: { logView: 'summary', logMode: 'auto' },
-      toolAuthorization: { allowlist: {} },
-      astValidation: { strictness: 'strict' },
     },
   })),
 }));
@@ -171,6 +177,19 @@ mock.module('../../../../src/cli/headless/stdout-writer.js', () => ({
 
 mock.module('../../../../src/core/runtime/exit-codes.js', () => ({
   getExitCode: mock(() => 0),
+}));
+
+mock.module('../../../../src/core/observability/logger.js', () => ({
+  getLogger: () => ({
+    error: mock(),
+    warn: mock(),
+    info: mock(),
+    debug: mock(),
+    success: mock(),
+    cyan: mock(),
+    log: mock(),
+    setReporter: mock(),
+  }),
 }));
 
 describe('handleRunCommand outcome reporter', () => {

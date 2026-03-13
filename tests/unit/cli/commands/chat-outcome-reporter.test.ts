@@ -13,6 +13,7 @@ mock.module('../../../../src/cli/utils/outcome-reporter.js', () => ({
 }));
 
 mock.module('../../../../src/core/config/index.js', () => ({
+  ConfigError: class ConfigError extends Error {},
   normalizePermissionMode: (raw: unknown) => {
     const v = String(raw ?? '')
       .trim()
@@ -20,6 +21,14 @@ mock.module('../../../../src/core/config/index.js', () => ({
     if (v === 'interactive' || v === 'yolo') return v;
     return undefined;
   },
+  normalizeUiLogMode: (raw: unknown) => {
+    const v = String(raw ?? '')
+      .trim()
+      .toLowerCase();
+    if (v === 'quiet' || v === 'normal' || v === 'debug') return v;
+    return undefined;
+  },
+  redactConfigForPrint: (v: any) => v,
   resolveConfig: mock(async () => ({
     llm: { api: { baseUrl: 'https://llm.example.test', apiKey: 'llm-key' } },
     llmOutput: { kinds: [] },
@@ -42,6 +51,19 @@ mock.module('../../../../src/core/config/index.js', () => ({
     ui: { logView: 'summary', logMode: 'auto' },
     astValidation: { strictness: 'strict' },
   })),
+}));
+
+mock.module('../../../../src/core/observability/logger.js', () => ({
+  getLogger: () => ({
+    error: mock(),
+    warn: mock(),
+    info: mock(),
+    debug: mock(),
+    success: mock(),
+    cyan: mock(),
+    log: mock(),
+    setReporter: mock(),
+  }),
 }));
 
 mock.module('../../../../src/core/extensions/index.js', () => ({

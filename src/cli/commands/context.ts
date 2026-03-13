@@ -18,6 +18,7 @@ export async function handleContextCommand(options: any, command: Command) {
     configPath: allOptions.config,
     enableConfigFile: allOptions.configFile !== false,
     auditScope: allOptions.auditScope,
+    logMode: allOptions.logMode,
   });
   if (!configResult.ok) {
     getLogger().error(configResult.message, true);

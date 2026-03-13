@@ -27,6 +27,7 @@ export async function handleChatCommand(options: any, command: Command) {
     enableConfigFile: allOptions.configFile !== false,
     auditScope: allOptions.auditScope,
     verbose: allOptions.verbose,
+    logMode: allOptions.logMode,
   });
   if (!configResult.ok) {
     getLogger().error(configResult.message, true);

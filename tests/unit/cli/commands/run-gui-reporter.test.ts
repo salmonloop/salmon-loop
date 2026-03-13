@@ -41,6 +41,13 @@ mock.module('../../../../src/core/config/index.js', () => ({
     if (v === 'interactive' || v === 'yolo') return v;
     return undefined;
   },
+  normalizeUiLogMode: (raw: unknown) => {
+    const v = String(raw ?? '')
+      .trim()
+      .toLowerCase();
+    if (v === 'quiet' || v === 'normal' || v === 'debug') return v;
+    return undefined;
+  },
   resolveConfig: mock(async () => ({
     raw: { version: 1 },
     source: { used: false, path: undefined },

@@ -46,6 +46,13 @@ function llmConfig(modelId: string, extra?: Record<string, unknown>) {
 }
 
 describe('Config module', () => {
+  beforeEach(async () => {
+    const tempHome = uniqueTmpDir('home');
+    await mkdir(tempHome, { recursive: true });
+    setEnv('HOME', tempHome);
+    setEnv('USERPROFILE', tempHome);
+  });
+
   afterEach(() => {
     for (const [key, value] of envRestoreMap) {
       if (value === undefined) {

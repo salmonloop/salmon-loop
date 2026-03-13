@@ -32,6 +32,16 @@ export async function runCli(
   const dotenvDir = await mkdtemp(join(tmpdir(), 'salmonloop-dotenv-'));
   const dotenvPath = join(dotenvDir, '.env');
   await writeFile(dotenvPath, '', 'utf8');
+  const tempHome =
+    envOverrides?.HOME || envOverrides?.USERPROFILE
+      ? null
+      : await mkdtemp(join(tmpdir(), 'salmonloop-home-'));
+  const baseHome =
+    envOverrides?.HOME ??
+    envOverrides?.USERPROFILE ??
+    tempHome ??
+    process.env.HOME ??
+    process.env.USERPROFILE;
 
   const env: NodeJS.ProcessEnv = {
     ...process.env,
@@ -39,10 +49,12 @@ export async function runCli(
     DOTENV_CONFIG_PATH: dotenvPath,
     SALMONLOOP_API_KEY: '',
     S8P_API_KEY: '',
+    HOME: envOverrides?.HOME ?? baseHome,
+    USERPROFILE: envOverrides?.USERPROFILE ?? baseHome,
     ...envOverrides,
   };
 
-  const home = process.env.HOME;
+  const home = process.env.HOME || process.env.USERPROFILE;
   if (home) {
     const bunBinDir = join(home, '.bun', 'bin');
     env.PATH = env.PATH ? `${bunBinDir}${delimiter}${env.PATH}` : bunBinDir;

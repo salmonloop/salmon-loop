@@ -1,5 +1,5 @@
 import { defaultPathAdapter } from '../../core/adapters/path/path-adapter.js';
-import { ConfigError, resolveConfig } from '../../core/config/index.js';
+import { ConfigError, normalizeUiLogMode, resolveConfig } from '../../core/config/index.js';
 import type { ResolvedConfig } from '../../core/config/types.js';
 import type { VerboseLevel } from '../../core/types/execution.js';
 import { text } from '../locales/index.js';
@@ -43,6 +43,7 @@ export async function resolveCliConfig(params: {
   auditScope?: string;
   verbose?: unknown;
   outputFormat?: string;
+  logMode?: string;
 }): Promise<ResolveCliConfigResult> {
   const common = resolveCliCommonOptions({
     repoPath: params.repoPath,
@@ -84,6 +85,20 @@ export async function resolveCliConfig(params: {
     return {
       ok: false,
       message: text.cli.invalidAuditScope(auditScopeResolution.invalid),
+    };
+  }
+
+  if (params.logMode !== undefined) {
+    const normalized = normalizeUiLogMode(params.logMode);
+    if (!normalized) {
+      return { ok: false, message: text.cli.logModeInvalid(String(params.logMode)) };
+    }
+    resolvedConfig = {
+      ...resolvedConfig,
+      ui: {
+        ...resolvedConfig.ui,
+        logMode: normalized,
+      },
     };
   }
 

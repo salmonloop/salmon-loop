@@ -268,6 +268,7 @@ export const en = {
     'Preflight policy (lenient: continue on test failure, strict: fail on test failure)',
   checkpointStrategyOption: 'Checkpoint strategy to use (direct, worktree)',
   permissionModeOption: 'Permission mode (interactive, yolo)',
+  logModeOption: 'UI log mode (quiet, normal, debug)',
   environmentModeOption: 'Worktree environment mode (strict, parity)',
   applyBackOnDirtyOption: 'Behavior when apply-back detects a dirty workspace (3way, abort)',
   worktreePrepareOption: 'Optional setup command to run inside worktree',

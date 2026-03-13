@@ -10,6 +10,7 @@ export function configureGlobalProgramOptions(program: Command): void {
     .option('--resume <sessionId>', text.cli.resumeOption)
     .option('-v, --verify <command>', text.cli.verifyOption)
     .option('--no-verify', 'Disable verification')
+    .option('--log-mode <mode>', text.cli.logModeOption)
     .option('-cs, --checkpoint-strategy <type>', text.cli.checkpointStrategyOption, 'worktree')
     .option('--mode <mode>', text.cli.permissionModeOption, 'interactive')
     .option('--llm-output <kinds>', text.cli.llmOutputOption)

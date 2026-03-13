@@ -30,6 +30,7 @@ export async function resolveRunConfig(params: {
     auditScope: params.cliOptions.auditScope,
     verbose: params.cliOptions.verbose,
     outputFormat: params.cliOptions.outputFormat,
+    logMode: params.cliOptions.logMode,
   });
   if (!resolved.ok) {
     getLogger().error(resolved.message);
