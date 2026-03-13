@@ -1,12 +1,9 @@
 import { getLogger } from '../../../core/facades/cli-observability.js';
 import type { VerboseLevel } from '../../../core/types/execution.js';
 import { text } from '../../locales/index.js';
+import { resolveVerboseLevel } from '../../utils/verbose-level.js';
 
-export function resolveVerboseLevel(raw: unknown): VerboseLevel | undefined {
-  if (raw === true) return 'basic';
-  if (typeof raw === 'string') return raw as VerboseLevel;
-  return undefined;
-}
+export { resolveVerboseLevel };
 
 export function logRunVerboseSummary(params: {
   verboseLevel?: VerboseLevel;

@@ -4,7 +4,6 @@ import {
   createContextCacheStore,
   createDefaultPermissionGate,
   ContextService,
-  defaultPathAdapter,
   getLogger,
   setChurnRankingPolicy,
 } from '../../core/facades/cli-context.js';
@@ -13,7 +12,18 @@ import { resolveCliConfig } from '../utils/resolve-cli-config.js';
 
 export async function handleContextCommand(options: any, command: Command) {
   const allOptions = command.optsWithGlobals();
-  const repoPath = defaultPathAdapter.resolve(allOptions.repo || process.cwd());
+  const configResult = await resolveCliConfig({
+    repo: allOptions.repo,
+    cwd: process.cwd(),
+    configPath: allOptions.config,
+    enableConfigFile: allOptions.configFile !== false,
+    auditScope: allOptions.auditScope,
+  });
+  if (!configResult.ok) {
+    getLogger().error(configResult.message, true);
+    process.exit(1);
+  }
+  const { resolvedConfig, repoPath } = configResult;
 
   if (options.file && options.selection) {
     getLogger().error(text.cli.fileSelectionConflict, true);
@@ -42,17 +52,6 @@ export async function handleContextCommand(options: any, command: Command) {
     budgetChars = parsed;
   }
 
-  const configResult = await resolveCliConfig({
-    repoPath,
-    configPath: allOptions.config,
-    enableConfigFile: allOptions.configFile !== false,
-    auditScope: allOptions.auditScope,
-  });
-  if (!configResult.ok) {
-    getLogger().error(configResult.message, true);
-    process.exit(1);
-  }
-  const { resolvedConfig } = configResult;
   setChurnRankingPolicy({
     primaryBoost: resolvedConfig.raw?.context?.churn?.weight?.primary,
     rerankWeight: resolvedConfig.raw?.context?.churn?.weight?.rerank,

@@ -5,6 +5,10 @@ import { resolveCliConfig } from '../../utils/resolve-cli-config.js';
 import type { ResolvedAuditScope } from '../../utils/resolve-cli-config.js';
 
 export interface ResolvedCliConfig {
+  repoPath: string;
+  verboseLevel?: import('../../../core/types/execution.js').VerboseLevel;
+  outputFormat?: import('../../utils/output-format.js').OutputFormat;
+  headlessOutput?: boolean;
   resolvedConfig: ResolvedConfig;
   auditScope: ResolvedAuditScope;
 }
@@ -24,6 +28,8 @@ export async function resolveRunConfig(params: {
     configPath: params.cliOptions.config,
     enableConfigFile: params.cliOptions.configFile !== false,
     auditScope: params.cliOptions.auditScope,
+    verbose: params.cliOptions.verbose,
+    outputFormat: params.cliOptions.outputFormat,
   });
   if (!resolved.ok) {
     getLogger().error(resolved.message);
@@ -47,6 +53,10 @@ export async function resolveRunConfig(params: {
   return {
     ok: true,
     resolvedConfig: {
+      repoPath: resolved.repoPath,
+      verboseLevel: resolved.verboseLevel,
+      outputFormat: resolved.outputFormat,
+      headlessOutput: resolved.headlessOutput,
       resolvedConfig: resolved.resolvedConfig,
       auditScope: resolved.auditScope,
     },

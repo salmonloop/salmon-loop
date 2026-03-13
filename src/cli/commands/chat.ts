@@ -1,5 +1,3 @@
-import { resolve } from 'path';
-
 import { Command } from 'commander';
 
 import {
@@ -22,7 +20,19 @@ import { resolveVerifyOption } from '../utils/verify-resolver.js';
 
 export async function handleChatCommand(options: any, command: Command) {
   const allOptions = command.optsWithGlobals();
-  const runPath = resolve(allOptions.repo || process.cwd());
+  const configResult = await resolveCliConfig({
+    repo: allOptions.repo,
+    cwd: process.cwd(),
+    configPath: allOptions.config,
+    enableConfigFile: allOptions.configFile !== false,
+    auditScope: allOptions.auditScope,
+    verbose: allOptions.verbose,
+  });
+  if (!configResult.ok) {
+    getLogger().error(configResult.message, true);
+    process.exit(1);
+  }
+  const { resolvedConfig, auditScope, repoPath: runPath, verboseLevel } = configResult;
   const printInstruction =
     typeof (allOptions as any).print === 'string'
       ? ((allOptions as any).print as string)
@@ -49,17 +59,6 @@ export async function handleChatCommand(options: any, command: Command) {
   setPromptRegistry(createPromptRegistry());
   await PluginLoader.loadPlugins(languagePlugins, runPath);
 
-  const configResult = await resolveCliConfig({
-    repoPath: runPath,
-    configPath: allOptions.config,
-    enableConfigFile: allOptions.configFile !== false,
-    auditScope: allOptions.auditScope,
-  });
-  if (!configResult.ok) {
-    getLogger().error(configResult.message, true);
-    process.exit(1);
-  }
-  const { resolvedConfig, auditScope } = configResult;
   const rawPermissionMode = allOptions.mode ?? resolvedConfig.permissionMode ?? 'interactive';
   const permissionMode = normalizePermissionMode(rawPermissionMode);
   if (!permissionMode) {
@@ -130,7 +129,7 @@ export async function handleChatCommand(options: any, command: Command) {
           : allOptions.checkpointStrategy || 'worktree',
       continue: continueSession,
       resumeSessionId,
-      verbose: allOptions.verbose,
+      verbose: verboseLevel,
       llmOutput,
       markdownTheme: resolvedConfig.markdownTheme,
       markdownRenderMode: resolvedConfig.markdownRenderMode,

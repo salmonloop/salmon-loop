@@ -21,6 +21,8 @@ import { createStdoutWriter } from '../../headless/stdout-writer.js';
 import { text } from '../../locales/index.js';
 import { StderrLogReporter } from '../../reporters/stderr-log-reporter.js';
 import { createOutcomeReporter } from '../../utils/outcome-reporter.js';
+import { resolveOutputFormat } from '../../utils/output-format.js';
+import { resolveCliCommonOptions } from '../../utils/resolve-cli-config.js';
 
 import { buildRunAssistantMessage } from './assistant-message.js';
 import { resolveRunConfig } from './config-resolution.js';
@@ -39,7 +41,7 @@ import { createRuntimeLlmAndWarn } from './runtime-llm.js';
 import { resolveRunRuntimeOptions } from './runtime-options.js';
 import { initializeSession } from './session.js';
 import { buildStructuredOutputState, type StructuredOutputState } from './structured-output.js';
-import { logRunVerboseSummary, resolveVerboseLevel } from './verbose.js';
+import { logRunVerboseSummary } from './verbose.js';
 
 export async function handleRunCommand(options: any, command: Command) {
   const parsed = parseRunCommandOptions(command);
@@ -55,16 +57,21 @@ export async function handleRunCommand(options: any, command: Command) {
   const jsonSchemaSpec = parsed.jsonSchemaSpec;
 
   const rawOutputFormat = parsed.rawOutputFormat;
-  if (
-    rawOutputFormat !== 'text' &&
-    rawOutputFormat !== 'stream-json' &&
-    rawOutputFormat !== 'json'
-  ) {
-    getLogger().error(text.cli.invalidOutputFormat(rawOutputFormat), true);
+  const commonOptions = resolveCliCommonOptions({
+    repoPath: runPath,
+    verbose: allOptions.verbose,
+    outputFormat: rawOutputFormat,
+  });
+  if (!commonOptions.ok) {
+    getLogger().error(commonOptions.message, true);
     process.exit(1);
   }
 
-  const outputFormat = rawOutputFormat as 'text' | 'stream-json' | 'json';
+  const outputFormat = commonOptions.options.outputFormat ?? resolveOutputFormat(rawOutputFormat);
+  if (!outputFormat) {
+    getLogger().error(text.cli.invalidOutputFormat(rawOutputFormat), true);
+    process.exit(1);
+  }
   const headlessOutput = outputFormat !== 'text';
   const rawOutputProfile = parsed.rawOutputProfile;
   const outputProfileForStreamJson = parsed.outputProfileForStreamJson;
@@ -298,7 +305,7 @@ export async function handleRunCommand(options: any, command: Command) {
     getLogger().warn(text.verify.noCommandFound);
   }
 
-  const verboseLevel = resolveVerboseLevel(allOptions.verbose);
+  const verboseLevel = commonOptions.options.verboseLevel;
   logRunVerboseSummary({
     verboseLevel,
     instruction: instructionText,

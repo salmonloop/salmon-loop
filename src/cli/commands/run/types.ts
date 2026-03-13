@@ -1,4 +1,6 @@
-export type OutputFormat = 'text' | 'json' | 'stream-json';
+import type { OutputFormat } from '../../utils/output-format.js';
+
+export type { OutputFormat };
 
 export type StreamJsonOutputProfile = 'native' | 'anthropic' | 'openai';
 

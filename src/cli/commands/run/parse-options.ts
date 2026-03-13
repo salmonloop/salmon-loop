@@ -1,6 +1,6 @@
-import { resolve } from 'path';
-
 import type { Command } from 'commander';
+
+import { resolveRepoPath } from '../../utils/resolve-cli-config.js';
 
 import type { RunCommandParsedOptions } from './types.js';
 
@@ -26,7 +26,7 @@ export function parseRunCommandOptions(command: Command): RunCommandParsedOption
   disallowedToolRules: string[];
 } {
   const allOptions = command.optsWithGlobals();
-  const repoPath = resolve(allOptions.repo || process.cwd());
+  const repoPath = resolveRepoPath({ repo: allOptions.repo, cwd: process.cwd() });
 
   const continueSession = Boolean((allOptions as any).continue);
   const resumeSessionId =

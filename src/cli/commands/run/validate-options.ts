@@ -1,9 +1,4 @@
-import type { OutputFormat, RunCommandValidatedOptions } from './types.js';
-
-export function resolveOutputFormat(raw: string): OutputFormat | undefined {
-  if (raw === 'text' || raw === 'stream-json' || raw === 'json') return raw;
-  return undefined;
-}
+import type { RunCommandValidatedOptions } from './types.js';
 
 export function validateRunCommandOptions(params: {
   parsed: RunCommandValidatedOptions;
