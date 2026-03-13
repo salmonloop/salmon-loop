@@ -12,13 +12,12 @@ import {
   getLogger,
   normalizePermissionMode,
   PluginLoader,
-  resolveConfig,
   resolveExtensions,
 } from '../../core/facades/cli-command-chat.js';
 import { text } from '../locales/index.js';
-import { resolveAuditScope } from '../utils/audit-scope.js';
 import { resolveLlmOutputPolicyFromCli } from '../utils/llm-output.js';
 import { createOutcomeReporter } from '../utils/outcome-reporter.js';
+import { resolveCliConfig } from '../utils/resolve-cli-config.js';
 import { resolveVerifyOption } from '../utils/verify-resolver.js';
 
 export async function handleChatCommand(options: any, command: Command) {
@@ -50,19 +49,17 @@ export async function handleChatCommand(options: any, command: Command) {
   setPromptRegistry(createPromptRegistry());
   await PluginLoader.loadPlugins(languagePlugins, runPath);
 
-  const resolvedConfig = await resolveConfig({
-    repoRoot: runPath,
-    enableConfigFile: true,
+  const configResult = await resolveCliConfig({
+    repoPath: runPath,
+    configPath: allOptions.config,
+    enableConfigFile: allOptions.configFile !== false,
+    auditScope: allOptions.auditScope,
   });
-  const auditScopeResolution = resolveAuditScope({
-    cliValue: allOptions.auditScope,
-    configValue: resolvedConfig.observability.audit.scope,
-  });
-  if (!auditScopeResolution.ok) {
-    getLogger().error(text.cli.invalidAuditScope(auditScopeResolution.invalid), true);
+  if (!configResult.ok) {
+    getLogger().error(configResult.message, true);
     process.exit(1);
   }
-  const auditScope = auditScopeResolution.value;
+  const { resolvedConfig, auditScope } = configResult;
   const rawPermissionMode = allOptions.mode ?? resolvedConfig.permissionMode ?? 'interactive';
   const permissionMode = normalizePermissionMode(rawPermissionMode);
   if (!permissionMode) {

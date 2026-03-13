@@ -19,7 +19,6 @@ import {
   mkdir,
   PlainReporter,
   PluginLoader,
-  resolveConfig,
   resolveExtensions,
   runSalmonLoop,
   setPluginRegistry,
@@ -29,8 +28,8 @@ import {
 } from '../../core/facades/cli-serve.js';
 import { createTerminalAuthorizationProvider } from '../authorization/provider.js';
 import { text } from '../locales/index.js';
-import { resolveAuditScope } from '../utils/audit-scope.js';
 import { createOutcomeReporter } from '../utils/outcome-reporter.js';
+import { resolveCliConfig } from '../utils/resolve-cli-config.js';
 
 import { createRuntimeLlmAndWarn } from './run/runtime-llm.js';
 
@@ -90,17 +89,18 @@ export async function handleServeCommand(_options: unknown, command: Command) {
   const allOptions = command.optsWithGlobals();
   const defaultRepoPath = defaultPathAdapter.resolve(allOptions.repo || process.cwd());
 
-  const resolvedConfig = await resolveConfig({ repoRoot: defaultRepoPath });
-  const serverConfig = resolvedConfig.server;
-  const auditScopeResolution = resolveAuditScope({
-    cliValue: allOptions.auditScope,
-    configValue: resolvedConfig.observability.audit.scope,
+  const configResult = await resolveCliConfig({
+    repoPath: defaultRepoPath,
+    configPath: allOptions.config,
+    enableConfigFile: allOptions.configFile !== false,
+    auditScope: allOptions.auditScope,
   });
-  if (!auditScopeResolution.ok) {
-    getLogger().error(text.cli.invalidAuditScope(auditScopeResolution.invalid), true);
+  if (!configResult.ok) {
+    getLogger().error(configResult.message, true);
     process.exit(1);
   }
-  const auditScope = auditScopeResolution.value;
+  const { resolvedConfig, auditScope } = configResult;
+  const serverConfig = resolvedConfig.server;
   const rawA2aHost = allOptions.a2aHost ?? serverConfig?.a2a?.host;
   const a2aHost = String(rawA2aHost ?? '127.0.0.1');
   const rawA2aPort = allOptions.a2aPort ?? serverConfig?.a2a?.port;
@@ -314,7 +314,17 @@ export async function handleServeAcpCommand(_options: unknown, command: Command)
   const allOptions = command.optsWithGlobals();
   const defaultRepoPath = defaultPathAdapter.resolve(allOptions.repo || process.cwd());
 
-  const resolvedConfig = await resolveConfig({ repoRoot: defaultRepoPath });
+  const configResult = await resolveCliConfig({
+    repoPath: defaultRepoPath,
+    configPath: allOptions.config,
+    enableConfigFile: allOptions.configFile !== false,
+    auditScope: allOptions.auditScope,
+  });
+  if (!configResult.ok) {
+    getLogger().error(configResult.message, true);
+    process.exit(1);
+  }
+  const { resolvedConfig, auditScope } = configResult;
 
   getLogger().setReporter(allOptions.color === false ? new StderrReporter() : new PlainReporter());
 
@@ -328,15 +338,6 @@ export async function handleServeAcpCommand(_options: unknown, command: Command)
     llmConfig: resolvedConfig.llm,
     langfuseEnabled: resolvedConfig.observability.langfuse.enabled,
   });
-
-  const auditScopeResolution = resolveAuditScope({
-    cliValue: allOptions.auditScope,
-    configValue: resolvedConfig.observability.audit.scope,
-  });
-  if (!auditScopeResolution.ok) {
-    getLogger().error(text.cli.invalidAuditScope(auditScopeResolution.invalid), true);
-    process.exit(1);
-  }
 
   const outcomeReporter = createOutcomeReporter({
     enabled: resolvedConfig.observability.langfuse.outcome,
@@ -375,7 +376,7 @@ export async function handleServeAcpCommand(_options: unknown, command: Command)
         outcomeReporter,
         langfuseSessionId: resolvedConfig.observability.langfuse.sessionId,
         langfuseUserId: resolvedConfig.observability.langfuse.userId,
-        auditScope: auditScopeResolution.value,
+        auditScope,
         permissionMode: resolvedConfig.permissionMode,
         languagePlugins,
         authorizationProvider: authorizationProvider ?? defaultAuthorizationProvider,

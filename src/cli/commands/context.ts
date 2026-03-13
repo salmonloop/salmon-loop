@@ -6,10 +6,10 @@ import {
   ContextService,
   defaultPathAdapter,
   getLogger,
-  resolveConfig,
   setChurnRankingPolicy,
 } from '../../core/facades/cli-context.js';
 import { text } from '../locales/index.js';
+import { resolveCliConfig } from '../utils/resolve-cli-config.js';
 
 export async function handleContextCommand(options: any, command: Command) {
   const allOptions = command.optsWithGlobals();
@@ -42,7 +42,17 @@ export async function handleContextCommand(options: any, command: Command) {
     budgetChars = parsed;
   }
 
-  const resolvedConfig = await resolveConfig({ repoRoot: repoPath });
+  const configResult = await resolveCliConfig({
+    repoPath,
+    configPath: allOptions.config,
+    enableConfigFile: allOptions.configFile !== false,
+    auditScope: allOptions.auditScope,
+  });
+  if (!configResult.ok) {
+    getLogger().error(configResult.message, true);
+    process.exit(1);
+  }
+  const { resolvedConfig } = configResult;
   setChurnRankingPolicy({
     primaryBoost: resolvedConfig.raw?.context?.churn?.weight?.primary,
     rerankWeight: resolvedConfig.raw?.context?.churn?.weight?.rerank,

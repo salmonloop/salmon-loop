@@ -20,7 +20,6 @@ import {
 import { createStdoutWriter } from '../../headless/stdout-writer.js';
 import { text } from '../../locales/index.js';
 import { StderrLogReporter } from '../../reporters/stderr-log-reporter.js';
-import { resolveAuditScope } from '../../utils/audit-scope.js';
 import { createOutcomeReporter } from '../../utils/outcome-reporter.js';
 
 import { buildRunAssistantMessage } from './assistant-message.js';
@@ -204,7 +203,7 @@ export async function handleRunCommand(options: any, command: Command) {
     return;
   }
   if ('printedConfig' in configResult) return;
-  const resolvedConfig = configResult.resolvedConfig;
+  const { resolvedConfig, auditScope } = configResult.resolvedConfig;
 
   const runtimeOptions = await resolveRunRuntimeOptions({
     repoPath: runPath,
@@ -314,16 +313,6 @@ export async function handleRunCommand(options: any, command: Command) {
   });
 
   try {
-    const auditScopeResolution = resolveAuditScope({
-      cliValue: allOptions.auditScope,
-      configValue: resolvedConfig.observability.audit.scope,
-    });
-    if (!auditScopeResolution.ok) {
-      getLogger().error(text.cli.invalidAuditScope(auditScopeResolution.invalid), true);
-      process.exit(1);
-    }
-    const auditScope = auditScopeResolution.value;
-
     const { llm } = createRuntimeLlmAndWarn({
       llmConfig: resolvedConfig.llm,
       langfuseEnabled: resolvedConfig.observability.langfuse.enabled,

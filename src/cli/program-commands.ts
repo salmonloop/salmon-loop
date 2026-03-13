@@ -126,6 +126,8 @@ export function registerProgramCommands(program: Command): void {
     .command('context')
     .description(text.cli.contextDescription)
     .option('-i, --instruction <instruction>', text.cli.instructionOption)
+    .option('--config <path>', text.cli.configOption)
+    .option('--no-config-file', text.cli.noConfigFileOption)
     .option('-f, --file <path>', text.cli.fileOption)
     .option('-s, --selection <text>', text.cli.selectionOption)
     .option('--diff-scope <scope>', text.cli.contextDiffScopeOption, 'primary')
@@ -138,6 +140,8 @@ export function registerProgramCommands(program: Command): void {
   program
     .command('chat', { isDefault: true })
     .description('Enter interactive chat mode (default)')
+    .option('--config <path>', text.cli.configOption)
+    .option('--no-config-file', text.cli.noConfigFileOption)
     .option('--verbose [level]', text.cli.verboseOption)
     .action(handleChatCommand);
 }

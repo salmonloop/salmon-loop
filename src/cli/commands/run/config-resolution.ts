@@ -1,8 +1,13 @@
-import { redactConfigForPrint, resolveConfig, ConfigError } from '../../../core/config/index.js';
+import { redactConfigForPrint } from '../../../core/config/index.js';
+import type { ResolvedConfig } from '../../../core/config/types.js';
 import { getLogger } from '../../../core/facades/cli-observability.js';
-import { text } from '../../locales/index.js';
+import { resolveCliConfig } from '../../utils/resolve-cli-config.js';
+import type { ResolvedAuditScope } from '../../utils/resolve-cli-config.js';
 
-export type ResolvedCliConfig = Awaited<ReturnType<typeof resolveConfig>>;
+export interface ResolvedCliConfig {
+  resolvedConfig: ResolvedConfig;
+  auditScope: ResolvedAuditScope;
+}
 
 export async function resolveRunConfig(params: {
   repoPath: string;
@@ -14,37 +19,36 @@ export async function resolveRunConfig(params: {
   | { ok: false; exitCode: 1 }
   | { ok: true; printedConfig: true }
 > {
-  let resolvedConfig: ResolvedCliConfig;
-  try {
-    resolvedConfig = await resolveConfig({
-      repoRoot: params.repoPath,
-      configFilePath: params.cliOptions.config,
-      enableConfigFile: params.cliOptions.configFile !== false,
-    });
-  } catch (err: unknown) {
-    if (err instanceof ConfigError) {
-      const msg = text.config.error(err.code || err.message, err.details);
-      getLogger().error(msg);
-      if (params.outputFormat === 'json') {
-        params.writeJsonFailure({ message: msg, errorCode: err.code, repoPath: params.repoPath });
-      }
-      return { ok: false, exitCode: 1 };
-    }
-
-    const msg = err instanceof Error ? err.message : String(err);
-    getLogger().error(text.config.loadFailed(msg));
+  const resolved = await resolveCliConfig({
+    repoPath: params.repoPath,
+    configPath: params.cliOptions.config,
+    enableConfigFile: params.cliOptions.configFile !== false,
+    auditScope: params.cliOptions.auditScope,
+  });
+  if (!resolved.ok) {
+    getLogger().error(resolved.message);
     if (params.outputFormat === 'json') {
-      params.writeJsonFailure({ message: text.config.loadFailed(msg), repoPath: params.repoPath });
+      params.writeJsonFailure({
+        message: resolved.message,
+        errorCode: resolved.errorCode,
+        repoPath: params.repoPath,
+      });
     }
     return { ok: false, exitCode: 1 };
   }
 
   if (params.cliOptions.printConfig) {
-    const raw = resolvedConfig.raw || { version: 1 };
+    const raw = resolved.resolvedConfig.raw || { version: 1 };
     const redacted = redactConfigForPrint(raw);
     process.stdout.write(JSON.stringify(redacted, null, 2) + '\n');
     return { ok: true, printedConfig: true };
   }
 
-  return { ok: true, resolvedConfig };
+  return {
+    ok: true,
+    resolvedConfig: {
+      resolvedConfig: resolved.resolvedConfig,
+      auditScope: resolved.auditScope,
+    },
+  };
 }

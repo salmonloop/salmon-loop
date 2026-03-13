@@ -1,4 +1,5 @@
 export { defaultPathAdapter } from '../adapters/path/path-adapter.js';
+export { ConfigError } from '../config/index.js';
 export { resolveConfig } from '../config/resolve.js';
 export { createContextCacheStore } from '../context/cache/store-factory.js';
 export { ContextService } from '../context/index.js';

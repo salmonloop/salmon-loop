@@ -1,4 +1,4 @@
-export { normalizePermissionMode, resolveConfig } from '../config/index.js';
+export { ConfigError, normalizePermissionMode, resolveConfig } from '../config/index.js';
 export { ExtensionConfigError, resolveExtensions } from '../extensions/index.js';
 export { createRuntimeLlm } from '../llm/factory.js';
 export { getLogger } from '../observability/logger.js';
