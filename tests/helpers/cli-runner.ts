@@ -55,9 +55,14 @@ export async function runCli(
   };
 
   const home = process.env.HOME || process.env.USERPROFILE;
+  const pathKey = Object.keys(env).find((key) => key.toLowerCase() === 'path') ?? 'PATH';
   if (home) {
     const bunBinDir = join(home, '.bun', 'bin');
-    env.PATH = env.PATH ? `${bunBinDir}${delimiter}${env.PATH}` : bunBinDir;
+    const existingPath = env[pathKey];
+    env[pathKey] =
+      typeof existingPath === 'string' && existingPath.length > 0
+        ? `${bunBinDir}${delimiter}${existingPath}`
+        : bunBinDir;
   }
 
   const bunBinary = resolveBunBinary();

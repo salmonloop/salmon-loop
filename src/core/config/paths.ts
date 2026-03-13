@@ -1,5 +1,6 @@
 import { homedir } from 'os';
-import { join, resolve } from 'path';
+
+import { defaultPathAdapter } from '../adapters/path/path-adapter.js';
 
 /**
  * Repo-local configuration lives under ".salmonloop/" and is expected to be gitignored.
@@ -10,20 +11,32 @@ export function getDefaultRepoConfigPath(repoRoot: string): string {
 }
 
 export function getDefaultRepoConfigPaths(repoRoot: string): string[] {
-  const base = join(resolve(repoRoot), '.salmonloop', 'config');
-  return [join(base, 'config.yaml'), join(base, 'config.yml'), join(base, 'config.json')];
+  const base = defaultPathAdapter.join(
+    defaultPathAdapter.resolve(repoRoot),
+    '.salmonloop',
+    'config',
+  );
+  return [
+    defaultPathAdapter.join(base, 'config.yaml'),
+    defaultPathAdapter.join(base, 'config.yml'),
+    defaultPathAdapter.join(base, 'config.json'),
+  ];
 }
 
 export function getDefaultUserConfigPaths(): string[] {
-  const base = join(homedir(), '.salmonloop', 'config');
-  return [join(base, 'config.yaml'), join(base, 'config.yml'), join(base, 'config.json')];
+  const base = defaultPathAdapter.join(homedir(), '.salmonloop', 'config');
+  return [
+    defaultPathAdapter.join(base, 'config.yaml'),
+    defaultPathAdapter.join(base, 'config.yml'),
+    defaultPathAdapter.join(base, 'config.json'),
+  ];
 }
 
 export function resolveConfigPath(repoRoot: string, configPath: string): string {
   // Relative paths are resolved against the target repo root (not the CLI's cwd).
-  return resolve(repoRoot, configPath);
+  return defaultPathAdapter.resolve(repoRoot, configPath);
 }
 
 export function getDefaultIndexPath(repoRoot: string): string {
-  return join(resolve(repoRoot), '.salmonloop', 'index');
+  return defaultPathAdapter.join(defaultPathAdapter.resolve(repoRoot), '.salmonloop', 'index');
 }
