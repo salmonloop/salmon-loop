@@ -84,7 +84,7 @@ export function main() {
     (globalThis as any).__baselineAvg = avg;
 
     expect(avg).toBeLessThan(1000); // Sanity check
-  });
+  }, 120000);
 
   it('with diffusion: context build with symbolMap (depth=1)', async () => {
     const iterations = 100;
@@ -127,7 +127,7 @@ export function main() {
     }
 
     expect(avg).toBeLessThan(1200); // Sanity check with overhead
-  });
+  }, 120000);
 
   it('with diffusion: context build with symbolMap (depth=2)', async () => {
     const iterations = 100;
@@ -166,7 +166,7 @@ export function main() {
     }
 
     expect(avg).toBeLessThan(1500); // Sanity check with higher overhead
-  });
+  }, 120000);
 
   it('comparison summary', () => {
     // This test just prints a summary

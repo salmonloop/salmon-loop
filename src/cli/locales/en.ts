@@ -38,6 +38,8 @@ export const en = {
   chatAnswerEmpty: 'No answer produced.',
   unknownCommand: (cmd: string) => `Unknown command: ${cmd}. Type /help for available commands.`,
   helpAvailableCommands: (rows: string) => `Available Commands:\n${rows}`,
+  programHelpFooter:
+    '\nTips:\n  Use "s8p <command> --help" to see command-specific options.\n  In chat, type /help to list slash commands.',
   slashHandlerUnavailable: 'Command handler unavailable',
   slashInternalError: 'Internal error',
   skillNoPrompt: (id: string) => `Skill ${id} did not produce a prompt`,

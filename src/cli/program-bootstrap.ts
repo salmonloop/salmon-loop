@@ -13,6 +13,11 @@ export function bootstrapProgram(): Command {
 
   const program = new Command();
   program.exitOverride();
-  program.name('s8p').alias('salmonloop').description(text.cli.programDescription).version('0.2.0');
+  program
+    .name('s8p')
+    .alias('salmonloop')
+    .description(text.cli.programDescription)
+    .version('0.2.0')
+    .addHelpText('after', text.cli.programHelpFooter);
   return program;
 }

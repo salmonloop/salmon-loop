@@ -1,6 +1,9 @@
+import { text } from '../locales/index.js';
+
 import { allowlistCommand } from './allowlist.js';
 import { configCommand } from './config.js';
 import { exitCommand } from './exit.js';
+import { formatHelpRows } from './help-format.js';
 import { llmOutputCommand } from './llm-output.js';
 import { logModeCommand } from './log-mode.js';
 import { modeCommand } from './mode.js';
@@ -31,16 +34,11 @@ const baseCommands: Command[] = [
     order: 80,
     execute: ({ emit }) => {
       const visible = commands.filter((c) => !c.hidden);
-      const maxName = Math.max(...visible.map((cmd) => cmd.name.length), 0);
-      const rows = visible.map((cmd) => {
-        const paddedName = `${cmd.name}`.padEnd(maxName + 2);
-        return `${paddedName}${cmd.description}`;
-      });
-      const helpMsg = rows.join('\n');
+      const helpMsg = formatHelpRows(visible);
       emit({
         type: 'log',
         level: 'info',
-        message: `Available Commands:\n${helpMsg}`,
+        message: text.cli.helpAvailableCommands(helpMsg),
         timestamp: new Date(),
       });
     },

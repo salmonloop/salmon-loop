@@ -14,6 +14,7 @@ import {
   SlashHandlerProvider,
   type ToolAuthorizationProvider,
 } from '../../core/facades/cli-slash-runtime.js';
+import { formatHelpRows } from '../commands/help-format.js';
 import { suggestSubcommands } from '../commands/subcommand-suggestions.js';
 import type { Command, CommandContext } from '../commands/types.js';
 import { text } from '../locales/index.js';
@@ -115,12 +116,11 @@ export async function createCliSlashRuntime(
         const handler: SlashHandler = {
           execute: async (_req) => {
             const visible = registry.list().filter((c) => !c.hidden);
-            const maxName = Math.max(...visible.map((c) => c.name.length), 0);
-            const rows = visible.map((c) => `${c.name}`.padEnd(maxName + 2) + c.description);
+            const rows = formatHelpRows(visible);
             options.emit({
               type: 'log',
               level: 'info',
-              message: text.cli.helpAvailableCommands(rows.join('\n')),
+              message: text.cli.helpAvailableCommands(rows),
               timestamp: new Date(),
             });
             return { kind: 'consumed' };

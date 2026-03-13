@@ -1,9 +1,12 @@
-import { mkdtemp, readFile, rm, writeFile } from 'fs/promises';
+import { mkdtemp, rm } from 'fs/promises';
 import os from 'os';
-import path from 'path';
 
 import { Command, Option } from 'commander';
 import { execa } from 'execa';
+
+import { FileAdapter } from '../src/core/adapters/fs/file-adapter.js';
+import { GitAdapter } from '../src/core/adapters/git/git-adapter.js';
+import { defaultPathAdapter } from '../src/core/adapters/path/path-adapter.js';
 
 type Semver = {
   major: number;
@@ -60,15 +63,30 @@ async function run(
   };
 }
 
+async function runGit(
+  cwd: string,
+  args: string[],
+): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+  const git = new GitAdapter(cwd);
+  const result = await git.execMeta(args, { cwd });
+  const stdout = result.stdout.toString('utf8');
+  const stderr = result.stderr || result.error?.message || '';
+  return {
+    stdout,
+    stderr,
+    exitCode: typeof result.code === 'number' ? result.code : 1,
+  };
+}
+
 async function assertGitRepo(cwd: string): Promise<void> {
-  const res = await run('git', ['rev-parse', '--is-inside-work-tree'], { cwd });
+  const res = await runGit(cwd, ['rev-parse', '--is-inside-work-tree']);
   if (res.exitCode !== 0 || res.stdout.trim() !== 'true') {
     throw new Error('Not inside a Git work tree.');
   }
 }
 
 async function getGitBranch(cwd: string): Promise<string> {
-  const res = await run('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd });
+  const res = await runGit(cwd, ['rev-parse', '--abbrev-ref', 'HEAD']);
   if (res.exitCode !== 0) {
     throw new Error((res.stderr || '').trim() || 'Failed to determine current Git branch.');
   }
@@ -76,7 +94,7 @@ async function getGitBranch(cwd: string): Promise<string> {
 }
 
 async function getGitStatusPorcelain(cwd: string): Promise<string> {
-  const res = await run('git', ['status', '--porcelain=v1'], { cwd });
+  const res = await runGit(cwd, ['status', '--porcelain=v1']);
   if (res.exitCode !== 0) {
     throw new Error((res.stderr || '').trim() || 'Failed to read Git status.');
   }
@@ -84,18 +102,19 @@ async function getGitStatusPorcelain(cwd: string): Promise<string> {
 }
 
 async function gitFetch(cwd: string, remote: string): Promise<void> {
-  const res = await run('git', ['fetch', '--prune', remote], { cwd, stdio: 'inherit' });
+  const res = await runGit(cwd, ['fetch', '--prune', remote]);
   if (res.exitCode !== 0) {
     throw new Error('git fetch failed.');
   }
 }
 
 async function assertUpToDateWithUpstream(cwd: string): Promise<void> {
-  const res = await run(
-    'git',
-    ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}'],
-    { cwd },
-  );
+  const res = await runGit(cwd, [
+    'rev-parse',
+    '--abbrev-ref',
+    '--symbolic-full-name',
+    '@{upstream}',
+  ]);
   if (res.exitCode !== 0) {
     // No upstream configured: do not block releasing.
     return;
@@ -103,9 +122,7 @@ async function assertUpToDateWithUpstream(cwd: string): Promise<void> {
   const upstream = res.stdout.trim();
   if (!upstream) return;
 
-  const counts = await run('git', ['rev-list', '--left-right', '--count', `${upstream}...HEAD`], {
-    cwd,
-  });
+  const counts = await runGit(cwd, ['rev-list', '--left-right', '--count', `${upstream}...HEAD`]);
   if (counts.exitCode !== 0) {
     throw new Error((counts.stderr || '').trim() || 'Failed to compare with upstream.');
   }
@@ -123,7 +140,7 @@ async function assertUpToDateWithUpstream(cwd: string): Promise<void> {
 }
 
 async function assertTagDoesNotExist(cwd: string, tag: string): Promise<void> {
-  const res = await run('git', ['tag', '--list', tag], { cwd });
+  const res = await runGit(cwd, ['tag', '--list', tag]);
   if (res.exitCode !== 0) {
     throw new Error((res.stderr || '').trim() || 'Failed to check Git tags.');
   }
@@ -133,15 +150,17 @@ async function assertTagDoesNotExist(cwd: string, tag: string): Promise<void> {
 }
 
 async function readPackageJson(cwd: string): Promise<{ path: string; json: any }> {
-  const pkgPath = `${cwd.replace(/\\+$/g, '')}\\package.json`;
-  const content = await readFile(pkgPath, 'utf-8');
+  const pkgPath = defaultPathAdapter.join(cwd, 'package.json');
+  const fileAdapter = new FileAdapter();
+  const content = await fileAdapter.readFile(pkgPath, 'utf-8');
   const json = JSON.parse(content) as any;
   return { path: pkgPath, json };
 }
 
 async function writePackageJson(pkgPath: string, json: unknown): Promise<void> {
   const content = `${JSON.stringify(json, null, 2)}\n`;
-  await writeFile(pkgPath, content, 'utf-8');
+  const fileAdapter = new FileAdapter();
+  await fileAdapter.writeFile(pkgPath, content);
 }
 
 async function hasNpmCli(): Promise<boolean> {
@@ -195,12 +214,12 @@ async function createPackArtifact(cwd: string, packDestination?: string): Promis
     throw new Error('`npm pack --json` did not include a tarball filename.');
   }
 
-  return path.join(packDestination ?? cwd, filename);
+  return defaultPathAdapter.join(packDestination ?? cwd, filename);
 }
 
 async function assertReleaseArtifact(options: { cwd: string; tarballPath: string }): Promise<void> {
-  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'salmon-loop-release-'));
-  const installDir = path.join(tempRoot, 'install');
+  const tempRoot = await mkdtemp(defaultPathAdapter.join(os.tmpdir(), 'salmon-loop-release-'));
+  const installDir = defaultPathAdapter.join(tempRoot, 'install');
 
   try {
     const installRes = await run('npm', ['install', '--prefix', installDir, options.tarballPath], {
@@ -212,7 +231,7 @@ async function assertReleaseArtifact(options: { cwd: string; tarballPath: string
     }
 
     const binName = process.platform === 'win32' ? 's8p.cmd' : 's8p';
-    const binPath = path.join(installDir, 'node_modules', '.bin', binName);
+    const binPath = defaultPathAdapter.join(installDir, 'node_modules', '.bin', binName);
     const smokeCommands = [['--help'], ['run', '--help'], ['serve', '--help']];
 
     for (const args of smokeCommands) {
@@ -227,7 +246,7 @@ async function assertReleaseArtifact(options: { cwd: string; tarballPath: string
 }
 
 async function runPackagingChecks(cwd: string): Promise<void> {
-  const packRoot = await mkdtemp(path.join(os.tmpdir(), 'salmon-loop-pack-'));
+  const packRoot = await mkdtemp(defaultPathAdapter.join(os.tmpdir(), 'salmon-loop-pack-'));
   const tarballPath = await createPackArtifact(cwd, packRoot);
   try {
     await assertReleaseArtifact({ cwd, tarballPath });
@@ -379,40 +398,25 @@ async function cutRelease(options: {
     );
   }
 
-  const addRes = await run('git', ['add', '--', 'package.json'], {
-    cwd: options.cwd,
-    stdio: 'inherit',
-  });
+  const addRes = await runGit(options.cwd, ['add', '--', 'package.json']);
   if (addRes.exitCode !== 0) throw new Error('git add failed.');
 
   const commitMessage = `chore(release): ${tag}`;
-  const commitRes = await run('git', ['commit', '-m', commitMessage], {
-    cwd: options.cwd,
-    stdio: 'inherit',
-  });
+  const commitRes = await runGit(options.cwd, ['commit', '-m', commitMessage]);
   if (commitRes.exitCode !== 0) {
     throw new Error('git commit failed.');
   }
 
-  const tagRes = await run('git', ['tag', '-a', tag, '-m', tag], {
-    cwd: options.cwd,
-    stdio: 'inherit',
-  });
+  const tagRes = await runGit(options.cwd, ['tag', '-a', tag, '-m', tag]);
   if (tagRes.exitCode !== 0) {
     throw new Error('git tag failed.');
   }
 
   if (options.push) {
-    const pushCommit = await run('git', ['push', options.remote, 'HEAD'], {
-      cwd: options.cwd,
-      stdio: 'inherit',
-    });
+    const pushCommit = await runGit(options.cwd, ['push', options.remote, 'HEAD']);
     if (pushCommit.exitCode !== 0) throw new Error('git push (commit) failed.');
 
-    const pushTag = await run('git', ['push', options.remote, tag], {
-      cwd: options.cwd,
-      stdio: 'inherit',
-    });
+    const pushTag = await runGit(options.cwd, ['push', options.remote, tag]);
     if (pushTag.exitCode !== 0) throw new Error('git push (tag) failed.');
   }
 
