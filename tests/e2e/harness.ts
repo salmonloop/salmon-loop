@@ -5,6 +5,7 @@ import { tmpdir } from 'os';
 import { delimiter, join, resolve } from 'path';
 
 import { RealFsTestHelper } from '../helpers/real-fs-helper.js';
+import { waitForPath } from '../helpers/wait-for.js';
 
 const PROJECT_ROOT = resolve(process.cwd());
 const CLI_ENTRY = join(PROJECT_ROOT, 'src', 'cli', 'index.ts');
@@ -261,28 +262,6 @@ export async function runScenario(repoPath: string, options: RunOptions): Promis
 
 export async function readRepoFile(repoPath: string, filePath: string): Promise<string> {
   return readFile(join(repoPath, filePath), 'utf8');
-}
-
-export async function sleep(ms: number): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-export async function waitForPath(
-  targetPath: string,
-  options?: { timeoutMs?: number; intervalMs?: number },
-): Promise<void> {
-  const timeoutMs = options?.timeoutMs ?? 5000;
-  const intervalMs = options?.intervalMs ?? 25;
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    try {
-      await stat(targetPath);
-      return;
-    } catch {
-      await new Promise((resolve) => setTimeout(resolve, intervalMs));
-    }
-  }
-  throw new Error(`Timed out waiting for path: ${targetPath}`);
 }
 
 export async function waitForAuditDir(repoPath: string): Promise<void> {

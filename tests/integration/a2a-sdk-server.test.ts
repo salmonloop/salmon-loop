@@ -25,6 +25,26 @@ type ExecuteTaskFn = (
   options?: { signal?: AbortSignal },
 ) => Promise<TaskEnvelope>;
 
+async function deferExecution(): Promise<void> {
+  await new Promise<void>((resolve) => queueMicrotask(resolve));
+}
+
+function createAbortOnlyTask(task: TaskEnvelope, signal?: AbortSignal): Promise<TaskEnvelope> {
+  return new Promise((resolve) => {
+    if (signal?.aborted) {
+      resolve({ ...task, state: 'cancelled', statusMessage: 'cancelled' });
+      return;
+    }
+    signal?.addEventListener(
+      'abort',
+      () => {
+        resolve({ ...task, state: 'cancelled', statusMessage: 'cancelled' });
+      },
+      { once: true },
+    );
+  });
+}
+
 async function startTestServer(deps: { executeTask: ExecuteTaskFn }) {
   const taskBus = createTaskEventBus();
   const taskStore = new InMemoryTaskStore();
@@ -101,22 +121,7 @@ describe('A2A SDK express server', () => {
 
   test('message/stream yields status updates and cancel observes cancellation', async () => {
     const { url, close } = await startTestServer({
-      executeTask: (task, options) =>
-        new Promise((resolve) => {
-          if (options?.signal?.aborted) {
-            resolve({ ...task, state: 'cancelled', statusMessage: 'cancelled' });
-            return;
-          }
-          const timer = setTimeout(() => resolve({ ...task, state: 'completed' }), 400);
-          options?.signal?.addEventListener('abort', () => {
-            clearTimeout(timer);
-            resolve({
-              ...task,
-              state: 'cancelled',
-              statusMessage: 'cancelled',
-            });
-          });
-        }),
+      executeTask: (task, options) => createAbortOnlyTask(task, options?.signal),
     });
     try {
       const transport = new JsonRpcTransport({ endpoint: `${url}/a2a/jsonrpc` });
@@ -217,7 +222,7 @@ describe('A2A SDK express server', () => {
   test('PRESERVATION: task completes normally without cancellation', async () => {
     const { url, close } = await startTestServer({
       executeTask: async (task) => {
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await deferExecution();
         return { ...task, state: 'completed' };
       },
     });
@@ -244,18 +249,7 @@ describe('A2A SDK express server', () => {
 
   test('PRESERVATION: task cancelled before completion', async () => {
     const { url, close } = await startTestServer({
-      executeTask: (task, options) =>
-        new Promise((resolve) => {
-          if (options?.signal?.aborted) {
-            resolve({ ...task, state: 'cancelled', statusMessage: 'cancelled' });
-            return;
-          }
-          const timer = setTimeout(() => resolve({ ...task, state: 'completed' }), 5000);
-          options?.signal?.addEventListener('abort', () => {
-            clearTimeout(timer);
-            resolve({ ...task, state: 'cancelled', statusMessage: 'cancelled' });
-          });
-        }),
+      executeTask: (task, options) => createAbortOnlyTask(task, options?.signal),
     });
     try {
       const transport = new JsonRpcTransport({ endpoint: `${url}/a2a/jsonrpc` });
@@ -280,7 +274,7 @@ describe('A2A SDK express server', () => {
   test('PRESERVATION: failed tasks publish failed status', async () => {
     const { url, close } = await startTestServer({
       executeTask: async (task) => {
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await deferExecution();
         return { ...task, state: 'failed', statusMessage: 'error' };
       },
     });
@@ -306,7 +300,7 @@ describe('A2A SDK express server', () => {
   test('PRESERVATION: terminal states have final flag', async () => {
     const { url, close } = await startTestServer({
       executeTask: async (task) => {
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await deferExecution();
         return { ...task, state: 'completed' };
       },
     });

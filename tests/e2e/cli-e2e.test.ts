@@ -187,7 +187,7 @@ describe('E2E CLI (black-box)', () => {
     async () => {
       const repo = await prepareRepo({
         strategy: 'direct',
-        verifyCommand: 'node -e "setTimeout(()=>{}, 20000)"',
+        verifyCommand: 'node -e "setInterval(()=>{}, 1000)"',
         files: buildRepoFiles(),
       });
       cleanupQueue.push(repo.cleanup);

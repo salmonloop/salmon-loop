@@ -70,9 +70,6 @@ describe('Snapshot Management Integration (CLI V2 Support)', () => {
     await writeFile(join(repoPath, 'f1.txt'), 'v1');
     const snap1 = await manager.createSafeSnapshot(repoPath, [], 'First');
 
-    // Wait a bit to ensure timestamp diff (git resolution is seconds usually, but we check order)
-    await new Promise((r) => setTimeout(r, 100));
-
     await writeFile(join(repoPath, 'f1.txt'), 'v2');
     const snap2 = await manager.createSafeSnapshot(repoPath, [], 'Second');
 

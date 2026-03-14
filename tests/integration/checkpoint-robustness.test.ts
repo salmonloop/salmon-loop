@@ -275,9 +275,6 @@ describe('Checkpoint System (Real Git Integration)', () => {
     await run(['add', 'file1.txt']);
     const snap1 = await manager.createSafeSnapshot(tempRepoPath);
 
-    // Sleep to ensure timestamp difference (optional, but good for ordering if dependent)
-    await new Promise((r) => setTimeout(r, 10));
-
     // 2. Create second snapshot
     await helper.writeFile(tempRepoPath, 'file1.txt', 'v2'); // Unstaged change
     await helper.writeFile(tempRepoPath, 'file2.txt', 'staged v2');
