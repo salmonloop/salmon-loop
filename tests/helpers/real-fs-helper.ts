@@ -31,6 +31,7 @@
  */
 
 import { spawn } from 'child_process';
+import { createHash } from 'crypto';
 import { cp, mkdtemp, mkdir, readFile, readdir, rm, stat, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import path from 'path';
@@ -56,7 +57,7 @@ type TemplateRepoInfo = {
   initialCommit: string;
 };
 
-let defaultRepoTemplatePromise: Promise<TemplateRepoInfo> | null = null;
+const templateCache = new Map<string, Promise<TemplateRepoInfo>>();
 
 /**
  * Executes a command and returns the output
@@ -103,10 +104,68 @@ async function execCommand(
   });
 }
 
-async function ensureDefaultRepoTemplate(): Promise<TemplateRepoInfo> {
-  if (defaultRepoTemplatePromise) return defaultRepoTemplatePromise;
-  defaultRepoTemplatePromise = (async () => {
-    const templatePath = await mkdtemp(path.join(tmpdir(), 'salmon-test-template-'));
+function resolveTemplateFiles(initialFiles: FileEntry[]): FileEntry[] {
+  if (initialFiles.length > 0) return initialFiles;
+  return [{ path: 'README.md', content: '# Test Repository\n' }];
+}
+
+function buildTemplateKey(options: {
+  initialFiles: FileEntry[];
+  gitConfig: Record<string, string>;
+}): string {
+  const hash = createHash('sha256');
+  hash.update('template-v1');
+  const files = [...options.initialFiles].sort((a, b) => a.path.localeCompare(b.path));
+  for (const file of files) {
+    hash.update('\0file\0');
+    hash.update(file.path);
+    hash.update('\0');
+    if (Buffer.isBuffer(file.content)) {
+      hash.update('b\0');
+      hash.update(file.content);
+    } else {
+      hash.update('s\0');
+      hash.update(file.content);
+    }
+  }
+  const configs = Object.entries(options.gitConfig).sort(([a], [b]) => a.localeCompare(b));
+  for (const [key, value] of configs) {
+    hash.update('\0config\0');
+    hash.update(key);
+    hash.update('\0');
+    hash.update(value);
+  }
+  return hash.digest('hex');
+}
+
+async function writeTemplateFiles(templatePath: string, files: FileEntry[]): Promise<void> {
+  for (const file of files) {
+    const fullPath = path.join(templatePath, file.path);
+    await mkdir(path.dirname(fullPath), { recursive: true });
+    if (Buffer.isBuffer(file.content)) {
+      await writeFile(fullPath, file.content);
+    } else {
+      await writeFile(fullPath, file.content, 'utf-8');
+    }
+  }
+}
+
+async function ensureTemplateRepo(options: {
+  initialFiles: FileEntry[];
+  gitConfig: Record<string, string>;
+}): Promise<TemplateRepoInfo> {
+  const templateFiles = resolveTemplateFiles(options.initialFiles);
+  const templateKey = buildTemplateKey({
+    initialFiles: templateFiles,
+    gitConfig: options.gitConfig,
+  });
+  const existing = templateCache.get(templateKey);
+  if (existing) return existing;
+
+  const templatePromise = (async () => {
+    const templatePath = await mkdtemp(
+      path.join(tmpdir(), `salmon-test-template-${templateKey.slice(0, 8)}-`),
+    );
     const init = await execCommand(templatePath, 'git', [
       'init',
       '--initial-branch=main',
@@ -117,7 +176,10 @@ async function ensureDefaultRepoTemplate(): Promise<TemplateRepoInfo> {
     }
     await execCommand(templatePath, 'git', ['config', 'user.name', 'Test User']);
     await execCommand(templatePath, 'git', ['config', 'user.email', 'test@example.com']);
-    await writeFile(path.join(templatePath, 'README.md'), '# Test Repository\n', 'utf-8');
+    for (const [key, value] of Object.entries(options.gitConfig)) {
+      await execCommand(templatePath, 'git', ['config', key, value]);
+    }
+    await writeTemplateFiles(templatePath, templateFiles);
     const add = await execCommand(templatePath, 'git', ['add', '-A']);
     if (add.exitCode !== 0) {
       throw new Error(`git add failed for template: ${add.stderr}`);
@@ -132,7 +194,14 @@ async function ensureDefaultRepoTemplate(): Promise<TemplateRepoInfo> {
     }
     return { path: templatePath, initialCommit: rev.stdout.trim() };
   })();
-  return defaultRepoTemplatePromise;
+
+  templateCache.set(templateKey, templatePromise);
+  try {
+    return await templatePromise;
+  } catch (error) {
+    templateCache.delete(templateKey);
+    throw error;
+  }
 }
 
 async function copyDirEntries(source: string, destination: string): Promise<void> {
@@ -193,11 +262,10 @@ export class RealFsTestHelper {
       gitConfig = {},
     } = options ?? {};
 
-    const useTemplate =
-      createInitialCommit && initialFiles.length === 0 && Object.keys(gitConfig).length === 0;
+    const useTemplate = createInitialCommit;
     if (useTemplate) {
       const repoPath = await this.createTempDir(prefix);
-      const template = await ensureDefaultRepoTemplate();
+      const template = await ensureTemplateRepo({ initialFiles, gitConfig });
       await copyDirEntries(template.path, repoPath);
       return {
         path: repoPath,

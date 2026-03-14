@@ -1,4 +1,5 @@
 import { readdir } from 'node:fs/promises';
+import { cpus } from 'node:os';
 import path from 'node:path';
 
 // File-level timeout for a full test file run. Integration suites can exceed 30s under CI load.
@@ -56,8 +57,13 @@ async function collectTestFiles(repoRoot: string, rootPath: string): Promise<str
 
 function resolveParallelism(total: number): number {
   const fromEnv = Number(process.env.BUN_FILE_TEST_PARALLELISM || DEFAULT_PARALLELISM);
-  const normalized =
-    Number.isFinite(fromEnv) && fromEnv > 0 ? Math.floor(fromEnv) : DEFAULT_PARALLELISM;
+  const envOverride = Number.isFinite(fromEnv) && fromEnv > 0 ? Math.floor(fromEnv) : null;
+  const detectedCpus = cpus()?.length ?? DEFAULT_PARALLELISM;
+  const autoParallelism = Math.max(
+    DEFAULT_PARALLELISM,
+    Math.min(8, Math.floor(detectedCpus * 0.75)),
+  );
+  const normalized = envOverride ?? autoParallelism;
   return Math.min(Math.max(normalized, 1), Math.max(total, 1));
 }
 
