@@ -1,4 +1,5 @@
 import { recordAuditEvent } from '../../../observability/audit-trail.js';
+import { mapErrorForAudit } from '../../../observability/error-mapping.js';
 import { ReflectionEngine } from '../../../reflection/engine.js';
 import type { ReflectionInput } from '../../../reflection/types.js';
 import type { FileStateResolver } from '../../../strata/layers/file-state-resolver.js';
@@ -191,6 +192,11 @@ export class FlowTransactionRunner {
         });
       }
 
+      const mappedAuditError = mapErrorForAudit({
+        message: attemptFailure.safeHint ?? attemptFailure.reason,
+        code: attemptFailure.errorCode ?? attemptFailure.reasonCode,
+      });
+
       recordAuditEvent(
         'loop.attempt.failure',
         {
@@ -204,6 +210,9 @@ export class FlowTransactionRunner {
           failurePhase: attemptFailure.failurePhase,
           retryable: attemptFailure.retryable,
           errorCode: attemptFailure.errorCode,
+          errorSummary: mappedAuditError.summary,
+          errorCategory: mappedAuditError.category,
+          errorRedacted: mappedAuditError.redacted,
           lastStep: result.lastStep,
         },
         {

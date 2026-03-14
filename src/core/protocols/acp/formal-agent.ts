@@ -36,6 +36,7 @@ import type { CommandRunner } from '../../runtime/command-runner-context.js';
 import { parseSlashInput } from '../../slash/parser.js';
 import type { FileSystem } from '../../types/index.js';
 import type { LoopEvent } from '../../types/index.js';
+import { buildCanonicalExecutionRequest } from '../shared/execution-request.js';
 
 import { createAcpCommandRunner } from './acp-command-runner.js';
 import { createAcpFileSystem } from './acp-filesystem.js';
@@ -1551,13 +1552,14 @@ export function createAcpFormalAgent(deps: {
       }
 
       const pendingUpdates: Promise<void>[] = [];
-      const { task, signal } = await deps.facade.createTask({
+      const executionRequest = buildCanonicalExecutionRequest({
         capability: 'patch',
-        request: {
-          instruction: promptText,
-          checkpointSessionId: params.sessionId,
-          repoPath: session.cwd,
-        },
+        instruction: promptText,
+        checkpointSessionId: params.sessionId,
+        repoPath: session.cwd,
+      });
+      const { task, signal } = await deps.facade.createTask({
+        ...executionRequest,
         commandRunner:
           effectiveExecutionBinding === 'client'
             ? createAcpCommandRunner({ conn: deps.conn, sessionId: params.sessionId })

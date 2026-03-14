@@ -5,6 +5,10 @@ import { InMemoryTaskStore } from '@a2a-js/sdk/server';
 import type { TaskEvent, TaskEventBus } from '../../../interaction/events/bus.js';
 import type { TaskEnvelope } from '../../../interaction/model/index.js';
 import type { TaskArtifact } from '../../../interaction/model/types.js';
+import {
+  buildCanonicalExecutionRequest,
+  buildInstructionFromParts,
+} from '../../shared/execution-request.js';
 
 type TaskMetadata = {
   contextId: string;
@@ -75,12 +79,13 @@ export function createA2AInteractionExecutor(
       };
 
       try {
-        const { task } = await deps.facade.createTask({
+        const executionRequest = buildCanonicalExecutionRequest({
           capability,
-          request: { instruction: extractInstruction(requestContext.userMessage) },
+          instruction: extractInstruction(requestContext.userMessage),
           // Pass SDK's taskId to facade to ensure consistency with eventBusManager
           taskId: requestContext.taskId,
         });
+        const { task } = await deps.facade.createTask(executionRequest);
         resolvedTaskId = task.id;
         cleanupByTaskId.set(task.id, cleanup);
         metadataByTaskId.set(task.id, {
@@ -263,9 +268,8 @@ export function createA2AInteractionExecutor(
   function extractInstruction(message: Message): string {
     const textParts = message.parts
       .filter((part): part is { kind: 'text'; text: string } => part.kind === 'text')
-      .map((part) => part.text.trim())
-      .filter(Boolean);
-    return textParts.join('\n') || 'Run task';
+      .map((part) => part.text);
+    return buildInstructionFromParts(textParts, { fallbackInstruction: 'Run task' });
   }
 
   function delay(ms: number): Promise<void> {

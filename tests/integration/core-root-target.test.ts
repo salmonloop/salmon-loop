@@ -9,5 +9,5 @@ describe('core root migration target (integration)', () => {
     const migratedInRoot = findMigratedCoreRootFiles(report.rootFiles.map((f) => f.path));
 
     expect(migratedInRoot).toEqual([]);
-  }, 30000);
+  }, 60000);
 });

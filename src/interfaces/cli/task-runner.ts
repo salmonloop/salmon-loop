@@ -1,3 +1,5 @@
+import { buildCanonicalExecutionRequest } from '../../core/protocols/shared/execution-request.js';
+
 export function createCliTaskRunner(deps: {
   facade: {
     createTask: (input: {
@@ -8,10 +10,12 @@ export function createCliTaskRunner(deps: {
 }) {
   return {
     async run(input: { capability: string; instruction: string }) {
-      return deps.facade.createTask({
-        capability: input.capability,
-        request: { instruction: input.instruction },
-      });
+      return deps.facade.createTask(
+        buildCanonicalExecutionRequest({
+          capability: input.capability,
+          instruction: input.instruction,
+        }),
+      );
     },
   };
 }
