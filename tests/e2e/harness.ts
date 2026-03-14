@@ -267,6 +267,28 @@ export async function sleep(ms: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+export async function waitForPath(
+  targetPath: string,
+  options?: { timeoutMs?: number; intervalMs?: number },
+): Promise<void> {
+  const timeoutMs = options?.timeoutMs ?? 5000;
+  const intervalMs = options?.intervalMs ?? 25;
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      await stat(targetPath);
+      return;
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    }
+  }
+  throw new Error(`Timed out waiting for path: ${targetPath}`);
+}
+
+export async function waitForAuditDir(repoPath: string): Promise<void> {
+  await waitForPath(join(repoPath, '.salmonloop', 'runtime', 'audit'));
+}
+
 export async function runWithFallback(
   repoPath: string,
   options: RunOptions & { allowFallback?: boolean },

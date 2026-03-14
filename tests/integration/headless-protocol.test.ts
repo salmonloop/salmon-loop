@@ -1,3 +1,4 @@
+import { utimes } from 'fs/promises';
 import path from 'path';
 
 import { afterEach, describe, expect, it } from 'bun:test';
@@ -19,10 +20,11 @@ describe('Headless protocol integration', () => {
     await helper.cleanup();
   });
 
-  async function seedChatSession(repoPath: string, sessionId: string) {
+  async function seedChatSession(repoPath: string, sessionId: string, mtimeMs?: number) {
+    const relativePath = `.salmonloop/chat-sessions/${sessionId}.json`;
     await helper.writeFile(
       repoPath,
-      `.salmonloop/chat-sessions/${sessionId}.json`,
+      relativePath,
       JSON.stringify(
         {
           meta: {
@@ -43,6 +45,10 @@ describe('Headless protocol integration', () => {
         2,
       ),
     );
+    if (typeof mtimeMs === 'number') {
+      const stamp = new Date(mtimeMs);
+      await utimes(path.join(repoPath, relativePath), stamp, stamp);
+    }
   }
 
   it('supports global -p print mode with --output-format json (implicit run command)', async () => {
@@ -230,9 +236,9 @@ describe('Headless protocol integration', () => {
 
   it('supports --continue selecting the latest session in headless stream-json', async () => {
     const repo = await helper.createGitRepo();
-    await seedChatSession(repo.path, 'sess-old');
-    await new Promise((r) => setTimeout(r, 10));
-    await seedChatSession(repo.path, 'sess-new');
+    const now = Date.now();
+    await seedChatSession(repo.path, 'sess-old', now - 1000);
+    await seedChatSession(repo.path, 'sess-new', now);
 
     const { exitCode, stdout } = await runCli([
       '-r',

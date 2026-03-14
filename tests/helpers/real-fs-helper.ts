@@ -31,7 +31,7 @@
  */
 
 import { spawn } from 'child_process';
-import { mkdtemp, mkdir, writeFile, readFile, rm, stat } from 'fs/promises';
+import { cp, mkdtemp, mkdir, readFile, readdir, rm, stat, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import path from 'path';
 
@@ -50,6 +50,13 @@ export interface FileEntry {
   /** File content */
   content: string | Buffer;
 }
+
+type TemplateRepoInfo = {
+  path: string;
+  initialCommit: string;
+};
+
+let defaultRepoTemplatePromise: Promise<TemplateRepoInfo> | null = null;
 
 /**
  * Executes a command and returns the output
@@ -94,6 +101,50 @@ async function execCommand(
       });
     });
   });
+}
+
+async function ensureDefaultRepoTemplate(): Promise<TemplateRepoInfo> {
+  if (defaultRepoTemplatePromise) return defaultRepoTemplatePromise;
+  defaultRepoTemplatePromise = (async () => {
+    const templatePath = await mkdtemp(path.join(tmpdir(), 'salmon-test-template-'));
+    const init = await execCommand(templatePath, 'git', [
+      'init',
+      '--initial-branch=main',
+      '--quiet',
+    ]);
+    if (init.exitCode !== 0) {
+      throw new Error(`git init failed for template: ${init.stderr}`);
+    }
+    await execCommand(templatePath, 'git', ['config', 'user.name', 'Test User']);
+    await execCommand(templatePath, 'git', ['config', 'user.email', 'test@example.com']);
+    await writeFile(path.join(templatePath, 'README.md'), '# Test Repository\n', 'utf-8');
+    const add = await execCommand(templatePath, 'git', ['add', '-A']);
+    if (add.exitCode !== 0) {
+      throw new Error(`git add failed for template: ${add.stderr}`);
+    }
+    const commit = await execCommand(templatePath, 'git', ['commit', '-m', 'Initial commit']);
+    if (commit.exitCode !== 0) {
+      throw new Error(`git commit failed for template: ${commit.stderr}`);
+    }
+    const rev = await execCommand(templatePath, 'git', ['rev-parse', 'HEAD']);
+    if (rev.exitCode !== 0) {
+      throw new Error(`git rev-parse HEAD failed for template: ${rev.stderr}`);
+    }
+    return { path: templatePath, initialCommit: rev.stdout.trim() };
+  })();
+  return defaultRepoTemplatePromise;
+}
+
+async function copyDirEntries(source: string, destination: string): Promise<void> {
+  const entries = await readdir(source, { withFileTypes: true });
+  await Promise.all(
+    entries.map((entry) =>
+      cp(path.join(source, entry.name), path.join(destination, entry.name), {
+        recursive: entry.isDirectory(),
+        force: true,
+      }),
+    ),
+  );
 }
 
 /**
@@ -141,6 +192,18 @@ export class RealFsTestHelper {
       createInitialCommit = true,
       gitConfig = {},
     } = options ?? {};
+
+    const useTemplate =
+      createInitialCommit && initialFiles.length === 0 && Object.keys(gitConfig).length === 0;
+    if (useTemplate) {
+      const repoPath = await this.createTempDir(prefix);
+      const template = await ensureDefaultRepoTemplate();
+      await copyDirEntries(template.path, repoPath);
+      return {
+        path: repoPath,
+        initialCommit: template.initialCommit,
+      };
+    }
 
     const repoPath = await this.createTempDir(prefix);
 

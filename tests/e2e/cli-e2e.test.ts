@@ -8,7 +8,7 @@ import {
   readRepoFile,
   runScenario,
   runWithFallback,
-  sleep,
+  waitForAuditDir,
   type OutputFormat,
   type Strategy,
 } from './harness.js';
@@ -221,7 +221,7 @@ describe('E2E CLI (black-box)', () => {
         });
       });
 
-      await sleep(1000);
+      await waitForAuditDir(repo.path);
       child.kill('SIGINT');
 
       const exitCode = await exitCodePromise;
