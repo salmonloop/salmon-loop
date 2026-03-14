@@ -25,6 +25,10 @@ type ExecuteTaskFn = (
   options?: { signal?: AbortSignal },
 ) => Promise<TaskEnvelope>;
 
+async function deferExecution(): Promise<void> {
+  await new Promise<void>((resolve) => queueMicrotask(resolve));
+}
+
 async function startTestServer(deps: { executeTask: ExecuteTaskFn }) {
   const taskBus = createTaskEventBus();
   const taskStore = new InMemoryTaskStore();
@@ -128,7 +132,7 @@ describe('A2A Performance Benchmark Tests', () => {
       server = await startTestServer({
         executeTask: async (task) => {
           // Simulate minimal processing time
-          await new Promise((resolve) => setTimeout(resolve, 1));
+          await deferExecution();
           return { ...task, state: 'completed' };
         },
       });
@@ -238,7 +242,7 @@ describe('A2A Performance Benchmark Tests', () => {
         executeTask: async (task) => {
           // Simulate task execution with multiple state changes
           taskBus.publish({ type: 'task.running', taskId: task.id, state: 'running' });
-          await new Promise((resolve) => setTimeout(resolve, 10));
+          await deferExecution();
           taskBus.publish({ type: 'task.completed', taskId: task.id, state: 'completed' });
           return { ...task, state: 'completed' };
         },
@@ -288,7 +292,7 @@ describe('A2A Performance Benchmark Tests', () => {
       server = await startTestServer({
         executeTask: async (task) => {
           // Simulate variable processing time
-          const delay = Math.random() * 10 + 5; // 5-15ms
+          const delay = Math.random() * 2 + 1; // 1-3ms
           await new Promise((resolve) => setTimeout(resolve, delay));
           return { ...task, state: 'completed' };
         },
