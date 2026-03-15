@@ -18,6 +18,7 @@ jobs:
     needs: quality
     permissions:
       contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -50,7 +51,19 @@ jobs:
           git merge-base --is-ancestor "$GITHUB_REF_NAME" "origin/main"
       - name: Build
         run: bun run build
-      - name: Publish to npm
+      - name: Publish (OIDC)
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(bun -e "const pkg = JSON.parse(await Bun.file('package.json').text()); process.stdout.write(pkg.version)")"
+          if npm view salmon-loop@"${VERSION}" version >/dev/null 2>&1; then
+            echo "Version ${VERSION} already published. Skipping publish."
+            exit 0
+          fi
+          npm publish --access public --provenance
+      - name: Publish (token fallback)
+        if: github.event_name == 'workflow_dispatch'
         shell: bash
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
