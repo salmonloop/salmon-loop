@@ -45,7 +45,7 @@ To apply the release, push the commit and tag:
 bun run release:cut --bump patch --apply --push
 ```
 
-The tag push will trigger CI to publish the package. Make sure `NPM_TOKEN` is configured in GitHub Actions secrets before using the automated publish path.
+The tag push will trigger CI to publish the package via trusted publishing (OIDC). The manual `workflow_dispatch` fallback uses `NPM_TOKEN` for emergency publishes.
 
 To set an explicit version:
 
