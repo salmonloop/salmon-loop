@@ -71,7 +71,13 @@ async function runGit(
   cwd: string,
   args: string[],
   options?: { timeoutMs?: number },
-): Promise<{ stdout: string; stderr: string; exitCode: number; timedOut: boolean; signal: string | null }> {
+): Promise<{
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+  timedOut: boolean;
+  signal: string | null;
+}> {
   const git = new GitAdapter(cwd);
   const result = await git.execMeta(args, { cwd, timeoutMs: options?.timeoutMs });
   const stdout = result.stdout.toString('utf8');
@@ -124,7 +130,9 @@ async function getGitStatusPorcelain(cwd: string): Promise<string> {
 }
 
 async function gitFetch(cwd: string, remote: string): Promise<void> {
-  const res = await runGit(cwd, ['fetch', '--prune', remote], { timeoutMs: GIT_NETWORK_TIMEOUT_MS });
+  const res = await runGit(cwd, ['fetch', '--prune', remote], {
+    timeoutMs: GIT_NETWORK_TIMEOUT_MS,
+  });
   if (res.exitCode !== 0) {
     throw new Error(`git fetch failed: ${formatGitFailure(res)}`);
   }
