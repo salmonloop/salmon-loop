@@ -1,6 +1,6 @@
 {
   "name": "salmon-loop",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "A chat-first coding agent CLI for safe, reviewable repository changes",
   "type": "module",
   "bin": {
