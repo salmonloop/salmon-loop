@@ -15,6 +15,10 @@ type Semver = {
   raw: string;
 };
 
+const DEFAULT_GIT_NETWORK_TIMEOUT_MS = 2 * 60 * 1000;
+const GIT_NETWORK_TIMEOUT_MS =
+  Number(process.env.SALMONLOOP_GIT_NETWORK_TIMEOUT_MS) || DEFAULT_GIT_NETWORK_TIMEOUT_MS;
+
 function parseSemver(input: string): Semver {
   const trimmed = input.trim();
   const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(trimmed);
@@ -66,16 +70,34 @@ async function run(
 async function runGit(
   cwd: string,
   args: string[],
-): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+  options?: { timeoutMs?: number },
+): Promise<{ stdout: string; stderr: string; exitCode: number; timedOut: boolean; signal: string | null }> {
   const git = new GitAdapter(cwd);
-  const result = await git.execMeta(args, { cwd });
+  const result = await git.execMeta(args, { cwd, timeoutMs: options?.timeoutMs });
   const stdout = result.stdout.toString('utf8');
   const stderr = result.stderr || result.error?.message || '';
   return {
     stdout,
     stderr,
     exitCode: typeof result.code === 'number' ? result.code : 1,
+    timedOut: result.timedOut,
+    signal: result.signal ?? null,
   };
+}
+
+function formatGitFailure(res: {
+  exitCode: number;
+  stderr: string;
+  timedOut: boolean;
+  signal: string | null;
+}): string {
+  const parts: string[] = [];
+  if (res.timedOut) parts.push('timed out');
+  if (res.signal) parts.push(`signal=${res.signal}`);
+  parts.push(`exitCode=${res.exitCode}`);
+  const err = (res.stderr || '').trim();
+  if (err) parts.push(err);
+  return parts.join(' | ');
 }
 
 async function assertGitRepo(cwd: string): Promise<void> {
@@ -102,9 +124,9 @@ async function getGitStatusPorcelain(cwd: string): Promise<string> {
 }
 
 async function gitFetch(cwd: string, remote: string): Promise<void> {
-  const res = await runGit(cwd, ['fetch', '--prune', remote]);
+  const res = await runGit(cwd, ['fetch', '--prune', remote], { timeoutMs: GIT_NETWORK_TIMEOUT_MS });
   if (res.exitCode !== 0) {
-    throw new Error('git fetch failed.');
+    throw new Error(`git fetch failed: ${formatGitFailure(res)}`);
   }
 }
 
@@ -413,11 +435,19 @@ async function cutRelease(options: {
   }
 
   if (options.push) {
-    const pushCommit = await runGit(options.cwd, ['push', options.remote, 'HEAD']);
-    if (pushCommit.exitCode !== 0) throw new Error('git push (commit) failed.');
+    const pushCommit = await runGit(options.cwd, ['push', options.remote, 'HEAD'], {
+      timeoutMs: GIT_NETWORK_TIMEOUT_MS,
+    });
+    if (pushCommit.exitCode !== 0) {
+      throw new Error(`git push (commit) failed: ${formatGitFailure(pushCommit)}`);
+    }
 
-    const pushTag = await runGit(options.cwd, ['push', options.remote, tag]);
-    if (pushTag.exitCode !== 0) throw new Error('git push (tag) failed.');
+    const pushTag = await runGit(options.cwd, ['push', options.remote, tag], {
+      timeoutMs: GIT_NETWORK_TIMEOUT_MS,
+    });
+    if (pushTag.exitCode !== 0) {
+      throw new Error(`git push (tag) failed: ${formatGitFailure(pushTag)}`);
+    }
   }
 
   if (options.publish) {
