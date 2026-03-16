@@ -51,6 +51,18 @@ jobs:
           git merge-base --is-ancestor "$GITHUB_REF_NAME" "origin/main"
       - name: Build
         run: bun run build
+      - name: Diagnostics (OIDC match)
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "event: ${GITHUB_EVENT_NAME}"
+          echo "repository: ${GITHUB_REPOSITORY}"
+          echo "workflow_ref: ${GITHUB_WORKFLOW_REF}"
+          echo "ref: ${GITHUB_REF}"
+          echo "ref_name: ${GITHUB_REF_NAME}"
+          echo "sha: ${GITHUB_SHA}"
+          echo "run_id: ${GITHUB_RUN_ID}"
+          echo "run_attempt: ${GITHUB_RUN_ATTEMPT}"
       - name: Publish (OIDC)
         if: github.event_name == 'push'
         shell: bash
