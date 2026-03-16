@@ -31,7 +31,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          registry-url: https://registry.npmjs.org
       - name: Verify tag matches package.json
         shell: bash
         run: |
@@ -55,6 +54,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          echo "node: $(bun -p \"process.versions.node\")"
+          echo "npm: $(npm --version)"
           echo "event: ${GITHUB_EVENT_NAME}"
           echo "repository: ${GITHUB_REPOSITORY}"
           echo "workflow_ref: ${GITHUB_WORKFLOW_REF}"
@@ -63,11 +64,34 @@ jobs:
           echo "sha: ${GITHUB_SHA}"
           echo "run_id: ${GITHUB_RUN_ID}"
           echo "run_attempt: ${GITHUB_RUN_ATTEMPT}"
+          if [ -n "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "NODE_AUTH_TOKEN: set"
+          else
+            echo "NODE_AUTH_TOKEN: unset"
+          fi
+          if [ -n "${NPM_CONFIG_USERCONFIG:-}" ]; then
+            echo "NPM_CONFIG_USERCONFIG: ${NPM_CONFIG_USERCONFIG}"
+            if [ -f "${NPM_CONFIG_USERCONFIG}" ]; then
+              if grep -q "_authToken" "${NPM_CONFIG_USERCONFIG}"; then
+                echo "NPM_CONFIG_USERCONFIG contains _authToken line(s)"
+              else
+                echo "NPM_CONFIG_USERCONFIG does not contain _authToken line(s)"
+              fi
+            else
+              echo "NPM_CONFIG_USERCONFIG file does not exist"
+            fi
+          else
+            echo "NPM_CONFIG_USERCONFIG: unset"
+          fi
       - name: Publish (OIDC)
         if: github.event_name == 'push'
         shell: bash
         run: |
           set -euo pipefail
+          # Ensure we don't accidentally publish with token auth.
+          unset NODE_AUTH_TOKEN || true
+          npm config set registry "https://registry.npmjs.org/"
+
           VERSION="$(bun -e "const pkg = JSON.parse(await Bun.file('package.json').text()); process.stdout.write(pkg.version)")"
           if npm view salmon-loop@"${VERSION}" version >/dev/null 2>&1; then
             echo "Version ${VERSION} already published. Skipping publish."
@@ -85,6 +109,8 @@ jobs:
             echo "NPM_TOKEN is not set."
             exit 1
           fi
+          npm config set registry "https://registry.npmjs.org/"
+          npm config set //registry.npmjs.org/:_authToken "${NODE_AUTH_TOKEN}"
           echo "node: $(bun -p \"process.versions.node\")"
           echo "npm: $(npm --version)"
           echo "npm whoami: $(npm whoami)"
