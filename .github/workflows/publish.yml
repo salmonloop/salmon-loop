@@ -6,6 +6,11 @@ on:
     tags:
       - 'v*.*.*'
   workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Git ref (tag or branch) to publish'
+        required: true
+        default: 'main'
 
 jobs:
   quality:
@@ -19,10 +24,13 @@ jobs:
     permissions:
       contents: read
       id-token: write
+    env:
+      TARGET_REF: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.ref || github.ref }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.ref || github.ref }}
       - name: Setup
         uses: ./.github/actions/setup
         with:
@@ -30,13 +38,21 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '23'
-          check-latest: true
+          # Pinned to Node 24.7.0 to ensure npm >= 11.5.1 required for OIDC publish.
+          # Node 24.7.0 bundles npm 11.5.1 per the Node.js release manifest.
+          node-version: '24.7.0'
       - name: Verify tag matches package.json
         shell: bash
         run: |
           set -euo pipefail
-          TAG="${GITHUB_REF_NAME}"
+          REF="${TARGET_REF}"
+          if [[ "${REF}" == refs/tags/* ]]; then
+            TAG="${REF#refs/tags/}"
+          elif [[ "${REF}" == v*.*.* ]]; then
+            TAG="${REF}"
+          else
+            exit 0
+          fi
           VERSION="$(bun -e "const pkg = JSON.parse(await Bun.file('package.json').text()); process.stdout.write(pkg.version)")"
           EXPECTED="v${VERSION}"
           if [ "$TAG" != "$EXPECTED" ]; then
@@ -47,16 +63,23 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git fetch --prune origin main
-          git merge-base --is-ancestor "$GITHUB_REF_NAME" "origin/main"
+          git fetch --prune --tags origin main
+          git merge-base --is-ancestor HEAD "origin/main"
       - name: Build
         run: bun run build
       - name: Diagnostics (OIDC match)
         shell: bash
         run: |
           set -euo pipefail
-          echo "node: $(bun -e \"console.log(process.versions.node)\")"
-          echo "npm: $(npm --version)"
+          echo "target_ref: ${TARGET_REF}"
+          printf 'npm: '
+          npm --version
+          printf 'npm registry: '
+          npm config get registry
+          printf 'npm globalconfig: '
+          npm config get globalconfig
+          printf 'npm user-agent: '
+          npm config get user-agent
           echo "event: ${GITHUB_EVENT_NAME}"
           echo "repository: ${GITHUB_REPOSITORY}"
           echo "workflow_ref: ${GITHUB_WORKFLOW_REF}"
@@ -91,7 +114,18 @@ jobs:
           set -euo pipefail
           # Ensure we don't accidentally publish with token auth.
           unset NODE_AUTH_TOKEN || true
+          OIDC_NPMRC="${RUNNER_TEMP}/npmrc-oidc"
+          : > "${OIDC_NPMRC}"
+          export NPM_CONFIG_USERCONFIG="${OIDC_NPMRC}"
           npm config set registry "https://registry.npmjs.org/"
+
+          REQUIRED_NPM="11.5.1"
+          CURRENT_NPM="$(npm --version)"
+          if ! bun -e "const [req, curRaw] = ['${REQUIRED_NPM}', '${CURRENT_NPM}']; const cur = curRaw.split('-')[0]; const to = (v) => v.split('.').map((n) => Number(n)); const [r1, r2, r3] = to(req); const [c1, c2, c3] = to(cur); const ok = c1 > r1 || (c1 === r1 && (c2 > r2 || (c2 === r2 && c3 >= r3))); if (!ok) { process.exit(1); }"; then
+            echo "npm raw version: ${CURRENT_NPM}"
+            echo "npm ${CURRENT_NPM} is below required ${REQUIRED_NPM} for OIDC publish."
+            exit 1
+          fi
 
           VERSION="$(bun -e "const pkg = JSON.parse(await Bun.file('package.json').text()); process.stdout.write(pkg.version)")"
           if npm view salmon-loop@"${VERSION}" version >/dev/null 2>&1; then
@@ -110,11 +144,24 @@ jobs:
             echo "NPM_TOKEN is not set."
             exit 1
           fi
+          TOKEN_NPMRC="${RUNNER_TEMP}/npmrc-token"
+          : > "${TOKEN_NPMRC}"
+          export NPM_CONFIG_USERCONFIG="${TOKEN_NPMRC}"
           npm config set registry "https://registry.npmjs.org/"
           npm config set //registry.npmjs.org/:_authToken "${NODE_AUTH_TOKEN}"
-          echo "node: $(bun -p \"process.versions.node\")"
-          echo "npm: $(npm --version)"
-          echo "npm whoami: $(npm whoami)"
+          printf 'npm: '
+          npm --version
+          printf 'npm registry: '
+          npm config get registry
+          printf 'npm globalconfig: '
+          npm config get globalconfig
+          printf 'npm user-agent: '
+          npm config get user-agent
+          if ! npm whoami >/dev/null 2>&1; then
+            echo "npm whoami: not available for this token (non-fatal)."
+          else
+            echo "npm whoami: $(npm whoami)"
+          fi
           # Helpful for diagnosing EOTP. Some token types (e.g. automation/granular) may not
           # have permission to read profile details; treat 403 as non-fatal and informational.
           if ! npm profile get "two-factor auth" 2>/dev/null; then
