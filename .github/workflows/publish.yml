@@ -30,15 +30,8 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '22.14.0'
+          node-version: '23'
           check-latest: true
-      - name: Ensure npm for OIDC
-        shell: bash
-        run: |
-          set -euo pipefail
-          corepack prepare npm@11.5.1 --activate
-          echo "node: $(bun -p \"process.versions.node\")"
-          echo "npm: $(npm --version)"
       - name: Verify tag matches package.json
         shell: bash
         run: |
@@ -62,7 +55,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "node: $(bun -p \"process.versions.node\")"
+          echo "node: $(bun -e \"console.log(process.versions.node)\")"
           echo "npm: $(npm --version)"
           echo "event: ${GITHUB_EVENT_NAME}"
           echo "repository: ${GITHUB_REPOSITORY}"
