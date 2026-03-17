@@ -26,6 +26,7 @@ jobs:
       id-token: write
     env:
       TARGET_REF: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.ref || github.ref }}
+      REPO_PRIVATE: ${{ github.event.repository.private }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -72,6 +73,7 @@ jobs:
         run: |
           set -euo pipefail
           echo "target_ref: ${TARGET_REF}"
+          echo "repo_private: ${REPO_PRIVATE}"
           printf 'npm: '
           npm --version
           printf 'npm registry: '
@@ -121,7 +123,7 @@ jobs:
 
           REQUIRED_NPM="11.5.1"
           CURRENT_NPM="$(npm --version)"
-          if ! bun -e "const [req, curRaw] = ['${REQUIRED_NPM}', '${CURRENT_NPM}']; const cur = curRaw.split('-')[0]; const to = (v) => v.split('.').map((n) => Number(n)); const [r1, r2, r3] = to(req); const [c1, c2, c3] = to(cur); const ok = c1 > r1 || (c1 === r1 && (c2 > r2 || (c2 === r2 && c3 >= r3))); if (!ok) { process.exit(1); }"; then
+          if ! bun -e "const [req, curRaw] = ['${REQUIRED_NPM}', '${CURRENT_NPM}']; const cur = curRaw.split('-')[0].split('+')[0]; const to = (v) => v.split('.').map((n) => Number(n)); const [r1, r2, r3] = to(req); const [c1, c2, c3] = to(cur); const ok = c1 > r1 || (c1 === r1 && (c2 > r2 || (c2 === r2 && c3 >= r3))); if (!ok) { process.exit(1); }"; then
             echo "npm raw version: ${CURRENT_NPM}"
             echo "npm ${CURRENT_NPM} is below required ${REQUIRED_NPM} for OIDC publish."
             exit 1
@@ -132,7 +134,7 @@ jobs:
             echo "Version ${VERSION} already published. Skipping publish."
             exit 0
           fi
-          npm publish --access public --provenance
+          npm publish --access public
       - name: Publish (token fallback)
         if: github.event_name == 'workflow_dispatch'
         shell: bash
