@@ -28,7 +28,7 @@ describe('publish workflow', () => {
 
     expect(oidc?.if).toBe("github.event_name == 'push'");
     expect(String(oidc?.run || '')).toContain('npm publish');
-    expect(String(oidc?.run || '')).toContain('--provenance');
+    expect(String(oidc?.run || '')).not.toContain('--provenance');
 
     expect(token?.if).toBe("github.event_name == 'workflow_dispatch'");
     expect(token?.env?.NODE_AUTH_TOKEN).toBe('${{ secrets.NPM_TOKEN }}');
