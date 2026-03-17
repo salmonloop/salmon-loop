@@ -36,7 +36,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          npm install -g npm@11.5.1
+          corepack prepare npm@11.5.1 --activate
           echo "node: $(bun -p \"process.versions.node\")"
           echo "npm: $(npm --version)"
       - name: Verify tag matches package.json
