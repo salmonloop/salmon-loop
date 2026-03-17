@@ -30,7 +30,15 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22.14.0'
+          check-latest: true
+      - name: Ensure npm for OIDC
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install -g npm@11.5.1
+          echo "node: $(bun -p \"process.versions.node\")"
+          echo "npm: $(npm --version)"
       - name: Verify tag matches package.json
         shell: bash
         run: |
