@@ -26,6 +26,10 @@ SYSTEM
 *   **Only Legal Format**: `domain.action[.qualifier]` (e.g., `code.search`, `fs.read`)
 *   **Forbidden**: Implementation source prefixes (e.g., `builtin.`, `mcp.`, `plugin.`)
 
+Examples (filesystem):
+- Read-only: `fs.read`, `fs.list`, `fs.list_directory`, `fs.list_files`
+- Write (slash-only): `fs.write_file`, `fs.create_directory`, `fs.delete_file`
+
 ### 3.2 ToolSpec (Strongly Typed)
 ```typescript
 interface ToolSpec<I, O> {

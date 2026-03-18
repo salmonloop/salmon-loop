@@ -31,6 +31,20 @@ export function normalizePath(p: string): string {
 }
 
 /**
+ * Normalize a path-like input into a stable repo-relative form.
+ *
+ * Intended for:
+ * - Permission rules matching (stable normalization across platforms)
+ * - Tool argument normalization and auditing
+ *
+ * This function does NOT validate safety (absolute/traversal); use isSafeRelativePath() or
+ * sandbox resolution checks for security-sensitive operations.
+ */
+export function normalizeRepoRelativePath(input: string): string {
+  return normalizePath(String(input ?? '').trim()).replace(/^(\.\/|\/)+/, '');
+}
+
+/**
  * Join path segments and normalize the result to use forward slashes.
  */
 export function safeJoin(...paths: string[]): string {

@@ -35,6 +35,7 @@
     "test:worktree-smoke": "bun scripts/worktree-smoke.js",
     "test:headless-smoke": "bun scripts/headless-smoke.ts",
     "setup:hooks": "git config core.hooksPath .githooks",
+    "postinstall": "bun scripts/fix-es-abstract-compat.ts",
     "check:bun-purity": "bun scripts/check-bun-purity.ts",
     "check:bun-purity:staged": "bun scripts/check-bun-purity.ts --staged",
     "check:target-runtime-boundary": "bun scripts/check-target-runtime-hardcoding.ts",

@@ -1,10 +1,14 @@
+import { createHash } from 'crypto';
+import { Buffer } from 'node:buffer';
 import { isAbsolute, relative, resolve } from 'path';
 
 import { z } from 'zod';
 
 import { text } from '../../../locales/index.js';
-import { readFile, readdir, stat } from '../../adapters/fs/node-fs.js';
+import { AtomicFileWriter } from '../../adapters/fs/atomic-file-writer.js';
+import { mkdir, readFile, readdir, stat } from '../../adapters/fs/node-fs.js';
 import { Phase } from '../../types/runtime.js';
+import { normalizeRepoRelativePath } from '../../utils/path.js';
 import { pathPrefixResource } from '../parallel/resource-helpers.js';
 import { ToolSpec, ToolRuntimeCtx } from '../types.js';
 
@@ -171,12 +175,58 @@ export const fsListSpec: Omit<ToolSpec, 'executor'> = {
   ],
 };
 
+/**
+ * Spec for the fs.list_directory tool.
+ */
+export const fsListDirectorySpec: Omit<ToolSpec, 'executor'> = {
+  ...fsListSpec,
+  name: 'fs.list_directory',
+  description: text.tools.fsListDirectoryDescription,
+};
+
+/**
+ * Spec for the fs.list_files tool.
+ */
+export const fsListFilesSpec: Omit<ToolSpec, 'executor'> = {
+  ...fsListSpec,
+  name: 'fs.list_files',
+  description: text.tools.fsListFilesDescription,
+};
+
 function toRepoRelativeChildPath(dir: string, name: string): string {
   const normalizedDir = String(dir || '.')
     .replace(/\\/g, '/')
     .trim();
   const base = normalizedDir === '.' ? '' : normalizedDir.replace(/^\.\/+/, '').replace(/\/+$/, '');
   return base ? `${base}/${name}` : name;
+}
+
+function assertNotReservedRepoPrefix(relPath: string): void {
+  const normalized = normalizeRepoRelativePath(relPath);
+  if (normalized === '.git' || normalized.startsWith('.git/')) {
+    throw new Error(text.errors.reservedPathPrefix('.git/'));
+  }
+  if (normalized === '.salmonloop' || normalized.startsWith('.salmonloop/')) {
+    throw new Error(text.errors.reservedPathPrefix('.salmonloop/'));
+  }
+}
+
+function resolveRepoRelativePath(repoRoot: string, relPath: string): { absolutePath: string } {
+  if (isAbsolute(relPath)) {
+    throw new Error(text.errors.pathOutsideRepo);
+  }
+
+  assertNotReservedRepoPrefix(relPath);
+
+  const absoluteRoot = resolve(repoRoot);
+  const absolutePath = resolve(absoluteRoot, relPath);
+  const computedRelPath = relative(absoluteRoot, absolutePath);
+
+  if (computedRelPath.startsWith('..') || isAbsolute(computedRelPath)) {
+    throw new Error(text.errors.pathOutsideRepo);
+  }
+
+  return { absolutePath };
 }
 
 /**
@@ -234,6 +284,241 @@ export async function executeFsList(
       `Failed to list directory ${dir}: ${e instanceof Error ? e.message : String(e)}`,
     );
   }
+}
+
+/**
+ * Implementation of the fs.list_directory tool.
+ */
+export async function executeFsListDirectory(
+  input: z.infer<typeof fsListDirectorySpec.inputSchema>,
+  ctx: ToolRuntimeCtx,
+) {
+  return executeFsList(input as any, ctx);
+}
+
+/**
+ * Implementation of the fs.list_files tool.
+ */
+export async function executeFsListFiles(
+  input: z.infer<typeof fsListFilesSpec.inputSchema>,
+  ctx: ToolRuntimeCtx,
+) {
+  const { path: dir, includeHidden, maxEntries } = input;
+
+  if (isAbsolute(dir)) {
+    throw new Error(text.errors.pathOutsideRepo);
+  }
+
+  const absoluteRoot = resolve(ctx.repoRoot);
+  const absolutePath = resolve(absoluteRoot, dir);
+  const relPath = relative(absoluteRoot, absolutePath);
+
+  if (relPath.startsWith('..') || isAbsolute(relPath)) {
+    throw new Error(text.errors.pathOutsideRepo);
+  }
+
+  try {
+    const dirents = await readdir(absolutePath, { withFileTypes: true });
+    const visible = includeHidden ? dirents : dirents.filter((d) => !d.name.startsWith('.'));
+
+    const fileEntries = visible
+      .filter((d) => d.isFile())
+      .map((d) => ({
+        name: d.name,
+        path: toRepoRelativeChildPath(dir, d.name),
+        type: 'file' as const,
+      }))
+      .sort((a, b) => a.path.localeCompare(b.path));
+
+    const totalEntries = fileEntries.length;
+    const sliced = fileEntries.slice(0, maxEntries);
+
+    return {
+      entries: sliced,
+      truncated: sliced.length < totalEntries,
+      totalEntries,
+    };
+  } catch (e: unknown) {
+    throw new Error(
+      `Failed to list files in directory ${dir}: ${e instanceof Error ? e.message : String(e)}`,
+    );
+  }
+}
+
+const fsWriteFileInputSchema = z.object({
+  file: z.string().describe('Relative path to the file from the repository root'),
+  content: z.string().describe('UTF-8 text content to write'),
+  encoding: z
+    .enum(['utf-8'])
+    .optional()
+    .describe('Text encoding (only utf-8 is supported; default: utf-8)'),
+});
+
+/**
+ * Spec for the fs.write_file tool.
+ */
+export const fsWriteFileSpec: Omit<ToolSpec, 'executor'> = {
+  name: 'fs.write_file',
+  source: 'builtin',
+  intent: 'WRITE',
+  description: text.tools.fsWriteFileDescription,
+  riskLevel: 'high',
+  sideEffects: ['fs_write'],
+  concurrency: 'serial_only',
+  computeResources: (input, ctx) => [pathPrefixResource(ctx, input.file)],
+  allowedPhases: [Phase.SLASH],
+  inputSchema: fsWriteFileInputSchema,
+  outputSchema: z.object({
+    ok: z.boolean(),
+    path: z.string(),
+    bytesWritten: z.number().int().nonnegative(),
+  }),
+  summarizeArgsForAuthorization: async (args) => {
+    const encoding = (args as any)?.encoding || 'utf-8';
+    const content = String((args as any)?.content ?? '');
+    const bytes = Buffer.byteLength(content, 'utf8');
+    const sha256 = createHash('sha256').update(content, 'utf8').digest('hex');
+    return JSON.stringify({
+      file: (args as any)?.file,
+      encoding,
+      bytes,
+      sha256,
+    });
+  },
+};
+
+export async function executeFsWriteFile(
+  input: z.infer<typeof fsWriteFileSpec.inputSchema>,
+  ctx: ToolRuntimeCtx,
+) {
+  if (ctx.dryRun) {
+    return { ok: true, path: input.file, bytesWritten: 0 };
+  }
+
+  const { absolutePath } = resolveRepoRelativePath(ctx.repoRoot, input.file);
+  const writer = new AtomicFileWriter();
+  const contentBytes = Buffer.from(input.content, 'utf8');
+
+  await writer.writeAtomic(absolutePath, contentBytes);
+
+  return {
+    ok: true,
+    path: input.file,
+    bytesWritten: contentBytes.length,
+  };
+}
+
+const fsCreateDirectoryInputSchema = z.preprocess(
+  (raw) => {
+    if (typeof raw === 'string') return { path: raw };
+    return raw;
+  },
+  z.object({
+    path: z.string().describe('Relative directory path to create from the repository root'),
+    recursive: z.boolean().default(true).describe('Whether to create parent directories'),
+  }),
+);
+
+/**
+ * Spec for the fs.create_directory tool.
+ */
+export const fsCreateDirectorySpec: Omit<ToolSpec, 'executor'> = {
+  name: 'fs.create_directory',
+  source: 'builtin',
+  intent: 'WRITE',
+  description: text.tools.fsCreateDirectoryDescription,
+  riskLevel: 'high',
+  sideEffects: ['fs_write'],
+  concurrency: 'serial_only',
+  computeResources: (input, ctx) => [pathPrefixResource(ctx, input.path)],
+  allowedPhases: [Phase.SLASH],
+  inputSchema: fsCreateDirectoryInputSchema,
+  outputSchema: z.object({
+    ok: z.boolean(),
+    path: z.string(),
+  }),
+  summarizeArgsForAuthorization: async (args) =>
+    JSON.stringify({ path: (args as any)?.path, recursive: (args as any)?.recursive }),
+};
+
+export async function executeFsCreateDirectory(
+  input: z.infer<typeof fsCreateDirectorySpec.inputSchema>,
+  ctx: ToolRuntimeCtx,
+) {
+  if (ctx.dryRun) {
+    return { ok: true, path: input.path };
+  }
+
+  const { absolutePath } = resolveRepoRelativePath(ctx.repoRoot, input.path);
+  await mkdir(absolutePath, { recursive: input.recursive });
+
+  return { ok: true, path: input.path };
+}
+
+const fsDeleteFileInputSchema = z.preprocess(
+  (raw) => {
+    if (typeof raw === 'string') return { file: raw };
+    return raw;
+  },
+  z.object({
+    file: z.string().describe('Relative path to the file from the repository root'),
+    missingOk: z.boolean().default(true).describe('Whether missing files are treated as success'),
+  }),
+);
+
+/**
+ * Spec for the fs.delete_file tool.
+ */
+export const fsDeleteFileSpec: Omit<ToolSpec, 'executor'> = {
+  name: 'fs.delete_file',
+  source: 'builtin',
+  intent: 'WRITE',
+  description: text.tools.fsDeleteFileDescription,
+  riskLevel: 'high',
+  sideEffects: ['fs_write'],
+  concurrency: 'serial_only',
+  computeResources: (input, ctx) => [pathPrefixResource(ctx, input.file)],
+  allowedPhases: [Phase.SLASH],
+  inputSchema: fsDeleteFileInputSchema,
+  outputSchema: z.object({
+    ok: z.boolean(),
+    path: z.string(),
+    deleted: z.boolean(),
+  }),
+  summarizeArgsForAuthorization: async (args) =>
+    JSON.stringify({ file: (args as any)?.file, missingOk: (args as any)?.missingOk }),
+};
+
+export async function executeFsDeleteFile(
+  input: z.infer<typeof fsDeleteFileSpec.inputSchema>,
+  ctx: ToolRuntimeCtx,
+) {
+  if (ctx.dryRun) {
+    return { ok: true, path: input.file, deleted: false };
+  }
+
+  const { absolutePath } = resolveRepoRelativePath(ctx.repoRoot, input.file);
+
+  let exists = true;
+  try {
+    await stat(absolutePath);
+  } catch (e: unknown) {
+    const code = e && typeof e === 'object' && 'code' in e ? (e as any).code : undefined;
+    if (code === 'ENOENT') exists = false;
+    else throw e;
+  }
+
+  if (!exists) {
+    if (input.missingOk) {
+      return { ok: true, path: input.file, deleted: false };
+    }
+    throw new Error(text.errors.pathNotFound(input.file));
+  }
+
+  const writer = new AtomicFileWriter();
+  await writer.deleteAtomic(absolutePath);
+
+  return { ok: true, path: input.file, deleted: true };
 }
 
 /**

@@ -1,6 +1,7 @@
 import { text } from '../../../locales/index.js';
 import { normalizeDiff, validateDiff } from '../../patch/diff.js';
 import { ArtifactStore } from '../../sub-agent/artifacts/store.js';
+import { normalizeRepoRelativePath } from '../../utils/path.js';
 import type { ToolRuntimeCtx } from '../types.js';
 
 export type PermissionRuleAliasTool =
@@ -94,7 +95,7 @@ const ALIAS_TOOL_TO_INTERNAL_TOOL_NAMES: Record<PermissionRuleAliasTool, string[
   Bash: ['shell.exec', 'test.run'],
   Read: ['fs.read', 'code.read', 'git.cat', 'artifact.read'],
   Edit: ['proposal.apply'],
-  LS: ['fs.list', 'git.status'],
+  LS: ['fs.list', 'fs.list_directory', 'fs.list_files', 'git.status'],
   Grep: ['code.search'],
   Glob: ['code.search'],
   WebFetch: [],
@@ -297,15 +298,6 @@ export interface PathMatcher {
   matches: (repoRelativePath: string) => boolean;
 }
 
-function normalizeRepoRelativePath(input: string): string {
-  const raw = String(input ?? '')
-    .replace(/\\/g, '/')
-    .trim();
-  const withoutDot = raw.replace(/^\.\//, '');
-  const withoutLeadingSlash = withoutDot.replace(/^\/+/, '');
-  return withoutLeadingSlash.replace(/\/{2,}/g, '/');
-}
-
 function compilePathMatcher(specifier?: string): PathMatcher {
   const spec = normalizeRepoRelativePath(String(specifier ?? '').trim());
   if (!spec || spec === '*') {
@@ -372,6 +364,8 @@ function compileRule(
     tool === 'code.read' ||
     tool === 'git.cat' ||
     tool === 'fs.list' ||
+    tool === 'fs.list_directory' ||
+    tool === 'fs.list_files' ||
     tool === 'artifact.read' ||
     asAlias === 'Read' ||
     asAlias === 'LS';
@@ -478,7 +472,8 @@ function extractPrimaryPathArg(toolName: string, args: unknown): string | undefi
   if (toolName === 'fs.read' || toolName === 'code.read')
     return typeof obj.file === 'string' ? obj.file : undefined;
   if (toolName === 'git.cat') return typeof obj.file === 'string' ? obj.file : undefined;
-  if (toolName === 'fs.list') return typeof obj.path === 'string' ? obj.path : undefined;
+  if (toolName === 'fs.list' || toolName === 'fs.list_directory' || toolName === 'fs.list_files')
+    return typeof obj.path === 'string' ? obj.path : undefined;
 
   return undefined;
 }

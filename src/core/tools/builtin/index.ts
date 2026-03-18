@@ -8,10 +8,20 @@ import { codeSearchExecutor } from './code-search/executor.js';
 import { CodeSearchSpec } from './code-search/spec.js';
 import {
   codeReadSpec,
+  executeFsCreateDirectory,
   executeFsList,
+  executeFsListDirectory,
+  executeFsListFiles,
   executeFsReadFile,
+  executeFsDeleteFile,
+  executeFsWriteFile,
+  fsCreateDirectorySpec,
+  fsDeleteFileSpec,
   fsListSpec,
+  fsListDirectorySpec,
+  fsListFilesSpec,
   fsReadFileSpec,
+  fsWriteFileSpec,
 } from './fs.js';
 import { gitCatSpec, executeGitCat, gitStatusSpec, executeGitStatus } from './git.js';
 import { askUserSpec } from './interaction.js';
@@ -76,6 +86,16 @@ export function registerAllBuiltins(registry: ToolRegistry): void {
   });
 
   registry.register({
+    ...fsListDirectorySpec,
+    executor: executeFsListDirectory as any,
+  });
+
+  registry.register({
+    ...fsListFilesSpec,
+    executor: executeFsListFiles as any,
+  });
+
+  registry.register({
     ...astGrepSpec,
     executor: executeAstGrep as any,
   });
@@ -88,6 +108,21 @@ export function registerAllBuiltins(registry: ToolRegistry): void {
   registry.register({
     ...shellExecSpec,
     executor: executeShellExec as any,
+  });
+
+  registry.register({
+    ...fsWriteFileSpec,
+    executor: executeFsWriteFile as any,
+  });
+
+  registry.register({
+    ...fsCreateDirectorySpec,
+    executor: executeFsCreateDirectory as any,
+  });
+
+  registry.register({
+    ...fsDeleteFileSpec,
+    executor: executeFsDeleteFile as any,
   });
 
   registry.register(planInitSpec);

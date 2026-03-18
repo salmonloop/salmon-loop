@@ -98,6 +98,8 @@ export const en = {
     allowlistPathBlocked: 'Allowlist blocked the requested path.',
     // File system security errors
     pathOutsideRepo: 'Access denied: Path is outside of repository root.',
+    reservedPathPrefix: (prefix: string) => `Access denied: Reserved path prefix: ${prefix}`,
+    pathNotFound: (p: string) => `Path not found: ${p}`,
     // Worktree errors
     worktreePathMustBeUnderParityRoot: 'Worktree path must be under parity worktree root',
     worktreePathMustBeInTempDir: 'Worktree path must be in system temp directory',
@@ -671,7 +673,14 @@ Please return the patch in PURE unified diff format:`;
     codeSearchDescription: 'Fast file pattern matching tool that works with any codebase size',
     fsReadDescription: 'Read the full content of a file from the repository',
     codeReadDescription: 'Read the full content of a source file from the repository',
-    fsListDescription: 'List files and directories under a repository path',
+    fsListDescription:
+      'List directory entries under a repository path (legacy name). Prefer fs.list_directory for clarity.',
+    fsListDirectoryDescription:
+      'List directory entries (files and subdirectories) under a repository path',
+    fsListFilesDescription: 'List files (excluding subdirectories) under a repository path',
+    fsWriteFileDescription: 'Write a UTF-8 text file atomically (slash-only)',
+    fsCreateDirectoryDescription: 'Create a directory under the repository root (slash-only)',
+    fsDeleteFileDescription: 'Delete a file under the repository root (slash-only)',
     gitStatusDescription: 'Show the working tree status',
     gitCatDescription: 'Read file content from a specific git revision',
     codeAstDescription: 'Query AST definitions and references for symbols',

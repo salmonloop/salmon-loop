@@ -113,7 +113,7 @@ Usage:
 Examples:
 
 - `/auth add repo fs.read context`
-- `/auth add user fs.write apply effects=fs_write`
+- `/auth add user fs.write_file slash effects=fs_write`
 - `/auth remove repo fs.read context`
 - `/auth list repo`
 - `/auth hash {"path":"README.md"}`
