@@ -55,7 +55,7 @@ describe('prompt runtime', () => {
       outputSchema: z.object({ entries: z.array(z.string()) }),
     });
 
-    const output = await getExploreSystemPrompt(registry, {
+    const output = await getExploreSystemPrompt({
       plan: { sessionId: 'sess', planPathHint: 'plan.md' },
     });
 

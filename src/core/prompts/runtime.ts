@@ -32,7 +32,6 @@ export async function getExplorePrompt(
 }
 
 export async function getExploreSystemPrompt(
-  _toolRegistry?: ToolRegistry,
   runtime?: PromptRuntime,
 ): Promise<string> {
   const promptRegistry = getPromptRegistry();
