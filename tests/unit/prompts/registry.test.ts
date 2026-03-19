@@ -37,8 +37,9 @@ describe('PromptRegistry', () => {
 
     // From templates/system/main_system.hbs and plan_system.hbs
     expect(out).toContain('You are SalmonLoop.');
-    expect(out).toContain('Use tool calls to inspect the repository.');
-    expect(out).toContain('**DO NOT GUESS file contents.**');
+    expect(out).toContain('Primary text is authoritative.');
+    expect(out).toContain('Do not guess missing file contents.');
+    expect(out).toContain('You are the PLAN phase planner.');
   });
 
   it('should render patch system template with main system and correct phase instruction', async () => {
@@ -46,8 +47,7 @@ describe('PromptRegistry', () => {
     await registry.init();
     const out = registry.renderPatchSystem();
 
-    expect(out).toContain('You are SalmonLoop.');
-    expect(out).toContain('Output only a valid unified diff when patching.');
+    expect(out).toContain('You are PATCH, a phase-native diff compiler.');
   });
 
   it('should render explore system template as a standalone phase prompt', async () => {
@@ -174,6 +174,45 @@ describe('PromptRegistry', () => {
       expect(output).toContain('fs_read');
     });
 
+    it('should render plan system prompt from explicitly provided tools', async () => {
+      const registry = newRegistry();
+      await registry.init();
+
+      const hiddenTool: ToolSpec = {
+        name: 'tool.hidden',
+        source: 'builtin',
+        intent: 'READ',
+        description: 'Hidden tool',
+        riskLevel: 'low',
+        sideEffects: ['fs_read'],
+        concurrency: 'parallel_ok',
+        allowedPhases: ['PLAN'],
+        inputSchema: z.object({}),
+        outputSchema: z.object({}),
+        executor: async () => ({}),
+      };
+
+      const visibleTool: ToolSpec = {
+        name: 'tool.visible',
+        source: 'builtin',
+        intent: 'READ',
+        description: 'Visible tool',
+        riskLevel: 'low',
+        sideEffects: ['fs_read'],
+        concurrency: 'parallel_ok',
+        allowedPhases: ['PLAN'],
+        inputSchema: z.object({}),
+        outputSchema: z.object({}),
+        executor: async () => ({}),
+      };
+
+      registry.setTools([hiddenTool]);
+      const output = registry.renderPlanSystemWithTools([visibleTool]);
+
+      expect(output).toContain('tool.visible');
+      expect(output).not.toContain('tool.hidden');
+    });
+
     it('should inject tool definitions into patch system prompt', async () => {
       const registry = newRegistry();
       await registry.init();
@@ -197,6 +236,45 @@ describe('PromptRegistry', () => {
 
       expect(output).toContain('code.read');
       expect(output).toContain('Read source code files');
+    });
+
+    it('should render patch system prompt from explicitly provided tools', async () => {
+      const registry = newRegistry();
+      await registry.init();
+
+      const hiddenTool: ToolSpec = {
+        name: 'patch.hidden',
+        source: 'builtin',
+        intent: 'READ',
+        description: 'Hidden patch tool',
+        riskLevel: 'low',
+        sideEffects: ['fs_read'],
+        concurrency: 'parallel_ok',
+        allowedPhases: ['PATCH'],
+        inputSchema: z.object({}),
+        outputSchema: z.object({}),
+        executor: async () => ({}),
+      };
+
+      const visibleTool: ToolSpec = {
+        name: 'patch.visible',
+        source: 'builtin',
+        intent: 'READ',
+        description: 'Visible patch tool',
+        riskLevel: 'low',
+        sideEffects: ['fs_read'],
+        concurrency: 'parallel_ok',
+        allowedPhases: ['PATCH'],
+        inputSchema: z.object({}),
+        outputSchema: z.object({}),
+        executor: async () => ({}),
+      };
+
+      registry.setTools([hiddenTool]);
+      const output = registry.renderPatchSystemWithTools([visibleTool]);
+
+      expect(output).toContain('patch.visible');
+      expect(output).not.toContain('patch.hidden');
     });
 
     it('should render multiple tools correctly', async () => {

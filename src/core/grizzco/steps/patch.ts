@@ -6,6 +6,7 @@ import { wrapPatchEmpty, wrapPatchInvalid, wrapPatchNotUnifiedDiff } from '../..
 import { composeChatMessages } from '../../llm/message-composition.js';
 import { emitLlmOutput } from '../../llm/output-policy.js';
 import { extractUnifiedDiffFromLLMContent, formatContextForPrompt } from '../../llm/utils.js';
+import { recordAuditEvent } from '../../observability/audit-trail.js';
 import { normalizeDiff, validateDiff, type DiffMeta } from '../../patch/diff.js';
 import { getPatchPrompt, getPatchSystemPrompt } from '../../prompts/runtime.js';
 import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
@@ -27,6 +28,47 @@ async function checkPatchApplies(args: { repoRoot: string; diff: string }) {
   );
 }
 
+const isCanonicalDiffHeader = (diffText: string): boolean =>
+  diffText.trimStart().startsWith('diff --git ');
+
+const assertCanonicalDiffHeader = (diffText: string) => {
+  if (!diffText.trim()) {
+    throw wrapPatchEmpty();
+  }
+  if (!isCanonicalDiffHeader(diffText)) {
+    throw wrapPatchNotUnifiedDiff();
+  }
+};
+
+const recordPatchSalvageAttempt = (args: { reason: string; badContentLength: number }) => {
+  recordAuditEvent(
+    'patch.salvage.attempt',
+    {
+      reason: args.reason,
+      badContentLength: args.badContentLength,
+      toolsDisabled: true,
+    },
+    { source: 'patch', severity: 'low', scope: 'session', phase: 'PATCH' },
+  );
+};
+
+const recordPatchSalvageResult = (args: { ok: boolean; contentLength: number; error?: string }) => {
+  recordAuditEvent(
+    'patch.salvage.result',
+    {
+      ok: args.ok,
+      contentLength: args.contentLength,
+      error: args.error,
+    },
+    {
+      source: 'patch',
+      severity: args.ok ? 'low' : 'medium',
+      scope: 'session',
+      phase: 'PATCH',
+    },
+  );
+};
+
 export const generatePatch: Step<PlanCtx, PatchCtx> = async (ctx) => {
   const toolstack = ctx.toolstack;
   const toolPolicy = resolveLlmToolCallingPolicy(Phase.PATCH, ctx.options.llm);
@@ -46,6 +88,7 @@ export const generatePatch: Step<PlanCtx, PatchCtx> = async (ctx) => {
       step: 'PATCH',
       content: patch,
     });
+    assertCanonicalDiffHeader(patch);
     const normalizedPatch = normalizeDiff(patch);
     let diffMeta: DiffMeta;
     try {
@@ -83,7 +126,17 @@ export const generatePatch: Step<PlanCtx, PatchCtx> = async (ctx) => {
     ctx.lastError,
   );
 
-  const systemPrompt = await getPatchSystemPrompt(toolstack?.registry, { plan: ctx.planRuntime });
+  const promptVisibleTools = toolstack
+    ? toolstack.registry.listAll().filter(
+        (spec) =>
+          toolstack.policy.decide(Phase.PATCH, spec, {
+            worktreeRoot:
+              ctx.workspace.strategy === 'worktree' ? ctx.workspace.workPath : undefined,
+          }).allowed,
+      )
+    : undefined;
+
+  const systemPrompt = await getPatchSystemPrompt(promptVisibleTools, { plan: ctx.planRuntime });
   const baseMessages = composeChatMessages({
     system: systemPrompt,
     user: prompt,
@@ -139,6 +192,7 @@ export const generatePatch: Step<PlanCtx, PatchCtx> = async (ctx) => {
   let diffMeta: DiffMeta;
 
   const validateWithLlmErrors = (diffText: string): DiffMeta => {
+    assertCanonicalDiffHeader(diffText);
     const normalized = normalizeDiff(diffText);
     try {
       return validateDiff(normalized);
@@ -162,27 +216,36 @@ export const generatePatch: Step<PlanCtx, PatchCtx> = async (ctx) => {
     if (
       asLlmError instanceof Error &&
       'llmCode' in (asLlmError as any) &&
-      (asLlmError as any).llmCode &&
-      ['LLM_PATCH_EMPTY', 'LLM_PATCH_NOT_UNIFIED_DIFF'].includes((asLlmError as any).llmCode)
+      ['LLM_PATCH_NOT_UNIFIED_DIFF', 'LLM_PATCH_EMPTY'].includes((asLlmError as any).llmCode)
     ) {
-      let repaired: { content?: string };
-      try {
-        repaired = await repairToUnifiedDiff({
-          llm: ctx.options.llm,
-          baseMessages,
-          chatOptions: { signal: ctx.options.signal },
-          badContent: rawContent,
-          reason: asLlmError.message,
-        });
-      } catch {
-        throw asLlmError;
-      }
+      recordPatchSalvageAttempt({
+        reason: asLlmError.message,
+        badContentLength: rawContent.length,
+      });
+      const repaired = await repairToUnifiedDiff({
+        badContent: rawContent,
+      });
 
       rawContent = repaired.content || '';
 
-      patch = extractUnifiedDiffFromLLMContent(rawContent);
-      normalizedPatch = normalizeDiff(patch);
-      diffMeta = validateWithLlmErrors(patch);
+      try {
+        patch = extractUnifiedDiffFromLLMContent(rawContent);
+        normalizedPatch = normalizeDiff(patch);
+        diffMeta = validateWithLlmErrors(patch);
+      } catch (salvageError) {
+        const msg = salvageError instanceof Error ? salvageError.message : String(salvageError);
+        recordPatchSalvageResult({
+          ok: false,
+          contentLength: rawContent.length,
+          error: msg.slice(0, 400),
+        });
+        throw asLlmError;
+      }
+
+      recordPatchSalvageResult({
+        ok: true,
+        contentLength: rawContent.length,
+      });
 
       emitLlmOutput({
         emit: ctx.emit,
@@ -203,37 +266,7 @@ export const generatePatch: Step<PlanCtx, PatchCtx> = async (ctx) => {
     diff: normalizedPatch,
   });
   if (!applyCheck.ok) {
-    const details = (applyCheck.stderr || '').trim();
-    try {
-      const repaired = await repairToUnifiedDiff({
-        llm: ctx.options.llm,
-        baseMessages,
-        chatOptions: { signal: ctx.options.signal },
-        badContent: patch,
-        reason: `Patch does not apply cleanly: ${details.slice(0, 1200)}`,
-      });
-
-      rawContent = repaired.content || '';
-      patch = extractUnifiedDiffFromLLMContent(rawContent);
-      normalizedPatch = normalizeDiff(patch);
-      diffMeta = validateWithLlmErrors(patch);
-
-      const applyCheck2 = await checkPatchApplies({
-        repoRoot: ctx.workspace.workPath,
-        diff: normalizedPatch,
-      });
-      if (applyCheck2.ok) {
-        emitLlmOutput({
-          emit: ctx.emit,
-          policy: ctx.options.llmOutput,
-          kind: 'patch',
-          step: 'PATCH',
-          content: patch,
-        });
-      }
-    } catch {
-      // Preserve the original patch and let VALIDATE provide the canonical failure if needed.
-    }
+    // Preserve the original patch and let VALIDATE provide the canonical failure if needed.
   }
 
   ctx.emit({

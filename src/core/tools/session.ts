@@ -684,6 +684,59 @@ function isObjectRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (!isObjectRecord(value)) return false;
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+}
+
+function describeValueType(value: unknown): string {
+  if (value === null) return 'null';
+  if (Array.isArray(value)) return 'array';
+  return typeof value;
+}
+
+function formatPlanUpdatePatchTypeError(actualType: string): string {
+  return (
+    `Invalid field: patch (received ${actualType}). ` +
+    'Expected object with optional keys: status, checkbox, appendSubtasks, note. ' +
+    'Do not JSON-stringify patch.'
+  );
+}
+
+function coercePlanUpdatePatch(args: Record<string, unknown>): {
+  args: Record<string, unknown>;
+  coercedPatchSource?: string;
+  error?: string;
+} {
+  if (!Object.prototype.hasOwnProperty.call(args, 'patch')) return { args };
+
+  const patch = (args as { patch?: unknown }).patch;
+  if (isPlainObject(patch)) return { args };
+
+  if (typeof patch === 'string') {
+    const trimmed = patch.trim();
+    const looksLikeObjectLiteral = trimmed.startsWith('{') && trimmed.endsWith('}');
+    if (!looksLikeObjectLiteral) {
+      return { args, error: formatPlanUpdatePatchTypeError('string') };
+    }
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (!isPlainObject(parsed)) {
+        return { args, error: formatPlanUpdatePatchTypeError(describeValueType(parsed)) };
+      }
+      return {
+        args: { ...args, patch: parsed },
+        coercedPatchSource: 'stringified',
+      };
+    } catch {
+      return { args, error: formatPlanUpdatePatchTypeError('string') };
+    }
+  }
+
+  return { args, error: formatPlanUpdatePatchTypeError(describeValueType(patch)) };
+}
+
 function unwrapRetryError(err: unknown): unknown {
   if (!err || typeof err !== 'object') return err;
   const candidate = err as Record<string, unknown>;
@@ -963,6 +1016,7 @@ async function executeToolCalls(
   const toolArgsPreviewByCallId = new Map<string, string>();
   const rawArgsPreviewByCallId = new Map<string, string | undefined>();
   const rawArgsTypeByCallId = new Map<string, string>();
+  const patchCoercionByCallId = new Map<string, string>();
 
   let allowedUsed = 0;
   for (const item of prepared) {
@@ -1005,6 +1059,18 @@ async function executeToolCalls(
       const inferred = inferHighConfidenceFiles(instruction);
       if (inferred.length > 0) {
         argsValue = { ...(argsValue as any), file: inferred[0] };
+      }
+    }
+
+    let planUpdatePatchError: string | undefined;
+    if (parsedArgsOk && normalizedToolName === 'plan.update' && isObjectRecord(argsValue)) {
+      const patchGuard = coercePlanUpdatePatch(argsValue);
+      argsValue = patchGuard.args;
+      if (patchGuard.coercedPatchSource) {
+        patchCoercionByCallId.set(callId, patchGuard.coercedPatchSource);
+      }
+      if (patchGuard.error) {
+        planUpdatePatchError = patchGuard.error;
       }
     }
 
@@ -1131,7 +1197,7 @@ async function executeToolCalls(
       continue;
     }
 
-    session.toolCallingAudit?.event({
+    const parsedAuditEntry: any = {
       timestamp: new Date().toISOString(),
       phase,
       round,
@@ -1142,7 +1208,29 @@ async function executeToolCalls(
       rawArgsPreview: typeof rawArgs === 'string' ? redactJsonString(rawArgs) : undefined,
       parsedArgsOk: true,
       parsedArgsPreview: safeStringifyForAudit(argsValue),
-    });
+    };
+    const patchCoercionSource = patchCoercionByCallId.get(callId);
+    if (patchCoercionSource) {
+      parsedAuditEntry.coercedPatchSource = patchCoercionSource;
+    }
+    session.toolCallingAudit?.event(parsedAuditEntry);
+
+    if (planUpdatePatchError) {
+      toolResults.set(callId, {
+        id: callId,
+        toolName,
+        source: 'builtin',
+        status: 'error',
+        error: {
+          code: 'INVALID_INPUT',
+          message: planUpdatePatchError,
+          retryable: false,
+          failurePhase: phase,
+        },
+        durationMs: 0,
+      });
+      continue;
+    }
 
     nodes.push({ id: callId, toolName, args: argsValue, deps: [] });
   }
@@ -1232,7 +1320,7 @@ async function executeToolCalls(
     if (result.status !== 'ok') {
       const errorCode = result.error?.code;
       const attachArgsPreview = errorCode === 'INVALID_INPUT';
-      session.toolCallingAudit?.event({
+      const errorAuditEntry: any = {
         timestamp: new Date().toISOString(),
         phase,
         round,
@@ -1248,7 +1336,12 @@ async function executeToolCalls(
             : undefined,
         rawArgsPreview: attachArgsPreview ? rawArgsPreviewByCallId.get(callId) : undefined,
         parsedArgsPreview: attachArgsPreview ? toolArgsPreviewByCallId.get(callId) : undefined,
-      });
+      };
+      const patchCoercionSource = patchCoercionByCallId.get(callId);
+      if (patchCoercionSource) {
+        errorAuditEntry.coercedPatchSource = patchCoercionSource;
+      }
+      session.toolCallingAudit?.event(errorAuditEntry);
     }
 
     messages.push({

@@ -20,6 +20,21 @@ const stepIdSchema = z
   .regex(/^[a-zA-Z0-9_.:-]+$/)
   .describe('Stable step ID (from <!-- sl:id=... -->).');
 
+const planUpdatePatchSchema = z
+  .object({
+    status: z.enum(['todo', 'active', 'done', 'failed', 'skipped', 'conflict']).optional(),
+    checkbox: z.enum(['checked', 'unchecked']).optional(),
+    appendSubtasks: z.array(z.string().min(1)).optional(),
+    note: z.string().optional(),
+  })
+  .describe(
+    'Patch object for plan.update. Provide a JSON object (not a JSON string). Optional keys: status, checkbox, appendSubtasks, note.',
+  );
+
+const planUpdateConflictCodeSchema = z
+  .enum(['BASE_HASH_MISMATCH', 'STEP_NOT_FOUND', 'MALFORMED_METADATA', 'WRITE_DENIED'])
+  .describe('Conflict code returned when ok=false.');
+
 function planResource(ctx: ToolRuntimeCtx, sessionId?: string): ResourceKey[] {
   const repoId = ctx.persistenceRoot ?? ctx.repoRoot;
   if (!sessionId) return [{ kind: 'repo', id: repoId }];
@@ -135,12 +150,7 @@ export const planUpdateSpec: ToolSpec<
     sessionId: sessionIdSchema,
     baseHash: z.string().min(8),
     stepId: stepIdSchema,
-    patch: z.object({
-      status: z.enum(['todo', 'active', 'done', 'failed', 'skipped', 'conflict']).optional(),
-      checkbox: z.enum(['checked', 'unchecked']).optional(),
-      appendSubtasks: z.array(z.string().min(1)).optional(),
-      note: z.string().optional(),
-    }),
+    patch: planUpdatePatchSchema,
   }),
   outputSchema: z.union([
     z.object({
@@ -154,12 +164,7 @@ export const planUpdateSpec: ToolSpec<
       sessionId: z.string(),
       baseHash: z.string(),
       conflict: z.object({
-        code: z.enum([
-          'BASE_HASH_MISMATCH',
-          'STEP_NOT_FOUND',
-          'MALFORMED_METADATA',
-          'WRITE_DENIED',
-        ]),
+        code: planUpdateConflictCodeSchema,
         message: z.string(),
       }),
     }),

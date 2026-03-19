@@ -74,6 +74,30 @@ async function hydrateRuntimePlanTodos(ctx: ContextCtx, plan: Plan): Promise<voi
   });
 }
 
+export function hasSuccessfulPlanUpdateDuringPlan(
+  ctx: Pick<ContextCtx, 'toolCallingAudit'>,
+): boolean {
+  const auditEntries = ctx.toolCallingAudit;
+  if (!Array.isArray(auditEntries) || auditEntries.length === 0) return false;
+
+  const failedCallIds = new Set<string>();
+  for (const entry of auditEntries) {
+    if (entry.phase !== Phase.PLAN || entry.toolName !== 'plan.update') continue;
+    if (typeof entry.toolResultStatus === 'string' && entry.toolResultStatus !== 'ok') {
+      failedCallIds.add(entry.callId);
+    }
+  }
+
+  for (const entry of auditEntries) {
+    if (entry.phase !== Phase.PLAN || entry.toolName !== 'plan.update') continue;
+    if (failedCallIds.has(entry.callId)) continue;
+    if (entry.toolResultStatus === 'ok') return true;
+    if (entry.parsedArgsOk) return true;
+  }
+
+  return false;
+}
+
 export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
   const toolstack = ctx.toolstack;
   const toolPolicy = resolveLlmToolCallingPolicy(Phase.PLAN, ctx.options.llm);
@@ -102,10 +126,12 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
       timestamp: new Date(),
     });
 
-    // Best-effort: keep runtime plan actionable even if the LLM doesn't call plan.* tools.
-    await hydrateRuntimePlanTodos(ctx, plan).catch((error) =>
-      logIgnoredError('[Plan] hydrate runtime plan todos (legacy)', error),
-    );
+    if (ctx.planRuntime?.sessionId) {
+      // Transitional fallback: legacy/non-tool PLAN runs may hydrate runtime subtasks from final JSON.
+      await hydrateRuntimePlanTodos(ctx, plan).catch((error) =>
+        logIgnoredError('[Plan] hydrate runtime plan todos (legacy)', error),
+      );
+    }
 
     return {
       ...ctx,
@@ -120,7 +146,17 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
     ctx.lastError,
   );
 
-  const systemPrompt = await getPlanSystemPrompt(toolstack?.registry, { plan: ctx.planRuntime });
+  const promptVisibleTools = toolstack
+    ? toolstack.registry.listAll().filter(
+        (spec) =>
+          toolstack.policy.decide(Phase.PLAN, spec, {
+            worktreeRoot:
+              ctx.workspace.strategy === 'worktree' ? ctx.workspace.workPath : undefined,
+          }).allowed,
+      )
+    : undefined;
+
+  const systemPrompt = await getPlanSystemPrompt(promptVisibleTools, { plan: ctx.planRuntime });
   const baseMessages = composeChatMessages({
     system: systemPrompt,
     user: prompt,
@@ -219,10 +255,13 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
     timestamp: new Date(),
   });
 
-  // Best-effort: keep runtime plan actionable even if the LLM doesn't call plan.* tools.
-  await hydrateRuntimePlanTodos(ctx, plan).catch((error) =>
-    logIgnoredError('[Plan] hydrate runtime plan todos (tools)', error),
-  );
+  const hasModelPlanUpdate = hasSuccessfulPlanUpdateDuringPlan(ctx);
+  if (ctx.planRuntime?.sessionId && !hasModelPlanUpdate) {
+    // Transitional fallback: only hydrate when PLAN did not successfully persist via plan.update.
+    await hydrateRuntimePlanTodos(ctx, plan).catch((error) =>
+      logIgnoredError('[Plan] hydrate runtime plan todos (tools)', error),
+    );
+  }
 
   return {
     ...ctx,

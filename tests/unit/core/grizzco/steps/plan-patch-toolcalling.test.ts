@@ -1,11 +1,24 @@
+import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
+
 import { generatePatch } from '../../../../../src/core/grizzco/steps/patch.js';
 import { generatePlan } from '../../../../../src/core/grizzco/steps/plan.js';
+import {
+  clearPromptRegistry,
+  createPromptRegistry,
+  setPromptRegistry,
+} from '../../../../../src/core/prompts/registry.js';
+import { planUpdateSpec } from '../../../../../src/core/tools/builtin/plan.js';
 import type { LLM } from '../../../../../src/core/types/index.js';
 import { RealFsTestHelper } from '../../../../helpers/real-fs-helper.js';
 
 const helper = new RealFsTestHelper();
 
+beforeEach(() => {
+  setPromptRegistry(createPromptRegistry());
+});
+
 afterEach(async () => {
+  clearPromptRegistry();
   await helper.cleanup();
 });
 
@@ -21,6 +34,21 @@ function createEmptyToolstack(): any {
       call: async () => {
         throw new Error('Tool router should not be called when no tools are registered');
       },
+    },
+  };
+}
+
+function createPlanUpdateToolstack(routerCall: (envelope: any) => Promise<any>): any {
+  return {
+    registry: {
+      listAll: () => [planUpdateSpec],
+    },
+    policy: {
+      decide: () => ({ allowed: true }),
+    },
+    router: {
+      call: routerCall,
+      getSpec: () => planUpdateSpec,
     },
   };
 }
@@ -57,6 +85,149 @@ describe('Grizzco steps: PLAN/PATCH tool calling path', () => {
     const out = await generatePlan(ctx);
     expect(out.plan.goal).toBe('test-goal');
     expect(createPlan).not.toHaveBeenCalled();
+  });
+
+  it('PLAN coerces stringified plan.update patch objects and audits the coercion', async () => {
+    let receivedArgs: any;
+    const routerCall = mock(async (envelope: any) => {
+      receivedArgs = envelope.args;
+      return {
+        id: envelope.id,
+        toolName: envelope.toolName,
+        source: 'builtin',
+        status: 'ok',
+        output: {
+          ok: true,
+          sessionId: envelope.args.sessionId,
+          baseHash: envelope.args.baseHash,
+          updatedStepId: envelope.args.stepId,
+        },
+        summary: 'ok',
+        outputSummary: 'ok',
+        durationMs: 1,
+      };
+    });
+
+    const llm: LLM = {
+      getCapabilities: () => ({ toolCalling: true }),
+      createPlan: mock(async () => {
+        throw new Error('createPlan should not be called when tool calling is enabled');
+      }),
+      createPatch: mock(async () => ''),
+      chat: mock()
+        .mockResolvedValueOnce({
+          role: 'assistant' as const,
+          content: '',
+          tool_calls: [
+            {
+              id: 'call-1',
+              type: 'function',
+              function: {
+                name: 'plan.update',
+                arguments: JSON.stringify({
+                  sessionId: 'sess_123',
+                  baseHash: 'deadbeef00',
+                  stepId: 'work_root',
+                  patch: '{"status":"active","note":"Track regression"}',
+                }),
+              },
+            },
+          ],
+        })
+        .mockResolvedValueOnce({
+          role: 'assistant' as const,
+          content: JSON.stringify({
+            goal: 'test-goal',
+            files: ['src/index.js'],
+            changes: ['Add a comment'],
+            verify: 'bun -e "process.exit(0)"',
+          }),
+        }),
+    };
+
+    const ctx: any = {
+      workspace: { workPath: 'C:\\repo', strategy: 'worktree' },
+      options: { llm, instruction: 'test', dryRun: true },
+      context: { primaryFile: 'src/index.js', primaryText: 'const x = 1;' },
+      emit: () => {},
+      toolstack: createPlanUpdateToolstack(routerCall),
+    };
+
+    await generatePlan(ctx);
+
+    expect(routerCall).toHaveBeenCalledTimes(1);
+    expect(receivedArgs.patch).toEqual({ status: 'active', note: 'Track regression' });
+    const auditEntries = ctx.toolCallingAudit as any[] | undefined;
+    expect(
+      auditEntries?.some(
+        (entry) => entry.toolName === 'plan.update' && entry.coercedPatchSource === 'stringified',
+      ),
+    ).toBe(true);
+  });
+
+  it('PLAN returns INVALID_INPUT with patch-specific guidance for non-object patch strings', async () => {
+    const routerCall = mock(async () => {
+      throw new Error('router should not be called for invalid patch input');
+    });
+    const capturedMessages: any[][] = [];
+
+    const llm: LLM = {
+      getCapabilities: () => ({ toolCalling: true }),
+      createPlan: mock(async () => {
+        throw new Error('createPlan should not be called when tool calling is enabled');
+      }),
+      createPatch: mock(async () => ''),
+      chat: mock(async (messages: any) => {
+        capturedMessages.push(messages);
+        if (capturedMessages.length === 1) {
+          return {
+            role: 'assistant' as const,
+            content: '',
+            tool_calls: [
+              {
+                id: 'call-2',
+                type: 'function',
+                function: {
+                  name: 'plan.update',
+                  arguments: JSON.stringify({
+                    sessionId: 'sess_456',
+                    baseHash: 'beadfeed11',
+                    stepId: 'work_root',
+                    patch: '["not", "an", "object"]',
+                  }),
+                },
+              },
+            ],
+          };
+        }
+        return {
+          role: 'assistant' as const,
+          content: JSON.stringify({
+            goal: 'test-goal',
+            files: ['src/index.js'],
+            changes: ['Add a comment'],
+            verify: 'bun -e "process.exit(0)"',
+          }),
+        };
+      }),
+    };
+
+    const ctx: any = {
+      workspace: { workPath: 'C:\\repo', strategy: 'worktree' },
+      options: { llm, instruction: 'test', dryRun: true },
+      context: { primaryFile: 'src/index.js', primaryText: 'const x = 1;' },
+      emit: () => {},
+      toolstack: createPlanUpdateToolstack(routerCall),
+    };
+
+    await generatePlan(ctx);
+
+    expect(routerCall).not.toHaveBeenCalled();
+    const toolMessage = capturedMessages[1]?.find((m: any) => m.role === 'tool');
+    const payload = JSON.parse(toolMessage.content);
+    expect(payload.error.code).toBe('INVALID_INPUT');
+    expect(payload.error.message).toContain('Invalid field: patch');
+    expect(payload.error.message).toContain('Expected object');
   });
 
   it('PLAN injects conversationContext into message-based prompts when provided', async () => {
@@ -189,7 +360,7 @@ describe('Grizzco steps: PLAN/PATCH tool calling path', () => {
     expect(createPatch).not.toHaveBeenCalled();
   });
 
-  it('PATCH repairs empty/non-diff responses with a second pass (contract enforcement)', async () => {
+  it('PATCH fails closed on empty responses and does not attempt a repair pass', async () => {
     const createPatch = mock(async () => {
       throw new Error('createPatch should not be called when tool calling is enabled');
     });
@@ -207,19 +378,7 @@ describe('Grizzco steps: PLAN/PATCH tool calling path', () => {
         verify: 'bun -e "process.exit(0)"',
       })),
       createPatch,
-      chat: mock()
-        .mockResolvedValueOnce({ role: 'assistant' as const, content: '' })
-        .mockResolvedValueOnce({
-          role: 'assistant' as const,
-          content:
-            'diff --git a/src/index.js b/src/index.js\n' +
-            'index 1111111..2222222 100644\n' +
-            '--- a/src/index.js\n' +
-            '+++ b/src/index.js\n' +
-            '@@ -1,1 +1,2 @@\n' +
-            '+// repaired\n' +
-            ' const x = 1;\n',
-        }),
+      chat: mock().mockResolvedValueOnce({ role: 'assistant' as const, content: '' }),
     };
 
     const ctx: any = {
@@ -236,9 +395,9 @@ describe('Grizzco steps: PLAN/PATCH tool calling path', () => {
       toolstack: createEmptyToolstack(),
     };
 
-    const out = await generatePatch(ctx);
-    expect(out.diff).toContain('diff --git a/src/index.js b/src/index.js');
-    expect(out.diff).toContain('+// repaired');
+    await expect(generatePatch(ctx)).rejects.toMatchObject({
+      llmCode: 'LLM_PATCH_EMPTY',
+    });
     expect(createPatch).not.toHaveBeenCalled();
   });
 });
