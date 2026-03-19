@@ -32,14 +32,11 @@ export async function getExplorePrompt(
 }
 
 export async function getExploreSystemPrompt(
-  toolRegistry?: ToolRegistry,
+  _toolRegistry?: ToolRegistry,
   runtime?: PromptRuntime,
 ): Promise<string> {
   const promptRegistry = getPromptRegistry();
   await promptRegistry.init();
-  if (toolRegistry) {
-    promptRegistry.setTools(toolRegistry.listAll());
-  }
   return promptRegistry.renderExploreSystemWithRuntime(runtime);
 }
 

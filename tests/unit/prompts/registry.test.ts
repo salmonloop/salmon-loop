@@ -50,6 +50,18 @@ describe('PromptRegistry', () => {
     expect(out).toContain('Output only a valid unified diff when patching.');
   });
 
+  it('should render explore system template as a standalone phase prompt', async () => {
+    const registry = newRegistry();
+    await registry.init();
+    const out = registry.renderExploreSystem();
+
+    expect(out).toContain('You are in EXPLORE.');
+    expect(out).toContain('Use only these exact tool names in EXPLORE');
+    expect(out).not.toContain('You are SalmonLoop.');
+    expect(out).not.toContain('## Knowledge Retention');
+    expect(out).not.toContain('## Available Tools');
+  });
+
   it('should register json helper to stringify objects', async () => {
     const registry = newRegistry();
     await registry.init();
@@ -268,7 +280,7 @@ describe('PromptRegistry', () => {
       expect(output).toContain('Tool Usage Guidelines');
     });
 
-    it('should expose input schema properties so models can call tools with correct args', async () => {
+    it('should use fixed argument shapes instead of injected tool schema in explore system prompt', async () => {
       const registry = newRegistry();
       await registry.init();
 
@@ -291,8 +303,9 @@ describe('PromptRegistry', () => {
       registry.setTools([mockTool]);
       const output = registry.renderExploreSystem();
 
-      expect(output).toContain('"file"');
-      expect(output).toContain('Relative path to file');
+      expect(output).toContain('{"file":"path/to/file"}');
+      expect(output).not.toContain('Relative path to file');
+      expect(output).not.toContain('## Available Tools');
     });
 
     it('should unwrap preprocess schemas so models can see required tool args', async () => {
@@ -321,8 +334,53 @@ describe('PromptRegistry', () => {
       registry.setTools([mockTool]);
       const output = registry.renderExploreSystem();
 
-      expect(output).toContain('"file"');
-      expect(output).toContain('Relative path to file');
+      expect(output).toContain('fs.read');
+      expect(output).not.toContain('Relative path to file');
+    });
+
+    it('should not leak alias or legacy tool wording into explore system prompt', async () => {
+      const registry = newRegistry();
+      await registry.init();
+
+      const tools: ToolSpec[] = [
+        {
+          name: 'code.read',
+          source: 'builtin',
+          intent: 'READ',
+          description: 'Read source code files',
+          riskLevel: 'low',
+          sideEffects: ['fs_read'],
+          concurrency: 'parallel_ok',
+          allowedPhases: ['EXPLORE'],
+          inputSchema: z.object({ file: z.string() }),
+          outputSchema: z.object({ content: z.string() }),
+          executor: async () => ({ content: '' }),
+        },
+        {
+          name: 'fs.list_directory',
+          source: 'builtin',
+          intent: 'LIST',
+          description:
+            'List directory entries under a repository path (legacy name). Prefer fs.list_directory for clarity.',
+          riskLevel: 'low',
+          sideEffects: ['fs_read'],
+          concurrency: 'parallel_ok',
+          allowedPhases: ['EXPLORE'],
+          inputSchema: z.object({ path: z.string() }),
+          outputSchema: z.object({ entries: z.array(z.string()) }),
+          executor: async () => ({ entries: [] }),
+        },
+      ];
+
+      registry.setTools(tools);
+      const output = registry.renderExploreSystemWithRuntime({
+        plan: { sessionId: 'sess', planPathHint: 'plan.md' },
+      });
+
+      expect(output).not.toContain('code.read');
+      expect(output).not.toContain('fs.list_directory');
+      expect(output).not.toContain('legacy name');
+      expect(output).not.toContain('Prefer fs.list_directory');
     });
 
     describe('Tool Examples', () => {
