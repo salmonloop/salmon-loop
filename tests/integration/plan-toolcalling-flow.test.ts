@@ -37,6 +37,8 @@ describe('Plan toolcalling flow (integration)', () => {
           toolName: 'plan.update',
           callId: 'call-1',
           parsedArgsOk: true,
+          toolResultStatus: 'ok',
+          toolResultOutputOk: true,
         },
       ],
     } as any;
@@ -49,13 +51,8 @@ describe('Plan toolcalling flow (integration)', () => {
           toolName: 'plan.update',
           callId: 'call-2',
           parsedArgsOk: true,
-        },
-        {
-          phase: 'PLAN',
-          toolName: 'plan.update',
-          callId: 'call-2',
-          parsedArgsOk: true,
-          toolResultStatus: 'error',
+          toolResultStatus: 'ok',
+          toolResultOutputOk: false,
         },
       ],
     } as any;

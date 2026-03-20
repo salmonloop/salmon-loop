@@ -1,7 +1,7 @@
 import { extractUnifiedDiffFromLLMContent } from '../../src/core/llm/utils.js';
 
 describe('extractUnifiedDiffFromLLMContent', () => {
-  it('extracts the last fenced diff block even when it starts with --- a/', () => {
+  it('extracts the last fenced canonical diff block and ignores headerless diffs', () => {
     const content = [
       'First attempt:',
       '```diff',
@@ -25,8 +25,8 @@ describe('extractUnifiedDiffFromLLMContent', () => {
     ].join('\n');
 
     const extracted = extractUnifiedDiffFromLLMContent(content);
-    expect(extracted.trimStart().startsWith('--- a/b')).toBe(true);
-    expect(extracted).toContain('+++ b/b');
-    expect(extracted).toContain('+new2');
+    expect(extracted.trimStart().startsWith('diff --git a/a b/a')).toBe(true);
+    expect(extracted).toContain('+++ b/a');
+    expect(extracted).toContain('+new');
   });
 });

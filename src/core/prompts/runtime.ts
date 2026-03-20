@@ -1,40 +1,11 @@
 import type { ToolRegistry } from '../tools/registry.js';
+import { resolvePhaseVisibleTools, type ToolVisibilityRuntime } from '../tools/tool-visibility.js';
 import type { ToolSpec } from '../tools/types.js';
+import { Phase } from '../types/runtime.js';
 
 import { getPromptRegistry } from './registry.js';
 
-export type PromptRuntime = {
-  plan?: { sessionId: string; planPathHint: string };
-};
-
-const PATCH_PROMPT_VISIBLE_TOOL_NAMES = new Set(['fs.read', 'code.search']);
-
-function getPlanPromptVisibleTools(tools: ToolSpec[], runtime?: PromptRuntime): ToolSpec[] {
-  const hasRuntimePlan = Boolean(runtime?.plan);
-
-  return tools.filter((tool) => {
-    if (!tool.allowedPhases.includes('PLAN')) {
-      return false;
-    }
-
-    if (!tool.name.startsWith('plan.')) {
-      return true;
-    }
-
-    if (!hasRuntimePlan) {
-      return false;
-    }
-
-    return tool.name === 'plan.read' || tool.name === 'plan.update';
-  });
-}
-
-function getPatchPromptVisibleTools(tools: ToolSpec[]): ToolSpec[] {
-  return tools.filter(
-    (tool) =>
-      tool.allowedPhases.includes('PATCH') && PATCH_PROMPT_VISIBLE_TOOL_NAMES.has(tool.name),
-  );
-}
+export type PromptRuntime = ToolVisibilityRuntime;
 
 function resolveToolSpecs(toolRegistry?: ToolRegistry | ToolSpec[]): ToolSpec[] {
   if (!toolRegistry) return [];
@@ -115,7 +86,11 @@ export async function getPlanSystemPrompt(
   const promptRegistry = getPromptRegistry();
   await promptRegistry.init();
 
-  const promptVisibleTools = getPlanPromptVisibleTools(resolveToolSpecs(toolRegistry), runtime);
+  const promptVisibleTools = resolvePhaseVisibleTools({
+    phase: Phase.PLAN,
+    tools: resolveToolSpecs(toolRegistry),
+    runtime,
+  });
 
   return promptRegistry.renderPlanSystemWithTools(promptVisibleTools, runtime);
 }
@@ -127,7 +102,11 @@ export async function getPatchSystemPrompt(
   const promptRegistry = getPromptRegistry();
   await promptRegistry.init();
 
-  const promptVisibleTools = getPatchPromptVisibleTools(resolveToolSpecs(toolRegistry));
+  const promptVisibleTools = resolvePhaseVisibleTools({
+    phase: Phase.PATCH,
+    tools: resolveToolSpecs(toolRegistry),
+    runtime,
+  });
 
   return promptRegistry.renderPatchSystemWithTools(promptVisibleTools, runtime);
 }

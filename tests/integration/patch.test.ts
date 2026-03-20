@@ -16,6 +16,28 @@ describe('Patch Integration Tests', () => {
     expect(meta.changedFiles).toContain('file1.ts');
   });
 
+  it('accepts index lines and file additions with /dev/null', () => {
+    const diff =
+      'diff --git a/file1.ts b/file1.ts\n' +
+      'index 1111111..2222222 100644\n' +
+      '--- a/file1.ts\n' +
+      '+++ b/file1.ts\n' +
+      '@@ -1,1 +1,1 @@\n' +
+      '-old\n' +
+      '+new\n' +
+      'diff --git a/file2.ts b/file2.ts\n' +
+      'new file mode 100644\n' +
+      '--- /dev/null\n' +
+      '+++ b/file2.ts\n' +
+      '@@ -0,0 +1,1 @@\n' +
+      '+value\n';
+
+    const meta = validateDiff(diff);
+    expect(meta.fileCount).toBe(2);
+    expect(meta.changedFiles).toContain('file1.ts');
+    expect(meta.changedFiles).toContain('file2.ts');
+  });
+
   it('should throw error if diff exceeds file limit', () => {
     let largeDiff = '';
     for (let i = 0; i < LIMITS.maxFilesChanged + 1; i++) {

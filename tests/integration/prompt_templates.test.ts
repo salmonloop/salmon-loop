@@ -58,6 +58,9 @@ describe('Prompt templates', () => {
     expect(patchPrompt).toContain('src/example.ts');
     expect(patchPrompt).toContain('if (a < b) {');
     expect(patchPrompt).not.toContain('&lt;');
+    expect(patchPrompt).not.toContain('8-12 lines');
+    expect(patchPrompt).not.toContain('No file creation');
+    expect(patchPrompt).not.toContain('DO NOT include `index');
   });
 
   it('renders PLAN/PATCH system prompts with phase-filtered tool surfaces', async () => {

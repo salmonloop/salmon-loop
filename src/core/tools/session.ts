@@ -25,6 +25,7 @@ import type { ExecutionPlan, PlanNode } from './parallel/plan.js';
 import { ParallelScheduler } from './parallel/scheduler.js';
 import type { ToolRouter } from './router.js';
 import { ToolCallAccumulator } from './streaming/ToolCallAccumulator.js';
+import { resolvePhaseVisibleTools, type ToolVisibilityRuntime } from './tool-visibility.js';
 import type { ToolCallEnvelope, ToolRuntimeCtx, ToolResult, ToolSpec } from './types.js';
 
 interface ToolstackLike {
@@ -48,6 +49,7 @@ export interface ToolCallingSessionOptions {
   llm: LLM;
   runtime: ToolRuntimeCtx;
   toolstack: ToolstackLike;
+  toolVisibility?: ToolVisibilityRuntime;
   toolCallingAudit?: ToolCallingAuditSink;
   emit?: (event: LoopEvent) => void;
   eventPayload?: {
@@ -488,31 +490,82 @@ type ResolvedToolCalling = {
   openAITools: any[];
 };
 
-function resolveToolCallingForSession(
+const PLAN_RUNTIME_UNAVAILABLE_MARKER = 'No plan.* tools are available in this session.';
+const PLAN_RUNTIME_SESSION_ID_PATTERN = /- sessionId:\s*([^\s]+)/;
+const PLAN_RUNTIME_PATH_HINT_PATTERN = /- planPathHint:\s*([^\s]+)/;
+
+function inferToolVisibilityRuntimeFromMessages(
+  messages: LLMMessage[],
+): ToolVisibilityRuntime | undefined {
+  const systemMessage = messages.find((msg) => msg.role === 'system');
+  if (!systemMessage || typeof systemMessage.content !== 'string') return undefined;
+  const content = systemMessage.content;
+
+  if (content.includes(PLAN_RUNTIME_UNAVAILABLE_MARKER)) {
+    return undefined;
+  }
+
+  const sessionIdMatch = content.match(PLAN_RUNTIME_SESSION_ID_PATTERN);
+  const planPathHintMatch = content.match(PLAN_RUNTIME_PATH_HINT_PATTERN);
+  if (!sessionIdMatch || !planPathHintMatch) return undefined;
+
+  return {
+    plan: {
+      sessionId: sessionIdMatch[1],
+      planPathHint: planPathHintMatch[1],
+    },
+  };
+}
+
+function resolveToolVisibilityRuntime(
   session: ToolCallingSessionOptions,
-  phase: ExecutionPhase,
-): ResolvedToolCalling {
-  const allowedSpecs = session.toolstack.registry.listAll().filter((spec) => {
-    return session.toolstack.policy.decide(phase, spec, {
-      worktreeRoot: session.runtime.worktreeRoot,
+  messages?: LLMMessage[],
+): ToolVisibilityRuntime | undefined {
+  if (session.toolVisibility) return session.toolVisibility;
+  if (!messages || messages.length === 0) return undefined;
+  return inferToolVisibilityRuntimeFromMessages(messages);
+}
+
+function resolveToolCallingForSession(params: {
+  session: ToolCallingSessionOptions;
+  phase: ExecutionPhase;
+  messages: LLMMessage[];
+}): ResolvedToolCalling {
+  const allowedSpecs = params.session.toolstack.registry.listAll().filter((spec) => {
+    return params.session.toolstack.policy.decide(params.phase, spec, {
+      worktreeRoot: params.session.runtime.worktreeRoot,
     }).allowed;
   });
 
-  const openAITools = allowedSpecs.map(toolToOpenAI);
+  const visibilityRuntime = resolveToolVisibilityRuntime(params.session, params.messages);
+  const visibleSpecs = resolvePhaseVisibleTools({
+    phase: params.phase,
+    tools: allowedSpecs,
+    runtime: visibilityRuntime,
+  });
 
-  return { allowedSpecs, openAITools };
+  const openAITools = visibleSpecs.map(toolToOpenAI);
+
+  return { allowedSpecs: visibleSpecs, openAITools };
 }
 
 function emitToolCallingEnabledLogIfNeeded(
   session: ToolCallingSessionOptions,
   openAITools: any[],
+  allowedSpecs: ToolSpec[],
 ): void {
   if (openAITools.length === 0) return;
+
+  const toolNames = allowedSpecs.map((spec) => spec.name).sort();
+  const maxNames = 24;
+  const visible = toolNames.slice(0, maxNames);
+  const overflow = toolNames.length - visible.length;
+  const suffix = overflow > 0 ? ` (+${overflow} more)` : '';
 
   session.emit?.({
     type: 'log',
     level: 'debug',
-    message: `Tool calling enabled (${openAITools.length} tools available)`,
+    message: `Tool calling enabled (${openAITools.length} tools available): ${visible.join(', ')}${suffix}`,
     timestamp: new Date(),
   });
 }
@@ -579,10 +632,13 @@ export async function chatWithTools(
   const maxRounds = session.maxRounds ?? 6;
   const phase = session.phase;
   resetToolCallBudgetState(session);
-  const { allowedSpecs, openAITools } = resolveToolCallingForSession(session, phase);
-  emitToolCallingEnabledLogIfNeeded(session, openAITools);
-
   const messages: LLMMessage[] = [...initialMessages];
+  const { allowedSpecs, openAITools } = resolveToolCallingForSession({
+    session,
+    phase,
+    messages,
+  });
+  emitToolCallingEnabledLogIfNeeded(session, openAITools, allowedSpecs);
 
   for (let round = 0; round < maxRounds; round++) {
     // Check for abort before starting a new round
@@ -1342,6 +1398,22 @@ async function executeToolCalls(
         errorAuditEntry.coercedPatchSource = patchCoercionSource;
       }
       session.toolCallingAudit?.event(errorAuditEntry);
+    } else {
+      const toolResultOutputOk =
+        isObjectRecord(result.output) && typeof result.output.ok === 'boolean'
+          ? result.output.ok
+          : undefined;
+      session.toolCallingAudit?.event({
+        timestamp: new Date().toISOString(),
+        phase,
+        round,
+        callId,
+        toolName: typeof toolName === 'string' ? toolName : 'unknown',
+        rawArgsType: rawArgsTypeByCallId.get(callId) ?? typeof rawArgs,
+        parsedArgsOk: true,
+        toolResultOutputOk,
+        toolResultStatus: result.status,
+      });
     }
 
     messages.push({
@@ -1374,10 +1446,13 @@ export async function chatWithToolsStreaming(
   const maxRounds = session.maxRounds ?? 6;
   const phase = session.phase;
   resetToolCallBudgetState(session);
-  const { allowedSpecs, openAITools } = resolveToolCallingForSession(session, phase);
-  emitToolCallingEnabledLogIfNeeded(session, openAITools);
-
   const messages: LLMMessage[] = [...initialMessages];
+  const { allowedSpecs, openAITools } = resolveToolCallingForSession({
+    session,
+    phase,
+    messages,
+  });
+  emitToolCallingEnabledLogIfNeeded(session, openAITools, allowedSpecs);
   const canonicalEmitters = createCanonicalEmitterRegistry(session);
 
   try {

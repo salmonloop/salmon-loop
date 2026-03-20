@@ -74,9 +74,13 @@ No plan.* tools are available in this session. Do not call plan.read or plan.upd
 {{> tool_defs}}
 
 Final output:
-Return a single JSON object with only these keys: goal, files, changes, verify.
+Return exactly one JSON object and nothing else.
+The first non-whitespace character must be {.
+The last non-whitespace character must be }.
+Forbidden: labels, commentary, markdown fences, multiple objects, or any leading/trailing text.
+
+The JSON object must contain only these keys: goal, files, changes, verify.
 - goal: one sentence.
 - files: array of exact relative paths to change.
 - changes: array of concise change descriptions.
 - verify: verification command or short verification description.
-No extra keys. No prose. No markdown.

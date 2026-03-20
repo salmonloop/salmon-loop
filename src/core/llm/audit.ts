@@ -13,6 +13,7 @@ export interface ToolCallingAuditEntry {
   parsedArgsOk: boolean;
   parsedArgsPreview?: string;
   parsedArgsError?: string;
+  toolResultOutputOk?: boolean;
   toolResultStatus?: string;
   toolResultErrorCode?: string;
   toolResultErrorMessage?: string;

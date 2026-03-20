@@ -21,33 +21,24 @@ export function formatContextForPrompt(context: Context, options: FormatOptions 
   return formatContextForXmlPrompt(context);
 }
 
-export function extractJson(content: string): any {
-  // 1. Try to find JSON block
-  const jsonBlockMatch = content.match(/```json\s*\n([\s\S]*?)\n```/);
-  if (jsonBlockMatch) {
-    try {
-      return JSON.parse(jsonBlockMatch[1]);
-    } catch (__e) {
-      // Fallback to raw content if block is invalid
-    }
-  }
-
-  // 2. Try to find anything that looks like a JSON object
-  const jsonMatch = content.match(/\{[\s\S]*\}/);
-  if (jsonMatch) {
-    try {
-      return JSON.parse(jsonMatch[0]);
-    } catch (__e) {
-      // Fallback
-    }
-  }
-
-  // 3. Final fallback: try parsing the whole content
-  return JSON.parse(content);
-}
-
 export function parsePlanFromLLMContent(content: string): Plan {
-  const plan = extractJson(content) as Plan;
+  const trimmed = String(content ?? '').trim();
+  if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) {
+    throw new Error(text.llm.planInvalidJson);
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    throw new Error(text.llm.planInvalidJson);
+  }
+
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error(text.llm.planInvalidJson);
+  }
+
+  const plan = parsed as Plan;
   if (!plan.goal || !Array.isArray(plan.files) || !Array.isArray(plan.changes) || !plan.verify) {
     throw new Error(text.llm.planInvalid);
   }
@@ -60,11 +51,10 @@ export function extractUnifiedDiffFromLLMContent(content: string): string {
   }
 
   const looksLikeUnifiedDiff = (text: string): boolean => {
-    return /^\s*(diff --git |--- a\/)/m.test(text);
+    return /^\s*diff --git /m.test(text);
   };
 
-  // 1) Prefer fenced code blocks and always pick the LAST diff-like block (LLM may generate multiple attempts).
-  // Accept both git-style (`diff --git`) and minimal unified diffs (`--- a/...` + `+++ b/...`).
+  // 1) Prefer fenced code blocks and always pick the LAST canonical diff block (LLM may generate multiple attempts).
   const fencedBlocks: string[] = [];
   const fenceRegex = /```(?:diff)?\s*\n([\s\S]*?)\n```/gi;
   let fenceMatch: RegExpExecArray | null = null;
@@ -78,10 +68,10 @@ export function extractUnifiedDiffFromLLMContent(content: string): string {
     return fencedBlocks[fencedBlocks.length - 1].trim();
   }
 
-  // 2) Raw diff without markdown: keep the first diff-like section.
+  // 2) Raw diff without markdown: keep the first canonical diff section.
   // In "pure diff" mode, LLMs typically return only the patch, so selecting the first marker
   // avoids accidentally dropping the leading `diff --git` header.
-  const rawStart = content.search(/^\s*(diff --git |--- a\/)/m);
+  const rawStart = content.search(/^\s*diff --git /m);
   if (rawStart !== -1) return content.slice(rawStart).trim();
 
   // Final fallback: original simple cleanup

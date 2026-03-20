@@ -256,6 +256,83 @@ describe('chatWithTools', () => {
     expect(typeof invalid.parsedArgsPreview).toBe('string');
   });
 
+  it('records toolResultOutputOk for successful tool results', async () => {
+    const registry = new ToolRegistry();
+    const policy = new ToolPolicy();
+    const budget = new BudgetGuard();
+    const audit = new ToolAuditLogger();
+    const sanitizer = new ToolSanitizer();
+    const router = new ToolRouter(registry, policy, budget, audit, sanitizer);
+
+    const executor = mock(async () => ({ ok: true }));
+    const spec: ToolSpec<{ input: string }, { ok: boolean }> = {
+      name: 'test.success',
+      source: 'builtin',
+      intent: 'INFRA',
+      description: 'Success tool',
+      riskLevel: 'low',
+      sideEffects: ['none'],
+      concurrency: 'parallel_ok',
+      allowedPhases: [Phase.PLAN],
+      inputSchema: z.object({ input: z.string() }),
+      outputSchema: z.object({ ok: z.boolean() }),
+      executor,
+    };
+    registry.register(spec);
+
+    const toolCallingAudit: any[] = [];
+    const llm: LLM = {
+      async chat(messages) {
+        const toolMsg = messages.find((m) => m.role === 'tool');
+        if (!toolMsg) {
+          return {
+            role: 'assistant',
+            content: '',
+            tool_calls: [
+              {
+                id: 'call_success',
+                type: 'function',
+                function: { name: 'test.success', arguments: JSON.stringify({ input: 'ok' }) },
+              },
+            ],
+          };
+        }
+        return { role: 'assistant', content: 'DONE' };
+      },
+      async createPlan() {
+        throw new Error('not used');
+      },
+      async createPatch() {
+        throw new Error('not used');
+      },
+    };
+
+    const final = await chatWithTools(
+      [{ role: 'user', content: 'prompt' }],
+      {},
+      {
+        phase: Phase.PLAN,
+        llm,
+        runtime: {
+          repoRoot: '/tmp',
+          attemptId: 1,
+          dryRun: true,
+          model: 'test-model',
+          worktreeRoot: '/tmp',
+        },
+        toolstack: { registry, policy, router },
+        toolCallingAudit: { event: (e) => toolCallingAudit.push(e) },
+      },
+    );
+
+    expect(final.content).toBe('DONE');
+    expect(executor).toHaveBeenCalledTimes(1);
+
+    const okEntry = toolCallingAudit.find((e) => e.toolResultOutputOk === true);
+    expect(okEntry).toBeTruthy();
+    expect(okEntry.toolResultStatus).toBe('ok');
+  });
+
   it('throws interrupt errors from tool execution', async () => {
     const registry = new ToolRegistry();
     const policy = new ToolPolicy();
@@ -333,5 +410,157 @@ describe('chatWithTools', () => {
         },
       ),
     ).rejects.toMatchObject({ code: 'INTERRUPT_REQUIRED', interrupt });
+  });
+
+  it('filters PLAN/PATCH tool payloads using the shared visibility resolver', async () => {
+    const registry = new ToolRegistry();
+    const policy = new ToolPolicy();
+    const budget = new BudgetGuard();
+    const audit = new ToolAuditLogger();
+    const sanitizer = new ToolSanitizer();
+    const router = new ToolRouter(registry, policy, budget, audit, sanitizer);
+
+    const register = (spec: Omit<ToolSpec, 'executor'>) =>
+      registry.register({
+        ...spec,
+        executor: async () => ({}),
+      });
+
+    register({
+      name: 'fs.read',
+      source: 'builtin',
+      intent: 'READ',
+      description: 'Read files',
+      riskLevel: 'low',
+      sideEffects: ['fs_read'],
+      concurrency: 'parallel_ok',
+      allowedPhases: [Phase.PLAN, Phase.PATCH],
+      inputSchema: z.object({ file: z.string() }),
+      outputSchema: z.object({ content: z.string() }),
+    });
+    register({
+      name: 'code.search',
+      source: 'builtin',
+      intent: 'SEARCH',
+      description: 'Search code',
+      riskLevel: 'low',
+      sideEffects: ['fs_read'],
+      concurrency: 'parallel_ok',
+      allowedPhases: [Phase.PLAN, Phase.PATCH],
+      inputSchema: z.object({ pattern: z.string() }),
+      outputSchema: z.object({ matches: z.array(z.any()) }),
+    });
+    register({
+      name: 'fs.list',
+      source: 'builtin',
+      intent: 'LIST',
+      description: 'List files',
+      riskLevel: 'low',
+      sideEffects: ['fs_read'],
+      concurrency: 'parallel_ok',
+      allowedPhases: [Phase.PLAN, Phase.PATCH],
+      inputSchema: z.object({ path: z.string() }),
+      outputSchema: z.object({ entries: z.array(z.string()) }),
+    });
+    register({
+      name: 'plan.init',
+      source: 'builtin',
+      intent: 'WRITE',
+      description: 'Initialize runtime plan',
+      riskLevel: 'low',
+      sideEffects: ['runtime_write'],
+      concurrency: 'serial_only',
+      allowedPhases: [Phase.PLAN],
+      inputSchema: z.object({}),
+      outputSchema: z.object({}),
+    });
+    register({
+      name: 'plan.read',
+      source: 'builtin',
+      intent: 'READ',
+      description: 'Read runtime plan',
+      riskLevel: 'low',
+      sideEffects: ['fs_read'],
+      concurrency: 'parallel_ok',
+      allowedPhases: [Phase.PLAN, Phase.PATCH],
+      inputSchema: z.object({ sessionId: z.string() }),
+      outputSchema: z.object({ baseHash: z.string() }),
+    });
+    register({
+      name: 'plan.update',
+      source: 'builtin',
+      intent: 'WRITE',
+      description: 'Update runtime plan',
+      riskLevel: 'low',
+      sideEffects: ['runtime_write'],
+      concurrency: 'serial_only',
+      allowedPhases: [Phase.PLAN],
+      inputSchema: z.object({}),
+      outputSchema: z.object({}),
+    });
+
+    let lastOptions: any;
+    const llm: LLM = {
+      async chat(_messages, options) {
+        lastOptions = options;
+        return { role: 'assistant', content: 'DONE' };
+      },
+      async createPlan() {
+        throw new Error('not used');
+      },
+      async createPatch() {
+        throw new Error('not used');
+      },
+    };
+
+    await chatWithTools(
+      [
+        { role: 'system', content: 'system' },
+        { role: 'user', content: 'prompt' },
+      ],
+      {},
+      {
+        phase: Phase.PLAN,
+        llm,
+        runtime: {
+          repoRoot: '/tmp',
+          attemptId: 1,
+          dryRun: true,
+          model: 'test-model',
+          worktreeRoot: '/tmp',
+        },
+        toolVisibility: { plan: { sessionId: 'sess', planPathHint: 'plan.md' } },
+        toolstack: { registry, policy, router },
+      },
+    );
+
+    const planToolNames = (lastOptions?.toolSpecs ?? []).map((spec: ToolSpec) => spec.name).sort();
+    expect(planToolNames).toEqual(
+      ['code.search', 'fs.list', 'fs.read', 'plan.read', 'plan.update'].sort(),
+    );
+
+    await chatWithTools(
+      [
+        { role: 'system', content: 'system' },
+        { role: 'user', content: 'prompt' },
+      ],
+      {},
+      {
+        phase: Phase.PATCH,
+        llm,
+        runtime: {
+          repoRoot: '/tmp',
+          attemptId: 1,
+          dryRun: true,
+          model: 'test-model',
+          worktreeRoot: '/tmp',
+        },
+        toolVisibility: { plan: { sessionId: 'sess', planPathHint: 'plan.md' } },
+        toolstack: { registry, policy, router },
+      },
+    );
+
+    const patchToolNames = (lastOptions?.toolSpecs ?? []).map((spec: ToolSpec) => spec.name).sort();
+    expect(patchToolNames).toEqual(['code.search', 'fs.read'].sort());
   });
 });

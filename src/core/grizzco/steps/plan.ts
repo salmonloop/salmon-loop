@@ -5,6 +5,7 @@ import { sanitizeError } from '../../llm/errors.js';
 import { composeChatMessages } from '../../llm/message-composition.js';
 import { emitLlmOutput } from '../../llm/output-policy.js';
 import { formatContextForPrompt, parsePlanFromLLMContent } from '../../llm/utils.js';
+import { recordAuditEvent } from '../../observability/audit-trail.js';
 import { logIgnoredError } from '../../observability/ignored-error.js';
 import { readPlan, updatePlan } from '../../plan/index.js';
 import { getPlanPrompt, getPlanSystemPrompt } from '../../prompts/runtime.js';
@@ -30,6 +31,35 @@ function sanitizeSubtaskText(raw: string): string | null {
   const maxLen = 180;
   if (withoutComments.length <= maxLen) return withoutComments;
   return withoutComments.slice(0, maxLen - 1).trimEnd() + '…';
+}
+
+function recordPlanRepairAttempt(args: { reason: string; badContentLength: number }) {
+  recordAuditEvent(
+    'plan.repair.attempt',
+    {
+      reason: args.reason,
+      badContentLength: args.badContentLength,
+      toolsDisabled: true,
+    },
+    { source: 'plan', severity: 'low', scope: 'session', phase: 'PLAN' },
+  );
+}
+
+function recordPlanRepairResult(args: { ok: boolean; contentLength: number; error?: string }) {
+  recordAuditEvent(
+    'plan.repair.result',
+    {
+      ok: args.ok,
+      contentLength: args.contentLength,
+      error: args.error,
+    },
+    {
+      source: 'plan',
+      severity: args.ok ? 'low' : 'medium',
+      scope: 'session',
+      phase: 'PLAN',
+    },
+  );
 }
 
 async function hydrateRuntimePlanTodos(ctx: ContextCtx, plan: Plan): Promise<void> {
@@ -80,22 +110,13 @@ export function hasSuccessfulPlanUpdateDuringPlan(
   const auditEntries = ctx.toolCallingAudit;
   if (!Array.isArray(auditEntries) || auditEntries.length === 0) return false;
 
-  const failedCallIds = new Set<string>();
-  for (const entry of auditEntries) {
-    if (entry.phase !== Phase.PLAN || entry.toolName !== 'plan.update') continue;
-    if (typeof entry.toolResultStatus === 'string' && entry.toolResultStatus !== 'ok') {
-      failedCallIds.add(entry.callId);
-    }
-  }
-
-  for (const entry of auditEntries) {
-    if (entry.phase !== Phase.PLAN || entry.toolName !== 'plan.update') continue;
-    if (failedCallIds.has(entry.callId)) continue;
-    if (entry.toolResultStatus === 'ok') return true;
-    if (entry.parsedArgsOk) return true;
-  }
-
-  return false;
+  return auditEntries.some(
+    (entry) =>
+      entry.phase === Phase.PLAN &&
+      entry.toolName === 'plan.update' &&
+      entry.toolResultStatus === 'ok' &&
+      entry.toolResultOutputOk === true,
+  );
 }
 
 export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
@@ -218,6 +239,10 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
     }
     plan = parsePlanFromLLMContent(finalContent);
   } catch (e) {
+    recordPlanRepairAttempt({
+      reason: sanitizeError(e),
+      badContentLength: finalContent.length,
+    });
     let repaired: { content?: string };
     try {
       repaired = await repairToJsonObject({
@@ -228,6 +253,11 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
         reason: sanitizeError(e),
       });
     } catch (repairError) {
+      recordPlanRepairResult({
+        ok: false,
+        contentLength: 0,
+        error: sanitizeError(repairError).slice(0, 400),
+      });
       throw new Error(text.llm.planParseFailed(finalContent, sanitizeError(repairError)));
     }
     finalContent = repaired.content || '';
@@ -244,8 +274,18 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
       if (!finalContent) throw new Error(text.llm.planEmpty);
       plan = parsePlanFromLLMContent(finalContent);
     } catch (e2) {
+      recordPlanRepairResult({
+        ok: false,
+        contentLength: finalContent.length,
+        error: sanitizeError(e2).slice(0, 400),
+      });
       throw new Error(text.llm.planParseFailed(finalContent, sanitizeError(e2)));
     }
+
+    recordPlanRepairResult({
+      ok: true,
+      contentLength: finalContent.length,
+    });
   }
 
   ctx.emit({
