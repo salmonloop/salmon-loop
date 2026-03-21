@@ -132,6 +132,15 @@ function buildErrorCodeGuidance(input: BuildFailureGuidanceInput): FailureGuidan
           'If it persists, check provider status or credentials.',
         ],
       };
+    case 'LLM_AUTHENTICATION_FAILED':
+      return {
+        diagnosticCode: 'LLM_AUTHENTICATION_FAILED',
+        safeHint: 'LLM provider rejected the request credentials or access.',
+        remediationSteps: [
+          'Check the provider API key, app id, and model access configuration.',
+          'If the configuration is correct, confirm the selected model is enabled for this account.',
+        ],
+      };
     case 'LLM_HTTP_ABORTED':
       return {
         diagnosticCode: 'LLM_HTTP_ABORTED',

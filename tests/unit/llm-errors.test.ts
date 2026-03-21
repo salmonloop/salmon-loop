@@ -3,6 +3,16 @@ import { describe, expect, it } from 'bun:test';
 import { toLlmError } from '../../src/core/llm/errors.js';
 
 describe('toLlmError', () => {
+  it('maps provider auth failures to LLM_AUTHENTICATION_FAILED', () => {
+    const simulatedError = {
+      name: 'AI_APICallError',
+      message: 'AppIdNoAuthError: provider rejected this application id',
+    };
+
+    const err = toLlmError(simulatedError, 'xunfei-ls');
+    expect(err.llmCode).toBe('LLM_AUTHENTICATION_FAILED');
+  });
+
   it('maps statusCode=429 to LLM_RATE_LIMITED', () => {
     const simulatedError = {
       name: 'AI_APICallError',

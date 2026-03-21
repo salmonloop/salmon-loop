@@ -2,6 +2,7 @@ import { SalmonError } from '../types/errors.js';
 import { sanitizeErrorMessage } from '../utils/sanitizer.js';
 
 export type LlmErrorCode =
+  | 'LLM_AUTHENTICATION_FAILED'
   | 'LLM_HTTP_RESPONSE_INVALID_JSON'
   | 'LLM_HTTP_ABORTED'
   | 'LLM_HTTP_REQUEST_FAILED'
@@ -130,6 +131,38 @@ function extractNetworkCode(err: unknown): string | undefined {
   return undefined;
 }
 
+function isAuthenticationFailure(input: {
+  statusCode?: number;
+  message: string;
+  providerMessage?: string;
+  sanitizedMessage: string;
+}): boolean {
+  if (input.statusCode === 401) return true;
+
+  const lower =
+    `${input.message} ${input.providerMessage ?? ''} ${input.sanitizedMessage}`.toLowerCase();
+
+  const authHints = [
+    'unauthorized',
+    'forbidden',
+    'authentication failed',
+    'auth failed',
+    'invalid api key',
+    'invalid api-key',
+    'access denied',
+    'permission denied',
+    'credential',
+    'appidnoautherror',
+    'noautherror',
+  ];
+
+  if (authHints.some((hint) => lower.includes(hint))) {
+    return true;
+  }
+
+  return input.statusCode === 403 && /auth|access|permission|credential|forbidden/i.test(lower);
+}
+
 /**
  * Sanitizes an error message using the shared utility to prevent leakage
  * of sensitive technical data.
@@ -139,8 +172,18 @@ export function sanitizeError(err: unknown): string {
 }
 
 export function toLlmError(err: unknown, provider?: string): LlmError {
-  let name = err instanceof Error ? err.name : 'UnknownError';
-  let message = err instanceof Error ? err.message : String(err);
+  let name =
+    err instanceof Error
+      ? err.name
+      : typeof (err as any)?.name === 'string'
+        ? String((err as any).name)
+        : 'UnknownError';
+  let message =
+    err instanceof Error
+      ? err.message
+      : typeof (err as any)?.message === 'string'
+        ? String((err as any).message)
+        : String(err);
 
   // Unwrap RetryError to get the last error's message if available
   if (name === 'AI_RetryError' || (err as any)?.lastError) {
@@ -211,6 +254,17 @@ export function toLlmError(err: unknown, provider?: string): LlmError {
   const lower = `${message} ${meta.providerMessage ?? ''} ${sanitizedMessage}`.toLowerCase();
   const statusCode = meta.statusCode;
   const networkCode = extractNetworkCode(err)?.toUpperCase();
+
+  if (
+    isAuthenticationFailure({
+      statusCode,
+      message,
+      providerMessage: meta.providerMessage,
+      sanitizedMessage,
+    })
+  ) {
+    return new LlmError('LLM authentication failed', 'LLM_AUTHENTICATION_FAILED', meta);
+  }
 
   if (statusCode === 429 || lower.includes('rate limit') || lower.includes('too many requests')) {
     return new LlmError('LLM rate limited', 'LLM_RATE_LIMITED', meta);

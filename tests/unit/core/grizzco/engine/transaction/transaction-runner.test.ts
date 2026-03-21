@@ -318,4 +318,43 @@ describe('transaction-runner', () => {
     expect(report.terminalFailurePhase).toBe('EXPLORE');
     expect(report.terminalDiagnosticCode).toBe('LLM_HTTP_REQUEST_FAILED');
   });
+
+  it('does not retry when an explore phase LLM auth failure is non-retryable', async () => {
+    mockedExecute.mockResolvedValue({
+      success: false,
+      duration: 1,
+      traces: [
+        {
+          name: 'EXPLORE',
+          start: 0,
+          end: 1,
+          duration: 1,
+          error: 'LLM authentication failed',
+          metadata: {
+            name: 'LlmError',
+            code: 'LLM_AUTHENTICATION_FAILED',
+            llmCode: 'LLM_AUTHENTICATION_FAILED',
+          },
+        },
+      ],
+      error: Object.assign(new Error('LLM authentication failed'), {
+        code: 'LLM_AUTHENTICATION_FAILED',
+        llmCode: 'LLM_AUTHENTICATION_FAILED',
+      }),
+      data: {
+        context: { repoPath: '/repo', rgSnippets: [] },
+      },
+    } as any);
+
+    const emit = mock();
+    const report = await createRunner(emit).execute();
+
+    expect(report.success).toBe(false);
+    expect(report.attempts).toBe(1);
+    expect(report.retryExhausted).toBe(false);
+    expect(report.lastErrorCode).toBe('LLM_AUTHENTICATION_FAILED');
+    expect(report.terminalFailurePhase).toBe('EXPLORE');
+    expect(report.terminalDiagnosticCode).toBe('LLM_AUTHENTICATION_FAILED');
+    expect(emit).not.toHaveBeenCalled();
+  });
 });
