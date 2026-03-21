@@ -3,11 +3,30 @@ import { getBudgetRunSummary } from '../../../context/budget/integration.js';
 import { getAuthorizationDecisionsFromAuditTrail } from '../../../observability/authorization-decisions.js';
 import { buildFailureEnvelope } from '../../../observability/error-envelope.js';
 import { getTokenUsageFromAuditTrail } from '../../../observability/token-usage.js';
+import type { RootCauseCode, TerminalReason } from '../../../types/loop.js';
 import { ErrorType, Phase } from '../../../types/runtime.js';
 import type { ExecutionPhase, FlowMode, LoopOptions, LoopResult } from '../../../types/runtime.js';
 import type { LoopTelemetry } from '../observability/loop-telemetry.js';
 import type { TerminalCtx } from '../pipeline/types.js';
 import type { FlowTransactionReport } from '../transaction/types.js';
+
+const ROOT_CAUSE_CODES: readonly RootCauseCode[] = [
+  'LLM_RATE_LIMITED',
+  'LLM_UPSTREAM_5XX',
+  'LLM_NETWORK_UNREACHABLE',
+  'LLM_REQUEST_TIMEOUT',
+  'PLAN_OUTPUT_NOT_JSON',
+  'PLAN_SCHEMA_INVALID',
+  'STDOUT_CONTRACT_VIOLATION',
+  'RESOURCE_LIMIT_CONFIRMED',
+];
+
+function toRootCauseCode(code: unknown): RootCauseCode | undefined {
+  if (typeof code !== 'string') return undefined;
+  return (ROOT_CAUSE_CODES as readonly string[]).includes(code)
+    ? (code as RootCauseCode)
+    : undefined;
+}
 
 interface BuildLoopResultParams {
   executionReport: FlowTransactionReport;
@@ -34,6 +53,15 @@ export function buildLoopResultFromTransaction({
   telemetry,
   auditPath,
 }: BuildLoopResultParams): LoopResult {
+  const rootCause = toRootCauseCode(executionReport.lastErrorCode);
+  const terminalReason: TerminalReason | undefined = executionReport.retryExhausted
+    ? 'RETRY_BUDGET_EXHAUSTED'
+    : executionReport.terminalReasonCode === 'AWAITING_INPUT'
+      ? undefined
+      : executionReport.success
+        ? undefined
+        : 'NON_RETRYABLE_FAILURE';
+
   const ctx =
     executionReport.lastContext ??
     (executionReport.flowReport.data as Partial<TerminalCtx> | undefined);
@@ -81,6 +109,7 @@ export function buildLoopResultFromTransaction({
         success: true,
         reason: text.loop.operationCompleted,
         reasonCode: options.dryRun ? 'DRY_RUN' : 'SUCCESS',
+        terminalReason,
         attempts,
         contextHash,
         logs: telemetry.getLogs(),
@@ -103,6 +132,7 @@ export function buildLoopResultFromTransaction({
       success: true,
       reason: text.loop.operationCompleted,
       reasonCode: 'SUCCESS',
+      terminalReason,
       attempts,
       contextHash,
       logs: telemetry.getLogs(),
@@ -151,6 +181,8 @@ export function buildLoopResultFromTransaction({
     success: false,
     reason: safeHint,
     reasonCode,
+    terminalReason,
+    rootCause,
     diagnosticCode: executionReport.terminalDiagnosticCode ?? reasonCode,
     safeHint,
     remediationSteps,
@@ -192,6 +224,7 @@ export function buildLoopFailureResult({
     const decisions = getAuthorizationDecisionsFromAuditTrail();
     return decisions.length > 0 ? decisions : undefined;
   })();
+  const rootCause = toRootCauseCode(errorCode);
   const errorEnvelope = buildFailureEnvelope({
     phase: failurePhase,
     fallbackMessage: message,
@@ -200,6 +233,8 @@ export function buildLoopFailureResult({
     success: false,
     reason: message,
     reasonCode,
+    terminalReason: 'NON_RETRYABLE_FAILURE',
+    rootCause,
     diagnosticCode: reasonCode,
     safeHint: message,
     remediationSteps: [],

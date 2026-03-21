@@ -40,6 +40,18 @@ export type LoopReasonCode =
   | 'AWAITING_INPUT'
   | 'SUCCESS';
 
+export type RootCauseCode =
+  | 'LLM_RATE_LIMITED'
+  | 'LLM_UPSTREAM_5XX'
+  | 'LLM_NETWORK_UNREACHABLE'
+  | 'LLM_REQUEST_TIMEOUT'
+  | 'PLAN_OUTPUT_NOT_JSON'
+  | 'PLAN_SCHEMA_INVALID'
+  | 'STDOUT_CONTRACT_VIOLATION'
+  | 'RESOURCE_LIMIT_CONFIRMED';
+
+export type TerminalReason = 'RETRY_BUDGET_EXHAUSTED' | 'NON_RETRYABLE_FAILURE' | 'USER_ABORTED';
+
 export interface AskUserOption {
   label: string;
   description: string;
@@ -101,6 +113,8 @@ export interface LoopResult {
   success: boolean;
   reason: string;
   reasonCode: LoopReasonCode;
+  terminalReason?: TerminalReason;
+  rootCause?: RootCauseCode;
   diagnosticCode?: string;
   safeHint?: string;
   remediationSteps?: string[];

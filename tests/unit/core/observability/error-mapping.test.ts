@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
+import { buildFailureGuidance } from '../../../../src/core/failure/diagnostics.js';
 import {
   clearAuditTrail,
   recordAuditEvent,
@@ -236,5 +237,19 @@ describe('mapErrorForAudit', () => {
       source: 'langfuse.outcome.request_failed',
       category: 'network',
     });
+  });
+});
+
+describe('buildFailureGuidance (rootCause precedence)', () => {
+  it('prefers rootCause over errorCode', () => {
+    const guidance = buildFailureGuidance({
+      reasonCode: 'MAX_RETRIES',
+      failurePhase: 'PLAN',
+      rootCause: 'LLM_RATE_LIMITED',
+      errorCode: 'LLM_HTTP_REQUEST_FAILED',
+      fallbackReason: 'failed',
+    });
+
+    expect(guidance.diagnosticCode).toBe('LLM_RATE_LIMITED');
   });
 });

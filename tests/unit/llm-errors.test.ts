@@ -3,6 +3,30 @@ import { describe, expect, it } from 'bun:test';
 import { toLlmError } from '../../src/core/llm/errors.js';
 
 describe('toLlmError', () => {
+  it('maps statusCode=429 to LLM_RATE_LIMITED', () => {
+    const simulatedError = {
+      name: 'AI_APICallError',
+      message: 'rate limit reached for RPM',
+      statusCode: 429,
+    };
+
+    const err = toLlmError(simulatedError, 'qiniu');
+    expect(err.llmCode).toBe('LLM_RATE_LIMITED');
+    expect(err.meta?.statusCode).toBe(429);
+  });
+
+  it('maps response.status=429 to LLM_RATE_LIMITED', () => {
+    const simulatedError = {
+      name: 'AI_APICallError',
+      message: 'rate limit',
+      response: { status: 429 },
+    };
+
+    const err = toLlmError(simulatedError, 'qiniu');
+    expect(err.llmCode).toBe('LLM_RATE_LIMITED');
+    expect(err.meta?.statusCode).toBe(429);
+  });
+
   it('keeps provider metadata and response details', () => {
     const simulatedError = {
       name: 'AI_APICallError',

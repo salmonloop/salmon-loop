@@ -239,6 +239,7 @@ describe('loop-result-mapper', () => {
         { attempt: 3, plan: null, patch: null, error: 'verify failed', contextSummary: '' },
       ],
       retryExhausted: true,
+      lastErrorCode: 'LLM_RATE_LIMITED',
     };
 
     const result = buildLoopResultFromTransaction({
@@ -250,6 +251,8 @@ describe('loop-result-mapper', () => {
 
     expect(result.success).toBe(false);
     expect(result.reasonCode).toBe('MAX_RETRIES');
+    expect(result.terminalReason).toBe('RETRY_BUDGET_EXHAUSTED');
+    expect(result.rootCause).toBe('LLM_RATE_LIMITED');
     expect(result.failurePhase).toBe('VERIFY');
   });
 

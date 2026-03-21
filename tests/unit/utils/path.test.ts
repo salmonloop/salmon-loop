@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'bun:test';
 
 import {
+  arePathsEquivalent,
   ensureInSandbox,
+  isCanonicalPathWithinDirectory,
   isPathWithinDirectory,
   isSafeRelativePath,
+  normalizeComparableAbsolutePath,
   normalizePath,
   safeDirname,
   safeJoin,
@@ -161,6 +164,42 @@ describe('path utils', () => {
       const outside = 'C:\\Users\\other\\project';
       expect(isPathWithinDirectory(root, inside)).toBe(true);
       expect(isPathWithinDirectory(root, outside)).toBe(false);
+    });
+  });
+
+  describe('normalizeComparableAbsolutePath', () => {
+    it('normalizes Windows absolute paths into a stable comparable form', () => {
+      expect(normalizeComparableAbsolutePath('C:\\Repo\\Deps\\')).toBe('c:/repo/deps');
+      expect(normalizeComparableAbsolutePath('\\\\Server\\Share\\Folder')).toBe(
+        '//server/share/folder',
+      );
+    });
+
+    it('normalizes POSIX absolute paths without lowercasing', () => {
+      expect(normalizeComparableAbsolutePath('/Repo/Deps')).toBe('/Repo/Deps');
+    });
+  });
+
+  describe('arePathsEquivalent', () => {
+    it('matches Windows absolute paths case-insensitively', () => {
+      expect(arePathsEquivalent('C:\\Repo\\Deps', 'c:/repo/deps')).toBe(true);
+    });
+
+    it('matches POSIX absolute paths exactly after normalization', () => {
+      expect(arePathsEquivalent('/repo/deps', '/repo//deps')).toBe(true);
+      expect(arePathsEquivalent('/Repo/deps', '/repo/deps')).toBe(false);
+    });
+  });
+
+  describe('isCanonicalPathWithinDirectory', () => {
+    it('handles Windows canonical paths case-insensitively', () => {
+      expect(isCanonicalPathWithinDirectory('C:\\Repo', 'c:/repo/deps/pkg')).toBe(true);
+      expect(isCanonicalPathWithinDirectory('C:\\Repo', 'C:\\Other\\deps')).toBe(false);
+    });
+
+    it('supports allowEqual for canonical path comparisons', () => {
+      expect(isCanonicalPathWithinDirectory('/repo', '/repo', { allowEqual: true })).toBe(true);
+      expect(isCanonicalPathWithinDirectory('/repo', '/repo', { allowEqual: false })).toBe(false);
     });
   });
 

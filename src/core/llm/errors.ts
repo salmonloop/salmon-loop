@@ -5,6 +5,10 @@ export type LlmErrorCode =
   | 'LLM_HTTP_RESPONSE_INVALID_JSON'
   | 'LLM_HTTP_ABORTED'
   | 'LLM_HTTP_REQUEST_FAILED'
+  | 'LLM_RATE_LIMITED'
+  | 'LLM_UPSTREAM_5XX'
+  | 'LLM_NETWORK_UNREACHABLE'
+  | 'LLM_REQUEST_TIMEOUT'
   | 'LLM_CONTEXT_LENGTH_EXCEEDED'
   | 'LLM_PLAN_EMPTY'
   | 'LLM_PLAN_INVALID_JSON'
@@ -56,6 +60,12 @@ function extractProviderDetails(err: unknown): {
       details.statusCode = candidate.statusCode;
     }
 
+    // Align with AI SDK error shapes that store HTTP status in response.status
+    const response = candidate.response as Record<string, unknown> | undefined;
+    if (typeof details.statusCode !== 'number' && response && typeof response.status === 'number') {
+      details.statusCode = response.status;
+    }
+
     if (typeof candidate.responseBody === 'string') {
       // Apply sanitization to responseBody immediately after truncation
       details.responseBody = sanitizeError(truncate(candidate.responseBody));
@@ -102,6 +112,22 @@ function extractProviderDetails(err: unknown): {
     }
   }
   return details;
+}
+
+function extractNetworkCode(err: unknown): string | undefined {
+  if (!err || typeof err !== 'object') return undefined;
+  const candidate = err as Record<string, unknown>;
+
+  const direct = candidate.code;
+  if (typeof direct === 'string' && direct.trim()) return direct;
+
+  const cause = (candidate as any).cause;
+  if (cause && typeof cause === 'object' && typeof (cause as any).code === 'string') {
+    const code = String((cause as any).code);
+    return code.trim() ? code : undefined;
+  }
+
+  return undefined;
 }
 
 /**
@@ -180,6 +206,35 @@ export function toLlmError(err: unknown, provider?: string): LlmError {
     })
   ) {
     return new LlmError('LLM context length exceeded', 'LLM_CONTEXT_LENGTH_EXCEEDED', meta);
+  }
+
+  const lower = `${message} ${meta.providerMessage ?? ''} ${sanitizedMessage}`.toLowerCase();
+  const statusCode = meta.statusCode;
+  const networkCode = extractNetworkCode(err)?.toUpperCase();
+
+  if (statusCode === 429 || lower.includes('rate limit') || lower.includes('too many requests')) {
+    return new LlmError('LLM rate limited', 'LLM_RATE_LIMITED', meta);
+  }
+
+  if (statusCode === 408 || lower.includes('timeout') || networkCode === 'ETIMEDOUT') {
+    return new LlmError('LLM request timed out', 'LLM_REQUEST_TIMEOUT', meta);
+  }
+
+  if (typeof statusCode === 'number' && statusCode >= 500 && statusCode < 600) {
+    return new LlmError('LLM upstream server error', 'LLM_UPSTREAM_5XX', meta);
+  }
+
+  if (typeof networkCode === 'string') {
+    const unreachable = new Set([
+      'ECONNRESET',
+      'ETIMEDOUT',
+      'EAI_AGAIN',
+      'ENOTFOUND',
+      'ECONNREFUSED',
+    ]);
+    if (unreachable.has(networkCode)) {
+      return new LlmError('LLM network request failed', 'LLM_NETWORK_UNREACHABLE', meta);
+    }
   }
 
   return new LlmError('LLM request failed', 'LLM_HTTP_REQUEST_FAILED', meta);
