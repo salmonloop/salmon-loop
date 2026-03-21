@@ -76,6 +76,7 @@ export class FlowTransactionRunner {
   public async execute(): Promise<FlowTransactionReport> {
     let retries = 0;
     let lastReport: FlowReport | undefined;
+    let lastAttemptFailure: ReturnType<typeof resolveAttemptFailure> | undefined;
 
     while (true) {
       if (this.params.options.signal?.aborted) {
@@ -124,6 +125,7 @@ export class FlowTransactionRunner {
         context: shrinkCtx,
         flowMode: this.params.flowMode,
       });
+      lastAttemptFailure = attemptFailure;
 
       const entry: LoopIteration = {
         attempt,
@@ -266,6 +268,7 @@ export class FlowTransactionRunner {
       flowReport: lastReport,
       history: this.historyEntries,
       authorizationSummary: this.authorizationSummary,
+      failure: lastAttemptFailure,
       lastErrorCode: this.extractErrorCode(lastReport.error),
       lastContext: this.lastContext,
       lastVerifyArtifact: this.lastVerifyArtifact,

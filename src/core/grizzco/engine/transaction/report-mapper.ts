@@ -85,6 +85,7 @@ export function mapRetryExhaustedReport(params: {
   flowReport: FlowReport;
   history: LoopIteration[];
   authorizationSummary: AuthorizationSourceSummary | null;
+  failure?: AttemptFailureDetails;
   lastErrorCode?: string;
   lastContext?: TerminalCtx;
   lastVerifyArtifact?: ArtifactHandle;
@@ -94,6 +95,7 @@ export function mapRetryExhaustedReport(params: {
     flowReport,
     history,
     authorizationSummary,
+    failure,
     lastErrorCode,
     lastContext,
     lastVerifyArtifact,
@@ -109,5 +111,7 @@ export function mapRetryExhaustedReport(params: {
     retryExhausted: true,
     lastContext,
     lastVerifyArtifact,
+    terminalFailurePhase: failure?.failurePhase,
+    terminalDiagnosticCode: failure?.diagnosticCode,
   };
 }

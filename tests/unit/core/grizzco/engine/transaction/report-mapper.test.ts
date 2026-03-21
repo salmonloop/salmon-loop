@@ -60,10 +60,22 @@ describe('transaction-report-mapper', () => {
       flowReport,
       history,
       authorizationSummary: null,
+      failure: {
+        reason: 'LLM request failed',
+        reasonCode: 'LOOP_FAILED',
+        failurePhase: 'EXPLORE',
+        retryable: true,
+        diagnosticCode: 'LLM_HTTP_REQUEST_FAILED',
+        safeHint: 'LLM request failed.',
+        remediationSteps: ['Retry later.'],
+      },
+      lastErrorCode: 'LLM_HTTP_REQUEST_FAILED',
     });
 
     expect(report.success).toBe(false);
     expect(report.retryExhausted).toBe(true);
     expect(report.attempts).toBe(3);
+    expect(report.terminalFailurePhase).toBe('EXPLORE');
+    expect(report.terminalDiagnosticCode).toBe('LLM_HTTP_REQUEST_FAILED');
   });
 });

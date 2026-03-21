@@ -281,4 +281,41 @@ describe('transaction-runner', () => {
     expect(report.history).toHaveLength(3);
     expect(emit).toHaveBeenCalledTimes(2);
   });
+
+  it('preserves the last failed phase when retryable LLM errors exhaust retries', async () => {
+    mockedExecute.mockResolvedValue({
+      success: false,
+      duration: 1,
+      traces: [
+        {
+          name: 'EXPLORE',
+          start: 0,
+          end: 1,
+          duration: 1,
+          error: 'LLM request failed',
+          metadata: {
+            name: 'LlmError',
+            code: 'LLM_HTTP_REQUEST_FAILED',
+            llmCode: 'LLM_HTTP_REQUEST_FAILED',
+          },
+        },
+      ],
+      error: Object.assign(new Error('LLM request failed'), {
+        code: 'LLM_HTTP_REQUEST_FAILED',
+        llmCode: 'LLM_HTTP_REQUEST_FAILED',
+      }),
+      data: {
+        context: { repoPath: '/repo', rgSnippets: [] },
+      },
+    } as any);
+
+    const report = await createRunner().execute();
+
+    expect(report.success).toBe(false);
+    expect(report.retryExhausted).toBe(true);
+    expect(report.attempts).toBe(3);
+    expect(report.lastErrorCode).toBe('LLM_HTTP_REQUEST_FAILED');
+    expect(report.terminalFailurePhase).toBe('EXPLORE');
+    expect(report.terminalDiagnosticCode).toBe('LLM_HTTP_REQUEST_FAILED');
+  });
 });
