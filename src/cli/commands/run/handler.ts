@@ -259,7 +259,12 @@ export async function handleRunCommand(options: any, command: Command) {
   if (!mode) {
     getLogger().error(text.cli.invalidActMode(rawMode));
     if (outputFormat === 'json') {
-      writeJsonFailure({ message: text.cli.invalidActMode(rawMode), repoPath: runPath });
+      writeJsonFailure({
+        message: text.cli.invalidActMode(rawMode),
+        errorCode: 'USAGE_ERROR',
+        instruction,
+        repoPath: runPath,
+      });
     } else if (outputFormat === 'stream-json') {
       headlessErrorWriter.writeUsageError({
         sessionId: sessionIdForOutput ?? randomUUID(),
@@ -277,6 +282,8 @@ export async function handleRunCommand(options: any, command: Command) {
     if (outputFormat === 'json') {
       writeJsonFailure({
         message: text.cli.invalidEnvironmentMode(rawEnvironmentMode),
+        errorCode: 'USAGE_ERROR',
+        instruction,
         repoPath: runPath,
       });
     } else if (outputFormat === 'stream-json') {
