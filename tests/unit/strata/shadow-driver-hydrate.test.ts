@@ -1,3 +1,5 @@
+import { join } from 'path';
+
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
 const detectDependencyPathsMock = mock();
@@ -56,38 +58,48 @@ describe('ShadowDriver.hydrate', () => {
   });
 
   it('accepts an existing dependency projection when it already resolves to the expected source', async () => {
+    const repoRoot = process.platform === 'win32' ? 'C:\\repo' : '/repo';
+    const shadowRoot = process.platform === 'win32' ? 'C:\\shadow' : '/shadow';
+    const sourcePath = join(repoRoot, 'node_modules');
+    const targetPath = join(shadowRoot, 'node_modules');
+
     symlinkMock.mockRejectedValue(fsError('EISDIR', 'illegal operation on a directory'));
     lstatMock.mockResolvedValue({ isSymbolicLink: () => true });
-    realpathMock.mockImplementation(async (targetPath: string) => {
-      if (targetPath === 'C:\\repo\\node_modules') {
-        return 'C:\\repo\\node_modules';
+    realpathMock.mockImplementation(async (resolvedPath: string) => {
+      if (resolvedPath === sourcePath) {
+        return sourcePath;
       }
-      if (targetPath === 'C:\\shadow\\node_modules') {
-        return 'C:\\repo\\node_modules';
+      if (resolvedPath === targetPath) {
+        return sourcePath;
       }
       throw fsError('ENOENT');
     });
 
     const { ShadowDriver } = await loadShadowDriver();
 
-    await expect(ShadowDriver.hydrate('C:\\repo', 'C:\\shadow')).resolves.toBeUndefined();
+    await expect(ShadowDriver.hydrate(repoRoot, shadowRoot)).resolves.toBeUndefined();
   });
 
   it('throws when an existing target does not resolve to the expected dependency source', async () => {
+    const repoRoot = process.platform === 'win32' ? 'C:\\repo' : '/repo';
+    const shadowRoot = process.platform === 'win32' ? 'C:\\shadow' : '/shadow';
+    const sourcePath = join(repoRoot, 'node_modules');
+    const targetPath = join(shadowRoot, 'node_modules');
+
     symlinkMock.mockRejectedValue(fsError('EISDIR', 'illegal operation on a directory'));
     lstatMock.mockResolvedValue({ isSymbolicLink: () => false });
-    realpathMock.mockImplementation(async (targetPath: string) => {
-      if (targetPath === 'C:\\repo\\node_modules') {
-        return 'C:\\repo\\node_modules';
+    realpathMock.mockImplementation(async (resolvedPath: string) => {
+      if (resolvedPath === sourcePath) {
+        return sourcePath;
       }
-      if (targetPath === 'C:\\shadow\\node_modules') {
-        return 'C:\\shadow\\node_modules';
+      if (resolvedPath === targetPath) {
+        return targetPath;
       }
       throw fsError('ENOENT');
     });
 
     const { ShadowDriver } = await loadShadowDriver();
 
-    await expect(ShadowDriver.hydrate('C:\\repo', 'C:\\shadow')).rejects.toThrow(/node_modules/i);
+    await expect(ShadowDriver.hydrate(repoRoot, shadowRoot)).rejects.toThrow(/node_modules/i);
   });
 });

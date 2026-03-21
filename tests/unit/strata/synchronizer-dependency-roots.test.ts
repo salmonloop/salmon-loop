@@ -1,3 +1,5 @@
+import { join } from 'path';
+
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
 const queryMock = mock();
@@ -53,23 +55,29 @@ describe('WorkspaceSynchronizer dependency projection detection', () => {
   });
 
   it('filters dependency projection roots when realpath escapes the repository', async () => {
-    realpathMock.mockImplementation(async (targetPath: string) => {
-      if (targetPath === 'C:\\repo') {
-        return 'C:\\repo';
+    const repoRoot = process.platform === 'win32' ? 'C:\\repo' : '/repo';
+    const repoNodeModules = join(repoRoot, 'node_modules');
+    const expectedFilePath = join(repoRoot, 'src', 'app.ts');
+
+    realpathMock.mockImplementation(async (resolvedPath: string) => {
+      if (resolvedPath === repoRoot) {
+        return repoRoot;
       }
-      if (targetPath === 'C:\\repo\\node_modules') {
-        return 'C:\\cache\\deps\\node_modules';
+      if (resolvedPath === repoNodeModules) {
+        return process.platform === 'win32'
+          ? 'C:\\cache\\deps\\node_modules'
+          : '/cache/deps/node_modules';
       }
-      throw Object.assign(new Error(`ENOENT: ${targetPath}`), { code: 'ENOENT' });
+      throw Object.assign(new Error(`ENOENT: ${resolvedPath}`), { code: 'ENOENT' });
     });
 
     const { CheckpointManager, WorkspaceSynchronizer } = await loadModules();
     const synchronizer = new WorkspaceSynchronizer(new CheckpointManager());
 
-    const changed = await synchronizer.getChangedPaths('C:\\repo');
+    const changed = await synchronizer.getChangedPaths(repoRoot);
 
     expect(changed).toEqual(['src/app.ts']);
     expect(statMock).toHaveBeenCalledTimes(1);
-    expect(statMock).toHaveBeenCalledWith('C:\\repo\\src\\app.ts');
+    expect(statMock).toHaveBeenCalledWith(expectedFilePath);
   });
 });
