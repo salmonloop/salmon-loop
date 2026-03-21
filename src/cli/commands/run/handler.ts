@@ -185,6 +185,7 @@ export async function handleRunCommand(options: any, command: Command) {
     exitCode?: number;
     message: string;
     errorCode?: string;
+    auditPath?: string;
     repoPath?: string;
     instruction?: string;
   }) => {
@@ -192,6 +193,7 @@ export async function handleRunCommand(options: any, command: Command) {
       exitCode: params.exitCode,
       message: params.message,
       errorCode: params.errorCode,
+      auditPath: params.auditPath,
       repoPath: params.repoPath,
       instruction: params.instruction,
       sessionId: sessionIdForOutput ?? randomUUID(),
@@ -247,9 +249,22 @@ export async function handleRunCommand(options: any, command: Command) {
   const rawPermissionMode = allOptions.mode ?? resolvedConfig.permissionMode ?? 'interactive';
   const permissionMode = normalizePermissionMode(rawPermissionMode);
   if (!permissionMode) {
-    getLogger().error(
-      `Invalid --mode "${String(rawPermissionMode)}". Expected "interactive" or "yolo".`,
-    );
+    const message = `Invalid --mode "${String(rawPermissionMode)}". Expected "interactive" or "yolo".`;
+    getLogger().error(message);
+    if (outputFormat === 'json') {
+      writeJsonFailure({
+        message,
+        errorCode: 'USAGE_ERROR',
+        instruction,
+        repoPath: runPath,
+      });
+    } else if (outputFormat === 'stream-json') {
+      headlessErrorWriter.writeUsageError({
+        sessionId: sessionIdForOutput ?? randomUUID(),
+        message,
+        instruction,
+      });
+    }
     process.exitCode = 1;
     return;
   }
@@ -325,6 +340,8 @@ export async function handleRunCommand(options: any, command: Command) {
     dryRun: allOptions.dryRun,
     configPath: resolvedConfig.source.used ? resolvedConfig.source.path || '' : undefined,
   });
+
+  let lastKnownAuditPath: string | undefined;
 
   try {
     const { llm } = createRuntimeLlmAndWarn({
@@ -452,6 +469,7 @@ export async function handleRunCommand(options: any, command: Command) {
         logMode: resolvedConfig.ui.logMode,
       },
     });
+    lastKnownAuditPath = result.auditPath;
 
     structuredOutputState = await buildStructuredOutputState({
       outputFormat,
@@ -493,11 +511,13 @@ export async function handleRunCommand(options: any, command: Command) {
         message: text.cli.unexpectedError(msg),
         repoPath: runPath,
         instruction,
+        auditPath: lastKnownAuditPath,
       });
     } else if (outputFormat === 'stream-json') {
       headlessErrorWriter.writeUnexpectedError({
         sessionId: sessionIdForOutput ?? resumeSessionId ?? randomUUID(),
         message: text.cli.unexpectedError(msg),
+        auditPath: lastKnownAuditPath,
       });
     }
     process.exitCode = 1;

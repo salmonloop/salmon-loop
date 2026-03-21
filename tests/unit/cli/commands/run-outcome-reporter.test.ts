@@ -1,8 +1,21 @@
-import { describe, expect, it, mock } from 'bun:test';
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
 const hoisted = (() => ({
   reporterCalls: [] as Array<Record<string, unknown>>,
   loopParamsCalls: [] as Array<Record<string, unknown>>,
+  writeJsonFailureCalls: [] as Array<Record<string, unknown>>,
+  writeUnexpectedErrorCalls: [] as Array<Record<string, unknown>>,
+  reporterImpl: {
+    onStart: mock(),
+    onFinish: mock(),
+    onEvent: mock(),
+    onError: mock(),
+  },
+  executeRunLoopImpl: mock(async (..._args: unknown[]) => ({
+    success: true,
+    changedFiles: [],
+    reasonCode: 'OK',
+  })),
   parsedOptions: {
     allOptions: {
       gui: false,
@@ -14,6 +27,7 @@ const hoisted = (() => ({
       file: undefined,
       selection: undefined,
       checkpointStrategy: 'worktree',
+      outputFormat: 'text',
       environmentMode: undefined,
       applyBackOnDirty: '3way',
       auditScope: 'user',
@@ -37,6 +51,58 @@ const hoisted = (() => ({
     disallowedToolRules: [] as string[],
   },
 }))();
+
+function resetHoistedState() {
+  hoisted.reporterCalls.length = 0;
+  hoisted.loopParamsCalls.length = 0;
+  hoisted.writeJsonFailureCalls.length = 0;
+  hoisted.writeUnexpectedErrorCalls.length = 0;
+  hoisted.reporterImpl = {
+    onStart: mock(),
+    onFinish: mock(),
+    onEvent: mock(),
+    onError: mock(),
+  };
+  hoisted.executeRunLoopImpl = mock(async (..._args: unknown[]) => ({
+    success: true,
+    changedFiles: [],
+    reasonCode: 'OK',
+  }));
+  hoisted.parsedOptions = {
+    allOptions: {
+      gui: false,
+      validate: false,
+      mode: 'interactive',
+      verbose: false,
+      dryRun: false,
+      forceReset: false,
+      file: undefined,
+      selection: undefined,
+      checkpointStrategy: 'worktree',
+      outputFormat: 'text',
+      environmentMode: undefined,
+      applyBackOnDirty: '3way',
+      auditScope: 'user',
+    },
+    repoPath: '/repo',
+    continueSession: false,
+    resumeSessionId: undefined,
+    printInstruction: undefined,
+    explicitInstruction: undefined,
+    jsonSchemaSpec: undefined,
+    rawOutputFormat: 'text',
+    rawOutputProfile: undefined,
+    outputProfileForStreamJson: undefined,
+    headlessIncludeToolInput: false,
+    headlessIncludeToolOutput: false,
+    headlessIncludeAuthorizationDecisions: false,
+    allowOutsideCacheRoot: false,
+    instruction: 'fix bug',
+    auditScope: 'user',
+    allowedToolRules: [] as string[],
+    disallowedToolRules: [] as string[],
+  };
+}
 
 mock.module('../../../../src/cli/utils/outcome-reporter.js', () => ({
   createOutcomeReporter: mock((params: Record<string, unknown>) => {
@@ -113,12 +179,7 @@ mock.module('../../../../src/cli/commands/run/runtime-llm.js', () => ({
 }));
 
 mock.module('../../../../src/cli/commands/run/reporter-factory.js', () => ({
-  createRunReporter: mock(() => ({
-    onStart: mock(),
-    onFinish: mock(),
-    onEvent: mock(),
-    onError: mock(),
-  })),
+  createRunReporter: mock(() => hoisted.reporterImpl),
 }));
 
 mock.module('../../../../src/cli/commands/run/loop-params.js', () => ({
@@ -129,11 +190,7 @@ mock.module('../../../../src/cli/commands/run/loop-params.js', () => ({
 }));
 
 mock.module('../../../../src/cli/commands/run/execute.js', () => ({
-  executeRunLoop: mock(async () => ({
-    success: true,
-    changedFiles: [],
-    reasonCode: 'OK',
-  })),
+  executeRunLoop: mock((...args: unknown[]) => hoisted.executeRunLoopImpl(...args)),
 }));
 
 mock.module('../../../../src/cli/commands/run/structured-output.js', () => ({
@@ -164,9 +221,13 @@ mock.module('../../../../src/cli/commands/run/assistant-message.js', () => ({
 
 mock.module('../../../../src/cli/commands/run/headless-error-writer.js', () => ({
   createHeadlessErrorWriter: mock(() => ({
-    writeJsonFailure: mock(() => {}),
+    writeJsonFailure: mock((args: Record<string, unknown>) => {
+      hoisted.writeJsonFailureCalls.push(args);
+    }),
     writeResultExitCode: mock(() => 0),
-    writeUnexpectedError: mock(() => {}),
+    writeUnexpectedError: mock((args: Record<string, unknown>) => {
+      hoisted.writeUnexpectedErrorCalls.push(args);
+    }),
     writeUsageError: mock(() => {}),
   })),
 }));
@@ -193,6 +254,12 @@ mock.module('../../../../src/core/observability/logger.js', () => ({
 }));
 
 describe('handleRunCommand outcome reporter', () => {
+  beforeEach(() => {
+    mock.clearAllMocks();
+    resetHoistedState();
+    process.exitCode = 0;
+  });
+
   it('uses shared outcome reporter helper', async () => {
     const { handleRunCommand } = await import('../../../../src/cli/commands/run/handler.js');
 
@@ -250,5 +317,110 @@ describe('handleRunCommand outcome reporter', () => {
     await handleRunCommand({}, command);
 
     expect(hoisted.loopParamsCalls[0]?.permissionRules).toBeUndefined();
+  });
+
+  it('passes known auditPath to headless json failure when a late error happens after result creation', async () => {
+    hoisted.parsedOptions = {
+      ...hoisted.parsedOptions,
+      rawOutputFormat: 'json',
+      allOptions: {
+        ...hoisted.parsedOptions.allOptions,
+        outputFormat: 'json',
+      },
+    };
+    hoisted.writeJsonFailureCalls.length = 0;
+    hoisted.writeUnexpectedErrorCalls.length = 0;
+    hoisted.reporterImpl = {
+      onStart: mock(),
+      onFinish: mock(() => {
+        throw new Error('reporter failed');
+      }),
+      onEvent: mock(),
+      onError: mock(),
+    };
+    hoisted.executeRunLoopImpl = mock(async () => ({
+      success: false,
+      reason: 'Exceeded maximum retry attempts',
+      reasonCode: 'MAX_RETRIES',
+      changedFiles: [],
+      auditPath: '/tmp/audit.json',
+    }));
+
+    const { handleRunCommand } = await import('../../../../src/cli/commands/run/handler.js');
+    const command: any = { optsWithGlobals: () => ({}) };
+
+    try {
+      await handleRunCommand({}, command);
+
+      expect(hoisted.writeJsonFailureCalls.at(-1)).toMatchObject({
+        instruction: 'fix bug',
+        auditPath: '/tmp/audit.json',
+      });
+    } finally {
+      process.exitCode = 0;
+      hoisted.reporterImpl = {
+        onStart: mock(),
+        onFinish: mock(),
+        onEvent: mock(),
+        onError: mock(),
+      };
+      hoisted.executeRunLoopImpl = mock(async () => ({
+        success: true,
+        changedFiles: [],
+        reasonCode: 'OK',
+      }));
+    }
+  });
+
+  it('passes known auditPath to native stream-json unexpected error when a late error happens after result creation', async () => {
+    hoisted.parsedOptions = {
+      ...hoisted.parsedOptions,
+      rawOutputFormat: 'stream-json',
+      allOptions: {
+        ...hoisted.parsedOptions.allOptions,
+        outputFormat: 'stream-json',
+      },
+    };
+    hoisted.writeJsonFailureCalls.length = 0;
+    hoisted.writeUnexpectedErrorCalls.length = 0;
+    hoisted.reporterImpl = {
+      onStart: mock(),
+      onFinish: mock(() => {
+        throw new Error('reporter failed');
+      }),
+      onEvent: mock(),
+      onError: mock(),
+    };
+    hoisted.executeRunLoopImpl = mock(async () => ({
+      success: false,
+      reason: 'Exceeded maximum retry attempts',
+      reasonCode: 'MAX_RETRIES',
+      changedFiles: [],
+      auditPath: '/tmp/audit-stream.json',
+    }));
+
+    const { handleRunCommand } = await import('../../../../src/cli/commands/run/handler.js');
+    const command: any = { optsWithGlobals: () => ({}) };
+
+    try {
+      await handleRunCommand({}, command);
+
+      expect(hoisted.writeUnexpectedErrorCalls.at(-1)).toMatchObject({
+        auditPath: '/tmp/audit-stream.json',
+      });
+    } finally {
+      process.exitCode = 0;
+      hoisted.reporterImpl = {
+        onStart: mock(),
+        onFinish: mock(),
+        onEvent: mock(),
+        onError: mock(),
+      };
+      hoisted.executeRunLoopImpl = mock(async () => ({
+        success: true,
+        changedFiles: [],
+        reasonCode: 'OK',
+      }));
+    }
   });
 });

@@ -32,6 +32,7 @@ export interface EncodeJsonFailureParams {
   instruction?: string;
   message: string;
   errorCode?: string;
+  auditPath?: string;
   exitCode?: number;
   at?: Date;
 }
@@ -145,6 +146,7 @@ export function encodeJsonFailure(params: EncodeJsonFailureParams): unknown {
       exit_code: exitCode,
       reason: params.message,
       error_code: params.errorCode,
+      audit_path: params.auditPath,
       timestamps: {
         started_at: at.toISOString(),
         ended_at: at.toISOString(),

@@ -875,6 +875,37 @@ describe('Headless protocol integration', () => {
     expect(String(payload.metadata.reason)).toContain('Invalid --environment-mode');
   }, 120000);
 
+  it('emits machine-readable JSON for invalid permission mode in headless json', async () => {
+    const repo = await helper.createGitRepo();
+
+    const { exitCode, stdout } = await runCli([
+      '-r',
+      repo.path,
+      '-p',
+      'hello',
+      '--output-format',
+      'json',
+      '--mode',
+      'invalid',
+      '--act-mode',
+      'review',
+      '--no-config-file',
+    ]);
+
+    expect(exitCode).toBe(1);
+    const payload = JSON.parse(stdout) as any;
+    expect(payload.structured_output).toBe(null);
+    expect(payload.metadata).toMatchObject({
+      command: 'run',
+      repo_path: repo.path,
+      instruction: 'hello',
+      success: false,
+      exit_code: 1,
+      error_code: 'USAGE_ERROR',
+    });
+    expect(String(payload.metadata.reason)).toContain('Invalid --mode');
+  }, 120000);
+
   it('emits machine-readable usage errors for Commander parse errors in headless stream-json (native)', async () => {
     const repo = await helper.createGitRepo();
     await seedChatSession(repo.path, 'sess-usage-native');
@@ -1325,8 +1356,10 @@ describe('Headless protocol integration', () => {
     expect(payload.metadata).toMatchObject({
       command: 'run',
       repo_path: repo.path,
+      instruction: 'x',
       success: false,
       exit_code: 1,
+      error_code: 'USAGE_ERROR',
     });
     expect(String(payload.metadata.reason)).toContain('--output-profile');
   }, 120000);
