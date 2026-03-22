@@ -16,6 +16,39 @@ import { resolveLlmToolCallingPolicy } from '../dsl/llm-strategy.js';
 import { Step } from '../engine/pipeline/pipeline.js';
 import { PatchCtx, PlanCtx } from '../engine/pipeline/types.js';
 
+function rewriteUniqueBasenameDiffPaths(diffText: string, plannedFiles: string[]): string {
+  if (plannedFiles.length === 0) return diffText;
+
+  const basenameMap = new Map<string, string | null>();
+  for (const file of plannedFiles.map((item) => item.replace(/\\/g, '/'))) {
+    const basename = file.split('/').at(-1);
+    if (!basename) continue;
+    const existing = basenameMap.get(basename);
+    if (existing === undefined) {
+      basenameMap.set(basename, file);
+      continue;
+    }
+    if (existing !== file) {
+      basenameMap.set(basename, null);
+    }
+  }
+
+  const resolvePath = (candidate: string) => {
+    const normalized = candidate.replace(/\\/g, '/');
+    if (normalized === 'dev/null' || normalized.includes('/')) return candidate;
+    const mapped = basenameMap.get(normalized);
+    return mapped ?? candidate;
+  };
+
+  return diffText
+    .replace(
+      /^diff --git a\/(.+?) b\/(.+)$/gm,
+      (_, left, right) => `diff --git a/${resolvePath(left)} b/${resolvePath(right)}`,
+    )
+    .replace(/^--- a\/(.+)$/gm, (_, left) => `--- a/${resolvePath(left)}`)
+    .replace(/^\+\+\+ b\/(.+)$/gm, (_, right) => `+++ b/${resolvePath(right)}`);
+}
+
 async function checkPatchApplies(args: { repoRoot: string; diff: string }) {
   const git = new GitAdapter(args.repoRoot);
   return git.execMeta(
@@ -207,7 +240,10 @@ export const generatePatch: Step<PlanCtx, PatchCtx> = async (ctx) => {
   };
 
   try {
-    patch = extractUnifiedDiffFromLLMContent(rawContent);
+    patch = rewriteUniqueBasenameDiffPaths(
+      extractUnifiedDiffFromLLMContent(rawContent),
+      ctx.plan.files,
+    );
     normalizedPatch = normalizeDiff(patch);
     diffMeta = validateWithLlmErrors(patch);
   } catch (e) {
@@ -229,7 +265,10 @@ export const generatePatch: Step<PlanCtx, PatchCtx> = async (ctx) => {
       rawContent = repaired.content || '';
 
       try {
-        patch = extractUnifiedDiffFromLLMContent(rawContent);
+        patch = rewriteUniqueBasenameDiffPaths(
+          extractUnifiedDiffFromLLMContent(rawContent),
+          ctx.plan.files,
+        );
         normalizedPatch = normalizeDiff(patch);
         diffMeta = validateWithLlmErrors(patch);
       } catch (salvageError) {

@@ -41,6 +41,7 @@ const cleanPath = (path: string) => {
         'src',
         'lib',
         'app',
+        'scripts',
         'tests',
         'test',
         'packages',

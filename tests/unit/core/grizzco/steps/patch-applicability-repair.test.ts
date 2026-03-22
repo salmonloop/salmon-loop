@@ -90,6 +90,47 @@ describe('PATCH (tool calling path) applicability repair', () => {
     expect((llm.chat as any).mock.calls.length).toBe(1);
   });
 
+  it('rewrites a unique basename diff path to the exact planned repo-relative path', async () => {
+    applyCheckOk = true;
+    const { generatePatch } = await import('../../../../../src/core/grizzco/steps/patch.js');
+
+    const llm: LLM = {
+      getCapabilities: () => ({ toolCalling: true }),
+      createPlan: mock(async () => ({
+        goal: 'test-goal',
+        files: ['scripts/build-utils.js'],
+        changes: ['Adjust loadEnvFile behavior'],
+        verify: 'bun -e "process.exit(0)"',
+      })),
+      createPatch: mock(async () => ''),
+      chat: mock().mockResolvedValueOnce({
+        role: 'assistant' as const,
+        content:
+          'diff --git a/build-utils.js b/build-utils.js\n' +
+          '--- a/build-utils.js\n' +
+          '+++ b/build-utils.js\n' +
+          '@@ -1,1 +1,1 @@\n' +
+          '-old\n' +
+          '+new\n',
+      }),
+    };
+
+    const out = await generatePatch({
+      ...createCtx(llm),
+      plan: {
+        goal: 'test-goal',
+        files: ['scripts/build-utils.js'],
+        changes: ['Adjust loadEnvFile behavior'],
+        verify: 'bun -e "process.exit(0)"',
+      },
+    });
+
+    expect(
+      out.diff.startsWith('diff --git a/scripts/build-utils.js b/scripts/build-utils.js'),
+    ).toBe(true);
+    expect(out.changedFiles).toEqual(['scripts/build-utils.js']);
+  });
+
   it('fails closed with LLM_PATCH_NOT_UNIFIED_DIFF when no canonical diff exists', async () => {
     applyCheckOk = true;
     const { generatePatch } = await import('../../../../../src/core/grizzco/steps/patch.js');
