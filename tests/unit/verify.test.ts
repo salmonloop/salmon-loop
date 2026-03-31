@@ -20,6 +20,18 @@ describe('classifyError', () => {
     expect(classifyError('prettier/prettier: Insert ;')).toBe(ErrorType.LINT);
   });
 
+  it('should classify oxfmt format check failures as LINT', () => {
+    const output = [
+      '$ bun run format:check',
+      'Checking formatting...',
+      'src/index.ts (0ms)',
+      'Format issues found in above 1 files.',
+      'error: script "format:check" exited with code 1',
+    ].join('\n');
+
+    expect(classifyError(output)).toBe(ErrorType.LINT);
+  });
+
   it('should classify test failures as TEST', () => {
     const output =
       'FAIL tests/unit/llm.test.ts\n  ● LLM › should create a plan\n    expect(received).toBe(expected)';

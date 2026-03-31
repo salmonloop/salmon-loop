@@ -30,4 +30,16 @@ describe('verify error classification order', () => {
 
     expect(typescriptPlugin.diagnostics.classifyError(output)).toBe(ErrorType.TEST);
   });
+
+  it('classifies oxfmt format check failures as LINT in TypeScript plugin diagnostics', () => {
+    const output = [
+      '$ bun run format:check',
+      'Checking formatting...',
+      'src/index.ts (0ms)',
+      'Format issues found in above 1 files.',
+      'error: script "format:check" exited with code 1',
+    ].join('\n');
+
+    expect(typescriptPlugin.diagnostics.classifyError(output)).toBe(ErrorType.LINT);
+  });
 });

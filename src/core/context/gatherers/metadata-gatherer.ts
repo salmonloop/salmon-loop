@@ -55,6 +55,7 @@ export class MetadataGatherer {
       'tsconfig.json',
       'eslint.config.js',
       '.prettierrc',
+      '.oxfmtrc.json',
       'vitest.config.ts',
       'jest.config.js',
       'bun.lock',
