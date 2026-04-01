@@ -4,6 +4,7 @@ import {
   buildArtifactHintAttachments,
   buildRequestEnvelope,
   materializeRequestEnvelope,
+  resolveRequestArtifactHints,
 } from '../../llm/request-envelope.js';
 import { formatContextForPrompt } from '../../llm/utils.js';
 import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
@@ -118,6 +119,10 @@ export async function generateResearch(ctx: ExploreCtx): Promise<ResearchCtx> {
   const contextText = ctx.contextResult?.prompt ?? formatContextForPrompt(ctx.context);
   const prompt = buildResearchPrompt(contextText, ctx.options.instruction);
   const systemPrompt = 'You are a research assistant. Prefer evidence-backed claims.';
+  const resolvedArtifactHints = resolveRequestArtifactHints({
+    artifactHints: ctx.artifactHints,
+    toolCallingAudit: ctx.toolCallingAudit,
+  });
   const envelope = buildRequestEnvelope({
     system: systemPrompt,
     user: prompt,
@@ -130,7 +135,7 @@ export async function generateResearch(ctx: ExploreCtx): Promise<ResearchCtx> {
         content: contextText,
         cacheSafe: true,
       },
-      ...buildArtifactHintAttachments(ctx.artifactHints),
+      ...buildArtifactHintAttachments(resolvedArtifactHints),
     ],
     cacheSafeSurface: {
       contextHash: ctx.contextResult?.meta?.contextHash ?? ctx.context.contextHash,

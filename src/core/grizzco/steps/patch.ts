@@ -8,6 +8,7 @@ import {
   buildArtifactHintAttachments,
   buildRequestEnvelope,
   materializeRequestEnvelope,
+  resolveRequestArtifactHints,
 } from '../../llm/request-envelope.js';
 import { extractUnifiedDiffFromLLMContent, formatContextForPrompt } from '../../llm/utils.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
@@ -175,6 +176,10 @@ export const generatePatch: Step<PlanCtx, PatchCtx> = async (ctx) => {
     : undefined;
 
   const systemPrompt = await getPatchSystemPrompt(promptVisibleTools, { plan: ctx.planRuntime });
+  const resolvedArtifactHints = resolveRequestArtifactHints({
+    artifactHints: ctx.artifactHints,
+    toolCallingAudit: ctx.toolCallingAudit,
+  });
   const envelope = buildRequestEnvelope({
     system: systemPrompt,
     user: prompt,
@@ -193,7 +198,7 @@ export const generatePatch: Step<PlanCtx, PatchCtx> = async (ctx) => {
         label: 'Plan JSON',
         content: planStr,
       },
-      ...buildArtifactHintAttachments(ctx.artifactHints),
+      ...buildArtifactHintAttachments(resolvedArtifactHints),
     ],
     cacheSafeSurface: {
       contextHash: ctx.contextResult?.meta?.contextHash ?? ctx.context.contextHash,

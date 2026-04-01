@@ -5,6 +5,7 @@ import {
   buildArtifactHintAttachments,
   buildRequestEnvelope,
   materializeRequestEnvelope,
+  resolveRequestArtifactHints,
 } from '../../llm/request-envelope.js';
 import { formatContextForPrompt } from '../../llm/utils.js';
 import { getExplorePrompt, getExploreSystemPrompt } from '../../prompts/runtime.js';
@@ -149,6 +150,10 @@ export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
   };
 
   const localAudit: any[] = [];
+  const resolvedArtifactHints = resolveRequestArtifactHints({
+    artifactHints: ctx.artifactHints,
+    toolCallingAudit: ctx.toolCallingAudit,
+  });
   const envelope = buildRequestEnvelope({
     system: systemPrompt,
     user: prompt,
@@ -161,7 +166,7 @@ export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
         content: contextPrompt,
         cacheSafe: true,
       },
-      ...buildArtifactHintAttachments(ctx.artifactHints),
+      ...buildArtifactHintAttachments(resolvedArtifactHints),
     ],
     cacheSafeSurface: {
       contextHash: ctx.contextResult?.meta?.contextHash ?? ctx.context.contextHash,

@@ -2,6 +2,8 @@ import { getPromptCachingManager } from '../context/cache/prompt-caching.js';
 import type { ArtifactHandle } from '../sub-agent/artifacts/types.js';
 import type { LLMMessage, LLMProviderHints } from '../types/llm.js';
 
+import type { ToolCallingAuditEntry } from './audit.js';
+
 export interface RequestAttachment {
   key: string;
   kind: 'context' | 'plan' | 'artifact' | 'note';
@@ -34,6 +36,83 @@ export interface RequestArtifactHints {
   verifyArtifact?: ArtifactHandle;
   subAgentPatchArtifacts?: ArtifactHandle[];
   subAgentAuditArtifacts?: ArtifactHandle[];
+}
+
+function isArtifactHandle(value: unknown): value is ArtifactHandle {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as {
+    handle?: unknown;
+    mimeType?: unknown;
+    sha256?: unknown;
+    size?: unknown;
+  };
+  return (
+    typeof candidate.handle === 'string' &&
+    typeof candidate.mimeType === 'string' &&
+    typeof candidate.sha256 === 'string' &&
+    typeof candidate.size === 'number'
+  );
+}
+
+function mergeArtifactHandles(
+  existing: ArtifactHandle[] | undefined,
+  incoming: ArtifactHandle[] | undefined,
+  limit = 4,
+): ArtifactHandle[] | undefined {
+  const merged: ArtifactHandle[] = [];
+  const seen = new Set<string>();
+
+  for (const artifact of [...(existing ?? []), ...(incoming ?? [])]) {
+    if (!artifact || seen.has(artifact.handle)) continue;
+    seen.add(artifact.handle);
+    merged.push(artifact);
+  }
+
+  if (merged.length === 0) return undefined;
+  return merged.slice(-limit);
+}
+
+export function resolveRequestArtifactHints(params: {
+  artifactHints?: RequestArtifactHints;
+  toolCallingAudit?: ToolCallingAuditEntry[];
+}): RequestArtifactHints | undefined {
+  const direct = params.artifactHints;
+  const auditEntries = params.toolCallingAudit ?? [];
+
+  const auditPatchArtifacts: ArtifactHandle[] = [];
+  const auditAuditArtifacts: ArtifactHandle[] = [];
+
+  for (const entry of auditEntries) {
+    if (entry?.toolName !== 'agent_dispatch' || entry.toolResultStatus !== 'ok') continue;
+    if (isArtifactHandle(entry.toolResultPatchArtifact)) {
+      auditPatchArtifacts.push(entry.toolResultPatchArtifact);
+    }
+    if (isArtifactHandle(entry.toolResultAuditArtifact)) {
+      auditAuditArtifacts.push(entry.toolResultAuditArtifact);
+    }
+  }
+
+  const resolved: RequestArtifactHints = {
+    verifyArtifact: direct?.verifyArtifact,
+    subAgentPatchArtifacts: mergeArtifactHandles(
+      direct?.subAgentPatchArtifacts,
+      auditPatchArtifacts,
+    ),
+    subAgentAuditArtifacts: mergeArtifactHandles(
+      direct?.subAgentAuditArtifacts,
+      auditAuditArtifacts,
+    ),
+  };
+
+  if (
+    !resolved.verifyArtifact &&
+    !resolved.subAgentPatchArtifacts?.length &&
+    !resolved.subAgentAuditArtifacts?.length
+  ) {
+    return undefined;
+  }
+
+  return resolved;
 }
 
 function toSafeMessage(message: LLMMessage): LLMMessage | null {

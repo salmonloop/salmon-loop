@@ -491,6 +491,72 @@ describe('Grizzco steps: PLAN/PATCH tool calling path', () => {
     expect(lastUserMessage.content).toContain('artifact.read');
   });
 
+  it('PLAN exposes same-attempt sub-agent artifact handles from toolCallingAudit', async () => {
+    const captured: any[][] = [];
+    const llm: LLM = {
+      getCapabilities: () => ({ toolCalling: true }),
+      createPlan: mock(async () => {
+        throw new Error('createPlan should not be called when tool calling is enabled');
+      }),
+      createPatch: mock(async () => ''),
+      chat: mock(async (messages: any) => {
+        captured.push(messages.map((m: any) => ({ role: m.role, content: m.content })));
+        return {
+          role: 'assistant' as const,
+          content: JSON.stringify({
+            goal: 'retry-goal',
+            files: ['src/index.js'],
+            changes: ['Inspect same-attempt artifacts'],
+            verify: 'bun -e "process.exit(0)"',
+          }),
+        };
+      }),
+    };
+
+    const ctx: any = {
+      workspace: { workPath: 'C:\\repo', strategy: 'worktree' },
+      options: {
+        llm,
+        instruction: 'continue after agent_dispatch in explore',
+        dryRun: true,
+      },
+      toolCallingAudit: [
+        {
+          phase: 'EXPLORE',
+          toolName: 'agent_dispatch',
+          toolResultStatus: 'ok',
+          toolResultPatchArtifact: {
+            handle: 's8p://artifact/subagent-patch-same-attempt',
+            mimeType: 'text/x-diff',
+            sha256: 'patch',
+            size: 456,
+          },
+          toolResultAuditArtifact: {
+            handle: 's8p://artifact/subagent-audit-same-attempt',
+            mimeType: 'application/json',
+            sha256: 'audit',
+            size: 789,
+          },
+        },
+      ],
+      context: { primaryFile: 'src/index.js', primaryText: 'const x = 1;' },
+      contextResult: {
+        prompt: 'ASSEMBLED_CONTEXT_FROM_CONTEXT_SERVICE',
+        meta: {},
+      },
+      emit: () => {},
+      toolstack: createEmptyToolstack(),
+    };
+
+    await generatePlan(ctx);
+
+    const lastUserMessage = captured[0][captured[0].length - 1];
+    expect(lastUserMessage.role).toBe('user');
+    expect(lastUserMessage.content).toContain('s8p://artifact/subagent-patch-same-attempt');
+    expect(lastUserMessage.content).toContain('s8p://artifact/subagent-audit-same-attempt');
+    expect(lastUserMessage.content).toContain('artifact.read');
+  });
+
   it('PLAN repairs non-JSON responses with a second pass (contract enforcement)', async () => {
     const llm: LLM = {
       getCapabilities: () => ({ toolCalling: true }),
@@ -572,6 +638,82 @@ describe('Grizzco steps: PLAN/PATCH tool calling path', () => {
     expect(out.changedFiles).toEqual(['src/index.js']);
     expect(out.diff).toContain('diff --git a/src/index.js b/src/index.js');
     expect(createPatch).not.toHaveBeenCalled();
+  });
+
+  it('PATCH exposes same-attempt sub-agent artifact handles from toolCallingAudit', async () => {
+    const captured: any[][] = [];
+
+    const repo = await helper.createGitRepo({
+      initialFiles: [{ path: 'src/index.js', content: 'const x = 1;\n' }],
+    });
+
+    const llm: LLM = {
+      getCapabilities: () => ({ toolCalling: true }),
+      createPlan: mock(async () => ({
+        goal: 'test-goal',
+        files: ['src/index.js'],
+        changes: ['Inspect same-attempt artifacts'],
+        verify: 'bun -e "process.exit(0)"',
+      })),
+      createPatch: mock(async () => {
+        throw new Error('createPatch should not be called when tool calling is enabled');
+      }),
+      chat: mock(async (messages: any) => {
+        captured.push(messages.map((m: any) => ({ role: m.role, content: m.content })));
+        return {
+          role: 'assistant' as const,
+          content:
+            'diff --git a/src/index.js b/src/index.js\n' +
+            'index 1111111..2222222 100644\n' +
+            '--- a/src/index.js\n' +
+            '+++ b/src/index.js\n' +
+            '@@ -1,1 +1,2 @@\n' +
+            '+// artifact aware\n' +
+            ' const x = 1;\n',
+        };
+      }),
+    };
+
+    const ctx: any = {
+      workspace: { workPath: repo.path, strategy: 'worktree' },
+      options: { llm, instruction: 'test', dryRun: true },
+      toolCallingAudit: [
+        {
+          phase: 'PLAN',
+          toolName: 'agent_dispatch',
+          toolResultStatus: 'ok',
+          toolResultPatchArtifact: {
+            handle: 's8p://artifact/subagent-patch-plan-step',
+            mimeType: 'text/x-diff',
+            sha256: 'patch',
+            size: 456,
+          },
+          toolResultAuditArtifact: {
+            handle: 's8p://artifact/subagent-audit-plan-step',
+            mimeType: 'application/json',
+            sha256: 'audit',
+            size: 789,
+          },
+        },
+      ],
+      context: { primaryFile: 'src/index.js', primaryText: 'const x = 1;' },
+      plan: {
+        goal: 'test-goal',
+        files: ['src/index.js'],
+        changes: ['Inspect same-attempt artifacts'],
+        verify: 'bun -e "process.exit(0)"',
+      },
+      emit: () => {},
+      toolstack: createEmptyToolstack(),
+    };
+
+    await generatePatch(ctx);
+
+    const lastUserMessage = captured[0][captured[0].length - 1];
+    expect(lastUserMessage.role).toBe('user');
+    expect(lastUserMessage.content).toContain('s8p://artifact/subagent-patch-plan-step');
+    expect(lastUserMessage.content).toContain('s8p://artifact/subagent-audit-plan-step');
+    expect(lastUserMessage.content).toContain('artifact.read');
   });
 
   it('PATCH fails closed on empty responses and does not attempt a repair pass', async () => {
