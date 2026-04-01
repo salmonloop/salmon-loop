@@ -15,6 +15,7 @@ import type { ExecutionWorkspace } from '../../types/loop.js';
 import { ArtifactStore } from '../artifacts/store.js';
 import { cloneSubAgentContextSnapshot } from '../context-snapshot.js';
 import type { SubAgentControllerPort } from '../controller.js';
+import { resolveSubAgentDryRun } from '../dispatch-policy.js';
 import type { SubAgentRegistry } from '../registry.js';
 import { getSubAgentRegistry } from '../registry.js';
 import type {
@@ -254,7 +255,8 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
       instruction: request.task,
       repoPath: baseRepoPath,
       llm,
-      dryRun: this.ctx.dryRun,
+      // CRITICAL SAFETY: read-only model phases force sub-agent dryRun.
+      dryRun: resolveSubAgentDryRun(this.ctx.dryRun, this.ctx.phase),
       verify: undefined,
       strategy: 'worktree',
       contextFiles: request.contextFiles,

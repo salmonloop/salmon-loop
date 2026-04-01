@@ -8,6 +8,17 @@ import { createSubAgentController } from '../controller.js';
 import { SubAgentManager } from '../core/manager.js';
 import { SubAgentRequestSchema, type SubAgentRequest, type SubAgentResult } from '../types.js';
 
+function normalizeDispatchRequest(input: SubAgentRequest, ctx: ToolRuntimeCtx): SubAgentRequest {
+  if (input.session_target !== 'shared') {
+    return input;
+  }
+
+  return {
+    ...input,
+    contextSnapshot: mergeSubAgentContextSnapshot(input.contextSnapshot, ctx.contextSnapshot),
+  };
+}
+
 /**
  * agent_dispatch (Internal: Smallfry Dispatcher)
  * The primary tool for spawning autonomous sub-agents to handle specialized sub-tasks.
@@ -30,16 +41,9 @@ export const subAgentTaskSpec: ToolSpec = {
 
   executor: async (input: any, ctx: ToolRuntimeCtx): Promise<SubAgentResult> => {
     const manager = new SubAgentManager(ctx, ctx.subAgentController ?? createSubAgentController());
-    const request = input as SubAgentRequest;
-    const normalizedRequest: SubAgentRequest = {
-      ...request,
-      contextSnapshot:
-        request.session_target === 'shared'
-          ? mergeSubAgentContextSnapshot(request.contextSnapshot, ctx.contextSnapshot)
-          : request.contextSnapshot,
-    };
+    const request = normalizeDispatchRequest(input as SubAgentRequest, ctx);
 
     // Launch the Smallfry via the manager
-    return await manager.execute(normalizedRequest);
+    return await manager.execute(request);
   },
 };
