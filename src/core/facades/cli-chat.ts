@@ -15,9 +15,7 @@ export type { RunOutcomeReporter } from '../observability/run-outcome-reporter.j
 export { runSalmonLoop } from '../runtime/loop.js';
 export { ChatSessionManager } from '../session/manager.js';
 export type { PluginRegistry } from '../plugin/registry.js';
-export {
-  getDefaultSessionContextBudgetTokens,
-} from '../session/session-context-builder.js';
+export { getDefaultSessionContextBudgetTokens } from '../session/session-context-builder.js';
 export {
   buildEffectiveConversationContext,
   refreshSessionSummary,

@@ -13,6 +13,7 @@ import type { LLM, LoopOptions } from '../../types/index.js';
 import { ErrorType } from '../../types/index.js';
 import type { ExecutionWorkspace } from '../../types/loop.js';
 import { ArtifactStore } from '../artifacts/store.js';
+import { cloneSubAgentContextSnapshot } from '../context-snapshot.js';
 import type { SubAgentControllerPort } from '../controller.js';
 import type { SubAgentRegistry } from '../registry.js';
 import { getSubAgentRegistry } from '../registry.js';
@@ -200,16 +201,18 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
     snapshot: SubAgentContextSnapshot | undefined,
     initCtx: InitCtx,
   ): InitCtx {
-    if (!snapshot) return initCtx;
+    const normalized = cloneSubAgentContextSnapshot(snapshot);
+    if (!normalized) return initCtx;
 
     return {
       ...initCtx,
-      planRuntime: snapshot.planRuntime ?? initCtx.planRuntime,
-      toolCallingAudit: snapshot.toolCallingAudit ?? initCtx.toolCallingAudit,
-      artifactHints: snapshot.artifactHints ?? initCtx.artifactHints,
+      cacheSharing: normalized.cacheSharing ?? initCtx.cacheSharing,
+      planRuntime: normalized.planRuntime ?? initCtx.planRuntime,
+      toolCallingAudit: normalized.toolCallingAudit ?? initCtx.toolCallingAudit,
+      artifactHints: normalized.artifactHints ?? initCtx.artifactHints,
       options: {
         ...initCtx.options,
-        conversationContext: snapshot.conversationContext ?? initCtx.options.conversationContext,
+        conversationContext: normalized.conversationContext ?? initCtx.options.conversationContext,
       },
     };
   }

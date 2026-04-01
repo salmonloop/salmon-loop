@@ -270,4 +270,59 @@ describe('exploreCodebase', () => {
       'No files were read during the exploration phase',
     );
   });
+
+  it('injects recent read artifact handles into the explore request envelope', async () => {
+    const captured: any[][] = [];
+    const mockRuntimeCtx = {
+      repoRoot: '/tmp/test',
+      attemptId: 1,
+      dryRun: false,
+    };
+
+    mockCtx.artifactHints = {
+      recentReadArtifacts: [
+        {
+          path: 'src/previous.ts',
+          artifact: {
+            handle: 's8p://artifact/recent-read-1',
+            mimeType: 'text/plain',
+            sha256: 'abc123',
+            size: 321,
+          },
+        },
+      ],
+    };
+
+    spyOn(session, 'chatWithTools').mockImplementation(
+      async (messages: any, _options: any, runtime: any) => {
+        captured.push(messages.map((m: any) => ({ role: m.role, content: m.content })));
+        const router = runtime.toolstack.router;
+
+        mockToolstack.router.call.mockResolvedValue({
+          toolName: 'fs.read',
+          status: 'ok',
+          output: { content: 'export const value = 1;' },
+        });
+
+        await router.call({
+          id: 'capture-1',
+          phase: Phase.EXPLORE,
+          toolName: 'fs.read',
+          args: { file: 'src/captured.ts' },
+          ctx: mockRuntimeCtx,
+        });
+
+        return { role: 'assistant', content: 'done' } as any;
+      },
+    );
+
+    const out = await runExplore(mockCtx);
+
+    const lastUserMessage = captured[0][captured[0].length - 1];
+    expect(lastUserMessage.role).toBe('user');
+    expect(lastUserMessage.content).toContain('s8p://artifact/recent-read-1');
+    expect(lastUserMessage.content).toContain('src/previous.ts');
+    expect(lastUserMessage.content).toContain('artifact.read');
+    expect(out.explorationSummary?.filesFound).toBeGreaterThan(0);
+  });
 });

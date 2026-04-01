@@ -21,6 +21,8 @@ import { resolveLlmToolCallingPolicy } from '../dsl/llm-strategy.js';
 import { Step } from '../engine/pipeline/pipeline.js';
 import { ContextCtx, PlanCtx } from '../engine/pipeline/types.js';
 
+import { resolveCacheSharingSurface } from './cache-sharing.js';
+
 function sanitizeSubtaskText(raw: string): string | null {
   const oneLine = String(raw ?? '')
     .replace(/\r?\n/g, ' ')
@@ -166,6 +168,21 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
   }
 
   const contextPrompt = ctx.contextResult?.prompt ?? formatContextForPrompt(ctx.context);
+  const localContextHash = ctx.contextResult?.meta?.contextHash ?? ctx.context.contextHash;
+  const cacheSurface = resolveCacheSharingSurface({
+    phase: Phase.PLAN,
+    defaultNamespace: 'plan',
+    localContextHash,
+    cacheSharing: ctx.cacheSharing,
+    onMismatch: (mismatch) => {
+      recordAuditEvent('request.cache_sharing_hash_mismatch', mismatch, {
+        source: 'llm',
+        severity: 'low',
+        scope: 'session',
+        phase: Phase.PLAN,
+      });
+    },
+  });
   const prompt = await getPlanPrompt(
     contextPrompt,
     ctx.options.instruction,
@@ -203,8 +220,8 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
       ...buildArtifactHintAttachments(resolvedArtifactHints),
     ],
     cacheSafeSurface: {
-      contextHash: ctx.contextResult?.meta?.contextHash ?? ctx.context.contextHash,
-      namespace: 'plan',
+      contextHash: cacheSurface.contextHash,
+      namespace: cacheSurface.namespace,
     },
   });
   const baseMessages = materializeRequestEnvelope(envelope);
@@ -239,6 +256,16 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
         agentKind: ctx.options.agentKind ?? 'primary',
         languagePlugins: ctx.options.languagePlugins,
         subAgentController: ctx.options.subAgentController,
+        contextSnapshot: {
+          conversationContext: ctx.options.conversationContext,
+          artifactHints: ctx.artifactHints,
+          toolCallingAudit: ctx.toolCallingAudit,
+          planRuntime: ctx.planRuntime,
+          cacheSharing: {
+            namespace: cacheSurface.namespace,
+            contextHash: cacheSurface.contextHash,
+          },
+        },
       },
       toolstack,
       eventPayload: ctx.options.eventPayload,

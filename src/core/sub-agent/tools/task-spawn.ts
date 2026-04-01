@@ -3,9 +3,10 @@ import { z } from 'zod';
 import { text } from '../../../locales/index.js';
 import type { ToolRuntimeCtx } from '../../tools/types.js';
 import { ToolSpec } from '../../tools/types.js';
+import { mergeSubAgentContextSnapshot } from '../context-snapshot.js';
 import { createSubAgentController } from '../controller.js';
 import { SubAgentManager } from '../core/manager.js';
-import { SubAgentRequestSchema, SubAgentResult } from '../types.js';
+import { SubAgentRequestSchema, type SubAgentRequest, type SubAgentResult } from '../types.js';
 
 /**
  * agent_dispatch (Internal: Smallfry Dispatcher)
@@ -29,8 +30,16 @@ export const subAgentTaskSpec: ToolSpec = {
 
   executor: async (input: any, ctx: ToolRuntimeCtx): Promise<SubAgentResult> => {
     const manager = new SubAgentManager(ctx, ctx.subAgentController ?? createSubAgentController());
+    const request = input as SubAgentRequest;
+    const normalizedRequest: SubAgentRequest = {
+      ...request,
+      contextSnapshot:
+        request.session_target === 'shared'
+          ? mergeSubAgentContextSnapshot(request.contextSnapshot, ctx.contextSnapshot)
+          : request.contextSnapshot,
+    };
 
     // Launch the Smallfry via the manager
-    return await manager.execute(input);
+    return await manager.execute(normalizedRequest);
   },
 };

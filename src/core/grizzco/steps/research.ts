@@ -7,6 +7,7 @@ import {
   resolveRequestArtifactHints,
 } from '../../llm/request-envelope.js';
 import { formatContextForPrompt } from '../../llm/utils.js';
+import { recordAuditEvent } from '../../observability/audit-trail.js';
 import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
 import { Phase } from '../../types/runtime.js';
 import { resolveLlmToolCallingPolicy } from '../dsl/llm-strategy.js';
@@ -16,6 +17,8 @@ import type {
   ResearchFinding,
   ResearchSource,
 } from '../engine/pipeline/types.js';
+
+import { resolveCacheSharingSurface } from './cache-sharing.js';
 
 type ResearchResponse = {
   researchNotes?: unknown;
@@ -117,6 +120,21 @@ function buildSourcesFromAudit(
 
 export async function generateResearch(ctx: ExploreCtx): Promise<ResearchCtx> {
   const contextText = ctx.contextResult?.prompt ?? formatContextForPrompt(ctx.context);
+  const localContextHash = ctx.contextResult?.meta?.contextHash ?? ctx.context.contextHash;
+  const cacheSurface = resolveCacheSharingSurface({
+    phase: Phase.RESEARCH,
+    defaultNamespace: 'research',
+    localContextHash,
+    cacheSharing: ctx.cacheSharing,
+    onMismatch: (mismatch) => {
+      recordAuditEvent('request.cache_sharing_hash_mismatch', mismatch, {
+        source: 'llm',
+        severity: 'low',
+        scope: 'session',
+        phase: Phase.RESEARCH,
+      });
+    },
+  });
   const prompt = buildResearchPrompt(contextText, ctx.options.instruction);
   const systemPrompt = 'You are a research assistant. Prefer evidence-backed claims.';
   const resolvedArtifactHints = resolveRequestArtifactHints({
@@ -138,8 +156,8 @@ export async function generateResearch(ctx: ExploreCtx): Promise<ResearchCtx> {
       ...buildArtifactHintAttachments(resolvedArtifactHints),
     ],
     cacheSafeSurface: {
-      contextHash: ctx.contextResult?.meta?.contextHash ?? ctx.context.contextHash,
-      namespace: 'research',
+      contextHash: cacheSurface.contextHash,
+      namespace: cacheSurface.namespace,
     },
   });
   const baseMessages = materializeRequestEnvelope(envelope);
@@ -208,6 +226,16 @@ export async function generateResearch(ctx: ExploreCtx): Promise<ResearchCtx> {
         agentKind: ctx.options.agentKind ?? 'primary',
         languagePlugins: ctx.options.languagePlugins,
         subAgentController: ctx.options.subAgentController,
+        contextSnapshot: {
+          conversationContext: ctx.options.conversationContext,
+          artifactHints: ctx.artifactHints,
+          toolCallingAudit: ctx.toolCallingAudit,
+          planRuntime: ctx.planRuntime,
+          cacheSharing: {
+            namespace: cacheSurface.namespace,
+            contextHash: cacheSurface.contextHash,
+          },
+        },
       },
       toolstack: ctx.toolstack,
       eventPayload: ctx.options.eventPayload,

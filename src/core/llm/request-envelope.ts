@@ -283,15 +283,14 @@ export function buildRequestEnvelope(params: {
     namespace?: string;
   };
 }): RequestEnvelope {
-  const systemSections = (Array.isArray(params.system) ? params.system : [params.system]).map((item) =>
-    String(item ?? '').trimEnd(),
+  const systemSections = (Array.isArray(params.system) ? params.system : [params.system]).map(
+    (item) => String(item ?? '').trimEnd(),
   );
   const attachments = Array.isArray(params.attachments)
     ? params.attachments
         .filter(
           (item) =>
-            item &&
-            (typeof item.content === 'string' || typeof item.artifactHandle === 'string'),
+            item && (typeof item.content === 'string' || typeof item.artifactHandle === 'string'),
         )
         .map((item) => ({
           ...item,
@@ -339,7 +338,8 @@ export function buildRequestEnvelope(params: {
 export function materializeRequestEnvelope(envelope: RequestEnvelope): LLMMessage[] {
   const artifactSection = (() => {
     const artifactAttachments = envelope.attachments.filter(
-      (item) => item.kind === 'artifact' && typeof item.artifactHandle === 'string' && item.artifactHandle,
+      (item) =>
+        item.kind === 'artifact' && typeof item.artifactHandle === 'string' && item.artifactHandle,
     );
     if (artifactAttachments.length === 0) return '';
 

@@ -102,6 +102,14 @@ export interface InitCtx {
       artifact: ArtifactHandle;
     }>;
   };
+  /**
+   * Optional shared cache parameters propagated from parent sessions.
+   * Sub-agents can reuse these values to keep cache-critical prefixes stable.
+   */
+  cacheSharing?: {
+    namespace?: string;
+    contextHash?: string;
+  };
 }
 
 /**

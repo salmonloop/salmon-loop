@@ -8,6 +8,7 @@ import {
   resolveRequestArtifactHints,
 } from '../../llm/request-envelope.js';
 import { formatContextForPrompt } from '../../llm/utils.js';
+import { recordAuditEvent } from '../../observability/audit-trail.js';
 import { getExplorePrompt, getExploreSystemPrompt } from '../../prompts/runtime.js';
 import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
 import { type RelatedFileContext } from '../../types/context.js';
@@ -18,6 +19,8 @@ import { resolveLlmToolCallingPolicy } from '../dsl/llm-strategy.js';
 import { Step } from '../engine/pipeline/pipeline.js';
 import { ContextCtx, ExploreCtx } from '../engine/pipeline/types.js';
 import { ContextValidator } from '../validation/ContextValidator.js';
+
+import { resolveCacheSharingSurface } from './cache-sharing.js';
 
 const SAFE_INFERRED_EXTENSIONS = new Set([
   '.ts',
@@ -89,6 +92,21 @@ export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
   }
 
   const contextPrompt = ctx.contextResult?.prompt ?? formatContextForPrompt(ctx.context);
+  const localContextHash = ctx.contextResult?.meta?.contextHash ?? ctx.context.contextHash;
+  const cacheSurface = resolveCacheSharingSurface({
+    phase: Phase.EXPLORE,
+    defaultNamespace: 'explore',
+    localContextHash,
+    cacheSharing: ctx.cacheSharing,
+    onMismatch: (mismatch) => {
+      recordAuditEvent('request.cache_sharing_hash_mismatch', mismatch, {
+        source: 'llm',
+        severity: 'low',
+        scope: 'session',
+        phase: Phase.EXPLORE,
+      });
+    },
+  });
   const prompt = await getExplorePrompt(contextPrompt, ctx.options.instruction, ctx.lastError);
 
   const systemPrompt = await getExploreSystemPrompt({ plan: ctx.planRuntime });
@@ -169,8 +187,8 @@ export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
       ...buildArtifactHintAttachments(resolvedArtifactHints),
     ],
     cacheSafeSurface: {
-      contextHash: ctx.contextResult?.meta?.contextHash ?? ctx.context.contextHash,
-      namespace: 'explore',
+      contextHash: cacheSurface.contextHash,
+      namespace: cacheSurface.namespace,
     },
   });
   const baseMessages = materializeRequestEnvelope(envelope);
@@ -197,6 +215,16 @@ export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
         agentKind: ctx.options.agentKind ?? 'primary',
         languagePlugins: ctx.options.languagePlugins,
         subAgentController: ctx.options.subAgentController,
+        contextSnapshot: {
+          conversationContext: ctx.options.conversationContext,
+          artifactHints: ctx.artifactHints,
+          toolCallingAudit: ctx.toolCallingAudit,
+          planRuntime: ctx.planRuntime,
+          cacheSharing: {
+            namespace: cacheSurface.namespace,
+            contextHash: cacheSurface.contextHash,
+          },
+        },
       },
       toolstack: proxiedToolstack,
       eventPayload: ctx.options.eventPayload,

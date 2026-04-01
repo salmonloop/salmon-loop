@@ -187,11 +187,7 @@ function extractArtifactHandlesFromToolOutput(output: unknown): {
   };
 }
 
-function extractRecentReadResult(params: {
-  toolName: string;
-  rawArgs: unknown;
-  output: unknown;
-}):
+function extractRecentReadResult(params: { toolName: string; rawArgs: unknown; output: unknown }):
   | {
       path: string;
       content: string;

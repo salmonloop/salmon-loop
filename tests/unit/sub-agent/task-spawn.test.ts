@@ -1,0 +1,131 @@
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
+
+const executeMock = mock(async (request: any) => ({
+  agent_ref: request.agent_ref ?? 'surgeon',
+  success: true,
+  summary: 'ok',
+  tokenUsage: 0,
+  attempts: 1,
+  logs: [],
+}));
+
+mock.module('../../../src/core/sub-agent/core/manager.js', () => ({
+  SubAgentManager: class {
+    constructor(_ctx: unknown, _controller: unknown) {}
+
+    execute(request: any) {
+      return executeMock(request);
+    }
+  },
+}));
+
+mock.module('../../../src/core/sub-agent/controller.js', () => ({
+  createSubAgentController: () => ({
+    registerAgent: mock(),
+    updateStatus: mock(),
+    appendLog: mock(),
+    listAgents: mock(() => []),
+    getAgent: mock(() => undefined),
+    tailLogs: mock(() => []),
+    requestStop: mock(() => true),
+    isStopRequested: mock(() => false),
+  }),
+}));
+
+describe('sub-agent task-spawn context snapshot injection', () => {
+  beforeEach(() => {
+    mock.clearAllMocks();
+  });
+
+  it('injects runtime contextSnapshot for shared sessions', async () => {
+    const { subAgentTaskSpec } = await import('../../../src/core/sub-agent/tools/task-spawn.js');
+    const runtimeSnapshot = {
+      conversationContext: [{ role: 'assistant', content: 'from runtime' }],
+      artifactHints: {
+        verifyArtifact: {
+          handle: 's8p://artifact/verify-1',
+          mimeType: 'text/plain',
+          sha256: 'verify',
+          size: 12,
+        },
+      },
+      toolCallingAudit: [
+        {
+          timestamp: new Date().toISOString(),
+          phase: 'PLAN',
+          round: 0,
+          callId: 'call-1',
+          toolName: 'fs.read',
+          rawArgsType: 'string',
+          parsedArgsOk: true,
+          toolResultStatus: 'ok',
+        },
+      ],
+      planRuntime: { sessionId: 'plan-1', planPathHint: '.salmonloop/plan.md' },
+      cacheSharing: { namespace: 'plan', contextHash: 'ctx-shared' },
+    };
+
+    await subAgentTaskSpec.executor(
+      {
+        agent_ref: 'surgeon',
+        task: 'fix bug',
+        session_target: 'shared',
+        contextSnapshot: {
+          conversationContext: [{ role: 'user', content: 'from request' }],
+        },
+      },
+      {
+        repoRoot: '/repo',
+        attemptId: 1,
+        dryRun: false,
+        contextSnapshot: runtimeSnapshot,
+      } as any,
+    );
+
+    expect(executeMock).toHaveBeenCalledTimes(1);
+    const forwarded = executeMock.mock.calls[0]?.[0];
+    expect(forwarded.contextSnapshot?.conversationContext).toEqual([
+      { role: 'assistant', content: 'from runtime' },
+    ]);
+    expect(forwarded.contextSnapshot?.planRuntime).toEqual({
+      sessionId: 'plan-1',
+      planPathHint: '.salmonloop/plan.md',
+    });
+    expect(forwarded.contextSnapshot?.conversationContext).not.toBe(
+      runtimeSnapshot.conversationContext,
+    );
+    expect(forwarded.contextSnapshot?.artifactHints).not.toBe(runtimeSnapshot.artifactHints);
+    expect(forwarded.contextSnapshot?.toolCallingAudit).not.toBe(runtimeSnapshot.toolCallingAudit);
+    expect(forwarded.contextSnapshot?.planRuntime).toBe(runtimeSnapshot.planRuntime);
+    expect(forwarded.contextSnapshot?.cacheSharing).toBe(runtimeSnapshot.cacheSharing);
+  });
+
+  it('preserves request contextSnapshot for isolated sessions', async () => {
+    const { subAgentTaskSpec } = await import('../../../src/core/sub-agent/tools/task-spawn.js');
+
+    await subAgentTaskSpec.executor(
+      {
+        agent_ref: 'surgeon',
+        task: 'fix bug',
+        session_target: 'isolated',
+        contextSnapshot: {
+          conversationContext: [{ role: 'user', content: 'from request' }],
+        },
+      },
+      {
+        repoRoot: '/repo',
+        attemptId: 1,
+        dryRun: false,
+        contextSnapshot: {
+          conversationContext: [{ role: 'assistant', content: 'from runtime' }],
+        },
+      } as any,
+    );
+
+    expect(executeMock).toHaveBeenCalledTimes(1);
+    const forwarded = executeMock.mock.calls[0]?.[0];
+    expect(forwarded.contextSnapshot?.conversationContext).toEqual([
+      { role: 'user', content: 'from request' },
+    ]);
+  });
+});

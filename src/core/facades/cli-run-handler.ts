@@ -12,9 +12,7 @@ export {
 } from '../prompts/registry.js';
 export { getExitCode } from '../runtime/exit-codes.js';
 export type { ChatSessionManager } from '../session/manager.js';
-export {
-  getDefaultSessionContextBudgetTokens,
-} from '../session/session-context-builder.js';
+export { getDefaultSessionContextBudgetTokens } from '../session/session-context-builder.js';
 export { buildEffectiveConversationContext } from '../session/summary-sync.js';
 export type { ApplyBackOnDirty } from '../types/execution.js';
 export type { CheckpointStrategy, LoopResult } from '../types/loop.js';
