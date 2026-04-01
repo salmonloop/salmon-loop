@@ -40,6 +40,10 @@ export interface RequestArtifactHints {
     path: string;
     artifact: ArtifactHandle;
   }>;
+  toolResultPreviewArtifacts?: Array<{
+    label: string;
+    artifact: ArtifactHandle;
+  }>;
 }
 
 function isArtifactHandle(value: unknown): value is ArtifactHandle {
@@ -111,6 +115,41 @@ function mergeReadArtifactRefs(
   return merged.slice(-limit);
 }
 
+function mergePreviewArtifactRefs(
+  existing:
+    | Array<{
+        label: string;
+        artifact: ArtifactHandle;
+      }>
+    | undefined,
+  incoming:
+    | Array<{
+        label: string;
+        artifact: ArtifactHandle;
+      }>
+    | undefined,
+  limit = 6,
+):
+  | Array<{
+      label: string;
+      artifact: ArtifactHandle;
+    }>
+  | undefined {
+  const merged: Array<{ label: string; artifact: ArtifactHandle }> = [];
+  const seen = new Set<string>();
+
+  for (const item of [...(existing ?? []), ...(incoming ?? [])]) {
+    if (!item?.label || !item.artifact?.handle) continue;
+    const key = `${item.label}::${item.artifact.handle}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(item);
+  }
+
+  if (merged.length === 0) return undefined;
+  return merged.slice(-limit);
+}
+
 export function resolveRequestArtifactHints(params: {
   artifactHints?: RequestArtifactHints;
   toolCallingAudit?: ToolCallingAuditEntry[];
@@ -121,6 +160,7 @@ export function resolveRequestArtifactHints(params: {
   const auditPatchArtifacts: ArtifactHandle[] = [];
   const auditAuditArtifacts: ArtifactHandle[] = [];
   const auditReadArtifacts: Array<{ path: string; artifact: ArtifactHandle }> = [];
+  const auditPreviewArtifacts: Array<{ label: string; artifact: ArtifactHandle }> = [];
 
   for (const entry of auditEntries) {
     if (entry?.toolResultStatus === 'ok' && entry.toolName === 'agent_dispatch') {
@@ -140,6 +180,15 @@ export function resolveRequestArtifactHints(params: {
         artifact: entry.toolResultReadArtifact,
       });
     }
+    if (
+      typeof entry.toolResultPreviewLabel === 'string' &&
+      isArtifactHandle(entry.toolResultPreviewArtifact)
+    ) {
+      auditPreviewArtifacts.push({
+        label: entry.toolResultPreviewLabel,
+        artifact: entry.toolResultPreviewArtifact,
+      });
+    }
   }
 
   const resolved: RequestArtifactHints = {
@@ -153,13 +202,18 @@ export function resolveRequestArtifactHints(params: {
       auditAuditArtifacts,
     ),
     recentReadArtifacts: mergeReadArtifactRefs(direct?.recentReadArtifacts, auditReadArtifacts),
+    toolResultPreviewArtifacts: mergePreviewArtifactRefs(
+      direct?.toolResultPreviewArtifacts,
+      auditPreviewArtifacts,
+    ),
   };
 
   if (
     !resolved.verifyArtifact &&
     !resolved.subAgentPatchArtifacts?.length &&
     !resolved.subAgentAuditArtifacts?.length &&
-    !resolved.recentReadArtifacts?.length
+    !resolved.recentReadArtifacts?.length &&
+    !resolved.toolResultPreviewArtifacts?.length
   ) {
     return undefined;
   }
@@ -243,6 +297,16 @@ export function buildArtifactHintAttachments(hints?: RequestArtifactHints): Requ
       toArtifactAttachment({
         key: `recent-read-${index}`,
         label: `Recent file read: ${item.path}`,
+        artifact: item.artifact,
+      }),
+    );
+  }
+
+  for (const [index, item] of (hints.toolResultPreviewArtifacts ?? []).entries()) {
+    attachments.push(
+      toArtifactAttachment({
+        key: `tool-result-preview-${index}`,
+        label: item.label,
         artifact: item.artifact,
       }),
     );

@@ -63,6 +63,10 @@ export interface SubAgentArtifactHints {
     path: string;
     artifact: ArtifactHandle;
   }>;
+  toolResultPreviewArtifacts?: Array<{
+    label: string;
+    artifact: ArtifactHandle;
+  }>;
 }
 
 export interface SubAgentContextSnapshot {
@@ -165,6 +169,19 @@ export const SubAgentRequestSchema = z.object({
             .array(
               z.object({
                 path: z.string(),
+                artifact: z.object({
+                  handle: z.string(),
+                  mimeType: z.string(),
+                  sha256: z.string(),
+                  size: z.number(),
+                }),
+              }),
+            )
+            .optional(),
+          toolResultPreviewArtifacts: z
+            .array(
+              z.object({
+                label: z.string(),
                 artifact: z.object({
                   handle: z.string(),
                   mimeType: z.string(),

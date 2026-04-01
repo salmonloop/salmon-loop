@@ -90,6 +90,17 @@ describe('SubAgentManager context snapshot', () => {
           sha256: 'verify',
           size: 12,
         },
+        toolResultPreviewArtifacts: [
+          {
+            label: 'Tool result preview: web.search output',
+            artifact: {
+              handle: 's8p://artifact/tool-preview-123',
+              mimeType: 'application/json',
+              sha256: 'preview',
+              size: 1600,
+            },
+          },
+        ],
       },
       toolCallingAudit: [
         {
@@ -132,8 +143,22 @@ describe('SubAgentManager context snapshot', () => {
         sha256: 'verify',
         size: 12,
       },
+      toolResultPreviewArtifacts: [
+        {
+          label: 'Tool result preview: web.search output',
+          artifact: {
+            handle: 's8p://artifact/tool-preview-123',
+            mimeType: 'application/json',
+            sha256: 'preview',
+            size: 1600,
+          },
+        },
+      ],
     });
     expect(initCtx.artifactHints).not.toBe(requestSnapshot.artifactHints);
+    expect(initCtx.artifactHints?.toolResultPreviewArtifacts).not.toBe(
+      requestSnapshot.artifactHints.toolResultPreviewArtifacts,
+    );
     expect(initCtx.toolCallingAudit).toHaveLength(1);
     expect(initCtx.toolCallingAudit).not.toBe(requestSnapshot.toolCallingAudit);
     expect(initCtx.planRuntime).toEqual({

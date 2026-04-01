@@ -20,7 +20,7 @@ describe('resolveCacheSharingSurface', () => {
     const surface = resolveCacheSharingSurface({
       phase: 'PATCH',
       defaultNamespace: 'patch',
-      localContextHash: 'local-hash',
+      localContextHash: 'parent-hash',
       cacheSharing: {
         namespace: 'parent-plan',
         contextHash: 'parent-hash',
@@ -33,7 +33,7 @@ describe('resolveCacheSharingSurface', () => {
     });
   });
 
-  it('emits mismatch callback when shared and local hashes diverge', () => {
+  it('falls back to local cache surface when shared and local hashes diverge', () => {
     const onMismatch = mock();
 
     const surface = resolveCacheSharingSurface({
@@ -48,14 +48,32 @@ describe('resolveCacheSharingSurface', () => {
     });
 
     expect(surface).toEqual({
-      namespace: 'parent-explore',
-      contextHash: 'parent-hash',
+      namespace: 'research',
+      contextHash: 'local-hash',
     });
     expect(onMismatch).toHaveBeenCalledWith({
       phase: 'RESEARCH',
       localContextHash: 'local-hash',
       sharedContextHash: 'parent-hash',
       namespace: 'parent-explore',
+    });
+  });
+
+  it('can keep shared cache surface on mismatch when policy prefers shared', () => {
+    const surface = resolveCacheSharingSurface({
+      phase: 'PATCH',
+      defaultNamespace: 'patch',
+      localContextHash: 'local-hash',
+      cacheSharing: {
+        namespace: 'parent-plan',
+        contextHash: 'parent-hash',
+      },
+      mismatchPolicy: 'prefer_shared',
+    });
+
+    expect(surface).toEqual({
+      namespace: 'parent-plan',
+      contextHash: 'parent-hash',
     });
   });
 });

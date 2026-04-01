@@ -20,11 +20,13 @@ export function resolveCacheSharingSurface(args: {
     namespace?: string;
     contextHash?: string;
   };
+  mismatchPolicy?: 'prefer_shared' | 'prefer_local';
   onMismatch?: (mismatch: CacheSharingMismatch) => void;
 }): CacheSharingSurface {
   const namespace = args.cacheSharing?.namespace ?? args.defaultNamespace;
   const sharedContextHash = args.cacheSharing?.contextHash;
   const localContextHash = args.localContextHash;
+  const mismatchPolicy = args.mismatchPolicy ?? 'prefer_local';
 
   if (
     typeof localContextHash === 'string' &&
@@ -39,6 +41,13 @@ export function resolveCacheSharingSurface(args: {
       localContextHash,
       sharedContextHash,
     });
+
+    if (mismatchPolicy === 'prefer_local') {
+      return {
+        namespace: args.defaultNamespace,
+        contextHash: localContextHash,
+      };
+    }
   }
 
   return {

@@ -42,12 +42,17 @@ function cloneArtifactHints(
     path: item.path,
     artifact: cloneArtifactHandle(item.artifact) as ArtifactHandle,
   }));
+  const toolResultPreviewArtifacts = hints.toolResultPreviewArtifacts?.map((item) => ({
+    label: item.label,
+    artifact: cloneArtifactHandle(item.artifact) as ArtifactHandle,
+  }));
 
   if (
     !verifyArtifact &&
     !subAgentPatchArtifacts?.length &&
     !subAgentAuditArtifacts?.length &&
-    !recentReadArtifacts?.length
+    !recentReadArtifacts?.length &&
+    !toolResultPreviewArtifacts?.length
   ) {
     return undefined;
   }
@@ -57,6 +62,7 @@ function cloneArtifactHints(
     subAgentPatchArtifacts,
     subAgentAuditArtifacts,
     recentReadArtifacts,
+    toolResultPreviewArtifacts,
   };
 }
 

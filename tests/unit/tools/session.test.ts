@@ -412,6 +412,84 @@ describe('chatWithTools', () => {
     expect(readEntry.toolResultReadArtifact?.handle).toContain('s8p://artifact/');
   });
 
+  it('records tool result preview artifacts for large successful non-read tool results', async () => {
+    const registry = new ToolRegistry();
+    const policy = new ToolPolicy();
+    const budget = new BudgetGuard();
+    const audit = new ToolAuditLogger();
+    const sanitizer = new ToolSanitizer();
+    const router = new ToolRouter(registry, policy, budget, audit, sanitizer);
+
+    const largePayload = 'x'.repeat(1600);
+    const spec: ToolSpec<{ q: string }, { result: string }> = {
+      name: 'web.search',
+      source: 'builtin',
+      intent: 'SEARCH',
+      description: 'Search web',
+      riskLevel: 'low',
+      sideEffects: ['none'],
+      concurrency: 'parallel_ok',
+      allowedPhases: [Phase.PLAN],
+      inputSchema: z.object({ q: z.string() }),
+      outputSchema: z.object({ result: z.string() }),
+      executor: async () => ({ result: largePayload }),
+    };
+    registry.register(spec);
+
+    const toolCallingAudit: any[] = [];
+    const llm: LLM = {
+      async chat(messages) {
+        const toolMsg = messages.find((m) => m.role === 'tool');
+        if (!toolMsg) {
+          return {
+            role: 'assistant',
+            content: '',
+            tool_calls: [
+              {
+                id: 'call_preview',
+                type: 'function',
+                function: { name: 'web.search', arguments: JSON.stringify({ q: 'keyword' }) },
+              },
+            ],
+          };
+        }
+        return { role: 'assistant', content: 'DONE' };
+      },
+      async createPlan() {
+        throw new Error('not used');
+      },
+      async createPatch() {
+        throw new Error('not used');
+      },
+    };
+
+    const final = await chatWithTools(
+      [{ role: 'user', content: 'prompt' }],
+      {},
+      {
+        phase: Phase.PLAN,
+        llm,
+        runtime: {
+          repoRoot: '/tmp',
+          attemptId: 1,
+          dryRun: true,
+          model: 'test-model',
+          worktreeRoot: '/tmp',
+        },
+        toolstack: { registry, policy, router },
+        toolCallingAudit: { event: (e) => toolCallingAudit.push(e) },
+      },
+    );
+
+    expect(final.content).toBe('DONE');
+    const previewEntry = toolCallingAudit.find(
+      (e) => e.toolName === 'web.search' && e.toolResultStatus === 'ok',
+    );
+    expect(previewEntry).toBeTruthy();
+    expect(previewEntry.toolResultPreviewArtifact?.handle).toContain('s8p://artifact/');
+    expect(previewEntry.toolResultPreviewLabel).toContain('Tool result preview:');
+  });
+
   it('throws interrupt errors from tool execution', async () => {
     const registry = new ToolRegistry();
     const policy = new ToolPolicy();

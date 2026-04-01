@@ -101,6 +101,10 @@ export interface InitCtx {
       path: string;
       artifact: ArtifactHandle;
     }>;
+    toolResultPreviewArtifacts?: Array<{
+      label: string;
+      artifact: ArtifactHandle;
+    }>;
   };
   /**
    * Optional shared cache parameters propagated from parent sessions.

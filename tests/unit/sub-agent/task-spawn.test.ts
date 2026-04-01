@@ -48,6 +48,17 @@ describe('sub-agent task-spawn context snapshot injection', () => {
           sha256: 'verify',
           size: 12,
         },
+        toolResultPreviewArtifacts: [
+          {
+            label: 'Tool result preview: web.search output',
+            artifact: {
+              handle: 's8p://artifact/tool-preview-123',
+              mimeType: 'application/json',
+              sha256: 'preview',
+              size: 1600,
+            },
+          },
+        ],
       },
       toolCallingAudit: [
         {
@@ -95,6 +106,9 @@ describe('sub-agent task-spawn context snapshot injection', () => {
       runtimeSnapshot.conversationContext,
     );
     expect(forwarded.contextSnapshot?.artifactHints).not.toBe(runtimeSnapshot.artifactHints);
+    expect(forwarded.contextSnapshot?.artifactHints?.toolResultPreviewArtifacts).not.toBe(
+      runtimeSnapshot.artifactHints.toolResultPreviewArtifacts,
+    );
     expect(forwarded.contextSnapshot?.toolCallingAudit).not.toBe(runtimeSnapshot.toolCallingAudit);
     expect(forwarded.contextSnapshot?.planRuntime).toBe(runtimeSnapshot.planRuntime);
     expect(forwarded.contextSnapshot?.cacheSharing).toBe(runtimeSnapshot.cacheSharing);

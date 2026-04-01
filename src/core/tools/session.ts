@@ -245,6 +245,84 @@ async function persistRecentReadArtifact(params: {
   };
 }
 
+const TOOL_RESULT_PREVIEW_MIN_CHARS = 1200;
+
+function sanitizeToolResultPreviewLabel(label: string): string {
+  const oneLine = label.replace(/\s+/g, ' ').trim();
+  if (!oneLine) return 'Tool result preview';
+  if (oneLine.length <= 120) return oneLine;
+  return `${oneLine.slice(0, 119).trimEnd()}…`;
+}
+
+function serializeToolResultOutputForArtifact(output: unknown):
+  | {
+      content: string;
+      mimeType: string;
+      fileExt: string;
+    }
+  | undefined {
+  if (typeof output === 'string') {
+    const text = output.trim();
+    if (!text) return undefined;
+    return {
+      content: output,
+      mimeType: 'text/plain',
+      fileExt: 'txt',
+    };
+  }
+
+  if (output === undefined) return undefined;
+  try {
+    const json = JSON.stringify(output, null, 2);
+    if (!json || !json.trim()) return undefined;
+    return {
+      content: json,
+      mimeType: 'application/json',
+      fileExt: 'json',
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+async function persistToolResultPreviewArtifact(params: {
+  toolName: string;
+  output: unknown;
+  summary?: string;
+  outputSummary?: string;
+}): Promise<
+  | {
+      label: string;
+      artifact: {
+        handle: string;
+        mimeType: string;
+        sha256: string;
+        size: number;
+      };
+    }
+  | undefined
+> {
+  if (params.toolName === 'fs.read' || params.toolName === 'code.read') {
+    return undefined;
+  }
+
+  const serialized = serializeToolResultOutputForArtifact(params.output);
+  if (!serialized) return undefined;
+  if (serialized.content.length < TOOL_RESULT_PREVIEW_MIN_CHARS) return undefined;
+
+  const artifact = await ArtifactStore.saveText({
+    content: serialized.content,
+    mimeType: serialized.mimeType,
+    fileExt: serialized.fileExt,
+  });
+
+  const detail = params.outputSummary ?? params.summary ?? `${params.toolName} output`;
+  return {
+    label: sanitizeToolResultPreviewLabel(`Tool result preview: ${detail}`),
+    artifact,
+  };
+}
+
 function defaultMaxToolCallsTotalForPhase(phase: ExecutionPhase): number {
   if (phase === Phase.EXPLORE) return 18;
   if (phase === Phase.PLAN) return 10;
@@ -1520,6 +1598,12 @@ async function executeToolCalls(
         rawArgs,
         output: result.output,
       });
+      const toolResultPreviewArtifact = await persistToolResultPreviewArtifact({
+        toolName: typeof toolName === 'string' ? toolName : 'unknown',
+        output: result.output,
+        summary: result.summary,
+        outputSummary: result.outputSummary,
+      });
       session.toolCallingAudit?.event({
         timestamp: new Date().toISOString(),
         phase,
@@ -1534,6 +1618,8 @@ async function executeToolCalls(
         toolResultAuditArtifact: artifacts.auditArtifact,
         toolResultReadArtifact: recentReadArtifact?.artifact,
         toolResultReadArtifactPath: recentReadArtifact?.path,
+        toolResultPreviewArtifact: toolResultPreviewArtifact?.artifact,
+        toolResultPreviewLabel: toolResultPreviewArtifact?.label,
       });
     }
 

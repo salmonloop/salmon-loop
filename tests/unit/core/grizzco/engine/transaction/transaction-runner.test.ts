@@ -222,6 +222,67 @@ describe('transaction-runner', () => {
     );
   });
 
+  it('passes prior tool result preview artifacts into the next retry attempt', async () => {
+    mockedExecute
+      .mockResolvedValueOnce({
+        success: true,
+        duration: 1,
+        traces: [],
+        data: {
+          context: { repoPath: '/repo', rgSnippets: [] },
+          verifyResult: { ok: false, output: 'Test suites: 1 failed, 1 total', exitCode: 1 },
+          lastError: 'tests failed',
+          plan: null,
+          diff: null,
+          toolCallingAudit: [
+            {
+              phase: 'EXPLORE',
+              toolName: 'web.search',
+              toolResultStatus: 'ok',
+              toolResultPreviewLabel: 'Tool result preview: web.search output',
+              toolResultPreviewArtifact: {
+                handle: 's8p://artifact/tool-preview-123',
+                mimeType: 'application/json',
+                sha256: 'preview',
+                size: 1600,
+              },
+            },
+          ],
+        },
+      } as any)
+      .mockResolvedValueOnce({
+        success: true,
+        duration: 1,
+        traces: [],
+        data: {
+          context: { repoPath: '/repo', rgSnippets: [] },
+          verifyResult: { ok: true, output: 'ok', exitCode: 0 },
+          applyBackResult: { success: true, skipped: false, telemetry: {} },
+          plan: null,
+          diff: 'diff --git a/a.ts b/a.ts',
+          changedFiles: ['a.ts'],
+        },
+      } as any);
+
+    await createRunner().execute();
+
+    expect(mockedExecute).toHaveBeenCalledTimes(2);
+    expect(mockedExecute.mock.calls[1]?.[0]).toEqual(
+      expect.objectContaining({
+        artifactHints: expect.objectContaining({
+          toolResultPreviewArtifacts: [
+            expect.objectContaining({
+              label: 'Tool result preview: web.search output',
+              artifact: expect.objectContaining({
+                handle: 's8p://artifact/tool-preview-123',
+              }),
+            }),
+          ],
+        }),
+      }),
+    );
+  });
+
   it('emits task.awaiting_input when ask_user is required', async () => {
     const inputRequired = {
       type: 'question',

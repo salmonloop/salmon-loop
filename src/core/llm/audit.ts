@@ -22,6 +22,8 @@ export interface ToolCallingAuditEntry {
   toolResultAuditArtifact?: ArtifactHandle;
   toolResultReadArtifact?: ArtifactHandle;
   toolResultReadArtifactPath?: string;
+  toolResultPreviewArtifact?: ArtifactHandle;
+  toolResultPreviewLabel?: string;
 }
 
 export interface ToolCallingAuditSink {
