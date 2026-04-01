@@ -1,6 +1,6 @@
 import { DefaultPromptAssembler } from './assembly/default-prompt-assembler.js';
 import type { PromptAssembler } from './assembly/prompt-assembler.js';
-import { PromptCachingManager } from './cache/prompt-caching.js';
+import { getPromptCachingManager, PromptCachingManager } from './cache/prompt-caching.js';
 import { ArchitectureGatherer } from './gatherers/architecture-gatherer.js';
 import { ArtifactGatherer } from './gatherers/artifact-gatherer.js';
 import { AstGatherer } from './gatherers/ast-gatherer.js';
@@ -44,6 +44,6 @@ export function defaultContextServiceDeps(): ContextServiceDeps {
     ghostDependencyGatherer: new GhostDependencyGatherer(ripgrepGatherer),
     targetResolver: new TargetResolver(),
     assembler: new DefaultPromptAssembler(),
-    promptCachingManager: new PromptCachingManager(),
+    promptCachingManager: getPromptCachingManager(),
   };
 }

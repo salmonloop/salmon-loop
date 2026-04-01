@@ -3,6 +3,7 @@ import { DEFAULT_SUMMARIZATION_CONFIG } from '../context/summarization/types.js'
 import type { LLM, LLMMessage } from '../types/index.js';
 
 import type { ChatSessionManager } from './manager.js';
+import { buildSessionConversationContext } from './session-context-builder.js';
 import { TokenTracker } from './token-tracker.js';
 
 export async function refreshSessionSummary(params: {
@@ -68,9 +69,20 @@ export async function refreshSessionSummary(params: {
 export function buildEffectiveConversationContext(params: {
   llm: LLM;
   sessionManager: ChatSessionManager;
+  budgetTokens?: number;
+  maxMessages?: number;
+  countTokens?: (text: string) => number;
 }): LLMMessage[] {
   const { sessionManager } = params;
   const summaryState = sessionManager.getSummaryState();
+  if (!summaryState) {
+    return buildSessionConversationContext(sessionManager.getMessages(), {
+      budgetTokens: params.budgetTokens ?? Number.MAX_SAFE_INTEGER,
+      maxMessages: params.maxMessages,
+      countTokens: params.countTokens,
+    });
+  }
+
   const messages = sessionManager.getMessagesWithIds().map((msg) => ({
     id: msg.id,
     role: msg.role,
@@ -100,7 +112,20 @@ export function buildEffectiveConversationContext(params: {
     summarizer.restoreState(summaryState);
   }
 
-  return summarizer
-    .getEffectiveContext(messages)
-    .map((m) => ({ role: m.role, content: m.content }));
+  const effective = summarizer.getEffectiveContext(messages);
+  const recentMessages = effective
+    .filter((message) => message.role === 'user' || message.role === 'assistant')
+    .map((message) => ({
+      id: message.id,
+      role: message.role,
+      content: message.content,
+      timestamp: message.timestamp,
+    }));
+
+  return buildSessionConversationContext(recentMessages, {
+    budgetTokens: params.budgetTokens ?? Number.MAX_SAFE_INTEGER,
+    maxMessages: params.maxMessages,
+    countTokens: params.countTokens,
+    summaryState,
+  });
 }

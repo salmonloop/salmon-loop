@@ -1,5 +1,5 @@
 import {
-  buildSessionConversationContext,
+  buildEffectiveConversationContext,
   ChatSessionManager,
   DEFAULT_LLM_OUTPUT_POLICY,
   emitLlmOutput,
@@ -289,9 +289,10 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
 
       const modelIdForBudget =
         options.llm.getModelId?.() || process.env.SALMONLOOP_MODEL || process.env.S8P_MODEL;
-      const conversationContext = buildSessionConversationContext(sessionManager.getMessages(), {
+      const conversationContext = buildEffectiveConversationContext({
+        llm: options.llm,
+        sessionManager,
         budgetTokens: getDefaultSessionContextBudgetTokens({ modelId: modelIdForBudget }),
-        summaryState: sessionManager.getSummaryState(),
       });
 
       // Single source of truth: chat runtime owns when a user message is appended to the UI list.

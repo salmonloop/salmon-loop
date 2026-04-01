@@ -5,6 +5,7 @@ const hoisted = (() => ({
   loopParamsCalls: [] as Array<Record<string, unknown>>,
   writeJsonFailureCalls: [] as Array<Record<string, unknown>>,
   writeUnexpectedErrorCalls: [] as Array<Record<string, unknown>>,
+  sessionManager: undefined as Record<string, unknown> | undefined,
   reporterImpl: {
     onStart: mock(),
     onFinish: mock(),
@@ -57,6 +58,7 @@ function resetHoistedState() {
   hoisted.loopParamsCalls.length = 0;
   hoisted.writeJsonFailureCalls.length = 0;
   hoisted.writeUnexpectedErrorCalls.length = 0;
+  hoisted.sessionManager = undefined;
   hoisted.reporterImpl = {
     onStart: mock(),
     onFinish: mock(),
@@ -212,7 +214,10 @@ mock.module('../../../../src/cli/commands/run/preflight.js', () => ({
 }));
 
 mock.module('../../../../src/cli/commands/run/session.js', () => ({
-  initializeSession: mock(async () => ({ sessionManager: undefined, sessionId: 'sess-1' })),
+  initializeSession: mock(async () => ({
+    sessionManager: hoisted.sessionManager,
+    sessionId: 'sess-1',
+  })),
 }));
 
 mock.module('../../../../src/cli/commands/run/assistant-message.js', () => ({
@@ -422,5 +427,60 @@ describe('handleRunCommand outcome reporter', () => {
         reasonCode: 'OK',
       }));
     }
+  });
+
+  it('uses canonical effective session context for continued runs', async () => {
+    hoisted.parsedOptions = {
+      ...hoisted.parsedOptions,
+      continueSession: true,
+    };
+    hoisted.loopParamsCalls.length = 0;
+    hoisted.sessionManager = {
+      getSummaryState: () => ({
+        summary: 'summary body',
+        summaryTokens: 8,
+        summarizedMessageIds: ['m-0', 'm-1'],
+        lastSummarizedAt: 100,
+        summaryVersion: 2,
+        contextHash: 'ctx-1',
+        structuredState: {
+          decisions: ['keep summary'],
+          constraints: [],
+          open_questions: [],
+          pending_tasks: [],
+          rejected_options: [],
+          assumptions: [],
+          risks: [],
+          owner: [],
+        },
+      }),
+      getMessages: () => [
+        { role: 'user', content: 'old user', timestamp: 1 },
+        { role: 'assistant', content: 'old assistant', timestamp: 2 },
+        { role: 'user', content: 'recent user', timestamp: 3 },
+      ],
+      getMessagesWithIds: () => [
+        { id: 'm-0', role: 'user', content: 'old user', timestamp: 1 },
+        { id: 'm-1', role: 'assistant', content: 'old assistant', timestamp: 2 },
+        { id: 'm-2', role: 'user', content: 'recent user', timestamp: 3 },
+      ],
+    };
+
+    const { handleRunCommand } = await import('../../../../src/cli/commands/run/handler.js');
+    const command: any = { optsWithGlobals: () => ({}) };
+
+    await handleRunCommand({}, command);
+
+    expect(hoisted.loopParamsCalls[0]?.conversationContext).toEqual([
+      expect.objectContaining({ role: 'system' }),
+      {
+        role: 'system',
+        content: '[Previous conversation summary]\nsummary body',
+      },
+      {
+        role: 'user',
+        content: 'recent user',
+      },
+    ]);
   });
 });

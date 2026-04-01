@@ -11,8 +11,25 @@ export interface AiSdkProviderConfig {
   headers?: Record<string, string>;
 }
 
+function toProviderOptionsKey(value: string): string {
+  const normalized = value.trim();
+  if (!normalized) return 'openaiCompatible';
+
+  return normalized
+    .replace(/[-_\s]+(.)?/g, (_, char: string | undefined) => (char ? char.toUpperCase() : ''))
+    .replace(/^[A-Z]/, (char) => char.toLowerCase());
+}
+
 export function resolveAiSdkModelId(modelId?: string): string {
   return modelId || process.env.SALMONLOOP_MODEL || process.env.S8P_MODEL || 'gpt-4o';
+}
+
+export function resolveAiSdkProviderOptionsKey(cfg: AiSdkProviderConfig): string {
+  if (cfg.clientPackage === '@ai-sdk/openai') {
+    return 'openai';
+  }
+
+  return toProviderOptionsKey(cfg.providerName || 'openaiCompatible');
 }
 
 export function createAiSdkChatModel(cfg: AiSdkProviderConfig, modelId: string): any {

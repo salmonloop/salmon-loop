@@ -29,6 +29,7 @@ describe('ai-sdk chat executor', () => {
     const message = await executeAiSdkChatRequest({
       model: { provider: 'mock' },
       modelId: 'gpt-test',
+      providerOptionsKey: 'openai',
       timeoutMs: undefined,
       langfuseEnabled: false,
       requestId: 'req-1',
@@ -52,6 +53,7 @@ describe('ai-sdk chat executor', () => {
     for await (const chunk of executeAiSdkChatStreamRequest({
       model: { provider: 'mock' },
       modelId: 'gpt-test',
+      providerOptionsKey: 'openai',
       timeoutMs: undefined,
       langfuseEnabled: false,
       requestId: 'req-2',

@@ -2,8 +2,8 @@ import { text } from '../../../locales/index.js';
 import { LIMITS } from '../../config/limits.js';
 import { repairToJsonObject } from '../../llm/contracts/repair.js';
 import { sanitizeError } from '../../llm/errors.js';
-import { composeChatMessages } from '../../llm/message-composition.js';
 import { emitLlmOutput } from '../../llm/output-policy.js';
+import { buildRequestEnvelope, materializeRequestEnvelope } from '../../llm/request-envelope.js';
 import { formatContextForPrompt, parsePlanFromLLMContent } from '../../llm/utils.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
 import { logIgnoredError } from '../../observability/ignored-error.js';
@@ -160,8 +160,9 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
     };
   }
 
+  const contextPrompt = ctx.contextResult?.prompt ?? formatContextForPrompt(ctx.context);
   const prompt = await getPlanPrompt(
-    formatContextForPrompt(ctx.context),
+    contextPrompt,
     ctx.options.instruction,
     LIMITS.maxFilesChanged,
     ctx.lastError,
@@ -178,11 +179,38 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
     : undefined;
 
   const systemPrompt = await getPlanSystemPrompt(promptVisibleTools, { plan: ctx.planRuntime });
-  const baseMessages = composeChatMessages({
+  const envelope = buildRequestEnvelope({
     system: systemPrompt,
     user: prompt,
     conversationContext: ctx.options.conversationContext,
+    attachments: [
+      {
+        key: 'context-prompt',
+        kind: 'context',
+        label: 'Context prompt',
+        content: contextPrompt,
+        cacheSafe: true,
+      },
+      ...(ctx.artifactHints?.verifyArtifact
+        ? [
+            {
+              key: 'previous-verify-output',
+              kind: 'artifact' as const,
+              label: 'Previous verify output',
+              content: '',
+              artifactHandle: ctx.artifactHints.verifyArtifact.handle,
+              mimeType: ctx.artifactHints.verifyArtifact.mimeType,
+              size: ctx.artifactHints.verifyArtifact.size,
+            },
+          ]
+        : []),
+    ],
+    cacheSafeSurface: {
+      contextHash: ctx.contextResult?.meta?.contextHash ?? ctx.context.contextHash,
+      namespace: 'plan',
+    },
   });
+  const baseMessages = materializeRequestEnvelope(envelope);
 
   const supportsStreaming = typeof ctx.options.llm.chatStream === 'function';
   const llmOutput = {
@@ -195,6 +223,7 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
     baseMessages,
     {
       responseFormat: 'json_object',
+      providerHints: envelope.providerHints,
       signal: ctx.options.signal,
     },
     {

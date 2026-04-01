@@ -1,7 +1,7 @@
 import path from 'path';
 
 import { text } from '../../../locales/index.js';
-import { composeChatMessages } from '../../llm/message-composition.js';
+import { buildRequestEnvelope, materializeRequestEnvelope } from '../../llm/request-envelope.js';
 import { formatContextForPrompt } from '../../llm/utils.js';
 import { getExplorePrompt, getExploreSystemPrompt } from '../../prompts/runtime.js';
 import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
@@ -83,11 +83,8 @@ export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
     return { ...ctx };
   }
 
-  const prompt = await getExplorePrompt(
-    formatContextForPrompt(ctx.context),
-    ctx.options.instruction,
-    ctx.lastError,
-  );
+  const contextPrompt = ctx.contextResult?.prompt ?? formatContextForPrompt(ctx.context);
+  const prompt = await getExplorePrompt(contextPrompt, ctx.options.instruction, ctx.lastError);
 
   const systemPrompt = await getExploreSystemPrompt({ plan: ctx.planRuntime });
 
@@ -148,15 +145,43 @@ export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
   };
 
   const localAudit: any[] = [];
-  const baseMessages = composeChatMessages({
+  const envelope = buildRequestEnvelope({
     system: systemPrompt,
     user: prompt,
     conversationContext: ctx.options.conversationContext,
+    attachments: [
+      {
+        key: 'context-prompt',
+        kind: 'context',
+        label: 'Context prompt',
+        content: contextPrompt,
+        cacheSafe: true,
+      },
+      ...(ctx.artifactHints?.verifyArtifact
+        ? [
+            {
+              key: 'previous-verify-output',
+              kind: 'artifact' as const,
+              label: 'Previous verify output',
+              content: '',
+              artifactHandle: ctx.artifactHints.verifyArtifact.handle,
+              mimeType: ctx.artifactHints.verifyArtifact.mimeType,
+              size: ctx.artifactHints.verifyArtifact.size,
+            },
+          ]
+        : []),
+    ],
+    cacheSafeSurface: {
+      contextHash: ctx.contextResult?.meta?.contextHash ?? ctx.context.contextHash,
+      namespace: 'explore',
+    },
   });
+  const baseMessages = materializeRequestEnvelope(envelope);
 
   await (supportsStreaming ? chatWithToolsStreaming : chatWithTools)(
     baseMessages,
     {
+      providerHints: envelope.providerHints,
       signal: ctx.options.signal,
     },
     {

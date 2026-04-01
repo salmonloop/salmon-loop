@@ -93,6 +93,9 @@ export interface InitCtx {
   shadowInitialRef: string;
   applyBackRuntime?: ApplyBackRuntime;
   initialContext?: Context; // For retry with shrunk context
+  artifactHints?: {
+    verifyArtifact?: ArtifactHandle;
+  };
 }
 
 /**

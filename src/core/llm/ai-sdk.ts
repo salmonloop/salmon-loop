@@ -9,8 +9,13 @@ import type { Plan } from '../types/planning.js';
 import { executeAiSdkChatRequest, executeAiSdkChatStreamRequest } from './ai-sdk/chat-executor.js';
 import { toAiSdkMessages, toAiSdkToolSet } from './ai-sdk/message-mapper.js';
 import { withAuditObservationName } from './ai-sdk/observation-context.js';
-import { createAiSdkChatModel, resolveAiSdkModelId } from './ai-sdk/provider-factory.js';
+import {
+  createAiSdkChatModel,
+  resolveAiSdkModelId,
+  resolveAiSdkProviderOptionsKey,
+} from './ai-sdk/provider-factory.js';
 import { wrapPlanEmpty, sanitizeError, LlmError } from './errors.js';
+import { buildRequestEnvelope, materializeRequestEnvelope } from './request-envelope.js';
 import {
   extractUnifiedDiffFromLLMContent,
   formatContextForPrompt,
@@ -33,10 +38,12 @@ export interface AiSdkLlmConfig {
 export class AiSdkLLM implements LLM {
   private model: any;
   private modelId: string;
+  private providerOptionsKey: string;
   private timeoutMs?: number;
 
   constructor(private readonly cfg: AiSdkLlmConfig) {
     this.modelId = resolveAiSdkModelId(cfg.modelId);
+    this.providerOptionsKey = resolveAiSdkProviderOptionsKey(cfg);
     this.timeoutMs = cfg.timeoutMs;
     this.model = createAiSdkChatModel(cfg, this.modelId);
   }
@@ -63,6 +70,7 @@ export class AiSdkLLM implements LLM {
     return executeAiSdkChatRequest({
       model: this.model,
       modelId: this.modelId,
+      providerOptionsKey: this.providerOptionsKey,
       timeoutMs: this.timeoutMs,
       langfuseEnabled: Boolean(this.cfg.langfuseEnabled),
       requestId: randomUUID(),
@@ -81,6 +89,7 @@ export class AiSdkLLM implements LLM {
     yield* executeAiSdkChatStreamRequest({
       model: this.model,
       modelId: this.modelId,
+      providerOptionsKey: this.providerOptionsKey,
       timeoutMs: this.timeoutMs,
       langfuseEnabled: Boolean(this.cfg.langfuseEnabled),
       requestId: randomUUID(),
@@ -109,15 +118,36 @@ export class AiSdkLLM implements LLM {
     lastError?: string,
     signal?: AbortSignal,
   ): Promise<Plan> {
+    const contextPrompt = formatContextForPrompt(context);
     const prompt = await getPlanPrompt(
-      formatContextForPrompt(context),
+      contextPrompt,
       instruction,
       LIMITS.maxFilesChanged,
       lastError,
     );
+    const envelope = buildRequestEnvelope({
+      system: '',
+      user: prompt,
+      attachments: [
+        {
+          key: 'context-prompt',
+          kind: 'context',
+          label: 'Context prompt',
+          content: contextPrompt,
+          cacheSafe: true,
+        },
+      ],
+      cacheSafeSurface: {
+        contextHash: context.contextHash,
+        namespace: 'plan',
+      },
+    });
 
     const response = await withAuditObservationName('PLAN:plan-json', async () =>
-      this.chat([{ role: 'user', content: prompt }], { signal }),
+      this.chat(materializeRequestEnvelope(envelope), {
+        providerHints: envelope.providerHints,
+        signal,
+      }),
     );
 
     const content = response.content;
@@ -150,9 +180,35 @@ export class AiSdkLLM implements LLM {
       LIMITS.maxDiffLines,
       lastError,
     );
+    const envelope = buildRequestEnvelope({
+      system: '',
+      user: prompt,
+      attachments: [
+        {
+          key: 'context-prompt',
+          kind: 'context',
+          label: 'Context prompt',
+          content: formattedContext,
+          cacheSafe: true,
+        },
+        {
+          key: 'plan-json',
+          kind: 'plan',
+          label: 'Plan JSON',
+          content: planStr,
+        },
+      ],
+      cacheSafeSurface: {
+        contextHash: context.contextHash,
+        namespace: 'patch',
+      },
+    });
 
     const response = await withAuditObservationName('PATCH:unified-diff', async () =>
-      this.chat([{ role: 'user', content: prompt }], { signal }),
+      this.chat(materializeRequestEnvelope(envelope), {
+        providerHints: envelope.providerHints,
+        signal,
+      }),
     );
     return extractUnifiedDiffFromLLMContent(response.content || '');
   }

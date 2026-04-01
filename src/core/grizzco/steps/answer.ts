@@ -1,5 +1,5 @@
-import { composeChatMessages } from '../../llm/message-composition.js';
 import { emitLlmOutput } from '../../llm/output-policy.js';
+import { buildRequestEnvelope, materializeRequestEnvelope } from '../../llm/request-envelope.js';
 import { chatWithTools } from '../../tools/session.js';
 import { Phase, type LLM } from '../../types/index.js';
 import type { AnswerCtx, PreflightCtx } from '../engine/pipeline/types.js';
@@ -23,11 +23,12 @@ export async function generateAnswer(ctx: PreflightCtx): Promise<AnswerCtx> {
     };
   }
 
-  const messages = composeChatMessages({
+  const envelope = buildRequestEnvelope({
     system: buildSystemPrompt(),
     user: instruction,
     conversationContext: ctx.options.conversationContext,
   });
+  const messages = materializeRequestEnvelope(envelope);
 
   const llmClient: LLM = ctx.options.llm;
   const supportsTools = Boolean(ctx.toolstack);
@@ -35,7 +36,7 @@ export async function generateAnswer(ctx: PreflightCtx): Promise<AnswerCtx> {
   const assistant = supportsTools
     ? await chatWithTools(
         messages,
-        { temperature: 0.2, signal: ctx.options.signal },
+        { providerHints: envelope.providerHints, temperature: 0.2, signal: ctx.options.signal },
         {
           phase: Phase.EXPLORE,
           llm: llmClient,
@@ -58,6 +59,7 @@ export async function generateAnswer(ctx: PreflightCtx): Promise<AnswerCtx> {
         },
       )
     : await llmClient.chat(messages, {
+        providerHints: envelope.providerHints,
         temperature: 0.2,
         signal: ctx.options.signal,
         tools: [],

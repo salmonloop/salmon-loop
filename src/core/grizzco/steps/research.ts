@@ -1,6 +1,6 @@
 import { text } from '../../../locales/index.js';
-import { composeChatMessages } from '../../llm/message-composition.js';
 import { emitLlmOutput } from '../../llm/output-policy.js';
+import { buildRequestEnvelope, materializeRequestEnvelope } from '../../llm/request-envelope.js';
 import { formatContextForPrompt } from '../../llm/utils.js';
 import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
 import { Phase } from '../../types/runtime.js';
@@ -111,14 +111,41 @@ function buildSourcesFromAudit(
 }
 
 export async function generateResearch(ctx: ExploreCtx): Promise<ResearchCtx> {
-  const contextText = formatContextForPrompt(ctx.context);
+  const contextText = ctx.contextResult?.prompt ?? formatContextForPrompt(ctx.context);
   const prompt = buildResearchPrompt(contextText, ctx.options.instruction);
   const systemPrompt = 'You are a research assistant. Prefer evidence-backed claims.';
-  const baseMessages = composeChatMessages({
+  const envelope = buildRequestEnvelope({
     system: systemPrompt,
     user: prompt,
     conversationContext: ctx.options.conversationContext,
+    attachments: [
+      {
+        key: 'context-prompt',
+        kind: 'context',
+        label: 'Context prompt',
+        content: contextText,
+        cacheSafe: true,
+      },
+      ...(ctx.artifactHints?.verifyArtifact
+        ? [
+            {
+              key: 'previous-verify-output',
+              kind: 'artifact' as const,
+              label: 'Previous verify output',
+              content: '',
+              artifactHandle: ctx.artifactHints.verifyArtifact.handle,
+              mimeType: ctx.artifactHints.verifyArtifact.mimeType,
+              size: ctx.artifactHints.verifyArtifact.size,
+            },
+          ]
+        : []),
+    ],
+    cacheSafeSurface: {
+      contextHash: ctx.contextResult?.meta?.contextHash ?? ctx.context.contextHash,
+      namespace: 'research',
+    },
   });
+  const baseMessages = materializeRequestEnvelope(envelope);
 
   const toolPolicy = resolveLlmToolCallingPolicy(Phase.RESEARCH, ctx.options.llm);
   const supportsStreaming = typeof ctx.options.llm.chatStream === 'function';
@@ -128,6 +155,7 @@ export async function generateResearch(ctx: ExploreCtx): Promise<ResearchCtx> {
 
   if (!ctx.toolstack || !toolPolicy.enabled) {
     const response = await ctx.options.llm.chat(baseMessages, {
+      providerHints: envelope.providerHints,
       signal: ctx.options.signal,
       phase: Phase.RESEARCH,
     });
@@ -166,7 +194,7 @@ export async function generateResearch(ctx: ExploreCtx): Promise<ResearchCtx> {
 
   const response = await (supportsStreaming ? chatWithToolsStreaming : chatWithTools)(
     baseMessages,
-    { signal: ctx.options.signal },
+    { providerHints: envelope.providerHints, signal: ctx.options.signal },
     {
       phase: Phase.RESEARCH,
       llm: ctx.options.llm,

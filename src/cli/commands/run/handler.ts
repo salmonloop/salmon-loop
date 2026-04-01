@@ -3,7 +3,7 @@ import { randomUUID } from 'crypto';
 import type { Command } from 'commander';
 
 import {
-  buildSessionConversationContext,
+  buildEffectiveConversationContext,
   createPluginRegistry,
   createPromptRegistry,
   getExitCode,
@@ -399,9 +399,10 @@ export async function handleRunCommand(options: any, command: Command) {
     const shouldInjectSessionContext = Boolean(continueSession || resumeSessionId);
     const conversationContext =
       shouldInjectSessionContext && sessionManager
-        ? buildSessionConversationContext(sessionManager.getMessages(), {
+        ? buildEffectiveConversationContext({
+            llm,
+            sessionManager,
             budgetTokens: getDefaultSessionContextBudgetTokens({ modelId: modelIdForBudget }),
-            summaryState: sessionManager.getSummaryState(),
           })
         : [];
 

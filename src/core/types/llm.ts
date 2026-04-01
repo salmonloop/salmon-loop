@@ -1,3 +1,5 @@
+import type { SharedV3ProviderOptions } from '@ai-sdk/provider';
+
 import type { Context } from './context.js';
 import type { ExecutionPhase } from './execution.js';
 import type { Plan } from './planning.js';
@@ -17,6 +19,10 @@ export interface LlmOutputPolicy {
 }
 
 export type LLMRole = 'system' | 'user' | 'assistant' | 'tool';
+
+export interface LLMProviderHints {
+  openAICacheHint?: string;
+}
 
 export interface LLMMessage {
   role: LLMRole;
@@ -86,6 +92,14 @@ export interface ChatOptions {
    * Raw SalmonLoop ToolSpec objects for advanced mapping.
    */
   toolSpecs?: import('../tools/types.js').ToolSpec[];
+  /**
+   * Provider-specific request hints assembled by the request envelope layer.
+   */
+  providerHints?: LLMProviderHints;
+  /**
+   * Raw provider options passed through to the AI SDK request.
+   */
+  providerOptions?: SharedV3ProviderOptions;
   /**
    * Signal to abort the request.
    */

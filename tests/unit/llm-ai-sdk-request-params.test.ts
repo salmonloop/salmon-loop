@@ -11,6 +11,7 @@ describe('buildAiSdkRequestParams', () => {
       options: { toolChoice: 'none' },
       headers: {},
       abortSignal: new AbortController().signal,
+      providerOptionsKey: 'openai',
     });
 
     expect(params.toolChoice).toBe('none');
@@ -24,6 +25,7 @@ describe('buildAiSdkRequestParams', () => {
       options: {},
       headers: {},
       abortSignal: new AbortController().signal,
+      providerOptionsKey: 'openai',
     });
 
     expect(params.toolChoice).toBe('auto');
@@ -37,6 +39,7 @@ describe('buildAiSdkRequestParams', () => {
       options: {},
       headers: {},
       abortSignal: new AbortController().signal,
+      providerOptionsKey: 'openai',
     });
 
     expect(params.toolChoice).toBeUndefined();

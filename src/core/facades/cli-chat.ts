@@ -16,10 +16,12 @@ export { runSalmonLoop } from '../runtime/loop.js';
 export { ChatSessionManager } from '../session/manager.js';
 export type { PluginRegistry } from '../plugin/registry.js';
 export {
-  buildSessionConversationContext,
   getDefaultSessionContextBudgetTokens,
 } from '../session/session-context-builder.js';
-export { refreshSessionSummary } from '../session/summary-sync.js';
+export {
+  buildEffectiveConversationContext,
+  refreshSessionSummary,
+} from '../session/summary-sync.js';
 export { TokenTracker } from '../session/token-tracker.js';
 export type { VerboseLevel } from '../types/execution.js';
 export type { LLM, LlmOutputPolicy } from '../types/llm.js';

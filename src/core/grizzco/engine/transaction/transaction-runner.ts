@@ -100,6 +100,9 @@ export class FlowTransactionRunner {
         shadowInitialRef: this.params.env.shadowInitialRef,
         attempt,
         initialContext: this.currentContext,
+        artifactHints: {
+          verifyArtifact: this.lastVerifyArtifact,
+        },
         lastError: this.currentLastError,
         applyBackRuntime: {
           activeRepoPath: this.params.env.activeRepoPath,
