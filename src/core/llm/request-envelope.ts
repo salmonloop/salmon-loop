@@ -1,4 +1,5 @@
 import { getPromptCachingManager } from '../context/cache/prompt-caching.js';
+import type { ArtifactHandle } from '../sub-agent/artifacts/types.js';
 import type { LLMMessage, LLMProviderHints } from '../types/llm.js';
 
 export interface RequestAttachment {
@@ -29,6 +30,12 @@ export interface RequestEnvelope {
   cacheSafeSurface: CacheSafeSurface;
 }
 
+export interface RequestArtifactHints {
+  verifyArtifact?: ArtifactHandle;
+  subAgentPatchArtifacts?: ArtifactHandle[];
+  subAgentAuditArtifacts?: ArtifactHandle[];
+}
+
 function toSafeMessage(message: LLMMessage): LLMMessage | null {
   if (!message || typeof message !== 'object') return null;
   if (message.role !== 'system' && message.role !== 'user' && message.role !== 'assistant') {
@@ -47,6 +54,60 @@ function toSafeMessage(message: LLMMessage): LLMMessage | null {
 
 function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
+}
+
+function toArtifactAttachment(args: {
+  key: string;
+  label: string;
+  artifact: ArtifactHandle;
+}): RequestAttachment {
+  return {
+    key: args.key,
+    kind: 'artifact',
+    label: args.label,
+    content: '',
+    artifactHandle: args.artifact.handle,
+    mimeType: args.artifact.mimeType,
+    size: args.artifact.size,
+  };
+}
+
+export function buildArtifactHintAttachments(hints?: RequestArtifactHints): RequestAttachment[] {
+  if (!hints) return [];
+
+  const attachments: RequestAttachment[] = [];
+
+  if (hints.verifyArtifact) {
+    attachments.push(
+      toArtifactAttachment({
+        key: 'previous-verify-output',
+        label: 'Previous verify output',
+        artifact: hints.verifyArtifact,
+      }),
+    );
+  }
+
+  for (const [index, artifact] of (hints.subAgentPatchArtifacts ?? []).entries()) {
+    attachments.push(
+      toArtifactAttachment({
+        key: `previous-subagent-patch-${index}`,
+        label: `Previous sub-agent patch artifact ${index + 1}`,
+        artifact,
+      }),
+    );
+  }
+
+  for (const [index, artifact] of (hints.subAgentAuditArtifacts ?? []).entries()) {
+    attachments.push(
+      toArtifactAttachment({
+        key: `previous-subagent-audit-${index}`,
+        label: `Previous sub-agent audit artifact ${index + 1}`,
+        artifact,
+      }),
+    );
+  }
+
+  return attachments;
 }
 
 function buildPromptCachingHints(surface: CacheSafeSurface): LLMProviderHints {

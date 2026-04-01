@@ -4,7 +4,11 @@ import { LIMITS } from '../../config/limits.js';
 import { repairToUnifiedDiff } from '../../llm/contracts/repair.js';
 import { wrapPatchEmpty, wrapPatchInvalid, wrapPatchNotUnifiedDiff } from '../../llm/errors.js';
 import { emitLlmOutput } from '../../llm/output-policy.js';
-import { buildRequestEnvelope, materializeRequestEnvelope } from '../../llm/request-envelope.js';
+import {
+  buildArtifactHintAttachments,
+  buildRequestEnvelope,
+  materializeRequestEnvelope,
+} from '../../llm/request-envelope.js';
 import { extractUnifiedDiffFromLLMContent, formatContextForPrompt } from '../../llm/utils.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
 import { normalizeDiff, validateDiff, type DiffMeta } from '../../patch/diff.js';
@@ -189,19 +193,7 @@ export const generatePatch: Step<PlanCtx, PatchCtx> = async (ctx) => {
         label: 'Plan JSON',
         content: planStr,
       },
-      ...(ctx.artifactHints?.verifyArtifact
-        ? [
-            {
-              key: 'previous-verify-output',
-              kind: 'artifact' as const,
-              label: 'Previous verify output',
-              content: '',
-              artifactHandle: ctx.artifactHints.verifyArtifact.handle,
-              mimeType: ctx.artifactHints.verifyArtifact.mimeType,
-              size: ctx.artifactHints.verifyArtifact.size,
-            },
-          ]
-        : []),
+      ...buildArtifactHintAttachments(ctx.artifactHints),
     ],
     cacheSafeSurface: {
       contextHash: ctx.contextResult?.meta?.contextHash ?? ctx.context.contextHash,

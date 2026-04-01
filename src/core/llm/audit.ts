@@ -1,3 +1,4 @@
+import type { ArtifactHandle } from '../sub-agent/artifacts/types.js';
 import type { ToolIntent } from '../tools/types.js';
 import type { ExecutionPhase } from '../types/runtime.js';
 
@@ -17,6 +18,8 @@ export interface ToolCallingAuditEntry {
   toolResultStatus?: string;
   toolResultErrorCode?: string;
   toolResultErrorMessage?: string;
+  toolResultPatchArtifact?: ArtifactHandle;
+  toolResultAuditArtifact?: ArtifactHandle;
 }
 
 export interface ToolCallingAuditSink {

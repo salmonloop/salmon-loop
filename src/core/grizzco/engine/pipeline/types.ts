@@ -95,6 +95,8 @@ export interface InitCtx {
   initialContext?: Context; // For retry with shrunk context
   artifactHints?: {
     verifyArtifact?: ArtifactHandle;
+    subAgentPatchArtifacts?: ArtifactHandle[];
+    subAgentAuditArtifacts?: ArtifactHandle[];
   };
 }
 

@@ -3,7 +3,11 @@ import { LIMITS } from '../../config/limits.js';
 import { repairToJsonObject } from '../../llm/contracts/repair.js';
 import { sanitizeError } from '../../llm/errors.js';
 import { emitLlmOutput } from '../../llm/output-policy.js';
-import { buildRequestEnvelope, materializeRequestEnvelope } from '../../llm/request-envelope.js';
+import {
+  buildArtifactHintAttachments,
+  buildRequestEnvelope,
+  materializeRequestEnvelope,
+} from '../../llm/request-envelope.js';
 import { formatContextForPrompt, parsePlanFromLLMContent } from '../../llm/utils.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
 import { logIgnoredError } from '../../observability/ignored-error.js';
@@ -191,19 +195,7 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
         content: contextPrompt,
         cacheSafe: true,
       },
-      ...(ctx.artifactHints?.verifyArtifact
-        ? [
-            {
-              key: 'previous-verify-output',
-              kind: 'artifact' as const,
-              label: 'Previous verify output',
-              content: '',
-              artifactHandle: ctx.artifactHints.verifyArtifact.handle,
-              mimeType: ctx.artifactHints.verifyArtifact.mimeType,
-              size: ctx.artifactHints.verifyArtifact.size,
-            },
-          ]
-        : []),
+      ...buildArtifactHintAttachments(ctx.artifactHints),
     ],
     cacheSafeSurface: {
       contextHash: ctx.contextResult?.meta?.contextHash ?? ctx.context.contextHash,

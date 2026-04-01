@@ -1,6 +1,10 @@
 import { text } from '../../../locales/index.js';
 import { emitLlmOutput } from '../../llm/output-policy.js';
-import { buildRequestEnvelope, materializeRequestEnvelope } from '../../llm/request-envelope.js';
+import {
+  buildArtifactHintAttachments,
+  buildRequestEnvelope,
+  materializeRequestEnvelope,
+} from '../../llm/request-envelope.js';
 import { formatContextForPrompt } from '../../llm/utils.js';
 import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
 import { Phase } from '../../types/runtime.js';
@@ -126,19 +130,7 @@ export async function generateResearch(ctx: ExploreCtx): Promise<ResearchCtx> {
         content: contextText,
         cacheSafe: true,
       },
-      ...(ctx.artifactHints?.verifyArtifact
-        ? [
-            {
-              key: 'previous-verify-output',
-              kind: 'artifact' as const,
-              label: 'Previous verify output',
-              content: '',
-              artifactHandle: ctx.artifactHints.verifyArtifact.handle,
-              mimeType: ctx.artifactHints.verifyArtifact.mimeType,
-              size: ctx.artifactHints.verifyArtifact.size,
-            },
-          ]
-        : []),
+      ...buildArtifactHintAttachments(ctx.artifactHints),
     ],
     cacheSafeSurface: {
       contextHash: ctx.contextResult?.meta?.contextHash ?? ctx.context.contextHash,

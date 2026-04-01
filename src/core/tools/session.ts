@@ -134,6 +134,58 @@ function safeStringifyForAudit(value: unknown): string {
   }
 }
 
+function isArtifactHandleRecord(value: unknown): value is {
+  handle: string;
+  mimeType: string;
+  sha256: string;
+  size: number;
+} {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as {
+    handle?: unknown;
+    mimeType?: unknown;
+    sha256?: unknown;
+    size?: unknown;
+  };
+  return (
+    typeof candidate.handle === 'string' &&
+    typeof candidate.mimeType === 'string' &&
+    typeof candidate.sha256 === 'string' &&
+    typeof candidate.size === 'number'
+  );
+}
+
+function extractArtifactHandlesFromToolOutput(output: unknown): {
+  patchArtifact?: {
+    handle: string;
+    mimeType: string;
+    sha256: string;
+    size: number;
+  };
+  auditArtifact?: {
+    handle: string;
+    mimeType: string;
+    sha256: string;
+    size: number;
+  };
+} {
+  if (!isObjectRecord(output)) {
+    return {};
+  }
+
+  const patchArtifact = isArtifactHandleRecord(output.patchArtifact)
+    ? output.patchArtifact
+    : undefined;
+  const auditArtifact = isArtifactHandleRecord(output.auditArtifact)
+    ? output.auditArtifact
+    : undefined;
+
+  return {
+    patchArtifact,
+    auditArtifact,
+  };
+}
+
 function defaultMaxToolCallsTotalForPhase(phase: ExecutionPhase): number {
   if (phase === Phase.EXPLORE) return 18;
   if (phase === Phase.PLAN) return 10;
@@ -1403,6 +1455,7 @@ async function executeToolCalls(
         isObjectRecord(result.output) && typeof result.output.ok === 'boolean'
           ? result.output.ok
           : undefined;
+      const artifacts = extractArtifactHandlesFromToolOutput(result.output);
       session.toolCallingAudit?.event({
         timestamp: new Date().toISOString(),
         phase,
@@ -1413,6 +1466,8 @@ async function executeToolCalls(
         parsedArgsOk: true,
         toolResultOutputOk,
         toolResultStatus: result.status,
+        toolResultPatchArtifact: artifacts.patchArtifact,
+        toolResultAuditArtifact: artifacts.auditArtifact,
       });
     }
 

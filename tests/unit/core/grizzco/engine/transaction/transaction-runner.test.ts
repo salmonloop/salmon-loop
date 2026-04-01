@@ -92,6 +92,74 @@ describe('transaction-runner', () => {
     );
   });
 
+  it('passes prior sub-agent artifacts into the next retry attempt', async () => {
+    mockedExecute
+      .mockResolvedValueOnce({
+        success: true,
+        duration: 1,
+        traces: [],
+        data: {
+          context: { repoPath: '/repo', rgSnippets: [] },
+          verifyResult: { ok: false, output: 'Test suites: 1 failed, 1 total', exitCode: 1 },
+          lastError: 'tests failed',
+          plan: null,
+          diff: null,
+          toolCallingAudit: [
+            {
+              phase: 'PLAN',
+              toolName: 'agent_dispatch',
+              toolResultStatus: 'ok',
+              toolResultPatchArtifact: {
+                handle: 's8p://artifact/subagent-patch-123',
+                mimeType: 'text/x-diff',
+                sha256: 'patch',
+                size: 456,
+              },
+              toolResultAuditArtifact: {
+                handle: 's8p://artifact/subagent-audit-456',
+                mimeType: 'application/json',
+                sha256: 'audit',
+                size: 789,
+              },
+            },
+          ],
+        },
+      } as any)
+      .mockResolvedValueOnce({
+        success: true,
+        duration: 1,
+        traces: [],
+        data: {
+          context: { repoPath: '/repo', rgSnippets: [] },
+          verifyResult: { ok: true, output: 'ok', exitCode: 0 },
+          applyBackResult: { success: true, skipped: false, telemetry: {} },
+          plan: null,
+          diff: 'diff --git a/a.ts b/a.ts',
+          changedFiles: ['a.ts'],
+        },
+      } as any);
+
+    await createRunner().execute();
+
+    expect(mockedExecute).toHaveBeenCalledTimes(2);
+    expect(mockedExecute.mock.calls[1]?.[0]).toEqual(
+      expect.objectContaining({
+        artifactHints: expect.objectContaining({
+          subAgentPatchArtifacts: [
+            expect.objectContaining({
+              handle: 's8p://artifact/subagent-patch-123',
+            }),
+          ],
+          subAgentAuditArtifacts: [
+            expect.objectContaining({
+              handle: 's8p://artifact/subagent-audit-456',
+            }),
+          ],
+        }),
+      }),
+    );
+  });
+
   it('emits task.awaiting_input when ask_user is required', async () => {
     const inputRequired = {
       type: 'question',

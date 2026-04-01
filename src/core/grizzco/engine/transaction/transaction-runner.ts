@@ -1,3 +1,4 @@
+import type { ToolCallingAuditEntry } from '../../../llm/audit.js';
 import { recordAuditEvent } from '../../../observability/audit-trail.js';
 import { mapErrorForAudit } from '../../../observability/error-mapping.js';
 import { ReflectionEngine } from '../../../reflection/engine.js';
@@ -37,6 +38,56 @@ export class FlowTransactionCancelledError extends Error {
   }
 }
 
+function isArtifactHandle(value: unknown): value is ArtifactHandle {
+  return (
+    Boolean(value) &&
+    typeof value === 'object' &&
+    typeof (value as { handle?: unknown }).handle === 'string'
+  );
+}
+
+function mergeArtifactHandles(
+  existing: ArtifactHandle[],
+  incoming: ArtifactHandle[],
+  limit = 4,
+): ArtifactHandle[] {
+  const merged = [...existing];
+  const seen = new Set(existing.map((artifact) => artifact.handle));
+
+  for (const artifact of incoming) {
+    if (seen.has(artifact.handle)) continue;
+    merged.push(artifact);
+    seen.add(artifact.handle);
+  }
+
+  if (merged.length <= limit) return merged;
+  return merged.slice(merged.length - limit);
+}
+
+function extractSubAgentArtifacts(entries: ToolCallingAuditEntry[] | undefined): {
+  patchArtifacts: ArtifactHandle[];
+  auditArtifacts: ArtifactHandle[];
+} {
+  if (!Array.isArray(entries) || entries.length === 0) {
+    return { patchArtifacts: [], auditArtifacts: [] };
+  }
+
+  const patchArtifacts: ArtifactHandle[] = [];
+  const auditArtifacts: ArtifactHandle[] = [];
+
+  for (const entry of entries) {
+    if (entry?.toolName !== 'agent_dispatch' || entry.toolResultStatus !== 'ok') continue;
+    if (isArtifactHandle(entry.toolResultPatchArtifact)) {
+      patchArtifacts.push(entry.toolResultPatchArtifact);
+    }
+    if (isArtifactHandle(entry.toolResultAuditArtifact)) {
+      auditArtifacts.push(entry.toolResultAuditArtifact);
+    }
+  }
+
+  return { patchArtifacts, auditArtifacts };
+}
+
 interface FlowTransactionEnvironment {
   workspace: ExecutionWorkspace;
   shadowInitialRef: string;
@@ -66,6 +117,8 @@ export class FlowTransactionRunner {
   private authorizationSummary: AuthorizationSourceSummary | null = null;
   private lastContext: TerminalCtx | undefined;
   private lastVerifyArtifact: ArtifactHandle | undefined;
+  private lastSubAgentPatchArtifacts: ArtifactHandle[] = [];
+  private lastSubAgentAuditArtifacts: ArtifactHandle[] = [];
 
   constructor(private readonly params: FlowTransactionRunnerParams) {}
 
@@ -102,6 +155,14 @@ export class FlowTransactionRunner {
         initialContext: this.currentContext,
         artifactHints: {
           verifyArtifact: this.lastVerifyArtifact,
+          subAgentPatchArtifacts:
+            this.lastSubAgentPatchArtifacts.length > 0
+              ? this.lastSubAgentPatchArtifacts
+              : undefined,
+          subAgentAuditArtifacts:
+            this.lastSubAgentAuditArtifacts.length > 0
+              ? this.lastSubAgentAuditArtifacts
+              : undefined,
         },
         lastError: this.currentLastError,
         applyBackRuntime: {
@@ -122,6 +183,15 @@ export class FlowTransactionRunner {
       if (shrinkCtx?.verifyArtifact) {
         this.lastVerifyArtifact = shrinkCtx.verifyArtifact;
       }
+      const subAgentArtifacts = extractSubAgentArtifacts(terminalCtx?.toolCallingAudit);
+      this.lastSubAgentPatchArtifacts = mergeArtifactHandles(
+        this.lastSubAgentPatchArtifacts,
+        subAgentArtifacts.patchArtifacts,
+      );
+      this.lastSubAgentAuditArtifacts = mergeArtifactHandles(
+        this.lastSubAgentAuditArtifacts,
+        subAgentArtifacts.auditArtifacts,
+      );
 
       const attemptFailure = resolveAttemptFailure({
         flowReport: result,

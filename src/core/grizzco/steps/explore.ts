@@ -1,7 +1,11 @@
 import path from 'path';
 
 import { text } from '../../../locales/index.js';
-import { buildRequestEnvelope, materializeRequestEnvelope } from '../../llm/request-envelope.js';
+import {
+  buildArtifactHintAttachments,
+  buildRequestEnvelope,
+  materializeRequestEnvelope,
+} from '../../llm/request-envelope.js';
 import { formatContextForPrompt } from '../../llm/utils.js';
 import { getExplorePrompt, getExploreSystemPrompt } from '../../prompts/runtime.js';
 import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
@@ -157,19 +161,7 @@ export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
         content: contextPrompt,
         cacheSafe: true,
       },
-      ...(ctx.artifactHints?.verifyArtifact
-        ? [
-            {
-              key: 'previous-verify-output',
-              kind: 'artifact' as const,
-              label: 'Previous verify output',
-              content: '',
-              artifactHandle: ctx.artifactHints.verifyArtifact.handle,
-              mimeType: ctx.artifactHints.verifyArtifact.mimeType,
-              size: ctx.artifactHints.verifyArtifact.size,
-            },
-          ]
-        : []),
+      ...buildArtifactHintAttachments(ctx.artifactHints),
     ],
     cacheSafeSurface: {
       contextHash: ctx.contextResult?.meta?.contextHash ?? ctx.context.contextHash,
