@@ -1,3 +1,7 @@
+import { FileAdapter } from '../adapters/fs/index.js';
+import { getLogger } from '../observability/logger.js';
+
+import { SessionCompressor } from './compression.js';
 import type { ChatSession } from './types.js';
 
 /**
@@ -161,9 +165,15 @@ export class SessionPruningEngine {
  */
 export class SessionArchiver {
   private archiveDir: string;
+  private baseDir: string;
+  private fileAdapter: FileAdapter;
+  private compressor: SessionCompressor;
 
   constructor(baseDir: string) {
+    this.baseDir = baseDir;
     this.archiveDir = `${baseDir}/.salmonloop/chat-archives`;
+    this.fileAdapter = new FileAdapter();
+    this.compressor = new SessionCompressor();
   }
 
   /**
@@ -185,26 +195,62 @@ export class SessionArchiver {
   /**
    * Restore session from archive
    */
-  async restoreFromArchive(_archiveId: string): Promise<ChatSession | null> {
+  async restoreFromArchive(archiveId: string): Promise<ChatSession | null> {
     try {
-      // Need to implement decompression and deserialization logic
-      // Return null for now, implement later
-      return null;
+      const archiveFile = archiveId.endsWith('.mpack.gz') ? archiveId : `${archiveId}.mpack.gz`;
+      const archivePath = `${this.archiveDir}/${archiveFile}`;
+      const encoded = await this.fileAdapter.readFile(archivePath);
+      const binary = new Uint8Array(Buffer.from(encoded, 'base64'));
+
+      const compressed = await this.compressor.decompressFromBinary(binary);
+      const partial = await this.compressor.decompressToSession(compressed);
+
+      return {
+        meta: {
+          id: partial.meta.id,
+          name: partial.meta.name,
+          repoPath: this.baseDir,
+          createdAt: partial.meta.createdAt,
+          updatedAt: Date.now(),
+          totalIterations: partial.meta.totalIterations ?? partial.iterations.length,
+          successfulIterations: partial.meta.successfulIterations ?? 0,
+          totalTokens: partial.meta.totalTokens ?? { input: 0, output: 0 },
+          snapshots: [],
+        },
+        messages: partial.messages.map((message, index) => ({
+          id: `archived-msg-${index}`,
+          role: message.role,
+          content: message.content,
+          timestamp: message.timestamp,
+        })),
+        iterations: partial.iterations.map((iter, index) => ({
+          id: iter.id || `archived-iter-${index + 1}`,
+          attempt: index + 1,
+          plan: null,
+          patch: null,
+          error: iter.outcome === 'failure' ? iter.summary : undefined,
+          contextSummary: iter.summary,
+        })),
+      };
     } catch {
       return null;
     }
   }
 
   private async ensureArchiveDir(): Promise<void> {
-    // This method is not implemented as it requires file system adapter
-    // The SessionArchiver is currently a placeholder for future implementation
+    await this.fileAdapter.mkdir(this.archiveDir);
   }
 
   private async writeCompressedData(
-    _archivePath: string,
-    _compressedData: Uint8Array,
+    archivePath: string,
+    compressedData: Uint8Array,
   ): Promise<void> {
-    // This method is not implemented as it requires file system adapter
-    // The SessionArchiver is currently a placeholder for future implementation
+    const encoded = Buffer.from(compressedData).toString('base64');
+    try {
+      await this.fileAdapter.writeFile(archivePath, encoded);
+    } catch (error) {
+      getLogger().warn(`Failed to write session archive ${archivePath}: ${error}`);
+      throw error;
+    }
   }
 }

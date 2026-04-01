@@ -15,6 +15,7 @@ import type { ChatSession, ChatMessage, SummaryState } from './types.js';
  * Features: Auto-pruning, compression, intelligent cleanup
  */
 export class ChatSessionManager {
+  private repoPath: string;
   private storageDir: string;
   private currentSession: ChatSession | null = null;
   private fileAdapter = new FileAdapter();
@@ -23,6 +24,7 @@ export class ChatSessionManager {
   private compressedStore: CompressedSessionStore;
 
   constructor(repoPath: string, pruningStrategy?: Partial<MemoryPruningStrategy>) {
+    this.repoPath = repoPath;
     this.storageDir = join(repoPath, '.salmonloop', 'chat-sessions');
     this.pruningEngine = new SessionPruningEngine(pruningStrategy);
     this.compressor = new SessionCompressor();
@@ -344,17 +346,110 @@ export class ChatSessionManager {
    * List archived sessions
    */
   async listArchivedSessions(): Promise<Array<{ id: string; name: string; archivedAt: number }>> {
-    // Implement archived session list functionality
-    // This needs to access the compressed storage
-    return [];
+    const archiveDir = this.getArchiveStorageDir();
+    const files = await this.fileAdapter.readdir(archiveDir).catch(() => []);
+    const archived: Array<{ id: string; name: string; archivedAt: number }> = [];
+
+    for (const file of files) {
+      if (!file.endsWith('.mpack.gz')) continue;
+      try {
+        const compressed = await this.compressedStore.loadCompressed(file);
+        if (!compressed) continue;
+
+        const stats = await this.fileAdapter.stat(join(archiveDir, file));
+        archived.push({
+          id: compressed.meta.id,
+          name: compressed.meta.name,
+          archivedAt: stats.mtime.getTime(),
+        });
+      } catch (error) {
+        getLogger().warn(`Failed to load archived session ${file}: ${error}`);
+      }
+    }
+
+    return archived.sort((a, b) => b.archivedAt - a.archivedAt);
   }
 
   /**
    * Restore session from archive
    */
-  async restoreFromArchive(_archiveId: string): Promise<ChatSession | null> {
-    // Implement session restoration from archive functionality
-    // This needs to access the compressed storage and decompress
-    return null;
+  async restoreFromArchive(archiveId: string): Promise<ChatSession | null> {
+    const filename = await this.resolveArchiveFilename(archiveId);
+    if (!filename) return null;
+
+    try {
+      const compressed = await this.compressedStore.loadCompressed(filename);
+      if (!compressed) return null;
+
+      const partial = await this.compressor.decompressToSession(compressed);
+      const reconstructed: ChatSession = {
+        meta: {
+          id: partial.meta.id,
+          name: partial.meta.name,
+          repoPath: this.repoPath,
+          createdAt: partial.meta.createdAt,
+          updatedAt: Date.now(),
+          totalIterations: partial.meta.totalIterations ?? partial.iterations.length,
+          successfulIterations: partial.meta.successfulIterations ?? 0,
+          totalTokens: partial.meta.totalTokens ?? { input: 0, output: 0 },
+          snapshots: [],
+        },
+        messages: partial.messages.map((message, index) => ({
+          id: `restored-msg-${index}`,
+          role: message.role,
+          content: message.content,
+          timestamp: message.timestamp,
+        })),
+        iterations: partial.iterations.map((iteration, index) => ({
+          id: iteration.id || `restored-iter-${index + 1}`,
+          attempt: index + 1,
+          plan: null,
+          patch: null,
+          error: iteration.outcome === 'failure' ? iteration.summary : undefined,
+          contextSummary: iteration.summary,
+        })),
+      };
+
+      this.currentSession = reconstructed;
+      await this.save();
+      return reconstructed;
+    } catch (error) {
+      getLogger().warn(`Failed to restore archived session ${archiveId}: ${error}`);
+      return null;
+    }
+  }
+
+  private getArchiveStorageDir(): string {
+    return join(this.repoPath, '.salmonloop', 'compressed-sessions');
+  }
+
+  private async resolveArchiveFilename(archiveId: string): Promise<string | null> {
+    const archiveDir = this.getArchiveStorageDir();
+    const files = (await this.fileAdapter.readdir(archiveDir).catch(() => [])).filter((file) =>
+      file.endsWith('.mpack.gz'),
+    );
+    if (files.length === 0) return null;
+
+    if (archiveId.endsWith('.mpack.gz') && files.includes(archiveId)) {
+      return archiveId;
+    }
+
+    const exactFilename = `${archiveId}.mpack.gz`;
+    if (files.includes(exactFilename)) {
+      return exactFilename;
+    }
+
+    const prefixMatches = files.filter((file) => file.startsWith(archiveId));
+    if (prefixMatches.length === 0) return null;
+    if (prefixMatches.length === 1) return prefixMatches[0];
+
+    const withMtime = await Promise.all(
+      prefixMatches.map(async (file) => {
+        const stats = await this.fileAdapter.stat(join(archiveDir, file));
+        return { file, mtime: stats.mtime.getTime() };
+      }),
+    );
+    withMtime.sort((a, b) => b.mtime - a.mtime);
+    return withMtime[0]?.file ?? null;
   }
 }
