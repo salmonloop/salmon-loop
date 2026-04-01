@@ -557,6 +557,68 @@ describe('Grizzco steps: PLAN/PATCH tool calling path', () => {
     expect(lastUserMessage.content).toContain('artifact.read');
   });
 
+  it('PLAN exposes same-attempt recent read artifacts from toolCallingAudit', async () => {
+    const captured: any[][] = [];
+    const llm: LLM = {
+      getCapabilities: () => ({ toolCalling: true }),
+      createPlan: mock(async () => {
+        throw new Error('createPlan should not be called when tool calling is enabled');
+      }),
+      createPatch: mock(async () => ''),
+      chat: mock(async (messages: any) => {
+        captured.push(messages.map((m: any) => ({ role: m.role, content: m.content })));
+        return {
+          role: 'assistant' as const,
+          content: JSON.stringify({
+            goal: 'retry-goal',
+            files: ['src/index.js'],
+            changes: ['Inspect recent read artifacts'],
+            verify: 'bun -e "process.exit(0)"',
+          }),
+        };
+      }),
+    };
+
+    const ctx: any = {
+      workspace: { workPath: 'C:\\repo', strategy: 'worktree' },
+      options: {
+        llm,
+        instruction: 'continue after fs.read in explore',
+        dryRun: true,
+      },
+      toolCallingAudit: [
+        {
+          phase: 'EXPLORE',
+          toolName: 'fs.read',
+          toolIntent: 'READ',
+          toolResultStatus: 'ok',
+          toolResultReadArtifactPath: 'src/readme.ts',
+          toolResultReadArtifact: {
+            handle: 's8p://artifact/recent-read-123',
+            mimeType: 'text/plain',
+            sha256: 'read',
+            size: 321,
+          },
+        },
+      ],
+      context: { primaryFile: 'src/index.js', primaryText: 'const x = 1;' },
+      contextResult: {
+        prompt: 'ASSEMBLED_CONTEXT_FROM_CONTEXT_SERVICE',
+        meta: {},
+      },
+      emit: () => {},
+      toolstack: createEmptyToolstack(),
+    };
+
+    await generatePlan(ctx);
+
+    const lastUserMessage = captured[0][captured[0].length - 1];
+    expect(lastUserMessage.role).toBe('user');
+    expect(lastUserMessage.content).toContain('s8p://artifact/recent-read-123');
+    expect(lastUserMessage.content).toContain('src/readme.ts');
+    expect(lastUserMessage.content).toContain('artifact.read');
+  });
+
   it('PLAN repairs non-JSON responses with a second pass (contract enforcement)', async () => {
     const llm: LLM = {
       getCapabilities: () => ({ toolCalling: true }),

@@ -1,6 +1,8 @@
 import { z } from 'zod';
 
+import type { ToolCallingAuditEntry } from '../llm/audit.js';
 import { LoopResult } from '../types/index.js';
+import type { LLMMessage } from '../types/llm.js';
 
 import type { ArtifactHandle } from './artifacts/types.js';
 
@@ -45,10 +47,35 @@ export interface SubAgentRequest {
   recursionDepth?: number;
   session_target: 'isolated' | 'shared';
   timeout_seconds?: number;
+  contextSnapshot?: SubAgentContextSnapshot;
 
   // Overrides
   budgetOverride?: {
     maxTokens?: number;
+  };
+}
+
+export interface SubAgentArtifactHints {
+  verifyArtifact?: ArtifactHandle;
+  subAgentPatchArtifacts?: ArtifactHandle[];
+  subAgentAuditArtifacts?: ArtifactHandle[];
+  recentReadArtifacts?: Array<{
+    path: string;
+    artifact: ArtifactHandle;
+  }>;
+}
+
+export interface SubAgentContextSnapshot {
+  conversationContext?: LLMMessage[];
+  artifactHints?: SubAgentArtifactHints;
+  toolCallingAudit?: ToolCallingAuditEntry[];
+  planRuntime?: {
+    sessionId: string;
+    planPathHint: string;
+  };
+  cacheSharing?: {
+    namespace?: string;
+    contextHash?: string;
   };
 }
 
@@ -94,6 +121,76 @@ export const SubAgentRequestSchema = z.object({
     .default('isolated')
     .describe('Whether the session should be isolated (shadow worktree) or shared'),
   timeout_seconds: z.number().optional().describe('Maximum execution time in seconds'),
+  contextSnapshot: z
+    .object({
+      conversationContext: z
+        .array(
+          z.object({
+            role: z.enum(['system', 'user', 'assistant']),
+            content: z.string(),
+          }),
+        )
+        .optional(),
+      artifactHints: z
+        .object({
+          verifyArtifact: z
+            .object({
+              handle: z.string(),
+              mimeType: z.string(),
+              sha256: z.string(),
+              size: z.number(),
+            })
+            .optional(),
+          subAgentPatchArtifacts: z
+            .array(
+              z.object({
+                handle: z.string(),
+                mimeType: z.string(),
+                sha256: z.string(),
+                size: z.number(),
+              }),
+            )
+            .optional(),
+          subAgentAuditArtifacts: z
+            .array(
+              z.object({
+                handle: z.string(),
+                mimeType: z.string(),
+                sha256: z.string(),
+                size: z.number(),
+              }),
+            )
+            .optional(),
+          recentReadArtifacts: z
+            .array(
+              z.object({
+                path: z.string(),
+                artifact: z.object({
+                  handle: z.string(),
+                  mimeType: z.string(),
+                  sha256: z.string(),
+                  size: z.number(),
+                }),
+              }),
+            )
+            .optional(),
+        })
+        .optional(),
+      toolCallingAudit: z.array(z.record(z.string(), z.unknown())).optional(),
+      planRuntime: z
+        .object({
+          sessionId: z.string(),
+          planPathHint: z.string(),
+        })
+        .optional(),
+      cacheSharing: z
+        .object({
+          namespace: z.string().optional(),
+          contextHash: z.string().optional(),
+        })
+        .optional(),
+    })
+    .optional(),
   budgetOverride: z
     .object({
       maxTokens: z.number().optional(),

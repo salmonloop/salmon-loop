@@ -20,6 +20,8 @@ export interface ToolCallingAuditEntry {
   toolResultErrorMessage?: string;
   toolResultPatchArtifact?: ArtifactHandle;
   toolResultAuditArtifact?: ArtifactHandle;
+  toolResultReadArtifact?: ArtifactHandle;
+  toolResultReadArtifactPath?: string;
 }
 
 export interface ToolCallingAuditSink {

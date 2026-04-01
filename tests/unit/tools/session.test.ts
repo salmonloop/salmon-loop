@@ -333,6 +333,85 @@ describe('chatWithTools', () => {
     expect(okEntry.toolResultStatus).toBe('ok');
   });
 
+  it('records recent read artifacts for successful fs.read tool results', async () => {
+    const registry = new ToolRegistry();
+    const policy = new ToolPolicy();
+    const budget = new BudgetGuard();
+    const audit = new ToolAuditLogger();
+    const sanitizer = new ToolSanitizer();
+    const router = new ToolRouter(registry, policy, budget, audit, sanitizer);
+
+    const spec: ToolSpec<{ file: string }, { content: string; size: number }> = {
+      name: 'fs.read',
+      source: 'builtin',
+      intent: 'READ',
+      description: 'Read file',
+      riskLevel: 'low',
+      sideEffects: ['fs_read'],
+      concurrency: 'parallel_ok',
+      allowedPhases: [Phase.PLAN],
+      inputSchema: z.object({ file: z.string() }),
+      outputSchema: z.object({ content: z.string(), size: z.number() }),
+      executor: async () => ({ content: 'const x = 1;\n', size: 13 }),
+    };
+    registry.register(spec);
+
+    const toolCallingAudit: any[] = [];
+    const llm: LLM = {
+      async chat(messages) {
+        const toolMsg = messages.find((m) => m.role === 'tool');
+        if (!toolMsg) {
+          return {
+            role: 'assistant',
+            content: '',
+            tool_calls: [
+              {
+                id: 'call_read',
+                type: 'function',
+                function: {
+                  name: 'fs.read',
+                  arguments: JSON.stringify({ file: 'src/index.ts' }),
+                },
+              },
+            ],
+          };
+        }
+        return { role: 'assistant', content: 'DONE' };
+      },
+      async createPlan() {
+        throw new Error('not used');
+      },
+      async createPatch() {
+        throw new Error('not used');
+      },
+    };
+
+    const final = await chatWithTools(
+      [{ role: 'user', content: 'prompt' }],
+      {},
+      {
+        phase: Phase.PLAN,
+        llm,
+        runtime: {
+          repoRoot: '/tmp',
+          attemptId: 1,
+          dryRun: true,
+          model: 'test-model',
+          worktreeRoot: '/tmp',
+        },
+        toolstack: { registry, policy, router },
+        toolCallingAudit: { event: (e) => toolCallingAudit.push(e) },
+      },
+    );
+
+    expect(final.content).toBe('DONE');
+
+    const readEntry = toolCallingAudit.find((e) => e.toolResultReadArtifactPath === 'src/index.ts');
+    expect(readEntry).toBeTruthy();
+    expect(readEntry.toolResultReadArtifactPath).toBe('src/index.ts');
+    expect(readEntry.toolResultReadArtifact?.handle).toContain('s8p://artifact/');
+  });
+
   it('throws interrupt errors from tool execution', async () => {
     const registry = new ToolRegistry();
     const policy = new ToolPolicy();

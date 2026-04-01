@@ -18,6 +18,7 @@ import type { SubAgentRegistry } from '../registry.js';
 import { getSubAgentRegistry } from '../registry.js';
 import type {
   IExecutable,
+  SubAgentContextSnapshot,
   SubAgentProfile,
   SubAgentRequest,
   SubAgentResult,
@@ -123,7 +124,7 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
         const fsAdapter = createFileSystemAdapter(flowMode);
 
         // 2. Construct InitCtx for the smallfry
-        const initCtx: InitCtx = {
+        const initCtx = this.applyContextSnapshot(request.contextSnapshot, {
           workspace: {
             workPath: activePath,
             baseRepoPath: workspace.baseRepoPath,
@@ -154,7 +155,7 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
           },
           fileStateResolver: resolver,
           shadowInitialRef: runtimeEnv?.initialSnapshotHash || 'HEAD',
-        };
+        });
 
         // 3. Launch the "Little Fry"
         const subLoop = new SmallfryLoop(profile);
@@ -193,6 +194,24 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
   // Backward compatibility for internal calls
   async spawn(request: SubAgentRequest): Promise<SubAgentResult> {
     return this.execute(request);
+  }
+
+  private applyContextSnapshot(
+    snapshot: SubAgentContextSnapshot | undefined,
+    initCtx: InitCtx,
+  ): InitCtx {
+    if (!snapshot) return initCtx;
+
+    return {
+      ...initCtx,
+      planRuntime: snapshot.planRuntime ?? initCtx.planRuntime,
+      toolCallingAudit: snapshot.toolCallingAudit ?? initCtx.toolCallingAudit,
+      artifactHints: snapshot.artifactHints ?? initCtx.artifactHints,
+      options: {
+        ...initCtx.options,
+        conversationContext: snapshot.conversationContext ?? initCtx.options.conversationContext,
+      },
+    };
   }
 
   private updateStatus(id: string, status: SubAgentStatus) {

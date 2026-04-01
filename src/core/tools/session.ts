@@ -12,6 +12,7 @@ import {
 } from '../streaming/canonical/canonical-responses-event-emitter.js';
 import { mapLlmStreamChunkToCanonicalStreamParts } from '../streaming/canonical/parts-from-llm-stream-chunk.js';
 import type { CanonicalResponsesEvent } from '../streaming/canonical/responses-events.js';
+import { ArtifactStore } from '../sub-agent/artifacts/store.js';
 import type { ChatOptions, LlmOutputKind, LlmOutputPolicy, LLM, LLMMessage } from '../types/llm.js';
 import type { ExecutionStep, LoopEvent } from '../types/runtime.js';
 import { Phase, type ExecutionPhase } from '../types/runtime.js';
@@ -183,6 +184,68 @@ function extractArtifactHandlesFromToolOutput(output: unknown): {
   return {
     patchArtifact,
     auditArtifact,
+  };
+}
+
+function extractRecentReadResult(params: {
+  toolName: string;
+  rawArgs: unknown;
+  output: unknown;
+}):
+  | {
+      path: string;
+      content: string;
+    }
+  | undefined {
+  if (params.toolName !== 'fs.read' && params.toolName !== 'code.read') {
+    return undefined;
+  }
+  if (!isObjectRecord(params.output) || typeof params.output.content !== 'string') {
+    return undefined;
+  }
+
+  const args = safeParseJson(params.rawArgs);
+  const argsValue = args.ok ? args.value : params.rawArgs;
+  if (!isObjectRecord(argsValue)) return undefined;
+
+  const file = argsValue.file ?? argsValue.file_path ?? argsValue.filePath ?? argsValue.path;
+  if (typeof file !== 'string' || !file.trim()) return undefined;
+
+  return {
+    path: file,
+    content: params.output.content,
+  };
+}
+
+async function persistRecentReadArtifact(params: {
+  toolName: string;
+  rawArgs: unknown;
+  output: unknown;
+}): Promise<
+  | {
+      path: string;
+      artifact: {
+        handle: string;
+        mimeType: string;
+        sha256: string;
+        size: number;
+      };
+    }
+  | undefined
+> {
+  const readResult = extractRecentReadResult(params);
+  if (!readResult) return undefined;
+
+  const ext = path.extname(readResult.path).replace(/^\./, '') || 'txt';
+  const artifact = await ArtifactStore.saveText({
+    content: readResult.content,
+    mimeType: 'text/plain',
+    fileExt: ext,
+  });
+
+  return {
+    path: readResult.path,
+    artifact,
   };
 }
 
@@ -1456,6 +1519,11 @@ async function executeToolCalls(
           ? result.output.ok
           : undefined;
       const artifacts = extractArtifactHandlesFromToolOutput(result.output);
+      const recentReadArtifact = await persistRecentReadArtifact({
+        toolName: typeof toolName === 'string' ? toolName : 'unknown',
+        rawArgs,
+        output: result.output,
+      });
       session.toolCallingAudit?.event({
         timestamp: new Date().toISOString(),
         phase,
@@ -1468,6 +1536,8 @@ async function executeToolCalls(
         toolResultStatus: result.status,
         toolResultPatchArtifact: artifacts.patchArtifact,
         toolResultAuditArtifact: artifacts.auditArtifact,
+        toolResultReadArtifact: recentReadArtifact?.artifact,
+        toolResultReadArtifactPath: recentReadArtifact?.path,
       });
     }
 

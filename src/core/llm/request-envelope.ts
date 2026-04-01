@@ -36,6 +36,10 @@ export interface RequestArtifactHints {
   verifyArtifact?: ArtifactHandle;
   subAgentPatchArtifacts?: ArtifactHandle[];
   subAgentAuditArtifacts?: ArtifactHandle[];
+  recentReadArtifacts?: Array<{
+    path: string;
+    artifact: ArtifactHandle;
+  }>;
 }
 
 function isArtifactHandle(value: unknown): value is ArtifactHandle {
@@ -72,6 +76,41 @@ function mergeArtifactHandles(
   return merged.slice(-limit);
 }
 
+function mergeReadArtifactRefs(
+  existing:
+    | Array<{
+        path: string;
+        artifact: ArtifactHandle;
+      }>
+    | undefined,
+  incoming:
+    | Array<{
+        path: string;
+        artifact: ArtifactHandle;
+      }>
+    | undefined,
+  limit = 6,
+):
+  | Array<{
+      path: string;
+      artifact: ArtifactHandle;
+    }>
+  | undefined {
+  const merged: Array<{ path: string; artifact: ArtifactHandle }> = [];
+  const seen = new Set<string>();
+
+  for (const item of [...(existing ?? []), ...(incoming ?? [])]) {
+    if (!item?.path || !item.artifact?.handle) continue;
+    const key = `${item.path}::${item.artifact.handle}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(item);
+  }
+
+  if (merged.length === 0) return undefined;
+  return merged.slice(-limit);
+}
+
 export function resolveRequestArtifactHints(params: {
   artifactHints?: RequestArtifactHints;
   toolCallingAudit?: ToolCallingAuditEntry[];
@@ -81,14 +120,25 @@ export function resolveRequestArtifactHints(params: {
 
   const auditPatchArtifacts: ArtifactHandle[] = [];
   const auditAuditArtifacts: ArtifactHandle[] = [];
+  const auditReadArtifacts: Array<{ path: string; artifact: ArtifactHandle }> = [];
 
   for (const entry of auditEntries) {
-    if (entry?.toolName !== 'agent_dispatch' || entry.toolResultStatus !== 'ok') continue;
-    if (isArtifactHandle(entry.toolResultPatchArtifact)) {
-      auditPatchArtifacts.push(entry.toolResultPatchArtifact);
+    if (entry?.toolResultStatus === 'ok' && entry.toolName === 'agent_dispatch') {
+      if (isArtifactHandle(entry.toolResultPatchArtifact)) {
+        auditPatchArtifacts.push(entry.toolResultPatchArtifact);
+      }
+      if (isArtifactHandle(entry.toolResultAuditArtifact)) {
+        auditAuditArtifacts.push(entry.toolResultAuditArtifact);
+      }
     }
-    if (isArtifactHandle(entry.toolResultAuditArtifact)) {
-      auditAuditArtifacts.push(entry.toolResultAuditArtifact);
+    if (
+      typeof entry.toolResultReadArtifactPath === 'string' &&
+      isArtifactHandle(entry.toolResultReadArtifact)
+    ) {
+      auditReadArtifacts.push({
+        path: entry.toolResultReadArtifactPath,
+        artifact: entry.toolResultReadArtifact,
+      });
     }
   }
 
@@ -102,12 +152,14 @@ export function resolveRequestArtifactHints(params: {
       direct?.subAgentAuditArtifacts,
       auditAuditArtifacts,
     ),
+    recentReadArtifacts: mergeReadArtifactRefs(direct?.recentReadArtifacts, auditReadArtifacts),
   };
 
   if (
     !resolved.verifyArtifact &&
     !resolved.subAgentPatchArtifacts?.length &&
-    !resolved.subAgentAuditArtifacts?.length
+    !resolved.subAgentAuditArtifacts?.length &&
+    !resolved.recentReadArtifacts?.length
   ) {
     return undefined;
   }
@@ -182,6 +234,16 @@ export function buildArtifactHintAttachments(hints?: RequestArtifactHints): Requ
         key: `previous-subagent-audit-${index}`,
         label: `Previous sub-agent audit artifact ${index + 1}`,
         artifact,
+      }),
+    );
+  }
+
+  for (const [index, item] of (hints.recentReadArtifacts ?? []).entries()) {
+    attachments.push(
+      toArtifactAttachment({
+        key: `recent-read-${index}`,
+        label: `Recent file read: ${item.path}`,
+        artifact: item.artifact,
       }),
     );
   }

@@ -88,6 +88,48 @@ function extractSubAgentArtifacts(entries: ToolCallingAuditEntry[] | undefined):
   return { patchArtifacts, auditArtifacts };
 }
 
+function extractRecentReadArtifacts(entries: ToolCallingAuditEntry[] | undefined): Array<{
+  path: string;
+  artifact: ArtifactHandle;
+}> {
+  if (!Array.isArray(entries) || entries.length === 0) {
+    return [];
+  }
+
+  const recentReads: Array<{ path: string; artifact: ArtifactHandle }> = [];
+
+  for (const entry of entries) {
+    if (entry.toolIntent !== 'READ' || entry.toolResultStatus !== 'ok') continue;
+    if (typeof entry.toolResultReadArtifactPath !== 'string') continue;
+    if (!isArtifactHandle(entry.toolResultReadArtifact)) continue;
+    recentReads.push({
+      path: entry.toolResultReadArtifactPath,
+      artifact: entry.toolResultReadArtifact,
+    });
+  }
+
+  return recentReads;
+}
+
+function mergeReadArtifacts(
+  existing: Array<{ path: string; artifact: ArtifactHandle }>,
+  incoming: Array<{ path: string; artifact: ArtifactHandle }>,
+  limit = 6,
+): Array<{ path: string; artifact: ArtifactHandle }> {
+  const merged: Array<{ path: string; artifact: ArtifactHandle }> = [];
+  const seen = new Set<string>();
+
+  for (const item of [...existing, ...incoming]) {
+    const key = `${item.path}::${item.artifact.handle}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(item);
+  }
+
+  if (merged.length <= limit) return merged;
+  return merged.slice(merged.length - limit);
+}
+
 interface FlowTransactionEnvironment {
   workspace: ExecutionWorkspace;
   shadowInitialRef: string;
@@ -119,6 +161,7 @@ export class FlowTransactionRunner {
   private lastVerifyArtifact: ArtifactHandle | undefined;
   private lastSubAgentPatchArtifacts: ArtifactHandle[] = [];
   private lastSubAgentAuditArtifacts: ArtifactHandle[] = [];
+  private lastRecentReadArtifacts: Array<{ path: string; artifact: ArtifactHandle }> = [];
 
   constructor(private readonly params: FlowTransactionRunnerParams) {}
 
@@ -163,6 +206,8 @@ export class FlowTransactionRunner {
             this.lastSubAgentAuditArtifacts.length > 0
               ? this.lastSubAgentAuditArtifacts
               : undefined,
+          recentReadArtifacts:
+            this.lastRecentReadArtifacts.length > 0 ? this.lastRecentReadArtifacts : undefined,
         },
         lastError: this.currentLastError,
         applyBackRuntime: {
@@ -191,6 +236,10 @@ export class FlowTransactionRunner {
       this.lastSubAgentAuditArtifacts = mergeArtifactHandles(
         this.lastSubAgentAuditArtifacts,
         subAgentArtifacts.auditArtifacts,
+      );
+      this.lastRecentReadArtifacts = mergeReadArtifacts(
+        this.lastRecentReadArtifacts,
+        extractRecentReadArtifacts(terminalCtx?.toolCallingAudit),
       );
 
       const attemptFailure = resolveAttemptFailure({

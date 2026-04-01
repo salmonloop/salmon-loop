@@ -97,6 +97,10 @@ export interface InitCtx {
     verifyArtifact?: ArtifactHandle;
     subAgentPatchArtifacts?: ArtifactHandle[];
     subAgentAuditArtifacts?: ArtifactHandle[];
+    recentReadArtifacts?: Array<{
+      path: string;
+      artifact: ArtifactHandle;
+    }>;
   };
 }
 
