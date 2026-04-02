@@ -67,4 +67,16 @@ describe('architecture/request-assembly invariant', () => {
       expect(content).not.toContain('contextSnapshot: {');
     }
   });
+
+  it('tool session paths preserve runtime context through shared execution planner', async () => {
+    const session = await readFile(join(process.cwd(), 'src/core/tools/session.ts'), 'utf8');
+
+    expect(session).toContain('{ ...params.session.runtime, phase: params.phase }');
+    expect(session).toContain(
+      'await executeToolCalls(session, phase, round, toolCalls, messages, chatOptions.signal);',
+    );
+    expect(session).toContain(
+      'await executeToolCalls(session, phase, round, calls, messages, chatOptions.signal);',
+    );
+  });
 });
