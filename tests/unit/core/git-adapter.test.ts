@@ -148,7 +148,7 @@ describe('GitAdapter query gateway validation', () => {
     expect(runGitCommand).not.toHaveBeenCalled();
   });
 
-  it('refuses destructive rollback recovery outside shadow worktree', async () => {
+  it('does not invoke destructive rollback recovery outside shadow worktree', async () => {
     (runGitCommand as any).mockResolvedValueOnce({
       ok: false,
       code: 1,
@@ -168,8 +168,9 @@ describe('GitAdapter query gateway validation', () => {
     if (!error) {
       throw new Error('Expected rollbackFiles to fail');
     }
-    expect(error.message).toMatch(/Conflict resolution denied|checkout failed/i);
-    expect(error.message).toMatch(/original rollback error:[\s\S]*checkout failed/i);
+    expect(error.message).toMatch(/checkout failed/i);
+    expect(error.message).not.toMatch(/Conflict resolution denied/i);
+    expect(error.message).not.toMatch(/original rollback error/i);
     expect(runGitCommand).toHaveBeenCalledTimes(1);
   });
 });

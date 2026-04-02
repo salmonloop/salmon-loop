@@ -520,6 +520,9 @@ export class GitAdapter {
           .catch((error) => logIgnoredError(`[GitAdapter] cleanup ${tempFile}`, error));
       }
     } catch (error: unknown) {
+      if (!this.isShadowWorktreePath()) {
+        throw error;
+      }
       try {
         await this.resolveConflicts();
       } catch (cleanupError: unknown) {
