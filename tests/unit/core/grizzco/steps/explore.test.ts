@@ -314,4 +314,77 @@ describe('exploreCodebase', () => {
     expect(lastUserMessage.content).toContain('artifact.read');
     expect(out.explorationSummary?.filesFound).toBeGreaterThan(0);
   });
+
+  it('forwards runtime contextSnapshot into tool-calling execution context', async () => {
+    const mockRuntimeCtx = {
+      repoRoot: '/tmp/test',
+      attemptId: 1,
+      dryRun: false,
+    };
+    let receivedRuntimeContext: any;
+
+    mockCtx.options.conversationContext = [{ role: 'assistant', content: 'prior context' }];
+    mockCtx.artifactHints = {
+      verifyArtifact: {
+        handle: 's8p://artifact/verify-explore-1',
+        mimeType: 'text/plain',
+        sha256: 'verify',
+        size: 12,
+      },
+    };
+    mockCtx.toolCallingAudit = [
+      {
+        timestamp: new Date().toISOString(),
+        phase: 'PLAN',
+        round: 0,
+        callId: 'call-plan',
+        toolName: 'plan.update',
+        rawArgsType: 'string',
+        parsedArgsOk: true,
+        toolResultStatus: 'ok',
+      },
+    ];
+    mockCtx.planRuntime = { sessionId: 'plan-1', planPathHint: '.salmonloop/plan.md' };
+    mockCtx.contextResult = {
+      prompt: 'ASSEMBLED_CONTEXT',
+      meta: { contextHash: 'ctx-explore' },
+    };
+
+    spyOn(session, 'chatWithTools').mockImplementation(
+      async (_messages: any, _options: any, toolSession: any) => {
+        receivedRuntimeContext = toolSession.runtime;
+        const router = toolSession.toolstack.router;
+
+        mockToolstack.router.call.mockResolvedValue({
+          toolName: 'fs.read',
+          status: 'ok',
+          output: { content: 'export const value = 1;' },
+        });
+
+        await router.call({
+          id: 'capture-1',
+          phase: Phase.EXPLORE,
+          toolName: 'fs.read',
+          args: { file: 'src/captured.ts' },
+          ctx: mockRuntimeCtx,
+        });
+
+        return { role: 'assistant', content: 'done' } as any;
+      },
+    );
+
+    await runExplore(mockCtx);
+
+    expect(receivedRuntimeContext?.phase).toBe(Phase.EXPLORE);
+    expect(receivedRuntimeContext?.contextSnapshot).toEqual({
+      conversationContext: mockCtx.options.conversationContext,
+      artifactHints: mockCtx.artifactHints,
+      toolCallingAudit: mockCtx.toolCallingAudit,
+      planRuntime: mockCtx.planRuntime,
+      cacheSharing: {
+        namespace: 'explore',
+        contextHash: 'ctx-explore',
+      },
+    });
+  });
 });

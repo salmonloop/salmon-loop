@@ -1,6 +1,8 @@
-import { describe, expect, it, mock } from 'bun:test';
+import { describe, expect, it, mock, spyOn } from 'bun:test';
 
 import { generateResearch } from '../../../../../src/core/grizzco/steps/research.js';
+import * as session from '../../../../../src/core/tools/session.js';
+import { Phase } from '../../../../../src/core/types/index.js';
 
 describe('generateResearch', () => {
   it('injects recent read artifact handles into the research request envelope', async () => {
@@ -70,5 +72,102 @@ describe('generateResearch', () => {
     expect(lastUserMessage.content).toContain('src/previous.ts');
     expect(lastUserMessage.content).toContain('artifact.read');
     expect(out.researchText).toBe('research summary');
+  });
+
+  it('forwards runtime contextSnapshot into tool-calling execution context', async () => {
+    let receivedRuntimeContext: any;
+
+    const llm = {
+      getCapabilities: () => ({ toolCalling: true }),
+      chat: mock(),
+      createPlan: mock(),
+      createPatch: mock(),
+    };
+
+    spyOn(session, 'chatWithTools').mockImplementation(
+      async (_messages: any, _options: any, toolSession: any) => {
+        receivedRuntimeContext = toolSession.runtime;
+        return {
+          role: 'assistant' as const,
+          content: JSON.stringify({
+            researchNotes: ['note'],
+            researchFindings: [{ summary: 'finding' }],
+            sources: [{ toolName: 'web.search', summary: 'source', ok: true, timestamp: Date.now() }],
+            researchText: 'research summary',
+          }),
+        } as any;
+      },
+    );
+
+    const ctx: any = {
+      options: {
+        llm,
+        instruction: 'collect evidence',
+        dryRun: true,
+        conversationContext: [{ role: 'assistant', content: 'prior context' }],
+      },
+      toolstack: {
+        registry: {
+          listAll: () => [],
+        },
+        policy: {
+          decide: () => ({ allowed: false }),
+        },
+        router: {
+          call: mock(async () => ({ status: 'ok' })),
+        },
+      },
+      artifactHints: {
+        verifyArtifact: {
+          handle: 's8p://artifact/verify-research-1',
+          mimeType: 'text/plain',
+          sha256: 'verify',
+          size: 12,
+        },
+      },
+      toolCallingAudit: [
+        {
+          timestamp: new Date().toISOString(),
+          phase: 'EXPLORE',
+          round: 0,
+          callId: 'call-explore',
+          toolName: 'fs.read',
+          rawArgsType: 'string',
+          parsedArgsOk: true,
+          toolResultStatus: 'ok',
+        },
+      ],
+      planRuntime: { sessionId: 'plan-research-1', planPathHint: '.salmonloop/plan.md' },
+      context: {
+        primaryFile: 'src/index.ts',
+        primaryText: 'export const answer = 42;',
+      },
+      contextResult: {
+        prompt: 'ASSEMBLED_CONTEXT',
+        meta: {
+          contextHash: 'ctx-research',
+        },
+      },
+      workspace: {
+        workPath: '/tmp/test',
+        strategy: 'worktree',
+      },
+      emit: mock(),
+    };
+
+    const out = await generateResearch(ctx);
+
+    expect(out.researchText).toBe('research summary');
+    expect(receivedRuntimeContext?.phase).toBe(Phase.RESEARCH);
+    expect(receivedRuntimeContext?.contextSnapshot).toEqual({
+      conversationContext: ctx.options.conversationContext,
+      artifactHints: ctx.artifactHints,
+      toolCallingAudit: ctx.toolCallingAudit,
+      planRuntime: ctx.planRuntime,
+      cacheSharing: {
+        namespace: 'research',
+        contextHash: 'ctx-research',
+      },
+    });
   });
 });
