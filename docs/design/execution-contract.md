@@ -87,6 +87,12 @@ All allowed runtime writes must remain within these approved roots. Any write ou
   - late-injection content must not silently influence cache keys in this mode
 - If a future flow needs full-prompt cache identity, it must opt in explicitly via a stricter request mode rather than relying on implicit behavior.
 
+**Session runtime propagation contract (tool-calling, non-streaming + streaming):**
+- `chatWithTools` and `chatWithToolsStreaming` must both execute tool calls via the shared `executeToolCalls` path.
+- `executeToolCalls` must execute tools through the shared execution planner (`runToolExecutionPlan`) rather than phase-specific ad-hoc routing.
+- `runToolExecutionPlan` must pass `{ ...session.runtime, phase }` into scheduler execution, so the full runtime context (including `contextSnapshot`) is preserved for every tool invocation.
+- This contract is fail-closed: introducing a separate execution path for streaming or non-streaming tool calls is a contract violation unless the same runtime propagation semantics are explicitly preserved.
+
 **Tool-calling restriction (EXPLORE/PLAN/PATCH):**
 - The only model-visible write capability allowed in read-only phases is updating the runtime plan file under `.salmonloop/plans/**` via `plan.*` tools.
 - No other tool may write to the repository during EXPLORE/PLAN/PATCH, even if the target file is untracked.
