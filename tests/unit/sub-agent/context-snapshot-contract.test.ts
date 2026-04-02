@@ -4,8 +4,19 @@ import {
   cloneSubAgentContextSnapshot,
   mergeSubAgentContextSnapshot,
 } from '../../../src/core/sub-agent/context-snapshot.js';
+import { SUB_AGENT_CONTEXT_SNAPSHOT_FIELD_SEMANTICS } from '../../../src/core/sub-agent/types.js';
 
 describe('sub-agent context snapshot contract', () => {
+  it('declares versioned clone/share semantics for every snapshot field', () => {
+    expect(SUB_AGENT_CONTEXT_SNAPSHOT_FIELD_SEMANTICS).toEqual({
+      conversationContext: 'clone',
+      artifactHints: 'clone',
+      toolCallingAudit: 'clone',
+      planRuntime: 'share',
+      cacheSharing: 'share',
+    });
+  });
+
   it('assigns version=1 by default and preserves clone/share semantics', () => {
     const source = {
       conversationContext: [
@@ -38,6 +49,12 @@ describe('sub-agent context snapshot contract', () => {
           rawArgsType: 'string' as const,
           parsedArgsOk: true,
           toolResultStatus: 'ok' as const,
+          toolResultPreviewArtifact: {
+            handle: 's8p://artifact/tool-preview-1',
+            mimeType: 'application/json',
+            sha256: 'tool-preview-1',
+            size: 20,
+          },
         },
       ],
       planRuntime: {
@@ -61,6 +78,13 @@ describe('sub-agent context snapshot contract', () => {
     expect(cloned?.conversationContext).not.toBe(source.conversationContext);
     expect(cloned?.artifactHints).not.toBe(source.artifactHints);
     expect(cloned?.toolCallingAudit).not.toBe(source.toolCallingAudit);
+    expect(cloned?.toolCallingAudit?.[0]).not.toBe(source.toolCallingAudit[0]);
+    expect(cloned?.toolCallingAudit?.[0]?.toolResultPreviewArtifact).toEqual(
+      source.toolCallingAudit[0].toolResultPreviewArtifact,
+    );
+    expect(cloned?.toolCallingAudit?.[0]?.toolResultPreviewArtifact).not.toBe(
+      source.toolCallingAudit[0].toolResultPreviewArtifact,
+    );
     expect(cloned?.conversationContext?.[0]?.tool_calls).toEqual(
       source.conversationContext[0].tool_calls,
     );
@@ -76,6 +100,16 @@ describe('sub-agent context snapshot contract', () => {
         conversationContext: [{ role: 'user', content: 'x' }],
       } as any),
     ).toThrow('Unsupported sub-agent context snapshot version');
+  });
+
+  it('fails closed on unsupported snapshot fields', () => {
+    expect(() =>
+      cloneSubAgentContextSnapshot({
+        version: 1,
+        conversationContext: [{ role: 'user', content: 'x' }],
+        unsupportedField: true,
+      } as any),
+    ).toThrow('Unsupported sub-agent context snapshot fields');
   });
 
   it('merges runtime snapshot over request snapshot and keeps version', () => {

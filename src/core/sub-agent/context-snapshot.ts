@@ -4,6 +4,7 @@ import type { LLMMessage } from '../types/llm.js';
 import type { ArtifactHandle } from './artifacts/types.js';
 import {
   SUB_AGENT_CONTEXT_SNAPSHOT_VERSION,
+  SUB_AGENT_CONTEXT_SNAPSHOT_FIELD_SEMANTICS,
   type SubAgentContextSnapshotVersion,
   type SubAgentArtifactHints,
   type SubAgentContextSnapshot,
@@ -49,7 +50,7 @@ function cloneToolCallingAudit(
   entries: ToolCallingAuditEntry[] | undefined,
 ): ToolCallingAuditEntry[] | undefined {
   if (!Array.isArray(entries) || entries.length === 0) return undefined;
-  return entries.map((entry) => ({ ...entry }));
+  return entries.map((entry) => deepClone(entry));
 }
 
 function cloneArtifactHints(
@@ -112,6 +113,19 @@ function normalizeSnapshotVersion(
   return version;
 }
 
+function assertSupportedSnapshotFields(snapshot: SubAgentContextSnapshot): void {
+  const supportedFields = new Set<string>([
+    'version',
+    ...Object.keys(SUB_AGENT_CONTEXT_SNAPSHOT_FIELD_SEMANTICS),
+  ]);
+  const unknownFields = Object.keys(snapshot).filter((key) => !supportedFields.has(key));
+  if (unknownFields.length > 0) {
+    throw new Error(
+      `Unsupported sub-agent context snapshot fields: ${unknownFields.sort().join(', ')}`,
+    );
+  }
+}
+
 /**
  * Applies the Stage 5 protocol:
  * - mutable runtime state is cloned by default
@@ -121,6 +135,7 @@ export function cloneSubAgentContextSnapshot(
   snapshot: SubAgentContextSnapshot | undefined,
 ): SubAgentContextSnapshot | undefined {
   if (!snapshot) return undefined;
+  assertSupportedSnapshotFields(snapshot);
   const version = normalizeSnapshotVersion(snapshot);
 
   const cloned: SubAgentContextSnapshot = {

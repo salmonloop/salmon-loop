@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
+import { z } from 'zod';
 
 import { generatePatch } from '../../../../../src/core/grizzco/steps/patch.js';
 import { generatePlan } from '../../../../../src/core/grizzco/steps/plan.js';
@@ -49,6 +50,34 @@ function createPlanUpdateToolstack(routerCall: (envelope: any) => Promise<any>):
     router: {
       call: routerCall,
       getSpec: () => planUpdateSpec,
+    },
+  };
+}
+
+function createAgentDispatchToolstack(routerCall: (envelope: any) => Promise<any>): any {
+  const agentDispatchSpec = {
+    name: 'agent_dispatch',
+    source: 'builtin',
+    intent: 'AGENT',
+    description: 'Dispatch sub-agent',
+    riskLevel: 'medium',
+    sideEffects: ['none', 'fs_read', 'git_read'],
+    concurrency: 'parallel_ok',
+    allowedPhases: ['PLAN'],
+    inputSchema: z.any(),
+    outputSchema: z.any(),
+  };
+
+  return {
+    registry: {
+      listAll: () => [agentDispatchSpec],
+    },
+    policy: {
+      decide: () => ({ allowed: true }),
+    },
+    router: {
+      call: routerCall,
+      getSpec: () => agentDispatchSpec,
     },
   };
 }
@@ -710,6 +739,123 @@ describe('Grizzco steps: PLAN/PATCH tool calling path', () => {
 
     const out = await generatePlan(ctx);
     expect(out.plan.goal).toBe('repaired-goal');
+  });
+
+  it('PLAN forwards runtime contextSnapshot into agent_dispatch execution context', async () => {
+    let receivedRuntimeCtx: any;
+    const routerCall = mock(async (envelope: any) => {
+      receivedRuntimeCtx = envelope.ctx;
+      return {
+        id: envelope.id,
+        toolName: envelope.toolName,
+        source: 'builtin',
+        status: 'ok',
+        output: {
+          agent_ref: 'surgeon',
+          success: true,
+          summary: 'ok',
+          tokenUsage: 0,
+          attempts: 1,
+          logs: [],
+        },
+        summary: 'ok',
+        outputSummary: 'ok',
+        durationMs: 1,
+      };
+    });
+
+    const llm: LLM = {
+      getCapabilities: () => ({ toolCalling: true }),
+      createPlan: mock(async () => {
+        throw new Error('createPlan should not be called when tool calling is enabled');
+      }),
+      createPatch: mock(async () => ''),
+      chat: mock()
+        .mockResolvedValueOnce({
+          role: 'assistant' as const,
+          content: '',
+          tool_calls: [
+            {
+              id: 'call-agent',
+              type: 'function',
+              function: {
+                name: 'agent_dispatch',
+                arguments: JSON.stringify({
+                  agent_ref: 'surgeon',
+                  task: 'inspect repo',
+                  session_target: 'shared',
+                }),
+              },
+            },
+          ],
+        })
+        .mockResolvedValueOnce({
+          role: 'assistant' as const,
+          content: JSON.stringify({
+            goal: 'test-goal',
+            files: ['src/index.js'],
+            changes: ['Use sub-agent context'],
+            verify: 'bun -e "process.exit(0)"',
+          }),
+        }),
+    };
+
+    const conversationContext = [{ role: 'assistant' as const, content: 'prior summary' }];
+    const artifactHints = {
+      verifyArtifact: {
+        handle: 's8p://artifact/verify-ctx',
+        mimeType: 'text/plain',
+        sha256: 'verify',
+        size: 12,
+      },
+    };
+    const toolCallingAudit = [
+      {
+        timestamp: new Date().toISOString(),
+        phase: 'EXPLORE',
+        round: 0,
+        callId: 'call-0',
+        toolName: 'fs.read',
+        rawArgsType: 'string',
+        parsedArgsOk: true,
+        toolResultStatus: 'ok',
+      },
+    ];
+    const planRuntime = { sessionId: 'plan-1', planPathHint: '.salmonloop/plan.md' };
+
+    const ctx: any = {
+      workspace: { workPath: 'C:\\repo', baseRepoPath: 'C:\\repo-base', strategy: 'worktree' },
+      options: {
+        llm,
+        instruction: 'test',
+        dryRun: true,
+        conversationContext,
+      },
+      artifactHints,
+      toolCallingAudit,
+      planRuntime,
+      context: { primaryFile: 'src/index.js', primaryText: 'const x = 1;' },
+      contextResult: { prompt: 'ASSEMBLED_CONTEXT', meta: { contextHash: 'ctx-from-context' } },
+      emit: () => {},
+      toolstack: createAgentDispatchToolstack(routerCall),
+    };
+
+    await generatePlan(ctx);
+
+    expect(routerCall).toHaveBeenCalledTimes(1);
+    expect(receivedRuntimeCtx?.contextSnapshot).toEqual({
+      conversationContext,
+      artifactHints,
+      toolCallingAudit,
+      planRuntime,
+      cacheSharing: {
+        namespace: 'plan',
+        contextHash: 'ctx-from-context',
+      },
+    });
+    expect(receivedRuntimeCtx?.phase).toBe('PLAN');
+    expect(receivedRuntimeCtx?.repoRoot).toBe('C:\\repo');
+    expect(receivedRuntimeCtx?.persistenceRoot).toBe('C:\\repo-base');
   });
 
   it('PATCH uses the tool-calling chat path when toolstack exists and LLM declares toolCalling capability', async () => {

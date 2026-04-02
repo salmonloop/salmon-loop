@@ -11,6 +11,7 @@ import { checkPatchApplies } from './patch/apply-check.js';
 import { extractAndValidatePatch, type ValidatedPatchDiff } from './patch/diff-normalization.js';
 import { salvagePatchDiff } from './patch/diff-salvage.js';
 import { buildPatchPromptInput } from './patch/prompt-input.js';
+import { buildPhaseToolRuntimeContext } from './tool-runtime.js';
 
 const recordPatchSalvageAttempt = (args: { reason: string; badContentLength: number }) => {
   recordAuditEvent(
@@ -128,30 +129,7 @@ export const generatePatch: Step<PlanCtx, PatchCtx> = async (ctx) => {
     {
       phase: Phase.PATCH,
       llm: ctx.options.llm,
-      runtime: {
-        repoRoot: ctx.workspace.workPath,
-        persistenceRoot: ctx.workspace.baseRepoPath || ctx.workspace.workPath,
-        worktreeRoot: ctx.workspace.strategy === 'worktree' ? ctx.workspace.workPath : undefined,
-        attemptId: ctx.attempt ?? 1,
-        dryRun: Boolean(ctx.options?.dryRun),
-        llm: ctx.options.llm,
-        model:
-          ctx.options.llm.getModelId?.() || process.env.SALMONLOOP_MODEL || process.env.S8P_MODEL,
-        userInputProvider: ctx.options.userInputProvider,
-        agentKind: ctx.options.agentKind ?? 'primary',
-        languagePlugins: ctx.options.languagePlugins,
-        subAgentController: ctx.options.subAgentController,
-        contextSnapshot: {
-          conversationContext: ctx.options.conversationContext,
-          artifactHints: ctx.artifactHints,
-          toolCallingAudit: ctx.toolCallingAudit,
-          planRuntime: ctx.planRuntime,
-          cacheSharing: {
-            namespace: cacheSurface.namespace,
-            contextHash: cacheSurface.contextHash,
-          },
-        },
-      },
+      runtime: buildPhaseToolRuntimeContext(ctx, Phase.PATCH, cacheSurface),
       toolstack,
       eventPayload: ctx.options.eventPayload,
       toolCallingAudit: {

@@ -71,6 +71,30 @@ export interface SubAgentArtifactHints {
 
 export const SUB_AGENT_CONTEXT_SNAPSHOT_VERSION = 1 as const;
 export type SubAgentContextSnapshotVersion = typeof SUB_AGENT_CONTEXT_SNAPSHOT_VERSION;
+export type SubAgentContextSnapshotField =
+  | 'conversationContext'
+  | 'artifactHints'
+  | 'toolCallingAudit'
+  | 'planRuntime'
+  | 'cacheSharing';
+export type SubAgentContextSnapshotSemantics = 'clone' | 'share';
+
+/**
+ * Versioned protocol contract for sub-agent context snapshot fields.
+ *
+ * - `clone`: mutable request/runtime data must be deep-cloned before dispatch.
+ * - `share`: session-scoped coordination metadata is intentionally shared.
+ */
+export const SUB_AGENT_CONTEXT_SNAPSHOT_FIELD_SEMANTICS: Record<
+  SubAgentContextSnapshotField,
+  SubAgentContextSnapshotSemantics
+> = {
+  conversationContext: 'clone',
+  artifactHints: 'clone',
+  toolCallingAudit: 'clone',
+  planRuntime: 'share',
+  cacheSharing: 'share',
+};
 
 const SubAgentContextMessageSchema = z.object({
   role: z.enum(['system', 'user', 'assistant', 'tool']),

@@ -54,4 +54,17 @@ describe('architecture/request-assembly invariant', () => {
     expect(requestAssembly).toContain("mode: 'cache_safe_only'");
     expect(aiSdk).toContain("mode: 'cache_safe_only'");
   });
+
+  it('phase tool-calling steps use a shared runtime context helper for sub-agent snapshots', async () => {
+    for (const relPath of [
+      'src/core/grizzco/steps/plan.ts',
+      'src/core/grizzco/steps/explore.ts',
+      'src/core/grizzco/steps/research.ts',
+      'src/core/grizzco/steps/patch.ts',
+    ]) {
+      const content = await readFile(join(process.cwd(), relPath), 'utf8');
+      expect(content).toContain('buildPhaseToolRuntimeContext');
+      expect(content).not.toContain('contextSnapshot: {');
+    }
+  });
 });
