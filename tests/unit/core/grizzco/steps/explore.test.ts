@@ -1,18 +1,7 @@
-import { describe, it, expect, beforeEach } from 'bun:test';
+import { beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
 
 import * as session from '../../../../../src/core/tools/session.js';
 import { Phase } from '../../../../../src/core/types/index.js';
-
-// Mock dependencies
-mock.module('../../../../../src/core/tools/session.js', () => ({
-  chatWithTools: mock(),
-  chatWithToolsStreaming: mock(),
-}));
-
-mock.module('../../../../../src/core/prompts/runtime.js', () => ({
-  getExplorePrompt: mock().mockResolvedValue('Mock Prompt'),
-  getExploreSystemPrompt: mock().mockResolvedValue('Mock System Prompt'),
-}));
 
 describe('exploreCodebase', () => {
   let mockCtx: any;

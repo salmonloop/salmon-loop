@@ -10,7 +10,7 @@
  * Based on best practices from LangChain, OpenAI Realtime API, and Voice AI systems.
  */
 
-import { getLogger } from '../../observability/logger.js';
+import { tryGetLogger } from '../../observability/logger.js';
 
 import { buildIncrementalSummaryPrompt, truncateSummary } from './prompts.js';
 import type {
@@ -70,7 +70,7 @@ export class ConversationSummarizer {
    */
   async initialize(): Promise<void> {
     this.initialized = true;
-    getLogger().debug('[Summarizer] Initialized');
+    tryGetLogger()?.debug('[Summarizer] Initialized');
   }
 
   /**
@@ -93,9 +93,7 @@ export class ConversationSummarizer {
       summarizedMessageIds: [...this.state.summarizedMessageIds],
       lastSummarizedAt: this.state.lastSummarizedAt,
       summaryVersion: this.state.summaryVersion,
-      structuredState: this.state.structuredState
-        ? { ...this.state.structuredState }
-        : this.createEmptyStructuredState(),
+      structuredState: this.cloneStructuredState(this.state.structuredState),
       contextHash: this.state.contextHash,
     };
   }
@@ -115,7 +113,7 @@ export class ConversationSummarizer {
         : this.createEmptyStructuredState(),
       contextHash: state.contextHash,
     };
-    getLogger().debug(
+    tryGetLogger()?.debug(
       `[Summarizer] Restored state with ${state.summarizedMessageIds.length} summarized messages`,
     );
   }
@@ -230,7 +228,7 @@ export class ConversationSummarizer {
     contextHash?: string,
   ): Promise<SummarizationResult | null> {
     if (this.summaryInProgress) {
-      getLogger().debug('[Summarizer] Summary already in progress, skipping');
+      tryGetLogger()?.debug('[Summarizer] Summary already in progress, skipping');
       return null;
     }
 
@@ -243,7 +241,7 @@ export class ConversationSummarizer {
       // Fire and forget
       this.runSummarization(messages, contextHash).catch((err) => {
         const errMsg = err instanceof Error ? err.message : String(err);
-        getLogger().warn(`[Summarizer] Async summarization failed: ${errMsg}`);
+        tryGetLogger()?.warn(`[Summarizer] Async summarization failed: ${errMsg}`);
       });
       return null;
     }
@@ -336,7 +334,7 @@ export class ConversationSummarizer {
       }
       this.state.lastSummarizedAt = Date.now();
 
-      getLogger().info(
+      tryGetLogger()?.info(
         `[Summarizer] Summarized ${batch.length} messages, ` +
           `reduced ${beforeTokens} → ${this.state.summaryTokens} tokens`,
       );
@@ -350,7 +348,7 @@ export class ConversationSummarizer {
         async: this.config.async,
       };
     } catch (error) {
-      getLogger().error('[Summarizer] Summarization failed', error);
+      tryGetLogger()?.error('[Summarizer] Summarization failed', error);
       throw error;
     } finally {
       this.summaryInProgress = false;
@@ -378,7 +376,7 @@ export class ConversationSummarizer {
     if (!contextHash) return;
     if (!this.state.contextHash || this.state.contextHash === contextHash) return;
 
-    getLogger().warn(
+    tryGetLogger()?.warn(
       `[Summarizer] Context hash changed (${this.state.contextHash} -> ${contextHash}), rebuilding summary state`,
     );
     this.state.summary = '';
@@ -406,7 +404,7 @@ export class ConversationSummarizer {
       return { summary, structuredState: this.normalizeStructuredState(parsed) };
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : String(error);
-      getLogger().warn(`[Summarizer] Failed to parse structured summary state: ${errMsg}`);
+      tryGetLogger()?.warn(`[Summarizer] Failed to parse structured summary state: ${errMsg}`);
       return { summary, structuredState: this.createEmptyStructuredState() };
     }
   }
@@ -425,6 +423,20 @@ export class ConversationSummarizer {
     normalized.risks = this.ensureStringArray(source.risks);
     normalized.owner = this.ensureStringArray(source.owner);
     return normalized;
+  }
+
+  private cloneStructuredState(state: StructuredSummaryState | undefined): StructuredSummaryState {
+    if (!state) return this.createEmptyStructuredState();
+    return {
+      decisions: [...state.decisions],
+      constraints: [...state.constraints],
+      open_questions: [...state.open_questions],
+      pending_tasks: [...state.pending_tasks],
+      rejected_options: [...state.rejected_options],
+      assumptions: [...state.assumptions],
+      risks: [...state.risks],
+      owner: [...state.owner],
+    };
   }
 
   private ensureStringArray(value: unknown): string[] {

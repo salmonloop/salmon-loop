@@ -116,7 +116,11 @@ describe('Dirty workspace zero-index safety matrix', () => {
 
     const indexBefore = await helper.git(mainRepo.path, ['rev-parse', ':target.js']);
 
-    await helper.modifyFile(worktreePath, 'target.js', 'Header\nPadding1\nBodyAI\nPadding2\nFooter');
+    await helper.modifyFile(
+      worktreePath,
+      'target.js',
+      'Header\nPadding1\nBodyAI\nPadding2\nFooter',
+    );
     const diff = await helper.getGitDiff(worktreePath);
 
     await helper.git(worktreePath, ['add', 'target.js']);

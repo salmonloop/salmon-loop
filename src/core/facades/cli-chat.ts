@@ -13,6 +13,7 @@ export { logIgnoredError } from '../observability/ignored-error.js';
 export { getLogger } from '../observability/logger.js';
 export type { RunOutcomeReporter } from '../observability/run-outcome-reporter.js';
 export { runSalmonLoop } from '../runtime/loop.js';
+export { buildSessionArtifactStateFromLoopResult } from '../session/artifact-state.js';
 export { ChatSessionManager } from '../session/manager.js';
 export type { PluginRegistry } from '../plugin/registry.js';
 export { getDefaultSessionContextBudgetTokens } from '../session/session-context-builder.js';

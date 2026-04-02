@@ -1,5 +1,10 @@
-import { describe, expect, it, mock } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
 
+import {
+  clearPromptRegistry,
+  createPromptRegistry,
+  setPromptRegistry,
+} from '../../../../../src/core/prompts/registry.js';
 import type { LLM } from '../../../../../src/core/types/index.js';
 
 let applyCheckOk = true;
@@ -14,11 +19,6 @@ mock.module('../../../../../src/core/adapters/git/git-adapter.js', () => {
   }
   return { GitAdapter };
 });
-
-mock.module('../../../../../src/core/prompts/runtime.js', () => ({
-  getPatchPrompt: async () => 'PATCH_PROMPT',
-  getPatchSystemPrompt: async () => 'PATCH_SYSTEM_PROMPT',
-}));
 
 function createEmptyToolstack(): any {
   return {
@@ -37,6 +37,14 @@ function createEmptyToolstack(): any {
 }
 
 describe('PATCH (tool calling path) applicability repair', () => {
+  beforeEach(() => {
+    setPromptRegistry(createPromptRegistry());
+  });
+
+  afterEach(() => {
+    clearPromptRegistry();
+  });
+
   function createCtx(llm: LLM): any {
     return {
       workspace: { workPath: 'C:\\repo', strategy: 'worktree' },

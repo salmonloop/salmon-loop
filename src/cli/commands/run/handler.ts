@@ -405,6 +405,9 @@ export async function handleRunCommand(options: any, command: Command) {
             budgetTokens: getDefaultSessionContextBudgetTokens({ modelId: modelIdForBudget }),
           })
         : [];
+    const artifactHints = shouldInjectSessionContext
+      ? sessionManager?.getArtifactState()
+      : undefined;
 
     const loopParams = buildRunLoopParams({
       instruction: instructionText,
@@ -413,6 +416,7 @@ export async function handleRunCommand(options: any, command: Command) {
       llm,
       languagePlugins,
       conversationContext: conversationContext.length > 0 ? conversationContext : undefined,
+      artifactHints,
       mode,
       dryRun: allOptions.dryRun,
       forceReset: allOptions.forceReset,

@@ -464,6 +464,7 @@ describe('handleRunCommand outcome reporter', () => {
         { id: 'm-1', role: 'assistant', content: 'old assistant', timestamp: 2 },
         { id: 'm-2', role: 'user', content: 'recent user', timestamp: 3 },
       ],
+      getArtifactState: () => undefined,
     };
 
     const { handleRunCommand } = await import('../../../../src/cli/commands/run/handler.js');

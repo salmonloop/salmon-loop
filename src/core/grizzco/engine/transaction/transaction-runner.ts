@@ -201,12 +201,24 @@ export class FlowTransactionRunner {
   private authorizationSummary: AuthorizationSourceSummary | null = null;
   private lastContext: TerminalCtx | undefined;
   private lastVerifyArtifact: ArtifactHandle | undefined;
-  private lastSubAgentPatchArtifacts: ArtifactHandle[] = [];
-  private lastSubAgentAuditArtifacts: ArtifactHandle[] = [];
-  private lastRecentReadArtifacts: Array<{ path: string; artifact: ArtifactHandle }> = [];
-  private lastToolResultPreviewArtifacts: Array<{ label: string; artifact: ArtifactHandle }> = [];
+  private lastSubAgentPatchArtifacts: ArtifactHandle[];
+  private lastSubAgentAuditArtifacts: ArtifactHandle[];
+  private lastRecentReadArtifacts: Array<{ path: string; artifact: ArtifactHandle }>;
+  private lastToolResultPreviewArtifacts: Array<{ label: string; artifact: ArtifactHandle }>;
 
-  constructor(private readonly params: FlowTransactionRunnerParams) {}
+  constructor(private readonly params: FlowTransactionRunnerParams) {
+    this.lastVerifyArtifact = params.options.artifactHints?.verifyArtifact;
+    this.lastSubAgentPatchArtifacts = [
+      ...(params.options.artifactHints?.subAgentPatchArtifacts ?? []),
+    ];
+    this.lastSubAgentAuditArtifacts = [
+      ...(params.options.artifactHints?.subAgentAuditArtifacts ?? []),
+    ];
+    this.lastRecentReadArtifacts = [...(params.options.artifactHints?.recentReadArtifacts ?? [])];
+    this.lastToolResultPreviewArtifacts = [
+      ...(params.options.artifactHints?.toolResultPreviewArtifacts ?? []),
+    ];
+  }
 
   private isShrinkCtx(ctx: TerminalCtx | undefined): ctx is ShrinkCtx {
     return Boolean(ctx && 'verifyResult' in ctx);
@@ -353,6 +365,10 @@ export class FlowTransactionRunner {
           lastErrorCode: this.extractErrorCode(result.error),
           lastContext: shrinkCtx,
           lastVerifyArtifact: this.lastVerifyArtifact,
+          lastSubAgentPatchArtifacts: this.lastSubAgentPatchArtifacts,
+          lastSubAgentAuditArtifacts: this.lastSubAgentAuditArtifacts,
+          lastRecentReadArtifacts: this.lastRecentReadArtifacts,
+          lastToolResultPreviewArtifacts: this.lastToolResultPreviewArtifacts,
         });
       }
 
@@ -416,6 +432,10 @@ export class FlowTransactionRunner {
           lastErrorCode: attemptFailure.errorCode ?? this.extractErrorCode(result.error),
           lastContext: shrinkCtx,
           lastVerifyArtifact: this.lastVerifyArtifact,
+          lastSubAgentPatchArtifacts: this.lastSubAgentPatchArtifacts,
+          lastSubAgentAuditArtifacts: this.lastSubAgentAuditArtifacts,
+          lastRecentReadArtifacts: this.lastRecentReadArtifacts,
+          lastToolResultPreviewArtifacts: this.lastToolResultPreviewArtifacts,
           failure: attemptFailure,
         });
       }
@@ -445,6 +465,10 @@ export class FlowTransactionRunner {
       lastErrorCode: this.extractErrorCode(lastReport.error),
       lastContext: this.lastContext,
       lastVerifyArtifact: this.lastVerifyArtifact,
+      lastSubAgentPatchArtifacts: this.lastSubAgentPatchArtifacts,
+      lastSubAgentAuditArtifacts: this.lastSubAgentAuditArtifacts,
+      lastRecentReadArtifacts: this.lastRecentReadArtifacts,
+      lastToolResultPreviewArtifacts: this.lastToolResultPreviewArtifacts,
     });
   }
 

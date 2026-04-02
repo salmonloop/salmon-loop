@@ -3,6 +3,7 @@ import { gzip, gunzip } from 'zlib';
 
 import { FileAdapter } from '../adapters/fs/index.js';
 
+import { normalizeSessionArtifactState, type SessionArtifactState } from './artifact-state.js';
 import type { ChatSession, ChatMessage } from './types.js';
 
 export interface PartialChatSession {
@@ -16,6 +17,7 @@ export interface PartialChatSession {
     successfulIterations?: number;
     totalTokens?: { input: number; output: number };
     snapshots?: unknown[];
+    artifactState?: SessionArtifactState;
   };
   messages: Array<{
     role: 'user' | 'assistant' | 'system';
@@ -68,6 +70,7 @@ export interface CompressedSession {
     originalSize: number;
     compressedSize: number;
     compressionRatio: number;
+    artifactState?: SessionArtifactState;
   };
 
   // Compressed session content
@@ -160,6 +163,7 @@ export class SessionCompressor {
         originalSize,
         compressedSize: 0, // Will be updated after serialization
         compressionRatio: 0, // Will be calculated after serialization
+        artifactState: normalizeSessionArtifactState(session.meta.artifactState),
       },
       compressed: {
         summary: summary.text,
@@ -219,6 +223,7 @@ export class SessionCompressor {
         successfulIterations: compressed.compressed.stats.successfulIterations,
         totalTokens: compressed.compressed.stats.totalTokens,
         snapshots: [], // Will be restored from full data
+        artifactState: normalizeSessionArtifactState(compressed.meta.artifactState),
       },
       messages: compressed.compressed.keyMessages.map((msg) => ({
         role: msg.role,

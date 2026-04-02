@@ -1,0 +1,46 @@
+import { readFile } from 'fs/promises';
+import { join } from 'path';
+
+import { describe, expect, it } from 'bun:test';
+
+const directPhaseFiles = [
+  'src/core/grizzco/steps/plan.ts',
+  'src/core/grizzco/steps/explore.ts',
+  'src/core/grizzco/steps/research.ts',
+];
+
+describe('architecture/request-assembly invariant', () => {
+  it('direct phase steps use shared buildPhaseRequestEnvelope helper', async () => {
+    for (const relPath of directPhaseFiles) {
+      const content = await readFile(join(process.cwd(), relPath), 'utf8');
+      expect(content).toContain('buildPhaseRequestEnvelope');
+    }
+  });
+
+  it('patch step delegates envelope building to patch/prompt-input helper', async () => {
+    const patchStep = await readFile(
+      join(process.cwd(), 'src/core/grizzco/steps/patch.ts'),
+      'utf8',
+    );
+    const patchPromptInput = await readFile(
+      join(process.cwd(), 'src/core/grizzco/steps/patch/prompt-input.ts'),
+      'utf8',
+    );
+
+    expect(patchStep).toContain('buildPatchPromptInput');
+    expect(patchPromptInput).toContain('buildPhaseRequestEnvelope');
+  });
+
+  it('phase steps do not directly build request envelope', async () => {
+    for (const relPath of [
+      ...directPhaseFiles,
+      'src/core/grizzco/steps/patch.ts',
+      'src/core/grizzco/steps/patch/prompt-input.ts',
+    ]) {
+      const content = await readFile(join(process.cwd(), relPath), 'utf8');
+      expect(content).not.toContain('buildRequestEnvelope(');
+      expect(content).not.toContain('materializeRequestEnvelope(');
+      expect(content).not.toContain('resolveRequestArtifactHints(');
+    }
+  });
+});

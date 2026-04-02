@@ -1,6 +1,7 @@
 import { FileAdapter } from '../adapters/fs/index.js';
 import { getLogger } from '../observability/logger.js';
 
+import { normalizeSessionArtifactState } from './artifact-state.js';
 import { SessionCompressor } from './compression.js';
 import type { ChatSession } from './types.js';
 
@@ -216,6 +217,7 @@ export class SessionArchiver {
           successfulIterations: partial.meta.successfulIterations ?? 0,
           totalTokens: partial.meta.totalTokens ?? { input: 0, output: 0 },
           snapshots: [],
+          artifactState: normalizeSessionArtifactState(partial.meta.artifactState),
         },
         messages: partial.messages.map((message, index) => ({
           id: `archived-msg-${index}`,

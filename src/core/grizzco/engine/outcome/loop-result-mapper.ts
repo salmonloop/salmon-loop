@@ -78,6 +78,35 @@ export function buildLoopResultFromTransaction({
     ctx && typeof ctx === 'object' && 'verifyArtifact' in ctx
       ? (ctx as any).verifyArtifact
       : executionReport.lastVerifyArtifact;
+  const artifactHints = (() => {
+    const hints = {
+      verifyArtifact,
+      subAgentPatchArtifacts: executionReport.lastSubAgentPatchArtifacts?.length
+        ? executionReport.lastSubAgentPatchArtifacts
+        : undefined,
+      subAgentAuditArtifacts: executionReport.lastSubAgentAuditArtifacts?.length
+        ? executionReport.lastSubAgentAuditArtifacts
+        : undefined,
+      recentReadArtifacts: executionReport.lastRecentReadArtifacts?.length
+        ? executionReport.lastRecentReadArtifacts
+        : undefined,
+      toolResultPreviewArtifacts: executionReport.lastToolResultPreviewArtifacts?.length
+        ? executionReport.lastToolResultPreviewArtifacts
+        : undefined,
+    };
+
+    if (
+      !hints.verifyArtifact &&
+      !hints.subAgentPatchArtifacts &&
+      !hints.subAgentAuditArtifacts &&
+      !hints.recentReadArtifacts &&
+      !hints.toolResultPreviewArtifacts
+    ) {
+      return undefined;
+    }
+
+    return hints;
+  })();
   const assistantMessage =
     flowMode === 'answer'
       ? (ctx as any)?.report?.summary?.trim?.()
@@ -121,6 +150,7 @@ export function buildLoopResultFromTransaction({
         assistantMessage,
         auditPath,
         verifyArtifact,
+        artifactHints,
         authorizationSummary: executionReport.authorizationSummary || undefined,
         strategyName: executionReport.flowReport.strategyName ?? flowMode,
         fsMode: executionReport.flowReport.fsMode ?? flowMode,
@@ -144,6 +174,7 @@ export function buildLoopResultFromTransaction({
       assistantMessage,
       auditPath,
       verifyArtifact,
+      artifactHints,
       authorizationSummary: executionReport.authorizationSummary || undefined,
       strategyName: executionReport.flowReport.strategyName ?? flowMode,
       fsMode: executionReport.flowReport.fsMode ?? flowMode,
@@ -198,6 +229,7 @@ export function buildLoopResultFromTransaction({
     errorCode: executionReport.lastErrorCode,
     auditPath,
     verifyArtifact,
+    artifactHints,
     authorizationSummary: executionReport.authorizationSummary || undefined,
     strategyName: executionReport.flowReport.strategyName ?? flowMode,
     fsMode: executionReport.flowReport.fsMode ?? flowMode,

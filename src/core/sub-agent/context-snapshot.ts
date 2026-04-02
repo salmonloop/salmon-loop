@@ -2,7 +2,20 @@ import type { ToolCallingAuditEntry } from '../llm/audit.js';
 import type { LLMMessage } from '../types/llm.js';
 
 import type { ArtifactHandle } from './artifacts/types.js';
-import type { SubAgentArtifactHints, SubAgentContextSnapshot } from './types.js';
+import {
+  SUB_AGENT_CONTEXT_SNAPSHOT_VERSION,
+  type SubAgentContextSnapshotVersion,
+  type SubAgentArtifactHints,
+  type SubAgentContextSnapshot,
+} from './types.js';
+
+function deepClone<T>(value: T): T {
+  if (typeof structuredClone === 'function') {
+    return structuredClone(value);
+  }
+
+  return JSON.parse(JSON.stringify(value)) as T;
+}
 
 function cloneArtifactHandle(artifact: ArtifactHandle | undefined): ArtifactHandle | undefined {
   if (!artifact) return undefined;
@@ -16,7 +29,20 @@ function cloneArtifactHandle(artifact: ArtifactHandle | undefined): ArtifactHand
 
 function cloneConversationContext(messages: LLMMessage[] | undefined): LLMMessage[] | undefined {
   if (!Array.isArray(messages) || messages.length === 0) return undefined;
-  return messages.map((message) => ({ ...message }));
+  return messages.map((message) => {
+    const cloned: LLMMessage = {
+      role: message.role,
+      content: message.content,
+    };
+
+    if (message.name !== undefined) cloned.name = message.name;
+    if (message.tool_call_id !== undefined) cloned.tool_call_id = message.tool_call_id;
+    if (Array.isArray(message.tool_calls)) {
+      cloned.tool_calls = deepClone(message.tool_calls);
+    }
+
+    return cloned;
+  });
 }
 
 function cloneToolCallingAudit(
@@ -76,6 +102,16 @@ function hasAnySnapshotData(snapshot: SubAgentContextSnapshot): boolean {
   );
 }
 
+function normalizeSnapshotVersion(
+  snapshot: SubAgentContextSnapshot,
+): SubAgentContextSnapshotVersion {
+  const version = snapshot.version ?? SUB_AGENT_CONTEXT_SNAPSHOT_VERSION;
+  if (version !== SUB_AGENT_CONTEXT_SNAPSHOT_VERSION) {
+    throw new Error(`Unsupported sub-agent context snapshot version: ${version}`);
+  }
+  return version;
+}
+
 /**
  * Applies the Stage 5 protocol:
  * - mutable runtime state is cloned by default
@@ -85,8 +121,10 @@ export function cloneSubAgentContextSnapshot(
   snapshot: SubAgentContextSnapshot | undefined,
 ): SubAgentContextSnapshot | undefined {
   if (!snapshot) return undefined;
+  const version = normalizeSnapshotVersion(snapshot);
 
   const cloned: SubAgentContextSnapshot = {
+    version,
     conversationContext: cloneConversationContext(snapshot.conversationContext),
     artifactHints: cloneArtifactHints(snapshot.artifactHints),
     toolCallingAudit: cloneToolCallingAudit(snapshot.toolCallingAudit),
@@ -105,7 +143,12 @@ export function mergeSubAgentContextSnapshot(
   requestSnapshot: SubAgentContextSnapshot | undefined,
   runtimeSnapshot: SubAgentContextSnapshot | undefined,
 ): SubAgentContextSnapshot | undefined {
+  const normalizedRequestVersion = requestSnapshot && normalizeSnapshotVersion(requestSnapshot);
+  const normalizedRuntimeVersion = runtimeSnapshot && normalizeSnapshotVersion(runtimeSnapshot);
+
   const merged: SubAgentContextSnapshot = {
+    version:
+      normalizedRuntimeVersion ?? normalizedRequestVersion ?? SUB_AGENT_CONTEXT_SNAPSHOT_VERSION,
     conversationContext:
       runtimeSnapshot?.conversationContext ?? requestSnapshot?.conversationContext,
     artifactHints: runtimeSnapshot?.artifactHints ?? requestSnapshot?.artifactHints,

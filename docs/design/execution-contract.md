@@ -76,6 +76,13 @@ All allowed runtime writes must remain within these approved roots. Any write ou
 **Tool-calling restriction (EXPLORE/PLAN/PATCH):**
 - The only model-visible write capability allowed in read-only phases is updating the runtime plan file under `.salmonloop/plans/**` via `plan.*` tools.
 - No other tool may write to the repository during EXPLORE/PLAN/PATCH, even if the target file is untracked.
+- `agent_dispatch` is enforced as an isolated boundary in read-only phases:
+  - Sub-agent runtime is always created with `worktree` strategy, never on the main workspace.
+  - Sub-agent `dryRun` is forced to `true` in EXPLORE/PLAN/PATCH.
+  - Any non-`plan.*` write tool from sub-agent profile capabilities is filtered out fail-closed before loop execution.
+- Audit evidence for this enforcement is emitted via:
+  - `sub_agent.dispatch.read_only_forced_isolated`
+  - `sub_agent.dispatch.read_only_tool_guard_filtered`
 
 ## Safety Rules
 

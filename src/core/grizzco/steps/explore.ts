@@ -1,13 +1,6 @@
 import path from 'path';
 
 import { text } from '../../../locales/index.js';
-import {
-  buildArtifactHintAttachments,
-  buildRequestEnvelope,
-  materializeRequestEnvelope,
-  resolveRequestArtifactHints,
-} from '../../llm/request-envelope.js';
-import { formatContextForPrompt } from '../../llm/utils.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
 import { getExplorePrompt, getExploreSystemPrompt } from '../../prompts/runtime.js';
 import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
@@ -20,7 +13,7 @@ import { Step } from '../engine/pipeline/pipeline.js';
 import { ContextCtx, ExploreCtx } from '../engine/pipeline/types.js';
 import { ContextValidator } from '../validation/ContextValidator.js';
 
-import { resolveCacheSharingSurface } from './cache-sharing.js';
+import { buildPhaseRequestEnvelope } from './request-assembly.js';
 
 const SAFE_INFERRED_EXTENSIONS = new Set([
   '.ts',
@@ -91,24 +84,6 @@ export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
     return { ...ctx };
   }
 
-  const contextPrompt = ctx.contextResult?.prompt ?? formatContextForPrompt(ctx.context);
-  const localContextHash = ctx.contextResult?.meta?.contextHash ?? ctx.context.contextHash;
-  const cacheSurface = resolveCacheSharingSurface({
-    phase: Phase.EXPLORE,
-    defaultNamespace: 'explore',
-    localContextHash,
-    cacheSharing: ctx.cacheSharing,
-    onMismatch: (mismatch) => {
-      recordAuditEvent('request.cache_sharing_hash_mismatch', mismatch, {
-        source: 'llm',
-        severity: 'low',
-        scope: 'session',
-        phase: Phase.EXPLORE,
-      });
-    },
-  });
-  const prompt = await getExplorePrompt(contextPrompt, ctx.options.instruction, ctx.lastError);
-
   const systemPrompt = await getExploreSystemPrompt({ plan: ctx.planRuntime });
 
   const supportsStreaming = typeof ctx.options.llm.chatStream === 'function';
@@ -168,30 +143,28 @@ export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
   };
 
   const localAudit: any[] = [];
-  const resolvedArtifactHints = resolveRequestArtifactHints({
+  const requestEnvelope = await buildPhaseRequestEnvelope({
+    phase: Phase.EXPLORE,
+    defaultNamespace: 'explore',
+    context: ctx.context,
+    contextResult: ctx.contextResult,
+    cacheSharing: ctx.cacheSharing,
+    onCacheMismatch: (mismatch) => {
+      recordAuditEvent('request.cache_sharing_hash_mismatch', mismatch, {
+        source: 'llm',
+        severity: 'low',
+        scope: 'session',
+        phase: Phase.EXPLORE,
+      });
+    },
+    systemPrompt,
+    buildUserPrompt: (contextPrompt) =>
+      getExplorePrompt(contextPrompt, ctx.options.instruction, ctx.lastError),
+    conversationContext: ctx.options.conversationContext,
     artifactHints: ctx.artifactHints,
     toolCallingAudit: ctx.toolCallingAudit,
   });
-  const envelope = buildRequestEnvelope({
-    system: systemPrompt,
-    user: prompt,
-    conversationContext: ctx.options.conversationContext,
-    attachments: [
-      {
-        key: 'context-prompt',
-        kind: 'context',
-        label: 'Context prompt',
-        content: contextPrompt,
-        cacheSafe: true,
-      },
-      ...buildArtifactHintAttachments(resolvedArtifactHints),
-    ],
-    cacheSafeSurface: {
-      contextHash: cacheSurface.contextHash,
-      namespace: cacheSurface.namespace,
-    },
-  });
-  const baseMessages = materializeRequestEnvelope(envelope);
+  const { cacheSurface, envelope, baseMessages } = requestEnvelope;
 
   await (supportsStreaming ? chatWithToolsStreaming : chatWithTools)(
     baseMessages,

@@ -93,6 +93,20 @@ export interface LoopIteration {
   contextSummary: string;
 }
 
+export interface LoopArtifactHints {
+  verifyArtifact?: ArtifactHandle;
+  subAgentPatchArtifacts?: ArtifactHandle[];
+  subAgentAuditArtifacts?: ArtifactHandle[];
+  recentReadArtifacts?: Array<{
+    path: string;
+    artifact: ArtifactHandle;
+  }>;
+  toolResultPreviewArtifacts?: Array<{
+    label: string;
+    artifact: ArtifactHandle;
+  }>;
+}
+
 export interface StepLog {
   step: ExecutionPhase | 'error' | 'UNKNOWN';
   success: boolean;
@@ -137,6 +151,7 @@ export interface LoopResult {
   errorCode?: string;
   auditPath?: string;
   verifyArtifact?: ArtifactHandle;
+  artifactHints?: LoopArtifactHints;
   authorizationSummary?: AuthorizationSourceSummary;
   strategyName?: string;
   fsMode?: FlowMode;
@@ -403,6 +418,11 @@ export interface LoopOptions {
    * - GUI/TUI: hydrate from local state for seamless multi-turn experiences.
    */
   conversationContext?: LLMMessage[];
+  /**
+   * Optional artifact hints carried across independent runs/sessions.
+   * This allows resume/fork paths to preserve artifact-first context continuity.
+   */
+  artifactHints?: LoopArtifactHints;
   auditScope?: 'repo' | 'user';
   /**
    * Optional Langfuse sessionId. If set, multiple runs will be grouped under a single Langfuse Session.

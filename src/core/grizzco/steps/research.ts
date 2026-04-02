@@ -1,12 +1,5 @@
 import { text } from '../../../locales/index.js';
 import { emitLlmOutput } from '../../llm/output-policy.js';
-import {
-  buildArtifactHintAttachments,
-  buildRequestEnvelope,
-  materializeRequestEnvelope,
-  resolveRequestArtifactHints,
-} from '../../llm/request-envelope.js';
-import { formatContextForPrompt } from '../../llm/utils.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
 import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
 import { Phase } from '../../types/runtime.js';
@@ -18,7 +11,7 @@ import type {
   ResearchSource,
 } from '../engine/pipeline/types.js';
 
-import { resolveCacheSharingSurface } from './cache-sharing.js';
+import { buildPhaseRequestEnvelope } from './request-assembly.js';
 
 type ResearchResponse = {
   researchNotes?: unknown;
@@ -119,14 +112,14 @@ function buildSourcesFromAudit(
 }
 
 export async function generateResearch(ctx: ExploreCtx): Promise<ResearchCtx> {
-  const contextText = ctx.contextResult?.prompt ?? formatContextForPrompt(ctx.context);
-  const localContextHash = ctx.contextResult?.meta?.contextHash ?? ctx.context.contextHash;
-  const cacheSurface = resolveCacheSharingSurface({
+  const systemPrompt = 'You are a research assistant. Prefer evidence-backed claims.';
+  const requestEnvelope = await buildPhaseRequestEnvelope({
     phase: Phase.RESEARCH,
     defaultNamespace: 'research',
-    localContextHash,
+    context: ctx.context,
+    contextResult: ctx.contextResult,
     cacheSharing: ctx.cacheSharing,
-    onMismatch: (mismatch) => {
+    onCacheMismatch: (mismatch) => {
       recordAuditEvent('request.cache_sharing_hash_mismatch', mismatch, {
         source: 'llm',
         severity: 'low',
@@ -134,33 +127,13 @@ export async function generateResearch(ctx: ExploreCtx): Promise<ResearchCtx> {
         phase: Phase.RESEARCH,
       });
     },
-  });
-  const prompt = buildResearchPrompt(contextText, ctx.options.instruction);
-  const systemPrompt = 'You are a research assistant. Prefer evidence-backed claims.';
-  const resolvedArtifactHints = resolveRequestArtifactHints({
+    systemPrompt,
+    buildUserPrompt: (contextText) => buildResearchPrompt(contextText, ctx.options.instruction),
+    conversationContext: ctx.options.conversationContext,
     artifactHints: ctx.artifactHints,
     toolCallingAudit: ctx.toolCallingAudit,
   });
-  const envelope = buildRequestEnvelope({
-    system: systemPrompt,
-    user: prompt,
-    conversationContext: ctx.options.conversationContext,
-    attachments: [
-      {
-        key: 'context-prompt',
-        kind: 'context',
-        label: 'Context prompt',
-        content: contextText,
-        cacheSafe: true,
-      },
-      ...buildArtifactHintAttachments(resolvedArtifactHints),
-    ],
-    cacheSafeSurface: {
-      contextHash: cacheSurface.contextHash,
-      namespace: cacheSurface.namespace,
-    },
-  });
-  const baseMessages = materializeRequestEnvelope(envelope);
+  const { cacheSurface, envelope, baseMessages } = requestEnvelope;
 
   const toolPolicy = resolveLlmToolCallingPolicy(Phase.RESEARCH, ctx.options.llm);
   const supportsStreaming = typeof ctx.options.llm.chatStream === 'function';

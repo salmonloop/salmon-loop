@@ -19,6 +19,16 @@ export interface FlowTransactionReport {
   retryExhausted: boolean;
   lastContext?: TerminalCtx | undefined;
   lastVerifyArtifact?: ArtifactHandle;
+  lastSubAgentPatchArtifacts?: ArtifactHandle[];
+  lastSubAgentAuditArtifacts?: ArtifactHandle[];
+  lastRecentReadArtifacts?: Array<{
+    path: string;
+    artifact: ArtifactHandle;
+  }>;
+  lastToolResultPreviewArtifacts?: Array<{
+    label: string;
+    artifact: ArtifactHandle;
+  }>;
   terminalReason?: string;
   terminalReasonCode?: LoopReasonCode;
   terminalFailurePhase?: ExecutionPhase;

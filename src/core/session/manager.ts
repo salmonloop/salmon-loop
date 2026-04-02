@@ -5,6 +5,11 @@ import { FileAdapter } from '../adapters/fs/index.js';
 import { getLogger } from '../observability/logger.js';
 import type { LoopIteration } from '../types/index.js';
 
+import {
+  mergeSessionArtifactState,
+  normalizeSessionArtifactState,
+  type SessionArtifactState,
+} from './artifact-state.js';
 import { SessionCompressor, CompressedSessionStore } from './compression.js';
 import { SessionPruningEngine, type MemoryPruningStrategy } from './pruning-strategy.js';
 import type { ChatSession, ChatMessage, SummaryState } from './types.js';
@@ -108,7 +113,9 @@ export class ChatSessionManager {
     const filePath = join(this.storageDir, `${targetId}.json`);
     try {
       const data = await this.fileAdapter.readFile(filePath);
-      this.currentSession = JSON.parse(data);
+      const parsed = JSON.parse(data) as ChatSession;
+      parsed.meta.artifactState = normalizeSessionArtifactState(parsed.meta.artifactState);
+      this.currentSession = parsed;
       return this.currentSession;
     } catch {
       return null;
@@ -200,12 +207,29 @@ export class ChatSessionManager {
     return this.currentSession?.meta.summaryState;
   }
 
+  getArtifactState(): SessionArtifactState | undefined {
+    return normalizeSessionArtifactState(this.currentSession?.meta.artifactState);
+  }
+
   /**
    * Update summary state after summarization.
    */
   updateSummaryState(state: SummaryState): void {
     if (!this.currentSession) throw new Error('No active session');
     this.currentSession.meta.summaryState = state;
+  }
+
+  updateArtifactState(state: SessionArtifactState | undefined): void {
+    if (!this.currentSession) throw new Error('No active session');
+    this.currentSession.meta.artifactState = normalizeSessionArtifactState(state);
+  }
+
+  mergeArtifactState(state: SessionArtifactState | undefined): void {
+    if (!this.currentSession) throw new Error('No active session');
+    this.currentSession.meta.artifactState = mergeSessionArtifactState(
+      this.currentSession.meta.artifactState,
+      state,
+    );
   }
 
   /**
@@ -299,6 +323,7 @@ export class ChatSessionManager {
         const filePath = join(this.storageDir, file);
         const data = await this.fileAdapter.readFile(filePath);
         const session = JSON.parse(data) as ChatSession;
+        session.meta.artifactState = normalizeSessionArtifactState(session.meta.artifactState);
         sessions.push(session);
       } catch (error) {
         // Skip corrupted session files
@@ -393,6 +418,7 @@ export class ChatSessionManager {
           successfulIterations: partial.meta.successfulIterations ?? 0,
           totalTokens: partial.meta.totalTokens ?? { input: 0, output: 0 },
           snapshots: [],
+          artifactState: normalizeSessionArtifactState(partial.meta.artifactState),
         },
         messages: partial.messages.map((message, index) => ({
           id: `restored-msg-${index}`,

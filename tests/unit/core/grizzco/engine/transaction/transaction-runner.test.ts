@@ -10,12 +10,13 @@ mock.module('../../../../../../src/core/grizzco/flows/SalmonLoopFlow.js', () => 
 
 const NOW = new Date('2026-02-13T00:00:00.000Z');
 
-function createRunner(emit = mock()) {
+function createRunner(emit = mock(), optionsOverrides: Record<string, unknown> = {}) {
   return new FlowTransactionRunner({
     options: {
       instruction: 'fix',
       repoPath: '/repo',
       llm: {} as any,
+      ...optionsOverrides,
     } as any,
     flowMode: 'patch',
     emit,
@@ -153,6 +154,59 @@ describe('transaction-runner', () => {
           subAgentAuditArtifacts: [
             expect.objectContaining({
               handle: 's8p://artifact/subagent-audit-456',
+            }),
+          ],
+        }),
+      }),
+    );
+  });
+
+  it('seeds first attempt artifact hints from loop options', async () => {
+    mockedExecute.mockResolvedValueOnce({
+      success: true,
+      duration: 1,
+      traces: [],
+      data: {
+        context: { repoPath: '/repo', rgSnippets: [] },
+        verifyResult: { ok: true, output: 'ok', exitCode: 0 },
+        applyBackResult: { success: true, skipped: false, telemetry: {} },
+        plan: null,
+        diff: 'diff --git a/a.ts b/a.ts',
+        changedFiles: ['a.ts'],
+      },
+    } as any);
+
+    await createRunner(mock(), {
+      artifactHints: {
+        verifyArtifact: {
+          handle: 's8p://artifact/verify-seed',
+          mimeType: 'text/plain',
+          sha256: 'verify-seed',
+          size: 100,
+        },
+        recentReadArtifacts: [
+          {
+            path: 'src/seed.ts',
+            artifact: {
+              handle: 's8p://artifact/read-seed',
+              mimeType: 'text/plain',
+              sha256: 'read-seed',
+              size: 120,
+            },
+          },
+        ],
+      },
+    } as any).execute();
+
+    expect(mockedExecute).toHaveBeenCalledTimes(1);
+    expect(mockedExecute.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({
+        artifactHints: expect.objectContaining({
+          verifyArtifact: expect.objectContaining({ handle: 's8p://artifact/verify-seed' }),
+          recentReadArtifacts: [
+            expect.objectContaining({
+              path: 'src/seed.ts',
+              artifact: expect.objectContaining({ handle: 's8p://artifact/read-seed' }),
             }),
           ],
         }),

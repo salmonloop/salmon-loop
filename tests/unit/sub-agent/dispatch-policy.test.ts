@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'bun:test';
 
-import { isReadOnlyModelPhase, resolveSubAgentDryRun } from '../../../src/core/sub-agent/dispatch-policy.js';
+import {
+  isReadOnlyModelPhase,
+  resolveSubAgentDryRun,
+} from '../../../src/core/sub-agent/dispatch-policy.js';
 
 describe('sub-agent dispatch policy', () => {
   it('identifies read-only model phases correctly', () => {

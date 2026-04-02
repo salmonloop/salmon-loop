@@ -1,4 +1,5 @@
 import {
+  buildSessionArtifactStateFromLoopResult,
   buildEffectiveConversationContext,
   ChatSessionManager,
   DEFAULT_LLM_OUTPUT_POLICY,
@@ -294,6 +295,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
         sessionManager,
         budgetTokens: getDefaultSessionContextBudgetTokens({ modelId: modelIdForBudget }),
       });
+      const artifactHints = sessionManager.getArtifactState();
 
       // Single source of truth: chat runtime owns when a user message is appended to the UI list.
       // The UI layer must not also append user messages (to avoid duplicates).
@@ -355,6 +357,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
             outcomeReporter: options.outcomeReporter,
             auditScope: options.auditScope,
             conversationContext: conversationContext.length > 0 ? conversationContext : undefined,
+            artifactHints,
             astValidation: options.astValidation,
             languagePlugins: options.languagePlugins,
             // Resolve sessionId at call time to support `/session` switching.
@@ -420,6 +423,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
       if (usage) {
         TokenTracker.accumulate(sessionManager.getCurrent(), usage);
       }
+      sessionManager.mergeArtifactState(buildSessionArtifactStateFromLoopResult(result));
 
       await refreshSessionSummary({
         sessionManager,

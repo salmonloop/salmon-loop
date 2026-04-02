@@ -1,10 +1,8 @@
 import { afterAll, beforeEach, describe, expect, it, mock } from 'bun:test';
 
-import { Pipeline } from '../../../src/core/grizzco/engine/pipeline/pipeline.js';
-import { InitCtx } from '../../../src/core/grizzco/engine/pipeline/types.js';
+import type { InitCtx } from '../../../src/core/grizzco/engine/pipeline/types.js';
 import { clearLogger, setLogger } from '../../../src/core/observability/logger.js';
-import { SmallfryLoop } from '../../../src/core/sub-agent/core/loop.js';
-import { SubAgentProfile } from '../../../src/core/sub-agent/types.js';
+import type { SubAgentProfile } from '../../../src/core/sub-agent/types.js';
 
 const { infoMock, warnMock, debugMock } = (() => ({
   infoMock: mock(),
@@ -12,26 +10,35 @@ const { infoMock, warnMock, debugMock } = (() => ({
   debugMock: mock(),
 }))();
 
+const pipelineStepMock = mock();
+const pipelineStepWithRecoveryMock = mock();
+const pipelineExecuteMock = mock();
+const pipelineOfMock = mock();
+
+const pipelineChain = {
+  step: pipelineStepMock,
+  stepWithRecovery: pipelineStepWithRecoveryMock,
+  execute: pipelineExecuteMock,
+};
+
 mock.module('../../../src/core/grizzco/steps/audit.js', () => ({
   saveAudit: mock().mockResolvedValue('/tmp/audit.json'),
 }));
 
 mock.module('../../../src/core/grizzco/engine/pipeline/pipeline.js', () => ({
   Pipeline: {
-    of: mock().mockReturnValue({
-      step: mock().mockReturnThis(),
-      stepWithRecovery: mock().mockReturnThis(),
-      execute: mock().mockResolvedValue({
-        success: true,
-        traces: [],
-        data: { reason: 'Success', attempt: 1 },
-      }),
-    }),
+    of: pipelineOfMock,
   },
 }));
 
 describe('SmallfryLoop', () => {
   let mockInitCtx: InitCtx;
+
+  const loadSmallfryLoop = async () => {
+    const modulePath = `../../../src/core/sub-agent/core/loop.js?smallfry-loop-test=${Date.now()}-${Math.random()}`;
+    const loaded = await import(modulePath);
+    return loaded.SmallfryLoop;
+  };
 
   afterAll(() => {
     mock.restore();
@@ -44,6 +51,16 @@ describe('SmallfryLoop', () => {
     warnMock.mockReset();
     debugMock.mockReset();
     mock.clearAllMocks();
+
+    pipelineStepMock.mockReturnValue(pipelineChain);
+    pipelineStepWithRecoveryMock.mockReturnValue(pipelineChain);
+    pipelineExecuteMock.mockResolvedValue({
+      success: true,
+      traces: [],
+      data: { reason: 'Success', attempt: 1 },
+    });
+    pipelineOfMock.mockReturnValue(pipelineChain);
+
     const mockLlm = {
       chat: mock(),
       createPlan: mock(),
@@ -66,6 +83,8 @@ describe('SmallfryLoop', () => {
   });
 
   it('should only run PLAN for investigator profile', async () => {
+    const SmallfryLoop = await loadSmallfryLoop();
+
     const profile: SubAgentProfile = {
       id: 'explorer',
       name: 'Explorer',
@@ -79,14 +98,14 @@ describe('SmallfryLoop', () => {
     const loop = new SmallfryLoop(profile);
     await loop.execute(mockInitCtx);
 
-    const pipeline = Pipeline.of(mockInitCtx);
-    expect(pipeline.step).toHaveBeenCalledWith('PLAN', expect.any(Function));
-    // Should NOT call PATCH
-    expect(pipeline.step).not.toHaveBeenCalledWith('PATCH', expect.any(Function));
-    expect(pipeline.stepWithRecovery).not.toHaveBeenCalled();
+    expect(pipelineStepMock).toHaveBeenCalledWith('PLAN', expect.any(Function));
+    expect(pipelineStepMock).not.toHaveBeenCalledWith('PATCH', expect.any(Function));
+    expect(pipelineStepWithRecoveryMock).not.toHaveBeenCalled();
   });
 
   it('should run PATCH for surgeon profile', async () => {
+    const SmallfryLoop = await loadSmallfryLoop();
+
     const profile: SubAgentProfile = {
       id: 'surgeon',
       name: 'Surgeon',
@@ -100,12 +119,13 @@ describe('SmallfryLoop', () => {
     const loop = new SmallfryLoop(profile);
     await loop.execute(mockInitCtx);
 
-    const pipeline = Pipeline.of(mockInitCtx);
-    expect(pipeline.step).toHaveBeenCalledWith('PATCH', expect.any(Function));
-    expect(pipeline.stepWithRecovery).not.toHaveBeenCalled();
+    expect(pipelineStepMock).toHaveBeenCalledWith('PATCH', expect.any(Function));
+    expect(pipelineStepWithRecoveryMock).not.toHaveBeenCalled();
   });
 
   it('should report failure if budget is exceeded', async () => {
+    const SmallfryLoop = await loadSmallfryLoop();
+
     const profile: SubAgentProfile = {
       id: 'surgeon',
       name: 'Surgeon',
@@ -117,8 +137,7 @@ describe('SmallfryLoop', () => {
       maxTokens: 100,
     };
 
-    // Mock pipeline to return high token usage in traces
-    (Pipeline.of(mockInitCtx).execute as any).mockResolvedValueOnce({
+    pipelineExecuteMock.mockResolvedValueOnce({
       success: true,
       duration: 0,
       traces: [

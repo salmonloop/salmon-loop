@@ -3,13 +3,7 @@ import { LIMITS } from '../../config/limits.js';
 import { repairToJsonObject } from '../../llm/contracts/repair.js';
 import { sanitizeError } from '../../llm/errors.js';
 import { emitLlmOutput } from '../../llm/output-policy.js';
-import {
-  buildArtifactHintAttachments,
-  buildRequestEnvelope,
-  materializeRequestEnvelope,
-  resolveRequestArtifactHints,
-} from '../../llm/request-envelope.js';
-import { formatContextForPrompt, parsePlanFromLLMContent } from '../../llm/utils.js';
+import { parsePlanFromLLMContent } from '../../llm/utils.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
 import { logIgnoredError } from '../../observability/ignored-error.js';
 import { readPlan, updatePlan } from '../../plan/index.js';
@@ -21,7 +15,7 @@ import { resolveLlmToolCallingPolicy } from '../dsl/llm-strategy.js';
 import { Step } from '../engine/pipeline/pipeline.js';
 import { ContextCtx, PlanCtx } from '../engine/pipeline/types.js';
 
-import { resolveCacheSharingSurface } from './cache-sharing.js';
+import { buildPhaseRequestEnvelope } from './request-assembly.js';
 
 function sanitizeSubtaskText(raw: string): string | null {
   const oneLine = String(raw ?? '')
@@ -167,29 +161,6 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
     };
   }
 
-  const contextPrompt = ctx.contextResult?.prompt ?? formatContextForPrompt(ctx.context);
-  const localContextHash = ctx.contextResult?.meta?.contextHash ?? ctx.context.contextHash;
-  const cacheSurface = resolveCacheSharingSurface({
-    phase: Phase.PLAN,
-    defaultNamespace: 'plan',
-    localContextHash,
-    cacheSharing: ctx.cacheSharing,
-    onMismatch: (mismatch) => {
-      recordAuditEvent('request.cache_sharing_hash_mismatch', mismatch, {
-        source: 'llm',
-        severity: 'low',
-        scope: 'session',
-        phase: Phase.PLAN,
-      });
-    },
-  });
-  const prompt = await getPlanPrompt(
-    contextPrompt,
-    ctx.options.instruction,
-    LIMITS.maxFilesChanged,
-    ctx.lastError,
-  );
-
   const promptVisibleTools = toolstack
     ? toolstack.registry.listAll().filter(
         (spec) =>
@@ -201,30 +172,28 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
     : undefined;
 
   const systemPrompt = await getPlanSystemPrompt(promptVisibleTools, { plan: ctx.planRuntime });
-  const resolvedArtifactHints = resolveRequestArtifactHints({
+  const requestEnvelope = await buildPhaseRequestEnvelope({
+    phase: Phase.PLAN,
+    defaultNamespace: 'plan',
+    context: ctx.context,
+    contextResult: ctx.contextResult,
+    cacheSharing: ctx.cacheSharing,
+    onCacheMismatch: (mismatch) => {
+      recordAuditEvent('request.cache_sharing_hash_mismatch', mismatch, {
+        source: 'llm',
+        severity: 'low',
+        scope: 'session',
+        phase: Phase.PLAN,
+      });
+    },
+    systemPrompt,
+    buildUserPrompt: (contextPrompt) =>
+      getPlanPrompt(contextPrompt, ctx.options.instruction, LIMITS.maxFilesChanged, ctx.lastError),
+    conversationContext: ctx.options.conversationContext,
     artifactHints: ctx.artifactHints,
     toolCallingAudit: ctx.toolCallingAudit,
   });
-  const envelope = buildRequestEnvelope({
-    system: systemPrompt,
-    user: prompt,
-    conversationContext: ctx.options.conversationContext,
-    attachments: [
-      {
-        key: 'context-prompt',
-        kind: 'context',
-        label: 'Context prompt',
-        content: contextPrompt,
-        cacheSafe: true,
-      },
-      ...buildArtifactHintAttachments(resolvedArtifactHints),
-    ],
-    cacheSafeSurface: {
-      contextHash: cacheSurface.contextHash,
-      namespace: cacheSurface.namespace,
-    },
-  });
-  const baseMessages = materializeRequestEnvelope(envelope);
+  const { cacheSurface, envelope, baseMessages } = requestEnvelope;
 
   const supportsStreaming = typeof ctx.options.llm.chatStream === 'function';
   const llmOutput = {

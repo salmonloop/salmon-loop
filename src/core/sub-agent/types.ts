@@ -69,7 +69,19 @@ export interface SubAgentArtifactHints {
   }>;
 }
 
+export const SUB_AGENT_CONTEXT_SNAPSHOT_VERSION = 1 as const;
+export type SubAgentContextSnapshotVersion = typeof SUB_AGENT_CONTEXT_SNAPSHOT_VERSION;
+
+const SubAgentContextMessageSchema = z.object({
+  role: z.enum(['system', 'user', 'assistant', 'tool']),
+  content: z.string(),
+  name: z.string().optional(),
+  tool_calls: z.array(z.unknown()).optional(),
+  tool_call_id: z.string().optional(),
+});
+
 export interface SubAgentContextSnapshot {
+  version?: SubAgentContextSnapshotVersion;
   conversationContext?: LLMMessage[];
   artifactHints?: SubAgentArtifactHints;
   toolCallingAudit?: ToolCallingAuditEntry[];
@@ -127,14 +139,8 @@ export const SubAgentRequestSchema = z.object({
   timeout_seconds: z.number().optional().describe('Maximum execution time in seconds'),
   contextSnapshot: z
     .object({
-      conversationContext: z
-        .array(
-          z.object({
-            role: z.enum(['system', 'user', 'assistant']),
-            content: z.string(),
-          }),
-        )
-        .optional(),
+      version: z.literal(SUB_AGENT_CONTEXT_SNAPSHOT_VERSION).optional().default(1),
+      conversationContext: z.array(SubAgentContextMessageSchema).optional(),
       artifactHints: z
         .object({
           verifyArtifact: z

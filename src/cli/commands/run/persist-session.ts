@@ -1,4 +1,5 @@
 import {
+  buildSessionArtifactStateFromLoopResult,
   refreshSessionSummary,
   type ChatSessionManager,
   type LLM,
@@ -36,6 +37,10 @@ export async function persistRunSession(params: {
         iterationId,
       });
     }
+
+    params.sessionManager.mergeArtifactState(
+      buildSessionArtifactStateFromLoopResult(params.result),
+    );
 
     await refreshSessionSummary({
       sessionManager: params.sessionManager,
