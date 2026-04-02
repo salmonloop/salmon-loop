@@ -102,6 +102,54 @@ describe('ChatSessionManager archive lifecycle', () => {
     expect(sessions.some((item) => item.id === session.meta.id)).toBe(true);
   });
 
+  it('restores archived artifact state for later request rehydration', async () => {
+    const repoPath = await createTempRepo();
+    const manager = new ChatSessionManager(repoPath);
+    await manager.init();
+
+    const session = await manager.create('Artifact Restore');
+    manager.mergeArtifactState({
+      verifyArtifact: {
+        handle: 's8p://artifact/verify-restored',
+        mimeType: 'text/plain',
+        sha256: 'verify-restored',
+        size: 123,
+      },
+      recentReadArtifacts: [
+        {
+          path: 'src/restored.ts',
+          artifact: {
+            handle: 's8p://artifact/read-restored',
+            mimeType: 'text/plain',
+            sha256: 'read-restored',
+            size: 45,
+          },
+        },
+      ],
+    });
+    await manager.save();
+    await manager.archiveSession(session);
+
+    const restored = await manager.restoreFromArchive(session.meta.id);
+
+    expect(restored).not.toBeNull();
+    expect(manager.getArtifactState()).toEqual(
+      expect.objectContaining({
+        verifyArtifact: expect.objectContaining({
+          handle: 's8p://artifact/verify-restored',
+        }),
+        recentReadArtifacts: [
+          expect.objectContaining({
+            path: 'src/restored.ts',
+            artifact: expect.objectContaining({
+              handle: 's8p://artifact/read-restored',
+            }),
+          }),
+        ],
+      }),
+    );
+  });
+
   it('returns null when archive id is not found', async () => {
     const repoPath = await createTempRepo();
     const manager = new ChatSessionManager(repoPath);

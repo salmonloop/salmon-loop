@@ -484,4 +484,57 @@ describe('handleRunCommand outcome reporter', () => {
       },
     ]);
   });
+
+  it('forwards restored session artifact hints into loop params for continued runs', async () => {
+    hoisted.parsedOptions = {
+      ...hoisted.parsedOptions,
+      continueSession: true,
+    };
+    hoisted.loopParamsCalls.length = 0;
+    hoisted.sessionManager = {
+      getSummaryState: () => undefined,
+      getMessages: () => [],
+      getMessagesWithIds: () => [],
+      getArtifactState: () => ({
+        verifyArtifact: {
+          handle: 's8p://artifact/verify-restored',
+          mimeType: 'text/plain',
+          sha256: 'verify-restored',
+          size: 123,
+        },
+        recentReadArtifacts: [
+          {
+            path: 'src/restored.ts',
+            artifact: {
+              handle: 's8p://artifact/read-restored',
+              mimeType: 'text/plain',
+              sha256: 'read-restored',
+              size: 45,
+            },
+          },
+        ],
+      }),
+    };
+
+    const { handleRunCommand } = await import('../../../../src/cli/commands/run/handler.js');
+    const command: any = { optsWithGlobals: () => ({}) };
+
+    await handleRunCommand({}, command);
+
+    expect(hoisted.loopParamsCalls[0]?.artifactHints).toEqual(
+      expect.objectContaining({
+        verifyArtifact: expect.objectContaining({
+          handle: 's8p://artifact/verify-restored',
+        }),
+        recentReadArtifacts: [
+          expect.objectContaining({
+            path: 'src/restored.ts',
+            artifact: expect.objectContaining({
+              handle: 's8p://artifact/read-restored',
+            }),
+          }),
+        ],
+      }),
+    );
+  });
 });
