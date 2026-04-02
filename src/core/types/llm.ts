@@ -20,8 +20,25 @@ export interface LlmOutputPolicy {
 
 export type LLMRole = 'system' | 'user' | 'assistant' | 'tool';
 
+export type PromptCacheMode = 'cache_safe_only' | 'strict_full_prompt';
+export type PromptCacheEligibility =
+  | 'eligible'
+  | 'missing_context_hash'
+  | 'empty_cache_safe_surface'
+  | 'below_min_tokens';
+
+export interface OpenAICachePolicyHint {
+  mode: PromptCacheMode;
+  eligibility: PromptCacheEligibility;
+  namespace?: string;
+  contextHash?: string;
+  cacheSafeFingerprint?: string;
+  lateInjectionFingerprint?: string;
+}
+
 export interface LLMProviderHints {
   openAICacheHint?: string;
+  openAICachePolicy?: OpenAICachePolicyHint;
 }
 
 export interface LLMMessage {

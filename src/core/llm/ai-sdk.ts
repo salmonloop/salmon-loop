@@ -140,6 +140,7 @@ export class AiSdkLLM implements LLM {
       cacheSafeSurface: {
         contextHash: context.contextHash,
         namespace: 'plan',
+        mode: 'cache_safe_only',
       },
     });
 
@@ -201,6 +202,7 @@ export class AiSdkLLM implements LLM {
       cacheSafeSurface: {
         contextHash: context.contextHash,
         namespace: 'patch',
+        mode: 'cache_safe_only',
       },
     });
 

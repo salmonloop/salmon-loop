@@ -1,6 +1,13 @@
+import { createHash } from 'crypto';
+
 import { getPromptCachingManager } from '../context/cache/prompt-caching.js';
 import type { ArtifactHandle } from '../sub-agent/artifacts/types.js';
-import type { LLMMessage, LLMProviderHints } from '../types/llm.js';
+import type {
+  LLMMessage,
+  LLMProviderHints,
+  PromptCacheEligibility,
+  PromptCacheMode,
+} from '../types/llm.js';
 
 import type { ToolCallingAuditEntry } from './audit.js';
 
@@ -20,6 +27,10 @@ export interface CacheSafeSurface {
   attachments: RequestAttachment[];
   contextHash?: string;
   namespace?: string;
+  mode: PromptCacheMode;
+  cacheEligibility: PromptCacheEligibility;
+  cacheSafeFingerprint?: string;
+  lateInjectionFingerprint?: string;
 }
 
 export interface RequestEnvelope {
@@ -241,6 +252,33 @@ function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
 
+function resolvePromptCacheMode(mode: PromptCacheMode | undefined): PromptCacheMode {
+  return mode === 'strict_full_prompt' ? 'strict_full_prompt' : 'cache_safe_only';
+}
+
+function serializeAttachmentForFingerprint(item: RequestAttachment): string {
+  return [
+    item.key,
+    item.kind,
+    item.label ?? '',
+    item.content ?? '',
+    item.artifactHandle ?? '',
+    item.mimeType ?? '',
+    typeof item.size === 'number' ? String(item.size) : '',
+  ].join('\u001f');
+}
+
+function createFingerprint(parts: string[]): string | undefined {
+  if (parts.length === 0) return undefined;
+  const hash = createHash('sha256');
+  for (const [index, part] of parts.entries()) {
+    hash.update(`part:${index}:${part.length}\n`);
+    hash.update(part);
+    hash.update('\n');
+  }
+  return hash.digest('hex');
+}
+
 function toArtifactAttachment(args: {
   key: string;
   label: string;
@@ -316,23 +354,37 @@ export function buildArtifactHintAttachments(hints?: RequestArtifactHints): Requ
 }
 
 function buildPromptCachingHints(surface: CacheSafeSurface): LLMProviderHints {
-  if (!surface.contextHash) return {};
+  const policy = {
+    mode: surface.mode,
+    eligibility: surface.cacheEligibility,
+    namespace: surface.namespace,
+    contextHash: surface.contextHash,
+    cacheSafeFingerprint: surface.cacheSafeFingerprint,
+    lateInjectionFingerprint: surface.lateInjectionFingerprint,
+  } as const;
 
-  const stableText = [...surface.systemSections, ...surface.attachments.map((item) => item.content)]
-    .filter(Boolean)
-    .join('\n\n');
-  if (!stableText.trim()) return {};
-
-  const manager = getPromptCachingManager();
-  if (!manager.shouldCache(estimateTokens(stableText))) {
-    return {};
+  if (
+    surface.cacheEligibility !== 'eligible' ||
+    !surface.contextHash ||
+    !surface.cacheSafeFingerprint
+  ) {
+    return {
+      openAICachePolicy: policy,
+    };
   }
 
+  const components = [surface.contextHash, `stable:${surface.cacheSafeFingerprint}`];
+  if (surface.mode === 'strict_full_prompt' && surface.lateInjectionFingerprint) {
+    components.push(`late:${surface.lateInjectionFingerprint}`);
+  }
+
+  const manager = getPromptCachingManager();
   return {
-    openAICacheHint: manager.prepareOpenAIRequest(
+    openAICacheHint: manager.generateOpenAICacheHint(
       surface.namespace ?? 'request-envelope',
-      surface.contextHash,
+      components,
     ),
+    openAICachePolicy: policy,
   };
 }
 
@@ -345,6 +397,7 @@ export function buildRequestEnvelope(params: {
   cacheSafeSurface?: {
     contextHash?: string;
     namespace?: string;
+    mode?: PromptCacheMode;
   };
 }): RequestEnvelope {
   const systemSections = (Array.isArray(params.system) ? params.system : [params.system]).map(
@@ -378,11 +431,46 @@ export function buildRequestEnvelope(params: {
     }
   }
 
+  const cacheMode = resolvePromptCacheMode(params.cacheSafeSurface?.mode);
+  const cacheSafeAttachments = attachments.filter((item) => item.cacheSafe);
+  const lateInjectionAttachments = attachments.filter((item) => !item.cacheSafe);
+  const cacheSafeFingerprint = createFingerprint([
+    ...systemSections.map((section, index) => `system:${index}\u001f${section}`),
+    ...cacheSafeAttachments.map(
+      (item, index) => `attachment:${index}\u001f${serializeAttachmentForFingerprint(item)}`,
+    ),
+  ]);
+  const lateInjectionFingerprint = createFingerprint([
+    `userPrompt\u001f${String(params.user ?? '').trimEnd()}`,
+    ...userMetaMessages.map((message, index) => `meta:${index}\u001f${message.content}`),
+    ...conversationMessages.map(
+      (message, index) => `conversation:${index}\u001f${message.role}\u001f${message.content}`,
+    ),
+    ...lateInjectionAttachments.map(
+      (item, index) => `late-attachment:${index}\u001f${serializeAttachmentForFingerprint(item)}`,
+    ),
+  ]);
+  const cacheSafeText = [...systemSections, ...cacheSafeAttachments.map((item) => item.content)]
+    .filter(Boolean)
+    .join('\n\n');
+  const manager = getPromptCachingManager();
+  const cacheEligibility: PromptCacheEligibility = !params.cacheSafeSurface?.contextHash
+    ? 'missing_context_hash'
+    : !cacheSafeText.trim()
+      ? 'empty_cache_safe_surface'
+      : !manager.shouldCache(estimateTokens(cacheSafeText))
+        ? 'below_min_tokens'
+        : 'eligible';
+
   const cacheSafeSurface: CacheSafeSurface = {
     systemSections,
-    attachments: attachments.filter((item) => item.cacheSafe),
+    attachments: cacheSafeAttachments,
     contextHash: params.cacheSafeSurface?.contextHash,
     namespace: params.cacheSafeSurface?.namespace,
+    mode: cacheMode,
+    cacheEligibility,
+    cacheSafeFingerprint,
+    lateInjectionFingerprint,
   };
 
   return {

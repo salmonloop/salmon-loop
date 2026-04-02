@@ -86,6 +86,7 @@ export async function buildPhaseRequestEnvelope(
     cacheSafeSurface: {
       contextHash: cacheSurface.contextHash,
       namespace: cacheSurface.namespace,
+      mode: 'cache_safe_only',
     },
   });
   const baseMessages = materializeRequestEnvelope(envelope);

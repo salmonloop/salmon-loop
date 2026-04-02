@@ -1,6 +1,7 @@
 import type { JSONObject, SharedV3ProviderOptions } from '@ai-sdk/provider';
 import type { ToolSet, generateText } from 'ai';
 
+import type { OpenAICachePolicyHint } from '../../types/llm.js';
 import type { ChatOptions } from '../../types/llm.js';
 
 type GenerateTextParams = Parameters<typeof generateText>[0];
@@ -43,15 +44,38 @@ function toJsonObject(value: unknown): JSONObject | undefined {
   return out;
 }
 
+function buildOpenAICacheHintFromPolicy(
+  policy: OpenAICachePolicyHint | undefined,
+): string | undefined {
+  if (!policy || policy.eligibility !== 'eligible') return undefined;
+  if (!policy.contextHash || !policy.cacheSafeFingerprint) return undefined;
+
+  const namespace =
+    typeof policy.namespace === 'string' && policy.namespace.trim()
+      ? policy.namespace
+      : 'request-envelope';
+  const components = [policy.contextHash, `stable:${policy.cacheSafeFingerprint}`];
+  if (policy.mode === 'strict_full_prompt' && policy.lateInjectionFingerprint) {
+    components.push(`late:${policy.lateInjectionFingerprint}`);
+  }
+
+  return `cache:${JSON.stringify({ namespace, components })}`;
+}
+
 function mergeProviderOptions(params: {
   providerOptions?: SharedV3ProviderOptions;
-  providerHints?: { openAICacheHint?: string };
+  providerHints?: {
+    openAICacheHint?: string;
+    openAICachePolicy?: OpenAICachePolicyHint;
+  };
   providerOptionsKey: string;
 }): SharedV3ProviderOptions | undefined {
   const merged: SharedV3ProviderOptions = isRecord(params.providerOptions)
     ? { ...params.providerOptions }
     : {};
-  const cacheHint = params.providerHints?.openAICacheHint;
+  const cacheHint =
+    params.providerHints?.openAICacheHint ??
+    buildOpenAICacheHintFromPolicy(params.providerHints?.openAICachePolicy);
 
   if (cacheHint) {
     const existing = toJsonObject(merged[params.providerOptionsKey]) ?? {};
