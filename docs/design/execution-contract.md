@@ -73,6 +73,20 @@ Read-only phases **MAY** write a narrow set of **runtime artifacts / metadata** 
 
 All allowed runtime writes must remain within these approved roots. Any write outside these roots is a contract violation.
 
+**Request assembly caching contract (PLAN/PATCH/EXPLORE/RESEARCH):**
+- Model requests are assembled through the shared `RequestEnvelope` path rather than ad-hoc prompt concatenation in phase steps.
+- The cacheable surface is explicit:
+  - `systemSections`
+  - attachments marked `cacheSafe: true`
+- The non-cache-safe / late-injection surface is also explicit:
+  - current user prompt
+  - conversation history / summary messages
+  - attachments without `cacheSafe: true`
+- Shared phase assembly currently uses `mode: 'cache_safe_only'`:
+  - provider cache keys may include only the cache-safe surface fingerprint plus the stable `contextHash`
+  - late-injection content must not silently influence cache keys in this mode
+- If a future flow needs full-prompt cache identity, it must opt in explicitly via a stricter request mode rather than relying on implicit behavior.
+
 **Tool-calling restriction (EXPLORE/PLAN/PATCH):**
 - The only model-visible write capability allowed in read-only phases is updating the runtime plan file under `.salmonloop/plans/**` via `plan.*` tools.
 - No other tool may write to the repository during EXPLORE/PLAN/PATCH, even if the target file is untracked.

@@ -43,4 +43,15 @@ describe('architecture/request-assembly invariant', () => {
       expect(content).not.toContain('resolveRequestArtifactHints(');
     }
   });
+
+  it('shared request assembly explicitly declares cache-safe request mode', async () => {
+    const requestAssembly = await readFile(
+      join(process.cwd(), 'src/core/grizzco/steps/request-assembly.ts'),
+      'utf8',
+    );
+    const aiSdk = await readFile(join(process.cwd(), 'src/core/llm/ai-sdk.ts'), 'utf8');
+
+    expect(requestAssembly).toContain("mode: 'cache_safe_only'");
+    expect(aiSdk).toContain("mode: 'cache_safe_only'");
+  });
 });

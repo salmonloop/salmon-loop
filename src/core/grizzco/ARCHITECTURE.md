@@ -57,6 +57,10 @@ Public guarantees remain in `docs/design/`.
   - each file = one phase concern,
   - no cross-attempt policy,
   - context-in/context-out through pipeline types.
+- Request assembly rule:
+  - PLAN / PATCH / EXPLORE / RESEARCH must go through shared request assembly helpers
+  - cache-safe vs late-injection prompt surfaces are defined in the `RequestEnvelope` layer, not ad-hoc inside individual phase steps
+  - phase code should declare request cache mode explicitly instead of relying on implicit provider behavior
 
 ### `dsl/`
 
