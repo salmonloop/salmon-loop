@@ -42,7 +42,10 @@ mock.module('../../src/core/prompts/runtime.js', () => ({
   getPatchPrompt: mock(async () => 'PATCH PROMPT'),
 }));
 
-import { HIGH_LEVEL_PHASE_SPECS } from '../../src/core/llm/ai-sdk/high-level-phase-specs.js';
+import {
+  HIGH_LEVEL_PHASE_NAMES,
+  HIGH_LEVEL_PHASE_SPECS,
+} from '../../src/core/llm/ai-sdk/high-level-phase-specs.js';
 import { AiSdkLLM } from '../../src/core/llm/ai-sdk.js';
 import type { Context } from '../../src/core/types/context.js';
 import type { Plan } from '../../src/core/types/planning.js';
@@ -74,21 +77,10 @@ describe('AiSdkLLM high-level phase mapping', () => {
   });
 
   it('keeps high-level phase specs complete for plan and patch', () => {
-    const specs = HIGH_LEVEL_PHASE_SPECS as Record<
-      string,
-      {
-        namespace?: unknown;
-        observationName?: unknown;
-        buildPrompt?: unknown;
-        buildAttachments?: unknown;
-        parseResult?: unknown;
-      }
-    >;
+    expect(Object.keys(HIGH_LEVEL_PHASE_SPECS).sort()).toEqual([...HIGH_LEVEL_PHASE_NAMES].sort());
 
-    expect(Object.keys(specs).sort()).toEqual(['patch', 'plan']);
-
-    for (const phase of ['plan', 'patch'] as const) {
-      const spec = specs[phase];
+    for (const phase of HIGH_LEVEL_PHASE_NAMES) {
+      const spec = HIGH_LEVEL_PHASE_SPECS[phase];
       expect(typeof spec.namespace).toBe('string');
       expect((spec.namespace as string).length).toBeGreaterThan(0);
       expect(typeof spec.observationName).toBe('string');

@@ -31,6 +31,15 @@ export interface PatchPhaseInput {
   signal?: AbortSignal;
 }
 
+export interface HighLevelPhaseSpecMap {
+  plan: HighLevelPhaseSpec<PlanPhaseInput, Plan>;
+  patch: HighLevelPhaseSpec<PatchPhaseInput, string>;
+}
+
+export type HighLevelPhaseName = keyof HighLevelPhaseSpecMap;
+
+export const HIGH_LEVEL_PHASE_NAMES = ['plan', 'patch'] as const satisfies readonly HighLevelPhaseName[];
+
 function buildContextPromptAttachment(contextPrompt: string): RequestAttachment {
   return {
     key: 'context-prompt',
@@ -71,10 +80,7 @@ function parsePatchResult(content: string | undefined): string {
   return extractUnifiedDiffFromLLMContent(content ?? '');
 }
 
-export const HIGH_LEVEL_PHASE_SPECS: {
-  plan: HighLevelPhaseSpec<PlanPhaseInput, Plan>;
-  patch: HighLevelPhaseSpec<PatchPhaseInput, string>;
-} = {
+export const HIGH_LEVEL_PHASE_SPECS: HighLevelPhaseSpecMap = {
   plan: {
     namespace: 'plan',
     observationName: 'PLAN:plan-json',
