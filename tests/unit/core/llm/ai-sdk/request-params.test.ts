@@ -1,23 +1,37 @@
 import { describe, expect, it } from 'bun:test';
 
 import { buildAiSdkRequestParams } from '../../../../../src/core/llm/ai-sdk/request-params.js';
+import type { ChatOptions } from '../../../../../src/core/types/llm.js';
+
+type BuildAiSdkRequestParamsInput = Parameters<typeof buildAiSdkRequestParams>[0];
+type BuildAiSdkRequestParamsOutput = ReturnType<typeof buildAiSdkRequestParams>;
+
+function buildParams(
+  overrides: Partial<BuildAiSdkRequestParamsInput> & { options?: ChatOptions } = {},
+): BuildAiSdkRequestParamsOutput {
+  return buildAiSdkRequestParams({
+    model: { id: 'model' },
+    messages: [],
+    options: overrides.options ?? {},
+    headers: {},
+    abortSignal: new AbortController().signal,
+    providerOptionsKey: overrides.providerOptionsKey ?? 'openai',
+    tools: overrides.tools,
+  });
+}
 
 describe('buildAiSdkRequestParams', () => {
   it('injects OpenAI-compatible cache hints into providerOptions', () => {
-    const params = buildAiSdkRequestParams({
-      model: { id: 'model' },
-      messages: [],
+    const params = buildParams({
+      providerOptionsKey: 'openaiCompatible',
       options: {
         providerHints: {
           openAICacheHint: 'cache:{"namespace":"plan","components":["ctx-123"]}',
         },
-      } as any,
-      headers: {},
-      abortSignal: new AbortController().signal,
-      providerOptionsKey: 'openaiCompatible',
-    } as any);
+      },
+    });
 
-    expect((params as any).providerOptions).toEqual({
+    expect(params.providerOptions).toEqual({
       openaiCompatible: {
         user: 'cache:{"namespace":"plan","components":["ctx-123"]}',
       },
@@ -25,9 +39,7 @@ describe('buildAiSdkRequestParams', () => {
   });
 
   it('preserves explicit providerOptions while adding missing cache hint user field', () => {
-    const params = buildAiSdkRequestParams({
-      model: { id: 'model' },
-      messages: [],
+    const params = buildParams({
       options: {
         providerHints: {
           openAICacheHint: 'cache:{"namespace":"patch","components":["ctx-456"]}',
@@ -37,13 +49,10 @@ describe('buildAiSdkRequestParams', () => {
             reasoningEffort: 'medium',
           },
         },
-      } as any,
-      headers: {},
-      abortSignal: new AbortController().signal,
-      providerOptionsKey: 'openai',
-    } as any);
+      },
+    });
 
-    expect((params as any).providerOptions).toEqual({
+    expect(params.providerOptions).toEqual({
       openai: {
         reasoningEffort: 'medium',
         user: 'cache:{"namespace":"patch","components":["ctx-456"]}',
@@ -52,9 +61,7 @@ describe('buildAiSdkRequestParams', () => {
   });
 
   it('derives cache hint from policy when direct hint is not provided', () => {
-    const params = buildAiSdkRequestParams({
-      model: { id: 'model' },
-      messages: [],
+    const params = buildParams({
       options: {
         providerHints: {
           openAICachePolicy: {
@@ -66,13 +73,10 @@ describe('buildAiSdkRequestParams', () => {
             lateInjectionFingerprint: 'b'.repeat(64),
           },
         },
-      } as any,
-      headers: {},
-      abortSignal: new AbortController().signal,
-      providerOptionsKey: 'openai',
-    } as any);
+      },
+    });
 
-    expect((params as any).providerOptions).toEqual({
+    expect(params.providerOptions).toEqual({
       openai: {
         user: `cache:{"namespace":"research","components":["ctx-789","stable:${'a'.repeat(64)}","late:${'b'.repeat(64)}"]}`,
       },
@@ -80,9 +84,7 @@ describe('buildAiSdkRequestParams', () => {
   });
 
   it('skips providerOptions cache user injection when policy is not eligible', () => {
-    const params = buildAiSdkRequestParams({
-      model: { id: 'model' },
-      messages: [],
+    const params = buildParams({
       options: {
         providerHints: {
           openAICachePolicy: {
@@ -93,12 +95,9 @@ describe('buildAiSdkRequestParams', () => {
             cacheSafeFingerprint: 'c'.repeat(64),
           },
         },
-      } as any,
-      headers: {},
-      abortSignal: new AbortController().signal,
-      providerOptionsKey: 'openai',
-    } as any);
+      },
+    });
 
-    expect((params as any).providerOptions).toBeUndefined();
+    expect(params.providerOptions).toBeUndefined();
   });
 });
