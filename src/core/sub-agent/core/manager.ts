@@ -80,7 +80,7 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
         ? (() => {
             const consistency = validateSharedPrefixConsistency({
               requestSnapshot: request.contextSnapshot,
-              runtimeSnapshot: request.contextSnapshot,
+              runtimeSnapshot: this.ctx.contextSnapshot,
             });
             if (consistency.compatible) return request;
 

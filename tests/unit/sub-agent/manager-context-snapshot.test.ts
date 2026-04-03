@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
+import { clearAuditTrail, getAuditTrail } from '../../../src/core/observability/audit-trail.js';
+
 const loopExecuteMock = mock(async (_initCtx: any) => ({
   agent_ref: 'surgeon',
   success: true,
@@ -22,6 +24,7 @@ mock.module('../../../src/core/sub-agent/core/loop.js', () => ({
 describe('SubAgentManager context snapshot', () => {
   beforeEach(() => {
     mock.clearAllMocks();
+    clearAuditTrail();
   });
 
   it('passes contextSnapshot fields into the spawned init context', async () => {
@@ -29,57 +32,6 @@ describe('SubAgentManager context snapshot', () => {
 
     const setup = mock(async () => undefined);
     const teardown = mock(async () => undefined);
-
-    const manager = new SubAgentManager(
-      {
-        repoRoot: '/repo',
-        persistenceRoot: '/repo',
-        dryRun: false,
-        llm: {
-          chat: mock(),
-          createPlan: mock(),
-          createPatch: mock(),
-        },
-      } as any,
-      {
-        registerAgent: mock(),
-        isStopRequested: mock(() => false),
-        appendLog: mock(),
-        updateStatus: mock(),
-        listAgents: mock(() => []),
-        getAgent: mock(() => undefined),
-        tailLogs: mock(() => []),
-        requestStop: mock(() => true),
-      } as any,
-      {
-        registry: {
-          get: mock(() => ({
-            id: 'surgeon',
-            name: 'Surgeon',
-            role: 'Coder',
-            description: 'test',
-            allowedTools: ['fs.read'],
-            readOnly: false,
-            stratagem: 'surgeon',
-            timeoutMs: 1000,
-          })),
-        },
-        createRuntimeEnvironment: () =>
-          ({
-            setup,
-            teardown,
-            workspace: {
-              workPath: '/repo-shadow',
-              baseRepoPath: '/repo',
-              strategy: 'worktree',
-            },
-            initialSnapshotHash: 'shadow-head',
-          }) as any,
-        artifactStore: {
-          saveText: mock(),
-        },
-      } as any,
-    );
 
     const requestSnapshot = {
       conversationContext: [{ role: 'user' as const, content: 'previous context' }],
@@ -139,6 +91,58 @@ describe('SubAgentManager context snapshot', () => {
         systemPrefixDigest: 'prefix-1',
       },
     };
+
+    const manager = new SubAgentManager(
+      {
+        repoRoot: '/repo',
+        persistenceRoot: '/repo',
+        dryRun: false,
+        contextSnapshot: requestSnapshot,
+        llm: {
+          chat: mock(),
+          createPlan: mock(),
+          createPatch: mock(),
+        },
+      } as any,
+      {
+        registerAgent: mock(),
+        isStopRequested: mock(() => false),
+        appendLog: mock(),
+        updateStatus: mock(),
+        listAgents: mock(() => []),
+        getAgent: mock(() => undefined),
+        tailLogs: mock(() => []),
+        requestStop: mock(() => true),
+      } as any,
+      {
+        registry: {
+          get: mock(() => ({
+            id: 'surgeon',
+            name: 'Surgeon',
+            role: 'Coder',
+            description: 'test',
+            allowedTools: ['fs.read'],
+            readOnly: false,
+            stratagem: 'surgeon',
+            timeoutMs: 1000,
+          })),
+        },
+        createRuntimeEnvironment: () =>
+          ({
+            setup,
+            teardown,
+            workspace: {
+              workPath: '/repo-shadow',
+              baseRepoPath: '/repo',
+              strategy: 'worktree',
+            },
+            initialSnapshotHash: 'shadow-head',
+          }) as any,
+        artifactStore: {
+          saveText: mock(),
+        },
+      } as any,
+    );
 
     await manager.execute({
       agent_ref: 'surgeon',
@@ -264,5 +268,98 @@ describe('SubAgentManager context snapshot', () => {
 
     const initCtx = loopExecuteMock.mock.calls[0]?.[0];
     expect(initCtx.cacheSharing).toBeUndefined();
+  });
+
+  it('falls back to isolated mode when runtime shared prefix mismatches request snapshot', async () => {
+    const { SubAgentManager } = await import('../../../src/core/sub-agent/core/manager.js');
+
+    const setup = mock(async () => undefined);
+    const teardown = mock(async () => undefined);
+
+    const manager = new SubAgentManager(
+      {
+        repoRoot: '/repo',
+        persistenceRoot: '/repo',
+        dryRun: false,
+        phase: 'PLAN',
+        contextSnapshot: {
+          cacheSharing: {
+            namespace: 'shared',
+            contextHash: 'ctx-runtime',
+            toolSchemaHash: 'tool-hash-runtime',
+            systemPrefixDigest: 'prefix-runtime',
+          },
+        },
+        llm: {
+          chat: mock(),
+          createPlan: mock(),
+          createPatch: mock(),
+        },
+      } as any,
+      {
+        registerAgent: mock(),
+        isStopRequested: mock(() => false),
+        appendLog: mock(),
+        updateStatus: mock(),
+        listAgents: mock(() => []),
+        getAgent: mock(() => undefined),
+        tailLogs: mock(() => []),
+        requestStop: mock(() => true),
+      } as any,
+      {
+        registry: {
+          get: mock(() => ({
+            id: 'surgeon',
+            name: 'Surgeon',
+            role: 'Coder',
+            description: 'test',
+            allowedTools: ['fs.read'],
+            readOnly: false,
+            stratagem: 'surgeon',
+            timeoutMs: 1000,
+          })),
+        },
+        createRuntimeEnvironment: () =>
+          ({
+            setup,
+            teardown,
+            workspace: {
+              workPath: '/repo-shadow',
+              baseRepoPath: '/repo',
+              strategy: 'worktree',
+            },
+            initialSnapshotHash: 'shadow-head',
+          }) as any,
+        artifactStore: {
+          saveText: mock(),
+        },
+      } as any,
+    );
+
+    await manager.execute({
+      agent_ref: 'surgeon',
+      task: 'fix bug',
+      session_target: 'shared',
+      contextSnapshot: {
+        cacheSharing: {
+          namespace: 'shared',
+          contextHash: 'ctx-request',
+          toolSchemaHash: 'tool-hash-request',
+          systemPrefixDigest: 'prefix-request',
+        },
+      },
+    } as any);
+
+    const initCtx = loopExecuteMock.mock.calls[0]?.[0];
+    expect(initCtx.cacheSharing).toBeUndefined();
+    const event = getAuditTrail().find(
+      (entry) => entry.action === 'sub_agent.shared.prefix_consistency_failed',
+    );
+    expect(event).toBeDefined();
+    expect(event?.details).toMatchObject({
+      metric: 'shared_fallback_rate',
+      fallbackMode: 'isolated',
+      reason: 'cache_critical_prefix_mismatch',
+    });
   });
 });
