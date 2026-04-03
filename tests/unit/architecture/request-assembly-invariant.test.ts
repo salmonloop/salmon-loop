@@ -14,6 +14,7 @@ const sharedAssemblyConsumers = [
   'src/core/grizzco/steps/answer.ts',
   'src/core/grizzco/steps/patch.ts',
   'src/core/grizzco/steps/patch/prompt-input.ts',
+  'src/core/llm/message-composition.ts',
 ];
 
 describe('architecture/request-assembly invariant', () => {
@@ -54,13 +55,18 @@ describe('architecture/request-assembly invariant', () => {
 
   it('shared request assembly explicitly declares cache-safe request mode', async () => {
     const requestAssembly = await readFile(
-      join(process.cwd(), 'src/core/grizzco/steps/request-assembly.ts'),
+      join(process.cwd(), 'src/core/llm/shared-request-assembly.ts'),
       'utf8',
     );
     const aiSdk = await readFile(join(process.cwd(), 'src/core/llm/ai-sdk.ts'), 'utf8');
 
     expect(requestAssembly).toContain("mode: 'cache_safe_only'");
     expect(aiSdk).toContain("mode: 'cache_safe_only'");
+  });
+
+  it('chat message composition delegates envelope building to shared request assembly helper', async () => {
+    const content = await readFile(join(process.cwd(), 'src/core/llm/message-composition.ts'), 'utf8');
+    expect(content).toContain('buildSharedRequestEnvelope');
   });
 
   it('phase tool-calling steps use a shared runtime context helper for sub-agent snapshots', async () => {
