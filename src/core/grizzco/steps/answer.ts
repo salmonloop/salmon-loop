@@ -1,8 +1,9 @@
 import { emitLlmOutput } from '../../llm/output-policy.js';
-import { buildRequestEnvelope, materializeRequestEnvelope } from '../../llm/request-envelope.js';
 import { chatWithTools } from '../../tools/session.js';
 import { Phase, type LLM } from '../../types/index.js';
 import type { AnswerCtx, PreflightCtx } from '../engine/pipeline/types.js';
+
+import { buildSharedRequestEnvelope } from './request-assembly.js';
 
 function buildSystemPrompt(): string {
   return [
@@ -23,12 +24,13 @@ export async function generateAnswer(ctx: PreflightCtx): Promise<AnswerCtx> {
     };
   }
 
-  const envelope = buildRequestEnvelope({
-    system: buildSystemPrompt(),
-    user: instruction,
+  const shared = buildSharedRequestEnvelope({
+    defaultNamespace: 'answer',
+    systemPrompt: buildSystemPrompt(),
+    userPrompt: instruction,
     conversationContext: ctx.options.conversationContext,
   });
-  const messages = materializeRequestEnvelope(envelope);
+  const messages = shared.baseMessages;
 
   const llmClient: LLM = ctx.options.llm;
   const supportsTools = Boolean(ctx.toolstack);
@@ -36,7 +38,7 @@ export async function generateAnswer(ctx: PreflightCtx): Promise<AnswerCtx> {
   const assistant = supportsTools
     ? await chatWithTools(
         messages,
-        { providerHints: envelope.providerHints, temperature: 0.2, signal: ctx.options.signal },
+        { providerHints: shared.envelope.providerHints, temperature: 0.2, signal: ctx.options.signal },
         {
           phase: Phase.EXPLORE,
           llm: llmClient,
@@ -59,7 +61,7 @@ export async function generateAnswer(ctx: PreflightCtx): Promise<AnswerCtx> {
         },
       )
     : await llmClient.chat(messages, {
-        providerHints: envelope.providerHints,
+        providerHints: shared.envelope.providerHints,
         temperature: 0.2,
         signal: ctx.options.signal,
         tools: [],

@@ -9,6 +9,13 @@ const directPhaseFiles = [
   'src/core/grizzco/steps/research.ts',
 ];
 
+const sharedAssemblyConsumers = [
+  ...directPhaseFiles,
+  'src/core/grizzco/steps/answer.ts',
+  'src/core/grizzco/steps/patch.ts',
+  'src/core/grizzco/steps/patch/prompt-input.ts',
+];
+
 describe('architecture/request-assembly invariant', () => {
   it('direct phase steps use shared buildPhaseRequestEnvelope helper', async () => {
     for (const relPath of directPhaseFiles) {
@@ -32,16 +39,17 @@ describe('architecture/request-assembly invariant', () => {
   });
 
   it('phase steps do not directly build request envelope', async () => {
-    for (const relPath of [
-      ...directPhaseFiles,
-      'src/core/grizzco/steps/patch.ts',
-      'src/core/grizzco/steps/patch/prompt-input.ts',
-    ]) {
+    for (const relPath of sharedAssemblyConsumers) {
       const content = await readFile(join(process.cwd(), relPath), 'utf8');
       expect(content).not.toContain('buildRequestEnvelope(');
       expect(content).not.toContain('materializeRequestEnvelope(');
       expect(content).not.toContain('resolveRequestArtifactHints(');
     }
+  });
+
+  it('answer step delegates envelope building to shared request assembly helper', async () => {
+    const content = await readFile(join(process.cwd(), 'src/core/grizzco/steps/answer.ts'), 'utf8');
+    expect(content).toContain('buildSharedRequestEnvelope');
   });
 
   it('shared request assembly explicitly declares cache-safe request mode', async () => {

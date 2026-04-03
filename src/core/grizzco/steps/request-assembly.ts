@@ -42,6 +42,19 @@ export interface BuildPhaseRequestEnvelopeArgs {
   providerHints?: LLMProviderHints;
 }
 
+export interface BuildSharedRequestEnvelopeArgs {
+  defaultNamespace: string;
+  contextHash?: string;
+  systemPrompt: string | string[];
+  userPrompt: string;
+  conversationContext?: LLMMessage[];
+  artifactHints?: RequestArtifactHints;
+  toolCallingAudit?: ToolCallingAuditEntry[];
+  previewProvider?: ToolResultPreviewArtifactsProvider;
+  attachments?: RequestAttachment[];
+  providerHints?: LLMProviderHints;
+}
+
 export interface PhaseRequestEnvelope {
   contextPrompt: string;
   userPrompt: string;
@@ -49,6 +62,45 @@ export interface PhaseRequestEnvelope {
   resolvedArtifactHints?: RequestArtifactHints;
   envelope: RequestEnvelope;
   baseMessages: LLMMessage[];
+}
+
+export interface SharedRequestEnvelope {
+  cacheSurface: CacheSharingSurface;
+  resolvedArtifactHints?: RequestArtifactHints;
+  envelope: RequestEnvelope;
+  baseMessages: LLMMessage[];
+}
+
+export function buildSharedRequestEnvelope(args: BuildSharedRequestEnvelopeArgs): SharedRequestEnvelope {
+  const cacheSurface: CacheSharingSurface = {
+    namespace: args.defaultNamespace,
+    contextHash: args.contextHash,
+  };
+  const resolvedArtifactHints = resolveRequestArtifactHints({
+    artifactHints: args.artifactHints,
+    toolCallingAudit: args.toolCallingAudit,
+    previewProvider: args.previewProvider,
+  });
+  const envelope = buildRequestEnvelope({
+    system: args.systemPrompt,
+    user: args.userPrompt,
+    conversationContext: args.conversationContext,
+    attachments: [...(args.attachments ?? []), ...buildArtifactHintAttachments(resolvedArtifactHints)],
+    providerHints: args.providerHints,
+    cacheSafeSurface: {
+      contextHash: cacheSurface.contextHash,
+      namespace: cacheSurface.namespace,
+      mode: 'cache_safe_only',
+    },
+  });
+  const baseMessages = materializeRequestEnvelope(envelope);
+
+  return {
+    cacheSurface,
+    resolvedArtifactHints,
+    envelope,
+    baseMessages,
+  };
 }
 
 export async function buildPhaseRequestEnvelope(
@@ -65,15 +117,15 @@ export async function buildPhaseRequestEnvelope(
     onMismatch: args.onCacheMismatch,
   });
   const userPrompt = await args.buildUserPrompt(contextPrompt);
-  const resolvedArtifactHints = resolveRequestArtifactHints({
+  const shared = buildSharedRequestEnvelope({
+    defaultNamespace: cacheSurface.namespace,
+    contextHash: cacheSurface.contextHash,
+    systemPrompt: args.systemPrompt,
+    userPrompt,
+    conversationContext: args.conversationContext,
     artifactHints: args.artifactHints,
     toolCallingAudit: args.toolCallingAudit,
     previewProvider: args.previewProvider,
-  });
-  const envelope = buildRequestEnvelope({
-    system: args.systemPrompt,
-    user: userPrompt,
-    conversationContext: args.conversationContext,
     attachments: [
       {
         key: 'context-prompt',
@@ -83,23 +135,16 @@ export async function buildPhaseRequestEnvelope(
         cacheSafe: true,
       },
       ...(args.extraAttachments ?? []),
-      ...buildArtifactHintAttachments(resolvedArtifactHints),
     ],
     providerHints: args.providerHints,
-    cacheSafeSurface: {
-      contextHash: cacheSurface.contextHash,
-      namespace: cacheSurface.namespace,
-      mode: 'cache_safe_only',
-    },
   });
-  const baseMessages = materializeRequestEnvelope(envelope);
 
   return {
     contextPrompt,
     userPrompt,
     cacheSurface,
-    resolvedArtifactHints,
-    envelope,
-    baseMessages,
+    resolvedArtifactHints: shared.resolvedArtifactHints,
+    envelope: shared.envelope,
+    baseMessages: shared.baseMessages,
   };
 }

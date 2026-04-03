@@ -1,6 +1,9 @@
 import { describe, expect, it, mock } from 'bun:test';
 
-import { buildPhaseRequestEnvelope } from '../../../../../src/core/grizzco/steps/request-assembly.js';
+import {
+  buildPhaseRequestEnvelope,
+  buildSharedRequestEnvelope,
+} from '../../../../../src/core/grizzco/steps/request-assembly.js';
 import { SessionReplacementPreviewProvider } from '../../../../../src/core/session/replacement-preview-provider.js';
 import { Phase } from '../../../../../src/core/types/runtime.js';
 
@@ -136,5 +139,26 @@ describe('buildPhaseRequestEnvelope', () => {
 
     const lastUserMessage = built.baseMessages[built.baseMessages.length - 1];
     expect(lastUserMessage?.content).toContain('s8p://artifact/tool-preview-1');
+  });
+});
+
+describe('buildSharedRequestEnvelope', () => {
+  it('builds base messages and cache-safe provider hints without context formatting', () => {
+    const built = buildSharedRequestEnvelope({
+      defaultNamespace: 'answer',
+      contextHash: 'answer-hash',
+      systemPrompt: 'system prompt',
+      userPrompt: 'user prompt',
+      conversationContext: [{ role: 'assistant', content: 'previous answer' }],
+    });
+
+    expect(built.cacheSurface).toEqual({
+      namespace: 'answer',
+      contextHash: 'answer-hash',
+    });
+    expect(built.baseMessages[0]).toEqual({ role: 'system', content: 'system prompt' });
+    expect(built.baseMessages[1]).toEqual({ role: 'assistant', content: 'previous answer' });
+    expect(built.baseMessages[2]).toEqual({ role: 'user', content: 'user prompt' });
+    expect(built.envelope.providerHints.openAICachePolicy).toBeTruthy();
   });
 });
