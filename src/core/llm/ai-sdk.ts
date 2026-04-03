@@ -1,12 +1,14 @@
 import { randomUUID } from 'crypto';
 
-import { LIMITS } from '../config/limits.js';
-import { getPatchPrompt, getPlanPrompt } from '../prompts/runtime.js';
 import type { Context } from '../types/context.js';
 import type { ChatOptions, LLM, LLMMessage, LLMStreamChunk } from '../types/llm.js';
 import type { Plan } from '../types/planning.js';
 
 import { executeAiSdkChatRequest, executeAiSdkChatStreamRequest } from './ai-sdk/chat-executor.js';
+import {
+  HIGH_LEVEL_PHASE_SPECS,
+  type HighLevelPhaseSpec,
+} from './ai-sdk/high-level-phase-specs.js';
 import { toAiSdkMessages, toAiSdkToolSet } from './ai-sdk/message-mapper.js';
 import { withAuditObservationName } from './ai-sdk/observation-context.js';
 import {
@@ -14,14 +16,9 @@ import {
   resolveAiSdkModelId,
   resolveAiSdkProviderOptionsKey,
 } from './ai-sdk/provider-factory.js';
-import { wrapPlanEmpty, sanitizeError, LlmError } from './errors.js';
 import type { RequestAttachment } from './request-envelope.js';
 import { buildSharedRequestEnvelope } from './shared-request-assembly.js';
-import {
-  extractUnifiedDiffFromLLMContent,
-  formatContextForPrompt,
-  parsePlanFromLLMContent,
-} from './utils.js';
+import { formatContextForPrompt } from './utils.js';
 
 export type AiSdkClientPackage = '@ai-sdk/openai' | '@ai-sdk/openai-compatible';
 
@@ -41,16 +38,6 @@ export class AiSdkLLM implements LLM {
   private modelId: string;
   private providerOptionsKey: string;
   private timeoutMs?: number;
-  private static readonly HIGH_LEVEL_PHASE_CONFIG = {
-    plan: {
-      namespace: 'plan',
-      observationName: 'PLAN:plan-json',
-    },
-    patch: {
-      namespace: 'patch',
-      observationName: 'PATCH:unified-diff',
-    },
-  } as const;
 
   constructor(private readonly cfg: AiSdkLlmConfig) {
     this.modelId = resolveAiSdkModelId(cfg.modelId);
@@ -129,31 +116,12 @@ export class AiSdkLLM implements LLM {
     lastError?: string,
     signal?: AbortSignal,
   ): Promise<Plan> {
-    const contextPrompt = formatContextForPrompt(context);
-    const prompt = await getPlanPrompt(
-      contextPrompt,
+    return this.runHighLevelPhase(HIGH_LEVEL_PHASE_SPECS.plan, {
+      context,
       instruction,
-      LIMITS.maxFilesChanged,
       lastError,
-    );
-    const content = await this.runHighLevelPhase({
-      phase: 'plan',
-      contextHash: context.contextHash,
-      userPrompt: prompt,
-      attachments: [AiSdkLLM.buildContextPromptAttachment(contextPrompt)],
       signal,
     });
-    if (!content) {
-      throw wrapPlanEmpty();
-    }
-
-    try {
-      return parsePlanFromLLMContent(content);
-    } catch (e) {
-      throw new LlmError('LLM plan parsing failed', 'LLM_PLAN_INVALID_JSON', {
-        causeMessage: sanitizeError(e),
-      });
-    }
   }
 
   async createPatch(
@@ -163,63 +131,30 @@ export class AiSdkLLM implements LLM {
     signal?: AbortSignal,
   ): Promise<string> {
     const planStr = JSON.stringify(plan, null, 2);
-    const formattedContext = formatContextForPrompt(context);
-
-    const prompt = await getPatchPrompt(
+    return this.runHighLevelPhase(HIGH_LEVEL_PHASE_SPECS.patch, {
+      context,
       planStr,
-      formattedContext,
-      LIMITS.maxFilesChanged,
-      LIMITS.maxDiffLines,
       lastError,
-    );
-    const content = await this.runHighLevelPhase({
-      phase: 'patch',
-      contextHash: context.contextHash,
-      userPrompt: prompt,
-      attachments: AiSdkLLM.buildPatchAttachments(formattedContext, planStr),
       signal,
     });
-    return extractUnifiedDiffFromLLMContent(content ?? '');
   }
 
-  private static buildContextPromptAttachment(contextPrompt: string): RequestAttachment {
-    return {
-      key: 'context-prompt',
-      kind: 'context',
-      label: 'Context prompt',
-      content: contextPrompt,
-      cacheSafe: true,
-    };
-  }
-
-  private static buildPatchAttachments(formattedContext: string, planStr: string): RequestAttachment[] {
-    return [
-      AiSdkLLM.buildContextPromptAttachment(formattedContext),
-      {
-        key: 'plan-json',
-        kind: 'plan',
-        label: 'Plan JSON',
-        content: planStr,
-      },
-    ];
-  }
-
-  private async runHighLevelPhase(params: {
-    phase: keyof typeof AiSdkLLM.HIGH_LEVEL_PHASE_CONFIG;
-    contextHash?: string;
-    userPrompt: string;
-    attachments: RequestAttachment[];
-    signal?: AbortSignal;
-  }): Promise<string | undefined> {
-    const phaseConfig = AiSdkLLM.HIGH_LEVEL_PHASE_CONFIG[params.phase];
-    return this.executeHighLevelPrompt({
-      defaultNamespace: phaseConfig.namespace,
-      contextHash: params.contextHash,
-      userPrompt: params.userPrompt,
-      attachments: params.attachments,
-      observationName: phaseConfig.observationName,
-      signal: params.signal,
+  private async runHighLevelPhase<TInput extends { context: Context; signal?: AbortSignal }, TOutput>(
+    spec: HighLevelPhaseSpec<TInput, TOutput>,
+    input: TInput,
+  ): Promise<TOutput> {
+    const contextPrompt = formatContextForPrompt(input.context);
+    const userPrompt = await spec.buildPrompt({ ...input, contextPrompt });
+    const attachments = spec.buildAttachments({ ...input, contextPrompt });
+    const content = await this.executeHighLevelPrompt({
+      defaultNamespace: spec.namespace,
+      contextHash: input.context.contextHash,
+      userPrompt,
+      attachments,
+      observationName: spec.observationName,
+      signal: input.signal,
     });
+    return spec.parseResult(content);
   }
 
   private async executeHighLevelPrompt(params: {
