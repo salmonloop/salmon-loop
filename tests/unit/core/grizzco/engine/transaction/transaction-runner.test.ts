@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
 import { LoopTelemetry } from '../../../../../../src/core/grizzco/engine/observability/loop-telemetry.js';
 import { FlowTransactionRunner } from '../../../../../../src/core/grizzco/engine/transaction/transaction-runner.js';
 import * as salmonFlow from '../../../../../../src/core/grizzco/flows/SalmonLoopFlow.js';
+import type { ToolResultReplacementState } from '../../../../../../src/core/session/replacement-state.js';
 
 mock.module('../../../../../../src/core/grizzco/flows/SalmonLoopFlow.js', () => ({
   executeSalmonLoopFlow: mock(),
@@ -333,6 +334,64 @@ describe('transaction-runner', () => {
             }),
           ],
         }),
+      }),
+    );
+  });
+
+  it('reuses replacement state across retries when no new state is provided', async () => {
+    const replacementState: ToolResultReplacementState = {
+      schemaVersion: 1,
+      entries: {
+        'tool-preview-1': {
+          toolResultId: 'tool-preview-1',
+          decision: 'replaced',
+          preview: 'stable-preview-bytes',
+          frozenAt: 10,
+          sourceArtifactHandle: 's8p://artifact/preview-1',
+          identityVersion: 'v1',
+          hashAlgorithm: 'sha256',
+        },
+      },
+    };
+
+    mockedExecute
+      .mockResolvedValueOnce({
+        success: true,
+        duration: 1,
+        traces: [],
+        data: {
+          context: { repoPath: '/repo', rgSnippets: [] },
+          verifyResult: { ok: false, output: 'Test suites: 1 failed, 1 total', exitCode: 1 },
+          lastError: 'tests failed',
+          plan: null,
+          diff: null,
+        },
+      } as any)
+      .mockResolvedValueOnce({
+        success: true,
+        duration: 1,
+        traces: [],
+        data: {
+          context: { repoPath: '/repo', rgSnippets: [] },
+          verifyResult: { ok: true, output: 'ok', exitCode: 0 },
+          applyBackResult: { success: true, skipped: false, telemetry: {} },
+          plan: null,
+          diff: 'diff --git a/a.ts b/a.ts',
+          changedFiles: ['a.ts'],
+        },
+      } as any);
+
+    await createRunner(mock(), { replacementState }).execute();
+
+    expect(mockedExecute).toHaveBeenCalledTimes(2);
+    expect(mockedExecute.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({
+        replacementState,
+      }),
+    );
+    expect(mockedExecute.mock.calls[1]?.[0]).toEqual(
+      expect.objectContaining({
+        replacementState,
       }),
     );
   });
