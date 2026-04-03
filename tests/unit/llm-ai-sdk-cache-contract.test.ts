@@ -213,4 +213,36 @@ describe('AiSdkLLM cache contract', () => {
 
     expect(findComponent(firstComponents, 'stable:')).toBe(findComponent(secondComponents, 'stable:'));
   });
+
+  it('updates cache hint context component when createPatch context hash changes', async () => {
+    generateTextMock.mockResolvedValue({
+      text: 'diff --git a/src/index.ts b/src/index.ts\n--- a/src/index.ts\n+++ b/src/index.ts\n@@ -1,1 +1,1 @@\n-export const value = 1;\n+export const value = 2;',
+      usage: { promptTokens: 1, completionTokens: 2 },
+    });
+    const llm = new AiSdkLLM({
+      clientPackage: '@ai-sdk/openai-compatible',
+      providerName: 'openai-compatible',
+      modelId: 'test-model',
+      baseUrl: 'https://example.invalid/v1',
+    });
+    const plan: Plan = {
+      goal: 'Goal',
+      files: ['src/index.ts'],
+      changes: ['Change'],
+      verify: 'bun test',
+    };
+
+    await llm.createPatch(createTestContext('ctx-patch-a'), plan);
+    await llm.createPatch(createTestContext('ctx-patch-b'), plan);
+
+    const firstParams = getGenerateParamsAt(0);
+    const secondParams = getGenerateParamsAt(1);
+    const firstComponents = parseCacheHintComponents(firstParams?.providerOptions?.openaiCompatible?.user);
+    const secondComponents = parseCacheHintComponents(
+      secondParams?.providerOptions?.openaiCompatible?.user,
+    );
+
+    expect(firstComponents).toContain('ctx-patch-a');
+    expect(secondComponents).toContain('ctx-patch-b');
+  });
 });

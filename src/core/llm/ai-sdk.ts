@@ -15,6 +15,7 @@ import {
   resolveAiSdkProviderOptionsKey,
 } from './ai-sdk/provider-factory.js';
 import { wrapPlanEmpty, sanitizeError, LlmError } from './errors.js';
+import type { RequestAttachment } from './request-envelope.js';
 import { buildSharedRequestEnvelope } from './shared-request-assembly.js';
 import {
   extractUnifiedDiffFromLLMContent,
@@ -125,30 +126,14 @@ export class AiSdkLLM implements LLM {
       LIMITS.maxFilesChanged,
       lastError,
     );
-    const sharedEnvelope = buildSharedRequestEnvelope({
+    const content = await this.executeHighLevelPrompt({
       defaultNamespace: 'plan',
       contextHash: context.contextHash,
-      systemPrompt: '',
       userPrompt: prompt,
-      attachments: [
-        {
-          key: 'context-prompt',
-          kind: 'context',
-          label: 'Context prompt',
-          content: contextPrompt,
-          cacheSafe: true,
-        },
-      ],
+      attachments: [AiSdkLLM.buildContextPromptAttachment(contextPrompt)],
+      observationName: 'PLAN:plan-json',
+      signal,
     });
-
-    const response = await withAuditObservationName('PLAN:plan-json', async () =>
-      this.chat(sharedEnvelope.baseMessages, {
-        providerHints: sharedEnvelope.envelope.providerHints,
-        signal,
-      }),
-    );
-
-    const content = response.content;
     if (!content) {
       throw wrapPlanEmpty();
     }
@@ -178,34 +163,62 @@ export class AiSdkLLM implements LLM {
       LIMITS.maxDiffLines,
       lastError,
     );
-    const sharedEnvelope = buildSharedRequestEnvelope({
+    const content = await this.executeHighLevelPrompt({
       defaultNamespace: 'patch',
       contextHash: context.contextHash,
-      systemPrompt: '',
       userPrompt: prompt,
-      attachments: [
-        {
-          key: 'context-prompt',
-          kind: 'context',
-          label: 'Context prompt',
-          content: formattedContext,
-          cacheSafe: true,
-        },
-        {
-          key: 'plan-json',
-          kind: 'plan',
-          label: 'Plan JSON',
-          content: planStr,
-        },
-      ],
+      attachments: AiSdkLLM.buildPatchAttachments(formattedContext, planStr),
+      observationName: 'PATCH:unified-diff',
+      signal,
+    });
+    return extractUnifiedDiffFromLLMContent(content ?? '');
+  }
+
+  private static buildContextPromptAttachment(contextPrompt: string): RequestAttachment {
+    return {
+      key: 'context-prompt',
+      kind: 'context',
+      label: 'Context prompt',
+      content: contextPrompt,
+      cacheSafe: true,
+    };
+  }
+
+  private static buildPatchAttachments(formattedContext: string, planStr: string): RequestAttachment[] {
+    return [
+      AiSdkLLM.buildContextPromptAttachment(formattedContext),
+      {
+        key: 'plan-json',
+        kind: 'plan',
+        label: 'Plan JSON',
+        content: planStr,
+      },
+    ];
+  }
+
+  private async executeHighLevelPrompt(params: {
+    defaultNamespace: string;
+    contextHash?: string;
+    userPrompt: string;
+    attachments: RequestAttachment[];
+    observationName: string;
+    signal?: AbortSignal;
+  }): Promise<string | undefined> {
+    const sharedEnvelope = buildSharedRequestEnvelope({
+      defaultNamespace: params.defaultNamespace,
+      contextHash: params.contextHash,
+      systemPrompt: '',
+      userPrompt: params.userPrompt,
+      attachments: params.attachments,
     });
 
-    const response = await withAuditObservationName('PATCH:unified-diff', async () =>
+    const response = await withAuditObservationName(params.observationName, async () =>
       this.chat(sharedEnvelope.baseMessages, {
         providerHints: sharedEnvelope.envelope.providerHints,
-        signal,
+        signal: params.signal,
       }),
     );
-    return extractUnifiedDiffFromLLMContent(response.content || '');
+
+    return response.content;
   }
 }
