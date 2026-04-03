@@ -846,15 +846,15 @@ describe('Grizzco steps: PLAN/PATCH tool calling path', () => {
     await generatePlan(ctx);
 
     expect(routerCall).toHaveBeenCalledTimes(1);
-    expect(receivedRuntimeCtx?.contextSnapshot).toEqual({
+    expect(receivedRuntimeCtx?.contextSnapshot).toMatchObject({
       conversationContext,
       artifactHints,
       toolCallingAudit,
       planRuntime,
-      cacheSharing: {
+      cacheSharing: expect.objectContaining({
         namespace: 'plan',
         contextHash: 'ctx-from-context',
-      },
+      }),
     });
     expect(receivedRuntimeCtx?.phase).toBe('PLAN');
     expect(receivedRuntimeCtx?.repoRoot).toBe('C:\\repo');
@@ -1031,15 +1031,15 @@ describe('Grizzco steps: PLAN/PATCH tool calling path', () => {
     await generatePatch(ctx);
 
     expect(routerCall).toHaveBeenCalledTimes(1);
-    expect(receivedRuntimeCtx?.contextSnapshot).toEqual({
+    expect(receivedRuntimeCtx?.contextSnapshot).toMatchObject({
       conversationContext,
       artifactHints,
       toolCallingAudit,
       planRuntime,
-      cacheSharing: {
+      cacheSharing: expect.objectContaining({
         namespace: 'patch',
         contextHash: 'ctx-patch',
-      },
+      }),
     });
     expect(receivedRuntimeCtx?.phase).toBe('PATCH');
     expect(receivedRuntimeCtx?.repoRoot).toBe(repo.path);

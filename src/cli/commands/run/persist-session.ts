@@ -41,6 +41,14 @@ export async function persistRunSession(params: {
     params.sessionManager.mergeArtifactState(
       buildSessionArtifactStateFromLoopResult(params.result),
     );
+    for (const preview of params.result.artifactHints?.toolResultPreviewArtifacts ?? []) {
+      params.sessionManager.freezeReplacementDecision({
+        toolResultId: `${preview.label}::${preview.artifact.handle}`,
+        decision: 'replaced',
+        preview: preview.label,
+        sourceArtifactHandle: preview.artifact.handle,
+      });
+    }
 
     await refreshSessionSummary({
       sessionManager: params.sessionManager,

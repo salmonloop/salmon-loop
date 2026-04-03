@@ -408,6 +408,9 @@ export async function handleRunCommand(options: any, command: Command) {
     const artifactHints = shouldInjectSessionContext
       ? sessionManager?.getArtifactState()
       : undefined;
+    const replacementState = shouldInjectSessionContext
+      ? sessionManager?.getReplacementState()
+      : undefined;
 
     const loopParams = buildRunLoopParams({
       instruction: instructionText,
@@ -417,6 +420,7 @@ export async function handleRunCommand(options: any, command: Command) {
       languagePlugins,
       conversationContext: conversationContext.length > 0 ? conversationContext : undefined,
       artifactHints,
+      replacementState,
       mode,
       dryRun: allOptions.dryRun,
       forceReset: allOptions.forceReset,

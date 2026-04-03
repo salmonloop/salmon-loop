@@ -114,6 +114,20 @@ describe('SubAgentManager context snapshot', () => {
           toolResultStatus: 'ok',
         },
       ],
+      replacementState: {
+        schemaVersion: 1 as const,
+        entries: {
+          'tool-1': {
+            toolResultId: 'tool-1',
+            decision: 'replaced' as const,
+            preview: 'preview',
+            frozenAt: 10,
+            sourceArtifactHandle: 's8p://artifact/tool-preview-123',
+            identityVersion: 'v1' as const,
+            hashAlgorithm: 'sha256' as const,
+          },
+        },
+      },
       planRuntime: {
         sessionId: 'plan-1',
         planPathHint: '.salmonloop/plan.md',
@@ -121,6 +135,8 @@ describe('SubAgentManager context snapshot', () => {
       cacheSharing: {
         namespace: 'subagent-shared',
         contextHash: 'abc123',
+        toolSchemaHash: 'tool-hash-1',
+        systemPrefixDigest: 'prefix-1',
       },
     };
 
@@ -161,6 +177,8 @@ describe('SubAgentManager context snapshot', () => {
     );
     expect(initCtx.toolCallingAudit).toHaveLength(1);
     expect(initCtx.toolCallingAudit).not.toBe(requestSnapshot.toolCallingAudit);
+    expect(initCtx.replacementState).toEqual(requestSnapshot.replacementState);
+    expect(initCtx.replacementState).not.toBe(requestSnapshot.replacementState);
     expect(initCtx.planRuntime).toEqual({
       sessionId: 'plan-1',
       planPathHint: '.salmonloop/plan.md',
@@ -169,7 +187,82 @@ describe('SubAgentManager context snapshot', () => {
     expect(initCtx.cacheSharing).toEqual({
       namespace: 'subagent-shared',
       contextHash: 'abc123',
+      toolSchemaHash: 'tool-hash-1',
+      systemPrefixDigest: 'prefix-1',
     });
     expect(initCtx.cacheSharing).toBe(requestSnapshot.cacheSharing);
+  });
+
+  it('denies shared snapshot handoff when cache-critical digest fields are missing', async () => {
+    const { SubAgentManager } = await import('../../../src/core/sub-agent/core/manager.js');
+
+    const setup = mock(async () => undefined);
+    const teardown = mock(async () => undefined);
+
+    const manager = new SubAgentManager(
+      {
+        repoRoot: '/repo',
+        persistenceRoot: '/repo',
+        dryRun: false,
+        llm: {
+          chat: mock(),
+          createPlan: mock(),
+          createPatch: mock(),
+        },
+      } as any,
+      {
+        registerAgent: mock(),
+        isStopRequested: mock(() => false),
+        appendLog: mock(),
+        updateStatus: mock(),
+        listAgents: mock(() => []),
+        getAgent: mock(() => undefined),
+        tailLogs: mock(() => []),
+        requestStop: mock(() => true),
+      } as any,
+      {
+        registry: {
+          get: mock(() => ({
+            id: 'surgeon',
+            name: 'Surgeon',
+            role: 'Coder',
+            description: 'test',
+            allowedTools: ['fs.read'],
+            readOnly: false,
+            stratagem: 'surgeon',
+            timeoutMs: 1000,
+          })),
+        },
+        createRuntimeEnvironment: () =>
+          ({
+            setup,
+            teardown,
+            workspace: {
+              workPath: '/repo-shadow',
+              baseRepoPath: '/repo',
+              strategy: 'worktree',
+            },
+            initialSnapshotHash: 'shadow-head',
+          }) as any,
+        artifactStore: {
+          saveText: mock(),
+        },
+      } as any,
+    );
+
+    await manager.execute({
+      agent_ref: 'surgeon',
+      task: 'fix bug',
+      session_target: 'shared',
+      contextSnapshot: {
+        cacheSharing: {
+          namespace: 'shared',
+          contextHash: 'ctx-only',
+        },
+      },
+    } as any);
+
+    const initCtx = loopExecuteMock.mock.calls[0]?.[0];
+    expect(initCtx.cacheSharing).toBeUndefined();
   });
 });

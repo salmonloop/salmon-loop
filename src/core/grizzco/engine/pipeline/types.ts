@@ -1,5 +1,6 @@
 import type { ToolCallingAuditEntry } from '../../../llm/audit.js';
 import type { DiffMeta } from '../../../patch/diff.js';
+import type { ToolResultReplacementState } from '../../../session/replacement-state.js';
 import { FileStateResolver } from '../../../strata/layers/file-state-resolver.js';
 import type {
   ApplyBackTelemetry,
@@ -106,6 +107,7 @@ export interface InitCtx {
       artifact: ArtifactHandle;
     }>;
   };
+  replacementState?: ToolResultReplacementState;
   /**
    * Optional shared cache parameters propagated from parent sessions.
    * Sub-agents can reuse these values to keep cache-critical prefixes stable.

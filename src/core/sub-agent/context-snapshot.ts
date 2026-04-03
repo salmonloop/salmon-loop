@@ -1,4 +1,8 @@
 import type { ToolCallingAuditEntry } from '../llm/audit.js';
+import {
+  normalizeToolResultReplacementState,
+  type ToolResultReplacementState,
+} from '../session/replacement-state.js';
 import type { LLMMessage } from '../types/llm.js';
 
 import type { ArtifactHandle } from './artifacts/types.js';
@@ -93,11 +97,36 @@ function cloneArtifactHints(
   };
 }
 
+function cloneReplacementState(
+  state: ToolResultReplacementState | undefined,
+): ToolResultReplacementState | undefined {
+  const normalized = normalizeToolResultReplacementState(state);
+  if (!normalized) return undefined;
+  return {
+    schemaVersion: normalized.schemaVersion,
+    entries: Object.fromEntries(
+      Object.entries(normalized.entries).map(([key, value]) => [
+        key,
+        {
+          toolResultId: value.toolResultId,
+          decision: value.decision,
+          preview: value.preview,
+          frozenAt: value.frozenAt,
+          sourceArtifactHandle: value.sourceArtifactHandle,
+          identityVersion: value.identityVersion,
+          hashAlgorithm: value.hashAlgorithm,
+        },
+      ]),
+    ),
+  };
+}
+
 function hasAnySnapshotData(snapshot: SubAgentContextSnapshot): boolean {
   return Boolean(
     snapshot.conversationContext ||
     snapshot.artifactHints ||
     snapshot.toolCallingAudit ||
+    snapshot.replacementState ||
     snapshot.planRuntime ||
     snapshot.cacheSharing,
   );
@@ -143,6 +172,7 @@ export function cloneSubAgentContextSnapshot(
     conversationContext: cloneConversationContext(snapshot.conversationContext),
     artifactHints: cloneArtifactHints(snapshot.artifactHints),
     toolCallingAudit: cloneToolCallingAudit(snapshot.toolCallingAudit),
+    replacementState: cloneReplacementState(snapshot.replacementState),
     planRuntime: snapshot.planRuntime,
     cacheSharing: snapshot.cacheSharing,
   };
@@ -168,6 +198,7 @@ export function mergeSubAgentContextSnapshot(
       runtimeSnapshot?.conversationContext ?? requestSnapshot?.conversationContext,
     artifactHints: runtimeSnapshot?.artifactHints ?? requestSnapshot?.artifactHints,
     toolCallingAudit: runtimeSnapshot?.toolCallingAudit ?? requestSnapshot?.toolCallingAudit,
+    replacementState: runtimeSnapshot?.replacementState ?? requestSnapshot?.replacementState,
     planRuntime: runtimeSnapshot?.planRuntime ?? requestSnapshot?.planRuntime,
     cacheSharing: runtimeSnapshot?.cacheSharing ?? requestSnapshot?.cacheSharing,
   };

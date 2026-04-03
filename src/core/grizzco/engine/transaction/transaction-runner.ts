@@ -3,6 +3,7 @@ import { recordAuditEvent } from '../../../observability/audit-trail.js';
 import { mapErrorForAudit } from '../../../observability/error-mapping.js';
 import { ReflectionEngine } from '../../../reflection/engine.js';
 import type { ReflectionInput } from '../../../reflection/types.js';
+import type { ToolResultReplacementState } from '../../../session/replacement-state.js';
 import type { FileStateResolver } from '../../../strata/layers/file-state-resolver.js';
 import type { WorkspaceSynchronizer } from '../../../strata/runtime/synchronizer.js';
 import type { ArtifactHandle } from '../../../sub-agent/artifacts/types.js';
@@ -205,6 +206,7 @@ export class FlowTransactionRunner {
   private lastSubAgentAuditArtifacts: ArtifactHandle[];
   private lastRecentReadArtifacts: Array<{ path: string; artifact: ArtifactHandle }>;
   private lastToolResultPreviewArtifacts: Array<{ label: string; artifact: ArtifactHandle }>;
+  private lastReplacementState: ToolResultReplacementState | undefined;
 
   constructor(private readonly params: FlowTransactionRunnerParams) {
     this.lastVerifyArtifact = params.options.artifactHints?.verifyArtifact;
@@ -218,6 +220,7 @@ export class FlowTransactionRunner {
     this.lastToolResultPreviewArtifacts = [
       ...(params.options.artifactHints?.toolResultPreviewArtifacts ?? []),
     ];
+    this.lastReplacementState = params.options.replacementState;
   }
 
   private isShrinkCtx(ctx: TerminalCtx | undefined): ctx is ShrinkCtx {
@@ -268,6 +271,7 @@ export class FlowTransactionRunner {
               ? this.lastToolResultPreviewArtifacts
               : undefined,
         },
+        replacementState: this.lastReplacementState,
         lastError: this.currentLastError,
         applyBackRuntime: {
           activeRepoPath: this.params.env.activeRepoPath,
@@ -304,6 +308,7 @@ export class FlowTransactionRunner {
         this.lastToolResultPreviewArtifacts,
         extractToolResultPreviewArtifacts(terminalCtx?.toolCallingAudit),
       );
+      this.lastReplacementState = terminalCtx?.replacementState ?? this.lastReplacementState;
 
       const attemptFailure = resolveAttemptFailure({
         flowReport: result,

@@ -110,6 +110,7 @@ export const generatePatch: Step<PlanCtx, PatchCtx> = async (ctx) => {
     },
     conversationContext: ctx.options.conversationContext,
     artifactHints: ctx.artifactHints,
+    replacementState: ctx.replacementState,
     toolCallingAudit: ctx.toolCallingAudit,
   });
   const { cacheSurface, envelope, baseMessages } = patchPromptInput;

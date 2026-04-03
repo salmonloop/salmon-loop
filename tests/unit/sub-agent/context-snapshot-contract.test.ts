@@ -12,6 +12,7 @@ describe('sub-agent context snapshot contract', () => {
       conversationContext: 'clone',
       artifactHints: 'clone',
       toolCallingAudit: 'clone',
+      replacementState: 'clone',
       planRuntime: 'share',
       cacheSharing: 'share',
     });
@@ -57,6 +58,20 @@ describe('sub-agent context snapshot contract', () => {
           },
         },
       ],
+      replacementState: {
+        schemaVersion: 1 as const,
+        entries: {
+          'tool-1': {
+            toolResultId: 'tool-1',
+            decision: 'replaced' as const,
+            preview: 'preview',
+            frozenAt: 10,
+            sourceArtifactHandle: 's8p://artifact/tool-preview-1',
+            identityVersion: 'v1' as const,
+            hashAlgorithm: 'sha256' as const,
+          },
+        },
+      },
       planRuntime: {
         sessionId: 'plan-1',
         planPathHint: '.salmonloop/plan.md',
@@ -73,11 +88,13 @@ describe('sub-agent context snapshot contract', () => {
     expect(cloned?.conversationContext).toEqual(source.conversationContext);
     expect(cloned?.artifactHints).toEqual(source.artifactHints);
     expect(cloned?.toolCallingAudit).toEqual(source.toolCallingAudit);
+    expect(cloned?.replacementState).toEqual(source.replacementState);
     expect(cloned?.planRuntime).toBe(source.planRuntime);
     expect(cloned?.cacheSharing).toBe(source.cacheSharing);
     expect(cloned?.conversationContext).not.toBe(source.conversationContext);
     expect(cloned?.artifactHints).not.toBe(source.artifactHints);
     expect(cloned?.toolCallingAudit).not.toBe(source.toolCallingAudit);
+    expect(cloned?.replacementState).not.toBe(source.replacementState);
     expect(cloned?.toolCallingAudit?.[0]).not.toBe(source.toolCallingAudit[0]);
     expect(cloned?.toolCallingAudit?.[0]?.toolResultPreviewArtifact).toEqual(
       source.toolCallingAudit[0].toolResultPreviewArtifact,

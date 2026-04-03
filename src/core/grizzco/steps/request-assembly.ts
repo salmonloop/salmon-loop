@@ -8,6 +8,7 @@ import {
   type RequestArtifactHints,
   type RequestAttachment,
   type RequestEnvelope,
+  type ToolResultPreviewArtifactsProvider,
 } from '../../llm/request-envelope.js';
 import { formatContextForPrompt } from '../../llm/utils.js';
 import type { Context } from '../../types/context.js';
@@ -36,6 +37,7 @@ export interface BuildPhaseRequestEnvelopeArgs {
   conversationContext?: LLMMessage[];
   artifactHints?: RequestArtifactHints;
   toolCallingAudit?: ToolCallingAuditEntry[];
+  previewProvider?: ToolResultPreviewArtifactsProvider;
   extraAttachments?: RequestAttachment[];
   providerHints?: LLMProviderHints;
 }
@@ -66,6 +68,7 @@ export async function buildPhaseRequestEnvelope(
   const resolvedArtifactHints = resolveRequestArtifactHints({
     artifactHints: args.artifactHints,
     toolCallingAudit: args.toolCallingAudit,
+    previewProvider: args.previewProvider,
   });
   const envelope = buildRequestEnvelope({
     system: args.systemPrompt,

@@ -92,7 +92,9 @@ describe('generateResearch', () => {
           content: JSON.stringify({
             researchNotes: ['note'],
             researchFindings: [{ summary: 'finding' }],
-            sources: [{ toolName: 'web.search', summary: 'source', ok: true, timestamp: Date.now() }],
+            sources: [
+              { toolName: 'web.search', summary: 'source', ok: true, timestamp: Date.now() },
+            ],
             researchText: 'research summary',
           }),
         } as any;
@@ -159,15 +161,15 @@ describe('generateResearch', () => {
 
     expect(out.researchText).toBe('research summary');
     expect(receivedRuntimeContext?.phase).toBe(Phase.RESEARCH);
-    expect(receivedRuntimeContext?.contextSnapshot).toEqual({
+    expect(receivedRuntimeContext?.contextSnapshot).toMatchObject({
       conversationContext: ctx.options.conversationContext,
       artifactHints: ctx.artifactHints,
       toolCallingAudit: ctx.toolCallingAudit,
       planRuntime: ctx.planRuntime,
-      cacheSharing: {
+      cacheSharing: expect.objectContaining({
         namespace: 'research',
         contextHash: 'ctx-research',
-      },
+      }),
     });
   });
 });

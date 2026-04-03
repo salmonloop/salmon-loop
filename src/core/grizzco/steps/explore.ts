@@ -3,6 +3,7 @@ import path from 'path';
 import { text } from '../../../locales/index.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
 import { getExplorePrompt, getExploreSystemPrompt } from '../../prompts/runtime.js';
+import { SessionReplacementPreviewProvider } from '../../session/replacement-preview-provider.js';
 import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
 import { type RelatedFileContext } from '../../types/context.js';
 import { SalmonError } from '../../types/errors.js';
@@ -164,6 +165,7 @@ export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
     conversationContext: ctx.options.conversationContext,
     artifactHints: ctx.artifactHints,
     toolCallingAudit: ctx.toolCallingAudit,
+    previewProvider: new SessionReplacementPreviewProvider(ctx.replacementState),
   });
   const { cacheSurface, envelope, baseMessages } = requestEnvelope;
 

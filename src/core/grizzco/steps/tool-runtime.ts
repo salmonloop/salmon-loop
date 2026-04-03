@@ -1,3 +1,7 @@
+import {
+  buildSystemPrefixDigest,
+  buildToolSchemaHash,
+} from '../../sub-agent/prefix-consistency.js';
 import type { ToolRuntimeCtx } from '../../tools/types.js';
 import type { ExecutionPhase } from '../../types/runtime.js';
 import type { ContextCtx } from '../engine/pipeline/types.js';
@@ -5,7 +9,13 @@ import type { ContextCtx } from '../engine/pipeline/types.js';
 export function buildPhaseToolRuntimeContext(
   ctx: Pick<
     ContextCtx,
-    'workspace' | 'attempt' | 'options' | 'artifactHints' | 'toolCallingAudit' | 'planRuntime'
+    | 'workspace'
+    | 'attempt'
+    | 'options'
+    | 'artifactHints'
+    | 'toolCallingAudit'
+    | 'replacementState'
+    | 'planRuntime'
   >,
   phase: ExecutionPhase,
   cacheSurface: {
@@ -30,10 +40,20 @@ export function buildPhaseToolRuntimeContext(
       conversationContext: ctx.options.conversationContext,
       artifactHints: ctx.artifactHints,
       toolCallingAudit: ctx.toolCallingAudit,
+      replacementState: ctx.replacementState,
       planRuntime: ctx.planRuntime,
       cacheSharing: {
         namespace: cacheSurface.namespace,
         contextHash: cacheSurface.contextHash,
+        toolSchemaHash: buildToolSchemaHash({
+          phase,
+          allowedToolNames: ctx.options.allowedToolNames,
+        }),
+        systemPrefixDigest: buildSystemPrefixDigest({
+          phase,
+          namespace: cacheSurface.namespace,
+          contextHash: cacheSurface.contextHash,
+        }),
       },
     },
   };

@@ -1,12 +1,16 @@
 import { mkdtemp, rm, unlink } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { promisify } from 'util';
+import { gunzip, gzip } from 'zlib';
 
 import { afterEach, describe, expect, it } from 'bun:test';
 
 import { ChatSessionManager } from '../../../../src/core/session/manager.js';
 
 const tempRoots: string[] = [];
+const gunzipAsync = promisify(gunzip);
+const gzipAsync = promisify(gzip);
 
 async function createTempRepo(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), 'salmon-loop-session-archive-'));
@@ -157,5 +161,70 @@ describe('ChatSessionManager archive lifecycle', () => {
 
     const restored = await manager.restoreFromArchive('missing-archive-id');
     expect(restored).toBeNull();
+  });
+
+  it('fails closed when archived payload is corrupt', async () => {
+    const repoPath = await createTempRepo();
+    const manager = new ChatSessionManager(repoPath);
+    await manager.init();
+
+    const session = await manager.create('Corrupt Archive');
+    await manager.save();
+    await manager.archiveSession(session);
+
+    const archivePath = join(
+      repoPath,
+      '.salmonloop',
+      'compressed-sessions',
+      `${session.meta.id}.mpack.gz`,
+    );
+    await Bun.write(archivePath, 'corrupted-base64');
+
+    const restored = await manager.restoreFromArchive(session.meta.id);
+    expect(restored).toBeNull();
+    await expect(manager.load(session.meta.id)).resolves.not.toBeNull();
+  });
+
+  it('fails closed without partial publication when boundary metadata is malformed', async () => {
+    const repoPath = await createTempRepo();
+    const manager = new ChatSessionManager(repoPath);
+    await manager.init();
+
+    const session = await manager.create('Malformed Boundary');
+    manager.addMessage({
+      role: 'user',
+      content: 'boundary test',
+      timestamp: Date.now(),
+    });
+    await manager.save();
+    await manager.archiveSession(session);
+
+    const archivePath = join(
+      repoPath,
+      '.salmonloop',
+      'compressed-sessions',
+      `${session.meta.id}.mpack.gz`,
+    );
+    const encoded = await Bun.file(archivePath).text();
+    const bytes = Buffer.from(encoded, 'base64');
+    const decompressed = await gunzipAsync(bytes);
+    const payload = JSON.parse(decompressed.toString('utf8')) as any;
+    payload.meta.id = '';
+    const recompressed = await gzipAsync(Buffer.from(JSON.stringify(payload), 'utf8'));
+    await Bun.write(archivePath, Buffer.from(recompressed).toString('base64'));
+
+    const activeSessionFile = join(
+      repoPath,
+      '.salmonloop',
+      'chat-sessions',
+      `${session.meta.id}.json`,
+    );
+    await unlink(activeSessionFile);
+
+    const restored = await manager.restoreFromArchive(session.meta.id);
+    expect(restored).toBeNull();
+
+    const sessions = await manager.listSessions();
+    expect(sessions.some((item) => item.name === 'Malformed Boundary')).toBe(false);
   });
 });

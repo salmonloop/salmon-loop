@@ -1,1 +1,1 @@
-export const data = 'VERY IMPORTANT';
+export const data = "VERY IMPORTANT";

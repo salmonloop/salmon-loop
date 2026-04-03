@@ -376,15 +376,15 @@ describe('exploreCodebase', () => {
     await runExplore(mockCtx);
 
     expect(receivedRuntimeContext?.phase).toBe(Phase.EXPLORE);
-    expect(receivedRuntimeContext?.contextSnapshot).toEqual({
+    expect(receivedRuntimeContext?.contextSnapshot).toMatchObject({
       conversationContext: mockCtx.options.conversationContext,
       artifactHints: mockCtx.artifactHints,
       toolCallingAudit: mockCtx.toolCallingAudit,
       planRuntime: mockCtx.planRuntime,
-      cacheSharing: {
+      cacheSharing: expect.objectContaining({
         namespace: 'explore',
         contextHash: 'ctx-explore',
-      },
+      }),
     });
   });
 });

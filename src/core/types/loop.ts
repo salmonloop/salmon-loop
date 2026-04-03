@@ -3,6 +3,7 @@ import type { BudgetRunSummary } from '../context/budget/dynamic-adjuster.js';
 import type { ResolvedExtensions } from '../extensions/types.js';
 import type { RunOutcomeReporter } from '../observability/run-outcome-reporter.js';
 import type { PluginRegistry } from '../plugin/registry.js';
+import type { ToolResultReplacementState } from '../session/replacement-state.js';
 import type {
   CanonicalResponsesEvent,
   CanonicalResponsesEventSource,
@@ -423,6 +424,11 @@ export interface LoopOptions {
    * This allows resume/fork paths to preserve artifact-first context continuity.
    */
   artifactHints?: LoopArtifactHints;
+  /**
+   * Optional persisted replacement decisions for tool result previews.
+   * This keeps model-visible replacement bytes stable across resume/fork.
+   */
+  replacementState?: ToolResultReplacementState;
   auditScope?: 'repo' | 'user';
   /**
    * Optional Langfuse sessionId. If set, multiple runs will be grouped under a single Langfuse Session.

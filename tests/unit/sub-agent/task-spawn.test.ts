@@ -72,8 +72,27 @@ describe('sub-agent task-spawn context snapshot injection', () => {
           toolResultStatus: 'ok',
         },
       ],
+      replacementState: {
+        schemaVersion: 1,
+        entries: {
+          'tool-1': {
+            toolResultId: 'tool-1',
+            decision: 'replaced',
+            preview: 'preview',
+            frozenAt: 10,
+            sourceArtifactHandle: 's8p://artifact/tool-preview-123',
+            identityVersion: 'v1',
+            hashAlgorithm: 'sha256',
+          },
+        },
+      },
       planRuntime: { sessionId: 'plan-1', planPathHint: '.salmonloop/plan.md' },
-      cacheSharing: { namespace: 'plan', contextHash: 'ctx-shared' },
+      cacheSharing: {
+        namespace: 'plan',
+        contextHash: 'ctx-shared',
+        toolSchemaHash: 'tool-hash-1',
+        systemPrefixDigest: 'prefix-1',
+      },
     };
 
     await subAgentTaskSpec.executor(
@@ -83,6 +102,12 @@ describe('sub-agent task-spawn context snapshot injection', () => {
         session_target: 'shared',
         contextSnapshot: {
           conversationContext: [{ role: 'user', content: 'from request' }],
+          cacheSharing: {
+            namespace: 'plan',
+            contextHash: 'ctx-shared',
+            toolSchemaHash: 'tool-hash-1',
+            systemPrefixDigest: 'prefix-1',
+          },
         },
       },
       {
@@ -110,6 +135,8 @@ describe('sub-agent task-spawn context snapshot injection', () => {
       runtimeSnapshot.artifactHints.toolResultPreviewArtifacts,
     );
     expect(forwarded.contextSnapshot?.toolCallingAudit).not.toBe(runtimeSnapshot.toolCallingAudit);
+    expect(forwarded.contextSnapshot?.replacementState).toEqual(runtimeSnapshot.replacementState);
+    expect(forwarded.contextSnapshot?.replacementState).not.toBe(runtimeSnapshot.replacementState);
     expect(forwarded.contextSnapshot?.planRuntime).toBe(runtimeSnapshot.planRuntime);
     expect(forwarded.contextSnapshot?.cacheSharing).toBe(runtimeSnapshot.cacheSharing);
   });
@@ -141,5 +168,45 @@ describe('sub-agent task-spawn context snapshot injection', () => {
     expect(forwarded.contextSnapshot?.conversationContext).toEqual([
       { role: 'user', content: 'from request' },
     ]);
+  });
+
+  it('falls back to isolated mode when shared prefix consistency mismatches', async () => {
+    const { subAgentTaskSpec } = await import('../../../src/core/sub-agent/tools/task-spawn.js');
+
+    await subAgentTaskSpec.executor(
+      {
+        agent_ref: 'surgeon',
+        task: 'fix bug',
+        session_target: 'shared',
+        contextSnapshot: {
+          conversationContext: [{ role: 'user', content: 'from request' }],
+          cacheSharing: {
+            namespace: 'plan',
+            contextHash: 'ctx-request',
+            toolSchemaHash: 'tool-hash-request',
+            systemPrefixDigest: 'prefix-request',
+          },
+        },
+      },
+      {
+        repoRoot: '/repo',
+        attemptId: 1,
+        dryRun: false,
+        phase: 'PLAN',
+        contextSnapshot: {
+          conversationContext: [{ role: 'assistant', content: 'from runtime' }],
+          cacheSharing: {
+            namespace: 'plan',
+            contextHash: 'ctx-runtime',
+            toolSchemaHash: 'tool-hash-runtime',
+            systemPrefixDigest: 'prefix-runtime',
+          },
+        },
+      } as any,
+    );
+
+    const forwarded = executeMock.mock.calls[0]?.[0];
+    expect(forwarded.session_target).toBe('isolated');
+    expect(forwarded.contextSnapshot).toBeUndefined();
   });
 });

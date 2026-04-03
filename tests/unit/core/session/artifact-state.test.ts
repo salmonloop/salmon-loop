@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test';
 
 import {
   buildSessionArtifactStateFromLoopResult,
+  mergeReplacementStateFromArtifactHints,
   mergeSessionArtifactState,
   normalizeSessionArtifactState,
 } from '../../../../src/core/session/artifact-state.js';
@@ -114,5 +115,27 @@ describe('session/artifact-state', () => {
 
     expect(state?.verifyArtifact?.handle).toBe('s8p://artifact/verify-from-result');
     expect(state?.recentReadArtifacts?.[0]?.path).toBe('src/recent.ts');
+  });
+
+  it('merges replacement state deterministically from preview artifacts', () => {
+    const merged = mergeReplacementStateFromArtifactHints(undefined, {
+      toolResultPreviewArtifacts: [
+        {
+          label: 'Tool result preview: web.search',
+          artifact: {
+            handle: 's8p://artifact/preview-1',
+            mimeType: 'application/json',
+            sha256: 'preview-1',
+            size: 10,
+          },
+        },
+      ],
+    });
+
+    expect(merged?.schemaVersion).toBe(1);
+    expect(Object.keys(merged?.entries ?? {})).toHaveLength(1);
+    const entry = Object.values(merged?.entries ?? {})[0];
+    expect(entry?.decision).toBe('replaced');
+    expect(entry?.sourceArtifactHandle).toBe('s8p://artifact/preview-1');
   });
 });

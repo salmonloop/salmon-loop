@@ -1,16 +1,44 @@
 import { z } from 'zod';
 
 import { text } from '../../../locales/index.js';
+import { recordAuditEvent } from '../../observability/audit-trail.js';
 import type { ToolRuntimeCtx } from '../../tools/types.js';
 import { ToolSpec } from '../../tools/types.js';
 import { mergeSubAgentContextSnapshot } from '../context-snapshot.js';
 import { createSubAgentController } from '../controller.js';
 import { SubAgentManager } from '../core/manager.js';
+import { validateSharedPrefixConsistency } from '../prefix-consistency.js';
 import { SubAgentRequestSchema, type SubAgentRequest, type SubAgentResult } from '../types.js';
 
 function normalizeDispatchRequest(input: SubAgentRequest, ctx: ToolRuntimeCtx): SubAgentRequest {
   if (input.session_target !== 'shared') {
     return input;
+  }
+
+  const consistency = validateSharedPrefixConsistency({
+    requestSnapshot: input.contextSnapshot,
+    runtimeSnapshot: ctx.contextSnapshot,
+  });
+  if (!consistency.compatible) {
+    recordAuditEvent(
+      'sub_agent.shared.prefix_consistency_failed',
+      {
+        reason: consistency.reason,
+        expected: consistency.expected,
+        actual: consistency.actual,
+      },
+      {
+        source: 'smallfry',
+        severity: 'medium',
+        scope: 'session',
+        phase: ctx.phase,
+      },
+    );
+    return {
+      ...input,
+      session_target: 'isolated',
+      contextSnapshot: undefined,
+    };
   }
 
   return {

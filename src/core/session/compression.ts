@@ -4,6 +4,10 @@ import { gzip, gunzip } from 'zlib';
 import { FileAdapter } from '../adapters/fs/index.js';
 
 import { normalizeSessionArtifactState, type SessionArtifactState } from './artifact-state.js';
+import {
+  normalizeToolResultReplacementState,
+  type ToolResultReplacementState,
+} from './replacement-state.js';
 import type { ChatSession, ChatMessage } from './types.js';
 
 export interface PartialChatSession {
@@ -18,6 +22,7 @@ export interface PartialChatSession {
     totalTokens?: { input: number; output: number };
     snapshots?: unknown[];
     artifactState?: SessionArtifactState;
+    replacementState?: ToolResultReplacementState;
   };
   messages: Array<{
     role: 'user' | 'assistant' | 'system';
@@ -71,6 +76,7 @@ export interface CompressedSession {
     compressedSize: number;
     compressionRatio: number;
     artifactState?: SessionArtifactState;
+    replacementState?: ToolResultReplacementState;
   };
 
   // Compressed session content
@@ -164,6 +170,7 @@ export class SessionCompressor {
         compressedSize: 0, // Will be updated after serialization
         compressionRatio: 0, // Will be calculated after serialization
         artifactState: normalizeSessionArtifactState(session.meta.artifactState),
+        replacementState: normalizeToolResultReplacementState(session.meta.replacementState),
       },
       compressed: {
         summary: summary.text,
@@ -224,6 +231,7 @@ export class SessionCompressor {
         totalTokens: compressed.compressed.stats.totalTokens,
         snapshots: [], // Will be restored from full data
         artifactState: normalizeSessionArtifactState(compressed.meta.artifactState),
+        replacementState: normalizeToolResultReplacementState(compressed.meta.replacementState),
       },
       messages: compressed.compressed.keyMessages.map((msg) => ({
         role: msg.role,

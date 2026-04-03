@@ -8,6 +8,7 @@ import { recordAuditEvent } from '../../observability/audit-trail.js';
 import { logIgnoredError } from '../../observability/ignored-error.js';
 import { readPlan, updatePlan } from '../../plan/index.js';
 import { getPlanPrompt, getPlanSystemPrompt } from '../../prompts/runtime.js';
+import { SessionReplacementPreviewProvider } from '../../session/replacement-preview-provider.js';
 import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
 import type { Plan } from '../../types/planning.js';
 import { Phase } from '../../types/runtime.js';
@@ -193,6 +194,7 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
     conversationContext: ctx.options.conversationContext,
     artifactHints: ctx.artifactHints,
     toolCallingAudit: ctx.toolCallingAudit,
+    previewProvider: new SessionReplacementPreviewProvider(ctx.replacementState),
   });
   const { cacheSurface, envelope, baseMessages } = requestEnvelope;
 

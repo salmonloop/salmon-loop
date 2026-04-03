@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import type { ToolCallingAuditEntry } from '../llm/audit.js';
+import type { ToolResultReplacementState } from '../session/replacement-state.js';
 import { LoopResult } from '../types/index.js';
 import type { LLMMessage } from '../types/llm.js';
 
@@ -75,6 +76,7 @@ export type SubAgentContextSnapshotField =
   | 'conversationContext'
   | 'artifactHints'
   | 'toolCallingAudit'
+  | 'replacementState'
   | 'planRuntime'
   | 'cacheSharing';
 export type SubAgentContextSnapshotSemantics = 'clone' | 'share';
@@ -92,6 +94,7 @@ export const SUB_AGENT_CONTEXT_SNAPSHOT_FIELD_SEMANTICS: Record<
   conversationContext: 'clone',
   artifactHints: 'clone',
   toolCallingAudit: 'clone',
+  replacementState: 'clone',
   planRuntime: 'share',
   cacheSharing: 'share',
 };
@@ -109,6 +112,7 @@ export interface SubAgentContextSnapshot {
   conversationContext?: LLMMessage[];
   artifactHints?: SubAgentArtifactHints;
   toolCallingAudit?: ToolCallingAuditEntry[];
+  replacementState?: ToolResultReplacementState;
   planRuntime?: {
     sessionId: string;
     planPathHint: string;
@@ -116,6 +120,8 @@ export interface SubAgentContextSnapshot {
   cacheSharing?: {
     namespace?: string;
     contextHash?: string;
+    toolSchemaHash?: string;
+    systemPrefixDigest?: string;
   };
 }
 
@@ -224,6 +230,23 @@ export const SubAgentRequestSchema = z.object({
         })
         .optional(),
       toolCallingAudit: z.array(z.record(z.string(), z.unknown())).optional(),
+      replacementState: z
+        .object({
+          schemaVersion: z.number(),
+          entries: z.record(
+            z.string(),
+            z.object({
+              toolResultId: z.string(),
+              decision: z.enum(['kept', 'replaced']),
+              preview: z.string(),
+              frozenAt: z.number(),
+              sourceArtifactHandle: z.string().optional(),
+              identityVersion: z.string(),
+              hashAlgorithm: z.string(),
+            }),
+          ),
+        })
+        .optional(),
       planRuntime: z
         .object({
           sessionId: z.string(),
@@ -234,6 +257,8 @@ export const SubAgentRequestSchema = z.object({
         .object({
           namespace: z.string().optional(),
           contextHash: z.string().optional(),
+          toolSchemaHash: z.string().optional(),
+          systemPrefixDigest: z.string().optional(),
         })
         .optional(),
     })

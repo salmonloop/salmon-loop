@@ -3,6 +3,8 @@ import type { ContextResult } from '../../../context/types.js';
 import type { ToolCallingAuditEntry } from '../../../llm/audit.js';
 import type { RequestArtifactHints, RequestEnvelope } from '../../../llm/request-envelope.js';
 import { getPatchPrompt, getPatchSystemPrompt } from '../../../prompts/runtime.js';
+import { SessionReplacementPreviewProvider } from '../../../session/replacement-preview-provider.js';
+import type { ToolResultReplacementState } from '../../../session/replacement-state.js';
 import type { Context } from '../../../types/context.js';
 import type { LLMMessage } from '../../../types/llm.js';
 import type { Plan } from '../../../types/planning.js';
@@ -26,6 +28,7 @@ export interface BuildPatchPromptInputArgs {
     contextHash?: string;
   };
   artifactHints?: RequestArtifactHints;
+  replacementState?: ToolResultReplacementState;
   toolCallingAudit?: ToolCallingAuditEntry[];
   promptVisibleTools?: Parameters<typeof getPatchSystemPrompt>[0];
   onCacheMismatch?: (mismatch: CacheSharingMismatch) => void;
@@ -64,6 +67,7 @@ export async function buildPatchPromptInput(
       ),
     conversationContext: args.conversationContext,
     artifactHints: args.artifactHints,
+    previewProvider: new SessionReplacementPreviewProvider(args.replacementState),
     toolCallingAudit: args.toolCallingAudit,
     extraAttachments: [
       {

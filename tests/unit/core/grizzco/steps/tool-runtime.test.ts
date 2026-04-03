@@ -79,10 +79,12 @@ describe('buildPhaseToolRuntimeContext', () => {
         artifactHints,
         toolCallingAudit,
         planRuntime,
-        cacheSharing: {
+        cacheSharing: expect.objectContaining({
           namespace: 'explore',
           contextHash: 'ctx-123',
-        },
+          toolSchemaHash: expect.any(String),
+          systemPrefixDigest: expect.any(String),
+        }),
       },
     });
   });

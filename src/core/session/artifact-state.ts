@@ -1,6 +1,12 @@
 import type { ArtifactHandle } from '../sub-agent/artifacts/types.js';
 import type { LoopArtifactHints, LoopResult } from '../types/loop.js';
 
+import {
+  createToolResultIdentity,
+  freezeToolResultReplacementDecision,
+  type ToolResultReplacementState,
+} from './replacement-state.js';
+
 const MAX_SUBAGENT_ARTIFACTS = 4;
 const MAX_READ_ARTIFACTS = 6;
 const MAX_PREVIEW_ARTIFACTS = 6;
@@ -203,4 +209,33 @@ export function buildSessionArtifactStateFromLoopResult(
       : undefined;
 
   return normalizeSessionArtifactState(withVerifyFallback);
+}
+
+export function mergeReplacementStateFromArtifactHints(
+  existing: ToolResultReplacementState | undefined,
+  artifactHints: LoopArtifactHints | undefined,
+  now: () => number = () => Date.now(),
+): ToolResultReplacementState | undefined {
+  let next = existing;
+  for (const item of artifactHints?.toolResultPreviewArtifacts ?? []) {
+    const toolResultId = createToolResultIdentity({
+      canonicalToolCallIdentity: item.label,
+      payload: {
+        label: item.label,
+        handle: item.artifact.handle,
+      },
+    });
+    next = freezeToolResultReplacementDecision(
+      next,
+      {
+        toolResultId,
+        decision: 'replaced',
+        preview: item.label,
+        sourceArtifactHandle: item.artifact.handle,
+        frozenAt: now(),
+      },
+      { maxEntries: 256 },
+    );
+  }
+  return next;
 }

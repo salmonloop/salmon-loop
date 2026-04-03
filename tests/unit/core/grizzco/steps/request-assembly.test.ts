@@ -1,6 +1,7 @@
 import { describe, expect, it, mock } from 'bun:test';
 
 import { buildPhaseRequestEnvelope } from '../../../../../src/core/grizzco/steps/request-assembly.js';
+import { SessionReplacementPreviewProvider } from '../../../../../src/core/session/replacement-preview-provider.js';
 import { Phase } from '../../../../../src/core/types/runtime.js';
 
 describe('buildPhaseRequestEnvelope', () => {
@@ -104,5 +105,36 @@ describe('buildPhaseRequestEnvelope', () => {
         (item) => item.key === 'plan-json' && item.kind === 'plan' && item.content.includes('goal'),
       ),
     ).toBe(true);
+  });
+
+  it('hydrates preview artifacts from replacement preview provider', async () => {
+    const built = await buildPhaseRequestEnvelope({
+      phase: Phase.PLAN,
+      defaultNamespace: 'plan',
+      context: {
+        primaryFile: 'src/index.ts',
+        primaryText: 'export const value = 1;',
+        contextHash: 'local-hash',
+      } as any,
+      systemPrompt: 'system prompt',
+      buildUserPrompt: () => 'user prompt',
+      previewProvider: new SessionReplacementPreviewProvider({
+        schemaVersion: 1,
+        entries: {
+          'tool-1': {
+            toolResultId: 'tool-1',
+            decision: 'replaced',
+            preview: '{"ok":true}',
+            frozenAt: 10,
+            sourceArtifactHandle: 's8p://artifact/tool-preview-1',
+            identityVersion: 'v1',
+            hashAlgorithm: 'sha256',
+          },
+        },
+      }),
+    });
+
+    const lastUserMessage = built.baseMessages[built.baseMessages.length - 1];
+    expect(lastUserMessage?.content).toContain('s8p://artifact/tool-preview-1');
   });
 });

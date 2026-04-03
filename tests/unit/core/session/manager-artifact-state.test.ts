@@ -48,6 +48,13 @@ describe('ChatSessionManager artifact state', () => {
         },
       ],
     });
+    manager.freezeReplacementDecision({
+      toolResultId: 'tool-1',
+      decision: 'replaced',
+      preview: 'preview payload',
+      sourceArtifactHandle: 's8p://artifact/preview-1',
+      frozenAt: 10,
+    });
     await manager.save();
 
     const reloaded = new ChatSessionManager(repoPath);
@@ -64,6 +71,17 @@ describe('ChatSessionManager artifact state', () => {
             artifact: expect.objectContaining({ handle: 's8p://artifact/preview-1' }),
           }),
         ],
+      }),
+    );
+    expect(reloaded.getReplacementState()).toEqual(
+      expect.objectContaining({
+        schemaVersion: 1,
+        entries: expect.objectContaining({
+          'tool-1': expect.objectContaining({
+            decision: 'replaced',
+            sourceArtifactHandle: 's8p://artifact/preview-1',
+          }),
+        }),
       }),
     );
   });

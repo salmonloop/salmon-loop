@@ -1,6 +1,7 @@
 import { text } from '../../../locales/index.js';
 import { emitLlmOutput } from '../../llm/output-policy.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
+import { SessionReplacementPreviewProvider } from '../../session/replacement-preview-provider.js';
 import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
 import { Phase } from '../../types/runtime.js';
 import { resolveLlmToolCallingPolicy } from '../dsl/llm-strategy.js';
@@ -133,6 +134,7 @@ export async function generateResearch(ctx: ExploreCtx): Promise<ResearchCtx> {
     conversationContext: ctx.options.conversationContext,
     artifactHints: ctx.artifactHints,
     toolCallingAudit: ctx.toolCallingAudit,
+    previewProvider: new SessionReplacementPreviewProvider(ctx.replacementState),
   });
   const { cacheSurface, envelope, baseMessages } = requestEnvelope;
 

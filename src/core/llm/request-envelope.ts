@@ -57,6 +57,10 @@ export interface RequestArtifactHints {
   }>;
 }
 
+export interface ToolResultPreviewArtifactsProvider {
+  getPreviewHints(): RequestArtifactHints['toolResultPreviewArtifacts'];
+}
+
 function isArtifactHandle(value: unknown): value is ArtifactHandle {
   if (!value || typeof value !== 'object') return false;
   const candidate = value as {
@@ -164,6 +168,7 @@ function mergePreviewArtifactRefs(
 export function resolveRequestArtifactHints(params: {
   artifactHints?: RequestArtifactHints;
   toolCallingAudit?: ToolCallingAuditEntry[];
+  previewProvider?: ToolResultPreviewArtifactsProvider;
 }): RequestArtifactHints | undefined {
   const direct = params.artifactHints;
   const auditEntries = params.toolCallingAudit ?? [];
@@ -214,7 +219,7 @@ export function resolveRequestArtifactHints(params: {
     ),
     recentReadArtifacts: mergeReadArtifactRefs(direct?.recentReadArtifacts, auditReadArtifacts),
     toolResultPreviewArtifacts: mergePreviewArtifactRefs(
-      direct?.toolResultPreviewArtifacts,
+      params.previewProvider?.getPreviewHints(),
       auditPreviewArtifacts,
     ),
   };

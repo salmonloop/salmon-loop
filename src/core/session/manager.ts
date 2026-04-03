@@ -6,12 +6,19 @@ import { getLogger } from '../observability/logger.js';
 import type { LoopIteration } from '../types/index.js';
 
 import {
+  mergeReplacementStateFromArtifactHints,
   mergeSessionArtifactState,
   normalizeSessionArtifactState,
   type SessionArtifactState,
 } from './artifact-state.js';
 import { SessionCompressor, CompressedSessionStore } from './compression.js';
 import { SessionPruningEngine, type MemoryPruningStrategy } from './pruning-strategy.js';
+import {
+  freezeToolResultReplacementDecision,
+  normalizeToolResultReplacementState,
+  type ToolResultReplacementState,
+} from './replacement-state.js';
+import { createResumeRepairPipeline } from './resume-repair/pipeline.js';
 import type { ChatSession, ChatMessage, SummaryState } from './types.js';
 
 /**
@@ -115,6 +122,9 @@ export class ChatSessionManager {
       const data = await this.fileAdapter.readFile(filePath);
       const parsed = JSON.parse(data) as ChatSession;
       parsed.meta.artifactState = normalizeSessionArtifactState(parsed.meta.artifactState);
+      parsed.meta.replacementState = normalizeToolResultReplacementState(
+        parsed.meta.replacementState,
+      );
       this.currentSession = parsed;
       return this.currentSession;
     } catch {
@@ -230,6 +240,31 @@ export class ChatSessionManager {
       this.currentSession.meta.artifactState,
       state,
     );
+    this.currentSession.meta.replacementState = mergeReplacementStateFromArtifactHints(
+      this.currentSession.meta.replacementState,
+      state,
+    );
+  }
+
+  getReplacementState(): ToolResultReplacementState | undefined {
+    return normalizeToolResultReplacementState(this.currentSession?.meta.replacementState);
+  }
+
+  updateReplacementState(state: ToolResultReplacementState | undefined): void {
+    if (!this.currentSession) throw new Error('No active session');
+    this.currentSession.meta.replacementState = normalizeToolResultReplacementState(state);
+  }
+
+  freezeReplacementDecision(
+    entry: Parameters<typeof freezeToolResultReplacementDecision>[1],
+    options?: Parameters<typeof freezeToolResultReplacementDecision>[2],
+  ): void {
+    if (!this.currentSession) throw new Error('No active session');
+    this.currentSession.meta.replacementState = freezeToolResultReplacementDecision(
+      this.currentSession.meta.replacementState,
+      entry,
+      options,
+    );
   }
 
   /**
@@ -324,6 +359,9 @@ export class ChatSessionManager {
         const data = await this.fileAdapter.readFile(filePath);
         const session = JSON.parse(data) as ChatSession;
         session.meta.artifactState = normalizeSessionArtifactState(session.meta.artifactState);
+        session.meta.replacementState = normalizeToolResultReplacementState(
+          session.meta.replacementState,
+        );
         sessions.push(session);
       } catch (error) {
         // Skip corrupted session files
@@ -403,42 +441,36 @@ export class ChatSessionManager {
     if (!filename) return null;
 
     try {
-      const compressed = await this.compressedStore.loadCompressed(filename);
-      if (!compressed) return null;
+      const pipeline = createResumeRepairPipeline({
+        compressedStore: this.compressedStore,
+        compressor: this.compressor,
+        repoPath: this.repoPath,
+      });
+      const repaired = await pipeline.run({ archiveId, filename });
+      if (!repaired.session) {
+        const violationText = repaired.contractViolations.map((entry) => entry.message).join('; ');
+        getLogger().warn(
+          `Failed to restore archived session ${archiveId}: ${violationText || 'repair pipeline rejected archive'}`,
+        );
+        return null;
+      }
 
-      const partial = await this.compressor.decompressToSession(compressed);
-      const reconstructed: ChatSession = {
-        meta: {
-          id: partial.meta.id,
-          name: partial.meta.name,
-          repoPath: this.repoPath,
-          createdAt: partial.meta.createdAt,
-          updatedAt: Date.now(),
-          totalIterations: partial.meta.totalIterations ?? partial.iterations.length,
-          successfulIterations: partial.meta.successfulIterations ?? 0,
-          totalTokens: partial.meta.totalTokens ?? { input: 0, output: 0 },
-          snapshots: [],
-          artifactState: normalizeSessionArtifactState(partial.meta.artifactState),
-        },
-        messages: partial.messages.map((message, index) => ({
-          id: `restored-msg-${index}`,
-          role: message.role,
-          content: message.content,
-          timestamp: message.timestamp,
-        })),
-        iterations: partial.iterations.map((iteration, index) => ({
-          id: iteration.id || `restored-iter-${index + 1}`,
-          attempt: index + 1,
-          plan: null,
-          patch: null,
-          error: iteration.outcome === 'failure' ? iteration.summary : undefined,
-          contextSummary: iteration.summary,
-        })),
+      repaired.session.meta.resumeRepairState = {
+        schemaVersion: 1,
+        lastRunAt: Date.now(),
+        warnings: repaired.warnings.map((entry) => `${entry.code}: ${entry.message}`),
+        repairActions: repaired.repairActions.map((entry) => `${entry.code}: ${entry.detail}`),
+        contractViolations: repaired.contractViolations.map(
+          (entry) => `${entry.code}: ${entry.message}`,
+        ),
       };
+      repaired.session.meta.replacementState = normalizeToolResultReplacementState(
+        repaired.replacementState,
+      );
 
-      this.currentSession = reconstructed;
+      this.currentSession = repaired.session;
       await this.save();
-      return reconstructed;
+      return repaired.session;
     } catch (error) {
       getLogger().warn(`Failed to restore archived session ${archiveId}: ${error}`);
       return null;

@@ -465,6 +465,7 @@ describe('handleRunCommand outcome reporter', () => {
         { id: 'm-2', role: 'user', content: 'recent user', timestamp: 3 },
       ],
       getArtifactState: () => undefined,
+      getReplacementState: () => undefined,
     };
 
     const { handleRunCommand } = await import('../../../../src/cli/commands/run/handler.js');
@@ -514,6 +515,7 @@ describe('handleRunCommand outcome reporter', () => {
           },
         ],
       }),
+      getReplacementState: () => undefined,
     };
 
     const { handleRunCommand } = await import('../../../../src/cli/commands/run/handler.js');

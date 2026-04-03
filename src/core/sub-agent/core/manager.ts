@@ -17,6 +17,7 @@ import { ArtifactStore } from '../artifacts/store.js';
 import { cloneSubAgentContextSnapshot } from '../context-snapshot.js';
 import type { SubAgentControllerPort } from '../controller.js';
 import { isReadOnlyModelPhase, resolveSubAgentDryRun } from '../dispatch-policy.js';
+import { validateSharedPrefixConsistency } from '../prefix-consistency.js';
 import type { SubAgentRegistry } from '../registry.js';
 import { getSubAgentRegistry } from '../registry.js';
 import type {
@@ -74,18 +75,48 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
    * Spawns a new sub-agent and monitors its execution.
    */
   async execute(request: SubAgentRequest): Promise<SubAgentResult> {
-    const profile = this.deps.registry.get(request.agent_ref);
+    const normalizedRequest =
+      request.session_target === 'shared'
+        ? (() => {
+            const consistency = validateSharedPrefixConsistency({
+              requestSnapshot: request.contextSnapshot,
+              runtimeSnapshot: request.contextSnapshot,
+            });
+            if (consistency.compatible) return request;
+
+            recordAuditEvent(
+              'sub_agent.shared.prefix_consistency_failed',
+              {
+                reason: consistency.reason,
+                expected: consistency.expected,
+                actual: consistency.actual,
+              },
+              {
+                source: 'smallfry',
+                severity: 'medium',
+                scope: 'session',
+                phase: this.ctx.phase,
+              },
+            );
+            return {
+              ...request,
+              session_target: 'isolated',
+              contextSnapshot: undefined,
+            } as SubAgentRequest;
+          })()
+        : request;
+    const profile = this.deps.registry.get(normalizedRequest.agent_ref);
 
     if (!profile) {
       return this.fail(
-        request.agent_ref,
-        text.smallfry.errors.profileNotFound(request.agent_ref),
+        normalizedRequest.agent_ref,
+        text.smallfry.errors.profileNotFound(normalizedRequest.agent_ref),
         'LOOP_FAILED',
       );
     }
 
     const agentId = `smallfry-${randomBytes(4).toString('hex')}`;
-    const currentDepth = request.recursionDepth || 0;
+    const currentDepth = normalizedRequest.recursionDepth || 0;
     const MAX_RECURSION_DEPTH = 2;
 
     if (currentDepth >= MAX_RECURSION_DEPTH) {
@@ -116,7 +147,7 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
 
       const effectiveDryRun = resolveSubAgentDryRun(this.ctx.dryRun, this.ctx.phase);
       const runtimeEnv = await this.setupIsolatedEnvironment(
-        request,
+        normalizedRequest,
         llm,
         agentId,
         effectiveDryRun,
@@ -133,21 +164,23 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
         const fsAdapter = createFileSystemAdapter(flowMode);
 
         // 2. Construct InitCtx for the smallfry
-        const initCtx = this.applyContextSnapshot(request.contextSnapshot, {
+        const initCtx = this.applyContextSnapshot(normalizedRequest.contextSnapshot, {
           workspace: {
             workPath: activePath,
             baseRepoPath: workspace.baseRepoPath,
             strategy: workspace.strategy,
           },
           options: {
-            instruction: request.task,
+            instruction: normalizedRequest.task,
             repoPath: activePath,
             dryRun: effectiveDryRun,
-            contextFiles: request.contextFiles || [],
+            contextFiles: normalizedRequest.contextFiles || [],
             llm,
             recursionDepth: currentDepth + 1, // Increment depth for child
             allowedToolNames: this.filterAllowedTools(profile.allowedTools, this.ctx.phase),
-            timeoutMs: request.timeout_seconds ? request.timeout_seconds * 1000 : profile.timeoutMs,
+            timeoutMs: normalizedRequest.timeout_seconds
+              ? normalizedRequest.timeout_seconds * 1000
+              : profile.timeoutMs,
           },
           mode: flowMode,
           fs: fsAdapter,
@@ -217,6 +250,7 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
       cacheSharing: normalized.cacheSharing ?? initCtx.cacheSharing,
       planRuntime: normalized.planRuntime ?? initCtx.planRuntime,
       toolCallingAudit: normalized.toolCallingAudit ?? initCtx.toolCallingAudit,
+      replacementState: normalized.replacementState ?? initCtx.replacementState,
       artifactHints: normalized.artifactHints ?? initCtx.artifactHints,
       options: {
         ...initCtx.options,

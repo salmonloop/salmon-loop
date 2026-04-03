@@ -296,6 +296,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
         budgetTokens: getDefaultSessionContextBudgetTokens({ modelId: modelIdForBudget }),
       });
       const artifactHints = sessionManager.getArtifactState();
+      const replacementState = sessionManager.getReplacementState();
 
       // Single source of truth: chat runtime owns when a user message is appended to the UI list.
       // The UI layer must not also append user messages (to avoid duplicates).
@@ -358,6 +359,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
             auditScope: options.auditScope,
             conversationContext: conversationContext.length > 0 ? conversationContext : undefined,
             artifactHints,
+            replacementState,
             astValidation: options.astValidation,
             languagePlugins: options.languagePlugins,
             // Resolve sessionId at call time to support `/session` switching.
@@ -424,6 +426,14 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
         TokenTracker.accumulate(sessionManager.getCurrent(), usage);
       }
       sessionManager.mergeArtifactState(buildSessionArtifactStateFromLoopResult(result));
+      for (const preview of result.artifactHints?.toolResultPreviewArtifacts ?? []) {
+        sessionManager.freezeReplacementDecision({
+          toolResultId: `${preview.label}::${preview.artifact.handle}`,
+          decision: 'replaced',
+          preview: preview.label,
+          sourceArtifactHandle: preview.artifact.handle,
+        });
+      }
 
       await refreshSessionSummary({
         sessionManager,
