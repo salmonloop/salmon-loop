@@ -15,7 +15,7 @@ import {
   resolveAiSdkProviderOptionsKey,
 } from './ai-sdk/provider-factory.js';
 import { wrapPlanEmpty, sanitizeError, LlmError } from './errors.js';
-import { buildRequestEnvelope, materializeRequestEnvelope } from './request-envelope.js';
+import { buildSharedRequestEnvelope } from './shared-request-assembly.js';
 import {
   extractUnifiedDiffFromLLMContent,
   formatContextForPrompt,
@@ -125,9 +125,11 @@ export class AiSdkLLM implements LLM {
       LIMITS.maxFilesChanged,
       lastError,
     );
-    const envelope = buildRequestEnvelope({
-      system: '',
-      user: prompt,
+    const sharedEnvelope = buildSharedRequestEnvelope({
+      defaultNamespace: 'plan',
+      contextHash: context.contextHash,
+      systemPrompt: '',
+      userPrompt: prompt,
       attachments: [
         {
           key: 'context-prompt',
@@ -137,16 +139,11 @@ export class AiSdkLLM implements LLM {
           cacheSafe: true,
         },
       ],
-      cacheSafeSurface: {
-        contextHash: context.contextHash,
-        namespace: 'plan',
-        mode: 'cache_safe_only',
-      },
     });
 
     const response = await withAuditObservationName('PLAN:plan-json', async () =>
-      this.chat(materializeRequestEnvelope(envelope), {
-        providerHints: envelope.providerHints,
+      this.chat(sharedEnvelope.baseMessages, {
+        providerHints: sharedEnvelope.envelope.providerHints,
         signal,
       }),
     );
@@ -181,9 +178,11 @@ export class AiSdkLLM implements LLM {
       LIMITS.maxDiffLines,
       lastError,
     );
-    const envelope = buildRequestEnvelope({
-      system: '',
-      user: prompt,
+    const sharedEnvelope = buildSharedRequestEnvelope({
+      defaultNamespace: 'patch',
+      contextHash: context.contextHash,
+      systemPrompt: '',
+      userPrompt: prompt,
       attachments: [
         {
           key: 'context-prompt',
@@ -199,16 +198,11 @@ export class AiSdkLLM implements LLM {
           content: planStr,
         },
       ],
-      cacheSafeSurface: {
-        contextHash: context.contextHash,
-        namespace: 'patch',
-        mode: 'cache_safe_only',
-      },
     });
 
     const response = await withAuditObservationName('PATCH:unified-diff', async () =>
-      this.chat(materializeRequestEnvelope(envelope), {
-        providerHints: envelope.providerHints,
+      this.chat(sharedEnvelope.baseMessages, {
+        providerHints: sharedEnvelope.envelope.providerHints,
         signal,
       }),
     );

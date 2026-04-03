@@ -44,6 +44,10 @@ import type { Plan } from '../../src/core/types/planning.js';
 const LARGE_CONTEXT = 'export const value = 1;\n'.repeat(400);
 
 interface GenerateTextCallParams {
+  messages?: Array<{
+    role: string;
+    content?: string;
+  }>;
   providerOptions?: {
     openaiCompatible?: {
       user?: string;
@@ -65,6 +69,26 @@ function getFirstGenerateParams(): GenerateTextCallParams | undefined {
   const firstCall = generateTextMock.mock.calls[0] as unknown[] | undefined;
   const [params] = firstCall ?? [];
   return params as GenerateTextCallParams | undefined;
+}
+
+function getGenerateParamsAt(index: number): GenerateTextCallParams | undefined {
+  const calls = generateTextMock.mock.calls as unknown[][];
+  const call = calls[index];
+  const [params] = call ?? [];
+  return params as GenerateTextCallParams | undefined;
+}
+
+function parseCacheHintComponents(userHint: string | undefined): string[] {
+  if (!userHint || !userHint.startsWith('cache:')) return [];
+  const raw = userHint.slice('cache:'.length);
+  const parsed = JSON.parse(raw) as {
+    components?: string[];
+  };
+  return Array.isArray(parsed.components) ? parsed.components : [];
+}
+
+function findComponent(components: string[], prefix: string): string | undefined {
+  return components.find((item) => item.startsWith(prefix));
 }
 
 describe('AiSdkLLM cache contract', () => {
@@ -150,5 +174,43 @@ describe('AiSdkLLM cache contract', () => {
 
     const params = getFirstGenerateParams();
     expect(params?.providerOptions?.openaiCompatible?.user).toBe('caller-user-hint');
+  });
+
+  it('keeps stable cache fingerprint unchanged when createPatch plan payload changes', async () => {
+    generateTextMock.mockResolvedValue({
+      text: 'diff --git a/src/index.ts b/src/index.ts\n--- a/src/index.ts\n+++ b/src/index.ts\n@@ -1,1 +1,1 @@\n-export const value = 1;\n+export const value = 2;',
+      usage: { promptTokens: 1, completionTokens: 2 },
+    });
+    const llm = new AiSdkLLM({
+      clientPackage: '@ai-sdk/openai-compatible',
+      providerName: 'openai-compatible',
+      modelId: 'test-model',
+      baseUrl: 'https://example.invalid/v1',
+    });
+
+    const firstPlan: Plan = {
+      goal: 'Goal A',
+      files: ['src/index.ts'],
+      changes: ['Change A'],
+      verify: 'bun test a',
+    };
+    const secondPlan: Plan = {
+      goal: 'Goal B',
+      files: ['src/index.ts'],
+      changes: ['Change B'],
+      verify: 'bun test b',
+    };
+
+    await llm.createPatch(createTestContext('ctx-patch-stable'), firstPlan);
+    await llm.createPatch(createTestContext('ctx-patch-stable'), secondPlan);
+
+    const firstParams = getGenerateParamsAt(0);
+    const secondParams = getGenerateParamsAt(1);
+    const firstComponents = parseCacheHintComponents(firstParams?.providerOptions?.openaiCompatible?.user);
+    const secondComponents = parseCacheHintComponents(
+      secondParams?.providerOptions?.openaiCompatible?.user,
+    );
+
+    expect(findComponent(firstComponents, 'stable:')).toBe(findComponent(secondComponents, 'stable:'));
   });
 });

@@ -14,6 +14,7 @@ const sharedAssemblyConsumers = [
   'src/core/grizzco/steps/answer.ts',
   'src/core/grizzco/steps/patch.ts',
   'src/core/grizzco/steps/patch/prompt-input.ts',
+  'src/core/llm/ai-sdk.ts',
   'src/core/llm/message-composition.ts',
 ];
 
@@ -58,14 +59,17 @@ describe('architecture/request-assembly invariant', () => {
       join(process.cwd(), 'src/core/llm/shared-request-assembly.ts'),
       'utf8',
     );
-    const aiSdk = await readFile(join(process.cwd(), 'src/core/llm/ai-sdk.ts'), 'utf8');
 
     expect(requestAssembly).toContain("mode: 'cache_safe_only'");
-    expect(aiSdk).toContain("mode: 'cache_safe_only'");
   });
 
   it('chat message composition delegates envelope building to shared request assembly helper', async () => {
     const content = await readFile(join(process.cwd(), 'src/core/llm/message-composition.ts'), 'utf8');
+    expect(content).toContain('buildSharedRequestEnvelope');
+  });
+
+  it('ai-sdk high-level prompt APIs delegate envelope building to shared request assembly helper', async () => {
+    const content = await readFile(join(process.cwd(), 'src/core/llm/ai-sdk.ts'), 'utf8');
     expect(content).toContain('buildSharedRequestEnvelope');
   });
 
