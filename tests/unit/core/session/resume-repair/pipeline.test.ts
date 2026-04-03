@@ -88,7 +88,74 @@ describe('resume-repair pipeline', () => {
     const result = await pipeline.run({ archiveId: 'bad', filename: 'bad.mpack.gz' });
     expect(result.session).toBeUndefined();
     expect(result.contractViolations.map((item) => item.code)).toContain(
-      'MALFORMED_BOUNDARY_METADATA',
+      'MALFORMED_SESSION_BOUNDARY_METADATA',
+    );
+  });
+
+  it('fails closed when message boundary metadata is malformed', async () => {
+    const pipeline = createResumeRepairPipeline({
+      compressedStore: {
+        loadCompressed: mock(async () => createCompressedFixture() as any),
+      },
+      compressor: {
+        decompressToSession: mock(async () => ({
+          meta: {
+            id: 'session-1',
+            name: 'Recovered',
+            createdAt: 1,
+            updatedAt: 2,
+          },
+          messages: [{ role: 'user' as const, content: 'hello', timestamp: Number.NaN }],
+          iterations: [],
+        })),
+      },
+      repoPath: '/repo',
+    });
+
+    const result = await pipeline.run({
+      archiveId: 'bad-message',
+      filename: 'bad-message.mpack.gz',
+    });
+    expect(result.session).toBeUndefined();
+    expect(result.contractViolations.map((item) => item.code)).toContain(
+      'MALFORMED_MESSAGE_BOUNDARY_METADATA',
+    );
+  });
+
+  it('fails closed when tail iteration metadata is malformed', async () => {
+    const pipeline = createResumeRepairPipeline({
+      compressedStore: {
+        loadCompressed: mock(async () => createCompressedFixture() as any),
+      },
+      compressor: {
+        decompressToSession: mock(async () => ({
+          meta: {
+            id: 'session-1',
+            name: 'Recovered',
+            createdAt: 1,
+            updatedAt: 2,
+          },
+          messages: [{ role: 'user' as const, content: 'hello', timestamp: 10 }],
+          iterations: [
+            {
+              id: 'iter-1',
+              outcome: 'success' as const,
+              timestamp: 10,
+              summary: null as unknown as string,
+            },
+          ],
+        })),
+      },
+      repoPath: '/repo',
+    });
+
+    const result = await pipeline.run({
+      archiveId: 'bad-tail',
+      filename: 'bad-tail.mpack.gz',
+    });
+    expect(result.session).toBeUndefined();
+    expect(result.contractViolations.map((item) => item.code)).toContain(
+      'MALFORMED_TAIL_ITERATION_METADATA',
     );
   });
 
