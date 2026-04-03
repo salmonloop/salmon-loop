@@ -1,11 +1,58 @@
 import { describe, expect, it, mock } from 'bun:test';
 
+import type { ContextResult } from '../../../../../src/core/context/types.js';
 import {
   buildPhaseRequestEnvelope,
   buildSharedRequestEnvelope,
 } from '../../../../../src/core/grizzco/steps/request-assembly.js';
+import type { ToolCallingAuditEntry } from '../../../../../src/core/llm/audit.js';
 import { SessionReplacementPreviewProvider } from '../../../../../src/core/session/replacement-preview-provider.js';
+import type { Context } from '../../../../../src/core/types/context.js';
 import { Phase } from '../../../../../src/core/types/runtime.js';
+
+const baseContext: Context = {
+  repoPath: '/repo',
+  primaryFile: 'src/index.ts',
+  primaryText: 'export const value = 1;',
+  contextHash: 'local-hash',
+  rgSnippets: [],
+};
+
+const baseContextResult: ContextResult = {
+  context: baseContext,
+  prompt: 'ASSEMBLED_CONTEXT_PROMPT',
+  meta: {
+    usedChars: 0,
+    truncated: false,
+    diffScope: 'primary',
+    includedFiles: [],
+    sectionChars: {
+      primary: 0,
+      relatedFiles: 0,
+      rgSnippets: 0,
+      diffs: 0,
+      total: 0,
+    },
+    contextHash: 'local-hash',
+  },
+};
+
+const auditEntry: ToolCallingAuditEntry = {
+  timestamp: new Date(0).toISOString(),
+  phase: Phase.EXPLORE,
+  round: 1,
+  callId: 'call-1',
+  toolName: 'agent_dispatch',
+  rawArgsType: 'object',
+  parsedArgsOk: true,
+  toolResultStatus: 'ok',
+  toolResultPatchArtifact: {
+    handle: 's8p://artifact/patch-1',
+    mimeType: 'text/x-diff',
+    sha256: 'patch',
+    size: 222,
+  },
+};
 
 describe('buildPhaseRequestEnvelope', () => {
   it('builds envelope from assembled context prompt and resolves artifact hints from audit', async () => {
@@ -14,15 +61,8 @@ describe('buildPhaseRequestEnvelope', () => {
     const built = await buildPhaseRequestEnvelope({
       phase: Phase.PLAN,
       defaultNamespace: 'plan',
-      context: {
-        primaryFile: 'src/index.ts',
-        primaryText: 'export const value = 1;',
-        contextHash: 'local-hash',
-      } as any,
-      contextResult: {
-        prompt: 'ASSEMBLED_CONTEXT_PROMPT',
-        meta: { contextHash: 'local-hash' },
-      } as any,
+      context: baseContext,
+      contextResult: baseContextResult,
       cacheSharing: {
         namespace: 'shared-plan',
         contextHash: 'shared-hash',
@@ -37,19 +77,7 @@ describe('buildPhaseRequestEnvelope', () => {
           size: 111,
         },
       },
-      toolCallingAudit: [
-        {
-          phase: Phase.EXPLORE,
-          toolName: 'agent_dispatch',
-          toolResultStatus: 'ok',
-          toolResultPatchArtifact: {
-            handle: 's8p://artifact/patch-1',
-            mimeType: 'text/x-diff',
-            sha256: 'patch',
-            size: 222,
-          },
-        } as any,
-      ],
+      toolCallingAudit: [auditEntry],
       onCacheMismatch: onMismatch,
     });
 
@@ -71,11 +99,7 @@ describe('buildPhaseRequestEnvelope', () => {
     const built = await buildPhaseRequestEnvelope({
       phase: Phase.PATCH,
       defaultNamespace: 'patch',
-      context: {
-        primaryFile: 'src/index.ts',
-        primaryText: 'export const value = 1;',
-        contextHash: 'local-hash',
-      } as any,
+      context: baseContext,
       cacheSharing: {
         namespace: 'shared-patch',
         contextHash: 'shared-hash',
@@ -114,11 +138,7 @@ describe('buildPhaseRequestEnvelope', () => {
     const built = await buildPhaseRequestEnvelope({
       phase: Phase.PLAN,
       defaultNamespace: 'plan',
-      context: {
-        primaryFile: 'src/index.ts',
-        primaryText: 'export const value = 1;',
-        contextHash: 'local-hash',
-      } as any,
+      context: baseContext,
       systemPrompt: 'system prompt',
       buildUserPrompt: () => 'user prompt',
       previewProvider: new SessionReplacementPreviewProvider({

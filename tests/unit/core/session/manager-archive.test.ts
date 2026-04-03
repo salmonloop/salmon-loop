@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it } from 'bun:test';
 
 import { clearAuditTrail, getAuditTrail } from '../../../../src/core/observability/audit-trail.js';
 import { ChatSessionManager } from '../../../../src/core/session/manager.js';
+import { SessionReplacementPreviewProvider } from '../../../../src/core/session/replacement-preview-provider.js';
 
 const tempRoots: string[] = [];
 const gunzipAsync = promisify(gunzip);
@@ -326,5 +327,54 @@ describe('ChatSessionManager archive lifecycle', () => {
 
     const sessions = await manager.listSessions();
     expect(sessions.some((item) => item.name === 'Malformed Boundary')).toBe(false);
+  });
+
+  it('keeps frozen replacement decision byte-stable after resume and blocks policy flip', async () => {
+    const repoPath = await createTempRepo();
+    const manager = new ChatSessionManager(repoPath);
+    await manager.init();
+
+    const session = await manager.create('Frozen Replacement Resume');
+    manager.freezeReplacementDecision({
+      toolResultId: 'tool-result-stable',
+      decision: 'replaced',
+      preview: 'stable preview bytes',
+      sourceArtifactHandle: 's8p://artifact/preview-stable',
+      frozenAt: 1_710_000_000_111,
+    });
+    await manager.save();
+    await manager.archiveSession(session);
+
+    const restored = await manager.restoreFromArchive(session.meta.id);
+    expect(restored).not.toBeNull();
+
+    manager.freezeReplacementDecision({
+      toolResultId: 'tool-result-stable',
+      decision: 'kept',
+      preview: 'mutated preview bytes',
+      sourceArtifactHandle: 's8p://artifact/preview-mutated',
+      frozenAt: 1_710_000_000_999,
+    });
+
+    const replacementState = manager.getReplacementState();
+    const entry = replacementState?.entries['tool-result-stable'];
+    expect(entry).toBeDefined();
+    expect(entry?.decision).toBe('replaced');
+    expect(entry?.preview).toBe('stable preview bytes');
+    expect(entry?.sourceArtifactHandle).toBe('s8p://artifact/preview-stable');
+
+    const provider = new SessionReplacementPreviewProvider(replacementState);
+    const hints = provider.getPreviewHints();
+    expect(hints).toEqual([
+      {
+        label: 'Tool result preview: tool-result-stable',
+        artifact: {
+          handle: 's8p://artifact/preview-stable',
+          mimeType: 'application/json',
+          sha256: 'tool-result-stable',
+          size: 'stable preview bytes'.length,
+        },
+      },
+    ]);
   });
 });

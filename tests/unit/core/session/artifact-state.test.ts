@@ -6,6 +6,7 @@ import {
   mergeSessionArtifactState,
   normalizeSessionArtifactState,
 } from '../../../../src/core/session/artifact-state.js';
+import type { LoopResult } from '../../../../src/core/types/loop.js';
 
 describe('session/artifact-state', () => {
   it('normalizes and bounds artifact state payloads', () => {
@@ -40,7 +41,7 @@ describe('session/artifact-state', () => {
             sha256: 'invalid',
             size: 1,
           },
-        } as any,
+        },
       ],
     });
 
@@ -111,7 +112,7 @@ describe('session/artifact-state', () => {
           },
         ],
       },
-    } as any);
+    } satisfies Pick<LoopResult, 'artifactHints' | 'verifyArtifact'>);
 
     expect(state?.verifyArtifact?.handle).toBe('s8p://artifact/verify-from-result');
     expect(state?.recentReadArtifacts?.[0]?.path).toBe('src/recent.ts');

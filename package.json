@@ -34,7 +34,7 @@
     "test:runtime-boundary": "bun test --preload ./tests/setup-bun.ts tests/unit/scripts/target-runtime-boundary.test.ts tests/unit/scripts/bun-purity.test.ts",
     "test:worktree-smoke": "bun scripts/worktree-smoke.js",
     "test:headless-smoke": "bun scripts/headless-smoke.ts",
-    "test:contract-smoke": "bun test --timeout 15000 --preload ./tests/setup-bun.ts tests/unit/architecture/request-assembly-invariant.test.ts tests/unit/architecture/replacement-preview-boundary-invariant.test.ts tests/unit/architecture/sub-agent-prefix-consistency-invariant.test.ts tests/unit/architecture/verify-contract-smoke-gate.test.ts tests/unit/tools/session-streaming.test.ts tests/unit/core/grizzco/steps/plan-patch-toolcalling.test.ts",
+    "test:contract-smoke": "bun test --timeout 15000 --preload ./tests/setup-bun.ts tests/unit/architecture/request-assembly-invariant.test.ts tests/unit/architecture/replacement-preview-boundary-invariant.test.ts tests/unit/architecture/sub-agent-prefix-consistency-invariant.test.ts tests/unit/architecture/verify-contract-smoke-gate.test.ts tests/unit/tools/session-streaming.test.ts tests/unit/core/grizzco/steps/plan-patch-toolcalling.test.ts tests/unit/core/session/replacement-state.test.ts",
     "setup:hooks": "git config core.hooksPath .githooks",
     "postinstall": "bun scripts/fix-es-abstract-compat.ts",
     "check:bun-purity": "bun scripts/check-bun-purity.ts",
