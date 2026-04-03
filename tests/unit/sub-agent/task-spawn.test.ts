@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
+import { clearAuditTrail, getAuditTrail } from '../../../src/core/observability/audit-trail.js';
+
 const executeMock = mock(async (request: any) => ({
   agent_ref: request.agent_ref ?? 'surgeon',
   success: true,
@@ -35,6 +37,7 @@ mock.module('../../../src/core/sub-agent/controller.js', () => ({
 describe('sub-agent task-spawn context snapshot injection', () => {
   beforeEach(() => {
     mock.clearAllMocks();
+    clearAuditTrail();
   });
 
   it('injects runtime contextSnapshot for shared sessions', async () => {
@@ -208,5 +211,14 @@ describe('sub-agent task-spawn context snapshot injection', () => {
     const forwarded = executeMock.mock.calls[0]?.[0];
     expect(forwarded.session_target).toBe('isolated');
     expect(forwarded.contextSnapshot).toBeUndefined();
+    const event = getAuditTrail().find(
+      (entry) => entry.action === 'sub_agent.shared.prefix_consistency_failed',
+    );
+    expect(event).toBeDefined();
+    expect(event?.details).toMatchObject({
+      metric: 'shared_fallback_rate',
+      fallbackMode: 'isolated',
+      reason: 'cache_critical_prefix_mismatch',
+    });
   });
 });

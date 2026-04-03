@@ -2,6 +2,7 @@ import { randomBytes } from 'crypto';
 import { join } from 'path';
 
 import { FileAdapter } from '../adapters/fs/index.js';
+import { recordAuditEvent } from '../observability/audit-trail.js';
 import { getLogger } from '../observability/logger.js';
 import type { LoopIteration } from '../types/index.js';
 
@@ -20,6 +21,44 @@ import {
 } from './replacement-state.js';
 import { createResumeRepairPipeline } from './resume-repair/pipeline.js';
 import type { ChatSession, ChatMessage, SummaryState } from './types.js';
+
+const RESUME_REPAIR_V1_FLAG = 'SALMONLOOP_RESUME_REPAIR_V1';
+
+function resolveResumeRepairV1Enabled(): boolean {
+  const raw = process.env[RESUME_REPAIR_V1_FLAG];
+  if (!raw || !raw.trim()) return true;
+  const normalized = raw.trim().toLowerCase();
+  if (normalized === '0' || normalized === 'false' || normalized === 'off' || normalized === 'no') {
+    return false;
+  }
+  return true;
+}
+
+function recordResumeRepairMetrics(details: {
+  mode: 'repair_v1' | 'legacy';
+  success: boolean;
+  repairViolationCount: number;
+  replacementReuseHitCount: number;
+  contractViolationCodes?: string[];
+}): void {
+  recordAuditEvent(
+    'session.resume_repair.completed',
+    {
+      mode: details.mode,
+      success: details.success,
+      metric: 'repair_violation_rate',
+      repairViolationCount: details.repairViolationCount,
+      replacementReuseMetric: 'replacement_reuse_hit_rate',
+      replacementReuseHitCount: details.replacementReuseHitCount,
+      contractViolationCodes: details.contractViolationCodes ?? [],
+    },
+    {
+      source: 'session',
+      severity: details.success ? 'low' : 'medium',
+      scope: 'session',
+    },
+  );
+}
 
 /**
  * Manages chat session persistence and lifecycle.
@@ -440,7 +479,31 @@ export class ChatSessionManager {
     const filename = await this.resolveArchiveFilename(archiveId);
     if (!filename) return null;
 
+    const resumeRepairV1Enabled = resolveResumeRepairV1Enabled();
     try {
+      if (!resumeRepairV1Enabled) {
+        const restored = await this.restoreFromArchiveLegacy(filename);
+        if (!restored) {
+          recordResumeRepairMetrics({
+            mode: 'legacy',
+            success: false,
+            repairViolationCount: 1,
+            replacementReuseHitCount: 0,
+            contractViolationCodes: ['LEGACY_RESTORE_FAILED'],
+          });
+          return null;
+        }
+        recordResumeRepairMetrics({
+          mode: 'legacy',
+          success: true,
+          repairViolationCount: 0,
+          replacementReuseHitCount: Object.keys(restored.meta.replacementState?.entries ?? {}).length,
+        });
+        this.currentSession = restored;
+        await this.save();
+        return restored;
+      }
+
       const pipeline = createResumeRepairPipeline({
         compressedStore: this.compressedStore,
         compressor: this.compressor,
@@ -448,6 +511,13 @@ export class ChatSessionManager {
       });
       const repaired = await pipeline.run({ archiveId, filename });
       if (!repaired.session) {
+        recordResumeRepairMetrics({
+          mode: 'repair_v1',
+          success: false,
+          repairViolationCount: repaired.contractViolations.length,
+          replacementReuseHitCount: 0,
+          contractViolationCodes: repaired.contractViolations.map((entry) => entry.code),
+        });
         const violationText = repaired.contractViolations.map((entry) => entry.message).join('; ');
         getLogger().warn(
           `Failed to restore archived session ${archiveId}: ${violationText || 'repair pipeline rejected archive'}`,
@@ -467,14 +537,66 @@ export class ChatSessionManager {
       repaired.session.meta.replacementState = normalizeToolResultReplacementState(
         repaired.replacementState,
       );
+      recordResumeRepairMetrics({
+        mode: 'repair_v1',
+        success: true,
+        repairViolationCount: repaired.contractViolations.length,
+        replacementReuseHitCount: Object.keys(repaired.replacementState?.entries ?? {}).length,
+        contractViolationCodes: repaired.contractViolations.map((entry) => entry.code),
+      });
 
       this.currentSession = repaired.session;
       await this.save();
       return repaired.session;
     } catch (error) {
+      recordResumeRepairMetrics({
+        mode: resumeRepairV1Enabled ? 'repair_v1' : 'legacy',
+        success: false,
+        repairViolationCount: 1,
+        replacementReuseHitCount: 0,
+        contractViolationCodes: ['RESTORE_EXCEPTION'],
+      });
       getLogger().warn(`Failed to restore archived session ${archiveId}: ${error}`);
       return null;
     }
+  }
+
+  private async restoreFromArchiveLegacy(filename: string): Promise<ChatSession | null> {
+    const compressed = await this.compressedStore.loadCompressed(filename);
+    if (!compressed) return null;
+
+    const partial = await this.compressor.decompressToSession(compressed);
+    if (!partial?.meta?.id || !partial?.meta?.name) return null;
+
+    return {
+      meta: {
+        id: partial.meta.id,
+        name: partial.meta.name,
+        repoPath: this.repoPath,
+        createdAt: partial.meta.createdAt,
+        updatedAt: Date.now(),
+        totalIterations: partial.meta.totalIterations ?? partial.iterations.length,
+        successfulIterations: partial.meta.successfulIterations ?? 0,
+        totalTokens: partial.meta.totalTokens ?? { input: 0, output: 0 },
+        snapshots: [],
+        artifactState: normalizeSessionArtifactState(partial.meta.artifactState),
+        replacementState: normalizeToolResultReplacementState(partial.meta.replacementState),
+      },
+      messages: partial.messages.map((message, index) => ({
+        id: `restored-msg-${index}`,
+        role: message.role,
+        content: message.content,
+        timestamp: message.timestamp,
+      })),
+      iterations: partial.iterations.map((iteration, index) => ({
+        id: iteration.id || `restored-iter-${index + 1}`,
+        attempt: index + 1,
+        plan: null,
+        patch: null,
+        error: iteration.outcome === 'failure' ? iteration.summary : undefined,
+        contextSummary: iteration.summary,
+      })),
+    };
   }
 
   private getArchiveStorageDir(): string {

@@ -6,11 +6,13 @@ import { gunzip, gzip } from 'zlib';
 
 import { afterEach, describe, expect, it } from 'bun:test';
 
+import { clearAuditTrail, getAuditTrail } from '../../../../src/core/observability/audit-trail.js';
 import { ChatSessionManager } from '../../../../src/core/session/manager.js';
 
 const tempRoots: string[] = [];
 const gunzipAsync = promisify(gunzip);
 const gzipAsync = promisify(gzip);
+const originalResumeRepairFlag = process.env.SALMONLOOP_RESUME_REPAIR_V1;
 
 async function createTempRepo(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), 'salmon-loop-session-archive-'));
@@ -20,6 +22,13 @@ async function createTempRepo(): Promise<string> {
 
 describe('ChatSessionManager archive lifecycle', () => {
   afterEach(async () => {
+    clearAuditTrail();
+    if (originalResumeRepairFlag === undefined) {
+      delete process.env.SALMONLOOP_RESUME_REPAIR_V1;
+    } else {
+      process.env.SALMONLOOP_RESUME_REPAIR_V1 = originalResumeRepairFlag;
+    }
+
     while (tempRoots.length > 0) {
       const root = tempRoots.pop();
       if (!root) continue;
@@ -101,9 +110,100 @@ describe('ChatSessionManager archive lifecycle', () => {
     expect(restored?.meta.name).toBe('Recover Me');
     expect(restored?.meta.repoPath).toBe(repoPath);
     expect(restored?.messages.length).toBeGreaterThan(0);
+    expect(restored?.meta.resumeRepairState).toBeDefined();
 
     const sessions = await manager.listSessions();
     expect(sessions.some((item) => item.id === session.meta.id)).toBe(true);
+  });
+
+  it('can disable resume repair pipeline and use legacy restore path', async () => {
+    process.env.SALMONLOOP_RESUME_REPAIR_V1 = '0';
+
+    const repoPath = await createTempRepo();
+    const manager = new ChatSessionManager(repoPath);
+    await manager.init();
+
+    const session = await manager.create('Legacy Restore');
+    manager.addMessage({
+      role: 'user',
+      content: 'legacy restore',
+      timestamp: Date.now(),
+    });
+    await manager.save();
+    await manager.archiveSession(session);
+
+    const restored = await manager.restoreFromArchive(session.meta.id);
+
+    expect(restored).not.toBeNull();
+    expect(restored?.meta.id).toBe(session.meta.id);
+    expect(restored?.meta.resumeRepairState).toBeUndefined();
+  });
+
+  it('emits resume repair observability metrics for repaired restores', async () => {
+    const repoPath = await createTempRepo();
+    const manager = new ChatSessionManager(repoPath);
+    await manager.init();
+
+    const session = await manager.create('Observed Restore');
+    manager.freezeReplacementDecision({
+      toolResultId: 'tool-result-1',
+      decision: 'replaced',
+      preview: 'preview text',
+      sourceArtifactHandle: 's8p://artifact/verify-1',
+      frozenAt: 1_710_000_000_003,
+    });
+    await manager.save();
+    await manager.archiveSession(session);
+
+    const restored = await manager.restoreFromArchive(session.meta.id);
+
+    expect(restored).not.toBeNull();
+    const event = getAuditTrail().find((entry) => entry.action === 'session.resume_repair.completed');
+    expect(event).toBeDefined();
+    expect(event?.details).toMatchObject({
+      mode: 'repair_v1',
+      success: true,
+      metric: 'repair_violation_rate',
+      repairViolationCount: 0,
+      replacementReuseHitCount: 1,
+      replacementReuseMetric: 'replacement_reuse_hit_rate',
+    });
+  });
+
+  it('emits resume repair violation metrics when repaired restore fails closed', async () => {
+    const repoPath = await createTempRepo();
+    const manager = new ChatSessionManager(repoPath);
+    await manager.init();
+
+    const session = await manager.create('Observed Failure');
+    await manager.save();
+    await manager.archiveSession(session);
+
+    const archivePath = join(
+      repoPath,
+      '.salmonloop',
+      'compressed-sessions',
+      `${session.meta.id}.mpack.gz`,
+    );
+    const encoded = await Bun.file(archivePath).text();
+    const bytes = Buffer.from(encoded, 'base64');
+    const decompressed = await gunzipAsync(bytes);
+    const payload = JSON.parse(decompressed.toString('utf8')) as any;
+    payload.meta.id = '';
+    const recompressed = await gzipAsync(Buffer.from(JSON.stringify(payload), 'utf8'));
+    await Bun.write(archivePath, Buffer.from(recompressed).toString('base64'));
+
+    const restored = await manager.restoreFromArchive(session.meta.id);
+
+    expect(restored).toBeNull();
+    const event = getAuditTrail().find((entry) => entry.action === 'session.resume_repair.completed');
+    expect(event).toBeDefined();
+    expect(event?.details).toMatchObject({
+      mode: 'repair_v1',
+      success: false,
+      metric: 'repair_violation_rate',
+      repairViolationCount: 1,
+    });
   });
 
   it('restores archived artifact state for later request rehydration', async () => {

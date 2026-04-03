@@ -23,6 +23,8 @@ function normalizeDispatchRequest(input: SubAgentRequest, ctx: ToolRuntimeCtx): 
     recordAuditEvent(
       'sub_agent.shared.prefix_consistency_failed',
       {
+        metric: 'shared_fallback_rate',
+        fallbackMode: 'isolated',
         reason: consistency.reason,
         expected: consistency.expected,
         actual: consistency.actual,
