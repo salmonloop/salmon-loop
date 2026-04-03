@@ -73,6 +73,20 @@ describe('architecture/request-assembly invariant', () => {
     expect(content).toContain('buildSharedRequestEnvelope');
   });
 
+  it('ai-sdk keeps high-level phase configuration centralized and mapped through runHighLevelPhase', async () => {
+    const content = await readFile(join(process.cwd(), 'src/core/llm/ai-sdk.ts'), 'utf8');
+
+    expect(content).toContain('HIGH_LEVEL_PHASE_CONFIG');
+    expect(content).toContain("plan:");
+    expect(content).toContain("namespace: 'plan'");
+    expect(content).toContain("observationName: 'PLAN:plan-json'");
+    expect(content).toContain("patch:");
+    expect(content).toContain("namespace: 'patch'");
+    expect(content).toContain("observationName: 'PATCH:unified-diff'");
+    expect(content).toContain('runHighLevelPhase');
+    expect(content).toContain('HIGH_LEVEL_PHASE_CONFIG[params.phase]');
+  });
+
   it('phase tool-calling steps use a shared runtime context helper for sub-agent snapshots', async () => {
     for (const relPath of [
       'src/core/grizzco/steps/plan.ts',

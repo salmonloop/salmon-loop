@@ -41,6 +41,16 @@ export class AiSdkLLM implements LLM {
   private modelId: string;
   private providerOptionsKey: string;
   private timeoutMs?: number;
+  private static readonly HIGH_LEVEL_PHASE_CONFIG = {
+    plan: {
+      namespace: 'plan',
+      observationName: 'PLAN:plan-json',
+    },
+    patch: {
+      namespace: 'patch',
+      observationName: 'PATCH:unified-diff',
+    },
+  } as const;
 
   constructor(private readonly cfg: AiSdkLlmConfig) {
     this.modelId = resolveAiSdkModelId(cfg.modelId);
@@ -126,12 +136,11 @@ export class AiSdkLLM implements LLM {
       LIMITS.maxFilesChanged,
       lastError,
     );
-    const content = await this.executeHighLevelPrompt({
-      defaultNamespace: 'plan',
+    const content = await this.runHighLevelPhase({
+      phase: 'plan',
       contextHash: context.contextHash,
       userPrompt: prompt,
       attachments: [AiSdkLLM.buildContextPromptAttachment(contextPrompt)],
-      observationName: 'PLAN:plan-json',
       signal,
     });
     if (!content) {
@@ -163,12 +172,11 @@ export class AiSdkLLM implements LLM {
       LIMITS.maxDiffLines,
       lastError,
     );
-    const content = await this.executeHighLevelPrompt({
-      defaultNamespace: 'patch',
+    const content = await this.runHighLevelPhase({
+      phase: 'patch',
       contextHash: context.contextHash,
       userPrompt: prompt,
       attachments: AiSdkLLM.buildPatchAttachments(formattedContext, planStr),
-      observationName: 'PATCH:unified-diff',
       signal,
     });
     return extractUnifiedDiffFromLLMContent(content ?? '');
@@ -194,6 +202,24 @@ export class AiSdkLLM implements LLM {
         content: planStr,
       },
     ];
+  }
+
+  private async runHighLevelPhase(params: {
+    phase: keyof typeof AiSdkLLM.HIGH_LEVEL_PHASE_CONFIG;
+    contextHash?: string;
+    userPrompt: string;
+    attachments: RequestAttachment[];
+    signal?: AbortSignal;
+  }): Promise<string | undefined> {
+    const phaseConfig = AiSdkLLM.HIGH_LEVEL_PHASE_CONFIG[params.phase];
+    return this.executeHighLevelPrompt({
+      defaultNamespace: phaseConfig.namespace,
+      contextHash: params.contextHash,
+      userPrompt: params.userPrompt,
+      attachments: params.attachments,
+      observationName: phaseConfig.observationName,
+      signal: params.signal,
+    });
   }
 
   private async executeHighLevelPrompt(params: {
