@@ -38,6 +38,7 @@ mock.module('../../src/core/prompts/runtime.js', () => ({
 
 import { AiSdkLLM } from '../../src/core/llm/ai-sdk.js';
 import type { Context } from '../../src/core/types/context.js';
+import type { ChatOptions } from '../../src/core/types/llm.js';
 import type { Plan } from '../../src/core/types/planning.js';
 
 const LARGE_CONTEXT = 'export const value = 1;\n'.repeat(400);
@@ -113,5 +114,41 @@ describe('AiSdkLLM cache contract', () => {
     expect(params?.providerOptions?.openaiCompatible?.user).toContain('cache:');
     expect(params?.providerOptions?.openaiCompatible?.user).toContain('"namespace":"patch"');
     expect(params?.providerOptions?.openaiCompatible?.user).toContain('"ctx-patch-456"');
+  });
+
+  it('does not override explicit providerOptions.user when cache hints are also present', async () => {
+    generateTextMock.mockResolvedValueOnce({
+      text: 'ok',
+      usage: { promptTokens: 1, completionTokens: 2 },
+    });
+
+    const llm = new AiSdkLLM({
+      clientPackage: '@ai-sdk/openai-compatible',
+      providerName: 'openai-compatible',
+      modelId: 'test-model',
+      baseUrl: 'https://example.invalid/v1',
+    });
+
+    const options: ChatOptions = {
+      providerHints: {
+        openAICacheHint: 'cache:{"namespace":"manual","components":["ctx-manual-1"]}',
+      },
+      providerOptions: {
+        openaiCompatible: {
+          user: 'caller-user-hint',
+        },
+      },
+    };
+
+    await llm.chat(
+      [
+        { role: 'system', content: 'S'.repeat(5000) },
+        { role: 'user', content: 'hello' },
+      ],
+      options,
+    );
+
+    const params = getFirstGenerateParams();
+    expect(params?.providerOptions?.openaiCompatible?.user).toBe('caller-user-hint');
   });
 });
