@@ -2,6 +2,7 @@ import { ConversationSummarizer } from '../context/summarization/summarizer.js';
 import { DEFAULT_SUMMARIZATION_CONFIG } from '../context/summarization/types.js';
 import type { LLM, LLMMessage } from '../types/index.js';
 
+import { microcompact } from './compaction/microcompact.js';
 import type { ChatSessionManager } from './manager.js';
 import { buildSessionConversationContext } from './session-context-builder.js';
 import { TokenTracker } from './token-tracker.js';
@@ -48,7 +49,8 @@ export async function refreshSessionSummary(params: {
       summarizer.restoreState(persistedState);
     }
 
-    const messages = sessionManager.getMessagesWithIds().map((msg) => ({
+    const rawMessages = sessionManager.getMessages();
+    const messages = microcompact(rawMessages).map((msg) => ({
       id: msg.id,
       role: msg.role,
       content: msg.content,
@@ -75,20 +77,24 @@ export function buildEffectiveConversationContext(params: {
 }): LLMMessage[] {
   const { sessionManager } = params;
   const summaryState = sessionManager.getSummaryState();
-  if (!summaryState) {
-    return buildSessionConversationContext(sessionManager.getMessages(), {
-      budgetTokens: params.budgetTokens ?? Number.MAX_SAFE_INTEGER,
-      maxMessages: params.maxMessages,
-      countTokens: params.countTokens,
-    });
-  }
 
-  const messages = sessionManager.getMessagesWithIds().map((msg) => ({
+  // Apply microcompact (Level 0) to all messages before building context
+  // This is a "view-only" operation that doesn't modify sessionManager history
+  const rawMessages = sessionManager.getMessages();
+  const messages = microcompact(rawMessages).map((msg) => ({
     id: msg.id,
     role: msg.role,
     content: msg.content,
     timestamp: msg.timestamp,
   }));
+
+  if (!summaryState) {
+    return buildSessionConversationContext(messages, {
+      budgetTokens: params.budgetTokens ?? Number.MAX_SAFE_INTEGER,
+      maxMessages: params.maxMessages,
+      countTokens: params.countTokens,
+    });
+  }
 
   const summarizer = new ConversationSummarizer(
     {
