@@ -1,3 +1,4 @@
+import { getLogger } from '../../observability/logger.js';
 import type { ChatMessage } from '../types.js';
 import type { MicrocompactConfig } from './types.js';
 import { DEFAULT_MICROCOMPACT_CONFIG } from './types.js';
@@ -36,7 +37,8 @@ export function microcompact(
   // Calculate the absolute index in the original array
   const absCutoffIndex = cutoffIndex === -1 ? -1 : messages.length - 1 - cutoffIndex;
 
-  return messages.map((msg, index) => {
+  let totalClearedCount = 0;
+  const result = messages.map((msg, index) => {
     // Only process assistant messages BEFORE the cutoff
     if (index > absCutoffIndex || msg.role !== 'assistant' || !msg.content) {
       return msg;
@@ -61,6 +63,7 @@ export function microcompact(
       }
 
       hasMatched = true;
+      totalClearedCount++;
 
       // Extract original tag prefix (including attributes) to preserve them
       const tagMatch = match.match(/<tool_result\b[^>]*?>/);
@@ -78,4 +81,18 @@ export function microcompact(
       content: newContent,
     };
   });
+
+  if (totalClearedCount > 0) {
+    getLogger().audit('COMPACTION_MICROCOMPACT', {
+      clearedCount: totalClearedCount,
+      keepRecentTurns,
+    }, {
+      source: 'session',
+      severity: 'low',
+      scope: 'session',
+      phase: 'COMPACTION'
+    });
+  }
+
+  return result;
 }

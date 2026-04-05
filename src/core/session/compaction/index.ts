@@ -1,3 +1,4 @@
+import { getLogger } from '../../observability/logger.js';
 import type { ChatSessionManager } from '../manager.js';
 import type { LLM } from '../../types/index.js';
 import type { CompactionTracking, CompactionResult, AutocompactConfig } from './types.js';
@@ -50,9 +51,20 @@ export async function autocompact(params: {
       strategy: 'force',
     });
 
-    const postMessages = sessionManager.getMessages(); // This is still the original messages, but the context builder will use the summary
-    // Note: CompactionResult.messages in this project's architecture
-    // will be handled by buildEffectiveConversationContext later.
+    const postMessages = sessionManager.getMessages(); // Still original history
+    const updatedSummary = sessionManager.getSummaryState();
+
+    getLogger().audit('COMPACTION_AUTOCOMPACT', {
+      trigger: 'auto',
+      preTokens: totalTokens,
+      summaryTokens: updatedSummary?.summaryTokens,
+      circuitBreakerState: { consecutiveFailures: 0 },
+    }, {
+      source: 'session',
+      severity: 'medium',
+      scope: 'session',
+      phase: 'COMPACTION'
+    });
 
     return {
       performed: true,
@@ -61,9 +73,20 @@ export async function autocompact(params: {
       trigger: 'auto',
     };
   } catch (error) {
+    const newTracking = onCompactionFailure(tracking);
+    getLogger().audit('COMPACTION_FAILURE', {
+      error: error instanceof Error ? error.message : String(error),
+      consecutiveFailures: newTracking.consecutiveFailures,
+    }, {
+      source: 'session',
+      severity: 'medium',
+      scope: 'session',
+      phase: 'COMPACTION'
+    });
+
     return {
       performed: false,
-      tracking: onCompactionFailure(tracking),
+      tracking: newTracking,
     };
   }
 }
