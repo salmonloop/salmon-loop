@@ -49,7 +49,7 @@ export async function refreshSessionSummary(params: {
       summarizer.restoreState(persistedState);
     }
 
-    const rawMessages = sessionManager.getMessages();
+    const rawMessages = sessionManager.getMessagesWithIds();
     const messages = microcompact(rawMessages).map((msg) => ({
       id: msg.id,
       role: msg.role,

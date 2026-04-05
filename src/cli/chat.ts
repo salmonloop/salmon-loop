@@ -27,6 +27,9 @@ import {
   type UiLogView,
   type UserInputProvider,
   type VerboseLevel,
+  createInitialTracking,
+  onNormalTurnComplete,
+  runCompactionPipeline,
 } from '../core/facades/cli-chat.js';
 import { createSubAgentController } from '../core/facades/cli-subagent.js';
 
@@ -115,6 +118,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
   let currentInstruction: string | null = null;
   let lastInterruptedInput: string | null = null;
   let currentLlmOutputPolicy = options.llmOutput ?? DEFAULT_LLM_OUTPUT_POLICY;
+  let currentCompactionTracking = createInitialTracking();
 
   const authorizationProvider = createUiAuthorizationProvider({
     emit: (event) => {
@@ -288,6 +292,18 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
       const timeoutAbort = new AbortController();
       const mergedSignal = mergeAbortSignals([latestGuiOptions?.signal, timeoutAbort.signal]);
 
+      // Run compaction pipeline (Level 1 Autocompact) before building context
+      const compactionResult = await runCompactionPipeline({
+        sessionManager,
+        llm: options.llm,
+        tracking: currentCompactionTracking,
+        signal: latestGuiOptions?.signal,
+      });
+
+      if (compactionResult.performed) {
+        currentCompactionTracking = compactionResult.tracking;
+      }
+
       const modelIdForBudget =
         options.llm.getModelId?.() || process.env.SALMONLOOP_MODEL || process.env.S8P_MODEL;
       const conversationContext = buildEffectiveConversationContext({
@@ -441,6 +457,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
         contextHash: result.contextHash,
         strategy: 'auto',
       });
+      currentCompactionTracking = onNormalTurnComplete(currentCompactionTracking);
       await sessionManager.save();
       currentInstruction = null;
       return result;

@@ -21,6 +21,11 @@ export {
   buildEffectiveConversationContext,
   refreshSessionSummary,
 } from '../session/summary-sync.js';
+export {
+  createInitialTracking,
+  onNormalTurnComplete,
+} from '../session/compaction/tracking.js';
+export { runCompactionPipeline } from '../session/compaction/index.js';
 export { TokenTracker } from '../session/token-tracker.js';
 export type { VerboseLevel } from '../types/execution.js';
 export type { LLM, LlmOutputPolicy } from '../types/llm.js';
