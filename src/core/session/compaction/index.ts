@@ -7,6 +7,7 @@ import { DEFAULT_AUTOCOMPACT_CONFIG } from './types.js';
 import { isCircuitBreakerTripped, onCompactionFailure, onCompactionSuccess } from './tracking.js';
 import { TokenTracker } from '../token-tracker.js';
 import { refreshSessionSummary } from '../summary-sync.js';
+import { getModelRecommendedBudget } from '../../context/token/adaptive-budget.js';
 
 /**
  * Autocompact (Level 1)
@@ -25,9 +26,27 @@ export async function autocompact(params: {
 }): Promise<CompactionResult> {
   const { sessionManager, llm, tracking, contextHash, signal } = params;
   const trigger = params.trigger ?? 'auto';
+
+  // Resolve dynamic threshold if not provided in config
+  let resolvedThreshold = params.config?.tokenThreshold;
+  if (resolvedThreshold === undefined) {
+    const modelId = llm.getModelId?.();
+    if (modelId) {
+      try {
+        resolvedThreshold = getModelRecommendedBudget(modelId);
+      } catch (error) {
+        // Fallback to default if resolution fails
+        resolvedThreshold = DEFAULT_AUTOCOMPACT_CONFIG.tokenThreshold;
+      }
+    } else {
+      resolvedThreshold = DEFAULT_AUTOCOMPACT_CONFIG.tokenThreshold;
+    }
+  }
+
   const config: AutocompactConfig = {
     ...DEFAULT_AUTOCOMPACT_CONFIG,
     ...params.config,
+    tokenThreshold: resolvedThreshold,
   };
 
   // 1. Check circuit breaker
