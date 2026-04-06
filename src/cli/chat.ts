@@ -298,7 +298,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
         sessionManager,
         llm: options.llm,
         tracking: currentCompactionTracking,
-        signal: latestGuiOptions?.signal,
+        signal: mergedSignal.signal,
       });
 
       if (compactionResult.performed) {
@@ -307,10 +307,13 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
 
       const modelIdForBudget =
         options.llm.getModelId?.() || process.env.SALMONLOOP_MODEL || process.env.S8P_MODEL;
+      const baseSessionBudgetTokens = getDefaultSessionContextBudgetTokens({
+        modelId: modelIdForBudget,
+      });
       const conversationContext = buildEffectiveConversationContext({
         llm: options.llm,
         sessionManager,
-        budgetTokens: getDefaultSessionContextBudgetTokens({ modelId: modelIdForBudget }),
+        budgetTokens: baseSessionBudgetTokens,
       });
       const artifactHints = sessionManager.getArtifactState();
       const replacementState = sessionManager.getReplacementState();
@@ -389,7 +392,34 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
             permissionMode: options.permissionMode,
           }).catch(async (error) => {
             // Level 2: Reactive Compact
-            // If LLM returns prompt-too-long, trigger emergency compact and retry ONCE
+            // If the provider reports prompt-too-long, attempt emergency compaction AND retry ONCE
+            // with a smaller session context budget to guarantee prompt reduction.
+            const isContextOverflow = (() => {
+              if (!error || typeof error !== 'object') return false;
+              if ('llmCode' in (error as any) && (error as any).llmCode === 'LLM_CONTEXT_LENGTH_EXCEEDED') {
+                return true;
+              }
+              const message =
+                error instanceof Error
+                  ? error.message
+                  : typeof (error as any).message === 'string'
+                    ? String((error as any).message)
+                    : '';
+              const lower = message.toLowerCase();
+              return (
+                lower.includes('maximum context length') ||
+                lower.includes('context length') ||
+                lower.includes('too many tokens') ||
+                lower.includes('prompt is too long') ||
+                lower.includes('input is too long') ||
+                lower.includes('please reduce')
+              );
+            })();
+
+            if (!isContextOverflow) {
+              throw error;
+            }
+
             const reactiveResult = await reactiveCompact({
               sessionManager,
               llm: options.llm,
@@ -397,45 +427,68 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
               tracking: currentCompactionTracking,
               signal: mergedSignal.signal,
             });
+            currentCompactionTracking = reactiveResult.tracking;
 
-            if (reactiveResult.performed) {
-              currentCompactionTracking = reactiveResult.tracking;
-              // Rebuild context and retry runSalmonLoop
-              const newContext = buildEffectiveConversationContext({
-                llm: options.llm,
-                sessionManager,
-                budgetTokens: getDefaultSessionContextBudgetTokens({ modelId: modelIdForBudget }),
-              });
+            // Rebuild context and retry runSalmonLoop.
+            // Important: avoid duplicating the current instruction inside `conversationContext`,
+            // since `instruction: trimmed` is already provided as the primary input.
+            const history = sessionManager.getMessages();
+            const retryMessages =
+              history.length > 0 &&
+              history[history.length - 1]?.role === 'user' &&
+              history[history.length - 1]?.content === trimmed
+                ? history.slice(0, -1)
+                : history;
 
-              return await runSalmonLoop({
-                instruction: trimmed,
-                verify: options.verifyCommand,
-                repoPath: options.repoPath,
-                llm: options.llm,
-                mode: intentDecision.intent,
-                strategy,
-                verbose: verboseLevel,
-                onEvent: latestEmit,
-                signal: mergedSignal.signal,
-                llmOutput: currentLlmOutputPolicy,
-                outcomeReporter: options.outcomeReporter,
-                auditScope: options.auditScope,
-                conversationContext: newContext.length > 0 ? newContext : undefined,
-                artifactHints,
-                replacementState,
-                astValidation: options.astValidation,
-                languagePlugins: options.languagePlugins,
-                langfuseSessionId: options.langfuseSessionId || sessionManager.getCurrent().meta.id,
-                langfuseUserId: options.langfuseUserId,
-                authorizationProvider,
-                authorizationMode: 'deferred',
-                userInputProvider,
-                subAgentController,
-                permissionMode: options.permissionMode,
-              });
-            }
+            const reactiveBudgetTokens = Math.max(
+              64,
+              Math.min(baseSessionBudgetTokens - 1, Math.floor(baseSessionBudgetTokens * 0.5)),
+            );
 
-            throw error;
+            getLogger().audit(
+              'COMPACTION_REACTIVE_RETRY',
+              {
+                reason: 'context_overflow',
+                baseSessionBudgetTokens,
+                reactiveBudgetTokens,
+                baseIsMinimum: baseSessionBudgetTokens <= 256,
+                modelId: modelIdForBudget ?? 'unknown',
+              },
+              { source: 'chat', severity: 'low', scope: 'session', phase: 'COMPACTION' },
+            );
+            const newContext = buildEffectiveConversationContext({
+              llm: options.llm,
+              sessionManager,
+              messages: retryMessages,
+              budgetTokens: reactiveBudgetTokens,
+            });
+
+            return await runSalmonLoop({
+              instruction: trimmed,
+              verify: options.verifyCommand,
+              repoPath: options.repoPath,
+              llm: options.llm,
+              mode: intentDecision.intent,
+              strategy,
+              verbose: verboseLevel,
+              onEvent: latestEmit,
+              signal: mergedSignal.signal,
+              llmOutput: currentLlmOutputPolicy,
+              outcomeReporter: options.outcomeReporter,
+              auditScope: options.auditScope,
+              conversationContext: newContext.length > 0 ? newContext : undefined,
+              artifactHints,
+              replacementState,
+              astValidation: options.astValidation,
+              languagePlugins: options.languagePlugins,
+              langfuseSessionId: options.langfuseSessionId || sessionManager.getCurrent().meta.id,
+              langfuseUserId: options.langfuseUserId,
+              authorizationProvider,
+              authorizationMode: 'deferred',
+              userInputProvider,
+              subAgentController,
+              permissionMode: options.permissionMode,
+            });
           });
 
           return { kind: 'flow' as const, mode: intentDecision.intent, result };

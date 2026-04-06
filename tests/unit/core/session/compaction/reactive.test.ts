@@ -1,51 +1,72 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { reactiveCompact } from '../../../../../src/core/session/compaction/index.js';
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
+
 import { LlmError } from '../../../../../src/core/llm/errors.js';
 import { createInitialTracking } from '../../../../../src/core/session/compaction/tracking.js';
-import * as summarySync from '../../../../../src/core/session/summary-sync.js';
 import { setLogger, createLogger } from '../../../../../src/core/observability/logger.js';
 
-vi.mock('../../../../../src/core/session/summary-sync.js', () => ({
-  refreshSessionSummary: vi.fn(),
+const refreshSessionSummary = mock();
+
+mock.module('../../../../../src/core/session/summary-sync.js', () => ({
+  refreshSessionSummary,
 }));
 
 describe('reactiveCompact', () => {
   beforeEach(() => {
     setLogger(createLogger({ silent: true }));
+    mock.clearAllMocks();
   });
-  const mockSessionManager = {
-    getMessages: vi.fn().mockReturnValue([]),
-    getSummaryState: vi.fn().mockReturnValue({ summaryTokens: 100 }),
-  } as any;
 
-  const mockLLM = {
-    getModelId: () => 'test-model',
-  } as any;
+  function createMockSessionManager() {
+    return {
+      getMessages: mock().mockReturnValue([]),
+      getSummaryState: mock().mockReturnValue({ summaryTokens: 100 }),
+    } as any;
+  }
 
-  it('should ignore non-overflow errors', async () => {
-    const error = new Error('Random error');
+  it('ignores non-overflow errors', async () => {
+    const { reactiveCompact } = await import('../../../../../src/core/session/compaction/index.js');
+
     const result = await reactiveCompact({
-      sessionManager: mockSessionManager,
-      llm: mockLLM,
-      error,
+      sessionManager: createMockSessionManager(),
+      llm: { getModelId: () => 'test-model' } as any,
+      error: new Error('Random error'),
       tracking: createInitialTracking(),
     });
 
     expect(result.performed).toBe(false);
   });
 
-  it('should trigger compaction on context length exceeded error', async () => {
-    const error = new LlmError('Context overflow', 'LLM_CONTEXT_LENGTH_EXCEEDED');
+  it('triggers compaction on context length exceeded error', async () => {
+    const { reactiveCompact } = await import('../../../../../src/core/session/compaction/index.js');
+
+    refreshSessionSummary.mockResolvedValue({ didSummarize: true });
 
     const result = await reactiveCompact({
-      sessionManager: mockSessionManager,
-      llm: mockLLM,
-      error,
+      sessionManager: createMockSessionManager(),
+      llm: { getModelId: () => 'test-model' } as any,
+      error: new LlmError('Context overflow', 'LLM_CONTEXT_LENGTH_EXCEEDED'),
       tracking: createInitialTracking(),
     });
 
     expect(result.performed).toBe(true);
     expect(result.trigger).toBe('reactive');
-    expect(summarySync.refreshSessionSummary).toHaveBeenCalled();
+    expect(refreshSessionSummary).toHaveBeenCalled();
+  });
+
+  it('triggers compaction on plain overflow message errors', async () => {
+    const { reactiveCompact } = await import('../../../../../src/core/session/compaction/index.js');
+
+    refreshSessionSummary.mockResolvedValue({ didSummarize: true });
+
+    const result = await reactiveCompact({
+      sessionManager: createMockSessionManager(),
+      llm: { getModelId: () => 'test-model' } as any,
+      error: new Error('Prompt is too long'),
+      tracking: createInitialTracking(),
+    });
+
+    expect(result.performed).toBe(true);
+    expect(result.trigger).toBe('reactive');
+    expect(refreshSessionSummary).toHaveBeenCalled();
   });
 });

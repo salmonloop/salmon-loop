@@ -9,6 +9,30 @@ import { TokenTracker } from '../token-tracker.js';
 import { refreshSessionSummary } from '../summary-sync.js';
 import { getModelRecommendedBudget } from '../../context/token/adaptive-budget.js';
 
+function isContextOverflowLike(error: unknown): boolean {
+  if (error instanceof LlmError && error.llmCode === 'LLM_CONTEXT_LENGTH_EXCEEDED') {
+    return true;
+  }
+
+  const message =
+    error instanceof Error
+      ? error.message
+      : error && typeof error === 'object' && typeof (error as any).message === 'string'
+        ? String((error as any).message)
+        : '';
+  if (!message) return false;
+  const lower = message.toLowerCase();
+  return (
+    lower.includes('maximum context length') ||
+    lower.includes('context length') ||
+    lower.includes('too many tokens') ||
+    lower.includes('prompt is too long') ||
+    lower.includes('input is too long') ||
+    lower.includes('reduce the length') ||
+    lower.includes('please reduce')
+  );
+}
+
 /**
  * Autocompact (Level 1)
  *
@@ -26,11 +50,11 @@ export async function autocompact(params: {
 }): Promise<CompactionResult> {
   const { sessionManager, llm, tracking, contextHash, signal } = params;
   const trigger = params.trigger ?? 'auto';
+  const modelId = llm.getModelId?.();
 
   // Resolve dynamic threshold if not provided in config
   let resolvedThreshold = params.config?.tokenThreshold;
   if (resolvedThreshold === undefined) {
-    const modelId = llm.getModelId?.();
     if (modelId) {
       try {
         resolvedThreshold = getModelRecommendedBudget(modelId);
@@ -51,6 +75,23 @@ export async function autocompact(params: {
 
   // 1. Check circuit breaker
   if (isCircuitBreakerTripped(tracking, config.maxFailures)) {
+    getLogger().audit(
+      'COMPACTION_SKIP',
+      {
+        reason: 'circuit_breaker',
+        trigger,
+        modelId: modelId ?? 'unknown',
+        tokenThreshold: config.tokenThreshold,
+        consecutiveFailures: tracking.consecutiveFailures,
+        maxFailures: config.maxFailures,
+      },
+      {
+        source: 'session',
+        severity: 'low',
+        scope: 'session',
+        phase: 'COMPACTION',
+      },
+    );
     return { performed: false, tracking };
   }
 
@@ -59,6 +100,22 @@ export async function autocompact(params: {
   const totalTokens = TokenTracker.estimateMessagesTokens(messages);
 
   if (trigger === 'auto' && totalTokens < config.tokenThreshold) {
+    getLogger().audit(
+      'COMPACTION_SKIP',
+      {
+        reason: 'below_threshold',
+        trigger,
+        modelId: modelId ?? 'unknown',
+        preTokens: totalTokens,
+        tokenThreshold: config.tokenThreshold,
+      },
+      {
+        source: 'session',
+        severity: 'low',
+        scope: 'session',
+        phase: 'COMPACTION',
+      },
+    );
     return { performed: false, tracking };
   }
 
@@ -66,19 +123,41 @@ export async function autocompact(params: {
   try {
     // Reuse existing refreshSessionSummary with 'force' strategy
     // This will trigger the ConversationSummarizer logic
-    await refreshSessionSummary({
+    const summaryResult = await refreshSessionSummary({
       sessionManager,
       llm,
       contextHash,
       strategy: 'force',
+      strict: true,
     });
 
-    const postMessages = sessionManager.getMessages(); // Still original history
+    if (!summaryResult.didSummarize) {
+      getLogger().audit(
+        'COMPACTION_SKIP',
+        {
+          reason: 'no_op',
+          trigger,
+          modelId: modelId ?? 'unknown',
+          preTokens: totalTokens,
+          tokenThreshold: config.tokenThreshold,
+        },
+        {
+          source: 'session',
+          severity: 'low',
+          scope: 'session',
+          phase: 'COMPACTION',
+        },
+      );
+      return { performed: false, tracking };
+    }
+
     const updatedSummary = sessionManager.getSummaryState();
 
     getLogger().audit(`COMPACTION_${trigger.toUpperCase()}COMPACT` as any, {
       trigger,
+      modelId: modelId ?? 'unknown',
       preTokens: totalTokens,
+      tokenThreshold: config.tokenThreshold,
       summaryTokens: updatedSummary?.summaryTokens,
       circuitBreakerState: { consecutiveFailures: 0 },
     }, {
@@ -127,12 +206,7 @@ export async function reactiveCompact(params: {
   contextHash?: string;
   signal?: AbortSignal;
 }): Promise<CompactionResult> {
-  const { error } = params;
-
-  const isOverflow =
-    error instanceof LlmError && error.llmCode === 'LLM_CONTEXT_LENGTH_EXCEEDED';
-
-  if (!isOverflow) {
+  if (!isContextOverflowLike(params.error)) {
     return { performed: false, tracking: params.tracking };
   }
 

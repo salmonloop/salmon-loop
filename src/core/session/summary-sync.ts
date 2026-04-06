@@ -6,16 +6,22 @@ import { microcompact } from './compaction/microcompact.js';
 import type { ChatSessionManager } from './manager.js';
 import { buildSessionConversationContext } from './session-context-builder.js';
 import { TokenTracker } from './token-tracker.js';
+import type { ChatMessage } from './types.js';
 
 export async function refreshSessionSummary(params: {
   sessionManager?: ChatSessionManager;
   llm: LLM;
   contextHash?: string;
   strategy?: 'auto' | 'force';
-}): Promise<void> {
+  /**
+   * When true, rethrow errors instead of swallowing them.
+   * Use this for compaction pipelines that need failure tracking/circuit breakers.
+   */
+  strict?: boolean;
+}): Promise<{ didSummarize: boolean; error?: string }> {
   const { sessionManager, llm, contextHash } = params;
   const strategy = params.strategy ?? 'auto';
-  if (!sessionManager) return;
+  if (!sessionManager) return { didSummarize: false };
 
   try {
     const summarizer = new ConversationSummarizer(
@@ -50,27 +56,40 @@ export async function refreshSessionSummary(params: {
     }
 
     const rawMessages = sessionManager.getMessagesWithIds();
-    const messages = microcompact(rawMessages).map((msg) => ({
-      id: msg.id,
+    const messages = microcompact(rawMessages).map((msg, index) => ({
+      id: msg.id ?? rawMessages[index]?.id ?? `msg-${index}-${msg.timestamp}`,
       role: msg.role,
       content: msg.content,
       timestamp: msg.timestamp,
     }));
 
+    let didSummarize = false;
     if (strategy === 'force') {
-      await summarizer.forceSummarize(messages, contextHash);
+      const result = await summarizer.forceSummarize(messages, contextHash);
+      didSummarize = Boolean(result);
     } else {
-      await summarizer.triggerSummarization(messages, contextHash);
+      const result = await summarizer.triggerSummarization(messages, contextHash);
+      didSummarize = Boolean(result);
     }
     sessionManager.updateSummaryState(summarizer.getState());
-  } catch {
-    // Best-effort summary update: never affect execution flow.
+    return { didSummarize };
+  } catch (error) {
+    if (params.strict) {
+      throw error;
+    }
+    return { didSummarize: false, error: error instanceof Error ? error.message : String(error) };
   }
 }
 
 export function buildEffectiveConversationContext(params: {
   llm: LLM;
   sessionManager: ChatSessionManager;
+  /**
+   * Optional override for the message list used to build context.
+   * Useful for retries where the current instruction is already passed separately
+   * and should not be duplicated inside the session context slice.
+   */
+  messages?: ChatMessage[];
   budgetTokens?: number;
   maxMessages?: number;
   countTokens?: (text: string) => number;
@@ -80,9 +99,9 @@ export function buildEffectiveConversationContext(params: {
 
   // Apply microcompact (Level 0) to all messages before building context
   // This is a "view-only" operation that doesn't modify sessionManager history
-  const rawMessages = sessionManager.getMessages();
-  const messages = microcompact(rawMessages).map((msg) => ({
-    id: msg.id,
+  const rawMessages = params.messages ?? sessionManager.getMessages();
+  const messages = microcompact(rawMessages).map((msg, index) => ({
+    id: msg.id ?? `msg-${index}-${msg.timestamp}`,
     role: msg.role,
     content: msg.content,
     timestamp: msg.timestamp,
