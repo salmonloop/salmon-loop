@@ -30,6 +30,7 @@ import {
   createInitialTracking,
   onNormalTurnComplete,
   runCompactionPipeline,
+  reactiveCompact,
 } from '../core/facades/cli-chat.js';
 import { createSubAgentController } from '../core/facades/cli-subagent.js';
 
@@ -386,6 +387,55 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
             userInputProvider,
             subAgentController,
             permissionMode: options.permissionMode,
+          }).catch(async (error) => {
+            // Level 2: Reactive Compact
+            // If LLM returns prompt-too-long, trigger emergency compact and retry ONCE
+            const reactiveResult = await reactiveCompact({
+              sessionManager,
+              llm: options.llm,
+              error,
+              tracking: currentCompactionTracking,
+              signal: mergedSignal.signal,
+            });
+
+            if (reactiveResult.performed) {
+              currentCompactionTracking = reactiveResult.tracking;
+              // Rebuild context and retry runSalmonLoop
+              const newContext = buildEffectiveConversationContext({
+                llm: options.llm,
+                sessionManager,
+                budgetTokens: getDefaultSessionContextBudgetTokens({ modelId: modelIdForBudget }),
+              });
+
+              return await runSalmonLoop({
+                instruction: trimmed,
+                verify: options.verifyCommand,
+                repoPath: options.repoPath,
+                llm: options.llm,
+                mode: intentDecision.intent,
+                strategy,
+                verbose: verboseLevel,
+                onEvent: latestEmit,
+                signal: mergedSignal.signal,
+                llmOutput: currentLlmOutputPolicy,
+                outcomeReporter: options.outcomeReporter,
+                auditScope: options.auditScope,
+                conversationContext: newContext.length > 0 ? newContext : undefined,
+                artifactHints,
+                replacementState,
+                astValidation: options.astValidation,
+                languagePlugins: options.languagePlugins,
+                langfuseSessionId: options.langfuseSessionId || sessionManager.getCurrent().meta.id,
+                langfuseUserId: options.langfuseUserId,
+                authorizationProvider,
+                authorizationMode: 'deferred',
+                userInputProvider,
+                subAgentController,
+                permissionMode: options.permissionMode,
+              });
+            }
+
+            throw error;
           });
 
           return { kind: 'flow' as const, mode: intentDecision.intent, result };
