@@ -1,6 +1,6 @@
 import { text } from '../../locales/index.js';
 import type { ResolvedExtensions } from '../extensions/types.js';
-import { skillToToolSpec } from '../skills/bridge.js';
+import { skillToToolSpec, type RouterBox } from '../skills/bridge.js';
 import { SkillLoader } from '../skills/loader.js';
 import type { AuthorizationSourceSummary, ExecutionPhase } from '../types/runtime.js';
 
@@ -81,23 +81,6 @@ export async function createStandardToolstack(options: ToolstackOptions) {
   // 2. Register all builtin tools (rg, git, ast, ast-grep)
   registerAllBuiltins(registry);
 
-  // 3. Load and register Skills as tools
-  const extensions = options.extensions;
-  const skillLoader = new SkillLoader({
-    repoRoot: options.repoRoot,
-    useDefaults: extensions?.skillDiscovery.useDefaults,
-    extraPaths: extensions?.skillDiscovery.paths,
-  });
-  const skills = await skillLoader.initialize();
-  for (const skill of skills) {
-    registry.register(skillToToolSpec(skill));
-  }
-
-  if (extensions) {
-    await registerMcpTools(registry, extensions.mcpServers);
-    await registerPluginTools(registry, extensions.toolPlugins);
-  }
-
   const compiledPermissionRules = (() => {
     if (!options.permissionRules) return undefined;
     const compiled = compilePermissionRules(options.permissionRules);
@@ -108,6 +91,44 @@ export async function createStandardToolstack(options: ToolstackOptions) {
     return compiled.compiled;
   })();
 
+  // 3. Register ALL tools (builtins already done above) into the registry,
+  //    then apply allowlist/permission filtering, then create the router.
+  //
+  //    The challenge: skill executors need a ToolRouter reference (to call
+  //    shell.exec through governance), but the router needs the final filtered
+  //    registry. We break this cycle with a RouterBox — a mutable container
+  //    whose .router field is filled after the router is constructed.
+  //
+  //    Order:
+  //      a. Create RouterBox (null initially)
+  //      b. Load skills → register with RouterBox (executor reads lazily)
+  //      c. Register MCP + plugin tools
+  //      d. Apply allowlist/permission filtering → new filtered registry
+  //      e. Create ToolRouter with filtered registry
+  //      f. Fill RouterBox.router — skill executors now have a valid reference
+
+  const routerBox: RouterBox = { router: null };
+
+  // 3a. Load and register skills (with lazy RouterBox reference)
+  const extensions = options.extensions;
+  const skillLoader = new SkillLoader({
+    repoRoot: options.repoRoot,
+    useDefaults: extensions?.skillDiscovery.useDefaults,
+    extraPaths: extensions?.skillDiscovery.paths,
+    legacyDirectMd: extensions?.skillDiscovery.legacyDirectMd,
+  });
+  const skills = await skillLoader.initialize();
+  for (const skill of skills) {
+    registry.register(skillToToolSpec(skill, routerBox));
+  }
+
+  // 3b. Register MCP + plugin tools
+  if (extensions) {
+    await registerMcpTools(registry, extensions.mcpServers);
+    await registerPluginTools(registry, extensions.toolPlugins);
+  }
+
+  // 3c. Apply allowlist / permission-rule filtering — skills are now included
   const allowSets: Array<Set<string>> = [];
   if (Array.isArray(options.allowedToolNames) && options.allowedToolNames.length > 0) {
     allowSets.push(new Set(options.allowedToolNames));
@@ -132,7 +153,7 @@ export async function createStandardToolstack(options: ToolstackOptions) {
     registry = filtered;
   }
 
-  // 4. Create Router (The execution pipeline)
+  // 3d. Create Router with the FINAL (filtered) registry — skills included
   const router = new ToolRouter(
     registry,
     policy,
@@ -142,6 +163,9 @@ export async function createStandardToolstack(options: ToolstackOptions) {
     options.authorizationProvider,
     { authorizationMode: options.authorizationMode, permissionRules: compiledPermissionRules },
   );
+
+  // 3e. Fill the RouterBox — skill executors can now resolve the router
+  routerBox.router = router;
 
   // 4. Create Dispatcher (The high-level coordinator for LLM text)
   const dispatcher = new ToolDispatcher(router, {

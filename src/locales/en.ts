@@ -824,6 +824,32 @@ Please return the patch in PURE unified diff format:`;
   skills: {
     maxRetriesExceeded: (id: string) =>
       `Max retries exceeded for skill: ${id}. Possible circular dependency in dynamic data.`,
+    legacyRunnerForbidden:
+      'Legacy MicroTaskRunner is restricted to test context only. Use executeSkill() from SkillRunner.ts for production execution.',
+    missingFrontmatter: (filePath: string) =>
+      `Skill at ${filePath}: missing or malformed YAML frontmatter (expected --- delimiters).`,
+    invalidFrontmatter: (filePath: string, reason: string) =>
+      `Skill at ${filePath}: frontmatter validation failed — ${reason}`,
+    yamlParseError: (filePath: string, reason: string) =>
+      `Skill at ${filePath}: YAML parse error — ${reason}`,
+    nameDirMismatch: (filePath: string, expected: string, actual: string) =>
+      `Skill at ${filePath}: frontmatter name "${actual}" does not match parent directory "${expected}"`,
+    legacyDirectMdDeprecation: (filePath: string) =>
+      `Skill at ${filePath}: direct .md format is deprecated. Convert to subdirectory format: move to <skill-name>/SKILL.md`,
+    skillNotFoundInCatalog: (id: string) =>
+      `Skill "${id}" not found in catalog. Ensure loadCatalog() has been called and the skill exists.`,
+    skillActivated: (id: string) =>
+      `Skill "${id}" activated (Tier 2: full content loaded).`,
+    newSkillDiscovered: (id: string, location: string) =>
+      `New skill "${id}" discovered at ${location} during session.`,
+    conditionalSkillActivated: (id: string, matchedPattern: string) =>
+      `Conditional skill "${id}" activated: file matched pattern "${matchedPattern}".`,
+    permissionFileInvalidFormat: (filePath: string) =>
+      `Skill permissions file at ${filePath} has invalid format; starting with empty allowlist.`,
+    permissionFileLoadError: (filePath: string) =>
+      `Failed to load skill permissions from ${filePath}; starting with empty allowlist.`,
+    permissionFileSaveError: (filePath: string, reason: string) =>
+      `Failed to save skill permissions to ${filePath}: ${reason}`,
   },
 
   // Symbols for UI feedback

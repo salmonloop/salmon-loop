@@ -87,19 +87,55 @@ Entries merge with the policy “user first, repo overrides.” Repo files can d
 
 ## Skills configuration
 
+Skills follow the [AgentSkills](https://agentskills.io/specification) subdirectory convention. Each skill lives in a named subdirectory with an exact `SKILL.md` filename:
+
+```
+.salmonloop/skills/
+  my-skill/
+    SKILL.md          ← canonical format
+  another-skill/
+    SKILL.md
+```
+
+The loader only accepts the `skill-name/SKILL.md` pattern by default. Legacy direct `.md` files (e.g., `skills/my-skill.md`) are no longer loaded unless you enable the `legacyDirectMd` compatibility flag (see below).
+
+### Config file
+
 ```json
 {
   "version": 1,
   "discovery": {
     "useDefaults": true,
-    "paths": ["./.salmonloop/skills"]
+    "paths": ["./.salmonloop/skills"],
+    "legacyDirectMd": false
   }
 }
 ```
 
-- `paths` can include absolute or repo-relative directories. Any duplicated skill IDs log a warning and are ignored.
-- `useDefaults` keeps compatibility paths such as `~/.salmonloop/skills`, `~/.claude/skills`, and `<repo>/.claude/skills`.
-- You can mix repo and user discovery files; repo wins on conflicts.
+- `paths` can include repo-relative directories. Absolute paths are only allowed in user-level config (`skills-user.json`). Repo-scoped paths that resolve outside the repo root are rejected.
+- `useDefaults` keeps the compatibility paths (`.claude/skills` at both repo and user level). Set to `false` to disable them.
+- `legacyDirectMd` — when `true`, the loader also accepts flat `.md` files directly under a skills root, emitting a deprecation warning for each one. Defaults to `false`. Can also be set via the `SALMONLOOP_SKILL_LEGACY_DIRECT_MD` environment variable.
+- Duplicated skill names across paths log a warning; the first-discovered skill wins.
+
+### Discovery path priority
+
+Skills are discovered in a 7-level priority order. When two skills share the same `name`, the higher-priority path wins and a warning is logged:
+
+| Priority | Path | Scope |
+|----------|------|-------|
+| 1 | Config extra paths (`skills.json` `discovery.paths`) | config |
+| 2 | `{repoRoot}/.salmonloop/skills` | repo |
+| 3 | `{repoRoot}/.agents/skills` | repo |
+| 4 | `{repoRoot}/.claude/skills` (compat, requires `useDefaults: true`) | repo |
+| 5 | `~/.salmonloop/skills` | user |
+| 6 | `~/.agents/skills` | user |
+| 7 | `~/.claude/skills` (compat, requires `useDefaults: true`) | user |
+
+The `.agents/skills` paths at both project and user level provide cross-client interoperability with the [AgentSkills](https://agentskills.io/specification) ecosystem.
+
+### Migrating from legacy format
+
+If you have existing skills in the old flat-file format (`skills/my-skill.md`), see the [Skill Migration Guide](skill-migration-guide.md) for step-by-step conversion instructions, compatibility mode options, and the recommended rollout sequence.
 
 ## Peeking at `ResolvedExtensions`
 

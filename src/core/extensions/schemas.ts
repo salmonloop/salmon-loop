@@ -68,6 +68,7 @@ export const ToolsConfigSchema = z.object({
 const skillDiscoverySchema = z.object({
   useDefaults: z.boolean().optional(),
   paths: z.array(z.string()).optional(),
+  legacyDirectMd: z.boolean().optional(),
 });
 
 export const SkillsConfigSchema = z.object({

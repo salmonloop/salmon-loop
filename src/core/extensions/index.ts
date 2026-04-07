@@ -1,3 +1,7 @@
+import path from 'node:path';
+
+import { getLogger } from '../observability/logger.js';
+
 import { loadConfig } from './load.js';
 import { mergeScopedEntries, ScopedEntry } from './merge.js';
 import {
@@ -8,6 +12,7 @@ import {
   getUserMcpConfigPath,
   getUserSkillConfigPath,
   getUserToolConfigPath,
+  isWithinRoot,
   resolveRepoRelative,
   resolveUserRelative,
 } from './paths.js';
@@ -127,9 +132,35 @@ function buildResolvedSkills(
 
   if (repoPaths && repoPaths.length > 0) {
     scope = 'repo';
+    const root = repoRoot ?? '';
     paths = repoPaths
-      .map((value) => resolvePathForScope(value, 'repo', repoRoot ?? ''))
-      .filter((p): p is string => Boolean(p));
+      .filter((raw) => {
+        // Reject absolute paths in repo scope — only user-level config may specify them
+        const expanded = expandHome(raw);
+        if (path.isAbsolute(expanded)) {
+          getLogger().audit(
+            'SKILL_PATH_REJECTED',
+            { path: raw, repoRoot: root, reason: 'absolute_path_in_repo_scope' },
+            { source: 'skill-loader', severity: 'high', scope: 'repo' },
+          );
+          return false;
+        }
+        return true;
+      })
+      .map((value) => resolvePathForScope(value, 'repo', root))
+      .filter((p): p is string => Boolean(p))
+      .filter((p) => {
+        // Validate resolved paths stay within repo root
+        if (!isWithinRoot(p, root)) {
+          getLogger().audit(
+            'SKILL_PATH_REJECTED',
+            { path: p, repoRoot: root, reason: 'outside_repo_root' },
+            { source: 'skill-loader', severity: 'high', scope: 'repo' },
+          );
+          return false;
+        }
+        return true;
+      });
   } else if (userPaths && userPaths.length > 0) {
     scope = 'user';
     paths = userPaths
@@ -141,6 +172,7 @@ function buildResolvedSkills(
     useDefaults,
     paths,
     scope,
+    legacyDirectMd: repoDiscovery?.legacyDirectMd ?? userDiscovery?.legacyDirectMd ?? false,
   };
 }
 

@@ -415,7 +415,7 @@ export class ToolRouter {
       return { kind: 'ready' };
     }
 
-    const cacheKey = this.buildAuthorizationKey(normalizedEnvelope);
+    const cacheKey = this.buildAuthorizationKey(normalizedEnvelope, spec);
     if (this.isAuthorizationCached(cacheKey)) {
       return { kind: 'ready' };
     }
@@ -510,8 +510,28 @@ export class ToolRouter {
     };
   }
 
-  private buildAuthorizationKey(envelope: ToolCallEnvelope): string {
-    return `${envelope.toolName}:${envelope.phase}`;
+  private buildAuthorizationKey(
+    envelope: ToolCallEnvelope,
+    spec: { sideEffects?: string[] },
+  ): string {
+    const base = `${envelope.toolName}:${envelope.phase}`;
+    if (this.isHighRiskTool(spec)) {
+      const argsHash = this.hashArgs(envelope.args);
+      return argsHash ? `${base}:${argsHash}` : base;
+    }
+    // Low-risk (read-only) tools use toolName:phase only — a single approval
+    // covers all argument variations since these tools have no dangerous side effects.
+    return base;
+  }
+
+  /**
+   * Determines whether a tool is high-risk based on its declared side effects.
+   * High-risk tools (process, fs_write, network) require stricter authorization
+   * cache scoping — see {@link buildAuthorizationKey}.
+   */
+  private isHighRiskTool(spec: { sideEffects?: string[] }): boolean {
+    const HIGH_RISK_EFFECTS: string[] = ['process', 'fs_write', 'network'];
+    return (spec.sideEffects ?? []).some((e) => HIGH_RISK_EFFECTS.includes(e));
   }
 
   private isAuthorizationCached(key: string): boolean {
@@ -539,6 +559,8 @@ export class ToolRouter {
     if (args === undefined) return undefined;
     try {
       const raw = JSON.stringify(args);
+      // Full SHA-256 hex digest (64 chars / 256-bit) for authorization cache keys.
+      // Truncation to 16 hex was insufficient collision resistance for security use.
       return crypto.createHash('sha256').update(raw).digest('hex');
     } catch {
       return undefined;
@@ -555,7 +577,7 @@ export class ToolRouter {
   > {
     if (!this.authorization) return { kind: 'allow' };
 
-    const cacheKey = this.buildAuthorizationKey(envelope);
+    const cacheKey = this.buildAuthorizationKey(envelope, spec);
     if (this.isAuthorizationCached(cacheKey)) {
       this.audit.onAuthorization({
         callId: envelope.id,
@@ -643,7 +665,7 @@ export class ToolRouter {
     if (decision.outcome === 'allow_session' || decision.outcome === 'allow') {
       const expiresAt =
         typeof decision.ttlMs === 'number' ? Date.now() + decision.ttlMs : undefined;
-      const cacheKey = this.buildAuthorizationKey(envelope);
+      const cacheKey = this.buildAuthorizationKey(envelope, spec);
       this.authorizationCache.set(cacheKey, { expiresAt });
     }
 

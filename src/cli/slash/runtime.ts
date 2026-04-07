@@ -66,7 +66,7 @@ export interface CreateCliSlashRuntimeOptions {
   baseCommands: Command[];
   emit: (event: any) => void;
   authorizationProvider?: ToolAuthorizationProvider;
-  skillDiscovery?: { useDefaults?: boolean; paths?: string[] };
+  skillDiscovery?: { useDefaults?: boolean; paths?: string[]; legacyDirectMd?: boolean };
 }
 
 export async function createCliSlashRuntime(
@@ -76,6 +76,7 @@ export async function createCliSlashRuntime(
     repoRoot: options.repoRoot,
     useDefaults: options.skillDiscovery?.useDefaults,
     extraPaths: options.skillDiscovery?.paths,
+    legacyDirectMd: options.skillDiscovery?.legacyDirectMd,
   });
   const skills = await skillLoader.initialize();
 
