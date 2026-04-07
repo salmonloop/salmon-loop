@@ -4,9 +4,25 @@ import { parse as parseYaml } from 'yaml';
 import { z } from 'zod';
 
 import { text } from '../../locales/index.js';
-import { getLogger, tryGetLogger } from '../observability/logger.js';
+import { tryGetLogger } from '../observability/logger.js';
 
 import { Skill, SkillCatalogEntry, SkillFrontmatter } from './types.js';
+
+/**
+ * Safe logger accessor that never throws when the logger is not yet initialized.
+ *
+ * Falls back to a no-op stub so that parser code can run in test environments
+ * or early startup paths where the global logger has not been set.
+ */
+function safeLogger() {
+  return tryGetLogger() ?? {
+    error: (..._args: unknown[]) => {},
+    warn: (..._args: unknown[]) => {},
+    info: (..._args: unknown[]) => {},
+    debug: (..._args: unknown[]) => {},
+    audit: (..._args: unknown[]) => {},
+  };
+}
 
 /**
  * Zod schema for strict SKILL.md frontmatter validation.
@@ -38,16 +54,21 @@ export const SkillFrontmatterSchema = z.object({
   // AgentSkills spec: "Space-delimited list of pre-approved tools" (Experimental).
   // Accept both a plain string ("tool-a tool-b") and a YAML array (["tool-a", "tool-b"])
   // to avoid rejecting valid skill files that use either notation.
+  // YAML bare key (`allowed-tools:`) parses as null — normalize to undefined
+  // so that Zod's `.optional()` accepts it as "not declared".
   'allowed-tools': z.preprocess(
     (val) => {
+      if (val === null || val === undefined) return undefined;
       if (Array.isArray(val)) return val.join(' ');
       return val;
     },
     z.string().optional(),
   ),
   // SalmonLoop extension: array form for internal use
+  // YAML bare key (`allowedTools:`) parses as null — normalize to undefined.
   allowedTools: z.preprocess(
     (val) => {
+      if (val === null || val === undefined) return undefined;
       if (typeof val === 'string') return val.split(/\s+/).filter(Boolean);
       return val;
     },
@@ -135,7 +156,7 @@ export class SkillParser {
 
     if (!match) {
       const msg = text.skills.missingFrontmatter(filePath);
-      getLogger().error(msg);
+      safeLogger().error(msg);
       throw new Error(msg);
     }
 
@@ -148,13 +169,13 @@ export class SkillParser {
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
       const msg = text.skills.yamlParseError(filePath, reason);
-      getLogger().error(msg);
+      safeLogger().error(msg);
       throw new Error(msg);
     }
 
     if (parsed == null || typeof parsed !== 'object') {
       const msg = text.skills.missingFrontmatter(filePath);
-      getLogger().error(msg);
+      safeLogger().error(msg);
       throw new Error(msg);
     }
 
@@ -162,7 +183,7 @@ export class SkillParser {
     if (!result.success) {
       const issues = result.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ');
       const msg = text.skills.invalidFrontmatter(filePath, issues);
-      getLogger().error(msg);
+      safeLogger().error(msg);
       throw new Error(msg);
     }
 
@@ -173,10 +194,10 @@ export class SkillParser {
     if (parentDir && parentDir !== '.' && parentDir !== data.name) {
       const msg = text.skills.nameDirMismatch(filePath, parentDir, data.name);
       if (strict) {
-        getLogger().error(msg);
+        safeLogger().error(msg);
         throw new Error(msg);
       } else {
-        getLogger().warn(msg);
+        safeLogger().warn(msg);
       }
     }
 
@@ -214,7 +235,7 @@ export class SkillParser {
 
     if (!match) {
       const msg = text.skills.missingFrontmatter(filePath);
-      getLogger().error(msg);
+      safeLogger().error(msg);
       throw new Error(msg);
     }
 
@@ -226,13 +247,13 @@ export class SkillParser {
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
       const msg = text.skills.yamlParseError(filePath, reason);
-      getLogger().error(msg);
+      safeLogger().error(msg);
       throw new Error(msg);
     }
 
     if (parsed == null || typeof parsed !== 'object') {
       const msg = text.skills.missingFrontmatter(filePath);
-      getLogger().error(msg);
+      safeLogger().error(msg);
       throw new Error(msg);
     }
 
@@ -240,7 +261,7 @@ export class SkillParser {
     if (!result.success) {
       const issues = result.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ');
       const msg = text.skills.invalidFrontmatter(filePath, issues);
-      getLogger().error(msg);
+      safeLogger().error(msg);
       throw new Error(msg);
     }
 
@@ -251,10 +272,10 @@ export class SkillParser {
     if (parentDir && parentDir !== '.' && parentDir !== data.name) {
       const msg = text.skills.nameDirMismatch(filePath, parentDir, data.name);
       if (strict) {
-        getLogger().error(msg);
+        safeLogger().error(msg);
         throw new Error(msg);
       } else {
-        getLogger().warn(msg);
+        safeLogger().warn(msg);
       }
     }
 
@@ -265,6 +286,7 @@ export class SkillParser {
       location: filePath,
       scope,
       conditionalPaths: data.paths,
+      userInvocable: data.userInvocable,
     };
   }
 

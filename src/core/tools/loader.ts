@@ -109,7 +109,11 @@ export async function createStandardToolstack(options: ToolstackOptions) {
 
   const routerBox: RouterBox = { router: null };
 
-  // 3a. Load and register skills (with lazy RouterBox reference)
+  // 3a. Load skill catalog (Tier 1: lightweight metadata only) and register
+  //     bridge tool specs with lazy activation. Full skill content is loaded
+  //     on demand via SkillLoader.activateSkill() (Tier 2) when the executor
+  //     is actually invoked.
+  // @see https://agentskills.io/specification — Progressive disclosure
   const extensions = options.extensions;
   const skillLoader = new SkillLoader({
     repoRoot: options.repoRoot,
@@ -117,9 +121,12 @@ export async function createStandardToolstack(options: ToolstackOptions) {
     extraPaths: extensions?.skillDiscovery.paths,
     legacyDirectMd: extensions?.skillDiscovery.legacyDirectMd,
   });
-  const skills = await skillLoader.initialize();
-  for (const skill of skills) {
-    registry.register(skillToToolSpec(skill, routerBox));
+  const catalog = await skillLoader.loadCatalog();
+  for (const entry of catalog) {
+    registry.register(skillToToolSpec(
+      { entry, loader: skillLoader },
+      routerBox,
+    ));
   }
 
   // 3b. Register MCP + plugin tools

@@ -110,13 +110,14 @@ export async function getKnownToolNames(repoRoot: string): Promise<Set<string>> 
     extraPaths,
     legacyDirectMd: skillDiscovery.legacyDirectMd,
   });
-  const skills = await skillLoader.initialize();
-  for (const skill of skills) {
+  const catalog = await skillLoader.loadCatalog();
+  for (const entry of catalog) {
     try {
       // Name-only registration: executor is never called, so null router is safe.
-      registry.register(skillToToolSpec(skill, routerBox));
+      // Use catalog entry for lightweight registration (progressive disclosure).
+      registry.register(skillToToolSpec({ entry, loader: skillLoader }, routerBox));
     } catch (error) {
-      const label = skill.metadata?.name || skill.id;
+      const label = entry.name || entry.id;
       getLogger().warn(
         `Failed to register skill ${label}: ${error instanceof Error ? error.message : String(error)}`,
       );

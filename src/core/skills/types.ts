@@ -38,6 +38,8 @@ export interface SkillCatalogEntry {
   location: string;
   scope: 'repo' | 'user' | 'config';
   conditionalPaths?: string[];
+  /** Whether the skill can be invoked by users (default: true). */
+  userInvocable?: boolean;
 }
 
 /**

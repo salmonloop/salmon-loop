@@ -21,6 +21,13 @@ mock.module('../../../src/core/observability/logger.js', () => ({
     debug: mock(),
     audit: mock(),
   }),
+  tryGetLogger: () => ({
+    info: infoMock,
+    warn: warnMock,
+    error: mock(),
+    debug: mock(),
+    audit: mock(),
+  }),
 }));
 
 import { SkillDiscoveryWatcher, matchGlob } from '../../../src/core/skills/discovery.js';

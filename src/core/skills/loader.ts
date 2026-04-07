@@ -3,10 +3,26 @@ import path from 'node:path';
 
 import { text } from '../../locales/index.js';
 import { syncFs as fs } from '../adapters/fs/node-fs.js';
-import { getLogger } from '../observability/logger.js';
+import { tryGetLogger } from '../observability/logger.js';
 
 import { SkillParser } from './parser.js';
 import { Skill, SkillCatalogEntry } from './types.js';
+
+/**
+ * Safe logger accessor that never throws when the logger is not yet initialized.
+ *
+ * Falls back to a no-op stub so that loader code can run in test environments
+ * or early startup paths where the global logger has not been set.
+ */
+function safeLogger() {
+  return tryGetLogger() ?? {
+    error: (..._args: unknown[]) => {},
+    warn: (..._args: unknown[]) => {},
+    info: (..._args: unknown[]) => {},
+    debug: (..._args: unknown[]) => {},
+    audit: (..._args: unknown[]) => {},
+  };
+}
 
 export interface SkillLoaderOptions {
   repoRoot: string;
@@ -63,7 +79,7 @@ export class SkillLoader {
     const skill = SkillParser.parse(content, entry.location, !isLegacyFile);
 
     this.activated.set(id, skill);
-    getLogger().info(text.skills.skillActivated(id));
+    safeLogger().info(text.skills.skillActivated(id));
 
     return skill;
   }
@@ -97,7 +113,7 @@ export class SkillLoader {
           skillFile = path.join(target.path, entry.name, 'SKILL.md');
         } else if (entry.name.endsWith('.md') && this.options.legacyDirectMd) {
           skillFile = path.join(target.path, entry.name);
-          getLogger().warn(text.skills.legacyDirectMdDeprecation(skillFile));
+          safeLogger().warn(text.skills.legacyDirectMdDeprecation(skillFile));
         }
 
         if (!skillFile || !fs.existsSync(skillFile)) continue;
@@ -114,10 +130,10 @@ export class SkillLoader {
 
           if (seen.has(catalogEntry.id)) {
             const firstSource = seen.get(catalogEntry.id)!;
-            getLogger().warn(
+            safeLogger().warn(
               `Duplicate skill ${catalogEntry.id} found in ${skillFile}; already loaded from ${firstSource}`,
             );
-            getLogger().audit(
+            safeLogger().audit(
               'SKILL_DUPLICATE_SKIPPED',
               {
                 skillId: catalogEntry.id,
@@ -132,7 +148,7 @@ export class SkillLoader {
           seen.set(catalogEntry.id, `${target.label}:${skillFile}`);
           catalog.push(catalogEntry);
         } catch (err) {
-          getLogger().error(
+          safeLogger().error(
             `Failed to load skill catalog entry at ${skillFile}: ${err instanceof Error ? err.message : String(err)}`,
           );
         }
@@ -171,7 +187,7 @@ export class SkillLoader {
           skillFile = path.join(target.path, entry.name, 'SKILL.md');
         } else if (entry.name.endsWith('.md') && this.options.legacyDirectMd) {
           skillFile = path.join(target.path, entry.name);
-          getLogger().warn(text.skills.legacyDirectMdDeprecation(skillFile));
+          safeLogger().warn(text.skills.legacyDirectMdDeprecation(skillFile));
         }
 
         if (!skillFile || !fs.existsSync(skillFile)) continue;
@@ -182,10 +198,10 @@ export class SkillLoader {
           const skill = SkillParser.parse(content, skillFile, !isLegacyFile);
           if (seen.has(skill.id)) {
             const firstSource = seen.get(skill.id)!;
-            getLogger().warn(
+            safeLogger().warn(
               `Duplicate skill ${skill.id} found in ${skillFile}; already loaded from ${firstSource}`,
             );
-            getLogger().audit(
+            safeLogger().audit(
               'SKILL_DUPLICATE_SKIPPED',
               {
                 skillId: skill.id,
@@ -200,7 +216,7 @@ export class SkillLoader {
           seen.set(skill.id, `${target.label}:${skillFile}`);
           inventory.push(skill);
         } catch (err) {
-          getLogger().error(
+          safeLogger().error(
             `Failed to load skill at ${skillFile}: ${err instanceof Error ? err.message : String(err)}`,
           );
         }

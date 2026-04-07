@@ -7,7 +7,7 @@ import {
   RuntimeEnvironment,
   SkillLoader,
   SlashRouter,
-  type Skill,
+  type SkillCatalogEntry,
   SlashCommandSpec,
   SlashDispatchDecision,
   SlashHandler,
@@ -23,13 +23,22 @@ function isSafeSkillId(id: string): boolean {
   return /^[a-z0-9][a-z0-9-_]*$/i.test(id);
 }
 
-function skillToSlashSpec(skill: Skill): SlashCommandSpec | null {
-  const id = String(skill.id || '').trim();
+/**
+ * Build a SlashCommandSpec from a Tier 1 catalog entry (lightweight metadata).
+ *
+ * This supports the AgentSkills progressive disclosure pattern: only name and
+ * description are needed at startup to populate the slash command registry.
+ * Full skill content is loaded on demand via SkillLoader.activateSkill().
+ *
+ * @see https://agentskills.io/specification — Progressive disclosure
+ */
+function catalogEntryToSlashSpec(entry: SkillCatalogEntry): SlashCommandSpec | null {
+  const id = String(entry.id || '').trim();
   if (!id || !isSafeSkillId(id)) return null;
   return {
     name: `/${id}`,
-    description: skill.metadata?.description || `Skill: ${id}`,
-    hidden: skill.metadata?.userInvocable === false,
+    description: entry.description || `Skill: ${id}`,
+    hidden: entry.userInvocable === false,
     order: 220,
   };
 }
@@ -78,9 +87,15 @@ export async function createCliSlashRuntime(
     extraPaths: options.skillDiscovery?.paths,
     legacyDirectMd: options.skillDiscovery?.legacyDirectMd,
   });
-  const skills = await skillLoader.initialize();
 
-  const skillSpecs = skills.map(skillToSlashSpec).filter((s): s is SlashCommandSpec => Boolean(s));
+  // Tier 1: Load lightweight catalog (name + description only, ~50-100 tokens per skill).
+  // Full skill content is loaded on demand via activateSkill() (Tier 2).
+  // @see https://agentskills.io/specification — Progressive disclosure
+  const catalog = await skillLoader.loadCatalog();
+
+  const skillSpecs = catalog
+    .map(catalogEntryToSlashSpec)
+    .filter((s): s is SlashCommandSpec => Boolean(s));
   const commandSpecs = options.baseCommands.map(commandToSlashSpec);
 
   // /help is best-effort and must reflect the effective registry (including skills).
@@ -102,11 +117,11 @@ export async function createCliSlashRuntime(
     }
   }
 
-  const skillBySlash = new Map<string, Skill>();
-  for (const skill of skills) {
-    const spec = skillToSlashSpec(skill);
+  const skillBySlash = new Map<string, SkillCatalogEntry>();
+  for (const entry of catalog) {
+    const spec = catalogEntryToSlashSpec(entry);
     if (!spec) continue;
-    skillBySlash.set(spec.name.toLowerCase(), skill);
+    skillBySlash.set(spec.name.toLowerCase(), entry);
   }
 
   const handlers: SlashHandlerProvider = {
@@ -171,10 +186,14 @@ export async function createCliSlashRuntime(
         };
       }
 
-      const skill = skillBySlash.get(normalized);
-      if (skill) {
+      const catalogEntry = skillBySlash.get(normalized);
+      if (catalogEntry) {
         return {
           execute: async (req) => {
+            // Tier 2: Activate skill on demand — load full SKILL.md content.
+            // @see https://agentskills.io/specification — Progressive disclosure
+            const skill = await skillLoader.activateSkill(catalogEntry.id);
+
             const meta = (req.meta ?? {}) as CommandContext;
             const signal = (meta as any)?.signal as AbortSignal | undefined;
 

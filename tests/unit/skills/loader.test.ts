@@ -38,6 +38,13 @@ mock.module('../../../src/core/observability/logger.js', () => ({
     debug: mock(),
     audit: auditMock,
   }),
+  tryGetLogger: () => ({
+    warn: warnMock,
+    error: errorMock,
+    info: infoMock,
+    debug: mock(),
+    audit: auditMock,
+  }),
 }));
 
 import { SkillLoader } from '../../../src/core/skills/loader.js';

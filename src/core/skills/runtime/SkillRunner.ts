@@ -1,6 +1,7 @@
 import * as crypto from 'crypto';
 
 import { MicroTaskRunner } from '../../grizzco/dsl/MicroTaskRunner.js';
+import { tryGetLogger } from '../../observability/logger.js';
 import type { ToolRouter } from '../../tools/router.js';
 import type { ToolRuntimeCtx } from '../../tools/types.js';
 import { Phase } from '../../types/index.js';
@@ -12,6 +13,42 @@ import {
 import { SkillParser } from '../parser.js';
 import { SkillStrategyDSL, type SkillDslContext } from '../strategy.js';
 import type { Skill, SkillData, SkillExecutionResult } from '../types.js';
+
+/**
+ * Resolve the effective allowed-tools set for a skill.
+ *
+ * Merges the AgentSkills spec field (`allowed-tools`, space-delimited string)
+ * and the SalmonLoop extension field (`allowedTools`, string array) into a
+ * single `Set<string>`. Returns `null` when neither field is declared,
+ * meaning the skill places no tool restrictions.
+ *
+ * Distinguishes three states:
+ * - Neither field declared → `null` (no restriction)
+ * - Field declared but empty (`""` / `[]`) → empty `Set` (deny all tools)
+ * - Field declared with values → `Set` containing those tool names
+ *
+ * @see https://agentskills.io/specification — allowed-tools field
+ */
+function resolveAllowedTools(skill: Skill): Set<string> | null {
+  const specField = skill.metadata?.['allowed-tools'];
+  const extField = skill.metadata?.allowedTools;
+
+  // Neither field is declared at all → no restriction
+  const specDeclared = specField !== undefined;
+  const extDeclared = extField !== undefined;
+  if (!specDeclared && !extDeclared) return null;
+
+  const tools: string[] = [];
+  if (typeof specField === 'string' && specField.trim()) {
+    tools.push(...specField.split(/\s+/).filter(Boolean));
+  }
+  if (Array.isArray(extField)) {
+    tools.push(...extField.filter(Boolean));
+  }
+
+  // Field(s) declared but resolved to empty → empty set (deny all)
+  return new Set(tools);
+}
 
 export interface ExecuteSkillOptions {
   skill: Skill;
@@ -57,6 +94,7 @@ export async function executeSkill(options: ExecuteSkillOptions): Promise<SkillE
   const traceId = generateSkillTraceId(skill.id);
   const argsHash = hashSkillArgs(argsText);
   const startedAt = Date.now();
+  const allowedTools = resolveAllowedTools(skill);
 
   // Emit SKILL_EXECUTION_START before execution
   emitSkillAuditEvent({
@@ -109,6 +147,33 @@ export async function executeSkill(options: ExecuteSkillOptions): Promise<SkillE
         }
 
         const command = key.slice(3);
+        const toolName = 'shell.exec';
+
+        // Enforce allowed-tools constraint from skill frontmatter.
+        // When declared, only pre-approved tools may be invoked.
+        if (allowedTools && !allowedTools.has(toolName)) {
+          const logger = tryGetLogger();
+          logger?.warn(
+            `Skill "${skill.id}" attempted to use tool "${toolName}" which is not in allowed-tools: [${[...allowedTools].join(', ')}]`,
+          );
+          emitSkillAuditEvent({
+            type: 'SKILL_EXECUTION_DENIED',
+            skillId: skill.id,
+            route,
+            runnerClass: 'MicroTaskRunner',
+            commandCount: rawCommands.length,
+            authorizationMode: 'blocking',
+            argsHash,
+            traceId,
+            denyReason: 'ALLOWED_TOOLS_VIOLATION',
+            denySource: `skill-frontmatter:allowed-tools`,
+            durationMs: Date.now() - startedAt,
+          });
+          throw new Error(
+            `Tool "${toolName}" is not permitted by skill "${skill.id}" allowed-tools policy`,
+          );
+        }
+
         const callId = `slash-sh-${buildStableId([skill.id, command])}`;
         const envelope = {
           id: callId,
