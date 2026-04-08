@@ -5,6 +5,8 @@ import { text } from '../../locales/index.js';
 import { syncFs as fs } from '../adapters/fs/node-fs.js';
 import { tryGetLogger } from '../observability/logger.js';
 
+import { matchGlob } from './discovery.js';
+import { getSkillFeatureFlags } from './feature-flags.js';
 import { SkillParser } from './parser.js';
 import { Skill, SkillCatalogEntry } from './types.js';
 
@@ -35,6 +37,64 @@ export interface SkillLoaderOptions {
 type SearchPath = { path: string; label: string };
 
 export class SkillLoader {
+  /**
+   * Format the skill catalog into a model-consumable disclosure block.
+   *
+   * Pure data contract: accepts catalog + optional context paths, returns string.
+   * No dependency on session or prompt layer.
+   *
+   * Filtering logic:
+   * 1. Exclude entries where `userInvocable === false`.
+   * 2. For entries with `conditionalPaths`: include only if at least one
+   *    context file path matches a conditional path pattern. If no
+   *    `contextFilePaths` provided, exclude conditional skills.
+   * 3. Non-conditional skills with `userInvocable !== false` are always included.
+   *
+   * @param catalog - Array of SkillCatalogEntry from loadCatalog()
+   * @param contextFilePaths - Optional list of currently open/relevant file paths
+   *   for conditional skill filtering
+   * @returns Formatted string with preamble + skill entries, or empty string if
+   *   no disclosable skills
+   * @see Requirements 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7
+   */
+  static formatCatalogDisclosure(
+    catalog: SkillCatalogEntry[],
+    contextFilePaths?: string[],
+  ): string {
+    const disclosable = catalog.filter(entry => {
+      // Exclude non-user-invocable skills
+      if (entry.userInvocable === false) {
+        return false;
+      }
+
+      // Handle conditional skills (those with conditionalPaths)
+      if (entry.conditionalPaths && entry.conditionalPaths.length > 0) {
+        // No context file paths provided → exclude conditional skills
+        if (!contextFilePaths || contextFilePaths.length === 0) {
+          return false;
+        }
+        // Include only if at least one context file path matches a conditional path pattern
+        return entry.conditionalPaths.some(pattern =>
+          contextFilePaths.some(fp => matchGlob(fp, pattern)),
+        );
+      }
+
+      // Non-conditional, user-invocable skills are always included
+      return true;
+    });
+
+    if (disclosable.length === 0) {
+      return '';
+    }
+
+    const preamble = `## Available Skills\n\n${text.skills.catalogDisclosurePreamble}`;
+    const entries = disclosable
+      .map(entry => `- **${entry.name}**: ${entry.description}\n  Location: ${entry.location}`)
+      .join('\n\n');
+
+    return `${preamble}\n\n${entries}\n`;
+  }
+
   /** Cache of fully activated skills (Tier 2). */
   private readonly activated = new Map<string, Skill>();
 
@@ -76,7 +136,9 @@ export class SkillLoader {
     // Read full content and parse with SkillParser
     const content = fs.readFileSync(entry.location, 'utf-8');
     const isLegacyFile = !entry.location.endsWith('SKILL.md');
-    const skill = SkillParser.parse(content, entry.location, !isLegacyFile);
+    const flags = getSkillFeatureFlags();
+    const strict = flags.parserStrict && !isLegacyFile;
+    const skill = SkillParser.parse(content, entry.location, strict);
 
     this.activated.set(id, skill);
     safeLogger().info(text.skills.skillActivated(id));
@@ -100,6 +162,7 @@ export class SkillLoader {
   async loadCatalog(): Promise<SkillCatalogEntry[]> {
     const catalog: SkillCatalogEntry[] = [];
     const seen = new Map<string, string>();
+    const flags = getSkillFeatureFlags();
 
     for (const target of this.buildSearchPaths()) {
       if (!fs.existsSync(target.path)) continue;
@@ -121,11 +184,12 @@ export class SkillLoader {
         try {
           const content = fs.readFileSync(skillFile, 'utf-8');
           const isLegacyFile = !entry.isDirectory();
+          const strict = flags.parserStrict && !isLegacyFile;
           const catalogEntry = SkillParser.parseFrontmatterOnly(
             content,
             skillFile,
             scope,
-            !isLegacyFile,
+            strict,
           );
 
           if (seen.has(catalogEntry.id)) {
@@ -176,6 +240,7 @@ export class SkillLoader {
   private loadSkillsFromPaths(): Skill[] {
     const inventory: Skill[] = [];
     const seen = new Map<string, string>();
+    const flags = getSkillFeatureFlags();
 
     for (const target of this.buildSearchPaths()) {
       if (!fs.existsSync(target.path)) continue;
@@ -195,7 +260,8 @@ export class SkillLoader {
         try {
           const content = fs.readFileSync(skillFile, 'utf-8');
           const isLegacyFile = !entry.isDirectory();
-          const skill = SkillParser.parse(content, skillFile, !isLegacyFile);
+          const strict = flags.parserStrict && !isLegacyFile;
+          const skill = SkillParser.parse(content, skillFile, strict);
           if (seen.has(skill.id)) {
             const firstSource = seen.get(skill.id)!;
             safeLogger().warn(

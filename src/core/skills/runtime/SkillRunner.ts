@@ -50,6 +50,88 @@ function resolveAllowedTools(skill: Skill): Set<string> | null {
   return new Set(tools);
 }
 
+/**
+ * Match a tool name against an allowed-tools pattern.
+ *
+ * Supports two modes:
+ * - Exact match: pattern contains no `*` → strict string equality
+ * - Glob match: pattern contains `*` → each `*` matches zero or more characters
+ *
+ * Case-sensitive. Only `*` is treated as special; no `?` or `[...]` ranges.
+ *
+ * Uses an iterative segment-matching algorithm (no regex) to avoid ReDoS risk.
+ *
+ * @param pattern - An allowed-tools entry (e.g. "shell.*", "code.search")
+ * @param toolName - The tool name to check (e.g. "shell.exec")
+ * @returns true if toolName matches the pattern
+ */
+export function matchAllowedTool(pattern: string, toolName: string): boolean {
+  // Split pattern on '*' into literal segments
+  const segments = pattern.split('*');
+
+  // No wildcard → exact match
+  if (segments.length === 1) {
+    return pattern === toolName;
+  }
+
+  const first = segments[0];
+  const last = segments[segments.length - 1];
+
+  // toolName must start with the first segment
+  if (!toolName.startsWith(first)) {
+    return false;
+  }
+
+  // toolName must end with the last segment
+  if (!toolName.endsWith(last)) {
+    return false;
+  }
+
+  // Guard: the tool name must be long enough to contain all literal segments
+  // without overlap between the first/last anchors
+  let pos = first.length;
+  const endBound = toolName.length - last.length;
+
+  // Match each middle segment in order (greedy left-to-right scan)
+  for (let i = 1; i < segments.length - 1; i++) {
+    const seg = segments[i];
+    if (seg === '') {
+      // Consecutive '*' — matches any amount of characters, skip
+      continue;
+    }
+    const idx = toolName.indexOf(seg, pos);
+    if (idx === -1 || idx + seg.length > endBound) {
+      return false;
+    }
+    pos = idx + seg.length;
+  }
+
+  return pos <= endBound;
+}
+
+/**
+ * Check whether a tool name is permitted by the allowed-tools set.
+ *
+ * @param toolName - The tool name to check
+ * @param allowedTools - The resolved allowed-tools set, or null for no restriction
+ * @returns true if the tool is permitted
+ */
+export function isToolPermitted(toolName: string, allowedTools: Set<string> | null): boolean {
+  // null means no restriction — all tools permitted
+  if (allowedTools === null) {
+    return true;
+  }
+
+  // Iterate entries; return true if any pattern matches
+  for (const pattern of allowedTools) {
+    if (matchAllowedTool(pattern, toolName)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 export interface ExecuteSkillOptions {
   skill: Skill;
   argsText: string;
@@ -151,10 +233,11 @@ export async function executeSkill(options: ExecuteSkillOptions): Promise<SkillE
 
         // Enforce allowed-tools constraint from skill frontmatter.
         // When declared, only pre-approved tools may be invoked.
-        if (allowedTools && !allowedTools.has(toolName)) {
+        // Uses isToolPermitted for glob pattern matching support.
+        if (!isToolPermitted(toolName, allowedTools)) {
           const logger = tryGetLogger();
           logger?.warn(
-            `Skill "${skill.id}" attempted to use tool "${toolName}" which is not in allowed-tools: [${[...allowedTools].join(', ')}]`,
+            `Skill "${skill.id}" attempted to use tool "${toolName}" which is not in allowed-tools: [${[...(allowedTools ?? [])].join(', ')}]`,
           );
           emitSkillAuditEvent({
             type: 'SKILL_EXECUTION_DENIED',

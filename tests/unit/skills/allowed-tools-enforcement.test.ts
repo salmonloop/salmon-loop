@@ -18,7 +18,11 @@ import {
   setLogger,
   tryGetLogger,
 } from '../../../src/core/observability/logger.js';
-import { executeSkill } from '../../../src/core/skills/runtime/SkillRunner.js';
+import {
+  executeSkill,
+  matchAllowedTool,
+  isToolPermitted,
+} from '../../../src/core/skills/runtime/SkillRunner.js';
 import type { Skill } from '../../../src/core/skills/types.js';
 import type { ToolCallEnvelope, ToolResult, ToolRuntimeCtx } from '../../../src/core/tools/types.js';
 
@@ -233,5 +237,87 @@ describe('allowed-tools runtime enforcement', () => {
 
     // ToolRouter.call should never have been invoked
     expect(calls.length).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Glob matching edge cases (Requirements 3.1, 3.2, 3.3, 3.4, 3.6)
+// ---------------------------------------------------------------------------
+
+describe('glob matching edge cases', () => {
+  // --- matchAllowedTool: glob with * wildcard ---
+
+  it('shell.* matches shell.exec', () => {
+    expect(matchAllowedTool('shell.*', 'shell.exec')).toBe(true);
+  });
+
+  it('shell.* matches shell.search', () => {
+    expect(matchAllowedTool('shell.*', 'shell.search')).toBe(true);
+  });
+
+  it('shell.* does NOT match code.exec', () => {
+    expect(matchAllowedTool('shell.*', 'code.exec')).toBe(false);
+  });
+
+  // --- matchAllowedTool: wildcard-only pattern ---
+
+  it('* matches any tool name', () => {
+    expect(matchAllowedTool('*', 'shell.exec')).toBe(true);
+    expect(matchAllowedTool('*', 'code.search')).toBe(true);
+    expect(matchAllowedTool('*', 'anything')).toBe(true);
+  });
+
+  // --- matchAllowedTool: exact match (no wildcard) ---
+
+  it('shell.exec exact match returns true', () => {
+    expect(matchAllowedTool('shell.exec', 'shell.exec')).toBe(true);
+  });
+
+  it('shell.exec does NOT match shell.search', () => {
+    expect(matchAllowedTool('shell.exec', 'shell.search')).toBe(false);
+  });
+
+  // --- matchAllowedTool: ? and [ treated as literals (Req 3.6) ---
+
+  it('shell.? treated literally — does not match shell.x', () => {
+    expect(matchAllowedTool('shell.?', 'shell.x')).toBe(false);
+  });
+
+  it('shell.? matches literal shell.?', () => {
+    expect(matchAllowedTool('shell.?', 'shell.?')).toBe(true);
+  });
+
+  it('shell.[a] treated literally — does not match shell.a', () => {
+    expect(matchAllowedTool('shell.[a]', 'shell.a')).toBe(false);
+  });
+
+  // --- matchAllowedTool: empty pattern ---
+
+  it('empty pattern does not match anything', () => {
+    expect(matchAllowedTool('', 'shell.exec')).toBe(false);
+  });
+
+  // --- isToolPermitted: null set (no restriction, Req 3.3) ---
+
+  it('isToolPermitted with null set returns true (no restriction)', () => {
+    expect(isToolPermitted('shell.exec', null)).toBe(true);
+  });
+
+  // --- isToolPermitted: empty set (deny all, Req 3.4) ---
+
+  it('isToolPermitted with empty set returns false (deny all)', () => {
+    expect(isToolPermitted('shell.exec', new Set())).toBe(false);
+  });
+
+  // --- isToolPermitted: set with matching glob (Req 3.1, 3.2) ---
+
+  it('isToolPermitted with set containing matching glob returns true', () => {
+    expect(isToolPermitted('shell.exec', new Set(['shell.*']))).toBe(true);
+  });
+
+  // --- isToolPermitted: set with no matching patterns ---
+
+  it('isToolPermitted with set containing no matching patterns returns false', () => {
+    expect(isToolPermitted('shell.exec', new Set(['code.*', 'tool-a']))).toBe(false);
   });
 });

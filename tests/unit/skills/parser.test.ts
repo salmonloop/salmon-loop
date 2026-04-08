@@ -196,12 +196,12 @@ describe('SkillParser — strict frontmatter validation', () => {
       // to \p{Ll} (lowercase letter) + \p{N} (number). CJK ideographs are
       // \p{Lo} (other letter), not \p{Ll}, so they should be rejected.
       const content = buildSkillMd({ name: '技能', description: 'CJK skill' });
-      expect(() => SkillParser.parse(content, pathForName('技能'), false)).toThrow();
+      expect(() => SkillParser.parse(content, pathForName('技能'), true)).toThrow();
     });
 
     it('rejects Unicode uppercase letters in name', () => {
       const content = buildSkillMd({ name: 'Ñoño', description: 'Uppercase Ñ' });
-      expect(() => SkillParser.parse(content, pathForName('Ñoño'), false)).toThrow();
+      expect(() => SkillParser.parse(content, pathForName('Ñoño'), true)).toThrow();
     });
 
     it('accepts name with Unicode digits', () => {
@@ -237,35 +237,35 @@ describe('SkillParser — strict frontmatter validation', () => {
   });
 
   describe('invalid name format', () => {
-    it('rejects name with uppercase letters', () => {
+    it('rejects name with uppercase letters in strict mode', () => {
       const content = buildSkillMd({ name: 'MySkill', description: 'desc' });
-      expect(() => SkillParser.parse(content, pathForName('MySkill'))).toThrow();
+      expect(() => SkillParser.parse(content, pathForName('MySkill'), true)).toThrow();
     });
 
-    it('rejects name with leading hyphen', () => {
+    it('rejects name with leading hyphen in strict mode', () => {
       const content = buildSkillMd({ name: '-bad', description: 'desc' });
-      expect(() => SkillParser.parse(content, pathForName('-bad'))).toThrow();
+      expect(() => SkillParser.parse(content, pathForName('-bad'), true)).toThrow();
     });
 
-    it('rejects name with trailing hyphen', () => {
+    it('rejects name with trailing hyphen in strict mode', () => {
       const content = buildSkillMd({ name: 'bad-', description: 'desc' });
-      expect(() => SkillParser.parse(content, pathForName('bad-'))).toThrow();
+      expect(() => SkillParser.parse(content, pathForName('bad-'), true)).toThrow();
     });
 
-    it('rejects name with consecutive hyphens', () => {
+    it('rejects name with consecutive hyphens in strict mode', () => {
       const content = buildSkillMd({ name: 'bad--name', description: 'desc' });
-      expect(() => SkillParser.parse(content, pathForName('bad--name'))).toThrow();
+      expect(() => SkillParser.parse(content, pathForName('bad--name'), true)).toThrow();
     });
 
-    it('rejects name with special characters (underscore)', () => {
+    it('rejects name with special characters (underscore) in strict mode', () => {
       const content = buildSkillMd({ name: 'bad_name', description: 'desc' });
-      expect(() => SkillParser.parse(content, pathForName('bad_name'))).toThrow();
+      expect(() => SkillParser.parse(content, pathForName('bad_name'), true)).toThrow();
     });
 
-    it('rejects name exceeding 64 characters', () => {
+    it('rejects name exceeding 64 characters in strict mode', () => {
       const longName = 'a'.repeat(65);
       const content = buildSkillMd({ name: longName, description: 'desc' });
-      expect(() => SkillParser.parse(content, pathForName(longName))).toThrow();
+      expect(() => SkillParser.parse(content, pathForName(longName), true)).toThrow();
     });
   });
 });
@@ -356,13 +356,13 @@ describe('Property 6: Frontmatter Validity', () => {
     );
   });
 
-  it('invalid names always cause parse to throw', () => {
+  it('invalid names always cause parse to throw in strict mode', () => {
     fc.assert(
       fc.property(invalidNameArb, (name) => {
         const content = `---\nname: ${name}\ndescription: A skill\n---\nBody`;
         const filePath = pathForName(name);
 
-        expect(() => SkillParser.parse(content, filePath)).toThrow();
+        expect(() => SkillParser.parse(content, filePath, true)).toThrow();
       }),
     );
   });

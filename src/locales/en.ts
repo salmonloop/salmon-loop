@@ -850,6 +850,26 @@ Please return the patch in PURE unified diff format:`;
       `Failed to load skill permissions from ${filePath}; starting with empty allowlist.`,
     permissionFileSaveError: (filePath: string, reason: string) =>
       `Failed to save skill permissions to ${filePath}: ${reason}`,
+
+    // Lenient validation warnings
+    nameTooLong: (filePath: string, name: string, len: number) =>
+      `Skill at ${filePath}: name "${name}" exceeds 64 characters (${len}); loading anyway`,
+    nameFormatWarning: (filePath: string, name: string) =>
+      `Skill at ${filePath}: name "${name}" does not match naming convention; loading anyway`,
+    descriptionTooLong: (filePath: string, len: number) =>
+      `Skill at ${filePath}: description exceeds 1024 characters (${len}); loading anyway`,
+
+    // YAML fallback
+    yamlFallbackApplied: (filePath: string, lines: string) =>
+      `Skill at ${filePath}: YAML fallback applied to fix common issues (${lines}); loading with corrected values`,
+    yamlFallbackFailed: (filePath: string) =>
+      `Skill at ${filePath}: YAML fallback recovery also failed; skipping skill`,
+
+    // Catalog disclosure
+    catalogDisclosurePreamble:
+      'The following skills provide specialized instructions for specific tasks. ' +
+      'When a task matches a skill description, read the SKILL.md file at the listed location to load detailed instructions before proceeding. ' +
+      'When a skill references relative paths, resolve them against the skill directory (the parent of SKILL.md).',
   },
 
   // Symbols for UI feedback

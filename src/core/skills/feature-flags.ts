@@ -20,7 +20,7 @@ export interface SkillFeatureFlags {
    * When false (compat mode), mismatches produce a warning only.
    *
    * Env: `SALMONLOOP_SKILL_PARSER_STRICT`
-   * Default: `true`
+   * Default: `false`
    */
   parserStrict: boolean;
 
@@ -76,7 +76,7 @@ export function getSkillFeatureFlags(): SkillFeatureFlags {
   const bridgeDefault = process.env.NODE_ENV !== 'development';
 
   return {
-    parserStrict: parseBoolEnv(process.env.SALMONLOOP_SKILL_PARSER_STRICT, true),
+    parserStrict: parseBoolEnv(process.env.SALMONLOOP_SKILL_PARSER_STRICT, false),
     legacyDirectMd: parseBoolEnv(process.env.SALMONLOOP_SKILL_LEGACY_DIRECT_MD, false),
     bridgeDisabled: parseBoolEnv(process.env.SALMONLOOP_DISABLE_BRIDGE_SKILL_EXEC, bridgeDefault),
   };
