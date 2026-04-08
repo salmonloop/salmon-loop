@@ -1,5 +1,6 @@
 import { getLogger } from '../../observability/logger.js';
 import type { ChatMessage } from '../types.js';
+
 import type { MicrocompactConfig } from './types.js';
 import { DEFAULT_MICROCOMPACT_CONFIG } from './types.js';
 

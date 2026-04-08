@@ -127,14 +127,6 @@ const descTooLongArb = fc
   .map((chars) => chars.join('').trim())
   .filter((s) => s.length > 1024);
 
-/**
- * Generates a directory name that differs from the skill name,
- * producing a name-directory mismatch.
- */
-function mismatchedDirArb(name: string): fc.Arbitrary<string> {
-  return validNameArb.filter((dir) => dir !== name);
-}
-
 // ── Property 1: Lenient mode loads non-fatal violations ──────────────
 
 describe('Feature: agentskills-spec-compliance, Property 1: Lenient mode loads non-fatal violations', () => {

@@ -163,6 +163,7 @@ export class SkillLoader {
     const catalog: SkillCatalogEntry[] = [];
     const seen = new Map<string, string>();
     const flags = getSkillFeatureFlags();
+    const legacyDirectMd = this.options.legacyDirectMd === true || flags.legacyDirectMd;
 
     for (const target of this.buildSearchPaths()) {
       if (!fs.existsSync(target.path)) continue;
@@ -174,7 +175,7 @@ export class SkillLoader {
         let skillFile: string | null = null;
         if (entry.isDirectory()) {
           skillFile = path.join(target.path, entry.name, 'SKILL.md');
-        } else if (entry.name.endsWith('.md') && this.options.legacyDirectMd) {
+        } else if (entry.name.endsWith('.md') && legacyDirectMd) {
           skillFile = path.join(target.path, entry.name);
           safeLogger().warn(text.skills.legacyDirectMdDeprecation(skillFile));
         }
@@ -241,6 +242,7 @@ export class SkillLoader {
     const inventory: Skill[] = [];
     const seen = new Map<string, string>();
     const flags = getSkillFeatureFlags();
+    const legacyDirectMd = this.options.legacyDirectMd === true || flags.legacyDirectMd;
 
     for (const target of this.buildSearchPaths()) {
       if (!fs.existsSync(target.path)) continue;
@@ -250,7 +252,7 @@ export class SkillLoader {
         let skillFile: string | null = null;
         if (entry.isDirectory()) {
           skillFile = path.join(target.path, entry.name, 'SKILL.md');
-        } else if (entry.name.endsWith('.md') && this.options.legacyDirectMd) {
+        } else if (entry.name.endsWith('.md') && legacyDirectMd) {
           skillFile = path.join(target.path, entry.name);
           safeLogger().warn(text.skills.legacyDirectMdDeprecation(skillFile));
         }

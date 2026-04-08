@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
 import { LlmError } from '../../../../../src/core/llm/errors.js';
-import { createInitialTracking } from '../../../../../src/core/session/compaction/tracking.js';
 import { setLogger, createLogger } from '../../../../../src/core/observability/logger.js';
+import { createInitialTracking } from '../../../../../src/core/session/compaction/tracking.js';
 
 const refreshSessionSummary = mock();
 

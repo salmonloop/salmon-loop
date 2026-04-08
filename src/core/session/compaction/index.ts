@@ -1,13 +1,15 @@
-import { getLogger } from '../../observability/logger.js';
-import type { ChatSessionManager } from '../manager.js';
-import type { LLM } from '../../types/index.js';
+import { getModelRecommendedBudget } from '../../context/token/adaptive-budget.js';
 import { LlmError } from '../../llm/errors.js';
+import { getLogger } from '../../observability/logger.js';
+import type { LLM } from '../../types/index.js';
+import type { ChatSessionManager } from '../manager.js';
+import { refreshSessionSummary } from '../summary-sync.js';
+import { TokenTracker } from '../token-tracker.js';
+
+import { isCircuitBreakerTripped, onCompactionFailure, onCompactionSuccess } from './tracking.js';
 import type { CompactionTracking, CompactionResult, AutocompactConfig } from './types.js';
 import { DEFAULT_AUTOCOMPACT_CONFIG } from './types.js';
-import { isCircuitBreakerTripped, onCompactionFailure, onCompactionSuccess } from './tracking.js';
-import { TokenTracker } from '../token-tracker.js';
-import { refreshSessionSummary } from '../summary-sync.js';
-import { getModelRecommendedBudget } from '../../context/token/adaptive-budget.js';
+
 
 function isContextOverflowLike(error: unknown): boolean {
   if (error instanceof LlmError && error.llmCode === 'LLM_CONTEXT_LENGTH_EXCEEDED') {
@@ -48,7 +50,7 @@ export async function autocompact(params: {
   trigger?: 'auto' | 'reactive';
   signal?: AbortSignal;
 }): Promise<CompactionResult> {
-  const { sessionManager, llm, tracking, contextHash, signal } = params;
+  const { sessionManager, llm, tracking, contextHash } = params;
   const trigger = params.trigger ?? 'auto';
   const modelId = llm.getModelId?.();
 
@@ -58,7 +60,7 @@ export async function autocompact(params: {
     if (modelId) {
       try {
         resolvedThreshold = getModelRecommendedBudget(modelId);
-      } catch (error) {
+      } catch (_error) {
         // Fallback to default if resolution fails
         resolvedThreshold = DEFAULT_AUTOCOMPACT_CONFIG.tokenThreshold;
       }

@@ -1,12 +1,13 @@
 import { mkdir, rm } from 'fs/promises';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+
 import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
 
+import { runCompactionPipeline } from '../../src/core/session/compaction/index.js';
+import { createInitialTracking } from '../../src/core/session/compaction/tracking.js';
 import { ChatSessionManager } from '../../src/core/session/manager.js';
 import { buildEffectiveConversationContext } from '../../src/core/session/summary-sync.js';
-import { createInitialTracking } from '../../src/core/session/compaction/tracking.js';
-import { runCompactionPipeline } from '../../src/core/session/compaction/index.js';
 import { TokenTracker } from '../../src/core/session/token-tracker.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -32,7 +33,9 @@ describe('Compaction Pipeline End-to-End', () => {
   afterEach(async () => {
     try {
       await rm(testDir, { recursive: true, force: true });
-    } catch {}
+    } catch (_error) {
+      // Ignore cleanup errors in tests.
+    }
   });
 
   it('should apply tiered compaction (Level 0 + Level 1) correctly', async () => {

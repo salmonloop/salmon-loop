@@ -37,8 +37,8 @@ describe('getSkillFeatureFlags()', () => {
   // parserStrict
   // -----------------------------------------------------------------------
   describe('parserStrict', () => {
-    it('defaults to false when env var is not set', () => {
-      expect(getSkillFeatureFlags().parserStrict).toBe(false);
+    it('defaults to true when env var is not set', () => {
+      expect(getSkillFeatureFlags().parserStrict).toBe(true);
     });
 
     it('returns true when env var is "true"', () => {

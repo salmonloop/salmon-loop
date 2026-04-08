@@ -79,6 +79,8 @@ describe('SkillLoader — SKILL.md subdirectory format enforcement', () => {
 
   beforeEach(() => {
     mock.clearAllMocks();
+    delete process.env.SALMONLOOP_SKILL_LEGACY_DIRECT_MD;
+    delete process.env.SALMONLOOP_SKILL_PARSER_STRICT;
     // By default, all paths exist
     existsSyncMock.mockReturnValue(true);
     // By default, return empty directory
@@ -127,6 +129,27 @@ describe('SkillLoader — SKILL.md subdirectory format enforcement', () => {
       const skills = await loader.initialize();
 
       expect(skills.length).toBe(0);
+    });
+
+    it('loads direct .md files when env var enables legacy mode', async () => {
+      process.env.SALMONLOOP_SKILL_LEGACY_DIRECT_MD = 'true';
+      readdirSyncMock.mockReturnValue([fileEntry('env-enabled.md')]);
+      readFileSyncMock.mockReturnValue(`---
+name: env-enabled
+description: Legacy mode from env
+---
+Legacy instructions.`);
+
+      const loader = new SkillLoader({
+        repoRoot,
+        useDefaults: false,
+        extraPaths: ['/fake/repo/.salmonloop/skills'],
+        legacyDirectMd: false,
+      });
+      const skills = await loader.initialize();
+
+      expect(skills.length).toBe(1);
+      expect(skills[0].id).toBe('env-enabled');
     });
 
     it('skips subdirectory without SKILL.md file', async () => {

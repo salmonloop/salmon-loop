@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { microcompact } from '../../../../../src/core/session/compaction/microcompact.js';
-import type { ChatMessage } from '../../../../../src/core/session/types.js';
-import { DEFAULT_MICROCOMPACT_CONFIG } from '../../../../../src/core/session/compaction/types.js';
+
 import { setLogger, createLogger } from '../../../../../src/core/observability/logger.js';
+import { microcompact } from '../../../../../src/core/session/compaction/microcompact.js';
+import { DEFAULT_MICROCOMPACT_CONFIG } from '../../../../../src/core/session/compaction/types.js';
+import type { ChatMessage } from '../../../../../src/core/session/types.js';
 
 describe('microcompact', () => {
   beforeEach(() => {

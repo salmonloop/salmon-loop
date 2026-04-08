@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+
 import type { CompactionTracking } from './types.js';
 
 /**
@@ -15,7 +16,7 @@ export function createInitialTracking(): CompactionTracking {
 /**
  * Update state on successful compaction
  */
-export function onCompactionSuccess(prev: CompactionTracking): CompactionTracking {
+export function onCompactionSuccess(_prev: CompactionTracking): CompactionTracking {
   return {
     compacted: true,
     compactId: randomUUID(),

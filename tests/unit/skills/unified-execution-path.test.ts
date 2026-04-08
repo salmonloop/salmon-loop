@@ -9,7 +9,7 @@ import {
   setLogger,
   tryGetLogger,
 } from '../../../src/core/observability/logger.js';
-import { skillToToolSpec, type RouterBox } from '../../../src/core/skills/bridge.js';
+import { skillToToolSpec } from '../../../src/core/skills/bridge.js';
 import { MicroTaskRunner } from '../../../src/core/skills/runtime/MicroTaskRunner.js';
 import type { Skill } from '../../../src/core/skills/types.js';
 import type { ToolCallEnvelope, ToolResult, ToolRuntimeCtx } from '../../../src/core/tools/types.js';

@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
 
+import { setLogger } from '../../../../../src/core/observability/logger.js';
 import { microcompact } from '../../../../../src/core/session/compaction/microcompact.js';
 import { createInitialTracking } from '../../../../../src/core/session/compaction/tracking.js';
-import { setLogger } from '../../../../../src/core/observability/logger.js';
 import { TokenTracker } from '../../../../../src/core/session/token-tracker.js';
 
 describe('compaction audit logging', () => {
