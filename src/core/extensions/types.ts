@@ -33,11 +33,8 @@ export interface ResolvedToolPlugin {
 }
 
 export interface ResolvedSkillDiscovery {
-  useDefaults: boolean;
   paths: string[];
   scope: ExtensionScope;
-  /** Enable legacy direct .md file loading (deprecated). Default: false */
-  legacyDirectMd: boolean;
 }
 
 export interface ResolvedExtensions {
@@ -79,9 +76,6 @@ export interface RawToolConfig {
 export interface RawSkillConfig {
   version: 1;
   discovery: {
-    useDefaults?: boolean;
     paths?: string[];
-    /** Enable legacy direct .md file loading (deprecated). Default: false */
-    legacyDirectMd?: boolean;
   };
 }

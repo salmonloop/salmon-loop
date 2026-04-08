@@ -5,8 +5,6 @@ import { text } from '../../locales/index.js';
 import { syncFs as fs } from '../adapters/fs/node-fs.js';
 import { tryGetLogger } from '../observability/logger.js';
 
-import { matchGlob } from './discovery.js';
-import { getSkillFeatureFlags } from './feature-flags.js';
 import { SkillParser } from './parser.js';
 import { Skill, SkillCatalogEntry } from './types.js';
 
@@ -28,10 +26,7 @@ function safeLogger() {
 
 export interface SkillLoaderOptions {
   repoRoot: string;
-  useDefaults?: boolean;
   extraPaths?: string[];
-  /** Enable legacy direct .md file loading (deprecated). Default: false */
-  legacyDirectMd?: boolean;
 }
 
 type SearchPath = { path: string; label: string };
@@ -43,52 +38,18 @@ export class SkillLoader {
    * Pure data contract: accepts catalog + optional context paths, returns string.
    * No dependency on session or prompt layer.
    *
-   * Filtering logic:
-   * 1. Exclude entries where `userInvocable === false`.
-   * 2. For entries with `conditionalPaths`: include only if at least one
-   *    context file path matches a conditional path pattern. If no
-   *    `contextFilePaths` provided, exclude conditional skills.
-   * 3. Non-conditional skills with `userInvocable !== false` are always included.
-   *
    * @param catalog - Array of SkillCatalogEntry from loadCatalog()
-   * @param contextFilePaths - Optional list of currently open/relevant file paths
-   *   for conditional skill filtering
    * @returns Formatted string with preamble + skill entries, or empty string if
    *   no disclosable skills
-   * @see Requirements 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7
+   * @see Requirements 4.1, 4.6
    */
-  static formatCatalogDisclosure(
-    catalog: SkillCatalogEntry[],
-    contextFilePaths?: string[],
-  ): string {
-    const disclosable = catalog.filter(entry => {
-      // Exclude non-user-invocable skills
-      if (entry.userInvocable === false) {
-        return false;
-      }
-
-      // Handle conditional skills (those with conditionalPaths)
-      if (entry.conditionalPaths && entry.conditionalPaths.length > 0) {
-        // No context file paths provided → exclude conditional skills
-        if (!contextFilePaths || contextFilePaths.length === 0) {
-          return false;
-        }
-        // Include only if at least one context file path matches a conditional path pattern
-        return entry.conditionalPaths.some(pattern =>
-          contextFilePaths.some(fp => matchGlob(fp, pattern)),
-        );
-      }
-
-      // Non-conditional, user-invocable skills are always included
-      return true;
-    });
-
-    if (disclosable.length === 0) {
+  static formatCatalogDisclosure(catalog: SkillCatalogEntry[]): string {
+    if (catalog.length === 0) {
       return '';
     }
 
     const preamble = `## Available Skills\n\n${text.skills.catalogDisclosurePreamble}`;
-    const entries = disclosable
+    const entries = catalog
       .map(entry => `- **${entry.name}**: ${entry.description}\n  Location: ${entry.location}`)
       .join('\n\n');
 
@@ -135,10 +96,7 @@ export class SkillLoader {
 
     // Read full content and parse with SkillParser
     const content = fs.readFileSync(entry.location, 'utf-8');
-    const isLegacyFile = !entry.location.endsWith('SKILL.md');
-    const flags = getSkillFeatureFlags();
-    const strict = flags.parserStrict && !isLegacyFile;
-    const skill = SkillParser.parse(content, entry.location, strict);
+    const skill = SkillParser.parse(content, entry.location);
 
     this.activated.set(id, skill);
     safeLogger().info(text.skills.skillActivated(id));
@@ -162,8 +120,6 @@ export class SkillLoader {
   async loadCatalog(): Promise<SkillCatalogEntry[]> {
     const catalog: SkillCatalogEntry[] = [];
     const seen = new Map<string, string>();
-    const flags = getSkillFeatureFlags();
-    const legacyDirectMd = this.options.legacyDirectMd === true || flags.legacyDirectMd;
 
     for (const target of this.buildSearchPaths()) {
       if (!fs.existsSync(target.path)) continue;
@@ -172,26 +128,14 @@ export class SkillLoader {
       const entries = fs.readdirSync(target.path, { withFileTypes: true });
 
       for (const entry of entries) {
-        let skillFile: string | null = null;
-        if (entry.isDirectory()) {
-          skillFile = path.join(target.path, entry.name, 'SKILL.md');
-        } else if (entry.name.endsWith('.md') && legacyDirectMd) {
-          skillFile = path.join(target.path, entry.name);
-          safeLogger().warn(text.skills.legacyDirectMdDeprecation(skillFile));
-        }
+        if (!entry.isDirectory()) continue;
+        const skillFile = path.join(target.path, entry.name, 'SKILL.md');
 
         if (!skillFile || !fs.existsSync(skillFile)) continue;
 
         try {
           const content = fs.readFileSync(skillFile, 'utf-8');
-          const isLegacyFile = !entry.isDirectory();
-          const strict = flags.parserStrict && !isLegacyFile;
-          const catalogEntry = SkillParser.parseFrontmatterOnly(
-            content,
-            skillFile,
-            scope,
-            strict,
-          );
+          const catalogEntry = SkillParser.parseFrontmatterOnly(content, skillFile, scope);
 
           if (seen.has(catalogEntry.id)) {
             const firstSource = seen.get(catalogEntry.id)!;
@@ -241,29 +185,20 @@ export class SkillLoader {
   private loadSkillsFromPaths(): Skill[] {
     const inventory: Skill[] = [];
     const seen = new Map<string, string>();
-    const flags = getSkillFeatureFlags();
-    const legacyDirectMd = this.options.legacyDirectMd === true || flags.legacyDirectMd;
 
     for (const target of this.buildSearchPaths()) {
       if (!fs.existsSync(target.path)) continue;
 
       const entries = fs.readdirSync(target.path, { withFileTypes: true });
       for (const entry of entries) {
-        let skillFile: string | null = null;
-        if (entry.isDirectory()) {
-          skillFile = path.join(target.path, entry.name, 'SKILL.md');
-        } else if (entry.name.endsWith('.md') && legacyDirectMd) {
-          skillFile = path.join(target.path, entry.name);
-          safeLogger().warn(text.skills.legacyDirectMdDeprecation(skillFile));
-        }
+        if (!entry.isDirectory()) continue;
+        const skillFile = path.join(target.path, entry.name, 'SKILL.md');
 
         if (!skillFile || !fs.existsSync(skillFile)) continue;
 
         try {
           const content = fs.readFileSync(skillFile, 'utf-8');
-          const isLegacyFile = !entry.isDirectory();
-          const strict = flags.parserStrict && !isLegacyFile;
-          const skill = SkillParser.parse(content, skillFile, strict);
+          const skill = SkillParser.parse(content, skillFile);
           if (seen.has(skill.id)) {
             const firstSource = seen.get(skill.id)!;
             safeLogger().warn(
@@ -301,13 +236,11 @@ export class SkillLoader {
    * - `config` → 'config' scope (extra paths from skills.json)
    * - `repo` → 'repo' scope (repo-level directories)
    * - `user` → 'user' scope (user home directories)
-   * - `compat` → 'repo' scope for repo-level compat paths, 'user' for user-level
+   * - `repo` / others → 'repo' scope
    */
   private labelToScope(label: string): 'repo' | 'user' | 'config' {
     if (label.startsWith('config:')) return 'config';
     if (label.startsWith('user:')) return 'user';
-    if (label.startsWith('compat:~')) return 'user';
-    // repo: and compat: (non-home) are repo scope
     return 'repo';
   }
 
@@ -318,10 +251,8 @@ export class SkillLoader {
    *   1. Config extra paths (from skills.json discovery.paths)
    *   2. {repoRoot}/.salmonloop/skills
    *   3. {repoRoot}/.agents/skills        (cross-client interop)
-   *   4. {repoRoot}/.claude/skills         (compat, when useDefaults=true)
-   *   5. ~/.salmonloop/skills
-   *   6. ~/.agents/skills                  (cross-client interop)
-   *   7. ~/.claude/skills                  (compat, when useDefaults=true)
+   *   4. ~/.salmonloop/skills
+   *   5. ~/.agents/skills                 (cross-client interop)
    *
    * First-win conflict resolution: when two skills share the same name,
    * the one from the higher-priority path wins and a warning is logged
@@ -329,7 +260,6 @@ export class SkillLoader {
    */
   private buildSearchPaths(): SearchPath[] {
     const paths: SearchPath[] = [];
-    const useDefaults = this.options.useDefaults ?? true;
 
     // 1. Config extra paths (highest priority)
     const extra = this.options.extraPaths ?? [];
@@ -349,33 +279,17 @@ export class SkillLoader {
       label: 'repo:.agents/skills',
     });
 
-    // 4. Repo-level .claude/skills (compat)
-    if (useDefaults) {
-      paths.push({
-        path: path.join(this.options.repoRoot, '.claude', 'skills'),
-        label: 'compat:.claude/skills',
-      });
-    }
-
-    // 5. User-level ~/.salmonloop/skills
+    // 4. User-level ~/.salmonloop/skills
     paths.push({
       path: path.join(os.homedir(), '.salmonloop', 'skills'),
       label: 'user:~/.salmonloop/skills',
     });
 
-    // 6. User-level ~/.agents/skills (cross-client interop)
+    // 5. User-level ~/.agents/skills (cross-client interop)
     paths.push({
       path: path.join(os.homedir(), '.agents', 'skills'),
       label: 'user:~/.agents/skills',
     });
-
-    // 7. User-level ~/.claude/skills (compat)
-    if (useDefaults) {
-      paths.push({
-        path: path.join(os.homedir(), '.claude', 'skills'),
-        label: 'compat:~/.claude/skills',
-      });
-    }
 
     const deduped: SearchPath[] = [];
     const seen = new Set<string>();

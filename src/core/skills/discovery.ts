@@ -60,7 +60,6 @@ export function matchGlob(filePath: string, pattern: string): boolean {
  *
  * Supports:
  * - Re-scanning search paths for newly added skill directories (Requirement 7.1)
- * - Conditional activation based on frontmatter `paths` field (Requirement 7.2)
  *
  * @see Requirements 7.1, 7.2
  */
@@ -97,43 +96,5 @@ export class SkillDiscoveryWatcher {
     }
 
     return newEntries;
-  }
-
-  /**
-   * Check which conditional skills should be activated based on
-   * the given file paths.
-   *
-   * A conditional skill has a `conditionalPaths` array in its catalog entry
-   * (from the frontmatter `paths` field). If any of the provided file paths
-   * matches any of the skill's conditional patterns, the skill is returned
-   * as a candidate for activation.
-   *
-   * @param filePaths - File paths that were touched (created/edited/deleted)
-   * @param catalog - Current skill catalog to check against
-   * @returns Catalog entries whose conditional paths match the given files
-   * @see Requirement 7.2
-   */
-  checkConditionalActivation(
-    filePaths: string[],
-    catalog: SkillCatalogEntry[],
-  ): SkillCatalogEntry[] {
-    const activated: SkillCatalogEntry[] = [];
-
-    for (const entry of catalog) {
-      if (!entry.conditionalPaths || entry.conditionalPaths.length === 0) {
-        continue;
-      }
-
-      for (const pattern of entry.conditionalPaths) {
-        const matched = filePaths.some(fp => matchGlob(fp, pattern));
-        if (matched) {
-          activated.push(entry);
-          getLogger().info(text.skills.conditionalSkillActivated(entry.id, pattern));
-          break; // One match is enough to activate this skill
-        }
-      }
-    }
-
-    return activated;
   }
 }

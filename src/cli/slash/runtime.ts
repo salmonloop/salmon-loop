@@ -38,7 +38,6 @@ function catalogEntryToSlashSpec(entry: SkillCatalogEntry): SlashCommandSpec | n
   return {
     name: `/${id}`,
     description: entry.description || `Skill: ${id}`,
-    hidden: entry.userInvocable === false,
     order: 220,
   };
 }
@@ -75,7 +74,7 @@ export interface CreateCliSlashRuntimeOptions {
   baseCommands: Command[];
   emit: (event: any) => void;
   authorizationProvider?: ToolAuthorizationProvider;
-  skillDiscovery?: { useDefaults?: boolean; paths?: string[]; legacyDirectMd?: boolean };
+  skillDiscovery?: { paths?: string[] };
 }
 
 export async function createCliSlashRuntime(
@@ -83,9 +82,7 @@ export async function createCliSlashRuntime(
 ): Promise<CliSlashRuntime> {
   const skillLoader = new SkillLoader({
     repoRoot: options.repoRoot,
-    useDefaults: options.skillDiscovery?.useDefaults,
     extraPaths: options.skillDiscovery?.paths,
-    legacyDirectMd: options.skillDiscovery?.legacyDirectMd,
   });
 
   // Tier 1: Load lightweight catalog (name + description only, ~50-100 tokens per skill).

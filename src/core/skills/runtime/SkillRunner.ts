@@ -17,37 +17,22 @@ import type { Skill, SkillData, SkillExecutionResult } from '../types.js';
 /**
  * Resolve the effective allowed-tools set for a skill.
  *
- * Merges the AgentSkills spec field (`allowed-tools`, space-delimited string)
- * and the SalmonLoop extension field (`allowedTools`, string array) into a
- * single `Set<string>`. Returns `null` when neither field is declared,
- * meaning the skill places no tool restrictions.
+ * Uses only the AgentSkills spec field (`allowed-tools`, space-delimited string)
+ * and returns a single `Set<string>`. Returns `null` when the field is not
+ * declared, meaning the skill places no tool restrictions.
  *
  * Distinguishes three states:
- * - Neither field declared → `null` (no restriction)
- * - Field declared but empty (`""` / `[]`) → empty `Set` (deny all tools)
+ * - Field not declared → `null` (no restriction)
+ * - Field declared but empty (`""`) → empty `Set` (deny all tools)
  * - Field declared with values → `Set` containing those tool names
  *
  * @see https://agentskills.io/specification — allowed-tools field
  */
 function resolveAllowedTools(skill: Skill): Set<string> | null {
   const specField = skill.metadata?.['allowed-tools'];
-  const extField = skill.metadata?.allowedTools;
-
-  // Neither field is declared at all → no restriction
-  const specDeclared = specField !== undefined;
-  const extDeclared = extField !== undefined;
-  if (!specDeclared && !extDeclared) return null;
-
-  const tools: string[] = [];
-  if (typeof specField === 'string' && specField.trim()) {
-    tools.push(...specField.split(/\s+/).filter(Boolean));
-  }
-  if (Array.isArray(extField)) {
-    tools.push(...extField.filter(Boolean));
-  }
-
-  // Field(s) declared but resolved to empty → empty set (deny all)
-  return new Set(tools);
+  if (specField === undefined) return null;
+  if (!specField.trim()) return new Set<string>();
+  return new Set(specField.split(/\s+/).filter(Boolean));
 }
 
 /**

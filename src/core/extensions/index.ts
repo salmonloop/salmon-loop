@@ -122,7 +122,6 @@ function buildResolvedSkills(
 ): ResolvedSkillDiscovery {
   const repoDiscovery = repo?.discovery;
   const userDiscovery = user?.discovery;
-  const useDefaults = repoDiscovery?.useDefaults ?? userDiscovery?.useDefaults ?? true;
   const repoPaths =
     repoDiscovery && Array.isArray(repoDiscovery.paths) ? repoDiscovery.paths : undefined;
   const userPaths =
@@ -169,10 +168,8 @@ function buildResolvedSkills(
   }
 
   return {
-    useDefaults,
     paths,
     scope,
-    legacyDirectMd: repoDiscovery?.legacyDirectMd ?? userDiscovery?.legacyDirectMd ?? false,
   };
 }
 

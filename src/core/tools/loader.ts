@@ -117,9 +117,7 @@ export async function createStandardToolstack(options: ToolstackOptions) {
   const extensions = options.extensions;
   const skillLoader = new SkillLoader({
     repoRoot: options.repoRoot,
-    useDefaults: extensions?.skillDiscovery.useDefaults,
     extraPaths: extensions?.skillDiscovery.paths,
-    legacyDirectMd: extensions?.skillDiscovery.legacyDirectMd,
   });
   const catalog = await skillLoader.loadCatalog();
   for (const entry of catalog) {

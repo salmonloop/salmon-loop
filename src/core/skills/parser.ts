@@ -34,65 +34,22 @@ function safeLogger() {
  */
 const SKILL_NAME_REGEX = /^[\p{Ll}\p{N}](?:[\p{Ll}\p{N}-]*[\p{Ll}\p{N}])?$/u;
 
-/** Shared field definitions for non-name/description fields used by both schemas. */
+/** Shared field definitions defined by the Agent Skills specification. */
 const sharedFields = {
   license: z.string().optional(),
   compatibility: z.string().max(500).optional(),
   metadata: z.record(z.string(), z.string()).optional(),
   // AgentSkills spec: "Space-delimited list of pre-approved tools" (Experimental).
-  // Accept both a plain string ("tool-a tool-b") and a YAML array (["tool-a", "tool-b"])
-  // to avoid rejecting valid skill files that use either notation.
-  // YAML bare key (`allowed-tools:`) parses as null — normalize to undefined
-  // so that Zod's `.optional()` accepts it as "not declared".
+  // YAML bare key (`allowed-tools:`) parses as null — normalize to undefined so
+  // that Zod's `.optional()` accepts it as "not declared".
   'allowed-tools': z.preprocess(
     (val) => {
       if (val === null || val === undefined) return undefined;
-      if (Array.isArray(val)) return val.join(' ');
       return val;
     },
     z.string().optional(),
   ),
-  // SalmonLoop extension: array form for internal use
-  // YAML bare key (`allowedTools:`) parses as null — normalize to undefined.
-  allowedTools: z.preprocess(
-    (val) => {
-      if (val === null || val === undefined) return undefined;
-      if (typeof val === 'string') return val.split(/\s+/).filter(Boolean);
-      return val;
-    },
-    z.array(z.string()).optional(),
-  ),
-  context: z.enum(['fork', 'main']).optional(),
-  userInvocable: z.preprocess(
-    (val) => {
-      if (typeof val === 'string') {
-        if (val.toLowerCase() === 'true') return true;
-        if (val.toLowerCase() === 'false') return false;
-      }
-      return val;
-    },
-    z.boolean().optional().default(true),
-  ),
-  paths: z.array(z.string()).optional(),
 } as const;
-
-/**
- * Base Zod schema for SKILL.md frontmatter with fatal-only constraints.
- *
- * Only enforces requirements that MUST cause a skill to be skipped:
- * - `name`: must be a non-empty string (identity is required)
- * - `description`: must be a non-empty string (essential for catalog disclosure)
- *
- * Non-fatal constraints (name length, name format, description length) are
- * checked separately in lenient mode and logged as warnings.
- *
- * @see Requirements 1.1, 1.2, 1.3, 1.5, 1.6
- */
-export const SkillFrontmatterBaseSchema = z.object({
-  name: z.string().min(1),
-  description: z.string().min(1),
-  ...sharedFields,
-});
 
 /**
  * Strict Zod schema for SKILL.md frontmatter validation.
@@ -100,8 +57,6 @@ export const SkillFrontmatterBaseSchema = z.object({
  * Enforces AgentSkills naming conventions and type correctness:
  * - `name`: 1-64 chars, lowercase alphanumeric + hyphens, no leading/trailing/consecutive hyphens
  * - `description`: 1-1024 chars, non-empty
- * - `userInvocable`: coerced to boolean (handles string "true"/"false" from YAML)
- *
  * @see Requirements 5.1, 5.2, 5.4, 5.5
  */
 export const SkillFrontmatterSchema = z.object({
@@ -115,7 +70,7 @@ export const SkillFrontmatterSchema = z.object({
     .refine(s => !s.includes('--'), 'name must not contain consecutive hyphens'),
   description: z.string().min(1).max(1024),
   ...sharedFields,
-});
+}).strict();
 
 /**
  * Maximum allowed length for a single extracted command (in characters).
@@ -165,23 +120,12 @@ export class SkillParser {
    * field validation and type coercion. Throws on missing or invalid
    * frontmatter instead of silently falling back.
    *
-   * After schema validation, compares `data.name` with the parent directory
-   * name extracted from `filePath`. In strict mode, a mismatch throws an
-   * error. In lenient mode (default), a warning is logged.
-   *
-   * In lenient mode (`strict=false`), non-fatal constraint violations
-   * (name length >64, name regex, description length >1024) produce
-   * warnings but still load the skill. In strict mode (`strict=true`),
-   * these violations cause the skill to be rejected.
-   *
    * @param content - Raw SKILL.md file content
    * @param filePath - Absolute or relative path to the SKILL.md file
-   * @param strict - When true, reject on non-fatal violations; when false (default), warn only
-   * @throws Error if frontmatter is missing, YAML is malformed, schema validation fails,
-   *   or (in strict mode) name does not match parent directory
+   * @throws Error if frontmatter is missing, YAML is malformed, or schema validation fails
    * @see Requirements 1.1, 1.2, 1.3, 1.5, 1.6, 1.8, 1.9, 1.10
    */
-  static parse(content: string, filePath: string, strict: boolean = false): Skill {
+  static parse(content: string, filePath: string): Skill {
     // Accept frontmatter with or without a body after the closing ---.
     // The body capture is optional to avoid rejecting minimal SKILL.md files
     // that contain only frontmatter (no trailing newline or instruction text).
@@ -200,21 +144,11 @@ export class SkillParser {
     let parsed: unknown;
     try {
       parsed = parseYaml(yamlRaw);
-    } catch (originalErr) {
-      // Attempt YAML fallback recovery
-      const { fixed, correctedLines } = SkillParser.fixCommonYamlIssues(yamlRaw);
-      try {
-        parsed = parseYaml(fixed);
-        // Fallback succeeded — log warning identifying corrected lines
-        safeLogger().warn(text.skills.yamlFallbackApplied(filePath, correctedLines.join(', ')));
-      } catch (_fallbackErr) {
-        // Fallback also failed — log original error and throw
-        const reason = originalErr instanceof Error ? originalErr.message : String(originalErr);
-        safeLogger().warn(text.skills.yamlFallbackFailed(filePath));
-        const msg = text.skills.yamlParseError(filePath, reason);
-        safeLogger().error(msg);
-        throw new Error(msg);
-      }
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      const msg = text.skills.yamlParseError(filePath, reason);
+      safeLogger().error(msg);
+      throw new Error(msg);
     }
 
     if (parsed == null || typeof parsed !== 'object') {
@@ -223,8 +157,7 @@ export class SkillParser {
       throw new Error(msg);
     }
 
-    const schema = strict ? SkillFrontmatterSchema : SkillFrontmatterBaseSchema;
-    const result = schema.safeParse(parsed);
+    const result = SkillFrontmatterSchema.safeParse(parsed);
     if (!result.success) {
       const issues = result.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ');
       const msg = text.skills.invalidFrontmatter(filePath, issues);
@@ -233,30 +166,11 @@ export class SkillParser {
     }
 
     const data = result.data as SkillFrontmatter;
-
-    // In lenient mode, check non-fatal constraints and log warnings
-    if (!strict) {
-      if (data.name.length > 64) {
-        safeLogger().warn(text.skills.nameTooLong(filePath, data.name, data.name.length));
-      }
-      if (!SKILL_NAME_REGEX.test(data.name) || data.name.includes('--')) {
-        safeLogger().warn(text.skills.nameFormatWarning(filePath, data.name));
-      }
-      if (data.description.length > 1024) {
-        safeLogger().warn(text.skills.descriptionTooLong(filePath, data.description.length));
-      }
-    }
-
-    // Validate name matches parent directory (Requirement 5.3)
     const parentDir = path.basename(path.dirname(filePath));
     if (parentDir && parentDir !== '.' && parentDir !== data.name) {
       const msg = text.skills.nameDirMismatch(filePath, parentDir, data.name);
-      if (strict) {
-        safeLogger().error(msg);
-        throw new Error(msg);
-      } else {
-        safeLogger().warn(msg);
-      }
+      safeLogger().error(msg);
+      throw new Error(msg);
     }
 
     return {
@@ -275,14 +189,9 @@ export class SkillParser {
    * the full instruction body. This keeps startup context cost at approximately
    * 50-100 tokens per skill.
    *
-   * In lenient mode (`strict=false`, default), non-fatal constraint violations
-   * produce warnings but still load the catalog entry. In strict mode, these
-   * violations cause the entry to be rejected.
-   *
    * @param content - Raw SKILL.md file content
    * @param filePath - Absolute or relative path to the SKILL.md file
    * @param scope - Discovery scope for the catalog entry
-   * @param strict - When true, reject on non-fatal violations; when false (default), warn only
    * @returns A lightweight {@link SkillCatalogEntry} or throws on invalid frontmatter
    * @see Requirements 1.1, 1.2, 1.3, 1.5, 1.6, 6.1, 6.3
    */
@@ -290,7 +199,6 @@ export class SkillParser {
     content: string,
     filePath: string,
     scope: 'repo' | 'user' | 'config',
-    strict: boolean = false,
   ): SkillCatalogEntry {
     const yamlRegex = /^---\r?\n([\s\S]*?)\r?\n---/;
     const match = content.match(yamlRegex);
@@ -306,21 +214,11 @@ export class SkillParser {
     let parsed: unknown;
     try {
       parsed = parseYaml(yamlRaw);
-    } catch (originalErr) {
-      // Attempt YAML fallback recovery
-      const { fixed, correctedLines } = SkillParser.fixCommonYamlIssues(yamlRaw);
-      try {
-        parsed = parseYaml(fixed);
-        // Fallback succeeded — log warning identifying corrected lines
-        safeLogger().warn(text.skills.yamlFallbackApplied(filePath, correctedLines.join(', ')));
-      } catch (_fallbackErr) {
-        // Fallback also failed — log original error and throw
-        const reason = originalErr instanceof Error ? originalErr.message : String(originalErr);
-        safeLogger().warn(text.skills.yamlFallbackFailed(filePath));
-        const msg = text.skills.yamlParseError(filePath, reason);
-        safeLogger().error(msg);
-        throw new Error(msg);
-      }
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      const msg = text.skills.yamlParseError(filePath, reason);
+      safeLogger().error(msg);
+      throw new Error(msg);
     }
 
     if (parsed == null || typeof parsed !== 'object') {
@@ -329,8 +227,7 @@ export class SkillParser {
       throw new Error(msg);
     }
 
-    const schema = strict ? SkillFrontmatterSchema : SkillFrontmatterBaseSchema;
-    const result = schema.safeParse(parsed);
+    const result = SkillFrontmatterSchema.safeParse(parsed);
     if (!result.success) {
       const issues = result.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ');
       const msg = text.skills.invalidFrontmatter(filePath, issues);
@@ -339,30 +236,11 @@ export class SkillParser {
     }
 
     const data = result.data as SkillFrontmatter;
-
-    // In lenient mode, check non-fatal constraints and log warnings
-    if (!strict) {
-      if (data.name.length > 64) {
-        safeLogger().warn(text.skills.nameTooLong(filePath, data.name, data.name.length));
-      }
-      if (!SKILL_NAME_REGEX.test(data.name) || data.name.includes('--')) {
-        safeLogger().warn(text.skills.nameFormatWarning(filePath, data.name));
-      }
-      if (data.description.length > 1024) {
-        safeLogger().warn(text.skills.descriptionTooLong(filePath, data.description.length));
-      }
-    }
-
-    // Validate name matches parent directory (Requirement 5.3)
     const parentDir = path.basename(path.dirname(filePath));
     if (parentDir && parentDir !== '.' && parentDir !== data.name) {
       const msg = text.skills.nameDirMismatch(filePath, parentDir, data.name);
-      if (strict) {
-        safeLogger().error(msg);
-        throw new Error(msg);
-      } else {
-        safeLogger().warn(msg);
-      }
+      safeLogger().error(msg);
+      throw new Error(msg);
     }
 
     return {
@@ -371,86 +249,6 @@ export class SkillParser {
       description: data.description,
       location: filePath,
       scope,
-      conditionalPaths: data.paths,
-      userInvocable: data.userInvocable,
-    };
-  }
-
-  /**
-   * Attempt to fix common YAML issues in frontmatter content.
-   *
-   * Targets the most common cross-client issue: unquoted values containing colons.
-   * For each line matching `key: value...` where the value contains an unquoted colon,
-   * wraps the value portion in double quotes (escaping internal quotes).
-   *
-   * Lines that are YAML structural elements are left untouched:
-   * - Bare mapping keys (e.g. `metadata:`)
-   * - List items (starting with `- `)
-   * - Already-quoted values (value starts with `"` or `'`)
-   * - Comment lines (starting with `#`)
-   * - Empty or whitespace-only lines
-   *
-   * @param yamlContent - Raw YAML string from between --- delimiters
-   * @returns Corrected YAML string and list of corrected line descriptions
-   * @see Requirements 2.1, 2.4, 2.6
-   */
-  static fixCommonYamlIssues(yamlContent: string): { fixed: string; correctedLines: string[] } {
-    const lines = yamlContent.split('\n');
-    const correctedLines: string[] = [];
-
-    const fixedLines = lines.map((line) => {
-      const trimmed = line.trimStart();
-
-      // Skip empty / whitespace-only lines
-      if (trimmed.length === 0) return line;
-
-      // Skip comment lines
-      if (trimmed.startsWith('#')) return line;
-
-      // Skip list items (e.g. `- item` or `  - item`)
-      if (trimmed.startsWith('- ')) return line;
-
-      // Match `key: value` pattern — the key is everything before the first `: `
-      const colonSpaceIdx = line.indexOf(': ');
-      if (colonSpaceIdx === -1) return line;
-
-      // Extract the key portion (before first `: `) and validate it looks like a YAML key
-      const key = line.slice(0, colonSpaceIdx);
-
-      // Skip if the key itself is empty or contains characters unlikely in a YAML key
-      // (e.g. starts with whitespace followed by a dash, which is a list context)
-      if (key.trim().length === 0) return line;
-
-      const value = line.slice(colonSpaceIdx + 2);
-
-      // Skip bare mapping keys (value is empty after the colon-space)
-      if (value.trim().length === 0) return line;
-
-      // Skip already-quoted values (single or double quotes)
-      const valueTrimmed = value.trimStart();
-      if (valueTrimmed.startsWith('"') || valueTrimmed.startsWith("'")) return line;
-
-      // Skip values that start with YAML structural indicators (block scalars, anchors, etc.)
-      if (valueTrimmed.startsWith('|') || valueTrimmed.startsWith('>') ||
-          valueTrimmed.startsWith('&') || valueTrimmed.startsWith('*') ||
-          valueTrimmed.startsWith('[') || valueTrimmed.startsWith('{')) return line;
-
-      // Check if the value portion contains an additional colon followed by a space
-      // This is the heuristic: only fix lines where the value clearly has an unquoted colon
-      if (!value.includes(': ')) return line;
-
-      // Wrap the value in double quotes, escaping any internal double quotes and backslashes
-      const escaped = value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-      const fixedLine = `${key}: "${escaped}"`;
-
-      correctedLines.push(`${key.trim()}: value contained unquoted colon`);
-
-      return fixedLine;
-    });
-
-    return {
-      fixed: fixedLines.join('\n'),
-      correctedLines,
     };
   }
 

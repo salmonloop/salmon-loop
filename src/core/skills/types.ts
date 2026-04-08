@@ -6,13 +6,8 @@ export interface SkillFrontmatter {
   license?: string;
   compatibility?: string;
   metadata?: Record<string, string>;
-  /** AgentSkills spec field: space-delimited string (normalized from array if needed). */
+  /** AgentSkills spec field: space-delimited string. */
   'allowed-tools'?: string;
-  /** SalmonLoop extension: array form (normalized from string if needed). */
-  allowedTools?: string[];
-  context?: 'fork' | 'main';
-  userInvocable?: boolean;
-  paths?: string[];
 }
 
 export interface Skill {
@@ -37,9 +32,6 @@ export interface SkillCatalogEntry {
   description: string;
   location: string;
   scope: 'repo' | 'user' | 'config';
-  conditionalPaths?: string[];
-  /** Whether the skill can be invoked by users (default: true). */
-  userInvocable?: boolean;
 }
 
 /**

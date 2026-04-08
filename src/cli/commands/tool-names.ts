@@ -33,17 +33,15 @@ const toolNameCache = new Map<string, { names: Set<string>; signature: string }>
 
 /**
  * Compute a cache-invalidation signature based on mtime of all skill search
- * paths that SkillLoader would scan. Mirrors the 7-level priority order.
+ * paths that SkillLoader would scan. Mirrors the strict search order.
  */
 async function computeSkillSignature(repoRoot: string, extraPaths: string[] = []): Promise<string> {
   const searchPaths = [
     ...extraPaths,
     path.join(repoRoot, '.salmonloop', 'skills'),
     path.join(repoRoot, '.agents', 'skills'),
-    path.join(repoRoot, '.claude', 'skills'),
     path.join(os.homedir(), '.salmonloop', 'skills'),
     path.join(os.homedir(), '.agents', 'skills'),
-    path.join(os.homedir(), '.claude', 'skills'),
   ];
   const parts: string[] = [];
   for (const searchPath of searchPaths) {
@@ -61,10 +59,8 @@ function computeSkillSignatureSync(repoRoot: string): string {
   const searchPaths = [
     path.join(repoRoot, '.salmonloop', 'skills'),
     path.join(repoRoot, '.agents', 'skills'),
-    path.join(repoRoot, '.claude', 'skills'),
     path.join(os.homedir(), '.salmonloop', 'skills'),
     path.join(os.homedir(), '.agents', 'skills'),
-    path.join(os.homedir(), '.claude', 'skills'),
   ];
   const parts: string[] = [];
   for (const searchPath of searchPaths) {
@@ -82,12 +78,12 @@ function computeSkillSignatureSync(repoRoot: string): string {
  * Get all known tool names including skills.
  *
  * Uses `resolveExtensions` to obtain the same SkillLoader configuration
- * (extraPaths, useDefaults, legacyDirectMd) as the main runtime, so that
+ * (extraPaths) as the main runtime, so that
  * tool-name discovery and actual runtime skill availability stay consistent.
  */
 export async function getKnownToolNames(repoRoot: string): Promise<Set<string>> {
   // Resolve extensions to get the same loader config as the runtime
-  let skillDiscovery: { useDefaults?: boolean; paths?: string[]; legacyDirectMd?: boolean } = {};
+  let skillDiscovery: { paths?: string[] } = {};
   try {
     const { resolved } = await resolveExtensions({ repoRoot });
     skillDiscovery = resolved.skillDiscovery;
@@ -106,9 +102,7 @@ export async function getKnownToolNames(repoRoot: string): Promise<Set<string>> 
   const routerBox: RouterBox = { router: null as unknown as ToolRouter };
   const skillLoader = new SkillLoader({
     repoRoot,
-    useDefaults: skillDiscovery.useDefaults,
     extraPaths,
-    legacyDirectMd: skillDiscovery.legacyDirectMd,
   });
   const catalog = await skillLoader.loadCatalog();
   for (const entry of catalog) {
