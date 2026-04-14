@@ -3,8 +3,8 @@ import { beforeEach, describe, expect, it, mock } from 'bun:test';
 import {
   createFileSystemAdapter,
   ReadOnlyFileSystem,
-} from '../../../../src/core/adapters/fs/index.js';
-import type { FileSystem, FlowMode } from '../../../../src/core/types/index.js';
+} from '../../../../../src/core/adapters/fs/index.js';
+import type { FileSystem, FlowMode } from '../../../../../src/core/types/index.js';
 
 describe('createFileSystemAdapter', () => {
   let mockRealFs: FileSystem;
@@ -35,6 +35,11 @@ describe('createFileSystemAdapter', () => {
 
   it('returns a ReadOnlyFileSystem for research mode', () => {
     const fsAdapter = createFileSystemAdapter('research' as FlowMode, mockRealFs);
+    expect(fsAdapter).toBeInstanceOf(ReadOnlyFileSystem);
+  });
+
+  it('returns a ReadOnlyFileSystem for answer mode', () => {
+    const fsAdapter = createFileSystemAdapter('answer' as FlowMode, mockRealFs);
     expect(fsAdapter).toBeInstanceOf(ReadOnlyFileSystem);
   });
 });
