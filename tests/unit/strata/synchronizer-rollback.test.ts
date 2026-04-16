@@ -68,7 +68,7 @@ describe('WorkspaceSynchronizer rollback staged restore fallback', () => {
   };
 
   beforeEach(async () => {
-    mock.clearAllMocks();
+    mock.restore();
     extraCleanupPaths = [];
 
     repoPath = await mkdtemp(path.join(tmpdir(), 'salmon-sync-rollback-'));
