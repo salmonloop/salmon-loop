@@ -1,6 +1,7 @@
 import { describe, expect, test, beforeEach } from 'bun:test';
-import { InMemoryTaskStore } from '../../../../../src/core/interaction/orchestration/store.js';
+
 import type { TaskEnvelope } from '../../../../../src/core/interaction/model/index.js';
+import { InMemoryTaskStore } from '../../../../../src/core/interaction/orchestration/store.js';
 
 describe('InMemoryTaskStore', () => {
   let store: InMemoryTaskStore;
@@ -8,7 +9,7 @@ describe('InMemoryTaskStore', () => {
   const createTask = (
     id: string,
     capability: string = 'test-cap',
-    state: TaskEnvelope['state'] = 'accepted'
+    state: TaskEnvelope['state'] = 'accepted',
   ): TaskEnvelope => ({
     id,
     capability,
@@ -62,8 +63,12 @@ describe('InMemoryTaskStore', () => {
     test('should list all tasks when no query is provided', () => {
       const result = store.list();
       expect(result.items).toHaveLength(5);
-      expect(result.items.map(t => t.id)).toEqual([
-        'task-1', 'task-2', 'task-3', 'task-4', 'task-5'
+      expect(result.items.map((t) => t.id)).toEqual([
+        'task-1',
+        'task-2',
+        'task-3',
+        'task-4',
+        'task-5',
       ]);
       expect(result.nextCursor).toBeUndefined();
     });
@@ -71,13 +76,13 @@ describe('InMemoryTaskStore', () => {
     test('should filter by capability', () => {
       const result = store.list({ capability: 'cap-a' });
       expect(result.items).toHaveLength(3);
-      expect(result.items.map(t => t.id)).toEqual(['task-1', 'task-3', 'task-5']);
+      expect(result.items.map((t) => t.id)).toEqual(['task-1', 'task-3', 'task-5']);
     });
 
     test('should filter by state', () => {
       const result = store.list({ state: 'running' });
       expect(result.items).toHaveLength(2);
-      expect(result.items.map(t => t.id)).toEqual(['task-2', 'task-5']);
+      expect(result.items.map((t) => t.id)).toEqual(['task-2', 'task-5']);
     });
 
     test('should apply both capability and state filters', () => {
@@ -89,7 +94,7 @@ describe('InMemoryTaskStore', () => {
     test('should apply limit and return nextCursor if more items exist', () => {
       const result = store.list({ limit: 2 });
       expect(result.items).toHaveLength(2);
-      expect(result.items.map(t => t.id)).toEqual(['task-1', 'task-2']);
+      expect(result.items.map((t) => t.id)).toEqual(['task-1', 'task-2']);
       expect(result.nextCursor).toBe('task-2');
     });
 
@@ -111,7 +116,7 @@ describe('InMemoryTaskStore', () => {
 
       const secondPage = store.list({ cursor: firstPage.nextCursor, limit: 2 });
       expect(secondPage.items).toHaveLength(2);
-      expect(secondPage.items.map(t => t.id)).toEqual(['task-3', 'task-4']);
+      expect(secondPage.items.map((t) => t.id)).toEqual(['task-3', 'task-4']);
       expect(secondPage.nextCursor).toBe('task-4');
 
       const thirdPage = store.list({ cursor: secondPage.nextCursor, limit: 2 });
@@ -123,10 +128,14 @@ describe('InMemoryTaskStore', () => {
     test('should paginate correctly with filters', () => {
       const firstPage = store.list({ capability: 'cap-a', limit: 2 });
       expect(firstPage.items).toHaveLength(2);
-      expect(firstPage.items.map(t => t.id)).toEqual(['task-1', 'task-3']);
+      expect(firstPage.items.map((t) => t.id)).toEqual(['task-1', 'task-3']);
       expect(firstPage.nextCursor).toBe('task-3');
 
-      const secondPage = store.list({ capability: 'cap-a', cursor: firstPage.nextCursor, limit: 2 });
+      const secondPage = store.list({
+        capability: 'cap-a',
+        cursor: firstPage.nextCursor,
+        limit: 2,
+      });
       expect(secondPage.items).toHaveLength(1);
       expect(secondPage.items[0].id).toBe('task-5');
       expect(secondPage.nextCursor).toBeUndefined();
