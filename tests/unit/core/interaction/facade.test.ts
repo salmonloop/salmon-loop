@@ -129,6 +129,18 @@ describe('interaction facade', () => {
       statusMessage: 'Input received: approve',
       inputRequired: undefined,
     });
+
+    const mismatchInput = await facadeWithAwaitingTask.submitInput(awaitingCreated.id, {
+      type: 'other',
+      value: 'stuff',
+    });
+    expect(mismatchInput).toBeNull();
+
+    const noTaskInput = await facadeWithAwaitingTask.submitInput('invalid', {
+      type: 'confirmation',
+      value: 'approve',
+    });
+    expect(noTaskInput).toBeNull();
   });
 
   test('resumes suspended tasks only from resumable states', async () => {
@@ -259,5 +271,65 @@ describe('interaction facade', () => {
       },
       statusMessage: 'Task reopened',
     });
+  });
+
+  test('publishes awaiting_input event when task completes in awaiting_input state', async () => {
+    const bus = createTaskEventBus();
+    const seen: string[] = [];
+    bus.subscribe((event) => {
+      seen.push(event.type);
+    });
+
+    const awaitingInputFacade = createInteractionFacade({
+      eventBus: bus,
+      executeTask: async (task) => ({
+        ...task,
+        state: 'awaiting_input',
+        inputRequired: { type: 'confirmation', prompt: 'Approve patch?' },
+      }),
+    });
+
+    await awaitingInputFacade.createTask({
+      capability: 'patch',
+      request: { instruction: 'needs input' },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(seen).toContain('task.awaiting_input');
+  });
+
+  test('lists tasks and filters correctly', async () => {
+    const facade = createInteractionFacade({
+      executeTask: async (task) => ({ ...task, state: 'running' }),
+    });
+    await facade.createTask({
+      capability: 'patch',
+      request: { instruction: 'one' },
+    });
+    const result = await facade.listTasks();
+    expect(result.items.length).toBe(1);
+    expect(result.items[0].capability).toBe('patch');
+  });
+
+  test('gets specific artifact for a task', async () => {
+    const facade = createInteractionFacade({
+      executeTask: async (task) => ({
+        ...task,
+        state: 'completed',
+        artifacts: [{ id: 'art1', name: 'output.txt', type: 'text', content: 'hello' }],
+      }),
+    });
+    const { task: created } = await facade.createTask({
+      capability: 'patch',
+      request: { instruction: 'has artifact' },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const found = await facade.getArtifact(created.id, 'art1');
+    expect(found?.artifacts?.[0].id).toBe('art1');
+    const notFound = await facade.getArtifact(created.id, 'missing');
+    expect(notFound).toBeNull();
+    const noTask = await facade.getArtifact('invalid', 'art1');
+    expect(noTask).toBeNull();
   });
 });
