@@ -1,5 +1,7 @@
-import { describe, expect, it } from 'bun:test';
 import path from 'node:path';
+
+import { describe, expect, it } from 'bun:test';
+
 import { NodePathAdapter } from '../../../../../src/core/adapters/path/path-adapter.js';
 
 describe('NodePathAdapter', () => {
