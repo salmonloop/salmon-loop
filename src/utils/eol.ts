@@ -9,7 +9,7 @@ export class TextNormalizer {
   static read(content: string): { normalized: string; eol: EOL } {
     // 1. Count frequencies to handle mixed line endings
     const crlfCount = (content.match(/\r\n/g) || []).length;
-    const lfCount = (content.match(/[^\r]\n/g) || []).length;
+    const lfCount = (content.match(/(?<!\r)\n/g) || []).length;
 
     // 2. Determine style (default to LF if LF >= CRLF)
     const eol: EOL = crlfCount > lfCount ? '\r\n' : '\n';
