@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 
 import {
-  isTerminalTaskState,
   canTransitionTaskState,
+  isTerminalTaskState,
 } from '../../../../src/core/interaction/model/task-state.js';
 
 describe('task-state', () => {
