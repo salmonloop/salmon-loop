@@ -1,6 +1,6 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
 import { promises as fs, constants } from 'fs';
-import * as path from 'path';
+
+import { describe, it, expect, mock, beforeEach } from 'bun:test';
 
 import { FileAdapter } from '../../../../../src/core/adapters/fs/file-adapter.js';
 

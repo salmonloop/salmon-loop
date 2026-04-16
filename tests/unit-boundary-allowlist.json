@@ -3,6 +3,7 @@
   "tests/unit/cli/authorization/allowlist.test.ts",
   "tests/unit/cli/reporters/openai-stream.test.ts",
   "tests/unit/core/adapters/filesystem-adapter.test.ts",
+  "tests/unit/core/adapters/fs/file-adapter.test.ts",
   "tests/unit/core/git-adapter.test.ts",
   "tests/unit/core/git-lock-manager.acquire.test.ts",
   "tests/unit/core/git-lock-manager.pid-reuse.test.ts",
