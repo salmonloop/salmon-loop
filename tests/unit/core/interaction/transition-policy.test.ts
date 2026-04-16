@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+
 import { createTaskTransitionPolicy } from '../../../../src/core/interaction/model/transition-policy.js';
 
 describe('createTaskTransitionPolicy', () => {
@@ -134,7 +135,7 @@ describe('createTaskTransitionPolicy', () => {
     expect(
       policy.canReopen({
         state: 'completed',
-        failure: { code: 'ERR', category: 'policy', retryable: false, message: '' }
+        failure: { code: 'ERR', category: 'policy', retryable: false, message: '' },
       }),
     ).toBe(true);
 

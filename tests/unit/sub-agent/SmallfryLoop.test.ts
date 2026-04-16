@@ -43,7 +43,7 @@ describe('SmallfryLoop', () => {
     infoMock.mockReset();
     warnMock.mockReset();
     debugMock.mockReset();
-    mock.clearAllMocks();
+    mock.restore();
     const mockLlm = {
       chat: mock(),
       createPlan: mock(),

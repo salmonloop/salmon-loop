@@ -25,7 +25,7 @@ mock.module('../../../src/core/adapters/git/git-adapter', () => {
 
 describe('WorkspaceSynchronizer checkpoint staging', () => {
   beforeEach(() => {
-    mock.clearAllMocks();
+    mock.restore();
     queryMock.mockImplementation(async (args: string[]) => {
       if (args[0] === 'status') {
         return ' M src/core/skills/bridge.ts\0';
