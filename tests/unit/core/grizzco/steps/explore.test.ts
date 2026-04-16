@@ -25,7 +25,7 @@ describe('exploreCodebase', () => {
   }
 
   beforeEach(() => {
-    mock.clearAllMocks();
+    mock.restore();
     chatWithToolsSpy = spyOn(session, 'chatWithTools');
     spyOn(session, 'chatWithToolsStreaming');
 
