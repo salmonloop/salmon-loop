@@ -72,7 +72,10 @@ describe('shared request assembly cross-entry consistency', () => {
       ],
     });
 
-    expect(built.envelope.attachments.map((item) => item.key)).toEqual(['context-prompt', 'plan-json']);
+    expect(built.envelope.attachments.map((item) => item.key)).toEqual([
+      'context-prompt',
+      'plan-json',
+    ]);
     expect(built.envelope.attachments[0]?.cacheSafe).toBe(true);
     expect(built.envelope.attachments[1]?.cacheSafe).toBeUndefined();
   });

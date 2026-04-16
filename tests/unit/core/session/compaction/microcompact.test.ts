@@ -15,19 +15,19 @@ describe('microcompact', () => {
     {
       role: 'assistant',
       content: 'I will list files.\n<tool_result name="ls">file1.txt\nfile2.txt</tool_result>',
-      timestamp: 200
+      timestamp: 200,
     },
     { role: 'user', content: 'next', timestamp: 300 },
     {
       role: 'assistant',
       content: 'I will change dir.\n<tool_result name="cd">success</tool_result>',
-      timestamp: 400
+      timestamp: 400,
     },
     { role: 'user', content: 'last', timestamp: 500 },
     {
       role: 'assistant',
       content: 'I will list again.\n<tool_result name="ls">file3.txt</tool_result>',
-      timestamp: 600
+      timestamp: 600,
     },
   ];
 
@@ -71,14 +71,15 @@ describe('microcompact', () => {
     const messages: ChatMessage[] = [
       {
         role: 'assistant',
-        content: 'Extra attributes: <tool_result id="123" name="ls" status="success">file.txt</tool_result>',
-        timestamp: 100
+        content:
+          'Extra attributes: <tool_result id="123" name="ls" status="success">file.txt</tool_result>',
+        timestamp: 100,
       },
       {
         role: 'assistant',
         content: 'Extra spaces: <tool_result   name="ls"  >file2.txt</tool_result>',
-        timestamp: 200
-      }
+        timestamp: 200,
+      },
     ];
 
     const result = microcompact(messages, { keepRecentTurns: 0 });
@@ -99,15 +100,19 @@ describe('microcompact', () => {
           Second: <tool_result name="cd">success</tool_result>
           Third: <tool_result name="grep">output2</tool_result>
         `,
-        timestamp: 100
-      }
+        timestamp: 100,
+      },
     ];
 
     const result = microcompact(messages, { keepRecentTurns: 0 });
 
     // ls and grep should be cleared
-    expect(result[0].content).toContain('<tool_result name="ls">' + DEFAULT_MICROCOMPACT_CONFIG.placeholder + '</tool_result>');
-    expect(result[0].content).toContain('<tool_result name="grep">' + DEFAULT_MICROCOMPACT_CONFIG.placeholder + '</tool_result>');
+    expect(result[0].content).toContain(
+      '<tool_result name="ls">' + DEFAULT_MICROCOMPACT_CONFIG.placeholder + '</tool_result>',
+    );
+    expect(result[0].content).toContain(
+      '<tool_result name="grep">' + DEFAULT_MICROCOMPACT_CONFIG.placeholder + '</tool_result>',
+    );
 
     // cd should NOT be cleared (stateful)
     expect(result[0].content).toContain('<tool_result name="cd">success</tool_result>');

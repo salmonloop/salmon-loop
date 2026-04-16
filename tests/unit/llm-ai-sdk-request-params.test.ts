@@ -17,7 +17,7 @@ function buildParams(overrides: Partial<BuildAiSdkRequestParamsInput> = {}) {
   });
 }
 
-const sampleTools = ({ read: {} } as unknown) as NonNullable<BuildAiSdkRequestParamsInput['tools']>;
+const sampleTools = { read: {} } as unknown as NonNullable<BuildAiSdkRequestParamsInput['tools']>;
 
 describe('buildAiSdkRequestParams', () => {
   it('sets toolChoice to none when options.toolChoice=none', () => {

@@ -4,11 +4,7 @@ import { tryGetLogger } from '../observability/logger.js';
 import type { ToolRouter } from '../tools/router.js';
 import { ToolRuntimeCtx, ToolSpec } from '../tools/types.js';
 
-import {
-  emitSkillAuditEvent,
-  generateSkillTraceId,
-  hashSkillArgs,
-} from './audit.js';
+import { emitSkillAuditEvent, generateSkillTraceId, hashSkillArgs } from './audit.js';
 import { getSkillFeatureFlags } from './feature-flags.js';
 import type { SkillLoader } from './loader.js';
 import { executeSkill } from './runtime/SkillRunner.js';
@@ -54,11 +50,11 @@ export interface RouterBox {
  *
  * @see https://agentskills.io/specification — Progressive disclosure
  */
-export type SkillSource =
-  | Skill
-  | { entry: SkillCatalogEntry; loader: SkillLoader };
+export type SkillSource = Skill | { entry: SkillCatalogEntry; loader: SkillLoader };
 
-function isLazySource(source: SkillSource): source is { entry: SkillCatalogEntry; loader: SkillLoader } {
+function isLazySource(
+  source: SkillSource,
+): source is { entry: SkillCatalogEntry; loader: SkillLoader } {
   return 'entry' in source && 'loader' in source;
 }
 
@@ -85,9 +81,7 @@ function isLazySource(source: SkillSource): source is { entry: SkillCatalogEntry
  */
 export function skillToToolSpec(source: SkillSource, routerBox: RouterBox): ToolSpec {
   const skillId = isLazySource(source) ? source.entry.id : source.id;
-  const description = isLazySource(source)
-    ? source.entry.description
-    : source.metadata.description;
+  const description = isLazySource(source) ? source.entry.description : source.metadata.description;
 
   // Cache for lazily activated skill (Tier 2)
   let activatedSkill: Skill | null = isLazySource(source) ? null : source;

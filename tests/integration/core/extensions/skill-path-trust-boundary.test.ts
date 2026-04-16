@@ -49,7 +49,6 @@ describe('Skill path trust boundary (integration)', () => {
     await fsp.rm(repoRoot, { recursive: true, force: true });
   });
 
-
   describe('malicious repo config with path traversal', () => {
     it('rejects ../../../etc path that escapes repo root', () => {
       const maliciousPath = path.resolve(repoRoot, '../../../etc');

@@ -67,9 +67,9 @@ Session summary
       },
     };
 
-    await expect(
-      refreshSessionSummary({ llm, sessionManager: undefined }),
-    ).resolves.toBeUndefined();
+    await expect(refreshSessionSummary({ llm, sessionManager: undefined })).resolves.toEqual({
+      didSummarize: false,
+    });
   });
 
   it('does not call llm in auto mode when trigger threshold is not met', async () => {
@@ -107,6 +107,12 @@ Session summary
   });
 
   it('builds canonical effective context from summary state and unsummarized messages', () => {
+    const messages = [
+      { id: 'm-0', role: 'user', content: 'old user', timestamp: 1 },
+      { id: 'm-1', role: 'assistant', content: 'old assistant', timestamp: 2 },
+      { id: 'm-2', role: 'user', content: 'recent user', timestamp: 3 },
+      { id: 'm-3', role: 'assistant', content: 'recent assistant', timestamp: 4 },
+    ];
     const sessionManager = {
       getSummaryState: () => ({
         summary: 'condensed summary',
@@ -126,12 +132,8 @@ Session summary
           owner: [],
         },
       }),
-      getMessagesWithIds: () => [
-        { id: 'm-0', role: 'user', content: 'old user', timestamp: 1 },
-        { id: 'm-1', role: 'assistant', content: 'old assistant', timestamp: 2 },
-        { id: 'm-2', role: 'user', content: 'recent user', timestamp: 3 },
-        { id: 'm-3', role: 'assistant', content: 'recent assistant', timestamp: 4 },
-      ],
+      getMessagesWithIds: () => messages,
+      getMessages: () => messages,
     };
 
     const llm: LLM = {

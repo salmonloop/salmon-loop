@@ -7,7 +7,7 @@ import { createCliSlashRuntime } from '../../../../src/cli/slash/runtime.js';
 mock.module('../../../../src/core/skills/loader.js', () => {
   return {
     SkillLoader: mock().mockImplementation(() => ({
-      initialize: async () => [],
+      loadCatalog: async () => [],
     })),
   };
 });

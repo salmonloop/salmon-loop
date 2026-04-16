@@ -6,7 +6,12 @@ function hasFiniteTimestamp(value: unknown): value is number {
 
 export const relinkBoundaryAndTailStage: ResumeRepairStage = async (state) => {
   const meta = state.session.meta;
-  if (!meta.id || !meta.name || !hasFiniteTimestamp(meta.createdAt) || !hasFiniteTimestamp(meta.updatedAt)) {
+  if (
+    !meta.id ||
+    !meta.name ||
+    !hasFiniteTimestamp(meta.createdAt) ||
+    !hasFiniteTimestamp(meta.updatedAt)
+  ) {
     state.contractViolations.push({
       code: 'MALFORMED_SESSION_BOUNDARY_METADATA',
       message: 'Archive metadata failed boundary validation.',

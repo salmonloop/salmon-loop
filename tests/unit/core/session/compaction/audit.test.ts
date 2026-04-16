@@ -82,4 +82,3 @@ describe('compaction audit logging', () => {
     );
   });
 });
-

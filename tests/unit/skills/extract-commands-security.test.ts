@@ -1,10 +1,6 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
 
-import {
-  createLogger,
-  setLogger,
-  tryGetLogger,
-} from '../../../src/core/observability/logger.js';
+import { createLogger, setLogger, tryGetLogger } from '../../../src/core/observability/logger.js';
 import {
   SkillParser,
   COMMAND_MAX_LENGTH,

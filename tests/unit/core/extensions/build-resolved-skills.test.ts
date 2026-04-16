@@ -57,7 +57,10 @@ mock.module('../../../../src/core/extensions/paths.js', () => ({
 mock.module('../../../../src/core/extensions/load.js', () => ({
   loadConfig: loadConfigMock,
   ExtensionConfigError: class ExtensionConfigError extends Error {
-    constructor(public readonly path: string, message: string) {
+    constructor(
+      public readonly path: string,
+      message: string,
+    ) {
       super(`Extension config ${path}: ${message}`);
       this.name = 'ExtensionConfigError';
     }
@@ -67,7 +70,6 @@ mock.module('../../../../src/core/extensions/load.js', () => ({
 async function loadModule() {
   return await import('../../../../src/core/extensions/index.js');
 }
-
 
 describe('buildResolvedSkills — path trust boundary (unit)', () => {
   const REPO_ROOT = '/fake/repo';
@@ -91,7 +93,10 @@ describe('buildResolvedSkills — path trust boundary (unit)', () => {
     repoSkills: { version: 1; discovery: { paths?: string[]; useDefaults?: boolean } } | null,
   ) {
     loadConfigMock.mockImplementation(async (path: string) => {
-      if (path.includes('skills-user') || path.includes('skills.json') === false && path.includes('skills-user')) {
+      if (
+        path.includes('skills-user') ||
+        (path.includes('skills.json') === false && path.includes('skills-user'))
+      ) {
         return userSkills ? { path, config: userSkills } : null;
       }
       if (path.includes('skills.json')) {
@@ -154,7 +159,9 @@ describe('buildResolvedSkills — path trust boundary (unit)', () => {
     expect(result.resolved.skillDiscovery.paths.length).toBe(1);
     // Two audit events for the two rejected paths
     const auditCalls = auditMock.mock.calls.filter(
-      (c: unknown[]) => c[0] === 'SKILL_PATH_REJECTED' && (c[1] as { reason: string }).reason === 'outside_repo_root',
+      (c: unknown[]) =>
+        c[0] === 'SKILL_PATH_REJECTED' &&
+        (c[1] as { reason: string }).reason === 'outside_repo_root',
     );
     expect(auditCalls.length).toBe(2);
   });

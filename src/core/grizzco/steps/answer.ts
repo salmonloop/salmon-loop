@@ -38,7 +38,11 @@ export async function generateAnswer(ctx: PreflightCtx): Promise<AnswerCtx> {
   const assistant = supportsTools
     ? await chatWithTools(
         messages,
-        { providerHints: shared.envelope.providerHints, temperature: 0.2, signal: ctx.options.signal },
+        {
+          providerHints: shared.envelope.providerHints,
+          temperature: 0.2,
+          signal: ctx.options.signal,
+        },
         {
           phase: Phase.EXPLORE,
           llm: llmClient,

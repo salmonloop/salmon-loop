@@ -9,22 +9,19 @@
  */
 import { describe, it, expect, beforeEach, mock } from 'bun:test';
 
-import {
-  clearAuditTrail,
-  getAuditTrail,
-} from '../../../src/core/observability/audit-trail.js';
-import {
-  createLogger,
-  setLogger,
-  tryGetLogger,
-} from '../../../src/core/observability/logger.js';
+import { clearAuditTrail, getAuditTrail } from '../../../src/core/observability/audit-trail.js';
+import { createLogger, setLogger, tryGetLogger } from '../../../src/core/observability/logger.js';
 import {
   executeSkill,
   matchAllowedTool,
   isToolPermitted,
 } from '../../../src/core/skills/runtime/SkillRunner.js';
 import type { Skill } from '../../../src/core/skills/types.js';
-import type { ToolCallEnvelope, ToolResult, ToolRuntimeCtx } from '../../../src/core/tools/types.js';
+import type {
+  ToolCallEnvelope,
+  ToolResult,
+  ToolRuntimeCtx,
+} from '../../../src/core/tools/types.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -37,10 +34,7 @@ beforeEach(() => {
   }
 });
 
-function createSkillWithAllowedTools(
-  allowedToolsSpec?: string,
-  allowedToolsExt?: string[],
-): Skill {
+function createSkillWithAllowedTools(allowedToolsSpec?: string, allowedToolsExt?: string[]): Skill {
   return {
     id: 'test-skill',
     path: '/fake/path/test-skill/SKILL.md',
@@ -107,7 +101,7 @@ describe('allowed-tools runtime enforcement', () => {
     expect(result.status).toBe('SUCCESS');
   });
 
-  it('allows execution when shell.exec is in allowedTools (extension field)', async () => {
+  it('does not enforce extension-only allowedTools field', async () => {
     const skill = createSkillWithAllowedTools(undefined, ['shell.exec', 'tool-b']);
     const { router } = createMockToolRouter();
 
@@ -152,8 +146,9 @@ describe('allowed-tools runtime enforcement', () => {
 
     const trail = getAuditTrail();
     const denied = trail.filter(
-      (e) => e.action === 'SKILL_EXECUTION_DENIED'
-        && (e.details as any)?.denyReason === 'ALLOWED_TOOLS_VIOLATION',
+      (e) =>
+        e.action === 'SKILL_EXECUTION_DENIED' &&
+        (e.details as any)?.denyReason === 'ALLOWED_TOOLS_VIOLATION',
     );
     expect(denied.length).toBeGreaterThanOrEqual(1);
   });
@@ -188,8 +183,24 @@ describe('allowed-tools runtime enforcement', () => {
     expect(calls.length).toBe(0);
   });
 
-  it('denies all tools when allowedTools is explicitly empty array', async () => {
+  it('does not enforce when only extension allowedTools is explicitly empty array', async () => {
     const skill = createSkillWithAllowedTools(undefined, []);
+    const { router, calls } = createMockToolRouter();
+
+    const result = await executeSkill({
+      skill,
+      argsText: '',
+      toolRouter: router as any,
+      toolCtx: createMockCtx(),
+    });
+
+    expect(result.status).toBe('SUCCESS');
+    expect(calls.length).toBe(1);
+  });
+
+  it('enforces only spec allowed-tools field when extension field is also present', async () => {
+    // spec field has tool-a, extension has shell.exec (ignored for enforcement)
+    const skill = createSkillWithAllowedTools('tool-a', ['shell.exec']);
     const { router, calls } = createMockToolRouter();
 
     await expect(
@@ -200,24 +211,7 @@ describe('allowed-tools runtime enforcement', () => {
         toolCtx: createMockCtx(),
       }),
     ).rejects.toThrow('not permitted');
-
     expect(calls.length).toBe(0);
-  });
-
-  it('merges spec and extension fields for enforcement', async () => {
-    // spec field has tool-a, extension has shell.exec
-    const skill = createSkillWithAllowedTools('tool-a', ['shell.exec']);
-    const { router } = createMockToolRouter();
-
-    const result = await executeSkill({
-      skill,
-      argsText: '',
-      toolRouter: router as any,
-      toolCtx: createMockCtx(),
-    });
-
-    // shell.exec is in the merged set, so execution should succeed
-    expect(result.status).toBe('SUCCESS');
   });
 
   it('does not call ToolRouter when allowed-tools violation occurs', async () => {

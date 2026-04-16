@@ -15,13 +15,15 @@ import { Skill, SkillCatalogEntry } from './types.js';
  * or early startup paths where the global logger has not been set.
  */
 function safeLogger() {
-  return tryGetLogger() ?? {
-    error: (..._args: unknown[]) => {},
-    warn: (..._args: unknown[]) => {},
-    info: (..._args: unknown[]) => {},
-    debug: (..._args: unknown[]) => {},
-    audit: (..._args: unknown[]) => {},
-  };
+  return (
+    tryGetLogger() ?? {
+      error: (..._args: unknown[]) => {},
+      warn: (..._args: unknown[]) => {},
+      info: (..._args: unknown[]) => {},
+      debug: (..._args: unknown[]) => {},
+      audit: (..._args: unknown[]) => {},
+    }
+  );
 }
 
 export interface SkillLoaderOptions {
@@ -50,7 +52,7 @@ export class SkillLoader {
 
     const preamble = `## Available Skills\n\n${text.skills.catalogDisclosurePreamble}`;
     const entries = catalog
-      .map(entry => `- **${entry.name}**: ${entry.description}\n  Location: ${entry.location}`)
+      .map((entry) => `- **${entry.name}**: ${entry.description}\n  Location: ${entry.location}`)
       .join('\n\n');
 
     return `${preamble}\n\n${entries}\n`;
@@ -89,7 +91,7 @@ export class SkillLoader {
       this.catalogCache = await this.loadCatalog();
     }
 
-    const entry = this.catalogCache.find(e => e.id === id);
+    const entry = this.catalogCache.find((e) => e.id === id);
     if (!entry) {
       throw new Error(text.skills.skillNotFoundInCatalog(id));
     }

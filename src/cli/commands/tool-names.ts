@@ -12,10 +12,7 @@ import {
   type SideEffect,
   type ToolRouter,
 } from '../../core/facades/cli-command-tool-names.js';
-import {
-  stat,
-  statSync,
-} from '../utils/safe-fs.js';
+import { stat, statSync } from '../utils/safe-fs.js';
 
 const VALID_SIDE_EFFECTS = new Set<SideEffect>([
   'none',

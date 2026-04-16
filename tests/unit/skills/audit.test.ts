@@ -1,14 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 
-import {
-  clearAuditTrail,
-  getAuditTrail,
-} from '../../../src/core/observability/audit-trail.js';
-import {
-  createLogger,
-  setLogger,
-  tryGetLogger,
-} from '../../../src/core/observability/logger.js';
+import { clearAuditTrail, getAuditTrail } from '../../../src/core/observability/audit-trail.js';
+import { createLogger, setLogger, tryGetLogger } from '../../../src/core/observability/logger.js';
 import {
   SkillAuditEvent,
   emitSkillAuditEvent,

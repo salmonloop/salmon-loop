@@ -115,4 +115,3 @@ describe('autocompact', () => {
     expect(finalResult.tracking.consecutiveFailures).toBe(3);
   });
 });
-

@@ -5,11 +5,7 @@ import { tryGetLogger } from '../../observability/logger.js';
 import type { ToolRouter } from '../../tools/router.js';
 import type { ToolRuntimeCtx } from '../../tools/types.js';
 import { Phase } from '../../types/index.js';
-import {
-  emitSkillAuditEvent,
-  generateSkillTraceId,
-  hashSkillArgs,
-} from '../audit.js';
+import { emitSkillAuditEvent, generateSkillTraceId, hashSkillArgs } from '../audit.js';
 import { SkillParser } from '../parser.js';
 import { SkillStrategyDSL, type SkillDslContext } from '../strategy.js';
 import type { Skill, SkillData, SkillExecutionResult } from '../types.js';

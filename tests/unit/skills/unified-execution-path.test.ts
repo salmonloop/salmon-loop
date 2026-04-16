@@ -1,18 +1,15 @@
 import { describe, it, expect, beforeEach, afterEach, mock } from 'bun:test';
 
-import {
-  clearAuditTrail,
-  getAuditTrail,
-} from '../../../src/core/observability/audit-trail.js';
-import {
-  createLogger,
-  setLogger,
-  tryGetLogger,
-} from '../../../src/core/observability/logger.js';
+import { clearAuditTrail, getAuditTrail } from '../../../src/core/observability/audit-trail.js';
+import { createLogger, setLogger, tryGetLogger } from '../../../src/core/observability/logger.js';
 import { skillToToolSpec } from '../../../src/core/skills/bridge.js';
 import { MicroTaskRunner } from '../../../src/core/skills/runtime/MicroTaskRunner.js';
 import type { Skill } from '../../../src/core/skills/types.js';
-import type { ToolCallEnvelope, ToolResult, ToolRuntimeCtx } from '../../../src/core/tools/types.js';
+import type {
+  ToolCallEnvelope,
+  ToolResult,
+  ToolRuntimeCtx,
+} from '../../../src/core/tools/types.js';
 
 /**
  * Tests for unified execution path (Task 1.5).
@@ -230,9 +227,7 @@ describe('Unified Execution Path (Task 1.5)', () => {
 
     it('slash path (executeSkill): denied command causes execution to throw', async () => {
       // Import executeSkill directly to test the slash-governed path
-      const { executeSkill } = await import(
-        '../../../src/core/skills/runtime/SkillRunner.js'
-      );
+      const { executeSkill } = await import('../../../src/core/skills/runtime/SkillRunner.js');
 
       const skill = createMockSkill({ instructions: '!sh dangerous-cmd\nDone' });
       const { router } = createDenyingToolRouter('POLICY_DENY');
@@ -274,9 +269,7 @@ describe('Unified Execution Path (Task 1.5)', () => {
     });
 
     it('slash path: denied command emits SKILL_EXECUTION_DENIED audit event', async () => {
-      const { executeSkill } = await import(
-        '../../../src/core/skills/runtime/SkillRunner.js'
-      );
+      const { executeSkill } = await import('../../../src/core/skills/runtime/SkillRunner.js');
 
       const skill = createMockSkill({
         id: 'denied-slash-skill',
@@ -335,9 +328,7 @@ describe('Unified Execution Path (Task 1.5)', () => {
     });
 
     it('slash path emits audit events with route="slash-governed"', async () => {
-      const { executeSkill } = await import(
-        '../../../src/core/skills/runtime/SkillRunner.js'
-      );
+      const { executeSkill } = await import('../../../src/core/skills/runtime/SkillRunner.js');
 
       const skill = createMockSkill({
         id: 'slash-audit-skill',
@@ -366,9 +357,7 @@ describe('Unified Execution Path (Task 1.5)', () => {
     });
 
     it('executeSkill defaults to route="slash-governed" when not specified', async () => {
-      const { executeSkill } = await import(
-        '../../../src/core/skills/runtime/SkillRunner.js'
-      );
+      const { executeSkill } = await import('../../../src/core/skills/runtime/SkillRunner.js');
 
       const skill = createMockSkill({
         id: 'default-route-skill',
@@ -391,4 +380,3 @@ describe('Unified Execution Path (Task 1.5)', () => {
     });
   });
 });
-

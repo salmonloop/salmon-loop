@@ -35,7 +35,9 @@ export interface SharedRequestEnvelope {
   baseMessages: LLMMessage[];
 }
 
-export function buildSharedRequestEnvelope(args: BuildSharedRequestEnvelopeArgs): SharedRequestEnvelope {
+export function buildSharedRequestEnvelope(
+  args: BuildSharedRequestEnvelopeArgs,
+): SharedRequestEnvelope {
   const cacheSurface = {
     namespace: args.defaultNamespace,
     contextHash: args.contextHash,
@@ -49,7 +51,10 @@ export function buildSharedRequestEnvelope(args: BuildSharedRequestEnvelopeArgs)
     system: args.systemPrompt,
     user: args.userPrompt,
     conversationContext: args.conversationContext,
-    attachments: [...(args.attachments ?? []), ...buildArtifactHintAttachments(resolvedArtifactHints)],
+    attachments: [
+      ...(args.attachments ?? []),
+      ...buildArtifactHintAttachments(resolvedArtifactHints),
+    ],
     providerHints: args.providerHints,
     cacheSafeSurface: {
       contextHash: cacheSurface.contextHash,

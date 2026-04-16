@@ -396,7 +396,10 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
             // with a smaller session context budget to guarantee prompt reduction.
             const isContextOverflow = (() => {
               if (!error || typeof error !== 'object') return false;
-              if ('llmCode' in (error as any) && (error as any).llmCode === 'LLM_CONTEXT_LENGTH_EXCEEDED') {
+              if (
+                'llmCode' in (error as any) &&
+                (error as any).llmCode === 'LLM_CONTEXT_LENGTH_EXCEEDED'
+              ) {
                 return true;
               }
               const message =

@@ -87,7 +87,7 @@ describe('Compaction Pipeline End-to-End', () => {
     });
 
     // Check if the summary is present (Level 1 result)
-    expect(context.some(m => m.content.includes('This is a summary'))).toBe(true);
+    expect(context.some((m) => m.content.includes('This is a summary'))).toBe(true);
 
     // The oldest messages should not appear in the effective context (summarized away).
     expect(context.some((m) => m.content.includes('Instruction 0'))).toBe(false);

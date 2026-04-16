@@ -21,6 +21,17 @@ jobs:
       - name: Verify
         run: bun run verify
 
+  perf-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup
+        uses: ./.github/actions/setup
+        with:
+          bun-version: ${{ inputs.bun-version }}
+      - name: Perf Smoke
+        run: bun run test:perf
+
   publish-smoke:
     runs-on: ubuntu-latest
     steps:

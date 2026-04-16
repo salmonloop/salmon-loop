@@ -126,6 +126,13 @@ describe('LLM stub server integration (no real network)', () => {
   let baseUrl = '';
 
   beforeAll(async () => {
+    if (process.env.RUN_HTTP_STUB_INTEGRATION !== '1') {
+      q.setMode('fetch');
+      q.installFetchFallback();
+      baseUrl = 'http://127.0.0.1:0/v1';
+      return;
+    }
+
     const bound = await new Promise<boolean>((resolve) => {
       let settled = false;
       const finish = (value: boolean) => {

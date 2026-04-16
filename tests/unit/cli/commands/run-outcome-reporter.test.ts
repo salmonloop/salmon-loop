@@ -256,6 +256,16 @@ mock.module('../../../../src/core/observability/logger.js', () => ({
     log: mock(),
     setReporter: mock(),
   }),
+  tryGetLogger: () => ({
+    error: mock(),
+    warn: mock(),
+    info: mock(),
+    debug: mock(),
+    success: mock(),
+    cyan: mock(),
+    log: mock(),
+    setReporter: mock(),
+  }),
 }));
 
 describe('handleRunCommand outcome reporter', () => {
@@ -455,9 +465,9 @@ describe('handleRunCommand outcome reporter', () => {
         },
       }),
       getMessages: () => [
-        { role: 'user', content: 'old user', timestamp: 1 },
-        { role: 'assistant', content: 'old assistant', timestamp: 2 },
-        { role: 'user', content: 'recent user', timestamp: 3 },
+        { id: 'm-0', role: 'user', content: 'old user', timestamp: 1 },
+        { id: 'm-1', role: 'assistant', content: 'old assistant', timestamp: 2 },
+        { id: 'm-2', role: 'user', content: 'recent user', timestamp: 3 },
       ],
       getMessagesWithIds: () => [
         { id: 'm-0', role: 'user', content: 'old user', timestamp: 1 },

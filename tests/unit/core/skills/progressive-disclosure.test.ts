@@ -129,9 +129,7 @@ describe('Property 10: Progressive Disclosure Token Bound', () => {
    */
   it('catalog entry does not contain instructions or rawContent', async () => {
     const skillsDir = path.join(tmpDir, '.salmonloop', 'skills');
-    await createSkillTree(skillsDir, [
-      { name: 'lean-skill', description: 'Lean catalog entry' },
-    ]);
+    await createSkillTree(skillsDir, [{ name: 'lean-skill', description: 'Lean catalog entry' }]);
 
     const loader = new SkillLoader({ repoRoot: tmpDir });
     const catalog = await loader.loadCatalog();

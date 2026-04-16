@@ -45,8 +45,6 @@ describe('architecture/verify contract smoke gate', () => {
       'tests/unit/architecture/replacement-preview-boundary-invariant.test.ts',
     );
     expect(smokeScript).toContain('tests/unit/tools/session-streaming.test.ts');
-    expect(smokeScript).toContain(
-      'tests/unit/core/grizzco/steps/plan-patch-toolcalling.test.ts',
-    );
+    expect(smokeScript).toContain('tests/unit/core/grizzco/steps/plan-patch-toolcalling.test.ts');
   });
 });

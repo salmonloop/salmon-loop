@@ -52,7 +52,9 @@ export interface PhaseRequestEnvelope {
   baseMessages: LLMMessage[];
 }
 
-export function buildSharedRequestEnvelope(args: BuildSharedRequestEnvelopeArgs): SharedRequestEnvelope {
+export function buildSharedRequestEnvelope(
+  args: BuildSharedRequestEnvelopeArgs,
+): SharedRequestEnvelope {
   return buildSharedRequestEnvelopeCore(args);
 }
 

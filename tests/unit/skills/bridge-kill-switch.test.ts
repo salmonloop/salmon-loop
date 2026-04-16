@@ -1,18 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 
-import {
-  clearAuditTrail,
-  getAuditTrail,
-} from '../../../src/core/observability/audit-trail.js';
-import {
-  createLogger,
-  setLogger,
-  tryGetLogger,
-} from '../../../src/core/observability/logger.js';
-import {
-  isBridgeSkillExecDisabled,
-  skillToToolSpec,
-} from '../../../src/core/skills/bridge.js';
+import { clearAuditTrail, getAuditTrail } from '../../../src/core/observability/audit-trail.js';
+import { createLogger, setLogger, tryGetLogger } from '../../../src/core/observability/logger.js';
+import { isBridgeSkillExecDisabled, skillToToolSpec } from '../../../src/core/skills/bridge.js';
 import type { Skill } from '../../../src/core/skills/types.js';
 import type { ToolRuntimeCtx } from '../../../src/core/tools/types.js';
 
@@ -171,4 +161,3 @@ describe('Bridge kill-switch (Unit)', () => {
     });
   });
 });
-

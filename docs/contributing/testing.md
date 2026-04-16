@@ -97,7 +97,9 @@ All critical safety logic is verified by:
 ## 4.1 Bun Test Runtime
 
 - The project test runtime is `bun test`. Do not use legacy non-Bun test runner commands in development scripts or hooks.
-- Run the full suite with `bun run test:full`.
+- Run correctness gates with `bun run test:full` (unit + integration).
+- Run the full suite including performance tests with `bun run test:all`.
+- Run opt-in network integration checks with `bun run test:integration:network`.
 - Unit, integration, and perf tests run via `scripts/run-bun-file-tests.ts` as per-file isolated subprocesses.
 - `bun run test:unit` maps to `bun scripts/run-bun-file-tests.ts tests/unit`.
 

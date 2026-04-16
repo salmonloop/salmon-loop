@@ -4,10 +4,7 @@ import type { Context } from '../../types/context.js';
 import type { Plan } from '../../types/planning.js';
 import { wrapPlanEmpty, sanitizeError, LlmError } from '../errors.js';
 import type { RequestAttachment } from '../request-envelope.js';
-import {
-  extractUnifiedDiffFromLLMContent,
-  parsePlanFromLLMContent,
-} from '../utils.js';
+import { extractUnifiedDiffFromLLMContent, parsePlanFromLLMContent } from '../utils.js';
 
 export interface HighLevelPhaseSpec<TInput, TOutput> {
   namespace: string;
@@ -38,7 +35,10 @@ export interface HighLevelPhaseSpecMap {
 
 export type HighLevelPhaseName = keyof HighLevelPhaseSpecMap;
 
-export const HIGH_LEVEL_PHASE_NAMES = ['plan', 'patch'] as const satisfies readonly HighLevelPhaseName[];
+export const HIGH_LEVEL_PHASE_NAMES = [
+  'plan',
+  'patch',
+] as const satisfies readonly HighLevelPhaseName[];
 
 function buildContextPromptAttachment(contextPrompt: string): RequestAttachment {
   return {

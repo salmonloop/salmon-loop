@@ -73,7 +73,7 @@ describe('session/replacement-state', () => {
         decision: 'replaced',
         preview: `${id}-preview`,
         frozenAt: time,
-      } satisfies Parameters<typeof freezeToolResultReplacementDecision>[1]);
+      }) satisfies Parameters<typeof freezeToolResultReplacementDecision>[1];
 
     const first = freezeToolResultReplacementDecision(undefined, makeEntry('tool-a', 1), {
       maxEntries: 2,

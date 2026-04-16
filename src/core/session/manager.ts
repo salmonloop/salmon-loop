@@ -497,7 +497,8 @@ export class ChatSessionManager {
           mode: 'legacy',
           success: true,
           repairViolationCount: 0,
-          replacementReuseHitCount: Object.keys(restored.meta.replacementState?.entries ?? {}).length,
+          replacementReuseHitCount: Object.keys(restored.meta.replacementState?.entries ?? {})
+            .length,
         });
         this.currentSession = restored;
         await this.save();

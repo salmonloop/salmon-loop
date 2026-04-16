@@ -206,12 +206,16 @@ describe('AiSdkLLM cache contract', () => {
 
     const firstParams = getGenerateParamsAt(0);
     const secondParams = getGenerateParamsAt(1);
-    const firstComponents = parseCacheHintComponents(firstParams?.providerOptions?.openaiCompatible?.user);
+    const firstComponents = parseCacheHintComponents(
+      firstParams?.providerOptions?.openaiCompatible?.user,
+    );
     const secondComponents = parseCacheHintComponents(
       secondParams?.providerOptions?.openaiCompatible?.user,
     );
 
-    expect(findComponent(firstComponents, 'stable:')).toBe(findComponent(secondComponents, 'stable:'));
+    expect(findComponent(firstComponents, 'stable:')).toBe(
+      findComponent(secondComponents, 'stable:'),
+    );
   });
 
   it('updates cache hint context component when createPatch context hash changes', async () => {
@@ -237,7 +241,9 @@ describe('AiSdkLLM cache contract', () => {
 
     const firstParams = getGenerateParamsAt(0);
     const secondParams = getGenerateParamsAt(1);
-    const firstComponents = parseCacheHintComponents(firstParams?.providerOptions?.openaiCompatible?.user);
+    const firstComponents = parseCacheHintComponents(
+      firstParams?.providerOptions?.openaiCompatible?.user,
+    );
     const secondComponents = parseCacheHintComponents(
       secondParams?.providerOptions?.openaiCompatible?.user,
     );

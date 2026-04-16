@@ -9,7 +9,10 @@ describe('architecture/sub-agent prefix consistency invariant', () => {
       join(process.cwd(), 'src/core/sub-agent/tools/task-spawn.ts'),
       'utf8',
     );
-    const manager = await readFile(join(process.cwd(), 'src/core/sub-agent/core/manager.ts'), 'utf8');
+    const manager = await readFile(
+      join(process.cwd(), 'src/core/sub-agent/core/manager.ts'),
+      'utf8',
+    );
 
     expect(taskSpawn).toContain('validateSharedPrefixConsistency');
     expect(taskSpawn).toContain('runtimeSnapshot: ctx.contextSnapshot');

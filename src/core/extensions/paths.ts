@@ -77,6 +77,8 @@ export function isWithinRoot(candidate: string, root: string): boolean {
     tryGetLogger()?.debug(
       `isWithinRoot: path not on disk, using lexical check for "${candidate}" against root "${root}"`,
     );
-    return resolvedCandidate === resolvedRoot || resolvedCandidate.startsWith(resolvedRoot + path.sep);
+    return (
+      resolvedCandidate === resolvedRoot || resolvedCandidate.startsWith(resolvedRoot + path.sep)
+    );
   }
 }

@@ -19,7 +19,7 @@ We welcome contributions to SalmonLoop! As a design-driven project, we prioritiz
 
 1. Fork the repository.
 2. Install dependencies: `bun install`.
-3. Run tests: `bun run test:full`.
+3. Run tests: `bun run test:full` (correctness suite: unit + integration).
 4. Run linting: `bun run lint`.
 5. Create a feature branch and submit a pull request.
 
@@ -27,7 +27,9 @@ Notes:
 
 - Use `bun` for dependency management in this repository.
 - Enable shared hooks once per clone: `bun run setup:hooks` (this enforces both `check:target-runtime-boundary:staged` and `check:bun-purity:staged` before commit).
-- Before opening a PR, run `bun run verify` to execute Bun purity, target-runtime boundary, lint, typecheck, contract smoke, and full tests.
+- Before opening a PR, run `bun run verify` to execute Bun purity, target-runtime boundary, lint, typecheck, contract smoke, and correctness tests.
+- When changing performance-sensitive code, also run `bun run test:all` (or `bun run test:perf:all` for perf-only validation).
+- When changing A2A transport/network behavior, also run `bun run test:integration:network`.
 
 ### Debugging with `--verbose`
 To debug issues, you can use the `--verbose` flag to get more detailed logs.

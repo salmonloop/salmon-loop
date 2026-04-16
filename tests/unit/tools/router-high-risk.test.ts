@@ -13,7 +13,11 @@ describe('ToolRouter.isHighRiskTool', () => {
     const registry = { getSpec: mock() } as unknown as ToolRegistry;
     const policy = { decide: mock() } as unknown as ToolPolicy;
     const budget = { runWithGuards: mock() } as unknown as BudgetGuard;
-    const audit = { onStart: mock(), onEnd: mock(), onAuthorization: mock() } as unknown as ToolAuditLogger;
+    const audit = {
+      onStart: mock(),
+      onEnd: mock(),
+      onAuthorization: mock(),
+    } as unknown as ToolAuditLogger;
     const sanitizer = { validateInput: mock(), sanitizeOutput: mock() } as unknown as ToolSanitizer;
     return new ToolRouter(registry, policy, budget, audit, sanitizer);
   }

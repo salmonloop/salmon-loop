@@ -121,10 +121,7 @@ export async function createStandardToolstack(options: ToolstackOptions) {
   });
   const catalog = await skillLoader.loadCatalog();
   for (const entry of catalog) {
-    registry.register(skillToToolSpec(
-      { entry, loader: skillLoader },
-      routerBox,
-    ));
+    registry.register(skillToToolSpec({ entry, loader: skillLoader }, routerBox));
   }
 
   // 3b. Register MCP + plugin tools

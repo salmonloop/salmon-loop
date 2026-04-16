@@ -15,13 +15,15 @@ import { Skill, SkillCatalogEntry, SkillFrontmatter } from './types.js';
  * or early startup paths where the global logger has not been set.
  */
 function safeLogger() {
-  return tryGetLogger() ?? {
-    error: (..._args: unknown[]) => {},
-    warn: (..._args: unknown[]) => {},
-    info: (..._args: unknown[]) => {},
-    debug: (..._args: unknown[]) => {},
-    audit: (..._args: unknown[]) => {},
-  };
+  return (
+    tryGetLogger() ?? {
+      error: (..._args: unknown[]) => {},
+      warn: (..._args: unknown[]) => {},
+      info: (..._args: unknown[]) => {},
+      debug: (..._args: unknown[]) => {},
+      audit: (..._args: unknown[]) => {},
+    }
+  );
 }
 
 /**
@@ -42,13 +44,10 @@ const sharedFields = {
   // AgentSkills spec: "Space-delimited list of pre-approved tools" (Experimental).
   // YAML bare key (`allowed-tools:`) parses as null — normalize to undefined so
   // that Zod's `.optional()` accepts it as "not declared".
-  'allowed-tools': z.preprocess(
-    (val) => {
-      if (val === null || val === undefined) return undefined;
-      return val;
-    },
-    z.string().optional(),
-  ),
+  'allowed-tools': z.preprocess((val) => {
+    if (val === null || val === undefined) return undefined;
+    return val;
+  }, z.string().optional()),
 } as const;
 
 /**
@@ -59,18 +58,21 @@ const sharedFields = {
  * - `description`: 1-1024 chars, non-empty
  * @see Requirements 5.1, 5.2, 5.4, 5.5
  */
-export const SkillFrontmatterSchema = z.object({
-  name: z.string()
-    .min(1)
-    .max(64)
-    .regex(
-      SKILL_NAME_REGEX,
-      'name must be unicode lowercase alphanumeric + hyphens per AgentSkills spec',
-    )
-    .refine(s => !s.includes('--'), 'name must not contain consecutive hyphens'),
-  description: z.string().min(1).max(1024),
-  ...sharedFields,
-}).strict();
+export const SkillFrontmatterSchema = z
+  .object({
+    name: z
+      .string()
+      .min(1)
+      .max(64)
+      .regex(
+        SKILL_NAME_REGEX,
+        'name must be unicode lowercase alphanumeric + hyphens per AgentSkills spec',
+      )
+      .refine((s) => !s.includes('--'), 'name must not contain consecutive hyphens'),
+    description: z.string().min(1).max(1024),
+    ...sharedFields,
+  })
+  .strict();
 
 /**
  * Maximum allowed length for a single extracted command (in characters).
@@ -159,7 +161,7 @@ export class SkillParser {
 
     const result = SkillFrontmatterSchema.safeParse(parsed);
     if (!result.success) {
-      const issues = result.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ');
+      const issues = result.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ');
       const msg = text.skills.invalidFrontmatter(filePath, issues);
       safeLogger().error(msg);
       throw new Error(msg);
@@ -229,7 +231,7 @@ export class SkillParser {
 
     const result = SkillFrontmatterSchema.safeParse(parsed);
     if (!result.success) {
-      const issues = result.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ');
+      const issues = result.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ');
       const msg = text.skills.invalidFrontmatter(filePath, issues);
       safeLogger().error(msg);
       throw new Error(msg);
@@ -354,7 +356,9 @@ export class SkillParser {
 
     const safe = raw.filter((cmd) => {
       if (cmd.length > COMMAND_MAX_LENGTH) {
-        logger?.warn(`Skill command rejected: exceeds max length (${cmd.length} > ${COMMAND_MAX_LENGTH})`);
+        logger?.warn(
+          `Skill command rejected: exceeds max length (${cmd.length} > ${COMMAND_MAX_LENGTH})`,
+        );
         return false;
       }
 
@@ -374,10 +378,14 @@ export class SkillParser {
 
     // Audit: log all commands that will be executed
     if (safe.length > 0) {
-      logger?.audit('SKILL_COMMANDS_EXTRACTED', {
-        commandCount: safe.length,
-        commands: safe,
-      }, { source: 'skill-parser', severity: 'low', scope: 'session' });
+      logger?.audit(
+        'SKILL_COMMANDS_EXTRACTED',
+        {
+          commandCount: safe.length,
+          commands: safe,
+        },
+        { source: 'skill-parser', severity: 'low', scope: 'session' },
+      );
     }
 
     return safe;

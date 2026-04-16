@@ -84,15 +84,19 @@ export function microcompact(
   });
 
   if (totalClearedCount > 0) {
-    getLogger().audit('COMPACTION_MICROCOMPACT', {
-      clearedCount: totalClearedCount,
-      keepRecentTurns,
-    }, {
-      source: 'session',
-      severity: 'low',
-      scope: 'session',
-      phase: 'COMPACTION'
-    });
+    getLogger().audit(
+      'COMPACTION_MICROCOMPACT',
+      {
+        clearedCount: totalClearedCount,
+        keepRecentTurns,
+      },
+      {
+        source: 'session',
+        severity: 'low',
+        scope: 'session',
+        phase: 'COMPACTION',
+      },
+    );
   }
 
   return result;

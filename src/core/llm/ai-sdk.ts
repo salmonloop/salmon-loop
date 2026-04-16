@@ -139,10 +139,10 @@ export class AiSdkLLM implements LLM {
     });
   }
 
-  private async runHighLevelPhase<TInput extends { context: Context; signal?: AbortSignal }, TOutput>(
-    spec: HighLevelPhaseSpec<TInput, TOutput>,
-    input: TInput,
-  ): Promise<TOutput> {
+  private async runHighLevelPhase<
+    TInput extends { context: Context; signal?: AbortSignal },
+    TOutput,
+  >(spec: HighLevelPhaseSpec<TInput, TOutput>, input: TInput): Promise<TOutput> {
     const contextPrompt = formatContextForPrompt(input.context);
     const userPrompt = await spec.buildPrompt({ ...input, contextPrompt });
     const attachments = spec.buildAttachments({ ...input, contextPrompt });

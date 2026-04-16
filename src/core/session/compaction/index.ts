@@ -10,7 +10,6 @@ import { isCircuitBreakerTripped, onCompactionFailure, onCompactionSuccess } fro
 import type { CompactionTracking, CompactionResult, AutocompactConfig } from './types.js';
 import { DEFAULT_AUTOCOMPACT_CONFIG } from './types.js';
 
-
 function isContextOverflowLike(error: unknown): boolean {
   if (error instanceof LlmError && error.llmCode === 'LLM_CONTEXT_LENGTH_EXCEEDED') {
     return true;
@@ -155,19 +154,23 @@ export async function autocompact(params: {
 
     const updatedSummary = sessionManager.getSummaryState();
 
-    getLogger().audit(`COMPACTION_${trigger.toUpperCase()}COMPACT` as any, {
-      trigger,
-      modelId: modelId ?? 'unknown',
-      preTokens: totalTokens,
-      tokenThreshold: config.tokenThreshold,
-      summaryTokens: updatedSummary?.summaryTokens,
-      circuitBreakerState: { consecutiveFailures: 0 },
-    }, {
-      source: 'session',
-      severity: 'medium',
-      scope: 'session',
-      phase: 'COMPACTION'
-    });
+    getLogger().audit(
+      `COMPACTION_${trigger.toUpperCase()}COMPACT` as any,
+      {
+        trigger,
+        modelId: modelId ?? 'unknown',
+        preTokens: totalTokens,
+        tokenThreshold: config.tokenThreshold,
+        summaryTokens: updatedSummary?.summaryTokens,
+        circuitBreakerState: { consecutiveFailures: 0 },
+      },
+      {
+        source: 'session',
+        severity: 'medium',
+        scope: 'session',
+        phase: 'COMPACTION',
+      },
+    );
 
     return {
       performed: true,
@@ -177,16 +180,20 @@ export async function autocompact(params: {
     };
   } catch (error) {
     const newTracking = onCompactionFailure(tracking);
-    getLogger().audit('COMPACTION_FAILURE', {
-      error: error instanceof Error ? error.message : String(error),
-      consecutiveFailures: newTracking.consecutiveFailures,
-      trigger,
-    }, {
-      source: 'session',
-      severity: 'medium',
-      scope: 'session',
-      phase: 'COMPACTION'
-    });
+    getLogger().audit(
+      'COMPACTION_FAILURE',
+      {
+        error: error instanceof Error ? error.message : String(error),
+        consecutiveFailures: newTracking.consecutiveFailures,
+        trigger,
+      },
+      {
+        source: 'session',
+        severity: 'medium',
+        scope: 'session',
+        phase: 'COMPACTION',
+      },
+    );
 
     return {
       performed: false,

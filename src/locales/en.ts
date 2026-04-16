@@ -838,8 +838,7 @@ Please return the patch in PURE unified diff format:`;
       `Skill at ${filePath}: direct .md format is deprecated. Convert to subdirectory format: move to <skill-name>/SKILL.md`,
     skillNotFoundInCatalog: (id: string) =>
       `Skill "${id}" not found in catalog. Ensure loadCatalog() has been called and the skill exists.`,
-    skillActivated: (id: string) =>
-      `Skill "${id}" activated (Tier 2: full content loaded).`,
+    skillActivated: (id: string) => `Skill "${id}" activated (Tier 2: full content loaded).`,
     newSkillDiscovered: (id: string, location: string) =>
       `New skill "${id}" discovered at ${location} during session.`,
     conditionalSkillActivated: (id: string, matchedPattern: string) =>

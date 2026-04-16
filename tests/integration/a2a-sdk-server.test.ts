@@ -92,7 +92,10 @@ function createMessage(id: string): Message {
 }
 
 describe('A2A SDK express server', () => {
-  test('message/send returns a completed task that can be queried', async () => {
+  const runNetworkIntegration = process.env.RUN_A2A_NETWORK_INTEGRATION === '1';
+  const networkIntegrationTest = runNetworkIntegration ? test : test.skip;
+
+  networkIntegrationTest('message/send returns a completed task that can be queried', async () => {
     const { url, close } = await startTestServer({
       executeTask: async (task) => ({ ...task, state: 'completed' }),
     });
@@ -119,39 +122,42 @@ describe('A2A SDK express server', () => {
     }
   });
 
-  test('message/stream yields status updates and cancel observes cancellation', async () => {
-    const { url, close } = await startTestServer({
-      executeTask: (task, options) => createAbortOnlyTask(task, options?.signal),
-    });
-    try {
-      const transport = new JsonRpcTransport({ endpoint: `${url}/a2a/jsonrpc` });
-      const iterator = transport.sendMessageStream({ message: createMessage('msg-2') });
+  networkIntegrationTest(
+    'message/stream yields status updates and cancel observes cancellation',
+    async () => {
+      const { url, close } = await startTestServer({
+        executeTask: (task, options) => createAbortOnlyTask(task, options?.signal),
+      });
+      try {
+        const transport = new JsonRpcTransport({ endpoint: `${url}/a2a/jsonrpc` });
+        const iterator = transport.sendMessageStream({ message: createMessage('msg-2') });
 
-      const first = await iterator.next();
-      expect(first.done).toBe(false);
-      if (!first.value || first.value.kind !== 'status-update') {
-        throw new Error('expected first event to be a status update');
+        const first = await iterator.next();
+        expect(first.done).toBe(false);
+        if (!first.value || first.value.kind !== 'status-update') {
+          throw new Error('expected first event to be a status update');
+        }
+        const firstUpdate = first.value as TaskStatusUpdateEvent;
+        expect(firstUpdate.status.state).toBe('submitted');
+
+        const taskId = firstUpdate.taskId;
+        expect(taskId).toBeDefined();
+        await transport.cancelTask({ id: taskId! });
+        const second = await iterator.next();
+        expect(second.done).toBe(false);
+        if (!second.value || second.value.kind !== 'status-update') {
+          throw new Error('expected second event to be a status update');
+        }
+        const secondUpdate = second.value as TaskStatusUpdateEvent;
+        expect(secondUpdate.status.state).toBe('canceled');
+        expect(secondUpdate.final).toBe(true);
+
+        await iterator.return();
+      } finally {
+        await close();
       }
-      const firstUpdate = first.value as TaskStatusUpdateEvent;
-      expect(firstUpdate.status.state).toBe('submitted');
-
-      const taskId = firstUpdate.taskId;
-      expect(taskId).toBeDefined();
-      await transport.cancelTask({ id: taskId! });
-      const second = await iterator.next();
-      expect(second.done).toBe(false);
-      if (!second.value || second.value.kind !== 'status-update') {
-        throw new Error('expected second event to be a status update');
-      }
-      const secondUpdate = second.value as TaskStatusUpdateEvent;
-      expect(secondUpdate.status.state).toBe('canceled');
-      expect(secondUpdate.final).toBe(true);
-
-      await iterator.return();
-    } finally {
-      await close();
-    }
-  });
+    },
+  );
 
   /**
    * Bug Condition Exploration Test - Property 1: Fault Condition
@@ -169,57 +175,60 @@ describe('A2A SDK express server', () => {
    * cancellation requests to arrive. Check store state after delay to detect
    * cancellation and publish "canceled" instead.
    */
-  test('BUG CONDITION: cancellation during grace period publishes only canceled status', async () => {
-    const { url, close } = await startTestServer({
-      executeTask: async (task) => {
-        // Task completes immediately
-        return { ...task, state: 'completed' };
-      },
-    });
-    try {
-      const transport = new JsonRpcTransport({ endpoint: `${url}/a2a/jsonrpc` });
-      const iterator = transport.sendMessageStream({ message: createMessage('msg-race') });
+  networkIntegrationTest(
+    'BUG CONDITION: cancellation during grace period publishes only canceled status',
+    async () => {
+      const { url, close } = await startTestServer({
+        executeTask: async (task) => {
+          // Task completes immediately
+          return { ...task, state: 'completed' };
+        },
+      });
+      try {
+        const transport = new JsonRpcTransport({ endpoint: `${url}/a2a/jsonrpc` });
+        const iterator = transport.sendMessageStream({ message: createMessage('msg-race') });
 
-      const first = await iterator.next();
-      expect(first.done).toBe(false);
-      const firstUpdate = first.value as TaskStatusUpdateEvent;
-      expect(firstUpdate.status.state).toBe('submitted');
+        const first = await iterator.next();
+        expect(first.done).toBe(false);
+        const firstUpdate = first.value as TaskStatusUpdateEvent;
+        expect(firstUpdate.status.state).toBe('submitted');
 
-      const taskId = firstUpdate.taskId;
-      expect(taskId).toBeDefined();
+        const taskId = firstUpdate.taskId;
+        expect(taskId).toBeDefined();
 
-      // Cancel immediately after task completes (during grace period)
-      await transport.cancelTask({ id: taskId! });
+        // Cancel immediately after task completes (during grace period)
+        await transport.cancelTask({ id: taskId! });
 
-      // Collect all subsequent status updates
-      const statusUpdates: TaskStatusUpdateEvent[] = [];
-      let result = await iterator.next();
-      while (!result.done) {
-        if (result.value && result.value.kind === 'status-update') {
-          statusUpdates.push(result.value as TaskStatusUpdateEvent);
+        // Collect all subsequent status updates
+        const statusUpdates: TaskStatusUpdateEvent[] = [];
+        let result = await iterator.next();
+        while (!result.done) {
+          if (result.value && result.value.kind === 'status-update') {
+            statusUpdates.push(result.value as TaskStatusUpdateEvent);
+          }
+          result = await iterator.next();
         }
-        result = await iterator.next();
+
+        // Verify only "canceled" status is published (no "completed")
+        const completedUpdates = statusUpdates.filter((u) => u.status.state === 'completed');
+        const canceledUpdates = statusUpdates.filter((u) => u.status.state === 'canceled');
+
+        expect(completedUpdates.length).toBe(0); // No completed status should be published
+        expect(canceledUpdates.length).toBe(1); // Only one canceled status
+        expect(canceledUpdates[0].final).toBe(true);
+
+        await iterator.return();
+      } finally {
+        await close();
       }
-
-      // Verify only "canceled" status is published (no "completed")
-      const completedUpdates = statusUpdates.filter((u) => u.status.state === 'completed');
-      const canceledUpdates = statusUpdates.filter((u) => u.status.state === 'canceled');
-
-      expect(completedUpdates.length).toBe(0); // No completed status should be published
-      expect(canceledUpdates.length).toBe(1); // Only one canceled status
-      expect(canceledUpdates[0].final).toBe(true);
-
-      await iterator.return();
-    } finally {
-      await close();
-    }
-  });
+    },
+  );
 
   /**
    * Preservation Property Tests - Property 2: Preservation
    */
 
-  test('PRESERVATION: task completes normally without cancellation', async () => {
+  networkIntegrationTest('PRESERVATION: task completes normally without cancellation', async () => {
     const { url, close } = await startTestServer({
       executeTask: async (task) => {
         await deferExecution();
@@ -247,7 +256,7 @@ describe('A2A SDK express server', () => {
     }
   });
 
-  test('PRESERVATION: task cancelled before completion', async () => {
+  networkIntegrationTest('PRESERVATION: task cancelled before completion', async () => {
     const { url, close } = await startTestServer({
       executeTask: (task, options) => createAbortOnlyTask(task, options?.signal),
     });
@@ -271,7 +280,7 @@ describe('A2A SDK express server', () => {
     }
   });
 
-  test('PRESERVATION: failed tasks publish failed status', async () => {
+  networkIntegrationTest('PRESERVATION: failed tasks publish failed status', async () => {
     const { url, close } = await startTestServer({
       executeTask: async (task) => {
         await deferExecution();
@@ -297,7 +306,7 @@ describe('A2A SDK express server', () => {
     }
   });
 
-  test('PRESERVATION: terminal states have final flag', async () => {
+  networkIntegrationTest('PRESERVATION: terminal states have final flag', async () => {
     const { url, close } = await startTestServer({
       executeTask: async (task) => {
         await deferExecution();

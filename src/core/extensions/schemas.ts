@@ -65,11 +65,15 @@ export const ToolsConfigSchema = z.object({
   plugins: z.record(z.string(), toolPluginSchema).optional().default({}),
 });
 
-const skillDiscoverySchema = z.object({
-  paths: z.array(z.string()).optional(),
-}).strict();
+const skillDiscoverySchema = z
+  .object({
+    paths: z.array(z.string()).optional(),
+  })
+  .strict();
 
-export const SkillsConfigSchema = z.object({
-  version: z.literal(1),
-  discovery: skillDiscoverySchema.optional().default({}),
-}).strict();
+export const SkillsConfigSchema = z
+  .object({
+    version: z.literal(1),
+    discovery: skillDiscoverySchema.optional().default({}),
+  })
+  .strict();

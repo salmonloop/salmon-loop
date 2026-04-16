@@ -64,7 +64,10 @@ describe('architecture/request-assembly invariant', () => {
   });
 
   it('chat message composition delegates envelope building to shared request assembly helper', async () => {
-    const content = await readFile(join(process.cwd(), 'src/core/llm/message-composition.ts'), 'utf8');
+    const content = await readFile(
+      join(process.cwd(), 'src/core/llm/message-composition.ts'),
+      'utf8',
+    );
     expect(content).toContain('buildSharedRequestEnvelope');
   });
 
@@ -85,13 +88,13 @@ describe('architecture/request-assembly invariant', () => {
     expect(aiSdk).toContain('HIGH_LEVEL_PHASE_SPECS.patch');
 
     expect(specs).toContain('HIGH_LEVEL_PHASE_SPECS');
-    expect(specs).toContain("plan:");
+    expect(specs).toContain('plan:');
     expect(specs).toContain("namespace: 'plan'");
     expect(specs).toContain("observationName: 'PLAN:plan-json'");
     expect(specs).toContain('buildPrompt');
     expect(specs).toContain('buildAttachments');
     expect(specs).toContain('parseResult');
-    expect(specs).toContain("patch:");
+    expect(specs).toContain('patch:');
     expect(specs).toContain("namespace: 'patch'");
     expect(specs).toContain("observationName: 'PATCH:unified-diff'");
   });

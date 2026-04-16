@@ -159,7 +159,9 @@ describe('ChatSessionManager archive lifecycle', () => {
     const restored = await manager.restoreFromArchive(session.meta.id);
 
     expect(restored).not.toBeNull();
-    const event = getAuditTrail().find((entry) => entry.action === 'session.resume_repair.completed');
+    const event = getAuditTrail().find(
+      (entry) => entry.action === 'session.resume_repair.completed',
+    );
     expect(event).toBeDefined();
     expect(event?.details).toMatchObject({
       mode: 'repair_v1',
@@ -197,7 +199,9 @@ describe('ChatSessionManager archive lifecycle', () => {
     const restored = await manager.restoreFromArchive(session.meta.id);
 
     expect(restored).toBeNull();
-    const event = getAuditTrail().find((entry) => entry.action === 'session.resume_repair.completed');
+    const event = getAuditTrail().find(
+      (entry) => entry.action === 'session.resume_repair.completed',
+    );
     expect(event).toBeDefined();
     expect(event?.details).toMatchObject({
       mode: 'repair_v1',

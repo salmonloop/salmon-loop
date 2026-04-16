@@ -30,7 +30,6 @@ export function createA2ASdkExpressApp(options: CreateA2ASdkExpressAppOptions): 
 
   const app = express();
   app.disable('x-powered-by');
-  app.use(express.json());
 
   const agentCardPath = options.agentCardPath ?? '/.well-known/agent-card.json';
   app.use(
