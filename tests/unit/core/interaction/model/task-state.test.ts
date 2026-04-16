@@ -1,6 +1,6 @@
 import { describe, expect, test, mock } from 'bun:test';
 
-const mockAllows = mock((from, to) => true);
+const mockAllows = mock(() => true);
 
 mock.module('../../../../../src/core/interaction/model/transition-policy.js', () => {
   return {
@@ -8,9 +8,8 @@ mock.module('../../../../../src/core/interaction/model/transition-policy.js', ()
   };
 });
 
-const { isTerminalTaskState, canTransitionTaskState } = await import(
-  '../../../../../src/core/interaction/model/task-state.js'
-);
+const { isTerminalTaskState, canTransitionTaskState } =
+  await import('../../../../../src/core/interaction/model/task-state.js');
 
 describe('task-state', () => {
   describe('isTerminalTaskState', () => {
