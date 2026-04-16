@@ -3,7 +3,6 @@ import type { BudgetRunSummary } from '../context/budget/dynamic-adjuster.js';
 import type { ResolvedExtensions } from '../extensions/types.js';
 import type { RunOutcomeReporter } from '../observability/run-outcome-reporter.js';
 import type { PluginRegistry } from '../plugin/registry.js';
-import type { ToolResultReplacementState } from '../session/replacement-state.js';
 import type {
   CanonicalResponsesEvent,
   CanonicalResponsesEventSource,
@@ -40,18 +39,6 @@ export type LoopReasonCode =
   | 'LOOP_CRASH'
   | 'AWAITING_INPUT'
   | 'SUCCESS';
-
-export type RootCauseCode =
-  | 'LLM_RATE_LIMITED'
-  | 'LLM_UPSTREAM_5XX'
-  | 'LLM_NETWORK_UNREACHABLE'
-  | 'LLM_REQUEST_TIMEOUT'
-  | 'PLAN_OUTPUT_NOT_JSON'
-  | 'PLAN_SCHEMA_INVALID'
-  | 'STDOUT_CONTRACT_VIOLATION'
-  | 'RESOURCE_LIMIT_CONFIRMED';
-
-export type TerminalReason = 'RETRY_BUDGET_EXHAUSTED' | 'NON_RETRYABLE_FAILURE' | 'USER_ABORTED';
 
 export interface AskUserOption {
   label: string;
@@ -94,20 +81,6 @@ export interface LoopIteration {
   contextSummary: string;
 }
 
-export interface LoopArtifactHints {
-  verifyArtifact?: ArtifactHandle;
-  subAgentPatchArtifacts?: ArtifactHandle[];
-  subAgentAuditArtifacts?: ArtifactHandle[];
-  recentReadArtifacts?: Array<{
-    path: string;
-    artifact: ArtifactHandle;
-  }>;
-  toolResultPreviewArtifacts?: Array<{
-    label: string;
-    artifact: ArtifactHandle;
-  }>;
-}
-
 export interface StepLog {
   step: ExecutionPhase | 'error' | 'UNKNOWN';
   success: boolean;
@@ -128,8 +101,6 @@ export interface LoopResult {
   success: boolean;
   reason: string;
   reasonCode: LoopReasonCode;
-  terminalReason?: TerminalReason;
-  rootCause?: RootCauseCode;
   diagnosticCode?: string;
   safeHint?: string;
   remediationSteps?: string[];
@@ -152,7 +123,6 @@ export interface LoopResult {
   errorCode?: string;
   auditPath?: string;
   verifyArtifact?: ArtifactHandle;
-  artifactHints?: LoopArtifactHints;
   authorizationSummary?: AuthorizationSourceSummary;
   strategyName?: string;
   fsMode?: FlowMode;
@@ -419,16 +389,6 @@ export interface LoopOptions {
    * - GUI/TUI: hydrate from local state for seamless multi-turn experiences.
    */
   conversationContext?: LLMMessage[];
-  /**
-   * Optional artifact hints carried across independent runs/sessions.
-   * This allows resume/fork paths to preserve artifact-first context continuity.
-   */
-  artifactHints?: LoopArtifactHints;
-  /**
-   * Optional persisted replacement decisions for tool result previews.
-   * This keeps model-visible replacement bytes stable across resume/fork.
-   */
-  replacementState?: ToolResultReplacementState;
   auditScope?: 'repo' | 'user';
   /**
    * Optional Langfuse sessionId. If set, multiple runs will be grouped under a single Langfuse Session.

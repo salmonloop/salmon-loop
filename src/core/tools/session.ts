@@ -12,7 +12,6 @@ import {
 } from '../streaming/canonical/canonical-responses-event-emitter.js';
 import { mapLlmStreamChunkToCanonicalStreamParts } from '../streaming/canonical/parts-from-llm-stream-chunk.js';
 import type { CanonicalResponsesEvent } from '../streaming/canonical/responses-events.js';
-import { ArtifactStore } from '../sub-agent/artifacts/store.js';
 import type { ChatOptions, LlmOutputKind, LlmOutputPolicy, LLM, LLMMessage } from '../types/llm.js';
 import type { ExecutionStep, LoopEvent } from '../types/runtime.js';
 import { Phase, type ExecutionPhase } from '../types/runtime.js';
@@ -26,7 +25,6 @@ import type { ExecutionPlan, PlanNode } from './parallel/plan.js';
 import { ParallelScheduler } from './parallel/scheduler.js';
 import type { ToolRouter } from './router.js';
 import { ToolCallAccumulator } from './streaming/ToolCallAccumulator.js';
-import { resolvePhaseVisibleTools, type ToolVisibilityRuntime } from './tool-visibility.js';
 import type { ToolCallEnvelope, ToolRuntimeCtx, ToolResult, ToolSpec } from './types.js';
 
 interface ToolstackLike {
@@ -50,7 +48,6 @@ export interface ToolCallingSessionOptions {
   llm: LLM;
   runtime: ToolRuntimeCtx;
   toolstack: ToolstackLike;
-  toolVisibility?: ToolVisibilityRuntime;
   toolCallingAudit?: ToolCallingAuditSink;
   emit?: (event: LoopEvent) => void;
   eventPayload?: {
@@ -133,194 +130,6 @@ function safeStringifyForAudit(value: unknown): string {
   } catch {
     return '[Unserializable]';
   }
-}
-
-function isArtifactHandleRecord(value: unknown): value is {
-  handle: string;
-  mimeType: string;
-  sha256: string;
-  size: number;
-} {
-  if (!value || typeof value !== 'object') return false;
-  const candidate = value as {
-    handle?: unknown;
-    mimeType?: unknown;
-    sha256?: unknown;
-    size?: unknown;
-  };
-  return (
-    typeof candidate.handle === 'string' &&
-    typeof candidate.mimeType === 'string' &&
-    typeof candidate.sha256 === 'string' &&
-    typeof candidate.size === 'number'
-  );
-}
-
-function extractArtifactHandlesFromToolOutput(output: unknown): {
-  patchArtifact?: {
-    handle: string;
-    mimeType: string;
-    sha256: string;
-    size: number;
-  };
-  auditArtifact?: {
-    handle: string;
-    mimeType: string;
-    sha256: string;
-    size: number;
-  };
-} {
-  if (!isObjectRecord(output)) {
-    return {};
-  }
-
-  const patchArtifact = isArtifactHandleRecord(output.patchArtifact)
-    ? output.patchArtifact
-    : undefined;
-  const auditArtifact = isArtifactHandleRecord(output.auditArtifact)
-    ? output.auditArtifact
-    : undefined;
-
-  return {
-    patchArtifact,
-    auditArtifact,
-  };
-}
-
-function extractRecentReadResult(params: { toolName: string; rawArgs: unknown; output: unknown }):
-  | {
-      path: string;
-      content: string;
-    }
-  | undefined {
-  if (params.toolName !== 'fs.read' && params.toolName !== 'code.read') {
-    return undefined;
-  }
-  if (!isObjectRecord(params.output) || typeof params.output.content !== 'string') {
-    return undefined;
-  }
-
-  const args = safeParseJson(params.rawArgs);
-  const argsValue = args.ok ? args.value : params.rawArgs;
-  if (!isObjectRecord(argsValue)) return undefined;
-
-  const file = argsValue.file ?? argsValue.file_path ?? argsValue.filePath ?? argsValue.path;
-  if (typeof file !== 'string' || !file.trim()) return undefined;
-
-  return {
-    path: file,
-    content: params.output.content,
-  };
-}
-
-async function persistRecentReadArtifact(params: {
-  toolName: string;
-  rawArgs: unknown;
-  output: unknown;
-}): Promise<
-  | {
-      path: string;
-      artifact: {
-        handle: string;
-        mimeType: string;
-        sha256: string;
-        size: number;
-      };
-    }
-  | undefined
-> {
-  const readResult = extractRecentReadResult(params);
-  if (!readResult) return undefined;
-
-  const ext = path.extname(readResult.path).replace(/^\./, '') || 'txt';
-  const artifact = await ArtifactStore.saveText({
-    content: readResult.content,
-    mimeType: 'text/plain',
-    fileExt: ext,
-  });
-
-  return {
-    path: readResult.path,
-    artifact,
-  };
-}
-
-const TOOL_RESULT_PREVIEW_MIN_CHARS = 1200;
-
-function sanitizeToolResultPreviewLabel(label: string): string {
-  const oneLine = label.replace(/\s+/g, ' ').trim();
-  if (!oneLine) return 'Tool result preview';
-  if (oneLine.length <= 120) return oneLine;
-  return `${oneLine.slice(0, 119).trimEnd()}…`;
-}
-
-function serializeToolResultOutputForArtifact(output: unknown):
-  | {
-      content: string;
-      mimeType: string;
-      fileExt: string;
-    }
-  | undefined {
-  if (typeof output === 'string') {
-    const text = output.trim();
-    if (!text) return undefined;
-    return {
-      content: output,
-      mimeType: 'text/plain',
-      fileExt: 'txt',
-    };
-  }
-
-  if (output === undefined) return undefined;
-  try {
-    const json = JSON.stringify(output, null, 2);
-    if (!json || !json.trim()) return undefined;
-    return {
-      content: json,
-      mimeType: 'application/json',
-      fileExt: 'json',
-    };
-  } catch {
-    return undefined;
-  }
-}
-
-async function persistToolResultPreviewArtifact(params: {
-  toolName: string;
-  output: unknown;
-  summary?: string;
-  outputSummary?: string;
-}): Promise<
-  | {
-      label: string;
-      artifact: {
-        handle: string;
-        mimeType: string;
-        sha256: string;
-        size: number;
-      };
-    }
-  | undefined
-> {
-  if (params.toolName === 'fs.read' || params.toolName === 'code.read') {
-    return undefined;
-  }
-
-  const serialized = serializeToolResultOutputForArtifact(params.output);
-  if (!serialized) return undefined;
-  if (serialized.content.length < TOOL_RESULT_PREVIEW_MIN_CHARS) return undefined;
-
-  const artifact = await ArtifactStore.saveText({
-    content: serialized.content,
-    mimeType: serialized.mimeType,
-    fileExt: serialized.fileExt,
-  });
-
-  const detail = params.outputSummary ?? params.summary ?? `${params.toolName} output`;
-  return {
-    label: sanitizeToolResultPreviewLabel(`Tool result preview: ${detail}`),
-    artifact,
-  };
 }
 
 function defaultMaxToolCallsTotalForPhase(phase: ExecutionPhase): number {
@@ -679,82 +488,31 @@ type ResolvedToolCalling = {
   openAITools: any[];
 };
 
-const PLAN_RUNTIME_UNAVAILABLE_MARKER = 'No plan.* tools are available in this session.';
-const PLAN_RUNTIME_SESSION_ID_PATTERN = /- sessionId:\s*([^\s]+)/;
-const PLAN_RUNTIME_PATH_HINT_PATTERN = /- planPathHint:\s*([^\s]+)/;
-
-function inferToolVisibilityRuntimeFromMessages(
-  messages: LLMMessage[],
-): ToolVisibilityRuntime | undefined {
-  const systemMessage = messages.find((msg) => msg.role === 'system');
-  if (!systemMessage || typeof systemMessage.content !== 'string') return undefined;
-  const content = systemMessage.content;
-
-  if (content.includes(PLAN_RUNTIME_UNAVAILABLE_MARKER)) {
-    return undefined;
-  }
-
-  const sessionIdMatch = content.match(PLAN_RUNTIME_SESSION_ID_PATTERN);
-  const planPathHintMatch = content.match(PLAN_RUNTIME_PATH_HINT_PATTERN);
-  if (!sessionIdMatch || !planPathHintMatch) return undefined;
-
-  return {
-    plan: {
-      sessionId: sessionIdMatch[1],
-      planPathHint: planPathHintMatch[1],
-    },
-  };
-}
-
-function resolveToolVisibilityRuntime(
+function resolveToolCallingForSession(
   session: ToolCallingSessionOptions,
-  messages?: LLMMessage[],
-): ToolVisibilityRuntime | undefined {
-  if (session.toolVisibility) return session.toolVisibility;
-  if (!messages || messages.length === 0) return undefined;
-  return inferToolVisibilityRuntimeFromMessages(messages);
-}
-
-function resolveToolCallingForSession(params: {
-  session: ToolCallingSessionOptions;
-  phase: ExecutionPhase;
-  messages: LLMMessage[];
-}): ResolvedToolCalling {
-  const allowedSpecs = params.session.toolstack.registry.listAll().filter((spec) => {
-    return params.session.toolstack.policy.decide(params.phase, spec, {
-      worktreeRoot: params.session.runtime.worktreeRoot,
+  phase: ExecutionPhase,
+): ResolvedToolCalling {
+  const allowedSpecs = session.toolstack.registry.listAll().filter((spec) => {
+    return session.toolstack.policy.decide(phase, spec, {
+      worktreeRoot: session.runtime.worktreeRoot,
     }).allowed;
   });
 
-  const visibilityRuntime = resolveToolVisibilityRuntime(params.session, params.messages);
-  const visibleSpecs = resolvePhaseVisibleTools({
-    phase: params.phase,
-    tools: allowedSpecs,
-    runtime: visibilityRuntime,
-  });
+  const openAITools = allowedSpecs.map(toolToOpenAI);
 
-  const openAITools = visibleSpecs.map(toolToOpenAI);
-
-  return { allowedSpecs: visibleSpecs, openAITools };
+  return { allowedSpecs, openAITools };
 }
 
 function emitToolCallingEnabledLogIfNeeded(
   session: ToolCallingSessionOptions,
   openAITools: any[],
-  allowedSpecs: ToolSpec[],
 ): void {
   if (openAITools.length === 0) return;
-
-  const toolNames = allowedSpecs.map((spec) => spec.name).sort();
-  const maxNames = 24;
-  const visible = toolNames.slice(0, maxNames);
-  const overflow = toolNames.length - visible.length;
-  const suffix = overflow > 0 ? ` (+${overflow} more)` : '';
 
   session.emit?.({
     type: 'log',
     level: 'debug',
-    message: `Tool calling enabled (${openAITools.length} tools available): ${visible.join(', ')}${suffix}`,
+    message: `Tool calling enabled (${openAITools.length} tools available)`,
     timestamp: new Date(),
   });
 }
@@ -821,13 +579,10 @@ export async function chatWithTools(
   const maxRounds = session.maxRounds ?? 6;
   const phase = session.phase;
   resetToolCallBudgetState(session);
+  const { allowedSpecs, openAITools } = resolveToolCallingForSession(session, phase);
+  emitToolCallingEnabledLogIfNeeded(session, openAITools);
+
   const messages: LLMMessage[] = [...initialMessages];
-  const { allowedSpecs, openAITools } = resolveToolCallingForSession({
-    session,
-    phase,
-    messages,
-  });
-  emitToolCallingEnabledLogIfNeeded(session, openAITools, allowedSpecs);
 
   for (let round = 0; round < maxRounds; round++) {
     // Check for abort before starting a new round
@@ -927,59 +682,6 @@ export async function chatWithTools(
 
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  if (!isObjectRecord(value)) return false;
-  const proto = Object.getPrototypeOf(value);
-  return proto === Object.prototype || proto === null;
-}
-
-function describeValueType(value: unknown): string {
-  if (value === null) return 'null';
-  if (Array.isArray(value)) return 'array';
-  return typeof value;
-}
-
-function formatPlanUpdatePatchTypeError(actualType: string): string {
-  return (
-    `Invalid field: patch (received ${actualType}). ` +
-    'Expected object with optional keys: status, checkbox, appendSubtasks, note. ' +
-    'Do not JSON-stringify patch.'
-  );
-}
-
-function coercePlanUpdatePatch(args: Record<string, unknown>): {
-  args: Record<string, unknown>;
-  coercedPatchSource?: string;
-  error?: string;
-} {
-  if (!Object.prototype.hasOwnProperty.call(args, 'patch')) return { args };
-
-  const patch = (args as { patch?: unknown }).patch;
-  if (isPlainObject(patch)) return { args };
-
-  if (typeof patch === 'string') {
-    const trimmed = patch.trim();
-    const looksLikeObjectLiteral = trimmed.startsWith('{') && trimmed.endsWith('}');
-    if (!looksLikeObjectLiteral) {
-      return { args, error: formatPlanUpdatePatchTypeError('string') };
-    }
-    try {
-      const parsed = JSON.parse(trimmed);
-      if (!isPlainObject(parsed)) {
-        return { args, error: formatPlanUpdatePatchTypeError(describeValueType(parsed)) };
-      }
-      return {
-        args: { ...args, patch: parsed },
-        coercedPatchSource: 'stringified',
-      };
-    } catch {
-      return { args, error: formatPlanUpdatePatchTypeError('string') };
-    }
-  }
-
-  return { args, error: formatPlanUpdatePatchTypeError(describeValueType(patch)) };
 }
 
 function unwrapRetryError(err: unknown): unknown {
@@ -1261,7 +963,6 @@ async function executeToolCalls(
   const toolArgsPreviewByCallId = new Map<string, string>();
   const rawArgsPreviewByCallId = new Map<string, string | undefined>();
   const rawArgsTypeByCallId = new Map<string, string>();
-  const patchCoercionByCallId = new Map<string, string>();
 
   let allowedUsed = 0;
   for (const item of prepared) {
@@ -1304,18 +1005,6 @@ async function executeToolCalls(
       const inferred = inferHighConfidenceFiles(instruction);
       if (inferred.length > 0) {
         argsValue = { ...(argsValue as any), file: inferred[0] };
-      }
-    }
-
-    let planUpdatePatchError: string | undefined;
-    if (parsedArgsOk && normalizedToolName === 'plan.update' && isObjectRecord(argsValue)) {
-      const patchGuard = coercePlanUpdatePatch(argsValue);
-      argsValue = patchGuard.args;
-      if (patchGuard.coercedPatchSource) {
-        patchCoercionByCallId.set(callId, patchGuard.coercedPatchSource);
-      }
-      if (patchGuard.error) {
-        planUpdatePatchError = patchGuard.error;
       }
     }
 
@@ -1442,7 +1131,7 @@ async function executeToolCalls(
       continue;
     }
 
-    const parsedAuditEntry: any = {
+    session.toolCallingAudit?.event({
       timestamp: new Date().toISOString(),
       phase,
       round,
@@ -1453,29 +1142,7 @@ async function executeToolCalls(
       rawArgsPreview: typeof rawArgs === 'string' ? redactJsonString(rawArgs) : undefined,
       parsedArgsOk: true,
       parsedArgsPreview: safeStringifyForAudit(argsValue),
-    };
-    const patchCoercionSource = patchCoercionByCallId.get(callId);
-    if (patchCoercionSource) {
-      parsedAuditEntry.coercedPatchSource = patchCoercionSource;
-    }
-    session.toolCallingAudit?.event(parsedAuditEntry);
-
-    if (planUpdatePatchError) {
-      toolResults.set(callId, {
-        id: callId,
-        toolName,
-        source: 'builtin',
-        status: 'error',
-        error: {
-          code: 'INVALID_INPUT',
-          message: planUpdatePatchError,
-          retryable: false,
-          failurePhase: phase,
-        },
-        durationMs: 0,
-      });
-      continue;
-    }
+    });
 
     nodes.push({ id: callId, toolName, args: argsValue, deps: [] });
   }
@@ -1565,7 +1232,7 @@ async function executeToolCalls(
     if (result.status !== 'ok') {
       const errorCode = result.error?.code;
       const attachArgsPreview = errorCode === 'INVALID_INPUT';
-      const errorAuditEntry: any = {
+      session.toolCallingAudit?.event({
         timestamp: new Date().toISOString(),
         phase,
         round,
@@ -1581,45 +1248,6 @@ async function executeToolCalls(
             : undefined,
         rawArgsPreview: attachArgsPreview ? rawArgsPreviewByCallId.get(callId) : undefined,
         parsedArgsPreview: attachArgsPreview ? toolArgsPreviewByCallId.get(callId) : undefined,
-      };
-      const patchCoercionSource = patchCoercionByCallId.get(callId);
-      if (patchCoercionSource) {
-        errorAuditEntry.coercedPatchSource = patchCoercionSource;
-      }
-      session.toolCallingAudit?.event(errorAuditEntry);
-    } else {
-      const toolResultOutputOk =
-        isObjectRecord(result.output) && typeof result.output.ok === 'boolean'
-          ? result.output.ok
-          : undefined;
-      const artifacts = extractArtifactHandlesFromToolOutput(result.output);
-      const recentReadArtifact = await persistRecentReadArtifact({
-        toolName: typeof toolName === 'string' ? toolName : 'unknown',
-        rawArgs,
-        output: result.output,
-      });
-      const toolResultPreviewArtifact = await persistToolResultPreviewArtifact({
-        toolName: typeof toolName === 'string' ? toolName : 'unknown',
-        output: result.output,
-        summary: result.summary,
-        outputSummary: result.outputSummary,
-      });
-      session.toolCallingAudit?.event({
-        timestamp: new Date().toISOString(),
-        phase,
-        round,
-        callId,
-        toolName: typeof toolName === 'string' ? toolName : 'unknown',
-        rawArgsType: rawArgsTypeByCallId.get(callId) ?? typeof rawArgs,
-        parsedArgsOk: true,
-        toolResultOutputOk,
-        toolResultStatus: result.status,
-        toolResultPatchArtifact: artifacts.patchArtifact,
-        toolResultAuditArtifact: artifacts.auditArtifact,
-        toolResultReadArtifact: recentReadArtifact?.artifact,
-        toolResultReadArtifactPath: recentReadArtifact?.path,
-        toolResultPreviewArtifact: toolResultPreviewArtifact?.artifact,
-        toolResultPreviewLabel: toolResultPreviewArtifact?.label,
       });
     }
 
@@ -1653,13 +1281,10 @@ export async function chatWithToolsStreaming(
   const maxRounds = session.maxRounds ?? 6;
   const phase = session.phase;
   resetToolCallBudgetState(session);
+  const { allowedSpecs, openAITools } = resolveToolCallingForSession(session, phase);
+  emitToolCallingEnabledLogIfNeeded(session, openAITools);
+
   const messages: LLMMessage[] = [...initialMessages];
-  const { allowedSpecs, openAITools } = resolveToolCallingForSession({
-    session,
-    phase,
-    messages,
-  });
-  emitToolCallingEnabledLogIfNeeded(session, openAITools, allowedSpecs);
   const canonicalEmitters = createCanonicalEmitterRegistry(session);
 
   try {

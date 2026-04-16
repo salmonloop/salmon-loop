@@ -42,8 +42,6 @@ const NON_RETRYABLE_PERMISSION_CODES = new Set([
   'PERMISSION_DENIED_CONTEXT_CACHE_OUTSIDE_ROOT',
 ]);
 
-const NON_RETRYABLE_LLM_CODES = new Set(['LLM_AUTHENTICATION_FAILED']);
-
 function inferFailurePhase(flowReport: FlowReport): ExecutionPhase {
   const failedTrace = [...flowReport.traces].reverse().find((trace) => Boolean(trace.error));
   if (failedTrace && (EXECUTION_PHASES as readonly string[]).includes(failedTrace.name)) {
@@ -221,27 +219,6 @@ export function resolveAttemptFailure(params: {
       reason: guidance.safeHint,
       reasonCode: 'LOOP_FAILED',
       failurePhase: 'CONTEXT',
-      retryable: false,
-      errorCode,
-      diagnosticCode: guidance.diagnosticCode,
-      safeHint: guidance.safeHint,
-      remediationSteps: guidance.remediationSteps,
-    };
-  }
-  if (errorCode && NON_RETRYABLE_LLM_CODES.has(errorCode)) {
-    const failurePhase = inferFailurePhase(flowReport);
-    const fallbackReason = sanitizeReason(flowReport.error);
-    const guidance = buildFailureGuidance({
-      reasonCode: 'LOOP_FAILED',
-      failurePhase,
-      errorCode,
-      environmentMode,
-      fallbackReason,
-    });
-    return {
-      reason: guidance.safeHint,
-      reasonCode: 'LOOP_FAILED',
-      failurePhase,
       retryable: false,
       errorCode,
       diagnosticCode: guidance.diagnosticCode,

@@ -3,13 +3,11 @@ import { tmpdir } from 'os';
 import path from 'path';
 
 import { text } from '../../../locales/index.js';
-import { access, readdir, realpath, rm } from '../../adapters/fs/node-fs.js';
+import { access, realpath, rm } from '../../adapters/fs/node-fs.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { getLogger } from '../../observability/logger.js';
 import { RunOptions, ExecutionWorkspace, LoopEvent } from '../../types/index.js';
 import { isPathWithinDirectory, normalizePath } from '../../utils/path.js';
-
-import { detectDependencyPaths } from './shadow-driver/strategy.js';
 
 function resolveEnvironmentMode(options: Pick<RunOptions, 'environmentMode'>): 'strict' | 'parity' {
   return options.environmentMode === 'parity' ? 'parity' : 'strict';
@@ -36,14 +34,10 @@ function resolveParityWorktreeRoot(repoPath: string): string {
 }
 
 function isManagedWorktreePath(baseRepoPath: string, workPath: string): boolean {
-  const comparableWorkPath = normalizePathForCompare(workPath);
-  const managedRoots = [tmpdir(), resolveParityWorktreeRoot(baseRepoPath)];
-
-  return managedRoots.some((root) =>
-    isPathWithinDirectory(normalizePathForCompare(root), comparableWorkPath, {
-      allowEqual: false,
-    }),
-  );
+  if (isPathWithinDirectory(tmpdir(), workPath, { allowEqual: false })) return true;
+  const parityRoot = resolveParityWorktreeRoot(baseRepoPath);
+  if (isPathWithinDirectory(parityRoot, workPath, { allowEqual: false })) return true;
+  return false;
 }
 
 function normalizePathForCompare(value: string): string {
@@ -82,72 +76,6 @@ async function resolveWorktreeMatchPath(
     }
   }
   return null;
-}
-
-async function removeProjectedWorktreeEntries(workPath: string): Promise<void> {
-  let worktreeRealPath: string;
-  try {
-    worktreeRealPath = await realpath(workPath);
-  } catch (error) {
-    throw new Error(
-      `Failed to resolve worktree path before git cleanup (${workPath}): ${error instanceof Error ? error.message : String(error)}`,
-    );
-  }
-
-  let entries: Array<{ name: string }> = [];
-  try {
-    entries = (await readdir(workPath, { withFileTypes: true })) as Array<{ name: string }>;
-  } catch (error) {
-    throw new Error(
-      `Failed to enumerate worktree entries before git cleanup (${workPath}): ${error instanceof Error ? error.message : String(error)}`,
-    );
-  }
-
-  for (const entry of entries) {
-    const name = entry?.name;
-    if (!name || name === '.git') continue;
-
-    const entryPath = path.join(workPath, name);
-    const entryRealPath = await tryRealpath(entryPath);
-    if (!entryRealPath) continue;
-    if (isPathWithinDirectory(worktreeRealPath, entryRealPath, { allowEqual: false })) {
-      continue;
-    }
-
-    await rm(entryPath, {
-      recursive: true,
-      force: true,
-      maxRetries: 3,
-      retryDelay: 100,
-    });
-    getLogger().debug(`Removed projected worktree entry before git cleanup: ${entryPath}`);
-  }
-}
-
-async function pruneWorktreeDependencyRoots(
-  baseRepoPath: string,
-  worktreePath: string,
-): Promise<void> {
-  const dependencyPaths = await detectDependencyPaths(baseRepoPath);
-
-  for (const dependencyPath of dependencyPaths) {
-    const dependencyRoot = path.join(worktreePath, dependencyPath);
-    try {
-      await rm(dependencyRoot, {
-        recursive: true,
-        force: true,
-        maxRetries: 3,
-        retryDelay: 100,
-      });
-      getLogger().debug(
-        `Pruned disposable dependency root before worktree cleanup: ${dependencyRoot}`,
-      );
-    } catch (error) {
-      getLogger().debug(
-        `Failed to prune dependency root before worktree cleanup (${dependencyRoot}): ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
-  }
 }
 
 /**
@@ -264,17 +192,10 @@ export class WorkspaceManager {
       return;
     }
 
-    // CRITICAL SAFETY: refuse any destructive cleanup outside managed worktree roots.
-    if (!isManagedWorktreePath(workspace.baseRepoPath, workspace.workPath)) {
-      throw new Error(text.errors.worktreePathNotInManagedRoots);
-    }
-
     const git = new GitAdapter(workspace.baseRepoPath);
     let removed = false;
 
     try {
-      await pruneWorktreeDependencyRoots(workspace.baseRepoPath, workspace.workPath);
-
       const list = await git.query(['worktree', 'list', '--porcelain']);
       const worktreePaths = list
         .split('\n')
@@ -286,8 +207,6 @@ export class WorkspaceManager {
       const matchPath = await resolveWorktreeMatchPath(worktreePaths, workspace.workPath);
 
       if (matchPath) {
-        // CRITICAL SAFETY: if projection inspection fails, do not risk git traversing external roots.
-        await removeProjectedWorktreeEntries(workspace.workPath);
         await git.query(['worktree', 'remove', '--force', matchPath]);
         removed = true;
 
@@ -339,6 +258,9 @@ export class WorkspaceManager {
     }
 
     if (!removed) {
+      if (!isManagedWorktreePath(workspace.baseRepoPath, workspace.workPath)) {
+        throw new Error(text.errors.worktreePathNotInManagedRoots);
+      }
       await rm(workspace.workPath, {
         recursive: true,
         force: true,

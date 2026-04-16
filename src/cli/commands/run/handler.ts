@@ -3,7 +3,7 @@ import { randomUUID } from 'crypto';
 import type { Command } from 'commander';
 
 import {
-  buildEffectiveConversationContext,
+  buildSessionConversationContext,
   createPluginRegistry,
   createPromptRegistry,
   getExitCode,
@@ -185,7 +185,6 @@ export async function handleRunCommand(options: any, command: Command) {
     exitCode?: number;
     message: string;
     errorCode?: string;
-    auditPath?: string;
     repoPath?: string;
     instruction?: string;
   }) => {
@@ -193,7 +192,6 @@ export async function handleRunCommand(options: any, command: Command) {
       exitCode: params.exitCode,
       message: params.message,
       errorCode: params.errorCode,
-      auditPath: params.auditPath,
       repoPath: params.repoPath,
       instruction: params.instruction,
       sessionId: sessionIdForOutput ?? randomUUID(),
@@ -249,22 +247,9 @@ export async function handleRunCommand(options: any, command: Command) {
   const rawPermissionMode = allOptions.mode ?? resolvedConfig.permissionMode ?? 'interactive';
   const permissionMode = normalizePermissionMode(rawPermissionMode);
   if (!permissionMode) {
-    const message = `Invalid --mode "${String(rawPermissionMode)}". Expected "interactive" or "yolo".`;
-    getLogger().error(message);
-    if (outputFormat === 'json') {
-      writeJsonFailure({
-        message,
-        errorCode: 'USAGE_ERROR',
-        instruction,
-        repoPath: runPath,
-      });
-    } else if (outputFormat === 'stream-json') {
-      headlessErrorWriter.writeUsageError({
-        sessionId: sessionIdForOutput ?? randomUUID(),
-        message,
-        instruction,
-      });
-    }
+    getLogger().error(
+      `Invalid --mode "${String(rawPermissionMode)}". Expected "interactive" or "yolo".`,
+    );
     process.exitCode = 1;
     return;
   }
@@ -274,12 +259,7 @@ export async function handleRunCommand(options: any, command: Command) {
   if (!mode) {
     getLogger().error(text.cli.invalidActMode(rawMode));
     if (outputFormat === 'json') {
-      writeJsonFailure({
-        message: text.cli.invalidActMode(rawMode),
-        errorCode: 'USAGE_ERROR',
-        instruction,
-        repoPath: runPath,
-      });
+      writeJsonFailure({ message: text.cli.invalidActMode(rawMode), repoPath: runPath });
     } else if (outputFormat === 'stream-json') {
       headlessErrorWriter.writeUsageError({
         sessionId: sessionIdForOutput ?? randomUUID(),
@@ -297,8 +277,6 @@ export async function handleRunCommand(options: any, command: Command) {
     if (outputFormat === 'json') {
       writeJsonFailure({
         message: text.cli.invalidEnvironmentMode(rawEnvironmentMode),
-        errorCode: 'USAGE_ERROR',
-        instruction,
         repoPath: runPath,
       });
     } else if (outputFormat === 'stream-json') {
@@ -340,8 +318,6 @@ export async function handleRunCommand(options: any, command: Command) {
     dryRun: allOptions.dryRun,
     configPath: resolvedConfig.source.used ? resolvedConfig.source.path || '' : undefined,
   });
-
-  let lastKnownAuditPath: string | undefined;
 
   try {
     const { llm } = createRuntimeLlmAndWarn({
@@ -399,18 +375,11 @@ export async function handleRunCommand(options: any, command: Command) {
     const shouldInjectSessionContext = Boolean(continueSession || resumeSessionId);
     const conversationContext =
       shouldInjectSessionContext && sessionManager
-        ? buildEffectiveConversationContext({
-            llm,
-            sessionManager,
+        ? buildSessionConversationContext(sessionManager.getMessages(), {
             budgetTokens: getDefaultSessionContextBudgetTokens({ modelId: modelIdForBudget }),
+            summaryState: sessionManager.getSummaryState(),
           })
         : [];
-    const artifactHints = shouldInjectSessionContext
-      ? sessionManager?.getArtifactState()
-      : undefined;
-    const replacementState = shouldInjectSessionContext
-      ? sessionManager?.getReplacementState()
-      : undefined;
 
     const loopParams = buildRunLoopParams({
       instruction: instructionText,
@@ -419,8 +388,6 @@ export async function handleRunCommand(options: any, command: Command) {
       llm,
       languagePlugins,
       conversationContext: conversationContext.length > 0 ? conversationContext : undefined,
-      artifactHints,
-      replacementState,
       mode,
       dryRun: allOptions.dryRun,
       forceReset: allOptions.forceReset,
@@ -478,7 +445,6 @@ export async function handleRunCommand(options: any, command: Command) {
         logMode: resolvedConfig.ui.logMode,
       },
     });
-    lastKnownAuditPath = result.auditPath;
 
     structuredOutputState = await buildStructuredOutputState({
       outputFormat,
@@ -520,13 +486,11 @@ export async function handleRunCommand(options: any, command: Command) {
         message: text.cli.unexpectedError(msg),
         repoPath: runPath,
         instruction,
-        auditPath: lastKnownAuditPath,
       });
     } else if (outputFormat === 'stream-json') {
       headlessErrorWriter.writeUnexpectedError({
         sessionId: sessionIdForOutput ?? resumeSessionId ?? randomUUID(),
         message: text.cli.unexpectedError(msg),
-        auditPath: lastKnownAuditPath,
       });
     }
     process.exitCode = 1;

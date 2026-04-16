@@ -383,24 +383,18 @@ export class Pipeline<CurrentCtx> {
   async execute(): Promise<FlowReport<CurrentCtx>> {
     try {
       const data = await this.promise;
-      const lastExecutedStep =
-        [...this.traces].reverse().find((trace) => !trace.name.endsWith(':recovery'))?.name ??
-        this.lastStepName;
       return {
         success: true,
         duration: Date.now() - this.startTime,
-        lastStep: lastExecutedStep,
+        lastStep: this.lastStepName,
         data,
         traces: this.traces,
       };
     } catch (error) {
-      const lastExecutedStep =
-        [...this.traces].reverse().find((trace) => !trace.name.endsWith(':recovery'))?.name ??
-        this.lastStepName;
       return {
         success: false,
         error: error instanceof Error ? error : new Error(String(error)),
-        lastStep: lastExecutedStep,
+        lastStep: this.lastStepName,
         duration: Date.now() - this.startTime,
         data: this.ctxRef.current as CurrentCtx | undefined,
         traces: this.traces,

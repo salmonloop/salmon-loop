@@ -1,17 +1,10 @@
 import type { ToolRegistry } from '../tools/registry.js';
-import { resolvePhaseVisibleTools, type ToolVisibilityRuntime } from '../tools/tool-visibility.js';
-import type { ToolSpec } from '../tools/types.js';
-import { Phase } from '../types/runtime.js';
 
 import { getPromptRegistry } from './registry.js';
 
-export type PromptRuntime = ToolVisibilityRuntime;
-
-function resolveToolSpecs(toolRegistry?: ToolRegistry | ToolSpec[]): ToolSpec[] {
-  if (!toolRegistry) return [];
-  if (Array.isArray(toolRegistry)) return toolRegistry;
-  return toolRegistry.listAll();
-}
+export type PromptRuntime = {
+  plan?: { sessionId: string; planPathHint: string };
+};
 
 function extractTargetFiles(plan: string): string | undefined {
   try {
@@ -38,9 +31,15 @@ export async function getExplorePrompt(
   });
 }
 
-export async function getExploreSystemPrompt(runtime?: PromptRuntime): Promise<string> {
+export async function getExploreSystemPrompt(
+  toolRegistry?: ToolRegistry,
+  runtime?: PromptRuntime,
+): Promise<string> {
   const promptRegistry = getPromptRegistry();
   await promptRegistry.init();
+  if (toolRegistry) {
+    promptRegistry.setTools(toolRegistry.listAll());
+  }
   return promptRegistry.renderExploreSystemWithRuntime(runtime);
 }
 
@@ -80,33 +79,25 @@ export async function getPatchPrompt(
 }
 
 export async function getPlanSystemPrompt(
-  toolRegistry?: ToolRegistry | ToolSpec[],
+  toolRegistry?: ToolRegistry,
   runtime?: PromptRuntime,
 ): Promise<string> {
   const promptRegistry = getPromptRegistry();
   await promptRegistry.init();
-
-  const promptVisibleTools = resolvePhaseVisibleTools({
-    phase: Phase.PLAN,
-    tools: resolveToolSpecs(toolRegistry),
-    runtime,
-  });
-
-  return promptRegistry.renderPlanSystemWithTools(promptVisibleTools, runtime);
+  if (toolRegistry) {
+    promptRegistry.setTools(toolRegistry.listAll());
+  }
+  return promptRegistry.renderPlanSystemWithRuntime(runtime);
 }
 
 export async function getPatchSystemPrompt(
-  toolRegistry?: ToolRegistry | ToolSpec[],
+  toolRegistry?: ToolRegistry,
   runtime?: PromptRuntime,
 ): Promise<string> {
   const promptRegistry = getPromptRegistry();
   await promptRegistry.init();
-
-  const promptVisibleTools = resolvePhaseVisibleTools({
-    phase: Phase.PATCH,
-    tools: resolveToolSpecs(toolRegistry),
-    runtime,
-  });
-
-  return promptRegistry.renderPatchSystemWithTools(promptVisibleTools, runtime);
+  if (toolRegistry) {
+    promptRegistry.setTools(toolRegistry.listAll());
+  }
+  return promptRegistry.renderPatchSystemWithRuntime(runtime);
 }

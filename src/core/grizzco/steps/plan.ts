@@ -2,22 +2,18 @@ import { text } from '../../../locales/index.js';
 import { LIMITS } from '../../config/limits.js';
 import { repairToJsonObject } from '../../llm/contracts/repair.js';
 import { sanitizeError } from '../../llm/errors.js';
+import { composeChatMessages } from '../../llm/message-composition.js';
 import { emitLlmOutput } from '../../llm/output-policy.js';
-import { parsePlanFromLLMContent } from '../../llm/utils.js';
-import { recordAuditEvent } from '../../observability/audit-trail.js';
+import { formatContextForPrompt, parsePlanFromLLMContent } from '../../llm/utils.js';
 import { logIgnoredError } from '../../observability/ignored-error.js';
 import { readPlan, updatePlan } from '../../plan/index.js';
 import { getPlanPrompt, getPlanSystemPrompt } from '../../prompts/runtime.js';
-import { SessionReplacementPreviewProvider } from '../../session/replacement-preview-provider.js';
 import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
 import type { Plan } from '../../types/planning.js';
 import { Phase } from '../../types/runtime.js';
 import { resolveLlmToolCallingPolicy } from '../dsl/llm-strategy.js';
 import { Step } from '../engine/pipeline/pipeline.js';
 import { ContextCtx, PlanCtx } from '../engine/pipeline/types.js';
-
-import { buildPhaseRequestEnvelope } from './request-assembly.js';
-import { buildPhaseToolRuntimeContext } from './tool-runtime.js';
 
 function sanitizeSubtaskText(raw: string): string | null {
   const oneLine = String(raw ?? '')
@@ -34,35 +30,6 @@ function sanitizeSubtaskText(raw: string): string | null {
   const maxLen = 180;
   if (withoutComments.length <= maxLen) return withoutComments;
   return withoutComments.slice(0, maxLen - 1).trimEnd() + '…';
-}
-
-function recordPlanRepairAttempt(args: { reason: string; badContentLength: number }) {
-  recordAuditEvent(
-    'plan.repair.attempt',
-    {
-      reason: args.reason,
-      badContentLength: args.badContentLength,
-      toolsDisabled: true,
-    },
-    { source: 'plan', severity: 'low', scope: 'session', phase: 'PLAN' },
-  );
-}
-
-function recordPlanRepairResult(args: { ok: boolean; contentLength: number; error?: string }) {
-  recordAuditEvent(
-    'plan.repair.result',
-    {
-      ok: args.ok,
-      contentLength: args.contentLength,
-      error: args.error,
-    },
-    {
-      source: 'plan',
-      severity: args.ok ? 'low' : 'medium',
-      scope: 'session',
-      phase: 'PLAN',
-    },
-  );
 }
 
 async function hydrateRuntimePlanTodos(ctx: ContextCtx, plan: Plan): Promise<void> {
@@ -107,21 +74,6 @@ async function hydrateRuntimePlanTodos(ctx: ContextCtx, plan: Plan): Promise<voi
   });
 }
 
-export function hasSuccessfulPlanUpdateDuringPlan(
-  ctx: Pick<ContextCtx, 'toolCallingAudit'>,
-): boolean {
-  const auditEntries = ctx.toolCallingAudit;
-  if (!Array.isArray(auditEntries) || auditEntries.length === 0) return false;
-
-  return auditEntries.some(
-    (entry) =>
-      entry.phase === Phase.PLAN &&
-      entry.toolName === 'plan.update' &&
-      entry.toolResultStatus === 'ok' &&
-      entry.toolResultOutputOk === true,
-  );
-}
-
 export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
   const toolstack = ctx.toolstack;
   const toolPolicy = resolveLlmToolCallingPolicy(Phase.PLAN, ctx.options.llm);
@@ -150,12 +102,10 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
       timestamp: new Date(),
     });
 
-    if (ctx.planRuntime?.sessionId) {
-      // Transitional fallback: legacy/non-tool PLAN runs may hydrate runtime subtasks from final JSON.
-      await hydrateRuntimePlanTodos(ctx, plan).catch((error) =>
-        logIgnoredError('[Plan] hydrate runtime plan todos (legacy)', error),
-      );
-    }
+    // Best-effort: keep runtime plan actionable even if the LLM doesn't call plan.* tools.
+    await hydrateRuntimePlanTodos(ctx, plan).catch((error) =>
+      logIgnoredError('[Plan] hydrate runtime plan todos (legacy)', error),
+    );
 
     return {
       ...ctx,
@@ -163,40 +113,19 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
     };
   }
 
-  const promptVisibleTools = toolstack
-    ? toolstack.registry.listAll().filter(
-        (spec) =>
-          toolstack.policy.decide(Phase.PLAN, spec, {
-            worktreeRoot:
-              ctx.workspace.strategy === 'worktree' ? ctx.workspace.workPath : undefined,
-          }).allowed,
-      )
-    : undefined;
+  const prompt = await getPlanPrompt(
+    formatContextForPrompt(ctx.context),
+    ctx.options.instruction,
+    LIMITS.maxFilesChanged,
+    ctx.lastError,
+  );
 
-  const systemPrompt = await getPlanSystemPrompt(promptVisibleTools, { plan: ctx.planRuntime });
-  const requestEnvelope = await buildPhaseRequestEnvelope({
-    phase: Phase.PLAN,
-    defaultNamespace: 'plan',
-    context: ctx.context,
-    contextResult: ctx.contextResult,
-    cacheSharing: ctx.cacheSharing,
-    onCacheMismatch: (mismatch) => {
-      recordAuditEvent('request.cache_sharing_hash_mismatch', mismatch, {
-        source: 'llm',
-        severity: 'low',
-        scope: 'session',
-        phase: Phase.PLAN,
-      });
-    },
-    systemPrompt,
-    buildUserPrompt: (contextPrompt) =>
-      getPlanPrompt(contextPrompt, ctx.options.instruction, LIMITS.maxFilesChanged, ctx.lastError),
+  const systemPrompt = await getPlanSystemPrompt(toolstack?.registry, { plan: ctx.planRuntime });
+  const baseMessages = composeChatMessages({
+    system: systemPrompt,
+    user: prompt,
     conversationContext: ctx.options.conversationContext,
-    artifactHints: ctx.artifactHints,
-    toolCallingAudit: ctx.toolCallingAudit,
-    previewProvider: new SessionReplacementPreviewProvider(ctx.replacementState),
   });
-  const { cacheSurface, envelope, baseMessages } = requestEnvelope;
 
   const supportsStreaming = typeof ctx.options.llm.chatStream === 'function';
   const llmOutput = {
@@ -209,13 +138,25 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
     baseMessages,
     {
       responseFormat: 'json_object',
-      providerHints: envelope.providerHints,
       signal: ctx.options.signal,
     },
     {
       phase: Phase.PLAN,
       llm: ctx.options.llm,
-      runtime: buildPhaseToolRuntimeContext(ctx, Phase.PLAN, cacheSurface),
+      runtime: {
+        repoRoot: ctx.workspace.workPath,
+        persistenceRoot: ctx.workspace.baseRepoPath || ctx.workspace.workPath,
+        worktreeRoot: ctx.workspace.strategy === 'worktree' ? ctx.workspace.workPath : undefined,
+        attemptId: ctx.attempt ?? 1,
+        dryRun: Boolean(ctx.options?.dryRun),
+        llm: ctx.options.llm,
+        model:
+          ctx.options.llm.getModelId?.() || process.env.SALMONLOOP_MODEL || process.env.S8P_MODEL,
+        userInputProvider: ctx.options.userInputProvider,
+        agentKind: ctx.options.agentKind ?? 'primary',
+        languagePlugins: ctx.options.languagePlugins,
+        subAgentController: ctx.options.subAgentController,
+      },
       toolstack,
       eventPayload: ctx.options.eventPayload,
       toolCallingAudit: {
@@ -241,10 +182,6 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
     }
     plan = parsePlanFromLLMContent(finalContent);
   } catch (e) {
-    recordPlanRepairAttempt({
-      reason: sanitizeError(e),
-      badContentLength: finalContent.length,
-    });
     let repaired: { content?: string };
     try {
       repaired = await repairToJsonObject({
@@ -255,11 +192,6 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
         reason: sanitizeError(e),
       });
     } catch (repairError) {
-      recordPlanRepairResult({
-        ok: false,
-        contentLength: 0,
-        error: sanitizeError(repairError).slice(0, 400),
-      });
       throw new Error(text.llm.planParseFailed(finalContent, sanitizeError(repairError)));
     }
     finalContent = repaired.content || '';
@@ -276,18 +208,8 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
       if (!finalContent) throw new Error(text.llm.planEmpty);
       plan = parsePlanFromLLMContent(finalContent);
     } catch (e2) {
-      recordPlanRepairResult({
-        ok: false,
-        contentLength: finalContent.length,
-        error: sanitizeError(e2).slice(0, 400),
-      });
       throw new Error(text.llm.planParseFailed(finalContent, sanitizeError(e2)));
     }
-
-    recordPlanRepairResult({
-      ok: true,
-      contentLength: finalContent.length,
-    });
   }
 
   ctx.emit({
@@ -297,13 +219,10 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
     timestamp: new Date(),
   });
 
-  const hasModelPlanUpdate = hasSuccessfulPlanUpdateDuringPlan(ctx);
-  if (ctx.planRuntime?.sessionId && !hasModelPlanUpdate) {
-    // Transitional fallback: only hydrate when PLAN did not successfully persist via plan.update.
-    await hydrateRuntimePlanTodos(ctx, plan).catch((error) =>
-      logIgnoredError('[Plan] hydrate runtime plan todos (tools)', error),
-    );
-  }
+  // Best-effort: keep runtime plan actionable even if the LLM doesn't call plan.* tools.
+  await hydrateRuntimePlanTodos(ctx, plan).catch((error) =>
+    logIgnoredError('[Plan] hydrate runtime plan todos (tools)', error),
+  );
 
   return {
     ...ctx,

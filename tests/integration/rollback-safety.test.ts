@@ -21,7 +21,7 @@ describe('Rollback Safety Tests - CRITICAL USER DATA PROTECTION', () => {
 
     const content = await helper.readFile(repo.path, 'important.ts');
     expect(content).toBe('staged user changes');
-  }, 20000);
+  });
 
   it('CRITICAL: Should preserve staged changes in other files when rolling back a target file', async () => {
     const repo = await helper.createGitRepo({
@@ -42,7 +42,7 @@ describe('Rollback Safety Tests - CRITICAL USER DATA PROTECTION', () => {
 
     const otherContent = await helper.readFile(repo.path, 'other.ts');
     expect(otherContent).toBe('user staged v2');
-  }, 20000);
+  });
 
   it('CRITICAL: Should not delete untracked files', async () => {
     const repo = await helper.createGitRepo({
@@ -57,5 +57,5 @@ describe('Rollback Safety Tests - CRITICAL USER DATA PROTECTION', () => {
 
     const exists = await helper.fileExists(repo.path, '.env.local');
     expect(exists).toBe(true);
-  }, 20000);
+  });
 });

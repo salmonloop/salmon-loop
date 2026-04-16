@@ -34,7 +34,7 @@ The previous attempt failed with the following error. Please fix the issue descr
 1. **Format**: Is it standard git unified diff (starting with `diff --git`)?
 2. **Paths**: Do `--- a/path` and `+++ b/path` exactly match target files?
 3. **Scope**: Does it only modify what's requested in the instruction?
-4. **Context**: Are there enough exact context lines for each hunk to apply cleanly?
+4. **Context**: Are there 8-12 lines of EXACT surrounding context for each hunk?
 5. **Cleanliness**: Is there ANY text other than the diff itself? (If yes, remove it).
 
 # Requirements
@@ -43,10 +43,13 @@ The previous attempt failed with the following error. Please fix the issue descr
 - **If you need to fix an error, regenerate the ENTIRE diff correctly in one block.**
 - **CRITICAL**: Use EXACT relative paths from the repository root in diff headers.
   - Example: `--- a/src/index.js` and `+++ b/src/index.js`
-- **Context Matching**: Provide exact context lines; indentation and whitespace must match EXACTLY.
+- **Context Matching**: Provide 8-12 lines of surrounding code.
+  - Indentation and whitespace must match EXACTLY.
+- **DO NOT include `index <old>..<new>` lines** (the host may strip them for safety).
 - Constraints:
   - Maximum {{maxFilesChanged}} files.
   - Maximum {{maxDiffLines}} total diff lines.
+  - No file creation, deletion, or renaming.
   - No unrelated refactoring or formatting.
   - **DO NOT translate or modify comments unless explicitly instructed.**
 

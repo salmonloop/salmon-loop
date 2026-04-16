@@ -1,5 +1,3 @@
-import type { SharedV3ProviderOptions } from '@ai-sdk/provider';
-
 import type { Context } from './context.js';
 import type { ExecutionPhase } from './execution.js';
 import type { Plan } from './planning.js';
@@ -19,27 +17,6 @@ export interface LlmOutputPolicy {
 }
 
 export type LLMRole = 'system' | 'user' | 'assistant' | 'tool';
-
-export type PromptCacheMode = 'cache_safe_only' | 'strict_full_prompt';
-export type PromptCacheEligibility =
-  | 'eligible'
-  | 'missing_context_hash'
-  | 'empty_cache_safe_surface'
-  | 'below_min_tokens';
-
-export interface OpenAICachePolicyHint {
-  mode: PromptCacheMode;
-  eligibility: PromptCacheEligibility;
-  namespace?: string;
-  contextHash?: string;
-  cacheSafeFingerprint?: string;
-  lateInjectionFingerprint?: string;
-}
-
-export interface LLMProviderHints {
-  openAICacheHint?: string;
-  openAICachePolicy?: OpenAICachePolicyHint;
-}
 
 export interface LLMMessage {
   role: LLMRole;
@@ -109,14 +86,6 @@ export interface ChatOptions {
    * Raw SalmonLoop ToolSpec objects for advanced mapping.
    */
   toolSpecs?: import('../tools/types.js').ToolSpec[];
-  /**
-   * Provider-specific request hints assembled by the request envelope layer.
-   */
-  providerHints?: LLMProviderHints;
-  /**
-   * Raw provider options passed through to the AI SDK request.
-   */
-  providerOptions?: SharedV3ProviderOptions;
   /**
    * Signal to abort the request.
    */

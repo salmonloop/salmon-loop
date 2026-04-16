@@ -73,10 +73,7 @@ const commonDiagnostics = {
     if (
       lowerOutput.includes('eslint') ||
       lowerOutput.includes('prettier') ||
-      lowerOutput.includes('stylelint') ||
-      lowerOutput.includes('oxfmt') ||
-      lowerOutput.includes('format issues found') ||
-      lowerOutput.includes('script "format:check" exited with code')
+      lowerOutput.includes('stylelint')
     ) {
       return ErrorType.LINT;
     }

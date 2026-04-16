@@ -10,9 +10,6 @@ const DEFAULT_TIMEOUT_MS = 600_000;
 const DEFAULT_PARALLELISM = 4;
 const DEFAULT_PRELOAD = path.join('tests', 'setup-bun.ts');
 const DEFAULT_TEST_TIMEOUT_MS = 30_000;
-const WINDOWS_INTEGRATION_TEST_TIMEOUT_MS = 90_000;
-const WINDOWS_INTEGRATION_PARALLELISM = 1;
-const WINDOWS_INTEGRATION_FILE_TIMEOUT_MS = 1_200_000;
 
 let outputBroken = false;
 
@@ -58,53 +55,16 @@ async function collectTestFiles(repoRoot: string, rootPath: string): Promise<str
   return files.sort();
 }
 
-function isWindowsOrWsl(): boolean {
-  if (process.platform === 'win32') return true;
-  return Boolean(process.env.WSL_DISTRO_NAME);
-}
-
-function resolveParallelism(total: number, roots: string[]): number {
-  const fromEnvRaw = process.env.BUN_FILE_TEST_PARALLELISM;
-  const fromEnv = fromEnvRaw === undefined ? Number.NaN : Number(fromEnvRaw);
+function resolveParallelism(total: number): number {
+  const fromEnv = Number(process.env.BUN_FILE_TEST_PARALLELISM || DEFAULT_PARALLELISM);
   const envOverride = Number.isFinite(fromEnv) && fromEnv > 0 ? Math.floor(fromEnv) : null;
-  if (envOverride !== null) {
-    return Math.min(Math.max(envOverride, 1), Math.max(total, 1));
-  }
-
-  if (isWindowsOrWsl() && roots.some((root) => isIntegrationRoot(root))) {
-    return Math.min(WINDOWS_INTEGRATION_PARALLELISM, Math.max(total, 1));
-  }
-
   const detectedCpus = cpus()?.length ?? DEFAULT_PARALLELISM;
   const autoParallelism = Math.max(
     DEFAULT_PARALLELISM,
     Math.min(8, Math.floor(detectedCpus * 0.75)),
   );
-  return Math.min(Math.max(autoParallelism, 1), Math.max(total, 1));
-}
-
-function isIntegrationRoot(root: string): boolean {
-  const normalized = root.replace(/\\/g, '/').replace(/\/+$/, '');
-  return normalized === 'tests/integration' || normalized.endsWith('/tests/integration');
-}
-
-function resolveDefaultTestTimeoutMs(roots: string[]): number {
-  if (!isWindowsOrWsl()) return DEFAULT_TEST_TIMEOUT_MS;
-  if (!roots.some((root) => isIntegrationRoot(root))) return DEFAULT_TEST_TIMEOUT_MS;
-  return WINDOWS_INTEGRATION_TEST_TIMEOUT_MS;
-}
-
-function resolveFileTimeoutMs(roots: string[]): number {
-  const fromEnvRaw = process.env.BUN_FILE_TEST_TIMEOUT_MS;
-  if (fromEnvRaw !== undefined) {
-    const fromEnv = Number(fromEnvRaw);
-    if (Number.isFinite(fromEnv) && fromEnv > 0) return Math.floor(fromEnv);
-  }
-
-  if (isWindowsOrWsl() && roots.some((root) => isIntegrationRoot(root))) {
-    return WINDOWS_INTEGRATION_FILE_TIMEOUT_MS;
-  }
-  return DEFAULT_TIMEOUT_MS;
+  const normalized = envOverride ?? autoParallelism;
+  return Math.min(Math.max(normalized, 1), Math.max(total, 1));
 }
 
 async function runSingleTestFile(
@@ -175,9 +135,8 @@ async function main() {
 
   const repoRoot = process.cwd();
   const preloadPath = path.join(repoRoot, DEFAULT_PRELOAD);
-  const timeoutMs = resolveFileTimeoutMs(roots);
-  const defaultTestTimeoutMs = resolveDefaultTestTimeoutMs(roots);
-  const testTimeoutMs = Number(process.env.BUN_TEST_CASE_TIMEOUT_MS || defaultTestTimeoutMs);
+  const timeoutMs = Number(process.env.BUN_FILE_TEST_TIMEOUT_MS || DEFAULT_TIMEOUT_MS);
+  const testTimeoutMs = Number(process.env.BUN_TEST_CASE_TIMEOUT_MS || DEFAULT_TEST_TIMEOUT_MS);
   const bunRuntime = (globalThis as { Bun?: { spawn: (cmd: string[], options: any) => any } }).Bun;
 
   if (!bunRuntime) {
@@ -192,7 +151,7 @@ async function main() {
     throw new Error(`No test files found under: ${roots.join(', ')}`);
   }
 
-  const parallelism = resolveParallelism(allFiles.length, roots);
+  const parallelism = resolveParallelism(allFiles.length);
   safeWrite(
     process.stdout,
     `\nRunning ${allFiles.length} files under bun:test with parallelism=${parallelism}...\n`,

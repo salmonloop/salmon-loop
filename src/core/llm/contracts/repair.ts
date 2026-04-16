@@ -23,11 +23,10 @@ export async function repairToJsonObject(args: {
     'Your previous response did not satisfy the contract.',
     `Reason: ${reason}`,
     '',
-    'Return exactly one JSON object and nothing else.',
-    'The first non-whitespace character must be {.',
-    'The last non-whitespace character must be }.',
-    '',
-    'Forbidden: Markdown fences, commentary, labels, multiple objects, or any leading/trailing text.',
+    'Return ONLY a single JSON object.',
+    '- No Markdown fences.',
+    '- No commentary.',
+    '- No leading/trailing text.',
     '',
     'The JSON object MUST include keys: goal, files, changes, verify.',
     '',
@@ -52,36 +51,42 @@ export async function repairToJsonObject(args: {
     },
   );
 }
-export async function repairToUnifiedDiff(args: { badContent: string }): Promise<LLMMessage> {
-  const { badContent } = args;
+export async function repairToUnifiedDiff(args: {
+  llm: LLM;
+  baseMessages: LLMMessage[];
+  chatOptions: ChatOptions;
+  badContent: string;
+  reason: string;
+}): Promise<LLMMessage> {
+  const { llm, baseMessages, chatOptions, badContent, reason } = args;
 
-  const extractCanonicalDiff = (input: string): string => {
-    if (!input) return '';
+  const prompt = [
+    'Your previous response did not satisfy the contract.',
+    `Reason: ${reason}`,
+    '',
+    'Return ONLY a standard git unified diff patch.',
+    '- It MUST start with `diff --git`.',
+    '- No Markdown fences.',
+    '- No commentary.',
+    '- Exactly one final patch block (no multiple alternatives).',
+    '',
+    'Previous response (truncated):',
+    truncateForPrompt(badContent, Math.min(1200, Math.max(400, LIMITS.maxContextChars / 100))),
+  ].join('\n');
 
-    const fromText = (value: string): string => {
-      const start = value.search(/^\s*diff --git /m);
-      if (start === -1) return '';
-      const section = value.slice(start).trim();
-      const fenceClose = section.search(/\n```/);
-      if (fenceClose !== -1) return section.slice(0, fenceClose).trim();
-      return section;
-    };
-
-    const fencedBlocks: string[] = [];
-    const fenceRegex = /```(?:diff)?\s*\n([\s\S]*?)\n```/gi;
-    let match: RegExpExecArray | null = null;
-    while ((match = fenceRegex.exec(input)) !== null) {
-      const block = match[1];
-      const extracted = fromText(block);
-      if (extracted) fencedBlocks.push(extracted);
-    }
-
-    if (fencedBlocks.length > 0) return fencedBlocks[fencedBlocks.length - 1];
-    return fromText(input);
-  };
-
-  return {
-    role: 'assistant',
-    content: extractCanonicalDiff(badContent || ''),
-  };
+  return llm.chat(
+    [
+      ...baseMessages,
+      { role: 'assistant', content: badContent || '' },
+      { role: 'user', content: prompt },
+    ],
+    {
+      ...chatOptions,
+      responseFormat: 'text',
+      tools: undefined,
+      toolSpecs: undefined,
+      toolChoice: undefined,
+      temperature: 0,
+    },
+  );
 }

@@ -4,15 +4,19 @@ import * as path from 'path';
 import {
   getLogger,
   registerAllBuiltins,
-  resolveExtensions,
   skillToToolSpec,
-  SkillLoader,
+  SkillParser,
   ToolRegistry,
-  type RouterBox,
   type SideEffect,
-  type ToolRouter,
+  type Skill,
 } from '../../core/facades/cli-command-tool-names.js';
 import {
+  existsSync,
+  readFileUtf8,
+  readFileUtf8Sync,
+  readdirDirents,
+  readdirDirentsSync,
+  safePathJoin,
   stat,
   statSync,
 } from '../utils/safe-fs.js';
@@ -27,24 +31,46 @@ const VALID_SIDE_EFFECTS = new Set<SideEffect>([
   'git_write',
 ]);
 
-// Cache key includes repoRoot. Extensions config is not part of the key because
-// tool-names is used for tab completion where extensions may not be available.
 const toolNameCache = new Map<string, { names: Set<string>; signature: string }>();
 
-/**
- * Compute a cache-invalidation signature based on mtime of all skill search
- * paths that SkillLoader would scan. Mirrors the strict search order.
- */
-async function computeSkillSignature(repoRoot: string, extraPaths: string[] = []): Promise<string> {
-  const searchPaths = [
-    ...extraPaths,
-    path.join(repoRoot, '.salmonloop', 'skills'),
-    path.join(repoRoot, '.agents', 'skills'),
-    path.join(os.homedir(), '.salmonloop', 'skills'),
-    path.join(os.homedir(), '.agents', 'skills'),
+async function loadSkillsFromPath(root: string): Promise<Skill[]> {
+  if (!existsSync(root)) return [];
+  const entries = await readdirDirents(root, root);
+  const skills: Skill[] = [];
+
+  for (const entry of entries) {
+    const skillFile = entry.isDirectory()
+      ? safePathJoin(root, entry.name, 'SKILL.md')
+      : entry.name.endsWith('.md')
+        ? safePathJoin(root, entry.name)
+        : null;
+
+    if (!skillFile || !existsSync(skillFile, root)) continue;
+
+    try {
+      const content = await readFileUtf8(skillFile, root);
+      skills.push(SkillParser.parse(content, skillFile));
+    } catch (error) {
+      getLogger().warn(
+        `Failed to load skill at ${skillFile}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  return skills;
+}
+
+function getSkillSearchPaths(repoRoot: string): string[] {
+  return [
+    path.join(os.homedir(), '.claude/skills'),
+    path.join(repoRoot, '.salmonloop/skills'),
+    path.join(repoRoot, '.claude/skills'),
   ];
+}
+
+async function computeSkillSignature(repoRoot: string): Promise<string> {
   const parts: string[] = [];
-  for (const searchPath of searchPaths) {
+  for (const searchPath of getSkillSearchPaths(repoRoot)) {
     try {
       const stats = await stat(searchPath);
       parts.push(`${searchPath}:${stats.mtimeMs}`);
@@ -56,14 +82,8 @@ async function computeSkillSignature(repoRoot: string, extraPaths: string[] = []
 }
 
 function computeSkillSignatureSync(repoRoot: string): string {
-  const searchPaths = [
-    path.join(repoRoot, '.salmonloop', 'skills'),
-    path.join(repoRoot, '.agents', 'skills'),
-    path.join(os.homedir(), '.salmonloop', 'skills'),
-    path.join(os.homedir(), '.agents', 'skills'),
-  ];
   const parts: string[] = [];
-  for (const searchPath of searchPaths) {
+  for (const searchPath of getSkillSearchPaths(repoRoot)) {
     try {
       const stats = statSync(searchPath);
       parts.push(`${searchPath}:${stats.mtimeMs}`);
@@ -74,47 +94,52 @@ function computeSkillSignatureSync(repoRoot: string): string {
   return parts.join('|');
 }
 
-/**
- * Get all known tool names including skills.
- *
- * Uses `resolveExtensions` to obtain the same SkillLoader configuration
- * (extraPaths) as the main runtime, so that
- * tool-name discovery and actual runtime skill availability stay consistent.
- */
-export async function getKnownToolNames(repoRoot: string): Promise<Set<string>> {
-  // Resolve extensions to get the same loader config as the runtime
-  let skillDiscovery: { paths?: string[] } = {};
-  try {
-    const { resolved } = await resolveExtensions({ repoRoot });
-    skillDiscovery = resolved.skillDiscovery;
-  } catch {
-    // Extensions config unavailable — fall back to loader defaults
+function loadSkillsFromPathSync(root: string): Skill[] {
+  if (!existsSync(root)) return [];
+  const entries = readdirDirentsSync(root, root);
+  const skills: Skill[] = [];
+
+  for (const entry of entries) {
+    const skillFile = entry.isDirectory()
+      ? safePathJoin(root, entry.name, 'SKILL.md')
+      : entry.name.endsWith('.md')
+        ? safePathJoin(root, entry.name)
+        : null;
+
+    if (!skillFile || !existsSync(skillFile, root)) continue;
+
+    try {
+      const content = readFileUtf8Sync(skillFile, root);
+      skills.push(SkillParser.parse(content, skillFile));
+    } catch (error) {
+      getLogger().warn(
+        `Failed to load skill at ${skillFile}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
 
-  const extraPaths = skillDiscovery.paths ?? [];
-  const signature = await computeSkillSignature(repoRoot, extraPaths);
+  return skills;
+}
+
+export async function getKnownToolNames(repoRoot: string): Promise<Set<string>> {
+  const signature = await computeSkillSignature(repoRoot);
   const cached = toolNameCache.get(repoRoot);
   if (cached && cached.signature === signature) return cached.names;
 
   const registry = new ToolRegistry();
   registerAllBuiltins(registry);
 
-  const routerBox: RouterBox = { router: null as unknown as ToolRouter };
-  const skillLoader = new SkillLoader({
-    repoRoot,
-    extraPaths,
-  });
-  const catalog = await skillLoader.loadCatalog();
-  for (const entry of catalog) {
-    try {
-      // Name-only registration: executor is never called, so null router is safe.
-      // Use catalog entry for lightweight registration (progressive disclosure).
-      registry.register(skillToToolSpec({ entry, loader: skillLoader }, routerBox));
-    } catch (error) {
-      const label = entry.name || entry.id;
-      getLogger().warn(
-        `Failed to register skill ${label}: ${error instanceof Error ? error.message : String(error)}`,
-      );
+  for (const searchPath of getSkillSearchPaths(repoRoot)) {
+    const skills = await loadSkillsFromPath(searchPath);
+    for (const skill of skills) {
+      try {
+        registry.register(skillToToolSpec(skill));
+      } catch (error) {
+        const label = skill.metadata?.name || skill.id;
+        getLogger().warn(
+          `Failed to register skill ${label}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
     }
   }
 
@@ -123,18 +148,6 @@ export async function getKnownToolNames(repoRoot: string): Promise<Set<string>> 
   return names;
 }
 
-/**
- * Synchronous variant for tab completion only.
- *
- * @nonAuthoritative This returns a best-effort approximation of known tool
- * names using loader defaults (no extensions resolution, since
- * resolveExtensions is async). The result may differ from the actual runtime
- * tool set when custom `skills.json` discovery paths are configured.
- *
- * DO NOT use this for security decisions (allowlist enforcement, permission
- * checks). Use the async {@link getKnownToolNames} instead, which resolves
- * extensions for full consistency with the runtime.
- */
 export function getKnownToolNamesSync(repoRoot: string): Set<string> {
   const signature = computeSkillSignatureSync(repoRoot);
   const cached = toolNameCache.get(repoRoot);
@@ -143,17 +156,17 @@ export function getKnownToolNamesSync(repoRoot: string): Set<string> {
   const registry = new ToolRegistry();
   registerAllBuiltins(registry);
 
-  const routerBox: RouterBox = { router: null as unknown as ToolRouter };
-  const skillLoader = new SkillLoader({ repoRoot });
-  const skills = skillLoader.initializeSync();
-  for (const skill of skills) {
-    try {
-      registry.register(skillToToolSpec(skill, routerBox));
-    } catch (error) {
-      const label = skill.metadata?.name || skill.id;
-      getLogger().warn(
-        `Failed to register skill ${label}: ${error instanceof Error ? error.message : String(error)}`,
-      );
+  for (const searchPath of getSkillSearchPaths(repoRoot)) {
+    const skills = loadSkillsFromPathSync(searchPath);
+    for (const skill of skills) {
+      try {
+        registry.register(skillToToolSpec(skill));
+      } catch (error) {
+        const label = skill.metadata?.name || skill.id;
+        getLogger().warn(
+          `Failed to register skill ${label}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
     }
   }
 

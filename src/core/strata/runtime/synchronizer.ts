@@ -10,7 +10,6 @@ import {
   mkdir,
   readFile,
   readdir,
-  realpath,
   rm,
   stat,
   unlink,
@@ -21,7 +20,6 @@ import { logIgnoredError } from '../../observability/ignored-error.js';
 import { getLogger } from '../../observability/logger.js';
 import { getMonitor } from '../../observability/monitor.js';
 import { ApplyBackOnDirty, CheckpointRef, VerboseLevel } from '../../types/index.js';
-import { isCanonicalPathWithinDirectory } from '../../utils/path.js';
 import { CheckpointManager } from '../checkpoint/manager.js';
 import { detectDependencyPaths } from '../layers/shadow-driver/strategy.js';
 
@@ -89,34 +87,6 @@ export class WorkspaceSynchronizer {
 
   private normalizePath(value: string): string {
     return value.replace(/\\/g, '/');
-  }
-
-  private async tryRealPath(value: string): Promise<string | null> {
-    try {
-      return await realpath(value);
-    } catch {
-      return null;
-    }
-  }
-
-  private async isProjectedDependencyRoot(
-    repoRealPath: string | null,
-    candidatePath: string,
-    entryStat?: { isSymbolicLink(): boolean },
-  ): Promise<boolean> {
-    if (entryStat?.isSymbolicLink()) {
-      return true;
-    }
-    if (!repoRealPath) {
-      return false;
-    }
-
-    const candidateRealPath = await this.tryRealPath(candidatePath);
-    if (!candidateRealPath) {
-      return false;
-    }
-
-    return !isCanonicalPathWithinDirectory(repoRealPath, candidateRealPath, { allowEqual: true });
   }
 
   private isRenameOrCopyStatus(xy: string): boolean {
@@ -202,7 +172,6 @@ export class WorkspaceSynchronizer {
     ]);
 
     const symlinkedRoots = new Set<string>();
-    const repoRealPath = await this.tryRealPath(repoPath);
     for (const candidate of candidates) {
       const normalizedCandidate = this.sanitizeRelativePath(candidate);
       if (!normalizedCandidate || normalizedCandidate.includes('/')) {
@@ -212,17 +181,7 @@ export class WorkspaceSynchronizer {
       const candidatePath = path.join(repoPath, ...normalizedCandidate.split('/'));
       try {
         const entryStat = await lstat(candidatePath);
-        const isProjectedRoot = await this.isProjectedDependencyRoot(
-          repoRealPath,
-          candidatePath,
-          entryStat,
-        );
-        if (isProjectedRoot) {
-          if (!entryStat.isSymbolicLink()) {
-            getLogger().debug(
-              `[checkpoint] Treating dependency root as projected via realpath escape: ${normalizedCandidate}`,
-            );
-          }
+        if (entryStat.isSymbolicLink()) {
           symlinkedRoots.add(normalizedCandidate);
         }
       } catch {

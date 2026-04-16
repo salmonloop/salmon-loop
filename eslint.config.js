@@ -1,6 +1,6 @@
 import eslint from '@eslint/js';
-import eslintConfigPrettier from 'eslint-config-prettier';
 import importPlugin from 'eslint-plugin-import';
+import prettier from 'eslint-plugin-prettier/recommended';
 import tseslint from 'typescript-eslint';
 
 import noLanguageHardcoding from './eslint-rules/no-language-hardcoding.js';
@@ -24,7 +24,7 @@ export default tseslint.config(
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
-  eslintConfigPrettier,
+  prettier,
   {
     plugins: {
       import: importPlugin,

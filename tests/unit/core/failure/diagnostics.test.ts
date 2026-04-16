@@ -64,21 +64,6 @@ describe('buildFailureGuidance', () => {
     expect(guidance.remediationSteps).toContain('Retry the command after a short delay.');
   });
 
-  it('maps LLM auth failures to a credential-focused hint', () => {
-    const guidance = buildFailureGuidance({
-      reasonCode: 'LOOP_FAILED',
-      failurePhase: 'EXPLORE',
-      errorCode: 'LLM_AUTHENTICATION_FAILED',
-      fallbackReason:
-        'Technical details were hidden for safety. See the audit log for more information.',
-    });
-
-    expect(guidance.safeHint).toBe('LLM provider rejected the request credentials or access.');
-    expect(guidance.remediationSteps).toContain(
-      'Check the provider API key, app id, and model access configuration.',
-    );
-  });
-
   it('maps LLM aborted requests to a friendly hint', () => {
     const guidance = buildFailureGuidance({
       reasonCode: 'LOOP_FAILED',

@@ -1,5 +1,5 @@
 import { text } from '../../locales/index.js';
-import { tryGetLogger } from '../observability/logger.js';
+import { getLogger } from '../observability/logger.js';
 import { AuthorizationSourceSummary, ExecutionPhase, Phase } from '../types/runtime.js';
 import { sanitizeErrorMessage } from '../utils/sanitizer.js';
 
@@ -86,10 +86,9 @@ export class ToolAuditLogger {
       decision,
     };
     this.logs.push(entry);
-    const logger = tryGetLogger();
-    if (logger) {
-      logger.debug(text.audit.event('Start', spec.name, decision.allowed ? 'allowed' : 'denied'));
-    }
+    getLogger().debug(
+      text.audit.event('Start', spec.name, decision.allowed ? 'allowed' : 'denied'),
+    );
   }
 
   onEnd(result: ToolResult) {
@@ -111,10 +110,7 @@ export class ToolAuditLogger {
       errorMessage: result.error?.message ? sanitizeErrorMessage(result.error.message) : undefined,
     };
     this.logs.push(entry);
-    const logger = tryGetLogger();
-    if (logger) {
-      logger.debug(text.audit.event('End', result.toolName, result.status));
-    }
+    getLogger().debug(text.audit.event('End', result.toolName, result.status));
 
     if (result.id) {
       this.callPhaseIndex.delete(result.id);
@@ -148,10 +144,7 @@ export class ToolAuditLogger {
       authPersist: event.persist,
     };
     this.logs.push(entry);
-    const logger = tryGetLogger();
-    if (logger) {
-      logger.debug(text.audit.event('Authorization', event.toolName, event.outcome));
-    }
+    getLogger().debug(text.audit.event('Authorization', event.toolName, event.outcome));
 
     this.options?.onAuthorizationDecision?.(event);
 

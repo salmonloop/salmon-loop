@@ -19,8 +19,6 @@ describe('Context Gatherers (Audit Improvements)', () => {
     expect(result.readmeHeader).toBeDefined();
     expect(result.configFiles).toContain('package.json');
     expect(result.configFiles).toContain('tsconfig.json');
-    expect(result.configFiles).toContain('.oxfmtrc.json');
-    expect(result.configFiles).not.toContain('.prettierrc');
   });
 
   test('GitHistoryGatherer should return recent commits', async () => {

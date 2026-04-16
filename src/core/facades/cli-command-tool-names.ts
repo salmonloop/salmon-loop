@@ -1,11 +1,7 @@
-export { resolveExtensions } from '../extensions/index.js';
-export type { ResolvedExtensions } from '../extensions/types.js';
 export { getLogger } from '../observability/logger.js';
-export { skillToToolSpec, type RouterBox, type SkillSource } from '../skills/bridge.js';
-export { SkillLoader } from '../skills/loader.js';
+export { skillToToolSpec } from '../skills/bridge.js';
 export { SkillParser } from '../skills/parser.js';
 export type { Skill } from '../skills/types.js';
 export { registerAllBuiltins } from '../tools/builtin/index.js';
 export { ToolRegistry } from '../tools/registry.js';
-export type { ToolRouter } from '../tools/router.js';
 export type { SideEffect } from '../tools/types.js';

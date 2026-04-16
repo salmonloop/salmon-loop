@@ -9,7 +9,6 @@ const params = {
   },
   headers: {},
   abortSignal: new AbortController().signal,
-  providerOptionsKey: 'openai',
 };
 
 const result = buildAiSdkRequestParams(params);

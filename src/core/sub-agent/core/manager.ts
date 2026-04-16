@@ -5,7 +5,6 @@ import { createFileSystemAdapter } from '../../adapters/fs/index.js';
 import * as fs from '../../adapters/fs/node-fs.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { InitCtx } from '../../grizzco/engine/pipeline/types.js';
-import { recordAuditEvent } from '../../observability/audit-trail.js';
 import { getLogger } from '../../observability/logger.js';
 import { FileStateResolver } from '../../strata/layers/file-state-resolver.js';
 import { RuntimeEnvironment } from '../../strata/runtime/environment.js';
@@ -14,15 +13,11 @@ import type { LLM, LoopOptions } from '../../types/index.js';
 import { ErrorType } from '../../types/index.js';
 import type { ExecutionWorkspace } from '../../types/loop.js';
 import { ArtifactStore } from '../artifacts/store.js';
-import { cloneSubAgentContextSnapshot } from '../context-snapshot.js';
 import type { SubAgentControllerPort } from '../controller.js';
-import { isReadOnlyModelPhase, resolveSubAgentDryRun } from '../dispatch-policy.js';
-import { validateSharedPrefixConsistency } from '../prefix-consistency.js';
 import type { SubAgentRegistry } from '../registry.js';
 import { getSubAgentRegistry } from '../registry.js';
 import type {
   IExecutable,
-  SubAgentContextSnapshot,
   SubAgentProfile,
   SubAgentRequest,
   SubAgentResult,
@@ -75,50 +70,18 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
    * Spawns a new sub-agent and monitors its execution.
    */
   async execute(request: SubAgentRequest): Promise<SubAgentResult> {
-    const normalizedRequest =
-      request.session_target === 'shared'
-        ? (() => {
-            const consistency = validateSharedPrefixConsistency({
-              requestSnapshot: request.contextSnapshot,
-              runtimeSnapshot: this.ctx.contextSnapshot,
-            });
-            if (consistency.compatible) return request;
-
-            recordAuditEvent(
-              'sub_agent.shared.prefix_consistency_failed',
-              {
-                metric: 'shared_fallback_rate',
-                fallbackMode: 'isolated',
-                reason: consistency.reason,
-                expected: consistency.expected,
-                actual: consistency.actual,
-              },
-              {
-                source: 'smallfry',
-                severity: 'medium',
-                scope: 'session',
-                phase: this.ctx.phase,
-              },
-            );
-            return {
-              ...request,
-              session_target: 'isolated',
-              contextSnapshot: undefined,
-            } as SubAgentRequest;
-          })()
-        : request;
-    const profile = this.deps.registry.get(normalizedRequest.agent_ref);
+    const profile = this.deps.registry.get(request.agent_ref);
 
     if (!profile) {
       return this.fail(
-        normalizedRequest.agent_ref,
-        text.smallfry.errors.profileNotFound(normalizedRequest.agent_ref),
+        request.agent_ref,
+        text.smallfry.errors.profileNotFound(request.agent_ref),
         'LOOP_FAILED',
       );
     }
 
     const agentId = `smallfry-${randomBytes(4).toString('hex')}`;
-    const currentDepth = normalizedRequest.recursionDepth || 0;
+    const currentDepth = request.recursionDepth || 0;
     const MAX_RECURSION_DEPTH = 2;
 
     if (currentDepth >= MAX_RECURSION_DEPTH) {
@@ -147,13 +110,7 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
         throw new Error('Stop requested before launching Smallfry');
       }
 
-      const effectiveDryRun = resolveSubAgentDryRun(this.ctx.dryRun, this.ctx.phase);
-      const runtimeEnv = await this.setupIsolatedEnvironment(
-        normalizedRequest,
-        llm,
-        agentId,
-        effectiveDryRun,
-      );
+      const runtimeEnv = await this.setupIsolatedEnvironment(request, llm, agentId);
 
       try {
         const workspace = runtimeEnv.workspace!;
@@ -166,23 +123,21 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
         const fsAdapter = createFileSystemAdapter(flowMode);
 
         // 2. Construct InitCtx for the smallfry
-        const initCtx = this.applyContextSnapshot(normalizedRequest.contextSnapshot, {
+        const initCtx: InitCtx = {
           workspace: {
             workPath: activePath,
             baseRepoPath: workspace.baseRepoPath,
             strategy: workspace.strategy,
           },
           options: {
-            instruction: normalizedRequest.task,
+            instruction: request.task,
             repoPath: activePath,
-            dryRun: effectiveDryRun,
-            contextFiles: normalizedRequest.contextFiles || [],
+            dryRun: this.ctx.dryRun,
+            contextFiles: request.contextFiles || [],
             llm,
             recursionDepth: currentDepth + 1, // Increment depth for child
-            allowedToolNames: this.filterAllowedTools(profile.allowedTools, this.ctx.phase),
-            timeoutMs: normalizedRequest.timeout_seconds
-              ? normalizedRequest.timeout_seconds * 1000
-              : profile.timeoutMs,
+            allowedToolNames: this.filterAllowedTools(profile.allowedTools),
+            timeoutMs: request.timeout_seconds ? request.timeout_seconds * 1000 : profile.timeoutMs,
           },
           mode: flowMode,
           fs: fsAdapter,
@@ -199,7 +154,7 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
           },
           fileStateResolver: resolver,
           shadowInitialRef: runtimeEnv?.initialSnapshotHash || 'HEAD',
-        });
+        };
 
         // 3. Launch the "Little Fry"
         const subLoop = new SmallfryLoop(profile);
@@ -240,27 +195,6 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
     return this.execute(request);
   }
 
-  private applyContextSnapshot(
-    snapshot: SubAgentContextSnapshot | undefined,
-    initCtx: InitCtx,
-  ): InitCtx {
-    const normalized = cloneSubAgentContextSnapshot(snapshot);
-    if (!normalized) return initCtx;
-
-    return {
-      ...initCtx,
-      cacheSharing: normalized.cacheSharing ?? initCtx.cacheSharing,
-      planRuntime: normalized.planRuntime ?? initCtx.planRuntime,
-      toolCallingAudit: normalized.toolCallingAudit ?? initCtx.toolCallingAudit,
-      replacementState: normalized.replacementState ?? initCtx.replacementState,
-      artifactHints: normalized.artifactHints ?? initCtx.artifactHints,
-      options: {
-        ...initCtx.options,
-        conversationContext: normalized.conversationContext ?? initCtx.options.conversationContext,
-      },
-    };
-  }
-
   private updateStatus(id: string, status: SubAgentStatus) {
     const entry = this.activeAgents.get(id);
     if (entry) {
@@ -292,31 +226,13 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
     request: SubAgentRequest,
     llm: LLM,
     agentId: string,
-    effectiveDryRun: boolean,
   ): Promise<SubAgentRuntimeEnvironment> {
-    if (isReadOnlyModelPhase(this.ctx.phase) && request.session_target !== 'isolated') {
-      recordAuditEvent(
-        'sub_agent.dispatch.read_only_forced_isolated',
-        {
-          requestedSessionTarget: request.session_target,
-          effectiveSessionTarget: 'isolated',
-        },
-        {
-          source: 'smallfry',
-          severity: 'low',
-          scope: 'session',
-          phase: this.ctx.phase,
-        },
-      );
-    }
-
     const baseRepoPath = this.ctx.persistenceRoot || this.ctx.repoRoot;
     const options: LoopOptions = {
       instruction: request.task,
       repoPath: baseRepoPath,
       llm,
-      // CRITICAL SAFETY: read-only model phases force sub-agent dryRun.
-      dryRun: effectiveDryRun,
+      dryRun: this.ctx.dryRun,
       verify: undefined,
       strategy: 'worktree',
       contextFiles: request.contextFiles,
@@ -363,7 +279,7 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
     };
   }
 
-  private filterAllowedTools(allowed: string[], phase: ToolRuntimeCtx['phase']): string[] {
+  private filterAllowedTools(allowed: string[]): string[] {
     const safeReadOnlyTools = new Set<string>([
       'agent_dispatch',
       'code.search',
@@ -374,32 +290,7 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
       'artifact.read',
     ]);
 
-    const readOnlyPlanTools = new Set<string>(['plan.init', 'plan.read', 'plan.update']);
-    const readOnlyPhase = isReadOnlyModelPhase(phase);
-    const filtered = allowed.filter(
-      (name) => safeReadOnlyTools.has(name) || (readOnlyPhase && readOnlyPlanTools.has(name)),
-    );
-
-    if (readOnlyPhase) {
-      const removed = allowed.filter((name) => !filtered.includes(name));
-      if (removed.length > 0) {
-        recordAuditEvent(
-          'sub_agent.dispatch.read_only_tool_guard_filtered',
-          {
-            removedTools: removed,
-            retainedTools: filtered,
-          },
-          {
-            source: 'smallfry',
-            severity: 'medium',
-            scope: 'session',
-            phase,
-          },
-        );
-      }
-    }
-
-    return filtered;
+    return allowed.filter((name) => safeReadOnlyTools.has(name));
   }
 
   private async persistAuditArtifact(auditPath: unknown) {

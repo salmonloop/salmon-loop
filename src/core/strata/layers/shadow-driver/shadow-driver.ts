@@ -7,10 +7,10 @@
 import { join } from 'path';
 
 import { existsSync } from '../../../adapters/fs/node-fs.js';
-import { lstat, mkdir, realpath, rm, symlink } from '../../../adapters/fs/node-fs.js';
+import { rm, mkdir, symlink } from '../../../adapters/fs/node-fs.js';
 import { getLogger } from '../../../observability/logger.js';
 import { spawnCommand } from '../../../runtime/process-runner.js';
-import { arePathsEquivalent, normalizePath } from '../../../utils/path.js';
+import { normalizePath } from '../../../utils/path.js';
 import { getPlatformShellInvocation } from '../../../utils/platform-shell.js';
 import type { ShadowDriverConfig, ShadowEnvResult, ShadowTask } from '../../types.js';
 
@@ -19,36 +19,6 @@ import { getEnvInjection } from './env.js';
 import { isEnvironmentError } from './error-classifier.js';
 import { enforceReadOnly, restoreWrite, acquireLock, releaseLock } from './readonly-lock.js';
 import { determineStrategy, planDependencyPaths, detectDependencyPaths } from './strategy.js';
-
-const DEPENDENCY_LINK_CONFLICT_CODES = new Set([
-  'EEXIST',
-  'EISDIR',
-  'ENOTEMPTY',
-  'ENOTDIR',
-  'EPERM',
-]);
-
-function getErrorCode(error: unknown): string | undefined {
-  return error && typeof error === 'object' && 'code' in error
-    ? (error as { code?: string }).code
-    : undefined;
-}
-
-async function pointsToExpectedDependency(
-  sourcePath: string,
-  targetPath: string,
-): Promise<boolean> {
-  try {
-    await lstat(targetPath);
-    const [resolvedSourcePath, resolvedTargetPath] = await Promise.all([
-      realpath(sourcePath),
-      realpath(targetPath),
-    ]);
-    return arePathsEquivalent(resolvedSourcePath, resolvedTargetPath);
-  } catch {
-    return false;
-  }
-}
 
 /**
  * ShadowDriver Class
@@ -86,22 +56,16 @@ export class ShadowDriver {
         await symlink(sourcePath, targetDepPath, 'junction');
         getLogger().debug(`Linked dependency: ${depPath}`);
       } catch (err: unknown) {
-        const errorCode = getErrorCode(err);
-        if (errorCode && DEPENDENCY_LINK_CONFLICT_CODES.has(errorCode)) {
-          const alreadyProjected = await pointsToExpectedDependency(sourcePath, targetDepPath);
-          if (alreadyProjected) {
-            getLogger().debug(`Dependency projection already matches source: ${depPath}`);
-            continue;
-          }
-
-          throw new Error(
-            `Dependency projection path conflict for ${depPath}: ${err instanceof Error ? err.message : String(err)}`,
-          );
-        } else {
+        if (
+          (err && typeof err === 'object' && 'code' in err
+            ? (err as { code?: string }).code
+            : undefined) !== 'EEXIST'
+        ) {
           getLogger().warn(
             `Failed to link ${depPath}: ${err instanceof Error ? err.message : String(err)}`,
           );
-          throw err instanceof Error ? err : new Error(String(err));
+        } else {
+          getLogger().debug(`Dependency link already exists: ${depPath}`);
         }
       }
     }

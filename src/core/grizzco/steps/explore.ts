@@ -1,9 +1,9 @@
 import path from 'path';
 
 import { text } from '../../../locales/index.js';
-import { recordAuditEvent } from '../../observability/audit-trail.js';
+import { composeChatMessages } from '../../llm/message-composition.js';
+import { formatContextForPrompt } from '../../llm/utils.js';
 import { getExplorePrompt, getExploreSystemPrompt } from '../../prompts/runtime.js';
-import { SessionReplacementPreviewProvider } from '../../session/replacement-preview-provider.js';
 import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
 import { type RelatedFileContext } from '../../types/context.js';
 import { SalmonError } from '../../types/errors.js';
@@ -13,9 +13,6 @@ import { resolveLlmToolCallingPolicy } from '../dsl/llm-strategy.js';
 import { Step } from '../engine/pipeline/pipeline.js';
 import { ContextCtx, ExploreCtx } from '../engine/pipeline/types.js';
 import { ContextValidator } from '../validation/ContextValidator.js';
-
-import { buildPhaseRequestEnvelope } from './request-assembly.js';
-import { buildPhaseToolRuntimeContext } from './tool-runtime.js';
 
 const SAFE_INFERRED_EXTENSIONS = new Set([
   '.ts',
@@ -86,7 +83,13 @@ export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
     return { ...ctx };
   }
 
-  const systemPrompt = await getExploreSystemPrompt({ plan: ctx.planRuntime });
+  const prompt = await getExplorePrompt(
+    formatContextForPrompt(ctx.context),
+    ctx.options.instruction,
+    ctx.lastError,
+  );
+
+  const systemPrompt = await getExploreSystemPrompt(toolstack.registry, { plan: ctx.planRuntime });
 
   const supportsStreaming = typeof ctx.options.llm.chatStream === 'function';
   const llmOutput = {
@@ -145,40 +148,34 @@ export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
   };
 
   const localAudit: any[] = [];
-  const requestEnvelope = await buildPhaseRequestEnvelope({
-    phase: Phase.EXPLORE,
-    defaultNamespace: 'explore',
-    context: ctx.context,
-    contextResult: ctx.contextResult,
-    cacheSharing: ctx.cacheSharing,
-    onCacheMismatch: (mismatch) => {
-      recordAuditEvent('request.cache_sharing_hash_mismatch', mismatch, {
-        source: 'llm',
-        severity: 'low',
-        scope: 'session',
-        phase: Phase.EXPLORE,
-      });
-    },
-    systemPrompt,
-    buildUserPrompt: (contextPrompt) =>
-      getExplorePrompt(contextPrompt, ctx.options.instruction, ctx.lastError),
+  const baseMessages = composeChatMessages({
+    system: systemPrompt,
+    user: prompt,
     conversationContext: ctx.options.conversationContext,
-    artifactHints: ctx.artifactHints,
-    toolCallingAudit: ctx.toolCallingAudit,
-    previewProvider: new SessionReplacementPreviewProvider(ctx.replacementState),
   });
-  const { cacheSurface, envelope, baseMessages } = requestEnvelope;
 
   await (supportsStreaming ? chatWithToolsStreaming : chatWithTools)(
     baseMessages,
     {
-      providerHints: envelope.providerHints,
       signal: ctx.options.signal,
     },
     {
       phase: Phase.EXPLORE,
       llm: ctx.options.llm,
-      runtime: buildPhaseToolRuntimeContext(ctx, Phase.EXPLORE, cacheSurface),
+      runtime: {
+        repoRoot: ctx.workspace.workPath,
+        persistenceRoot: ctx.workspace.baseRepoPath || ctx.workspace.workPath,
+        worktreeRoot: ctx.workspace.strategy === 'worktree' ? ctx.workspace.workPath : undefined,
+        attemptId: ctx.attempt ?? 1,
+        dryRun: Boolean(ctx.options?.dryRun),
+        llm: ctx.options.llm,
+        model:
+          ctx.options.llm.getModelId?.() || process.env.SALMONLOOP_MODEL || process.env.S8P_MODEL,
+        userInputProvider: ctx.options.userInputProvider,
+        agentKind: ctx.options.agentKind ?? 'primary',
+        languagePlugins: ctx.options.languagePlugins,
+        subAgentController: ctx.options.subAgentController,
+      },
       toolstack: proxiedToolstack,
       eventPayload: ctx.options.eventPayload,
       toolCallingAudit: {

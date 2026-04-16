@@ -9,20 +9,13 @@ import { SkillDslContext, SkillStrategyDSL } from '../strategy.js';
 import { ExecutionContext, IExecutable, Skill, SkillData, SkillExecutionResult } from '../types.js';
 
 /**
- * @deprecated Legacy MicroTaskRunner — restricted to test context only.
- *
- * This runner calls execa directly, bypassing ToolRouter governance.
- * Production code MUST use executeSkill() from SkillRunner.ts instead.
- *
- * A runtime guard throws if instantiated outside a test environment
- * (process.env.NODE_ENV !== 'test').
+ * MicroTaskRunner manages the execution loop of a single skill.
+ * COMPLIANCE: DSL-Spec-V3
+ * - Computation Layer: Handles variable substitution, command extraction, and prompt assembly.
+ * - Action Layer: Executes Shell commands and final Tool injection.
  */
 export class MicroTaskRunner implements IExecutable<Record<string, any>, SkillExecutionResult> {
-  constructor(private skill: Skill) {
-    if (process.env.NODE_ENV !== 'test') {
-      throw new Error(text.skills.legacyRunnerForbidden);
-    }
-  }
+  constructor(private skill: Skill) {}
 
   async execute(inputs: Record<string, any>, ctx: ExecutionContext): Promise<SkillExecutionResult> {
     const skill = this.skill;

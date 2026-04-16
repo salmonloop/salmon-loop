@@ -1,46 +1,31 @@
+import { text } from '../../../locales/index.js';
+import { GitAdapter } from '../../adapters/git/git-adapter.js';
+import { LIMITS } from '../../config/limits.js';
 import { repairToUnifiedDiff } from '../../llm/contracts/repair.js';
+import { wrapPatchEmpty, wrapPatchInvalid, wrapPatchNotUnifiedDiff } from '../../llm/errors.js';
+import { composeChatMessages } from '../../llm/message-composition.js';
 import { emitLlmOutput } from '../../llm/output-policy.js';
-import { recordAuditEvent } from '../../observability/audit-trail.js';
+import { extractUnifiedDiffFromLLMContent, formatContextForPrompt } from '../../llm/utils.js';
+import { normalizeDiff, validateDiff, type DiffMeta } from '../../patch/diff.js';
+import { getPatchPrompt, getPatchSystemPrompt } from '../../prompts/runtime.js';
 import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
+import { DiffValidationError } from '../../types/errors.js';
 import { Phase } from '../../types/runtime.js';
 import { resolveLlmToolCallingPolicy } from '../dsl/llm-strategy.js';
 import { Step } from '../engine/pipeline/pipeline.js';
 import { PatchCtx, PlanCtx } from '../engine/pipeline/types.js';
 
-import { checkPatchApplies } from './patch/apply-check.js';
-import { extractAndValidatePatch, type ValidatedPatchDiff } from './patch/diff-normalization.js';
-import { salvagePatchDiff } from './patch/diff-salvage.js';
-import { buildPatchPromptInput } from './patch/prompt-input.js';
-import { buildPhaseToolRuntimeContext } from './tool-runtime.js';
-
-const recordPatchSalvageAttempt = (args: { reason: string; badContentLength: number }) => {
-  recordAuditEvent(
-    'patch.salvage.attempt',
+async function checkPatchApplies(args: { repoRoot: string; diff: string }) {
+  const git = new GitAdapter(args.repoRoot);
+  return git.execMeta(
+    ['apply', '--check', '--recount', '--ignore-whitespace', '--whitespace=nowarn', '-'],
     {
-      reason: args.reason,
-      badContentLength: args.badContentLength,
-      toolsDisabled: true,
-    },
-    { source: 'patch', severity: 'low', scope: 'session', phase: 'PATCH' },
-  );
-};
-
-const recordPatchSalvageResult = (args: { ok: boolean; contentLength: number; error?: string }) => {
-  recordAuditEvent(
-    'patch.salvage.result',
-    {
-      ok: args.ok,
-      contentLength: args.contentLength,
-      error: args.error,
-    },
-    {
-      source: 'patch',
-      severity: args.ok ? 'low' : 'medium',
-      scope: 'session',
-      phase: 'PATCH',
+      input: Buffer.from(args.diff, 'utf8'),
+      timeoutMs: 15000,
+      limits: { maxStdoutBytes: 0, maxStderrChars: 4000 },
     },
   );
-};
+}
 
 export const generatePatch: Step<PlanCtx, PatchCtx> = async (ctx) => {
   const toolstack = ctx.toolstack;
@@ -48,7 +33,7 @@ export const generatePatch: Step<PlanCtx, PatchCtx> = async (ctx) => {
 
   // Backwards-compatible fallback for non-tool-capable LLMs.
   if (!toolstack || !toolPolicy.enabled) {
-    const legacyPatch = await ctx.options.llm.createPatch(
+    const patch = await ctx.options.llm.createPatch(
       ctx.context,
       ctx.plan,
       ctx.lastError,
@@ -59,61 +44,51 @@ export const generatePatch: Step<PlanCtx, PatchCtx> = async (ctx) => {
       policy: ctx.options.llmOutput,
       kind: 'patch',
       step: 'PATCH',
-      content: legacyPatch,
+      content: patch,
     });
-    const validated = extractAndValidatePatch({
-      rawContent: legacyPatch,
-      plannedFiles: ctx.plan.files,
-    });
+    const normalizedPatch = normalizeDiff(patch);
+    let diffMeta: DiffMeta;
+    try {
+      diffMeta = validateDiff(normalizedPatch);
+    } catch (e) {
+      if (e instanceof DiffValidationError) {
+        if (e.message === text.diff.notUnifiedFormat) throw wrapPatchNotUnifiedDiff();
+        if (e.message.startsWith(text.llm.patchEmpty())) throw wrapPatchEmpty();
+        throw wrapPatchInvalid(e.message);
+      }
+      throw e;
+    }
 
     ctx.emit({
       type: 'log',
       level: 'debug',
-      message: `Patch generated: ${validated.diffMeta.changedFiles.length} files changed`,
+      message: `Patch generated: ${diffMeta.changedFiles.length} files changed`,
       timestamp: new Date(),
     });
 
     return {
       ...ctx,
-      diff: validated.normalizedPatch,
-      diffMeta: validated.diffMeta,
-      changedFiles: validated.diffMeta.changedFiles,
+      diff: normalizedPatch,
+      diffMeta,
+      changedFiles: diffMeta.changedFiles,
     };
   }
 
-  const promptVisibleTools = toolstack
-    ? toolstack.registry.listAll().filter(
-        (spec) =>
-          toolstack.policy.decide(Phase.PATCH, spec, {
-            worktreeRoot:
-              ctx.workspace.strategy === 'worktree' ? ctx.workspace.workPath : undefined,
-          }).allowed,
-      )
-    : undefined;
+  const planStr = JSON.stringify(ctx.plan, null, 2);
+  const prompt = await getPatchPrompt(
+    planStr,
+    formatContextForPrompt(ctx.context),
+    LIMITS.maxFilesChanged,
+    LIMITS.maxDiffLines,
+    ctx.lastError,
+  );
 
-  const patchPromptInput = await buildPatchPromptInput({
-    context: ctx.context,
-    contextResult: ctx.contextResult,
-    plan: ctx.plan,
-    planRuntime: ctx.planRuntime,
-    lastError: ctx.lastError,
-    promptVisibleTools,
-    phase: Phase.PATCH,
-    cacheSharing: ctx.cacheSharing,
-    onCacheMismatch: (mismatch) => {
-      recordAuditEvent('request.cache_sharing_hash_mismatch', mismatch, {
-        source: 'llm',
-        severity: 'low',
-        scope: 'session',
-        phase: Phase.PATCH,
-      });
-    },
+  const systemPrompt = await getPatchSystemPrompt(toolstack?.registry, { plan: ctx.planRuntime });
+  const baseMessages = composeChatMessages({
+    system: systemPrompt,
+    user: prompt,
     conversationContext: ctx.options.conversationContext,
-    artifactHints: ctx.artifactHints,
-    replacementState: ctx.replacementState,
-    toolCallingAudit: ctx.toolCallingAudit,
   });
-  const { cacheSurface, envelope, baseMessages } = patchPromptInput;
   const supportsStreaming = typeof ctx.options.llm.chatStream === 'function';
   const llmOutput = {
     policy: ctx.options.llmOutput,
@@ -124,13 +99,25 @@ export const generatePatch: Step<PlanCtx, PatchCtx> = async (ctx) => {
   const response = await (supportsStreaming ? chatWithToolsStreaming : chatWithTools)(
     baseMessages,
     {
-      providerHints: envelope.providerHints,
       signal: ctx.options.signal,
     },
     {
       phase: Phase.PATCH,
       llm: ctx.options.llm,
-      runtime: buildPhaseToolRuntimeContext(ctx, Phase.PATCH, cacheSurface),
+      runtime: {
+        repoRoot: ctx.workspace.workPath,
+        persistenceRoot: ctx.workspace.baseRepoPath || ctx.workspace.workPath,
+        worktreeRoot: ctx.workspace.strategy === 'worktree' ? ctx.workspace.workPath : undefined,
+        attemptId: ctx.attempt ?? 1,
+        dryRun: Boolean(ctx.options?.dryRun),
+        llm: ctx.options.llm,
+        model:
+          ctx.options.llm.getModelId?.() || process.env.SALMONLOOP_MODEL || process.env.S8P_MODEL,
+        userInputProvider: ctx.options.userInputProvider,
+        agentKind: ctx.options.agentKind ?? 'primary',
+        languagePlugins: ctx.options.languagePlugins,
+        subAgentController: ctx.options.subAgentController,
+      },
       toolstack,
       eventPayload: ctx.options.eventPayload,
       toolCallingAudit: {
@@ -147,58 +134,119 @@ export const generatePatch: Step<PlanCtx, PatchCtx> = async (ctx) => {
   );
 
   let rawContent = response.content || '';
-  let parsedPatch: ValidatedPatchDiff;
-  try {
-    parsedPatch = extractAndValidatePatch({
-      rawContent,
-      plannedFiles: ctx.plan.files,
-    });
-  } catch (e) {
-    const salvaged = await salvagePatchDiff({
-      initialError: e,
-      rawContent,
-      plannedFiles: ctx.plan.files,
-      repair: ({ badContent }) => repairToUnifiedDiff({ badContent }),
-      onAttempt: recordPatchSalvageAttempt,
-      onResult: recordPatchSalvageResult,
-    });
+  let patch = '';
+  let normalizedPatch = '';
+  let diffMeta: DiffMeta;
 
-    if (!salvaged) {
+  const validateWithLlmErrors = (diffText: string): DiffMeta => {
+    const normalized = normalizeDiff(diffText);
+    try {
+      return validateDiff(normalized);
+    } catch (e) {
+      if (e instanceof DiffValidationError) {
+        if (e.message === text.diff.notUnifiedFormat) throw wrapPatchNotUnifiedDiff();
+        if (e.message.startsWith(text.llm.patchEmpty())) throw wrapPatchEmpty();
+        throw wrapPatchInvalid(e.message);
+      }
       throw e;
     }
+  };
 
-    rawContent = salvaged.rawContent;
-    parsedPatch = salvaged;
-    emitLlmOutput({
-      emit: ctx.emit,
-      policy: ctx.options.llmOutput,
-      kind: 'patch',
-      step: 'PATCH',
-      content: salvaged.patch,
-    });
+  try {
+    patch = extractUnifiedDiffFromLLMContent(rawContent);
+    normalizedPatch = normalizeDiff(patch);
+    diffMeta = validateWithLlmErrors(patch);
+  } catch (e) {
+    const asLlmError = e;
+
+    if (
+      asLlmError instanceof Error &&
+      'llmCode' in (asLlmError as any) &&
+      (asLlmError as any).llmCode &&
+      ['LLM_PATCH_EMPTY', 'LLM_PATCH_NOT_UNIFIED_DIFF'].includes((asLlmError as any).llmCode)
+    ) {
+      let repaired: { content?: string };
+      try {
+        repaired = await repairToUnifiedDiff({
+          llm: ctx.options.llm,
+          baseMessages,
+          chatOptions: { signal: ctx.options.signal },
+          badContent: rawContent,
+          reason: asLlmError.message,
+        });
+      } catch {
+        throw asLlmError;
+      }
+
+      rawContent = repaired.content || '';
+
+      patch = extractUnifiedDiffFromLLMContent(rawContent);
+      normalizedPatch = normalizeDiff(patch);
+      diffMeta = validateWithLlmErrors(patch);
+
+      emitLlmOutput({
+        emit: ctx.emit,
+        policy: ctx.options.llmOutput,
+        kind: 'patch',
+        step: 'PATCH',
+        content: patch,
+      });
+    } else {
+      throw asLlmError;
+    }
   }
 
   // Deterministic contract: the patch should be applicable (git apply --check) before moving on.
   // When this fails, attempt a single LLM repair pass using the git error message as feedback.
   const applyCheck = await checkPatchApplies({
     repoRoot: ctx.workspace.workPath,
-    diff: parsedPatch.normalizedPatch,
+    diff: normalizedPatch,
   });
   if (!applyCheck.ok) {
-    // Preserve the original patch and let VALIDATE provide the canonical failure if needed.
+    const details = (applyCheck.stderr || '').trim();
+    try {
+      const repaired = await repairToUnifiedDiff({
+        llm: ctx.options.llm,
+        baseMessages,
+        chatOptions: { signal: ctx.options.signal },
+        badContent: patch,
+        reason: `Patch does not apply cleanly: ${details.slice(0, 1200)}`,
+      });
+
+      rawContent = repaired.content || '';
+      patch = extractUnifiedDiffFromLLMContent(rawContent);
+      normalizedPatch = normalizeDiff(patch);
+      diffMeta = validateWithLlmErrors(patch);
+
+      const applyCheck2 = await checkPatchApplies({
+        repoRoot: ctx.workspace.workPath,
+        diff: normalizedPatch,
+      });
+      if (applyCheck2.ok) {
+        emitLlmOutput({
+          emit: ctx.emit,
+          policy: ctx.options.llmOutput,
+          kind: 'patch',
+          step: 'PATCH',
+          content: patch,
+        });
+      }
+    } catch {
+      // Preserve the original patch and let VALIDATE provide the canonical failure if needed.
+    }
   }
 
   ctx.emit({
     type: 'log',
     level: 'debug',
-    message: `Patch generated: ${parsedPatch.diffMeta.changedFiles.length} files changed`,
+    message: `Patch generated: ${diffMeta.changedFiles.length} files changed`,
     timestamp: new Date(),
   });
 
   return {
     ...ctx,
-    diff: parsedPatch.normalizedPatch,
-    diffMeta: parsedPatch.diffMeta,
-    changedFiles: parsedPatch.diffMeta.changedFiles,
+    diff: normalizedPatch,
+    diffMeta,
+    changedFiles: diffMeta.changedFiles,
   };
 };

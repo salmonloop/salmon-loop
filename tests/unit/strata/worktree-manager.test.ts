@@ -3,13 +3,11 @@ import { beforeEach, describe, expect, it, mock } from 'bun:test';
 import { setLogger } from '../../../src/core/observability/logger.js';
 import { WorkspaceManager } from '../../../src/core/strata/layers/worktree.js';
 
-const { queryMock, rmMock, accessMock, realpathMock, readdirMock, existsSyncMock } = (() => ({
+const { queryMock, rmMock, accessMock, realpathMock } = (() => ({
   queryMock: mock(),
   rmMock: mock(),
   accessMock: mock(),
   realpathMock: mock(),
-  readdirMock: mock(),
-  existsSyncMock: mock(),
 }))();
 
 mock.module('../../../src/core/adapters/git/git-adapter.js', () => ({
@@ -22,8 +20,6 @@ mock.module('../../../src/core/adapters/fs/node-fs.js', () => ({
   rm: rmMock,
   access: accessMock,
   realpath: realpathMock,
-  readdir: readdirMock,
-  existsSync: existsSyncMock,
 }));
 
 mock.module('os', () => ({
@@ -37,13 +33,9 @@ describe('WorkspaceManager teardown safety behavior', () => {
     rmMock.mockReset();
     accessMock.mockReset();
     realpathMock.mockReset();
-    readdirMock.mockReset();
-    existsSyncMock.mockReset();
 
     rmMock.mockResolvedValue(undefined);
     accessMock.mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }));
-    readdirMock.mockResolvedValue([]);
-    existsSyncMock.mockReturnValue(false);
 
     setLogger({
       error: mock(),
@@ -141,108 +133,6 @@ describe('WorkspaceManager teardown safety behavior', () => {
     expect(rmMock).toHaveBeenCalled();
   });
 
-  it('removes projected dependency roots before invoking git worktree remove', async () => {
-    queryMock
-      .mockResolvedValueOnce('worktree /tmp/s8p-wt/repo/test-worktree\n') // worktree list
-      .mockResolvedValueOnce(''); // worktree remove
-
-    readdirMock.mockResolvedValueOnce([{ name: '.git' }, { name: 'node_modules' }] as any);
-    existsSyncMock.mockImplementation((p: string) => {
-      const normalized = String(p).replace(/\\/g, '/');
-      return normalized === '/repo/package.json' || normalized === '/repo/node_modules';
-    });
-
-    realpathMock.mockImplementation(async (p: string) => {
-      if (p === '/tmp/s8p-wt/repo/test-worktree') return '/tmp/s8p-wt/repo/test-worktree';
-      if (p === '/tmp/s8p-wt/repo/test-worktree/node_modules') return '/repo/node_modules';
-      return p;
-    });
-
-    await WorkspaceManager.teardown({
-      strategy: 'worktree',
-      baseRepoPath: '/repo',
-      workPath: '/tmp/s8p-wt/repo/test-worktree',
-    });
-
-    expect(
-      rmMock.mock.calls.some(
-        ([targetPath, options]) =>
-          String(targetPath).replace(/\\/g, '/') ===
-            '/tmp/s8p-wt/repo/test-worktree/node_modules' &&
-          JSON.stringify(options) ===
-            JSON.stringify({
-              recursive: true,
-              force: true,
-              maxRetries: 3,
-              retryDelay: 100,
-            }),
-      ),
-    ).toBe(true);
-    expect(queryMock).toHaveBeenCalledWith([
-      'worktree',
-      'remove',
-      '--force',
-      '/tmp/s8p-wt/repo/test-worktree',
-    ]);
-  });
-
-  it('falls back to fs cleanup when projected-entry scan cannot resolve the worktree path', async () => {
-    queryMock.mockResolvedValueOnce('worktree /tmp/s8p-wt/repo/test-worktree\n');
-
-    realpathMock.mockImplementation(async (p: string) => {
-      if (p === '/tmp/s8p-wt/repo/test-worktree') {
-        throw Object.assign(new Error('EPERM'), { code: 'EPERM' });
-      }
-      return p;
-    });
-
-    await WorkspaceManager.teardown({
-      strategy: 'worktree',
-      baseRepoPath: '/repo',
-      workPath: '/tmp/s8p-wt/repo/test-worktree',
-    });
-
-    expect(
-      queryMock.mock.calls.some(
-        (call) =>
-          JSON.stringify(call[0]) ===
-          JSON.stringify(['worktree', 'remove', '--force', '/tmp/s8p-wt/repo/test-worktree']),
-      ),
-    ).toBe(false);
-    expect(rmMock).toHaveBeenCalledWith('/tmp/s8p-wt/repo/test-worktree', {
-      recursive: true,
-      force: true,
-      maxRetries: 3,
-      retryDelay: 100,
-    });
-  });
-
-  it('falls back to fs cleanup when projected-entry scan cannot read the worktree directory', async () => {
-    queryMock.mockResolvedValueOnce('worktree /tmp/s8p-wt/repo/test-worktree\n');
-    realpathMock.mockResolvedValue('/tmp/s8p-wt/repo/test-worktree');
-    readdirMock.mockRejectedValueOnce(Object.assign(new Error('EPERM'), { code: 'EPERM' }));
-
-    await WorkspaceManager.teardown({
-      strategy: 'worktree',
-      baseRepoPath: '/repo',
-      workPath: '/tmp/s8p-wt/repo/test-worktree',
-    });
-
-    expect(
-      queryMock.mock.calls.some(
-        (call) =>
-          JSON.stringify(call[0]) ===
-          JSON.stringify(['worktree', 'remove', '--force', '/tmp/s8p-wt/repo/test-worktree']),
-      ),
-    ).toBe(false);
-    expect(rmMock).toHaveBeenCalledWith('/tmp/s8p-wt/repo/test-worktree', {
-      recursive: true,
-      force: true,
-      maxRetries: 3,
-      retryDelay: 100,
-    });
-  });
-
   it('removes worktree when list path differs but realpath matches', async () => {
     queryMock
       .mockResolvedValueOnce('worktree /private/tmp/s8p-wt/repo/test-worktree\n') // worktree list
@@ -308,30 +198,6 @@ describe('WorkspaceManager teardown safety behavior', () => {
     expect(rmMock).toHaveBeenCalled();
   });
 
-  it('accepts darwin /private temp aliases as managed worktree roots', async () => {
-    const originalPlatform = process.platform;
-    queryMock.mockResolvedValueOnce('');
-
-    try {
-      Object.defineProperty(process, 'platform', { value: 'darwin' });
-
-      await WorkspaceManager.teardown({
-        strategy: 'worktree',
-        baseRepoPath: '/repo',
-        workPath: '/private/tmp/s8p-wt/repo/test-worktree',
-      });
-    } finally {
-      Object.defineProperty(process, 'platform', { value: originalPlatform });
-    }
-
-    expect(rmMock).toHaveBeenCalledWith('/private/tmp/s8p-wt/repo/test-worktree', {
-      recursive: true,
-      force: true,
-      maxRetries: 3,
-      retryDelay: 100,
-    });
-  });
-
   it('refuses fallback deletion outside temp directory', async () => {
     queryMock.mockResolvedValueOnce('');
 
@@ -342,24 +208,6 @@ describe('WorkspaceManager teardown safety behavior', () => {
         workPath: '/unsafe/worktree',
       }),
     ).rejects.toThrow('Worktree path not in managed roots, refusing to delete');
-  });
-
-  it('refuses unmanaged worktree paths before pruning dependency roots', async () => {
-    queryMock.mockResolvedValueOnce('');
-    existsSyncMock.mockImplementation((p: string) => {
-      const normalized = String(p).replace(/\\/g, '/');
-      return normalized === '/repo/package.json' || normalized === '/repo/node_modules';
-    });
-
-    await expect(
-      WorkspaceManager.teardown({
-        strategy: 'worktree',
-        baseRepoPath: '/repo',
-        workPath: '/unsafe/worktree',
-      }),
-    ).rejects.toThrow('Worktree path not in managed roots, refusing to delete');
-
-    expect(rmMock).not.toHaveBeenCalled();
   });
 
   it('refuses fallback deletion for temp-prefix path outside temp directory', async () => {

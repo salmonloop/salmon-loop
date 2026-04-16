@@ -71,7 +71,7 @@ describe('non-interactive authorization handler', () => {
       extensions: {
         mcpServers: [],
         toolPlugins: [],
-        skillDiscovery: { paths: [], scope: 'repo' },
+        skillDiscovery: { useDefaults: true, paths: [], scope: 'repo' },
       },
     });
     expect(decision?.outcome).toBe('deny');

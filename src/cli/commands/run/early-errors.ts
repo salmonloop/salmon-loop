@@ -100,7 +100,6 @@ export function handleEarlyRunCommandErrors(params: {
         instruction: params.instruction,
         message: text.cli.outputProfileRequiresStreamJson,
         exitCode: 1,
-        errorCode: 'USAGE_ERROR',
       });
     }
     return { ok: false, exitCode: 1 };

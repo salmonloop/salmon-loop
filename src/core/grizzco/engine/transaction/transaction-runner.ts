@@ -1,9 +1,7 @@
-import type { ToolCallingAuditEntry } from '../../../llm/audit.js';
 import { recordAuditEvent } from '../../../observability/audit-trail.js';
 import { mapErrorForAudit } from '../../../observability/error-mapping.js';
 import { ReflectionEngine } from '../../../reflection/engine.js';
 import type { ReflectionInput } from '../../../reflection/types.js';
-import type { ToolResultReplacementState } from '../../../session/replacement-state.js';
 import type { FileStateResolver } from '../../../strata/layers/file-state-resolver.js';
 import type { WorkspaceSynchronizer } from '../../../strata/runtime/synchronizer.js';
 import type { ArtifactHandle } from '../../../sub-agent/artifacts/types.js';
@@ -39,140 +37,6 @@ export class FlowTransactionCancelledError extends Error {
   }
 }
 
-function isArtifactHandle(value: unknown): value is ArtifactHandle {
-  return (
-    Boolean(value) &&
-    typeof value === 'object' &&
-    typeof (value as { handle?: unknown }).handle === 'string'
-  );
-}
-
-function mergeArtifactHandles(
-  existing: ArtifactHandle[],
-  incoming: ArtifactHandle[],
-  limit = 4,
-): ArtifactHandle[] {
-  const merged = [...existing];
-  const seen = new Set(existing.map((artifact) => artifact.handle));
-
-  for (const artifact of incoming) {
-    if (seen.has(artifact.handle)) continue;
-    merged.push(artifact);
-    seen.add(artifact.handle);
-  }
-
-  if (merged.length <= limit) return merged;
-  return merged.slice(merged.length - limit);
-}
-
-function extractSubAgentArtifacts(entries: ToolCallingAuditEntry[] | undefined): {
-  patchArtifacts: ArtifactHandle[];
-  auditArtifacts: ArtifactHandle[];
-} {
-  if (!Array.isArray(entries) || entries.length === 0) {
-    return { patchArtifacts: [], auditArtifacts: [] };
-  }
-
-  const patchArtifacts: ArtifactHandle[] = [];
-  const auditArtifacts: ArtifactHandle[] = [];
-
-  for (const entry of entries) {
-    if (entry?.toolName !== 'agent_dispatch' || entry.toolResultStatus !== 'ok') continue;
-    if (isArtifactHandle(entry.toolResultPatchArtifact)) {
-      patchArtifacts.push(entry.toolResultPatchArtifact);
-    }
-    if (isArtifactHandle(entry.toolResultAuditArtifact)) {
-      auditArtifacts.push(entry.toolResultAuditArtifact);
-    }
-  }
-
-  return { patchArtifacts, auditArtifacts };
-}
-
-function extractRecentReadArtifacts(entries: ToolCallingAuditEntry[] | undefined): Array<{
-  path: string;
-  artifact: ArtifactHandle;
-}> {
-  if (!Array.isArray(entries) || entries.length === 0) {
-    return [];
-  }
-
-  const recentReads: Array<{ path: string; artifact: ArtifactHandle }> = [];
-
-  for (const entry of entries) {
-    if (entry.toolIntent !== 'READ' || entry.toolResultStatus !== 'ok') continue;
-    if (typeof entry.toolResultReadArtifactPath !== 'string') continue;
-    if (!isArtifactHandle(entry.toolResultReadArtifact)) continue;
-    recentReads.push({
-      path: entry.toolResultReadArtifactPath,
-      artifact: entry.toolResultReadArtifact,
-    });
-  }
-
-  return recentReads;
-}
-
-function mergeReadArtifacts(
-  existing: Array<{ path: string; artifact: ArtifactHandle }>,
-  incoming: Array<{ path: string; artifact: ArtifactHandle }>,
-  limit = 6,
-): Array<{ path: string; artifact: ArtifactHandle }> {
-  const merged: Array<{ path: string; artifact: ArtifactHandle }> = [];
-  const seen = new Set<string>();
-
-  for (const item of [...existing, ...incoming]) {
-    const key = `${item.path}::${item.artifact.handle}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    merged.push(item);
-  }
-
-  if (merged.length <= limit) return merged;
-  return merged.slice(merged.length - limit);
-}
-
-function extractToolResultPreviewArtifacts(entries: ToolCallingAuditEntry[] | undefined): Array<{
-  label: string;
-  artifact: ArtifactHandle;
-}> {
-  if (!Array.isArray(entries) || entries.length === 0) {
-    return [];
-  }
-
-  const previews: Array<{ label: string; artifact: ArtifactHandle }> = [];
-
-  for (const entry of entries) {
-    if (entry.toolResultStatus !== 'ok') continue;
-    if (typeof entry.toolResultPreviewLabel !== 'string') continue;
-    if (!isArtifactHandle(entry.toolResultPreviewArtifact)) continue;
-    previews.push({
-      label: entry.toolResultPreviewLabel,
-      artifact: entry.toolResultPreviewArtifact,
-    });
-  }
-
-  return previews;
-}
-
-function mergePreviewArtifacts(
-  existing: Array<{ label: string; artifact: ArtifactHandle }>,
-  incoming: Array<{ label: string; artifact: ArtifactHandle }>,
-  limit = 6,
-): Array<{ label: string; artifact: ArtifactHandle }> {
-  const merged: Array<{ label: string; artifact: ArtifactHandle }> = [];
-  const seen = new Set<string>();
-
-  for (const item of [...existing, ...incoming]) {
-    const key = `${item.label}::${item.artifact.handle}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    merged.push(item);
-  }
-
-  if (merged.length <= limit) return merged;
-  return merged.slice(merged.length - limit);
-}
-
 interface FlowTransactionEnvironment {
   workspace: ExecutionWorkspace;
   shadowInitialRef: string;
@@ -202,26 +66,8 @@ export class FlowTransactionRunner {
   private authorizationSummary: AuthorizationSourceSummary | null = null;
   private lastContext: TerminalCtx | undefined;
   private lastVerifyArtifact: ArtifactHandle | undefined;
-  private lastSubAgentPatchArtifacts: ArtifactHandle[];
-  private lastSubAgentAuditArtifacts: ArtifactHandle[];
-  private lastRecentReadArtifacts: Array<{ path: string; artifact: ArtifactHandle }>;
-  private lastToolResultPreviewArtifacts: Array<{ label: string; artifact: ArtifactHandle }>;
-  private lastReplacementState: ToolResultReplacementState | undefined;
 
-  constructor(private readonly params: FlowTransactionRunnerParams) {
-    this.lastVerifyArtifact = params.options.artifactHints?.verifyArtifact;
-    this.lastSubAgentPatchArtifacts = [
-      ...(params.options.artifactHints?.subAgentPatchArtifacts ?? []),
-    ];
-    this.lastSubAgentAuditArtifacts = [
-      ...(params.options.artifactHints?.subAgentAuditArtifacts ?? []),
-    ];
-    this.lastRecentReadArtifacts = [...(params.options.artifactHints?.recentReadArtifacts ?? [])];
-    this.lastToolResultPreviewArtifacts = [
-      ...(params.options.artifactHints?.toolResultPreviewArtifacts ?? []),
-    ];
-    this.lastReplacementState = params.options.replacementState;
-  }
+  constructor(private readonly params: FlowTransactionRunnerParams) {}
 
   private isShrinkCtx(ctx: TerminalCtx | undefined): ctx is ShrinkCtx {
     return Boolean(ctx && 'verifyResult' in ctx);
@@ -230,7 +76,6 @@ export class FlowTransactionRunner {
   public async execute(): Promise<FlowTransactionReport> {
     let retries = 0;
     let lastReport: FlowReport | undefined;
-    let lastAttemptFailure: ReturnType<typeof resolveAttemptFailure> | undefined;
 
     while (true) {
       if (this.params.options.signal?.aborted) {
@@ -254,24 +99,6 @@ export class FlowTransactionRunner {
         shadowInitialRef: this.params.env.shadowInitialRef,
         attempt,
         initialContext: this.currentContext,
-        artifactHints: {
-          verifyArtifact: this.lastVerifyArtifact,
-          subAgentPatchArtifacts:
-            this.lastSubAgentPatchArtifacts.length > 0
-              ? this.lastSubAgentPatchArtifacts
-              : undefined,
-          subAgentAuditArtifacts:
-            this.lastSubAgentAuditArtifacts.length > 0
-              ? this.lastSubAgentAuditArtifacts
-              : undefined,
-          recentReadArtifacts:
-            this.lastRecentReadArtifacts.length > 0 ? this.lastRecentReadArtifacts : undefined,
-          toolResultPreviewArtifacts:
-            this.lastToolResultPreviewArtifacts.length > 0
-              ? this.lastToolResultPreviewArtifacts
-              : undefined,
-        },
-        replacementState: this.lastReplacementState,
         lastError: this.currentLastError,
         applyBackRuntime: {
           activeRepoPath: this.params.env.activeRepoPath,
@@ -291,31 +118,12 @@ export class FlowTransactionRunner {
       if (shrinkCtx?.verifyArtifact) {
         this.lastVerifyArtifact = shrinkCtx.verifyArtifact;
       }
-      const subAgentArtifacts = extractSubAgentArtifacts(terminalCtx?.toolCallingAudit);
-      this.lastSubAgentPatchArtifacts = mergeArtifactHandles(
-        this.lastSubAgentPatchArtifacts,
-        subAgentArtifacts.patchArtifacts,
-      );
-      this.lastSubAgentAuditArtifacts = mergeArtifactHandles(
-        this.lastSubAgentAuditArtifacts,
-        subAgentArtifacts.auditArtifacts,
-      );
-      this.lastRecentReadArtifacts = mergeReadArtifacts(
-        this.lastRecentReadArtifacts,
-        extractRecentReadArtifacts(terminalCtx?.toolCallingAudit),
-      );
-      this.lastToolResultPreviewArtifacts = mergePreviewArtifacts(
-        this.lastToolResultPreviewArtifacts,
-        extractToolResultPreviewArtifacts(terminalCtx?.toolCallingAudit),
-      );
-      this.lastReplacementState = terminalCtx?.replacementState ?? this.lastReplacementState;
 
       const attemptFailure = resolveAttemptFailure({
         flowReport: result,
         context: shrinkCtx,
         flowMode: this.params.flowMode,
       });
-      lastAttemptFailure = attemptFailure;
 
       const entry: LoopIteration = {
         attempt,
@@ -370,10 +178,6 @@ export class FlowTransactionRunner {
           lastErrorCode: this.extractErrorCode(result.error),
           lastContext: shrinkCtx,
           lastVerifyArtifact: this.lastVerifyArtifact,
-          lastSubAgentPatchArtifacts: this.lastSubAgentPatchArtifacts,
-          lastSubAgentAuditArtifacts: this.lastSubAgentAuditArtifacts,
-          lastRecentReadArtifacts: this.lastRecentReadArtifacts,
-          lastToolResultPreviewArtifacts: this.lastToolResultPreviewArtifacts,
         });
       }
 
@@ -437,10 +241,6 @@ export class FlowTransactionRunner {
           lastErrorCode: attemptFailure.errorCode ?? this.extractErrorCode(result.error),
           lastContext: shrinkCtx,
           lastVerifyArtifact: this.lastVerifyArtifact,
-          lastSubAgentPatchArtifacts: this.lastSubAgentPatchArtifacts,
-          lastSubAgentAuditArtifacts: this.lastSubAgentAuditArtifacts,
-          lastRecentReadArtifacts: this.lastRecentReadArtifacts,
-          lastToolResultPreviewArtifacts: this.lastToolResultPreviewArtifacts,
           failure: attemptFailure,
         });
       }
@@ -466,14 +266,9 @@ export class FlowTransactionRunner {
       flowReport: lastReport,
       history: this.historyEntries,
       authorizationSummary: this.authorizationSummary,
-      failure: lastAttemptFailure,
       lastErrorCode: this.extractErrorCode(lastReport.error),
       lastContext: this.lastContext,
       lastVerifyArtifact: this.lastVerifyArtifact,
-      lastSubAgentPatchArtifacts: this.lastSubAgentPatchArtifacts,
-      lastSubAgentAuditArtifacts: this.lastSubAgentAuditArtifacts,
-      lastRecentReadArtifacts: this.lastRecentReadArtifacts,
-      lastToolResultPreviewArtifacts: this.lastToolResultPreviewArtifacts,
     });
   }
 

@@ -13,22 +13,13 @@ export { logIgnoredError } from '../observability/ignored-error.js';
 export { getLogger } from '../observability/logger.js';
 export type { RunOutcomeReporter } from '../observability/run-outcome-reporter.js';
 export { runSalmonLoop } from '../runtime/loop.js';
-export { buildSessionArtifactStateFromLoopResult } from '../session/artifact-state.js';
 export { ChatSessionManager } from '../session/manager.js';
 export type { PluginRegistry } from '../plugin/registry.js';
-export { getDefaultSessionContextBudgetTokens } from '../session/session-context-builder.js';
 export {
-  buildEffectiveConversationContext,
-  refreshSessionSummary,
-} from '../session/summary-sync.js';
-export {
-  createInitialTracking,
-  onNormalTurnComplete,
-} from '../session/compaction/tracking.js';
-export {
-  runCompactionPipeline,
-  reactiveCompact,
-} from '../session/compaction/index.js';
+  buildSessionConversationContext,
+  getDefaultSessionContextBudgetTokens,
+} from '../session/session-context-builder.js';
+export { refreshSessionSummary } from '../session/summary-sync.js';
 export { TokenTracker } from '../session/token-tracker.js';
 export type { VerboseLevel } from '../types/execution.js';
 export type { LLM, LlmOutputPolicy } from '../types/llm.js';

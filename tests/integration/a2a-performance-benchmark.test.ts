@@ -29,24 +29,6 @@ async function deferExecution(): Promise<void> {
   await new Promise<void>((resolve) => queueMicrotask(resolve));
 }
 
-async function waitForServerReady(url: string): Promise<void> {
-  const deadline = Date.now() + 1000;
-  let lastError: unknown = null;
-
-  while (Date.now() < deadline) {
-    try {
-      const response = await fetch(url, { method: 'GET' });
-      void response.body?.cancel?.();
-      return;
-    } catch (error) {
-      lastError = error;
-      await new Promise((resolve) => setTimeout(resolve, 25));
-    }
-  }
-
-  throw lastError instanceof Error ? lastError : new Error('Server did not become reachable');
-}
-
 async function startTestServer(deps: { executeTask: ExecuteTaskFn }) {
   const taskBus = createTaskEventBus();
   const taskStore = new InMemoryTaskStore();
@@ -79,13 +61,14 @@ async function startTestServer(deps: { executeTask: ExecuteTaskFn }) {
   });
   const address = server.address() as AddressInfo;
   const url = `http://${address.address}:${address.port}`;
-  await waitForServerReady(url);
 
   return {
     url,
     taskBus,
     close: () =>
       new Promise<void>((resolve, reject) => {
+        // Close all connections first
+        server.closeAllConnections?.();
         server.close((err?: Error) => {
           if (err && err.message !== 'Server is not running.') {
             reject(err);
@@ -316,9 +299,7 @@ describe('A2A Performance Benchmark Tests', () => {
       });
 
       const transport = new JsonRpcTransport({ endpoint: `${server.url}/a2a/jsonrpc` });
-      // Keep the load high enough to exercise degradation behavior, but bounded enough
-      // to stay stable when this file runs alongside other integration workers.
-      const heavyLoad = 100;
+      const heavyLoad = 200; // Heavy concurrent load
       const start = performance.now();
 
       // Send heavy concurrent load

@@ -1,5 +1,4 @@
 import {
-  buildSessionArtifactStateFromLoopResult,
   refreshSessionSummary,
   type ChatSessionManager,
   type LLM,
@@ -35,18 +34,6 @@ export async function persistRunSession(params: {
         content: params.buildAssistantMessage(params.result),
         timestamp: Date.now(),
         iterationId,
-      });
-    }
-
-    params.sessionManager.mergeArtifactState(
-      buildSessionArtifactStateFromLoopResult(params.result),
-    );
-    for (const preview of params.result.artifactHints?.toolResultPreviewArtifacts ?? []) {
-      params.sessionManager.freezeReplacementDecision({
-        toolResultId: `${preview.label}::${preview.artifact.handle}`,
-        decision: 'replaced',
-        preview: preview.label,
-        sourceArtifactHandle: preview.artifact.handle,
       });
     }
 

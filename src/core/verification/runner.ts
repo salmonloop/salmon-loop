@@ -71,10 +71,7 @@ export function classifyError(output: string): ErrorType {
   if (
     lowerOutput.includes('eslint') ||
     lowerOutput.includes('prettier') ||
-    lowerOutput.includes('prettier/prettier') ||
-    lowerOutput.includes('oxfmt') ||
-    lowerOutput.includes('format issues found') ||
-    lowerOutput.includes('script "format:check" exited with code')
+    lowerOutput.includes('prettier/prettier')
   ) {
     return ErrorType.LINT;
   }

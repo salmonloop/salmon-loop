@@ -1,9 +1,6 @@
 import { describe, expect, it, mock } from 'bun:test';
 
-import {
-  buildEffectiveConversationContext,
-  refreshSessionSummary,
-} from '../../../../src/core/session/summary-sync.js';
+import { refreshSessionSummary } from '../../../../src/core/session/summary-sync.js';
 import type { LLM } from '../../../../src/core/types/index.js';
 
 function createMessages(count: number) {
@@ -104,64 +101,5 @@ Session summary
 
     expect(chat).not.toHaveBeenCalled();
     expect(persistedState).toBeDefined();
-  });
-
-  it('builds canonical effective context from summary state and unsummarized messages', () => {
-    const sessionManager = {
-      getSummaryState: () => ({
-        summary: 'condensed summary',
-        summaryTokens: 8,
-        summarizedMessageIds: ['m-0', 'm-1'],
-        lastSummarizedAt: 100,
-        summaryVersion: 2,
-        contextHash: 'ctx-999',
-        structuredState: {
-          decisions: ['keep summary'],
-          constraints: [],
-          open_questions: [],
-          pending_tasks: [],
-          rejected_options: [],
-          assumptions: [],
-          risks: [],
-          owner: [],
-        },
-      }),
-      getMessagesWithIds: () => [
-        { id: 'm-0', role: 'user', content: 'old user', timestamp: 1 },
-        { id: 'm-1', role: 'assistant', content: 'old assistant', timestamp: 2 },
-        { id: 'm-2', role: 'user', content: 'recent user', timestamp: 3 },
-        { id: 'm-3', role: 'assistant', content: 'recent assistant', timestamp: 4 },
-      ],
-    };
-
-    const llm: LLM = {
-      chat: mock(async () => ({ role: 'assistant' as const, content: 'unused' })),
-      createPlan: async () => {
-        throw new Error('unused');
-      },
-      createPatch: async () => {
-        throw new Error('unused');
-      },
-    };
-
-    const context = buildEffectiveConversationContext({
-      llm,
-      sessionManager: sessionManager as any,
-      budgetTokens: 32,
-      countTokens: () => 1,
-    });
-
-    expect(context[0]).toMatchObject({
-      role: 'system',
-    });
-    expect(context[0]?.content).toContain('Conversation structured state');
-    expect(context[1]).toEqual({
-      role: 'system',
-      content: '[Previous conversation summary]\ncondensed summary',
-    });
-    expect(context.slice(2)).toEqual([
-      { role: 'user', content: 'recent user' },
-      { role: 'assistant', content: 'recent assistant' },
-    ]);
   });
 });

@@ -42,33 +42,14 @@ describe('PromptCachingManager', () => {
     });
 
     it('should prepare Claude messages with caching', () => {
-      const systemPrompt = 'You are a helpful assistant. '.repeat(200);
-      const context = 'File content here... '.repeat(200);
+      const systemPrompt = 'You are a helpful assistant.';
+      const context = 'File content here...';
 
       const result = manager.prepareClaudeMessages(systemPrompt, context);
 
       expect(result.system).toHaveLength(1);
       expect(result.messages).toHaveLength(1);
       expect(result.system[0].cache_control).toBeDefined();
-      expect(result.messages[0].cache_control).toBeDefined();
-    });
-
-    it('does not add Claude cache_control below the cache threshold', () => {
-      const systemPrompt = 'Short system prompt';
-      const context = 'Short context';
-
-      const result = manager.prepareClaudeMessages(systemPrompt, context);
-
-      expect(result.system).toHaveLength(1);
-      expect(result.messages).toHaveLength(1);
-      expect(result.system[0]).toEqual({
-        type: 'text',
-        text: systemPrompt,
-      });
-      expect(result.messages[0]).toEqual({
-        type: 'text',
-        text: context,
-      });
     });
   });
 
@@ -100,7 +81,6 @@ describe('PromptCachingManager', () => {
       const config = manager.prepareGeminiRequest('cache-id');
 
       expect(config.cachedContent).toBe('cache-id');
-      expect(config.ttlSeconds).toBe(DEFAULT_PROMPT_CACHING_CONFIG.defaultTTL);
     });
   });
 

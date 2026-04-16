@@ -99,8 +99,8 @@ export class PromptRegistry {
   /**
    * Get serializable tool definitions for template rendering
    */
-  private serializeToolsForTemplate(tools: ToolSpec[]) {
-    return tools.map((spec) => ({
+  private getToolsForTemplate() {
+    return this.tools.map((spec) => ({
       name: spec.name,
       source: spec.source,
       intent: spec.intent,
@@ -115,13 +115,6 @@ export class PromptRegistry {
       // Include usage examples if available
       examples: spec.examples,
     }));
-  }
-
-  /**
-   * Get serializable tool definitions for template rendering
-   */
-  private getToolsForTemplate(tools: ToolSpec[] = this.tools) {
-    return this.serializeToolsForTemplate(tools);
   }
 
   /**
@@ -185,20 +178,12 @@ export class PromptRegistry {
     return this.render('plan_system', { tools: this.getToolsForTemplate(), runtime });
   }
 
-  renderPlanSystemWithTools(tools: ToolSpec[], runtime?: unknown): string {
-    return this.render('plan_system', { tools: this.getToolsForTemplate(tools), runtime });
-  }
-
   renderPatchSystem(): string {
     return this.render('patch_system', { tools: this.getToolsForTemplate() });
   }
 
   renderPatchSystemWithRuntime(runtime?: unknown): string {
     return this.render('patch_system', { tools: this.getToolsForTemplate(), runtime });
-  }
-
-  renderPatchSystemWithTools(tools: ToolSpec[], runtime?: unknown): string {
-    return this.render('patch_system', { tools: this.getToolsForTemplate(tools), runtime });
   }
 
   renderExploreSystem(): string {

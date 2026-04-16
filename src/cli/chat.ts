@@ -1,6 +1,5 @@
 import {
-  buildSessionArtifactStateFromLoopResult,
-  buildEffectiveConversationContext,
+  buildSessionConversationContext,
   ChatSessionManager,
   DEFAULT_LLM_OUTPUT_POLICY,
   emitLlmOutput,
@@ -27,10 +26,6 @@ import {
   type UiLogView,
   type UserInputProvider,
   type VerboseLevel,
-  createInitialTracking,
-  onNormalTurnComplete,
-  runCompactionPipeline,
-  reactiveCompact,
 } from '../core/facades/cli-chat.js';
 import { createSubAgentController } from '../core/facades/cli-subagent.js';
 
@@ -119,7 +114,6 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
   let currentInstruction: string | null = null;
   let lastInterruptedInput: string | null = null;
   let currentLlmOutputPolicy = options.llmOutput ?? DEFAULT_LLM_OUTPUT_POLICY;
-  let currentCompactionTracking = createInitialTracking();
 
   const authorizationProvider = createUiAuthorizationProvider({
     emit: (event) => {
@@ -293,30 +287,12 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
       const timeoutAbort = new AbortController();
       const mergedSignal = mergeAbortSignals([latestGuiOptions?.signal, timeoutAbort.signal]);
 
-      // Run compaction pipeline (Level 1 Autocompact) before building context
-      const compactionResult = await runCompactionPipeline({
-        sessionManager,
-        llm: options.llm,
-        tracking: currentCompactionTracking,
-        signal: mergedSignal.signal,
-      });
-
-      if (compactionResult.performed) {
-        currentCompactionTracking = compactionResult.tracking;
-      }
-
       const modelIdForBudget =
         options.llm.getModelId?.() || process.env.SALMONLOOP_MODEL || process.env.S8P_MODEL;
-      const baseSessionBudgetTokens = getDefaultSessionContextBudgetTokens({
-        modelId: modelIdForBudget,
+      const conversationContext = buildSessionConversationContext(sessionManager.getMessages(), {
+        budgetTokens: getDefaultSessionContextBudgetTokens({ modelId: modelIdForBudget }),
+        summaryState: sessionManager.getSummaryState(),
       });
-      const conversationContext = buildEffectiveConversationContext({
-        llm: options.llm,
-        sessionManager,
-        budgetTokens: baseSessionBudgetTokens,
-      });
-      const artifactHints = sessionManager.getArtifactState();
-      const replacementState = sessionManager.getReplacementState();
 
       // Single source of truth: chat runtime owns when a user message is appended to the UI list.
       // The UI layer must not also append user messages (to avoid duplicates).
@@ -378,8 +354,6 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
             outcomeReporter: options.outcomeReporter,
             auditScope: options.auditScope,
             conversationContext: conversationContext.length > 0 ? conversationContext : undefined,
-            artifactHints,
-            replacementState,
             astValidation: options.astValidation,
             languagePlugins: options.languagePlugins,
             // Resolve sessionId at call time to support `/session` switching.
@@ -390,105 +364,6 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
             userInputProvider,
             subAgentController,
             permissionMode: options.permissionMode,
-          }).catch(async (error) => {
-            // Level 2: Reactive Compact
-            // If the provider reports prompt-too-long, attempt emergency compaction AND retry ONCE
-            // with a smaller session context budget to guarantee prompt reduction.
-            const isContextOverflow = (() => {
-              if (!error || typeof error !== 'object') return false;
-              if ('llmCode' in (error as any) && (error as any).llmCode === 'LLM_CONTEXT_LENGTH_EXCEEDED') {
-                return true;
-              }
-              const message =
-                error instanceof Error
-                  ? error.message
-                  : typeof (error as any).message === 'string'
-                    ? String((error as any).message)
-                    : '';
-              const lower = message.toLowerCase();
-              return (
-                lower.includes('maximum context length') ||
-                lower.includes('context length') ||
-                lower.includes('too many tokens') ||
-                lower.includes('prompt is too long') ||
-                lower.includes('input is too long') ||
-                lower.includes('please reduce')
-              );
-            })();
-
-            if (!isContextOverflow) {
-              throw error;
-            }
-
-            const reactiveResult = await reactiveCompact({
-              sessionManager,
-              llm: options.llm,
-              error,
-              tracking: currentCompactionTracking,
-              signal: mergedSignal.signal,
-            });
-            currentCompactionTracking = reactiveResult.tracking;
-
-            // Rebuild context and retry runSalmonLoop.
-            // Important: avoid duplicating the current instruction inside `conversationContext`,
-            // since `instruction: trimmed` is already provided as the primary input.
-            const history = sessionManager.getMessages();
-            const retryMessages =
-              history.length > 0 &&
-              history[history.length - 1]?.role === 'user' &&
-              history[history.length - 1]?.content === trimmed
-                ? history.slice(0, -1)
-                : history;
-
-            const reactiveBudgetTokens = Math.max(
-              64,
-              Math.min(baseSessionBudgetTokens - 1, Math.floor(baseSessionBudgetTokens * 0.5)),
-            );
-
-            getLogger().audit(
-              'COMPACTION_REACTIVE_RETRY',
-              {
-                reason: 'context_overflow',
-                baseSessionBudgetTokens,
-                reactiveBudgetTokens,
-                baseIsMinimum: baseSessionBudgetTokens <= 256,
-                modelId: modelIdForBudget ?? 'unknown',
-              },
-              { source: 'chat', severity: 'low', scope: 'session', phase: 'COMPACTION' },
-            );
-            const newContext = buildEffectiveConversationContext({
-              llm: options.llm,
-              sessionManager,
-              messages: retryMessages,
-              budgetTokens: reactiveBudgetTokens,
-            });
-
-            return await runSalmonLoop({
-              instruction: trimmed,
-              verify: options.verifyCommand,
-              repoPath: options.repoPath,
-              llm: options.llm,
-              mode: intentDecision.intent,
-              strategy,
-              verbose: verboseLevel,
-              onEvent: latestEmit,
-              signal: mergedSignal.signal,
-              llmOutput: currentLlmOutputPolicy,
-              outcomeReporter: options.outcomeReporter,
-              auditScope: options.auditScope,
-              conversationContext: newContext.length > 0 ? newContext : undefined,
-              artifactHints,
-              replacementState,
-              astValidation: options.astValidation,
-              languagePlugins: options.languagePlugins,
-              langfuseSessionId: options.langfuseSessionId || sessionManager.getCurrent().meta.id,
-              langfuseUserId: options.langfuseUserId,
-              authorizationProvider,
-              authorizationMode: 'deferred',
-              userInputProvider,
-              subAgentController,
-              permissionMode: options.permissionMode,
-            });
           });
 
           return { kind: 'flow' as const, mode: intentDecision.intent, result };
@@ -544,15 +419,6 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
       if (usage) {
         TokenTracker.accumulate(sessionManager.getCurrent(), usage);
       }
-      sessionManager.mergeArtifactState(buildSessionArtifactStateFromLoopResult(result));
-      for (const preview of result.artifactHints?.toolResultPreviewArtifacts ?? []) {
-        sessionManager.freezeReplacementDecision({
-          toolResultId: `${preview.label}::${preview.artifact.handle}`,
-          decision: 'replaced',
-          preview: preview.label,
-          sourceArtifactHandle: preview.artifact.handle,
-        });
-      }
 
       await refreshSessionSummary({
         sessionManager,
@@ -560,7 +426,6 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
         contextHash: result.contextHash,
         strategy: 'auto',
       });
-      currentCompactionTracking = onNormalTurnComplete(currentCompactionTracking);
       await sessionManager.save();
       currentInstruction = null;
       return result;

@@ -1,10 +1,8 @@
 import type {
   CheckpointStrategy,
-  LoopArtifactHints,
   LLMMessage,
   PermissionMode,
   PluginRegistry,
-  ToolResultReplacementState,
 } from '../../../core/facades/cli-run-loop-params.js';
 import { createTerminalAuthorizationProvider } from '../../authorization/provider.js';
 
@@ -14,8 +12,6 @@ export function buildRunLoopParams(params: {
   repoPath: string;
   llm: any;
   conversationContext?: LLMMessage[];
-  artifactHints?: LoopArtifactHints;
-  replacementState?: ToolResultReplacementState;
   mode: any;
   dryRun?: boolean;
   forceReset?: boolean;
@@ -50,8 +46,6 @@ export function buildRunLoopParams(params: {
     repoPath: params.repoPath,
     llm: params.llm,
     conversationContext: params.conversationContext,
-    artifactHints: params.artifactHints,
-    replacementState: params.replacementState,
     mode: params.mode,
     dryRun: params.dryRun,
     forceReset: params.forceReset,

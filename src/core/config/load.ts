@@ -31,40 +31,26 @@ async function loadFromCandidates(
   candidatePaths: string[],
   required: boolean | undefined,
 ): Promise<LoadedConfig | null> {
-  type CandidateLoadResult =
-    | { ok: true; absPath: string; loaded: LoadedConfig }
-    | { ok: false; absPath: string; error: unknown };
-
-  const results: CandidateLoadResult[] = await Promise.all(
-    candidatePaths.map(async (absPath) => {
-      try {
-        const raw = await readFile(absPath, 'utf8');
-        const parsed = parseConfigText(raw, absPath);
-        const config = validateConfigFileV1(parsed);
-        return { ok: true, absPath, loaded: { path: absPath, config } };
-      } catch (e: unknown) {
-        return { ok: false, absPath, error: e };
+  for (let i = 0; i < candidatePaths.length; i++) {
+    const absPath = candidatePaths[i];
+    try {
+      const raw = await readFile(absPath, 'utf8');
+      const parsed = parseConfigText(raw, absPath);
+      const config = validateConfigFileV1(parsed);
+      return { path: absPath, config };
+    } catch (e: unknown) {
+      if (
+        (e && typeof e === 'object' && 'code' in e ? (e as { code?: string }).code : undefined) ===
+        'ENOENT'
+      ) {
+        const isLast = i === candidatePaths.length - 1;
+        if (required && isLast) {
+          throw new ConfigError('CONFIG_FILE_NOT_FOUND', { path: absPath });
+        }
+        continue;
       }
-    }),
-  );
-
-  for (const [i, result] of results.entries()) {
-    if (result.ok) {
-      return result.loaded;
+      throw e;
     }
-
-    const code =
-      result.error && typeof result.error === 'object' && 'code' in result.error
-        ? (result.error as { code?: string }).code
-        : undefined;
-    if (code === 'ENOENT') {
-      const isLast = i === results.length - 1;
-      if (required && isLast) {
-        throw new ConfigError('CONFIG_FILE_NOT_FOUND', { path: result.absPath });
-      }
-      continue;
-    }
-    throw result.error;
   }
 
   return null;

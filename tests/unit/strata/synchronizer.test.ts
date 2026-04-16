@@ -1,3 +1,7 @@
+import { mkdtemp, rm, symlink } from 'fs/promises';
+import { tmpdir } from 'os';
+import path from 'path';
+
 import { CheckpointManager } from '../../../src/core/strata/checkpoint/manager.js';
 import { WorkspaceSynchronizer } from '../../../src/core/strata/runtime/synchronizer.js';
 
@@ -6,32 +10,6 @@ const { queryMock, execMetaMock, execMock, checkIgnoreMock } = (() => ({
   execMetaMock: mock(),
   execMock: mock(),
   checkIgnoreMock: mock(),
-}))();
-
-const {
-  copyFileMock,
-  existsSyncMock,
-  lstatMock,
-  mkdirMock,
-  readFileMock,
-  readdirMock,
-  realpathMock,
-  rmMock,
-  statMock,
-  unlinkMock,
-  writeFileMock,
-} = (() => ({
-  copyFileMock: mock(),
-  existsSyncMock: mock(),
-  lstatMock: mock(),
-  mkdirMock: mock(),
-  readFileMock: mock(),
-  readdirMock: mock(),
-  realpathMock: mock(),
-  rmMock: mock(),
-  statMock: mock(),
-  unlinkMock: mock(),
-  writeFileMock: mock(),
 }))();
 
 mock.module('../../../src/core/adapters/git/git-adapter', () => {
@@ -45,39 +23,9 @@ mock.module('../../../src/core/adapters/git/git-adapter', () => {
   return { GitAdapter: MockGit };
 });
 
-mock.module('../../../src/core/adapters/fs/node-fs.js', () => ({
-  copyFile: copyFileMock,
-  existsSync: existsSyncMock,
-  lstat: lstatMock,
-  mkdir: mkdirMock,
-  readFile: readFileMock,
-  readdir: readdirMock,
-  realpath: realpathMock,
-  rm: rmMock,
-  stat: statMock,
-  unlink: unlinkMock,
-  writeFile: writeFileMock,
-}));
-
-function enoent(path: string): NodeJS.ErrnoException {
-  return Object.assign(new Error(`ENOENT: ${path}`), { code: 'ENOENT' });
-}
-
-function normalizeForAssert(value: string): string {
-  return value.replace(/\\/g, '/');
-}
-
 describe('WorkspaceSynchronizer checkpoint staging', () => {
   beforeEach(() => {
     mock.clearAllMocks();
-    existsSyncMock.mockReturnValue(false);
-    lstatMock.mockImplementation(async (targetPath: string) => {
-      throw enoent(targetPath);
-    });
-    realpathMock.mockImplementation(async (targetPath: string) => {
-      throw enoent(targetPath);
-    });
-    statMock.mockResolvedValue({ size: 16 });
     queryMock.mockImplementation(async (args: string[]) => {
       if (args[0] === 'status') {
         return ' M src/core/skills/bridge.ts\0';
@@ -154,28 +102,30 @@ describe('WorkspaceSynchronizer checkpoint staging', () => {
   });
 
   it('filters symlinked dependency paths from getChangedPaths', async () => {
-    lstatMock.mockImplementation(async (targetPath: string) => {
-      if (normalizeForAssert(targetPath).endsWith('/mock/repo/node_modules')) {
-        return { isSymbolicLink: () => true };
-      }
-      throw enoent(targetPath);
-    });
-    queryMock.mockImplementation(async (args: string[]) => {
-      if (args[0] === 'status') {
-        return '?? node_modules/pkg/index.js\0?? src/app.ts\0';
-      }
-      return '';
-    });
+    const repoRoot = await mkdtemp(path.join(tmpdir(), 'salmon-sync-changes-'));
+    const depTarget = await mkdtemp(path.join(tmpdir(), 'salmon-sync-dep-'));
 
-    const synchronizer = new WorkspaceSynchronizer(new CheckpointManager());
-    const changed = await synchronizer.getChangedPaths('/mock/repo');
+    try {
+      await symlink(
+        depTarget,
+        path.join(repoRoot, 'node_modules'),
+        process.platform === 'win32' ? 'junction' : 'dir',
+      );
+      queryMock.mockImplementation(async (args: string[]) => {
+        if (args[0] === 'status') {
+          return '?? node_modules/pkg/index.js\0?? src/app.ts\0';
+        }
+        return '';
+      });
 
-    expect(changed).toEqual(['src/app.ts']);
-    expect(
-      lstatMock.mock.calls.some(([targetPath]) =>
-        normalizeForAssert(String(targetPath)).endsWith('/mock/repo/node_modules'),
-      ),
-    ).toBe(true);
+      const synchronizer = new WorkspaceSynchronizer(new CheckpointManager());
+      const changed = await synchronizer.getChangedPaths(repoRoot);
+
+      expect(changed).toEqual(['src/app.ts']);
+    } finally {
+      await rm(repoRoot, { recursive: true, force: true });
+      await rm(depTarget, { recursive: true, force: true });
+    }
   });
 
   it('returns null checkpoint when workspace has no changes', async () => {

@@ -16,17 +16,6 @@ function shouldUseWin32PathSemantics(p: string): boolean {
   return p.includes('\\');
 }
 
-function selectPathImplForAbsolutePath(p: string): path.PlatformPath {
-  const normalized = normalizePath(p);
-  if (isWindowsAbsolutePath(normalized) || normalized.startsWith('//')) {
-    return path.win32;
-  }
-  if (normalized.startsWith('/')) {
-    return path.posix;
-  }
-  return path;
-}
-
 /**
  * Normalize a path to use forward slashes, regardless of the operating system.
  * This ensures consistency across Windows and Linux/macOS.
@@ -83,44 +72,6 @@ export function safeDirname(p: string): string {
  */
 export function safeRelative(from: string, to: string): string {
   return normalizePath(path.relative(from, to));
-}
-
-/**
- * Normalize an absolute or canonical path into a stable form for comparisons.
- * Windows-style paths are compared case-insensitively; POSIX paths preserve case.
- */
-export function normalizeComparableAbsolutePath(input: string): string {
-  const normalized = normalizePath(String(input ?? '').trim());
-  const impl = selectPathImplForAbsolutePath(normalized);
-  const resolved = normalizePath(impl.resolve(normalized));
-  return impl === path.win32 ? resolved.toLowerCase() : resolved;
-}
-
-/**
- * Compare canonical paths using platform-appropriate semantics.
- */
-export function arePathsEquivalent(left: string, right: string): boolean {
-  return normalizeComparableAbsolutePath(left) === normalizeComparableAbsolutePath(right);
-}
-
-/**
- * Check whether a canonical target path is contained within a canonical root path.
- * Inputs should already be resolved/canonicalized by the caller when used for security checks.
- */
-export function isCanonicalPathWithinDirectory(
-  root: string,
-  target: string,
-  options: { allowEqual?: boolean } = {},
-): boolean {
-  const { allowEqual = true } = options;
-  const normalizedRoot = normalizeComparableAbsolutePath(root);
-  const normalizedTarget = normalizeComparableAbsolutePath(target);
-
-  if (normalizedTarget === normalizedRoot) {
-    return allowEqual;
-  }
-
-  return normalizedTarget.startsWith(`${normalizedRoot}/`);
 }
 
 /**

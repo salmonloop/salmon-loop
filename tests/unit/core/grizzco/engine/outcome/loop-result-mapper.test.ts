@@ -60,87 +60,6 @@ describe('loop-result-mapper', () => {
     expect(result.auditPath).toBe('/tmp/audit.json');
   });
 
-  it('propagates artifact hints from transaction report', () => {
-    const telemetry = createTelemetry();
-    const report: FlowTransactionReport = {
-      success: true,
-      attempts: 1,
-      flowReport: {
-        success: true,
-        duration: 1,
-        traces: [],
-        strategyName: 'patch',
-        fsMode: 'patch',
-      },
-      history: [],
-      retryExhausted: false,
-      lastVerifyArtifact: {
-        handle: 's8p://artifact/verify-1',
-        mimeType: 'text/plain',
-        sha256: 'verify-1',
-        size: 100,
-      },
-      lastSubAgentPatchArtifacts: [
-        {
-          handle: 's8p://artifact/subagent-patch-1',
-          mimeType: 'text/x-diff',
-          sha256: 'subagent-patch-1',
-          size: 200,
-        },
-      ],
-      lastRecentReadArtifacts: [
-        {
-          path: 'src/recent.ts',
-          artifact: {
-            handle: 's8p://artifact/recent-read-1',
-            mimeType: 'text/plain',
-            sha256: 'recent-read-1',
-            size: 42,
-          },
-        },
-      ],
-      lastToolResultPreviewArtifacts: [
-        {
-          label: 'Tool result preview: web.search',
-          artifact: {
-            handle: 's8p://artifact/preview-1',
-            mimeType: 'application/json',
-            sha256: 'preview-1',
-            size: 256,
-          },
-        },
-      ],
-    };
-
-    const result = buildLoopResultFromTransaction({
-      executionReport: report,
-      flowMode: 'patch',
-      options: {} as any,
-      telemetry,
-    });
-
-    expect(result.artifactHints).toEqual(
-      expect.objectContaining({
-        verifyArtifact: expect.objectContaining({ handle: 's8p://artifact/verify-1' }),
-        subAgentPatchArtifacts: [
-          expect.objectContaining({ handle: 's8p://artifact/subagent-patch-1' }),
-        ],
-        recentReadArtifacts: [
-          expect.objectContaining({
-            path: 'src/recent.ts',
-            artifact: expect.objectContaining({ handle: 's8p://artifact/recent-read-1' }),
-          }),
-        ],
-        toolResultPreviewArtifacts: [
-          expect.objectContaining({
-            label: 'Tool result preview: web.search',
-            artifact: expect.objectContaining({ handle: 's8p://artifact/preview-1' }),
-          }),
-        ],
-      }),
-    );
-  });
-
   it('propagates contextHash from context context to loop result', () => {
     const telemetry = createTelemetry();
     const report: FlowTransactionReport = {
@@ -320,7 +239,6 @@ describe('loop-result-mapper', () => {
         { attempt: 3, plan: null, patch: null, error: 'verify failed', contextSummary: '' },
       ],
       retryExhausted: true,
-      lastErrorCode: 'LLM_RATE_LIMITED',
     };
 
     const result = buildLoopResultFromTransaction({
@@ -332,8 +250,6 @@ describe('loop-result-mapper', () => {
 
     expect(result.success).toBe(false);
     expect(result.reasonCode).toBe('MAX_RETRIES');
-    expect(result.terminalReason).toBe('RETRY_BUDGET_EXHAUSTED');
-    expect(result.rootCause).toBe('LLM_RATE_LIMITED');
     expect(result.failurePhase).toBe('VERIFY');
   });
 

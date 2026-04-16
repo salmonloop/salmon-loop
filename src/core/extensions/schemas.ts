@@ -66,10 +66,11 @@ export const ToolsConfigSchema = z.object({
 });
 
 const skillDiscoverySchema = z.object({
+  useDefaults: z.boolean().optional(),
   paths: z.array(z.string()).optional(),
-}).strict();
+});
 
 export const SkillsConfigSchema = z.object({
   version: z.literal(1),
   discovery: skillDiscoverySchema.optional().default({}),
-}).strict();
+});

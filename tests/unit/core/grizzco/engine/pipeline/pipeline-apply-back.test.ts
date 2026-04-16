@@ -36,18 +36,4 @@ describe('pipeline APPLY_BACK reporting', () => {
     const span = report.traces.find((t) => t.name === 'APPLY_BACK');
     expect(span?.error).toBe('Apply-back failed (test)');
   });
-
-  it('reports the last executed step instead of the last declared step on failure', async () => {
-    const pipeline = Pipeline.of({})
-      .step('EXPLORE', async (input) => input)
-      .step('PLAN', async () => {
-        throw new Error('plan failed');
-      })
-      .step('PATCH', async (input) => input);
-
-    const report = await pipeline.execute();
-
-    expect(report.success).toBe(false);
-    expect(report.lastStep).toBe('PLAN');
-  });
 });

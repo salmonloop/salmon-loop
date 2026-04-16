@@ -149,7 +149,6 @@ export function encodeStreamFailure(params: {
   message: string;
   name?: string;
   stack?: string;
-  auditPath?: string;
 }): StreamJsonEnvelope {
   return encodeEnvelope({
     uuid: params.uuid,
@@ -157,7 +156,6 @@ export function encodeStreamFailure(params: {
     event: {
       type: 'error',
       timestamp: toIso(params.at),
-      audit_path: params.auditPath,
       error: dropUndefined({
         name: params.name,
         message: params.message,

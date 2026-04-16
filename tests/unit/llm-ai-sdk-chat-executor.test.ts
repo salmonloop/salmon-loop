@@ -1,12 +1,5 @@
 import { describe, expect, it } from 'bun:test';
 
-import {
-  executeAiSdkChatRequest,
-  executeAiSdkChatStreamRequest,
-} from '../../src/core/llm/ai-sdk/chat-executor.js';
-import { clearAuditTrail, getAuditTrail } from '../../src/core/observability/audit-trail.js';
-import type { LLMStreamChunk } from '../../src/core/types/llm.js';
-
 mock.module('ai', () => {
   async function* makeStream() {
     yield { type: 'text-delta', text: 'he' };
@@ -23,6 +16,12 @@ mock.module('ai', () => {
   };
 });
 
+import {
+  executeAiSdkChatRequest,
+  executeAiSdkChatStreamRequest,
+} from '../../src/core/llm/ai-sdk/chat-executor.js';
+import { clearAuditTrail, getAuditTrail } from '../../src/core/observability/audit-trail.js';
+
 describe('ai-sdk chat executor', () => {
   it('executes unary request and maps result', async () => {
     clearAuditTrail();
@@ -30,7 +29,6 @@ describe('ai-sdk chat executor', () => {
     const message = await executeAiSdkChatRequest({
       model: { provider: 'mock' },
       modelId: 'gpt-test',
-      providerOptionsKey: 'openai',
       timeoutMs: undefined,
       langfuseEnabled: false,
       requestId: 'req-1',
@@ -50,11 +48,10 @@ describe('ai-sdk chat executor', () => {
   });
 
   it('executes streaming request and yields mapped chunks', async () => {
-    const chunks: LLMStreamChunk[] = [];
+    const chunks: any[] = [];
     for await (const chunk of executeAiSdkChatStreamRequest({
       model: { provider: 'mock' },
       modelId: 'gpt-test',
-      providerOptionsKey: 'openai',
       timeoutMs: undefined,
       langfuseEnabled: false,
       requestId: 'req-2',

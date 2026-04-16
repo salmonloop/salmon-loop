@@ -73,36 +73,9 @@ Read-only phases **MAY** write a narrow set of **runtime artifacts / metadata** 
 
 All allowed runtime writes must remain within these approved roots. Any write outside these roots is a contract violation.
 
-**Request assembly caching contract (PLAN/PATCH/EXPLORE/RESEARCH):**
-- Model requests are assembled through the shared `RequestEnvelope` path rather than ad-hoc prompt concatenation in phase steps.
-- The cacheable surface is explicit:
-  - `systemSections`
-  - attachments marked `cacheSafe: true`
-- The non-cache-safe / late-injection surface is also explicit:
-  - current user prompt
-  - conversation history / summary messages
-  - attachments without `cacheSafe: true`
-- Shared phase assembly currently uses `mode: 'cache_safe_only'`:
-  - provider cache keys may include only the cache-safe surface fingerprint plus the stable `contextHash`
-  - late-injection content must not silently influence cache keys in this mode
-- If a future flow needs full-prompt cache identity, it must opt in explicitly via a stricter request mode rather than relying on implicit behavior.
-
-**Session runtime propagation contract (tool-calling, non-streaming + streaming):**
-- `chatWithTools` and `chatWithToolsStreaming` must both execute tool calls via the shared `executeToolCalls` path.
-- `executeToolCalls` must execute tools through the shared execution planner (`runToolExecutionPlan`) rather than phase-specific ad-hoc routing.
-- `runToolExecutionPlan` must pass `{ ...session.runtime, phase }` into scheduler execution, so the full runtime context (including `contextSnapshot`) is preserved for every tool invocation.
-- This contract is fail-closed: introducing a separate execution path for streaming or non-streaming tool calls is a contract violation unless the same runtime propagation semantics are explicitly preserved.
-
 **Tool-calling restriction (EXPLORE/PLAN/PATCH):**
 - The only model-visible write capability allowed in read-only phases is updating the runtime plan file under `.salmonloop/plans/**` via `plan.*` tools.
 - No other tool may write to the repository during EXPLORE/PLAN/PATCH, even if the target file is untracked.
-- `agent_dispatch` is enforced as an isolated boundary in read-only phases:
-  - Sub-agent runtime is always created with `worktree` strategy, never on the main workspace.
-  - Sub-agent `dryRun` is forced to `true` in EXPLORE/PLAN/PATCH.
-  - Any non-`plan.*` write tool from sub-agent profile capabilities is filtered out fail-closed before loop execution.
-- Audit evidence for this enforcement is emitted via:
-  - `sub_agent.dispatch.read_only_forced_isolated`
-  - `sub_agent.dispatch.read_only_tool_guard_filtered`
 
 ## Safety Rules
 

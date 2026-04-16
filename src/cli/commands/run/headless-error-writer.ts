@@ -34,7 +34,6 @@ function writeStreamJsonEarlyFailure(params: {
   repoPath: string;
   sessionId: string;
   message: string;
-  auditPath?: string;
   exitCode?: number;
   instruction?: string;
 }) {
@@ -55,7 +54,6 @@ function writeStreamJsonEarlyFailure(params: {
       sessionId: params.sessionId,
       at,
       message: params.message,
-      auditPath: params.auditPath,
     }),
   );
   params.writer.writeJsonLine(
@@ -144,7 +142,6 @@ export function createHeadlessErrorWriter(ctx: HeadlessErrorWriterContext) {
     instruction?: string;
     exitCode?: number;
     errorCode?: string;
-    auditPath?: string;
     repoPath?: string;
     sessionId?: string;
   }) => {
@@ -157,7 +154,6 @@ export function createHeadlessErrorWriter(ctx: HeadlessErrorWriterContext) {
         instruction: params.instruction,
         message: params.message,
         errorCode: params.errorCode,
-        auditPath: params.auditPath,
         exitCode: params.exitCode ?? 1,
       }),
     );
@@ -215,7 +211,6 @@ export function createHeadlessErrorWriter(ctx: HeadlessErrorWriterContext) {
   const writeUnexpectedError = (params: {
     message: string;
     instruction?: string;
-    auditPath?: string;
     sessionId?: string;
   }) => {
     const sessionId = resolveSessionId(ctx, params.sessionId);
@@ -225,7 +220,6 @@ export function createHeadlessErrorWriter(ctx: HeadlessErrorWriterContext) {
         message: params.message,
         repoPath: ctx.repoPath,
         instruction: params.instruction,
-        auditPath: params.auditPath,
         sessionId,
       });
       return;
@@ -251,7 +245,6 @@ export function createHeadlessErrorWriter(ctx: HeadlessErrorWriterContext) {
           repoPath: ctx.repoPath,
           sessionId,
           message: params.message,
-          auditPath: params.auditPath,
           instruction: params.instruction,
         });
       }

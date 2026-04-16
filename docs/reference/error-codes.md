@@ -38,16 +38,6 @@ Actions:
 - Verify API key and base URL.
 - Inspect `meta.error` / `meta.errorStack` in the audit log.
 
-### `LLM_AUTHENTICATION_FAILED`
-
-Meaning: the LLM provider rejected the request credentials or model access.
-
-Actions:
-
-- Verify the configured API key, app id, and provider base URL.
-- Confirm the selected model is enabled for the current account or project.
-- Inspect the audit log for provider-specific auth details.
-
 ### `LLM_PATCH_EMPTY`
 
 Meaning: the PATCH phase produced empty output.

@@ -1,9 +1,6 @@
 import type { LLMMessage } from '../types/index.js';
 import type { LoopIteration, LoopResult } from '../types/index.js';
 
-import type { SessionArtifactState } from './artifact-state.js';
-import type { ToolResultReplacementState } from './replacement-state.js';
-
 /**
  * Single message in chat history
  */
@@ -73,15 +70,6 @@ export interface SessionMetadata {
 
   // Conversation summary state
   summaryState?: SummaryState;
-  artifactState?: SessionArtifactState;
-  replacementState?: ToolResultReplacementState;
-  resumeRepairState?: {
-    schemaVersion: number;
-    lastRunAt: number;
-    warnings: string[];
-    repairActions: string[];
-    contractViolations: string[];
-  };
 }
 
 /**

@@ -1,6 +1,5 @@
 import type { ToolCallingAuditEntry } from '../../../llm/audit.js';
 import type { DiffMeta } from '../../../patch/diff.js';
-import type { ToolResultReplacementState } from '../../../session/replacement-state.js';
 import { FileStateResolver } from '../../../strata/layers/file-state-resolver.js';
 import type {
   ApplyBackTelemetry,
@@ -94,28 +93,6 @@ export interface InitCtx {
   shadowInitialRef: string;
   applyBackRuntime?: ApplyBackRuntime;
   initialContext?: Context; // For retry with shrunk context
-  artifactHints?: {
-    verifyArtifact?: ArtifactHandle;
-    subAgentPatchArtifacts?: ArtifactHandle[];
-    subAgentAuditArtifacts?: ArtifactHandle[];
-    recentReadArtifacts?: Array<{
-      path: string;
-      artifact: ArtifactHandle;
-    }>;
-    toolResultPreviewArtifacts?: Array<{
-      label: string;
-      artifact: ArtifactHandle;
-    }>;
-  };
-  replacementState?: ToolResultReplacementState;
-  /**
-   * Optional shared cache parameters propagated from parent sessions.
-   * Sub-agents can reuse these values to keep cache-critical prefixes stable.
-   */
-  cacheSharing?: {
-    namespace?: string;
-    contextHash?: string;
-  };
 }
 
 /**

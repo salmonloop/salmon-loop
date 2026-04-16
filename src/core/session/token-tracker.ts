@@ -86,11 +86,4 @@ export class TokenTracker {
   static estimateTokens(text: string): number {
     return Math.ceil(text.length / 4);
   }
-
-  /**
-   * Estimate total tokens for a list of messages
-   */
-  static estimateMessagesTokens(messages: Array<{ content: string }>): number {
-    return messages.reduce((sum, m) => sum + this.estimateTokens(m.content), 0);
-  }
 }

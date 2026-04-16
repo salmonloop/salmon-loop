@@ -824,52 +824,6 @@ Please return the patch in PURE unified diff format:`;
   skills: {
     maxRetriesExceeded: (id: string) =>
       `Max retries exceeded for skill: ${id}. Possible circular dependency in dynamic data.`,
-    legacyRunnerForbidden:
-      'Legacy MicroTaskRunner is restricted to test context only. Use executeSkill() from SkillRunner.ts for production execution.',
-    missingFrontmatter: (filePath: string) =>
-      `Skill at ${filePath}: missing or malformed YAML frontmatter (expected --- delimiters).`,
-    invalidFrontmatter: (filePath: string, reason: string) =>
-      `Skill at ${filePath}: frontmatter validation failed — ${reason}`,
-    yamlParseError: (filePath: string, reason: string) =>
-      `Skill at ${filePath}: YAML parse error — ${reason}`,
-    nameDirMismatch: (filePath: string, expected: string, actual: string) =>
-      `Skill at ${filePath}: frontmatter name "${actual}" does not match parent directory "${expected}"`,
-    legacyDirectMdDeprecation: (filePath: string) =>
-      `Skill at ${filePath}: direct .md format is deprecated. Convert to subdirectory format: move to <skill-name>/SKILL.md`,
-    skillNotFoundInCatalog: (id: string) =>
-      `Skill "${id}" not found in catalog. Ensure loadCatalog() has been called and the skill exists.`,
-    skillActivated: (id: string) =>
-      `Skill "${id}" activated (Tier 2: full content loaded).`,
-    newSkillDiscovered: (id: string, location: string) =>
-      `New skill "${id}" discovered at ${location} during session.`,
-    conditionalSkillActivated: (id: string, matchedPattern: string) =>
-      `Conditional skill "${id}" activated: file matched pattern "${matchedPattern}".`,
-    permissionFileInvalidFormat: (filePath: string) =>
-      `Skill permissions file at ${filePath} has invalid format; starting with empty allowlist.`,
-    permissionFileLoadError: (filePath: string) =>
-      `Failed to load skill permissions from ${filePath}; starting with empty allowlist.`,
-    permissionFileSaveError: (filePath: string, reason: string) =>
-      `Failed to save skill permissions to ${filePath}: ${reason}`,
-
-    // Lenient validation warnings
-    nameTooLong: (filePath: string, name: string, len: number) =>
-      `Skill at ${filePath}: name "${name}" exceeds 64 characters (${len}); loading anyway`,
-    nameFormatWarning: (filePath: string, name: string) =>
-      `Skill at ${filePath}: name "${name}" does not match naming convention; loading anyway`,
-    descriptionTooLong: (filePath: string, len: number) =>
-      `Skill at ${filePath}: description exceeds 1024 characters (${len}); loading anyway`,
-
-    // YAML fallback
-    yamlFallbackApplied: (filePath: string, lines: string) =>
-      `Skill at ${filePath}: YAML fallback applied to fix common issues (${lines}); loading with corrected values`,
-    yamlFallbackFailed: (filePath: string) =>
-      `Skill at ${filePath}: YAML fallback recovery also failed; skipping skill`,
-
-    // Catalog disclosure
-    catalogDisclosurePreamble:
-      'The following skills provide specialized instructions for specific tasks. ' +
-      'When a task matches a skill description, read the SKILL.md file at the listed location to load detailed instructions before proceeding. ' +
-      'When a skill references relative paths, resolve them against the skill directory (the parent of SKILL.md).',
   },
 
   // Symbols for UI feedback

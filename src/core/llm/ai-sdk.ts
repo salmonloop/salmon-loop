@@ -1,24 +1,21 @@
 import { randomUUID } from 'crypto';
 
+import { LIMITS } from '../config/limits.js';
+import { getPatchPrompt, getPlanPrompt } from '../prompts/runtime.js';
 import type { Context } from '../types/context.js';
 import type { ChatOptions, LLM, LLMMessage, LLMStreamChunk } from '../types/llm.js';
 import type { Plan } from '../types/planning.js';
 
 import { executeAiSdkChatRequest, executeAiSdkChatStreamRequest } from './ai-sdk/chat-executor.js';
-import {
-  HIGH_LEVEL_PHASE_SPECS,
-  type HighLevelPhaseSpec,
-} from './ai-sdk/high-level-phase-specs.js';
 import { toAiSdkMessages, toAiSdkToolSet } from './ai-sdk/message-mapper.js';
 import { withAuditObservationName } from './ai-sdk/observation-context.js';
+import { createAiSdkChatModel, resolveAiSdkModelId } from './ai-sdk/provider-factory.js';
+import { wrapPlanEmpty, sanitizeError, LlmError } from './errors.js';
 import {
-  createAiSdkChatModel,
-  resolveAiSdkModelId,
-  resolveAiSdkProviderOptionsKey,
-} from './ai-sdk/provider-factory.js';
-import type { RequestAttachment } from './request-envelope.js';
-import { buildSharedRequestEnvelope } from './shared-request-assembly.js';
-import { formatContextForPrompt } from './utils.js';
+  extractUnifiedDiffFromLLMContent,
+  formatContextForPrompt,
+  parsePlanFromLLMContent,
+} from './utils.js';
 
 export type AiSdkClientPackage = '@ai-sdk/openai' | '@ai-sdk/openai-compatible';
 
@@ -36,12 +33,10 @@ export interface AiSdkLlmConfig {
 export class AiSdkLLM implements LLM {
   private model: any;
   private modelId: string;
-  private providerOptionsKey: string;
   private timeoutMs?: number;
 
   constructor(private readonly cfg: AiSdkLlmConfig) {
     this.modelId = resolveAiSdkModelId(cfg.modelId);
-    this.providerOptionsKey = resolveAiSdkProviderOptionsKey(cfg);
     this.timeoutMs = cfg.timeoutMs;
     this.model = createAiSdkChatModel(cfg, this.modelId);
   }
@@ -68,7 +63,6 @@ export class AiSdkLLM implements LLM {
     return executeAiSdkChatRequest({
       model: this.model,
       modelId: this.modelId,
-      providerOptionsKey: this.providerOptionsKey,
       timeoutMs: this.timeoutMs,
       langfuseEnabled: Boolean(this.cfg.langfuseEnabled),
       requestId: randomUUID(),
@@ -87,7 +81,6 @@ export class AiSdkLLM implements LLM {
     yield* executeAiSdkChatStreamRequest({
       model: this.model,
       modelId: this.modelId,
-      providerOptionsKey: this.providerOptionsKey,
       timeoutMs: this.timeoutMs,
       langfuseEnabled: Boolean(this.cfg.langfuseEnabled),
       requestId: randomUUID(),
@@ -116,12 +109,29 @@ export class AiSdkLLM implements LLM {
     lastError?: string,
     signal?: AbortSignal,
   ): Promise<Plan> {
-    return this.runHighLevelPhase(HIGH_LEVEL_PHASE_SPECS.plan, {
-      context,
+    const prompt = await getPlanPrompt(
+      formatContextForPrompt(context),
       instruction,
+      LIMITS.maxFilesChanged,
       lastError,
-      signal,
-    });
+    );
+
+    const response = await withAuditObservationName('PLAN:plan-json', async () =>
+      this.chat([{ role: 'user', content: prompt }], { signal }),
+    );
+
+    const content = response.content;
+    if (!content) {
+      throw wrapPlanEmpty();
+    }
+
+    try {
+      return parsePlanFromLLMContent(content);
+    } catch (e) {
+      throw new LlmError('LLM plan parsing failed', 'LLM_PLAN_INVALID_JSON', {
+        causeMessage: sanitizeError(e),
+      });
+    }
   }
 
   async createPatch(
@@ -131,55 +141,19 @@ export class AiSdkLLM implements LLM {
     signal?: AbortSignal,
   ): Promise<string> {
     const planStr = JSON.stringify(plan, null, 2);
-    return this.runHighLevelPhase(HIGH_LEVEL_PHASE_SPECS.patch, {
-      context,
+    const formattedContext = formatContextForPrompt(context);
+
+    const prompt = await getPatchPrompt(
       planStr,
+      formattedContext,
+      LIMITS.maxFilesChanged,
+      LIMITS.maxDiffLines,
       lastError,
-      signal,
-    });
-  }
-
-  private async runHighLevelPhase<TInput extends { context: Context; signal?: AbortSignal }, TOutput>(
-    spec: HighLevelPhaseSpec<TInput, TOutput>,
-    input: TInput,
-  ): Promise<TOutput> {
-    const contextPrompt = formatContextForPrompt(input.context);
-    const userPrompt = await spec.buildPrompt({ ...input, contextPrompt });
-    const attachments = spec.buildAttachments({ ...input, contextPrompt });
-    const content = await this.executeHighLevelPrompt({
-      defaultNamespace: spec.namespace,
-      contextHash: input.context.contextHash,
-      userPrompt,
-      attachments,
-      observationName: spec.observationName,
-      signal: input.signal,
-    });
-    return spec.parseResult(content);
-  }
-
-  private async executeHighLevelPrompt(params: {
-    defaultNamespace: string;
-    contextHash?: string;
-    userPrompt: string;
-    attachments: RequestAttachment[];
-    observationName: string;
-    signal?: AbortSignal;
-  }): Promise<string | undefined> {
-    const sharedEnvelope = buildSharedRequestEnvelope({
-      defaultNamespace: params.defaultNamespace,
-      contextHash: params.contextHash,
-      systemPrompt: '',
-      userPrompt: params.userPrompt,
-      attachments: params.attachments,
-    });
-
-    const response = await withAuditObservationName(params.observationName, async () =>
-      this.chat(sharedEnvelope.baseMessages, {
-        providerHints: sharedEnvelope.envelope.providerHints,
-        signal: params.signal,
-      }),
     );
 
-    return response.content;
+    const response = await withAuditObservationName('PATCH:unified-diff', async () =>
+      this.chat([{ role: 'user', content: prompt }], { signal }),
+    );
+    return extractUnifiedDiffFromLLMContent(response.content || '');
   }
 }

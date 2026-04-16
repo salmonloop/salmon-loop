@@ -2,63 +2,12 @@ import { randomBytes } from 'crypto';
 import { join } from 'path';
 
 import { FileAdapter } from '../adapters/fs/index.js';
-import { recordAuditEvent } from '../observability/audit-trail.js';
 import { getLogger } from '../observability/logger.js';
 import type { LoopIteration } from '../types/index.js';
 
-import {
-  mergeReplacementStateFromArtifactHints,
-  mergeSessionArtifactState,
-  normalizeSessionArtifactState,
-  type SessionArtifactState,
-} from './artifact-state.js';
 import { SessionCompressor, CompressedSessionStore } from './compression.js';
 import { SessionPruningEngine, type MemoryPruningStrategy } from './pruning-strategy.js';
-import {
-  freezeToolResultReplacementDecision,
-  normalizeToolResultReplacementState,
-  type ToolResultReplacementState,
-} from './replacement-state.js';
-import { createResumeRepairPipeline } from './resume-repair/pipeline.js';
 import type { ChatSession, ChatMessage, SummaryState } from './types.js';
-
-const RESUME_REPAIR_V1_FLAG = 'SALMONLOOP_RESUME_REPAIR_V1';
-
-function resolveResumeRepairV1Enabled(): boolean {
-  const raw = process.env[RESUME_REPAIR_V1_FLAG];
-  if (!raw || !raw.trim()) return true;
-  const normalized = raw.trim().toLowerCase();
-  if (normalized === '0' || normalized === 'false' || normalized === 'off' || normalized === 'no') {
-    return false;
-  }
-  return true;
-}
-
-function recordResumeRepairMetrics(details: {
-  mode: 'repair_v1' | 'legacy';
-  success: boolean;
-  repairViolationCount: number;
-  replacementReuseHitCount: number;
-  contractViolationCodes?: string[];
-}): void {
-  recordAuditEvent(
-    'session.resume_repair.completed',
-    {
-      mode: details.mode,
-      success: details.success,
-      metric: 'repair_violation_rate',
-      repairViolationCount: details.repairViolationCount,
-      replacementReuseMetric: 'replacement_reuse_hit_rate',
-      replacementReuseHitCount: details.replacementReuseHitCount,
-      contractViolationCodes: details.contractViolationCodes ?? [],
-    },
-    {
-      source: 'session',
-      severity: details.success ? 'low' : 'medium',
-      scope: 'session',
-    },
-  );
-}
 
 /**
  * Manages chat session persistence and lifecycle.
@@ -66,7 +15,6 @@ function recordResumeRepairMetrics(details: {
  * Features: Auto-pruning, compression, intelligent cleanup
  */
 export class ChatSessionManager {
-  private repoPath: string;
   private storageDir: string;
   private currentSession: ChatSession | null = null;
   private fileAdapter = new FileAdapter();
@@ -75,7 +23,6 @@ export class ChatSessionManager {
   private compressedStore: CompressedSessionStore;
 
   constructor(repoPath: string, pruningStrategy?: Partial<MemoryPruningStrategy>) {
-    this.repoPath = repoPath;
     this.storageDir = join(repoPath, '.salmonloop', 'chat-sessions');
     this.pruningEngine = new SessionPruningEngine(pruningStrategy);
     this.compressor = new SessionCompressor();
@@ -159,12 +106,7 @@ export class ChatSessionManager {
     const filePath = join(this.storageDir, `${targetId}.json`);
     try {
       const data = await this.fileAdapter.readFile(filePath);
-      const parsed = JSON.parse(data) as ChatSession;
-      parsed.meta.artifactState = normalizeSessionArtifactState(parsed.meta.artifactState);
-      parsed.meta.replacementState = normalizeToolResultReplacementState(
-        parsed.meta.replacementState,
-      );
-      this.currentSession = parsed;
+      this.currentSession = JSON.parse(data);
       return this.currentSession;
     } catch {
       return null;
@@ -256,54 +198,12 @@ export class ChatSessionManager {
     return this.currentSession?.meta.summaryState;
   }
 
-  getArtifactState(): SessionArtifactState | undefined {
-    return normalizeSessionArtifactState(this.currentSession?.meta.artifactState);
-  }
-
   /**
    * Update summary state after summarization.
    */
   updateSummaryState(state: SummaryState): void {
     if (!this.currentSession) throw new Error('No active session');
     this.currentSession.meta.summaryState = state;
-  }
-
-  updateArtifactState(state: SessionArtifactState | undefined): void {
-    if (!this.currentSession) throw new Error('No active session');
-    this.currentSession.meta.artifactState = normalizeSessionArtifactState(state);
-  }
-
-  mergeArtifactState(state: SessionArtifactState | undefined): void {
-    if (!this.currentSession) throw new Error('No active session');
-    this.currentSession.meta.artifactState = mergeSessionArtifactState(
-      this.currentSession.meta.artifactState,
-      state,
-    );
-    this.currentSession.meta.replacementState = mergeReplacementStateFromArtifactHints(
-      this.currentSession.meta.replacementState,
-      state,
-    );
-  }
-
-  getReplacementState(): ToolResultReplacementState | undefined {
-    return normalizeToolResultReplacementState(this.currentSession?.meta.replacementState);
-  }
-
-  updateReplacementState(state: ToolResultReplacementState | undefined): void {
-    if (!this.currentSession) throw new Error('No active session');
-    this.currentSession.meta.replacementState = normalizeToolResultReplacementState(state);
-  }
-
-  freezeReplacementDecision(
-    entry: Parameters<typeof freezeToolResultReplacementDecision>[1],
-    options?: Parameters<typeof freezeToolResultReplacementDecision>[2],
-  ): void {
-    if (!this.currentSession) throw new Error('No active session');
-    this.currentSession.meta.replacementState = freezeToolResultReplacementDecision(
-      this.currentSession.meta.replacementState,
-      entry,
-      options,
-    );
   }
 
   /**
@@ -397,10 +297,6 @@ export class ChatSessionManager {
         const filePath = join(this.storageDir, file);
         const data = await this.fileAdapter.readFile(filePath);
         const session = JSON.parse(data) as ChatSession;
-        session.meta.artifactState = normalizeSessionArtifactState(session.meta.artifactState);
-        session.meta.replacementState = normalizeToolResultReplacementState(
-          session.meta.replacementState,
-        );
         sessions.push(session);
       } catch (error) {
         // Skip corrupted session files
@@ -448,188 +344,17 @@ export class ChatSessionManager {
    * List archived sessions
    */
   async listArchivedSessions(): Promise<Array<{ id: string; name: string; archivedAt: number }>> {
-    const archiveDir = this.getArchiveStorageDir();
-    const files = await this.fileAdapter.readdir(archiveDir).catch(() => []);
-    const archived: Array<{ id: string; name: string; archivedAt: number }> = [];
-
-    for (const file of files) {
-      if (!file.endsWith('.mpack.gz')) continue;
-      try {
-        const compressed = await this.compressedStore.loadCompressed(file);
-        if (!compressed) continue;
-
-        const stats = await this.fileAdapter.stat(join(archiveDir, file));
-        archived.push({
-          id: compressed.meta.id,
-          name: compressed.meta.name,
-          archivedAt: stats.mtime.getTime(),
-        });
-      } catch (error) {
-        getLogger().warn(`Failed to load archived session ${file}: ${error}`);
-      }
-    }
-
-    return archived.sort((a, b) => b.archivedAt - a.archivedAt);
+    // Implement archived session list functionality
+    // This needs to access the compressed storage
+    return [];
   }
 
   /**
    * Restore session from archive
    */
-  async restoreFromArchive(archiveId: string): Promise<ChatSession | null> {
-    const filename = await this.resolveArchiveFilename(archiveId);
-    if (!filename) return null;
-
-    const resumeRepairV1Enabled = resolveResumeRepairV1Enabled();
-    try {
-      if (!resumeRepairV1Enabled) {
-        const restored = await this.restoreFromArchiveLegacy(filename);
-        if (!restored) {
-          recordResumeRepairMetrics({
-            mode: 'legacy',
-            success: false,
-            repairViolationCount: 1,
-            replacementReuseHitCount: 0,
-            contractViolationCodes: ['LEGACY_RESTORE_FAILED'],
-          });
-          return null;
-        }
-        recordResumeRepairMetrics({
-          mode: 'legacy',
-          success: true,
-          repairViolationCount: 0,
-          replacementReuseHitCount: Object.keys(restored.meta.replacementState?.entries ?? {}).length,
-        });
-        this.currentSession = restored;
-        await this.save();
-        return restored;
-      }
-
-      const pipeline = createResumeRepairPipeline({
-        compressedStore: this.compressedStore,
-        compressor: this.compressor,
-        repoPath: this.repoPath,
-      });
-      const repaired = await pipeline.run({ archiveId, filename });
-      if (!repaired.session) {
-        recordResumeRepairMetrics({
-          mode: 'repair_v1',
-          success: false,
-          repairViolationCount: repaired.contractViolations.length,
-          replacementReuseHitCount: 0,
-          contractViolationCodes: repaired.contractViolations.map((entry) => entry.code),
-        });
-        const violationText = repaired.contractViolations.map((entry) => entry.message).join('; ');
-        getLogger().warn(
-          `Failed to restore archived session ${archiveId}: ${violationText || 'repair pipeline rejected archive'}`,
-        );
-        return null;
-      }
-
-      repaired.session.meta.resumeRepairState = {
-        schemaVersion: 1,
-        lastRunAt: Date.now(),
-        warnings: repaired.warnings.map((entry) => `${entry.code}: ${entry.message}`),
-        repairActions: repaired.repairActions.map((entry) => `${entry.code}: ${entry.detail}`),
-        contractViolations: repaired.contractViolations.map(
-          (entry) => `${entry.code}: ${entry.message}`,
-        ),
-      };
-      repaired.session.meta.replacementState = normalizeToolResultReplacementState(
-        repaired.replacementState,
-      );
-      recordResumeRepairMetrics({
-        mode: 'repair_v1',
-        success: true,
-        repairViolationCount: repaired.contractViolations.length,
-        replacementReuseHitCount: Object.keys(repaired.replacementState?.entries ?? {}).length,
-        contractViolationCodes: repaired.contractViolations.map((entry) => entry.code),
-      });
-
-      this.currentSession = repaired.session;
-      await this.save();
-      return repaired.session;
-    } catch (error) {
-      recordResumeRepairMetrics({
-        mode: resumeRepairV1Enabled ? 'repair_v1' : 'legacy',
-        success: false,
-        repairViolationCount: 1,
-        replacementReuseHitCount: 0,
-        contractViolationCodes: ['RESTORE_EXCEPTION'],
-      });
-      getLogger().warn(`Failed to restore archived session ${archiveId}: ${error}`);
-      return null;
-    }
-  }
-
-  private async restoreFromArchiveLegacy(filename: string): Promise<ChatSession | null> {
-    const compressed = await this.compressedStore.loadCompressed(filename);
-    if (!compressed) return null;
-
-    const partial = await this.compressor.decompressToSession(compressed);
-    if (!partial?.meta?.id || !partial?.meta?.name) return null;
-
-    return {
-      meta: {
-        id: partial.meta.id,
-        name: partial.meta.name,
-        repoPath: this.repoPath,
-        createdAt: partial.meta.createdAt,
-        updatedAt: Date.now(),
-        totalIterations: partial.meta.totalIterations ?? partial.iterations.length,
-        successfulIterations: partial.meta.successfulIterations ?? 0,
-        totalTokens: partial.meta.totalTokens ?? { input: 0, output: 0 },
-        snapshots: [],
-        artifactState: normalizeSessionArtifactState(partial.meta.artifactState),
-        replacementState: normalizeToolResultReplacementState(partial.meta.replacementState),
-      },
-      messages: partial.messages.map((message, index) => ({
-        id: `restored-msg-${index}`,
-        role: message.role,
-        content: message.content,
-        timestamp: message.timestamp,
-      })),
-      iterations: partial.iterations.map((iteration, index) => ({
-        id: iteration.id || `restored-iter-${index + 1}`,
-        attempt: index + 1,
-        plan: null,
-        patch: null,
-        error: iteration.outcome === 'failure' ? iteration.summary : undefined,
-        contextSummary: iteration.summary,
-      })),
-    };
-  }
-
-  private getArchiveStorageDir(): string {
-    return join(this.repoPath, '.salmonloop', 'compressed-sessions');
-  }
-
-  private async resolveArchiveFilename(archiveId: string): Promise<string | null> {
-    const archiveDir = this.getArchiveStorageDir();
-    const files = (await this.fileAdapter.readdir(archiveDir).catch(() => [])).filter((file) =>
-      file.endsWith('.mpack.gz'),
-    );
-    if (files.length === 0) return null;
-
-    if (archiveId.endsWith('.mpack.gz') && files.includes(archiveId)) {
-      return archiveId;
-    }
-
-    const exactFilename = `${archiveId}.mpack.gz`;
-    if (files.includes(exactFilename)) {
-      return exactFilename;
-    }
-
-    const prefixMatches = files.filter((file) => file.startsWith(archiveId));
-    if (prefixMatches.length === 0) return null;
-    if (prefixMatches.length === 1) return prefixMatches[0];
-
-    const withMtime = await Promise.all(
-      prefixMatches.map(async (file) => {
-        const stats = await this.fileAdapter.stat(join(archiveDir, file));
-        return { file, mtime: stats.mtime.getTime() };
-      }),
-    );
-    withMtime.sort((a, b) => b.mtime - a.mtime);
-    return withMtime[0]?.file ?? null;
+  async restoreFromArchive(_archiveId: string): Promise<ChatSession | null> {
+    // Implement session restoration from archive functionality
+    // This needs to access the compressed storage and decompress
+    return null;
   }
 }

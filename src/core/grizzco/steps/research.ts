@@ -1,7 +1,7 @@
 import { text } from '../../../locales/index.js';
+import { composeChatMessages } from '../../llm/message-composition.js';
 import { emitLlmOutput } from '../../llm/output-policy.js';
-import { recordAuditEvent } from '../../observability/audit-trail.js';
-import { SessionReplacementPreviewProvider } from '../../session/replacement-preview-provider.js';
+import { formatContextForPrompt } from '../../llm/utils.js';
 import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
 import { Phase } from '../../types/runtime.js';
 import { resolveLlmToolCallingPolicy } from '../dsl/llm-strategy.js';
@@ -11,9 +11,6 @@ import type {
   ResearchFinding,
   ResearchSource,
 } from '../engine/pipeline/types.js';
-
-import { buildPhaseRequestEnvelope } from './request-assembly.js';
-import { buildPhaseToolRuntimeContext } from './tool-runtime.js';
 
 type ResearchResponse = {
   researchNotes?: unknown;
@@ -114,29 +111,14 @@ function buildSourcesFromAudit(
 }
 
 export async function generateResearch(ctx: ExploreCtx): Promise<ResearchCtx> {
+  const contextText = formatContextForPrompt(ctx.context);
+  const prompt = buildResearchPrompt(contextText, ctx.options.instruction);
   const systemPrompt = 'You are a research assistant. Prefer evidence-backed claims.';
-  const requestEnvelope = await buildPhaseRequestEnvelope({
-    phase: Phase.RESEARCH,
-    defaultNamespace: 'research',
-    context: ctx.context,
-    contextResult: ctx.contextResult,
-    cacheSharing: ctx.cacheSharing,
-    onCacheMismatch: (mismatch) => {
-      recordAuditEvent('request.cache_sharing_hash_mismatch', mismatch, {
-        source: 'llm',
-        severity: 'low',
-        scope: 'session',
-        phase: Phase.RESEARCH,
-      });
-    },
-    systemPrompt,
-    buildUserPrompt: (contextText) => buildResearchPrompt(contextText, ctx.options.instruction),
+  const baseMessages = composeChatMessages({
+    system: systemPrompt,
+    user: prompt,
     conversationContext: ctx.options.conversationContext,
-    artifactHints: ctx.artifactHints,
-    toolCallingAudit: ctx.toolCallingAudit,
-    previewProvider: new SessionReplacementPreviewProvider(ctx.replacementState),
   });
-  const { cacheSurface, envelope, baseMessages } = requestEnvelope;
 
   const toolPolicy = resolveLlmToolCallingPolicy(Phase.RESEARCH, ctx.options.llm);
   const supportsStreaming = typeof ctx.options.llm.chatStream === 'function';
@@ -146,7 +128,6 @@ export async function generateResearch(ctx: ExploreCtx): Promise<ResearchCtx> {
 
   if (!ctx.toolstack || !toolPolicy.enabled) {
     const response = await ctx.options.llm.chat(baseMessages, {
-      providerHints: envelope.providerHints,
       signal: ctx.options.signal,
       phase: Phase.RESEARCH,
     });
@@ -185,11 +166,24 @@ export async function generateResearch(ctx: ExploreCtx): Promise<ResearchCtx> {
 
   const response = await (supportsStreaming ? chatWithToolsStreaming : chatWithTools)(
     baseMessages,
-    { providerHints: envelope.providerHints, signal: ctx.options.signal },
+    { signal: ctx.options.signal },
     {
       phase: Phase.RESEARCH,
       llm: ctx.options.llm,
-      runtime: buildPhaseToolRuntimeContext(ctx, Phase.RESEARCH, cacheSurface),
+      runtime: {
+        repoRoot: ctx.workspace.workPath,
+        persistenceRoot: ctx.workspace.baseRepoPath || ctx.workspace.workPath,
+        worktreeRoot: ctx.workspace.strategy === 'worktree' ? ctx.workspace.workPath : undefined,
+        attemptId: ctx.attempt ?? 1,
+        dryRun: Boolean(ctx.options?.dryRun),
+        llm: ctx.options.llm,
+        model:
+          ctx.options.llm.getModelId?.() || process.env.SALMONLOOP_MODEL || process.env.S8P_MODEL,
+        userInputProvider: ctx.options.userInputProvider,
+        agentKind: ctx.options.agentKind ?? 'primary',
+        languagePlugins: ctx.options.languagePlugins,
+        subAgentController: ctx.options.subAgentController,
+      },
       toolstack: ctx.toolstack,
       eventPayload: ctx.options.eventPayload,
       toolCallingAudit: {

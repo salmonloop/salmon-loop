@@ -2,7 +2,6 @@ import { z } from 'zod';
 
 import type { PluginRegistry } from '../plugin/registry.js';
 import type { SubAgentControllerPort } from '../sub-agent/controller.js';
-import type { SubAgentContextSnapshot } from '../sub-agent/types.js';
 import type { LLM } from '../types/llm.js';
 import type { ExecutionPhase, UserInputProvider } from '../types/runtime.js';
 
@@ -61,11 +60,6 @@ export interface ToolRuntimeCtx {
    * This is not exposed to the model; it is a host-only in-process reference.
    */
   llm?: LLM;
-  /**
-   * Optional host-side context snapshot for sub-agent shared session handoff.
-   * This object is carried through tool runtime only and is never exposed to the model directly.
-   */
-  contextSnapshot?: SubAgentContextSnapshot;
 }
 
 export const TOOL_INTENTS = ['READ', 'SEARCH', 'LIST', 'WRITE', 'INFRA', 'AGENT'] as const;

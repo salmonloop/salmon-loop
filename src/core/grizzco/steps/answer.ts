@@ -1,9 +1,8 @@
+import { composeChatMessages } from '../../llm/message-composition.js';
 import { emitLlmOutput } from '../../llm/output-policy.js';
 import { chatWithTools } from '../../tools/session.js';
 import { Phase, type LLM } from '../../types/index.js';
 import type { AnswerCtx, PreflightCtx } from '../engine/pipeline/types.js';
-
-import { buildSharedRequestEnvelope } from './request-assembly.js';
 
 function buildSystemPrompt(): string {
   return [
@@ -24,13 +23,11 @@ export async function generateAnswer(ctx: PreflightCtx): Promise<AnswerCtx> {
     };
   }
 
-  const shared = buildSharedRequestEnvelope({
-    defaultNamespace: 'answer',
-    systemPrompt: buildSystemPrompt(),
-    userPrompt: instruction,
+  const messages = composeChatMessages({
+    system: buildSystemPrompt(),
+    user: instruction,
     conversationContext: ctx.options.conversationContext,
   });
-  const messages = shared.baseMessages;
 
   const llmClient: LLM = ctx.options.llm;
   const supportsTools = Boolean(ctx.toolstack);
@@ -38,7 +35,7 @@ export async function generateAnswer(ctx: PreflightCtx): Promise<AnswerCtx> {
   const assistant = supportsTools
     ? await chatWithTools(
         messages,
-        { providerHints: shared.envelope.providerHints, temperature: 0.2, signal: ctx.options.signal },
+        { temperature: 0.2, signal: ctx.options.signal },
         {
           phase: Phase.EXPLORE,
           llm: llmClient,
@@ -61,7 +58,6 @@ export async function generateAnswer(ctx: PreflightCtx): Promise<AnswerCtx> {
         },
       )
     : await llmClient.chat(messages, {
-        providerHints: shared.envelope.providerHints,
         temperature: 0.2,
         signal: ctx.options.signal,
         tools: [],

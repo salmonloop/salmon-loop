@@ -13,10 +13,6 @@ interface TransactionReportBase {
   authorizationSummary: AuthorizationSourceSummary | null;
   lastContext?: TerminalCtx;
   lastVerifyArtifact?: ArtifactHandle;
-  lastSubAgentPatchArtifacts?: ArtifactHandle[];
-  lastSubAgentAuditArtifacts?: ArtifactHandle[];
-  lastRecentReadArtifacts?: Array<{ path: string; artifact: ArtifactHandle }>;
-  lastToolResultPreviewArtifacts?: Array<{ label: string; artifact: ArtifactHandle }>;
 }
 
 export function mapSuccessReport(
@@ -31,10 +27,6 @@ export function mapSuccessReport(
     authorizationSummary,
     lastContext,
     lastVerifyArtifact,
-    lastSubAgentPatchArtifacts,
-    lastSubAgentAuditArtifacts,
-    lastRecentReadArtifacts,
-    lastToolResultPreviewArtifacts,
     lastErrorCode,
   } = params;
 
@@ -48,10 +40,6 @@ export function mapSuccessReport(
     retryExhausted: false,
     lastContext,
     lastVerifyArtifact,
-    lastSubAgentPatchArtifacts,
-    lastSubAgentAuditArtifacts,
-    lastRecentReadArtifacts,
-    lastToolResultPreviewArtifacts,
   };
 }
 
@@ -68,10 +56,6 @@ export function mapTerminalFailureReport(
     authorizationSummary,
     lastContext,
     lastVerifyArtifact,
-    lastSubAgentPatchArtifacts,
-    lastSubAgentAuditArtifacts,
-    lastRecentReadArtifacts,
-    lastToolResultPreviewArtifacts,
     failure,
     lastErrorCode,
   } = params;
@@ -86,10 +70,6 @@ export function mapTerminalFailureReport(
     retryExhausted: false,
     lastContext,
     lastVerifyArtifact,
-    lastSubAgentPatchArtifacts,
-    lastSubAgentAuditArtifacts,
-    lastRecentReadArtifacts,
-    lastToolResultPreviewArtifacts,
     terminalReason: failure.reason,
     terminalReasonCode: failure.reasonCode,
     terminalFailurePhase: failure.failurePhase,
@@ -105,28 +85,18 @@ export function mapRetryExhaustedReport(params: {
   flowReport: FlowReport;
   history: LoopIteration[];
   authorizationSummary: AuthorizationSourceSummary | null;
-  failure?: AttemptFailureDetails;
   lastErrorCode?: string;
   lastContext?: TerminalCtx;
   lastVerifyArtifact?: ArtifactHandle;
-  lastSubAgentPatchArtifacts?: ArtifactHandle[];
-  lastSubAgentAuditArtifacts?: ArtifactHandle[];
-  lastRecentReadArtifacts?: Array<{ path: string; artifact: ArtifactHandle }>;
-  lastToolResultPreviewArtifacts?: Array<{ label: string; artifact: ArtifactHandle }>;
 }): FlowTransactionReport {
   const {
     attempts,
     flowReport,
     history,
     authorizationSummary,
-    failure,
     lastErrorCode,
     lastContext,
     lastVerifyArtifact,
-    lastSubAgentPatchArtifacts,
-    lastSubAgentAuditArtifacts,
-    lastRecentReadArtifacts,
-    lastToolResultPreviewArtifacts,
   } = params;
 
   return {
@@ -139,11 +109,5 @@ export function mapRetryExhaustedReport(params: {
     retryExhausted: true,
     lastContext,
     lastVerifyArtifact,
-    lastSubAgentPatchArtifacts,
-    lastSubAgentAuditArtifacts,
-    lastRecentReadArtifacts,
-    lastToolResultPreviewArtifacts,
-    terminalFailurePhase: failure?.failurePhase,
-    terminalDiagnosticCode: failure?.diagnosticCode,
   };
 }

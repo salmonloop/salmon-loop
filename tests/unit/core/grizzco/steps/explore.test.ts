@@ -1,7 +1,18 @@
-import { beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
+import { describe, it, expect, beforeEach } from 'bun:test';
 
 import * as session from '../../../../../src/core/tools/session.js';
 import { Phase } from '../../../../../src/core/types/index.js';
+
+// Mock dependencies
+mock.module('../../../../../src/core/tools/session.js', () => ({
+  chatWithTools: mock(),
+  chatWithToolsStreaming: mock(),
+}));
+
+mock.module('../../../../../src/core/prompts/runtime.js', () => ({
+  getExplorePrompt: mock().mockResolvedValue('Mock Prompt'),
+  getExploreSystemPrompt: mock().mockResolvedValue('Mock System Prompt'),
+}));
 
 describe('exploreCodebase', () => {
   let mockCtx: any;
@@ -258,133 +269,5 @@ describe('exploreCodebase', () => {
     await expect(runExplore(mockCtx)).rejects.toThrow(
       'No files were read during the exploration phase',
     );
-  });
-
-  it('injects recent read artifact handles into the explore request envelope', async () => {
-    const captured: any[][] = [];
-    const mockRuntimeCtx = {
-      repoRoot: '/tmp/test',
-      attemptId: 1,
-      dryRun: false,
-    };
-
-    mockCtx.artifactHints = {
-      recentReadArtifacts: [
-        {
-          path: 'src/previous.ts',
-          artifact: {
-            handle: 's8p://artifact/recent-read-1',
-            mimeType: 'text/plain',
-            sha256: 'abc123',
-            size: 321,
-          },
-        },
-      ],
-    };
-
-    spyOn(session, 'chatWithTools').mockImplementation(
-      async (messages: any, _options: any, runtime: any) => {
-        captured.push(messages.map((m: any) => ({ role: m.role, content: m.content })));
-        const router = runtime.toolstack.router;
-
-        mockToolstack.router.call.mockResolvedValue({
-          toolName: 'fs.read',
-          status: 'ok',
-          output: { content: 'export const value = 1;' },
-        });
-
-        await router.call({
-          id: 'capture-1',
-          phase: Phase.EXPLORE,
-          toolName: 'fs.read',
-          args: { file: 'src/captured.ts' },
-          ctx: mockRuntimeCtx,
-        });
-
-        return { role: 'assistant', content: 'done' } as any;
-      },
-    );
-
-    const out = await runExplore(mockCtx);
-
-    const lastUserMessage = captured[0][captured[0].length - 1];
-    expect(lastUserMessage.role).toBe('user');
-    expect(lastUserMessage.content).toContain('s8p://artifact/recent-read-1');
-    expect(lastUserMessage.content).toContain('src/previous.ts');
-    expect(lastUserMessage.content).toContain('artifact.read');
-    expect(out.explorationSummary?.filesFound).toBeGreaterThan(0);
-  });
-
-  it('forwards runtime contextSnapshot into tool-calling execution context', async () => {
-    const mockRuntimeCtx = {
-      repoRoot: '/tmp/test',
-      attemptId: 1,
-      dryRun: false,
-    };
-    let receivedRuntimeContext: any;
-
-    mockCtx.options.conversationContext = [{ role: 'assistant', content: 'prior context' }];
-    mockCtx.artifactHints = {
-      verifyArtifact: {
-        handle: 's8p://artifact/verify-explore-1',
-        mimeType: 'text/plain',
-        sha256: 'verify',
-        size: 12,
-      },
-    };
-    mockCtx.toolCallingAudit = [
-      {
-        timestamp: new Date().toISOString(),
-        phase: 'PLAN',
-        round: 0,
-        callId: 'call-plan',
-        toolName: 'plan.update',
-        rawArgsType: 'string',
-        parsedArgsOk: true,
-        toolResultStatus: 'ok',
-      },
-    ];
-    mockCtx.planRuntime = { sessionId: 'plan-1', planPathHint: '.salmonloop/plan.md' };
-    mockCtx.contextResult = {
-      prompt: 'ASSEMBLED_CONTEXT',
-      meta: { contextHash: 'ctx-explore' },
-    };
-
-    spyOn(session, 'chatWithTools').mockImplementation(
-      async (_messages: any, _options: any, toolSession: any) => {
-        receivedRuntimeContext = toolSession.runtime;
-        const router = toolSession.toolstack.router;
-
-        mockToolstack.router.call.mockResolvedValue({
-          toolName: 'fs.read',
-          status: 'ok',
-          output: { content: 'export const value = 1;' },
-        });
-
-        await router.call({
-          id: 'capture-1',
-          phase: Phase.EXPLORE,
-          toolName: 'fs.read',
-          args: { file: 'src/captured.ts' },
-          ctx: mockRuntimeCtx,
-        });
-
-        return { role: 'assistant', content: 'done' } as any;
-      },
-    );
-
-    await runExplore(mockCtx);
-
-    expect(receivedRuntimeContext?.phase).toBe(Phase.EXPLORE);
-    expect(receivedRuntimeContext?.contextSnapshot).toMatchObject({
-      conversationContext: mockCtx.options.conversationContext,
-      artifactHints: mockCtx.artifactHints,
-      toolCallingAudit: mockCtx.toolCallingAudit,
-      planRuntime: mockCtx.planRuntime,
-      cacheSharing: expect.objectContaining({
-        namespace: 'explore',
-        contextHash: 'ctx-explore',
-      }),
-    });
   });
 });

@@ -1,7 +1,6 @@
 import { builtinModules } from 'module';
 
 import type { EnvironmentMode, ExecutionPhase, LoopReasonCode } from '../types/index.js';
-import type { RootCauseCode } from '../types/loop.js';
 
 export interface FailureGuidance {
   diagnosticCode: string;
@@ -12,7 +11,6 @@ export interface FailureGuidance {
 export interface BuildFailureGuidanceInput {
   reasonCode: LoopReasonCode;
   failurePhase: ExecutionPhase;
-  rootCause?: RootCauseCode;
   errorCode?: string;
   verifyOutput?: string;
   environmentMode?: EnvironmentMode;
@@ -114,15 +112,6 @@ function buildDependencyGuidance(input: BuildFailureGuidanceInput): FailureGuida
 
 function buildErrorCodeGuidance(input: BuildFailureGuidanceInput): FailureGuidance | undefined {
   switch (input.errorCode) {
-    case 'LLM_RATE_LIMITED':
-      return {
-        diagnosticCode: 'LLM_RATE_LIMITED',
-        safeHint: 'LLM is rate limited. Please retry in a moment.',
-        remediationSteps: [
-          'Retry the command after a short delay.',
-          'If it persists, reduce concurrency or check provider quota.',
-        ],
-      };
     case 'LLM_HTTP_REQUEST_FAILED':
       return {
         diagnosticCode: 'LLM_HTTP_REQUEST_FAILED',
@@ -130,15 +119,6 @@ function buildErrorCodeGuidance(input: BuildFailureGuidanceInput): FailureGuidan
         remediationSteps: [
           'Retry the command after a short delay.',
           'If it persists, check provider status or credentials.',
-        ],
-      };
-    case 'LLM_AUTHENTICATION_FAILED':
-      return {
-        diagnosticCode: 'LLM_AUTHENTICATION_FAILED',
-        safeHint: 'LLM provider rejected the request credentials or access.',
-        remediationSteps: [
-          'Check the provider API key, app id, and model access configuration.',
-          'If the configuration is correct, confirm the selected model is enabled for this account.',
         ],
       };
     case 'LLM_HTTP_ABORTED':
@@ -222,10 +202,7 @@ export function buildFailureGuidance(input: BuildFailureGuidanceInput): FailureG
   const dependencyGuidance = buildDependencyGuidance(input);
   if (dependencyGuidance) return dependencyGuidance;
 
-  const errorCodeGuidance = buildErrorCodeGuidance({
-    ...input,
-    errorCode: input.rootCause ?? input.errorCode,
-  });
+  const errorCodeGuidance = buildErrorCodeGuidance(input);
   if (errorCodeGuidance) return errorCodeGuidance;
 
   if (input.reasonCode === 'PREFLIGHT_NOT_GIT') {

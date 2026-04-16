@@ -37,9 +37,8 @@ describe('PromptRegistry', () => {
 
     // From templates/system/main_system.hbs and plan_system.hbs
     expect(out).toContain('You are SalmonLoop.');
-    expect(out).toContain('Primary text is authoritative.');
-    expect(out).toContain('Do not guess missing file contents.');
-    expect(out).toContain('You are the PLAN phase planner.');
+    expect(out).toContain('Use tool calls to inspect the repository.');
+    expect(out).toContain('**DO NOT GUESS file contents.**');
   });
 
   it('should render patch system template with main system and correct phase instruction', async () => {
@@ -47,19 +46,8 @@ describe('PromptRegistry', () => {
     await registry.init();
     const out = registry.renderPatchSystem();
 
-    expect(out).toContain('You are PATCH, a phase-native diff compiler.');
-  });
-
-  it('should render explore system template as a standalone phase prompt', async () => {
-    const registry = newRegistry();
-    await registry.init();
-    const out = registry.renderExploreSystem();
-
-    expect(out).toContain('You are in EXPLORE.');
-    expect(out).toContain('Use only these exact tool names in EXPLORE');
-    expect(out).not.toContain('You are SalmonLoop.');
-    expect(out).not.toContain('## Knowledge Retention');
-    expect(out).not.toContain('## Available Tools');
+    expect(out).toContain('You are SalmonLoop.');
+    expect(out).toContain('Output only a valid unified diff when patching.');
   });
 
   it('should register json helper to stringify objects', async () => {
@@ -174,45 +162,6 @@ describe('PromptRegistry', () => {
       expect(output).toContain('fs_read');
     });
 
-    it('should render plan system prompt from explicitly provided tools', async () => {
-      const registry = newRegistry();
-      await registry.init();
-
-      const hiddenTool: ToolSpec = {
-        name: 'tool.hidden',
-        source: 'builtin',
-        intent: 'READ',
-        description: 'Hidden tool',
-        riskLevel: 'low',
-        sideEffects: ['fs_read'],
-        concurrency: 'parallel_ok',
-        allowedPhases: ['PLAN'],
-        inputSchema: z.object({}),
-        outputSchema: z.object({}),
-        executor: async () => ({}),
-      };
-
-      const visibleTool: ToolSpec = {
-        name: 'tool.visible',
-        source: 'builtin',
-        intent: 'READ',
-        description: 'Visible tool',
-        riskLevel: 'low',
-        sideEffects: ['fs_read'],
-        concurrency: 'parallel_ok',
-        allowedPhases: ['PLAN'],
-        inputSchema: z.object({}),
-        outputSchema: z.object({}),
-        executor: async () => ({}),
-      };
-
-      registry.setTools([hiddenTool]);
-      const output = registry.renderPlanSystemWithTools([visibleTool]);
-
-      expect(output).toContain('tool.visible');
-      expect(output).not.toContain('tool.hidden');
-    });
-
     it('should inject tool definitions into patch system prompt', async () => {
       const registry = newRegistry();
       await registry.init();
@@ -236,45 +185,6 @@ describe('PromptRegistry', () => {
 
       expect(output).toContain('code.read');
       expect(output).toContain('Read source code files');
-    });
-
-    it('should render patch system prompt from explicitly provided tools', async () => {
-      const registry = newRegistry();
-      await registry.init();
-
-      const hiddenTool: ToolSpec = {
-        name: 'patch.hidden',
-        source: 'builtin',
-        intent: 'READ',
-        description: 'Hidden patch tool',
-        riskLevel: 'low',
-        sideEffects: ['fs_read'],
-        concurrency: 'parallel_ok',
-        allowedPhases: ['PATCH'],
-        inputSchema: z.object({}),
-        outputSchema: z.object({}),
-        executor: async () => ({}),
-      };
-
-      const visibleTool: ToolSpec = {
-        name: 'patch.visible',
-        source: 'builtin',
-        intent: 'READ',
-        description: 'Visible patch tool',
-        riskLevel: 'low',
-        sideEffects: ['fs_read'],
-        concurrency: 'parallel_ok',
-        allowedPhases: ['PATCH'],
-        inputSchema: z.object({}),
-        outputSchema: z.object({}),
-        executor: async () => ({}),
-      };
-
-      registry.setTools([hiddenTool]);
-      const output = registry.renderPatchSystemWithTools([visibleTool]);
-
-      expect(output).toContain('patch.visible');
-      expect(output).not.toContain('patch.hidden');
     });
 
     it('should render multiple tools correctly', async () => {
@@ -358,7 +268,7 @@ describe('PromptRegistry', () => {
       expect(output).toContain('Tool Usage Guidelines');
     });
 
-    it('should use fixed argument shapes instead of injected tool schema in explore system prompt', async () => {
+    it('should expose input schema properties so models can call tools with correct args', async () => {
       const registry = newRegistry();
       await registry.init();
 
@@ -381,9 +291,8 @@ describe('PromptRegistry', () => {
       registry.setTools([mockTool]);
       const output = registry.renderExploreSystem();
 
-      expect(output).toContain('{"file":"path/to/file"}');
-      expect(output).not.toContain('Relative path to file');
-      expect(output).not.toContain('## Available Tools');
+      expect(output).toContain('"file"');
+      expect(output).toContain('Relative path to file');
     });
 
     it('should unwrap preprocess schemas so models can see required tool args', async () => {
@@ -412,53 +321,8 @@ describe('PromptRegistry', () => {
       registry.setTools([mockTool]);
       const output = registry.renderExploreSystem();
 
-      expect(output).toContain('fs.read');
-      expect(output).not.toContain('Relative path to file');
-    });
-
-    it('should not leak alias or legacy tool wording into explore system prompt', async () => {
-      const registry = newRegistry();
-      await registry.init();
-
-      const tools: ToolSpec[] = [
-        {
-          name: 'code.read',
-          source: 'builtin',
-          intent: 'READ',
-          description: 'Read source code files',
-          riskLevel: 'low',
-          sideEffects: ['fs_read'],
-          concurrency: 'parallel_ok',
-          allowedPhases: ['EXPLORE'],
-          inputSchema: z.object({ file: z.string() }),
-          outputSchema: z.object({ content: z.string() }),
-          executor: async () => ({ content: '' }),
-        },
-        {
-          name: 'fs.list_directory',
-          source: 'builtin',
-          intent: 'LIST',
-          description:
-            'List directory entries under a repository path (legacy name). Prefer fs.list_directory for clarity.',
-          riskLevel: 'low',
-          sideEffects: ['fs_read'],
-          concurrency: 'parallel_ok',
-          allowedPhases: ['EXPLORE'],
-          inputSchema: z.object({ path: z.string() }),
-          outputSchema: z.object({ entries: z.array(z.string()) }),
-          executor: async () => ({ entries: [] }),
-        },
-      ];
-
-      registry.setTools(tools);
-      const output = registry.renderExploreSystemWithRuntime({
-        plan: { sessionId: 'sess', planPathHint: 'plan.md' },
-      });
-
-      expect(output).not.toContain('code.read');
-      expect(output).not.toContain('fs.list_directory');
-      expect(output).not.toContain('legacy name');
-      expect(output).not.toContain('Prefer fs.list_directory');
+      expect(output).toContain('"file"');
+      expect(output).toContain('Relative path to file');
     });
 
     describe('Tool Examples', () => {

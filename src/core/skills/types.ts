@@ -3,11 +3,9 @@ import { ToolRuntimeCtx } from '../tools/types.js';
 export interface SkillFrontmatter {
   name: string;
   description: string;
-  license?: string;
-  compatibility?: string;
-  metadata?: Record<string, string>;
-  /** AgentSkills spec field: space-delimited string. */
-  'allowed-tools'?: string;
+  allowedTools?: string[];
+  context?: 'fork' | 'main';
+  userInvocable?: boolean;
 }
 
 export interface Skill {
@@ -16,22 +14,6 @@ export interface Skill {
   metadata: SkillFrontmatter;
   rawContent: string; // Original Markdown
   instructions: string; // Instruction part stripped of YAML
-}
-
-/**
- * Tier 1 catalog entry: lightweight metadata loaded at startup.
- *
- * Contains only frontmatter fields (name + description + location) to keep
- * startup context cost at approximately 50-100 tokens per skill.
- *
- * @see Requirements 6.1, 6.3
- */
-export interface SkillCatalogEntry {
-  id: string;
-  name: string;
-  description: string;
-  location: string;
-  scope: 'repo' | 'user' | 'config';
 }
 
 /**

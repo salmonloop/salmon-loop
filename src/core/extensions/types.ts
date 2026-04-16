@@ -33,6 +33,7 @@ export interface ResolvedToolPlugin {
 }
 
 export interface ResolvedSkillDiscovery {
+  useDefaults: boolean;
   paths: string[];
   scope: ExtensionScope;
 }
@@ -76,6 +77,7 @@ export interface RawToolConfig {
 export interface RawSkillConfig {
   version: 1;
   discovery: {
+    useDefaults?: boolean;
     paths?: string[];
   };
 }

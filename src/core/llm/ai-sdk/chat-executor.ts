@@ -18,7 +18,6 @@ import { executeWithAiSdkRetry, executeWithAiSdkStreamRetry } from './retry-exec
 interface BaseAiSdkChatExecutionInput {
   model: any;
   modelId: string;
-  providerOptionsKey: string;
   timeoutMs?: number;
   langfuseEnabled: boolean;
   requestId: string;
@@ -61,7 +60,6 @@ export async function executeAiSdkChatRequest(
               options: input.options,
               headers: attemptCtx.langfuseHeaders,
               abortSignal: attemptCtx.abortSignal,
-              providerOptionsKey: input.providerOptionsKey,
             }),
           );
 
@@ -111,7 +109,6 @@ export async function* executeAiSdkChatStreamRequest(
             options: input.options,
             headers: attemptCtx.langfuseHeaders,
             abortSignal: attemptCtx.abortSignal,
-            providerOptionsKey: input.providerOptionsKey,
           }),
         );
         yield* mapAiSdkStreamResultToChunks((result as any).fullStream);
