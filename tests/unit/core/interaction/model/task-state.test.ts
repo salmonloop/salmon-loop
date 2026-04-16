@@ -1,6 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 
-import { isTerminalTaskState, canTransitionTaskState } from '../../../../../src/core/interaction/model/task-state.js';
+import {
+  isTerminalTaskState,
+  canTransitionTaskState,
+} from '../../../../../src/core/interaction/model/task-state.js';
 
 describe('task-state', () => {
   describe('isTerminalTaskState', () => {
@@ -12,7 +15,7 @@ describe('task-state', () => {
 
     test('returns false for non-terminal states', () => {
       const nonTerminalStates = ['accepted', 'running', 'awaiting_input', 'streaming'];
-      nonTerminalStates.forEach(state => {
+      nonTerminalStates.forEach((state) => {
         expect(isTerminalTaskState(state as any)).toBe(false);
       });
     });
