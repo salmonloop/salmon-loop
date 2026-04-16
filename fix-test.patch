@@ -1,0 +1,31 @@
+--- tests/unit/tools/session-streaming.test.ts
++++ tests/unit/tools/session-streaming.test.ts
+@@ -1,4 +1,4 @@
+-import { describe, expect, it, mock, spyOn } from 'bun:test';
++import { beforeEach, afterEach, describe, expect, it, mock, spyOn } from 'bun:test';
+ import { z } from 'zod';
+
+ import { ToolAuditLogger } from '../../../src/core/tools/audit.js';
+@@ -9,6 +9,7 @@
+ import { ToolSanitizer } from '../../../src/core/tools/sanitize.js';
+ import { chatWithToolsStreaming } from '../../../src/core/tools/session.js';
+ import type { ToolSpec } from '../../../src/core/tools/types.js';
++import { createLogger, setLogger, clearLogger } from '../../../src/core/observability/logger.js';
+ import { Phase, type LLMMessage, type LoopEvent } from '../../../src/core/types/index.js';
+
+ function createToolstack() {
+@@ -38,6 +39,14 @@
+ }
+
+ describe('chatWithToolsStreaming', () => {
++  beforeEach(() => {
++    setLogger(createLogger({ silent: true }));
++  });
++
++  afterEach(() => {
++    clearLogger();
++  });
++
+   it('falls back to non-streaming chat when the stream ends without deltas', async () => {
+     const { registry, policy, router } = createToolstack();
+     registerEchoTool(registry);

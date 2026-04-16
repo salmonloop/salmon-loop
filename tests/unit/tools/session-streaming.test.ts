@@ -1,5 +1,7 @@
+import { beforeEach, afterEach, describe, expect, it, mock, spyOn } from 'bun:test';
 import { z } from 'zod';
 
+import { createLogger, setLogger, clearLogger } from '../../../src/core/observability/logger.js';
 import { ToolAuditLogger } from '../../../src/core/tools/audit.js';
 import { BudgetGuard } from '../../../src/core/tools/budget.js';
 import { ToolPolicy } from '../../../src/core/tools/policy.js';
@@ -38,6 +40,14 @@ function registerEchoTool(registry: ToolRegistry) {
 }
 
 describe('chatWithToolsStreaming', () => {
+  beforeEach(() => {
+    setLogger(createLogger({ silent: true }));
+  });
+
+  afterEach(() => {
+    clearLogger();
+  });
+
   it('falls back to non-streaming chat when the stream ends without deltas', async () => {
     const { registry, policy, router } = createToolstack();
 
