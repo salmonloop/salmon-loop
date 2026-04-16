@@ -1,5 +1,4 @@
-[
-  "tests/unit/core/adapters/fs/readonly-filesystem.test.ts",
+["tests/unit/core/adapters/fs/readonly-filesystem.test.ts",
   "tests/unit/audit-file.test.ts",
   "tests/unit/cli/authorization/allowlist.test.ts",
   "tests/unit/cli/reporters/openai-stream.test.ts",
