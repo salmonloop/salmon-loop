@@ -1,4 +1,5 @@
 import { describe, expect, it, mock } from 'bun:test';
+
 import { ReadOnlyFileSystem } from '../../../../../src/core/adapters/fs/readonly-filesystem.js';
 import type { FileSystem } from '../../../../../src/core/types/execution.js';
 import { text } from '../../../../../src/locales/index.js';
@@ -46,7 +47,7 @@ describe('ReadOnlyFileSystem', () => {
     const readOnlyFs = new ReadOnlyFileSystem(mockFs);
 
     await expect(readOnlyFs.writeFile('/test/file.txt', 'new content')).rejects.toThrow(
-      text.grizzco.errors.readOnlyFileSystem('writeFile')
+      text.grizzco.errors.readOnlyFileSystem('writeFile'),
     );
     expect(mockFs.writeFile).not.toHaveBeenCalled();
   });
@@ -61,7 +62,7 @@ describe('ReadOnlyFileSystem', () => {
     const readOnlyFs = new ReadOnlyFileSystem(mockFs);
 
     await expect(readOnlyFs.mkdir('/test/dir', { recursive: true })).rejects.toThrow(
-      text.grizzco.errors.readOnlyFileSystem('mkdir')
+      text.grizzco.errors.readOnlyFileSystem('mkdir'),
     );
     expect(mockFs.mkdir).not.toHaveBeenCalled();
   });
