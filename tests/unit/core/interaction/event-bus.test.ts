@@ -95,4 +95,36 @@ describe('task event bus', () => {
     expect(events).toHaveLength(1);
     expect(events[0]?.id).toBe('2');
   });
+
+  test('handles non-numeric caller provided ids', () => {
+    const bus = createTaskEventBus();
+    bus.publish({ id: 'abc', type: 'task.accepted', taskId: 'task_1' });
+    const events = bus.list('task_1');
+    expect(events).toHaveLength(1);
+    expect(events[0]?.id).toBe('1');
+  });
+
+  test('returns empty array when listing unmatched taskId', () => {
+    const bus = createTaskEventBus();
+    bus.publish({ type: 'task.accepted', taskId: 'task_1' });
+    const events = bus.list('task_2');
+    expect(events).toHaveLength(0);
+  });
+
+  test('handles limit edge cases', () => {
+    const bus = createTaskEventBus();
+    bus.publish({ type: 'task.accepted', taskId: 'task_1' });
+    bus.publish({ type: 'task.running', taskId: 'task_1' });
+
+    expect(bus.list('task_1', { limit: 0 })).toHaveLength(0);
+    expect(bus.list('task_1', { limit: -5 })).toHaveLength(0);
+  });
+
+  test('lists task events with no options', () => {
+    const bus = createTaskEventBus();
+    bus.publish({ type: 'task.accepted', taskId: 'task_1' });
+    const events = bus.list('task_1');
+    expect(events).toHaveLength(1);
+    expect(events[0]?.id).toBe('1');
+  });
 });
