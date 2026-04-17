@@ -120,9 +120,7 @@ export class ArtifactStore {
       removedBytes += file.size;
     };
 
-    for (const file of expired) {
-      await removeFile(file);
-    }
+    await Promise.all(expired.map(removeFile));
 
     // Recompute remaining after TTL removal (newest first).
     const remaining = files
@@ -132,16 +130,18 @@ export class ArtifactStore {
     let currentFiles = remaining.length;
     let currentBytes = remaining.reduce((acc, f) => acc + f.size, 0);
 
+    const toRemove = [];
     for (let i = remaining.length - 1; i >= 0; i--) {
       const tooManyFiles = currentFiles > maxFiles;
       const tooManyBytes = currentBytes > maxTotalBytes;
       if (!tooManyFiles && !tooManyBytes) break;
 
       const oldest = remaining[i];
-      await removeFile(oldest);
+      toRemove.push(oldest);
       currentFiles -= 1;
       currentBytes -= oldest.size;
     }
+    await Promise.all(toRemove.map(removeFile));
 
     return { removedFiles, removedBytes };
   }
