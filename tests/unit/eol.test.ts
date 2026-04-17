@@ -23,6 +23,40 @@ describe('TextNormalizer', () => {
       expect(result.eol).toBe('\r\n');
       expect(result.normalized).toBe('a\nb\nc\nd\ne');
     });
+
+    it('should detect LF when content starts with LF', () => {
+      const input = '\nfoo\nbar';
+      const result = TextNormalizer.read(input);
+      expect(result.eol).toBe('\n');
+      expect(result.normalized).toBe('\nfoo\nbar');
+    });
+
+    it('should detect consecutive LF characters', () => {
+      const input = 'foo\n\n\nbar';
+      const result = TextNormalizer.read(input);
+      expect(result.eol).toBe('\n');
+      expect(result.normalized).toBe('foo\n\n\nbar');
+    });
+
+    it('should default to LF for ties and empty content', () => {
+      expect(TextNormalizer.read('').eol).toBe('\n');
+      expect(TextNormalizer.read('foo').eol).toBe('\n');
+      expect(TextNormalizer.read('foo\r\nbar\nbaz').eol).toBe('\n');
+    });
+
+    it('should count a leading LF when resolving a tie', () => {
+      const input = '\nfoo\r\nbar';
+      const result = TextNormalizer.read(input);
+      expect(result.eol).toBe('\n');
+      expect(result.normalized).toBe('\nfoo\nbar');
+    });
+
+    it('should choose LF when LF is the majority', () => {
+      const input = 'a\nb\nc\nd\r\ne';
+      const result = TextNormalizer.read(input);
+      expect(result.eol).toBe('\n');
+      expect(result.normalized).toBe('a\nb\nc\nd\ne');
+    });
   });
 
   describe('restore() - Restoration', () => {
