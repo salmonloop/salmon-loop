@@ -1,6 +1,8 @@
 import { tmpdir } from 'os';
 import path from 'path';
 
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
+
 import { GitAdapter } from '../../../src/core/adapters/git/git-adapter.js';
 import { runGitCommand } from '../../../src/core/adapters/git/git-runner.js';
 
@@ -21,6 +23,7 @@ async function expectSecurityViolation(promise: Promise<unknown>): Promise<void>
 describe('GitAdapter exec truncation handling', () => {
   beforeEach(() => {
     mock.restore();
+    (runGitCommand as any).mockClear();
   });
 
   it('throws when stdout is truncated', async () => {
@@ -67,6 +70,7 @@ describe('GitAdapter exec truncation handling', () => {
 describe('GitAdapter query gateway validation', () => {
   beforeEach(() => {
     mock.restore();
+    (runGitCommand as any).mockClear();
   });
 
   it('allows approved commands', async () => {
@@ -177,6 +181,7 @@ describe('GitAdapter query gateway validation', () => {
 describe('GitAdapter shadow path parity handling', () => {
   beforeEach(() => {
     mock.restore();
+    (runGitCommand as any).mockClear();
   });
 
   it('allows updateIndex inside parity worktree root', async () => {

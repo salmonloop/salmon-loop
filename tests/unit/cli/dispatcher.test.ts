@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'bun:test';
+import { describe, it, expect, mock, beforeEach } from 'bun:test';
 
 import { CommandDispatcher } from '../../../src/cli/commands/dispatcher.js';
 import { ChatSessionManager } from '../../../src/core/session/manager.js';
@@ -18,6 +18,11 @@ describe('CommandDispatcher', () => {
 
   beforeEach(() => {
     mock.restore();
+    mockEmit.mockClear();
+    (mockSessionManager as any).getCurrent.mockClear();
+    (mockSessionManager as any).addMessage.mockClear();
+    (mockSessionManager as any).addIteration.mockClear();
+    (mockSessionManager as any).save.mockClear();
   });
 
   it('should execute a valid command', async () => {
