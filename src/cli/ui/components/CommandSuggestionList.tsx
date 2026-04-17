@@ -62,7 +62,7 @@ export const CommandSuggestionList: React.FC<CommandSuggestionListProps> = ({
 
               {/* Subcommand Arrow */}
               <Box width={2} marginRight={1}>
-                {hasSubcommands ? <Text color={COLORS.text.muted}> </Text> : <Text> </Text>}
+                {hasSubcommands ? <Text color={COLORS.text.muted}>›</Text> : <Text> </Text>}
               </Box>
 
               {/* Description */}
