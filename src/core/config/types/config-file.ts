@@ -231,6 +231,10 @@ export interface ToolAuthorizationConfig {
        * The command must print an AuthorizationDecision-like JSON to stdout.
        */
       cmd: string;
+      /**
+       * Arguments for the command. If provided, the command is executed without a shell.
+       */
+      args?: string[];
       timeoutMs?: number;
     };
     mcp?: {

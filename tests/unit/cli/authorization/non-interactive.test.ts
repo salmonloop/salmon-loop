@@ -42,6 +42,26 @@ describe('non-interactive authorization handler', () => {
 
     const decision = await requestNonInteractiveAuthorizationDecision({ request, config });
     expect(decision).toEqual({ outcome: 'allow_once', source: 'hook' });
+    expect(execa).toHaveBeenCalledWith('echo', ['ok'], expect.any(Object));
+  });
+
+  it('uses command strategy with explicit args', async () => {
+    (execa as any).mockResolvedValue({
+      exitCode: 0,
+      stdout: JSON.stringify({ outcome: 'allow' }),
+      stderr: '',
+    } as any);
+
+    const config: ToolAuthorizationConfig = {
+      nonInteractive: {
+        strategy: 'command',
+        command: { cmd: '/usr/bin/auth-helper', args: ['--check', 'now'] },
+      },
+    };
+
+    const decision = await requestNonInteractiveAuthorizationDecision({ request, config });
+    expect(decision).toEqual({ outcome: 'allow', source: 'hook' });
+    expect(execa).toHaveBeenCalledWith('/usr/bin/auth-helper', ['--check', 'now'], expect.any(Object));
   });
 
   it('fails closed when command returns invalid JSON', async () => {

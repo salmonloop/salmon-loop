@@ -1,6 +1,8 @@
 import { execa } from 'execa';
 import { z } from 'zod';
 
+import { splitCommand } from '../../core/utils/command-split.js';
+
 import type {
   AuthorizationDecision,
   ResolvedExtensions,
@@ -102,13 +104,28 @@ export async function requestNonInteractiveAuthorizationDecision(params: {
     }
 
     const timeoutMs = params.config.nonInteractive?.command?.timeoutMs ?? 10_000;
+    const args = params.config.nonInteractive?.command?.args;
+
     try {
-      const res = await execa(cmd, {
-        input: JSON.stringify({ request: params.request }),
-        shell: true,
-        timeout: timeoutMs,
-        reject: false,
-      });
+      let res;
+      if (args) {
+        res = await execa(cmd, args, {
+          input: JSON.stringify({ request: params.request }),
+          timeout: timeoutMs,
+          reject: false,
+        });
+      } else {
+        const parts = splitCommand(cmd);
+        const [file, ...rest] = parts;
+        if (!file) {
+          return deny(text.cli.toolAuthorizationNonInteractiveMisconfigured('command'));
+        }
+        res = await execa(file, rest, {
+          input: JSON.stringify({ request: params.request }),
+          timeout: timeoutMs,
+          reject: false,
+        });
+      }
 
       if (typeof res.exitCode === 'number' && res.exitCode !== 0) {
         return deny(text.cli.toolAuthorizationNonInteractiveFailed('command_failed'));
