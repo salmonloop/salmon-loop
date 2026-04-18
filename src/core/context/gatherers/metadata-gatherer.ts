@@ -40,13 +40,20 @@ export class MetadataGatherer {
 
     // 3. AI Instructions (GEMINI.md, CLAUDE.md, ARCH.md)
     const aiFiles = ['GEMINI.md', 'CLAUDE.md', 'ARCH.md', '.gemini/ARCH.md'];
-    for (const file of aiFiles) {
-      try {
-        const content = await this.fileAdapter.readFile(safeJoin(repoPath, file), 'utf-8');
-        metadata.aiInstructions = (metadata.aiInstructions || '') + `\n--- ${file} ---\n${content}`;
-      } catch {
-        // Ignored
-      }
+    const aiContents = await Promise.all(
+      aiFiles.map(async (file) => {
+        try {
+          const content = await this.fileAdapter.readFile(safeJoin(repoPath, file), 'utf-8');
+          return `\n--- ${file} ---\n${content}`;
+        } catch {
+          return null;
+        }
+      }),
+    );
+
+    const validAiContents = aiContents.filter(Boolean);
+    if (validAiContents.length > 0) {
+      metadata.aiInstructions = (metadata.aiInstructions || '') + validAiContents.join('');
     }
 
     // 4. List common config files
@@ -62,15 +69,18 @@ export class MetadataGatherer {
       'pnpm-lock.yaml',
     ];
 
-    metadata.configFiles = [];
-    for (const config of commonConfigs) {
-      try {
-        await this.fileAdapter.readFile(safeJoin(repoPath, config), 'utf-8');
-        metadata.configFiles.push(config);
-      } catch {
-        // Ignored: config not found
-      }
-    }
+    const configResults = await Promise.all(
+      commonConfigs.map(async (config) => {
+        try {
+          await this.fileAdapter.readFile(safeJoin(repoPath, config), 'utf-8');
+          return config;
+        } catch {
+          return null;
+        }
+      }),
+    );
+
+    metadata.configFiles = configResults.filter((config): config is string => config !== null);
 
     return metadata;
   }
