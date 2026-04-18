@@ -319,23 +319,33 @@ export class ChatSessionManager {
    */
   async listSessions(): Promise<Array<{ id: string; name: string; updatedAt: number }>> {
     const files = await this.fileAdapter.readdir(this.storageDir).catch(() => []);
-    const sessions = [];
+    const jsonFiles = files.filter((f) => f.endsWith('.json'));
 
-    for (const file of files) {
-      if (!file.endsWith('.json')) continue;
+    // Performance optimization: Using Promise.all to fetch session files concurrently
+    // reduces the sequential I/O latency, making listing significantly faster for larger directories.
+    const sessions = await Promise.all(
+      jsonFiles.map(async (file) => {
+        try {
+          const filePath = join(this.storageDir, file);
+          const data = await this.fileAdapter.readFile(filePath);
+          const session = JSON.parse(data) as ChatSession;
 
-      const filePath = join(this.storageDir, file);
-      const data = await this.fileAdapter.readFile(filePath);
-      const session = JSON.parse(data) as ChatSession;
+          return {
+            id: session.meta.id,
+            name: session.meta.name,
+            updatedAt: session.meta.updatedAt,
+          };
+        } catch (error) {
+          // Return null for unreadable or corrupted files to be filtered out
+          getLogger().warn(`Failed to read session file ${file}: ${error}`);
+          return null;
+        }
+      }),
+    );
 
-      sessions.push({
-        id: session.meta.id,
-        name: session.meta.name,
-        updatedAt: session.meta.updatedAt,
-      });
-    }
-
-    return sessions.sort((a, b) => b.updatedAt - a.updatedAt);
+    return sessions
+      .filter((s): s is NonNullable<typeof s> => s !== null)
+      .sort((a, b) => b.updatedAt - a.updatedAt);
   }
 
   /**
@@ -388,27 +398,30 @@ export class ChatSessionManager {
    */
   private async loadAllSessions(): Promise<ChatSession[]> {
     const files = await this.fileAdapter.readdir(this.storageDir).catch(() => []);
-    const sessions: ChatSession[] = [];
+    const jsonFiles = files.filter((f) => f.endsWith('.json'));
 
-    for (const file of files) {
-      if (!file.endsWith('.json')) continue;
+    // Performance optimization: Concurrent file reading with Promise.all substantially
+    // improves performance compared to iterative await calls.
+    const sessions = await Promise.all(
+      jsonFiles.map(async (file) => {
+        try {
+          const filePath = join(this.storageDir, file);
+          const data = await this.fileAdapter.readFile(filePath);
+          const session = JSON.parse(data) as ChatSession;
+          session.meta.artifactState = normalizeSessionArtifactState(session.meta.artifactState);
+          session.meta.replacementState = normalizeToolResultReplacementState(
+            session.meta.replacementState,
+          );
+          return session;
+        } catch (error) {
+          // Skip corrupted session files
+          getLogger().warn(`Failed to load session file ${file}: ${error}`);
+          return null;
+        }
+      }),
+    );
 
-      try {
-        const filePath = join(this.storageDir, file);
-        const data = await this.fileAdapter.readFile(filePath);
-        const session = JSON.parse(data) as ChatSession;
-        session.meta.artifactState = normalizeSessionArtifactState(session.meta.artifactState);
-        session.meta.replacementState = normalizeToolResultReplacementState(
-          session.meta.replacementState,
-        );
-        sessions.push(session);
-      } catch (error) {
-        // Skip corrupted session files
-        getLogger().warn(`Failed to load session file ${file}: ${error}`);
-      }
-    }
-
-    return sessions;
+    return sessions.filter((s): s is NonNullable<typeof s> => s !== null);
   }
 
   /**

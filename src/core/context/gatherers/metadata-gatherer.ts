@@ -40,12 +40,23 @@ export class MetadataGatherer {
 
     // 3. AI Instructions (GEMINI.md, CLAUDE.md, ARCH.md)
     const aiFiles = ['GEMINI.md', 'CLAUDE.md', 'ARCH.md', '.gemini/ARCH.md'];
-    for (const file of aiFiles) {
-      try {
-        const content = await this.fileAdapter.readFile(safeJoin(repoPath, file), 'utf-8');
-        metadata.aiInstructions = (metadata.aiInstructions || '') + `\n--- ${file} ---\n${content}`;
-      } catch {
-        // Ignored
+    // Performance optimization: Reading AI instruction files concurrently using Promise.all
+    // reduces the blocking time during the context gathering phase.
+    const aiFilesContents = await Promise.all(
+      aiFiles.map(async (file) => {
+        try {
+          const content = await this.fileAdapter.readFile(safeJoin(repoPath, file), 'utf-8');
+          return { file, content };
+        } catch {
+          return null; // Ignored
+        }
+      }),
+    );
+
+    for (const result of aiFilesContents) {
+      if (result) {
+        metadata.aiInstructions =
+          (metadata.aiInstructions || '') + `\n--- ${result.file} ---\n${result.content}`;
       }
     }
 
@@ -63,12 +74,22 @@ export class MetadataGatherer {
     ];
 
     metadata.configFiles = [];
-    for (const config of commonConfigs) {
-      try {
-        await this.fileAdapter.readFile(safeJoin(repoPath, config), 'utf-8');
-        metadata.configFiles.push(config);
-      } catch {
-        // Ignored: config not found
+    // Performance optimization: Reading common config files concurrently using Promise.all
+    // reduces the blocking time during the context gathering phase.
+    const configExistsResults = await Promise.all(
+      commonConfigs.map(async (config) => {
+        try {
+          await this.fileAdapter.readFile(safeJoin(repoPath, config), 'utf-8');
+          return config;
+        } catch {
+          return null; // Ignored: config not found
+        }
+      }),
+    );
+
+    for (const result of configExistsResults) {
+      if (result) {
+        metadata.configFiles.push(result);
       }
     }
 
