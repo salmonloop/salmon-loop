@@ -47,6 +47,7 @@ test-report.json
 .tmp/
 *.tmp
 *.temp
+tests/tmp/
 .s8p/
 .salmonloop/
 
