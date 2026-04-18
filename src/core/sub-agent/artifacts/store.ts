@@ -94,15 +94,17 @@ export class ArtifactStore {
     const root = getArtifactsRoot();
     const entries = await fs.readdir(root, { withFileTypes: true }).catch(() => []);
 
-    const files: Array<{ name: string; path: string; mtimeMs: number; size: number }> = [];
-    for (const entry of entries) {
-      if (!entry.isFile()) continue;
-      const filePath = path.join(root, entry.name);
-      if (!isWithinDir(root, filePath)) continue;
-      const stat = await fs.stat(filePath).catch(() => null);
-      if (!stat) continue;
-      files.push({ name: entry.name, path: filePath, mtimeMs: stat.mtimeMs, size: stat.size });
-    }
+    const filePromises = entries
+      .filter((entry) => entry.isFile())
+      .map(async (entry) => {
+        const filePath = path.join(root, entry.name);
+        if (!isWithinDir(root, filePath)) return null;
+        const stat = await fs.stat(filePath).catch(() => null);
+        if (!stat) return null;
+        return { name: entry.name, path: filePath, mtimeMs: stat.mtimeMs, size: stat.size };
+      });
+    const filesUnfiltered = await Promise.all(filePromises);
+    const files = filesUnfiltered.filter((f): f is NonNullable<typeof f> => f !== null);
 
     const maxAgeMs = options?.maxAgeMs ?? LIMITS.artifactTtlMs;
     const maxFiles = options?.maxFiles ?? LIMITS.artifactMaxFiles;
