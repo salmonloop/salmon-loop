@@ -319,21 +319,21 @@ export class ChatSessionManager {
    */
   async listSessions(): Promise<Array<{ id: string; name: string; updatedAt: number }>> {
     const files = await this.fileAdapter.readdir(this.storageDir).catch(() => []);
-    const sessions = [];
+    const jsonFiles = files.filter((file) => file.endsWith('.json'));
 
-    for (const file of files) {
-      if (!file.endsWith('.json')) continue;
+    const sessions = await Promise.all(
+      jsonFiles.map(async (file) => {
+        const filePath = join(this.storageDir, file);
+        const data = await this.fileAdapter.readFile(filePath);
+        const session = JSON.parse(data) as ChatSession;
 
-      const filePath = join(this.storageDir, file);
-      const data = await this.fileAdapter.readFile(filePath);
-      const session = JSON.parse(data) as ChatSession;
-
-      sessions.push({
-        id: session.meta.id,
-        name: session.meta.name,
-        updatedAt: session.meta.updatedAt,
-      });
-    }
+        return {
+          id: session.meta.id,
+          name: session.meta.name,
+          updatedAt: session.meta.updatedAt,
+        };
+      }),
+    );
 
     return sessions.sort((a, b) => b.updatedAt - a.updatedAt);
   }
@@ -388,27 +388,28 @@ export class ChatSessionManager {
    */
   private async loadAllSessions(): Promise<ChatSession[]> {
     const files = await this.fileAdapter.readdir(this.storageDir).catch(() => []);
-    const sessions: ChatSession[] = [];
+    const jsonFiles = files.filter((file) => file.endsWith('.json'));
 
-    for (const file of files) {
-      if (!file.endsWith('.json')) continue;
+    const sessions = await Promise.all(
+      jsonFiles.map(async (file) => {
+        try {
+          const filePath = join(this.storageDir, file);
+          const data = await this.fileAdapter.readFile(filePath);
+          const session = JSON.parse(data) as ChatSession;
+          session.meta.artifactState = normalizeSessionArtifactState(session.meta.artifactState);
+          session.meta.replacementState = normalizeToolResultReplacementState(
+            session.meta.replacementState,
+          );
+          return session;
+        } catch (error) {
+          // Skip corrupted session files
+          getLogger().warn(`Failed to load session file ${file}: ${error}`);
+          return null;
+        }
+      }),
+    );
 
-      try {
-        const filePath = join(this.storageDir, file);
-        const data = await this.fileAdapter.readFile(filePath);
-        const session = JSON.parse(data) as ChatSession;
-        session.meta.artifactState = normalizeSessionArtifactState(session.meta.artifactState);
-        session.meta.replacementState = normalizeToolResultReplacementState(
-          session.meta.replacementState,
-        );
-        sessions.push(session);
-      } catch (error) {
-        // Skip corrupted session files
-        getLogger().warn(`Failed to load session file ${file}: ${error}`);
-      }
-    }
-
-    return sessions;
+    return sessions.filter((s): s is ChatSession => s !== null);
   }
 
   /**
