@@ -1,0 +1,16 @@
+--- src/cli/authorization/allowlist.ts
++++ src/cli/authorization/allowlist.ts
+@@ -1181,11 +1181,9 @@
+         const rules = (entry.rules || []).filter((rule) => {
+           if (phase && rule.phase !== phase) return true;
+           if (argsHash && rule.argsHash !== argsHash) return true;
+           if (sideEffects && sideEffects.length > 0) {
+-            if (!rule.sideEffects || rule.sideEffects.length === 0) return true;
+-            for (const effect of sideEffects) {
+-              if (!rule.sideEffects.includes(effect)) return true;
+-            }
++            const ruleEffects = rule.sideEffects || [];
++            if (ruleEffects.length === 0 || sideEffects.some((effect) => !ruleEffects.includes(effect))) return true;
+           }
+           return false;
+         });

@@ -1182,12 +1182,10 @@ export async function removeAllowlistRule(params: {
           if (phase && rule.phase !== phase) return true;
           if (argsHash && rule.argsHash !== argsHash) return true;
           if (sideEffects && sideEffects.length > 0) {
-            const ruleEffects = rule.sideEffects || [];
-            if (
-              ruleEffects.length === 0 ||
-              sideEffects.some((effect) => !ruleEffects.includes(effect))
-            )
-              return true;
+            if (!rule.sideEffects || rule.sideEffects.length === 0) return true;
+            for (const effect of sideEffects) {
+              if (!rule.sideEffects.includes(effect)) return true;
+            }
           }
           return false;
         });
