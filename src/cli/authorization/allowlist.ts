@@ -1178,17 +1178,9 @@ export async function removeAllowlistRule(params: {
       if (!phase && !argsHash && (!sideEffects || sideEffects.length === 0)) {
         delete allowlist.tools[toolName];
       } else {
-        const rules = (entry.rules || []).filter((rule) => {
-          if (phase && rule.phase !== phase) return true;
-          if (argsHash && rule.argsHash !== argsHash) return true;
-          if (sideEffects && sideEffects.length > 0) {
-            if (!rule.sideEffects || rule.sideEffects.length === 0) return true;
-            for (const effect of sideEffects) {
-              if (!rule.sideEffects.includes(effect)) return true;
-            }
-          }
-          return false;
-        });
+        const rules = (entry.rules || []).filter(
+          (rule) => !matchesRemovalCriteria(rule, phase, argsHash, sideEffects),
+        );
         const hasPhases = entry.phases && Object.keys(entry.phases).length > 0;
         if (rules.length === 0 && !entry.mode && !hasPhases) {
           delete allowlist.tools[toolName];
@@ -1293,4 +1285,22 @@ export async function clearAllowlistCache(params: {
       }
     }),
   );
+}
+
+function matchesRemovalCriteria(
+  rule: ToolAuthorizationRule,
+  phase?: ExecutionPhase,
+  argsHash?: string,
+  sideEffects?: SideEffect[],
+): boolean {
+  if (phase && rule.phase !== phase) return false;
+  if (argsHash && rule.argsHash !== argsHash) return false;
+
+  if (sideEffects && sideEffects.length > 0) {
+    if (!rule.sideEffects || rule.sideEffects.length === 0) return false;
+    const hasAllEffects = sideEffects.every((effect) => rule.sideEffects!.includes(effect));
+    if (!hasAllEffects) return false;
+  }
+
+  return true;
 }
