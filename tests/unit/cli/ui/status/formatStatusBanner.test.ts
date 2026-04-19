@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'bun:test';
+
 import { formatStatusBanner } from '../../../../../src/cli/ui/status/formatStatusBanner.js';
 
 describe('formatStatusBanner', () => {
