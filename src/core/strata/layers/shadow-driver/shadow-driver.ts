@@ -163,15 +163,17 @@ export class ShadowDriver {
    * Prepare dependency directories in shadow root
    */
   private async prepareDependencyDirs(depPaths: string[]): Promise<void> {
-    for (const dep of depPaths) {
-      const depPath = join(this.config.shadowRoot, dep);
-      try {
-        // Create the directory itself to ensure copy contents works correctly (paired with cp src/. dest)
-        await mkdir(depPath, { recursive: true });
-      } catch (error) {
-        getLogger().warn(`Failed to create dependency directory ${depPath}: ${error}`);
-      }
-    }
+    await Promise.all(
+      depPaths.map(async (dep) => {
+        const depPath = join(this.config.shadowRoot, dep);
+        try {
+          // Create the directory itself to ensure copy contents works correctly (paired with cp src/. dest)
+          await mkdir(depPath, { recursive: true });
+        } catch (error) {
+          getLogger().warn(`Failed to create dependency directory ${depPath}: ${error}`);
+        }
+      }),
+    );
   }
 
   /**
