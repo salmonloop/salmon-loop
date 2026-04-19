@@ -241,7 +241,9 @@ export async function createCliSlashRuntime(
                 signal,
               });
 
-              if (res.status !== 'SUCCESS' || !res.injectedPrompt.trim()) {
+              const isSuccess = res.status === 'SUCCESS' && res.injectedPrompt.trim() !== '';
+
+              if (!isSuccess) {
                 options.emit({
                   type: 'log',
                   level: 'error',
