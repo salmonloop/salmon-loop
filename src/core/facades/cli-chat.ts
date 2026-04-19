@@ -27,3 +27,5 @@ export { TokenTracker } from '../session/token-tracker.js';
 export type { VerboseLevel } from '../types/execution.js';
 export type { LLM, LlmOutputPolicy } from '../types/llm.js';
 export type { CheckpointStrategy, LoopEvent, UserInputProvider } from '../types/loop.js';
+
+export { isContextOverflowError } from '../llm/errors.js';

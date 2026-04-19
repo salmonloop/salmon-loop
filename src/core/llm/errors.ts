@@ -332,3 +332,25 @@ export function wrapPatchNotUnifiedDiff(): LlmError {
 export function wrapPatchInvalid(message: string): LlmError {
   return new LlmError(message, 'LLM_PATCH_INVALID');
 }
+
+export function isContextOverflowError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  if ('llmCode' in (error as any) && (error as any).llmCode === 'LLM_CONTEXT_LENGTH_EXCEEDED') {
+    return true;
+  }
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof (error as any).message === 'string'
+        ? String((error as any).message)
+        : '';
+  const lower = message.toLowerCase();
+  return (
+    lower.includes('maximum context length') ||
+    lower.includes('context length') ||
+    lower.includes('too many tokens') ||
+    lower.includes('prompt is too long') ||
+    lower.includes('input is too long') ||
+    lower.includes('please reduce')
+  );
+}
