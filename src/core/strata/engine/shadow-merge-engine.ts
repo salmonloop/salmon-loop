@@ -258,18 +258,20 @@ export class ShadowMergeEngine {
       if (conflicts.length > 0) {
         const rejectionsDir = getRejectionsDir(mainRepoPath);
         await this.fsp.mkdir(rejectionsDir, { recursive: true }, mainRepoPath);
-        for (const conflictPath of conflicts) {
-          try {
-            const aiContent = await this.gitShowFile(shadowWorktreePath, latestRef, conflictPath);
-            if (aiContent) {
-              const rejFullPath = path.join(rejectionsDir, `${conflictPath}.rej`);
-              await this.fsp.mkdir(path.dirname(rejFullPath), { recursive: true }, mainRepoPath);
-              await this.fsp.writeFile(rejFullPath, aiContent, mainRepoPath);
+        await Promise.all(
+          conflicts.map(async (conflictPath) => {
+            try {
+              const aiContent = await this.gitShowFile(shadowWorktreePath, latestRef, conflictPath);
+              if (aiContent) {
+                const rejFullPath = path.join(rejectionsDir, `${conflictPath}.rej`);
+                await this.fsp.mkdir(path.dirname(rejFullPath), { recursive: true }, mainRepoPath);
+                await this.fsp.writeFile(rejFullPath, aiContent, mainRepoPath);
+              }
+            } catch (e) {
+              getLogger().error(`Failed to generate rejection for ${conflictPath}: ${e}`);
             }
-          } catch (e) {
-            getLogger().error(`Failed to generate rejection for ${conflictPath}: ${e}`);
-          }
-        }
+          }),
+        );
         throw new Error(
           text.loop.applyBackCompletedWithConflicts(conflicts.length, conflicts.join(', ')),
         );
