@@ -96,17 +96,18 @@ export class PlanPersistence {
       const files = await fs.readdir(dir);
       const jsonFiles = files.filter((f) => f.endsWith('.json'));
 
-      const states: PersistedPlanState[] = [];
-      for (const file of jsonFiles) {
+      const statePromises = jsonFiles.map(async (file) => {
         try {
           const content = await fs.readFile(path.join(dir, file), 'utf8');
-          states.push(JSON.parse(content));
+          return JSON.parse(content) as PersistedPlanState;
         } catch (_error) {
           // Skip malformed or unreadable files
-          continue;
+          return null;
         }
-      }
-      return states;
+      });
+
+      const maybeStates = await Promise.all(statePromises);
+      return maybeStates.filter((state): state is PersistedPlanState => state !== null);
     } catch (_error) {
       if ((_error as any).code === 'ENOENT') {
         return [];
