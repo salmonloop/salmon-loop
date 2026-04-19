@@ -963,49 +963,55 @@ export class WorkspaceSynchronizer {
         await git.exec(['clean', '-fd', '-e', '.salmonloop'], { allowError: true });
 
         // Re-apply deletions from the original dirty state (T1).
-        for (const file of dirtyBackup.deletedFiles) {
-          await rm(path.join(mainRepoPath, ...file.split('/')), {
-            recursive: true,
-            force: true,
-          }).catch((error) => logIgnoredError(`[applyBack] cleanup ${file}`, error));
-        }
+        await Promise.all(
+          dirtyBackup.deletedFiles.map((file) =>
+            rm(path.join(mainRepoPath, ...file.split('/')), {
+              recursive: true,
+              force: true,
+            }).catch((error) => logIgnoredError(`[applyBack] cleanup ${file}`, error)),
+          ),
+        );
 
         // Restore tracked files from the backup snapshot (authoritative for dirty preservation).
         if (dirtyBackup.trackedFiles) {
           const trackedDir = path.join(dirtyBackup.dir, 'tracked');
-          for (const file of dirtyBackup.trackedFiles) {
-            try {
-              await mkdir(path.dirname(path.join(mainRepoPath, ...file.split('/'))), {
-                recursive: true,
-              });
-              await copyFile(
-                path.join(trackedDir, ...file.split('/')),
-                path.join(mainRepoPath, ...file.split('/')),
-              );
-            } catch (e) {
-              getLogger().error(
-                `[applyBack] Failed to restore tracked file ${file}: ${e instanceof Error ? e.message : String(e)}`,
-              );
-            }
-          }
+          await Promise.all(
+            dirtyBackup.trackedFiles.map(async (file) => {
+              try {
+                await mkdir(path.dirname(path.join(mainRepoPath, ...file.split('/'))), {
+                  recursive: true,
+                });
+                await copyFile(
+                  path.join(trackedDir, ...file.split('/')),
+                  path.join(mainRepoPath, ...file.split('/')),
+                );
+              } catch (e) {
+                getLogger().error(
+                  `[applyBack] Failed to restore tracked file ${file}: ${e instanceof Error ? e.message : String(e)}`,
+                );
+              }
+            }),
+          );
         }
 
         // Restore untracked files (best-effort).
         if (dirtyBackup.untrackedFiles) {
           const untrackedDir = path.join(dirtyBackup.dir, 'untracked');
-          for (const file of dirtyBackup.untrackedFiles) {
-            try {
-              await mkdir(path.dirname(path.join(mainRepoPath, ...file.split('/'))), {
-                recursive: true,
-              });
-              await copyFile(
-                path.join(untrackedDir, ...file.split('/')),
-                path.join(mainRepoPath, ...file.split('/')),
-              );
-            } catch {
-              // Ignore restore errors for untracked files
-            }
-          }
+          await Promise.all(
+            dirtyBackup.untrackedFiles.map(async (file) => {
+              try {
+                await mkdir(path.dirname(path.join(mainRepoPath, ...file.split('/'))), {
+                  recursive: true,
+                });
+                await copyFile(
+                  path.join(untrackedDir, ...file.split('/')),
+                  path.join(mainRepoPath, ...file.split('/')),
+                );
+              } catch {
+                // Ignore restore errors for untracked files
+              }
+            }),
+          );
         }
 
         // CRITICAL SAFETY: Restore staged/index state to preserve user intent.
