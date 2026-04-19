@@ -76,22 +76,26 @@ export class StandardReporter implements SalmonReporter {
       case 'llm.stream.delta': {
         const delta = event.content;
         const shouldPrint = delta.length > 0 && (delta.trim().length > 0 || delta.includes('\n'));
-        if (shouldPrint) {
-          if (event.streamId !== this.lastStreamId) {
-            this.lastStreamId = event.streamId;
-            const header = this.renderPhaseLabel(event.step);
 
-            if (this.bar) {
-              this.bar.interrupt(header);
-            } else {
-              getLogger().log(header);
-            }
-          }
+        if (!shouldPrint) {
+          break;
+        }
+
+        if (event.streamId !== this.lastStreamId) {
+          this.lastStreamId = event.streamId;
+          const header = this.renderPhaseLabel(event.step);
+
           if (this.bar) {
-            this.bar.interrupt(delta);
+            this.bar.interrupt(header);
           } else {
-            process.stdout.write(delta);
+            getLogger().log(header);
           }
+        }
+
+        if (this.bar) {
+          this.bar.interrupt(delta);
+        } else {
+          process.stdout.write(delta);
         }
         break;
       }
