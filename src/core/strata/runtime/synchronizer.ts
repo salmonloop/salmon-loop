@@ -812,16 +812,18 @@ export class WorkspaceSynchronizer {
 
           if (dirtyFiles.length > 0) {
             const trackedDir = path.join(backupDir, 'tracked');
-            for (const file of dirtyFiles) {
-              const src = path.join(mainRepoPath, ...file.split('/'));
-              const dst = path.join(trackedDir, ...file.split('/'));
-              await mkdir(path.dirname(dst), { recursive: true });
-              try {
-                await copyFile(src, dst);
-              } catch {
-                // Ignore backup failure for deleted files
-              }
-            }
+            await Promise.all(
+              dirtyFiles.map(async (file) => {
+                const src = path.join(mainRepoPath, ...file.split('/'));
+                const dst = path.join(trackedDir, ...file.split('/'));
+                await mkdir(path.dirname(dst), { recursive: true });
+                try {
+                  await copyFile(src, dst);
+                } catch {
+                  // Ignore backup failure for deleted files
+                }
+              }),
+            );
           }
 
           // Backup untracked
@@ -831,12 +833,14 @@ export class WorkspaceSynchronizer {
             .filter((l) => l.length > 0);
           if (untrackedFiles.length > 0) {
             const untrackedDir = path.join(backupDir, 'untracked');
-            for (const file of untrackedFiles) {
-              const src = path.join(mainRepoPath, ...file.split('/'));
-              const dst = path.join(untrackedDir, ...file.split('/'));
-              await mkdir(path.dirname(dst), { recursive: true });
-              await copyFile(src, dst);
-            }
+            await Promise.all(
+              untrackedFiles.map(async (file) => {
+                const src = path.join(mainRepoPath, ...file.split('/'));
+                const dst = path.join(untrackedDir, ...file.split('/'));
+                await mkdir(path.dirname(dst), { recursive: true });
+                await copyFile(src, dst);
+              }),
+            );
           }
 
           // Metadata
@@ -963,49 +967,55 @@ export class WorkspaceSynchronizer {
         await git.exec(['clean', '-fd', '-e', '.salmonloop'], { allowError: true });
 
         // Re-apply deletions from the original dirty state (T1).
-        for (const file of dirtyBackup.deletedFiles) {
-          await rm(path.join(mainRepoPath, ...file.split('/')), {
-            recursive: true,
-            force: true,
-          }).catch((error) => logIgnoredError(`[applyBack] cleanup ${file}`, error));
-        }
+        await Promise.all(
+          dirtyBackup.deletedFiles.map(async (file) => {
+            await rm(path.join(mainRepoPath, ...file.split('/')), {
+              recursive: true,
+              force: true,
+            }).catch((error) => logIgnoredError(`[applyBack] cleanup ${file}`, error));
+          }),
+        );
 
         // Restore tracked files from the backup snapshot (authoritative for dirty preservation).
         if (dirtyBackup.trackedFiles) {
           const trackedDir = path.join(dirtyBackup.dir, 'tracked');
-          for (const file of dirtyBackup.trackedFiles) {
-            try {
-              await mkdir(path.dirname(path.join(mainRepoPath, ...file.split('/'))), {
-                recursive: true,
-              });
-              await copyFile(
-                path.join(trackedDir, ...file.split('/')),
-                path.join(mainRepoPath, ...file.split('/')),
-              );
-            } catch (e) {
-              getLogger().error(
-                `[applyBack] Failed to restore tracked file ${file}: ${e instanceof Error ? e.message : String(e)}`,
-              );
-            }
-          }
+          await Promise.all(
+            dirtyBackup.trackedFiles.map(async (file) => {
+              try {
+                await mkdir(path.dirname(path.join(mainRepoPath, ...file.split('/'))), {
+                  recursive: true,
+                });
+                await copyFile(
+                  path.join(trackedDir, ...file.split('/')),
+                  path.join(mainRepoPath, ...file.split('/')),
+                );
+              } catch (e) {
+                getLogger().error(
+                  `[applyBack] Failed to restore tracked file ${file}: ${e instanceof Error ? e.message : String(e)}`,
+                );
+              }
+            }),
+          );
         }
 
         // Restore untracked files (best-effort).
         if (dirtyBackup.untrackedFiles) {
           const untrackedDir = path.join(dirtyBackup.dir, 'untracked');
-          for (const file of dirtyBackup.untrackedFiles) {
-            try {
-              await mkdir(path.dirname(path.join(mainRepoPath, ...file.split('/'))), {
-                recursive: true,
-              });
-              await copyFile(
-                path.join(untrackedDir, ...file.split('/')),
-                path.join(mainRepoPath, ...file.split('/')),
-              );
-            } catch {
-              // Ignore restore errors for untracked files
-            }
-          }
+          await Promise.all(
+            dirtyBackup.untrackedFiles.map(async (file) => {
+              try {
+                await mkdir(path.dirname(path.join(mainRepoPath, ...file.split('/'))), {
+                  recursive: true,
+                });
+                await copyFile(
+                  path.join(untrackedDir, ...file.split('/')),
+                  path.join(mainRepoPath, ...file.split('/')),
+                );
+              } catch {
+                // Ignore restore errors for untracked files
+              }
+            }),
+          );
         }
 
         // CRITICAL SAFETY: Restore staged/index state to preserve user intent.
