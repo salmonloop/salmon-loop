@@ -1,0 +1,33 @@
+--- src/core/adapters/fs/atomic-file-writer.ts
++++ src/core/adapters/fs/atomic-file-writer.ts
+@@ -1,4 +1,5 @@
+ import { promises as fs } from 'fs';
++import { randomUUID } from 'crypto';
+ import { Buffer } from 'node:buffer';
+ import * as path from 'path';
+
+@@ -102,7 +103,7 @@
+   }
+
+   private async writeToTemp(targetPath: string, content: Buffer): Promise<string> {
+-    const tempPath = `${targetPath}.tmp.${Date.now()}.${Math.random().toString(36).slice(2)}`;
++    const tempPath = `${targetPath}.tmp.${Date.now()}.${randomUUID().split('-')[0]}`;
+     await fs.writeFile(tempPath, content, { mode: 0o644, flag: 'w' });
+     return tempPath;
+   }
+--- src/cli/ui/store/reducer.ts
++++ src/cli/ui/store/reducer.ts
+@@ -1,3 +1,4 @@
++import { randomUUID } from 'crypto';
+ import { UIState, UIAction } from './types.js';
+
+ export const initialState: UIState = {
+@@ -158,7 +159,7 @@
+         missionTasks: [
+           ...state.missionTasks,
+           {
+-            id: `ws-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
++            id: `ws-${Date.now()}-${randomUUID().split('-')[0]}`,
+             content: `Workspace initialized at ${action.payload.path}`,
+             status: 'completed',
+           },

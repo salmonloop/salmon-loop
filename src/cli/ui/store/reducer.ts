@@ -1,3 +1,5 @@
+import { randomUUID } from 'crypto';
+
 import { UIState, UIAction } from './types.js';
 
 export const initialState: UIState = {
@@ -158,7 +160,7 @@ export function uiReducer(state: UIState, action: UIAction): UIState {
         missionTasks: [
           ...state.missionTasks,
           {
-            id: `ws-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+            id: `ws-${Date.now()}-${randomUUID().split('-')[0]}`,
             content: `Workspace initialized at ${action.payload.path}`,
             status: 'completed',
           },

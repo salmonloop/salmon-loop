@@ -1,5 +1,4 @@
-# Sentinel Journal
-## 2024-04-18 - [Fix Command Injection in ToolAuthorizationConfig]
-**Vulnerability:** In `src/cli/authorization/non-interactive.ts`, the codebase executed `execa` with `shell: true` directly passing user-provided command via `config.nonInteractive?.command?.cmd`. This allowed arbitrary command execution.
-**Learning:** Found an unused configuration field `cmd` which is executed unsafely.
-**Prevention:** Instead of using `shell: true`, we should use a command splitting utility (`splitCommand`) if `args` aren't provided, and then execute securely using `execa(cmd, args, { shell: false })`.
+## 2024-04-18 - [Fix Insecure Randomness in Security Critical IDs]
+**Vulnerability:** Found uses of `Math.random()` for generating temporary file paths and workspace IDs. While these are not directly used as cryptographic keys, using predictably generated IDs for temporary files can lead to race conditions or local file manipulation attacks (e.g. symlink attacks) if the temporary directory is shared or predictable.
+**Learning:** We need to use cryptographically secure random generation (`crypto.randomUUID()`) instead of `Math.random()` for IDs, file paths, and general system entropy where collision or predictability could have unintended security side effects.
+**Prevention:** Avoid `Math.random()` in favor of `crypto.randomUUID()` from the `node:crypto` module anywhere a unique identifier or random string is needed.

@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { promises as fs } from 'fs';
 import { Buffer } from 'node:buffer';
 import * as path from 'path';
@@ -102,7 +103,7 @@ export class AtomicFileWriter {
   }
 
   private async writeToTemp(targetPath: string, content: Buffer): Promise<string> {
-    const tempPath = `${targetPath}.tmp.${Date.now()}.${Math.random().toString(36).slice(2)}`;
+    const tempPath = `${targetPath}.tmp.${Date.now()}.${randomUUID().split('-')[0]}`;
     await fs.writeFile(tempPath, content, { mode: 0o644, flag: 'w' });
     return tempPath;
   }
