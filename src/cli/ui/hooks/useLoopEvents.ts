@@ -338,25 +338,25 @@ export function useLoopEvents(
           });
           break;
         case 'verify.result':
-          if (event.ok) {
-            if (logMode !== 'quiet') {
+          if (!event.ok) {
+            dispatchSanitizedMessage({
+              type: 'verify_step',
+              content: text.cli.uiVerifyFailed,
+              timestamp: event.timestamp || new Date(),
+            });
+            if (typeof event.output === 'string' && event.output.trim()) {
               dispatchSanitizedMessage({
-                type: 'verify_step',
-                content: text.cli.uiVerifyPassed,
+                type: 'error',
+                content: event.output,
                 timestamp: event.timestamp || new Date(),
               });
             }
             break;
           }
-          dispatchSanitizedMessage({
-            type: 'verify_step',
-            content: text.cli.uiVerifyFailed,
-            timestamp: event.timestamp || new Date(),
-          });
-          if (typeof event.output === 'string' && event.output.trim()) {
+          if (logMode !== 'quiet') {
             dispatchSanitizedMessage({
-              type: 'error',
-              content: event.output,
+              type: 'verify_step',
+              content: text.cli.uiVerifyPassed,
               timestamp: event.timestamp || new Date(),
             });
           }
