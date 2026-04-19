@@ -31,6 +31,7 @@ import {
   onNormalTurnComplete,
   runCompactionPipeline,
   reactiveCompact,
+  isContextOverflowLike,
 } from '../core/facades/cli-chat.js';
 import { createSubAgentController } from '../core/facades/cli-subagent.js';
 
@@ -394,30 +395,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
             // Level 2: Reactive Compact
             // If the provider reports prompt-too-long, attempt emergency compaction AND retry ONCE
             // with a smaller session context budget to guarantee prompt reduction.
-            const isContextOverflow = (() => {
-              if (!error || typeof error !== 'object') return false;
-              if (
-                'llmCode' in (error as any) &&
-                (error as any).llmCode === 'LLM_CONTEXT_LENGTH_EXCEEDED'
-              ) {
-                return true;
-              }
-              const message =
-                error instanceof Error
-                  ? error.message
-                  : typeof (error as any).message === 'string'
-                    ? String((error as any).message)
-                    : '';
-              const lower = message.toLowerCase();
-              return (
-                lower.includes('maximum context length') ||
-                lower.includes('context length') ||
-                lower.includes('too many tokens') ||
-                lower.includes('prompt is too long') ||
-                lower.includes('input is too long') ||
-                lower.includes('please reduce')
-              );
-            })();
+            const isContextOverflow = isContextOverflowLike(error);
 
             if (!isContextOverflow) {
               throw error;

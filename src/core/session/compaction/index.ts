@@ -10,7 +10,7 @@ import { isCircuitBreakerTripped, onCompactionFailure, onCompactionSuccess } fro
 import type { CompactionTracking, CompactionResult, AutocompactConfig } from './types.js';
 import { DEFAULT_AUTOCOMPACT_CONFIG } from './types.js';
 
-function isContextOverflowLike(error: unknown): boolean {
+export function isContextOverflowLike(error: unknown): boolean {
   if (error instanceof LlmError && error.llmCode === 'LLM_CONTEXT_LENGTH_EXCEEDED') {
     return true;
   }
