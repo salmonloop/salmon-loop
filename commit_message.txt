@@ -1,7 +1,0 @@
-⚡ Optimize file hashing and backups using Promise.all
-
-💡 What: The sequential `for` loops used for reading untracked files for hashing, copying dirty files, and copying untracked files in `src/core/strata/runtime/synchronizer.ts` were replaced with `Promise.all` and `.map()`. This allows these I/O-bound operations to run concurrently.
-
-🎯 Why: The previous implementation was I/O bound. Performing these operations sequentially introduced unnecessary overhead, especially for larger repositories or a higher number of file operations. By parallelizing the filesystem reads and copies, the overall synchronization process becomes more efficient.
-
-📊 Measured Improvement: Benchmarks show significant improvements when using `Promise.all` for I/O operations instead of sequential operations. For an operation like copying 1000 untracked files, the sequential approach took ~501ms, while the parallel approach (`Promise.all`) took ~104ms. This is an improvement of nearly ~80% (approx 5x faster).
