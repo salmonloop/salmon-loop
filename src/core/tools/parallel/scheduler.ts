@@ -336,6 +336,11 @@ export class ParallelScheduler {
       }
     };
 
+    const canSchedule = (lane: 'read' | 'write') => {
+      if (readRunning + writeRunning >= plan.policy.maxParallelism) return false;
+      return lane === 'read' ? readRunning < readLimit : writeRunning < writeLimit;
+    };
+
     // Main scheduling loop
     while (!signal.aborted) {
       updateDeps();
@@ -344,39 +349,26 @@ export class ParallelScheduler {
       // If replaying, we strictly follow the recording
       if (options?.replay) {
         const nextStep = options.replay.steps[stepCount];
-        if (nextStep) {
-          const nodeState = nodeStates.get(nextStep.picked);
-          if (nodeState === 'READY') {
-            const node = plan.nodes.find((n) => n.id === nextStep.picked)!;
-            const lane = getLane(this.tryResolveSpec(node));
-            if (
-              readRunning + writeRunning < plan.policy.maxParallelism &&
-              ((lane === 'read' && readRunning < readLimit) ||
-                (lane === 'write' && writeRunning < writeLimit))
-            ) {
-              const p = startNode(node.id).finally(() => running.delete(p));
-              running.add(p);
-              scheduledInThisTick++;
-              stepCount++; // stepCount is incremented here for replay, or inside startNode for recording
-            }
+        if (nextStep && nodeStates.get(nextStep.picked) === 'READY') {
+          const node = plan.nodes.find((n) => n.id === nextStep.picked)!;
+          const lane = getLane(this.tryResolveSpec(node));
+          if (canSchedule(lane)) {
+            const p = startNode(node.id).finally(() => running.delete(p));
+            running.add(p);
+            scheduledInThisTick++;
+            stepCount++; // stepCount is incremented here for replay, or inside startNode for recording
           }
         }
       } else {
         for (const node of plan.nodes) {
           if (nodeStates.get(node.id) !== 'READY') continue;
 
-          const spec = this.tryResolveSpec(node);
-          const lane = getLane(spec);
-
           if (readRunning + writeRunning >= plan.policy.maxParallelism) {
             break;
           }
 
-          if (lane === 'read' && readRunning < readLimit) {
-            const p = startNode(node.id).finally(() => running.delete(p));
-            running.add(p);
-            scheduledInThisTick++;
-          } else if (lane === 'write' && writeRunning < writeLimit) {
+          const lane = getLane(this.tryResolveSpec(node));
+          if (canSchedule(lane)) {
             const p = startNode(node.id).finally(() => running.delete(p));
             running.add(p);
             scheduledInThisTick++;
