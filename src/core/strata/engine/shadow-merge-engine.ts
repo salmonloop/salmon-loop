@@ -217,16 +217,14 @@ export class ShadowMergeEngine {
           }
         }
 
-        const baseContent = await this.getBaseContent(shadowWorktreePath, initialRef, op.path);
-        const aiContent = await this.gitShowFile(shadowWorktreePath, latestRef, op.path);
-        if (!baseContent || !aiContent) {
-          conflicts.push(op.path);
-          continue;
-        }
-
         const userWorkingPath = path.join(mainRepoPath, op.path);
-        const userWorkingContent = await this.fsp.readFileBufferSafe(userWorkingPath, mainRepoPath);
-        if (!userWorkingContent) {
+        const [baseContent, aiContent, userWorkingContent] = await Promise.all([
+          this.getBaseContent(shadowWorktreePath, initialRef, op.path),
+          this.gitShowFile(shadowWorktreePath, latestRef, op.path),
+          this.fsp.readFileBufferSafe(userWorkingPath, mainRepoPath),
+        ]);
+
+        if (!baseContent || !aiContent || !userWorkingContent) {
           conflicts.push(op.path);
           continue;
         }
