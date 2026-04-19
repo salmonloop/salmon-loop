@@ -49,25 +49,26 @@ export class RejectionManager {
   async list(): Promise<Rejection[]> {
     try {
       const files = await fs.readdir(this.rejectDir);
-      const rejections: Rejection[] = [];
+      const rejFiles = files.filter((f) => f.endsWith('.rej'));
 
-      for (const file of files) {
-        if (!file.endsWith('.rej')) continue;
+      const results = await Promise.all(
+        rejFiles.map(async (file) => {
+          try {
+            const content = await fs.readFile(path.join(this.rejectDir, file), 'utf-8');
+            const headerPart = content.split('\n\n')[0];
+            if (!headerPart) return null;
+            const header = JSON.parse(headerPart);
+            return {
+              filePath: file.replace('.rej', '').replace(/_/g, '/'), // Approximate restoration
+              ...header,
+            };
+          } catch {
+            return null; // Ignore malformed files
+          }
+        }),
+      );
 
-        try {
-          const content = await fs.readFile(path.join(this.rejectDir, file), 'utf-8');
-          const headerPart = content.split('\n\n')[0];
-          const header = JSON.parse(headerPart);
-          rejections.push({
-            filePath: file.replace('.rej', '').replace(/_/g, '/'), // Approximate restoration
-            ...header,
-          });
-        } catch {
-          // Ignore malformed files
-        }
-      }
-
-      return rejections;
+      return results.filter((r): r is Rejection => r !== null);
     } catch {
       return [];
     }
