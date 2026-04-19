@@ -25,7 +25,6 @@ describe('FileHandleManager acquireLock safety paths', () => {
   const originalNodeEnv = process.env.NODE_ENV;
 
   beforeEach(() => {
-    mock.clearAllMocks();
     process.env.NODE_ENV = 'test';
     process.env.SALMONLOOP_ENABLE_LOCK_IN_TEST = '1';
   });

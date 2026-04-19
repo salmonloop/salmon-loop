@@ -46,7 +46,6 @@ describe('ApplyBack Flow Integration Tests', () => {
 
     synchronizer = new WorkspaceSynchronizer(new CheckpointManager());
     getMonitor().resetMetrics();
-    mock.clearAllMocks();
   });
 
   afterEach(async () => {

@@ -84,7 +84,6 @@ describe('readonly-lock behavior safety', () => {
   };
 
   beforeEach(() => {
-    mock.clearAllMocks();
     mock.restore();
     fileState.clear();
     configureStatefulFs();
