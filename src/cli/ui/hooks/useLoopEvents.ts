@@ -374,13 +374,13 @@ export function useLoopEvents(
           const status = String(event.status || 'unknown');
           const isFailure = status !== 'ok';
           if (logMode !== 'debug') {
-            if (isFailure) {
-              dispatchSanitizedMessage({
-                type: 'warning',
-                content: text.cli.uiToolFailed(String(event.toolName || 'tool'), status),
-                timestamp: event.timestamp || new Date(),
-              });
-            }
+            if (!isFailure) break;
+
+            dispatchSanitizedMessage({
+              type: 'warning',
+              content: text.cli.uiToolFailed(String(event.toolName || 'tool'), status),
+              timestamp: event.timestamp || new Date(),
+            });
             break;
           }
           const durationText =
