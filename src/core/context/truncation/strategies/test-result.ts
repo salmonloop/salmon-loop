@@ -23,6 +23,29 @@ export class TestResultStrategy implements TruncationStrategy {
 
   constructor(private config: TruncationConfig = DEFAULT_TRUNCATION_CONFIG) {}
 
+  private addContextLines(
+    index: number,
+    lines: string[],
+    budget: number,
+    selectedIndices: Set<number>,
+    currentLength: number,
+  ): number {
+    const start = Math.max(0, index - this.config.contextLines);
+    const end = Math.min(lines.length - 1, index + this.config.contextLines);
+    let newLength = currentLength;
+
+    for (let j = start; j <= end; j++) {
+      if (selectedIndices.has(j)) continue;
+
+      const contextLength = lines[j].length + 1;
+      if (newLength + contextLength > budget) continue;
+
+      selectedIndices.add(j);
+      newLength += contextLength;
+    }
+    return newLength;
+  }
+
   canHandle(output: string): boolean {
     return (
       /\d+\s+(passed|failed|skipped)/i.test(output) ||
@@ -108,20 +131,13 @@ export class TestResultStrategy implements TruncationStrategy {
 
         // Add context for failures
         if (category === 'failures' || category === 'errors') {
-          for (
-            let j = Math.max(0, index - this.config.contextLines);
-            j <= Math.min(lines.length - 1, index + this.config.contextLines);
-            j++
-          ) {
-            if (!selectedIndices.has(j)) {
-              const contextLine = lines[j];
-              const contextLength = contextLine.length + 1;
-              if (currentLength + contextLength <= budget) {
-                selectedIndices.add(j);
-                currentLength += contextLength;
-              }
-            }
-          }
+          currentLength = this.addContextLines(
+            index,
+            lines,
+            budget,
+            selectedIndices,
+            currentLength,
+          );
         }
 
         if (!selectedIndices.has(index)) {
