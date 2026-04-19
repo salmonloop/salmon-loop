@@ -108,18 +108,20 @@ export class TestResultStrategy implements TruncationStrategy {
 
         // Add context for failures
         if (category === 'failures' || category === 'errors') {
-          for (
-            let j = Math.max(0, index - this.config.contextLines);
-            j <= Math.min(lines.length - 1, index + this.config.contextLines);
-            j++
-          ) {
-            if (!selectedIndices.has(j)) {
-              const contextLine = lines[j];
-              const contextLength = contextLine.length + 1;
-              if (currentLength + contextLength <= budget) {
-                selectedIndices.add(j);
-                currentLength += contextLength;
-              }
+          const startIdx = Math.max(0, index - this.config.contextLines);
+          const endIdx = Math.min(lines.length - 1, index + this.config.contextLines);
+
+          for (let j = startIdx; j <= endIdx; j++) {
+            if (selectedIndices.has(j)) {
+              continue;
+            }
+
+            const contextLine = lines[j];
+            const contextLength = contextLine.length + 1;
+
+            if (currentLength + contextLength <= budget) {
+              selectedIndices.add(j);
+              currentLength += contextLength;
             }
           }
         }
