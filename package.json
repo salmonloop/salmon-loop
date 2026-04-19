@@ -67,8 +67,8 @@
     "test:report": "bun test --reporter=junit --reporter-outfile=test-report.xml --preload ./tests/setup-bun.ts tests",
     "test:ci": "bun run verify",
     "pack:dry": "npm pack --dry-run",
-    "format": "oxfmt --write \"src/**/*.ts\" \"tests/**/*.ts\"",
-    "format:check": "oxfmt --check \"src/**/*.ts\" \"tests/**/*.ts\"",
+    "format": "oxfmt --write \"src/**/*.ts\" \"tests/**/*.ts\" --ignore-path .oxfmtignore",
+    "format:check": "oxfmt --check \"src/**/*.ts\" \"tests/**/*.ts\" --ignore-path .oxfmtignore",
     "release": "bun scripts/release.ts cut",
     "release:cut": "bun scripts/release.ts cut",
     "release:publish": "bun scripts/release.ts publish"
