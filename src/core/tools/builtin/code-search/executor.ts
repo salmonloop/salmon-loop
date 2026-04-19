@@ -46,14 +46,9 @@ export async function codeSearchExecutor(
           onStdoutChunk: (chunk) => {
             if (stdoutBytes >= maxStdoutBytes) return;
             const buffer = Buffer.from(chunk);
-            const remaining = maxStdoutBytes - stdoutBytes;
-            if (buffer.length <= remaining) {
-              stdout += buffer.toString();
-              stdoutBytes += buffer.length;
-              return;
-            }
-            stdout += buffer.subarray(0, remaining).toString();
-            stdoutBytes += remaining;
+            const bytesToTake = Math.min(buffer.length, maxStdoutBytes - stdoutBytes);
+            stdout += buffer.subarray(0, bytesToTake).toString();
+            stdoutBytes += bytesToTake;
           },
           onStderrChunk: (chunk) => {
             stderr += Buffer.from(chunk).toString();
