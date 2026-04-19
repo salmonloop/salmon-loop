@@ -428,12 +428,10 @@ export class GitAdapter {
           // No index lines means -3 is not possible; fall back to direct apply.
           useThreeWay = false;
         } else {
-          for (const id of oldIds) {
-            const exists = await blobExists(id);
-            if (!exists) {
-              useThreeWay = false;
-              break;
-            }
+          const existResults = await Promise.all(oldIds.map((id) => blobExists(id)));
+          const allExist = existResults.every((exists) => exists);
+          if (!allExist) {
+            useThreeWay = false;
           }
           // Only preserve index lines if we can actually do 3-way.
           preserveIndexLines = useThreeWay;
