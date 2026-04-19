@@ -12,7 +12,13 @@ import {
   isEventStreamResponse,
   safeDrainResponse,
 } from './streamable-http.js';
-import { McpExecutionResult, McpServerConfig, McpToolDefinition } from './types.js';
+import {
+  LATEST_PROTOCOL_VERSION,
+  SUPPORTED_PROTOCOL_VERSIONS,
+  McpExecutionResult,
+  McpServerConfig,
+  McpToolDefinition,
+} from './types.js';
 
 /**
  * MCP Client handling JSON-RPC communication over stdio with an external server.
@@ -26,6 +32,7 @@ export class McpClient {
   >();
   private rl: Interface | null = null;
   private sessionId: string | undefined;
+  private protocolVersion: string = LATEST_PROTOCOL_VERSION;
 
   constructor(private config: McpServerConfig) {}
 
@@ -99,11 +106,27 @@ export class McpClient {
 
   private async initialize(): Promise<void> {
     // Step 1: Initialize handshake
-    await this.request('initialize', {
-      protocolVersion: '2025-11-25',
+    const result = await this.request<{
+      protocolVersion: string;
+      capabilities: Record<string, unknown>;
+      serverInfo: Record<string, unknown>;
+    }>('initialize', {
+      protocolVersion: LATEST_PROTOCOL_VERSION,
       capabilities: {},
       clientInfo: { name: 'salmon-loop', version: '0.2.0' },
     });
+
+    if (!result || typeof result.protocolVersion !== 'string') {
+      throw new Error(`MCP server ${this.config.name} sent invalid initialize result`);
+    }
+
+    if (!SUPPORTED_PROTOCOL_VERSIONS.includes(result.protocolVersion)) {
+      throw new Error(
+        `MCP server ${this.config.name} requested unsupported protocol version: ${result.protocolVersion}`,
+      );
+    }
+
+    this.protocolVersion = result.protocolVersion;
 
     // Step 2: Signal initialized
     await this.notification('notifications/initialized', {});
@@ -202,7 +225,11 @@ export class McpClient {
     try {
       const response = await fetch(url, {
         method: 'POST',
-        headers: createMcpHeaders({ sessionId: this.sessionId, extra: headers }),
+        headers: createMcpHeaders({
+          sessionId: this.sessionId,
+          protocolVersion: this.protocolVersion,
+          extra: headers,
+        }),
         body: JSON.stringify(payload),
         signal: controller.signal,
       });
@@ -272,7 +299,11 @@ export class McpClient {
           streamResponse = await fetch(url, {
             method: 'GET',
             headers: {
-              ...createMcpHeaders({ sessionId: this.sessionId, extra: headers }),
+              ...createMcpHeaders({
+                sessionId: this.sessionId,
+                protocolVersion: this.protocolVersion,
+                extra: headers,
+              }),
               'Last-Event-ID': lastEventId,
             },
             signal: resumeController.signal,
@@ -313,7 +344,11 @@ export class McpClient {
     try {
       const response = await fetch(url, {
         method: 'POST',
-        headers: createMcpHeaders({ sessionId: this.sessionId, extra: headers }),
+        headers: createMcpHeaders({
+          sessionId: this.sessionId,
+          protocolVersion: this.protocolVersion,
+          extra: headers,
+        }),
         body: JSON.stringify(payload),
         signal: controller.signal,
       });

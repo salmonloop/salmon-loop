@@ -1,6 +1,7 @@
 import { getLogger } from '../../observability/logger.js';
 
-export const MCP_PROTOCOL_VERSION = '2025-11-25';
+import { LATEST_PROTOCOL_VERSION } from './types.js';
+export const MCP_PROTOCOL_VERSION = LATEST_PROTOCOL_VERSION;
 
 export interface SseEvent {
   id?: string;
@@ -80,13 +81,14 @@ export async function* decodeSseEvents(
 }
 
 export function createMcpHeaders(options: {
+  protocolVersion?: string;
   sessionId?: string;
   extra?: Record<string, string>;
 }): Record<string, string> {
   const headers: Record<string, string> = {
     Accept: 'application/json, text/event-stream',
     'Content-Type': 'application/json',
-    'MCP-Protocol-Version': MCP_PROTOCOL_VERSION,
+    'MCP-Protocol-Version': options.protocolVersion ?? MCP_PROTOCOL_VERSION,
     ...(options.extra ?? {}),
   };
   if (options.sessionId) headers['MCP-Session-Id'] = options.sessionId;

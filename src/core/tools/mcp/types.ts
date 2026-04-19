@@ -2,6 +2,15 @@ import { z } from 'zod';
 
 import { ToolSpec } from '../types.js';
 
+export const LATEST_PROTOCOL_VERSION = '2025-11-25';
+export const SUPPORTED_PROTOCOL_VERSIONS = [
+  LATEST_PROTOCOL_VERSION,
+  '2025-06-18',
+  '2025-03-26',
+  '2024-11-05',
+  '2024-10-07',
+];
+
 /**
  * Configuration for an MCP server connection.
  */
