@@ -236,23 +236,27 @@ export class McpClient {
           if (typeof event.retry === 'number') retryMs = Math.max(0, event.retry);
           if (!event.data) continue;
 
+          let msg: Record<string, unknown>;
           try {
-            const msg = JSON.parse(event.data) as Record<string, unknown>;
-            if (msg.id === id) {
-              if (msg.error) {
-                const err = msg.error as Record<string, unknown>;
-                throw new Error(`MCP Error [${err.code}]: ${err.message}`);
-              }
-              return msg.result;
-            }
-            if (msg.method) {
-              getLogger().debug(
-                `Received MCP notification/request: ${msg.method} (server: ${this.config.name})`,
-              );
-            }
+            msg = JSON.parse(event.data) as Record<string, unknown>;
           } catch (err) {
             getLogger().error(
               `Failed to parse MCP SSE message from ${this.config.name}: ${String(err)} (data: ${event.data})`,
+            );
+            continue;
+          }
+
+          if (msg.id === id) {
+            if (msg.error) {
+              const err = msg.error as Record<string, unknown>;
+              throw new Error(`MCP Error [${err.code}]: ${err.message}`);
+            }
+            return msg.result;
+          }
+
+          if (msg.method) {
+            getLogger().debug(
+              `Received MCP notification/request: ${msg.method} (server: ${this.config.name})`,
             );
           }
         }
