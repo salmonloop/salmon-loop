@@ -319,20 +319,32 @@ export class ChatSessionManager {
    */
   async listSessions(): Promise<Array<{ id: string; name: string; updatedAt: number }>> {
     const files = await this.fileAdapter.readdir(this.storageDir).catch(() => []);
-    const sessions = [];
 
-    for (const file of files) {
-      if (!file.endsWith('.json')) continue;
+    const jsonFiles = files.filter((file) => file.endsWith('.json'));
+    const sessions: Array<{ id: string; name: string; updatedAt: number }> = [];
+    const batchSize = 10;
 
-      const filePath = join(this.storageDir, file);
-      const data = await this.fileAdapter.readFile(filePath);
-      const session = JSON.parse(data) as ChatSession;
-
-      sessions.push({
-        id: session.meta.id,
-        name: session.meta.name,
-        updatedAt: session.meta.updatedAt,
+    for (let i = 0; i < jsonFiles.length; i += batchSize) {
+      const batch = jsonFiles.slice(i, i + batchSize);
+      const sessionPromises = batch.map(async (file) => {
+        const filePath = join(this.storageDir, file);
+        try {
+          const data = await this.fileAdapter.readFile(filePath);
+          const session = JSON.parse(data) as ChatSession;
+          return {
+            id: session.meta.id,
+            name: session.meta.name,
+            updatedAt: session.meta.updatedAt,
+          };
+        } catch (error) {
+          getLogger().warn(`Failed to read session file ${file}: ${error}`);
+          return null;
+        }
       });
+      const batchResults = await Promise.all(sessionPromises);
+      for (const result of batchResults) {
+        if (result !== null) sessions.push(result);
+      }
     }
 
     return sessions.sort((a, b) => b.updatedAt - a.updatedAt);
@@ -351,21 +363,32 @@ export class ChatSessionManager {
 
     let deleted = 0;
     let archived = 0;
+    const batchSize = 10;
 
-    // Delete low-priority sessions
-    for (const sessionId of analysis.sessionsToDelete) {
-      await this.deleteSession(sessionId);
-      deleted++;
+    // Delete low-priority sessions concurrently in batches
+    for (let i = 0; i < analysis.sessionsToDelete.length; i += batchSize) {
+      const batch = analysis.sessionsToDelete.slice(i, i + batchSize);
+      await Promise.all(
+        batch.map(async (sessionId) => {
+          await this.deleteSession(sessionId);
+          deleted++;
+        }),
+      );
     }
 
-    // Archive medium-priority sessions
-    for (const sessionId of analysis.sessionsToArchive) {
-      const session = sessions.find((s) => s.meta.id === sessionId);
-      if (session) {
-        await this.archiveSession(session);
-        await this.deleteSession(sessionId);
-        archived++;
-      }
+    // Archive medium-priority sessions concurrently in batches
+    for (let i = 0; i < analysis.sessionsToArchive.length; i += batchSize) {
+      const batch = analysis.sessionsToArchive.slice(i, i + batchSize);
+      await Promise.all(
+        batch.map(async (sessionId) => {
+          const session = sessions.find((s) => s.meta.id === sessionId);
+          if (session) {
+            await this.archiveSession(session);
+            await this.deleteSession(sessionId);
+            archived++;
+          }
+        }),
+      );
     }
 
     return {
@@ -388,23 +411,32 @@ export class ChatSessionManager {
    */
   private async loadAllSessions(): Promise<ChatSession[]> {
     const files = await this.fileAdapter.readdir(this.storageDir).catch(() => []);
+
+    const jsonFiles = files.filter((file) => file.endsWith('.json'));
     const sessions: ChatSession[] = [];
+    const batchSize = 10;
 
-    for (const file of files) {
-      if (!file.endsWith('.json')) continue;
-
-      try {
-        const filePath = join(this.storageDir, file);
-        const data = await this.fileAdapter.readFile(filePath);
-        const session = JSON.parse(data) as ChatSession;
-        session.meta.artifactState = normalizeSessionArtifactState(session.meta.artifactState);
-        session.meta.replacementState = normalizeToolResultReplacementState(
-          session.meta.replacementState,
-        );
-        sessions.push(session);
-      } catch (error) {
-        // Skip corrupted session files
-        getLogger().warn(`Failed to load session file ${file}: ${error}`);
+    for (let i = 0; i < jsonFiles.length; i += batchSize) {
+      const batch = jsonFiles.slice(i, i + batchSize);
+      const sessionPromises = batch.map(async (file) => {
+        try {
+          const filePath = join(this.storageDir, file);
+          const data = await this.fileAdapter.readFile(filePath);
+          const session = JSON.parse(data) as ChatSession;
+          session.meta.artifactState = normalizeSessionArtifactState(session.meta.artifactState);
+          session.meta.replacementState = normalizeToolResultReplacementState(
+            session.meta.replacementState,
+          );
+          return session;
+        } catch (error) {
+          // Skip corrupted session files
+          getLogger().warn(`Failed to load session file ${file}: ${error}`);
+          return null;
+        }
+      });
+      const batchResults = await Promise.all(sessionPromises);
+      for (const result of batchResults) {
+        if (result !== null) sessions.push(result);
       }
     }
 
@@ -450,22 +482,32 @@ export class ChatSessionManager {
   async listArchivedSessions(): Promise<Array<{ id: string; name: string; archivedAt: number }>> {
     const archiveDir = this.getArchiveStorageDir();
     const files = await this.fileAdapter.readdir(archiveDir).catch(() => []);
+
+    const mpackFiles = files.filter((file) => file.endsWith('.mpack.gz'));
     const archived: Array<{ id: string; name: string; archivedAt: number }> = [];
+    const batchSize = 10;
 
-    for (const file of files) {
-      if (!file.endsWith('.mpack.gz')) continue;
-      try {
-        const compressed = await this.compressedStore.loadCompressed(file);
-        if (!compressed) continue;
+    for (let i = 0; i < mpackFiles.length; i += batchSize) {
+      const batch = mpackFiles.slice(i, i + batchSize);
+      const archivedPromises = batch.map(async (file) => {
+        try {
+          const compressed = await this.compressedStore.loadCompressed(file);
+          if (!compressed) return null;
 
-        const stats = await this.fileAdapter.stat(join(archiveDir, file));
-        archived.push({
-          id: compressed.meta.id,
-          name: compressed.meta.name,
-          archivedAt: stats.mtime.getTime(),
-        });
-      } catch (error) {
-        getLogger().warn(`Failed to load archived session ${file}: ${error}`);
+          const stats = await this.fileAdapter.stat(join(archiveDir, file));
+          return {
+            id: compressed.meta.id,
+            name: compressed.meta.name,
+            archivedAt: stats.mtime.getTime(),
+          };
+        } catch (error) {
+          getLogger().warn(`Failed to load archived session ${file}: ${error}`);
+          return null;
+        }
+      });
+      const batchResults = await Promise.all(archivedPromises);
+      for (const result of batchResults) {
+        if (result !== null) archived.push(result);
       }
     }
 

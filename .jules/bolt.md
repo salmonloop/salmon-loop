@@ -1,0 +1,3 @@
+## 2024-04-19 - Concurrent I/O Needs Concurrency Limits in Node.js
+**Learning:** Using unbounded `Promise.all` for a large array of file reads (e.g. mapping over `readdir` results) is a dangerous performance anti-pattern in Node.js. Although it speeds up execution, doing this without chunking or limiting concurrency quickly hits operating system file descriptor limits and crashes the app with `EMFILE: too many open files`.
+**Action:** When parallelizing file I/O operations (like reading or statting files in `ChatSessionManager`), always use batching (e.g. slicing the array into chunks of 10-50 and running `Promise.all` per chunk) to safely balance speed with system resource limits.
