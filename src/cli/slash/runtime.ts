@@ -77,6 +77,86 @@ export interface CreateCliSlashRuntimeOptions {
   skillDiscovery?: { paths?: string[] };
 }
 
+function createSkillHandler(
+  catalogEntry: SkillCatalogEntry,
+  skillLoader: SkillLoader,
+  options: CreateCliSlashRuntimeOptions,
+): SlashHandler {
+  return {
+    execute: async (req) => {
+      // Tier 2: Activate skill on demand — load full SKILL.md content.
+      // @see https://agentskills.io/specification — Progressive disclosure
+      const skill = await skillLoader.activateSkill(catalogEntry.id);
+
+      const meta = (req.meta ?? {}) as CommandContext;
+      const signal = (meta as any)?.signal as AbortSignal | undefined;
+
+      // Prepare an isolated worktree environment for governed shell execution.
+      const silentEmit = (event: any) => {
+        if (event?.type === 'log' && event?.level === 'error') {
+          return options.emit(event);
+        }
+        getLogger().debug(`[slash.skill] ${JSON.stringify(event)}`);
+      };
+
+      const env = new RuntimeEnvironment(
+        {
+          instruction: `slash:${skill.id}`,
+          repoPath: options.repoRoot,
+          strategy: 'worktree',
+          dryRun: false,
+          verbose: undefined,
+        } as any,
+        silentEmit as any,
+      );
+
+      try {
+        await env.setup();
+        const toolstack = await createStandardToolstack({
+          repoRoot: env.activeRepoPath,
+          persistenceRoot: options.repoRoot,
+          worktreeRoot: env.activeRepoPath,
+          attemptId: 0,
+          dryRun: false,
+          allowedToolNames: ['shell.exec'],
+          authorizationProvider: options.authorizationProvider,
+          authorizationMode: 'deferred',
+        });
+
+        const res = await executeSkill({
+          skill,
+          argsText: req.argsText,
+          toolRouter: toolstack.router,
+          toolCtx: {
+            repoRoot: env.activeRepoPath,
+            worktreeRoot: env.activeRepoPath,
+            persistenceRoot: options.repoRoot,
+            attemptId: 0,
+            dryRun: false,
+          },
+          signal,
+        });
+
+        if (res.status !== 'SUCCESS' || !res.injectedPrompt.trim()) {
+          options.emit({
+            type: 'log',
+            level: 'error',
+            message: text.cli.skillNoPrompt(skill.id),
+            timestamp: new Date(),
+          });
+          return { kind: 'consumed' };
+        }
+
+        return { kind: 'rewrite', input: res.injectedPrompt };
+      } finally {
+        await env
+          .teardown()
+          .catch((error) => logIgnoredError('[SlashRuntime] env teardown failed', error));
+      }
+    },
+  };
+}
+
 export async function createCliSlashRuntime(
   options: CreateCliSlashRuntimeOptions,
 ): Promise<CliSlashRuntime> {
@@ -185,80 +265,7 @@ export async function createCliSlashRuntime(
 
       const catalogEntry = skillBySlash.get(normalized);
       if (catalogEntry) {
-        return {
-          execute: async (req) => {
-            // Tier 2: Activate skill on demand — load full SKILL.md content.
-            // @see https://agentskills.io/specification — Progressive disclosure
-            const skill = await skillLoader.activateSkill(catalogEntry.id);
-
-            const meta = (req.meta ?? {}) as CommandContext;
-            const signal = (meta as any)?.signal as AbortSignal | undefined;
-
-            // Prepare an isolated worktree environment for governed shell execution.
-            const silentEmit = (event: any) => {
-              if (event?.type === 'log' && event?.level === 'error') {
-                options.emit(event);
-                return;
-              }
-              getLogger().debug(`[slash.skill] ${JSON.stringify(event)}`);
-            };
-
-            const env = new RuntimeEnvironment(
-              {
-                instruction: `slash:${skill.id}`,
-                repoPath: options.repoRoot,
-                strategy: 'worktree',
-                dryRun: false,
-                verbose: undefined,
-              } as any,
-              silentEmit as any,
-            );
-
-            try {
-              await env.setup();
-              const toolstack = await createStandardToolstack({
-                repoRoot: env.activeRepoPath,
-                persistenceRoot: options.repoRoot,
-                worktreeRoot: env.activeRepoPath,
-                attemptId: 0,
-                dryRun: false,
-                allowedToolNames: ['shell.exec'],
-                authorizationProvider: options.authorizationProvider,
-                authorizationMode: 'deferred',
-              });
-
-              const res = await executeSkill({
-                skill,
-                argsText: req.argsText,
-                toolRouter: toolstack.router,
-                toolCtx: {
-                  repoRoot: env.activeRepoPath,
-                  worktreeRoot: env.activeRepoPath,
-                  persistenceRoot: options.repoRoot,
-                  attemptId: 0,
-                  dryRun: false,
-                },
-                signal,
-              });
-
-              if (res.status !== 'SUCCESS' || !res.injectedPrompt.trim()) {
-                options.emit({
-                  type: 'log',
-                  level: 'error',
-                  message: text.cli.skillNoPrompt(skill.id),
-                  timestamp: new Date(),
-                });
-                return { kind: 'consumed' };
-              }
-
-              return { kind: 'rewrite', input: res.injectedPrompt };
-            } finally {
-              await env
-                .teardown()
-                .catch((error) => logIgnoredError('[SlashRuntime] env teardown failed', error));
-            }
-          },
-        };
+        return createSkillHandler(catalogEntry, skillLoader, options);
       }
 
       return undefined;
