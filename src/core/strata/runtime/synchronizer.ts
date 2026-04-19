@@ -812,16 +812,18 @@ export class WorkspaceSynchronizer {
 
           if (dirtyFiles.length > 0) {
             const trackedDir = path.join(backupDir, 'tracked');
-            for (const file of dirtyFiles) {
-              const src = path.join(mainRepoPath, ...file.split('/'));
-              const dst = path.join(trackedDir, ...file.split('/'));
-              await mkdir(path.dirname(dst), { recursive: true });
-              try {
-                await copyFile(src, dst);
-              } catch {
-                // Ignore backup failure for deleted files
-              }
-            }
+            await Promise.all(
+              dirtyFiles.map(async (file) => {
+                const src = path.join(mainRepoPath, ...file.split('/'));
+                const dst = path.join(trackedDir, ...file.split('/'));
+                await mkdir(path.dirname(dst), { recursive: true });
+                try {
+                  await copyFile(src, dst);
+                } catch {
+                  // Ignore backup failure for deleted files
+                }
+              }),
+            );
           }
 
           // Backup untracked
@@ -831,12 +833,14 @@ export class WorkspaceSynchronizer {
             .filter((l) => l.length > 0);
           if (untrackedFiles.length > 0) {
             const untrackedDir = path.join(backupDir, 'untracked');
-            for (const file of untrackedFiles) {
-              const src = path.join(mainRepoPath, ...file.split('/'));
-              const dst = path.join(untrackedDir, ...file.split('/'));
-              await mkdir(path.dirname(dst), { recursive: true });
-              await copyFile(src, dst);
-            }
+            await Promise.all(
+              untrackedFiles.map(async (file) => {
+                const src = path.join(mainRepoPath, ...file.split('/'));
+                const dst = path.join(untrackedDir, ...file.split('/'));
+                await mkdir(path.dirname(dst), { recursive: true });
+                await copyFile(src, dst);
+              }),
+            );
           }
 
           // Metadata
