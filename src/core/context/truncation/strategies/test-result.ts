@@ -113,14 +113,13 @@ export class TestResultStrategy implements TruncationStrategy {
             j <= Math.min(lines.length - 1, index + this.config.contextLines);
             j++
           ) {
-            if (!selectedIndices.has(j)) {
-              const contextLine = lines[j];
-              const contextLength = contextLine.length + 1;
-              if (currentLength + contextLength <= budget) {
-                selectedIndices.add(j);
-                currentLength += contextLength;
-              }
-            }
+            if (selectedIndices.has(j)) continue;
+
+            const contextLength = lines[j].length + 1;
+            if (currentLength + contextLength > budget) continue;
+
+            selectedIndices.add(j);
+            currentLength += contextLength;
           }
         }
 
