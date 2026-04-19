@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach } from 'bun:test';
+import { describe, expect, it, beforeEach, mock } from 'bun:test';
 
 import { readFile, stat } from '../../../src/core/adapters/fs/node-fs.js';
 import { executeFsReadFile, fsReadFileSpec } from '../../../src/core/tools/builtin/fs.js';
@@ -14,7 +14,7 @@ describe('Builtin Tool: fs.read_file', () => {
   const repoRoot = '/fake/repo';
 
   beforeEach(() => {
-    mock.clearAllMocks();
+    mock.restore();
   });
 
   it('should read a file within the repository', async () => {

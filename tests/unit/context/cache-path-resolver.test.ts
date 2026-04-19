@@ -18,7 +18,7 @@ mock.module('../../../src/core/adapters/fs/file-adapter.js', () => ({
 
 describe('resolveContextCachePath', () => {
   beforeEach(() => {
-    mock.clearAllMocks();
+    mock.restore();
     setLogger({
       error: mock(),
       warn: mock(),
