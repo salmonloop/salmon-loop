@@ -276,7 +276,9 @@ export class ParallelScheduler {
               toolResult: result,
               timing,
             };
-          } else if (result.status === 'denied' && result.error?.code === 'AUTH_REQUIRED') {
+            return;
+          }
+          if (result.status === 'denied' && result.error?.code === 'AUTH_REQUIRED') {
             nodeStates.set(nodeId, 'BLOCKED_APPROVAL');
             const approval: ApprovalRequest = {
               nodeId,
@@ -292,16 +294,16 @@ export class ParallelScheduler {
               timing,
             };
             blockedApprovals.push(approval);
-          } else {
-            nodeStates.set(nodeId, 'FAILED');
-            nodeResults[nodeId] = {
-              status: 'FAILED',
-              error: result.error,
-              toolResult: result,
-              timing,
-            };
-            if (plan.policy.failFast) cancelRemaining();
+            return;
           }
+          nodeStates.set(nodeId, 'FAILED');
+          nodeResults[nodeId] = {
+            status: 'FAILED',
+            error: result.error,
+            toolResult: result,
+            timing,
+          };
+          if (plan.policy.failFast) cancelRemaining();
         } finally {
           if (isolatedEnv) {
             await isolatedEnv.dispose();
