@@ -35,7 +35,7 @@ export type MessageType =
   | 'warning' // Warning
   | 'queue' // Queue message
   | 'interrupt' // Interrupt signal
-  | 'todo_card' // TODO summary card
+  | 'todo_card' // Task summary card
   | 'welcome'; // Welcome message (special)
 
 /**
