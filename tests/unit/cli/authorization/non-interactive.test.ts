@@ -1,11 +1,12 @@
-import { beforeEach, describe, expect, it } from 'bun:test';
-import { execa } from 'execa';
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
 mock.module('execa', () => {
   return {
     execa: mock(),
   };
 });
+
+const { execa } = await import('execa');
 
 import { requestNonInteractiveAuthorizationDecision } from '../../../../src/cli/authorization/non-interactive.js';
 import type { ToolAuthorizationConfig } from '../../../../src/core/config/types.js';

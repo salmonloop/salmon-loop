@@ -6,3 +6,4 @@ export type {
   ToolAuthorizationRequest,
 } from '../tools/authorization/types.js';
 export { McpClient } from '../tools/mcp/client.js';
+export { splitCommand } from '../utils/command-split.js';

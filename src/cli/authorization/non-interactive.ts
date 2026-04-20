@@ -8,7 +8,11 @@ import type {
   ToolAuthorizationConfig,
   ToolAuthorizationRequest,
 } from '../../core/facades/cli-authorization-non-interactive.js';
-import { getLogger, McpClient } from '../../core/facades/cli-authorization-non-interactive.js';
+import {
+  getLogger,
+  McpClient,
+  splitCommand,
+} from '../../core/facades/cli-authorization-non-interactive.js';
 import { text } from '../locales/index.js';
 
 const DecisionSchema = z
@@ -93,7 +97,8 @@ export async function requestNonInteractiveAuthorizationDecision(params: {
   if (strategy === 'deny') return null;
 
   if (strategy === 'command') {
-    const cmd = params.config.nonInteractive?.command?.cmd;
+    const commandConfig = params.config.nonInteractive?.command;
+    const cmd = commandConfig?.cmd;
     if (!cmd) {
       getLogger().warn(
         'Non-interactive authorization strategy is "command" but no command is set.',
@@ -101,11 +106,27 @@ export async function requestNonInteractiveAuthorizationDecision(params: {
       return deny(text.cli.toolAuthorizationNonInteractiveMisconfigured('command'));
     }
 
-    const timeoutMs = params.config.nonInteractive?.command?.timeoutMs ?? 10_000;
+    const timeoutMs = commandConfig?.timeoutMs ?? 10_000;
+    let executable: string;
+    let cmdArgs: string[] = [];
+
+    if (commandConfig.args) {
+      executable = cmd;
+      cmdArgs = commandConfig.args;
+    } else {
+      const split = splitCommand(cmd);
+      if (split.length === 0) {
+        getLogger().warn('Non-interactive authorization command is empty after splitting.');
+        return deny(text.cli.toolAuthorizationNonInteractiveMisconfigured('command'));
+      }
+      executable = split[0];
+      cmdArgs = split.slice(1);
+    }
+
     try {
-      const res = await execa(cmd, {
+      const res = await execa(executable, cmdArgs, {
         input: JSON.stringify({ request: params.request }),
-        shell: true,
+        shell: false,
         timeout: timeoutMs,
         reject: false,
       });
