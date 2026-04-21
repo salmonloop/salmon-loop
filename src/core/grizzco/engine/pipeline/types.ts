@@ -199,6 +199,7 @@ export interface AnswerCtx extends PreflightCtx, ReportableCtx {}
 export interface AutopilotCtx extends PreflightCtx, ReportableCtx {
   mutated: boolean;
   verifyResult?: VerifyResult;
+  verifyArtifact?: ArtifactHandle;
   lastError?: string;
   toolCallingAudit?: ToolCallingAuditEntry[];
   replacementState?: ToolResultReplacementState;
