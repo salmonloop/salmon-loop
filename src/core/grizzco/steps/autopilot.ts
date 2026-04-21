@@ -1,3 +1,4 @@
+import { text } from '../../../locales/index.js';
 import { emitLlmOutput } from '../../llm/output-policy.js';
 import { SessionReplacementPreviewProvider } from '../../session/replacement-preview-provider.js';
 import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
@@ -8,6 +9,7 @@ import type { AutopilotCtx, PreflightCtx } from '../engine/pipeline/types.js';
 
 import { buildPhaseToolRuntimeContext } from './tool-runtime.js';
 import { buildSharedRequestEnvelope } from './request-assembly.js';
+import { executeVerifyForWorkspace } from './verify-shared.js';
 
 const AUTOPILOT_TOOL_PHASE = Phase.AUTOPILOT;
 
@@ -122,5 +124,22 @@ export async function runAutopilotVerifyGate(ctx: AutopilotCtx): Promise<Autopil
     };
   }
 
-  return ctx;
+  if (!ctx.options.verify) {
+    return {
+      ...ctx,
+      verifyResult: { ok: true, output: text.loop.verificationSkipped, exitCode: null },
+    };
+  }
+
+  const { verifyResult, verifyArtifact } = await executeVerifyForWorkspace({
+    workspacePath: ctx.workspace.workPath,
+    verify: ctx.options.verify,
+    signal: ctx.options.signal,
+  });
+  const nextCtx: AutopilotCtx = {
+    ...ctx,
+    verifyResult,
+  };
+
+  return verifyArtifact ? ({ ...nextCtx, verifyArtifact } as AutopilotCtx) : nextCtx;
 }

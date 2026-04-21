@@ -595,6 +595,36 @@ describe('transaction-runner', () => {
     expect((report.lastContext as any)?.report?.summary).toBe('autopilot answer');
   });
 
+  it('preserves autopilot terminal context when verify fails in preserve mode', async () => {
+    mockedExecute.mockResolvedValue({
+      success: true,
+      duration: 1,
+      traces: [],
+      data: {
+        report: {
+          kind: 'answer',
+          summary: 'autopilot verify failed',
+          timestamp: Date.now(),
+        },
+        mutated: true,
+        verifyResult: { ok: false, output: 'resource lock error: file lock', exitCode: 1 },
+      },
+    } as any);
+
+    const report = await createRunner(mock(), {}, 'autopilot').execute();
+
+    expect(report.success).toBe(false);
+    expect(report.terminalReasonCode).toBe('VERIFY_FAILED');
+    expect(report.terminalFailurePhase).toBe('VERIFY');
+    expect((report.lastContext as any)?.report?.summary).toBe('autopilot verify failed');
+    expect((report.lastContext as any)?.verifyResult).toEqual(
+      expect.objectContaining({
+        ok: false,
+        output: 'resource lock error: file lock',
+      }),
+    );
+  });
+
   it('does not retry when context phase requires cache permission authorization', async () => {
     mockedExecute.mockResolvedValue({
       success: false,

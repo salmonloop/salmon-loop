@@ -6,11 +6,10 @@ import {
   recordBudgetAlert,
 } from '../../context/budget/integration.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
-import { ArtifactStore } from '../../sub-agent/artifacts/store.js';
-import type { ArtifactHandle } from '../../sub-agent/artifacts/types.js';
-import { runVerify as runVerifyCommand } from '../../verification/runner.js';
 import { Step } from '../engine/pipeline/pipeline.js';
 import { ApplyCtx, VerifyCtx } from '../engine/pipeline/types.js';
+
+import { executeVerifyForWorkspace } from './verify-shared.js';
 
 function extractCommandProgram(command: string): string {
   const trimmed = command.trim();
@@ -26,13 +25,11 @@ export const runVerify: Step<ApplyCtx, VerifyCtx> = async (ctx) => {
     };
   }
 
-  const verifyResult = await runVerifyCommand(
-    ctx.workspace.workPath,
-    ctx.options.verify,
-    undefined,
-    ctx.options.signal,
-  );
-  let verifyArtifact: ArtifactHandle | undefined;
+  const { verifyResult, verifyArtifact } = await executeVerifyForWorkspace({
+    workspacePath: ctx.workspace.workPath,
+    verify: ctx.options.verify,
+    signal: ctx.options.signal,
+  });
 
   recordAuditEvent(
     'verify.summary',
@@ -132,22 +129,13 @@ export const runVerify: Step<ApplyCtx, VerifyCtx> = async (ctx) => {
       message: text.loop.verificationFailedSummary,
       timestamp: new Date(),
     });
-    if (verifyResult.output) {
-      try {
-        verifyArtifact = await ArtifactStore.saveText({
-          content: verifyResult.output,
-          mimeType: 'text/plain',
-          fileExt: 'log',
-        });
-        ctx.emit({
-          type: 'log',
-          level: 'debug',
-          message: text.loop.verificationOutputStored(verifyArtifact.handle),
-          timestamp: new Date(),
-        });
-      } catch {
-        // Best-effort only; keep verifyResult.output in-memory for shrink/error classification.
-      }
+    if (verifyArtifact) {
+      ctx.emit({
+        type: 'log',
+        level: 'debug',
+        message: text.loop.verificationOutputStored(verifyArtifact.handle),
+        timestamp: new Date(),
+      });
     }
     // We don't throw here, because we want to trigger rollback/shrink in the pipeline
     // But wait, the Pipeline abstraction propagates errors immediately.
