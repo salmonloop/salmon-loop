@@ -17,6 +17,7 @@ import {
   type CheckpointStrategy,
   type LoopResult,
 } from '../../../core/facades/cli-run-handler.js';
+import { resolveExecutionProfile } from '../../../core/runtime/execution-profile.js';
 import { createStdoutWriter } from '../../headless/stdout-writer.js';
 import { text } from '../../locales/index.js';
 import { StderrLogReporter } from '../../reporters/stderr-log-reporter.js';
@@ -246,29 +247,6 @@ export async function handleRunCommand(options: any, command: Command) {
   }
 
   const instructionText = instruction as string;
-  const rawPermissionMode = allOptions.mode ?? resolvedConfig.permissionMode ?? 'interactive';
-  const permissionMode = normalizePermissionMode(rawPermissionMode);
-  if (!permissionMode) {
-    const message = `Invalid --mode "${String(rawPermissionMode)}". Expected "interactive" or "yolo".`;
-    getLogger().error(message);
-    if (outputFormat === 'json') {
-      writeJsonFailure({
-        message,
-        errorCode: 'USAGE_ERROR',
-        instruction,
-        repoPath: runPath,
-      });
-    } else if (outputFormat === 'stream-json') {
-      headlessErrorWriter.writeUsageError({
-        sessionId: sessionIdForOutput ?? randomUUID(),
-        message,
-        instruction,
-      });
-    }
-    process.exitCode = 1;
-    return;
-  }
-
   const rawMode = String(allOptions.actMode || 'patch');
   const mode = resolveRunMode(rawMode);
   if (!mode) {
@@ -284,6 +262,31 @@ export async function handleRunCommand(options: any, command: Command) {
       headlessErrorWriter.writeUsageError({
         sessionId: sessionIdForOutput ?? randomUUID(),
         message: text.cli.invalidActMode(rawMode),
+        instruction,
+      });
+    }
+    process.exitCode = 1;
+    return;
+  }
+  const profile = resolveExecutionProfile(mode);
+
+  const rawPermissionMode =
+    allOptions.mode ?? resolvedConfig.permissionMode ?? profile.defaultPermissionMode ?? 'interactive';
+  const permissionMode = normalizePermissionMode(rawPermissionMode);
+  if (!permissionMode) {
+    const message = `Invalid --mode "${String(rawPermissionMode)}". Expected "interactive" or "yolo".`;
+    getLogger().error(message);
+    if (outputFormat === 'json') {
+      writeJsonFailure({
+        message,
+        errorCode: 'USAGE_ERROR',
+        instruction,
+        repoPath: runPath,
+      });
+    } else if (outputFormat === 'stream-json') {
+      headlessErrorWriter.writeUsageError({
+        sessionId: sessionIdForOutput ?? randomUUID(),
+        message,
         instruction,
       });
     }
@@ -428,10 +431,10 @@ export async function handleRunCommand(options: any, command: Command) {
       selection: allOptions.selection,
       verbose: verboseLevel,
       checkpointStrategy:
-        permissionMode === 'yolo' &&
         typeof command.getOptionValueSource === 'function' &&
         command.getOptionValueSource('checkpointStrategy') !== 'cli'
-          ? ('direct' as CheckpointStrategy)
+          ? ((profile.defaultCheckpointStrategy ??
+              (permissionMode === 'yolo' ? 'direct' : allOptions.checkpointStrategy)) as CheckpointStrategy)
           : (allOptions.checkpointStrategy as CheckpointStrategy),
       environmentMode: rawEnvironmentMode,
       applyBackOnDirty,

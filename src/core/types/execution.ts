@@ -1,6 +1,6 @@
 export type VerboseLevel = 'basic' | 'extended';
 export type ApplyBackOnDirty = 'abort' | '3way';
-export type FlowMode = 'patch' | 'review' | 'debug' | 'research' | 'answer';
+export type FlowMode = 'patch' | 'review' | 'debug' | 'research' | 'answer' | 'autopilot';
 export type EnvironmentMode = 'strict' | 'parity';
 
 export interface FileSystem {
@@ -43,6 +43,9 @@ export const Phase = {
   // SLASH is an out-of-band interactive phase used for adapter-level slash routing and skill expansion.
   // It is intentionally excluded from EXECUTION_PHASES to avoid impacting the main SalmonLoop flow.
   SLASH: 'SLASH',
+  // AUTOPILOT is introduced as a driver-owned business phase. It is intentionally excluded from
+  // EXECUTION_PHASES until the dedicated AutopilotFlow lands.
+  AUTOPILOT: 'AUTOPILOT',
   PREFLIGHT: 'PREFLIGHT',
   PREPARE_DEPS: 'PREPARE_DEPS',
   CONTEXT: 'CONTEXT',
@@ -64,10 +67,14 @@ export const Phase = {
  * - Derived automatically from the array.
  * - Used for TypeScript type checking and function signatures.
  */
-export type ExecutionPhase = (typeof EXECUTION_PHASES)[number] | typeof Phase.SLASH;
+export type ExecutionPhase =
+  | (typeof EXECUTION_PHASES)[number]
+  | typeof Phase.SLASH
+  | typeof Phase.AUTOPILOT;
 
 export const ALL_VISIBLE_STEPS = [
   ...EXECUTION_PHASES,
+  'AUTOPILOT',
   'REVIEW',
   'REPORT',
   'ANALYZE_ISSUES',

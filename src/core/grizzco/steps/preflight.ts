@@ -1,7 +1,7 @@
 import { text } from '../../../locales/index.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
+import { resolveExecutionProfile } from '../../runtime/execution-profile.js';
 import { createStandardToolstack } from '../../tools/loader.js';
-import { Phase } from '../../types/runtime.js';
 import { preflight } from '../../verification/runner.js';
 import { resolveLlmToolCallingPolicy } from '../dsl/llm-strategy.js';
 import { Step } from '../engine/pipeline/pipeline.js';
@@ -36,7 +36,8 @@ export const runPreflight: Step<InitCtx, PreflightCtx> = async (ctx) => {
     timestamp: new Date(),
   });
 
-  const toolstack = resolveLlmToolCallingPolicy(Phase.PLAN, ctx.options.llm).enabled
+  const executionProfile = resolveExecutionProfile(ctx.mode);
+  const toolstack = resolveLlmToolCallingPolicy(executionProfile.entryPhase, ctx.options.llm).enabled
     ? await createStandardToolstack({
         repoRoot: ctx.workspace.workPath,
         persistenceRoot: ctx.workspace.baseRepoPath || ctx.workspace.workPath,

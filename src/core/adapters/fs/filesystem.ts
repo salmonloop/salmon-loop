@@ -1,4 +1,5 @@
 import type { FileSystem, FlowMode } from '../../types/index.js';
+import { resolveExecutionProfile } from '../../runtime/execution-profile.js';
 
 import { FileAdapter } from './file-adapter.js';
 import { ReadOnlyFileSystem } from './readonly-filesystem.js';
@@ -31,7 +32,7 @@ export function createFileSystemAdapter(
   mode: FlowMode,
   realFs: FileSystem = new FileAdapterFileSystem(),
 ): FileSystem {
-  if (mode === 'review' || mode === 'research' || mode === 'answer') {
+  if (resolveExecutionProfile(mode).readOnly) {
     return new ReadOnlyFileSystem(realFs);
   }
   return realFs;

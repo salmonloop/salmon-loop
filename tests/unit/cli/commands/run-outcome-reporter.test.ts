@@ -169,7 +169,19 @@ mock.module('../../../../src/cli/commands/run/instruction-guard.js', () => ({
 }));
 
 mock.module('../../../../src/cli/commands/run/mode.js', () => ({
-  resolveRunMode: mock(() => 'patch'),
+  resolveRunMode: mock((raw: unknown) => {
+    const value = String(raw || 'patch');
+    if (
+      value === 'patch' ||
+      value === 'review' ||
+      value === 'debug' ||
+      value === 'research' ||
+      value === 'autopilot'
+    ) {
+      return value;
+    }
+    return undefined;
+  }),
 }));
 
 mock.module('../../../../src/cli/commands/run/extensions-resolution.js', () => ({
@@ -312,6 +324,34 @@ describe('handleRunCommand outcome reporter', () => {
     await handleRunCommand({}, command);
 
     expect(hoisted.loopParamsCalls[0]?.checkpointStrategy).toBe('direct');
+  });
+
+  it('defaults autopilot runs to yolo permission mode and direct strategy when implicit', async () => {
+    hoisted.parsedOptions = {
+      ...hoisted.parsedOptions,
+      allOptions: {
+        ...hoisted.parsedOptions.allOptions,
+        mode: undefined as any,
+        actMode: 'autopilot',
+        checkpointStrategy: 'worktree',
+      } as any,
+      allowedToolRules: ['Bash(ls *)'],
+      disallowedToolRules: ['Bash(rm *)'],
+    };
+    hoisted.loopParamsCalls.length = 0;
+
+    const { handleRunCommand } = await import('../../../../src/cli/commands/run/handler.js');
+    const command: any = {
+      optsWithGlobals: () => ({}),
+      getOptionValueSource: (name: string) => (name === 'checkpointStrategy' ? 'default' : 'cli'),
+    };
+
+    await handleRunCommand({}, command);
+
+    expect(hoisted.loopParamsCalls[0]?.mode).toBe('autopilot');
+    expect(hoisted.loopParamsCalls[0]?.permissionMode).toBe('yolo');
+    expect(hoisted.loopParamsCalls[0]?.checkpointStrategy).toBe('direct');
+    expect(hoisted.loopParamsCalls[0]?.permissionRules).toBeUndefined();
   });
 
   it('ignores cli permission rules when permission mode is yolo', async () => {

@@ -196,7 +196,15 @@ export interface ReportableCtx {
  */
 export interface AnswerCtx extends PreflightCtx, ReportableCtx {}
 
-export type TerminalCtx = AnswerCtx | ReviewCtx | ResearchCtx | ShrinkCtx;
+export interface AutopilotCtx extends PreflightCtx, ReportableCtx {
+  mutated: boolean;
+  verifyResult?: VerifyResult;
+  lastError?: string;
+  toolCallingAudit?: ToolCallingAuditEntry[];
+  replacementState?: ToolResultReplacementState;
+}
+
+export type TerminalCtx = AnswerCtx | ReviewCtx | ResearchCtx | AutopilotCtx | ShrinkCtx;
 
 /**
  * Stage 2.75: After Research

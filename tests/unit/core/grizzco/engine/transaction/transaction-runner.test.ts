@@ -2,16 +2,20 @@ import { beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
 
 import { LoopTelemetry } from '../../../../../../src/core/grizzco/engine/observability/loop-telemetry.js';
 import { FlowTransactionRunner } from '../../../../../../src/core/grizzco/engine/transaction/transaction-runner.js';
-import * as salmonFlow from '../../../../../../src/core/grizzco/flows/SalmonLoopFlow.js';
+import * as flowDispatch from '../../../../../../src/core/grizzco/flows/flow-dispatch.js';
 import type { ToolResultReplacementState } from '../../../../../../src/core/session/replacement-state.js';
 
-mock.module('../../../../../../src/core/grizzco/flows/SalmonLoopFlow.js', () => ({
-  executeSalmonLoopFlow: mock(),
+mock.module('../../../../../../src/core/grizzco/flows/flow-dispatch.js', () => ({
+  executeFlowAttempt: mock(),
 }));
 
 const NOW = new Date('2026-02-13T00:00:00.000Z');
 
-function createRunner(emit = mock(), optionsOverrides: Record<string, unknown> = {}) {
+function createRunner(
+  emit = mock(),
+  optionsOverrides: Record<string, unknown> = {},
+  flowMode: any = 'patch',
+) {
   return new FlowTransactionRunner({
     options: {
       instruction: 'fix',
@@ -19,7 +23,7 @@ function createRunner(emit = mock(), optionsOverrides: Record<string, unknown> =
       llm: {} as any,
       ...optionsOverrides,
     } as any,
-    flowMode: 'patch',
+    flowMode,
     emit,
     now: () => NOW,
     fsAdapter: {} as any,
@@ -45,7 +49,7 @@ describe('transaction-runner', () => {
 
   beforeEach(() => {
     mock.clearAllMocks();
-    mockedExecute = spyOn(salmonFlow, 'executeSalmonLoopFlow').mockReset();
+    mockedExecute = spyOn(flowDispatch, 'executeFlowAttempt').mockReset();
   });
 
   it('retries only when verify error is retryable and keeps success attempt history clean', async () => {
@@ -90,6 +94,29 @@ describe('transaction-runner', () => {
         type: 'retry',
         fromAttempt: 1,
         toAttempt: 2,
+      }),
+    );
+  });
+
+  it('routes autopilot attempts through the shared flow dispatch', async () => {
+    mockedExecute.mockResolvedValueOnce({
+      success: true,
+      duration: 1,
+      traces: [],
+      data: {
+        report: {
+          kind: 'answer',
+          timestamp: Date.now(),
+        },
+      },
+    } as any);
+
+    await createRunner(mock(), {}, 'autopilot').execute();
+
+    expect(mockedExecute).toHaveBeenCalledTimes(1);
+    expect(mockedExecute.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({
+        mode: 'autopilot',
       }),
     );
   });
@@ -516,6 +543,56 @@ describe('transaction-runner', () => {
     expect(report.terminalFailurePhase).toBe('APPLY_BACK');
     expect(report.retryExhausted).toBe(false);
     expect(report.history[0]?.error).toBe('apply back failed');
+  });
+
+  it('does not treat autopilot success as apply-back failure in preserve mode', async () => {
+    mockedExecute.mockResolvedValue({
+      success: true,
+      duration: 1,
+      traces: [],
+      data: {
+        report: {
+          kind: 'answer',
+          summary: 'autopilot finished',
+          timestamp: Date.now(),
+        },
+        mutated: true,
+        verifyResult: { ok: true, output: 'ok', exitCode: 0 },
+        applyBackResult: {
+          success: false,
+          skipped: false,
+          error: 'apply back should be ignored',
+          telemetry: {},
+        },
+      },
+    } as any);
+
+    const report = await createRunner(mock(), {}, 'autopilot').execute();
+
+    expect(report.success).toBe(true);
+    expect(report.terminalReasonCode).toBeUndefined();
+    expect((report.lastContext as any)?.report?.summary).toBe('autopilot finished');
+  });
+
+  it('preserves autopilot terminal context even when no verify gate ran', async () => {
+    mockedExecute.mockResolvedValue({
+      success: true,
+      duration: 1,
+      traces: [],
+      data: {
+        report: {
+          kind: 'answer',
+          summary: 'autopilot answer',
+          timestamp: Date.now(),
+        },
+        mutated: false,
+      },
+    } as any);
+
+    const report = await createRunner(mock(), {}, 'autopilot').execute();
+
+    expect(report.success).toBe(true);
+    expect((report.lastContext as any)?.report?.summary).toBe('autopilot answer');
   });
 
   it('does not retry when context phase requires cache permission authorization', async () => {

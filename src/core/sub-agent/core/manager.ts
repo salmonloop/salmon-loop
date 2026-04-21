@@ -16,7 +16,7 @@ import type { ExecutionWorkspace } from '../../types/loop.js';
 import { ArtifactStore } from '../artifacts/store.js';
 import { cloneSubAgentContextSnapshot } from '../context-snapshot.js';
 import type { SubAgentControllerPort } from '../controller.js';
-import { isReadOnlyModelPhase, resolveSubAgentDryRun } from '../dispatch-policy.js';
+import { isReadOnlySubAgentContext, resolveSubAgentDryRun } from '../dispatch-policy.js';
 import { validateSharedPrefixConsistency } from '../prefix-consistency.js';
 import type { SubAgentRegistry } from '../registry.js';
 import { getSubAgentRegistry } from '../registry.js';
@@ -147,7 +147,11 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
         throw new Error('Stop requested before launching Smallfry');
       }
 
-      const effectiveDryRun = resolveSubAgentDryRun(this.ctx.dryRun, this.ctx.phase);
+      const effectiveDryRun = resolveSubAgentDryRun({
+        parentDryRun: this.ctx.dryRun,
+        flowMode: this.ctx.flowMode,
+        phase: this.ctx.phase,
+      });
       const runtimeEnv = await this.setupIsolatedEnvironment(
         normalizedRequest,
         llm,
@@ -294,7 +298,13 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
     agentId: string,
     effectiveDryRun: boolean,
   ): Promise<SubAgentRuntimeEnvironment> {
-    if (isReadOnlyModelPhase(this.ctx.phase) && request.session_target !== 'isolated') {
+    if (
+      isReadOnlySubAgentContext({
+        flowMode: this.ctx.flowMode,
+        phase: this.ctx.phase,
+      }) &&
+      request.session_target !== 'isolated'
+    ) {
       recordAuditEvent(
         'sub_agent.dispatch.read_only_forced_isolated',
         {
@@ -375,7 +385,14 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
     ]);
 
     const readOnlyPlanTools = new Set<string>(['plan.init', 'plan.read', 'plan.update']);
-    const readOnlyPhase = isReadOnlyModelPhase(phase);
+    const readOnlyPhase = isReadOnlySubAgentContext({
+      flowMode: this.ctx.flowMode,
+      phase,
+    });
+    if (!readOnlyPhase) {
+      return allowed;
+    }
+
     const filtered = allowed.filter(
       (name) => safeReadOnlyTools.has(name) || (readOnlyPhase && readOnlyPlanTools.has(name)),
     );

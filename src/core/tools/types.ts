@@ -4,7 +4,7 @@ import type { PluginRegistry } from '../plugin/registry.js';
 import type { SubAgentControllerPort } from '../sub-agent/controller.js';
 import type { SubAgentContextSnapshot } from '../sub-agent/types.js';
 import type { LLM } from '../types/llm.js';
-import type { ExecutionPhase, UserInputProvider } from '../types/runtime.js';
+import type { ExecutionPhase, FlowMode, UserInputProvider } from '../types/runtime.js';
 
 import { ResourceKey } from './parallel/resources.js';
 
@@ -40,6 +40,7 @@ export interface ToolRuntimeCtx {
    */
   persistenceRoot?: string;
   worktreeRoot?: string;
+  flowMode?: FlowMode;
   attemptId: number;
   dryRun: boolean;
   model?: string;

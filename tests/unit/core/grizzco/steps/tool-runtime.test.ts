@@ -45,6 +45,7 @@ describe('buildPhaseToolRuntimeContext', () => {
           baseRepoPath: '/repo',
           strategy: 'worktree',
         },
+        mode: 'patch',
         attempt: 3,
         options: {
           llm,
@@ -87,5 +88,35 @@ describe('buildPhaseToolRuntimeContext', () => {
         }),
       },
     });
+  });
+
+  it('propagates flowMode into the host-only tool runtime context', () => {
+    const llm = {
+      getModelId: () => 'test-model',
+      chat: mock(),
+      createPlan: mock(),
+      createPatch: mock(),
+    };
+
+    const runtime = buildPhaseToolRuntimeContext(
+      {
+        workspace: {
+          workPath: '/repo',
+          baseRepoPath: '/repo',
+          strategy: 'direct',
+        },
+        mode: 'autopilot',
+        attempt: 1,
+        options: {
+          llm,
+          dryRun: false,
+          conversationContext: [],
+        },
+      } as any,
+      Phase.AUTOPILOT,
+      {},
+    );
+
+    expect(runtime.flowMode).toBe('autopilot');
   });
 });

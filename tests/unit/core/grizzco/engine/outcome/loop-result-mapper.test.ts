@@ -457,6 +457,42 @@ describe('loop-result-mapper', () => {
     );
   });
 
+  it('maps autopilot success summary into assistantMessage', () => {
+    const telemetry = createTelemetry();
+    const report: FlowTransactionReport = {
+      success: true,
+      attempts: 1,
+      flowReport: {
+        success: true,
+        duration: 1,
+        traces: [],
+        strategyName: 'autopilot',
+        fsMode: 'autopilot',
+      },
+      history: [],
+      retryExhausted: false,
+      lastContext: {
+        report: {
+          kind: 'answer',
+          summary: 'autopilot final answer',
+          timestamp: 1,
+        },
+        mutated: false,
+      } as any,
+    };
+
+    const result = buildLoopResultFromTransaction({
+      executionReport: report,
+      flowMode: 'autopilot',
+      options: {} as any,
+      telemetry,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.assistantMessage).toBe('autopilot final answer');
+    expect(result.strategyName).toBe('autopilot');
+  });
+
   it('maps generic crash via failure result builder', () => {
     const telemetry = createTelemetry();
     const result = buildLoopFailureResult({

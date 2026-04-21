@@ -33,6 +33,11 @@ describe('createFileSystemAdapter', () => {
     expect(fsAdapter).toBe(mockRealFs);
   });
 
+  it('returns the real filesystem for autopilot mode', () => {
+    const fsAdapter = createFileSystemAdapter('autopilot' as FlowMode, mockRealFs);
+    expect(fsAdapter).toBe(mockRealFs);
+  });
+
   it('returns a ReadOnlyFileSystem for research mode', () => {
     const fsAdapter = createFileSystemAdapter('research' as FlowMode, mockRealFs);
     expect(fsAdapter).toBeInstanceOf(ReadOnlyFileSystem);

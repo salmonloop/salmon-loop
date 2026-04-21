@@ -3,6 +3,7 @@ import { getBudgetRunSummary } from '../../../context/budget/integration.js';
 import { getAuthorizationDecisionsFromAuditTrail } from '../../../observability/authorization-decisions.js';
 import { buildFailureEnvelope } from '../../../observability/error-envelope.js';
 import { getTokenUsageFromAuditTrail } from '../../../observability/token-usage.js';
+import { resolveExecutionProfile } from '../../../runtime/execution-profile.js';
 import type { RootCauseCode, TerminalReason } from '../../../types/loop.js';
 import { ErrorType, Phase } from '../../../types/runtime.js';
 import type { ExecutionPhase, FlowMode, LoopOptions, LoopResult } from '../../../types/runtime.js';
@@ -53,6 +54,7 @@ export function buildLoopResultFromTransaction({
   telemetry,
   auditPath,
 }: BuildLoopResultParams): LoopResult {
+  const profile = resolveExecutionProfile(flowMode);
   const rootCause = toRootCauseCode(executionReport.lastErrorCode);
   const terminalReason: TerminalReason | undefined = executionReport.retryExhausted
     ? 'RETRY_BUDGET_EXHAUSTED'
@@ -108,11 +110,11 @@ export function buildLoopResultFromTransaction({
     return hints;
   })();
   const assistantMessage =
-    flowMode === 'answer'
-      ? (ctx as any)?.report?.summary?.trim?.()
-        ? String((ctx as any).report.summary).trim()
-        : ''
-      : undefined;
+    ((flowMode === 'answer' || profile.driver === 'agent') &&
+    (ctx as any)?.report?.summary?.trim?.()
+      ? String((ctx as any).report.summary).trim()
+      : undefined) ??
+    undefined;
   const finalPatch =
     ctx && typeof ctx === 'object' && 'diff' in ctx ? (ctx as any).diff : undefined;
   const changedFiles =
@@ -130,9 +132,7 @@ export function buildLoopResultFromTransaction({
     const budgetSummary = getBudgetRunSummary() ?? undefined;
     if (
       options.dryRun ||
-      flowMode === 'review' ||
-      flowMode === 'research' ||
-      flowMode === 'answer'
+      profile.readOnly
     ) {
       return {
         success: true,

@@ -2,6 +2,7 @@ import { text } from '../../../../locales/index.js';
 import { buildFailureGuidance } from '../../../failure/diagnostics.js';
 import { sanitizeError } from '../../../llm/errors.js';
 import { mapErrorForDisplay } from '../../../observability/error-mapping.js';
+import { resolveExecutionProfile } from '../../../runtime/execution-profile.js';
 import { EXECUTION_PHASES } from '../../../types/runtime.js';
 import type {
   ExecutionPhase,
@@ -107,6 +108,7 @@ export function resolveAttemptFailure(params: {
   flowMode: FlowMode;
 }): AttemptFailureDetails | undefined {
   const { flowReport, context, flowMode } = params;
+  const profile = resolveExecutionProfile(flowMode);
   const interrupt = extractInterrupt(flowReport.error);
   const interruptCode = extractErrorCode(flowReport.error);
   if (interruptCode === 'INTERRUPT_REQUIRED' && interrupt?.type === 'awaiting_input') {
@@ -127,13 +129,9 @@ export function resolveAttemptFailure(params: {
     };
   }
   const verifyOk =
-    flowMode === 'review' || flowMode === 'research' || flowMode === 'answer'
-      ? true
-      : context?.verifyResult?.ok !== false;
+    profile.verifyPolicy === 'never' ? true : context?.verifyResult?.ok !== false;
   const applyBackFailed =
-    flowMode !== 'review' &&
-    flowMode !== 'research' &&
-    flowMode !== 'answer' &&
+    profile.failurePolicy === 'rollback' &&
     context?.applyBackResult?.success === false &&
     !context.applyBackResult.skipped;
   const environmentMode = context?.options?.environmentMode;
@@ -250,7 +248,7 @@ export function resolveAttemptFailure(params: {
     };
   }
 
-  if (flowMode !== 'review' && context?.verifyResult?.ok === false) {
+  if (profile.verifyPolicy !== 'never' && context?.verifyResult?.ok === false) {
     const verifyOutput = context.verifyResult.output || text.loop.loopExecutionFailed;
     const errorType = classifyError(verifyOutput);
     const fallbackReason = sanitizeReason(context.lastError || verifyOutput);

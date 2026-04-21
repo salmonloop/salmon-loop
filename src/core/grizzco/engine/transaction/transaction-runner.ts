@@ -3,6 +3,7 @@ import { recordAuditEvent } from '../../../observability/audit-trail.js';
 import { mapErrorForAudit } from '../../../observability/error-mapping.js';
 import { ReflectionEngine } from '../../../reflection/engine.js';
 import type { ReflectionInput } from '../../../reflection/types.js';
+import { resolveExecutionProfile } from '../../../runtime/execution-profile.js';
 import type { ToolResultReplacementState } from '../../../session/replacement-state.js';
 import type { FileStateResolver } from '../../../strata/layers/file-state-resolver.js';
 import type { WorkspaceSynchronizer } from '../../../strata/runtime/synchronizer.js';
@@ -17,7 +18,7 @@ import type {
   LoopIteration,
   LoopOptions,
 } from '../../../types/runtime.js';
-import { executeSalmonLoopFlow } from '../../flows/SalmonLoopFlow.js';
+import { executeFlowAttempt } from '../../flows/flow-dispatch.js';
 import { LoopTelemetry } from '../observability/loop-telemetry.js';
 import type { FlowReport } from '../pipeline/pipeline.js';
 import type { InitCtx, ShrinkCtx, TerminalCtx } from '../pipeline/types.js';
@@ -231,6 +232,7 @@ export class FlowTransactionRunner {
     let retries = 0;
     let lastReport: FlowReport | undefined;
     let lastAttemptFailure: ReturnType<typeof resolveAttemptFailure> | undefined;
+    const profile = resolveExecutionProfile(this.params.flowMode);
 
     while (true) {
       if (this.params.options.signal?.aborted) {
@@ -243,7 +245,7 @@ export class FlowTransactionRunner {
         { attempt, flowMode: this.params.flowMode },
         { phase: 'PREFLIGHT', scope: 'session' },
       );
-      const result = await executeSalmonLoopFlow({
+      const result = await executeFlowAttempt({
         workspace: this.params.env.workspace,
         options: this.params.options,
         mode: this.params.flowMode,
@@ -335,7 +337,9 @@ export class FlowTransactionRunner {
 
       if (!attemptFailure) {
         const successPhase =
-          this.params.flowMode === 'review' || this.params.flowMode === 'research'
+          profile.failurePolicy === 'preserve'
+            ? profile.entryPhase
+            : profile.readOnly
             ? 'SHRINK'
             : 'APPLY_BACK';
         recordAuditEvent(
@@ -368,7 +372,7 @@ export class FlowTransactionRunner {
           history: this.historyEntries,
           authorizationSummary: this.authorizationSummary,
           lastErrorCode: this.extractErrorCode(result.error),
-          lastContext: shrinkCtx,
+          lastContext: terminalCtx,
           lastVerifyArtifact: this.lastVerifyArtifact,
           lastSubAgentPatchArtifacts: this.lastSubAgentPatchArtifacts,
           lastSubAgentAuditArtifacts: this.lastSubAgentAuditArtifacts,
@@ -435,7 +439,7 @@ export class FlowTransactionRunner {
           history: this.historyEntries,
           authorizationSummary: this.authorizationSummary,
           lastErrorCode: attemptFailure.errorCode ?? this.extractErrorCode(result.error),
-          lastContext: shrinkCtx,
+          lastContext: terminalCtx,
           lastVerifyArtifact: this.lastVerifyArtifact,
           lastSubAgentPatchArtifacts: this.lastSubAgentPatchArtifacts,
           lastSubAgentAuditArtifacts: this.lastSubAgentAuditArtifacts,

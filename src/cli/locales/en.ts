@@ -295,7 +295,7 @@ export const en = {
   auditScopeOption: 'Audit log scope (repo, user)',
   contextDiffScopeOption: 'Diff scope for context (primary, ast_related)',
   contextBudgetCharsOption: 'Context budget in characters (e.g., 30000)',
-  actModeOption: 'Flow mode to run (patch, review, debug, research)',
+  actModeOption: 'Flow mode to run (patch, review, debug, research, autopilot)',
 
   // Error messages
   fileSelectionConflict: '--file and --selection are mutually exclusive',
@@ -309,7 +309,7 @@ export const en = {
   jsonSchemaLoadFailed: (msg: string) => `Failed to load JSON schema: ${msg}.`,
   structuredOutputSchemaFailed: 'Structured output failed schema validation.',
   invalidActMode: (mode: string) =>
-    `Invalid --act-mode "${mode}". Expected "patch", "review", "debug", or "research".`,
+    `Invalid --act-mode "${mode}". Expected "patch", "review", "debug", "research", or "autopilot".`,
   invalidEnvironmentMode: (mode: string) =>
     `Invalid --environment-mode "${mode}". Expected "strict" or "parity".`,
   invalidOutputFormat: (format: string) =>
