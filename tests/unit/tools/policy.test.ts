@@ -68,19 +68,27 @@ describe('ToolPolicy', () => {
   });
 
   it('allows side-effect tools in AUTOPILOT when flowMode=autopilot', () => {
-    const spec = createMockSpec('process.exec', ['process']);
-    spec.allowedPhases = [Phase.AUTOPILOT] as any;
-    const decision = policy.decide(Phase.AUTOPILOT, spec, { flowMode: 'autopilot' } as any);
+    const processSpec = createMockSpec('process.exec', ['process']);
+    processSpec.allowedPhases = [Phase.AUTOPILOT] as any;
+    const networkSpec = createMockSpec('network.fetch', ['network']);
+    networkSpec.allowedPhases = [Phase.AUTOPILOT] as any;
 
-    expect(decision.allowed).toBe(true);
+    expect(
+      policy.decide(Phase.AUTOPILOT, processSpec, { flowMode: 'autopilot' } as any).allowed,
+    ).toBe(true);
+    expect(
+      policy.decide(Phase.AUTOPILOT, networkSpec, { flowMode: 'autopilot' } as any).allowed,
+    ).toBe(true);
   });
 
   it('does not let non-autopilot callers bypass isolation by using AUTOPILOT phase', () => {
-    const spec = createMockSpec('process.exec', ['process']);
-    spec.allowedPhases = [Phase.AUTOPILOT] as any;
-    const decision = policy.decide(Phase.AUTOPILOT, spec, {} as any);
+    const processSpec = createMockSpec('process.exec', ['process']);
+    processSpec.allowedPhases = [Phase.AUTOPILOT] as any;
+    const networkSpec = createMockSpec('network.fetch', ['network']);
+    networkSpec.allowedPhases = [Phase.AUTOPILOT] as any;
 
-    expect(decision.allowed).toBe(false);
+    expect(policy.decide(Phase.AUTOPILOT, processSpec, {} as any).allowed).toBe(false);
+    expect(policy.decide(Phase.AUTOPILOT, networkSpec, {} as any).allowed).toBe(false);
   });
 
   it('should respect explicitly allowed phases in ToolSpec', () => {
