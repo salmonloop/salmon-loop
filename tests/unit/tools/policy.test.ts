@@ -67,6 +67,22 @@ describe('ToolPolicy', () => {
     expect(decision.denyReason).toContain('requires worktree isolation');
   });
 
+  it('allows side-effect tools in AUTOPILOT when flowMode=autopilot', () => {
+    const spec = createMockSpec('process.exec', ['process']);
+    spec.allowedPhases = [Phase.AUTOPILOT] as any;
+    const decision = policy.decide(Phase.AUTOPILOT, spec, { flowMode: 'autopilot' } as any);
+
+    expect(decision.allowed).toBe(true);
+  });
+
+  it('does not let non-autopilot callers bypass isolation by using AUTOPILOT phase', () => {
+    const spec = createMockSpec('process.exec', ['process']);
+    spec.allowedPhases = [Phase.AUTOPILOT] as any;
+    const decision = policy.decide(Phase.AUTOPILOT, spec, {} as any);
+
+    expect(decision.allowed).toBe(false);
+  });
+
   it('should respect explicitly allowed phases in ToolSpec', () => {
     const spec = createMockSpec('custom.tool');
     spec.allowedPhases = [Phase.PLAN] as any;

@@ -36,4 +36,18 @@ describe('fs write tools policy', () => {
     expect(policy.decide(Phase.SLASH, fsCreateDirectorySpec as any, {}).allowed).toBe(false);
     expect(policy.decide(Phase.SLASH, fsDeleteFileSpec as any, {}).allowed).toBe(false);
   });
+
+  it('allows write tools in AUTOPILOT phase without worktree isolation', () => {
+    const policy = new ToolPolicy();
+
+    const ctx = { flowMode: 'autopilot' };
+
+    expect(policy.decide(Phase.AUTOPILOT, fsWriteFileSpec as any, ctx as any).allowed).toBe(true);
+    expect(
+      policy.decide(Phase.AUTOPILOT, fsCreateDirectorySpec as any, ctx as any).allowed,
+    ).toBe(true);
+    expect(policy.decide(Phase.AUTOPILOT, fsDeleteFileSpec as any, ctx as any).allowed).toBe(
+      true,
+    );
+  });
 });

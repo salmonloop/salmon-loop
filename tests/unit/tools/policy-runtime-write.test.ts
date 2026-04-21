@@ -33,4 +33,19 @@ describe('ToolPolicy runtime_write exemption', () => {
     );
     expect(decision.allowed).toBe(false);
   });
+
+  it('does not let direct autopilot bypass the runtime_write restriction', () => {
+    const policy = new ToolPolicy();
+    const decision = policy.decide(
+      Phase.AUTOPILOT,
+      {
+        name: 'fs.write',
+        sideEffects: ['runtime_write'],
+        allowedPhases: [Phase.AUTOPILOT],
+        riskLevel: 'low',
+      } as any,
+      { flowMode: 'autopilot' },
+    );
+    expect(decision.allowed).toBe(false);
+  });
 });

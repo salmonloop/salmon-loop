@@ -1,6 +1,7 @@
+import { resolveExecutionProfile } from '../runtime/execution-profile.js';
 import { Phase } from '../types/runtime.js';
 
-import { ExecutionPhase, ToolSpec } from './types.js';
+import { ExecutionPhase, ToolRuntimeCtx, ToolSpec } from './types.js';
 
 export interface PolicyDecision {
   allowed: boolean;
@@ -11,7 +12,11 @@ export class ToolPolicy {
   /**
    * Decide if a tool execution is allowed in the current phase and context.
    */
-  decide(phase: ExecutionPhase, spec: ToolSpec, ctx: { worktreeRoot?: string }): PolicyDecision {
+  decide(
+    phase: ExecutionPhase,
+    spec: ToolSpec,
+    ctx: Pick<ToolRuntimeCtx, 'worktreeRoot' | 'flowMode'>,
+  ): PolicyDecision {
     // 1. Phase Allowlist Check
     if (!this.isToolAllowedInPhase(phase, spec)) {
       return { allowed: false, denyReason: `Tool ${spec.name} is not allowed in phase ${phase}` };
@@ -25,6 +30,11 @@ export class ToolPolicy {
     const hasRuntimeWrite = spec.sideEffects.includes('runtime_write');
     const hasProcess = spec.sideEffects.includes('process');
     const hasNetwork = spec.sideEffects.includes('network');
+    const profile = ctx.flowMode ? resolveExecutionProfile(ctx.flowMode) : undefined;
+    const autopilotDirect =
+      phase === Phase.AUTOPILOT &&
+      profile?.mode === 'autopilot' &&
+      profile.failurePolicy === 'preserve';
 
     // 3. APPLY phase is strictly for patch application, NO tool calls allowed
     if (phase === Phase.APPLY) {
@@ -46,7 +56,7 @@ export class ToolPolicy {
 
     // 5. Worktree Requirement for Side Effects
     // Any repo-mutating tool or process/network execution MUST have a worktree.
-    if ((hasRepoWrite || hasProcess || hasNetwork) && !ctx.worktreeRoot) {
+    if ((hasRepoWrite || hasProcess || hasNetwork) && !ctx.worktreeRoot && !autopilotDirect) {
       return {
         allowed: false,
         denyReason: `Tool ${spec.name} has side effects [${spec.sideEffects.join(',')}] and requires worktree isolation`,
