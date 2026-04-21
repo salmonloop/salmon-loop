@@ -25,4 +25,15 @@ describe('Grizzco LLM strategy', () => {
     expect(policy.enabled).toBe(true);
     expect(policy.maxRounds).toBe(4);
   });
+
+  it('treats AUTOPILOT like a long-running tool phase', () => {
+    const llm = {
+      getCapabilities: () => ({ toolCalling: true }),
+    } as unknown as LLM;
+
+    const policy = resolveLlmToolCallingPolicy(Phase.AUTOPILOT, llm);
+
+    expect(policy.enabled).toBe(true);
+    expect(policy.maxRounds).toBe(8);
+  });
 });

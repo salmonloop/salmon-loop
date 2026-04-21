@@ -9,7 +9,7 @@ import type { AutopilotCtx, PreflightCtx } from '../engine/pipeline/types.js';
 import { buildPhaseToolRuntimeContext } from './tool-runtime.js';
 import { buildSharedRequestEnvelope } from './request-assembly.js';
 
-const AUTOPILOT_TOOL_PHASE = Phase.EXPLORE;
+const AUTOPILOT_TOOL_PHASE = Phase.AUTOPILOT;
 
 function buildAutopilotSystemPrompt(): string {
   return [

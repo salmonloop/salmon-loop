@@ -23,7 +23,7 @@ describe('runAutopilot', () => {
       async (_messages: any, _chatOptions: any, session: any) => {
         session.toolCallingAudit?.event({
           timestamp: new Date().toISOString(),
-          phase: 'EXPLORE',
+          phase: 'AUTOPILOT',
           round: 0,
           callId: 'call-1',
           toolName: 'plan.update',
@@ -39,7 +39,7 @@ describe('runAutopilot', () => {
       async (_messages: any, _chatOptions: any, session: any) => {
         session.toolCallingAudit?.event({
           timestamp: new Date().toISOString(),
-          phase: 'EXPLORE',
+          phase: 'AUTOPILOT',
           round: 0,
           callId: 'call-stream',
           toolName: 'plan.update',
@@ -87,7 +87,7 @@ describe('runAutopilot', () => {
     expect(hoisted.chatWithTools).toHaveBeenCalledTimes(1);
     expect(hoisted.chatWithTools.mock.calls[0]?.[2]).toEqual(
       expect.objectContaining({
-        phase: 'EXPLORE',
+        phase: 'AUTOPILOT',
         maxRounds: 7,
       }),
     );
