@@ -18,7 +18,7 @@ mock.module('../../../../../src/core/grizzco/dsl/llm-strategy.js', () => ({
 describe('runAutopilot', () => {
   beforeEach(() => {
     mock.clearAllMocks();
-    hoisted.resolveLlmToolCallingPolicy.mockReturnValue({ enabled: true, maxRounds: 7 });
+    hoisted.resolveLlmToolCallingPolicy.mockReturnValue({ enabled: true, maxRounds: 8 });
     hoisted.chatWithTools.mockImplementation(
       async (_messages: any, _chatOptions: any, session: any) => {
         session.toolCallingAudit?.event({
@@ -88,7 +88,7 @@ describe('runAutopilot', () => {
     expect(hoisted.chatWithTools.mock.calls[0]?.[2]).toEqual(
       expect.objectContaining({
         phase: 'AUTOPILOT',
-        maxRounds: 7,
+        maxRounds: 8,
       }),
     );
     expect(result.report.summary).toBe('autopilot with tools');
