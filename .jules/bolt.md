@@ -1,0 +1,3 @@
+## 2024-04-21 - Parallel File I/O Optimization
+**Learning:** Sequential `for...of` loops calling `await fileAdapter.readFile` for gathering context metadata (like package configs and instructions) creates an unnecessary bottleneck, especially for missing files relying on `try/catch` fallbacks.
+**Action:** Replace sequential read operations with batched concurrent execution using `Promise.all` alongside `Array.map`. Always apply a chunking mechanism (e.g., chunk size of 10) to parallel I/O mapped loops across the codebase to strictly adhere to boundary rules avoiding `EMFILE` errors under heavy concurrency.
