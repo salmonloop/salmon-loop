@@ -720,4 +720,107 @@ describe('chatWithTools', () => {
     const patchToolNames = (lastOptions?.toolSpecs ?? []).map((spec: ToolSpec) => spec.name).sort();
     expect(patchToolNames).toEqual(['code.search', 'fs.read'].sort());
   });
+
+  it('keeps AUTOPILOT write tools visible only for direct autopilot sessions', async () => {
+    const registry = new ToolRegistry();
+    const policy = new ToolPolicy();
+    const budget = new BudgetGuard();
+    const audit = new ToolAuditLogger();
+    const sanitizer = new ToolSanitizer();
+    const router = new ToolRouter(registry, policy, budget, audit, sanitizer);
+
+    const register = (spec: Omit<ToolSpec, 'executor'>) =>
+      registry.register({
+        ...spec,
+        executor: async () => ({}),
+      });
+
+    register({
+      name: 'fs.read',
+      source: 'builtin',
+      intent: 'READ',
+      description: 'Read files',
+      riskLevel: 'low',
+      sideEffects: ['fs_read'],
+      concurrency: 'parallel_ok',
+      allowedPhases: [Phase.AUTOPILOT],
+      inputSchema: z.object({ file: z.string() }),
+      outputSchema: z.object({ content: z.string() }),
+    });
+    register({
+      name: 'fs.write_file',
+      source: 'builtin',
+      intent: 'WRITE',
+      description: 'Write files',
+      riskLevel: 'high',
+      sideEffects: ['fs_write'],
+      concurrency: 'serial_only',
+      allowedPhases: [Phase.AUTOPILOT],
+      inputSchema: z.object({ file: z.string(), content: z.string() }),
+      outputSchema: z.object({ ok: z.boolean() }),
+    });
+
+    let lastOptions: any;
+    const llm: LLM = {
+      async chat(_messages, options) {
+        lastOptions = options;
+        return { role: 'assistant', content: 'DONE' };
+      },
+      async createPlan() {
+        throw new Error('not used');
+      },
+      async createPatch() {
+        throw new Error('not used');
+      },
+    };
+
+    await chatWithTools(
+      [
+        { role: 'system', content: 'system' },
+        { role: 'user', content: 'prompt' },
+      ],
+      {},
+      {
+        phase: Phase.AUTOPILOT,
+        llm,
+        runtime: {
+          repoRoot: '/tmp',
+          attemptId: 1,
+          dryRun: true,
+          model: 'test-model',
+          flowMode: 'autopilot',
+        },
+        toolstack: { registry, policy, router },
+      },
+    );
+
+    const directAutopilotToolNames = (lastOptions?.toolSpecs ?? [])
+      .map((spec: ToolSpec) => spec.name)
+      .sort();
+    expect(directAutopilotToolNames).toEqual(['fs.read', 'fs.write_file']);
+
+    await chatWithTools(
+      [
+        { role: 'system', content: 'system' },
+        { role: 'user', content: 'prompt' },
+      ],
+      {},
+      {
+        phase: Phase.AUTOPILOT,
+        llm,
+        runtime: {
+          repoRoot: '/tmp',
+          attemptId: 1,
+          dryRun: true,
+          model: 'test-model',
+        },
+        toolstack: { registry, policy, router },
+      },
+    );
+
+    const phaseOnlyAutopilotToolNames = (lastOptions?.toolSpecs ?? [])
+      .map((spec: ToolSpec) => spec.name)
+      .sort();
+    expect(phaseOnlyAutopilotToolNames).toEqual(['fs.read']);
+  });
 });

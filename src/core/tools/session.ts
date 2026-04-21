@@ -35,7 +35,7 @@ interface ToolstackLike {
     decide(
       phase: ExecutionPhase,
       spec: ToolSpec,
-      ctx: { worktreeRoot?: string },
+      ctx: { worktreeRoot?: string; flowMode?: ToolRuntimeCtx['flowMode'] },
     ): { allowed: boolean };
   };
   router: {
@@ -723,6 +723,7 @@ function resolveToolCallingForSession(params: {
   const allowedSpecs = params.session.toolstack.registry.listAll().filter((spec) => {
     return params.session.toolstack.policy.decide(params.phase, spec, {
       worktreeRoot: params.session.runtime.worktreeRoot,
+      flowMode: params.session.runtime.flowMode,
     }).allowed;
   });
 
