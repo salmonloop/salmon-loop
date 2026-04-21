@@ -1,33 +1,18 @@
-import { beforeEach, describe, expect, it, mock } from 'bun:test';
+import { beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
 
 import { text } from '../../../../../src/locales/index.js';
+import { ArtifactStore } from '../../../../../src/core/sub-agent/artifacts/store.js';
 import * as verificationRunner from '../../../../../src/core/verification/runner.js';
-
-const hoisted = (() => ({
-  runVerifyCommand: mock(),
-  saveText: mock(),
-}))();
-
-mock.module('../../../../../src/core/verification/runner.js', () => ({
-  ...verificationRunner,
-  runVerify: hoisted.runVerifyCommand,
-}));
-
-mock.module('../../../../../src/core/sub-agent/artifacts/store.js', () => ({
-  ArtifactStore: {
-    saveText: hoisted.saveText,
-  },
-}));
 
 describe('runAutopilotVerifyGate', () => {
   beforeEach(() => {
-    mock.clearAllMocks();
-    hoisted.runVerifyCommand.mockResolvedValue({
+    mock.restore();
+    spyOn(verificationRunner, 'runVerify').mockResolvedValue({
       ok: false,
       output: 'verify failed',
       exitCode: 1,
     });
-    hoisted.saveText.mockResolvedValue({
+    spyOn(ArtifactStore, 'saveText').mockResolvedValue({
       handle: 's8p://artifact/verify-1',
       mimeType: 'text/plain',
       sha256: 'verify-1',
@@ -68,7 +53,7 @@ describe('runAutopilotVerifyGate', () => {
     } as any);
 
     expect(result.verifyResult).toBeUndefined();
-    expect(hoisted.runVerifyCommand).not.toHaveBeenCalled();
+    expect(verificationRunner.runVerify).not.toHaveBeenCalled();
   });
 
   it('returns a skipped verify result when no verify command is configured', async () => {
@@ -88,6 +73,6 @@ describe('runAutopilotVerifyGate', () => {
       output: text.loop.verificationSkipped,
       exitCode: null,
     });
-    expect(hoisted.runVerifyCommand).not.toHaveBeenCalled();
+    expect(verificationRunner.runVerify).not.toHaveBeenCalled();
   });
 });
