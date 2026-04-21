@@ -5,6 +5,15 @@ import { ToolPolicy } from '../../../../src/core/tools/policy.js';
 import { Phase } from '../../../../src/core/types/index.js';
 
 describe('interaction.ask_user policy', () => {
+  it('allows usage in AUTOPILOT phase', () => {
+    const policy = new ToolPolicy();
+    const decision = policy.decide(Phase.AUTOPILOT, askUserSpec, {
+      flowMode: 'autopilot',
+    } as any);
+
+    expect(decision.allowed).toBe(true);
+  });
+
   it('denies usage in VERIFY and SHRINK phases', () => {
     const policy = new ToolPolicy();
 

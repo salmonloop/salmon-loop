@@ -69,7 +69,14 @@ export const askUserSpec: ToolSpec<AskUserInput, AskUserOutput> = {
   riskLevel: 'low',
   sideEffects: ['none'],
   concurrency: 'serial_only',
-  allowedPhases: [Phase.EXPLORE, Phase.PLAN, Phase.PATCH, Phase.VALIDATE, Phase.AST_VALIDATE],
+  allowedPhases: [
+    Phase.EXPLORE,
+    Phase.PLAN,
+    Phase.AUTOPILOT,
+    Phase.PATCH,
+    Phase.VALIDATE,
+    Phase.AST_VALIDATE,
+  ],
   inputSchema: askUserInputSchema,
   outputSchema: askUserOutputSchema,
   executor: async (input, ctx: ToolRuntimeCtx) => {

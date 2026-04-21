@@ -53,7 +53,14 @@ export const planInitSpec: ToolSpec<
   sideEffects: ['runtime_write'],
   concurrency: 'mutex_by_resource',
   computeResources: (_args, ctx) => planResource(ctx),
-  allowedPhases: [Phase.EXPLORE, Phase.PLAN, Phase.PATCH, Phase.VERIFY, Phase.SHRINK],
+  allowedPhases: [
+    Phase.EXPLORE,
+    Phase.PLAN,
+    Phase.AUTOPILOT,
+    Phase.PATCH,
+    Phase.VERIFY,
+    Phase.SHRINK,
+  ],
   inputSchema: z.object({
     mission: z.string().min(1),
     objective: z.string().min(1),
@@ -84,7 +91,14 @@ export const planReadSpec: ToolSpec<{ sessionId: string }, any> = {
   sideEffects: ['fs_read'],
   concurrency: 'parallel_ok',
   computeResources: (args, ctx) => planResource(ctx, args.sessionId),
-  allowedPhases: [Phase.EXPLORE, Phase.PLAN, Phase.PATCH, Phase.VERIFY, Phase.SHRINK],
+  allowedPhases: [
+    Phase.EXPLORE,
+    Phase.PLAN,
+    Phase.AUTOPILOT,
+    Phase.PATCH,
+    Phase.VERIFY,
+    Phase.SHRINK,
+  ],
   inputSchema: z.object({
     sessionId: sessionIdSchema,
   }),
@@ -145,7 +159,14 @@ export const planUpdateSpec: ToolSpec<
   sideEffects: ['runtime_write'],
   concurrency: 'mutex_by_resource',
   computeResources: (args, ctx) => planResource(ctx, args.sessionId),
-  allowedPhases: [Phase.EXPLORE, Phase.PLAN, Phase.PATCH, Phase.VERIFY, Phase.SHRINK],
+  allowedPhases: [
+    Phase.EXPLORE,
+    Phase.PLAN,
+    Phase.AUTOPILOT,
+    Phase.PATCH,
+    Phase.VERIFY,
+    Phase.SHRINK,
+  ],
   inputSchema: z.object({
     sessionId: sessionIdSchema,
     baseHash: z.string().min(8),

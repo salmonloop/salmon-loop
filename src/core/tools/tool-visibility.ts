@@ -33,6 +33,20 @@ export function resolvePatchVisibleTools(tools: ToolSpec[]): ToolSpec[] {
   );
 }
 
+export function resolveAutopilotVisibleTools(
+  tools: ToolSpec[],
+  runtime?: ToolVisibilityRuntime,
+): ToolSpec[] {
+  const hasRuntimePlan = Boolean(runtime?.plan);
+
+  return tools.filter((tool) => {
+    if (!isPhaseAllowed(tool, Phase.AUTOPILOT)) return false;
+    if (!tool.name.startsWith('plan.')) return true;
+    if (!hasRuntimePlan) return false;
+    return PLAN_RUNTIME_TOOL_NAMES.has(tool.name);
+  });
+}
+
 export function resolvePhaseVisibleTools(params: {
   phase: ExecutionPhase;
   tools: ToolSpec[];
@@ -43,6 +57,9 @@ export function resolvePhaseVisibleTools(params: {
   }
   if (params.phase === Phase.PATCH) {
     return resolvePatchVisibleTools(params.tools);
+  }
+  if (params.phase === Phase.AUTOPILOT) {
+    return resolveAutopilotVisibleTools(params.tools, params.runtime);
   }
   return params.tools;
 }

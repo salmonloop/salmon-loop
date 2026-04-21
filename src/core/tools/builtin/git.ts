@@ -25,7 +25,7 @@ export const gitCatSpec: Omit<ToolSpec, 'executor'> = {
     file: z.string(),
     ref: z.string(),
   }),
-  allowedPhases: [Phase.SLASH, Phase.CONTEXT],
+  allowedPhases: [Phase.SLASH, Phase.CONTEXT, Phase.AUTOPILOT],
   examples: [
     {
       description: 'Read a file from HEAD revision',
@@ -96,7 +96,7 @@ export const gitStatusSpec: Omit<ToolSpec, 'executor'> = {
   outputSchema: z.object({
     status: z.string(),
   }),
-  allowedPhases: [Phase.SLASH, Phase.CONTEXT, Phase.PLAN, Phase.VERIFY],
+  allowedPhases: [Phase.SLASH, Phase.CONTEXT, Phase.PLAN, Phase.AUTOPILOT, Phase.VERIFY],
 };
 
 /**

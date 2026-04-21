@@ -104,6 +104,7 @@ export const fsReadFileSpec: Omit<ToolSpec, 'executor'> = {
     Phase.CONTEXT,
     Phase.EXPLORE,
     Phase.PLAN,
+    Phase.AUTOPILOT,
     Phase.PATCH,
     Phase.VERIFY,
     Phase.SHRINK,
@@ -169,6 +170,7 @@ export const fsListSpec: Omit<ToolSpec, 'executor'> = {
     Phase.CONTEXT,
     Phase.EXPLORE,
     Phase.PLAN,
+    Phase.AUTOPILOT,
     Phase.PATCH,
     Phase.VERIFY,
     Phase.SHRINK,
@@ -366,7 +368,7 @@ export const fsWriteFileSpec: Omit<ToolSpec, 'executor'> = {
   sideEffects: ['fs_write'],
   concurrency: 'serial_only',
   computeResources: (input, ctx) => [pathPrefixResource(ctx, input.file)],
-  allowedPhases: [Phase.SLASH],
+  allowedPhases: [Phase.SLASH, Phase.AUTOPILOT],
   inputSchema: fsWriteFileInputSchema,
   outputSchema: z.object({
     ok: z.boolean(),
@@ -431,7 +433,7 @@ export const fsCreateDirectorySpec: Omit<ToolSpec, 'executor'> = {
   sideEffects: ['fs_write'],
   concurrency: 'serial_only',
   computeResources: (input, ctx) => [pathPrefixResource(ctx, input.path)],
-  allowedPhases: [Phase.SLASH],
+  allowedPhases: [Phase.SLASH, Phase.AUTOPILOT],
   inputSchema: fsCreateDirectoryInputSchema,
   outputSchema: z.object({
     ok: z.boolean(),
@@ -478,7 +480,7 @@ export const fsDeleteFileSpec: Omit<ToolSpec, 'executor'> = {
   sideEffects: ['fs_write'],
   concurrency: 'serial_only',
   computeResources: (input, ctx) => [pathPrefixResource(ctx, input.file)],
-  allowedPhases: [Phase.SLASH],
+  allowedPhases: [Phase.SLASH, Phase.AUTOPILOT],
   inputSchema: fsDeleteFileInputSchema,
   outputSchema: z.object({
     ok: z.boolean(),

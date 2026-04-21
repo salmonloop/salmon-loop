@@ -4,6 +4,7 @@ import { text } from '../../../locales/index.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
 import type { ToolRuntimeCtx } from '../../tools/types.js';
 import { ToolSpec } from '../../tools/types.js';
+import { Phase } from '../../types/runtime.js';
 import { mergeSubAgentContextSnapshot } from '../context-snapshot.js';
 import { createSubAgentController } from '../controller.js';
 import { SubAgentManager } from '../core/manager.js';
@@ -64,7 +65,7 @@ export const subAgentTaskSpec: ToolSpec = {
   // but it MUST NOT mutate the user's workspace from within the calling phase.
   sideEffects: ['none', 'fs_read', 'git_read'],
   concurrency: 'parallel_ok', // Smallfrys handle their own isolation
-  allowedPhases: ['PLAN', 'CONTEXT'],
+  allowedPhases: [Phase.PLAN, Phase.CONTEXT, Phase.AUTOPILOT],
 
   inputSchema: SubAgentRequestSchema,
   outputSchema: z.any(), // Maps to SubAgentResult
