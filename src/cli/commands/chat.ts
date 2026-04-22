@@ -15,6 +15,7 @@ import {
 import { resolveExecutionProfile } from '../../core/runtime/execution-profile.js';
 import type { CheckpointStrategy, FlowMode } from '../../core/types/index.js';
 import { text } from '../locales/index.js';
+import { getOptionValueSourceWithGlobalFallback } from '../utils/command-option-source.js';
 import { resolveLlmOutputPolicyFromCli } from '../utils/llm-output.js';
 import { createOutcomeReporter } from '../utils/outcome-reporter.js';
 import { resolveCliConfig } from '../utils/resolve-cli-config.js';
@@ -64,14 +65,11 @@ export async function handleChatCommand(options: any, command: Command) {
 
   const defaultFlowMode: FlowMode = 'autopilot';
   const defaultFlowProfile = resolveExecutionProfile(defaultFlowMode);
-  const modeOptionSource =
-    typeof command.getOptionValueSource === 'function'
-      ? command.getOptionValueSource('mode')
-      : undefined;
-  const checkpointStrategyOptionSource =
-    typeof command.getOptionValueSource === 'function'
-      ? command.getOptionValueSource('checkpointStrategy')
-      : undefined;
+  const modeOptionSource = getOptionValueSourceWithGlobalFallback(command, 'mode');
+  const checkpointStrategyOptionSource = getOptionValueSourceWithGlobalFallback(
+    command,
+    'checkpointStrategy',
+  );
 
   const rawPermissionMode =
     (modeOptionSource === 'cli' ? allOptions.mode : undefined) ??

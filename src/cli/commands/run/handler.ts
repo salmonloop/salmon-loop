@@ -21,6 +21,7 @@ import { resolveExecutionProfile } from '../../../core/runtime/execution-profile
 import { createStdoutWriter } from '../../headless/stdout-writer.js';
 import { text } from '../../locales/index.js';
 import { StderrLogReporter } from '../../reporters/stderr-log-reporter.js';
+import { getOptionValueSourceWithGlobalFallback } from '../../utils/command-option-source.js';
 import { createOutcomeReporter } from '../../utils/outcome-reporter.js';
 import { resolveOutputFormat } from '../../utils/output-format.js';
 import { resolveCliCommonOptions } from '../../utils/resolve-cli-config.js';
@@ -43,20 +44,6 @@ import { resolveRunRuntimeOptions } from './runtime-options.js';
 import { initializeSession } from './session.js';
 import { buildStructuredOutputState, type StructuredOutputState } from './structured-output.js';
 import { logRunVerboseSummary } from './verbose.js';
-
-function getOptionValueSourceWithGlobalFallback(command: Command, optionName: string) {
-  if (typeof command.getOptionValueSource === 'function') {
-    const direct = command.getOptionValueSource(optionName);
-    if (direct) return direct;
-  }
-
-  const parent = command.parent;
-  if (parent && typeof parent.getOptionValueSource === 'function') {
-    return parent.getOptionValueSource(optionName);
-  }
-
-  return undefined;
-}
 
 export async function handleRunCommand(options: any, command: Command) {
   const parsed = parseRunCommandOptions(command);

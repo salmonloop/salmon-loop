@@ -141,4 +141,28 @@ describe('handleChatCommand outcome reporter', () => {
     expect(startChatCall?.permissionMode).toBe('yolo');
     expect(startChatCall?.checkpointStrategy).toBeUndefined();
   });
+
+  it('honors global cli mode and checkpoint strategy when option source lives on the parent command', async () => {
+    const { handleChatCommand } = await import('../../../../src/cli/commands/chat.js');
+
+    const command: any = {
+      optsWithGlobals: () => ({
+        repo: '/repo',
+        auditScope: 'user',
+        mode: 'interactive',
+        checkpointStrategy: 'worktree',
+      }),
+      getOptionValueSource: () => undefined,
+      parent: {
+        getOptionValueSource: (name: string) =>
+          name === 'mode' || name === 'checkpointStrategy' ? 'cli' : undefined,
+      },
+    };
+
+    await handleChatCommand({}, command);
+
+    const startChatCall = hoisted.reporterCalls[1]?.startChatMode as Record<string, unknown>;
+    expect(startChatCall?.permissionMode).toBe('interactive');
+    expect(startChatCall?.checkpointStrategy).toBe('worktree');
+  });
 });
