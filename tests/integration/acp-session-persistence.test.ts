@@ -123,6 +123,88 @@ describe('ACP session persistence integration', () => {
     }
   });
 
+  it('recovers legacy stored ACP modes as autopilot during hydration', async () => {
+    const tempRoot = await mkdtemp(path.join(tmpdir(), 'salmonloop-acp-session-legacy-mode-'));
+    const persistencePath = path.join(tempRoot, 'acp', 'sessions.v1.json');
+    const now = new Date().toISOString();
+
+    try {
+      await mkdir(path.dirname(persistencePath), { recursive: true });
+      await writeFile(
+        persistencePath,
+        JSON.stringify(
+          {
+            schemaVersion: 2,
+            sessions: [
+              {
+                id: 'sess_interactive',
+                cwd: '/repo',
+                mcpServers: [],
+                createdAt: now,
+                updatedAt: now,
+                permissionPolicy: 'ask',
+                modeId: 'interactive',
+              },
+              {
+                id: 'sess_yolo',
+                cwd: '/repo',
+                mcpServers: [],
+                createdAt: now,
+                updatedAt: now,
+                permissionPolicy: 'deny_all',
+                modeId: 'yolo',
+              },
+            ],
+          },
+          null,
+          2,
+        ),
+        'utf8',
+      );
+
+      const pair = createConnectedPair({
+        toAgent: (conn) =>
+          createAcpFormalAgent({
+            conn,
+            agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+            facade: createFacade(),
+            sessionPersistencePath: persistencePath,
+          }),
+        toClient: () => createClient(),
+      });
+      await pair.clientConn.initialize({
+        protocolVersion: 1,
+        clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
+      });
+
+      const interactive = await pair.clientConn.loadSession({
+        sessionId: 'sess_interactive',
+        cwd: '/repo',
+        mcpServers: [],
+      });
+      const yolo = await pair.clientConn.loadSession({
+        sessionId: 'sess_yolo',
+        cwd: '/repo',
+        mcpServers: [],
+      });
+
+      expect(interactive.modes?.currentModeId).toBe('autopilot');
+      expect(yolo.modes?.currentModeId).toBe('autopilot');
+      expect(
+        interactive.configOptions.find((opt: any) => opt.id === '_salmonloop_mode')?.currentValue,
+      ).toBe('autopilot');
+      expect(yolo.configOptions.find((opt: any) => opt.id === '_salmonloop_mode')?.currentValue).toBe(
+        'autopilot',
+      );
+      expect(
+        yolo.configOptions.find((opt: any) => opt.id === '_salmonloop_permission_policy')
+          ?.currentValue,
+      ).toBe('deny_all');
+    } finally {
+      await rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+
   it('prunes stale sessions during hydration', async () => {
     const tempRoot = await mkdtemp(path.join(tmpdir(), 'salmonloop-acp-session-prune-'));
     const persistencePath = path.join(tempRoot, 'acp', 'sessions.v1.json');

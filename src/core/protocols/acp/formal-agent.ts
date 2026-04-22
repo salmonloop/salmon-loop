@@ -36,7 +36,12 @@ import type { CommandRunner } from '../../runtime/command-runner-context.js';
 import { parseSlashInput } from '../../slash/parser.js';
 import type { FileSystem } from '../../types/index.js';
 import type { LoopEvent } from '../../types/index.js';
+import type { FlowMode } from '../../types/runtime.js';
 import { buildCanonicalExecutionRequest } from '../shared/execution-request.js';
+import {
+  SUPPORTED_PROTOCOL_FLOW_MODES,
+  parseAcpFlowMode,
+} from '../shared/flow-mode-mapping.js';
 
 import { createAcpCommandRunner } from './acp-command-runner.js';
 import { createAcpFileSystem } from './acp-filesystem.js';
@@ -96,7 +101,7 @@ function formatInputRequiredMessage(inputRequired: TaskEnvelope['inputRequired']
 }
 
 type AcpPermissionPolicy = 'ask' | 'deny_all';
-type AcpSessionModeId = 'interactive' | 'yolo';
+type AcpSessionModeId = FlowMode;
 
 type AcpPlanEntry = {
   content: string;
@@ -133,7 +138,7 @@ const ACP_PERMISSION_POLICY_CONFIG_ID = '_salmonloop_permission_policy';
 const ACP_MODE_CONFIG_ID = '_salmonloop_mode';
 const ACP_PERMISSION_POLICY_ASK: AcpPermissionPolicy = 'ask';
 const ACP_PERMISSION_POLICY_DENY_ALL: AcpPermissionPolicy = 'deny_all';
-const ACP_DEFAULT_MODE_ID: AcpSessionModeId = 'interactive';
+const ACP_DEFAULT_MODE_ID: AcpSessionModeId = 'autopilot';
 const ACP_SESSION_STORE_MAX_ENTRIES = 200;
 const ACP_SESSION_STORE_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 30;
 const ACP_SESSION_STORE_LOCK_STALE_MS = 1000 * 30;
@@ -183,6 +188,33 @@ function buildJsonResourceContentBlock(data: unknown): ContentBlock {
 const ACP_AVAILABLE_COMMANDS: Array<{ name: string; description: string }> = [
   { name: 'help', description: text.acp.slashHelpDescription },
 ];
+
+const ACP_MODE_METADATA: Record<AcpSessionModeId, { name: string; description: string }> = {
+  patch: {
+    name: 'Patch',
+    description: 'Apply code changes with verification.',
+  },
+  review: {
+    name: 'Review',
+    description: 'Inspect code and report findings without mutating files.',
+  },
+  debug: {
+    name: 'Debug',
+    description: 'Investigate issues and make targeted fixes when needed.',
+  },
+  research: {
+    name: 'Research',
+    description: 'Explore the codebase and summarize relevant findings.',
+  },
+  answer: {
+    name: 'Answer',
+    description: 'Answer questions directly without editing files.',
+  },
+  autopilot: {
+    name: 'Autopilot',
+    description: 'Let the agent decide which actions and tools to use.',
+  },
+};
 
 function formatResourceLink(block: Extract<ContentBlock, { type: 'resource_link' }>): string {
   const title = block.title ?? block.name ?? block.uri;
@@ -367,21 +399,14 @@ function buildConfigOptions(state: AcpSessionRuntimeState): SessionConfigOption[
     {
       type: 'select',
       id: ACP_MODE_CONFIG_ID,
-      name: 'Session Mode',
-      description: text.acp.modeInteractiveDescription,
+      name: 'Execution Flow',
+      description: 'Choose how the agent should execute this session.',
       currentValue: state.modeId,
-      options: [
-        {
-          value: 'interactive',
-          name: 'Interactive',
-          description: text.acp.modeInteractiveDescription,
-        },
-        {
-          value: 'yolo',
-          name: 'YOLO',
-          description: text.acp.modeYoloDescription,
-        },
-      ],
+      options: SUPPORTED_PROTOCOL_FLOW_MODES.map((modeId) => ({
+        value: modeId,
+        name: ACP_MODE_METADATA[modeId].name,
+        description: ACP_MODE_METADATA[modeId].description,
+      })),
     },
   ];
 }
@@ -427,7 +452,7 @@ function buildSessionInfoUpdateIfChanged(
 }
 
 function isSessionModeId(value: string): value is AcpSessionModeId {
-  return value === 'interactive' || value === 'yolo';
+  return SUPPORTED_PROTOCOL_FLOW_MODES.includes(value as FlowMode);
 }
 
 function buildCurrentModeUpdate(modeId: AcpSessionModeId): SessionUpdate {
@@ -437,18 +462,11 @@ function buildCurrentModeUpdate(modeId: AcpSessionModeId): SessionUpdate {
 function buildModesState(modeId: AcpSessionModeId): SessionModeState {
   return {
     currentModeId: modeId,
-    availableModes: [
-      {
-        id: 'interactive',
-        name: 'Interactive',
-        description: text.acp.modeInteractiveDescription,
-      },
-      {
-        id: 'yolo',
-        name: 'YOLO',
-        description: text.acp.modeYoloDescription,
-      },
-    ],
+    availableModes: SUPPORTED_PROTOCOL_FLOW_MODES.map((id) => ({
+      id,
+      name: ACP_MODE_METADATA[id].name,
+      description: ACP_MODE_METADATA[id].description,
+    })),
   };
 }
 
@@ -461,8 +479,7 @@ function buildCurrentModeUpdateIfChanged(state: AcpSessionRuntimeState): Session
 
 function getPermissionPolicyForAuthorization(
   state: AcpSessionRuntimeState,
-): 'ask' | 'deny_all' | 'allow_all' {
-  if (state.modeId === 'yolo') return 'allow_all';
+): 'ask' | 'deny_all' {
   return state.permissionPolicy;
 }
 
@@ -474,9 +491,8 @@ function createSessionRuntimeStateFromPersisted(input?: {
   const permissionPolicy = isPermissionPolicyValue(String(input?.permissionPolicy))
     ? (input?.permissionPolicy as AcpPermissionPolicy)
     : ACP_PERMISSION_POLICY_ASK;
-  const modeId = isSessionModeId(String(input?.modeId))
-    ? (input?.modeId as AcpSessionModeId)
-    : (input?.defaultModeId ?? ACP_DEFAULT_MODE_ID);
+  const defaultModeId = parseAcpFlowMode(input?.defaultModeId) ?? ACP_DEFAULT_MODE_ID;
+  const modeId = parseAcpFlowMode(input?.modeId) ?? defaultModeId;
   const state: AcpSessionRuntimeState = {
     runtimePlanSessionId: null,
     runtimePlanPathHint: null,
@@ -740,7 +756,7 @@ export function createAcpFormalAgent(deps: {
       taskId?: string;
       history?: AcpSessionRecord['history'];
       permissionPolicy?: AcpPermissionPolicy;
-      modeId?: AcpSessionModeId;
+      modeId?: unknown;
     }>;
   };
   type PersistedAcpSessionStore = PersistedAcpSessionStoreV1 | PersistedAcpSessionStoreV2;
@@ -762,7 +778,7 @@ export function createAcpFormalAgent(deps: {
       taskId?: string;
       history?: AcpSessionRecord['history'];
       permissionPolicy?: AcpPermissionPolicy;
-      modeId?: AcpSessionModeId;
+      modeId?: unknown;
     }>,
   ) {
     const cutoff = Date.now() - sessionStorePolicy.maxAgeMs;
@@ -791,7 +807,7 @@ export function createAcpFormalAgent(deps: {
           taskId: undefined,
           history: [],
           permissionPolicy: ACP_PERMISSION_POLICY_ASK,
-          modeId: deps.defaultModeId ?? ACP_DEFAULT_MODE_ID,
+          modeId: parseAcpFlowMode(deps.defaultModeId) ?? ACP_DEFAULT_MODE_ID,
         })),
       };
     }
@@ -1189,7 +1205,7 @@ export function createAcpFormalAgent(deps: {
     if (existing) return existing;
     const created = createSessionRuntimeState();
     if (deps.defaultModeId) {
-      created.modeId = deps.defaultModeId;
+      created.modeId = parseAcpFlowMode(deps.defaultModeId) ?? ACP_DEFAULT_MODE_ID;
     }
     sessionRuntime.set(sessionId, created);
     return created;
@@ -1553,7 +1569,7 @@ export function createAcpFormalAgent(deps: {
 
       const pendingUpdates: Promise<void>[] = [];
       const executionRequest = buildCanonicalExecutionRequest({
-        capability: 'patch',
+        capability: runtimeState.modeId,
         instruction: promptText,
         checkpointSessionId: params.sessionId,
         repoPath: session.cwd,
