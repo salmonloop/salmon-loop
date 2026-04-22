@@ -1,8 +1,10 @@
+import * as http from 'http';
 import { utimes } from 'fs/promises';
 import path from 'path';
 
 import { afterEach, describe, expect, it } from 'bun:test';
 
+import { buildBunCommand } from '../helpers/bun.js';
 import { runCli } from '../helpers/cli-runner.js';
 import {
   normalizeHeadlessIntegrationLines,
@@ -49,6 +51,113 @@ describe('Headless protocol integration', () => {
       const stamp = new Date(mtimeMs);
       await utimes(path.join(repoPath, relativePath), stamp, stamp);
     }
+  }
+
+  type StubStreamChunk = Record<string, unknown> | '[DONE]';
+
+  function createOpenAiStreamingStub() {
+    const responses: StubStreamChunk[][] = [];
+    const requests: Array<{ url: string; method: string; body: string }> = [];
+    const server = http.createServer(async (req, res) => {
+      const bodyChunks: Buffer[] = [];
+      for await (const chunk of req) {
+        bodyChunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      }
+      requests.push({
+        url: req.url || '',
+        method: req.method || 'GET',
+        body: Buffer.concat(bodyChunks).toString('utf8'),
+      });
+
+      const next = responses.shift();
+      if (!next) {
+        res.statusCode = 500;
+        res.setHeader('content-type', 'application/json; charset=utf-8');
+        res.end(JSON.stringify({ error: { message: 'No stub response configured' } }));
+        return;
+      }
+
+      res.statusCode = 200;
+      res.setHeader('content-type', 'text/event-stream; charset=utf-8');
+      for (const chunk of next) {
+        const data = chunk === '[DONE]' ? '[DONE]' : JSON.stringify(chunk);
+        res.write(`data: ${data}\n\n`);
+      }
+      res.end();
+    });
+
+    return {
+      requests,
+      pushStream: (chunks: StubStreamChunk[]) => {
+        responses.push(chunks);
+      },
+      async start(): Promise<string> {
+        await new Promise<void>((resolve, reject) => {
+          server.once('error', reject);
+          server.listen(0, '127.0.0.1', () => resolve());
+        });
+        const address = server.address();
+        if (!address || typeof address === 'string') {
+          throw new Error('Failed to bind OpenAI streaming stub server');
+        }
+        return `http://127.0.0.1:${address.port}/v1`;
+      },
+      async close(): Promise<void> {
+        await new Promise<void>((resolve) => server.close(() => resolve()));
+      },
+    };
+  }
+
+  function openAiChatStreamChunk(params: {
+    delta?: Record<string, unknown>;
+    finishReason?: string | null;
+  }): Record<string, unknown> {
+    return {
+      id: 'chatcmpl-headless-test',
+      object: 'chat.completion.chunk',
+      created: 0,
+      model: 'gpt-test',
+      choices: [
+        {
+          index: 0,
+          delta: params.delta ?? {},
+          finish_reason: params.finishReason ?? null,
+        },
+      ],
+    };
+  }
+
+  async function writeOpenAiStubConfig(repoPath: string, baseUrl: string) {
+    await helper.writeFile(
+      repoPath,
+      '.salmonloop/config/config.json',
+      JSON.stringify(
+        {
+          version: 1,
+          llm: {
+            activeModel: 'main',
+            providers: {
+              openaiMain: {
+                type: 'openai-compatible',
+                client: { package: '@ai-sdk/openai-compatible' },
+                api: {
+                  baseUrl,
+                  apiKey: 'stub-key',
+                },
+              },
+            },
+            models: {
+              main: {
+                provider: 'openaiMain',
+                id: 'gpt-test',
+              },
+            },
+          },
+        },
+        null,
+        2,
+      ),
+    );
   }
 
   it('supports global -p print mode with --output-format json (implicit run command)', async () => {
@@ -232,6 +341,147 @@ describe('Headless protocol integration', () => {
       new URL('../fixtures/headless/integration/print-stream-json-openai.json', import.meta.url),
     );
     expect(normalized).toEqual(expected);
+  }, 120000);
+
+  it('executes shell.exec end-to-end in headless native stream-json when run --act-mode autopilot succeeds', async () => {
+    const repo = await helper.createGitRepo({
+      initialFiles: [
+        { path: 'src/index.ts', content: 'console.log("hello");\n' },
+        {
+          path: 'mutate.ts',
+          content: [
+            'await Bun.write("src/index.ts", \'console.log("headless autopilot");\\n\');',
+            'console.log("shell-ok");',
+            '',
+          ].join('\n'),
+        },
+        { path: '.gitignore', content: '.salmonloop/\n' },
+      ],
+    });
+    const stub = createOpenAiStreamingStub();
+    const instruction = 'Run the mutate script, then report success.';
+
+    const mutateCommand = buildBunCommand('mutate.ts');
+    stub.pushStream([
+      openAiChatStreamChunk({
+        delta: {
+          role: 'assistant',
+          tool_calls: [
+            {
+              index: 0,
+              id: 'call-shell-exec',
+              type: 'function',
+              function: {
+                name: 'shell.exec',
+                arguments: JSON.stringify({ command: mutateCommand }),
+              },
+            },
+          ],
+        },
+      }),
+      openAiChatStreamChunk({ finishReason: 'tool_calls' }),
+      '[DONE]',
+    ]);
+    stub.pushStream([
+      openAiChatStreamChunk({
+        delta: {
+          role: 'assistant',
+          content: 'Command completed.',
+        },
+      }),
+      openAiChatStreamChunk({ finishReason: 'stop' }),
+      '[DONE]',
+    ]);
+
+    const baseUrl = await stub.start();
+    await writeOpenAiStubConfig(repo.path, baseUrl);
+
+    try {
+      const { exitCode, stdout } = await runCli([
+        'run',
+        '-r',
+        repo.path,
+        '--instruction',
+        instruction,
+        '--output-format',
+        'stream-json',
+        '--headless-include-tool-output',
+        '--act-mode',
+        'autopilot',
+        '--mode',
+        'yolo',
+      ]);
+
+      expect(exitCode).toBe(0);
+      expect(stub.requests).toHaveLength(2);
+      expect(stub.requests.every((request) => request.url === '/v1/chat/completions')).toBe(true);
+      expect(stub.requests.every((request) => request.method === 'POST')).toBe(true);
+      expect(stub.requests.every((request) => request.body.includes('"stream":true'))).toBe(true);
+
+      const lines = stdout
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => JSON.parse(line) as any);
+
+      expect(lines[0]).toMatchObject({
+        session_id: expect.any(String),
+        event: {
+          type: 'start',
+          command: 'run',
+          repo_path: repo.path,
+          instruction,
+        },
+      });
+
+      const toolUseLine = lines.find(
+        (line) =>
+          line.parent_tool_use_id === 'call-shell-exec' &&
+          line.event?.type === 'content_block_start' &&
+          line.event?.content_block?.type === 'tool_use',
+      );
+      expect(toolUseLine).toMatchObject({
+        parent_tool_use_id: 'call-shell-exec',
+        event: {
+          type: 'content_block_start',
+          content_block: {
+            type: 'tool_use',
+            id: 'call-shell-exec',
+            name: 'shell.exec',
+          },
+        },
+      });
+
+      const toolResultLine = lines.find(
+        (line) =>
+          line.parent_tool_use_id === 'call-shell-exec' &&
+          line.event?.type === 'content_block_start' &&
+          line.event?.content_block?.type === 'tool_result',
+      );
+      expect(toolResultLine?.event?.content_block?.content).toContain('tool=shell.exec status=ok');
+      expect(toolResultLine?.event?.content_block?.content).toContain('"stdout":"shell-ok"');
+      expect(toolResultLine?.event?.content_block?.content).toContain('"exitCode":0');
+
+      const assistantDelta = lines.find(
+        (line) =>
+          line.event?.type === 'content_block_delta' &&
+          line.event?.delta?.type === 'text_delta' &&
+          line.event?.delta?.text === 'Command completed.',
+      );
+      expect(assistantDelta).toBeDefined();
+
+      const resultLine = lines.find((line) => line.event?.type === 'result');
+      const endLine = lines[lines.length - 1];
+      expect(resultLine).toMatchObject({
+        event: { type: 'result', success: true, exit_code: 0 },
+      });
+      expect(endLine).toMatchObject({
+        event: { type: 'end', success: true, exit_code: 0 },
+      });
+
+      expect(await helper.readFile(repo.path, 'src/index.ts')).toBe('console.log("headless autopilot");\n');
+    } finally {
+      await stub.close();
+    }
   }, 120000);
 
   it('supports --continue selecting the latest session in headless stream-json', async () => {

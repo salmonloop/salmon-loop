@@ -44,6 +44,20 @@ import { initializeSession } from './session.js';
 import { buildStructuredOutputState, type StructuredOutputState } from './structured-output.js';
 import { logRunVerboseSummary } from './verbose.js';
 
+function getOptionValueSourceWithGlobalFallback(command: Command, optionName: string) {
+  if (typeof command.getOptionValueSource === 'function') {
+    const direct = command.getOptionValueSource(optionName);
+    if (direct) return direct;
+  }
+
+  const parent = command.parent;
+  if (parent && typeof parent.getOptionValueSource === 'function') {
+    return parent.getOptionValueSource(optionName);
+  }
+
+  return undefined;
+}
+
 export async function handleRunCommand(options: any, command: Command) {
   const parsed = parseRunCommandOptions(command);
   const allOptions = parsed.allOptions;
@@ -274,10 +288,7 @@ export async function handleRunCommand(options: any, command: Command) {
     return;
   }
   const profile = resolveExecutionProfile(mode);
-  const permissionModeOptionSource =
-    typeof command.getOptionValueSource === 'function'
-      ? command.getOptionValueSource('mode')
-      : undefined;
+  const permissionModeOptionSource = getOptionValueSourceWithGlobalFallback(command, 'mode');
 
   const rawPermissionMode =
     (permissionModeOptionSource === 'cli' ? allOptions.mode : undefined) ??
@@ -443,8 +454,7 @@ export async function handleRunCommand(options: any, command: Command) {
       selection: allOptions.selection,
       verbose: verboseLevel,
       checkpointStrategy:
-        typeof command.getOptionValueSource === 'function' &&
-        command.getOptionValueSource('checkpointStrategy') !== 'cli'
+        getOptionValueSourceWithGlobalFallback(command, 'checkpointStrategy') !== 'cli'
           ? ((profile.defaultCheckpointStrategy ??
               (permissionMode === 'yolo' ? 'direct' : allOptions.checkpointStrategy)) as CheckpointStrategy)
           : (allOptions.checkpointStrategy as CheckpointStrategy),

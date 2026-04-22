@@ -356,6 +356,34 @@ describe('handleRunCommand outcome reporter', () => {
     expect(hoisted.loopParamsCalls[0]?.permissionRules).toBeUndefined();
   });
 
+  it('honors global cli checkpoint strategy when option source lives on the parent command', async () => {
+    hoisted.parsedOptions = {
+      ...hoisted.parsedOptions,
+      allOptions: {
+        ...hoisted.parsedOptions.allOptions,
+        mode: 'yolo',
+        actMode: 'autopilot',
+        checkpointStrategy: 'worktree',
+      } as any,
+    };
+    hoisted.loopParamsCalls.length = 0;
+
+    const { handleRunCommand } = await import('../../../../src/cli/commands/run/handler.js');
+    const command: any = {
+      optsWithGlobals: () => ({}),
+      getOptionValueSource: (name: string) => (name === 'actMode' ? 'cli' : undefined),
+      parent: {
+        getOptionValueSource: (name: string) =>
+          name === 'mode' || name === 'checkpointStrategy' ? 'cli' : undefined,
+      },
+    };
+
+    await handleRunCommand({}, command);
+
+    expect(hoisted.loopParamsCalls[0]?.permissionMode).toBe('yolo');
+    expect(hoisted.loopParamsCalls[0]?.checkpointStrategy).toBe('worktree');
+  });
+
   it('defaults run to autopilot when --act-mode is omitted', async () => {
     hoisted.parsedOptions = {
       ...hoisted.parsedOptions,
