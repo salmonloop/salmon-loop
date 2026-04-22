@@ -1,6 +1,8 @@
 import { createHash } from 'crypto';
+import { join } from 'path';
 
 import { text } from '../../../locales/index.js';
+import { lstat, readlink } from '../../adapters/fs/node-fs.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { LIMITS } from '../../config/limits.js';
 import { emitLlmOutput } from '../../llm/output-policy.js';
@@ -176,6 +178,19 @@ async function hashWorkingPath(
   return output.toString('utf8').trim();
 }
 
+async function fingerprintWorkingPath(
+  git: GitAdapter,
+  workspacePath: string,
+  filePath: string,
+): Promise<string> {
+  const absolutePath = join(workspacePath, filePath);
+  const stats = await lstat(absolutePath);
+  if (stats.isSymbolicLink()) {
+    return `symlink:${hashFingerprintValue(await readlink(absolutePath))}`;
+  }
+  return `file:${await hashWorkingPath(git, workspacePath, filePath)}`;
+}
+
 async function captureWorkspaceFingerprint(workspacePath: string): Promise<WorkspaceFingerprint> {
   const git = new GitAdapter(workspacePath);
   const head = (
@@ -196,7 +211,7 @@ async function captureWorkspaceFingerprint(workspacePath: string): Promise<Works
   );
   const workingEntries: string[] = [];
   for (const path of collectHashablePathsFromStatus(statusOutput)) {
-    workingEntries.push(`${path}:${await hashWorkingPath(git, workspacePath, path)}`);
+    workingEntries.push(`${path}:${await fingerprintWorkingPath(git, workspacePath, path)}`);
   }
   const workingContent = hashFingerprintValue(workingEntries.join('\n'));
 

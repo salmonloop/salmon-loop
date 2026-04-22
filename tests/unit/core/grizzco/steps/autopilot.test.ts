@@ -7,6 +7,8 @@ const hoisted = (() => ({
   chatWithToolsStreaming: mock(),
   resolveLlmToolCallingPolicy: mock(),
   gitExecMeta: mock(),
+  lstat: mock(),
+  readlink: mock(),
 }))();
 
 mock.module('../../../../../src/core/tools/session.js', () => ({
@@ -24,6 +26,11 @@ mock.module('../../../../../src/core/adapters/git/git-adapter.js', () => ({
 
     execMeta = hoisted.gitExecMeta;
   },
+}));
+
+mock.module('../../../../../src/core/adapters/fs/node-fs.js', () => ({
+  lstat: hoisted.lstat,
+  readlink: hoisted.readlink,
 }));
 
 function okGitMetaResult(
@@ -193,6 +200,12 @@ describe('runAutopilot', () => {
     hoisted.resolveLlmToolCallingPolicy.mockReturnValue({ enabled: true, maxRounds: 8 });
     hoisted.gitExecMeta.mockImplementation(async () => {
       throw new Error('Unexpected git execMeta call');
+    });
+    hoisted.lstat.mockResolvedValue({
+      isSymbolicLink: () => false,
+    });
+    hoisted.readlink.mockImplementation(async () => {
+      throw new Error('Unexpected readlink call');
     });
     hoisted.chatWithTools.mockImplementation(
       async (_messages: any, _chatOptions: any, session: any) => {
