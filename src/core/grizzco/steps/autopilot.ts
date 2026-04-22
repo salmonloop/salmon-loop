@@ -1,5 +1,8 @@
+import { createHash } from 'crypto';
+
 import { text } from '../../../locales/index.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
+import { LIMITS } from '../../config/limits.js';
 import { emitLlmOutput } from '../../llm/output-policy.js';
 import { SessionReplacementPreviewProvider } from '../../session/replacement-preview-provider.js';
 import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
@@ -13,6 +16,14 @@ import { buildSharedRequestEnvelope } from './request-assembly.js';
 import { executeVerifyForWorkspace } from './verify-shared.js';
 
 const AUTOPILOT_TOOL_PHASE = Phase.AUTOPILOT;
+const WORKSPACE_SAMPLE_LIMITS = {
+  maxStdoutBytes: LIMITS.maxToolOutputBytes,
+  maxStderrChars: 16_384,
+} as const;
+const GIT_HASH_OUTPUT_LIMITS = {
+  maxStdoutBytes: 256,
+  maxStderrChars: 4_096,
+} as const;
 
 function buildAutopilotSystemPrompt(): string {
   return [
@@ -23,12 +34,102 @@ function buildAutopilotSystemPrompt(): string {
   ].join('\n');
 }
 
-async function captureWorkspaceStatus(workspacePath: string): Promise<string> {
-  const git = new GitAdapter(workspacePath);
-  return await git.query(['status', '--porcelain', '--untracked-files=all', '--ignored=no', '-z'], {
+type WorkspaceFingerprint = {
+  head: string;
+  index: string;
+  working: string;
+};
+
+function hashFingerprintValue(value: string): string {
+  return createHash('sha256').update(value).digest('hex');
+}
+
+function decodeNulSeparatedPaths(buffer: Buffer): string[] {
+  return buffer
+    .toString('utf8')
+    .split('\0')
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0)
+    .sort();
+}
+
+async function runBoundedGit(
+  git: GitAdapter,
+  workspacePath: string,
+  args: string[],
+  limits: { maxStdoutBytes: number; maxStderrChars: number },
+): Promise<Buffer> {
+  const result = await git.execMeta(args, {
     cwd: workspacePath,
-    trim: false,
+    limits,
+    timeoutMs: LIMITS.gitTimeoutMs,
   });
+
+  if (result.stdoutTruncated) {
+    throw new Error(text.git.outputTruncated(limits.maxStdoutBytes));
+  }
+
+  if (!result.ok) {
+    throw new Error(result.error?.message || result.stderr.trim() || `git ${args.join(' ')} failed`);
+  }
+
+  return result.stdout;
+}
+
+async function hashWorkingPath(
+  git: GitAdapter,
+  workspacePath: string,
+  filePath: string,
+): Promise<string> {
+  const output = await runBoundedGit(
+    git,
+    workspacePath,
+    ['hash-object', '--no-filters', '--', filePath],
+    GIT_HASH_OUTPUT_LIMITS,
+  );
+  return output.toString('utf8').trim();
+}
+
+async function captureWorkspaceFingerprint(workspacePath: string): Promise<WorkspaceFingerprint> {
+  const git = new GitAdapter(workspacePath);
+  const head = (
+    await runBoundedGit(git, workspacePath, ['rev-parse', 'HEAD'], GIT_HASH_OUTPUT_LIMITS)
+  )
+    .toString('utf8')
+    .trim();
+  const index = (
+    await runBoundedGit(git, workspacePath, ['write-tree'], GIT_HASH_OUTPUT_LIMITS)
+  )
+    .toString('utf8')
+    .trim();
+  const modifiedAndUntrackedPaths = decodeNulSeparatedPaths(
+    await runBoundedGit(
+      git,
+      workspacePath,
+      ['ls-files', '--modified', '--others', '--exclude-standard', '-z'],
+      WORKSPACE_SAMPLE_LIMITS,
+    ),
+  );
+  const deletedPaths = decodeNulSeparatedPaths(
+    await runBoundedGit(git, workspacePath, ['ls-files', '--deleted', '-z'], WORKSPACE_SAMPLE_LIMITS),
+  );
+
+  const workingEntries = [
+    ...deletedPaths.map((path) => `${path}:missing`),
+    ...(await Promise.all(
+      modifiedAndUntrackedPaths.map(async (path) => `${path}:${await hashWorkingPath(git, workspacePath, path)}`),
+    )),
+  ];
+  const working = hashFingerprintValue(workingEntries.join('\n'));
+
+  return { head, index, working };
+}
+
+function didWorkspaceFingerprintChange(
+  before: WorkspaceFingerprint,
+  after: WorkspaceFingerprint,
+): boolean {
+  return before.head !== after.head || before.index !== after.index || before.working !== after.working;
 }
 
 export async function runAutopilot(ctx: PreflightCtx): Promise<AutopilotCtx> {
@@ -56,9 +157,15 @@ export async function runAutopilot(ctx: PreflightCtx): Promise<AutopilotCtx> {
   const localAudit: NonNullable<AutopilotCtx['toolCallingAudit']> = [];
   const supportsStreaming = typeof llmClient.chatStream === 'function';
   const supportsTools = Boolean(ctx.toolstack && toolPolicy.enabled);
-  const workspaceStatusBefore = supportsTools
-    ? await captureWorkspaceStatus(ctx.workspace.workPath)
-    : '';
+  let workspaceFingerprintBefore: WorkspaceFingerprint | null = null;
+  let samplingFailedClosed = false;
+  if (supportsTools) {
+    try {
+      workspaceFingerprintBefore = await captureWorkspaceFingerprint(ctx.workspace.workPath);
+    } catch {
+      samplingFailedClosed = true;
+    }
+  }
 
   const assistant = supportsTools
     ? await (supportsStreaming ? chatWithToolsStreaming : chatWithTools)(
@@ -97,10 +204,6 @@ export async function runAutopilot(ctx: PreflightCtx): Promise<AutopilotCtx> {
         tools: [],
         toolChoice: 'none',
       });
-  const workspaceStatusAfter = supportsTools
-    ? await captureWorkspaceStatus(ctx.workspace.workPath)
-    : workspaceStatusBefore;
-
   const content = String((assistant as any)?.content ?? '').trim();
 
   if (!supportsTools) {
@@ -115,7 +218,19 @@ export async function runAutopilot(ctx: PreflightCtx): Promise<AutopilotCtx> {
 
   const mergedAudit =
     localAudit.length > 0 ? [...(ctx.toolCallingAudit ?? []), ...localAudit] : ctx.toolCallingAudit;
-  const mutated = workspaceStatusBefore !== workspaceStatusAfter;
+  let mutated = false;
+  if (supportsTools) {
+    if (samplingFailedClosed || !workspaceFingerprintBefore) {
+      mutated = true;
+    } else {
+      try {
+        const workspaceFingerprintAfter = await captureWorkspaceFingerprint(ctx.workspace.workPath);
+        mutated = didWorkspaceFingerprintChange(workspaceFingerprintBefore, workspaceFingerprintAfter);
+      } catch {
+        mutated = true;
+      }
+    }
+  }
 
   return {
     ...ctx,
