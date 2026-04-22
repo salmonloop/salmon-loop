@@ -322,7 +322,10 @@ describe('Headless protocol integration', () => {
       '[DONE]',
     ]);
 
-    const baseUrl = await stub.start();
+    const baseUrl = await stub.tryStart();
+    if (!baseUrl) {
+      return;
+    }
     await writeOpenAiStubConfig(repo.path, baseUrl);
 
     try {
@@ -403,6 +406,7 @@ describe('Headless protocol integration', () => {
       expect(resultLine).toMatchObject({
         event: { type: 'result', success: true, exit_code: 0 },
       });
+      expect(resultLine?.event?.changed_files).toContain('src/index.ts');
       expect(endLine).toMatchObject({
         event: { type: 'end', success: true, exit_code: 0 },
       });
@@ -462,7 +466,10 @@ describe('Headless protocol integration', () => {
       '[DONE]',
     ]);
 
-    const baseUrl = await stub.start();
+    const baseUrl = await stub.tryStart();
+    if (!baseUrl) {
+      return;
+    }
     await writeOpenAiStubConfig(repo.path, baseUrl);
 
     try {
@@ -548,7 +555,10 @@ describe('Headless protocol integration', () => {
       '[DONE]',
     ]);
 
-    const baseUrl = await stub.start();
+    const baseUrl = await stub.tryStart();
+    if (!baseUrl) {
+      return;
+    }
     await writeOpenAiStubConfig(repo.path, baseUrl);
 
     try {

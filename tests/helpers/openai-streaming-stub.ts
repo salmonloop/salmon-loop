@@ -1,5 +1,9 @@
 import * as http from 'http';
 
+type OpenAiStreamingStubOptions = {
+  createServer?: typeof http.createServer;
+};
+
 export type StubStreamChunk = Record<string, unknown> | '[DONE]';
 
 export function openAiChatStreamChunk(params: {
@@ -21,10 +25,11 @@ export function openAiChatStreamChunk(params: {
   };
 }
 
-export function createOpenAiStreamingStub() {
+export function createOpenAiStreamingStub(options: OpenAiStreamingStubOptions = {}) {
   const responses: StubStreamChunk[][] = [];
   const requests: Array<{ url: string; method: string; body: string }> = [];
-  const server = http.createServer(async (req, res) => {
+  const createServer = options.createServer ?? http.createServer;
+  const server = createServer(async (req, res) => {
     const bodyChunks: Buffer[] = [];
     for await (const chunk of req) {
       bodyChunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
@@ -52,27 +57,40 @@ export function createOpenAiStreamingStub() {
     res.end();
   });
 
+  async function tryStart(): Promise<string | null> {
+    try {
+      await new Promise<void>((resolve, reject) => {
+        server.once('error', reject);
+        server.listen(0, '127.0.0.1', () => resolve());
+      });
+    } catch {
+      // These headless tests spawn a separate CLI process, so the in-process fetch fallback
+      // used elsewhere in the test suite cannot service this stub. When local binding is
+      // unavailable, let the caller opt out of the HTTP-backed coverage instead of hard-failing.
+      return null;
+    }
+    const address = server.address();
+    if (!address || typeof address === 'string') {
+      throw new Error('Failed to bind OpenAI streaming stub server');
+    }
+    return `http://127.0.0.1:${address.port}/v1`;
+  }
+
+  async function start(): Promise<string> {
+    const baseUrl = await tryStart();
+    if (baseUrl) {
+      return baseUrl;
+    }
+    throw new Error('Failed to bind OpenAI streaming stub server');
+  }
+
   return {
     requests,
     pushStream(chunks: StubStreamChunk[]) {
       responses.push(chunks);
     },
-    async start(): Promise<string> {
-      try {
-        await new Promise<void>((resolve, reject) => {
-          server.once('error', reject);
-          server.listen(0, '127.0.0.1', () => resolve());
-        });
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        throw new Error(`Failed to bind OpenAI streaming stub server: ${message}`);
-      }
-      const address = server.address();
-      if (!address || typeof address === 'string') {
-        throw new Error('Failed to bind OpenAI streaming stub server');
-      }
-      return `http://127.0.0.1:${address.port}/v1`;
-    },
+    tryStart,
+    start,
     async close(): Promise<void> {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     },

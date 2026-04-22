@@ -41,6 +41,7 @@ type WorkspaceFingerprint = {
   index: string;
   statusMetadata: string;
   workingContent: string;
+  statusEntries: Array<readonly [path: string, fingerprint: string]>;
   workingEntries: Array<readonly [path: string, fingerprint: string]>;
 };
 
@@ -97,16 +98,26 @@ function readPathAfterFieldCount(record: string, fieldCount: number): string {
   throw new Error(`Malformed status record: ${record}`);
 }
 
-function collectHashablePathsFromStatus(statusOutput: Buffer): string[] {
+type WorkspaceStatusEntry = {
+  path: string;
+  statusFingerprint: string;
+  hashable: boolean;
+};
+
+function collectWorkspaceStatusEntries(statusOutput: Buffer): WorkspaceStatusEntry[] {
   const records = decodeNulSeparatedRecords(statusOutput);
-  const paths: string[] = [];
+  const entries: WorkspaceStatusEntry[] = [];
 
   for (let index = 0; index < records.length; index += 1) {
     const record = records[index];
     const kind = record[0];
 
     if (kind === '?') {
-      paths.push(readPathAfterFieldCount(record, 1));
+      entries.push({
+        path: readPathAfterFieldCount(record, 1),
+        statusFingerprint: hashFingerprintValue(record),
+        hashable: true,
+      });
       continue;
     }
 
@@ -115,31 +126,47 @@ function collectHashablePathsFromStatus(statusOutput: Buffer): string[] {
     }
 
     if (kind === '1') {
-      if (readSpaceDelimitedField(record, 5) !== '000000') {
-        paths.push(readPathAfterFieldCount(record, 8));
-      }
+      entries.push({
+        path: readPathAfterFieldCount(record, 8),
+        statusFingerprint: hashFingerprintValue(record),
+        hashable: readSpaceDelimitedField(record, 5) !== '000000',
+      });
       continue;
     }
 
     if (kind === '2') {
-      if (readSpaceDelimitedField(record, 5) !== '000000') {
-        paths.push(readPathAfterFieldCount(record, 9));
+      const path = readPathAfterFieldCount(record, 9);
+      const originalPath = records[index + 1] ?? '';
+      const statusFingerprint = hashFingerprintValue(`${record}\0${originalPath}`);
+      entries.push({
+        path,
+        statusFingerprint,
+        hashable: readSpaceDelimitedField(record, 5) !== '000000',
+      });
+      if (originalPath) {
+        entries.push({
+          path: originalPath,
+          statusFingerprint: hashFingerprintValue(`rename-source:${record}\0${originalPath}`),
+          hashable: false,
+        });
       }
       index += 1;
       continue;
     }
 
     if (kind === 'u') {
-      if (readSpaceDelimitedField(record, 6) !== '000000') {
-        paths.push(readPathAfterFieldCount(record, 10));
-      }
+      entries.push({
+        path: readPathAfterFieldCount(record, 10),
+        statusFingerprint: hashFingerprintValue(record),
+        hashable: readSpaceDelimitedField(record, 6) !== '000000',
+      });
       continue;
     }
 
     throw new Error(`Unsupported status record: ${record}`);
   }
 
-  return paths;
+  return entries;
 }
 
 async function runBoundedGit(
@@ -210,9 +237,13 @@ async function captureWorkspaceFingerprint(workspacePath: string): Promise<Works
     ['status', '--porcelain=v2', '-z', '--untracked-files=all', '--ignored=no'],
     WORKSPACE_SAMPLE_LIMITS,
   );
+  const statusEntries = collectWorkspaceStatusEntries(statusOutput);
   const workingEntries: Array<readonly [path: string, fingerprint: string]> = [];
-  for (const path of collectHashablePathsFromStatus(statusOutput)) {
-    workingEntries.push([path, await fingerprintWorkingPath(git, workspacePath, path)]);
+  for (const entry of statusEntries) {
+    if (!entry.hashable) {
+      continue;
+    }
+    workingEntries.push([entry.path, await fingerprintWorkingPath(git, workspacePath, entry.path)]);
   }
   const workingContent = hashFingerprintValue(
     workingEntries.map(([path, fingerprint]) => `${path}:${fingerprint}`).join('\n'),
@@ -223,6 +254,7 @@ async function captureWorkspaceFingerprint(workspacePath: string): Promise<Works
     index,
     statusMetadata: hashFingerprintBuffer(statusOutput),
     workingContent,
+    statusEntries: statusEntries.map(({ path, statusFingerprint }) => [path, statusFingerprint]),
     workingEntries,
   };
 }
@@ -243,11 +275,22 @@ function collectChangedWorkspacePaths(
   before: WorkspaceFingerprint,
   after: WorkspaceFingerprint,
 ): string[] {
+  const beforeStatusEntries = new Map(before.statusEntries);
+  const afterStatusEntries = new Map(after.statusEntries);
   const beforeEntries = new Map(before.workingEntries);
   const afterEntries = new Map(after.workingEntries);
-  const paths = new Set([...beforeEntries.keys(), ...afterEntries.keys()]);
+  const paths = new Set([
+    ...beforeStatusEntries.keys(),
+    ...afterStatusEntries.keys(),
+    ...beforeEntries.keys(),
+    ...afterEntries.keys(),
+  ]);
   return [...paths]
-    .filter((path) => beforeEntries.get(path) !== afterEntries.get(path))
+    .filter(
+      (path) =>
+        beforeStatusEntries.get(path) !== afterStatusEntries.get(path) ||
+        beforeEntries.get(path) !== afterEntries.get(path),
+    )
     .sort((left, right) => left.localeCompare(right));
 }
 

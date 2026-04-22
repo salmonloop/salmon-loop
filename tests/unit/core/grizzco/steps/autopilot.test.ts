@@ -286,6 +286,7 @@ describe('runAutopilot', () => {
     );
     expect(result.report.summary).toBe('autopilot with tools');
     expect(result.mutated).toBe(true);
+    expect(result.changedFiles).toEqual(['src/core/tools/builtin/shell.ts']);
     expect(result.toolCallingAudit).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -348,6 +349,7 @@ describe('runAutopilot', () => {
 
     expect(result.report.summary).toBe('no workspace change');
     expect(result.mutated).toBe(false);
+    expect(result.changedFiles).toBeUndefined();
     expect(result.toolCallingAudit).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -411,6 +413,7 @@ describe('runAutopilot', () => {
     } as any);
 
     expect(result.mutated).toBe(true);
+    expect(result.changedFiles).toEqual(['src/app.ts']);
     expect(result.toolCallingAudit).toHaveLength(2);
     expect(result.toolCallingAudit).toEqual(
       expect.arrayContaining([
@@ -477,8 +480,61 @@ describe('runAutopilot', () => {
     } as any);
 
     expect(result.mutated).toBe(true);
+    expect(result.changedFiles).toEqual(['script.sh']);
     expect(hashCalls).toBeGreaterThan(0);
     expect(statusCalls).toBe(2);
+  });
+
+  it('reports deleted tracked paths in changedFiles when autopilot removes a clean file', async () => {
+    const { runAutopilot } = await import('../../../../../src/core/grizzco/steps/autopilot.js');
+    const statusOutputs = [
+      '',
+      `${trackedStatusRecord('src/deleted.ts', { xy: '.D', mW: '000000' })}\0`,
+    ];
+
+    hoisted.gitExecMeta.mockImplementation(async (args: string[]) => {
+      if (args[0] === 'rev-parse' && args[1] === 'HEAD') {
+        return okGitMetaResult('head\n');
+      }
+      if (args[0] === 'write-tree') {
+        return okGitMetaResult('index\n');
+      }
+      if (args[0] === 'status' && args[1] === '--porcelain=v2') {
+        return okGitMetaResult(statusOutputs.shift() ?? '');
+      }
+      throw new Error(`Unexpected git args: ${args.join(' ')}`);
+    });
+
+    const llm = {
+      chat: mock(async () => ({ role: 'assistant', content: 'fallback' })),
+      getModelId: () => 'gpt-test',
+    } as any;
+
+    const result = await runAutopilot({
+      options: {
+        instruction: 'inspect the repo and act',
+        llm,
+      },
+      workspace: {
+        baseRepoPath: '/repo',
+        workPath: '/repo',
+        strategy: 'direct',
+      },
+      toolstack: {
+        registry: { listAll: () => [] },
+        policy: { decide: () => ({ allowed: true }) },
+        router: {},
+      },
+      emit: () => {},
+      fs: {} as any,
+      fileStateResolver: {} as any,
+      shadowInitialRef: 'shadow',
+      artifactHints: {},
+      toolCallingAudit: [],
+    } as any);
+
+    expect(result.mutated).toBe(true);
+    expect(result.changedFiles).toEqual(['src/deleted.ts']);
   });
 
   it('fails closed when bounded workspace sampling truncates stdout', async () => {
@@ -521,6 +577,7 @@ describe('runAutopilot', () => {
 
     expect(result.report.summary).toBe('autopilot with tools');
     expect(result.mutated).toBe(true);
+    expect(result.changedFiles).toBeUndefined();
     expect(hoisted.gitExecMeta).toHaveBeenCalled();
     expect(hoisted.gitExecMeta.mock.calls[2]?.[1]).toEqual(
       expect.objectContaining({
@@ -588,6 +645,7 @@ describe('runAutopilot', () => {
     } as any);
 
     expect(result.mutated).toBe(false);
+    expect(result.changedFiles).toBeUndefined();
     expect(hashedPaths).toEqual([' leading and trailing .ts ', ' leading and trailing .ts ']);
   });
 
@@ -668,6 +726,7 @@ describe('runAutopilot', () => {
     const result = await runPromise;
 
     expect(result.mutated).toBe(true);
+    expect(result.changedFiles).toEqual(['a.txt', 'b.txt']);
     expect(hashStartOrder).toEqual(['a.txt', 'b.txt']);
   });
 
@@ -701,5 +760,6 @@ describe('runAutopilot', () => {
     expect(hoisted.chatWithTools).not.toHaveBeenCalled();
     expect(result.report.summary).toBe('fallback answer');
     expect(result.mutated).toBe(false);
+    expect(result.changedFiles).toBeUndefined();
   });
 });
