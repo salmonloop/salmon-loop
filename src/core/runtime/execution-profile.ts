@@ -15,6 +15,7 @@ export interface ExecutionProfile {
   readOnly: boolean;
   defaultPermissionMode?: PermissionMode;
   defaultCheckpointStrategy?: CheckpointStrategy;
+  ignoreDirtyPreflight: boolean;
   failurePolicy: FailurePolicy;
   verifyPolicy: VerifyPolicy;
   entryPhase: ExecutionPhase;
@@ -27,6 +28,7 @@ const RECIPE_PROFILES: Record<Exclude<FlowMode, 'autopilot'>, ExecutionProfile> 
     mode: 'patch',
     driver: 'recipe',
     readOnly: false,
+    ignoreDirtyPreflight: false,
     failurePolicy: 'rollback',
     verifyPolicy: 'required_before_success_if_mutated',
     entryPhase: RECIPE_ENTRY_PHASE,
@@ -35,6 +37,7 @@ const RECIPE_PROFILES: Record<Exclude<FlowMode, 'autopilot'>, ExecutionProfile> 
     mode: 'review',
     driver: 'recipe',
     readOnly: true,
+    ignoreDirtyPreflight: true,
     failurePolicy: 'rollback',
     verifyPolicy: 'never',
     entryPhase: RECIPE_ENTRY_PHASE,
@@ -43,6 +46,7 @@ const RECIPE_PROFILES: Record<Exclude<FlowMode, 'autopilot'>, ExecutionProfile> 
     mode: 'debug',
     driver: 'recipe',
     readOnly: false,
+    ignoreDirtyPreflight: false,
     failurePolicy: 'rollback',
     verifyPolicy: 'required_before_success_if_mutated',
     entryPhase: RECIPE_ENTRY_PHASE,
@@ -51,6 +55,7 @@ const RECIPE_PROFILES: Record<Exclude<FlowMode, 'autopilot'>, ExecutionProfile> 
     mode: 'research',
     driver: 'recipe',
     readOnly: true,
+    ignoreDirtyPreflight: true,
     failurePolicy: 'rollback',
     verifyPolicy: 'never',
     entryPhase: RECIPE_ENTRY_PHASE,
@@ -59,6 +64,7 @@ const RECIPE_PROFILES: Record<Exclude<FlowMode, 'autopilot'>, ExecutionProfile> 
     mode: 'answer',
     driver: 'recipe',
     readOnly: true,
+    ignoreDirtyPreflight: true,
     failurePolicy: 'rollback',
     verifyPolicy: 'never',
     entryPhase: RECIPE_ENTRY_PHASE,
@@ -71,6 +77,7 @@ const AUTOPILOT_PROFILE: ExecutionProfile = {
   readOnly: false,
   defaultPermissionMode: 'yolo',
   defaultCheckpointStrategy: 'direct',
+  ignoreDirtyPreflight: true,
   failurePolicy: 'preserve',
   verifyPolicy: 'required_before_success_if_mutated',
   entryPhase: Phase.AUTOPILOT,

@@ -8,12 +8,9 @@ import { Step } from '../engine/pipeline/pipeline.js';
 import { InitCtx, PreflightCtx } from '../engine/pipeline/types.js';
 
 export const runPreflight: Step<InitCtx, PreflightCtx> = async (ctx) => {
+  const executionProfile = resolveExecutionProfile(ctx.mode);
   const result = await preflight(ctx.workspace, ctx.emit, {
-    ignoreDirty:
-      ctx.mode === 'review' ||
-      ctx.mode === 'research' ||
-      ctx.mode === 'answer' ||
-      ctx.options.permissionMode === 'yolo',
+    ignoreDirty: executionProfile.ignoreDirtyPreflight,
   });
 
   if (!result.ok) {
@@ -36,7 +33,6 @@ export const runPreflight: Step<InitCtx, PreflightCtx> = async (ctx) => {
     timestamp: new Date(),
   });
 
-  const executionProfile = resolveExecutionProfile(ctx.mode);
   const toolstack = resolveLlmToolCallingPolicy(executionProfile.entryPhase, ctx.options.llm).enabled
     ? await createStandardToolstack({
         repoRoot: ctx.workspace.workPath,

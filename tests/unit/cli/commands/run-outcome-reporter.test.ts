@@ -305,26 +305,28 @@ describe('handleRunCommand outcome reporter', () => {
     expect(hoisted.loopParamsCalls[0]?.auditScope).toBe('user');
   });
 
-  it('defaults checkpoint strategy to direct when permission mode is yolo and strategy is implicit default', async () => {
+  it('keeps patch runs on worktree when only permission mode is yolo', async () => {
     hoisted.parsedOptions = {
       ...hoisted.parsedOptions,
       allOptions: {
         ...hoisted.parsedOptions.allOptions,
         mode: 'yolo',
+        actMode: 'patch',
         checkpointStrategy: 'worktree',
-      },
+      } as any,
     };
     hoisted.loopParamsCalls.length = 0;
 
     const { handleRunCommand } = await import('../../../../src/cli/commands/run/handler.js');
     const command: any = {
       optsWithGlobals: () => ({}),
-      getOptionValueSource: (name: string) => (name === 'checkpointStrategy' ? 'default' : 'cli'),
+      getOptionValueSource: (name: string) =>
+        name === 'mode' || name === 'actMode' ? 'cli' : 'default',
     };
 
     await handleRunCommand({}, command);
 
-    expect(hoisted.loopParamsCalls[0]?.checkpointStrategy).toBe('direct');
+    expect(hoisted.loopParamsCalls[0]?.checkpointStrategy).toBe('worktree');
   });
 
   it('defaults autopilot runs to yolo permission mode and direct strategy when implicit', async () => {
@@ -353,7 +355,10 @@ describe('handleRunCommand outcome reporter', () => {
     expect(hoisted.loopParamsCalls[0]?.mode).toBe('autopilot');
     expect(hoisted.loopParamsCalls[0]?.permissionMode).toBe('yolo');
     expect(hoisted.loopParamsCalls[0]?.checkpointStrategy).toBe('direct');
-    expect(hoisted.loopParamsCalls[0]?.permissionRules).toBeUndefined();
+    expect(hoisted.loopParamsCalls[0]?.permissionRules).toEqual({
+      allow: ['Bash(ls *)'],
+      deny: ['Bash(rm *)'],
+    });
   });
 
   it('honors global cli checkpoint strategy when option source lives on the parent command', async () => {
@@ -412,13 +417,14 @@ describe('handleRunCommand outcome reporter', () => {
     expect(hoisted.loopParamsCalls[0]?.checkpointStrategy).toBe('direct');
   });
 
-  it('ignores cli permission rules when permission mode is yolo', async () => {
+  it('preserves explicit cli permission rules even when permission mode is yolo', async () => {
     hoisted.parsedOptions = {
       ...hoisted.parsedOptions,
       allOptions: {
         ...hoisted.parsedOptions.allOptions,
         mode: 'yolo',
-      },
+        actMode: 'patch',
+      } as any,
       allowedToolRules: ['Bash(ls *)'],
       disallowedToolRules: ['Bash(rm *)'],
     };
@@ -432,7 +438,10 @@ describe('handleRunCommand outcome reporter', () => {
 
     await handleRunCommand({}, command);
 
-    expect(hoisted.loopParamsCalls[0]?.permissionRules).toBeUndefined();
+    expect(hoisted.loopParamsCalls[0]?.permissionRules).toEqual({
+      allow: ['Bash(ls *)'],
+      deny: ['Bash(rm *)'],
+    });
   });
 
   it('passes known auditPath to headless json failure when a late error happens after result creation', async () => {

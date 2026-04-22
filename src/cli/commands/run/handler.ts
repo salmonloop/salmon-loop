@@ -441,10 +441,10 @@ export async function handleRunCommand(options: any, command: Command) {
       selection: allOptions.selection,
       verbose: verboseLevel,
       checkpointStrategy:
-        getOptionValueSourceWithGlobalFallback(command, 'checkpointStrategy') !== 'cli'
-          ? ((profile.defaultCheckpointStrategy ??
-              (permissionMode === 'yolo' ? 'direct' : allOptions.checkpointStrategy)) as CheckpointStrategy)
-          : (allOptions.checkpointStrategy as CheckpointStrategy),
+        getOptionValueSourceWithGlobalFallback(command, 'checkpointStrategy') === 'cli'
+          ? (allOptions.checkpointStrategy as CheckpointStrategy)
+          : ((profile.defaultCheckpointStrategy ??
+              allOptions.checkpointStrategy) as CheckpointStrategy),
       environmentMode: rawEnvironmentMode,
       applyBackOnDirty,
       worktreePrepare: effectiveWorktreePrepare,
@@ -463,11 +463,9 @@ export async function handleRunCommand(options: any, command: Command) {
       headlessIncludeAuthorizationDecisions,
       allowOutsideCacheRoot,
       permissionRules:
-        permissionMode === 'yolo'
-          ? undefined
-          : allowedToolRules.length > 0 || disallowedToolRules.length > 0
-            ? { allow: allowedToolRules, deny: disallowedToolRules }
-            : undefined,
+        allowedToolRules.length > 0 || disallowedToolRules.length > 0
+          ? { allow: allowedToolRules, deny: disallowedToolRules }
+          : undefined,
       permissionMode,
     });
 

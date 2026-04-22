@@ -83,4 +83,60 @@ describe('grizzco runPreflight', () => {
 
     expect(hoisted.resolveLlmToolCallingPolicy).toHaveBeenCalledWith('PLAN', expect.any(Object));
   });
+
+  it('ignores dirty preflight for autopilot even when permissionMode is interactive', async () => {
+    const { runPreflight } = await import('../../../../../src/core/grizzco/steps/preflight.js');
+
+    await runPreflight({
+      mode: 'autopilot',
+      options: {
+        instruction: 'act',
+        llm: { getModelId: () => 'gpt-test' },
+        permissionMode: 'interactive',
+      },
+      workspace: {
+        baseRepoPath: '/repo',
+        workPath: '/repo',
+        strategy: 'direct',
+      },
+      emit: () => {},
+      fs: {} as any,
+      fileStateResolver: {} as any,
+      shadowInitialRef: 'shadow',
+    } as any);
+
+    expect(hoisted.preflight).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ ignoreDirty: true }),
+    );
+  });
+
+  it('keeps patch preflight strict even when permissionMode is yolo', async () => {
+    const { runPreflight } = await import('../../../../../src/core/grizzco/steps/preflight.js');
+
+    await runPreflight({
+      mode: 'patch',
+      options: {
+        instruction: 'act',
+        llm: { getModelId: () => 'gpt-test' },
+        permissionMode: 'yolo',
+      },
+      workspace: {
+        baseRepoPath: '/repo',
+        workPath: '/repo',
+        strategy: 'worktree',
+      },
+      emit: () => {},
+      fs: {} as any,
+      fileStateResolver: {} as any,
+      shadowInitialRef: 'shadow',
+    } as any);
+
+    expect(hoisted.preflight).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ ignoreDirty: false }),
+    );
+  });
 });
