@@ -3,6 +3,7 @@ import { text } from '../locales/index.js';
 import { allowlistCommand } from './allowlist.js';
 import { configCommand } from './config.js';
 import { exitCommand } from './exit.js';
+import { flowModeCommand } from './flow-mode.js';
 import { formatHelpRows } from './help-format.js';
 import { llmOutputCommand } from './llm-output.js';
 import { logModeCommand } from './log-mode.js';
@@ -24,6 +25,7 @@ const baseCommands: Command[] = [
   allowlistCommand,
   modeCommand,
   logModeCommand,
+  flowModeCommand,
   configCommand,
   subAgentCommand,
   newCommand,

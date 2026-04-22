@@ -82,6 +82,7 @@ export const en = {
   commandLlmOutput: 'Set which LLM sections are shown in the UI (advanced)',
   commandMode: 'Set permission mode (interactive|yolo) and save to config',
   commandLogMode: 'Set UI verbosity (quiet|normal|debug) and save to config',
+  commandFlowMode: 'Set the current chat flow mode for this session',
   commandConfig: 'Settings hub (mode, log-mode, view, output, allowlist)',
   commandAuth: 'Manage tool allowlist',
   commandParallel: 'Manage parallel plans',
@@ -128,6 +129,20 @@ export const en = {
   modeUpdated: (mode: string) => `Permission mode updated: ${mode}`,
   modePersisted: (path: string) => `Permission mode saved to ${path}`,
   modePersistFailed: (error: string) => `Failed to save permission mode: ${error}`,
+  flowModeUsage: 'Usage: /flow-mode <patch|review|debug|research|answer|autopilot>',
+  flowModeSuggestion: (mode: string) => {
+    if (mode === 'patch') return 'Patch code and run verification';
+    if (mode === 'review') return 'Analyze code without modifying files';
+    if (mode === 'debug') return 'Investigate issues, then patch and verify';
+    if (mode === 'research') return 'Research the codebase and summarize findings';
+    if (mode === 'answer') return 'Answer directly without modifying files';
+    if (mode === 'autopilot') return 'Let SalmonLoop choose the appropriate flow';
+    return `Set flow mode to ${mode}`;
+  },
+  flowModeCurrent: (mode: string) => `Current chat flow mode: ${mode}`,
+  flowModeInvalid: (mode: string) =>
+    `Invalid flow mode: ${mode}. Expected one of: patch, review, debug, research, answer, autopilot.`,
+  flowModeUpdated: (mode: string) => `Chat flow mode updated: ${mode}`,
   logModeUsage: 'Usage: /log-mode <quiet|normal|debug>',
   logModeSuggestion: (mode: string) => {
     if (mode === 'quiet') return 'Quiet: show errors only';

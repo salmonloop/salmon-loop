@@ -47,6 +47,11 @@ describe('CLI Command Registry: Strict Logic Guard', () => {
       const { findCommand } = await loadRegistry();
       expect(findCommand('/log-mode')?.name).toBe('/log-mode');
     });
+
+    it('should expose /flow-mode', async () => {
+      const { findCommand } = await loadRegistry();
+      expect(findCommand('/flow-mode')?.name).toBe('/flow-mode');
+    });
   });
 
   describe('getSuggestions (Multi-Level Engine)', () => {
