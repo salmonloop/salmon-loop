@@ -48,7 +48,6 @@ function decodeNulSeparatedPaths(buffer: Buffer): string[] {
   return buffer
     .toString('utf8')
     .split('\0')
-    .map((value) => value.trim())
     .filter((value) => value.length > 0)
     .sort();
 }
@@ -114,12 +113,10 @@ async function captureWorkspaceFingerprint(workspacePath: string): Promise<Works
     await runBoundedGit(git, workspacePath, ['ls-files', '--deleted', '-z'], WORKSPACE_SAMPLE_LIMITS),
   );
 
-  const workingEntries = [
-    ...deletedPaths.map((path) => `${path}:missing`),
-    ...(await Promise.all(
-      modifiedAndUntrackedPaths.map(async (path) => `${path}:${await hashWorkingPath(git, workspacePath, path)}`),
-    )),
-  ];
+  const workingEntries = [...deletedPaths.map((path) => `${path}:missing`)];
+  for (const path of modifiedAndUntrackedPaths) {
+    workingEntries.push(`${path}:${await hashWorkingPath(git, workspacePath, path)}`);
+  }
   const working = hashFingerprintValue(workingEntries.join('\n'));
 
   return { head, index, working };

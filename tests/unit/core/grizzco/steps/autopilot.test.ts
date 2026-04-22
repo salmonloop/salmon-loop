@@ -354,6 +354,148 @@ describe('runAutopilot', () => {
     );
   });
 
+  it('preserves whitespace-sensitive dirty paths when hashing workspace entries', async () => {
+    const { runAutopilot } = await import('../../../../../src/core/grizzco/steps/autopilot.js');
+    const hashedPaths: string[] = [];
+    const modifiedOutputs = [' leading and trailing .ts \0', ' leading and trailing .ts \0'];
+    const deletedOutputs = ['', ''];
+
+    hoisted.gitExecMeta.mockImplementation(async (args: string[]) => {
+      if (args[0] === 'rev-parse' && args[1] === 'HEAD') {
+        return okGitMetaResult('head\n');
+      }
+      if (args[0] === 'write-tree') {
+        return okGitMetaResult('index\n');
+      }
+      if (args[0] === 'ls-files' && args.includes('--modified')) {
+        return okGitMetaResult(modifiedOutputs.shift() ?? '');
+      }
+      if (args[0] === 'ls-files' && args.includes('--deleted')) {
+        return okGitMetaResult(deletedOutputs.shift() ?? '');
+      }
+      if (args[0] === 'hash-object') {
+        hashedPaths.push(args[3] ?? '');
+        return okGitMetaResult('same-hash\n');
+      }
+      throw new Error(`Unexpected git args: ${args.join(' ')}`);
+    });
+
+    const llm = {
+      chat: mock(async () => ({ role: 'assistant', content: 'fallback' })),
+      getModelId: () => 'gpt-test',
+    } as any;
+
+    const result = await runAutopilot({
+      options: {
+        instruction: 'inspect the repo and act',
+        llm,
+      },
+      workspace: {
+        baseRepoPath: '/repo',
+        workPath: '/repo',
+        strategy: 'direct',
+      },
+      toolstack: {
+        registry: { listAll: () => [] },
+        policy: { decide: () => ({ allowed: true }) },
+        router: {},
+      },
+      emit: () => {},
+      fs: {} as any,
+      fileStateResolver: {} as any,
+      shadowInitialRef: 'shadow',
+      artifactHints: {},
+      toolCallingAudit: [],
+    } as any);
+
+    expect(result.mutated).toBe(false);
+    expect(hashedPaths).toEqual([' leading and trailing .ts ', ' leading and trailing .ts ']);
+  });
+
+  it('hashes dirty workspace entries serially', async () => {
+    const { runAutopilot } = await import('../../../../../src/core/grizzco/steps/autopilot.js');
+    const modifiedOutputs = ['a.txt\0b.txt\0', ''];
+    const deletedOutputs = ['', ''];
+    const hashStartOrder: string[] = [];
+    let revParseCalls = 0;
+    let writeTreeCalls = 0;
+    let firstHashResolved = false;
+    let resolveFirstHash: ((value: ReturnType<typeof okGitMetaResult>) => void) | undefined;
+    const firstHashPromise = new Promise<ReturnType<typeof okGitMetaResult>>((resolve) => {
+      resolveFirstHash = resolve;
+    });
+
+    hoisted.gitExecMeta.mockImplementation((args: string[]) => {
+      if (args[0] === 'rev-parse' && args[1] === 'HEAD') {
+        revParseCalls += 1;
+        return Promise.resolve(okGitMetaResult(`head-${revParseCalls}\n`));
+      }
+      if (args[0] === 'write-tree') {
+        writeTreeCalls += 1;
+        return Promise.resolve(okGitMetaResult(`index-${writeTreeCalls}\n`));
+      }
+      if (args[0] === 'ls-files' && args.includes('--modified')) {
+        return Promise.resolve(okGitMetaResult(modifiedOutputs.shift() ?? ''));
+      }
+      if (args[0] === 'ls-files' && args.includes('--deleted')) {
+        return Promise.resolve(okGitMetaResult(deletedOutputs.shift() ?? ''));
+      }
+      if (args[0] === 'hash-object' && args[3] === 'a.txt') {
+        hashStartOrder.push('a.txt');
+        return firstHashPromise;
+      }
+      if (args[0] === 'hash-object' && args[3] === 'b.txt') {
+        if (!firstHashResolved) {
+          hashStartOrder.push('b.txt-before-first-resolved');
+        } else {
+          hashStartOrder.push('b.txt');
+        }
+        return Promise.resolve(okGitMetaResult('hash-b\n'));
+      }
+      throw new Error(`Unexpected git args: ${args.join(' ')}`);
+    });
+
+    const llm = {
+      chat: mock(async () => ({ role: 'assistant', content: 'fallback' })),
+      getModelId: () => 'gpt-test',
+    } as any;
+
+    const runPromise = runAutopilot({
+      options: {
+        instruction: 'inspect the repo and act',
+        llm,
+      },
+      workspace: {
+        baseRepoPath: '/repo',
+        workPath: '/repo',
+        strategy: 'direct',
+      },
+      toolstack: {
+        registry: { listAll: () => [] },
+        policy: { decide: () => ({ allowed: true }) },
+        router: {},
+      },
+      emit: () => {},
+      fs: {} as any,
+      fileStateResolver: {} as any,
+      shadowInitialRef: 'shadow',
+      artifactHints: {},
+      toolCallingAudit: [],
+    } as any);
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(hashStartOrder).toEqual(['a.txt']);
+
+    firstHashResolved = true;
+    resolveFirstHash?.(okGitMetaResult('hash-a\n'));
+
+    const result = await runPromise;
+
+    expect(result.mutated).toBe(true);
+    expect(hashStartOrder).toEqual(['a.txt', 'b.txt']);
+  });
+
   it('falls back to plain llm chat when tool calling is unavailable', async () => {
     const { runAutopilot } = await import('../../../../../src/core/grizzco/steps/autopilot.js');
 
