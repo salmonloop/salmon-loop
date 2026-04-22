@@ -413,6 +413,172 @@ describe('Headless protocol integration', () => {
     }
   }, 120000);
 
+  it('preserves workspace mutations and persisted verify artifacts when headless autopilot verification fails', async () => {
+    const repo = await helper.createGitRepo({
+      initialFiles: [
+        { path: 'src/index.ts', content: 'console.log("hello");\n' },
+        { path: '.gitignore', content: '.salmonloop/\n' },
+      ],
+    });
+    await helper.writeFile(
+      repo.path,
+      'mutate.ts',
+      [
+        'await Bun.write("src/index.ts", \'console.log("kept after verify");\\n\');',
+        'console.log("shell-ok");',
+        '',
+      ].join('\n'),
+    );
+    await helper.writeFile(
+      repo.path,
+      'verify.ts',
+      'console.error("verify failed");\nprocess.exit(1);\n',
+    );
+
+    const stub = createOpenAiStreamingStub();
+    stub.pushStream([
+      openAiChatStreamChunk({
+        delta: {
+          role: 'assistant',
+          tool_calls: [
+            {
+              index: 0,
+              id: 'call-shell-exec',
+              type: 'function',
+              function: {
+                name: 'shell.exec',
+                arguments: JSON.stringify({ command: buildBunCommand('mutate.ts') }),
+              },
+            },
+          ],
+        },
+      }),
+      openAiChatStreamChunk({ finishReason: 'tool_calls' }),
+      '[DONE]',
+    ]);
+    stub.pushStream([
+      openAiChatStreamChunk({ delta: { role: 'assistant', content: 'done' } }),
+      openAiChatStreamChunk({ finishReason: 'stop' }),
+      '[DONE]',
+    ]);
+
+    const baseUrl = await stub.start();
+    await writeOpenAiStubConfig(repo.path, baseUrl);
+
+    try {
+      const { exitCode, stdout } = await runCli([
+        'run',
+        '-r',
+        repo.path,
+        '--instruction',
+        'Run mutate.ts',
+        '--verify',
+        buildBunCommand('verify.ts'),
+        '--output-format',
+        'stream-json',
+        '--act-mode',
+        'autopilot',
+        '--mode',
+        'yolo',
+      ]);
+
+      expect(exitCode).toBe(1);
+      expect(await helper.readFile(repo.path, 'src/index.ts')).toBe(
+        'console.log("kept after verify");\n',
+      );
+
+      const lines = stdout
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => JSON.parse(line) as any);
+      const resultLine = lines.find((line) => line.event?.type === 'result');
+      expect(resultLine?.event?.audit_path).toBeTruthy();
+
+      const sessionId = String(lines[0]?.session_id ?? '');
+      expect(sessionId).toBeTruthy();
+      const session = JSON.parse(
+        String(await helper.readFile(repo.path, `.salmonloop/chat-sessions/${sessionId}.json`)),
+      );
+      expect(session.meta.artifactState.verifyArtifact.handle).toBeTruthy();
+    } finally {
+      await stub.close();
+    }
+  }, 120000);
+
+  it('emits successful headless json metadata for autopilot shell execution', async () => {
+    const repo = await helper.createGitRepo({
+      initialFiles: [
+        { path: 'src/index.ts', content: 'console.log("hello");\n' },
+        {
+          path: 'mutate.ts',
+          content: [
+            'await Bun.write("src/index.ts", \'console.log("headless json autopilot");\\n\');',
+            'console.log("shell-ok");',
+            '',
+          ].join('\n'),
+        },
+        { path: '.gitignore', content: '.salmonloop/\n' },
+      ],
+    });
+
+    const stub = createOpenAiStreamingStub();
+    stub.pushStream([
+      openAiChatStreamChunk({
+        delta: {
+          role: 'assistant',
+          tool_calls: [
+            {
+              index: 0,
+              id: 'call-shell-exec',
+              type: 'function',
+              function: {
+                name: 'shell.exec',
+                arguments: JSON.stringify({ command: buildBunCommand('mutate.ts') }),
+              },
+            },
+          ],
+        },
+      }),
+      openAiChatStreamChunk({ finishReason: 'tool_calls' }),
+      '[DONE]',
+    ]);
+    stub.pushStream([
+      openAiChatStreamChunk({ delta: { role: 'assistant', content: 'done' } }),
+      openAiChatStreamChunk({ finishReason: 'stop' }),
+      '[DONE]',
+    ]);
+
+    const baseUrl = await stub.start();
+    await writeOpenAiStubConfig(repo.path, baseUrl);
+
+    try {
+      const { exitCode, stdout } = await runCli([
+        'run',
+        '-r',
+        repo.path,
+        '--instruction',
+        'Run mutate.ts',
+        '--output-format',
+        'json',
+        '--act-mode',
+        'autopilot',
+        '--mode',
+        'yolo',
+      ]);
+
+      expect(exitCode).toBe(0);
+      const payload = JSON.parse(stdout) as any;
+      expect(payload.metadata.success).toBe(true);
+      expect(payload.metadata.changed_files).toContain('src/index.ts');
+      expect(payload.metadata.audit_path).toBeTruthy();
+      expect(await helper.readFile(repo.path, 'src/index.ts')).toBe(
+        'console.log("headless json autopilot");\n',
+      );
+    } finally {
+      await stub.close();
+    }
+  }, 120000);
+
   it('supports --continue selecting the latest session in headless stream-json', async () => {
     const repo = await helper.createGitRepo();
     const now = Date.now();

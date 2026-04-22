@@ -41,6 +41,7 @@ type WorkspaceFingerprint = {
   index: string;
   statusMetadata: string;
   workingContent: string;
+  workingEntries: Array<readonly [path: string, fingerprint: string]>;
 };
 
 function hashFingerprintValue(value: string): string {
@@ -209,17 +210,20 @@ async function captureWorkspaceFingerprint(workspacePath: string): Promise<Works
     ['status', '--porcelain=v2', '-z', '--untracked-files=all', '--ignored=no'],
     WORKSPACE_SAMPLE_LIMITS,
   );
-  const workingEntries: string[] = [];
+  const workingEntries: Array<readonly [path: string, fingerprint: string]> = [];
   for (const path of collectHashablePathsFromStatus(statusOutput)) {
-    workingEntries.push(`${path}:${await fingerprintWorkingPath(git, workspacePath, path)}`);
+    workingEntries.push([path, await fingerprintWorkingPath(git, workspacePath, path)]);
   }
-  const workingContent = hashFingerprintValue(workingEntries.join('\n'));
+  const workingContent = hashFingerprintValue(
+    workingEntries.map(([path, fingerprint]) => `${path}:${fingerprint}`).join('\n'),
+  );
 
   return {
     head,
     index,
     statusMetadata: hashFingerprintBuffer(statusOutput),
     workingContent,
+    workingEntries,
   };
 }
 
@@ -233,6 +237,18 @@ function didWorkspaceFingerprintChange(
     before.statusMetadata !== after.statusMetadata ||
     before.workingContent !== after.workingContent
   );
+}
+
+function collectChangedWorkspacePaths(
+  before: WorkspaceFingerprint,
+  after: WorkspaceFingerprint,
+): string[] {
+  const beforeEntries = new Map(before.workingEntries);
+  const afterEntries = new Map(after.workingEntries);
+  const paths = new Set([...beforeEntries.keys(), ...afterEntries.keys()]);
+  return [...paths]
+    .filter((path) => beforeEntries.get(path) !== afterEntries.get(path))
+    .sort((left, right) => left.localeCompare(right));
 }
 
 export async function runAutopilot(ctx: PreflightCtx): Promise<AutopilotCtx> {
@@ -322,6 +338,7 @@ export async function runAutopilot(ctx: PreflightCtx): Promise<AutopilotCtx> {
   const mergedAudit =
     localAudit.length > 0 ? [...(ctx.toolCallingAudit ?? []), ...localAudit] : ctx.toolCallingAudit;
   let mutated = false;
+  let changedFiles: string[] | undefined;
   if (supportsTools) {
     if (samplingFailedClosed || !workspaceFingerprintBefore) {
       mutated = true;
@@ -329,6 +346,10 @@ export async function runAutopilot(ctx: PreflightCtx): Promise<AutopilotCtx> {
       try {
         const workspaceFingerprintAfter = await captureWorkspaceFingerprint(ctx.workspace.workPath);
         mutated = didWorkspaceFingerprintChange(workspaceFingerprintBefore, workspaceFingerprintAfter);
+        changedFiles = collectChangedWorkspacePaths(
+          workspaceFingerprintBefore,
+          workspaceFingerprintAfter,
+        );
       } catch {
         mutated = true;
       }
@@ -338,6 +359,7 @@ export async function runAutopilot(ctx: PreflightCtx): Promise<AutopilotCtx> {
   return {
     ...ctx,
     mutated,
+    changedFiles: changedFiles && changedFiles.length > 0 ? changedFiles : undefined,
     toolCallingAudit: mergedAudit,
     report: {
       kind: 'answer',
