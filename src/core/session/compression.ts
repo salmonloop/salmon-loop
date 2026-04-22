@@ -8,7 +8,7 @@ import {
   normalizeToolResultReplacementState,
   type ToolResultReplacementState,
 } from './replacement-state.js';
-import type { ChatSession, ChatMessage } from './types.js';
+import type { ChatMessage, ChatSession, SessionMetadata } from './types.js';
 
 export interface PartialChatSession {
   meta: {
@@ -21,6 +21,7 @@ export interface PartialChatSession {
     successfulIterations?: number;
     totalTokens?: { input: number; output: number };
     snapshots?: unknown[];
+    chatState?: SessionMetadata['chatState'];
     artifactState?: SessionArtifactState;
     replacementState?: ToolResultReplacementState;
   };
@@ -75,6 +76,7 @@ export interface CompressedSession {
     originalSize: number;
     compressedSize: number;
     compressionRatio: number;
+    chatState?: SessionMetadata['chatState'];
     artifactState?: SessionArtifactState;
     replacementState?: ToolResultReplacementState;
   };
@@ -169,6 +171,7 @@ export class SessionCompressor {
         originalSize,
         compressedSize: 0, // Will be updated after serialization
         compressionRatio: 0, // Will be calculated after serialization
+        chatState: session.meta.chatState,
         artifactState: normalizeSessionArtifactState(session.meta.artifactState),
         replacementState: normalizeToolResultReplacementState(session.meta.replacementState),
       },
@@ -230,6 +233,7 @@ export class SessionCompressor {
         successfulIterations: compressed.compressed.stats.successfulIterations,
         totalTokens: compressed.compressed.stats.totalTokens,
         snapshots: [], // Will be restored from full data
+        chatState: compressed.meta.chatState,
         artifactState: normalizeSessionArtifactState(compressed.meta.artifactState),
         replacementState: normalizeToolResultReplacementState(compressed.meta.replacementState),
       },

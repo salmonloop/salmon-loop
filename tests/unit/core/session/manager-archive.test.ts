@@ -93,6 +93,7 @@ describe('ChatSessionManager archive lifecycle', () => {
       patch: null,
       contextSummary: 'Initial attempt',
     });
+    manager.updateChatFlowMode('debug');
     await manager.save();
     await manager.archiveSession(session);
 
@@ -110,8 +111,10 @@ describe('ChatSessionManager archive lifecycle', () => {
     expect(restored?.meta.id).toBe(session.meta.id);
     expect(restored?.meta.name).toBe('Recover Me');
     expect(restored?.meta.repoPath).toBe(repoPath);
+    expect(restored?.meta.chatState?.flowMode).toBe('debug');
     expect(restored?.messages.length).toBeGreaterThan(0);
     expect(restored?.meta.resumeRepairState).toBeDefined();
+    expect(manager.getChatFlowMode()).toBe('debug');
 
     const sessions = await manager.listSessions();
     expect(sessions.some((item) => item.id === session.meta.id)).toBe(true);
@@ -130,6 +133,7 @@ describe('ChatSessionManager archive lifecycle', () => {
       content: 'legacy restore',
       timestamp: Date.now(),
     });
+    manager.updateChatFlowMode('review');
     await manager.save();
     await manager.archiveSession(session);
 
@@ -137,7 +141,9 @@ describe('ChatSessionManager archive lifecycle', () => {
 
     expect(restored).not.toBeNull();
     expect(restored?.meta.id).toBe(session.meta.id);
+    expect(restored?.meta.chatState?.flowMode).toBe('review');
     expect(restored?.meta.resumeRepairState).toBeUndefined();
+    expect(manager.getChatFlowMode()).toBe('review');
   });
 
   it('emits resume repair observability metrics for repaired restores', async () => {
