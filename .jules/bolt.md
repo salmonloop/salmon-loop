@@ -1,0 +1,3 @@
+## 2025-04-22 - [Performance] Batch File I/O with Promise.all to Avoid Unbounded Concurrency
+**Learning:** While replacing sequential `await` loops with `Promise.all` can drastically improve file I/O operations (e.g. reading and parsing json sessions in `ChatSessionManager`), using unbounded concurrency can result in `EMFILE` (too many open files) errors if there are too many files.
+**Action:** When performing concurrent map operations over a large number of files, group the items into batches with a reasonable chunk size (e.g., `const BATCH_SIZE = 10;`). Process each batch sequentially using `for (let i = 0; i < files.length; i += BATCH_SIZE)`, but use `await Promise.all(batch.map(...))` to process the items inside each batch concurrently.
