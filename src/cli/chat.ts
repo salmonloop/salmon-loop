@@ -9,7 +9,6 @@ import {
   logIgnoredError,
   getLogger,
   refreshSessionSummary,
-  routeChatIntent,
   runSalmonLoop,
   TokenTracker,
   type CheckpointStrategy,
@@ -33,11 +32,13 @@ import {
   reactiveCompact,
 } from '../core/facades/cli-chat.js';
 import { createSubAgentController } from '../core/facades/cli-subagent.js';
+import type { FlowMode } from '../core/types/execution.js';
 
 import { createUiAuthorizationProvider } from './authorization/provider.js';
 import { commands } from './commands/registry.js';
 import type { QueueController } from './commands/types.js';
 import { CHAT_QUEUE_CONFIG } from './config.js';
+import { resolveActiveChatFlowMode, resolveChatCheckpointStrategy } from './chat-flow.js';
 import { text } from './locales/index.js';
 import { createCliSlashRuntime } from './slash/runtime.js';
 import type { GUIOptions } from './ui/index.js';
@@ -50,6 +51,7 @@ export interface ChatModeOptions {
   llm: LLM;
   verifyCommand?: string;
   checkpointStrategy?: CheckpointStrategy;
+  defaultFlowMode?: FlowMode;
   continue?: boolean;
   resumeSessionId?: string;
   verbose?: VerboseLevel | boolean;
@@ -339,27 +341,11 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
 
       const execution = await withTimeout(
         (async () => {
-          const intentDecision = await routeChatIntent(trimmed, {
-            llm: options.llm,
-            signal: mergedSignal.signal,
-          });
-
-          latestEmit?.({
-            type: 'log',
-            level: 'info',
-            message: text.cli.chatIntentRouted(
-              intentDecision.intent,
-              intentDecision.confidence,
-              intentDecision.reason,
-            ),
-            timestamp: new Date(),
-          });
-
-          const nonMutating =
-            intentDecision.intent === 'review' ||
-            intentDecision.intent === 'research' ||
-            intentDecision.intent === 'answer';
-          const strategy = nonMutating ? 'direct' : options.checkpointStrategy || 'worktree';
+          const flowMode = resolveActiveChatFlowMode(
+            sessionManager.getChatFlowMode(),
+            options.defaultFlowMode,
+          );
+          const strategy = resolveChatCheckpointStrategy(flowMode, options.checkpointStrategy);
 
           const verboseLevel =
             options.verbose === true ? 'basic' : (options.verbose as VerboseLevel | undefined);
@@ -369,7 +355,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
             verify: options.verifyCommand,
             repoPath: options.repoPath,
             llm: options.llm,
-            mode: intentDecision.intent,
+            mode: flowMode,
             strategy,
             verbose: verboseLevel,
             onEvent: latestEmit,

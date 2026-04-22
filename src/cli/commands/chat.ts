@@ -12,6 +12,8 @@ import {
   PluginLoader,
   resolveExtensions,
 } from '../../core/facades/cli-command-chat.js';
+import { resolveExecutionProfile } from '../../core/runtime/execution-profile.js';
+import type { CheckpointStrategy, FlowMode } from '../../core/types/index.js';
 import { text } from '../locales/index.js';
 import { resolveLlmOutputPolicyFromCli } from '../utils/llm-output.js';
 import { createOutcomeReporter } from '../utils/outcome-reporter.js';
@@ -60,7 +62,14 @@ export async function handleChatCommand(options: any, command: Command) {
   setPromptRegistry(createPromptRegistry());
   await PluginLoader.loadPlugins(languagePlugins, runPath);
 
-  const rawPermissionMode = allOptions.mode ?? resolvedConfig.permissionMode ?? 'interactive';
+  const defaultFlowMode: FlowMode = 'autopilot';
+  const defaultFlowProfile = resolveExecutionProfile(defaultFlowMode);
+
+  const rawPermissionMode =
+    allOptions.mode ??
+    resolvedConfig.permissionMode ??
+    defaultFlowProfile.defaultPermissionMode ??
+    'interactive';
   const permissionMode = normalizePermissionMode(rawPermissionMode);
   if (!permissionMode) {
     getLogger().error(
@@ -122,12 +131,14 @@ export async function handleChatCommand(options: any, command: Command) {
       repoPath: runPath,
       llm,
       verifyCommand,
+      defaultFlowMode,
       checkpointStrategy:
-        permissionMode === 'yolo' &&
         typeof command.getOptionValueSource === 'function' &&
         command.getOptionValueSource('checkpointStrategy') !== 'cli'
-          ? 'direct'
-          : allOptions.checkpointStrategy || 'worktree',
+          ? ((defaultFlowProfile.defaultCheckpointStrategy ??
+              allOptions.checkpointStrategy ??
+              'worktree') as CheckpointStrategy)
+          : (allOptions.checkpointStrategy as CheckpointStrategy) || 'worktree',
       continue: continueSession,
       resumeSessionId,
       verbose: verboseLevel,

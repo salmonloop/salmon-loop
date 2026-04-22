@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from 'bun:test';
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
 const hoisted = (() => ({
   reporterCalls: [] as Array<Record<string, unknown>>,
@@ -95,6 +95,11 @@ mock.module('../../../../src/cli/chat.js', () => ({
 }));
 
 describe('handleChatCommand outcome reporter', () => {
+  beforeEach(() => {
+    hoisted.reporterCalls.length = 0;
+    hoisted.startChatCalls = 0;
+  });
+
   it('uses shared outcome reporter helper', async () => {
     const { handleChatCommand } = await import('../../../../src/cli/commands/chat.js');
 
@@ -114,5 +119,20 @@ describe('handleChatCommand outcome reporter', () => {
     });
     const startChatCall = hoisted.reporterCalls[1]?.startChatMode as Record<string, unknown>;
     expect(startChatCall?.auditScope).toBe('user');
+  });
+
+  it('defaults chat to autopilot flow mode and yolo permission mode when implicit', async () => {
+    const { handleChatCommand } = await import('../../../../src/cli/commands/chat.js');
+    const command: any = {
+      optsWithGlobals: () => ({ repo: '/repo', auditScope: 'user' }),
+      getOptionValueSource: (name: string) => (name === 'checkpointStrategy' ? 'default' : 'cli'),
+    };
+
+    await handleChatCommand({}, command);
+
+    const startChatCall = hoisted.reporterCalls[1]?.startChatMode as Record<string, unknown>;
+    expect(startChatCall?.defaultFlowMode).toBe('autopilot');
+    expect(startChatCall?.permissionMode).toBe('yolo');
+    expect(startChatCall?.checkpointStrategy).toBe('direct');
   });
 });
