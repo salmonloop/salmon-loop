@@ -1,5 +1,6 @@
 import type { LLMMessage } from '../types/index.js';
 import type { LoopIteration, LoopResult } from '../types/index.js';
+import type { FlowMode } from '../types/execution.js';
 
 import type { SessionArtifactState } from './artifact-state.js';
 import type { ToolResultReplacementState } from './replacement-state.js';
@@ -75,6 +76,9 @@ export interface SessionMetadata {
   summaryState?: SummaryState;
   artifactState?: SessionArtifactState;
   replacementState?: ToolResultReplacementState;
+  chatState?: {
+    flowMode?: FlowMode;
+  };
   resumeRepairState?: {
     schemaVersion: number;
     lastRunAt: number;

@@ -4,6 +4,8 @@ import { join } from 'path';
 import { FileAdapter } from '../adapters/fs/index.js';
 import { recordAuditEvent } from '../observability/audit-trail.js';
 import { getLogger } from '../observability/logger.js';
+import { parseFlowMode } from '../types/flow-mode.js';
+import type { FlowMode } from '../types/index.js';
 import type { LoopIteration } from '../types/index.js';
 
 import {
@@ -20,7 +22,7 @@ import {
   type ToolResultReplacementState,
 } from './replacement-state.js';
 import { createResumeRepairPipeline } from './resume-repair/pipeline.js';
-import type { ChatSession, ChatMessage, SummaryState } from './types.js';
+import type { ChatSession, ChatMessage, SessionMetadata, SummaryState } from './types.js';
 
 const RESUME_REPAIR_V1_FLAG = 'SALMONLOOP_RESUME_REPAIR_V1';
 
@@ -58,6 +60,13 @@ function recordResumeRepairMetrics(details: {
       scope: 'session',
     },
   );
+}
+
+function normalizeChatState(
+  chatState: SessionMetadata['chatState'],
+): SessionMetadata['chatState'] {
+  const flowMode = parseFlowMode(chatState?.flowMode);
+  return flowMode ? { flowMode } : undefined;
 }
 
 /**
@@ -160,6 +169,7 @@ export class ChatSessionManager {
     try {
       const data = await this.fileAdapter.readFile(filePath);
       const parsed = JSON.parse(data) as ChatSession;
+      parsed.meta.chatState = normalizeChatState(parsed.meta.chatState);
       parsed.meta.artifactState = normalizeSessionArtifactState(parsed.meta.artifactState);
       parsed.meta.replacementState = normalizeToolResultReplacementState(
         parsed.meta.replacementState,
@@ -294,6 +304,17 @@ export class ChatSessionManager {
     this.currentSession.meta.replacementState = normalizeToolResultReplacementState(state);
   }
 
+  getChatFlowMode(): FlowMode | undefined {
+    return this.currentSession?.meta.chatState?.flowMode;
+  }
+
+  updateChatFlowMode(mode: FlowMode | undefined): void {
+    if (!this.currentSession) throw new Error('No active session');
+    this.currentSession.meta.chatState = normalizeChatState(
+      mode === undefined ? undefined : { flowMode: mode },
+    );
+  }
+
   freezeReplacementDecision(
     entry: Parameters<typeof freezeToolResultReplacementDecision>[1],
     options?: Parameters<typeof freezeToolResultReplacementDecision>[2],
@@ -397,6 +418,7 @@ export class ChatSessionManager {
         const filePath = join(this.storageDir, file);
         const data = await this.fileAdapter.readFile(filePath);
         const session = JSON.parse(data) as ChatSession;
+        session.meta.chatState = normalizeChatState(session.meta.chatState);
         session.meta.artifactState = normalizeSessionArtifactState(session.meta.artifactState);
         session.meta.replacementState = normalizeToolResultReplacementState(
           session.meta.replacementState,
@@ -580,6 +602,7 @@ export class ChatSessionManager {
         successfulIterations: partial.meta.successfulIterations ?? 0,
         totalTokens: partial.meta.totalTokens ?? { input: 0, output: 0 },
         snapshots: [],
+        chatState: normalizeChatState(partial.meta.chatState),
         artifactState: normalizeSessionArtifactState(partial.meta.artifactState),
         replacementState: normalizeToolResultReplacementState(partial.meta.replacementState),
       },
