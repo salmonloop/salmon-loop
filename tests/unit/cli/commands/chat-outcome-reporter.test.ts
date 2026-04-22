@@ -124,8 +124,14 @@ describe('handleChatCommand outcome reporter', () => {
   it('defaults chat to autopilot flow mode and yolo permission mode when implicit', async () => {
     const { handleChatCommand } = await import('../../../../src/cli/commands/chat.js');
     const command: any = {
-      optsWithGlobals: () => ({ repo: '/repo', auditScope: 'user' }),
-      getOptionValueSource: (name: string) => (name === 'checkpointStrategy' ? 'default' : 'cli'),
+      optsWithGlobals: () => ({
+        repo: '/repo',
+        auditScope: 'user',
+        mode: 'interactive',
+        checkpointStrategy: 'worktree',
+      }),
+      getOptionValueSource: (name: string) =>
+        name === 'checkpointStrategy' || name === 'mode' ? 'default' : 'cli',
     };
 
     await handleChatCommand({}, command);

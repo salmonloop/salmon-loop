@@ -64,9 +64,13 @@ export async function handleChatCommand(options: any, command: Command) {
 
   const defaultFlowMode: FlowMode = 'autopilot';
   const defaultFlowProfile = resolveExecutionProfile(defaultFlowMode);
+  const modeOptionSource =
+    typeof command.getOptionValueSource === 'function'
+      ? command.getOptionValueSource('mode')
+      : undefined;
 
   const rawPermissionMode =
-    allOptions.mode ??
+    (modeOptionSource === 'cli' ? allOptions.mode : undefined) ??
     resolvedConfig.permissionMode ??
     defaultFlowProfile.defaultPermissionMode ??
     'interactive';

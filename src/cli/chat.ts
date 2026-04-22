@@ -457,7 +457,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
               verify: options.verifyCommand,
               repoPath: options.repoPath,
               llm: options.llm,
-              mode: intentDecision.intent,
+              mode: flowMode,
               strategy,
               verbose: verboseLevel,
               onEvent: latestEmit,
@@ -480,7 +480,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
             });
           });
 
-          return { kind: 'flow' as const, mode: intentDecision.intent, result };
+          return { kind: 'flow' as const, mode: flowMode, result };
         })(),
         CHAT_QUEUE_CONFIG.TASK_TIMEOUT_MS,
         () => timeoutAbort.abort(),
