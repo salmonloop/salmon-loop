@@ -170,12 +170,13 @@ mock.module('../../../../src/cli/commands/run/instruction-guard.js', () => ({
 
 mock.module('../../../../src/cli/commands/run/mode.js', () => ({
   resolveRunMode: mock((raw: unknown) => {
-    const value = String(raw || 'patch');
+    const value = String(raw || 'autopilot');
     if (
       value === 'patch' ||
       value === 'review' ||
       value === 'debug' ||
       value === 'research' ||
+      value === 'answer' ||
       value === 'autopilot'
     ) {
       return value;
@@ -331,7 +332,7 @@ describe('handleRunCommand outcome reporter', () => {
       ...hoisted.parsedOptions,
       allOptions: {
         ...hoisted.parsedOptions.allOptions,
-        mode: undefined as any,
+        mode: 'interactive',
         actMode: 'autopilot',
         checkpointStrategy: 'worktree',
       } as any,
@@ -343,7 +344,8 @@ describe('handleRunCommand outcome reporter', () => {
     const { handleRunCommand } = await import('../../../../src/cli/commands/run/handler.js');
     const command: any = {
       optsWithGlobals: () => ({}),
-      getOptionValueSource: (name: string) => (name === 'checkpointStrategy' ? 'default' : 'cli'),
+      getOptionValueSource: (name: string) =>
+        name === 'mode' || name === 'checkpointStrategy' ? 'default' : 'cli',
     };
 
     await handleRunCommand({}, command);
@@ -352,6 +354,34 @@ describe('handleRunCommand outcome reporter', () => {
     expect(hoisted.loopParamsCalls[0]?.permissionMode).toBe('yolo');
     expect(hoisted.loopParamsCalls[0]?.checkpointStrategy).toBe('direct');
     expect(hoisted.loopParamsCalls[0]?.permissionRules).toBeUndefined();
+  });
+
+  it('defaults run to autopilot when --act-mode is omitted', async () => {
+    hoisted.parsedOptions = {
+      ...hoisted.parsedOptions,
+      allOptions: {
+        ...hoisted.parsedOptions.allOptions,
+        mode: 'interactive',
+        actMode: 'patch',
+        checkpointStrategy: 'worktree',
+      } as any,
+    };
+    hoisted.loopParamsCalls.length = 0;
+
+    const { handleRunCommand } = await import('../../../../src/cli/commands/run/handler.js');
+    const command: any = {
+      optsWithGlobals: () => ({}),
+      getOptionValueSource: (name: string) =>
+        name === 'actMode' || name === 'mode' || name === 'checkpointStrategy'
+          ? 'default'
+          : 'cli',
+    };
+
+    await handleRunCommand({}, command);
+
+    expect(hoisted.loopParamsCalls[0]?.mode).toBe('autopilot');
+    expect(hoisted.loopParamsCalls[0]?.permissionMode).toBe('yolo');
+    expect(hoisted.loopParamsCalls[0]?.checkpointStrategy).toBe('direct');
   });
 
   it('ignores cli permission rules when permission mode is yolo', async () => {
@@ -367,7 +397,10 @@ describe('handleRunCommand outcome reporter', () => {
     hoisted.loopParamsCalls.length = 0;
 
     const { handleRunCommand } = await import('../../../../src/cli/commands/run/handler.js');
-    const command: any = { optsWithGlobals: () => ({}) };
+    const command: any = {
+      optsWithGlobals: () => ({}),
+      getOptionValueSource: (name: string) => (name === 'mode' ? 'cli' : 'default'),
+    };
 
     await handleRunCommand({}, command);
 

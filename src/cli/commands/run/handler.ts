@@ -247,13 +247,18 @@ export async function handleRunCommand(options: any, command: Command) {
   }
 
   const instructionText = instruction as string;
-  const rawMode = String(allOptions.actMode || 'patch');
-  const mode = resolveRunMode(rawMode);
+  const actModeOptionSource =
+    typeof command.getOptionValueSource === 'function'
+      ? command.getOptionValueSource('actMode')
+      : undefined;
+  const rawActMode = actModeOptionSource === 'cli' ? allOptions.actMode : undefined;
+  const mode = resolveRunMode(rawActMode);
   if (!mode) {
-    getLogger().error(text.cli.invalidActMode(rawMode));
+    const invalidMode = String(rawActMode ?? allOptions.actMode);
+    getLogger().error(text.cli.invalidActMode(invalidMode));
     if (outputFormat === 'json') {
       writeJsonFailure({
-        message: text.cli.invalidActMode(rawMode),
+        message: text.cli.invalidActMode(invalidMode),
         errorCode: 'USAGE_ERROR',
         instruction,
         repoPath: runPath,
@@ -261,7 +266,7 @@ export async function handleRunCommand(options: any, command: Command) {
     } else if (outputFormat === 'stream-json') {
       headlessErrorWriter.writeUsageError({
         sessionId: sessionIdForOutput ?? randomUUID(),
-        message: text.cli.invalidActMode(rawMode),
+        message: text.cli.invalidActMode(invalidMode),
         instruction,
       });
     }
@@ -269,9 +274,16 @@ export async function handleRunCommand(options: any, command: Command) {
     return;
   }
   const profile = resolveExecutionProfile(mode);
+  const permissionModeOptionSource =
+    typeof command.getOptionValueSource === 'function'
+      ? command.getOptionValueSource('mode')
+      : undefined;
 
   const rawPermissionMode =
-    allOptions.mode ?? resolvedConfig.permissionMode ?? profile.defaultPermissionMode ?? 'interactive';
+    (permissionModeOptionSource === 'cli' ? allOptions.mode : undefined) ??
+    resolvedConfig.permissionMode ??
+    profile.defaultPermissionMode ??
+    'interactive';
   const permissionMode = normalizePermissionMode(rawPermissionMode);
   if (!permissionMode) {
     const message = `Invalid --mode "${String(rawPermissionMode)}". Expected "interactive" or "yolo".`;
