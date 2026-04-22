@@ -139,6 +139,6 @@ describe('handleChatCommand outcome reporter', () => {
     const startChatCall = hoisted.reporterCalls[1]?.startChatMode as Record<string, unknown>;
     expect(startChatCall?.defaultFlowMode).toBe('autopilot');
     expect(startChatCall?.permissionMode).toBe('yolo');
-    expect(startChatCall?.checkpointStrategy).toBe('direct');
+    expect(startChatCall?.checkpointStrategy).toBeUndefined();
   });
 });

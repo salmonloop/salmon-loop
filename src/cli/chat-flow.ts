@@ -13,5 +13,6 @@ export function resolveChatCheckpointStrategy(
   flowMode: FlowMode,
   configured: CheckpointStrategy | undefined,
 ): CheckpointStrategy {
-  return resolveExecutionProfile(flowMode).readOnly ? 'direct' : configured ?? 'worktree';
+  const profile = resolveExecutionProfile(flowMode);
+  return profile.readOnly ? 'direct' : configured ?? profile.defaultCheckpointStrategy ?? 'worktree';
 }

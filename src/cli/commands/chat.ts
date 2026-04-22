@@ -68,6 +68,10 @@ export async function handleChatCommand(options: any, command: Command) {
     typeof command.getOptionValueSource === 'function'
       ? command.getOptionValueSource('mode')
       : undefined;
+  const checkpointStrategyOptionSource =
+    typeof command.getOptionValueSource === 'function'
+      ? command.getOptionValueSource('checkpointStrategy')
+      : undefined;
 
   const rawPermissionMode =
     (modeOptionSource === 'cli' ? allOptions.mode : undefined) ??
@@ -137,12 +141,9 @@ export async function handleChatCommand(options: any, command: Command) {
       verifyCommand,
       defaultFlowMode,
       checkpointStrategy:
-        typeof command.getOptionValueSource === 'function' &&
-        command.getOptionValueSource('checkpointStrategy') !== 'cli'
-          ? ((defaultFlowProfile.defaultCheckpointStrategy ??
-              allOptions.checkpointStrategy ??
-              'worktree') as CheckpointStrategy)
-          : (allOptions.checkpointStrategy as CheckpointStrategy) || 'worktree',
+        checkpointStrategyOptionSource === 'cli'
+          ? ((allOptions.checkpointStrategy as CheckpointStrategy) || 'worktree')
+          : undefined,
       continue: continueSession,
       resumeSessionId,
       verbose: verboseLevel,

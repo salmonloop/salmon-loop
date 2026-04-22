@@ -120,6 +120,8 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
   let hideTimer: NodeJS.Timeout | null = null;
   let currentInstruction: string | null = null;
   let lastInterruptedInput: string | null = null;
+  let currentFlowMode: FlowMode | null = null;
+  let lastInterruptedFlowMode: FlowMode | null = null;
   let currentLlmOutputPolicy = options.llmOutput ?? DEFAULT_LLM_OUTPUT_POLICY;
   let currentCompactionTracking = createInitialTracking();
 
@@ -240,8 +242,9 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
     return /cancelled by user/i.test(reason);
   };
 
-  const markInterrupted = (input: string) => {
+  const markInterrupted = (input: string, flowMode?: FlowMode) => {
     lastInterruptedInput = input;
+    lastInterruptedFlowMode = flowMode ?? null;
     queue.pause();
     latestEmit?.({
       type: 'log',
@@ -251,10 +254,13 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
     });
   };
 
-  const enqueueInput = (input: string, queueOptions?: { front?: boolean }) => {
+  const enqueueInput = (input: string, queueOptions?: { front?: boolean; flowMode?: FlowMode }) => {
     const trimmed = input.trim();
     if (!trimmed) return;
     if (!latestDispatch) return;
+    const queuedFlowMode =
+      queueOptions?.flowMode ??
+      resolveActiveChatFlowMode(sessionManager.getChatFlowMode(), options.defaultFlowMode);
 
     try {
       const currentSessionId = sessionManager.getCurrent().meta.id;
@@ -292,6 +298,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
       started = true;
       latestDispatch?.({ type: 'SHIFT_QUEUE_MESSAGE' });
       currentInstruction = trimmed;
+      currentFlowMode = queuedFlowMode;
       const timeoutAbort = new AbortController();
       const mergedSignal = mergeAbortSignals([latestGuiOptions?.signal, timeoutAbort.signal]);
 
@@ -341,10 +348,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
 
       const execution = await withTimeout(
         (async () => {
-          const flowMode = resolveActiveChatFlowMode(
-            sessionManager.getChatFlowMode(),
-            options.defaultFlowMode,
-          );
+          const flowMode = queuedFlowMode;
           const strategy = resolveChatCheckpointStrategy(flowMode, options.checkpointStrategy);
 
           const verboseLevel =
@@ -492,7 +496,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
       const mode = execution.mode;
 
       if (!result.success && isInterruptResult(result.reason)) {
-        markInterrupted(trimmed);
+        markInterrupted(trimmed, mode);
       }
 
       // Add assistant message & iteration info
@@ -552,15 +556,17 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
       currentCompactionTracking = onNormalTurnComplete(currentCompactionTracking);
       await sessionManager.save();
       currentInstruction = null;
+      currentFlowMode = null;
       return result;
     }).catch((error) => {
       if (!started) {
         latestDispatch?.({ type: 'REMOVE_QUEUE_MESSAGE', payload: { id: queueMessageId } });
       }
       if (isInterruptError(error) && currentInstruction) {
-        markInterrupted(currentInstruction);
+        markInterrupted(currentInstruction, currentFlowMode ?? undefined);
       }
       currentInstruction = null;
+      currentFlowMode = null;
       throw error;
     });
   };
@@ -577,6 +583,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
     resume: () => {
       queue.resume();
       lastInterruptedInput = null;
+      lastInterruptedFlowMode = null;
       getLogger().audit(
         'QUEUE_RESUME',
         { status: 'resumed' },
@@ -586,6 +593,7 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
     clear: () => {
       const cleared = queue.clear();
       lastInterruptedInput = null;
+      lastInterruptedFlowMode = null;
       latestDispatch?.({ type: 'CLEAR_QUEUE_MESSAGES' });
       getLogger().audit(
         'QUEUE_CLEAR',
@@ -597,9 +605,11 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
     retry: () => {
       if (!lastInterruptedInput) return false;
       const retryInput = lastInterruptedInput;
+      const retryFlowMode = lastInterruptedFlowMode ?? undefined;
       lastInterruptedInput = null;
+      lastInterruptedFlowMode = null;
       queue.resume();
-      enqueueInput(retryInput, { front: true });
+      enqueueInput(retryInput, { front: true, flowMode: retryFlowMode });
       return true;
     },
     status: () => {

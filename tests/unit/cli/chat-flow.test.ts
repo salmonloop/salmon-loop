@@ -15,8 +15,13 @@ describe('chat flow helpers', () => {
     expect(resolveChatCheckpointStrategy('answer', 'worktree')).toBe('direct');
   });
 
-  it('preserves configured strategy for mutable modes', () => {
-    expect(resolveChatCheckpointStrategy('patch', 'worktree')).toBe('worktree');
-    expect(resolveChatCheckpointStrategy('autopilot', 'direct')).toBe('direct');
+  it('recomputes mutable-mode defaults from the active flow mode', () => {
+    expect(resolveChatCheckpointStrategy('patch', undefined)).toBe('worktree');
+    expect(resolveChatCheckpointStrategy('autopilot', undefined)).toBe('direct');
+  });
+
+  it('preserves explicit strategy overrides for mutable modes', () => {
+    expect(resolveChatCheckpointStrategy('patch', 'direct')).toBe('direct');
+    expect(resolveChatCheckpointStrategy('autopilot', 'worktree')).toBe('worktree');
   });
 });
