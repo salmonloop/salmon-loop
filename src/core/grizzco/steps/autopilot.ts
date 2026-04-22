@@ -1,4 +1,5 @@
 import { text } from '../../../locales/index.js';
+import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { emitLlmOutput } from '../../llm/output-policy.js';
 import { SessionReplacementPreviewProvider } from '../../session/replacement-preview-provider.js';
 import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
@@ -20,6 +21,14 @@ function buildAutopilotSystemPrompt(): string {
     'Use the repository context available in the current turn when present.',
     'If no repository action is possible yet, explain the next best action succinctly.',
   ].join('\n');
+}
+
+async function captureWorkspaceStatus(workspacePath: string): Promise<string> {
+  const git = new GitAdapter(workspacePath);
+  return await git.query(['status', '--porcelain', '--untracked-files=all', '--ignored=no', '-z'], {
+    cwd: workspacePath,
+    trim: false,
+  });
 }
 
 export async function runAutopilot(ctx: PreflightCtx): Promise<AutopilotCtx> {
@@ -47,6 +56,9 @@ export async function runAutopilot(ctx: PreflightCtx): Promise<AutopilotCtx> {
   const localAudit: NonNullable<AutopilotCtx['toolCallingAudit']> = [];
   const supportsStreaming = typeof llmClient.chatStream === 'function';
   const supportsTools = Boolean(ctx.toolstack && toolPolicy.enabled);
+  const workspaceStatusBefore = supportsTools
+    ? await captureWorkspaceStatus(ctx.workspace.workPath)
+    : '';
 
   const assistant = supportsTools
     ? await (supportsStreaming ? chatWithToolsStreaming : chatWithTools)(
@@ -85,6 +97,9 @@ export async function runAutopilot(ctx: PreflightCtx): Promise<AutopilotCtx> {
         tools: [],
         toolChoice: 'none',
       });
+  const workspaceStatusAfter = supportsTools
+    ? await captureWorkspaceStatus(ctx.workspace.workPath)
+    : workspaceStatusBefore;
 
   const content = String((assistant as any)?.content ?? '').trim();
 
@@ -100,9 +115,7 @@ export async function runAutopilot(ctx: PreflightCtx): Promise<AutopilotCtx> {
 
   const mergedAudit =
     localAudit.length > 0 ? [...(ctx.toolCallingAudit ?? []), ...localAudit] : ctx.toolCallingAudit;
-  const mutated = localAudit.some(
-    (entry) => entry.toolIntent === 'WRITE' && entry.toolResultStatus === 'ok',
-  );
+  const mutated = workspaceStatusBefore !== workspaceStatusAfter;
 
   return {
     ...ctx,
