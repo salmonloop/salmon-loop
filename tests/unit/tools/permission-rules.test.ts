@@ -12,6 +12,14 @@ const ctx = {
 } as any;
 
 describe('Permission rules', () => {
+  it('keeps Bash alias visibility mapped to shell.exec and test.run', () => {
+    const compiled = compilePermissionRules({ allow: ['Bash(git status)'] });
+    expect(compiled.ok).toBe(true);
+    expect([...compiled.compiled!.visibleToolNamesFromAllow]).toEqual(
+      expect.arrayContaining(['shell.exec', 'test.run']),
+    );
+  });
+
   it('supports Bash(*) and Bash equivalence (match all)', async () => {
     const compiled = compilePermissionRules({ allow: ['Bash(*)'] });
     expect(compiled.ok).toBe(true);

@@ -16,7 +16,7 @@ export const shellExecSpec: Omit<ToolSpec, 'executor'> = {
   sideEffects: ['process'],
   concurrency: 'isolated',
   computeResources: (_input, ctx) => [repoResource(ctx), processResource(ctx)],
-  allowedPhases: [Phase.SLASH],
+  allowedPhases: [Phase.SLASH, Phase.AUTOPILOT],
   inputSchema: z.object({
     command: z.string().min(1).describe('Shell command to execute'),
   }),

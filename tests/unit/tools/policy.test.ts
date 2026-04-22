@@ -1,4 +1,5 @@
 import { proposalApplySpec } from '../../../src/core/tools/builtin/proposal.js';
+import { shellExecSpec } from '../../../src/core/tools/builtin/shell.js';
 import { ToolPolicy } from '../../../src/core/tools/policy.js';
 import { ToolSpec } from '../../../src/core/tools/types.js';
 import { Phase } from '../../../src/core/types/index.js';
@@ -89,6 +90,14 @@ describe('ToolPolicy', () => {
 
     expect(policy.decide(Phase.AUTOPILOT, processSpec, {} as any).allowed).toBe(false);
     expect(policy.decide(Phase.AUTOPILOT, networkSpec, {} as any).allowed).toBe(false);
+  });
+
+  it('allows shell.exec in direct AUTOPILOT runtime', () => {
+    const decision = policy.decide(Phase.AUTOPILOT, shellExecSpec as any, {
+      flowMode: 'autopilot',
+    } as any);
+
+    expect(decision.allowed).toBe(true);
   });
 
   it('should respect explicitly allowed phases in ToolSpec', () => {

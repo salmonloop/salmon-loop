@@ -47,4 +47,22 @@ describe('executeShellExec environment injection', () => {
       }),
     );
   });
+
+  it('keeps authorization summary cwd semantics unchanged', async () => {
+    const { shellExecSpec } = await import('../../../../src/core/tools/builtin/shell.js');
+
+    await expect(
+      shellExecSpec.summarizeArgsForAuthorization?.(
+        { command: 'echo hi' },
+        { repoRoot: '/repo', worktreeRoot: '/repo/.shadow' } as any,
+      ),
+    ).resolves.toBe('command="echo hi" cwd="/repo/.shadow"');
+
+    await expect(
+      shellExecSpec.summarizeArgsForAuthorization?.(
+        { command: 'echo hi' },
+        { repoRoot: '/repo', worktreeRoot: undefined } as any,
+      ),
+    ).resolves.toBe('command="echo hi" cwd="/repo"');
+  });
 });
