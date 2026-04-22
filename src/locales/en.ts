@@ -169,6 +169,8 @@ export const en = {
     permissionPolicyAskDescription: 'Request user permission for side-effecting operations.',
     permissionPolicyDenyAllName: 'Deny all',
     permissionPolicyDenyAllDescription: 'Automatically deny side-effecting operations.',
+    permissionPolicyAllowAllName: 'Allow all',
+    permissionPolicyAllowAllDescription: 'Automatically allow side-effecting operations.',
     modeInteractiveDescription: 'Request permission before running side-effecting operations.',
     modeYoloDescription: 'Bypass permission prompts for side-effecting operations.',
   },

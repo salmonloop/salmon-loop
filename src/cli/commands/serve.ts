@@ -39,6 +39,12 @@ function parsePort(value: unknown, fallback: number): number {
   return Number.isFinite(parsed) ? parsed : Number.NaN;
 }
 
+function resolveDefaultAcpPermissionPolicy(
+  permissionMode: 'interactive' | 'yolo' | undefined,
+): 'ask' | 'allow_all' {
+  return permissionMode === 'yolo' ? 'allow_all' : 'ask';
+}
+
 function buildSidecarHandlers(deps: {
   name: string;
   version: string;
@@ -249,7 +255,8 @@ export async function handleServeCommand(_options: unknown, command: Command) {
       createAcpFormalAgent({
         conn,
         agentInfo: { name: 'salmon-loop', version: '0.2.0' },
-        defaultModeId: resolvedConfig.permissionMode,
+        defaultModeId: 'autopilot',
+        defaultPermissionPolicy: resolveDefaultAcpPermissionPolicy(resolvedConfig.permissionMode),
         checkpointReader: {
           listBySession: async ({ repoPath, sessionId, limit }) =>
             await checkpointService.list({ repoPath, sessionId, limit }),
@@ -407,7 +414,8 @@ export async function handleServeAcpCommand(_options: unknown, command: Command)
     createAcpFormalAgent({
       conn,
       agentInfo: { name: 'salmon-loop', version: '0.2.0' },
-      defaultModeId: resolvedConfig.permissionMode,
+      defaultModeId: 'autopilot',
+      defaultPermissionPolicy: resolveDefaultAcpPermissionPolicy(resolvedConfig.permissionMode),
       checkpointReader: {
         listBySession: async ({ repoPath, sessionId, limit }) =>
           await checkpointService.list({ repoPath, sessionId, limit }),

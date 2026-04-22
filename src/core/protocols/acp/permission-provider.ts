@@ -136,7 +136,7 @@ export function createAcpToolAuthorizationProvider(params: {
       const permissionPolicy = params.getPermissionPolicy?.() ?? 'ask';
       if (permissionPolicy === 'allow_all') {
         await emitInProgressBestEffort(request.id);
-        return { outcome: 'allow_session', source: 'auto', reason: 'session_mode:yolo' };
+        return { outcome: 'allow_session', source: 'auto', reason: 'session_config:allow_all' };
       }
       const hasSideEffects = request.sideEffects.some((effect) => effect !== 'fs_read');
       if (permissionPolicy === 'deny_all' && hasSideEffects) {

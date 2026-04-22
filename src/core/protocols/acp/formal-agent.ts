@@ -100,7 +100,7 @@ function formatInputRequiredMessage(inputRequired: TaskEnvelope['inputRequired']
   return lines.join('\n');
 }
 
-type AcpPermissionPolicy = 'ask' | 'deny_all';
+type AcpPermissionPolicy = 'ask' | 'deny_all' | 'allow_all';
 type AcpSessionModeId = FlowMode;
 
 type AcpPlanEntry = {
@@ -138,6 +138,7 @@ const ACP_PERMISSION_POLICY_CONFIG_ID = '_salmonloop_permission_policy';
 const ACP_MODE_CONFIG_ID = '_salmonloop_mode';
 const ACP_PERMISSION_POLICY_ASK: AcpPermissionPolicy = 'ask';
 const ACP_PERMISSION_POLICY_DENY_ALL: AcpPermissionPolicy = 'deny_all';
+const ACP_PERMISSION_POLICY_ALLOW_ALL: AcpPermissionPolicy = 'allow_all';
 const ACP_DEFAULT_MODE_ID: AcpSessionModeId = 'autopilot';
 const ACP_SESSION_STORE_MAX_ENTRIES = 200;
 const ACP_SESSION_STORE_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 30;
@@ -367,12 +368,12 @@ function loopEventToSessionUpdate(event: LoopEvent): SessionUpdate | null {
   }
 }
 
-function createSessionRuntimeState(): AcpSessionRuntimeState {
-  return createSessionRuntimeStateFromPersisted();
-}
-
 function isPermissionPolicyValue(value: string): value is AcpPermissionPolicy {
-  return value === ACP_PERMISSION_POLICY_ASK || value === ACP_PERMISSION_POLICY_DENY_ALL;
+  return (
+    value === ACP_PERMISSION_POLICY_ASK ||
+    value === ACP_PERMISSION_POLICY_DENY_ALL ||
+    value === ACP_PERMISSION_POLICY_ALLOW_ALL
+  );
 }
 
 function buildConfigOptions(state: AcpSessionRuntimeState): SessionConfigOption[] {
@@ -393,6 +394,11 @@ function buildConfigOptions(state: AcpSessionRuntimeState): SessionConfigOption[
           value: ACP_PERMISSION_POLICY_DENY_ALL,
           name: text.acp.permissionPolicyDenyAllName,
           description: text.acp.permissionPolicyDenyAllDescription,
+        },
+        {
+          value: ACP_PERMISSION_POLICY_ALLOW_ALL,
+          name: text.acp.permissionPolicyAllowAllName,
+          description: text.acp.permissionPolicyAllowAllDescription,
         },
       ],
     },
@@ -451,10 +457,6 @@ function buildSessionInfoUpdateIfChanged(
   };
 }
 
-function isSessionModeId(value: string): value is AcpSessionModeId {
-  return SUPPORTED_PROTOCOL_FLOW_MODES.includes(value as FlowMode);
-}
-
 function buildCurrentModeUpdate(modeId: AcpSessionModeId): SessionUpdate {
   return { sessionUpdate: 'current_mode_update', currentModeId: modeId };
 }
@@ -479,18 +481,22 @@ function buildCurrentModeUpdateIfChanged(state: AcpSessionRuntimeState): Session
 
 function getPermissionPolicyForAuthorization(
   state: AcpSessionRuntimeState,
-): 'ask' | 'deny_all' {
+): 'ask' | 'deny_all' | 'allow_all' {
   return state.permissionPolicy;
 }
 
 function createSessionRuntimeStateFromPersisted(input?: {
   permissionPolicy?: unknown;
+  defaultPermissionPolicy?: unknown;
   modeId?: unknown;
   defaultModeId?: AcpSessionModeId;
 }): AcpSessionRuntimeState {
+  const defaultPermissionPolicy = isPermissionPolicyValue(String(input?.defaultPermissionPolicy))
+    ? (input?.defaultPermissionPolicy as AcpPermissionPolicy)
+    : ACP_PERMISSION_POLICY_ASK;
   const permissionPolicy = isPermissionPolicyValue(String(input?.permissionPolicy))
     ? (input?.permissionPolicy as AcpPermissionPolicy)
-    : ACP_PERMISSION_POLICY_ASK;
+    : defaultPermissionPolicy;
   const defaultModeId = parseAcpFlowMode(input?.defaultModeId) ?? ACP_DEFAULT_MODE_ID;
   const modeId = parseAcpFlowMode(input?.modeId) ?? defaultModeId;
   const state: AcpSessionRuntimeState = {
@@ -643,6 +649,7 @@ export function createAcpFormalAgent(deps: {
   agentInfo: { name: string; version: string };
   facade: Facade;
   defaultModeId?: AcpSessionModeId;
+  defaultPermissionPolicy?: AcpPermissionPolicy;
   planReader?: {
     readBySession: (input: { repoPath: string; sessionId: string }) => Promise<CorePlanReadResult>;
   };
@@ -806,7 +813,10 @@ export function createAcpFormalAgent(deps: {
           title: entry.title,
           taskId: undefined,
           history: [],
-          permissionPolicy: ACP_PERMISSION_POLICY_ASK,
+          permissionPolicy:
+            isPermissionPolicyValue(String(deps.defaultPermissionPolicy))
+              ? deps.defaultPermissionPolicy
+              : ACP_PERMISSION_POLICY_ASK,
           modeId: parseAcpFlowMode(deps.defaultModeId) ?? ACP_DEFAULT_MODE_ID,
         })),
       };
@@ -1036,6 +1046,7 @@ export function createAcpFormalAgent(deps: {
               stored.id,
               createSessionRuntimeStateFromPersisted({
                 permissionPolicy: stored.permissionPolicy,
+                defaultPermissionPolicy: deps.defaultPermissionPolicy,
                 modeId: stored.modeId,
                 defaultModeId: deps.defaultModeId,
               }),
@@ -1203,10 +1214,10 @@ export function createAcpFormalAgent(deps: {
   function ensureSessionRuntimeState(sessionId: string): AcpSessionRuntimeState {
     const existing = sessionRuntime.get(sessionId);
     if (existing) return existing;
-    const created = createSessionRuntimeState();
-    if (deps.defaultModeId) {
-      created.modeId = parseAcpFlowMode(deps.defaultModeId) ?? ACP_DEFAULT_MODE_ID;
-    }
+    const created = createSessionRuntimeStateFromPersisted({
+      defaultPermissionPolicy: deps.defaultPermissionPolicy,
+      defaultModeId: deps.defaultModeId,
+    });
     sessionRuntime.set(sessionId, created);
     return created;
   }
@@ -1432,13 +1443,14 @@ export function createAcpFormalAgent(deps: {
         }
         runtimeState.permissionPolicy = params.value;
       } else if (params.configId === ACP_MODE_CONFIG_ID) {
-        if (!isSessionModeId(params.value)) {
+        const resolvedModeId = parseAcpFlowMode(params.value);
+        if (!resolvedModeId) {
           throw new RequestError(
             -32602,
             `Invalid params: unsupported value "${params.value}" for "${params.configId}"`,
           );
         }
-        runtimeState.modeId = params.value;
+        runtimeState.modeId = resolvedModeId;
       } else {
         throw new RequestError(-32602, `Invalid params: unsupported configId "${params.configId}"`);
       }
@@ -1464,10 +1476,11 @@ export function createAcpFormalAgent(deps: {
       }
 
       const runtimeState = ensureSessionRuntimeState(params.sessionId);
-      if (!isSessionModeId(params.modeId)) {
+      const resolvedModeId = parseAcpFlowMode(params.modeId);
+      if (!resolvedModeId) {
         throw new RequestError(-32602, `Invalid params: unsupported modeId "${params.modeId}"`);
       }
-      runtimeState.modeId = params.modeId;
+      runtimeState.modeId = resolvedModeId;
       sessions.update(params.sessionId, (current) => ({ ...current }));
       await persistSessionsBestEffort();
       await emitSessionInfoUpdateBestEffort(params.sessionId);

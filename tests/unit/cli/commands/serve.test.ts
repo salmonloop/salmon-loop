@@ -7,6 +7,7 @@ const hoisted = (() => ({
     options: { port?: number; host?: string; path?: string; type?: string };
   }>,
   acpLoopCalls: [] as Array<Record<string, unknown>>,
+  acpAgentConfigs: [] as Array<Record<string, unknown>>,
   lastRunLoopOptions: undefined as Record<string, unknown> | undefined,
   runLoop: undefined as
     | ((options: { instruction: string; mode: string }) => Promise<unknown>)
@@ -126,16 +127,19 @@ mock.module('../../../../src/cli/utils/outcome-reporter.js', () => ({
 }));
 
 mock.module('../../../../src/core/protocols/acp/formal-agent.js', () => ({
-  createAcpFormalAgent: mock(() => ({
-    initialize: mock(async () => ({
-      protocolVersion: 1,
-      agentCapabilities: { loadSession: true },
-    })),
-    authenticate: mock(async () => ({})),
-    newSession: mock(async () => ({ sessionId: 'sess_1' })),
-    prompt: mock(async () => ({ stopReason: 'end_turn' })),
-    cancel: mock(async () => {}),
-  })),
+  createAcpFormalAgent: mock((config: Record<string, unknown>) => {
+    hoisted.acpAgentConfigs.push(config);
+    return {
+      initialize: mock(async () => ({
+        protocolVersion: 1,
+        agentCapabilities: { loadSession: true },
+      })),
+      authenticate: mock(async () => ({})),
+      newSession: mock(async () => ({ sessionId: 'sess_1' })),
+      prompt: mock(async () => ({ stopReason: 'end_turn' })),
+      cancel: mock(async () => {}),
+    };
+  }),
 }));
 
 mock.module('../../../../src/core/protocols/acp/stdio-server.js', () => ({
@@ -157,6 +161,11 @@ describe('handleServeCommand', () => {
 
   beforeEach(() => {
     setLogger(hoisted.logger as any);
+    hoisted.listenCalls.length = 0;
+    hoisted.acpLoopCalls.length = 0;
+    hoisted.acpAgentConfigs.length = 0;
+    hoisted.lastRunLoopOptions = undefined;
+    hoisted.runLoop = undefined;
     hoisted.logger.error.mockReset();
     hoisted.logger.warn.mockReset();
     hoisted.logger.info.mockReset();
@@ -201,6 +210,38 @@ describe('handleServeCommand', () => {
     await handleServeCommand({}, command);
 
     expect(hoisted.acpLoopCalls.length).toBe(1);
+  });
+
+  it('maps legacy yolo server defaults to ACP autopilot mode plus allow_all policy', async () => {
+    hoisted.config = {
+      ...hoisted.config,
+      permissionMode: 'yolo',
+    };
+
+    const { handleServeCommand } = await import('../../../../src/cli/commands/serve.js');
+
+    const command: any = {
+      optsWithGlobals: () => ({
+        repo: '/repo',
+        a2aHost: '127.0.0.1',
+        a2aPort: '8081',
+        acpStdio: true,
+      }),
+    };
+
+    await handleServeCommand({}, command);
+
+    const createAgent = hoisted.acpLoopCalls[0]?.createAgent as
+      | ((conn: unknown) => unknown)
+      | undefined;
+    expect(typeof createAgent).toBe('function');
+    createAgent?.({});
+
+    expect(hoisted.acpAgentConfigs).toHaveLength(1);
+    expect(hoisted.acpAgentConfigs[0]).toMatchObject({
+      defaultModeId: 'autopilot',
+      defaultPermissionPolicy: 'allow_all',
+    });
   });
 
   it('passes outcome reporter and langfuse ids to the loop', async () => {
