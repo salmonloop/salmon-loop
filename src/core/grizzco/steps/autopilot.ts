@@ -37,19 +37,106 @@ function buildAutopilotSystemPrompt(): string {
 type WorkspaceFingerprint = {
   head: string;
   index: string;
-  working: string;
+  statusMetadata: string;
+  workingContent: string;
 };
 
 function hashFingerprintValue(value: string): string {
   return createHash('sha256').update(value).digest('hex');
 }
 
-function decodeNulSeparatedPaths(buffer: Buffer): string[] {
+function hashFingerprintBuffer(buffer: Buffer): string {
+  return createHash('sha256').update(buffer).digest('hex');
+}
+
+function decodeNulSeparatedRecords(buffer: Buffer): string[] {
   return buffer
     .toString('utf8')
     .split('\0')
-    .filter((value) => value.length > 0)
-    .sort();
+    .filter((value) => value.length > 0);
+}
+
+function readSpaceDelimitedField(record: string, fieldIndex: number): string {
+  let fieldStart = 0;
+  let currentField = 0;
+
+  for (let index = 0; index <= record.length; index += 1) {
+    const atSeparator = index === record.length || record[index] === ' ';
+    if (!atSeparator) {
+      continue;
+    }
+
+    if (currentField === fieldIndex) {
+      return record.slice(fieldStart, index);
+    }
+
+    currentField += 1;
+    fieldStart = index + 1;
+  }
+
+  throw new Error(`Malformed status record: ${record}`);
+}
+
+function readPathAfterFieldCount(record: string, fieldCount: number): string {
+  let spacesSeen = 0;
+
+  for (let index = 0; index < record.length; index += 1) {
+    if (record[index] !== ' ') {
+      continue;
+    }
+
+    spacesSeen += 1;
+    if (spacesSeen === fieldCount) {
+      return record.slice(index + 1);
+    }
+  }
+
+  throw new Error(`Malformed status record: ${record}`);
+}
+
+function collectHashablePathsFromStatus(statusOutput: Buffer): string[] {
+  const records = decodeNulSeparatedRecords(statusOutput);
+  const paths: string[] = [];
+
+  for (let index = 0; index < records.length; index += 1) {
+    const record = records[index];
+    const kind = record[0];
+
+    if (kind === '?') {
+      paths.push(readPathAfterFieldCount(record, 1));
+      continue;
+    }
+
+    if (kind === '!') {
+      continue;
+    }
+
+    if (kind === '1') {
+      if (readSpaceDelimitedField(record, 5) !== '000000') {
+        paths.push(readPathAfterFieldCount(record, 8));
+      }
+      continue;
+    }
+
+    if (kind === '2') {
+      if (readSpaceDelimitedField(record, 5) !== '000000') {
+        paths.push(readPathAfterFieldCount(record, 9));
+      }
+      index += 1;
+      continue;
+    }
+
+    if (kind === 'u') {
+      if (readSpaceDelimitedField(record, 6) !== '000000') {
+        paths.push(readPathAfterFieldCount(record, 10));
+      }
+      continue;
+    }
+
+    throw new Error(`Unsupported status record: ${record}`);
+  }
+
+  return paths;
 }
 
 async function runBoundedGit(
@@ -101,32 +188,36 @@ async function captureWorkspaceFingerprint(workspacePath: string): Promise<Works
   )
     .toString('utf8')
     .trim();
-  const modifiedAndUntrackedPaths = decodeNulSeparatedPaths(
-    await runBoundedGit(
-      git,
-      workspacePath,
-      ['ls-files', '--modified', '--others', '--exclude-standard', '-z'],
-      WORKSPACE_SAMPLE_LIMITS,
-    ),
+  const statusOutput = await runBoundedGit(
+    git,
+    workspacePath,
+    ['status', '--porcelain=v2', '-z', '--untracked-files=all', '--ignored=no'],
+    WORKSPACE_SAMPLE_LIMITS,
   );
-  const deletedPaths = decodeNulSeparatedPaths(
-    await runBoundedGit(git, workspacePath, ['ls-files', '--deleted', '-z'], WORKSPACE_SAMPLE_LIMITS),
-  );
-
-  const workingEntries = [...deletedPaths.map((path) => `${path}:missing`)];
-  for (const path of modifiedAndUntrackedPaths) {
+  const workingEntries: string[] = [];
+  for (const path of collectHashablePathsFromStatus(statusOutput)) {
     workingEntries.push(`${path}:${await hashWorkingPath(git, workspacePath, path)}`);
   }
-  const working = hashFingerprintValue(workingEntries.join('\n'));
+  const workingContent = hashFingerprintValue(workingEntries.join('\n'));
 
-  return { head, index, working };
+  return {
+    head,
+    index,
+    statusMetadata: hashFingerprintBuffer(statusOutput),
+    workingContent,
+  };
 }
 
 function didWorkspaceFingerprintChange(
   before: WorkspaceFingerprint,
   after: WorkspaceFingerprint,
 ): boolean {
-  return before.head !== after.head || before.index !== after.index || before.working !== after.working;
+  return (
+    before.head !== after.head ||
+    before.index !== after.index ||
+    before.statusMetadata !== after.statusMetadata ||
+    before.workingContent !== after.workingContent
+  );
 }
 
 export async function runAutopilot(ctx: PreflightCtx): Promise<AutopilotCtx> {

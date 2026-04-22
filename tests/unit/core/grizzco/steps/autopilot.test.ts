@@ -51,21 +51,127 @@ function okGitMetaResult(
   };
 }
 
+function readPathAfterFieldCount(record: string, fieldCount: number): string {
+  let spacesSeen = 0;
+
+  for (let index = 0; index < record.length; index += 1) {
+    if (record[index] !== ' ') {
+      continue;
+    }
+
+    spacesSeen += 1;
+    if (spacesSeen === fieldCount) {
+      return record.slice(index + 1);
+    }
+  }
+
+  throw new Error(`Malformed status record fixture: ${record}`);
+}
+
+function readSpaceDelimitedField(record: string, fieldIndex: number): string {
+  let fieldStart = 0;
+  let currentField = 0;
+
+  for (let index = 0; index <= record.length; index += 1) {
+    const atSeparator = index === record.length || record[index] === ' ';
+    if (!atSeparator) {
+      continue;
+    }
+
+    if (currentField === fieldIndex) {
+      return record.slice(fieldStart, index);
+    }
+
+    currentField += 1;
+    fieldStart = index + 1;
+  }
+
+  throw new Error(`Malformed status record fixture: ${record}`);
+}
+
+function extractHashablePaths(records: string[]): string[] {
+  const paths: string[] = [];
+
+  for (let index = 0; index < records.length; index += 1) {
+    const record = records[index];
+    const kind = record[0];
+
+    if (kind === '?') {
+      paths.push(readPathAfterFieldCount(record, 1));
+      continue;
+    }
+
+    if (kind === '!') {
+      continue;
+    }
+
+    if (kind === '1') {
+      if (readSpaceDelimitedField(record, 5) !== '000000') {
+        paths.push(readPathAfterFieldCount(record, 8));
+      }
+      continue;
+    }
+
+    if (kind === '2') {
+      if (readSpaceDelimitedField(record, 5) !== '000000') {
+        paths.push(readPathAfterFieldCount(record, 9));
+      }
+      index += 1;
+      continue;
+    }
+
+    if (kind === 'u') {
+      if (readSpaceDelimitedField(record, 6) !== '000000') {
+        paths.push(readPathAfterFieldCount(record, 10));
+      }
+      continue;
+    }
+
+    throw new Error(`Unsupported status record fixture: ${record}`);
+  }
+
+  return paths;
+}
+
+function trackedStatusRecord(
+  path: string,
+  overrides: Partial<{
+    xy: string;
+    sub: string;
+    mH: string;
+    mI: string;
+    mW: string;
+    hH: string;
+    hI: string;
+  }> = {},
+): string {
+  return [
+    '1',
+    overrides.xy ?? '.M',
+    overrides.sub ?? 'N...',
+    overrides.mH ?? '100644',
+    overrides.mI ?? '100644',
+    overrides.mW ?? '100644',
+    overrides.hH ?? '1111111111111111111111111111111111111111',
+    overrides.hI ?? '2222222222222222222222222222222222222222',
+    path,
+  ].join(' ');
+}
+
 function queueWorkspaceFingerprint(params: {
   head?: string;
   index?: string;
-  workingPaths?: string[];
-  deletedPaths?: string[];
+  statusRecords?: string[];
   workingHashes?: Record<string, string | null>;
 }) {
-  const workingPaths = [...(params.workingPaths ?? [])];
-  const deletedPaths = [...(params.deletedPaths ?? [])];
+  const statusRecords = [...(params.statusRecords ?? [])];
   hoisted.gitExecMeta.mockResolvedValueOnce(okGitMetaResult(`${params.head ?? 'head'}\n`));
   hoisted.gitExecMeta.mockResolvedValueOnce(okGitMetaResult(`${params.index ?? 'index'}\n`));
-  hoisted.gitExecMeta.mockResolvedValueOnce(okGitMetaResult(workingPaths.join('\0')));
-  hoisted.gitExecMeta.mockResolvedValueOnce(okGitMetaResult(deletedPaths.join('\0')));
+  hoisted.gitExecMeta.mockResolvedValueOnce(
+    okGitMetaResult(statusRecords.length > 0 ? `${statusRecords.join('\0')}\0` : ''),
+  );
 
-  for (const path of workingPaths) {
+  for (const path of extractHashablePaths(statusRecords)) {
     const hash = params.workingHashes?.[path] ?? `${path}-hash`;
     if (hash === null) {
       hoisted.gitExecMeta.mockResolvedValueOnce(
@@ -124,9 +230,9 @@ describe('runAutopilot', () => {
 
   it('marks the workspace as mutated when tool execution changes workspace status', async () => {
     const { runAutopilot } = await import('../../../../../src/core/grizzco/steps/autopilot.js');
-    queueWorkspaceFingerprint({ workingPaths: [] });
+    queueWorkspaceFingerprint({ statusRecords: [] });
     queueWorkspaceFingerprint({
-      workingPaths: ['src/core/tools/builtin/shell.ts'],
+      statusRecords: [trackedStatusRecord('src/core/tools/builtin/shell.ts')],
       workingHashes: { 'src/core/tools/builtin/shell.ts': 'shell-after' },
     });
 
@@ -180,8 +286,8 @@ describe('runAutopilot', () => {
 
   it('keeps mutated false when workspace status is unchanged after tool execution', async () => {
     const { runAutopilot } = await import('../../../../../src/core/grizzco/steps/autopilot.js');
-    queueWorkspaceFingerprint({ workingPaths: [] });
-    queueWorkspaceFingerprint({ workingPaths: [] });
+    queueWorkspaceFingerprint({ statusRecords: [] });
+    queueWorkspaceFingerprint({ statusRecords: [] });
     hoisted.chatWithTools.mockImplementationOnce(
       async (_messages: any, _chatOptions: any, session: any) => {
         session.toolCallingAudit?.event({
@@ -243,11 +349,11 @@ describe('runAutopilot', () => {
   it('marks the workspace as mutated when an already-dirty path changes again', async () => {
     const { runAutopilot } = await import('../../../../../src/core/grizzco/steps/autopilot.js');
     queueWorkspaceFingerprint({
-      workingPaths: ['src/app.ts'],
+      statusRecords: [trackedStatusRecord('src/app.ts')],
       workingHashes: { 'src/app.ts': 'before-dirty-hash' },
     });
     queueWorkspaceFingerprint({
-      workingPaths: ['src/app.ts'],
+      statusRecords: [trackedStatusRecord('src/app.ts')],
       workingHashes: { 'src/app.ts': 'after-dirty-hash' },
     });
 
@@ -299,6 +405,67 @@ describe('runAutopilot', () => {
         expect.objectContaining({ toolName: 'shell.exec', toolIntent: 'INFRA' }),
       ]),
     );
+  });
+
+  it('marks the workspace as mutated when only status metadata changes for an already-dirty path', async () => {
+    const { runAutopilot } = await import('../../../../../src/core/grizzco/steps/autopilot.js');
+    const statusOutputs = [
+      `${trackedStatusRecord('script.sh')}\0`,
+      `${trackedStatusRecord('script.sh', { mW: '100755' })}\0`,
+    ];
+    let hashCalls = 0;
+    let statusCalls = 0;
+
+    hoisted.gitExecMeta.mockImplementation(async (args: string[]) => {
+      if (args[0] === 'rev-parse' && args[1] === 'HEAD') {
+        return okGitMetaResult('head\n');
+      }
+      if (args[0] === 'write-tree') {
+        return okGitMetaResult('index\n');
+      }
+      if (args[0] === 'status' && args[1] === '--porcelain=v2') {
+        const output = statusOutputs[statusCalls] ?? statusOutputs[statusOutputs.length - 1] ?? '';
+        statusCalls += 1;
+        return okGitMetaResult(output);
+      }
+      if (args[0] === 'hash-object') {
+        hashCalls += 1;
+        return okGitMetaResult('same-content-hash\n');
+      }
+      throw new Error(`Unexpected git args: ${args.join(' ')}`);
+    });
+
+    const llm = {
+      chat: mock(async () => ({ role: 'assistant', content: 'fallback' })),
+      getModelId: () => 'gpt-test',
+    } as any;
+
+    const result = await runAutopilot({
+      options: {
+        instruction: 'inspect the repo and act',
+        llm,
+      },
+      workspace: {
+        baseRepoPath: '/repo',
+        workPath: '/repo',
+        strategy: 'direct',
+      },
+      toolstack: {
+        registry: { listAll: () => [] },
+        policy: { decide: () => ({ allowed: true }) },
+        router: {},
+      },
+      emit: () => {},
+      fs: {} as any,
+      fileStateResolver: {} as any,
+      shadowInitialRef: 'shadow',
+      artifactHints: {},
+      toolCallingAudit: [],
+    } as any);
+
+    expect(result.mutated).toBe(true);
+    expect(hashCalls).toBeGreaterThan(0);
+    expect(statusCalls).toBe(2);
   });
 
   it('fails closed when bounded workspace sampling truncates stdout', async () => {
@@ -357,8 +524,10 @@ describe('runAutopilot', () => {
   it('preserves whitespace-sensitive dirty paths when hashing workspace entries', async () => {
     const { runAutopilot } = await import('../../../../../src/core/grizzco/steps/autopilot.js');
     const hashedPaths: string[] = [];
-    const modifiedOutputs = [' leading and trailing .ts \0', ' leading and trailing .ts \0'];
-    const deletedOutputs = ['', ''];
+    const statusOutputs = [
+      `${trackedStatusRecord(' leading and trailing .ts ')}\0`,
+      `${trackedStatusRecord(' leading and trailing .ts ')}\0`,
+    ];
 
     hoisted.gitExecMeta.mockImplementation(async (args: string[]) => {
       if (args[0] === 'rev-parse' && args[1] === 'HEAD') {
@@ -367,11 +536,8 @@ describe('runAutopilot', () => {
       if (args[0] === 'write-tree') {
         return okGitMetaResult('index\n');
       }
-      if (args[0] === 'ls-files' && args.includes('--modified')) {
-        return okGitMetaResult(modifiedOutputs.shift() ?? '');
-      }
-      if (args[0] === 'ls-files' && args.includes('--deleted')) {
-        return okGitMetaResult(deletedOutputs.shift() ?? '');
+      if (args[0] === 'status' && args[1] === '--porcelain=v2') {
+        return okGitMetaResult(statusOutputs.shift() ?? '');
       }
       if (args[0] === 'hash-object') {
         hashedPaths.push(args[3] ?? '');
@@ -414,8 +580,7 @@ describe('runAutopilot', () => {
 
   it('hashes dirty workspace entries serially', async () => {
     const { runAutopilot } = await import('../../../../../src/core/grizzco/steps/autopilot.js');
-    const modifiedOutputs = ['a.txt\0b.txt\0', ''];
-    const deletedOutputs = ['', ''];
+    const statusOutputs = [`${trackedStatusRecord('a.txt')}\0${trackedStatusRecord('b.txt')}\0`, ''];
     const hashStartOrder: string[] = [];
     let revParseCalls = 0;
     let writeTreeCalls = 0;
@@ -434,11 +599,8 @@ describe('runAutopilot', () => {
         writeTreeCalls += 1;
         return Promise.resolve(okGitMetaResult(`index-${writeTreeCalls}\n`));
       }
-      if (args[0] === 'ls-files' && args.includes('--modified')) {
-        return Promise.resolve(okGitMetaResult(modifiedOutputs.shift() ?? ''));
-      }
-      if (args[0] === 'ls-files' && args.includes('--deleted')) {
-        return Promise.resolve(okGitMetaResult(deletedOutputs.shift() ?? ''));
+      if (args[0] === 'status' && args[1] === '--porcelain=v2') {
+        return Promise.resolve(okGitMetaResult(statusOutputs.shift() ?? ''));
       }
       if (args[0] === 'hash-object' && args[3] === 'a.txt') {
         hashStartOrder.push('a.txt');
