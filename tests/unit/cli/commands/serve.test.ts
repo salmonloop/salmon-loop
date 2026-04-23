@@ -25,6 +25,9 @@ const hoisted = (() => ({
   a2aAgentCards: [] as Array<Record<string, unknown>>,
   acpLoopCalls: [] as Array<Record<string, unknown>>,
   acpAgentConfigs: [] as Array<Record<string, unknown>>,
+  runtimeClose: mock(async () => {}),
+  onceCalls: [] as Array<{ event: string; handler: (...args: any[]) => void }>,
+  processExit: mock((_code?: number) => undefined as never),
   lastRunLoopOptions: undefined as Record<string, unknown> | undefined,
   runLoop: undefined as
     | ((options: { instruction: string; mode: string }) => Promise<unknown>)
@@ -45,7 +48,7 @@ mock.module('../../../../src/core/runtime/agent-server-runtime.js', () => ({
     hoisted.listenCalls.push({ options: config.listen.a2a });
     return {
       start: mock(async () => {}),
-      close: mock(async () => {}),
+      close: hoisted.runtimeClose,
     };
   }),
 }));
@@ -145,7 +148,16 @@ mock.module('../../../../src/cli/authorization/provider.js', () => ({
 }));
 
 describe('handleServeCommand', () => {
+  const originalProcessOnce = process.once.bind(process);
+  const originalProcessOn = process.on.bind(process);
+  const originalStdinDestroy = process.stdin.destroy.bind(process.stdin);
+  const originalProcessExit = process.exit.bind(process);
+
   afterAll(() => {
+    process.once = originalProcessOnce as typeof process.once;
+    process.on = originalProcessOn as typeof process.on;
+    process.stdin.destroy = originalStdinDestroy as typeof process.stdin.destroy;
+    process.exit = originalProcessExit as typeof process.exit;
     mock.restore();
     clearLogger();
   });
@@ -156,6 +168,8 @@ describe('handleServeCommand', () => {
     hoisted.a2aAgentCards.length = 0;
     hoisted.acpLoopCalls.length = 0;
     hoisted.acpAgentConfigs.length = 0;
+    hoisted.onceCalls.length = 0;
+    hoisted.runtimeClose.mockReset();
     hoisted.lastRunLoopOptions = undefined;
     hoisted.runLoop = undefined;
     hoisted.config = createDefaultResolvedConfig();
@@ -164,6 +178,16 @@ describe('handleServeCommand', () => {
     hoisted.logger.info.mockReset();
     hoisted.logger.success.mockReset();
     hoisted.logger.setReporter.mockReset();
+    hoisted.processExit.mockReset();
+    process.once = ((event: string, handler: (...args: any[]) => void) => {
+      hoisted.onceCalls.push({ event, handler });
+      return process;
+    }) as typeof process.once;
+    process.on = ((event: string, handler: (...args: any[]) => void) => {
+      throw new Error(`Unexpected process.on registration for ${event}`);
+    }) as typeof process.on;
+    process.stdin.destroy = mock(() => process.stdin) as typeof process.stdin.destroy;
+    process.exit = hoisted.processExit as typeof process.exit;
   });
 
   it('builds runtime with listen options and starts', async () => {
@@ -383,5 +407,28 @@ describe('handleServeCommand', () => {
     await handleServeCommand({}, command);
 
     expect(hoisted.logger.success).toHaveBeenCalledWith('A2A listening on 127.0.0.1:8081');
+  });
+
+  it('registers a single SIGINT shutdown handler that closes runtime and ACP stdio', async () => {
+    const { handleServeCommand } = await import('../../../../src/cli/commands/serve.js');
+
+    const command: any = {
+      optsWithGlobals: () => ({
+        repo: '/repo',
+        a2aHost: '127.0.0.1',
+        a2aPort: '8081',
+        acpStdio: true,
+      }),
+    };
+
+    await handleServeCommand({}, command);
+
+    expect(hoisted.onceCalls.filter((call) => call.event === 'SIGINT')).toHaveLength(1);
+
+    await hoisted.onceCalls[0]!.handler();
+
+    expect(hoisted.runtimeClose).toHaveBeenCalledTimes(1);
+    expect(process.stdin.destroy).toHaveBeenCalledTimes(1);
+    expect(hoisted.processExit).toHaveBeenCalledWith(0);
   });
 });

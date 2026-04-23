@@ -8,6 +8,8 @@ const hoisted = (() => ({
   acpLoopCalls: [] as Array<Record<string, unknown>>,
   acpAgentConfigs: [] as Array<Record<string, unknown>>,
   agentServerRuntimeCalls: 0,
+  onceCalls: [] as Array<{ event: string; handler: (...args: any[]) => void }>,
+  processExit: mock((_code?: number) => undefined as never),
   config: {
     llm: { api: { baseUrl: undefined, apiKey: undefined } },
     llmOutput: { kinds: [] },
@@ -137,20 +139,40 @@ mock.module('fastify', () => ({
 }));
 
 afterAll(() => {
+  process.once = originalProcessOnce as typeof process.once;
+  process.on = originalProcessOn as typeof process.on;
+  process.stdin.destroy = originalStdinDestroy as typeof process.stdin.destroy;
+  process.exit = originalProcessExit as typeof process.exit;
   mock.restore();
   clearLogger();
 });
+
+const originalProcessOnce = process.once.bind(process);
+const originalProcessOn = process.on.bind(process);
+const originalStdinDestroy = process.stdin.destroy.bind(process.stdin);
+const originalProcessExit = process.exit.bind(process);
 
 beforeEach(() => {
   setLogger(hoisted.logger as any);
   hoisted.acpLoopCalls.length = 0;
   hoisted.acpAgentConfigs.length = 0;
   hoisted.agentServerRuntimeCalls = 0;
+  hoisted.onceCalls.length = 0;
+  hoisted.processExit.mockReset();
   hoisted.logger.error.mockReset();
   hoisted.logger.warn.mockReset();
   hoisted.logger.info.mockReset();
   hoisted.logger.success.mockReset();
   hoisted.logger.setReporter.mockReset();
+  process.once = ((event: string, handler: (...args: any[]) => void) => {
+    hoisted.onceCalls.push({ event, handler });
+    return process;
+  }) as typeof process.once;
+  process.on = ((event: string, handler: (...args: any[]) => void) => {
+    throw new Error(`Unexpected process.on registration for ${event}`);
+  }) as typeof process.on;
+  process.stdin.destroy = mock(() => process.stdin) as typeof process.stdin.destroy;
+  process.exit = hoisted.processExit as typeof process.exit;
 });
 
 describe('handleServeAcpCommand', () => {
@@ -199,6 +221,26 @@ describe('handleServeAcpCommand', () => {
       defaultModeId: 'autopilot',
       defaultPermissionPolicy: 'allow_all',
     });
+  });
+
+  it('registers a single SIGINT shutdown handler for ACP stdio', async () => {
+    const { handleServeAcpCommand } = await import('../../../../src/cli/commands/serve.js');
+
+    const command: any = {
+      optsWithGlobals: () => ({
+        repo: '/repo',
+        color: false,
+      }),
+    };
+
+    await handleServeAcpCommand({}, command);
+
+    expect(hoisted.onceCalls.filter((call) => call.event === 'SIGINT')).toHaveLength(1);
+
+    await hoisted.onceCalls[0]!.handler();
+
+    expect(process.stdin.destroy).toHaveBeenCalledTimes(1);
+    expect(hoisted.processExit).toHaveBeenCalledWith(0);
   });
 });
 

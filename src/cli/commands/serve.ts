@@ -45,6 +45,26 @@ function resolveDefaultAcpPermissionPolicy(
   return permissionMode === 'yolo' ? 'allow_all' : 'ask';
 }
 
+function registerServeShutdown({
+  message,
+  closeRuntime,
+  closeAcpStdio,
+}: {
+  message: string;
+  closeRuntime?: () => Promise<void>;
+  closeAcpStdio?: () => void;
+}) {
+  process.once('SIGINT', async () => {
+    getLogger().info(message);
+    try {
+      await closeRuntime?.();
+    } finally {
+      closeAcpStdio?.();
+      process.exit(0);
+    }
+  });
+}
+
 export function registerServeCommands(program: Command) {
   const serve = program
     .command('serve')
@@ -235,13 +255,6 @@ export async function handleServeCommand(_options: unknown, command: Command) {
       }),
     );
     getLogger().info(text.cli.acpStdioStarted('n/a (stdio)'));
-
-    // Handle SIGINT for graceful shutdown
-    process.on('SIGINT', () => {
-      getLogger().info('Received SIGINT, shutting down ACP server...');
-      process.stdin.destroy();
-      process.exit(0);
-    });
   }
 
   const runtime = createAgentServerRuntime({
@@ -256,10 +269,10 @@ export async function handleServeCommand(_options: unknown, command: Command) {
     },
   });
 
-  // Handle SIGINT for graceful shutdown
-  process.on('SIGINT', () => {
-    getLogger().info('Received SIGINT, shutting down server...');
-    runtime.close().then(() => process.exit(0));
+  registerServeShutdown({
+    message: 'Received SIGINT, shutting down server...',
+    closeRuntime: () => runtime.close(),
+    closeAcpStdio: acpStdioEnabled ? () => void process.stdin.destroy() : undefined,
   });
 
   await runtime.start();
@@ -383,10 +396,8 @@ export async function handleServeAcpCommand(_options: unknown, command: Command)
   );
 
   getLogger().info(text.cli.acpStdioStarted('n/a (stdio)'));
-
-  process.on('SIGINT', () => {
-    getLogger().info('Received SIGINT, shutting down ACP server...');
-    process.stdin.destroy();
-    process.exit(0);
+  registerServeShutdown({
+    message: 'Received SIGINT, shutting down ACP server...',
+    closeAcpStdio: () => void process.stdin.destroy(),
   });
 }
