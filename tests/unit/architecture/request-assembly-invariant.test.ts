@@ -54,6 +54,16 @@ describe('architecture/request-assembly invariant', () => {
     expect(content).toContain('buildSharedRequestEnvelope');
   });
 
+  it('autopilot request composition no longer bypasses the unified composer', async () => {
+    const content = await readFile(
+      join(process.cwd(), 'src/core/grizzco/steps/autopilot.ts'),
+      'utf8',
+    );
+
+    expect(content).toContain('buildAugmentedRequestEnvelope');
+    expect(content).not.toContain('buildSharedRequestEnvelope');
+  });
+
   it('shared request assembly explicitly declares cache-safe request mode', async () => {
     const requestAssembly = await readFile(
       join(process.cwd(), 'src/core/llm/shared-request-assembly.ts'),

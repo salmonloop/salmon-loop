@@ -2,6 +2,7 @@ import { describe, expect, it, mock } from 'bun:test';
 
 import type { ContextResult } from '../../../../../src/core/context/types.js';
 import {
+  buildAugmentedRequestEnvelope,
   buildPhaseRequestEnvelope,
   buildSharedRequestEnvelope,
 } from '../../../../../src/core/grizzco/steps/request-assembly.js';
@@ -55,6 +56,40 @@ const auditEntry: ToolCallingAuditEntry = {
 };
 
 describe('buildPhaseRequestEnvelope', () => {
+  it('delegates through the unified augmented request entry', async () => {
+    const built = await buildAugmentedRequestEnvelope({
+      phase: Phase.PLAN,
+      defaultNamespace: 'plan',
+      context: {
+        ...baseContext,
+        instruction: 'improve request assembly retry prompts',
+      },
+      contextResult: {
+        ...baseContextResult,
+        prompt:
+          'ASSEMBLED_CONTEXT_PROMPT\nAlready surfaced memory path: /repo/docs/summary-sync.md',
+      },
+      systemPrompt: 'system prompt',
+      buildUserPrompt: (contextPrompt) => `USER_PROMPT\n${contextPrompt}`,
+      relevantMemory: {
+        entries: [
+          {
+            path: '/repo/docs/retry-contract.md',
+            title: 'Retry correction contract',
+            summary: 'Structured correction hints for invalid tool arguments and retry loops.',
+          },
+          {
+            path: '/repo/docs/request-assembly.md',
+            title: 'Request assembly memory notes',
+            summary: 'Inject concise relevant memory blocks into assembled prompts.',
+          },
+        ],
+      },
+    });
+
+    expect(built.contextPrompt).toContain('[Relevant memory]');
+  });
+
   it('builds envelope from assembled context prompt and resolves artifact hints from audit', async () => {
     const onMismatch = mock();
 
@@ -177,7 +212,7 @@ describe('buildPhaseRequestEnvelope', () => {
       systemPrompt: 'system prompt',
       buildUserPrompt: (contextPrompt) => `USER_PROMPT\n${contextPrompt}`,
       relevantMemory: {
-        candidates: [
+        entries: [
           {
             path: '/repo/docs/retry-contract.md',
             title: 'Retry correction contract',
@@ -207,6 +242,71 @@ describe('buildPhaseRequestEnvelope', () => {
     expect(lastUserMessage?.content).not.toContain('Summary sync recovery');
     expect(lastUserMessage?.content).not.toContain(
       'Preserve recovery state across compaction boundaries.',
+    );
+  });
+
+  it('suppresses tool-tagged memory that matches the real visible tool set', async () => {
+    const built = await buildAugmentedRequestEnvelope({
+      phase: Phase.AUTOPILOT,
+      defaultNamespace: 'autopilot',
+      context: {
+        ...baseContext,
+        instruction: 'inspect files and keep the prompt concise',
+      },
+      contextResult: baseContextResult,
+      systemPrompt: 'system prompt',
+      buildUserPrompt: (contextPrompt) => `USER_PROMPT\n${contextPrompt}`,
+      relevantMemory: {
+        entries: [
+          {
+            path: '/repo/docs/fs-read-guide.md',
+            title: 'fs.read tool guide',
+            summary: 'Use fs.read to inspect file contents before patching.',
+            tags: ['tool:fs.read'],
+          },
+          {
+            path: '/repo/docs/autopilot-discipline.md',
+            title: 'Autopilot discipline',
+            summary: 'Keep the instruction focused and avoid redundant context.',
+          },
+        ],
+        visibleToolNames: ['fs.read'],
+      },
+    });
+
+    const lastUserMessage = built.baseMessages[built.baseMessages.length - 1];
+    expect(lastUserMessage?.content).toContain('Autopilot discipline');
+    expect(lastUserMessage?.content).not.toContain('fs.read tool guide');
+    expect(lastUserMessage?.content).not.toContain('Use fs.read to inspect file contents');
+  });
+
+  it('injects future unified relevant-memory entries into the phase context prompt', async () => {
+    const built = await buildAugmentedRequestEnvelope({
+      phase: Phase.PLAN,
+      defaultNamespace: 'plan',
+      context: {
+        ...baseContext,
+        instruction: 'route unified request composition through relevant memory injection',
+      },
+      contextResult: baseContextResult,
+      systemPrompt: 'system prompt',
+      buildUserPrompt: (contextPrompt) => `USER_PROMPT\n${contextPrompt}`,
+      relevantMemory: {
+        entries: [
+          {
+            path: '/repo/docs/autopilot-memory.md',
+            title: 'Autopilot request composition',
+            summary: 'Route autopilot requests through unified relevant-memory augmentation.',
+          },
+        ],
+      } as any,
+    });
+
+    const lastUserMessage = built.baseMessages[built.baseMessages.length - 1];
+    expect(lastUserMessage?.content).toContain('[Relevant memory]');
+    expect(lastUserMessage?.content).toContain('/repo/docs/autopilot-memory.md');
+    expect(lastUserMessage?.content).toContain(
+      'Route autopilot requests through unified relevant-memory augmentation.',
     );
   });
 });

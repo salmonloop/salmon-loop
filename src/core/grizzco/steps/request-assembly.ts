@@ -12,12 +12,12 @@ import {
   type SharedRequestEnvelope,
 } from '../../llm/shared-request-assembly.js';
 import { formatContextForPrompt } from '../../llm/utils.js';
+import { augmentPromptWithRelevantMemory } from '../../llm/request-augmentation.js';
 import {
   buildRelevantMemoryCandidates,
   selectRelevantMemory,
   type RelevantMemoryCandidate,
 } from '../../memory/relevant-retrieval.js';
-import { appendRelevantMemoryToContextPrompt } from '../../prompts/runtime.js';
 import type { Context } from '../../types/context.js';
 import type { LLMMessage, LLMProviderHints } from '../../types/llm.js';
 import type { ExecutionPhase } from '../../types/runtime.js';
@@ -28,10 +28,11 @@ import {
   type CacheSharingSurface,
 } from './cache-sharing.js';
 
-export interface BuildPhaseRequestEnvelopeArgs {
+export interface BuildAugmentedRequestEnvelopeArgs {
   phase: ExecutionPhase;
   defaultNamespace: string;
   context: Context;
+  baseContextPrompt?: string;
   contextResult?: ContextResult;
   cacheSharing?: {
     namespace?: string;
@@ -48,11 +49,15 @@ export interface BuildPhaseRequestEnvelopeArgs {
   extraAttachments?: RequestAttachment[];
   providerHints?: LLMProviderHints;
   relevantMemory?: {
-    candidates?: RelevantMemoryCandidate[];
-    activeToolNames?: string[];
+    entries?: RelevantMemoryCandidate[];
+    visibleToolNames?: string[];
     maxItems?: number;
+    budgetTokens?: number;
+    countTokens?: (text: string) => number;
   };
 }
+
+export type BuildPhaseRequestEnvelopeArgs = BuildAugmentedRequestEnvelopeArgs;
 
 export interface PhaseRequestEnvelope {
   contextPrompt: string;
@@ -69,10 +74,11 @@ export function buildSharedRequestEnvelope(
   return buildSharedRequestEnvelopeCore(args);
 }
 
-export async function buildPhaseRequestEnvelope(
-  args: BuildPhaseRequestEnvelopeArgs,
+export async function buildAugmentedRequestEnvelope(
+  args: BuildAugmentedRequestEnvelopeArgs,
 ): Promise<PhaseRequestEnvelope> {
-  const baseContextPrompt = args.contextResult?.prompt ?? formatContextForPrompt(args.context);
+  const baseContextPrompt =
+    args.baseContextPrompt ?? args.contextResult?.prompt ?? formatContextForPrompt(args.context);
   const localContextHash = args.contextResult?.meta?.contextHash ?? args.context.contextHash;
   const cacheSurface = resolveCacheSharingSurface({
     phase: args.phase,
@@ -84,8 +90,8 @@ export async function buildPhaseRequestEnvelope(
   });
   const relevantMemory = selectRelevantMemory({
     instruction: args.context.instruction,
-    candidates: args.relevantMemory?.candidates ?? buildRelevantMemoryCandidates(args.context),
-    activeToolNames: args.relevantMemory?.activeToolNames,
+    candidates: args.relevantMemory?.entries ?? buildRelevantMemoryCandidates(args.context),
+    activeToolNames: args.relevantMemory?.visibleToolNames,
     maxItems: args.relevantMemory?.maxItems,
     alreadySurfacedText: [
       baseContextPrompt,
@@ -93,7 +99,12 @@ export async function buildPhaseRequestEnvelope(
       ...(args.conversationContext ?? []).map((message) => message.content),
     ],
   });
-  const contextPrompt = appendRelevantMemoryToContextPrompt(baseContextPrompt, relevantMemory);
+  const contextPrompt = augmentPromptWithRelevantMemory({
+    basePrompt: baseContextPrompt,
+    selectedEntries: relevantMemory,
+    budgetTokens: args.relevantMemory?.budgetTokens,
+    countTokens: args.relevantMemory?.countTokens,
+  }).prompt;
   const userPrompt = await args.buildUserPrompt(contextPrompt);
   const shared = buildSharedRequestEnvelope({
     defaultNamespace: cacheSurface.namespace,
@@ -125,4 +136,10 @@ export async function buildPhaseRequestEnvelope(
     envelope: shared.envelope,
     baseMessages: shared.baseMessages,
   };
+}
+
+export async function buildPhaseRequestEnvelope(
+  args: BuildPhaseRequestEnvelopeArgs,
+): Promise<PhaseRequestEnvelope> {
+  return buildAugmentedRequestEnvelope(args);
 }

@@ -10,6 +10,7 @@ import { readPlan, updatePlan } from '../../plan/index.js';
 import { getPlanPrompt, getPlanSystemPrompt } from '../../prompts/runtime.js';
 import { SessionReplacementPreviewProvider } from '../../session/replacement-preview-provider.js';
 import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
+import { resolveVisibleToolSpecs } from '../../tools/tool-visibility.js';
 import type { Plan } from '../../types/planning.js';
 import { Phase } from '../../types/runtime.js';
 import { resolveLlmToolCallingPolicy } from '../dsl/llm-strategy.js';
@@ -17,7 +18,7 @@ import { Step } from '../engine/pipeline/pipeline.js';
 import { ContextCtx, PlanCtx } from '../engine/pipeline/types.js';
 
 import { buildPhaseRequestEnvelope } from './request-assembly.js';
-import { buildPhaseToolRuntimeContext } from './tool-runtime.js';
+import { buildPhaseToolRuntimeContext, buildToolVisibilityRuntime } from './tool-runtime.js';
 
 function sanitizeSubtaskText(raw: string): string | null {
   const oneLine = String(raw ?? '')
@@ -163,17 +164,16 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
     };
   }
 
-  const promptVisibleTools = toolstack
-    ? toolstack.registry.listAll().filter(
-        (spec) =>
-          toolstack.policy.decide(Phase.PLAN, spec, {
-            worktreeRoot:
-              ctx.workspace.strategy === 'worktree' ? ctx.workspace.workPath : undefined,
-          }).allowed,
-      )
-    : undefined;
+  const toolVisibility = buildToolVisibilityRuntime(ctx);
+  const promptVisibleTools = resolveVisibleToolSpecs({
+    phase: Phase.PLAN,
+    toolstack,
+    worktreeRoot: ctx.workspace.strategy === 'worktree' ? ctx.workspace.workPath : undefined,
+    flowMode: ctx.mode,
+    runtime: toolVisibility,
+  });
 
-  const systemPrompt = await getPlanSystemPrompt(promptVisibleTools, { plan: ctx.planRuntime });
+  const systemPrompt = await getPlanSystemPrompt(promptVisibleTools, toolVisibility);
   const requestEnvelope = await buildPhaseRequestEnvelope({
     phase: Phase.PLAN,
     defaultNamespace: 'plan',
@@ -195,6 +195,9 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
     artifactHints: ctx.artifactHints,
     toolCallingAudit: ctx.toolCallingAudit,
     previewProvider: new SessionReplacementPreviewProvider(ctx.replacementState),
+    relevantMemory: {
+      visibleToolNames: promptVisibleTools.map((spec) => spec.name),
+    },
   });
   const { cacheSurface, envelope, baseMessages } = requestEnvelope;
 
@@ -216,6 +219,7 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
       phase: Phase.PLAN,
       llm: ctx.options.llm,
       runtime: buildPhaseToolRuntimeContext(ctx, Phase.PLAN, cacheSurface),
+      toolVisibility,
       toolstack,
       eventPayload: ctx.options.eventPayload,
       toolCallingAudit: {

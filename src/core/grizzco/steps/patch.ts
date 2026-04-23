@@ -2,6 +2,7 @@ import { repairToUnifiedDiff } from '../../llm/contracts/repair.js';
 import { emitLlmOutput } from '../../llm/output-policy.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
 import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
+import { resolveVisibleToolSpecs } from '../../tools/tool-visibility.js';
 import { Phase } from '../../types/runtime.js';
 import { resolveLlmToolCallingPolicy } from '../dsl/llm-strategy.js';
 import { Step } from '../engine/pipeline/pipeline.js';
@@ -11,7 +12,7 @@ import { checkPatchApplies } from './patch/apply-check.js';
 import { extractAndValidatePatch, type ValidatedPatchDiff } from './patch/diff-normalization.js';
 import { salvagePatchDiff } from './patch/diff-salvage.js';
 import { buildPatchPromptInput } from './patch/prompt-input.js';
-import { buildPhaseToolRuntimeContext } from './tool-runtime.js';
+import { buildPhaseToolRuntimeContext, buildToolVisibilityRuntime } from './tool-runtime.js';
 
 const recordPatchSalvageAttempt = (args: { reason: string; badContentLength: number }) => {
   recordAuditEvent(
@@ -81,15 +82,14 @@ export const generatePatch: Step<PlanCtx, PatchCtx> = async (ctx) => {
     };
   }
 
-  const promptVisibleTools = toolstack
-    ? toolstack.registry.listAll().filter(
-        (spec) =>
-          toolstack.policy.decide(Phase.PATCH, spec, {
-            worktreeRoot:
-              ctx.workspace.strategy === 'worktree' ? ctx.workspace.workPath : undefined,
-          }).allowed,
-      )
-    : undefined;
+  const toolVisibility = buildToolVisibilityRuntime(ctx);
+  const promptVisibleTools = resolveVisibleToolSpecs({
+    phase: Phase.PATCH,
+    toolstack,
+    worktreeRoot: ctx.workspace.strategy === 'worktree' ? ctx.workspace.workPath : undefined,
+    flowMode: ctx.mode,
+    runtime: toolVisibility,
+  });
 
   const patchPromptInput = await buildPatchPromptInput({
     context: ctx.context,
@@ -98,6 +98,7 @@ export const generatePatch: Step<PlanCtx, PatchCtx> = async (ctx) => {
     planRuntime: ctx.planRuntime,
     lastError: ctx.lastError,
     promptVisibleTools,
+    visibleToolNames: promptVisibleTools.map((spec) => spec.name),
     phase: Phase.PATCH,
     cacheSharing: ctx.cacheSharing,
     onCacheMismatch: (mismatch) => {
@@ -131,6 +132,7 @@ export const generatePatch: Step<PlanCtx, PatchCtx> = async (ctx) => {
       phase: Phase.PATCH,
       llm: ctx.options.llm,
       runtime: buildPhaseToolRuntimeContext(ctx, Phase.PATCH, cacheSurface),
+      toolVisibility,
       toolstack,
       eventPayload: ctx.options.eventPayload,
       toolCallingAudit: {

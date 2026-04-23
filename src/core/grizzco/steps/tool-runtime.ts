@@ -2,6 +2,7 @@ import {
   buildSystemPrefixDigest,
   buildToolSchemaHash,
 } from '../../sub-agent/prefix-consistency.js';
+import type { ToolVisibilityRuntime } from '../../tools/tool-visibility.js';
 import type { ToolRuntimeCtx } from '../../tools/types.js';
 import type { ExecutionPhase } from '../../types/runtime.js';
 import type { ContextCtx } from '../engine/pipeline/types.js';
@@ -58,5 +59,22 @@ export function buildPhaseToolRuntimeContext(
         }),
       },
     },
+  };
+}
+
+export function buildToolVisibilityRuntime(
+  ctx: {
+    planRuntime?: {
+      sessionId: string;
+      planPathHint: string;
+    };
+  },
+): ToolVisibilityRuntime | undefined {
+  if (!ctx.planRuntime) {
+    return undefined;
+  }
+
+  return {
+    plan: ctx.planRuntime,
   };
 }

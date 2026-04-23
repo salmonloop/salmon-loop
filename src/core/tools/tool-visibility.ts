@@ -1,10 +1,21 @@
 import { Phase, type ExecutionPhase } from '../types/runtime.js';
 
-import type { ToolSpec } from './types.js';
+import type { ToolRuntimeCtx, ToolSpec } from './types.js';
 
 export type ToolVisibilityRuntime = {
   plan?: { sessionId: string; planPathHint: string };
 };
+
+export interface VisibleToolstackLike {
+  registry: { listAll(): ToolSpec[] };
+  policy: {
+    decide(
+      phase: ExecutionPhase,
+      spec: ToolSpec,
+      ctx: Pick<ToolRuntimeCtx, 'worktreeRoot' | 'flowMode'>,
+    ): { allowed: boolean };
+  };
+}
 
 const PLAN_RUNTIME_TOOL_NAMES = new Set(['plan.read', 'plan.update']);
 const PATCH_VISIBLE_TOOL_NAMES = new Set(['fs.read', 'code.search']);
@@ -62,4 +73,37 @@ export function resolvePhaseVisibleTools(params: {
     return resolveAutopilotVisibleTools(params.tools, params.runtime);
   }
   return params.tools;
+}
+
+export function resolveVisibleToolSpecs(params: {
+  phase: ExecutionPhase;
+  toolstack?: VisibleToolstackLike;
+  worktreeRoot?: ToolRuntimeCtx['worktreeRoot'];
+  flowMode?: ToolRuntimeCtx['flowMode'];
+  runtime?: ToolVisibilityRuntime;
+}): ToolSpec[] {
+  if (!params.toolstack) return [];
+
+  const allowedSpecs = params.toolstack.registry.listAll().filter((spec) =>
+    params.toolstack!.policy.decide(params.phase, spec, {
+      worktreeRoot: params.worktreeRoot,
+      flowMode: params.flowMode,
+    }).allowed,
+  );
+
+  return resolvePhaseVisibleTools({
+    phase: params.phase,
+    tools: allowedSpecs,
+    runtime: params.runtime,
+  });
+}
+
+export function resolveVisibleToolNames(params: {
+  phase: ExecutionPhase;
+  toolstack?: VisibleToolstackLike;
+  worktreeRoot?: ToolRuntimeCtx['worktreeRoot'];
+  flowMode?: ToolRuntimeCtx['flowMode'];
+  runtime?: ToolVisibilityRuntime;
+}): string[] {
+  return resolveVisibleToolSpecs(params).map((spec) => spec.name);
 }

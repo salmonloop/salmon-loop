@@ -323,6 +323,55 @@ describe('runAutopilot', () => {
     );
   });
 
+  it('injects relevant memory into the real autopilot request path', async () => {
+    const { runAutopilot } = await import('../../../../../src/core/grizzco/steps/autopilot.js');
+    queueWorkspaceFingerprint({ statusRecords: [] });
+    queueWorkspaceFingerprint({ statusRecords: [] });
+
+    const llm = {
+      chat: mock(async () => ({ role: 'assistant', content: 'fallback' })),
+      getModelId: () => 'gpt-test',
+    } as any;
+
+    await runAutopilot({
+      context: {
+        repoPath: '/repo',
+        instruction: 'create smoke.txt with autopilot smoke',
+        contextHash: 'ctx-autopilot',
+        rgSnippets: [],
+        knowledgeBase: {
+          project_rules: ['Prefer direct file creation for smoke tasks.'],
+        },
+      },
+      options: {
+        instruction: 'create smoke.txt with autopilot smoke',
+        llm,
+      },
+      workspace: {
+        baseRepoPath: '/repo',
+        workPath: '/repo',
+        strategy: 'worktree',
+      },
+      toolstack: {
+        registry: { listAll: () => [] },
+        policy: { decide: () => ({ allowed: true }) },
+        router: {},
+      },
+      emit: () => {},
+      fs: {} as any,
+      fileStateResolver: {} as any,
+      shadowInitialRef: 'shadow',
+      artifactHints: {},
+      toolCallingAudit: [],
+    } as any);
+
+    const firstCallMessages = hoisted.chatWithTools.mock.calls.at(-1)?.[0];
+    expect(firstCallMessages.at(-1)?.content).toContain('[Relevant memory]');
+    expect(firstCallMessages.at(-1)?.content).toContain(
+      'Prefer direct file creation for smoke tasks.',
+    );
+  });
+
   it('keeps mutated false when workspace status is unchanged after tool execution', async () => {
     const { runAutopilot } = await import('../../../../../src/core/grizzco/steps/autopilot.js');
     queueWorkspaceFingerprint({ statusRecords: [] });

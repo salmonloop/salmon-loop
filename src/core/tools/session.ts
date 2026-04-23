@@ -27,7 +27,10 @@ import { ParallelScheduler } from './parallel/scheduler.js';
 import { isRecoverableToolInputErrorCode } from './recoverable-tool-errors.js';
 import type { ToolRouter } from './router.js';
 import { ToolCallAccumulator } from './streaming/ToolCallAccumulator.js';
-import { resolvePhaseVisibleTools, type ToolVisibilityRuntime } from './tool-visibility.js';
+import {
+  resolveVisibleToolSpecs,
+  type ToolVisibilityRuntime,
+} from './tool-visibility.js';
 import type { ToolCallEnvelope, ToolRuntimeCtx, ToolResult, ToolSpec } from './types.js';
 
 interface ToolstackLike {
@@ -768,17 +771,12 @@ function resolveToolCallingForSession(params: {
   phase: ExecutionPhase;
   messages: LLMMessage[];
 }): ResolvedToolCalling {
-  const allowedSpecs = params.session.toolstack.registry.listAll().filter((spec) => {
-    return params.session.toolstack.policy.decide(params.phase, spec, {
-      worktreeRoot: params.session.runtime.worktreeRoot,
-      flowMode: params.session.runtime.flowMode,
-    }).allowed;
-  });
-
   const visibilityRuntime = resolveToolVisibilityRuntime(params.session, params.messages);
-  const visibleSpecs = resolvePhaseVisibleTools({
+  const visibleSpecs = resolveVisibleToolSpecs({
     phase: params.phase,
-    tools: allowedSpecs,
+    toolstack: params.session.toolstack,
+    worktreeRoot: params.session.runtime.worktreeRoot,
+    flowMode: params.session.runtime.flowMode,
     runtime: visibilityRuntime,
   });
 

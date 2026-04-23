@@ -9,13 +9,15 @@ import { emitLlmOutput } from '../../llm/output-policy.js';
 import { getAutopilotSystemPrompt } from '../../prompts/runtime.js';
 import { SessionReplacementPreviewProvider } from '../../session/replacement-preview-provider.js';
 import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
+import { resolveVisibleToolNames } from '../../tools/tool-visibility.js';
+import type { Context } from '../../types/context.js';
 import type { LLM } from '../../types/index.js';
 import { Phase } from '../../types/runtime.js';
 import { resolveLlmToolCallingPolicy } from '../dsl/llm-strategy.js';
 import type { AutopilotCtx, PreflightCtx } from '../engine/pipeline/types.js';
 
-import { buildPhaseToolRuntimeContext } from './tool-runtime.js';
-import { buildSharedRequestEnvelope } from './request-assembly.js';
+import { buildPhaseToolRuntimeContext, buildToolVisibilityRuntime } from './tool-runtime.js';
+import { buildAugmentedRequestEnvelope } from './request-assembly.js';
 import { executeVerifyForWorkspace } from './verify-shared.js';
 
 const AUTOPILOT_TOOL_PHASE = Phase.AUTOPILOT;
@@ -286,6 +288,20 @@ function collectChangedWorkspacePaths(
     .sort((left, right) => left.localeCompare(right));
 }
 
+function buildAutopilotRequestContext(ctx: PreflightCtx, instruction: string): Context {
+  const maybeContext = (ctx as PreflightCtx & { context?: Context }).context;
+  if (maybeContext?.repoPath && Array.isArray(maybeContext.rgSnippets)) {
+    return maybeContext;
+  }
+
+  return {
+    repoPath: ctx.workspace.workPath,
+    instruction,
+    contextHash: `autopilot:${ctx.workspace.workPath}`,
+    rgSnippets: [],
+  };
+}
+
 export async function runAutopilot(ctx: PreflightCtx): Promise<AutopilotCtx> {
   const instruction = String(ctx.options.instruction ?? '').trim();
   if (!instruction) {
@@ -296,14 +312,28 @@ export async function runAutopilot(ctx: PreflightCtx): Promise<AutopilotCtx> {
     };
   }
 
-  const shared = buildSharedRequestEnvelope({
+  const toolVisibility = buildToolVisibilityRuntime(ctx);
+  const requestContext = buildAutopilotRequestContext(ctx, instruction);
+  const shared = await buildAugmentedRequestEnvelope({
+    phase: AUTOPILOT_TOOL_PHASE,
     defaultNamespace: 'autopilot',
     systemPrompt: await getAutopilotSystemPrompt(),
-    userPrompt: instruction,
+    context: requestContext,
+    baseContextPrompt: instruction,
+    buildUserPrompt: async (contextPrompt) => contextPrompt,
     conversationContext: ctx.options.conversationContext,
     artifactHints: ctx.artifactHints,
     toolCallingAudit: ctx.toolCallingAudit,
     previewProvider: new SessionReplacementPreviewProvider(ctx.replacementState),
+    relevantMemory: {
+      visibleToolNames: resolveVisibleToolNames({
+        phase: AUTOPILOT_TOOL_PHASE,
+        toolstack: ctx.toolstack,
+        worktreeRoot: ctx.workspace.strategy === 'worktree' ? ctx.workspace.workPath : undefined,
+        flowMode: ctx.mode,
+        runtime: toolVisibility,
+      }),
+    },
   });
 
   const llmClient: LLM = ctx.options.llm;
@@ -334,6 +364,7 @@ export async function runAutopilot(ctx: PreflightCtx): Promise<AutopilotCtx> {
           phase: AUTOPILOT_TOOL_PHASE,
           llm: llmClient,
           runtime: buildPhaseToolRuntimeContext(ctx, AUTOPILOT_TOOL_PHASE, shared.cacheSurface),
+          toolVisibility,
           toolstack: ctx.toolstack!,
           eventPayload: ctx.options.eventPayload,
           toolCallingAudit: {

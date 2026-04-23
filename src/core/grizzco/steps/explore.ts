@@ -5,6 +5,7 @@ import { recordAuditEvent } from '../../observability/audit-trail.js';
 import { getExplorePrompt, getExploreSystemPrompt } from '../../prompts/runtime.js';
 import { SessionReplacementPreviewProvider } from '../../session/replacement-preview-provider.js';
 import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
+import { resolveVisibleToolNames } from '../../tools/tool-visibility.js';
 import { type RelatedFileContext } from '../../types/context.js';
 import { SalmonError } from '../../types/errors.js';
 import { Phase } from '../../types/runtime.js';
@@ -15,7 +16,7 @@ import { ContextCtx, ExploreCtx } from '../engine/pipeline/types.js';
 import { ContextValidator } from '../validation/ContextValidator.js';
 
 import { buildPhaseRequestEnvelope } from './request-assembly.js';
-import { buildPhaseToolRuntimeContext } from './tool-runtime.js';
+import { buildPhaseToolRuntimeContext, buildToolVisibilityRuntime } from './tool-runtime.js';
 
 const SAFE_INFERRED_EXTENSIONS = new Set([
   '.ts',
@@ -145,6 +146,7 @@ export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
   };
 
   const localAudit: any[] = [];
+  const toolVisibility = buildToolVisibilityRuntime(ctx);
   const requestEnvelope = await buildPhaseRequestEnvelope({
     phase: Phase.EXPLORE,
     defaultNamespace: 'explore',
@@ -166,6 +168,15 @@ export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
     artifactHints: ctx.artifactHints,
     toolCallingAudit: ctx.toolCallingAudit,
     previewProvider: new SessionReplacementPreviewProvider(ctx.replacementState),
+    relevantMemory: {
+      visibleToolNames: resolveVisibleToolNames({
+        phase: Phase.EXPLORE,
+        toolstack,
+        worktreeRoot: ctx.workspace.strategy === 'worktree' ? ctx.workspace.workPath : undefined,
+        flowMode: ctx.mode,
+        runtime: toolVisibility,
+      }),
+    },
   });
   const { cacheSurface, envelope, baseMessages } = requestEnvelope;
 
@@ -179,6 +190,7 @@ export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
       phase: Phase.EXPLORE,
       llm: ctx.options.llm,
       runtime: buildPhaseToolRuntimeContext(ctx, Phase.EXPLORE, cacheSurface),
+      toolVisibility,
       toolstack: proxiedToolstack,
       eventPayload: ctx.options.eventPayload,
       toolCallingAudit: {

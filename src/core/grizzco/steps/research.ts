@@ -4,6 +4,7 @@ import { recordAuditEvent } from '../../observability/audit-trail.js';
 import { getResearchPrompt, getResearchSystemPrompt } from '../../prompts/runtime.js';
 import { SessionReplacementPreviewProvider } from '../../session/replacement-preview-provider.js';
 import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
+import { resolveVisibleToolNames } from '../../tools/tool-visibility.js';
 import { Phase } from '../../types/runtime.js';
 import { resolveLlmToolCallingPolicy } from '../dsl/llm-strategy.js';
 import type {
@@ -14,7 +15,7 @@ import type {
 } from '../engine/pipeline/types.js';
 
 import { buildPhaseRequestEnvelope } from './request-assembly.js';
-import { buildPhaseToolRuntimeContext } from './tool-runtime.js';
+import { buildPhaseToolRuntimeContext, buildToolVisibilityRuntime } from './tool-runtime.js';
 
 type ResearchResponse = {
   researchNotes?: unknown;
@@ -102,6 +103,7 @@ function buildSourcesFromAudit(
 
 export async function generateResearch(ctx: ExploreCtx): Promise<ResearchCtx> {
   const systemPrompt = await getResearchSystemPrompt();
+  const toolVisibility = buildToolVisibilityRuntime(ctx);
   const requestEnvelope = await buildPhaseRequestEnvelope({
     phase: Phase.RESEARCH,
     defaultNamespace: 'research',
@@ -123,6 +125,15 @@ export async function generateResearch(ctx: ExploreCtx): Promise<ResearchCtx> {
     artifactHints: ctx.artifactHints,
     toolCallingAudit: ctx.toolCallingAudit,
     previewProvider: new SessionReplacementPreviewProvider(ctx.replacementState),
+    relevantMemory: {
+      visibleToolNames: resolveVisibleToolNames({
+        phase: Phase.RESEARCH,
+        toolstack: ctx.toolstack,
+        worktreeRoot: ctx.workspace.strategy === 'worktree' ? ctx.workspace.workPath : undefined,
+        flowMode: ctx.mode,
+        runtime: toolVisibility,
+      }),
+    },
   });
   const { cacheSurface, envelope, baseMessages } = requestEnvelope;
 
@@ -178,6 +189,7 @@ export async function generateResearch(ctx: ExploreCtx): Promise<ResearchCtx> {
       phase: Phase.RESEARCH,
       llm: ctx.options.llm,
       runtime: buildPhaseToolRuntimeContext(ctx, Phase.RESEARCH, cacheSurface),
+      toolVisibility,
       toolstack: ctx.toolstack,
       eventPayload: ctx.options.eventPayload,
       toolCallingAudit: {

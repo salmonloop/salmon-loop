@@ -31,6 +31,7 @@ export interface BuildPatchPromptInputArgs {
   replacementState?: ToolResultReplacementState;
   toolCallingAudit?: ToolCallingAuditEntry[];
   promptVisibleTools?: Parameters<typeof getPatchSystemPrompt>[0];
+  visibleToolNames?: string[];
   onCacheMismatch?: (mismatch: CacheSharingMismatch) => void;
 }
 
@@ -69,6 +70,9 @@ export async function buildPatchPromptInput(
     artifactHints: args.artifactHints,
     previewProvider: new SessionReplacementPreviewProvider(args.replacementState),
     toolCallingAudit: args.toolCallingAudit,
+    relevantMemory: {
+      visibleToolNames: args.visibleToolNames,
+    },
     extraAttachments: [
       {
         key: 'plan-json',
