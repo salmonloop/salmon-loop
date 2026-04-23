@@ -1510,27 +1510,22 @@ async function executeToolCalls(
     session.toolCallingAudit?.event(parsedAuditEntry);
 
     if (planUpdatePatchError) {
-      toolResults.set(callId, {
-        id: callId,
-        toolName,
-        source: 'builtin',
-        status: 'error',
-        meta: {
-          retryHint: {
-            kind: 'adjust_arguments',
-            tool: toolName,
-            hint: planUpdatePatchError,
+      toolResults.set(
+        callId,
+        normalizeRecoverableToolResult({
+          id: callId,
+          toolName,
+          source: 'builtin',
+          status: 'error',
+          error: {
+            code: 'INVALID_INPUT',
+            message: planUpdatePatchError,
             retryable: true,
-          } satisfies ToolCorrectionHint,
-        },
-        error: {
-          code: 'INVALID_INPUT',
-          message: planUpdatePatchError,
-          retryable: true,
-          failurePhase: phase,
-        },
-        durationMs: 0,
-      });
+            failurePhase: phase,
+          },
+          durationMs: 0,
+        }),
+      );
       continue;
     }
 
