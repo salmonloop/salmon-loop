@@ -6,6 +6,7 @@ import { lstat, readlink } from '../../adapters/fs/node-fs.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { LIMITS } from '../../config/limits.js';
 import { emitLlmOutput } from '../../llm/output-policy.js';
+import { getAutopilotSystemPrompt } from '../../prompts/runtime.js';
 import { SessionReplacementPreviewProvider } from '../../session/replacement-preview-provider.js';
 import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
 import type { LLM } from '../../types/index.js';
@@ -26,22 +27,6 @@ const GIT_HASH_OUTPUT_LIMITS = {
   maxStdoutBytes: 256,
   maxStderrChars: 4_096,
 } as const;
-
-function buildAutopilotSystemPrompt(): string {
-  return [
-    'You are a coding assistant running in "autopilot" mode.',
-    'Drive the task forward autonomously and answer in the same language as the user.',
-    'Use the repository context available in the current turn when present.',
-    'If no repository action is possible yet, explain the next best action succinctly.',
-    'Prefer taking a reasonable repository action over asking the user for confirmation.',
-    'Treat simple repo-relative paths like "smoke.txt", "README.md", or "src/index.ts" as valid paths from the repository root.',
-    'Do not ask the user to validate a path that is already a valid relative path or can be inferred directly from the instruction.',
-    'Use interaction.ask_user only when the task is genuinely ambiguous and you cannot safely infer the next action.',
-    'When calling interaction.ask_user, the arguments MUST be valid JSON with exactly this shape: {"questions":[{"header":"Short header","question":"One clear question","options":[{"label":"Option 1","description":"Why pick it"},{"label":"Option 2","description":"Why pick it"}],"multiSelect":false}]}.',
-    'Do not call interaction.ask_user with free-form strings, a single question field, string-only options, or empty options arrays.',
-    'For simple file creation or edits, call fs.write_file directly with {"file":"relative/path.ext","content":"..."} instead of asking the user for the path again.',
-  ].join('\n');
-}
 
 type WorkspaceFingerprint = {
   head: string;
@@ -313,7 +298,7 @@ export async function runAutopilot(ctx: PreflightCtx): Promise<AutopilotCtx> {
 
   const shared = buildSharedRequestEnvelope({
     defaultNamespace: 'autopilot',
-    systemPrompt: buildAutopilotSystemPrompt(),
+    systemPrompt: await getAutopilotSystemPrompt(),
     userPrompt: instruction,
     conversationContext: ctx.options.conversationContext,
     artifactHints: ctx.artifactHints,

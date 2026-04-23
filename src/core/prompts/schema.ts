@@ -19,3 +19,12 @@ export interface PatchPromptVars {
   targetFiles?: string;
   lastError?: string;
 }
+
+export interface ResearchPromptVars {
+  context: string;
+  instruction: string;
+}
+
+export interface ReviewPromptVars {
+  contextJson: string;
+}

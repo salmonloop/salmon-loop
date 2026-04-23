@@ -7,7 +7,13 @@ import { readFile } from '../adapters/fs/node-fs.js';
 import type { ReflectionInput } from '../reflection/types.js';
 import type { ToolSpec } from '../tools/types.js';
 
-import type { ExplorePromptVars, PatchPromptVars, PlanPromptVars } from './schema.js';
+import type {
+  ExplorePromptVars,
+  PatchPromptVars,
+  PlanPromptVars,
+  ResearchPromptVars,
+  ReviewPromptVars,
+} from './schema.js';
 
 const TEMPLATE_URLS: Record<string, URL> = {
   'system/_tool_defs.hbs': new URL('./templates/system/_tool_defs.hbs', import.meta.url),
@@ -20,9 +26,20 @@ const TEMPLATE_URLS: Record<string, URL> = {
   'system/plan_system.hbs': new URL('./templates/system/plan_system.hbs', import.meta.url),
   'system/reflection.hbs': new URL('./templates/system/reflection.hbs', import.meta.url),
   'system/patch_system.hbs': new URL('./templates/system/patch_system.hbs', import.meta.url),
+  'system/autopilot_system.hbs': new URL(
+    './templates/system/autopilot_system.hbs',
+    import.meta.url,
+  ),
+  'system/answer_system.hbs': new URL('./templates/system/answer_system.hbs', import.meta.url),
+  'system/research_system.hbs': new URL(
+    './templates/system/research_system.hbs',
+    import.meta.url,
+  ),
   'phases/explore_user.hbs': new URL('./templates/phases/explore_user.hbs', import.meta.url),
   'phases/plan_user.hbs': new URL('./templates/phases/plan_user.hbs', import.meta.url),
   'phases/patch_user.hbs': new URL('./templates/phases/patch_user.hbs', import.meta.url),
+  'phases/research_user.hbs': new URL('./templates/phases/research_user.hbs', import.meta.url),
+  'phases/review_user.hbs': new URL('./templates/phases/review_user.hbs', import.meta.url),
 };
 
 export class PromptRegistry {
@@ -47,10 +64,15 @@ export class PromptRegistry {
       await this.loadTemplate('explore_system', 'system/explore_system.hbs');
       await this.loadTemplate('plan_system', 'system/plan_system.hbs');
       await this.loadTemplate('patch_system', 'system/patch_system.hbs');
+      await this.loadTemplate('autopilot_system', 'system/autopilot_system.hbs');
+      await this.loadTemplate('answer_system', 'system/answer_system.hbs');
+      await this.loadTemplate('research_system', 'system/research_system.hbs');
       await this.loadTemplate('reflection', 'system/reflection.hbs');
       await this.loadTemplate('explore', 'phases/explore_user.hbs');
       await this.loadTemplate('plan', 'phases/plan_user.hbs');
       await this.loadTemplate('patch', 'phases/patch_user.hbs');
+      await this.loadTemplate('research', 'phases/research_user.hbs');
+      await this.loadTemplate('review', 'phases/review_user.hbs');
     })();
 
     return this.initPromise;
@@ -205,6 +227,18 @@ export class PromptRegistry {
     return this.render('explore_system', { tools: this.getToolsForTemplate() });
   }
 
+  renderAutopilotSystem(): string {
+    return this.render('autopilot_system', {});
+  }
+
+  renderAnswerSystem(): string {
+    return this.render('answer_system', {});
+  }
+
+  renderResearchSystem(): string {
+    return this.render('research_system', {});
+  }
+
   renderExploreSystemWithRuntime(runtime?: unknown): string {
     return this.render('explore_system', { tools: this.getToolsForTemplate(), runtime });
   }
@@ -219,6 +253,14 @@ export class PromptRegistry {
 
   renderPatch(vars: PatchPromptVars): string {
     return this.render('patch', vars);
+  }
+
+  renderResearch(vars: ResearchPromptVars): string {
+    return this.render('research', vars);
+  }
+
+  renderReview(vars: ReviewPromptVars): string {
+    return this.render('review', vars);
   }
 
   renderReflection(vars: ReflectionInput): string {

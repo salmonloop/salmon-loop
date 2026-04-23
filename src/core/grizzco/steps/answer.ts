@@ -1,19 +1,10 @@
 import { emitLlmOutput } from '../../llm/output-policy.js';
+import { getAnswerSystemPrompt } from '../../prompts/runtime.js';
 import { chatWithTools } from '../../tools/session.js';
 import { Phase, type LLM } from '../../types/index.js';
 import type { AnswerCtx, PreflightCtx } from '../engine/pipeline/types.js';
 
 import { buildSharedRequestEnvelope } from './request-assembly.js';
-
-function buildSystemPrompt(): string {
-  return [
-    'You are a coding assistant in "answer" mode.',
-    'You may use read-only tools to inspect the repository when helpful.',
-    'Never write files, never apply patches, and never run shell commands.',
-    'If repository inspection is not required, answer directly without tools.',
-    'Answer in the same language as the user.',
-  ].join('\n');
-}
 
 export async function generateAnswer(ctx: PreflightCtx): Promise<AnswerCtx> {
   const instruction = String(ctx.options.instruction ?? '').trim();
@@ -26,7 +17,7 @@ export async function generateAnswer(ctx: PreflightCtx): Promise<AnswerCtx> {
 
   const shared = buildSharedRequestEnvelope({
     defaultNamespace: 'answer',
-    systemPrompt: buildSystemPrompt(),
+    systemPrompt: await getAnswerSystemPrompt(),
     userPrompt: instruction,
     conversationContext: ctx.options.conversationContext,
   });

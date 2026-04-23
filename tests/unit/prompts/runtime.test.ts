@@ -6,9 +6,14 @@ import {
   setPromptRegistry,
 } from '../../../src/core/prompts/registry.js';
 import {
+  getAnswerSystemPrompt,
+  getAutopilotSystemPrompt,
   getExploreSystemPrompt,
   getPatchSystemPrompt,
   getPlanSystemPrompt,
+  getResearchPrompt,
+  getResearchSystemPrompt,
+  getReviewPrompt,
 } from '../../../src/core/prompts/runtime.js';
 import { ToolRegistry } from '../../../src/core/tools/registry.js';
 import type { ToolSpec } from '../../../src/core/tools/types.js';
@@ -190,5 +195,22 @@ describe('prompt runtime', () => {
     expect(output).toContain('### code.search');
     expect(output).not.toContain('### fs.list');
     expect(output).not.toContain('### plan.read');
+  });
+
+  it('renders autopilot, answer, research, and review prompts from templates', async () => {
+    const autopilot = await getAutopilotSystemPrompt();
+    const answer = await getAnswerSystemPrompt();
+    const researchSystem = await getResearchSystemPrompt();
+    const researchUser = await getResearchPrompt('repo context', 'investigate a bug');
+    const reviewUser = await getReviewPrompt('{"files":["src/index.ts"]}');
+
+    expect(autopilot).toContain('You are a coding assistant running in "autopilot" mode.');
+    expect(autopilot).toContain('Treat simple repo-relative paths like "smoke.txt"');
+    expect(answer).toContain('You are a coding assistant in "answer" mode.');
+    expect(researchSystem).toContain('You are a research assistant.');
+    expect(researchUser).toContain('Instruction:\ninvestigate a bug');
+    expect(researchUser).toContain('Context:\nrepo context');
+    expect(reviewUser).toContain('Please review the following context');
+    expect(reviewUser).toContain('{"files":["src/index.ts"]}');
   });
 });

@@ -44,6 +44,24 @@ export async function getExploreSystemPrompt(runtime?: PromptRuntime): Promise<s
   return promptRegistry.renderExploreSystemWithRuntime(runtime);
 }
 
+export async function getAutopilotSystemPrompt(): Promise<string> {
+  const promptRegistry = getPromptRegistry();
+  await promptRegistry.init();
+  return promptRegistry.renderAutopilotSystem();
+}
+
+export async function getAnswerSystemPrompt(): Promise<string> {
+  const promptRegistry = getPromptRegistry();
+  await promptRegistry.init();
+  return promptRegistry.renderAnswerSystem();
+}
+
+export async function getResearchSystemPrompt(): Promise<string> {
+  const promptRegistry = getPromptRegistry();
+  await promptRegistry.init();
+  return promptRegistry.renderResearchSystem();
+}
+
 export async function getPlanPrompt(
   context: string,
   instruction: string,
@@ -77,6 +95,24 @@ export async function getPatchPrompt(
     maxDiffLines,
     lastError,
   });
+}
+
+export async function getResearchPrompt(
+  context: string,
+  instruction: string,
+): Promise<string> {
+  const promptRegistry = getPromptRegistry();
+  await promptRegistry.init();
+  return promptRegistry.renderResearch({
+    context,
+    instruction,
+  });
+}
+
+export async function getReviewPrompt(contextJson: string): Promise<string> {
+  const promptRegistry = getPromptRegistry();
+  await promptRegistry.init();
+  return promptRegistry.renderReview({ contextJson });
 }
 
 export async function getPlanSystemPrompt(

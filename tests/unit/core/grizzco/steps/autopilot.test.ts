@@ -1,6 +1,11 @@
-import { beforeEach, describe, expect, it, mock } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
 
 import { LIMITS } from '../../../../../src/core/config/limits.js';
+import {
+  clearPromptRegistry,
+  createPromptRegistry,
+  setPromptRegistry,
+} from '../../../../../src/core/prompts/registry.js';
 
 const hoisted = (() => ({
   chatWithTools: mock(),
@@ -10,6 +15,16 @@ const hoisted = (() => ({
   lstat: mock(),
   readlink: mock(),
 }))();
+
+async function waitFor(condition: () => boolean, timeoutMs = 1000): Promise<void> {
+  const start = Date.now();
+  while (!condition()) {
+    if (Date.now() - start > timeoutMs) {
+      throw new Error('Timed out waiting for condition');
+    }
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+}
 
 mock.module('../../../../../src/core/tools/session.js', () => ({
   chatWithTools: hoisted.chatWithTools,
@@ -197,6 +212,7 @@ function queueWorkspaceFingerprint(params: {
 describe('runAutopilot', () => {
   beforeEach(() => {
     mock.clearAllMocks();
+    setPromptRegistry(createPromptRegistry());
     hoisted.resolveLlmToolCallingPolicy.mockReturnValue({ enabled: true, maxRounds: 8 });
     hoisted.gitExecMeta.mockImplementation(async () => {
       throw new Error('Unexpected git execMeta call');
@@ -239,6 +255,10 @@ describe('runAutopilot', () => {
         return { role: 'assistant', content: 'autopilot with streaming tools' };
       },
     );
+  });
+
+  afterEach(() => {
+    clearPromptRegistry();
   });
 
   it('marks the workspace as mutated when tool execution changes workspace status', async () => {
@@ -721,7 +741,7 @@ describe('runAutopilot', () => {
       toolCallingAudit: [],
     } as any);
 
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await waitFor(() => hashStartOrder.length > 0);
 
     expect(hashStartOrder).toEqual(['a.txt']);
 

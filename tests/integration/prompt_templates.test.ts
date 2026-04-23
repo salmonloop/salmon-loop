@@ -6,10 +6,15 @@ import {
   setPromptRegistry,
 } from '../../src/core/prompts/registry.js';
 import {
+  getAnswerSystemPrompt,
+  getAutopilotSystemPrompt,
   getPatchPrompt,
   getPatchSystemPrompt,
   getPlanPrompt,
   getPlanSystemPrompt,
+  getResearchPrompt,
+  getResearchSystemPrompt,
+  getReviewPrompt,
 } from '../../src/core/prompts/runtime.js';
 import { ToolRegistry } from '../../src/core/tools/registry.js';
 
@@ -25,9 +30,15 @@ describe('Prompt templates', () => {
   it('renders system prompts from templates', async () => {
     const planSystem = await getPlanSystemPrompt();
     const patchSystem = await getPatchSystemPrompt();
+    const autopilotSystem = await getAutopilotSystemPrompt();
+    const answerSystem = await getAnswerSystemPrompt();
+    const researchSystem = await getResearchSystemPrompt();
 
     expect(planSystem).toContain('You are SalmonLoop.');
     expect(patchSystem).toContain('You are PATCH, a phase-native diff compiler.');
+    expect(autopilotSystem).toContain('You are a coding assistant running in "autopilot" mode.');
+    expect(answerSystem).toContain('You are a coding assistant in "answer" mode.');
+    expect(researchSystem).toContain('You are a research assistant.');
   });
 
   it('renders plan and patch prompts without HTML escaping', async () => {
@@ -159,5 +170,15 @@ describe('Prompt templates', () => {
     expect(patchSystem).not.toContain('### fs.list');
     expect(patchSystem).not.toContain('### plan.read');
     expect(patchSystem).not.toContain('### plan.update');
+  });
+
+  it('renders research and review prompts without HTML escaping', async () => {
+    const researchPrompt = await getResearchPrompt('if (a < b) {\n  return a;\n}', 'review logic');
+    expect(researchPrompt).toContain('if (a < b) {');
+    expect(researchPrompt).not.toContain('&lt;');
+
+    const reviewPrompt = await getReviewPrompt('{"summary":"a < b"}');
+    expect(reviewPrompt).toContain('{"summary":"a < b"}');
+    expect(reviewPrompt).not.toContain('&lt;');
   });
 });

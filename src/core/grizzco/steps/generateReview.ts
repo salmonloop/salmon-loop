@@ -1,5 +1,6 @@
 import { text } from '../../../locales/index.js';
 import { emitLlmOutput } from '../../llm/output-policy.js';
+import { getReviewPrompt } from '../../prompts/runtime.js';
 import type { Context } from '../../types/context.js';
 import type { LLM } from '../../types/llm.js';
 import type {
@@ -8,11 +9,6 @@ import type {
   ReviewSummary,
   ReviewSuggestion,
 } from '../engine/pipeline/types.js';
-
-function buildReviewPrompt(context: Context): string {
-  const summary = JSON.stringify(context, null, 2);
-  return `Please review the following context and provide suggestions for improvement:\n\n${summary}`;
-}
 
 function normalizeReviewSuggestions(value: unknown): ReviewSummary['suggestions'] {
   if (value == null) return null;
@@ -37,7 +33,7 @@ function parseReviewResponse(content: string): ReviewSummary['suggestions'] {
 }
 
 export async function generateReview(ctx: ContextCtx): Promise<ReviewCtx> {
-  const reviewPrompt = buildReviewPrompt(ctx.context);
+  const reviewPrompt = await getReviewPrompt(JSON.stringify(ctx.context, null, 2));
   const llmClient: LLM = ctx.options.llm;
 
   const response = await llmClient.chat([{ role: 'user', content: reviewPrompt }], {

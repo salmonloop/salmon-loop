@@ -1,6 +1,7 @@
 import { text } from '../../../locales/index.js';
 import { emitLlmOutput } from '../../llm/output-policy.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
+import { getResearchPrompt, getResearchSystemPrompt } from '../../prompts/runtime.js';
 import { SessionReplacementPreviewProvider } from '../../session/replacement-preview-provider.js';
 import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
 import { Phase } from '../../types/runtime.js';
@@ -21,20 +22,6 @@ type ResearchResponse = {
   sources?: unknown;
   researchText?: unknown;
 };
-
-function buildResearchPrompt(contextText: string, instruction: string): string {
-  return [
-    'You are running in deep research mode.',
-    'Use available tools to gather external information as needed.',
-    'Return JSON with keys: researchNotes, researchFindings, sources, researchText.',
-    'Each researchFinding should include: summary, confidence (0-1), uncertainty (string).',
-    'Each source should include: toolName, summary, ok, timestamp (epoch ms).',
-    '',
-    `Instruction:\n${instruction}`,
-    '',
-    `Context:\n${contextText}`,
-  ].join('\n');
-}
 
 function normalizeFindings(value: unknown): ResearchFinding[] {
   if (!value) return [];
@@ -114,7 +101,7 @@ function buildSourcesFromAudit(
 }
 
 export async function generateResearch(ctx: ExploreCtx): Promise<ResearchCtx> {
-  const systemPrompt = 'You are a research assistant. Prefer evidence-backed claims.';
+  const systemPrompt = await getResearchSystemPrompt();
   const requestEnvelope = await buildPhaseRequestEnvelope({
     phase: Phase.RESEARCH,
     defaultNamespace: 'research',
@@ -130,7 +117,8 @@ export async function generateResearch(ctx: ExploreCtx): Promise<ResearchCtx> {
       });
     },
     systemPrompt,
-    buildUserPrompt: (contextText) => buildResearchPrompt(contextText, ctx.options.instruction),
+    buildUserPrompt: async (contextText) =>
+      await getResearchPrompt(contextText, ctx.options.instruction),
     conversationContext: ctx.options.conversationContext,
     artifactHints: ctx.artifactHints,
     toolCallingAudit: ctx.toolCallingAudit,
