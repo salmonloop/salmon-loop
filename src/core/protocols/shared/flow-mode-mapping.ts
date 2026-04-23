@@ -16,9 +16,10 @@ export function parseA2ASkillFlowMode(value: unknown): FlowMode | undefined {
   return parseFlowMode(value);
 }
 
-export function buildA2AFlowSkills(): Array<{ id: FlowMode; title: string }> {
+export function buildA2AFlowSkills(): Array<{ id: FlowMode; title: string; description: string }> {
   return SUPPORTED_PROTOCOL_FLOW_MODES.map((mode) => ({
     id: mode,
     title: FLOW_MODE_PUBLIC_METADATA[mode].a2aTitle,
+    description: FLOW_MODE_PUBLIC_METADATA[mode].description,
   }));
 }

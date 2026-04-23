@@ -230,8 +230,13 @@ describe('handleServeCommand', () => {
     await handleServeCommand({}, command);
 
     expect(hoisted.a2aAgentCards).toHaveLength(1);
-    expect((hoisted.a2aAgentCards[0].skills as Array<{ id: string }>).map((skill) => skill.id)).toEqual([
-      'autopilot',
+    expect(hoisted.a2aAgentCards[0].skills).toEqual([
+      {
+        id: 'autopilot',
+        name: 'Autopilot',
+        description: 'Let the agent decide which actions and tools to use.',
+        tags: [],
+      },
     ]);
   });
 

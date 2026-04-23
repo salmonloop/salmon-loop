@@ -8,12 +8,23 @@ describe('A2A agent card', () => {
     const card = buildA2AAgentCard({
       name: 'salmon-loop',
       url: 'https://example.com',
-      capabilities: [{ id: 'patch', title: 'Patch code' }],
+      capabilities: [
+        {
+          id: 'patch',
+          title: 'Patch code',
+          description: 'Apply code changes with verification.',
+        },
+      ],
       security: [{ type: 'http', scheme: 'bearer' }],
     });
 
     expect(card.name).toBe('salmon-loop');
     expect(card.skills).toHaveLength(1);
+    expect(card.skills[0]).toMatchObject({
+      id: 'patch',
+      name: 'Patch code',
+      description: 'Apply code changes with verification.',
+    });
     const securityValues = card.securitySchemes ? Object.values(card.securitySchemes) : [];
     expect(securityValues).toContainEqual({ type: 'http', scheme: 'bearer' });
   });
@@ -27,5 +38,9 @@ describe('A2A agent card', () => {
 
     expect(card.skills.map((skill) => skill.id)).toEqual(buildA2AFlowSkills().map((skill) => skill.id));
     expect(card.skills.some((skill) => skill.id === 'autopilot')).toBe(true);
+    expect(card.skills.find((skill) => skill.id === 'autopilot')).toMatchObject({
+      name: 'Autopilot',
+      description: 'Let the agent decide which actions and tools to use.',
+    });
   });
 });

@@ -5,6 +5,7 @@ import { buildA2AFlowSkills } from '../shared/flow-mode-mapping.js';
 interface CapabilityInput {
   id: string;
   title: string;
+  description?: string;
 }
 
 type SecuritySchemeInput = SecurityScheme & { name?: string };
@@ -51,7 +52,7 @@ export function buildA2AAgentCard(input: {
     skills: capabilities.map((capability) => ({
       id: capability.id,
       name: capability.title,
-      description: capability.title,
+      description: capability.description ?? capability.title,
       tags: [],
     })),
     securitySchemes,
