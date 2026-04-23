@@ -324,7 +324,7 @@ describe('Headless protocol integration', () => {
 
     const baseUrl = await stub.tryStart();
     if (!baseUrl) {
-      return;
+      throw new Error('OpenAI streaming stub could not bind; retry-hint regression did not run');
     }
     await writeOpenAiStubConfig(repo.path, baseUrl);
 

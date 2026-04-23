@@ -282,8 +282,11 @@ describe('chatWithTools', () => {
     };
     registry.register(spec);
 
+    let chatCalls = 0;
+    let sawRetryRound = false;
     const llm: LLM = {
       async chat(messages) {
+        chatCalls++;
         const toolMsg = messages.find((message) => message.role === 'tool');
         if (!toolMsg) {
           return {
@@ -302,6 +305,7 @@ describe('chatWithTools', () => {
           };
         }
 
+        sawRetryRound = true;
         const parsed = JSON.parse(toolMsg.content);
         expect(parsed.status).toBe('error');
         expect(parsed.error?.code).toBe('INVALID_INPUT');
@@ -338,6 +342,9 @@ describe('chatWithTools', () => {
         toolstack: { registry, policy, router },
       },
     );
+
+    expect(chatCalls).toBeGreaterThanOrEqual(2);
+    expect(sawRetryRound).toBe(true);
   });
 
   it('records toolResultOutputOk for successful tool results', async () => {

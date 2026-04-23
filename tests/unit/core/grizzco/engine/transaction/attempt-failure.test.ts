@@ -104,9 +104,10 @@ describe('resolveAttemptFailure diagnostics', () => {
 
     expect(failure).toBeTruthy();
     expect(failure?.failurePhase).toBe('PATCH');
+    expect(failure?.errorCode).toBe('INVALID_INPUT');
     expect(failure?.retryable).toBe(true);
     expect(failure?.reasonCode).not.toBe('LOOP_FAILED');
-    expect(failure?.diagnosticCode).not.toBe('LOOP_FAILED');
+    expect(failure?.diagnosticCode).not.toBe(failure?.reasonCode);
     expect(failure?.safeHint).toBeTruthy();
     expect(failure?.remediationSteps.length).toBeGreaterThan(0);
   });
