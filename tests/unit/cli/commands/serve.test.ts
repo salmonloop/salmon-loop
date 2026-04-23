@@ -6,6 +6,7 @@ const hoisted = (() => ({
   listenCalls: [] as Array<{
     options: { port?: number; host?: string; path?: string; type?: string };
   }>,
+  sidecarRoutes: [] as Array<Array<Record<string, any>>>,
   a2aAgentCards: [] as Array<Record<string, unknown>>,
   acpLoopCalls: [] as Array<Record<string, unknown>>,
   acpAgentConfigs: [] as Array<Record<string, unknown>>,
@@ -46,6 +47,7 @@ const hoisted = (() => ({
 mock.module('../../../../src/core/runtime/agent-server-runtime.js', () => ({
   createAgentServerRuntime: mock((config: any) => {
     hoisted.a2aAgentCards.push(config.a2a.buildAgentCard());
+    hoisted.sidecarRoutes.push(config.sidecar.routes);
     hoisted.listenCalls.push({ options: config.listen.a2a });
     hoisted.listenCalls.push({ options: config.listen.sidecar });
     return {
@@ -203,6 +205,7 @@ describe('handleServeCommand', () => {
   beforeEach(() => {
     setLogger(hoisted.logger as any);
     hoisted.listenCalls.length = 0;
+    hoisted.sidecarRoutes.length = 0;
     hoisted.a2aAgentCards.length = 0;
     hoisted.acpLoopCalls.length = 0;
     hoisted.acpAgentConfigs.length = 0;
@@ -346,6 +349,44 @@ describe('handleServeCommand', () => {
         tags: [],
       },
     ]);
+  });
+
+  it('keeps sidecar capability metadata on its explicit path', async () => {
+    hoisted.publicCapabilityRegistry = [
+      {
+        id: 'autopilot',
+        kind: 'flow_mode',
+        target: 'autopilot',
+        title: 'Autopilot from registry',
+        description: 'Registry-backed autopilot description.',
+        surfaces: { a2a: true, acp: true },
+        reachability: 'reachable',
+      },
+    ];
+
+    const { handleServeCommand } = await import('../../../../src/cli/commands/serve.js');
+
+    const command: any = {
+      optsWithGlobals: () => ({
+        repo: '/repo',
+        a2aHost: '127.0.0.1',
+        a2aPort: '8081',
+        acpStdio: false,
+      }),
+    };
+
+    await handleServeCommand({}, command);
+
+    const infoRoute = hoisted.sidecarRoutes[0]?.find((route) => route.path === '/info');
+    expect(infoRoute).toBeDefined();
+    if (!infoRoute) {
+      throw new Error('missing sidecar info route');
+    }
+
+    const response = await infoRoute.handler();
+    const payload = await response.json();
+
+    expect(payload.capabilities).toEqual([{ id: 'autopilot', title: 'Autopilot' }]);
   });
 
   it('does not advertise unresolved flow-backed A2A skills before runtime selection exists', async () => {

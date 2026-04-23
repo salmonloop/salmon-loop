@@ -50,6 +50,8 @@ function resolveDefaultAcpPermissionPolicy(
   return permissionMode === 'yolo' ? 'allow_all' : 'ask';
 }
 
+const SIDECAR_CAPABILITIES = [{ id: 'autopilot', title: 'Autopilot' }];
+
 function buildSidecarHandlers(deps: {
   name: string;
   version: string;
@@ -255,7 +257,7 @@ export async function handleServeCommand(_options: unknown, command: Command) {
     handlers: buildSidecarHandlers({
       name: 'salmon-loop',
       version: '0.2.0',
-      capabilities: a2aSkills,
+      capabilities: SIDECAR_CAPABILITIES,
     }),
   });
 
