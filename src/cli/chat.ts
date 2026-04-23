@@ -12,6 +12,7 @@ import {
   runSalmonLoop,
   TokenTracker,
   type CheckpointStrategy,
+  type FlowMode,
   type LLM,
   type LoopEvent,
   type LlmOutputPolicy,
@@ -32,13 +33,12 @@ import {
   reactiveCompact,
 } from '../core/facades/cli-chat.js';
 import { createSubAgentController } from '../core/facades/cli-subagent.js';
-import type { FlowMode } from '../core/types/execution.js';
 
 import { createUiAuthorizationProvider } from './authorization/provider.js';
+import { resolveActiveChatFlowMode, resolveChatCheckpointStrategy } from './chat-flow.js';
 import { commands } from './commands/registry.js';
 import type { QueueController } from './commands/types.js';
 import { CHAT_QUEUE_CONFIG } from './config.js';
-import { resolveActiveChatFlowMode, resolveChatCheckpointStrategy } from './chat-flow.js';
 import { text } from './locales/index.js';
 import { createCliSlashRuntime } from './slash/runtime.js';
 import type { GUIOptions } from './ui/index.js';
@@ -246,14 +246,12 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
 
   const buildRecoveryFailureSummary = (
     result: ChatLoopResult,
-  ):
-    | {
-        reasonCode?: string;
-        diagnosticCode?: string;
-        safeHint?: string;
-        failurePhase?: string;
-      }
-    | null => {
+  ): {
+    reasonCode?: string;
+    diagnosticCode?: string;
+    safeHint?: string;
+    failurePhase?: string;
+  } | null => {
     if (result.success) return null;
 
     const isRecoveryCandidate =

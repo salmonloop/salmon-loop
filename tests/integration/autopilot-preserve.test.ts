@@ -1,11 +1,8 @@
 import { afterEach, describe, expect, it } from 'bun:test';
 
-import {
-  runAutopilot,
-  runAutopilotVerifyGate,
-} from '../../src/core/grizzco/steps/autopilot.js';
-import { createStandardToolstack } from '../../src/core/tools/loader.js';
+import { runAutopilot, runAutopilotVerifyGate } from '../../src/core/grizzco/steps/autopilot.js';
 import { ArtifactStore } from '../../src/core/sub-agent/artifacts/store.js';
+import { createStandardToolstack } from '../../src/core/tools/loader.js';
 import type { LLM, LLMMessage } from '../../src/core/types/index.js';
 import { Phase } from '../../src/core/types/index.js';
 import { buildBunCommand } from '../helpers/bun.js';
@@ -27,10 +24,9 @@ describe('autopilot direct preserve integration', () => {
     await helper.writeFile(
       repoPath,
       'mutate.ts',
-      [
-        'await Bun.write("src/index.ts", \'console.log("autopilot kept this");\\n\');',
-        '',
-      ].join('\n'),
+      ['await Bun.write("src/index.ts", \'console.log("autopilot kept this");\\n\');', ''].join(
+        '\n',
+      ),
     );
     await helper.writeFile(
       repoPath,

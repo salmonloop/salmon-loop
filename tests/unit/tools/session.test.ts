@@ -539,7 +539,9 @@ describe('chatWithTools', () => {
       allowedPhases: [Phase.AUTOPILOT],
       inputSchema: z.object({ file: z.string() }),
       outputSchema: z.object({ content: z.string(), size: z.number() }),
-      computeResources: (_input, ctx) => [{ kind: 'pathPrefix', repoId: ctx.repoRoot, prefix: 'src/' }],
+      computeResources: (_input, ctx) => [
+        { kind: 'pathPrefix', repoId: ctx.repoRoot, prefix: 'src/' },
+      ],
       executor: async (input) => {
         executionOrder.push(`fs.read:${input.file}:start`);
         if (input.file === 'src/a.ts') readAStarted.resolve();
@@ -561,7 +563,9 @@ describe('chatWithTools', () => {
       allowedPhases: [Phase.AUTOPILOT],
       inputSchema: z.object({ file: z.string(), content: z.string() }),
       outputSchema: z.object({ ok: z.boolean(), path: z.string(), bytesWritten: z.number() }),
-      computeResources: (_input, ctx) => [{ kind: 'pathPrefix', repoId: ctx.repoRoot, prefix: 'src/' }],
+      computeResources: (_input, ctx) => [
+        { kind: 'pathPrefix', repoId: ctx.repoRoot, prefix: 'src/' },
+      ],
       executor: async (input) => {
         executionOrder.push(`fs.write:${input.file}:start`);
         writeStarted.resolve();

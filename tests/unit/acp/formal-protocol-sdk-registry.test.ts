@@ -7,9 +7,9 @@ import {
 } from '@agentclientprotocol/sdk';
 import { describe, expect, it } from 'bun:test';
 
-import { buildPublicCapabilityRegistry } from '../../../src/core/public-capabilities/registry.js';
-import { toAcpPublicModes } from '../../../src/core/public-capabilities/projections.js';
 import { createAcpFormalAgent } from '../../../src/core/protocols/acp/formal-agent.js';
+import { toAcpPublicModes } from '../../../src/core/public-capabilities/projections.js';
+import { buildPublicCapabilityRegistry } from '../../../src/core/public-capabilities/registry.js';
 
 function createConnectedPair(params: {
   toAgent: (conn: AgentSideConnection) => Agent;
@@ -63,15 +63,13 @@ describe('ACP formal protocol registry projection', () => {
     const response = await clientConn.newSession({ cwd: '/repo', mcpServers: [] });
 
     expect(response.modes?.availableModes).toEqual(expectedModes);
-    expect(response.configOptions.find((opt: any) => opt.id === '_salmonloop_mode')).toMatchObject(
-      {
-        currentValue: 'autopilot',
-        options: expectedModes.map((mode) => ({
-          value: mode.id,
-          name: mode.name,
-          description: mode.description,
-        })),
-      },
-    );
+    expect(response.configOptions.find((opt: any) => opt.id === '_salmonloop_mode')).toMatchObject({
+      currentValue: 'autopilot',
+      options: expectedModes.map((mode) => ({
+        value: mode.id,
+        name: mode.name,
+        description: mode.description,
+      })),
+    });
   });
 });

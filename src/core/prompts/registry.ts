@@ -31,10 +31,7 @@ const TEMPLATE_URLS: Record<string, URL> = {
     import.meta.url,
   ),
   'system/answer_system.hbs': new URL('./templates/system/answer_system.hbs', import.meta.url),
-  'system/research_system.hbs': new URL(
-    './templates/system/research_system.hbs',
-    import.meta.url,
-  ),
+  'system/research_system.hbs': new URL('./templates/system/research_system.hbs', import.meta.url),
   'phases/explore_user.hbs': new URL('./templates/phases/explore_user.hbs', import.meta.url),
   'phases/plan_user.hbs': new URL('./templates/phases/plan_user.hbs', import.meta.url),
   'phases/patch_user.hbs': new URL('./templates/phases/patch_user.hbs', import.meta.url),

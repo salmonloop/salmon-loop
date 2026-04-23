@@ -4,10 +4,7 @@ import { Phase, type ExecutionPhase, type FlowMode } from '../types/runtime.js';
 
 export type DriverKind = 'recipe' | 'agent';
 export type FailurePolicy = 'rollback' | 'preserve';
-export type VerifyPolicy =
-  | 'never'
-  | 'on_explicit_request'
-  | 'required_before_success_if_mutated';
+export type VerifyPolicy = 'never' | 'on_explicit_request' | 'required_before_success_if_mutated';
 
 export interface ExecutionProfile {
   mode: FlowMode;

@@ -1,11 +1,11 @@
 import { afterAll, beforeEach, describe, expect, it, mock } from 'bun:test';
 
 import { clearLogger, setLogger } from '../../../../src/core/observability/logger.js';
-import { buildPublicCapabilityRegistry } from '../../../../src/core/public-capabilities/registry.js';
 import {
   selectPublicCapabilitiesForSurface,
   toA2APublicSkills,
 } from '../../../../src/core/public-capabilities/projections.js';
+import { buildPublicCapabilityRegistry } from '../../../../src/core/public-capabilities/registry.js';
 
 function createDefaultResolvedConfig() {
   return {
@@ -183,7 +183,7 @@ describe('handleServeCommand', () => {
       hoisted.onceCalls.push({ event, handler });
       return process;
     }) as typeof process.once;
-    process.on = ((event: string, handler: (...args: any[]) => void) => {
+    process.on = ((event: string, _handler: (...args: any[]) => void) => {
       throw new Error(`Unexpected process.on registration for ${event}`);
     }) as typeof process.on;
     process.stdin.destroy = mock(() => process.stdin) as typeof process.stdin.destroy;

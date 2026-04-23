@@ -10,10 +10,11 @@ import {
   getLogger,
   normalizePermissionMode,
   PluginLoader,
+  resolveExecutionProfile,
   resolveExtensions,
+  type CheckpointStrategy,
+  type FlowMode,
 } from '../../core/facades/cli-command-chat.js';
-import { resolveExecutionProfile } from '../../core/runtime/execution-profile.js';
-import type { CheckpointStrategy, FlowMode } from '../../core/types/index.js';
 import { text } from '../locales/index.js';
 import { getOptionValueSourceWithGlobalFallback } from '../utils/command-option-source.js';
 import { resolveLlmOutputPolicyFromCli } from '../utils/llm-output.js';
@@ -140,7 +141,7 @@ export async function handleChatCommand(options: any, command: Command) {
       defaultFlowMode,
       checkpointStrategy:
         checkpointStrategyOptionSource === 'cli'
-          ? ((allOptions.checkpointStrategy as CheckpointStrategy) || 'worktree')
+          ? (allOptions.checkpointStrategy as CheckpointStrategy) || 'worktree'
           : undefined,
       continue: continueSession,
       resumeSessionId,

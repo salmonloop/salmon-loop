@@ -1,5 +1,5 @@
-import type { FileSystem, FlowMode } from '../../types/index.js';
 import { resolveExecutionProfile } from '../../runtime/execution-profile.js';
+import type { FileSystem, FlowMode } from '../../types/index.js';
 
 import { FileAdapter } from './file-adapter.js';
 import { ReadOnlyFileSystem } from './readonly-filesystem.js';

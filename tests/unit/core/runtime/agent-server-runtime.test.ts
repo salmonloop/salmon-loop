@@ -6,7 +6,8 @@ import type { Express } from 'express';
 import { createTaskEventBus } from '../../../../src/core/interaction/events/bus.js';
 import { buildA2AAgentCard } from '../../../../src/core/protocols/a2a/agent-card.js';
 
-type AgentServerRuntimeModule = typeof import('../../../../src/core/runtime/agent-server-runtime.ts');
+type AgentServerRuntimeModule =
+  typeof import('../../../../src/core/runtime/agent-server-runtime.ts');
 
 async function getOpenPort() {
   return await new Promise<number>((resolve, reject) => {

@@ -5,11 +5,11 @@ import { InMemoryTaskStore } from '@a2a-js/sdk/server';
 import type { TaskEvent, TaskEventBus } from '../../../interaction/events/bus.js';
 import type { TaskEnvelope } from '../../../interaction/model/index.js';
 import type { TaskArtifact } from '../../../interaction/model/types.js';
-import { parseA2ASkillFlowMode } from '../../shared/flow-mode-mapping.js';
 import {
   buildCanonicalExecutionRequest,
   buildInstructionFromParts,
 } from '../../shared/execution-request.js';
+import { parseA2ASkillFlowMode } from '../../shared/flow-mode-mapping.js';
 
 type TaskMetadata = {
   contextId: string;

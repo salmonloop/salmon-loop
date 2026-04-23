@@ -17,10 +17,7 @@ export interface SubAgentDispatchContext {
   phase?: ExecutionPhase;
 }
 
-export function isReadOnlySubAgentContext({
-  flowMode,
-  phase,
-}: SubAgentDispatchContext): boolean {
+export function isReadOnlySubAgentContext({ flowMode, phase }: SubAgentDispatchContext): boolean {
   if (!flowMode) {
     return isReadOnlyModelPhase(phase);
   }

@@ -33,7 +33,8 @@ export const runPreflight: Step<InitCtx, PreflightCtx> = async (ctx) => {
     timestamp: new Date(),
   });
 
-  const toolstack = resolveLlmToolCallingPolicy(executionProfile.entryPhase, ctx.options.llm).enabled
+  const toolstack = resolveLlmToolCallingPolicy(executionProfile.entryPhase, ctx.options.llm)
+    .enabled
     ? await createStandardToolstack({
         repoRoot: ctx.workspace.workPath,
         persistenceRoot: ctx.workspace.baseRepoPath || ctx.workspace.workPath,

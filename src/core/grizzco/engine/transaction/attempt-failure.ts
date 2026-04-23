@@ -129,8 +129,7 @@ export function resolveAttemptFailure(params: {
       inputRequired,
     };
   }
-  const verifyOk =
-    profile.verifyPolicy === 'never' ? true : context?.verifyResult?.ok !== false;
+  const verifyOk = profile.verifyPolicy === 'never' ? true : context?.verifyResult?.ok !== false;
   const applyBackFailed =
     profile.failurePolicy === 'rollback' &&
     context?.applyBackResult?.success === false &&

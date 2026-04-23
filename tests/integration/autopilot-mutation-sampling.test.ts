@@ -59,22 +59,24 @@ describe('runAutopilot workspace mutation sampling (integration)', () => {
     await unlink(join(repo.path, 'link'));
     await symlink('target2.txt', join(repo.path, 'link'));
 
-    hoisted.chatWithTools.mockImplementationOnce(async (_messages: any, _chatOptions: any, session: any) => {
-      await unlink(join(activeRepoPath, 'link'));
-      await symlink('target3.txt', join(activeRepoPath, 'link'));
-      session.toolCallingAudit?.event({
-        timestamp: new Date().toISOString(),
-        phase: 'AUTOPILOT',
-        round: 0,
-        callId: 'call-symlink',
-        toolName: 'shell.exec',
-        toolIntent: 'INFRA',
-        rawArgsType: 'string',
-        parsedArgsOk: true,
-        toolResultStatus: 'ok',
-      });
-      return { role: 'assistant', content: 'updated symlink target' };
-    });
+    hoisted.chatWithTools.mockImplementationOnce(
+      async (_messages: any, _chatOptions: any, session: any) => {
+        await unlink(join(activeRepoPath, 'link'));
+        await symlink('target3.txt', join(activeRepoPath, 'link'));
+        session.toolCallingAudit?.event({
+          timestamp: new Date().toISOString(),
+          phase: 'AUTOPILOT',
+          round: 0,
+          callId: 'call-symlink',
+          toolName: 'shell.exec',
+          toolIntent: 'INFRA',
+          rawArgsType: 'string',
+          parsedArgsOk: true,
+          toolResultStatus: 'ok',
+        });
+        return { role: 'assistant', content: 'updated symlink target' };
+      },
+    );
 
     const { runAutopilot } = await import('../../src/core/grizzco/steps/autopilot.js');
     const llm = {

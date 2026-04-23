@@ -19,6 +19,9 @@ describe('exploreCodebase', () => {
     spyOn(session, 'chatWithToolsStreaming');
 
     mockToolstack = {
+      policy: {
+        decide: mock().mockReturnValue({ allowed: true }),
+      },
       router: {
         call: mock().mockResolvedValue({ toolName: 'test', status: 'ok', output: 'ok' }),
       },

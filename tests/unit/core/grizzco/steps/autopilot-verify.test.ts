@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
 
-import { text } from '../../../../../src/locales/index.js';
 import { ArtifactStore } from '../../../../../src/core/sub-agent/artifacts/store.js';
 import * as verificationRunner from '../../../../../src/core/verification/runner.js';
+import { text } from '../../../../../src/locales/index.js';
 
 describe('runAutopilotVerifyGate', () => {
   beforeEach(() => {
@@ -21,9 +21,8 @@ describe('runAutopilotVerifyGate', () => {
   });
 
   it('runs verify when autopilot mutated files and a verify command exists', async () => {
-    const { runAutopilotVerifyGate } = await import(
-      '../../../../../src/core/grizzco/steps/autopilot.js'
-    );
+    const { runAutopilotVerifyGate } =
+      await import('../../../../../src/core/grizzco/steps/autopilot.js');
 
     const result = await runAutopilotVerifyGate({
       mutated: true,
@@ -41,9 +40,8 @@ describe('runAutopilotVerifyGate', () => {
   });
 
   it('skips verify when autopilot did not mutate the workspace', async () => {
-    const { runAutopilotVerifyGate } = await import(
-      '../../../../../src/core/grizzco/steps/autopilot.js'
-    );
+    const { runAutopilotVerifyGate } =
+      await import('../../../../../src/core/grizzco/steps/autopilot.js');
 
     const result = await runAutopilotVerifyGate({
       mutated: false,
@@ -57,9 +55,8 @@ describe('runAutopilotVerifyGate', () => {
   });
 
   it('returns a skipped verify result when no verify command is configured', async () => {
-    const { runAutopilotVerifyGate } = await import(
-      '../../../../../src/core/grizzco/steps/autopilot.js'
-    );
+    const { runAutopilotVerifyGate } =
+      await import('../../../../../src/core/grizzco/steps/autopilot.js');
 
     const result = await runAutopilotVerifyGate({
       mutated: true,

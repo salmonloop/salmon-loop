@@ -69,15 +69,13 @@ function isReachableAcpFlowCapability(
 
 describe('public capability projections', () => {
   test('selects only reachable capabilities for the requested surface', () => {
-    expect(selectPublicCapabilitiesForSurface('a2a', SAMPLE_ENTRIES).map((entry) => entry.id)).toEqual([
-      'autopilot',
-      'repo-summary',
-    ]);
+    expect(
+      selectPublicCapabilitiesForSurface('a2a', SAMPLE_ENTRIES).map((entry) => entry.id),
+    ).toEqual(['autopilot', 'repo-summary']);
 
-    expect(selectPublicCapabilitiesForSurface('acp', SAMPLE_ENTRIES).map((entry) => entry.id)).toEqual([
-      'autopilot',
-      'patch',
-    ]);
+    expect(
+      selectPublicCapabilitiesForSurface('acp', SAMPLE_ENTRIES).map((entry) => entry.id),
+    ).toEqual(['autopilot', 'patch']);
   });
 
   test('projects ACP modes from reachable flow modes only', () => {
@@ -120,7 +118,9 @@ describe('public capability projections', () => {
 
   test('defaults to the static registry when entries are omitted', () => {
     const registry = buildPublicCapabilityRegistry();
-    const reachableAcpFlowModes = registry.filter(isReachableAcpFlowCapability).map((entry) => entry.target);
+    const reachableAcpFlowModes = registry
+      .filter(isReachableAcpFlowCapability)
+      .map((entry) => entry.target);
     const reachableA2AEntries = registry
       .filter((entry) => entry.reachability === 'reachable' && entry.surfaces.a2a)
       .map((entry) => entry.id);

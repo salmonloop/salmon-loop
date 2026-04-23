@@ -1,13 +1,14 @@
-import { describe, expect, test } from 'bun:test';
-import { JsonRpcTransport } from '@a2a-js/sdk/client';
 import net from 'node:net';
 
-import { buildPublicCapabilityRegistry } from '../../src/core/public-capabilities/registry.js';
+import { JsonRpcTransport } from '@a2a-js/sdk/client';
+import { describe, expect, test } from 'bun:test';
+
+import { buildA2AAgentCard } from '../../src/core/protocols/a2a/agent-card.js';
 import {
   selectPublicCapabilitiesForSurface,
   toA2APublicSkills,
 } from '../../src/core/public-capabilities/projections.js';
-import { buildA2AAgentCard } from '../../src/core/protocols/a2a/agent-card.js';
+import { buildPublicCapabilityRegistry } from '../../src/core/public-capabilities/registry.js';
 import { createAgentServerRuntime } from '../../src/core/runtime/agent-server-runtime.ts';
 
 async function getAvailablePort(): Promise<number> {

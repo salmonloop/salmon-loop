@@ -405,9 +405,7 @@ describe('handleRunCommand outcome reporter', () => {
     const command: any = {
       optsWithGlobals: () => ({}),
       getOptionValueSource: (name: string) =>
-        name === 'actMode' || name === 'mode' || name === 'checkpointStrategy'
-          ? 'default'
-          : 'cli',
+        name === 'actMode' || name === 'mode' || name === 'checkpointStrategy' ? 'default' : 'cli',
     };
 
     await handleRunCommand({}, command);

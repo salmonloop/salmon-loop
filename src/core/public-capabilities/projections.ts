@@ -1,6 +1,10 @@
 import { FLOW_MODE_PUBLIC_METADATA } from './flow-mode-metadata.js';
 import { buildPublicCapabilityRegistry } from './registry.js';
-import type { FlowModePublicCapability, PublicCapability, PublicCapabilitySurface } from './types.js';
+import type {
+  FlowModePublicCapability,
+  PublicCapability,
+  PublicCapabilitySurface,
+} from './types.js';
 
 export interface AcpPublicMode {
   id: FlowModePublicCapability['target'];
@@ -29,7 +33,9 @@ function isFlowModeCapability(entry: PublicCapability): entry is FlowModePublicC
   return entry.kind === 'flow_mode';
 }
 
-export function toAcpPublicModes(entries: PublicCapability[] = buildPublicCapabilityRegistry()): AcpPublicMode[] {
+export function toAcpPublicModes(
+  entries: PublicCapability[] = buildPublicCapabilityRegistry(),
+): AcpPublicMode[] {
   return selectPublicCapabilitiesForSurface('acp', entries)
     .filter(isFlowModeCapability)
     .map((entry) => ({

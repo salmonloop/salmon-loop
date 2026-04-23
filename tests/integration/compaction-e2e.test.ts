@@ -185,7 +185,9 @@ describe('Compaction Pipeline End-to-End', () => {
           message.content.includes('[Conversation recovery state]') &&
           message.content.includes('"flowMode":"autopilot"') &&
           message.content.includes('"reasonCode":"TOOL_CORRECTION_REQUIRED"') &&
-          message.content.includes('"recentReadFiles":["src/read-2.ts","src/read-3.ts","src/read-4.ts","src/read-5.ts","src/read-6.ts","src/read-7.ts"]'),
+          message.content.includes(
+            '"recentReadFiles":["src/read-2.ts","src/read-3.ts","src/read-4.ts","src/read-5.ts","src/read-6.ts","src/read-7.ts"]',
+          ),
       ),
     ).toBe(true);
 

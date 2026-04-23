@@ -118,10 +118,7 @@ export function buildRelevantMemoryCandidates(context: Context): RelevantMemoryC
       path: `.salmonloop/knowledge/architectural_decisions/${index + 1}`,
       title: `Architectural decision ${index + 1}`,
       summary,
-      tags: [
-        'architecture',
-        ...(decision.related_files ?? []).map((file) => file.toLowerCase()),
-      ],
+      tags: ['architecture', ...(decision.related_files ?? []).map((file) => file.toLowerCase())],
     });
   }
 
@@ -139,7 +136,10 @@ export function buildRelevantMemoryCandidates(context: Context): RelevantMemoryC
 
 export function selectRelevantMemory(args: SelectRelevantMemoryArgs): RelevantMemoryCandidate[] {
   const maxItems = Math.max(1, Math.floor(args.maxItems ?? DEFAULT_MAX_ITEMS));
-  const maxSummaryChars = Math.max(48, Math.floor(args.maxSummaryChars ?? DEFAULT_MAX_SUMMARY_CHARS));
+  const maxSummaryChars = Math.max(
+    48,
+    Math.floor(args.maxSummaryChars ?? DEFAULT_MAX_SUMMARY_CHARS),
+  );
   const haystack = buildAlreadySurfacedHaystack(args.alreadySurfacedText);
   const activeToolNames = args.activeToolNames ?? [];
   const keywords = extractKeywords(args.instruction ?? '');

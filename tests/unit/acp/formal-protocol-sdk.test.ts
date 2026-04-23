@@ -6,9 +6,6 @@ import {
   ndJsonStream,
 } from '@agentclientprotocol/sdk';
 import { describe, expect, it } from 'bun:test';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
 
 import { clearAuditTrail, getAuditTrail } from '../../../src/core/observability/audit-trail.js';
 import { createAcpFormalAgent } from '../../../src/core/protocols/acp/formal-agent.js';
@@ -27,16 +24,6 @@ function createConnectedPair(params: {
   const clientConn = new ClientSideConnection(params.toClient, clientStream);
 
   return { agentConn, clientConn };
-}
-
-async function createPersistencePath(prefix: string): Promise<{
-  root: string;
-  persistencePath: string;
-}> {
-  const root = await mkdtemp(path.join(tmpdir(), prefix));
-  const persistencePath = path.join(root, 'acp', 'sessions.v1.json');
-  await mkdir(path.dirname(persistencePath), { recursive: true });
-  return { root, persistencePath };
 }
 
 describe('ACP formal protocol (SDK)', () => {
@@ -243,19 +230,17 @@ describe('ACP formal protocol (SDK)', () => {
       'answer',
       'autopilot',
     ]);
-    expect(response.configOptions.find((opt: any) => opt.id === '_salmonloop_mode')).toMatchObject(
-      {
-        currentValue: 'autopilot',
-        options: [
-          { value: 'patch' },
-          { value: 'review' },
-          { value: 'debug' },
-          { value: 'research' },
-          { value: 'answer' },
-          { value: 'autopilot' },
-        ],
-      },
-    );
+    expect(response.configOptions.find((opt: any) => opt.id === '_salmonloop_mode')).toMatchObject({
+      currentValue: 'autopilot',
+      options: [
+        { value: 'patch' },
+        { value: 'review' },
+        { value: 'debug' },
+        { value: 'research' },
+        { value: 'answer' },
+        { value: 'autopilot' },
+      ],
+    });
     expect(
       response.configOptions.find((opt: any) => opt.id === '_salmonloop_permission_policy'),
     ).toMatchObject({
@@ -302,79 +287,6 @@ describe('ACP formal protocol (SDK)', () => {
     ).toMatchObject({
       currentValue: 'allow_all',
     });
-  });
-
-  it('recovers legacy stored ACP session modes as autopilot', async () => {
-    const { root, persistencePath } = await createPersistencePath('salmonloop-acp-sdk-legacy-');
-
-    try {
-      await writeFile(
-        persistencePath,
-        JSON.stringify(
-          {
-            schemaVersion: 2,
-            sessions: [
-              {
-                id: 'sess_legacy',
-                cwd: '/repo',
-                mcpServers: [],
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-                permissionPolicy: 'ask',
-                modeId: 'interactive',
-              },
-            ],
-          },
-          null,
-          2,
-        ),
-        'utf8',
-      );
-
-      const { clientConn } = createConnectedPair({
-        toAgent: (conn) =>
-          createAcpFormalAgent({
-            conn,
-            agentInfo: { name: 'salmon-loop', version: '0.2.0' },
-            facade: {
-              createTask: async () => {
-                throw new Error('not used');
-              },
-              getTask: async () => null,
-              cancelTask: async () => null,
-              resumeTask: async () => null,
-              retryTask: async () => null,
-              reopenTask: async () => null,
-              listTasks: async () => ({ items: [] }),
-              submitInput: async () => null,
-              getArtifact: async () => null,
-            },
-            sessionPersistencePath: persistencePath,
-          }),
-        toClient: () => ({
-          requestPermission: async () => ({ outcome: { outcome: 'cancelled' } }),
-          sessionUpdate: async () => {},
-        }),
-      });
-
-      await clientConn.initialize({
-        protocolVersion: 1,
-        clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
-      });
-
-      const loaded = await clientConn.loadSession({
-        sessionId: 'sess_legacy',
-        cwd: '/repo',
-        mcpServers: [],
-      });
-
-      expect(loaded.modes?.currentModeId).toBe('autopilot');
-      expect(loaded.configOptions.find((opt: any) => opt.id === '_salmonloop_mode')?.currentValue).toBe(
-        'autopilot',
-      );
-    } finally {
-      await rm(root, { recursive: true, force: true });
-    }
   });
 
   it('emits session_info_update at prompt start and end', async () => {

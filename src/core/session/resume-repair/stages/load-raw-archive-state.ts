@@ -1,6 +1,6 @@
+import { parseFlowMode } from '../../../types/flow-mode.js';
 import { normalizeSessionArtifactState } from '../../artifact-state.js';
 import { normalizeToolResultReplacementState } from '../../replacement-state.js';
-import { parseFlowMode } from '../../../types/flow-mode.js';
 import type { ChatSession } from '../../types.js';
 import type { ResumeRepairStage } from '../types.js';
 

@@ -12,6 +12,7 @@ export { DEFAULT_LLM_OUTPUT_POLICY, emitLlmOutput } from '../llm/output-policy.j
 export { logIgnoredError } from '../observability/ignored-error.js';
 export { getLogger } from '../observability/logger.js';
 export type { RunOutcomeReporter } from '../observability/run-outcome-reporter.js';
+export { resolveExecutionProfile } from '../runtime/execution-profile.js';
 export { runSalmonLoop } from '../runtime/loop.js';
 export { buildSessionArtifactStateFromLoopResult } from '../session/artifact-state.js';
 export { ChatSessionManager } from '../session/manager.js';
@@ -24,6 +25,6 @@ export {
 export { createInitialTracking, onNormalTurnComplete } from '../session/compaction/tracking.js';
 export { runCompactionPipeline, reactiveCompact } from '../session/compaction/index.js';
 export { TokenTracker } from '../session/token-tracker.js';
-export type { VerboseLevel } from '../types/execution.js';
+export type { FlowMode, VerboseLevel } from '../types/execution.js';
 export type { LLM, LlmOutputPolicy } from '../types/llm.js';
 export type { CheckpointStrategy, LoopEvent, UserInputProvider } from '../types/loop.js';

@@ -5,7 +5,8 @@ import * as fc from 'fast-check';
 
 import { buildA2AAgentCard } from '../../../../src/core/protocols/a2a/agent-card.js';
 
-type AgentServerRuntimeModule = typeof import('../../../../src/core/runtime/agent-server-runtime.ts');
+type AgentServerRuntimeModule =
+  typeof import('../../../../src/core/runtime/agent-server-runtime.ts');
 
 async function createRuntime(port: number, options?: { taskStore?: InMemoryTaskStore }) {
   const { createAgentServerRuntime } = (await import(

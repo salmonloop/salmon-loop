@@ -43,11 +43,9 @@ describe('fs write tools policy', () => {
     const ctx = { flowMode: 'autopilot' };
 
     expect(policy.decide(Phase.AUTOPILOT, fsWriteFileSpec as any, ctx as any).allowed).toBe(true);
-    expect(
-      policy.decide(Phase.AUTOPILOT, fsCreateDirectorySpec as any, ctx as any).allowed,
-    ).toBe(true);
-    expect(policy.decide(Phase.AUTOPILOT, fsDeleteFileSpec as any, ctx as any).allowed).toBe(
+    expect(policy.decide(Phase.AUTOPILOT, fsCreateDirectorySpec as any, ctx as any).allowed).toBe(
       true,
     );
+    expect(policy.decide(Phase.AUTOPILOT, fsDeleteFileSpec as any, ctx as any).allowed).toBe(true);
   });
 });

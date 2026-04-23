@@ -193,9 +193,9 @@ describe('ACP session persistence integration', () => {
       expect(
         interactive.configOptions.find((opt: any) => opt.id === '_salmonloop_mode')?.currentValue,
       ).toBe('autopilot');
-      expect(yolo.configOptions.find((opt: any) => opt.id === '_salmonloop_mode')?.currentValue).toBe(
-        'autopilot',
-      );
+      expect(
+        yolo.configOptions.find((opt: any) => opt.id === '_salmonloop_mode')?.currentValue,
+      ).toBe('autopilot');
       expect(
         yolo.configOptions.find((opt: any) => opt.id === '_salmonloop_permission_policy')
           ?.currentValue,

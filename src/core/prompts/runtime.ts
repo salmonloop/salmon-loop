@@ -97,10 +97,7 @@ export async function getPatchPrompt(
   });
 }
 
-export async function getResearchPrompt(
-  context: string,
-  instruction: string,
-): Promise<string> {
+export async function getResearchPrompt(context: string, instruction: string): Promise<string> {
   const promptRegistry = getPromptRegistry();
   await promptRegistry.init();
   return promptRegistry.renderResearch({

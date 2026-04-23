@@ -93,9 +93,13 @@ describe('ToolPolicy', () => {
   });
 
   it('allows shell.exec in direct AUTOPILOT runtime', () => {
-    const decision = policy.decide(Phase.AUTOPILOT, shellExecSpec as any, {
-      flowMode: 'autopilot',
-    } as any);
+    const decision = policy.decide(
+      Phase.AUTOPILOT,
+      shellExecSpec as any,
+      {
+        flowMode: 'autopilot',
+      } as any,
+    );
 
     expect(decision.allowed).toBe(true);
   });

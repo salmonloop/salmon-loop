@@ -4,7 +4,8 @@ import { describe, expect, test } from 'bun:test';
 
 import { buildA2AAgentCard } from '../../../../src/core/protocols/a2a/agent-card.js';
 
-type AgentServerRuntimeModule = typeof import('../../../../src/core/runtime/agent-server-runtime.ts');
+type AgentServerRuntimeModule =
+  typeof import('../../../../src/core/runtime/agent-server-runtime.ts');
 
 async function getOpenPort() {
   return await new Promise<number>((resolve, reject) => {
@@ -28,10 +29,7 @@ async function getOpenPort() {
   });
 }
 
-async function createRuntime(
-  port: number,
-  options?: { authMiddleware?: any; configureA2A?: any },
-) {
+async function createRuntime(port: number, options?: { authMiddleware?: any; configureA2A?: any }) {
   const { createAgentServerRuntime } = (await import(
     `../../../../src/core/runtime/agent-server-runtime.ts?runtime-test=${Date.now()}-${Math.random()}`
   )) as AgentServerRuntimeModule;

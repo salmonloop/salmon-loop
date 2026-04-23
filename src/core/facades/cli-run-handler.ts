@@ -11,6 +11,7 @@ export {
   type PromptRegistry,
 } from '../prompts/registry.js';
 export { getExitCode } from '../runtime/exit-codes.js';
+export { resolveExecutionProfile } from '../runtime/execution-profile.js';
 export type { ChatSessionManager } from '../session/manager.js';
 export { getDefaultSessionContextBudgetTokens } from '../session/session-context-builder.js';
 export { buildEffectiveConversationContext } from '../session/summary-sync.js';

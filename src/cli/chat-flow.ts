@@ -1,6 +1,8 @@
-import { resolveExecutionProfile } from '../core/runtime/execution-profile.js';
-import type { FlowMode } from '../core/types/execution.js';
-import type { CheckpointStrategy } from '../core/types/loop.js';
+import {
+  resolveExecutionProfile,
+  type CheckpointStrategy,
+  type FlowMode,
+} from '../core/facades/cli-chat.js';
 
 export function resolveActiveChatFlowMode(
   sessionFlowMode: FlowMode | undefined,
@@ -14,5 +16,7 @@ export function resolveChatCheckpointStrategy(
   configured: CheckpointStrategy | undefined,
 ): CheckpointStrategy {
   const profile = resolveExecutionProfile(flowMode);
-  return profile.readOnly ? 'direct' : configured ?? profile.defaultCheckpointStrategy ?? 'worktree';
+  return profile.readOnly
+    ? 'direct'
+    : (configured ?? profile.defaultCheckpointStrategy ?? 'worktree');
 }

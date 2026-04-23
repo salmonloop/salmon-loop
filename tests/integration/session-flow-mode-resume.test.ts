@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
@@ -16,6 +16,10 @@ async function createTempRepo(): Promise<string> {
   return root;
 }
 
+function getSessionFilePath(repoPath: string, sessionId: string): string {
+  return join(repoPath, '.salmonloop', 'chat-sessions', `${sessionId}.json`);
+}
+
 describe('Session flow mode resume (integration)', () => {
   afterEach(async () => {
     while (tempRoots.length > 0) {
@@ -31,15 +35,57 @@ describe('Session flow mode resume (integration)', () => {
     await manager.init();
     const session = await manager.create('Flow Resume');
 
-    manager.updateChatFlowMode('debug');
+    manager.updateChatFlowMode('review');
     await manager.save();
+
+    const persisted = JSON.parse(
+      await readFile(getSessionFilePath(repoPath, session.meta.id), 'utf8'),
+    ) as {
+      meta: {
+        chatState?: {
+          flowMode?: string;
+        };
+      };
+    };
+
+    expect(persisted.meta.chatState).toEqual({ flowMode: 'review' });
 
     const resumedManager = new ChatSessionManager(repoPath);
     await resumedManager.init();
     const resumed = await resumedManager.resumeSession(session.meta.id);
 
-    expect(resumed.meta.chatState?.flowMode).toBe('debug');
-    expect(resumedManager.getChatFlowMode()).toBe('debug');
+    expect(resumed.meta.chatState?.flowMode).toBe('review');
+    expect(resumedManager.getChatFlowMode()).toBe('review');
+  });
+
+  it('normalizes invalid stored chat flow mode to undefined after resume', async () => {
+    const repoPath = await createTempRepo();
+    const manager = new ChatSessionManager(repoPath);
+    await manager.init();
+    const session = await manager.create('Flow Resume Legacy');
+
+    expect(manager.getChatFlowMode()).toBeUndefined();
+
+    const filePath = getSessionFilePath(repoPath, session.meta.id);
+    const createdSession = JSON.parse(await readFile(filePath, 'utf8')) as {
+      meta: {
+        chatState?: {
+          flowMode?: string;
+        };
+      };
+    };
+
+    expect(createdSession.meta.chatState).toBeUndefined();
+
+    createdSession.meta.chatState = { flowMode: 'invalid-mode' };
+    await writeFile(filePath, JSON.stringify(createdSession, null, 2));
+
+    const resumedManager = new ChatSessionManager(repoPath);
+    await resumedManager.init();
+    const resumed = await resumedManager.resumeSession(session.meta.id);
+
+    expect(resumed.meta.chatState?.flowMode).toBeUndefined();
+    expect(resumedManager.getChatFlowMode()).toBeUndefined();
   });
 
   it('rehydrates persisted recovery state into effective context after resume', async () => {

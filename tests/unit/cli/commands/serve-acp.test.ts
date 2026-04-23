@@ -168,7 +168,7 @@ beforeEach(() => {
     hoisted.onceCalls.push({ event, handler });
     return process;
   }) as typeof process.once;
-  process.on = ((event: string, handler: (...args: any[]) => void) => {
+  process.on = ((event: string, _handler: (...args: any[]) => void) => {
     throw new Error(`Unexpected process.on registration for ${event}`);
   }) as typeof process.on;
   process.stdin.destroy = mock(() => process.stdin) as typeof process.stdin.destroy;

@@ -1,7 +1,7 @@
 import { describe, expect, it, mock } from 'bun:test';
 
-import { FLOW_MODES } from '../../../../src/core/types/flow-mode.js';
 import { text } from '../../../../src/cli/locales/index.js';
+import { FLOW_MODES } from '../../../../src/core/types/flow-mode.js';
 
 function createContext(input: string, sessionManagerOverrides: Record<string, unknown> = {}) {
   const emit = mock();

@@ -10,6 +10,7 @@ import {
   getDefaultSessionContextBudgetTokens,
   getLogger,
   normalizePermissionMode,
+  resolveExecutionProfile,
   setPluginRegistry,
   setPromptRegistry,
   type ApplyBackOnDirty,
@@ -17,7 +18,6 @@ import {
   type CheckpointStrategy,
   type LoopResult,
 } from '../../../core/facades/cli-run-handler.js';
-import { resolveExecutionProfile } from '../../../core/runtime/execution-profile.js';
 import { createStdoutWriter } from '../../headless/stdout-writer.js';
 import { text } from '../../locales/index.js';
 import { StderrLogReporter } from '../../reporters/stderr-log-reporter.js';

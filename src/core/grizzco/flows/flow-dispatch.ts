@@ -1,6 +1,6 @@
+import { resolveExecutionProfile } from '../../runtime/execution-profile.js';
 import type { FlowReport } from '../engine/pipeline/pipeline.js';
 import type { InitCtx, TerminalCtx } from '../engine/pipeline/types.js';
-import { resolveExecutionProfile } from '../../runtime/execution-profile.js';
 
 import { executeAutopilotFlow } from './AutopilotFlow.js';
 import { executeSalmonLoopFlow } from './SalmonLoopFlow.js';

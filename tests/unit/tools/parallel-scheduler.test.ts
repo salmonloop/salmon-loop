@@ -275,7 +275,9 @@ describe('ParallelScheduler', () => {
     const brittleSpec: ToolSpec = {
       ...writeSpec,
       name: 'fs.write_file',
-      computeResources: (input: any, ctx) => [{ kind: 'pathPrefix', repoId: ctx.repoRoot, prefix: `${input.file}/` }],
+      computeResources: (input: any, ctx) => [
+        { kind: 'pathPrefix', repoId: ctx.repoRoot, prefix: `${input.file}/` },
+      ],
     };
 
     router.register(brittleSpec, async (_args, _ctx) => ({

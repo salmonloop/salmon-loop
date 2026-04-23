@@ -62,9 +62,7 @@ function recordResumeRepairMetrics(details: {
   );
 }
 
-function normalizeChatState(
-  chatState: SessionMetadata['chatState'],
-): SessionMetadata['chatState'] {
+function normalizeChatState(chatState: SessionMetadata['chatState']): SessionMetadata['chatState'] {
   const flowMode = parseFlowMode(chatState?.flowMode);
   return flowMode ? { flowMode } : undefined;
 }

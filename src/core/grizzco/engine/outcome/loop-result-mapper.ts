@@ -113,8 +113,7 @@ export function buildLoopResultFromTransaction({
     ((flowMode === 'answer' || profile.driver === 'agent') &&
     (ctx as any)?.report?.summary?.trim?.()
       ? String((ctx as any).report.summary).trim()
-      : undefined) ??
-    undefined;
+      : undefined) ?? undefined;
   const finalPatch =
     ctx && typeof ctx === 'object' && 'diff' in ctx ? (ctx as any).diff : undefined;
   const changedFiles =
@@ -130,10 +129,7 @@ export function buildLoopResultFromTransaction({
     const attempts = executionReport.attempts;
     const usage = getTokenUsageFromAuditTrail() ?? undefined;
     const budgetSummary = getBudgetRunSummary() ?? undefined;
-    if (
-      options.dryRun ||
-      profile.readOnly
-    ) {
+    if (options.dryRun || profile.readOnly) {
       return {
         success: true,
         reason: text.loop.operationCompleted,

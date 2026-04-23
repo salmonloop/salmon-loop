@@ -77,9 +77,7 @@ describe('relevant-retrieval', () => {
     });
 
     expect(result).toHaveLength(2);
-    expect(result).not.toContainEqual(
-      expect.objectContaining({ path: '/repo/docs/tool-doc.md' }),
-    );
+    expect(result).not.toContainEqual(expect.objectContaining({ path: '/repo/docs/tool-doc.md' }));
     expect(result).not.toContainEqual(
       expect.objectContaining({ path: '/repo/docs/summary-sync.md' }),
     );

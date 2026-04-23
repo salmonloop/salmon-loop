@@ -131,31 +131,34 @@ describe('A2A SDK express server', () => {
     }
   });
 
-  networkIntegrationTest('message/send persists explicit flow-backed skill capability', async () => {
-    const { url, close } = await startTestServer({
-      executeTask: async (task) => ({ ...task, state: 'completed' }),
-      capabilityResolver: () => 'review',
-    });
-    try {
-      const transport = new JsonRpcTransport({ endpoint: `${url}/a2a/jsonrpc` });
-      const result = await transport.sendMessage({
-        message: createMessage('msg-review'),
+  networkIntegrationTest(
+    'message/send persists explicit flow-backed skill capability',
+    async () => {
+      const { url, close } = await startTestServer({
+        executeTask: async (task) => ({ ...task, state: 'completed' }),
+        capabilityResolver: () => 'review',
       });
+      try {
+        const transport = new JsonRpcTransport({ endpoint: `${url}/a2a/jsonrpc` });
+        const result = await transport.sendMessage({
+          message: createMessage('msg-review'),
+        });
 
-      expect(result.kind).toBe('task');
-      if (result.kind !== 'task') {
-        throw new Error('expected task response');
-      }
+        expect(result.kind).toBe('task');
+        if (result.kind !== 'task') {
+          throw new Error('expected task response');
+        }
 
-      const stored = await transport.getTask({ id: result.id });
-      if (!stored) {
-        throw new Error('missing stored task');
+        const stored = await transport.getTask({ id: result.id });
+        if (!stored) {
+          throw new Error('missing stored task');
+        }
+        expect(stored.metadata?.capability).toBe('review');
+      } finally {
+        await close();
       }
-      expect(stored.metadata?.capability).toBe('review');
-    } finally {
-      await close();
-    }
-  });
+    },
+  );
 
   networkIntegrationTest(
     'message/stream yields status updates and cancel observes cancellation',

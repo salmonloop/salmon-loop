@@ -340,8 +340,8 @@ export class FlowTransactionRunner {
           profile.failurePolicy === 'preserve'
             ? profile.entryPhase
             : profile.readOnly
-            ? 'SHRINK'
-            : 'APPLY_BACK';
+              ? 'SHRINK'
+              : 'APPLY_BACK';
         recordAuditEvent(
           'loop.attempt.success',
           { attempt, flowMode: this.params.flowMode },

@@ -411,7 +411,9 @@ describe('Headless protocol integration', () => {
         event: { type: 'end', success: true, exit_code: 0 },
       });
 
-      expect(await helper.readFile(repo.path, 'src/index.ts')).toBe('console.log("headless autopilot");\n');
+      expect(await helper.readFile(repo.path, 'src/index.ts')).toBe(
+        'console.log("headless autopilot");\n',
+      );
     } finally {
       await stub.close();
     }
@@ -677,7 +679,9 @@ describe('Headless protocol integration', () => {
 
     const baseUrl = await stub.tryStart();
     if (!baseUrl) {
-      throw new Error('OpenAI streaming stub failed to bind; mixed batch regression test did not run');
+      throw new Error(
+        'OpenAI streaming stub failed to bind; mixed batch regression test did not run',
+      );
     }
     await writeOpenAiStubConfig(repo.path, baseUrl);
 
@@ -780,7 +784,9 @@ describe('Headless protocol integration', () => {
 
     const baseUrl = await stub.tryStart();
     if (!baseUrl) {
-      throw new Error('OpenAI streaming stub failed to bind; recovery verify regression test did not run');
+      throw new Error(
+        'OpenAI streaming stub failed to bind; recovery verify regression test did not run',
+      );
     }
     await writeOpenAiStubConfig(repo.path, baseUrl);
 

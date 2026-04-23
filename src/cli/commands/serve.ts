@@ -21,15 +21,15 @@ import {
   startAcpStdioServer,
   StderrReporter,
 } from '../../core/facades/cli-serve.js';
-import { createTerminalAuthorizationProvider } from '../authorization/provider.js';
-import { text } from '../locales/index.js';
-import { createOutcomeReporter } from '../utils/outcome-reporter.js';
-import { resolveCliConfig } from '../utils/resolve-cli-config.js';
-import { buildPublicCapabilityRegistry } from '../../core/public-capabilities/registry.js';
 import {
   selectPublicCapabilitiesForSurface,
   toA2APublicSkills,
 } from '../../core/public-capabilities/projections.js';
+import { buildPublicCapabilityRegistry } from '../../core/public-capabilities/registry.js';
+import { createTerminalAuthorizationProvider } from '../authorization/provider.js';
+import { text } from '../locales/index.js';
+import { createOutcomeReporter } from '../utils/outcome-reporter.js';
+import { resolveCliConfig } from '../utils/resolve-cli-config.js';
 
 import { createRuntimeLlmAndWarn } from './run/runtime-llm.js';
 

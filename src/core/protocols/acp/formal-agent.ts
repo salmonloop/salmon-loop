@@ -32,13 +32,13 @@ import type { TaskEnvelope } from '../../interaction/model/index.js';
 import { inferTurnStopReasonFromFailure } from '../../interaction/turn-stop-reason.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
 import { readPlan } from '../../plan/index.js';
+import { toAcpPublicModes } from '../../public-capabilities/projections.js';
+import { buildPublicCapabilityRegistry } from '../../public-capabilities/registry.js';
 import type { CommandRunner } from '../../runtime/command-runner-context.js';
 import { parseSlashInput } from '../../slash/parser.js';
 import type { FileSystem } from '../../types/index.js';
 import type { LoopEvent } from '../../types/index.js';
 import type { FlowMode } from '../../types/runtime.js';
-import { buildPublicCapabilityRegistry } from '../../public-capabilities/registry.js';
-import { toAcpPublicModes } from '../../public-capabilities/projections.js';
 import { buildCanonicalExecutionRequest } from '../shared/execution-request.js';
 import { parseAcpFlowMode } from '../shared/flow-mode-mapping.js';
 
@@ -462,7 +462,9 @@ function buildCurrentModeUpdateIfChanged(state: AcpSessionRuntimeState): Session
 }
 
 function getLegacyPermissionPolicyForModeValue(value: unknown): AcpPermissionPolicy | null {
-  const normalized = String(value ?? '').trim().toLowerCase();
+  const normalized = String(value ?? '')
+    .trim()
+    .toLowerCase();
   if (normalized === 'interactive') return ACP_PERMISSION_POLICY_ASK;
   if (normalized === 'yolo') return ACP_PERMISSION_POLICY_ALLOW_ALL;
   return null;
@@ -802,10 +804,9 @@ export function createAcpFormalAgent(deps: {
           title: entry.title,
           taskId: undefined,
           history: [],
-          permissionPolicy:
-            isPermissionPolicyValue(String(deps.defaultPermissionPolicy))
-              ? deps.defaultPermissionPolicy
-              : ACP_PERMISSION_POLICY_ASK,
+          permissionPolicy: isPermissionPolicyValue(String(deps.defaultPermissionPolicy))
+            ? deps.defaultPermissionPolicy
+            : ACP_PERMISSION_POLICY_ASK,
           modeId: resolveExposedAcpModeId(deps.defaultModeId),
         })),
       };
