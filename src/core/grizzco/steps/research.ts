@@ -4,7 +4,6 @@ import { recordAuditEvent } from '../../observability/audit-trail.js';
 import { getResearchPrompt, getResearchSystemPrompt } from '../../prompts/runtime.js';
 import { SessionReplacementPreviewProvider } from '../../session/replacement-preview-provider.js';
 import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
-import { resolveVisibleToolNames } from '../../tools/tool-visibility.js';
 import { Phase } from '../../types/runtime.js';
 import { resolveLlmToolCallingPolicy } from '../dsl/llm-strategy.js';
 import type {
@@ -125,14 +124,11 @@ export async function generateResearch(ctx: ExploreCtx): Promise<ResearchCtx> {
     artifactHints: ctx.artifactHints,
     toolCallingAudit: ctx.toolCallingAudit,
     previewProvider: new SessionReplacementPreviewProvider(ctx.replacementState),
-    relevantMemory: {
-      visibleToolNames: resolveVisibleToolNames({
-        phase: Phase.RESEARCH,
-        toolstack: ctx.toolstack,
-        worktreeRoot: ctx.workspace.strategy === 'worktree' ? ctx.workspace.workPath : undefined,
-        flowMode: ctx.mode,
-        runtime: toolVisibility,
-      }),
+    toolVisibility: {
+      toolstack: ctx.toolstack,
+      runtime: toolVisibility,
+      worktreeRoot: ctx.workspace.strategy === 'worktree' ? ctx.workspace.workPath : undefined,
+      flowMode: ctx.mode,
     },
   });
   const { cacheSurface, envelope, baseMessages } = requestEnvelope;

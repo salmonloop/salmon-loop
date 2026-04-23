@@ -195,8 +195,11 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
     artifactHints: ctx.artifactHints,
     toolCallingAudit: ctx.toolCallingAudit,
     previewProvider: new SessionReplacementPreviewProvider(ctx.replacementState),
-    relevantMemory: {
-      visibleToolNames: promptVisibleTools.map((spec) => spec.name),
+    toolVisibility: {
+      toolstack,
+      runtime: toolVisibility,
+      worktreeRoot: ctx.workspace.strategy === 'worktree' ? ctx.workspace.workPath : undefined,
+      flowMode: ctx.mode,
     },
   });
   const { cacheSurface, envelope, baseMessages } = requestEnvelope;

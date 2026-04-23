@@ -1,5 +1,6 @@
 import type { ContextResult } from '../../context/types.js';
 import type { ToolCallingAuditEntry } from '../../llm/audit.js';
+import { augmentPromptWithRelevantMemory } from '../../llm/request-augmentation.js';
 import {
   type RequestArtifactHints,
   type RequestAttachment,
@@ -12,15 +13,19 @@ import {
   type SharedRequestEnvelope,
 } from '../../llm/shared-request-assembly.js';
 import { formatContextForPrompt } from '../../llm/utils.js';
-import { augmentPromptWithRelevantMemory } from '../../llm/request-augmentation.js';
 import {
   buildRelevantMemoryCandidates,
   selectRelevantMemory,
   type RelevantMemoryCandidate,
 } from '../../memory/relevant-retrieval.js';
+import {
+  resolveVisibleToolNames,
+  type ToolVisibilityRuntime,
+  type VisibleToolstackLike,
+} from '../../tools/tool-visibility.js';
 import type { Context } from '../../types/context.js';
 import type { LLMMessage, LLMProviderHints } from '../../types/llm.js';
-import type { ExecutionPhase } from '../../types/runtime.js';
+import type { ExecutionPhase, FlowMode } from '../../types/runtime.js';
 
 import {
   resolveCacheSharingSurface,
@@ -48,9 +53,14 @@ export interface BuildAugmentedRequestEnvelopeArgs {
   previewProvider?: ToolResultPreviewArtifactsProvider;
   extraAttachments?: RequestAttachment[];
   providerHints?: LLMProviderHints;
+  toolVisibility?: {
+    toolstack?: VisibleToolstackLike;
+    runtime?: ToolVisibilityRuntime;
+    worktreeRoot?: string;
+    flowMode?: FlowMode;
+  };
   relevantMemory?: {
     entries?: RelevantMemoryCandidate[];
-    visibleToolNames?: string[];
     maxItems?: number;
     budgetTokens?: number;
     countTokens?: (text: string) => number;
@@ -91,7 +101,13 @@ export async function buildAugmentedRequestEnvelope(
   const relevantMemory = selectRelevantMemory({
     instruction: args.context.instruction,
     candidates: args.relevantMemory?.entries ?? buildRelevantMemoryCandidates(args.context),
-    activeToolNames: args.relevantMemory?.visibleToolNames,
+    activeToolNames: resolveVisibleToolNames({
+      phase: args.phase,
+      toolstack: args.toolVisibility?.toolstack,
+      runtime: args.toolVisibility?.runtime,
+      worktreeRoot: args.toolVisibility?.worktreeRoot,
+      flowMode: args.toolVisibility?.flowMode,
+    }),
     maxItems: args.relevantMemory?.maxItems,
     alreadySurfacedText: [
       baseContextPrompt,

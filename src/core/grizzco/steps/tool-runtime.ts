@@ -62,14 +62,12 @@ export function buildPhaseToolRuntimeContext(
   };
 }
 
-export function buildToolVisibilityRuntime(
-  ctx: {
-    planRuntime?: {
-      sessionId: string;
-      planPathHint: string;
-    };
-  },
-): ToolVisibilityRuntime | undefined {
+export function buildToolVisibilityRuntime(ctx: {
+  planRuntime?: {
+    sessionId: string;
+    planPathHint: string;
+  };
+}): ToolVisibilityRuntime | undefined {
   if (!ctx.planRuntime) {
     return undefined;
   }

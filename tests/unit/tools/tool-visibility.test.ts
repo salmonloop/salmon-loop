@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'bun:test';
 
-import { Phase } from '../../../src/core/types/runtime.js';
 import { subAgentTaskSpec } from '../../../src/core/sub-agent/tools/task-spawn.js';
 import { fsReadFileSpec, fsWriteFileSpec } from '../../../src/core/tools/builtin/fs.js';
 import { planUpdateSpec } from '../../../src/core/tools/builtin/plan.js';
 import { shellExecSpec } from '../../../src/core/tools/builtin/shell.js';
 import { resolvePhaseVisibleTools } from '../../../src/core/tools/tool-visibility.js';
+import { Phase } from '../../../src/core/types/runtime.js';
 
 describe('tool visibility', () => {
   it('shows only AUTOPILOT-allowed tools in autopilot phase', () => {

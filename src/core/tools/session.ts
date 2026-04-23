@@ -27,10 +27,7 @@ import { ParallelScheduler } from './parallel/scheduler.js';
 import { isRecoverableToolInputErrorCode } from './recoverable-tool-errors.js';
 import type { ToolRouter } from './router.js';
 import { ToolCallAccumulator } from './streaming/ToolCallAccumulator.js';
-import {
-  resolveVisibleToolSpecs,
-  type ToolVisibilityRuntime,
-} from './tool-visibility.js';
+import { resolveVisibleToolSpecs, type ToolVisibilityRuntime } from './tool-visibility.js';
 import type { ToolCallEnvelope, ToolRuntimeCtx, ToolResult, ToolSpec } from './types.js';
 
 interface ToolstackLike {
@@ -146,9 +143,7 @@ function safeStringifyForAudit(value: unknown): string {
   }
 }
 
-function buildToolCorrectionHint(
-  result: ToolResult,
-): ToolCorrectionHint | undefined {
+function buildToolCorrectionHint(result: ToolResult): ToolCorrectionHint | undefined {
   const errorCode = result.error?.code;
   const tool = result.toolName;
   if (!isRecoverableToolInputErrorCode(errorCode) || !tool) return undefined;

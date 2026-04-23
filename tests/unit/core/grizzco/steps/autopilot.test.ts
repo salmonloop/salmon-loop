@@ -725,7 +725,10 @@ describe('runAutopilot', () => {
 
   it('hashes dirty workspace entries serially', async () => {
     const { runAutopilot } = await import('../../../../../src/core/grizzco/steps/autopilot.js');
-    const statusOutputs = [`${trackedStatusRecord('a.txt')}\0${trackedStatusRecord('b.txt')}\0`, ''];
+    const statusOutputs = [
+      `${trackedStatusRecord('a.txt')}\0${trackedStatusRecord('b.txt')}\0`,
+      '',
+    ];
     const hashStartOrder: string[] = [];
     let revParseCalls = 0;
     let writeTreeCalls = 0;

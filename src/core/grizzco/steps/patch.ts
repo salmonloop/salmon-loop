@@ -98,7 +98,12 @@ export const generatePatch: Step<PlanCtx, PatchCtx> = async (ctx) => {
     planRuntime: ctx.planRuntime,
     lastError: ctx.lastError,
     promptVisibleTools,
-    visibleToolNames: promptVisibleTools.map((spec) => spec.name),
+    toolVisibility: {
+      toolstack,
+      runtime: toolVisibility,
+      worktreeRoot: ctx.workspace.strategy === 'worktree' ? ctx.workspace.workPath : undefined,
+      flowMode: ctx.mode,
+    },
     phase: Phase.PATCH,
     cacheSharing: ctx.cacheSharing,
     onCacheMismatch: (mismatch) => {

@@ -5,10 +5,14 @@ import type { RequestArtifactHints, RequestEnvelope } from '../../../llm/request
 import { getPatchPrompt, getPatchSystemPrompt } from '../../../prompts/runtime.js';
 import { SessionReplacementPreviewProvider } from '../../../session/replacement-preview-provider.js';
 import type { ToolResultReplacementState } from '../../../session/replacement-state.js';
+import type {
+  ToolVisibilityRuntime,
+  VisibleToolstackLike,
+} from '../../../tools/tool-visibility.js';
 import type { Context } from '../../../types/context.js';
 import type { LLMMessage } from '../../../types/llm.js';
 import type { Plan } from '../../../types/planning.js';
-import { Phase, type ExecutionPhase } from '../../../types/runtime.js';
+import { Phase, type ExecutionPhase, type FlowMode } from '../../../types/runtime.js';
 import { type CacheSharingMismatch, type CacheSharingSurface } from '../cache-sharing.js';
 import { buildPhaseRequestEnvelope } from '../request-assembly.js';
 
@@ -31,7 +35,12 @@ export interface BuildPatchPromptInputArgs {
   replacementState?: ToolResultReplacementState;
   toolCallingAudit?: ToolCallingAuditEntry[];
   promptVisibleTools?: Parameters<typeof getPatchSystemPrompt>[0];
-  visibleToolNames?: string[];
+  toolVisibility?: {
+    toolstack?: VisibleToolstackLike;
+    runtime?: ToolVisibilityRuntime;
+    worktreeRoot?: string;
+    flowMode?: FlowMode;
+  };
   onCacheMismatch?: (mismatch: CacheSharingMismatch) => void;
 }
 
@@ -70,9 +79,7 @@ export async function buildPatchPromptInput(
     artifactHints: args.artifactHints,
     previewProvider: new SessionReplacementPreviewProvider(args.replacementState),
     toolCallingAudit: args.toolCallingAudit,
-    relevantMemory: {
-      visibleToolNames: args.visibleToolNames,
-    },
+    toolVisibility: args.toolVisibility,
     extraAttachments: [
       {
         key: 'plan-json',

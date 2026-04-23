@@ -270,7 +270,21 @@ describe('buildPhaseRequestEnvelope', () => {
             summary: 'Keep the instruction focused and avoid redundant context.',
           },
         ],
-        visibleToolNames: ['fs.read'],
+      },
+      toolVisibility: {
+        toolstack: {
+          registry: {
+            listAll: () =>
+              [
+                { name: 'fs.read', allowedPhases: [Phase.AUTOPILOT] },
+                { name: 'agent_dispatch', allowedPhases: [Phase.AUTOPILOT] },
+              ] as any,
+          },
+          policy: {
+            decide: () => ({ allowed: true }),
+          },
+        },
+        flowMode: 'autopilot',
       },
     });
 

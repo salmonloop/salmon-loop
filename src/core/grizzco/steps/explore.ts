@@ -5,7 +5,6 @@ import { recordAuditEvent } from '../../observability/audit-trail.js';
 import { getExplorePrompt, getExploreSystemPrompt } from '../../prompts/runtime.js';
 import { SessionReplacementPreviewProvider } from '../../session/replacement-preview-provider.js';
 import { chatWithTools, chatWithToolsStreaming } from '../../tools/session.js';
-import { resolveVisibleToolNames } from '../../tools/tool-visibility.js';
 import { type RelatedFileContext } from '../../types/context.js';
 import { SalmonError } from '../../types/errors.js';
 import { Phase } from '../../types/runtime.js';
@@ -168,14 +167,11 @@ export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
     artifactHints: ctx.artifactHints,
     toolCallingAudit: ctx.toolCallingAudit,
     previewProvider: new SessionReplacementPreviewProvider(ctx.replacementState),
-    relevantMemory: {
-      visibleToolNames: resolveVisibleToolNames({
-        phase: Phase.EXPLORE,
-        toolstack,
-        worktreeRoot: ctx.workspace.strategy === 'worktree' ? ctx.workspace.workPath : undefined,
-        flowMode: ctx.mode,
-        runtime: toolVisibility,
-      }),
+    toolVisibility: {
+      toolstack,
+      runtime: toolVisibility,
+      worktreeRoot: ctx.workspace.strategy === 'worktree' ? ctx.workspace.workPath : undefined,
+      flowMode: ctx.mode,
     },
   });
   const { cacheSurface, envelope, baseMessages } = requestEnvelope;
