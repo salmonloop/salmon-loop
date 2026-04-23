@@ -37,12 +37,10 @@ import { parseSlashInput } from '../../slash/parser.js';
 import type { FileSystem } from '../../types/index.js';
 import type { LoopEvent } from '../../types/index.js';
 import type { FlowMode } from '../../types/runtime.js';
-import { FLOW_MODE_PUBLIC_METADATA } from '../../public-capabilities/flow-mode-metadata.js';
+import { buildPublicCapabilityRegistry } from '../../public-capabilities/registry.js';
+import { toAcpPublicModes } from '../../public-capabilities/projections.js';
 import { buildCanonicalExecutionRequest } from '../shared/execution-request.js';
-import {
-  SUPPORTED_PROTOCOL_FLOW_MODES,
-  parseAcpFlowMode,
-} from '../shared/flow-mode-mapping.js';
+import { parseAcpFlowMode } from '../shared/flow-mode-mapping.js';
 
 import { createAcpCommandRunner } from './acp-command-runner.js';
 import { createAcpFileSystem } from './acp-filesystem.js';
@@ -191,32 +189,19 @@ const ACP_AVAILABLE_COMMANDS: Array<{ name: string; description: string }> = [
   { name: 'help', description: text.acp.slashHelpDescription },
 ];
 
-const ACP_MODE_METADATA: Record<AcpSessionModeId, { name: string; description: string }> = {
-  patch: {
-    name: FLOW_MODE_PUBLIC_METADATA.patch.acpName,
-    description: FLOW_MODE_PUBLIC_METADATA.patch.description,
-  },
-  review: {
-    name: FLOW_MODE_PUBLIC_METADATA.review.acpName,
-    description: FLOW_MODE_PUBLIC_METADATA.review.description,
-  },
-  debug: {
-    name: FLOW_MODE_PUBLIC_METADATA.debug.acpName,
-    description: FLOW_MODE_PUBLIC_METADATA.debug.description,
-  },
-  research: {
-    name: FLOW_MODE_PUBLIC_METADATA.research.acpName,
-    description: FLOW_MODE_PUBLIC_METADATA.research.description,
-  },
-  answer: {
-    name: FLOW_MODE_PUBLIC_METADATA.answer.acpName,
-    description: FLOW_MODE_PUBLIC_METADATA.answer.description,
-  },
-  autopilot: {
-    name: FLOW_MODE_PUBLIC_METADATA.autopilot.acpName,
-    description: FLOW_MODE_PUBLIC_METADATA.autopilot.description,
-  },
-};
+const ACP_PUBLIC_MODES = toAcpPublicModes(buildPublicCapabilityRegistry());
+const ACP_PUBLIC_MODE_IDS = new Set<AcpSessionModeId>(ACP_PUBLIC_MODES.map((mode) => mode.id));
+
+function resolveExposedAcpModeId(
+  value: unknown,
+  fallback: AcpSessionModeId = ACP_DEFAULT_MODE_ID,
+): AcpSessionModeId {
+  const resolvedModeId = parseAcpFlowMode(value);
+  if (resolvedModeId && ACP_PUBLIC_MODE_IDS.has(resolvedModeId)) {
+    return resolvedModeId;
+  }
+  return fallback;
+}
 
 function formatResourceLink(block: Extract<ContentBlock, { type: 'resource_link' }>): string {
   const title = block.title ?? block.name ?? block.uri;
@@ -409,10 +394,10 @@ function buildConfigOptions(state: AcpSessionRuntimeState): SessionConfigOption[
       name: 'Execution Flow',
       description: 'Choose how the agent should execute this session.',
       currentValue: state.modeId,
-      options: SUPPORTED_PROTOCOL_FLOW_MODES.map((modeId) => ({
-        value: modeId,
-        name: ACP_MODE_METADATA[modeId].name,
-        description: ACP_MODE_METADATA[modeId].description,
+      options: ACP_PUBLIC_MODES.map((mode) => ({
+        value: mode.id,
+        name: mode.name,
+        description: mode.description,
       })),
     },
   ];
@@ -465,11 +450,7 @@ function buildCurrentModeUpdate(modeId: AcpSessionModeId): SessionUpdate {
 function buildModesState(modeId: AcpSessionModeId): SessionModeState {
   return {
     currentModeId: modeId,
-    availableModes: SUPPORTED_PROTOCOL_FLOW_MODES.map((id) => ({
-      id,
-      name: ACP_MODE_METADATA[id].name,
-      description: ACP_MODE_METADATA[id].description,
-    })),
+    availableModes: ACP_PUBLIC_MODES.map((mode) => ({ ...mode })),
   };
 }
 
@@ -505,8 +486,8 @@ function createSessionRuntimeStateFromPersisted(input?: {
   const permissionPolicy = isPermissionPolicyValue(String(input?.permissionPolicy))
     ? (input?.permissionPolicy as AcpPermissionPolicy)
     : defaultPermissionPolicy;
-  const defaultModeId = parseAcpFlowMode(input?.defaultModeId) ?? ACP_DEFAULT_MODE_ID;
-  const modeId = parseAcpFlowMode(input?.modeId) ?? defaultModeId;
+  const defaultModeId = resolveExposedAcpModeId(input?.defaultModeId);
+  const modeId = resolveExposedAcpModeId(input?.modeId, defaultModeId);
   const state: AcpSessionRuntimeState = {
     runtimePlanSessionId: null,
     runtimePlanPathHint: null,
@@ -825,7 +806,7 @@ export function createAcpFormalAgent(deps: {
             isPermissionPolicyValue(String(deps.defaultPermissionPolicy))
               ? deps.defaultPermissionPolicy
               : ACP_PERMISSION_POLICY_ASK,
-          modeId: parseAcpFlowMode(deps.defaultModeId) ?? ACP_DEFAULT_MODE_ID,
+          modeId: resolveExposedAcpModeId(deps.defaultModeId),
         })),
       };
     }
@@ -1451,14 +1432,14 @@ export function createAcpFormalAgent(deps: {
         }
         runtimeState.permissionPolicy = params.value;
       } else if (params.configId === ACP_MODE_CONFIG_ID) {
-        const resolvedModeId = parseAcpFlowMode(params.value);
-        if (!resolvedModeId) {
+        const parsedModeId = parseAcpFlowMode(params.value);
+        if (!parsedModeId || !ACP_PUBLIC_MODE_IDS.has(parsedModeId)) {
           throw new RequestError(
             -32602,
             `Invalid params: unsupported value "${params.value}" for "${params.configId}"`,
           );
         }
-        runtimeState.modeId = resolvedModeId;
+        runtimeState.modeId = parsedModeId;
         const legacyPermissionPolicy = getLegacyPermissionPolicyForModeValue(params.value);
         if (legacyPermissionPolicy) {
           runtimeState.permissionPolicy = legacyPermissionPolicy;
@@ -1489,7 +1470,7 @@ export function createAcpFormalAgent(deps: {
 
       const runtimeState = ensureSessionRuntimeState(params.sessionId);
       const resolvedModeId = parseAcpFlowMode(params.modeId);
-      if (!resolvedModeId) {
+      if (!resolvedModeId || !ACP_PUBLIC_MODE_IDS.has(resolvedModeId)) {
         throw new RequestError(-32602, `Invalid params: unsupported modeId "${params.modeId}"`);
       }
       runtimeState.modeId = resolvedModeId;
