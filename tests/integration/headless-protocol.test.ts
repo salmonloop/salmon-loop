@@ -569,7 +569,7 @@ describe('Headless protocol integration', () => {
 
     const baseUrl = await stub.tryStart();
     if (!baseUrl) {
-      return;
+      throw new Error('OpenAI streaming stub failed to bind; recovery regression test did not run');
     }
     await writeOpenAiStubConfig(repo.path, baseUrl);
 
