@@ -268,15 +268,6 @@ export function buildFailureGuidance(input: BuildFailureGuidanceInput): FailureG
               'Reuse the latest tool error details to correct only the invalid fields.',
             ],
           };
-        case 'AUTH_REQUIRED':
-          return {
-            diagnosticCode: 'TOOL_AUTHORIZATION_PENDING',
-            safeHint: 'A tool call is waiting for authorization before it can continue.',
-            remediationSteps: [
-              'Wait for authorization to complete, then retry the tool call.',
-              'If authorization is denied, ask the user before attempting an alternative action.',
-            ],
-          };
         default:
           return undefined;
       }

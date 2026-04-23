@@ -68,7 +68,7 @@ export interface ToolCallingSessionOptions {
 }
 
 type ToolCorrectionHint = {
-  kind: 'adjust_arguments' | 'wait_for_authorization' | 'stop_and_ask_user';
+  kind: 'adjust_arguments';
   tool: string;
   hint: string;
   retryable: boolean;
@@ -160,26 +160,6 @@ function buildToolCorrectionHint(
           result.error?.message ||
           `Adjust the arguments for ${tool} and retry with a valid JSON object.`,
         retryable: true,
-      };
-    case 'AUTH_REQUIRED':
-      return {
-        kind: 'wait_for_authorization',
-        tool,
-        hint:
-          result.error?.message ||
-          `Wait for authorization for ${tool} before retrying the tool call.`,
-        retryable: true,
-      };
-    case 'AUTH_DENIED':
-    case 'POLICY_DENY':
-    case 'PERMISSION_RULE_DENY':
-      return {
-        kind: 'stop_and_ask_user',
-        tool,
-        hint:
-          result.error?.message ||
-          `Do not retry ${tool} automatically. Ask the user before proceeding.`,
-        retryable: false,
       };
     default:
       return undefined;
