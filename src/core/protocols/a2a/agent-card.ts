@@ -1,7 +1,5 @@
 import type { AgentCard, SecurityScheme } from '@a2a-js/sdk';
 
-import { buildA2AFlowSkills } from '../shared/flow-mode-mapping.js';
-
 interface CapabilityInput {
   id: string;
   title: string;
@@ -26,7 +24,7 @@ export function buildA2AAgentCard(input: {
   protocolVersion?: string;
   capabilityOptions?: AgentCardCapabilityOptions;
 }): AgentCard {
-  const capabilities = input.capabilities ?? buildA2AFlowSkills();
+  const capabilities = input.capabilities ?? [];
   const securitySchemes =
     input.security.length > 0
       ? Object.fromEntries(
