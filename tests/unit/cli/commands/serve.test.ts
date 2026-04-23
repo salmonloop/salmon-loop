@@ -30,7 +30,7 @@ const hoisted = (() => ({
   processExit: mock((_code?: number) => undefined as never),
   lastRunLoopOptions: undefined as Record<string, unknown> | undefined,
   runLoop: undefined as
-    | ((options: { instruction: string; mode: string }) => Promise<unknown>)
+    | ((options: { instruction: string; mode: string; repoPath?: string }) => Promise<unknown>)
     | undefined,
   config: createDefaultResolvedConfig(),
   logger: {
@@ -390,6 +390,31 @@ describe('handleServeCommand', () => {
     await hoisted.runLoop!({ instruction: 'test', mode: 'patch' });
 
     expect(hoisted.lastRunLoopOptions?.auditScope).toBe('user');
+  });
+
+  it('uses execution profile defaults for autopilot loop requests', async () => {
+    const { handleServeCommand } = await import('../../../../src/cli/commands/serve.js');
+
+    const command: any = {
+      optsWithGlobals: () => ({
+        repo: '/repo',
+        a2aHost: '127.0.0.1',
+        a2aPort: '8081',
+        acpStdio: false,
+      }),
+    };
+
+    await handleServeCommand({}, command);
+
+    expect(hoisted.runLoop).toBeDefined();
+    await hoisted.runLoop!({ instruction: 'test', mode: 'autopilot' });
+
+    expect(hoisted.lastRunLoopOptions).toMatchObject({
+      mode: 'autopilot',
+      strategy: 'direct',
+      environmentMode: 'strict',
+    });
+    expect(hoisted.lastRunLoopOptions?.applyBackOnDirty).toBeUndefined();
   });
 
   it('logs only the A2A listener address on startup', async () => {

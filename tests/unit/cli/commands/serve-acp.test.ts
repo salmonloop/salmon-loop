@@ -3,6 +3,17 @@ import { Command } from 'commander';
 
 import { clearLogger, setLogger } from '../../../../src/core/observability/logger.js';
 
+function createDefaultResolvedConfig() {
+  return {
+    llm: { api: { baseUrl: undefined, apiKey: undefined } },
+    llmOutput: { kinds: [] },
+    observability: { langfuse: { enabled: false, outcome: false }, audit: { scope: 'repo' } },
+    toolAuthorization: { allowlist: {} },
+    verify: { command: undefined },
+    cli: { defaults: {} },
+  } as any;
+}
+
 const hoisted = (() => ({
   listenCalls: [] as Array<{ options: { port?: number; host?: string; path?: string } }>,
   acpLoopCalls: [] as Array<Record<string, unknown>>,
@@ -10,14 +21,11 @@ const hoisted = (() => ({
   agentServerRuntimeCalls: 0,
   onceCalls: [] as Array<{ event: string; handler: (...args: any[]) => void }>,
   processExit: mock((_code?: number) => undefined as never),
-  config: {
-    llm: { api: { baseUrl: undefined, apiKey: undefined } },
-    llmOutput: { kinds: [] },
-    observability: { langfuse: { enabled: false, outcome: false }, audit: { scope: 'repo' } },
-    toolAuthorization: { allowlist: {} },
-    verify: { command: undefined },
-    cli: { defaults: {} },
-  } as any,
+  lastRunLoopOptions: undefined as Record<string, unknown> | undefined,
+  runLoop: undefined as
+    | ((options: { instruction: string; mode: string; repoPath?: string }) => Promise<unknown>)
+    | undefined,
+  config: createDefaultResolvedConfig(),
   logger: {
     error: mock(),
     warn: mock(),
@@ -57,17 +65,23 @@ mock.module('../../../../src/cli/commands/run/runtime-llm.js', () => ({
 }));
 
 mock.module('../../../../src/core/runtime/loop.js', () => ({
-  runSalmonLoop: mock(async () => ({ success: true })),
+  runSalmonLoop: mock(async (options: Record<string, unknown>) => {
+    hoisted.lastRunLoopOptions = options;
+    return { success: true };
+  }),
 }));
 
 mock.module('../../../../src/core/backends/salmon-loop/task-executor.js', () => ({
-  createSalmonTaskExecutor: mock(() => ({
-    execute: mock(async () => ({
-      id: 'task_1',
-      state: 'completed',
-      request: { instruction: '' },
-    })),
-  })),
+  createSalmonTaskExecutor: mock((deps: { runLoop: any }) => {
+    hoisted.runLoop = deps.runLoop;
+    return {
+      execute: mock(async () => ({
+        id: 'task_1',
+        state: 'completed',
+        request: { instruction: '' },
+      })),
+    };
+  }),
 }));
 
 mock.module('../../../../src/core/checkpoint-domain/service.js', () => ({
@@ -159,6 +173,9 @@ beforeEach(() => {
   hoisted.agentServerRuntimeCalls = 0;
   hoisted.onceCalls.length = 0;
   hoisted.processExit.mockReset();
+  hoisted.lastRunLoopOptions = undefined;
+  hoisted.runLoop = undefined;
+  hoisted.config = createDefaultResolvedConfig();
   hoisted.logger.error.mockReset();
   hoisted.logger.warn.mockReset();
   hoisted.logger.info.mockReset();
@@ -241,6 +258,29 @@ describe('handleServeAcpCommand', () => {
 
     expect(process.stdin.destroy).toHaveBeenCalledTimes(1);
     expect(hoisted.processExit).toHaveBeenCalledWith(0);
+  });
+
+  it('uses execution profile defaults for autopilot loop requests', async () => {
+    const { handleServeAcpCommand } = await import('../../../../src/cli/commands/serve.js');
+
+    const command: any = {
+      optsWithGlobals: () => ({
+        repo: '/repo',
+        color: false,
+      }),
+    };
+
+    await handleServeAcpCommand({}, command);
+
+    expect(hoisted.runLoop).toBeDefined();
+    await hoisted.runLoop!({ instruction: 'test', mode: 'autopilot' });
+
+    expect(hoisted.lastRunLoopOptions).toMatchObject({
+      mode: 'autopilot',
+      strategy: 'direct',
+      environmentMode: 'strict',
+    });
+    expect(hoisted.lastRunLoopOptions?.applyBackOnDirty).toBeUndefined();
   });
 });
 

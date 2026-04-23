@@ -15,6 +15,7 @@ import {
   PlainReporter,
   PluginLoader,
   resolveExtensions,
+  resolveExecutionProfile,
   runSalmonLoop,
   setPluginRegistry,
   setPromptRegistry,
@@ -26,6 +27,8 @@ import {
   toA2APublicSkills,
 } from '../../core/public-capabilities/projections.js';
 import { buildPublicCapabilityRegistry } from '../../core/public-capabilities/registry.js';
+import type { CheckpointStrategy } from '../../core/types/loop.js';
+import type { ApplyBackOnDirty, FlowMode } from '../../core/types/runtime.js';
 import { createTerminalAuthorizationProvider } from '../authorization/provider.js';
 import { text } from '../locales/index.js';
 import { createOutcomeReporter } from '../utils/outcome-reporter.js';
@@ -43,6 +46,20 @@ function resolveDefaultAcpPermissionPolicy(
   permissionMode: 'interactive' | 'yolo' | undefined,
 ): 'ask' | 'allow_all' {
   return permissionMode === 'yolo' ? 'allow_all' : 'ask';
+}
+
+function buildServeLoopExecutionDefaults(mode: FlowMode): {
+  strategy: CheckpointStrategy;
+  applyBackOnDirty?: ApplyBackOnDirty;
+  environmentMode: 'strict';
+} {
+  const profile = resolveExecutionProfile(mode);
+  const strategy = profile.defaultCheckpointStrategy ?? 'worktree';
+  return {
+    strategy,
+    applyBackOnDirty: strategy === 'worktree' ? '3way' : undefined,
+    environmentMode: 'strict' as const,
+  };
 }
 
 function registerServeShutdown({
@@ -155,15 +172,15 @@ export async function handleServeCommand(_options: unknown, command: Command) {
       fileSystemOverride,
     }) => {
       const effectiveRepoPath = repoPath ?? defaultRepoPath;
+      const flowMode = mode as FlowMode;
+      const executionDefaults = buildServeLoopExecutionDefaults(flowMode);
       return await runSalmonLoop({
         instruction,
         repoPath: effectiveRepoPath,
         llm,
-        mode: mode as any,
+        mode: flowMode,
         verify: resolvedConfig.verify.command,
-        strategy: 'worktree',
-        applyBackOnDirty: '3way',
-        environmentMode: 'strict',
+        ...executionDefaults,
         llmOutput: resolvedConfig.llmOutput,
         outcomeReporter,
         langfuseSessionId: resolvedConfig.observability.langfuse.sessionId,
@@ -332,15 +349,15 @@ export async function handleServeAcpCommand(_options: unknown, command: Command)
       authorizationMode,
     }) => {
       const effectiveRepoPath = repoPath ?? defaultRepoPath;
+      const flowMode = mode as FlowMode;
+      const executionDefaults = buildServeLoopExecutionDefaults(flowMode);
       return await runSalmonLoop({
         instruction,
         repoPath: effectiveRepoPath,
         llm,
-        mode: mode as any,
+        mode: flowMode,
         verify: resolvedConfig.verify.command,
-        strategy: 'worktree',
-        applyBackOnDirty: '3way',
-        environmentMode: 'strict',
+        ...executionDefaults,
         llmOutput: resolvedConfig.llmOutput,
         outcomeReporter,
         langfuseSessionId: resolvedConfig.observability.langfuse.sessionId,

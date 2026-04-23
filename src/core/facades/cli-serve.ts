@@ -23,5 +23,6 @@ export { buildA2AFlowSkills } from '../protocols/shared/flow-mode-mapping.js';
 export { createAcpFormalAgent } from '../protocols/acp/formal-agent.js';
 export { startAcpStdioServer } from '../protocols/acp/stdio-server.js';
 export { createAgentServerRuntime } from '../runtime/agent-server-runtime.js';
+export { resolveExecutionProfile } from '../runtime/execution-profile.js';
 export { runSalmonLoop } from '../runtime/loop.js';
 export { getUserAcpSessionStorePath } from '../runtime/paths.js';

@@ -1,8 +1,11 @@
+import { EventEmitter } from 'node:events';
 import { createServer } from 'node:net';
 
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, mock, test } from 'bun:test';
+import type { Express, RequestHandler } from 'express';
 
 import { buildA2AAgentCard } from '../../../../src/core/protocols/a2a/agent-card.js';
+import type { CreateA2ASdkExpressAppOptions } from '../../../../src/core/protocols/a2a/sdk/server.js';
 
 type AgentServerRuntimeModule =
   typeof import('../../../../src/core/runtime/agent-server-runtime.ts');
@@ -29,10 +32,39 @@ async function getOpenPort() {
   });
 }
 
-async function createRuntime(port: number, options?: { authMiddleware?: any; configureA2A?: any }) {
+function createMockServer() {
+  const server = new EventEmitter() as EventEmitter & {
+    close: ReturnType<typeof mock<(callback?: (error?: Error) => void) => EventEmitter>>;
+  };
+  server.close = mock((callback?: (error?: Error) => void) => {
+    callback?.();
+    return server;
+  });
+  return server;
+}
+
+function createMockExpressApp(server: ReturnType<typeof createMockServer>): Express {
+  return {
+    listen: (() => server) as unknown as Express['listen'],
+    use: mock(() => undefined) as unknown as Express['use'],
+  } as unknown as Express;
+}
+
+async function createRuntime(
+  port: number,
+  options?: {
+    authMiddleware?: RequestHandler;
+    configureA2A?: (app: Express) => Promise<void> | void;
+    createA2AServerApp?: (
+      appOptions: CreateA2ASdkExpressAppOptions,
+      server: ReturnType<typeof createMockServer>,
+    ) => Express;
+  },
+) {
   const { createAgentServerRuntime } = (await import(
     `../../../../src/core/runtime/agent-server-runtime.ts?runtime-test=${Date.now()}-${Math.random()}`
   )) as AgentServerRuntimeModule;
+  const mockServer = createMockServer();
 
   return createAgentServerRuntime({
     a2a: {
@@ -50,6 +82,9 @@ async function createRuntime(port: number, options?: { authMiddleware?: any; con
       a2a: { host: '127.0.0.1', port },
     },
     configureA2A: options?.configureA2A,
+    createA2AServerApp: options?.createA2AServerApp
+      ? (appOptions) => options.createA2AServerApp!(appOptions, mockServer)
+      : undefined,
   });
 }
 
@@ -68,32 +103,55 @@ describe('agent server runtime - error handling scenarios', () => {
   });
 
   test('accepts authentication middleware', async () => {
+    let receivedAuthMiddleware: RequestHandler | undefined;
+    const authMiddleware: RequestHandler = (req, res, next) => {
+      if (req.headers?.authorization === 'Bearer valid-token') {
+        next();
+        return;
+      }
+      res.status(401).json({ error: 'Unauthorized' });
+    };
     const runtime = await createRuntime(await getOpenPort(), {
-      authMiddleware: (req: any, res: any, next: any) => {
-        if (req.headers?.authorization === 'Bearer valid-token') {
-          next();
-          return;
-        }
-        res.status(401).json({ error: 'Unauthorized' });
+      authMiddleware,
+      createA2AServerApp: (appOptions, _server) => {
+        receivedAuthMiddleware = appOptions.authMiddleware;
+        return createMockExpressApp(createMockServer());
       },
     });
 
     expect(runtime.a2aServer).toBeDefined();
+    expect(receivedAuthMiddleware).toBe(authMiddleware);
 
     await runtime.close();
   });
 
   test('runs configureA2A before start', async () => {
-    let configured = false;
+    const order: string[] = [];
+    let server: ReturnType<typeof createMockServer> | undefined;
     const runtime = await createRuntime(await getOpenPort(), {
       configureA2A: () => {
-        configured = true;
+        order.push('configure');
+      },
+      createA2AServerApp: (_appOptions, injectedServer) => {
+        server = injectedServer;
+        return {
+          ...createMockExpressApp(injectedServer),
+          listen: (() => {
+            order.push('listen');
+            return injectedServer;
+          }) as unknown as Express['listen'],
+        } as unknown as Express;
       },
     });
 
-    await runtime.start();
+    const startPromise = runtime.start();
+    queueMicrotask(() => {
+      server?.emit('listening');
+    });
+
+    await startPromise;
     await runtime.close();
 
-    expect(configured).toBe(true);
+    expect(order).toEqual(['configure', 'listen']);
   });
 });
