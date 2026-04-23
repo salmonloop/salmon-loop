@@ -13,6 +13,7 @@ import {
   PlanRunResult,
 } from './plan.js';
 import { resolveArgsWithResults } from './resolve-args.js';
+import { isRecoverableToolInputErrorCode } from '../recoverable-tool-errors.js';
 import { processResource, repoResource } from './resource-helpers.js';
 import { LockManager } from './resources.js';
 
@@ -30,6 +31,26 @@ export class ParallelScheduler {
     if (!spec) return undefined;
     node.spec = spec;
     return spec;
+  }
+
+  private shouldFallbackFromComputeResources(
+    spec: ToolSpec,
+    args: unknown,
+    error: unknown,
+  ): boolean {
+    const parsed = spec.inputSchema.safeParse(args);
+    if (parsed.success) return false;
+
+    const issueCode = parsed.error.issues[0]?.code;
+    if (issueCode === 'invalid_type' || issueCode === 'invalid_union' || issueCode === 'custom') {
+      return true;
+    }
+
+    const errorCode =
+      typeof error === 'object' && error !== null && 'code' in error
+        ? (error as any).code
+        : undefined;
+    return isRecoverableToolInputErrorCode(errorCode);
   }
 
   private deriveDefaultResources(spec: ToolSpec, ctx: ToolRuntimeCtx) {
@@ -247,7 +268,10 @@ export class ParallelScheduler {
                 spec.computeResources?.(resolvedArgs, baseCtx) ??
                 this.deriveDefaultResources(spec, baseCtx)
               );
-            } catch {
+            } catch (error) {
+              if (!this.shouldFallbackFromComputeResources(spec, resolvedArgs, error)) {
+                throw error;
+              }
               return this.deriveDefaultResources(spec, baseCtx);
             }
           })();

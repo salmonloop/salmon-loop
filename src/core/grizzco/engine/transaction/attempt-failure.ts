@@ -3,6 +3,7 @@ import { buildFailureGuidance } from '../../../failure/diagnostics.js';
 import { sanitizeError } from '../../../llm/errors.js';
 import { mapErrorForDisplay } from '../../../observability/error-mapping.js';
 import { resolveExecutionProfile } from '../../../runtime/execution-profile.js';
+import { isRecoverableToolInputErrorCode } from '../../../tools/recoverable-tool-errors.js';
 import { EXECUTION_PHASES } from '../../../types/runtime.js';
 import type {
   ExecutionPhase,
@@ -44,11 +45,6 @@ const NON_RETRYABLE_PERMISSION_CODES = new Set([
 ]);
 
 const NON_RETRYABLE_LLM_CODES = new Set(['LLM_AUTHENTICATION_FAILED']);
-const TOOL_CORRECTION_ERROR_CODES = new Set([
-  'INVALID_INPUT',
-  'INVALID_TOOL_ARGUMENTS_JSON',
-  'MALFORMED_TOOL_CALL',
-]);
 
 function inferFailurePhase(flowReport: FlowReport): ExecutionPhase {
   const failedTrace = [...flowReport.traces].reverse().find((trace) => Boolean(trace.error));
@@ -279,7 +275,7 @@ export function resolveAttemptFailure(params: {
 
   const failurePhase = inferFailurePhase(flowReport);
   const fallbackReason = sanitizeReason(context?.lastError || flowReport.error);
-  if (errorCode && TOOL_CORRECTION_ERROR_CODES.has(errorCode)) {
+  if (isRecoverableToolInputErrorCode(errorCode)) {
     const guidance = buildFailureGuidance({
       reasonCode: 'TOOL_CORRECTION_REQUIRED',
       failurePhase,

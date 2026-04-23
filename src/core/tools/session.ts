@@ -24,6 +24,7 @@ import { InMemoryLockManager } from './parallel/lock-manager.js';
 import { PlanPersistence } from './parallel/persistence.js';
 import type { ExecutionPlan, PlanNode } from './parallel/plan.js';
 import { ParallelScheduler } from './parallel/scheduler.js';
+import { isRecoverableToolInputErrorCode } from './recoverable-tool-errors.js';
 import type { ToolRouter } from './router.js';
 import { ToolCallAccumulator } from './streaming/ToolCallAccumulator.js';
 import { resolvePhaseVisibleTools, type ToolVisibilityRuntime } from './tool-visibility.js';
@@ -147,23 +148,16 @@ function buildToolCorrectionHint(
 ): ToolCorrectionHint | undefined {
   const errorCode = result.error?.code;
   const tool = result.toolName;
-  if (!errorCode || !tool) return undefined;
+  if (!isRecoverableToolInputErrorCode(errorCode) || !tool) return undefined;
 
-  switch (errorCode) {
-    case 'INVALID_INPUT':
-    case 'INVALID_TOOL_ARGUMENTS_JSON':
-    case 'MALFORMED_TOOL_CALL':
-      return {
-        kind: 'adjust_arguments',
-        tool,
-        hint:
-          result.error?.message ||
-          `Adjust the arguments for ${tool} and retry with a valid JSON object.`,
-        retryable: true,
-      };
-    default:
-      return undefined;
-  }
+  return {
+    kind: 'adjust_arguments',
+    tool,
+    hint:
+      result.error?.message ||
+      `Adjust the arguments for ${tool} and retry with a valid JSON object.`,
+    retryable: true,
+  };
 }
 
 function normalizeRecoverableToolResult(result: ToolResult): ToolResult {

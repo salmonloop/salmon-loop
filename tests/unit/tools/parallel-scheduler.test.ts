@@ -305,4 +305,42 @@ describe('ParallelScheduler', () => {
       error: { code: 'INVALID_INPUT', retryable: true },
     });
   });
+
+  it('surfaces unexpected computeResources regressions instead of silently degrading', async () => {
+    const router = new FakeRouter();
+
+    const brittleSpec: ToolSpec = {
+      ...writeSpec,
+      name: 'fs.write_file',
+      inputSchema: {
+        safeParse: (value: unknown) => ({
+          success: true,
+          data: value,
+        }),
+      } as any,
+      computeResources: () => {
+        throw new Error('resource planner broke');
+      },
+    };
+
+    router.register(brittleSpec, async (_args, _ctx) => ({
+      status: 'ok',
+      output: { ok: true },
+    }));
+
+    const scheduler = new ParallelScheduler(router as any, new InMemoryLockManager());
+    const plan: ExecutionPlan = {
+      id: 'plan-compute-resources-regression',
+      policy: { maxParallelism: 1, failFast: false, deterministic: true },
+      nodes: [{ id: 'n1', toolName: 'fs.write_file', args: { file: 'note.txt' }, deps: [] }],
+    };
+
+    const result = await scheduler.run(plan, baseCtx, new AbortController().signal);
+
+    expect(result.nodeResults.n1.status).toBe('FAILED');
+    expect(result.nodeResults.n1.toolResult).toMatchObject({
+      status: 'error',
+      error: { code: 'EXECUTION_ERROR', message: 'resource planner broke' },
+    });
+  });
 });
