@@ -62,7 +62,11 @@ export function createAcpSessionStore(): AcpSessionStore {
       const current = sessions.get(id);
       if (!current) return undefined;
       const updated = mutate(current);
-      updated.updatedAt = new Date().toISOString();
+      const nextUpdatedAt = new Date().toISOString();
+      updated.updatedAt =
+        nextUpdatedAt > current.updatedAt
+          ? nextUpdatedAt
+          : new Date(Date.parse(current.updatedAt) + 1).toISOString();
       sessions.set(id, updated);
       return updated;
     },

@@ -479,6 +479,13 @@ function buildCurrentModeUpdateIfChanged(state: AcpSessionRuntimeState): Session
   return buildCurrentModeUpdate(state.modeId);
 }
 
+function getLegacyPermissionPolicyForModeValue(value: unknown): AcpPermissionPolicy | null {
+  const normalized = String(value ?? '').trim().toLowerCase();
+  if (normalized === 'interactive') return ACP_PERMISSION_POLICY_ASK;
+  if (normalized === 'yolo') return ACP_PERMISSION_POLICY_ALLOW_ALL;
+  return null;
+}
+
 function getPermissionPolicyForAuthorization(
   state: AcpSessionRuntimeState,
 ): 'ask' | 'deny_all' | 'allow_all' {
@@ -1451,6 +1458,10 @@ export function createAcpFormalAgent(deps: {
           );
         }
         runtimeState.modeId = resolvedModeId;
+        const legacyPermissionPolicy = getLegacyPermissionPolicyForModeValue(params.value);
+        if (legacyPermissionPolicy) {
+          runtimeState.permissionPolicy = legacyPermissionPolicy;
+        }
       } else {
         throw new RequestError(-32602, `Invalid params: unsupported configId "${params.configId}"`);
       }
@@ -1481,9 +1492,18 @@ export function createAcpFormalAgent(deps: {
         throw new RequestError(-32602, `Invalid params: unsupported modeId "${params.modeId}"`);
       }
       runtimeState.modeId = resolvedModeId;
+      const legacyPermissionPolicy = getLegacyPermissionPolicyForModeValue(params.modeId);
+      if (legacyPermissionPolicy) {
+        runtimeState.permissionPolicy = legacyPermissionPolicy;
+      }
       sessions.update(params.sessionId, (current) => ({ ...current }));
       await persistSessionsBestEffort();
       await emitSessionInfoUpdateBestEffort(params.sessionId);
+
+      const configUpdate = buildConfigOptionUpdateIfChanged(runtimeState);
+      if (configUpdate) {
+        await emitSessionUpdate(params.sessionId, configUpdate);
+      }
 
       // Send mode update notification
       const modeUpdate = buildCurrentModeUpdateIfChanged(runtimeState);

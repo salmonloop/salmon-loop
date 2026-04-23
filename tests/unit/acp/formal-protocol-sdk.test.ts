@@ -734,12 +734,14 @@ describe('ACP formal protocol (SDK)', () => {
 
   it('degrades legacy live session mode updates to autopilot', async () => {
     const createTaskCalls: any[] = [];
+    const updates: any[] = [];
 
     const { clientConn } = createConnectedPair({
       toAgent: (conn) =>
         createAcpFormalAgent({
           conn,
           agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+          defaultPermissionPolicy: 'allow_all',
           facade: {
             createTask: async (input: any) => {
               createTaskCalls.push(input);
@@ -767,7 +769,9 @@ describe('ACP formal protocol (SDK)', () => {
         }),
       toClient: () => ({
         requestPermission: async () => ({ outcome: { outcome: 'cancelled' } }),
-        sessionUpdate: async () => {},
+        sessionUpdate: async (params: any) => {
+          updates.push(params.update);
+        },
       }),
     });
 
@@ -786,6 +790,14 @@ describe('ACP formal protocol (SDK)', () => {
     expect(createTaskCalls[0]).toMatchObject({
       capability: 'autopilot',
     });
+    expect(
+      updates.some(
+        (update) =>
+          update.sessionUpdate === 'config_option_update' &&
+          update.configOptions?.[0]?.id === '_salmonloop_permission_policy' &&
+          update.configOptions?.[0]?.currentValue === 'ask',
+      ),
+    ).toBe(true);
   });
 
   it('includes configOptions in session/new response', async () => {
@@ -925,6 +937,11 @@ describe('ACP formal protocol (SDK)', () => {
 
     expect(response.configOptions.find((opt: any) => opt.id === '_salmonloop_mode')).toMatchObject({
       currentValue: 'autopilot',
+    });
+    expect(
+      response.configOptions.find((opt: any) => opt.id === '_salmonloop_permission_policy'),
+    ).toMatchObject({
+      currentValue: 'allow_all',
     });
   });
 
