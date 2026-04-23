@@ -241,8 +241,16 @@ export class ParallelScheduler {
         // 2. Compute Resources (JIT)
         const resources =
           node.resources ??
-          spec.computeResources?.(resolvedArgs, baseCtx) ??
-          this.deriveDefaultResources(spec, baseCtx);
+          (() => {
+            try {
+              return (
+                spec.computeResources?.(resolvedArgs, baseCtx) ??
+                this.deriveDefaultResources(spec, baseCtx)
+              );
+            } catch {
+              return this.deriveDefaultResources(spec, baseCtx);
+            }
+          })();
         node.resources = resources;
 
         // 3. Acquire Locks

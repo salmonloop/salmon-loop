@@ -67,6 +67,13 @@ export interface ToolCallingSessionOptions {
   maxToolCallsPerRound?: number;
 }
 
+type ToolCorrectionHint = {
+  kind: 'adjust_arguments' | 'wait_for_authorization' | 'stop_and_ask_user';
+  tool: string;
+  hint: string;
+  retryable: boolean;
+};
+
 function safeParseJson(argsText: unknown): { ok: true; value: any } | { ok: false; error: string } {
   if (typeof argsText !== 'string') {
     return { ok: true, value: argsText };
@@ -133,6 +140,73 @@ function safeStringifyForAudit(value: unknown): string {
   } catch {
     return '[Unserializable]';
   }
+}
+
+function buildToolCorrectionHint(
+  result: ToolResult,
+): ToolCorrectionHint | undefined {
+  const errorCode = result.error?.code;
+  const tool = result.toolName;
+  if (!errorCode || !tool) return undefined;
+
+  switch (errorCode) {
+    case 'INVALID_INPUT':
+    case 'INVALID_TOOL_ARGUMENTS_JSON':
+    case 'MALFORMED_TOOL_CALL':
+      return {
+        kind: 'adjust_arguments',
+        tool,
+        hint:
+          result.error?.message ||
+          `Adjust the arguments for ${tool} and retry with a valid JSON object.`,
+        retryable: true,
+      };
+    case 'AUTH_REQUIRED':
+      return {
+        kind: 'wait_for_authorization',
+        tool,
+        hint:
+          result.error?.message ||
+          `Wait for authorization for ${tool} before retrying the tool call.`,
+        retryable: true,
+      };
+    case 'AUTH_DENIED':
+    case 'POLICY_DENY':
+    case 'PERMISSION_RULE_DENY':
+      return {
+        kind: 'stop_and_ask_user',
+        tool,
+        hint:
+          result.error?.message ||
+          `Do not retry ${tool} automatically. Ask the user before proceeding.`,
+        retryable: false,
+      };
+    default:
+      return undefined;
+  }
+}
+
+function normalizeRecoverableToolResult(result: ToolResult): ToolResult {
+  if (!result.error) return result;
+
+  const retryHint = buildToolCorrectionHint(result);
+  if (!retryHint) return result;
+
+  const nextMeta = {
+    ...(result.meta ?? {}),
+    retryHint,
+  };
+
+  const nextError = {
+    ...result.error,
+    retryable: retryHint.retryable || result.error.retryable,
+  };
+
+  return {
+    ...result,
+    meta: nextMeta,
+    error: nextError,
+  };
 }
 
 function isArtifactHandleRecord(value: unknown): value is {
@@ -1467,10 +1541,18 @@ async function executeToolCalls(
         toolName,
         source: 'builtin',
         status: 'error',
+        meta: {
+          retryHint: {
+            kind: 'adjust_arguments',
+            tool: toolName,
+            hint: planUpdatePatchError,
+            retryable: true,
+          } satisfies ToolCorrectionHint,
+        },
         error: {
           code: 'INVALID_INPUT',
           message: planUpdatePatchError,
-          retryable: false,
+          retryable: true,
           failurePhase: phase,
         },
         durationMs: 0,
@@ -1521,7 +1603,11 @@ async function executeToolCalls(
 
   for (const item of prepared) {
     const { callId, toolName, rawArgs } = item;
-    const result = toolResults.get(callId);
+    const rawResult = toolResults.get(callId);
+    const result = rawResult ? normalizeRecoverableToolResult(rawResult) : undefined;
+    if (result && result !== rawResult) {
+      toolResults.set(callId, result);
+    }
     if (!result) continue;
 
     // Strict output schema validation

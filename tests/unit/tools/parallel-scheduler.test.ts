@@ -268,4 +268,41 @@ describe('ParallelScheduler', () => {
       },
     );
   });
+
+  it('falls back to default resources when computeResources rejects malformed args', async () => {
+    const router = new FakeRouter();
+
+    const brittleSpec: ToolSpec = {
+      ...writeSpec,
+      name: 'fs.write_file',
+      computeResources: (input: any, ctx) => [{ kind: 'pathPrefix', repoId: ctx.repoRoot, prefix: `${input.file}/` }],
+    };
+
+    router.register(brittleSpec, async (_args, _ctx) => ({
+      status: 'error',
+      error: { code: 'INVALID_INPUT', message: 'content is required', retryable: true },
+    }));
+
+    const scheduler = new ParallelScheduler(router as any, new InMemoryLockManager());
+    const plan: ExecutionPlan = {
+      id: 'plan-invalid-input',
+      policy: { maxParallelism: 1, failFast: false, deterministic: true },
+      nodes: [
+        {
+          id: 'n1',
+          toolName: 'fs.write_file',
+          args: { path: 'note.txt', contents: 'hello' },
+          deps: [],
+        },
+      ],
+    };
+
+    const result = await scheduler.run(plan, baseCtx, new AbortController().signal);
+
+    expect(result.nodeResults.n1.status).toBe('FAILED');
+    expect(result.nodeResults.n1.toolResult).toMatchObject({
+      status: 'error',
+      error: { code: 'INVALID_INPUT', retryable: true },
+    });
+  });
 });

@@ -254,6 +254,36 @@ export function buildFailureGuidance(input: BuildFailureGuidanceInput): FailureG
     };
   }
 
+  if (input.reasonCode === 'TOOL_CORRECTION_REQUIRED') {
+    const correctionHint = (() => {
+      switch (input.errorCode) {
+        case 'INVALID_INPUT':
+        case 'INVALID_TOOL_ARGUMENTS_JSON':
+        case 'MALFORMED_TOOL_CALL':
+          return {
+            diagnosticCode: 'TOOL_ARGUMENT_CORRECTION_NEEDED',
+            safeHint: 'A tool call used invalid arguments. Adjust the tool arguments and retry.',
+            remediationSteps: [
+              'Retry with a valid JSON object that matches the tool input schema.',
+              'Reuse the latest tool error details to correct only the invalid fields.',
+            ],
+          };
+        case 'AUTH_REQUIRED':
+          return {
+            diagnosticCode: 'TOOL_AUTHORIZATION_PENDING',
+            safeHint: 'A tool call is waiting for authorization before it can continue.',
+            remediationSteps: [
+              'Wait for authorization to complete, then retry the tool call.',
+              'If authorization is denied, ask the user before attempting an alternative action.',
+            ],
+          };
+        default:
+          return undefined;
+      }
+    })();
+    if (correctionHint) return correctionHint;
+  }
+
   return {
     diagnosticCode: input.reasonCode,
     safeHint: input.fallbackReason,

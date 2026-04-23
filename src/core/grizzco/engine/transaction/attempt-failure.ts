@@ -44,6 +44,11 @@ const NON_RETRYABLE_PERMISSION_CODES = new Set([
 ]);
 
 const NON_RETRYABLE_LLM_CODES = new Set(['LLM_AUTHENTICATION_FAILED']);
+const TOOL_CORRECTION_ERROR_CODES = new Set([
+  'INVALID_INPUT',
+  'INVALID_TOOL_ARGUMENTS_JSON',
+  'MALFORMED_TOOL_CALL',
+]);
 
 function inferFailurePhase(flowReport: FlowReport): ExecutionPhase {
   const failedTrace = [...flowReport.traces].reverse().find((trace) => Boolean(trace.error));
@@ -274,6 +279,26 @@ export function resolveAttemptFailure(params: {
 
   const failurePhase = inferFailurePhase(flowReport);
   const fallbackReason = sanitizeReason(context?.lastError || flowReport.error);
+  if (errorCode && TOOL_CORRECTION_ERROR_CODES.has(errorCode)) {
+    const guidance = buildFailureGuidance({
+      reasonCode: 'TOOL_CORRECTION_REQUIRED',
+      failurePhase,
+      errorCode,
+      environmentMode,
+      fallbackReason,
+    });
+    return {
+      reason: guidance.safeHint,
+      reasonCode: 'TOOL_CORRECTION_REQUIRED',
+      failurePhase,
+      retryable: RETRYABLE_PHASES.has(failurePhase),
+      errorCode,
+      diagnosticCode: guidance.diagnosticCode,
+      safeHint: guidance.safeHint,
+      remediationSteps: guidance.remediationSteps,
+    };
+  }
+
   const guidance = buildFailureGuidance({
     reasonCode: failurePhase === 'ROLLBACK' ? 'ROLLBACK_FAILED' : 'LOOP_FAILED',
     failurePhase,

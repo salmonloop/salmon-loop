@@ -33,6 +33,7 @@ export type LoopReasonCode =
   | 'PREFLIGHT_NOT_GIT'
   | 'DRY_RUN'
   | 'VERIFY_FAILED'
+  | 'TOOL_CORRECTION_REQUIRED'
   | 'ROLLBACK_FAILED'
   | 'LOOP_FAILED'
   | 'MAX_RETRIES'
