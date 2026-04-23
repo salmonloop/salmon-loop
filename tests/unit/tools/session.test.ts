@@ -256,6 +256,95 @@ describe('chatWithTools', () => {
     expect(typeof invalid.parsedArgsPreview).toBe('string');
   });
 
+  it('formats recoverable tool input failures as retryable correction hints', async () => {
+    const registry = new ToolRegistry();
+    const policy = new ToolPolicy();
+    const budget = new BudgetGuard();
+    const audit = new ToolAuditLogger();
+    const sanitizer = new ToolSanitizer();
+    const router = new ToolRouter(registry, policy, budget, audit, sanitizer);
+
+    const spec: ToolSpec<{ file: string; content: string }, { ok: boolean }> = {
+      name: 'fs.write_file',
+      source: 'builtin',
+      intent: 'WRITE',
+      description: 'Write file',
+      riskLevel: 'low',
+      sideEffects: ['fs_write'],
+      concurrency: 'serial_only',
+      allowedPhases: [Phase.PATCH],
+      inputSchema: z.object({
+        file: z.string(),
+        content: z.string(),
+      }),
+      outputSchema: z.object({ ok: z.boolean() }),
+      executor: async () => ({ ok: true }),
+    };
+    registry.register(spec);
+
+    const llm: LLM = {
+      async chat(messages) {
+        const toolMsg = messages.find((message) => message.role === 'tool');
+        if (!toolMsg) {
+          return {
+            role: 'assistant',
+            content: '',
+            tool_calls: [
+              {
+                id: 'call_retry',
+                type: 'function',
+                function: {
+                  name: 'fs.write_file',
+                  arguments: JSON.stringify({ path: 'note.txt', contents: 'hello' }),
+                },
+              },
+            ],
+          };
+        }
+
+        const parsed = JSON.parse(toolMsg.content);
+        expect(parsed.status).toBe('error');
+        expect(parsed.error?.code).toBe('INVALID_INPUT');
+        expect(parsed.error?.retryable).toBe(true);
+        expect(parsed.meta?.retryHint).toMatchObject({
+          kind: 'input_correction',
+          tool: 'fs.write_file',
+          retryable: true,
+        });
+        expect(parsed.meta?.retryHint?.expectedSchema).toContain('file');
+        expect(parsed.meta?.retryHint?.suggestedArgs).toEqual({
+          file: 'note.txt',
+          content: '<replace-with-content>',
+        });
+
+        return { role: 'assistant', content: 'DONE' };
+      },
+      async createPlan() {
+        throw new Error('not used');
+      },
+      async createPatch() {
+        throw new Error('not used');
+      },
+    };
+
+    await chatWithTools(
+      [{ role: 'user', content: 'write the file' }],
+      {},
+      {
+        phase: Phase.PATCH,
+        llm,
+        runtime: {
+          repoRoot: '/tmp',
+          attemptId: 1,
+          dryRun: true,
+          model: 'test-model',
+          worktreeRoot: '/tmp',
+        },
+        toolstack: { registry, policy, router },
+      },
+    );
+  });
+
   it('records toolResultOutputOk for successful tool results', async () => {
     const registry = new ToolRegistry();
     const policy = new ToolPolicy();

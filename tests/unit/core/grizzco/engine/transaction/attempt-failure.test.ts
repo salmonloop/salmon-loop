@@ -74,4 +74,43 @@ describe('resolveAttemptFailure diagnostics', () => {
     expect(failure?.retryable).toBe(false);
     expect((failure as any)?.inputRequired).toEqual(inputRequired);
   });
+
+  it('classifies recoverable tool input failures as correction-needed retryable failures', () => {
+    const failure = resolveAttemptFailure({
+      flowReport: {
+        success: false,
+        duration: 1,
+        traces: [
+          {
+            name: 'PATCH',
+            error: {
+              code: 'INVALID_INPUT',
+              message:
+                'Invalid input: content is required. Expected JSON object. Keys: file: string, content: string.',
+            },
+          },
+        ],
+        error: {
+          code: 'INVALID_INPUT',
+          message:
+            'Invalid input: content is required. Expected JSON object. Keys: file: string, content: string.',
+        },
+      } as any,
+      context: {
+        options: { environmentMode: 'strict' },
+      } as any,
+      flowMode: 'autopilot',
+    });
+
+    expect(failure).toBeTruthy();
+    expect(failure?.reasonCode).toBe('TOOL_INPUT_CORRECTION_REQUIRED');
+    expect(failure?.diagnosticCode).toBe('TOOL_INPUT_CORRECTION_REQUIRED');
+    expect(failure?.failurePhase).toBe('PATCH');
+    expect(failure?.retryable).toBe(true);
+    expect(failure?.safeHint).toContain('Correct the tool input');
+    expect(failure?.safeHint).toContain('file');
+    expect(failure?.remediationSteps).toContain(
+      'Retry the same tool call with corrected arguments instead of asking the user.',
+    );
+  });
 });

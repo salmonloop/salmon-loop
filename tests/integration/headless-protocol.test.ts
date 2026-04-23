@@ -512,6 +512,118 @@ describe('Headless protocol integration', () => {
     }
   }, 120000);
 
+  it('lets autopilot recover from retryable tool input errors in headless mode', async () => {
+    const repo = await helper.createGitRepo({
+      initialFiles: [{ path: '.gitignore', content: '.salmonloop/\n' }],
+    });
+    const stub = createOpenAiStreamingStub();
+    const instruction = 'Create note.txt with exactly the text recovered.';
+
+    stub.pushStream([
+      openAiChatStreamChunk({
+        delta: {
+          role: 'assistant',
+          tool_calls: [
+            {
+              index: 0,
+              id: 'call-write-1',
+              type: 'function',
+              function: {
+                name: 'fs.write_file',
+                arguments: JSON.stringify({ path: 'note.txt', contents: 'recovered' }),
+              },
+            },
+          ],
+        },
+      }),
+      openAiChatStreamChunk({ finishReason: 'tool_calls' }),
+      '[DONE]',
+    ]);
+    stub.pushStream([
+      openAiChatStreamChunk({
+        delta: {
+          role: 'assistant',
+          tool_calls: [
+            {
+              index: 0,
+              id: 'call-write-2',
+              type: 'function',
+              function: {
+                name: 'fs.write_file',
+                arguments: JSON.stringify({ file: 'note.txt', content: 'recovered' }),
+              },
+            },
+          ],
+        },
+      }),
+      openAiChatStreamChunk({ finishReason: 'tool_calls' }),
+      '[DONE]',
+    ]);
+    stub.pushStream([
+      openAiChatStreamChunk({
+        delta: { role: 'assistant', content: 'Recovered and wrote the file.' },
+      }),
+      openAiChatStreamChunk({ finishReason: 'stop' }),
+      '[DONE]',
+    ]);
+
+    const baseUrl = await stub.tryStart();
+    if (!baseUrl) {
+      return;
+    }
+    await writeOpenAiStubConfig(repo.path, baseUrl);
+
+    try {
+      const { exitCode, stdout } = await runCli([
+        'run',
+        '-r',
+        repo.path,
+        '--instruction',
+        instruction,
+        '--output-format',
+        'stream-json',
+        '--act-mode',
+        'autopilot',
+        '--mode',
+        'yolo',
+      ]);
+
+      expect(exitCode).toBe(0);
+      expect(await helper.readFile(repo.path, 'note.txt')).toBe('recovered');
+      expect(stub.requests).toHaveLength(3);
+
+      const retryRequest = JSON.parse(stub.requests[1]!.body) as any;
+      const retryToolMessage = retryRequest.messages.find(
+        (message: any) => message.role === 'tool' && message.tool_call_id === 'call-write-1',
+      );
+      expect(retryToolMessage).toBeTruthy();
+
+      const retryPayload = JSON.parse(retryToolMessage.content);
+      expect(retryPayload.error?.code).toBe('INVALID_INPUT');
+      expect(retryPayload.error?.retryable).toBe(true);
+      expect(retryPayload.meta?.retryHint).toMatchObject({
+        kind: 'input_correction',
+        tool: 'fs.write_file',
+        retryable: true,
+      });
+      expect(retryPayload.meta?.retryHint?.suggestedArgs).toEqual({
+        file: 'note.txt',
+        content: 'recovered',
+      });
+
+      const lines = stdout
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => JSON.parse(line) as any);
+      const resultLine = lines.find((line) => line.event?.type === 'result');
+      expect(resultLine).toMatchObject({
+        event: { type: 'result', success: true, exit_code: 0 },
+      });
+    } finally {
+      await stub.close();
+    }
+  }, 120000);
+
   it('emits successful headless json metadata for autopilot shell execution', async () => {
     const repo = await helper.createGitRepo({
       initialFiles: [
