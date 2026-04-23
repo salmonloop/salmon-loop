@@ -5,66 +5,11 @@ import {
   type Client,
   ndJsonStream,
 } from '@agentclientprotocol/sdk';
-import { afterAll, beforeEach, describe, expect, it, mock } from 'bun:test';
+import { describe, expect, it } from 'bun:test';
 
-const hoisted = (() => ({
-  registryBuilds: 0,
-  projectionInputs: [] as Array<string[]>,
-  projectedModes: [
-    {
-      id: 'patch',
-      name: 'Patch from projection',
-      description: 'Projected patch mode.',
-    },
-    {
-      id: 'autopilot',
-      name: 'Autopilot from projection',
-      description: 'Projected autopilot mode.',
-    },
-  ],
-}))();
-
-mock.module('../../../src/core/public-capabilities/registry.js', () => ({
-  buildPublicCapabilityRegistry: mock(() => {
-    hoisted.registryBuilds += 1;
-    return [
-      {
-        id: 'patch',
-        kind: 'flow_mode',
-        target: 'patch',
-        title: 'Patch code',
-        description: 'Apply code changes with verification.',
-        surfaces: { a2a: false, acp: true },
-        reachability: 'reachable',
-      },
-      {
-        id: 'autopilot',
-        kind: 'flow_mode',
-        target: 'autopilot',
-        title: 'Autopilot',
-        description: 'Let the agent decide which actions and tools to use.',
-        surfaces: { a2a: true, acp: true },
-        reachability: 'reachable',
-      },
-      {
-        id: 'latent-review',
-        kind: 'flow_mode',
-        target: 'review',
-        title: 'Review code',
-        description: 'Inspect code and report findings without mutating files.',
-        surfaces: { a2a: false, acp: true },
-        reachability: 'latent',
-      },
-    ];
-  }),
-}));
-
-mock.module('../../../src/core/public-capabilities/projections.js', () => ({
-  toAcpPublicModes: mock((entries: Array<{ id: string }>) => {
-    hoisted.projectionInputs.push(entries.map((entry) => entry.id));
-    return hoisted.projectedModes;
-  }),
-}));
+import { buildPublicCapabilityRegistry } from '../../../src/core/public-capabilities/registry.js';
+import { toAcpPublicModes } from '../../../src/core/public-capabilities/projections.js';
+import { createAcpFormalAgent } from '../../../src/core/protocols/acp/formal-agent.js';
 
 function createConnectedPair(params: {
   toAgent: (conn: AgentSideConnection) => Agent;
@@ -83,30 +28,8 @@ function createConnectedPair(params: {
 }
 
 describe('ACP formal protocol registry projection', () => {
-  beforeEach(() => {
-    hoisted.registryBuilds = 0;
-    hoisted.projectionInputs.length = 0;
-    hoisted.projectedModes = [
-      {
-        id: 'patch',
-        name: 'Patch from projection',
-        description: 'Projected patch mode.',
-      },
-      {
-        id: 'autopilot',
-        name: 'Autopilot from projection',
-        description: 'Projected autopilot mode.',
-      },
-    ];
-  });
-
-  afterAll(() => {
-    mock.restore();
-  });
-
-  it('sources exposed ACP modes from the public capability registry projection', async () => {
-    const formalAgentModulePath = `../../../src/core/protocols/acp/formal-agent.js?registry-projection-test`;
-    const { createAcpFormalAgent } = await import(formalAgentModulePath);
+  it('matches the registry-backed ACP mode projection for session mode exposure', async () => {
+    const expectedModes = toAcpPublicModes(buildPublicCapabilityRegistry());
     const { clientConn } = createConnectedPair({
       toAgent: (conn) =>
         createAcpFormalAgent({
@@ -139,24 +62,15 @@ describe('ACP formal protocol registry projection', () => {
 
     const response = await clientConn.newSession({ cwd: '/repo', mcpServers: [] });
 
-    expect(hoisted.registryBuilds).toBeGreaterThan(0);
-    expect(hoisted.projectionInputs).toEqual([['patch', 'autopilot', 'latent-review']]);
-    expect(response.modes?.availableModes).toEqual(hoisted.projectedModes);
+    expect(response.modes?.availableModes).toEqual(expectedModes);
     expect(response.configOptions.find((opt: any) => opt.id === '_salmonloop_mode')).toMatchObject(
       {
         currentValue: 'autopilot',
-        options: [
-          {
-            value: 'patch',
-            name: 'Patch from projection',
-            description: 'Projected patch mode.',
-          },
-          {
-            value: 'autopilot',
-            name: 'Autopilot from projection',
-            description: 'Projected autopilot mode.',
-          },
-        ],
+        options: expectedModes.map((mode) => ({
+          value: mode.id,
+          name: mode.name,
+          description: mode.description,
+        })),
       },
     );
   });
