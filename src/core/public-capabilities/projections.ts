@@ -44,8 +44,7 @@ export function toA2APublicSkills(
 ): A2APublicSkill[] {
   return selectPublicCapabilitiesForSurface('a2a', entries).map((entry) => ({
     id: entry.id,
-    title:
-      entry.kind === 'flow_mode' ? FLOW_MODE_PUBLIC_METADATA[entry.target].a2aTitle : entry.title,
+    title: entry.title,
     description: entry.description,
     tags: entry.tags,
     examples: entry.examples,

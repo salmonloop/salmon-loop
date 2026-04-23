@@ -103,7 +103,7 @@ describe('public capability projections', () => {
     expect(skills).toEqual([
       {
         id: 'autopilot',
-        title: FLOW_MODE_PUBLIC_METADATA.autopilot.a2aTitle,
+        title: 'Autopilot',
         description: FLOW_MODE_PUBLIC_METADATA.autopilot.description,
         tags: ['default'],
         examples: ['Fix the failing test suite'],
