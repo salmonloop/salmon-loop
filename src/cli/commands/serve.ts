@@ -234,7 +234,7 @@ export async function handleServeCommand(_options: unknown, command: Command) {
       : undefined;
 
   const capabilities = [{ id: 'patch', title: 'Patch code' }];
-  const a2aSkills = buildA2AFlowSkills();
+  const a2aSkills = [{ id: 'autopilot', title: 'Autopilot' }];
   const agentCard = buildA2AAgentCard({
     name: 'salmon-loop',
     url: `http://${a2aHost}:${a2aPort}`,

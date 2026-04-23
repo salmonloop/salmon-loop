@@ -6,6 +6,7 @@ const hoisted = (() => ({
   listenCalls: [] as Array<{
     options: { port?: number; host?: string; path?: string; type?: string };
   }>,
+  a2aAgentCards: [] as Array<Record<string, unknown>>,
   acpLoopCalls: [] as Array<Record<string, unknown>>,
   acpAgentConfigs: [] as Array<Record<string, unknown>>,
   lastRunLoopOptions: undefined as Record<string, unknown> | undefined,
@@ -31,6 +32,7 @@ const hoisted = (() => ({
 
 mock.module('../../../../src/core/runtime/agent-server-runtime.js', () => ({
   createAgentServerRuntime: mock((config: any) => {
+    hoisted.a2aAgentCards.push(config.a2a.buildAgentCard());
     hoisted.listenCalls.push({ options: config.listen.a2a });
     hoisted.listenCalls.push({ options: config.listen.sidecar });
     return {
@@ -162,6 +164,7 @@ describe('handleServeCommand', () => {
   beforeEach(() => {
     setLogger(hoisted.logger as any);
     hoisted.listenCalls.length = 0;
+    hoisted.a2aAgentCards.length = 0;
     hoisted.acpLoopCalls.length = 0;
     hoisted.acpAgentConfigs.length = 0;
     hoisted.lastRunLoopOptions = undefined;
@@ -210,6 +213,49 @@ describe('handleServeCommand', () => {
     await handleServeCommand({}, command);
 
     expect(hoisted.acpLoopCalls.length).toBe(1);
+  });
+
+  it('exposes only autopilot as the reachable A2A skill in serve runtime', async () => {
+    const { handleServeCommand } = await import('../../../../src/cli/commands/serve.js');
+
+    const command: any = {
+      optsWithGlobals: () => ({
+        repo: '/repo',
+        a2aHost: '127.0.0.1',
+        a2aPort: '8081',
+        acpStdio: false,
+      }),
+    };
+
+    await handleServeCommand({}, command);
+
+    expect(hoisted.a2aAgentCards).toHaveLength(1);
+    expect((hoisted.a2aAgentCards[0].skills as Array<{ id: string }>).map((skill) => skill.id)).toEqual([
+      'autopilot',
+    ]);
+  });
+
+  it('does not advertise unresolved flow-backed A2A skills before runtime selection exists', async () => {
+    const { handleServeCommand } = await import('../../../../src/cli/commands/serve.js');
+
+    const command: any = {
+      optsWithGlobals: () => ({
+        repo: '/repo',
+        a2aHost: '127.0.0.1',
+        a2aPort: '8081',
+        acpStdio: false,
+      }),
+    };
+
+    await handleServeCommand({}, command);
+
+    const skillIds = (hoisted.a2aAgentCards[0].skills as Array<{ id: string }>).map(
+      (skill) => skill.id,
+    );
+    expect(skillIds).not.toContain('review');
+    expect(skillIds).not.toContain('debug');
+    expect(skillIds).not.toContain('research');
+    expect(skillIds).not.toContain('answer');
   });
 
   it('maps legacy yolo server defaults to ACP autopilot mode plus allow_all policy', async () => {
