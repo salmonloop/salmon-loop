@@ -160,6 +160,55 @@ describe('buildPhaseRequestEnvelope', () => {
     const lastUserMessage = built.baseMessages[built.baseMessages.length - 1];
     expect(lastUserMessage?.content).toContain('s8p://artifact/tool-preview-1');
   });
+
+  it('injects selected relevant memory into the phase context prompt without duplicating surfaced entries', async () => {
+    const built = await buildPhaseRequestEnvelope({
+      phase: Phase.PLAN,
+      defaultNamespace: 'plan',
+      context: {
+        ...baseContext,
+        instruction: 'improve request assembly retry prompts',
+      },
+      contextResult: {
+        ...baseContextResult,
+        prompt:
+          'ASSEMBLED_CONTEXT_PROMPT\nAlready surfaced memory path: /repo/docs/summary-sync.md',
+      },
+      systemPrompt: 'system prompt',
+      buildUserPrompt: (contextPrompt) => `USER_PROMPT\n${contextPrompt}`,
+      relevantMemory: {
+        candidates: [
+          {
+            path: '/repo/docs/retry-contract.md',
+            title: 'Retry correction contract',
+            summary: 'Structured correction hints for invalid tool arguments and retry loops.',
+          },
+          {
+            path: '/repo/docs/request-assembly.md',
+            title: 'Request assembly memory notes',
+            summary: 'Inject concise relevant memory blocks into assembled prompts.',
+          },
+          {
+            path: '/repo/docs/summary-sync.md',
+            title: 'Summary sync recovery',
+            summary: 'Preserve recovery state across compaction boundaries.',
+          },
+        ],
+      },
+    });
+
+    const lastUserMessage = built.baseMessages[built.baseMessages.length - 1];
+    expect(lastUserMessage?.content).toContain('[Relevant memory]');
+    expect(lastUserMessage?.content).toContain('/repo/docs/request-assembly.md');
+    expect(lastUserMessage?.content).toContain(
+      'Inject concise relevant memory blocks into assembled prompts.',
+    );
+    expect(lastUserMessage?.content).toContain('/repo/docs/retry-contract.md');
+    expect(lastUserMessage?.content).not.toContain('Summary sync recovery');
+    expect(lastUserMessage?.content).not.toContain(
+      'Preserve recovery state across compaction boundaries.',
+    );
+  });
 });
 
 describe('buildSharedRequestEnvelope', () => {

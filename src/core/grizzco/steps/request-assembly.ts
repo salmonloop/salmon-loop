@@ -12,6 +12,12 @@ import {
   type SharedRequestEnvelope,
 } from '../../llm/shared-request-assembly.js';
 import { formatContextForPrompt } from '../../llm/utils.js';
+import {
+  buildRelevantMemoryCandidates,
+  selectRelevantMemory,
+  type RelevantMemoryCandidate,
+} from '../../memory/relevant-retrieval.js';
+import { appendRelevantMemoryToContextPrompt } from '../../prompts/runtime.js';
 import type { Context } from '../../types/context.js';
 import type { LLMMessage, LLMProviderHints } from '../../types/llm.js';
 import type { ExecutionPhase } from '../../types/runtime.js';
@@ -41,6 +47,11 @@ export interface BuildPhaseRequestEnvelopeArgs {
   previewProvider?: ToolResultPreviewArtifactsProvider;
   extraAttachments?: RequestAttachment[];
   providerHints?: LLMProviderHints;
+  relevantMemory?: {
+    candidates?: RelevantMemoryCandidate[];
+    activeToolNames?: string[];
+    maxItems?: number;
+  };
 }
 
 export interface PhaseRequestEnvelope {
@@ -61,7 +72,7 @@ export function buildSharedRequestEnvelope(
 export async function buildPhaseRequestEnvelope(
   args: BuildPhaseRequestEnvelopeArgs,
 ): Promise<PhaseRequestEnvelope> {
-  const contextPrompt = args.contextResult?.prompt ?? formatContextForPrompt(args.context);
+  const baseContextPrompt = args.contextResult?.prompt ?? formatContextForPrompt(args.context);
   const localContextHash = args.contextResult?.meta?.contextHash ?? args.context.contextHash;
   const cacheSurface = resolveCacheSharingSurface({
     phase: args.phase,
@@ -71,6 +82,18 @@ export async function buildPhaseRequestEnvelope(
     mismatchPolicy: args.cacheMismatchPolicy,
     onMismatch: args.onCacheMismatch,
   });
+  const relevantMemory = selectRelevantMemory({
+    instruction: args.context.instruction,
+    candidates: args.relevantMemory?.candidates ?? buildRelevantMemoryCandidates(args.context),
+    activeToolNames: args.relevantMemory?.activeToolNames,
+    maxItems: args.relevantMemory?.maxItems,
+    alreadySurfacedText: [
+      baseContextPrompt,
+      ...(Array.isArray(args.systemPrompt) ? args.systemPrompt : [args.systemPrompt]),
+      ...(args.conversationContext ?? []).map((message) => message.content),
+    ],
+  });
+  const contextPrompt = appendRelevantMemoryToContextPrompt(baseContextPrompt, relevantMemory);
   const userPrompt = await args.buildUserPrompt(contextPrompt);
   const shared = buildSharedRequestEnvelope({
     defaultNamespace: cacheSurface.namespace,

@@ -3,6 +3,7 @@ import { resolvePhaseVisibleTools, type ToolVisibilityRuntime } from '../tools/t
 import type { ToolSpec } from '../tools/types.js';
 import { Phase } from '../types/runtime.js';
 
+import type { RelevantMemoryCandidate } from '../memory/relevant-retrieval.js';
 import { getPromptRegistry } from './registry.js';
 
 export type PromptRuntime = ToolVisibilityRuntime;
@@ -22,6 +23,27 @@ function extractTargetFiles(plan: string): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+export function formatRelevantMemoryBlock(entries: RelevantMemoryCandidate[] | undefined): string {
+  if (!Array.isArray(entries) || entries.length === 0) return '';
+
+  const lines = ['[Relevant memory]'];
+  for (const entry of entries) {
+    lines.push(`- ${entry.path} | ${entry.title}`);
+    lines.push(`  ${entry.summary}`);
+  }
+  return lines.join('\n');
+}
+
+export function appendRelevantMemoryToContextPrompt(
+  contextPrompt: string,
+  entries: RelevantMemoryCandidate[] | undefined,
+): string {
+  const memoryBlock = formatRelevantMemoryBlock(entries);
+  if (!memoryBlock) return contextPrompt;
+  const base = String(contextPrompt ?? '').trimEnd();
+  return base ? `${base}\n\n${memoryBlock}` : memoryBlock;
 }
 
 export async function getExplorePrompt(

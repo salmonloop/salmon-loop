@@ -10,6 +10,16 @@ import { chatWithTools } from '../../../src/core/tools/session.js';
 import type { ToolSpec } from '../../../src/core/tools/types.js';
 import { Phase, type LLM, type LLMMessage } from '../../../src/core/types/index.js';
 
+const deferred = <T = void>() => {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+};
+
 describe('chatWithTools', () => {
   it('executes OpenAI-style tool calls and feeds results back to the model', async () => {
     const registry = new ToolRegistry();
@@ -501,6 +511,153 @@ describe('chatWithTools', () => {
     expect(readEntry).toBeTruthy();
     expect(readEntry.toolResultReadArtifactPath).toBe('src/index.ts');
     expect(readEntry.toolResultReadArtifact?.handle).toContain('s8p://artifact/');
+  });
+
+  it('runs parallel-safe reads together while serializing a write behind them', async () => {
+    const registry = new ToolRegistry();
+    const policy = new ToolPolicy();
+    const budget = new BudgetGuard();
+    const audit = new ToolAuditLogger();
+    const sanitizer = new ToolSanitizer();
+    const router = new ToolRouter(registry, policy, budget, audit, sanitizer);
+
+    const executionOrder: string[] = [];
+    const readAStarted = deferred<void>();
+    const readBStarted = deferred<void>();
+    const releaseReads = deferred<void>();
+    const writeStarted = deferred<void>();
+    const releaseWrite = deferred<void>();
+
+    registry.register({
+      name: 'fs.read',
+      source: 'builtin',
+      intent: 'READ',
+      description: 'Read file',
+      riskLevel: 'low',
+      sideEffects: ['fs_read'],
+      concurrency: 'parallel_ok',
+      allowedPhases: [Phase.AUTOPILOT],
+      inputSchema: z.object({ file: z.string() }),
+      outputSchema: z.object({ content: z.string(), size: z.number() }),
+      computeResources: (_input, ctx) => [{ kind: 'pathPrefix', repoId: ctx.repoRoot, prefix: 'src/' }],
+      executor: async (input) => {
+        executionOrder.push(`fs.read:${input.file}:start`);
+        if (input.file === 'src/a.ts') readAStarted.resolve();
+        if (input.file === 'src/b.ts') readBStarted.resolve();
+        await releaseReads.promise;
+        executionOrder.push(`fs.read:${input.file}:end`);
+        return { content: `read:${input.file}`, size: input.file.length };
+      },
+    });
+
+    registry.register({
+      name: 'fs.write_file',
+      source: 'builtin',
+      intent: 'WRITE',
+      description: 'Write file',
+      riskLevel: 'high',
+      sideEffects: ['fs_write'],
+      concurrency: 'serial_only',
+      allowedPhases: [Phase.AUTOPILOT],
+      inputSchema: z.object({ file: z.string(), content: z.string() }),
+      outputSchema: z.object({ ok: z.boolean(), path: z.string(), bytesWritten: z.number() }),
+      computeResources: (_input, ctx) => [{ kind: 'pathPrefix', repoId: ctx.repoRoot, prefix: 'src/' }],
+      executor: async (input) => {
+        executionOrder.push(`fs.write:${input.file}:start`);
+        writeStarted.resolve();
+        await releaseWrite.promise;
+        executionOrder.push(`fs.write:${input.file}:end`);
+        return { ok: true, path: input.file, bytesWritten: input.content.length };
+      },
+    });
+
+    let round = 0;
+    const llm: LLM = {
+      async chat(messages) {
+        round++;
+        const toolMessages = messages.filter((message) => message.role === 'tool');
+        if (toolMessages.length === 0) {
+          return {
+            role: 'assistant',
+            content: '',
+            tool_calls: [
+              {
+                id: 'call-read-a',
+                type: 'function',
+                function: { name: 'fs.read', arguments: JSON.stringify({ file: 'src/a.ts' }) },
+              },
+              {
+                id: 'call-read-b',
+                type: 'function',
+                function: { name: 'fs.read', arguments: JSON.stringify({ file: 'src/b.ts' }) },
+              },
+              {
+                id: 'call-write-c',
+                type: 'function',
+                function: {
+                  name: 'fs.write_file',
+                  arguments: JSON.stringify({ file: 'src/c.ts', content: 'export {};\n' }),
+                },
+              },
+            ],
+          };
+        }
+
+        expect(toolMessages.map((message) => message.tool_call_id)).toEqual([
+          'call-read-a',
+          'call-read-b',
+          'call-write-c',
+        ]);
+        return { role: 'assistant', content: 'DONE' };
+      },
+      async createPlan() {
+        throw new Error('not used');
+      },
+      async createPatch() {
+        throw new Error('not used');
+      },
+    };
+
+    const finalPromise = chatWithTools(
+      [{ role: 'user', content: 'inspect src/a.ts and src/b.ts, then write src/c.ts' }],
+      {},
+      {
+        phase: Phase.AUTOPILOT,
+        llm,
+        runtime: {
+          repoRoot: '/tmp',
+          attemptId: 1,
+          dryRun: true,
+          model: 'test-model',
+          worktreeRoot: '/tmp',
+        },
+        toolstack: { registry, policy, router },
+      },
+    );
+
+    await Promise.all([readAStarted.promise, readBStarted.promise]);
+
+    expect(executionOrder.slice(0, 2).sort()).toEqual([
+      'fs.read:src/a.ts:start',
+      'fs.read:src/b.ts:start',
+    ]);
+    expect(executionOrder).not.toContain('fs.write:src/c.ts:start');
+
+    releaseReads.resolve();
+    await writeStarted.promise;
+
+    expect(executionOrder.indexOf('fs.write:src/c.ts:start')).toBeGreaterThan(
+      executionOrder.indexOf('fs.read:src/a.ts:end'),
+    );
+    expect(executionOrder.indexOf('fs.write:src/c.ts:start')).toBeGreaterThan(
+      executionOrder.indexOf('fs.read:src/b.ts:end'),
+    );
+
+    releaseWrite.resolve();
+    const final = await finalPromise;
+
+    expect(final.content).toBe('DONE');
+    expect(round).toBe(2);
   });
 
   it('records tool result preview artifacts for large successful non-read tool results', async () => {

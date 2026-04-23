@@ -618,6 +618,201 @@ describe('Headless protocol integration', () => {
     }
   }, 120000);
 
+  it('round-trips mixed read/write autopilot tool batches in headless mode', async () => {
+    const repo = await helper.createGitRepo({
+      initialFiles: [
+        { path: 'src/a.ts', content: 'export const a = 1;\n' },
+        { path: 'src/b.ts', content: 'export const b = 2;\n' },
+        { path: '.gitignore', content: '.salmonloop/\n' },
+      ],
+    });
+
+    const stub = createOpenAiStreamingStub();
+    stub.pushStream([
+      openAiChatStreamChunk({
+        delta: {
+          role: 'assistant',
+          tool_calls: [
+            {
+              index: 0,
+              id: 'call-read-a',
+              type: 'function',
+              function: {
+                name: 'fs.read',
+                arguments: JSON.stringify({ file: 'src/a.ts' }),
+              },
+            },
+            {
+              index: 1,
+              id: 'call-read-b',
+              type: 'function',
+              function: {
+                name: 'fs.read',
+                arguments: JSON.stringify({ file: 'src/b.ts' }),
+              },
+            },
+            {
+              index: 2,
+              id: 'call-write-c',
+              type: 'function',
+              function: {
+                name: 'fs.write_file',
+                arguments: JSON.stringify({
+                  file: 'src/c.ts',
+                  content: 'export const c = 3;\n',
+                }),
+              },
+            },
+          ],
+        },
+      }),
+      openAiChatStreamChunk({ finishReason: 'tool_calls' }),
+      '[DONE]',
+    ]);
+    stub.pushStream([
+      openAiChatStreamChunk({ delta: { role: 'assistant', content: 'done' } }),
+      openAiChatStreamChunk({ finishReason: 'stop' }),
+      '[DONE]',
+    ]);
+
+    const baseUrl = await stub.tryStart();
+    if (!baseUrl) {
+      throw new Error('OpenAI streaming stub failed to bind; mixed batch regression test did not run');
+    }
+    await writeOpenAiStubConfig(repo.path, baseUrl);
+
+    try {
+      const { exitCode } = await runCli([
+        'run',
+        '-r',
+        repo.path,
+        '--instruction',
+        'Read src/a.ts and src/b.ts, then write src/c.ts.',
+        '--output-format',
+        'stream-json',
+        '--act-mode',
+        'autopilot',
+        '--mode',
+        'yolo',
+      ]);
+
+      expect(exitCode).toBe(0);
+      expect(await helper.readFile(repo.path, 'src/c.ts')).toBe('export const c = 3;\n');
+      expect(stub.requests).toHaveLength(2);
+
+      const secondRequest = JSON.parse(stub.requests[1]!.body) as any;
+      const toolMessages = secondRequest.messages.filter((message: any) => message.role === 'tool');
+      expect(toolMessages.map((message: any) => message.tool_call_id)).toEqual([
+        'call-read-a',
+        'call-read-b',
+        'call-write-c',
+      ]);
+    } finally {
+      await stub.close();
+    }
+  }, 120000);
+
+  it('completes a recoverable autopilot write flow through verify with correct changed_files', async () => {
+    const repo = await helper.createGitRepo({
+      initialFiles: [{ path: '.gitignore', content: '.salmonloop/\n' }],
+    });
+    await helper.writeFile(
+      repo.path,
+      'verify.ts',
+      [
+        'const content = await Bun.file("smoke.txt").text();',
+        'if (content !== "autopilot smoke\\n") {',
+        '  console.error("unexpected smoke content");',
+        '  process.exit(1);',
+        '}',
+        '',
+      ].join('\n'),
+    );
+
+    const stub = createOpenAiStreamingStub();
+    stub.pushStream([
+      openAiChatStreamChunk({
+        delta: {
+          role: 'assistant',
+          tool_calls: [
+            {
+              index: 0,
+              id: 'call-write-1',
+              type: 'function',
+              function: {
+                name: 'fs.write_file',
+                arguments: JSON.stringify({ path: 'smoke.txt', contents: 'autopilot smoke\n' }),
+              },
+            },
+          ],
+        },
+      }),
+      openAiChatStreamChunk({ finishReason: 'tool_calls' }),
+      '[DONE]',
+    ]);
+    stub.pushStream([
+      openAiChatStreamChunk({
+        delta: {
+          role: 'assistant',
+          tool_calls: [
+            {
+              index: 0,
+              id: 'call-write-2',
+              type: 'function',
+              function: {
+                name: 'fs.write_file',
+                arguments: JSON.stringify({ file: 'smoke.txt', content: 'autopilot smoke\n' }),
+              },
+            },
+          ],
+        },
+      }),
+      openAiChatStreamChunk({ finishReason: 'tool_calls' }),
+      '[DONE]',
+    ]);
+    stub.pushStream([
+      openAiChatStreamChunk({
+        delta: { role: 'assistant', content: 'Created smoke.txt and verification should pass.' },
+      }),
+      openAiChatStreamChunk({ finishReason: 'stop' }),
+      '[DONE]',
+    ]);
+
+    const baseUrl = await stub.tryStart();
+    if (!baseUrl) {
+      throw new Error('OpenAI streaming stub failed to bind; recovery verify regression test did not run');
+    }
+    await writeOpenAiStubConfig(repo.path, baseUrl);
+
+    try {
+      const { exitCode, stdout } = await runCli([
+        'run',
+        '-r',
+        repo.path,
+        '--instruction',
+        'Create a new file named smoke.txt at the repo root containing exactly: autopilot smoke.',
+        '--verify',
+        buildBunCommand('verify.ts'),
+        '--output-format',
+        'json',
+        '--act-mode',
+        'autopilot',
+        '--mode',
+        'yolo',
+      ]);
+
+      expect(exitCode).toBe(0);
+      expect(await helper.readFile(repo.path, 'smoke.txt')).toBe('autopilot smoke\n');
+      expect(stub.requests).toHaveLength(3);
+
+      const payload = JSON.parse(stdout) as any;
+      expect(payload.metadata.success).toBe(true);
+      expect(payload.metadata.changed_files).toContain('smoke.txt');
+    } finally {
+      await stub.close();
+    }
+  }, 120000);
+
   it('emits successful headless json metadata for autopilot shell execution', async () => {
     const repo = await helper.createGitRepo({
       initialFiles: [
