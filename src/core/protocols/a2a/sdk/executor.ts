@@ -5,6 +5,7 @@ import { InMemoryTaskStore } from '@a2a-js/sdk/server';
 import type { TaskEvent, TaskEventBus } from '../../../interaction/events/bus.js';
 import type { TaskEnvelope } from '../../../interaction/model/index.js';
 import type { TaskArtifact } from '../../../interaction/model/types.js';
+import { parseA2ASkillFlowMode } from '../../shared/flow-mode-mapping.js';
 import {
   buildCanonicalExecutionRequest,
   buildInstructionFromParts,
@@ -45,7 +46,8 @@ export function createA2AInteractionExecutor(
 
   return {
     async execute(requestContext, executionEventBus) {
-      const capability = deps.capabilityResolver?.(requestContext.userMessage) ?? 'patch';
+      const capability =
+        parseA2ASkillFlowMode(deps.capabilityResolver?.(requestContext.userMessage)) ?? 'autopilot';
       const pendingEvents: TaskEvent[] = [];
       let resolvedTaskId: string | null = null;
       let cleanedUp = false;

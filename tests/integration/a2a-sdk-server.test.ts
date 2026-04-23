@@ -12,8 +12,9 @@ import { createInteractionFacade } from '../../src/core/interaction/orchestratio
 import { buildA2AAgentCard } from '../../src/core/protocols/a2a/agent-card.js';
 import { createA2AInteractionExecutor } from '../../src/core/protocols/a2a/sdk/executor.js';
 import { createA2ASdkExpressApp } from '../../src/core/protocols/a2a/sdk/server.js';
+import { buildA2AFlowSkills } from '../../src/core/protocols/shared/flow-mode-mapping.js';
 
-const BASE_CAPABILITIES = [{ id: 'patch', title: 'Patch code' }];
+const BASE_CAPABILITIES = buildA2AFlowSkills();
 
 type ServerHandle = {
   url: string;
@@ -45,11 +46,19 @@ function createAbortOnlyTask(task: TaskEnvelope, signal?: AbortSignal): Promise<
   });
 }
 
-async function startTestServer(deps: { executeTask: ExecuteTaskFn }) {
+async function startTestServer(deps: {
+  executeTask: ExecuteTaskFn;
+  capabilityResolver?: (message: Message) => string;
+}) {
   const taskBus = createTaskEventBus();
   const taskStore = new InMemoryTaskStore();
   const facade = createInteractionFacade({ executeTask: deps.executeTask, eventBus: taskBus });
-  const executor = createA2AInteractionExecutor({ facade, taskEventBus: taskBus, taskStore });
+  const executor = createA2AInteractionExecutor({
+    facade,
+    taskEventBus: taskBus,
+    taskStore,
+    capabilityResolver: deps.capabilityResolver,
+  });
   const app = createA2ASdkExpressApp({
     agentCard: buildA2AAgentCard({
       name: 'test-agent',
@@ -116,7 +125,33 @@ describe('A2A SDK express server', () => {
         throw new Error('missing stored task');
       }
       expect(stored.status.state).toBe('completed');
-      expect(stored.metadata?.capability).toBe('patch');
+      expect(stored.metadata?.capability).toBe('autopilot');
+    } finally {
+      await close();
+    }
+  });
+
+  networkIntegrationTest('message/send persists explicit flow-backed skill capability', async () => {
+    const { url, close } = await startTestServer({
+      executeTask: async (task) => ({ ...task, state: 'completed' }),
+      capabilityResolver: () => 'review',
+    });
+    try {
+      const transport = new JsonRpcTransport({ endpoint: `${url}/a2a/jsonrpc` });
+      const result = await transport.sendMessage({
+        message: createMessage('msg-review'),
+      });
+
+      expect(result.kind).toBe('task');
+      if (result.kind !== 'task') {
+        throw new Error('expected task response');
+      }
+
+      const stored = await transport.getTask({ id: result.id });
+      if (!stored) {
+        throw new Error('missing stored task');
+      }
+      expect(stored.metadata?.capability).toBe('review');
     } finally {
       await close();
     }

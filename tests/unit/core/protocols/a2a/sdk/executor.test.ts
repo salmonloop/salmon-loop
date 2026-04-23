@@ -1093,7 +1093,7 @@ describe('Unit Tests: Task Conversion Correctness', () => {
     expect(capturedCapability as any).toBe('review');
   });
 
-  test('should default to patch capability when resolver not provided', async () => {
+  test('should default to autopilot capability when resolver not provided', async () => {
     const taskEventBus = createTaskEventBus();
     let capturedCapability: string | null = null;
 
@@ -1122,7 +1122,40 @@ describe('Unit Tests: Task Conversion Correctness', () => {
 
     await executor.execute(requestContext as any, eventBus);
 
-    expect(capturedCapability as any).toBe('patch');
+    expect(capturedCapability as any).toBe('autopilot');
+  });
+
+  test('should default to autopilot capability when resolver returns unsupported skill', async () => {
+    const taskEventBus = createTaskEventBus();
+    let capturedCapability: string | null = null;
+
+    const mockFacade = {
+      createTask: async (input: any) => {
+        capturedCapability = input.capability;
+        return {
+          task: createMockTaskEnvelope(),
+        };
+      },
+      getTask: async () => null,
+      cancelTask: async () => null,
+    };
+
+    const executor = createA2AInteractionExecutor({
+      facade: mockFacade,
+      taskEventBus,
+      capabilityResolver: () => 'unsupported-skill',
+    });
+
+    const eventBus = createMockExecutionEventBus();
+    const requestContext = {
+      taskId: 'task-1',
+      contextId: 'ctx-1',
+      userMessage: createMockMessage('test'),
+    };
+
+    await executor.execute(requestContext as any, eventBus);
+
+    expect(capturedCapability as any).toBe('autopilot');
   });
 });
 
@@ -1520,13 +1553,17 @@ describe('Unit Tests: InteractionFacade Calls', () => {
 // ============================================================================
 
 describe('Unit Tests: Edge Cases and Error Scenarios', () => {
-  test('should handle task with empty capability', async () => {
+  test('should handle task with empty capability by degrading to autopilot', async () => {
     const taskEventBus = createTaskEventBus();
+    let capturedCapability: string | null = null;
 
     const mockFacade = {
-      createTask: async (input: any) => ({
-        task: createMockTaskEnvelope({ capability: input.capability }),
-      }),
+      createTask: async (input: any) => {
+        capturedCapability = input.capability;
+        return {
+          task: createMockTaskEnvelope({ capability: input.capability }),
+        };
+      },
       getTask: async () => null,
       cancelTask: async () => null,
     };
@@ -1544,9 +1581,8 @@ describe('Unit Tests: Edge Cases and Error Scenarios', () => {
       userMessage: createMockMessage('test'),
     };
 
-    // Should handle empty capability
     await executor.execute(requestContext as any, eventBus);
-    expect(true).toBe(true);
+    expect(capturedCapability as any).toBe('autopilot');
   });
 
   test('should handle task with very long instruction', async () => {

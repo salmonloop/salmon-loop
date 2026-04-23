@@ -2,6 +2,7 @@ import type { Command } from 'commander';
 
 import {
   buildA2AAgentCard,
+  buildA2AFlowSkills,
   buildSidecarRouteDescriptors,
   createAcpFormalAgent,
   createAgentServerRuntime,
@@ -233,10 +234,11 @@ export async function handleServeCommand(_options: unknown, command: Command) {
       : undefined;
 
   const capabilities = [{ id: 'patch', title: 'Patch code' }];
+  const a2aSkills = buildA2AFlowSkills();
   const agentCard = buildA2AAgentCard({
     name: 'salmon-loop',
     url: `http://${a2aHost}:${a2aPort}`,
-    capabilities,
+    capabilities: a2aSkills,
     security: authTokens.length > 0 ? [{ type: 'http', scheme: 'bearer' }] : [],
   });
 
