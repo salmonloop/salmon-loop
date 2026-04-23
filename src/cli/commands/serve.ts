@@ -30,7 +30,11 @@ import { createTerminalAuthorizationProvider } from '../authorization/provider.j
 import { text } from '../locales/index.js';
 import { createOutcomeReporter } from '../utils/outcome-reporter.js';
 import { resolveCliConfig } from '../utils/resolve-cli-config.js';
-import { buildA2AFlowSkills } from '../../core/protocols/shared/flow-mode-mapping.js';
+import { buildPublicCapabilityRegistry } from '../../core/public-capabilities/registry.js';
+import {
+  selectPublicCapabilitiesForSurface,
+  toA2APublicSkills,
+} from '../../core/public-capabilities/projections.js';
 
 import { createRuntimeLlmAndWarn } from './run/runtime-llm.js';
 
@@ -233,7 +237,11 @@ export async function handleServeCommand(_options: unknown, command: Command) {
         }
       : undefined;
 
-  const a2aSkills = buildA2AFlowSkills().filter((skill) => skill.id === 'autopilot');
+  const a2aPublicCapabilities = selectPublicCapabilitiesForSurface(
+    'a2a',
+    buildPublicCapabilityRegistry(),
+  );
+  const a2aSkills = toA2APublicSkills(a2aPublicCapabilities);
   const agentCard = buildA2AAgentCard({
     name: 'salmon-loop',
     url: `http://${a2aHost}:${a2aPort}`,

@@ -13,6 +13,19 @@ const hoisted = (() => ({
   runLoop: undefined as
     | ((options: { instruction: string; mode: string }) => Promise<unknown>)
     | undefined,
+  publicCapabilityRegistry: [
+    {
+      id: 'autopilot',
+      kind: 'flow_mode',
+      target: 'autopilot',
+      title: 'Autopilot',
+      description: 'Let the agent decide which actions and tools to use.',
+      surfaces: { a2a: true, acp: true },
+      reachability: 'reachable',
+    },
+  ] as Array<Record<string, any>>,
+  surfaceSelectionCalls: [] as Array<{ surface: string; entryIds: string[] }>,
+  a2aProjectionCalls: [] as Array<{ entryIds: string[] }>,
   config: {
     llm: { api: { baseUrl: undefined, apiKey: undefined } },
     llmOutput: { kinds: [] },
@@ -86,6 +99,32 @@ mock.module('../../../../src/core/adapters/fs/node-fs.js', () => ({
 
 mock.module('../../../../src/cli/commands/run/runtime-llm.js', () => ({
   createRuntimeLlmAndWarn: mock(() => ({ llm: {}, warnings: [] })),
+}));
+
+mock.module('../../../../src/core/public-capabilities/registry.js', () => ({
+  buildPublicCapabilityRegistry: mock(() => hoisted.publicCapabilityRegistry),
+}));
+
+mock.module('../../../../src/core/public-capabilities/projections.js', () => ({
+  selectPublicCapabilitiesForSurface: mock((surface: string, entries: Array<Record<string, any>>) => {
+    hoisted.surfaceSelectionCalls.push({
+      surface,
+      entryIds: entries.map((entry) => String(entry.id)),
+    });
+    return entries.filter((entry) => entry.reachability === 'reachable' && entry.surfaces?.[surface]);
+  }),
+  toA2APublicSkills: mock((entries: Array<Record<string, any>>) => {
+    hoisted.a2aProjectionCalls.push({
+      entryIds: entries.map((entry) => String(entry.id)),
+    });
+    return entries.map((entry) => ({
+      id: String(entry.id),
+      title: String(entry.title),
+      description: String(entry.description),
+      tags: Array.isArray(entry.tags) ? entry.tags : undefined,
+      examples: Array.isArray(entry.examples) ? entry.examples : undefined,
+    }));
+  }),
 }));
 
 mock.module('../../../../src/core/runtime/loop.js', () => ({
@@ -169,6 +208,19 @@ describe('handleServeCommand', () => {
     hoisted.acpAgentConfigs.length = 0;
     hoisted.lastRunLoopOptions = undefined;
     hoisted.runLoop = undefined;
+    hoisted.publicCapabilityRegistry = [
+      {
+        id: 'autopilot',
+        kind: 'flow_mode',
+        target: 'autopilot',
+        title: 'Autopilot',
+        description: 'Let the agent decide which actions and tools to use.',
+        surfaces: { a2a: true, acp: true },
+        reachability: 'reachable',
+      },
+    ];
+    hoisted.surfaceSelectionCalls.length = 0;
+    hoisted.a2aProjectionCalls.length = 0;
     hoisted.logger.error.mockReset();
     hoisted.logger.warn.mockReset();
     hoisted.logger.info.mockReset();
@@ -235,6 +287,62 @@ describe('handleServeCommand', () => {
         id: 'autopilot',
         name: 'Autopilot',
         description: 'Let the agent decide which actions and tools to use.',
+        tags: [],
+      },
+    ]);
+  });
+
+  it('projects served A2A skills from the public capability registry', async () => {
+    hoisted.publicCapabilityRegistry = [
+      {
+        id: 'autopilot',
+        kind: 'flow_mode',
+        target: 'autopilot',
+        title: 'Autopilot from registry',
+        description: 'Registry-backed autopilot description.',
+        surfaces: { a2a: true, acp: true },
+        reachability: 'reachable',
+      },
+      {
+        id: 'latent-review',
+        kind: 'workflow',
+        target: 'latent-review',
+        title: 'Latent review',
+        description: 'Should not be served.',
+        surfaces: { a2a: true, acp: false },
+        reachability: 'latent',
+      },
+    ];
+
+    const { handleServeCommand } = await import('../../../../src/cli/commands/serve.js');
+
+    const command: any = {
+      optsWithGlobals: () => ({
+        repo: '/repo',
+        a2aHost: '127.0.0.1',
+        a2aPort: '8081',
+        acpStdio: false,
+      }),
+    };
+
+    await handleServeCommand({}, command);
+
+    expect(hoisted.surfaceSelectionCalls).toEqual([
+      {
+        surface: 'a2a',
+        entryIds: ['autopilot', 'latent-review'],
+      },
+    ]);
+    expect(hoisted.a2aProjectionCalls).toEqual([
+      {
+        entryIds: ['autopilot'],
+      },
+    ]);
+    expect(hoisted.a2aAgentCards[0].skills).toEqual([
+      {
+        id: 'autopilot',
+        name: 'Autopilot from registry',
+        description: 'Registry-backed autopilot description.',
         tags: [],
       },
     ]);
