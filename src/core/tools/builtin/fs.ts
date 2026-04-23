@@ -347,14 +347,32 @@ export async function executeFsListFiles(
   }
 }
 
-const fsWriteFileInputSchema = z.object({
-  file: z.string().describe('Relative path to the file from the repository root'),
-  content: z.string().describe('UTF-8 text content to write'),
-  encoding: z
-    .enum(['utf-8'])
-    .optional()
-    .describe('Text encoding (only utf-8 is supported; default: utf-8)'),
-});
+const fsWriteFileInputSchema = z.preprocess(
+  (raw) => {
+    if (typeof raw === 'string') {
+      return { file: raw };
+    }
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return raw;
+    const input = raw as Record<string, unknown>;
+    if (typeof input.file === 'string') return input;
+
+    const alias = input.path ?? input.file_path ?? input.filePath;
+    if (typeof alias !== 'string') return input;
+
+    return {
+      ...input,
+      file: alias,
+    };
+  },
+  z.object({
+    file: z.string().describe('Relative path to the file from the repository root'),
+    content: z.string().describe('UTF-8 text content to write'),
+    encoding: z
+      .enum(['utf-8'])
+      .optional()
+      .describe('Text encoding (only utf-8 is supported; default: utf-8)'),
+  }),
+);
 
 /**
  * Spec for the fs.write_file tool.

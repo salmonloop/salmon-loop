@@ -284,6 +284,11 @@ describe('runAutopilot', () => {
         maxRounds: 8,
       }),
     );
+    const systemPrompt = hoisted.chatWithTools.mock.calls[0]?.[0]?.[0]?.content;
+    expect(systemPrompt).toContain('Treat simple repo-relative paths like "smoke.txt"');
+    expect(systemPrompt).toContain('Do not ask the user to validate a path');
+    expect(systemPrompt).toContain('"questions"');
+    expect(systemPrompt).toContain('"options"');
     expect(result.report.summary).toBe('autopilot with tools');
     expect(result.mutated).toBe(true);
     expect(result.changedFiles).toEqual(['src/core/tools/builtin/shell.ts']);

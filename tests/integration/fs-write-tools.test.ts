@@ -6,6 +6,7 @@ import {
   executeFsCreateDirectory,
   executeFsDeleteFile,
   executeFsWriteFile,
+  fsWriteFileSpec,
 } from '../../src/core/tools/builtin/fs.js';
 import { RealFsTestHelper } from '../helpers/real-fs-helper.js';
 
@@ -58,6 +59,28 @@ describe('fs write tools (integration)', () => {
     } finally {
       await env.teardown();
     }
+  });
+
+  it('accepts common path aliases for fs.write_file input parsing', async () => {
+    expect(
+      fsWriteFileSpec.inputSchema.parse({
+        path: 'smoke.txt',
+        content: 'headless real smoke\n',
+      }),
+    ).toEqual({
+      file: 'smoke.txt',
+      content: 'headless real smoke\n',
+    });
+
+    expect(
+      fsWriteFileSpec.inputSchema.parse({
+        filePath: 'nested/out.txt',
+        content: 'ok\n',
+      }),
+    ).toEqual({
+      file: 'nested/out.txt',
+      content: 'ok\n',
+    });
   });
 
   it('creates directories and deletes files in shadow worktree', async () => {
