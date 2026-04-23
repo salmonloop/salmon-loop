@@ -1,0 +1,4 @@
+## 2024-05-18 - [Fix] Command Injection Risk in Tool Authorization
+**Vulnerability:** The `command` strategy in the non-interactive tool authorization handler executed user-provided shell commands using `execa` with `shell: true`, presenting a critical command injection risk.
+**Learning:** Shell execution was used for convenience when invoking the command directly with a single string, but bypassing shell execution with `shell: false` offers significantly higher security without severe usability impact if tokenization is handled properly.
+**Prevention:** Avoid `shell: true` whenever possible when processing commands, especially those potentially derived from external configuration. Use explicit arguments arrays or parse the command manually using tokenization (like the introduced `splitCommand` utility) while keeping `shell: false`.
