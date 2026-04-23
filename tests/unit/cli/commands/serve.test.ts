@@ -7,6 +7,17 @@ import {
   toA2APublicSkills,
 } from '../../../../src/core/public-capabilities/projections.js';
 
+function createDefaultResolvedConfig() {
+  return {
+    llm: { api: { baseUrl: undefined, apiKey: undefined } },
+    llmOutput: { kinds: [] },
+    observability: { langfuse: { enabled: false, outcome: false }, audit: { scope: 'repo' } },
+    toolAuthorization: { allowlist: {} },
+    verify: { command: undefined },
+    cli: { defaults: {} },
+  } as any;
+}
+
 const hoisted = (() => ({
   listenCalls: [] as Array<{
     options: { port?: number; host?: string; path?: string; type?: string };
@@ -19,14 +30,7 @@ const hoisted = (() => ({
   runLoop: undefined as
     | ((options: { instruction: string; mode: string }) => Promise<unknown>)
     | undefined,
-  config: {
-    llm: { api: { baseUrl: undefined, apiKey: undefined } },
-    llmOutput: { kinds: [] },
-    observability: { langfuse: { enabled: false, outcome: false }, audit: { scope: 'repo' } },
-    toolAuthorization: { allowlist: {} },
-    verify: { command: undefined },
-    cli: { defaults: {} },
-  } as any,
+  config: createDefaultResolvedConfig(),
   logger: {
     error: mock(),
     warn: mock(),
@@ -177,6 +181,7 @@ describe('handleServeCommand', () => {
     hoisted.acpAgentConfigs.length = 0;
     hoisted.lastRunLoopOptions = undefined;
     hoisted.runLoop = undefined;
+    hoisted.config = createDefaultResolvedConfig();
     hoisted.logger.error.mockReset();
     hoisted.logger.warn.mockReset();
     hoisted.logger.info.mockReset();
