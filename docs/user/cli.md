@@ -80,16 +80,16 @@ Builds and prints the assembled context prompt without calling the LLM.
 s8p context -i "..." [-f src/file.ts | -s "..."] [--diff-scope primary|ast_related] [--budget-chars 30000]
 ```
 
-### Serve (A2A + Sidecar)
+### Serve (A2A + ACP)
 
-Start the A2A HTTP server and the local sidecar server (for UI integration).
+Start the A2A HTTP server and the ACP stdio bridge.
 
 ```bash
 s8p serve
 ```
 
 Configuration defaults come from the `server` section of the config file.
-See `docs/user/config.md` for the `server.a2a` and `server.sidecar` fields.
+See `docs/user/config.md` for the `server.a2a` and `server.acp` fields.
 
 ## Global Options
 

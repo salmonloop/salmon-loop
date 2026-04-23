@@ -189,6 +189,11 @@ export function validateConfigFileV1(input: unknown): ConfigFileV1 {
     if (!isRecord(serverRaw)) {
       throw new ConfigError('CONFIG_INVALID_SERVER', { expected: 'object' });
     }
+    for (const key of Object.keys(serverRaw)) {
+      if (key !== 'a2a' && key !== 'acp') {
+        throw new ConfigError('CONFIG_INVALID_SERVER_UNKNOWN_KEY', { key });
+      }
+    }
     const server: NonNullable<ConfigFileV1['server']> = {};
     if (serverRaw.a2a !== undefined) {
       if (!isRecord(serverRaw.a2a)) {
@@ -210,24 +215,6 @@ export function validateConfigFileV1(input: unknown): ConfigFileV1 {
         host: a2aRaw.host as any,
         port: a2aRaw.port as any,
         tokens: a2aRaw.tokens as any,
-      };
-    }
-    if (serverRaw.sidecar !== undefined) {
-      if (!isRecord(serverRaw.sidecar)) {
-        throw new ConfigError('CONFIG_INVALID_SERVER_SIDECAR', { expected: 'object' });
-      }
-      const sidecarRaw = serverRaw.sidecar as Record<string, unknown>;
-      if (sidecarRaw.socket !== undefined && !isString(sidecarRaw.socket)) {
-        throw new ConfigError('CONFIG_INVALID_SERVER_SIDECAR_SOCKET', { expected: 'string' });
-      }
-      if (sidecarRaw.allowConditional !== undefined && !isBoolean(sidecarRaw.allowConditional)) {
-        throw new ConfigError('CONFIG_INVALID_SERVER_SIDECAR_ALLOW_CONDITIONAL', {
-          expected: 'boolean',
-        });
-      }
-      server.sidecar = {
-        socket: sidecarRaw.socket as any,
-        allowConditional: sidecarRaw.allowConditional as any,
       };
     }
     if (serverRaw.acp !== undefined) {

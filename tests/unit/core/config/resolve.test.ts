@@ -65,7 +65,6 @@ describe('resolveConfig (security/observability)', () => {
         config: {
           server: {
             a2a: { host: '0.0.0.0', port: 7447, tokens: ['secret'] },
-            sidecar: { socket: '/tmp/agent-message.sock', allowConditional: true },
             acp: {
               sessionStore: {
                 maxEntries: 256,
@@ -90,12 +89,27 @@ describe('resolveConfig (security/observability)', () => {
     expect(resolved.server?.a2a?.host).toBe('0.0.0.0');
     expect(resolved.server?.a2a?.port).toBe(7447);
     expect(resolved.server?.a2a?.tokens).toEqual(['secret']);
-    expect(resolved.server?.sidecar?.socket).toBe('/tmp/agent-message.sock');
-    expect(resolved.server?.sidecar?.allowConditional).toBe(true);
     expect(resolved.server?.acp?.sessionStore?.maxEntries).toBe(256);
     expect(resolved.server?.acp?.sessionStore?.lockHeartbeatMs).toBe(2000);
     expect(resolved.server?.acp?.checkpointManifest?.lockStaleMs).toBe(42000);
     expect(resolved.server?.acp?.checkpointManifest?.lockHeartbeatMs).toBe(2500);
+  });
+
+  it('does not resolve retired sidecar server config', async () => {
+    loadConfigStackMock.mockResolvedValue({
+      repo: {
+        config: {
+          server: {
+            sidecar: { socket: '/tmp/agent-message.sock', allowConditional: true },
+          },
+        },
+        path: '/repo/.salmonloop/config.json',
+      },
+    });
+
+    const resolved = await resolveConfig({ repoRoot: '/repo' });
+
+    expect(resolved.server).toBeUndefined();
   });
 
   it('uses interactive as default permission mode', async () => {

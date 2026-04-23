@@ -25,8 +25,13 @@ const hoisted = (() => ({
   },
 }))();
 
-mock.module('../../../../src/core/config/resolve.js', () => ({
-  resolveConfig: mock(async () => hoisted.config),
+mock.module('../../../../src/cli/utils/resolve-cli-config.js', () => ({
+  resolveCliConfig: mock(async (options: { auditScope?: string }) => ({
+    ok: true,
+    resolvedConfig: hoisted.config,
+    auditScope: options.auditScope ?? 'repo',
+    repoPath: '/repo',
+  })),
 }));
 
 mock.module('../../../../src/core/extensions/index.js', () => ({
@@ -149,7 +154,7 @@ beforeEach(() => {
 });
 
 describe('handleServeAcpCommand', () => {
-  it('starts ACP stdio loop without starting A2A + sidecar listeners', async () => {
+  it('starts ACP stdio loop without starting the A2A listener', async () => {
     const { handleServeAcpCommand } = await import('../../../../src/cli/commands/serve.js');
 
     const command: any = {
@@ -207,5 +212,9 @@ describe('registerServeCommands', () => {
     const serve = program.commands.find((cmd) => cmd.name() === 'serve');
     expect(serve).toBeTruthy();
     expect(serve!.commands.some((cmd) => cmd.name() === 'acp')).toBe(true);
+    expect(serve!.options.some((option) => option.long === '--sidecar-socket')).toBe(false);
+    expect(serve!.options.some((option) => option.long === '--sidecar-allow-conditional')).toBe(
+      false,
+    );
   });
 });

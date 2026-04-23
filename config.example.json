@@ -66,9 +66,18 @@
       "port": 7431,
       "tokens": []
     },
-    "sidecar": {
-      "socket": "/home/you/.local/share/SalmonLoop/sidecar/agent-message.sock",
-      "allowConditional": false
+    "acp": {
+      "sessionStore": {
+        "maxEntries": 200,
+        "maxAgeMs": 2592000000,
+        "historyMaxEntries": 40,
+        "lockStaleMs": 30000,
+        "lockHeartbeatMs": 5000
+      },
+      "checkpointManifest": {
+        "lockStaleMs": 30000,
+        "lockHeartbeatMs": 5000
+      }
     }
   },
   "verify": {

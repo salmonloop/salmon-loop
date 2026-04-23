@@ -67,10 +67,6 @@ export interface ResolvedConfig {
       port?: number;
       tokens?: string[];
     };
-    sidecar?: {
-      socket?: string;
-      allowConditional?: boolean;
-    };
     acp?: {
       sessionStore?: {
         maxEntries?: number;

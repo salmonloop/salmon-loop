@@ -11,24 +11,14 @@ import { createInteractionFacade } from '../interaction/orchestration/facade.js'
 import { createA2AInteractionExecutor } from '../protocols/a2a/sdk/executor.js';
 import { createA2ASdkExpressApp } from '../protocols/a2a/sdk/server.js';
 
-import { type FastifyFactory, type FastifyListenOptions } from './fastify-server-bundle.js';
-import {
-  createSidecarFastifyPlugin,
-  type RouteDescriptor,
-  type SidecarPolicyDecision,
-} from './sidecar-fastify-plugin.js';
-import type { SidecarListenOptions } from './sidecar-paths.js';
-
 export type AgentServerRuntime = {
   eventBus: TaskEventBus;
   a2aServer: Express;
-  sidecarServer: ReturnType<FastifyFactory>;
   start: () => Promise<void>;
   close: () => Promise<void>;
 };
 
 export function createAgentServerRuntime(deps: {
-  createFastify: FastifyFactory;
   a2a: {
     buildAgentCard: () => AgentCard;
     executeTask: (task: TaskEnvelope, options?: { signal?: AbortSignal }) => Promise<TaskEnvelope>;
@@ -37,23 +27,10 @@ export function createAgentServerRuntime(deps: {
     taskStore?: TaskStore;
     eventBus?: TaskEventBus;
   };
-  sidecar: {
-    routes: RouteDescriptor[];
-    allowConditional?: boolean;
-    authorize?: (input: {
-      request: Request;
-      policyTag: string;
-      scope: 'tcp' | 'uds';
-    }) => Promise<SidecarPolicyDecision>;
-    baseUrl?: string;
-  };
   listen: {
     a2a: { port: number; host?: string };
-    sidecar: SidecarListenOptions;
   };
-  a2aBaseUrl?: string;
   configureA2A?: (app: Express) => Promise<void> | void;
-  configureSidecar?: (instance: ReturnType<FastifyFactory>) => Promise<void> | void;
 }) {
   const eventBus = deps.a2a.eventBus ?? createTaskEventBus();
   const taskStore = deps.a2a.taskStore ?? new InMemoryTaskStore();
@@ -73,27 +50,15 @@ export function createAgentServerRuntime(deps: {
     taskStore,
   });
 
-  const agentCard = deps.a2a.buildAgentCard();
-
-  const a2aApp = createA2ASdkExpressApp({
-    agentCard,
+  const a2aServer = createA2ASdkExpressApp({
+    agentCard: deps.a2a.buildAgentCard(),
     agentExecutor: executor,
     taskStore,
     userBuilder: deps.a2a.userBuilder,
     authMiddleware: deps.a2a.authMiddleware,
   });
 
-  const sidecarPlugin = createSidecarFastifyPlugin({
-    routes: deps.sidecar.routes,
-    scope: deps.listen.sidecar.type === 'tcp' ? 'tcp' : 'uds',
-    allowConditional: deps.sidecar.allowConditional,
-    authorize: deps.sidecar.authorize,
-    baseUrl: deps.sidecar.baseUrl,
-  });
-
-  const sidecarServer = deps.createFastify();
-  let a2aServerInstance: ReturnType<typeof a2aApp.listen> | null = null;
-  let sidecarServerInstance: ReturnType<typeof sidecarServer.listen> | null = null;
+  let a2aServerInstance: ReturnType<typeof a2aServer.listen> | null = null;
   let started = false;
 
   async function start(): Promise<void> {
@@ -102,53 +67,41 @@ export function createAgentServerRuntime(deps: {
     }
 
     if (deps.configureA2A) {
-      await deps.configureA2A(a2aApp);
+      await deps.configureA2A(a2aServer);
     }
-
-    if (deps.configureSidecar) {
-      await deps.configureSidecar(sidecarServer);
-    }
-    await sidecarServer.register(sidecarPlugin);
 
     a2aServerInstance = await new Promise((resolve, reject) => {
-      const server = a2aApp.listen(
+      const server = a2aServer.listen(
         deps.listen.a2a.port,
         deps.listen.a2a.host ?? '0.0.0.0',
         (err?: Error) => {
-          if (err) reject(err);
-          else resolve(server);
+          if (err) {
+            reject(err);
+            return;
+          }
+          resolve(server);
         },
       );
     });
-
-    const sidecarListenOpts: FastifyListenOptions =
-      deps.listen.sidecar.type === 'tcp'
-        ? { port: deps.listen.sidecar.port, host: deps.listen.sidecar.host }
-        : { path: deps.listen.sidecar.path };
-    sidecarServerInstance = await sidecarServer.listen(sidecarListenOpts);
     started = true;
   }
 
   async function close(): Promise<void> {
-    if (a2aServerInstance) {
-      await new Promise<void>((resolve) => {
-        a2aServerInstance!.close(() => resolve());
-      });
-      a2aServerInstance = null;
+    if (!a2aServerInstance) {
+      started = false;
+      return;
     }
 
-    if (sidecarServerInstance) {
-      await sidecarServer.close();
-      sidecarServerInstance = null;
-    }
-
+    await new Promise<void>((resolve) => {
+      a2aServerInstance!.close(() => resolve());
+    });
+    a2aServerInstance = null;
     started = false;
   }
 
   return {
     eventBus,
-    a2aServer: a2aApp,
-    sidecarServer,
+    a2aServer,
     start,
     close,
   };

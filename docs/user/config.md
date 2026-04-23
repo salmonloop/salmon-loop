@@ -21,7 +21,7 @@ The precedence order is:
 
 ## Server
 
-SalmonLoop can expose an A2A HTTP server plus a local sidecar server for UI integration.
+SalmonLoop can expose an A2A HTTP server plus ACP session persistence settings.
 Configuration lives under the `server` top-level key.
 
 ### `server.a2a`
@@ -41,32 +41,6 @@ Example:
       "host": "127.0.0.1",
       "port": 7431,
       "tokens": ["dev-token"]
-    }
-  }
-}
-```
-
-### `server.sidecar`
-
-Controls the local sidecar server (UDS or named pipe). Leave `socket` unset to use the OS default.
-
-- `socket`: Absolute path to the UDS socket (POSIX) or Windows named pipe path.
-- `allowConditional`: Whether to expose conditional sidecar routes (default: `false`).
-
-Default socket paths:
-
-- Linux: `~/.local/share/SalmonLoop/sidecar/agent-message.sock`
-- macOS: `~/Library/Application Support/SalmonLoop/sidecar/agent-message.sock`
-- Windows: `\\\\.\\pipe\\salmonloop-agent-message`
-
-Example:
-
-```json
-{
-  "server": {
-    "sidecar": {
-      "socket": "/home/you/.local/share/SalmonLoop/sidecar/agent-message.sock",
-      "allowConditional": false
     }
   }
 }

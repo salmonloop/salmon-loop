@@ -22,7 +22,6 @@ const hoisted = (() => ({
   listenCalls: [] as Array<{
     options: { port?: number; host?: string; path?: string; type?: string };
   }>,
-  sidecarRoutes: [] as Array<Array<Record<string, any>>>,
   a2aAgentCards: [] as Array<Record<string, unknown>>,
   acpLoopCalls: [] as Array<Record<string, unknown>>,
   acpAgentConfigs: [] as Array<Record<string, unknown>>,
@@ -43,9 +42,7 @@ const hoisted = (() => ({
 mock.module('../../../../src/core/runtime/agent-server-runtime.js', () => ({
   createAgentServerRuntime: mock((config: any) => {
     hoisted.a2aAgentCards.push(config.a2a.buildAgentCard());
-    hoisted.sidecarRoutes.push(config.sidecar.routes);
     hoisted.listenCalls.push({ options: config.listen.a2a });
-    hoisted.listenCalls.push({ options: config.listen.sidecar });
     return {
       start: mock(async () => {}),
       close: mock(async () => {}),
@@ -53,19 +50,13 @@ mock.module('../../../../src/core/runtime/agent-server-runtime.js', () => ({
   }),
 }));
 
-mock.module('../../../../src/core/runtime/sidecar-paths.js', () => ({
-  getSidecarSocketPath: () => '/tmp/agent-message.sock',
-  getSidecarListenOptions: () => ({ type: 'pipe' as const, path: '/tmp/agent-message.sock' }),
-  createPipeListenOptions: (path: string) => ({ type: 'pipe' as const, path }),
-  createTcpListenOptions: (port: number, host = '127.0.0.1') => ({
-    type: 'tcp' as const,
-    port,
-    host,
-  }),
-}));
-
-mock.module('../../../../src/core/config/resolve.js', () => ({
-  resolveConfig: mock(async () => hoisted.config),
+mock.module('../../../../src/cli/utils/resolve-cli-config.js', () => ({
+  resolveCliConfig: mock(async (options: { auditScope?: string }) => ({
+    ok: true,
+    resolvedConfig: hoisted.config,
+    auditScope: options.auditScope ?? 'repo',
+    repoPath: '/repo',
+  })),
 }));
 
 mock.module('../../../../src/core/extensions/index.js', () => ({
@@ -80,19 +71,6 @@ mock.module('../../../../src/core/extensions/index.js', () => ({
 
 mock.module('../../../../src/core/plugin/loader.js', () => ({
   PluginLoader: { loadPlugins: mock(async () => {}) },
-}));
-
-mock.module('../../../../src/core/adapters/fs/node-fs.js', () => ({
-  mkdir: mock(async () => {}),
-  readdir: mock(async () => []),
-  rename: mock(async () => {}),
-  rm: mock(async () => {}),
-  stat: mock(async () => {
-    throw Object.assign(new Error('missing'), { code: 'ENOENT' });
-  }),
-  readFile: mock(async () => {
-    throw Object.assign(new Error('missing'), { code: 'ENOENT' });
-  }),
 }));
 
 mock.module('../../../../src/cli/commands/run/runtime-llm.js', () => ({
@@ -175,7 +153,6 @@ describe('handleServeCommand', () => {
   beforeEach(() => {
     setLogger(hoisted.logger as any);
     hoisted.listenCalls.length = 0;
-    hoisted.sidecarRoutes.length = 0;
     hoisted.a2aAgentCards.length = 0;
     hoisted.acpLoopCalls.length = 0;
     hoisted.acpAgentConfigs.length = 0;
@@ -198,17 +175,12 @@ describe('handleServeCommand', () => {
         a2aHost: '0.0.0.0',
         a2aPort: '8081',
         acpStdio: false,
-        sidecarSocket: '/tmp/custom.sock',
-        sidecarAllowConditional: true,
       }),
     };
 
     await handleServeCommand({}, command);
 
-    expect(hoisted.listenCalls).toEqual([
-      { options: { host: '0.0.0.0', port: 8081 } },
-      { options: { type: 'pipe', path: '/tmp/custom.sock' } },
-    ]);
+    expect(hoisted.listenCalls).toEqual([{ options: { host: '0.0.0.0', port: 8081 } }]);
   });
 
   it('starts ACP stdio loop when enabled', async () => {
@@ -277,32 +249,6 @@ describe('handleServeCommand', () => {
     }));
 
     expect(hoisted.a2aAgentCards[0].skills).toEqual(expectedSkills);
-  });
-
-  it('keeps sidecar capability metadata on its explicit path', async () => {
-    const { handleServeCommand } = await import('../../../../src/cli/commands/serve.js');
-
-    const command: any = {
-      optsWithGlobals: () => ({
-        repo: '/repo',
-        a2aHost: '127.0.0.1',
-        a2aPort: '8081',
-        acpStdio: false,
-      }),
-    };
-
-    await handleServeCommand({}, command);
-
-    const infoRoute = hoisted.sidecarRoutes[0]?.find((route) => route.path === '/info');
-    expect(infoRoute).toBeDefined();
-    if (!infoRoute) {
-      throw new Error('missing sidecar info route');
-    }
-
-    const response = await infoRoute.handler();
-    const payload = await response.json();
-
-    expect(payload.capabilities).toEqual([{ id: 'autopilot', title: 'Autopilot' }]);
   });
 
   it('does not advertise unresolved flow-backed A2A skills before runtime selection exists', async () => {
@@ -420,5 +366,22 @@ describe('handleServeCommand', () => {
     await hoisted.runLoop!({ instruction: 'test', mode: 'patch' });
 
     expect(hoisted.lastRunLoopOptions?.auditScope).toBe('user');
+  });
+
+  it('logs only the A2A listener address on startup', async () => {
+    const { handleServeCommand } = await import('../../../../src/cli/commands/serve.js');
+
+    const command: any = {
+      optsWithGlobals: () => ({
+        repo: '/repo',
+        a2aHost: '127.0.0.1',
+        a2aPort: '8081',
+        acpStdio: false,
+      }),
+    };
+
+    await handleServeCommand({}, command);
+
+    expect(hoisted.logger.success).toHaveBeenCalledWith('A2A listening on 127.0.0.1:8081');
   });
 });

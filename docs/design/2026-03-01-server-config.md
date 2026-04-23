@@ -2,12 +2,12 @@
 
 ## Goal
 
-Introduce a `server` top-level configuration section that governs the A2A HTTP listener and the local sidecar server. This must be reflected in example config files, config parsing/validation, and user-facing documentation.
+Document the supported `server` top-level configuration section for the A2A HTTP listener and ACP persistence settings. This must be reflected in example config files, config parsing/validation, and user-facing documentation.
 
 ## Scope
 
 - Add `server` to `config.example.json` and `config.example.yaml`.
-- Document `server.a2a` and `server.sidecar` in `docs/user/config.md`.
+- Document `server.a2a` and `server.acp` in `docs/user/config.md`.
 - Note `serve` configuration defaults in `docs/user/cli.md`.
 - Keep existing runtime behavior and defaults intact.
 
@@ -21,9 +21,13 @@ Introduce a `server` top-level configuration section that governs the A2A HTTP l
       "port": 7431,
       "tokens": []
     },
-    "sidecar": {
-      "socket": "/absolute/path/to/agent-message.sock",
-      "allowConditional": false
+    "acp": {
+      "sessionStore": {
+        "maxEntries": 200
+      },
+      "checkpointManifest": {
+        "lockStaleMs": 30000
+      }
     }
   }
 }
@@ -32,8 +36,8 @@ Introduce a `server` top-level configuration section that governs the A2A HTTP l
 - `server.a2a.host`: bind host/interface for the A2A HTTP server.
 - `server.a2a.port`: bind port for the A2A HTTP server.
 - `server.a2a.tokens`: optional list of bearer tokens for A2A auth.
-- `server.sidecar.socket`: UDS path or Windows named pipe path for sidecar.
-- `server.sidecar.allowConditional`: toggle conditional sidecar routes.
+- `server.acp.sessionStore.*`: ACP session retention and locking policy.
+- `server.acp.checkpointManifest.*`: ACP checkpoint manifest locking policy.
 
 ## Defaults
 
@@ -41,11 +45,11 @@ When fields are omitted, runtime defaults continue to apply:
 
 - A2A host defaults to `127.0.0.1`.
 - A2A port defaults to `7431`.
-- Sidecar socket defaults to the OS user data directory path (see user docs).
+- ACP store and checkpoint lock values use built-in defaults.
 
 ## Compatibility
 
-The new section is additive. Existing config files remain valid, and defaults are unchanged.
+The section remains additive around supported A2A and ACP fields, and defaults are unchanged.
 
 ## Engineering Level
 

@@ -1,5 +1,3 @@
-export { mkdir } from '../adapters/fs/node-fs.js';
-export { defaultPathAdapter } from '../adapters/path/path-adapter.js';
 export { createSalmonTaskExecutor } from '../backends/salmon-loop/task-executor.js';
 export { GitSnapshotCheckpointService } from '../checkpoint-domain/service.js';
 export { resolveConfig } from '../config/resolve.js';
@@ -27,14 +25,3 @@ export { startAcpStdioServer } from '../protocols/acp/stdio-server.js';
 export { createAgentServerRuntime } from '../runtime/agent-server-runtime.js';
 export { runSalmonLoop } from '../runtime/loop.js';
 export { getUserAcpSessionStorePath } from '../runtime/paths.js';
-export {
-  getSidecarSocketPath,
-  getSidecarListenOptions,
-  createPipeListenOptions,
-  createTcpListenOptions,
-  type SidecarListenOptions,
-} from '../runtime/sidecar-paths.js';
-export {
-  buildSidecarRouteDescriptors,
-  defaultSidecarRouteCatalog,
-} from '../runtime/sidecar-route-catalog.js';

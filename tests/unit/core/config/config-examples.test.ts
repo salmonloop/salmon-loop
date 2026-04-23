@@ -19,7 +19,8 @@ describe('config examples', () => {
 
     expect(config.server?.a2a?.host).toBeDefined();
     expect(config.server?.a2a?.port).toBeDefined();
-    expect(config.server?.sidecar?.socket).toBeDefined();
+    expect(config.server?.acp).toBeDefined();
+    expect(config.server ? 'sidecar' in config.server : false).toBe(false);
   });
 
   it('include server defaults in the YAML example', async () => {
@@ -27,6 +28,7 @@ describe('config examples', () => {
 
     expect(config.server?.a2a?.host).toBeDefined();
     expect(config.server?.a2a?.port).toBeDefined();
-    expect(config.server?.sidecar?.socket).toBeDefined();
+    expect(config.server?.acp).toBeDefined();
+    expect(config.server ? 'sidecar' in config.server : false).toBe(false);
   });
 });

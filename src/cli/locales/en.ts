@@ -3,7 +3,7 @@ export const en = {
   programDescription: 'A minimal viable loop for automated code patching',
   runDescription: 'Run the salmon-loop',
   contextDescription: 'Build and print the context prompt (no LLM call)',
-  serveDescription: 'Start the A2A + sidecar server',
+  serveDescription: 'Start the A2A server and ACP stdio bridge',
   serveAcpDescription: 'Start the agent-client-protocol (ACP) stdio server only',
   noColorOption: 'Disable colored output in logs',
 
@@ -181,12 +181,9 @@ export const en = {
   a2aPortOption: 'A2A listen port (default: 7431)',
   a2aTokenOption: 'Bearer token for A2A auth (repeatable)',
   acpStdioDisableOption: 'Disable agent-client-protocol (ACP) stdio server',
-  sidecarSocketOption: 'UDS path for the sidecar UI server',
-  sidecarAllowConditionalOption: 'Expose conditional sidecar routes (use with care)',
   acpStdioStarted: (port: string) => `ACP (agent-client-protocol) stdio enabled; port ${port}`,
   invalidA2APort: (value: string) => `Invalid A2A port: ${value}`,
-  serveStarted: (host: string, port: number, socket: string) =>
-    `A2A listening on ${host}:${port}; sidecar socket at ${socket}`,
+  serveStarted: (host: string, port: number) => `A2A listening on ${host}:${port}`,
   configAllowlistUsage:
     'Usage: /config allowlist <list|add|remove|clear|hash|reload> [scope] [tool] [phase] [args=<hash>] [effects=a,b] [deny]',
   authUsage:

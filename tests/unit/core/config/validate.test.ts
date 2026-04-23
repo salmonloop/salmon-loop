@@ -201,17 +201,13 @@ describe('validateConfigFileV1 (security.redaction)', () => {
 });
 
 describe('validateConfigFileV1 (server)', () => {
-  it('accepts A2A, sidecar, and ACP server settings', () => {
+  it('accepts A2A and ACP server settings', () => {
     const parsed = validateConfigFileV1({
       server: {
         a2a: {
           host: '0.0.0.0',
           port: 7447,
           tokens: ['token-a', 'token-b'],
-        },
-        sidecar: {
-          socket: '/tmp/agent-message.sock',
-          allowConditional: true,
         },
         acp: {
           sessionStore: {
@@ -232,10 +228,20 @@ describe('validateConfigFileV1 (server)', () => {
     expect(parsed.server?.a2a?.host).toBe('0.0.0.0');
     expect(parsed.server?.a2a?.port).toBe(7447);
     expect(parsed.server?.a2a?.tokens).toEqual(['token-a', 'token-b']);
-    expect(parsed.server?.sidecar?.socket).toBe('/tmp/agent-message.sock');
-    expect(parsed.server?.sidecar?.allowConditional).toBe(true);
     expect(parsed.server?.acp?.sessionStore?.maxEntries).toBe(300);
     expect(parsed.server?.acp?.checkpointManifest?.lockStaleMs).toBe(42000);
+  });
+
+  it('rejects retired sidecar server config', () => {
+    expect(() =>
+      validateConfigFileV1({
+        server: {
+          sidecar: {
+            socket: '/tmp/agent-message.sock',
+          },
+        },
+      }),
+    ).toThrow(/CONFIG_INVALID_SERVER_UNKNOWN_KEY/);
   });
 
   it('rejects invalid server config', () => {

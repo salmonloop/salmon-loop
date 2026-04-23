@@ -59,9 +59,16 @@ server:
     host: 127.0.0.1
     port: 7431
     tokens: []
-  sidecar:
-    socket: /home/you/.local/share/SalmonLoop/sidecar/agent-message.sock
-    allow_conditional: false
+  acp:
+    session_store:
+      max_entries: 200
+      max_age_ms: 2592000000
+      history_max_entries: 40
+      lock_stale_ms: 30000
+      lock_heartbeat_ms: 5000
+    checkpoint_manifest:
+      lock_stale_ms: 30000
+      lock_heartbeat_ms: 5000
 
 verify:
   command: node -e "process.exit(0)"

@@ -2,7 +2,6 @@ import type { Command } from 'commander';
 
 import {
   buildA2AAgentCard,
-  buildSidecarRouteDescriptors,
   createAcpFormalAgent,
   createAgentServerRuntime,
   createInteractionFacade,
@@ -10,13 +9,9 @@ import {
   createTaskEventBus,
   createPluginRegistry,
   createPromptRegistry,
-  defaultPathAdapter,
-  defaultSidecarRouteCatalog,
-  getSidecarListenOptions,
   getUserAcpSessionStorePath,
   GitSnapshotCheckpointService,
   getLogger,
-  mkdir,
   PlainReporter,
   PluginLoader,
   resolveExtensions,
@@ -50,29 +45,6 @@ function resolveDefaultAcpPermissionPolicy(
   return permissionMode === 'yolo' ? 'allow_all' : 'ask';
 }
 
-const SIDECAR_CAPABILITIES = [{ id: 'autopilot', title: 'Autopilot' }];
-
-function buildSidecarHandlers(deps: {
-  name: string;
-  version: string;
-  capabilities: Array<{ id: string; title: string }>;
-}) {
-  return {
-    health: async () => Response.json({ status: 'ok' }),
-    status: async () => Response.json({ state: 'idle' }),
-    info: async () =>
-      Response.json({
-        name: deps.name,
-        version: deps.version,
-        capabilities: deps.capabilities,
-      }),
-    abort: async () => new Response('Abort not implemented for this runtime', { status: 501 }),
-    workspace_files: async () => new Response('Workspace file access not enabled', { status: 501 }),
-    logs_stream: async () => new Response('Log streaming not enabled', { status: 501 }),
-    config_patch: async () => new Response('Config patch not enabled', { status: 501 }),
-  };
-}
-
 export function registerServeCommands(program: Command) {
   const serve = program
     .command('serve')
@@ -86,8 +58,6 @@ export function registerServeCommands(program: Command) {
       [] as string[],
     )
     .option('--no-acp-stdio', text.cli.acpStdioDisableOption)
-    .option('--sidecar-socket <path>', text.cli.sidecarSocketOption)
-    .option('--sidecar-allow-conditional', text.cli.sidecarAllowConditionalOption)
     .option('--no-color', text.cli.noColorOption)
     .action(handleServeCommand);
 
@@ -127,16 +97,6 @@ export async function handleServeCommand(_options: unknown, command: Command) {
     getLogger().setReporter(
       allOptions.color === false ? new StderrReporter() : new PlainReporter(),
     );
-  }
-
-  const sidecarListen =
-    typeof allOptions.sidecarSocket === 'string' && allOptions.sidecarSocket.length > 0
-      ? { type: 'pipe' as const, path: allOptions.sidecarSocket }
-      : getSidecarListenOptions();
-  const allowConditional =
-    allOptions.sidecarAllowConditional ?? serverConfig?.sidecar?.allowConditional ?? false;
-  if (sidecarListen.type === 'pipe' && !sidecarListen.path.startsWith('\\\\.\\pipe\\')) {
-    await mkdir(defaultPathAdapter.dirname(sidecarListen.path), { recursive: true });
   }
 
   const languagePlugins = createPluginRegistry();
@@ -251,16 +211,6 @@ export async function handleServeCommand(_options: unknown, command: Command) {
     security: authTokens.length > 0 ? [{ type: 'http', scheme: 'bearer' }] : [],
   });
 
-  const sidecarRoutes = buildSidecarRouteDescriptors({
-    strict: true,
-    catalog: defaultSidecarRouteCatalog,
-    handlers: buildSidecarHandlers({
-      name: 'salmon-loop',
-      version: '0.2.0',
-      capabilities: SIDECAR_CAPABILITIES,
-    }),
-  });
-
   if (acpStdioEnabled) {
     startAcpStdioServer((conn) =>
       createAcpFormalAgent({
@@ -294,24 +244,16 @@ export async function handleServeCommand(_options: unknown, command: Command) {
     });
   }
 
-  const fastify = (await import('fastify')).default;
   const runtime = createAgentServerRuntime({
-    createFastify: () => fastify(),
     a2a: {
       buildAgentCard: () => agentCard,
       executeTask: executor.execute,
       eventBus: sharedEventBus,
       authMiddleware,
     },
-    sidecar: {
-      routes: sidecarRoutes,
-      allowConditional,
-    },
     listen: {
       a2a: { host: a2aHost, port: a2aPort },
-      sidecar: sidecarListen,
     },
-    a2aBaseUrl: `http://${a2aHost}:${a2aPort}`,
   });
 
   // Handle SIGINT for graceful shutdown
@@ -321,11 +263,7 @@ export async function handleServeCommand(_options: unknown, command: Command) {
   });
 
   await runtime.start();
-  const sidecarAddress =
-    sidecarListen.type === 'tcp'
-      ? `http://${sidecarListen.host}:${sidecarListen.port}`
-      : sidecarListen.path;
-  getLogger().success(text.cli.serveStarted(a2aHost, a2aPort, sidecarAddress));
+  getLogger().success(text.cli.serveStarted(a2aHost, a2aPort));
 }
 
 export async function handleServeAcpCommand(_options: unknown, command: Command) {

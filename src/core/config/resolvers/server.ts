@@ -11,12 +11,6 @@ export function resolveServerConfig(raw?: ConfigFileV1): ResolvedConfig['server'
       tokens: serverRaw.a2a.tokens,
     };
   }
-  if (serverRaw.sidecar) {
-    server.sidecar = {
-      socket: serverRaw.sidecar.socket,
-      allowConditional: serverRaw.sidecar.allowConditional,
-    };
-  }
   if (serverRaw.acp) {
     server.acp = {
       sessionStore: {

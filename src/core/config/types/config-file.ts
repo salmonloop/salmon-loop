@@ -30,10 +30,6 @@ export interface ConfigFileV1 {
       port?: number;
       tokens?: string[];
     };
-    sidecar?: {
-      socket?: string;
-      allowConditional?: boolean;
-    };
     acp?: {
       sessionStore?: {
         maxEntries?: number;
