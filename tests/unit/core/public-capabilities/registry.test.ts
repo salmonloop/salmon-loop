@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
+import { FLOW_MODE_PUBLIC_METADATA } from '../../../../src/core/public-capabilities/flow-mode-metadata.ts';
 import { buildPublicCapabilityRegistry } from '../../../../src/core/public-capabilities/registry.ts';
 
 describe('public capability registry', () => {
@@ -32,6 +33,15 @@ describe('public capability registry', () => {
         a2a: true,
         acp: true,
       },
+    });
+  });
+
+  test('uses canonical flow mode metadata for public titles and descriptions', () => {
+    const entry = buildPublicCapabilityRegistry().find((item) => item.id === 'autopilot');
+
+    expect(entry).toMatchObject({
+      title: FLOW_MODE_PUBLIC_METADATA.autopilot.publicTitle,
+      description: FLOW_MODE_PUBLIC_METADATA.autopilot.description,
     });
   });
 

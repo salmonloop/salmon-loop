@@ -37,6 +37,7 @@ import { parseSlashInput } from '../../slash/parser.js';
 import type { FileSystem } from '../../types/index.js';
 import type { LoopEvent } from '../../types/index.js';
 import type { FlowMode } from '../../types/runtime.js';
+import { FLOW_MODE_PUBLIC_METADATA } from '../../public-capabilities/flow-mode-metadata.js';
 import { buildCanonicalExecutionRequest } from '../shared/execution-request.js';
 import {
   SUPPORTED_PROTOCOL_FLOW_MODES,
@@ -192,28 +193,28 @@ const ACP_AVAILABLE_COMMANDS: Array<{ name: string; description: string }> = [
 
 const ACP_MODE_METADATA: Record<AcpSessionModeId, { name: string; description: string }> = {
   patch: {
-    name: 'Patch',
-    description: 'Apply code changes with verification.',
+    name: FLOW_MODE_PUBLIC_METADATA.patch.acpName,
+    description: FLOW_MODE_PUBLIC_METADATA.patch.description,
   },
   review: {
-    name: 'Review',
-    description: 'Inspect code and report findings without mutating files.',
+    name: FLOW_MODE_PUBLIC_METADATA.review.acpName,
+    description: FLOW_MODE_PUBLIC_METADATA.review.description,
   },
   debug: {
-    name: 'Debug',
-    description: 'Investigate issues and make targeted fixes when needed.',
+    name: FLOW_MODE_PUBLIC_METADATA.debug.acpName,
+    description: FLOW_MODE_PUBLIC_METADATA.debug.description,
   },
   research: {
-    name: 'Research',
-    description: 'Explore the codebase and summarize relevant findings.',
+    name: FLOW_MODE_PUBLIC_METADATA.research.acpName,
+    description: FLOW_MODE_PUBLIC_METADATA.research.description,
   },
   answer: {
-    name: 'Answer',
-    description: 'Answer questions directly without editing files.',
+    name: FLOW_MODE_PUBLIC_METADATA.answer.acpName,
+    description: FLOW_MODE_PUBLIC_METADATA.answer.description,
   },
   autopilot: {
-    name: 'Autopilot',
-    description: 'Let the agent decide which actions and tools to use.',
+    name: FLOW_MODE_PUBLIC_METADATA.autopilot.acpName,
+    description: FLOW_MODE_PUBLIC_METADATA.autopilot.description,
   },
 };
 
