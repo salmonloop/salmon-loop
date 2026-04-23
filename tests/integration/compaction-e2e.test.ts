@@ -104,4 +104,91 @@ describe('Compaction Pipeline End-to-End', () => {
 
     estimateSpy.mockRestore();
   });
+
+  it('preserves recovery state across compaction and rehydrates it into effective context', async () => {
+    for (let i = 0; i < 10; i++) {
+      sessionManager.addMessage({
+        role: 'user',
+        content: `Instruction ${i}`,
+        timestamp: Date.now() + i * 1000,
+      });
+      sessionManager.addMessage({
+        role: 'assistant',
+        content: `I am doing stuff ${i}.\n` + 'y'.repeat(4000),
+        timestamp: Date.now() + i * 1000 + 500,
+      });
+    }
+
+    sessionManager.updateChatFlowMode('autopilot');
+    sessionManager.updateArtifactState({
+      recentReadArtifacts: Array.from({ length: 8 }, (_, index) => ({
+        path: `src/read-${index}.ts`,
+        artifact: {
+          handle: `s8p://artifact/read-${index}`,
+          mimeType: 'text/plain',
+          sha256: `sha-${index}`,
+          size: index + 1,
+        },
+      })),
+    });
+    sessionManager.updateSummaryState({
+      summary: 'summary before compaction',
+      summaryTokens: 4,
+      summarizedMessageIds: ['m-0'],
+      lastSummarizedAt: Date.now(),
+      summaryVersion: 2,
+      contextHash: 'ctx-before',
+      structuredState: {
+        decisions: [],
+        constraints: [],
+        open_questions: [],
+        pending_tasks: [],
+        rejected_options: [],
+        assumptions: [],
+        risks: [],
+        owner: [],
+      },
+      recoveryState: {
+        lastFailureSummary: {
+          reasonCode: 'TOOL_CORRECTION_REQUIRED',
+          diagnosticCode: 'TOOL_ARGUMENT_CORRECTION_NEEDED',
+          safeHint: 'Retry with a normalized file path.',
+          failurePhase: 'PATCH',
+        },
+      },
+    } as any);
+
+    const estimateSpy = spyOn(TokenTracker, 'estimateMessagesTokens').mockReturnValue(25000);
+    (mockLLM.chat as any).mockResolvedValue({
+      content: '[SUMMARY]Compacted summary[/SUMMARY][STATE_JSON]{}[/STATE_JSON]',
+    });
+
+    const pipelineResult = await runCompactionPipeline({
+      sessionManager,
+      llm: mockLLM,
+      tracking: createInitialTracking(),
+      contextHash: 'ctx-compacted',
+    });
+
+    expect(pipelineResult.performed).toBe(true);
+
+    const context = buildEffectiveConversationContext({
+      llm: mockLLM,
+      sessionManager,
+      budgetTokens: 10000,
+    });
+
+    expect(
+      context.some(
+        (message) =>
+          message.role === 'system' &&
+          message.content.includes('[Conversation recovery state]') &&
+          message.content.includes('"flowMode":"autopilot"') &&
+          message.content.includes('"reasonCode":"TOOL_CORRECTION_REQUIRED"') &&
+          message.content.includes('"recentReadFiles":["src/read-2.ts","src/read-3.ts","src/read-4.ts","src/read-5.ts","src/read-6.ts","src/read-7.ts"]'),
+      ),
+    ).toBe(true);
+
+    estimateSpy.mockRestore();
+  });
 });

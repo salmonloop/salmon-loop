@@ -162,6 +162,7 @@ export async function autocompact(params: {
         preTokens: totalTokens,
         tokenThreshold: config.tokenThreshold,
         summaryTokens: updatedSummary?.summaryTokens,
+        hasRecoveryState: Boolean(updatedSummary?.recoveryState),
         circuitBreakerState: { consecutiveFailures: 0 },
       },
       {

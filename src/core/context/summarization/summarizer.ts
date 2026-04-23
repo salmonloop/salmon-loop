@@ -14,6 +14,8 @@ import { tryGetLogger } from '../../observability/logger.js';
 
 import { buildIncrementalSummaryPrompt, truncateSummary } from './prompts.js';
 import type {
+  RecoveryFailureSummary,
+  RecoveryState,
   SummarizationConfig,
   SummarizationResult,
   SummarizableMessage,
@@ -60,6 +62,7 @@ export class ConversationSummarizer {
       summaryVersion: 2,
       structuredState: this.createEmptyStructuredState(),
       contextHash: undefined,
+      recoveryState: undefined,
     };
   }
 
@@ -95,6 +98,7 @@ export class ConversationSummarizer {
       summaryVersion: this.state.summaryVersion,
       structuredState: this.cloneStructuredState(this.state.structuredState),
       contextHash: this.state.contextHash,
+      recoveryState: this.cloneRecoveryState(this.state.recoveryState),
     };
   }
 
@@ -112,6 +116,7 @@ export class ConversationSummarizer {
         ? this.normalizeStructuredState(state.structuredState)
         : this.createEmptyStructuredState(),
       contextHash: state.contextHash,
+      recoveryState: this.cloneRecoveryState(state.recoveryState),
     };
     tryGetLogger()?.debug(
       `[Summarizer] Restored state with ${state.summarizedMessageIds.length} summarized messages`,
@@ -130,6 +135,7 @@ export class ConversationSummarizer {
       summaryVersion: 2,
       structuredState: this.createEmptyStructuredState(),
       contextHash: undefined,
+      recoveryState: undefined,
     };
     this.summaryInProgress = false;
   }
@@ -437,6 +443,32 @@ export class ConversationSummarizer {
       risks: [...state.risks],
       owner: [...state.owner],
     };
+  }
+
+  private cloneRecoveryFailureSummary(
+    value: RecoveryFailureSummary | undefined,
+  ): RecoveryFailureSummary | undefined {
+    if (!value) return undefined;
+    return {
+      reasonCode: value.reasonCode,
+      diagnosticCode: value.diagnosticCode,
+      safeHint: value.safeHint,
+      failurePhase: value.failurePhase,
+    };
+  }
+
+  private cloneRecoveryState(state: RecoveryState | undefined): RecoveryState | undefined {
+    if (!state) return undefined;
+    const flowMode = typeof state.flowMode === 'string' ? state.flowMode : undefined;
+    const recentReadFiles = Array.isArray(state.recentReadFiles)
+      ? state.recentReadFiles.filter((item): item is string => typeof item === 'string')
+      : undefined;
+    const next: RecoveryState = {};
+    if (flowMode) next.flowMode = flowMode;
+    const lastFailureSummary = this.cloneRecoveryFailureSummary(state.lastFailureSummary);
+    if (lastFailureSummary) next.lastFailureSummary = lastFailureSummary;
+    if (recentReadFiles && recentReadFiles.length > 0) next.recentReadFiles = [...recentReadFiles];
+    return Object.keys(next).length > 0 ? next : undefined;
   }
 
   private ensureStringArray(value: unknown): string[] {

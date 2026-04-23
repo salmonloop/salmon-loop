@@ -56,6 +56,97 @@ Session summary
     expect(persistedState.structuredState.decisions).toEqual(['d1']);
   });
 
+  it('persists minimal recovery state from session metadata and recent reads', async () => {
+    let persistedState: any;
+    const sessionManager = {
+      getSummaryState: () => ({
+        summary: 'existing summary',
+        summaryTokens: 4,
+        summarizedMessageIds: ['m-0'],
+        lastSummarizedAt: 1,
+        summaryVersion: 2,
+        contextHash: 'ctx-existing',
+        structuredState: {
+          decisions: [],
+          constraints: [],
+          open_questions: [],
+          pending_tasks: [],
+          rejected_options: [],
+          assumptions: [],
+          risks: [],
+          owner: [],
+        },
+        recoveryState: {
+          lastFailureSummary: {
+            reasonCode: 'TOOL_CORRECTION_REQUIRED',
+            diagnosticCode: 'TOOL_ARGUMENT_CORRECTION_NEEDED',
+            safeHint: 'Adjust the file path argument and retry.',
+            failurePhase: 'PATCH',
+          },
+        },
+      }),
+      getMessagesWithIds: () => createMessages(20),
+      getChatFlowMode: () => 'autopilot',
+      getArtifactState: () => ({
+        recentReadArtifacts: Array.from({ length: 8 }, (_, index) => ({
+          path: `src/recent-${index}.ts`,
+          artifact: {
+            handle: `s8p://artifact/read-${index}`,
+            mimeType: 'text/plain',
+            sha256: `sha-${index}`,
+            size: index + 1,
+          },
+        })),
+      }),
+      updateSummaryState: (state: any) => {
+        persistedState = state;
+      },
+    };
+
+    const llm: LLM = {
+      chat: mock().mockResolvedValue({
+        role: 'assistant',
+        content: `[SUMMARY]
+Updated summary
+[/SUMMARY]
+[STATE_JSON]
+{"decisions":[],"constraints":[],"open_questions":[],"pending_tasks":[],"rejected_options":[],"assumptions":[],"risks":[],"owner":[]}
+[/STATE_JSON]`,
+      }),
+      createPlan: async () => {
+        throw new Error('unused');
+      },
+      createPatch: async () => {
+        throw new Error('unused');
+      },
+    };
+
+    await refreshSessionSummary({
+      sessionManager: sessionManager as any,
+      llm,
+      contextHash: 'ctx-next',
+      strategy: 'force',
+    });
+
+    expect(persistedState.recoveryState).toEqual({
+      flowMode: 'autopilot',
+      lastFailureSummary: {
+        reasonCode: 'TOOL_CORRECTION_REQUIRED',
+        diagnosticCode: 'TOOL_ARGUMENT_CORRECTION_NEEDED',
+        safeHint: 'Adjust the file path argument and retry.',
+        failurePhase: 'PATCH',
+      },
+      recentReadFiles: [
+        'src/recent-2.ts',
+        'src/recent-3.ts',
+        'src/recent-4.ts',
+        'src/recent-5.ts',
+        'src/recent-6.ts',
+        'src/recent-7.ts',
+      ],
+    });
+  });
+
   it('is no-op when session manager is missing', async () => {
     const llm: LLM = {
       chat: async () => ({ role: 'assistant', content: 'ok' }),
@@ -131,6 +222,16 @@ Session summary
           risks: [],
           owner: [],
         },
+        recoveryState: {
+          flowMode: 'autopilot',
+          lastFailureSummary: {
+            reasonCode: 'TOOL_CORRECTION_REQUIRED',
+            diagnosticCode: 'TOOL_ARGUMENT_CORRECTION_NEEDED',
+            safeHint: 'Adjust arguments and retry.',
+            failurePhase: 'PATCH',
+          },
+          recentReadFiles: ['src/alpha.ts', 'src/beta.ts'],
+        },
       }),
       getMessagesWithIds: () => messages,
       getMessages: () => messages,
@@ -161,7 +262,22 @@ Session summary
       role: 'system',
       content: '[Previous conversation summary]\ncondensed summary',
     });
-    expect(context.slice(2)).toEqual([
+    expect(context[2]).toEqual({
+      role: 'system',
+      content:
+        '[Conversation recovery state]\n' +
+        JSON.stringify({
+          flowMode: 'autopilot',
+          lastFailureSummary: {
+            reasonCode: 'TOOL_CORRECTION_REQUIRED',
+            diagnosticCode: 'TOOL_ARGUMENT_CORRECTION_NEEDED',
+            safeHint: 'Adjust arguments and retry.',
+            failurePhase: 'PATCH',
+          },
+          recentReadFiles: ['src/alpha.ts', 'src/beta.ts'],
+        }),
+    });
+    expect(context.slice(3)).toEqual([
       { role: 'user', content: 'recent user' },
       { role: 'assistant', content: 'recent assistant' },
     ]);

@@ -8,6 +8,7 @@
  */
 
 import type { LLMMessage } from '../../types/llm.js';
+import type { FlowMode } from '../../types/runtime.js';
 import type { SummaryModelConfig } from '../token/types.js';
 
 /**
@@ -85,6 +86,22 @@ export interface SummaryState {
 
   /** Context hash used to validate summary alignment */
   contextHash?: string;
+
+  /** Minimal working-state recovery payload preserved across compaction. */
+  recoveryState?: RecoveryState;
+}
+
+export interface RecoveryFailureSummary {
+  reasonCode?: string;
+  diagnosticCode?: string;
+  safeHint?: string;
+  failurePhase?: string;
+}
+
+export interface RecoveryState {
+  flowMode?: FlowMode;
+  lastFailureSummary?: RecoveryFailureSummary;
+  recentReadFiles?: string[];
 }
 
 export interface StructuredSummaryState {

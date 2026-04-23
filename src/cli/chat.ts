@@ -74,6 +74,8 @@ export interface ChatModeOptions {
   langfuseUserId?: string;
 }
 
+type ChatLoopResult = Awaited<ReturnType<typeof runSalmonLoop>>;
+
 /**
  * Start interactive chat mode
  */
@@ -240,6 +242,37 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
   const isInterruptResult = (reason: string | undefined) => {
     if (!reason) return false;
     return /cancelled by user/i.test(reason);
+  };
+
+  const buildRecoveryFailureSummary = (
+    result: ChatLoopResult,
+  ):
+    | {
+        reasonCode?: string;
+        diagnosticCode?: string;
+        safeHint?: string;
+        failurePhase?: string;
+      }
+    | null => {
+    if (result.success) return null;
+
+    const isRecoveryCandidate =
+      result.reasonCode === 'TOOL_CORRECTION_REQUIRED' ||
+      result.reasonCode === 'AWAITING_INPUT' ||
+      isInterruptResult(result.reason);
+    if (!isRecoveryCandidate) return null;
+
+    const summary: {
+      reasonCode?: string;
+      diagnosticCode?: string;
+      safeHint?: string;
+      failurePhase?: string;
+    } = {};
+    if (typeof result.reasonCode === 'string') summary.reasonCode = result.reasonCode;
+    if (typeof result.diagnosticCode === 'string') summary.diagnosticCode = result.diagnosticCode;
+    if (typeof result.safeHint === 'string') summary.safeHint = result.safeHint;
+    if (typeof result.failurePhase === 'string') summary.failurePhase = result.failurePhase;
+    return Object.keys(summary).length > 0 ? summary : null;
   };
 
   const markInterrupted = (input: string, flowMode?: FlowMode) => {
@@ -552,6 +585,9 @@ export async function startChatMode(options: ChatModeOptions): Promise<void> {
         llm: options.llm,
         contextHash: result.contextHash,
         strategy: 'auto',
+        recoveryStatePatch: {
+          lastFailureSummary: buildRecoveryFailureSummary(result),
+        },
       });
       currentCompactionTracking = onNormalTurnComplete(currentCompactionTracking);
       await sessionManager.save();
