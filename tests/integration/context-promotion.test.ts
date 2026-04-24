@@ -1,22 +1,31 @@
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { describe, test, expect, beforeEach } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 
-import { mkdir, writeFile, rm } from '../../src/core/adapters/fs/node-fs.js';
+import { mkdir, mkdtemp, rm, writeFile } from '../../src/core/adapters/fs/node-fs.js';
 import { buildContextPromotionStep } from '../../src/core/context/steps/context-promotion.js';
 import { ContextTargetsCtx } from '../../src/core/context/steps/types.js';
 
 describe('ContextPromotionStep', () => {
-  const testRepo = path.join(process.cwd(), 'tests/tmp/promotion-test');
+  let testRepo = '';
 
   beforeEach(async () => {
+    testRepo = await mkdtemp(path.join(tmpdir(), 'salmon-loop-context-promotion-'));
+  });
+
+  afterEach(async () => {
+    if (!testRepo) {
+      return;
+    }
+
     await rm(testRepo, { recursive: true, force: true });
-    await mkdir(testRepo, { recursive: true });
+    testRepo = '';
   });
 
   test('should promote high-relevance outline files to full content', async () => {
     const importantFile = 'src/important.ts';
-    const importantContent = 'export const data = "VERY IMPORTANT";';
+    const importantContent = "export const data = 'VERY IMPORTANT';";
     await mkdir(path.dirname(path.join(testRepo, importantFile)), { recursive: true });
     await writeFile(path.join(testRepo, importantFile), importantContent);
 
