@@ -1,0 +1,4 @@
+## 2024-04-24 - [Command Injection Risk]
+**Vulnerability:** Command injection risk in `src/cli/authorization/non-interactive.ts` where `execa` was being called with `shell: true` and unsanitized command string from config.
+**Learning:** Using `shell: true` with a combined command string (even from configuration files) exposes the application to command injection if that configuration is manipulated or contains untrusted inputs.
+**Prevention:** Instead of using `shell: true` to let the shell parse arguments, configuration files should support an `args` array for explicit arguments, and a fallback parser (`splitCommand`) should be used to split string commands into arguments safely before passing to `execa` without `shell: true`.
