@@ -9,6 +9,8 @@ import { buildPublicCapabilityRegistry } from '../../../../src/core/public-capab
 
 function createDefaultResolvedConfig() {
   return {
+    raw: undefined,
+    permissionMode: 'interactive',
     llm: { api: { baseUrl: undefined, apiKey: undefined } },
     llmOutput: { kinds: [] },
     observability: { langfuse: { enabled: false, outcome: false }, audit: { scope: 'repo' } },
@@ -224,6 +226,54 @@ describe('handleServeCommand', () => {
     expect(hoisted.acpLoopCalls.length).toBe(1);
   });
 
+  it('uses autopilot execution profile permission default when server permission mode is unset', async () => {
+    const { handleServeCommand } = await import('../../../../src/cli/commands/serve.js');
+
+    const command: any = {
+      optsWithGlobals: () => ({
+        repo: '/repo',
+        a2aHost: '127.0.0.1',
+        a2aPort: '8081',
+        acpStdio: false,
+      }),
+    };
+
+    await handleServeCommand({}, command);
+
+    expect(hoisted.runLoop).toBeDefined();
+    await hoisted.runLoop!({ instruction: 'test', mode: 'autopilot' });
+
+    expect(hoisted.lastRunLoopOptions).toMatchObject({
+      mode: 'autopilot',
+      permissionMode: 'yolo',
+    });
+  });
+
+  it('preserves explicit CLI permission mode over autopilot execution profile defaults', async () => {
+    const { handleServeCommand } = await import('../../../../src/cli/commands/serve.js');
+
+    const command: any = {
+      optsWithGlobals: () => ({
+        repo: '/repo',
+        a2aHost: '127.0.0.1',
+        a2aPort: '8081',
+        acpStdio: false,
+        mode: 'interactive',
+      }),
+      getOptionValueSource: (optionName: string) => (optionName === 'mode' ? 'cli' : undefined),
+    };
+
+    await handleServeCommand({}, command);
+
+    expect(hoisted.runLoop).toBeDefined();
+    await hoisted.runLoop!({ instruction: 'test', mode: 'autopilot' });
+
+    expect(hoisted.lastRunLoopOptions).toMatchObject({
+      mode: 'autopilot',
+      permissionMode: 'interactive',
+    });
+  });
+
   it('exposes only autopilot as the reachable A2A skill in serve runtime', async () => {
     const { handleServeCommand } = await import('../../../../src/cli/commands/serve.js');
 
@@ -301,6 +351,7 @@ describe('handleServeCommand', () => {
   it('maps legacy yolo server defaults to ACP autopilot mode plus allow_all policy', async () => {
     hoisted.config = {
       ...hoisted.config,
+      raw: { mode: 'yolo' },
       permissionMode: 'yolo',
     };
 

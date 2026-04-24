@@ -231,6 +231,18 @@ function resolveRepoRelativePath(repoRoot: string, relPath: string): { absoluteP
   return { absolutePath };
 }
 
+function shouldIncludeListedEntry(dir: string, entryName: string, includeHidden: boolean): boolean {
+  if (!includeHidden && entryName.startsWith('.')) return false;
+
+  const childPath = toRepoRelativeChildPath(dir, entryName);
+  try {
+    assertNotReservedRepoPrefix(childPath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Implementation of the fs.list tool.
  */
@@ -239,22 +251,11 @@ export async function executeFsList(
   ctx: ToolRuntimeCtx,
 ) {
   const { path: dir, includeHidden, maxEntries } = input;
-
-  if (isAbsolute(dir)) {
-    throw new Error(text.errors.pathOutsideRepo);
-  }
-
-  const absoluteRoot = resolve(ctx.repoRoot);
-  const absolutePath = resolve(absoluteRoot, dir);
-  const relPath = relative(absoluteRoot, absolutePath);
-
-  if (relPath.startsWith('..') || isAbsolute(relPath)) {
-    throw new Error(text.errors.pathOutsideRepo);
-  }
+  const { absolutePath } = resolveRepoRelativePath(ctx.repoRoot, dir);
 
   try {
     const dirents = await readdir(absolutePath, { withFileTypes: true });
-    const visible = includeHidden ? dirents : dirents.filter((d) => !d.name.startsWith('.'));
+    const visible = dirents.filter((d) => shouldIncludeListedEntry(dir, d.name, includeHidden));
 
     const entries = visible
       .map((d) => {
@@ -306,22 +307,11 @@ export async function executeFsListFiles(
   ctx: ToolRuntimeCtx,
 ) {
   const { path: dir, includeHidden, maxEntries } = input;
-
-  if (isAbsolute(dir)) {
-    throw new Error(text.errors.pathOutsideRepo);
-  }
-
-  const absoluteRoot = resolve(ctx.repoRoot);
-  const absolutePath = resolve(absoluteRoot, dir);
-  const relPath = relative(absoluteRoot, absolutePath);
-
-  if (relPath.startsWith('..') || isAbsolute(relPath)) {
-    throw new Error(text.errors.pathOutsideRepo);
-  }
+  const { absolutePath } = resolveRepoRelativePath(ctx.repoRoot, dir);
 
   try {
     const dirents = await readdir(absolutePath, { withFileTypes: true });
-    const visible = includeHidden ? dirents : dirents.filter((d) => !d.name.startsWith('.'));
+    const visible = dirents.filter((d) => shouldIncludeListedEntry(dir, d.name, includeHidden));
 
     const fileEntries = visible
       .filter((d) => d.isFile())
@@ -549,21 +539,7 @@ export async function executeFsReadFile(
   ctx: ToolRuntimeCtx,
 ) {
   const { file } = input;
-
-  if (isAbsolute(file)) {
-    throw new Error(text.errors.pathOutsideRepo);
-  }
-
-  // CRITICAL SAFETY: Path traversal check using relative path resolution
-  // We resolve to absolute paths to handle '.' and '..' correctly
-  const absoluteRoot = resolve(ctx.repoRoot);
-  // use resolve instead of join to handle absolute paths in input correctly
-  const absolutePath = resolve(absoluteRoot, file);
-  const relPath = relative(absoluteRoot, absolutePath);
-
-  if (relPath.startsWith('..') || isAbsolute(relPath)) {
-    throw new Error(text.errors.pathOutsideRepo);
-  }
+  const { absolutePath } = resolveRepoRelativePath(ctx.repoRoot, file);
 
   try {
     const fileStat = await stat(absolutePath);

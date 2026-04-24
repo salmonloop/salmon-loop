@@ -1,5 +1,8 @@
+import { isAbsolute, relative, resolve } from 'path';
+
 import { z } from 'zod';
 
+import { text } from '../../../../locales/index.js';
 import { Phase, ExecutionPhase } from '../../../types/runtime.js';
 import { repoResource } from '../../parallel/resource-helpers.js';
 import { ToolSpec } from '../../types.js';
@@ -25,7 +28,10 @@ export const CodeSearchInput = z.object({
     .max(500)
     .default(100)
     .describe('Maximum number of matches to return'),
-  cwd: z.string().optional().describe('Directory to search in (defaults to repo root)'),
+  cwd: z
+    .string()
+    .optional()
+    .describe('Directory to search in, relative to the repo root or an absolute path inside it'),
   isRegex: CoercedBoolean.default(false).describe(
     'Whether to treat the pattern as a regular expression',
   ),
@@ -55,6 +61,20 @@ export const CodeSearchOutput = z.object({
 
 export type CodeSearchInputT = z.infer<typeof CodeSearchInput>;
 export type CodeSearchOutputT = z.infer<typeof CodeSearchOutput>;
+
+export function resolveCodeSearchCwd(repoRoot: string, inputCwd?: string): string {
+  const absoluteRoot = resolve(repoRoot);
+  const absolutePath = isAbsolute(inputCwd ?? '')
+    ? resolve(inputCwd ?? absoluteRoot)
+    : resolve(absoluteRoot, inputCwd ?? '.');
+  const relativePath = relative(absoluteRoot, absolutePath);
+
+  if (relativePath.startsWith('..') || isAbsolute(relativePath)) {
+    throw new Error(text.errors.pathOutsideRepo);
+  }
+
+  return absolutePath;
+}
 
 /**
  * Specification for the code search tool.

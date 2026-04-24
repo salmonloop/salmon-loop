@@ -5,6 +5,8 @@ import { clearLogger, setLogger } from '../../../../src/core/observability/logge
 
 function createDefaultResolvedConfig() {
   return {
+    raw: undefined,
+    permissionMode: 'interactive',
     llm: { api: { baseUrl: undefined, apiKey: undefined } },
     llmOutput: { kinds: [] },
     observability: { langfuse: { enabled: false, outcome: false }, audit: { scope: 'repo' } },
@@ -213,6 +215,7 @@ describe('handleServeAcpCommand', () => {
   it('maps legacy yolo server defaults to ACP autopilot mode plus allow_all policy', async () => {
     hoisted.config = {
       ...hoisted.config,
+      raw: { mode: 'yolo' },
       permissionMode: 'yolo',
     };
 
@@ -237,6 +240,58 @@ describe('handleServeAcpCommand', () => {
     expect(hoisted.acpAgentConfigs[0]).toMatchObject({
       defaultModeId: 'autopilot',
       defaultPermissionPolicy: 'allow_all',
+    });
+  });
+
+  it('uses autopilot execution profile permission default for ACP when permission mode is unset', async () => {
+    const { handleServeAcpCommand } = await import('../../../../src/cli/commands/serve.js');
+
+    const command: any = {
+      optsWithGlobals: () => ({
+        repo: '/repo',
+        color: false,
+      }),
+    };
+
+    await handleServeAcpCommand({}, command);
+
+    const createAgent = hoisted.acpLoopCalls[0]?.createAgent as
+      | ((conn: unknown) => unknown)
+      | undefined;
+    expect(typeof createAgent).toBe('function');
+    createAgent?.({});
+
+    expect(hoisted.acpAgentConfigs).toHaveLength(1);
+    expect(hoisted.acpAgentConfigs[0]).toMatchObject({
+      defaultModeId: 'autopilot',
+      defaultPermissionPolicy: 'allow_all',
+    });
+  });
+
+  it('preserves explicit CLI permission mode for ACP over autopilot execution profile defaults', async () => {
+    const { handleServeAcpCommand } = await import('../../../../src/cli/commands/serve.js');
+
+    const command: any = {
+      optsWithGlobals: () => ({
+        repo: '/repo',
+        color: false,
+        mode: 'interactive',
+      }),
+      getOptionValueSource: (optionName: string) => (optionName === 'mode' ? 'cli' : undefined),
+    };
+
+    await handleServeAcpCommand({}, command);
+
+    const createAgent = hoisted.acpLoopCalls[0]?.createAgent as
+      | ((conn: unknown) => unknown)
+      | undefined;
+    expect(typeof createAgent).toBe('function');
+    createAgent?.({});
+
+    expect(hoisted.acpAgentConfigs).toHaveLength(1);
+    expect(hoisted.acpAgentConfigs[0]).toMatchObject({
+      defaultModeId: 'autopilot',
+      defaultPermissionPolicy: 'ask',
     });
   });
 

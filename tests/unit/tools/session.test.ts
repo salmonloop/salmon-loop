@@ -988,6 +988,18 @@ describe('chatWithTools', () => {
       });
 
     register({
+      name: 'code.search',
+      source: 'builtin',
+      intent: 'SEARCH',
+      description: 'Search code',
+      riskLevel: 'low',
+      sideEffects: ['fs_read'],
+      concurrency: 'parallel_ok',
+      allowedPhases: [Phase.AUTOPILOT],
+      inputSchema: z.object({ pattern: z.string(), cwd: z.string().optional() }),
+      outputSchema: z.object({ matches: z.array(z.any()) }),
+    });
+    register({
       name: 'fs.read',
       source: 'builtin',
       intent: 'READ',
@@ -1049,7 +1061,7 @@ describe('chatWithTools', () => {
     const directAutopilotToolNames = (lastOptions?.toolSpecs ?? [])
       .map((spec: ToolSpec) => spec.name)
       .sort();
-    expect(directAutopilotToolNames).toEqual(['fs.read', 'fs.write_file']);
+    expect(directAutopilotToolNames).toEqual(['code.search', 'fs.read', 'fs.write_file']);
 
     await chatWithTools(
       [
@@ -1073,6 +1085,6 @@ describe('chatWithTools', () => {
     const phaseOnlyAutopilotToolNames = (lastOptions?.toolSpecs ?? [])
       .map((spec: ToolSpec) => spec.name)
       .sort();
-    expect(phaseOnlyAutopilotToolNames).toEqual(['fs.read']);
+    expect(phaseOnlyAutopilotToolNames).toEqual(['code.search', 'fs.read']);
   });
 });

@@ -21,6 +21,12 @@ describe('Builtin Tool: fs.list', () => {
     return registry.getSpec('fs.list');
   }
 
+  function getSpec(name: 'fs.list' | 'fs.list_directory' | 'fs.list_files') {
+    const registry = new ToolRegistry();
+    registerAllBuiltins(registry);
+    return registry.getSpec(name);
+  }
+
   it('is registered', () => {
     const spec = getFsListSpec();
     expect(spec).toBeDefined();
@@ -106,5 +112,79 @@ describe('Builtin Tool: fs.list', () => {
     const parsedTrue = spec.inputSchema.safeParse({ path: '.', includeHidden: 'true' });
     expect(parsedTrue.success).toBe(true);
     expect(parsedTrue.success && parsedTrue.data).toMatchObject({ includeHidden: true });
+  });
+
+  it('blocks reserved directories for all fs list variants', async () => {
+    for (const toolName of ['fs.list', 'fs.list_directory', 'fs.list_files'] as const) {
+      const spec = getSpec(toolName);
+      expect(spec).toBeDefined();
+      if (!spec) throw new Error(`${toolName} spec missing`);
+
+      await expect(
+        spec.executor({ path: '.git' }, {
+          repoRoot,
+          attemptId: 1,
+          dryRun: false,
+        } as any),
+      ).rejects.toThrow(/reserved path prefix/i);
+
+      await expect(
+        spec.executor({ path: '.salmonloop/plans' }, {
+          repoRoot,
+          attemptId: 1,
+          dryRun: false,
+        } as any),
+      ).rejects.toThrow(/reserved path prefix/i);
+    }
+
+    expect(readdir).not.toHaveBeenCalled();
+  });
+
+  it('does not expose reserved directories when listing the repo root with hidden entries enabled', async () => {
+    const spec = getFsListSpec();
+    expect(spec).toBeDefined();
+    if (!spec) throw new Error('fs.list spec missing');
+
+    (readdir as any).mockResolvedValue([
+      {
+        name: '.git',
+        isDirectory: () => true,
+        isFile: () => false,
+        isSymbolicLink: () => false,
+      },
+      {
+        name: '.salmonloop',
+        isDirectory: () => true,
+        isFile: () => false,
+        isSymbolicLink: () => false,
+      },
+      {
+        name: '.env',
+        isDirectory: () => false,
+        isFile: () => true,
+        isSymbolicLink: () => false,
+      },
+      {
+        name: 'src',
+        isDirectory: () => true,
+        isFile: () => false,
+        isSymbolicLink: () => false,
+      },
+    ] as any);
+
+    const out = await spec.executor({ path: '.', includeHidden: true }, {
+      repoRoot,
+      attemptId: 1,
+      dryRun: false,
+    } as any);
+
+    expect(out).toMatchObject({
+      truncated: false,
+      totalEntries: 2,
+      entries: [
+        { name: '.env', path: '.env', type: 'file' },
+        { name: 'src', path: 'src', type: 'dir' },
+      ],
+    });
   });
 });

@@ -7,7 +7,7 @@ import { ToolRuntimeCtx, ExecutionPhase } from '../../types.js';
 
 import { psBackend } from './backends/powershell.js';
 import { rgBackend } from './backends/rg.js';
-import { CodeSearchInputT, CodeSearchOutputT } from './spec.js';
+import { CodeSearchInputT, CodeSearchOutputT, resolveCodeSearchCwd } from './spec.js';
 
 /**
  * The main executor for code.search.
@@ -19,6 +19,10 @@ export async function codeSearchExecutor(
   ctx: ToolRuntimeCtx & { phase: ExecutionPhase }, // Phase is injected by Router
 ): Promise<CodeSearchOutputT> {
   getLogger().debug(`Searching for pattern: ${input.pattern}`);
+  const normalizedInput: CodeSearchInputT = {
+    ...input,
+    cwd: resolveCodeSearchCwd(ctx.repoRoot, input.cwd),
+  };
 
   // Construct CapabilityCtx for the underlying backends
   const capCtx: CapabilityCtx = {
@@ -89,7 +93,7 @@ export async function codeSearchExecutor(
 
   const backends = capCtx.platform === 'win32' ? [rgBackend, psBackend] : [rgBackend];
 
-  const { output, meta } = await runWithFallback(backends, input, capCtx, {
+  const { output, meta } = await runWithFallback(backends, normalizedInput, capCtx, {
     fallbackOn: new Set(['UNAVAILABLE', 'TIMEOUT', 'RUNTIME_ERROR', 'NONZERO_EXIT']),
     maxBackendTries: backends.length,
   });

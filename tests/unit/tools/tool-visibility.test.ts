@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 
 import { subAgentTaskSpec } from '../../../src/core/sub-agent/tools/task-spawn.js';
+import { CodeSearchSpec } from '../../../src/core/tools/builtin/code-search/spec.js';
 import { fsReadFileSpec, fsWriteFileSpec } from '../../../src/core/tools/builtin/fs.js';
 import { planUpdateSpec } from '../../../src/core/tools/builtin/plan.js';
 import { shellExecSpec } from '../../../src/core/tools/builtin/shell.js';
@@ -12,6 +13,7 @@ describe('tool visibility', () => {
     const visible = resolvePhaseVisibleTools({
       phase: Phase.AUTOPILOT,
       tools: [
+        CodeSearchSpec as any,
         fsReadFileSpec as any,
         fsWriteFileSpec as any,
         shellExecSpec as any,
@@ -22,6 +24,7 @@ describe('tool visibility', () => {
     });
 
     expect(visible.map((tool) => tool.name)).toEqual([
+      'code.search',
       'fs.read',
       'fs.write_file',
       'shell.exec',

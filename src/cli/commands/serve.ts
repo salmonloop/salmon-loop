@@ -1,5 +1,6 @@
 import type { Command } from 'commander';
 
+import { normalizePermissionMode } from '../../core/config/index.js';
 import {
   buildA2AAgentCard,
   createAcpFormalAgent,
@@ -31,6 +32,7 @@ import type { CheckpointStrategy } from '../../core/types/loop.js';
 import type { ApplyBackOnDirty, FlowMode } from '../../core/types/runtime.js';
 import { createTerminalAuthorizationProvider } from '../authorization/provider.js';
 import { text } from '../locales/index.js';
+import { getOptionValueSourceWithGlobalFallback } from '../utils/command-option-source.js';
 import { createOutcomeReporter } from '../utils/outcome-reporter.js';
 import { resolveCliConfig } from '../utils/resolve-cli-config.js';
 
@@ -46,6 +48,35 @@ function resolveDefaultAcpPermissionPolicy(
   permissionMode: 'interactive' | 'yolo' | undefined,
 ): 'ask' | 'allow_all' {
   return permissionMode === 'yolo' ? 'allow_all' : 'ask';
+}
+
+function resolveServePermissionMode({
+  command,
+  allOptions,
+  rawConfiguredPermissionMode,
+  flowMode,
+}: {
+  command: Command;
+  allOptions: Record<string, unknown>;
+  rawConfiguredPermissionMode: unknown;
+  flowMode: FlowMode;
+}): 'interactive' | 'yolo' {
+  const permissionModeOptionSource = getOptionValueSourceWithGlobalFallback(command, 'mode');
+  const configuredPermissionMode = normalizePermissionMode(rawConfiguredPermissionMode);
+  const rawPermissionMode =
+    (permissionModeOptionSource === 'cli' ? allOptions.mode : undefined) ??
+    configuredPermissionMode ??
+    resolveExecutionProfile(flowMode).defaultPermissionMode ??
+    'interactive';
+  const permissionMode = normalizePermissionMode(rawPermissionMode);
+  if (!permissionMode) {
+    getLogger().error(
+      `Invalid --mode "${String(rawPermissionMode)}". Expected "interactive" or "yolo".`,
+      true,
+    );
+    process.exit(1);
+  }
+  return permissionMode;
 }
 
 function buildServeLoopExecutionDefaults(mode: FlowMode): {
@@ -120,6 +151,13 @@ export async function handleServeCommand(_options: unknown, command: Command) {
     process.exit(1);
   }
   const { resolvedConfig, auditScope, repoPath: defaultRepoPath } = configResult;
+  const defaultFlowMode: FlowMode = 'autopilot';
+  const defaultPermissionMode = resolveServePermissionMode({
+    command,
+    allOptions,
+    rawConfiguredPermissionMode: resolvedConfig.raw?.mode,
+    flowMode: defaultFlowMode,
+  });
   const serverConfig = resolvedConfig.server;
   const rawA2aHost = allOptions.a2aHost ?? serverConfig?.a2a?.host;
   const a2aHost = String(rawA2aHost ?? '127.0.0.1');
@@ -174,6 +212,12 @@ export async function handleServeCommand(_options: unknown, command: Command) {
       const effectiveRepoPath = repoPath ?? defaultRepoPath;
       const flowMode = mode as FlowMode;
       const executionDefaults = buildServeLoopExecutionDefaults(flowMode);
+      const permissionMode = resolveServePermissionMode({
+        command,
+        allOptions,
+        rawConfiguredPermissionMode: resolvedConfig.raw?.mode,
+        flowMode,
+      });
       return await runSalmonLoop({
         instruction,
         repoPath: effectiveRepoPath,
@@ -186,7 +230,7 @@ export async function handleServeCommand(_options: unknown, command: Command) {
         langfuseSessionId: resolvedConfig.observability.langfuse.sessionId,
         langfuseUserId: resolvedConfig.observability.langfuse.userId,
         auditScope,
-        permissionMode: resolvedConfig.permissionMode,
+        permissionMode,
         languagePlugins,
         fileSystemOverride,
         authorizationProvider: authorizationProvider ?? defaultAuthorizationProvider,
@@ -254,7 +298,7 @@ export async function handleServeCommand(_options: unknown, command: Command) {
         conn,
         agentInfo: { name: 'salmon-loop', version: '0.2.0' },
         defaultModeId: 'autopilot',
-        defaultPermissionPolicy: resolveDefaultAcpPermissionPolicy(resolvedConfig.permissionMode),
+        defaultPermissionPolicy: resolveDefaultAcpPermissionPolicy(defaultPermissionMode),
         checkpointReader: {
           listBySession: async ({ repoPath, sessionId, limit }) =>
             await checkpointService.list({ repoPath, sessionId, limit }),
@@ -311,6 +355,13 @@ export async function handleServeAcpCommand(_options: unknown, command: Command)
     process.exit(1);
   }
   const { resolvedConfig, auditScope, repoPath: defaultRepoPath } = configResult;
+  const defaultFlowMode: FlowMode = 'autopilot';
+  const defaultPermissionMode = resolveServePermissionMode({
+    command,
+    allOptions,
+    rawConfiguredPermissionMode: resolvedConfig.raw?.mode,
+    flowMode: defaultFlowMode,
+  });
 
   getLogger().setReporter(allOptions.color === false ? new StderrReporter() : new PlainReporter());
 
@@ -351,6 +402,12 @@ export async function handleServeAcpCommand(_options: unknown, command: Command)
       const effectiveRepoPath = repoPath ?? defaultRepoPath;
       const flowMode = mode as FlowMode;
       const executionDefaults = buildServeLoopExecutionDefaults(flowMode);
+      const permissionMode = resolveServePermissionMode({
+        command,
+        allOptions,
+        rawConfiguredPermissionMode: resolvedConfig.raw?.mode,
+        flowMode,
+      });
       return await runSalmonLoop({
         instruction,
         repoPath: effectiveRepoPath,
@@ -363,7 +420,7 @@ export async function handleServeAcpCommand(_options: unknown, command: Command)
         langfuseSessionId: resolvedConfig.observability.langfuse.sessionId,
         langfuseUserId: resolvedConfig.observability.langfuse.userId,
         auditScope,
-        permissionMode: resolvedConfig.permissionMode,
+        permissionMode,
         languagePlugins,
         authorizationProvider: authorizationProvider ?? defaultAuthorizationProvider,
         authorizationMode,
@@ -394,7 +451,7 @@ export async function handleServeAcpCommand(_options: unknown, command: Command)
       conn,
       agentInfo: { name: 'salmon-loop', version: '0.2.0' },
       defaultModeId: 'autopilot',
-      defaultPermissionPolicy: resolveDefaultAcpPermissionPolicy(resolvedConfig.permissionMode),
+      defaultPermissionPolicy: resolveDefaultAcpPermissionPolicy(defaultPermissionMode),
       checkpointReader: {
         listBySession: async ({ repoPath, sessionId, limit }) =>
           await checkpointService.list({ repoPath, sessionId, limit }),

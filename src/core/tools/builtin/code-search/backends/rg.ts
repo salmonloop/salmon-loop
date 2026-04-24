@@ -1,3 +1,5 @@
+import { resolve } from 'path';
+
 import { LIMITS } from '../../../../config/limits.js';
 import { Backend } from '../../../capability/types.js';
 import { parseRgJson } from '../parse/rg-json.js';
@@ -28,7 +30,7 @@ export const rgBackend: Backend<CodeSearchInputT, CodeSearchOutputT> = {
   },
 
   async run(input, ctx) {
-    const cwd = input.cwd ?? ctx.repoRoot;
+    const cwd = input.cwd ?? resolve(ctx.repoRoot);
     const args = [
       '--json',
       '--line-number',
