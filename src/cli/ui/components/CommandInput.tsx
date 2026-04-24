@@ -10,6 +10,7 @@ import { useCommandSuggestions } from '../hooks/useCommandSuggestions.js';
 import { useInputHistory } from '../hooks/useInputHistory.js';
 import { rejectSelection, resolveSelection } from '../selection/bus.js';
 import { useUIStore } from '../store/context.js';
+import { COLORS } from '../styles/theme.js';
 
 import { CommandSuggestionList } from './CommandSuggestionList.js';
 
@@ -253,15 +254,20 @@ export const CommandInput: React.FC<Props> = ({
           }
         />
         {ghostText && (
-          <Text color="gray" dimColor>
+          <Text color={COLORS.text.muted} dimColor>
             {ghostText}
           </Text>
         )}
       </Box>
 
       {isIntercepting && (
-        <Box flexDirection="column" borderStyle="round" borderColor="yellow" paddingX={1}>
-          <Text color="yellow" bold>
+        <Box
+          flexDirection="column"
+          borderStyle="round"
+          borderColor={COLORS.semantic.yellow}
+          paddingX={1}
+        >
+          <Text color={COLORS.semantic.yellow} bold>
             {isSelecting
               ? pendingSelection?.title
               : isAuthorizing
@@ -269,11 +275,11 @@ export const CommandInput: React.FC<Props> = ({
                 : en.gui.confirmationTitle}
           </Text>
           {!isSelecting && (
-            <Text color="white">
+            <Text color={COLORS.text.primary}>
               {isAuthorizing ? pendingAuthorization?.message : pendingConfirmation?.message}
             </Text>
           )}
-          <Text color="gray" dimColor>
+          <Text color={COLORS.text.muted} dimColor>
             {isSelecting
               ? isMultiSelecting
                 ? en.gui.selectionHintMulti
@@ -283,23 +289,31 @@ export const CommandInput: React.FC<Props> = ({
                 : en.gui.highRiskWarning}
           </Text>
           {isAuthorizing && (
-            <Text color="gray" dimColor>
+            <Text color={COLORS.text.muted} dimColor>
               {en.gui.authorizationHint}
             </Text>
           )}
           {isSelecting && pendingSelection && (
             <Box flexDirection="column" marginTop={1}>
-              {pendingSelection.items.map((item, idx) => (
-                <Text key={item.id} color={idx === selectionIndex ? 'green' : 'gray'}>
-                  {isMultiSelecting && (
-                    <Text color={selectedItems.includes(item.id) ? 'green' : 'gray'}>
-                      {selectedItems.includes(item.id) ? '[x] ' : '[ ] '}
-                    </Text>
-                  )}
-                  {item.label}
-                  {item.description ? ` - ${item.description}` : ''}
-                </Text>
-              ))}
+              {pendingSelection.items.map((item, idx) => {
+                const isFocused = idx === selectionIndex;
+                const isSelected = selectedItems.includes(item.id);
+                const textColor = isFocused ? COLORS.semantic.cyan : COLORS.text.muted;
+                const focusIndicator = isFocused ? '❯ ' : '  ';
+
+                return (
+                  <Text key={item.id} color={textColor}>
+                    {focusIndicator}
+                    {isMultiSelecting && (
+                      <Text color={isSelected ? COLORS.semantic.cyan : COLORS.text.muted}>
+                        {isSelected ? '[x] ' : '[ ] '}
+                      </Text>
+                    )}
+                    {item.label}
+                    {item.description ? ` - ${item.description}` : ''}
+                  </Text>
+                );
+              })}
             </Box>
           )}
         </Box>
