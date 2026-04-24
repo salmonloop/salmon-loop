@@ -5,6 +5,7 @@ import { FileAdapter } from '../adapters/fs/index.js';
 import { recordAuditEvent } from '../observability/audit-trail.js';
 import { getLogger } from '../observability/logger.js';
 import type { LoopIteration } from '../types/index.js';
+import { processInBatches } from '../utils/batch.js';
 
 import {
   mergeReplacementStateFromArtifactHints,
@@ -127,13 +128,11 @@ export class ChatSessionManager {
     if (jsonFiles.length === 0) return null;
 
     // Sort by modification time (descending)
-    const fileStats = await Promise.all(
-      jsonFiles.map(async (f) => {
-        const filePath = join(this.storageDir, f);
-        const stats = await this.fileAdapter.stat(filePath);
-        return { name: f, mtime: stats.mtime.getTime() };
-      }),
-    );
+    const fileStats = await processInBatches(jsonFiles, 10, async (f) => {
+      const filePath = join(this.storageDir, f);
+      const stats = await this.fileAdapter.stat(filePath);
+      return { name: f, mtime: stats.mtime.getTime() };
+    });
 
     fileStats.sort((a, b) => b.mtime - a.mtime);
     const latestFile = fileStats[0].name;
@@ -624,12 +623,10 @@ export class ChatSessionManager {
     if (prefixMatches.length === 0) return null;
     if (prefixMatches.length === 1) return prefixMatches[0];
 
-    const withMtime = await Promise.all(
-      prefixMatches.map(async (file) => {
-        const stats = await this.fileAdapter.stat(join(archiveDir, file));
-        return { file, mtime: stats.mtime.getTime() };
-      }),
-    );
+    const withMtime = await processInBatches(prefixMatches, 10, async (file) => {
+      const stats = await this.fileAdapter.stat(join(archiveDir, file));
+      return { file, mtime: stats.mtime.getTime() };
+    });
     withMtime.sort((a, b) => b.mtime - a.mtime);
     return withMtime[0]?.file ?? null;
   }
