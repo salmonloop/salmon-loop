@@ -291,6 +291,7 @@ export const CommandInput: React.FC<Props> = ({
             <Box flexDirection="column" marginTop={1}>
               {pendingSelection.items.map((item, idx) => (
                 <Text key={item.id} color={idx === selectionIndex ? 'green' : 'gray'}>
+                  {idx === selectionIndex ? '❯ ' : '  '}
                   {isMultiSelecting && (
                     <Text color={selectedItems.includes(item.id) ? 'green' : 'gray'}>
                       {selectedItems.includes(item.id) ? '[x] ' : '[ ] '}
