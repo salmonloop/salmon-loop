@@ -42,6 +42,7 @@ describe('non-interactive authorization handler', () => {
 
     const decision = await requestNonInteractiveAuthorizationDecision({ request, config });
     expect(decision).toEqual({ outcome: 'allow_once', source: 'hook' });
+    expect(execa).toHaveBeenCalledWith('echo', ['ok'], expect.anything());
   });
 
   it('fails closed when command returns invalid JSON', async () => {
@@ -58,6 +59,7 @@ describe('non-interactive authorization handler', () => {
     const decision = await requestNonInteractiveAuthorizationDecision({ request, config });
     expect(decision?.outcome).toBe('deny');
     expect(decision?.source).toBe('hook');
+    expect(execa).toHaveBeenCalledWith('echo', ['bad'], expect.anything());
   });
 
   it('fails closed when MCP server cannot be resolved', async () => {

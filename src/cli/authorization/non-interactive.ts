@@ -9,6 +9,7 @@ import type {
   ToolAuthorizationRequest,
 } from '../../core/facades/cli-authorization-non-interactive.js';
 import { getLogger, McpClient } from '../../core/facades/cli-authorization-non-interactive.js';
+import { splitCommand } from '../../core/utils/command-split.js';
 import { text } from '../locales/index.js';
 
 const DecisionSchema = z
@@ -93,19 +94,30 @@ export async function requestNonInteractiveAuthorizationDecision(params: {
   if (strategy === 'deny') return null;
 
   if (strategy === 'command') {
-    const cmd = params.config.nonInteractive?.command?.cmd;
-    if (!cmd) {
+    const cmdRaw = params.config.nonInteractive?.command?.cmd;
+    const explicitArgs = params.config.nonInteractive?.command?.args;
+
+    if (!cmdRaw) {
       getLogger().warn(
         'Non-interactive authorization strategy is "command" but no command is set.',
       );
       return deny(text.cli.toolAuthorizationNonInteractiveMisconfigured('command'));
     }
 
+    const [cmd, ...implicitArgs] = splitCommand(cmdRaw);
+    if (!cmd) {
+      getLogger().warn(
+        'Non-interactive authorization strategy is "command" but command is invalid.',
+      );
+      return deny(text.cli.toolAuthorizationNonInteractiveMisconfigured('command'));
+    }
+
+    const args = explicitArgs ?? implicitArgs;
+
     const timeoutMs = params.config.nonInteractive?.command?.timeoutMs ?? 10_000;
     try {
-      const res = await execa(cmd, {
+      const res = await execa(cmd, args, {
         input: JSON.stringify({ request: params.request }),
-        shell: true,
         timeout: timeoutMs,
         reject: false,
       });

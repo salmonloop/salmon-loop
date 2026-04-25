@@ -1,0 +1,4 @@
+## 2025-02-14 - Prevent Command Injection in Non-Interactive Authorization
+**Vulnerability:** The non-interactive authorization strategy (`command`) used `shell: true` in its `execa` call when executing user-configured commands. This could lead to command injection if the user-provided configuration string was improperly sanitized or if malicious input was passed to it.
+**Learning:** We need to explicitly parse command strings into an executable and an array of arguments, instead of passing the entire string to a shell process, avoiding the risks of unintended shell evaluation or injection.
+**Prevention:** Always use safe process execution functions by passing an array of arguments (`execa(file, args)`) instead of setting `shell: true`. Use utility functions like `splitCommand` to securely handle space-separated command configurations when an explicit arguments array is missing.
