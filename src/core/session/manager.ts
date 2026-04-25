@@ -5,6 +5,7 @@ import { FileAdapter } from '../adapters/fs/index.js';
 import { recordAuditEvent } from '../observability/audit-trail.js';
 import { getLogger } from '../observability/logger.js';
 import type { LoopIteration } from '../types/index.js';
+import { processInBatches } from '../utils/batch.js';
 
 import {
   mergeReplacementStateFromArtifactHints,
@@ -319,21 +320,19 @@ export class ChatSessionManager {
    */
   async listSessions(): Promise<Array<{ id: string; name: string; updatedAt: number }>> {
     const files = await this.fileAdapter.readdir(this.storageDir).catch(() => []);
-    const sessions = [];
+    const jsonFiles = files.filter((file) => file.endsWith('.json'));
 
-    for (const file of files) {
-      if (!file.endsWith('.json')) continue;
-
+    const sessions = await processInBatches(jsonFiles, async (file) => {
       const filePath = join(this.storageDir, file);
       const data = await this.fileAdapter.readFile(filePath);
       const session = JSON.parse(data) as ChatSession;
 
-      sessions.push({
+      return {
         id: session.meta.id,
         name: session.meta.name,
         updatedAt: session.meta.updatedAt,
-      });
-    }
+      };
+    });
 
     return sessions.sort((a, b) => b.updatedAt - a.updatedAt);
   }
@@ -388,11 +387,9 @@ export class ChatSessionManager {
    */
   private async loadAllSessions(): Promise<ChatSession[]> {
     const files = await this.fileAdapter.readdir(this.storageDir).catch(() => []);
-    const sessions: ChatSession[] = [];
+    const jsonFiles = files.filter((file) => file.endsWith('.json'));
 
-    for (const file of files) {
-      if (!file.endsWith('.json')) continue;
-
+    const sessionsNested = await processInBatches(jsonFiles, async (file) => {
       try {
         const filePath = join(this.storageDir, file);
         const data = await this.fileAdapter.readFile(filePath);
@@ -401,14 +398,15 @@ export class ChatSessionManager {
         session.meta.replacementState = normalizeToolResultReplacementState(
           session.meta.replacementState,
         );
-        sessions.push(session);
+        return [session];
       } catch (error) {
         // Skip corrupted session files
         getLogger().warn(`Failed to load session file ${file}: ${error}`);
+        return [];
       }
-    }
+    });
 
-    return sessions;
+    return sessionsNested.flat();
   }
 
   /**
@@ -450,25 +448,28 @@ export class ChatSessionManager {
   async listArchivedSessions(): Promise<Array<{ id: string; name: string; archivedAt: number }>> {
     const archiveDir = this.getArchiveStorageDir();
     const files = await this.fileAdapter.readdir(archiveDir).catch(() => []);
-    const archived: Array<{ id: string; name: string; archivedAt: number }> = [];
+    const compressedFiles = files.filter((file) => file.endsWith('.mpack.gz'));
 
-    for (const file of files) {
-      if (!file.endsWith('.mpack.gz')) continue;
+    const archivedNested = await processInBatches(compressedFiles, async (file) => {
       try {
         const compressed = await this.compressedStore.loadCompressed(file);
-        if (!compressed) continue;
+        if (!compressed) return [];
 
         const stats = await this.fileAdapter.stat(join(archiveDir, file));
-        archived.push({
-          id: compressed.meta.id,
-          name: compressed.meta.name,
-          archivedAt: stats.mtime.getTime(),
-        });
+        return [
+          {
+            id: compressed.meta.id,
+            name: compressed.meta.name,
+            archivedAt: stats.mtime.getTime(),
+          },
+        ];
       } catch (error) {
         getLogger().warn(`Failed to load archived session ${file}: ${error}`);
+        return [];
       }
-    }
+    });
 
+    const archived = archivedNested.flat();
     return archived.sort((a, b) => b.archivedAt - a.archivedAt);
   }
 

@@ -1,0 +1,3 @@
+## 2025-04-25 - [Batched Concurrent File Reads]
+**Learning:** Sequential `for...of` loops executing `await fileAdapter.readFile(...)` is a major node performance anti-pattern. This architecture was prone to performance scaling issues as loop sizes increased (like retrieving numerous sessions or iterating large meta lists), waiting on I/O. Using `Promise.all` directly is risky for unbounded arrays since it may trigger `EMFILE` errors.
+**Action:** Created and utilized a `processInBatches` utility to restrict concurrent concurrency to 10 by default, solving performance while avoiding EMFILE. Always batch mapping over OS operations.
