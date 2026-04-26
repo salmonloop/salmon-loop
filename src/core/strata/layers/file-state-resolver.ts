@@ -5,6 +5,7 @@ import * as fs from '../../adapters/fs/node-fs.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { LIMITS } from '../../config/limits.js';
 import { FileState, FileStatus } from '../../grizzco/domain/grizzco-types.js';
+import { processInBatches } from '../../utils/batch.js';
 
 /**
  * FileStateResolver
@@ -65,13 +66,11 @@ export class FileStateResolver {
 
     if (paths.length === 0) return resultMap;
 
-    // Simple parallel processing
-    await Promise.all(
-      paths.map(async (p) => {
-        const state = await this.resolve(p);
-        resultMap.set(p, state);
-      }),
-    );
+    // Batch process files to prevent EMFILE exhaustion
+    await processInBatches(paths, 10, async (p) => {
+      const state = await this.resolve(p);
+      resultMap.set(p, state);
+    });
 
     return resultMap;
   }

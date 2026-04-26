@@ -5,6 +5,7 @@ import { FileAdapter } from '../adapters/fs/index.js';
 import { recordAuditEvent } from '../observability/audit-trail.js';
 import { getLogger } from '../observability/logger.js';
 import type { LoopIteration } from '../types/index.js';
+import { processInBatches } from '../utils/batch.js';
 
 import {
   mergeReplacementStateFromArtifactHints,
@@ -127,13 +128,11 @@ export class ChatSessionManager {
     if (jsonFiles.length === 0) return null;
 
     // Sort by modification time (descending)
-    const fileStats = await Promise.all(
-      jsonFiles.map(async (f) => {
-        const filePath = join(this.storageDir, f);
-        const stats = await this.fileAdapter.stat(filePath);
-        return { name: f, mtime: stats.mtime.getTime() };
-      }),
-    );
+    const fileStats = await processInBatches(jsonFiles, 10, async (f) => {
+      const filePath = join(this.storageDir, f);
+      const stats = await this.fileAdapter.stat(filePath);
+      return { name: f, mtime: stats.mtime.getTime() };
+    });
 
     fileStats.sort((a, b) => b.mtime - a.mtime);
     const latestFile = fileStats[0].name;
@@ -388,11 +387,9 @@ export class ChatSessionManager {
    */
   private async loadAllSessions(): Promise<ChatSession[]> {
     const files = await this.fileAdapter.readdir(this.storageDir).catch(() => []);
-    const sessions: ChatSession[] = [];
+    const jsonFiles = files.filter((f) => f.endsWith('.json'));
 
-    for (const file of files) {
-      if (!file.endsWith('.json')) continue;
-
+    const sessions = await processInBatches(jsonFiles, 10, async (file) => {
       try {
         const filePath = join(this.storageDir, file);
         const data = await this.fileAdapter.readFile(filePath);
@@ -401,14 +398,15 @@ export class ChatSessionManager {
         session.meta.replacementState = normalizeToolResultReplacementState(
           session.meta.replacementState,
         );
-        sessions.push(session);
+        return session;
       } catch (error) {
         // Skip corrupted session files
         getLogger().warn(`Failed to load session file ${file}: ${error}`);
+        return null;
       }
-    }
+    });
 
-    return sessions;
+    return sessions.filter((s): s is ChatSession => s !== null);
   }
 
   /**
@@ -450,25 +448,26 @@ export class ChatSessionManager {
   async listArchivedSessions(): Promise<Array<{ id: string; name: string; archivedAt: number }>> {
     const archiveDir = this.getArchiveStorageDir();
     const files = await this.fileAdapter.readdir(archiveDir).catch(() => []);
-    const archived: Array<{ id: string; name: string; archivedAt: number }> = [];
+    const mpackFiles = files.filter((f) => f.endsWith('.mpack.gz'));
 
-    for (const file of files) {
-      if (!file.endsWith('.mpack.gz')) continue;
+    const archivedResults = await processInBatches(mpackFiles, 10, async (file) => {
       try {
         const compressed = await this.compressedStore.loadCompressed(file);
-        if (!compressed) continue;
+        if (!compressed) return null;
 
         const stats = await this.fileAdapter.stat(join(archiveDir, file));
-        archived.push({
+        return {
           id: compressed.meta.id,
           name: compressed.meta.name,
           archivedAt: stats.mtime.getTime(),
-        });
+        };
       } catch (error) {
         getLogger().warn(`Failed to load archived session ${file}: ${error}`);
+        return null;
       }
-    }
+    });
 
+    const archived = archivedResults.filter((r): r is NonNullable<typeof r> => r !== null);
     return archived.sort((a, b) => b.archivedAt - a.archivedAt);
   }
 
@@ -624,12 +623,10 @@ export class ChatSessionManager {
     if (prefixMatches.length === 0) return null;
     if (prefixMatches.length === 1) return prefixMatches[0];
 
-    const withMtime = await Promise.all(
-      prefixMatches.map(async (file) => {
-        const stats = await this.fileAdapter.stat(join(archiveDir, file));
-        return { file, mtime: stats.mtime.getTime() };
-      }),
-    );
+    const withMtime = await processInBatches(prefixMatches, 10, async (file) => {
+      const stats = await this.fileAdapter.stat(join(archiveDir, file));
+      return { file, mtime: stats.mtime.getTime() };
+    });
     withMtime.sort((a, b) => b.mtime - a.mtime);
     return withMtime[0]?.file ?? null;
   }
