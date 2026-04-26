@@ -289,17 +289,21 @@ export const CommandInput: React.FC<Props> = ({
           )}
           {isSelecting && pendingSelection && (
             <Box flexDirection="column" marginTop={1}>
-              {pendingSelection.items.map((item, idx) => (
-                <Text key={item.id} color={idx === selectionIndex ? 'green' : 'gray'}>
-                  {isMultiSelecting && (
-                    <Text color={selectedItems.includes(item.id) ? 'green' : 'gray'}>
-                      {selectedItems.includes(item.id) ? '[x] ' : '[ ] '}
-                    </Text>
-                  )}
-                  {item.label}
-                  {item.description ? ` - ${item.description}` : ''}
-                </Text>
-              ))}
+              {pendingSelection.items.map((item, idx) => {
+                const isSelected = idx === selectionIndex;
+                return (
+                  <Text key={item.id} color={isSelected ? 'green' : 'gray'}>
+                    {isSelected ? '❯ ' : '  '}
+                    {isMultiSelecting && (
+                      <Text color={selectedItems.includes(item.id) ? 'green' : 'gray'}>
+                        {selectedItems.includes(item.id) ? '[x] ' : '[ ] '}
+                      </Text>
+                    )}
+                    {item.label}
+                    {item.description ? ` - ${item.description}` : ''}
+                  </Text>
+                );
+              })}
             </Box>
           )}
         </Box>
