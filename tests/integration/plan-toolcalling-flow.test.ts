@@ -21,7 +21,7 @@ describe('Plan toolcalling flow (integration)', () => {
       ],
     });
     repoPath = repo.path;
-    mock.clearAllMocks();
+    mock.restore();
   });
 
   afterEach(async () => {

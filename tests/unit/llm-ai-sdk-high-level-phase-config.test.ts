@@ -73,7 +73,7 @@ function createLlm(): AiSdkLLM {
 
 describe('AiSdkLLM high-level phase mapping', () => {
   beforeEach(() => {
-    mock.clearAllMocks();
+    mock.restore();
   });
 
   it('keeps high-level phase specs complete for plan and patch', () => {

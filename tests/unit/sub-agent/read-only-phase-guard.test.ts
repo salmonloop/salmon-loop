@@ -23,7 +23,7 @@ mock.module('../../../src/core/sub-agent/core/loop.js', () => ({
 
 describe('SubAgentManager read-only phase guard', () => {
   beforeEach(() => {
-    mock.clearAllMocks();
+    mock.restore();
     setLogger({
       info: mock(),
       debug: mock(),
