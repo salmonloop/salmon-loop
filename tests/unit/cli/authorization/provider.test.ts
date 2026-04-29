@@ -22,8 +22,19 @@ describe('createTerminalAuthorizationProvider', () => {
   const originalStdinIsTTY = Object.getOwnPropertyDescriptor(process.stdin, 'isTTY');
   const originalStdoutIsTTY = Object.getOwnPropertyDescriptor(process.stdout, 'isTTY');
 
-  beforeEach(() => {
-    mock.restore();
+  let loadAllowlistDecisionMock: any;
+  let requestNonInteractiveAuthorizationDecisionMock: any;
+
+  beforeEach(async () => {
+    const allowlist = await import('../../../../src/cli/authorization/allowlist.js');
+    const nonInteractive = await import('../../../../src/cli/authorization/non-interactive.js');
+    loadAllowlistDecisionMock = allowlist.loadAllowlistDecision;
+    requestNonInteractiveAuthorizationDecisionMock =
+      nonInteractive.requestNonInteractiveAuthorizationDecision;
+
+    loadAllowlistDecisionMock.mockClear();
+    requestNonInteractiveAuthorizationDecisionMock.mockClear();
+
     Object.defineProperty(process.stdin, 'isTTY', { value: true, configurable: true });
     Object.defineProperty(process.stdout, 'isTTY', { value: true, configurable: true });
   });

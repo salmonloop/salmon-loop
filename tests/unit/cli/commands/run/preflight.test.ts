@@ -37,7 +37,16 @@ describe('runPreflight', () => {
   });
 
   beforeEach(() => {
-    mock.restore();
+    hoisted.logger.log.mockClear();
+    hoisted.logger.debug.mockClear();
+    hoisted.logger.warn.mockClear();
+    hoisted.logger.success.mockClear();
+    hoisted.logger.error.mockClear();
+    hoisted.logger.audit.mockClear();
+    hoisted.spawnCommand.mockClear();
+    hoisted.loadPlugins.mockClear();
+    hoisted.detectNodeRuntimeProfile.mockClear();
+    hoisted.resolveScriptCommand.mockClear();
     setLogger(hoisted.logger as any);
     hoisted.spawnCommand.mockResolvedValue({
       code: 0,

@@ -17,7 +17,11 @@ describe('CommandDispatcher', () => {
   const dispatcher = new CommandDispatcher();
 
   beforeEach(() => {
-    mock.restore();
+    mockEmit.mockClear();
+    (mockSessionManager.getCurrent as any).mockClear();
+    (mockSessionManager.addMessage as any).mockClear();
+    (mockSessionManager.addIteration as any).mockClear();
+    (mockSessionManager.save as any).mockClear();
   });
 
   it('should execute a valid command', async () => {
