@@ -1,0 +1,4 @@
+## 2024-05-01 - Command Injection Risk in Non-Interactive Authorization
+**Vulnerability:** `src/cli/authorization/non-interactive.ts` used `shell: true` with `execa` when executing the non-interactive authorization strategy `command`. The command string (`cmd`) was configured in the `ToolAuthorizationConfig` but since it allows arbitrary shell commands, it introduced a severe command injection risk if the config was tampered with or poorly validated.
+**Learning:** Configurations providing shell commands and executed via `shell: true` create an expansive attack surface since they pass the entire command string directly to the platform shell.
+**Prevention:** Avoid `shell: true` in `execa` whenever possible. Instead, parse the command string into an executable `file` and `args` array using a safe splitting utility (like `splitCommand`) and invoke `execa` securely without invoking a subshell.
