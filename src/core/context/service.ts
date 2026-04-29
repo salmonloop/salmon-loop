@@ -4,6 +4,7 @@ import { FileAdapter } from '../adapters/fs/file-adapter.js';
 import { defaultPathAdapter } from '../adapters/path/path-adapter.js';
 import { Pipeline } from '../grizzco/engine/pipeline/pipeline.js';
 import { getLogger } from '../observability/logger.js';
+import { processInBatches } from '../utils/batch.js';
 
 import { CONTEXT_AUDIT_ACTION, CONTEXT_AUDIT_PHASE } from './audit-constants.js';
 import { recordContextAuditEvent } from './audit.js';
@@ -182,16 +183,15 @@ export class ContextService {
   }
 
   private async computeTrackedFilesSignature(repoPath: string, files: string[]): Promise<string> {
-    const parts: string[] = [];
-    for (const relativeFile of files) {
+    const parts = await processInBatches(files, 10, async (relativeFile) => {
       const absoluteFile = defaultPathAdapter.resolve(repoPath, relativeFile);
       try {
         const stat = await this.fileAdapter.stat(absoluteFile);
-        parts.push(`${relativeFile}:${stat.mtimeMs}:${stat.size}`);
+        return `${relativeFile}:${stat.mtimeMs}:${stat.size}`;
       } catch {
-        parts.push(`${relativeFile}:missing`);
+        return `${relativeFile}:missing`;
       }
-    }
+    });
     if (files.length === 0) {
       parts.push('files:none');
     }
@@ -201,17 +201,17 @@ export class ContextService {
 
   private async computeRepoStateSignatureParts(repoPath: string): Promise<string[]> {
     const gitFiles = ['.git/HEAD', '.git/index'];
-    const parts: string[] = [];
-    for (const rel of gitFiles) {
-      const gitPath = defaultPathAdapter.resolve(repoPath, rel);
-      try {
-        const stat = await this.fileAdapter.stat(gitPath);
-        parts.push(`${rel}:${stat.mtimeMs}:${stat.size}`);
-      } catch {
-        parts.push(`${rel}:missing`);
-      }
-    }
-    return parts;
+    return Promise.all(
+      gitFiles.map(async (rel) => {
+        const gitPath = defaultPathAdapter.resolve(repoPath, rel);
+        try {
+          const stat = await this.fileAdapter.stat(gitPath);
+          return `${rel}:${stat.mtimeMs}:${stat.size}`;
+        } catch {
+          return `${rel}:missing`;
+        }
+      }),
+    );
   }
 
   private getEntryTimestamp(entry: ContextCacheEntry): number {
@@ -236,15 +236,15 @@ export class ContextService {
   }
 
   private async evictExpiredEntries(): Promise<void> {
-    for (const [key, entry] of await this.cacheStore.entries()) {
-      await this.isExpired(key, entry);
-    }
+    const entries = await this.cacheStore.entries();
+    await Promise.all(Array.from(entries).map(([key, entry]) => this.isExpired(key, entry)));
   }
 
   private async evictLruIfNeeded(): Promise<void> {
     while ((await this.cacheStore.size()) > this.cacheMaxEntries) {
       let victimKey: string | undefined;
       let victimTs = Number.POSITIVE_INFINITY;
+
       for (const [key, entry] of await this.cacheStore.entries()) {
         const ts = this.getEntryTimestamp(entry);
         if (ts < victimTs) {
