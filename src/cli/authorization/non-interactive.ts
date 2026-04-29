@@ -8,8 +8,11 @@ import type {
   ToolAuthorizationConfig,
   ToolAuthorizationRequest,
 } from '../../core/facades/cli-authorization-non-interactive.js';
-import { getLogger, McpClient } from '../../core/facades/cli-authorization-non-interactive.js';
-import { splitCommand } from '../../core/utils/command-split.js';
+import {
+  getLogger,
+  McpClient,
+  splitCommand,
+} from '../../core/facades/cli-authorization-non-interactive.js';
 import { text } from '../locales/index.js';
 
 const DecisionSchema = z
