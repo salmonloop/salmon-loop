@@ -1,0 +1,4 @@
+## 2025-04-30 - Fix Command Injection Vulnerability in Non-Interactive Authorization
+**Vulnerability:** Command injection risk due to `shell: true` in `execa` call for non-interactive tool authorization using the `command` strategy.
+**Learning:** `shell: true` allows shell metacharacters in the `cmd` string to be evaluated by the underlying shell, potentially allowing attackers to execute arbitrary commands if the `cmd` string is improperly configured or influenced by external factors.
+**Prevention:** Avoid `shell: true`. Use a utility like `splitCommand` to safely parse command strings into an executable and arguments array, and pass them explicitly to `execa` (e.g., `execa(executable, args)`). Furthermore, allow explicit `args` arrays in configuration schemas to encourage safer configurations.

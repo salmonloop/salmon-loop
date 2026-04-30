@@ -9,6 +9,7 @@ import type {
   ToolAuthorizationRequest,
 } from '../../core/facades/cli-authorization-non-interactive.js';
 import { getLogger, McpClient } from '../../core/facades/cli-authorization-non-interactive.js';
+import { splitCommand } from '../../core/utils/command-split.js';
 import { text } from '../locales/index.js';
 
 const DecisionSchema = z
@@ -102,10 +103,23 @@ export async function requestNonInteractiveAuthorizationDecision(params: {
     }
 
     const timeoutMs = params.config.nonInteractive?.command?.timeoutMs ?? 10_000;
+    const explicitArgs = params.config.nonInteractive?.command?.args;
+
+    let executable: string;
+    let execArgs: string[];
+
+    if (explicitArgs && explicitArgs.length > 0) {
+      executable = cmd;
+      execArgs = explicitArgs;
+    } else {
+      const parsed = splitCommand(cmd);
+      executable = parsed[0] || cmd;
+      execArgs = parsed.slice(1);
+    }
+
     try {
-      const res = await execa(cmd, {
+      const res = await execa(executable, execArgs, {
         input: JSON.stringify({ request: params.request }),
-        shell: true,
         timeout: timeoutMs,
         reject: false,
       });
