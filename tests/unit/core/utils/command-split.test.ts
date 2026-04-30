@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test';
+
 import { splitCommand } from '../../../../src/core/utils/command-split.js';
 
 describe('splitCommand', () => {
