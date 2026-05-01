@@ -1,0 +1,3 @@
+## 2025-05-01 - O(n²) LRU Eviction Bottleneck
+**Learning:** In `ContextService`, the `evictLruIfNeeded` method was implemented with a `while` loop that iteratively found and deleted the oldest entry by scanning all `entries()` over and over. When evicting M items from a cache of size N, this resulted in an O(M * N) time complexity. Since both M and N can be large (especially if the cache has grown quickly between evictions), this caused significant blocking.
+**Action:** Replace iterative O(N) minimum-finding loops that delete one element at a time with a single pass or sort-based approach (O(N log N) or O(N)) when multiple items need to be evicted to reach a target size.
