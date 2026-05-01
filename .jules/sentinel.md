@@ -1,0 +1,4 @@
+## 2024-05-18 - [Command Injection Risk in Non-Interactive Authorization]
+**Vulnerability:** Command injection risk in `src/cli/authorization/non-interactive.ts` where `execa` is called with `shell: true` and user-provided configuration strings. The `cmd` property in the configuration could potentially contain malicious injections.
+**Learning:** Configurations allowing arbitrary command execution must be handled safely to avoid potential command injections. `shell: true` should be avoided. The project's existing utility `splitCommand` in `src/core/utils/command-split.ts` safely parses command strings when `args` are not provided.
+**Prevention:** Avoid using `shell: true` in `execa` or similar execution libraries. Instead, support an explicit `args: string[]` parameter, and use a safe parser like `splitCommand` if a flat command string is provided.

@@ -889,6 +889,13 @@ export function validateConfigFileV1(input: unknown): ConfigFileV1 {
             expected: 'string',
           });
         }
+        if (ni.command.args !== undefined) {
+          if (!Array.isArray(ni.command.args) || !ni.command.args.every(isString)) {
+            throw new ConfigError('CONFIG_INVALID_TOOL_AUTH_NON_INTERACTIVE_COMMAND_ARGS', {
+              expected: 'string[]',
+            });
+          }
+        }
         if (ni.command.timeoutMs !== undefined && !isNumber(ni.command.timeoutMs)) {
           throw new ConfigError('CONFIG_INVALID_TOOL_AUTH_NON_INTERACTIVE_COMMAND_TIMEOUT', {
             expected: 'number',
