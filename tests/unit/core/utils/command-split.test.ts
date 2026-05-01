@@ -20,7 +20,12 @@ describe('splitCommand', () => {
   });
 
   it('should handle mixed quotes and escapes', () => {
-    expect(splitCommand('cmd --flag "val\\"ue" \'single\'')).toEqual(['cmd', '--flag', 'val"ue', 'single']);
+    expect(splitCommand('cmd --flag "val\\"ue" \'single\'')).toEqual([
+      'cmd',
+      '--flag',
+      'val"ue',
+      'single',
+    ]);
   });
 
   it('should handle extra whitespace', () => {
