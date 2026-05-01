@@ -2,28 +2,29 @@ import { Box, Text } from 'ink';
 import React from 'react';
 
 import { useUIStore } from '../../store/context.js';
+import { COLORS } from '../../styles/theme.js';
 
 export const MissionControl: React.FC = () => {
   const { state } = useUIStore();
 
   return (
     <Box flexDirection="column">
-      <Text bold color="white">
+      <Text bold color={COLORS.text.primary}>
         Mission Control
       </Text>
       <Box flexDirection="column" marginTop={1}>
         {state.missionTasks.length === 0 ? (
-          <Text color="gray" dimColor>
+          <Text color={COLORS.text.muted} dimColor>
             No active tasks.
           </Text>
         ) : (
           state.missionTasks.map((task) => (
             <Box key={task.id}>
-              <Text color={task.status === 'completed' ? 'gray' : 'cyan'}>
+              <Text color={task.status === 'completed' ? COLORS.text.muted : COLORS.semantic.cyan}>
                 {task.status === 'completed' ? '[x] ' : '[ ] '}
               </Text>
               <Text
-                color={task.status === 'completed' ? 'gray' : 'white'}
+                color={task.status === 'completed' ? COLORS.text.muted : COLORS.text.primary}
                 strikethrough={task.status === 'completed'}
               >
                 {task.content}
