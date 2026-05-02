@@ -44,7 +44,7 @@ describe('transaction-runner', () => {
   let mockedExecute: any;
 
   beforeEach(() => {
-    mock.clearAllMocks();
+    mock.restore();
     mockedExecute = spyOn(salmonFlow, 'executeSalmonLoopFlow').mockReset();
   });
 

@@ -1,12 +1,14 @@
 import { tmpdir } from 'os';
 import path from 'path';
 
-import { GitAdapter } from '../../../src/core/adapters/git/git-adapter.js';
-import { runGitCommand } from '../../../src/core/adapters/git/git-runner.js';
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
 mock.module('../../../src/core/adapters/git/git-runner.js', () => ({
   runGitCommand: mock(),
 }));
+
+const { GitAdapter } = await import('../../../src/core/adapters/git/git-adapter.js');
+const { runGitCommand } = await import('../../../src/core/adapters/git/git-runner.js');
 
 async function expectSecurityViolation(promise: Promise<unknown>): Promise<void> {
   try {
@@ -20,7 +22,8 @@ async function expectSecurityViolation(promise: Promise<unknown>): Promise<void>
 
 describe('GitAdapter exec truncation handling', () => {
   beforeEach(() => {
-    mock.clearAllMocks();
+    mock.restore();
+    (runGitCommand as any).mockReset();
   });
 
   it('throws when stdout is truncated', async () => {
@@ -66,7 +69,8 @@ describe('GitAdapter exec truncation handling', () => {
 
 describe('GitAdapter query gateway validation', () => {
   beforeEach(() => {
-    mock.clearAllMocks();
+    mock.restore();
+    (runGitCommand as any).mockReset();
   });
 
   it('allows approved commands', async () => {
@@ -177,7 +181,8 @@ describe('GitAdapter query gateway validation', () => {
 
 describe('GitAdapter shadow path parity handling', () => {
   beforeEach(() => {
-    mock.clearAllMocks();
+    mock.restore();
+    (runGitCommand as any).mockReset();
   });
 
   it('allows updateIndex inside parity worktree root', async () => {
