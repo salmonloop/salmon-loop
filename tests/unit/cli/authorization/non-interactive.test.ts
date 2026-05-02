@@ -1,5 +1,8 @@
-import { beforeEach, describe, expect, it } from 'bun:test';
-import { execa } from 'execa';
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
+
+import type { ToolAuthorizationConfig } from '../../../../src/core/config/types.js';
+import { createLogger, setLogger } from '../../../../src/core/observability/logger.js';
+import type { ToolAuthorizationRequest } from '../../../../src/core/tools/authorization/types.js';
 
 mock.module('execa', () => {
   return {
@@ -7,9 +10,8 @@ mock.module('execa', () => {
   };
 });
 
-import { requestNonInteractiveAuthorizationDecision } from '../../../../src/cli/authorization/non-interactive.js';
-import type { ToolAuthorizationConfig } from '../../../../src/core/config/types.js';
-import type { ToolAuthorizationRequest } from '../../../../src/core/tools/authorization/types.js';
+const { execa } = await import('execa');
+const { requestNonInteractiveAuthorizationDecision } = await import('../../../../src/cli/authorization/non-interactive.js');
 
 const request: ToolAuthorizationRequest = {
   id: 'req-1',
@@ -26,6 +28,7 @@ const request: ToolAuthorizationRequest = {
 
 describe('non-interactive authorization handler', () => {
   beforeEach(() => {
+    setLogger(createLogger({ minLevel: 'silent', console: false }));
     (execa as any).mockReset();
   });
 
@@ -42,6 +45,26 @@ describe('non-interactive authorization handler', () => {
 
     const decision = await requestNonInteractiveAuthorizationDecision({ request, config });
     expect(decision).toEqual({ outcome: 'allow_once', source: 'hook' });
+    expect(execa).toHaveBeenCalledWith('echo', ['ok'], expect.any(Object));
+  });
+
+  it('uses explicitly provided args if available', async () => {
+    (execa as any).mockResolvedValue({
+      exitCode: 0,
+      stdout: JSON.stringify({ outcome: 'allow' }),
+      stderr: '',
+    } as any);
+
+    const config: ToolAuthorizationConfig = {
+      nonInteractive: {
+        strategy: 'command',
+        command: { cmd: 'my-script', args: ['--auth', '123'] },
+      },
+    };
+
+    const decision = await requestNonInteractiveAuthorizationDecision({ request, config });
+    expect(decision).toEqual({ outcome: 'allow', source: 'hook' });
+    expect(execa).toHaveBeenCalledWith('my-script', ['--auth', '123'], expect.any(Object));
   });
 
   it('fails closed when command returns invalid JSON', async () => {
@@ -58,6 +81,7 @@ describe('non-interactive authorization handler', () => {
     const decision = await requestNonInteractiveAuthorizationDecision({ request, config });
     expect(decision?.outcome).toBe('deny');
     expect(decision?.source).toBe('hook');
+    expect(execa).toHaveBeenCalledWith('echo', ['bad'], expect.any(Object));
   });
 
   it('fails closed when MCP server cannot be resolved', async () => {
