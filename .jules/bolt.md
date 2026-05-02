@@ -1,0 +1,3 @@
+## 2025-02-18 - Optimized `evictLruIfNeeded` cache entries retrieval array
+**Learning:** In cache managers and contexts where `this.cacheStore.entries()` is an asynchronous operation fetching Map structures over IPC or heavy I/O, repeatedly calling it inside a while loop forces `O(N * M)` complexity and frequent garbage collection over-allocation.
+**Action:** Always fetch the `entries()` list once locally to an array and process linearly using sorting arrays when evicting/mutating, reducing to `O(N log N)` rather than `O(N * M)` and resolving EMFILE potential when unbounded iterations process over large caches.
