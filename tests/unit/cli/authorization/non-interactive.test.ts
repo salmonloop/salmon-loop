@@ -11,7 +11,8 @@ mock.module('execa', () => {
 });
 
 const { execa } = await import('execa');
-const { requestNonInteractiveAuthorizationDecision } = await import('../../../../src/cli/authorization/non-interactive.js');
+const { requestNonInteractiveAuthorizationDecision } =
+  await import('../../../../src/cli/authorization/non-interactive.js');
 
 const request: ToolAuthorizationRequest = {
   id: 'req-1',
@@ -28,7 +29,7 @@ const request: ToolAuthorizationRequest = {
 
 describe('non-interactive authorization handler', () => {
   beforeEach(() => {
-    setLogger(createLogger({ minLevel: 'silent', console: false }));
+    setLogger(createLogger({ silent: true }));
     (execa as any).mockReset();
   });
 
