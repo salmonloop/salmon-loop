@@ -24,6 +24,7 @@ const {
   clearAllTimers,
 } = jest;
 
+Object.defineProperty(globalThis, 'mock', { value: mock, writable: false });
 Object.defineProperty(mock, 'fn', { value: mock, writable: false });
 import * as auditTrail from '../../src/core/observability/audit-trail.js';
 import type { AuditTrailEvent } from '../../src/core/observability/audit-trail.js';
@@ -142,7 +143,6 @@ export function restoreConsoleOutputs() {
 
 export function clearMockState() {
   mock.restore();
-  mock.clearAllMocks();
   auditTrail.clearAuditTrail();
 }
 
