@@ -24,7 +24,6 @@ mock.module('../../../../../src/core/context/token/adaptive-budget.js', () => ({
 describe('autocompact', () => {
   beforeEach(() => {
     setLogger(createLogger({ silent: true }));
-    mock.clearAllMocks();
   });
 
   function createMockSessionManager() {

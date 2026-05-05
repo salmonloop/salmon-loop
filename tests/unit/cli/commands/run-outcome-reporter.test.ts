@@ -270,7 +270,6 @@ mock.module('../../../../src/core/observability/logger.js', () => ({
 
 describe('handleRunCommand outcome reporter', () => {
   beforeEach(() => {
-    mock.clearAllMocks();
     resetHoistedState();
     process.exitCode = 0;
   });
