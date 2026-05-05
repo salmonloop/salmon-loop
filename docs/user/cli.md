@@ -1,6 +1,7 @@
 # CLI Reference
 
-SalmonLoop provides a command-line interface (`s8p`) for automated code patching.
+SalmonLoop provides a chat-first command-line interface (`s8p`) for repository work.
+Unless you explicitly pin a flow, both chat and one-shot `run` default to `autopilot`.
 
 ## Commands
 
@@ -17,6 +18,8 @@ In chat mode, SalmonLoop exposes a few UI-related controls:
 - `/config view <full|standard|compact>`: controls **how dense** the TUI renders the output.
 - `/mode <interactive|yolo>`: controls the permission mode used for tool authorization decisions.
   - Aliases: `/config permission-mode`, `/permission-mode`, `/perm-mode`
+- `/flow-mode <patch|review|debug|research|answer|autopilot>`: controls the current chat flow mode for this session.
+  - `autopilot` is the default when no session flow mode has been set yet.
 
 All settings are persisted to the repo config at `<repoRoot>/.salmonloop/config/config.json`.
 
@@ -71,6 +74,9 @@ Execute a single-turn task and exit.
 ```bash
 s8p run --instruction "..." --verify "..."
 ```
+
+`run` defaults to `autopilot` unless you explicitly pass `--act-mode <mode>`.
+Use `--act-mode patch|review|debug|research|answer|autopilot` when you want to pin the flow instead of letting SalmonLoop choose.
 
 ### Context (Build Only)
 
@@ -160,6 +166,7 @@ Notes:
 
 - `-i, --instruction <string>`: **(Required)** Instruction for the LLM to follow.
 - `-v, --verify <command>`: **(Required)** Verification command to run after applying the patch (e.g., `bun run test`, `pytest`).
+- `--act-mode <mode>`: Flow mode for `run`. Defaults to `autopilot`.
 - `-f, --file <path>`: Path to a specific file to provide as primary context (repo-relative or absolute).
 - `-s, --selection <text>`: Direct text selection to provide as context.
 

@@ -44,7 +44,7 @@ export function registerProgramCommands(program: Command): void {
     .option('--force-reset', text.cli.forceResetOption)
     .option('--validate', text.cli.validateOption)
     .option('--preflight-policy <policy>', text.cli.preflightPolicyOption, 'lenient')
-    .option('--act-mode <mode>', text.cli.actModeOption, 'patch')
+    .option('--act-mode <mode>', text.cli.actModeOption, 'autopilot')
     .option('--apply-back-on-dirty <mode>', text.cli.applyBackOnDirtyOption, '3way')
     .option('--environment-mode <mode>', text.cli.environmentModeOption, 'strict')
     .option('--worktree-prepare <command>', text.cli.worktreePrepareOption)
