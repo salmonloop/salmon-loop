@@ -242,17 +242,16 @@ export class ContextService {
   }
 
   private async evictLruIfNeeded(): Promise<void> {
-    while ((await this.cacheStore.size()) > this.cacheMaxEntries) {
-      let victimKey: string | undefined;
-      let victimTs = Number.POSITIVE_INFINITY;
-      for (const [key, entry] of await this.cacheStore.entries()) {
-        const ts = this.getEntryTimestamp(entry);
-        if (ts < victimTs) {
-          victimTs = ts;
-          victimKey = key;
-        }
-      }
-      if (!victimKey) break;
+    const currentSize = await this.cacheStore.size();
+    if (currentSize <= this.cacheMaxEntries) return;
+
+    const entriesToEvict = currentSize - this.cacheMaxEntries;
+    const allEntries = await this.cacheStore.entries();
+
+    allEntries.sort((a, b) => this.getEntryTimestamp(a[1]) - this.getEntryTimestamp(b[1]));
+
+    for (let i = 0; i < entriesToEvict && i < allEntries.length; i++) {
+      const victimKey = allEntries[i][0];
       await this.cacheStore.delete(victimKey);
       this.cacheMetrics.evictions += 1;
     }

@@ -1,0 +1,3 @@
+## 2024-05-24 - O(M * N) bottleneck in ContextService LRU Cache Eviction
+**Learning:** Calling an async array-returning function (like `this.cacheStore.entries()`) repeatedly inside an eviction loop creates a severe O(M * N) performance bottleneck, especially in persistent stores where fetching entries might do non-trivial work or allocate lots of memory, scaling poorly as the total size N and number of evicted entries M grow.
+**Action:** Always fetch the complete list once, sort it, and sequentially process the victims to achieve `O(N log N)` efficiency when working with cache stores that return resolved arrays of entries.
