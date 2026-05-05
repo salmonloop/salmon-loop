@@ -5,6 +5,14 @@ const hoisted = (() => ({
   inputHandler: null as ((input: string, key: any) => void) | null,
   textInputProps: null as any,
   dispatch: mock(),
+  pendingSelection: undefined as
+    | {
+        id: string;
+        title: string;
+        multiSelect?: boolean;
+        items: Array<{ id: string; label: string; description?: string }>;
+      }
+    | undefined,
 }))();
 
 mock.module('ink', () => ({
@@ -49,7 +57,7 @@ mock.module('../../../../../src/cli/ui/store/context.js', () => ({
     state: {
       pendingConfirmation: undefined,
       pendingAuthorization: undefined,
-      pendingSelection: undefined,
+      pendingSelection: hoisted.pendingSelection,
     },
     dispatch: hoisted.dispatch,
   }),
@@ -72,6 +80,7 @@ describe('CommandInput shortcuts', () => {
   beforeEach(() => {
     hoisted.inputHandler = null;
     hoisted.textInputProps = null;
+    hoisted.pendingSelection = undefined;
     hoisted.dispatch.mockClear();
   });
 
@@ -115,5 +124,24 @@ describe('CommandInput shortcuts', () => {
     hoisted.textInputProps.onChange('hellox');
 
     expect(onChange).toHaveBeenCalledWith('hellox');
+  });
+
+  it('renders a structural focus marker for the active selection item', async () => {
+    const CommandInput = await loadCommandInput();
+    hoisted.pendingSelection = {
+      id: 'selection-1',
+      title: 'Pick one',
+      items: [
+        { id: 'alpha', label: 'Alpha', description: 'first' },
+        { id: 'beta', label: 'Beta', description: 'second' },
+      ],
+    };
+
+    const { container } = render(
+      <CommandInput value="" onChange={mock()} onSubmit={mock()} getSuggestions={async () => []} />,
+    );
+
+    expect(container.textContent).toContain('❯ Alpha - first');
+    expect(container.textContent).toContain('  Beta - second');
   });
 });
