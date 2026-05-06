@@ -1,0 +1,3 @@
+## 2024-05-17 - List Selection Accessibility in Ink UI
+**Learning:** In terminal UI components using the Ink framework, relying solely on subtle color changes or thin structural indicators (like `|` or `│`) for list selection is not sufficiently accessible, especially for colorblind users.
+**Action:** Always include a clear, prominent character-based focus indicator (specifically `❯ ` for consistency with other components like `CommandInput`) to explicitly mark the currently selected item in navigable lists.
