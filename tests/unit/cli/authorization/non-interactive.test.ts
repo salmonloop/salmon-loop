@@ -1,5 +1,8 @@
-import { beforeEach, describe, expect, it } from 'bun:test';
-import { execa } from 'execa';
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
+
+import type { ToolAuthorizationConfig } from '../../../../src/core/config/types.js';
+import { createLogger, setLogger } from '../../../../src/core/observability/logger.js';
+import type { ToolAuthorizationRequest } from '../../../../src/core/tools/authorization/types.js';
 
 mock.module('execa', () => {
   return {
@@ -7,9 +10,9 @@ mock.module('execa', () => {
   };
 });
 
-import { requestNonInteractiveAuthorizationDecision } from '../../../../src/cli/authorization/non-interactive.js';
-import type { ToolAuthorizationConfig } from '../../../../src/core/config/types.js';
-import type { ToolAuthorizationRequest } from '../../../../src/core/tools/authorization/types.js';
+const { requestNonInteractiveAuthorizationDecision } =
+  await import('../../../../src/cli/authorization/non-interactive.js');
+const { execa } = await import('execa');
 
 const request: ToolAuthorizationRequest = {
   id: 'req-1',
@@ -27,6 +30,7 @@ const request: ToolAuthorizationRequest = {
 describe('non-interactive authorization handler', () => {
   beforeEach(() => {
     (execa as any).mockReset();
+    setLogger(createLogger({ silent: true }));
   });
 
   it('uses command strategy and returns allow decision with source=hook', async () => {

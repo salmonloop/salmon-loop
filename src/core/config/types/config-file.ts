@@ -227,6 +227,7 @@ export interface ToolAuthorizationConfig {
        * The command must print an AuthorizationDecision-like JSON to stdout.
        */
       cmd: string;
+      args?: string[];
       timeoutMs?: number;
     };
     mcp?: {
