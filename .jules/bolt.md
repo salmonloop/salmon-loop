@@ -1,0 +1,3 @@
+## 2024-03-21 - [Optimize Cache Eviction Loop]
+**Learning:** Calling `.entries()` inside a `while` loop to manually find the oldest cache entries in a cache store (like `ContextCacheStore`) degrades performance to O(M * N) complexity (where M is the overage count and N is the total cache size) because `.entries()` creates an array of all entries every time and the inner loop iterates over all of them.
+**Action:** Always fetch the entire entries array once, sort it linearly to identify eviction targets (O(N log N)), and then iterate only the required number of times to perform batch deletions.
