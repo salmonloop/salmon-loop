@@ -1,0 +1,3 @@
+## 2024-05-24 - Improve list selection indicators for screen readers and colorblind users
+**Learning:** Using a pure color change (like salmon) combined with a simple pipe character (`|`) for list selection in Ink CLI components is difficult for colorblind users to parse quickly, and might not be announced meaningfully by all screen readers navigating terminal text.
+**Action:** Always use structural or clearly directional character-based focus indicators, specifically `❯ ` in this project, rather than relying solely on color changes, to ensure accessibility and visual consistency across lists.
