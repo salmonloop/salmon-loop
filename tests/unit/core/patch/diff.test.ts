@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'bun:test';
+
 import { isUnifiedDiff } from '../../../../src/core/patch/diff.js';
 
 describe('isUnifiedDiff', () => {
