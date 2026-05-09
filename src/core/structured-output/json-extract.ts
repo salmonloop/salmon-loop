@@ -23,7 +23,7 @@ function findMatchingJsonEnd(text: string, start: number): number | null {
         escaped = false;
         continue;
       }
-      if (ch === '\\\\') {
+      if (ch === '\\') {
         escaped = true;
         continue;
       }
