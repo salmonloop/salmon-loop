@@ -1,3 +1,5 @@
+import { mock } from 'bun:test';
+
 import { CheckpointManager } from '../../../src/core/strata/checkpoint/manager.js';
 import { WorkspaceSynchronizer } from '../../../src/core/strata/runtime/synchronizer.js';
 
@@ -69,7 +71,7 @@ function normalizeForAssert(value: string): string {
 
 describe('WorkspaceSynchronizer checkpoint staging', () => {
   beforeEach(() => {
-    mock.clearAllMocks();
+    mock.restore();
     existsSyncMock.mockReturnValue(false);
     lstatMock.mockImplementation(async (targetPath: string) => {
       throw enoent(targetPath);

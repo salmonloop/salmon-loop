@@ -203,32 +203,35 @@ export class WorkspaceSynchronizer {
 
     const symlinkedRoots = new Set<string>();
     const repoRealPath = await this.tryRealPath(repoPath);
-    for (const candidate of candidates) {
-      const normalizedCandidate = this.sanitizeRelativePath(candidate);
-      if (!normalizedCandidate || normalizedCandidate.includes('/')) {
-        continue;
-      }
 
-      const candidatePath = path.join(repoPath, ...normalizedCandidate.split('/'));
-      try {
-        const entryStat = await lstat(candidatePath);
-        const isProjectedRoot = await this.isProjectedDependencyRoot(
-          repoRealPath,
-          candidatePath,
-          entryStat,
-        );
-        if (isProjectedRoot) {
-          if (!entryStat.isSymbolicLink()) {
-            getLogger().debug(
-              `[checkpoint] Treating dependency root as projected via realpath escape: ${normalizedCandidate}`,
-            );
-          }
-          symlinkedRoots.add(normalizedCandidate);
+    await Promise.all(
+      Array.from(candidates).map(async (candidate) => {
+        const normalizedCandidate = this.sanitizeRelativePath(candidate);
+        if (!normalizedCandidate || normalizedCandidate.includes('/')) {
+          return;
         }
-      } catch {
-        // Ignore non-existent dependency roots.
-      }
-    }
+
+        const candidatePath = path.join(repoPath, ...normalizedCandidate.split('/'));
+        try {
+          const entryStat = await lstat(candidatePath);
+          const isProjectedRoot = await this.isProjectedDependencyRoot(
+            repoRealPath,
+            candidatePath,
+            entryStat,
+          );
+          if (isProjectedRoot) {
+            if (!entryStat.isSymbolicLink()) {
+              getLogger().debug(
+                `[checkpoint] Treating dependency root as projected via realpath escape: ${normalizedCandidate}`,
+              );
+            }
+            symlinkedRoots.add(normalizedCandidate);
+          }
+        } catch {
+          // Ignore non-existent dependency roots.
+        }
+      }),
+    );
 
     return symlinkedRoots;
   }
