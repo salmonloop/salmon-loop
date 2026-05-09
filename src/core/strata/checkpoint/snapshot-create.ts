@@ -56,19 +56,38 @@ export async function createSnapshotCommitFromStagedTree(input: {
 
     // Explicit include list supports ignored paths when needed.
     if (includePaths.length > 0) {
-      for (const file of includePaths) {
+      // Process in batches of 50 to avoid hitting command line length limits
+      for (let i = 0; i < includePaths.length; i += 50) {
+        const batch = includePaths.slice(i, i + 50);
         try {
-          const isIgnored = await git
-            .exec(['check-ignore', file])
-            .then((out: string) => !!out.trim())
-            .catch(() => false);
-          if (isIgnored) {
-            await git.exec(['add', '-f', '--', file], { env });
-          } else {
-            await git.exec(['add', '--', file], { env });
+          // Check which files in this batch are ignored
+          // git check-ignore returns stdout with matching files, or exits with 1 if none match
+          let ignoredOutput = '';
+          try {
+            ignoredOutput = await git.exec(['check-ignore', ...batch]);
+          } catch (e: any) {
+            ignoredOutput = e.stdout || '';
+          }
+
+          const ignoredSet = new Set(
+            ignoredOutput
+              .split('\n')
+              .map((f: string) => f.trim())
+              .filter(Boolean),
+          );
+
+          const ignoredFiles = batch.filter((f) => ignoredSet.has(f));
+          const normalFiles = batch.filter((f) => !ignoredSet.has(f));
+
+          if (ignoredFiles.length > 0) {
+            await git.exec(['add', '-f', '--', ...ignoredFiles], { env });
+          }
+
+          if (normalFiles.length > 0) {
+            await git.exec(['add', '--', ...normalFiles], { env });
           }
         } catch {
-          // Ignore per-file add failures to keep snapshot best-effort.
+          // Ignore batch add failures to keep snapshot best-effort.
         }
       }
     }
