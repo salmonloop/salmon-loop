@@ -369,13 +369,22 @@ export class WorkspaceSynchronizer {
       'checkpoint',
     );
     const allowed: string[] = [];
-    for (const file of filteredPaths) {
-      const policy = await this.shouldAllowPath(repoPath, file);
-      if (!policy.allowed) {
-        getLogger().warn(text.loop.skipPathDueToPolicy(policy.reason, file));
-        continue;
+    const batchSize = 10;
+    for (let i = 0; i < filteredPaths.length; i += batchSize) {
+      const batch = filteredPaths.slice(i, i + batchSize);
+      const results = await Promise.all(
+        batch.map(async (file) => {
+          const policy = await this.shouldAllowPath(repoPath, file);
+          return { file, policy };
+        }),
+      );
+      for (const { file, policy } of results) {
+        if (!policy.allowed) {
+          getLogger().warn(text.loop.skipPathDueToPolicy(policy.reason, file));
+          continue;
+        }
+        allowed.push(file);
       }
-      allowed.push(file);
     }
     return allowed;
   }
