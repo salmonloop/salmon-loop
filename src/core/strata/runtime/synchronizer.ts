@@ -21,6 +21,7 @@ import { logIgnoredError } from '../../observability/ignored-error.js';
 import { getLogger } from '../../observability/logger.js';
 import { getMonitor } from '../../observability/monitor.js';
 import { ApplyBackOnDirty, CheckpointRef, VerboseLevel } from '../../types/index.js';
+import { processInBatches } from '../../utils/batch.js';
 import { isCanonicalPathWithinDirectory } from '../../utils/path.js';
 import { CheckpointManager } from '../checkpoint/manager.js';
 import { detectDependencyPaths } from '../layers/shadow-driver/strategy.js';
@@ -477,7 +478,7 @@ export class WorkspaceSynchronizer {
     const output = await shadowGit.query(['diff', '--name-only', '-z', initialRef, latestRef]);
     const files = output.split('\0').filter((f) => f.length > 0);
 
-    for (const relativePath of files) {
+    await processInBatches(files, 10, async (relativePath) => {
       const tempBase = path.join(tmpdir(), `sl-base-${randomBytes(4).toString('hex')}`);
       const tempTheirs = path.join(tmpdir(), `sl-theirs-${randomBytes(4).toString('hex')}`);
       const tempOurs = path.join(tmpdir(), `sl-ours-${randomBytes(4).toString('hex')}`); // For normalization logic if needed
@@ -499,7 +500,7 @@ export class WorkspaceSynchronizer {
           // Since we filtered for 'M', it implies it existed in Base. If missing in Main, User deleted it.
           // Merge Modified vs Deleted -> Conflict.
           conflicts.push(relativePath);
-          continue;
+          return;
         }
 
         // --- EOL Normalization ---
@@ -545,7 +546,7 @@ export class WorkspaceSynchronizer {
           ),
         ]);
       }
-    }
+    });
 
     return { conflicts };
   }

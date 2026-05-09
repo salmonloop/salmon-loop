@@ -24,6 +24,14 @@ mock.module('../../../src/core/adapters/fs/node-fs.js', () => ({
   lstat: lstatMock,
   stat: statMock,
   realpath: realpathMock,
+  rm: mock(),
+  readdir: mock(),
+  unlink: mock(),
+  writeFile: mock(),
+  readFile: mock(),
+  copyFile: mock(),
+  mkdir: mock(),
+  existsSync: mock(),
 }));
 
 async function loadModules() {
