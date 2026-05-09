@@ -13,7 +13,7 @@ import {
 
 describe('snapshot write-tree helpers', () => {
   beforeEach(() => {
-    mock.clearAllMocks();
+    statMock.mockClear();
   });
 
   it('retries write-tree and eventually succeeds', async () => {

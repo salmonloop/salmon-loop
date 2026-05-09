@@ -18,7 +18,9 @@ export async function tryWriteTreeWithRetry(
     } catch (error) {
       lastError = error;
       if (i >= retryDelaysMs.length) break;
-      await new Promise((resolve) => setTimeout(resolve, retryDelaysMs[i]));
+      if (retryDelaysMs[i] > 0) {
+        await new Promise((resolve) => setTimeout(resolve, retryDelaysMs[i]));
+      }
     }
   }
   throw Object.assign(lastError instanceof Error ? lastError : new Error('write-tree failed'), {
