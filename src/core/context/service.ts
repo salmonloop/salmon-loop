@@ -242,19 +242,40 @@ export class ContextService {
   }
 
   private async evictLruIfNeeded(): Promise<void> {
-    while ((await this.cacheStore.size()) > this.cacheMaxEntries) {
+    let currentSize = await this.cacheStore.size();
+    if (currentSize <= this.cacheMaxEntries) return;
+
+    // ⚡ Bolt Optimization: Prevent O(M*N) nested iterations for mass evictions.
+    // Fetch all entries once and process.
+    const entries = Array.from(await this.cacheStore.entries());
+
+    // Fast-path: if we only need to evict 1 item, a linear O(N) scan is faster than an O(N log N) sort.
+    if (currentSize - this.cacheMaxEntries === 1) {
       let victimKey: string | undefined;
       let victimTs = Number.POSITIVE_INFINITY;
-      for (const [key, entry] of await this.cacheStore.entries()) {
+      for (const [key, entry] of entries) {
         const ts = this.getEntryTimestamp(entry);
         if (ts < victimTs) {
           victimTs = ts;
           victimKey = key;
         }
       }
-      if (!victimKey) break;
-      await this.cacheStore.delete(victimKey);
+      if (victimKey) {
+        await this.cacheStore.delete(victimKey);
+        this.cacheMetrics.evictions += 1;
+      }
+      return;
+    }
+
+    // Mass eviction path: O(N log N) sort is more efficient than O(N^2) loops.
+    // Memory overhead is O(N) for the array, which is acceptable since the max entries is bounded.
+    entries.sort(([, a], [, b]) => this.getEntryTimestamp(a) - this.getEntryTimestamp(b));
+
+    for (const [key] of entries) {
+      if (currentSize <= this.cacheMaxEntries) break;
+      await this.cacheStore.delete(key);
       this.cacheMetrics.evictions += 1;
+      currentSize -= 1;
     }
   }
 
