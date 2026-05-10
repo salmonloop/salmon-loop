@@ -211,7 +211,7 @@ function queueWorkspaceFingerprint(params: {
 
 describe('runAutopilot', () => {
   beforeEach(() => {
-    mock.clearAllMocks();
+    mock.restore();
     setPromptRegistry(createPromptRegistry());
     hoisted.resolveLlmToolCallingPolicy.mockReturnValue({ enabled: true, maxRounds: 8 });
     hoisted.gitExecMeta.mockImplementation(async () => {
