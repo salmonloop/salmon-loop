@@ -47,7 +47,9 @@ export const CommandSuggestionList: React.FC<CommandSuggestionListProps> = ({
             <Box key={`${item.name}-${index}`} flexDirection="row" paddingX={1}>
               {/* Selection Indicator */}
               <Box width={2}>
-                <Text color={COLORS.semantic.salmon}>{isSelected ? '│ ' : '  '}</Text>
+                <Text color={isSelected ? COLORS.semantic.cyan : COLORS.text.muted}>
+                  {isSelected ? '❯ ' : '  '}
+                </Text>
               </Box>
 
               {/* Command Name */}
