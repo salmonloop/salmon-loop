@@ -9,6 +9,7 @@ import type {
   ToolAuthorizationRequest,
 } from '../../core/facades/cli-authorization-non-interactive.js';
 import { getLogger, McpClient } from '../../core/facades/cli-authorization-non-interactive.js';
+import { getPlatformShellInvocation } from '../../core/utils/platform-shell.js';
 import { text } from '../locales/index.js';
 
 const DecisionSchema = z
@@ -103,9 +104,9 @@ export async function requestNonInteractiveAuthorizationDecision(params: {
 
     const timeoutMs = params.config.nonInteractive?.command?.timeoutMs ?? 10_000;
     try {
-      const res = await execa(cmd, {
+      const { file, args } = getPlatformShellInvocation(cmd);
+      const res = await execa(file, args, {
         input: JSON.stringify({ request: params.request }),
-        shell: true,
         timeout: timeoutMs,
         reject: false,
       });

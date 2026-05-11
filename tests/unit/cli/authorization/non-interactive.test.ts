@@ -1,5 +1,6 @@
-import { beforeEach, describe, expect, it } from 'bun:test';
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
 import { execa } from 'execa';
+import { createLogger, setLogger } from '../../../../src/core/observability/logger.js';
 
 mock.module('execa', () => {
   return {
@@ -27,6 +28,7 @@ const request: ToolAuthorizationRequest = {
 describe('non-interactive authorization handler', () => {
   beforeEach(() => {
     (execa as any).mockReset();
+    setLogger(createLogger({ silent: true }));
   });
 
   it('uses command strategy and returns allow decision with source=hook', async () => {
