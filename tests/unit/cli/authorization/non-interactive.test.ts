@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
 import { execa } from 'execa';
-import { createLogger, setLogger } from '../../../../src/core/observability/logger.js';
 
 mock.module('execa', () => {
   return {
@@ -10,6 +9,7 @@ mock.module('execa', () => {
 
 import { requestNonInteractiveAuthorizationDecision } from '../../../../src/cli/authorization/non-interactive.js';
 import type { ToolAuthorizationConfig } from '../../../../src/core/config/types.js';
+import { createLogger, setLogger } from '../../../../src/core/observability/logger.js';
 import type { ToolAuthorizationRequest } from '../../../../src/core/tools/authorization/types.js';
 
 const request: ToolAuthorizationRequest = {

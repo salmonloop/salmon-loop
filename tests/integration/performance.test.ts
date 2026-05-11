@@ -45,8 +45,6 @@ describe('Performance Integration Tests', () => {
     // Commit them so they are tracked
     await git.exec(['add', '.']);
     await git.exec(['commit', '-m', 'Initial commit']);
-
-    mock.clearAllMocks();
   });
 
   afterEach(async () => {

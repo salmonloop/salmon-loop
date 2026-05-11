@@ -11,9 +11,7 @@ mock.module('../../../src/core/adapters/fs/node-fs.js', () => ({
 describe('Builtin Tool: fs.list', () => {
   const repoRoot = '/fake/repo';
 
-  beforeEach(() => {
-    mock.clearAllMocks();
-  });
+  beforeEach(() => {});
 
   function getFsListSpec() {
     const registry = new ToolRegistry();

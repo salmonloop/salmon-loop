@@ -146,7 +146,6 @@ export function setupFsPromisesMock(options: FsPromisesMockOptions = {}) {
  */
 export function resetFsPromisesMocks() {
   // Clear all mock call state so each test can start from a clean baseline.
-  mock.clearAllMocks();
 }
 
 /**

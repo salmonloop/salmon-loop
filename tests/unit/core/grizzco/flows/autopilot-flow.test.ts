@@ -26,7 +26,6 @@ mock.module('../../../../../src/core/grizzco/steps/audit.js', () => ({
 
 describe('autopilot flow pipeline', () => {
   beforeEach(() => {
-    mock.clearAllMocks();
     hoisted.runPreflight.mockImplementation(async (ctx: any) => ({
       ...ctx,
       preflightResult: { ok: true },
