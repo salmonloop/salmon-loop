@@ -121,7 +121,7 @@ describe('SalmonLoop', () => {
   beforeEach(() => {
     loop = new SalmonLoop(resolvedConfig);
     mockLLM = new StubLLM();
-    mock.clearAllMocks();
+    mock.restore();
     createCheckpointCommitMock.mockResolvedValue('final-ref');
     applyBackToMainWorkspaceMock.mockResolvedValue(undefined);
 

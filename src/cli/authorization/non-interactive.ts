@@ -1,7 +1,6 @@
 import { execa } from 'execa';
 import { z } from 'zod';
 
-
 import type {
   AuthorizationDecision,
   ResolvedExtensions,
