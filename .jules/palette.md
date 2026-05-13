@@ -1,0 +1,3 @@
+## 2025-02-23 - Standardizing Ink List Focus Indicators
+**Learning:** In terminal UI frameworks like Ink, relying solely on color changes for focus states can present accessibility challenges for colorblind users and lacks visual clarity in low-contrast terminal themes. The project established a standard using a specific character (`❯ `) to denote structural focus in list selections (as seen in `CommandInput.tsx`).
+**Action:** When implementing or refactoring list selection interfaces using Ink, always include an explicit character-based structural focus indicator (like `❯ `) rather than relying exclusively on color. Ensure this matches existing established patterns in the codebase to maintain visual consistency.
