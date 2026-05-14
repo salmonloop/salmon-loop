@@ -269,7 +269,7 @@ export class ContextService {
 
     // For multiple items, fallback to an O(N log N) batch sort to avoid repeatedly scanning
     const sortedEntries = entries.sort(
-      ([, a], [, b]) => this.getEntryTimestamp(a) - this.getEntryTimestamp(b)
+      ([, a], [, b]) => this.getEntryTimestamp(a) - this.getEntryTimestamp(b),
     );
 
     const victims = sortedEntries.slice(0, overage);
