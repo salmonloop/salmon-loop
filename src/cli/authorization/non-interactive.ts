@@ -8,8 +8,11 @@ import type {
   ToolAuthorizationConfig,
   ToolAuthorizationRequest,
 } from '../../core/facades/cli-authorization-non-interactive.js';
-import { getLogger, McpClient } from '../../core/facades/cli-authorization-non-interactive.js';
-import { getPlatformShellInvocation } from '../../core/utils/platform-shell.js';
+import {
+  getLogger,
+  getPlatformShellInvocation,
+  McpClient,
+} from '../../core/facades/cli-authorization-non-interactive.js';
 import { text } from '../locales/index.js';
 
 const DecisionSchema = z
