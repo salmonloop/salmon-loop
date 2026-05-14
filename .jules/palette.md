@@ -1,0 +1,3 @@
+## 2024-05-15 - Improve Selection Focus Accessibility and Keyboard Hints
+**Learning:** Terminal UI components that rely heavily on color differences to indicate focus can be inaccessible to colorblind users. Also, complex keyboard interactions (like multi-select spaces) are hard to discover when described in wordy sentences that may get truncated or ignored.
+**Action:** Always include a clear structural indicator (like `❯ `) for the active selection instead of relying only on a color highlight. Use compact, symbol-driven keyboard hints (e.g., `↑↓ nav · space toggle · ↵ confirm · esc cancel`) which are faster to read and save horizontal terminal space.
