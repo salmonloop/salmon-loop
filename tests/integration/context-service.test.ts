@@ -1,6 +1,6 @@
 import { ContextService } from '../../src/core/context/service.js';
 import { PluginLoader } from '../../src/core/plugin/loader.js';
-import { getPluginRegistry } from '../../src/core/plugin/registry.js';
+import { PluginRegistry, setPluginRegistry } from '../../src/core/plugin/registry.js';
 import { RealFsTestHelper } from '../helpers/real-fs-helper.js';
 
 describe('ContextService Integration', () => {
@@ -8,7 +8,9 @@ describe('ContextService Integration', () => {
   let repoPath: string;
 
   beforeAll(async () => {
-    await PluginLoader.loadPlugins(getPluginRegistry());
+    const registry = new PluginRegistry();
+    setPluginRegistry(registry);
+    await PluginLoader.loadPlugins(registry);
   });
 
   beforeEach(async () => {

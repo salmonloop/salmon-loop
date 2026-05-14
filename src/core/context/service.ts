@@ -242,17 +242,38 @@ export class ContextService {
   }
 
   private async evictLruIfNeeded(): Promise<void> {
-    while ((await this.cacheStore.size()) > this.cacheMaxEntries) {
+    const size = await this.cacheStore.size();
+    const overage = size - this.cacheMaxEntries;
+    if (overage <= 0) return;
+
+    // Optimization: Fetch entries once to avoid O(M*N) overhead.
+    const entries = await this.cacheStore.entries();
+
+    // For a single item overage, perform a fast O(N) linear scan
+    if (overage === 1) {
       let victimKey: string | undefined;
       let victimTs = Number.POSITIVE_INFINITY;
-      for (const [key, entry] of await this.cacheStore.entries()) {
+      for (const [key, entry] of entries) {
         const ts = this.getEntryTimestamp(entry);
         if (ts < victimTs) {
           victimTs = ts;
           victimKey = key;
         }
       }
-      if (!victimKey) break;
+      if (victimKey) {
+        await this.cacheStore.delete(victimKey);
+        this.cacheMetrics.evictions += 1;
+      }
+      return;
+    }
+
+    // For multiple items, fallback to an O(N log N) batch sort to avoid repeatedly scanning
+    const sortedEntries = entries.sort(
+      ([, a], [, b]) => this.getEntryTimestamp(a) - this.getEntryTimestamp(b)
+    );
+
+    const victims = sortedEntries.slice(0, overage);
+    for (const [victimKey] of victims) {
       await this.cacheStore.delete(victimKey);
       this.cacheMetrics.evictions += 1;
     }
