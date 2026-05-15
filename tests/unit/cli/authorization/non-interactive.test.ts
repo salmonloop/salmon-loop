@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it } from 'bun:test';
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
+
 import { execa } from 'execa';
 
 mock.module('execa', () => {
@@ -9,6 +10,7 @@ mock.module('execa', () => {
 
 import { requestNonInteractiveAuthorizationDecision } from '../../../../src/cli/authorization/non-interactive.js';
 import type { ToolAuthorizationConfig } from '../../../../src/core/config/types.js';
+import { setLogger, createLogger } from '../../../../src/core/observability/logger.js';
 import type { ToolAuthorizationRequest } from '../../../../src/core/tools/authorization/types.js';
 
 const request: ToolAuthorizationRequest = {
@@ -27,6 +29,7 @@ const request: ToolAuthorizationRequest = {
 describe('non-interactive authorization handler', () => {
   beforeEach(() => {
     (execa as any).mockReset();
+    setLogger(createLogger({ silent: true }));
   });
 
   it('uses command strategy and returns allow decision with source=hook', async () => {
@@ -41,6 +44,13 @@ describe('non-interactive authorization handler', () => {
     };
 
     const decision = await requestNonInteractiveAuthorizationDecision({ request, config });
+
+    // Test that we are now utilizing the getPlatformShellInvocation signature properly
+    expect((execa as any).mock.calls[0]).toMatchObject([
+      expect.stringMatching(/sh|cmd.exe/),
+      expect.arrayContaining([expect.stringContaining('echo ok')]),
+      expect.any(Object),
+    ]);
     expect(decision).toEqual({ outcome: 'allow_once', source: 'hook' });
   });
 
@@ -56,6 +66,12 @@ describe('non-interactive authorization handler', () => {
     };
 
     const decision = await requestNonInteractiveAuthorizationDecision({ request, config });
+
+    expect((execa as any).mock.calls[0]).toMatchObject([
+      expect.stringMatching(/sh|cmd.exe/),
+      expect.arrayContaining([expect.stringContaining('echo bad')]),
+      expect.any(Object),
+    ]);
     expect(decision?.outcome).toBe('deny');
     expect(decision?.source).toBe('hook');
   });

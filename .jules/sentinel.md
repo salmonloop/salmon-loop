@@ -1,0 +1,4 @@
+## 2025-02-13 - Command Injection Risk in Authorization Strategy
+**Vulnerability:** Found `shell: true` being used with `execa` to execute user-provided or externally configured commands in the non-interactive authorization strategy (`src/cli/authorization/non-interactive.ts`).
+**Learning:** Using `shell: true` delegates command execution directly to the system shell (e.g., `/bin/sh` or `cmd.exe`), which allows shell metacharacters to be evaluated. This can lead to severe command injection if the command or its arguments are not perfectly sanitized.
+**Prevention:** Always avoid `shell: true` with `execa`. Instead, utilize the `getPlatformShellInvocation` utility from `src/core/utils/platform-shell.ts` to explicitly define the shell executable and carefully pass arguments in an array, mitigating shell parsing vulnerabilities.
