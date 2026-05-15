@@ -1,0 +1,3 @@
+## 2024-05-15 - Consistent Structural Focus Indicators for Lists
+**Learning:** For terminal-based list selections (like Ink components), relying solely on color changes or subtle indicators (like `│`) to denote focus creates accessibility issues for colorblind users and reduces scannability.
+**Action:** Always use a prominent, consistent character-based focus indicator (specifically `❯ `) across all list components (e.g., `CommandInput`, `CommandSuggestionList`) rather than relying solely on color changes.
