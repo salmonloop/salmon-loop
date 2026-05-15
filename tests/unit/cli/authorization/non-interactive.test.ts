@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
-
 import { execa } from 'execa';
 
 mock.module('execa', () => {

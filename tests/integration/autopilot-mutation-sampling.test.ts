@@ -25,7 +25,7 @@ describe('runAutopilot workspace mutation sampling (integration)', () => {
   let activeRepoPath = '';
 
   beforeEach(() => {
-    mock.clearAllMocks();
+    mock.restore();
     activeRepoPath = '';
     hoisted.resolveLlmToolCallingPolicy.mockReturnValue({ enabled: true, maxRounds: 8 });
     hoisted.chatWithToolsStreaming.mockImplementation(async () => {
