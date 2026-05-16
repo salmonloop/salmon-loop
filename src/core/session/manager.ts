@@ -338,20 +338,34 @@ export class ChatSessionManager {
    */
   async listSessions(): Promise<Array<{ id: string; name: string; updatedAt: number }>> {
     const files = await this.fileAdapter.readdir(this.storageDir).catch(() => []);
-    const sessions = [];
+    const jsonFiles = files.filter((f) => f.endsWith('.json'));
+    const sessions: Array<{ id: string; name: string; updatedAt: number }> = [];
 
-    for (const file of files) {
-      if (!file.endsWith('.json')) continue;
-
-      const filePath = join(this.storageDir, file);
-      const data = await this.fileAdapter.readFile(filePath);
-      const session = JSON.parse(data) as ChatSession;
-
-      sessions.push({
-        id: session.meta.id,
-        name: session.meta.name,
-        updatedAt: session.meta.updatedAt,
+    const CHUNK_SIZE = 10;
+    for (let i = 0; i < jsonFiles.length; i += CHUNK_SIZE) {
+      const chunk = jsonFiles.slice(i, i + CHUNK_SIZE);
+      const promises = chunk.map(async (file) => {
+        try {
+          const filePath = join(this.storageDir, file);
+          const data = await this.fileAdapter.readFile(filePath);
+          const session = JSON.parse(data) as ChatSession;
+          return {
+            id: session.meta.id,
+            name: session.meta.name,
+            updatedAt: session.meta.updatedAt,
+          };
+        } catch (error) {
+          getLogger().warn(`Failed to list session file ${file}: ${error}`);
+          return null;
+        }
       });
+
+      const results = await Promise.all(promises);
+      for (const result of results) {
+        if (result) {
+          sessions.push(result);
+        }
+      }
     }
 
     return sessions.sort((a, b) => b.updatedAt - a.updatedAt);
@@ -407,24 +421,35 @@ export class ChatSessionManager {
    */
   private async loadAllSessions(): Promise<ChatSession[]> {
     const files = await this.fileAdapter.readdir(this.storageDir).catch(() => []);
+    const jsonFiles = files.filter((f) => f.endsWith('.json'));
     const sessions: ChatSession[] = [];
 
-    for (const file of files) {
-      if (!file.endsWith('.json')) continue;
+    const CHUNK_SIZE = 10;
+    for (let i = 0; i < jsonFiles.length; i += CHUNK_SIZE) {
+      const chunk = jsonFiles.slice(i, i + CHUNK_SIZE);
+      const promises = chunk.map(async (file) => {
+        try {
+          const filePath = join(this.storageDir, file);
+          const data = await this.fileAdapter.readFile(filePath);
+          const session = JSON.parse(data) as ChatSession;
+          session.meta.chatState = normalizeChatState(session.meta.chatState);
+          session.meta.artifactState = normalizeSessionArtifactState(session.meta.artifactState);
+          session.meta.replacementState = normalizeToolResultReplacementState(
+            session.meta.replacementState,
+          );
+          return session;
+        } catch (error) {
+          // Skip corrupted session files
+          getLogger().warn(`Failed to load session file ${file}: ${error}`);
+          return null;
+        }
+      });
 
-      try {
-        const filePath = join(this.storageDir, file);
-        const data = await this.fileAdapter.readFile(filePath);
-        const session = JSON.parse(data) as ChatSession;
-        session.meta.chatState = normalizeChatState(session.meta.chatState);
-        session.meta.artifactState = normalizeSessionArtifactState(session.meta.artifactState);
-        session.meta.replacementState = normalizeToolResultReplacementState(
-          session.meta.replacementState,
-        );
-        sessions.push(session);
-      } catch (error) {
-        // Skip corrupted session files
-        getLogger().warn(`Failed to load session file ${file}: ${error}`);
+      const results = await Promise.all(promises);
+      for (const result of results) {
+        if (result) {
+          sessions.push(result);
+        }
       }
     }
 
