@@ -32,7 +32,7 @@ mock.module('os', () => ({
 
 describe('WorkspaceManager teardown safety behavior', () => {
   beforeEach(() => {
-    mock.clearAllMocks();
+
     queryMock.mockReset();
     rmMock.mockReset();
     accessMock.mockReset();
@@ -41,7 +41,7 @@ describe('WorkspaceManager teardown safety behavior', () => {
     existsSyncMock.mockReset();
 
     rmMock.mockResolvedValue(undefined);
-    accessMock.mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }));
+    const enoentError = new Error('ENOENT'); (enoentError as any).code = 'ENOENT'; accessMock.mockRejectedValue(enoentError);
     readdirMock.mockResolvedValue([]);
     existsSyncMock.mockReturnValue(false);
 

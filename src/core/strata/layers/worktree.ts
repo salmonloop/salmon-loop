@@ -103,6 +103,7 @@ async function removeProjectedWorktreeEntries(workPath: string): Promise<void> {
     );
   }
 
+  const entriesToRemove: string[] = [];
   for (const entry of entries) {
     const name = entry?.name;
     if (!name || name === '.git') continue;
@@ -114,13 +115,22 @@ async function removeProjectedWorktreeEntries(workPath: string): Promise<void> {
       continue;
     }
 
-    await rm(entryPath, {
-      recursive: true,
-      force: true,
-      maxRetries: 3,
-      retryDelay: 100,
-    });
-    getLogger().debug(`Removed projected worktree entry before git cleanup: ${entryPath}`);
+    entriesToRemove.push(entryPath);
+  }
+
+  for (let i = 0; i < entriesToRemove.length; i += 10) {
+    const chunk = entriesToRemove.slice(i, i + 10);
+    await Promise.all(
+      chunk.map(async (entryPath) => {
+        await rm(entryPath, {
+          recursive: true,
+          force: true,
+          maxRetries: 3,
+          retryDelay: 100,
+        });
+        getLogger().debug(`Removed projected worktree entry before git cleanup: ${entryPath}`);
+      }),
+    );
   }
 }
 
@@ -130,23 +140,28 @@ async function pruneWorktreeDependencyRoots(
 ): Promise<void> {
   const dependencyPaths = await detectDependencyPaths(baseRepoPath);
 
-  for (const dependencyPath of dependencyPaths) {
-    const dependencyRoot = path.join(worktreePath, dependencyPath);
-    try {
-      await rm(dependencyRoot, {
-        recursive: true,
-        force: true,
-        maxRetries: 3,
-        retryDelay: 100,
-      });
-      getLogger().debug(
-        `Pruned disposable dependency root before worktree cleanup: ${dependencyRoot}`,
-      );
-    } catch (error) {
-      getLogger().debug(
-        `Failed to prune dependency root before worktree cleanup (${dependencyRoot}): ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
+  for (let i = 0; i < dependencyPaths.length; i += 10) {
+    const chunk = dependencyPaths.slice(i, i + 10);
+    await Promise.all(
+      chunk.map(async (dependencyPath) => {
+        const dependencyRoot = path.join(worktreePath, dependencyPath);
+        try {
+          await rm(dependencyRoot, {
+            recursive: true,
+            force: true,
+            maxRetries: 3,
+            retryDelay: 100,
+          });
+          getLogger().debug(
+            `Pruned disposable dependency root before worktree cleanup: ${dependencyRoot}`,
+          );
+        } catch (error) {
+          getLogger().debug(
+            `Failed to prune dependency root before worktree cleanup (${dependencyRoot}): ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+      }),
+    );
   }
 }
 
