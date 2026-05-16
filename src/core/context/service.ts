@@ -236,8 +236,12 @@ export class ContextService {
   }
 
   private async evictExpiredEntries(): Promise<void> {
-    for (const [key, entry] of await this.cacheStore.entries()) {
-      await this.isExpired(key, entry);
+    const entries = await this.cacheStore.entries();
+    const chunkSize = 10;
+    for (let i = 0; i < entries.length; i += chunkSize) {
+      await Promise.all(
+        entries.slice(i, i + chunkSize).map(([key, entry]) => this.isExpired(key, entry)),
+      );
     }
   }
 
