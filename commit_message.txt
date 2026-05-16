@@ -1,0 +1,10 @@
+🧪 [safe-fs] Add tests for resolveRealRootSync exception fallback
+
+🎯 What:
+Added a unit test file for `src/cli/utils/safe-fs.ts` to cover the `catch` block of `resolveRealRootSync` exception fallback logic which defaults to `path.resolve` when `fs.realpathSync` throws an error.
+
+📊 Coverage:
+- `fs.realpathSync` exception fallback logic in the private synchronous `resolveRealRootSync` function (tested indirectly through `safeFs.existsSync`).
+
+✨ Result:
+Improved test coverage for `safe-fs.ts`, ensuring the fallback path works correctly when the realpath resolution fails.
