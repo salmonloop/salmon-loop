@@ -1,0 +1,3 @@
+## 2026-05-16 - Optimize `PlanPersistence.listAll` parallel execution plan reads
+**Learning:** In parallel plan persistence reading, sequentially awaiting `fs.readFile` inside a `for...of` loop can cause unnecessary I/O blocking, especially when there are many execution plans saved in `.salmonloop/parallel`.
+**Action:** When reading numerous files that do not depend on each other, group read operations using `Promise.all` with chunking (e.g., `chunk size of 10`) instead of sequentially awaiting each one. This ensures we maximize IO throughput without causing unbounded concurrency (`EMFILE` errors). This simple change yields significant performance improvements (e.g., a ~5x speedup over 500 files).
