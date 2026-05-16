@@ -23,7 +23,7 @@ describe('createTerminalAuthorizationProvider', () => {
   const originalStdoutIsTTY = Object.getOwnPropertyDescriptor(process.stdout, 'isTTY');
 
   beforeEach(() => {
-    mock.clearAllMocks();
+    mock.restore();
     Object.defineProperty(process.stdin, 'isTTY', { value: true, configurable: true });
     Object.defineProperty(process.stdout, 'isTTY', { value: true, configurable: true });
   });
