@@ -236,24 +236,26 @@ export class ContextService {
   }
 
   private async evictExpiredEntries(): Promise<void> {
-    for (const [key, entry] of await this.cacheStore.entries()) {
-      await this.isExpired(key, entry);
+    const entries = await this.cacheStore.entries();
+    const batchSize = 10;
+    for (let i = 0; i < entries.length; i += batchSize) {
+      const chunk = entries.slice(i, i + batchSize);
+      await Promise.all(chunk.map(([key, entry]) => this.isExpired(key, entry)));
     }
   }
 
   private async evictLruIfNeeded(): Promise<void> {
-    while ((await this.cacheStore.size()) > this.cacheMaxEntries) {
-      let victimKey: string | undefined;
-      let victimTs = Number.POSITIVE_INFINITY;
-      for (const [key, entry] of await this.cacheStore.entries()) {
-        const ts = this.getEntryTimestamp(entry);
-        if (ts < victimTs) {
-          victimTs = ts;
-          victimKey = key;
-        }
-      }
-      if (!victimKey) break;
-      await this.cacheStore.delete(victimKey);
+    const currentSize = await this.cacheStore.size();
+    if (currentSize <= this.cacheMaxEntries) return;
+
+    const entries = await this.cacheStore.entries();
+    entries.sort((a, b) => this.getEntryTimestamp(a[1]) - this.getEntryTimestamp(b[1]));
+
+    const evictCount = currentSize - this.cacheMaxEntries;
+    const toEvict = entries.slice(0, evictCount);
+
+    for (const [key] of toEvict) {
+      await this.cacheStore.delete(key);
       this.cacheMetrics.evictions += 1;
     }
   }
