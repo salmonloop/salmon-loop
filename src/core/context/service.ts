@@ -236,25 +236,56 @@ export class ContextService {
   }
 
   private async evictExpiredEntries(): Promise<void> {
-    for (const [key, entry] of await this.cacheStore.entries()) {
-      await this.isExpired(key, entry);
+    const entries = await this.cacheStore.entries();
+    const chunkSize = 10;
+
+    for (let i = 0; i < entries.length; i += chunkSize) {
+      const chunk = entries.slice(i, i + chunkSize);
+      await Promise.all(chunk.map(([key, entry]) => this.isExpired(key, entry)));
     }
   }
 
   private async evictLruIfNeeded(): Promise<void> {
-    while ((await this.cacheStore.size()) > this.cacheMaxEntries) {
+    const size = await this.cacheStore.size();
+    if (size <= this.cacheMaxEntries) return;
+
+    const excess = size - this.cacheMaxEntries;
+    const entries = await this.cacheStore.entries();
+
+    let victimKeys: string[] = [];
+
+    // O(N) scan for single eviction
+    if (excess === 1) {
       let victimKey: string | undefined;
       let victimTs = Number.POSITIVE_INFINITY;
-      for (const [key, entry] of await this.cacheStore.entries()) {
+      for (const [key, entry] of entries) {
         const ts = this.getEntryTimestamp(entry);
         if (ts < victimTs) {
           victimTs = ts;
           victimKey = key;
         }
       }
-      if (!victimKey) break;
-      await this.cacheStore.delete(victimKey);
-      this.cacheMetrics.evictions += 1;
+      if (victimKey) {
+        victimKeys.push(victimKey);
+      }
+    }
+    // O(N log N) sort for mass eviction
+    else {
+      // Sort by oldest first (smallest timestamp)
+      entries.sort((a, b) => this.getEntryTimestamp(a[1]) - this.getEntryTimestamp(b[1]));
+      victimKeys = entries.slice(0, excess).map(([key]) => key);
+    }
+
+    // Process deletions in chunks to avoid EMFILE and I/O contention
+    const chunkSize = 10;
+    for (let i = 0; i < victimKeys.length; i += chunkSize) {
+      const chunk = victimKeys.slice(i, i + chunkSize);
+      await Promise.all(
+        chunk.map(async (key) => {
+          await this.cacheStore.delete(key);
+          this.cacheMetrics.evictions += 1;
+        }),
+      );
     }
   }
 
