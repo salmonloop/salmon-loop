@@ -13,7 +13,7 @@ describe('writeFileUtf8', () => {
 
   it('writes file successfully without root context', async () => {
     const writeMock = spyOn(fsPromises, 'writeFile').mockImplementation(async () => {});
-    spyOn(fsPromises, 'lstat').mockImplementation(async () => {
+    spyOn(fsPromises, 'lstat').mockImplementation(async (): Promise<any> => {
       const err: any = new Error('ENOENT');
       err.code = 'ENOENT';
       throw err;
@@ -30,7 +30,7 @@ describe('writeFileUtf8', () => {
 
   it('throws error if target is a symlink', async () => {
     const writeMock = spyOn(fsPromises, 'writeFile').mockImplementation(async () => {});
-    spyOn(fsPromises, 'lstat').mockImplementation(async () => {
+    spyOn(fsPromises, 'lstat').mockImplementation(async (): Promise<any> => {
       return {
         isSymbolicLink: () => true,
       } as fs.Stats;
@@ -48,15 +48,13 @@ describe('writeFileUtf8', () => {
 
   it('verifies parent is in sandbox when rootContext is provided', async () => {
     const writeMock = spyOn(fsPromises, 'writeFile').mockImplementation(async () => {});
-    spyOn(fsPromises, 'lstat').mockImplementation(async () => {
+    spyOn(fsPromises, 'lstat').mockImplementation(async (): Promise<any> => {
       const err: any = new Error('ENOENT');
       err.code = 'ENOENT';
       throw err;
     });
     spyOn(fs, 'existsSync').mockReturnValue(true);
-    spyOn(fsPromises, 'realpath').mockImplementation(
-      async (p: any) => p as string,
-    );
+    spyOn(fsPromises, 'realpath').mockImplementation(async (p: any): Promise<any> => p as string);
 
     const rootContext = '/sandbox';
     const targetPath = 'safe/file.txt';
