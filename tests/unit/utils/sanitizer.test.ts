@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'bun:test';
 
-import { sanitizeObject } from '../../../src/core/utils/sanitizer.js';
+import { sanitizeObject, normalizeContent } from '../../../src/core/utils/sanitizer.js';
 
 describe('sanitizer', () => {
   describe('sanitizeObject', () => {
@@ -34,6 +34,28 @@ describe('sanitizer', () => {
       const obj = { a: { b: 'safe' } };
       const sanitized = sanitizeObject(obj, 2);
       expect(sanitized.a.b).toBe('safe');
+    });
+  });
+
+  describe('normalizeContent', () => {
+    it('should remove leading and trailing whitespace', () => {
+      expect(normalizeContent('  hello world  ')).toBe('hello world');
+      expect(normalizeContent('\t\n test \n\t')).toBe('test');
+    });
+
+    it('should preserve internal spaces', () => {
+      expect(normalizeContent('hello   world')).toBe('hello   world');
+    });
+
+    it('should preserve special characters like hyphens and underscores', () => {
+      expect(normalizeContent('my-special_string-123')).toBe('my-special_string-123');
+      expect(normalizeContent('  another-test_case!@#  ')).toBe('another-test_case!@#');
+    });
+
+    it('should handle empty and whitespace-only strings', () => {
+      expect(normalizeContent('')).toBe('');
+      expect(normalizeContent('   ')).toBe('');
+      expect(normalizeContent('\n\t\r')).toBe('');
     });
   });
 });
