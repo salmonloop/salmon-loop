@@ -422,21 +422,30 @@ export class GitAdapter {
       let useThreeWay = Boolean(options.threeWay);
       let preserveIndexLines = Boolean(options.preserveIndexLines) || isBinary;
 
-      if (useThreeWay && !preserveIndexLines) {
+      if (useThreeWay) {
         const oldIds = extractOldBlobIds(diffText).filter((id) => !/^0+$/.test(id));
         if (oldIds.length === 0) {
           // No index lines means -3 is not possible; fall back to direct apply.
           useThreeWay = false;
         } else {
-          for (const id of oldIds) {
-            const exists = await blobExists(id);
-            if (!exists) {
-              useThreeWay = false;
+          let allExist = true;
+          // Concurrent batched blob existence checking (chunk size 10)
+          for (let i = 0; i < oldIds.length; i += 10) {
+            const chunk = oldIds.slice(i, i + 10);
+            const results = await Promise.all(chunk.map((id) => blobExists(id)));
+            if (results.some((exists) => !exists)) {
+              allExist = false;
               break;
             }
           }
-          // Only preserve index lines if we can actually do 3-way.
-          preserveIndexLines = useThreeWay;
+          if (!allExist) {
+            useThreeWay = false;
+          }
+        }
+
+        // If we can actually do 3-way, we must preserve index lines.
+        if (useThreeWay) {
+          preserveIndexLines = true;
         }
       }
 
