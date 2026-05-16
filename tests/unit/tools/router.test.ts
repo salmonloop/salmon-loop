@@ -5,7 +5,7 @@ import { ToolRegistry } from '../../../src/core/tools/registry.js';
 import { ToolRouter } from '../../../src/core/tools/router.js';
 import { ToolSanitizer } from '../../../src/core/tools/sanitize.js';
 import { Phase } from '../../../src/core/types/index.js';
-import { advanceTimersByTime } from '../../helpers/bun-timers.js';
+import { setSystemTime } from 'bun:test';
 
 describe('ToolRouter', () => {
   let router: ToolRouter;
@@ -199,7 +199,7 @@ describe('ToolRouter', () => {
 
     expect(authorization.requestAuthorization).toHaveBeenCalledTimes(1);
 
-    advanceTimersByTime(1001);
+    setSystemTime(Date.now() + 1001);
 
     await router.call({ ...envelope, id: 'call_9' });
     expect(authorization.requestAuthorization).toHaveBeenCalledTimes(2);

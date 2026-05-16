@@ -69,7 +69,7 @@ function normalizeForAssert(value: string): string {
 
 describe('WorkspaceSynchronizer checkpoint staging', () => {
   beforeEach(() => {
-    mock.clearAllMocks();
+    mock.restore();
     existsSyncMock.mockReturnValue(false);
     lstatMock.mockImplementation(async (targetPath: string) => {
       throw enoent(targetPath);
