@@ -9,7 +9,7 @@ describe('compaction audit logging', () => {
   const audit = mock();
 
   beforeEach(() => {
-    mock.clearAllMocks();
+    mock.restore();
     setLogger({ audit } as any);
   });
 
