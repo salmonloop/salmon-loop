@@ -35,5 +35,6 @@
   "tests/unit/testgen-multilingual.test.ts",
   "tests/unit/token-tracker.test.ts",
   "tests/unit/tools/permission-rules.test.ts",
-  "tests/unit/tools/proposal-apply-authorization-summary.test.ts"
+  "tests/unit/tools/proposal-apply-authorization-summary.test.ts",
+  "tests/unit/cli/utils/safe-fs.test.ts"
 ]
