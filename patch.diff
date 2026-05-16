@@ -1,0 +1,10 @@
+--- tests/unit/cli/program-commands.test.ts
++++ tests/unit/cli/program-commands.test.ts
+@@ -1,6 +1,5 @@
+-import { Command } from 'commander';
+-
+ import { describe, expect, it } from 'bun:test';
++import { Command } from 'commander';
+
+ describe('registerProgramCommands', () => {
+   it('registers autopilot as the default run act-mode', async () => {
