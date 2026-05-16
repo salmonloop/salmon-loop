@@ -51,19 +51,29 @@ export class RejectionManager {
       const files = await fs.readdir(this.rejectDir);
       const rejections: Rejection[] = [];
 
-      for (const file of files) {
-        if (!file.endsWith('.rej')) continue;
+      const rejFiles = files.filter((f) => f.endsWith('.rej'));
+      const chunkSize = 10;
 
-        try {
-          const content = await fs.readFile(path.join(this.rejectDir, file), 'utf-8');
-          const headerPart = content.split('\n\n')[0];
-          const header = JSON.parse(headerPart);
-          rejections.push({
-            filePath: file.replace('.rej', '').replace(/_/g, '/'), // Approximate restoration
-            ...header,
-          });
-        } catch {
-          // Ignore malformed files
+      for (let i = 0; i < rejFiles.length; i += chunkSize) {
+        const chunk = rejFiles.slice(i, i + chunkSize);
+        const results = await Promise.all(
+          chunk.map(async (file) => {
+            try {
+              const content = await fs.readFile(path.join(this.rejectDir, file), 'utf-8');
+              const headerPart = content.split('\n\n')[0];
+              const header = JSON.parse(headerPart);
+              return {
+                filePath: file.replace('.rej', '').replace(/_/g, '/'), // Approximate restoration
+                ...header,
+              };
+            } catch {
+              return null; // Ignore malformed files
+            }
+          }),
+        );
+
+        for (const res of results) {
+          if (res) rejections.push(res);
         }
       }
 
