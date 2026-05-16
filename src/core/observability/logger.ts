@@ -1,3 +1,5 @@
+import { stripVTControlCharacters } from 'node:util';
+
 import chalk from 'chalk';
 
 import { FileAdapter } from '../adapters/fs/index.js';
@@ -319,8 +321,7 @@ export class Logger {
   private writeToLog(level: string, message: string) {
     if (this.logFile) {
       const timestamp = new Date().toISOString();
-      // eslint-disable-next-line no-control-regex
-      const cleanMessage = message.replace(/\x1b\[[0-9;]*m/g, ''); // Remove ANSI colors
+      const cleanMessage = stripVTControlCharacters(message); // Remove ANSI colors
       this.logQueue.push(`[${timestamp}] [${level.toUpperCase()}] ${cleanMessage}\n`);
       this.scheduleFlush();
     }
