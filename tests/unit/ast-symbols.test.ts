@@ -33,14 +33,12 @@ import { AstParser } from '../../src/core/ast/parser.js';
 describe('AstParser Symbols', () => {
   beforeEach(() => {
     useFakeTimers();
-    mock.clearAllMocks();
 
     // Default mock for getLanguage to avoid loading wasm files
     spyOn(AstParser, 'getLanguage').mockResolvedValue({});
   });
 
   afterEach(() => {
-    runAllTimers();
     useRealTimers();
   });
 
