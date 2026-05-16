@@ -4,9 +4,10 @@ import { join } from 'path';
 import { promisify } from 'util';
 import { gunzip, gzip } from 'zlib';
 
-import { afterEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { clearAuditTrail, getAuditTrail } from '../../../../src/core/observability/audit-trail.js';
+import { setLogger, createLogger } from '../../../../src/core/observability/logger.js';
 import { ChatSessionManager } from '../../../../src/core/session/manager.js';
 import { SessionReplacementPreviewProvider } from '../../../../src/core/session/replacement-preview-provider.js';
 
@@ -22,6 +23,9 @@ async function createTempRepo(): Promise<string> {
 }
 
 describe('ChatSessionManager archive lifecycle', () => {
+  beforeEach(async () => {
+    setLogger(createLogger({ silent: true }));
+  });
   afterEach(async () => {
     clearAuditTrail();
     if (originalResumeRepairFlag === undefined) {
