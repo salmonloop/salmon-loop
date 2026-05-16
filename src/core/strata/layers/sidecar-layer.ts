@@ -53,15 +53,23 @@ export class SyntheticSidecarLayerImpl implements SyntheticSidecarLayer {
   async inject(shadowPath: string): Promise<void> {
     getLogger().debug(`Injecting ${this.capturedFiles.size} files to shadow worktree`);
 
-    for (const [filePath, content] of this.capturedFiles) {
-      const shadowFilePath = safeJoin(shadowPath, filePath);
+    const entries = Array.from(this.capturedFiles.entries());
+    const chunkSize = 10;
 
-      try {
-        await writeSidecarFile(shadowFilePath, content);
-        getLogger().debug(`Injected file: ${filePath}`);
-      } catch (error) {
-        getLogger().warn(`Failed to inject file ${filePath}: ${error}`);
-      }
+    for (let i = 0; i < entries.length; i += chunkSize) {
+      const chunk = entries.slice(i, i + chunkSize);
+      await Promise.all(
+        chunk.map(async ([filePath, content]) => {
+          const shadowFilePath = safeJoin(shadowPath, filePath);
+
+          try {
+            await writeSidecarFile(shadowFilePath, content);
+            getLogger().debug(`Injected file: ${filePath}`);
+          } catch (error) {
+            getLogger().warn(`Failed to inject file ${filePath}: ${error}`);
+          }
+        }),
+      );
     }
   }
 
