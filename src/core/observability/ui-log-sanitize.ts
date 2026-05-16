@@ -2,8 +2,8 @@ import { LIMITS } from '../config/limits.js';
 import type { LoopEvent } from '../types/index.js';
 import { sanitizeErrorMessage } from '../utils/sanitizer.js';
 
-// eslint-disable-next-line no-control-regex
-const ANSI_REGEX = new RegExp('\\u001b\\[[0-9;]*m', 'g');
+const ESC = '\u001B';
+const ANSI_REGEX = new RegExp(`${ESC}\\[[0-9;]*m`, 'g');
 
 // Heuristic: if a log line looks like a dumped SDK error/object, do not let it through to GUI.
 const TECHNICAL_DUMP_HINT_REGEX =
