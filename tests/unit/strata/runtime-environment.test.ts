@@ -85,7 +85,16 @@ function createOptions(overrides: Record<string, unknown> = {}): any {
 
 describe('RuntimeEnvironment safety behavior', () => {
   beforeEach(() => {
-    mock.clearAllMocks();
+    migrateLegacyRuntimeMock.mockClear();
+    createSafeSnapshotMock.mockClear();
+    restoreToShadowMock.mockClear();
+    deleteSnapshotMock.mockClear();
+    workspaceSetupMock.mockClear();
+    workspaceTeardownMock.mockClear();
+    hydrateMock.mockClear();
+    gitQueryMock.mockClear();
+    gitExecMetaMock.mockClear();
+
     createSafeSnapshotMock.mockResolvedValue({ commitHash: 'snapshot-hash' });
     workspaceSetupMock.mockResolvedValue({
       strategy: 'worktree',
@@ -199,5 +208,11 @@ describe('RuntimeEnvironment safety behavior', () => {
       (event) => event?.type === 'log' && event?.level === 'warn',
     ).length;
     expect(warnCount).toBeGreaterThan(0);
+  });
+
+  it('forces filesystem sync after restoreToShadow for worktree strategy', async () => {
+    const env = new RuntimeEnvironment(createOptions({ strategy: 'worktree' }), mock());
+    await env.setup();
+    expect(gitQueryMock).toHaveBeenCalledWith(['status', '--short']);
   });
 });
