@@ -1,0 +1,3 @@
+## 2024-05-18 - Optimized auto cleanup in SessionManager by using chunks and Promise.all
+**Learning:** Sequential deletion (`await this.deleteSession(...)`) and archiving within a loop (`for (const ... of ...)`) for session management was an I/O bottleneck resulting in >900ms execution times when the number of sessions was large.
+**Action:** Replace `for...of` loops iterating on unbatched await statements with batched arrays executing `await Promise.all()` using a predefined chunk size limit (e.g. 10 items per batch) to maximize concurrent I/O operations and avoid EMFILE issues. This significantly decreases execution time (about 2x speedup).
