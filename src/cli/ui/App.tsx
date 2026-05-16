@@ -36,7 +36,7 @@ function buildTodoSummaryCard(todos: TodoItem[]): string {
   const lines: string[] = [];
   for (const t of preview) {
     const checked = t.status === 'done';
-    // Keep TODO cards as plain text to avoid markdown list bullets (e.g. "*") injected by terminal renderers.
+    // Keep todo cards as plain text to avoid markdown list bullets (e.g. "*") injected by terminal renderers.
     lines.push(`[${checked ? 'x' : ' '}] ${t.text}`);
   }
 
@@ -193,7 +193,7 @@ export const AppCore: React.FC<{
         todoSessionRef.current = null;
         setTodoItems([]);
       } else if (event.type === 'run.start') {
-        // Prevent stale TODOs from a previous interrupted run from re-hydrating
+        // Prevent stale todos from a previous interrupted run from re-hydrating
         // before the new runtime plan is initialized.
         todoSessionRef.current = null;
         setTodoItems([]);
