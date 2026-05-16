@@ -142,7 +142,9 @@ export function restoreConsoleOutputs() {
 
 export function clearMockState() {
   mock.restore();
-  mock.clearAllMocks();
+  if (typeof (mock as any).clearAllMocks === 'function') {
+    (mock as any).clearAllMocks();
+  }
   auditTrail.clearAuditTrail();
 }
 

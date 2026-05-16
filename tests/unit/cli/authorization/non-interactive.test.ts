@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it } from 'bun:test';
-import { execa } from 'execa';
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
+import { execa, parseCommandString } from 'execa';
 
 mock.module('execa', () => {
   return {
@@ -9,6 +9,7 @@ mock.module('execa', () => {
 
 import { requestNonInteractiveAuthorizationDecision } from '../../../../src/cli/authorization/non-interactive.js';
 import type { ToolAuthorizationConfig } from '../../../../src/core/config/types.js';
+import { setLogger, createLogger } from '../../../../src/core/observability/logger.js';
 import type { ToolAuthorizationRequest } from '../../../../src/core/tools/authorization/types.js';
 
 const request: ToolAuthorizationRequest = {
@@ -27,6 +28,7 @@ const request: ToolAuthorizationRequest = {
 describe('non-interactive authorization handler', () => {
   beforeEach(() => {
     (execa as any).mockReset();
+    setLogger(createLogger({ silent: true }));
   });
 
   it('uses command strategy and returns allow decision with source=hook', async () => {
@@ -42,6 +44,17 @@ describe('non-interactive authorization handler', () => {
 
     const decision = await requestNonInteractiveAuthorizationDecision({ request, config });
     expect(decision).toEqual({ outcome: 'allow_once', source: 'hook' });
+
+    const [file, ...args] = parseCommandString('echo ok');
+    expect(execa).toHaveBeenCalledWith(
+      file,
+      args,
+      expect.objectContaining({
+        input: JSON.stringify({ request }),
+        timeout: 10000,
+        reject: false,
+      }),
+    );
   });
 
   it('fails closed when command returns invalid JSON', async () => {

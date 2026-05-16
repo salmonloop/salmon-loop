@@ -1,4 +1,4 @@
-import { execa } from 'execa';
+import { execa, parseCommandString } from 'execa';
 import { z } from 'zod';
 
 import type {
@@ -103,9 +103,10 @@ export async function requestNonInteractiveAuthorizationDecision(params: {
 
     const timeoutMs = params.config.nonInteractive?.command?.timeoutMs ?? 10_000;
     try {
-      const res = await execa(cmd, {
+      const [file, ...args] = parseCommandString(cmd);
+      if (!file) throw new Error('Empty command');
+      const res = await execa(file, args, {
         input: JSON.stringify({ request: params.request }),
-        shell: true,
         timeout: timeoutMs,
         reject: false,
       });
