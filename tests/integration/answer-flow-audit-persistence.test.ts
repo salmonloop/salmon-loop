@@ -2,8 +2,8 @@ import { readdir, readFile } from 'fs/promises';
 import path from 'path';
 
 import { afterEach, describe, expect, it, beforeEach } from 'bun:test';
-import { setLogger, createLogger } from '../../src/core/observability/logger.js';
 
+import { setLogger, createLogger } from '../../src/core/observability/logger.js';
 import { runSalmonLoop } from '../../src/core/runtime/loop.js';
 import type { ChatOptions, LLM, LLMMessage, Plan } from '../../src/core/types/index.js';
 import { RealFsTestHelper } from '../helpers/real-fs-helper.js';
