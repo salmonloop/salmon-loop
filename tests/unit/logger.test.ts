@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, spyOn, mock } from 'bun:test';
+
 import { Logger } from '../../src/core/observability/logger.js';
 
 describe('Logger', () => {
