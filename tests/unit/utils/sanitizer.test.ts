@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'bun:test';
 
-import { sanitizeObject, sanitizeErrorMessage, normalizeContent } from '../../../src/core/utils/sanitizer.js';
+import {
+  sanitizeObject,
+  sanitizeErrorMessage,
+  normalizeContent,
+} from '../../../src/core/utils/sanitizer.js';
 
 describe('sanitizer', () => {
   describe('sanitizeErrorMessage', () => {
@@ -9,7 +13,9 @@ describe('sanitizer', () => {
     });
 
     it('should extract message from Error object', () => {
-      expect(sanitizeErrorMessage(new Error('SyntaxError: Unexpected token'))).toBe('ERR_TECHNICAL_DETAILS_HIDDEN');
+      expect(sanitizeErrorMessage(new Error('SyntaxError: Unexpected token'))).toBe(
+        'ERR_TECHNICAL_DETAILS_HIDDEN',
+      );
     });
 
     it('should extract message from object when JSON.stringify throws', () => {
@@ -18,7 +24,9 @@ describe('sanitizer', () => {
       // "[object Object]" length is 15, contains "[", "]", "object", "Object".
       // Let's create an object that throws on stringify AND String(obj) gives something long or with blocked keywords.
       const cyclicObj: any = {
-        toString() { return 'Error: very bad thing happened at somewhere'; }
+        toString() {
+          return 'Error: very bad thing happened at somewhere';
+        },
       };
       cyclicObj.self = cyclicObj;
       expect(sanitizeErrorMessage(cyclicObj)).toBe('ERR_TECHNICAL_DETAILS_HIDDEN');
@@ -30,9 +38,13 @@ describe('sanitizer', () => {
     });
 
     it('should block error messages with technical details', () => {
-      expect(sanitizeErrorMessage('SyntaxError: Unexpected token')).toBe('ERR_TECHNICAL_DETAILS_HIDDEN');
+      expect(sanitizeErrorMessage('SyntaxError: Unexpected token')).toBe(
+        'ERR_TECHNICAL_DETAILS_HIDDEN',
+      );
       expect(sanitizeErrorMessage('failed to fetch data')).toBe('ERR_TECHNICAL_DETAILS_HIDDEN');
-      expect(sanitizeErrorMessage('at Module._compile (node:internal/modules/cjs/loader:1356:14)')).toBe('ERR_TECHNICAL_DETAILS_HIDDEN');
+      expect(
+        sanitizeErrorMessage('at Module._compile (node:internal/modules/cjs/loader:1356:14)'),
+      ).toBe('ERR_TECHNICAL_DETAILS_HIDDEN');
     });
   });
 
@@ -101,11 +113,14 @@ describe('sanitizer', () => {
 
     it('should return [CIRCULAR] if recursive sanitizeObject throws', () => {
       // To make sanitizeObject throw, we can pass a proxy that throws on ownKeys
-      const throwingProxy = new Proxy({}, {
-        ownKeys() {
-          throw new Error('Access denied');
-        }
-      });
+      const throwingProxy = new Proxy(
+        {},
+        {
+          ownKeys() {
+            throw new Error('Access denied');
+          },
+        },
+      );
       const obj = { nested: throwingProxy };
       const sanitized = sanitizeObject(obj);
       expect(sanitized.nested).toBe('[CIRCULAR]');
