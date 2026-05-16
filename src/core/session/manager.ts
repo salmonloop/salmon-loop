@@ -339,31 +339,19 @@ export class ChatSessionManager {
   async listSessions(): Promise<Array<{ id: string; name: string; updatedAt: number }>> {
     const files = await this.fileAdapter.readdir(this.storageDir).catch(() => []);
     const sessions = [];
-    const validFiles = files.filter((file) => file.endsWith('.json'));
 
-    const chunkSize = 10;
-    for (let i = 0; i < validFiles.length; i += chunkSize) {
-      const chunk = validFiles.slice(i, i + chunkSize);
-      const chunkSessions = await Promise.all(
-        chunk.map(async (file) => {
-          const filePath = join(this.storageDir, file);
-          try {
-            const data = await this.fileAdapter.readFile(filePath);
-            const session = JSON.parse(data) as ChatSession;
-            return {
-              id: session.meta.id,
-              name: session.meta.name,
-              updatedAt: session.meta.updatedAt,
-            };
-          } catch (_error) {
-            return null;
-          }
-        }),
-      );
+    for (const file of files) {
+      if (!file.endsWith('.json')) continue;
 
-      for (const session of chunkSessions) {
-        if (session) sessions.push(session);
-      }
+      const filePath = join(this.storageDir, file);
+      const data = await this.fileAdapter.readFile(filePath);
+      const session = JSON.parse(data) as ChatSession;
+
+      sessions.push({
+        id: session.meta.id,
+        name: session.meta.name,
+        updatedAt: session.meta.updatedAt,
+      });
     }
 
     return sessions.sort((a, b) => b.updatedAt - a.updatedAt);
@@ -420,33 +408,23 @@ export class ChatSessionManager {
   private async loadAllSessions(): Promise<ChatSession[]> {
     const files = await this.fileAdapter.readdir(this.storageDir).catch(() => []);
     const sessions: ChatSession[] = [];
-    const validFiles = files.filter((file) => file.endsWith('.json'));
 
-    const chunkSize = 10;
-    for (let i = 0; i < validFiles.length; i += chunkSize) {
-      const chunk = validFiles.slice(i, i + chunkSize);
-      const chunkSessions = await Promise.all(
-        chunk.map(async (file) => {
-          try {
-            const filePath = join(this.storageDir, file);
-            const data = await this.fileAdapter.readFile(filePath);
-            const session = JSON.parse(data) as ChatSession;
-            session.meta.chatState = normalizeChatState(session.meta.chatState);
-            session.meta.artifactState = normalizeSessionArtifactState(session.meta.artifactState);
-            session.meta.replacementState = normalizeToolResultReplacementState(
-              session.meta.replacementState,
-            );
-            return session;
-          } catch (error) {
-            // Skip corrupted session files
-            getLogger().warn(`Failed to load session file ${file}: ${error}`);
-            return null;
-          }
-        }),
-      );
+    for (const file of files) {
+      if (!file.endsWith('.json')) continue;
 
-      for (const session of chunkSessions) {
-        if (session) sessions.push(session);
+      try {
+        const filePath = join(this.storageDir, file);
+        const data = await this.fileAdapter.readFile(filePath);
+        const session = JSON.parse(data) as ChatSession;
+        session.meta.chatState = normalizeChatState(session.meta.chatState);
+        session.meta.artifactState = normalizeSessionArtifactState(session.meta.artifactState);
+        session.meta.replacementState = normalizeToolResultReplacementState(
+          session.meta.replacementState,
+        );
+        sessions.push(session);
+      } catch (error) {
+        // Skip corrupted session files
+        getLogger().warn(`Failed to load session file ${file}: ${error}`);
       }
     }
 
@@ -493,32 +471,21 @@ export class ChatSessionManager {
     const archiveDir = this.getArchiveStorageDir();
     const files = await this.fileAdapter.readdir(archiveDir).catch(() => []);
     const archived: Array<{ id: string; name: string; archivedAt: number }> = [];
-    const validFiles = files.filter((file) => file.endsWith('.mpack.gz'));
 
-    const chunkSize = 10;
-    for (let i = 0; i < validFiles.length; i += chunkSize) {
-      const chunk = validFiles.slice(i, i + chunkSize);
-      const chunkArchived = await Promise.all(
-        chunk.map(async (file) => {
-          try {
-            const compressed = await this.compressedStore.loadCompressed(file);
-            if (!compressed) return null;
+    for (const file of files) {
+      if (!file.endsWith('.mpack.gz')) continue;
+      try {
+        const compressed = await this.compressedStore.loadCompressed(file);
+        if (!compressed) continue;
 
-            const stats = await this.fileAdapter.stat(join(archiveDir, file));
-            return {
-              id: compressed.meta.id,
-              name: compressed.meta.name,
-              archivedAt: stats.mtime.getTime(),
-            };
-          } catch (error) {
-            getLogger().warn(`Failed to load archived session ${file}: ${error}`);
-            return null;
-          }
-        }),
-      );
-
-      for (const session of chunkArchived) {
-        if (session) archived.push(session);
+        const stats = await this.fileAdapter.stat(join(archiveDir, file));
+        archived.push({
+          id: compressed.meta.id,
+          name: compressed.meta.name,
+          archivedAt: stats.mtime.getTime(),
+        });
+      } catch (error) {
+        getLogger().warn(`Failed to load archived session ${file}: ${error}`);
       }
     }
 

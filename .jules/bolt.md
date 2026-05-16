@@ -1,3 +1,0 @@
-## 2026-05-16 - [⚡ Bolt: Batch concurrent file I/O for reading session files]
-**Learning:** Repeating sequentially awaiting `this.fileAdapter.readFile` for each file within methods like `listSessions`, `loadAllSessions`, and `listArchivedSessions` resulted in major performance regressions bounded directly by latency (around ~250ms for 2000 active sessions and similar for archives).
-**Action:** Chunk concurrent `Promise.all` loops instead. Mapping each chunk of sizes 10-20 helps parallelize I/O safely and drastically reduces iteration time without inducing EMFILE (Too many open files) panics in OS layers. The resulting operation latency on batches of 2000 objects was optimized by approximately 80-85% (from ~250ms to ~35-50ms).
