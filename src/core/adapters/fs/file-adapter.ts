@@ -85,6 +85,13 @@ export class FileAdapter {
   }
 
   /**
+   * Get file stats without following symlinks.
+   */
+  async lstat(filePath: string): Promise<Stats> {
+    return fs.lstat(filePath);
+  }
+
+  /**
    * Create directory recursively
    */
   async mkdir(dirPath: string): Promise<void> {

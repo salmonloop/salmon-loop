@@ -4,6 +4,22 @@ import { ToolRegistry } from '../registry.js';
 import { artifactReadSpec, executeArtifactRead } from './artifact.js';
 import { astGrepSpec, executeAstGrep } from './ast-grep.js';
 import { astDefsRefsSpec, executeAstDefsRefs } from './ast.js';
+import {
+  benchmarkReportSpec,
+  executeBenchmarkReport,
+  executeGitApplyCheck,
+  executeGitDiffCheck,
+  executeSweBenchGetReport,
+  executeSweBenchLoadInstance,
+  executeSweBenchSubmitPredictions,
+  executeSweBenchWritePrediction,
+  gitApplyCheckSpec,
+  gitDiffCheckSpec,
+  sweBenchGetReportSpec,
+  sweBenchLoadInstanceSpec,
+  sweBenchSubmitPredictionsSpec,
+  sweBenchWritePredictionSpec,
+} from './benchmark.js';
 import { codeSearchExecutor } from './code-search/executor.js';
 import { CodeSearchSpec } from './code-search/spec.js';
 import {
@@ -68,6 +84,41 @@ export function registerAllBuiltins(registry: ToolRegistry): void {
   registry.register({
     ...gitStatusSpec,
     executor: executeGitStatus as any,
+  });
+
+  registry.register({
+    ...gitDiffCheckSpec,
+    executor: executeGitDiffCheck as any,
+  });
+
+  registry.register({
+    ...gitApplyCheckSpec,
+    executor: executeGitApplyCheck as any,
+  });
+
+  registry.register({
+    ...benchmarkReportSpec,
+    executor: executeBenchmarkReport as any,
+  });
+
+  registry.register({
+    ...sweBenchLoadInstanceSpec,
+    executor: executeSweBenchLoadInstance as any,
+  });
+
+  registry.register({
+    ...sweBenchWritePredictionSpec,
+    executor: executeSweBenchWritePrediction as any,
+  });
+
+  registry.register({
+    ...sweBenchSubmitPredictionsSpec,
+    executor: executeSweBenchSubmitPredictions as any,
+  });
+
+  registry.register({
+    ...sweBenchGetReportSpec,
+    executor: executeSweBenchGetReport as any,
   });
 
   registry.register({
@@ -151,4 +202,18 @@ export {
   executeAstGrep as executeCodeSearchAst,
   verifyRunSpec as testRunSpec,
   executeVerifyRun as executeTestRun,
+  gitDiffCheckSpec,
+  executeGitDiffCheck,
+  gitApplyCheckSpec,
+  executeGitApplyCheck,
+  benchmarkReportSpec,
+  executeBenchmarkReport,
+  sweBenchLoadInstanceSpec,
+  executeSweBenchLoadInstance,
+  sweBenchWritePredictionSpec,
+  executeSweBenchWritePrediction,
+  sweBenchSubmitPredictionsSpec,
+  executeSweBenchSubmitPredictions,
+  sweBenchGetReportSpec,
+  executeSweBenchGetReport,
 };

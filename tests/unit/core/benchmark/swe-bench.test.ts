@@ -3,6 +3,7 @@ import { describe, expect, it } from 'bun:test';
 import {
   buildSweBenchPrediction,
   encodeSweBenchPredictionJsonl,
+  parseSweBenchInstance,
 } from '../../../../src/core/benchmark/swe-bench.js';
 
 describe('SWE-bench prediction encoding', () => {
@@ -27,5 +28,28 @@ describe('SWE-bench prediction encoding', () => {
     });
     expect(line.endsWith('\n')).toBe(true);
     expect(JSON.parse(line)).toEqual(prediction);
+  });
+
+  it('loads a local SWE-bench instance object with required identity', () => {
+    const instance = parseSweBenchInstance(
+      JSON.stringify({
+        instance_id: 'repo__project-1',
+        repo: 'repo/project',
+        base_commit: 'abc123',
+        problem_statement: 'fix the bug',
+      }),
+    );
+
+    expect(instance).toMatchObject({
+      instance_id: 'repo__project-1',
+      repo: 'repo/project',
+      base_commit: 'abc123',
+      problem_statement: 'fix the bug',
+    });
+  });
+
+  it('rejects malformed local SWE-bench instances', () => {
+    expect(() => parseSweBenchInstance('{}')).toThrow('instance_id');
+    expect(() => parseSweBenchInstance('[]')).toThrow('JSON object');
   });
 });

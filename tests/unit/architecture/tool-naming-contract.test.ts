@@ -9,6 +9,16 @@ const CANONICAL_TOOL_NAME =
   /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*\.[a-z][a-z0-9]*(?:_[a-z0-9]+)*(?:\.[a-z][a-z0-9]*(?:_[a-z0-9]+)*)?$/;
 
 const GRANDFATHERED_BUILTIN_TOOL_NAMES = new Set(['agent_dispatch', 'update_knowledge']);
+const APPROVED_BENCHMARK_QUALITY_TOOLS = [
+  'git.diff_check',
+  'git.apply_check',
+  'test.run',
+  'benchmark.report',
+  'swebench.load_instance',
+  'swebench.write_prediction',
+  'swebench.submit_predictions',
+  'swebench.get_report',
+] as const;
 
 describe('architecture/tool naming contract', () => {
   it('keeps built-in model-visible tool names canonical or explicitly grandfathered', () => {
@@ -26,6 +36,17 @@ describe('architecture/tool naming contract', () => {
     expect(violations).toEqual([]);
   });
 
+  it('registers every approved benchmark-quality tool from the governance contract', () => {
+    const registry = new ToolRegistry();
+    registerAllBuiltins(registry);
+
+    const names = new Set(registry.listAll().map((spec) => spec.name));
+
+    for (const toolName of APPROVED_BENCHMARK_QUALITY_TOOLS) {
+      expect(names.has(toolName)).toBe(true);
+    }
+  });
+
   it('keeps the formal governance document aligned with the built-in naming surface', async () => {
     const doc = await readFile('docs/design/tool-governance.md', 'utf8');
 
@@ -36,6 +57,9 @@ describe('architecture/tool naming contract', () => {
     expect(doc).toContain('reversible alias mapping');
 
     for (const name of GRANDFATHERED_BUILTIN_TOOL_NAMES) {
+      expect(doc).toContain(name);
+    }
+    for (const name of APPROVED_BENCHMARK_QUALITY_TOOLS) {
       expect(doc).toContain(name);
     }
   });

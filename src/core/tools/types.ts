@@ -69,7 +69,15 @@ export interface ToolRuntimeCtx {
   contextSnapshot?: SubAgentContextSnapshot;
 }
 
-export const TOOL_INTENTS = ['READ', 'SEARCH', 'LIST', 'WRITE', 'INFRA', 'AGENT'] as const;
+export const TOOL_INTENTS = [
+  'READ',
+  'SEARCH',
+  'LIST',
+  'WRITE',
+  'INFRA',
+  'AGENT',
+  'REPORT',
+] as const;
 export type ToolIntent = (typeof TOOL_INTENTS)[number];
 
 /**

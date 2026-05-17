@@ -513,6 +513,69 @@ export class GitAdapter {
     }
   }
 
+  async checkPatchApplyability(
+    diffText: string,
+    options: any = {},
+  ): Promise<{
+    ok: boolean;
+    exitCode: number | null;
+    output: string;
+  }> {
+    const tempFile = path.join(
+      tmpdir(),
+      `salmon-patch-check-${Date.now()}-${randomBytes(4).toString('hex')}.patch`,
+    );
+    const tempIndex = path.join(
+      tmpdir(),
+      `salmon-patch-check-index-${Date.now()}-${randomBytes(4).toString('hex')}`,
+    );
+    await fs.writeFile(tempFile, diffText, 'utf8');
+
+    try {
+      const readTree = await this.execMeta(['read-tree', 'HEAD'], {
+        env: { ...options.env, GIT_INDEX_FILE: tempIndex },
+        limits: { maxStdoutBytes: LIMITS.maxToolOutputBytes, maxStderrChars: 16_384 },
+        timeoutMs: LIMITS.gitTimeoutMs,
+      });
+      if (!readTree.ok) {
+        const output = [readTree.stdout.toString('utf8'), readTree.stderr]
+          .filter(Boolean)
+          .join('\n')
+          .trim();
+        return {
+          ok: false,
+          exitCode: readTree.code,
+          output,
+        };
+      }
+
+      const args = ['apply', '--cached', '--check', '--recount'];
+      if (options.ignoreWhitespace) args.push('--ignore-whitespace');
+      if (options.contextLines) args.push(`-C${options.contextLines}`);
+      args.push(tempFile);
+
+      const res = await this.execMeta(args, {
+        env: { ...options.env, GIT_INDEX_FILE: tempIndex },
+        limits: { maxStdoutBytes: LIMITS.maxToolOutputBytes, maxStderrChars: 16_384 },
+        timeoutMs: LIMITS.gitTimeoutMs,
+      });
+
+      const output = [res.stdout.toString('utf8'), res.stderr].filter(Boolean).join('\n').trim();
+      return {
+        ok: res.ok,
+        exitCode: res.code,
+        output,
+      };
+    } finally {
+      await fs
+        .unlink(tempFile)
+        .catch((error) => logIgnoredError(`[GitAdapter] cleanup ${tempFile}`, error));
+      await fs
+        .unlink(tempIndex)
+        .catch((error) => logIgnoredError(`[GitAdapter] cleanup ${tempIndex}`, error));
+    }
+  }
+
   /**
    * Precision rollback protecting staged changes.
    */
