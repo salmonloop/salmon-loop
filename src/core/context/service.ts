@@ -236,25 +236,46 @@ export class ContextService {
   }
 
   private async evictExpiredEntries(): Promise<void> {
-    for (const [key, entry] of await this.cacheStore.entries()) {
-      await this.isExpired(key, entry);
+    const entries = await this.cacheStore.entries();
+    const chunkSize = 10;
+    for (let i = 0; i < entries.length; i += chunkSize) {
+      const chunk = entries.slice(i, i + chunkSize);
+      await Promise.all(chunk.map(([key, entry]) => this.isExpired(key, entry)));
     }
   }
 
   private async evictLruIfNeeded(): Promise<void> {
-    while ((await this.cacheStore.size()) > this.cacheMaxEntries) {
+    const currentSize = await this.cacheStore.size();
+    if (currentSize <= this.cacheMaxEntries) return;
+
+    const entries = await this.cacheStore.entries();
+    const overage = currentSize - this.cacheMaxEntries;
+
+    if (overage === 1) {
+      // O(N) linear scan for single eviction
       let victimKey: string | undefined;
       let victimTs = Number.POSITIVE_INFINITY;
-      for (const [key, entry] of await this.cacheStore.entries()) {
+      for (const [key, entry] of entries) {
         const ts = this.getEntryTimestamp(entry);
         if (ts < victimTs) {
           victimTs = ts;
           victimKey = key;
         }
       }
-      if (!victimKey) break;
-      await this.cacheStore.delete(victimKey);
-      this.cacheMetrics.evictions += 1;
+      if (victimKey) {
+        await this.cacheStore.delete(victimKey);
+        this.cacheMetrics.evictions += 1;
+      }
+    } else {
+      // O(N log N) sorting for mass eviction
+      entries.sort((a, b) => this.getEntryTimestamp(a[1]) - this.getEntryTimestamp(b[1]));
+      const victims = entries.slice(0, overage);
+      const chunkSize = 10;
+      for (let i = 0; i < victims.length; i += chunkSize) {
+        const chunk = victims.slice(i, i + chunkSize);
+        await Promise.all(chunk.map(([key]) => this.cacheStore.delete(key)));
+      }
+      this.cacheMetrics.evictions += victims.length;
     }
   }
 

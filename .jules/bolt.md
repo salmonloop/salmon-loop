@@ -1,0 +1,3 @@
+## 2024-06-18 - Optimize Context Service Cache Eviction
+**Learning:** In `ContextService`, repeated calls to `await this.cacheStore.entries()` inside loops (specifically in `evictExpiredEntries` and `evictLruIfNeeded`) caused severe O(M * N) time complexity. Additionally, processing cache evictions one-by-one or in unbound concurrency is slow and risks `EMFILE` errors.
+**Action:** Fetch cache entries once using `Array.from()` or assigning the awaited Promise. Use an O(N) linear scan for single-item evictions to avoid overhead, reserving O(N log N) sorting only for mass batch evictions. Always batch concurrent deletions with a chunk size of 10.
