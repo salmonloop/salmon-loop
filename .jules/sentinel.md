@@ -1,0 +1,4 @@
+## 2024-05-18 - Timing Attack Vulnerability in Bearer Token Comparison
+**Vulnerability:** Bearer tokens were being compared using `Array.prototype.includes` (`authTokens.includes(token)`). This performs a simple string comparison, which fails as soon as a character doesn't match. An attacker can use the difference in response times to guess the valid token character by character.
+**Learning:** In standard Express or HTTP middlewares, simple comparisons (like `===`, `!==`, `.includes`) for secrets introduce timing vulnerabilities. The attacker can incrementally guess the secret by measuring microsecond differences in response time, which relies on the string comparison returning early on the first mismatch.
+**Prevention:** Always use `crypto.timingSafeEqual` to compare secrets (like passwords, API keys, Bearer tokens). Ensure buffers are first created and their lengths are compared directly before passing to `timingSafeEqual`.
