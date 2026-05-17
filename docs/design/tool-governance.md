@@ -23,12 +23,97 @@ SYSTEM
 
 ## 3. Tool Definition (External API)
 ### 3.1 Naming Convention
-*   **Only Legal Format**: `domain.action[.qualifier]` (e.g., `code.search`, `fs.read`)
-*   **Forbidden**: Implementation source prefixes (e.g., `builtin.`, `mcp.`, `plugin.`)
+Tool names are part of the model-visible API. They must be stable,
+predictable, and chosen to reduce tool-selection hallucinations. This section
+is the naming SSOT for all new tools.
+
+**Canonical format for built-in model-visible tools**:
+
+```text
+domain.operation[.qualifier]
+```
+
+Examples: `code.search`, `fs.read`, `git.status`, `plan.update`.
+
+Hard syntax rules:
+
+- Use lowercase ASCII only.
+- Separate namespace segments with `.`.
+- Use at most three segments: `domain.operation` or
+  `domain.operation.qualifier`.
+- Each segment must start with a letter and then use only letters, numbers, or
+  `_`.
+- `operation` may be a single common action (`read`, `list`, `search`,
+  `status`, `apply`, `run`, `write`, `submit`, `report`) or a concrete
+  verb-object operation (`write_file`, `ask_user`, `diff_check`,
+  `load_instance`).
+- Do not use single-token or snake_case-only names for new built-ins.
+- Do not encode implementation source in a built-in tool name. `source:
+  "builtin"` is runtime metadata, not part of the model-facing name.
+
+Semantic review rules:
+
+- Use one domain per product concept: `fs`, `git`, `code`, `test`, `plan`,
+  `artifact`, `proposal`, `interaction`, `shell`, `benchmark`, `swebench`.
+- Keep names concrete. Prefer `git.status` and `test.run` over generic names
+  such as `inspect`, `process`, `handle`, `health`, or `quality_gate`.
+- Prefer a verb the model already associates with software work. If the
+  operation needs an object, use `verb_object` rather than inventing an abstract
+  noun.
+- Keep user-facing aliases, audit events, allowlists, and prompt examples on
+  the same canonical name. If a provider-native adapter requires a different
+  function name shape, the adapter must perform a reversible alias mapping and
+  map every result back to the canonical SalmonLoop name before registry lookup,
+  authorization, audit logging, and session persistence.
 
 Examples (filesystem):
 - Read-only: `fs.read`, `fs.list`, `fs.list_directory`, `fs.list_files`
 - Write (slash-only): `fs.write_file`, `fs.create_directory`, `fs.delete_file`
+
+External and legacy namespaces:
+
+- MCP tools are exposed as `mcp.<server>.<tool>` to avoid collisions across
+  servers. The server and tool segments must be allowlisted by configuration.
+- Plugin tools are exposed as `plugin.<pluginId>.<tool>` for the same collision
+  reason. Plugin authors should still use canonical names inside their plugin
+  API, e.g. `search` or `report`, and let the loader prefix them.
+
+Grandfathered built-in names:
+
+- `agent_dispatch`
+- `update_knowledge`
+
+These two names are retained for compatibility only. They must not be used as
+precedent for new built-ins.
+
+Benchmark and quality tools must use the same canonical form. Approved names
+for the benchmark-quality work are:
+
+- `git.diff_check`
+- `git.apply_check`
+- `test.run`
+- `benchmark.report`
+- `swebench.load_instance`
+- `swebench.write_prediction`
+- `swebench.submit_predictions`
+- `swebench.get_report`
+
+Avoid these names:
+
+- `patch_health` — abstract and not tied to a concrete system domain.
+- `quality_gate` — implies a stop-gate policy rather than a model-callable
+  diagnostic tool.
+- `bench_export` — ambiguous object and non-canonical abbreviation.
+- `swe_smoke` — unstable abbreviation.
+- `validate_patch` — ambiguous with schema validation and apply validation.
+
+These rules intentionally align with common agent/tool ecosystems:
+OpenAI-style function names are short and action-oriented; Anthropic-style tool
+definitions rely on clear names and precise descriptions; MCP must tolerate
+multi-server tool aggregation. SalmonLoop uses dotted namespaces internally
+because the existing public tool API already does so, while preserving the same
+industry principles: clear domain, concrete operation, conservative character
+set, and no implementation leakage.
 
 ### 3.2 ToolSpec (Strongly Typed)
 ```typescript
