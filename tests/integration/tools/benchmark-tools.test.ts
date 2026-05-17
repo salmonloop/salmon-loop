@@ -80,6 +80,28 @@ describe('benchmark and SWE-bench builtin tools', () => {
     expect(prediction.prediction.model_patch).toContain('diff --git a/src/app.ts b/src/app.ts');
   });
 
+  it('encodes explicitly supplied fenced diffs as canonical SWE-bench patches', async () => {
+    const { repo, ctx } = await createChangedRepo();
+    const diff = await helper.git(repo.path, ['diff', '--binary', '--no-color', 'HEAD', '--'], {
+      trim: false,
+    });
+    const fencedDiff = `Here is the patch:\n\n\`\`\`diff\n${diff.stdout}\`\`\`\n`;
+
+    const prediction = await executeSweBenchWritePrediction(
+      {
+        instanceId: 'repo__project-1',
+        modelNameOrPath: 'salmon-loop',
+        patch: fencedDiff,
+      },
+      ctx,
+    );
+    const applyCheck = await executeGitApplyCheck({ patch: fencedDiff }, ctx);
+
+    expect(prediction.prediction.model_patch).toStartWith('diff --git a/src/app.ts b/src/app.ts');
+    expect(prediction.prediction.model_patch).not.toContain('```');
+    expect(applyCheck).toMatchObject({ ok: true, exitCode: 0, output: '' });
+  });
+
   it('loads local SWE-bench inputs and appends predictions inside the repo', async () => {
     const { repo, ctx } = await createChangedRepo();
     await helper.writeFile(
@@ -130,6 +152,37 @@ describe('benchmark and SWE-bench builtin tools', () => {
     expect(predictions).toHaveLength(1);
     expect(predictions[0]).toEqual(submit.prediction);
     expect(report.report).toEqual({ resolved: 1, total: 1 });
+  });
+
+  it('keeps local prediction files out of later SWE-bench patches', async () => {
+    const { repo, ctx } = await createChangedRepo();
+
+    await executeSweBenchSubmitPredictions(
+      {
+        instanceId: 'repo__project-1',
+        modelNameOrPath: 'salmon-loop',
+        predictionsFile: 'artifacts/predictions.jsonl',
+      },
+      ctx,
+    );
+    const second = await executeSweBenchSubmitPredictions(
+      {
+        instanceId: 'repo__project-2',
+        modelNameOrPath: 'salmon-loop',
+        predictionsFile: 'artifacts/predictions.jsonl',
+      },
+      ctx,
+    );
+
+    const predictions = String(await helper.readFile(repo.path, 'artifacts/predictions.jsonl'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line));
+
+    expect(predictions).toHaveLength(2);
+    expect(second.prediction.model_patch).toContain('diff --git a/src/app.ts b/src/app.ts');
+    expect(second.prediction.model_patch).not.toContain('artifacts/predictions.jsonl');
+    expect(predictions[1]).toEqual(second.prediction);
   });
 
   it('rejects local SWE-bench file paths that are not repo-relative', async () => {

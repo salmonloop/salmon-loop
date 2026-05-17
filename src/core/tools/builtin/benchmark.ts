@@ -14,7 +14,7 @@ import {
   encodeSweBenchPredictionJsonl,
   parseSweBenchInstance,
 } from '../../benchmark/swe-bench.js';
-import { validateDiff } from '../../patch/diff.js';
+import { normalizeDiff, validateDiff } from '../../patch/diff.js';
 import { Phase } from '../../types/runtime.js';
 import {
   isCanonicalPathWithinDirectory,
@@ -198,22 +198,41 @@ export const sweBenchGetReportSpec: Omit<ToolSpec, 'executor'> = {
   allowedPhases: [Phase.VERIFY],
 };
 
-async function resolvePatch(ctx: ToolRuntimeCtx, patch?: string): Promise<BenchmarkPatchArtifact> {
+type ResolvePatchOptions = {
+  excludePaths?: readonly string[];
+};
+
+async function resolvePatch(
+  ctx: ToolRuntimeCtx,
+  patch?: string,
+  options: ResolvePatchOptions = {},
+): Promise<BenchmarkPatchArtifact> {
   if (patch !== undefined) {
-    const meta = validateDiff(patch);
-    const bytes = Buffer.byteLength(patch, 'utf8');
-    const sha256 = createHash('sha256').update(patch, 'utf8').digest('hex');
+    if (patch.trim().length === 0) {
+      return {
+        patch: '',
+        bytes: 0,
+        sha256: createHash('sha256').update('', 'utf8').digest('hex'),
+        changedFiles: [],
+        isEmpty: true,
+      };
+    }
+    const normalizedPatch = normalizeDiff(patch);
+    const meta = validateDiff(normalizedPatch);
+    const bytes = Buffer.byteLength(normalizedPatch, 'utf8');
+    const sha256 = createHash('sha256').update(normalizedPatch, 'utf8').digest('hex');
     return {
-      patch,
+      patch: normalizedPatch,
       bytes,
       sha256,
       changedFiles: meta.changedFiles,
-      isEmpty: patch.length === 0,
+      isEmpty: normalizedPatch.length === 0,
     };
   }
 
   return buildBenchmarkPatchArtifact({
     repoPath: ctx.worktreeRoot || ctx.repoRoot,
+    excludePaths: options.excludePaths,
   });
 }
 
@@ -375,7 +394,15 @@ export async function executeSweBenchWritePrediction(
   input: z.infer<typeof sweBenchWritePredictionSpec.inputSchema>,
   ctx: ToolRuntimeCtx,
 ) {
-  const artifact = await resolvePatch(ctx, input.patch);
+  return buildSweBenchPredictionOutput(input, ctx);
+}
+
+async function buildSweBenchPredictionOutput(
+  input: z.infer<typeof swePredictionInputSchema>,
+  ctx: ToolRuntimeCtx,
+  options: ResolvePatchOptions = {},
+) {
+  const artifact = await resolvePatch(ctx, input.patch, options);
   const predictionInput = {
     instanceId: input.instanceId,
     modelNameOrPath: input.modelNameOrPath,
@@ -392,7 +419,9 @@ export async function executeSweBenchSubmitPredictions(
   ctx: ToolRuntimeCtx,
 ) {
   const { absolutePath, relativePath } = await resolveSafeRepoFile(ctx, input.predictionsFile);
-  const output = await executeSweBenchWritePrediction(input, ctx);
+  const output = await buildSweBenchPredictionOutput(input, ctx, {
+    excludePaths: [relativePath],
+  });
   await new FileAdapter().appendFile(absolutePath, output.jsonl);
   return {
     predictionsFile: relativePath,
