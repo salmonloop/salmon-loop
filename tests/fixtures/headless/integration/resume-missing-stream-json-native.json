@@ -2,6 +2,8 @@
   {
     "uuid": "<uuid>",
     "session_id": "sess-missing",
+    "protocol_version": 1,
+    "event_seq": 0,
     "event": {
       "type": "start",
       "timestamp": "<ts>",
@@ -13,6 +15,8 @@
   {
     "uuid": "<uuid>",
     "session_id": "sess-missing",
+    "protocol_version": 1,
+    "event_seq": 1,
     "event": {
       "type": "error",
       "timestamp": "<ts>",
@@ -22,6 +26,8 @@
   {
     "uuid": "<uuid>",
     "session_id": "sess-missing",
+    "protocol_version": 1,
+    "event_seq": 2,
     "event": {
       "type": "end",
       "timestamp": "<ts>",
@@ -30,4 +36,3 @@
     }
   }
 ]
-

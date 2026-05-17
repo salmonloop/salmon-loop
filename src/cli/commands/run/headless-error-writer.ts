@@ -39,6 +39,7 @@ function writeStreamJsonEarlyFailure(params: {
   instruction?: string;
 }) {
   const at = new Date();
+  let eventSeq = 0;
   params.writer.writeJsonLine(
     encodeStreamStart({
       uuid: randomUUID(),
@@ -47,6 +48,7 @@ function writeStreamJsonEarlyFailure(params: {
       sessionId: params.sessionId,
       instruction: params.instruction,
       at,
+      eventSeq: eventSeq++,
     }),
   );
   params.writer.writeJsonLine(
@@ -56,6 +58,7 @@ function writeStreamJsonEarlyFailure(params: {
       at,
       message: params.message,
       auditPath: params.auditPath,
+      eventSeq: eventSeq++,
     }),
   );
   params.writer.writeJsonLine(
@@ -65,6 +68,7 @@ function writeStreamJsonEarlyFailure(params: {
       at,
       success: false,
       exitCode: params.exitCode ?? 1,
+      eventSeq: eventSeq++,
     }),
   );
 }

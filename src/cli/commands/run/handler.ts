@@ -19,8 +19,10 @@ import {
   type CheckpointStrategy,
   type LoopResult,
 } from '../../../core/facades/cli-run-handler.js';
+import type { HeadlessWarning } from '../../headless/protocol-metadata.js';
 import { createStdoutWriter } from '../../headless/stdout-writer.js';
 import { text } from '../../locales/index.js';
+import type { SalmonReporter } from '../../reporters/base.js';
 import { getOptionValueSourceWithGlobalFallback } from '../../utils/command-option-source.js';
 import { createOutcomeReporter } from '../../utils/outcome-reporter.js';
 import { resolveOutputFormat } from '../../utils/output-format.js';
@@ -338,8 +340,18 @@ export async function handleRunCommand(options: any, command: Command) {
   }
   const extensionResolution = extensionsResult.extensionResolution;
 
+  const operationalHeadlessWarnings: HeadlessWarning[] = [];
   if (!effectiveVerify) {
-    getLogger().warn(text.verify.noCommandFound);
+    if (!headlessOutput) {
+      getLogger().warn(text.verify.noCommandFound);
+    } else {
+      operationalHeadlessWarnings.push({
+        code: 'VERIFY_COMMAND_MISSING',
+        message: text.verify.noCommandFound,
+        source: 'verify.runtime',
+        severity: 'warning',
+      });
+    }
   }
 
   const verboseLevel = commonOptions.options.verboseLevel;
@@ -357,11 +369,14 @@ export async function handleRunCommand(options: any, command: Command) {
   });
 
   let lastKnownAuditPath: string | undefined;
+  let activeReporter: SalmonReporter | undefined;
+  let activeReporterStarted = false;
 
   try {
-    const { llm } = createRuntimeLlmAndWarn({
+    const { llm, headlessWarnings } = createRuntimeLlmAndWarn({
       llmConfig: resolvedConfig.llm,
       langfuseEnabled: resolvedConfig.observability.langfuse.enabled,
+      headlessOutput,
     });
 
     let structuredOutputState: StructuredOutputState = { ok: true, candidate: null };
@@ -392,9 +407,12 @@ export async function handleRunCommand(options: any, command: Command) {
           structuredOutputError: structuredOutputState.errorReason,
         };
       },
+      getWarnings: () => [...headlessWarnings, ...operationalHeadlessWarnings],
     });
+    activeReporter = reporter;
 
     reporter.onStart(instructionText);
+    activeReporterStarted = true;
 
     const applyBackOnDirty = allOptions.applyBackOnDirty === 'abort' ? 'abort' : '3way';
 
@@ -534,6 +552,16 @@ export async function handleRunCommand(options: any, command: Command) {
         instruction,
         auditPath: lastKnownAuditPath,
       });
+    } else if (
+      outputFormat === 'stream-json' &&
+      rawOutputProfile !== 'anthropic' &&
+      rawOutputProfile !== 'openai' &&
+      activeReporterStarted &&
+      activeReporter
+    ) {
+      const error = new Error(text.cli.unexpectedError(msg));
+      (error as any).auditPath = lastKnownAuditPath;
+      activeReporter.onError(error);
     } else if (outputFormat === 'stream-json') {
       headlessErrorWriter.writeUnexpectedError({
         sessionId: sessionIdForOutput ?? resumeSessionId ?? randomUUID(),

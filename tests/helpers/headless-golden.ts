@@ -102,6 +102,8 @@ interface NativeLifecycleEvent {
 interface NativeLifecycleLine {
   uuid?: string;
   session_id?: string;
+  protocol_version?: number;
+  event_seq?: number;
   event?: unknown;
 }
 
@@ -158,6 +160,8 @@ function isOpenAiLifecycleLine(value: unknown): value is OpenAiLifecycleLine {
 export function pickNativeLifecycleLines(lines: unknown[]): Array<{
   uuid?: string;
   session_id?: string;
+  protocol_version?: number;
+  event_seq?: number;
   event: NativeLifecycleEvent;
 }> {
   return lines.filter(isNativeLifecycleLine).map((line) => {
@@ -187,6 +191,8 @@ export function pickNativeLifecycleLines(lines: unknown[]): Array<{
     return {
       uuid: line.uuid,
       session_id: line.session_id,
+      protocol_version: line.protocol_version,
+      event_seq: line.event_seq,
       event,
     };
   });

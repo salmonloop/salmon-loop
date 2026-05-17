@@ -1,10 +1,18 @@
 import { getExitCode, type LoopEvent, type LoopResult } from '../../core/facades/cli-headless.js';
 
+import {
+  HEADLESS_NATIVE_STREAM_PROTOCOL_VERSION,
+  normalizeHeadlessWarnings,
+  type HeadlessWarning,
+} from './protocol-metadata.js';
+
 type OutputTimestamp = string;
 
 export interface StreamJsonEnvelope {
   uuid: string;
   session_id: string;
+  protocol_version: number;
+  event_seq?: number;
   event: Record<string, unknown>;
   parent_tool_use_id?: string | null;
 }
@@ -41,10 +49,13 @@ function encodeEnvelope(params: {
   sessionId: string;
   event: Record<string, unknown>;
   parentToolUseId?: string | null;
+  eventSeq?: number;
 }): StreamJsonEnvelope {
   return dropUndefined({
     uuid: params.uuid,
     session_id: params.sessionId,
+    protocol_version: HEADLESS_NATIVE_STREAM_PROTOCOL_VERSION,
+    event_seq: params.eventSeq,
     event: params.event,
     parent_tool_use_id: params.parentToolUseId,
   }) as StreamJsonEnvelope;
@@ -57,6 +68,7 @@ export function encodeStreamStart(params: {
   sessionId: string;
   instruction?: string;
   at: Date;
+  eventSeq?: number;
 }): StreamJsonEnvelope {
   return encodeEnvelope({
     uuid: params.uuid,
@@ -68,6 +80,7 @@ export function encodeStreamStart(params: {
       repo_path: params.repoPath,
       instruction: params.instruction,
     }) as any,
+    eventSeq: params.eventSeq,
   });
 }
 
@@ -77,6 +90,7 @@ export function encodeStreamEvent(params: {
   at: Date;
   event: Record<string, unknown>;
   parentToolUseId?: string | null;
+  eventSeq?: number;
 }): StreamJsonEnvelope {
   return encodeEnvelope({
     uuid: params.uuid,
@@ -86,6 +100,7 @@ export function encodeStreamEvent(params: {
       ...params.event,
       timestamp: toIso(params.at),
     }) as any,
+    eventSeq: params.eventSeq,
   });
 }
 
@@ -93,6 +108,7 @@ export function encodeStreamLoopEvent(params: {
   uuid: string;
   sessionId: string;
   event: LoopEvent;
+  eventSeq?: number;
 }): StreamJsonEnvelope {
   const parentToolUseId = extractParentToolUseId(params.event);
   return encodeEnvelope({
@@ -103,6 +119,7 @@ export function encodeStreamLoopEvent(params: {
       ...mapLoopEventToJson(params.event),
       timestamp: toIso(params.event.timestamp),
     }) as any,
+    eventSeq: params.eventSeq,
   });
 }
 
@@ -112,8 +129,11 @@ export function encodeStreamResult(params: {
   loopResult: LoopResult;
   at: Date;
   resultText?: string;
+  warnings?: readonly HeadlessWarning[];
+  eventSeq?: number;
 }): StreamJsonEnvelope {
   const exitCode = getStreamExitCode(params.loopResult);
+  const warnings = normalizeHeadlessWarnings(params.warnings);
   return encodeEnvelope({
     uuid: params.uuid,
     sessionId: params.sessionId,
@@ -133,12 +153,14 @@ export function encodeStreamResult(params: {
       error_code: params.loopResult.errorCode,
       authorization_summary: params.loopResult.authorizationSummary,
       result: params.resultText,
+      warnings,
       run_end: {
         success: Boolean(params.loopResult.success),
         exit_code: exitCode,
         timestamp: toIso(params.at),
       },
     }) as any,
+    eventSeq: params.eventSeq,
   });
 }
 
@@ -150,6 +172,7 @@ export function encodeStreamFailure(params: {
   name?: string;
   stack?: string;
   auditPath?: string;
+  eventSeq?: number;
 }): StreamJsonEnvelope {
   return encodeEnvelope({
     uuid: params.uuid,
@@ -164,6 +187,7 @@ export function encodeStreamFailure(params: {
         stack: params.stack,
       }) as any,
     },
+    eventSeq: params.eventSeq,
   });
 }
 
@@ -172,6 +196,7 @@ export function encodeStreamCrash(params: {
   sessionId: string;
   at: Date;
   error: Error;
+  eventSeq?: number;
 }): StreamJsonEnvelope {
   return encodeStreamFailure({
     uuid: params.uuid,
@@ -180,6 +205,7 @@ export function encodeStreamCrash(params: {
     message: params.error.message,
     name: params.error.name,
     stack: params.error.stack,
+    eventSeq: params.eventSeq,
   });
 }
 
@@ -189,6 +215,7 @@ export function encodeStreamEnd(params: {
   at: Date;
   success: boolean;
   exitCode: number;
+  eventSeq?: number;
 }): StreamJsonEnvelope {
   return encodeEnvelope({
     uuid: params.uuid,
@@ -199,5 +226,6 @@ export function encodeStreamEnd(params: {
       success: params.success,
       exit_code: params.exitCode,
     },
+    eventSeq: params.eventSeq,
   });
 }

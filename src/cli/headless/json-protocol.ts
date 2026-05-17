@@ -1,5 +1,11 @@
 import type { LoopResult } from '../../core/facades/cli-headless.js';
 
+import {
+  HEADLESS_SCHEMA_VERSION,
+  normalizeHeadlessWarnings,
+  type HeadlessWarning,
+} from './protocol-metadata.js';
+
 export interface JsonPayloadOverrides {
   success?: boolean;
   exitCode?: number;
@@ -23,6 +29,7 @@ export interface EncodeJsonResultParams {
   structuredOutput: unknown | null;
   loopResult: LoopResult;
   overrides?: JsonPayloadOverrides;
+  warnings?: readonly HeadlessWarning[];
 }
 
 export interface EncodeJsonFailureParams {
@@ -35,6 +42,7 @@ export interface EncodeJsonFailureParams {
   auditPath?: string;
   exitCode?: number;
   at?: Date;
+  warnings?: readonly HeadlessWarning[];
 }
 
 export interface EncodeJsonCrashParams {
@@ -45,6 +53,7 @@ export interface EncodeJsonCrashParams {
   startedAt: Date;
   endedAt: Date;
   error: Error;
+  warnings?: readonly HeadlessWarning[];
 }
 
 function toExitCode(result: Partial<LoopResult>): number {
@@ -93,12 +102,14 @@ export function encodeJsonResult(params: EncodeJsonResultParams): unknown {
   const reason = overrides?.reason ?? safeHint;
   const reasonCode = overrides?.reasonCode ?? params.loopResult.reasonCode;
   const errorCode = overrides?.errorCode ?? params.loopResult.errorCode;
+  const warnings = normalizeHeadlessWarnings(params.warnings);
 
   return {
     result: params.resultText,
     structured_output: params.structuredOutput,
     session_id: params.sessionId,
     metadata: {
+      schema_version: HEADLESS_SCHEMA_VERSION,
       command: params.mode,
       repo_path: params.repoPath,
       instruction: params.instruction,
@@ -117,6 +128,7 @@ export function encodeJsonResult(params: EncodeJsonResultParams): unknown {
       usage: toUsage(params.loopResult),
       authorization_decisions: toAuthorizationDecisions(params.loopResult),
       structured_output_error: overrides?.structuredOutputError,
+      warnings,
       timestamps: {
         started_at: params.startedAt.toISOString(),
         ended_at: params.endedAt.toISOString(),
@@ -133,12 +145,14 @@ export function encodeJsonResult(params: EncodeJsonResultParams): unknown {
 export function encodeJsonFailure(params: EncodeJsonFailureParams): unknown {
   const at = params.at ?? new Date();
   const exitCode = params.exitCode ?? 1;
+  const warnings = normalizeHeadlessWarnings(params.warnings);
 
   return {
     result: '',
     structured_output: null,
     session_id: params.sessionId,
     metadata: {
+      schema_version: HEADLESS_SCHEMA_VERSION,
       command: params.mode,
       repo_path: params.repoPath,
       instruction: params.instruction,
@@ -147,6 +161,7 @@ export function encodeJsonFailure(params: EncodeJsonFailureParams): unknown {
       reason: params.message,
       error_code: params.errorCode,
       audit_path: params.auditPath,
+      warnings,
       timestamps: {
         started_at: at.toISOString(),
         ended_at: at.toISOString(),
@@ -156,11 +171,14 @@ export function encodeJsonFailure(params: EncodeJsonFailureParams): unknown {
 }
 
 export function encodeJsonCrash(params: EncodeJsonCrashParams): unknown {
+  const warnings = normalizeHeadlessWarnings(params.warnings);
+
   return {
     result: '',
     structured_output: null as null,
     session_id: params.sessionId,
     metadata: {
+      schema_version: HEADLESS_SCHEMA_VERSION,
       command: params.mode,
       repo_path: params.repoPath,
       instruction: params.instruction,
@@ -171,6 +189,7 @@ export function encodeJsonCrash(params: EncodeJsonCrashParams): unknown {
         message: params.error.message,
         stack: params.error.stack,
       },
+      warnings,
       timestamps: {
         started_at: params.startedAt.toISOString(),
         ended_at: params.endedAt.toISOString(),

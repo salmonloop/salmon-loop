@@ -71,6 +71,7 @@ describe('JsonReporter', () => {
       session_id: 'sess-1',
     });
     expect(obj.metadata).toMatchObject({
+      schema_version: 1,
       command: 'run',
       repo_path: '/repo',
       instruction: 'do the thing',
@@ -89,6 +90,7 @@ describe('JsonReporter', () => {
         exit_code: 0,
       },
       usage: { input_tokens: 12, output_tokens: 34, total_tokens: 46 },
+      warnings: [],
       authorization_decisions: [
         {
           call_id: 'call-1',
@@ -190,6 +192,54 @@ describe('JsonReporter', () => {
       error_code: 'SCHEMA_VALIDATION_FAILED',
       structured_output_error: 'Structured output failed schema validation.',
     });
+
+    useRealTimers();
+    restoreTime();
+  });
+
+  it('includes structured warnings for headless callers', () => {
+    useFakeTimers();
+    const restoreTime = freezeSystemTime('2026-02-20T00:00:00.000Z');
+
+    let out = '';
+    const write = (chunk: string) => {
+      out += chunk;
+      return true;
+    };
+
+    const reporter = new JsonReporter({
+      sessionId: 'sess-warnings',
+      now: () => new Date(),
+      writer: createStdoutWriter({ write }),
+      getWarnings: () => [
+        {
+          code: 'LLM_CREDENTIAL_MISSING',
+          message: 'LLM credential not configured; using StubLLM.',
+          source: 'llm.runtime',
+          severity: 'warning',
+        },
+      ],
+    });
+
+    reporter.onStart('x');
+    reporter.onFinish({
+      success: true,
+      reason: 'SUCCESS',
+      reasonCode: 'SUCCESS',
+      attempts: 1,
+      logs: [],
+      changedFiles: [],
+    } as any);
+
+    const obj = JSON.parse(out.trim());
+    expect(obj.metadata.warnings).toEqual([
+      {
+        code: 'LLM_CREDENTIAL_MISSING',
+        message: 'LLM credential not configured; using StubLLM.',
+        source: 'llm.runtime',
+        severity: 'warning',
+      },
+    ]);
 
     useRealTimers();
     restoreTime();

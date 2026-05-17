@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import type { LoopEvent, LoopResult } from '../../core/facades/cli-reporters.js';
 import type { JsonPayloadOverrides } from '../headless/json-protocol.js';
 import { encodeJsonCrash, encodeJsonResult } from '../headless/json-protocol.js';
+import type { HeadlessWarning } from '../headless/protocol-metadata.js';
 import type { StdoutWriter } from '../headless/stdout-writer.js';
 import { createStdoutWriter } from '../headless/stdout-writer.js';
 
@@ -14,6 +15,7 @@ export interface JsonReporterOptions {
   sessionId?: string;
   getStructuredOutput?: () => unknown | null;
   getPayloadOverrides?: () => JsonPayloadOverrides | undefined;
+  getWarnings?: () => readonly HeadlessWarning[];
   now?: () => Date;
   writer?: StdoutWriter;
 }
@@ -24,6 +26,7 @@ export class JsonReporter implements SalmonReporter {
   private readonly sessionId: string;
   private readonly getStructuredOutput?: () => unknown | null;
   private readonly getPayloadOverrides?: () => JsonPayloadOverrides | undefined;
+  private readonly getWarnings?: () => readonly HeadlessWarning[];
   private readonly now: () => Date;
   private readonly writer: StdoutWriter;
   private startedAt: Date | null = null;
@@ -36,6 +39,7 @@ export class JsonReporter implements SalmonReporter {
     this.sessionId = options.sessionId ?? randomUUID();
     this.getStructuredOutput = options.getStructuredOutput;
     this.getPayloadOverrides = options.getPayloadOverrides;
+    this.getWarnings = options.getWarnings;
     this.now = options.now ?? (() => new Date());
     this.writer = options.writer ?? createStdoutWriter();
   }
@@ -72,6 +76,7 @@ export class JsonReporter implements SalmonReporter {
       structuredOutput,
       loopResult: result,
       overrides,
+      warnings: this.getWarnings?.(),
     });
 
     this.writer.writeJsonLine(payload);
@@ -88,6 +93,7 @@ export class JsonReporter implements SalmonReporter {
       startedAt,
       endedAt,
       error,
+      warnings: this.getWarnings?.(),
     });
 
     this.writer.writeJsonLine(payload);

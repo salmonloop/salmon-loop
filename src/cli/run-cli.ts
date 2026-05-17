@@ -1,5 +1,5 @@
-import { createCliRuntimeContext, type CliRuntimeContext } from './cli-runtime-context.js';
 import { detectHeadlessOutputFromArgv } from './argv/headless-detection.js';
+import { createCliRuntimeContext, type CliRuntimeContext } from './cli-runtime-context.js';
 import { bootstrapProgram } from './program-bootstrap.js';
 import { registerProgramCommands } from './program-commands.js';
 import { configureGlobalProgramOptions } from './program-options.js';

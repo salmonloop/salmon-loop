@@ -20,6 +20,7 @@ import { RealFsTestHelper } from '../helpers/real-fs-helper.js';
 
 describe('Headless protocol integration', () => {
   const helper = new RealFsTestHelper();
+  // eslint-disable-next-line no-control-regex
   const ansiPattern = /\x1b\[[0-9;]*m/;
 
   afterEach(async () => {
@@ -93,7 +94,7 @@ describe('Headless protocol integration', () => {
   it('supports global -p print mode with --output-format json (implicit run command)', async () => {
     const repo = await helper.createGitRepo();
 
-    const { exitCode, stdout } = await runCli([
+    const { exitCode, stdout, stderr } = await runCli([
       '-r',
       repo.path,
       '-p',
@@ -106,16 +107,32 @@ describe('Headless protocol integration', () => {
     ]);
 
     expect(exitCode).toBe(0);
+    expect(stderr).toBe('');
     const payload = JSON.parse(stdout) as any;
     expect(payload.session_id).toBeTruthy();
     expect(payload.structured_output).toBe(null);
     expect(payload.metadata).toMatchObject({
+      schema_version: 1,
       command: 'run',
       repo_path: repo.path,
       instruction: 'hello',
       success: true,
       exit_code: 0,
     });
+    expect(payload.metadata.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'LLM_CREDENTIAL_MISSING',
+          source: 'llm.runtime',
+          severity: 'warning',
+        }),
+        expect.objectContaining({
+          code: 'VERIFY_COMMAND_MISSING',
+          source: 'verify.runtime',
+          severity: 'warning',
+        }),
+      ]),
+    );
   }, 120000);
 
   it('supports global -p print mode with --output-format stream-json (implicit run command)', async () => {
@@ -143,8 +160,12 @@ describe('Headless protocol integration', () => {
       .map((l) => JSON.parse(l) as any);
 
     expect(lines.length).toBeGreaterThanOrEqual(3);
+    expect(lines.map((line) => line.event_seq)).toEqual([...lines.keys()]);
+    expect(lines.every((line) => line.protocol_version === 1)).toBe(true);
     expect(lines[0]).toMatchObject({
       session_id: 'sess-print',
+      protocol_version: 1,
+      event_seq: 0,
       event: { type: 'start', command: 'run', repo_path: repo.path, instruction: 'hello' },
     });
 
@@ -152,7 +173,15 @@ describe('Headless protocol integration', () => {
     const endLine = lines[lines.length - 1];
     expect(resultLine).toMatchObject({
       session_id: 'sess-print',
-      event: { type: 'result', success: true, exit_code: 0 },
+      event: {
+        type: 'result',
+        success: true,
+        exit_code: 0,
+        warnings: expect.arrayContaining([
+          expect.objectContaining({ code: 'LLM_CREDENTIAL_MISSING', source: 'llm.runtime' }),
+          expect.objectContaining({ code: 'VERIFY_COMMAND_MISSING', source: 'verify.runtime' }),
+        ]),
+      },
     });
     expect(endLine).toMatchObject({
       session_id: 'sess-print',

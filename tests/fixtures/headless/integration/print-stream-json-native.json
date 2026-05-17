@@ -2,6 +2,8 @@
   {
     "uuid": "<uuid>",
     "session_id": "sess-print",
+    "protocol_version": 1,
+    "event_seq": 0,
     "event": {
       "type": "start",
       "timestamp": "<ts>",
@@ -13,6 +15,8 @@
   {
     "uuid": "<uuid>",
     "session_id": "sess-print",
+    "protocol_version": 1,
+    "event_seq": 41,
     "event": {
       "type": "result",
       "timestamp": "<ts>",
@@ -23,6 +27,8 @@
   {
     "uuid": "<uuid>",
     "session_id": "sess-print",
+    "protocol_version": 1,
+    "event_seq": 42,
     "event": {
       "type": "end",
       "timestamp": "<ts>",
@@ -31,4 +37,3 @@
     }
   }
 ]
-

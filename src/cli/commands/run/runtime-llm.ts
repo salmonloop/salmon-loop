@@ -5,12 +5,55 @@ import {
   getLogger,
   Phase,
   type ExecutionPhase,
+  type LlmFactoryWarningCode,
 } from '../../../core/facades/cli-run-runtime-llm.js';
+import type { HeadlessWarning } from '../../headless/protocol-metadata.js';
 import { text } from '../../locales/index.js';
 
-export function createRuntimeLlmAndWarn(params: { llmConfig: any; langfuseEnabled: boolean }): {
+function runtimeWarningMessage(
+  code: LlmFactoryWarningCode,
+  params: { llmType: any; clientPackage: any },
+): string {
+  if (code === 'API_KEY_MISSING') return text.cli.apiKeyMissing;
+  if (code === 'PROVIDER_NOT_SUPPORTED') {
+    return text.cli.providerNotSupported(String(params.llmType));
+  }
+  if (code === 'CLIENT_PACKAGE_NOT_SUPPORTED') {
+    return text.cli.clientPackageNotSupported(String(params.clientPackage || ''));
+  }
+  return code;
+}
+
+function toHeadlessWarning(
+  code: LlmFactoryWarningCode,
+  params: { llmType: any; clientPackage: any },
+): HeadlessWarning {
+  if (code === 'API_KEY_MISSING') {
+    return {
+      code: 'LLM_CREDENTIAL_MISSING',
+      message:
+        'LLM credential not configured; using StubLLM. Configure provider credentials to use a real LLM.',
+      source: 'llm.runtime',
+      severity: 'warning',
+    };
+  }
+
+  return {
+    code,
+    message: runtimeWarningMessage(code, params).replace(/^\[WARN\]\s*/, ''),
+    source: 'llm.runtime',
+    severity: 'warning',
+  };
+}
+
+export function createRuntimeLlmAndWarn(params: {
+  llmConfig: any;
+  langfuseEnabled: boolean;
+  headlessOutput?: boolean;
+}): {
   llm: any;
-  warnings: string[];
+  warnings: LlmFactoryWarningCode[];
+  headlessWarnings: HeadlessWarning[];
 } {
   const runtimeLlm = createRuntimeLlm(params.llmConfig, {
     langfuseEnabled: params.langfuseEnabled,
@@ -53,16 +96,17 @@ export function createRuntimeLlmAndWarn(params: { llmConfig: any; langfuseEnable
 
   const llmType = params.llmConfig?.type;
   const clientPackage = params.llmConfig?.clientPackage;
+  const uniqueWarnings = Array.from(new Set(warnings));
 
-  for (const w of Array.from(new Set(warnings))) {
-    if (w === 'API_KEY_MISSING') {
-      getLogger().warn(text.cli.apiKeyMissing);
-    } else if (w === 'PROVIDER_NOT_SUPPORTED') {
-      getLogger().warn(text.cli.providerNotSupported(String(llmType)));
-    } else if (w === 'CLIENT_PACKAGE_NOT_SUPPORTED') {
-      getLogger().warn(text.cli.clientPackageNotSupported(String(clientPackage || '')));
+  for (const w of uniqueWarnings) {
+    if (!params.headlessOutput) {
+      getLogger().warn(runtimeWarningMessage(w, { llmType, clientPackage }));
     }
   }
 
-  return { llm, warnings: Array.from(new Set(warnings)) };
+  return {
+    llm,
+    warnings: uniqueWarnings,
+    headlessWarnings: uniqueWarnings.map((w) => toHeadlessWarning(w, { llmType, clientPackage })),
+  };
 }

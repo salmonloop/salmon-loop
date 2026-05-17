@@ -1,3 +1,4 @@
+import type { HeadlessWarning } from '../../headless/protocol-metadata.js';
 import type { StdoutWriter } from '../../headless/stdout-writer.js';
 import { AnthropicStreamReporter } from '../../reporters/anthropic-stream.js';
 import type { SalmonReporter } from '../../reporters/base.js';
@@ -18,6 +19,7 @@ export interface ReporterFactoryParams {
   verbose: boolean;
   getStructuredOutput: () => unknown | null;
   getPayloadOverrides: () => Record<string, unknown> | undefined;
+  getWarnings?: () => readonly HeadlessWarning[];
   model?: string;
 }
 
@@ -56,6 +58,7 @@ export function createRunReporter(params: ReporterFactoryParams): SalmonReporter
       repoPath: params.repoPath,
       sessionId: params.sessionIdForOutput,
       writer: params.writer,
+      getWarnings: params.getWarnings,
     });
   }
 
@@ -67,6 +70,7 @@ export function createRunReporter(params: ReporterFactoryParams): SalmonReporter
       writer: params.writer,
       getStructuredOutput: params.getStructuredOutput,
       getPayloadOverrides: params.getPayloadOverrides,
+      getWarnings: params.getWarnings,
     });
   }
 

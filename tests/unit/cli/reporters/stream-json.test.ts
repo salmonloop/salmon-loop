@@ -122,6 +122,8 @@ describe('StreamJsonReporter', () => {
     expect(lines[0]).toMatchObject({
       uuid: expect.any(String),
       session_id: 'sess-1',
+      protocol_version: 1,
+      event_seq: 0,
       event: {
         type: 'start',
         command: 'run',
@@ -134,12 +136,16 @@ describe('StreamJsonReporter', () => {
     expect(lines[1]).toMatchObject({
       uuid: expect.any(String),
       session_id: 'sess-1',
+      protocol_version: 1,
+      event_seq: 1,
       event: { type: 'phase.start', phase: 'PLAN', timestamp: '2026-02-20T00:00:01.000Z' },
     });
 
     expect(lines[2]).toMatchObject({
       uuid: expect.any(String),
       session_id: 'sess-1',
+      protocol_version: 1,
+      event_seq: 2,
       event: { type: 'message_start', timestamp: '2026-02-20T00:00:02.000Z' },
     });
 
@@ -174,6 +180,8 @@ describe('StreamJsonReporter', () => {
     expect(lines[6]).toMatchObject({
       uuid: expect.any(String),
       session_id: 'sess-1',
+      protocol_version: 1,
+      event_seq: 6,
       event: {
         type: 'result',
         success: true,
@@ -181,6 +189,7 @@ describe('StreamJsonReporter', () => {
         attempts: 1,
         changed_files: ['src/a.ts'],
         result: 'Done',
+        warnings: [],
         run_end: {
           success: true,
           exit_code: 0,
@@ -192,10 +201,63 @@ describe('StreamJsonReporter', () => {
     expect(lines[7]).toMatchObject({
       uuid: expect.any(String),
       session_id: 'sess-1',
+      protocol_version: 1,
+      event_seq: 7,
       event: {
         type: 'end',
         success: true,
         exit_code: 0,
+      },
+    });
+    expect(lines.map((line) => line.event_seq)).toEqual([...lines.keys()]);
+
+    useRealTimers();
+    restoreTime();
+  });
+
+  it('includes structured warnings on result events', () => {
+    useFakeTimers();
+    const restoreTime = freezeSystemTime('2026-02-20T00:00:00.000Z');
+
+    const { lines, write } = collectLines();
+    const reporter = new StreamJsonReporter({
+      sessionId: 'sess-warnings',
+      now: () => new Date(),
+      writer: createStdoutWriter({ write }),
+      getWarnings: () => [
+        {
+          code: 'VERIFY_COMMAND_MISSING',
+          message: 'No verification command found. Verification will be skipped.',
+          source: 'verify.runtime',
+          severity: 'warning',
+        },
+      ],
+    });
+
+    reporter.onStart('x');
+    reporter.onFinish({
+      success: true,
+      reason: 'SUCCESS',
+      reasonCode: 'SUCCESS',
+      attempts: 1,
+      logs: [],
+      changedFiles: [],
+    } as any);
+
+    const resultLine = lines.find((line) => line.event?.type === 'result');
+    expect(resultLine).toMatchObject({
+      protocol_version: 1,
+      event_seq: 1,
+      event: {
+        type: 'result',
+        warnings: [
+          {
+            code: 'VERIFY_COMMAND_MISSING',
+            message: 'No verification command found. Verification will be skipped.',
+            source: 'verify.runtime',
+            severity: 'warning',
+          },
+        ],
       },
     });
 
@@ -507,6 +569,35 @@ describe('StreamJsonReporter', () => {
     const endLine = lines.find((l) => l.event?.type === 'end');
     expect(resultLine.event.exit_code).toBe(130);
     expect(endLine.event.exit_code).toBe(130);
+
+    useRealTimers();
+    restoreTime();
+  });
+
+  it('includes audit_path on error events when provided', () => {
+    useFakeTimers();
+    const restoreTime = freezeSystemTime('2026-02-20T00:00:00.000Z');
+
+    const { lines, write } = collectLines();
+    const reporter = new StreamJsonReporter({
+      sessionId: 'sess-error-audit',
+      now: () => new Date(),
+      writer: createStdoutWriter({ write }),
+    });
+
+    reporter.onStart('x');
+    const err = new Error('Boom');
+    (err as any).auditPath = '/tmp/audit.json';
+    reporter.onError(err);
+
+    const errorLine = lines.find((line) => line.event?.type === 'error');
+    expect(errorLine).toMatchObject({
+      event_seq: 1,
+      event: {
+        type: 'error',
+        audit_path: '/tmp/audit.json',
+      },
+    });
 
     useRealTimers();
     restoreTime();

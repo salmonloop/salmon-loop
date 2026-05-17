@@ -7,7 +7,8 @@ This page describes SalmonLoop's *headless* CLI output modes intended for script
 - `--output-format text` (default): human-readable output.
 - `--output-format json`: prints a single JSON object to **stdout** on completion.
 - `--output-format stream-json`: prints newline-delimited JSON (JSONL) to **stdout** as the run progresses.
-  - Human logs are routed to **stderr** to keep stdout machine-readable.
+  - Human logs and unexpected diagnostics are routed to **stderr** to keep stdout machine-readable.
+  - Expected operational warnings are included in the JSON payload instead of being printed to stderr.
 
 For the full CLI surface (all flags), see `docs/user/cli.md`.
 
@@ -18,6 +19,39 @@ For the full CLI surface (all flags), see `docs/user/cli.md`.
 - `native` (default): SalmonLoop-native, versioned and extensible (Claude-inspired).
 - `anthropic`: strict Anthropic / Claude Code-compatible JSONL protocol.
 - `openai`: strict OpenAI Responses streaming event protocol (each JSONL line is an OpenAI `ResponseStreamEvent` object).
+
+## Native protocol stability
+
+Native headless payloads are explicit about protocol versions:
+
+- `--output-format json` includes `metadata.schema_version`.
+- `--output-format stream-json --output-profile native` includes `protocol_version` on every line.
+- Native JSONL lines include monotonic `event_seq` values starting at `0`.
+
+Use `event_seq` for incremental readers, resume-safe consumers, and log de-duplication. Strict
+`anthropic` and `openai` profiles intentionally keep their upstream-compatible shapes and do not
+receive SalmonLoop-specific fields.
+
+## Warnings
+
+In headless mode, expected warnings are structured data:
+
+- JSON output: `metadata.warnings`
+- Native stream output: `event.warnings` on the final `result` event
+
+Each warning has:
+
+```json
+{
+  "code": "LLM_CREDENTIAL_MISSING",
+  "message": "LLM credential not configured; using StubLLM. Configure provider credentials to use a real LLM.",
+  "source": "llm.runtime",
+  "severity": "warning"
+}
+```
+
+This keeps successful headless runs quiet on stderr while still preserving actionable state for
+automation.
 
 ## Tool timelines
 
@@ -72,7 +106,8 @@ Prerequisites:
 ### 1) JSONL validity and stdout purity
 
 - Ensure `stdout` contains only JSON objects (one per line).
-- Ensure human logs are routed to `stderr`.
+- Ensure expected warnings are represented as structured `warnings`, not stderr text.
+- Ensure native JSONL `event_seq` values are contiguous.
 
 Example:
 

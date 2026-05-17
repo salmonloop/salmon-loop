@@ -6,6 +6,7 @@ import {
   type LoopResult,
 } from '../../core/facades/cli-reporters.js';
 import { encodeNormalizedToNativeStreamLines } from '../headless/native-stream-normalized-encoder.js';
+import type { HeadlessWarning } from '../headless/protocol-metadata.js';
 import type { StdoutWriter } from '../headless/stdout-writer.js';
 import { createStdoutWriter } from '../headless/stdout-writer.js';
 import {
@@ -27,6 +28,7 @@ export interface StreamJsonReporterOptions {
   now?: () => Date;
   uuid?: () => string;
   writer?: StdoutWriter;
+  getWarnings?: () => readonly HeadlessWarning[];
 }
 
 export class StreamJsonReporter implements SalmonReporter {
@@ -36,7 +38,9 @@ export class StreamJsonReporter implements SalmonReporter {
   private readonly now: () => Date;
   private readonly uuid: () => string;
   private readonly writer: StdoutWriter;
+  private readonly getWarnings?: () => readonly HeadlessWarning[];
   private lastTextResult: string | undefined;
+  private nextEventSeq = 0;
   private readonly assembler = new StreamAssembler();
 
   constructor(options: StreamJsonReporterOptions = {}) {
@@ -46,6 +50,7 @@ export class StreamJsonReporter implements SalmonReporter {
     this.now = options.now ?? (() => new Date());
     this.uuid = options.uuid ?? randomUUID;
     this.writer = options.writer ?? createStdoutWriter();
+    this.getWarnings = options.getWarnings;
   }
 
   onStart(instruction: string): void {
@@ -116,6 +121,7 @@ export class StreamJsonReporter implements SalmonReporter {
       loopResult: result,
       at,
       resultText: this.lastTextResult,
+      warnings: this.getWarnings?.(),
     });
     this.emit(resultLine);
 
@@ -132,6 +138,8 @@ export class StreamJsonReporter implements SalmonReporter {
   }
 
   onError(error: Error): void {
+    const auditPath =
+      typeof (error as any).auditPath === 'string' ? (error as any).auditPath : undefined;
     this.emit(
       encodeStreamFailure({
         uuid: this.uuid(),
@@ -140,6 +148,7 @@ export class StreamJsonReporter implements SalmonReporter {
         message: error.message,
         name: error.name,
         stack: error.stack,
+        auditPath,
       }),
     );
     this.emit(
@@ -154,6 +163,9 @@ export class StreamJsonReporter implements SalmonReporter {
   }
 
   private emit(line: StreamJsonEnvelope): void {
-    this.writer.writeJsonLine(line);
+    this.writer.writeJsonLine({
+      ...line,
+      event_seq: line.event_seq ?? this.nextEventSeq++,
+    });
   }
 }

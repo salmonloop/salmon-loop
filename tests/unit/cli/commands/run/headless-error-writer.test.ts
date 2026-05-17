@@ -60,6 +60,8 @@ describe('createHeadlessErrorWriter (openai profile)', () => {
     } as any);
 
     expect(lines).toHaveLength(3);
+    expect(lines.map((line: any) => line.event_seq)).toEqual([0, 1, 2]);
+    expect(lines.every((line: any) => line.protocol_version === 1)).toBe(true);
     expect(lines[1]).toMatchObject({
       session_id: 'sess-native',
       event: {

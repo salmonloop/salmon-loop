@@ -495,7 +495,7 @@ describe('handleRunCommand outcome reporter', () => {
     }
   });
 
-  it('passes known auditPath to native stream-json unexpected error when a late error happens after result creation', async () => {
+  it('passes known auditPath to native stream-json unexpected error before reporter start', async () => {
     hoisted.parsedOptions = {
       ...hoisted.parsedOptions,
       rawOutputFormat: 'stream-json',
@@ -505,6 +505,57 @@ describe('handleRunCommand outcome reporter', () => {
       },
     };
     hoisted.writeJsonFailureCalls.length = 0;
+    hoisted.writeUnexpectedErrorCalls.length = 0;
+    hoisted.reporterImpl = {
+      onStart: mock(() => {
+        throw new Error('reporter start failed');
+      }),
+      onFinish: mock(),
+      onEvent: mock(),
+      onError: mock(),
+    };
+    hoisted.executeRunLoopImpl = mock(async () => ({
+      success: false,
+      reason: 'Exceeded maximum retry attempts',
+      reasonCode: 'MAX_RETRIES',
+      changedFiles: [],
+      auditPath: '/tmp/audit-stream.json',
+    }));
+
+    const { handleRunCommand } = await import('../../../../src/cli/commands/run/handler.js');
+    const command: any = { optsWithGlobals: () => ({}) };
+
+    try {
+      await handleRunCommand({}, command);
+
+      expect(hoisted.writeUnexpectedErrorCalls.at(-1)).toMatchObject({
+        message: expect.stringContaining('reporter start failed'),
+      });
+    } finally {
+      process.exitCode = 0;
+      hoisted.reporterImpl = {
+        onStart: mock(),
+        onFinish: mock(),
+        onEvent: mock(),
+        onError: mock(),
+      };
+      hoisted.executeRunLoopImpl = mock(async () => ({
+        success: true,
+        changedFiles: [],
+        reasonCode: 'OK',
+      }));
+    }
+  });
+
+  it('does not reset native stream-json sequence state when a late error happens after start', async () => {
+    hoisted.parsedOptions = {
+      ...hoisted.parsedOptions,
+      rawOutputFormat: 'stream-json',
+      allOptions: {
+        ...hoisted.parsedOptions.allOptions,
+        outputFormat: 'stream-json',
+      },
+    };
     hoisted.writeUnexpectedErrorCalls.length = 0;
     hoisted.reporterImpl = {
       onStart: mock(),
@@ -528,9 +579,13 @@ describe('handleRunCommand outcome reporter', () => {
     try {
       await handleRunCommand({}, command);
 
-      expect(hoisted.writeUnexpectedErrorCalls.at(-1)).toMatchObject({
-        auditPath: '/tmp/audit-stream.json',
-      });
+      expect(hoisted.writeUnexpectedErrorCalls).toHaveLength(0);
+      expect(hoisted.reporterImpl.onError).toHaveBeenCalledWith(
+        expect.objectContaining({
+          auditPath: '/tmp/audit-stream.json',
+          message: expect.stringContaining('reporter failed'),
+        }),
+      );
     } finally {
       process.exitCode = 0;
       hoisted.reporterImpl = {

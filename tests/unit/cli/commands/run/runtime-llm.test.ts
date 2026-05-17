@@ -96,4 +96,36 @@ describe('createRuntimeLlmAndWarn', () => {
       content: 'default-model',
     });
   });
+
+  it('returns structured warnings without logging in headless mode', async () => {
+    hoisted.createRuntimeLlm.mockImplementation((cfg: any) => ({
+      llm: fakeLlm(cfg.models?.selectedModelId || 'default-model'),
+      backend: 'stub',
+      warnings: ['API_KEY_MISSING'],
+    }));
+
+    const { createRuntimeLlmAndWarn } =
+      await import('../../../../../src/cli/commands/run/runtime-llm.js');
+
+    const result = createRuntimeLlmAndWarn({
+      llmConfig: {
+        type: 'openai-compatible',
+        models: { selectedModelId: 'default-model' },
+      },
+      langfuseEnabled: false,
+      headlessOutput: true,
+    });
+
+    expect(hoisted.logger.warn).not.toHaveBeenCalled();
+    expect(result.warnings).toEqual(['API_KEY_MISSING']);
+    expect(result.headlessWarnings).toEqual([
+      {
+        code: 'LLM_CREDENTIAL_MISSING',
+        message:
+          'LLM credential not configured; using StubLLM. Configure provider credentials to use a real LLM.',
+        source: 'llm.runtime',
+        severity: 'warning',
+      },
+    ]);
+  });
 });
