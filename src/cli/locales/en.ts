@@ -292,6 +292,14 @@ export const en = {
   outputFormatOption: 'Output format (text, json, stream-json)',
   outputProfileOption:
     'Output profile for stream-json (native, anthropic, openai). Only valid with --output-format stream-json.',
+  exportPatchOption:
+    'Write the final workspace git unified diff to a patch file after the run completes.',
+  sweBenchInstanceIdOption:
+    'SWE-bench instance_id to include when writing a predictions JSONL record.',
+  sweBenchModelNameOption:
+    'SWE-bench model_name_or_path to include when writing a predictions JSONL record.',
+  sweBenchPredictionsOption:
+    'Append a SWE-bench predictions JSONL record containing instance_id, model_name_or_path, and model_patch.',
   headlessIncludeToolInputOption:
     'Headless only: include (redacted) tool input in stream-json output. Only valid with --output-format stream-json.',
   headlessIncludeToolOutputOption:
@@ -328,6 +336,8 @@ export const en = {
     `Invalid --output-format "${format}". Expected "text", "stream-json", or "json".`,
   invalidOutputProfile: (profile: string) =>
     `Invalid --output-profile "${profile}". Expected "native", "anthropic", or "openai".`,
+  sweBenchInstanceRequired: '--swe-bench-predictions requires --swe-bench-instance-id.',
+  sweBenchModelRequired: '--swe-bench-predictions requires --swe-bench-model-name.',
   invalidAuditScope: (scope: string) =>
     `Invalid --audit-scope "${scope}". Expected "repo" or "user".`,
   headlessToolPayloadRequiresStreamJson:

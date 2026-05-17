@@ -15,6 +15,9 @@ export function handleEarlyRunCommandErrors(params: {
   continueSession: boolean;
   resumeSessionId?: string;
   jsonSchemaSpec?: string;
+  sweBenchInstanceId?: string;
+  sweBenchModelName?: string;
+  sweBenchPredictionsPath?: string;
   sessionIdForOutput?: string;
   headlessErrorWriter: {
     writeUsageError: (args: {
@@ -150,6 +153,30 @@ export function handleEarlyRunCommandErrors(params: {
       params.headlessErrorWriter.writeUsageError({
         sessionId: params.sessionIdForOutput,
         message: text.cli.jsonSchemaRequiresJsonOutput,
+        instruction: params.instruction,
+      });
+    }
+    return { ok: false, exitCode: 1 };
+  }
+
+  if (params.sweBenchPredictionsPath && !params.sweBenchInstanceId) {
+    getLogger().error(text.cli.sweBenchInstanceRequired);
+    if (params.headlessOutput) {
+      params.headlessErrorWriter.writeUsageError({
+        sessionId: params.sessionIdForOutput ?? params.resumeSessionId,
+        message: text.cli.sweBenchInstanceRequired,
+        instruction: params.instruction,
+      });
+    }
+    return { ok: false, exitCode: 1 };
+  }
+
+  if (params.sweBenchPredictionsPath && !params.sweBenchModelName) {
+    getLogger().error(text.cli.sweBenchModelRequired);
+    if (params.headlessOutput) {
+      params.headlessErrorWriter.writeUsageError({
+        sessionId: params.sessionIdForOutput ?? params.resumeSessionId,
+        message: text.cli.sweBenchModelRequired,
         instruction: params.instruction,
       });
     }

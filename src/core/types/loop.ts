@@ -125,6 +125,22 @@ export interface AuthorizationSourceSummary {
   hook: number;
 }
 
+export interface LoopBenchmarkPatchArtifact {
+  kind: 'git-unified-diff';
+  path?: string;
+  sha256: string;
+  bytes: number;
+  changedFiles: string[];
+  isEmpty: boolean;
+}
+
+export interface LoopBenchmarkArtifact {
+  provider: 'swe-bench';
+  instanceId: string;
+  modelNameOrPath: string;
+  predictionsPath?: string;
+}
+
 export interface LoopResult {
   success: boolean;
   reason: string;
@@ -152,6 +168,8 @@ export interface LoopResult {
   errorType?: ErrorType;
   errorCode?: string;
   auditPath?: string;
+  benchmarkPatchArtifact?: LoopBenchmarkPatchArtifact;
+  benchmarkArtifact?: LoopBenchmarkArtifact;
   verifyArtifact?: ArtifactHandle;
   artifactHints?: LoopArtifactHints;
   authorizationSummary?: AuthorizationSourceSummary;

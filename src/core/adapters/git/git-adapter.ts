@@ -9,7 +9,7 @@ import { LIMITS } from '../../config/limits.js';
 import { logIgnoredError } from '../../observability/ignored-error.js';
 import { getLogger } from '../../observability/logger.js';
 import { GitError } from '../../types/index.js';
-import { isPathWithinDirectory, normalizePath } from '../../utils/path.js';
+import { isPathWithinDirectory, isSafeRelativePath, normalizePath } from '../../utils/path.js';
 
 import type { GitRunLimits, GitRunResult } from './git-runner.js';
 import { runGitCommand } from './git-runner.js';
@@ -204,6 +204,44 @@ export class GitAdapter {
   ): Promise<string> {
     this.assertQueryAllowed(args);
     return this.exec(args, options);
+  }
+
+  /**
+   * Generate a git-formatted patch for one repo-relative file that is not in
+   * the index, without staging or otherwise mutating repository state.
+   */
+  async diffUntrackedFileAgainstNull(
+    relativePath: string,
+    options: {
+      cwd?: string;
+      limits?: GitRunLimits;
+      timeoutMs?: number;
+    } = {},
+  ): Promise<GitRunResult> {
+    const normalizedPath = normalizePath(relativePath);
+    if (!isSafeRelativePath(normalizedPath)) {
+      throw new Error(text.git.securityViolation('diff --no-index'));
+    }
+
+    return this.execMeta(
+      [
+        'diff',
+        '--no-index',
+        '--binary',
+        '--no-color',
+        '--no-ext-diff',
+        '--src-prefix=a/',
+        '--dst-prefix=b/',
+        '--',
+        '/dev/null',
+        normalizedPath,
+      ],
+      {
+        cwd: options.cwd,
+        limits: options.limits,
+        timeoutMs: options.timeoutMs,
+      },
+    );
   }
 
   // ==================== Business Layer ====================

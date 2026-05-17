@@ -1,4 +1,6 @@
 import { spawn } from 'child_process';
+import { mkdtemp, readFile, rm } from 'fs/promises';
+import { tmpdir } from 'os';
 import { join, resolve } from 'path';
 
 import { describe, expect, it, afterEach } from 'bun:test';
@@ -44,6 +46,12 @@ function findStreamResult(outputJsonl: any[] | undefined): any {
 
 function buildRepoFiles() {
   return [{ path: 'example.txt', content: 'Hello\nTest\nEnd\n' }];
+}
+
+async function createTempArtifactDir(): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), 'salmon-benchmark-artifacts-'));
+  cleanupQueue.push(() => rm(dir, { recursive: true, force: true }));
+  return dir;
 }
 
 describe('E2E CLI (black-box)', () => {
@@ -111,6 +119,60 @@ describe('E2E CLI (black-box)', () => {
     expect(meta?.diagnostic_code).toBe('UNDECLARED_DEPENDENCY');
     expect(meta?.safe_hint).toContain('fast-xml-parser');
     expect(Array.isArray(meta?.remediation_steps)).toBe(true);
+  });
+
+  it('exports an applyable SWE-bench prediction patch for a real headless patch run', async () => {
+    const repo = await prepareRepo({
+      strategy: 'direct',
+      verifyCommand: SUCCESS_VERIFY,
+      files: buildRepoFiles(),
+    });
+    cleanupQueue.push(repo.cleanup);
+    const artifactDir = await createTempArtifactDir();
+    const patchPath = join(artifactDir, 'model.patch');
+    const predictionsPath = join(artifactDir, 'predictions.jsonl');
+
+    const result = await runWithFallback(repo.path, {
+      instruction:
+        'Modify example.txt so line 1 is "Hello World" and line 3 is "End Test". Do not change other files.',
+      outputFormat: 'json',
+      environmentMode: 'strict',
+      strategy: 'direct',
+      actMode: 'patch',
+      allowFallback: true,
+      exportPatchPath: patchPath,
+      sweBenchInstanceId: 'smoke__example-1',
+      sweBenchModelName: 'salmon-loop-smoke',
+      sweBenchPredictionsPath: predictionsPath,
+    });
+
+    const content = await readRepoFile(repo.path, 'example.txt');
+    const patch = await readFile(patchPath, 'utf8');
+    const predictionLines = (await readFile(predictionsPath, 'utf8')).trim().split('\n');
+    const prediction = JSON.parse(predictionLines.at(-1) ?? '{}');
+
+    expect(result.exitCode).toBe(0);
+    expect(content).toBe('Hello World\nTest\nEnd Test\n');
+    expect(patch).toContain('diff --git a/example.txt b/example.txt');
+    expect(patch).toContain('+Hello World');
+    expect(patch).toContain('+End Test');
+    expect(prediction).toEqual({
+      instance_id: 'smoke__example-1',
+      model_name_or_path: 'salmon-loop-smoke',
+      model_patch: patch,
+    });
+    expect(result.outputJson?.metadata?.patch_artifact).toMatchObject({
+      kind: 'git-unified-diff',
+      path: patchPath,
+      changed_files: ['example.txt'],
+      is_empty: false,
+    });
+    expect(result.outputJson?.metadata?.benchmark_artifact).toMatchObject({
+      provider: 'swe-bench',
+      instance_id: 'smoke__example-1',
+      model_name_or_path: 'salmon-loop-smoke',
+      predictions_path: predictionsPath,
+    });
   });
 
   it('dependency missing yields actionable diagnostics (strict, stream-json)', async () => {

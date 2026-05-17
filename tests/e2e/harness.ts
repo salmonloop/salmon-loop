@@ -25,9 +25,14 @@ export interface RunOptions {
   instruction: string;
   outputFormat: OutputFormat;
   environmentMode: EnvironmentMode;
+  actMode?: string;
   strategy?: Strategy;
   applyBackOnDirty?: 'abort' | '3way' | 'none';
   verifyCommand?: string;
+  exportPatchPath?: string;
+  sweBenchInstanceId?: string;
+  sweBenchModelName?: string;
+  sweBenchPredictionsPath?: string;
 }
 
 export interface RunResult {
@@ -237,12 +242,32 @@ export async function runScenario(repoPath: string, options: RunOptions): Promis
     args.push('--checkpoint-strategy', options.strategy);
   }
 
+  if (options.actMode) {
+    args.push('--act-mode', options.actMode);
+  }
+
   if (options.applyBackOnDirty) {
     args.push('--apply-back-on-dirty', options.applyBackOnDirty);
   }
 
   if (options.verifyCommand) {
     args.push('--verify', options.verifyCommand);
+  }
+
+  if (options.exportPatchPath) {
+    args.push('--export-patch', options.exportPatchPath);
+  }
+
+  if (options.sweBenchInstanceId) {
+    args.push('--swe-bench-instance-id', options.sweBenchInstanceId);
+  }
+
+  if (options.sweBenchModelName) {
+    args.push('--swe-bench-model-name', options.sweBenchModelName);
+  }
+
+  if (options.sweBenchPredictionsPath) {
+    args.push('--swe-bench-predictions', options.sweBenchPredictionsPath);
   }
 
   const result = await spawnCli(repoPath, args);
@@ -295,12 +320,32 @@ export async function runWithFallback(
     args.push('--checkpoint-strategy', options.strategy);
   }
 
+  if (options.actMode) {
+    args.push('--act-mode', options.actMode);
+  }
+
   if (options.applyBackOnDirty) {
     args.push('--apply-back-on-dirty', options.applyBackOnDirty);
   }
 
   if (options.verifyCommand) {
     args.push('--verify', options.verifyCommand);
+  }
+
+  if (options.exportPatchPath) {
+    args.push('--export-patch', options.exportPatchPath);
+  }
+
+  if (options.sweBenchInstanceId) {
+    args.push('--swe-bench-instance-id', options.sweBenchInstanceId);
+  }
+
+  if (options.sweBenchModelName) {
+    args.push('--swe-bench-model-name', options.sweBenchModelName);
+  }
+
+  if (options.sweBenchPredictionsPath) {
+    args.push('--swe-bench-predictions', options.sweBenchPredictionsPath);
   }
 
   const result = await spawnCli(repoPath, args, envOverrides);

@@ -134,6 +134,24 @@ export function encodeStreamResult(params: {
 }): StreamJsonEnvelope {
   const exitCode = getStreamExitCode(params.loopResult);
   const warnings = normalizeHeadlessWarnings(params.warnings);
+  const patchArtifact = params.loopResult.benchmarkPatchArtifact
+    ? {
+        kind: params.loopResult.benchmarkPatchArtifact.kind,
+        path: params.loopResult.benchmarkPatchArtifact.path,
+        sha256: params.loopResult.benchmarkPatchArtifact.sha256,
+        bytes: params.loopResult.benchmarkPatchArtifact.bytes,
+        changed_files: params.loopResult.benchmarkPatchArtifact.changedFiles,
+        is_empty: params.loopResult.benchmarkPatchArtifact.isEmpty,
+      }
+    : undefined;
+  const benchmarkArtifact = params.loopResult.benchmarkArtifact
+    ? {
+        provider: params.loopResult.benchmarkArtifact.provider,
+        instance_id: params.loopResult.benchmarkArtifact.instanceId,
+        model_name_or_path: params.loopResult.benchmarkArtifact.modelNameOrPath,
+        predictions_path: params.loopResult.benchmarkArtifact.predictionsPath,
+      }
+    : undefined;
   return encodeEnvelope({
     uuid: params.uuid,
     sessionId: params.sessionId,
@@ -148,7 +166,9 @@ export function encodeStreamResult(params: {
       safe_hint: params.loopResult.safeHint ?? params.loopResult.reason,
       remediation_steps: params.loopResult.remediationSteps ?? [],
       attempts: params.loopResult.attempts,
-      changed_files: params.loopResult.changedFiles,
+      changed_files: params.loopResult.changedFiles ?? [],
+      patch_artifact: patchArtifact,
+      benchmark_artifact: benchmarkArtifact,
       audit_path: params.loopResult.auditPath,
       error_code: params.loopResult.errorCode,
       authorization_summary: params.loopResult.authorizationSummary,

@@ -58,6 +58,22 @@ export function parseRunCommandOptions(command: Command): RunCommandParsedOption
     (allOptions as any).headlessIncludeAuthorizationDecisions,
   );
   const allowOutsideCacheRoot = Boolean((allOptions as any).allowOutsideCacheRoot);
+  const exportPatchPath =
+    typeof (allOptions as any).exportPatch === 'string'
+      ? ((allOptions as any).exportPatch as string)
+      : undefined;
+  const sweBenchInstanceId =
+    typeof (allOptions as any).sweBenchInstanceId === 'string'
+      ? ((allOptions as any).sweBenchInstanceId as string)
+      : undefined;
+  const sweBenchModelName =
+    typeof (allOptions as any).sweBenchModelName === 'string'
+      ? ((allOptions as any).sweBenchModelName as string)
+      : undefined;
+  const sweBenchPredictionsPath =
+    typeof (allOptions as any).sweBenchPredictions === 'string'
+      ? ((allOptions as any).sweBenchPredictions as string)
+      : undefined;
 
   const instruction = explicitInstruction ?? printInstruction;
 
@@ -80,6 +96,10 @@ export function parseRunCommandOptions(command: Command): RunCommandParsedOption
     headlessIncludeToolOutput,
     headlessIncludeAuthorizationDecisions,
     allowOutsideCacheRoot,
+    exportPatchPath,
+    sweBenchInstanceId,
+    sweBenchModelName,
+    sweBenchPredictionsPath,
     allowedToolRules,
     disallowedToolRules,
   };

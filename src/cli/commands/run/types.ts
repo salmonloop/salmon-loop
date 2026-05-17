@@ -31,6 +31,10 @@ export interface RunCommandParsedOptions {
   headlessIncludeToolOutput: boolean;
   headlessIncludeAuthorizationDecisions: boolean;
   allowOutsideCacheRoot: boolean;
+  exportPatchPath?: string;
+  sweBenchInstanceId?: string;
+  sweBenchModelName?: string;
+  sweBenchPredictionsPath?: string;
 }
 
 export interface RunCommandValidatedOptions extends RunCommandParsedOptions {

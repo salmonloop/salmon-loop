@@ -45,6 +45,20 @@ describe('JsonReporter', () => {
       attempts: 1,
       logs: [],
       changedFiles: ['src/a.ts'],
+      benchmarkPatchArtifact: {
+        kind: 'git-unified-diff',
+        path: '/tmp/patch.diff',
+        sha256: 'a'.repeat(64),
+        bytes: 12,
+        changedFiles: ['src/a.ts'],
+        isEmpty: false,
+      },
+      benchmarkArtifact: {
+        provider: 'swe-bench',
+        instanceId: 'repo__project-1',
+        modelNameOrPath: 'salmon-loop',
+        predictionsPath: '/tmp/predictions.jsonl',
+      },
       usage: { inputTokens: 12, outputTokens: 34, totalTokens: 46 },
       authorizationDecisions: [
         {
@@ -84,6 +98,20 @@ describe('JsonReporter', () => {
       remediation_steps: [],
       attempts: 1,
       changed_files: ['src/a.ts'],
+      patch_artifact: {
+        kind: 'git-unified-diff',
+        path: '/tmp/patch.diff',
+        sha256: 'a'.repeat(64),
+        bytes: 12,
+        changed_files: ['src/a.ts'],
+        is_empty: false,
+      },
+      benchmark_artifact: {
+        provider: 'swe-bench',
+        instance_id: 'repo__project-1',
+        model_name_or_path: 'salmon-loop',
+        predictions_path: '/tmp/predictions.jsonl',
+      },
       run_end: {
         success: true,
         timestamp: '2026-02-20T00:00:00.000Z',

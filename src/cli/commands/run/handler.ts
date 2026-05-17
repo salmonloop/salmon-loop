@@ -29,6 +29,7 @@ import { resolveOutputFormat } from '../../utils/output-format.js';
 import { resolveCliCommonOptions } from '../../utils/resolve-cli-config.js';
 
 import { buildRunAssistantMessage } from './assistant-message.js';
+import { attachRunBenchmarkArtifacts } from './benchmark-artifacts.js';
 import { resolveRunConfig } from './config-resolution.js';
 import { handleEarlyRunCommandErrors } from './early-errors.js';
 import { executeRunLoop } from './execute.js';
@@ -83,6 +84,10 @@ export async function handleRunCommand(options: any, command: Command) {
   const headlessIncludeToolOutput = parsed.headlessIncludeToolOutput;
   const headlessIncludeAuthorizationDecisions = parsed.headlessIncludeAuthorizationDecisions;
   const allowOutsideCacheRoot = parsed.allowOutsideCacheRoot;
+  const exportPatchPath = parsed.exportPatchPath;
+  const sweBenchInstanceId = parsed.sweBenchInstanceId;
+  const sweBenchModelName = parsed.sweBenchModelName;
+  const sweBenchPredictionsPath = parsed.sweBenchPredictionsPath;
   const stdoutWriter = createStdoutWriter();
 
   const instruction = parsed.instruction;
@@ -126,6 +131,9 @@ export async function handleRunCommand(options: any, command: Command) {
     continueSession,
     resumeSessionId,
     jsonSchemaSpec,
+    sweBenchInstanceId,
+    sweBenchModelName,
+    sweBenchPredictionsPath,
     sessionIdForOutput,
     headlessErrorWriter,
   });
@@ -509,6 +517,15 @@ export async function handleRunCommand(options: any, command: Command) {
       },
     });
     lastKnownAuditPath = result.auditPath;
+
+    await attachRunBenchmarkArtifacts({
+      result,
+      repoPath: runPath,
+      exportPatchPath,
+      sweBenchInstanceId,
+      sweBenchModelName,
+      sweBenchPredictionsPath,
+    });
 
     structuredOutputState = await buildStructuredOutputState({
       outputFormat,

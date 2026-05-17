@@ -116,6 +116,20 @@ describe('StreamJsonReporter', () => {
       attempts: 1,
       logs: [],
       changedFiles: ['src/a.ts'],
+      benchmarkPatchArtifact: {
+        kind: 'git-unified-diff',
+        path: '/tmp/patch.diff',
+        sha256: 'b'.repeat(64),
+        bytes: 42,
+        changedFiles: ['src/a.ts'],
+        isEmpty: false,
+      },
+      benchmarkArtifact: {
+        provider: 'swe-bench',
+        instanceId: 'repo__project-1',
+        modelNameOrPath: 'salmon-loop',
+        predictionsPath: '/tmp/predictions.jsonl',
+      },
     };
     reporter.onFinish(result);
 
@@ -188,6 +202,20 @@ describe('StreamJsonReporter', () => {
         exit_code: 0,
         attempts: 1,
         changed_files: ['src/a.ts'],
+        patch_artifact: {
+          kind: 'git-unified-diff',
+          path: '/tmp/patch.diff',
+          sha256: 'b'.repeat(64),
+          bytes: 42,
+          changed_files: ['src/a.ts'],
+          is_empty: false,
+        },
+        benchmark_artifact: {
+          provider: 'swe-bench',
+          instance_id: 'repo__project-1',
+          model_name_or_path: 'salmon-loop',
+          predictions_path: '/tmp/predictions.jsonl',
+        },
         result: 'Done',
         warnings: [],
         run_end: {
@@ -258,6 +286,39 @@ describe('StreamJsonReporter', () => {
             severity: 'warning',
           },
         ],
+      },
+    });
+
+    useRealTimers();
+    restoreTime();
+  });
+
+  it('emits an empty changed_files list when LoopResult omits changedFiles', () => {
+    useFakeTimers();
+    const restoreTime = freezeSystemTime('2026-02-20T00:00:00.000Z');
+
+    const { lines, write } = collectLines();
+    const reporter = new StreamJsonReporter({
+      mode: 'run',
+      sessionId: 'sess-empty',
+      now: () => new Date(),
+      writer: createStdoutWriter({ write }),
+    });
+
+    reporter.onStart('x');
+    reporter.onFinish({
+      success: true,
+      reason: 'SUCCESS',
+      reasonCode: 'SUCCESS',
+      attempts: 1,
+      logs: [],
+    });
+
+    const resultLine = lines.find((line) => line.event?.type === 'result');
+    expect(resultLine).toMatchObject({
+      event: {
+        type: 'result',
+        changed_files: [],
       },
     });
 

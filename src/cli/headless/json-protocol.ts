@@ -91,6 +91,30 @@ function toAuthorizationDecisions(result: LoopResult): unknown[] | undefined {
   }));
 }
 
+function toPatchArtifact(result: LoopResult): unknown {
+  const artifact = result.benchmarkPatchArtifact;
+  if (!artifact) return undefined;
+  return {
+    kind: artifact.kind,
+    path: artifact.path,
+    sha256: artifact.sha256,
+    bytes: artifact.bytes,
+    changed_files: artifact.changedFiles,
+    is_empty: artifact.isEmpty,
+  };
+}
+
+function toBenchmarkArtifact(result: LoopResult): unknown {
+  const artifact = result.benchmarkArtifact;
+  if (!artifact) return undefined;
+  return {
+    provider: artifact.provider,
+    instance_id: artifact.instanceId,
+    model_name_or_path: artifact.modelNameOrPath,
+    predictions_path: artifact.predictionsPath,
+  };
+}
+
 export function encodeJsonResult(params: EncodeJsonResultParams): unknown {
   const overrides = params.overrides;
   const exitCode = overrides?.exitCode ?? toExitCode(params.loopResult);
@@ -122,6 +146,8 @@ export function encodeJsonResult(params: EncodeJsonResultParams): unknown {
       remediation_steps: remediationSteps,
       attempts: params.loopResult.attempts,
       changed_files: params.loopResult.changedFiles ?? [],
+      patch_artifact: toPatchArtifact(params.loopResult),
+      benchmark_artifact: toBenchmarkArtifact(params.loopResult),
       audit_path: params.loopResult.auditPath,
       error_code: errorCode,
       authorization_summary: params.loopResult.authorizationSummary,
