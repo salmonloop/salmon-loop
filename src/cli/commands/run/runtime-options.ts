@@ -9,6 +9,7 @@ export async function resolveRunRuntimeOptions(params: {
   resolvedConfig: any;
   cliOptions: any;
   outputFormat: 'text' | 'json' | 'stream-json';
+  headlessOutput?: boolean;
   writeJsonFailure: (args: { message: string; repoPath?: string }) => void;
 }): Promise<
   | { ok: true; llmOutput: any; effectiveVerify?: string; effectiveWorktreePrepare?: string }
@@ -45,12 +46,14 @@ export async function resolveRunRuntimeOptions(params: {
     params.repoPath,
     params.cliOptions.verify,
     params.resolvedConfig.verify.command,
+    { quiet: params.headlessOutput },
   );
 
   const effectiveWorktreePrepare = await resolveWorktreePrepareOption(
     params.repoPath,
     params.cliOptions.checkpointStrategy,
     params.cliOptions.worktreePrepare,
+    { quiet: params.headlessOutput },
   );
 
   return { ok: true, llmOutput, effectiveVerify, effectiveWorktreePrepare };

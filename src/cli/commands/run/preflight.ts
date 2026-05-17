@@ -83,13 +83,22 @@ async function runValidateCommand(params: {
   cmd: string;
   args: string[];
   useGui: boolean;
+  headlessOutput?: boolean;
 }) {
   const maxBytesPerStream = 500_000;
+  const env = params.headlessOutput
+    ? {
+        ...process.env,
+        NO_COLOR: process.env.NO_COLOR ?? '1',
+        FORCE_COLOR: '0',
+      }
+    : process.env;
 
   const result = await spawnCommand({
     command: params.cmd,
     args: params.args,
     cwd: params.repoPath,
+    env,
     windowsHide: true,
     maxStdoutBytes: maxBytesPerStream,
     maxStderrBytes: maxBytesPerStream,
@@ -125,6 +134,7 @@ export async function runPreflight(params: {
   repoPath: string;
   validate: boolean;
   useGui: boolean;
+  headlessOutput?: boolean;
   preflightPolicy?: PreflightPolicy;
 }) {
   await PluginLoader.loadPlugins(params.languagePlugins, params.repoPath);
@@ -158,6 +168,7 @@ export async function runPreflight(params: {
           cmd: lintCommand.command,
           args: lintCommand.args,
           useGui: params.useGui,
+          headlessOutput: params.headlessOutput,
         });
       } catch (error) {
         if (error instanceof PreflightCommandError) {
@@ -182,6 +193,7 @@ export async function runPreflight(params: {
           cmd: testCommand.command,
           args: testCommand.args,
           useGui: params.useGui,
+          headlessOutput: params.headlessOutput,
         });
       } catch (error) {
         if (error instanceof PreflightCommandError) {

@@ -6,6 +6,8 @@ export type DetectedHeadlessOutput = {
   outputProfile?: string;
 };
 
+const HEADLESS_OUTPUT_FORMATS = new Set(['json', 'stream-json']);
+
 function readFlagValue(tokens: string[], index: number): { value?: string; nextIndex: number } {
   const token = tokens[index];
   const eq = token.indexOf('=');
@@ -73,4 +75,28 @@ export function detectHeadlessOutputFromArgv(argv: string[]): DetectedHeadlessOu
     outputFormat: normalized,
     outputProfile,
   };
+}
+
+export function shouldForceColorForArgv(argv: string[]): boolean {
+  if (process.env.NO_COLOR !== undefined) return false;
+  const existingForceColor = process.env.FORCE_COLOR;
+  if (existingForceColor !== undefined && existingForceColor !== '') return false;
+
+  const tokens = argv.slice(2);
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+    if (token === '--') break;
+    if (token === '--output-format') {
+      const value = tokens[i + 1];
+      if (HEADLESS_OUTPUT_FORMATS.has(String(value))) return false;
+      i += 1;
+      continue;
+    }
+    if (token.startsWith('--output-format=')) {
+      const value = token.slice('--output-format='.length);
+      if (HEADLESS_OUTPUT_FORMATS.has(value)) return false;
+    }
+  }
+
+  return true;
 }

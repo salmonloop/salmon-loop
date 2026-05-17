@@ -116,6 +116,45 @@ describe('runPreflight', () => {
     expect(hoisted.logger.success).toHaveBeenCalledTimes(1);
   });
 
+  it('passes no-color environment to validation commands in headless mode', async () => {
+    hoisted.detectNodeRuntimeProfile.mockResolvedValue({
+      packageManager: 'pnpm',
+      source: 'lockfile',
+      scripts: { lint: 'eslint .' },
+    });
+    hoisted.resolveScriptCommand.mockImplementation((_profile: unknown, scriptName: string) => {
+      if (scriptName === 'lint') {
+        return {
+          packageManager: 'pnpm',
+          scriptName: 'lint',
+          command: 'pnpm',
+          args: ['run', 'lint'],
+          shellCommand: 'pnpm run lint',
+        };
+      }
+      return undefined;
+    });
+
+    const { runPreflight } = await import('../../../../../src/cli/commands/run/preflight.js');
+    const languagePlugins = {} as any;
+    await runPreflight({
+      languagePlugins,
+      repoPath: '/tmp/repo',
+      validate: true,
+      useGui: false,
+      headlessOutput: true,
+    });
+
+    expect(hoisted.spawnCommand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        env: expect.objectContaining({
+          NO_COLOR: '1',
+          FORCE_COLOR: '0',
+        }),
+      }),
+    );
+  });
+
   it('continues when test script fails', async () => {
     hoisted.detectNodeRuntimeProfile.mockResolvedValue({
       packageManager: 'npm',

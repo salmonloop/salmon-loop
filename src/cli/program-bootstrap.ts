@@ -3,13 +3,20 @@ import { Command } from 'commander';
 
 import { initializeRuntime } from '../core/facades/cli-program-bootstrap.js';
 
+import type { DetectedHeadlessOutput } from './argv/headless-detection.js';
 import { text } from './locales/index.js';
 
-export function bootstrapProgram(): Command {
+export function bootstrapProgram(
+  options: { headlessDetection?: DetectedHeadlessOutput } = {},
+): Command {
   initializeRuntime();
 
-  // Force global chalk level for all output paths.
-  chalk.level = 3;
+  if (!options.headlessDetection?.outputFormat && process.env.NO_COLOR === undefined) {
+    // Force global chalk level for interactive output paths.
+    chalk.level = 3;
+  } else {
+    chalk.level = 0;
+  }
 
   const program = new Command();
   program.exitOverride();

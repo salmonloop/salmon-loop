@@ -1,4 +1,4 @@
-import { getLogger } from '../../core/facades/cli-observability.js';
+import { tryGetLogger } from '../../core/facades/cli-observability.js';
 import { text } from '../../locales/index.js';
 
 import { autoDetectVerifyCommand } from './detectors/index.js';
@@ -14,11 +14,12 @@ export async function resolveVerifyOption(
   repoPath: string,
   cliVerify: string | boolean | undefined,
   configVerify: string | undefined,
+  options: { quiet?: boolean } = {},
 ): Promise<string | undefined> {
   // 1. Explicitly disabled via --no-verify
   // Commander sets options.verify to false when --no-verify is used
   if (cliVerify === false) {
-    getLogger().debug(text.verify.explicitlyDisabled);
+    tryGetLogger()?.debug(text.verify.explicitlyDisabled);
     return undefined;
   }
 
@@ -35,7 +36,9 @@ export async function resolveVerifyOption(
   // 4. Auto-detect
   const detected = await autoDetectVerifyCommand(repoPath);
   if (detected) {
-    getLogger().info(text.verify.autoDetected(detected));
+    const logger = tryGetLogger();
+    if (options.quiet) logger?.debug(text.verify.autoDetected(detected));
+    else logger?.info(text.verify.autoDetected(detected));
     return detected;
   }
 

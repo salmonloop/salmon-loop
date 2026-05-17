@@ -20,6 +20,7 @@ import { RealFsTestHelper } from '../helpers/real-fs-helper.js';
 
 describe('Headless protocol integration', () => {
   const helper = new RealFsTestHelper();
+  const ansiPattern = /\x1b\[[0-9;]*m/;
 
   afterEach(async () => {
     await helper.cleanup();
@@ -1649,7 +1650,7 @@ describe('Headless protocol integration', () => {
   it('prints machine-readable usage errors for --continue/--resume conflict when --output-format stream-json', async () => {
     const repo = await helper.createGitRepo();
 
-    const { exitCode, stdout } = await runCli([
+    const { exitCode, stdout, stderr } = await runCli([
       'run',
       '-r',
       repo.path,
@@ -1666,6 +1667,7 @@ describe('Headless protocol integration', () => {
     ]);
 
     expect(exitCode).toBe(1);
+    expect(stderr).not.toMatch(ansiPattern);
     const lines = stdout
       .split('\n')
       .filter(Boolean)
@@ -1997,7 +1999,7 @@ describe('Headless protocol integration', () => {
   it('rejects --output-profile when --output-format is json', async () => {
     const repo = await helper.createGitRepo();
 
-    const { exitCode, stdout } = await runCli([
+    const { exitCode, stdout, stderr } = await runCli([
       'run',
       '-r',
       repo.path,
@@ -2013,6 +2015,7 @@ describe('Headless protocol integration', () => {
     ]);
 
     expect(exitCode).toBe(1);
+    expect(stderr).not.toMatch(ansiPattern);
     const payload = JSON.parse(stdout) as any;
     expect(payload.structured_output).toBe(null);
     expect(payload.metadata).toMatchObject({

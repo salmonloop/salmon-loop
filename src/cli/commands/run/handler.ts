@@ -10,6 +10,7 @@ import {
   getDefaultSessionContextBudgetTokens,
   getLogger,
   normalizePermissionMode,
+  PlainReporter,
   resolveExecutionProfile,
   setPluginRegistry,
   setPromptRegistry,
@@ -20,7 +21,6 @@ import {
 } from '../../../core/facades/cli-run-handler.js';
 import { createStdoutWriter } from '../../headless/stdout-writer.js';
 import { text } from '../../locales/index.js';
-import { StderrLogReporter } from '../../reporters/stderr-log-reporter.js';
 import { getOptionValueSourceWithGlobalFallback } from '../../utils/command-option-source.js';
 import { createOutcomeReporter } from '../../utils/outcome-reporter.js';
 import { resolveOutputFormat } from '../../utils/output-format.js';
@@ -88,7 +88,7 @@ export async function handleRunCommand(options: any, command: Command) {
   const useGui = !headlessOutput && !printMode && allOptions.gui !== false && process.stdout.isTTY;
 
   if (headlessOutput) {
-    getLogger().setReporter(new StderrLogReporter());
+    getLogger().setReporter(new PlainReporter());
   }
 
   const wantSessionPersistence =
@@ -179,6 +179,7 @@ export async function handleRunCommand(options: any, command: Command) {
     repoPath: runPath,
     validate: Boolean(allOptions.validate),
     useGui,
+    headlessOutput,
     preflightPolicy,
   });
   if (allOptions.validate && !instruction) return;
@@ -221,6 +222,7 @@ export async function handleRunCommand(options: any, command: Command) {
     resolvedConfig,
     cliOptions: allOptions,
     outputFormat,
+    headlessOutput,
     writeJsonFailure: ({ message, repoPath }) => writeJsonFailure({ message, repoPath }),
   });
   if (!runtimeOptions.ok) {

@@ -1,19 +1,21 @@
 import { createCliRuntimeContext, type CliRuntimeContext } from './cli-runtime-context.js';
+import { detectHeadlessOutputFromArgv } from './argv/headless-detection.js';
 import { bootstrapProgram } from './program-bootstrap.js';
 import { registerProgramCommands } from './program-commands.js';
 import { configureGlobalProgramOptions } from './program-options.js';
 import { configureProgramOutputForHeadless } from './program-output-mode.js';
 import { parseProgramOrExit } from './program-parse.js';
 
-export function buildCliProgram() {
-  const program = bootstrapProgram();
+export function buildCliProgram(argv: string[] = process.argv) {
+  const headlessDetection = detectHeadlessOutputFromArgv(argv);
+  const program = bootstrapProgram({ headlessDetection });
   configureGlobalProgramOptions(program);
   registerProgramCommands(program);
   return program;
 }
 
 export function createCliContextFromArgv(argv: string[]): CliRuntimeContext {
-  const program = buildCliProgram();
+  const program = buildCliProgram(argv);
   return createCliRuntimeContext(program, argv);
 }
 
