@@ -17,7 +17,6 @@ describe('FileStateResolver', () => {
   const workspaceRoot = '/mock/root';
 
   beforeEach(() => {
-    mock.clearAllMocks();
     mockGit = {
       getStatus: mock(),
       show: mock(),

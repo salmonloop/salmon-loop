@@ -36,7 +36,6 @@ mock.module('../../../src/core/sub-agent/controller.js', () => ({
 
 describe('sub-agent task-spawn context snapshot injection', () => {
   beforeEach(() => {
-    mock.clearAllMocks();
     clearAuditTrail();
   });
 

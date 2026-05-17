@@ -13,9 +13,7 @@ mock.module('../../../src/core/adapters/fs/node-fs.js', () => ({
 describe('Builtin Tool: fs.read_file', () => {
   const repoRoot = '/fake/repo';
 
-  beforeEach(() => {
-    mock.clearAllMocks();
-  });
+  beforeEach(() => {});
 
   it('should read a file within the repository', async () => {
     // Setup mocks

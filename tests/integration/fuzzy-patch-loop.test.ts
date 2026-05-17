@@ -28,8 +28,6 @@ describe('Fuzzy Patch Loop Integration', () => {
     });
     repoPath = repo.path;
 
-    mock.clearAllMocks();
-
     spyOn(AstParser, 'parse').mockResolvedValue({} as any);
     spyOn(AstParser, 'identifyDefinitions').mockResolvedValue([]);
     spyOn(AstParser, 'identifyReferences').mockResolvedValue([]);
