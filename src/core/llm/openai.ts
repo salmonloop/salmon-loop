@@ -3,17 +3,13 @@
  * Core loop must NOT depend on provider-specific behavior.
  */
 import type { Context } from '../types/context.js';
-import type { LLM, LLMMessage } from '../types/llm.js';
+import type { LLM, LlmCapabilities, LLMMessage } from '../types/llm.js';
 import type { Plan } from '../types/planning.js';
 
 export type { LLM };
 
 export class StubLLM implements LLM {
-  getCapabilities(): {
-    toolCalling?: boolean;
-    responseFormatJsonObject?: boolean;
-    streaming?: boolean;
-  } {
+  getCapabilities(): LlmCapabilities {
     return {
       toolCalling: false,
       responseFormatJsonObject: false,
@@ -64,11 +60,7 @@ export class FakeLLM implements LLM {
   private planIndex = 0;
   private patchIndex = 0;
 
-  getCapabilities(): {
-    toolCalling?: boolean;
-    responseFormatJsonObject?: boolean;
-    streaming?: boolean;
-  } {
+  getCapabilities(): LlmCapabilities {
     return {
       toolCalling: false,
       responseFormatJsonObject: false,

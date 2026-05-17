@@ -178,6 +178,12 @@ export class ContextService {
     for (const target of result.context.targets ?? []) {
       if (target.path) deduped.add(target.path);
     }
+    for (const file of result.context.relatedFiles ?? []) {
+      if (file.path) deduped.add(file.path);
+    }
+    for (const snippet of result.context.rgSnippets ?? []) {
+      if (snippet.file) deduped.add(snippet.file);
+    }
     return [...deduped].sort().slice(0, ContextService.MAX_CACHE_TRACKED_FILES);
   }
 

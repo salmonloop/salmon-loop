@@ -285,6 +285,144 @@ describe('validateConfigFileV1 (server)', () => {
   });
 });
 
+describe('validateConfigFileV1 (llm capabilities)', () => {
+  it('accepts provider and model capabilities', () => {
+    const parsed = validateConfigFileV1({
+      llm: {
+        activeModel: 'default',
+        providers: {
+          openaiMain: {
+            type: 'openai-compatible',
+            capabilities: {
+              toolCalling: false,
+              responseFormatJsonObject: true,
+              streaming: false,
+            },
+          },
+        },
+        models: {
+          default: {
+            provider: 'openaiMain',
+            id: 'gpt-test',
+            capabilities: {
+              toolCalling: true,
+            },
+          },
+        },
+      },
+    });
+
+    expect(parsed.llm?.providers?.openaiMain.capabilities).toEqual({
+      toolCalling: false,
+      responseFormatJsonObject: true,
+      streaming: false,
+    });
+    expect(parsed.llm?.models?.default.capabilities).toEqual({
+      toolCalling: true,
+    });
+  });
+
+  it('rejects capability keys flattened directly under params', () => {
+    expect(() =>
+      validateConfigFileV1({
+        llm: {
+          activeModel: 'default',
+          providers: {
+            openaiMain: {
+              type: 'openai-compatible',
+            },
+          },
+          models: {
+            default: {
+              provider: 'openaiMain',
+              id: 'gpt-test',
+              params: {
+                temperature: 0,
+                toolCalling: false,
+              },
+            },
+          },
+        },
+      }),
+    ).toThrow(/CONFIG_INVALID_LLM_CAPABILITY_LOCATION/);
+  });
+
+  it('rejects capabilities nested under params', () => {
+    expect(() =>
+      validateConfigFileV1({
+        llm: {
+          activeModel: 'default',
+          providers: {
+            openaiMain: {
+              type: 'openai-compatible',
+            },
+          },
+          models: {
+            default: {
+              provider: 'openaiMain',
+              id: 'gpt-test',
+              params: {
+                temperature: 0,
+                capabilities: {
+                  toolCalling: false,
+                },
+              },
+            },
+          },
+        },
+      }),
+    ).toThrow(/CONFIG_INVALID_LLM_CAPABILITY_LOCATION/);
+  });
+
+  it('rejects non-boolean capability values', () => {
+    expect(() =>
+      validateConfigFileV1({
+        llm: {
+          activeModel: 'default',
+          providers: {
+            openaiMain: {
+              type: 'openai-compatible',
+              capabilities: {
+                toolCalling: 'nope',
+              },
+            },
+          },
+          models: {
+            default: {
+              provider: 'openaiMain',
+              id: 'gpt-test',
+            },
+          },
+        },
+      }),
+    ).toThrow(/CONFIG_INVALID_LLM_CAPABILITY/);
+  });
+
+  it('rejects unknown capability names', () => {
+    expect(() =>
+      validateConfigFileV1({
+        llm: {
+          activeModel: 'default',
+          providers: {
+            openaiMain: {
+              type: 'openai-compatible',
+              capabilities: {
+                tools: false,
+              },
+            },
+          },
+          models: {
+            default: {
+              provider: 'openaiMain',
+              id: 'gpt-test',
+            },
+          },
+        },
+      }),
+    ).toThrow(/CONFIG_INVALID_LLM_CAPABILITY/);
+  });
+});
+
 describe('validateConfigFileV1 (output.llm)', () => {
   it('accepts research output kind', () => {
     const parsed = validateConfigFileV1({

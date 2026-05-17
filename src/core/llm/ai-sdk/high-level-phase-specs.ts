@@ -7,6 +7,7 @@ import type { RequestAttachment } from '../request-envelope.js';
 import { extractUnifiedDiffFromLLMContent, parsePlanFromLLMContent } from '../utils.js';
 
 export interface HighLevelPhaseSpec<TInput, TOutput> {
+  name: HighLevelPhaseName;
   namespace: string;
   observationName: string;
   buildPrompt: (input: TInput & { contextPrompt: string }) => Promise<string>;
@@ -82,6 +83,7 @@ function parsePatchResult(content: string | undefined): string {
 
 export const HIGH_LEVEL_PHASE_SPECS: HighLevelPhaseSpecMap = {
   plan: {
+    name: 'plan',
     namespace: 'plan',
     observationName: 'PLAN:plan-json',
     buildPrompt: async ({ contextPrompt, instruction, lastError }) =>
@@ -90,6 +92,7 @@ export const HIGH_LEVEL_PHASE_SPECS: HighLevelPhaseSpecMap = {
     parseResult: (content) => parsePlanResult(content),
   },
   patch: {
+    name: 'patch',
     namespace: 'patch',
     observationName: 'PATCH:unified-diff',
     buildPrompt: async ({ planStr, contextPrompt, lastError }) =>

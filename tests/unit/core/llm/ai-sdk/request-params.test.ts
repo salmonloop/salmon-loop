@@ -100,4 +100,36 @@ describe('buildAiSdkRequestParams', () => {
 
     expect(params.providerOptions).toBeUndefined();
   });
+
+  it('maps json_object response format for capable models', () => {
+    const params = buildParams({
+      options: {
+        responseFormat: 'json_object',
+        responseFormatJsonObjectSupported: true,
+      },
+    });
+
+    expect(params.responseFormat).toEqual({ type: 'json' });
+  });
+
+  it('omits json_object response format when capability is disabled', () => {
+    const params = buildParams({
+      options: {
+        responseFormat: 'json_object',
+        responseFormatJsonObjectSupported: false,
+      },
+    });
+
+    expect(params.responseFormat).toBeUndefined();
+  });
+
+  it('maps text response format explicitly', () => {
+    const params = buildParams({
+      options: {
+        responseFormat: 'text',
+      },
+    });
+
+    expect(params.responseFormat).toEqual({ type: 'text' });
+  });
 });

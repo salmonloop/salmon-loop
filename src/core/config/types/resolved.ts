@@ -1,6 +1,10 @@
 import type { LlmOutputPolicy } from '../../types/index.js';
 
-import type { ConfigFileV1, ToolAuthorizationConfig } from './config-file.js';
+import type {
+  ConfigFileV1,
+  LlmCapabilitiesConfigV1,
+  ToolAuthorizationConfig,
+} from './config-file.js';
 import type {
   AstValidationStrictness,
   LlmProviderType,
@@ -26,6 +30,7 @@ export interface ResolvedLlmPhaseOverride {
     id: string;
     slot: string;
   };
+  capabilities?: LlmCapabilitiesConfigV1;
 }
 
 export type ApiKeySource = 'inline' | 'env' | 'missing';
@@ -45,6 +50,7 @@ export interface ResolvedLlmProvider {
     selectedModelId: string;
     selectedModelSlot: string;
   };
+  capabilities?: LlmCapabilitiesConfigV1;
   routing?: {
     fallbackProviders?: string[];
     taskToModel?: Record<string, string>;

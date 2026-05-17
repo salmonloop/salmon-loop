@@ -159,4 +159,97 @@ describe('resolveConfig (security/observability)', () => {
     expect(resolved.observability.audit.buffer.maxEvents).toBe(10);
     expect(resolved.source.path).toBe('/repo/.salmonloop/config.json');
   });
+
+  it('resolves provider/model llm capability overrides with model priority', async () => {
+    loadConfigStackMock.mockResolvedValue({
+      repo: {
+        config: {
+          llm: {
+            activeModel: 'default',
+            providers: {
+              openaiMain: {
+                type: 'openai-compatible',
+                api: { baseUrl: 'https://example.com/v1', apiKey: 'inline-key' },
+                capabilities: {
+                  toolCalling: false,
+                  responseFormatJsonObject: true,
+                  streaming: false,
+                },
+              },
+            },
+            models: {
+              default: {
+                provider: 'openaiMain',
+                id: 'gpt-default',
+                capabilities: {
+                  toolCalling: true,
+                },
+              },
+            },
+          },
+        },
+        path: '/repo/.salmonloop/config.json',
+      },
+    });
+
+    const resolved = await resolveConfig({ repoRoot: '/repo' });
+
+    expect(resolved.llm.capabilities).toEqual({
+      toolCalling: true,
+      responseFormatJsonObject: true,
+      streaming: false,
+    });
+  });
+
+  it('resolves phase llm capability overrides independently', async () => {
+    loadConfigStackMock.mockResolvedValue({
+      repo: {
+        config: {
+          llm: {
+            activeModel: 'default',
+            providers: {
+              openaiMain: {
+                type: 'openai-compatible',
+                api: { baseUrl: 'https://example.com/v1', apiKey: 'inline-key' },
+                capabilities: {
+                  toolCalling: false,
+                  streaming: false,
+                },
+              },
+            },
+            models: {
+              default: {
+                provider: 'openaiMain',
+                id: 'gpt-default',
+              },
+              planModel: {
+                provider: 'openaiMain',
+                id: 'gpt-plan',
+                capabilities: {
+                  toolCalling: true,
+                },
+              },
+            },
+            routing: {
+              phaseToModel: {
+                PLAN: 'planModel',
+              },
+            },
+          },
+        },
+        path: '/repo/.salmonloop/config.json',
+      },
+    });
+
+    const resolved = await resolveConfig({ repoRoot: '/repo' });
+
+    expect(resolved.llm.capabilities).toEqual({
+      toolCalling: false,
+      streaming: false,
+    });
+    expect(resolved.llm.routing?.phaseToProviderModel?.PLAN?.capabilities).toEqual({
+      toolCalling: true,
+      streaming: false,
+    });
+  });
 });

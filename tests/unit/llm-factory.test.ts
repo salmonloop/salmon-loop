@@ -44,6 +44,23 @@ describe('LLM factory', () => {
     expect(typeof (result.llm as any).chatStream).toBe('function');
   });
 
+  it('passes configured capabilities to AiSdkLLM', () => {
+    const resolved = baseResolved();
+    resolved.capabilities = {
+      toolCalling: false,
+      responseFormatJsonObject: true,
+      streaming: false,
+    };
+
+    const result = createRuntimeLlm(resolved);
+
+    expect(result.llm.getCapabilities?.()).toEqual({
+      toolCalling: false,
+      responseFormatJsonObject: true,
+      streaming: false,
+    });
+  });
+
   it('warns and falls back to AiSdkLLM when client.package is unsupported', () => {
     const resolved = baseResolved();
     resolved.clientPackage = '@unknown/provider';

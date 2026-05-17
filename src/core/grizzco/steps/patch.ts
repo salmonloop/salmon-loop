@@ -1,3 +1,4 @@
+import { supportsLlmStreaming } from '../../llm/capabilities.js';
 import { repairToUnifiedDiff } from '../../llm/contracts/repair.js';
 import { emitLlmOutput } from '../../llm/output-policy.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
@@ -120,7 +121,7 @@ export const generatePatch: Step<PlanCtx, PatchCtx> = async (ctx) => {
     toolCallingAudit: ctx.toolCallingAudit,
   });
   const { cacheSurface, envelope, baseMessages } = patchPromptInput;
-  const supportsStreaming = typeof ctx.options.llm.chatStream === 'function';
+  const supportsStreaming = supportsLlmStreaming(ctx.options.llm, Phase.PATCH);
   const llmOutput = {
     policy: ctx.options.llmOutput,
     kind: 'patch' as const,

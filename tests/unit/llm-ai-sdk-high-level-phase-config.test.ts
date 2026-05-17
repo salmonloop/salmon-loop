@@ -3,21 +3,22 @@ import { beforeEach, describe, expect, it, mock } from 'bun:test';
 const withAuditObservationNameMock = mock(
   async <T>(name: string, run: () => Promise<T>): Promise<T> => run(),
 );
+const generateTextMock = mock(async () => ({
+  text: JSON.stringify({
+    goal: 'Goal',
+    files: ['src/index.ts'],
+    changes: ['Change'],
+    verify: 'bun test',
+  }),
+  usage: { promptTokens: 1, completionTokens: 2 },
+}));
 
 mock.module('../../src/core/llm/ai-sdk/observation-context.js', () => ({
   withAuditObservationName: withAuditObservationNameMock,
 }));
 
 mock.module('ai', () => ({
-  generateText: mock(async () => ({
-    text: JSON.stringify({
-      goal: 'Goal',
-      files: ['src/index.ts'],
-      changes: ['Change'],
-      verify: 'bun test',
-    }),
-    usage: { promptTokens: 1, completionTokens: 2 },
-  })),
+  generateText: generateTextMock,
   streamText: mock(async () => ({
     fullStream: (async function* () {
       yield { type: 'finish', finishReason: 'stop' };
@@ -74,6 +75,15 @@ function createLlm(): AiSdkLLM {
 describe('AiSdkLLM high-level phase mapping', () => {
   beforeEach(() => {
     mock.clearAllMocks();
+    generateTextMock.mockImplementation(async () => ({
+      text: JSON.stringify({
+        goal: 'Goal',
+        files: ['src/index.ts'],
+        changes: ['Change'],
+        verify: 'bun test',
+      }),
+      usage: { promptTokens: 1, completionTokens: 2 },
+    }));
   });
 
   it('keeps high-level phase specs complete for plan and patch', () => {
@@ -106,6 +116,33 @@ describe('AiSdkLLM high-level phase mapping', () => {
     expect(withAuditObservationNameMock).toHaveBeenCalled();
     const first = withAuditObservationNameMock.mock.calls[0] as unknown[] | undefined;
     expect(first?.[0]).toBe('PLAN:plan-json');
+  });
+
+  it('repairs invalid PLAN JSON within the high-level phase', async () => {
+    generateTextMock
+      .mockImplementationOnce(async () => ({
+        text: 'Here is the plan: inspect src/index.ts',
+        usage: { promptTokens: 1, completionTokens: 2 },
+      }))
+      .mockImplementationOnce(async () => ({
+        text: JSON.stringify({
+          goal: 'Repaired goal',
+          files: ['src/index.ts'],
+          changes: ['Repaired change'],
+          verify: 'bun test',
+        }),
+        usage: { promptTokens: 1, completionTokens: 2 },
+      }));
+
+    const llm = createLlm();
+    const plan = await llm.createPlan(createTestContext('ctx-plan-repair'), 'Do the plan');
+
+    expect(plan).toEqual({
+      goal: 'Repaired goal',
+      files: ['src/index.ts'],
+      changes: ['Repaired change'],
+      verify: 'bun test',
+    });
   });
 
   it('uses PATCH observation name for createPatch', async () => {

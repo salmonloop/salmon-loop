@@ -1,5 +1,11 @@
 import type { Context as ContextType } from '../types/context.js';
-import type { ChatOptions, LLM, LLMMessage, LLMStreamChunk } from '../types/llm.js';
+import type {
+  ChatOptions,
+  LLM,
+  LlmCapabilities,
+  LLMMessage,
+  LLMStreamChunk,
+} from '../types/llm.js';
 import type { Plan } from '../types/planning.js';
 import { Phase, type ExecutionPhase } from '../types/runtime.js';
 
@@ -21,22 +27,9 @@ export function createPhaseRoutingLlm(params: { defaultLlm: LLM; phaseLlms: Phas
     chat(messages: LLMMessage[], options?: ChatOptions): Promise<LLMMessage> {
       return resolve(options?.phase).chat(messages, options);
     },
-    getCapabilities() {
-      const base = defaultLlm.getCapabilities?.() ?? {};
-      const hasToolCalling = Object.values(phaseLlms).some(
-        (llm) => llm?.getCapabilities?.().toolCalling,
-      );
-      const hasStreaming = Object.values(phaseLlms).some(
-        (llm) => llm?.getCapabilities?.().streaming,
-      );
-      const hasJsonMode = Object.values(phaseLlms).some(
-        (llm) => llm?.getCapabilities?.().responseFormatJsonObject,
-      );
-      return {
-        toolCalling: base.toolCalling || hasToolCalling,
-        streaming: base.streaming || hasStreaming,
-        responseFormatJsonObject: base.responseFormatJsonObject || hasJsonMode,
-      };
+    getCapabilities(options?: { phase?: ExecutionPhase }): LlmCapabilities {
+      const selected = resolve(options?.phase);
+      return selected.getCapabilities?.(options) ?? {};
     },
     createPlan(
       context: ContextType,
@@ -62,6 +55,19 @@ export function createPhaseRoutingLlm(params: { defaultLlm: LLM; phaseLlms: Phas
       options?: ChatOptions,
     ): AsyncIterable<LLMStreamChunk> {
       const selected = resolve(options?.phase);
+      const capabilities = selected.getCapabilities?.(options) ?? {};
+      if (capabilities.streaming === false) {
+        const fallback = await selected.chat(messages, options);
+        if (fallback.content) {
+          yield { role: 'assistant', source: 'synthesized', contentDelta: fallback.content };
+        }
+        if (Array.isArray(fallback.tool_calls) && fallback.tool_calls.length > 0) {
+          yield { role: 'assistant', source: 'synthesized', tool_calls: fallback.tool_calls };
+        }
+        yield { role: 'assistant', source: 'synthesized', done: true, finishReason: 'stop' };
+        return;
+      }
+
       if (selected.chatStream) {
         yield* selected.chatStream(messages, options);
         return;

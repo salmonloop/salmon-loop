@@ -1,3 +1,4 @@
+import { normalizePath } from '../../utils/path.js';
 import { CONTEXT_AUDIT_ACTION, CONTEXT_AUDIT_PHASE } from '../audit-constants.js';
 import { recordContextAuditEvent } from '../audit.js';
 import { extractKeywords } from '../keywords.js';
@@ -42,6 +43,23 @@ export function buildContextGatherStep(deps: ContextServiceDeps) {
     const ghostFiles = await deps.ghostDependencyGatherer.gather(primaryText, req, existingFiles);
     if (ghostFiles.length > 0) {
       astRes.relatedFiles.push(...ghostFiles);
+    }
+
+    const relatedSeen = new Set(astRes.relatedFiles.map((file) => file.path));
+    const primaryPath = req.primaryFile
+      ? normalizePath(req.primaryFile).replace(/^(\.\/|\/)+/, '')
+      : undefined;
+    for (const snippet of rgSnippets) {
+      const file = normalizePath(snippet.file).replace(/^(\.\/|\/)+/, '');
+      if (!file || file === primaryPath || relatedSeen.has(file)) continue;
+      relatedSeen.add(file);
+      astRes.relatedFiles.push({
+        path: file,
+        kind: 'dependency',
+        mode: 'outline',
+        content: `ripgrep match at line ${snippet.line}: ${snippet.content}`,
+        outline: undefined,
+      });
     }
 
     recordContextAuditEvent(

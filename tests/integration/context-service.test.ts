@@ -47,4 +47,33 @@ describe('ContextService Integration', () => {
     expect((result.context.relatedFiles || []).some((f) => f.path === 'src/b.ts')).toBe(true);
     expect(result.prompt).toContain('src/b.ts');
   });
+
+  it('includes matched source files when the request does not name a primary file', async () => {
+    await helper
+      .createGitRepo({
+        initialFiles: [
+          {
+            path: 'src/rules/L031.py',
+            content: 'def lint_aliases():\n    return "Avoid using aliases in join condition"\n',
+          },
+          {
+            path: 'docs/rules.md',
+            content: 'L031 is documented here.\n',
+          },
+        ],
+      })
+      .then((repo) => {
+        repoPath = repo.path;
+      });
+
+    const service = new ContextService();
+    const result = await service.build({
+      instruction:
+        'TSQL - L031 incorrectly triggers "Avoid using aliases in join condition" when no join present',
+      repoPath,
+    });
+
+    expect(result.prompt).toContain('src/rules/L031.py');
+    expect(result.prompt).toContain('Avoid using aliases in join condition');
+  });
 });

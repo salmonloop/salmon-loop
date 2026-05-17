@@ -1,4 +1,5 @@
 import { text } from '../../../locales/index.js';
+import { supportsLlmStreaming } from '../../llm/capabilities.js';
 import { emitLlmOutput } from '../../llm/output-policy.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
 import { getResearchPrompt, getResearchSystemPrompt } from '../../prompts/runtime.js';
@@ -134,7 +135,7 @@ export async function generateResearch(ctx: ExploreCtx): Promise<ResearchCtx> {
   const { cacheSurface, envelope, baseMessages } = requestEnvelope;
 
   const toolPolicy = resolveLlmToolCallingPolicy(Phase.RESEARCH, ctx.options.llm);
-  const supportsStreaming = typeof ctx.options.llm.chatStream === 'function';
+  const supportsStreaming = supportsLlmStreaming(ctx.options.llm, Phase.RESEARCH);
 
   const localAudit: any[] = [];
   const sourcesFromAudit = () => buildSourcesFromAudit(localAudit as any);

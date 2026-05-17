@@ -83,6 +83,12 @@ export interface LLMStreamChunk {
   };
 }
 
+export interface LlmCapabilities {
+  toolCalling?: boolean;
+  responseFormatJsonObject?: boolean;
+  streaming?: boolean;
+}
+
 export interface ChatOptions {
   /**
    * Optional execution phase hint for model routing.
@@ -91,6 +97,7 @@ export interface ChatOptions {
   temperature?: number;
   maxTokens?: number;
   responseFormat?: 'json_object' | 'text';
+  responseFormatJsonObjectSupported?: boolean;
   stop?: string[];
   /**
    * Provider-native tool definitions.
@@ -143,11 +150,7 @@ export interface LLM {
    * This keeps the Grizzco pipeline provider-agnostic while allowing deterministic
    * decisions (e.g., enabling tool calling) without relying on constructor names.
    */
-  getCapabilities?(): {
-    toolCalling?: boolean;
-    responseFormatJsonObject?: boolean;
-    streaming?: boolean;
-  };
+  getCapabilities?(options?: { phase?: ExecutionPhase }): LlmCapabilities;
 
   /**
    * Optional model identifier for audit and telemetry.

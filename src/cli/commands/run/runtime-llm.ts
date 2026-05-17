@@ -63,7 +63,7 @@ export function createRuntimeLlmAndWarn(params: {
   const phaseToProviderModel = params.llmConfig?.routing?.phaseToProviderModel;
   const phaseLlms: Partial<Record<ExecutionPhase, any>> = {};
   if (phaseToProviderModel && typeof phaseToProviderModel === 'object') {
-    const validPhases = new Set<string>([...EXECUTION_PHASES, Phase.SLASH]);
+    const validPhases = new Set<string>([...EXECUTION_PHASES, Phase.SLASH, Phase.AUTOPILOT]);
     for (const [phase, target] of Object.entries(phaseToProviderModel)) {
       if (!validPhases.has(phase)) continue;
       if (!target || typeof target !== 'object') continue;
@@ -82,6 +82,7 @@ export function createRuntimeLlmAndWarn(params: {
           selectedModelId: (target as any).model?.id,
           selectedModelSlot: (target as any).model?.slot || 'default',
         },
+        capabilities: (target as any).capabilities,
       };
       const created = createRuntimeLlm(perPhaseConfig, { langfuseEnabled: params.langfuseEnabled });
       warnings.push(...created.warnings);

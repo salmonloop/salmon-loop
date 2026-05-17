@@ -1,3 +1,4 @@
+import { resolveLlmCapabilities } from '../../llm/capabilities.js';
 import type { LLM } from '../../types/llm.js';
 import { Phase, type ExecutionPhase } from '../../types/runtime.js';
 
@@ -24,7 +25,7 @@ function defaultMaxRoundsForPhase(phase: ExecutionPhase): number {
 }
 
 export function resolveLlmToolCallingPolicy(phase: ExecutionPhase, llm: LLM): LlmToolCallingPolicy {
-  const caps = llm.getCapabilities?.();
+  const caps = resolveLlmCapabilities(llm, phase);
   const maxRounds = defaultMaxRoundsForPhase(phase);
 
   // Grizzco DSL engine is transaction-shaped; for LLM policies we inject a minimal context and keep all

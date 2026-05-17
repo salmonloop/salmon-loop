@@ -1,5 +1,6 @@
 import { text } from '../../../locales/index.js';
 import { LIMITS } from '../../config/limits.js';
+import { supportsLlmStreaming } from '../../llm/capabilities.js';
 import { repairToJsonObject } from '../../llm/contracts/repair.js';
 import { sanitizeError } from '../../llm/errors.js';
 import { emitLlmOutput } from '../../llm/output-policy.js';
@@ -204,7 +205,7 @@ export const generatePlan: Step<ContextCtx, PlanCtx> = async (ctx) => {
   });
   const { cacheSurface, envelope, baseMessages } = requestEnvelope;
 
-  const supportsStreaming = typeof ctx.options.llm.chatStream === 'function';
+  const supportsStreaming = supportsLlmStreaming(ctx.options.llm, Phase.PLAN);
   const llmOutput = {
     policy: ctx.options.llmOutput,
     kind: 'plan' as const,

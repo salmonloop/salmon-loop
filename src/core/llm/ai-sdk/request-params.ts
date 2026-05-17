@@ -90,6 +90,20 @@ function mergeProviderOptions(params: {
   return Object.keys(merged).length > 0 ? merged : undefined;
 }
 
+function resolveResponseFormat(
+  options: ChatOptions,
+): { type: 'json' } | { type: 'text' } | undefined {
+  if (options.responseFormat === 'json_object') {
+    return options.responseFormatJsonObjectSupported === false ? undefined : { type: 'json' };
+  }
+
+  if (options.responseFormat === 'text') {
+    return { type: 'text' };
+  }
+
+  return undefined;
+}
+
 export function buildAiSdkRequestParams(params: {
   model: any;
   messages: any[];
@@ -107,6 +121,7 @@ export function buildAiSdkRequestParams(params: {
     maxOutputTokens:
       params.options.maxTokens != null ? Number(params.options.maxTokens) : undefined,
     stopSequences: params.options.stop,
+    responseFormat: resolveResponseFormat(params.options),
     toolChoice: (params.options.toolChoice === 'none'
       ? 'none'
       : params.tools

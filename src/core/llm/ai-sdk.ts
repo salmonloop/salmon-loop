@@ -1,12 +1,19 @@
 import { randomUUID } from 'crypto';
 
 import type { Context } from '../types/context.js';
-import type { ChatOptions, LLM, LLMMessage, LLMStreamChunk } from '../types/llm.js';
+import type {
+  ChatOptions,
+  LLM,
+  LlmCapabilities,
+  LLMMessage,
+  LLMStreamChunk,
+} from '../types/llm.js';
 import type { Plan } from '../types/planning.js';
 
 import { executeAiSdkChatRequest, executeAiSdkChatStreamRequest } from './ai-sdk/chat-executor.js';
 import {
   HIGH_LEVEL_PHASE_SPECS,
+  type HighLevelPhaseName,
   type HighLevelPhaseSpec,
 } from './ai-sdk/high-level-phase-specs.js';
 import { toAiSdkMessages, toAiSdkToolSet } from './ai-sdk/message-mapper.js';
@@ -16,6 +23,7 @@ import {
   resolveAiSdkModelId,
   resolveAiSdkProviderOptionsKey,
 } from './ai-sdk/provider-factory.js';
+import { repairToJsonObject } from './contracts/repair.js';
 import type { RequestAttachment } from './request-envelope.js';
 import { buildSharedRequestEnvelope } from './shared-request-assembly.js';
 import { formatContextForPrompt } from './utils.js';
@@ -31,6 +39,7 @@ export interface AiSdkLlmConfig {
   headers?: Record<string, string>;
   timeoutMs?: number;
   langfuseEnabled?: boolean;
+  capabilities?: LlmCapabilities;
 }
 
 export class AiSdkLLM implements LLM {
@@ -50,21 +59,49 @@ export class AiSdkLLM implements LLM {
     return this.modelId;
   }
 
-  getCapabilities(): {
-    toolCalling?: boolean;
-    responseFormatJsonObject?: boolean;
-    streaming?: boolean;
-  } {
+  getCapabilities(_options?: { phase?: ChatOptions['phase'] }): LlmCapabilities {
     return {
       toolCalling: true,
       responseFormatJsonObject: true,
       streaming: true,
+      ...this.cfg.capabilities,
     };
+  }
+
+  private applyCapabilityOptions(options: ChatOptions = {}): ChatOptions {
+    const capabilities = this.getCapabilities({ phase: options.phase });
+    const requestOptions: ChatOptions = {
+      ...options,
+      responseFormatJsonObjectSupported: capabilities.responseFormatJsonObject !== false,
+    };
+
+    if (capabilities.toolCalling === false) {
+      requestOptions.tools = undefined;
+      requestOptions.toolSpecs = undefined;
+      requestOptions.toolChoice = 'none';
+    }
+
+    return requestOptions;
+  }
+
+  private async *chatStreamFromChat(
+    messages: LLMMessage[],
+    options: ChatOptions = {},
+  ): AsyncIterable<LLMStreamChunk> {
+    const response = await this.chat(messages, options);
+    if (response.content) {
+      yield { role: 'assistant', source: 'synthesized', contentDelta: response.content };
+    }
+    if (Array.isArray(response.tool_calls) && response.tool_calls.length > 0) {
+      yield { role: 'assistant', source: 'synthesized', tool_calls: response.tool_calls };
+    }
+    yield { role: 'assistant', source: 'synthesized', done: true, finishReason: 'stop' };
   }
 
   async chat(messages: LLMMessage[], options: ChatOptions = {}): Promise<LLMMessage> {
     const aiMessages = toAiSdkMessages(messages);
-    const tools = toAiSdkToolSet(options.tools, options.toolSpecs);
+    const requestOptions = this.applyCapabilityOptions(options);
+    const tools = toAiSdkToolSet(requestOptions.tools, requestOptions.toolSpecs);
     return executeAiSdkChatRequest({
       model: this.model,
       modelId: this.modelId,
@@ -74,7 +111,7 @@ export class AiSdkLLM implements LLM {
       requestId: randomUUID(),
       messages: aiMessages,
       tools,
-      options,
+      options: requestOptions,
     });
   }
 
@@ -82,8 +119,15 @@ export class AiSdkLLM implements LLM {
     messages: LLMMessage[],
     options: ChatOptions = {},
   ): AsyncIterable<LLMStreamChunk> {
+    const requestOptions = this.applyCapabilityOptions(options);
+    const capabilities = this.getCapabilities({ phase: requestOptions.phase });
+    if (capabilities.streaming === false) {
+      yield* this.chatStreamFromChat(messages, requestOptions);
+      return;
+    }
+
     const aiMessages = toAiSdkMessages(messages);
-    const tools = toAiSdkToolSet(options.tools, options.toolSpecs);
+    const tools = toAiSdkToolSet(requestOptions.tools, requestOptions.toolSpecs);
     yield* executeAiSdkChatStreamRequest({
       model: this.model,
       modelId: this.modelId,
@@ -93,7 +137,7 @@ export class AiSdkLLM implements LLM {
       requestId: randomUUID(),
       messages: aiMessages,
       tools,
-      options,
+      options: requestOptions,
     });
   }
 
@@ -147,6 +191,7 @@ export class AiSdkLLM implements LLM {
     const userPrompt = await spec.buildPrompt({ ...input, contextPrompt });
     const attachments = spec.buildAttachments({ ...input, contextPrompt });
     const content = await this.executeHighLevelPrompt({
+      phase: spec.name,
       defaultNamespace: spec.namespace,
       contextHash: input.context.contextHash,
       userPrompt,
@@ -158,6 +203,7 @@ export class AiSdkLLM implements LLM {
   }
 
   private async executeHighLevelPrompt(params: {
+    phase: HighLevelPhaseName;
     defaultNamespace: string;
     contextHash?: string;
     userPrompt: string;
@@ -176,10 +222,32 @@ export class AiSdkLLM implements LLM {
     const response = await withAuditObservationName(params.observationName, async () =>
       this.chat(sharedEnvelope.baseMessages, {
         providerHints: sharedEnvelope.envelope.providerHints,
+        responseFormat: params.phase === 'plan' ? 'json_object' : undefined,
         signal: params.signal,
       }),
     );
 
-    return response.content;
+    if (params.phase !== 'plan') {
+      return response.content;
+    }
+
+    try {
+      HIGH_LEVEL_PHASE_SPECS.plan.parseResult(response.content);
+      return response.content;
+    } catch (error) {
+      const repair = await withAuditObservationName('PLAN:plan-json-repair', async () =>
+        repairToJsonObject({
+          llm: this,
+          baseMessages: sharedEnvelope.baseMessages,
+          chatOptions: {
+            providerHints: sharedEnvelope.envelope.providerHints,
+            signal: params.signal,
+          },
+          badContent: response.content ?? '',
+          reason: error instanceof Error ? error.message : String(error),
+        }),
+      );
+      return repair.content;
+    }
   }
 }

@@ -5,6 +5,7 @@ import { text } from '../../../locales/index.js';
 import { lstat, readlink } from '../../adapters/fs/node-fs.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { LIMITS } from '../../config/limits.js';
+import { supportsLlmStreaming } from '../../llm/capabilities.js';
 import { emitLlmOutput } from '../../llm/output-policy.js';
 import { getAutopilotSystemPrompt } from '../../prompts/runtime.js';
 import { SessionReplacementPreviewProvider } from '../../session/replacement-preview-provider.js';
@@ -335,7 +336,7 @@ export async function runAutopilot(ctx: PreflightCtx): Promise<AutopilotCtx> {
   const llmClient: LLM = ctx.options.llm;
   const toolPolicy = resolveLlmToolCallingPolicy(AUTOPILOT_TOOL_PHASE, llmClient);
   const localAudit: NonNullable<AutopilotCtx['toolCallingAudit']> = [];
-  const supportsStreaming = typeof llmClient.chatStream === 'function';
+  const supportsStreaming = supportsLlmStreaming(llmClient, AUTOPILOT_TOOL_PHASE);
   const supportsTools = Boolean(ctx.toolstack && toolPolicy.enabled);
   let workspaceFingerprintBefore: WorkspaceFingerprint | null = null;
   let samplingFailedClosed = false;

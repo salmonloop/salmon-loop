@@ -88,7 +88,7 @@ function extractPathLikeTokens(input: string): string[] {
 
 function extractBacktickedTokens(input: string): string[] {
   const matches: string[] = [];
-  const re = /`([^`]{1,64})`/g;
+  const re = /(?<!`)`([^`\n]{1,64})`(?!`)/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(input)) !== null) {
     const val = m[1]?.trim();
@@ -109,10 +109,21 @@ function extractErrorLikeTokens(input: string): string[] {
 
 function extractIdentifierTokens(input: string): string[] {
   const matches: string[] = [];
-  const re = /\b[A-Za-z_][A-Za-z0-9_]{2,}\b/g;
+  const re = /\b(?:[A-Z][A-Z0-9_]{1,}\d+[A-Z0-9_]*|[A-Za-z_][A-Za-z0-9_]{2,})\b/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(input)) !== null) {
     if (m[0]) matches.push(m[0]);
+  }
+  return matches;
+}
+
+function extractQuotedPhrases(input: string): string[] {
+  const matches: string[] = [];
+  const re = /["“”]([^"“”\n]{8,96})["“”]/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(input)) !== null) {
+    const val = m[1]?.trim();
+    if (val) matches.push(val);
   }
   return matches;
 }
@@ -152,10 +163,13 @@ export function extractKeywords(instruction: string): string[] {
   // Priority 3: Error-like tokens (strong signal)
   const errorLike = extractErrorLikeTokens(raw);
 
-  // Priority 4: Identifiers (code-related)
+  // Priority 4: Quoted diagnostics and messages (strong signal in bug reports)
+  const quotedPhrases = extractQuotedPhrases(raw);
+
+  // Priority 5: Identifiers (code-related)
   const identifiers = extractIdentifierTokens(raw);
 
-  // Priority 5: Word tokens
+  // Priority 6: Word tokens
   const wordTokens = raw
     .toLowerCase()
     .split(/[^\p{L}\p{N}_-]+/u)
@@ -166,6 +180,7 @@ export function extractKeywords(instruction: string): string[] {
     ...pathLike,
     ...backticked,
     ...errorLike,
+    ...quotedPhrases,
     ...identifiers,
     ...wordTokens,
   ]);

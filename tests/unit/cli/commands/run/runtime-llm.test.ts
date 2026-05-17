@@ -97,6 +97,36 @@ describe('createRuntimeLlmAndWarn', () => {
     });
   });
 
+  it('routes AUTOPILOT model overrides even though AUTOPILOT is outside the main phase list', async () => {
+    const { createRuntimeLlmAndWarn } =
+      await import('../../../../../src/cli/commands/run/runtime-llm.js');
+
+    const result = createRuntimeLlmAndWarn({
+      llmConfig: {
+        type: 'openai-compatible',
+        models: { selectedModelId: 'default-model' },
+        routing: {
+          phaseToProviderModel: {
+            AUTOPILOT: {
+              id: 'openaiMain',
+              type: 'openai-compatible',
+              api: { apiKey: 'k', apiKeySource: 'inline' },
+              model: { id: 'autopilot-model', slot: 'autopilot' },
+            },
+          },
+        },
+      },
+      langfuseEnabled: false,
+    });
+
+    expect(await result.llm.chat([{ role: 'user', content: 'x' }], { phase: 'AUTOPILOT' })).toEqual(
+      {
+        role: 'assistant',
+        content: 'autopilot-model',
+      },
+    );
+  });
+
   it('returns structured warnings without logging in headless mode', async () => {
     hoisted.createRuntimeLlm.mockImplementation((cfg: any) => ({
       llm: fakeLlm(cfg.models?.selectedModelId || 'default-model'),

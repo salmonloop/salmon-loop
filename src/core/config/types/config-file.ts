@@ -184,6 +184,7 @@ export interface LlmProviderV1 {
     timeoutMs?: number;
     headers?: Record<string, string>;
   };
+  capabilities?: LlmCapabilitiesConfigV1;
 }
 
 export interface LlmModelParamsV1 {
@@ -198,6 +199,13 @@ export interface LlmModelProfileV1 {
   provider: string | string[];
   id: string;
   params?: LlmModelParamsV1;
+  capabilities?: LlmCapabilitiesConfigV1;
+}
+
+export interface LlmCapabilitiesConfigV1 {
+  toolCalling?: boolean;
+  responseFormatJsonObject?: boolean;
+  streaming?: boolean;
 }
 
 export interface ToolAuthorizationConfig {

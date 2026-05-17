@@ -7,6 +7,7 @@ import {
   MARKDOWN_THEMES,
   type ConfigFileV1,
   type LangfuseObservabilityConfigV1,
+  type LlmCapabilitiesConfigV1,
   type LlmModelProfileV1,
   type LlmProviderV1,
 } from './types.js';
@@ -41,6 +42,70 @@ function isValidMarkdownTheme(value: unknown): boolean {
 
 function isValidMarkdownRenderMode(value: unknown): boolean {
   return typeof value === 'string' && (MARKDOWN_RENDER_MODES as readonly string[]).includes(value);
+}
+
+function validateLlmCapabilities(
+  input: unknown,
+  context: Record<string, string>,
+): LlmCapabilitiesConfigV1 | undefined {
+  if (input === undefined) return undefined;
+  if (!isRecord(input)) {
+    throw new ConfigError('CONFIG_INVALID_LLM_CAPABILITIES', {
+      ...context,
+      expected: 'object',
+    });
+  }
+
+  const allowedKeys = new Set(['toolCalling', 'responseFormatJsonObject', 'streaming']);
+  for (const key of Object.keys(input)) {
+    if (!allowedKeys.has(key)) {
+      throw new ConfigError('CONFIG_INVALID_LLM_CAPABILITY', {
+        ...context,
+        capability: key,
+        expected: 'toolCalling|responseFormatJsonObject|streaming',
+      });
+    }
+  }
+
+  const cfg: LlmCapabilitiesConfigV1 = {};
+  for (const key of ['toolCalling', 'responseFormatJsonObject', 'streaming'] as const) {
+    if (input[key] !== undefined && !isBoolean(input[key])) {
+      throw new ConfigError('CONFIG_INVALID_LLM_CAPABILITY', {
+        ...context,
+        capability: key,
+        expected: 'boolean',
+      });
+    }
+    if (input[key] !== undefined) {
+      cfg[key] = input[key] as boolean;
+    }
+  }
+
+  return cfg;
+}
+
+function normalizeLlmModelParams(
+  input: unknown,
+  context: Record<string, string>,
+): LlmModelProfileV1['params'] | undefined {
+  if (!isRecord(input)) return undefined;
+
+  for (const key of [
+    'capabilities',
+    'toolCalling',
+    'responseFormatJsonObject',
+    'streaming',
+  ] as const) {
+    if (input[key] !== undefined) {
+      throw new ConfigError('CONFIG_INVALID_LLM_CAPABILITY_LOCATION', {
+        ...context,
+        capability: key,
+        expected: 'model.capabilities',
+      });
+    }
+  }
+
+  return input as unknown as LlmModelProfileV1['params'];
 }
 
 export function validateConfigFileV1(input: unknown): ConfigFileV1 {
@@ -626,6 +691,13 @@ export function validateConfigFileV1(input: unknown): ConfigFileV1 {
           });
         }
 
+        const providerCapabilities = validateLlmCapabilities((rawProvider as any).capabilities, {
+          provider: id,
+        });
+        if (providerCapabilities) {
+          p.capabilities = providerCapabilities;
+        }
+
         cfg.llm.providers[id] = p;
       }
     }
@@ -659,12 +731,19 @@ export function validateConfigFileV1(input: unknown): ConfigFileV1 {
           });
         }
 
+        const params = normalizeLlmModelParams((rawModel as any).params, {
+          model: slot,
+          location: 'params',
+        });
+        const capabilities = validateLlmCapabilities((rawModel as any).capabilities, {
+          model: slot,
+        });
+
         cfg.llm.models[slot] = {
           provider: provider as any,
           id: (rawModel as any).id,
-          params: isRecord((rawModel as any).params)
-            ? ((rawModel as any).params as LlmModelProfileV1['params'])
-            : undefined,
+          params,
+          capabilities,
         };
       }
     }

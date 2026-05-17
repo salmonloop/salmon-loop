@@ -100,6 +100,27 @@ describe('AiSdkLLM.chatStream', () => {
     });
   });
 
+  it('falls back to non-streaming chat when streaming is disabled', async () => {
+    const { streamText } = await import('ai');
+    (streamText as unknown as { mockClear: () => void }).mockClear();
+
+    const llm = new AiSdkLLM({
+      clientPackage: '@ai-sdk/openai',
+      apiKey: 'test',
+      modelId: 'gpt-mock',
+      capabilities: { streaming: false },
+    });
+
+    const chunks: Array<{ contentDelta?: string; done?: boolean }> = [];
+    for await (const chunk of llm.chatStream!([{ role: 'user', content: 'hi' }])) {
+      chunks.push(chunk);
+    }
+
+    expect(chunks.map((c) => c.contentDelta || '').join('')).toBe('Hello world');
+    expect(chunks[chunks.length - 1]?.done).toBe(true);
+    expect((streamText as unknown as { mock: { calls: any[][] } }).mock.calls).toHaveLength(0);
+  });
+
   it('emits tool_calls chunks when tool-call events are streamed', async () => {
     const { streamText } = await import('ai');
     const streamTextMock = streamText as unknown as { mockImplementationOnce: any };

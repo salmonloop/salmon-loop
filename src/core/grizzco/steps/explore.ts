@@ -1,6 +1,7 @@
 import path from 'path';
 
 import { text } from '../../../locales/index.js';
+import { supportsLlmStreaming } from '../../llm/capabilities.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
 import { getExplorePrompt, getExploreSystemPrompt } from '../../prompts/runtime.js';
 import { SessionReplacementPreviewProvider } from '../../session/replacement-preview-provider.js';
@@ -88,7 +89,7 @@ export const exploreCodebase: Step<ContextCtx, ExploreCtx> = async (ctx) => {
 
   const systemPrompt = await getExploreSystemPrompt({ plan: ctx.planRuntime });
 
-  const supportsStreaming = typeof ctx.options.llm.chatStream === 'function';
+  const supportsStreaming = supportsLlmStreaming(ctx.options.llm, Phase.EXPLORE);
   const llmOutput = {
     policy: ctx.options.llmOutput,
     kind: 'explore' as const,

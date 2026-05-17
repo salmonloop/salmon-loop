@@ -178,6 +178,33 @@ describe('AiSdkLLM message mapping', () => {
     });
   });
 
+  it('does not send tools to models configured without tool calling', async () => {
+    const llm = new AiSdkLLM({
+      clientPackage: '@ai-sdk/openai',
+      apiKey: 'test',
+      modelId: 'gpt-mock',
+      capabilities: { toolCalling: false },
+    });
+
+    await llm.chat([{ role: 'user', content: 'hi' }], {
+      tools: [
+        {
+          type: 'function',
+          function: {
+            name: 'fs.read',
+            description: 'Read a file',
+            parameters: { type: 'object', properties: {} },
+          },
+        },
+      ],
+      toolChoice: 'auto',
+    } as any);
+
+    const args = await getGenerateTextCallArgs();
+    expect(args.tools).toBeUndefined();
+    expect(args.toolChoice).toBe('none');
+  });
+
   it('maps tool approval payloads to AI SDK tool approval response format', async () => {
     const llm = new AiSdkLLM({
       clientPackage: '@ai-sdk/openai',

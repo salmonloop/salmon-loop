@@ -2,7 +2,18 @@ import { resolveBaseUrl } from '../llm/base-url.js';
 
 import { ConfigError } from './errors.js';
 import { firstProviderRef, resolveApiKey, resolveModelId } from './resolve-env.js';
-import type { ConfigFileV1, ResolvedLlmProvider } from './types.js';
+import type { ConfigFileV1, LlmCapabilitiesConfigV1, ResolvedLlmProvider } from './types.js';
+
+function mergeCapabilities(
+  providerCapabilities?: LlmCapabilitiesConfigV1,
+  modelCapabilities?: LlmCapabilitiesConfigV1,
+): LlmCapabilitiesConfigV1 | undefined {
+  if (!providerCapabilities && !modelCapabilities) return undefined;
+  return {
+    ...providerCapabilities,
+    ...modelCapabilities,
+  };
+}
 
 export function resolveLlmFromConfig(raw?: ConfigFileV1): ResolvedLlmProvider {
   const llm = raw?.llm;
@@ -57,6 +68,7 @@ export function resolveLlmFromConfig(raw?: ConfigFileV1): ResolvedLlmProvider {
   const apiKeyResolution = resolveApiKey(provider.api?.apiKey);
   const baseUrl = resolveBaseUrl(provider.api?.baseUrl);
   const selectedModelId = resolveModelId(activeProfile.id);
+  const activeCapabilities = mergeCapabilities(provider.capabilities, activeProfile.capabilities);
   const routing = llm?.routing;
   const phaseToProviderModel =
     routing?.phaseToModel && typeof routing.phaseToModel === 'object'
@@ -86,6 +98,10 @@ export function resolveLlmFromConfig(raw?: ConfigFileV1): ResolvedLlmProvider {
                 });
               }
               const phaseKey = resolveApiKey(phaseProvider.api?.apiKey);
+              const capabilities = mergeCapabilities(
+                phaseProvider.capabilities,
+                profile.capabilities,
+              );
               return [
                 phase,
                 {
@@ -103,6 +119,7 @@ export function resolveLlmFromConfig(raw?: ConfigFileV1): ResolvedLlmProvider {
                     id: resolveModelId(profile.id),
                     slot: profileSlot,
                   },
+                  capabilities,
                 },
               ] as const;
             })
@@ -138,6 +155,7 @@ export function resolveLlmFromConfig(raw?: ConfigFileV1): ResolvedLlmProvider {
       selectedModelId,
       selectedModelSlot: activeModelSlot,
     },
+    capabilities: activeCapabilities,
     routing: resolvedRouting,
   };
 }
