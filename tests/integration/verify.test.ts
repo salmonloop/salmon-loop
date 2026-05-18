@@ -13,7 +13,7 @@ describe('Verify Integration Tests with Real FS', () => {
   beforeEach(async () => {
     const repo = await helper.createGitRepo();
     repoPath = repo.path;
-    mock.restore();
+    mock.clearAllMocks();
   });
 
   afterEach(async () => {

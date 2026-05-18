@@ -5,7 +5,7 @@ const readFileMock = mock();
 
 describe('findFileDependencies', () => {
   beforeEach(() => {
-    mock.restore();
+    mock.clearAllMocks();
     const registry = getPluginRegistry();
     spyOn(registry, 'getByExtension').mockReturnValue({
       dependency: {

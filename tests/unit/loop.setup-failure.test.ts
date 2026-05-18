@@ -44,7 +44,7 @@ describe('SalmonLoop setup failure cleanup', () => {
   } as any;
 
   beforeEach(() => {
-    mock.restore();
+    mock.clearAllMocks();
   });
 
   it('tears down environment when setup fails', async () => {

@@ -38,7 +38,7 @@ function createBaseCtx(overrides: Record<string, unknown> = {}): any {
 
 describe('rollback step safety behavior', () => {
   beforeEach(() => {
-    mock.restore();
+    mock.clearAllMocks();
     safeRollbackMock.mockRejectedValue(new Error('unexpected direct rollback path'));
     restoreToShadowMock.mockRejectedValue(new Error('unexpected worktree rollback path'));
   });

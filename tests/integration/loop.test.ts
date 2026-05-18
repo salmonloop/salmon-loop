@@ -31,7 +31,7 @@ describe('SalmonLoop Integration Tests', () => {
     });
     repoPath = repo.path;
 
-    mock.restore();
+    mock.clearAllMocks();
 
     spyOn(AstParser, 'parse').mockResolvedValue({
       rootNode: {

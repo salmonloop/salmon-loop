@@ -15,7 +15,7 @@ describe('FileHandleManager releaseLock', () => {
   const originalEnableLockInTest = process.env.SALMONLOOP_ENABLE_LOCK_IN_TEST;
 
   beforeEach(() => {
-    mock.restore();
+    mock.clearAllMocks();
     process.env.SALMONLOOP_ENABLE_LOCK_IN_TEST = '1';
   });
 

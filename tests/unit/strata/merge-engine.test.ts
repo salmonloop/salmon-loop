@@ -114,7 +114,7 @@ describe('ShadowMergeEngine behavior safety', () => {
     errorMock.mockReset();
     traceMock.mockReset();
     adaptersByPath.clear();
-    mock.restore();
+    mock.clearAllMocks();
     new GitAdapter(mainRepoPath);
     new GitAdapter(shadowRepoPath);
   });

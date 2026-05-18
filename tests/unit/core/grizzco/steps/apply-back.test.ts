@@ -34,7 +34,7 @@ function createCtx(overrides: Record<string, unknown> = {}) {
 
 describe('apply-back step', () => {
   beforeEach(() => {
-    mock.restore();
+    mock.clearAllMocks();
   });
 
   it('skips when verify is not ok', async () => {

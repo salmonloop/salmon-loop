@@ -50,7 +50,7 @@ describe('SmallfryLoop', () => {
     infoMock.mockReset();
     warnMock.mockReset();
     debugMock.mockReset();
-    mock.restore();
+    mock.clearAllMocks();
 
     pipelineStepMock.mockReturnValue(pipelineChain);
     pipelineStepWithRecoveryMock.mockReturnValue(pipelineChain);

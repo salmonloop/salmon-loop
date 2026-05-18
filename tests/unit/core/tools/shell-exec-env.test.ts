@@ -10,7 +10,7 @@ mock.module('execa', () => ({
 
 describe('executeShellExec environment injection', () => {
   beforeEach(() => {
-    mock.restore();
+    mock.clearAllMocks();
     hoisted.execa.mockResolvedValue({
       exitCode: 0,
       stdout: 'ok',

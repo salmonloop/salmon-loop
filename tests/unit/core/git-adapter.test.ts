@@ -20,7 +20,7 @@ async function expectSecurityViolation(promise: Promise<unknown>): Promise<void>
 
 describe('GitAdapter exec truncation handling', () => {
   beforeEach(() => {
-    mock.restore();
+    mock.clearAllMocks();
   });
 
   it('throws when stdout is truncated', async () => {
@@ -66,7 +66,7 @@ describe('GitAdapter exec truncation handling', () => {
 
 describe('GitAdapter query gateway validation', () => {
   beforeEach(() => {
-    mock.restore();
+    mock.clearAllMocks();
   });
 
   it('allows approved commands', async () => {
@@ -177,7 +177,7 @@ describe('GitAdapter query gateway validation', () => {
 
 describe('GitAdapter shadow path parity handling', () => {
   beforeEach(() => {
-    mock.restore();
+    mock.clearAllMocks();
   });
 
   it('allows updateIndex inside parity worktree root', async () => {

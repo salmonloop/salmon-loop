@@ -23,7 +23,7 @@ mock.module('../../../src/core/sub-agent/core/loop.js', () => ({
 
 describe('SubAgentManager context snapshot', () => {
   beforeEach(() => {
-    mock.restore();
+    mock.clearAllMocks();
     clearAuditTrail();
   });
 

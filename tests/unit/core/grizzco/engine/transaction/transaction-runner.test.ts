@@ -48,7 +48,7 @@ describe('transaction-runner', () => {
   let mockedExecute: any;
 
   beforeEach(() => {
-    mock.restore();
+    mock.clearAllMocks();
     mockedExecute = spyOn(flowDispatch, 'executeFlowAttempt').mockReset();
   });
 

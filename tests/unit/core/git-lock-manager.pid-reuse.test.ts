@@ -25,7 +25,7 @@ describe('FileHandleManager acquireLock (PID reuse)', () => {
   const originalNodeEnv = process.env.NODE_ENV;
 
   beforeEach(() => {
-    mock.restore();
+    mock.clearAllMocks();
     process.env.NODE_ENV = 'test';
     process.env.SALMONLOOP_ENABLE_LOCK_IN_TEST = '1';
   });

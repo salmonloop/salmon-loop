@@ -38,7 +38,7 @@ describe('run command early errors', () => {
   });
 
   beforeEach(() => {
-    mock.restore();
+    mock.clearAllMocks();
     setLogger(logger as any);
   });
 

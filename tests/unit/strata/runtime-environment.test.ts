@@ -85,7 +85,7 @@ function createOptions(overrides: Record<string, unknown> = {}): any {
 
 describe('RuntimeEnvironment safety behavior', () => {
   beforeEach(() => {
-    mock.restore();
+    mock.clearAllMocks();
     createSafeSnapshotMock.mockResolvedValue({ commitHash: 'snapshot-hash' });
     workspaceSetupMock.mockResolvedValue({
       strategy: 'worktree',

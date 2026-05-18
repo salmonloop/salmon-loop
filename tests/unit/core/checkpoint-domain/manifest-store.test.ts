@@ -45,7 +45,7 @@ import {
 
 describe('checkpoint manifest store', () => {
   beforeEach(() => {
-    mock.restore();
+    mock.clearAllMocks();
     mkdirMock.mockResolvedValue(undefined);
     openMock.mockResolvedValue({
       writeFile: mock().mockResolvedValue(undefined),

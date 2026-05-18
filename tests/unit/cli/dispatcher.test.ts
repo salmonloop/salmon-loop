@@ -17,7 +17,7 @@ describe('CommandDispatcher', () => {
   const dispatcher = new CommandDispatcher();
 
   beforeEach(() => {
-    mock.restore();
+    mock.clearAllMocks();
   });
 
   it('should execute a valid command', async () => {

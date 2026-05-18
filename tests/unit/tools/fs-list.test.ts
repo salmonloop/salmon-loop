@@ -12,7 +12,7 @@ describe('Builtin Tool: fs.list', () => {
   const repoRoot = '/fake/repo';
 
   beforeEach(() => {
-    mock.restore();
+    mock.clearAllMocks();
   });
 
   function getFsListSpec() {

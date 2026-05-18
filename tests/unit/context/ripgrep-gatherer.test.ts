@@ -7,7 +7,7 @@ mock.module('../../../src/core/runtime/process-runner.js', () => ({
 
 describe('RipgrepGatherer', () => {
   beforeEach(() => {
-    mock.restore();
+    mock.clearAllMocks();
     (spawnCommand as any).mockResolvedValue({
       code: 0,
       signal: null,
