@@ -1,10 +1,97 @@
+import { FileAdapter } from '../../adapters/fs/file-adapter.js';
 import { LIMITS } from '../../config/limits.js';
 import { getLogger } from '../../observability/logger.js';
 import { spawnCommand } from '../../runtime/process-runner.js';
 import type { RipgrepResult } from '../../types/context.js';
-import { normalizePath } from '../../utils/path.js';
+import { ensureInSandbox, normalizePath, safeJoin, safeRelative } from '../../utils/path.js';
+
+const FALLBACK_EXCLUDED_DIRS = new Set(['.git', 'node_modules']);
+const FALLBACK_MAX_FILES = 2000;
+const FALLBACK_MAX_FILE_BYTES = Math.max(LIMITS.largeFileThresholdBytes, 64 * 1024);
+
+const fileAdapter = new FileAdapter();
+
+function isHiddenPathSegment(name: string): boolean {
+  return name.startsWith('.');
+}
+
+function isBinaryLike(content: string): boolean {
+  return content.includes('\0');
+}
 
 export class RipgrepGatherer {
+  private async searchFileSystem(
+    query: string,
+    cwd: string,
+    signal?: AbortSignal,
+  ): Promise<RipgrepResult[]> {
+    const needle = query.toLowerCase();
+    if (!needle) return [];
+
+    const results: RipgrepResult[] = [];
+    let scannedFiles = 0;
+    const pending = ['.'];
+
+    while (pending.length > 0 && scannedFiles < FALLBACK_MAX_FILES) {
+      if (signal?.aborted) throw new Error('Operation cancelled by user');
+
+      const current = pending.shift()!;
+      const absoluteCurrent = ensureInSandbox(cwd, safeJoin(cwd, current));
+      let entries;
+      try {
+        entries = await fileAdapter.readdirWithTypes(absoluteCurrent);
+      } catch {
+        continue;
+      }
+
+      entries.sort((a, b) => a.name.localeCompare(b.name));
+      for (const entry of entries) {
+        if (signal?.aborted) throw new Error('Operation cancelled by user');
+        if (isHiddenPathSegment(entry.name)) continue;
+        if (entry.isSymbolicLink()) continue;
+
+        const relativePath = normalizePath(safeJoin(current, entry.name)).replace(
+          /^(\.\/|\/)+/,
+          '',
+        );
+        if (!relativePath) continue;
+
+        if (entry.isDirectory()) {
+          if (FALLBACK_EXCLUDED_DIRS.has(entry.name)) continue;
+          pending.push(relativePath);
+          continue;
+        }
+
+        if (!entry.isFile()) continue;
+        scannedFiles += 1;
+        if (scannedFiles > FALLBACK_MAX_FILES) break;
+
+        const absoluteFile = ensureInSandbox(cwd, safeJoin(cwd, relativePath));
+        try {
+          const stat = await fileAdapter.stat(absoluteFile);
+          if (!stat.isFile() || stat.size > FALLBACK_MAX_FILE_BYTES) continue;
+          const content = await fileAdapter.readFile(absoluteFile, 'utf-8');
+          if (isBinaryLike(content)) continue;
+          const lines = content.split(/\r?\n/);
+          for (let index = 0; index < lines.length; index += 1) {
+            const line = lines[index] ?? '';
+            if (!line.toLowerCase().includes(needle)) continue;
+            results.push({
+              file: normalizePath(safeRelative(cwd, absoluteFile)),
+              line: index + 1,
+              content: line,
+            });
+            if (results.length >= LIMITS.defaultSearchMatches) return results;
+          }
+        } catch {
+          continue;
+        }
+      }
+    }
+
+    return results;
+  }
+
   private async runRipgrep(
     query: string,
     cwd: string,
@@ -52,8 +139,9 @@ export class RipgrepGatherer {
     if (result.error) {
       if (result.error.code === 'ENOENT') {
         getLogger().error(
-          'Error: ripgrep (rg) not found in PATH. Context gathering may be incomplete.',
+          'Error: ripgrep (rg) not found in PATH. Falling back to bounded filesystem search.',
         );
+        return await this.searchFileSystem(query, cwd, signal);
       } else {
         getLogger().error(`Error running ripgrep: ${result.error.message}`);
       }

@@ -1,6 +1,10 @@
 import { ContextService } from '../../src/core/context/service.js';
 import { PluginLoader } from '../../src/core/plugin/loader.js';
 import { getPluginRegistry } from '../../src/core/plugin/registry.js';
+import {
+  createLocalCommandRunner,
+  withCommandRunner,
+} from '../../src/core/runtime/command-runner-context.js';
 import { RealFsTestHelper } from '../helpers/real-fs-helper.js';
 
 describe('ContextService Integration', () => {
@@ -72,6 +76,57 @@ describe('ContextService Integration', () => {
         'TSQL - L031 incorrectly triggers "Avoid using aliases in join condition" when no join present',
       repoPath,
     });
+
+    expect(result.prompt).toContain('src/rules/L031.py');
+    expect(result.prompt).toContain('Avoid using aliases in join condition');
+  });
+
+  it('includes matched source files when external code search is unavailable', async () => {
+    await helper
+      .createGitRepo({
+        initialFiles: [
+          {
+            path: 'src/rules/L031.py',
+            content: 'def lint_aliases():\n    return "Avoid using aliases in join condition"\n',
+          },
+          {
+            path: 'docs/rules.md',
+            content: 'L031 is documented here.\n',
+          },
+        ],
+      })
+      .then((repo) => {
+        repoPath = repo.path;
+      });
+
+    const localRunner = createLocalCommandRunner();
+    const service = new ContextService();
+    const result = await withCommandRunner(
+      {
+        ...localRunner,
+        spawnCommand: async (input) => {
+          if (input.command === 'rg') {
+            return {
+              code: -1,
+              signal: null,
+              timedOut: false,
+              error: { code: 'ENOENT', message: 'spawn rg ENOENT' },
+              stdout: '',
+              stderr: '',
+              stdoutTruncated: false,
+              stderrTruncated: false,
+            };
+          }
+          return await localRunner.spawnCommand(input);
+        },
+      },
+      async () =>
+        service.build({
+          instruction:
+            'TSQL - L031 incorrectly triggers "Avoid using aliases in join condition" when no join present',
+          repoPath,
+        }),
+    );
 
     expect(result.prompt).toContain('src/rules/L031.py');
     expect(result.prompt).toContain('Avoid using aliases in join condition');
