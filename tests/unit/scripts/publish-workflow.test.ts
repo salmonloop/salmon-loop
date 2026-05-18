@@ -34,4 +34,17 @@ describe('publish workflow', () => {
     expect(token?.env?.NODE_AUTH_TOKEN).toBe('${{ secrets.NPM_TOKEN }}');
     expect(String(token?.run || '')).toContain('npm publish');
   });
+
+  it('keeps install lifecycle scripts runnable from the published package', async () => {
+    const raw = await readFile(path.join(repoRoot, 'package.json'), 'utf8');
+    const pkg = JSON.parse(raw) as {
+      files?: unknown;
+      scripts?: Record<string, unknown>;
+    };
+
+    const postinstall = pkg.scripts?.postinstall;
+    expect(postinstall).toBe('node scripts/fix-es-abstract-compat.js');
+
+    expect(pkg.files).toContain('scripts/fix-es-abstract-compat.js');
+  });
 });

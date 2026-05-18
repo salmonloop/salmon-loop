@@ -13,6 +13,18 @@ const FORBIDDEN_PATTERNS: Array<{ name: string; pattern: RegExp }> = [
 
 const TARGET_FILES = ['package.json', 'tests/helpers/cli-runner.ts'] as const;
 const TARGET_DIRS = ['.github/workflows', '.github/actions', '.githooks'] as const;
+const PACKAGE_LIFECYCLE_SCRIPTS = new Set([
+  'preinstall',
+  'install',
+  'postinstall',
+  'prepack',
+  'prepare',
+  'postpack',
+  'prepublishOnly',
+  'preversion',
+  'version',
+  'postversion',
+]);
 
 export interface BunPurityViolation {
   filePath: string;
@@ -141,6 +153,7 @@ export async function findBunPurityViolations(
     if (relativePath === 'package.json') {
       const scripts = parsePackageScripts(content);
       for (const [scriptName, command] of Object.entries(scripts)) {
+        if (PACKAGE_LIFECYCLE_SCRIPTS.has(scriptName)) continue;
         const matches = collectPatternMatches(command);
         for (const match of matches) {
           violations.push({

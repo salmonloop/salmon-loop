@@ -16,6 +16,7 @@
     "dist/locales/**/*.js",
     "dist/utils/**/*.js",
     "dist/core/prompts/templates/**/*.hbs",
+    "scripts/fix-es-abstract-compat.js",
     "README.md",
     "README.zh-CN.md",
     "LICENSE"
@@ -38,7 +39,7 @@
     "test:headless-smoke": "bun scripts/headless-smoke.ts",
     "test:contract-smoke": "bun test --timeout 15000 --preload ./tests/setup-bun.ts tests/unit/architecture/request-assembly-invariant.test.ts tests/unit/architecture/replacement-preview-boundary-invariant.test.ts tests/unit/architecture/sub-agent-prefix-consistency-invariant.test.ts tests/unit/architecture/tool-naming-contract.test.ts tests/unit/architecture/verify-contract-smoke-gate.test.ts tests/unit/tools/session-streaming.test.ts tests/unit/core/grizzco/steps/plan-patch-toolcalling.test.ts tests/unit/core/session/replacement-state.test.ts",
     "setup:hooks": "git config core.hooksPath .githooks",
-    "postinstall": "bun scripts/fix-es-abstract-compat.ts",
+    "postinstall": "node scripts/fix-es-abstract-compat.js",
     "check:bun-purity": "bun scripts/check-bun-purity.ts",
     "check:bun-purity:staged": "bun scripts/check-bun-purity.ts --staged",
     "check:target-runtime-boundary": "bun scripts/check-target-runtime-hardcoding.ts",

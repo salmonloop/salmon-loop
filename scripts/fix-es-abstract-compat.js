@@ -1,7 +1,7 @@
-import { promises as fs } from 'fs';
-import path from 'path';
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
 
-async function fileExists(filePath: string): Promise<boolean> {
+async function fileExists(filePath) {
   try {
     await fs.access(filePath);
     return true;
@@ -10,9 +10,9 @@ async function fileExists(filePath: string): Promise<boolean> {
   }
 }
 
-async function listJsFiles(rootDir: string, baseDir = rootDir): Promise<string[]> {
+async function listJsFiles(rootDir, baseDir = rootDir) {
   const entries = await fs.readdir(rootDir, { withFileTypes: true });
-  const files: string[] = [];
+  const files = [];
 
   for (const entry of entries) {
     const full = path.join(rootDir, entry.name);
@@ -28,11 +28,11 @@ async function listJsFiles(rootDir: string, baseDir = rootDir): Promise<string[]
   return files;
 }
 
-function toPosixPath(value: string): string {
+function toPosixPath(value) {
   return value.split(path.sep).join('/');
 }
 
-async function writeCompatModule(dir2024: string, relativePath: string): Promise<void> {
+async function writeCompatModule(dir2024, relativePath) {
   const target = path.join(dir2024, relativePath);
   const withoutExt = relativePath.replace(/\.js$/, '');
   const requirePath = path.posix.join('..', '2025', toPosixPath(withoutExt));
@@ -41,7 +41,7 @@ async function writeCompatModule(dir2024: string, relativePath: string): Promise
   await fs.writeFile(target, content, 'utf8');
 }
 
-async function main(): Promise<void> {
+async function main() {
   const root = path.resolve(process.cwd(), 'node_modules', 'es-abstract');
   const dir2024 = path.join(root, '2024');
   const dir2025 = path.join(root, '2025');
@@ -53,7 +53,7 @@ async function main(): Promise<void> {
   await fs.mkdir(dir2024, { recursive: true });
 
   const entries2025 = await listJsFiles(dir2025);
-  const missing: string[] = [];
+  const missing = [];
 
   for (const rel of entries2025) {
     const target = path.join(dir2024, rel);

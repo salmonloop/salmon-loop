@@ -48,6 +48,29 @@ describe('bun purity guard', () => {
     expect(violations[0].snippet).toContain('verify: node ');
   });
 
+  it('does not treat npm lifecycle scripts as development-chain commands', async () => {
+    const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'bun-purity-'));
+    tempDirs.push(repoRoot);
+
+    await write(
+      repoRoot,
+      'package.json',
+      JSON.stringify(
+        {
+          scripts: {
+            postinstall: 'node scripts/fix-package-install.js',
+            verify: 'bun run lint && bun run test:full',
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    const violations = await findBunPurityViolations(repoRoot);
+    expect(violations).toEqual([]);
+  });
+
   it('detects forbidden command in hooks and workflows', async () => {
     const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'bun-purity-'));
     tempDirs.push(repoRoot);
