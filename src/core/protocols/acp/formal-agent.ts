@@ -141,6 +141,7 @@ type AcpSessionLifecycleRequest = {
   sessionId: string;
   cwd: string;
   mcpServers?: McpServer[];
+  additionalDirectories?: string[];
 };
 
 const ACP_PERMISSION_POLICY_CONFIG_ID = '_salmonloop_permission_policy';
@@ -155,6 +156,7 @@ const ACP_SESSION_STORE_LOCK_STALE_MS = 1000 * 30;
 const ACP_SESSION_STORE_LOCK_HEARTBEAT_MS = 1000 * 5;
 const ACP_SESSION_STORE_LOCK_ACQUIRE_TIMEOUT_MS = 1000 * 5;
 const ACP_SESSION_HISTORY_MAX_ENTRIES = 40;
+const ACP_SUPPORTED_PROTOCOL_VERSIONS = new Set<number>([PROTOCOL_VERSION]);
 
 function isAbsolutePath(filePath: string): boolean {
   if (defaultPathAdapter.isAbsolute(filePath)) return true;
@@ -706,6 +708,24 @@ function acpMcpServersToExtensions(
 
 function validateAcpMcpServers(mcpServers: McpServer[] | undefined): void {
   void acpMcpServersToResolved(mcpServers);
+}
+
+function validateUnsupportedAdditionalDirectories(
+  additionalDirectories: string[] | undefined,
+): void {
+  if (Array.isArray(additionalDirectories) && additionalDirectories.length > 0) {
+    throw new RequestError(
+      -32602,
+      'Invalid params: additionalDirectories is not supported by this agent',
+    );
+  }
+}
+
+function negotiateProtocolVersion(clientProtocolVersion: number): number {
+  if (ACP_SUPPORTED_PROTOCOL_VERSIONS.has(clientProtocolVersion)) {
+    return clientProtocolVersion;
+  }
+  return PROTOCOL_VERSION;
 }
 
 function extractSlashInput(prompt: ContentBlock[]): string | null {
@@ -1361,6 +1381,7 @@ export function createAcpFormalAgent(deps: {
 
   async function loadSessionInternal(params: LoadSessionRequest): Promise<AcpSessionRecord> {
     await hydrateSessionsOnce();
+    validateUnsupportedAdditionalDirectories(params.additionalDirectories);
     validateAcpMcpServers(params.mcpServers);
     const session = sessions.get(params.sessionId);
     if (!session) {
@@ -1383,6 +1404,7 @@ export function createAcpFormalAgent(deps: {
     params: AcpSessionLifecycleRequest,
   ): Promise<AcpSessionRecord> {
     await hydrateSessionsOnce();
+    validateUnsupportedAdditionalDirectories(params.additionalDirectories);
     validateAcpMcpServers(params.mcpServers);
     const session = sessions.get(params.sessionId);
     if (!session) {
@@ -1429,18 +1451,8 @@ export function createAcpFormalAgent(deps: {
 
       clientCapabilities = params.clientCapabilities;
 
-      // Protocol version negotiation:
-      // - If the client's requested version is supported, return the same version
-      // - Otherwise, return the latest version the agent supports
-      // Currently, the agent only supports protocol version 1
-      const supportedProtocolVersion = PROTOCOL_VERSION;
-      const negotiatedVersion =
-        params.protocolVersion <= supportedProtocolVersion
-          ? params.protocolVersion
-          : supportedProtocolVersion;
-
       return {
-        protocolVersion: negotiatedVersion,
+        protocolVersion: negotiateProtocolVersion(params.protocolVersion),
         agentInfo: deps.agentInfo,
         authMethods: [],
         agentCapabilities: {
@@ -1456,8 +1468,11 @@ export function createAcpFormalAgent(deps: {
       };
     },
 
-    async authenticate() {
-      return;
+    async authenticate(params) {
+      throw new RequestError(
+        -32602,
+        `Invalid params: unsupported auth methodId "${params.methodId}"`,
+      );
     },
 
     async newSession(params) {
@@ -1465,6 +1480,7 @@ export function createAcpFormalAgent(deps: {
       if (!isAbsolutePath(params.cwd)) {
         throw new RequestError(-32602, 'Invalid params: cwd must be an absolute path');
       }
+      validateUnsupportedAdditionalDirectories(params.additionalDirectories);
       validateAcpMcpServers(params.mcpServers);
       const session = sessions.create({
         cwd: params.cwd,
@@ -1650,6 +1666,7 @@ export function createAcpFormalAgent(deps: {
         sessionId: params.sessionId,
         cwd: params.cwd,
         mcpServers: params.mcpServers,
+        additionalDirectories: params.additionalDirectories,
       });
       const runtimeState = ensureSessionRuntimeState(session.id);
       runtimeState.lastSessionInfoDigest = null;
@@ -1998,8 +2015,5 @@ export function createAcpFormalAgent(deps: {
       // Note: The prompt method will check the cancelRequested flag and return
       // StopReason::Cancelled as required by the protocol
     },
-
-    extMethod: async () => ({}),
-    extNotification: async () => {},
   };
 }

@@ -121,7 +121,10 @@ export function createAcpStdioStream(
       try {
         while (true) {
           const { value, done } = await reader.read();
-          if (done) break;
+          if (done) {
+            buffer += textDecoder.decode();
+            break;
+          }
           if (!value) continue;
           buffer += textDecoder.decode(value, { stream: true });
           const lines = buffer.split('\n');
@@ -130,6 +133,7 @@ export function createAcpStdioStream(
             await processStdioLine(line, ndjson, controller);
           }
         }
+        await processStdioLine(buffer, ndjson, controller);
       } finally {
         reader.releaseLock();
         controller.close();

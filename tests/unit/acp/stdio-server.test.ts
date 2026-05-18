@@ -149,6 +149,37 @@ describe('ACP stdio guard', () => {
     expect(getText().trim()).toBe('');
   });
 
+  it('passes through a final valid JSON-RPC object without a trailing newline', async () => {
+    const input = makeInputStream('{"jsonrpc":"2.0","id":1,"method":"session/list"}');
+    const { output, getText } = makeOutputCollector();
+    const stream = createAcpStdioStream(output, input);
+
+    const reader = stream.readable.getReader();
+    const { value, done } = await reader.read();
+    reader.releaseLock();
+
+    expect(done).toBe(false);
+    expect(value).toMatchObject({ jsonrpc: '2.0', id: 1, method: 'session/list', params: {} });
+    expect(getText().trim()).toBe('');
+  });
+
+  it('returns Parse error for final invalid JSON without a trailing newline', async () => {
+    const input = makeInputStream('text');
+    const { output, getText } = makeOutputCollector();
+    const stream = createAcpStdioStream(output, input);
+
+    await drainReadable(stream.readable);
+
+    const lines = getText().trim().split('\n');
+    expect(lines).toHaveLength(1);
+    const message = JSON.parse(lines[0]);
+    expect(message).toEqual({
+      jsonrpc: '2.0',
+      id: null,
+      error: { code: -32700, message: 'Parse error' },
+    });
+  });
+
   it('handles session/list when a JSON-RPC client omits params', async () => {
     const { input, writeMessage, close } = makeWritableInputStream();
     const { output, getText } = makeOutputCollector();

@@ -66,6 +66,40 @@ describe('ACP formal protocol (SDK)', () => {
     ).rejects.toMatchObject({ code: -32602 });
   });
 
+  it('negotiates unsupported protocol versions to the current supported ACP version', async () => {
+    const { clientConn } = createConnectedPair({
+      toAgent: (conn) =>
+        createAcpFormalAgent({
+          conn,
+          agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+          facade: {
+            createTask: async () => {
+              throw new Error('not used');
+            },
+            getTask: async () => null,
+            cancelTask: async () => null,
+            resumeTask: async () => null,
+            retryTask: async () => null,
+            reopenTask: async () => null,
+            listTasks: async () => ({ items: [] }),
+            submitInput: async () => null,
+            getArtifact: async () => null,
+          },
+        }),
+      toClient: () => ({
+        requestPermission: async () => ({ outcome: { outcome: 'cancelled' } }),
+        sessionUpdate: async () => {},
+      }),
+    });
+
+    const initialized = await clientConn.initialize({
+      protocolVersion: 0,
+      clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false },
+    });
+
+    expect(initialized.protocolVersion).toBe(1);
+  });
+
   it('returns -32602 when session/new cwd is not absolute', async () => {
     const { clientConn } = createConnectedPair({
       toAgent: (conn) =>
@@ -103,6 +137,75 @@ describe('ACP formal protocol (SDK)', () => {
         mcpServers: [],
       }),
     ).rejects.toMatchObject({ code: -32602 });
+  });
+
+  it('rejects authenticate when no auth methods are advertised', async () => {
+    const { clientConn } = createConnectedPair({
+      toAgent: (conn) =>
+        createAcpFormalAgent({
+          conn,
+          agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+          facade: {
+            createTask: async () => {
+              throw new Error('not used');
+            },
+            getTask: async () => null,
+            cancelTask: async () => null,
+            resumeTask: async () => null,
+            retryTask: async () => null,
+            reopenTask: async () => null,
+            listTasks: async () => ({ items: [] }),
+            submitInput: async () => null,
+            getArtifact: async () => null,
+          },
+        }),
+      toClient: () => ({
+        requestPermission: async () => ({ outcome: { outcome: 'cancelled' } }),
+        sessionUpdate: async () => {},
+      }),
+    });
+
+    const initialized = await clientConn.initialize({
+      protocolVersion: 1,
+      clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: false },
+    });
+
+    expect(initialized.authMethods).toEqual([]);
+    await expect(clientConn.authenticate({ methodId: 'oauth' })).rejects.toMatchObject({
+      code: -32602,
+    });
+  });
+
+  it('rejects unsupported ACP extension requests instead of treating them as successful', async () => {
+    const { clientConn } = createConnectedPair({
+      toAgent: (conn) =>
+        createAcpFormalAgent({
+          conn,
+          agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+          facade: {
+            createTask: async () => {
+              throw new Error('not used');
+            },
+            getTask: async () => null,
+            cancelTask: async () => null,
+            resumeTask: async () => null,
+            retryTask: async () => null,
+            reopenTask: async () => null,
+            listTasks: async () => ({ items: [] }),
+            submitInput: async () => null,
+            getArtifact: async () => null,
+          },
+        }),
+      toClient: () => ({
+        requestPermission: async () => ({ outcome: { outcome: 'cancelled' } }),
+        sessionUpdate: async () => {},
+      }),
+    });
+
+    await expect(clientConn.extMethod('example.com/unknown', {})).rejects.toMatchObject({
+      code: -32601,
+      data: { method: 'example.com/unknown' },
+    });
   });
 
   it('emits session_info_update during session/new', async () => {
@@ -2180,6 +2283,70 @@ describe('ACP formal protocol (SDK)', () => {
       audio: false,
       embeddedContext: false,
     });
+  });
+
+  it('rejects non-empty additionalDirectories when multi-root workspace support is not advertised', async () => {
+    const { clientConn } = createConnectedPair({
+      toAgent: (conn) =>
+        createAcpFormalAgent({
+          conn,
+          agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+          facade: {
+            createTask: async () => {
+              throw new Error('not used');
+            },
+            getTask: async () => null,
+            cancelTask: async () => null,
+            resumeTask: async () => null,
+            retryTask: async () => null,
+            reopenTask: async () => null,
+            listTasks: async () => ({ items: [] }),
+            submitInput: async () => null,
+            getArtifact: async () => null,
+          },
+        }),
+      toClient: () => ({
+        requestPermission: async () => ({ outcome: { outcome: 'cancelled' } }),
+        sessionUpdate: async () => {},
+      }),
+    });
+
+    const initialized = await clientConn.initialize({
+      protocolVersion: 1,
+      clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
+    });
+
+    expect(
+      initialized.agentCapabilities?.sessionCapabilities?.additionalDirectories,
+    ).toBeUndefined();
+    await expect(
+      clientConn.newSession({
+        cwd: '/repo',
+        mcpServers: [],
+        additionalDirectories: ['/extra'],
+      }),
+    ).rejects.toMatchObject({ code: -32602 });
+
+    const { sessionId } = await clientConn.newSession({
+      cwd: '/repo',
+      mcpServers: [],
+      additionalDirectories: [],
+    });
+    await expect(
+      clientConn.loadSession({
+        sessionId,
+        cwd: '/repo',
+        mcpServers: [],
+        additionalDirectories: ['/extra'],
+      }),
+    ).rejects.toMatchObject({ code: -32602 });
+    await expect(
+      clientConn.resumeSession({
+        sessionId,
+        cwd: '/repo',
+        additionalDirectories: ['/extra'],
+      }),
+    ).rejects.toMatchObject({ code: -32602 });
   });
 
   it('lists existing sessions and filters by cwd', async () => {

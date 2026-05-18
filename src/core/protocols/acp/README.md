@@ -55,7 +55,7 @@ The adapter advertises only capabilities backed by runtime behavior:
 Current non-goals:
 
 - `session/delete`, `session/fork`, provider configuration, NES, and ACP `set_model` are not advertised.
-- `additionalDirectories` is accepted by the SDK schema but not wired to Salmon-Loop workspace semantics yet.
+- Non-empty `additionalDirectories` is rejected with `-32602` until Salmon-Loop has multi-root workspace semantics wired end to end.
 - MCP-over-SSE and MCP-over-ACP transports are rejected with `-32602` instead of being silently ignored.
 
 ACP `mcpServers` from `session/new`, `session/load`, or `session/resume` are translated into
