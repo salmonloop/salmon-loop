@@ -16,7 +16,7 @@
     "uuid": "<uuid>",
     "session_id": "sess-print",
     "protocol_version": 1,
-    "event_seq": 41,
+    "event_seq": 1,
     "event": {
       "type": "result",
       "timestamp": "<ts>",
@@ -28,7 +28,7 @@
     "uuid": "<uuid>",
     "session_id": "sess-print",
     "protocol_version": 1,
-    "event_seq": 42,
+    "event_seq": 2,
     "event": {
       "type": "end",
       "timestamp": "<ts>",

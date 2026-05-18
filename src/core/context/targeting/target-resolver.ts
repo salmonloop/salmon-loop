@@ -519,10 +519,6 @@ export class TargetResolver {
       debugLabel: 'context-targeting',
       maxRounds: 5,
       resolveData: async (ctx, key) => {
-        if (!ctx.primaryFile) {
-          return [];
-        }
-
         if (key === 'explicitTargets') {
           const primary = buildPrimaryTarget(ctx.primaryFile);
           const explicit = buildExplicitTargets(req);
@@ -536,6 +532,7 @@ export class TargetResolver {
         }
 
         if (key === 'symbolTargets') {
+          if (!ctx.primaryFile) return [];
           const primary = buildPrimaryTarget(ctx.primaryFile);
           const res = buildSymbolTargets({
             primaryFile: ctx.primaryFile,
@@ -555,6 +552,7 @@ export class TargetResolver {
           const rg = buildRgHitTargets(rgHitFiles, 2);
           const combined = dedupeTargets([...primary, ...imports, ...rg]);
           if (combined.length > 0) return combined;
+          if (!ctx.primaryFile) return [];
           return [
             {
               path: ctx.primaryFile,
@@ -570,7 +568,6 @@ export class TargetResolver {
       strategy: (engine: DecisionEngine<TargetingDslContext>) => {
         return engine
           .phase('Dependencies')
-          .require((c) => Boolean(c.primaryFile), 'No primary file provided')
           .requireData(['explicitTargets', 'symbolTargets', 'diffTargets', 'defaultTargets'])
           .phase('Selection')
           .when(

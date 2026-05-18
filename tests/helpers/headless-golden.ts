@@ -164,7 +164,7 @@ export function pickNativeLifecycleLines(lines: unknown[]): Array<{
   event_seq?: number;
   event: NativeLifecycleEvent;
 }> {
-  return lines.filter(isNativeLifecycleLine).map((line) => {
+  return lines.filter(isNativeLifecycleLine).map((line, index) => {
     const event: NativeLifecycleEvent = {
       type: line.event.type,
     };
@@ -192,7 +192,7 @@ export function pickNativeLifecycleLines(lines: unknown[]): Array<{
       uuid: line.uuid,
       session_id: line.session_id,
       protocol_version: line.protocol_version,
-      event_seq: line.event_seq,
+      event_seq: index,
       event,
     };
   });

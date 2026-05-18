@@ -209,4 +209,25 @@ describe('TargetResolver (symbol targets)', () => {
     expect(res.targets[1]?.path).toBe('src/a.ts');
     expect(res.targets[2]?.path).toBe('src/z.ts');
   });
+
+  it('uses search hits as targets when no primary file is provided', async () => {
+    const resolver = new TargetResolver();
+    const res = await resolver.resolve({
+      req: {
+        instruction: 'Fix diagnostic emitted by the matching rule',
+        repoPath: '/repo',
+      },
+      includedFiles: [],
+      importRelatedFiles: [],
+      rgHitFiles: ['src/rules/L031.py'],
+    });
+
+    expect(res.strategy).toBe('default');
+    expect(res.targets).toContainEqual(
+      expect.objectContaining({
+        path: 'src/rules/L031.py',
+        reason: 'rg_hit',
+      }),
+    );
+  });
 });
