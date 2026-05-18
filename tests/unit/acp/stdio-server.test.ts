@@ -1,6 +1,9 @@
+import { AgentSideConnection } from '@agentclientprotocol/sdk';
 import { describe, expect, it } from 'bun:test';
 
+import { createAcpFormalAgent } from '../../../src/core/protocols/acp/formal-agent.js';
 import { createAcpStdioStream } from '../../../src/core/protocols/acp/stdio-server.js';
+import { waitForCondition } from '../../helpers/wait-for.js';
 
 function makeInputStream(text: string): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
@@ -34,6 +37,21 @@ function makeOutputCollector() {
   return { output, getText };
 }
 
+function makeWritableInputStream() {
+  let controller!: ReadableStreamDefaultController<Uint8Array>;
+  const encoder = new TextEncoder();
+  const input = new ReadableStream<Uint8Array>({
+    start(createdController) {
+      controller = createdController;
+    },
+  });
+  const writeMessage = (message: unknown) => {
+    controller.enqueue(encoder.encode(JSON.stringify(message) + '\n'));
+  };
+  const close = () => controller.close();
+  return { input, writeMessage, close };
+}
+
 async function drainReadable(stream: ReadableStream<unknown>) {
   const reader = stream.getReader();
   try {
@@ -44,6 +62,42 @@ async function drainReadable(stream: ReadableStream<unknown>) {
   } finally {
     reader.releaseLock();
   }
+}
+
+function makeUnusedFacade() {
+  return {
+    createTask: async () => {
+      throw new Error('not used');
+    },
+    getTask: async () => null,
+    cancelTask: async () => null,
+    resumeTask: async () => null,
+    retryTask: async () => null,
+    reopenTask: async () => null,
+    listTasks: async () => ({ items: [] }),
+    submitInput: async () => null,
+    getArtifact: async () => null,
+  };
+}
+
+async function readJsonLines(getText: () => string) {
+  return getText()
+    .trim()
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => JSON.parse(line));
+}
+
+async function waitForJsonRpcResponse(getText: () => string, id: number) {
+  await waitForCondition(
+    async () => {
+      const lines = await readJsonLines(getText);
+      return lines.some((line) => line.id === id);
+    },
+    { timeoutMs: 1000, intervalMs: 5, description: `ACP response ${id}` },
+  );
+  const lines = await readJsonLines(getText);
+  return lines.find((line) => line.id === id);
 }
 
 describe('ACP stdio guard', () => {
@@ -93,6 +147,59 @@ describe('ACP stdio guard', () => {
     expect(done).toBe(false);
     expect(value).toMatchObject({ jsonrpc: '2.0', id: 1, method: 'initialize' });
     expect(getText().trim()).toBe('');
+  });
+
+  it('handles session/list when a JSON-RPC client omits params', async () => {
+    const { input, writeMessage, close } = makeWritableInputStream();
+    const { output, getText } = makeOutputCollector();
+    const stream = createAcpStdioStream(output, input);
+
+    new AgentSideConnection(
+      (conn) =>
+        createAcpFormalAgent({
+          conn,
+          agentInfo: { name: 'salmon-loop', version: 'test' },
+          facade: makeUnusedFacade(),
+        }),
+      stream,
+    );
+
+    writeMessage({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'initialize',
+      params: { protocolVersion: 1, clientCapabilities: {} },
+    });
+    const initialized = await waitForJsonRpcResponse(getText, 1);
+
+    writeMessage({
+      jsonrpc: '2.0',
+      id: 2,
+      method: 'session/new',
+      params: { cwd: '/repo', mcpServers: [] },
+    });
+    const created = await waitForJsonRpcResponse(getText, 2);
+
+    writeMessage({
+      jsonrpc: '2.0',
+      id: 3,
+      method: 'session/list',
+    });
+    const listed = await waitForJsonRpcResponse(getText, 3);
+    close();
+
+    expect(initialized?.result?.agentCapabilities?.sessionCapabilities).toMatchObject({
+      list: {},
+    });
+    expect(typeof created?.result?.sessionId).toBe('string');
+    expect(listed?.error).toBeUndefined();
+    expect(listed?.result?.sessions).toEqual([
+      expect.objectContaining({
+        sessionId: created?.result?.sessionId,
+        cwd: '/repo',
+        title: 'repo',
+      }),
+    ]);
   });
 
   it('rejects null, arrays, and strings', async () => {

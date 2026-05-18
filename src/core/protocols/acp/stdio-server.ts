@@ -20,9 +20,20 @@ function isJsonObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function hasOwn(value: Record<string, unknown>, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+
 function formatLineSnippet(line: string, maxLength = 160): string {
   if (line.length <= maxLength) return line;
   return `${line.slice(0, maxLength - 3)}...`;
+}
+
+function normalizeJsonRpcParams(message: Record<string, unknown>) {
+  if (typeof message.method !== 'string') return;
+  if (!hasOwn(message, 'params') || message.params === null) {
+    message.params = {};
+  }
 }
 
 function safeWarn(message: string): void {
@@ -78,6 +89,8 @@ async function processStdioLine(
       await writeInvalidRequest(ndjson, trimmed);
       return;
     }
+
+    normalizeJsonRpcParams(parsed);
 
     if (parsed.params && typeof parsed.params === 'object' && !Array.isArray(parsed.params)) {
       const params = parsed.params as Record<string, unknown>;
