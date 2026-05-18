@@ -29,6 +29,7 @@ export function buildPhaseToolRuntimeContext(
     repoRoot: ctx.workspace.workPath,
     persistenceRoot: ctx.workspace.baseRepoPath || ctx.workspace.workPath,
     worktreeRoot: ctx.workspace.strategy === 'worktree' ? ctx.workspace.workPath : undefined,
+    workspaceCapabilities: ctx.workspace.capabilities,
     flowMode: ctx.mode,
     attemptId: ctx.attempt ?? 1,
     dryRun: Boolean(ctx.options?.dryRun),

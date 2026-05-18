@@ -513,4 +513,23 @@ export interface ExecutionWorkspace {
   workPath: string;
   strategy: CheckpointStrategy;
   environmentMode?: EnvironmentMode;
+  capabilities?: WorkspaceCapabilities;
+}
+
+export interface WorkspaceGitCapability {
+  available: boolean;
+  insideWorkTree: boolean;
+  head?: string;
+  reason?: string;
+}
+
+export interface WorkspaceFileSystemCapability {
+  readable: boolean;
+  writable: boolean;
+  reason?: string;
+}
+
+export interface WorkspaceCapabilities {
+  git: WorkspaceGitCapability;
+  filesystem: WorkspaceFileSystemCapability;
 }

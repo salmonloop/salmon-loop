@@ -6,6 +6,7 @@ import { fsReadFileSpec, fsWriteFileSpec } from '../../../src/core/tools/builtin
 import { registerAllBuiltins } from '../../../src/core/tools/builtin/index.js';
 import { planUpdateSpec } from '../../../src/core/tools/builtin/plan.js';
 import { shellExecSpec } from '../../../src/core/tools/builtin/shell.js';
+import { createStandardToolstack } from '../../../src/core/tools/loader.js';
 import { ToolPolicy } from '../../../src/core/tools/policy.js';
 import { ToolRegistry } from '../../../src/core/tools/registry.js';
 import {
@@ -97,5 +98,55 @@ describe('tool visibility', () => {
       expect(autopilotNames).not.toContain(name);
       expect(verifyNames).toContain(name);
     }
+  });
+
+  it('exposes filesystem and workspace tools but hides git-dependent tools in non-git workspaces', async () => {
+    const toolstack = await createStandardToolstack({
+      repoRoot: '/workspace',
+      persistenceRoot: '/workspace',
+      attemptId: 1,
+      dryRun: false,
+      workspaceCapabilities: {
+        git: { available: true, insideWorkTree: false, reason: 'not a git work tree' },
+        filesystem: { readable: true, writable: true },
+      },
+    });
+
+    const names = resolveVisibleToolNames({
+      phase: Phase.AUTOPILOT,
+      toolstack,
+      flowMode: 'autopilot',
+    });
+
+    expect(names).toContain('workspace.info');
+    expect(names).toContain('fs.read');
+    expect(names).toContain('fs.write_file');
+    expect(names.some((name) => name.startsWith('git.'))).toBe(false);
+  });
+
+  it('hides filesystem write tools when the workspace is read-only', async () => {
+    const toolstack = await createStandardToolstack({
+      repoRoot: '/workspace',
+      persistenceRoot: '/workspace',
+      attemptId: 1,
+      dryRun: false,
+      workspaceCapabilities: {
+        git: { available: true, insideWorkTree: true },
+        filesystem: { readable: true, writable: false, reason: 'read-only workspace' },
+      },
+    });
+
+    const names = resolveVisibleToolNames({
+      phase: Phase.AUTOPILOT,
+      toolstack,
+      flowMode: 'autopilot',
+    });
+
+    expect(names).toContain('workspace.info');
+    expect(names).toContain('fs.read');
+    expect(names).not.toContain('fs.write_file');
+    expect(names).not.toContain('fs.create_directory');
+    expect(names).not.toContain('fs.delete_file');
+    expect(names).toContain('git.status');
   });
 });

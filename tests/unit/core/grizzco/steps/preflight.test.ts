@@ -108,7 +108,7 @@ describe('grizzco runPreflight', () => {
     expect(hoisted.preflight).toHaveBeenCalledWith(
       expect.anything(),
       expect.anything(),
-      expect.objectContaining({ ignoreDirty: true }),
+      expect.objectContaining({ ignoreDirty: true, requireGit: false }),
     );
   });
 
@@ -136,7 +136,34 @@ describe('grizzco runPreflight', () => {
     expect(hoisted.preflight).toHaveBeenCalledWith(
       expect.anything(),
       expect.anything(),
-      expect.objectContaining({ ignoreDirty: false }),
+      expect.objectContaining({ ignoreDirty: false, requireGit: true }),
+    );
+  });
+
+  it('keeps git required when autopilot uses an isolated worktree', async () => {
+    const { runPreflight } = await import('../../../../../src/core/grizzco/steps/preflight.js');
+
+    await runPreflight({
+      mode: 'autopilot',
+      options: {
+        instruction: 'act',
+        llm: { getModelId: () => 'gpt-test' },
+      },
+      workspace: {
+        baseRepoPath: '/repo',
+        workPath: '/repo/.salmonloop/worktrees/1',
+        strategy: 'worktree',
+      },
+      emit: () => {},
+      fs: {} as any,
+      fileStateResolver: {} as any,
+      shadowInitialRef: 'shadow',
+    } as any);
+
+    expect(hoisted.preflight).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ requireGit: true }),
     );
   });
 });

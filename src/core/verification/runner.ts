@@ -10,6 +10,7 @@ import { isCommandAvailable, spawnCommand } from '../runtime/process-runner.js';
 import { ErrorType, LoopEvent } from '../types/index.js';
 import type { ExecutionWorkspace } from '../types/index.js';
 import { getPlatformShellInvocation } from '../utils/platform-shell.js';
+import { detectWorkspaceCapabilities } from '../workspace/capabilities.js';
 
 /**
  * Classify the error type based on the output of the verification command
@@ -256,48 +257,77 @@ export async function verifyFileContent(
 export async function preflight(
   workspace: ExecutionWorkspace,
   onEvent?: (event: LoopEvent) => void,
-  options?: { ignoreDirty?: boolean },
+  options?: { ignoreDirty?: boolean; requireGit?: boolean; requireWrite?: boolean },
 ): Promise<{
   ok: boolean;
   reason?: string;
   reasonCode?: 'PREFLIGHT_DIRTY' | 'PREFLIGHT_NOT_GIT' | 'LOOP_FAILED';
+  capabilities?: ExecutionWorkspace['capabilities'];
 }> {
   const now = () => new Date();
-  const git = new GitAdapter(workspace.baseRepoPath);
+  const requireGit = options?.requireGit !== false;
+  const requireWrite = options?.requireWrite !== false;
+  const workspacePath = workspace.workPath || workspace.baseRepoPath;
+  const capabilities = workspace.capabilities ?? (await detectWorkspaceCapabilities(workspacePath));
 
-  // 1. Check if it's a git repo
-  const gitCheck = await git.execMeta(['rev-parse', '--is-inside-work-tree'], {
-    cwd: workspace.baseRepoPath,
-    limits: { maxStdoutBytes: 4_096, maxStderrChars: 4_096 },
-    timeoutMs: LIMITS.gitTimeoutMs,
-  });
-
-  if (!gitCheck.ok) {
-    if (gitCheck.error?.code === 'ENOENT') {
-      return { ok: false, reason: text.loop.gitNotFound, reasonCode: 'PREFLIGHT_NOT_GIT' };
-    }
-    if (gitCheck.error?.message) {
-      return {
-        ok: false,
-        reason: text.loop.preflightGitCheckFailed(gitCheck.error.message),
-        reasonCode: 'PREFLIGHT_NOT_GIT',
-      };
-    }
-    return { ok: false, reason: text.loop.preflightFailedNotGit, reasonCode: 'PREFLIGHT_NOT_GIT' };
-  }
-  if (gitCheck.stdoutTruncated) {
+  if (!capabilities.filesystem.readable) {
     return {
       ok: false,
-      reason: text.loop.preflightGitCheckFailed(text.git.outputTruncated(4096)),
+      reason: capabilities.filesystem.reason || 'Workspace is not readable',
       reasonCode: 'LOOP_FAILED',
     };
   }
 
-  // 2. Check if workspace is dirty (only for direct strategy)
+  if (requireWrite && !capabilities.filesystem.writable) {
+    return {
+      ok: false,
+      reason: capabilities.filesystem.reason || 'Workspace is not writable',
+      reasonCode: 'LOOP_FAILED',
+    };
+  }
+
+  if (!capabilities.git.insideWorkTree) {
+    if (!requireGit) {
+      onEvent?.({
+        type: 'resource.status',
+        resource: 'git',
+        status: 'skipped',
+        message: capabilities.git.reason || text.loop.preflightFailedNotGit,
+        timestamp: now(),
+      });
+    } else if (!capabilities.git.available) {
+      return { ok: false, reason: text.loop.gitNotFound, reasonCode: 'PREFLIGHT_NOT_GIT' };
+    } else {
+      return {
+        ok: false,
+        reason: capabilities.git.reason
+          ? text.loop.preflightGitCheckFailed(capabilities.git.reason)
+          : text.loop.preflightFailedNotGit,
+        reasonCode: 'PREFLIGHT_NOT_GIT',
+      };
+    }
+  }
+
+  if (!capabilities.git.insideWorkTree) {
+    if (!(await isCommandAvailable('rg'))) {
+      onEvent?.({
+        type: 'resource.status',
+        resource: 'ripgrep',
+        status: 'warning',
+        message: text.verify.ripgrepNotFoundWarning,
+        timestamp: now(),
+      });
+    }
+    return { ok: true, capabilities };
+  }
+
+  const git = new GitAdapter(workspacePath);
+
+  // Check if workspace is dirty (only for direct strategy)
   // Allow dirty workspace by default for worktree strategy
   if (workspace.strategy === 'direct' && !options?.ignoreDirty) {
     const statusCheck = await git.execMeta(['status', '--porcelain'], {
-      cwd: workspace.baseRepoPath,
+      cwd: workspacePath,
       limits: { maxStdoutBytes: 64_000, maxStderrChars: 4_096 },
       timeoutMs: LIMITS.gitTimeoutMs,
     });
@@ -327,19 +357,20 @@ export async function preflight(
         reasonCode: 'PREFLIGHT_DIRTY',
       };
     }
-    return { ok: true };
+    return { ok: true, capabilities };
   }
 
-  // Worktree strategy: ignore dirty state in base repository
-  onEvent?.({
-    type: 'resource.status',
-    resource: 'git',
-    status: 'skipped',
-    message: text.verify.worktreeStrategyActive,
-    timestamp: now(),
-  });
+  if (workspace.strategy !== 'direct' || options?.ignoreDirty) {
+    onEvent?.({
+      type: 'resource.status',
+      resource: 'git',
+      status: 'skipped',
+      message: text.verify.worktreeStrategyActive,
+      timestamp: now(),
+    });
+  }
 
-  // 3. Check if ripgrep is installed (optional but recommended)
+  // Check if ripgrep is installed (optional but recommended)
   if (!(await isCommandAvailable('rg'))) {
     onEvent?.({
       type: 'resource.status',
@@ -350,5 +381,5 @@ export async function preflight(
     });
   }
 
-  return { ok: true };
+  return { ok: true, capabilities };
 }

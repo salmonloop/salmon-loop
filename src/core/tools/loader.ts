@@ -2,6 +2,7 @@ import { text } from '../../locales/index.js';
 import type { ResolvedExtensions } from '../extensions/types.js';
 import { skillToToolSpec, type RouterBox } from '../skills/bridge.js';
 import { SkillLoader } from '../skills/loader.js';
+import type { WorkspaceCapabilities } from '../types/loop.js';
 import type { AuthorizationSourceSummary, ExecutionPhase } from '../types/runtime.js';
 
 import { ToolAuditLogger } from './audit.js';
@@ -25,6 +26,7 @@ export interface ToolstackOptions {
   repoRoot: string;
   persistenceRoot?: string;
   worktreeRoot?: string;
+  workspaceCapabilities?: WorkspaceCapabilities;
   attemptId: number;
   dryRun: boolean;
   model?: string;
@@ -155,6 +157,24 @@ export async function createStandardToolstack(options: ToolstackOptions) {
     registry = filtered;
   }
 
+  if (options.workspaceCapabilities) {
+    const capabilities = options.workspaceCapabilities;
+    const filtered = new ToolRegistry();
+    for (const spec of registry.listAll()) {
+      const needsGit =
+        spec.name.startsWith('git.') ||
+        spec.sideEffects.includes('git_read') ||
+        spec.sideEffects.includes('git_write');
+      const needsReadableFilesystem = spec.sideEffects.includes('fs_read');
+      const needsWritableFilesystem = spec.sideEffects.includes('fs_write');
+      if (needsGit && !capabilities.git.insideWorkTree) continue;
+      if (needsReadableFilesystem && !capabilities.filesystem.readable) continue;
+      if (needsWritableFilesystem && !capabilities.filesystem.writable) continue;
+      filtered.register(spec);
+    }
+    registry = filtered;
+  }
+
   // 3d. Create Router with the FINAL (filtered) registry — skills included
   const router = new ToolRouter(
     registry,
@@ -174,6 +194,7 @@ export async function createStandardToolstack(options: ToolstackOptions) {
     repoRoot: options.repoRoot,
     persistenceRoot: options.persistenceRoot,
     worktreeRoot: options.worktreeRoot,
+    workspaceCapabilities: options.workspaceCapabilities,
     attemptId: options.attemptId,
     dryRun: options.dryRun,
     model: options.model,

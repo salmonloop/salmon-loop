@@ -3,6 +3,7 @@ import { recordAuditEvent } from '../../observability/audit-trail.js';
 import { resolveExecutionProfile } from '../../runtime/execution-profile.js';
 import { createStandardToolstack } from '../../tools/loader.js';
 import { preflight } from '../../verification/runner.js';
+import { requiresGitWorkspace } from '../../workspace/capabilities.js';
 import { resolveLlmToolCallingPolicy } from '../dsl/llm-strategy.js';
 import { Step } from '../engine/pipeline/pipeline.js';
 import { InitCtx, PreflightCtx } from '../engine/pipeline/types.js';
@@ -11,6 +12,11 @@ export const runPreflight: Step<InitCtx, PreflightCtx> = async (ctx) => {
   const executionProfile = resolveExecutionProfile(ctx.mode);
   const result = await preflight(ctx.workspace, ctx.emit, {
     ignoreDirty: executionProfile.ignoreDirtyPreflight,
+    requireWrite: !executionProfile.readOnly,
+    requireGit: requiresGitWorkspace({
+      mode: ctx.mode,
+      strategy: ctx.workspace.strategy,
+    }),
   });
 
   if (!result.ok) {
@@ -33,12 +39,17 @@ export const runPreflight: Step<InitCtx, PreflightCtx> = async (ctx) => {
     timestamp: new Date(),
   });
 
+  if (result.capabilities) {
+    ctx.workspace.capabilities = result.capabilities;
+  }
+
   const toolstack = resolveLlmToolCallingPolicy(executionProfile.entryPhase, ctx.options.llm)
     .enabled
     ? await createStandardToolstack({
         repoRoot: ctx.workspace.workPath,
         persistenceRoot: ctx.workspace.baseRepoPath || ctx.workspace.workPath,
         worktreeRoot: ctx.workspace.strategy === 'worktree' ? ctx.workspace.workPath : undefined,
+        workspaceCapabilities: ctx.workspace.capabilities,
         attemptId: ctx.attempt ?? 1,
         dryRun: Boolean(ctx.options?.dryRun),
         allowedToolNames: Array.isArray(ctx.options.allowedToolNames)

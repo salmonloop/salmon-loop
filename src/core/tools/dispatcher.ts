@@ -1,5 +1,6 @@
 import * as crypto from 'crypto';
 
+import type { WorkspaceCapabilities } from '../types/loop.js';
 import type { ExecutionPhase, UserInputProvider } from '../types/runtime.js';
 
 import { ToolParser, ToolParseError } from './parser.js';
@@ -20,6 +21,7 @@ export class ToolDispatcher {
       repoRoot: string;
       persistenceRoot?: string;
       worktreeRoot?: string;
+      workspaceCapabilities?: WorkspaceCapabilities;
       attemptId: number;
       dryRun: boolean;
       model?: string;
@@ -57,6 +59,7 @@ export class ToolDispatcher {
           repoRoot: this.options.repoRoot,
           persistenceRoot: this.options.persistenceRoot,
           worktreeRoot: this.options.worktreeRoot,
+          workspaceCapabilities: this.options.workspaceCapabilities,
           attemptId: this.options.attemptId,
           dryRun: this.options.dryRun,
           model: this.options.model,

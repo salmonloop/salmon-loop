@@ -84,6 +84,97 @@ describe('Verify Integration Tests with Real FS', () => {
     });
 
     expect(result.ok).toBe(false);
-    expect(result.reason).toMatch(/Not a git repository|untracked/);
+    expect(result.reason).toMatch(/not a git repository|untracked/i);
+  });
+
+  it('should allow non-git preflight when the selected flow does not require git', async () => {
+    const nonGitDir = await helper.createTempDir('not-a-repo-autopilot-');
+
+    const result = await preflight(
+      {
+        baseRepoPath: nonGitDir,
+        workPath: nonGitDir,
+        strategy: 'direct',
+      },
+      undefined,
+      { requireGit: false },
+    );
+
+    expect(result.ok).toBe(true);
+  });
+
+  it('should treat a bare git repository as not being a work tree', async () => {
+    const bareRepoPath = await helper.createTempDir('bare-repo-');
+    const init = await helper.git(bareRepoPath, ['init', '--bare']);
+    expect(init.exitCode).toBe(0);
+
+    const result = await preflight(
+      {
+        baseRepoPath: bareRepoPath,
+        workPath: bareRepoPath,
+        strategy: 'direct',
+      },
+      undefined,
+      { requireGit: false },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.capabilities?.git.insideWorkTree).toBe(false);
+    expect(result.capabilities?.git.reason).toContain('--is-inside-work-tree=false');
+  });
+
+  it('should allow read-only preflight when writes are not required', async () => {
+    const result = await preflight(
+      {
+        baseRepoPath: repoPath,
+        workPath: repoPath,
+        strategy: 'direct',
+        capabilities: {
+          git: { available: true, insideWorkTree: true },
+          filesystem: { readable: true, writable: false, reason: 'read-only workspace' },
+        },
+      },
+      undefined,
+      { requireWrite: false, ignoreDirty: true },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.capabilities?.filesystem.writable).toBe(false);
+  });
+
+  it('should fail writable preflight when the selected flow needs workspace writes', async () => {
+    const result = await preflight(
+      {
+        baseRepoPath: repoPath,
+        workPath: repoPath,
+        strategy: 'direct',
+        capabilities: {
+          git: { available: true, insideWorkTree: true },
+          filesystem: { readable: true, writable: false, reason: 'read-only workspace' },
+        },
+      },
+      undefined,
+      { requireWrite: true },
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe('read-only workspace');
+  });
+
+  it('should report capabilities for the active execution workspace', async () => {
+    const worktreePath = await helper.createWorktree(repoPath);
+    await helper.writeFile(worktreePath, 'worktree-only.txt', 'worktree change');
+
+    const result = await preflight({
+      baseRepoPath: repoPath,
+      workPath: worktreePath,
+      strategy: 'worktree',
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.capabilities?.git.insideWorkTree).toBe(true);
+
+    const worktreeHead = (await helper.git(worktreePath, ['rev-parse', 'HEAD'])).stdout.trim();
+    expect(result.capabilities?.git.head).toBe(worktreeHead);
   });
 });

@@ -21,6 +21,7 @@ import type { ExecutionResult } from '../../execution/Executor.js';
 export interface PreflightResult {
   ok: boolean;
   reason?: string;
+  capabilities?: ExecutionWorkspace['capabilities'];
 }
 
 export interface ReviewSuggestion {

@@ -29,3 +29,4 @@ export const {
 } = fsPromises;
 
 export const { existsSync, readFileSync, realpathSync } = fs;
+export const { constants } = fs;

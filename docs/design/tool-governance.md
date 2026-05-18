@@ -54,7 +54,10 @@ Hard syntax rules:
 Semantic review rules:
 
 - Use one domain per product concept: `fs`, `git`, `code`, `test`, `plan`,
-  `artifact`, `proposal`, `interaction`, `shell`, `benchmark`, `swebench`.
+  `artifact`, `proposal`, `interaction`, `shell`, `benchmark`, `swebench`,
+  `workspace`.
+- Use `workspace.info` for host-provided execution-environment facts, including
+  whether git-specific tools are available before calling them.
 - Keep names concrete. Prefer `git.status` and `test.run` over generic names
   such as `inspect`, `process`, `handle`, `health`, or `quality_gate`.
 - Prefer a verb the model already associates with software work. If the
@@ -114,6 +117,51 @@ multi-server tool aggregation. SalmonLoop uses dotted namespaces internally
 because the existing public tool API already does so, while preserving the same
 industry principles: clear domain, concrete operation, conservative character
 set, and no implementation leakage.
+
+### 3.1.1 Workspace Capability Contract
+
+Workspace facts are model-visible capability data, not hard-coded assumptions.
+The host must discover capabilities for the active execution workspace
+(`workPath`), not for a base repository path that may differ from the execution
+root.
+
+`workspace.info` returns:
+
+- `root`: the active execution workspace root.
+- `capabilities.git.available`: whether the `git` executable can be invoked.
+- `capabilities.git.insideWorkTree`: whether `root` is inside a Git work tree.
+- `capabilities.git.head`: current `HEAD` when available.
+- `capabilities.filesystem.readable`: whether `root` can be read.
+- `capabilities.filesystem.writable`: whether `root` can be written.
+- `guidance.useGitTools`: true only when Git tools are available for `root`.
+- `guidance.useFilesystemReadTools`: true when filesystem read tools are usable.
+- `guidance.useFilesystemWriteTools`: true when filesystem write tools are usable.
+
+Git requirement matrix:
+
+- `autopilot` with `direct` strategy must allow non-Git workspaces when the
+  filesystem is readable and writable.
+- `worktree` and `tempCommit` strategies require Git because isolation and
+  apply-back are Git-backed.
+- Non-autopilot modes require Git until they have their own non-Git mutation
+  and rollback contracts.
+
+Tool visibility rules:
+
+- When `capabilities.git.insideWorkTree` is false, model-visible tools with a
+  `git.` name or `git_read` / `git_write` side effect must be hidden.
+- `workspace.info` must remain visible in phases where the model chooses tools.
+- Filesystem tools may remain visible when `capabilities.filesystem.readable`
+  or `capabilities.filesystem.writable` permits the requested operation.
+
+Mutation accounting for non-Git autopilot:
+
+- The filesystem snapshot must record files, directories, symlinks, and relevant
+  metadata such as mode.
+- Runtime-generated paths such as `.salmonloop`, headless logs, dependency
+  folders, and build output folders must be excluded recursively.
+- Sampling limits must fail closed: if the workspace cannot be sampled reliably,
+  autopilot must treat the workspace as mutated so verification is not skipped.
 
 ### 3.2 ToolSpec (Strongly Typed)
 ```typescript

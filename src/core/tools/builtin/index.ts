@@ -46,6 +46,7 @@ import { planInitSpec, planReadSpec, planUpdateSpec } from './plan.js';
 import { proposalApplySpec, executeProposalApply } from './proposal.js';
 import { shellExecSpec, executeShellExec } from './shell.js';
 import { verifyRunSpec, executeVerifyRun } from './verify.js';
+import { workspaceInfoSpec, executeWorkspaceInfo } from './workspace.js';
 
 /**
  * Registers all builtin tools into the provided registry
@@ -60,6 +61,10 @@ export function registerAllBuiltins(registry: ToolRegistry): void {
   registry.register({
     ...updateKnowledgeSpec,
     executor: executeUpdateKnowledge as any,
+  });
+  registry.register({
+    ...workspaceInfoSpec,
+    executor: executeWorkspaceInfo as any,
   });
   registry.register({
     ...proposalApplySpec,
@@ -216,4 +221,6 @@ export {
   executeSweBenchSubmitPredictions,
   sweBenchGetReportSpec,
   executeSweBenchGetReport,
+  workspaceInfoSpec,
+  executeWorkspaceInfo,
 };
