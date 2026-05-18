@@ -1,0 +1,3 @@
+## 2024-05-18 - [ContextService Cache Eviction Loop O(N)]
+**Learning:** `evictExpiredEntries` and `evictLruIfNeeded` in `ContextService` call `this.cacheStore.entries()` directly and iterate over entries in a while/for loop. `ContextCacheStore.entries()` is `Promise<Array<[string, ContextCacheEntry]>>`, so calling it in a loop without fetching it once can lead to O(M*N) cache store overhead where it recalculates all entries for each LRU iteration, which is highly inefficient for large caches.
+**Action:** In `ContextService`, fetch entries ONCE using `await this.cacheStore.entries()` outside the loop and use those to determine victims, or optimize cache pruning to linear or bulk operations.

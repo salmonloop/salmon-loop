@@ -45,7 +45,7 @@ describe('createRuntimeLlmAndWarn', () => {
   });
 
   beforeEach(() => {
-    mock.clearAllMocks();
+    mock.restore();
     setLogger(hoisted.logger as any);
     hoisted.createRuntimeLlm.mockImplementation((cfg: any) => ({
       llm: fakeLlm(cfg.models?.selectedModelId || 'default-model'),

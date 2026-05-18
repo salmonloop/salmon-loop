@@ -29,7 +29,7 @@ describe('SubAgentManager setup cleanup', () => {
     debugMock.mockReset();
     errorMock.mockReset();
     warnMock.mockReset();
-    mock.clearAllMocks();
+    mock.restore();
     registryGetMock.mockReturnValue({
       id: 'surgeon',
       name: 'Surgeon',

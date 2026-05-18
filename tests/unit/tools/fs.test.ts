@@ -14,7 +14,7 @@ describe('Builtin Tool: fs.read_file', () => {
   const repoRoot = '/fake/repo';
 
   beforeEach(() => {
-    mock.clearAllMocks();
+    mock.restore();
   });
 
   it('should read a file within the repository', async () => {
