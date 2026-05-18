@@ -27,6 +27,11 @@ function createConnectedPair(params: {
   return { agentConn, clientConn };
 }
 
+function expectConfigOptions(value: unknown): any[] {
+  expect(Array.isArray(value)).toBe(true);
+  return value as any[];
+}
+
 describe('ACP formal protocol registry projection', () => {
   it('matches the registry-backed ACP mode projection for session mode exposure', async () => {
     const expectedModes = toAcpPublicModes(buildPublicCapabilityRegistry());
@@ -61,9 +66,10 @@ describe('ACP formal protocol registry projection', () => {
     });
 
     const response = await clientConn.newSession({ cwd: '/repo', mcpServers: [] });
+    const configOptions = expectConfigOptions(response.configOptions);
 
     expect(response.modes?.availableModes).toEqual(expectedModes);
-    expect(response.configOptions.find((opt: any) => opt.id === '_salmonloop_mode')).toMatchObject({
+    expect(configOptions.find((opt: any) => opt.id === '_salmonloop_mode')).toMatchObject({
       currentValue: 'autopilot',
       options: expectedModes.map((mode) => ({
         value: mode.id,

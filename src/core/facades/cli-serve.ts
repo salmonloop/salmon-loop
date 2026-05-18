@@ -2,6 +2,7 @@ export { createSalmonTaskExecutor } from '../backends/salmon-loop/task-executor.
 export { GitSnapshotCheckpointService } from '../checkpoint-domain/service.js';
 export { resolveConfig } from '../config/resolve.js';
 export { resolveExtensions } from '../extensions/index.js';
+export { mergeResolvedExtensions } from '../extensions/merge.js';
 export { createTaskEventBus } from '../interaction/events/bus.js';
 export { createInteractionFacade } from '../interaction/orchestration/facade.js';
 export { getLogger, PlainReporter, StderrReporter } from '../observability/logger.js';

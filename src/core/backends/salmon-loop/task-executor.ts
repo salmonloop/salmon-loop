@@ -1,3 +1,4 @@
+import type { ResolvedExtensions } from '../../extensions/types.js';
 import type { TaskEnvelope } from '../../interaction/model/index.js';
 import { mapErrorForDisplay } from '../../observability/error-mapping.js';
 import type { CommandRunner } from '../../runtime/command-runner-context.js';
@@ -42,6 +43,7 @@ export function createSalmonTaskExecutor(deps: {
     authorizationProvider?: ToolAuthorizationProvider;
     authorizationMode?: 'blocking' | 'deferred';
     fileSystemOverride?: FileSystem;
+    extensions?: ResolvedExtensions;
   }) => Promise<LoopResult>;
 }) {
   return {
@@ -68,6 +70,7 @@ export function createSalmonTaskExecutor(deps: {
           authorizationProvider: options?.authorizationProvider,
           authorizationMode: options?.authorizationMode,
           fileSystemOverride: options?.fileSystemOverride,
+          extensions: task.request.extensions,
         });
       });
 

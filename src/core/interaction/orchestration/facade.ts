@@ -1,3 +1,4 @@
+import type { ResolvedExtensions } from '../../extensions/types.js';
 import type { CommandRunner } from '../../runtime/command-runner-context.js';
 import type { ToolAuthorizationProvider } from '../../tools/authorization/types.js';
 import type { FileSystem } from '../../types/index.js';
@@ -22,6 +23,7 @@ export interface InteractionFacade {
     authorizationMode?: 'blocking' | 'deferred';
     commandRunner?: CommandRunner;
     fileSystemOverride?: FileSystem;
+    extensions?: ResolvedExtensions;
   }): Promise<{ task: TaskEnvelope; signal: AbortSignal }>;
   getTask(id: string): Promise<TaskEnvelope | null>;
   cancelTask(id: string): Promise<TaskEnvelope | null>;
@@ -79,7 +81,7 @@ export function createInteractionFacade(deps: {
         id: input.taskId ?? `task_${Date.now()}`,
         capability: input.capability,
         state: 'accepted',
-        request: input.request,
+        request: { ...input.request, extensions: input.extensions },
         createdAt: new Date().toISOString(),
         attempt: 1,
       };

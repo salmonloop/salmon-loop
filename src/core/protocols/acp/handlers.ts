@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
+import type { McpServer } from '@agentclientprotocol/sdk';
+
 import type { TaskEvent } from '../../interaction/events/bus.js';
 
 export type AcpSessionHistoryEntry = {
@@ -10,7 +12,7 @@ export type AcpSessionHistoryEntry = {
 export type AcpSessionRecord = {
   id: string;
   cwd: string;
-  mcpServers: unknown[];
+  mcpServers: McpServer[];
   createdAt: string;
   updatedAt: string;
   title?: string;
@@ -20,7 +22,7 @@ export type AcpSessionRecord = {
 };
 
 export type AcpSessionStore = {
-  create: (input: { cwd: string; mcpServers: unknown[]; title?: string }) => AcpSessionRecord;
+  create: (input: { cwd: string; mcpServers: McpServer[]; title?: string }) => AcpSessionRecord;
   upsert: (session: AcpSessionRecord) => AcpSessionRecord;
   get: (id: string) => AcpSessionRecord | undefined;
   update: (

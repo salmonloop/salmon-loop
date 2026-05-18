@@ -10,6 +10,9 @@ This module implements the ACP (agent-client-protocol) stdio JSON-RPC adapter fo
   - `authenticate`
   - `session/new`
   - `session/load`
+  - `session/list`
+  - `session/resume`
+  - `session/close`
   - `session/set_config_option`
   - `session/prompt`
   - `session/cancel` (notification)
@@ -32,9 +35,33 @@ This module implements the ACP (agent-client-protocol) stdio JSON-RPC adapter fo
 - `initialize` → protocol metadata and capability exposure.
 - `session/new` → create session record (no task yet).
 - `session/load` → reload session + replay history via `session/update`.
+- `session/list` → list persisted sessions, optionally filtered by absolute `cwd`.
+- `session/resume` → restore active session state without replaying previous messages.
+- `session/close` → cancel active work, release runtime state, and remove the session from future lists/loads.
 - `session/set_config_option` → update session config selectors and return latest config options.
 - `session/prompt` → create task via canonical facade and push `session/update` chunks.
 - `session/cancel` → cancel current task (notification-only response).
+
+## Advertised Capabilities
+
+The adapter advertises only capabilities backed by runtime behavior:
+
+- `loadSession: true` by default, configurable off for compatibility tests.
+- `sessionCapabilities.list`, `sessionCapabilities.resume`, and `sessionCapabilities.close`.
+- `mcpCapabilities.http: true`; ACP MCP `stdio` is baseline protocol support.
+- `mcpCapabilities.sse: false` and `mcpCapabilities.acp: false`.
+- `promptCapabilities.image`, `audio`, and `embeddedContext` are false by default.
+
+Current non-goals:
+
+- `session/delete`, `session/fork`, provider configuration, NES, and ACP `set_model` are not advertised.
+- `additionalDirectories` is accepted by the SDK schema but not wired to Salmon-Loop workspace semantics yet.
+- MCP-over-SSE and MCP-over-ACP transports are rejected with `-32602` instead of being silently ignored.
+
+ACP `mcpServers` from `session/new`, `session/load`, or `session/resume` are translated into
+Salmon-Loop resolved extensions for that session. Session MCP servers are merged with repo/user
+extensions resolved at server startup, so ACP-provided tools do not disable configured tools,
+plugins, or skill discovery.
 
 ## SalmonLoop Checkpoint Meta
 
@@ -89,6 +116,8 @@ Compatibility guarantee:
 - Default persistence file: `~/.salmonloop/runtime/acp/sessions.v1.json`.
 - Persisted fields include safe session state:
   `sessionId`, `cwd`, `mcpServers`, timestamps, title, recent `history`, and `taskId`.
+- Closed sessions are persisted as tombstones until normal retention expiry so they do not reappear
+  after a process restart or concurrent persistence merge.
 - Store is bounded by retention policy (30 days, max 200 sessions, capped history per session).
 - Persistence schema supports migration (`schemaVersion` v1 -> v2 normalization during load).
 

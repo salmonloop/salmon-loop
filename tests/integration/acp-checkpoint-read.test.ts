@@ -86,7 +86,9 @@ describe('ACP checkpoint read integration', () => {
           },
         }),
       toClient: () => ({
-        requestPermission: async () => ({ outcome: { outcome: 'allow_once' } }),
+        requestPermission: async () => ({
+          outcome: { outcome: 'selected' as const, optionId: 'allow_once' },
+        }),
         sessionUpdate: async () => {},
       }),
     });

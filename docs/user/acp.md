@@ -63,10 +63,22 @@ Create a session:
 {"jsonrpc":"2.0","id":2,"method":"session/new","params":{"cwd":"/path/to/repo","mcpServers":[]}}
 ```
 
+List sessions for a repo:
+
+```json
+{"jsonrpc":"2.0","id":3,"method":"session/list","params":{"cwd":"/path/to/repo"}}
+```
+
+Resume a session without replaying previous messages:
+
+```json
+{"jsonrpc":"2.0","id":4,"method":"session/resume","params":{"sessionId":"<session-id>","cwd":"/path/to/repo"}}
+```
+
 Send a prompt:
 
 ```json
-{"jsonrpc":"2.0","id":3,"method":"session/prompt","params":{"sessionId":"<session-id>","prompt":[{"type":"text","text":"Fix tests"}]}}
+{"jsonrpc":"2.0","id":5,"method":"session/prompt","params":{"sessionId":"<session-id>","prompt":[{"type":"text","text":"Fix tests"}]}}
 ```
 
 ACP streams progress via `session/update` notifications on stdout.
@@ -74,7 +86,7 @@ ACP streams progress via `session/update` notifications on stdout.
 Update a session config option:
 
 ```json
-{"jsonrpc":"2.0","id":4,"method":"session/set_config_option","params":{"sessionId":"<session-id>","configId":"_salmonloop_permission_policy","value":"deny_all"}}
+{"jsonrpc":"2.0","id":6,"method":"session/set_config_option","params":{"sessionId":"<session-id>","configId":"_salmonloop_permission_policy","value":"deny_all"}}
 ```
 
 Current built-in config option:
@@ -82,6 +94,27 @@ Current built-in config option:
 - `_salmonloop_permission_policy`
   - `ask` (default): request UI permission for side-effecting tools
   - `deny_all`: auto-deny side-effecting tools
+  - `allow_all`: auto-allow side-effecting tools for explicitly trusted local runs
+
+Close a session:
+
+```json
+{"jsonrpc":"2.0","id":7,"method":"session/close","params":{"sessionId":"<session-id>"}}
+```
+
+## Supported Capabilities
+
+Salmon-Loop currently advertises:
+
+- `loadSession: true`
+- `sessionCapabilities.list`, `sessionCapabilities.resume`, and `sessionCapabilities.close`
+- MCP stdio session servers, plus `mcpCapabilities.http: true`
+- `mcpCapabilities.sse: false` and `mcpCapabilities.acp: false`
+- prompt image/audio/embedded-context support as disabled by default
+
+ACP `mcpServers` passed on session setup are added to the task's runtime tools. They are merged
+with configured repo/user extensions, so configured MCP servers, tool plugins, and skill discovery
+remain available.
 
 ## Compatibility Contract
 

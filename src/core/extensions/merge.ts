@@ -1,4 +1,4 @@
-import { ExtensionScope } from './types.js';
+import type { ExtensionScope, ResolvedExtensions } from './types.js';
 
 export interface ScopedEntry<T> {
   key: string;
@@ -38,4 +38,23 @@ export function mergeScopedEntries<T>(
   }
 
   return Array.from(merged.values());
+}
+
+export function mergeResolvedExtensions(
+  base: ResolvedExtensions,
+  overlay: ResolvedExtensions | undefined,
+): ResolvedExtensions {
+  if (!overlay) return base;
+
+  return {
+    mcpServers: [...base.mcpServers, ...overlay.mcpServers],
+    toolPlugins: [...base.toolPlugins, ...overlay.toolPlugins],
+    skillDiscovery: {
+      scope:
+        overlay.skillDiscovery.paths.length > 0
+          ? overlay.skillDiscovery.scope
+          : base.skillDiscovery.scope,
+      paths: [...base.skillDiscovery.paths, ...overlay.skillDiscovery.paths],
+    },
+  };
 }

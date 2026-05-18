@@ -8,7 +8,9 @@ import {
   type ClientCapabilities,
   type ContentBlock,
   type LoadSessionRequest,
+  type McpServer,
   type SessionConfigOption,
+  type SessionInfo,
   type SessionModeState,
   type SessionUpdate,
   type StopReason,
@@ -27,6 +29,7 @@ import {
   writeFile,
 } from '../../adapters/fs/node-fs.js';
 import { defaultPathAdapter } from '../../adapters/path/path-adapter.js';
+import type { ResolvedExtensions, ResolvedMcpServer } from '../../extensions/types.js';
 import type { TaskEvent } from '../../interaction/events/bus.js';
 import type { TaskEnvelope } from '../../interaction/model/index.js';
 import { inferTurnStopReasonFromFailure } from '../../interaction/turn-stop-reason.js';
@@ -57,6 +60,7 @@ type Facade = {
     authorizationMode?: 'blocking' | 'deferred';
     commandRunner?: CommandRunner;
     fileSystemOverride?: FileSystem;
+    extensions?: ResolvedExtensions;
   }) => Promise<{ task: TaskEnvelope; signal: AbortSignal }>;
   getTask: (id: string) => Promise<TaskEnvelope | null>;
   cancelTask: (id: string) => Promise<TaskEnvelope | null>;
@@ -131,6 +135,12 @@ type AcpSessionRuntimeState = {
   lastSessionInfoDigest: string | null;
   permissionPolicy: AcpPermissionPolicy;
   modeId: AcpSessionModeId;
+};
+
+type AcpSessionLifecycleRequest = {
+  sessionId: string;
+  cwd: string;
+  mcpServers?: McpServer[];
 };
 
 const ACP_PERMISSION_POLICY_CONFIG_ID = '_salmonloop_permission_policy';
@@ -209,6 +219,27 @@ function formatResourceLink(block: Extract<ContentBlock, { type: 'resource_link'
   return `Resource: ${title} (${block.uri})${description}`;
 }
 
+function formatEmbeddedResource(block: Extract<ContentBlock, { type: 'resource' }>): string {
+  const resource = block.resource as {
+    uri?: unknown;
+    mimeType?: unknown;
+    text?: unknown;
+    blob?: unknown;
+  };
+  const uri = typeof resource.uri === 'string' ? resource.uri : 'embedded-resource';
+  const mimeType = typeof resource.mimeType === 'string' ? resource.mimeType : undefined;
+  if (typeof resource.text === 'string') {
+    const header = mimeType
+      ? `Embedded resource: ${uri} (${mimeType})`
+      : `Embedded resource: ${uri}`;
+    return `${header}\n${resource.text}`;
+  }
+  const header = mimeType
+    ? `Embedded binary resource: ${uri} (${mimeType})`
+    : `Embedded binary resource: ${uri}`;
+  return header;
+}
+
 function extractTextFromPrompt(
   prompt: ContentBlock[],
   capabilities: { image: boolean; audio: boolean; embeddedContext: boolean },
@@ -236,6 +267,7 @@ function extractTextFromPrompt(
         if (!capabilities.embeddedContext) {
           throw new RequestError(-32000, 'Prompt content type resource is not supported');
         }
+        parts.push(formatEmbeddedResource(block));
         break;
       default:
         throw new RequestError(-32602, 'Invalid params: unsupported content block type');
@@ -590,6 +622,92 @@ function buildPlanUpdateFromCoreIfChanged(
   };
 }
 
+function envListToRecord(env: Array<{ name: string; value: string }>): Record<string, string> {
+  const record: Record<string, string> = {};
+  for (const entry of env) {
+    record[entry.name] = entry.value;
+  }
+  return record;
+}
+
+function headersListToRecord(
+  headers: Array<{ name: string; value: string }>,
+): Record<string, string> {
+  const record: Record<string, string> = {};
+  for (const entry of headers) {
+    record[entry.name] = entry.value;
+  }
+  return record;
+}
+
+function acpMcpServersToResolved(mcpServers: McpServer[] | undefined): ResolvedMcpServer[] {
+  if (!Array.isArray(mcpServers)) return [];
+  const resolved: ResolvedMcpServer[] = [];
+  for (const server of mcpServers) {
+    const transportType = 'type' in server ? server.type : 'stdio';
+    if (transportType === 'sse' || transportType === 'acp') {
+      throw new RequestError(
+        -32602,
+        `Invalid params: unsupported MCP server transport "${transportType}"`,
+      );
+    }
+    if ('type' in server && server.type === 'http') {
+      const httpServer = server;
+      resolved.push({
+        name: httpServer.name,
+        enabled: true,
+        transport: 'http',
+        url: httpServer.url,
+        headers: headersListToRecord(httpServer.headers),
+        allowTools: ['*'],
+        allowResources: [],
+        scope: 'repo',
+      });
+      continue;
+    }
+    if (transportType !== 'stdio') {
+      throw new RequestError(
+        -32602,
+        `Invalid params: unsupported MCP server transport "${transportType}"`,
+      );
+    }
+    const stdioServer = server as {
+      name: string;
+      command: string;
+      args: Array<string>;
+      env: Array<{ name: string; value: string }>;
+    };
+    resolved.push({
+      name: stdioServer.name,
+      enabled: true,
+      transport: 'stdio',
+      command: stdioServer.command,
+      args: stdioServer.args,
+      env: envListToRecord(stdioServer.env),
+      allowTools: ['*'],
+      allowResources: [],
+      scope: 'repo',
+    });
+  }
+  return resolved;
+}
+
+function acpMcpServersToExtensions(
+  mcpServers: McpServer[] | undefined,
+): ResolvedExtensions | undefined {
+  const resolvedServers = acpMcpServersToResolved(mcpServers);
+  if (resolvedServers.length === 0) return undefined;
+  return {
+    mcpServers: resolvedServers,
+    toolPlugins: [],
+    skillDiscovery: { paths: [], scope: 'repo' },
+  };
+}
+
+function validateAcpMcpServers(mcpServers: McpServer[] | undefined): void {
+  void acpMcpServersToResolved(mcpServers);
+}
+
 function extractSlashInput(prompt: ContentBlock[]): string | null {
   if (prompt.length !== 1) return null;
   const block = prompt[0];
@@ -680,6 +798,7 @@ export function createAcpFormalAgent(deps: {
     mcpCapabilities?: {
       http?: boolean;
       sse?: boolean;
+      acp?: boolean;
     };
   };
   eventBus?: {
@@ -711,8 +830,9 @@ export function createAcpFormalAgent(deps: {
     embeddedContext: deps.capabilityPolicy?.promptCapabilities?.embeddedContext ?? false,
   };
   const mcpCapabilities = {
-    http: deps.capabilityPolicy?.mcpCapabilities?.http ?? false,
+    http: deps.capabilityPolicy?.mcpCapabilities?.http ?? true,
     sse: deps.capabilityPolicy?.mcpCapabilities?.sse ?? false,
+    acp: deps.capabilityPolicy?.mcpCapabilities?.acp ?? false,
   };
   const sessionPersistencePath = deps.sessionPersistencePath;
   const sessionStorePolicy = {
@@ -729,13 +849,19 @@ export function createAcpFormalAgent(deps: {
   const executionBinding = deps.executionBinding ?? 'local';
   let sessionsHydrated = false;
   let hydratePromise: Promise<void> | null = null;
+  const deletedSessionIds = new Map<string, string>();
+
+  type PersistedDeletedSessionRecord = {
+    id: string;
+    deletedAt: string;
+  };
 
   type PersistedAcpSessionStoreV1 = {
     schemaVersion: 1;
     sessions: Array<{
       id: string;
       cwd: string;
-      mcpServers: unknown[];
+      mcpServers: McpServer[];
       createdAt: string;
       updatedAt: string;
       title?: string;
@@ -747,7 +873,7 @@ export function createAcpFormalAgent(deps: {
     sessions: Array<{
       id: string;
       cwd: string;
-      mcpServers: unknown[];
+      mcpServers: McpServer[];
       createdAt: string;
       updatedAt: string;
       title?: string;
@@ -756,6 +882,7 @@ export function createAcpFormalAgent(deps: {
       permissionPolicy?: AcpPermissionPolicy;
       modeId?: unknown;
     }>;
+    deletedSessions?: PersistedDeletedSessionRecord[];
   };
   type PersistedAcpSessionStore = PersistedAcpSessionStoreV1 | PersistedAcpSessionStoreV2;
 
@@ -769,7 +896,7 @@ export function createAcpFormalAgent(deps: {
     records: Array<{
       id: string;
       cwd: string;
-      mcpServers: unknown[];
+      mcpServers: McpServer[];
       createdAt: string;
       updatedAt: string;
       title?: string;
@@ -784,6 +911,29 @@ export function createAcpFormalAgent(deps: {
       .filter((record) => parseTimestamp(record.updatedAt) >= cutoff)
       .sort((a, b) => parseTimestamp(b.updatedAt) - parseTimestamp(a.updatedAt))
       .slice(0, sessionStorePolicy.maxEntries);
+  }
+
+  function normalizeDeletedSessionRecords(input: unknown): PersistedDeletedSessionRecord[] {
+    if (!Array.isArray(input)) return [];
+    const byId = new Map<string, PersistedDeletedSessionRecord>();
+    for (const entry of input) {
+      if (!entry || typeof entry !== 'object') continue;
+      const record = entry as { id?: unknown; deletedAt?: unknown };
+      if (typeof record.id !== 'string' || !record.id) continue;
+      if (typeof record.deletedAt !== 'string' || !record.deletedAt) continue;
+      const current = byId.get(record.id);
+      if (!current || parseTimestamp(record.deletedAt) > parseTimestamp(current.deletedAt)) {
+        byId.set(record.id, { id: record.id, deletedAt: record.deletedAt });
+      }
+    }
+    return Array.from(byId.values());
+  }
+
+  function pruneDeletedSessionRecords(records: unknown): PersistedDeletedSessionRecord[] {
+    const cutoff = Date.now() - sessionStorePolicy.maxAgeMs;
+    return normalizeDeletedSessionRecords(records)
+      .filter((record) => parseTimestamp(record.deletedAt) >= cutoff)
+      .sort((a, b) => parseTimestamp(b.deletedAt) - parseTimestamp(a.deletedAt));
   }
 
   function normalizePersistedSessionStore(input: unknown): PersistedAcpSessionStoreV2 {
@@ -809,10 +959,17 @@ export function createAcpFormalAgent(deps: {
             : ACP_PERMISSION_POLICY_ASK,
           modeId: resolveExposedAcpModeId(deps.defaultModeId),
         })),
+        deletedSessions: [],
       };
     }
     if (raw.schemaVersion === 2) {
-      return { schemaVersion: 2, sessions: raw.sessions as PersistedAcpSessionStoreV2['sessions'] };
+      return {
+        schemaVersion: 2,
+        sessions: raw.sessions as PersistedAcpSessionStoreV2['sessions'],
+        deletedSessions: pruneDeletedSessionRecords(
+          (raw as { deletedSessions?: unknown }).deletedSessions,
+        ),
+      };
     }
     return { schemaVersion: 2, sessions: [] };
   }
@@ -874,6 +1031,9 @@ export function createAcpFormalAgent(deps: {
     }
 
     const payload: PersistedAcpSessionStoreV2 = { schemaVersion: 2, sessions: prunedRecords };
+    const payloadDeletedSessions = pruneDeletedSessionRecords(
+      Array.from(deletedSessionIds, ([id, deletedAt]) => ({ id, deletedAt })),
+    );
     const primaryRepoPath = prunedRecords[0]?.cwd;
     const lockAuditDetails = {
       lockPath,
@@ -972,11 +1132,21 @@ export function createAcpFormalAgent(deps: {
         }
 
         const merged = new Map<string, PersistedAcpSessionStoreV2['sessions'][number]>();
+        const mergedDeletedSessions = pruneDeletedSessionRecords([
+          ...(existing.deletedSessions ?? []),
+          ...payloadDeletedSessions,
+        ]);
+        const mergedDeletedIds = new Set(mergedDeletedSessions.map((record) => record.id));
+        for (const record of mergedDeletedSessions) {
+          deletedSessionIds.set(record.id, record.deletedAt);
+        }
         for (const entry of existing.sessions) merged.set(entry.id, entry);
         for (const entry of payload.sessions) merged.set(entry.id, entry);
+        for (const id of mergedDeletedIds) merged.delete(id);
         const mergedPayload: PersistedAcpSessionStoreV2 = {
           schemaVersion: 2,
           sessions: pruneSessionRecords(Array.from(merged.values())),
+          deletedSessions: mergedDeletedSessions,
         };
 
         await writeFile(tempPath, JSON.stringify(mergedPayload, null, 2), 'utf8');
@@ -1017,7 +1187,12 @@ export function createAcpFormalAgent(deps: {
       try {
         const raw = await readFile(sessionPersistencePath, 'utf8');
         const parsed = normalizePersistedSessionStore(JSON.parse(raw));
+        const deletedIds = new Set(parsed.deletedSessions?.map((record) => record.id) ?? []);
+        for (const record of parsed.deletedSessions ?? []) {
+          deletedSessionIds.set(record.id, record.deletedAt);
+        }
         for (const stored of pruneSessionRecords(parsed.sessions)) {
+          if (deletedIds.has(stored.id)) continue;
           sessions.upsert({
             id: stored.id,
             cwd: stored.cwd,
@@ -1186,19 +1361,53 @@ export function createAcpFormalAgent(deps: {
 
   async function loadSessionInternal(params: LoadSessionRequest): Promise<AcpSessionRecord> {
     await hydrateSessionsOnce();
+    validateAcpMcpServers(params.mcpServers);
     const session = sessions.get(params.sessionId);
     if (!session) {
       throw new RequestError(-32004, `Session not found: ${params.sessionId}`);
     }
     if (session.cwd !== params.cwd) {
+      throw new RequestError(-32602, 'Invalid params: cwd does not match session cwd');
+    }
+    if (params.mcpServers) {
       sessions.update(params.sessionId, (current) => ({
         ...current,
-        cwd: params.cwd,
+        mcpServers: params.mcpServers,
+      }));
+      await persistSessionsBestEffort();
+    }
+    return session;
+  }
+
+  async function resumeSessionInternal(
+    params: AcpSessionLifecycleRequest,
+  ): Promise<AcpSessionRecord> {
+    await hydrateSessionsOnce();
+    validateAcpMcpServers(params.mcpServers);
+    const session = sessions.get(params.sessionId);
+    if (!session) {
+      throw new RequestError(-32004, `Session not found: ${params.sessionId}`);
+    }
+    if (session.cwd !== params.cwd) {
+      throw new RequestError(-32602, 'Invalid params: cwd does not match session cwd');
+    }
+    if (params.mcpServers) {
+      sessions.update(params.sessionId, (current) => ({
+        ...current,
         mcpServers: params.mcpServers ?? [],
       }));
       await persistSessionsBestEffort();
     }
     return session;
+  }
+
+  function toSessionInfo(session: AcpSessionRecord): SessionInfo {
+    return {
+      sessionId: session.id,
+      cwd: session.cwd,
+      title: typeof session.title === 'string' && session.title.trim() ? session.title : null,
+      updatedAt: session.updatedAt,
+    };
   }
 
   function ensureSessionRuntimeState(sessionId: string): AcpSessionRuntimeState {
@@ -1238,7 +1447,11 @@ export function createAcpFormalAgent(deps: {
           loadSession: loadSessionCapability,
           promptCapabilities: promptCapabilities,
           mcpCapabilities: mcpCapabilities,
-          sessionCapabilities: {},
+          sessionCapabilities: {
+            list: {},
+            resume: {},
+            close: {},
+          },
         },
       };
     },
@@ -1252,6 +1465,7 @@ export function createAcpFormalAgent(deps: {
       if (!isAbsolutePath(params.cwd)) {
         throw new RequestError(-32602, 'Invalid params: cwd must be an absolute path');
       }
+      validateAcpMcpServers(params.mcpServers);
       const session = sessions.create({
         cwd: params.cwd,
         mcpServers: params.mcpServers ?? [],
@@ -1327,11 +1541,11 @@ export function createAcpFormalAgent(deps: {
       if (modeUpdate) await emitSessionUpdate(session.id, modeUpdate);
 
       for (const entry of session.history) {
-        if (entry.role !== 'assistant') continue;
         for (const block of entry.content) {
           if (block.type === 'text' && typeof block.text === 'string' && block.text.trim()) {
             await emitSessionUpdate(session.id, {
-              sessionUpdate: 'agent_message_chunk',
+              sessionUpdate:
+                entry.role === 'assistant' ? 'agent_message_chunk' : 'user_message_chunk',
               content: buildTextContentBlock(block.text),
             });
           }
@@ -1417,6 +1631,54 @@ export function createAcpFormalAgent(deps: {
       return response;
     },
 
+    async listSessions(params) {
+      await hydrateSessionsOnce();
+      if (typeof params.cwd === 'string' && params.cwd && !isAbsolutePath(params.cwd)) {
+        throw new RequestError(-32602, 'Invalid params: cwd must be an absolute path');
+      }
+      const filtered = sessions
+        .list()
+        .filter((session) => !params.cwd || session.cwd === params.cwd)
+        .sort((a, b) => parseTimestamp(b.updatedAt) - parseTimestamp(a.updatedAt));
+      return {
+        sessions: filtered.map(toSessionInfo),
+      };
+    },
+
+    async resumeSession(params) {
+      const session = await resumeSessionInternal({
+        sessionId: params.sessionId,
+        cwd: params.cwd,
+        mcpServers: params.mcpServers,
+      });
+      const runtimeState = ensureSessionRuntimeState(session.id);
+      runtimeState.lastSessionInfoDigest = null;
+      await emitSessionInfoUpdateBestEffort(session.id);
+      const commandsUpdate = buildAvailableCommandsUpdateIfChanged(runtimeState);
+      if (commandsUpdate) await emitSessionUpdate(session.id, commandsUpdate);
+      const modeUpdate = buildCurrentModeUpdateIfChanged(runtimeState);
+      if (modeUpdate) await emitSessionUpdate(session.id, modeUpdate);
+      return {
+        configOptions: buildConfigOptions(runtimeState),
+        modes: buildModesState(runtimeState.modeId),
+      };
+    },
+
+    async closeSession(params) {
+      await hydrateSessionsOnce();
+      const session = sessions.get(params.sessionId);
+      if (!session) return {};
+      sessions.update(params.sessionId, (current) => ({ ...current, cancelRequested: true }));
+      if (session.taskId) {
+        await deps.facade.cancelTask(session.taskId);
+      }
+      deletedSessionIds.set(params.sessionId, new Date().toISOString());
+      sessionRuntime.delete(params.sessionId);
+      sessions.delete(params.sessionId);
+      await persistSessionsBestEffort();
+      return {};
+    },
+
     async setSessionConfigOption(params) {
       await hydrateSessionsOnce();
       if (!sessions.get(params.sessionId)) {
@@ -1424,6 +1686,12 @@ export function createAcpFormalAgent(deps: {
       }
 
       const runtimeState = ensureSessionRuntimeState(params.sessionId);
+      if (typeof params.value !== 'string') {
+        throw new RequestError(
+          -32602,
+          `Invalid params: unsupported non-string value for "${params.configId}"`,
+        );
+      }
       if (params.configId === ACP_PERMISSION_POLICY_CONFIG_ID) {
         if (!isPermissionPolicyValue(params.value)) {
           throw new RequestError(
@@ -1600,6 +1868,7 @@ export function createAcpFormalAgent(deps: {
           effectiveExecutionBinding === 'client'
             ? createAcpFileSystem({ conn: deps.conn, sessionId: params.sessionId })
             : undefined,
+        extensions: acpMcpServersToExtensions(session.mcpServers),
         authorizationProvider: createAcpToolAuthorizationProvider({
           conn: deps.conn,
           sessionId: params.sessionId,

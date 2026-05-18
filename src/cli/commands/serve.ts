@@ -13,6 +13,7 @@ import {
   getUserAcpSessionStorePath,
   GitSnapshotCheckpointService,
   getLogger,
+  mergeResolvedExtensions,
   PACKAGE_VERSION,
   PlainReporter,
   PluginLoader,
@@ -209,6 +210,7 @@ export async function handleServeCommand(_options: unknown, command: Command) {
       authorizationProvider,
       authorizationMode,
       fileSystemOverride,
+      extensions: taskExtensions,
     }) => {
       const effectiveRepoPath = repoPath ?? defaultRepoPath;
       const flowMode = mode as FlowMode;
@@ -236,7 +238,7 @@ export async function handleServeCommand(_options: unknown, command: Command) {
         fileSystemOverride,
         authorizationProvider: authorizationProvider ?? defaultAuthorizationProvider,
         authorizationMode,
-        extensions: extensions.resolved,
+        extensions: mergeResolvedExtensions(extensions.resolved, taskExtensions),
         onEvent,
         signal,
       });
@@ -399,6 +401,7 @@ export async function handleServeAcpCommand(_options: unknown, command: Command)
       signal,
       authorizationProvider,
       authorizationMode,
+      extensions: taskExtensions,
     }) => {
       const effectiveRepoPath = repoPath ?? defaultRepoPath;
       const flowMode = mode as FlowMode;
@@ -425,7 +428,7 @@ export async function handleServeAcpCommand(_options: unknown, command: Command)
         languagePlugins,
         authorizationProvider: authorizationProvider ?? defaultAuthorizationProvider,
         authorizationMode,
-        extensions: extensions.resolved,
+        extensions: mergeResolvedExtensions(extensions.resolved, taskExtensions),
         onEvent,
         signal,
       });

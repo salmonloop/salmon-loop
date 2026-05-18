@@ -48,9 +48,16 @@ function createFacade() {
 
 function createClient() {
   return {
-    requestPermission: async () => ({ outcome: { outcome: 'allow_once' as const } }),
+    requestPermission: async () => ({
+      outcome: { outcome: 'selected' as const, optionId: 'allow_once' },
+    }),
     sessionUpdate: async () => {},
   };
+}
+
+function expectConfigOptions(value: unknown): any[] {
+  expect(Array.isArray(value)).toBe(true);
+  return value as any[];
 }
 
 describe('ACP session persistence integration', () => {
@@ -187,17 +194,19 @@ describe('ACP session persistence integration', () => {
         cwd: '/repo',
         mcpServers: [],
       });
+      const interactiveConfigOptions = expectConfigOptions(interactive.configOptions);
+      const yoloConfigOptions = expectConfigOptions(yolo.configOptions);
 
       expect(interactive.modes?.currentModeId).toBe('autopilot');
       expect(yolo.modes?.currentModeId).toBe('autopilot');
       expect(
-        interactive.configOptions.find((opt: any) => opt.id === '_salmonloop_mode')?.currentValue,
+        interactiveConfigOptions.find((opt: any) => opt.id === '_salmonloop_mode')?.currentValue,
       ).toBe('autopilot');
       expect(
-        yolo.configOptions.find((opt: any) => opt.id === '_salmonloop_mode')?.currentValue,
+        yoloConfigOptions.find((opt: any) => opt.id === '_salmonloop_mode')?.currentValue,
       ).toBe('autopilot');
       expect(
-        yolo.configOptions.find((opt: any) => opt.id === '_salmonloop_permission_policy')
+        yoloConfigOptions.find((opt: any) => opt.id === '_salmonloop_permission_policy')
           ?.currentValue,
       ).toBe('deny_all');
     } finally {
@@ -333,6 +342,53 @@ describe('ACP session persistence integration', () => {
       expect(Array.isArray(restored?.history)).toBe(true);
       expect((restored?.history?.length ?? 0) > 0).toBe(true);
       expect(restored?.taskId).toBe('task_1');
+    } finally {
+      await rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('keeps a closed session removed across agent restarts', async () => {
+    const tempRoot = await mkdtemp(path.join(tmpdir(), 'salmonloop-acp-session-close-'));
+    const persistencePath = path.join(tempRoot, 'acp', 'sessions.v1.json');
+
+    try {
+      const first = createConnectedPair({
+        toAgent: (conn) =>
+          createAcpFormalAgent({
+            conn,
+            agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+            facade: createFacade(),
+            sessionPersistencePath: persistencePath,
+          }),
+        toClient: () => createClient(),
+      });
+      await first.clientConn.initialize({
+        protocolVersion: 1,
+        clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
+      });
+      const { sessionId } = await first.clientConn.newSession({ cwd: '/repo', mcpServers: [] });
+      await first.clientConn.closeSession({ sessionId });
+
+      const second = createConnectedPair({
+        toAgent: (conn) =>
+          createAcpFormalAgent({
+            conn,
+            agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+            facade: createFacade(),
+            sessionPersistencePath: persistencePath,
+          }),
+        toClient: () => createClient(),
+      });
+      await second.clientConn.initialize({
+        protocolVersion: 1,
+        clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
+      });
+
+      const listed = await second.clientConn.listSessions({});
+      expect(listed.sessions.some((session) => session.sessionId === sessionId)).toBe(false);
+      await expect(
+        second.clientConn.loadSession({ sessionId, cwd: '/repo', mcpServers: [] }),
+      ).rejects.toMatchObject({ code: -32004 });
     } finally {
       await rm(tempRoot, { recursive: true, force: true });
     }

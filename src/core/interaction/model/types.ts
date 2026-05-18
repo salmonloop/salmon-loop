@@ -11,6 +11,7 @@ export interface TaskRequest {
   instruction: string;
   checkpointSessionId?: string;
   repoPath?: string;
+  extensions?: import('../../extensions/types.js').ResolvedExtensions;
 }
 
 export interface TaskArtifact {
