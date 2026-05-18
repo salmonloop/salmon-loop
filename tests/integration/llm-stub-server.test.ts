@@ -19,12 +19,17 @@ type StubResponse =
 
 function createServerQueue() {
   const responses: StubResponse[] = [];
-  const requests: Array<{ url: string; method: string }> = [];
+  const requests: Array<{ url: string; method: string; body: string }> = [];
   let mode: 'http' | 'fetch' = 'http';
   let originalFetch: typeof globalThis.fetch | undefined;
 
   const server = http.createServer(async (req, res) => {
-    requests.push({ url: req.url || '', method: req.method || '' });
+    let body = '';
+    for await (const chunk of req) {
+      body += chunk;
+    }
+
+    requests.push({ url: req.url || '', method: req.method || '', body });
     const next = responses.shift();
     if (!next) {
       res.statusCode = 500;
@@ -58,7 +63,8 @@ function createServerQueue() {
           typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
         const method =
           init?.method || (typeof input === 'object' && 'method' in input ? input.method : 'GET');
-        requests.push({ url, method });
+        const body = await readFetchBody(init?.body);
+        requests.push({ url, method, body });
         const next = responses.shift();
         if (!next) {
           return new Response('No stub response configured', {
@@ -85,6 +91,20 @@ function createServerQueue() {
     },
     push: (r: StubResponse) => responses.push(r),
   };
+}
+
+async function readFetchBody(body: BodyInit | null | undefined): Promise<string> {
+  if (body == null) return '';
+  if (typeof body === 'string') return body;
+  if (body instanceof URLSearchParams) return body.toString();
+  if (body instanceof ArrayBuffer) return new TextDecoder().decode(body);
+  if (ArrayBuffer.isView(body)) {
+    return new TextDecoder().decode(body as Uint8Array);
+  }
+  if (body instanceof Blob) return body.text();
+  if (body instanceof FormData) return '[FormData]';
+  if (body instanceof ReadableStream) return '[ReadableStream]';
+  return String(body);
 }
 
 function openAiChatResponse(content: string, toolCalls?: any[]) {
@@ -236,6 +256,56 @@ describe('LLM stub server integration (no real network)', () => {
     expect(toolCallingAudit[0].parsedArgsOk).toBe(true);
     expect(toolCallingAudit[0].parsedArgsPreview).toContain('{not-json');
     expect(toolCallingAudit[1].toolResultStatus).toBe('error');
+  });
+
+  it('passes back reasoning_content for OpenAI-compatible assistant tool-call history', async () => {
+    q.requests.length = 0;
+    q.push({ kind: 'json', body: openAiChatResponse('done') });
+
+    const llm = new AiSdkLLM({
+      clientPackage: '@ai-sdk/openai-compatible',
+      providerName: 'mimo',
+      apiKey: 'test',
+      baseUrl,
+      modelId: 'mimo-v2.5-pro',
+    });
+
+    await llm.chat([
+      { role: 'user', content: 'inspect the readme' },
+      {
+        role: 'assistant',
+        content: '',
+        reasoning_content: 'I should inspect the requested file before answering.',
+        tool_calls: [
+          {
+            id: 'call-1',
+            type: 'function',
+            function: { name: 'fs.read', arguments: JSON.stringify({ file: 'README.md' }) },
+          },
+        ],
+      },
+      {
+        role: 'tool',
+        name: 'fs.read',
+        tool_call_id: 'call-1',
+        content: JSON.stringify({ status: 'ok', output: { content: '# README', size: 8 } }),
+      },
+    ]);
+
+    const body = JSON.parse(q.requests.at(-1)?.body || '{}');
+    expect(body.messages[1]).toMatchObject({
+      role: 'assistant',
+      content: '',
+      reasoning_content: 'I should inspect the requested file before answering.',
+    });
+    expect(body.messages[1].tool_calls[0]).toMatchObject({
+      id: 'call-1',
+      type: 'function',
+      function: {
+        name: 'fs.read',
+        arguments: JSON.stringify({ file: 'README.md' }),
+      },
+    });
   });
 
   it('returns stable error codes for empty patch and non-unified diff', async () => {

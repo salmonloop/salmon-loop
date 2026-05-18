@@ -24,6 +24,7 @@ describe('sub-agent context snapshot contract', () => {
         {
           role: 'assistant' as const,
           content: 'tool call',
+          reasoning_content: 'inspect first',
           tool_calls: [{ id: 'call-1', function: { name: 'fs.read', arguments: '{}' } }],
         },
         {
@@ -105,6 +106,7 @@ describe('sub-agent context snapshot contract', () => {
     expect(cloned?.conversationContext?.[0]?.tool_calls).toEqual(
       source.conversationContext[0].tool_calls,
     );
+    expect(cloned?.conversationContext?.[0]?.reasoning_content).toBe('inspect first');
     expect(cloned?.conversationContext?.[0]?.tool_calls).not.toBe(
       source.conversationContext[0].tool_calls,
     );

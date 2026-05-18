@@ -84,6 +84,93 @@ describe('AiSdkLLM message mapping', () => {
     });
   });
 
+  it('preserves assistant reasoning when replaying tool-call turns', async () => {
+    const llm = new AiSdkLLM({
+      clientPackage: '@ai-sdk/openai-compatible',
+      providerName: 'mimo',
+      apiKey: 'test',
+      modelId: 'mimo-v2.5-pro',
+    });
+
+    await llm.chat([
+      { role: 'user', content: 'hi' },
+      {
+        role: 'assistant',
+        content: '',
+        reasoning_content: 'I need to inspect the file first.',
+        tool_calls: [
+          {
+            id: 'call_1',
+            type: 'function',
+            function: { name: 'fs.read', arguments: JSON.stringify({ file: 'README.md' }) },
+          },
+        ],
+      },
+      {
+        role: 'tool',
+        name: 'fs.read',
+        tool_call_id: 'call_1',
+        content: JSON.stringify({ status: 'ok', output: { content: '# README', size: 8 } }),
+      },
+    ]);
+
+    const messages = await getGenerateTextMessages();
+    expect(messages[1]).toEqual({
+      role: 'assistant',
+      content: [
+        {
+          type: 'reasoning',
+          text: 'I need to inspect the file first.',
+        },
+        {
+          type: 'tool-call',
+          toolCallId: 'call_1',
+          toolName: 'fs.read',
+          input: { file: 'README.md' },
+        },
+      ],
+    });
+  });
+
+  it('preserves provider metadata on replayed tool-call turns', async () => {
+    const llm = new AiSdkLLM({
+      clientPackage: '@ai-sdk/openai-compatible',
+      providerName: 'mimo',
+      apiKey: 'test',
+      modelId: 'mimo-v2.5-pro',
+    });
+
+    await llm.chat([
+      { role: 'user', content: 'hi' },
+      {
+        role: 'assistant',
+        content: '',
+        reasoning_content: 'Use the cached tool context.',
+        tool_calls: [
+          {
+            id: 'call_1',
+            type: 'function',
+            providerMetadata: {
+              mimo: { traceId: 'trace-1' },
+            },
+            function: { name: 'fs.read', arguments: JSON.stringify({ file: 'README.md' }) },
+          },
+        ],
+      },
+    ]);
+
+    const messages = await getGenerateTextMessages();
+    expect(messages[1].content[1]).toEqual({
+      type: 'tool-call',
+      toolCallId: 'call_1',
+      toolName: 'fs.read',
+      input: { file: 'README.md' },
+      providerOptions: {
+        mimo: { traceId: 'trace-1' },
+      },
+    });
+  });
+
   it('attaches langfuse headers when enabled and audit context is present', async () => {
     setAuditContext({
       correlationId: 'run-test',

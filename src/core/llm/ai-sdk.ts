@@ -89,6 +89,13 @@ export class AiSdkLLM implements LLM {
     options: ChatOptions = {},
   ): AsyncIterable<LLMStreamChunk> {
     const response = await this.chat(messages, options);
+    if (response.reasoning_content) {
+      yield {
+        role: 'assistant',
+        source: 'synthesized',
+        reasoningDelta: response.reasoning_content,
+      };
+    }
     if (response.content) {
       yield { role: 'assistant', source: 'synthesized', contentDelta: response.content };
     }

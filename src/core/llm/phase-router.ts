@@ -58,6 +58,13 @@ export function createPhaseRoutingLlm(params: { defaultLlm: LLM; phaseLlms: Phas
       const capabilities = selected.getCapabilities?.(options) ?? {};
       if (capabilities.streaming === false) {
         const fallback = await selected.chat(messages, options);
+        if (fallback.reasoning_content) {
+          yield {
+            role: 'assistant',
+            source: 'synthesized',
+            reasoningDelta: fallback.reasoning_content,
+          };
+        }
         if (fallback.content) {
           yield { role: 'assistant', source: 'synthesized', contentDelta: fallback.content };
         }
@@ -74,6 +81,13 @@ export function createPhaseRoutingLlm(params: { defaultLlm: LLM; phaseLlms: Phas
       }
 
       const fallback = await selected.chat(messages, options);
+      if (fallback.reasoning_content) {
+        yield {
+          role: 'assistant',
+          source: 'synthesized',
+          reasoningDelta: fallback.reasoning_content,
+        };
+      }
       if (fallback.content) {
         yield { role: 'assistant', source: 'synthesized', contentDelta: fallback.content };
       }

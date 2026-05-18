@@ -103,6 +103,7 @@ const SubAgentContextMessageSchema = z.object({
   role: z.enum(['system', 'user', 'assistant', 'tool']),
   content: z.string(),
   name: z.string().optional(),
+  reasoning_content: z.string().optional(),
   tool_calls: z.array(z.unknown()).optional(),
   tool_call_id: z.string().optional(),
 });

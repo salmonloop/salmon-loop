@@ -45,6 +45,11 @@ export interface LLMMessage {
   role: LLMRole;
   content: string;
   name?: string;
+  /**
+   * Provider-native hidden reasoning content that must be replayed for providers that require
+   * full assistant-turn continuity after tool calls.
+   */
+  reasoning_content?: string;
   tool_calls?: any[];
   tool_call_id?: string;
 }
@@ -62,6 +67,11 @@ export interface LLMStreamChunk {
    * Text delta emitted by the provider. Consumers are responsible for concatenation.
    */
   contentDelta?: string;
+  /**
+   * Hidden reasoning delta emitted by the provider. This must not be rendered as user-visible text,
+   * but may need to be replayed in subsequent provider requests.
+   */
+  reasoningDelta?: string;
   /**
    * Provider-native tool call deltas (optional, provider-dependent).
    */

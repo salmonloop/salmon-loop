@@ -148,6 +148,79 @@ describe('chatWithToolsStreaming', () => {
     expect(calls[1].messages.some((m) => m.role === 'tool' && m.name === 'test.echo')).toBe(true);
   });
 
+  it('replays streamed reasoning with assistant tool-call history without exposing it as content', async () => {
+    const { registry, policy, router } = createToolstack();
+    registerEchoTool(registry);
+
+    const calls: Array<{ messages: LLMMessage[]; options?: any }> = [];
+
+    const llm: any = {
+      chatStream(messages: LLMMessage[], options?: any) {
+        calls.push({ messages, options });
+        const hasToolResult = messages.some((m) => m.role === 'tool');
+
+        if (!hasToolResult) {
+          return (async function* () {
+            yield { role: 'assistant', reasoningDelta: 'I need the echo tool.' };
+            yield {
+              role: 'assistant',
+              tool_calls: [
+                {
+                  id: 'call_1',
+                  type: 'function',
+                  function: { name: 'test.echo', arguments: JSON.stringify({ text: 'hi' }) },
+                },
+              ],
+            };
+            yield { role: 'assistant', done: true };
+          })();
+        }
+
+        return (async function* () {
+          yield { role: 'assistant', contentDelta: 'DONE' };
+          yield { role: 'assistant', done: true };
+        })();
+      },
+      async chat() {
+        throw new Error('not used');
+      },
+      async createPlan() {
+        throw new Error('not used');
+      },
+      async createPatch() {
+        throw new Error('not used');
+      },
+    };
+
+    const final = await chatWithToolsStreaming(
+      [{ role: 'user', content: 'prompt' }],
+      {},
+      {
+        phase: Phase.PLAN,
+        llm,
+        runtime: {
+          repoRoot: '/tmp',
+          attemptId: 1,
+          dryRun: true,
+          model: 'test-model',
+          worktreeRoot: '/tmp',
+        },
+        toolstack: { registry, policy, router },
+      },
+    );
+
+    expect(final.content).toBe('DONE');
+    expect(calls).toHaveLength(2);
+    const assistantHistory = calls[1].messages.find(
+      (m) => m.role === 'assistant' && Array.isArray(m.tool_calls),
+    );
+    expect(assistantHistory).toMatchObject({
+      role: 'assistant',
+      content: '',
+      reasoning_content: 'I need the echo tool.',
+    });
+  });
+
   it('forwards runtime contextSnapshot to agent_dispatch in streaming tool execution', async () => {
     const { registry, policy, router } = createToolstack();
 

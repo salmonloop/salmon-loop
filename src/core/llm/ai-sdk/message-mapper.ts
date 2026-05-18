@@ -155,13 +155,38 @@ export function toAiSdkMessages(messages: LLMMessage[]): any[] {
       };
     }
 
-    if (m.role === 'assistant' && Array.isArray(m.tool_calls) && m.tool_calls.length > 0) {
+    if (m.role === 'assistant') {
+      const hasToolCalls = Array.isArray(m.tool_calls) && m.tool_calls.length > 0;
+      const reasoningContent =
+        typeof m.reasoning_content === 'string' && m.reasoning_content.length > 0
+          ? m.reasoning_content
+          : undefined;
+
+      if (!hasToolCalls && !reasoningContent) {
+        let content = m.content;
+        if (content === undefined || content === null) {
+          content = '';
+        }
+        if (typeof content !== 'string') {
+          content = JSON.stringify(content);
+        }
+
+        return {
+          role: m.role as any,
+          content: content as string,
+        };
+      }
+
       const parts: any[] = [];
+      if (reasoningContent) {
+        parts.push({ type: 'reasoning', text: reasoningContent });
+      }
+
       if (m.content && typeof m.content === 'string') {
         parts.push({ type: 'text', text: m.content });
       }
 
-      for (const call of m.tool_calls) {
+      for (const call of hasToolCalls ? m.tool_calls || [] : []) {
         const toolCallId = call?.id || 'unknown';
         const toolName = call?.function?.name || call?.name || 'unknown';
         const rawArgs = call?.function?.arguments;
@@ -171,12 +196,16 @@ export function toAiSdkMessages(messages: LLMMessage[]): any[] {
               ? safeParseJsonObject(rawArgs)
               : {}
             : (call?.input ?? call?.args ?? {});
+        const providerOptions = isObjectRecord(call?.providerMetadata)
+          ? (deepCloneJson(call.providerMetadata, {}) as Record<string, unknown>)
+          : undefined;
 
         parts.push({
           type: 'tool-call',
           toolCallId,
           toolName,
           input: deepCloneJson(input, {}),
+          ...(providerOptions ? { providerOptions } : {}),
         });
       }
 
@@ -272,12 +301,19 @@ export function toOpenAiToolCalls(toolCalls: any[] | undefined): any[] | undefin
     }
   };
 
-  return toolCalls.map((c) => ({
-    id: c?.toolCallId || c?.id || 'unknown',
-    type: 'function',
-    function: {
-      name: c?.toolName || c?.name || 'unknown',
-      arguments: JSON.stringify(normalizeToolInput(c?.input ?? c?.args ?? {})),
-    },
-  }));
+  return toolCalls.map((c) => {
+    const providerMetadata = isObjectRecord(c?.providerMetadata)
+      ? (deepCloneJson(c.providerMetadata, {}) as Record<string, unknown>)
+      : undefined;
+
+    return {
+      id: c?.toolCallId || c?.id || 'unknown',
+      type: 'function',
+      function: {
+        name: c?.toolName || c?.name || 'unknown',
+        arguments: JSON.stringify(normalizeToolInput(c?.input ?? c?.args ?? {})),
+      },
+      ...(providerMetadata ? { providerMetadata } : {}),
+    };
+  });
 }

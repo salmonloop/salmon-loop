@@ -13,6 +13,7 @@ describe('sub-agent types schema', () => {
           {
             role: 'assistant',
             content: 'calling fs.read',
+            reasoning_content: 'need file content first',
             tool_calls: [
               {
                 id: 'call-1',
@@ -31,6 +32,9 @@ describe('sub-agent types schema', () => {
     });
 
     expect(parsed.contextSnapshot?.conversationContext?.[0]?.role).toBe('assistant');
+    expect(parsed.contextSnapshot?.conversationContext?.[0]?.reasoning_content).toBe(
+      'need file content first',
+    );
     expect(parsed.contextSnapshot?.conversationContext?.[1]?.role).toBe('tool');
   });
 });

@@ -41,6 +41,8 @@ function cloneConversationContext(messages: LLMMessage[] | undefined): LLMMessag
     };
 
     if (message.name !== undefined) cloned.name = message.name;
+    if (message.reasoning_content !== undefined)
+      cloned.reasoning_content = message.reasoning_content;
     if (message.tool_call_id !== undefined) cloned.tool_call_id = message.tool_call_id;
     if (Array.isArray(message.tool_calls)) {
       cloned.tool_calls = deepClone(message.tool_calls);

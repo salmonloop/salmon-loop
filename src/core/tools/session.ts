@@ -513,6 +513,7 @@ function emitCanonicalResponsesEvents(params: {
 
 type StreamTurnConsumption = {
   content: string;
+  reasoningContent?: string;
   finishReason?: string;
   finishUsage?: { promptTokens: number; completionTokens: number };
 };
@@ -539,6 +540,7 @@ async function consumeAssistantStreamTurn(params: {
   });
 
   let content = '';
+  let reasoningContent = '';
   let finishReason: string | undefined;
   let finishUsage: { promptTokens: number; completionTokens: number } | undefined;
 
@@ -584,6 +586,10 @@ async function consumeAssistantStreamTurn(params: {
       content += chunk.contentDelta;
     }
 
+    if (typeof chunk?.reasoningDelta === 'string' && chunk.reasoningDelta) {
+      reasoningContent += chunk.reasoningDelta;
+    }
+
     params.toolCalls.append(chunk);
 
     if (chunk?.done) {
@@ -599,7 +605,12 @@ async function consumeAssistantStreamTurn(params: {
     }
   }
 
-  return { content, finishReason, finishUsage };
+  return {
+    content,
+    reasoningContent: reasoningContent.length > 0 ? reasoningContent : undefined,
+    finishReason,
+    finishUsage,
+  };
 }
 
 async function applyEmptyStreamFallback(params: {
@@ -611,10 +622,21 @@ async function applyEmptyStreamFallback(params: {
   phase: ExecutionPhase;
   round: number;
   content: string;
+  reasoningContent?: string;
   collectedToolCalls: any[];
-}): Promise<{ usedFallback: boolean; content: string; toolCalls: any[] }> {
+}): Promise<{
+  usedFallback: boolean;
+  content: string;
+  reasoningContent?: string;
+  toolCalls: any[];
+}> {
   if (params.content.trim() !== '' || params.collectedToolCalls.length > 0) {
-    return { usedFallback: false, content: params.content, toolCalls: params.collectedToolCalls };
+    return {
+      usedFallback: false,
+      content: params.content,
+      reasoningContent: params.reasoningContent,
+      toolCalls: params.collectedToolCalls,
+    };
   }
 
   recordAuditEvent(
@@ -632,6 +654,7 @@ async function applyEmptyStreamFallback(params: {
   });
 
   const finalContent = fallback.content || '';
+  const finalReasoningContent = fallback.reasoning_content;
   const finalCalls = Array.isArray(fallback.tool_calls) ? fallback.tool_calls : [];
 
   if (params.session.llmOutput && finalContent) {
@@ -644,7 +667,12 @@ async function applyEmptyStreamFallback(params: {
     });
   }
 
-  return { usedFallback: true, content: finalContent, toolCalls: finalCalls };
+  return {
+    usedFallback: true,
+    content: finalContent,
+    reasoningContent: finalReasoningContent,
+    toolCalls: finalCalls,
+  };
 }
 
 function emitSynthesizedFunctionCallClosures(params: {
@@ -921,6 +949,7 @@ export async function chatWithTools(
     messages.push({
       role: 'assistant',
       content: assistant.content || '',
+      reasoning_content: assistant.reasoning_content,
       tool_calls: assistant.tool_calls,
     });
 
@@ -1724,6 +1753,7 @@ export async function chatWithToolsStreaming(
 
       try {
         let streamContent = '';
+        let streamReasoningContent: string | undefined;
         let finishUsage: { promptTokens: number; completionTokens: number } | undefined;
         try {
           const consumed = await consumeAssistantStreamTurn({
@@ -1740,6 +1770,7 @@ export async function chatWithToolsStreaming(
             toolCalls,
           });
           streamContent = consumed.content;
+          streamReasoningContent = consumed.reasoningContent;
           finishReason = consumed.finishReason;
           finishUsage = consumed.finishUsage;
         } catch (e) {
@@ -1790,6 +1821,7 @@ export async function chatWithToolsStreaming(
           phase,
           round,
           content: streamContent,
+          reasoningContent: streamReasoningContent,
           collectedToolCalls: drainedToolCalls,
         });
         usedFallback = fallback.usedFallback;
@@ -1797,6 +1829,7 @@ export async function chatWithToolsStreaming(
         const assistant: LLMMessage = {
           role: 'assistant',
           content: fallback.content,
+          reasoning_content: fallback.reasoningContent,
           tool_calls: fallback.toolCalls.length > 0 ? fallback.toolCalls : undefined,
         };
 

@@ -3,10 +3,30 @@ import { mapAiSdkStreamPartToChunk } from '../stream-utils.js';
 
 import { toOpenAiToolCalls } from './message-mapper.js';
 
+function extractReasoningContent(result: any): string | undefined {
+  if (typeof result?.reasoningText === 'string' && result.reasoningText.length > 0) {
+    return result.reasoningText;
+  }
+
+  const reasoningParts = Array.isArray(result?.reasoning)
+    ? result.reasoning
+    : Array.isArray(result?.content)
+      ? result.content.filter((part: any) => part?.type === 'reasoning')
+      : [];
+  const text = reasoningParts
+    .map((part: any) => (typeof part?.text === 'string' ? part.text : ''))
+    .join('');
+
+  return text.length > 0 ? text : undefined;
+}
+
 export function mapAiSdkGenerateResultToMessage(result: any): LLMMessage {
+  const reasoningContent = extractReasoningContent(result);
+
   return {
     role: 'assistant' as LLMRole,
     content: result?.text || '',
+    ...(reasoningContent ? { reasoning_content: reasoningContent } : {}),
     tool_calls: toOpenAiToolCalls(result?.toolCalls),
   };
 }

@@ -22,4 +22,14 @@ describe('mapAiSdkStreamPartToChunk', () => {
       );
     }
   });
+
+  it('maps reasoning deltas separately from visible text', () => {
+    const chunk = mapAiSdkStreamPartToChunk({
+      type: 'reasoning-delta',
+      text: 'internal reasoning',
+    });
+
+    expect(chunk?.contentDelta).toBeUndefined();
+    expect(chunk?.reasoningDelta).toBe('internal reasoning');
+  });
 });

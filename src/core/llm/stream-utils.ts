@@ -66,12 +66,21 @@ export function mapAiSdkStreamPartToChunk(part: any): LLMStreamChunk | null {
   }
 
   switch (part.type) {
-    case 'text-delta':
-    case 'reasoning-delta':
-      if (typeof part.text === 'string' && part.text) {
-        return { role: 'assistant', source: 'provider', contentDelta: part.text };
+    case 'text-delta': {
+      const text = typeof part.text === 'string' ? part.text : part.delta;
+      if (typeof text === 'string' && text) {
+        return { role: 'assistant', source: 'provider', contentDelta: text };
       }
       return null;
+    }
+
+    case 'reasoning-delta': {
+      const text = typeof part.text === 'string' ? part.text : part.delta;
+      if (typeof text === 'string' && text) {
+        return { role: 'assistant', source: 'provider', reasoningDelta: text };
+      }
+      return null;
+    }
 
     case 'tool-call':
       return {
@@ -85,6 +94,7 @@ export function mapAiSdkStreamPartToChunk(part: any): LLMStreamChunk | null {
               name: part.toolName || 'unknown',
               arguments: JSON.stringify(normalizeToolInput(part.input ?? {})),
             },
+            ...(part.providerMetadata ? { providerMetadata: part.providerMetadata } : {}),
           },
         ],
       };
