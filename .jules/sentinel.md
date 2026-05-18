@@ -1,0 +1,4 @@
+## 2024-05-18 - Prevent timing attacks in Bearer token validation
+**Vulnerability:** A simple string comparison (`!authTokens.includes(token)`) was used to validate the provided Bearer token against expected tokens.
+**Learning:** Using simple string comparison methods like `===`, `!==`, or `Array.prototype.includes` for validating secrets introduces timing attack vulnerabilities because they short-circuit on the first mismatched character, leaking the length of the matching prefix.
+**Prevention:** Always use `crypto.timingSafeEqual` to compare secrets. Ensure buffers are first length-checked or padded before comparison, as `timingSafeEqual` will throw an error if the lengths do not match.
