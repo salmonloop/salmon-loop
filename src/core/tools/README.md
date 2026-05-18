@@ -18,7 +18,7 @@ Tool execution is orchestrated by `src/core/tools/session.ts`:
 
 Design notes:
 
-- Budgeting: tool execution is constrained by a per-session budget (`maxToolCallsTotal` / `maxToolCallsPerRound`) and enforced inside `executeToolCalls(...)`.
+- Budgeting: tool execution is constrained by per-session budgets and enforced inside `executeToolCalls(...)`. `maxToolCallsTotal` / `maxToolCallsPerRound` apply to regular tools, while `maxAgentToolCallsTotal` / `maxAgentToolCallsPerRound` apply to AGENT-intent delegation tools. The buckets are independent so ordinary exploration cannot accidentally starve deliberate sub-agent delegation, and callers can still clamp either bucket explicitly.
 - Determinism: tool calls are executed through the parallel scheduler (`src/core/tools/parallel`), which supports blocked approvals and deterministic resumption.
 - Two tool timelines:
   - Model request timeline: when the model requests a function call (canonical responses events).

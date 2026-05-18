@@ -19,6 +19,19 @@ export interface LogReporter {
 }
 
 /**
+ * Reporter for machine-readable modes where stdout/stderr are protocol channels.
+ */
+export class SilentReporter implements LogReporter {
+  log(_level: string, _message: string, _metadata?: any): void {
+    // Intentionally empty.
+  }
+
+  clear(): void {
+    // Intentionally empty.
+  }
+}
+
+/**
  * Standard Console Reporter
  */
 export class ConsoleReporter implements LogReporter {
@@ -472,7 +485,6 @@ export class Logger {
     const auditMeta = typeof meta === 'string' ? { source: meta } : meta;
     recordAuditEvent(action, sanitizedDetails, auditMeta);
     this.writeToLog('audit', formatted);
-    if (!this.silent) this.reporter.log('audit', formatted);
   }
 
   private sanitizeLogMessage(message: string): string {

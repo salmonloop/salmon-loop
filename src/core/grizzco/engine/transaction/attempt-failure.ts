@@ -13,7 +13,7 @@ import type {
 } from '../../../types/runtime.js';
 import { classifyError, isRetryable } from '../../../verification/runner.js';
 import type { FlowReport } from '../pipeline/pipeline.js';
-import type { ShrinkCtx } from '../pipeline/types.js';
+import type { AutopilotCtx, ShrinkCtx } from '../pipeline/types.js';
 
 export interface AttemptFailureDetails {
   reason: string;
@@ -105,7 +105,7 @@ function extractInterrupt(error: unknown):
 
 export function resolveAttemptFailure(params: {
   flowReport: FlowReport;
-  context?: ShrinkCtx;
+  context?: ShrinkCtx | AutopilotCtx;
   flowMode: FlowMode;
 }): AttemptFailureDetails | undefined {
   const { flowReport, context, flowMode } = params;
@@ -129,22 +129,24 @@ export function resolveAttemptFailure(params: {
       inputRequired,
     };
   }
+  const autopilotCompletion =
+    flowMode === 'autopilot' && context && 'completion' in context ? context.completion : undefined;
   const verifyOk = profile.verifyPolicy === 'never' ? true : context?.verifyResult?.ok !== false;
+  const applyBackResult =
+    context && 'applyBackResult' in context ? context.applyBackResult : undefined;
   const applyBackFailed =
     profile.failurePolicy === 'rollback' &&
-    context?.applyBackResult?.success === false &&
-    !context.applyBackResult.skipped;
+    applyBackResult?.success === false &&
+    !applyBackResult.skipped;
   const environmentMode = context?.options?.environmentMode;
 
   if (applyBackFailed) {
     const fallbackReason =
-      context.applyBackResult?.safeMessage ||
-      context.applyBackResult?.error ||
-      text.loop.applyBackFailed;
+      applyBackResult?.safeMessage || applyBackResult?.error || text.loop.applyBackFailed;
     const guidance = buildFailureGuidance({
       reasonCode: 'APPLY_BACK_FAILED',
       failurePhase: 'APPLY_BACK',
-      errorCode: context.applyBackResult?.errorCode || 'APPLY_BACK_FAILED',
+      errorCode: applyBackResult?.errorCode || 'APPLY_BACK_FAILED',
       environmentMode,
       fallbackReason,
     });
@@ -153,18 +155,60 @@ export function resolveAttemptFailure(params: {
       reasonCode: 'APPLY_BACK_FAILED',
       failurePhase: 'APPLY_BACK',
       retryable: false,
-      errorCode: context.applyBackResult?.errorCode || 'APPLY_BACK_FAILED',
+      errorCode: applyBackResult?.errorCode || 'APPLY_BACK_FAILED',
       diagnosticCode: guidance.diagnosticCode,
       safeHint: guidance.safeHint,
       remediationSteps: guidance.remediationSteps,
     };
   }
 
-  if (flowReport.success && verifyOk) {
+  if (flowReport.success && verifyOk && !autopilotCompletion) {
     return undefined;
   }
 
   const errorCode = extractErrorCode(flowReport.error) ?? extractErrorCodeFromTraces(flowReport);
+
+  if (flowMode === 'autopilot' && autopilotCompletion) {
+    if (
+      autopilotCompletion.status === 'changed' ||
+      autopilotCompletion.status === 'read_only_answer'
+    ) {
+      if (flowReport.success && verifyOk) return undefined;
+    }
+
+    const reasonCode: LoopReasonCode =
+      autopilotCompletion.status === 'verification_missing'
+        ? 'VERIFY_COMMAND_MISSING'
+        : autopilotCompletion.status === 'tool_failure' &&
+            isRecoverableToolInputErrorCode(autopilotCompletion.errorCode)
+          ? 'TOOL_CORRECTION_REQUIRED'
+          : 'LOOP_FAILED';
+    const failurePhase: ExecutionPhase =
+      autopilotCompletion.status === 'verification_missing' ? 'VERIFY' : 'AUTOPILOT';
+    const fallbackReason =
+      autopilotCompletion.reason ||
+      (autopilotCompletion.status === 'no_effect'
+        ? 'Autopilot completed without changing files or producing an answer.'
+        : text.loop.loopExecutionFailed);
+    const guidance = buildFailureGuidance({
+      reasonCode,
+      failurePhase,
+      errorCode: autopilotCompletion.errorCode,
+      environmentMode,
+      fallbackReason,
+    });
+    return {
+      reason: guidance.safeHint,
+      reasonCode,
+      failurePhase,
+      retryable:
+        reasonCode === 'TOOL_CORRECTION_REQUIRED' || autopilotCompletion.status === 'no_effect',
+      errorCode: autopilotCompletion.errorCode,
+      diagnosticCode: guidance.diagnosticCode,
+      safeHint: guidance.safeHint,
+      remediationSteps: guidance.remediationSteps,
+    };
+  }
 
   if (errorCode === 'PREFLIGHT_NOT_GIT') {
     const fallbackReason = sanitizeReason(flowReport.error);

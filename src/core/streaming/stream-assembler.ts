@@ -20,14 +20,20 @@ type ToolCallState = {
   requestStarted: boolean;
   requestEnded: boolean;
   executionStarted: boolean;
+  request?: Extract<NormalizedStreamEvent, { type: 'normalized.tool_request_start' }>;
+  requestEnd?: Extract<NormalizedStreamEvent, { type: 'normalized.tool_request_end' }>;
+  emittedRequest?: boolean;
+  emittedRequestEnd?: boolean;
 };
 
 export interface StreamAssemblerOptions {
   clock?: () => Date;
+  deferToolRequestsUntilExecutionInput?: boolean;
 }
 
 export class StreamAssembler {
   private readonly clock: () => Date;
+  private readonly deferToolRequestsUntilExecutionInput: boolean;
   private readonly streams = new Map<string, TextStreamState>();
   private readonly canonicalTextStreams = new Set<string>();
   private readonly canonicalClosedTextStreams = new Set<string>();
@@ -35,6 +41,8 @@ export class StreamAssembler {
 
   constructor(options: StreamAssemblerOptions = {}) {
     this.clock = options.clock ?? (() => new Date());
+    this.deferToolRequestsUntilExecutionInput =
+      options.deferToolRequestsUntilExecutionInput ?? false;
   }
 
   push(event: LoopEvent): NormalizedStreamEvent[] {
@@ -67,27 +75,33 @@ export class StreamAssembler {
 
       if (!st.requestStarted) {
         st.requestStarted = true;
-        out.push({
+        st.request = {
           type: 'normalized.tool_request_start',
           callId: event.callId,
           toolName: event.toolName,
           phase: event.phase,
           round: event.round,
+          ...(event.input === undefined ? {} : { input: event.input }),
           timestamp: event.timestamp,
-        });
+        };
+      } else if (event.input !== undefined && st.request && st.request.input === undefined) {
+        st.request = { ...st.request, input: event.input };
       }
+
+      out.push(...this.emitPendingToolRequest(st));
 
       if (!st.requestEnded) {
         st.requestEnded = true;
-        out.push({
+        st.requestEnd = {
           type: 'normalized.tool_request_end',
           callId: event.callId,
           toolName: event.toolName,
           phase: event.phase,
           round: event.round,
           timestamp: event.timestamp,
-        });
+        };
       }
+      out.push(...this.emitPendingToolRequestEnd(st));
 
       if (st.executionStarted) return out;
       st.executionStarted = true;
@@ -111,27 +125,30 @@ export class StreamAssembler {
 
       if (!st.requestStarted) {
         st.requestStarted = true;
-        out.push({
+        st.request = {
           type: 'normalized.tool_request_start',
           callId: event.callId,
           toolName: event.toolName,
           phase: event.phase,
           round: event.round,
           timestamp: event.timestamp,
-        });
+        };
       }
+
+      out.push(...this.emitPendingToolRequest(st));
 
       if (!st.requestEnded) {
         st.requestEnded = true;
-        out.push({
+        st.requestEnd = {
           type: 'normalized.tool_request_end',
           callId: event.callId,
           toolName: event.toolName,
           phase: event.phase,
           round: event.round,
           timestamp: event.timestamp,
-        });
+        };
       }
+      out.push(...this.emitPendingToolRequestEnd(st));
 
       out.push({
         type: 'normalized.tool_call_end',
@@ -296,17 +313,16 @@ export class StreamAssembler {
       const st = this.getToolCallState(callId);
       if (st.requestStarted) return [];
       st.requestStarted = true;
+      st.request = {
+        type: 'normalized.tool_request_start',
+        callId,
+        toolName,
+        phase: event.phase,
+        round: event.round,
+        timestamp: event.timestamp,
+      };
 
-      return [
-        {
-          type: 'normalized.tool_request_start',
-          callId,
-          toolName,
-          phase: event.phase,
-          round: event.round,
-          timestamp: event.timestamp,
-        },
-      ];
+      return this.deferToolRequestsUntilExecutionInput ? [] : this.emitPendingToolRequest(st);
     }
 
     if (isOutputItemDoneFunctionCallEvent(event.event)) {
@@ -315,16 +331,15 @@ export class StreamAssembler {
       const st = this.getToolCallState(callId);
       if (st.requestEnded) return [];
       st.requestEnded = true;
-      return [
-        {
-          type: 'normalized.tool_request_end',
-          callId,
-          toolName: event.event.item.name,
-          phase: event.phase,
-          round: event.round,
-          timestamp: event.timestamp,
-        },
-      ];
+      st.requestEnd = {
+        type: 'normalized.tool_request_end',
+        callId,
+        toolName: event.event.item.name,
+        phase: event.phase,
+        round: event.round,
+        timestamp: event.timestamp,
+      };
+      return this.emitPendingToolRequestEnd(st);
     }
 
     return [];
@@ -337,9 +352,23 @@ export class StreamAssembler {
       requestStarted: false,
       requestEnded: false,
       executionStarted: false,
+      emittedRequest: false,
+      emittedRequestEnd: false,
     };
     this.toolCallStates.set(callId, created);
     return created;
+  }
+
+  private emitPendingToolRequest(st: ToolCallState): NormalizedStreamEvent[] {
+    if (st.emittedRequest || !st.request) return [];
+    st.emittedRequest = true;
+    return [st.request];
+  }
+
+  private emitPendingToolRequestEnd(st: ToolCallState): NormalizedStreamEvent[] {
+    if (st.emittedRequestEnd || !st.requestEnd || !st.emittedRequest) return [];
+    st.emittedRequestEnd = true;
+    return [st.requestEnd];
   }
 }
 

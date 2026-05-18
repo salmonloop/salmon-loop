@@ -5,9 +5,16 @@ import {
   type AnthropicStreamLine,
 } from './anthropic-stream-protocol.js';
 
+function asToolInput(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
 export function encodeNormalizedToAnthropicStreamLines(params: {
   sessionId: string;
   event: NormalizedStreamEvent;
+  includeToolInput?: boolean;
 }): AnthropicStreamLine[] {
   if (params.event.type === 'normalized.message_start') {
     return [
@@ -78,7 +85,7 @@ export function encodeNormalizedToAnthropicStreamLines(params: {
 
   if (params.event.type === 'normalized.tool_request_start') {
     const parentToolUseId = params.event.callId;
-    const input: Record<string, unknown> = {};
+    const input = params.includeToolInput ? asToolInput(params.event.input) : {};
 
     return [
       encodeAnthropicStreamEvent({

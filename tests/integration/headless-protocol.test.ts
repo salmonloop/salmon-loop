@@ -314,6 +314,17 @@ describe('Headless protocol integration', () => {
             '',
           ].join('\n'),
         },
+        {
+          path: 'verify.ts',
+          content: [
+            'const content = await Bun.file("src/index.ts").text();',
+            'if (content !== \'console.log("headless autopilot");\\n\') {',
+            '  console.error("unexpected index content");',
+            '  process.exit(1);',
+            '}',
+            '',
+          ].join('\n'),
+        },
         { path: '.gitignore', content: '.salmonloop/\n' },
       ],
     });
@@ -365,8 +376,11 @@ describe('Headless protocol integration', () => {
         repo.path,
         '--instruction',
         instruction,
+        '--verify',
+        buildBunCommand('verify.ts'),
         '--output-format',
         'stream-json',
+        '--headless-include-tool-input',
         '--headless-include-tool-output',
         '--act-mode',
         'autopilot',
@@ -409,6 +423,7 @@ describe('Headless protocol integration', () => {
             type: 'tool_use',
             id: 'call-shell-exec',
             name: 'shell.exec',
+            input: { command: mutateCommand },
           },
         },
       });
@@ -548,6 +563,18 @@ describe('Headless protocol integration', () => {
     const repo = await helper.createGitRepo({
       initialFiles: [{ path: '.gitignore', content: '.salmonloop/\n' }],
     });
+    await helper.writeFile(
+      repo.path,
+      'verify.ts',
+      [
+        'const content = await Bun.file("note.txt").text();',
+        'if (content !== "recovered") {',
+        '  console.error("unexpected note content");',
+        '  process.exit(1);',
+        '}',
+        '',
+      ].join('\n'),
+    );
     const stub = createOpenAiStreamingStub();
     const instruction = 'Create note.txt with exactly the text recovered.';
 
@@ -612,6 +639,8 @@ describe('Headless protocol integration', () => {
         repo.path,
         '--instruction',
         instruction,
+        '--verify',
+        buildBunCommand('verify.ts'),
         '--output-format',
         'stream-json',
         '--act-mode',
@@ -655,6 +684,17 @@ describe('Headless protocol integration', () => {
       initialFiles: [
         { path: 'src/a.ts', content: 'export const a = 1;\n' },
         { path: 'src/b.ts', content: 'export const b = 2;\n' },
+        {
+          path: 'verify.ts',
+          content: [
+            'const content = await Bun.file("src/c.ts").text();',
+            'if (content !== "export const c = 3;\\n") {',
+            '  console.error("unexpected c content");',
+            '  process.exit(1);',
+            '}',
+            '',
+          ].join('\n'),
+        },
         { path: '.gitignore', content: '.salmonloop/\n' },
       ],
     });
@@ -722,6 +762,8 @@ describe('Headless protocol integration', () => {
         repo.path,
         '--instruction',
         'Read src/a.ts and src/b.ts, then write src/c.ts.',
+        '--verify',
+        buildBunCommand('verify.ts'),
         '--output-format',
         'stream-json',
         '--act-mode',
@@ -861,6 +903,17 @@ describe('Headless protocol integration', () => {
             '',
           ].join('\n'),
         },
+        {
+          path: 'verify.ts',
+          content: [
+            'const content = await Bun.file("src/index.ts").text();',
+            'if (content !== \'console.log("headless json autopilot");\\n\') {',
+            '  console.error("unexpected index content");',
+            '  process.exit(1);',
+            '}',
+            '',
+          ].join('\n'),
+        },
         { path: '.gitignore', content: '.salmonloop/\n' },
       ],
     });
@@ -905,6 +958,8 @@ describe('Headless protocol integration', () => {
         repo.path,
         '--instruction',
         'Run mutate.ts',
+        '--verify',
+        buildBunCommand('verify.ts'),
         '--output-format',
         'json',
         '--act-mode',

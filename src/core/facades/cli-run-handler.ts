@@ -1,5 +1,5 @@
 export { normalizePermissionMode } from '../config/index.js';
-export { getLogger, PlainReporter } from '../observability/logger.js';
+export { getLogger, PlainReporter, SilentReporter } from '../observability/logger.js';
 export {
   createPluginRegistry,
   setPluginRegistry,

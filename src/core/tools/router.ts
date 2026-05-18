@@ -243,7 +243,7 @@ export class ToolRouter {
 
       // 5. Budget Gating & Execution: Concurrency control, timeout, and execution
       const rawOutput = await this.budget.runWithGuards({
-        timeoutMs: LIMITS.defaultToolTimeoutMs,
+        timeoutMs: spec.defaultTimeoutMs ?? LIMITS.defaultToolTimeoutMs,
         maxOutputBytes: LIMITS.maxToolOutputBytes,
         phase: normalizedEnvelope.phase,
         toolName: spec.name,

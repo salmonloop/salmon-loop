@@ -12,6 +12,7 @@ const DEFAULT_SUB_AGENT_PROFILES: SubAgentProfile[] = [
     stratagem: 'investigator',
     maxTokens: 50000,
     maxAttempts: 3,
+    timeoutMs: 60_000,
   },
   {
     id: 'surgeon',
@@ -23,6 +24,7 @@ const DEFAULT_SUB_AGENT_PROFILES: SubAgentProfile[] = [
     stratagem: 'surgeon',
     maxTokens: 100000,
     maxAttempts: 5,
+    timeoutMs: 180_000,
   },
   {
     id: 'reviewer',
@@ -34,6 +36,7 @@ const DEFAULT_SUB_AGENT_PROFILES: SubAgentProfile[] = [
     stratagem: 'investigator',
     maxTokens: 30000,
     maxAttempts: 2,
+    timeoutMs: 60_000,
   },
   {
     id: 'cleaner',
@@ -45,6 +48,7 @@ const DEFAULT_SUB_AGENT_PROFILES: SubAgentProfile[] = [
     stratagem: 'surgeon',
     maxTokens: 50000,
     maxAttempts: 3,
+    timeoutMs: 120_000,
   },
 ];
 

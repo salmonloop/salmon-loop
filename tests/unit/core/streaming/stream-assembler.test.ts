@@ -565,6 +565,7 @@ describe('StreamAssembler', () => {
         toolName: 'fs.readFile',
         phase: 'PATCH',
         round: 1,
+        input: { file: 'README.md' },
         timestamp: at1,
       },
       {
@@ -609,6 +610,189 @@ describe('StreamAssembler', () => {
         errorCode: undefined,
         outputSummary: '{"ok":true}',
         timestamp: at2,
+      },
+    ]);
+  });
+
+  it('can defer model tool request emission until execution input is available', () => {
+    const assembler = new StreamAssembler({ deferToolRequestsUntilExecutionInput: true });
+    const at1 = new Date('2026-02-20T00:00:01.000Z');
+    const at2 = new Date('2026-02-20T00:00:02.000Z');
+    const at3 = new Date('2026-02-20T00:00:03.000Z');
+
+    const modelStart = assembler.push({
+      type: 'llm.responses.event',
+      kind: 'plan',
+      step: 'PLAN',
+      streamId: 'stream-1',
+      source: 'provider',
+      phase: 'PATCH',
+      round: 1,
+      event: {
+        type: 'response.output_item.added',
+        item: {
+          type: 'function_call',
+          call_id: 'call-1',
+          name: 'agent_dispatch',
+          arguments: '{}',
+        },
+      },
+      timestamp: at1,
+    } satisfies LoopEvent);
+
+    expect(modelStart).toEqual([]);
+
+    const modelDone = assembler.push({
+      type: 'llm.responses.event',
+      kind: 'plan',
+      step: 'PLAN',
+      streamId: 'stream-1',
+      source: 'provider',
+      phase: 'PATCH',
+      round: 1,
+      event: {
+        type: 'response.output_item.done',
+        item: {
+          type: 'function_call',
+          call_id: 'call-1',
+          name: 'agent_dispatch',
+          arguments: '{}',
+        },
+      },
+      timestamp: at2,
+    } satisfies LoopEvent);
+
+    expect(modelDone).toEqual([]);
+
+    const hostStart = assembler.push({
+      type: 'tool.call.start',
+      callId: 'call-1',
+      toolName: 'agent_dispatch',
+      phase: 'PATCH',
+      round: 1,
+      input: { agent_ref: 'reviewer', task: 'Inspect the patch.' },
+      timestamp: at3,
+    } satisfies LoopEvent);
+
+    expect(hostStart).toEqual([
+      {
+        type: 'normalized.tool_request_start',
+        callId: 'call-1',
+        toolName: 'agent_dispatch',
+        phase: 'PATCH',
+        round: 1,
+        input: { agent_ref: 'reviewer', task: 'Inspect the patch.' },
+        timestamp: at1,
+      },
+      {
+        type: 'normalized.tool_request_end',
+        callId: 'call-1',
+        toolName: 'agent_dispatch',
+        phase: 'PATCH',
+        round: 1,
+        timestamp: at2,
+      },
+      {
+        type: 'normalized.tool_call_start',
+        callId: 'call-1',
+        toolName: 'agent_dispatch',
+        phase: 'PATCH',
+        round: 1,
+        input: { agent_ref: 'reviewer', task: 'Inspect the patch.' },
+        timestamp: at3,
+      },
+    ]);
+  });
+
+  it('flushes deferred model tool requests before host tool results when execution start is missing', () => {
+    const assembler = new StreamAssembler({ deferToolRequestsUntilExecutionInput: true });
+    const at1 = new Date('2026-02-20T00:00:01.000Z');
+    const at2 = new Date('2026-02-20T00:00:02.000Z');
+    const at3 = new Date('2026-02-20T00:00:03.000Z');
+
+    const modelStart = assembler.push({
+      type: 'llm.responses.event',
+      kind: 'plan',
+      step: 'PLAN',
+      streamId: 'stream-1',
+      source: 'provider',
+      phase: 'PATCH',
+      round: 1,
+      event: {
+        type: 'response.output_item.added',
+        item: {
+          type: 'function_call',
+          call_id: 'call-1',
+          name: 'agent_dispatch',
+          arguments: '{}',
+        },
+      },
+      timestamp: at1,
+    } satisfies LoopEvent);
+
+    expect(modelStart).toEqual([]);
+
+    const modelDone = assembler.push({
+      type: 'llm.responses.event',
+      kind: 'plan',
+      step: 'PLAN',
+      streamId: 'stream-1',
+      source: 'provider',
+      phase: 'PATCH',
+      round: 1,
+      event: {
+        type: 'response.output_item.done',
+        item: {
+          type: 'function_call',
+          call_id: 'call-1',
+          name: 'agent_dispatch',
+          arguments: '{}',
+        },
+      },
+      timestamp: at2,
+    } satisfies LoopEvent);
+
+    expect(modelDone).toEqual([]);
+
+    const hostEnd = assembler.push({
+      type: 'tool.call.end',
+      callId: 'call-1',
+      toolName: 'agent_dispatch',
+      phase: 'PATCH',
+      round: 1,
+      status: 'ok',
+      outputSummary: '{"success":true}',
+      timestamp: at3,
+    } satisfies LoopEvent);
+
+    expect(hostEnd).toEqual([
+      {
+        type: 'normalized.tool_request_start',
+        callId: 'call-1',
+        toolName: 'agent_dispatch',
+        phase: 'PATCH',
+        round: 1,
+        timestamp: at1,
+      },
+      {
+        type: 'normalized.tool_request_end',
+        callId: 'call-1',
+        toolName: 'agent_dispatch',
+        phase: 'PATCH',
+        round: 1,
+        timestamp: at2,
+      },
+      {
+        type: 'normalized.tool_call_end',
+        callId: 'call-1',
+        toolName: 'agent_dispatch',
+        phase: 'PATCH',
+        round: 1,
+        status: 'ok',
+        durationMs: undefined,
+        errorCode: undefined,
+        outputSummary: '{"success":true}',
+        timestamp: at3,
       },
     ]);
   });

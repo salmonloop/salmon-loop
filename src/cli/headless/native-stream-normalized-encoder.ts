@@ -6,10 +6,17 @@ import {
   type StreamJsonEnvelope,
 } from './stream-json-protocol.js';
 
+function asToolInput(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
 export function encodeNormalizedToNativeStreamLines(params: {
   sessionId: string;
   uuid: () => string;
   event: NormalizedStreamEvent;
+  includeToolInput?: boolean;
 }): StreamJsonEnvelope[] {
   const at = params.event.timestamp;
 
@@ -93,7 +100,7 @@ export function encodeNormalizedToNativeStreamLines(params: {
     const parentToolUseId = params.event.callId;
     const phase = params.event.phase;
     const round = params.event.round;
-    const input: Record<string, unknown> = {};
+    const input = params.includeToolInput ? asToolInput(params.event.input) : {};
 
     return [
       encodeStreamEvent({

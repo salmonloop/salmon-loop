@@ -29,6 +29,7 @@ export interface StreamJsonReporterOptions {
   uuid?: () => string;
   writer?: StdoutWriter;
   getWarnings?: () => readonly HeadlessWarning[];
+  includeToolInput?: boolean;
 }
 
 export class StreamJsonReporter implements SalmonReporter {
@@ -41,7 +42,8 @@ export class StreamJsonReporter implements SalmonReporter {
   private readonly getWarnings?: () => readonly HeadlessWarning[];
   private lastTextResult: string | undefined;
   private nextEventSeq = 0;
-  private readonly assembler = new StreamAssembler();
+  private readonly assembler: StreamAssembler;
+  private readonly includeToolInput: boolean;
 
   constructor(options: StreamJsonReporterOptions = {}) {
     this.mode = options.mode ?? 'run';
@@ -51,6 +53,10 @@ export class StreamJsonReporter implements SalmonReporter {
     this.uuid = options.uuid ?? randomUUID;
     this.writer = options.writer ?? createStdoutWriter();
     this.getWarnings = options.getWarnings;
+    this.includeToolInput = options.includeToolInput ?? false;
+    this.assembler = new StreamAssembler({
+      deferToolRequestsUntilExecutionInput: this.includeToolInput,
+    });
   }
 
   onStart(instruction: string): void {
@@ -88,6 +94,7 @@ export class StreamJsonReporter implements SalmonReporter {
           sessionId: this.sessionId,
           uuid: this.uuid,
           event: normalizedEvent,
+          includeToolInput: this.includeToolInput,
         });
         for (const line of lines) this.emit(line);
       }

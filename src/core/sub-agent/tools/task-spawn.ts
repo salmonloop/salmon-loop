@@ -12,12 +12,24 @@ import { validateSharedPrefixConsistency } from '../prefix-consistency.js';
 import { SubAgentRequestSchema, type SubAgentRequest, type SubAgentResult } from '../types.js';
 
 function normalizeDispatchRequest(input: SubAgentRequest, ctx: ToolRuntimeCtx): SubAgentRequest {
-  if (input.session_target !== 'shared') {
-    return input;
+  const requested: SubAgentRequest = {
+    ...input,
+    session_target: input.session_target ?? 'isolated',
+    expected_output:
+      input.expected_output ??
+      (input.agent_ref === 'surgeon' || input.agent_ref === 'cleaner'
+        ? 'patch'
+        : input.agent_ref === 'reviewer'
+          ? 'review'
+          : 'diagnosis'),
+  };
+
+  if (requested.session_target !== 'shared') {
+    return requested;
   }
 
   const consistency = validateSharedPrefixConsistency({
-    requestSnapshot: input.contextSnapshot,
+    requestSnapshot: requested.contextSnapshot,
     runtimeSnapshot: ctx.contextSnapshot,
   });
   if (!consistency.compatible) {
@@ -38,15 +50,15 @@ function normalizeDispatchRequest(input: SubAgentRequest, ctx: ToolRuntimeCtx): 
       },
     );
     return {
-      ...input,
+      ...requested,
       session_target: 'isolated',
       contextSnapshot: undefined,
     };
   }
 
   return {
-    ...input,
-    contextSnapshot: mergeSubAgentContextSnapshot(input.contextSnapshot, ctx.contextSnapshot),
+    ...requested,
+    contextSnapshot: mergeSubAgentContextSnapshot(requested.contextSnapshot, ctx.contextSnapshot),
   };
 }
 
@@ -61,6 +73,7 @@ export const subAgentTaskSpec: ToolSpec = {
   description: text.smallfry.ui.spawnToolDescription,
 
   riskLevel: 'medium',
+  defaultTimeoutMs: 180_000,
   // This tool is proposal-only: it may read the repo and produce structured proposals,
   // but it MUST NOT mutate the user's workspace from within the calling phase.
   sideEffects: ['none', 'fs_read', 'git_read'],
@@ -69,6 +82,35 @@ export const subAgentTaskSpec: ToolSpec = {
 
   inputSchema: SubAgentRequestSchema,
   outputSchema: z.any(), // Maps to SubAgentResult
+  examples: [
+    {
+      description: 'Ask a read-only explorer to inspect failing tests before editing',
+      input: {
+        agent_ref: 'explorer',
+        task: 'Inspect src/order.js, src/inventory.js, and test/order.test.js. Identify why the order pricing tests fail and return a concise diagnosis with recommended files to edit.',
+        contextFiles: ['src/order.js', 'src/inventory.js', 'test/order.test.js'],
+        expected_output: 'diagnosis',
+      },
+      output: {
+        success: true,
+        agent_ref: 'explorer',
+        summary: '<diagnosis and recommended next steps>',
+      },
+    },
+    {
+      description: 'Ask a reviewer to audit a proposed implementation',
+      input: {
+        agent_ref: 'reviewer',
+        task: 'Review the current changes for correctness, missing edge cases, and behavior covered by tests. Return findings only.',
+        expected_output: 'review',
+      },
+      output: {
+        success: true,
+        agent_ref: 'reviewer',
+        summary: '<review findings>',
+      },
+    },
+  ],
 
   executor: async (input: any, ctx: ToolRuntimeCtx): Promise<SubAgentResult> => {
     const manager = new SubAgentManager(ctx, ctx.subAgentController ?? createSubAgentController());

@@ -181,6 +181,53 @@ describe('AnthropicStreamReporter', () => {
     });
   });
 
+  it('includes redacted tool input when explicitly enabled', () => {
+    const { lines, write } = collectLines();
+
+    const reporter = new AnthropicStreamReporter({
+      mode: 'run',
+      repoPath: '/repo',
+      sessionId: 'sess-tool-input',
+      writer: createStdoutWriter({ write }),
+      includeToolInput: true,
+    });
+
+    reporter.onStart('x');
+
+    reporter.onEvent({
+      type: 'tool.call.start',
+      callId: 'call-1',
+      toolName: 'agent_dispatch',
+      phase: 'PATCH',
+      round: 1,
+      input: { agent_ref: 'reviewer', task: 'Inspect the patch.' },
+      timestamp: new Date('2026-02-20T00:00:01.000Z'),
+    });
+
+    const toolUse = lines.find(
+      (l) =>
+        l.type === 'stream_event' &&
+        l.parent_tool_use_id === 'call-1' &&
+        l.event?.type === 'content_block_start' &&
+        l.event?.content_block?.type === 'tool_use',
+    );
+
+    expect(toolUse).toMatchObject({
+      type: 'stream_event',
+      session_id: 'sess-tool-input',
+      parent_tool_use_id: 'call-1',
+      event: {
+        type: 'content_block_start',
+        content_block: {
+          type: 'tool_use',
+          id: 'call-1',
+          name: 'agent_dispatch',
+          input: { agent_ref: 'reviewer', task: 'Inspect the patch.' },
+        },
+      },
+    });
+  });
+
   it('matches golden fixture', () => {
     const fixtureUrl = new URL('../../../fixtures/headless/anthropic/basic.jsonl', import.meta.url);
     const expected = readFileSync(fixtureUrl, 'utf8')

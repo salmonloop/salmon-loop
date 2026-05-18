@@ -10,8 +10,8 @@ import {
   getDefaultSessionContextBudgetTokens,
   getLogger,
   normalizePermissionMode,
-  PlainReporter,
   resolveExecutionProfile,
+  SilentReporter,
   setPluginRegistry,
   setPromptRegistry,
   type ApplyBackOnDirty,
@@ -95,7 +95,7 @@ export async function handleRunCommand(options: any, command: Command) {
   const useGui = !headlessOutput && !printMode && allOptions.gui !== false && process.stdout.isTTY;
 
   if (headlessOutput) {
-    getLogger().setReporter(new PlainReporter());
+    getLogger().setReporter(new SilentReporter());
   }
 
   const wantSessionPersistence =
@@ -398,6 +398,7 @@ export async function handleRunCommand(options: any, command: Command) {
       writer: stdoutWriter,
       verbose: Boolean(allOptions.verbose),
       model: resolvedConfig.llm.models?.selectedModelId,
+      includeToolInput: headlessIncludeToolInput,
       getStructuredOutput: () =>
         structuredOutputState.ok ? structuredOutputState.candidate : null,
       getPayloadOverrides: () => {

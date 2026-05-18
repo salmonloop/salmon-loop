@@ -559,6 +559,56 @@ describe('runAutopilot', () => {
     expect(statusCalls).toBe(2);
   });
 
+  it('does not report headless and runtime artifacts as workspace changes', async () => {
+    const { runAutopilot } = await import('../../../../../src/core/grizzco/steps/autopilot.js');
+    queueWorkspaceFingerprint({ statusRecords: [] });
+    queueWorkspaceFingerprint({
+      statusRecords: [
+        trackedStatusRecord('src/app.ts'),
+        '? headless.jsonl',
+        '? headless.stderr',
+        '? .salmonloop/runtime/audit/run.json',
+      ],
+      workingHashes: {
+        'src/app.ts': 'app-after',
+        'headless.jsonl': 'jsonl-after',
+        'headless.stderr': 'stderr-after',
+        '.salmonloop/runtime/audit/run.json': 'audit-after',
+      },
+    });
+
+    const llm = {
+      chat: mock(async () => ({ role: 'assistant', content: 'fallback' })),
+      getModelId: () => 'gpt-test',
+    } as any;
+
+    const result = await runAutopilot({
+      options: {
+        instruction: 'inspect the repo and act',
+        llm,
+      },
+      workspace: {
+        baseRepoPath: '/repo',
+        workPath: '/repo',
+        strategy: 'direct',
+      },
+      toolstack: {
+        registry: { listAll: () => [] },
+        policy: { decide: () => ({ allowed: true }) },
+        router: {},
+      },
+      emit: () => {},
+      fs: {} as any,
+      fileStateResolver: {} as any,
+      shadowInitialRef: 'shadow',
+      artifactHints: {},
+      toolCallingAudit: [],
+    } as any);
+
+    expect(result.mutated).toBe(true);
+    expect(result.changedFiles).toEqual(['src/app.ts']);
+  });
+
   it('reports deleted tracked paths in changedFiles when autopilot removes a clean file', async () => {
     const { runAutopilot } = await import('../../../../../src/core/grizzco/steps/autopilot.js');
     const statusOutputs = [

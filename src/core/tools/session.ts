@@ -66,6 +66,8 @@ export interface ToolCallingSessionOptions {
   maxRounds?: number;
   maxToolCallsTotal?: number;
   maxToolCallsPerRound?: number;
+  maxAgentToolCallsTotal?: number;
+  maxAgentToolCallsPerRound?: number;
 }
 
 type ToolCorrectionHint = {
@@ -370,6 +372,7 @@ async function persistToolResultPreviewArtifact(params: {
 }
 
 function defaultMaxToolCallsTotalForPhase(phase: ExecutionPhase): number {
+  if (phase === Phase.AUTOPILOT) return 32;
   if (phase === Phase.EXPLORE) return 18;
   if (phase === Phase.PLAN) return 10;
   if (phase === Phase.PATCH) return 10;
@@ -377,13 +380,28 @@ function defaultMaxToolCallsTotalForPhase(phase: ExecutionPhase): number {
 }
 
 function defaultMaxToolCallsPerRoundForPhase(phase: ExecutionPhase): number {
+  if (phase === Phase.AUTOPILOT) return 8;
   if (phase === Phase.EXPLORE) return 6;
   if (phase === Phase.PLAN) return 4;
   if (phase === Phase.PATCH) return 4;
   return 4;
 }
 
-function getToolCallBudget(session: ToolCallingSessionOptions): {
+function defaultMaxAgentToolCallsTotalForPhase(phase: ExecutionPhase): number {
+  if (phase === Phase.AUTOPILOT) return 4;
+  if (phase === Phase.PLAN) return 2;
+  if (phase === Phase.CONTEXT) return 1;
+  return 1;
+}
+
+function defaultMaxAgentToolCallsPerRoundForPhase(phase: ExecutionPhase): number {
+  if (phase === Phase.AUTOPILOT) return 2;
+  if (phase === Phase.PLAN) return 1;
+  if (phase === Phase.CONTEXT) return 1;
+  return 1;
+}
+
+function getRegularToolCallBudget(session: ToolCallingSessionOptions): {
   maxTotal: number;
   maxPerRound: number;
 } {
@@ -396,35 +414,66 @@ function getToolCallBudget(session: ToolCallingSessionOptions): {
   };
 }
 
+function getAgentToolCallBudget(session: ToolCallingSessionOptions): {
+  maxTotal: number;
+  maxPerRound: number;
+} {
+  const maxTotal =
+    session.maxAgentToolCallsTotal ?? defaultMaxAgentToolCallsTotalForPhase(session.phase);
+  const maxPerRound =
+    session.maxAgentToolCallsPerRound ?? defaultMaxAgentToolCallsPerRoundForPhase(session.phase);
+  return {
+    maxTotal: Math.max(0, Math.floor(maxTotal)),
+    maxPerRound: Math.max(0, Math.floor(maxPerRound)),
+  };
+}
+
 type ToolCallBudgetState = {
   used: number;
   maxTotal: number;
   maxPerRound: number;
 };
 
-function resetToolCallBudgetState(session: ToolCallingSessionOptions): ToolCallBudgetState {
-  const budget = getToolCallBudget(session);
-  const state: ToolCallBudgetState = { used: 0, ...budget };
+type ToolCallBudgetBucket = 'regular' | 'agent';
+
+type ToolCallBudgetBucketsState = Record<ToolCallBudgetBucket, ToolCallBudgetState>;
+
+function createToolCallBudgetBucketsState(
+  session: ToolCallingSessionOptions,
+): ToolCallBudgetBucketsState {
+  return {
+    regular: { used: 0, ...getRegularToolCallBudget(session) },
+    agent: { used: 0, ...getAgentToolCallBudget(session) },
+  };
+}
+
+function resetToolCallBudgetState(session: ToolCallingSessionOptions): ToolCallBudgetBucketsState {
+  const state = createToolCallBudgetBucketsState(session);
   (
-    session as ToolCallingSessionOptions & { __toolCallBudgetState?: ToolCallBudgetState }
+    session as ToolCallingSessionOptions & {
+      __toolCallBudgetState?: ToolCallBudgetBucketsState;
+    }
   ).__toolCallBudgetState = state;
   return state;
 }
 
-function getToolCallBudgetState(session: ToolCallingSessionOptions): ToolCallBudgetState {
-  const budget = getToolCallBudget(session);
+function getToolCallBudgetState(session: ToolCallingSessionOptions): ToolCallBudgetBucketsState {
   const anySession = session as ToolCallingSessionOptions & {
-    __toolCallBudgetState?: ToolCallBudgetState;
+    __toolCallBudgetState?: ToolCallBudgetBucketsState;
   };
   const existing = anySession.__toolCallBudgetState;
   if (!existing) {
-    const created: ToolCallBudgetState = { used: 0, ...budget };
+    const created = createToolCallBudgetBucketsState(session);
     anySession.__toolCallBudgetState = created;
     return created;
   }
   // Ensure runtime overrides are respected.
-  existing.maxTotal = budget.maxTotal;
-  existing.maxPerRound = budget.maxPerRound;
+  const regular = getRegularToolCallBudget(session);
+  existing.regular.maxTotal = regular.maxTotal;
+  existing.regular.maxPerRound = regular.maxPerRound;
+  const agent = getAgentToolCallBudget(session);
+  existing.agent.maxTotal = agent.maxTotal;
+  existing.agent.maxPerRound = agent.maxPerRound;
   return existing;
 }
 
@@ -432,25 +481,34 @@ function initToolCallRoundBudget(params: {
   session: ToolCallingSessionOptions;
   phase: ExecutionPhase;
   round: number;
-  preparedCount: number;
-}): { roundCap: number; budgetState: ToolCallBudgetState } {
+  preparedCounts: Record<ToolCallBudgetBucket, number>;
+}): { roundCaps: Record<ToolCallBudgetBucket, number>; budgetState: ToolCallBudgetBucketsState } {
   const budgetState = getToolCallBudgetState(params.session);
-  const roundCap = Math.min(
-    budgetState.maxPerRound,
-    Math.max(0, budgetState.maxTotal - budgetState.used),
-  );
-  budgetState.used += params.preparedCount;
+  const roundCaps: Record<ToolCallBudgetBucket, number> = {
+    regular: Math.min(
+      budgetState.regular.maxPerRound,
+      Math.max(0, budgetState.regular.maxTotal - budgetState.regular.used),
+    ),
+    agent: Math.min(
+      budgetState.agent.maxPerRound,
+      Math.max(0, budgetState.agent.maxTotal - budgetState.agent.used),
+    ),
+  };
+  budgetState.regular.used += params.preparedCounts.regular;
+  budgetState.agent.used += params.preparedCounts.agent;
 
-  if (params.preparedCount > roundCap) {
+  for (const bucket of ['regular', 'agent'] as const) {
+    const denied = params.preparedCounts[bucket] - roundCaps[bucket];
+    if (denied <= 0) continue;
     params.session.emit?.({
       type: 'log',
       level: 'warn',
-      message: `Tool call budget exceeded; denying ${params.preparedCount - roundCap} tool calls (phase=${params.phase}, round=${params.round})`,
+      message: `Tool call budget exceeded; denying ${denied} ${bucket} tool calls (phase=${params.phase}, round=${params.round})`,
       timestamp: new Date(),
     });
   }
 
-  return { roundCap, budgetState };
+  return { roundCaps, budgetState };
 }
 
 function isFunctionCallStreamPart(
@@ -1320,11 +1378,22 @@ async function executeToolCalls(
   signal?: AbortSignal,
 ): Promise<void> {
   const prepared = prepareToolCallRequests(calls);
-  const { roundCap } = initToolCallRoundBudget({
+  const bucketByCallId = new Map<string, ToolCallBudgetBucket>();
+  const preparedCounts: Record<ToolCallBudgetBucket, number> = { regular: 0, agent: 0 };
+  for (const item of prepared) {
+    const spec =
+      typeof item.toolName === 'string'
+        ? session.toolstack.registry.listAll().find((s) => s.name === item.toolName)
+        : undefined;
+    const bucket: ToolCallBudgetBucket = spec?.intent === 'AGENT' ? 'agent' : 'regular';
+    bucketByCallId.set(item.callId, bucket);
+    preparedCounts[bucket]++;
+  }
+  const { roundCaps } = initToolCallRoundBudget({
     session,
     phase,
     round,
-    preparedCount: prepared.length,
+    preparedCounts,
   });
 
   const toolResults = new Map<string, ToolResult>();
@@ -1334,7 +1403,7 @@ async function executeToolCalls(
   const rawArgsTypeByCallId = new Map<string, string>();
   const patchCoercionByCallId = new Map<string, string>();
 
-  let allowedUsed = 0;
+  const allowedUsed: Record<ToolCallBudgetBucket, number> = { regular: 0, agent: 0 };
   for (const item of prepared) {
     const { callId, toolName, rawArgs } = item;
     const normalizedToolName = typeof toolName === 'string' ? toolName : 'unknown';
@@ -1426,7 +1495,8 @@ async function executeToolCalls(
 
     // Hard budget: deny tool execution once the session exceeds the configured budget.
     // We still return a tool result for protocol completeness and observability.
-    if (allowedUsed >= roundCap) {
+    const budgetBucket = bucketByCallId.get(callId) ?? 'regular';
+    if (allowedUsed[budgetBucket] >= roundCaps[budgetBucket]) {
       toolResults.set(callId, {
         id: callId,
         toolName: typeof toolName === 'string' ? toolName : 'unknown',
@@ -1435,7 +1505,9 @@ async function executeToolCalls(
         error: {
           code: 'TOOL_CALL_BUDGET_EXCEEDED',
           message:
-            'Tool call denied: tool calling budget exceeded for this session. Continue without additional tool calls.',
+            budgetBucket === 'agent'
+              ? 'Agent delegation denied: delegation budget exceeded for this session. Continue without additional agent dispatches or complete the task directly.'
+              : 'Tool call denied: tool calling budget exceeded for this session. Continue without additional tool calls.',
           retryable: false,
           failurePhase: phase,
         },
@@ -1444,7 +1516,7 @@ async function executeToolCalls(
       continue;
     }
 
-    allowedUsed++;
+    allowedUsed[budgetBucket]++;
 
     if (!toolName || typeof toolName !== 'string') {
       getLogger().warn('Received malformed tool call (missing function.name)');

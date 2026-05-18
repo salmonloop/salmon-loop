@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it, mock } from 'bun:test';
 
 import type { InitCtx } from '../../../src/core/grizzco/engine/pipeline/types.js';
-import { clearLogger, setLogger } from '../../../src/core/observability/logger.js';
+import { createLogger, setLogger } from '../../../src/core/observability/logger.js';
 import type { SubAgentProfile } from '../../../src/core/sub-agent/types.js';
 
 const { infoMock, warnMock, debugMock } = (() => ({
@@ -42,7 +42,7 @@ describe('SmallfryLoop', () => {
 
   afterAll(() => {
     mock.restore();
-    clearLogger();
+    setLogger(createLogger({ silent: true }));
   });
 
   beforeEach(() => {
@@ -98,6 +98,8 @@ describe('SmallfryLoop', () => {
     const loop = new SmallfryLoop(profile);
     await loop.execute(mockInitCtx);
 
+    expect(infoMock).not.toHaveBeenCalled();
+    expect(debugMock).toHaveBeenCalledWith(expect.stringContaining('[SmallfryLoop]'));
     expect(pipelineStepMock).toHaveBeenCalledWith('PLAN', expect.any(Function));
     expect(pipelineStepMock).not.toHaveBeenCalledWith('PATCH', expect.any(Function));
     expect(pipelineStepWithRecoveryMock).not.toHaveBeenCalled();

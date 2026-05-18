@@ -26,7 +26,7 @@ export class SmallfryLoop implements IExecutable<InitCtx, SubAgentResult> {
    * Run the recursive loop based on the stratagem.
    */
   async execute(initCtx: InitCtx): Promise<SubAgentResult> {
-    getLogger().info(`[SmallfryLoop] ${text.smallfry.status.working} (${this.profile.name})`);
+    getLogger().debug(`[SmallfryLoop] ${text.smallfry.status.working} (${this.profile.name})`);
 
     let pipeline: Pipeline<any> = Pipeline.of(initCtx);
 

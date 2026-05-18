@@ -21,6 +21,7 @@ export interface ReporterFactoryParams {
   getPayloadOverrides: () => Record<string, unknown> | undefined;
   getWarnings?: () => readonly HeadlessWarning[];
   model?: string;
+  includeToolInput?: boolean;
 }
 
 function createNoopReporter(): SalmonReporter {
@@ -43,6 +44,7 @@ export function createRunReporter(params: ReporterFactoryParams): SalmonReporter
         repoPath: params.repoPath,
         sessionId: params.sessionIdForOutput,
         writer: params.writer,
+        includeToolInput: params.includeToolInput,
       });
     }
 
@@ -59,6 +61,7 @@ export function createRunReporter(params: ReporterFactoryParams): SalmonReporter
       sessionId: params.sessionIdForOutput,
       writer: params.writer,
       getWarnings: params.getWarnings,
+      includeToolInput: params.includeToolInput,
     });
   }
 

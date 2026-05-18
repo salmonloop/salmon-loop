@@ -18,6 +18,23 @@ type JsonSchema =
   | { const: unknown; description?: string }
   | { description?: string };
 
+function formatToolExamplesForDescription(spec: ToolSpec): string {
+  if (!Array.isArray(spec.examples) || spec.examples.length === 0) return '';
+
+  const examples = spec.examples
+    .map((example) => {
+      const input = JSON.stringify(example.input);
+      return input ? `- ${example.description}: ${input}` : undefined;
+    })
+    .filter((line): line is string => Boolean(line));
+
+  return examples.length > 0 ? `\n\nExamples:\n${examples.join('\n')}` : '';
+}
+
+function toolDescriptionForModel(spec: ToolSpec): string {
+  return `${spec.description}${formatToolExamplesForDescription(spec)}`;
+}
+
 function unwrapForSchemaGeneration(schema: z.ZodTypeAny): z.ZodTypeAny {
   let current: z.ZodTypeAny = schema;
   for (let depth = 0; depth < 20; depth++) {
@@ -137,7 +154,7 @@ export function toolToOpenAI(spec: ToolSpec) {
     type: 'function',
     function: {
       name: spec.name,
-      description: spec.description,
+      description: toolDescriptionForModel(spec),
       parameters: zodToOpenApi3(spec.inputSchema as any),
     },
   };
@@ -149,7 +166,7 @@ export function toolToOpenAI(spec: ToolSpec) {
 export function toolToAnthropic(spec: ToolSpec) {
   return {
     name: spec.name,
-    description: spec.description,
+    description: toolDescriptionForModel(spec),
     input_schema: zodToOpenApi3(spec.inputSchema as any),
   };
 }
@@ -161,7 +178,7 @@ export function formatToolsForPrompt(specs: ToolSpec[]): string {
   return specs
     .map((spec) => {
       const schema = zodToOpenApi3(spec.inputSchema as any);
-      return `Tool: ${spec.name}\nDescription: ${spec.description}\nSchema: ${JSON.stringify(schema, null, 2)}`;
+      return `Tool: ${spec.name}\nDescription: ${toolDescriptionForModel(spec)}\nSchema: ${JSON.stringify(schema, null, 2)}`;
     })
     .join('\n\n---\n\n');
 }

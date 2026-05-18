@@ -130,7 +130,7 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
     this.activeAgents.set(agentId, { profile, status: 'hiring' });
     this.controller.registerAgent(agentId, profile, 'hiring');
 
-    getLogger().info(
+    getLogger().debug(
       `[SubAgentManager] ${text.smallfry.status.spawning} (ID: ${agentId}, Role: ${profile.role})`,
     );
 
@@ -355,7 +355,16 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
 
   private async persistArtifacts(agentId: string, result: SubAgentResult): Promise<SubAgentResult> {
     const patch = result.finalPatch;
-    if (!patch || typeof patch !== 'string') return result;
+    const { finalPatch: _ignored, ...rest } = result as any;
+    const auditArtifact = await this.persistAuditArtifact(rest.auditPath);
+
+    if (!patch || typeof patch !== 'string') {
+      return {
+        ...rest,
+        auditPath: auditArtifact?.handle ?? rest.auditPath,
+        auditArtifact: auditArtifact ?? rest.auditArtifact,
+      };
+    }
 
     const saved = await this.deps.artifactStore.saveText({
       content: patch,
@@ -363,8 +372,6 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
       fileExt: 'patch',
     });
 
-    const { finalPatch: _ignored, ...rest } = result as any;
-    const auditArtifact = await this.persistAuditArtifact(rest.auditPath);
     return {
       ...rest,
       auditPath: auditArtifact?.handle ?? rest.auditPath,

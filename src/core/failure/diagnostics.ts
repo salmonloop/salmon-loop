@@ -254,6 +254,17 @@ export function buildFailureGuidance(input: BuildFailureGuidanceInput): FailureG
     };
   }
 
+  if (input.reasonCode === 'VERIFY_COMMAND_MISSING') {
+    return {
+      diagnosticCode: 'VERIFY_COMMAND_MISSING',
+      safeHint: 'Autopilot changed the workspace but no verification command was configured.',
+      remediationSteps: [
+        'Provide a verify command that exercises the changed behavior.',
+        'Retry after configuring verification for this run.',
+      ],
+    };
+  }
+
   if (input.reasonCode === 'TOOL_CORRECTION_REQUIRED') {
     const correctionHint = (() => {
       switch (input.errorCode) {

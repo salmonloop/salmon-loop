@@ -23,6 +23,7 @@ export interface AnthropicStreamReporterOptions {
   repoPath?: string;
   sessionId?: string;
   writer?: StdoutWriter;
+  includeToolInput?: boolean;
 }
 
 export class AnthropicStreamReporter implements SalmonReporter {
@@ -30,15 +31,20 @@ export class AnthropicStreamReporter implements SalmonReporter {
   private readonly repoPath?: string;
   private readonly sessionId: string;
   private readonly writer: StdoutWriter;
+  private readonly includeToolInput: boolean;
 
   private lastTextResult: string | undefined;
-  private readonly assembler = new StreamAssembler();
+  private readonly assembler: StreamAssembler;
 
   constructor(options: AnthropicStreamReporterOptions = {}) {
     this.mode = options.mode ?? 'run';
     this.repoPath = options.repoPath;
     this.sessionId = options.sessionId ?? randomUUID();
     this.writer = options.writer ?? createStdoutWriter();
+    this.includeToolInput = options.includeToolInput ?? false;
+    this.assembler = new StreamAssembler({
+      deferToolRequestsUntilExecutionInput: this.includeToolInput,
+    });
   }
 
   onStart(instruction: string): void {
@@ -73,6 +79,7 @@ export class AnthropicStreamReporter implements SalmonReporter {
         const lines = encodeNormalizedToAnthropicStreamLines({
           sessionId: this.sessionId,
           event: normalizedEvent,
+          includeToolInput: this.includeToolInput,
         });
         for (const line of lines) this.emit(line);
       }

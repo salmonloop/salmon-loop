@@ -46,9 +46,10 @@ export interface SubAgentRequest {
   task: string; // The instruction/mission
   contextFiles?: string[];
   recursionDepth?: number;
-  session_target: 'isolated' | 'shared';
+  session_target?: 'isolated' | 'shared';
   timeout_seconds?: number;
   contextSnapshot?: SubAgentContextSnapshot;
+  expected_output?: 'diagnosis' | 'patch' | 'review';
 
   // Overrides
   budgetOverride?: {
@@ -159,15 +160,38 @@ export type SubAgentStatus = 'hiring' | 'thinking' | 'working' | 'submitting' | 
 export const SubAgentRequestSchema = z.object({
   agent_ref: z
     .string()
-    .describe('The specialized agent role to dispatch (e.g., explorer, surgeon)'),
-  task: z.string().describe('The specific task or instruction for the sub-agent'),
-  contextFiles: z.array(z.string()).optional(),
+    .min(1)
+    .describe(
+      'Required specialized agent role: explorer for read-only investigation, reviewer for audit, surgeon for implementation proposals, cleaner for lint/format cleanup.',
+    ),
+  task: z
+    .string()
+    .min(1)
+    .describe(
+      'Required concrete delegated mission. Include relevant files, failure symptoms, and the exact desired deliverable. Never leave this empty.',
+    ),
+  contextFiles: z
+    .array(z.string().describe('Repo-relative file path relevant to the delegated mission.'))
+    .optional()
+    .describe('Optional repo-relative files the sub-agent should inspect first.'),
   recursionDepth: z.number().optional().default(0),
   session_target: z
     .enum(['isolated', 'shared'])
     .default('isolated')
-    .describe('Whether the session should be isolated (shadow worktree) or shared'),
-  timeout_seconds: z.number().optional().describe('Maximum execution time in seconds'),
+    .describe('Optional runtime strategy. Omit unless shared context is explicitly needed.'),
+  timeout_seconds: z
+    .preprocess((value) => {
+      if (typeof value !== 'string') return value;
+      const trimmed = value.trim();
+      if (!/^\d+(?:\.\d+)?$/.test(trimmed)) return value;
+      return Number(trimmed);
+    }, z.number().positive())
+    .optional()
+    .describe('Maximum execution time in seconds'),
+  expected_output: z
+    .enum(['diagnosis', 'patch', 'review'])
+    .optional()
+    .describe('Expected deliverable. Use patch for coder-style implementation proposals.'),
   contextSnapshot: z
     .object({
       version: z.literal(SUB_AGENT_CONTEXT_SNAPSHOT_VERSION).optional().default(1),

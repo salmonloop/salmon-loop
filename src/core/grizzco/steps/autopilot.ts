@@ -253,18 +253,6 @@ async function captureWorkspaceFingerprint(workspacePath: string): Promise<Works
   };
 }
 
-function didWorkspaceFingerprintChange(
-  before: WorkspaceFingerprint,
-  after: WorkspaceFingerprint,
-): boolean {
-  return (
-    before.head !== after.head ||
-    before.index !== after.index ||
-    before.statusMetadata !== after.statusMetadata ||
-    before.workingContent !== after.workingContent
-  );
-}
-
 function collectChangedWorkspacePaths(
   before: WorkspaceFingerprint,
   after: WorkspaceFingerprint,
@@ -285,7 +273,56 @@ function collectChangedWorkspacePaths(
         beforeStatusEntries.get(path) !== afterStatusEntries.get(path) ||
         beforeEntries.get(path) !== afterEntries.get(path),
     )
+    .filter((path) => !isRuntimeGeneratedPath(path))
     .sort((left, right) => left.localeCompare(right));
+}
+
+function isRuntimeGeneratedPath(path: string): boolean {
+  if (path === '.salmonloop' || path.startsWith('.salmonloop/')) return true;
+  if (path === 'headless.jsonl' || path === 'headless.stderr') return true;
+  return false;
+}
+
+function lastFailedToolAuditEntry(
+  entries: readonly NonNullable<AutopilotCtx['toolCallingAudit']>[number][] | undefined,
+): NonNullable<AutopilotCtx['toolCallingAudit']>[number] | undefined {
+  if (!Array.isArray(entries)) return undefined;
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index];
+    if (entry?.toolResultStatus && entry.toolResultStatus !== 'ok') {
+      return entry;
+    }
+  }
+  return undefined;
+}
+
+function resolveAutopilotCompletion(params: {
+  content: string;
+  mutated: boolean;
+  localAudit: AutopilotCtx['toolCallingAudit'];
+}): NonNullable<AutopilotCtx['completion']> {
+  if (params.mutated) return { status: 'changed' };
+
+  const failedTool = lastFailedToolAuditEntry(params.localAudit);
+  if (failedTool) {
+    const reason = failedTool.toolResultErrorMessage
+      ? `Tool ${failedTool.toolName} failed: ${failedTool.toolResultErrorMessage}`
+      : `Tool ${failedTool.toolName} failed.`;
+    return {
+      status: 'tool_failure',
+      reason,
+      errorCode: failedTool.toolResultErrorCode,
+    };
+  }
+
+  if (params.content.trim()) {
+    return { status: 'read_only_answer' };
+  }
+
+  return {
+    status: 'no_effect',
+    reason: 'Autopilot completed without changing files or producing an answer.',
+  };
 }
 
 function buildAutopilotRequestContext(ctx: PreflightCtx, instruction: string): Context {
@@ -408,14 +445,14 @@ export async function runAutopilot(ctx: PreflightCtx): Promise<AutopilotCtx> {
     } else {
       try {
         const workspaceFingerprintAfter = await captureWorkspaceFingerprint(ctx.workspace.workPath);
-        mutated = didWorkspaceFingerprintChange(
-          workspaceFingerprintBefore,
-          workspaceFingerprintAfter,
-        );
         changedFiles = collectChangedWorkspacePaths(
           workspaceFingerprintBefore,
           workspaceFingerprintAfter,
         );
+        mutated =
+          changedFiles.length > 0 ||
+          workspaceFingerprintBefore.head !== workspaceFingerprintAfter.head ||
+          workspaceFingerprintBefore.index !== workspaceFingerprintAfter.index;
       } catch {
         mutated = true;
       }
@@ -426,6 +463,7 @@ export async function runAutopilot(ctx: PreflightCtx): Promise<AutopilotCtx> {
     ...ctx,
     mutated,
     changedFiles: changedFiles && changedFiles.length > 0 ? changedFiles : undefined,
+    completion: resolveAutopilotCompletion({ content, mutated, localAudit }),
     toolCallingAudit: mergedAudit,
     report: {
       kind: 'answer',
@@ -446,7 +484,12 @@ export async function runAutopilotVerifyGate(ctx: AutopilotCtx): Promise<Autopil
   if (!ctx.options.verify) {
     return {
       ...ctx,
-      verifyResult: { ok: true, output: text.loop.verificationSkipped, exitCode: null },
+      completion: {
+        status: 'verification_missing',
+        reason: 'Autopilot changed the workspace but no verification command was configured.',
+        errorCode: 'VERIFY_COMMAND_MISSING',
+      },
+      verifyResult: undefined,
     };
   }
 

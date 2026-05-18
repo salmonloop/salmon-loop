@@ -173,6 +173,46 @@ describe('sub-agent task-spawn context snapshot injection', () => {
     ]);
   });
 
+  it('normalizes minimal coder delegation requests to isolated patch proposals', async () => {
+    const { subAgentTaskSpec } = await import('../../../src/core/sub-agent/tools/task-spawn.js');
+
+    await subAgentTaskSpec.executor(
+      {
+        agent_ref: 'surgeon',
+        task: 'diagnose failing tests and propose a fix',
+      },
+      {
+        repoRoot: '/repo',
+        attemptId: 1,
+        dryRun: false,
+      } as any,
+    );
+
+    expect(executeMock).toHaveBeenCalledTimes(1);
+    const forwarded = executeMock.mock.calls[0]?.[0];
+    expect(forwarded).toEqual(
+      expect.objectContaining({
+        agent_ref: 'surgeon',
+        task: 'diagnose failing tests and propose a fix',
+        session_target: 'isolated',
+        expected_output: 'patch',
+      }),
+    );
+  });
+
+  it('keeps agent_dispatch examples model-visible without making empty input valid', async () => {
+    const { subAgentTaskSpec } = await import('../../../src/core/sub-agent/tools/task-spawn.js');
+
+    expect(subAgentTaskSpec.examples?.length).toBeGreaterThan(0);
+    expect(subAgentTaskSpec.examples?.[0]?.input).toEqual(
+      expect.objectContaining({
+        agent_ref: 'explorer',
+        task: expect.stringContaining('Inspect'),
+      }),
+    );
+    expect(subAgentTaskSpec.inputSchema.safeParse({}).success).toBe(false);
+  });
+
   it('falls back to isolated mode when shared prefix consistency mismatches', async () => {
     const { subAgentTaskSpec } = await import('../../../src/core/sub-agent/tools/task-spawn.js');
 

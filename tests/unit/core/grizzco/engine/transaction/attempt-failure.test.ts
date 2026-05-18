@@ -111,4 +111,102 @@ describe('resolveAttemptFailure diagnostics', () => {
     expect(failure?.safeHint).toBeTruthy();
     expect(failure?.remediationSteps.length).toBeGreaterThan(0);
   });
+
+  it('does not allow autopilot tool failures with no workspace effect to report success', () => {
+    const failure = resolveAttemptFailure({
+      flowReport: {
+        success: true,
+        duration: 1,
+        traces: [],
+      } as any,
+      context: {
+        options: { environmentMode: 'strict' },
+        mutated: false,
+        completion: {
+          status: 'tool_failure',
+          reason: 'Tool agent_dispatch failed: missing task.',
+          errorCode: 'INVALID_INPUT',
+        },
+        report: {
+          kind: 'answer',
+          summary: 'I could not continue.',
+          timestamp: 1,
+        },
+      } as any,
+      flowMode: 'autopilot',
+    });
+
+    expect(failure).toBeTruthy();
+    expect(failure?.reasonCode).toBe('TOOL_CORRECTION_REQUIRED');
+    expect(failure?.failurePhase).toBe('AUTOPILOT');
+    expect(failure?.errorCode).toBe('INVALID_INPUT');
+    expect(failure?.retryable).toBe(true);
+  });
+
+  it('requires verification when autopilot changed the workspace', () => {
+    const failure = resolveAttemptFailure({
+      flowReport: {
+        success: true,
+        duration: 1,
+        traces: [],
+      } as any,
+      context: {
+        options: { environmentMode: 'strict' },
+        mutated: true,
+        changedFiles: ['src/app.ts'],
+        completion: {
+          status: 'verification_missing',
+          reason: 'Autopilot changed the workspace but no verification command was configured.',
+          errorCode: 'VERIFY_COMMAND_MISSING',
+        },
+        report: {
+          kind: 'answer',
+          summary: 'Changed src/app.ts.',
+          timestamp: 1,
+        },
+      } as any,
+      flowMode: 'autopilot',
+    });
+
+    expect(failure).toBeTruthy();
+    expect(failure?.reasonCode).toBe('VERIFY_COMMAND_MISSING');
+    expect(failure?.failurePhase).toBe('VERIFY');
+    expect(failure?.retryable).toBe(false);
+    expect(failure?.safeHint).toContain('verification command');
+  });
+
+  it('allows read-only autopilot answers without forcing sub-agent artifact consumption', () => {
+    const failure = resolveAttemptFailure({
+      flowReport: {
+        success: true,
+        duration: 1,
+        traces: [],
+      } as any,
+      context: {
+        options: { environmentMode: 'strict' },
+        mutated: false,
+        completion: { status: 'read_only_answer' },
+        toolCallingAudit: [
+          {
+            toolName: 'agent_dispatch',
+            toolResultStatus: 'ok',
+            toolResultPatchArtifact: {
+              handle: 's8p://artifact/subagent-patch',
+              mimeType: 'text/x-diff',
+              sha256: 'patch',
+              size: 100,
+            },
+          },
+        ],
+        report: {
+          kind: 'answer',
+          summary: 'The requested result is diagnostic only.',
+          timestamp: 1,
+        },
+      } as any,
+      flowMode: 'autopilot',
+    });
+
+    expect(failure).toBeUndefined();
+  });
 });

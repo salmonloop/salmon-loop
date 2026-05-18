@@ -3,6 +3,32 @@ import { describe, expect, it } from 'bun:test';
 import { SubAgentRequestSchema } from '../../../src/core/sub-agent/types.js';
 
 describe('sub-agent types schema', () => {
+  it('accepts a minimal delegation request and applies safe runtime defaults', () => {
+    const parsed = SubAgentRequestSchema.parse({
+      agent_ref: 'surgeon',
+      task: 'inspect failing tests and propose a patch',
+    });
+
+    expect(parsed.session_target).toBe('isolated');
+    expect(parsed.recursionDepth).toBe(0);
+  });
+
+  it('normalizes unambiguous numeric timeout strings without accepting empty missions', () => {
+    const parsed = SubAgentRequestSchema.parse({
+      agent_ref: 'surgeon',
+      task: 'inspect failing tests and propose a patch',
+      timeout_seconds: '120',
+    });
+
+    expect(parsed.timeout_seconds).toBe(120);
+    expect(() =>
+      SubAgentRequestSchema.parse({
+        agent_ref: '',
+        task: '',
+      }),
+    ).toThrow();
+  });
+
   it('accepts conversationContext entries with tool metadata', () => {
     const parsed = SubAgentRequestSchema.parse({
       agent_ref: 'surgeon',

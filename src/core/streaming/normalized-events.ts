@@ -91,6 +91,7 @@ export type NormalizedStreamEvent =
       toolName: string;
       phase: ExecutionPhase;
       round: number;
+      input?: unknown;
     } & NormalizedBaseEvent)
   | ({
       type: 'normalized.tool_request_end';

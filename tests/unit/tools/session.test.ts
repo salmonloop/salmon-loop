@@ -188,6 +188,455 @@ describe('chatWithTools', () => {
     expect(executed).toBe(2);
   });
 
+  it('keeps agent delegation available when regular tool calls exhaust their budget', async () => {
+    const registry = new ToolRegistry();
+    const policy = new ToolPolicy();
+    const budget = new BudgetGuard();
+    const audit = new ToolAuditLogger();
+    const sanitizer = new ToolSanitizer();
+    const router = new ToolRouter(registry, policy, budget, audit, sanitizer);
+
+    const executed: string[] = [];
+    const readSpec: ToolSpec<{ text: string }, { text: string }> = {
+      name: 'test.read',
+      source: 'builtin',
+      intent: 'READ',
+      description: 'Read tool for testing',
+      riskLevel: 'low',
+      sideEffects: ['none'],
+      concurrency: 'parallel_ok',
+      allowedPhases: [Phase.PLAN],
+      inputSchema: z.object({ text: z.string() }),
+      outputSchema: z.object({ text: z.string() }),
+      executor: async (input) => {
+        executed.push(`read:${input.text}`);
+        return { text: input.text };
+      },
+    };
+    const agentSpec: ToolSpec<{ task: string }, { ok: boolean }> = {
+      name: 'test.agent',
+      source: 'builtin',
+      intent: 'AGENT',
+      description: 'Delegation tool for testing',
+      riskLevel: 'medium',
+      sideEffects: ['none'],
+      concurrency: 'parallel_ok',
+      allowedPhases: [Phase.PLAN],
+      inputSchema: z.object({ task: z.string() }),
+      outputSchema: z.object({ ok: z.boolean() }),
+      executor: async (input) => {
+        executed.push(`agent:${input.task}`);
+        return { ok: true };
+      },
+    };
+    registry.register(readSpec);
+    registry.register(agentSpec);
+
+    const llm: LLM = {
+      async chat(messages) {
+        const toolMsgs = messages.filter((m) => m.role === 'tool');
+        if (toolMsgs.length === 0) {
+          return {
+            role: 'assistant',
+            content: '',
+            tool_calls: [
+              {
+                id: 'call_read_1',
+                type: 'function',
+                function: { name: 'test.read', arguments: JSON.stringify({ text: 'a' }) },
+              },
+              {
+                id: 'call_read_2',
+                type: 'function',
+                function: { name: 'test.read', arguments: JSON.stringify({ text: 'b' }) },
+              },
+              {
+                id: 'call_agent',
+                type: 'function',
+                function: { name: 'test.agent', arguments: JSON.stringify({ task: 'inspect' }) },
+              },
+            ],
+          };
+        }
+
+        const parsed = toolMsgs.map((m) => JSON.parse(m.content));
+        const byTool = new Map(parsed.map((p) => [p.toolName, p]));
+        expect(parsed.filter((p) => p.status === 'ok')).toHaveLength(2);
+        expect(byTool.get('test.agent')?.status).toBe('ok');
+        expect(
+          parsed.some(
+            (p) => p.toolName === 'test.read' && p.error?.code === 'TOOL_CALL_BUDGET_EXCEEDED',
+          ),
+        ).toBe(true);
+
+        return { role: 'assistant', content: 'DONE' };
+      },
+      async createPlan() {
+        throw new Error('not used');
+      },
+      async createPatch() {
+        throw new Error('not used');
+      },
+    };
+
+    const final = await chatWithTools(
+      [{ role: 'user', content: 'prompt' }],
+      {},
+      {
+        phase: Phase.PLAN,
+        llm,
+        runtime: {
+          repoRoot: '/tmp',
+          attemptId: 1,
+          dryRun: true,
+          model: 'test-model',
+          worktreeRoot: '/tmp',
+        },
+        toolstack: { registry, policy, router },
+        maxToolCallsPerRound: 1,
+        maxToolCallsTotal: 1,
+      },
+    );
+
+    expect(final.content).toBe('DONE');
+    expect(executed).toEqual(['read:a', 'agent:inspect']);
+  });
+
+  it('enforces explicit agent delegation budgets independently from regular tools', async () => {
+    const registry = new ToolRegistry();
+    const policy = new ToolPolicy();
+    const budget = new BudgetGuard();
+    const audit = new ToolAuditLogger();
+    const sanitizer = new ToolSanitizer();
+    const router = new ToolRouter(registry, policy, budget, audit, sanitizer);
+
+    let executed = 0;
+    const agentSpec: ToolSpec<{ task: string }, { ok: boolean }> = {
+      name: 'test.agent',
+      source: 'builtin',
+      intent: 'AGENT',
+      description: 'Delegation tool for testing',
+      riskLevel: 'medium',
+      sideEffects: ['none'],
+      concurrency: 'parallel_ok',
+      allowedPhases: [Phase.PLAN],
+      inputSchema: z.object({ task: z.string() }),
+      outputSchema: z.object({ ok: z.boolean() }),
+      executor: async () => {
+        executed++;
+        return { ok: true };
+      },
+    };
+    registry.register(agentSpec);
+
+    const llm: LLM = {
+      async chat(messages) {
+        const toolMsgs = messages.filter((m) => m.role === 'tool');
+        if (toolMsgs.length === 0) {
+          return {
+            role: 'assistant',
+            content: '',
+            tool_calls: [
+              {
+                id: 'call_agent_1',
+                type: 'function',
+                function: { name: 'test.agent', arguments: JSON.stringify({ task: 'inspect' }) },
+              },
+              {
+                id: 'call_agent_2',
+                type: 'function',
+                function: { name: 'test.agent', arguments: JSON.stringify({ task: 'review' }) },
+              },
+            ],
+          };
+        }
+
+        const parsed = toolMsgs.map((m) => JSON.parse(m.content));
+        expect(parsed.filter((p) => p.status === 'ok')).toHaveLength(1);
+        expect(parsed.filter((p) => p.error?.code === 'TOOL_CALL_BUDGET_EXCEEDED')).toHaveLength(1);
+
+        return { role: 'assistant', content: 'DONE' };
+      },
+      async createPlan() {
+        throw new Error('not used');
+      },
+      async createPatch() {
+        throw new Error('not used');
+      },
+    };
+
+    const final = await chatWithTools(
+      [{ role: 'user', content: 'prompt' }],
+      {},
+      {
+        phase: Phase.PLAN,
+        llm,
+        runtime: {
+          repoRoot: '/tmp',
+          attemptId: 1,
+          dryRun: true,
+          model: 'test-model',
+          worktreeRoot: '/tmp',
+        },
+        toolstack: { registry, policy, router },
+        maxAgentToolCallsPerRound: 1,
+        maxAgentToolCallsTotal: 1,
+      },
+    );
+
+    expect(final.content).toBe('DONE');
+    expect(executed).toBe(1);
+  });
+
+  it('lets autopilot complete a delegated multi-file edit and verify task using default budgets', async () => {
+    const registry = new ToolRegistry();
+    const policy = new ToolPolicy();
+    const budget = new BudgetGuard();
+    const audit = new ToolAuditLogger();
+    const sanitizer = new ToolSanitizer();
+    const router = new ToolRouter(registry, policy, budget, audit, sanitizer);
+
+    const executed: string[] = [];
+    const register = <I extends Record<string, unknown>, O extends Record<string, unknown>>(
+      spec: ToolSpec<I, O>,
+    ) => {
+      registry.register(spec);
+    };
+
+    register({
+      name: 'fs.list_directory',
+      source: 'builtin',
+      intent: 'LIST',
+      description: 'List project files',
+      riskLevel: 'low',
+      sideEffects: ['fs_read'],
+      concurrency: 'parallel_ok',
+      allowedPhases: [Phase.AUTOPILOT],
+      inputSchema: z.object({ path: z.string() }),
+      outputSchema: z.object({ entries: z.array(z.string()) }),
+      executor: async (input) => {
+        executed.push(`list:${input.path}`);
+        return { entries: ['src/catalog.js', 'src/cart.js', 'test/cart.test.js'] };
+      },
+    });
+    register({
+      name: 'fs.read',
+      source: 'builtin',
+      intent: 'READ',
+      description: 'Read a file',
+      riskLevel: 'low',
+      sideEffects: ['fs_read'],
+      concurrency: 'parallel_ok',
+      allowedPhases: [Phase.AUTOPILOT],
+      inputSchema: z.object({ file: z.string() }),
+      outputSchema: z.object({ content: z.string(), size: z.number() }),
+      executor: async (input) => {
+        executed.push(`read:${input.file}`);
+        return { content: `content:${input.file}`, size: input.file.length };
+      },
+    });
+    register({
+      name: 'agent_dispatch',
+      source: 'builtin',
+      intent: 'AGENT',
+      description: 'Dispatch sub-agent',
+      riskLevel: 'medium',
+      sideEffects: ['none', 'fs_read'],
+      concurrency: 'parallel_ok',
+      allowedPhases: [Phase.AUTOPILOT],
+      inputSchema: z.object({ agent_ref: z.string(), task: z.string() }),
+      outputSchema: z.object({ success: z.boolean(), summary: z.string() }),
+      executor: async (input) => {
+        executed.push(`agent:${input.agent_ref}`);
+        return { success: true, summary: input.task };
+      },
+    });
+    register({
+      name: 'fs.write_file',
+      source: 'builtin',
+      intent: 'WRITE',
+      description: 'Write a file',
+      riskLevel: 'high',
+      sideEffects: ['fs_write'],
+      concurrency: 'serial_only',
+      allowedPhases: [Phase.AUTOPILOT],
+      inputSchema: z.object({ file: z.string(), content: z.string() }),
+      outputSchema: z.object({ ok: z.boolean(), path: z.string() }),
+      executor: async (input) => {
+        executed.push(`write:${input.file}`);
+        return { ok: true, path: input.file };
+      },
+    });
+    register({
+      name: 'shell.exec',
+      source: 'builtin',
+      intent: 'INFRA',
+      description: 'Run verification',
+      riskLevel: 'medium',
+      sideEffects: ['process'],
+      concurrency: 'serial_only',
+      allowedPhases: [Phase.AUTOPILOT],
+      inputSchema: z.object({ command: z.string() }),
+      outputSchema: z.object({ exitCode: z.number(), stdout: z.string(), stderr: z.string() }),
+      executor: async (input) => {
+        executed.push(`verify:${input.command}`);
+        return { exitCode: 0, stdout: 'pass', stderr: '' };
+      },
+    });
+
+    let round = 0;
+    const llm: LLM = {
+      async chat(messages) {
+        const toolMessages = messages.filter((m) => m.role === 'tool');
+        for (const message of toolMessages) {
+          const parsed = JSON.parse(message.content);
+          expect(parsed.error?.code).not.toBe('TOOL_CALL_BUDGET_EXCEEDED');
+        }
+
+        if (round === 0) {
+          round++;
+          return {
+            role: 'assistant',
+            content: '',
+            tool_calls: [
+              {
+                id: 'call_list',
+                type: 'function',
+                function: { name: 'fs.list_directory', arguments: JSON.stringify({ path: '.' }) },
+              },
+              {
+                id: 'call_read_catalog',
+                type: 'function',
+                function: {
+                  name: 'fs.read',
+                  arguments: JSON.stringify({ file: 'src/catalog.js' }),
+                },
+              },
+              {
+                id: 'call_read_cart',
+                type: 'function',
+                function: { name: 'fs.read', arguments: JSON.stringify({ file: 'src/cart.js' }) },
+              },
+              {
+                id: 'call_read_test',
+                type: 'function',
+                function: {
+                  name: 'fs.read',
+                  arguments: JSON.stringify({ file: 'test/cart.test.js' }),
+                },
+              },
+              {
+                id: 'call_agent_explorer',
+                type: 'function',
+                function: {
+                  name: 'agent_dispatch',
+                  arguments: JSON.stringify({ agent_ref: 'explorer', task: 'Inspect failures' }),
+                },
+              },
+              {
+                id: 'call_agent_reviewer',
+                type: 'function',
+                function: {
+                  name: 'agent_dispatch',
+                  arguments: JSON.stringify({ agent_ref: 'reviewer', task: 'Review fix plan' }),
+                },
+              },
+            ],
+          };
+        }
+
+        if (round === 1) {
+          round++;
+          return {
+            role: 'assistant',
+            content: '',
+            tool_calls: [
+              {
+                id: 'call_write_catalog',
+                type: 'function',
+                function: {
+                  name: 'fs.write_file',
+                  arguments: JSON.stringify({
+                    file: 'src/catalog.js',
+                    content: 'export const catalog = [];\n',
+                  }),
+                },
+              },
+              {
+                id: 'call_write_cart',
+                type: 'function',
+                function: {
+                  name: 'fs.write_file',
+                  arguments: JSON.stringify({
+                    file: 'src/cart.js',
+                    content: 'export const cart = [];\n',
+                  }),
+                },
+              },
+            ],
+          };
+        }
+
+        if (round === 2) {
+          round++;
+          return {
+            role: 'assistant',
+            content: '',
+            tool_calls: [
+              {
+                id: 'call_verify',
+                type: 'function',
+                function: {
+                  name: 'shell.exec',
+                  arguments: JSON.stringify({ command: 'node --test test/*.test.js' }),
+                },
+              },
+            ],
+          };
+        }
+
+        return { role: 'assistant', content: 'DONE' };
+      },
+      async createPlan() {
+        throw new Error('not used');
+      },
+      async createPatch() {
+        throw new Error('not used');
+      },
+    };
+
+    const final = await chatWithTools(
+      [{ role: 'user', content: 'fix the cart workflow and verify it' }],
+      {},
+      {
+        phase: Phase.AUTOPILOT,
+        llm,
+        runtime: {
+          repoRoot: '/tmp',
+          attemptId: 1,
+          dryRun: true,
+          flowMode: 'autopilot',
+          model: 'test-model',
+          worktreeRoot: '/tmp',
+        },
+        toolstack: { registry, policy, router },
+      },
+    );
+
+    expect(final.content).toBe('DONE');
+    expect(executed).toEqual([
+      'list:.',
+      'read:src/catalog.js',
+      'read:src/cart.js',
+      'read:test/cart.test.js',
+      'agent:explorer',
+      'agent:reviewer',
+      'write:src/catalog.js',
+      'write:src/cart.js',
+      'verify:node --test test/*.test.js',
+    ]);
+  });
+
   it('records args preview in toolCallingAudit only for INVALID_INPUT tool results', async () => {
     const registry = new ToolRegistry();
     const policy = new ToolPolicy();

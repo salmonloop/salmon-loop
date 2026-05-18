@@ -934,7 +934,7 @@ Please return the patch in PURE unified diff format:`;
     },
     ui: {
       spawnToolDescription:
-        'Deploy a specialized Smallfry (sub-agent) for autonomous task execution.',
+        'Delegate a concrete sub-task to a specialized sub-agent. This is not a no-argument action: always provide agent_ref and task. Use agent_ref="explorer" for read-only investigation, "reviewer" for audit, "surgeon" for implementation proposals, or "cleaner" for lint/format cleanup. Keep task self-contained with relevant files and the exact deliverable. Omit session_target unless shared context is explicitly required.',
       progressTitle: (id: string) => `[Smallfry: ${id}]`,
     },
   },

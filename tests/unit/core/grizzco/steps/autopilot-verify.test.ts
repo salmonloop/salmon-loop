@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
 
 import { ArtifactStore } from '../../../../../src/core/sub-agent/artifacts/store.js';
 import * as verificationRunner from '../../../../../src/core/verification/runner.js';
-import { text } from '../../../../../src/locales/index.js';
 
 describe('runAutopilotVerifyGate', () => {
   beforeEach(() => {
@@ -54,7 +53,7 @@ describe('runAutopilotVerifyGate', () => {
     expect(verificationRunner.runVerify).not.toHaveBeenCalled();
   });
 
-  it('returns a skipped verify result when no verify command is configured', async () => {
+  it('does not treat changed work as verified when no verify command is configured', async () => {
     const { runAutopilotVerifyGate } =
       await import('../../../../../src/core/grizzco/steps/autopilot.js');
 
@@ -65,11 +64,13 @@ describe('runAutopilotVerifyGate', () => {
       emit: () => {},
     } as any);
 
-    expect(result.verifyResult).toEqual({
-      ok: true,
-      output: text.loop.verificationSkipped,
-      exitCode: null,
-    });
+    expect(result.verifyResult).toBeUndefined();
+    expect(result.completion).toEqual(
+      expect.objectContaining({
+        status: 'verification_missing',
+        errorCode: 'VERIFY_COMMAND_MISSING',
+      }),
+    );
     expect(verificationRunner.runVerify).not.toHaveBeenCalled();
   });
 });

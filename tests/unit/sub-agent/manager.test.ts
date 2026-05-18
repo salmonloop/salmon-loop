@@ -14,13 +14,13 @@ const { infoMock, debugMock, errorMock, warnMock } = (() => ({
   warnMock: mock(),
 }))();
 
-import { clearLogger, setLogger } from '../../../src/core/observability/logger.js';
+import { createLogger, setLogger } from '../../../src/core/observability/logger.js';
 import { SubAgentManager } from '../../../src/core/sub-agent/core/manager.js';
 
 describe('SubAgentManager setup cleanup', () => {
   afterAll(() => {
     mock.restore();
-    clearLogger();
+    setLogger(createLogger({ silent: true }));
   });
 
   beforeEach(() => {
@@ -90,5 +90,7 @@ describe('SubAgentManager setup cleanup', () => {
     expect(result.success).toBe(false);
     expect(result.reasonCode).toBe('LOOP_CRASH');
     expect(teardownMock).toHaveBeenCalledTimes(1);
+    expect(infoMock).not.toHaveBeenCalled();
+    expect(debugMock).toHaveBeenCalledWith(expect.stringContaining('[SubAgentManager]'));
   });
 });

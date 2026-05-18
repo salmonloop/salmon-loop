@@ -13,6 +13,7 @@ describe('encodeNormalizedToAnthropicStreamLines', () => {
         toolName: 'fs.readFile',
         phase: 'PATCH',
         round: 1,
+        input: { file: 'secret.txt' },
         timestamp: new Date('2026-02-20T00:00:01.000Z'),
       } satisfies NormalizedStreamEvent,
     });
@@ -26,6 +27,35 @@ describe('encodeNormalizedToAnthropicStreamLines', () => {
           id: 'call-1',
           name: 'fs.readFile',
           input: {},
+        },
+      },
+    });
+  });
+
+  it('emits provided redacted tool input when explicitly enabled', () => {
+    const lines = encodeNormalizedToAnthropicStreamLines({
+      sessionId: 'sess-1',
+      includeToolInput: true,
+      event: {
+        type: 'normalized.tool_request_start',
+        callId: 'call-1',
+        toolName: 'agent_dispatch',
+        phase: 'PATCH',
+        round: 1,
+        input: { agent_ref: 'reviewer', task: 'Inspect the patch.' },
+        timestamp: new Date('2026-02-20T00:00:01.000Z'),
+      } satisfies NormalizedStreamEvent,
+    });
+
+    expect(lines[1]).toMatchObject({
+      type: 'stream_event',
+      event: {
+        type: 'content_block_start',
+        content_block: {
+          type: 'tool_use',
+          id: 'call-1',
+          name: 'agent_dispatch',
+          input: { agent_ref: 'reviewer', task: 'Inspect the patch.' },
         },
       },
     });
