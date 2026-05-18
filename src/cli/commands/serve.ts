@@ -283,7 +283,10 @@ export async function handleServeCommand(_options: unknown, command: Command) {
             const tokenBuf = Buffer.from(token);
             for (const expectedToken of authTokens) {
               const expectedBuf = Buffer.from(expectedToken);
-              if (tokenBuf.length === expectedBuf.length && crypto.timingSafeEqual(tokenBuf, expectedBuf)) {
+              if (
+                tokenBuf.length === expectedBuf.length &&
+                crypto.timingSafeEqual(tokenBuf, expectedBuf)
+              ) {
                 isValid = true;
                 break;
               }
