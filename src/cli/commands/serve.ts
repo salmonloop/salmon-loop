@@ -13,6 +13,7 @@ import {
   getUserAcpSessionStorePath,
   GitSnapshotCheckpointService,
   getLogger,
+  PACKAGE_VERSION,
   PlainReporter,
   PluginLoader,
   resolveExtensions,
@@ -296,7 +297,7 @@ export async function handleServeCommand(_options: unknown, command: Command) {
     startAcpStdioServer((conn) =>
       createAcpFormalAgent({
         conn,
-        agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+        agentInfo: { name: 'salmon-loop', version: PACKAGE_VERSION },
         defaultModeId: 'autopilot',
         defaultPermissionPolicy: resolveDefaultAcpPermissionPolicy(defaultPermissionMode),
         checkpointReader: {
@@ -449,7 +450,7 @@ export async function handleServeAcpCommand(_options: unknown, command: Command)
   startAcpStdioServer((conn) =>
     createAcpFormalAgent({
       conn,
-      agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+      agentInfo: { name: 'salmon-loop', version: PACKAGE_VERSION },
       defaultModeId: 'autopilot',
       defaultPermissionPolicy: resolveDefaultAcpPermissionPolicy(defaultPermissionMode),
       checkpointReader: {

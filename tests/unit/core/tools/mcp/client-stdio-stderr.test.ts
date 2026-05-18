@@ -1,6 +1,8 @@
 import { PassThrough } from 'stream';
 
-import { describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it, mock } from 'bun:test';
+
+import { clearLogger, setLogger } from '../../../../../src/core/observability/logger.js';
 
 const spawnInteractiveProcessMock = mock().mockImplementation(() => ({
   stdout: new PassThrough(),
@@ -11,7 +13,13 @@ const spawnInteractiveProcessMock = mock().mockImplementation(() => ({
 }));
 
 describe('McpClient (stdio)', () => {
+  afterEach(() => {
+    clearLogger();
+    mock.restore();
+  });
+
   it('pipes stderr instead of inheriting it', async () => {
+    setLogger({ info: mock(), warn: mock(), error: mock(), success: mock() } as any);
     const runtime = await import('../../../../../src/core/runtime/process-runner.js');
     spyOn(runtime, 'spawnInteractiveProcess').mockImplementation(
       spawnInteractiveProcessMock as any,

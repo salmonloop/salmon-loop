@@ -100,6 +100,25 @@ describe('AiSdkLLM.chatStream', () => {
     });
   });
 
+  it('sends system prompt through the AI SDK system field when streaming', async () => {
+    const llm = new AiSdkLLM({
+      clientPackage: '@ai-sdk/openai',
+      apiKey: 'test',
+      modelId: 'gpt-mock',
+    });
+
+    for await (const _chunk of llm.chatStream!([
+      { role: 'system', content: 'Stream as an agent.' },
+      { role: 'user', content: 'hi' },
+    ])) {
+      // consume stream
+    }
+
+    const args = await getStreamTextCallArgs();
+    expect(args.system).toBe('Stream as an agent.');
+    expect(args.messages).toEqual([{ role: 'user', content: 'hi' }]);
+  });
+
   it('falls back to non-streaming chat when streaming is disabled', async () => {
     const { streamText } = await import('ai');
     (streamText as unknown as { mockClear: () => void }).mockClear();

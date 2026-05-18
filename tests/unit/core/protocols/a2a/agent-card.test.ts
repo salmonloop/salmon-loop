@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
 import { buildA2AAgentCard } from '../../../../../src/core/protocols/a2a/agent-card.ts';
+import { PACKAGE_VERSION } from '../../../../../src/core/version.ts';
 
 describe('A2A agent card', () => {
   test('declares bearer auth and projected capabilities', () => {
@@ -18,6 +19,7 @@ describe('A2A agent card', () => {
     });
 
     expect(card.name).toBe('salmon-loop');
+    expect(card.version).toBe(PACKAGE_VERSION);
     expect(card.skills).toHaveLength(1);
     expect(card.skills[0]).toMatchObject({
       id: 'patch',

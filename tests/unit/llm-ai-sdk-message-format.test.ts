@@ -84,6 +84,24 @@ describe('AiSdkLLM message mapping', () => {
     });
   });
 
+  it('sends system prompt through the AI SDK system field instead of message history', async () => {
+    const llm = new AiSdkLLM({
+      clientPackage: '@ai-sdk/openai',
+      apiKey: 'test',
+      modelId: 'gpt-mock',
+    });
+
+    await llm.chat([
+      { role: 'system', content: 'You are a coding agent.' },
+      { role: 'system', content: 'Follow repository conventions.' },
+      { role: 'user', content: 'hi' },
+    ]);
+
+    const args = await getGenerateTextCallArgs();
+    expect(args.system).toBe('You are a coding agent.\n\nFollow repository conventions.');
+    expect(args.messages).toEqual([{ role: 'user', content: 'hi' }]);
+  });
+
   it('preserves assistant reasoning when replaying tool-call turns', async () => {
     const llm = new AiSdkLLM({
       clientPackage: '@ai-sdk/openai-compatible',

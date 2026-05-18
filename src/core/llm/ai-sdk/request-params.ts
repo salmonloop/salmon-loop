@@ -104,6 +104,44 @@ function resolveResponseFormat(
   return undefined;
 }
 
+function stringifySystemContent(content: unknown): string {
+  if (typeof content === 'string') return content;
+  if (content === undefined || content === null) return '';
+  if (Array.isArray(content)) {
+    return content
+      .map((part) => {
+        if (typeof part === 'string') return part;
+        if (isRecord(part) && typeof part.text === 'string') return part.text;
+        return '';
+      })
+      .filter((part) => part.length > 0)
+      .join('\n');
+  }
+  return String(content);
+}
+
+function splitSystemMessages(messages: any[]): { system?: string; messages: any[] } {
+  const systemParts: string[] = [];
+  const conversationMessages: any[] = [];
+
+  for (const message of messages) {
+    if (isRecord(message) && message.role === 'system') {
+      const content = stringifySystemContent(message.content).trim();
+      if (content) {
+        systemParts.push(content);
+      }
+      continue;
+    }
+
+    conversationMessages.push(message);
+  }
+
+  return {
+    system: systemParts.length > 0 ? systemParts.join('\n\n') : undefined,
+    messages: conversationMessages,
+  };
+}
+
 export function buildAiSdkRequestParams(params: {
   model: any;
   messages: any[];
@@ -113,9 +151,12 @@ export function buildAiSdkRequestParams(params: {
   abortSignal: AbortSignal;
   providerOptionsKey: string;
 }) {
+  const splitMessages = splitSystemMessages(params.messages);
+
   return {
     model: params.model,
-    messages: params.messages,
+    system: splitMessages.system,
+    messages: splitMessages.messages,
     tools: params.tools,
     temperature: params.options.temperature,
     maxOutputTokens:

@@ -3,6 +3,7 @@ import { createInterface, Interface } from 'readline';
 import { LIMITS } from '../../config/limits.js';
 import { getLogger } from '../../observability/logger.js';
 import { InteractiveProcess, spawnInteractiveProcess } from '../../runtime/process-runner.js';
+import { PACKAGE_VERSION } from '../../version.js';
 
 import {
   assertOk,
@@ -102,7 +103,7 @@ export class McpClient {
     await this.request('initialize', {
       protocolVersion: '2025-11-25',
       capabilities: {},
-      clientInfo: { name: 'salmon-loop', version: '0.2.0' },
+      clientInfo: { name: 'salmon-loop', version: PACKAGE_VERSION },
     });
 
     // Step 2: Signal initialized

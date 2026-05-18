@@ -1,5 +1,7 @@
 import type { AgentCard, SecurityScheme } from '@a2a-js/sdk';
 
+import { PACKAGE_VERSION } from '../../version.js';
+
 interface CapabilityInput {
   id: string;
   title: string;
@@ -38,7 +40,7 @@ export function buildA2AAgentCard(input: {
     name: input.name,
     url: input.url,
     description: input.description ?? 'Salmon Loop agent',
-    version: input.version ?? '0.2.0',
+    version: input.version ?? PACKAGE_VERSION,
     protocolVersion: input.protocolVersion ?? '1.0.0',
     defaultInputModes: ['text/plain'],
     defaultOutputModes: ['text/plain'],

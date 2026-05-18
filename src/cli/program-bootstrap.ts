@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import { Command } from 'commander';
 
-import { initializeRuntime } from '../core/facades/cli-program-bootstrap.js';
+import { initializeRuntime, PACKAGE_VERSION } from '../core/facades/cli-program-bootstrap.js';
 
 import type { DetectedHeadlessOutput } from './argv/headless-detection.js';
 import { text } from './locales/index.js';
@@ -24,7 +24,7 @@ export function bootstrapProgram(
     .name('s8p')
     .alias('salmonloop')
     .description(text.cli.programDescription)
-    .version('0.2.0')
+    .version(PACKAGE_VERSION)
     .addHelpText('after', text.cli.programHelpFooter);
   return program;
 }

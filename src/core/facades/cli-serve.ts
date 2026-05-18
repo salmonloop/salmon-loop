@@ -26,3 +26,4 @@ export { createAgentServerRuntime } from '../runtime/agent-server-runtime.js';
 export { resolveExecutionProfile } from '../runtime/execution-profile.js';
 export { runSalmonLoop } from '../runtime/loop.js';
 export { getUserAcpSessionStorePath } from '../runtime/paths.js';
+export { PACKAGE_VERSION } from '../version.js';
