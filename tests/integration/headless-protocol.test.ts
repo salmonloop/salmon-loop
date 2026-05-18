@@ -981,6 +981,102 @@ describe('Headless protocol integration', () => {
     }
   }, 120000);
 
+  it('runs headless autopilot in a non-git directory and reports filesystem changes', async () => {
+    const workspacePath = await helper.createTempDir('headless-non-git-');
+    await helper.writeFile(
+      workspacePath,
+      'verify.ts',
+      [
+        'const content = await Bun.file("smoke.txt").text();',
+        'if (content !== "non-git autopilot\\n") {',
+        '  console.error("unexpected smoke content");',
+        '  process.exit(1);',
+        '}',
+        '',
+      ].join('\n'),
+    );
+
+    const stub = createOpenAiStreamingStub();
+    stub.pushStream([
+      openAiChatStreamChunk({
+        delta: {
+          role: 'assistant',
+          tool_calls: [
+            {
+              index: 0,
+              id: 'call-write-smoke',
+              type: 'function',
+              function: {
+                name: 'fs.write_file',
+                arguments: JSON.stringify({
+                  file: 'smoke.txt',
+                  content: 'non-git autopilot\n',
+                }),
+              },
+            },
+          ],
+        },
+      }),
+      openAiChatStreamChunk({ finishReason: 'tool_calls' }),
+      '[DONE]',
+    ]);
+    stub.pushStream([
+      openAiChatStreamChunk({
+        delta: {
+          role: 'assistant',
+          content: 'Created smoke.txt.',
+        },
+      }),
+      openAiChatStreamChunk({ finishReason: 'stop' }),
+      '[DONE]',
+    ]);
+
+    const baseUrl = await stub.tryStart();
+    if (!baseUrl) {
+      throw new Error('OpenAI streaming stub could not bind; non-git autopilot smoke did not run');
+    }
+    await writeOpenAiStubConfig(workspacePath, baseUrl);
+
+    try {
+      const { exitCode, stdout } = await runCli([
+        'run',
+        '-r',
+        workspacePath,
+        '--instruction',
+        'Create smoke.txt with exactly non-git autopilot.',
+        '--verify',
+        buildBunCommand('verify.ts'),
+        '--output-format',
+        'json',
+        '--act-mode',
+        'autopilot',
+        '--mode',
+        'yolo',
+      ]);
+
+      expect(exitCode).toBe(0);
+      expect(await helper.readFile(workspacePath, 'smoke.txt')).toBe('non-git autopilot\n');
+      const payload = JSON.parse(stdout) as any;
+      expect(payload.metadata).toMatchObject({
+        success: true,
+        exit_code: 0,
+      });
+      expect(payload.metadata.changed_files).toContain('smoke.txt');
+
+      const firstRequest = JSON.parse(stub.requests[0]!.body) as any;
+      const toolNames = Array.isArray(firstRequest.tools)
+        ? firstRequest.tools
+            .map((tool: any) => tool?.function?.name)
+            .filter((name: unknown): name is string => typeof name === 'string')
+        : Object.keys(firstRequest.tools ?? {});
+      expect(toolNames).toContain('workspace.info');
+      expect(toolNames).toContain('fs.write_file');
+      expect(toolNames.some((name: string) => name.startsWith('git.'))).toBe(false);
+    } finally {
+      await stub.close();
+    }
+  }, 120000);
+
   it('supports --continue selecting the latest session in headless stream-json', async () => {
     const repo = await helper.createGitRepo();
     const now = Date.now();

@@ -14,6 +14,8 @@ const hoisted = (() => ({
   gitExecMeta: mock(),
   lstat: mock(),
   readlink: mock(),
+  readFile: mock(),
+  readdir: mock(),
 }))();
 
 async function waitFor(condition: () => boolean, timeoutMs = 1000): Promise<void> {
@@ -45,6 +47,8 @@ mock.module('../../../../../src/core/adapters/git/git-adapter.js', () => ({
 
 mock.module('../../../../../src/core/adapters/fs/node-fs.js', () => ({
   lstat: hoisted.lstat,
+  readFile: hoisted.readFile,
+  readdir: hoisted.readdir,
   readlink: hoisted.readlink,
 }));
 
@@ -209,6 +213,40 @@ function queueWorkspaceFingerprint(params: {
   }
 }
 
+function nonGitAutopilotContext() {
+  const llm = {
+    chat: mock(async () => ({ role: 'assistant', content: 'fallback' })),
+    getModelId: () => 'gpt-test',
+  } as any;
+
+  return {
+    options: {
+      instruction: 'act in a non-git workspace',
+      llm,
+    },
+    workspace: {
+      baseRepoPath: '/workspace',
+      workPath: '/workspace',
+      strategy: 'direct',
+      capabilities: {
+        git: { available: true, insideWorkTree: false, reason: 'not a git work tree' },
+        filesystem: { readable: true, writable: true },
+      },
+    },
+    toolstack: {
+      registry: { listAll: () => [] },
+      policy: { decide: () => ({ allowed: true }) },
+      router: {},
+    },
+    emit: () => {},
+    fs: {} as any,
+    fileStateResolver: {} as any,
+    shadowInitialRef: 'shadow',
+    artifactHints: {},
+    toolCallingAudit: [],
+  } as any;
+}
+
 describe('runAutopilot', () => {
   beforeEach(() => {
     mock.clearAllMocks();
@@ -219,6 +257,17 @@ describe('runAutopilot', () => {
     });
     hoisted.lstat.mockResolvedValue({
       isSymbolicLink: () => false,
+      isDirectory: () => false,
+      isFile: () => true,
+      mode: 0o100644,
+      size: 12,
+      mtimeMs: 0,
+    });
+    hoisted.readFile.mockImplementation(async (absolutePath: string) =>
+      Buffer.from(`content:${absolutePath}`),
+    );
+    hoisted.readdir.mockImplementation(async () => {
+      throw new Error('Unexpected readdir call');
     });
     hoisted.readlink.mockImplementation(async () => {
       throw new Error('Unexpected readlink call');
@@ -887,6 +936,144 @@ describe('runAutopilot', () => {
     expect(hoisted.chatWithTools).not.toHaveBeenCalled();
     expect(result.report.summary).toBe('fallback answer');
     expect(result.mutated).toBe(false);
+    expect(result.changedFiles).toBeUndefined();
+  });
+
+  it('tracks non-git autopilot mutations with filesystem sampling', async () => {
+    const { runAutopilot } = await import('../../../../../src/core/grizzco/steps/autopilot.js');
+    const snapshots = [
+      [{ name: 'note.txt', isDirectory: () => false }] as any[],
+      [
+        { name: 'note.txt', isDirectory: () => false },
+        { name: 'created.txt', isDirectory: () => false },
+        { name: '.salmonloop', isDirectory: () => true },
+      ] as any[],
+    ];
+    hoisted.readdir.mockImplementation(async (_absolutePath: string) => snapshots.shift() ?? []);
+    hoisted.readFile.mockImplementation(async (absolutePath: string) =>
+      Buffer.from(absolutePath.endsWith('created.txt') ? 'created' : 'same-note'),
+    );
+
+    const result = await runAutopilot(nonGitAutopilotContext());
+
+    expect(hoisted.gitExecMeta).not.toHaveBeenCalled();
+    expect(result.mutated).toBe(true);
+    expect(result.changedFiles).toEqual(['created.txt']);
+  });
+
+  it('tracks empty directory changes in non-git autopilot', async () => {
+    const { runAutopilot } = await import('../../../../../src/core/grizzco/steps/autopilot.js');
+    const snapshots = [
+      [] as any[],
+      [{ name: 'empty-dir', isDirectory: () => true }] as any[],
+      [] as any[],
+    ];
+    hoisted.readdir.mockImplementation(async () => snapshots.shift() ?? []);
+    hoisted.lstat.mockImplementation(async (absolutePath: string) => ({
+      isSymbolicLink: () => false,
+      isDirectory: () => absolutePath.endsWith('empty-dir'),
+      isFile: () => !absolutePath.endsWith('empty-dir'),
+      mode: absolutePath.endsWith('empty-dir') ? 0o40755 : 0o100644,
+      size: 0,
+      mtimeMs: 0,
+    }));
+
+    const result = await runAutopilot(nonGitAutopilotContext());
+
+    expect(result.mutated).toBe(true);
+    expect(result.changedFiles).toEqual(['empty-dir/']);
+  });
+
+  it('tracks filesystem metadata changes in non-git autopilot', async () => {
+    const { runAutopilot } = await import('../../../../../src/core/grizzco/steps/autopilot.js');
+    hoisted.readdir.mockResolvedValue([{ name: 'script.sh', isDirectory: () => false }] as any[]);
+    hoisted.readFile.mockResolvedValue(Buffer.from('#!/bin/sh\n'));
+    const modes = [0o100644, 0o100755];
+    hoisted.lstat.mockImplementation(async () => ({
+      isSymbolicLink: () => false,
+      isDirectory: () => false,
+      isFile: () => true,
+      mode: modes.shift() ?? 0o100755,
+      size: 10,
+      mtimeMs: 0,
+    }));
+
+    const result = await runAutopilot(nonGitAutopilotContext());
+
+    expect(result.mutated).toBe(true);
+    expect(result.changedFiles).toEqual(['script.sh']);
+  });
+
+  it('ignores nested generated dependency and build directories in non-git sampling', async () => {
+    const { runAutopilot } = await import('../../../../../src/core/grizzco/steps/autopilot.js');
+    hoisted.readdir.mockImplementation(async (absolutePath: string) => {
+      if (absolutePath === '/workspace') {
+        return [
+          { name: 'packages', isDirectory: () => true },
+          { name: 'src', isDirectory: () => true },
+        ] as any[];
+      }
+      if (absolutePath === '/workspace/packages') {
+        return [{ name: 'app', isDirectory: () => true }] as any[];
+      }
+      if (absolutePath === '/workspace/packages/app') {
+        return [
+          { name: 'node_modules', isDirectory: () => true },
+          { name: 'dist', isDirectory: () => true },
+        ] as any[];
+      }
+      if (absolutePath === '/workspace/src') {
+        return [{ name: 'index.ts', isDirectory: () => false }] as any[];
+      }
+      throw new Error(`Excluded path should not be sampled: ${absolutePath}`);
+    });
+    hoisted.lstat.mockImplementation(async (absolutePath: string) => ({
+      isSymbolicLink: () => false,
+      isDirectory: () => !absolutePath.endsWith('index.ts'),
+      isFile: () => absolutePath.endsWith('index.ts'),
+      mode: absolutePath.endsWith('index.ts') ? 0o100644 : 0o40755,
+      size: absolutePath.endsWith('index.ts') ? 5 : 0,
+      mtimeMs: 0,
+    }));
+    hoisted.readFile.mockResolvedValue(Buffer.from('same\n'));
+
+    const result = await runAutopilot(nonGitAutopilotContext());
+
+    expect(result.mutated).toBe(false);
+    expect(result.changedFiles).toBeUndefined();
+  });
+
+  it('fails closed when non-git filesystem sampling exceeds bounded file count', async () => {
+    const { runAutopilot } = await import('../../../../../src/core/grizzco/steps/autopilot.js');
+    hoisted.readdir.mockResolvedValue(
+      Array.from({ length: 10_001 }, (_value, index) => ({
+        name: `file-${index}.txt`,
+        isDirectory: () => false,
+      })) as any[],
+    );
+    hoisted.readFile.mockResolvedValue(Buffer.from('same'));
+
+    const result = await runAutopilot(nonGitAutopilotContext());
+
+    expect(result.mutated).toBe(true);
+    expect(result.changedFiles).toBeUndefined();
+  });
+
+  it('fails closed when non-git filesystem sampling exceeds bounded file size', async () => {
+    const { runAutopilot } = await import('../../../../../src/core/grizzco/steps/autopilot.js');
+    hoisted.readdir.mockResolvedValue([{ name: 'large.bin', isDirectory: () => false }] as any[]);
+    hoisted.lstat.mockResolvedValue({
+      isSymbolicLink: () => false,
+      isDirectory: () => false,
+      isFile: () => true,
+      mode: 0o100644,
+      size: 6 * 1024 * 1024,
+      mtimeMs: 0,
+    });
+
+    const result = await runAutopilot(nonGitAutopilotContext());
+
+    expect(result.mutated).toBe(true);
     expect(result.changedFiles).toBeUndefined();
   });
 });

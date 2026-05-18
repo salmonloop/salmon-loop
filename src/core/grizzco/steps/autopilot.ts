@@ -2,7 +2,7 @@ import { createHash } from 'crypto';
 import { join } from 'path';
 
 import { text } from '../../../locales/index.js';
-import { lstat, readlink } from '../../adapters/fs/node-fs.js';
+import { lstat, readFile, readdir, readlink } from '../../adapters/fs/node-fs.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
 import { LIMITS } from '../../config/limits.js';
 import { supportsLlmStreaming } from '../../llm/capabilities.js';
@@ -29,8 +29,23 @@ const GIT_HASH_OUTPUT_LIMITS = {
   maxStdoutBytes: 256,
   maxStderrChars: 4_096,
 } as const;
+const FILESYSTEM_SAMPLE_LIMITS = {
+  maxEntries: 10_000,
+  maxBytesPerFile: 5 * 1024 * 1024,
+} as const;
+const FILESYSTEM_EXCLUDED_SEGMENTS = new Set([
+  '.git',
+  '.salmonloop',
+  'node_modules',
+  '.next',
+  'dist',
+  'build',
+  '.turbo',
+  '.cache',
+]);
 
 type WorkspaceFingerprint = {
+  kind: 'git' | 'filesystem';
   head: string;
   index: string;
   statusMetadata: string;
@@ -244,6 +259,7 @@ async function captureWorkspaceFingerprint(workspacePath: string): Promise<Works
   );
 
   return {
+    kind: 'git',
     head,
     index,
     statusMetadata: hashFingerprintBuffer(statusOutput),
@@ -251,6 +267,111 @@ async function captureWorkspaceFingerprint(workspacePath: string): Promise<Works
     statusEntries: statusEntries.map(({ path, statusFingerprint }) => [path, statusFingerprint]),
     workingEntries,
   };
+}
+
+function isFilesystemSamplingExcludedPath(path: string): boolean {
+  const normalized = path.replace(/\\/g, '/');
+  if (isRuntimeGeneratedPath(normalized)) return true;
+  return normalized.split('/').some((segment) => FILESYSTEM_EXCLUDED_SEGMENTS.has(segment));
+}
+
+function formatFilesystemMode(mode: number): string {
+  return (mode & 0o7777).toString(8);
+}
+
+async function hashFilesystemPath(absolutePath: string): Promise<string> {
+  const stats = await lstat(absolutePath);
+  if (stats.isSymbolicLink()) {
+    return `symlink:${formatFilesystemMode(stats.mode)}:${hashFingerprintValue(
+      await readlink(absolutePath),
+    )}`;
+  }
+  if (stats.isDirectory()) {
+    return `dir:${formatFilesystemMode(stats.mode)}`;
+  }
+  if (stats.size > FILESYSTEM_SAMPLE_LIMITS.maxBytesPerFile) {
+    throw new Error(
+      `Workspace sampling skipped file larger than ${FILESYSTEM_SAMPLE_LIMITS.maxBytesPerFile} bytes`,
+    );
+  }
+  if (stats.isFile()) {
+    return `file:${formatFilesystemMode(stats.mode)}:${hashFingerprintBuffer(
+      await readFile(absolutePath),
+    )}`;
+  }
+  return `other:${formatFilesystemMode(stats.mode)}:${stats.size}`;
+}
+
+function appendFilesystemEntry(
+  entries: Array<readonly [path: string, fingerprint: string]>,
+  path: string,
+  fingerprint: string,
+): void {
+  if (entries.length >= FILESYSTEM_SAMPLE_LIMITS.maxEntries) {
+    throw new Error(`Workspace sampling exceeded ${FILESYSTEM_SAMPLE_LIMITS.maxEntries} entries`);
+  }
+  entries.push([path, fingerprint]);
+}
+
+async function collectFilesystemEntries(params: {
+  workspacePath: string;
+  relativeDir: string;
+  entries: Array<readonly [path: string, fingerprint: string]>;
+}): Promise<void> {
+  const absoluteDir = join(params.workspacePath, params.relativeDir);
+  const dirents = await readdir(absoluteDir, { withFileTypes: true });
+  const sorted = [...dirents].sort((left, right) => left.name.localeCompare(right.name));
+
+  for (const dirent of sorted) {
+    const relativePath = params.relativeDir ? `${params.relativeDir}/${dirent.name}` : dirent.name;
+    if (isFilesystemSamplingExcludedPath(relativePath)) {
+      continue;
+    }
+
+    const absolutePath = join(params.workspacePath, relativePath);
+    if (dirent.isDirectory()) {
+      appendFilesystemEntry(
+        params.entries,
+        `${relativePath}/`,
+        await hashFilesystemPath(absolutePath),
+      );
+      await collectFilesystemEntries({
+        workspacePath: params.workspacePath,
+        relativeDir: relativePath,
+        entries: params.entries,
+      });
+      continue;
+    }
+
+    appendFilesystemEntry(params.entries, relativePath, await hashFilesystemPath(absolutePath));
+  }
+}
+
+async function captureFilesystemFingerprint(workspacePath: string): Promise<WorkspaceFingerprint> {
+  const workingEntries: Array<readonly [path: string, fingerprint: string]> = [];
+  await collectFilesystemEntries({ workspacePath, relativeDir: '', entries: workingEntries });
+  const statusMetadata = hashFingerprintValue(
+    workingEntries.map(([path, fingerprint]) => `${path}:${fingerprint}`).join('\n'),
+  );
+
+  return {
+    kind: 'filesystem',
+    head: '',
+    index: '',
+    statusMetadata,
+    workingContent: statusMetadata,
+    statusEntries: workingEntries,
+    workingEntries,
+  };
+}
+
+async function captureWorkspaceFingerprintForContext(
+  ctx: PreflightCtx,
+): Promise<WorkspaceFingerprint> {
+  if (ctx.workspace.capabilities?.git.insideWorkTree === false) {
+    return captureFilesystemFingerprint(ctx.workspace.workPath);
+  }
+  return captureWorkspaceFingerprint(ctx.workspace.workPath);
 }
 
 function collectChangedWorkspacePaths(
@@ -379,7 +500,7 @@ export async function runAutopilot(ctx: PreflightCtx): Promise<AutopilotCtx> {
   let samplingFailedClosed = false;
   if (supportsTools) {
     try {
-      workspaceFingerprintBefore = await captureWorkspaceFingerprint(ctx.workspace.workPath);
+      workspaceFingerprintBefore = await captureWorkspaceFingerprintForContext(ctx);
     } catch {
       samplingFailedClosed = true;
     }
@@ -444,13 +565,14 @@ export async function runAutopilot(ctx: PreflightCtx): Promise<AutopilotCtx> {
       mutated = true;
     } else {
       try {
-        const workspaceFingerprintAfter = await captureWorkspaceFingerprint(ctx.workspace.workPath);
+        const workspaceFingerprintAfter = await captureWorkspaceFingerprintForContext(ctx);
         changedFiles = collectChangedWorkspacePaths(
           workspaceFingerprintBefore,
           workspaceFingerprintAfter,
         );
         mutated =
           changedFiles.length > 0 ||
+          workspaceFingerprintBefore.statusMetadata !== workspaceFingerprintAfter.statusMetadata ||
           workspaceFingerprintBefore.head !== workspaceFingerprintAfter.head ||
           workspaceFingerprintBefore.index !== workspaceFingerprintAfter.index;
       } catch {
