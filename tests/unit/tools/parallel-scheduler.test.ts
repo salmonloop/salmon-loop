@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test';
+import { z } from 'zod';
 
 import { InMemoryLockManager } from '../../../src/core/tools/parallel/lock-manager.js';
 import type { ExecutionPlan } from '../../../src/core/tools/parallel/plan.js';
@@ -306,6 +307,94 @@ describe('ParallelScheduler', () => {
       status: 'error',
       error: { code: 'INVALID_INPUT', retryable: true },
     });
+  });
+
+  it('uses schema-normalized input for resource planning and execution', async () => {
+    const router = new FakeRouter();
+    const seen: { resources?: any; executorArgs?: any } = {};
+
+    const aliasSpec: ToolSpec = {
+      ...readSpec,
+      inputSchema: z.preprocess(
+        (raw) => {
+          if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return raw;
+          const input = raw as Record<string, unknown>;
+          if (typeof input.file === 'string') return input;
+          if (typeof input.path === 'string') return { ...input, file: input.path };
+          return input;
+        },
+        z.object({ file: z.string() }),
+      ),
+      computeResources: (input: any, ctx) => {
+        seen.resources = input;
+        return [{ kind: 'pathPrefix', repoId: ctx.repoRoot, prefix: input.file }];
+      },
+    };
+
+    router.register(aliasSpec, async (args, _ctx) => {
+      seen.executorArgs = args;
+      return { ok: true };
+    });
+
+    const scheduler = new ParallelScheduler(router as any, new InMemoryLockManager());
+    const plan: ExecutionPlan = {
+      id: 'plan-normalized-args',
+      policy: { maxParallelism: 1, failFast: false, deterministic: true },
+      nodes: [{ id: 'n1', toolName: 'fs.read', args: { path: 'src/main.ts' }, deps: [] }],
+    };
+
+    const result = await scheduler.run(plan, baseCtx, new AbortController().signal);
+
+    expect(result.failed).toBe(false);
+    expect(result.nodeResults.n1.status).toBe('SUCCEEDED');
+    expect(seen.resources).toEqual({ file: 'src/main.ts' });
+    expect(seen.executorArgs).toEqual({ file: 'src/main.ts' });
+  });
+
+  it('uses schema-normalized input for deferred authorization preflight', async () => {
+    const router = new FakeRouter() as FakeRouter & {
+      preflightDeferredAuthorization?: (envelope: any) => Promise<null>;
+    };
+    const seen: { preflightArgs?: any; executorArgs?: any } = {};
+
+    const aliasSpec: ToolSpec = {
+      ...readSpec,
+      inputSchema: z.preprocess(
+        (raw) => {
+          if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return raw;
+          const input = raw as Record<string, unknown>;
+          if (typeof input.path === 'string') return input;
+          if (typeof input.directory === 'string') return { ...input, path: input.directory };
+          return input;
+        },
+        z.object({ path: z.string() }),
+      ),
+      computeResources: (input: any, ctx) => [
+        { kind: 'pathPrefix', repoId: ctx.repoRoot, prefix: input.path },
+      ],
+    };
+
+    router.preflightDeferredAuthorization = async (envelope) => {
+      seen.preflightArgs = envelope.args;
+      return null;
+    };
+    router.register(aliasSpec, async (args, _ctx) => {
+      seen.executorArgs = args;
+      return { ok: true };
+    });
+
+    const scheduler = new ParallelScheduler(router as any, new InMemoryLockManager());
+    const plan: ExecutionPlan = {
+      id: 'plan-normalized-preflight',
+      policy: { maxParallelism: 1, failFast: false, deterministic: true },
+      nodes: [{ id: 'n1', toolName: 'fs.read', args: { directory: 'src/components' }, deps: [] }],
+    };
+
+    const result = await scheduler.run(plan, baseCtx, new AbortController().signal);
+
+    expect(result.failed).toBe(false);
+    expect(seen.preflightArgs).toEqual({ path: 'src/components' });
+    expect(seen.executorArgs).toEqual({ path: 'src/components' });
   });
 
   it('surfaces unexpected computeResources regressions instead of silently degrading', async () => {

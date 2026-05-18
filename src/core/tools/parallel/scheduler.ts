@@ -33,6 +33,12 @@ export class ParallelScheduler {
     return spec;
   }
 
+  private normalizeArgsForSpec(spec: ToolSpec, args: unknown): unknown {
+    if (!spec.inputSchema || typeof spec.inputSchema.safeParse !== 'function') return args;
+    const parsed = spec.inputSchema.safeParse(args);
+    return parsed.success ? parsed.data : args;
+  }
+
   private shouldFallbackFromComputeResources(
     spec: ToolSpec,
     args: unknown,
@@ -217,6 +223,7 @@ export class ParallelScheduler {
 
         // 1. Resolve Arguments
         const resolvedArgs = resolveArgsWithResults(node.args, nodeResults);
+        const normalizedArgs = this.normalizeArgsForSpec(spec, resolvedArgs);
 
         // 1.5 Deferred authorization preflight (avoid holding locks while waiting for user)
         const preflight =
@@ -225,7 +232,7 @@ export class ParallelScheduler {
                 id: nodeId,
                 phase: (baseCtx as any).phase || 'execute',
                 toolName: node.toolName,
-                args: resolvedArgs,
+                args: normalizedArgs,
                 ctx: baseCtx,
               })
             : null;
@@ -265,11 +272,11 @@ export class ParallelScheduler {
           (() => {
             try {
               return (
-                spec.computeResources?.(resolvedArgs, baseCtx) ??
+                spec.computeResources?.(normalizedArgs, baseCtx) ??
                 this.deriveDefaultResources(spec, baseCtx)
               );
             } catch (error) {
-              if (!this.shouldFallbackFromComputeResources(spec, resolvedArgs, error)) {
+              if (!this.shouldFallbackFromComputeResources(spec, normalizedArgs, error)) {
                 throw error;
               }
               return this.deriveDefaultResources(spec, baseCtx);
@@ -292,7 +299,7 @@ export class ParallelScheduler {
             id: nodeId,
             phase: (baseCtx as any).phase || 'execute',
             toolName: node.toolName,
-            args: resolvedArgs,
+            args: normalizedArgs,
             ctx: isolatedEnv
               ? { ...baseCtx, env: { ...baseCtx.env, ...isolatedEnv.env } }
               : baseCtx,
