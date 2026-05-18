@@ -1154,10 +1154,13 @@ describe('chatWithToolsStreaming', () => {
         (event as any).event?.item?.type === 'function_call',
     );
     const toolStartIndex = events.findIndex((event) => event.type === 'tool.call.start');
+    const streamEndIndex = events.findIndex((event) => event.type === 'llm.stream.end');
     expect(addedIndex).toBeGreaterThanOrEqual(0);
     expect(doneIndex).toBeGreaterThanOrEqual(0);
     expect(addedIndex).toBeLessThan(doneIndex);
     expect(toolStartIndex).toBeGreaterThanOrEqual(0);
     expect(doneIndex).toBeLessThan(toolStartIndex);
+    expect(streamEndIndex).toBeGreaterThanOrEqual(0);
+    expect(toolStartIndex).toBeLessThan(streamEndIndex);
   });
 });

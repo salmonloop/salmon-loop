@@ -28,4 +28,22 @@ describe('buildHeadlessToolInputPayload', () => {
     const arr = (payload as any).arr as unknown[];
     expect(arr.length).toBeLessThanOrEqual(40);
   });
+
+  it('redacts secret-looking values even when the containing key is not sensitive', () => {
+    const payload = buildHeadlessToolInputPayload({
+      command: 'curl -H "Authorization: Bearer sk-live-1234567890abcdef" https://example.test',
+      content: 'api_key="sk-live-abcdef1234567890" token=plain-secret-value',
+      task: 'Use sk-1234567890abcdef1234567890abcdef to call the service',
+    });
+
+    expect(JSON.stringify(payload)).not.toContain('sk-live-1234567890abcdef');
+    expect(JSON.stringify(payload)).not.toContain('sk-live-abcdef1234567890');
+    expect(JSON.stringify(payload)).not.toContain('plain-secret-value');
+    expect(JSON.stringify(payload)).not.toContain('sk-1234567890abcdef1234567890abcdef');
+    expect(payload).toMatchObject({
+      command: expect.stringContaining('Bearer [REDACTED]'),
+      content: expect.stringContaining('api_key=[REDACTED]'),
+      task: expect.stringContaining('[REDACTED]'),
+    });
+  });
 });

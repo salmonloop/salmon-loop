@@ -1918,17 +1918,6 @@ export async function chatWithToolsStreaming(
           });
         }
 
-        if (session.llmOutput) {
-          emitLlmStreamEnd({
-            emit: session.emit,
-            policy: session.llmOutput.policy,
-            kind: session.llmOutput.kind,
-            step: session.llmOutput.step,
-            streamId,
-            finishReason,
-          });
-        }
-
         recordAuditEvent(
           'llm.round',
           {
@@ -1950,10 +1939,31 @@ export async function chatWithToolsStreaming(
 
         const calls = assistant.tool_calls || [];
         if (!Array.isArray(calls) || calls.length === 0) {
+          if (session.llmOutput) {
+            emitLlmStreamEnd({
+              emit: session.emit,
+              policy: session.llmOutput.policy,
+              kind: session.llmOutput.kind,
+              step: session.llmOutput.step,
+              streamId,
+              finishReason,
+            });
+          }
           return assistant;
         }
 
         await executeToolCalls(session, phase, round, calls, messages, chatOptions.signal);
+
+        if (session.llmOutput) {
+          emitLlmStreamEnd({
+            emit: session.emit,
+            policy: session.llmOutput.policy,
+            kind: session.llmOutput.kind,
+            step: session.llmOutput.step,
+            streamId,
+            finishReason,
+          });
+        }
       } finally {
         canonicalEmitters.release(streamId);
       }

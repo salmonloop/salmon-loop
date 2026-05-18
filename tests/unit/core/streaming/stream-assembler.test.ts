@@ -704,6 +704,183 @@ describe('StreamAssembler', () => {
     ]);
   });
 
+  it('flushes deferred model tool requests before assistant message end when no execution input has arrived', () => {
+    const assembler = new StreamAssembler({ deferToolRequestsUntilExecutionInput: true });
+    const at1 = new Date('2026-02-20T00:00:01.000Z');
+    const at2 = new Date('2026-02-20T00:00:02.000Z');
+    const at3 = new Date('2026-02-20T00:00:03.000Z');
+
+    expect(
+      assembler.push({
+        type: 'llm.responses.event',
+        kind: 'plan',
+        step: 'PLAN',
+        streamId: 'stream-1',
+        source: 'provider',
+        phase: 'PATCH',
+        round: 1,
+        event: {
+          type: 'response.output_item.added',
+          item: {
+            type: 'function_call',
+            call_id: 'call-1',
+            name: 'agent_dispatch',
+            arguments: '{}',
+          },
+        },
+        timestamp: at1,
+      } satisfies LoopEvent),
+    ).toEqual([]);
+
+    expect(
+      assembler.push({
+        type: 'llm.responses.event',
+        kind: 'plan',
+        step: 'PLAN',
+        streamId: 'stream-1',
+        source: 'provider',
+        phase: 'PATCH',
+        round: 1,
+        event: {
+          type: 'response.output_item.done',
+          item: {
+            type: 'function_call',
+            call_id: 'call-1',
+            name: 'agent_dispatch',
+            arguments: '{}',
+          },
+        },
+        timestamp: at2,
+      } satisfies LoopEvent),
+    ).toEqual([]);
+
+    const out = assembler.push({
+      type: 'llm.stream.end',
+      kind: 'plan',
+      step: 'PLAN',
+      streamId: 'stream-1',
+      finishReason: 'tool_use',
+      timestamp: at3,
+    } satisfies LoopEvent);
+
+    expect(out.slice(0, 2)).toEqual([
+      {
+        type: 'normalized.tool_request_start',
+        callId: 'call-1',
+        toolName: 'agent_dispatch',
+        phase: 'PATCH',
+        round: 1,
+        timestamp: at1,
+      },
+      {
+        type: 'normalized.tool_request_end',
+        callId: 'call-1',
+        toolName: 'agent_dispatch',
+        phase: 'PATCH',
+        round: 1,
+        timestamp: at2,
+      },
+    ]);
+    expect(out[out.length - 1]).toEqual(
+      expect.objectContaining({
+        type: 'normalized.message_end',
+        finishReason: 'tool_use',
+      }),
+    );
+  });
+
+  it('does not flush deferred model tool requests from another assistant stream', () => {
+    const assembler = new StreamAssembler({ deferToolRequestsUntilExecutionInput: true });
+    const at1 = new Date('2026-02-20T00:00:01.000Z');
+    const at2 = new Date('2026-02-20T00:00:02.000Z');
+    const at3 = new Date('2026-02-20T00:00:03.000Z');
+    const at4 = new Date('2026-02-20T00:00:04.000Z');
+
+    expect(
+      assembler.push({
+        type: 'llm.responses.event',
+        kind: 'plan',
+        step: 'PLAN',
+        streamId: 'stream-1',
+        source: 'provider',
+        phase: 'PATCH',
+        round: 1,
+        event: {
+          type: 'response.output_item.added',
+          item: {
+            type: 'function_call',
+            call_id: 'call-1',
+            name: 'agent_dispatch',
+            arguments: '{}',
+          },
+        },
+        timestamp: at1,
+      } satisfies LoopEvent),
+    ).toEqual([]);
+
+    expect(
+      assembler.push({
+        type: 'llm.responses.event',
+        kind: 'plan',
+        step: 'PLAN',
+        streamId: 'stream-1',
+        source: 'provider',
+        phase: 'PATCH',
+        round: 1,
+        event: {
+          type: 'response.output_item.done',
+          item: {
+            type: 'function_call',
+            call_id: 'call-1',
+            name: 'agent_dispatch',
+            arguments: '{}',
+          },
+        },
+        timestamp: at2,
+      } satisfies LoopEvent),
+    ).toEqual([]);
+
+    const unrelatedEnd = assembler.push({
+      type: 'llm.stream.end',
+      kind: 'plan',
+      step: 'PLAN',
+      streamId: 'stream-2',
+      finishReason: 'end_turn',
+      timestamp: at3,
+    } satisfies LoopEvent);
+
+    expect(unrelatedEnd).toEqual(
+      expect.not.arrayContaining([
+        expect.objectContaining({
+          type: 'normalized.tool_request_start',
+          callId: 'call-1',
+        }),
+      ]),
+    );
+
+    const owningEnd = assembler.push({
+      type: 'llm.stream.end',
+      kind: 'plan',
+      step: 'PLAN',
+      streamId: 'stream-1',
+      finishReason: 'tool_use',
+      timestamp: at4,
+    } satisfies LoopEvent);
+
+    expect(owningEnd).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'normalized.tool_request_start',
+          callId: 'call-1',
+        }),
+        expect.objectContaining({
+          type: 'normalized.tool_request_end',
+          callId: 'call-1',
+        }),
+      ]),
+    );
+  });
+
   it('flushes deferred model tool requests before host tool results when execution start is missing', () => {
     const assembler = new StreamAssembler({ deferToolRequestsUntilExecutionInput: true });
     const at1 = new Date('2026-02-20T00:00:01.000Z');
