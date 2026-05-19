@@ -4,6 +4,7 @@ import path from 'node:path';
 import { Readable, Writable } from 'node:stream';
 
 import {
+  AGENT_METHODS,
   ClientSideConnection,
   ndJsonStream,
   type Client,
@@ -224,6 +225,12 @@ function parseJsonRpcLines(stdout: string): any[] {
     .map((line) => JSON.parse(line));
 }
 
+function byJsonRpcId(messages: any[], id: string | number): any {
+  const message = messages.find((candidate) => candidate?.id === id);
+  expect(message).toBeTruthy();
+  return message;
+}
+
 async function initializeAcp(server: AcpSdkServer) {
   return withTimeout(
     server.clientConn.initialize({
@@ -324,9 +331,13 @@ describe('ACP stdio official SDK integration', () => {
         list: {},
         resume: {},
       });
+      expect(initialized.agentCapabilities?.sessionCapabilities?.delete).toBeUndefined();
+      expect(initialized.agentCapabilities?.sessionCapabilities?.fork).toBeUndefined();
       expect(
         initialized.agentCapabilities?.sessionCapabilities?.additionalDirectories,
       ).toBeUndefined();
+      expect(initialized.agentCapabilities?.providers).toBeUndefined();
+      expect(initialized.agentCapabilities?.nes).toBeUndefined();
 
       await server.stop();
       expectStdoutOnlyJsonRpc(server.stdoutText());
@@ -568,6 +579,112 @@ describe('ACP stdio official SDK integration', () => {
   );
 
   it(
+    'keeps concurrent session creation isolated across the real stdio boundary',
+    async () => {
+      const repo = await helper.createGitRepo({
+        initialFiles: [{ path: 'README.md', content: '# ACP concurrent fixture\n' }],
+      });
+      const server = await startAcpSdkServer(repo.path);
+
+      await initializeAcp(server);
+
+      const [first, second] = await Promise.all([
+        newAcpSession(server, repo.path),
+        newAcpSession(server, repo.path),
+      ]);
+
+      expect(first.sessionId).not.toBe(second.sessionId);
+
+      await withTimeout(
+        server.clientConn.setSessionConfigOption({
+          sessionId: first.sessionId,
+          configId: '_salmonloop_mode',
+          value: 'review',
+        }),
+        'session/set_config_option on first concurrent session',
+      );
+
+      const [loadedFirst, loadedSecond] = await Promise.all([
+        withTimeout(
+          server.clientConn.loadSession({
+            cwd: repo.path,
+            mcpServers: [],
+            sessionId: first.sessionId,
+          }),
+          'load first concurrent session',
+        ),
+        withTimeout(
+          server.clientConn.loadSession({
+            cwd: repo.path,
+            mcpServers: [],
+            sessionId: second.sessionId,
+          }),
+          'load second concurrent session',
+        ),
+      ]);
+
+      expect(loadedFirst.modes?.currentModeId).toBe('review');
+      expect(loadedSecond.modes?.currentModeId).toBe('autopilot');
+
+      const listed = await withTimeout(
+        server.clientConn.listSessions({ cwd: repo.path }),
+        'session/list concurrent sessions',
+      );
+      expect(new Set(listed.sessions.map((session) => session.sessionId))).toEqual(
+        new Set([first.sessionId, second.sessionId]),
+      );
+
+      await server.stop();
+      expectStdoutOnlyJsonRpc(server.stdoutText());
+    },
+    { timeout: 30000 },
+  );
+
+  it(
+    'orders real session/list results by externally visible session updates',
+    async () => {
+      const repo = await helper.createGitRepo({
+        initialFiles: [{ path: 'README.md', content: '# ACP list ordering fixture\n' }],
+      });
+      const server = await startAcpSdkServer(repo.path);
+
+      await initializeAcp(server);
+      const older = await newAcpSession(server, repo.path);
+      const newer = await newAcpSession(server, repo.path);
+
+      let listed = await withTimeout(
+        server.clientConn.listSessions({ cwd: repo.path }),
+        'session/list before update',
+      );
+      expect(listed.sessions.map((session) => session.sessionId)).toEqual([
+        newer.sessionId,
+        older.sessionId,
+      ]);
+
+      await withTimeout(
+        server.clientConn.setSessionMode({ sessionId: older.sessionId, modeId: 'debug' }),
+        'session/set_mode updates older session',
+      );
+
+      listed = await withTimeout(
+        server.clientConn.listSessions({ cwd: repo.path }),
+        'session/list after update',
+      );
+      expect(listed.sessions.map((session) => session.sessionId)).toEqual([
+        older.sessionId,
+        newer.sessionId,
+      ]);
+      expect(Date.parse(listed.sessions[0]!.updatedAt ?? '')).toBeGreaterThanOrEqual(
+        Date.parse(listed.sessions[1]!.updatedAt ?? ''),
+      );
+
+      await server.stop();
+      expectStdoutOnlyJsonRpc(server.stdoutText());
+    },
+    { timeout: 30000 },
+  );
+
+  it(
     'persists sessions across real serve acp process restarts',
     async () => {
       const repo = await helper.createGitRepo({
@@ -612,6 +729,97 @@ describe('ACP stdio official SDK integration', () => {
             update.sessionUpdate === 'user_message_chunk' && textUpdateContent(update) === '/help',
         ),
       ).toBe(true);
+
+      await secondServer.stop();
+      expectStdoutOnlyJsonRpc(secondServer.stdoutText());
+    },
+    { timeout: 30000 },
+  );
+
+  it(
+    'persists configuration changes across real serve acp process restarts',
+    async () => {
+      const repo = await helper.createGitRepo({
+        initialFiles: [{ path: 'README.md', content: '# ACP config persistence fixture\n' }],
+      });
+      const home = await helper.createTempDir('salmonloop-acp-config-home-');
+      const firstServer = await startAcpSdkServer(repo.path, { home });
+
+      await initializeAcp(firstServer);
+      const created = await newAcpSession(firstServer, repo.path);
+      await withTimeout(
+        firstServer.clientConn.setSessionConfigOption({
+          sessionId: created.sessionId,
+          configId: '_salmonloop_permission_policy',
+          value: 'allow_all',
+        }),
+        'session/set_config_option permission policy before restart',
+      );
+      await withTimeout(
+        firstServer.clientConn.setSessionMode({ sessionId: created.sessionId, modeId: 'review' }),
+        'session/set_mode before restart',
+      );
+      await firstServer.stop();
+      expectStdoutOnlyJsonRpc(firstServer.stdoutText());
+
+      const secondServer = await startAcpSdkServer(repo.path, { home });
+      await initializeAcp(secondServer);
+
+      const loaded = await withTimeout(
+        secondServer.clientConn.loadSession({
+          cwd: repo.path,
+          mcpServers: [],
+          sessionId: created.sessionId,
+        }),
+        'session/load after config restart',
+      );
+
+      expect(loaded.modes?.currentModeId).toBe('review');
+      expect(configValue(loaded.configOptions, '_salmonloop_mode')).toBe('review');
+      expect(configValue(loaded.configOptions, '_salmonloop_permission_policy')).toBe('allow_all');
+
+      await secondServer.stop();
+      expectStdoutOnlyJsonRpc(secondServer.stdoutText());
+    },
+    { timeout: 30000 },
+  );
+
+  it(
+    'keeps closed sessions absent across real serve acp process restarts',
+    async () => {
+      const repo = await helper.createGitRepo({
+        initialFiles: [{ path: 'README.md', content: '# ACP close persistence fixture\n' }],
+      });
+      const home = await helper.createTempDir('salmonloop-acp-close-home-');
+      const firstServer = await startAcpSdkServer(repo.path, { home });
+
+      await initializeAcp(firstServer);
+      const created = await newAcpSession(firstServer, repo.path);
+      await withTimeout(
+        firstServer.clientConn.closeSession({ sessionId: created.sessionId }),
+        'session/close before restart',
+      );
+      await firstServer.stop();
+      expectStdoutOnlyJsonRpc(firstServer.stdoutText());
+
+      const secondServer = await startAcpSdkServer(repo.path, { home });
+      await initializeAcp(secondServer);
+
+      const listed = await withTimeout(
+        secondServer.clientConn.listSessions({ cwd: repo.path }),
+        'session/list after closed restart',
+      );
+      expect(listed.sessions).toEqual([]);
+      await expect(
+        withTimeout(
+          secondServer.clientConn.loadSession({
+            cwd: repo.path,
+            mcpServers: [],
+            sessionId: created.sessionId,
+          }),
+          'session/load closed session after restart',
+        ),
+      ).rejects.toMatchObject({ code: -32004 });
 
       await secondServer.stop();
       expectStdoutOnlyJsonRpc(secondServer.stdoutText());
@@ -673,6 +881,100 @@ describe('ACP stdio official SDK integration', () => {
           'session/resume with unsupported ACP MCP',
         ),
       ).rejects.toMatchObject({ code: -32602 });
+
+      await server.stop();
+      expectStdoutOnlyJsonRpc(server.stdoutText());
+    },
+    { timeout: 20000 },
+  );
+
+  it(
+    'rejects unadvertised ACP capabilities while preserving real sessions',
+    async () => {
+      const repo = await helper.createGitRepo({
+        initialFiles: [{ path: 'README.md', content: '# ACP unsupported capability fixture\n' }],
+      });
+      const server = await startAcpSdkServer(repo.path);
+
+      const initialized = await initializeAcp(server);
+      expect(initialized.agentCapabilities?.sessionCapabilities?.delete).toBeUndefined();
+      expect(initialized.agentCapabilities?.sessionCapabilities?.fork).toBeUndefined();
+      expect(initialized.agentCapabilities?.providers).toBeUndefined();
+      expect(initialized.agentCapabilities?.nes).toBeUndefined();
+
+      const created = await newAcpSession(server, repo.path);
+
+      await expect(
+        withTimeout(
+          server.clientConn.unstable_deleteSession({ sessionId: created.sessionId }),
+          'unsupported session/delete',
+        ),
+      ).rejects.toMatchObject({ code: -32601, data: { method: AGENT_METHODS.session_delete } });
+      await expect(
+        withTimeout(
+          server.clientConn.unstable_forkSession({
+            cwd: repo.path,
+            mcpServers: [],
+            sessionId: created.sessionId,
+          }),
+          'unsupported session/fork',
+        ),
+      ).rejects.toMatchObject({ code: -32601, data: { method: AGENT_METHODS.session_fork } });
+      await expect(
+        withTimeout(
+          server.clientConn.unstable_setSessionModel({
+            modelId: 'model-from-client',
+            sessionId: created.sessionId,
+          }),
+          'unsupported session/set_model',
+        ),
+      ).rejects.toMatchObject({ code: -32601, data: { method: AGENT_METHODS.session_set_model } });
+      await expect(
+        withTimeout(server.clientConn.unstable_listProviders({}), 'unsupported providers/list'),
+      ).rejects.toMatchObject({ code: -32601, data: { method: AGENT_METHODS.providers_list } });
+      await expect(
+        withTimeout(
+          server.clientConn.unstable_startNes({ workspaceUri: `file://${repo.path}` }),
+          'unsupported nes/start',
+        ),
+      ).rejects.toMatchObject({ code: -32601, data: { method: AGENT_METHODS.nes_start } });
+
+      const listed = await withTimeout(
+        server.clientConn.listSessions({ cwd: repo.path }),
+        'session/list after unsupported methods',
+      );
+      expect(listed.sessions.map((session) => session.sessionId)).toEqual([created.sessionId]);
+
+      await server.stop();
+      expectStdoutOnlyJsonRpc(server.stdoutText());
+    },
+    { timeout: 30000 },
+  );
+
+  it(
+    'ignores unadvertised document notifications without corrupting the real stdio session',
+    async () => {
+      const repo = await helper.createGitRepo({
+        initialFiles: [{ path: 'README.md', content: '# ACP document fixture\n' }],
+      });
+      const server = await startAcpSdkServer(repo.path);
+
+      await initializeAcp(server);
+      const created = await newAcpSession(server, repo.path);
+
+      await withTimeout(
+        server.clientConn.unstable_didOpenDocument({
+          sessionId: created.sessionId,
+          uri: `file://${path.join(repo.path, 'README.md')}`,
+          languageId: 'markdown',
+          text: '# Edited in client\n',
+          version: 1,
+        }),
+        'unsupported document/didOpen notification',
+      );
+
+      const response = await promptText(server, created.sessionId, '/help');
+      expect(response.stopReason).toBe('end_turn');
 
       await server.stop();
       expectStdoutOnlyJsonRpc(server.stdoutText());
@@ -869,6 +1171,74 @@ describe('ACP stdio official SDK integration', () => {
           result: { sessions: [] },
         },
       ]);
+      expect(result.stdout).not.toContain('\u001b[');
+    },
+    { timeout: 20000 },
+  );
+
+  it(
+    'continues serving valid raw stdio requests after mixed malformed input and notifications',
+    async () => {
+      const repo = await helper.createGitRepo();
+      const payload = [
+        JSON.stringify({
+          jsonrpc: '2.0',
+          id: 'init',
+          method: 'initialize',
+          params: {
+            protocolVersion: 1,
+            clientCapabilities: {
+              fs: { readTextFile: true, writeTextFile: true },
+              terminal: true,
+            },
+          },
+        }),
+        JSON.stringify({
+          jsonrpc: '2.0',
+          method: AGENT_METHODS.session_cancel,
+          params: { sessionId: 'missing-session' },
+        }),
+        'not-json',
+        JSON.stringify({
+          jsonrpc: '2.0',
+          id: 'invalid',
+          method: AGENT_METHODS.session_list,
+          params: { cwd: 'relative/path' },
+        }),
+        JSON.stringify({
+          jsonrpc: '2.0',
+          id: 'list',
+          method: AGENT_METHODS.session_list,
+          params: { cwd: repo.path },
+        }),
+      ].join('\n');
+
+      const result = await runRawAcpRequest({ repoPath: repo.path, payload });
+      const messages = parseJsonRpcLines(result.stdout);
+
+      expect(result.exitCode).toBe(0);
+      expect(byJsonRpcId(messages, 'init')).toMatchObject({
+        jsonrpc: '2.0',
+        result: { protocolVersion: 1 },
+      });
+      expect(messages.some((message) => message?.id === undefined)).toBe(false);
+      expect(
+        messages.some(
+          (message) =>
+            message?.id === null &&
+            message?.error?.code === -32700 &&
+            message?.error?.message === 'Parse error',
+        ),
+      ).toBe(true);
+      expect(byJsonRpcId(messages, 'invalid')).toMatchObject({
+        jsonrpc: '2.0',
+        error: { code: -32602 },
+      });
+      expect(byJsonRpcId(messages, 'list')).toEqual({
+        jsonrpc: '2.0',
+        id: 'list',
+        result: { sessions: [] },
+      });
       expect(result.stdout).not.toContain('\u001b[');
     },
     { timeout: 20000 },
