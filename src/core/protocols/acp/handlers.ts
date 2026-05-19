@@ -17,12 +17,21 @@ export type AcpSessionRecord = {
   updatedAt: string;
   title?: string;
   taskId?: string;
+  permissionPolicy?: 'ask' | 'deny_all' | 'allow_all';
+  modeId?: string;
   history: AcpSessionHistoryEntry[];
+  materialized: boolean;
   cancelRequested: boolean;
 };
 
 export type AcpSessionStore = {
-  create: (input: { cwd: string; mcpServers: McpServer[]; title?: string }) => AcpSessionRecord;
+  create: (input: {
+    cwd: string;
+    mcpServers: McpServer[];
+    title?: string;
+    permissionPolicy?: AcpSessionRecord['permissionPolicy'];
+    modeId?: AcpSessionRecord['modeId'];
+  }) => AcpSessionRecord;
   upsert: (session: AcpSessionRecord) => AcpSessionRecord;
   get: (id: string) => AcpSessionRecord | undefined;
   update: (
@@ -47,7 +56,10 @@ export function createAcpSessionStore(): AcpSessionStore {
         createdAt: now,
         updatedAt: now,
         title: input.title,
+        permissionPolicy: input.permissionPolicy,
+        modeId: input.modeId,
         history: [],
+        materialized: false,
         cancelRequested: false,
       };
       sessions.set(id, session);

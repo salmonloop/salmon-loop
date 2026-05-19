@@ -2783,7 +2783,7 @@ describe('ACP formal protocol (SDK)', () => {
     ).toBe(true);
   });
 
-  it('closes a session by cancelling work and removing it from session/list', async () => {
+  it('closes a materialized session by cancelling work while keeping it resumable', async () => {
     const cancelledTasks: string[] = [];
     const { clientConn } = createConnectedPair({
       toAgent: (conn) =>
@@ -2832,7 +2832,153 @@ describe('ACP formal protocol (SDK)', () => {
 
     expect(cancelledTasks).toEqual(['task_close_1']);
     const listed = await clientConn.listSessions({});
+    expect(listed.sessions).toContainEqual(
+      expect.objectContaining({
+        sessionId,
+        cwd: '/repo',
+      }),
+    );
+    await expect(clientConn.resumeSession({ sessionId, cwd: '/repo' })).resolves.toMatchObject({
+      modes: expect.objectContaining({ currentModeId: 'autopilot' }),
+    });
+  });
+
+  it('preserves session configuration after closing and resuming a materialized session', async () => {
+    const { clientConn } = createConnectedPair({
+      toAgent: (conn) =>
+        createAcpFormalAgent({
+          conn,
+          agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+          facade: {
+            createTask: async () => {
+              throw new Error('not used');
+            },
+            getTask: async () => null,
+            cancelTask: async () => null,
+            resumeTask: async () => null,
+            retryTask: async () => null,
+            reopenTask: async () => null,
+            listTasks: async () => ({ items: [] }),
+            submitInput: async () => null,
+            getArtifact: async () => null,
+          },
+        }),
+      toClient: () => ({
+        requestPermission: async () => ({ outcome: { outcome: 'cancelled' } }),
+        sessionUpdate: async () => {},
+      }),
+    });
+
+    await clientConn.initialize({
+      protocolVersion: 1,
+      clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
+    });
+    const { sessionId } = await clientConn.newSession({ cwd: '/repo', mcpServers: [] });
+    await clientConn.setSessionMode({ sessionId, modeId: 'review' });
+    await clientConn.prompt({ sessionId, prompt: [{ type: 'text', text: '/help' }] });
+
+    await clientConn.closeSession({ sessionId });
+
+    await expect(clientConn.resumeSession({ sessionId, cwd: '/repo' })).resolves.toMatchObject({
+      modes: expect.objectContaining({ currentModeId: 'review' }),
+    });
+  });
+
+  it('allows a closed materialized session to prompt again after resume', async () => {
+    const createdTasks: string[] = [];
+    const { clientConn } = createConnectedPair({
+      toAgent: (conn) =>
+        createAcpFormalAgent({
+          conn,
+          agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+          facade: {
+            createTask: async (input: any) => {
+              createdTasks.push(input.request.instruction);
+              return {
+                task: {
+                  id: `task_${createdTasks.length}`,
+                  capability: 'patch',
+                  state: 'accepted',
+                  request: { instruction: input.request.instruction },
+                  createdAt: new Date().toISOString(),
+                  attempt: 1,
+                },
+                signal: new AbortController().signal,
+              };
+            },
+            getTask: async () => null,
+            cancelTask: async () => null,
+            resumeTask: async () => null,
+            retryTask: async () => null,
+            reopenTask: async () => null,
+            listTasks: async () => ({ items: [] }),
+            submitInput: async () => null,
+            getArtifact: async () => null,
+          },
+        }),
+      toClient: () => ({
+        requestPermission: async () => ({ outcome: { outcome: 'cancelled' } }),
+        sessionUpdate: async () => {},
+      }),
+    });
+
+    await clientConn.initialize({
+      protocolVersion: 1,
+      clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
+    });
+    const { sessionId } = await clientConn.newSession({ cwd: '/repo', mcpServers: [] });
+    await clientConn.prompt({ sessionId, prompt: [{ type: 'text', text: 'first' }] });
+    await clientConn.closeSession({ sessionId });
+    await clientConn.resumeSession({ sessionId, cwd: '/repo' });
+
+    const prompted = await clientConn.prompt({
+      sessionId,
+      prompt: [{ type: 'text', text: 'second' }],
+    });
+
+    expect(prompted.stopReason).toBe('end_turn');
+    expect(createdTasks).toEqual(['first', 'second']);
+  });
+
+  it('closes an unused session by removing it from future list, load, and resume operations', async () => {
+    const { clientConn } = createConnectedPair({
+      toAgent: (conn) =>
+        createAcpFormalAgent({
+          conn,
+          agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+          facade: {
+            createTask: async () => {
+              throw new Error('not used');
+            },
+            getTask: async () => null,
+            cancelTask: async () => null,
+            resumeTask: async () => null,
+            retryTask: async () => null,
+            reopenTask: async () => null,
+            listTasks: async () => ({ items: [] }),
+            submitInput: async () => null,
+            getArtifact: async () => null,
+          },
+        }),
+      toClient: () => ({
+        requestPermission: async () => ({ outcome: { outcome: 'cancelled' } }),
+        sessionUpdate: async () => {},
+      }),
+    });
+
+    await clientConn.initialize({
+      protocolVersion: 1,
+      clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
+    });
+    const { sessionId } = await clientConn.newSession({ cwd: '/repo', mcpServers: [] });
+
+    await clientConn.closeSession({ sessionId });
+
+    const listed = await clientConn.listSessions({});
     expect(listed.sessions.some((session) => session.sessionId === sessionId)).toBe(false);
+    await expect(
+      clientConn.loadSession({ sessionId, cwd: '/repo', mcpServers: [] }),
+    ).rejects.toMatchObject({ code: -32004 });
     await expect(clientConn.resumeSession({ sessionId, cwd: '/repo' })).rejects.toMatchObject({
       code: -32004,
     });

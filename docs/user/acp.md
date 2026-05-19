@@ -108,11 +108,19 @@ Close a session:
 {"jsonrpc":"2.0","id":8,"method":"session/close","params":{"sessionId":"<session-id>"}}
 ```
 
+`session/close` cancels active work and releases resources for the current active session connection.
+If the session was created but never used for a prompt, closing it discards that transient session.
+Sessions with conversation history remain available through `session/list`, `session/load`, and
+`session/resume`.
+
 Delete a listed session:
 
 ```json
 {"jsonrpc":"2.0","id":9,"method":"session/delete","params":{"sessionId":"<session-id>"}}
 ```
+
+`session/delete` removes a historical/listed session. Deleted sessions are not returned by
+`session/list` and cannot be loaded or resumed.
 
 ## Supported Capabilities
 

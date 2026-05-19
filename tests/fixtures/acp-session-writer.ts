@@ -37,6 +37,7 @@ async function main(): Promise<void> {
     clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
   });
   const session = await agent.newSession({ cwd, mcpServers: [] });
+  await agent.prompt({ sessionId: session.sessionId, prompt: [{ type: 'text', text: '/help' }] });
   process.stdout.write(`${session.sessionId}\n`);
 }
 

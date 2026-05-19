@@ -34,12 +34,12 @@ This module implements the ACP (agent-client-protocol) stdio JSON-RPC adapter fo
 ## Method Mapping
 
 - `initialize` → protocol metadata and capability exposure.
-- `session/new` → create session record (no task yet).
+- `session/new` → create transient in-memory session record (no task yet).
 - `session/load` → reload session + replay history via `session/update`.
-- `session/list` → list persisted sessions, optionally filtered by absolute `cwd`, with cursor-based pagination.
-- `session/delete` → remove a listed session and cancel its active task if one exists.
+- `session/list` → list known in-memory and persisted sessions, optionally filtered by absolute `cwd`, with cursor-based pagination.
+- `session/delete` → remove a listed/history session and cancel its active task if one exists.
 - `session/resume` → restore active session state without replaying previous messages.
-- `session/close` → cancel active work, release runtime state, and remove the session from future lists/loads.
+- `session/close` → cancel active work and release active-session runtime state. Unused transient sessions are discarded; materialized sessions remain list/load/resume-able.
 - `session/set_config_option` → update session config selectors and return latest config options.
 - `session/prompt` → create task via canonical facade and push `session/update` chunks.
 - `session/cancel` → cancel current task (notification-only response).
@@ -114,11 +114,13 @@ Compatibility guarantee:
 
 ## Session Persistence
 
-- ACP session identity is persisted in user runtime storage and can be reloaded after process restart.
+- ACP session identity is persisted in user runtime storage after a real conversation turn starts and can be reloaded after process restart.
 - Default persistence file: `~/.salmonloop/runtime/acp/sessions.v1.json`.
+- A freshly-created `session/new` with no `session/prompt` history is transient. If closed before any conversation, it is discarded and never appears after restart.
 - Persisted fields include safe session state:
-  `sessionId`, `cwd`, `mcpServers`, timestamps, title, recent `history`, and `taskId`.
-- Closed sessions are persisted as tombstones until normal retention expiry so they do not reappear
+  `sessionId`, `cwd`, `mcpServers`, timestamps, title, recent `history`, `taskId`,
+  permission policy, and mode.
+- Deleted sessions are persisted as tombstones until normal retention expiry so they do not reappear
   after a process restart or concurrent persistence merge.
 - Store is bounded by retention policy (30 days, max 200 sessions, capped history per session).
 - Persistence schema supports migration (`schemaVersion` v1 -> v2 normalization during load).

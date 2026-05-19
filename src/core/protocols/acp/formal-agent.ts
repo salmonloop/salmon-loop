@@ -796,6 +796,10 @@ function isKnownSlashCommand(commandName: string): boolean {
   return ACP_AVAILABLE_COMMANDS.some((cmd) => cmd.name.toLowerCase() === normalized);
 }
 
+function isPersistableSession(session: AcpSessionRecord): boolean {
+  return session.materialized || session.history.length > 0 || typeof session.taskId === 'string';
+}
+
 async function awaitTerminalEvent(params: {
   taskId: string;
   eventBus?: {
@@ -1072,25 +1076,28 @@ export function createAcpFormalAgent(deps: {
     const dir = defaultPathAdapter.dirname(sessionPersistencePath);
     const lockPath = `${sessionPersistencePath}.lock`;
 
-    const baseRecords = sessions.list().map((session) => {
-      const runtimeState = ensureSessionRuntimeState(session.id);
-      return {
-        id: session.id,
-        cwd: session.cwd,
-        mcpServers: session.mcpServers,
-        createdAt: session.createdAt,
-        updatedAt: session.updatedAt,
-        title: session.title,
-        taskId: session.taskId,
-        history: session.history.slice(-sessionStorePolicy.historyMaxEntries),
-        permissionPolicy: runtimeState.permissionPolicy,
-        modeId: runtimeState.modeId,
-      };
-    });
+    const baseRecords = sessions
+      .list()
+      .filter(isPersistableSession)
+      .map((session) => {
+        const runtimeState = ensureSessionRuntimeState(session.id);
+        return {
+          id: session.id,
+          cwd: session.cwd,
+          mcpServers: session.mcpServers,
+          createdAt: session.createdAt,
+          updatedAt: session.updatedAt,
+          title: session.title,
+          taskId: session.taskId,
+          history: session.history.slice(-sessionStorePolicy.historyMaxEntries),
+          permissionPolicy: session.permissionPolicy ?? runtimeState.permissionPolicy,
+          modeId: session.modeId ?? runtimeState.modeId,
+        };
+      });
     const prunedRecords = pruneSessionRecords(baseRecords);
     const keepIds = new Set(prunedRecords.map((record) => record.id));
     for (const record of sessions.list()) {
-      if (!keepIds.has(record.id)) {
+      if (isPersistableSession(record) && !keepIds.has(record.id)) {
         sessions.delete(record.id);
       }
     }
@@ -1258,6 +1265,12 @@ export function createAcpFormalAgent(deps: {
         }
         for (const stored of pruneSessionRecords(parsed.sessions)) {
           if (deletedIds.has(stored.id)) continue;
+          const runtimeState = createSessionRuntimeStateFromPersisted({
+            permissionPolicy: stored.permissionPolicy,
+            defaultPermissionPolicy: deps.defaultPermissionPolicy,
+            modeId: stored.modeId,
+            defaultModeId: deps.defaultModeId,
+          });
           sessions.upsert({
             id: stored.id,
             cwd: stored.cwd,
@@ -1266,21 +1279,16 @@ export function createAcpFormalAgent(deps: {
             updatedAt: stored.updatedAt,
             title: stored.title,
             taskId: stored.taskId,
+            permissionPolicy: runtimeState.permissionPolicy,
+            modeId: runtimeState.modeId,
             history: Array.isArray(stored.history)
               ? stored.history.slice(-sessionStorePolicy.historyMaxEntries)
               : [],
+            materialized: true,
             cancelRequested: false,
           });
           if (!sessionRuntime.has(stored.id)) {
-            sessionRuntime.set(
-              stored.id,
-              createSessionRuntimeStateFromPersisted({
-                permissionPolicy: stored.permissionPolicy,
-                defaultPermissionPolicy: deps.defaultPermissionPolicy,
-                modeId: stored.modeId,
-                defaultModeId: deps.defaultModeId,
-              }),
-            );
+            sessionRuntime.set(stored.id, runtimeState);
           }
         }
       } catch (error) {
@@ -1480,21 +1488,50 @@ export function createAcpFormalAgent(deps: {
   function ensureSessionRuntimeState(sessionId: string): AcpSessionRuntimeState {
     const existing = sessionRuntime.get(sessionId);
     if (existing) return existing;
+    const session = sessions.get(sessionId);
     const created = createSessionRuntimeStateFromPersisted({
+      permissionPolicy: session?.permissionPolicy,
       defaultPermissionPolicy: deps.defaultPermissionPolicy,
+      modeId: session?.modeId,
       defaultModeId: deps.defaultModeId,
     });
     sessionRuntime.set(sessionId, created);
     return created;
   }
 
-  async function removeSession(params: { sessionId: string }): Promise<void> {
-    const session = sessions.get(params.sessionId);
-    if (!session) return;
-    sessions.update(params.sessionId, (current) => ({ ...current, cancelRequested: true }));
+  async function cancelSessionTaskBestEffort(session: AcpSessionRecord): Promise<void> {
+    sessions.update(session.id, (current) => ({ ...current, cancelRequested: true }));
     if (session.taskId) {
       await deps.facade.cancelTask(session.taskId);
     }
+  }
+
+  async function closeSessionRecord(params: { sessionId: string }): Promise<void> {
+    const session = sessions.get(params.sessionId);
+    if (!session) return;
+    const runtimeState = ensureSessionRuntimeState(params.sessionId);
+    sessions.update(params.sessionId, (current) => ({
+      ...current,
+      permissionPolicy: runtimeState.permissionPolicy,
+      modeId: runtimeState.modeId,
+    }));
+    await cancelSessionTaskBestEffort(session);
+    const latestSession = sessions.get(params.sessionId) ?? session;
+    if (!isPersistableSession(latestSession)) {
+      sessionRuntime.delete(params.sessionId);
+      sessions.delete(params.sessionId);
+      await persistSessionsBestEffort();
+      return;
+    }
+    sessions.update(params.sessionId, (current) => ({ ...current, cancelRequested: false }));
+    await persistSessionsBestEffort();
+    sessionRuntime.delete(params.sessionId);
+  }
+
+  async function deleteSessionRecord(params: { sessionId: string }): Promise<void> {
+    const session = sessions.get(params.sessionId);
+    if (!session) return;
+    await cancelSessionTaskBestEffort(session);
     deletedSessionIds.set(params.sessionId, new Date().toISOString());
     sessionRuntime.delete(params.sessionId);
     sessions.delete(params.sessionId);
@@ -1545,8 +1582,11 @@ export function createAcpFormalAgent(deps: {
         cwd: params.cwd,
         mcpServers: params.mcpServers ?? [],
         title: deriveSessionTitleFromCwd(params.cwd),
+        permissionPolicy: isPermissionPolicyValue(String(deps.defaultPermissionPolicy))
+          ? deps.defaultPermissionPolicy
+          : ACP_PERMISSION_POLICY_ASK,
+        modeId: resolveExposedAcpModeId(deps.defaultModeId),
       });
-      await persistSessionsBestEffort();
       const runtimeState = ensureSessionRuntimeState(session.id);
 
       await emitSessionInfoUpdateBestEffort(session.id);
@@ -1758,13 +1798,13 @@ export function createAcpFormalAgent(deps: {
 
     async closeSession(params) {
       await hydrateSessionsOnce();
-      await removeSession({ sessionId: params.sessionId });
+      await closeSessionRecord({ sessionId: params.sessionId });
       return {};
     },
 
     async unstable_deleteSession(params) {
       await hydrateSessionsOnce();
-      await removeSession({ sessionId: params.sessionId });
+      await deleteSessionRecord({ sessionId: params.sessionId });
       return {};
     },
 
@@ -1805,7 +1845,11 @@ export function createAcpFormalAgent(deps: {
       } else {
         throw new RequestError(-32602, `Invalid params: unsupported configId "${params.configId}"`);
       }
-      sessions.update(params.sessionId, (current) => ({ ...current }));
+      sessions.update(params.sessionId, (current) => ({
+        ...current,
+        permissionPolicy: runtimeState.permissionPolicy,
+        modeId: runtimeState.modeId,
+      }));
       await persistSessionsBestEffort();
       await emitSessionInfoUpdateBestEffort(params.sessionId);
       const update = buildConfigOptionUpdateIfChanged(runtimeState);
@@ -1836,7 +1880,11 @@ export function createAcpFormalAgent(deps: {
       if (legacyPermissionPolicy) {
         runtimeState.permissionPolicy = legacyPermissionPolicy;
       }
-      sessions.update(params.sessionId, (current) => ({ ...current }));
+      sessions.update(params.sessionId, (current) => ({
+        ...current,
+        permissionPolicy: runtimeState.permissionPolicy,
+        modeId: runtimeState.modeId,
+      }));
       await persistSessionsBestEffort();
       await emitSessionInfoUpdateBestEffort(params.sessionId);
 
@@ -1885,6 +1933,9 @@ export function createAcpFormalAgent(deps: {
           ...current,
           cancelRequested: false,
           title,
+          materialized: true,
+          permissionPolicy: runtimeState.permissionPolicy,
+          modeId: runtimeState.modeId,
           history: [
             ...current.history,
             { role: 'user', content: params.prompt as unknown as any[] },

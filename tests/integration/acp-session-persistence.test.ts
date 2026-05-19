@@ -83,7 +83,7 @@ describe('ACP session persistence integration', () => {
     });
   }
 
-  it('restores session identity across agent restarts', async () => {
+  it('keeps unused new sessions transient across agent restarts', async () => {
     const tempRoot = await mkdtemp(path.join(tmpdir(), 'salmonloop-acp-session-'));
     const persistencePath = path.join(tempRoot, 'acp', 'sessions.v1.json');
     let sessionId = '';
@@ -119,12 +119,15 @@ describe('ACP session persistence integration', () => {
         protocolVersion: 1,
         clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
       });
-      const loaded = await second.clientConn.loadSession({
-        sessionId,
-        cwd: '/repo',
-        mcpServers: [],
-      });
-      expect(Array.isArray(loaded.configOptions)).toBe(true);
+      const listed = await second.clientConn.listSessions({ cwd: '/repo' });
+      expect(listed.sessions.some((session) => session.sessionId === sessionId)).toBe(false);
+      await expect(
+        second.clientConn.loadSession({
+          sessionId,
+          cwd: '/repo',
+          mcpServers: [],
+        }),
+      ).rejects.toMatchObject({ code: -32004 });
     } finally {
       await rm(tempRoot, { recursive: true, force: true });
     }
@@ -347,7 +350,7 @@ describe('ACP session persistence integration', () => {
     }
   });
 
-  it('keeps a closed session removed across agent restarts', async () => {
+  it('keeps a closed unused session absent across agent restarts', async () => {
     const tempRoot = await mkdtemp(path.join(tmpdir(), 'salmonloop-acp-session-close-'));
     const persistencePath = path.join(tempRoot, 'acp', 'sessions.v1.json');
 
@@ -394,6 +397,64 @@ describe('ACP session persistence integration', () => {
     }
   });
 
+  it('keeps a closed materialized session loadable across agent restarts', async () => {
+    const tempRoot = await mkdtemp(path.join(tmpdir(), 'salmonloop-acp-session-close-keep-'));
+    const persistencePath = path.join(tempRoot, 'acp', 'sessions.v1.json');
+
+    try {
+      const first = createConnectedPair({
+        toAgent: (conn) =>
+          createAcpFormalAgent({
+            conn,
+            agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+            facade: createFacade(),
+            sessionPersistencePath: persistencePath,
+          }),
+        toClient: () => createClient(),
+      });
+      await first.clientConn.initialize({
+        protocolVersion: 1,
+        clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
+      });
+      const { sessionId } = await first.clientConn.newSession({ cwd: '/repo', mcpServers: [] });
+      await first.clientConn.setSessionMode({ sessionId, modeId: 'review' });
+      await first.clientConn.prompt({ sessionId, prompt: [{ type: 'text', text: '/help' }] });
+      await first.clientConn.closeSession({ sessionId });
+
+      const second = createConnectedPair({
+        toAgent: (conn) =>
+          createAcpFormalAgent({
+            conn,
+            agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+            facade: createFacade(),
+            sessionPersistencePath: persistencePath,
+          }),
+        toClient: () => createClient(),
+      });
+      await second.clientConn.initialize({
+        protocolVersion: 1,
+        clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
+      });
+
+      const listed = await second.clientConn.listSessions({ cwd: '/repo' });
+      expect(listed.sessions).toContainEqual(
+        expect.objectContaining({
+          sessionId,
+          cwd: '/repo',
+        }),
+      );
+      const loaded = await second.clientConn.loadSession({
+        sessionId,
+        cwd: '/repo',
+        mcpServers: [],
+      });
+      expect(Array.isArray(loaded.configOptions)).toBe(true);
+      expect(loaded.modes?.currentModeId).toBe('review');
+    } finally {
+      await rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+
   it('reclaims corrupted stale session lock payload before persisting', async () => {
     const tempRoot = await mkdtemp(path.join(tmpdir(), 'salmonloop-acp-session-lock-'));
     const persistencePath = path.join(tempRoot, 'acp', 'sessions.v1.json');
@@ -419,7 +480,8 @@ describe('ACP session persistence integration', () => {
         protocolVersion: 1,
         clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
       });
-      await pair.clientConn.newSession({ cwd: '/repo', mcpServers: [] });
+      const { sessionId } = await pair.clientConn.newSession({ cwd: '/repo', mcpServers: [] });
+      await pair.clientConn.prompt({ sessionId, prompt: [{ type: 'text', text: '/help' }] });
 
       const payload = JSON.parse(await readFile(persistencePath, 'utf8')) as {
         schemaVersion: number;
@@ -472,6 +534,10 @@ describe('ACP session persistence integration', () => {
       const [{ sessionId: sessionA }, { sessionId: sessionB }] = await Promise.all([
         pairA.clientConn.newSession({ cwd: '/repoA', mcpServers: [] }),
         pairB.clientConn.newSession({ cwd: '/repoB', mcpServers: [] }),
+      ]);
+      await Promise.all([
+        pairA.clientConn.prompt({ sessionId: sessionA, prompt: [{ type: 'text', text: '/help' }] }),
+        pairB.clientConn.prompt({ sessionId: sessionB, prompt: [{ type: 'text', text: '/help' }] }),
       ]);
 
       const payload = JSON.parse(await readFile(persistencePath, 'utf8')) as {

@@ -831,6 +831,7 @@ describe('ACP stdio official SDK integration', () => {
         firstServer.clientConn.setSessionMode({ sessionId: created.sessionId, modeId: 'review' }),
         'session/set_mode before restart',
       );
+      await promptText(firstServer, created.sessionId, '/help');
       await firstServer.stop();
       expectStdoutOnlyJsonRpc(firstServer.stdoutText());
 
@@ -857,7 +858,7 @@ describe('ACP stdio official SDK integration', () => {
   );
 
   it(
-    'keeps closed sessions absent across real serve acp process restarts',
+    'keeps closed unused sessions absent across real serve acp process restarts',
     async () => {
       const repo = await helper.createGitRepo({
         initialFiles: [{ path: 'README.md', content: '# ACP close persistence fixture\n' }],
@@ -892,6 +893,54 @@ describe('ACP stdio official SDK integration', () => {
           'session/load closed session after restart',
         ),
       ).rejects.toMatchObject({ code: -32004 });
+
+      await secondServer.stop();
+      expectStdoutOnlyJsonRpc(secondServer.stdoutText());
+    },
+    { timeout: 30000 },
+  );
+
+  it(
+    'keeps closed materialized sessions listable across real serve acp process restarts',
+    async () => {
+      const repo = await helper.createGitRepo({
+        initialFiles: [{ path: 'README.md', content: '# ACP close keep fixture\n' }],
+      });
+      const home = await helper.createTempDir('salmonloop-acp-close-keep-home-');
+      const firstServer = await startAcpSdkServer(repo.path, { home });
+
+      await initializeAcp(firstServer);
+      const created = await newAcpSession(firstServer, repo.path);
+      await promptText(firstServer, created.sessionId, '/help');
+      await withTimeout(
+        firstServer.clientConn.closeSession({ sessionId: created.sessionId }),
+        'session/close materialized before restart',
+      );
+      await firstServer.stop();
+      expectStdoutOnlyJsonRpc(firstServer.stdoutText());
+
+      const secondServer = await startAcpSdkServer(repo.path, { home });
+      await initializeAcp(secondServer);
+
+      const listed = await withTimeout(
+        secondServer.clientConn.listSessions({ cwd: repo.path }),
+        'session/list after materialized close restart',
+      );
+      expect(listed.sessions).toContainEqual(
+        expect.objectContaining({
+          cwd: repo.path,
+          sessionId: created.sessionId,
+        }),
+      );
+      const loaded = await withTimeout(
+        secondServer.clientConn.loadSession({
+          cwd: repo.path,
+          mcpServers: [],
+          sessionId: created.sessionId,
+        }),
+        'session/load materialized closed session after restart',
+      );
+      expect(loaded.modes?.currentModeId).toBe('autopilot');
 
       await secondServer.stop();
       expectStdoutOnlyJsonRpc(secondServer.stdoutText());
