@@ -1,0 +1,3 @@
+## 2024-05-14 - Structural Focus Indicators in CLI UIs
+**Learning:** While using color changes (like switching to cyan) is a common way to indicate selection in CLI lists, relying *solely* on color is an accessibility anti-pattern, particularly for colorblind users or environments with limited color support.
+**Action:** Always include a structural or character-based focus indicator. In this project, `❯ ` is the established convention for selection indicators (as seen in `CommandInput.tsx`). Ensure all list components (like `CommandSuggestionList.tsx`) adopt this standard instead of subtle or non-standard characters like `│ `.
