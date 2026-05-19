@@ -3,7 +3,15 @@ import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { Readable, Writable } from 'node:stream';
 
-import { ClientSideConnection, ndJsonStream, type Client } from '@agentclientprotocol/sdk';
+import {
+  ClientSideConnection,
+  ndJsonStream,
+  type Client,
+  type McpServer,
+  type SessionConfigOption,
+  type SessionNotification,
+  type SessionUpdate,
+} from '@agentclientprotocol/sdk';
 import { afterEach, describe, expect, it } from 'bun:test';
 
 import { resolveBunExecutable } from '../helpers/bun.js';
@@ -16,10 +24,15 @@ const PROCESS_STOP_TIMEOUT_MS = 1500;
 
 type AcpSdkServer = {
   clientConn: ClientSideConnection;
-  updates: unknown[];
+  updates: SessionNotification[];
   stderrText: () => string;
   stdoutText: () => string;
   stop: () => Promise<void>;
+};
+
+type AcpSdkServerOptions = {
+  home?: string;
+  client?: Partial<Client>;
 };
 
 const helper = new RealFsTestHelper();
@@ -72,12 +85,12 @@ async function collectUtf8(readable: ReadableStream<Uint8Array>): Promise<string
   }
 }
 
-async function createIsolatedCliEnv(): Promise<NodeJS.ProcessEnv> {
+async function createIsolatedCliEnv(options: { home?: string } = {}): Promise<NodeJS.ProcessEnv> {
   const dotenvDir = await helper.createTempDir('salmonloop-acp-dotenv-');
   const dotenvPath = path.join(dotenvDir, '.env');
   await writeFile(dotenvPath, '', 'utf8');
 
-  const home = await helper.createTempDir('salmonloop-acp-home-');
+  const home = options.home ?? (await helper.createTempDir('salmonloop-acp-home-'));
   const pathKey = Object.keys(process.env).find((key) => key.toLowerCase() === 'path') ?? 'PATH';
 
   return {
@@ -107,19 +120,25 @@ function spawnAcpCli(repoPath: string, env: NodeJS.ProcessEnv): ChildProcessWith
   );
 }
 
-function createTestClient(updates: unknown[]): Client {
+function createTestClient(updates: SessionNotification[], overrides: Partial<Client> = {}): Client {
   return {
-    requestPermission: async () => ({ outcome: { outcome: 'cancelled' } }),
+    ...overrides,
+    requestPermission:
+      overrides.requestPermission ?? (async () => ({ outcome: { outcome: 'cancelled' } })),
     sessionUpdate: async (params) => {
       updates.push(params);
+      await overrides.sessionUpdate?.(params);
     },
   };
 }
 
-async function startAcpSdkServer(repoPath: string): Promise<AcpSdkServer> {
-  const env = await createIsolatedCliEnv();
+async function startAcpSdkServer(
+  repoPath: string,
+  options: AcpSdkServerOptions = {},
+): Promise<AcpSdkServer> {
+  const env = await createIsolatedCliEnv({ home: options.home });
   const child = spawnAcpCli(repoPath, env);
-  const updates: unknown[] = [];
+  const updates: SessionNotification[] = [];
   let stderr = '';
   let stdout = '';
   let stopped = false;
@@ -139,7 +158,10 @@ async function startAcpSdkServer(repoPath: string): Promise<AcpSdkServer> {
     });
   const stdinWeb = Writable.toWeb(child.stdin) as unknown as WritableStream<Uint8Array>;
   const stream = ndJsonStream(stdinWeb, clientReadable);
-  const clientConn = new ClientSideConnection(() => createTestClient(updates), stream);
+  const clientConn = new ClientSideConnection(
+    () => createTestClient(updates, options.client),
+    stream,
+  );
 
   const closePromise = new Promise<void>((resolve) => {
     child.once('close', () => resolve());
@@ -173,6 +195,60 @@ async function startAcpSdkServer(repoPath: string): Promise<AcpSdkServer> {
 
   servers.push(server);
   return server;
+}
+
+function sessionUpdates(server: AcpSdkServer): SessionUpdate[] {
+  return server.updates.map((notification) => notification.update);
+}
+
+function updateKinds(updates: SessionUpdate[]): string[] {
+  return updates.map((update) => update.sessionUpdate);
+}
+
+function textUpdateContent(update: SessionUpdate): string | null {
+  if (!('content' in update)) return null;
+  const content = update.content;
+  if (!content || Array.isArray(content)) return null;
+  return content.type === 'text' ? content.text : null;
+}
+
+function configValue(options: SessionConfigOption[] | null | undefined, id: string): unknown {
+  return options?.find((option) => option.id === id)?.currentValue;
+}
+
+function parseJsonRpcLines(stdout: string): any[] {
+  return stdout
+    .trim()
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => JSON.parse(line));
+}
+
+async function initializeAcp(server: AcpSdkServer) {
+  return withTimeout(
+    server.clientConn.initialize({
+      protocolVersion: 1,
+      clientCapabilities: {
+        fs: { readTextFile: true, writeTextFile: true },
+        terminal: true,
+      },
+    }),
+    'initialize',
+  );
+}
+
+async function newAcpSession(server: AcpSdkServer, repoPath: string, mcpServers: McpServer[] = []) {
+  return withTimeout(server.clientConn.newSession({ cwd: repoPath, mcpServers }), 'session/new');
+}
+
+async function promptText(server: AcpSdkServer, sessionId: string, text: string) {
+  return withTimeout(
+    server.clientConn.prompt({
+      sessionId,
+      prompt: [{ type: 'text', text }],
+    }),
+    'session/prompt',
+  );
 }
 
 function expectStdoutOnlyJsonRpc(stdout: string): void {
@@ -340,6 +416,299 @@ describe('ACP stdio official SDK integration', () => {
   );
 
   it(
+    'streams prompt updates from a real slash-command turn through the official SDK client',
+    async () => {
+      const repo = await helper.createGitRepo({
+        initialFiles: [{ path: 'README.md', content: '# ACP prompt fixture\n' }],
+      });
+      const server = await startAcpSdkServer(repo.path);
+
+      await initializeAcp(server);
+      const created = await newAcpSession(server, repo.path);
+
+      expect(updateKinds(sessionUpdates(server))).toEqual(
+        expect.arrayContaining([
+          'session_info_update',
+          'available_commands_update',
+          'current_mode_update',
+        ]),
+      );
+      expect(
+        sessionUpdates(server).some(
+          (update) =>
+            update.sessionUpdate === 'available_commands_update' &&
+            update.availableCommands.some((command) => command.name === 'help'),
+        ),
+      ).toBe(true);
+      expect(
+        sessionUpdates(server).some(
+          (update) =>
+            update.sessionUpdate === 'current_mode_update' && update.currentModeId === 'autopilot',
+        ),
+      ).toBe(true);
+
+      server.updates.length = 0;
+      const response = await promptText(server, created.sessionId, '/help');
+
+      expect(response.stopReason).toBe('end_turn');
+      const updates = sessionUpdates(server);
+      expect(updateKinds(updates)).toEqual(
+        expect.arrayContaining(['session_info_update', 'agent_message_chunk']),
+      );
+      expect(
+        updates.some((update) => {
+          const content = textUpdateContent(update);
+          return update.sessionUpdate === 'agent_message_chunk' && content?.includes('/help');
+        }),
+      ).toBe(true);
+
+      await server.stop();
+      expectStdoutOnlyJsonRpc(server.stdoutText());
+    },
+    { timeout: 20000 },
+  );
+
+  it(
+    'applies session configuration and mode changes through the real stdio process',
+    async () => {
+      const repo = await helper.createGitRepo({
+        initialFiles: [{ path: 'README.md', content: '# ACP config fixture\n' }],
+      });
+      const server = await startAcpSdkServer(repo.path);
+
+      await initializeAcp(server);
+      const created = await newAcpSession(server, repo.path);
+
+      server.updates.length = 0;
+      const configResponse = await withTimeout(
+        server.clientConn.setSessionConfigOption({
+          sessionId: created.sessionId,
+          configId: '_salmonloop_mode',
+          value: 'review',
+        }),
+        'session/set_config_option',
+      );
+      expect(configValue(configResponse.configOptions, '_salmonloop_mode')).toBe('review');
+      expect(
+        sessionUpdates(server).some(
+          (update) =>
+            update.sessionUpdate === 'current_mode_update' && update.currentModeId === 'review',
+        ),
+      ).toBe(true);
+
+      server.updates.length = 0;
+      await withTimeout(
+        server.clientConn.setSessionMode({ sessionId: created.sessionId, modeId: 'debug' }),
+        'session/set_mode',
+      );
+      expect(
+        sessionUpdates(server).some(
+          (update) =>
+            update.sessionUpdate === 'current_mode_update' && update.currentModeId === 'debug',
+        ),
+      ).toBe(true);
+
+      const loaded = await withTimeout(
+        server.clientConn.loadSession({
+          cwd: repo.path,
+          mcpServers: [],
+          sessionId: created.sessionId,
+        }),
+        'session/load after mode change',
+      );
+      expect(loaded.modes?.currentModeId).toBe('debug');
+      expect(configValue(loaded.configOptions, '_salmonloop_mode')).toBe('debug');
+
+      await server.stop();
+      expectStdoutOnlyJsonRpc(server.stdoutText());
+    },
+    { timeout: 20000 },
+  );
+
+  it(
+    'replays persisted conversation history when loading a real session',
+    async () => {
+      const repo = await helper.createGitRepo({
+        initialFiles: [{ path: 'README.md', content: '# ACP history fixture\n' }],
+      });
+      const server = await startAcpSdkServer(repo.path);
+
+      await initializeAcp(server);
+      const created = await newAcpSession(server, repo.path);
+      await promptText(server, created.sessionId, '/help');
+
+      server.updates.length = 0;
+      await withTimeout(
+        server.clientConn.loadSession({
+          cwd: repo.path,
+          mcpServers: [],
+          sessionId: created.sessionId,
+        }),
+        'session/load with history',
+      );
+
+      const updates = sessionUpdates(server);
+      expect(
+        updates.some(
+          (update) =>
+            update.sessionUpdate === 'user_message_chunk' && textUpdateContent(update) === '/help',
+        ),
+      ).toBe(true);
+      expect(
+        updates.some((update) => {
+          const content = textUpdateContent(update);
+          return update.sessionUpdate === 'agent_message_chunk' && content?.includes('/help');
+        }),
+      ).toBe(true);
+
+      await server.stop();
+      expectStdoutOnlyJsonRpc(server.stdoutText());
+    },
+    { timeout: 20000 },
+  );
+
+  it(
+    'persists sessions across real serve acp process restarts',
+    async () => {
+      const repo = await helper.createGitRepo({
+        initialFiles: [{ path: 'README.md', content: '# ACP persistence fixture\n' }],
+      });
+      const home = await helper.createTempDir('salmonloop-acp-shared-home-');
+      const firstServer = await startAcpSdkServer(repo.path, { home });
+
+      await initializeAcp(firstServer);
+      const created = await newAcpSession(firstServer, repo.path);
+      await promptText(firstServer, created.sessionId, '/help');
+      await firstServer.stop();
+      expectStdoutOnlyJsonRpc(firstServer.stdoutText());
+
+      const secondServer = await startAcpSdkServer(repo.path, { home });
+      await initializeAcp(secondServer);
+
+      const listed = await withTimeout(
+        secondServer.clientConn.listSessions({ cwd: repo.path }),
+        'session/list after restart',
+      );
+      expect(listed.sessions).toEqual([
+        expect.objectContaining({
+          cwd: repo.path,
+          sessionId: created.sessionId,
+        }),
+      ]);
+
+      secondServer.updates.length = 0;
+      const loaded = await withTimeout(
+        secondServer.clientConn.loadSession({
+          cwd: repo.path,
+          mcpServers: [],
+          sessionId: created.sessionId,
+        }),
+        'session/load after restart',
+      );
+      expect(loaded.modes?.currentModeId).toBe('autopilot');
+      expect(
+        sessionUpdates(secondServer).some(
+          (update) =>
+            update.sessionUpdate === 'user_message_chunk' && textUpdateContent(update) === '/help',
+        ),
+      ).toBe(true);
+
+      await secondServer.stop();
+      expectStdoutOnlyJsonRpc(secondServer.stdoutText());
+    },
+    { timeout: 30000 },
+  );
+
+  it(
+    'accepts supported MCP server params and rejects unsupported MCP transports at the real boundary',
+    async () => {
+      const repo = await helper.createGitRepo({
+        initialFiles: [{ path: 'README.md', content: '# ACP MCP fixture\n' }],
+      });
+      const server = await startAcpSdkServer(repo.path);
+
+      await initializeAcp(server);
+      const created = await newAcpSession(server, repo.path, [
+        { name: 'local-tools', command: 'tool-server', args: ['--stdio'], env: [] },
+        {
+          type: 'http',
+          name: 'remote-tools',
+          url: 'http://127.0.0.1:65535/mcp',
+          headers: [{ name: 'authorization', value: 'Bearer token' }],
+        },
+      ]);
+      const response = await promptText(server, created.sessionId, '/help');
+      expect(response.stopReason).toBe('end_turn');
+
+      await expect(
+        withTimeout(
+          server.clientConn.newSession({
+            cwd: repo.path,
+            mcpServers: [
+              {
+                type: 'sse',
+                name: 'legacy-sse',
+                url: 'http://127.0.0.1:65535/sse',
+                headers: [],
+              },
+            ],
+          }),
+          'session/new with unsupported SSE MCP',
+        ),
+      ).rejects.toMatchObject({ code: -32602 });
+
+      await expect(
+        withTimeout(
+          server.clientConn.resumeSession({
+            cwd: repo.path,
+            mcpServers: [
+              {
+                type: 'acp',
+                name: 'component-tools',
+                id: 'component-tools-1',
+              },
+            ],
+            sessionId: created.sessionId,
+          }),
+          'session/resume with unsupported ACP MCP',
+        ),
+      ).rejects.toMatchObject({ code: -32602 });
+
+      await server.stop();
+      expectStdoutOnlyJsonRpc(server.stdoutText());
+    },
+    { timeout: 20000 },
+  );
+
+  it(
+    'honors a prior session/cancel notification on the next real prompt turn',
+    async () => {
+      const repo = await helper.createGitRepo({
+        initialFiles: [{ path: 'README.md', content: '# ACP cancel fixture\n' }],
+      });
+      const server = await startAcpSdkServer(repo.path);
+
+      await initializeAcp(server);
+      const created = await newAcpSession(server, repo.path);
+
+      await withTimeout(
+        server.clientConn.cancel({ sessionId: created.sessionId }),
+        'session/cancel',
+      );
+      const response = await promptText(server, created.sessionId, '/help');
+
+      expect(response.stopReason).toBe('cancelled');
+      expect(
+        sessionUpdates(server).some((update) => update.sessionUpdate === 'session_info_update'),
+      ).toBe(true);
+
+      await server.stop();
+      expectStdoutOnlyJsonRpc(server.stdoutText());
+    },
+    { timeout: 20000 },
+  );
+
+  it(
     'surfaces protocol errors from the real stdio process through the official SDK client',
     async () => {
       const repo = await helper.createGitRepo();
@@ -408,12 +777,11 @@ describe('ACP stdio official SDK integration', () => {
       });
 
       const result = await runRawAcpRequest({ repoPath: repo.path, payload });
-      const lines = result.stdout.trim().split('\n').filter(Boolean);
+      const messages = parseJsonRpcLines(result.stdout);
 
       expect(result.exitCode).toBe(0);
-      expect(lines).toHaveLength(1);
-      const response = JSON.parse(lines[0]);
-      expect(response).toMatchObject({
+      expect(messages).toHaveLength(1);
+      expect(messages[0]).toMatchObject({
         id: 1,
         jsonrpc: '2.0',
         result: {
@@ -428,6 +796,79 @@ describe('ACP stdio official SDK integration', () => {
           },
         },
       });
+      expect(result.stdout).not.toContain('\u001b[');
+    },
+    { timeout: 20000 },
+  );
+
+  it(
+    'returns JSON-RPC protocol errors for malformed raw stdio input in the real process',
+    async () => {
+      const repo = await helper.createGitRepo();
+      const result = await runRawAcpRequest({
+        repoPath: repo.path,
+        payload: 'not-json\n123\n',
+      });
+
+      expect(result.exitCode).toBe(0);
+      expect(parseJsonRpcLines(result.stdout)).toEqual([
+        {
+          jsonrpc: '2.0',
+          id: null,
+          error: { code: -32700, message: 'Parse error' },
+        },
+        {
+          jsonrpc: '2.0',
+          id: null,
+          error: { code: -32600, message: 'Invalid Request' },
+        },
+      ]);
+      expect(result.stdout).not.toContain('\u001b[');
+    },
+    { timeout: 20000 },
+  );
+
+  it(
+    'normalizes omitted raw JSON-RPC params before reaching the real ACP handler',
+    async () => {
+      const repo = await helper.createGitRepo();
+      const payload = [
+        {
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'initialize',
+          params: {
+            protocolVersion: 1,
+            clientCapabilities: {
+              fs: { readTextFile: true, writeTextFile: true },
+              terminal: true,
+            },
+          },
+        },
+        {
+          jsonrpc: '2.0',
+          id: 2,
+          method: 'session/list',
+        },
+      ]
+        .map((message) => JSON.stringify(message))
+        .join('\n');
+
+      const result = await runRawAcpRequest({ repoPath: repo.path, payload });
+
+      expect(result.exitCode).toBe(0);
+      expect(parseJsonRpcLines(result.stdout)).toEqual([
+        expect.objectContaining({
+          jsonrpc: '2.0',
+          id: 1,
+          result: expect.objectContaining({ protocolVersion: 1 }),
+        }),
+        {
+          jsonrpc: '2.0',
+          id: 2,
+          result: { sessions: [] },
+        },
+      ]);
       expect(result.stdout).not.toContain('\u001b[');
     },
     { timeout: 20000 },
