@@ -36,6 +36,8 @@ type AcpSdkServerOptions = {
   client?: Partial<Client>;
 };
 
+type CliColorEnv = 'disabled' | 'default';
+
 const helper = new RealFsTestHelper();
 const servers: AcpSdkServer[] = [];
 
@@ -86,7 +88,9 @@ async function collectUtf8(readable: ReadableStream<Uint8Array>): Promise<string
   }
 }
 
-async function createIsolatedCliEnv(options: { home?: string } = {}): Promise<NodeJS.ProcessEnv> {
+async function createIsolatedCliEnv(
+  options: { home?: string; colorEnv?: CliColorEnv } = {},
+): Promise<NodeJS.ProcessEnv> {
   const dotenvDir = await helper.createTempDir('salmonloop-acp-dotenv-');
   const dotenvPath = path.join(dotenvDir, '.env');
   await writeFile(dotenvPath, '', 'utf8');
@@ -94,31 +98,42 @@ async function createIsolatedCliEnv(options: { home?: string } = {}): Promise<No
   const home = options.home ?? (await helper.createTempDir('salmonloop-acp-home-'));
   const pathKey = Object.keys(process.env).find((key) => key.toLowerCase() === 'path') ?? 'PATH';
 
-  return {
+  const env: NodeJS.ProcessEnv = {
     ...process.env,
     DOTENV_CONFIG_PATH: dotenvPath,
-    FORCE_COLOR: '0',
     HOME: home,
-    NO_COLOR: '1',
     SALMONLOOP_API_KEY: '',
     SALMONLOOP_USER_CONFIG_HOME: home,
     S8P_API_KEY: '',
     USERPROFILE: home,
     [pathKey]: process.env[pathKey],
   };
+
+  if (options.colorEnv === 'default') {
+    delete env.FORCE_COLOR;
+    delete env.NO_COLOR;
+  } else {
+    env.FORCE_COLOR = '0';
+    env.NO_COLOR = '1';
+  }
+
+  return env;
 }
 
-function spawnAcpCli(repoPath: string, env: NodeJS.ProcessEnv): ChildProcessWithoutNullStreams {
-  return spawn(
-    resolveBunExecutable(),
-    [CLI_ENTRY, '--repo', repoPath, 'serve', 'acp', '--no-color'],
-    {
-      cwd: PROJECT_ROOT,
-      env,
-      stdio: ['pipe', 'pipe', 'pipe'],
-      windowsHide: true,
-    },
-  );
+function spawnAcpCli(
+  repoPath: string,
+  env: NodeJS.ProcessEnv,
+  options: { noColor?: boolean } = {},
+): ChildProcessWithoutNullStreams {
+  const args = [CLI_ENTRY, '--repo', repoPath, 'serve', 'acp'];
+  if (options.noColor !== false) args.push('--no-color');
+
+  return spawn(resolveBunExecutable(), args, {
+    cwd: PROJECT_ROOT,
+    env,
+    stdio: ['pipe', 'pipe', 'pipe'],
+    windowsHide: true,
+  });
 }
 
 function createTestClient(updates: SessionNotification[], overrides: Partial<Client> = {}): Client {
@@ -272,9 +287,11 @@ function expectStdoutOnlyJsonRpc(stdout: string): void {
 async function runRawAcpRequest(params: {
   repoPath: string;
   payload: string;
+  colorEnv?: CliColorEnv;
+  noColor?: boolean;
 }): Promise<{ stdout: string; stderr: string; exitCode: number | null }> {
-  const env = await createIsolatedCliEnv();
-  const child = spawnAcpCli(params.repoPath, env);
+  const env = await createIsolatedCliEnv({ colorEnv: params.colorEnv });
+  const child = spawnAcpCli(params.repoPath, env, { noColor: params.noColor });
   let stdout = '';
   let stderr = '';
 
@@ -1126,6 +1143,35 @@ describe('ACP stdio official SDK integration', () => {
         },
       ]);
       expect(result.stdout).not.toContain('\u001b[');
+    },
+    { timeout: 20000 },
+  );
+
+  it(
+    'keeps stdout protocol-only when serve acp starts with default color handling',
+    async () => {
+      const repo = await helper.createGitRepo();
+      const result = await runRawAcpRequest({
+        repoPath: repo.path,
+        payload: 'not-json\n123\n',
+        colorEnv: 'default',
+        noColor: false,
+      });
+
+      expect(result.exitCode).toBe(0);
+      expect(parseJsonRpcLines(result.stdout)).toEqual([
+        {
+          jsonrpc: '2.0',
+          id: null,
+          error: { code: -32700, message: 'Parse error' },
+        },
+        {
+          jsonrpc: '2.0',
+          id: null,
+          error: { code: -32600, message: 'Invalid Request' },
+        },
+      ]);
+      expectStdoutOnlyJsonRpc(result.stdout);
     },
     { timeout: 20000 },
   );
