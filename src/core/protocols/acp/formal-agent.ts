@@ -156,6 +156,7 @@ const ACP_SESSION_STORE_LOCK_STALE_MS = 1000 * 30;
 const ACP_SESSION_STORE_LOCK_HEARTBEAT_MS = 1000 * 5;
 const ACP_SESSION_STORE_LOCK_ACQUIRE_TIMEOUT_MS = 1000 * 5;
 const ACP_SESSION_HISTORY_MAX_ENTRIES = 40;
+const ACP_SESSION_LIST_PAGE_SIZE = 50;
 const ACP_SUPPORTED_PROTOCOL_VERSIONS = new Set<number>([PROTOCOL_VERSION]);
 
 function isAbsolutePath(filePath: string): boolean {
@@ -195,6 +196,38 @@ function buildJsonResourceContentBlock(data: unknown): ContentBlock {
       text: JSON.stringify(data),
     },
   } as ContentBlock;
+}
+
+function encodeSessionListCursor(input: { offset: number; cwd: string | null }): string {
+  return Buffer.from(JSON.stringify({ v: 1, offset: input.offset, cwd: input.cwd })).toString(
+    'base64url',
+  );
+}
+
+function decodeSessionListCursor(cursor: string): { offset: number; cwd: string | null } {
+  try {
+    const decoded = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as {
+      v?: unknown;
+      offset?: unknown;
+      cwd?: unknown;
+    };
+    if (decoded.v !== 1) {
+      throw new Error('unsupported cursor version');
+    }
+    if (
+      typeof decoded.offset !== 'number' ||
+      !Number.isInteger(decoded.offset) ||
+      decoded.offset < 0
+    ) {
+      throw new Error('invalid cursor offset');
+    }
+    if (decoded.cwd !== null && typeof decoded.cwd !== 'string') {
+      throw new Error('invalid cursor cwd');
+    }
+    return { offset: decoded.offset, cwd: decoded.cwd };
+  } catch {
+    throw new RequestError(-32602, 'Invalid params: invalid session/list cursor');
+  }
 }
 
 function isReplayableSessionContentBlock(block: Record<string, unknown>): block is ContentBlock {
@@ -1455,6 +1488,19 @@ export function createAcpFormalAgent(deps: {
     return created;
   }
 
+  async function removeSession(params: { sessionId: string }): Promise<void> {
+    const session = sessions.get(params.sessionId);
+    if (!session) return;
+    sessions.update(params.sessionId, (current) => ({ ...current, cancelRequested: true }));
+    if (session.taskId) {
+      await deps.facade.cancelTask(session.taskId);
+    }
+    deletedSessionIds.set(params.sessionId, new Date().toISOString());
+    sessionRuntime.delete(params.sessionId);
+    sessions.delete(params.sessionId);
+    await persistSessionsBestEffort();
+  }
+
   return {
     async initialize(params) {
       if (typeof params.protocolVersion !== 'number' || !Number.isFinite(params.protocolVersion)) {
@@ -1475,6 +1521,7 @@ export function createAcpFormalAgent(deps: {
             list: {},
             resume: {},
             close: {},
+            delete: {},
           },
         },
       };
@@ -1664,15 +1711,28 @@ export function createAcpFormalAgent(deps: {
       if (typeof params.cwd === 'string' && params.cwd && !isAbsolutePath(params.cwd)) {
         throw new RequestError(-32602, 'Invalid params: cwd must be an absolute path');
       }
+      const cwdFilter = typeof params.cwd === 'string' && params.cwd ? params.cwd : null;
+      let offset = 0;
       if (typeof params.cursor === 'string' && params.cursor) {
-        throw new RequestError(-32602, 'Invalid params: cursor pagination is not supported');
+        const decodedCursor = decodeSessionListCursor(params.cursor);
+        if (decodedCursor.cwd !== cwdFilter) {
+          throw new RequestError(-32602, 'Invalid params: cursor does not match cwd filter');
+        }
+        offset = decodedCursor.offset;
       }
       const filtered = sessions
         .list()
-        .filter((session) => !params.cwd || session.cwd === params.cwd)
+        .filter((session) => !cwdFilter || session.cwd === cwdFilter)
         .sort((a, b) => parseTimestamp(b.updatedAt) - parseTimestamp(a.updatedAt));
+      const page = filtered.slice(offset, offset + ACP_SESSION_LIST_PAGE_SIZE);
+      const nextOffset = offset + page.length;
+      const nextCursor =
+        nextOffset < filtered.length
+          ? encodeSessionListCursor({ offset: nextOffset, cwd: cwdFilter })
+          : undefined;
       return {
-        sessions: filtered.map(toSessionInfo),
+        sessions: page.map(toSessionInfo),
+        ...(nextCursor ? { nextCursor } : {}),
       };
     },
 
@@ -1698,16 +1758,13 @@ export function createAcpFormalAgent(deps: {
 
     async closeSession(params) {
       await hydrateSessionsOnce();
-      const session = sessions.get(params.sessionId);
-      if (!session) return {};
-      sessions.update(params.sessionId, (current) => ({ ...current, cancelRequested: true }));
-      if (session.taskId) {
-        await deps.facade.cancelTask(session.taskId);
-      }
-      deletedSessionIds.set(params.sessionId, new Date().toISOString());
-      sessionRuntime.delete(params.sessionId);
-      sessions.delete(params.sessionId);
-      await persistSessionsBestEffort();
+      await removeSession({ sessionId: params.sessionId });
+      return {};
+    },
+
+    async unstable_deleteSession(params) {
+      await hydrateSessionsOnce();
+      await removeSession({ sessionId: params.sessionId });
       return {};
     },
 

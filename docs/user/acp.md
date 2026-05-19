@@ -69,16 +69,22 @@ List sessions for a repo:
 {"jsonrpc":"2.0","id":3,"method":"session/list","params":{"cwd":"/path/to/repo"}}
 ```
 
+If the response includes `nextCursor`, pass it back as `params.cursor` to fetch the next page:
+
+```json
+{"jsonrpc":"2.0","id":4,"method":"session/list","params":{"cwd":"/path/to/repo","cursor":"<opaque-cursor>"}}
+```
+
 Resume a session without replaying previous messages:
 
 ```json
-{"jsonrpc":"2.0","id":4,"method":"session/resume","params":{"sessionId":"<session-id>","cwd":"/path/to/repo"}}
+{"jsonrpc":"2.0","id":5,"method":"session/resume","params":{"sessionId":"<session-id>","cwd":"/path/to/repo"}}
 ```
 
 Send a prompt:
 
 ```json
-{"jsonrpc":"2.0","id":5,"method":"session/prompt","params":{"sessionId":"<session-id>","prompt":[{"type":"text","text":"Fix tests"}]}}
+{"jsonrpc":"2.0","id":6,"method":"session/prompt","params":{"sessionId":"<session-id>","prompt":[{"type":"text","text":"Fix tests"}]}}
 ```
 
 ACP streams progress via `session/update` notifications on stdout.
@@ -86,7 +92,7 @@ ACP streams progress via `session/update` notifications on stdout.
 Update a session config option:
 
 ```json
-{"jsonrpc":"2.0","id":6,"method":"session/set_config_option","params":{"sessionId":"<session-id>","configId":"_salmonloop_permission_policy","value":"deny_all"}}
+{"jsonrpc":"2.0","id":7,"method":"session/set_config_option","params":{"sessionId":"<session-id>","configId":"_salmonloop_permission_policy","value":"deny_all"}}
 ```
 
 Current built-in config option:
@@ -99,7 +105,13 @@ Current built-in config option:
 Close a session:
 
 ```json
-{"jsonrpc":"2.0","id":7,"method":"session/close","params":{"sessionId":"<session-id>"}}
+{"jsonrpc":"2.0","id":8,"method":"session/close","params":{"sessionId":"<session-id>"}}
+```
+
+Delete a listed session:
+
+```json
+{"jsonrpc":"2.0","id":9,"method":"session/delete","params":{"sessionId":"<session-id>"}}
 ```
 
 ## Supported Capabilities
@@ -107,7 +119,7 @@ Close a session:
 Salmon-Loop currently advertises:
 
 - `loadSession: true`
-- `sessionCapabilities.list`, `sessionCapabilities.resume`, and `sessionCapabilities.close`
+- `sessionCapabilities.list`, `sessionCapabilities.delete`, `sessionCapabilities.resume`, and `sessionCapabilities.close`
 - MCP stdio session servers, plus `mcpCapabilities.http: true`
 - `mcpCapabilities.sse: false` and `mcpCapabilities.acp: false`
 - prompt image/audio/embedded-context support as disabled by default

@@ -2295,6 +2295,7 @@ describe('ACP formal protocol (SDK)', () => {
       list: {},
       resume: {},
       close: {},
+      delete: {},
     });
     expect(response.agentCapabilities?.loadSession).toBe(true);
     expect(response.agentCapabilities?.mcpCapabilities).toMatchObject({
@@ -2458,12 +2459,13 @@ describe('ACP formal protocol (SDK)', () => {
     });
   });
 
-  it('rejects session/list cursor values until paginated listing is supported', async () => {
+  it('paginates session/list with opaque cursors', async () => {
     const { clientConn } = createConnectedPair({
       toAgent: (conn) =>
         createAcpFormalAgent({
           conn,
           agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+          sessionStorePolicy: { maxEntries: 80 },
           facade: {
             createTask: async () => {
               throw new Error('not used');
@@ -2489,8 +2491,132 @@ describe('ACP formal protocol (SDK)', () => {
       clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
     });
 
-    await expect(clientConn.listSessions({ cursor: 'opaque-cursor' })).rejects.toMatchObject({
+    const created: string[] = [];
+    for (let i = 0; i < 55; i += 1) {
+      const session = await clientConn.newSession({
+        cwd: '/repo',
+        mcpServers: [],
+      });
+      created.push(session.sessionId);
+    }
+
+    const firstPage = await clientConn.listSessions({ cwd: '/repo' });
+    expect(firstPage.sessions).toHaveLength(50);
+    expect(typeof firstPage.nextCursor).toBe('string');
+
+    const secondPage = await clientConn.listSessions({
+      cwd: '/repo',
+      cursor: firstPage.nextCursor,
+    });
+    expect(secondPage.sessions).toHaveLength(5);
+    expect(secondPage.nextCursor).toBeUndefined();
+    expect(
+      [...firstPage.sessions, ...secondPage.sessions].map((session) => session.sessionId).sort(),
+    ).toEqual(created.sort());
+  });
+
+  it('rejects invalid or mismatched session/list cursors', async () => {
+    const { clientConn } = createConnectedPair({
+      toAgent: (conn) =>
+        createAcpFormalAgent({
+          conn,
+          agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+          sessionStorePolicy: { maxEntries: 80 },
+          facade: {
+            createTask: async () => {
+              throw new Error('not used');
+            },
+            getTask: async () => null,
+            cancelTask: async () => null,
+            resumeTask: async () => null,
+            retryTask: async () => null,
+            reopenTask: async () => null,
+            listTasks: async () => ({ items: [] }),
+            submitInput: async () => null,
+            getArtifact: async () => null,
+          },
+        }),
+      toClient: () => ({
+        requestPermission: async () => ({ outcome: { outcome: 'cancelled' } }),
+        sessionUpdate: async () => {},
+      }),
+    });
+
+    await clientConn.initialize({
+      protocolVersion: 1,
+      clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
+    });
+
+    for (let i = 0; i < 55; i += 1) {
+      await clientConn.newSession({ cwd: '/repo', mcpServers: [] });
+    }
+
+    await expect(clientConn.listSessions({ cursor: 'not-a-valid-cursor' })).rejects.toMatchObject({
       code: -32602,
+    });
+
+    const page = await clientConn.listSessions({ cwd: '/repo' });
+    await expect(
+      clientConn.listSessions({ cwd: '/other-repo', cursor: page.nextCursor }),
+    ).rejects.toMatchObject({ code: -32602 });
+  });
+
+  it('deletes a session from future list, load, and resume operations', async () => {
+    const cancelledTasks: string[] = [];
+    const { clientConn } = createConnectedPair({
+      toAgent: (conn) =>
+        createAcpFormalAgent({
+          conn,
+          agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+          facade: {
+            createTask: async () => ({
+              task: {
+                id: 'task_delete_1',
+                capability: 'patch',
+                state: 'accepted',
+                request: { instruction: 'long' },
+                createdAt: new Date().toISOString(),
+                attempt: 1,
+              },
+              signal: new AbortController().signal,
+            }),
+            getTask: async () => null,
+            cancelTask: async (taskId: string) => {
+              cancelledTasks.push(taskId);
+              return null;
+            },
+            resumeTask: async () => null,
+            retryTask: async () => null,
+            reopenTask: async () => null,
+            listTasks: async () => ({ items: [] }),
+            submitInput: async () => null,
+            getArtifact: async () => null,
+          },
+        }),
+      toClient: () => ({
+        requestPermission: async () => ({ outcome: { outcome: 'cancelled' } }),
+        sessionUpdate: async () => {},
+      }),
+    });
+
+    await clientConn.initialize({
+      protocolVersion: 1,
+      clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
+    });
+    const { sessionId } = await clientConn.newSession({ cwd: '/repo', mcpServers: [] });
+    await clientConn.prompt({ sessionId, prompt: [{ type: 'text', text: 'long' }] });
+
+    await clientConn.unstable_deleteSession({ sessionId });
+    await clientConn.unstable_deleteSession({ sessionId });
+
+    expect(cancelledTasks).toEqual(['task_delete_1']);
+    const listed = await clientConn.listSessions({});
+    expect(listed.sessions.some((session) => session.sessionId === sessionId)).toBe(false);
+    await expect(
+      clientConn.loadSession({ sessionId, cwd: '/repo', mcpServers: [] }),
+    ).rejects.toMatchObject({ code: -32004 });
+    await expect(clientConn.resumeSession({ sessionId, cwd: '/repo' })).rejects.toMatchObject({
+      code: -32004,
     });
   });
 

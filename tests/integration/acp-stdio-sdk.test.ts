@@ -345,10 +345,10 @@ describe('ACP stdio official SDK integration', () => {
       expect(initialized.agentCapabilities?.loadSession).toBe(true);
       expect(initialized.agentCapabilities?.sessionCapabilities).toMatchObject({
         close: {},
+        delete: {},
         list: {},
         resume: {},
       });
-      expect(initialized.agentCapabilities?.sessionCapabilities?.delete).toBeUndefined();
       expect(initialized.agentCapabilities?.sessionCapabilities?.fork).toBeUndefined();
       expect(
         initialized.agentCapabilities?.sessionCapabilities?.additionalDirectories,
@@ -441,6 +441,61 @@ describe('ACP stdio official SDK integration', () => {
       expectStdoutOnlyJsonRpc(server.stdoutText());
     },
     { timeout: 20000 },
+  );
+
+  it(
+    'paginates and deletes sessions across the real stdio boundary',
+    async () => {
+      const repo = await helper.createGitRepo({
+        initialFiles: [{ path: 'README.md', content: '# ACP pagination fixture\n' }],
+      });
+      const server = await startAcpSdkServer(repo.path);
+
+      await initializeAcp(server);
+      const created: string[] = [];
+      for (let i = 0; i < 55; i += 1) {
+        const session = await withTimeout(
+          server.clientConn.newSession({ cwd: repo.path, mcpServers: [] }),
+          `session/new ${i}`,
+        );
+        created.push(session.sessionId);
+      }
+
+      const firstPage = await withTimeout(
+        server.clientConn.listSessions({ cwd: repo.path }),
+        'session/list first page',
+      );
+      expect(firstPage.sessions).toHaveLength(50);
+      expect(typeof firstPage.nextCursor).toBe('string');
+
+      const secondPage = await withTimeout(
+        server.clientConn.listSessions({ cwd: repo.path, cursor: firstPage.nextCursor }),
+        'session/list second page',
+      );
+      expect(secondPage.sessions).toHaveLength(5);
+      expect(secondPage.nextCursor).toBeUndefined();
+      expect(
+        [...firstPage.sessions, ...secondPage.sessions].map((session) => session.sessionId).sort(),
+      ).toEqual(created.sort());
+
+      const deletedSessionId = firstPage.sessions[0]?.sessionId;
+      expect(deletedSessionId).toBeTruthy();
+      await withTimeout(
+        server.clientConn.unstable_deleteSession({ sessionId: deletedSessionId! }),
+        'session/delete',
+      );
+      const afterDelete = await withTimeout(
+        server.clientConn.listSessions({ cwd: repo.path }),
+        'session/list after delete',
+      );
+      expect(afterDelete.sessions.some((session) => session.sessionId === deletedSessionId)).toBe(
+        false,
+      );
+
+      await server.stop();
+      expectStdoutOnlyJsonRpc(server.stdoutText());
+    },
+    { timeout: 30000 },
   );
 
   it(
@@ -914,19 +969,13 @@ describe('ACP stdio official SDK integration', () => {
       const server = await startAcpSdkServer(repo.path);
 
       const initialized = await initializeAcp(server);
-      expect(initialized.agentCapabilities?.sessionCapabilities?.delete).toBeUndefined();
+      expect(initialized.agentCapabilities?.sessionCapabilities?.delete).toEqual({});
       expect(initialized.agentCapabilities?.sessionCapabilities?.fork).toBeUndefined();
       expect(initialized.agentCapabilities?.providers).toBeUndefined();
       expect(initialized.agentCapabilities?.nes).toBeUndefined();
 
       const created = await newAcpSession(server, repo.path);
 
-      await expect(
-        withTimeout(
-          server.clientConn.unstable_deleteSession({ sessionId: created.sessionId }),
-          'unsupported session/delete',
-        ),
-      ).rejects.toMatchObject({ code: -32601, data: { method: AGENT_METHODS.session_delete } });
       await expect(
         withTimeout(
           server.clientConn.unstable_forkSession({

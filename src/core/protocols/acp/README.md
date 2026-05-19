@@ -11,6 +11,7 @@ This module implements the ACP (agent-client-protocol) stdio JSON-RPC adapter fo
   - `session/new`
   - `session/load`
   - `session/list`
+  - `session/delete`
   - `session/resume`
   - `session/close`
   - `session/set_config_option`
@@ -35,7 +36,8 @@ This module implements the ACP (agent-client-protocol) stdio JSON-RPC adapter fo
 - `initialize` → protocol metadata and capability exposure.
 - `session/new` → create session record (no task yet).
 - `session/load` → reload session + replay history via `session/update`.
-- `session/list` → list persisted sessions, optionally filtered by absolute `cwd`.
+- `session/list` → list persisted sessions, optionally filtered by absolute `cwd`, with cursor-based pagination.
+- `session/delete` → remove a listed session and cancel its active task if one exists.
 - `session/resume` → restore active session state without replaying previous messages.
 - `session/close` → cancel active work, release runtime state, and remove the session from future lists/loads.
 - `session/set_config_option` → update session config selectors and return latest config options.
@@ -47,14 +49,14 @@ This module implements the ACP (agent-client-protocol) stdio JSON-RPC adapter fo
 The adapter advertises only capabilities backed by runtime behavior:
 
 - `loadSession: true` by default, configurable off for compatibility tests.
-- `sessionCapabilities.list`, `sessionCapabilities.resume`, and `sessionCapabilities.close`.
+- `sessionCapabilities.list`, `sessionCapabilities.delete`, `sessionCapabilities.resume`, and `sessionCapabilities.close`.
 - `mcpCapabilities.http: true`; ACP MCP `stdio` is baseline protocol support.
 - `mcpCapabilities.sse: false` and `mcpCapabilities.acp: false`.
 - `promptCapabilities.image`, `audio`, and `embeddedContext` are false by default.
 
 Current non-goals:
 
-- `session/delete`, `session/fork`, provider configuration, NES, and ACP `set_model` are not advertised.
+- `session/fork`, provider configuration, NES, and ACP `set_model` are not advertised.
 - Non-empty `additionalDirectories` is rejected with `-32602` until Salmon-Loop has multi-root workspace semantics wired end to end.
 - MCP-over-SSE and MCP-over-ACP transports are rejected with `-32602` instead of being silently ignored.
 
