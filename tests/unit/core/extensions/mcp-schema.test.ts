@@ -49,4 +49,35 @@ describe('McpConfigSchema', () => {
       }),
     ).toThrow();
   });
+
+  it('rejects entries with neither command nor url', () => {
+    expect(() =>
+      McpConfigSchema.parse({
+        version: 1,
+        servers: {
+          bad: {
+            allow: { tools: ['*'] },
+          },
+        },
+      }),
+    ).toThrow();
+  });
+
+  it('rejects stdio-only fields on http entries', () => {
+    for (const field of ['args', 'cwd', 'env'] as const) {
+      expect(() =>
+        McpConfigSchema.parse({
+          version: 1,
+          servers: {
+            bad: {
+              url: 'https://example.com/mcp',
+              [field]:
+                field === 'args' ? ['server.js'] : field === 'cwd' ? '.' : { NODE_ENV: 'test' },
+              allow: { tools: ['*'] },
+            },
+          },
+        }),
+      ).toThrow();
+    }
+  });
 });

@@ -18,6 +18,7 @@ const OUTPUT_SCHEMA = z
 
 const PROCESS_SIDE_EFFECTS: ToolSpec['sideEffects'] = ['process', 'network'];
 const ALLOWED_PHASES: ExecutionPhase[] = [Phase.VERIFY];
+const MCP_NAME_PATTERN = /^[A-Za-z0-9_-]+$/;
 
 function matchesPattern(value: string, pattern: string): boolean {
   if (pattern === '*') return true;
@@ -32,12 +33,21 @@ function isToolAllowed(toolName: string, allowList: string[]): boolean {
   return allowList.some((pattern) => matchesPattern(toolName, pattern));
 }
 
+function isValidMcpName(value: string): boolean {
+  return MCP_NAME_PATTERN.test(value);
+}
+
 export async function registerMcpTools(registry: ToolRegistry, servers: ResolvedMcpServer[]) {
   for (const server of servers) {
     if (!server.enabled) continue;
 
     if (!server.allowTools || server.allowTools.length === 0) {
       getLogger().warn(`MCP server ${server.name} has no tool allowlist; skipping registration.`);
+      continue;
+    }
+
+    if (!isValidMcpName(server.name)) {
+      getLogger().warn(`MCP server ${server.name} has an invalid name; skipping registration.`);
       continue;
     }
 
@@ -66,6 +76,13 @@ export async function registerMcpTools(registry: ToolRegistry, servers: Resolved
       for (const tool of toolList) {
         const toolName = tool.name;
         if (!toolName) continue;
+
+        if (!isValidMcpName(toolName)) {
+          getLogger().warn(
+            `MCP server ${server.name} reported invalid tool name ${toolName}; skipping registration.`,
+          );
+          continue;
+        }
 
         if (!isToolAllowed(toolName, server.allowTools)) {
           continue;
