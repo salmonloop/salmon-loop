@@ -197,6 +197,18 @@ function buildJsonResourceContentBlock(data: unknown): ContentBlock {
   } as ContentBlock;
 }
 
+function isReplayableSessionContentBlock(block: Record<string, unknown>): block is ContentBlock {
+  if (!block || typeof block !== 'object') return false;
+  switch (block.type) {
+    case 'text':
+      return typeof block.text === 'string';
+    case 'resource_link':
+      return typeof block.name === 'string' && typeof block.uri === 'string';
+    default:
+      return false;
+  }
+}
+
 const ACP_AVAILABLE_COMMANDS: Array<{ name: string; description: string }> = [
   { name: 'help', description: text.acp.slashHelpDescription },
 ];
@@ -257,17 +269,17 @@ function extractTextFromPrompt(
         break;
       case 'image':
         if (!capabilities.image) {
-          throw new RequestError(-32000, 'Prompt content type image is not supported');
+          throw new RequestError(-32602, 'Prompt content type image is not supported');
         }
         break;
       case 'audio':
         if (!capabilities.audio) {
-          throw new RequestError(-32000, 'Prompt content type audio is not supported');
+          throw new RequestError(-32602, 'Prompt content type audio is not supported');
         }
         break;
       case 'resource':
         if (!capabilities.embeddedContext) {
-          throw new RequestError(-32000, 'Prompt content type resource is not supported');
+          throw new RequestError(-32602, 'Prompt content type resource is not supported');
         }
         parts.push(formatEmbeddedResource(block));
         break;
@@ -1558,11 +1570,11 @@ export function createAcpFormalAgent(deps: {
 
       for (const entry of session.history) {
         for (const block of entry.content) {
-          if (block.type === 'text' && typeof block.text === 'string' && block.text.trim()) {
+          if (isReplayableSessionContentBlock(block)) {
             await emitSessionUpdate(session.id, {
               sessionUpdate:
                 entry.role === 'assistant' ? 'agent_message_chunk' : 'user_message_chunk',
-              content: buildTextContentBlock(block.text),
+              content: block,
             });
           }
         }
@@ -1651,6 +1663,9 @@ export function createAcpFormalAgent(deps: {
       await hydrateSessionsOnce();
       if (typeof params.cwd === 'string' && params.cwd && !isAbsolutePath(params.cwd)) {
         throw new RequestError(-32602, 'Invalid params: cwd must be an absolute path');
+      }
+      if (typeof params.cursor === 'string' && params.cursor) {
+        throw new RequestError(-32602, 'Invalid params: cursor pagination is not supported');
       }
       const filtered = sessions
         .list()

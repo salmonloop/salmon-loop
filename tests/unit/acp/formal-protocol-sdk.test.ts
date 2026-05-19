@@ -1553,6 +1553,7 @@ describe('ACP formal protocol (SDK)', () => {
 
   it('accepts resource_link prompt blocks and forwards them into instruction text', async () => {
     let capturedInstruction = '';
+    const updates: any[] = [];
 
     const { clientConn } = createConnectedPair({
       toAgent: (conn) =>
@@ -1586,7 +1587,9 @@ describe('ACP formal protocol (SDK)', () => {
         }),
       toClient: () => ({
         requestPermission: async () => ({ outcome: { outcome: 'cancelled' } }),
-        sessionUpdate: async () => {},
+        sessionUpdate: async ({ update }: any) => {
+          updates.push(update);
+        },
       }),
     });
 
@@ -1606,9 +1609,22 @@ describe('ACP formal protocol (SDK)', () => {
     });
 
     expect(capturedInstruction).toContain('file:///repo/spec.md');
+
+    updates.length = 0;
+    await clientConn.loadSession({ sessionId, cwd: '/repo', mcpServers: [] });
+
+    expect(
+      updates.some(
+        (update) =>
+          update.sessionUpdate === 'user_message_chunk' &&
+          update.content?.type === 'resource_link' &&
+          update.content?.name === 'Spec' &&
+          update.content?.uri === 'file:///repo/spec.md',
+      ),
+    ).toBe(true);
   });
 
-  it('rejects image prompt blocks when promptCapabilities.image is false', async () => {
+  it('rejects non-baseline prompt blocks with invalid params when capabilities are not advertised', async () => {
     const { clientConn } = createConnectedPair({
       toAgent: (conn) =>
         createAcpFormalAgent({
@@ -1641,15 +1657,23 @@ describe('ACP formal protocol (SDK)', () => {
 
     const { sessionId } = await clientConn.newSession({ cwd: '/repo', mcpServers: [] });
 
-    await expect(
-      clientConn.prompt({
-        sessionId,
-        prompt: [
-          { type: 'text', text: 'See image:' },
-          { type: 'image', data: 'data', mimeType: 'image/png' },
-        ],
-      }),
-    ).rejects.toMatchObject({ code: -32000 });
+    const unsupportedBlocks: any[] = [
+      { type: 'image', data: 'data', mimeType: 'image/png' },
+      { type: 'audio', data: 'data', mimeType: 'audio/wav' },
+      {
+        type: 'resource',
+        resource: { uri: 'file:///repo/context.md', text: 'context', mimeType: 'text/markdown' },
+      },
+    ];
+
+    for (const block of unsupportedBlocks) {
+      await expect(
+        clientConn.prompt({
+          sessionId,
+          prompt: [{ type: 'text', text: 'See attachment:' }, block],
+        }),
+      ).rejects.toMatchObject({ code: -32602 });
+    }
   });
 
   it('emits available_commands_update and current_mode_update during prompt', async () => {
@@ -2430,6 +2454,42 @@ describe('ACP formal protocol (SDK)', () => {
     });
 
     await expect(clientConn.listSessions({ cwd: 'relative/path' })).rejects.toMatchObject({
+      code: -32602,
+    });
+  });
+
+  it('rejects session/list cursor values until paginated listing is supported', async () => {
+    const { clientConn } = createConnectedPair({
+      toAgent: (conn) =>
+        createAcpFormalAgent({
+          conn,
+          agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+          facade: {
+            createTask: async () => {
+              throw new Error('not used');
+            },
+            getTask: async () => null,
+            cancelTask: async () => null,
+            resumeTask: async () => null,
+            retryTask: async () => null,
+            reopenTask: async () => null,
+            listTasks: async () => ({ items: [] }),
+            submitInput: async () => null,
+            getArtifact: async () => null,
+          },
+        }),
+      toClient: () => ({
+        requestPermission: async () => ({ outcome: { outcome: 'cancelled' } }),
+        sessionUpdate: async () => {},
+      }),
+    });
+
+    await clientConn.initialize({
+      protocolVersion: 1,
+      clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
+    });
+
+    await expect(clientConn.listSessions({ cursor: 'opaque-cursor' })).rejects.toMatchObject({
       code: -32602,
     });
   });
