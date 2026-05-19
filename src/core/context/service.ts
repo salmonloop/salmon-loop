@@ -242,25 +242,59 @@ export class ContextService {
   }
 
   private async evictExpiredEntries(): Promise<void> {
-    for (const [key, entry] of await this.cacheStore.entries()) {
-      await this.isExpired(key, entry);
+    // ⚡ Bolt: Batch expirations to avoid EMFILE and I/O contention when flushToDisk is called
+    const entries = await this.cacheStore.entries();
+    for (let i = 0; i < entries.length; i += 10) {
+      const chunk = entries.slice(i, i + 10);
+      await Promise.all(
+        chunk.map(async ([key, entry]) => {
+          await this.isExpired(key, entry);
+        }),
+      );
     }
   }
 
   private async evictLruIfNeeded(): Promise<void> {
-    while ((await this.cacheStore.size()) > this.cacheMaxEntries) {
+    // ⚡ Bolt: Fetch entries once to reduce O(M*N) to O(N log N) / O(N), batch deletions
+    const size = await this.cacheStore.size();
+    if (size <= this.cacheMaxEntries) return;
+
+    const entries = await this.cacheStore.entries();
+    const overage = size - this.cacheMaxEntries;
+
+    // Fast path: linear O(N) scan for single eviction
+    if (overage === 1) {
       let victimKey: string | undefined;
       let victimTs = Number.POSITIVE_INFINITY;
-      for (const [key, entry] of await this.cacheStore.entries()) {
+      for (const [key, entry] of entries) {
         const ts = this.getEntryTimestamp(entry);
         if (ts < victimTs) {
           victimTs = ts;
           victimKey = key;
         }
       }
-      if (!victimKey) break;
-      await this.cacheStore.delete(victimKey);
-      this.cacheMetrics.evictions += 1;
+      if (victimKey) {
+        await this.cacheStore.delete(victimKey);
+        this.cacheMetrics.evictions += 1;
+      }
+      return;
+    }
+
+    // Bulk eviction O(N log N)
+    // Clone the array to avoid mutating the internal cache store reference
+    const sorted = Array.from(entries).sort(
+      ([, a], [, b]) => this.getEntryTimestamp(a) - this.getEntryTimestamp(b),
+    );
+    const victims = sorted.slice(0, overage).map(([key]) => key);
+
+    for (let i = 0; i < victims.length; i += 10) {
+      const chunk = victims.slice(i, i + 10);
+      await Promise.all(
+        chunk.map(async (key) => {
+          await this.cacheStore.delete(key);
+          this.cacheMetrics.evictions += 1;
+        }),
+      );
     }
   }
 
