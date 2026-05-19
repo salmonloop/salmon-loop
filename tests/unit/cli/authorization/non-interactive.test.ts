@@ -9,7 +9,6 @@ mock.module('execa', () => {
 
 const mcpStartMock = mock(async () => {});
 const mcpStopMock = mock(async () => {});
-const mcpListToolsMock = mock(async (): Promise<any> => []);
 const mcpCallToolMock = mock(async (): Promise<any> => ({ outcome: 'allow_once' }));
 const loggerMock = {
   info: mock(),
@@ -21,12 +20,6 @@ const loggerMock = {
 
 mock.module('../../../../src/core/facades/cli-authorization-non-interactive.js', () => ({
   getLogger: () => loggerMock,
-  McpClient: class {
-    start = mcpStartMock;
-    stop = mcpStopMock;
-    listTools = mcpListToolsMock;
-    callTool = mcpCallToolMock;
-  },
 }));
 
 import { requestNonInteractiveAuthorizationDecision } from '../../../../src/cli/authorization/non-interactive.js';
@@ -46,6 +39,39 @@ const request: ToolAuthorizationRequest = {
   timestamp: Date.now(),
 };
 
+function mcpConnectionManagerFactory() {
+  return {
+    startAll: mcpStartMock,
+    stopAll: mcpStopMock,
+    callTool: mcpCallToolMock,
+  };
+}
+
+function mcpCapabilities() {
+  return {
+    tools: {
+      exposeToModel: true,
+      allow: ['approve'],
+      phases: ['VERIFY' as const],
+      approval: 'ask' as const,
+    },
+    resources: {
+      allowUris: [],
+      autoInclude: false,
+      subscribe: false,
+      maxBytes: 64_000,
+      ttlMs: 30_000,
+    },
+    prompts: {
+      exposeAs: 'none' as const,
+      allow: [],
+    },
+    roots: { mode: 'none' as const },
+    sampling: { enabled: false, maxTokens: 0, maxDepth: 0 },
+    elicitation: { enabled: false },
+  };
+}
+
 describe('non-interactive authorization handler', () => {
   afterAll(() => {
     mock.restore();
@@ -57,8 +83,6 @@ describe('non-interactive authorization handler', () => {
     mcpStartMock.mockImplementation(async () => {});
     mcpStopMock.mockReset();
     mcpStopMock.mockImplementation(async () => {});
-    mcpListToolsMock.mockReset();
-    mcpListToolsMock.mockImplementation(async () => []);
     mcpCallToolMock.mockReset();
     mcpCallToolMock.mockImplementation(async () => ({ outcome: 'allow_once' }));
   });
@@ -102,6 +126,7 @@ describe('non-interactive authorization handler', () => {
     const decision = await requestNonInteractiveAuthorizationDecision({
       request,
       config,
+      mcpConnectionManagerFactory,
       extensions: {
         mcpServers: [],
         toolPlugins: [],
@@ -123,17 +148,21 @@ describe('non-interactive authorization handler', () => {
     const decision = await requestNonInteractiveAuthorizationDecision({
       request,
       config,
+      mcpConnectionManagerFactory,
       extensions: {
         mcpServers: [
           {
             name: 'authz',
             enabled: true,
-            transport: 'stdio',
-            command: 'authz-server',
-            args: [],
-            env: {},
-            allowTools: ['approve'],
-            allowResources: [],
+            transport: {
+              type: 'stdio',
+              command: 'authz-server',
+              args: [],
+              env: {},
+            },
+            auth: { type: 'none', scopes: [] },
+            trust: 'local',
+            capabilities: mcpCapabilities(),
             scope: 'repo',
           },
         ],
@@ -143,7 +172,12 @@ describe('non-interactive authorization handler', () => {
     });
 
     expect(decision).toEqual({ outcome: 'allow_session', source: 'hook' });
-    expect(mcpCallToolMock).toHaveBeenCalledWith('approve', { request });
+    expect(mcpCallToolMock).toHaveBeenCalledWith(
+      'authz',
+      'approve',
+      { request },
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
     expect(mcpStopMock).toHaveBeenCalledTimes(1);
   });
 
@@ -156,16 +190,20 @@ describe('non-interactive authorization handler', () => {
     const decision = await requestNonInteractiveAuthorizationDecision({
       request,
       config,
+      mcpConnectionManagerFactory,
       extensions: {
         mcpServers: [
           {
             name: 'authz',
             enabled: true,
-            transport: 'http',
-            url: 'https://example.com/mcp',
-            headers: {},
-            allowTools: ['approve'],
-            allowResources: [],
+            transport: {
+              type: 'http',
+              url: 'https://example.com/mcp',
+              headers: {},
+            },
+            auth: { type: 'none', scopes: [] },
+            trust: 'remote',
+            capabilities: mcpCapabilities(),
             scope: 'repo',
           },
         ],

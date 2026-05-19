@@ -1,7 +1,5 @@
 import { z } from 'zod';
 
-import { getLogger } from '../../observability/logger.js';
-
 interface JsonSchema {
   type?: string | string[];
   description?: string;
@@ -14,13 +12,8 @@ interface JsonSchema {
   anyOf?: unknown[];
   allOf?: unknown[];
   additionalProperties?: boolean | unknown;
-  [key: string]: unknown;
 }
 
-/**
- * Converts a JSON Schema (commonly used in MCP) to a Zod schema.
- * This implementation covers the core JSON Schema types used by tools.
- */
 export function jsonSchemaToZod(jsonSchema: unknown): z.ZodType<any> {
   if (!jsonSchema || typeof jsonSchema !== 'object') {
     return z.any();
@@ -57,69 +50,54 @@ export function jsonSchemaToZod(jsonSchema: unknown): z.ZodType<any> {
     return nullable ? typed.nullable().describe(schema.description || '') : typed;
   }
 
-  // Handle cases where the schema is just a description or empty
   if (!schema.type && !schema.properties) {
     return z.any();
   }
 
-  try {
-    switch (schema.type) {
-      case 'string':
-        return z.string().describe(schema.description || '');
-
-      case 'number':
-        return z.number().describe(schema.description || '');
-
-      case 'integer':
-        return z
-          .number()
-          .int()
-          .describe(schema.description || '');
-
-      case 'boolean':
-        return z.boolean().describe(schema.description || '');
-
-      case 'array': {
-        const items = schema.items ? jsonSchemaToZod(schema.items) : z.any();
-        return z.array(items).describe(schema.description || '');
-      }
-
-      case 'object':
-      case undefined: {
-        // Often schemas with properties omit 'type: object'
-        const shape: Record<string, z.ZodType<any>> = {};
-        const properties = (schema.properties || {}) as Record<string, unknown>;
-        const required = schema.required || [];
-
-        for (const [key, prop] of Object.entries(properties)) {
-          let fieldSchema = jsonSchemaToZod(prop);
-          if (!required.includes(key)) {
-            fieldSchema = fieldSchema.optional();
-          }
-          shape[key] = fieldSchema;
-        }
-        let objectSchema = z.object(shape);
-        if (schema.additionalProperties === true) {
-          objectSchema = objectSchema.catchall(z.unknown());
-        } else if (schema.additionalProperties && typeof schema.additionalProperties === 'object') {
-          objectSchema = objectSchema.catchall(jsonSchemaToZod(schema.additionalProperties));
-        }
-        return objectSchema.describe(schema.description || '');
-      }
-
-      case 'null':
-        return z.null().describe(schema.description || '');
-
-      default:
-        getLogger().debug(`Unsupported JSON schema type: ${schema.type}, falling back to any`);
-        return z.any();
-    }
-  } catch (err) {
-    getLogger().error(
-      `Failed to convert JSON schema to Zod: ${String(err)} (Schema: ${JSON.stringify(schema)})`,
-    );
-    return z.any();
+  switch (schema.type) {
+    case 'string':
+      return z.string().describe(schema.description || '');
+    case 'number':
+      return z.number().describe(schema.description || '');
+    case 'integer':
+      return z
+        .number()
+        .int()
+        .describe(schema.description || '');
+    case 'boolean':
+      return z.boolean().describe(schema.description || '');
+    case 'array':
+      return z.array(schema.items ? jsonSchemaToZod(schema.items) : z.any());
+    case 'object':
+    case undefined:
+      return objectSchemaToZod(schema);
+    case 'null':
+      return z.null().describe(schema.description || '');
+    default:
+      return z.any();
   }
+}
+
+function objectSchemaToZod(schema: JsonSchema): z.ZodType<any> {
+  const shape: Record<string, z.ZodType<any>> = {};
+  const properties = schema.properties || {};
+  const required = schema.required || [];
+
+  for (const [key, prop] of Object.entries(properties)) {
+    let fieldSchema = jsonSchemaToZod(prop);
+    if (!required.includes(key)) {
+      fieldSchema = fieldSchema.optional();
+    }
+    shape[key] = fieldSchema;
+  }
+
+  let objectSchema = z.object(shape);
+  if (schema.additionalProperties === true) {
+    objectSchema = objectSchema.catchall(z.unknown());
+  } else if (schema.additionalProperties && typeof schema.additionalProperties === 'object') {
+    objectSchema = objectSchema.catchall(jsonSchemaToZod(schema.additionalProperties));
+  }
+  return objectSchema.describe(schema.description || '');
 }
 
 function unionToZod(schemas: unknown[]): z.ZodType<any> {

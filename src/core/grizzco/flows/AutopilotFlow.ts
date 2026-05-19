@@ -13,6 +13,7 @@ export async function executeAutopilotFlow(initCtx: InitCtx): Promise<FlowReport
     .step('REPORT', displayReport);
 
   const report = await pipeline.execute();
+  await report.data?.toolstack?.dispose?.();
   report.auditPath = await saveAudit(report, initCtx.options);
   report.strategyName = initCtx.mode;
   report.fsMode = initCtx.mode;

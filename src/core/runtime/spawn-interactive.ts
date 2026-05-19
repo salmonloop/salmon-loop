@@ -18,9 +18,13 @@ export function spawnInteractiveProcess(input: SpawnInteractiveInput): Interacti
     });
 
     const events = new EventEmitter();
+    let exitCode: number | null | undefined;
+    queueMicrotask(() => events.emit('spawn'));
     void subprocess.exited
       .then((code: number | null) => {
+        exitCode = code;
         events.emit('exit', code, normalizeSignal(subprocess.signalCode));
+        events.emit('close', code, normalizeSignal(subprocess.signalCode));
       })
       .catch((error: unknown) => {
         events.emit('error', error);
@@ -28,6 +32,9 @@ export function spawnInteractiveProcess(input: SpawnInteractiveInput): Interacti
 
     const processRef: InteractiveProcess = {
       pid: subprocess.pid,
+      get exitCode() {
+        return exitCode ?? null;
+      },
       stdin: subprocess.stdin ?? undefined,
       stdout: toNodeReadableStream(subprocess.stdout),
       stderr: toNodeReadableStream(subprocess.stderr),
@@ -40,6 +47,14 @@ export function spawnInteractiveProcess(input: SpawnInteractiveInput): Interacti
       },
       on: (event, listener) => {
         events.on(event, listener);
+        return processRef;
+      },
+      once: (event, listener) => {
+        events.once(event, listener);
+        return processRef;
+      },
+      off: (event, listener) => {
+        events.off(event, listener);
         return processRef;
       },
     };
@@ -57,6 +72,9 @@ export function spawnInteractiveProcess(input: SpawnInteractiveInput): Interacti
 
   const processRef: InteractiveProcess = {
     pid: child.pid,
+    get exitCode() {
+      return child.exitCode;
+    },
     stdin: child.stdin ?? undefined,
     stdout: child.stdout ?? undefined,
     stderr: child.stderr ?? undefined,
@@ -69,6 +87,14 @@ export function spawnInteractiveProcess(input: SpawnInteractiveInput): Interacti
     },
     on: (event, listener) => {
       child.on(event, listener as (...args: any[]) => void);
+      return processRef;
+    },
+    once: (event, listener) => {
+      child.once(event, listener as (...args: any[]) => void);
+      return processRef;
+    },
+    off: (event, listener) => {
+      child.off(event, listener as (...args: any[]) => void);
       return processRef;
     },
   };

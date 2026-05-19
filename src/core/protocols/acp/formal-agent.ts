@@ -41,7 +41,7 @@ import type { CommandRunner } from '../../runtime/command-runner-context.js';
 import { parseSlashInput } from '../../slash/parser.js';
 import type { FileSystem } from '../../types/index.js';
 import type { LoopEvent } from '../../types/index.js';
-import type { FlowMode } from '../../types/runtime.js';
+import { Phase, type FlowMode } from '../../types/runtime.js';
 import { buildCanonicalExecutionRequest } from '../shared/execution-request.js';
 import { parseAcpFlowMode } from '../shared/flow-mode-mapping.js';
 
@@ -687,6 +687,31 @@ function headersListToRecord(
   return record;
 }
 
+function defaultAcpMcpCapabilities(): ResolvedMcpServer['capabilities'] {
+  return {
+    tools: {
+      exposeToModel: true,
+      allow: ['*'],
+      phases: [Phase.VERIFY],
+      approval: 'ask',
+    },
+    resources: {
+      allowUris: [],
+      autoInclude: false,
+      subscribe: false,
+      maxBytes: 64_000,
+      ttlMs: 30_000,
+    },
+    prompts: {
+      exposeAs: 'none',
+      allow: [],
+    },
+    roots: { mode: 'none' },
+    sampling: { enabled: false, maxTokens: 0, maxDepth: 0 },
+    elicitation: { enabled: false },
+  };
+}
+
 function acpMcpServersToResolved(mcpServers: McpServer[] | undefined): ResolvedMcpServer[] {
   if (!Array.isArray(mcpServers)) return [];
   const resolved: ResolvedMcpServer[] = [];
@@ -703,11 +728,14 @@ function acpMcpServersToResolved(mcpServers: McpServer[] | undefined): ResolvedM
       resolved.push({
         name: httpServer.name,
         enabled: true,
-        transport: 'http',
-        url: httpServer.url,
-        headers: headersListToRecord(httpServer.headers),
-        allowTools: ['*'],
-        allowResources: [],
+        transport: {
+          type: 'http',
+          url: httpServer.url,
+          headers: headersListToRecord(httpServer.headers),
+        },
+        auth: { type: 'none', scopes: [] },
+        trust: 'remote',
+        capabilities: defaultAcpMcpCapabilities(),
         scope: 'repo',
       });
       continue;
@@ -727,12 +755,15 @@ function acpMcpServersToResolved(mcpServers: McpServer[] | undefined): ResolvedM
     resolved.push({
       name: stdioServer.name,
       enabled: true,
-      transport: 'stdio',
-      command: stdioServer.command,
-      args: stdioServer.args,
-      env: envListToRecord(stdioServer.env),
-      allowTools: ['*'],
-      allowResources: [],
+      transport: {
+        type: 'stdio',
+        command: stdioServer.command,
+        args: stdioServer.args,
+        env: envListToRecord(stdioServer.env),
+      },
+      auth: { type: 'none', scopes: [] },
+      trust: 'local',
+      capabilities: defaultAcpMcpCapabilities(),
       scope: 'repo',
     });
   }

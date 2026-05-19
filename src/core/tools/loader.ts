@@ -1,5 +1,8 @@
 import { text } from '../../locales/index.js';
 import type { ResolvedExtensions } from '../extensions/types.js';
+import { registerMcpV2Tools } from '../mcp/bridge/tool-bridge.js';
+import { McpConnectionManager } from '../mcp/client/connection-manager.js';
+import { buildMcpGrantsFromCapabilities, McpPolicyEngine } from '../mcp/policy/grants.js';
 import { skillToToolSpec, type RouterBox } from '../skills/bridge.js';
 import { SkillLoader } from '../skills/loader.js';
 import type { WorkspaceCapabilities } from '../types/loop.js';
@@ -10,7 +13,6 @@ import type { ToolAuthorizationProvider } from './authorization/types.js';
 import { BudgetGuard, BudgetConfig } from './budget.js';
 import { registerAllBuiltins } from './builtin/index.js';
 import { ToolDispatcher } from './dispatcher.js';
-import { registerMcpTools } from './mcp/loader.js';
 import {
   compilePermissionRules,
   getVisibleToolNamesFromAllowRules,
@@ -110,6 +112,7 @@ export async function createStandardToolstack(options: ToolstackOptions) {
   //      f. Fill RouterBox.router — skill executors now have a valid reference
 
   const routerBox: RouterBox = { router: null };
+  let mcpManager: McpConnectionManager | undefined;
 
   // 3a. Load skill catalog (Tier 1: lightweight metadata only) and register
   //     bridge tool specs with lazy activation. Full skill content is loaded
@@ -127,88 +130,116 @@ export async function createStandardToolstack(options: ToolstackOptions) {
   }
 
   // 3b. Register MCP + plugin tools
-  if (extensions) {
-    await registerMcpTools(registry, extensions.mcpServers);
-    await registerPluginTools(registry, extensions.toolPlugins);
-  }
-
-  // 3c. Apply allowlist / permission-rule filtering — skills are now included
-  const allowSets: Array<Set<string>> = [];
-  if (Array.isArray(options.allowedToolNames) && options.allowedToolNames.length > 0) {
-    allowSets.push(new Set(options.allowedToolNames));
-  }
-  if (shouldFilterRegistryByAllowRules(compiledPermissionRules)) {
-    allowSets.push(getVisibleToolNamesFromAllowRules(compiledPermissionRules));
-  }
-
-  if (allowSets.length > 0) {
-    const intersect = new Set<string>(allowSets[0]);
-    for (const next of allowSets.slice(1)) {
-      for (const name of Array.from(intersect)) {
-        if (!next.has(name)) intersect.delete(name);
+  try {
+    if (extensions) {
+      if (extensions.mcpServers.length > 0) {
+        mcpManager = new McpConnectionManager(extensions.mcpServers, {
+          roots: extensions.mcpServers.some((server) => server.capabilities.roots.mode !== 'none'),
+          sampling: extensions.mcpServers.some((server) => server.capabilities.sampling.enabled),
+          elicitation: extensions.mcpServers.some(
+            (server) => server.capabilities.elicitation.enabled,
+          ),
+        });
+        const mcpPolicy = new McpPolicyEngine(
+          extensions.mcpServers.flatMap((server) =>
+            buildMcpGrantsFromCapabilities(server.name, server.capabilities),
+          ),
+        );
+        await registerMcpV2Tools({
+          registry,
+          servers: extensions.mcpServers,
+          manager: mcpManager,
+          policy: mcpPolicy,
+        });
       }
+      await registerPluginTools(registry, extensions.toolPlugins);
     }
 
-    const filtered = new ToolRegistry();
-    for (const name of intersect) {
-      const spec = registry.getSpec(name);
-      if (spec) filtered.register(spec);
+    // 3c. Apply allowlist / permission-rule filtering — skills are now included
+    const allowSets: Array<Set<string>> = [];
+    if (Array.isArray(options.allowedToolNames) && options.allowedToolNames.length > 0) {
+      allowSets.push(new Set(options.allowedToolNames));
     }
-    registry = filtered;
+    if (shouldFilterRegistryByAllowRules(compiledPermissionRules)) {
+      allowSets.push(getVisibleToolNamesFromAllowRules(compiledPermissionRules));
+    }
+
+    if (allowSets.length > 0) {
+      const intersect = new Set<string>(allowSets[0]);
+      for (const next of allowSets.slice(1)) {
+        for (const name of Array.from(intersect)) {
+          if (!next.has(name)) intersect.delete(name);
+        }
+      }
+
+      const filtered = new ToolRegistry();
+      for (const name of intersect) {
+        const spec = registry.getSpec(name);
+        if (spec) filtered.register(spec);
+      }
+      registry = filtered;
+    }
+
+    if (options.workspaceCapabilities) {
+      const capabilities = options.workspaceCapabilities;
+      const filtered = new ToolRegistry();
+      for (const spec of registry.listAll()) {
+        const needsGit =
+          spec.name.startsWith('git.') ||
+          spec.sideEffects.includes('git_read') ||
+          spec.sideEffects.includes('git_write');
+        const needsReadableFilesystem = spec.sideEffects.includes('fs_read');
+        const needsWritableFilesystem = spec.sideEffects.includes('fs_write');
+        if (needsGit && !capabilities.git.insideWorkTree) continue;
+        if (needsReadableFilesystem && !capabilities.filesystem.readable) continue;
+        if (needsWritableFilesystem && !capabilities.filesystem.writable) continue;
+        filtered.register(spec);
+      }
+      registry = filtered;
+    }
+
+    // 3d. Create Router with the FINAL (filtered) registry — skills included
+    const router = new ToolRouter(
+      registry,
+      policy,
+      budget,
+      audit,
+      sanitize,
+      options.authorizationProvider,
+      { authorizationMode: options.authorizationMode, permissionRules: compiledPermissionRules },
+    );
+
+    // 3e. Fill the RouterBox — skill executors can now resolve the router
+    routerBox.router = router;
+
+    // 4. Create Dispatcher (The high-level coordinator for LLM text)
+    const dispatcher = new ToolDispatcher(router, {
+      repoRoot: options.repoRoot,
+      persistenceRoot: options.persistenceRoot,
+      worktreeRoot: options.worktreeRoot,
+      workspaceCapabilities: options.workspaceCapabilities,
+      attemptId: options.attemptId,
+      dryRun: options.dryRun,
+      model: options.model,
+    });
+
+    return {
+      registry,
+      router,
+      dispatcher,
+      budget,
+      audit,
+      policy,
+      sanitize,
+      mcp: mcpManager,
+      async dispose() {
+        await mcpManager?.stopAll();
+      },
+    };
+  } catch (error) {
+    await mcpManager?.stopAll();
+    throw error;
   }
-
-  if (options.workspaceCapabilities) {
-    const capabilities = options.workspaceCapabilities;
-    const filtered = new ToolRegistry();
-    for (const spec of registry.listAll()) {
-      const needsGit =
-        spec.name.startsWith('git.') ||
-        spec.sideEffects.includes('git_read') ||
-        spec.sideEffects.includes('git_write');
-      const needsReadableFilesystem = spec.sideEffects.includes('fs_read');
-      const needsWritableFilesystem = spec.sideEffects.includes('fs_write');
-      if (needsGit && !capabilities.git.insideWorkTree) continue;
-      if (needsReadableFilesystem && !capabilities.filesystem.readable) continue;
-      if (needsWritableFilesystem && !capabilities.filesystem.writable) continue;
-      filtered.register(spec);
-    }
-    registry = filtered;
-  }
-
-  // 3d. Create Router with the FINAL (filtered) registry — skills included
-  const router = new ToolRouter(
-    registry,
-    policy,
-    budget,
-    audit,
-    sanitize,
-    options.authorizationProvider,
-    { authorizationMode: options.authorizationMode, permissionRules: compiledPermissionRules },
-  );
-
-  // 3e. Fill the RouterBox — skill executors can now resolve the router
-  routerBox.router = router;
-
-  // 4. Create Dispatcher (The high-level coordinator for LLM text)
-  const dispatcher = new ToolDispatcher(router, {
-    repoRoot: options.repoRoot,
-    persistenceRoot: options.persistenceRoot,
-    worktreeRoot: options.worktreeRoot,
-    workspaceCapabilities: options.workspaceCapabilities,
-    attemptId: options.attemptId,
-    dryRun: options.dryRun,
-    model: options.model,
-  });
-
-  return {
-    registry,
-    router,
-    dispatcher,
-    budget,
-    audit,
-    policy,
-    sanitize,
-  };
 }
 
 export type Toolstack = Awaited<ReturnType<typeof createStandardToolstack>>;

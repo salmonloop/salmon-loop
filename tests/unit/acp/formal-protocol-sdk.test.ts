@@ -3044,18 +3044,38 @@ describe('ACP formal protocol (SDK)', () => {
     expect(observedExtensions?.mcpServers).toEqual([
       expect.objectContaining({
         name: 'local-tools',
-        transport: 'stdio',
-        command: 'tool-server',
-        args: ['--stdio'],
-        env: {},
-        allowTools: ['*'],
+        transport: {
+          type: 'stdio',
+          command: 'tool-server',
+          args: ['--stdio'],
+          env: {},
+        },
+        auth: { type: 'none', scopes: [] },
+        trust: 'local',
+        capabilities: expect.objectContaining({
+          tools: expect.objectContaining({
+            exposeToModel: true,
+            allow: ['*'],
+            phases: ['VERIFY'],
+          }),
+        }),
       }),
       expect.objectContaining({
         name: 'remote-tools',
-        transport: 'http',
-        url: 'http://127.0.0.1:8080/mcp',
-        headers: { authorization: 'Bearer token' },
-        allowTools: ['*'],
+        transport: {
+          type: 'http',
+          url: 'http://127.0.0.1:8080/mcp',
+          headers: { authorization: 'Bearer token' },
+        },
+        auth: { type: 'none', scopes: [] },
+        trust: 'remote',
+        capabilities: expect.objectContaining({
+          tools: expect.objectContaining({
+            exposeToModel: true,
+            allow: ['*'],
+            phases: ['VERIFY'],
+          }),
+        }),
       }),
     ]);
   });

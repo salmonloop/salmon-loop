@@ -4,7 +4,7 @@ SalmonLoop resolves MCP servers, tool plugins, and skills into a single `Resolve
 
 ## Configuration and precedence
 
-- `.salmonloop/config/mcp.json` and `~/.salmonloop/config/mcp-user.json`
+- `.salmonloop/config/mcp.json` and `~/.salmonloop/config/mcp-user.json` use MCP `version: 2`
 - `.salmonloop/config/tools.json` and `~/.salmonloop/config/tools-user.json`
 - `.salmonloop/config/skills.json` and `~/.salmonloop/config/skills-user.json`
 
@@ -46,6 +46,8 @@ Discovery priority:
 
 ## Toolstack integration
 
-- skills are registered via `skillToToolSpec(...)`,
-- execution always goes through `executeSkill()` and governed `ToolRouter`,
+- MCP is resolved into `ResolvedMcpServerV2` and executed through `src/core/mcp` long-lived connection managers.
+- MCP capabilities are separate grants for tools, resources, prompts, roots, sampling, and elicitation; v1 flattened allowlists are invalid.
+- skills are registered via `skillToToolSpec(...)`.
+- execution always goes through `executeSkill()` and governed `ToolRouter`.
 - bridge execution can be disabled by `SALMONLOOP_DISABLE_BRIDGE_SKILL_EXEC`.

@@ -132,9 +132,7 @@ Salmon-Loop currently advertises:
 - `mcpCapabilities.sse: false` and `mcpCapabilities.acp: false`
 - prompt image/audio/embedded-context support as disabled by default
 
-ACP `mcpServers` passed on session setup are added to the task's runtime tools. They are merged
-with configured repo/user extensions, so configured MCP servers, tool plugins, and skill discovery
-remain available.
+ACP `mcpServers` passed on session setup are normalized into SalmonLoop MCP v2 server entries and added to the task runtime. They are merged with configured repo/user extensions, so configured MCP servers, tool plugins, and skill discovery remain available. Session-provided MCP servers expose tools in `VERIFY` by default; other MCP surfaces remain deny/off unless represented by the MCP v2 capability model.
 
 ## Compatibility Contract
 

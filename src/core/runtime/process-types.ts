@@ -49,11 +49,33 @@ export interface SpawnInteractiveInput {
   windowsHide?: boolean;
 }
 
+export type InteractiveProcessEvent = 'error' | 'exit' | 'close' | 'spawn';
+
+export interface InteractiveWritable {
+  write?: (data: Buffer | string) => boolean | void;
+  end?: () => void;
+  on?: (event: 'error' | 'drain', listener: (...args: unknown[]) => void) => InteractiveWritable;
+  once?: (event: 'error' | 'drain', listener: (...args: unknown[]) => void) => InteractiveWritable;
+  off?: (event: 'error' | 'drain', listener: (...args: unknown[]) => void) => InteractiveWritable;
+}
+
 export interface InteractiveProcess {
   pid?: number;
-  stdin?: { write?: (data: Buffer | string) => void; end?: () => void };
+  exitCode?: number | null;
+  stdin?: InteractiveWritable;
   stdout?: NodeJS.ReadableStream;
   stderr?: NodeJS.ReadableStream;
   kill: (signal?: NodeJS.Signals) => void;
-  on: (event: 'error' | 'exit', listener: (...args: unknown[]) => void) => InteractiveProcess;
+  on: (
+    event: InteractiveProcessEvent,
+    listener: (...args: unknown[]) => void,
+  ) => InteractiveProcess;
+  once: (
+    event: InteractiveProcessEvent,
+    listener: (...args: unknown[]) => void,
+  ) => InteractiveProcess;
+  off: (
+    event: InteractiveProcessEvent,
+    listener: (...args: unknown[]) => void,
+  ) => InteractiveProcess;
 }

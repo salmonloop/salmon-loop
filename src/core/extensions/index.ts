@@ -1,5 +1,6 @@
 import path from 'node:path';
 
+import { buildResolvedMcpServersV2 } from '../mcp/config/index.js';
 import { getLogger } from '../observability/logger.js';
 
 import { loadConfig } from './load.js';
@@ -20,11 +21,9 @@ import { redactExtensions } from './redact.js';
 import { McpConfigSchema, SkillsConfigSchema, ToolsConfigSchema } from './schemas.js';
 import type {
   ExtensionScope,
-  McpServerEntry,
   RawMcpConfig,
   RawSkillConfig,
   RawToolConfig,
-  ResolvedMcpServer,
   ResolvedExtensions,
   ResolvedSkillDiscovery,
   ResolvedToolPlugin,
@@ -57,44 +56,6 @@ function resolvePathForScope(
   if (!value) return undefined;
   const expanded = expandHome(value);
   return scope === 'repo' ? resolveRepoRelative(repoRoot, expanded) : resolveUserRelative(expanded);
-}
-
-function buildResolvedServers(
-  entries: ScopedEntry<McpServerEntry>[],
-  repoRoot: string,
-): ResolvedMcpServer[] {
-  return entries.map((entry) => {
-    const scope = entry.scope;
-    const source = entry.entry;
-    const enabled = source.enabled ?? defaultEnabled(scope);
-    if (source.url) {
-      return {
-        name: entry.key,
-        enabled,
-        transport: 'http',
-        url: source.url,
-        headers: source.headers ?? {},
-        allowTools: source.allow?.tools ?? [],
-        allowResources: source.allow?.resources ?? [],
-        scope,
-      };
-    }
-    if (!source.command) {
-      throw new Error(`Invalid MCP server entry ${entry.key}: missing "command" or "url"`);
-    }
-    return {
-      name: entry.key,
-      enabled,
-      transport: 'stdio',
-      command: source.command,
-      args: source.args ?? [],
-      env: source.env ?? {},
-      cwd: resolvePathForScope(source.cwd, scope, repoRoot),
-      allowTools: source.allow?.tools ?? [],
-      allowResources: source.allow?.resources ?? [],
-      scope,
-    };
-  });
 }
 
 function buildResolvedPlugins(
@@ -190,7 +151,7 @@ export async function resolveExtensions(
   const mergedPlugins = mergeScopedEntries(userTools?.config.plugins, repoTools?.config.plugins);
 
   const resolved: ResolvedExtensions = {
-    mcpServers: buildResolvedServers(mergedServers, repoRoot),
+    mcpServers: buildResolvedMcpServersV2(mergedServers, repoRoot),
     toolPlugins: buildResolvedPlugins(mergedPlugins, repoRoot),
     skillDiscovery: buildResolvedSkills(userSkills?.config, repoSkills?.config, repoRoot),
   };

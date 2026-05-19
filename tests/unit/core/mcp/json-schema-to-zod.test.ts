@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
-import { jsonSchemaToZod } from '../../../../../src/core/tools/mcp/schema.js';
+import { jsonSchemaToZod } from '../../../../src/core/mcp/schema/json-schema-to-zod.js';
 
 describe('jsonSchemaToZod', () => {
   it('supports enum, const, integer, and nullable type arrays', () => {

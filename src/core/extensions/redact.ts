@@ -22,15 +22,21 @@ function redactHeaders(headers: Record<string, string>): Record<string, string> 
 }
 
 function redactServer(server: ResolvedMcpServer): ResolvedMcpServer {
-  if (server.transport === 'http') {
+  if (server.transport.type === 'http') {
     return {
       ...server,
-      headers: redactHeaders(server.headers || {}),
+      transport: {
+        ...server.transport,
+        headers: redactHeaders(server.transport.headers || {}),
+      },
     };
   }
   return {
     ...server,
-    env: redactEnv(server.env || {}),
+    transport: {
+      ...server.transport,
+      env: redactEnv(server.transport.env || {}),
+    },
   };
 }
 

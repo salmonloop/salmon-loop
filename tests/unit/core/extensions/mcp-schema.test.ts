@@ -3,46 +3,67 @@ import { describe, expect, it } from 'bun:test';
 import { McpConfigSchema } from '../../../../src/core/extensions/schemas.js';
 
 describe('McpConfigSchema', () => {
-  it('accepts stdio server entries', () => {
+  it('accepts v2 stdio server entries with explicit env', () => {
     const parsed = McpConfigSchema.parse({
-      version: 1,
+      version: 2,
       servers: {
         local: {
           enabled: true,
-          command: 'node',
-          args: ['server.js'],
-          env: { NODE_ENV: 'test' },
-          cwd: '.',
-          allow: { tools: ['*'] },
+          transport: {
+            type: 'stdio',
+            command: 'node',
+            args: ['server.js'],
+            env: { NODE_ENV: 'test' },
+            cwd: '.',
+          },
+          capabilities: {
+            tools: {
+              exposeToModel: true,
+              allow: ['*'],
+            },
+          },
         },
       },
     });
-    expect(parsed.servers.local.command).toBe('node');
+    expect(parsed.servers.local.transport).toMatchObject({
+      type: 'stdio',
+      command: 'node',
+    });
   });
 
-  it('accepts http server entries', () => {
+  it('accepts v2 http server entries', () => {
     const parsed = McpConfigSchema.parse({
-      version: 1,
+      version: 2,
       servers: {
         remote: {
           enabled: true,
-          url: 'https://example.com/mcp',
-          headers: { Authorization: 'Bearer token' },
-          allow: { tools: ['*'] },
+          transport: {
+            type: 'http',
+            url: 'https://example.com/mcp',
+            headers: { Authorization: 'Bearer token' },
+          },
+          capabilities: {
+            tools: {
+              exposeToModel: true,
+              allow: ['*'],
+            },
+          },
         },
       },
     });
-    expect(parsed.servers.remote.url).toBe('https://example.com/mcp');
+    expect(parsed.servers.remote.transport).toMatchObject({
+      type: 'http',
+      url: 'https://example.com/mcp',
+    });
   });
 
-  it('rejects entries with both command and url', () => {
+  it('rejects v1 configs outright', () => {
     expect(() =>
       McpConfigSchema.parse({
         version: 1,
         servers: {
           bad: {
             command: 'node',
-            url: 'https://example.com/mcp',
             allow: { tools: ['*'] },
           },
         },
@@ -50,13 +71,18 @@ describe('McpConfigSchema', () => {
     ).toThrow();
   });
 
-  it('rejects entries with neither command nor url', () => {
+  it('rejects entries with neither stdio nor http transport', () => {
     expect(() =>
       McpConfigSchema.parse({
-        version: 1,
+        version: 2,
         servers: {
           bad: {
-            allow: { tools: ['*'] },
+            capabilities: {
+              tools: {
+                exposeToModel: true,
+                allow: ['*'],
+              },
+            },
           },
         },
       }),
@@ -67,13 +93,15 @@ describe('McpConfigSchema', () => {
     for (const field of ['args', 'cwd', 'env'] as const) {
       expect(() =>
         McpConfigSchema.parse({
-          version: 1,
+          version: 2,
           servers: {
             bad: {
-              url: 'https://example.com/mcp',
-              [field]:
-                field === 'args' ? ['server.js'] : field === 'cwd' ? '.' : { NODE_ENV: 'test' },
-              allow: { tools: ['*'] },
+              transport: {
+                type: 'http',
+                url: 'https://example.com/mcp',
+                [field]:
+                  field === 'args' ? ['server.js'] : field === 'cwd' ? '.' : { NODE_ENV: 'test' },
+              },
             },
           },
         }),

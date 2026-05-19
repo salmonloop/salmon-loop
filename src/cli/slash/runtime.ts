@@ -214,9 +214,10 @@ export async function createCliSlashRuntime(
               silentEmit as any,
             );
 
+            let toolstack: Awaited<ReturnType<typeof createStandardToolstack>> | undefined;
             try {
               await env.setup();
-              const toolstack = await createStandardToolstack({
+              toolstack = await createStandardToolstack({
                 repoRoot: env.activeRepoPath,
                 persistenceRoot: options.repoRoot,
                 worktreeRoot: env.activeRepoPath,
@@ -253,6 +254,11 @@ export async function createCliSlashRuntime(
 
               return { kind: 'rewrite', input: res.injectedPrompt };
             } finally {
+              await toolstack
+                ?.dispose?.()
+                .catch((error) =>
+                  logIgnoredError('[SlashRuntime] toolstack cleanup failed', error),
+                );
               await env
                 .teardown()
                 .catch((error) => logIgnoredError('[SlashRuntime] env teardown failed', error));

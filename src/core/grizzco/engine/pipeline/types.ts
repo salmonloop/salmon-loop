@@ -124,6 +124,7 @@ export interface InitCtx {
  */
 export interface PreflightCtx extends InitCtx {
   preflightResult: PreflightResult;
+  toolstack?: Toolstack;
 }
 
 /**

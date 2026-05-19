@@ -3,6 +3,31 @@ import { describe, expect, test } from 'bun:test';
 import { createSalmonTaskExecutor } from '../../../../../src/core/backends/salmon-loop/task-executor.js';
 import { text } from '../../../../../src/locales/index.js';
 
+function mcpCapabilities() {
+  return {
+    tools: {
+      exposeToModel: true,
+      allow: ['*'],
+      phases: ['VERIFY' as const],
+      approval: 'ask' as const,
+    },
+    resources: {
+      allowUris: [],
+      autoInclude: false,
+      subscribe: false,
+      maxBytes: 64_000,
+      ttlMs: 30_000,
+    },
+    prompts: {
+      exposeAs: 'none' as const,
+      allow: [],
+    },
+    roots: { mode: 'none' as const },
+    sampling: { enabled: false, maxTokens: 0, maxDepth: 0 },
+    elicitation: { enabled: false },
+  };
+}
+
 describe('salmon task executor', () => {
   test('maps a canonical task request into loop options', async () => {
     let observedOptions: any = null;
@@ -51,22 +76,28 @@ describe('salmon task executor', () => {
         {
           name: 'repo-tools',
           enabled: true,
-          transport: 'stdio' as const,
-          command: 'repo-mcp',
-          args: [],
-          env: {},
-          allowTools: ['*'],
-          allowResources: [],
+          transport: {
+            type: 'stdio' as const,
+            command: 'repo-mcp',
+            args: [],
+            env: {},
+          },
+          auth: { type: 'none' as const, scopes: [] },
+          trust: 'local' as const,
+          capabilities: mcpCapabilities(),
           scope: 'repo' as const,
         },
         {
           name: 'acp-tools',
           enabled: true,
-          transport: 'http' as const,
-          url: 'http://127.0.0.1:7777/mcp',
-          headers: {},
-          allowTools: ['*'],
-          allowResources: [],
+          transport: {
+            type: 'http' as const,
+            url: 'http://127.0.0.1:7777/mcp',
+            headers: {},
+          },
+          auth: { type: 'none' as const, scopes: [] },
+          trust: 'remote' as const,
+          capabilities: mcpCapabilities(),
           scope: 'repo' as const,
         },
       ],

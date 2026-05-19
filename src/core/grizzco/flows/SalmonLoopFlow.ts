@@ -121,6 +121,7 @@ function buildPipelineByMode(initCtx: InitCtx): ModePipeline {
 export async function executeSalmonLoopFlow(initCtx: InitCtx): Promise<FlowReport<TerminalCtx>> {
   const pipeline = buildPipelineByMode(initCtx);
   const report = await pipeline.execute();
+  await report.data?.toolstack?.dispose?.();
 
   // Save audit log
   report.auditPath = await saveAudit(report, initCtx.options);

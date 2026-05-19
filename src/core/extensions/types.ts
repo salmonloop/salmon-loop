@@ -1,28 +1,37 @@
 export type ExtensionScope = 'user' | 'repo';
 
-export type ResolvedMcpServer =
-  | {
-      name: string;
-      enabled: boolean;
-      transport: 'stdio';
-      command: string;
-      args: string[];
-      env: Record<string, string>;
-      cwd?: string;
-      allowTools: string[];
-      allowResources: string[];
-      scope: ExtensionScope;
-    }
-  | {
-      name: string;
-      enabled: boolean;
-      transport: 'http';
-      url: string;
-      headers: Record<string, string>;
-      allowTools: string[];
-      allowResources: string[];
-      scope: ExtensionScope;
-    };
+export type {
+  McpApprovalMode,
+  McpAuthConfig,
+  McpAuthKind,
+  McpAuthType,
+  McpCapabilityKind,
+  McpCapabilityName,
+  McpConfigV2,
+  McpElicitationCapabilityConfig,
+  McpHttpTransportConfig,
+  McpPromptCapabilityConfig,
+  McpPromptExposure,
+  McpResourceCapabilityConfig,
+  McpRootsCapabilityConfig,
+  McpRootsMode,
+  McpSamplingCapabilityConfig,
+  McpServerCapabilityConfig,
+  McpServerConfig,
+  McpServerConfigV2,
+  McpServerId,
+  McpStdioTransportConfig,
+  McpToolCapabilityConfig,
+  McpTransportConfig,
+  McpTransportKind,
+  McpTransportType,
+  McpTrustLevel,
+  ResolvedMcpServer,
+  ResolvedMcpServerV2,
+} from '../mcp/types.js';
+
+import type { RawMcpConfigV2, RawMcpServerEntryV2 } from '../mcp/config/schema-v2.js';
+import type { ResolvedMcpServer } from '../mcp/types.js';
 
 export interface ResolvedToolPlugin {
   id: string;
@@ -43,19 +52,7 @@ export interface ResolvedExtensions {
   skillDiscovery: ResolvedSkillDiscovery;
 }
 
-export interface McpServerEntry {
-  enabled?: boolean;
-  command?: string;
-  url?: string;
-  args?: string[];
-  env?: Record<string, string>;
-  headers?: Record<string, string>;
-  cwd?: string;
-  allow?: {
-    tools?: string[];
-    resources?: string[];
-  };
-}
+export type McpServerEntry = RawMcpServerEntryV2;
 
 export interface ToolPluginEntry {
   enabled?: boolean;
@@ -63,10 +60,7 @@ export interface ToolPluginEntry {
   allowUserScope?: boolean;
 }
 
-export interface RawMcpConfig {
-  version: 1;
-  servers: Record<string, McpServerEntry>;
-}
+export type RawMcpConfig = RawMcpConfigV2;
 
 export interface RawToolConfig {
   version: 1;

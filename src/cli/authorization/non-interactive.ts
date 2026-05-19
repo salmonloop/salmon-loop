@@ -8,7 +8,10 @@ import type {
   ToolAuthorizationConfig,
   ToolAuthorizationRequest,
 } from '../../core/facades/cli-authorization-non-interactive.js';
-import { getLogger, McpClient } from '../../core/facades/cli-authorization-non-interactive.js';
+import {
+  getLogger,
+  McpConnectionManager,
+} from '../../core/facades/cli-authorization-non-interactive.js';
 import { text } from '../locales/index.js';
 
 const DecisionSchema = z
@@ -34,23 +37,6 @@ function findMcpServer(
 ): ResolvedMcpServer | undefined {
   if (!extensions?.mcpServers) return undefined;
   return extensions.mcpServers.find((s) => s.enabled && s.name === name);
-}
-
-function toMcpClientConfig(server: ResolvedMcpServer) {
-  if (server.transport === 'http') {
-    return {
-      name: server.name,
-      url: server.url,
-      headers: server.headers,
-    } as const;
-  }
-  return {
-    name: server.name,
-    command: server.command,
-    args: server.args,
-    env: server.env,
-    cwd: server.cwd,
-  } as const;
 }
 
 function extractDecisionPayloadFromMcpResult(result: unknown): unknown {
@@ -84,10 +70,22 @@ function extractDecisionPayloadFromMcpResult(result: unknown): unknown {
   return result;
 }
 
+interface NonInteractiveMcpConnectionManager {
+  startAll(): Promise<void>;
+  stopAll(): Promise<void>;
+  callTool(
+    serverName: string,
+    toolName: string,
+    args: Record<string, unknown>,
+    options?: { signal?: AbortSignal },
+  ): Promise<unknown>;
+}
+
 export async function requestNonInteractiveAuthorizationDecision(params: {
   request: ToolAuthorizationRequest;
   config: ToolAuthorizationConfig;
   extensions?: ResolvedExtensions;
+  mcpConnectionManagerFactory?: (server: ResolvedMcpServer) => NonInteractiveMcpConnectionManager;
 }): Promise<AuthorizationDecision | null> {
   const strategy = params.config.nonInteractive?.strategy ?? 'deny';
   if (strategy === 'deny') return null;
@@ -163,11 +161,19 @@ export async function requestNonInteractiveAuthorizationDecision(params: {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
-    const client = new McpClient(toMcpClientConfig(server) as any);
+    const manager =
+      params.mcpConnectionManagerFactory?.(server) ?? new McpConnectionManager([server]);
     try {
-      await client.start();
+      await manager.startAll();
       const result = await Promise.race([
-        client.callTool(toolName, { request: params.request }),
+        manager.callTool(
+          server.name,
+          toolName,
+          { request: params.request },
+          {
+            signal: controller.signal,
+          },
+        ),
         new Promise((_, reject) => {
           controller.signal.addEventListener('abort', () => reject(new Error('timeout')), {
             once: true,
@@ -191,7 +197,7 @@ export async function requestNonInteractiveAuthorizationDecision(params: {
       return deny(text.cli.toolAuthorizationNonInteractiveFailed('mcp_failed'));
     } finally {
       clearTimeout(timeout);
-      await client.stop();
+      await manager.stopAll();
     }
   }
 

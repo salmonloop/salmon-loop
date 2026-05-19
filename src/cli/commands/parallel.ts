@@ -240,58 +240,70 @@ export const parallelCommand: Command = {
           extensions: extensionResolution.resolved,
         });
 
-        const scheduler = new ParallelScheduler(toolstack.router as any, new InMemoryLockManager());
-
-        const phase = (state.runtime?.phase as any) || 'PATCH';
-        const runtime = {
-          repoRoot: workspace.workPath,
-          worktreeRoot: workspace.workPath,
-          persistenceRoot: workspace.baseRepoPath,
-          attemptId: 0,
-          dryRun: false,
-          model: state.runtime?.model,
-          phase,
-        };
-
-        const runSignal = new AbortController().signal;
-        let result = await scheduler.run(state.plan, runtime as any, runSignal, {
-          initialResults: state.result.nodeResults,
-          resumeBlockedApprovals: true,
-        });
-
-        const canWaitForAuth = typeof (toolstack.router as any).waitForAuthorization === 'function';
-        let resumeAttempts = 0;
-        while (result.blockedApprovals.length > 0 && canWaitForAuth && !runSignal.aborted) {
-          resumeAttempts++;
-          if (resumeAttempts > 10) break;
-
-          await Promise.all(
-            result.blockedApprovals.map(async (a) => {
-              await (toolstack.router as any).waitForAuthorization(a.nodeId, runSignal);
-            }),
+        try {
+          const scheduler = new ParallelScheduler(
+            toolstack.router as any,
+            new InMemoryLockManager(),
           );
 
-          result = await scheduler.run(state.plan, runtime as any, runSignal, {
-            initialResults: result.nodeResults,
+          const phase = (state.runtime?.phase as any) || 'PATCH';
+          const runtime = {
+            repoRoot: workspace.workPath,
+            worktreeRoot: workspace.workPath,
+            persistenceRoot: workspace.baseRepoPath,
+            attemptId: 0,
+            dryRun: false,
+            model: state.runtime?.model,
+            phase,
+          };
+
+          const runSignal = new AbortController().signal;
+          let result = await scheduler.run(state.plan, runtime as any, runSignal, {
+            initialResults: state.result.nodeResults,
             resumeBlockedApprovals: true,
           });
+
+          const canWaitForAuth =
+            typeof (toolstack.router as any).waitForAuthorization === 'function';
+          let resumeAttempts = 0;
+          while (result.blockedApprovals.length > 0 && canWaitForAuth && !runSignal.aborted) {
+            resumeAttempts++;
+            if (resumeAttempts > 10) break;
+
+            await Promise.all(
+              result.blockedApprovals.map(async (a) => {
+                await (toolstack.router as any).waitForAuthorization(a.nodeId, runSignal);
+              }),
+            );
+
+            result = await scheduler.run(state.plan, runtime as any, runSignal, {
+              initialResults: result.nodeResults,
+              resumeBlockedApprovals: true,
+            });
+          }
+
+          await PlanPersistence.save(workspace.baseRepoPath, state.plan, result, {
+            repoRoot: workspace.workPath,
+            worktreeRoot: workspace.workPath,
+            persistenceRoot: workspace.baseRepoPath,
+            phase,
+            model: state.runtime?.model,
+          });
+
+          emit({
+            type: 'log',
+            level: result.failed ? 'warn' : 'info',
+            message: text.cli.parallelResumed(
+              planId,
+              result.blockedApprovals.length,
+              result.failed,
+            ),
+            timestamp: new Date(),
+          });
+          return;
+        } finally {
+          await toolstack.dispose?.();
         }
-
-        await PlanPersistence.save(workspace.baseRepoPath, state.plan, result, {
-          repoRoot: workspace.workPath,
-          worktreeRoot: workspace.workPath,
-          persistenceRoot: workspace.baseRepoPath,
-          phase,
-          model: state.runtime?.model,
-        });
-
-        emit({
-          type: 'log',
-          level: result.failed ? 'warn' : 'info',
-          message: text.cli.parallelResumed(planId, result.blockedApprovals.length, result.failed),
-          timestamp: new Date(),
-        });
-        return;
       } finally {
         await WorkspaceManager.teardown(workspace, emit);
       }

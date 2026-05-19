@@ -410,7 +410,10 @@ async function spawnWithNode(input: SpawnCommandInput): Promise<SpawnCommandResu
       timeoutTimer = setTimeout(() => {
         timedOut = true;
         killProcess('SIGTERM');
-        killTimer = setTimeout(() => killProcess('SIGKILL'), killGraceMs);
+        killTimer = setTimeout(() => {
+          killProcess('SIGKILL');
+          settle(null, null);
+        }, killGraceMs);
       }, input.timeoutMs);
     }
 
@@ -418,7 +421,10 @@ async function spawnWithNode(input: SpawnCommandInput): Promise<SpawnCommandResu
       onAbort = () => {
         aborted = true;
         killProcess('SIGTERM');
-        killTimer = setTimeout(() => killProcess('SIGKILL'), input.killGraceMs ?? 2000);
+        killTimer = setTimeout(() => {
+          killProcess('SIGKILL');
+          settle(null, null);
+        }, input.killGraceMs ?? 2000);
       };
       input.signal.addEventListener('abort', onAbort, { once: true });
     }
