@@ -5,6 +5,9 @@ import { text } from '../../locales/index.js';
 export function buildRunAssistantMessage(params: { mode: FlowMode; result: LoopResult }): string {
   if (!params.result.success) return text.cli.chatFailed(params.result.reason);
 
+  const answerMessage = params.mode === 'answer' ? params.result.assistantMessage?.trim() : '';
+  if (answerMessage) return answerMessage;
+
   if (params.mode === 'review') return text.cli.chatReviewCompleted;
   if (params.mode === 'research') return text.cli.chatResearchCompleted;
 

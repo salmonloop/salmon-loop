@@ -13,6 +13,7 @@ export default tseslint.config(
       'coverage/**',
       '.tmp/**',
       '.worktrees/**',
+      '.salmonloop/**',
       'tests/tmp/**',
       'test-report.json',
       'tests/integration/fixtures/**',

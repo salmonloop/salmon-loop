@@ -135,6 +135,34 @@ describe('Headless protocol integration', () => {
     );
   }, 120000);
 
+  it('returns read-only answer content in headless json result', async () => {
+    const repo = await helper.createGitRepo();
+    const instruction = 'Return the sentinel HEADLESS_ANSWER_PAYLOAD.';
+
+    const { exitCode, stdout, stderr } = await runCli([
+      '-r',
+      repo.path,
+      '-p',
+      instruction,
+      '--output-format',
+      'json',
+      '--act-mode',
+      'answer',
+      '--no-config-file',
+    ]);
+
+    expect(exitCode).toBe(0);
+    expect(stderr).toBe('');
+    const payload = JSON.parse(stdout) as any;
+    expect(payload.result).toContain('HEADLESS_ANSWER_PAYLOAD');
+    expect(payload.result).not.toBe('Completed successfully. No files were changed.');
+    expect(payload.metadata).toMatchObject({
+      success: true,
+      exit_code: 0,
+      changed_files: [],
+    });
+  }, 120000);
+
   it('supports global -p print mode with --output-format stream-json (implicit run command)', async () => {
     const repo = await helper.createGitRepo();
     await seedChatSession(repo.path, 'sess-print');
