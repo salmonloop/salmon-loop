@@ -1,3 +1,5 @@
+import crypto from 'node:crypto';
+
 import type { Command } from 'commander';
 
 import { normalizePermissionMode } from '../../core/config/index.js';
@@ -275,7 +277,25 @@ export async function handleServeCommand(_options: unknown, command: Command) {
             return;
           }
           const [scheme, token] = authHeader.split(' ');
-          if (scheme?.toLowerCase() !== 'bearer' || !authTokens.includes(token)) {
+          if (scheme?.toLowerCase() !== 'bearer' || !token) {
+            res.status(401).json({ error: 'Unauthorized' });
+            return;
+          }
+
+          let isAuthenticated = false;
+          const tokenBuffer = Buffer.from(token);
+
+          for (const authToken of authTokens) {
+            const authBuffer = Buffer.from(authToken);
+            if (tokenBuffer.length === authBuffer.length) {
+              if (crypto.timingSafeEqual(tokenBuffer, authBuffer)) {
+                isAuthenticated = true;
+                break;
+              }
+            }
+          }
+
+          if (!isAuthenticated) {
             res.status(401).json({ error: 'Unauthorized' });
             return;
           }
