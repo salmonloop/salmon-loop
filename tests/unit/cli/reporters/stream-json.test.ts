@@ -293,6 +293,49 @@ describe('StreamJsonReporter', () => {
     restoreTime();
   });
 
+  it('keeps retry exhaustion reason separate from terminal failure guidance', () => {
+    useFakeTimers();
+    const restoreTime = freezeSystemTime('2026-02-20T00:00:00.000Z');
+
+    const { lines, write } = collectLines();
+    const reporter = new StreamJsonReporter({
+      mode: 'run',
+      sessionId: 'sess-retry',
+      now: () => new Date(),
+      writer: createStdoutWriter({ write }),
+    });
+
+    reporter.onStart('x');
+    reporter.onFinish({
+      success: false,
+      reason: 'Exceeded maximum retry attempts',
+      reasonCode: 'MAX_RETRIES',
+      diagnosticCode: 'VERIFY_FAILED',
+      safeHint: 'Verification failed.',
+      remediationSteps: ['Fix the failing verification and retry.'],
+      attempts: 3,
+      logs: [],
+      changedFiles: ['data.txt'],
+    } as any);
+
+    const resultLine = lines.find((line) => line.event?.type === 'result');
+    expect(resultLine).toMatchObject({
+      event: {
+        type: 'result',
+        success: false,
+        reason: 'Exceeded maximum retry attempts',
+        reason_code: 'MAX_RETRIES',
+        diagnostic_code: 'VERIFY_FAILED',
+        safe_hint: 'Verification failed.',
+        remediation_steps: ['Fix the failing verification and retry.'],
+        changed_files: ['data.txt'],
+      },
+    });
+
+    useRealTimers();
+    restoreTime();
+  });
+
   it('emits an empty changed_files list when LoopResult omits changedFiles', () => {
     useFakeTimers();
     const restoreTime = freezeSystemTime('2026-02-20T00:00:00.000Z');

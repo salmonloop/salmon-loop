@@ -5,6 +5,7 @@ const hoisted = (() => ({
   loopParamsCalls: [] as Array<Record<string, unknown>>,
   writeJsonFailureCalls: [] as Array<Record<string, unknown>>,
   writeUnexpectedErrorCalls: [] as Array<Record<string, unknown>>,
+  resolvedConfigRaw: undefined as Record<string, unknown> | undefined,
   sessionManager: undefined as Record<string, unknown> | undefined,
   reporterImpl: {
     onStart: mock(),
@@ -58,6 +59,7 @@ function resetHoistedState() {
   hoisted.loopParamsCalls.length = 0;
   hoisted.writeJsonFailureCalls.length = 0;
   hoisted.writeUnexpectedErrorCalls.length = 0;
+  hoisted.resolvedConfigRaw = undefined;
   hoisted.sessionManager = undefined;
   hoisted.reporterImpl = {
     onStart: mock(),
@@ -131,6 +133,7 @@ mock.module('../../../../src/cli/commands/run/config-resolution.js', () => ({
       auditScope: 'user',
       resolvedConfig: {
         source: { used: false, path: undefined },
+        raw: hoisted.resolvedConfigRaw,
         observability: {
           langfuse: {
             enabled: true,
@@ -144,6 +147,7 @@ mock.module('../../../../src/cli/commands/run/config-resolution.js', () => ({
           audit: { scope: 'repo' },
         },
         llm: { api: { baseUrl: 'https://llm.example.test', apiKey: 'llm-key' }, models: {} },
+        permissionMode: 'interactive',
         llmOutput: { kinds: [] },
         markdownTheme: 'default',
         markdownRenderMode: 'enhanced',
@@ -259,6 +263,14 @@ mock.module('../../../../src/core/runtime/exit-codes.js', () => ({
 }));
 
 mock.module('../../../../src/core/observability/logger.js', () => ({
+  PlainReporter: class PlainReporter {
+    log() {}
+    clear() {}
+  },
+  SilentReporter: class SilentReporter {
+    log() {}
+    clear() {}
+  },
   getLogger: () => ({
     error: mock(),
     warn: mock(),
@@ -359,6 +371,57 @@ describe('handleRunCommand outcome reporter', () => {
       allow: ['Bash(ls *)'],
       deny: ['Bash(rm *)'],
     });
+  });
+
+  it('does not let an unresolved config permission default override implicit autopilot permissions', async () => {
+    hoisted.parsedOptions = {
+      ...hoisted.parsedOptions,
+      allOptions: {
+        ...hoisted.parsedOptions.allOptions,
+        mode: 'interactive',
+        actMode: 'autopilot',
+        checkpointStrategy: 'worktree',
+      } as any,
+    };
+    hoisted.loopParamsCalls.length = 0;
+
+    const { handleRunCommand } = await import('../../../../src/cli/commands/run/handler.js');
+    const command: any = {
+      optsWithGlobals: () => ({}),
+      getOptionValueSource: (name: string) =>
+        name === 'mode' || name === 'checkpointStrategy' ? 'default' : 'cli',
+    };
+
+    await handleRunCommand({}, command);
+
+    expect(hoisted.loopParamsCalls[0]?.mode).toBe('autopilot');
+    expect(hoisted.loopParamsCalls[0]?.permissionMode).toBe('yolo');
+  });
+
+  it('honors an explicit config permission mode before the autopilot profile default', async () => {
+    hoisted.resolvedConfigRaw = { version: 1, mode: 'interactive' };
+    hoisted.parsedOptions = {
+      ...hoisted.parsedOptions,
+      allOptions: {
+        ...hoisted.parsedOptions.allOptions,
+        mode: 'interactive',
+        actMode: 'autopilot',
+        checkpointStrategy: 'worktree',
+      } as any,
+    };
+    hoisted.loopParamsCalls.length = 0;
+
+    const { handleRunCommand } = await import('../../../../src/cli/commands/run/handler.js');
+    const command: any = {
+      optsWithGlobals: () => ({}),
+      getOptionValueSource: (name: string) =>
+        name === 'mode' || name === 'checkpointStrategy' ? 'default' : 'cli',
+    };
+
+    await handleRunCommand({}, command);
+
+    expect(hoisted.loopParamsCalls[0]?.mode).toBe('autopilot');
+    expect(hoisted.loopParamsCalls[0]?.permissionMode).toBe('interactive');
   });
 
   it('honors global cli checkpoint strategy when option source lives on the parent command', async () => {

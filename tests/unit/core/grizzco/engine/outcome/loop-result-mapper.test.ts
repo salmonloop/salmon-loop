@@ -332,6 +332,8 @@ describe('loop-result-mapper', () => {
 
     expect(result.success).toBe(false);
     expect(result.reasonCode).toBe('MAX_RETRIES');
+    expect(result.reason).toBe(text.loop.exceededMaxRetriesSimple);
+    expect(result.safeHint).toBe(text.loop.exceededMaxRetriesSimple);
     expect(result.terminalReason).toBe('RETRY_BUDGET_EXHAUSTED');
     expect(result.rootCause).toBe('LLM_RATE_LIMITED');
     expect(result.failurePhase).toBe('VERIFY');
@@ -370,6 +372,53 @@ describe('loop-result-mapper', () => {
     expect(result.safeHint).toBe("Missing declared dependency 'fast-xml-parser'.");
     expect(result.diagnosticCode).toBe('UNDECLARED_DEPENDENCY');
     expect(result.remediationSteps).toEqual(['Run bun add fast-xml-parser and retry.']);
+  });
+
+  it('reports retry exhaustion while preserving terminal diagnostics from preserved-workspace failures', () => {
+    const telemetry = createTelemetry();
+    const report: FlowTransactionReport = {
+      success: false,
+      attempts: 3,
+      flowReport: {
+        success: true,
+        duration: 1,
+        traces: [],
+        strategyName: 'autopilot',
+        fsMode: 'autopilot',
+      },
+      history: [
+        { attempt: 3, plan: null, patch: null, error: 'verify failed', contextSummary: '' },
+      ],
+      retryExhausted: true,
+      terminalReasonCode: 'VERIFY_FAILED',
+      terminalFailurePhase: 'VERIFY',
+      terminalDiagnosticCode: 'VERIFY_FAILED',
+      terminalSafeHint: 'Verification failed.',
+      lastContext: {
+        report: {
+          kind: 'answer',
+          summary: 'changed file',
+          timestamp: Date.now(),
+        },
+        mutated: true,
+        changedFiles: ['data.txt'],
+      } as any,
+    };
+
+    const result = buildLoopResultFromTransaction({
+      executionReport: report,
+      flowMode: 'autopilot',
+      options: {} as any,
+      telemetry,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.reasonCode).toBe('MAX_RETRIES');
+    expect(result.reason).toBe(text.loop.exceededMaxRetriesSimple);
+    expect(result.terminalReason).toBe('RETRY_BUDGET_EXHAUSTED');
+    expect(result.diagnosticCode).toBe('VERIFY_FAILED');
+    expect(result.safeHint).toBe('Verification failed.');
+    expect(result.changedFiles).toEqual(['data.txt']);
   });
 
   it('builds an error envelope for terminal failures', () => {

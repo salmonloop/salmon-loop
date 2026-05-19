@@ -412,8 +412,6 @@ describe('Headless protocol integration', () => {
         '--headless-include-tool-output',
         '--act-mode',
         'autopilot',
-        '--mode',
-        'yolo',
       ]);
 
       expect(exitCode).toBe(0);

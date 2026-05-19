@@ -208,6 +208,7 @@ export class FlowTransactionRunner {
   private lastRecentReadArtifacts: Array<{ path: string; artifact: ArtifactHandle }>;
   private lastToolResultPreviewArtifacts: Array<{ label: string; artifact: ArtifactHandle }>;
   private lastReplacementState: ToolResultReplacementState | undefined;
+  private pendingAutopilotVerification: { changedFiles?: string[] } | undefined;
 
   constructor(private readonly params: FlowTransactionRunnerParams) {
     this.lastVerifyArtifact = params.options.artifactHints?.verifyArtifact;
@@ -274,6 +275,7 @@ export class FlowTransactionRunner {
               : undefined,
         },
         replacementState: this.lastReplacementState,
+        pendingVerification: this.pendingAutopilotVerification,
         lastError: this.currentLastError,
         applyBackRuntime: {
           activeRepoPath: this.params.env.activeRepoPath,
@@ -318,6 +320,18 @@ export class FlowTransactionRunner {
         flowMode: this.params.flowMode,
       });
       lastAttemptFailure = attemptFailure;
+      if (this.params.flowMode === 'autopilot') {
+        if (attemptFailure?.reasonCode === 'VERIFY_FAILED') {
+          this.pendingAutopilotVerification = {
+            changedFiles:
+              terminalCtx && 'changedFiles' in terminalCtx
+                ? ((terminalCtx as { changedFiles?: string[] }).changedFiles ?? undefined)
+                : undefined,
+          };
+        } else if (!attemptFailure) {
+          this.pendingAutopilotVerification = undefined;
+        }
+      }
 
       const entry: LoopIteration = {
         attempt,

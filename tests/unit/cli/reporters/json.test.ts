@@ -37,7 +37,7 @@ describe('JsonReporter', () => {
 
     const result: LoopResult = {
       success: true,
-      reason: 'SUCCESS',
+      reason: 'Operation completed successfully',
       reasonCode: 'SUCCESS',
       diagnosticCode: 'SUCCESS',
       safeHint: 'Completed successfully.',
@@ -91,7 +91,7 @@ describe('JsonReporter', () => {
       instruction: 'do the thing',
       success: true,
       exit_code: 0,
-      reason: 'Completed successfully.',
+      reason: 'Operation completed successfully',
       reason_code: 'SUCCESS',
       diagnostic_code: 'SUCCESS',
       safe_hint: 'Completed successfully.',
@@ -134,6 +134,52 @@ describe('JsonReporter', () => {
           timestamp: '2026-02-20T00:00:00.000Z',
         },
       ],
+    });
+
+    useRealTimers();
+    restoreTime();
+  });
+
+  it('keeps retry exhaustion reason separate from terminal failure guidance', () => {
+    useFakeTimers();
+    const restoreTime = freezeSystemTime('2026-02-20T00:00:00.000Z');
+
+    let out = '';
+    const write = (chunk: string) => {
+      out += chunk;
+      return true;
+    };
+
+    const reporter = new JsonReporter({
+      mode: 'run',
+      repoPath: '/repo',
+      sessionId: 'sess-retry',
+      now: () => new Date(),
+      writer: createStdoutWriter({ write }),
+    });
+
+    reporter.onStart('x');
+    reporter.onFinish({
+      success: false,
+      reason: 'Exceeded maximum retry attempts',
+      reasonCode: 'MAX_RETRIES',
+      diagnosticCode: 'VERIFY_FAILED',
+      safeHint: 'Verification failed.',
+      remediationSteps: ['Fix the failing verification and retry.'],
+      attempts: 3,
+      logs: [],
+      changedFiles: ['data.txt'],
+    } as any);
+
+    const obj = JSON.parse(out.trim());
+    expect(obj.metadata).toMatchObject({
+      success: false,
+      reason: 'Exceeded maximum retry attempts',
+      reason_code: 'MAX_RETRIES',
+      diagnostic_code: 'VERIFY_FAILED',
+      safe_hint: 'Verification failed.',
+      remediation_steps: ['Fix the failing verification and retry.'],
+      changed_files: ['data.txt'],
     });
 
     useRealTimers();

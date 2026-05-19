@@ -168,6 +168,30 @@ export function resolveAttemptFailure(params: {
 
   const errorCode = extractErrorCode(flowReport.error) ?? extractErrorCodeFromTraces(flowReport);
 
+  if (profile.verifyPolicy !== 'never' && context?.verifyResult?.ok === false) {
+    const verifyOutput = context.verifyResult.output || text.loop.loopExecutionFailed;
+    const errorType = classifyError(verifyOutput);
+    const fallbackReason = sanitizeReason(context.lastError || verifyOutput);
+    const guidance = buildFailureGuidance({
+      reasonCode: 'VERIFY_FAILED',
+      failurePhase: 'VERIFY',
+      errorCode: String(errorType),
+      verifyOutput,
+      environmentMode,
+      fallbackReason,
+    });
+    return {
+      reason: guidance.safeHint,
+      reasonCode: 'VERIFY_FAILED',
+      failurePhase: 'VERIFY',
+      retryable: isRetryable(errorType),
+      errorCode: String(errorType),
+      diagnosticCode: guidance.diagnosticCode,
+      safeHint: guidance.safeHint,
+      remediationSteps: guidance.remediationSteps,
+    };
+  }
+
   if (flowMode === 'autopilot' && autopilotCompletion) {
     if (
       autopilotCompletion.status === 'changed' ||
@@ -286,30 +310,6 @@ export function resolveAttemptFailure(params: {
       failurePhase,
       retryable: false,
       errorCode,
-      diagnosticCode: guidance.diagnosticCode,
-      safeHint: guidance.safeHint,
-      remediationSteps: guidance.remediationSteps,
-    };
-  }
-
-  if (profile.verifyPolicy !== 'never' && context?.verifyResult?.ok === false) {
-    const verifyOutput = context.verifyResult.output || text.loop.loopExecutionFailed;
-    const errorType = classifyError(verifyOutput);
-    const fallbackReason = sanitizeReason(context.lastError || verifyOutput);
-    const guidance = buildFailureGuidance({
-      reasonCode: 'VERIFY_FAILED',
-      failurePhase: 'VERIFY',
-      errorCode: String(errorType),
-      verifyOutput,
-      environmentMode,
-      fallbackReason,
-    });
-    return {
-      reason: guidance.safeHint,
-      reasonCode: 'VERIFY_FAILED',
-      failurePhase: 'VERIFY',
-      retryable: isRetryable(errorType),
-      errorCode: String(errorType),
       diagnosticCode: guidance.diagnosticCode,
       safeHint: guidance.safeHint,
       remediationSteps: guidance.remediationSteps,

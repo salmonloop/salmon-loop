@@ -144,6 +144,9 @@ export function mapRetryExhaustedReport(params: {
     lastRecentReadArtifacts,
     lastToolResultPreviewArtifacts,
     terminalFailurePhase: failure?.failurePhase,
+    terminalReasonCode: failure?.reasonCode,
     terminalDiagnosticCode: failure?.diagnosticCode,
+    terminalSafeHint: failure?.safeHint,
+    terminalRemediationSteps: failure ? [...failure.remediationSteps] : undefined,
   };
 }

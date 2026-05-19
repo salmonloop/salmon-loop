@@ -175,6 +175,43 @@ describe('resolveAttemptFailure diagnostics', () => {
     expect(failure?.safeHint).toContain('verification command');
   });
 
+  it('reports verification diagnostics when autopilot changed files but verify fails', () => {
+    const failure = resolveAttemptFailure({
+      flowReport: {
+        success: true,
+        duration: 1,
+        traces: [],
+      } as any,
+      context: {
+        options: { environmentMode: 'strict' },
+        mutated: true,
+        changedFiles: ['smoke.txt'],
+        completion: {
+          status: 'changed',
+          reason: 'Changed smoke.txt.',
+        },
+        verifyResult: {
+          ok: false,
+          output: 'verify failed: expected trailing newline',
+          exitCode: 1,
+        },
+        report: {
+          kind: 'answer',
+          summary: 'Changed smoke.txt.',
+          timestamp: 1,
+        },
+      } as any,
+      flowMode: 'autopilot',
+    });
+
+    expect(failure).toBeTruthy();
+    expect(failure?.reasonCode).toBe('VERIFY_FAILED');
+    expect(failure?.failurePhase).toBe('VERIFY');
+    expect(failure?.diagnosticCode).toBe('VERIFY_FAILED');
+    expect(failure?.safeHint).not.toBe('Loop execution failed');
+    expect(failure?.remediationSteps.length).toBeGreaterThan(0);
+  });
+
   it('allows read-only autopilot answers without forcing sub-agent artifact consumption', () => {
     const failure = resolveAttemptFailure({
       flowReport: {

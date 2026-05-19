@@ -123,7 +123,7 @@ export function encodeJsonResult(params: EncodeJsonResultParams): unknown {
   const remediationSteps = overrides?.remediationSteps ?? params.loopResult.remediationSteps ?? [];
   const diagnosticCode =
     overrides?.diagnosticCode ?? params.loopResult.diagnosticCode ?? params.loopResult.reasonCode;
-  const reason = overrides?.reason ?? safeHint;
+  const reason = overrides?.reason ?? params.loopResult.reason;
   const reasonCode = overrides?.reasonCode ?? params.loopResult.reasonCode;
   const errorCode = overrides?.errorCode ?? params.loopResult.errorCode;
   const warnings = normalizeHeadlessWarnings(params.warnings);

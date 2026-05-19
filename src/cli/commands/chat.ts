@@ -74,7 +74,7 @@ export async function handleChatCommand(options: any, command: Command) {
 
   const rawPermissionMode =
     (modeOptionSource === 'cli' ? allOptions.mode : undefined) ??
-    resolvedConfig.permissionMode ??
+    normalizePermissionMode(resolvedConfig.raw?.mode) ??
     defaultFlowProfile.defaultPermissionMode ??
     'interactive';
   const permissionMode = normalizePermissionMode(rawPermissionMode);

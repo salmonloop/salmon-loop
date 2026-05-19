@@ -134,6 +134,7 @@ export function encodeStreamResult(params: {
 }): StreamJsonEnvelope {
   const exitCode = getStreamExitCode(params.loopResult);
   const warnings = normalizeHeadlessWarnings(params.warnings);
+  const safeHint = params.loopResult.safeHint ?? params.loopResult.reason;
   const patchArtifact = params.loopResult.benchmarkPatchArtifact
     ? {
         kind: params.loopResult.benchmarkPatchArtifact.kind,
@@ -160,10 +161,10 @@ export function encodeStreamResult(params: {
       timestamp: toIso(params.at),
       success: Boolean(params.loopResult.success),
       exit_code: exitCode,
-      reason: params.loopResult.safeHint ?? params.loopResult.reason,
+      reason: params.loopResult.reason,
       reason_code: params.loopResult.reasonCode,
       diagnostic_code: params.loopResult.diagnosticCode ?? params.loopResult.reasonCode,
-      safe_hint: params.loopResult.safeHint ?? params.loopResult.reason,
+      safe_hint: safeHint,
       remediation_steps: params.loopResult.remediationSteps ?? [],
       attempts: params.loopResult.attempts,
       changed_files: params.loopResult.changedFiles ?? [],

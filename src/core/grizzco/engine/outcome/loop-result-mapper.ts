@@ -179,21 +179,24 @@ export function buildLoopResultFromTransaction({
   }
 
   const retryFailureReason = executionReport.history.at(-1)?.error ?? text.loop.loopExecutionFailed;
-  const failureReason =
-    executionReport.terminalReason ||
-    (executionReport.retryExhausted ? text.loop.exceededMaxRetriesSimple : retryFailureReason);
+  const failureReason = executionReport.retryExhausted
+    ? text.loop.exceededMaxRetriesSimple
+    : executionReport.terminalReason || retryFailureReason;
   const safeHint =
     executionReport.terminalSafeHint ||
     (executionReport.retryExhausted
-      ? text.loop.exceededMaxRetriesSimple
+      ? failureReason
       : executionReport.terminalReason || failureReason);
   const remediationSteps = executionReport.terminalRemediationSteps ?? [];
-  const reasonCode =
-    executionReport.terminalReasonCode ||
-    (executionReport.retryExhausted ? 'MAX_RETRIES' : 'LOOP_FAILED');
+  const reasonCode = executionReport.retryExhausted
+    ? 'MAX_RETRIES'
+    : executionReport.terminalReasonCode || 'LOOP_FAILED';
+  const diagnosticCode =
+    executionReport.terminalDiagnosticCode ?? executionReport.terminalReasonCode ?? reasonCode;
   const failurePhase =
     executionReport.terminalFailurePhase ||
     (executionReport.retryExhausted ? Phase.VERIFY : undefined);
+  const resultReason = executionReport.retryExhausted ? failureReason : safeHint;
 
   const usage = getTokenUsageFromAuditTrail() ?? undefined;
   const budgetSummary = getBudgetRunSummary() ?? undefined;
@@ -206,11 +209,11 @@ export function buildLoopResultFromTransaction({
   });
   return {
     success: false,
-    reason: safeHint,
+    reason: resultReason,
     reasonCode,
     terminalReason,
     rootCause,
-    diagnosticCode: executionReport.terminalDiagnosticCode ?? reasonCode,
+    diagnosticCode,
     safeHint,
     remediationSteps,
     errorEnvelope,
@@ -220,6 +223,7 @@ export function buildLoopResultFromTransaction({
     usage,
     authorizationDecisions,
     history: telemetry.getHistory(),
+    changedFiles,
     failurePhase,
     errorType: ErrorType.UNKNOWN,
     errorCode: executionReport.lastErrorCode,

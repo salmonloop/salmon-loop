@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
 const hoisted = (() => ({
   reporterCalls: [] as Array<Record<string, unknown>>,
+  resolvedConfigRaw: undefined as Record<string, unknown> | undefined,
   startChatCalls: 0,
 }))();
 
@@ -30,6 +31,8 @@ mock.module('../../../../src/core/config/index.js', () => ({
   },
   redactConfigForPrint: (v: any) => v,
   resolveConfig: mock(async () => ({
+    raw: hoisted.resolvedConfigRaw,
+    permissionMode: 'interactive',
     llm: { api: { baseUrl: 'https://llm.example.test', apiKey: 'llm-key' } },
     llmOutput: { kinds: [] },
     observability: {
@@ -97,6 +100,7 @@ mock.module('../../../../src/cli/chat.js', () => ({
 describe('handleChatCommand outcome reporter', () => {
   beforeEach(() => {
     hoisted.reporterCalls.length = 0;
+    hoisted.resolvedConfigRaw = undefined;
     hoisted.startChatCalls = 0;
   });
 
@@ -140,6 +144,27 @@ describe('handleChatCommand outcome reporter', () => {
     expect(startChatCall?.defaultFlowMode).toBe('autopilot');
     expect(startChatCall?.permissionMode).toBe('yolo');
     expect(startChatCall?.checkpointStrategy).toBeUndefined();
+  });
+
+  it('honors explicit config permission mode before the autopilot profile default', async () => {
+    hoisted.resolvedConfigRaw = { version: 1, mode: 'interactive' };
+    const { handleChatCommand } = await import('../../../../src/cli/commands/chat.js');
+    const command: any = {
+      optsWithGlobals: () => ({
+        repo: '/repo',
+        auditScope: 'user',
+        mode: 'interactive',
+        checkpointStrategy: 'worktree',
+      }),
+      getOptionValueSource: (name: string) =>
+        name === 'checkpointStrategy' || name === 'mode' ? 'default' : 'cli',
+    };
+
+    await handleChatCommand({}, command);
+
+    const startChatCall = hoisted.reporterCalls[1]?.startChatMode as Record<string, unknown>;
+    expect(startChatCall?.defaultFlowMode).toBe('autopilot');
+    expect(startChatCall?.permissionMode).toBe('interactive');
   });
 
   it('honors global cli mode and checkpoint strategy when option source lives on the parent command', async () => {

@@ -288,10 +288,11 @@ export async function handleRunCommand(options: any, command: Command) {
   }
   const profile = resolveExecutionProfile(mode);
   const permissionModeOptionSource = getOptionValueSourceWithGlobalFallback(command, 'mode');
+  const configuredPermissionMode = normalizePermissionMode(resolvedConfig.raw?.mode);
 
   const rawPermissionMode =
     (permissionModeOptionSource === 'cli' ? allOptions.mode : undefined) ??
-    resolvedConfig.permissionMode ??
+    configuredPermissionMode ??
     profile.defaultPermissionMode ??
     'interactive';
   const permissionMode = normalizePermissionMode(rawPermissionMode);
