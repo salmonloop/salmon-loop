@@ -23,12 +23,7 @@ export const SafetyChecks = (engine: DecisionEngine): DecisionEngine => {
     )
     .phase('Lock Check')
     .requireData('remote_lock')
-    .require((c) => !c.data?.remote_lock?.isLocked, text.grizzco.remoteLocked)
-    .requireData('git_config')
-    .require(
-      (c) => !!(c.data?.git_config?.user?.name && c.data?.git_config?.user?.email),
-      text.grizzco.gitUserConfigMissing,
-    );
+    .require((c) => !c.data?.remote_lock?.isLocked, text.grizzco.remoteLocked);
 };
 
 export const IntentRouting = (engine: DecisionEngine): DecisionEngine => {

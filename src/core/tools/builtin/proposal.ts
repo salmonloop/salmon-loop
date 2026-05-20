@@ -9,10 +9,7 @@ import { DecisionEngine, DslContext, PlanBuilder } from '../../grizzco/dsl/Decis
 import { StandardStrategy } from '../../grizzco/dsl/strategies.js';
 import { Executor } from '../../grizzco/execution/Executor.js';
 import { WorkerFactory } from '../../grizzco/execution/WorkerFactory.js';
-import { CachedService } from '../../grizzco/services/CachedService.js';
-import { GitConfigService } from '../../grizzco/services/implementations/default/GitConfigService.js';
 import { MockLockService } from '../../grizzco/services/implementations/mock/MockLockService.js';
-import { MockUserQuotaService } from '../../grizzco/services/implementations/mock/MockUserQuotaService.js';
 import { registry } from '../../grizzco/services/registry.js';
 import { normalizeDiff, validateDiff, convertDiffToShadowOperations } from '../../patch/diff.js';
 import { getRejectionsDir } from '../../runtime/paths.js';
@@ -23,8 +20,6 @@ import { ToolSpec, ToolRuntimeCtx } from '../types.js';
 
 function bootstrapRegistry(): void {
   if (!registry.has('remote_lock')) registry.register(new MockLockService());
-  if (!registry.has('user_quota')) registry.register(new MockUserQuotaService());
-  if (!registry.has('git_config')) registry.register(new CachedService(new GitConfigService()));
 }
 
 export const proposalApplySpec: Omit<ToolSpec, 'executor'> = {

@@ -15,10 +15,7 @@ import { Step } from '../engine/pipeline/pipeline.js';
 import { ApplyCtx, type ApplyDecision, AstValidateCtx } from '../engine/pipeline/types.js';
 import { Executor, type ExecutionResult } from '../execution/Executor.js';
 import { WorkerFactory } from '../execution/WorkerFactory.js';
-import { CachedService } from '../services/CachedService.js';
-import { GitConfigService } from '../services/implementations/default/GitConfigService.js';
 import { MockLockService } from '../services/implementations/mock/MockLockService.js';
-import { MockUserQuotaService } from '../services/implementations/mock/MockUserQuotaService.js';
 import { registry } from '../services/registry.js';
 
 /**
@@ -26,8 +23,6 @@ import { registry } from '../services/registry.js';
  */
 export function bootstrapRegistry(): void {
   if (!registry.has('remote_lock')) registry.register(new MockLockService());
-  if (!registry.has('user_quota')) registry.register(new MockUserQuotaService());
-  if (!registry.has('git_config')) registry.register(new CachedService(new GitConfigService()));
 }
 
 export const runApply: Step<AstValidateCtx, ApplyCtx> = async (ctx) => {

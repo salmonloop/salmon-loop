@@ -35,7 +35,7 @@ const DIFF_ARGS = [
 ] as const;
 
 function normalizeGitPatch(text: string): string {
-  const normalized = text.replace(/\r\n/g, '\n').replace(/\s+$/, '');
+  const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/\n+$/, '');
   return normalized.length > 0 ? `${normalized}\n` : '';
 }
 

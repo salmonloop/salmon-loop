@@ -14,7 +14,6 @@ describe('Strategies', () => {
       const ctx = createMockContext();
       ctx.data = {
         remote_lock: { isLocked: false },
-        git_config: { user: { name: 'User', email: 'email' } },
       };
       const pb = new PlanBuilder();
       const engine = new DecisionEngine(ctx, pb);
@@ -31,7 +30,6 @@ describe('Strategies', () => {
       const ctx = createMockContext({ file: { ...createMockContext().file, isSymlink: true } });
       ctx.data = {
         remote_lock: { isLocked: false },
-        git_config: { user: { name: 'User', email: 'email' } },
       };
       const pb = new PlanBuilder();
       const engine = new DecisionEngine(ctx, pb);
@@ -42,6 +40,23 @@ describe('Strategies', () => {
       if (result.type === 'PLAN') {
         expect(result.plan.shouldAbort).toBe(true);
         expect(result.plan.abortReason).toMatch(/Symlinks are not supported/);
+      }
+    });
+
+    it('does not require git user identity for filesystem apply decisions', () => {
+      const ctx = createMockContext();
+      ctx.data = {
+        remote_lock: { isLocked: false },
+        git_config: { user: { name: null, email: null } },
+      };
+      const pb = new PlanBuilder();
+      const engine = new DecisionEngine(ctx, pb);
+      SafetyChecks(engine);
+      const result = engine.build();
+
+      expect(result.type).toBe('PLAN');
+      if (result.type === 'PLAN') {
+        expect(result.plan.shouldAbort).toBe(false);
       }
     });
   });

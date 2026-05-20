@@ -37,14 +37,9 @@ describe('Apply Step (MicroOrchestrator)', () => {
       id: 'remote_lock',
       fetch: mock().mockResolvedValue({ isLocked: false }),
     };
-    const mockGitConfig = {
-      id: 'git_config',
-      fetch: mock().mockResolvedValue({ user: { name: 'Test', email: 'test@example.com' } }),
-    };
 
     // 2. Register them BEFORE runApply
     registry.register(mockService);
-    registry.register(mockGitConfig);
 
     // 3. Create a comprehensive Mock Context
     const ctx = createMockContext();
@@ -88,6 +83,5 @@ describe('Apply Step (MicroOrchestrator)', () => {
 
     // We check if fetch was called.
     expect(mockService.fetch).toHaveBeenCalled();
-    expect(mockGitConfig.fetch).toHaveBeenCalled();
   });
 });

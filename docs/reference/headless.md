@@ -149,3 +149,47 @@ s8p run -p "Read README.md and summarize it." --output-format stream-json --outp
 
 - Invalid flag combinations must not print help text to stdout in headless mode.
 - Confirm `exit code = 1`.
+
+## SWE-bench Smoke Harness
+
+Use the project runner when validating benchmark behavior:
+
+```bash
+bun run smoke:swebench -- \
+  --instance-file fixtures/swebench-instance.json \
+  --config .salmonloop/config/config.json \
+  --overlay fixtures/swebench-overlay.json \
+  --behavior-command "python tests/repro.py" \
+  --regression-command "python -m pytest test/rules/test_l031.py"
+```
+
+For deterministic local harness tests, pass `--instance-file` plus `--source-repo` so the runner
+fetches from a local git repository instead of GitHub.
+
+The runner writes `report.json`, keeps its output directory by default so artifact paths stay
+durable, and intentionally separates these outcomes:
+
+- `flowSuccess`: SalmonLoop completed the headless run.
+- `reproductionPrepared`: the harness has a non-trivial reproduction command and any overlay
+  files were committed before the agent ran.
+- `patchApplyable`: the patch is non-empty, parses as SWE-bench prediction JSONL, passes
+  `git diff --check`, the prediction `model_patch` matches the exported patch artifact, and the
+  patch applies with `git apply --check`.
+- `behaviorVerified`: the reproduction command passed and `--verify` was not a trivial
+  flow-only command such as `true`.
+- `regressionVerified`: the PASS_TO_PASS/local regression command passed. Missing regression
+  commands are reported as skipped and do not satisfy the local quality bar.
+- `submitted` / `resolved`: optional `sb-cli` submission state.
+
+`--verify true` is valid only for protocol smoke. It is reported as `WEAK_VERIFY_COMMAND` and
+cannot satisfy the local quality bar.
+
+Behavior and regression commands run in a clean benchmark worktree with the exported
+`model_patch` applied. This catches patches that only pass because ignored or generated files were
+left behind in the agent worktree.
+
+Use `--out <dir>` to choose a durable artifact location. Use `--cleanup` only for disposable
+protocol smoke runs where the printed JSON report is enough.
+
+When `--overlay` is provided, overlay files are committed before the agent runs. This lets the
+harness add reproduction tests without leaking those tests into the exported `model_patch`.

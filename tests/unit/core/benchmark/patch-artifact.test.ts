@@ -64,6 +64,56 @@ describe('benchmark patch artifact', () => {
     expect(artifact.patch).toContain('+export const a = 2;');
   });
 
+  it('preserves blank context lines so exported patches remain applyable', async () => {
+    const repo = await helper.createGitRepo({
+      initialFiles: [
+        {
+          path: 'src/range.ts',
+          content: [
+            'export function clamp(value: number, min: number, max: number): number {',
+            '  return value;',
+            '}',
+            '',
+            '',
+          ].join('\n'),
+        },
+      ],
+    });
+    await helper.writeFile(
+      repo.path,
+      'src/range.ts',
+      [
+        'export function clamp(value: number, min: number, max: number): number {',
+        '  return Math.min(Math.max(value, min), max);',
+        '}',
+        '',
+        '',
+      ].join('\n'),
+    );
+
+    const artifact = await buildBenchmarkPatchArtifact({ repoPath: repo.path });
+
+    expect(artifact.patch).toContain('\n }\n \n');
+
+    const clean = await helper.createGitRepo({
+      initialFiles: [
+        {
+          path: 'src/range.ts',
+          content: [
+            'export function clamp(value: number, min: number, max: number): number {',
+            '  return value;',
+            '}',
+            '',
+            '',
+          ].join('\n'),
+        },
+      ],
+    });
+    await helper.writeFile(clean.path, 'patch.diff', artifact.patch);
+    const check = await helper.git(clean.path, ['apply', '--check', 'patch.diff']);
+    expect(check.exitCode).toBe(0);
+  });
+
   it('omits excluded artifact paths while preserving applyability', async () => {
     const repo = await helper.createGitRepo({
       initialFiles: [
