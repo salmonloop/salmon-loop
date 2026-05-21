@@ -1,0 +1,3 @@
+## 2023-10-24 - Optimized cache store entries access and deletion in ContextService
+**Learning:** In ContextService cache evictions, repeatedly awaiting `this.cacheStore.entries()` inside loops and sorting the entire cache indiscriminately for evictions was causing O(M * N) and O(N log N) overhead respectively. Further, unbounded concurrent deletions on the PersistentContextCacheStore trigger I/O contention via `flushToDisk()` and could cause EMFILE errors.
+**Action:** Fetch cache store entries once using `Array.from()`. Use an O(N) linear scan for single-item LRU evictions to avoid overhead. Batch deletions using chunked `Promise.all` (e.g. chunk size 10) instead of unbounded concurrency to avoid disk contention and EMFILE errors.

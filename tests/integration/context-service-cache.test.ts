@@ -4,8 +4,12 @@ import { join } from 'node:path';
 
 import { ContextService } from '../../src/core/context/service.js';
 import type { ContextRequest } from '../../src/core/context/types.js';
+import { setLogger, createLogger } from '../../src/core/observability/logger.js';
 
 describe('ContextService cache (integration)', () => {
+  beforeEach(() => {
+    setLogger(createLogger({ silent: true }));
+  });
   it('invalidates cache when primary file content changes', async () => {
     const repoPath = await mkdtemp(join(tmpdir(), 'context-cache-'));
     const primaryFile = 'src/a.ts';

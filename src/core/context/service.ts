@@ -242,25 +242,59 @@ export class ContextService {
   }
 
   private async evictExpiredEntries(): Promise<void> {
-    for (const [key, entry] of await this.cacheStore.entries()) {
-      await this.isExpired(key, entry);
+    const entries = Array.from(await this.cacheStore.entries());
+    const expiredKeys: string[] = [];
+
+    for (const [key, entry] of entries) {
+      const last = this.getEntryTimestamp(entry);
+      if (last && Date.now() - last > this.cacheTtlMs) {
+        expiredKeys.push(key);
+      }
+    }
+
+    // Batch deletions to avoid EMFILE/contention
+    for (let i = 0; i < expiredKeys.length; i += 10) {
+      const chunk = expiredKeys.slice(i, i + 10);
+      await Promise.all(chunk.map((key) => this.cacheStore.delete(key)));
+      this.cacheMetrics.evictions += chunk.length;
     }
   }
 
   private async evictLruIfNeeded(): Promise<void> {
-    while ((await this.cacheStore.size()) > this.cacheMaxEntries) {
+    const size = await this.cacheStore.size();
+    if (size <= this.cacheMaxEntries) return;
+
+    const entries = Array.from(await this.cacheStore.entries());
+    const overage = size - this.cacheMaxEntries;
+    const victimKeys: string[] = [];
+
+    // O(N) optimization for single item evictions
+    if (overage === 1) {
       let victimKey: string | undefined;
       let victimTs = Number.POSITIVE_INFINITY;
-      for (const [key, entry] of await this.cacheStore.entries()) {
+      for (const [key, entry] of entries) {
         const ts = this.getEntryTimestamp(entry);
         if (ts < victimTs) {
           victimTs = ts;
           victimKey = key;
         }
       }
-      if (!victimKey) break;
-      await this.cacheStore.delete(victimKey);
-      this.cacheMetrics.evictions += 1;
+      if (victimKey) {
+        victimKeys.push(victimKey);
+      }
+    } else {
+      // O(N log N) for mass batch evictions
+      entries.sort((a, b) => {
+        return this.getEntryTimestamp(a[1]) - this.getEntryTimestamp(b[1]);
+      });
+      victimKeys.push(...entries.slice(0, overage).map(([key]) => key));
+    }
+
+    // Batch deletions to avoid EMFILE/contention
+    for (let i = 0; i < victimKeys.length; i += 10) {
+      const chunk = victimKeys.slice(i, i + 10);
+      await Promise.all(chunk.map((key) => this.cacheStore.delete(key)));
+      this.cacheMetrics.evictions += chunk.length;
     }
   }
 

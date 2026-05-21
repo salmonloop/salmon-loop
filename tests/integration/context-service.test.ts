@@ -1,18 +1,22 @@
 import { ContextService } from '../../src/core/context/service.js';
 import { PluginLoader } from '../../src/core/plugin/loader.js';
-import { getPluginRegistry } from '../../src/core/plugin/registry.js';
+import { PluginRegistry, setPluginRegistry, getPluginRegistry } from '../../src/core/plugin/registry.js';
 import {
   createLocalCommandRunner,
   withCommandRunner,
 } from '../../src/core/runtime/command-runner-context.js';
 import { RealFsTestHelper } from '../helpers/real-fs-helper.js';
+import { setLogger, createLogger } from '../../src/core/observability/logger.js';
 
 describe('ContextService Integration', () => {
   const helper = new RealFsTestHelper();
   let repoPath: string;
 
   beforeAll(async () => {
-    await PluginLoader.loadPlugins(getPluginRegistry());
+    setLogger(createLogger({ silent: true }));
+    const registry = new PluginRegistry();
+    setPluginRegistry(registry);
+    await PluginLoader.loadPlugins(registry);
   });
 
   beforeEach(async () => {
