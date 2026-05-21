@@ -1,0 +1,4 @@
+## 2025-02-28 - Timing Attack Vulnerability in Bearer Token Validation
+**Vulnerability:** A timing attack vulnerability was identified in `src/cli/commands/serve.ts` where the `Bearer` token was validated using `Array.prototype.includes(token)`, which utilizes standard string comparison.
+**Learning:** Standard string comparisons (like `===` or `.includes()`) exit early when they find a mismatch. This allows attackers to guess valid tokens by measuring the time it takes for the application to reject invalid tokens, character by character.
+**Prevention:** Always use `crypto.timingSafeEqual` to compare sensitive strings like passwords, API keys, and Bearer tokens. Remember to verify that both buffers have the same length before calling `timingSafeEqual`, as it throws an error if lengths differ.
