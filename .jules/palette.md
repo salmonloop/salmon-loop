@@ -1,0 +1,3 @@
+## 2024-05-24 - Add Structural Focus Indicator to Command Suggestion List
+**Learning:** In terminal UIs, relying solely on color changes for selection can be problematic for accessibility (colorblindness) and clarity. A structural character marker (like `❯`) provides a clearer, more consistent affordance for the focused item across different terminal themes.
+**Action:** Always include a structural or character-based focus indicator (e.g., `❯ `) for list selections in Ink terminal UI components rather than relying solely on color changes. Ensure spacing is preserved when an item is not selected to prevent layout shifting.
