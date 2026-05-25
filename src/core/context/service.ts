@@ -242,25 +242,70 @@ export class ContextService {
   }
 
   private async evictExpiredEntries(): Promise<void> {
-    for (const [key, entry] of await this.cacheStore.entries()) {
-      await this.isExpired(key, entry);
+    const entries = await this.cacheStore.entries();
+    const expiredKeys: string[] = [];
+    const now = Date.now();
+    for (const [key, entry] of entries) {
+      const last = this.getEntryTimestamp(entry);
+      if (last && now - last > this.cacheTtlMs) {
+        expiredKeys.push(key);
+      }
+    }
+
+    // ⚡ Bolt Optimization: Batch deletions in chunks of 10 to avoid EMFILE errors and severe I/O contention
+    // on PersistentContextCacheStore, which flushes atomically on every delete().
+    const CHUNK_SIZE = 10;
+    for (let i = 0; i < expiredKeys.length; i += CHUNK_SIZE) {
+      const chunk = expiredKeys.slice(i, i + CHUNK_SIZE);
+      await Promise.all(
+        chunk.map(async (key) => {
+          await this.cacheStore.delete(key);
+          this.cacheMetrics.evictions += 1;
+        }),
+      );
     }
   }
 
   private async evictLruIfNeeded(): Promise<void> {
-    while ((await this.cacheStore.size()) > this.cacheMaxEntries) {
+    const currentSize = await this.cacheStore.size();
+    if (currentSize <= this.cacheMaxEntries) return;
+
+    const entries = await this.cacheStore.entries();
+    const numToEvict = currentSize - this.cacheMaxEntries;
+
+    if (numToEvict === 1) {
       let victimKey: string | undefined;
       let victimTs = Number.POSITIVE_INFINITY;
-      for (const [key, entry] of await this.cacheStore.entries()) {
+      for (const [key, entry] of entries) {
         const ts = this.getEntryTimestamp(entry);
         if (ts < victimTs) {
           victimTs = ts;
           victimKey = key;
         }
       }
-      if (!victimKey) break;
-      await this.cacheStore.delete(victimKey);
-      this.cacheMetrics.evictions += 1;
+      if (victimKey) {
+        await this.cacheStore.delete(victimKey);
+        this.cacheMetrics.evictions += 1;
+      }
+      return;
+    }
+
+    // ⚡ Bolt Optimization: Replace O(N*K) repeated linear scans with a single O(N log N) sort
+    // when we need to evict multiple items at once.
+    const sortedEntries = Array.from(entries).sort(
+      (a, b) => this.getEntryTimestamp(a[1]) - this.getEntryTimestamp(b[1]),
+    );
+    const victims = sortedEntries.slice(0, numToEvict).map((e) => e[0]);
+
+    const CHUNK_SIZE = 10;
+    for (let i = 0; i < victims.length; i += CHUNK_SIZE) {
+      const chunk = victims.slice(i, i + CHUNK_SIZE);
+      await Promise.all(
+        chunk.map(async (key) => {
+          await this.cacheStore.delete(key);
+          this.cacheMetrics.evictions += 1;
+        }),
+      );
     }
   }
 
