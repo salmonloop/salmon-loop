@@ -73,6 +73,7 @@ function normalizeChatState(chatState: SessionMetadata['chatState']): SessionMet
  * Features: Auto-pruning, compression, intelligent cleanup
  */
 export class ChatSessionManager {
+  private static readonly FILE_READ_CHUNK_SIZE = 10;
   private repoPath: string;
   private storageDir: string;
   private currentSession: ChatSession | null = null;
@@ -341,9 +342,8 @@ export class ChatSessionManager {
     const jsonFiles = files.filter((f) => f.endsWith('.json'));
     const sessions: Array<{ id: string; name: string; updatedAt: number }> = [];
 
-    const CHUNK_SIZE = 10;
-    for (let i = 0; i < jsonFiles.length; i += CHUNK_SIZE) {
-      const chunk = jsonFiles.slice(i, i + CHUNK_SIZE);
+    for (let i = 0; i < jsonFiles.length; i += ChatSessionManager.FILE_READ_CHUNK_SIZE) {
+      const chunk = jsonFiles.slice(i, i + ChatSessionManager.FILE_READ_CHUNK_SIZE);
       const promises = chunk.map(async (file) => {
         try {
           const filePath = join(this.storageDir, file);
@@ -424,9 +424,8 @@ export class ChatSessionManager {
     const jsonFiles = files.filter((f) => f.endsWith('.json'));
     const sessions: ChatSession[] = [];
 
-    const CHUNK_SIZE = 10;
-    for (let i = 0; i < jsonFiles.length; i += CHUNK_SIZE) {
-      const chunk = jsonFiles.slice(i, i + CHUNK_SIZE);
+    for (let i = 0; i < jsonFiles.length; i += ChatSessionManager.FILE_READ_CHUNK_SIZE) {
+      const chunk = jsonFiles.slice(i, i + ChatSessionManager.FILE_READ_CHUNK_SIZE);
       const promises = chunk.map(async (file) => {
         try {
           const filePath = join(this.storageDir, file);
