@@ -1041,10 +1041,7 @@ describe('Headless protocol integration', () => {
             nonInteractive: {
               strategy: 'command',
               command: {
-                cmd:
-                  process.platform === 'win32'
-                    ? `bun -e "console.log(JSON.stringify({ outcome: 'allow_once' }));"`
-                    : `bun -e 'console.log(JSON.stringify({ outcome: "allow_once" }));'`,
+                cmd: 'bun -e console.log(JSON.stringify({outcome:"allow_once"}));',
               },
             },
           },
