@@ -1,3 +1,0 @@
-## 2024-05-20 - [ContextService Cache Eviction Optimization]
-**Learning:** In ContextService, repeatedly calling `this.cacheStore.entries()` or size() in loops (like while loops for LRU eviction) causes severe O(M * N) overhead and I/O thrashing because `cacheStore.entries()` usually returns all items.
-**Action:** Fetch it once using `Array.from()` to safely consume the iterable. Additionally, use an O(N) linear scan for single-item evictions to avoid overhead, reserving O(N log N) sorting only for mass batch evictions. When deleting many items, use a batched chunk deletion (chunk size 10) to avoid EMFILE errors.

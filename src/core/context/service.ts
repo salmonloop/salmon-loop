@@ -32,6 +32,7 @@ export class ContextService {
   private readonly promptCachingManager: PromptCachingManager;
   private readonly fileAdapter = new FileAdapter();
   private static readonly MAX_CACHE_TRACKED_FILES = 64;
+  private static readonly BATCH_DELETE_CHUNK_SIZE = 10;
   private static readonly DEFAULT_CACHE_MAX_ENTRIES = 256;
   private static readonly DEFAULT_CACHE_TTL_MS = 5 * 60 * 1000;
   private readonly cacheMaxEntries: number;
@@ -257,14 +258,12 @@ export class ContextService {
     }
 
     if (expiredKeys.length > 0) {
-      for (let i = 0; i < expiredKeys.length; i += 10) {
-        const chunk = expiredKeys.slice(i, i + 10);
-        await Promise.all(
-          chunk.map(async (key) => {
-            await this.cacheStore.delete(key);
-            this.cacheMetrics.evictions += 1;
-          }),
-        );
+      for (let i = 0; i < expiredKeys.length; i += ContextService.BATCH_DELETE_CHUNK_SIZE) {
+        const chunk = expiredKeys.slice(i, i + ContextService.BATCH_DELETE_CHUNK_SIZE);
+        for (const key of chunk) {
+          await this.cacheStore.delete(key);
+          this.cacheMetrics.evictions += 1;
+        }
       }
     }
   }
@@ -299,14 +298,12 @@ export class ContextService {
     );
     const victims = sortedEntries.slice(0, excess);
 
-    for (let i = 0; i < victims.length; i += 10) {
-      const chunk = victims.slice(i, i + 10);
-      await Promise.all(
-        chunk.map(async ([key]) => {
-          await this.cacheStore.delete(key);
-          this.cacheMetrics.evictions += 1;
-        }),
-      );
+    for (let i = 0; i < victims.length; i += ContextService.BATCH_DELETE_CHUNK_SIZE) {
+      const chunk = victims.slice(i, i + ContextService.BATCH_DELETE_CHUNK_SIZE);
+      for (const [key] of chunk) {
+        await this.cacheStore.delete(key);
+        this.cacheMetrics.evictions += 1;
+      }
     }
   }
 
