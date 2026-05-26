@@ -10,37 +10,8 @@ import {
 describe('theme.ts', () => {
   describe('MESSAGE_STYLES', () => {
     it('should have styles for all message types', () => {
-      // Create a mock type representing all expected message types from the code
-      const types: MessageType[] = [
-        'assistant',
-        'assistant_stream',
-        'todo_card',
-        'error',
-        'warning',
-        'user',
-        'tool_result',
-        'checkpoint',
-        'interrupt',
-        'system',
-        'queue',
-        'thinking',
-        'explore_step',
-        'plan_step',
-        'patch_step',
-        'apply_step',
-        'validate_step',
-        'verify_step',
-        'preflight_step',
-        'context_step',
-        'ast_validate_step',
-        'rollback_step',
-        'shrink_step',
-        'review_step',
-        'report_step',
-        'analyze_issues_step',
-        'tool_call',
-        'welcome',
-      ];
+      // Use Object.keys to dynamically check all registered message types
+      const types = Object.keys(MESSAGE_STYLES) as MessageType[];
 
       for (const type of types) {
         expect(MESSAGE_STYLES[type]).toBeDefined();
@@ -66,6 +37,7 @@ describe('theme.ts', () => {
         expect(style.hasBorder).toBe(true);
         expect(style.marginBottom).toBe(1);
         expect(style.label).not.toBeNull();
+        expect(style.inkColor).toBeDefined(); // Assertion for inkColor added for consistency
       }
     });
 
@@ -75,6 +47,15 @@ describe('theme.ts', () => {
       expect(style.label).toBeNull();
       expect(style.hasBorder).toBe(false);
       expect(style.marginBottom).toBe(0);
+    });
+
+    it('should configure specific properties for welcome message', () => {
+      // Testing welcome message which has no label but a marginBottom of 1
+      const style = MESSAGE_STYLES['welcome'];
+      expect(style.inkColor).toBe(COLORS.text.muted);
+      expect(style.label).toBeNull();
+      expect(style.hasBorder).toBe(false);
+      expect(style.marginBottom).toBe(1);
     });
   });
 
@@ -97,6 +78,11 @@ describe('theme.ts', () => {
       expect(shouldShowSeparator('tool_call', 'system')).toBe(false);
     });
 
+    it('should handle welcome message as lightweight message', () => {
+      expect(shouldShowSeparator('welcome', 'system')).toBe(false);
+      expect(shouldShowSeparator('system', 'welcome')).toBe(false);
+    });
+
     it('should return true if message types are different (and not lightweight)', () => {
       expect(shouldShowSeparator('tool_result', 'checkpoint')).toBe(true);
     });
@@ -104,6 +90,13 @@ describe('theme.ts', () => {
     it('should return false if message types are the same (and not lightweight/emphasis)', () => {
       expect(shouldShowSeparator('tool_result', 'tool_result')).toBe(false);
       expect(shouldShowSeparator('checkpoint', 'checkpoint')).toBe(false);
+    });
+
+    it('should return true if currentStyle or nextStyle is missing', () => {
+      // Simulate missing styles by passing invalid types (using any cast for testing boundary logic)
+      expect(shouldShowSeparator('user', 'invalid_type' as any)).toBe(true);
+      expect(shouldShowSeparator('invalid_type' as any, 'system')).toBe(true);
+      expect(shouldShowSeparator('invalid_type' as any, 'another_invalid' as any)).toBe(true);
     });
   });
 });

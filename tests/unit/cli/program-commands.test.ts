@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import { Command } from 'commander';
 
+
 describe('registerProgramCommands', () => {
   it('registers autopilot as the default run act-mode', async () => {
     const { registerProgramCommands } = await import('../../../src/cli/program-commands.js');
