@@ -44,13 +44,13 @@ describe('ChatSessionManager Corruption Handling', () => {
     };
     writeFileSync(
       join(testDir, '.salmonloop', 'chat-sessions', 'valid-session-1.json'),
-      JSON.stringify(validSession)
+      JSON.stringify(validSession),
     );
 
     // Write corrupted session
     writeFileSync(
       join(testDir, '.salmonloop', 'chat-sessions', 'corrupt-session-1.json'),
-      '{ invalid json'
+      '{ invalid json',
     );
 
     const sessions = await manager.listSessions();
