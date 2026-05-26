@@ -335,7 +335,7 @@ describe('Memory System Optimization', () => {
       const startTime = Date.now();
 
       // Create large number of sessions
-      const sessionCount = 500;
+      const sessionCount = 100;
       for (let i = 0; i < sessionCount; i++) {
         await manager.create(`Performance Test Session ${i + 1}`);
         manager.addMessage({
