@@ -305,7 +305,7 @@ describe('ChatSessionManager archive lifecycle', () => {
     await manager.save();
 
     // Force the score below threshold to ensure it gets selected for archiving
-    manager.getPruningStrategy = () => ({ maxAgeDays: 0, maxSessions: 0, autoPrune: true });
+    manager.getPruningStrategy = () => ({ maxAgeDays: 0, maxSessions: 0, autoPrune: true } as any);
 
     // Override archiveSession to always fail
     manager.archiveSession = async () => {
