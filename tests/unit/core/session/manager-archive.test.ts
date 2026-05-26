@@ -296,6 +296,33 @@ describe('ChatSessionManager archive lifecycle', () => {
     await expect(manager.load(session.meta.id)).resolves.not.toBeNull();
   });
 
+  it('does not delete the original session if archiveSession fails during auto cleanup', async () => {
+    const repoPath = await createTempRepo();
+    const manager = new ChatSessionManager(repoPath);
+    await manager.init();
+
+    const session = await manager.create('Auto Cleanup Fail Test');
+    await manager.save();
+
+    // Force the score below threshold to ensure it gets selected for archiving
+    manager.getPruningStrategy = () => ({ maxAgeDays: 0, maxSessions: 0, autoPrune: true });
+
+    // Override archiveSession to always fail
+    manager.archiveSession = async () => {
+      throw new Error('Forced archive failure');
+    };
+
+    await manager.performAutoCleanup();
+
+    // We expect the original file to still exist
+    const sessions = await manager.listSessions();
+    const found = sessions.find((s) => s.id === session.meta.id);
+
+    expect(found).toBeDefined();
+    // And performAutoCleanup might throw or swallow, but it shouldn't delete the session.
+    // If your performAutoCleanup implementation catches errors, errorThrown might be false, that is fine.
+  });
+
   it('fails closed without partial publication when boundary metadata is malformed', async () => {
     const repoPath = await createTempRepo();
     const manager = new ChatSessionManager(repoPath);

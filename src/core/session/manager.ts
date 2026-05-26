@@ -372,9 +372,10 @@ export class ChatSessionManager {
     let archived = 0;
 
     // Delete low-priority sessions in chunks of 10
-    const deleteChunkSize = 10;
-    for (let i = 0; i < analysis.sessionsToDelete.length; i += deleteChunkSize) {
-      const chunk = analysis.sessionsToDelete.slice(i, i + deleteChunkSize);
+    const CHUNK_SIZE = 10;
+
+    for (let i = 0; i < analysis.sessionsToDelete.length; i += CHUNK_SIZE) {
+      const chunk = analysis.sessionsToDelete.slice(i, i + CHUNK_SIZE);
       await Promise.all(
         chunk.map(async (sessionId) => {
           await this.deleteSession(sessionId);
@@ -384,15 +385,19 @@ export class ChatSessionManager {
     }
 
     // Archive medium-priority sessions in chunks of 10
-    const archiveChunkSize = 10;
-    for (let i = 0; i < analysis.sessionsToArchive.length; i += archiveChunkSize) {
-      const chunk = analysis.sessionsToArchive.slice(i, i + archiveChunkSize);
+    for (let i = 0; i < analysis.sessionsToArchive.length; i += CHUNK_SIZE) {
+      const chunk = analysis.sessionsToArchive.slice(i, i + CHUNK_SIZE);
       await Promise.all(
         chunk.map(async (sessionId) => {
           const session = sessions.find((s) => s.meta.id === sessionId);
           if (session) {
-            await Promise.all([this.archiveSession(session), this.deleteSession(sessionId)]);
-            archived++;
+            try {
+              await this.archiveSession(session);
+              await this.deleteSession(sessionId);
+              archived++;
+            } catch (err) {
+              getLogger().warn(`Failed to archive and delete session ${sessionId}: ${err}`);
+            }
           }
         }),
       );
