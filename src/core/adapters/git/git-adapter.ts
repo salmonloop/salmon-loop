@@ -428,18 +428,12 @@ export class GitAdapter {
           // No index lines means -3 is not possible; fall back to direct apply.
           useThreeWay = false;
         } else {
-          let allExist = true;
-          // Concurrent batched blob existence checking (chunk size 10)
-          for (let i = 0; i < oldIds.length; i += 10) {
-            const chunk = oldIds.slice(i, i + 10);
-            const results = await Promise.all(chunk.map((id) => blobExists(id)));
-            if (results.some((exists) => !exists)) {
-              allExist = false;
+          for (const id of oldIds) {
+            const exists = await blobExists(id);
+            if (!exists) {
+              useThreeWay = false;
               break;
             }
-          }
-          if (!allExist) {
-            useThreeWay = false;
           }
         }
 
