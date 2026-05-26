@@ -1,19 +1,17 @@
 import { describe, expect, it } from 'bun:test';
 
-type AuthorizationBusModule = typeof import('../../../../../src/cli/ui/authorization/bus.js');
+import type { UIAction } from '../../../../../src/cli/ui/store/types.js';
 
 let busImportSeq = 0;
-async function importFreshBus(): Promise<AuthorizationBusModule> {
+async function importFreshBus() {
   busImportSeq += 1;
-  return import(
-    `../../../../../src/cli/ui/authorization/bus.js?bun_bust=${busImportSeq}`
-  ) as Promise<AuthorizationBusModule>;
+  return import(`../../../../../src/cli/ui/authorization/bus.js?bun_bust=${busImportSeq}`);
 }
 
 describe('UI Authorization Bus', () => {
-  it('returns null when UI is unavailable (no dispatch bound)', async () => {
-    const mod = await importFreshBus();
-    const result = await mod.requestAuthorization({
+  it('returns deny when UI is unavailable (no dispatch bound)', async () => {
+    const bus = await importFreshBus();
+    const result = await bus.requestAuthorization({
       id: 'auth-0',
       message: 'Approve this action?',
       challenge: 'yes or no',
@@ -22,10 +20,9 @@ describe('UI Authorization Bus', () => {
   });
 
   it('dispatches SET_AUTHORIZATION and resolves with the outcome', async () => {
-    const mod = await importFreshBus();
-
-    const actions: any[] = [];
-    mod.bindAuthorizationDispatch((action: any) => actions.push(action));
+    const bus = await importFreshBus();
+    const actions: UIAction[] = [];
+    bus.bindAuthorizationDispatch((action: UIAction) => actions.push(action));
 
     const prompt = {
       id: 'auth-1',
@@ -33,40 +30,85 @@ describe('UI Authorization Bus', () => {
       challenge: 'yes or no',
     };
 
-    const p = mod.requestAuthorization(prompt);
+    const p = bus.requestAuthorization(prompt);
     expect(actions[0]).toEqual({ type: 'SET_AUTHORIZATION', payload: prompt });
 
-    mod.resolveAuthorization(prompt.id, { outcome: 'allow' });
+    bus.resolveAuthorization(prompt.id, { outcome: 'allow' });
     await expect(p).resolves.toEqual({ outcome: 'allow' });
     expect(actions.some((a) => a.type === 'CLEAR_AUTHORIZATION')).toBe(true);
   });
 
   it('rejectAuthorization resolves with deny and clears authorization', async () => {
-    const mod = await importFreshBus();
+    const bus = await importFreshBus();
+    const actions: UIAction[] = [];
+    bus.bindAuthorizationDispatch((action: UIAction) => actions.push(action));
 
-    const actions: any[] = [];
-    mod.bindAuthorizationDispatch((action: any) => actions.push(action));
-
-    const p = mod.requestAuthorization({
+    const p = bus.requestAuthorization({
       id: 'auth-2',
       message: 'Approve?',
       challenge: 'yes or no',
     });
 
-    mod.rejectAuthorization();
+    bus.rejectAuthorization();
     await expect(p).resolves.toEqual({ outcome: 'deny', reason: 'User cancelled' });
     expect(actions.some((a) => a.type === 'CLEAR_AUTHORIZATION')).toBe(true);
   });
 
+  it('returns deny when an authorization is already pending', async () => {
+    const bus = await importFreshBus();
+    bus.bindAuthorizationDispatch(() => {});
+
+    const p1 = bus.requestAuthorization({
+      id: 'auth-concurrent-1',
+      message: 'First request',
+      challenge: 'c1',
+    });
+
+    const result2 = await bus.requestAuthorization({
+      id: 'auth-concurrent-2',
+      message: 'Second request',
+      challenge: 'c2',
+    });
+
+    expect(result2).toEqual({ outcome: 'deny', reason: 'Authorization pending' });
+
+    bus.rejectAuthorization(); // Resolve the first one to cleanup
+    await p1;
+  });
+
+  it('ignores resolveAuthorization if the ID does not match the pending authorization', async () => {
+    const bus = await importFreshBus();
+    bus.bindAuthorizationDispatch(() => {});
+
+    const p = bus.requestAuthorization({
+      id: 'auth-id-match-test',
+      message: 'Approve?',
+      challenge: 'c',
+    });
+
+    bus.resolveAuthorization('wrong-id', { outcome: 'allow' });
+
+    // Should still be pending
+    expect(bus.getPendingAuthorization()?.id).toBe('auth-id-match-test');
+
+    bus.resolveAuthorization('auth-id-match-test', { outcome: 'allow' });
+    await expect(p).resolves.toEqual({ outcome: 'allow' });
+  });
+
+  it('does not crash when rejectAuthorization is called without a pending authorization', async () => {
+    const bus = await importFreshBus();
+    expect(() => bus.rejectAuthorization()).not.toThrow();
+  });
+
   describe('getPendingAuthorization', () => {
     it('returns null initially', async () => {
-      const mod = await importFreshBus();
-      expect(mod.getPendingAuthorization()).toBeNull();
+      const bus = await importFreshBus();
+      expect(bus.getPendingAuthorization()).toBeNull();
     });
 
     it('returns the prompt while authorization is pending', async () => {
-      const mod = await importFreshBus();
-      mod.bindAuthorizationDispatch(() => {});
+      const bus = await importFreshBus();
+      bus.bindAuthorizationDispatch(() => {});
 
       const prompt = {
         id: 'auth-3',
@@ -74,16 +116,16 @@ describe('UI Authorization Bus', () => {
         challenge: 'yes or no',
       };
 
-      const p = mod.requestAuthorization(prompt);
-      expect(mod.getPendingAuthorization()).toEqual(prompt);
+      const p = bus.requestAuthorization(prompt);
+      expect(bus.getPendingAuthorization()).toEqual(prompt);
 
-      mod.rejectAuthorization();
+      bus.rejectAuthorization();
       await p; // Wait for promise to resolve
     });
 
     it('returns null after authorization is resolved', async () => {
-      const mod = await importFreshBus();
-      mod.bindAuthorizationDispatch(() => {});
+      const bus = await importFreshBus();
+      bus.bindAuthorizationDispatch(() => {});
 
       const prompt = {
         id: 'auth-4',
@@ -91,13 +133,13 @@ describe('UI Authorization Bus', () => {
         challenge: 'yes or no',
       };
 
-      const p = mod.requestAuthorization(prompt);
-      expect(mod.getPendingAuthorization()).toEqual(prompt);
+      const p = bus.requestAuthorization(prompt);
+      expect(bus.getPendingAuthorization()).toEqual(prompt);
 
-      mod.resolveAuthorization(prompt.id, { outcome: 'allow' });
+      bus.resolveAuthorization(prompt.id, { outcome: 'allow' });
       await p;
 
-      expect(mod.getPendingAuthorization()).toBeNull();
+      expect(bus.getPendingAuthorization()).toBeNull();
     });
   });
 });
