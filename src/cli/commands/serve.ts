@@ -1,4 +1,4 @@
-import crypto from 'node:crypto';
+import { timingSafeEqual } from 'node:crypto';
 
 import type { Command } from 'commander';
 
@@ -288,7 +288,7 @@ export async function handleServeCommand(_options: unknown, command: Command) {
           for (const authToken of authTokens) {
             const authBuffer = Buffer.from(authToken);
             if (tokenBuffer.length === authBuffer.length) {
-              if (crypto.timingSafeEqual(tokenBuffer, authBuffer)) {
+              if (timingSafeEqual(tokenBuffer, authBuffer)) {
                 isAuthenticated = true;
                 break;
               }
