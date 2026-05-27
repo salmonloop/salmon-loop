@@ -3,7 +3,6 @@ import type {
   PermissionOption,
   SessionUpdate,
   ToolCallUpdate,
-  ToolKind,
 } from '@agentclientprotocol/sdk';
 import type { ClientCapabilities } from '@agentclientprotocol/sdk';
 
@@ -12,44 +11,7 @@ import type {
   ToolAuthorizationRequest,
 } from '../../tools/authorization/types.js';
 
-function toToolKind(request: ToolAuthorizationRequest): ToolKind {
-  const name = request.toolName.toLowerCase();
-  if (
-    name.includes('read') ||
-    name.includes('get') ||
-    name.includes('view') ||
-    name.includes('ls') ||
-    name.includes('list') ||
-    (request.sideEffects.length > 0 && request.sideEffects.every((e) => e === 'fs_read'))
-  )
-    return 'read';
-  if (
-    name.includes('write') ||
-    name.includes('edit') ||
-    name.includes('patch') ||
-    request.sideEffects.includes('fs_write')
-  )
-    return 'edit';
-  if (
-    name.includes('delete') ||
-    name.includes('remove') ||
-    name.includes('rm') ||
-    (request.sideEffects as any[]).includes('fs_delete')
-  )
-    return 'delete';
-  if (name.includes('move') || name.includes('rename') || name.includes('mv')) return 'move';
-  if (name.includes('grep') || name.includes('search') || name.includes('find')) return 'search';
-  if (
-    name.includes('run') ||
-    name.includes('exec') ||
-    name.includes('spawn') ||
-    request.sideEffects.includes('process')
-  )
-    return 'execute';
-  if (name.includes('plan') || name.includes('think') || name.includes('reason')) return 'think';
-  if (name.includes('fetch') || name.includes('curl') || name.includes('http')) return 'fetch';
-  return 'other';
-}
+import { mapToolKind } from './tool-kind-mapping.js';
 
 function buildPermissionOptions(): PermissionOption[] {
   return [
@@ -69,7 +31,7 @@ function toToolCallUpdate(request: ToolAuthorizationRequest): ToolCallUpdate {
   return {
     toolCallId: request.id,
     title: request.toolName,
-    kind: toToolKind(request),
+    kind: mapToolKind(request.toolName, { sideEffects: request.sideEffects }),
     status: 'pending',
     rawInput: {
       toolName: request.toolName,

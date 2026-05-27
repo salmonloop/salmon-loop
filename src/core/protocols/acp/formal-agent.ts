@@ -1,5 +1,3 @@
-import { createHash } from 'crypto';
-
 import {
   PROTOCOL_VERSION,
   RequestError,
@@ -15,26 +13,15 @@ import {
   type SessionUpdate,
   type StopReason,
   type ToolCallContent,
-  type ToolKind,
 } from '@agentclientprotocol/sdk';
 
 import { text } from '../../../locales/index.js';
-import {
-  mkdir,
-  open,
-  readFile,
-  rename,
-  stat,
-  unlink,
-  writeFile,
-} from '../../adapters/fs/node-fs.js';
 import { defaultPathAdapter } from '../../adapters/path/path-adapter.js';
 import type { ResolvedExtensions, ResolvedMcpServer } from '../../extensions/types.js';
 import type { TaskEvent } from '../../interaction/events/bus.js';
 import type { TaskEnvelope } from '../../interaction/model/index.js';
 import { inferTurnStopReasonFromFailure } from '../../interaction/turn-stop-reason.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
-import { readPlan } from '../../plan/index.js';
 import { toAcpPublicModes } from '../../public-capabilities/projections.js';
 import { buildPublicCapabilityRegistry } from '../../public-capabilities/registry.js';
 import type { CommandRunner } from '../../runtime/command-runner-context.js';
@@ -45,11 +32,17 @@ import { Phase, type FlowMode } from '../../types/runtime.js';
 import { buildCanonicalExecutionRequest } from '../shared/execution-request.js';
 import { parseAcpFlowMode } from '../shared/flow-mode-mapping.js';
 
+import {
+  probeCheckpoint,
+  probeCheckpointForNewSession,
+  type CheckpointReader,
+} from './acp-checkpoint-probe.js';
 import { createAcpCommandRunner } from './acp-command-runner.js';
 import { createAcpFileSystem } from './acp-filesystem.js';
-import type { AcpCheckpointMeta } from './checkpoint-meta.js';
+import { createAcpSessionPersistence, hashRepoPath } from './acp-session-persistence.js';
 import { createAcpSessionStore, isTerminalTaskEvent, type AcpSessionRecord } from './handlers.js';
 import { createAcpToolAuthorizationProvider } from './permission-provider.js';
+import { mapToolKind } from './tool-kind-mapping.js';
 
 type Facade = {
   createTask: (input: {
@@ -199,35 +192,20 @@ function buildJsonResourceContentBlock(data: unknown): ContentBlock {
 }
 
 function encodeSessionListCursor(input: { offset: number; cwd: string | null }): string {
-  return Buffer.from(JSON.stringify({ v: 1, offset: input.offset, cwd: input.cwd })).toString(
-    'base64url',
-  );
+  return `${input.offset}:${input.cwd ?? ''}`;
 }
 
 function decodeSessionListCursor(cursor: string): { offset: number; cwd: string | null } {
-  try {
-    const decoded = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as {
-      v?: unknown;
-      offset?: unknown;
-      cwd?: unknown;
-    };
-    if (decoded.v !== 1) {
-      throw new Error('unsupported cursor version');
-    }
-    if (
-      typeof decoded.offset !== 'number' ||
-      !Number.isInteger(decoded.offset) ||
-      decoded.offset < 0
-    ) {
-      throw new Error('invalid cursor offset');
-    }
-    if (decoded.cwd !== null && typeof decoded.cwd !== 'string') {
-      throw new Error('invalid cursor cwd');
-    }
-    return { offset: decoded.offset, cwd: decoded.cwd };
-  } catch {
+  const colon = cursor.indexOf(':');
+  if (colon < 0) {
     throw new RequestError(-32602, 'Invalid params: invalid session/list cursor');
   }
+  const offset = Number(cursor.slice(0, colon));
+  if (!Number.isInteger(offset) || offset < 0) {
+    throw new RequestError(-32602, 'Invalid params: invalid session/list cursor');
+  }
+  const cwd = cursor.slice(colon + 1) || null;
+  return { offset, cwd };
 }
 
 function isReplayableSessionContentBlock(block: Record<string, unknown>): block is ContentBlock {
@@ -323,43 +301,6 @@ function extractTextFromPrompt(
   return parts.join('\n');
 }
 
-function mapToolKind(toolName: string, intent?: string): ToolKind {
-  if (intent) {
-    switch (intent.toUpperCase()) {
-      case 'READ':
-        return 'read';
-      case 'LIST':
-        return 'read';
-      case 'SEARCH':
-        return 'search';
-      case 'WRITE':
-        return 'edit';
-      case 'INFRA':
-        return 'execute';
-      case 'AGENT':
-        return 'think';
-    }
-  }
-
-  const name = toolName.toLowerCase();
-  if (
-    name.includes('read') ||
-    name.includes('get') ||
-    name.includes('view') ||
-    name.includes('ls') ||
-    name.includes('list')
-  )
-    return 'read';
-  if (name.includes('write') || name.includes('edit') || name.includes('patch')) return 'edit';
-  if (name.includes('delete') || name.includes('remove') || name.includes('rm')) return 'delete';
-  if (name.includes('move') || name.includes('rename') || name.includes('mv')) return 'move';
-  if (name.includes('grep') || name.includes('search') || name.includes('find')) return 'search';
-  if (name.includes('run') || name.includes('exec') || name.includes('spawn')) return 'execute';
-  if (name.includes('plan') || name.includes('think') || name.includes('reason')) return 'think';
-  if (name.includes('fetch') || name.includes('curl') || name.includes('http')) return 'fetch';
-  return 'other';
-}
-
 function buildToolCallContent(textValue: string): ToolCallContent[] {
   return [{ type: 'content', content: buildTextContentBlock(textValue) }];
 }
@@ -409,7 +350,7 @@ function loopEventToSessionUpdate(event: LoopEvent): SessionUpdate | null {
         toolCallId: event.callId,
         status: 'pending',
         title: event.toolName,
-        kind: mapToolKind(event.toolName, event.toolIntent),
+        kind: mapToolKind(event.toolName, { intent: event.toolIntent }),
         content: [],
         rawInput: event.input as any,
         locations: extractLocationFromInput(event.input),
@@ -538,15 +479,6 @@ function buildCurrentModeUpdateIfChanged(state: AcpSessionRuntimeState): Session
   if (digest === state.lastModeDigest) return null;
   state.lastModeDigest = digest;
   return buildCurrentModeUpdate(state.modeId);
-}
-
-function getLegacyPermissionPolicyForModeValue(value: unknown): AcpPermissionPolicy | null {
-  const normalized = String(value ?? '')
-    .trim()
-    .toLowerCase();
-  if (normalized === 'interactive') return ACP_PERMISSION_POLICY_ASK;
-  if (normalized === 'yolo') return ACP_PERMISSION_POLICY_ALLOW_ALL;
-  return null;
 }
 
 function getPermissionPolicyForAuthorization(
@@ -831,6 +763,12 @@ function isPersistableSession(session: AcpSessionRecord): boolean {
   return session.materialized || session.history.length > 0 || typeof session.taskId === 'string';
 }
 
+function parseTimestamp(value: unknown): number {
+  if (typeof value !== 'string' || value.length === 0) return 0;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 async function awaitTerminalEvent(params: {
   taskId: string;
   eventBus?: {
@@ -862,32 +800,7 @@ export function createAcpFormalAgent(deps: {
   planReader?: {
     readBySession: (input: { repoPath: string; sessionId: string }) => Promise<CorePlanReadResult>;
   };
-  checkpointReader?: {
-    listBySession: (input: { repoPath: string; sessionId: string; limit?: number }) => Promise<
-      Array<{
-        id: string;
-        createdAt?: string;
-        strategy?: string;
-        backend?: string;
-      }>
-    >;
-    getById?: (input: { repoPath: string; checkpointId: string }) => Promise<{
-      id: string;
-      createdAt?: string;
-      strategy?: string;
-      backend?: string;
-    } | null>;
-    probeById?: (input: { repoPath: string; checkpointId: string }) => Promise<{
-      valid: boolean;
-      reason:
-        | 'ok'
-        | 'not_found'
-        | 'manifest_unavailable'
-        | 'manifest_parse_error'
-        | 'manifest_io_error'
-        | 'manifest_lock_timeout';
-    }>;
-  };
+  checkpointReader?: CheckpointReader;
   capabilityPolicy?: {
     loadSession?: boolean;
     promptCapabilities?: {
@@ -947,459 +860,17 @@ export function createAcpFormalAgent(deps: {
       deps.sessionStorePolicy?.lockAcquireTimeoutMs ?? ACP_SESSION_STORE_LOCK_ACQUIRE_TIMEOUT_MS,
   };
   const executionBinding = deps.executionBinding ?? 'local';
-  let sessionsHydrated = false;
-  let hydratePromise: Promise<void> | null = null;
-  const deletedSessionIds = new Map<string, string>();
-
-  type PersistedDeletedSessionRecord = {
-    id: string;
-    deletedAt: string;
-  };
-
-  type PersistedAcpSessionStoreV1 = {
-    schemaVersion: 1;
-    sessions: Array<{
-      id: string;
-      cwd: string;
-      mcpServers: McpServer[];
-      createdAt: string;
-      updatedAt: string;
-      title?: string;
-    }>;
-  };
-
-  type PersistedAcpSessionStoreV2 = {
-    schemaVersion: 2;
-    sessions: Array<{
-      id: string;
-      cwd: string;
-      mcpServers: McpServer[];
-      createdAt: string;
-      updatedAt: string;
-      title?: string;
-      taskId?: string;
-      history?: AcpSessionRecord['history'];
-      permissionPolicy?: AcpPermissionPolicy;
-      modeId?: unknown;
-    }>;
-    deletedSessions?: PersistedDeletedSessionRecord[];
-  };
-  type PersistedAcpSessionStore = PersistedAcpSessionStoreV1 | PersistedAcpSessionStoreV2;
-
-  function parseTimestamp(value: unknown): number {
-    if (typeof value !== 'string' || value.length === 0) return 0;
-    const parsed = Date.parse(value);
-    return Number.isFinite(parsed) ? parsed : 0;
-  }
-
-  function pruneSessionRecords(
-    records: Array<{
-      id: string;
-      cwd: string;
-      mcpServers: McpServer[];
-      createdAt: string;
-      updatedAt: string;
-      title?: string;
-      taskId?: string;
-      history?: AcpSessionRecord['history'];
-      permissionPolicy?: AcpPermissionPolicy;
-      modeId?: unknown;
-    }>,
-  ) {
-    const cutoff = Date.now() - sessionStorePolicy.maxAgeMs;
-    return [...records]
-      .filter((record) => parseTimestamp(record.updatedAt) >= cutoff)
-      .sort((a, b) => parseTimestamp(b.updatedAt) - parseTimestamp(a.updatedAt))
-      .slice(0, sessionStorePolicy.maxEntries);
-  }
-
-  function normalizeDeletedSessionRecords(input: unknown): PersistedDeletedSessionRecord[] {
-    if (!Array.isArray(input)) return [];
-    const byId = new Map<string, PersistedDeletedSessionRecord>();
-    for (const entry of input) {
-      if (!entry || typeof entry !== 'object') continue;
-      const record = entry as { id?: unknown; deletedAt?: unknown };
-      if (typeof record.id !== 'string' || !record.id) continue;
-      if (typeof record.deletedAt !== 'string' || !record.deletedAt) continue;
-      const current = byId.get(record.id);
-      if (!current || parseTimestamp(record.deletedAt) > parseTimestamp(current.deletedAt)) {
-        byId.set(record.id, { id: record.id, deletedAt: record.deletedAt });
-      }
-    }
-    return Array.from(byId.values());
-  }
-
-  function pruneDeletedSessionRecords(records: unknown): PersistedDeletedSessionRecord[] {
-    const cutoff = Date.now() - sessionStorePolicy.maxAgeMs;
-    return normalizeDeletedSessionRecords(records)
-      .filter((record) => parseTimestamp(record.deletedAt) >= cutoff)
-      .sort((a, b) => parseTimestamp(b.deletedAt) - parseTimestamp(a.deletedAt));
-  }
-
-  function normalizePersistedSessionStore(input: unknown): PersistedAcpSessionStoreV2 {
-    if (!input || typeof input !== 'object') {
-      return { schemaVersion: 2, sessions: [] };
-    }
-    const raw = input as Partial<PersistedAcpSessionStore>;
-    if (!Array.isArray(raw.sessions)) return { schemaVersion: 2, sessions: [] };
-    if (raw.schemaVersion === 1) {
-      return {
-        schemaVersion: 2,
-        sessions: raw.sessions.map((entry) => ({
-          id: entry.id,
-          cwd: entry.cwd,
-          mcpServers: entry.mcpServers,
-          createdAt: entry.createdAt,
-          updatedAt: entry.updatedAt,
-          title: entry.title,
-          taskId: undefined,
-          history: [],
-          permissionPolicy: isPermissionPolicyValue(String(deps.defaultPermissionPolicy))
-            ? deps.defaultPermissionPolicy
-            : ACP_PERMISSION_POLICY_ASK,
-          modeId: resolveExposedAcpModeId(deps.defaultModeId),
-        })),
-        deletedSessions: [],
-      };
-    }
-    if (raw.schemaVersion === 2) {
-      return {
-        schemaVersion: 2,
-        sessions: raw.sessions as PersistedAcpSessionStoreV2['sessions'],
-        deletedSessions: pruneDeletedSessionRecords(
-          (raw as { deletedSessions?: unknown }).deletedSessions,
-        ),
-      };
-    }
-    return { schemaVersion: 2, sessions: [] };
-  }
-
-  function isPidAlive(pid: number): boolean {
-    if (!Number.isInteger(pid) || pid <= 0) return false;
-    try {
-      process.kill(pid, 0);
-      return true;
-    } catch (error) {
-      if (
-        error &&
-        typeof error === 'object' &&
-        'code' in error &&
-        (error as { code?: unknown }).code === 'EPERM'
-      ) {
-        return true;
-      }
-      return false;
-    }
-  }
-
-  function isFileMissing(error: unknown): boolean {
-    return Boolean(
-      error &&
-      typeof error === 'object' &&
-      'code' in error &&
-      ((error as { code?: unknown }).code === 'ENOENT' ||
-        (error as { code?: unknown }).code === 'ENOTDIR'),
-    );
-  }
-
-  async function persistSessionsBestEffort(): Promise<void> {
-    if (!sessionPersistencePath) return;
-    const dir = defaultPathAdapter.dirname(sessionPersistencePath);
-    const lockPath = `${sessionPersistencePath}.lock`;
-
-    const baseRecords = sessions
-      .list()
-      .filter(isPersistableSession)
-      .map((session) => {
-        const runtimeState = ensureSessionRuntimeState(session.id);
-        return {
-          id: session.id,
-          cwd: session.cwd,
-          mcpServers: session.mcpServers,
-          createdAt: session.createdAt,
-          updatedAt: session.updatedAt,
-          title: session.title,
-          taskId: session.taskId,
-          history: session.history.slice(-sessionStorePolicy.historyMaxEntries),
-          permissionPolicy: session.permissionPolicy ?? runtimeState.permissionPolicy,
-          modeId: session.modeId ?? runtimeState.modeId,
-        };
-      });
-    const prunedRecords = pruneSessionRecords(baseRecords);
-    const keepIds = new Set(prunedRecords.map((record) => record.id));
-    for (const record of sessions.list()) {
-      if (isPersistableSession(record) && !keepIds.has(record.id)) {
-        sessions.delete(record.id);
-      }
-    }
-
-    const payload: PersistedAcpSessionStoreV2 = { schemaVersion: 2, sessions: prunedRecords };
-    const payloadDeletedSessions = pruneDeletedSessionRecords(
-      Array.from(deletedSessionIds, ([id, deletedAt]) => ({ id, deletedAt })),
-    );
-    const primaryRepoPath = prunedRecords[0]?.cwd;
-    const lockAuditDetails = {
-      lockPath,
-      lockPathHash: createHash('sha256').update(lockPath).digest('hex').slice(0, 16),
-      repoPathHash: primaryRepoPath ? hashRepoPath(primaryRepoPath) : undefined,
-    };
-
-    const tryClearStaleLock = async (): Promise<void> => {
-      try {
-        const raw = await readFile(lockPath, 'utf8');
-        const parsed = JSON.parse(raw) as { createdAtMs?: number; pid?: number };
-        const createdAtMs =
-          typeof parsed.createdAtMs === 'number' && Number.isFinite(parsed.createdAtMs)
-            ? parsed.createdAtMs
-            : null;
-        if (createdAtMs === null) return;
-        if (Date.now() - createdAtMs <= sessionStorePolicy.lockStaleMs) return;
-        if (typeof parsed.pid === 'number' && isPidAlive(parsed.pid)) return;
-        await unlink(lockPath);
-        recordAuditEvent('acp.session.lock.stale_reclaimed', lockAuditDetails, {
-          source: 'acp',
-          severity: 'low',
-          scope: 'session',
-          phase: 'PREFLIGHT',
-        });
-      } catch {
-        try {
-          const lockStat = await stat(lockPath);
-          const ageMs = Date.now() - lockStat.mtimeMs;
-          if (Number.isFinite(ageMs) && ageMs > sessionStorePolicy.lockStaleMs * 2) {
-            await unlink(lockPath);
-            recordAuditEvent(
-              'acp.session.lock.corrupted_reclaimed',
-              {
-                ...lockAuditDetails,
-                ageMs: Math.max(0, Math.floor(ageMs)),
-              },
-              { source: 'acp', severity: 'medium', scope: 'session', phase: 'PREFLIGHT' },
-            );
-          }
-        } catch {
-          // ignore
-        }
-      }
-    };
-
-    let lockHandle: Awaited<ReturnType<typeof open>> | undefined;
-    try {
-      await mkdir(dir, { recursive: true });
-      const acquireDeadlineMs = Date.now() + Math.max(250, sessionStorePolicy.lockAcquireTimeoutMs);
-      for (let attempt = 0; Date.now() < acquireDeadlineMs; attempt += 1) {
-        try {
-          lockHandle = await open(lockPath, 'wx');
-          await lockHandle.writeFile(
-            JSON.stringify({ pid: process.pid, createdAtMs: Date.now() }),
-            'utf8',
-          );
-          break;
-        } catch {
-          await tryClearStaleLock();
-          const delayMs = Math.min(250, 20 * (attempt + 1));
-          await new Promise((resolve) => setTimeout(resolve, delayMs));
-        }
-      }
-      if (!lockHandle) {
-        recordAuditEvent('acp.session.lock.acquire_timeout', lockAuditDetails, {
-          source: 'acp',
-          severity: 'medium',
-          scope: 'session',
-          phase: 'PREFLIGHT',
-        });
-        throw new Error('ACP_SESSION_PERSIST_LOCK_TIMEOUT');
-      }
-
-      const heartbeat = setInterval(
-        () => {
-          void writeFile(
-            lockPath,
-            JSON.stringify({ pid: process.pid, createdAtMs: Date.now() }),
-            'utf8',
-          );
-        },
-        Math.max(1000, sessionStorePolicy.lockHeartbeatMs),
-      );
-      const tempPath = defaultPathAdapter.join(
-        dir,
-        `.sessions.v1.json.tmp-${process.pid}-${Date.now()}`,
-      );
-      try {
-        let existing: PersistedAcpSessionStoreV2 = { schemaVersion: 2, sessions: [] };
-        try {
-          const existingRaw = await readFile(sessionPersistencePath, 'utf8');
-          existing = normalizePersistedSessionStore(JSON.parse(existingRaw));
-        } catch {
-          // ignore read failure; writing fresh payload is acceptable
-        }
-
-        const merged = new Map<string, PersistedAcpSessionStoreV2['sessions'][number]>();
-        const mergedDeletedSessions = pruneDeletedSessionRecords([
-          ...(existing.deletedSessions ?? []),
-          ...payloadDeletedSessions,
-        ]);
-        const mergedDeletedIds = new Set(mergedDeletedSessions.map((record) => record.id));
-        for (const record of mergedDeletedSessions) {
-          deletedSessionIds.set(record.id, record.deletedAt);
-        }
-        for (const entry of existing.sessions) merged.set(entry.id, entry);
-        for (const entry of payload.sessions) merged.set(entry.id, entry);
-        for (const id of mergedDeletedIds) merged.delete(id);
-        const mergedPayload: PersistedAcpSessionStoreV2 = {
-          schemaVersion: 2,
-          sessions: pruneSessionRecords(Array.from(merged.values())),
-          deletedSessions: mergedDeletedSessions,
-        };
-
-        await writeFile(tempPath, JSON.stringify(mergedPayload, null, 2), 'utf8');
-        await rename(tempPath, sessionPersistencePath);
-      } finally {
-        clearInterval(heartbeat);
-      }
-    } catch (error) {
-      recordAuditEvent(
-        'acp.session.persist.failed',
-        {
-          errorName: error instanceof Error ? error.name : typeof error,
-        },
-        { source: 'acp', severity: 'low', scope: 'session', phase: 'PREFLIGHT' },
-      );
-    } finally {
-      if (lockHandle) {
-        try {
-          await lockHandle.close();
-        } catch {
-          // ignore
-        }
-        try {
-          await unlink(lockPath);
-        } catch {
-          // ignore
-        }
-      }
-    }
-  }
-
-  async function hydrateSessionsOnce(): Promise<void> {
-    if (sessionsHydrated) return;
-    if (hydratePromise) return hydratePromise;
-    hydratePromise = (async () => {
-      sessionsHydrated = true;
-      if (!sessionPersistencePath) return;
-      try {
-        const raw = await readFile(sessionPersistencePath, 'utf8');
-        const parsed = normalizePersistedSessionStore(JSON.parse(raw));
-        const deletedIds = new Set(parsed.deletedSessions?.map((record) => record.id) ?? []);
-        for (const record of parsed.deletedSessions ?? []) {
-          deletedSessionIds.set(record.id, record.deletedAt);
-        }
-        for (const stored of pruneSessionRecords(parsed.sessions)) {
-          if (deletedIds.has(stored.id)) continue;
-          const runtimeState = createSessionRuntimeStateFromPersisted({
-            permissionPolicy: stored.permissionPolicy,
-            defaultPermissionPolicy: deps.defaultPermissionPolicy,
-            modeId: stored.modeId,
-            defaultModeId: deps.defaultModeId,
-          });
-          sessions.upsert({
-            id: stored.id,
-            cwd: stored.cwd,
-            mcpServers: Array.isArray(stored.mcpServers) ? stored.mcpServers : [],
-            createdAt: stored.createdAt,
-            updatedAt: stored.updatedAt,
-            title: stored.title,
-            taskId: stored.taskId,
-            permissionPolicy: runtimeState.permissionPolicy,
-            modeId: runtimeState.modeId,
-            history: Array.isArray(stored.history)
-              ? stored.history.slice(-sessionStorePolicy.historyMaxEntries)
-              : [],
-            materialized: true,
-            cancelRequested: false,
-          });
-          if (!sessionRuntime.has(stored.id)) {
-            sessionRuntime.set(stored.id, runtimeState);
-          }
-        }
-      } catch (error) {
-        if (isFileMissing(error)) return;
-        recordAuditEvent(
-          'acp.session.hydrate.failed',
-          {
-            errorName: error instanceof Error ? error.name : typeof error,
-          },
-          { source: 'acp', severity: 'low', scope: 'session', phase: 'PREFLIGHT' },
-        );
-      }
-    })();
-    return hydratePromise;
-  }
-
-  function hashRepoPath(repoPath: string): string {
-    return createHash('sha256').update(repoPath).digest('hex').slice(0, 16);
-  }
-
-  function toCheckpointMeta(
-    input:
-      | {
-          id: string;
-          createdAt?: string;
-          strategy?: string;
-          backend?: string;
-        }
-      | undefined,
-  ): AcpCheckpointMeta | null {
-    if (!input) return null;
-    return {
-      id: input.id,
-      createdAt: input.createdAt ?? null,
-      strategy: input.strategy ?? null,
-      backend: input.backend ?? null,
-    };
-  }
-
-  function toResumeHint(
-    probe: {
-      checkpointId: string;
-      valid: boolean;
-      reason?: string;
-    } | null,
-  ): { code: string; message: string } | null {
-    if (!probe || probe.valid) return null;
-    switch (probe.reason) {
-      case 'not_found':
-        return {
-          code: 'CHECKPOINT_NOT_FOUND',
-          message: 'Checkpoint not found. Start a new session.',
-        };
-      case 'manifest_parse_error':
-        return {
-          code: 'CHECKPOINT_MANIFEST_PARSE_ERROR',
-          message: 'Checkpoint metadata is corrupted. Recreate checkpoint metadata and retry.',
-        };
-      case 'manifest_io_error':
-        return {
-          code: 'CHECKPOINT_MANIFEST_IO_ERROR',
-          message: 'Checkpoint metadata is unreadable due to filesystem I/O issues.',
-        };
-      case 'manifest_lock_timeout':
-        return {
-          code: 'CHECKPOINT_MANIFEST_LOCK_TIMEOUT',
-          message: 'Checkpoint metadata is busy (lock timeout). Retry shortly.',
-        };
-      case 'manifest_unavailable':
-        return {
-          code: 'CHECKPOINT_MANIFEST_UNAVAILABLE',
-          message: 'Checkpoint metadata is unavailable in current runtime.',
-        };
-      default:
-        return {
-          code: 'CHECKPOINT_RESUME_UNAVAILABLE',
-          message: 'Checkpoint resume is unavailable. Start a new session or retry.',
-        };
-    }
-  }
+  const sessionPersistence = createAcpSessionPersistence({
+    path: sessionPersistencePath ?? '',
+    storePolicy: sessionStorePolicy,
+    defaultPermissionPolicy: deps.defaultPermissionPolicy ?? ACP_PERMISSION_POLICY_ASK,
+    defaultModeId: deps.defaultModeId,
+    sessions,
+    sessionRuntime,
+    isPersistableSession,
+    ensureSessionRuntimeState,
+    resolveExposedAcpModeId,
+  });
 
   async function emitSessionUpdate(sessionId: string, update: SessionUpdate) {
     await deps.conn.sessionUpdate({ sessionId, update });
@@ -1426,10 +897,7 @@ export function createAcpFormalAgent(deps: {
   }): Promise<void> {
     if (!shouldRefreshPlanForEvent(params.event)) return;
     const { state, event } = params;
-    const planReader = deps.planReader ?? {
-      readBySession: async ({ repoPath, sessionId }: { repoPath: string; sessionId: string }) =>
-        await readPlan({ persistenceRoot: repoPath, sessionId }),
-    };
+    const planReader = deps.planReader;
 
     if (event?.type === 'plan.runtime.ready') {
       state.runtimePlanSessionId = event.sessionId;
@@ -1437,7 +905,7 @@ export function createAcpFormalAgent(deps: {
       state.lastPlanDigest = null;
     }
 
-    if (!state.runtimePlanSessionId) return;
+    if (!state.runtimePlanSessionId || !planReader) return;
 
     try {
       const read = await planReader.readBySession({
@@ -1464,7 +932,7 @@ export function createAcpFormalAgent(deps: {
   }
 
   async function loadSessionInternal(params: LoadSessionRequest): Promise<AcpSessionRecord> {
-    await hydrateSessionsOnce();
+    await sessionPersistence.hydrate();
     validateUnsupportedAdditionalDirectories(params.additionalDirectories);
     validateAcpMcpServers(params.mcpServers);
     const session = sessions.get(params.sessionId);
@@ -1479,7 +947,7 @@ export function createAcpFormalAgent(deps: {
         ...current,
         mcpServers: params.mcpServers,
       }));
-      await persistSessionsBestEffort();
+      await sessionPersistence.persist();
     }
     return session;
   }
@@ -1487,7 +955,7 @@ export function createAcpFormalAgent(deps: {
   async function resumeSessionInternal(
     params: AcpSessionLifecycleRequest,
   ): Promise<AcpSessionRecord> {
-    await hydrateSessionsOnce();
+    await sessionPersistence.hydrate();
     validateUnsupportedAdditionalDirectories(params.additionalDirectories);
     validateAcpMcpServers(params.mcpServers);
     const session = sessions.get(params.sessionId);
@@ -1502,7 +970,7 @@ export function createAcpFormalAgent(deps: {
         ...current,
         mcpServers: params.mcpServers ?? [],
       }));
-      await persistSessionsBestEffort();
+      await sessionPersistence.persist();
     }
     return session;
   }
@@ -1551,11 +1019,11 @@ export function createAcpFormalAgent(deps: {
     if (!isPersistableSession(latestSession)) {
       sessionRuntime.delete(params.sessionId);
       sessions.delete(params.sessionId);
-      await persistSessionsBestEffort();
+      await sessionPersistence.persist();
       return;
     }
     sessions.update(params.sessionId, (current) => ({ ...current, cancelRequested: false }));
-    await persistSessionsBestEffort();
+    await sessionPersistence.persist();
     sessionRuntime.delete(params.sessionId);
   }
 
@@ -1563,10 +1031,10 @@ export function createAcpFormalAgent(deps: {
     const session = sessions.get(params.sessionId);
     if (!session) return;
     await cancelSessionTaskBestEffort(session);
-    deletedSessionIds.set(params.sessionId, new Date().toISOString());
+    sessionPersistence.markDeleted(params.sessionId);
     sessionRuntime.delete(params.sessionId);
     sessions.delete(params.sessionId);
-    await persistSessionsBestEffort();
+    await sessionPersistence.persist();
   }
 
   return {
@@ -1603,7 +1071,7 @@ export function createAcpFormalAgent(deps: {
     },
 
     async newSession(params) {
-      await hydrateSessionsOnce();
+      await sessionPersistence.hydrate();
       if (!isAbsolutePath(params.cwd)) {
         throw new RequestError(-32602, 'Invalid params: cwd must be an absolute path');
       }
@@ -1630,18 +1098,11 @@ export function createAcpFormalAgent(deps: {
 
       let sessionMeta: Record<string, unknown> | undefined;
       if (deps.checkpointReader) {
-        const checkpoints = await deps.checkpointReader.listBySession({
+        const result = await probeCheckpointForNewSession(deps.checkpointReader, {
           repoPath: params.cwd,
           sessionId: session.id,
-          limit: 1,
         });
-        const latest = checkpoints.at(-1);
-        sessionMeta = {
-          salmonloop: {
-            latestCheckpointId: latest?.id ?? null,
-            checkpoint: toCheckpointMeta(latest),
-          },
-        };
+        sessionMeta = result._meta;
       }
       return {
         sessionId: session.id,
@@ -1666,7 +1127,7 @@ export function createAcpFormalAgent(deps: {
             ...current,
             title: deriveSessionTitleFromCwd(current.cwd),
           })) ?? session;
-        await persistSessionsBestEffort();
+        await sessionPersistence.persist();
       }
 
       runtimeState.lastSessionInfoDigest = null;
@@ -1707,59 +1168,12 @@ export function createAcpFormalAgent(deps: {
         modes: buildModesState(runtimeState.modeId),
       };
       if (deps.checkpointReader) {
-        const startedAt = Date.now();
-        const checkpoints = await deps.checkpointReader.listBySession({
+        const result = await probeCheckpoint(deps.checkpointReader, {
           repoPath: params.cwd,
           sessionId: params.sessionId,
-          limit: 1,
+          repoPathHash: hashRepoPath(params.cwd),
         });
-        const latest = checkpoints.at(-1);
-        let resumeProbe: { checkpointId: string; valid: boolean; reason?: string } | null = null;
-        if (latest?.id && deps.checkpointReader.probeById) {
-          const probed = await deps.checkpointReader.probeById({
-            repoPath: params.cwd,
-            checkpointId: latest.id,
-          });
-          resumeProbe = {
-            checkpointId: latest.id,
-            valid: probed.valid,
-            reason: probed.reason,
-          };
-        } else if (latest?.id && deps.checkpointReader.getById) {
-          const found = await deps.checkpointReader.getById({
-            repoPath: params.cwd,
-            checkpointId: latest.id,
-          });
-          resumeProbe = {
-            checkpointId: latest.id,
-            valid: Boolean(found),
-            reason: found ? 'ok' : 'not_found',
-          };
-        }
-        const resumeReady = resumeProbe?.valid ?? Boolean(latest);
-        recordAuditEvent(
-          'acp.checkpoint.read',
-          {
-            sessionId: params.sessionId,
-            repoPathHash: hashRepoPath(params.cwd),
-            latestCheckpointId: latest?.id ?? null,
-            hit: Boolean(latest),
-            latencyMs: Date.now() - startedAt,
-            resumeProbe: resumeProbe ?? undefined,
-          },
-          { source: 'acp', severity: 'low', scope: 'session', phase: 'PREFLIGHT' },
-        );
-        const resumeHint = toResumeHint(resumeProbe);
-        response._meta = {
-          salmonloop: {
-            latestCheckpointId: latest?.id ?? null,
-            checkpoint: toCheckpointMeta(latest),
-            resumeReady,
-            resumeProbe,
-            resumeHint: resumeHint?.message ?? null,
-            resumeHintCode: resumeHint?.code ?? null,
-          },
-        };
+        response._meta = result._meta;
       } else {
         recordAuditEvent(
           'acp.checkpoint.read',
@@ -1778,7 +1192,7 @@ export function createAcpFormalAgent(deps: {
     },
 
     async listSessions(params) {
-      await hydrateSessionsOnce();
+      await sessionPersistence.hydrate();
       if (typeof params.cwd === 'string' && params.cwd && !isAbsolutePath(params.cwd)) {
         throw new RequestError(-32602, 'Invalid params: cwd must be an absolute path');
       }
@@ -1828,31 +1242,31 @@ export function createAcpFormalAgent(deps: {
     },
 
     async closeSession(params) {
-      await hydrateSessionsOnce();
+      await sessionPersistence.hydrate();
       await closeSessionRecord({ sessionId: params.sessionId });
       return {};
     },
 
     async unstable_deleteSession(params) {
-      await hydrateSessionsOnce();
+      await sessionPersistence.hydrate();
       await deleteSessionRecord({ sessionId: params.sessionId });
       return {};
     },
 
     async setSessionConfigOption(params) {
-      await hydrateSessionsOnce();
+      await sessionPersistence.hydrate();
       if (!sessions.get(params.sessionId)) {
         throw new RequestError(-32004, `Session not found: ${params.sessionId}`);
       }
 
       const runtimeState = ensureSessionRuntimeState(params.sessionId);
-      if (typeof params.value !== 'string') {
-        throw new RequestError(
-          -32602,
-          `Invalid params: unsupported non-string value for "${params.configId}"`,
-        );
-      }
       if (params.configId === ACP_PERMISSION_POLICY_CONFIG_ID) {
+        if (typeof params.value !== 'string') {
+          throw new RequestError(
+            -32602,
+            `Invalid params: "${params.configId}" requires a string value`,
+          );
+        }
         if (!isPermissionPolicyValue(params.value)) {
           throw new RequestError(
             -32602,
@@ -1861,6 +1275,12 @@ export function createAcpFormalAgent(deps: {
         }
         runtimeState.permissionPolicy = params.value;
       } else if (params.configId === ACP_MODE_CONFIG_ID) {
+        if (typeof params.value !== 'string') {
+          throw new RequestError(
+            -32602,
+            `Invalid params: "${params.configId}" requires a string value`,
+          );
+        }
         const parsedModeId = parseAcpFlowMode(params.value);
         if (!parsedModeId || !ACP_PUBLIC_MODE_IDS.has(parsedModeId)) {
           throw new RequestError(
@@ -1869,10 +1289,6 @@ export function createAcpFormalAgent(deps: {
           );
         }
         runtimeState.modeId = parsedModeId;
-        const legacyPermissionPolicy = getLegacyPermissionPolicyForModeValue(params.value);
-        if (legacyPermissionPolicy) {
-          runtimeState.permissionPolicy = legacyPermissionPolicy;
-        }
       } else {
         throw new RequestError(-32602, `Invalid params: unsupported configId "${params.configId}"`);
       }
@@ -1881,7 +1297,7 @@ export function createAcpFormalAgent(deps: {
         permissionPolicy: runtimeState.permissionPolicy,
         modeId: runtimeState.modeId,
       }));
-      await persistSessionsBestEffort();
+      await sessionPersistence.persist();
       await emitSessionInfoUpdateBestEffort(params.sessionId);
       const update = buildConfigOptionUpdateIfChanged(runtimeState);
       if (update) {
@@ -1896,7 +1312,7 @@ export function createAcpFormalAgent(deps: {
     },
 
     async setSessionMode(params) {
-      await hydrateSessionsOnce();
+      await sessionPersistence.hydrate();
       if (!sessions.get(params.sessionId)) {
         throw new RequestError(-32004, `Session not found: ${params.sessionId}`);
       }
@@ -1907,16 +1323,12 @@ export function createAcpFormalAgent(deps: {
         throw new RequestError(-32602, `Invalid params: unsupported modeId "${params.modeId}"`);
       }
       runtimeState.modeId = resolvedModeId;
-      const legacyPermissionPolicy = getLegacyPermissionPolicyForModeValue(params.modeId);
-      if (legacyPermissionPolicy) {
-        runtimeState.permissionPolicy = legacyPermissionPolicy;
-      }
       sessions.update(params.sessionId, (current) => ({
         ...current,
         permissionPolicy: runtimeState.permissionPolicy,
         modeId: runtimeState.modeId,
       }));
-      await persistSessionsBestEffort();
+      await sessionPersistence.persist();
       await emitSessionInfoUpdateBestEffort(params.sessionId);
 
       const configUpdate = buildConfigOptionUpdateIfChanged(runtimeState);
@@ -1934,7 +1346,7 @@ export function createAcpFormalAgent(deps: {
     },
 
     async prompt(params) {
-      await hydrateSessionsOnce();
+      await sessionPersistence.hydrate();
       const session = sessions.get(params.sessionId);
       if (!session) {
         throw new RequestError(-32004, `Session not found: ${params.sessionId}`);
@@ -1952,7 +1364,10 @@ export function createAcpFormalAgent(deps: {
 
       // Check for cancellation before starting processing
       if (sessions.get(params.sessionId)?.cancelRequested === true) {
-        return { stopReason: 'cancelled' };
+        return {
+          stopReason: 'cancelled',
+          ...(params.messageId ? { userMessageId: params.messageId } : {}),
+        };
       }
 
       sessions.update(params.sessionId, (current) => {
@@ -1973,7 +1388,7 @@ export function createAcpFormalAgent(deps: {
           ],
         };
       });
-      await persistSessionsBestEffort();
+      await sessionPersistence.persist();
       await emitSessionInfoUpdateBestEffort(params.sessionId);
 
       const configUpdate = buildConfigOptionUpdateIfChanged(runtimeState);
@@ -2010,16 +1425,22 @@ export function createAcpFormalAgent(deps: {
               { role: 'assistant', content: [buildTextContentBlock(responseText)] as any },
             ],
           }));
-          await persistSessionsBestEffort();
+          await sessionPersistence.persist();
           await emitSessionInfoUpdateBestEffort(params.sessionId);
 
-          return { stopReason: 'end_turn' };
+          return {
+            stopReason: 'end_turn',
+            ...(params.messageId ? { userMessageId: params.messageId } : {}),
+          };
         }
       }
 
       // Check for cancellation again before creating task
       if (sessions.get(params.sessionId)?.cancelRequested === true) {
-        return { stopReason: 'cancelled' };
+        return {
+          stopReason: 'cancelled',
+          ...(params.messageId ? { userMessageId: params.messageId } : {}),
+        };
       }
 
       const pendingUpdates: Promise<void>[] = [];
@@ -2070,14 +1491,17 @@ export function createAcpFormalAgent(deps: {
       });
 
       sessions.update(params.sessionId, (current) => ({ ...current, taskId: task.id }));
-      await persistSessionsBestEffort();
+      await sessionPersistence.persist();
 
       if (signal.aborted) {
         await emitSessionUpdate(params.sessionId, {
           sessionUpdate: 'agent_message_chunk',
           content: buildTextContentBlock(ensureMarkdownParagraphBreak('Task cancelled.')),
         });
-        return { stopReason: 'cancelled' };
+        return {
+          stopReason: 'cancelled',
+          ...(params.messageId ? { userMessageId: params.messageId } : {}),
+        };
       }
 
       const terminalEvent = await awaitTerminalEvent({ taskId: task.id, eventBus: deps.eventBus });
@@ -2131,7 +1555,7 @@ export function createAcpFormalAgent(deps: {
           { role: 'assistant', content: [buildTextContentBlock(assistantText)] as any },
         ],
       }));
-      await persistSessionsBestEffort();
+      await sessionPersistence.persist();
 
       const latestSession = sessions.get(params.sessionId);
       if (latestSession) {
@@ -2148,17 +1572,20 @@ export function createAcpFormalAgent(deps: {
       // Wait for all pending session updates to be sent before responding
       await Promise.all(pendingUpdates);
 
-      return { stopReason };
+      return {
+        stopReason,
+        ...(params.messageId ? { userMessageId: params.messageId } : {}),
+      };
     },
 
     async cancel(params) {
-      await hydrateSessionsOnce();
+      await sessionPersistence.hydrate();
       const session = sessions.get(params.sessionId);
       if (!session) return;
 
       // Mark the session as cancelled
       sessions.update(params.sessionId, (current) => ({ ...current, cancelRequested: true }));
-      await persistSessionsBestEffort();
+      await sessionPersistence.persist();
       await emitSessionInfoUpdateBestEffort(params.sessionId);
 
       // If a task is running, cancel it

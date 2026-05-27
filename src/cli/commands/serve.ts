@@ -25,6 +25,7 @@ import {
   startAcpStdioServer,
   StderrReporter,
 } from '../../core/facades/cli-serve.js';
+import { readPlan } from '../../core/plan/index.js';
 import {
   selectPublicCapabilitiesForSurface,
   toA2APublicSkills,
@@ -312,6 +313,10 @@ export async function handleServeCommand(_options: unknown, command: Command) {
             return { valid: Boolean(status.handle), reason: status.reason };
           },
         },
+        planReader: {
+          readBySession: async ({ repoPath, sessionId }) =>
+            await readPlan({ persistenceRoot: repoPath, sessionId }),
+        },
         facade: acpFacade,
         sessionPersistencePath: getUserAcpSessionStorePath(),
         sessionStorePolicy: resolvedConfig.server?.acp?.sessionStore,
@@ -465,6 +470,10 @@ export async function handleServeAcpCommand(_options: unknown, command: Command)
           const status = await checkpointService.loadWithStatus({ repoPath, checkpointId });
           return { valid: Boolean(status.handle), reason: status.reason };
         },
+      },
+      planReader: {
+        readBySession: async ({ repoPath, sessionId }) =>
+          await readPlan({ persistenceRoot: repoPath, sessionId }),
       },
       facade: acpFacade,
       sessionPersistencePath: getUserAcpSessionStorePath(),
