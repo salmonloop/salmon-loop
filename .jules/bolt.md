@@ -1,0 +1,3 @@
+## 2026-05-27 - O(M * N) loop in ContextService evictLruIfNeeded
+**Learning:** In `ContextService`, calling `await this.cacheStore.entries()` inside a while loop where `M` is the number of excess elements and `N` is the number of items in the cache resulted in an O(M * N) performance bottleneck during cache eviction. Repeatedly fetching iterable elements mutates the internal cache store reference leading to O(N^2) complexity behavior.
+**Action:** Fetch the entries once into an array using `Array.from()` or `await this.cacheStore.entries()`, calculate the number of excess items, and use an O(N) linear scan for a single item eviction or an O(N log N) sort for batch eviction. Always avoid repeatedly fetching an iterable to avoid quadratic loops.
