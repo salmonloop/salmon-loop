@@ -107,6 +107,16 @@ export function createInteractionFacade(deps: {
           } else if (result.state === 'awaiting_input') {
             deps.eventBus?.publish({ type: 'task.awaiting_input', taskId: result.id });
           }
+        })
+        .catch((error: unknown) => {
+          taskControllers.delete(task.id);
+          const failedTask = {
+            ...task,
+            state: 'failed' as const,
+            statusMessage: error instanceof Error ? error.message : 'Task execution failed',
+          };
+          store.update(failedTask);
+          deps.eventBus?.publish({ type: 'task.failed', taskId: task.id });
         });
       return { task, signal: controller.signal };
     },

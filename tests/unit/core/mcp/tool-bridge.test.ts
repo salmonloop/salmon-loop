@@ -118,6 +118,61 @@ describe('mcpToolDescriptorToToolSpec', () => {
     ).toThrow();
   });
 
+  it('accepts non-object structuredContent values allowed by MCP outputSchema', async () => {
+    const arrayResult = {
+      content: [{ type: 'text', text: 'ok' }],
+      structuredContent: [{ hour: '09:00', temp: 21 }],
+    };
+    const arraySpec = mcpToolDescriptorToToolSpec({
+      serverName: 'local',
+      descriptor: readDescriptor({
+        outputSchema: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              hour: { type: 'string' },
+              temp: { type: 'number' },
+            },
+            required: ['hour', 'temp'],
+            additionalProperties: false,
+          },
+        },
+      }),
+      grant: grant(),
+      classification: { kind: 'classified', sideEffects: ['fs_read'], riskLevel: 'low' },
+      manager: managerReturning(arrayResult),
+    });
+
+    const arrayOutput = await arraySpec.executor({ path: 'README.md' }, {
+      signal: undefined,
+    } as any);
+    expect(arrayOutput.structuredContent).toEqual([{ hour: '09:00', temp: 21 }]);
+    expect(arraySpec.outputSchema.parse(arrayOutput)).toEqual(arrayOutput);
+
+    const numberResult = {
+      content: [],
+      structuredContent: 42,
+    };
+    const numberSpec = mcpToolDescriptorToToolSpec({
+      serverName: 'local',
+      descriptor: readDescriptor({
+        outputSchema: {
+          type: 'number',
+        },
+      }),
+      grant: grant(),
+      classification: { kind: 'classified', sideEffects: ['fs_read'], riskLevel: 'low' },
+      manager: managerReturning(numberResult),
+    });
+
+    const numberOutput = await numberSpec.executor({ path: 'README.md' }, {
+      signal: undefined,
+    } as any);
+    expect(numberOutput.structuredContent).toBe(42);
+    expect(numberSpec.outputSchema.parse(numberOutput)).toEqual(numberOutput);
+  });
+
   it('adds grant metadata to authorization summaries for write tools', async () => {
     const spec = mcpToolDescriptorToToolSpec({
       serverName: 'repo',
@@ -214,5 +269,19 @@ describe('wrapMcpToolResult', () => {
       custom: 'value',
       content: [],
     });
+  });
+
+  it('preserves non-object structuredContent values', () => {
+    const arrayWrapped = wrapMcpToolResult({
+      structuredContent: [{ ok: true }],
+    });
+    const numberWrapped = wrapMcpToolResult({
+      structuredContent: 42,
+    });
+
+    expect(arrayWrapped.structuredContent).toEqual([{ ok: true }]);
+    expect(arrayWrapped.raw.structuredContent).toEqual([{ ok: true }]);
+    expect(numberWrapped.structuredContent).toBe(42);
+    expect(numberWrapped.raw.structuredContent).toBe(42);
   });
 });

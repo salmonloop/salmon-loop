@@ -40,6 +40,7 @@ const SAMPLE_ENTRIES: PublicCapability[] = [
     reachability: 'reachable',
     tags: ['handoff', 'summary'],
     examples: ['Summarize the current branch status'],
+    security: [{ bearer: [] }],
   },
   {
     id: 'latent-skill',
@@ -98,22 +99,22 @@ describe('public capability projections', () => {
   test('projects A2A skills from reachable A2A capabilities and preserves metadata', () => {
     const skills = toA2APublicSkills(SAMPLE_ENTRIES);
 
-    expect(skills).toEqual([
-      {
-        id: 'autopilot',
-        title: 'Autopilot',
-        description: FLOW_MODE_PUBLIC_METADATA.autopilot.description,
-        tags: ['default'],
-        examples: ['Fix the failing test suite'],
-      },
-      {
-        id: 'repo-summary',
-        title: 'Repository summary',
-        description: 'Summarize repository state for handoff.',
-        tags: ['handoff', 'summary'],
-        examples: ['Summarize the current branch status'],
-      },
-    ]);
+    expect(skills).toHaveLength(2);
+    expect(skills.find((skill) => skill.id === 'autopilot')).toMatchObject({
+      id: 'autopilot',
+      title: 'Autopilot',
+      description: FLOW_MODE_PUBLIC_METADATA.autopilot.description,
+      tags: ['default'],
+      examples: ['Fix the failing test suite'],
+    });
+    expect(skills.find((skill) => skill.id === 'repo-summary')).toMatchObject({
+      id: 'repo-summary',
+      title: 'Repository summary',
+      description: 'Summarize repository state for handoff.',
+      tags: ['handoff', 'summary'],
+      examples: ['Summarize the current branch status'],
+      security: [{ bearer: [] }],
+    });
   });
 
   test('defaults to the static registry when entries are omitted', () => {

@@ -27,11 +27,7 @@ import {
   StderrReporter,
 } from '../../core/facades/cli-serve.js';
 import { readPlan } from '../../core/plan/index.js';
-import {
-  selectPublicCapabilitiesForSurface,
-  toA2APublicSkills,
-} from '../../core/public-capabilities/projections.js';
-import { buildPublicCapabilityRegistry } from '../../core/public-capabilities/registry.js';
+import { toA2APublicSkills } from '../../core/public-capabilities/projections.js';
 import type { CheckpointStrategy } from '../../core/types/loop.js';
 import type { ApplyBackOnDirty, FlowMode } from '../../core/types/runtime.js';
 import { createTerminalAuthorizationProvider } from '../authorization/provider.js';
@@ -106,7 +102,7 @@ function registerServeShutdown({
   closeRuntime?: () => Promise<void>;
   closeAcpStdio?: () => void;
 }) {
-  process.once('SIGINT', async () => {
+  const shutdown = async () => {
     getLogger().info(message);
     try {
       await closeRuntime?.();
@@ -114,7 +110,9 @@ function registerServeShutdown({
       closeAcpStdio?.();
       process.exit(0);
     }
-  });
+  };
+  process.once('SIGINT', shutdown);
+  process.once('SIGTERM', shutdown);
 }
 
 async function resolveServeCommonSetup(params: {
@@ -351,14 +349,10 @@ export async function handleServeCommand(_options: unknown, command: Command) {
         }
       : undefined;
 
-  const a2aPublicCapabilities = selectPublicCapabilitiesForSurface(
-    'a2a',
-    buildPublicCapabilityRegistry(),
-  );
-  const a2aSkills = toA2APublicSkills(a2aPublicCapabilities);
+  const a2aSkills = toA2APublicSkills();
   const agentCard = buildA2AAgentCard({
     name: 'salmon-loop',
-    url: `http://${a2aHost}:${a2aPort}`,
+    url: `http://${a2aHost}:${a2aPort}/a2a/jsonrpc`,
     capabilities: a2aSkills,
     security: authTokens.length > 0 ? [{ type: 'http', scheme: 'bearer' }] : [],
   });

@@ -96,7 +96,7 @@ describe('Property 11: Architectural Boundary Preservation', () => {
 
           const agentCard = buildA2AAgentCard({
             name: 'test-agent',
-            url: 'http://localhost:3000',
+            url: 'http://localhost:3000/a2a/jsonrpc',
             capabilities,
             security: [],
           });
@@ -155,7 +155,7 @@ describe('Property 12: API Endpoint Compatibility', () => {
         (input) => {
           const agentCard = buildA2AAgentCard({
             name: input.agentName,
-            url: 'http://localhost:3000',
+            url: 'http://localhost:3000/a2a/jsonrpc',
             capabilities: [{ id: 'test', title: 'Test' }],
             security: [],
           });
@@ -213,7 +213,7 @@ describe('Property 12: API Endpoint Compatibility', () => {
         (input) => {
           const agentCard = buildA2AAgentCard({
             name: 'test-agent',
-            url: 'http://localhost:3000',
+            url: 'http://localhost:3000/a2a/jsonrpc',
             capabilities: [{ id: input.capability, title: input.capability }],
             security: [],
           });
@@ -292,7 +292,7 @@ describe('Property 13: AgentCard Structure Validation', () => {
 
           const agentCard = buildA2AAgentCard({
             name: input.name,
-            url: 'http://localhost:3000',
+            url: 'http://localhost:3000/a2a/jsonrpc',
             description: input.description,
             version: input.version,
             capabilities,
@@ -302,7 +302,37 @@ describe('Property 13: AgentCard Structure Validation', () => {
           // **Validates: Requirements 13.2, 13.3**
           // AgentCard must have required fields
           expect(agentCard.name).toBe(input.name);
-          expect(agentCard.url).toBe('http://localhost:3000');
+          expect((agentCard as unknown as { url?: string }).url).toBeUndefined();
+          expect(
+            (agentCard as unknown as { protocolVersion?: string }).protocolVersion,
+          ).toBeUndefined();
+          expect(
+            (agentCard as unknown as { preferredTransport?: string }).preferredTransport,
+          ).toBeUndefined();
+          expect(
+            (
+              agentCard as unknown as {
+                additionalInterfaces?: Array<{ transport: string; url: string }>;
+              }
+            ).additionalInterfaces,
+          ).toBeUndefined();
+          expect(
+            (
+              agentCard as unknown as {
+                supportedInterfaces?: Array<{
+                  url: string;
+                  protocolBinding: string;
+                  protocolVersion: string;
+                }>;
+              }
+            ).supportedInterfaces,
+          ).toEqual([
+            {
+              url: 'http://localhost:3000/a2a/jsonrpc',
+              protocolBinding: 'JSONRPC',
+              protocolVersion: '1.0',
+            },
+          ]);
           expect(agentCard.description).toBe(input.description);
           expect(agentCard.version).toBe(input.version);
 
@@ -352,7 +382,7 @@ describe('Property 13: AgentCard Structure Validation', () => {
         (capabilities) => {
           const agentCard = buildA2AAgentCard({
             name: 'test-agent',
-            url: 'http://localhost:3000',
+            url: 'http://localhost:3000/a2a/jsonrpc',
             capabilities,
             security: [],
           });

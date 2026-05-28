@@ -29,9 +29,6 @@ export class McpNotificationRouter {
     if (method === 'notifications/tools/list_changed') return 'tools';
     if (method === 'notifications/resources/list_changed') return 'resources';
     if (method === 'notifications/prompts/list_changed') return 'prompts';
-    if (method === 'tools/list_changed') return 'tools';
-    if (method === 'resources/list_changed') return 'resources';
-    if (method === 'prompts/list_changed') return 'prompts';
     return null;
   }
 }

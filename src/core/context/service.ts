@@ -193,7 +193,7 @@ export class ContextService {
       const absoluteFile = defaultPathAdapter.resolve(repoPath, relativeFile);
       try {
         const stat = await this.fileAdapter.stat(absoluteFile);
-        parts.push(`${relativeFile}:${stat.mtimeMs}:${stat.size}`);
+        parts.push(this.formatStatSignature(relativeFile, stat));
       } catch {
         parts.push(`${relativeFile}:missing`);
       }
@@ -212,12 +212,19 @@ export class ContextService {
       const gitPath = defaultPathAdapter.resolve(repoPath, rel);
       try {
         const stat = await this.fileAdapter.stat(gitPath);
-        parts.push(`${rel}:${stat.mtimeMs}:${stat.size}`);
+        parts.push(this.formatStatSignature(rel, stat));
       } catch {
         parts.push(`${rel}:missing`);
       }
     }
     return parts;
+  }
+
+  private formatStatSignature(
+    relativePath: string,
+    stat: { mtimeMs: number; ctimeMs?: number; size: number },
+  ): string {
+    return `${relativePath}:${stat.mtimeMs}:${stat.ctimeMs ?? 0}:${stat.size}`;
   }
 
   private getEntryTimestamp(entry: ContextCacheEntry): number {

@@ -156,7 +156,6 @@ export const en = {
   acp: {
     slashHelpDescription: 'Show available ACP slash commands',
     slashHelpResponse: (commands: string) => `Available commands: ${commands}`,
-    slashUnknownCommand: (commandName: string) => `Unknown command: /${commandName}`,
     askUserHeader: 'User input required',
     askUserQuestion: (question: string) => `Question: ${question}`,
     askUserOptionsHeader: 'Options:',
@@ -171,8 +170,6 @@ export const en = {
     permissionPolicyDenyAllDescription: 'Automatically deny side-effecting operations.',
     permissionPolicyAllowAllName: 'Allow all',
     permissionPolicyAllowAllDescription: 'Automatically allow side-effecting operations.',
-    modeInteractiveDescription: 'Request permission before running side-effecting operations.',
-    modeYoloDescription: 'Bypass permission prompts for side-effecting operations.',
     executionFlowName: 'Execution Flow',
     executionFlowDescription: 'Choose how the agent should execute this session.',
     permissionOptionAllowOnce: 'Allow once',

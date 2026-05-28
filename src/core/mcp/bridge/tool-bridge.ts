@@ -26,6 +26,7 @@ export interface McpToolDescriptor {
   inputSchema?: Record<string, unknown>;
   outputSchema?: Record<string, unknown>;
   annotations?: {
+    title?: string;
     readOnlyHint?: boolean;
     destructiveHint?: boolean;
     idempotentHint?: boolean;
@@ -84,13 +85,13 @@ export type McpBridgeClassifierInput =
 
 export interface McpToolCallResult {
   content?: unknown[];
-  structuredContent?: Record<string, unknown>;
+  structuredContent?: unknown;
   isError?: boolean;
   _meta?: Record<string, unknown>;
   resourceLinks?: unknown[];
   result?: {
     content?: unknown[];
-    structuredContent?: Record<string, unknown>;
+    structuredContent?: unknown;
     isError?: boolean;
     _meta?: Record<string, unknown>;
     [key: string]: unknown;
@@ -117,14 +118,14 @@ export interface McpToolBridgeInput {
 
 export interface BridgedMcpToolOutput {
   content: unknown[];
-  structuredContent?: Record<string, unknown>;
+  structuredContent?: unknown;
   resourceLinks: unknown[];
   raw: McpToolCallResult;
   isError?: boolean;
   _meta?: Record<string, unknown>;
 }
 
-const MCP_NAME_PATTERN = /^[A-Za-z0-9_-]+$/;
+const MCP_NAME_PATTERN = /^[a-zA-Z][a-zA-Z0-9_.-]*$/;
 const FALLBACK_SIDE_EFFECTS: SideEffect[] = ['process', 'network'];
 const FALLBACK_ALLOWED_PHASES: ExecutionPhase[] = [Phase.VERIFY];
 
@@ -132,7 +133,7 @@ const mcpContentItemSchema = z.object({}).catchall(z.unknown());
 const mcpCallResultSchema = z
   .object({
     content: z.array(mcpContentItemSchema).default([]),
-    structuredContent: z.record(z.string(), z.unknown()).optional(),
+    structuredContent: z.unknown().optional(),
     isError: z.boolean().optional(),
     _meta: z.record(z.string(), z.unknown()).optional(),
   })
@@ -141,7 +142,7 @@ const mcpCallResultSchema = z
 const bridgedMcpToolOutputObjectSchema = z
   .object({
     content: z.array(mcpContentItemSchema),
-    structuredContent: z.record(z.string(), z.unknown()).optional(),
+    structuredContent: z.unknown().optional(),
     resourceLinks: z.array(mcpContentItemSchema),
     raw: mcpCallResultSchema,
     isError: z.boolean().optional(),

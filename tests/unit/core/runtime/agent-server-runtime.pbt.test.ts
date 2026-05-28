@@ -18,7 +18,7 @@ async function createRuntime(port: number, options?: { taskStore?: InMemoryTaskS
       buildAgentCard: () =>
         buildA2AAgentCard({
           name: 'test-agent',
-          url: 'http://localhost:7447',
+          url: 'http://localhost:7447/a2a/jsonrpc',
           capabilities: [{ id: 'autopilot', title: 'Autopilot' }],
           security: [],
         }),

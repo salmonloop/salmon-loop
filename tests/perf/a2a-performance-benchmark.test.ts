@@ -4,7 +4,6 @@ import type { Socket } from 'net';
 
 import type { Message } from '@a2a-js/sdk';
 import { JsonRpcTransport } from '@a2a-js/sdk/client';
-import { InMemoryTaskStore } from '@a2a-js/sdk/server';
 import { describe, expect, test, afterEach } from 'bun:test';
 
 import { createTaskEventBus } from '../../src/core/interaction/events/bus.js';
@@ -12,7 +11,10 @@ import type { TaskEnvelope } from '../../src/core/interaction/model/index.js';
 import { createInteractionFacade } from '../../src/core/interaction/orchestration/facade.js';
 import { buildA2AAgentCard } from '../../src/core/protocols/a2a/agent-card.js';
 import { createA2AInteractionExecutor } from '../../src/core/protocols/a2a/sdk/executor.js';
-import { createA2ASdkExpressApp } from '../../src/core/protocols/a2a/sdk/server.js';
+import {
+  createA2ASdkExpressApp,
+  ProtocolAlignedInMemoryTaskStore,
+} from '../../src/core/protocols/a2a/sdk/server.js';
 
 const BASE_CAPABILITIES = [{ id: 'patch', title: 'Patch code' }];
 
@@ -50,13 +52,13 @@ async function waitForServerReady(url: string): Promise<void> {
 
 async function startTestServer(deps: { executeTask: ExecuteTaskFn }) {
   const taskBus = createTaskEventBus();
-  const taskStore = new InMemoryTaskStore();
+  const taskStore = new ProtocolAlignedInMemoryTaskStore();
   const facade = createInteractionFacade({ executeTask: deps.executeTask, eventBus: taskBus });
   const executor = createA2AInteractionExecutor({ facade, taskEventBus: taskBus, taskStore });
   const app = createA2ASdkExpressApp({
     agentCard: buildA2AAgentCard({
       name: 'test-agent',
-      url: 'http://localhost',
+      url: 'http://localhost/a2a/jsonrpc',
       capabilities: BASE_CAPABILITIES,
       security: [],
     }),

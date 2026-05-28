@@ -6,6 +6,7 @@ import {
   PromptListChangedNotificationSchema,
   ReadResourceResultSchema,
   ResourceListChangedNotificationSchema,
+  ResourceUpdatedNotificationSchema,
   ToolListChangedNotificationSchema,
   GetPromptResultSchema,
 } from '@modelcontextprotocol/sdk/types.js';
@@ -32,20 +33,28 @@ type ManagedConnection = {
   status: McpConnectionStatus;
   catalog?: McpCatalogSnapshot;
   staleKinds: Set<'tools' | 'resources' | 'resourceTemplates' | 'prompts'>;
+  subscribedResources: Set<string>;
   error?: string;
 };
+
+export interface McpResourceUpdatedEvent {
+  serverName: string;
+  uri: string;
+}
 
 function buildClientCapabilities(input?: McpClientCapabilitiesInput): ClientCapabilities {
   const capabilities: ClientCapabilities = {
     roots: input?.roots ? { listChanged: true } : undefined,
     sampling: input?.sampling ? {} : undefined,
-    elicitation: input?.elicitation ? { form: {}, url: {} } : undefined,
+    elicitation: input?.elicitation ? { form: {} } : undefined,
   };
   return capabilities;
 }
 
 export class McpConnectionManager {
   private connections = new Map<string, ManagedConnection>();
+  private resourceUpdateHandlers: Array<(event: McpResourceUpdatedEvent) => void | Promise<void>> =
+    [];
   readonly notifications = new McpNotificationRouter();
 
   constructor(
@@ -79,6 +88,7 @@ export class McpConnectionManager {
       transport,
       status: 'connecting',
       staleKinds: new Set(),
+      subscribedResources: new Set(),
     };
     this.connections.set(server.name, entry);
 
@@ -103,6 +113,11 @@ export class McpConnectionManager {
     });
     client.setNotificationHandler(ResourceListChangedNotificationSchema, async () => {
       await this.notifications.invalidate({ serverName: server.name, kind: 'resources' });
+    });
+    client.setNotificationHandler(ResourceUpdatedNotificationSchema, async (notification) => {
+      const uri = notification.params?.uri;
+      if (typeof uri !== 'string') return;
+      await this.emitResourceUpdated({ serverName: server.name, uri });
     });
     client.setNotificationHandler(PromptListChangedNotificationSchema, async () => {
       await this.notifications.invalidate({ serverName: server.name, kind: 'prompts' });
@@ -161,7 +176,8 @@ export class McpConnectionManager {
     return entry.client
       .readResource({ uri }, { timeout: LIMITS.defaultToolTimeoutMs })
       .then((result) => {
-        return ReadResourceResultSchema.parse(result);
+        const parsed = ReadResourceResultSchema.parse(result);
+        return this.ensureResourceSubscription(entry, uri).then(() => parsed);
       });
   }
 
@@ -188,6 +204,15 @@ export class McpConnectionManager {
     return Array.from(this.connections.values()).map((entry) => this.view(entry));
   }
 
+  onResourceUpdated(handler: (event: McpResourceUpdatedEvent) => void | Promise<void>): () => void {
+    this.resourceUpdateHandlers.push(handler);
+    return () => {
+      this.resourceUpdateHandlers = this.resourceUpdateHandlers.filter(
+        (entry) => entry !== handler,
+      );
+    };
+  }
+
   private markStale(
     serverName: string,
     kind: 'tools' | 'resources' | 'resourceTemplates' | 'prompts',
@@ -207,9 +232,53 @@ export class McpConnectionManager {
     return entry;
   }
 
+  private async ensureResourceSubscription(entry: ManagedConnection, uri: string): Promise<void> {
+    if (!entry.server.capabilities.resources.subscribe) return;
+    if (!entry.client.getServerCapabilities()?.resources?.subscribe) return;
+    if (entry.subscribedResources.has(uri)) return;
+
+    try {
+      await entry.client.subscribeResource({ uri }, { timeout: LIMITS.defaultToolTimeoutMs });
+      entry.subscribedResources.add(uri);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      getLogger().warn(
+        `MCP server ${entry.server.name} resource subscription failed for ${uri}: ${message}`,
+      );
+    }
+  }
+
+  private async emitResourceUpdated(event: McpResourceUpdatedEvent): Promise<void> {
+    for (const handler of this.resourceUpdateHandlers) {
+      await handler(event);
+    }
+  }
+
+  private async unsubscribeResources(entry: ManagedConnection): Promise<void> {
+    if (entry.subscribedResources.size === 0) return;
+    if (!entry.server.capabilities.resources.subscribe) {
+      entry.subscribedResources.clear();
+      return;
+    }
+    if (!entry.client.getServerCapabilities()?.resources?.subscribe) {
+      entry.subscribedResources.clear();
+      return;
+    }
+
+    for (const uri of entry.subscribedResources) {
+      try {
+        await entry.client.unsubscribeResource({ uri }, { timeout: LIMITS.defaultToolTimeoutMs });
+      } catch {
+        // best-effort unsubscribe during shutdown
+      }
+    }
+    entry.subscribedResources.clear();
+  }
+
   private async stopEntry(entry: ManagedConnection): Promise<void> {
     entry.status = 'closed';
     try {
+      await this.unsubscribeResources(entry);
       const maybeHttpTransport = entry.transport as { terminateSession?: () => Promise<void> };
       if (typeof maybeHttpTransport.terminateSession === 'function') {
         await maybeHttpTransport.terminateSession().catch(() => undefined);

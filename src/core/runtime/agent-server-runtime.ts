@@ -1,6 +1,5 @@
 import type { AgentCard } from '@a2a-js/sdk';
 import type { TaskStore } from '@a2a-js/sdk/server';
-import { InMemoryTaskStore } from '@a2a-js/sdk/server';
 import type { UserBuilder as A2AUserBuilder } from '@a2a-js/sdk/server/express';
 import type { Express, RequestHandler } from 'express';
 
@@ -9,7 +8,10 @@ import type { TaskEventBus } from '../interaction/events/bus.js';
 import type { TaskEnvelope } from '../interaction/model/index.js';
 import { createInteractionFacade } from '../interaction/orchestration/facade.js';
 import { createA2AInteractionExecutor } from '../protocols/a2a/sdk/executor.js';
-import { createA2ASdkExpressApp } from '../protocols/a2a/sdk/server.js';
+import {
+  createA2ASdkExpressApp,
+  ProtocolAlignedInMemoryTaskStore,
+} from '../protocols/a2a/sdk/server.js';
 
 export type AgentServerRuntime = {
   eventBus: TaskEventBus;
@@ -34,7 +36,7 @@ export function createAgentServerRuntime(deps: {
   createA2AServerApp?: typeof createA2ASdkExpressApp;
 }) {
   const eventBus = deps.a2a.eventBus ?? createTaskEventBus();
-  const taskStore = deps.a2a.taskStore ?? new InMemoryTaskStore();
+  const taskStore = deps.a2a.taskStore ?? new ProtocolAlignedInMemoryTaskStore();
 
   const facade = createInteractionFacade({
     executeTask: deps.a2a.executeTask,

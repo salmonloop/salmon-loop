@@ -46,7 +46,7 @@ function buildServeLikeRuntime(port: number) {
       buildAgentCard: () =>
         buildA2AAgentCard({
           name: 'salmon-loop',
-          url: `http://127.0.0.1:${port}`,
+          url: `http://127.0.0.1:${port}/a2a/jsonrpc`,
           capabilities: skills,
           security: [],
         }),
@@ -79,6 +79,17 @@ describe('serve A2A runtime integration', () => {
       expect(response.ok).toBe(true);
       const payload = await response.json();
 
+      expect(payload.url).toBeUndefined();
+      expect(payload.protocolVersion).toBeUndefined();
+      expect(payload.preferredTransport).toBeUndefined();
+      expect(payload.additionalInterfaces).toBeUndefined();
+      expect(payload.supportedInterfaces).toEqual([
+        {
+          url: `http://127.0.0.1:${port}/a2a/jsonrpc`,
+          protocolBinding: 'JSONRPC',
+          protocolVersion: '1.0',
+        },
+      ]);
       expect(payload.skills).toEqual([
         {
           id: 'autopilot',

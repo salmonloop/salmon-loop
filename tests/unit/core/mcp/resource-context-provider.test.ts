@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'bun:test';
 
-import { ResourceContextProvider } from '../../../../src/core/mcp/bridge/resource-context-provider.js';
+import {
+  McpResourceContextProvider,
+  ResourceContextProvider,
+} from '../../../../src/core/mcp/bridge/resource-context-provider.js';
 import type {
   McpResourceConnection,
   McpResourceMetadata,
@@ -250,6 +253,98 @@ describe('ResourceContextProvider', () => {
     expect(third.meta.cacheMisses).toBe(1);
   });
 
+  it('caches every content block returned by a multi-part MCP resource read', async () => {
+    const reads: string[] = [];
+    const provider = new ResourceContextProvider({
+      catalog: catalog([
+        {
+          serverName: 'docs',
+          uri: 'mcp://docs/multipart',
+          includeIntent: 'autoInclude',
+          mimeType: 'text/plain',
+        },
+      ]),
+      connections: {
+        docs: connection(
+          {
+            'mcp://docs/multipart': {
+              contents: [
+                { uri: 'mcp://docs/multipart', text: 'first part', mimeType: 'text/plain' },
+                { uri: 'mcp://docs/multipart#2', text: 'second part', mimeType: 'text/plain' },
+              ],
+            },
+          },
+          reads,
+        ),
+      },
+      policy: { checkUri: () => true },
+    });
+
+    const first = await provider.provide();
+    const second = await provider.provide();
+
+    expect(first.blocks).toHaveLength(2);
+    expect(first.blocks[0]).toEqual(
+      expect.objectContaining({
+        type: 'resource_text',
+        uri: 'mcp://docs/multipart',
+        content: expect.objectContaining({ text: 'first part' }),
+      }),
+    );
+    expect(first.blocks[1]).toEqual(
+      expect.objectContaining({
+        type: 'resource_text',
+        uri: 'mcp://docs/multipart#2',
+        content: expect.objectContaining({ text: 'second part' }),
+      }),
+    );
+    expect(second.blocks).toEqual(first.blocks);
+    expect(reads).toEqual(['mcp://docs/multipart']);
+    expect(second.meta.cacheHits).toBe(1);
+  });
+
+  it('preserves per-content URIs returned by MCP resource reads', async () => {
+    const provider = new ResourceContextProvider({
+      catalog: catalog([
+        {
+          serverName: 'docs',
+          uri: 'mcp://docs/multipart',
+          includeIntent: 'autoInclude',
+          mimeType: 'text/plain',
+        },
+      ]),
+      connections: {
+        docs: connection(
+          {
+            'mcp://docs/multipart': {
+              contents: [
+                { uri: 'mcp://docs/multipart', text: 'first part', mimeType: 'text/plain' },
+                { uri: 'mcp://docs/multipart#2', text: 'second part', mimeType: 'text/plain' },
+              ],
+            },
+          },
+          [],
+        ),
+      },
+      policy: { checkUri: () => true },
+    });
+
+    const result = await provider.provide();
+
+    expect(result.blocks[0]).toEqual(
+      expect.objectContaining({
+        type: 'resource_text',
+        uri: 'mcp://docs/multipart',
+      }),
+    );
+    expect(result.blocks[1]).toEqual(
+      expect.objectContaining({
+        type: 'resource_text',
+        uri: 'mcp://docs/multipart#2',
+      }),
+    );
+  });
+
   it('truncates text by budget and emits links once budget is exhausted', async () => {
     const provider = new ResourceContextProvider({
       catalog: catalog([
@@ -301,5 +396,111 @@ describe('ResourceContextProvider', () => {
         uri: 'mcp://docs/b',
       }),
     );
+  });
+
+  it('invalidates cached reads when the manager reports a resource update', async () => {
+    const reads: string[] = [];
+    let onResourceUpdated:
+      | ((event: { serverName: string; uri: string }) => void | Promise<void>)
+      | undefined;
+    const provider = new McpResourceContextProvider(
+      {
+        listCatalogs: () => [
+          {
+            serverName: 'docs',
+            resources: [{ uri: 'mcp://docs/cached', mimeType: 'text/plain' }],
+          },
+        ],
+        readResource: async (_serverName: string, uri: string) => {
+          reads.push(uri);
+          return { contents: [{ uri, text: 'cached text', mimeType: 'text/plain' }] };
+        },
+        onResourceUpdated: (handler: (event: { serverName: string; uri: string }) => void) => {
+          onResourceUpdated = handler;
+          return () => {};
+        },
+      } as any,
+      {
+        decideResource: () => ({ allowed: true }),
+      } as any,
+    );
+
+    await provider.read({
+      server: 'docs',
+      uri: 'mcp://docs/cached',
+      intent: 'manual',
+      maxBytes: 1024,
+      ttlMs: 30_000,
+    });
+    await provider.read({
+      server: 'docs',
+      uri: 'mcp://docs/cached',
+      intent: 'manual',
+      maxBytes: 1024,
+      ttlMs: 30_000,
+    });
+    await onResourceUpdated?.({ serverName: 'docs', uri: 'mcp://docs/cached' });
+    await provider.read({
+      server: 'docs',
+      uri: 'mcp://docs/cached',
+      intent: 'manual',
+      maxBytes: 1024,
+      ttlMs: 30_000,
+    });
+
+    expect(reads).toEqual(['mcp://docs/cached', 'mcp://docs/cached']);
+  });
+
+  it('invalidates cached parent resource reads when the update targets a sub-resource', async () => {
+    const reads: string[] = [];
+    let onResourceUpdated:
+      | ((event: { serverName: string; uri: string }) => void | Promise<void>)
+      | undefined;
+    const provider = new McpResourceContextProvider(
+      {
+        listCatalogs: () => [
+          {
+            serverName: 'docs',
+            resources: [{ uri: 'mcp://docs/folder', mimeType: 'text/plain' }],
+          },
+        ],
+        readResource: async (_serverName: string, uri: string) => {
+          reads.push(uri);
+          return { contents: [{ uri, text: 'folder summary', mimeType: 'text/plain' }] };
+        },
+        onResourceUpdated: (handler: (event: { serverName: string; uri: string }) => void) => {
+          onResourceUpdated = handler;
+          return () => {};
+        },
+      } as any,
+      {
+        decideResource: () => ({ allowed: true }),
+      } as any,
+    );
+
+    await provider.read({
+      server: 'docs',
+      uri: 'mcp://docs/folder',
+      intent: 'manual',
+      maxBytes: 1024,
+      ttlMs: 30_000,
+    });
+    await provider.read({
+      server: 'docs',
+      uri: 'mcp://docs/folder',
+      intent: 'manual',
+      maxBytes: 1024,
+      ttlMs: 30_000,
+    });
+    await onResourceUpdated?.({ serverName: 'docs', uri: 'mcp://docs/folder/child.txt' });
+    await provider.read({
+      server: 'docs',
+      uri: 'mcp://docs/folder',
+      intent: 'manual',
+      maxBytes: 1024,
+      ttlMs: 30_000,
+    });
+
+    expect(reads).toEqual(['mcp://docs/folder', 'mcp://docs/folder']);
   });
 });

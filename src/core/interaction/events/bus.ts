@@ -12,12 +12,21 @@ export interface TaskEventBus {
   subscribe(listener: (event: TaskEvent) => void): () => void;
   publish(event: TaskEvent): void;
   list(taskId: string, options?: { afterId?: string | null; limit?: number }): TaskEvent[];
+  clearTask(taskId: string): void;
 }
+
+const MAX_EVENTS = 10_000;
 
 export function createTaskEventBus(): TaskEventBus {
   const listeners = new Set<(event: TaskEvent) => void>();
   const events: TaskEvent[] = [];
   let nextId = 1;
+
+  function evictIfNeeded() {
+    if (events.length > MAX_EVENTS) {
+      events.splice(0, events.length - MAX_EVENTS);
+    }
+  }
 
   return {
     subscribe(listener) {
@@ -44,6 +53,7 @@ export function createTaskEventBus(): TaskEventBus {
         id: resolvedId,
       };
       events.push(persistedEvent);
+      evictIfNeeded();
       for (const listener of listeners) {
         listener(persistedEvent);
       }
@@ -60,6 +70,13 @@ export function createTaskEventBus(): TaskEventBus {
         return filtered.slice(0, Math.max(0, limit));
       }
       return filtered;
+    },
+    clearTask(taskId) {
+      for (let i = events.length - 1; i >= 0; i--) {
+        if (events[i].taskId === taskId) {
+          events.splice(i, 1);
+        }
+      }
     },
   };
 }

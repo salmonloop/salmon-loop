@@ -14,6 +14,8 @@ const readResourceMock = mock(
     contents: [{ uri: 'file:///a', text: 'hello' }],
   }),
 );
+const subscribeResourceMock = mock(async (): Promise<any> => ({}));
+const unsubscribeResourceMock = mock(async (): Promise<any> => ({}));
 const getPromptMock = mock(
   async (): Promise<any> => ({
     messages: [{ role: 'user', content: { type: 'text', text: 'hi' } }],
@@ -46,6 +48,8 @@ class FakeClient {
   close = closeMock;
   callTool = callToolMock;
   readResource = readResourceMock;
+  subscribeResource = subscribeResourceMock;
+  unsubscribeResource = unsubscribeResourceMock;
   getPrompt = getPromptMock;
   listTools = listToolsMock;
   listResources = listResourcesMock;
@@ -179,6 +183,10 @@ describe('McpConnectionManager', () => {
     readResourceMock.mockImplementation(async () => ({
       contents: [{ uri: 'file:///a', text: 'hello' }],
     }));
+    subscribeResourceMock.mockReset();
+    subscribeResourceMock.mockImplementation(async () => ({}));
+    unsubscribeResourceMock.mockReset();
+    unsubscribeResourceMock.mockImplementation(async () => ({}));
     getPromptMock.mockReset();
     getPromptMock.mockImplementation(async () => ({
       messages: [{ role: 'user', content: { type: 'text', text: 'hi' } }],
@@ -261,6 +269,89 @@ describe('McpConnectionManager', () => {
 
     expect(manager.getCatalog('local')?.stale).toBe(true);
     await manager.refreshCatalog('local');
+    expect(manager.getCatalog('local')?.stale).toBe(false);
+  });
+
+  it('subscribes to resource updates on read when resource subscriptions are enabled', async () => {
+    const { McpConnectionManager } = await importManager();
+    const base = stdioServer();
+    getServerCapabilitiesMock.mockImplementation(() => ({
+      tools: { listChanged: true },
+      resources: { listChanged: true, subscribe: true },
+      prompts: { listChanged: true },
+    }));
+    const manager = new McpConnectionManager([
+      {
+        ...base,
+        capabilities: {
+          ...base.capabilities,
+          resources: {
+            ...base.capabilities.resources,
+            subscribe: true,
+          },
+        },
+      },
+    ]);
+
+    await manager.startAll();
+    await manager.readResource('local', 'file:///a');
+    await manager.readResource('local', 'file:///a');
+
+    expect(subscribeResourceMock).toHaveBeenCalledTimes(1);
+    expect(subscribeResourceMock).toHaveBeenCalledWith(
+      { uri: 'file:///a' },
+      expect.objectContaining({ timeout: expect.any(Number) }),
+    );
+  });
+
+  it('unsubscribes from resource updates on stop when resource subscriptions were registered', async () => {
+    const { McpConnectionManager } = await importManager();
+    const base = stdioServer();
+    getServerCapabilitiesMock.mockImplementation(() => ({
+      tools: { listChanged: true },
+      resources: { listChanged: true, subscribe: true },
+      prompts: { listChanged: true },
+    }));
+    const manager = new McpConnectionManager([
+      {
+        ...base,
+        capabilities: {
+          ...base.capabilities,
+          resources: {
+            ...base.capabilities.resources,
+            subscribe: true,
+          },
+        },
+      },
+    ]);
+
+    await manager.startAll();
+    await manager.readResource('local', 'file:///a');
+    await manager.stopAll();
+
+    expect(unsubscribeResourceMock).toHaveBeenCalledTimes(1);
+    expect(unsubscribeResourceMock).toHaveBeenCalledWith(
+      { uri: 'file:///a' },
+      expect.objectContaining({ timeout: expect.any(Number) }),
+    );
+  });
+
+  it('emits resource-updated events without marking the catalog stale', async () => {
+    const { McpConnectionManager } = await importManager();
+    const manager = new McpConnectionManager([stdioServer()]);
+    const updates: Array<{ serverName: string; uri: string }> = [];
+
+    manager.onResourceUpdated((event) => {
+      updates.push(event);
+    });
+
+    await manager.startAll();
+    await notificationHandlers.get('notifications/resources/updated')?.({
+      method: 'notifications/resources/updated',
+      params: { uri: 'file:///a' },
+    });
+
+    expect(updates).toEqual([{ serverName: 'local', uri: 'file:///a' }]);
     expect(manager.getCatalog('local')?.stale).toBe(false);
   });
 

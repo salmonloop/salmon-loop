@@ -1070,7 +1070,7 @@ export function createAcpFormalAgent(deps: {
 
     async loadSession(params) {
       if (!loadSessionCapability) {
-        throw new RequestError(-32601, '"Method not found": session/load');
+        throw new RequestError(-32601, 'Method not found: session/load');
       }
       await resolveExistingSession(params);
 

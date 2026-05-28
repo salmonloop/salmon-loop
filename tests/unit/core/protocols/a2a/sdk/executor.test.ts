@@ -1170,9 +1170,18 @@ describe('Unit Tests: Event Bus Publish Failure Handling', () => {
 
     const mockFacade = {
       createTask: async () => ({
-        task: createMockTaskEnvelope({ id: 'task-1', state: 'completed' }),
+        task: createMockTaskEnvelope({
+          id: 'task-1',
+          state: 'failed',
+          failure: { code: 'TASK_FAILED', message: 'failed' },
+        }),
       }),
-      getTask: async () => createMockTaskEnvelope({ id: 'task-1', state: 'completed' }),
+      getTask: async () =>
+        createMockTaskEnvelope({
+          id: 'task-1',
+          state: 'failed',
+          failure: { code: 'TASK_FAILED', message: 'failed' },
+        }),
       cancelTask: async () => null,
     };
 
@@ -1266,7 +1275,7 @@ describe('Unit Tests: Event Bus Publish Failure Handling', () => {
     expect(facadeGetTaskCalled).toBe(false); // Not called in this flow
   });
 
-  test('should publish submitted status before other statuses', async () => {
+  test('should publish an initial task snapshot before status updates', async () => {
     const taskEventBus = createTaskEventBus();
     const publishedEvents: any[] = [];
 
@@ -1293,10 +1302,60 @@ describe('Unit Tests: Event Bus Publish Failure Handling', () => {
 
     await executor.execute(requestContext as any, eventBus);
 
-    // First event should be submitted status
-    if (publishedEvents.length > 0) {
-      expect(publishedEvents[0].status.state).toBe('submitted');
-    }
+    taskEventBus.publish({ type: 'state-changed', taskId: 'task-1' });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    expect(publishedEvents[0]?.kind).toBe('task');
+    expect(publishedEvents[0]?.status.state).toBe('submitted');
+  });
+
+  test('should record non-submitted status timestamps at update time instead of task creation time', async () => {
+    const taskEventBus = createTaskEventBus();
+    const publishedEvents: any[] = [];
+    const createdAt = '2000-01-01T00:00:00.000Z';
+
+    const mockFacade = {
+      createTask: async () => ({
+        task: createMockTaskEnvelope({
+          id: 'task-1',
+          state: 'failed',
+          createdAt,
+          failure: { code: 'TASK_FAILED', message: 'failed' },
+        }),
+      }),
+      getTask: async () =>
+        createMockTaskEnvelope({
+          id: 'task-1',
+          state: 'failed',
+          createdAt,
+          failure: { code: 'TASK_FAILED', message: 'failed' },
+        }),
+      cancelTask: async () => null,
+    };
+
+    const executor = createA2AInteractionExecutor({
+      facade: mockFacade,
+      taskEventBus,
+    });
+
+    const eventBus = createMockExecutionEventBusWithPublishedEvents(publishedEvents);
+
+    const requestContext = {
+      taskId: 'task-1',
+      contextId: 'ctx-1',
+      userMessage: createMockMessage('test'),
+    };
+
+    await executor.execute(requestContext as any, eventBus);
+
+    taskEventBus.publish({ type: 'state-changed', taskId: 'task-1' });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    expect(publishedEvents[0]?.kind).toBe('task');
+    expect(publishedEvents[0]?.status.timestamp).toBe(createdAt);
+    expect(publishedEvents[1]?.kind).toBe('status-update');
+    expect(publishedEvents[1]?.status.state).toBe('failed');
+    expect(publishedEvents[1]?.status.timestamp).not.toBe(createdAt);
   });
 
   test('should not publish duplicate terminal status events', async () => {
@@ -1832,12 +1891,13 @@ describe('Unit Tests: Edge Cases and Error Scenarios', () => {
   test('should handle task with artifacts', async () => {
     const taskEventBus = createTaskEventBus();
     const taskStore = new InMemoryTaskStore();
+    const publishedEvents: any[] = [];
 
     const mockFacade = {
       createTask: async () => ({
         task: createMockTaskEnvelope({
           id: 'task-1',
-          state: 'completed',
+          state: 'failed',
           artifacts: [
             {
               id: 'artifact-1',
@@ -1851,7 +1911,7 @@ describe('Unit Tests: Edge Cases and Error Scenarios', () => {
       getTask: async () =>
         createMockTaskEnvelope({
           id: 'task-1',
-          state: 'completed',
+          state: 'failed',
           artifacts: [
             {
               id: 'artifact-1',
@@ -1870,7 +1930,7 @@ describe('Unit Tests: Edge Cases and Error Scenarios', () => {
       taskStore,
     });
 
-    const eventBus = createMockExecutionEventBus();
+    const eventBus = createMockExecutionEventBusWithPublishedEvents(publishedEvents);
     const requestContext = {
       taskId: 'task-1',
       contextId: 'ctx-1',
@@ -1878,9 +1938,19 @@ describe('Unit Tests: Edge Cases and Error Scenarios', () => {
     };
 
     await executor.execute(requestContext as any, eventBus);
+    taskEventBus.publish({ type: 'task.failed', taskId: 'task-1' });
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
 
-    // Executor should handle artifacts gracefully
-    // Task store is used internally when events are triggered
-    expect(taskStore).toBeDefined();
+    expect(publishedEvents[0]?.kind).toBe('task');
+    expect(publishedEvents[1]?.kind).toBe('artifact-update');
+    expect(publishedEvents[1]?.artifact).toEqual({
+      artifactId: 'artifact-1',
+      name: 'result.txt',
+      parts: [{ kind: 'text', text: 'Result content' }],
+    });
+    expect(publishedEvents[1]?.append).toBe(false);
+    expect(publishedEvents[1]?.lastChunk).toBe(true);
+    expect(publishedEvents[2]?.kind).toBe('status-update');
+    expect(publishedEvents[2]?.status.state).toBe('failed');
   });
 });

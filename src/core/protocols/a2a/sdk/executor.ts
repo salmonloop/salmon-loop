@@ -1,4 +1,12 @@
-import type { Artifact, Message, Task, TaskStatus, TaskStatusUpdateEvent } from '@a2a-js/sdk';
+import type {
+  Artifact,
+  Message,
+  Part,
+  Task,
+  TaskArtifactUpdateEvent,
+  TaskStatus,
+  TaskStatusUpdateEvent,
+} from '@a2a-js/sdk';
 import { type AgentExecutor, type ExecutionEventBus, type TaskStore } from '@a2a-js/sdk/server';
 import { InMemoryTaskStore } from '@a2a-js/sdk/server';
 
@@ -43,6 +51,7 @@ export function createA2AInteractionExecutor(
   const submittedPublished = new Set<string>();
   // Prevents duplicate terminal status events when publishTaskStatus is called multiple times
   const terminalPublished = new Set<string>();
+  const artifactSignaturesByTaskId = new Map<string, Map<string, string>>();
 
   return {
     async execute(requestContext, executionEventBus) {
@@ -128,25 +137,13 @@ export function createA2AInteractionExecutor(
     // ALWAYS publish "submitted" first if not yet published
     if (!submittedPublished.has(taskId)) {
       submittedPublished.add(taskId);
-      const submittedStatus: TaskStatus = {
-        state: 'submitted',
-        timestamp: envelope.createdAt ?? new Date().toISOString(),
-        message: undefined,
-      };
-      const submittedUpdate: TaskStatusUpdateEvent = {
-        kind: 'status-update',
-        taskId: envelope.id,
-        contextId: metadata.contextId,
-        status: submittedStatus,
-        final: false,
-        metadata: { attempt: envelope.attempt },
-      };
-      eventBus.publish(submittedUpdate);
-
-      // Save as 'running' state (not completed) to keep task cancelable during grace period.
-      // SDK rejects cancellation if task is already in terminal state in the store.
-      const submittedEnvelope = { ...envelope, state: 'running' as const };
-      const snapshot = buildTaskSnapshot(submittedEnvelope, metadata);
+      const submittedEnvelope = { ...envelope, state: 'accepted' as const };
+      const snapshot = buildTaskSnapshot(
+        submittedEnvelope,
+        metadata,
+        submittedEnvelope.createdAt ?? new Date().toISOString(),
+      );
+      eventBus.publish(snapshot);
       await store.save(snapshot);
 
       // If the current state is still "submitted", we're done
@@ -167,10 +164,11 @@ export function createA2AInteractionExecutor(
       if (cancelledTaskIds.has(taskId)) {
         terminalPublished.add(taskId);
         const canceledEnvelope = { ...envelope, state: 'cancelled' as const };
-        const snapshot = buildTaskSnapshot(canceledEnvelope, metadata);
+        const recordedAt = new Date().toISOString();
+        const snapshot = buildTaskSnapshot(canceledEnvelope, metadata, recordedAt);
         await store.save(snapshot);
         const status = {
-          ...buildTaskStatus(envelope, metadata.contextId),
+          ...buildTaskStatus(envelope, metadata.contextId, recordedAt),
           state: 'canceled' as const,
         };
         const update: TaskStatusUpdateEvent = {
@@ -196,13 +194,14 @@ export function createA2AInteractionExecutor(
 
       if (wasCancelled) {
         terminalPublished.add(taskId);
+        const recordedAt = new Date().toISOString();
         if (taskAfterGrace?.status.state !== 'canceled') {
           const canceledEnvelope = { ...envelope, state: 'cancelled' as const };
-          const snapshot = buildTaskSnapshot(canceledEnvelope, metadata);
+          const snapshot = buildTaskSnapshot(canceledEnvelope, metadata, recordedAt);
           await store.save(snapshot);
         }
         const status = {
-          ...buildTaskStatus(envelope, metadata.contextId),
+          ...buildTaskStatus(envelope, metadata.contextId, recordedAt),
           state: 'canceled' as const,
         };
         const update: TaskStatusUpdateEvent = {
@@ -219,9 +218,11 @@ export function createA2AInteractionExecutor(
 
       // No cancellation detected, safe to publish "completed"
       terminalPublished.add(taskId);
-      const snapshot = buildTaskSnapshot(envelope, metadata);
+      const recordedAt = new Date().toISOString();
+      const snapshot = buildTaskSnapshot(envelope, metadata, recordedAt);
       await store.save(snapshot);
-      const status = buildTaskStatus(envelope, metadata.contextId);
+      publishArtifactUpdates(envelope, metadata, eventBus);
+      const status = buildTaskStatus(envelope, metadata.contextId, recordedAt);
       const update: TaskStatusUpdateEvent = {
         kind: 'status-update',
         taskId: envelope.id,
@@ -235,9 +236,11 @@ export function createA2AInteractionExecutor(
     }
 
     // For all other states (working, failed, canceled, etc.), save and publish immediately
-    const snapshot = buildTaskSnapshot(envelope, metadata);
+    const recordedAt = new Date().toISOString();
+    const snapshot = buildTaskSnapshot(envelope, metadata, recordedAt);
     await store.save(snapshot);
-    const status = buildTaskStatus(envelope, metadata.contextId);
+    publishArtifactUpdates(envelope, metadata, eventBus);
+    const status = buildTaskStatus(envelope, metadata.contextId, recordedAt);
     const isFinal = isTerminalState(status.state);
     if (isFinal) {
       terminalPublished.add(taskId);
@@ -265,6 +268,7 @@ export function createA2AInteractionExecutor(
     cancelledTaskIds.delete(taskId);
     submittedPublished.delete(taskId);
     terminalPublished.delete(taskId);
+    artifactSignaturesByTaskId.delete(taskId);
   }
 
   function extractInstruction(message: Message): string {
@@ -304,10 +308,14 @@ export function createA2AInteractionExecutor(
     );
   }
 
-  function buildTaskStatus(envelope: TaskEnvelope, contextId: string): TaskStatus {
+  function buildTaskStatus(
+    envelope: TaskEnvelope,
+    contextId: string,
+    timestamp = envelope.createdAt ?? new Date().toISOString(),
+  ): TaskStatus {
     return {
       state: mapState(envelope.state),
-      timestamp: envelope.createdAt ?? new Date().toISOString(),
+      timestamp,
       message: buildStatusMessage(envelope, contextId),
     };
   }
@@ -330,7 +338,11 @@ export function createA2AInteractionExecutor(
     };
   }
 
-  function buildTaskSnapshot(envelope: TaskEnvelope, metadata: TaskMetadata): Task {
+  function buildTaskSnapshot(
+    envelope: TaskEnvelope,
+    metadata: TaskMetadata,
+    timestamp?: string,
+  ): Task {
     return {
       id: envelope.id,
       kind: 'task',
@@ -341,8 +353,46 @@ export function createA2AInteractionExecutor(
         attempt: envelope.attempt,
       },
       artifacts: convertArtifacts(envelope.artifacts),
-      status: buildTaskStatus(envelope, metadata.contextId),
+      status: buildTaskStatus(envelope, metadata.contextId, timestamp),
     };
+  }
+
+  function publishArtifactUpdates(
+    envelope: TaskEnvelope,
+    metadata: TaskMetadata,
+    eventBus: ExecutionEventBus,
+  ) {
+    if (!envelope.artifacts || envelope.artifacts.length === 0) {
+      return;
+    }
+
+    let knownSignatures = artifactSignaturesByTaskId.get(envelope.id);
+    if (!knownSignatures) {
+      knownSignatures = new Map<string, string>();
+      artifactSignaturesByTaskId.set(envelope.id, knownSignatures);
+    }
+
+    for (const artifact of envelope.artifacts) {
+      const signature = artifactSignature(artifact);
+      if (knownSignatures.get(artifact.id) === signature) {
+        continue;
+      }
+      knownSignatures.set(artifact.id, signature);
+      const update: TaskArtifactUpdateEvent = {
+        kind: 'artifact-update',
+        taskId: envelope.id,
+        contextId: metadata.contextId,
+        artifact: {
+          artifactId: artifact.id,
+          name: artifact.name,
+          parts: [artifactToPart(artifact)],
+        },
+        append: false,
+        lastChunk: true,
+        metadata: { attempt: envelope.attempt },
+      };
+      eventBus.publish(update);
+    }
   }
 
   function convertArtifacts(artifacts?: TaskArtifact[]): Artifact[] | undefined {
@@ -350,12 +400,58 @@ export function createA2AInteractionExecutor(
     return artifacts.map((artifact) => ({
       artifactId: artifact.id,
       name: artifact.name,
-      parts: [
-        {
-          kind: 'text',
-          text: artifact.content ?? artifact.name ?? '',
-        },
-      ],
+      parts: [artifactToPart(artifact)],
     }));
+  }
+
+  function artifactToPart(artifact: TaskArtifact): Part {
+    if (artifact.url) {
+      return {
+        kind: 'file',
+        file: {
+          name: artifact.name,
+          mimeType: artifact.mimeType,
+          uri: artifact.url,
+        },
+      };
+    }
+    if (artifact.handle) {
+      return {
+        kind: 'file',
+        file: {
+          name: artifact.name,
+          mimeType: artifact.mimeType,
+          bytes: artifact.handle,
+        },
+      };
+    }
+    if (artifact.kind === 'data' && artifact.content) {
+      try {
+        return {
+          kind: 'data',
+          data: JSON.parse(artifact.content),
+        };
+      } catch {
+        // Fall through to text
+      }
+    }
+    return {
+      kind: 'text',
+      text: artifact.content ?? artifact.name ?? '',
+    };
+  }
+
+  function artifactSignature(artifact: TaskArtifact): string {
+    return JSON.stringify({
+      id: artifact.id,
+      name: artifact.name,
+      kind: artifact.kind,
+      mimeType: artifact.mimeType,
+      content: artifact.content,
+      delivery: artifact.delivery,
+      handle: artifact.handle,
+      url: artifact.url,
+      expiresAt: artifact.expiresAt,
+    });
   }
 }

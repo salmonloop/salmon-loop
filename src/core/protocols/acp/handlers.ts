@@ -4,6 +4,8 @@ import type { McpServer } from '@agentclientprotocol/sdk';
 
 import type { TaskEvent } from '../../interaction/events/bus.js';
 
+import type { AcpPermissionPolicy } from './acp-types.js';
+
 export type AcpSessionHistoryEntry = {
   role: 'user' | 'assistant';
   content: Array<Record<string, unknown>>;
@@ -17,7 +19,7 @@ export type AcpSessionRecord = {
   updatedAt: string;
   title?: string;
   taskId?: string;
-  permissionPolicy?: 'ask' | 'deny_all' | 'allow_all';
+  permissionPolicy?: AcpPermissionPolicy;
   modeId?: string;
   history: AcpSessionHistoryEntry[];
   materialized: boolean;

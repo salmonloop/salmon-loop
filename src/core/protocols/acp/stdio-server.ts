@@ -50,9 +50,13 @@ function createNdjsonWriter(output: WritableStream<Uint8Array>): NdjsonWriter {
   const encoder = new TextEncoder();
 
   let tail: Promise<unknown> = Promise.resolve();
+  let lastError: Error | undefined;
 
   return {
     async write(message) {
+      if (lastError) {
+        throw lastError;
+      }
       const content = JSON.stringify(message) + '\n';
       const data = encoder.encode(content);
 
@@ -62,6 +66,7 @@ function createNdjsonWriter(output: WritableStream<Uint8Array>): NdjsonWriter {
         .catch((error) => {
           const detail = error instanceof Error ? error.message : String(error);
           safeWarn(`ACP stdio failed to write NDJSON line. reason="${detail}"`);
+          lastError = error instanceof Error ? new Error(detail) : new Error(detail);
         });
 
       await tail;

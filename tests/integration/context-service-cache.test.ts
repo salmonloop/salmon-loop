@@ -70,7 +70,7 @@ describe('ContextService cache (integration)', () => {
     };
 
     await service.build(req);
-    await writeFile(join(repoPath, '.git', 'index'), 'index-v2');
+    await writeFile(join(repoPath, '.git', 'index'), 'index-v2-updated');
     await service.build(req);
 
     expect(gatherCount).toBe(2);

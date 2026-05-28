@@ -1,3 +1,5 @@
+import type { AgentSkill } from '@a2a-js/sdk';
+
 import { FLOW_MODE_PUBLIC_METADATA } from './flow-mode-metadata.js';
 import { buildPublicCapabilityRegistry } from './registry.js';
 import type {
@@ -20,6 +22,7 @@ export interface A2APublicSkill {
   examples?: string[];
   inputModes?: string[];
   outputModes?: string[];
+  security?: AgentSkill['security'];
 }
 
 export function selectPublicCapabilitiesForSurface(
@@ -56,5 +59,6 @@ export function toA2APublicSkills(
     examples: entry.examples,
     inputModes: entry.inputModes,
     outputModes: entry.outputModes,
+    security: entry.security,
   }));
 }

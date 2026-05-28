@@ -42,6 +42,12 @@ export class ResourceCache<T = unknown> {
   clear(): void {
     this.entries.clear();
   }
+
+  deleteMatching(predicate: (key: string) => boolean): void {
+    for (const key of this.entries.keys()) {
+      if (predicate(key)) this.entries.delete(key);
+    }
+  }
 }
 
 export class McpResourceCache<T = unknown> extends ResourceCache<T> {}

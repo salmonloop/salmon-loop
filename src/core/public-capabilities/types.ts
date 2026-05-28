@@ -1,3 +1,5 @@
+import type { AgentSkill } from '@a2a-js/sdk';
+
 import type { FlowMode } from '../types/runtime.js';
 
 export type PublicCapabilityKind = 'flow_mode' | 'workflow' | 'local_skill';
@@ -16,6 +18,7 @@ interface PublicCapabilityBase {
   examples?: string[];
   inputModes?: string[];
   outputModes?: string[];
+  security?: AgentSkill['security'];
 }
 
 export interface FlowModePublicCapability extends PublicCapabilityBase {

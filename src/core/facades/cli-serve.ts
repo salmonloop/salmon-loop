@@ -20,7 +20,6 @@ export {
   type PromptRegistry,
 } from '../prompts/registry.js';
 export { buildA2AAgentCard } from '../protocols/a2a/agent-card.js';
-export { buildA2AFlowSkills } from '../protocols/shared/flow-mode-mapping.js';
 export { createAcpFormalAgent } from '../protocols/acp/formal-agent.js';
 export { startAcpStdioServer } from '../protocols/acp/stdio-server.js';
 export { createAgentServerRuntime } from '../runtime/agent-server-runtime.js';

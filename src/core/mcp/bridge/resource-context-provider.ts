@@ -85,7 +85,7 @@ export interface ResourceContextResult {
 }
 
 export class ResourceContextProvider {
-  private readonly cache: ResourceCache<ResourceContextBlock>;
+  private readonly cache: ResourceCache<ResourceContextBlock[]>;
   private readonly options: Required<ResourceContextProviderOptions>;
 
   constructor(
@@ -95,11 +95,11 @@ export class ResourceContextProvider {
       policy: {
         checkUri(input: ResourcePolicyCheckInput): boolean | { allowed: boolean; reason?: string };
       };
-      cache?: ResourceCache<ResourceContextBlock>;
+      cache?: ResourceCache<ResourceContextBlock[]>;
       options?: ResourceContextProviderOptions;
     },
   ) {
-    this.cache = deps.cache ?? new ResourceCache<ResourceContextBlock>();
+    this.cache = deps.cache ?? new ResourceCache<ResourceContextBlock[]>();
     this.options = {
       budgetChars: deps.options?.budgetChars ?? 24_000,
       maxResourceChars: deps.options?.maxResourceChars ?? 8_000,
@@ -139,7 +139,7 @@ export class ResourceContextProvider {
         continue;
       }
 
-      const remaining = this.options.budgetChars - result.meta.usedChars;
+      let remaining = this.options.budgetChars - result.meta.usedChars;
       if (remaining <= 0) {
         result.meta.truncated = true;
         result.blocks.push(this.linkBlock(resource, 'budget_exhausted'));
@@ -153,10 +153,12 @@ export class ResourceContextProvider {
       const cached = this.cache.get(cacheKey);
       if (cached) {
         result.meta.cacheHits += 1;
-        result.blocks.push(cached);
-        if (cached.type === 'resource_text') {
-          result.meta.usedChars += cached.includedChars;
-          result.meta.truncated = result.meta.truncated || cached.truncated;
+        result.blocks.push(...cached);
+        for (const block of cached) {
+          if (block.type === 'resource_text') {
+            result.meta.usedChars += block.includedChars;
+            result.meta.truncated = result.meta.truncated || block.truncated;
+          }
         }
         continue;
       }
@@ -166,12 +168,21 @@ export class ResourceContextProvider {
         const connection = this.deps.connections[resource.serverName];
         if (!connection) throw new Error(`MCP connection not found: ${resource.serverName}`);
         const read = await connection.readResource({ uri: resource.uri });
-        const block = this.blockFromRead(resource, read.contents[0], remaining);
-        this.cache.set(cacheKey, block);
-        result.blocks.push(block);
-        if (block.type === 'resource_text') {
-          result.meta.usedChars += block.includedChars;
-          result.meta.truncated = result.meta.truncated || block.truncated;
+        const contents = read.contents ?? [];
+        const resourceBlocks: ResourceContextBlock[] = [];
+        for (const content of contents) {
+          if (remaining <= 0) break;
+          const block = this.blockFromRead(resource, content, remaining);
+          resourceBlocks.push(block);
+          result.blocks.push(block);
+          if (block.type === 'resource_text') {
+            result.meta.usedChars += block.includedChars;
+            result.meta.truncated = result.meta.truncated || block.truncated;
+            remaining -= block.includedChars;
+          }
+        }
+        if (resourceBlocks.length > 0) {
+          this.cache.set(cacheKey, resourceBlocks);
         }
       } catch (error) {
         const diagnostic = this.diagnostic(
@@ -186,6 +197,19 @@ export class ResourceContextProvider {
     }
 
     return result;
+  }
+
+  invalidate(serverName: string, uri: string): void {
+    this.cache.deleteMatching((key) => {
+      const serverPrefix = `${serverName}:`;
+      if (!key.startsWith(serverPrefix)) return false;
+
+      const separatorIndex = key.lastIndexOf(':');
+      if (separatorIndex <= serverPrefix.length) return false;
+
+      const cachedUri = key.slice(serverPrefix.length, separatorIndex);
+      return cachedUri === uri || uri.startsWith(cachedUri);
+    });
   }
 
   private selectResources(
@@ -223,10 +247,11 @@ export class ResourceContextProvider {
     remainingBudget: number,
   ): ResourceContextBlock {
     if (!content) return this.linkBlock(resource, 'non_text');
+    const contentUri = this.contentUri(resource, content);
     const mimeType = typeof content.mimeType === 'string' ? content.mimeType : resource.mimeType;
-    if (typeof content.blob === 'string') return this.linkBlock(resource, 'blob');
-    if (typeof content.text !== 'string') return this.linkBlock(resource, 'non_text');
-    if (!isTextMime(mimeType)) return this.linkBlock(resource, 'non_text');
+    if (typeof content.blob === 'string') return this.linkBlock(resource, 'blob', contentUri);
+    if (typeof content.text !== 'string') return this.linkBlock(resource, 'non_text', contentUri);
+    if (!isTextMime(mimeType)) return this.linkBlock(resource, 'non_text', contentUri);
 
     const raw = normalizeText(content.text, mimeType);
     const limit = Math.max(0, Math.min(this.options.maxResourceChars, remainingBudget));
@@ -235,7 +260,7 @@ export class ResourceContextProvider {
     return {
       type: 'resource_text',
       serverName: resource.serverName,
-      uri: resource.uri,
+      uri: contentUri,
       name: resource.name,
       mimeType,
       content: { text, format: isJsonMime(mimeType) ? 'json' : 'text' },
@@ -247,11 +272,12 @@ export class ResourceContextProvider {
   private linkBlock(
     resource: McpResourceMetadata,
     reason: 'blob' | 'non_text' | 'budget_exhausted',
+    uri = resource.uri,
   ): ResourceContextBlock {
     return {
       type: 'resource_link',
       serverName: resource.serverName,
-      uri: resource.uri,
+      uri,
       name: resource.name,
       reason,
       metadata: {
@@ -261,6 +287,10 @@ export class ResourceContextProvider {
         size: resource.size,
       },
     };
+  }
+
+  private contentUri(resource: McpResourceMetadata, content: Record<string, unknown>): string {
+    return typeof content.uri === 'string' ? content.uri : resource.uri;
   }
 
   private diagnostic(
@@ -311,6 +341,9 @@ export class McpResourceContextProvider {
           return { allowed: decision.allowed, reason: decision.denyReason ?? decision.reason };
         },
       },
+    });
+    manager.onResourceUpdated((event) => {
+      this.provider.invalidate(event.serverName, event.uri);
     });
   }
 

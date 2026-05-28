@@ -342,6 +342,55 @@ describe('ContextService', () => {
     expect(assembleCount).toBe(2);
   });
 
+  it('invalidates no-primary cache when git index ctime changes without mtime or size changes', async () => {
+    let assembleCount = 0;
+    let gitIndexCtime = 1;
+    const statMock = mock();
+    statMock.mockImplementation(async (filePath: string) => {
+      const statsByPath: Record<string, { mtimeMs: number; ctimeMs: number; size: number }> = {
+        [defaultPathAdapter.resolve('/repo', '.git/HEAD')]: { mtimeMs: 1, ctimeMs: 1, size: 32 },
+        [defaultPathAdapter.resolve('/repo', '.git/index')]: {
+          mtimeMs: 1,
+          ctimeMs: gitIndexCtime,
+          size: 64,
+        },
+      };
+      return statsByPath[filePath] ?? ({ mtimeMs: 0, ctimeMs: 0, size: 0 } as any);
+    });
+
+    const service = new ContextService({
+      primaryTextGatherer: { gather: async () => ({ primaryText: undefined }) } as any,
+      ripgrepGatherer: { searchMultipleKeywords: async () => [] } as any,
+      gitDiffGatherer: { gather: async () => ({ includedFiles: [] }) } as any,
+      astGatherer: {
+        gather: async () => ({ symbols: [], definitionMap: {}, relatedFiles: [] }),
+      } as any,
+      assembler: {
+        assemble: () => {
+          assembleCount += 1;
+          return { prompt: `PROMPT-${assembleCount}` };
+        },
+      },
+    });
+
+    (service as any).fileAdapter = {
+      stat: statMock,
+    };
+
+    const req: ContextRequest = {
+      instruction: 'answer only',
+      repoPath: '/repo',
+      primaryFile: undefined,
+    };
+
+    const first = await service.build(req);
+    expect(first.prompt).toBe('PROMPT-1');
+    gitIndexCtime = 10;
+    const second = await service.build(req);
+    expect(second.prompt).toBe('PROMPT-2');
+    expect(assembleCount).toBe(2);
+  });
+
   it('invalidates cache when persisted target signature is inconsistent', async () => {
     let assembleCount = 0;
     const service = new ContextService({

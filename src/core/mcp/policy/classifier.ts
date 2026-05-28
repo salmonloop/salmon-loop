@@ -4,6 +4,7 @@ import type { McpToolDescriptor, McpTrustLevel } from '../types.js';
 export type McpRiskFacet = 'read' | 'write' | 'network' | 'process';
 
 export interface McpToolAnnotations {
+  title?: string;
   readOnlyHint?: boolean;
   destructiveHint?: boolean;
   idempotentHint?: boolean;
