@@ -1,6 +1,6 @@
 import { recordAuditEvent } from '../../observability/audit-trail.js';
 
-import { hashRepoPath } from './acp-session-persistence.js';
+import { hashRepoPath } from './acp-types.js';
 
 // ---------------------------------------------------------------------------
 // Types (merged from checkpoint-meta.ts)

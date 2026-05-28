@@ -173,6 +173,8 @@ export const en = {
     permissionPolicyAllowAllDescription: 'Automatically allow side-effecting operations.',
     modeInteractiveDescription: 'Request permission before running side-effecting operations.',
     modeYoloDescription: 'Bypass permission prompts for side-effecting operations.',
+    executionFlowName: 'Execution Flow',
+    executionFlowDescription: 'Choose how the agent should execute this session.',
   },
 
   prompts: {

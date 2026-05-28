@@ -3146,4 +3146,238 @@ describe('ACP formal protocol (SDK)', () => {
       }),
     ).rejects.toMatchObject({ code: -32602 });
   });
+
+  describe('userMessageId echo', () => {
+    function createUserMessageIdPair() {
+      return createConnectedPair({
+        toAgent: (conn) =>
+          createAcpFormalAgent({
+            conn,
+            agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+            facade: {
+              createTask: async (input: any) => ({
+                task: {
+                  id: 'task_umid',
+                  capability: 'patch',
+                  state: 'accepted',
+                  request: { instruction: input.request.instruction },
+                  createdAt: new Date().toISOString(),
+                  attempt: 1,
+                },
+                signal: new AbortController().signal,
+              }),
+              getTask: async () => null,
+              cancelTask: async () => null,
+              resumeTask: async () => null,
+              retryTask: async () => null,
+              reopenTask: async () => null,
+              listTasks: async () => ({ items: [] }),
+              submitInput: async () => null,
+              getArtifact: async () => null,
+            },
+          }),
+        toClient: () => ({
+          requestPermission: async () => ({ outcome: { outcome: 'cancelled' } }),
+          sessionUpdate: async () => {},
+        }),
+      });
+    }
+
+    it('echoes userMessageId in prompt response when messageId is provided', async () => {
+      const { clientConn } = createUserMessageIdPair();
+      await clientConn.initialize({
+        protocolVersion: 1,
+        clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
+      });
+      const { sessionId } = await clientConn.newSession({ cwd: '/repo', mcpServers: [] });
+
+      const response = await clientConn.prompt({
+        sessionId,
+        prompt: [{ type: 'text', text: 'hello' }],
+        messageId: 'msg_123',
+      });
+
+      expect(response.userMessageId).toBe('msg_123');
+      expect(response.stopReason).toBe('end_turn');
+    });
+
+    it('omits userMessageId when messageId is not provided', async () => {
+      const { clientConn } = createUserMessageIdPair();
+      await clientConn.initialize({
+        protocolVersion: 1,
+        clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
+      });
+      const { sessionId } = await clientConn.newSession({ cwd: '/repo', mcpServers: [] });
+
+      const response = await clientConn.prompt({
+        sessionId,
+        prompt: [{ type: 'text', text: 'hello' }],
+      });
+
+      expect(response.userMessageId).toBeUndefined();
+    });
+
+    it('echoes userMessageId on cancellation', async () => {
+      const listeners = new Set<(event: any) => void>();
+      const eventBus = {
+        subscribe: (listener: (event: any) => void) => {
+          listeners.add(listener);
+          return () => listeners.delete(listener);
+        },
+        list: () => [],
+      };
+
+      const { clientConn } = createConnectedPair({
+        toAgent: (conn) =>
+          createAcpFormalAgent({
+            conn,
+            agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+            eventBus: eventBus as any,
+            facade: {
+              createTask: async (input: any) => ({
+                task: {
+                  id: 'task_cancel_umid',
+                  capability: 'patch',
+                  state: 'accepted',
+                  request: { instruction: input.request.instruction },
+                  createdAt: new Date().toISOString(),
+                  attempt: 1,
+                },
+                signal: new AbortController().signal,
+              }),
+              getTask: async () => null,
+              cancelTask: async () => {
+                const event = {
+                  taskId: 'task_cancel_umid',
+                  type: 'task.cancelled',
+                  timestamp: Date.now(),
+                };
+                for (const listener of listeners) listener(event);
+                return null;
+              },
+              resumeTask: async () => null,
+              retryTask: async () => null,
+              reopenTask: async () => null,
+              listTasks: async () => ({ items: [] }),
+              submitInput: async () => null,
+              getArtifact: async () => null,
+            },
+          }),
+        toClient: () => ({
+          requestPermission: async () => ({ outcome: { outcome: 'cancelled' } }),
+          sessionUpdate: async () => {},
+        }),
+      });
+
+      await clientConn.initialize({
+        protocolVersion: 1,
+        clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
+      });
+      const { sessionId } = await clientConn.newSession({ cwd: '/repo', mcpServers: [] });
+
+      const promptPromise = clientConn.prompt({
+        sessionId,
+        prompt: [{ type: 'text', text: 'long running task' }],
+        messageId: 'msg_456',
+      });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await clientConn.cancel({ sessionId });
+
+      const result = await promptPromise;
+      expect(result.userMessageId).toBe('msg_456');
+      expect(result.stopReason).toBe('cancelled');
+    });
+  });
+
+  describe('boolean config value rejection', () => {
+    it('rejects boolean value for _salmonloop_permission_policy with descriptive error', async () => {
+      const { clientConn } = createConnectedPair({
+        toAgent: (conn) =>
+          createAcpFormalAgent({
+            conn,
+            agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+            facade: {
+              createTask: async () => {
+                throw new Error('not used');
+              },
+              getTask: async () => null,
+              cancelTask: async () => null,
+              resumeTask: async () => null,
+              retryTask: async () => null,
+              reopenTask: async () => null,
+              listTasks: async () => ({ items: [] }),
+              submitInput: async () => null,
+              getArtifact: async () => null,
+            },
+          }),
+        toClient: () => ({
+          requestPermission: async () => ({ outcome: { outcome: 'cancelled' } }),
+          sessionUpdate: async () => {},
+        }),
+      });
+
+      await clientConn.initialize({
+        protocolVersion: 1,
+        clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
+      });
+      const { sessionId } = await clientConn.newSession({ cwd: '/repo', mcpServers: [] });
+
+      await expect(
+        clientConn.setSessionConfigOption({
+          sessionId,
+          configId: '_salmonloop_permission_policy',
+          value: true,
+          type: 'boolean',
+        }),
+      ).rejects.toMatchObject({
+        code: -32602,
+        message: expect.stringContaining('does not support boolean'),
+      });
+    });
+
+    it('rejects boolean value for _salmonloop_mode with descriptive error', async () => {
+      const { clientConn } = createConnectedPair({
+        toAgent: (conn) =>
+          createAcpFormalAgent({
+            conn,
+            agentInfo: { name: 'salmon-loop', version: '0.2.0' },
+            facade: {
+              createTask: async () => {
+                throw new Error('not used');
+              },
+              getTask: async () => null,
+              cancelTask: async () => null,
+              resumeTask: async () => null,
+              retryTask: async () => null,
+              reopenTask: async () => null,
+              listTasks: async () => ({ items: [] }),
+              submitInput: async () => null,
+              getArtifact: async () => null,
+            },
+          }),
+        toClient: () => ({
+          requestPermission: async () => ({ outcome: { outcome: 'cancelled' } }),
+          sessionUpdate: async () => {},
+        }),
+      });
+
+      await clientConn.initialize({
+        protocolVersion: 1,
+        clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
+      });
+      const { sessionId } = await clientConn.newSession({ cwd: '/repo', mcpServers: [] });
+
+      await expect(
+        clientConn.setSessionConfigOption({
+          sessionId,
+          configId: '_salmonloop_mode',
+          value: false,
+          type: 'boolean',
+        }),
+      ).rejects.toMatchObject({
+        code: -32602,
+        message: expect.stringContaining('does not support boolean'),
+      });
+    });
+  });
 });

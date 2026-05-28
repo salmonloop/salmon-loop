@@ -1,5 +1,3 @@
-import { createHash } from 'crypto';
-
 import type { McpServer } from '@agentclientprotocol/sdk';
 
 import {
@@ -14,6 +12,12 @@ import {
 import { defaultPathAdapter } from '../../adapters/path/path-adapter.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
 
+import {
+  hashRepoPath,
+  isPermissionPolicyValue,
+  parseTimestamp,
+  type AcpPermissionPolicy,
+} from './acp-types.js';
 import type { AcpSessionRecord } from './handlers.js';
 
 // ---------------------------------------------------------------------------
@@ -60,8 +64,6 @@ type PersistedAcpSessionStore = PersistedAcpSessionStoreV1 | PersistedAcpSession
 // Types shared with caller
 // ---------------------------------------------------------------------------
 
-type AcpPermissionPolicy = 'ask' | 'deny_all' | 'allow_all';
-
 type SessionStorePolicy = {
   maxEntries: number;
   maxAgeMs: number;
@@ -75,11 +77,7 @@ type SessionStorePolicy = {
 // Public interface
 // ---------------------------------------------------------------------------
 
-export type { AcpPermissionPolicy, SessionStorePolicy };
-
-export function hashRepoPath(repoPath: string): string {
-  return createHash('sha256').update(repoPath).digest('hex').slice(0, 16);
-}
+export type { SessionStorePolicy };
 
 export interface AcpSessionPersistence {
   hydrate(): Promise<void>;
@@ -113,12 +111,6 @@ export function createAcpSessionPersistence(options: {
   // -------------------------------------------------------------------------
   // Helpers
   // -------------------------------------------------------------------------
-
-  function parseTimestamp(value: unknown): number {
-    if (typeof value !== 'string' || value.length === 0) return 0;
-    const parsed = Date.parse(value);
-    return Number.isFinite(parsed) ? parsed : 0;
-  }
 
   function isPidAlive(pid: number): boolean {
     if (!Number.isInteger(pid) || pid <= 0) return false;
@@ -179,10 +171,6 @@ export function createAcpSessionPersistence(options: {
     return normalizeDeletedSessionRecords(records)
       .filter((record) => parseTimestamp(record.deletedAt) >= cutoff)
       .sort((a, b) => parseTimestamp(b.deletedAt) - parseTimestamp(a.deletedAt));
-  }
-
-  function isPermissionPolicyValue(value: string): value is AcpPermissionPolicy {
-    return value === 'ask' || value === 'deny_all' || value === 'allow_all';
   }
 
   function normalizePersistedSessionStore(input: unknown): PersistedAcpSessionStoreV2 {
@@ -320,7 +308,7 @@ export function createAcpSessionPersistence(options: {
     const primaryRepoPath = prunedRecords[0]?.cwd;
     const lockAuditDetails = {
       lockPath,
-      lockPathHash: createHash('sha256').update(lockPath).digest('hex').slice(0, 16),
+      lockPathHash: hashRepoPath(lockPath),
       repoPathHash: primaryRepoPath ? hashRepoPath(primaryRepoPath) : undefined,
     };
 

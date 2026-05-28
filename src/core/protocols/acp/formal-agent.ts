@@ -39,7 +39,16 @@ import {
 } from './acp-checkpoint-probe.js';
 import { createAcpCommandRunner } from './acp-command-runner.js';
 import { createAcpFileSystem } from './acp-filesystem.js';
-import { createAcpSessionPersistence, hashRepoPath } from './acp-session-persistence.js';
+import { createAcpSessionPersistence } from './acp-session-persistence.js';
+import {
+  ACP_PERMISSION_POLICY_ASK,
+  ACP_PERMISSION_POLICY_ALLOW_ALL,
+  ACP_PERMISSION_POLICY_DENY_ALL,
+  hashRepoPath,
+  isPermissionPolicyValue,
+  parseTimestamp,
+  type AcpPermissionPolicy,
+} from './acp-types.js';
 import { createAcpSessionStore, isTerminalTaskEvent, type AcpSessionRecord } from './handlers.js';
 import { createAcpToolAuthorizationProvider } from './permission-provider.js';
 import { mapToolKind } from './tool-kind-mapping.js';
@@ -96,7 +105,6 @@ function formatInputRequiredMessage(inputRequired: TaskEnvelope['inputRequired']
   return lines.join('\n');
 }
 
-type AcpPermissionPolicy = 'ask' | 'deny_all' | 'allow_all';
 type AcpSessionModeId = FlowMode;
 
 type AcpPlanEntry = {
@@ -139,9 +147,6 @@ type AcpSessionLifecycleRequest = {
 
 const ACP_PERMISSION_POLICY_CONFIG_ID = '_salmonloop_permission_policy';
 const ACP_MODE_CONFIG_ID = '_salmonloop_mode';
-const ACP_PERMISSION_POLICY_ASK: AcpPermissionPolicy = 'ask';
-const ACP_PERMISSION_POLICY_DENY_ALL: AcpPermissionPolicy = 'deny_all';
-const ACP_PERMISSION_POLICY_ALLOW_ALL: AcpPermissionPolicy = 'allow_all';
 const ACP_DEFAULT_MODE_ID: AcpSessionModeId = 'autopilot';
 const ACP_SESSION_STORE_MAX_ENTRIES = 200;
 const ACP_SESSION_STORE_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 30;
@@ -374,14 +379,6 @@ function loopEventToSessionUpdate(event: LoopEvent): SessionUpdate | null {
   }
 }
 
-function isPermissionPolicyValue(value: string): value is AcpPermissionPolicy {
-  return (
-    value === ACP_PERMISSION_POLICY_ASK ||
-    value === ACP_PERMISSION_POLICY_DENY_ALL ||
-    value === ACP_PERMISSION_POLICY_ALLOW_ALL
-  );
-}
-
 function buildConfigOptions(state: AcpSessionRuntimeState): SessionConfigOption[] {
   return [
     {
@@ -411,8 +408,8 @@ function buildConfigOptions(state: AcpSessionRuntimeState): SessionConfigOption[
     {
       type: 'select',
       id: ACP_MODE_CONFIG_ID,
-      name: 'Execution Flow',
-      description: 'Choose how the agent should execute this session.',
+      name: text.acp.executionFlowName,
+      description: text.acp.executionFlowDescription,
       currentValue: state.modeId,
       options: ACP_PUBLIC_MODES.map((mode) => ({
         value: mode.id,
@@ -761,12 +758,6 @@ function isKnownSlashCommand(commandName: string): boolean {
 
 function isPersistableSession(session: AcpSessionRecord): boolean {
   return session.materialized || session.history.length > 0 || typeof session.taskId === 'string';
-}
-
-function parseTimestamp(value: unknown): number {
-  if (typeof value !== 'string' || value.length === 0) return 0;
-  const parsed = Date.parse(value);
-  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 async function awaitTerminalEvent(params: {
@@ -1235,10 +1226,23 @@ export function createAcpFormalAgent(deps: {
       if (commandsUpdate) await emitSessionUpdate(session.id, commandsUpdate);
       const modeUpdate = buildCurrentModeUpdateIfChanged(runtimeState);
       if (modeUpdate) await emitSessionUpdate(session.id, modeUpdate);
-      return {
+      const response: {
+        configOptions: SessionConfigOption[];
+        modes: SessionModeState;
+        _meta?: Record<string, unknown>;
+      } = {
         configOptions: buildConfigOptions(runtimeState),
         modes: buildModesState(runtimeState.modeId),
       };
+      if (deps.checkpointReader) {
+        const result = await probeCheckpoint(deps.checkpointReader, {
+          repoPath: session.cwd,
+          sessionId: params.sessionId,
+          repoPathHash: hashRepoPath(session.cwd),
+        });
+        response._meta = result._meta;
+      }
+      return response;
     },
 
     async closeSession(params) {
@@ -1264,7 +1268,7 @@ export function createAcpFormalAgent(deps: {
         if (typeof params.value !== 'string') {
           throw new RequestError(
             -32602,
-            `Invalid params: "${params.configId}" requires a string value`,
+            `Invalid params: "${params.configId}" does not support boolean values`,
           );
         }
         if (!isPermissionPolicyValue(params.value)) {
@@ -1278,7 +1282,7 @@ export function createAcpFormalAgent(deps: {
         if (typeof params.value !== 'string') {
           throw new RequestError(
             -32602,
-            `Invalid params: "${params.configId}" requires a string value`,
+            `Invalid params: "${params.configId}" does not support boolean values`,
           );
         }
         const parsedModeId = parseAcpFlowMode(params.value);

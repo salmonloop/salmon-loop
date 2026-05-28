@@ -117,4 +117,18 @@ describe('mapToolKind', () => {
       expect(mapToolKind('xyz123')).toBe('other');
     });
   });
+
+  describe('edge cases', () => {
+    it('returns other for empty string', () => {
+      expect(mapToolKind('')).toBe('other');
+    });
+
+    it('falls through to name heuristics for empty sideEffects array', () => {
+      expect(mapToolKind('readFile', { sideEffects: [] })).toBe('read');
+    });
+
+    it('falls through to name heuristics for unknown intent', () => {
+      expect(mapToolKind('readFile', { intent: 'UNKNOWN' })).toBe('read');
+    });
+  });
 });

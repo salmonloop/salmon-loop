@@ -116,6 +116,45 @@ function registerServeShutdown({
   });
 }
 
+function buildAcpAgentOptions(params: {
+  facade: ReturnType<typeof createInteractionFacade>;
+  checkpointService: GitSnapshotCheckpointService;
+  defaultPermissionMode: 'interactive' | 'yolo';
+  sharedEventBus: ReturnType<typeof createTaskEventBus>;
+  sessionStorePolicy: Record<string, unknown> | undefined;
+}) {
+  return {
+    agentInfo: { name: 'salmon-loop', version: PACKAGE_VERSION },
+    defaultModeId: 'autopilot' as const,
+    defaultPermissionPolicy: resolveDefaultAcpPermissionPolicy(params.defaultPermissionMode),
+    checkpointReader: {
+      listBySession: async ({
+        repoPath,
+        sessionId,
+        limit,
+      }: {
+        repoPath: string;
+        sessionId: string;
+        limit?: number;
+      }) => await params.checkpointService.list({ repoPath, sessionId, limit }),
+      getById: async ({ repoPath, checkpointId }: { repoPath: string; checkpointId: string }) =>
+        (await params.checkpointService.loadWithStatus({ repoPath, checkpointId })).handle,
+      probeById: async ({ repoPath, checkpointId }: { repoPath: string; checkpointId: string }) => {
+        const status = await params.checkpointService.loadWithStatus({ repoPath, checkpointId });
+        return { valid: Boolean(status.handle), reason: status.reason };
+      },
+    },
+    planReader: {
+      readBySession: async ({ repoPath, sessionId }: { repoPath: string; sessionId: string }) =>
+        await readPlan({ persistenceRoot: repoPath, sessionId }),
+    },
+    facade: params.facade,
+    sessionPersistencePath: getUserAcpSessionStorePath(),
+    sessionStorePolicy: params.sessionStorePolicy,
+    eventBus: params.sharedEventBus,
+  };
+}
+
 export function registerServeCommands(program: Command) {
   const serve = program
     .command('serve')
@@ -297,32 +336,14 @@ export async function handleServeCommand(_options: unknown, command: Command) {
   });
 
   if (acpStdioEnabled) {
-    startAcpStdioServer((conn) =>
-      createAcpFormalAgent({
-        conn,
-        agentInfo: { name: 'salmon-loop', version: PACKAGE_VERSION },
-        defaultModeId: 'autopilot',
-        defaultPermissionPolicy: resolveDefaultAcpPermissionPolicy(defaultPermissionMode),
-        checkpointReader: {
-          listBySession: async ({ repoPath, sessionId, limit }) =>
-            await checkpointService.list({ repoPath, sessionId, limit }),
-          getById: async ({ repoPath, checkpointId }) =>
-            (await checkpointService.loadWithStatus({ repoPath, checkpointId })).handle,
-          probeById: async ({ repoPath, checkpointId }) => {
-            const status = await checkpointService.loadWithStatus({ repoPath, checkpointId });
-            return { valid: Boolean(status.handle), reason: status.reason };
-          },
-        },
-        planReader: {
-          readBySession: async ({ repoPath, sessionId }) =>
-            await readPlan({ persistenceRoot: repoPath, sessionId }),
-        },
-        facade: acpFacade,
-        sessionPersistencePath: getUserAcpSessionStorePath(),
-        sessionStorePolicy: resolvedConfig.server?.acp?.sessionStore,
-        eventBus: sharedEventBus,
-      }),
-    );
+    const agentOptions = buildAcpAgentOptions({
+      facade: acpFacade,
+      checkpointService,
+      defaultPermissionMode,
+      sharedEventBus,
+      sessionStorePolicy: resolvedConfig.server?.acp?.sessionStore,
+    });
+    startAcpStdioServer((conn) => createAcpFormalAgent({ conn, ...agentOptions }));
     getLogger().info(text.cli.acpStdioStarted('n/a (stdio)'));
   }
 
@@ -455,32 +476,14 @@ export async function handleServeAcpCommand(_options: unknown, command: Command)
     eventBus: sharedEventBus,
   });
 
-  startAcpStdioServer((conn) =>
-    createAcpFormalAgent({
-      conn,
-      agentInfo: { name: 'salmon-loop', version: PACKAGE_VERSION },
-      defaultModeId: 'autopilot',
-      defaultPermissionPolicy: resolveDefaultAcpPermissionPolicy(defaultPermissionMode),
-      checkpointReader: {
-        listBySession: async ({ repoPath, sessionId, limit }) =>
-          await checkpointService.list({ repoPath, sessionId, limit }),
-        getById: async ({ repoPath, checkpointId }) =>
-          (await checkpointService.loadWithStatus({ repoPath, checkpointId })).handle,
-        probeById: async ({ repoPath, checkpointId }) => {
-          const status = await checkpointService.loadWithStatus({ repoPath, checkpointId });
-          return { valid: Boolean(status.handle), reason: status.reason };
-        },
-      },
-      planReader: {
-        readBySession: async ({ repoPath, sessionId }) =>
-          await readPlan({ persistenceRoot: repoPath, sessionId }),
-      },
-      facade: acpFacade,
-      sessionPersistencePath: getUserAcpSessionStorePath(),
-      sessionStorePolicy: resolvedConfig.server?.acp?.sessionStore,
-      eventBus: sharedEventBus,
-    }),
-  );
+  const agentOptions = buildAcpAgentOptions({
+    facade: acpFacade,
+    checkpointService,
+    defaultPermissionMode,
+    sharedEventBus,
+    sessionStorePolicy: resolvedConfig.server?.acp?.sessionStore,
+  });
+  startAcpStdioServer((conn) => createAcpFormalAgent({ conn, ...agentOptions }));
 
   getLogger().info(text.cli.acpStdioStarted('n/a (stdio)'));
   registerServeShutdown({
