@@ -175,6 +175,22 @@ export const en = {
     modeYoloDescription: 'Bypass permission prompts for side-effecting operations.',
     executionFlowName: 'Execution Flow',
     executionFlowDescription: 'Choose how the agent should execute this session.',
+    permissionOptionAllowOnce: 'Allow once',
+    permissionOptionAllowSession: 'Allow for session',
+    permissionOptionRejectOnce: 'Reject once',
+    permissionOptionRejectSession: 'Reject for session',
+    taskCancelled: 'Task cancelled.',
+    taskCompleted: 'Task completed.',
+    taskFailed: 'Task failed.',
+    taskFailedWithReason: (reason: string) => `Task failed: ${reason}`,
+    taskAwaitingInput: 'Task awaiting input.',
+    checkpointNotFound: 'Checkpoint not found. Start a new session.',
+    checkpointManifestParseError:
+      'Checkpoint metadata is corrupted. Recreate checkpoint metadata and retry.',
+    checkpointManifestIoError: 'Checkpoint metadata is unreadable due to filesystem I/O issues.',
+    checkpointManifestLockTimeout: 'Checkpoint metadata is busy (lock timeout). Retry shortly.',
+    checkpointManifestUnavailable: 'Checkpoint metadata is unavailable in current runtime.',
+    checkpointResumeUnavailable: 'Checkpoint resume is unavailable. Start a new session or retry.',
   },
 
   prompts: {

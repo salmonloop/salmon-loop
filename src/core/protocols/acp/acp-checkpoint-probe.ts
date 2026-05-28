@@ -1,3 +1,4 @@
+import { text } from '../../../locales/index.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
 
 import { hashRepoPath } from './acp-types.js';
@@ -94,32 +95,32 @@ function toResumeHint(
     case 'not_found':
       return {
         code: 'CHECKPOINT_NOT_FOUND',
-        message: 'Checkpoint not found. Start a new session.',
+        message: text.acp.checkpointNotFound,
       };
     case 'manifest_parse_error':
       return {
         code: 'CHECKPOINT_MANIFEST_PARSE_ERROR',
-        message: 'Checkpoint metadata is corrupted. Recreate checkpoint metadata and retry.',
+        message: text.acp.checkpointManifestParseError,
       };
     case 'manifest_io_error':
       return {
         code: 'CHECKPOINT_MANIFEST_IO_ERROR',
-        message: 'Checkpoint metadata is unreadable due to filesystem I/O issues.',
+        message: text.acp.checkpointManifestIoError,
       };
     case 'manifest_lock_timeout':
       return {
         code: 'CHECKPOINT_MANIFEST_LOCK_TIMEOUT',
-        message: 'Checkpoint metadata is busy (lock timeout). Retry shortly.',
+        message: text.acp.checkpointManifestLockTimeout,
       };
     case 'manifest_unavailable':
       return {
         code: 'CHECKPOINT_MANIFEST_UNAVAILABLE',
-        message: 'Checkpoint metadata is unavailable in current runtime.',
+        message: text.acp.checkpointManifestUnavailable,
       };
     default:
       return {
         code: 'CHECKPOINT_RESUME_UNAVAILABLE',
-        message: 'Checkpoint resume is unavailable. Start a new session or retry.',
+        message: text.acp.checkpointResumeUnavailable,
       };
   }
 }

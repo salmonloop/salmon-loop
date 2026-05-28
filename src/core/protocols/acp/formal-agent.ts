@@ -5,7 +5,6 @@ import {
   type AgentSideConnection,
   type ClientCapabilities,
   type ContentBlock,
-  type LoadSessionRequest,
   type McpServer,
   type SessionConfigOption,
   type SessionInfo,
@@ -136,13 +135,6 @@ type AcpSessionRuntimeState = {
   lastSessionInfoDigest: string | null;
   permissionPolicy: AcpPermissionPolicy;
   modeId: AcpSessionModeId;
-};
-
-type AcpSessionLifecycleRequest = {
-  sessionId: string;
-  cwd: string;
-  mcpServers?: McpServer[];
-  additionalDirectories?: string[];
 };
 
 const ACP_PERMISSION_POLICY_CONFIG_ID = '_salmonloop_permission_policy';
@@ -598,19 +590,9 @@ function buildPlanUpdateFromCoreIfChanged(
   };
 }
 
-function envListToRecord(env: Array<{ name: string; value: string }>): Record<string, string> {
+function namedPairsToRecord(pairs: Array<{ name: string; value: string }>): Record<string, string> {
   const record: Record<string, string> = {};
-  for (const entry of env) {
-    record[entry.name] = entry.value;
-  }
-  return record;
-}
-
-function headersListToRecord(
-  headers: Array<{ name: string; value: string }>,
-): Record<string, string> {
-  const record: Record<string, string> = {};
-  for (const entry of headers) {
+  for (const entry of pairs) {
     record[entry.name] = entry.value;
   }
   return record;
@@ -660,7 +642,7 @@ function acpMcpServersToResolved(mcpServers: McpServer[] | undefined): ResolvedM
         transport: {
           type: 'http',
           url: httpServer.url,
-          headers: headersListToRecord(httpServer.headers),
+          headers: namedPairsToRecord(httpServer.headers),
         },
         auth: { type: 'none', scopes: [] },
         trust: 'remote',
@@ -688,7 +670,7 @@ function acpMcpServersToResolved(mcpServers: McpServer[] | undefined): ResolvedM
         type: 'stdio',
         command: stdioServer.command,
         args: stdioServer.args,
-        env: envListToRecord(stdioServer.env),
+        env: namedPairsToRecord(stdioServer.env),
       },
       auth: { type: 'none', scopes: [] },
       trust: 'local',
@@ -922,7 +904,12 @@ export function createAcpFormalAgent(deps: {
     }
   }
 
-  async function loadSessionInternal(params: LoadSessionRequest): Promise<AcpSessionRecord> {
+  async function resolveExistingSession(params: {
+    sessionId: string;
+    cwd: string;
+    mcpServers?: McpServer[];
+    additionalDirectories?: string[];
+  }): Promise<AcpSessionRecord> {
     await sessionPersistence.hydrate();
     validateUnsupportedAdditionalDirectories(params.additionalDirectories);
     validateAcpMcpServers(params.mcpServers);
@@ -934,32 +921,10 @@ export function createAcpFormalAgent(deps: {
       throw new RequestError(-32602, 'Invalid params: cwd does not match session cwd');
     }
     if (params.mcpServers) {
+      const mcpServers = params.mcpServers;
       sessions.update(params.sessionId, (current) => ({
         ...current,
-        mcpServers: params.mcpServers,
-      }));
-      await sessionPersistence.persist();
-    }
-    return session;
-  }
-
-  async function resumeSessionInternal(
-    params: AcpSessionLifecycleRequest,
-  ): Promise<AcpSessionRecord> {
-    await sessionPersistence.hydrate();
-    validateUnsupportedAdditionalDirectories(params.additionalDirectories);
-    validateAcpMcpServers(params.mcpServers);
-    const session = sessions.get(params.sessionId);
-    if (!session) {
-      throw new RequestError(-32004, `Session not found: ${params.sessionId}`);
-    }
-    if (session.cwd !== params.cwd) {
-      throw new RequestError(-32602, 'Invalid params: cwd does not match session cwd');
-    }
-    if (params.mcpServers) {
-      sessions.update(params.sessionId, (current) => ({
-        ...current,
-        mcpServers: params.mcpServers ?? [],
+        mcpServers,
       }));
       await sessionPersistence.persist();
     }
@@ -1107,7 +1072,7 @@ export function createAcpFormalAgent(deps: {
       if (!loadSessionCapability) {
         throw new RequestError(-32601, '"Method not found": session/load');
       }
-      await loadSessionInternal(params);
+      await resolveExistingSession(params);
 
       let session = sessions.get(params.sessionId)!;
       const runtimeState = ensureSessionRuntimeState(session.id);
@@ -1213,7 +1178,7 @@ export function createAcpFormalAgent(deps: {
     },
 
     async resumeSession(params) {
-      const session = await resumeSessionInternal({
+      const session = await resolveExistingSession({
         sessionId: params.sessionId,
         cwd: params.cwd,
         mcpServers: params.mcpServers,
@@ -1500,7 +1465,7 @@ export function createAcpFormalAgent(deps: {
       if (signal.aborted) {
         await emitSessionUpdate(params.sessionId, {
           sessionUpdate: 'agent_message_chunk',
-          content: buildTextContentBlock(ensureMarkdownParagraphBreak('Task cancelled.')),
+          content: buildTextContentBlock(ensureMarkdownParagraphBreak(text.acp.taskCancelled)),
         });
         return {
           stopReason: 'cancelled',
@@ -1510,23 +1475,25 @@ export function createAcpFormalAgent(deps: {
 
       const terminalEvent = await awaitTerminalEvent({ taskId: task.id, eventBus: deps.eventBus });
       let stopReason: StopReason = 'end_turn';
-      let assistantText = 'Task completed.';
+      let assistantText = text.acp.taskCompleted;
       let assistantMeta: Record<string, unknown> | undefined;
       let latest: TaskEnvelope | null | undefined;
       const cancelRequested = sessions.get(params.sessionId)?.cancelRequested === true;
 
       if (cancelRequested) {
-        assistantText = 'Task cancelled.';
+        assistantText = text.acp.taskCancelled;
         stopReason = 'cancelled';
       } else if (terminalEvent?.type === 'task.failed') {
         latest = await deps.facade.getTask(task.id);
         const failureMessage =
           typeof latest?.failure?.message === 'string' ? latest.failure.message : undefined;
-        assistantText = failureMessage ? `Task failed: ${failureMessage}` : 'Task failed.';
+        assistantText = failureMessage
+          ? text.acp.taskFailedWithReason(failureMessage)
+          : text.acp.taskFailed;
         const inferred = inferTurnStopReasonFromFailure(latest?.failure);
         if (inferred) stopReason = inferred;
       } else if (terminalEvent?.type === 'task.awaiting_input') {
-        assistantText = 'Task awaiting input.';
+        assistantText = text.acp.taskAwaitingInput;
         latest = await deps.facade.getTask(task.id);
         const formatted = latest?.inputRequired
           ? formatInputRequiredMessage(latest.inputRequired)
@@ -1536,7 +1503,7 @@ export function createAcpFormalAgent(deps: {
           assistantMeta = { inputRequired: latest.inputRequired };
         }
       } else if (terminalEvent?.type === 'task.cancelled') {
-        assistantText = 'Task cancelled.';
+        assistantText = text.acp.taskCancelled;
         stopReason = 'cancelled';
       }
 

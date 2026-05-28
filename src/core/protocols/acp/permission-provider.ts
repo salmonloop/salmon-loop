@@ -6,19 +6,25 @@ import type {
 } from '@agentclientprotocol/sdk';
 import type { ClientCapabilities } from '@agentclientprotocol/sdk';
 
+import { text } from '../../../locales/index.js';
 import type {
   ToolAuthorizationProvider,
   ToolAuthorizationRequest,
 } from '../../tools/authorization/types.js';
 
+import type { AcpPermissionPolicy } from './acp-types.js';
 import { mapToolKind } from './tool-kind-mapping.js';
 
 function buildPermissionOptions(): PermissionOption[] {
   return [
-    { kind: 'allow_once', name: 'Allow once', optionId: 'allow_once' },
-    { kind: 'allow_always', name: 'Allow for session', optionId: 'allow_always' },
-    { kind: 'reject_once', name: 'Reject once', optionId: 'reject_once' },
-    { kind: 'reject_always', name: 'Reject for session', optionId: 'reject_always' },
+    { kind: 'allow_once', name: text.acp.permissionOptionAllowOnce, optionId: 'allow_once' },
+    { kind: 'allow_always', name: text.acp.permissionOptionAllowSession, optionId: 'allow_always' },
+    { kind: 'reject_once', name: text.acp.permissionOptionRejectOnce, optionId: 'reject_once' },
+    {
+      kind: 'reject_always',
+      name: text.acp.permissionOptionRejectSession,
+      optionId: 'reject_always',
+    },
   ];
 }
 
@@ -47,7 +53,7 @@ export function createAcpToolAuthorizationProvider(params: {
   conn: AgentSideConnection;
   sessionId: string;
   clientCapabilities: ClientCapabilities;
-  getPermissionPolicy?: () => 'ask' | 'deny_all' | 'allow_all';
+  getPermissionPolicy?: () => AcpPermissionPolicy;
   enforceClientCapabilities?: boolean;
 }): ToolAuthorizationProvider {
   const inProgressEmitted = new Set<string>();
