@@ -1,0 +1,3 @@
+## 2025-02-18 - Optimize ContextService LRU Eviction
+**Learning:** In `ContextService`, LRU cache eviction typically occurs immediately after an insertion, meaning the number of excess items to evict is almost always exactly 1. Repeatedly calling `this.cacheStore.entries()` in loops causes O(M * N) time complexity. Fetching it once using `Array.from()` prevents this issue. Performance optimizations should prioritize the single-item eviction path (e.g., O(N) linear scan) over mass batch evictions.
+**Action:** Fetch `entries` once. Use an O(N) linear scan for single-item evictions to avoid overhead, reserving O(N log N) sorting only for mass batch evictions.

@@ -248,19 +248,41 @@ export class ContextService {
   }
 
   private async evictLruIfNeeded(): Promise<void> {
-    while ((await this.cacheStore.size()) > this.cacheMaxEntries) {
+    const size = await this.cacheStore.size();
+    const overage = size - this.cacheMaxEntries;
+    if (overage <= 0) return;
+
+    // Fetch entries once to avoid repeated calls in loops, which could cause O(M * N) time complexity
+    const entriesIter = await this.cacheStore.entries();
+    const entries = Array.from(entriesIter);
+
+    if (overage === 1) {
+      // O(N) single-item eviction path, most common case after a single insertion
       let victimKey: string | undefined;
       let victimTs = Number.POSITIVE_INFINITY;
-      for (const [key, entry] of await this.cacheStore.entries()) {
+      for (const [key, entry] of entries) {
         const ts = this.getEntryTimestamp(entry);
         if (ts < victimTs) {
           victimTs = ts;
           victimKey = key;
         }
       }
-      if (!victimKey) break;
-      await this.cacheStore.delete(victimKey);
-      this.cacheMetrics.evictions += 1;
+      if (victimKey) {
+        await this.cacheStore.delete(victimKey);
+        this.cacheMetrics.evictions += 1;
+      }
+    } else {
+      // O(N log N) mass eviction path
+      entries.sort((a, b) => {
+        return this.getEntryTimestamp(a[1]) - this.getEntryTimestamp(b[1]);
+      });
+      for (let i = 0; i < overage; i++) {
+        const victimKey = entries[i]?.[0];
+        if (victimKey) {
+          await this.cacheStore.delete(victimKey);
+          this.cacheMetrics.evictions += 1;
+        }
+      }
     }
   }
 
