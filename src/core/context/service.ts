@@ -277,7 +277,9 @@ export class ContextService {
         this.cacheMetrics.evictions += 1;
       }
     } else {
-      entries.sort((a, b) => (this.getEntryTimestamp(a[1]) || 0) - (this.getEntryTimestamp(b[1]) || 0));
+      entries.sort(
+        (a, b) => (this.getEntryTimestamp(a[1]) || 0) - (this.getEntryTimestamp(b[1]) || 0),
+      );
       const victims = entries.slice(0, excess);
 
       for (let i = 0; i < victims.length; i += 10) {
