@@ -242,25 +242,53 @@ export class ContextService {
   }
 
   private async evictExpiredEntries(): Promise<void> {
-    for (const [key, entry] of await this.cacheStore.entries()) {
-      await this.isExpired(key, entry);
+    const entries = Array.from(await this.cacheStore.entries());
+    const now = Date.now();
+    const expiredEntries = entries.filter(([, entry]) => {
+      const last = this.getEntryTimestamp(entry);
+      return last && now - last > this.cacheTtlMs;
+    });
+
+    for (let i = 0; i < expiredEntries.length; i += 10) {
+      const chunk = expiredEntries.slice(i, i + 10);
+      await Promise.all(chunk.map(([key, entry]) => this.isExpired(key, entry)));
     }
   }
 
   private async evictLruIfNeeded(): Promise<void> {
-    while ((await this.cacheStore.size()) > this.cacheMaxEntries) {
+    const size = await this.cacheStore.size();
+    if (size <= this.cacheMaxEntries) return;
+
+    const excess = size - this.cacheMaxEntries;
+    const entries = Array.from(await this.cacheStore.entries());
+
+    if (excess === 1) {
       let victimKey: string | undefined;
       let victimTs = Number.POSITIVE_INFINITY;
-      for (const [key, entry] of await this.cacheStore.entries()) {
+      for (const [key, entry] of entries) {
         const ts = this.getEntryTimestamp(entry);
         if (ts < victimTs) {
           victimTs = ts;
           victimKey = key;
         }
       }
-      if (!victimKey) break;
-      await this.cacheStore.delete(victimKey);
-      this.cacheMetrics.evictions += 1;
+      if (victimKey) {
+        await this.cacheStore.delete(victimKey);
+        this.cacheMetrics.evictions += 1;
+      }
+    } else {
+      entries.sort((a, b) => (this.getEntryTimestamp(a[1]) || 0) - (this.getEntryTimestamp(b[1]) || 0));
+      const victims = entries.slice(0, excess);
+
+      for (let i = 0; i < victims.length; i += 10) {
+        const chunk = victims.slice(i, i + 10);
+        await Promise.all(
+          chunk.map(async ([key]) => {
+            await this.cacheStore.delete(key);
+            this.cacheMetrics.evictions += 1;
+          }),
+        );
+      }
     }
   }
 

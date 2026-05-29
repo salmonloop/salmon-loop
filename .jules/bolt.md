@@ -1,0 +1,4 @@
+## 2026-05-29 - O(N) Cache Eviction and Batched Deletions
+
+**Learning:** In `ContextService`, repeatedly calling `this.cacheStore.entries()` inside loops leads to O(M * N) time complexity. Furthermore, since LRU eviction typically occurs after a single insertion, the number of excess items to evict is almost always 1. Thus, performing an O(N) linear scan for the single-item eviction is far more efficient than the previous approach which didn't optimize for single eviction, or an O(N log N) sorting mechanism. Additionally, concurrent operations on persistent caches need batched `Promise.all` deletion to avoid I/O contention and EMFILE errors.
+**Action:** Fetch cache store entries once using `Array.from()` before operations. For LRU eviction, explicitly handle the `excess === 1` case with an O(N) scan. For bulk evictions and TTL expirations, always chunk Promises (e.g., in sizes of 10) instead of executing them sequentially or with unbounded concurrency.
