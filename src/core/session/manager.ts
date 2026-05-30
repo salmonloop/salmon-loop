@@ -385,20 +385,32 @@ export class ChatSessionManager {
     let deleted = 0;
     let archived = 0;
 
+    const CHUNK_SIZE = 10;
+
     // Delete low-priority sessions
-    for (const sessionId of analysis.sessionsToDelete) {
-      await this.deleteSession(sessionId);
-      deleted++;
+    for (let i = 0; i < analysis.sessionsToDelete.length; i += CHUNK_SIZE) {
+      const chunk = analysis.sessionsToDelete.slice(i, i + CHUNK_SIZE);
+      await Promise.all(
+        chunk.map(async (sessionId) => {
+          await this.deleteSession(sessionId);
+          deleted++;
+        }),
+      );
     }
 
     // Archive medium-priority sessions
-    for (const sessionId of analysis.sessionsToArchive) {
-      const session = sessions.find((s) => s.meta.id === sessionId);
-      if (session) {
-        await this.archiveSession(session);
-        await this.deleteSession(sessionId);
-        archived++;
-      }
+    for (let i = 0; i < analysis.sessionsToArchive.length; i += CHUNK_SIZE) {
+      const chunk = analysis.sessionsToArchive.slice(i, i + CHUNK_SIZE);
+      await Promise.all(
+        chunk.map(async (sessionId) => {
+          const session = sessions.find((s) => s.meta.id === sessionId);
+          if (session) {
+            await this.archiveSession(session);
+            await this.deleteSession(sessionId);
+            archived++;
+          }
+        }),
+      );
     }
 
     return {
