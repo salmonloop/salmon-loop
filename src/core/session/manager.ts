@@ -387,6 +387,12 @@ export class ChatSessionManager {
 
     const CHUNK_SIZE = 10;
 
+    // ⚡ Bolt: Optimize session lookup by using an O(1) map instead of O(N) find in loops
+    const sessionMap = new Map<string, ChatSession>();
+    for (const session of sessions) {
+      sessionMap.set(session.meta.id, session);
+    }
+
     // Delete low-priority sessions
     for (let i = 0; i < analysis.sessionsToDelete.length; i += CHUNK_SIZE) {
       const chunk = analysis.sessionsToDelete.slice(i, i + CHUNK_SIZE);
@@ -403,7 +409,7 @@ export class ChatSessionManager {
       const chunk = analysis.sessionsToArchive.slice(i, i + CHUNK_SIZE);
       await Promise.all(
         chunk.map(async (sessionId) => {
-          const session = sessions.find((s) => s.meta.id === sessionId);
+          const session = sessionMap.get(sessionId);
           if (session) {
             await this.archiveSession(session);
             await this.deleteSession(sessionId);
