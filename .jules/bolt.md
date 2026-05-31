@@ -1,0 +1,3 @@
+## 2026-05-31 - Preserving original error handling in optimizations
+**Learning:** Performance optimizations (like replacing O(n^2) nested loops with O(n) hash map lookups) must strictly preserve the original code's error-handling and flow control logic. Introducing new `try...catch` blocks around previously unhandled Promise rejections violates the 'preserve existing functionality exactly' requirement and can lead to unintended side effects or test failures by masking critical errors.
+**Action:** When refactoring for performance, focus only on the algorithmic complexity and data structures. Do not alter the structural exception handling of the surrounding code unless explicitly required by the optimization itself.
