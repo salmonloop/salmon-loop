@@ -66,10 +66,10 @@ export const en = {
     authorizationWarning:
       'This tool call has side effects. Enter the authorization code to allow it once.',
     authorizationHint: 'Tip: add "all", "save", or "global" after the code.',
-    selectionPlaceholder: 'Use Up/Down to select, Enter to confirm (Esc to cancel)',
-    selectionHint: 'Use Up/Down to navigate, Enter to select, Esc to cancel.',
-    selectionPlaceholderMulti: 'Use Up/Down, Space to toggle, Enter to confirm (Esc to cancel)',
-    selectionHintMulti: 'Use Up/Down to navigate, Space to toggle, Enter to confirm.',
+    selectionPlaceholder: '↑↓ nav · ↵ confirm · esc cancel',
+    selectionHint: '↑↓ nav · ↵ confirm · esc cancel',
+    selectionPlaceholderMulti: '↑↓ nav · space toggle · ↵ confirm · esc cancel',
+    selectionHintMulti: '↑↓ nav · space toggle · ↵ confirm · esc cancel',
   },
 
   // Command descriptions
