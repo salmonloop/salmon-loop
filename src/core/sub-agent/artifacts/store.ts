@@ -110,7 +110,7 @@ export class ArtifactStore {
           const filePath = path.join(root, entry.name);
           const stat = await fs.stat(filePath).catch(() => null);
           return { entry, filePath, stat };
-        })
+        }),
       );
       for (const { entry, filePath, stat } of stats) {
         if (stat) {
