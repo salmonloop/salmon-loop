@@ -1,0 +1,3 @@
+## 2024-05-24 - Optimize ArtifactStore.gc using batched concurrent fs.stat checks
+**Learning:** Sequential await calls inside a loop (`for (const entry of entries)`) for file system operations like `fs.stat` can be a significant performance bottleneck, especially when dealing with a large number of files. This is particularly relevant in garbage collection (`gc`) methods where potentially thousands of files might be checked.
+**Action:** Use chunked batched concurrent execution (e.g., `Promise.all` with chunk sizes of 10-50) for `fs.stat` checks to significantly speed up the operation, while still preventing `EMFILE` errors that unbounded concurrency might cause.
