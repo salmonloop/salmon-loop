@@ -73,7 +73,7 @@ export function TodoDrawer({
   todos,
   isExpanded,
   onToggle,
-  hint = 'Ctrl+T',
+  hint = '⌃T toggle',
   maxVisible = 8,
 }: TodoDrawerProps) {
   useInput((input, key) => {
