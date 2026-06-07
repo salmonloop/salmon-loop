@@ -1,0 +1,3 @@
+## 2026-06-07 - Refine Navigation Microcopy for Ink Interfaces
+**Learning:** Verbose sentence-based navigation hints consume excessive horizontal space in command-line selection interfaces, reducing scannability and potentially causing layout issues.
+**Action:** Consistently use explicit, symbol-based microcopy (e.g., `↑↓ nav · space toggle · ↵ confirm · esc cancel`) for discoverability in complex CLI overlays.
