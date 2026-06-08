@@ -3,6 +3,7 @@ import path from 'path';
 import { FileAdapter } from '../adapters/fs/index.js';
 import { logIgnoredError } from '../observability/ignored-error.js';
 import type { LoopResult } from '../types/index.js';
+import { isRecord } from '../utils/serialize.js';
 import type { TokenUsage } from '../types/usage.js';
 
 import type { ChatSession } from './types.js';
@@ -26,8 +27,10 @@ export class TokenTracker {
 
     try {
       const auditRaw = await this.fileAdapter.readFile(result.auditPath, 'utf8');
-      const audit = JSON.parse(auditRaw) as any;
-      const eventsRef = audit?.context?.eventsRef;
+      const audit = JSON.parse(auditRaw);
+      if (!isRecord(audit)) return null;
+      const context = isRecord(audit.context) ? audit.context : null;
+      const eventsRef = isRecord(context?.eventsRef) ? context.eventsRef : null;
       if (!eventsRef || typeof eventsRef.path !== 'string') return null;
 
       const eventsPath = path.isAbsolute(eventsRef.path)
@@ -43,13 +46,13 @@ export class TokenTracker {
       let outputTokens = 0;
 
       for (const event of events) {
-        if (!event || typeof event !== 'object') continue;
-        if ((event as any).action !== 'llm.usage') continue;
-        const details = (event as any).details;
-        if (!details || typeof details !== 'object') continue;
+        if (!isRecord(event)) continue;
+        if (event.action !== 'llm.usage') continue;
+        const details = event.details;
+        if (!isRecord(details)) continue;
 
-        const promptTokens = (details as any).promptTokens;
-        const completionTokens = (details as any).completionTokens;
+        const promptTokens = details.promptTokens;
+        const completionTokens = details.completionTokens;
         if (typeof promptTokens === 'number' && Number.isFinite(promptTokens)) {
           inputTokens += promptTokens;
         }
