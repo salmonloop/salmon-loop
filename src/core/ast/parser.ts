@@ -16,6 +16,17 @@ const require = createRequire(import.meta.url);
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 
 /**
+ * Shape of the web-tree-sitter module across different bundler/runtime interop
+ * scenarios (CJS default wrapping, ESM namespace, etc.).
+ */
+interface TreeSitterModuleInterop {
+  Parser?: typeof TreeSitter.Parser;
+  Language?: typeof TreeSitter.Language;
+  Query?: typeof TreeSitter.Query;
+  default?: TreeSitterModuleInterop;
+}
+
+/**
  * Initialization states for the AST parser
  */
 enum InitState {
@@ -30,38 +41,45 @@ export class AstParser {
   private static initPromise: Promise<void> | null = null;
 
   /**
-   * Get the Parser class from web-tree-sitter, handling different API versions
+   * Get the Parser class from web-tree-sitter, handling different API versions.
+   * Uses `as unknown as` for CJS/ESM interop — the runtime module shape varies
+   * across bundler configurations.
    */
-  private static getParserClass() {
+  private static getParserClass(): typeof TreeSitter.Parser {
+    const mod = TreeSitter as unknown as TreeSitterModuleInterop;
     try {
-      return (TreeSitter as any).Parser || (TreeSitter as any).default?.Parser || TreeSitter;
+      return (mod.Parser ?? mod.default?.Parser ?? TreeSitter) as unknown as typeof TreeSitter.Parser;
     } catch (_error) {
       getLogger().degrade(text.ast.degradedApi);
-      return (TreeSitter as any).default || TreeSitter;
+      return (mod.default ?? TreeSitter) as unknown as typeof TreeSitter.Parser;
     }
   }
 
   /**
-   * Get the Language class from web-tree-sitter, handling different API versions
+   * Get the Language class from web-tree-sitter, handling different API versions.
+   * Uses `as unknown as` for CJS/ESM interop.
    */
-  private static getLanguageClass() {
+  private static getLanguageClass(): typeof TreeSitter.Language {
+    const mod = TreeSitter as unknown as TreeSitterModuleInterop;
     try {
-      return (TreeSitter as any).Language || (TreeSitter as any).default?.Language;
+      return (mod.Language ?? mod.default?.Language) as unknown as typeof TreeSitter.Language;
     } catch (_error) {
       getLogger().degrade(text.ast.degradedApi);
-      return (TreeSitter as any).default?.Language;
+      return mod.default?.Language as unknown as typeof TreeSitter.Language;
     }
   }
 
   /**
-   * Get the Query class from web-tree-sitter, handling different API versions
+   * Get the Query class from web-tree-sitter, handling different API versions.
+   * Uses `as unknown as` for CJS/ESM interop.
    */
-  private static getQueryClass() {
+  private static getQueryClass(): typeof TreeSitter.Query {
+    const mod = TreeSitter as unknown as TreeSitterModuleInterop;
     try {
-      return (TreeSitter as any).Query || (TreeSitter as any).default?.Query;
+      return (mod.Query ?? mod.default?.Query) as unknown as typeof TreeSitter.Query;
     } catch (_error) {
       getLogger().degrade(text.ast.degradedApi);
-      return (TreeSitter as any).default?.Query;
+      return mod.default?.Query as unknown as typeof TreeSitter.Query;
     }
   }
 

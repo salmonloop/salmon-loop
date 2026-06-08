@@ -42,7 +42,7 @@ function dropUndefined<T extends Record<string, unknown>>(obj: T): Partial<T> {
   const out: Partial<T> = {};
   for (const [key, value] of Object.entries(obj)) {
     if (value === undefined) continue;
-    (out as any)[key] = value;
+    (out as Record<string, unknown>)[key] = value;
   }
   return out;
 }
@@ -108,7 +108,7 @@ export function encodeAnthropicError(params: {
       message: params.message,
       name: params.name,
       stack: params.stack,
-    }) as any,
+    }) as unknown as { message: string; name?: string; stack?: string },
   };
 }
 

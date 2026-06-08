@@ -25,13 +25,13 @@ function dropUndefined<T extends Record<string, unknown>>(obj: T): Partial<T> {
   const out: Partial<T> = {};
   for (const [key, value] of Object.entries(obj)) {
     if (value === undefined) continue;
-    (out as any)[key] = value;
+    (out as Record<string, unknown>)[key] = value;
   }
   return out;
 }
 
 function mapLoopEventToJson(event: LoopEvent): Record<string, unknown> {
-  const { timestamp: _ts, ...rest } = event as any;
+  const { timestamp: _ts, ...rest } = event as unknown as Record<string, unknown>;
   return dropUndefined(rest);
 }
 
@@ -79,7 +79,7 @@ export function encodeStreamStart(params: {
       command: params.mode,
       repo_path: params.repoPath,
       instruction: params.instruction,
-    }) as any,
+    }) as Record<string, unknown>,
     eventSeq: params.eventSeq,
   });
 }
@@ -99,7 +99,7 @@ export function encodeStreamEvent(params: {
     event: dropUndefined({
       ...params.event,
       timestamp: toIso(params.at),
-    }) as any,
+    }) as Record<string, unknown>,
     eventSeq: params.eventSeq,
   });
 }
@@ -118,7 +118,7 @@ export function encodeStreamLoopEvent(params: {
     event: dropUndefined({
       ...mapLoopEventToJson(params.event),
       timestamp: toIso(params.event.timestamp),
-    }) as any,
+    }) as Record<string, unknown>,
     eventSeq: params.eventSeq,
   });
 }
@@ -180,7 +180,7 @@ export function encodeStreamResult(params: {
         exit_code: exitCode,
         timestamp: toIso(params.at),
       },
-    }) as any,
+    }) as Record<string, unknown>,
     eventSeq: params.eventSeq,
   });
 }
@@ -206,7 +206,7 @@ export function encodeStreamFailure(params: {
         name: params.name,
         message: params.message,
         stack: params.stack,
-      }) as any,
+      }) as Record<string, unknown>,
     },
     eventSeq: params.eventSeq,
   });

@@ -263,9 +263,7 @@ export class AstGatherer {
     callsQuery: string | undefined,
   ): Promise<string[]> {
     if (!parsedTree || !lang || !callsQuery) return [];
-    const queryFn = (AstParser as any).queryCapturesFromQuery;
-    if (typeof queryFn !== 'function') return [];
-    const captures = (await queryFn(parsedTree, lang, callsQuery)) as QueryCapture[];
+    const captures = await AstParser.queryCapturesFromQuery(parsedTree, lang, callsQuery);
     return Array.from(
       new Set(
         captures
@@ -289,23 +287,21 @@ export class AstGatherer {
     controlFlow: NonNullable<ContextAnalysis['ast']>['controlFlow'];
     exceptionPaths: NonNullable<ContextAnalysis['ast']>['exceptionPaths'];
   }> {
-    const queryFn = (AstParser as any).queryCapturesFromQuery;
     if (
       !parsedTree ||
       !lang ||
       !flowPack?.control ||
-      !flowPack?.exceptions ||
-      typeof queryFn !== 'function'
+      !flowPack?.exceptions
     ) {
       return summarizeControlFlow(primaryText);
     }
 
-    const controlCaptures = (await queryFn(parsedTree, lang, flowPack.control)) as QueryCapture[];
-    const exceptionCaptures = (await queryFn(
+    const controlCaptures = await AstParser.queryCapturesFromQuery(parsedTree, lang, flowPack.control);
+    const exceptionCaptures = await AstParser.queryCapturesFromQuery(
       parsedTree,
       lang,
       flowPack.exceptions,
-    )) as QueryCapture[];
+    );
 
     const branchCount = controlCaptures.filter((c) => c.name === 'branch').length;
     const loopCount = controlCaptures.filter((c) => c.name === 'loop').length;
