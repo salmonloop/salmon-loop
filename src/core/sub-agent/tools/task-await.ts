@@ -52,16 +52,25 @@ export const agentAwaitTaskSpec: ToolSpec = {
     },
   ],
 
-  executor: async (input: any, ctx: ToolRuntimeCtx): Promise<SubAgentResult> => {
-    const { agentId } = input as { agentId: string };
+  executor: async (input: unknown, ctx: ToolRuntimeCtx): Promise<SubAgentResult> => {
+    const parsed = AgentAwaitInputSchema.parse(input);
     const manager = new SubAgentManager(ctx, ctx.subAgentController ?? createSubAgentController());
 
     const handle: SubAgentHandle = {
-      agentId,
+      agentId: parsed.agentId,
       status: 'working',
-      taskId: agentId,
+      taskId: parsed.agentId,
     };
 
-    return await manager.awaitResult(handle);
+    try {
+      return await manager.awaitResult(handle);
+    } catch (error) {
+      return {
+        success: false,
+        agent_ref: parsed.agentId,
+        reason: error instanceof Error ? error.message : String(error),
+        reasonCode: 'AWAIT_FAILED',
+      };
+    }
   },
 };

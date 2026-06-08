@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { ToolRuntimeCtx } from '../../tools/types.js';
 import { ToolSpec } from '../../tools/types.js';
 import { Phase } from '../../types/runtime.js';
-import { getOrCreateTeam, type ClaimEntry } from '../team.js';
+import { getOrCreateTeam } from '../team.js';
 
 const AgentTeamInputSchema = z.object({
   action: z.enum(['claim', 'release', 'list', 'is_claimed']).describe(
@@ -57,33 +57,27 @@ export const agentTeamSpec: ToolSpec = {
     },
   ],
 
-  executor: async (input: any, _ctx: ToolRuntimeCtx): Promise<unknown> => {
-    const { action, taskKey, teamId } = input as {
-      action: string;
-      taskKey?: string;
-      teamId: string;
-    };
+  executor: async (input: unknown, ctx: ToolRuntimeCtx): Promise<unknown> => {
+    const parsed = AgentTeamInputSchema.parse(input);
+    const agentId = ctx.agentId ?? 'unknown';
+    const team = getOrCreateTeam(parsed.teamId);
 
-    // Derive agentId from the current context (sub-agent ID)
-    const agentId = _ctx.agentId ?? 'unknown';
-    const team = getOrCreateTeam(teamId);
-
-    switch (action) {
+    switch (parsed.action) {
       case 'claim': {
-        if (!taskKey) return { success: false, error: 'taskKey required for claim' };
-        const claimed = team.claim(taskKey, agentId);
+        if (!parsed.taskKey) return { success: false, error: 'taskKey required for claim' };
+        const claimed = team.claim(parsed.taskKey, agentId);
         return { success: true, claimed };
       }
       case 'release': {
-        if (!taskKey) return { success: false, error: 'taskKey required for release' };
-        const released = team.release(taskKey, agentId);
+        if (!parsed.taskKey) return { success: false, error: 'taskKey required for release' };
+        const released = team.release(parsed.taskKey, agentId);
         return { success: true, released };
       }
       case 'is_claimed': {
-        if (!taskKey) return { success: false, error: 'taskKey required for is_claimed' };
-        const existing = team.listClaims().find((c) => c.taskKey === taskKey);
+        if (!parsed.taskKey) return { success: false, error: 'taskKey required for is_claimed' };
+        const existing = team.listClaims().find((c) => c.taskKey === parsed.taskKey);
         return {
-          claimed: team.isClaimed(taskKey),
+          claimed: team.isClaimed(parsed.taskKey),
           claimedBy: existing?.claimedBy,
         };
       }
@@ -92,7 +86,7 @@ export const agentTeamSpec: ToolSpec = {
         return { claims };
       }
       default:
-        return { success: false, error: `Unknown action: ${action}` };
+        return { success: false, error: `Unknown action: ${parsed.action}` };
     }
   },
 };

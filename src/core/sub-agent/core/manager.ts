@@ -4,7 +4,7 @@ import { text } from '../../../locales/index.js';
 import { createFileSystemAdapter } from '../../adapters/fs/index.js';
 import * as fs from '../../adapters/fs/node-fs.js';
 import { GitAdapter } from '../../adapters/git/git-adapter.js';
-import { InitCtx } from '../../grizzco/engine/pipeline/types.js';
+import type { InitCtx } from '../../grizzco/engine/pipeline/types.js';
 import { createTaskEventBus, type TaskEventBus } from '../../interaction/events/bus.js';
 import { recordAuditEvent } from '../../observability/audit-trail.js';
 import { getLogger } from '../../observability/logger.js';

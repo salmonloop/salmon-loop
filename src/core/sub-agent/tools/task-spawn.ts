@@ -135,12 +135,22 @@ export const subAgentTaskSpec: ToolSpec = {
   ],
 
   executor: async (
-    input: any,
+    input: unknown,
     ctx: ToolRuntimeCtx,
   ): Promise<SubAgentResult | SubAgentHandle> => {
+    const parsed = SubAgentRequestSchema.parse(input);
     const manager = new SubAgentManager(ctx, ctx.subAgentController ?? createSubAgentController());
-    const request = normalizeDispatchRequest(input as SubAgentRequest, ctx);
+    const request = normalizeDispatchRequest(parsed, ctx);
 
-    return await manager.execute(request);
+    try {
+      return await manager.execute(request);
+    } catch (error) {
+      return {
+        success: false,
+        agent_ref: request.agent_ref,
+        reason: error instanceof Error ? error.message : String(error),
+        reasonCode: 'DISPATCH_FAILED',
+      };
+    }
   },
 };

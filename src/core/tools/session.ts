@@ -79,6 +79,13 @@ type ToolCorrectionHint = {
   retryable: boolean;
 };
 
+function findLast<T>(array: T[], predicate: (item: T) => boolean): T | undefined {
+  for (let i = array.length - 1; i >= 0; i--) {
+    if (predicate(array[i])) return array[i];
+  }
+  return undefined;
+}
+
 function safeParseJson(argsText: unknown): { ok: true; value: any } | { ok: false; error: string } {
   if (typeof argsText !== 'string') {
     return { ok: true, value: argsText };
@@ -1043,7 +1050,7 @@ export async function chatWithTools(
     timestamp: new Date(),
   });
 
-  const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
+  const lastAssistant = findLast(messages, (m) => m.role === 'assistant');
   if (session.llmOutput && lastAssistant?.content) {
     emitLlmOutput({
       emit: session.emit,
@@ -1168,7 +1175,7 @@ function inferHighConfidenceFiles(instruction: string): string[] {
 }
 
 function extractInstructionText(messages: LLMMessage[]): string {
-  const lastUser = [...messages].reverse().find((m) => m.role === 'user');
+  const lastUser = findLast(messages, (m) => m.role === 'user');
   const text = typeof lastUser?.content === 'string' ? lastUser.content : '';
   if (!text) return '';
 
@@ -1304,13 +1311,14 @@ async function executeToolCalls(
   signal?: AbortSignal,
 ): Promise<void> {
   const prepared = prepareToolCallRequests(calls);
+  const specByName = new Map<string, ToolSpec>();
+  for (const spec of session.toolstack.registry.listAll()) {
+    specByName.set(spec.name, spec);
+  }
   const bucketByCallId = new Map<string, ToolCallBudgetBucket>();
   const preparedCounts: Record<ToolCallBudgetBucket, number> = { regular: 0, agent: 0 };
   for (const item of prepared) {
-    const spec =
-      typeof item.toolName === 'string'
-        ? session.toolstack.registry.listAll().find((s) => s.name === item.toolName)
-        : undefined;
+    const spec = typeof item.toolName === 'string' ? specByName.get(item.toolName) : undefined;
     const bucket: ToolCallBudgetBucket = spec?.intent === 'AGENT' ? 'agent' : 'regular';
     bucketByCallId.set(item.callId, bucket);
     preparedCounts[bucket]++;
@@ -1394,10 +1402,7 @@ async function executeToolCalls(
         ? buildHeadlessToolInputPayload(argsValue)
         : undefined;
 
-    const spec =
-      typeof toolName === 'string'
-        ? session.toolstack.registry.listAll().find((s) => s.name === toolName)
-        : undefined;
+    const spec = typeof toolName === 'string' ? specByName.get(toolName) : undefined;
 
     if (typeof toolName === 'string') {
       session.emit?.({
@@ -1670,17 +1675,20 @@ async function executeToolCalls(
           ? result.output.ok
           : undefined;
       const artifacts = extractArtifactHandlesFromToolOutput(result.output);
-      const recentReadArtifact = await persistRecentReadArtifact({
-        toolName: typeof toolName === 'string' ? toolName : 'unknown',
-        rawArgs,
-        output: result.output,
-      });
-      const toolResultPreviewArtifact = await persistToolResultPreviewArtifact({
-        toolName: typeof toolName === 'string' ? toolName : 'unknown',
-        output: result.output,
-        summary: result.summary,
-        outputSummary: result.outputSummary,
-      });
+      const resolvedToolName = typeof toolName === 'string' ? toolName : 'unknown';
+      const [recentReadArtifact, toolResultPreviewArtifact] = await Promise.all([
+        persistRecentReadArtifact({
+          toolName: resolvedToolName,
+          rawArgs,
+          output: result.output,
+        }),
+        persistToolResultPreviewArtifact({
+          toolName: resolvedToolName,
+          output: result.output,
+          summary: result.summary,
+          outputSummary: result.outputSummary,
+        }),
+      ]);
       session.toolCallingAudit?.event({
         timestamp: new Date().toISOString(),
         phase,
@@ -1906,6 +1914,6 @@ export async function chatWithToolsStreaming(
     timestamp: new Date(),
   });
 
-  const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
+  const lastAssistant = findLast(messages, (m) => m.role === 'assistant');
   return lastAssistant || { role: 'assistant', content: '' };
 }

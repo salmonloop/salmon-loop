@@ -14,6 +14,11 @@ import {
   type SubAgentContextSnapshot,
 } from './types.js';
 
+const SUPPORTED_SNAPSHOT_FIELDS = new Set<string>([
+  'version',
+  ...Object.keys(SUB_AGENT_CONTEXT_SNAPSHOT_FIELD_SEMANTICS),
+]);
+
 function deepClone<T>(value: T): T {
   if (typeof structuredClone === 'function') {
     return structuredClone(value);
@@ -56,7 +61,7 @@ function cloneToolCallingAudit(
   entries: ToolCallingAuditEntry[] | undefined,
 ): ToolCallingAuditEntry[] | undefined {
   if (!Array.isArray(entries) || entries.length === 0) return undefined;
-  return entries.map((entry) => deepClone(entry));
+  return entries.map((entry) => ({ ...entry }));
 }
 
 function cloneArtifactHints(
@@ -145,11 +150,7 @@ function normalizeSnapshotVersion(
 }
 
 function assertSupportedSnapshotFields(snapshot: SubAgentContextSnapshot): void {
-  const supportedFields = new Set<string>([
-    'version',
-    ...Object.keys(SUB_AGENT_CONTEXT_SNAPSHOT_FIELD_SEMANTICS),
-  ]);
-  const unknownFields = Object.keys(snapshot).filter((key) => !supportedFields.has(key));
+  const unknownFields = Object.keys(snapshot).filter((key) => !SUPPORTED_SNAPSHOT_FIELDS.has(key));
   if (unknownFields.length > 0) {
     throw new Error(
       `Unsupported sub-agent context snapshot fields: ${unknownFields.sort().join(', ')}`,
