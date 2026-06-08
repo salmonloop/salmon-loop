@@ -24,3 +24,14 @@ export function safeStringify(value: unknown, options?: SafeStringifyOptions): s
     }
   }
 }
+
+/**
+ * Narrow an unknown value to a Record<string, unknown>.
+ * Returns an empty object for non-object inputs (arrays, primitives, null, undefined).
+ */
+export function asRecord(value: unknown): Record<string, unknown> {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  return {};
+}

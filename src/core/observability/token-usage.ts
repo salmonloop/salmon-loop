@@ -1,4 +1,5 @@
 import type { TokenUsage } from '../types/usage.js';
+import { asRecord } from '../utils/serialize.js';
 
 import type { AuditTrailEvent } from './audit-trail.js';
 import { getAuditTrail } from './audit-trail.js';
@@ -6,13 +7,6 @@ import { getAuditTrail } from './audit-trail.js';
 function safeFiniteNumber(value: unknown): number | null {
   if (typeof value !== 'number' || !Number.isFinite(value)) return null;
   return value;
-}
-
-function asRecord(value: unknown): Record<string, unknown> {
-  if (value && typeof value === 'object' && !Array.isArray(value)) {
-    return value as Record<string, unknown>;
-  }
-  return {};
 }
 
 export function extractTokenUsageFromAuditTrail(auditTrail: AuditTrailEvent[]): TokenUsage | null {

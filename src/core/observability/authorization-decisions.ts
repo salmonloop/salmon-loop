@@ -1,4 +1,5 @@
 import type { AuthorizationDecisionRecord } from '../types/authorization.js';
+import { asRecord } from '../utils/serialize.js';
 
 import type { AuditTrailEvent } from './audit-trail.js';
 import { getAuditTrail } from './audit-trail.js';
@@ -18,13 +19,6 @@ function safeStringArray(value: unknown): string[] | undefined {
   if (!Array.isArray(value)) return undefined;
   const out = value.map(safeString).filter((v): v is string => typeof v === 'string');
   return out.length > 0 ? out : undefined;
-}
-
-function asRecord(value: unknown): Record<string, unknown> {
-  if (value && typeof value === 'object' && !Array.isArray(value)) {
-    return value as Record<string, unknown>;
-  }
-  return {};
 }
 
 export function extractAuthorizationDecisionsFromAuditTrail(
