@@ -335,72 +335,53 @@ function compilePathMatcher(specifier?: string): PathMatcher {
   };
 }
 
+const TOOL_CATEGORY: Record<string, 'bash' | 'edit' | 'path'> = {
+  Bash: 'bash',
+  bash: 'bash',
+  'shell.exec': 'bash',
+  'test.run': 'bash',
+  Edit: 'edit',
+  edit: 'edit',
+  'proposal.apply': 'edit',
+  Read: 'path',
+  read: 'path',
+  LS: 'path',
+  ls: 'path',
+  'fs.read': 'path',
+  'code.read': 'path',
+  'git.cat': 'path',
+  'fs.list': 'path',
+  'fs.list_directory': 'path',
+  'fs.list_files': 'path',
+  'artifact.read': 'path',
+};
+
+function resolveToolCategory(tool: string): 'bash' | 'edit' | 'path' | undefined {
+  if (TOOL_CATEGORY[tool]) return TOOL_CATEGORY[tool];
+  if (isAliasToolName(tool)) {
+    const alias = DEFAULT_TOOL_ALIASES[tool.toLowerCase()];
+    return TOOL_CATEGORY[alias];
+  }
+  return undefined;
+}
+
 function compileRule(
   effect: PermissionEffect,
   parsed: ParsedPermissionRule,
 ): CompiledPermissionRule {
-  const tool = parsed.tool;
-  const specifier = parsed.specifier;
+  const { tool, raw, specifier } = parsed;
+  const category = resolveToolCategory(tool);
 
-  const asAlias =
-    typeof tool === 'string' && isAliasToolName(tool) ? (tool as PermissionRuleAliasTool) : null;
-
-  const shouldTreatAsBash =
-    tool === 'Bash' ||
-    tool === 'bash' ||
-    tool === 'shell.exec' ||
-    tool === 'test.run' ||
-    asAlias === 'Bash';
-
-  const shouldTreatAsEdit =
-    tool === 'Edit' || tool === 'edit' || tool === 'proposal.apply' || asAlias === 'Edit';
-
-  const shouldTreatAsPath =
-    tool === 'Read' ||
-    tool === 'read' ||
-    tool === 'LS' ||
-    tool === 'ls' ||
-    tool === 'fs.read' ||
-    tool === 'code.read' ||
-    tool === 'git.cat' ||
-    tool === 'fs.list' ||
-    tool === 'fs.list_directory' ||
-    tool === 'fs.list_files' ||
-    tool === 'artifact.read' ||
-    asAlias === 'Read' ||
-    asAlias === 'LS';
-
-  if (shouldTreatAsBash) {
-    return {
-      effect,
-      tool,
-      raw: parsed.raw,
-      specifier,
-      compiled: { kind: 'bash', matcher: compileBashMatcher(specifier) },
-    };
+  if (category === 'bash') {
+    return { effect, tool, raw, specifier, compiled: { kind: 'bash', matcher: compileBashMatcher(specifier) } };
   }
-
-  if (shouldTreatAsEdit) {
-    return {
-      effect,
-      tool,
-      raw: parsed.raw,
-      specifier,
-      compiled: { kind: 'edit', matcher: compilePathMatcher(specifier) },
-    };
+  if (category === 'edit') {
+    return { effect, tool, raw, specifier, compiled: { kind: 'edit', matcher: compilePathMatcher(specifier) } };
   }
-
-  if (shouldTreatAsPath) {
-    return {
-      effect,
-      tool,
-      raw: parsed.raw,
-      specifier,
-      compiled: { kind: 'path', matcher: compilePathMatcher(specifier) },
-    };
+  if (category === 'path') {
+    return { effect, tool, raw, specifier, compiled: { kind: 'path', matcher: compilePathMatcher(specifier) } };
   }
-
-  return { effect, tool, raw: parsed.raw, specifier, compiled: { kind: 'tool_any' } };
+  return { effect, tool, raw, specifier, compiled: { kind: 'tool_any' } };
 }
 
 function buildVisibleToolNamesFromAllow(allowRules: CompiledPermissionRule[]): Set<string> {
@@ -498,70 +479,39 @@ async function loadProposalChangedFiles(handle: string): Promise<string[] | null
   }
 }
 
-function matchAllowRule(rule: CompiledPermissionRule, toolName: string, args: unknown): boolean {
+function matchRule(rule: CompiledPermissionRule, toolName: string, args: unknown): boolean {
   if (!toolMatchesRuleTool(toolName, rule.tool)) return false;
 
-  if (rule.compiled.kind === 'tool_any') return true;
-  if (rule.compiled.kind === 'bash') {
-    const cmd = extractCommandArg(toolName, args);
-    if (!cmd) return false;
-    return rule.compiled.matcher.matches(cmd);
+  switch (rule.compiled.kind) {
+    case 'tool_any':
+      return true;
+    case 'bash': {
+      const cmd = extractCommandArg(toolName, args);
+      return cmd ? rule.compiled.matcher.matches(cmd) : false;
+    }
+    case 'path': {
+      const p = extractPrimaryPathArg(toolName, args);
+      return p ? rule.compiled.matcher.matches(p) : false;
+    }
+    case 'edit':
+      // Edit rules require async file-level matching; sync check is a gate.
+      return toolName === 'proposal.apply';
   }
-  if (rule.compiled.kind === 'path') {
-    const p = extractPrimaryPathArg(toolName, args);
-    if (!p) return false;
-    return rule.compiled.matcher.matches(p);
-  }
-  if (rule.compiled.kind === 'edit') {
-    // Edit allow rules are handled by an async path-aware matcher.
-    return toolName === 'proposal.apply';
-  }
-  return false;
 }
 
-async function matchAllowEditRule(rule: CompiledPermissionRule, args: unknown): Promise<boolean> {
+async function matchEditRule(
+  rule: CompiledPermissionRule,
+  args: unknown,
+  filePredicate: (changedFiles: string[], matcher: PathMatcher) => boolean,
+): Promise<boolean> {
   if (rule.compiled.kind !== 'edit') return false;
-  const matcher = rule.compiled.matcher;
   if (!args || typeof args !== 'object' || Array.isArray(args)) return false;
   const handle = (args as any).handle;
   if (typeof handle !== 'string' || !handle.trim()) return false;
 
   const changedFiles = await loadProposalChangedFiles(handle);
-  if (!changedFiles) return false;
-  if (changedFiles.length === 0) return false;
-  return changedFiles.every((p) => matcher.matches(p));
-}
-
-async function matchDenyEditRule(rule: CompiledPermissionRule, args: unknown): Promise<boolean> {
-  if (rule.compiled.kind !== 'edit') return false;
-  const matcher = rule.compiled.matcher;
-  if (!args || typeof args !== 'object' || Array.isArray(args)) return false;
-  const handle = (args as any).handle;
-  if (typeof handle !== 'string' || !handle.trim()) return false;
-  const changedFiles = await loadProposalChangedFiles(handle);
-  if (!changedFiles) return false;
-  return changedFiles.some((p) => matcher.matches(p));
-}
-
-function matchDenyRule(rule: CompiledPermissionRule, toolName: string, args: unknown): boolean {
-  if (!toolMatchesRuleTool(toolName, rule.tool)) return false;
-
-  if (rule.compiled.kind === 'tool_any') return true;
-  if (rule.compiled.kind === 'bash') {
-    const cmd = extractCommandArg(toolName, args);
-    if (!cmd) return false;
-    return rule.compiled.matcher.matches(cmd);
-  }
-  if (rule.compiled.kind === 'path') {
-    const p = extractPrimaryPathArg(toolName, args);
-    if (!p) return false;
-    return rule.compiled.matcher.matches(p);
-  }
-  if (rule.compiled.kind === 'edit') {
-    // Deny edit rules are handled by an async path-aware matcher.
-    return toolName === 'proposal.apply';
-  }
-  return false;
+  if (!changedFiles || changedFiles.length === 0) return false;
+  return filePredicate(changedFiles, rule.compiled.matcher);
 }
 
 export async function decidePermissionForToolCall(options: {
@@ -579,17 +529,13 @@ export async function decidePermissionForToolCall(options: {
 
   // Deny rules win.
   for (const rule of rules.deny) {
-    if (rule.compiled.kind === 'edit') {
-      if (options.toolName === 'proposal.apply' && (await matchDenyEditRule(rule, options.args))) {
-        return {
-          kind: 'deny',
-          reason: text.tools.permissionRuleDenied(rule.raw),
-          rule: { effect: 'deny', raw: rule.raw, tool: rule.tool },
-        };
-      }
-      continue;
-    }
-    if (matchDenyRule(rule, options.toolName, options.args)) {
+    const isDeny =
+      rule.compiled.kind === 'edit'
+        ? await matchEditRule(rule, options.args, (files, matcher) =>
+            files.some((p) => matcher.matches(p)),
+          )
+        : matchRule(rule, options.toolName, options.args);
+    if (isDeny) {
       return {
         kind: 'deny',
         reason: text.tools.permissionRuleDenied(rule.raw),
@@ -599,17 +545,13 @@ export async function decidePermissionForToolCall(options: {
   }
 
   for (const rule of rules.allow) {
-    if (rule.compiled.kind === 'edit') {
-      if (options.toolName === 'proposal.apply' && (await matchAllowEditRule(rule, options.args))) {
-        return {
-          kind: 'allow',
-          reason: rule.raw,
-          rule: { effect: 'allow', raw: rule.raw, tool: rule.tool },
-        };
-      }
-      continue;
-    }
-    if (matchAllowRule(rule, options.toolName, options.args)) {
+    const isAllow =
+      rule.compiled.kind === 'edit'
+        ? await matchEditRule(rule, options.args, (files, matcher) =>
+            files.every((p) => matcher.matches(p)),
+          )
+        : matchRule(rule, options.toolName, options.args);
+    if (isAllow) {
       return {
         kind: 'allow',
         reason: rule.raw,
