@@ -3,6 +3,7 @@ import { buildFailureGuidance } from '../../../failure/diagnostics.js';
 import { sanitizeError } from '../../../llm/errors.js';
 import { mapErrorForDisplay } from '../../../observability/error-mapping.js';
 import { resolveExecutionProfile } from '../../../runtime/execution-profile.js';
+import { isRecord } from '../../../utils/serialize.js';
 import { isRecoverableToolInputErrorCode } from '../../../tools/recoverable-tool-errors.js';
 import { EXECUTION_PHASES } from '../../../types/runtime.js';
 import type {
@@ -76,11 +77,11 @@ function sanitizeReason(value: unknown): string {
 }
 
 function extractInputRequired(error: unknown): LoopInputRequired | undefined {
-  if (!error || typeof error !== 'object') return undefined;
-  const value = 'inputRequired' in (error as any) ? (error as any).inputRequired : (error as any);
-  if (!value || typeof value !== 'object') return undefined;
+  if (!isRecord(error)) return undefined;
+  const value = 'inputRequired' in error ? error.inputRequired : error;
+  if (!isRecord(value)) return undefined;
   if (typeof value.prompt !== 'string' || typeof value.type !== 'string') return undefined;
-  return value as LoopInputRequired;
+  return value as unknown as LoopInputRequired;
 }
 
 function extractInterrupt(error: unknown):
@@ -91,11 +92,11 @@ function extractInterrupt(error: unknown):
       data?: Record<string, unknown>;
     }
   | undefined {
-  if (!error || typeof error !== 'object') return undefined;
-  const value = (error as any).interrupt;
-  if (!value || typeof value !== 'object') return undefined;
-  if (typeof (value as any).type !== 'string') return undefined;
-  return value as {
+  if (!isRecord(error)) return undefined;
+  const value = error.interrupt;
+  if (!isRecord(value)) return undefined;
+  if (typeof value.type !== 'string') return undefined;
+  return value as unknown as {
     type: string;
     reason?: string;
     prompt?: string;
