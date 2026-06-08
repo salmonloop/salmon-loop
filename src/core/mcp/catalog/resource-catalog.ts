@@ -5,7 +5,7 @@ export function withResourceServer(
   resources: Array<Record<string, unknown>>,
 ): McpResourceDescriptor[] {
   return resources.map(
-    (resource) => ({ ...(resource as any), serverName }) as McpResourceDescriptor,
+    (resource) => ({ ...resource, serverName }) as McpResourceDescriptor,
   );
 }
 
@@ -14,6 +14,6 @@ export function withResourceTemplateServer(
   templates: Array<Record<string, unknown>>,
 ): McpResourceTemplateDescriptor[] {
   return templates.map(
-    (template) => ({ ...(template as any), serverName }) as McpResourceTemplateDescriptor,
+    (template) => ({ ...template, serverName }) as McpResourceTemplateDescriptor,
   );
 }

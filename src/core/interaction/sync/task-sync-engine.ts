@@ -4,22 +4,17 @@ import type { TaskEnvelope } from '../model/index.js';
 export function createTaskSyncEngine() {
   const tasks = new Map<string, TaskEnvelope>();
 
-  const allowedFailureCategories = new Set([
+  type FailureCategory = 'verification' | 'runtime' | 'policy' | 'infrastructure';
+  const allowedFailureCategories = new Set<FailureCategory>([
     'verification',
     'runtime',
     'policy',
     'infrastructure',
-  ] as const);
+  ]);
 
-  function coerceFailureCategory(
-    value: unknown,
-  ): TaskEnvelope['failure'] extends infer Failure
-    ? Failure extends { category?: infer Category }
-      ? Category
-      : undefined
-    : undefined {
-    if (typeof value === 'string' && allowedFailureCategories.has(value as any)) {
-      return value as any;
+  function coerceFailureCategory(value: unknown): FailureCategory | undefined {
+    if (typeof value === 'string' && allowedFailureCategories.has(value as FailureCategory)) {
+      return value as FailureCategory;
     }
     return undefined;
   }

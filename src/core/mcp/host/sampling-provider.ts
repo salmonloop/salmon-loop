@@ -188,8 +188,8 @@ export class McpSamplingProvider {
     if (input.maxTokens > decision.grant.maxTokens) {
       throw new Error('MCP_SAMPLING_TOKEN_LIMIT_EXCEEDED');
     }
-    const result = await this.llm.chat([{ role: 'user', content: input.prompt }] as any);
-    return typeof result === 'string' ? result : String((result as any)?.content ?? '');
+    const result = await this.llm.chat([{ role: 'user', content: input.prompt }]);
+    return typeof result === 'string' ? result : String(result.content ?? '');
   }
 
   async createMessage(

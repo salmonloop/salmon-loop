@@ -3,6 +3,7 @@ import { getLogger } from '../../../observability/logger.js';
 import { spawnCommand } from '../../../runtime/process-runner.js';
 import { runWithFallback } from '../../capability/executor.js';
 import { CapabilityCtx } from '../../capability/types.js';
+import { isRecord } from '../../../utils/serialize.js';
 import { ToolRuntimeCtx, ExecutionPhase } from '../../types.js';
 
 import { psBackend } from './backends/powershell.js';
@@ -32,8 +33,10 @@ export async function codeSearchExecutor(
     attemptId: ctx.attemptId,
     dryRun: ctx.dryRun,
     // Allow tests (and callers) to override platform; default to host platform.
-    platform: (ctx as any).platform ?? process.platform,
-    runner: (ctx as any).runner ?? {
+    platform: isRecord(ctx) && typeof ctx.platform === 'string' ? ctx.platform : process.platform,
+    runner: isRecord(ctx) && typeof ctx.runner === 'object' && ctx.runner !== null
+      ? ctx.runner as CapabilityCtx['runner']
+      : {
       execFile: async (file, args, opts) => {
         const maxStdoutBytes = opts?.maxStdoutBytes ?? Number.POSITIVE_INFINITY;
         let stdout = '';
