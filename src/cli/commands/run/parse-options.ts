@@ -1,5 +1,6 @@
 import type { Command } from 'commander';
 
+import { getString } from '../../../core/utils/serialize.js';
 import { resolveRepoPath } from '../../utils/resolve-cli-config.js';
 
 import type { RunCommandParsedOptions } from './types.js';
@@ -25,55 +26,30 @@ export function parseRunCommandOptions(command: Command): RunCommandParsedOption
   allowedToolRules: string[];
   disallowedToolRules: string[];
 } {
-  const allOptions = command.optsWithGlobals();
-  const repoPath = resolveRepoPath({ repo: allOptions.repo, cwd: process.cwd() });
+  const allOptions = command.optsWithGlobals() as Record<string, unknown>;
+  const repoPath = resolveRepoPath({ repo: getString(allOptions, 'repo') ?? undefined, cwd: process.cwd() });
 
-  const continueSession = Boolean((allOptions as any).continue);
-  const resumeSessionId =
-    typeof (allOptions as any).resume === 'string'
-      ? ((allOptions as any).resume as string)
-      : undefined;
-  const printInstruction =
-    typeof (allOptions as any).print === 'string'
-      ? ((allOptions as any).print as string)
-      : undefined;
-  const explicitInstruction =
-    typeof allOptions.instruction === 'string' ? (allOptions.instruction as string) : undefined;
+  const continueSession = Boolean(allOptions.continue);
+  const resumeSessionId = getString(allOptions, 'resume') ?? undefined;
+  const printInstruction = getString(allOptions, 'print') ?? undefined;
+  const explicitInstruction = getString(allOptions, 'instruction') ?? undefined;
 
-  const jsonSchemaSpec =
-    typeof (allOptions as any).jsonSchema === 'string'
-      ? ((allOptions as any).jsonSchema as string)
-      : undefined;
+  const jsonSchemaSpec = getString(allOptions, 'jsonSchema') ?? undefined;
 
   const rawOutputFormat = String(allOptions.outputFormat || 'text');
-  const rawOutputProfile =
-    typeof (allOptions as any).outputProfile === 'string'
-      ? String((allOptions as any).outputProfile)
-      : undefined;
+  const rawOutputProfile = getString(allOptions, 'outputProfile') ?? undefined;
   const outputProfileForStreamJson = rawOutputProfile ?? 'native';
 
-  const headlessIncludeToolInput = Boolean((allOptions as any).headlessIncludeToolInput);
-  const headlessIncludeToolOutput = Boolean((allOptions as any).headlessIncludeToolOutput);
+  const headlessIncludeToolInput = Boolean(allOptions.headlessIncludeToolInput);
+  const headlessIncludeToolOutput = Boolean(allOptions.headlessIncludeToolOutput);
   const headlessIncludeAuthorizationDecisions = Boolean(
-    (allOptions as any).headlessIncludeAuthorizationDecisions,
+    allOptions.headlessIncludeAuthorizationDecisions,
   );
-  const allowOutsideCacheRoot = Boolean((allOptions as any).allowOutsideCacheRoot);
-  const exportPatchPath =
-    typeof (allOptions as any).exportPatch === 'string'
-      ? ((allOptions as any).exportPatch as string)
-      : undefined;
-  const sweBenchInstanceId =
-    typeof (allOptions as any).sweBenchInstanceId === 'string'
-      ? ((allOptions as any).sweBenchInstanceId as string)
-      : undefined;
-  const sweBenchModelName =
-    typeof (allOptions as any).sweBenchModelName === 'string'
-      ? ((allOptions as any).sweBenchModelName as string)
-      : undefined;
-  const sweBenchPredictionsPath =
-    typeof (allOptions as any).sweBenchPredictions === 'string'
-      ? ((allOptions as any).sweBenchPredictions as string)
-      : undefined;
+  const allowOutsideCacheRoot = Boolean(allOptions.allowOutsideCacheRoot);
+  const exportPatchPath = getString(allOptions, 'exportPatch') ?? undefined;
+  const sweBenchInstanceId = getString(allOptions, 'sweBenchInstanceId') ?? undefined;
+  const sweBenchModelName = getString(allOptions, 'sweBenchModelName') ?? undefined;
+  const sweBenchPredictionsPath = getString(allOptions, 'sweBenchPredictions') ?? undefined;
 
   const instruction = explicitInstruction ?? printInstruction;
 

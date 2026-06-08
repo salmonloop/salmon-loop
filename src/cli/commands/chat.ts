@@ -15,6 +15,7 @@ import {
   type CheckpointStrategy,
   type FlowMode,
 } from '../../core/facades/cli-command-chat.js';
+import { getString } from '../../core/utils/serialize.js';
 import { text } from '../locales/index.js';
 import { getOptionValueSourceWithGlobalFallback } from '../utils/command-option-source.js';
 import { resolveLlmOutputPolicyFromCli } from '../utils/llm-output.js';
@@ -22,31 +23,25 @@ import { createOutcomeReporter } from '../utils/outcome-reporter.js';
 import { resolveCliConfig } from '../utils/resolve-cli-config.js';
 import { resolveVerifyOption } from '../utils/verify-resolver.js';
 
-export async function handleChatCommand(options: any, command: Command) {
-  const allOptions = command.optsWithGlobals();
+export async function handleChatCommand(options: Record<string, unknown>, command: Command) {
+  const allOptions = command.optsWithGlobals() as Record<string, unknown>;
   const configResult = await resolveCliConfig({
-    repo: allOptions.repo,
+    repo: getString(allOptions, 'repo') ?? undefined,
     cwd: process.cwd(),
-    configPath: allOptions.config,
+    configPath: getString(allOptions, 'config') ?? undefined,
     enableConfigFile: allOptions.configFile !== false,
-    auditScope: allOptions.auditScope,
+    auditScope: getString(allOptions, 'auditScope') ?? undefined,
     verbose: allOptions.verbose,
-    logMode: allOptions.logMode,
+    logMode: getString(allOptions, 'logMode') ?? undefined,
   });
   if (!configResult.ok) {
     getLogger().error(configResult.message, true);
     process.exit(1);
   }
   const { resolvedConfig, auditScope, repoPath: runPath, verboseLevel } = configResult;
-  const printInstruction =
-    typeof (allOptions as any).print === 'string'
-      ? ((allOptions as any).print as string)
-      : undefined;
-  const continueSession = Boolean((allOptions as any).continue);
-  const resumeSessionId =
-    typeof (allOptions as any).resume === 'string'
-      ? ((allOptions as any).resume as string)
-      : undefined;
+  const printInstruction = getString(allOptions, 'print') ?? undefined;
+  const continueSession = Boolean(allOptions.continue);
+  const resumeSessionId = getString(allOptions, 'resume') ?? undefined;
 
   if (printInstruction) {
     getLogger().error(text.cli.printCommandConflict('chat'), true);
@@ -87,7 +82,7 @@ export async function handleChatCommand(options: any, command: Command) {
 
   const llmOutputResolution = resolveLlmOutputPolicyFromCli(
     resolvedConfig.llmOutput,
-    allOptions.llmOutput,
+    getString(allOptions, 'llmOutput') ?? undefined,
   );
   if (!llmOutputResolution.ok) {
     getLogger().error(text.cli.invalidLlmOutputKind(llmOutputResolution.invalid), true);
@@ -108,9 +103,12 @@ export async function handleChatCommand(options: any, command: Command) {
   });
 
   // Smart verification resolution with auto-detection
+  const verifyRaw = allOptions.verify;
+  const verifyCliOption =
+    typeof verifyRaw === 'string' || typeof verifyRaw === 'boolean' ? verifyRaw : undefined;
   const verifyCommand = await resolveVerifyOption(
     runPath,
-    allOptions.verify,
+    verifyCliOption,
     resolvedConfig.verify.command,
   );
 
