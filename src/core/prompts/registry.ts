@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { readFile } from '../adapters/fs/node-fs.js';
 import type { ReflectionInput } from '../reflection/types.js';
 import type { ToolSpec } from '../tools/types.js';
+import { unwrapZodSchema } from '../utils/zod.js';
 
 import type {
   ExplorePromptVars,
@@ -151,38 +152,15 @@ export class PromptRegistry {
       return { type: 'object', description: 'Schema details unavailable' };
     }
 
-    const unwrapForJsonSchema = (schema: z.ZodTypeAny): z.ZodTypeAny => {
-      let current: z.ZodTypeAny = schema;
-      for (let depth = 0; depth < 20; depth++) {
-        const ZodEffects = (z as any).ZodEffects;
-        if (ZodEffects && current instanceof ZodEffects) {
-          current = (current as any)._def.schema;
-          continue;
-        }
-        if (current instanceof z.ZodPipe) {
-          current = (current as any)._def.out;
-          continue;
-        }
-        if (
-          current instanceof z.ZodOptional ||
-          current instanceof z.ZodNullable ||
-          current instanceof z.ZodDefault
-        ) {
-          current = (current as any)._def.innerType;
-          continue;
-        }
-        break;
-      }
-      return current;
-    };
-
     try {
-      const unwrapped = unwrapForJsonSchema(zodSchema);
-      const schema = (z as any).toJSONSchema(unwrapped) as Record<string, unknown>;
-
-      if (schema && typeof schema === 'object') {
-        const { $schema: _ignored, ...rest } = schema;
-        return rest as Record<string, unknown>;
+      const unwrapped = unwrapZodSchema(zodSchema);
+      const zWithJson = z as unknown as { toJSONSchema?: (s: z.ZodTypeAny) => Record<string, unknown> };
+      if (zWithJson.toJSONSchema) {
+        const schema = zWithJson.toJSONSchema(unwrapped);
+        if (schema && typeof schema === 'object') {
+          const { $schema: _ignored, ...rest } = schema;
+          return rest;
+        }
       }
     } catch (_e) {
       // Fall through to best-effort fallback
