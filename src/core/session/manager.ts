@@ -338,36 +338,11 @@ export class ChatSessionManager {
    * List all sessions (sorted by update time)
    */
   async listSessions(): Promise<Array<{ id: string; name: string; updatedAt: number }>> {
-    const files = await this.fileAdapter.readdir(this.storageDir).catch(() => []);
-    const jsonFiles = files.filter((f) => f.endsWith('.json'));
-    const sessions: Array<{ id: string; name: string; updatedAt: number }> = [];
-
-    for (let i = 0; i < jsonFiles.length; i += ChatSessionManager.FILE_READ_CHUNK_SIZE) {
-      const chunk = jsonFiles.slice(i, i + ChatSessionManager.FILE_READ_CHUNK_SIZE);
-      const promises = chunk.map(async (file) => {
-        try {
-          const filePath = join(this.storageDir, file);
-          const data = await this.fileAdapter.readFile(filePath);
-          const session = JSON.parse(data) as ChatSession;
-          return {
-            id: session.meta.id,
-            name: session.meta.name,
-            updatedAt: session.meta.updatedAt,
-          };
-        } catch (error) {
-          getLogger().warn(`Failed to list session file ${file}: ${error}`);
-          return null;
-        }
-      });
-
-      const results = await Promise.all(promises);
-      for (const result of results) {
-        if (result) {
-          sessions.push(result);
-        }
-      }
-    }
-
+    const sessions = await this.scanSessionFiles((session) => ({
+      id: session.meta.id,
+      name: session.meta.name,
+      updatedAt: session.meta.updatedAt,
+    }));
     return sessions.sort((a, b) => b.updatedAt - a.updatedAt);
   }
 
@@ -432,9 +407,27 @@ export class ChatSessionManager {
    * Load all sessions from storage
    */
   private async loadAllSessions(): Promise<ChatSession[]> {
+    return this.scanSessionFiles((session) => {
+      session.meta.chatState = normalizeChatState(session.meta.chatState);
+      session.meta.artifactState = normalizeSessionArtifactState(session.meta.artifactState);
+      session.meta.replacementState = normalizeToolResultReplacementState(
+        session.meta.replacementState,
+      );
+      return session;
+    });
+  }
+
+  /**
+   * Shared scan-and-parse for session files.
+   * Reads JSON files from storageDir in chunks, parses each, and maps via the provided callback.
+   * Silently skips files that fail to parse.
+   */
+  private async scanSessionFiles<T>(
+    mapFn: (session: ChatSession) => T,
+  ): Promise<T[]> {
     const files = await this.fileAdapter.readdir(this.storageDir).catch(() => []);
     const jsonFiles = files.filter((f) => f.endsWith('.json'));
-    const sessions: ChatSession[] = [];
+    const results: T[] = [];
 
     for (let i = 0; i < jsonFiles.length; i += ChatSessionManager.FILE_READ_CHUNK_SIZE) {
       const chunk = jsonFiles.slice(i, i + ChatSessionManager.FILE_READ_CHUNK_SIZE);
@@ -443,27 +436,22 @@ export class ChatSessionManager {
           const filePath = join(this.storageDir, file);
           const data = await this.fileAdapter.readFile(filePath);
           const session = JSON.parse(data) as ChatSession;
-          session.meta.chatState = normalizeChatState(session.meta.chatState);
-          session.meta.artifactState = normalizeSessionArtifactState(session.meta.artifactState);
-          session.meta.replacementState = normalizeToolResultReplacementState(
-            session.meta.replacementState,
-          );
-          return session;
+          return mapFn(session);
         } catch (error) {
           getLogger().warn(`Failed to load session file ${file}: ${error}`);
           return null;
         }
       });
 
-      const results = await Promise.all(promises);
-      for (const result of results) {
+      const chunkResults = await Promise.all(promises);
+      for (const result of chunkResults) {
         if (result) {
-          sessions.push(result);
+          results.push(result);
         }
       }
     }
 
-    return sessions;
+    return results;
   }
 
   /**
