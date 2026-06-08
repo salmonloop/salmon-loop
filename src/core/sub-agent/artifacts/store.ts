@@ -8,8 +8,6 @@ import { getLogger } from '../../observability/logger.js';
 
 import { ARTIFACT_HANDLE_PREFIX, ArtifactHandle } from './types.js';
 
-export type SavedArtifact = ArtifactHandle;
-
 function getArtifactsRoot(): string {
   // Directory naming uses "salmonloop"; protocol handles use the short "s8p://" scheme.
   return path.join(tmpdir(), 'salmonloop', 'artifacts');
