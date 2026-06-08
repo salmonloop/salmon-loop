@@ -5,6 +5,7 @@ import { buildFailureEnvelope } from '../../../observability/error-envelope.js';
 import { getTokenUsageFromAuditTrail } from '../../../observability/token-usage.js';
 import { resolveExecutionProfile } from '../../../runtime/execution-profile.js';
 import type { RootCauseCode, TerminalReason } from '../../../types/loop.js';
+import { isRecord } from '../../../utils/serialize.js';
 import { ErrorType, Phase } from '../../../types/runtime.js';
 import type { ExecutionPhase, FlowMode, LoopOptions, LoopResult } from '../../../types/runtime.js';
 import type { LoopTelemetry } from '../observability/loop-telemetry.js';
@@ -67,18 +68,19 @@ export function buildLoopResultFromTransaction({
   const ctx =
     executionReport.lastContext ??
     (executionReport.flowReport.data as Partial<TerminalCtx> | undefined);
+  const ctxObj = isRecord(ctx) ? (ctx as unknown as Record<string, unknown>) : null;
   const contextHash = (() => {
-    const hashFromBudget = (ctx as any)?.contextResult?.meta?.contextHash;
+    const contextResult = isRecord(ctxObj?.contextResult) ? ctxObj.contextResult : null;
+    const meta = isRecord(contextResult?.meta) ? contextResult.meta : null;
+    const hashFromBudget = meta?.contextHash;
     if (typeof hashFromBudget === 'string') return hashFromBudget;
-    const hashFromContext =
-      ctx && typeof ctx === 'object' && 'context' in ctx
-        ? (ctx as any).context?.contextHash
-        : undefined;
+    const context = isRecord(ctxObj?.context) ? ctxObj.context : null;
+    const hashFromContext = context?.contextHash;
     return typeof hashFromContext === 'string' ? hashFromContext : undefined;
   })();
   const verifyArtifact =
-    ctx && typeof ctx === 'object' && 'verifyArtifact' in ctx
-      ? (ctx as any).verifyArtifact
+    ctxObj && typeof ctxObj.verifyArtifact !== 'undefined'
+      ? (ctxObj.verifyArtifact as typeof executionReport.lastVerifyArtifact)
       : executionReport.lastVerifyArtifact;
   const artifactHints = (() => {
     const hints = {
@@ -109,15 +111,16 @@ export function buildLoopResultFromTransaction({
 
     return hints;
   })();
+  const report = isRecord(ctxObj?.report) ? ctxObj.report : null;
   const assistantMessage =
     ((flowMode === 'answer' || profile.driver === 'agent') &&
-    (ctx as any)?.report?.summary?.trim?.()
-      ? String((ctx as any).report.summary).trim()
+    typeof report?.summary === 'string' && report.summary.trim()
+      ? report.summary.trim()
       : undefined) ?? undefined;
   const finalPatch =
-    ctx && typeof ctx === 'object' && 'diff' in ctx ? (ctx as any).diff : undefined;
+    ctxObj && typeof ctxObj.diff === 'string' ? ctxObj.diff : undefined;
   const changedFiles =
-    ctx && typeof ctx === 'object' && 'changedFiles' in ctx ? (ctx as any).changedFiles : undefined;
+    Array.isArray(ctxObj?.changedFiles) ? ctxObj.changedFiles : undefined;
 
   const authorizationDecisions = (() => {
     if (!options.eventPayload?.includeAuthorizationDecisions) return undefined;
