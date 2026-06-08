@@ -1,6 +1,7 @@
 import { agentAwaitTaskSpec } from '../../sub-agent/tools/task-await.js';
 import { subAgentTaskSpec } from '../../sub-agent/tools/task-spawn.js';
 import { agentTeamSpec } from '../../sub-agent/tools/team.js';
+import { defineTool } from '../types.js';
 import { ToolRegistry } from '../registry.js';
 
 import { artifactReadSpec, executeArtifactRead } from './artifact.js';
@@ -51,140 +52,54 @@ import { verifyRunSpec, executeVerifyRun } from './verify.js';
 import { workspaceInfoSpec, executeWorkspaceInfo } from './workspace.js';
 
 /**
- * Registers all builtin tools into the provided registry
+ * Registers all builtin tools into the provided registry.
+ * Uses defineTool() to pair specs with executors type-safely.
  */
 export function registerAllBuiltins(registry: ToolRegistry): void {
-  // Register sub-agent tools
+  // Sub-agent tools (already self-contained)
   registry.register(subAgentTaskSpec);
   registry.register(agentAwaitTaskSpec);
   registry.register(agentTeamSpec);
-  registry.register({
-    ...artifactReadSpec,
-    executor: executeArtifactRead as any,
-  });
-  registry.register({
-    ...updateKnowledgeSpec,
-    executor: executeUpdateKnowledge as any,
-  });
-  registry.register({
-    ...workspaceInfoSpec,
-    executor: executeWorkspaceInfo as any,
-  });
-  registry.register({
-    ...proposalApplySpec,
-    executor: executeProposalApply as any,
-  });
-  // Register unified code.search with its specific executor
-  registry.register({
-    ...CodeSearchSpec,
-    executor: codeSearchExecutor as any,
-  });
 
-  registry.register({
-    ...astDefsRefsSpec,
-    executor: executeAstDefsRefs as any,
-  });
+  // Artifact & knowledge
+  registry.register(defineTool(artifactReadSpec, executeArtifactRead));
+  registry.register(defineTool(updateKnowledgeSpec, executeUpdateKnowledge));
+  registry.register(defineTool(workspaceInfoSpec, executeWorkspaceInfo));
+  registry.register(defineTool(proposalApplySpec, executeProposalApply));
 
-  registry.register({
-    ...gitCatSpec,
-    executor: executeGitCat as any,
-  });
+  // Code search & AST
+  registry.register(defineTool(CodeSearchSpec, codeSearchExecutor));
+  registry.register(defineTool(astDefsRefsSpec, executeAstDefsRefs));
+  registry.register(defineTool(astGrepSpec, executeAstGrep));
 
-  registry.register({
-    ...gitStatusSpec,
-    executor: executeGitStatus as any,
-  });
+  // Git
+  registry.register(defineTool(gitCatSpec, executeGitCat));
+  registry.register(defineTool(gitStatusSpec, executeGitStatus));
+  registry.register(defineTool(gitDiffCheckSpec, executeGitDiffCheck));
+  registry.register(defineTool(gitApplyCheckSpec, executeGitApplyCheck));
 
-  registry.register({
-    ...gitDiffCheckSpec,
-    executor: executeGitDiffCheck as any,
-  });
+  // Benchmark / SWE-bench
+  registry.register(defineTool(benchmarkReportSpec, executeBenchmarkReport));
+  registry.register(defineTool(sweBenchLoadInstanceSpec, executeSweBenchLoadInstance));
+  registry.register(defineTool(sweBenchWritePredictionSpec, executeSweBenchWritePrediction));
+  registry.register(defineTool(sweBenchSubmitPredictionsSpec, executeSweBenchSubmitPredictions));
+  registry.register(defineTool(sweBenchGetReportSpec, executeSweBenchGetReport));
 
-  registry.register({
-    ...gitApplyCheckSpec,
-    executor: executeGitApplyCheck as any,
-  });
+  // Filesystem
+  registry.register(defineTool(fsReadFileSpec, executeFsReadFile));
+  registry.register(defineTool(codeReadSpec, executeFsReadFile));
+  registry.register(defineTool(fsListSpec, executeFsList));
+  registry.register(defineTool(fsListDirectorySpec, executeFsListDirectory));
+  registry.register(defineTool(fsListFilesSpec, executeFsListFiles));
+  registry.register(defineTool(fsWriteFileSpec, executeFsWriteFile));
+  registry.register(defineTool(fsCreateDirectorySpec, executeFsCreateDirectory));
+  registry.register(defineTool(fsDeleteFileSpec, executeFsDeleteFile));
 
-  registry.register({
-    ...benchmarkReportSpec,
-    executor: executeBenchmarkReport as any,
-  });
+  // Execution
+  registry.register(defineTool(verifyRunSpec, executeVerifyRun));
+  registry.register(defineTool(shellExecSpec, executeShellExec));
 
-  registry.register({
-    ...sweBenchLoadInstanceSpec,
-    executor: executeSweBenchLoadInstance as any,
-  });
-
-  registry.register({
-    ...sweBenchWritePredictionSpec,
-    executor: executeSweBenchWritePrediction as any,
-  });
-
-  registry.register({
-    ...sweBenchSubmitPredictionsSpec,
-    executor: executeSweBenchSubmitPredictions as any,
-  });
-
-  registry.register({
-    ...sweBenchGetReportSpec,
-    executor: executeSweBenchGetReport as any,
-  });
-
-  registry.register({
-    ...fsReadFileSpec,
-    executor: executeFsReadFile as any,
-  });
-
-  registry.register({
-    ...codeReadSpec,
-    executor: executeFsReadFile as any,
-  });
-
-  registry.register({
-    ...fsListSpec,
-    executor: executeFsList as any,
-  });
-
-  registry.register({
-    ...fsListDirectorySpec,
-    executor: executeFsListDirectory as any,
-  });
-
-  registry.register({
-    ...fsListFilesSpec,
-    executor: executeFsListFiles as any,
-  });
-
-  registry.register({
-    ...astGrepSpec,
-    executor: executeAstGrep as any,
-  });
-
-  registry.register({
-    ...verifyRunSpec,
-    executor: executeVerifyRun as any,
-  });
-
-  registry.register({
-    ...shellExecSpec,
-    executor: executeShellExec as any,
-  });
-
-  registry.register({
-    ...fsWriteFileSpec,
-    executor: executeFsWriteFile as any,
-  });
-
-  registry.register({
-    ...fsCreateDirectorySpec,
-    executor: executeFsCreateDirectory as any,
-  });
-
-  registry.register({
-    ...fsDeleteFileSpec,
-    executor: executeFsDeleteFile as any,
-  });
-
+  // Plan & interaction
   registry.register(planInitSpec);
   registry.register(planReadSpec);
   registry.register(planUpdateSpec);

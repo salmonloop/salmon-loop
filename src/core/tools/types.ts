@@ -136,6 +136,20 @@ export interface ToolSpecRuntime<I = any, O = any> {
 export interface ToolSpec<I = any, O = any>
   extends ToolSpecDescriptor, ToolSpecGovernance, ToolSpecSchemas<I, O>, ToolSpecRuntime<I, O> {}
 
+/**
+ * Type-safe helper to create a fully-formed ToolSpec from a spec definition and executor.
+ * Eliminates the `{ ...spec, executor: exec as any }` boilerplate pattern.
+ *
+ * The executor parameter accepts a superset of ToolRuntimeCtx (e.g., with phase narrowed
+ * to non-optional) to support tools that require the router-injected phase field.
+ */
+export function defineTool<I, O>(
+  spec: Omit<ToolSpec<I, O>, 'executor'>,
+  executor: (input: I, ctx: any) => Promise<O>,
+): ToolSpec<I, O> {
+  return { ...spec, executor: executor as ToolSpec<I, O>['executor'] };
+}
+
 export interface ToolCallEnvelope {
   id: string;
   phase: ExecutionPhase; // host inject; model cannot set
