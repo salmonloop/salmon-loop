@@ -17,6 +17,7 @@ import type { ChatOptions, LlmOutputKind, LlmOutputPolicy, LLM, LLMMessage } fro
 import type { ExecutionStep, LoopEvent } from '../types/runtime.js';
 import { Phase, type ExecutionPhase } from '../types/runtime.js';
 import { isSafeRelativePath, normalizePath } from '../utils/path.js';
+import { isRecord } from '../utils/serialize.js';
 
 import { buildHeadlessToolInputPayload } from './headless-payload.js';
 import { toolToOpenAI } from './mapper.js';
@@ -218,7 +219,7 @@ function extractArtifactHandlesFromToolOutput(output: unknown): {
     size: number;
   };
 } {
-  if (!isObjectRecord(output)) {
+  if (!isRecord(output)) {
     return {};
   }
 
@@ -244,13 +245,13 @@ function extractRecentReadResult(params: { toolName: string; rawArgs: unknown; o
   if (params.toolName !== 'fs.read' && params.toolName !== 'code.read') {
     return undefined;
   }
-  if (!isObjectRecord(params.output) || typeof params.output.content !== 'string') {
+  if (!isRecord(params.output) || typeof params.output.content !== 'string') {
     return undefined;
   }
 
   const args = safeParseJson(params.rawArgs);
   const argsValue = args.ok ? args.value : params.rawArgs;
-  if (!isObjectRecord(argsValue)) return undefined;
+  if (!isRecord(argsValue)) return undefined;
 
   const file = argsValue.file ?? argsValue.file_path ?? argsValue.filePath ?? argsValue.path;
   if (typeof file !== 'string' || !file.trim()) return undefined;
@@ -1054,12 +1055,8 @@ export async function chatWithTools(
   return lastAssistant || { role: 'assistant', content: '' };
 }
 
-function isObjectRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
 function isPlainObject(value: unknown): value is Record<string, unknown> {
-  if (!isObjectRecord(value)) return false;
+  if (!isRecord(value)) return false;
   const proto = Object.getPrototypeOf(value);
   return proto === Object.prototype || proto === null;
 }
@@ -1437,7 +1434,7 @@ async function executeToolCalls(
       ENABLE_TOOL_ARG_REPAIR &&
       phase === Phase.EXPLORE &&
       normalizedToolName === 'fs.read' &&
-      isObjectRecord(argsValue) &&
+      isRecord(argsValue) &&
       typeof (argsValue as any).file !== 'string'
     ) {
       const instruction = extractInstructionText(messages);
@@ -1448,7 +1445,7 @@ async function executeToolCalls(
     }
 
     let planUpdatePatchError: string | undefined;
-    if (parsedArgsOk && normalizedToolName === 'plan.update' && isObjectRecord(argsValue)) {
+    if (parsedArgsOk && normalizedToolName === 'plan.update' && isRecord(argsValue)) {
       const patchGuard = coercePlanUpdatePatch(argsValue);
       argsValue = patchGuard.args;
       if (patchGuard.coercedPatchSource) {
@@ -1739,7 +1736,7 @@ async function executeToolCalls(
       session.toolCallingAudit?.event(errorAuditEntry);
     } else {
       const toolResultOutputOk =
-        isObjectRecord(result.output) && typeof result.output.ok === 'boolean'
+        isRecord(result.output) && typeof result.output.ok === 'boolean'
           ? result.output.ok
           : undefined;
       const artifacts = extractArtifactHandlesFromToolOutput(result.output);
