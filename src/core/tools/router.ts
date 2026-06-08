@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 import { LIMITS } from '../config/limits.js';
 import { getLogger } from '../observability/logger.js';
+import { unwrapZodSchema } from '../utils/zod.js';
 
 import { ToolAuditLogger } from './audit.js';
 import type {
@@ -25,32 +26,7 @@ export class ToolRouter {
   private permissionRules?: CompiledPermissionRules;
 
   private unwrapForHint(schema: z.ZodTypeAny): z.ZodTypeAny {
-    let current: z.ZodTypeAny = schema;
-    for (let depth = 0; depth < 20; depth++) {
-      const ZodEffects: any = (z as any).ZodEffects;
-      if (typeof ZodEffects === 'function' && current instanceof ZodEffects) {
-        current = (current as any)._def.schema;
-        continue;
-      }
-      if (current instanceof z.ZodPipe) {
-        current = (current as any)._def.out;
-        continue;
-      }
-      if (current instanceof z.ZodOptional) {
-        current = (current as any)._def.innerType;
-        continue;
-      }
-      if (current instanceof z.ZodNullable) {
-        current = (current as any)._def.innerType;
-        continue;
-      }
-      if (current instanceof z.ZodDefault) {
-        current = (current as any)._def.innerType;
-        continue;
-      }
-      break;
-    }
-    return current;
+    return unwrapZodSchema(schema);
   }
 
   private buildInputHint(spec: ToolSpec): string | undefined {

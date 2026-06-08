@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { unwrapZodSchema } from '../utils/zod.js';
+
 import { ToolSpec } from './types.js';
 
 type JsonSchema =
@@ -35,35 +37,7 @@ function toolDescriptionForModel(spec: ToolSpec): string {
   return `${spec.description}${formatToolExamplesForDescription(spec)}`;
 }
 
-function unwrapForSchemaGeneration(schema: z.ZodTypeAny): z.ZodTypeAny {
-  let current: z.ZodTypeAny = schema;
-  for (let depth = 0; depth < 20; depth++) {
-    const ZodEffects: any = (z as any).ZodEffects;
-    if (typeof ZodEffects === 'function' && current instanceof ZodEffects) {
-      current = (current as any)._def.schema;
-      continue;
-    }
-    if (current instanceof z.ZodPipe) {
-      // z.preprocess in Zod v4 produces a ZodPipe(in=ZodTransform, out=<schema>).
-      current = (current as any)._def.out;
-      continue;
-    }
-    if (current instanceof z.ZodOptional) {
-      current = (current as any)._def.innerType;
-      continue;
-    }
-    if (current instanceof z.ZodNullable) {
-      current = (current as any)._def.innerType;
-      continue;
-    }
-    if (current instanceof z.ZodDefault) {
-      current = (current as any)._def.innerType;
-      continue;
-    }
-    break;
-  }
-  return current;
-}
+const unwrapForSchemaGeneration = unwrapZodSchema;
 
 function zodToOpenApi3(schema: z.ZodTypeAny): JsonSchema {
   const unwrapped = unwrapForSchemaGeneration(schema);
