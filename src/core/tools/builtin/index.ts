@@ -1,5 +1,6 @@
 import { agentAwaitTaskSpec } from '../../sub-agent/tools/task-await.js';
 import { subAgentTaskSpec } from '../../sub-agent/tools/task-spawn.js';
+import { agentTeamSpec } from '../../sub-agent/tools/team.js';
 import { ToolRegistry } from '../registry.js';
 
 import { artifactReadSpec, executeArtifactRead } from './artifact.js';
@@ -56,6 +57,7 @@ export function registerAllBuiltins(registry: ToolRegistry): void {
   // Register sub-agent tools
   registry.register(subAgentTaskSpec);
   registry.register(agentAwaitTaskSpec);
+  registry.register(agentTeamSpec);
   registry.register({
     ...artifactReadSpec,
     executor: executeArtifactRead as any,

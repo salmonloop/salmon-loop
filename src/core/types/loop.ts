@@ -511,6 +511,11 @@ export interface LoopOptions {
    * Appended to the standard system prompt when building LLM requests.
    */
   subAgentSystemPrompt?: string;
+  /**
+   * Optional sub-agent ID for team coordination.
+   * Passed through to ToolRuntimeCtx so team tools can identify the caller.
+   */
+  agentId?: string;
 }
 
 export interface ExecutionWorkspace {

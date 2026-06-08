@@ -69,6 +69,10 @@ export interface ToolRuntimeCtx {
    * This object is carried through tool runtime only and is never exposed to the model directly.
    */
   contextSnapshot?: SubAgentContextSnapshot;
+  /**
+   * Optional agent ID for sub-agent coordination (team claims).
+   */
+  agentId?: string;
 }
 
 export const TOOL_INTENTS = [

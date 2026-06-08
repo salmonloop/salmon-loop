@@ -39,6 +39,7 @@ export function buildPhaseToolRuntimeContext(
     agentKind: ctx.options.agentKind ?? 'primary',
     languagePlugins: ctx.options.languagePlugins,
     subAgentController: ctx.options.subAgentController,
+    agentId: ctx.options.agentId,
     phase,
     contextSnapshot: {
       conversationContext: ctx.options.conversationContext,

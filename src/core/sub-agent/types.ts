@@ -66,6 +66,7 @@ export interface SubAgentRequest {
   contextSnapshot?: SubAgentContextSnapshot;
   expected_output?: 'diagnosis' | 'patch' | 'review';
   async?: boolean; // If true, return handle immediately without waiting
+  teamId?: string; // Join a coordination team to avoid duplicate work
 
   // Overrides
   budgetOverride?: {
@@ -213,6 +214,10 @@ export const SubAgentRequestSchema = z.object({
     .default(false)
     .optional()
     .describe('If true, return a handle immediately and let the caller await the result.'),
+  teamId: z
+    .string()
+    .optional()
+    .describe('Join a coordination team. Sub-agents sharing a teamId can avoid duplicate work via claim/list.'),
   contextSnapshot: z
     .object({
       version: z.literal(SUB_AGENT_CONTEXT_SNAPSHOT_VERSION).optional().default(1),

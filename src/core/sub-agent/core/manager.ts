@@ -330,15 +330,15 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
               contextFiles: request.contextFiles || [],
               llm,
               recursionDepth: currentDepth + 1,
-              allowedToolNames: this.filterAllowedTools(
-                profile.allowedTools,
-                this.ctx.phase,
-                profile.toolInheritance,
+              allowedToolNames: this.resolveAllowedTools(
+                profile,
+                request.teamId,
               ),
               timeoutMs: request.timeout_seconds
                 ? request.timeout_seconds * 1000
                 : profile.timeoutMs,
               subAgentSystemPrompt: profile.systemPrompt,
+              agentId,
             },
             lastError,
             mode: flowMode,
@@ -469,6 +469,21 @@ export class SubAgentManager implements IExecutable<SubAgentRequest, SubAgentRes
       logs: [],
       errorType: ErrorType.UNKNOWN,
     };
+  }
+
+  private resolveAllowedTools(
+    profile: SubAgentProfile,
+    teamId?: string,
+  ): string[] | undefined {
+    const base = this.filterAllowedTools(
+      profile.allowedTools,
+      this.ctx.phase,
+      profile.toolInheritance,
+    );
+    if (!teamId) return base;
+    // When a teamId is present, add agent_team to the allowed tools
+    if (base === undefined) return undefined; // Inherited all tools — agent_team already available
+    return [...new Set([...base, 'agent_team'])];
   }
 
   private async setupIsolatedEnvironment(
