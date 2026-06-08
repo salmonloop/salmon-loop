@@ -61,3 +61,13 @@ export function getRecord(
   const value = record[key];
   return isRecord(value) ? value : null;
 }
+
+/**
+ * Extract a human-readable error message from an unknown thrown value.
+ * Handles Error instances, strings, and falls back to String(value).
+ */
+export function errorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
+  return String(error);
+}
