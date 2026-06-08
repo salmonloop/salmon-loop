@@ -259,10 +259,9 @@ export function mcpToolToToolSpec(input: {
   policy: McpPolicyEngine;
 }): ToolSpec {
   const override = findOverride(input.server.capabilities, input.tool.name);
-  const classification = classifyMcpTool({
-    tool: input.tool as any,
+  const classification = classifyMcpTool(input.tool, {
     trust: input.server.trust,
-    override,
+    override: override ? { sideEffects: override } : undefined,
   });
   const phase = input.server.capabilities.tools.phases[0] ?? Phase.VERIFY;
   const grantDecision = input.policy.decideTool({
@@ -323,7 +322,7 @@ export async function registerMcpV2Tools(input: {
     const catalog = input.manager.getCatalog(server.name);
     if (!catalog) continue;
     for (const tool of catalog.tools) {
-      const classification = classifyMcpTool({ tool: tool as any, trust: server.trust });
+      const classification = classifyMcpTool(tool, { trust: server.trust });
       const decision = input.policy.decideTool({
         server: server.name,
         toolName: tool.name,

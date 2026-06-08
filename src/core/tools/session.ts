@@ -24,7 +24,7 @@ import { buildHeadlessToolInputPayload } from './headless-payload.js';
 import { toolToOpenAI } from './mapper.js';
 import { InMemoryLockManager } from './parallel/lock-manager.js';
 import { PlanPersistence } from './parallel/persistence.js';
-import type { ExecutionPlan, PlanNode } from './parallel/plan.js';
+import type { ExecutionPlan, PlanNode, PlanRunResult } from './parallel/plan.js';
 import { ParallelScheduler } from './parallel/scheduler.js';
 import { isRecoverableToolInputErrorCode } from './recoverable-tool-errors.js';
 import type { ToolRouter } from './router.js';
@@ -1192,39 +1192,28 @@ function prepareToolCallRequests(calls: any[]): PreparedToolCallRequest[] {
   });
 }
 
-type SchedulerBlockedApproval = { nodeId: string };
-
-type SchedulerNodeResult = {
-  toolResult?: ToolResult;
-};
-
-type SchedulerRunResult = {
-  blockedApprovals: SchedulerBlockedApproval[];
-  nodeResults: Record<string, SchedulerNodeResult | undefined>;
-};
-
 async function runToolExecutionPlan(params: {
   session: ToolCallingSessionOptions;
   phase: ExecutionPhase;
   plan: ExecutionPlan;
   signal?: AbortSignal;
-}): Promise<SchedulerRunResult> {
+}): Promise<PlanRunResult> {
   const scheduler = new ParallelScheduler(
     params.session.toolstack.router as ToolRouter,
     new InMemoryLockManager(),
   );
 
   const runSignal = params.signal ?? new AbortController().signal;
-  let result = (await scheduler.run(
+  let result = await scheduler.run(
     params.plan,
     { ...params.session.runtime, phase: params.phase },
     runSignal,
-  )) as SchedulerRunResult;
+  );
 
   const persistEnabled = process.env.NODE_ENV !== 'test';
   const persistenceRoot = params.session.runtime.persistenceRoot || params.session.runtime.repoRoot;
   if (persistEnabled) {
-    await PlanPersistence.save(persistenceRoot, params.plan, result as any, {
+    await PlanPersistence.save(persistenceRoot, params.plan, result, {
       repoRoot: params.session.runtime.repoRoot,
       worktreeRoot: params.session.runtime.worktreeRoot,
       persistenceRoot: params.session.runtime.persistenceRoot,
@@ -1247,18 +1236,18 @@ async function runToolExecutionPlan(params: {
       }),
     );
 
-    result = (await scheduler.run(
+    result = await scheduler.run(
       params.plan,
       { ...params.session.runtime, phase: params.phase },
       runSignal,
       {
-        initialResults: result.nodeResults as any,
+        initialResults: result.nodeResults,
         resumeBlockedApprovals: true,
       },
-    )) as SchedulerRunResult;
+    );
 
     if (persistEnabled) {
-      await PlanPersistence.save(persistenceRoot, params.plan, result as any, {
+      await PlanPersistence.save(persistenceRoot, params.plan, result, {
         repoRoot: params.session.runtime.repoRoot,
         worktreeRoot: params.session.runtime.worktreeRoot,
         persistenceRoot: params.session.runtime.persistenceRoot,
@@ -1522,7 +1511,7 @@ async function executeToolCalls(
       continue;
     }
 
-    const parsedAuditEntry: any = {
+    const parsedAuditEntry: Record<string, unknown> = {
       timestamp: new Date().toISOString(),
       phase,
       round,
@@ -1653,7 +1642,7 @@ async function executeToolCalls(
     if (result.status !== 'ok') {
       const errorCode = result.error?.code;
       const attachArgsPreview = errorCode === 'INVALID_INPUT';
-      const errorAuditEntry: any = {
+      const errorAuditEntry: Record<string, unknown> = {
         timestamp: new Date().toISOString(),
         phase,
         round,

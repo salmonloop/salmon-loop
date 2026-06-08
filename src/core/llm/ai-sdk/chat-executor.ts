@@ -74,7 +74,7 @@ export async function executeAiSdkChatRequest(
             });
           }
 
-          return mapAiSdkGenerateResultToMessage(result as any);
+          return mapAiSdkGenerateResultToMessage(result);
         },
       });
     },
@@ -114,7 +114,7 @@ export async function* executeAiSdkChatStreamRequest(
             providerOptionsKey: input.providerOptionsKey,
           }),
         );
-        yield* mapAiSdkStreamResultToChunks((result as any).fullStream);
+        yield* mapAiSdkStreamResultToChunks(result.fullStream);
       },
     });
   };
