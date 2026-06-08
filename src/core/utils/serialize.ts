@@ -26,12 +26,17 @@ export function safeStringify(value: unknown, options?: SafeStringifyOptions): s
 }
 
 /**
+ * Type guard: narrow an unknown value to Record<string, unknown>.
+ * Returns false for arrays, primitives, null, and undefined.
+ */
+export function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+}
+
+/**
  * Narrow an unknown value to a Record<string, unknown>.
  * Returns an empty object for non-object inputs (arrays, primitives, null, undefined).
  */
 export function asRecord(value: unknown): Record<string, unknown> {
-  if (value && typeof value === 'object' && !Array.isArray(value)) {
-    return value as Record<string, unknown>;
-  }
-  return {};
+  return isRecord(value) ? value : {};
 }

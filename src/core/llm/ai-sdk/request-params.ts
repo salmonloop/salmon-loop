@@ -3,13 +3,10 @@ import type { ToolSet, generateText } from 'ai';
 
 import type { OpenAICachePolicyHint } from '../../types/llm.js';
 import type { ChatOptions } from '../../types/llm.js';
+import { isRecord } from '../../utils/serialize.js';
 
 type GenerateTextParams = Parameters<typeof generateText>[0];
 type GenerateToolChoice = GenerateTextParams extends { toolChoice?: infer T } ? T : never;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 function isJsonValue(value: unknown): value is JSONObject[string] {
   if (

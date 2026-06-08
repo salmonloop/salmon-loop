@@ -1,10 +1,7 @@
 import type { LLMStreamChunk } from '../../types/index.js';
+import { isRecord } from '../../utils/serialize.js';
 
 import type { CanonicalStreamPart } from './canonical-responses-event-emitter.js';
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
-}
 
 function getString(record: Record<string, unknown>, key: string): string | null {
   const value = record[key];

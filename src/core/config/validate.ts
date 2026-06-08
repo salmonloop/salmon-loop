@@ -1,4 +1,5 @@
 import { LLM_OUTPUT_KINDS } from '../types/index.js';
+import { isRecord } from '../utils/serialize.js';
 
 import { ConfigError } from './errors.js';
 import { normalizePermissionMode, normalizeUiLogMode, normalizeUiLogView } from './normalize.js';
@@ -11,10 +12,6 @@ import {
   type LlmModelProfileV1,
   type LlmProviderV1,
 } from './types.js';
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
-}
 
 function isString(value: unknown): value is string {
   return typeof value === 'string';

@@ -1,8 +1,5 @@
 import type { LLMStreamChunk } from '../../types/llm.js';
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
-}
+import { isRecord } from '../../utils/serialize.js';
 
 function mergeToolCall(prev: unknown, next: unknown): unknown {
   if (!isRecord(next)) return prev ?? next;

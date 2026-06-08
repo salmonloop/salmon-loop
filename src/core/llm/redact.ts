@@ -1,3 +1,5 @@
+import { isRecord } from '../utils/serialize.js';
+
 const SECRET_KEY_REGEX = /(api[-_]?key|authorization|token|secret|password|cookie)/i;
 const STRING_SECRET_PATTERNS: Array<{ pattern: RegExp; replacement: string }> = [
   {
@@ -17,10 +19,6 @@ const STRING_SECRET_PATTERNS: Array<{ pattern: RegExp; replacement: string }> = 
     replacement: '$1=[REDACTED]',
   },
 ];
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
-}
 
 function truncate(value: string, max = 500): string {
   if (value.length <= max) return value;
