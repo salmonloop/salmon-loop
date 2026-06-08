@@ -29,16 +29,27 @@ export interface SubAgentView {
 }
 
 export interface SubAgentControllerPort {
+  /** Register a new agent or update an existing one. */
   registerAgent(id: string, profile: SubAgentProfile, status: SubAgentStatus): void;
+  /** Update agent status and optional summary. Appends a log entry. */
   updateStatus(id: string, status: SubAgentStatus, summary?: string): void;
+  /** Append a timestamped log message for the agent. */
   appendLog(id: string, message: string): void;
+  /** Add token usage to the agent's running total. */
   addTokenUsage(id: string, tokens: number): void;
+  /** Record a completed tool call and notify listeners. */
   recordToolCall(id: string, toolName: string, durationMs: number, success: boolean): void;
+  /** Subscribe to tool call events. Returns an unsubscribe function. */
   onToolCall(listener: ToolCallListener): () => void;
+  /** List all registered agents. */
   listAgents(): SubAgentView[];
+  /** Get a specific agent by ID. */
   getAgent(id: string): SubAgentView | undefined;
+  /** Get the last N log entries for an agent. */
   tailLogs(id: string, count: number): string[];
+  /** Request graceful stop for an agent. Returns false if agent not found. */
   requestStop(id: string): boolean;
+  /** Check if stop has been requested for an agent. */
   isStopRequested(id: string): boolean;
 }
 

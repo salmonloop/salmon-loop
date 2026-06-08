@@ -86,6 +86,7 @@ export class SubAgentTeam {
 // Global team registry — teams live for the duration of the parent session
 const teams = new Map<string, SubAgentTeam>();
 
+/** Get an existing team or create a new one. Teams are keyed by teamId. */
 export function getOrCreateTeam(teamId: string): SubAgentTeam {
   let team = teams.get(teamId);
   if (!team) {
@@ -95,10 +96,12 @@ export function getOrCreateTeam(teamId: string): SubAgentTeam {
   return team;
 }
 
+/** Remove a team from the global registry. Returns false if not found. */
 export function removeTeam(teamId: string): boolean {
   return teams.delete(teamId);
 }
 
+/** Remove all teams from the global registry. */
 export function clearAllTeams(): void {
   teams.clear();
 }

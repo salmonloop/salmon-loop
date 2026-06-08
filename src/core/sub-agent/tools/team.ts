@@ -77,13 +77,14 @@ export const agentTeamSpec: ToolSpec = {
         if (!parsed.taskKey) return { success: false, error: 'taskKey required for is_claimed' };
         const existing = team.listClaims().find((c) => c.taskKey === parsed.taskKey);
         return {
+          success: true,
           claimed: team.isClaimed(parsed.taskKey),
           claimedBy: existing?.claimedBy,
         };
       }
       case 'list': {
         const claims = team.listClaims();
-        return { claims };
+        return { success: true, claims };
       }
       default:
         return { success: false, error: `Unknown action: ${parsed.action}` };
