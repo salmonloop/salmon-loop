@@ -2,18 +2,10 @@ import {
   parseCanonicalFunctionCallItemId,
   type CanonicalResponsesEvent,
 } from '../../core/facades/cli-headless.js';
+import { isRecord, getString } from '../../core/utils/serialize.js';
 
 import type { UnsequencedResponseStreamEvent } from './openai-responses-state.js';
 import { OpenAiResponsesState } from './openai-responses-state.js';
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object';
-}
-
-function getString(record: Record<string, unknown>, key: string): string | null {
-  const value = record[key];
-  return typeof value === 'string' ? value : null;
-}
 
 export class OpenAiResponsesCanonicalApplier {
   constructor(private readonly state: OpenAiResponsesState) {}

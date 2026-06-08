@@ -40,3 +40,24 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
 export function asRecord(value: unknown): Record<string, unknown> {
   return isRecord(value) ? value : {};
 }
+
+/**
+ * Extract a string value from a record by key.
+ * Returns null if the key doesn't exist or the value isn't a string.
+ */
+export function getString(record: Record<string, unknown>, key: string): string | null {
+  const value = record[key];
+  return typeof value === 'string' ? value : null;
+}
+
+/**
+ * Extract a nested record from a record by key.
+ * Returns null if the key doesn't exist or the value isn't a record.
+ */
+export function getRecord(
+  record: Record<string, unknown>,
+  key: string,
+): Record<string, unknown> | null {
+  const value = record[key];
+  return isRecord(value) ? value : null;
+}
