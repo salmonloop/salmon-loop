@@ -8,6 +8,13 @@ function safeFiniteNumber(value: unknown): number | null {
   return value;
 }
 
+function asRecord(value: unknown): Record<string, unknown> {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  return {};
+}
+
 export function extractTokenUsageFromAuditTrail(auditTrail: AuditTrailEvent[]): TokenUsage | null {
   let inputTokens = 0;
   let outputTokens = 0;
@@ -15,12 +22,11 @@ export function extractTokenUsageFromAuditTrail(auditTrail: AuditTrailEvent[]): 
   for (const event of auditTrail) {
     if (!event || typeof event !== 'object') continue;
     if (event.action !== 'llm.usage') continue;
+    if (!event.details || typeof event.details !== 'object') continue;
 
-    const details = event.details;
-    if (!details || typeof details !== 'object') continue;
-
-    const promptTokens = safeFiniteNumber((details as any).promptTokens);
-    const completionTokens = safeFiniteNumber((details as any).completionTokens);
+    const d = asRecord(event.details);
+    const promptTokens = safeFiniteNumber(d.promptTokens);
+    const completionTokens = safeFiniteNumber(d.completionTokens);
 
     if (typeof promptTokens === 'number') inputTokens += promptTokens;
     if (typeof completionTokens === 'number') outputTokens += completionTokens;

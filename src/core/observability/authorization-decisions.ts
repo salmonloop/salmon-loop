@@ -20,6 +20,13 @@ function safeStringArray(value: unknown): string[] | undefined {
   return out.length > 0 ? out : undefined;
 }
 
+function asRecord(value: unknown): Record<string, unknown> {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  return {};
+}
+
 export function extractAuthorizationDecisionsFromAuditTrail(
   auditTrail: AuditTrailEvent[],
 ): AuthorizationDecisionRecord[] {
@@ -28,27 +35,27 @@ export function extractAuthorizationDecisionsFromAuditTrail(
   for (const event of auditTrail) {
     if (!event || typeof event !== 'object') continue;
     if (event.action !== 'authorization.decision') continue;
-    const details = event.details;
-    if (!details || typeof details !== 'object') continue;
+    if (!event.details || typeof event.details !== 'object') continue;
 
-    const callId = safeString((details as any).callId);
-    const toolName = safeString((details as any).toolName);
-    const phase = safeString((details as any).phase) ?? safeString((event as any).phase);
-    const outcome = safeString((details as any).outcome);
+    const d = asRecord(event.details);
+    const callId = safeString(d.callId);
+    const toolName = safeString(d.toolName);
+    const phase = safeString(d.phase) ?? safeString(event.phase);
+    const outcome = safeString(d.outcome);
 
     if (!callId || !toolName || !phase || !outcome) continue;
 
     decisions.push({
       callId,
       toolName,
-      phase: phase as any,
-      outcome: outcome as any,
-      source: (safeString((details as any).source) ?? 'unknown') as any,
-      reason: safeString((details as any).reason),
-      ttlMs: safeNumber((details as any).ttlMs),
-      persist: safeString((details as any).persist) as any,
-      riskLevel: safeString((details as any).riskLevel),
-      sideEffects: safeStringArray((details as any).sideEffects),
+      phase: phase as AuthorizationDecisionRecord['phase'],
+      outcome: outcome as AuthorizationDecisionRecord['outcome'],
+      source: (safeString(d.source) ?? 'unknown') as AuthorizationDecisionRecord['source'],
+      reason: safeString(d.reason),
+      ttlMs: safeNumber(d.ttlMs),
+      persist: safeString(d.persist) as AuthorizationDecisionRecord['persist'],
+      riskLevel: safeString(d.riskLevel),
+      sideEffects: safeStringArray(d.sideEffects),
       timestamp: safeString(event.timestamp) ?? new Date().toISOString(),
     });
   }
