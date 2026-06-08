@@ -129,7 +129,7 @@ export function toolToOpenAI(spec: ToolSpec) {
     function: {
       name: spec.name,
       description: toolDescriptionForModel(spec),
-      parameters: zodToOpenApi3(spec.inputSchema as any),
+      parameters: zodToOpenApi3(spec.inputSchema),
     },
   };
 }
@@ -141,7 +141,7 @@ export function toolToAnthropic(spec: ToolSpec) {
   return {
     name: spec.name,
     description: toolDescriptionForModel(spec),
-    input_schema: zodToOpenApi3(spec.inputSchema as any),
+    input_schema: zodToOpenApi3(spec.inputSchema),
   };
 }
 
@@ -151,7 +151,7 @@ export function toolToAnthropic(spec: ToolSpec) {
 export function formatToolsForPrompt(specs: ToolSpec[]): string {
   return specs
     .map((spec) => {
-      const schema = zodToOpenApi3(spec.inputSchema as any);
+      const schema = zodToOpenApi3(spec.inputSchema);
       return `Tool: ${spec.name}\nDescription: ${toolDescriptionForModel(spec)}\nSchema: ${JSON.stringify(schema, null, 2)}`;
     })
     .join('\n\n---\n\n');
