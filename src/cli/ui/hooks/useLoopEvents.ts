@@ -20,8 +20,8 @@ export function useLoopEvents(
     interceptEvent?: (event: any) => void;
   },
 ) {
-  const store = useUIStore() as any;
-  const dispatch = store.dispatch as any;
+  const store = useUIStore();
+  const { dispatch } = store;
   const runStartedRef = useRef(false);
   const activeStreamIdRef = useRef<string | null>(null);
   const logModeRef = useRef<UiLogMode>('normal');
@@ -297,7 +297,7 @@ export function useLoopEvents(
           const guiType = phaseTypeMap[event.phase.toUpperCase()];
           if (guiType) {
             const phaseKey = event.phase.toLowerCase();
-            const phaseName = (text.progress as any)[phaseKey] || event.phase;
+            const phaseName = (text.progress as Record<string, string>)[phaseKey] || event.phase;
             if (logMode !== 'quiet' && logMode !== 'normal' && logMode !== 'debug') break;
             dispatch({
               type: 'ADD_MESSAGE',

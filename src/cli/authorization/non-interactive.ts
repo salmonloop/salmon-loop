@@ -12,6 +12,7 @@ import {
   getLogger,
   McpConnectionManager,
 } from '../../core/facades/cli-authorization-non-interactive.js';
+import { isRecord } from '../../core/utils/serialize.js';
 import { text } from '../locales/index.js';
 
 const DecisionSchema = z
@@ -40,22 +41,21 @@ function findMcpServer(
 }
 
 function extractDecisionPayloadFromMcpResult(result: unknown): unknown {
-  if (!result || typeof result !== 'object') return result;
+  if (!isRecord(result)) return result;
 
-  const obj = result as any;
-  if (obj.decision && typeof obj.decision === 'object') return obj.decision;
-  if (typeof obj.outcome === 'string') return obj;
+  if (isRecord(result.decision)) return result.decision;
+  if (typeof result.outcome === 'string') return result;
 
-  const content = obj.content;
+  const content = result.content;
   if (!Array.isArray(content)) return result;
 
   for (const item of content) {
-    if (!item || typeof item !== 'object') continue;
+    if (!isRecord(item)) continue;
     const candidate =
-      (item as any).json ??
-      (item as any).text ??
-      (item as any).value ??
-      (item as any).data ??
+      item.json ??
+      item.text ??
+      item.value ??
+      item.data ??
       undefined;
     if (typeof candidate === 'string' && candidate.trim()) {
       try {

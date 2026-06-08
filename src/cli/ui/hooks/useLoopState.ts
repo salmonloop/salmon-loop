@@ -36,7 +36,7 @@ export function useLoopState() {
               {
                 id: Math.random().toString(36).substring(7),
                 message: event.message,
-                level: event.level as any,
+                level: event.level === 'trace' ? 'debug' : event.level,
                 timestamp: event.timestamp,
               },
             ].slice(-100),
@@ -54,7 +54,7 @@ export function useLoopState() {
               {
                 id: 'clear-' + Date.now(),
                 message: '--- SCREEN CLEARED ---',
-                level: 'info' as any,
+                level: 'info',
                 timestamp: new Date(),
               },
             ],

@@ -1,4 +1,5 @@
 import { EXECUTION_PHASES, getLogger } from '../../core/facades/cli-command-allowlist.js';
+import type { ExecutionPhase } from '../../core/types/execution.js';
 import {
   clearAllowlist,
   clearAllowlistCache,
@@ -200,7 +201,7 @@ export const allowlistCommand: Command = {
         return;
       }
       const phase = args[3]?.toUpperCase();
-      if (phase && !EXECUTION_PHASES.includes(phase as any)) {
+      if (phase && !(EXECUTION_PHASES as readonly string[]).includes(phase)) {
         emit({
           type: 'log',
           level: 'error',
@@ -229,7 +230,7 @@ export const allowlistCommand: Command = {
         config,
         repoRoot,
         toolName,
-        phase: (phase || 'CONTEXT') as any,
+        phase: ((phase || 'CONTEXT') as ExecutionPhase),
         scope,
         mode,
         sideEffects,
@@ -257,7 +258,7 @@ export const allowlistCommand: Command = {
         return;
       }
       const phase = args[3]?.toUpperCase();
-      if (phase && !EXECUTION_PHASES.includes(phase as any)) {
+      if (phase && !(EXECUTION_PHASES as readonly string[]).includes(phase)) {
         emit({
           type: 'log',
           level: 'error',
@@ -286,7 +287,7 @@ export const allowlistCommand: Command = {
         repoRoot,
         scope,
         toolName,
-        phase: phase as any,
+        phase: phase as ExecutionPhase | undefined,
         sideEffects,
         argsHash,
       });

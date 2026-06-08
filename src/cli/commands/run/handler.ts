@@ -177,7 +177,7 @@ export async function handleRunCommand(options: any, command: Command) {
   const allowedToolRules = parsed.allowedToolRules;
   const disallowedToolRules = parsed.disallowedToolRules;
 
-  const rawPreflightPolicy = String((allOptions as any).preflightPolicy || 'lenient');
+  const rawPreflightPolicy = String(allOptions.preflightPolicy || 'lenient');
   if (rawPreflightPolicy !== 'lenient' && rawPreflightPolicy !== 'strict') {
     getLogger().error(text.cli.invalidPreflightPolicy(rawPreflightPolicy), true);
     return;
@@ -317,7 +317,7 @@ export async function handleRunCommand(options: any, command: Command) {
     return;
   }
 
-  const rawEnvironmentMode = String((allOptions as any).environmentMode || 'strict');
+  const rawEnvironmentMode = String(allOptions.environmentMode || 'strict');
   if (rawEnvironmentMode !== 'strict' && rawEnvironmentMode !== 'parity') {
     getLogger().error(text.cli.invalidEnvironmentMode(rawEnvironmentMode));
     if (outputFormat === 'json') {
@@ -578,8 +578,10 @@ export async function handleRunCommand(options: any, command: Command) {
       activeReporterStarted &&
       activeReporter
     ) {
-      const error = new Error(text.cli.unexpectedError(msg));
-      (error as any).auditPath = lastKnownAuditPath;
+      const error = Object.assign(
+        new Error(text.cli.unexpectedError(msg)),
+        { auditPath: lastKnownAuditPath },
+      );
       activeReporter.onError(error);
     } else if (outputFormat === 'stream-json') {
       headlessErrorWriter.writeUnexpectedError({

@@ -1,6 +1,7 @@
 import { readFile } from '../../core/adapters/fs/node-fs.js';
 import { recordAuditEvent } from '../../core/observability/audit-trail.js';
 import { getLogger } from '../../core/observability/logger.js';
+import { isRecord } from '../../core/utils/serialize.js';
 import type {
   RunOutcomeContext,
   RunOutcomeReport,
@@ -74,9 +75,9 @@ function buildPhaseDurations(traces: unknown): Record<string, number> | undefine
   if (!Array.isArray(traces)) return undefined;
   const out: Record<string, number> = {};
   for (const t of traces) {
-    if (!t || typeof t !== 'object') continue;
-    const name = (t as any).name;
-    const duration = (t as any).duration;
+    if (!isRecord(t)) continue;
+    const name = t.name;
+    const duration = t.duration;
     if (typeof name === 'string' && typeof duration === 'number' && Number.isFinite(duration)) {
       out[name] = duration;
     }
@@ -102,14 +103,14 @@ function extractNetworkErrorCode(error: unknown): string | undefined {
   const allow = (value: unknown) =>
     typeof value === 'string' && /^[A-Z0-9_]{2,32}$/.test(value) ? value : undefined;
 
-  if (error && typeof error === 'object') {
-    const e = error as any;
+  if (isRecord(error)) {
+    const cause = isRecord(error.cause) ? error.cause : undefined;
     return (
-      allow(e.code) ||
-      allow(e.cause?.code) ||
-      allow(e.cause?.errno) ||
-      allow(e.errno) ||
-      allow(e.cause?.name)
+      allow(error.code) ||
+      allow(cause?.code) ||
+      allow(cause?.errno) ||
+      allow(error.errno) ||
+      allow(cause?.name)
     );
   }
   return undefined;

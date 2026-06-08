@@ -154,15 +154,14 @@ export class StandardReporter implements SalmonReporter {
   }
 
   private initProgressBar() {
-    // 🛡️ DCAP Defense: Check if stderr supports TTY operations to prevent clearLine crashes and unexpected termination
-    const stream = process.stderr as any;
-    if (typeof stream.clearLine !== 'function' || typeof stream.cursorTo !== 'function') {
+    // DCAP Defense: Check if stderr supports TTY operations to prevent clearLine crashes and unexpected termination
+    if (!('clearLine' in process.stderr) || !('cursorTo' in process.stderr)) {
       this.bar = {
         render: () => {},
         tick: () => {},
         terminate: () => {},
         interrupt: (msg: string) => getLogger().info(msg),
-      } as any;
+      } as unknown as ProgressBar;
       return;
     }
 
@@ -176,7 +175,7 @@ export class StandardReporter implements SalmonReporter {
 
   private renderPhaseLabel(step: string): string {
     const phaseKey = step.toLowerCase();
-    const phaseName = (text.progress as any)[phaseKey] || step;
+    const phaseName = (text.progress as Record<string, string>)[phaseKey] || step;
     return chalk.blue(`\n[${step.toUpperCase()}] `) + phaseName;
   }
 

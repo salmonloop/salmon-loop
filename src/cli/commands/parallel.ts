@@ -8,6 +8,7 @@ import {
   type PersistedPlanState,
   WorkspaceManager,
 } from '../../core/facades/cli-command-parallel.js';
+import type { ExecutionPhase } from '../../core/types/execution.js';
 import { createUiAuthorizationProvider } from '../authorization/provider.js';
 import { text } from '../locales/index.js';
 import { requestSelection } from '../ui/selection/bus.js';
@@ -242,11 +243,11 @@ export const parallelCommand: Command = {
 
         try {
           const scheduler = new ParallelScheduler(
-            toolstack.router as any,
+            toolstack.router,
             new InMemoryLockManager(),
           );
 
-          const phase = (state.runtime?.phase as any) || 'PATCH';
+          const phase: ExecutionPhase = state.runtime?.phase ?? ('PATCH' as ExecutionPhase);
           const runtime = {
             repoRoot: workspace.workPath,
             worktreeRoot: workspace.workPath,
@@ -258,13 +259,13 @@ export const parallelCommand: Command = {
           };
 
           const runSignal = new AbortController().signal;
-          let result = await scheduler.run(state.plan, runtime as any, runSignal, {
+          let result = await scheduler.run(state.plan, runtime, runSignal, {
             initialResults: state.result.nodeResults,
             resumeBlockedApprovals: true,
           });
 
           const canWaitForAuth =
-            typeof (toolstack.router as any).waitForAuthorization === 'function';
+            typeof toolstack.router.waitForAuthorization === 'function';
           let resumeAttempts = 0;
           while (result.blockedApprovals.length > 0 && canWaitForAuth && !runSignal.aborted) {
             resumeAttempts++;
@@ -272,11 +273,11 @@ export const parallelCommand: Command = {
 
             await Promise.all(
               result.blockedApprovals.map(async (a) => {
-                await (toolstack.router as any).waitForAuthorization(a.nodeId, runSignal);
+                await toolstack.router.waitForAuthorization(a.nodeId, runSignal);
               }),
             );
 
-            result = await scheduler.run(state.plan, runtime as any, runSignal, {
+            result = await scheduler.run(state.plan, runtime, runSignal, {
               initialResults: result.nodeResults,
               resumeBlockedApprovals: true,
             });

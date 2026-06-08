@@ -5,6 +5,8 @@ import {
   type LoopEvent,
   type LoopResult,
 } from '../../../core/facades/cli-run-execute.js';
+import type { FlowMode } from '../../../core/types/execution.js';
+import type { LoopOptions } from '../../../core/types/loop.js';
 import { createCliTaskRunner } from '../../../interfaces/cli/task-runner.js';
 import { createUiAuthorizationProvider } from '../../authorization/provider.js';
 import type { SalmonReporter } from '../../reporters/base.js';
@@ -35,7 +37,7 @@ export async function executeRunLoop(params: {
           permissionMode: params.permissionMode,
         });
         const runResult = await runSalmonLoop({
-          ...(params.loopParams as any),
+          ...(params.loopParams as unknown as LoopOptions),
           applyBackOnDirty: params.applyBackOnDirty,
           signal: guiOptions?.signal,
           authorizationProvider,
@@ -70,8 +72,8 @@ export async function executeRunLoop(params: {
     facade: {
       createTask: async ({ capability, request }) =>
         runSalmonLoop({
-          ...(params.loopParams as any),
-          mode: capability as any,
+          ...(params.loopParams as unknown as LoopOptions),
+          mode: capability as FlowMode,
           instruction: request.instruction,
           applyBackOnDirty: params.applyBackOnDirty,
           signal: abortController.signal,
@@ -82,8 +84,8 @@ export async function executeRunLoop(params: {
   let result: LoopResult;
   try {
     result = (await runner.run({
-      capability: String((params.loopParams as any).mode ?? 'patch'),
-      instruction: String((params.loopParams as any).instruction ?? ''),
+      capability: String(params.loopParams.mode ?? 'patch'),
+      instruction: String(params.loopParams.instruction ?? ''),
     })) as LoopResult;
   } finally {
     process.off('SIGINT', onInterrupt);
