@@ -1,5 +1,6 @@
 import { readFileSync } from '../adapters/fs/node-fs.js';
 import { initializeDefaultCalculator } from '../context/policies/pack-until-full.js';
+import { isRecord } from '../utils/serialize.js';
 import {
   getRepoAgentsConfigPath,
   getUserAgentsConfigPath,
@@ -20,13 +21,15 @@ import type { SubAgentProfile } from '../sub-agent/types.js';
  * Initializes the Core safety runtime.
  * Mounts global error handlers and ensures environment safety.
  */
+const GLOBAL_FLAG = '__SALMON_RUNTIME_INITIALIZED__' as const;
+
 export function initializeRuntime() {
   // Prevent duplicate initialization
-  if ((globalThis as any).__SALMON_RUNTIME_INITIALIZED__) return;
+  if ((globalThis as Record<string, unknown>)[GLOBAL_FLAG]) return;
 
   // Bypass interception in debug mode to allow raw console/stream output
   if (process.env.SALMONLOOP_DEBUG === 'true') {
-    (globalThis as any).__SALMON_RUNTIME_INITIALIZED__ = true;
+    (globalThis as Record<string, unknown>)[GLOBAL_FLAG] = true;
     return;
   }
 
@@ -58,12 +61,13 @@ export function initializeRuntime() {
   // 1. Terminal Output Interceptor (The Nuclear Option)
   // Monkey-patch console.error to ensure ANY direct console calls are sanitized
   const originalConsoleError = console.error;
-  console.error = (...args: any[]) => {
+  console.error = (...args: unknown[]) => {
     const sanitizedArgs = args.map((arg) => {
-      if (typeof arg === 'object' && arg !== null) {
+      if (isRecord(arg)) {
         // Drop the object structure entirely for console output to prevent UI pollution
-        const code = (arg as any).code || (arg as any).llmCode || 'TECHNICAL_ERROR';
-        const msg = (arg as any).message || 'No detail provided';
+        const code = (typeof arg.code === 'string' ? arg.code : undefined) ||
+          (typeof arg.llmCode === 'string' ? arg.llmCode : undefined) || 'TECHNICAL_ERROR';
+        const msg = (typeof arg.message === 'string' ? arg.message : undefined) || 'No detail provided';
         return `[${code}] ${msg}`;
       }
       return arg;
@@ -154,7 +158,7 @@ export function initializeRuntime() {
     getLogger().error('Uncaught Exception detected in Core runtime', error, true);
   });
 
-  (globalThis as any).__SALMON_RUNTIME_INITIALIZED__ = true;
+  (globalThis as Record<string, unknown>)[GLOBAL_FLAG] = true;
 }
 
 function loadUserAgentProfiles(registry: ReturnType<typeof createSubAgentRegistry>): void {
