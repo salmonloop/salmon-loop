@@ -42,10 +42,10 @@ export async function discoverMcpCatalog(params: {
   return {
     serverName: params.server.name,
     capabilities,
-    tools: withToolServer(params.server.name, toolsResult as any),
-    resources: withResourceServer(params.server.name, resourcesResult as any),
-    resourceTemplates: withResourceTemplateServer(params.server.name, templatesResult as any),
-    prompts: withPromptServer(params.server.name, promptsResult as any),
+    tools: withToolServer(params.server.name, toolsResult as unknown as Record<string, unknown>[]),
+    resources: withResourceServer(params.server.name, resourcesResult as unknown as Record<string, unknown>[]),
+    resourceTemplates: withResourceTemplateServer(params.server.name, templatesResult as unknown as Record<string, unknown>[]),
+    prompts: withPromptServer(params.server.name, promptsResult as unknown as Record<string, unknown>[]),
     refreshedAt: new Date().toISOString(),
     stale: false,
   };
