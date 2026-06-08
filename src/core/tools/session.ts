@@ -1375,12 +1375,12 @@ async function executeToolCalls(
       phase === Phase.EXPLORE &&
       normalizedToolName === 'fs.read' &&
       isRecord(argsValue) &&
-      typeof (argsValue as any).file !== 'string'
+      typeof argsValue.file !== 'string'
     ) {
       const instruction = extractInstructionText(messages);
       const inferred = inferHighConfidenceFiles(instruction);
       if (inferred.length > 0) {
-        argsValue = { ...(argsValue as any), file: inferred[0] };
+        argsValue = { ...argsValue, file: inferred[0] };
       }
     }
 
@@ -1643,9 +1643,10 @@ async function executeToolCalls(
       result.error?.code === 'INTERRUPT_REQUIRED' &&
       result.meta?.interrupt
     ) {
-      const err = new Error(result.error.message || 'Interrupt required');
-      (err as any).code = 'INTERRUPT_REQUIRED';
-      (err as any).interrupt = result.meta.interrupt;
+      const err = Object.assign(
+        new Error(result.error.message || 'Interrupt required'),
+        { code: 'INTERRUPT_REQUIRED', interrupt: result.meta.interrupt },
+      );
       throw err;
     }
 
@@ -1798,10 +1799,10 @@ export async function chatWithToolsStreaming(
               networkCode: extractNetworkCode(e),
               errorName: e instanceof Error ? e.name : 'UnknownError',
               errorCode:
-                typeof (e as any)?.llmCode === 'string'
-                  ? (e as any).llmCode
-                  : typeof (e as any)?.code === 'string'
-                    ? (e as any).code
+                isRecord(e) && typeof e.llmCode === 'string'
+                  ? e.llmCode
+                  : isRecord(e) && typeof e.code === 'string'
+                    ? e.code
                     : undefined,
             },
             { source: 'llm', severity: 'low', scope: 'session', phase },
