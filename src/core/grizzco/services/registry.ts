@@ -32,4 +32,25 @@ export const registry = {
   has(id: string): boolean {
     return services.has(id);
   },
+
+  /**
+   * Unregister a data service by its identifier
+   */
+  unregister(id: string): boolean {
+    return services.delete(id);
+  },
+
+  /**
+   * Clear all registered services (for testing or shutdown)
+   */
+  clear(): void {
+    services.clear();
+  },
+
+  /**
+   * List all registered service IDs
+   */
+  list(): string[] {
+    return Array.from(services.keys());
+  },
 };

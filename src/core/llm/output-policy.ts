@@ -171,6 +171,15 @@ export function emitLlmStreamDelta(params: {
   });
 }
 
+/**
+ * Clean up stream state without emitting end events.
+ * Call this when a stream errors and emitLlmStreamEnd won't be reached.
+ */
+export function cleanupLlmStream(streamId: string): void {
+  STREAM_CANONICAL_EMITTERS.delete(streamId);
+  STREAM_SANITIZATION_STATE.delete(streamId);
+}
+
 export function emitLlmStreamEnd(params: {
   emit?: (event: LoopEvent) => void;
   policy?: LlmOutputPolicy;
