@@ -852,7 +852,7 @@ export class WorkspaceSynchronizer {
           };
         };
 
-        dirtyBackup = (await createDirtyBackup()) as any;
+        dirtyBackup = await createDirtyBackup();
         getLogger().info(text.loop.applyBackCheckpointCreated());
         getLogger().info(text.loop.applyBackCheckpointLocation(dirtyBackup?.dir || ''));
         if (telemetry) {

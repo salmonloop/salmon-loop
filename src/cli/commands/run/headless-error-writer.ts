@@ -102,7 +102,7 @@ function writeAnthropicEarlyFailure(params: {
         success: false,
         reason: params.message,
         errorCode: 'USAGE_ERROR',
-      } as any,
+      } as unknown as LoopResult,
     }),
   );
 }

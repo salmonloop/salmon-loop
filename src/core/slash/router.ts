@@ -39,7 +39,9 @@ export class SlashRouter {
         details: { message: final.error?.message, lastStep: final.lastStep },
       };
     }
-    const decision = (final.data as any)?.data?.__decision as SlashDispatchDecision | undefined;
+    const decision = (final.data?.data as Record<string, unknown> | undefined)?.__decision as
+      | SlashDispatchDecision
+      | undefined;
     return decision ?? { kind: 'consumed' };
   }
 

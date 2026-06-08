@@ -167,7 +167,7 @@ export function createAcpCommandRunner(params: {
           cwd: input.cwd ?? undefined,
           env,
           outputByteLimit: computeOutputByteLimit(input),
-        } as any);
+        } as unknown as Parameters<typeof params.conn.createTerminal>[0]);
 
         while (true) {
           aborted = aborted || Boolean(input.signal?.aborted);

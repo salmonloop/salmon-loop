@@ -138,7 +138,7 @@ export async function generateResearch(ctx: ExploreCtx): Promise<ResearchCtx> {
   const supportsStreaming = supportsLlmStreaming(ctx.options.llm, Phase.RESEARCH);
 
   const localAudit: any[] = [];
-  const sourcesFromAudit = () => buildSourcesFromAudit(localAudit as any);
+  const sourcesFromAudit = () => buildSourcesFromAudit(localAudit);
 
   if (!ctx.toolstack || !toolPolicy.enabled) {
     const response = await ctx.options.llm.chat(baseMessages, {

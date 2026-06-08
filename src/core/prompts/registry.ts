@@ -92,8 +92,10 @@ export class PromptRegistry {
       throw new Error(`Unknown prompt template path: ${relativePath}`);
     }
 
-    const bunAny = globalThis as any;
-    const bun: any = bunAny.Bun;
+    const bunGlobal = globalThis as unknown as {
+      Bun?: { file?: (url: URL) => { text(): Promise<string> } };
+    };
+    const bun = bunGlobal.Bun;
     if (bun?.file) {
       return bun.file(url).text();
     }

@@ -26,7 +26,9 @@ export function toNodeReadableStream(stream: unknown): NodeJS.ReadableStream | u
     return stream as NodeJS.ReadableStream;
   }
   if (typeof (stream as { getReader?: unknown }).getReader === 'function') {
-    return Readable.fromWeb(stream as any) as unknown as NodeJS.ReadableStream;
+    return Readable.fromWeb(
+      stream as unknown as import('stream/web').ReadableStream<Uint8Array>,
+    ) as unknown as NodeJS.ReadableStream;
   }
   return undefined;
 }

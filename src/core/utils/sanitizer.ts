@@ -61,7 +61,7 @@ export function sanitizeObject(obj: any, maxDepth = MAX_DEPTH, depth = 0): any {
   const keys = Reflect.ownKeys(obj);
 
   for (const key of keys) {
-    const value = (obj as any)[key];
+    const value = obj[key];
     const keyStr = String(key);
 
     // High risk fields that definitely need string-level sanitization

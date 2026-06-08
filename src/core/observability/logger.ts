@@ -295,7 +295,7 @@ export class Logger {
     } else {
       this.verboseLevel = level;
     }
-    const maybeVerbose = this.reporter as any;
+    const maybeVerbose = this.reporter as unknown as { setVerbose?: (level: LogLevel) => void };
     if (typeof maybeVerbose?.setVerbose === 'function') {
       maybeVerbose.setVerbose(this.verboseLevel);
     }

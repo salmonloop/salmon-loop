@@ -44,7 +44,7 @@ export class ToolCallAccumulator {
     }
   }
 
-  drain(): any[] {
+  drain(): unknown[] {
     if (this.byId.size === 0 && this.unkeyed.length === 0) return [];
 
     const out: unknown[] = [];
@@ -58,7 +58,7 @@ export class ToolCallAccumulator {
     this.byId.clear();
     this.unkeyed.length = 0;
 
-    return out as any[];
+    return out;
   }
 
   hasAccumulated(): boolean {

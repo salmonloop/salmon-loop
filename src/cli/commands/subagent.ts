@@ -39,7 +39,7 @@ export const subAgentCommand: Command = {
     }
 
     const verb = parts[0].toLowerCase();
-    if (!subAgentVerbSchema.options.includes(verb as any)) {
+    if (!(subAgentVerbSchema.options as readonly string[]).includes(verb)) {
       const search = verb;
       return subAgentVerbSchema.options
         .filter((candidate) => candidate.startsWith(search))

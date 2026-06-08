@@ -115,7 +115,7 @@ export class AnthropicStreamReporter implements SalmonReporter {
     this.emit(
       encodeAnthropicEnd({
         sessionId: this.sessionId,
-        loopResult: { success: false, reason: error.message } as any,
+        loopResult: { success: false, reason: error.message } as unknown as LoopResult,
       }),
     );
   }

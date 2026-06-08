@@ -67,7 +67,15 @@ export class StrataSyncWorker implements IMergeWorker {
 
       // Invoke legacy merge logic
       // private method: async mergeFileContents(repoPath, base, user, ai, options?)
-      const result = await (engine as any).mergeFileContents(
+      const engineMethods = engine as unknown as {
+        mergeFileContents: (
+          repoPath: string,
+          base: Buffer,
+          user: Buffer,
+          ai: Buffer,
+        ) => Promise<{ merged: Buffer; conflict: boolean }>;
+      };
+      const result = await engineMethods.mergeFileContents(
         this.git.repoPath,
         baseContent,
         userContent,

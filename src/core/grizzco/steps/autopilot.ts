@@ -544,7 +544,7 @@ export async function runAutopilot(ctx: PreflightCtx): Promise<AutopilotCtx> {
         tools: [],
         toolChoice: 'none',
       });
-  const content = String((assistant as any)?.content ?? '').trim();
+  const content = String(assistant?.content ?? '').trim();
 
   if (!supportsTools) {
     emitLlmOutput({
